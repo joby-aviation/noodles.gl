@@ -70,6 +70,7 @@ type InputComponent = React.ComponentType<{
   id: OpId
   field: Field
   disabled: boolean
+  hideLabel?: boolean
 }>
 
 export interface HandleOptions {
@@ -420,6 +421,7 @@ export function VectorFieldComponent({
   opId,
   fieldName,
   expandTimeline,
+  hideLabel,
 }: {
   id: OpId
   field: Vec2Field | Vec3Field | Point2DField | Point3DField
@@ -427,6 +429,7 @@ export function VectorFieldComponent({
   opId?: string
   fieldName?: string
   expandTimeline?: () => void
+  hideLabel?: boolean
 }) {
   const [value, setValue] = useState<
     { [key: string]: number } | [number, number] | [number, number, number]
@@ -510,6 +513,65 @@ export function VectorFieldComponent({
     },
     [field, isPoint3D, commitChange]
   )
+
+  if (hideLabel) {
+    return (
+      <>
+        <div id={id} className={cx(s.fieldInputWrapper, s.fieldInputWrapperVector)} style={{ flex: 1 }}>
+          {keys.map((key, i) => {
+            const objectKey = field.returnType === 'tuple' ? i : key
+            return (
+              <VectorNumberInput
+                key={key}
+                keyName={key}
+                value={value[objectKey]}
+                objectKey={objectKey}
+                disabled={disabled}
+                onChange={onChange}
+                onCommit={onCommit}
+                onInteractionStart={captureStart}
+              />
+            )
+          })}
+          {isPointField && (
+            <Button
+              icon="pi pi-map-marker"
+              className={s.fieldLookupButton}
+              onClick={() => {
+                captureStart()
+                setGeocodingOpen(true)
+              }}
+              title="Lookup Location"
+              size="small"
+              disabled={disabled}
+              severity="secondary"
+              text
+            />
+          )}
+          {opId && fieldName && (
+            <VectorKeyframeIndicator
+              opId={opId}
+              fieldName={fieldName}
+              keys={keys}
+              value={value as Record<string | number, number>}
+              returnType={field.returnType}
+              disabled={disabled}
+              onKeyframeAdded={expandTimeline}
+            />
+          )}
+        </div>
+        {isPointField && (
+          <GeocodingDialog
+            open={geocodingOpen}
+            onOpenChange={setGeocodingOpen}
+            mode="update-field"
+            initialValue={getCurrentCoordinates()}
+            onLocationSelected={handleLocationSelected}
+          />
+        )}
+      </>
+    )
+  }
 
   return (
     <div className={s.fieldWrapper}>
@@ -1585,10 +1647,12 @@ export function NumberFieldComponent({
   id,
   field,
   disabled,
+  hideLabel,
 }: {
   id: OpId
   field: NumberField
   disabled: boolean
+  hideLabel?: boolean
 }) {
   const [value, setValue] = useState<number>(guardAccessorFallback(field.value))
   const { captureStart, commitChange } = usePropertyHistory()
@@ -1608,6 +1672,27 @@ export function NumberFieldComponent({
     },
     [field]
   )
+
+  if (hideLabel) {
+    return (
+      <DraggableNumberInput
+        id={id}
+        value={value}
+        disabled={disabled}
+        onChange={handleChange}
+        onCommit={() => commitChange('Change value')}
+        onInteractionStart={captureStart}
+        min={field.min}
+        max={field.max}
+        softMin={field.softMin}
+        softMax={field.softMax}
+        step={field.step}
+        className={cx(s.fieldInput, s.fieldInputNumber)}
+        title={value.toString()}
+        style={{ flex: 1 }}
+      />
+    )
+  }
 
   return (
     <div className={s.fieldWrapper}>
@@ -1739,10 +1824,12 @@ export function ColorFieldComponent({
   id,
   field,
   disabled,
+  hideLabel,
 }: {
   id: OpId
   field: ColorField
   disabled: boolean
+  hideLabel?: boolean
 }) {
   const [value, setValue] = useState(guardAccessorFallback(field.value))
   const { captureStart, commitChange } = usePropertyHistory()
@@ -1761,6 +1848,20 @@ export function ColorFieldComponent({
     },
     [field]
   )
+
+  if (hideLabel) {
+    return (
+      <div className={s.fieldInputWrapper} style={{ flex: 1 }}>
+        <ColorSwatch
+          value={value}
+          onChange={handleColorChange}
+          disabled={disabled}
+          onPickerOpen={captureStart}
+          onPickerClose={() => commitChange('Change color')}
+        />
+      </div>
+    )
+  }
 
   return (
     <div className={s.fieldWrapper}>

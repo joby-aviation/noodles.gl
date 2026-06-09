@@ -1,5 +1,5 @@
 import { InputText } from 'primereact/inputtext'
-import { type ReactNode, useCallback, useEffect, useState } from 'react'
+import { type ReactNode, cloneElement, isValidElement, useCallback, useEffect, useState } from 'react'
 import { InfoCircledIcon } from '@radix-ui/react-icons'
 import type { Field, IField } from '../fields'
 import type { OpId } from '../utils/id-utils'
@@ -124,7 +124,6 @@ export function AttributeFieldWrapper({
     <div className={s.fieldWrapper}>
       <label className={s.fieldLabel} htmlFor={id}>
         {id}
-        <AttributeToggle mode={mode} onChange={handleModeChange} disabled={disabled} />
         {field.autoDetected && (
           <span
             style={{
@@ -140,51 +139,55 @@ export function AttributeFieldWrapper({
         )}
       </label>
 
-      {mode === 'uniform' && children}
+      <div style={{ display: 'flex', gap: '0.25rem', alignItems: 'center', flex: 2 }}>
+        <AttributeToggle mode={mode} onChange={handleModeChange} disabled={disabled} />
 
-      {mode === 'attribute' && (
-        <InputText
-          id={id}
-          value={attributeName}
-          onChange={e => {
-            handleAttributeNameChange(e.target.value)
-            field.autoDetected = false
-          }}
-          onBlur={() => commitChange('Change attribute name')}
-          onFocus={captureStart}
-          disabled={disabled}
-          placeholder={field.defaultAttribute}
-          className={s.fieldInput}
-          title={field.autoDetected ? `Auto-detected from '${attributeName}' column` : `Read from attribute: ${attributeName || field.defaultAttribute}`}
-        />
-      )}
+        {mode === 'uniform' && isValidElement(children) && cloneElement(children, { hideLabel: true })}
 
-      {mode === 'expression' && (
-        <div style={{ display: 'flex', gap: '0.25rem', alignItems: 'center' }}>
+        {mode === 'attribute' && (
           <InputText
             id={id}
-            value={expressionValue}
+            value={attributeName}
             onChange={e => {
-              handleExpressionChange(e.target.value)
+              handleAttributeNameChange(e.target.value)
               field.autoDetected = false
             }}
-            onBlur={() => commitChange('Change expression')}
+            onBlur={() => commitChange('Change attribute name')}
             onFocus={captureStart}
             disabled={disabled}
-            placeholder="d.value"
+            placeholder={field.defaultAttribute}
             className={s.fieldInput}
             style={{ flex: 1 }}
-            title={field.autoDetected ? `Auto-detected expression: ${expressionValue}` : `Expression: ${expressionValue}`}
+            title={field.autoDetected ? `Auto-detected from '${attributeName}' column` : `Read from attribute: ${attributeName || field.defaultAttribute}`}
           />
-          <InfoCircledIcon
-            style={{
-              width: '16px',
-              height: '16px',
-              color: '#888',
-              cursor: 'help',
-              flexShrink: 0,
-            }}
-            title={`Expression Syntax Help:
+        )}
+
+        {mode === 'expression' && (
+          <>
+            <InputText
+              id={id}
+              value={expressionValue}
+              onChange={e => {
+                handleExpressionChange(e.target.value)
+                field.autoDetected = false
+              }}
+              onBlur={() => commitChange('Change expression')}
+              onFocus={captureStart}
+              disabled={disabled}
+              placeholder="d.value"
+              className={s.fieldInput}
+              style={{ flex: 1 }}
+              title={field.autoDetected ? `Auto-detected expression: ${expressionValue}` : `Expression: ${expressionValue}`}
+            />
+            <InfoCircledIcon
+              style={{
+                width: '16px',
+                height: '16px',
+                color: '#888',
+                cursor: 'help',
+                flexShrink: 0,
+              }}
+              title={`Expression Syntax Help:
 • Access current item: d.columnName
 • Multi-component: [d.lng, d.lat, 0]
 • Conditionals: d.value > 100 ? [255,0,0,255] : [0,255,0,255]
@@ -200,9 +203,10 @@ Examples:
 • Position: [d.lng, d.lat, 0]
 • Color: [d.r, d.g, d.b, 255]
 • Radius: d.population / 1000`}
-          />
-        </div>
-      )}
+            />
+          </>
+        )}
+      </div>
     </div>
   )
 }
