@@ -15,13 +15,6 @@
       "targetHandle": "par.data"
     },
     {
-      "id": "/unemployment-color.out.color->/geojson-layer.par.getFillColor",
-      "source": "/unemployment-color",
-      "target": "/geojson-layer",
-      "sourceHandle": "out.color",
-      "targetHandle": "par.getFillColor"
-    },
-    {
       "source": "/map-range",
       "sourceHandle": "out.scaled",
       "target": "/unemployment-color",
@@ -69,7 +62,7 @@
     "y": 0,
     "zoom": 0.8
   },
-  "version": 14,
+  "version": 15,
   "name": "US County Unemployment",
   "editorSettings": {
     "layoutMode": "noodles-on-top",
@@ -86,7 +79,7 @@
         "locked": false
       },
       "position": {
-        "x": 100,
+        "x": 200,
         "y": 100
       }
     },
@@ -94,8 +87,8 @@
       "type": "MaplibreBasemapOp",
       "id": "/maplibre-basemap",
       "position": {
-        "x": 100,
-        "y": 450
+        "x": 200,
+        "y": 220
       },
       "data": {
         "inputs": {
@@ -115,8 +108,8 @@
       "id": "/unemployment",
       "type": "CreateAttributeOp",
       "position": {
-        "x": 100,
-        "y": 850
+        "x": 200,
+        "y": 340
       },
       "data": {
         "inputs": {
@@ -132,8 +125,8 @@
       "type": "ExpressionOp",
       "id": "/expression",
       "position": {
-        "x": 500,
-        "y": 100
+        "x": 600,
+        "y": 220
       },
       "data": {
         "inputs": {
@@ -146,8 +139,8 @@
       "type": "ExtentOp",
       "id": "/extent",
       "position": {
-        "x": 900,
-        "y": 100
+        "x": 1000,
+        "y": 220
       },
       "data": {
         "inputs": {},
@@ -158,8 +151,8 @@
       "type": "MapRangeOp",
       "id": "/map-range",
       "position": {
-        "x": 1300,
-        "y": 100
+        "x": 1400,
+        "y": 220
       },
       "data": {
         "inputs": {
@@ -176,7 +169,7 @@
         "locked": false
       },
       "position": {
-        "x": 1700,
+        "x": 1800,
         "y": 100
       }
     },
@@ -192,7 +185,7 @@
         "locked": false
       },
       "position": {
-        "x": 2100,
+        "x": 600,
         "y": 100
       }
     },
@@ -204,7 +197,7 @@
         "locked": false
       },
       "position": {
-        "x": 2500,
+        "x": 1000,
         "y": 100
       }
     },
@@ -228,7 +221,7 @@
         "locked": false
       },
       "position": {
-        "x": 2900,
+        "x": 1400,
         "y": 100
       }
     }
@@ -243,6 +236,5 @@
     },
     "definitionVersion": "0.4.0",
     "revisionHistory": []
-  },
-  "name": "US County Unemployment"
+  }
 }

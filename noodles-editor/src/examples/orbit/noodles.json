@@ -4,7 +4,7 @@
       "id": "/orbitview-0",
       "type": "OrbitViewOp",
       "position": {
-        "x": 100,
+        "x": 200,
         "y": 100
       },
       "data": {
@@ -20,8 +20,8 @@
       "id": "/expression-0",
       "type": "ExpressionOp",
       "position": {
-        "x": 100,
-        "y": 450
+        "x": 200,
+        "y": 220
       },
       "data": {
         "inputs": {
@@ -34,8 +34,8 @@
       "id": "/scenegraphlayer-0",
       "type": "ScenegraphLayerOp",
       "position": {
-        "x": 500,
-        "y": 100
+        "x": 600,
+        "y": 220
       },
       "data": {
         "inputs": {
@@ -55,7 +55,7 @@
         "locked": false
       },
       "position": {
-        "x": 900,
+        "x": 600,
         "y": 100
       }
     },
@@ -67,7 +67,7 @@
         "locked": false
       },
       "position": {
-        "x": 1300,
+        "x": 1000,
         "y": 100
       }
     }
@@ -107,7 +107,7 @@
     "y": 0,
     "zoom": 0.8
   },
-  "version": 6,
+  "version": 15,
   "timeline": {
     "sheetsById": {
       "Noodles": {

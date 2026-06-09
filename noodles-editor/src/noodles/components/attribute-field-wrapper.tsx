@@ -44,37 +44,22 @@ export function AttributeFieldWrapper({
   disabled,
   children,
 }: AttributeFieldWrapperProps) {
-  const { captureStart, commitChange } = usePropertyHistory()
+  const { captureStart, commitChange} = usePropertyHistory()
 
-  // Initialize mode from field value, but also initialize attribute/expression values
-  const initialValue = field.value
-  const initialMode = getAttributeMode(initialValue)
+  // Always compute mode from current field value (not from stale state)
+  const currentValue = field.value
+  const mode = getAttributeMode(currentValue)
 
-  const [mode, setMode] = useState<AttributeMode>(initialMode)
   const [attributeName, setAttributeName] = useState<string>(() =>
-    isAttributeReference(initialValue) ? (initialValue as { attributeName: string }).attributeName : ''
+    isAttributeReference(currentValue) ? (currentValue as { attributeName: string }).attributeName : ''
   )
   const [expressionValue, setExpressionValue] = useState<string>(() =>
-    isExpression(initialValue) ? (initialValue as { expression: string }).expression : ''
+    isExpression(currentValue) ? (currentValue as { expression: string }).expression : ''
   )
 
   useEffect(() => {
-    // Immediately sync with current field value on mount to handle deserialized state
-    const currentValue = field.value
-    const currentMode = getAttributeMode(currentValue)
-    setMode(currentMode)
-
-    if (isAttributeReference(currentValue)) {
-      setAttributeName((currentValue as { attributeName: string }).attributeName)
-    } else if (isExpression(currentValue)) {
-      setExpressionValue((currentValue as { expression: string }).expression)
-    }
-
-    // Subscribe to future changes
+    // Subscribe to field changes to keep local state in sync
     const sub = field.subscribe(newVal => {
-      const newMode = getAttributeMode(newVal)
-      setMode(newMode)
-
       if (isAttributeReference(newVal)) {
         setAttributeName((newVal as { attributeName: string }).attributeName)
       } else if (isExpression(newVal)) {
@@ -110,7 +95,7 @@ export function AttributeFieldWrapper({
       field.endBatch()
 
       commitChange(`Change to ${newMode} mode`)
-      setMode(newMode)
+      // Mode will update automatically on next render from field.value
     },
     [field, captureStart, commitChange]
   )

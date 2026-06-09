@@ -4,7 +4,7 @@
     "y": 0,
     "zoom": 0.8
   },
-  "version": 14,
+  "version": 15,
   "name": "EV Chargers with Live API Data",
   "edges": [
     {
@@ -109,7 +109,7 @@
       "id": "/centroid",
       "type": "GeocoderOp",
       "position": {
-        "x": 100,
+        "x": 200,
         "y": 100
       },
       "data": {
@@ -123,8 +123,8 @@
       "id": "/accessor-0",
       "type": "CreateAttributeOp",
       "position": {
-        "x": 100,
-        "y": 450
+        "x": 1000,
+        "y": 220
       },
       "data": {
         "inputs": {
@@ -140,7 +140,7 @@
       "id": "/duckdb-0",
       "type": "DuckDbOp",
       "position": {
-        "x": 500,
+        "x": 600,
         "y": 100
       },
       "resizing": false,
@@ -166,7 +166,7 @@
       "id": "/boundingbox-0",
       "type": "BoundingBoxOp",
       "position": {
-        "x": 900,
+        "x": 1000,
         "y": 100
       },
       "data": {
@@ -180,8 +180,8 @@
       "id": "/scatterplotlayer-0",
       "type": "ScatterplotLayerOp",
       "position": {
-        "x": 900,
-        "y": 450
+        "x": 1400,
+        "y": 220
       },
       "data": {
         "inputs": {
@@ -196,8 +196,8 @@
       "id": "/heatmaplayer-0",
       "type": "HeatmapLayerOp",
       "position": {
-        "x": 900,
-        "y": 950
+        "x": 1400,
+        "y": 340
       },
       "data": {
         "inputs": {
@@ -211,7 +211,7 @@
       "id": "/viewstate-0",
       "type": "MapViewStateOp",
       "position": {
-        "x": 1300,
+        "x": 1400,
         "y": 100
       },
       "data": {
@@ -225,8 +225,8 @@
       "id": "/switch-0",
       "type": "SwitchOp",
       "position": {
-        "x": 1300,
-        "y": 450
+        "x": 1800,
+        "y": 220
       },
       "data": {
         "inputs": {},
@@ -237,7 +237,7 @@
       "id": "/basemap-0",
       "type": "MaplibreBasemapOp",
       "position": {
-        "x": 1700,
+        "x": 1800,
         "y": 100
       },
       "data": {
@@ -253,7 +253,7 @@
         "locked": false
       },
       "position": {
-        "x": 2100,
+        "x": 2200,
         "y": 100
       }
     },
@@ -261,7 +261,7 @@
       "id": "/out",
       "type": "OutOp",
       "position": {
-        "x": 2500,
+        "x": 2600,
         "y": 100
       },
       "data": {
@@ -310,6 +310,5 @@
       "RgR7etiO4UU4Vc5h",
       "fUMQMdteEoY7aslv"
     ]
-  },
-  "name": "EV Chargers with Live API Data"
+  }
 }

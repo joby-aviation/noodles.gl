@@ -174,7 +174,7 @@
     "y": 0,
     "zoom": 0.8
   },
-  "version": 14,
+  "version": 15,
   "name": "World Flights",
   "editorSettings": {
     "layoutMode": "noodles-on-top",
@@ -191,7 +191,7 @@
         "locked": false
       },
       "position": {
-        "x": 100,
+        "x": 200,
         "y": 100
       }
     },
@@ -199,8 +199,8 @@
       "type": "MaplibreBasemapOp",
       "id": "/maplibre-basemap",
       "position": {
-        "x": 100,
-        "y": 450
+        "x": 200,
+        "y": 220
       },
       "data": {
         "inputs": {
@@ -220,8 +220,8 @@
       "type": "NumberOp",
       "id": "/time",
       "position": {
-        "x": 100,
-        "y": 850
+        "x": 200,
+        "y": 340
       },
       "data": {
         "inputs": {
@@ -234,8 +234,8 @@
       "id": "/origin-country",
       "type": "CreateAttributeOp",
       "position": {
-        "x": 100,
-        "y": 1200
+        "x": 600,
+        "y": 340
       },
       "data": {
         "inputs": {
@@ -251,8 +251,8 @@
       "id": "/timestamps",
       "type": "CreateAttributeOp",
       "position": {
-        "x": 100,
-        "y": 1580
+        "x": 600,
+        "y": 460
       },
       "data": {
         "inputs": {
@@ -268,8 +268,8 @@
       "id": "/path",
       "type": "CreateAttributeOp",
       "position": {
-        "x": 100,
-        "y": 1960
+        "x": 600,
+        "y": 580
       },
       "data": {
         "inputs": {
@@ -285,8 +285,8 @@
       "id": "/properties",
       "type": "CreateAttributeOp",
       "position": {
-        "x": 100,
-        "y": 2340
+        "x": 600,
+        "y": 700
       },
       "data": {
         "inputs": {
@@ -302,8 +302,8 @@
       "id": "/position",
       "type": "CreateAttributeOp",
       "position": {
-        "x": 100,
-        "y": 2720
+        "x": 600,
+        "y": 820
       },
       "data": {
         "inputs": {
@@ -325,16 +325,16 @@
         "locked": false
       },
       "position": {
-        "x": 500,
-        "y": 100
+        "x": 1000,
+        "y": 220
       }
     },
     {
       "type": "CodeOp",
       "id": "/code",
       "position": {
-        "x": 500,
-        "y": 450
+        "x": 600,
+        "y": 100
       },
       "resizing": false,
       "data": {
@@ -371,8 +371,8 @@
         "locked": false
       },
       "position": {
-        "x": 900,
-        "y": 100
+        "x": 600,
+        "y": 220
       }
     },
     {
@@ -387,16 +387,16 @@
         "locked": false
       },
       "position": {
-        "x": 900,
-        "y": 600
+        "x": 1400,
+        "y": 220
       }
     },
     {
       "type": "TimeSeriesOp",
       "id": "/time-series",
       "position": {
-        "x": 900,
-        "y": 1080
+        "x": 1000,
+        "y": 340
       },
       "data": {
         "inputs": {},
@@ -407,8 +407,8 @@
       "type": "ScatterplotLayerOp",
       "id": "/scatterplot-layer",
       "position": {
-        "x": 1300,
-        "y": 100
+        "x": 1400,
+        "y": 340
       },
       "data": {
         "inputs": {
@@ -427,7 +427,7 @@
         "locked": false
       },
       "position": {
-        "x": 1700,
+        "x": 1000,
         "y": 100
       }
     },
@@ -451,7 +451,7 @@
         "locked": false
       },
       "position": {
-        "x": 2100,
+        "x": 1400,
         "y": 100
       }
     }
@@ -513,6 +513,5 @@
     },
     "definitionVersion": "0.4.0",
     "revisionHistory": []
-  },
-  "name": "World Flights"
+  }
 }

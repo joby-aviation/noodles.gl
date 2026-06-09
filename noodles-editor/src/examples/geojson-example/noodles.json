@@ -8,13 +8,6 @@
       "targetHandle": "par.vis"
     },
     {
-      "id": "/fill-color.out.color->/geojson-layer.par.getFillColor",
-      "source": "/fill-color",
-      "target": "/geojson-layer",
-      "sourceHandle": "out.color",
-      "targetHandle": "par.getFillColor"
-    },
-    {
       "id": "/geojson-layer.out.layer->/deck.par.layers",
       "source": "/geojson-layer",
       "target": "/deck",
@@ -62,7 +55,7 @@
     "y": 0,
     "zoom": 0.8
   },
-  "version": 14,
+  "version": 15,
   "name": "GeoJSON BART Stations",
   "editorSettings": {
     "layoutMode": "noodles-on-top",
@@ -79,7 +72,7 @@
         "locked": false
       },
       "position": {
-        "x": 100,
+        "x": 200,
         "y": 100
       }
     },
@@ -93,16 +86,16 @@
         "locked": false
       },
       "position": {
-        "x": 100,
-        "y": 450
+        "x": 200,
+        "y": 220
       }
     },
     {
       "type": "MaplibreBasemapOp",
       "id": "/maplibre-basemap",
       "position": {
-        "x": 100,
-        "y": 800
+        "x": 200,
+        "y": 340
       },
       "data": {
         "inputs": {
@@ -122,8 +115,8 @@
       "id": "/line-color",
       "type": "CreateAttributeOp",
       "position": {
-        "x": 100,
-        "y": 1200
+        "x": 600,
+        "y": 100
       },
       "data": {
         "inputs": {
@@ -139,8 +132,8 @@
       "id": "/text",
       "type": "CreateAttributeOp",
       "position": {
-        "x": 100,
-        "y": 1580
+        "x": 600,
+        "y": 220
       },
       "data": {
         "inputs": {
@@ -163,12 +156,13 @@
           "getLineWidth": 100,
           "lineWidthMinPixels": 4,
           "extruded": true,
-          "getElevation": 30
+          "getElevation": 30,
+          "getFillColor": "#01017e"
         },
         "locked": false
       },
       "position": {
-        "x": 500,
+        "x": 1000,
         "y": 100
       }
     },
@@ -180,7 +174,7 @@
         "locked": false
       },
       "position": {
-        "x": 900,
+        "x": 1400,
         "y": 100
       }
     },
@@ -204,7 +198,7 @@
         "locked": false
       },
       "position": {
-        "x": 1300,
+        "x": 1800,
         "y": 100
       }
     }
@@ -226,6 +220,5 @@
       "-AcuXX9WdPaXNlc4",
       "hPcEOr80dLTuA80M"
     ]
-  },
-  "name": "GeoJSON BART Stations"
+  }
 }
