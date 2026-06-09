@@ -221,7 +221,7 @@
         "inputs": {
           "name": "sourcePosition",
           "expression": "[d.pickup_longitude, d.pickup_latitude]",
-          "size": 3,
+          "size": 2,
           "type": "float"
         },
         "locked": false
@@ -238,7 +238,7 @@
         "inputs": {
           "name": "targetPosition",
           "expression": "[d.dropoff_longitude, d.dropoff_latitude]",
-          "size": 3,
+          "size": 2,
           "type": "float"
         },
         "locked": false
