@@ -112,7 +112,10 @@
           "coverage": 1,
           "upperPercentile": 100,
           "colorAggregation": "MEAN",
-          "elevationAggregation": "SUM"
+          "elevationAggregation": "SUM",
+          "getPosition": {
+            "attributeName": "position"
+          }
         },
         "locked": false
       },

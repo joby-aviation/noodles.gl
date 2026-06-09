@@ -240,7 +240,9 @@
           "opacity": 0.8,
           "getLineColor": "#ffffffff",
           "getRadius": 10,
-          "getPosition": "sourcePosition",
+          "getPosition": {
+            "attributeName": "sourcePosition"
+          },
           "getFillColor": "#8d12af"
         },
         "locked": false
@@ -258,7 +260,9 @@
           "opacity": 0.8,
           "getLineColor": "#ffffffff",
           "getRadius": 10,
-          "getPosition": "targetPosition",
+          "getPosition": {
+            "attributeName": "targetPosition"
+          },
           "getFillColor": "#105b89"
         },
         "locked": false
