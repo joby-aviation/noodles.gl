@@ -141,34 +141,6 @@
       }
     },
     {
-      "type": "ColorOp",
-      "id": "/pickup",
-      "position": {
-        "x": 200,
-        "y": 340
-      },
-      "data": {
-        "inputs": {
-          "color": "#8d12af"
-        },
-        "locked": false
-      }
-    },
-    {
-      "type": "ColorOp",
-      "id": "/dropoff",
-      "position": {
-        "x": 200,
-        "y": 460
-      },
-      "data": {
-        "inputs": {
-          "color": "#105b89"
-        },
-        "locked": false
-      }
-    },
-    {
       "type": "BlendingOp",
       "id": "/blending",
       "position": {

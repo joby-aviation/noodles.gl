@@ -15,13 +15,6 @@
       "targetHandle": "par.data"
     },
     {
-      "source": "/map-range-1",
-      "sourceHandle": "out.scaled",
-      "target": "/geojson-layer",
-      "targetHandle": "par.getElevation",
-      "id": "/map-range-1.out.scaled->/geojson-layer.par.getElevation"
-    },
-    {
       "source": "/map-range",
       "sourceHandle": "out.scaled",
       "target": "/population-color",

@@ -8,20 +8,6 @@
       "targetHandle": "par.vis"
     },
     {
-      "id": "/color-ramp.out.color->/geojson-layer.par.getLineColor",
-      "source": "/color-ramp",
-      "target": "/geojson-layer",
-      "sourceHandle": "out.color",
-      "targetHandle": "par.getLineColor"
-    },
-    {
-      "id": "/color-ramp.out.color->/trips-layer.par.getColor",
-      "source": "/color-ramp",
-      "target": "/trips-layer",
-      "sourceHandle": "out.color",
-      "targetHandle": "par.getColor"
-    },
-    {
       "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap",
       "source": "/maplibre-basemap",
       "target": "/deck",
@@ -76,13 +62,6 @@
       "target": "/geojson-layer",
       "targetHandle": "par.data",
       "id": "/data-source.out.data->/geojson-layer.par.data"
-    },
-    {
-      "source": "/color-ramp",
-      "sourceHandle": "out.color",
-      "target": "/scatterplot-layer",
-      "targetHandle": "par.getFillColor",
-      "id": "/color-ramp.out.color->/scatterplot-layer.par.getFillColor"
     },
     {
       "id": "/origin-country.out.data->/color-ramp.par.data",
