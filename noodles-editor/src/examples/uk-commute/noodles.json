@@ -159,7 +159,7 @@
       "id": "/blending",
       "position": {
         "x": 200,
-        "y": 460
+        "y": 220
       },
       "data": {
         "inputs": {
@@ -172,8 +172,8 @@
       "type": "MaplibreBasemapOp",
       "id": "/maplibre-basemap",
       "position": {
-        "x": 200,
-        "y": 580
+        "x": 1800,
+        "y": 400
       },
       "data": {
         "inputs": {
@@ -194,7 +194,7 @@
       "type": "CreateAttributeOp",
       "position": {
         "x": 600,
-        "y": 100
+        "y": 160
       },
       "data": {
         "inputs": {
@@ -211,7 +211,7 @@
       "type": "CreateAttributeOp",
       "position": {
         "x": 600,
-        "y": 220
+        "y": 280
       },
       "data": {
         "inputs": {
@@ -237,7 +237,7 @@
         "locked": false
       },
       "position": {
-        "x": 1000,
+        "x": 1400,
         "y": 100
       }
     },
@@ -254,7 +254,7 @@
         "locked": false
       },
       "position": {
-        "x": 1000,
+        "x": 1400,
         "y": 220
       }
     },
@@ -271,7 +271,7 @@
         "locked": false
       },
       "position": {
-        "x": 1000,
+        "x": 1400,
         "y": 340
       }
     },
@@ -283,8 +283,8 @@
         "locked": false
       },
       "position": {
-        "x": 1400,
-        "y": 100
+        "x": 1800,
+        "y": 220
       }
     },
     {
@@ -307,8 +307,8 @@
         "locked": false
       },
       "position": {
-        "x": 1800,
-        "y": 100
+        "x": 2200,
+        "y": 220
       }
     }
   ],

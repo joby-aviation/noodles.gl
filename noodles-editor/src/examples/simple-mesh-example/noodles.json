@@ -80,8 +80,8 @@
       "type": "MaplibreBasemapOp",
       "id": "/maplibre-basemap",
       "position": {
-        "x": 200,
-        "y": 220
+        "x": 2600,
+        "y": 280
       },
       "data": {
         "inputs": {
@@ -159,7 +159,7 @@
         "locked": false
       },
       "position": {
-        "x": 1800,
+        "x": 2200,
         "y": 100
       }
     },
@@ -171,7 +171,7 @@
         "locked": false
       },
       "position": {
-        "x": 2200,
+        "x": 2600,
         "y": 100
       }
     },
@@ -195,7 +195,7 @@
         "locked": false
       },
       "position": {
-        "x": 2600,
+        "x": 3000,
         "y": 100
       }
     }

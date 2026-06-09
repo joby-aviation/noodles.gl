@@ -45,8 +45,8 @@
       "id": "/basemap",
       "type": "MaplibreBasemapOp",
       "position": {
-        "x": 200,
-        "y": 100
+        "x": 1000,
+        "y": 280
       },
       "data": {
         "inputs": {
@@ -66,8 +66,8 @@
       "id": "/point-cloud",
       "type": "Tile3DLayerOp",
       "position": {
-        "x": 200,
-        "y": 220
+        "x": 600,
+        "y": 100
       },
       "data": {
         "inputs": {
@@ -172,7 +172,7 @@
       "id": "/renderer",
       "type": "DeckRendererOp",
       "position": {
-        "x": 600,
+        "x": 1000,
         "y": 100
       },
       "data": {
@@ -184,7 +184,7 @@
       "id": "/out",
       "type": "OutOp",
       "position": {
-        "x": 1000,
+        "x": 1400,
         "y": 100
       },
       "data": {

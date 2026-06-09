@@ -5,8 +5,8 @@
       "id": "/maplibre-basemap",
       "type": "MaplibreBasemapOp",
       "position": {
-        "x": 200,
-        "y": 100
+        "x": 1000,
+        "y": 280
       },
       "data": {
         "inputs": {
@@ -26,8 +26,8 @@
       "id": "/custom-layer",
       "type": "CustomMapLibreLayerOp",
       "position": {
-        "x": 200,
-        "y": 220
+        "x": 600,
+        "y": 100
       },
       "data": {
         "inputs": {
@@ -45,7 +45,7 @@
       "id": "/deck-renderer",
       "type": "DeckRendererOp",
       "position": {
-        "x": 600,
+        "x": 1000,
         "y": 100
       },
       "data": {
@@ -59,7 +59,7 @@
       "id": "/out",
       "type": "OutOp",
       "position": {
-        "x": 1000,
+        "x": 1400,
         "y": 100
       },
       "data": {

@@ -5,8 +5,8 @@
       "id": "/maplibre-basemap",
       "type": "MaplibreBasemapOp",
       "position": {
-        "x": 200,
-        "y": 100
+        "x": 1800,
+        "y": 280
       },
       "data": {
         "inputs": {
@@ -37,7 +37,7 @@
       "type": "CreateAttributeOp",
       "position": {
         "x": 600,
-        "y": 220
+        "y": 100
       },
       "data": {
         "inputs": {
@@ -51,7 +51,7 @@
       "id": "/icon-layer",
       "type": "IconLayerOp",
       "position": {
-        "x": 1000,
+        "x": 1400,
         "y": 100
       },
       "data": {
@@ -67,7 +67,7 @@
       "id": "/deck-renderer",
       "type": "DeckRendererOp",
       "position": {
-        "x": 600,
+        "x": 1800,
         "y": 100
       },
       "data": {

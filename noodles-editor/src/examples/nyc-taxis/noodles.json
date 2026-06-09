@@ -123,8 +123,8 @@
       "type": "MaplibreBasemapOp",
       "id": "/maplibre-basemap",
       "position": {
-        "x": 200,
-        "y": 220
+        "x": 2200,
+        "y": 400
       },
       "data": {
         "inputs": {
@@ -173,7 +173,7 @@
       "id": "/blending",
       "position": {
         "x": 200,
-        "y": 580
+        "y": 220
       },
       "data": {
         "inputs": {
@@ -204,7 +204,7 @@
       "type": "CreateAttributeOp",
       "position": {
         "x": 1000,
-        "y": 100
+        "y": 220
       },
       "data": {
         "inputs": {
@@ -228,7 +228,7 @@
         "locked": false
       },
       "position": {
-        "x": 1400,
+        "x": 1800,
         "y": 100
       }
     },
@@ -248,7 +248,7 @@
         "locked": false
       },
       "position": {
-        "x": 1400,
+        "x": 1800,
         "y": 220
       }
     },
@@ -268,7 +268,7 @@
         "locked": false
       },
       "position": {
-        "x": 1400,
+        "x": 1800,
         "y": 340
       }
     },
@@ -280,8 +280,8 @@
         "locked": false
       },
       "position": {
-        "x": 1800,
-        "y": 100
+        "x": 2200,
+        "y": 220
       }
     },
     {
@@ -304,8 +304,8 @@
         "locked": false
       },
       "position": {
-        "x": 2200,
-        "y": 100
+        "x": 2600,
+        "y": 220
       }
     }
   ],

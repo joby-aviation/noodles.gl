@@ -18,8 +18,8 @@
       "type": "MaplibreBasemapOp",
       "id": "/maplibre-basemap",
       "position": {
-        "x": 200,
-        "y": 220
+        "x": 1800,
+        "y": 340
       },
       "data": {
         "inputs": {
@@ -80,7 +80,7 @@
         "locked": false
       },
       "position": {
-        "x": 1000,
+        "x": 1400,
         "y": 100
       }
     },
@@ -88,7 +88,7 @@
       "type": "HexagonLayerOp",
       "id": "/hexagon-layer",
       "position": {
-        "x": 1000,
+        "x": 1400,
         "y": 220
       },
       "data": {
@@ -121,7 +121,7 @@
       },
       "position": {
         "x": 1800,
-        "y": 100
+        "y": 160
       }
     },
     {
@@ -133,7 +133,7 @@
       },
       "position": {
         "x": 2200,
-        "y": 100
+        "y": 160
       }
     }
   ],
