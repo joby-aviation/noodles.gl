@@ -357,7 +357,7 @@ export function GeocodingDialog({
           </div>
 
           {/* Map */}
-          {mapCoordinates.longitude != null && mapCoordinates.latitude != null && (
+          {typeof mapCoordinates.longitude === 'number' && typeof mapCoordinates.latitude === 'number' && (
             <div className={s.mapContainer}>
               <MapLibre
                 id={MAP_ID}
@@ -382,7 +382,7 @@ export function GeocodingDialog({
           {/* Footer */}
           <div className={s.dialogFooter}>
             <div className={s.coordinateDisplay}>
-              {mapCoordinates.longitude != null && mapCoordinates.latitude != null
+              {typeof mapCoordinates.longitude === 'number' && typeof mapCoordinates.latitude === 'number'
                 ? `${mapCoordinates.latitude.toFixed(5)}, ${mapCoordinates.longitude.toFixed(5)}`
                 : 'Loading...'}
             </div>
