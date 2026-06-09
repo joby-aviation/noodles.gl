@@ -224,9 +224,14 @@ function validateProject(projectPath, projectName) {
       }
 
       // Check for deprecated accessor connections
+      // Color operators connecting to color accessors are OK (uniform values)
       if (edge.targetHandle.startsWith('par.get') && !SKIP_MIGRATION_FIELDS.has(edge.targetHandle.replace('par.', ''))) {
+        const sourceNode = nodeMap.get(edge.source)
         const targetNode = nodeMap.get(edge.target)
-        if (targetNode && LAYER_OPS.has(targetNode.type)) {
+        const isColorConnection = sourceNode && (sourceNode.type === 'ColorOp' || sourceNode.type === 'ColorRampOp' || sourceNode.type === 'CategoricalColorRampOp')
+        const isColorAccessor = edge.targetHandle.includes('Color')
+
+        if (targetNode && LAYER_OPS.has(targetNode.type) && !(isColorConnection && isColorAccessor)) {
           errors.push(`Edge ${edge.id} connects to deprecated accessor field ${edge.targetHandle} (should use attributes)`)
         }
       }

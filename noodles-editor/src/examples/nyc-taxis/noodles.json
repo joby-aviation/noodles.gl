@@ -90,6 +90,34 @@
       "target": "/dropoff-layer",
       "targetHandle": "par.parameters",
       "id": "/blending.out.parameters->/dropoff-layer.par.parameters"
+    },
+    {
+      "source": "/pickup",
+      "sourceHandle": "out.color",
+      "target": "/arc-layer",
+      "targetHandle": "par.getSourceColor",
+      "id": "/pickup.out.color->/arc-layer.par.getSourceColor"
+    },
+    {
+      "source": "/pickup",
+      "sourceHandle": "out.color",
+      "target": "/pickup-layer",
+      "targetHandle": "par.getFillColor",
+      "id": "/pickup.out.color->/pickup-layer.par.getFillColor"
+    },
+    {
+      "source": "/dropoff",
+      "sourceHandle": "out.color",
+      "target": "/arc-layer",
+      "targetHandle": "par.getTargetColor",
+      "id": "/dropoff.out.color->/arc-layer.par.getTargetColor"
+    },
+    {
+      "source": "/dropoff",
+      "sourceHandle": "out.color",
+      "target": "/dropoff-layer",
+      "targetHandle": "par.getFillColor",
+      "id": "/dropoff.out.color->/dropoff-layer.par.getFillColor"
     }
   ],
   "viewport": {
@@ -136,6 +164,34 @@
             "pitch": 56,
             "bearing": -15.25
           }
+        },
+        "locked": false
+      }
+    },
+    {
+      "type": "ColorOp",
+      "id": "/pickup",
+      "position": {
+        "x": 1400,
+        "y": 700
+      },
+      "data": {
+        "inputs": {
+          "color": "#8d12af"
+        },
+        "locked": false
+      }
+    },
+    {
+      "type": "ColorOp",
+      "id": "/dropoff",
+      "position": {
+        "x": 1400,
+        "y": 820
+      },
+      "data": {
+        "inputs": {
+          "color": "#105b89"
         },
         "locked": false
       }
@@ -193,9 +249,7 @@
       "type": "ArcLayerOp",
       "data": {
         "inputs": {
-          "getWidth": 4,
-          "getSourceColor": "#8d12af",
-          "getTargetColor": "#105b89"
+          "getWidth": 4
         },
         "locked": false
       },
@@ -214,8 +268,7 @@
           "getRadius": 10,
           "getPosition": {
             "attributeName": "sourcePosition"
-          },
-          "getFillColor": "#8d12af"
+          }
         },
         "locked": false
       },
@@ -234,8 +287,7 @@
           "getRadius": 10,
           "getPosition": {
             "attributeName": "targetPosition"
-          },
-          "getFillColor": "#105b89"
+          }
         },
         "locked": false
       },
