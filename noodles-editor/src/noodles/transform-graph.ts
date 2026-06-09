@@ -5,6 +5,7 @@ import type { Edge } from './noodles'
 import type { IOperator, Operator, OpType } from './operators'
 import { ContainerOp, ForLoopEndOp, GraphInputOp, opTypes, type SpecialNodeType } from './operators'
 import { getOpStore } from './store'
+import { autoFillLayerAccessors } from './utils/attribute-auto-detection'
 import { validateConnection } from './utils/can-connect'
 import { getParentPath, isDirectChild, parseHandleId } from './utils/path-utils'
 import { computeVisibilityHeuristic } from './utils/visibility-heuristic'
@@ -296,6 +297,33 @@ export function transformGraph<
         edge.id,
         `Broken connection: source node "${edge.source}" no longer exists. This may be caused by a failed node rename.`
       )
+    }
+  }
+
+  // Auto-detect and fill layer accessor fields after all connections are established
+  // This ensures that when projects are loaded, accessor fields are set to attribute mode
+  // if the data contains matching columns (e.g., sourcePosition, targetPosition)
+  for (const edge of edges) {
+    const targetOp = instances.find(n => n.id === edge.target)
+    if (!targetOp) continue
+
+    const targetHandleInfo = parseHandleId(String(edge.targetHandle))
+    if (!targetHandleInfo) continue
+
+    // Only run auto-detection for data connections
+    if (targetHandleInfo.fieldName === 'data') {
+      try {
+        const targetField = targetOp.inputs.data
+        if (targetField) {
+          const sourceData = targetField.value
+          if (sourceData) {
+            autoFillLayerAccessors(targetOp, sourceData)
+          }
+        }
+      } catch (error) {
+        // Auto-detection is best-effort, don't fail project loading
+        debugExecutor('Auto-detection failed for %s:', targetOp.id, error)
+      }
     }
   }
 

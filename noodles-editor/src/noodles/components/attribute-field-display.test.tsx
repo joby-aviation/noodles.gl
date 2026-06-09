@@ -141,4 +141,31 @@ describe('AttributeFieldWrapper Display Modes', () => {
     expect(screen.queryByTestId('uniform-child')).not.toBeInTheDocument()
     expect(screen.getByPlaceholderText('sourcePosition')).toBeInTheDocument()
   })
+
+  it('should display attribute mode when auto-detection sets the field on project load', () => {
+    // Simulate the case where auto-detection has run during project load
+    // and set the field to attribute mode
+    const field = new Point3DField([0, 0, 0], {
+      returnType: 'tuple',
+      accessor: true,
+      defaultAttribute: 'sourcePosition',
+    })
+
+    // Auto-detection sets the field value and marks it as auto-detected
+    field.setValue({ attributeName: 'sourcePosition' })
+    field.autoDetected = true
+
+    // Now render the component - it should immediately show attribute mode
+    render(
+      <AttributeFieldWrapper id="getSourcePosition" field={field} disabled={false}>
+        <div data-testid="uniform-child">Uniform Vector Input</div>
+      </AttributeFieldWrapper>
+    )
+
+    // Should show attribute mode, not uniform child
+    expect(screen.queryByTestId('uniform-child')).not.toBeInTheDocument()
+    expect(screen.getByPlaceholderText('sourcePosition')).toBeInTheDocument()
+    expect(screen.getByDisplayValue('sourcePosition')).toBeInTheDocument()
+    expect(screen.getByText('🔍 auto')).toBeInTheDocument()
+  })
 })
