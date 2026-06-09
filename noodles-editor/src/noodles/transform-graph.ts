@@ -303,9 +303,11 @@ export function transformGraph<
   // Auto-detect and fill layer accessor fields after all connections are established
   // This ensures that when projects are loaded, accessor fields are set to attribute mode
   // if the data contains matching columns (e.g., sourcePosition, targetPosition)
+  // We need to execute operators to get their data values, then run auto-detection
   for (const edge of edges) {
+    const sourceOp = instances.find(n => n.id === edge.source)
     const targetOp = instances.find(n => n.id === edge.target)
-    if (!targetOp) continue
+    if (!sourceOp || !targetOp) continue
 
     const targetHandleInfo = parseHandleId(String(edge.targetHandle))
     if (!targetHandleInfo) continue
@@ -313,6 +315,10 @@ export function transformGraph<
     // Only run auto-detection for data connections
     if (targetHandleInfo.fieldName === 'data') {
       try {
+        // Execute the source operator to populate its output
+        sourceOp.execute()
+
+        // Now check the target's data field value (should be populated via connection)
         const targetField = targetOp.inputs.data
         if (targetField) {
           const sourceData = targetField.value
