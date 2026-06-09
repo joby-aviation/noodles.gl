@@ -65,10 +65,23 @@ export function extractSchemaFromData(data: unknown): string[] {
 
   // Handle attribute-enhanced data format
   if (data && typeof data === 'object' && 'data' in data) {
-    const innerData = (data as { data: unknown }).data
+    const dataObj = data as { data: unknown; attributes?: Record<string, unknown> }
+    const innerData = dataObj.data
+    const columns: string[] = []
+
+    // Extract column names from the inner data
     if (Array.isArray(innerData) && innerData.length > 0 && typeof innerData[0] === 'object') {
-      return Object.keys(innerData[0] as Record<string, unknown>)
+      columns.push(...Object.keys(innerData[0] as Record<string, unknown>))
+    } else if (isArrowTable(innerData)) {
+      columns.push(...arrowColumnNames(innerData))
     }
+
+    // Also include attribute names from the attributes object
+    if (dataObj.attributes && typeof dataObj.attributes === 'object') {
+      columns.push(...Object.keys(dataObj.attributes))
+    }
+
+    return columns
   }
 
   // Handle plain array
