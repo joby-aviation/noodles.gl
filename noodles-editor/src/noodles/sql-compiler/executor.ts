@@ -1,9 +1,8 @@
 import type * as arrow from 'apache-arrow'
+import type { AsyncDuckDB } from '@duckdb/duckdb-wasm'
+import type { AsyncDuckDBConnection, AsyncPreparedStatement } from '@duckdb/duckdb-wasm'
 import type { CompiledQuery, ExecutionResult, ParamSlot } from './types'
 import { attributeError, enrichErrorContext } from './error-attribution'
-
-type AsyncDuckDB = any
-type AsyncDuckDBConnection = any
 
 let duckDbInstance: AsyncDuckDB | null = null
 
@@ -71,7 +70,7 @@ export async function execute(
     return {
       table,
       toArray() {
-        return table.toArray().map((row: any) => ({ ...row }))
+        return table.toArray().map((row) => ({ ...row }))
       },
     }
   } catch (error) {
@@ -86,7 +85,7 @@ export async function execute(
 // Cached prepared statement for repeated execution (timeline scrubbing)
 export class PreparedPipeline {
   private conn: AsyncDuckDBConnection | null = null
-  private stmt: any = null
+  private stmt: AsyncPreparedStatement | null = null
   private _compiled: CompiledQuery
 
   constructor(compiled: CompiledQuery) {
@@ -111,7 +110,7 @@ export class PreparedPipeline {
       return {
         table,
         toArray() {
-          return table.toArray().map((row: any) => ({ ...row }))
+          return table.toArray().map((row) => ({ ...row }))
         },
       }
     } catch (error) {

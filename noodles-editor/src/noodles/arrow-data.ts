@@ -11,8 +11,7 @@ import type * as arrow from 'apache-arrow'
 /**
  * Data can be either an Arrow Table (zero-copy, columnar) or JS array (flexible, slower)
  */
-// biome-ignore lint/suspicious/noExplicitAny: Arrow table requires any
-export type ArrowOrArray<_T = unknown> = arrow.Table<any> | _T[]
+export type ArrowOrArray<_T = unknown> = arrow.Table | _T[]
 
 /**
  * Check if data is an Arrow Table
@@ -28,8 +27,7 @@ export function isArrowTable(data: unknown): data is arrow.Table {
 export function arrowToArray<T = unknown>(data: ArrowOrArray<T>): T[] {
   if (isArrowTable(data)) {
     // Spread operator creates new objects to avoid Arrow proxy issues
-    // biome-ignore lint/suspicious/noExplicitAny: Dynamic row type from Arrow
-    return data.toArray().map((row: any) => ({ ...row })) as T[]
+    return data.toArray().map((row) => ({ ...row })) as T[]
   }
   return data as T[]
 }
@@ -52,7 +50,7 @@ export function getColumnNames(data: ArrowOrArray): string[] {
     return data.schema.fields.map(f => f.name)
   }
   if (data.length === 0) return []
-  return Object.keys(data[0])
+  return Object.keys((data as unknown[])[0] as Record<string, unknown>)
 }
 
 /**
@@ -63,7 +61,7 @@ export function hasColumn(data: ArrowOrArray, columnName: string): boolean {
     return data.schema.fields.some(f => f.name === columnName)
   }
   if (data.length === 0) return false
-  return columnName in data[0]
+  return columnName in ((data as unknown[])[0] as Record<string, unknown>)
 }
 
 /**
@@ -76,7 +74,7 @@ export function getColumn<T = unknown>(data: ArrowOrArray, columnName: string): 
     // Return the underlying typed array (zero-copy)
     return column.toArray() as T[]
   }
-  return (data as unknown[]).map(row => row[columnName]) as T[]
+  return (data as unknown[]).map(row => (row as Record<string, unknown>)[columnName]) as T[]
 }
 
 /**
@@ -104,12 +102,12 @@ export function filterData<T = unknown>(
   if (isArrowTable(data)) {
     // For Arrow, we need to materialize, filter, then reconstruct
     // TODO: In future, use Arrow compute functions for columnar filtering
-    const rows = arrowToArray(data)
+    const rows = arrowToArray<T>(data)
     const filtered = rows.filter(predicate)
     // Return JS array for now - reconstructing Arrow table is complex
     return filtered
   }
-  return data.filter(predicate)
+  return (data as T[]).filter(predicate)
 }
 
 /**
@@ -122,10 +120,10 @@ export function sortData<T = unknown>(
   if (isArrowTable(data)) {
     // For Arrow, materialize, sort, then return JS array
     // TODO: Use Arrow compute sort functions
-    const rows = arrowToArray(data)
+    const rows = arrowToArray<T>(data)
     return rows.sort(compareFn)
   }
-  return [...data].sort(compareFn)
+  return [...(data as T[])].sort(compareFn)
 }
 
 /**
@@ -135,7 +133,7 @@ export function sortData<T = unknown>(
 export async function arrayToArrow<T = unknown>(data: T[]): Promise<arrow.Table> {
   // Dynamic import to avoid loading Arrow in all contexts
   const { tableFromJSON } = await import('apache-arrow')
-  return tableFromJSON(data)
+  return tableFromJSON(data as Record<string, unknown>[])
 }
 
 /**
@@ -174,7 +172,7 @@ export const SQL_ARROW_CAPABILITIES: ArrowCapabilities = {
  * Type guard for Arrow-aware operators
  */
 export function hasArrowCapabilities(op: unknown): op is { arrowCapabilities: ArrowCapabilities } {
-  return op != null && 'arrowCapabilities' in op
+  return op != null && typeof op === 'object' && 'arrowCapabilities' in op
 }
 
 /**

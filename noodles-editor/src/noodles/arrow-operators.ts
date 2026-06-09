@@ -80,48 +80,48 @@ function filterJSArray<T = unknown>(
   condition: string,
   value: unknown
 ): T[] {
-  let fn = (_d: unknown) => true
+  let fn: (d: T) => boolean = () => true
   switch (condition) {
     case 'equals':
-      fn = (d: Record<string, unknown>) => d[columnName] === value
+      fn = (d) => (d as Record<string, unknown>)[columnName] === value
       break
     case 'not equals':
-      fn = (d: Record<string, unknown>) => d[columnName] !== value
+      fn = (d) => (d as Record<string, unknown>)[columnName] !== value
       break
     case 'greater than':
-      fn = (d: Record<string, unknown>) => d[columnName] > value
+      fn = (d) => ((d as Record<string, unknown>)[columnName] as number) > (value as number)
       break
     case 'less than':
-      fn = (d: Record<string, unknown>) => d[columnName] < value
+      fn = (d) => ((d as Record<string, unknown>)[columnName] as number) < (value as number)
       break
     case 'greater than or equal to':
-      fn = (d: Record<string, unknown>) => d[columnName] >= value
+      fn = (d) => ((d as Record<string, unknown>)[columnName] as number) >= (value as number)
       break
     case 'less than or equal to':
-      fn = (d: Record<string, unknown>) => d[columnName] <= value
+      fn = (d) => ((d as Record<string, unknown>)[columnName] as number) <= (value as number)
       break
     case 'contains':
-      fn = (d: Record<string, unknown>) => String(d[columnName]).includes(String(value))
+      fn = (d) => String((d as Record<string, unknown>)[columnName]).includes(String(value))
       break
     case 'not contains':
-      fn = (d: Record<string, unknown>) => !String(d[columnName]).includes(String(value))
+      fn = (d) => !String((d as Record<string, unknown>)[columnName]).includes(String(value))
       break
     case 'in': {
       const values = String(value)
         .split(',')
         .map(s => s.trim())
-      fn = (d: Record<string, unknown>) => values.includes(String(d[columnName]))
+      fn = (d) => values.includes(String((d as Record<string, unknown>)[columnName]))
       break
     }
     case 'not in': {
       const values = String(value)
         .split(',')
         .map(s => s.trim())
-      fn = (d: Record<string, unknown>) => !values.includes(String(d[columnName]))
+      fn = (d) => !values.includes(String((d as Record<string, unknown>)[columnName]))
       break
     }
   }
-  return data.filter(fn as (d: unknown) => boolean)
+  return data.filter(fn)
 }
 
 /**
@@ -134,13 +134,13 @@ function matchesCondition(cellValue: unknown, condition: string, value: unknown)
     case 'not equals':
       return cellValue !== value
     case 'greater than':
-      return (cellValue as number) > value
+      return (cellValue as number) > (value as number)
     case 'less than':
-      return (cellValue as number) < value
+      return (cellValue as number) < (value as number)
     case 'greater than or equal to':
-      return (cellValue as number) >= value
+      return (cellValue as number) >= (value as number)
     case 'less than or equal to':
-      return (cellValue as number) <= value
+      return (cellValue as number) <= (value as number)
     case 'contains':
       return String(cellValue).includes(String(value))
     case 'not contains':
@@ -187,8 +187,8 @@ export function sortArrowAware<T = unknown>(
 
   // Sort indices based on column values
   indices.sort((a, b) => {
-    const aVal = column[a]
-    const bVal = column[b]
+    const aVal = column[a] as number
+    const bVal = column[b] as number
     const cmp = aVal < bVal ? -1 : aVal > bVal ? 1 : 0
     return order === 'desc' ? -cmp : cmp
   })
@@ -203,9 +203,11 @@ export function sortArrowAware<T = unknown>(
  * JS array sort implementation
  */
 function sortJSArray<T = unknown>(data: T[], key: string, order: 'asc' | 'desc'): T[] {
-  return [...data].sort((a: any, b: any) => {
-    if (a[key] < b[key]) return order === 'desc' ? 1 : -1
-    if (a[key] > b[key]) return order === 'desc' ? -1 : 1
+  return [...data].sort((a, b) => {
+    const aVal = (a as Record<string, unknown>)[key] as number
+    const bVal = (b as Record<string, unknown>)[key] as number
+    if (aVal < bVal) return order === 'desc' ? 1 : -1
+    if (aVal > bVal) return order === 'desc' ? -1 : 1
     return 0
   })
 }
@@ -235,11 +237,12 @@ export function selectColumnsArrowAware<T = unknown>(
 ): ArrowOrArray<T> {
   if (!isArrowTable(data)) {
     // JS array: project columns
-    return (data as any[]).map(row => {
-      const selected: any = {}
+    return (data as T[]).map(row => {
+      const selected: Record<string, unknown> = {}
+      const rowObj = row as Record<string, unknown>
       for (const col of columns) {
-        if (col in row) {
-          selected[col] = row[col]
+        if (col in rowObj) {
+          selected[col] = rowObj[col]
         }
       }
       return selected
@@ -265,10 +268,11 @@ export function selectColumnsArrowAware<T = unknown>(
   // TODO: Create new Arrow table with selected columns only
   const rows = arrowToArray<T>(data)
   return rows.map(row => {
-    const selected: any = {}
+    const selected: Record<string, unknown> = {}
+    const rowObj = row as Record<string, unknown>
     for (const col of columns) {
-      if (col in (row as any)) {
-        selected[col] = (row as any)[col]
+      if (col in rowObj) {
+        selected[col] = rowObj[col]
       }
     }
     return selected
