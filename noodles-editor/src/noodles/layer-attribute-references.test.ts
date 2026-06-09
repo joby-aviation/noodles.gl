@@ -7,7 +7,7 @@ import { ArcLayerOp, CreateAttributeOp, ScatterplotLayerOp } from './operators'
  *
  * Tests the critical path where CreateAttributeOp creates binary attributes
  * and layer operators (ScatterplotLayerOp, ArcLayerOp) consume them via
- * attribute references in the new {attributeName: "..."} format.
+ * attribute references in the {attributeName: "..."} format.
  *
  * This area has had multiple regressions, so these tests are comprehensive.
  */
@@ -112,24 +112,20 @@ describe('Layer attribute references', () => {
       expect(layerOutput.layer.opacity).toBe(0.8)
     })
 
-    it('handles legacy string format attribute references', () => {
-      const createAttr = new CreateAttributeOp('/create-pos')
-      const attrOutput = createAttr.execute({
+    it('works with default position when no attribute reference provided', () => {
+      const data: AttributeEnhancedData = {
         data: makeTestData(10),
-        name: 'myPosition',
-        expression: '[d.pickup_longitude, d.pickup_latitude, 0]',
-        size: 3,
-        type: 'float',
-      })
+        attributes: {},
+      }
 
       const layer = new ScatterplotLayerOp('/layer')
       const layerOutput = layer.execute({
-        data: attrOutput.data as AttributeEnhancedData,
+        data,
         visible: true,
         opacity: 1,
         stroked: false,
         billboard: false,
-        getPosition: 'myPosition' as any, // Legacy string format
+        getPosition: [0, 0, 0] as any, // Default static position
         getFillColor: [255, 0, 0, 255],
         getLineColor: [255, 255, 255, 255],
         getRadius: 10,
@@ -141,8 +137,8 @@ describe('Layer attribute references', () => {
       })
 
       expect(layerOutput.layer.data).toBeDefined()
-      const layerData = layerOutput.layer.data as any
-      expect(layerData.attributes.getPosition).toBeDefined()
+      // Static arrays are defensive-removed; layer falls back to default
+      expect(layerOutput.layer.getPosition).toBeUndefined()
     })
   })
 

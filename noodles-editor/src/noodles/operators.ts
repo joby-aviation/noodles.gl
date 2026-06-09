@@ -6120,18 +6120,14 @@ function extractAttributeData(data: unknown): {
 
 /**
  * Resolve attribute references in layer props
- * Handles both string format ("sourcePosition") and object format ({attributeName: "sourcePosition"})
- * Returns [resolvedPropValue, referencedAttributeName | null]
+ * Attribute references use the format: {attributeName: "sourcePosition"}
+ * Returns the referenced attribute name, or null if not an attribute reference
  */
-function resolveAttributeReference(propValue: unknown): [unknown, string | null] {
-  if (typeof propValue === 'string') {
-    return [propValue, propValue]
-  }
+function resolveAttributeReference(propValue: unknown): string | null {
   if (propValue && typeof propValue === 'object' && 'attributeName' in propValue) {
-    const attrName = (propValue as { attributeName: string }).attributeName
-    return [attrName, attrName]
+    return (propValue as { attributeName: string }).attributeName
   }
-  return [propValue, null]
+  return null
 }
 
 function applyBinaryAttributes<P extends LayerProps>(
@@ -6502,13 +6498,12 @@ export class ScatterplotLayerOp extends Operator<ScatterplotLayerOp> {
       attributes = otherAttributes
     }
 
-    // Handle attribute references (e.g., getPosition: "sourcePosition" or {attributeName: "sourcePosition"})
-    // When an accessor prop is a string or object with attributeName, it's a reference to an attribute name
-    // We need to rename that attribute to match what the layer expects
+    // Handle attribute references (e.g., getPosition: {attributeName: "sourcePosition"})
+    // When an accessor prop is an attribute reference, rename the attribute to match what deck.gl expects
     const attributeRenames: Record<string, string> = {}
     const propsToRemove: string[] = []
 
-    const [, getPositionAttrName] = resolveAttributeReference(cleanProps.getPosition)
+    const getPositionAttrName = resolveAttributeReference(cleanProps.getPosition)
     if (getPositionAttrName && attributes[getPositionAttrName]) {
       attributeRenames['position'] = getPositionAttrName
       propsToRemove.push('getPosition')
@@ -7569,8 +7564,8 @@ export class ArcLayerOp extends Operator<ArcLayerOp> {
 
     // Resolve attribute references for position fields
     const cleanProps = { ...props }
-    const [, srcPosAttr] = resolveAttributeReference(props.getSourcePosition)
-    const [, tgtPosAttr] = resolveAttributeReference(props.getTargetPosition)
+    const srcPosAttr = resolveAttributeReference(props.getSourcePosition)
+    const tgtPosAttr = resolveAttributeReference(props.getTargetPosition)
 
     // If props reference attributes, rename attributes to match what deck.gl expects
     const renamedAttributes = { ...attributes }
