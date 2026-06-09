@@ -46,8 +46,8 @@ export function AttributeFieldWrapper({
 }: AttributeFieldWrapperProps) {
   const { captureStart, commitChange} = usePropertyHistory()
 
-  // Always compute mode from current field value (not from stale state)
-  const currentValue = field.value
+  // Track field value in state to trigger re-renders when it changes
+  const [currentValue, setCurrentValue] = useState(() => field.value)
   const mode = getAttributeMode(currentValue)
 
   // Track last known uniform value to restore when switching back from attribute/expression mode
@@ -63,8 +63,9 @@ export function AttributeFieldWrapper({
   )
 
   useEffect(() => {
-    // Subscribe to field changes to keep local state in sync
+    // Subscribe to field changes to keep local state in sync and trigger re-renders
     const sub = field.subscribe(newVal => {
+      setCurrentValue(newVal)
       const newMode = getAttributeMode(newVal)
       if (isAttributeReference(newVal)) {
         setAttributeName((newVal as { attributeName: string }).attributeName)
