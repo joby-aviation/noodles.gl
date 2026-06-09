@@ -300,38 +300,9 @@ export function transformGraph<
     }
   }
 
-  // Auto-detect and fill layer accessor fields after all connections are established
-  // This ensures that when projects are loaded, accessor fields are set to attribute mode
-  // if the data contains matching columns (e.g., sourcePosition, targetPosition)
-  // We need to execute operators to get their data values, then run auto-detection
-  for (const edge of edges) {
-    const sourceOp = instances.find(n => n.id === edge.source)
-    const targetOp = instances.find(n => n.id === edge.target)
-    if (!sourceOp || !targetOp) continue
-
-    const targetHandleInfo = parseHandleId(String(edge.targetHandle))
-    if (!targetHandleInfo) continue
-
-    // Only run auto-detection for data connections
-    if (targetHandleInfo.fieldName === 'data') {
-      try {
-        // Execute the source operator to populate its output
-        sourceOp.execute()
-
-        // Now check the target's data field value (should be populated via connection)
-        const targetField = targetOp.inputs.data
-        if (targetField) {
-          const sourceData = targetField.value
-          if (sourceData) {
-            autoFillLayerAccessors(targetOp, sourceData)
-          }
-        }
-      } catch (error) {
-        // Auto-detection is best-effort, don't fail project loading
-        debugExecutor('Auto-detection failed for %s:', targetOp.id, error)
-      }
-    }
-  }
+  // Note: Auto-detection for layer accessors runs when connections are made interactively
+  // (see use-project-modifications.ts). For saved projects, the field values should already
+  // be persisted in the JSON with their attribute/expression modes set correctly.
 
   for (const node of sortedNodes) {
     const chain: Operator<IOperator>[] = []

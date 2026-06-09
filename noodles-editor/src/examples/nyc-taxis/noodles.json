@@ -249,7 +249,13 @@
       "type": "ArcLayerOp",
       "data": {
         "inputs": {
-          "getWidth": 4
+          "getWidth": 4,
+          "getSourcePosition": {
+            "attributeName": "sourcePosition"
+          },
+          "getTargetPosition": {
+            "attributeName": "targetPosition"
+          }
         },
         "locked": false
       },
