@@ -6118,6 +6118,22 @@ function extractAttributeData(data: unknown): {
   return { rows: Array.isArray(data) ? data : [], attributes: {} }
 }
 
+/**
+ * Resolve attribute references in layer props
+ * Handles both string format ("sourcePosition") and object format ({attributeName: "sourcePosition"})
+ * Returns [resolvedPropValue, referencedAttributeName | null]
+ */
+function resolveAttributeReference(propValue: unknown): [unknown, string | null] {
+  if (typeof propValue === 'string') {
+    return [propValue, propValue]
+  }
+  if (propValue && typeof propValue === 'object' && 'attributeName' in propValue) {
+    const attrName = (propValue as { attributeName: string }).attributeName
+    return [attrName, attrName]
+  }
+  return [propValue, null]
+}
+
 function applyBinaryAttributes<P extends LayerProps>(
   layerProps: P,
   attributes: Record<
@@ -6486,18 +6502,16 @@ export class ScatterplotLayerOp extends Operator<ScatterplotLayerOp> {
       attributes = otherAttributes
     }
 
-    // Handle string attribute references (e.g., getPosition: "sourcePosition")
-    // When an accessor prop is a string, it's a reference to an attribute name
+    // Handle attribute references (e.g., getPosition: "sourcePosition" or {attributeName: "sourcePosition"})
+    // When an accessor prop is a string or object with attributeName, it's a reference to an attribute name
     // We need to rename that attribute to match what the layer expects
     const attributeRenames: Record<string, string> = {}
     const propsToRemove: string[] = []
 
-    if (typeof cleanProps.getPosition === 'string') {
-      const attrName = cleanProps.getPosition
-      if (attributes[attrName]) {
-        attributeRenames['position'] = attrName
-        propsToRemove.push('getPosition')
-      }
+    const [, getPositionAttrName] = resolveAttributeReference(cleanProps.getPosition)
+    if (getPositionAttrName && attributes[getPositionAttrName]) {
+      attributeRenames['position'] = getPositionAttrName
+      propsToRemove.push('getPosition')
     }
 
     // Apply attribute renames
@@ -7553,14 +7567,32 @@ export class ArcLayerOp extends Operator<ArcLayerOp> {
   execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     const { rows, attributes } = extractAttributeData(props.data)
 
+    // Resolve attribute references for position fields
+    const cleanProps = { ...props }
+    const [, srcPosAttr] = resolveAttributeReference(props.getSourcePosition)
+    const [, tgtPosAttr] = resolveAttributeReference(props.getTargetPosition)
+
+    // If props reference attributes, rename attributes to match what deck.gl expects
+    const renamedAttributes = { ...attributes }
+    if (srcPosAttr && attributes[srcPosAttr]) {
+      renamedAttributes['sourcePosition'] = attributes[srcPosAttr]
+      if (srcPosAttr !== 'sourcePosition') delete renamedAttributes[srcPosAttr]
+      delete cleanProps.getSourcePosition
+    }
+    if (tgtPosAttr && attributes[tgtPosAttr]) {
+      renamedAttributes['targetPosition'] = attributes[tgtPosAttr]
+      if (tgtPosAttr !== 'targetPosition') delete renamedAttributes[tgtPosAttr]
+      delete cleanProps.getTargetPosition
+    }
+
     const baseLayerProps = {
-      ...parseLayerProps<ArcLayerProps>({ ...props, data: rows }),
+      ...parseLayerProps<ArcLayerProps>({ ...cleanProps, data: rows }),
       type: 'ArcLayer' as const,
       id: this.id,
       updateTriggers: gatherTriggers(this.inputs, props),
     }
 
-    const layerProps = applyBinaryAttributes(baseLayerProps, attributes)
+    const layerProps = applyBinaryAttributes(baseLayerProps, renamedAttributes)
 
     return { layer: layerProps }
   }
