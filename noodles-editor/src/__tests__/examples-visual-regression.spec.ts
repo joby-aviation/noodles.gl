@@ -60,17 +60,18 @@ test.describe('Example Projects Visual Regression', () => {
       `${exampleName} renders correctly`,
       async ({ page }) => {
         // Navigate to the example
-        await page.goto(`/examples/${exampleName}`)
-
-        // Wait for Deck.gl canvas to appear
-        await page.waitForSelector('canvas', { timeout: 15000 })
+        await page.goto(`/examples/${exampleName}`, { waitUntil: 'networkidle' })
 
         // Check for React error boundaries
         const errorBoundary = await page.locator('[role="alert"]').count()
         expect(errorBoundary).toBe(0)
 
-        // Wait for window.deck to be available (useEffect may take a moment)
-        await page.waitForFunction(() => (window as any).deck !== undefined, { timeout: 10000 })
+        // Wait for window.deck to be available and canvas to render
+        await page.waitForFunction(() => {
+          const canvas = document.querySelector('canvas')
+          const deck = (window as any).deck
+          return canvas !== null && deck !== undefined
+        }, { timeout: 20000 })
 
         // Wait for data to load - poll until layers have data
         await page.waitForFunction(
