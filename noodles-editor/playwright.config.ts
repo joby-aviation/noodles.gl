@@ -11,8 +11,8 @@ export default defineConfig({
   // Output directories (keep within noodles-editor)
   outputDir: './test-results',
 
-  // Maximum time one test can run
-  timeout: 90 * 1000,
+  // Maximum time one test can run (2.5 minutes for slow data loading)
+  timeout: 150 * 1000,
 
   // Run tests in files in parallel
   fullyParallel: true,

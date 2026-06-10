@@ -67,15 +67,16 @@ test.describe('Example Projects Visual Regression', () => {
           const canvas = document.querySelector('canvas')
           const deck = (window as any).deck
           return canvas !== null && deck !== undefined
-        }, { timeout: 20000 })
+        }, { timeout: 30000 })
 
-        // Give it time to initialize layers and load data
-        // Some examples take longer to set up the graph
-        await page.waitForTimeout(5000)
+        // Wait for data to load and render
+        // TODO: Hook into actual data loading state instead of fixed timeout
+        // For now, use a generous timeout to handle slow external data
+        await page.waitForTimeout(10000)
 
         // Take screenshot for visual regression
         const canvas = page.locator('canvas').first()
-        await expect(canvas).toHaveScreenshot(`${exampleName}-initial.png`, {
+        await expect(canvas).toHaveScreenshot(`${exampleName}.png`, {
           maxDiffPixels: 100, // Allow some anti-aliasing differences
         })
 
@@ -93,17 +94,17 @@ test.describe('Example Projects Visual Regression', () => {
               }
             }, time)
 
-            // Wait for render and data loading
-            await page.waitForTimeout(1000)
+            // Wait for render
+            await page.waitForTimeout(500)
 
             // Take screenshot at this frame
-            await expect(canvas).toHaveScreenshot(`${exampleName}-frame-${time}s.png`, {
+            await expect(canvas).toHaveScreenshot(`${exampleName}-${time}s.png`, {
               maxDiffPixels: 100,
             })
           }
         }
       },
-      { timeout: 90000 }
-    ) // 90 second timeout for data loading
+      { timeout: 150000 }
+    ) // 150 second (2.5 min) timeout for slow data loading
   }
 })
