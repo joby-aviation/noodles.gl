@@ -1007,6 +1007,7 @@ function CurveKeyframeDot({
   }
 
   return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: Keyframe dot is a drag handle and right-click target
     <circle
       cx={cx}
       cy={cy}
@@ -1016,6 +1017,7 @@ function CurveKeyframeDot({
       strokeWidth={isSelected ? 2 : 1.5}
       style={{ cursor: 'move' }}
       onPointerDown={handlePointerDown}
+      onContextMenu={e => e.preventDefault()}
     />
   )
 }

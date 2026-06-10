@@ -1,7 +1,119 @@
 {
+  "viewport": {
+    "x": 1304.5705824698812,
+    "y": 562.2542727922879,
+    "zoom": 0.5709600637849074
+  },
+  "version": 14,
+  "name": "EV Chargers with Live API Data",
+  "edges": [
+    {
+      "source": "/duckdb-0",
+      "sourceHandle": "out.data",
+      "target": "/boundingbox-0",
+      "targetHandle": "par.data",
+      "id": "/duckdb-0.out.data->/boundingbox-0.par.data"
+    },
+    {
+      "source": "/duckdb-0",
+      "sourceHandle": "out.data",
+      "target": "/scatterplotlayer-0",
+      "targetHandle": "par.data",
+      "id": "/duckdb-0.out.data->/scatterplotlayer-0.par.data"
+    },
+    {
+      "source": "/accessor-0",
+      "sourceHandle": "out.accessor",
+      "target": "/scatterplotlayer-0",
+      "targetHandle": "par.getPosition",
+      "id": "/accessor-0.out.accessor->/scatterplotlayer-0.par.getPosition"
+    },
+    {
+      "source": "/boundingbox-0",
+      "sourceHandle": "out.longitude",
+      "target": "/viewstate-0",
+      "targetHandle": "par.longitude",
+      "id": "/boundingbox-0.out.longitude->/viewstate-0.par.longitude"
+    },
+    {
+      "source": "/boundingbox-0",
+      "sourceHandle": "out.latitude",
+      "target": "/viewstate-0",
+      "targetHandle": "par.latitude",
+      "id": "/boundingbox-0.out.latitude->/viewstate-0.par.latitude"
+    },
+    {
+      "id": "/viewstate-0.out.viewState->/basemap-0.par.viewState",
+      "source": "/viewstate-0",
+      "target": "/basemap-0",
+      "sourceHandle": "out.viewState",
+      "targetHandle": "par.viewState"
+    },
+    {
+      "source": "/scatterplotlayer-0",
+      "sourceHandle": "out.layer",
+      "target": "/switch-0",
+      "targetHandle": "par.values",
+      "id": "/scatterplotlayer-0.out.layer->/switch-0.par.values"
+    },
+    {
+      "source": "/switch-0",
+      "sourceHandle": "out.value",
+      "target": "/deck",
+      "targetHandle": "par.layers",
+      "id": "/switch-0.out.value->/deck.par.layers"
+    },
+    {
+      "source": "/duckdb-0",
+      "sourceHandle": "out.data",
+      "target": "/heatmaplayer-0",
+      "targetHandle": "par.data",
+      "id": "/duckdb-0.out.data->/heatmaplayer-0.par.data"
+    },
+    {
+      "source": "/accessor-0",
+      "sourceHandle": "out.accessor",
+      "target": "/heatmaplayer-0",
+      "targetHandle": "par.getPosition",
+      "id": "/accessor-0.out.accessor->/heatmaplayer-0.par.getPosition"
+    },
+    {
+      "source": "/heatmaplayer-0",
+      "sourceHandle": "out.layer",
+      "target": "/switch-0",
+      "targetHandle": "par.values",
+      "id": "/heatmaplayer-0.out.layer->/switch-0.par.values"
+    },
+    {
+      "id": "/basemap-0.out.maplibre->/deck.par.basemap",
+      "source": "/basemap-0",
+      "target": "/deck",
+      "sourceHandle": "out.maplibre",
+      "targetHandle": "par.basemap"
+    },
+    {
+      "id": "/deck.out.vis->/out.par.vis",
+      "source": "/deck",
+      "target": "/out",
+      "sourceHandle": "out.vis",
+      "targetHandle": "par.vis"
+    },
+    {
+      "id": "/centroid.out.location->/duckdb-0.par.query",
+      "type": "ReferenceEdge",
+      "source": "/centroid",
+      "sourceHandle": "out.location",
+      "target": "/duckdb-0",
+      "targetHandle": "par.query"
+    }
+  ],
+  "editorSettings": {
+    "layoutMode": "noodles-on-top",
+    "showOverlay": true
+  },
   "nodes": [
     {
-      "id": "deck",
+      "id": "/deck",
       "type": "DeckRendererOp",
       "data": {
         "inputs": {},
@@ -13,7 +125,7 @@
       }
     },
     {
-      "id": "duckdb-0",
+      "id": "/duckdb-0",
       "type": "DuckDbOp",
       "position": {
         "x": -1264.3775772798185,
@@ -39,7 +151,7 @@
       }
     },
     {
-      "id": "centroid",
+      "id": "/centroid",
       "type": "GeocoderOp",
       "position": {
         "x": -1628.0833659498644,
@@ -53,7 +165,7 @@
       }
     },
     {
-      "id": "boundingbox-0",
+      "id": "/boundingbox-0",
       "type": "BoundingBoxOp",
       "position": {
         "x": -707.2197014646986,
@@ -67,7 +179,7 @@
       }
     },
     {
-      "id": "scatterplotlayer-0",
+      "id": "/scatterplotlayer-0",
       "type": "ScatterplotLayerOp",
       "position": {
         "x": -443.51651196326486,
@@ -83,7 +195,7 @@
       }
     },
     {
-      "id": "accessor-0",
+      "id": "/accessor-0",
       "type": "AccessorOp",
       "position": {
         "x": -987.3019403521371,
@@ -97,7 +209,7 @@
       }
     },
     {
-      "id": "viewstate-0",
+      "id": "/viewstate-0",
       "type": "MapViewStateOp",
       "position": {
         "x": -322.94795308841765,
@@ -111,7 +223,7 @@
       }
     },
     {
-      "id": "switch-0",
+      "id": "/switch-0",
       "type": "SwitchOp",
       "position": {
         "x": 137.09785434585186,
@@ -123,7 +235,7 @@
       }
     },
     {
-      "id": "heatmaplayer-0",
+      "id": "/heatmaplayer-0",
       "type": "HeatmapLayerOp",
       "position": {
         "x": -440.1008136696714,
@@ -138,7 +250,7 @@
       }
     },
     {
-      "id": "basemap-0",
+      "id": "/basemap-0",
       "type": "MaplibreBasemapOp",
       "position": {
         "x": 621.0648631276329,
@@ -150,127 +262,33 @@
       }
     },
     {
-      "id": "out",
+      "id": "/out",
       "type": "OutOp",
       "position": {
         "x": 871.0648631276329,
         "y": -15.15716566510391
       },
       "data": {
-        "inputs": {},
+        "inputs": {
+          "display": "fixed",
+          "width": 1920,
+          "height": 1080,
+          "lod": 2,
+          "waitForData": true,
+          "codec": "avc",
+          "bitrateMbps": 10,
+          "bitrateMode": "constant",
+          "scaleControl": 0.3,
+          "framerate": 30,
+          "captureDelay": 50
+        },
         "locked": false
       }
     }
   ],
-  "edges": [
-    {
-      "source": "duckdb-0",
-      "sourceHandle": "data",
-      "target": "boundingbox-0",
-      "targetHandle": "data",
-      "id": "duckdb-0:data->boundingbox-0:data"
-    },
-    {
-      "source": "duckdb-0",
-      "sourceHandle": "data",
-      "target": "scatterplotlayer-0",
-      "targetHandle": "data",
-      "id": "duckdb-0:data->scatterplotlayer-0:data"
-    },
-    {
-      "source": "accessor-0",
-      "sourceHandle": "accessor",
-      "target": "scatterplotlayer-0",
-      "targetHandle": "getPosition",
-      "id": "accessor-0:accessor->scatterplotlayer-0:getPosition"
-    },
-    {
-      "source": "boundingbox-0",
-      "sourceHandle": "longitude",
-      "target": "viewstate-0",
-      "targetHandle": "longitude",
-      "id": "boundingbox-0:longitude->viewstate-0:longitude"
-    },
-    {
-      "source": "boundingbox-0",
-      "sourceHandle": "latitude",
-      "target": "viewstate-0",
-      "targetHandle": "latitude",
-      "id": "boundingbox-0:latitude->viewstate-0:latitude"
-    },
-    {
-      "id": "viewstate-0:viewState->basemap-0:viewState",
-      "source": "viewstate-0",
-      "target": "basemap-0",
-      "sourceHandle": "viewState",
-      "targetHandle": "viewState"
-    },
-    {
-      "source": "scatterplotlayer-0",
-      "sourceHandle": "layer",
-      "target": "switch-0",
-      "targetHandle": "values",
-      "id": "scatterplotlayer-0:layer->switch-0:values"
-    },
-    {
-      "source": "switch-0",
-      "sourceHandle": "value",
-      "target": "deck",
-      "targetHandle": "layers",
-      "id": "switch-0:value->deck:layers"
-    },
-    {
-      "source": "duckdb-0",
-      "sourceHandle": "data",
-      "target": "heatmaplayer-0",
-      "targetHandle": "data",
-      "id": "duckdb-0:data->heatmaplayer-0:data"
-    },
-    {
-      "source": "accessor-0",
-      "sourceHandle": "accessor",
-      "target": "heatmaplayer-0",
-      "targetHandle": "getPosition",
-      "id": "accessor-0:accessor->heatmaplayer-0:getPosition"
-    },
-    {
-      "source": "heatmaplayer-0",
-      "sourceHandle": "layer",
-      "target": "switch-0",
-      "targetHandle": "values",
-      "id": "heatmaplayer-0:layer->switch-0:values"
-    },
-    {
-      "id": "basemap-0:maplibre->deck:basemap",
-      "source": "basemap-0",
-      "target": "deck",
-      "sourceHandle": "maplibre",
-      "targetHandle": "basemap"
-    },
-    {
-      "id": "deck:vis->out:vis",
-      "source": "deck",
-      "target": "out",
-      "sourceHandle": "vis",
-      "targetHandle": "vis"
-    },
-    {
-      "id": "centroid:location->duckdb-0:query",
-      "type": "ReferenceEdge",
-      "source": "centroid",
-      "sourceHandle": "location",
-      "target": "duckdb-0",
-      "targetHandle": "query"
-    }
-  ],
-  "viewport": {
-    "x": 1304.5705824698812,
-    "y": 562.2542727922879,
-    "zoom": 0.5709600637849074
-  },
   "timeline": {
     "sheetsById": {
-      "Nodes": {
+      "Noodles": {
         "staticOverrides": {
           "byObject": {
             "scatterplotlayer-0": {
@@ -296,6 +314,5 @@
       "RgR7etiO4UU4Vc5h",
       "fUMQMdteEoY7aslv"
     ]
-  },
-  "version": 4
+  }
 }

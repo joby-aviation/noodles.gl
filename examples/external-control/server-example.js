@@ -8,7 +8,7 @@
  * External Tool <-> This Server <-> Noodles Browser App
  *
  * Usage:
- * 1. Install dependencies: yarn install
+ * 1. Install dependencies: npm install
  * 2. Run server: node server-example.js
  * 3. Open Noodles with external control enabled
  * 4. Connect external tools to this server

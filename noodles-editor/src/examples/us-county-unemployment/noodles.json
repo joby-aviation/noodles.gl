@@ -1,4 +1,94 @@
 {
+  "edges": [
+    {
+      "id": "/deck.out.vis->/out.par.vis",
+      "source": "/deck",
+      "target": "/out",
+      "sourceHandle": "out.vis",
+      "targetHandle": "par.vis"
+    },
+    {
+      "id": "/data-source.out.data->/geojson-layer.par.data",
+      "source": "/data-source",
+      "target": "/geojson-layer",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/unemployment-color.out.color->/geojson-layer.par.getFillColor",
+      "source": "/unemployment-color",
+      "target": "/geojson-layer",
+      "sourceHandle": "out.color",
+      "targetHandle": "par.getFillColor"
+    },
+    {
+      "source": "/map-range",
+      "sourceHandle": "out.scaled",
+      "target": "/unemployment-color",
+      "targetHandle": "par.value",
+      "id": "/map-range.out.scaled->/unemployment-color.par.value"
+    },
+    {
+      "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap",
+      "source": "/maplibre-basemap",
+      "target": "/deck",
+      "sourceHandle": "out.maplibre",
+      "targetHandle": "par.basemap"
+    },
+    {
+      "id": "/geojson-layer.out.layer->/deck.par.layers",
+      "source": "/geojson-layer",
+      "target": "/deck",
+      "sourceHandle": "out.layer",
+      "targetHandle": "par.layers"
+    },
+    {
+      "source": "/unemployment-accessor",
+      "sourceHandle": "out.accessor",
+      "target": "/map-range",
+      "targetHandle": "par.val",
+      "id": "/unemployment-accessor.out.accessor->/map-range.par.val"
+    },
+    {
+      "source": "/expression",
+      "sourceHandle": "out.data",
+      "target": "/extent",
+      "targetHandle": "par.data",
+      "id": "/expression.out.data->/extent.par.data"
+    },
+    {
+      "source": "/unemployment-accessor",
+      "sourceHandle": "out.accessor",
+      "target": "/extent",
+      "targetHandle": "par.accessor",
+      "id": "/unemployment-accessor.out.accessor->/extent.par.accessor"
+    },
+    {
+      "source": "/data-source",
+      "sourceHandle": "out.data",
+      "target": "/expression",
+      "targetHandle": "par.data",
+      "id": "/data-source.out.data->/expression.par.data"
+    },
+    {
+      "source": "/extent",
+      "sourceHandle": "out.max",
+      "target": "/map-range",
+      "targetHandle": "par.inMax",
+      "id": "/extent.out.max->/map-range.par.inMax"
+    }
+  ],
+  "viewport": {
+    "x": 32.46497320518563,
+    "y": 206.86749887589406,
+    "zoom": 0.6158038261288714
+  },
+  "version": 14,
+  "name": "US County Unemployment",
+  "editorSettings": {
+    "layoutMode": "noodles-on-top",
+    "showOverlay": true
+  },
   "nodes": [
     {
       "id": "/deck",
@@ -16,7 +106,19 @@
       "id": "/out",
       "type": "OutOp",
       "data": {
-        "inputs": {},
+        "inputs": {
+          "display": "fixed",
+          "width": 1920,
+          "height": 1080,
+          "lod": 2,
+          "waitForData": true,
+          "codec": "avc",
+          "bitrateMbps": 10,
+          "bitrateMode": "constant",
+          "scaleControl": 0.3,
+          "framerate": 30,
+          "captureDelay": 50
+        },
         "locked": false
       },
       "position": {
@@ -142,90 +244,6 @@
       }
     }
   ],
-  "edges": [
-    {
-      "id": "/deck.out.vis->/out.par.vis",
-      "source": "/deck",
-      "target": "/out",
-      "sourceHandle": "out.vis",
-      "targetHandle": "par.vis"
-    },
-    {
-      "id": "/data-source.out.data->/geojson-layer.par.data",
-      "source": "/data-source",
-      "target": "/geojson-layer",
-      "sourceHandle": "out.data",
-      "targetHandle": "par.data"
-    },
-    {
-      "id": "/unemployment-color.out.color->/geojson-layer.par.getFillColor",
-      "source": "/unemployment-color",
-      "target": "/geojson-layer",
-      "sourceHandle": "out.color",
-      "targetHandle": "par.getFillColor"
-    },
-    {
-      "source": "/map-range",
-      "sourceHandle": "out.scaled",
-      "target": "/unemployment-color",
-      "targetHandle": "par.value",
-      "id": "/map-range.out.scaled->/unemployment-color.par.value"
-    },
-    {
-      "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap",
-      "source": "/maplibre-basemap",
-      "target": "/deck",
-      "sourceHandle": "out.maplibre",
-      "targetHandle": "par.basemap"
-    },
-    {
-      "id": "/geojson-layer.out.layer->/deck.par.layers",
-      "source": "/geojson-layer",
-      "target": "/deck",
-      "sourceHandle": "out.layer",
-      "targetHandle": "par.layers"
-    },
-    {
-      "source": "/unemployment-accessor",
-      "sourceHandle": "out.accessor",
-      "target": "/map-range",
-      "targetHandle": "par.val",
-      "id": "/unemployment-accessor.out.accessor->/map-range.par.val"
-    },
-    {
-      "source": "/expression",
-      "sourceHandle": "out.data",
-      "target": "/extent",
-      "targetHandle": "par.data",
-      "id": "/expression.out.data->/extent.par.data"
-    },
-    {
-      "source": "/unemployment-accessor",
-      "sourceHandle": "out.accessor",
-      "target": "/extent",
-      "targetHandle": "par.accessor",
-      "id": "/unemployment-accessor.out.accessor->/extent.par.accessor"
-    },
-    {
-      "source": "/data-source",
-      "sourceHandle": "out.data",
-      "target": "/expression",
-      "targetHandle": "par.data",
-      "id": "/data-source.out.data->/expression.par.data"
-    },
-    {
-      "source": "/extent",
-      "sourceHandle": "out.max",
-      "target": "/map-range",
-      "targetHandle": "par.inMax",
-      "id": "/extent.out.max->/map-range.par.inMax"
-    }
-  ],
-  "viewport": {
-    "x": 32.46497320518563,
-    "y": 206.86749887589406,
-    "zoom": 0.6158038261288714
-  },
   "timeline": {
     "sheetsById": {
       "Noodles": {
@@ -236,6 +254,5 @@
     },
     "definitionVersion": "0.4.0",
     "revisionHistory": []
-  },
-  "version": 7
+  }
 }

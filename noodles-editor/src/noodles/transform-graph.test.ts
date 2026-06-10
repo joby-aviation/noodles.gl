@@ -1,5 +1,5 @@
 import type { Node as ReactFlowNode } from '@xyflow/react'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Edge } from './noodles'
 import {
   type CodeOp,
@@ -13,6 +13,341 @@ import {
 import { clearOps, getOpStore } from './store'
 import { transformGraph } from './transform-graph'
 import { edgeId } from './utils/id-utils'
+
+describe('transform-graph topological sort with missing upstream nodes', () => {
+  afterEach(() => {
+    clearOps()
+  })
+
+  it('instantiates a node whose only upstream source does not exist in the graph', () => {
+    // Reproduces the KmlToGeoJsonOp bug: an edge references /file as source, but /file is not
+    // in the nodes list. Without the fix, /kml-to-geo-json would be silently dropped from the
+    // sorted output and never stored, causing "Operator with id X not found" at render time.
+    const nodes = [
+      {
+        id: '/kml-to-geo-json',
+        type: 'NumberOp', // operator type doesn't matter for this test
+        data: { inputs: {} },
+        position: { x: 0, y: 0 },
+      },
+    ]
+    const edges = [
+      {
+        // /file does not exist in nodes — stale edge
+        source: '/file',
+        target: '/kml-to-geo-json',
+        sourceHandle: 'out.data',
+        targetHandle: 'par.val',
+        id: '/file.out.data->/kml-to-geo-json.par.val',
+      },
+    ]
+
+    const instances = transformGraph({ nodes, edges })
+
+    expect(instances).toHaveLength(1)
+    expect(instances[0].id).toBe('/kml-to-geo-json')
+
+    const { getOp } = getOpStore()
+    expect(getOp('/kml-to-geo-json')).toBeDefined()
+  })
+
+  it('instantiates all nodes when multiple have missing upstream sources', () => {
+    const nodes = [
+      { id: '/a', type: 'NumberOp', data: { inputs: {} }, position: { x: 0, y: 0 } },
+      { id: '/b', type: 'NumberOp', data: { inputs: {} }, position: { x: 0, y: 0 } },
+    ]
+    const edges = [
+      // Both targets reference sources that don't exist
+      {
+        source: '/missing-1',
+        target: '/a',
+        sourceHandle: 'out.val',
+        targetHandle: 'par.val',
+        id: '/missing-1.out.val->/a.par.val',
+      },
+      {
+        source: '/missing-2',
+        target: '/b',
+        sourceHandle: 'out.val',
+        targetHandle: 'par.val',
+        id: '/missing-2.out.val->/b.par.val',
+      },
+    ]
+
+    const instances = transformGraph({ nodes, edges })
+
+    expect(instances).toHaveLength(2)
+    const { getOp } = getOpStore()
+    expect(getOp('/a')).toBeDefined()
+    expect(getOp('/b')).toBeDefined()
+  })
+
+  it('correctly orders reachable nodes before unreachable ones', () => {
+    // /source -> /downstream (reachable), /orphan has stale incoming edge from /ghost (unreachable)
+    const nodes = [
+      { id: '/source', type: 'NumberOp', data: { inputs: { val: 1 } }, position: { x: 0, y: 0 } },
+      {
+        id: '/downstream',
+        type: 'MathOp',
+        data: { inputs: { operator: 'add', b: 0 } },
+        position: { x: 0, y: 0 },
+      },
+      { id: '/orphan', type: 'NumberOp', data: { inputs: {} }, position: { x: 0, y: 0 } },
+    ]
+    const edges = [
+      {
+        source: '/source',
+        target: '/downstream',
+        sourceHandle: 'out.val',
+        targetHandle: 'par.a',
+        id: '/source.out.val->/downstream.par.a',
+      },
+      {
+        source: '/ghost', // doesn't exist
+        target: '/orphan',
+        sourceHandle: 'out.val',
+        targetHandle: 'par.val',
+        id: '/ghost.out.val->/orphan.par.val',
+      },
+    ]
+
+    const instances = transformGraph({ nodes, edges })
+
+    expect(instances).toHaveLength(3)
+    // /source must come before /downstream in execution order
+    const ids = instances.map(op => op.id)
+    expect(ids.indexOf('/source')).toBeLessThan(ids.indexOf('/downstream'))
+    // /orphan must also be present
+    expect(ids).toContain('/orphan')
+  })
+
+  it('still works correctly when all nodes are reachable (no regression)', () => {
+    const nodes = [
+      { id: '/num', type: 'NumberOp', data: { inputs: { val: 5 } }, position: { x: 0, y: 0 } },
+      { id: '/math', type: 'MathOp', data: { inputs: { b: 3 } }, position: { x: 0, y: 0 } },
+    ]
+    const edges = [
+      {
+        source: '/num',
+        target: '/math',
+        sourceHandle: 'out.val',
+        targetHandle: 'par.a',
+        id: '/num.out.val->/math.par.a',
+      },
+    ]
+
+    const instances = transformGraph({ nodes, edges })
+
+    expect(instances).toHaveLength(2)
+    const ids = instances.map(op => op.id)
+    expect(ids.indexOf('/num')).toBeLessThan(ids.indexOf('/math'))
+  })
+})
+
+describe('transform-graph stale edge and unknown type warnings', () => {
+  let errorSpy: ReturnType<typeof vi.spyOn>
+
+  beforeEach(() => {
+    errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+  })
+
+  afterEach(() => {
+    errorSpy.mockRestore()
+    clearOps()
+  })
+
+  it('errors when an edge source node does not exist', () => {
+    const nodes = [{ id: '/b', type: 'NumberOp', data: { inputs: {} }, position: { x: 0, y: 0 } }]
+    const edges = [
+      {
+        source: '/missing',
+        target: '/b',
+        sourceHandle: 'out.val',
+        targetHandle: 'par.val',
+        id: '/missing.out.val->/b.par.val',
+      },
+    ]
+
+    transformGraph({ nodes, edges })
+
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('Stale edge detected'))
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('"/missing"'))
+  })
+
+  it('errors when an edge target node does not exist', () => {
+    const nodes = [{ id: '/a', type: 'NumberOp', data: { inputs: {} }, position: { x: 0, y: 0 } }]
+    const edges = [
+      {
+        source: '/a',
+        target: '/missing',
+        sourceHandle: 'out.val',
+        targetHandle: 'par.val',
+        id: '/a.out.val->/missing.par.val',
+      },
+    ]
+
+    transformGraph({ nodes, edges })
+
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('Stale edge detected'))
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('"/missing"'))
+  })
+
+  it('emits one error per stale edge', () => {
+    const nodes = [{ id: '/b', type: 'NumberOp', data: { inputs: {} }, position: { x: 0, y: 0 } }]
+    const edges = [
+      {
+        source: '/ghost-1',
+        target: '/b',
+        sourceHandle: 'out.val',
+        targetHandle: 'par.val',
+        id: '/ghost-1.out.val->/b.par.val',
+      },
+      {
+        source: '/ghost-2',
+        target: '/b',
+        sourceHandle: 'out.val',
+        targetHandle: 'par.val',
+        id: '/ghost-2.out.val->/b.par.val',
+      },
+    ]
+
+    transformGraph({ nodes, edges })
+
+    const staleErrors = errorSpy.mock.calls.filter(call =>
+      String(call[0]).includes('Stale edge detected')
+    )
+    expect(staleErrors).toHaveLength(2)
+  })
+
+  it('does not error for a clean graph with no stale edges', () => {
+    const nodes = [
+      { id: '/a', type: 'NumberOp', data: { inputs: { val: 1 } }, position: { x: 0, y: 0 } },
+      {
+        id: '/b',
+        type: 'MathOp',
+        data: { inputs: { operator: 'add', b: 0 } },
+        position: { x: 0, y: 0 },
+      },
+    ]
+    const edges = [
+      {
+        source: '/a',
+        target: '/b',
+        sourceHandle: 'out.val',
+        targetHandle: 'par.a',
+        id: '/a.out.val->/b.par.a',
+      },
+    ]
+
+    transformGraph({ nodes, edges })
+
+    const staleErrors = errorSpy.mock.calls.filter(call =>
+      String(call[0]).includes('Stale edge detected')
+    )
+    expect(staleErrors).toHaveLength(0)
+  })
+
+  it('errors about unknown operator types', () => {
+    const nodes = [
+      { id: '/unknown-op', type: 'NonExistentOp', data: { inputs: {} }, position: { x: 0, y: 0 } },
+    ]
+
+    transformGraph({ nodes, edges: [] })
+
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('Unknown operator type'))
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('"NonExistentOp"'))
+  })
+
+  it('does not error for "group" special node type (React Flow group nodes)', () => {
+    const nodes = [
+      { id: 'for-loop-scope', type: 'group', data: {}, position: { x: 0, y: 0 } },
+      { id: '/num', type: 'NumberOp', data: { inputs: {} }, position: { x: 0, y: 0 } },
+    ]
+
+    transformGraph({ nodes, edges: [] })
+
+    const unknownTypeErrors = errorSpy.mock.calls.filter(call =>
+      String(call[0]).includes('Unknown operator type')
+    )
+    expect(unknownTypeErrors).toHaveLength(0)
+  })
+
+  it('sets a connection error on the target operator when source node is missing', () => {
+    const nodes = [{ id: '/b', type: 'NumberOp', data: { inputs: {} }, position: { x: 0, y: 0 } }]
+    const edges = [
+      {
+        source: '/missing',
+        target: '/b',
+        sourceHandle: 'out.val',
+        targetHandle: 'par.val',
+        id: '/missing.out.val->/b.par.val',
+      },
+    ]
+
+    transformGraph({ nodes, edges })
+
+    const { getOp } = getOpStore()
+    const op = getOp('/b') as NumberOp
+    expect(op.hasConnectionErrors()).toBe(true)
+    const msgs = op.getConnectionErrorMessages()
+    expect(msgs[0]).toContain('Broken connection')
+    expect(msgs[0]).toContain('"/missing"')
+  })
+
+  it('clears the broken-connection error when the stale edge is removed', () => {
+    const nodes = [{ id: '/b', type: 'NumberOp', data: { inputs: {} }, position: { x: 0, y: 0 } }]
+    const edges = [
+      {
+        source: '/missing',
+        target: '/b',
+        sourceHandle: 'out.val',
+        targetHandle: 'par.val',
+        id: '/missing.out.val->/b.par.val',
+      },
+    ]
+
+    transformGraph({ nodes, edges })
+
+    // Confirm error is set
+    const { getOp } = getOpStore()
+    expect(getOp('/b')!.hasConnectionErrors()).toBe(true)
+
+    // Remove the stale edge
+    transformGraph({ nodes, edges: [] })
+
+    expect(getOp('/b')!.hasConnectionErrors()).toBe(false)
+  })
+
+  it('does not fire stale-edge error for edges to unknown-type nodes', () => {
+    // An edge connecting to a node with an unknown type should only fire the "Unknown operator
+    // type" error, not a second "Stale edge detected" error for the same missing node ID.
+    const nodes = [
+      { id: '/a', type: 'NumberOp', data: { inputs: {} }, position: { x: 0, y: 0 } },
+      { id: '/b', type: 'NonExistentOp', data: { inputs: {} }, position: { x: 0, y: 0 } },
+    ]
+    const edges = [
+      {
+        source: '/a',
+        target: '/b',
+        sourceHandle: 'out.val',
+        targetHandle: 'par.val',
+        id: '/a.out.val->/b.par.val',
+      },
+    ]
+
+    transformGraph({ nodes, edges })
+
+    const staleErrors = errorSpy.mock.calls.filter(call =>
+      String(call[0]).includes('Stale edge detected')
+    )
+    expect(staleErrors).toHaveLength(0)
+    // The unknown-type error should still fire
+    const unknownTypeErrors = errorSpy.mock.calls.filter(call =>
+      String(call[0]).includes('Unknown operator type')
+    )
+    expect(unknownTypeErrors).toHaveLength(1)
+  })
+})
 
 describe('transform-graph', () => {
   it('handles qualified handle IDs', () => {

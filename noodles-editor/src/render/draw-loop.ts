@@ -1,6 +1,7 @@
 import type { Deck, DeckProps } from '@deck.gl/core'
 import { useEffect } from 'react'
 import { debugRender } from '../utils/debug'
+import { workerSetInterval, workerSetTimeout } from '../utils/worker-timer'
 
 interface RendererConfig {
   waitForData: boolean
@@ -49,16 +50,23 @@ export function useDeckDrawLoop({
               debugRender('deck waiting for layers to load')
               return // layers aren't loaded
             }
-            // Deck is ready, or we are not waiting for data
-            // Delay rendering by 200ms so that deck and maplibre can settle before capturing.
-            // In testing, this helped during interleaved rendering even though captureFrame isn't defined.
-            setTimeout(() => resolvePass(), captureDelay)
+            // Use worker timer so the delay fires even when the tab is hidden.
+            workerSetTimeout(() => resolvePass(), captureDelay)
           },
         })
-        await passPromise
+        // Pump Deck.gl's render directly via worker timer so onAfterRender fires even when
+        // the tab is switched. Deck.gl's internal RAF loop is throttled to ~1fps by Chrome
+        // when a tab is hidden, so we can't rely on it to drive rendering during export.
+        const cancelRedrawLoop = workerSetInterval(() => deck?.redraw('force'), 16)
+        try {
+          await passPromise
+        } finally {
+          cancelRedrawLoop()
+        }
         captureFrame?.()
       } catch (e) {
         const error = e instanceof Error ? e : new Error(String(e))
+        console.error('[Noodles] Draw loop error:', error)
         debugRender('[useDeckDrawLoop] Error during drawing:', error)
         captureFrame?.({ error })
       }

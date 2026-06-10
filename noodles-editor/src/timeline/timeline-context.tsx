@@ -5,7 +5,7 @@ import { createContext, useContext, useEffect, useMemo, useRef } from 'react'
 import { debugTimeline } from '../utils/debug'
 import { connectPlaybackToTimeline, playbackDriver } from './playback'
 import { getTimelineStore, useTimelineStore } from './timeline-store'
-import type { TheatreTimelineData } from './types'
+import type { TimelineData } from './types'
 
 // Context value type
 interface TimelineContextValue {
@@ -18,8 +18,8 @@ const TimelineContext = createContext<TimelineContextValue | null>(null)
 
 export interface TimelineProviderProps {
   children: React.ReactNode
-  // Optional initial timeline data (Theatre.js format from project JSON)
-  initialData?: TheatreTimelineData
+  // Optional initial timeline data (timeline JSON format from project JSON)
+  initialData?: TimelineData
 }
 
 export function TimelineProvider({ children, initialData }: TimelineProviderProps) {
@@ -32,10 +32,10 @@ export function TimelineProvider({ children, initialData }: TimelineProviderProp
 
     const store = getTimelineStore()
 
-    // Load initial data if provided (Theatre.js format)
+    // Load initial data if provided (timeline JSON format)
     if (initialData) {
       try {
-        store.fromTheatreJSON(initialData)
+        store.fromTimelineJSON(initialData)
       } catch (error) {
         debugTimeline('Failed to load timeline data:', error)
       }

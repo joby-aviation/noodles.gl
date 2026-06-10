@@ -19,7 +19,7 @@
     radial-gradient(70% 160% at 5% 50%, rgb(70 146 185 / 0.12), transparent 60%),
     linear-gradient(180deg, #1a212d 0%, #131923 100%);
   border-top: 1px solid var(--tl-border);
-  font-family: Inter, 'Segoe UI', 'SF Pro Text', system-ui, sans-serif;
+  font-family: Inter, "Segoe UI", "SF Pro Text", system-ui, sans-serif;
   font-size: 12px;
   color: var(--tl-text);
   user-select: none;
@@ -48,7 +48,9 @@
   border-radius: 4px;
   color: var(--tl-text-muted);
   cursor: pointer;
-  transition: background 0.12s ease, color 0.12s ease;
+  transition:
+    background 0.12s ease,
+    color 0.12s ease;
 }
 
 .timelineCollapseBtn:hover {
@@ -117,7 +119,9 @@
   align-items: center;
   justify-content: center;
   padding: 0;
-  transition: background 0.12s ease, border-color 0.12s ease;
+  transition:
+    background 0.12s ease,
+    border-color 0.12s ease;
 }
 
 .timelineZoomBtn:hover {
@@ -148,6 +152,8 @@
 .timelineTrackLabels {
   width: 250px;
   flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
   background: linear-gradient(180deg, rgb(27 34 46 / 0.96) 0%, rgb(20 27 37 / 0.96) 100%);
   border-right: 1px solid var(--tl-border);
   overflow-y: auto;
@@ -162,6 +168,10 @@
   padding: 0 12px;
   text-transform: uppercase;
   letter-spacing: 0.06em;
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  flex-shrink: 0;
 }
 
 .timelineTrackLabelsTitle {
@@ -171,13 +181,13 @@
 }
 
 .timelineTrackLabelsEmpty {
-  min-height: 100%;
+  flex: 1;
 }
 
 .timelineScrollArea {
   flex: 1;
   overflow-x: auto;
-  overflow-y: hidden;
+  overflow-y: auto;
 }
 
 .timelineKeyframeArea {
@@ -287,30 +297,57 @@
   background: linear-gradient(90deg, rgb(102 235 237 / 0.55), rgb(102 235 237 / 0.7));
 }
 
+.timelineKeyframeEdgeBar {
+  position: absolute;
+  height: 4px;
+  background: linear-gradient(90deg, rgb(102 235 237 / 0.25), rgb(102 235 237 / 0.35));
+  top: 50%;
+  transform: translateY(-50%);
+  border-radius: 999px;
+  pointer-events: none;
+}
+
 .timelineKeyframe {
   position: absolute;
   width: 10px;
   height: 10px;
-  background: #1f2632;
-  transform: translate(-50%, -50%) rotate(45deg);
+  background: transparent;
+  transform: translate(-50%, -50%);
   top: 50%;
   cursor: pointer;
-  border: 1.5px solid var(--tl-accent);
-  box-shadow: 0 0 0 1px rgb(15 20 29 / 0.85);
+  border: none;
   z-index: 1;
-  transition: transform 0.08s ease, background 0.12s ease, border-color 0.12s ease;
+  transition: transform 0.08s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .timelineKeyframe:hover {
-  background: rgb(72 198 207 / 0.25);
-  border-color: var(--tl-accent-strong);
-  transform: translate(-50%, -50%) rotate(45deg) scale(1.08);
+  transform: translate(-50%, -50%) scale(1.08);
 }
 
 .timelineKeyframe.selected {
-  background: var(--tl-accent);
-  border-color: #8aebef;
-  box-shadow: 0 0 0 1px rgb(9 14 20 / 0.9), 0 0 10px rgb(72 198 207 / 0.35);
+  /* Selection styling now handled by SVG fill/stroke colors */
+}
+
+.timelineKeyframe svg {
+  pointer-events: none;
+  filter: drop-shadow(0 0 1px rgb(15 20 29 / 0.85));
+}
+
+.timelineKeyframe.selected svg {
+  filter:
+    drop-shadow(0 0 1px rgb(9 14 20 / 0.9))
+    drop-shadow(0 0 10px rgb(72 198 207 / 0.35));
+}
+
+.timelineKeyframe.dropTarget {
+  transform: translate(-50%, -50%) scale(1.2);
+}
+
+.timelineKeyframe.dropTarget svg {
+  filter: drop-shadow(0 0 8px rgb(72 198 207 / 0.6));
 }
 
 .timelinePlayhead {
@@ -438,7 +475,10 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+  transition:
+    background 0.12s ease,
+    border-color 0.12s ease,
+    color 0.12s ease;
 }
 
 .timelinePlayControls button:hover {
@@ -463,7 +503,6 @@
   stroke-linecap: round;
   stroke-linejoin: round;
 }
-
 
 .timelineTimeDisplay {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -740,9 +779,11 @@
   background: linear-gradient(180deg, #1e2634 0%, #171d27 100%);
   border: 1px solid #2f3b4c;
   border-radius: 8px;
-  box-shadow: 0 8px 32px rgb(0 0 0 / 0.55), 0 2px 8px rgb(0 0 0 / 0.3);
+  box-shadow:
+    0 8px 32px rgb(0 0 0 / 0.55),
+    0 2px 8px rgb(0 0 0 / 0.3);
   overflow: hidden;
-  font-family: Inter, 'Segoe UI', system-ui, sans-serif;
+  font-family: Inter, "Segoe UI", system-ui, sans-serif;
   font-size: 12px;
   color: #b9c3cf;
 }
@@ -757,7 +798,7 @@
 
 .curvePopupBody {
   display: flex;
-  height: 248px;
+  height: 268px;
 }
 
 .curvePopupPresets {
@@ -791,7 +832,9 @@
   cursor: pointer;
   text-align: left;
   color: #8a96ad;
-  transition: background 0.08s, color 0.08s;
+  transition:
+    background 0.08s,
+    color 0.08s;
   white-space: nowrap;
   width: 100%;
 }
@@ -818,15 +861,150 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   padding: 8px;
   gap: 6px;
 }
 
-.curvePopupPresetLabel {
+.curvePopupCustomItem {
+  cursor: default;
+  opacity: 0.7;
+}
+
+.curvePopupCustomItem.active {
+  opacity: 1;
+}
+
+.curvePopupCustomItem:hover {
+  background: transparent;
+  color: #8a96ad;
+}
+
+.curvePopupCustomItem.active:hover {
+  background: rgb(72 198 207 / 0.18);
+  color: #d9fdff;
+}
+
+.curvePopupCoordEditor {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.curvePopupCoordGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 8px;
+  width: 100%;
+}
+
+.curvePopupCoordField {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.curvePopupCoordLabel {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #5a6880;
+}
+
+.curvePopupCoordInput {
+  width: 100%;
+  background: #111720;
+  border: 1px solid #2a3544;
+  border-radius: 3px;
+  color: #b9c3cf;
+  font-family: 'Fira Mono', 'Consolas', monospace;
+  font-size: 10px;
+  padding: 2px 4px;
+  outline: none;
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+.curvePopupCoordInput::-webkit-outer-spin-button,
+.curvePopupCoordInput::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.curvePopupCoordInput:focus {
+  border-color: #48c6cf;
+}
+
+.curvePopupCoordInput:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.curvePopupEditorHeader {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  border-top: 1px solid #2a3544;
+  padding-top: 4px;
+}
+
+.curvePopupPresetLabelText {
+  flex: 1;
   font-size: 10px;
   color: #6e7a8f;
-  text-align: center;
+}
+
+.curvePopupIconBtn {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  color: #5a6880;
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.08s, color 0.08s, border-color 0.08s;
+}
+
+.curvePopupIconBtn:hover {
+  background: rgb(72 198 207 / 0.1);
+  border-color: #2a3544;
+  color: #b9c3cf;
+}
+
+.curvePopupIconBtn.active {
+  background: rgb(72 198 207 / 0.15);
+  border-color: #48c6cf55;
+  color: #48c6cf;
+}
+
+.curvePopupIconBtn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.curvePopupEditInput {
+  width: 100%;
+  background: #111720;
+  border: 1px solid #2a3544;
+  border-radius: 3px;
+  color: #8a96ad;
+  font-family: 'Fira Mono', 'Consolas', monospace;
+  font-size: 9px;
+  padding: 3px 5px;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.curvePopupEditInput:focus {
+  border-color: #48c6cf;
+  color: #b9c3cf;
 }
 
 /* Curve view mode / view toggle */
@@ -844,7 +1022,10 @@
   color: #a6b2c5;
   font-size: 11px;
   cursor: pointer;
-  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+  transition:
+    background 0.12s ease,
+    border-color 0.12s ease,
+    color 0.12s ease;
 }
 
 .timelineViewModeBtn:hover {
@@ -883,9 +1064,11 @@
   background: linear-gradient(180deg, #1e2634 0%, #171d27 100%);
   border: 1px solid #2f3b4c;
   border-radius: 8px;
-  box-shadow: 0 8px 32px rgb(0 0 0 / 0.55), 0 2px 8px rgb(0 0 0 / 0.3);
+  box-shadow:
+    0 8px 32px rgb(0 0 0 / 0.55),
+    0 2px 8px rgb(0 0 0 / 0.3);
   overflow: hidden;
-  font-family: Inter, 'Segoe UI', system-ui, sans-serif;
+  font-family: Inter, "Segoe UI", system-ui, sans-serif;
   font-size: 12px;
   color: #b9c3cf;
 }
@@ -994,7 +1177,7 @@
   margin: 0;
 }
 
-.kfValueInput.editing[type='number'] {
+.kfValueInput.editing[type="number"] {
   -moz-appearance: textfield;
 }
 
@@ -1114,7 +1297,9 @@
   transform: translateX(-50%);
   fill: var(--tl-accent);
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
-  transition: fill 0.12s ease, filter 0.12s ease;
+  transition:
+    fill 0.12s ease,
+    filter 0.12s ease;
 }
 
 .timeMarker:hover .timeMarkerIcon {
@@ -1152,7 +1337,9 @@
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  transition: width 0.12s ease, height 0.12s ease;
+  transition:
+    width 0.12s ease,
+    height 0.12s ease;
 }
 
 /* Ruler context menu */
@@ -1232,7 +1419,7 @@
 
 /* Keyframe connected indicator */
 .timelineKeyframe.connected::after {
-  content: '';
+  content: "";
   position: absolute;
   top: 50%;
   left: 50%;
@@ -1275,7 +1462,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background 0.1s ease, color 0.1s ease;
+  transition:
+    background 0.1s ease,
+    color 0.1s ease;
   flex-shrink: 0;
 }
 
@@ -1309,4 +1498,68 @@
 
 .timelineTrackLabelBtn.hasKeyframes:hover:not(:disabled) {
   color: var(--tl-accent-strong);
+}
+
+/* In/Out Point Markers */
+.inOutMarker {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  pointer-events: auto;
+  z-index: 10;
+  cursor: ew-resize;
+}
+
+.inOutMarker[data-type="in"] .inOutMarkerLine {
+  border-left: 2px solid #4ade80;
+}
+
+.inOutMarker[data-type="out"] .inOutMarkerLine {
+  border-left: 2px solid #f87171;
+}
+
+.inOutMarkerLine {
+  height: 100%;
+  pointer-events: none;
+}
+
+.inOutMarkerLabel {
+  position: absolute;
+  top: 2px;
+  left: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  color: currentColor;
+  background: rgba(0, 0, 0, 0.6);
+  padding: 1px 4px;
+  border-radius: 2px;
+  pointer-events: none;
+  user-select: none;
+}
+
+.inOutMarkerHandle {
+  position: absolute;
+  top: 0;
+  left: -4px;
+  width: 8px;
+  height: 100%;
+  cursor: ew-resize;
+}
+
+.inOutMarker:hover .inOutMarkerLine {
+  opacity: 0.8;
+}
+
+.inOutMarker:hover .inOutMarkerLabel {
+  background: rgba(0, 0, 0, 0.8);
+}
+
+/* Dimming overlay for non-active timeline sections */
+.timelineDimOverlay {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+  z-index: 5;
 }

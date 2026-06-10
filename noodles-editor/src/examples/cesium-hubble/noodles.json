@@ -1,0 +1,788 @@
+{
+  "version": 14,
+  "edges": [
+    {
+      "id": "/basemap.out.maplibre->/renderer.par.basemap",
+      "source": "/basemap",
+      "target": "/renderer",
+      "sourceHandle": "out.maplibre",
+      "targetHandle": "par.basemap"
+    },
+    {
+      "id": "/point-cloud.out.layer->/renderer.par.layers",
+      "source": "/point-cloud",
+      "target": "/renderer",
+      "sourceHandle": "out.layer",
+      "targetHandle": "par.layers"
+    },
+    {
+      "id": "/video-spheres.out.data->/renderer.par.layers",
+      "source": "/video-spheres",
+      "target": "/renderer",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.layers"
+    },
+    {
+      "id": "/renderer.out.vis->/out.par.vis",
+      "source": "/renderer",
+      "target": "/out",
+      "sourceHandle": "out.vis",
+      "targetHandle": "par.vis"
+    }
+  ],
+  "viewport": {
+    "x": 200,
+    "y": 200,
+    "zoom": 0.75
+  },
+  "name": "Cesium + Hubble Video Spheres",
+  "editorSettings": {
+    "layoutMode": "noodles-on-top",
+    "showOverlay": true
+  },
+  "nodes": [
+    {
+      "id": "/basemap",
+      "type": "MaplibreBasemapOp",
+      "position": {
+        "x": 300,
+        "y": 300
+      },
+      "data": {
+        "inputs": {
+          "mapStyle": "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",
+          "viewState": {
+            "longitude": -74.01528014573182,
+            "latitude": 40.706616771021125,
+            "zoom": 20,
+            "pitch": 55.17280350846221,
+            "bearing": 2.3531249999999773
+          }
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/point-cloud",
+      "type": "Tile3DLayerOp",
+      "position": {
+        "x": -50,
+        "y": -180
+      },
+      "data": {
+        "inputs": {
+          "provider": "Cesium",
+          "flatLighting": true
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/video-spheres",
+      "type": "CodeOp",
+      "position": {
+        "x": -400,
+        "y": 60
+      },
+      "width": 900,
+      "height": 680,
+      "measured": {
+        "width": 900,
+        "height": 680
+      },
+      "data": {
+        "inputs": {
+          "code": [
+            "// Generate a UV sphere as a loaders.gl Mesh object (deck.gl accepts this natively)",
+            "function generateSphere(radius, nlat, nlong) {",
+            "  const positions = [], normals = [], texCoords = [], indices = []",
+            "  for (let lat = 0; lat <= nlat; lat++) {",
+            "    const theta = (lat * Math.PI) / nlat",
+            "    const sinTheta = Math.sin(theta), cosTheta = Math.cos(theta)",
+            "    for (let lon = 0; lon <= nlong; lon++) {",
+            "      const phi = (lon * 2 * Math.PI) / nlong",
+            "      const x = Math.cos(phi) * sinTheta, y = cosTheta, z = Math.sin(phi) * sinTheta",
+            "      positions.push(x * radius, y * radius, z * radius)",
+            "      normals.push(x, y, z)",
+            "      texCoords.push(lon / nlong, lat / nlat)",
+            "    }",
+            "  }",
+            "  for (let lat = 0; lat < nlat; lat++) {",
+            "    for (let lon = 0; lon < nlong; lon++) {",
+            "      const a = lat * (nlong + 1) + lon, b = a + nlong + 1",
+            "      indices.push(a, b, a + 1, b, b + 1, a + 1)",
+            "    }",
+            "  }",
+            "  return {",
+            "    topology: 'triangle-list',",
+            "    attributes: {",
+            "      POSITION: { size: 3, value: new Float32Array(positions) },",
+            "      NORMAL: { size: 3, value: new Float32Array(normals) },",
+            "      TEXCOORD_0: { size: 2, value: new Float32Array(texCoords) },",
+            "    },",
+            "    indices: { size: 1, value: new Uint32Array(indices) },",
+            "  }",
+            "}",
+            "const sphere = generateSphere(1, 40, 40)",
+            "",
+            "const makeVideo = (v) => {",
+            "  if (v.isImage) return v.url",
+            "  const el = document.createElement('video')",
+            "  el.src = v.url + (v.startTime ? `#t=${v.startTime}` : '')",
+            "  el.crossOrigin = 'anonymous'",
+            "  el.loop = true",
+            "  el.muted = true",
+            "  el.autoplay = true",
+            "  el.play().catch((e) => console.warn('[cesium-hubble] autoplay blocked:', e))",
+            "  return el",
+            "}",
+            "",
+            "const videos = [",
+            "  { url: 'https://pointcloud-videos.s3.amazonaws.com/yt5s.com-Amazing%20Street%20Musicians%20Performing%20in%20New%20York%20City%2C%20Street%20Performers-%281080p%29.mp4', position: [-74.0152298040547, 40.70303169832896], radius: 150 },",
+            "  { url: 'https://pointcloud-videos.s3.amazonaws.com/yt5s.com-Amazingly%20talented%20child%20subway%20drummer-%281080p%29.mp4', position: [-73.99666928636229, 40.72193350352984], radius: 100 },",
+            "  { url: 'https://pointcloud-videos.s3.amazonaws.com/yt5s.com-Musicians%20outside%20of%20Cooper%20Union%20%28NYC%29-%28480p%29.mp4', position: [-73.986876427207, 40.73186576289673], radius: 100 },",
+            "  { url: 'https://pointcloud-videos.s3.amazonaws.com/X2Download.com-the%20coolest%20saxophone%20subway%20band%20ever.mp4', position: [-73.99583300957174, 40.745258134105356], radius: 100, startTime: 5 },",
+            "  { url: 'https://pointcloud-videos.s3.amazonaws.com/Woman%20Randomly%20Walks%20Off%20the%20Street%20to%20Join%20Street%20Musicians%20%5BTSNfJ7ibvCo%5D.webm', position: [-73.97545461759636, 40.753129712361265], radius: 100 },",
+            "  { url: 'https://pointcloud-videos.s3.amazonaws.com/Coyote%20%26%20Crow%20perform%20live%20at%20Union%20Square%20%5Bf8KZqLy1Pb0%5D.webm', position: [-73.98910522225347, 40.741538412081425], radius: 100 },",
+            "  { url: 'https://pointcloud-videos.s3.amazonaws.com/X2Download.com-This%20is%20amazing%21%20A%20spontaneous%20piano_sax%20performance%20with%20Ladyva%20at%20Charles%20de%20Gaulle%20airport.mp4', position: [-74.00787624379548, 40.71512284456615], radius: 100 },",
+            "  { url: 'https://pointcloud-videos.s3.amazonaws.com/X2Download.com-Drum%20Circle.%20Prospect%20Park.%20Brooklyn.%20July%2019%202015..mp4', position: [-73.97181924048971, 40.76951659152664], radius: 100 },",
+            "  { url: 'https://pointcloud-videos.s3.amazonaws.com/X2Download.com-Best%20Drummer%20Ever%20%5BHD%5D.mp4', position: [-73.98993325227518, 40.75865902126557], radius: 100 },",
+            "  { url: 'https://pointcloud-videos.s3.amazonaws.com/Rosatera%20singing%20in%20the%20New%20York%20City%20Subway%20%5B9kY8mpeT5wo%5D.webm', position: [-73.98764377704777, 40.749780590644505], radius: 100 },",
+            "  { url: 'https://pointcloud-videos.s3.amazonaws.com/Awesome%20Street%20Jazz%20Band%20In%20Central%20Park%20%5B_yu_6kOSWR8%5D.webm', position: [-73.9691642676795, 40.773157848397055], radius: 100 },",
+            "  { url: 'https://pointcloud-videos.s3.amazonaws.com/C0010T01.JPG', position: [-73.99204731640815, 40.70971999194366], radius: 150, orientation: [0, 0, -90], isImage: true },",
+            "]",
+            "",
+            "return videos.map((v, i) => ({",
+            "  type: 'SimpleMeshLayer',",
+            "  id: `video-sphere-${i}`,",
+            "  data: [0],",
+            "  mesh: sphere,",
+            "  texture: makeVideo(v),",
+            "  getOrientation: v.orientation ?? [0, 90, -90],",
+            "  getPosition: [v.position[0], v.position[1], 0],",
+            "  sizeScale: v.radius,",
+            "  material: false,",
+            "}))"
+          ]
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/renderer",
+      "type": "DeckRendererOp",
+      "position": {
+        "x": 800,
+        "y": 60
+      },
+      "data": {
+        "inputs": {},
+        "locked": false
+      }
+    },
+    {
+      "id": "/out",
+      "type": "OutOp",
+      "position": {
+        "x": 1100,
+        "y": 60
+      },
+      "data": {
+        "inputs": {
+          "display": "fixed",
+          "width": 1920,
+          "height": 1080,
+          "lod": 2,
+          "waitForData": true,
+          "codec": "avc",
+          "bitrateMbps": 10,
+          "bitrateMode": "constant",
+          "scaleControl": 0.3,
+          "framerate": 24,
+          "captureDelay": 50
+        },
+        "locked": false
+      }
+    }
+  ],
+  "timeline": {
+    "sheetsById": {
+      "Noodles": {
+        "staticOverrides": {
+          "byObject": {}
+        },
+        "sequence": {
+          "subUnitsPerUnit": 30,
+          "length": 19,
+          "type": "PositionalSequence",
+          "tracksByObject": {
+            "basemap": {
+              "trackData": {
+                "lngTrk001": {
+                  "type": "BasicKeyframedTrack",
+                  "__debugName": "basemap:[\"viewState\",\"longitude\"]",
+                  "keyframes": [
+                    {
+                      "id": "kf_lng_0",
+                      "position": 0,
+                      "connectedRight": true,
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
+                      "type": "bezier",
+                      "value": -74.01528014573182
+                    },
+                    {
+                      "id": "kf_lng_1",
+                      "position": 4,
+                      "connectedRight": true,
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
+                      "type": "bezier",
+                      "value": -74.0152298040547
+                    },
+                    {
+                      "id": "kf_lng_2",
+                      "position": 5.5,
+                      "connectedRight": true,
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
+                      "type": "bezier",
+                      "value": -74.00393041204993
+                    },
+                    {
+                      "id": "kf_lng_3",
+                      "position": 7,
+                      "connectedRight": true,
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
+                      "type": "bezier",
+                      "value": -73.98427479072922
+                    },
+                    {
+                      "id": "kf_lng_4",
+                      "position": 7.5,
+                      "connectedRight": true,
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
+                      "type": "bezier",
+                      "value": -73.98
+                    },
+                    {
+                      "id": "kf_lng_5",
+                      "position": 11,
+                      "connectedRight": true,
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
+                      "type": "bezier",
+                      "value": -73.97857897544452
+                    },
+                    {
+                      "id": "kf_lng_6",
+                      "position": 18,
+                      "connectedRight": true,
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
+                      "type": "bezier",
+                      "value": -73.99384768869895
+                    },
+                    {
+                      "id": "kf_lng_7",
+                      "position": 19,
+                      "connectedRight": false,
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
+                      "type": "bezier",
+                      "value": -73.99244100531732
+                    }
+                  ]
+                },
+                "latTrk001": {
+                  "type": "BasicKeyframedTrack",
+                  "__debugName": "basemap:[\"viewState\",\"latitude\"]",
+                  "keyframes": [
+                    {
+                      "id": "kf_lat_0",
+                      "position": 0,
+                      "connectedRight": true,
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
+                      "type": "bezier",
+                      "value": 40.706616771021125
+                    },
+                    {
+                      "id": "kf_lat_1",
+                      "position": 4,
+                      "connectedRight": true,
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
+                      "type": "bezier",
+                      "value": 40.70303169832896
+                    },
+                    {
+                      "id": "kf_lat_2",
+                      "position": 5.5,
+                      "connectedRight": true,
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
+                      "type": "bezier",
+                      "value": 40.71734981243856
+                    },
+                    {
+                      "id": "kf_lat_3",
+                      "position": 7,
+                      "connectedRight": true,
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
+                      "type": "bezier",
+                      "value": 40.75431303578706
+                    },
+                    {
+                      "id": "kf_lat_4",
+                      "position": 7.5,
+                      "connectedRight": true,
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
+                      "type": "bezier",
+                      "value": 40.76
+                    },
+                    {
+                      "id": "kf_lat_5",
+                      "position": 11,
+                      "connectedRight": true,
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
+                      "type": "bezier",
+                      "value": 40.76987541463695
+                    },
+                    {
+                      "id": "kf_lat_6",
+                      "position": 18,
+                      "connectedRight": true,
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
+                      "type": "bezier",
+                      "value": 40.709429113152396
+                    },
+                    {
+                      "id": "kf_lat_7",
+                      "position": 19,
+                      "connectedRight": false,
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
+                      "type": "bezier",
+                      "value": 40.7096991343267
+                    }
+                  ]
+                },
+                "zmTrk0001": {
+                  "type": "BasicKeyframedTrack",
+                  "__debugName": "basemap:[\"viewState\",\"zoom\"]",
+                  "keyframes": [
+                    {
+                      "id": "kf_zm_0",
+                      "position": 0,
+                      "connectedRight": true,
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
+                      "type": "bezier",
+                      "value": 20
+                    },
+                    {
+                      "id": "kf_zm_1",
+                      "position": 4,
+                      "connectedRight": true,
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
+                      "type": "bezier",
+                      "value": 15.71886755188483
+                    },
+                    {
+                      "id": "kf_zm_2",
+                      "position": 5.5,
+                      "connectedRight": true,
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
+                      "type": "bezier",
+                      "value": 15.71886755188483
+                    },
+                    {
+                      "id": "kf_zm_3",
+                      "position": 7,
+                      "connectedRight": true,
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
+                      "type": "bezier",
+                      "value": 18.73975411019099
+                    },
+                    {
+                      "id": "kf_zm_4",
+                      "position": 7.5,
+                      "connectedRight": true,
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
+                      "type": "bezier",
+                      "value": 17
+                    },
+                    {
+                      "id": "kf_zm_5",
+                      "position": 11,
+                      "connectedRight": true,
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
+                      "type": "bezier",
+                      "value": 15
+                    },
+                    {
+                      "id": "kf_zm_6",
+                      "position": 18,
+                      "connectedRight": true,
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
+                      "type": "bezier",
+                      "value": 14.5
+                    },
+                    {
+                      "id": "kf_zm_7",
+                      "position": 19,
+                      "connectedRight": false,
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
+                      "type": "bezier",
+                      "value": 17
+                    }
+                  ]
+                },
+                "ptTrk0001": {
+                  "type": "BasicKeyframedTrack",
+                  "__debugName": "basemap:[\"viewState\",\"pitch\"]",
+                  "keyframes": [
+                    {
+                      "id": "kf_pt_0",
+                      "position": 0,
+                      "connectedRight": true,
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
+                      "type": "bezier",
+                      "value": 55.17280350846221
+                    },
+                    {
+                      "id": "kf_pt_1",
+                      "position": 4,
+                      "connectedRight": true,
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
+                      "type": "bezier",
+                      "value": 60
+                    },
+                    {
+                      "id": "kf_pt_2",
+                      "position": 5.5,
+                      "connectedRight": true,
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
+                      "type": "bezier",
+                      "value": 60
+                    },
+                    {
+                      "id": "kf_pt_3",
+                      "position": 7,
+                      "connectedRight": true,
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
+                      "type": "bezier",
+                      "value": 60
+                    },
+                    {
+                      "id": "kf_pt_4",
+                      "position": 7.5,
+                      "connectedRight": true,
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
+                      "type": "bezier",
+                      "value": 60
+                    },
+                    {
+                      "id": "kf_pt_5",
+                      "position": 11,
+                      "connectedRight": true,
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
+                      "type": "bezier",
+                      "value": 60
+                    },
+                    {
+                      "id": "kf_pt_6",
+                      "position": 18,
+                      "connectedRight": true,
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
+                      "type": "bezier",
+                      "value": 59.70381797146161
+                    },
+                    {
+                      "id": "kf_pt_7",
+                      "position": 19,
+                      "connectedRight": false,
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
+                      "type": "bezier",
+                      "value": 59.70381797146161
+                    }
+                  ]
+                },
+                "brTrk0001": {
+                  "type": "BasicKeyframedTrack",
+                  "__debugName": "basemap:[\"viewState\",\"bearing\"]",
+                  "keyframes": [
+                    {
+                      "id": "kf_br_0",
+                      "position": 0,
+                      "connectedRight": true,
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
+                      "type": "bezier",
+                      "value": 2.3531249999999773
+                    },
+                    {
+                      "id": "kf_br_1",
+                      "position": 4,
+                      "connectedRight": true,
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
+                      "type": "bezier",
+                      "value": 33.00937499999998
+                    },
+                    {
+                      "id": "kf_br_2",
+                      "position": 5.5,
+                      "connectedRight": true,
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
+                      "type": "bezier",
+                      "value": 33.00937499999998
+                    },
+                    {
+                      "id": "kf_br_3",
+                      "position": 7,
+                      "connectedRight": true,
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
+                      "type": "bezier",
+                      "value": 33.00937499999998
+                    },
+                    {
+                      "id": "kf_br_4",
+                      "position": 7.5,
+                      "connectedRight": true,
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
+                      "type": "bezier",
+                      "value": 33.00937499999998
+                    },
+                    {
+                      "id": "kf_br_5",
+                      "position": 11,
+                      "connectedRight": true,
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
+                      "type": "bezier",
+                      "value": 120
+                    },
+                    {
+                      "id": "kf_br_6",
+                      "position": 18,
+                      "connectedRight": true,
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
+                      "type": "bezier",
+                      "value": 165.36231617647059
+                    },
+                    {
+                      "id": "kf_br_7",
+                      "position": 19,
+                      "connectedRight": false,
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
+                      "type": "bezier",
+                      "value": 165.36231617647059
+                    }
+                  ]
+                }
+              },
+              "trackIdByPropPath": {
+                "[\"viewState\",\"longitude\"]": "lngTrk001",
+                "[\"viewState\",\"latitude\"]": "latTrk001",
+                "[\"viewState\",\"zoom\"]": "zmTrk0001",
+                "[\"viewState\",\"pitch\"]": "ptTrk0001",
+                "[\"viewState\",\"bearing\"]": "brTrk0001"
+              }
+            }
+          },
+          "markers": []
+        }
+      }
+    },
+    "definitionVersion": "0.4.0",
+    "revisionHistory": []
+  }
+}

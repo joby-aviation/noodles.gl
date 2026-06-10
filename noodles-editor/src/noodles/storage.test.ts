@@ -35,9 +35,20 @@ vi.mock('./utils/directory-handle-cache', () => ({
 }))
 
 // Import after mocks are set up
-import { checkAssetExists, readAsset, readAssetBinary } from './storage'
+import {
+  checkAssetExists,
+  hasDataDirectory,
+  listDataFiles,
+  load,
+  readAsset,
+  readAssetBinary,
+  save,
+  writeAsset,
+} from './storage'
 import { directoryHandleCache } from './utils/directory-handle-cache'
 import * as filesystem from './utils/filesystem'
+import { memoryProjectStore } from './utils/memory-project-store'
+import type { NoodlesProjectJSON } from './utils/serialization'
 
 // Create a mock directory handle factory
 const createMockDirectoryHandle = (name: string): FileSystemDirectoryHandle => {
@@ -549,6 +560,207 @@ describe('storage.ts', () => {
           expect(result.data).toBe(binaryData)
           expect(result.data).toBeInstanceOf(ArrayBuffer)
         }
+      })
+    })
+  })
+
+  // ============================================================================
+  // Memory storage type — virtual in-memory filesystem
+  // ============================================================================
+
+  describe('memory storage type', () => {
+    const PROJECT_ID = 'draft-test-memory'
+    const STUB_PROJECT: NoodlesProjectJSON = {
+      version: 14,
+      nodes: [],
+      edges: [],
+      viewport: { x: 0, y: 0, zoom: 1 },
+      timeline: {},
+    }
+
+    afterEach(() => {
+      memoryProjectStore.deleteProject(PROJECT_ID)
+    })
+
+    describe('save + load round-trip', () => {
+      it('saves project JSON to memory and loads it back', async () => {
+        const saveResult = await save('memory', PROJECT_ID, STUB_PROJECT)
+        expect(saveResult.success).toBe(true)
+
+        const loadResult = await load('memory', PROJECT_ID)
+        expect(loadResult.success).toBe(true)
+        if (loadResult.success) {
+          expect(loadResult.data.projectData.version).toBe(14)
+          expect(loadResult.data.name).toBe(PROJECT_ID)
+        }
+      })
+
+      it('load returns not-found for missing project', async () => {
+        const result = await load('memory', 'nonexistent-draft')
+        expect(result.success).toBe(false)
+        if (!result.success) {
+          expect(result.error.type).toBe('not-found')
+        }
+      })
+    })
+
+    describe('readAsset', () => {
+      it('reads text asset from memory', async () => {
+        memoryProjectStore.writeAsset(PROJECT_ID, 'cities.csv', 'name,pop\nNYC,8000000')
+
+        const result = await readAsset('memory', PROJECT_ID, 'cities.csv')
+        expect(result.success).toBe(true)
+        if (result.success) {
+          expect(result.data).toBe('name,pop\nNYC,8000000')
+        }
+      })
+
+      it('returns not-found for missing asset', async () => {
+        const result = await readAsset('memory', PROJECT_ID, 'missing.csv')
+        expect(result.success).toBe(false)
+        if (!result.success) {
+          expect(result.error.type).toBe('not-found')
+        }
+      })
+
+      it('does not touch filesystem APIs', async () => {
+        memoryProjectStore.writeAsset(PROJECT_ID, 'test.csv', 'data')
+        await readAsset('memory', PROJECT_ID, 'test.csv')
+
+        expect(filesystem.selectDirectory).not.toHaveBeenCalled()
+        expect(filesystem.readFileFromDirectory).not.toHaveBeenCalled()
+        expect(filesystem.getOPFSRoot).not.toHaveBeenCalled()
+      })
+    })
+
+    describe('readAssetBinary', () => {
+      it('reads binary asset from memory', async () => {
+        const bytes = new Uint8Array([10, 20, 30])
+        memoryProjectStore.writeAsset(PROJECT_ID, 'img.png', new Blob([bytes]))
+
+        const result = await readAssetBinary('memory', PROJECT_ID, 'img.png')
+        expect(result.success).toBe(true)
+        if (result.success) {
+          expect(new Uint8Array(result.data)).toEqual(bytes)
+        }
+      })
+
+      it('returns not-found for missing binary asset', async () => {
+        const result = await readAssetBinary('memory', PROJECT_ID, 'missing.bin')
+        expect(result.success).toBe(false)
+        if (!result.success) {
+          expect(result.error.type).toBe('not-found')
+        }
+      })
+    })
+
+    describe('writeAsset', () => {
+      it('writes text asset to memory', async () => {
+        const result = await writeAsset('memory', PROJECT_ID, 'new.csv', 'a,b\n1,2')
+        expect(result.success).toBe(true)
+
+        const readResult = await readAsset('memory', PROJECT_ID, 'new.csv')
+        expect(readResult.success).toBe(true)
+        if (readResult.success) {
+          expect(readResult.data).toBe('a,b\n1,2')
+        }
+      })
+
+      it('writes Blob asset to memory', async () => {
+        const blob = new Blob(['blob data'])
+        const result = await writeAsset('memory', PROJECT_ID, 'file.dat', blob)
+        expect(result.success).toBe(true)
+
+        const readResult = await readAsset('memory', PROJECT_ID, 'file.dat')
+        expect(readResult.success).toBe(true)
+        if (readResult.success) {
+          expect(readResult.data).toBe('blob data')
+        }
+      })
+
+      it('does not write to filesystem', async () => {
+        await writeAsset('memory', PROJECT_ID, 'test.csv', 'x')
+
+        expect(filesystem.writeFileToDirectory).not.toHaveBeenCalled()
+        expect(filesystem.selectDirectory).not.toHaveBeenCalled()
+      })
+    })
+
+    describe('checkAssetExists', () => {
+      it('returns true for existing asset', async () => {
+        memoryProjectStore.writeAsset(PROJECT_ID, 'data.csv', 'x')
+        expect(await checkAssetExists('memory', PROJECT_ID, 'data.csv')).toBe(true)
+      })
+
+      it('returns false for missing asset', async () => {
+        expect(await checkAssetExists('memory', PROJECT_ID, 'missing.csv')).toBe(false)
+      })
+    })
+
+    describe('hasDataDirectory', () => {
+      it('returns false when no assets', async () => {
+        memoryProjectStore.setProjectJson(PROJECT_ID, STUB_PROJECT)
+        expect(await hasDataDirectory('memory', PROJECT_ID)).toBe(false)
+      })
+
+      it('returns true when assets exist', async () => {
+        memoryProjectStore.writeAsset(PROJECT_ID, 'file.csv', 'x')
+        expect(await hasDataDirectory('memory', PROJECT_ID)).toBe(true)
+      })
+    })
+
+    describe('listDataFiles', () => {
+      it('lists all in-memory assets', async () => {
+        memoryProjectStore.writeAsset(PROJECT_ID, 'a.csv', 'a')
+        memoryProjectStore.writeAsset(PROJECT_ID, 'b.json', '{}')
+
+        const result = await listDataFiles('memory', PROJECT_ID)
+        expect(result.success).toBe(true)
+        if (result.success) {
+          expect(result.data).toContain('a.csv')
+          expect(result.data).toContain('b.json')
+          expect(result.data).toHaveLength(2)
+        }
+      })
+
+      it('returns empty list for project with no assets', async () => {
+        memoryProjectStore.setProjectJson(PROJECT_ID, STUB_PROJECT)
+        const result = await listDataFiles('memory', PROJECT_ID)
+        expect(result.success).toBe(true)
+        if (result.success) {
+          expect(result.data).toHaveLength(0)
+        }
+      })
+    })
+
+    describe('isolation from other storage types', () => {
+      it('memory writes do not appear in fileSystemAccess reads', async () => {
+        memoryProjectStore.writeAsset(PROJECT_ID, 'data.csv', 'in-memory')
+
+        vi.mocked(directoryHandleCache.getCachedHandle).mockResolvedValue(null)
+        vi.mocked(filesystem.selectDirectory).mockResolvedValue(
+          null as unknown as FileSystemDirectoryHandle
+        )
+
+        const result = await readAsset('fileSystemAccess', PROJECT_ID, 'data.csv')
+        expect(result.success).toBe(false)
+      })
+
+      it('memory operations never call filesystem APIs', async () => {
+        memoryProjectStore.writeAsset(PROJECT_ID, 'test.csv', 'data')
+        await readAsset('memory', PROJECT_ID, 'test.csv')
+        await readAssetBinary('memory', PROJECT_ID, 'test.csv')
+        await checkAssetExists('memory', PROJECT_ID, 'test.csv')
+        await hasDataDirectory('memory', PROJECT_ID)
+        await listDataFiles('memory', PROJECT_ID)
+
+        expect(filesystem.selectDirectory).not.toHaveBeenCalled()
+        expect(filesystem.readFileFromDirectory).not.toHaveBeenCalled()
+        expect(filesystem.readFileFromDirectoryBinary).not.toHaveBeenCalled()
+        expect(filesystem.writeFileToDirectory).not.toHaveBeenCalled()
+        expect(filesystem.fileExists).not.toHaveBeenCalled()
+        expect(filesystem.directoryExists).not.toHaveBeenCalled()
+        expect(filesystem.getOPFSRoot).not.toHaveBeenCalled()
       })
     })
   })

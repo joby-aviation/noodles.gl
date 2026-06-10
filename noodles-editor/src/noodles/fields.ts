@@ -259,29 +259,50 @@ export class StringField extends Field<z.ZodString> {
   }
 }
 
-export class FileField extends Field<
-  z.ZodUnion<
-    readonly [
-      z.ZodString,
-      z.ZodPipe<
-        z.ZodObject<{ id: z.ZodString; type: z.ZodLiteral<'file'> }, z.core.$strict>,
-        z.ZodTransform<string, { id: string; type: 'file' }>
-      >,
-    ]
-  >
-> {
-  static type = 'file'
+type FileUrlFieldOptions = BaseFieldOptions & {
+  accept?: string // e.g. '.glb,.gltf' — controls file picker filter and shows upload button
+  suggestions?: { value: string; label: string }[] // typeahead suggestions shown in input
+}
+
+export class FileUrlField extends Field<z.ZodString, FileUrlFieldOptions> {
+  static type = 'file-url'
   static defaultValue = ''
-  createSchema() {
-    return z.union([
-      z.string(),
-      z
-        .object({
-          id: z.string(),
-          type: z.literal('file'),
-        })
-        .transform(val => val.id),
-    ])
+  accept?: string
+  suggestions: { value: string; label: string }[]
+
+  constructor(initialValue?: string, options?: Partial<FileUrlFieldOptions>) {
+    super(initialValue, options)
+    this.accept = options?.accept
+    this.suggestions = options?.suggestions ?? []
+  }
+
+  createSchema(_options?: Partial<FileUrlFieldOptions>) {
+    return z.string()
+  }
+}
+
+export interface MapStyleFieldOptions extends BaseFieldOptions {
+  accept?: string
+  suggestions?: { value: string | Record<string, unknown>; label: string }[]
+}
+
+export class MapStyleField extends Field<
+  z.ZodUnion<[z.ZodString, z.ZodRecord<z.ZodString, z.ZodUnknown>]>,
+  MapStyleFieldOptions
+> {
+  static type = 'map-style'
+  static defaultValue = ''
+  accept?: string
+  suggestions: { value: string; label: string }[]
+
+  constructor(defaultValue = '', options?: Partial<MapStyleFieldOptions>) {
+    super(defaultValue, options)
+    this.accept = options?.accept
+    this.suggestions = options?.suggestions ?? []
+  }
+
+  createSchema(_options?: Partial<MapStyleFieldOptions>) {
+    return z.union([z.string(), z.record(z.string(), z.unknown())])
   }
 }
 
@@ -316,14 +337,19 @@ export const mustacheRe = new RegExp(
   `{{(?<opId>${OPERATOR_ID_PATTERN})\\.(?<inOut>par|out)\\.(?<fieldPath>[\\w-.]+)}}`,
   'g'
 )
-// Function-style references: op('/path/to/operator').out.val
+// Function-style references: op('/path/to/operator').out.val or op("/path/to/operator").out.val
 export const fnRe = new RegExp(
-  `op\\('(?<opId>${OPERATOR_ID_PATTERN})'\\)\\.(?<inOut>par|out)\\.(?<fieldPath>[\\w-.]+)`,
+  `op\\((?<q>['"])(?<opId>${OPERATOR_ID_PATTERN})\\k<q>\\)\\.(?<inOut>par|out)\\.(?<fieldPath>[\\w-.]+)`,
   'g'
 )
 
+// Self-reference shorthand: {{par.fieldPath}} (references current operator's own parameter)
+export const selfParMustacheRe = /{{(?<inOut>par)\.(?<fieldPath>[\w-.]+)}}/g
+
 export function getFieldReferences(text: string, thisOpId?: string) {
   const fieldReferences = new Map<string, FieldReference>()
+
+  // Match standard references (with operator ID)
   for (const { groups } of [...text.matchAll(mustacheRe), ...text.matchAll(fnRe)]) {
     const fieldPath = groups?.fieldPath.split('.')[0]
     const opId = thisOpId ? resolvePath(groups?.opId || '', thisOpId) : groups?.opId
@@ -343,6 +369,24 @@ export function getFieldReferences(text: string, thisOpId?: string) {
     const ref = { fieldPath, opId, inOut: groups?.inOut as InOut, handleId } as FieldReference
     fieldReferences.set(fullPath, ref)
   }
+
+  // Match self-parameter shorthand ({{par.fieldPath}})
+  if (thisOpId) {
+    for (const { groups } of text.matchAll(selfParMustacheRe)) {
+      const fieldPath = groups?.fieldPath.split('.')[0]
+      const inOut = groups?.inOut as InOut // Always 'par'
+
+      if (!groups || !fieldPath) continue
+
+      const handleId = `${inOut}.${fieldPath}`
+      const fullPath = `${thisOpId}.${handleId}`
+      if (fieldReferences.has(fullPath)) continue
+
+      const ref = { fieldPath, opId: thisOpId, inOut, handleId } as FieldReference
+      fieldReferences.set(fullPath, ref)
+    }
+  }
+
   return Array.from(fieldReferences.values())
 }
 
@@ -572,19 +616,15 @@ export class DateField extends Field<
         'Expected Temporal.PlainDateTime'
       ),
       // Convert Date to Temporal.PlainDateTime in UTC
-      z
-        .date()
-        .transform(date => {
-          return Temporal.Instant.fromEpochMilliseconds(date.getTime())
-            .toZonedDateTimeISO('UTC')
-            .toPlainDateTime()
-        }),
+      z.date().transform(date => {
+        return Temporal.Instant.fromEpochMilliseconds(date.getTime())
+          .toZonedDateTimeISO('UTC')
+          .toPlainDateTime()
+      }),
       // Parse ISO datetime string from project files to Temporal
-      z.iso
-        .datetime({ offset: true, local: true })
-        .transform(str => {
-          return Temporal.PlainDateTime.from(str)
-        }),
+      z.iso.datetime({ offset: true, local: true }).transform(str => {
+        return Temporal.PlainDateTime.from(str)
+      }),
     ])
   }
   static deserialize(value: string) {
@@ -647,12 +687,42 @@ export class GeoJsonField<D extends Field = Field, TElement = unknown> extends F
   }
 }
 
-export class JSONUrlField extends Field<z.ZodUnion<readonly [z.ZodURL, z.ZodJSONSchema]>> {
-  static type = 'json-url'
-  static defaultValue = ''
-  createSchema(_options?: Partial<BaseFieldOptions>) {
-    return z.union([z.url(), z.json()])
+// Helper to extract coordinates from GeoJSON Point Features
+// Used by Point2DField and Point3DField to accept PointOp outputs directly
+function extractGeoJsonPointCoordinates(
+  val: unknown,
+  dimensions: 2 | 3 = 3
+): { lng: number; lat: number; alt: number } | { lng: number; lat: number } | null {
+  if (typeof val !== 'object' || val === null || Array.isArray(val)) {
+    return null
   }
+
+  const obj = val as Record<string, unknown>
+
+  // Check if it's a GeoJSON Point Feature
+  if (obj.type !== 'Feature' || typeof obj.geometry !== 'object' || obj.geometry === null) {
+    return null
+  }
+
+  const geom = obj.geometry as Record<string, unknown>
+
+  // Extract coordinates from Point geometry
+  if (geom.type === 'Point' && Array.isArray(geom.coordinates) && geom.coordinates.length >= 2) {
+    const coords = geom.coordinates as number[]
+    if (dimensions === 3) {
+      return {
+        lng: coords[0],
+        lat: coords[1],
+        alt: coords.length >= 3 ? coords[2] : 0,
+      }
+    }
+    return {
+      lng: coords[0],
+      lat: coords[1],
+    }
+  }
+
+  return null
 }
 
 type Point3DFieldValue =
@@ -673,6 +743,7 @@ export class Point3DField extends Field<
 > {
   static type = 'geopoint-3d'
   static defaultValue = { lng: 0, lat: 0, alt: 0 }
+  static channelKeys = ['lng', 'lat', 'alt'] as const
 
   returnType: 'object' | 'tuple' = 'object'
 
@@ -685,17 +756,113 @@ export class Point3DField extends Field<
     const noop = (val: unknown) => val
     return z.union([
       z
-        .looseObject({
-          lng: z.number(),
-          lat: z.number(),
-          alt: z.number(),
+        .unknown()
+        .transform(val => {
+          // Try to extract GeoJSON Point Feature coordinates (3D)
+          const geoJsonCoords = extractGeoJsonPointCoordinates(val, 3)
+          if (geoJsonCoords) {
+            return geoJsonCoords
+          }
+
+          // Normalize column names: support Longitude/Latitude, longitude/latitude, lon/lat
+          if (typeof val === 'object' && val !== null && !Array.isArray(val)) {
+            const obj = val as Record<string, unknown>
+            const normalized: Record<string, unknown> = {}
+            let hasLng = false
+            let hasLat = false
+            let _hasAlt = false
+
+            for (const [key, value] of Object.entries(obj)) {
+              const lowerKey = key.toLowerCase()
+              // Map longitude variants to lng
+              if (lowerKey === 'longitude' || lowerKey === 'lon') {
+                normalized.lng = value
+                hasLng = true
+              }
+              // Map latitude variants to lat
+              else if (lowerKey === 'latitude') {
+                normalized.lat = value
+                hasLat = true
+              }
+              // Map altitude variants to alt
+              else if (lowerKey === 'altitude') {
+                normalized.alt = value
+                _hasAlt = true
+              }
+              // Keep existing lng/lat/alt as-is (for backward compatibility)
+              else if (lowerKey === 'lng') {
+                normalized.lng = value
+                hasLng = true
+              } else if (lowerKey === 'lat') {
+                normalized.lat = value
+                hasLat = true
+              } else if (lowerKey === 'alt') {
+                normalized.alt = value
+                _hasAlt = true
+              }
+              // Pass through all other properties
+              else {
+                normalized[key] = value
+              }
+            }
+
+            // Only return normalized object if we have required coordinate fields (lng and lat)
+            if (hasLng && hasLat) {
+              return normalized
+            }
+          }
+          return val
         })
+        .pipe(
+          z.looseObject({
+            lng: z.number(),
+            lat: z.number(),
+            alt: z.number(),
+          })
+        )
         .transform(returnType === 'tuple' ? val => [val.lng, val.lat, val.alt] : noop),
       z
-        .looseObject({
-          lng: z.number(),
-          lat: z.number(),
+        .unknown()
+        .transform(val => {
+          // Normalize column names for 2D variant (no altitude)
+          // Note: GeoJSON Features are handled by the first union arm
+          if (typeof val === 'object' && val !== null && !Array.isArray(val)) {
+            const obj = val as Record<string, unknown>
+            const normalized: Record<string, unknown> = {}
+            let hasLng = false
+            let hasLat = false
+
+            for (const [key, value] of Object.entries(obj)) {
+              const lowerKey = key.toLowerCase()
+              if (lowerKey === 'longitude' || lowerKey === 'lon') {
+                normalized.lng = value
+                hasLng = true
+              } else if (lowerKey === 'latitude') {
+                normalized.lat = value
+                hasLat = true
+              } else if (lowerKey === 'lng') {
+                normalized.lng = value
+                hasLng = true
+              } else if (lowerKey === 'lat') {
+                normalized.lat = value
+                hasLat = true
+              } else {
+                normalized[key] = value
+              }
+            }
+
+            if (hasLng && hasLat) {
+              return normalized
+            }
+          }
+          return val
         })
+        .pipe(
+          z.looseObject({
+            lng: z.number(),
+            lat: z.number(),
+          })
+        )
         .transform(
           returnType === 'tuple' ? val => [val.lng, val.lat, 0] : val => ({ ...val, alt: 0 })
         ),
@@ -735,6 +902,7 @@ export class Point2DField extends Field<
 > {
   static type = 'geopoint-2d'
   static defaultValue = { lng: 0, lat: 0 }
+  static channelKeys = ['lng', 'lat'] as const
 
   returnType: 'object' | 'tuple' = 'object'
 
@@ -747,10 +915,60 @@ export class Point2DField extends Field<
     const noop = (val: unknown) => val
     return z.union([
       z
-        .looseObject({
-          lng: z.number(),
-          lat: z.number(),
+        .unknown()
+        .transform(val => {
+          // Try to extract GeoJSON Point Feature coordinates (2D)
+          const geoJsonCoords = extractGeoJsonPointCoordinates(val, 2)
+          if (geoJsonCoords) {
+            return geoJsonCoords
+          }
+
+          // Normalize column names: support Longitude/Latitude, longitude/latitude, lon/lat
+          if (typeof val === 'object' && val !== null && !Array.isArray(val)) {
+            const obj = val as Record<string, unknown>
+            const normalized: Record<string, unknown> = {}
+            let hasLng = false
+            let hasLat = false
+
+            for (const [key, value] of Object.entries(obj)) {
+              const lowerKey = key.toLowerCase()
+              // Map longitude variants to lng
+              if (lowerKey === 'longitude' || lowerKey === 'lon') {
+                normalized.lng = value
+                hasLng = true
+              }
+              // Map latitude variants to lat
+              else if (lowerKey === 'latitude') {
+                normalized.lat = value
+                hasLat = true
+              }
+              // Keep existing lng/lat as-is (for backward compatibility)
+              else if (lowerKey === 'lng') {
+                normalized.lng = value
+                hasLng = true
+              } else if (lowerKey === 'lat') {
+                normalized.lat = value
+                hasLat = true
+              }
+              // Pass through all other properties
+              else {
+                normalized[key] = value
+              }
+            }
+
+            // Only return normalized object if we found required coordinate fields (lng and lat)
+            if (hasLng && hasLat) {
+              return normalized
+            }
+          }
+          return val
         })
+        .pipe(
+          z.looseObject({
+            lng: z.number(),
+            lat: z.number(),
+          })
+        )
         .transform(returnType === 'tuple' ? val => [val.lng, val.lat] : noop),
       z
         .tuple([z.number(), z.number(), z.number()])
@@ -776,6 +994,7 @@ export class Vec2Field extends Field<
 > {
   static type = 'vec2'
   static defaultValue = { x: 0, y: 0 }
+  static channelKeys = ['x', 'y'] as const
   returnType: 'object' | 'tuple' = 'object'
   constructor(override?: Vec2FieldOverride, options?: Vec2FieldOptions) {
     super(override, options)
@@ -811,6 +1030,7 @@ export class Vec3Field extends Field<
 > {
   static type = 'vec3'
   static defaultValue = { x: 0, y: 0, z: 0 }
+  static channelKeys = ['x', 'y', 'z'] as const
   returnType: 'object' | 'tuple' = 'object'
   constructor(override?: Vec3FieldOverride, options?: Vec2FieldOptions) {
     super(override, options)
@@ -1080,14 +1300,47 @@ export class ViewField extends Field<
   }
 }
 
+export class MapLibreLayerField extends Field<
+  z.ZodType<{
+    id: string
+    type: 'custom'
+    code: string
+    renderingMode?: '2d' | '3d'
+    beforeId?: string
+    params?: Record<string, unknown>
+  }>
+> {
+  static type = 'maplibre-layer'
+  static defaultValue = undefined
+
+  createSchema() {
+    return z.strictObject({
+      id: z.string(),
+      type: z.literal('custom'),
+      code: z.string(),
+      renderingMode: z.enum(['2d', '3d']).optional(),
+      beforeId: z.string().optional(),
+      params: z.record(z.unknown()).optional(),
+    })
+  }
+}
+
 export class VisualizationField extends Field<
   z.ZodType<{
     deckProps: { layers: (LayerProps & { type: string })[] } & BetterDeckProps
     mapProps?: BetterMapProps
+    maplibreLayers?: Array<{
+      id: string
+      type: 'custom'
+      code: string
+      renderingMode?: '2d' | '3d'
+      beforeId?: string
+      params?: Record<string, unknown>
+    }>
   }>
 > {
   static type = 'visualization'
-  static defaultValue = { deckProps: {}, mapProps: undefined }
+  static defaultValue = { deckProps: {}, mapProps: undefined, maplibreLayers: [] }
   createSchema() {
     return z.looseObject({
       deckProps: z.looseObject({
@@ -1105,6 +1358,18 @@ export class VisualizationField extends Field<
           latitude: z.number(),
           zoom: z.number(),
         })
+        .optional(),
+      maplibreLayers: z
+        .array(
+          z.strictObject({
+            id: z.string(),
+            type: z.literal('custom'),
+            code: z.string(),
+            renderingMode: z.enum(['2d', '3d']).optional(),
+            beforeId: z.string().optional(),
+            params: z.record(z.unknown()).optional(),
+          })
+        )
         .optional(),
     })
   }
@@ -1409,3 +1674,24 @@ export class BezierCurveField extends Field<z.ZodType<BezierCurveData>> {
     return segments
   }
 }
+
+// Mapping of field type strings to Field class constructors
+// Used for creating custom fields dynamically
+export const fieldTypeToClass = {
+  number: NumberField,
+  string: StringField,
+  boolean: BooleanField,
+  color: ColorField,
+  vec2: Vec2Field,
+  vec3: Vec3Field,
+  vec4: Vec4Field,
+  'geopoint-2d': Point2DField,
+  'geopoint-3d': Point3DField,
+  date: DateField,
+  expression: ExpressionField,
+  code: CodeField,
+  'bezier-curve': BezierCurveField,
+  'string-literal': StringLiteralField,
+  data: DataField,
+  unknown: UnknownField,
+} as const satisfies Record<string, typeof Field>

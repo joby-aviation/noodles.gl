@@ -7,6 +7,7 @@ import type { OpId } from './id-utils'
 type PropertyMutationCallback = (description: string, before: string, after: string) => void
 
 let _propertyMutationCallback: PropertyMutationCallback | undefined
+let _lastCommittedBeforeState: string | null = null
 
 export function registerPropertyMutationCallback(cb: PropertyMutationCallback | undefined) {
   _propertyMutationCallback = cb
@@ -14,18 +15,25 @@ export function registerPropertyMutationCallback(cb: PropertyMutationCallback | 
 
 // Serializes all operator field values using each field's serialize() method.
 // This mirrors captureTimelineState() in timeline-store.ts.
-export function captureOperatorInputs(): string {
+// Skips connected fields (they receive values from upstream and can hold large datasets).
+export function captureOperatorInputs(): string | null {
   const ops = getAllOps()
   const state: Record<string, Record<string, unknown>> = {}
   for (const op of ops) {
     const inputs: Record<string, unknown> = {}
     for (const [name, field] of Object.entries(op.inputs as Record<string, IField>)) {
+      if ('subscriptions' in field && (field as { subscriptions: Map<unknown, unknown> }).subscriptions.size > 0) continue
       inputs[name] = field.serialize()
     }
     state[op.id] = inputs
   }
   debugHistorySnapshot('Captured operator inputs for %d ops', ops.length)
-  return JSON.stringify(state)
+  try {
+    return JSON.stringify(state)
+  } catch {
+    debugHistory('Failed to serialize state for property history')
+    return null
+  }
 }
 
 // Restores operator field values from a snapshot.
@@ -56,12 +64,17 @@ export function applyOperatorInputs(snapshot: string): void {
 // Records a property mutation to the undo/redo history. Captures the "after" state
 // and calls the registered callback with both before and after. Skips if state is unchanged.
 // Mirrors fireTimelineMutation() in timeline-store.ts.
-export function firePropertyMutation(description: string, before: string): void {
-  if (!_propertyMutationCallback) return
+export function firePropertyMutation(description: string, before: string | null): void {
+  if (!_propertyMutationCallback || before === null) return
   const after = captureOperatorInputs()
-  if (before === after) return
+  if (after === null || before === after) return
+  _lastCommittedBeforeState = before
   debugHistorySnapshot('Firing property mutation: %s', description)
   _propertyMutationCallback(description, before, after)
+}
+
+export function getLastCommittedBeforeState(): string | null {
+  return _lastCommittedBeforeState
 }
 
 // React hook that provides captureStart/commitChange for use in field components.
@@ -75,7 +88,7 @@ export function usePropertyHistory() {
   }, [])
 
   const commitChange = useCallback((description: string) => {
-    if (beforeRef.current !== null) {
+    if (beforeRef.current) {
       firePropertyMutation(description, beforeRef.current)
       beforeRef.current = null
     }
