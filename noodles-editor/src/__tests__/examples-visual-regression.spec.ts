@@ -2,48 +2,59 @@
  * Visual Regression Tests for Example Projects
  *
  * These are true E2E tests using Playwright that:
+ * - Dynamically discover all examples from the filesystem
  * - Navigate to each example
  * - Wait for data to load
  * - Validate Deck.gl rendering
  * - Take screenshots for visual regression
- * - Test animation frames
+ * - Test animation frames for examples with keyframes
  *
  * Run with: npx playwright test examples-visual-regression
  * Update snapshots: npx playwright test examples-visual-regression --update-snapshots
  */
 
-import { test, expect, type Page } from '@playwright/test'
-
-// Examples that have animation (keyframes in timeline)
-const ANIMATED_EXAMPLES = ['world-flights', 'cesium-hubble']
+import { test, expect } from '@playwright/test'
+import { readdirSync, readFileSync, existsSync } from 'fs'
+import { join, dirname } from 'path'
+import { fileURLToPath } from 'url'
 
 // Test frames for animated examples (in seconds)
 const TEST_FRAMES = [0, 0.5, 1.0, 2.0]
 
-// List of examples to test
-const EXAMPLES = [
-  '3d-building-gradient',
-  'aggregation-example',
-  'california-earthquakes',
-  'cesium-hubble',
-  'chargers',
-  'custom-maplibre-layer-test',
-  'geojson-example',
-  'icon-layer-test',
-  'nyc-census',
-  'nyc-taxis',
-  'orbit',
-  'sf-elevation-contours',
-  'sf-street-trees',
-  'simple-mesh-example',
-  'uk-commute',
-  'us-county-unemployment',
-  'world-flights',
-]
+// Discover all examples from the filesystem
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = dirname(__filename)
+const examplesDir = join(__dirname, '../examples')
+const EXAMPLES = readdirSync(examplesDir).filter(name => {
+  const noodlesPath = join(examplesDir, name, 'noodles.json')
+  return existsSync(noodlesPath)
+})
+
+// Check if an example is animated by looking for keyframes in the project file
+function isAnimated(exampleName: string): boolean {
+  try {
+    const noodlesPath = join(examplesDir, exampleName, 'noodles.json')
+    const content = readFileSync(noodlesPath, 'utf-8')
+    const project = JSON.parse(content)
+
+    // Check if any nodes have keyframes
+    if (project.nodes) {
+      for (const node of project.nodes) {
+        if (node.data?.keyframes && Object.keys(node.data.keyframes).length > 0) {
+          return true
+        }
+      }
+    }
+
+    return false
+  } catch {
+    return false
+  }
+}
 
 test.describe('Example Projects Visual Regression', () => {
   for (const exampleName of EXAMPLES) {
-    const isAnimated = ANIMATED_EXAMPLES.includes(exampleName)
+    const hasAnimation = isAnimated(exampleName)
 
     test(
       `${exampleName} renders correctly`,
@@ -144,7 +155,9 @@ test.describe('Example Projects Visual Regression', () => {
         })
 
         // For animated examples, test multiple frames
-        if (isAnimated) {
+        if (hasAnimation) {
+          console.log(`${exampleName}: Testing animation frames (has keyframes)`)
+
           for (const time of TEST_FRAMES) {
             // Seek to specific time in timeline
             await page.evaluate((seekTime: number) => {
