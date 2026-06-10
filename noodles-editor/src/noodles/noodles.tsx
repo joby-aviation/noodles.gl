@@ -1395,21 +1395,9 @@ export function getNoodles(): Visualization {
     }, 0)
   }, [nodes, edges, autoLayout, setNodes])
 
-  // Track previous node count to detect additions
-  const prevNodeCountRef = useRef(nodes.length)
-
-  // Auto-layout when nodes are added (if enabled)
-  useEffect(() => {
-    const currentCount = nodes.length
-    const prevCount = prevNodeCountRef.current
-    prevNodeCountRef.current = currentCount
-
-    // Only trigger if nodes were added (not removed) and auto-layout is enabled
-    if (autoLayout.enabled && currentCount > prevCount && currentCount >= 2) {
-      // Use setTimeout to ensure React Flow has processed the new node
-      setTimeout(() => applyAutoLayoutToContainer(), 50)
-    }
-  }, [nodes.length, autoLayout.enabled, applyAutoLayoutToContainer])
+  // Note: Auto-layout on node addition was removed based on PR feedback.
+  // Users can still trigger layout manually via the Layout button in the property panel (3+ nodes selected).
+  // Auto-layout still triggers on edge creation when enabled (see onConnect handler above).
 
   const onNewProject = useCallback(async () => {
     const starterProject = { ...newProjectJSON, version: NOODLES_VERSION } as NoodlesProjectJSON

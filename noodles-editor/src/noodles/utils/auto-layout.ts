@@ -335,8 +335,32 @@ function layoutWithSemanticColumns(nodes: Node[], edges: Edge[], options: Semant
     nodeTiers.set(node.id, categorizeOperatorByType(node.type ?? ''))
   }
 
-  // Phase 2: Assign X-coordinates based on tier
-  const COLUMN_X: Record<number, number> = {
+  // Phase 2: Calculate topological depth for each node (for horizontal positioning within tiers)
+  const nodeDepths = new Map<string, number>()
+  const calculateDepth = (nodeId: string, visited = new Set<string>()): number => {
+    if (nodeDepths.has(nodeId)) return nodeDepths.get(nodeId)!
+    if (visited.has(nodeId)) return 0 // Break cycles
+
+    visited.add(nodeId)
+    const incomingEdges = edges.filter(e => e.target === nodeId && nodeIds.has(e.source))
+
+    if (incomingEdges.length === 0) {
+      nodeDepths.set(nodeId, 0)
+      return 0
+    }
+
+    const maxParentDepth = Math.max(...incomingEdges.map(e => calculateDepth(e.source, visited)))
+    const depth = maxParentDepth + 1
+    nodeDepths.set(nodeId, depth)
+    return depth
+  }
+
+  for (const node of nodes) {
+    calculateDepth(node.id)
+  }
+
+  // Base X-coordinates for each tier
+  const TIER_BASE_X: Record<number, number> = {
     [LayoutTier.DATA_SOURCE]: 0,
     [LayoutTier.TRANSFORM]: 350,
     [LayoutTier.ENHANCEMENT]: 600,
@@ -350,12 +374,34 @@ function layoutWithSemanticColumns(nodes: Node[], edges: Edge[], options: Semant
     [LayoutTier.OUTPUT]: 1800,
   }
 
+  const DEPTH_SPACING = 250 // Horizontal spacing for chained nodes within a tier
+
   // Group nodes by tier
   const tierGroups = new Map<LayoutTier, Node[]>()
   for (const node of nodes) {
     const tier = nodeTiers.get(node.id) ?? LayoutTier.TRANSFORM
     if (!tierGroups.has(tier)) tierGroups.set(tier, [])
     tierGroups.get(tier)!.push(node)
+  }
+
+  // Helper: Calculate X position based on tier and depth
+  const getNodeX = (node: Node): number => {
+    const tier = nodeTiers.get(node.id) ?? LayoutTier.TRANSFORM
+    const depth = nodeDepths.get(node.id) ?? 0
+    const baseX = TIER_BASE_X[tier]
+
+    // For certain tiers (LAYER, RENDER, OUTPUT, BASEMAP), use fixed column positions
+    if (
+      tier === LayoutTier.LAYER ||
+      tier === LayoutTier.RENDER ||
+      tier === LayoutTier.OUTPUT ||
+      tier === LayoutTier.BASEMAP
+    ) {
+      return baseX
+    }
+
+    // For other tiers, add depth-based spacing to create horizontal chains
+    return baseX + depth * DEPTH_SPACING
   }
 
   // Phase 3: Assign Y-coordinates with semantic alignment
@@ -376,7 +422,7 @@ function layoutWithSemanticColumns(nodes: Node[], edges: Edge[], options: Semant
 
     let currentY = layerMinY
     for (const node of layerNodes) {
-      const x = COLUMN_X[LayoutTier.LAYER]
+      const x = getNodeX(node)
       positionedNodes.set(node.id, { x, y: currentY })
       currentY += getNodeHeight(node) + layerYSpacing
     }
@@ -386,7 +432,7 @@ function layoutWithSemanticColumns(nodes: Node[], edges: Edge[], options: Semant
   // 3b. Position DeckRendererOp (vertically centered between layers)
   const renderNodes = tierGroups.get(LayoutTier.RENDER) ?? []
   for (const node of renderNodes) {
-    const x = COLUMN_X[LayoutTier.RENDER]
+    const x = getNodeX(node)
     const y = layerNodes.length > 0 ? (layerMinY + layerMaxY) / 2 - getNodeHeight(node) / 2 : 0
     positionedNodes.set(node.id, { x, y })
   }
@@ -394,7 +440,7 @@ function layoutWithSemanticColumns(nodes: Node[], edges: Edge[], options: Semant
   // 3c. Position OutOp (same Y as DeckRendererOp)
   const outputNodes = tierGroups.get(LayoutTier.OUTPUT) ?? []
   for (const node of outputNodes) {
-    const x = COLUMN_X[LayoutTier.OUTPUT]
+    const x = getNodeX(node)
     const renderY = renderNodes[0] ? positionedNodes.get(renderNodes[0].id)?.y ?? 0 : 0
     positionedNodes.set(node.id, { x, y: renderY })
   }
@@ -402,7 +448,7 @@ function layoutWithSemanticColumns(nodes: Node[], edges: Edge[], options: Semant
   // 3d. Position MaplibreBasemapOp (below layers in same column)
   const basemapNodes = tierGroups.get(LayoutTier.BASEMAP) ?? []
   for (const node of basemapNodes) {
-    const x = COLUMN_X[LayoutTier.BASEMAP]
+    const x = getNodeX(node)
     const y = layerNodes.length > 0 ? layerMaxY + 200 : 400
     positionedNodes.set(node.id, { x, y })
   }
@@ -410,7 +456,7 @@ function layoutWithSemanticColumns(nodes: Node[], edges: Edge[], options: Semant
   // 3e. Position SwitchOp (between layers and renderer, vertically centered)
   const switchNodes = tierGroups.get(LayoutTier.SWITCH) ?? []
   for (const node of switchNodes) {
-    const x = COLUMN_X[LayoutTier.SWITCH]
+    const x = getNodeX(node)
     const y = layerNodes.length > 0 ? (layerMinY + layerMaxY) / 2 - getNodeHeight(node) / 2 : 0
     positionedNodes.set(node.id, { x, y })
   }
@@ -419,7 +465,7 @@ function layoutWithSemanticColumns(nodes: Node[], edges: Edge[], options: Semant
   const extensionNodes = tierGroups.get(LayoutTier.EXTENSION) ?? []
   let extensionY = layerNodes.length > 0 ? (layerMinY + layerMaxY) / 2 : 0
   for (const node of extensionNodes) {
-    const x = COLUMN_X[LayoutTier.EXTENSION]
+    const x = getNodeX(node)
     positionedNodes.set(node.id, { x, y: extensionY })
     extensionY += getNodeHeight(node) + nodeSpacing
   }
@@ -428,7 +474,7 @@ function layoutWithSemanticColumns(nodes: Node[], edges: Edge[], options: Semant
   const widgetNodes = tierGroups.get(LayoutTier.WIDGET) ?? []
   let widgetY = layerNodes.length > 0 ? layerMinY : 0
   for (const node of widgetNodes) {
-    const x = COLUMN_X[LayoutTier.WIDGET]
+    const x = getNodeX(node)
     positionedNodes.set(node.id, { x, y: widgetY })
     widgetY += getNodeHeight(node) + nodeSpacing
   }
@@ -441,7 +487,7 @@ function layoutWithSemanticColumns(nodes: Node[], edges: Edge[], options: Semant
 
   for (const node of dataSourceNodes) {
     const consumers = getConsumers(node.id)
-    const x = COLUMN_X[LayoutTier.DATA_SOURCE]
+    const x = getNodeX(node)
 
     if (consumers.length === 0) {
       positionedNodes.set(node.id, { x, y: 0 })
@@ -475,7 +521,7 @@ function layoutWithSemanticColumns(nodes: Node[], edges: Edge[], options: Semant
     // Try to align with consumers where possible
     for (const node of tierNodes) {
       const consumers = getConsumers(node.id)
-      const x = COLUMN_X[tier]
+      const x = getNodeX(node)
 
       if (consumers.length === 0) {
         // No consumers - place near top
