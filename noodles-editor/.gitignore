@@ -30,8 +30,6 @@ yarn-debug.log*
 yarn-error.log*
 .yarn/
 
-# Playwright test artifacts
+# Playwright test artifacts (but keep baseline snapshots for CI comparison)
 playwright-report/
 test-results/
-# Playwright snapshots and test results
-*-snapshots/
