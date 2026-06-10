@@ -15,13 +15,13 @@ export { NOODLES_VERSION } from './migrate-schema'
 
 export type AutoLayoutSettings = {
   enabled: boolean
-  algorithm: 'dagre' | 'd3-force'
+  algorithm: 'dagre' | 'd3-force' | 'semantic'
   direction: 'LR' | 'TB'
 }
 
 export const DEFAULT_AUTO_LAYOUT: AutoLayoutSettings = {
   enabled: false,
-  algorithm: 'dagre',
+  algorithm: 'semantic',
   direction: 'LR',
 }
 

@@ -38,6 +38,12 @@ export function layoutNodes(nodes: Node[], edges: Edge[], options: LayoutOptions
       nodeSpacing
     )
   }
+  if (algorithm === 'semantic') {
+    return resolveOverlaps(
+      layoutWithSemanticColumns(nodes, edges, { direction, nodeWidth, nodeHeight, nodeSpacing }),
+      nodeSpacing
+    )
+  }
   return resolveOverlaps(
     layoutWithD3Force(nodes, edges, { direction, nodeWidth, nodeHeight, nodeSpacing }),
     nodeSpacing
@@ -200,6 +206,324 @@ function layoutWithD3Force(nodes: Node[], edges: Edge[], options: D3ForceOptions
         y: simNode.y,
       },
     }
+  })
+}
+
+type SemanticOptions = {
+  direction: 'LR' | 'TB'
+  nodeWidth: number
+  nodeHeight: number
+  nodeSpacing: number
+}
+
+enum LayoutTier {
+  DATA_SOURCE = 0,
+  TRANSFORM = 1,
+  ENHANCEMENT = 2,
+  VIEW = 2.5,
+  BASEMAP = 3,
+  LAYER = 3,
+  SWITCH = 4,
+  EXTENSION = 4.5,
+  RENDER = 5,
+  OUTPUT = 6,
+  WIDGET = 5.5,
+}
+
+function getNodeWidth(node: Node): number {
+  return node.measured?.width ?? node.width ?? DEFAULT_NODE_WIDTH
+}
+
+function getNodeHeight(node: Node): number {
+  return node.measured?.height ?? node.height ?? DEFAULT_NODE_HEIGHT
+}
+
+// Categorize operators by semantic type to determine layout tier
+function categorizeOperatorByType(nodeType: string): LayoutTier {
+  // Layer operators (all end with LayerOp)
+  if (nodeType.endsWith('LayerOp')) return LayoutTier.LAYER
+
+  // Rendering operators
+  if (nodeType === 'DeckRendererOp') return LayoutTier.RENDER
+  if (nodeType === 'OutOp') return LayoutTier.OUTPUT
+  if (nodeType === 'MaplibreBasemapOp') return LayoutTier.BASEMAP
+
+  // Data source operators
+  if (
+    ['FileOp', 'DuckDbOp', 'JSONOp', 'GeocoderOp', 'DirectionsOp', 'NetworkOp', 'TableEditorOp'].includes(
+      nodeType
+    )
+  )
+    return LayoutTier.DATA_SOURCE
+
+  // Transform operators
+  if (
+    [
+      'AccessorOp',
+      'FilterOp',
+      'CodeOp',
+      'ExpressionOp',
+      'SliceOp',
+      'SortOp',
+      'ProjectOp',
+      'UnprojectOp',
+      'SelectOp',
+      'ConcatOp',
+      'MergeOp',
+      'CrossOp',
+      'SimplifyOp',
+      'SmoothOp',
+      'GeoJsonOp',
+      'GeoJsonTransformOp',
+      'TimeSeriesOp',
+    ].includes(nodeType)
+  )
+    return LayoutTier.TRANSFORM
+
+  // Enhancement operators
+  if (
+    [
+      'ColorOp',
+      'ColorRampOp',
+      'CategoricalColorRampOp',
+      'MapRangeOp',
+      'MathOp',
+      'BlendingOp',
+      'BezierCurveOp',
+      'RampOp',
+      'HSLOp',
+      'RandomizeAttributeOp',
+      'LayerPropsOp',
+    ].includes(nodeType)
+  )
+    return LayoutTier.ENHANCEMENT
+
+  // View operators
+  if (
+    [
+      'MapViewOp',
+      'GlobeViewOp',
+      'OrbitViewOp',
+      'FirstPersonViewOp',
+      'OrthographicViewOp',
+      'MapViewStateOp',
+    ].includes(nodeType)
+  )
+    return LayoutTier.VIEW
+
+  // Switch operator
+  if (nodeType === 'SwitchOp') return LayoutTier.SWITCH
+
+  // Extension operators
+  if (nodeType.endsWith('ExtensionOp')) return LayoutTier.EXTENSION
+
+  // Widget operators
+  if (nodeType.endsWith('WidgetOp') || nodeType === 'ViewerOp') return LayoutTier.WIDGET
+
+  // Default: infer from topology
+  return LayoutTier.TRANSFORM
+}
+
+function layoutWithSemanticColumns(nodes: Node[], edges: Edge[], options: SemanticOptions): Node[] {
+  const { nodeWidth, nodeHeight, nodeSpacing } = options
+
+  // Phase 1: Categorize nodes by semantic tier
+  const nodeTiers = new Map<string, LayoutTier>()
+  const nodeIds = new Set(nodes.map(n => n.id))
+
+  for (const node of nodes) {
+    nodeTiers.set(node.id, categorizeOperatorByType(node.type ?? ''))
+  }
+
+  // Phase 2: Assign X-coordinates based on tier
+  const COLUMN_X: Record<number, number> = {
+    [LayoutTier.DATA_SOURCE]: 0,
+    [LayoutTier.TRANSFORM]: 350,
+    [LayoutTier.ENHANCEMENT]: 600,
+    [LayoutTier.VIEW]: 450,
+    [LayoutTier.BASEMAP]: 900,
+    [LayoutTier.LAYER]: 900,
+    [LayoutTier.SWITCH]: 1200,
+    [LayoutTier.EXTENSION]: 1350,
+    [LayoutTier.RENDER]: 1500,
+    [LayoutTier.WIDGET]: 1650,
+    [LayoutTier.OUTPUT]: 1800,
+  }
+
+  // Group nodes by tier
+  const tierGroups = new Map<LayoutTier, Node[]>()
+  for (const node of nodes) {
+    const tier = nodeTiers.get(node.id) ?? LayoutTier.TRANSFORM
+    if (!tierGroups.has(tier)) tierGroups.set(tier, [])
+    tierGroups.get(tier)!.push(node)
+  }
+
+  // Phase 3: Assign Y-coordinates with semantic alignment
+  const positionedNodes = new Map<string, { x: number; y: number }>()
+
+  // 3a. Position layer column first (the visual anchor)
+  const layerNodes = tierGroups.get(LayoutTier.LAYER) ?? []
+  const layerYSpacing = 150
+  let layerMinY = 0
+  let layerMaxY = 0
+
+  if (layerNodes.length > 0) {
+    const totalLayerHeight = layerNodes.reduce(
+      (sum, node, i) => sum + getNodeHeight(node) + (i > 0 ? layerYSpacing : 0),
+      0
+    )
+    layerMinY = -totalLayerHeight / 2
+
+    let currentY = layerMinY
+    for (const node of layerNodes) {
+      const x = COLUMN_X[LayoutTier.LAYER]
+      positionedNodes.set(node.id, { x, y: currentY })
+      currentY += getNodeHeight(node) + layerYSpacing
+    }
+    layerMaxY = currentY - layerYSpacing
+  }
+
+  // 3b. Position DeckRendererOp (vertically centered between layers)
+  const renderNodes = tierGroups.get(LayoutTier.RENDER) ?? []
+  for (const node of renderNodes) {
+    const x = COLUMN_X[LayoutTier.RENDER]
+    const y = layerNodes.length > 0 ? (layerMinY + layerMaxY) / 2 - getNodeHeight(node) / 2 : 0
+    positionedNodes.set(node.id, { x, y })
+  }
+
+  // 3c. Position OutOp (same Y as DeckRendererOp)
+  const outputNodes = tierGroups.get(LayoutTier.OUTPUT) ?? []
+  for (const node of outputNodes) {
+    const x = COLUMN_X[LayoutTier.OUTPUT]
+    const renderY = renderNodes[0] ? positionedNodes.get(renderNodes[0].id)?.y ?? 0 : 0
+    positionedNodes.set(node.id, { x, y: renderY })
+  }
+
+  // 3d. Position MaplibreBasemapOp (below layers in same column)
+  const basemapNodes = tierGroups.get(LayoutTier.BASEMAP) ?? []
+  for (const node of basemapNodes) {
+    const x = COLUMN_X[LayoutTier.BASEMAP]
+    const y = layerNodes.length > 0 ? layerMaxY + 200 : 400
+    positionedNodes.set(node.id, { x, y })
+  }
+
+  // 3e. Position SwitchOp (between layers and renderer, vertically centered)
+  const switchNodes = tierGroups.get(LayoutTier.SWITCH) ?? []
+  for (const node of switchNodes) {
+    const x = COLUMN_X[LayoutTier.SWITCH]
+    const y = layerNodes.length > 0 ? (layerMinY + layerMaxY) / 2 - getNodeHeight(node) / 2 : 0
+    positionedNodes.set(node.id, { x, y })
+  }
+
+  // 3f. Position Extensions (between switch and renderer)
+  const extensionNodes = tierGroups.get(LayoutTier.EXTENSION) ?? []
+  let extensionY = layerNodes.length > 0 ? (layerMinY + layerMaxY) / 2 : 0
+  for (const node of extensionNodes) {
+    const x = COLUMN_X[LayoutTier.EXTENSION]
+    positionedNodes.set(node.id, { x, y: extensionY })
+    extensionY += getNodeHeight(node) + nodeSpacing
+  }
+
+  // 3g. Position Widgets (near output)
+  const widgetNodes = tierGroups.get(LayoutTier.WIDGET) ?? []
+  let widgetY = layerNodes.length > 0 ? layerMinY : 0
+  for (const node of widgetNodes) {
+    const x = COLUMN_X[LayoutTier.WIDGET]
+    positionedNodes.set(node.id, { x, y: widgetY })
+    widgetY += getNodeHeight(node) + nodeSpacing
+  }
+
+  // 3h. Position data sources (aligned with vertical midpoint of consumers)
+  const dataSourceNodes = tierGroups.get(LayoutTier.DATA_SOURCE) ?? []
+  const getConsumers = (nodeId: string): string[] => {
+    return edges.filter(e => e.source === nodeId && nodeIds.has(e.target)).map(e => e.target)
+  }
+
+  for (const node of dataSourceNodes) {
+    const consumers = getConsumers(node.id)
+    const x = COLUMN_X[LayoutTier.DATA_SOURCE]
+
+    if (consumers.length === 0) {
+      positionedNodes.set(node.id, { x, y: 0 })
+    } else {
+      const consumerMidpoints = consumers
+        .map(cId => {
+          const cPos = positionedNodes.get(cId)
+          const cNode = nodes.find(n => n.id === cId)
+          if (!cPos || !cNode) return null
+          return cPos.y + getNodeHeight(cNode) / 2
+        })
+        .filter((y): y is number => y !== null)
+
+      if (consumerMidpoints.length > 0) {
+        const avgMidpoint = consumerMidpoints.reduce((a, b) => a + b, 0) / consumerMidpoints.length
+        const y = avgMidpoint - getNodeHeight(node) / 2
+        positionedNodes.set(node.id, { x, y })
+      } else {
+        positionedNodes.set(node.id, { x, y: 0 })
+      }
+    }
+  }
+
+  // 3i. Position remaining tiers (transforms, enhancements, views) with topological layout
+  const remainingTiers = [LayoutTier.TRANSFORM, LayoutTier.ENHANCEMENT, LayoutTier.VIEW]
+
+  for (const tier of remainingTiers) {
+    const tierNodes = tierGroups.get(tier) ?? []
+    if (tierNodes.length === 0) continue
+
+    // Try to align with consumers where possible
+    for (const node of tierNodes) {
+      const consumers = getConsumers(node.id)
+      const x = COLUMN_X[tier]
+
+      if (consumers.length === 0) {
+        // No consumers - place near top
+        const existingPositions = Array.from(positionedNodes.values())
+        const minY = existingPositions.length > 0 ? Math.min(...existingPositions.map(p => p.y)) : 0
+        positionedNodes.set(node.id, { x, y: minY - 100 })
+      } else {
+        // For nodes with multiple consumers (especially AccessorOps shared between layers),
+        // position them to split the vertical space between consumers
+        const consumerPositions = consumers
+          .map(cId => {
+            const cPos = positionedNodes.get(cId)
+            const cNode = nodes.find(n => n.id === cId)
+            if (!cPos || !cNode) return null
+            return { y: cPos.y, height: getNodeHeight(cNode) }
+          })
+          .filter((p): p is { y: number; height: number } => p !== null)
+
+        if (consumerPositions.length > 0) {
+          // Sort consumers by Y position
+          consumerPositions.sort((a, b) => a.y - b.y)
+
+          if (consumerPositions.length === 1) {
+            // Single consumer: align with its midpoint
+            const midY = consumerPositions[0].y + consumerPositions[0].height / 2
+            const y = midY - getNodeHeight(node) / 2
+            positionedNodes.set(node.id, { x, y })
+          } else {
+            // Multiple consumers: position between the extremes to minimize edge length
+            const firstMidY = consumerPositions[0].y + consumerPositions[0].height / 2
+            const lastMidY =
+              consumerPositions[consumerPositions.length - 1].y +
+              consumerPositions[consumerPositions.length - 1].height / 2
+            const centerY = (firstMidY + lastMidY) / 2 - getNodeHeight(node) / 2
+            positionedNodes.set(node.id, { x, y: centerY })
+          }
+        } else {
+          positionedNodes.set(node.id, { x, y: 0 })
+        }
+      }
+    }
+  }
+
+  // Apply positions to nodes
+  return nodes.map(node => {
+    const pos = positionedNodes.get(node.id)
+    if (!pos) return node
+    return { ...node, position: { x: pos.x, y: pos.y } }
   })
 }
 

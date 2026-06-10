@@ -1,11 +1,20 @@
+// @vitest-environment node
 import type { Edge, Node } from '@xyflow/react'
 import { describe, expect, it } from 'vitest'
 import { type LayoutOptions, layoutNodes, resolveOverlaps } from './auto-layout'
 
-const createNode = (id: string, x = 0, y = 0, width = 200, height = 100): Node => ({
+const createNode = (
+  id: string,
+  x = 0,
+  y = 0,
+  width = 200,
+  height = 100,
+  type?: string
+): Node => ({
   id,
   position: { x, y },
   data: {},
+  type,
   measured: { width, height },
 })
 
@@ -272,5 +281,283 @@ describe('resolveOverlaps', () => {
     expect(result[0].id).toBe('a')
     expect(result[0].data).toEqual({})
     expect(result[0].measured).toEqual({ width: 200, height: 100 })
+  })
+})
+
+describe('layoutNodes with semantic algorithm', () => {
+  const semanticOptions: LayoutOptions = {
+    enabled: true,
+    algorithm: 'semantic',
+    direction: 'LR',
+  }
+
+  it('returns empty array for empty input', () => {
+    const result = layoutNodes([], [], semanticOptions)
+    expect(result).toEqual([])
+  })
+
+  it('returns single node with position', () => {
+    const nodes = [createNode('layer1', 0, 0, 200, 100, 'ScatterplotLayerOp')]
+    const result = layoutNodes(nodes, [], semanticOptions)
+    expect(result).toHaveLength(1)
+    expect(result[0].id).toBe('layer1')
+    expect(typeof result[0].position.x).toBe('number')
+    expect(typeof result[0].position.y).toBe('number')
+  })
+
+  it('groups all layer operators in the same X column', () => {
+    const nodes = [
+      createNode('layer1', 0, 0, 200, 100, 'ScatterplotLayerOp'),
+      createNode('layer2', 100, 100, 200, 100, 'ArcLayerOp'),
+      createNode('layer3', 200, 200, 200, 100, 'PathLayerOp'),
+    ]
+    const result = layoutNodes(nodes, [], semanticOptions)
+
+    const layerX = result.find(n => n.id === 'layer1')!.position.x
+    expect(result.find(n => n.id === 'layer2')!.position.x).toBe(layerX)
+    expect(result.find(n => n.id === 'layer3')!.position.x).toBe(layerX)
+  })
+
+  it('places DeckRendererOp to the right of layers', () => {
+    const nodes = [
+      createNode('layer1', 0, 0, 200, 100, 'ScatterplotLayerOp'),
+      createNode('deck', 0, 0, 200, 100, 'DeckRendererOp'),
+    ]
+    const result = layoutNodes(nodes, [], semanticOptions)
+
+    const layerX = result.find(n => n.id === 'layer1')!.position.x
+    const deckX = result.find(n => n.id === 'deck')!.position.x
+    expect(deckX).toBeGreaterThan(layerX)
+  })
+
+  it('places OutOp to the right of DeckRendererOp at same Y', () => {
+    const nodes = [
+      createNode('layer1', 0, 0, 200, 100, 'ScatterplotLayerOp'),
+      createNode('deck', 0, 0, 200, 100, 'DeckRendererOp'),
+      createNode('out', 0, 0, 200, 100, 'OutOp'),
+    ]
+    const result = layoutNodes(nodes, [], semanticOptions)
+
+    const deckNode = result.find(n => n.id === 'deck')!
+    const outNode = result.find(n => n.id === 'out')!
+
+    expect(outNode.position.x).toBeGreaterThan(deckNode.position.x)
+    expect(outNode.position.y).toBe(deckNode.position.y)
+  })
+
+  it('vertically centers DeckRendererOp between layers', () => {
+    const nodes = [
+      createNode('layer1', 0, 0, 200, 100, 'ScatterplotLayerOp'),
+      createNode('layer2', 0, 0, 200, 100, 'ArcLayerOp'),
+      createNode('layer3', 0, 0, 200, 100, 'PathLayerOp'),
+      createNode('deck', 0, 0, 200, 100, 'DeckRendererOp'),
+    ]
+    const result = layoutNodes(nodes, [], semanticOptions)
+
+    const layerNodes = result.filter(n => n.id.startsWith('layer'))
+    const deckNode = result.find(n => n.id === 'deck')!
+
+    const minLayerY = Math.min(...layerNodes.map(n => n.position.y))
+    const maxLayerY = Math.max(...layerNodes.map(n => n.position.y + (n.measured?.height ?? 100)))
+    const centerY = (minLayerY + maxLayerY) / 2
+
+    // DeckRenderer's midpoint should be near the center
+    const deckMidY = deckNode.position.y + (deckNode.measured?.height ?? 100) / 2
+    expect(Math.abs(deckMidY - centerY)).toBeLessThan(5)
+  })
+
+  it('places MaplibreBasemapOp below layers in same X column', () => {
+    const nodes = [
+      createNode('layer1', 0, 0, 200, 100, 'ScatterplotLayerOp'),
+      createNode('layer2', 0, 0, 200, 100, 'ArcLayerOp'),
+      createNode('basemap', 0, 0, 200, 100, 'MaplibreBasemapOp'),
+    ]
+    const result = layoutNodes(nodes, [], semanticOptions)
+
+    const layerX = result.find(n => n.id === 'layer1')!.position.x
+    const basemapNode = result.find(n => n.id === 'basemap')!
+
+    expect(basemapNode.position.x).toBe(layerX)
+
+    const layerNodes = result.filter(n => n.id.startsWith('layer'))
+    const maxLayerY = Math.max(...layerNodes.map(n => n.position.y + (n.measured?.height ?? 100)))
+    expect(basemapNode.position.y).toBeGreaterThan(maxLayerY)
+  })
+
+  it('places data sources to the left of layers', () => {
+    const nodes = [
+      createNode('file', 0, 0, 200, 100, 'FileOp'),
+      createNode('layer', 0, 0, 200, 100, 'ScatterplotLayerOp'),
+    ]
+    const edges = [createEdge('file', 'layer')]
+    const result = layoutNodes(nodes, edges, semanticOptions)
+
+    const fileX = result.find(n => n.id === 'file')!.position.x
+    const layerX = result.find(n => n.id === 'layer')!.position.x
+    expect(fileX).toBeLessThan(layerX)
+  })
+
+  it('aligns data sources with vertical midpoint of consumers', () => {
+    const nodes = [
+      createNode('file', 0, 0, 200, 100, 'FileOp'),
+      createNode('layer1', 0, 0, 200, 100, 'ScatterplotLayerOp'),
+      createNode('layer2', 0, 0, 200, 100, 'ArcLayerOp'),
+    ]
+    const edges = [createEdge('file', 'layer1'), createEdge('file', 'layer2')]
+    const result = layoutNodes(nodes, edges, semanticOptions)
+
+    const fileNode = result.find(n => n.id === 'file')!
+    const layer1Node = result.find(n => n.id === 'layer1')!
+    const layer2Node = result.find(n => n.id === 'layer2')!
+
+    const layer1Mid = layer1Node.position.y + (layer1Node.measured?.height ?? 100) / 2
+    const layer2Mid = layer2Node.position.y + (layer2Node.measured?.height ?? 100) / 2
+    const avgMid = (layer1Mid + layer2Mid) / 2
+    const fileMid = fileNode.position.y + (fileNode.measured?.height ?? 100) / 2
+
+    expect(Math.abs(fileMid - avgMid)).toBeLessThan(10)
+  })
+
+  it('places AccessorOp between data sources and layers', () => {
+    const nodes = [
+      createNode('file', 0, 0, 200, 100, 'FileOp'),
+      createNode('accessor', 0, 0, 200, 100, 'AccessorOp'),
+      createNode('layer', 0, 0, 200, 100, 'ScatterplotLayerOp'),
+    ]
+    const edges = [createEdge('file', 'accessor'), createEdge('accessor', 'layer')]
+    const result = layoutNodes(nodes, edges, semanticOptions)
+
+    const fileX = result.find(n => n.id === 'file')!.position.x
+    const accessorX = result.find(n => n.id === 'accessor')!.position.x
+    const layerX = result.find(n => n.id === 'layer')!.position.x
+
+    expect(fileX).toBeLessThan(accessorX)
+    expect(accessorX).toBeLessThan(layerX)
+  })
+
+  it('positions shared AccessorOp between multiple layers vertically', () => {
+    const nodes = [
+      createNode('accessor', 0, 0, 200, 100, 'AccessorOp'),
+      createNode('layer1', 0, 0, 200, 100, 'ScatterplotLayerOp'),
+      createNode('layer2', 0, 0, 200, 100, 'ArcLayerOp'),
+      createNode('layer3', 0, 0, 200, 100, 'PathLayerOp'),
+    ]
+    const edges = [
+      createEdge('accessor', 'layer1'),
+      createEdge('accessor', 'layer2'),
+      createEdge('accessor', 'layer3'),
+    ]
+    const result = layoutNodes(nodes, edges, semanticOptions)
+
+    const accessorNode = result.find(n => n.id === 'accessor')!
+    const layerNodes = result.filter(n => n.id.startsWith('layer'))
+
+    const layerMids = layerNodes.map(n => n.position.y + (n.measured?.height ?? 100) / 2)
+    const minMid = Math.min(...layerMids)
+    const maxMid = Math.max(...layerMids)
+    const accessorMid = accessorNode.position.y + (accessorNode.measured?.height ?? 100) / 2
+
+    // AccessorOp should be positioned between the first and last layer's midpoints
+    expect(accessorMid).toBeGreaterThanOrEqual(minMid - 10)
+    expect(accessorMid).toBeLessThanOrEqual(maxMid + 10)
+  })
+
+  it('produces non-overlapping nodes', () => {
+    const nodes = [
+      createNode('file', 0, 0, 200, 100, 'FileOp'),
+      createNode('accessor1', 0, 0, 200, 100, 'AccessorOp'),
+      createNode('accessor2', 0, 0, 200, 100, 'AccessorOp'),
+      createNode('layer1', 0, 0, 200, 100, 'ScatterplotLayerOp'),
+      createNode('layer2', 0, 0, 200, 100, 'ArcLayerOp'),
+      createNode('deck', 0, 0, 200, 100, 'DeckRendererOp'),
+      createNode('out', 0, 0, 200, 100, 'OutOp'),
+    ]
+    const edges = [
+      createEdge('file', 'accessor1'),
+      createEdge('file', 'accessor2'),
+      createEdge('accessor1', 'layer1'),
+      createEdge('accessor2', 'layer2'),
+      createEdge('layer1', 'deck'),
+      createEdge('layer2', 'deck'),
+      createEdge('deck', 'out'),
+    ]
+    const result = layoutNodes(nodes, edges, semanticOptions)
+    const margin = 50
+
+    for (let i = 0; i < result.length; i++) {
+      for (let j = i + 1; j < result.length; j++) {
+        const n1 = result[i]
+        const n2 = result[j]
+        const w1 = n1.measured?.width ?? 200
+        const h1 = n1.measured?.height ?? 100
+        const w2 = n2.measured?.width ?? 200
+        const h2 = n2.measured?.height ?? 100
+
+        const overlapX =
+          Math.min(n1.position.x + w1, n2.position.x + w2) - Math.max(n1.position.x, n2.position.x) + margin
+        const overlapY =
+          Math.min(n1.position.y + h1, n2.position.y + h2) - Math.max(n1.position.y, n2.position.y) + margin
+
+        expect(overlapX > 0 && overlapY > 0).toBe(false)
+      }
+    }
+  })
+
+  it('handles complete typical graph structure', () => {
+    // Typical Noodles.gl graph: FileOp → AccessorOp → Layers → DeckRenderer → Out
+    //                              ↓                    ↓
+    //                         ColorOp              MaplibreBasemap
+    const nodes = [
+      createNode('file', 0, 0, 200, 100, 'FileOp'),
+      createNode('accessor', 0, 0, 200, 100, 'AccessorOp'),
+      createNode('color', 0, 0, 200, 100, 'ColorOp'),
+      createNode('layer1', 0, 0, 200, 100, 'ScatterplotLayerOp'),
+      createNode('layer2', 0, 0, 200, 100, 'ArcLayerOp'),
+      createNode('basemap', 0, 0, 200, 100, 'MaplibreBasemapOp'),
+      createNode('deck', 0, 0, 200, 100, 'DeckRendererOp'),
+      createNode('out', 0, 0, 200, 100, 'OutOp'),
+    ]
+    const edges = [
+      createEdge('file', 'accessor'),
+      createEdge('accessor', 'layer1'),
+      createEdge('accessor', 'layer2'),
+      createEdge('color', 'layer1'),
+      createEdge('layer1', 'deck'),
+      createEdge('layer2', 'deck'),
+      createEdge('basemap', 'deck'),
+      createEdge('deck', 'out'),
+    ]
+    const result = layoutNodes(nodes, edges, semanticOptions)
+
+    // Check tier ordering
+    const fileX = result.find(n => n.id === 'file')!.position.x
+    const accessorX = result.find(n => n.id === 'accessor')!.position.x
+    const colorX = result.find(n => n.id === 'color')!.position.x
+    const layer1X = result.find(n => n.id === 'layer1')!.position.x
+    const layer2X = result.find(n => n.id === 'layer2')!.position.x
+    const basemapX = result.find(n => n.id === 'basemap')!.position.x
+    const deckX = result.find(n => n.id === 'deck')!.position.x
+    const outX = result.find(n => n.id === 'out')!.position.x
+
+    // Verify X ordering
+    expect(fileX).toBeLessThan(accessorX)
+    expect(accessorX).toBeLessThan(layer1X)
+    expect(colorX).toBeGreaterThan(fileX)
+    expect(colorX).toBeLessThan(layer1X)
+    expect(layer1X).toBe(layer2X) // Layers in same column
+    expect(basemapX).toBe(layer1X) // Basemap in same column as layers
+    expect(deckX).toBeGreaterThan(layer1X)
+    expect(outX).toBeGreaterThan(deckX)
+
+    // Verify basemap is below layers
+    const layer1Y = result.find(n => n.id === 'layer1')!.position.y
+    const layer2Y = result.find(n => n.id === 'layer2')!.position.y
+    const basemapY = result.find(n => n.id === 'basemap')!.position.y
+    expect(basemapY).toBeGreaterThan(Math.max(layer1Y, layer2Y))
+
+    // Verify OutOp same Y as DeckRenderer
+    const deckY = result.find(n => n.id === 'deck')!.position.y
+    const outY = result.find(n => n.id === 'out')!.position.y
+    expect(outY).toBe(deckY)
   })
 })

@@ -541,10 +541,19 @@ export function TopMenuBar({
                                     onValueChange={value =>
                                       onChangeAutoLayout?.({
                                         ...autoLayout!,
-                                        algorithm: value as 'dagre' | 'd3-force',
+                                        algorithm: value as 'dagre' | 'd3-force' | 'semantic',
                                       })
                                     }
                                   >
+                                    <DropdownMenu.RadioItem
+                                      className={s.dropdownItem}
+                                      value="semantic"
+                                    >
+                                      <DropdownMenu.ItemIndicator className={s.itemIndicator}>
+                                        <i className="pi pi-check" style={{ fontSize: '12px' }} />
+                                      </DropdownMenu.ItemIndicator>
+                                      Semantic (Recommended)
+                                    </DropdownMenu.RadioItem>
                                     <DropdownMenu.RadioItem
                                       className={s.dropdownItem}
                                       value="dagre"
