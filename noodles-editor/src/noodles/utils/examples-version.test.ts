@@ -9,7 +9,7 @@ const exampleProjects = import.meta.glob('../../examples/**/noodles.json', {
 }) as Record<string, NoodlesProjectJSON>
 
 // Import public demo projects
-const publicProjects = import.meta.glob('../../public/noodles/*.json', {
+const publicProjects = import.meta.glob('../../../public/noodles/*.json', {
   eager: true,
   import: 'default',
 }) as Record<string, NoodlesProjectJSON>
