@@ -71,14 +71,18 @@ Baseline snapshots are stored in:
 src/__tests__/examples-visual-regression.spec.ts-snapshots/
 ```
 
-**Note**: Snapshots are platform-specific (includes `-chromium-darwin` suffix). Don't check them into git - they're ignored by `.gitignore`.
+**Important**: Baseline snapshots **are committed to git** so CI can compare against them. When you update snapshots locally, commit the changes so everyone has the same baseline.
+
+**Note**: Snapshots are platform-specific (includes `-chromium-darwin` suffix). CI must run on the same platform to avoid false positives.
 
 ## Test Artifacts
 
 The following are automatically ignored by git:
 - `playwright-report/` - HTML test reports
-- `test-results/` - Detailed test results and screenshots
-- `*-snapshots/` - Baseline screenshots
+- `test-results/` - Detailed test results and failure screenshots
+
+**Committed to git:**
+- `*-snapshots/` - Baseline screenshots for CI comparison
 
 ## Troubleshooting
 
