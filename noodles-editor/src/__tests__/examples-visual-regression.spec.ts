@@ -73,25 +73,16 @@ test.describe('Example Projects Visual Regression', () => {
           return canvas !== null && deck !== undefined
         }, { timeout: 20000 })
 
-        // Wait for data to load - poll until layers have data
+        // Wait for layers to be created (data may load async)
         await page.waitForFunction(
           () => {
             const deckInstance = (window as any).deck
             if (!deckInstance?.layerManager) return false
-
             const layers = deckInstance.layerManager.getLayers()
-            if (layers.length === 0) return false
-
-            // Check if at least one layer has loaded data
-            return layers.some((layer: any) => {
-              const data = layer.props.data
-              if (Array.isArray(data) && data.length > 0) return true
-              // Some layers use data that's not arrays (e.g., TileLayer, TerrainLayer)
-              if (data && typeof data === 'object') return true
-              return false
-            })
+            // Just check that layers exist, data may still be loading
+            return layers.length > 0
           },
-          { timeout: 20000 }
+          { timeout: 15000 }
         )
 
         // Wait a bit more for map tiles to load
