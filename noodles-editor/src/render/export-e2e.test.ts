@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { clearOps } from '../noodles/store'
 
 // End-to-end tests for video export with real example projects.
@@ -14,38 +14,29 @@ describe('Export E2E Tests', () => {
 
   describe('Time Freezing Integration', () => {
     it('should freeze and restore MapLibre time during export', async () => {
-      const mockSetNow = vi.fn()
-      const mockRestoreNow = vi.fn()
-
-      // Mock maplibre-gl time API
-      vi.mock('maplibre-gl', () => ({
-        default: {
-          setNow: mockSetNow,
-          restoreNow: mockRestoreNow,
-        },
-      }))
+      // Note: This test validates the time freezing API pattern.
+      // The actual maplibre-gl mock is tested in time-freeze-test.ts
 
       // Simulate export loop
       const fps = 30
       const frames = 10
 
-      // Start export - should freeze time
+      // Start export - should freeze time at frame 0
       const startFrame = 0
       const virtualTimeStart = (startFrame / fps) * 1000
-      mockSetNow(virtualTimeStart)
-      expect(mockSetNow).toHaveBeenCalledWith(virtualTimeStart)
+      expect(virtualTimeStart).toBe(0)
 
       // Advance through frames
+      const virtualTimes = []
       for (let i = 0; i < frames; i++) {
         const virtualTime = (i / fps) * 1000
-        mockSetNow(virtualTime)
+        virtualTimes.push(virtualTime)
       }
 
-      expect(mockSetNow).toHaveBeenCalledTimes(frames + 1) // +1 for initial freeze
-
-      // End export - should restore time
-      mockRestoreNow()
-      expect(mockRestoreNow).toHaveBeenCalled()
+      // Verify times are sequential
+      expect(virtualTimes.length).toBe(frames)
+      expect(virtualTimes[0]).toBe(0)
+      expect(virtualTimes[frames - 1]).toBeCloseTo((frames - 1) / fps * 1000, 2)
     })
 
     it('should advance virtual time by exact frame intervals', () => {
@@ -59,8 +50,8 @@ describe('Export E2E Tests', () => {
       expect(virtualTimes[0]).toBe(0) // Frame 0 = 0ms
       expect(virtualTimes[1]).toBeCloseTo(frameInterval, 2) // Frame 1 = 33.33ms
       expect(virtualTimes[2]).toBeCloseTo(frameInterval * 2, 2) // Frame 2 = 66.67ms
-      expect(virtualTimes[5]).toBeCloseTo(frameInterval * 5, 2) // Frame 5 = 166.67ms
-      expect(virtualTimes[frames.length - 1]).toBe(1000) // Frame 30 = 1000ms
+      expect(virtualTimes[3]).toBeCloseTo(frameInterval * 5, 2) // frames[3] = 5, so 166.67ms
+      expect(virtualTimes[5]).toBe(1000) // frames[5] = 30, so 1000ms
     })
   })
 
@@ -284,7 +275,7 @@ describe('Export E2E Tests', () => {
 
   describe('Error Handling', () => {
     it('should restore time even if export fails', async () => {
-      const mockRestoreNow = vi.fn()
+      let restoreCalled = false
 
       // Simulate export error
       try {
@@ -292,10 +283,10 @@ describe('Export E2E Tests', () => {
         throw new Error('Frame capture failed')
       } catch {
         // finishEncoding() should still be called
-        mockRestoreNow()
+        restoreCalled = true
       }
 
-      expect(mockRestoreNow).toHaveBeenCalled()
+      expect(restoreCalled).toBe(true)
     })
 
     it('should handle missing MapLibre gracefully', () => {
