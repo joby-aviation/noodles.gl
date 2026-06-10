@@ -43,6 +43,7 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
   const containerRef = useRef<HTMLDivElement>(null)
   const timelineAreaRef = useRef<HTMLDivElement>(null)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
+  const trackLabelsRef = useRef<HTMLDivElement>(null)
 
   const { isRendering } = useExportActions()
 
@@ -103,20 +104,56 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
   // Convert pixels to time
   const pixelsToTime = useCallback((pixels: number) => pixels / pixelsPerSecond, [pixelsPerSecond])
 
-  // Handle zoom with mouse wheel
-  const handleWheel = useCallback((e: React.WheelEvent) => {
-    if (e.ctrlKey || e.metaKey) {
-      e.preventDefault()
-      const delta = e.deltaY > 0 ? 0.9 : 1.1
-      setPixelsPerSecond(prev =>
-        Math.max(MIN_PIXELS_PER_SECOND, Math.min(MAX_PIXELS_PER_SECOND, prev * delta))
+  // Zoom while keeping the playhead at the same screen position
+  const zoomAroundPlayhead = useCallback(
+    (newPixelsPerSecond: number) => {
+      if (!scrollAreaRef.current) return
+
+      const clampedZoom = Math.max(
+        MIN_PIXELS_PER_SECOND,
+        Math.min(MAX_PIXELS_PER_SECOND, newPixelsPerSecond)
       )
+
+      // Calculate playhead pixel position before and after zoom
+      const playheadPxBefore = position * pixelsPerSecond
+      const playheadPxAfter = position * clampedZoom
+
+      // Adjust scroll to keep playhead at same screen position
+      const scrollDelta = playheadPxAfter - playheadPxBefore
+      scrollAreaRef.current.scrollLeft = Math.max(0, scrollAreaRef.current.scrollLeft + scrollDelta)
+
+      setPixelsPerSecond(clampedZoom)
+    },
+    [position, pixelsPerSecond]
+  )
+
+  // Handle zoom with mouse wheel (Ctrl/Cmd/Shift + scroll)
+  const handleWheel = useCallback(
+    (e: React.WheelEvent) => {
+      if (e.ctrlKey || e.metaKey || e.shiftKey) {
+        e.preventDefault()
+        const delta = e.deltaY > 0 ? 0.9 : 1.1
+        zoomAroundPlayhead(pixelsPerSecond * delta)
+      }
+    },
+    [pixelsPerSecond, zoomAroundPlayhead]
+  )
+
+  // Handle scroll on the right (keyframe) panel — keep the left labels panel in sync
+  const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    setScrollLeft(e.currentTarget.scrollLeft)
+    const scrollTop = e.currentTarget.scrollTop
+    if (trackLabelsRef.current && trackLabelsRef.current.scrollTop !== scrollTop) {
+      trackLabelsRef.current.scrollTop = scrollTop
     }
   }, [])
 
-  // Handle scroll
-  const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
-    setScrollLeft(e.currentTarget.scrollLeft)
+  // Handle scroll on the left (labels) panel — keep the right keyframe panel in sync
+  const handleLabelsScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    const scrollTop = e.currentTarget.scrollTop
+    if (scrollAreaRef.current && scrollAreaRef.current.scrollTop !== scrollTop) {
+      scrollAreaRef.current.scrollTop = scrollTop
+    }
   }, [])
 
   // Calculate time from mouse event, snapped to the nearest frame
@@ -303,27 +340,39 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
     }
   }, [])
 
-  // Delete selected keyframes/markers on Delete/Backspace key, T to cycle handle type
+  // Intercept Delete/Backspace in capture phase so keyframe/marker deletion fires before
+  // ReactFlow's global handler (which would otherwise delete the selected operator node)
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Delete' && e.key !== 'Backspace') return
+      const target = e.target as HTMLElement
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)
+        return
+
+      if (selectedMarkerId) {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        const before = captureTimelineState()
+        deleteMarker(selectedMarkerId)
+        fireTimelineMutation('Delete marker', before)
+        return
+      }
+      const store = getTimelineStore()
+      if (store.selectedKeyframeIds.size > 0) {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        const before = captureTimelineState()
+        store.deleteSelectedKeyframes()
+        fireTimelineMutation('Delete keyframe', before)
+      }
+    }
+    document.addEventListener('keydown', handleKey, { capture: true })
+    return () => document.removeEventListener('keydown', handleKey, { capture: true })
+  }, [selectedMarkerId, deleteMarker])
+
+  // T to cycle handle type, Cmd/Ctrl+A to select all keyframes
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
-      if (e.key === 'Delete' || e.key === 'Backspace') {
-        // Delete selected marker if one is selected
-        if (selectedMarkerId) {
-          e.preventDefault()
-          const before = captureTimelineState()
-          deleteMarker(selectedMarkerId)
-          fireTimelineMutation('Delete marker', before)
-          return
-        }
-        // Delete selected keyframes
-        if (selectedKeyframeIds.size > 0) {
-          e.preventDefault()
-          const store = getTimelineStore()
-          store.deleteSelectedKeyframes()
-          return
-        }
-      }
-
       // Cmd/Ctrl+A to select all keyframes
       if ((e.key === 'a' || e.key === 'A') && (e.metaKey || e.ctrlKey)) {
         e.preventDefault()
@@ -351,7 +400,7 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
         fireTimelineMutation('Cycle handle type', before)
       }
     },
-    [selectedKeyframeIds, selectedMarkerId, deleteMarker]
+    [selectedKeyframeIds]
   )
 
   // Handle spacebar for play/pause and arrow keys for frame stepping globally
@@ -431,7 +480,7 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
           <button
             type="button"
             className={s.timelineZoomBtn}
-            onClick={() => setPixelsPerSecond(prev => Math.max(MIN_PIXELS_PER_SECOND, prev * 0.8))}
+            onClick={() => zoomAroundPlayhead(pixelsPerSecond * 0.8)}
             title="Zoom out"
           >
             <span className={s.timelineZoomBtnText}>&minus;</span>
@@ -459,13 +508,13 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
             max={LOG_MAX}
             step={0.01}
             value={Math.log(pixelsPerSecond)}
-            onChange={e => setPixelsPerSecond(Math.exp(Number(e.target.value)))}
+            onChange={e => zoomAroundPlayhead(Math.exp(Number(e.target.value)))}
             title={`Zoom: ${Math.round(pixelsPerSecond)} px/s`}
           />
           <button
             type="button"
             className={s.timelineZoomBtn}
-            onClick={() => setPixelsPerSecond(prev => Math.min(MAX_PIXELS_PER_SECOND, prev * 1.25))}
+            onClick={() => zoomAroundPlayhead(pixelsPerSecond * 1.25)}
             title="Zoom in"
           >
             <span className={s.timelineZoomBtnText}>+</span>
@@ -476,7 +525,7 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
       {/* Main timeline area */}
       <div className={s.timelineBody}>
         {/* Track labels column */}
-        <div className={s.timelineTrackLabels}>
+        <div ref={trackLabelsRef} className={s.timelineTrackLabels} onScroll={handleLabelsScroll}>
           <div className={s.timelineTrackLabelsHeader}>
             <span className={s.timelineTrackLabelsTitle}>Properties</span>
           </div>
@@ -541,6 +590,25 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
                 mousePosition={connectionMousePos}
               />
               {boxSelectOverlay && <div className={s.timelineBoxSelect} style={boxSelectOverlay} />}
+              {/* Dim regions outside in/out range */}
+              {sequence.inPoint > 0 && (
+                <div
+                  className={s.timelineDimOverlay}
+                  style={{
+                    left: 0,
+                    width: `${sequence.inPoint * pixelsPerSecond}px`,
+                  }}
+                />
+              )}
+              {sequence.outPoint < sequence.length && (
+                <div
+                  className={s.timelineDimOverlay}
+                  style={{
+                    left: `${sequence.outPoint * pixelsPerSecond}px`,
+                    width: `${(sequence.length - sequence.outPoint) * pixelsPerSecond}px`,
+                  }}
+                />
+              )}
             </div>
           ) : (
             <CurveEditorView

@@ -729,7 +729,7 @@ async function generateRagEmbeddings() {
 {
   "scripts": {
     "generate:rag": "tsx scripts/generate-rag-embeddings.ts",
-    "prebuild": "yarn generate:context && yarn generate:rag"
+    "prebuild": "npm run generate:context && npm run generate:rag"
   }
 }
 ```

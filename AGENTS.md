@@ -402,30 +402,29 @@ const numberOps = data.map((value, i) => {
 
 ```bash
 # Install dependencies
-yarn install:all
+npm run install:all
 
 # Start development server
-cd noodles-editor && yarn start
+cd noodles-editor && npm start
 
 # Run tests
-cd noodles-editor && yarn test
+cd noodles-editor && npm test
 
 # Lint and format
-cd noodles-editor && yarn lint
-cd noodles-editor && yarn fix-lint
+cd noodles-editor && npm run lint
+cd noodles-editor && npm run fix-lint
 
 # Build for production
-yarn build:all
+npm run build:all
 ```
 
 **Node.js and Package Manager Requirements:**
 - Node.js version pinned in `.nvmrc`
-- Yarn version managed by Corepack, pinned in `package.json`
+- npm is bundled with Node.js — no additional setup needed
 - If you encounter Node.js compatibility errors, ensure you're using the correct version from `.nvmrc`
 - **Recommended**: Use [fnm](https://github.com/Schniz/fnm) for fast Node.js version management
   - fnm automatically uses the correct Node version from `.nvmrc`
   - Alternative: Use [nvm](https://github.com/nvm-sh/nvm) or any Node version manager
-- **Yarn management**: Enable Corepack with `corepack enable yarn` to use the pinned Yarn version
 
 ### Development URLs
 
@@ -438,7 +437,7 @@ yarn build:all
 - Unit tests co-located with source files (`*.test.ts`)
 - Vitest for unit testing
 - Playwright for browser integration tests
-- Run specific tests: `yarn test src/noodles/operators.test.ts`
+- Run specific tests: `npm test src/noodles/operators.test.ts`
 
 ### Debug Logging
 

@@ -9,7 +9,6 @@ This guide covers development workflows, testing strategies, and contribution gu
 ### Prerequisites
 
 - **Node.js** (version pinned in `.nvmrc`) - [Download from nodejs.org](https://nodejs.org/en/download)
-- **Yarn** (version managed by Corepack, pinned in `package.json`)
 - Modern browser with WebGL support
 
 ### Setup
@@ -18,19 +17,17 @@ This guide covers development workflows, testing strategies, and contribution gu
 # Clone the repository
 git clone <repository-url>
 
-# Enable Corepack to manage Yarn version
-corepack enable yarn
-
-# Verify versions match project requirements
+# Verify Node.js version matches project requirements
 node -v  # Check against .nvmrc
-yarn -v  # Check against package.json
 
-# Install dependencies
-yarn install
+# Install dependencies (use npm ci to ensure exact versions from lockfile)
+npm ci
 
 # Start development server
-yarn start
+npm start
 ```
+
+> **Note**: Always use `npm ci` instead of `npm install` to ensure you have the exact dependency versions specified in `package-lock.json`. This prevents formatting and tooling inconsistencies between local development and CI environments.
 
 ### Development URLs
 
@@ -47,6 +44,17 @@ For detailed information about the codebase structure and architecture, see:
 
 ## 🛠️ Development Workflow
 
+### Dependency Management
+
+**Important**: Always use `npm ci` (not `npm install`) to install dependencies. This ensures:
+- Exact versions from `package-lock.json` are installed
+- Consistency between local development and CI
+- Matching formatter/linter behavior across environments
+
+```bash
+npm ci              # Install exact versions from lockfile
+```
+
 ### Available Commands
 
 For complete development commands and code style guidelines, see [Development Guide](https://github.com/joby-aviation/noodles.gl/blob/main/dev-docs/developing.md).
@@ -54,11 +62,11 @@ For complete development commands and code style guidelines, see [Development Gu
 Key commands:
 
 ```bash
-yarn start          # Development server
-yarn build          # Production build
-yarn test           # Run all tests
-yarn lint           # Check code quality
-yarn fix-lint       # Auto-fix linting issues
+npm start           # Development server
+npm run build       # Production build
+npm test            # Run all tests
+npm run lint        # Check code quality
+npm run fix-lint    # Auto-fix linting issues
 ```
 
 ## 🧪 Testing
@@ -71,8 +79,8 @@ We use **Vitest** for testing with these patterns:
 
 ```bash
 # Run specific test patterns
-yarn test src/utils/color.test.ts
-yarn test src/visualizations/noodles/
+npm test src/utils/color.test.ts
+npm test src/visualizations/noodles/
 ```
 
 ## 🎨 Architecture Overview
@@ -99,8 +107,8 @@ Key concepts:
 2. **Write tests** for new functionality
 3. **Migration Scripts**: Add any necessary migrations
 4. **Update documentation** if needed
-5. **Run linting** before committing: `yarn fix-lint`
-6. **Ensure tests pass**: `yarn test`
+5. **Run linting** before committing: `npm run fix-lint`
+6. **Ensure tests pass**: `npm test`
 
 ### Pull Request Process
 

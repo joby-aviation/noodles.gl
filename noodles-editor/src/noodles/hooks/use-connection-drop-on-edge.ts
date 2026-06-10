@@ -9,16 +9,16 @@ import type {
   Node as ReactFlowNode,
   XYPosition,
 } from '@xyflow/react'
-import { useCallback } from 'react'
+import { useCallback, useRef } from 'react'
 import { analytics } from '../../utils/analytics'
 import type { ConnectionDragState } from '../store'
-import { getOp } from '../store'
-import { canConnect } from '../utils/can-connect'
 import { getNodeCenter, pointToLineDistance } from '../utils/edge-geometry'
-import { parseHandleId } from '../utils/path-utils'
+import { EdgeSpatialIndex } from '../utils/spatial-index'
 
 // Distance threshold in pixels for considering a drop position "on" an edge
 const EDGE_DROP_THRESHOLD = 50
+// Smaller threshold used when the dragged source is incompatible with the target edge
+const EDGE_DROP_THRESHOLD_WEAK = 20
 
 interface UseConnectionDropOnEdgeOptions {
   getNodes: () => ReactFlowNode[]
@@ -28,28 +28,50 @@ interface UseConnectionDropOnEdgeOptions {
   screenToFlowPosition: (position: XYPosition) => XYPosition
 }
 
-// Find the edge closest to a flow-space point, skipping edges from the dragging source
+// Find the edge closest to a flow-space point, skipping edges from the dragging source.
+// compatibleEdgeIds: edges whose target field is type-compatible with the dragged source.
+// Incompatible edges use a smaller threshold, making them harder to accidentally target.
+// Uses spatial index if provided for O(log n) queries, otherwise falls back to linear search.
 export function findEdgeAtPosition(
   flowPos: XYPosition,
   sourceNodeId: string,
   getNodes: () => ReactFlowNode[],
-  getEdges: () => ReactFlowEdge[]
+  getEdges: () => ReactFlowEdge[],
+  compatibleEdgeIds?: Set<string>,
+  spatialIndex?: EdgeSpatialIndex
 ): ReactFlowEdge | null {
   const nodes = getNodes()
   const edges = getEdges()
 
+  // Use spatial index if available (O(log n) query)
+  let candidateEdges: ReactFlowEdge[]
+  if (spatialIndex) {
+    // Query edges near the position
+    candidateEdges = spatialIndex.queryRadius(flowPos.x, flowPos.y, EDGE_DROP_THRESHOLD)
+  } else {
+    // Fallback to all edges (linear search)
+    candidateEdges = edges
+  }
+
+  // Quick win: Create a Map for O(1) node lookups instead of O(n) find() calls
+  const nodeMap = new Map<string, ReactFlowNode>()
+  for (const node of nodes) {
+    nodeMap.set(node.id, node)
+  }
+
   let closestEdge: ReactFlowEdge | null = null
   let closestDistance = EDGE_DROP_THRESHOLD
 
-  for (const edge of edges) {
+  for (const edge of candidateEdges) {
     // Skip reference edges (not data connections)
     if (edge.type === 'ReferenceEdge') continue
     // Skip edges originating from or targeting the node being dragged (no self-connections)
     if (edge.source === sourceNodeId) continue
     if (edge.target === sourceNodeId) continue
 
-    const sourceNode = nodes.find(n => n.id === edge.source)
-    const targetNode = nodes.find(n => n.id === edge.target)
+    // Quick win: Use Map.get() instead of Array.find() for O(1) lookup
+    const sourceNode = nodeMap.get(edge.source)
+    const targetNode = nodeMap.get(edge.target)
 
     if (!sourceNode || !targetNode) continue
 
@@ -57,9 +79,19 @@ export function findEdgeAtPosition(
     const targetCenter = getNodeCenter(targetNode)
     const distance = pointToLineDistance(flowPos, sourceCenter, targetCenter)
 
-    if (distance < closestDistance) {
+    const threshold =
+      compatibleEdgeIds == null || compatibleEdgeIds.has(edge.id)
+        ? EDGE_DROP_THRESHOLD
+        : EDGE_DROP_THRESHOLD_WEAK
+
+    if (distance < threshold && distance < closestDistance) {
       closestDistance = distance
       closestEdge = edge
+
+      // Quick win: Early exit if we found a very close edge (within 5 pixels)
+      if (closestDistance < 5) {
+        break
+      }
     }
   }
 
@@ -83,30 +115,14 @@ export function useConnectionDropOnEdge(options: UseConnectionDropOnEdgeOptions)
 
       // connectionState.to is in screen/container coordinates — convert to flow space
       const flowPos = screenToFlowPosition(connectionState.to)
-      const edge = findEdgeAtPosition(flowPos, sourceNodeId, getNodes, getEdges)
+      const edge = findEdgeAtPosition(
+        flowPos,
+        sourceNodeId,
+        getNodes,
+        getEdges,
+        dragState.compatibleEdgeIds
+      )
       if (!edge) return
-
-      // Parse the dragged source handle to get the field
-      const sourceHandleInfo = parseHandleId(sourceHandleId)
-      if (!sourceHandleInfo) return
-
-      const sourceOp = getOp(sourceNodeId)
-      if (!sourceOp) return
-
-      const sourceField = sourceOp.outputs[sourceHandleInfo.fieldName]
-      if (!sourceField) return
-
-      // Parse the existing edge's target handle to check compatibility
-      const targetHandleInfo = parseHandleId(edge.targetHandle || '')
-      if (!targetHandleInfo) return
-
-      const targetOp = getOp(edge.target)
-      if (!targetOp) return
-
-      const targetField = targetOp.inputs[targetHandleInfo.fieldName]
-      if (!targetField) return
-
-      if (!canConnect(sourceField, targetField)) return
 
       // Call onConnect with the swapped source — this handles field wiring and replaces
       // any existing connection to the same target input automatically

@@ -11,7 +11,26 @@ export default defineConfig({
     outDir: './dist',
     emptyOutDir: false,
     rollupOptions: {
-      external: ['node:fs/promises', 'node:path'],
+      external: [
+        'node:fs/promises',
+        'node:path',
+        // External all UI/React dependencies to avoid bundling them
+        'react',
+        'react-dom',
+        'react/jsx-runtime',
+        /^@xyflow\//,
+        /^primereact\//,
+        /^@radix-ui\//,
+        'validator',
+        // External large data dependencies
+        /^@duckdb\//,
+        '@loaders.gl/core',
+        '@loaders.gl/csv',
+        '@turf/turf',
+        'deck.gl',
+        /^@deck.gl\//,
+        'maplibre-gl',
+      ],
     },
     ssr: true,
   },

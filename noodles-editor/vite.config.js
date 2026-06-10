@@ -39,7 +39,7 @@ function contextGeneratorPlugin() {
 
     try {
       console.log('\n🔄 Regenerating AI context bundles...')
-      execSync('yarn generate:context', {
+      execSync('npm run generate:context', {
         stdio: 'inherit',
         cwd: process.cwd(),
       })
@@ -104,6 +104,10 @@ export default defineConfig(({ mode }) => {
     server: {
       open: true,
     },
+    // duckdb-wasm bundles WASM + worker files that break Vite's dep optimization
+    optimizeDeps: {
+      exclude: ['@duckdb/duckdb-wasm'],
+    },
     plugins: [
       react(),
       nodePolyfills({
@@ -120,6 +124,12 @@ export default defineConfig(({ mode }) => {
           server.middlewares.use((req, res, next) => {
             let url = req.url || '/'
             url = decodeURIComponent(url.split('?')[0])
+
+            // let Vite handle its own virtual/internal paths and hoisted node_modules
+            if (url.startsWith('/@') || url.startsWith('/node_modules/')) {
+              next()
+              return
+            }
 
             // if it looks like a file request (has an extension)...
             if (/\.[a-zA-Z0-9]{1,8}$/.test(url)) {

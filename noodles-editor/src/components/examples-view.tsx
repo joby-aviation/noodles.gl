@@ -3,11 +3,12 @@ import * as Dialog from '@radix-ui/react-dialog'
 import { ChevronLeftIcon } from '@radix-ui/react-icons'
 import { useCallback, useMemo } from 'react'
 import { useLocation } from 'wouter'
+import type { NoodlesProjectJSON } from '../noodles/utils/serialization'
 import { analytics } from '../utils/analytics'
 import s from './quick-start-modal.module.css'
 
 // Vite glob imports for examples
-const exampleProjects = import.meta.glob('../examples/**/noodles.json', {
+const exampleProjects = import.meta.glob<NoodlesProjectJSON>('../examples/**/noodles.json', {
   eager: true,
   import: 'default',
 })
@@ -22,15 +23,6 @@ export interface ExampleProject {
   name: string
   path: string
   description?: string
-}
-
-const ACRONYMS: Record<string, string> = {
-  nyc: 'NYC',
-  usa: 'USA',
-  uk: 'UK',
-  api: 'API',
-  json: 'JSON',
-  csv: 'CSV',
 }
 
 function extractDescription(readme?: string): string {
@@ -52,40 +44,20 @@ function extractDescription(readme?: string): string {
   return ''
 }
 
-export function formatProjectName(name: string): string {
-  return name
-    .replace(/-/g, ' ')
-    .replace(
-      /\b\w+\b/g,
-      word => ACRONYMS[word.toLowerCase()] || word.charAt(0).toUpperCase() + word.slice(1)
-    )
-}
-
 // Hook to get all examples
 export function useAllExamples(): ExampleProject[] {
   return useMemo<ExampleProject[]>(() => {
     const list: ExampleProject[] = []
-    for (const path of Object.keys(exampleProjects)) {
+    for (const [path, projectJson] of Object.entries(exampleProjects)) {
       const projectId = basename(dirname(path))
       const readmePath = path.replace('noodles.json', 'README.md')
-      let projectName = projectId
-      let description = ''
-
       const readme = exampleReadmes[readmePath] as string | undefined
-      if (readme) {
-        const firstLine = readme.split('\n')[0]
-        const match = firstLine.match(/^#\s+(.*)/)
-        if (match?.[1]) {
-          projectName = match[1].trim()
-        }
-        description = extractDescription(readme)
-      }
 
       list.push({
         id: projectId,
-        name: projectName,
+        name: projectJson.name || projectId,
         path: `/examples/${projectId}`,
-        description,
+        description: extractDescription(readme),
       })
     }
     list.sort((a, b) => a.name.localeCompare(b.name))
@@ -114,10 +86,10 @@ export const CURATED_EXAMPLES = [
     icon: 'pi-car',
   },
   {
-    id: 'sf-street-trees',
-    title: 'SF Street Trees',
-    description: 'Urban forest inventory across San Francisco',
-    icon: 'pi-sitemap',
+    id: 'aggregation-example',
+    title: 'SF Bike Parking',
+    description: 'Bike parking facilities across San Francisco',
+    icon: 'pi-map',
   },
 ]
 
@@ -165,7 +137,7 @@ export function ExamplesView({ onBack, onClose }: ExamplesViewProps) {
               onClick={() => handleExampleClick(example.id)}
             >
               <div className={s.projectInfo}>
-                <h4>{formatProjectName(example.name)}</h4>
+                <h4>{example.name}</h4>
                 {example.description && <p>{example.description}</p>}
               </div>
             </button>
