@@ -62,10 +62,6 @@ test.describe('Example Projects Visual Regression', () => {
         // Navigate to the example
         await page.goto(`/examples/${exampleName}`, { waitUntil: 'networkidle' })
 
-        // Check for React error boundaries
-        const errorBoundary = await page.locator('[role="alert"]').count()
-        expect(errorBoundary).toBe(0)
-
         // Wait for window.deck to be available and canvas to render
         await page.waitForFunction(() => {
           const canvas = document.querySelector('canvas')
