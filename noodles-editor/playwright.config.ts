@@ -8,6 +8,9 @@ export default defineConfig({
   testDir: './src/__tests__',
   testMatch: '**/*.spec.ts',
 
+  // Output directories (keep within noodles-editor)
+  outputDir: './test-results',
+
   // Maximum time one test can run
   timeout: 90 * 1000,
 
