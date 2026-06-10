@@ -33,20 +33,15 @@ export function layoutNodes(nodes: Node[], edges: Edge[], options: LayoutOptions
   } = options
 
   if (algorithm === 'dagre') {
-    return layoutWithDagre(nodes, edges, {
-      direction,
-      nodeWidth,
-      nodeHeight,
-      nodeSpacing,
-      rankSpacing,
-    })
+    return resolveOverlaps(
+      layoutWithDagre(nodes, edges, { direction, nodeWidth, nodeHeight, nodeSpacing, rankSpacing }),
+      nodeSpacing
+    )
   }
-  return layoutWithD3Force(nodes, edges, {
-    direction,
-    nodeWidth,
-    nodeHeight,
-    nodeSpacing,
-  })
+  return resolveOverlaps(
+    layoutWithD3Force(nodes, edges, { direction, nodeWidth, nodeHeight, nodeSpacing }),
+    nodeSpacing
+  )
 }
 
 type DagreOptions = {
@@ -208,10 +203,67 @@ function layoutWithD3Force(nodes: Node[], edges: Edge[], options: D3ForceOptions
   })
 }
 
-/**
- * Calculate topological rank for each node based on graph structure.
- * Nodes with no incoming edges have rank 0, others have rank = max(parent ranks) + 1.
- */
+type Rect = { id: string; x: number; y: number; width: number; height: number }
+
+// Resolve overlapping nodes using the naive pairwise algorithm described in
+// https://xyflow.com/blog/node-collision-detection-algorithms.
+// Iteratively pushes overlapping node pairs apart along the smaller-overlap axis
+// until no overlaps remain or maxIterations is reached.
+export function resolveOverlaps(nodes: Node[], margin: number, maxIterations = 50): Node[] {
+  if (nodes.length < 2) return nodes
+
+  const rects: Rect[] = nodes.map(node => ({
+    id: node.id,
+    x: node.position.x,
+    y: node.position.y,
+    width: node.measured?.width ?? node.width ?? DEFAULT_NODE_WIDTH,
+    height: node.measured?.height ?? node.height ?? DEFAULT_NODE_HEIGHT,
+  }))
+
+  for (let iter = 0; iter < maxIterations; iter++) {
+    let overlapFound = false
+    for (let i = 0; i < rects.length; i++) {
+      for (let j = i + 1; j < rects.length; j++) {
+        const a = rects[i]
+        const b = rects[j]
+        // Positive value means overlap exists on that axis (including margin gap)
+        const overlapX = Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x) + margin
+        const overlapY = Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y) + margin
+        if (overlapX > 0 && overlapY > 0) {
+          overlapFound = true
+          // Resolve along the axis with less overlap to minimize displacement.
+          // Push direction is determined by center positions so nodes always move apart.
+          if (overlapX <= overlapY) {
+            const shift = overlapX / 2
+            if (a.x + a.width / 2 <= b.x + b.width / 2) {
+              a.x -= shift
+              b.x += shift
+            } else {
+              a.x += shift
+              b.x -= shift
+            }
+          } else {
+            const shift = overlapY / 2
+            if (a.y + a.height / 2 <= b.y + b.height / 2) {
+              a.y -= shift
+              b.y += shift
+            } else {
+              a.y += shift
+              b.y -= shift
+            }
+          }
+        }
+      }
+    }
+    if (!overlapFound) break
+  }
+
+  const posMap = new Map(rects.map(r => [r.id, { x: r.x, y: r.y }]))
+  return nodes.map(node => ({ ...node, position: posMap.get(node.id) ?? node.position }))
+}
+
+// Calculate topological rank for each node based on graph structure.
+// Nodes with no incoming edges have rank 0, others have rank = max(parent ranks) + 1.
 function calculateTopologicalRanks(nodes: Node[], edges: Edge[]): Map<string, number> {
   const nodeIds = new Set(nodes.map(n => n.id))
   const ranks = new Map<string, number>()
