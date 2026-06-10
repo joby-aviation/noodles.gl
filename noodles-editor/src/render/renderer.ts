@@ -1,4 +1,5 @@
 import { assert, type Deck } from '@deck.gl/core'
+import maplibregl from 'maplibre-gl'
 import { useCallback, useRef, useState } from 'react'
 import { getTimelineStore, useTimelineStore } from '../timeline/timeline-store'
 import { debugRender, debugRenderFrame } from '../utils/debug'
@@ -207,7 +208,16 @@ export const useRenderer = ({
           await container.finishEncoding()
         }
         mapRecorder?.reader?.releaseLock()
+        // Restore real time after export completes
+        maplibregl.restoreNow()
+        debugRender('Time restored after export')
       }
+
+      // Freeze MapLibre time for deterministic frame-by-frame rendering.
+      // This eliminates race conditions and allows capturing on first render event.
+      const virtualTimeStart = (startFrame / fps) * 1000
+      maplibregl.setNow(virtualTimeStart)
+      debugRender('Time frozen at %dms (frame %d)', virtualTimeStart, startFrame)
 
       // Seek to start frame and wait for render to complete before capturing.
       // This prevents stale frames from being encoded if the playhead was
@@ -231,6 +241,11 @@ export const useRenderer = ({
       for (; i < endFrame + 1; i++) {
         const frameIterationStart = performance.now()
         const simTime = i / fps
+
+        // Advance virtual time for this frame (deterministic rendering)
+        const virtualTime = (i / fps) * 1000
+        maplibregl.setNow(virtualTime)
+
         setPosition(simTime)
         redraw()
 
