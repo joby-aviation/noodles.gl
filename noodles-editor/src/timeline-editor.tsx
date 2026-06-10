@@ -294,6 +294,16 @@ export default function TimelineEditor() {
     customLayersRef.current = desiredLayerIds
   }, [visualization.maplibreLayers, styleVersion])
 
+  // Expose Deck.gl instance on window for integration tests
+  useEffect(() => {
+    if (deckRef.current) {
+      ;(window as any).deck = deckRef.current
+    }
+    return () => {
+      delete (window as any).deck
+    }
+  }, [])
+
   // Clean up custom layers on unmount
   useEffect(() => {
     return () => {
