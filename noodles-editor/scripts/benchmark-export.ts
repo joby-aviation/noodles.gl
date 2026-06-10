@@ -72,13 +72,13 @@ async function main() {
 
   const scenarios = [
     {
-      name: 'Simple Scene',
-      path: '/examples/icon-layer-test',
+      name: 'NYC Taxis',
+      path: '/examples/nyc-taxis',
       frames: 30,
     },
     {
-      name: '3D Buildings',
-      path: '/examples/3d-building-gradient',
+      name: 'World Flights',
+      path: '/examples/world-flights',
       frames: 30,
     },
   ]
