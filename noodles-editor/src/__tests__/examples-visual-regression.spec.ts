@@ -75,8 +75,11 @@ test.describe('Example Projects Visual Regression', () => {
         await page.waitForTimeout(10000)
 
         // Take screenshot for visual regression
-        const canvas = page.locator('canvas').first()
-        await expect(canvas).toHaveScreenshot(`${exampleName}.png`, {
+        // Captures the full React Flow viewport including both:
+        // - The Deck.gl canvas (visualization output)
+        // - The React Flow nodes (node editor UI)
+        const reactFlowWrapper = page.locator('.react-flow-wrapper').first()
+        await expect(reactFlowWrapper).toHaveScreenshot(`${exampleName}.png`, {
           maxDiffPixels: 100, // Allow some anti-aliasing differences
         })
 
@@ -98,7 +101,8 @@ test.describe('Example Projects Visual Regression', () => {
             await page.waitForTimeout(500)
 
             // Take screenshot at this frame
-            await expect(canvas).toHaveScreenshot(`${exampleName}-${time}s.png`, {
+            const reactFlowWrapper = page.locator('.react-flow-wrapper').first()
+            await expect(reactFlowWrapper).toHaveScreenshot(`${exampleName}-${time}s.png`, {
               maxDiffPixels: 100,
             })
           }

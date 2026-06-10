@@ -60,9 +60,9 @@ PLAYWRIGHT_BASE_URL=https://staging.example.com npx playwright test
 1. **Discovery**: Scans `src/examples/` for directories with `noodles.json` files
 2. **Animation Check**: Parses `noodles.json` to detect keyframes
 3. **Navigation**: Loads each example in a browser
-4. **Wait**: Waits for Deck.gl canvas and data loading (5 seconds)
-5. **Screenshot**: Takes canvas screenshot for regression testing
-6. **Animation Frames**: For animated examples, tests frames at 0s, 0.5s, 1s, 2s
+4. **Wait**: Waits for Deck.gl canvas and data loading (10 seconds)
+5. **Screenshot**: Takes full viewport screenshot including both Deck.gl canvas and React Flow nodes
+6. **Animation Frames**: For animated examples, tests additional frames at 0s, 0.5s, 1s, 2s
 
 ## Snapshots
 
@@ -70,6 +70,10 @@ Baseline snapshots are stored in:
 ```
 src/__tests__/examples-visual-regression.spec.ts-snapshots/
 ```
+
+**Snapshot Types:**
+- `example-chromium-darwin.png` - Full viewport (Deck.gl canvas + React Flow nodes)
+- `example-0s-chromium-darwin.png` - Animation frames at specific times (for animated examples)
 
 **Important**: Baseline snapshots **are committed to git** so CI can compare against them. When you update snapshots locally, commit the changes so everyone has the same baseline.
 

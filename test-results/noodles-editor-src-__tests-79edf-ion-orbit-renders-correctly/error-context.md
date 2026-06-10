@@ -12,9 +12,13 @@
 # Error details
 
 ```
-Error: page.goto: Protocol error (Page.navigate): Cannot navigate to invalid URL
+Error: Channel closed
+```
+
+```
+Error: page.goto: Target page, context or browser has been closed
 Call log:
-  - navigating to "/examples/orbit", waiting until "load"
+  - navigating to "/examples/orbit", waiting until "networkidle"
 
 ```
 
@@ -83,106 +87,58 @@ Call log:
   60  |       `${exampleName} renders correctly`,
   61  |       async ({ page }) => {
   62  |         // Navigate to the example
-> 63  |         await page.goto(`/examples/${exampleName}`)
-      |                    ^ Error: page.goto: Protocol error (Page.navigate): Cannot navigate to invalid URL
+> 63  |         await page.goto(`/examples/${exampleName}`, { waitUntil: 'networkidle' })
+      |                    ^ Error: page.goto: Target page, context or browser has been closed
   64  | 
-  65  |         // Wait for Deck.gl canvas to appear
-  66  |         await page.waitForSelector('canvas', { timeout: 15000 })
-  67  | 
-  68  |         // Check for React error boundaries
-  69  |         const errorBoundary = await page.locator('[role="alert"]').count()
-  70  |         expect(errorBoundary).toBe(0)
+  65  |         // Wait for window.deck to be available and canvas to render
+  66  |         await page.waitForFunction(() => {
+  67  |           const canvas = document.querySelector('canvas')
+  68  |           const deck = (window as any).deck
+  69  |           return canvas !== null && deck !== undefined
+  70  |         }, { timeout: 30000 })
   71  | 
-  72  |         // Wait for window.deck to be available (useEffect may take a moment)
-  73  |         await page.waitForFunction(() => (window as any).deck !== undefined, { timeout: 10000 })
-  74  | 
-  75  |         // Wait for data to load - poll until layers have data
-  76  |         await page.waitForFunction(
-  77  |           () => {
-  78  |             const deckInstance = (window as any).deck
-  79  |             if (!deckInstance?.layerManager) return false
-  80  | 
-  81  |             const layers = deckInstance.layerManager.getLayers()
-  82  |             if (layers.length === 0) return false
-  83  | 
-  84  |             // Check if at least one layer has loaded data
-  85  |             return layers.some((layer: any) => {
-  86  |               const data = layer.props.data
-  87  |               if (Array.isArray(data) && data.length > 0) return true
-  88  |               // Some layers use data that's not arrays (e.g., TileLayer, TerrainLayer)
-  89  |               if (data && typeof data === 'object') return true
-  90  |               return false
-  91  |             })
-  92  |           },
-  93  |           { timeout: 20000 }
-  94  |         )
-  95  | 
-  96  |         // Wait a bit more for map tiles to load
-  97  |         await page.waitForTimeout(2000)
-  98  | 
-  99  |         // Inspect Deck.gl state to validate rendering
-  100 |         const deckState = await page.evaluate(() => {
-  101 |           const deckInstance = (window as any).deck
-  102 |           if (!deckInstance) {
-  103 |             return { error: 'Deck.gl instance not found on window.deck' }
-  104 |           }
-  105 | 
-  106 |           const layerManager = deckInstance.layerManager
-  107 |           if (!layerManager) {
-  108 |             return { error: 'LayerManager not found' }
-  109 |           }
-  110 | 
-  111 |           const layers = layerManager.getLayers()
-  112 |           return {
-  113 |             layerCount: layers.length,
-  114 |             layers: layers.map((layer: any) => ({
-  115 |               id: layer.id,
-  116 |               type: layer.constructor.name,
-  117 |               visible: layer.props.visible !== false,
-  118 |               dataLength: Array.isArray(layer.props.data) ? layer.props.data.length : 'N/A',
-  119 |               opacity: layer.props.opacity,
-  120 |             })),
-  121 |           }
-  122 |         })
-  123 | 
-  124 |         // Validate Deck.gl rendered layers
-  125 |         if ('error' in deckState) {
-  126 |           throw new Error(`${exampleName}: ${deckState.error}`)
-  127 |         }
-  128 | 
-  129 |         // Should have at least one layer
-  130 |         expect(deckState.layerCount).toBeGreaterThan(0)
-  131 | 
-  132 |         // Log layer info for debugging
-  133 |         console.log(`${exampleName}: ${deckState.layerCount} layers rendered`)
-  134 |         for (const layer of deckState.layers) {
-  135 |           console.log(
-  136 |             `  - ${layer.id} (${layer.type}): ${layer.dataLength} items, visible=${layer.visible}`
-  137 |           )
-  138 |         }
-  139 | 
-  140 |         // All layers should be visible (unless explicitly hidden)
-  141 |         const visibleLayers = deckState.layers.filter(l => l.visible)
-  142 |         expect(visibleLayers.length).toBeGreaterThan(0)
-  143 | 
-  144 |         // Layers with data should have non-zero length
-  145 |         const layersWithData = deckState.layers.filter(l => typeof l.dataLength === 'number')
-  146 |         if (layersWithData.length > 0) {
-  147 |           const hasDataInSomeLayer = layersWithData.some(l => l.dataLength > 0)
-  148 |           expect(hasDataInSomeLayer).toBe(true)
-  149 |         }
-  150 | 
-  151 |         // Take screenshot for visual regression
-  152 |         const canvas = page.locator('canvas').first()
-  153 |         await expect(canvas).toHaveScreenshot(`${exampleName}-initial.png`, {
-  154 |           maxDiffPixels: 100, // Allow some anti-aliasing differences
-  155 |         })
-  156 | 
-  157 |         // For animated examples, test multiple frames
-  158 |         if (hasAnimation) {
-  159 |           console.log(`${exampleName}: Testing animation frames (has keyframes)`)
-  160 | 
-  161 |           for (const time of TEST_FRAMES) {
-  162 |             // Seek to specific time in timeline
-  163 |             await page.evaluate((seekTime: number) => {
+  72  |         // Wait for data to load and render
+  73  |         // TODO: Hook into actual data loading state instead of fixed timeout
+  74  |         // For now, use a generous timeout to handle slow external data
+  75  |         await page.waitForTimeout(10000)
+  76  | 
+  77  |         // Take screenshot for visual regression
+  78  |         // Captures the full React Flow viewport including both:
+  79  |         // - The Deck.gl canvas (visualization output)
+  80  |         // - The React Flow nodes (node editor UI)
+  81  |         const reactFlowWrapper = page.locator('.react-flow-wrapper').first()
+  82  |         await expect(reactFlowWrapper).toHaveScreenshot(`${exampleName}.png`, {
+  83  |           maxDiffPixels: 100, // Allow some anti-aliasing differences
+  84  |         })
+  85  | 
+  86  |         // For animated examples, test multiple frames
+  87  |         if (hasAnimation) {
+  88  |           console.log(`${exampleName}: Testing animation frames (has keyframes)`)
+  89  | 
+  90  |           for (const time of TEST_FRAMES) {
+  91  |             // Seek to specific time in timeline
+  92  |             await page.evaluate((seekTime: number) => {
+  93  |               const getTimelineStore = (window as any).getTimelineStore
+  94  |               if (getTimelineStore) {
+  95  |                 const store = getTimelineStore()
+  96  |                 store.setPosition(seekTime)
+  97  |               }
+  98  |             }, time)
+  99  | 
+  100 |             // Wait for render
+  101 |             await page.waitForTimeout(500)
+  102 | 
+  103 |             // Take screenshot at this frame
+  104 |             const reactFlowWrapper = page.locator('.react-flow-wrapper').first()
+  105 |             await expect(reactFlowWrapper).toHaveScreenshot(`${exampleName}-${time}s.png`, {
+  106 |               maxDiffPixels: 100,
+  107 |             })
+  108 |           }
+  109 |         }
+  110 |       },
+  111 |       { timeout: 150000 }
+  112 |     ) // 150 second (2.5 min) timeout for slow data loading
+  113 |   }
+  114 | })
+  115 | 
 ```
