@@ -36,7 +36,7 @@ describe('Export E2E Tests', () => {
       // Verify times are sequential
       expect(virtualTimes.length).toBe(frames)
       expect(virtualTimes[0]).toBe(0)
-      expect(virtualTimes[frames - 1]).toBeCloseTo((frames - 1) / fps * 1000, 2)
+      expect(virtualTimes[frames - 1]).toBeCloseTo(((frames - 1) / fps) * 1000, 2)
     })
 
     it('should advance virtual time by exact frame intervals', () => {
