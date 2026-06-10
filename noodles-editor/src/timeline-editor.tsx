@@ -294,13 +294,15 @@ export default function TimelineEditor() {
     customLayersRef.current = desiredLayerIds
   }, [visualization.maplibreLayers, styleVersion])
 
-  // Expose Deck.gl instance on window for integration tests
+  // Expose Deck.gl and timeline store on window for integration tests
   useEffect(() => {
     if (deckRef.current) {
       ;(window as any).deck = deckRef.current
     }
+    ;(window as any).getTimelineStore = getTimelineStore
     return () => {
       delete (window as any).deck
+      delete (window as any).getTimelineStore
     }
   }, [])
 
