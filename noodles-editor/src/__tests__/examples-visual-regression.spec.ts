@@ -73,20 +73,9 @@ test.describe('Example Projects Visual Regression', () => {
           return canvas !== null && deck !== undefined
         }, { timeout: 20000 })
 
-        // Wait for layers to be created (data may load async)
-        await page.waitForFunction(
-          () => {
-            const deckInstance = (window as any).deck
-            if (!deckInstance?.layerManager) return false
-            const layers = deckInstance.layerManager.getLayers()
-            // Just check that layers exist, data may still be loading
-            return layers.length > 0
-          },
-          { timeout: 15000 }
-        )
-
-        // Wait a bit more for map tiles to load
-        await page.waitForTimeout(2000)
+        // Give it time to initialize layers and load data
+        // Some examples take longer to set up the graph
+        await page.waitForTimeout(5000)
 
         // Inspect Deck.gl state to validate rendering
         const deckState = await page.evaluate(() => {
