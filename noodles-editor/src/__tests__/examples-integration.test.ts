@@ -1,8 +1,8 @@
 /**
  * Integration tests for example projects (vitest/browser)
  *
- * These are lightweight browser tests that verify basic functionality.
- * For full E2E visual regression testing, see examples-visual-regression.spec.ts
+ * Simple smoke tests that run in browser mode.
+ * For comprehensive E2E tests, see examples-visual-regression.spec.ts
  *
  * Run with: npm test examples-integration
  */
@@ -10,20 +10,29 @@
 import { describe, test, expect } from 'vitest'
 
 describe('Example Projects Integration', () => {
-  test('window.deck is exposed for testing', async () => {
-    // Verify the test hooks are available
-    // In a real test environment, window.deck would be set by the app
+  test('test environment is set up correctly', () => {
+    // Verify we're running in a browser environment
     expect(typeof window).toBe('object')
+    expect(typeof document).toBe('object')
+    expect(typeof navigator).toBe('object')
   })
 
-  test('window.getTimelineStore is exposed for testing', async () => {
-    // Verify the timeline store accessor is available
-    expect(typeof window).toBe('object')
+  test('required globals are available', () => {
+    // These would be set by the app when it loads
+    // This test just verifies the test environment itself works
+    expect(window.location).toBeDefined()
+    expect(document.querySelector).toBeDefined()
   })
 })
 
-// NOTE: For comprehensive E2E tests with visual regression and animation testing,
-// use Playwright tests in examples-visual-regression.spec.ts
+// NOTE: For real E2E testing that loads examples, validates rendering,
+// and performs visual regression, use the Playwright tests:
 //
-// Run with: npx playwright test examples-visual-regression
-// Update snapshots: npx playwright test --update-snapshots
+// Run single example:
+//   npx playwright test examples-visual-regression -g "nyc-taxis"
+//
+// Run all examples:
+//   npx playwright test examples-visual-regression
+//
+// Update screenshots:
+//   npx playwright test examples-visual-regression --update-snapshots

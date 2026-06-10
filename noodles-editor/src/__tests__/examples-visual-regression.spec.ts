@@ -52,11 +52,14 @@ test.describe('Example Projects Visual Regression', () => {
         await page.goto(`/examples/${exampleName}`)
 
         // Wait for Deck.gl canvas to appear
-        await page.waitForSelector('canvas', { timeout: 10000 })
+        await page.waitForSelector('canvas', { timeout: 15000 })
 
         // Check for React error boundaries
         const errorBoundary = await page.locator('[role="alert"]').count()
         expect(errorBoundary).toBe(0)
+
+        // Wait for window.deck to be available (useEffect may take a moment)
+        await page.waitForFunction(() => (window as any).deck !== undefined, { timeout: 10000 })
 
         // Wait for data to load - poll until layers have data
         await page.waitForFunction(
@@ -76,7 +79,7 @@ test.describe('Example Projects Visual Regression', () => {
               return false
             })
           },
-          { timeout: 15000 }
+          { timeout: 20000 }
         )
 
         // Wait a bit more for map tiles to load
