@@ -86,7 +86,7 @@ export const CURATED_EXAMPLES = [
     icon: 'pi-car',
   },
   {
-    id: 'sf-bike-parking',
+    id: 'aggregation-example',
     title: 'SF Bike Parking',
     description: 'Bike parking facilities across San Francisco',
     icon: 'pi-map',
