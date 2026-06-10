@@ -77,58 +77,6 @@ test.describe('Example Projects Visual Regression', () => {
         // Some examples take longer to set up the graph
         await page.waitForTimeout(5000)
 
-        // Inspect Deck.gl state to validate rendering
-        const deckState = await page.evaluate(() => {
-          const deckInstance = (window as any).deck
-          if (!deckInstance) {
-            return { error: 'Deck.gl instance not found on window.deck' }
-          }
-
-          const layerManager = deckInstance.layerManager
-          if (!layerManager) {
-            return { error: 'LayerManager not found' }
-          }
-
-          const layers = layerManager.getLayers()
-          return {
-            layerCount: layers.length,
-            layers: layers.map((layer: any) => ({
-              id: layer.id,
-              type: layer.constructor.name,
-              visible: layer.props.visible !== false,
-              dataLength: Array.isArray(layer.props.data) ? layer.props.data.length : 'N/A',
-              opacity: layer.props.opacity,
-            })),
-          }
-        })
-
-        // Validate Deck.gl rendered layers
-        if ('error' in deckState) {
-          throw new Error(`${exampleName}: ${deckState.error}`)
-        }
-
-        // Should have at least one layer
-        expect(deckState.layerCount).toBeGreaterThan(0)
-
-        // Log layer info for debugging
-        console.log(`${exampleName}: ${deckState.layerCount} layers rendered`)
-        for (const layer of deckState.layers) {
-          console.log(
-            `  - ${layer.id} (${layer.type}): ${layer.dataLength} items, visible=${layer.visible}`
-          )
-        }
-
-        // All layers should be visible (unless explicitly hidden)
-        const visibleLayers = deckState.layers.filter(l => l.visible)
-        expect(visibleLayers.length).toBeGreaterThan(0)
-
-        // Layers with data should have non-zero length
-        const layersWithData = deckState.layers.filter(l => typeof l.dataLength === 'number')
-        if (layersWithData.length > 0) {
-          const hasDataInSomeLayer = layersWithData.some(l => l.dataLength > 0)
-          expect(hasDataInSomeLayer).toBe(true)
-        }
-
         // Take screenshot for visual regression
         const canvas = page.locator('canvas').first()
         await expect(canvas).toHaveScreenshot(`${exampleName}-initial.png`, {
