@@ -1,4 +1,94 @@
 {
+  "edges": [
+    {
+      "id": "/deck.out.vis->/out.par.vis",
+      "source": "/deck",
+      "target": "/out",
+      "sourceHandle": "out.vis",
+      "targetHandle": "par.vis"
+    },
+    {
+      "id": "/data-source.out.data->/scatterplot-layer.par.data",
+      "source": "/data-source",
+      "target": "/scatterplot-layer",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/position-accessor.out.accessor->/scatterplot-layer.par.getPosition",
+      "source": "/position-accessor",
+      "target": "/scatterplot-layer",
+      "sourceHandle": "out.accessor",
+      "targetHandle": "par.getPosition"
+    },
+    {
+      "source": "/multiply",
+      "sourceHandle": "out.result",
+      "target": "/scatterplot-layer",
+      "targetHandle": "par.getRadius",
+      "id": "/multiply.out.result->/scatterplot-layer.par.getRadius"
+    },
+    {
+      "source": "/magnitude-color",
+      "sourceHandle": "out.color",
+      "target": "/scatterplot-layer",
+      "targetHandle": "par.getFillColor",
+      "id": "/magnitude-color.out.color->/scatterplot-layer.par.getFillColor"
+    },
+    {
+      "source": "/map-range",
+      "sourceHandle": "out.scaled",
+      "target": "/magnitude-color",
+      "targetHandle": "par.value",
+      "id": "/map-range.out.scaled->/magnitude-color.par.value"
+    },
+    {
+      "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap",
+      "source": "/maplibre-basemap",
+      "target": "/deck",
+      "sourceHandle": "out.maplibre",
+      "targetHandle": "par.basemap"
+    },
+    {
+      "id": "/scatterplot-layer.out.layer->/deck.par.layers",
+      "source": "/scatterplot-layer",
+      "target": "/deck",
+      "sourceHandle": "out.layer",
+      "targetHandle": "par.layers"
+    },
+    {
+      "source": "/magnitude-accessor",
+      "sourceHandle": "out.accessor",
+      "target": "/map-range",
+      "targetHandle": "par.val",
+      "id": "/magnitude-accessor.out.accessor->/map-range.par.val"
+    },
+    {
+      "source": "/magnitude-accessor",
+      "sourceHandle": "out.accessor",
+      "target": "/sqrt",
+      "targetHandle": "par.a",
+      "id": "/magnitude-accessor.out.accessor->/sqrt.par.a"
+    },
+    {
+      "source": "/magnitude-accessor",
+      "sourceHandle": "out.accessor",
+      "target": "/multiply",
+      "targetHandle": "par.a",
+      "id": "/magnitude-accessor.out.accessor->/multiply.par.a"
+    }
+  ],
+  "viewport": {
+    "x": 143.291766562843,
+    "y": 172.88548024794358,
+    "zoom": 0.4813563009649149
+  },
+  "version": 14,
+  "name": "California Earthquakes",
+  "editorSettings": {
+    "layoutMode": "noodles-on-top",
+    "showOverlay": true
+  },
   "nodes": [
     {
       "id": "/deck",
@@ -16,7 +106,19 @@
       "id": "/out",
       "type": "OutOp",
       "data": {
-        "inputs": {},
+        "inputs": {
+          "display": "fixed",
+          "width": 1920,
+          "height": 1080,
+          "lod": 2,
+          "waitForData": true,
+          "codec": "avc",
+          "bitrateMbps": 10,
+          "bitrateMode": "constant",
+          "scaleControl": 0.3,
+          "framerate": 30,
+          "captureDelay": 50
+        },
         "locked": false
       },
       "position": {
@@ -164,90 +266,6 @@
       }
     }
   ],
-  "edges": [
-    {
-      "id": "/deck.out.vis->/out.par.vis",
-      "source": "/deck",
-      "target": "/out",
-      "sourceHandle": "out.vis",
-      "targetHandle": "par.vis"
-    },
-    {
-      "id": "/data-source.out.data->/scatterplot-layer.par.data",
-      "source": "/data-source",
-      "target": "/scatterplot-layer",
-      "sourceHandle": "out.data",
-      "targetHandle": "par.data"
-    },
-    {
-      "id": "/position-accessor.out.accessor->/scatterplot-layer.par.getPosition",
-      "source": "/position-accessor",
-      "target": "/scatterplot-layer",
-      "sourceHandle": "out.accessor",
-      "targetHandle": "par.getPosition"
-    },
-    {
-      "source": "/multiply",
-      "sourceHandle": "out.result",
-      "target": "/scatterplot-layer",
-      "targetHandle": "par.getRadius",
-      "id": "/multiply.out.result->/scatterplot-layer.par.getRadius"
-    },
-    {
-      "source": "/magnitude-color",
-      "sourceHandle": "out.color",
-      "target": "/scatterplot-layer",
-      "targetHandle": "par.getFillColor",
-      "id": "/magnitude-color.out.color->/scatterplot-layer.par.getFillColor"
-    },
-    {
-      "source": "/map-range",
-      "sourceHandle": "out.scaled",
-      "target": "/magnitude-color",
-      "targetHandle": "par.value",
-      "id": "/map-range.out.scaled->/magnitude-color.par.value"
-    },
-    {
-      "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap",
-      "source": "/maplibre-basemap",
-      "target": "/deck",
-      "sourceHandle": "out.maplibre",
-      "targetHandle": "par.basemap"
-    },
-    {
-      "id": "/scatterplot-layer.out.layer->/deck.par.layers",
-      "source": "/scatterplot-layer",
-      "target": "/deck",
-      "sourceHandle": "out.layer",
-      "targetHandle": "par.layers"
-    },
-    {
-      "source": "/magnitude-accessor",
-      "sourceHandle": "out.accessor",
-      "target": "/map-range",
-      "targetHandle": "par.val",
-      "id": "/magnitude-accessor.out.accessor->/map-range.par.val"
-    },
-    {
-      "source": "/magnitude-accessor",
-      "sourceHandle": "out.accessor",
-      "target": "/sqrt",
-      "targetHandle": "par.a",
-      "id": "/magnitude-accessor.out.accessor->/sqrt.par.a"
-    },
-    {
-      "source": "/magnitude-accessor",
-      "sourceHandle": "out.accessor",
-      "target": "/multiply",
-      "targetHandle": "par.a",
-      "id": "/magnitude-accessor.out.accessor->/multiply.par.a"
-    }
-  ],
-  "viewport": {
-    "x": 143.291766562843,
-    "y": 172.88548024794358,
-    "zoom": 0.4813563009649149
-  },
   "timeline": {
     "sheetsById": {
       "Noodles": {
@@ -258,7 +276,5 @@
     },
     "definitionVersion": "0.4.0",
     "revisionHistory": []
-  },
-  "version": 6,
-  "name": "California Earthquakes"
+  }
 }

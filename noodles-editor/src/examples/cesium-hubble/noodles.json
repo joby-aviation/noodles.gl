@@ -1,5 +1,45 @@
 {
-  "version": 7,
+  "version": 14,
+  "edges": [
+    {
+      "id": "/basemap.out.maplibre->/renderer.par.basemap",
+      "source": "/basemap",
+      "target": "/renderer",
+      "sourceHandle": "out.maplibre",
+      "targetHandle": "par.basemap"
+    },
+    {
+      "id": "/point-cloud.out.layer->/renderer.par.layers",
+      "source": "/point-cloud",
+      "target": "/renderer",
+      "sourceHandle": "out.layer",
+      "targetHandle": "par.layers"
+    },
+    {
+      "id": "/video-spheres.out.data->/renderer.par.layers",
+      "source": "/video-spheres",
+      "target": "/renderer",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.layers"
+    },
+    {
+      "id": "/renderer.out.vis->/out.par.vis",
+      "source": "/renderer",
+      "target": "/out",
+      "sourceHandle": "out.vis",
+      "targetHandle": "par.vis"
+    }
+  ],
+  "viewport": {
+    "x": 200,
+    "y": 200,
+    "zoom": 0.75
+  },
+  "name": "Cesium + Hubble Video Spheres",
+  "editorSettings": {
+    "layoutMode": "noodles-on-top",
+    "showOverlay": true
+  },
   "nodes": [
     {
       "id": "/basemap",
@@ -148,55 +188,28 @@
         "y": 60
       },
       "data": {
-        "inputs": {},
+        "inputs": {
+          "display": "fixed",
+          "width": 1920,
+          "height": 1080,
+          "lod": 2,
+          "waitForData": true,
+          "codec": "avc",
+          "bitrateMbps": 10,
+          "bitrateMode": "constant",
+          "scaleControl": 0.3,
+          "framerate": 24,
+          "captureDelay": 50
+        },
         "locked": false
       }
     }
   ],
-  "edges": [
-    {
-      "id": "/basemap.out.maplibre->/renderer.par.basemap",
-      "source": "/basemap",
-      "target": "/renderer",
-      "sourceHandle": "out.maplibre",
-      "targetHandle": "par.basemap"
-    },
-    {
-      "id": "/point-cloud.out.layer->/renderer.par.layers",
-      "source": "/point-cloud",
-      "target": "/renderer",
-      "sourceHandle": "out.layer",
-      "targetHandle": "par.layers"
-    },
-    {
-      "id": "/video-spheres.out.data->/renderer.par.layers",
-      "source": "/video-spheres",
-      "target": "/renderer",
-      "sourceHandle": "out.data",
-      "targetHandle": "par.layers"
-    },
-    {
-      "id": "/renderer.out.vis->/out.par.vis",
-      "source": "/renderer",
-      "target": "/out",
-      "sourceHandle": "out.vis",
-      "targetHandle": "par.vis"
-    }
-  ],
-  "viewport": {
-    "x": 200,
-    "y": 200,
-    "zoom": 0.75
-  },
   "timeline": {
     "sheetsById": {
       "Noodles": {
         "staticOverrides": {
-          "byObject": {
-            "render": {
-              "framerate": 24
-            }
-          }
+          "byObject": {}
         },
         "sequence": {
           "subUnitsPerUnit": 30,
@@ -764,12 +777,12 @@
                 "[\"viewState\",\"bearing\"]": "brTrk0001"
               }
             }
-          }
+          },
+          "markers": []
         }
       }
     },
     "definitionVersion": "0.4.0",
     "revisionHistory": []
-  },
-  "name": "Cesium + Hubble Video Spheres"
+  }
 }
