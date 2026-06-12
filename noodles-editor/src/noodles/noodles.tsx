@@ -293,6 +293,10 @@ export function getNoodles(): Visualization {
   // Warn before leaving page with unsaved changes
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      // Don't warn for examples - they're read-only demos
+      if (isExamplesRoute) {
+        return
+      }
       if (hasUnsavedChanges || storageType === 'memory') {
         e.preventDefault()
         e.returnValue = ''
@@ -303,13 +307,15 @@ export function getNoodles(): Visualization {
       storageType === 'memory'
         ? memoryProjectStore.getDisplayName(projectName || '') || 'Untitled'
         : projectName
+    // Don't show asterisk for examples - they're read-only
+    const showAsterisk = !isExamplesRoute && (hasUnsavedChanges || storageType === 'memory')
     document.title = displayName
-      ? `Noodles.gl - ${displayName}${hasUnsavedChanges || storageType === 'memory' ? ' *' : ''}`
+      ? `Noodles.gl - ${displayName}${showAsterisk ? ' *' : ''}`
       : 'Noodles.gl'
 
     window.addEventListener('beforeunload', handleBeforeUnload)
     return () => window.removeEventListener('beforeunload', handleBeforeUnload)
-  }, [hasUnsavedChanges, projectName, storageType])
+  }, [hasUnsavedChanges, projectName, storageType, isExamplesRoute])
 
   // Only changes when graph structure changes (nodes added/removed/type changed, edges reconnected)
   // Intentionally excludes node position so dragging does NOT re-run transformGraph

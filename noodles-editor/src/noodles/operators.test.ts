@@ -12,6 +12,7 @@ import {
   ConcatOp,
   CrossOp,
   DeckRendererOp,
+  DirectionsOp,
   DuckDbOp,
   ExpressionOp,
   FileOp,
@@ -27,6 +28,7 @@ import {
   MergeOp,
   NumberOp,
   Operator,
+  PointOp,
   ProjectOp,
   RampOp,
   RectangleOp,
@@ -38,7 +40,7 @@ import {
   Tile3DLayerOp,
   TimeSeriesOp,
 } from './operators'
-import { setOp } from './store'
+import { deleteOp, getOpStore, setOp } from './store'
 import { isAccessor } from './utils/accessor-helpers'
 
 describe('basic Operators', () => {
@@ -288,6 +290,65 @@ describe('CodeOp', () => {
   })
 })
 
+describe('CodeOp op() error handling', () => {
+  beforeEach(() => {
+    getOpStore().batch(() => {
+      const numOp = new NumberOp('/num')
+      numOp.inputs.val.setValue(42)
+      setOp('/num', numOp)
+    })
+  })
+
+  afterEach(() => {
+    deleteOp('/num')
+  })
+
+  it('should throw clear error when operator not found with absolute path', async () => {
+    const codeOp = new CodeOp('/code')
+    await expect(
+      codeOp.execute({
+        data: [],
+        code: 'return op("/missing").par.value',
+      })
+    ).rejects.toThrow("Operator '/missing' not found")
+  })
+
+  it('should throw clear error when operator not found with relative path', async () => {
+    const codeOp = new CodeOp('/code')
+    setOp('/code', codeOp)
+
+    try {
+      await expect(
+        codeOp.execute({
+          data: [],
+          code: 'return op("./missing").out.data',
+        })
+      ).rejects.toThrow("Operator './missing' not found")
+    } finally {
+      deleteOp('/code')
+    }
+  })
+
+  it('should throw clear error when operator not found in mustache syntax', async () => {
+    const codeOp = new CodeOp('/code')
+    await expect(
+      codeOp.execute({
+        data: [],
+        code: 'return {{/missing.par.value}}',
+      })
+    ).rejects.toThrow("Operator '/missing' not found")
+  })
+
+  it('should still work with valid operator references', async () => {
+    const codeOp = new CodeOp('/code')
+    const result = await codeOp.execute({
+      data: [],
+      code: 'return op("/num").par.val',
+    })
+    expect(result.data).toBe(42)
+  })
+})
+
 describe('CodeOp self-parameter references', () => {
   it('should allow CodeOp to reference its own custom parameter with shorthand syntax', async () => {
     const codeOp = new CodeOp('/code-self')
@@ -525,6 +586,47 @@ describe('ExpressionOp', () => {
   })
 })
 
+describe('ExpressionOp op() error handling', () => {
+  beforeEach(() => {
+    const numOp = new NumberOp('/num')
+    numOp.inputs.val.setValue(100)
+    setOp('/num', numOp)
+  })
+
+  afterEach(() => {
+    deleteOp('/num')
+  })
+
+  it('should throw clear error when operator not found', () => {
+    const exprOp = new ExpressionOp('/expr')
+    expect(() =>
+      exprOp.execute({
+        data: [],
+        expression: 'op("/nonexistent").par.value',
+      })
+    ).toThrow("Operator '/nonexistent' not found")
+  })
+
+  it('should throw clear error accessing out field of missing operator', () => {
+    const exprOp = new ExpressionOp('/expr')
+    expect(() =>
+      exprOp.execute({
+        data: [],
+        expression: 'op("/missing").out.result',
+      })
+    ).toThrow("Operator '/missing' not found")
+  })
+
+  it('should still work with valid operator references', () => {
+    const exprOp = new ExpressionOp('/expr')
+    const result = exprOp.execute({
+      data: [1],
+      expression: 'd + op("/num").par.val',
+    })
+    expect(result.data).toBe(101)
+  })
+})
+
 describe('AccessorOp', () => {
   it('executes an AccessorOp', () => {
     const operator = new AccessorOp('/expression-0')
@@ -545,6 +647,38 @@ describe('AccessorOp', () => {
       expression: '',
     })
     expect(val.accessor).toEqual(expect.any(Function))
+  })
+})
+
+describe('AccessorOp op() error handling', () => {
+  beforeEach(() => {
+    const numOp = new NumberOp('/num')
+    numOp.inputs.val.setValue(5)
+    setOp('/num', numOp)
+  })
+
+  afterEach(() => {
+    deleteOp('/num')
+  })
+
+  it('should return undefined when operator not found (errors swallowed)', () => {
+    const accessorOp = new AccessorOp('/accessor')
+    const { accessor } = accessorOp.execute({
+      expression: 'op("/missing").par.value',
+    })
+    // AccessorOp has try-catch that swallows errors and returns undefined
+    // to prevent GPU crashes in deck.gl
+    const result = accessor({ value: 10 }, { index: 0, data: [] })
+    expect(result).toBeUndefined()
+  })
+
+  it('should still work with valid operator references', () => {
+    const accessorOp = new AccessorOp('/accessor')
+    const { accessor } = accessorOp.execute({
+      expression: 'd.value * op("/num").par.val',
+    })
+    const result = accessor({ value: 10 }, { index: 0, data: [] })
+    expect(result).toBe(50)
   })
 })
 
@@ -3377,5 +3511,80 @@ describe('CategoricalColorRampOp', () => {
       value: 'category1',
     })
     expect(result.color).toMatch(/^#[0-9a-f]{6}$/)
+  })
+})
+
+describe('DirectionsOp', () => {
+  it('accepts GeoJSON Point Features via Point2DField', () => {
+    const directionsOp = new DirectionsOp('/directions')
+    const feature = {
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: [-74.006, 40.7128] },
+      properties: {},
+    }
+
+    directionsOp.inputs.origin.setValue(feature)
+    expect(directionsOp.inputs.origin.value).toEqual({ lng: -74.006, lat: 40.7128 })
+  })
+
+  it('still accepts plain { lng, lat } objects', () => {
+    const directionsOp = new DirectionsOp('/directions')
+    directionsOp.inputs.origin.setValue({ lng: -74.006, lat: 40.7128 })
+    expect(directionsOp.inputs.origin.value).toEqual({ lng: -74.006, lat: 40.7128 })
+  })
+
+  it('ignores non-Point GeoJSON Features', () => {
+    const directionsOp = new DirectionsOp('/directions')
+    const lineFeature = {
+      type: 'Feature',
+      geometry: {
+        type: 'LineString',
+        coordinates: [
+          [0, 0],
+          [1, 1],
+        ],
+      },
+      properties: {},
+    }
+
+    // Non-Point Feature won't parse — value should remain at default
+    directionsOp.inputs.origin.setValue(lineFeature)
+    expect(directionsOp.inputs.origin.value).toEqual({ lng: 0, lat: 0 })
+  })
+
+  it('integrates PointOp output with DirectionsOp inputs', () => {
+    // Create PointOps for NYC and Brooklyn
+    const pointNyc = new PointOp('/point-nyc')
+    pointNyc.inputs.coordinates.setValue({ lng: -74.006, lat: 40.7128 })
+
+    const pointBrooklyn = new PointOp('/point-brooklyn')
+    pointBrooklyn.inputs.coordinates.setValue({ lng: -73.935242, lat: 40.73061 })
+
+    // Execute the operators to get outputs
+    const nycOutput = pointNyc.execute({
+      coordinates: { lng: -74.006, lat: 40.7128 },
+      properties: {},
+    })
+    const brooklynOutput = pointBrooklyn.execute({
+      coordinates: { lng: -73.935242, lat: 40.73061 },
+      properties: {},
+    })
+
+    const nycFeature = nycOutput.feature
+    const brooklynFeature = brooklynOutput.feature
+
+    // Verify PointOp outputs are GeoJSON Point Features
+    expect(nycFeature.type).toBe('Feature')
+    expect(nycFeature.geometry.type).toBe('Point')
+    expect(nycFeature.geometry.coordinates).toEqual([-74.006, 40.7128])
+
+    // Wire PointOp outputs to DirectionsOp inputs
+    const directionsOp = new DirectionsOp('/directions')
+    directionsOp.inputs.origin.setValue(nycFeature)
+    directionsOp.inputs.destination.setValue(brooklynFeature)
+
+    // Verify DirectionsOp correctly parses the GeoJSON Features
+    expect(directionsOp.inputs.origin.value).toEqual({ lng: -74.006, lat: 40.7128 })
+    expect(directionsOp.inputs.destination.value).toEqual({ lng: -73.935242, lat: 40.73061 })
   })
 })
