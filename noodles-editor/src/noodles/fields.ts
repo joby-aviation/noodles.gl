@@ -337,9 +337,9 @@ export const mustacheRe = new RegExp(
   `{{(?<opId>${OPERATOR_ID_PATTERN})\\.(?<inOut>par|out)\\.(?<fieldPath>[\\w-.]+)}}`,
   'g'
 )
-// Function-style references: op('/path/to/operator').out.val
+// Function-style references: op('/path/to/operator').out.val or op("/path/to/operator").out.val
 export const fnRe = new RegExp(
-  `op\\('(?<opId>${OPERATOR_ID_PATTERN})'\\)\\.(?<inOut>par|out)\\.(?<fieldPath>[\\w-.]+)`,
+  `op\\((?<q>['"])(?<opId>${OPERATOR_ID_PATTERN})\\k<q>\\)\\.(?<inOut>par|out)\\.(?<fieldPath>[\\w-.]+)`,
   'g'
 )
 
@@ -687,6 +687,44 @@ export class GeoJsonField<D extends Field = Field, TElement = unknown> extends F
   }
 }
 
+// Helper to extract coordinates from GeoJSON Point Features
+// Used by Point2DField and Point3DField to accept PointOp outputs directly
+function extractGeoJsonPointCoordinates(
+  val: unknown,
+  dimensions: 2 | 3 = 3
+): { lng: number; lat: number; alt: number } | { lng: number; lat: number } | null {
+  if (typeof val !== 'object' || val === null || Array.isArray(val)) {
+    return null
+  }
+
+  const obj = val as Record<string, unknown>
+
+  // Check if it's a GeoJSON Point Feature
+  if (obj.type !== 'Feature' || typeof obj.geometry !== 'object' || obj.geometry === null) {
+    return null
+  }
+
+  const geom = obj.geometry as Record<string, unknown>
+
+  // Extract coordinates from Point geometry
+  if (geom.type === 'Point' && Array.isArray(geom.coordinates) && geom.coordinates.length >= 2) {
+    const coords = geom.coordinates as number[]
+    if (dimensions === 3) {
+      return {
+        lng: coords[0],
+        lat: coords[1],
+        alt: coords.length >= 3 ? coords[2] : 0,
+      }
+    }
+    return {
+      lng: coords[0],
+      lat: coords[1],
+    }
+  }
+
+  return null
+}
+
 type Point3DFieldValue =
   | { lng: number; lat: number; alt: number; [key: string]: unknown }
   | [number, number, number]
@@ -720,6 +758,12 @@ export class Point3DField extends Field<
       z
         .unknown()
         .transform(val => {
+          // Try to extract GeoJSON Point Feature coordinates (3D)
+          const geoJsonCoords = extractGeoJsonPointCoordinates(val, 3)
+          if (geoJsonCoords) {
+            return geoJsonCoords
+          }
+
           // Normalize column names: support Longitude/Latitude, longitude/latitude, lon/lat
           if (typeof val === 'object' && val !== null && !Array.isArray(val)) {
             const obj = val as Record<string, unknown>
@@ -780,7 +824,8 @@ export class Point3DField extends Field<
       z
         .unknown()
         .transform(val => {
-          // Normalize column names for 2D variant
+          // Normalize column names for 2D variant (no altitude)
+          // Note: GeoJSON Features are handled by the first union arm
           if (typeof val === 'object' && val !== null && !Array.isArray(val)) {
             const obj = val as Record<string, unknown>
             const normalized: Record<string, unknown> = {}
@@ -872,6 +917,12 @@ export class Point2DField extends Field<
       z
         .unknown()
         .transform(val => {
+          // Try to extract GeoJSON Point Feature coordinates (2D)
+          const geoJsonCoords = extractGeoJsonPointCoordinates(val, 2)
+          if (geoJsonCoords) {
+            return geoJsonCoords
+          }
+
           // Normalize column names: support Longitude/Latitude, longitude/latitude, lon/lat
           if (typeof val === 'object' && val !== null && !Array.isArray(val)) {
             const obj = val as Record<string, unknown>
