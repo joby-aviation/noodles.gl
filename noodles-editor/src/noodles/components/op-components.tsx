@@ -54,7 +54,6 @@ import {
   Operator,
   type OutOp,
   opTypes,
-  PullExecutionStatus,
   type RampInterpType,
   type RampOp,
   type RerouteOp,
@@ -547,24 +546,12 @@ export function OutputHandle({ id, field }: { id: string; field: Field<IField> }
 
       // Store the current target immediately
       const currentTarget = e.currentTarget
-      const timerId = setTimeout(async () => {
+      hoverTimerRef.current = setTimeout(() => {
         // Get the handle's position in the viewport
         const rect = currentTarget.getBoundingClientRect()
         setPreviewPosition({ x: rect.right, y: rect.top })
-
-        // Pull the operator to ensure it executes even without downstream connections
-        const op = nid ? getOp(nid) : null
-        if (op && op.pullExecutionStatus !== PullExecutionStatus.CLEAN) {
-          try {
-            await op.pull()
-          } catch {
-            // Ignore pull errors - show whatever value is available
-          }
-          if (hoverTimerRef.current !== timerId) return
-        }
         setPreviewData(viewerFormatter(field.value))
       }, 1000)
-      hoverTimerRef.current = timerId
     },
     [field, nid, qualifiedFieldId]
   )

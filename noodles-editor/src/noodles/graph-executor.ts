@@ -586,13 +586,10 @@ export class GraphExecutor {
       ) {
         roots.push(op)
       } else {
-        // Also include operators with no downstream dependents
+        // Also include operators with no downstream dependents (leaf/isolated nodes)
         const downstream = this.getDownstream(op.id)
         if (downstream.size === 0) {
-          const upstream = this.getUpstream(op.id)
-          if (upstream.size > 0) {
-            roots.push(op)
-          }
+          roots.push(op)
         }
       }
     }
