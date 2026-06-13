@@ -756,7 +756,8 @@ function extractGeometryColumn(
     typeof geom[1] === 'number'
   ) {
     if (dimensions === 3) {
-      return { lng: geom[0], lat: geom[1], alt: geom.length >= 3 ? geom[2] : 0 }
+      const alt = geom.length >= 3 && typeof geom[2] === 'number' ? geom[2] : 0
+      return { lng: geom[0], lat: geom[1], alt }
     }
     return { lng: geom[0], lat: geom[1] }
   }
@@ -877,16 +878,9 @@ export class Point3DField extends Field<
         .unknown()
         .transform(val => {
           // Normalize column names for 2D variant (no altitude)
-          // Note: GeoJSON Point geometries/Features are handled by the first union arm
+          // Note: GeoJSON Point geometries/Features and geometry columns are handled by the first union arm
           if (typeof val === 'object' && val !== null && !Array.isArray(val)) {
             const obj = val as Record<string, unknown>
-
-            // Check for a "geometry" column containing point data
-            const geomCoords = extractGeometryColumn(obj, 2)
-            if (geomCoords) {
-              return geomCoords
-            }
-
             const normalized: Record<string, unknown> = {}
             let hasLng = false
             let hasLat = false
