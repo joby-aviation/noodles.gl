@@ -641,7 +641,7 @@ interface TableEditorProps {
   data: unknown[]
   schema: TableSchema
   onDataChange: (data: unknown[], description?: string) => void
-  onSchemaChange: (schema: TableSchema) => void
+  onSchemaChange: (schema: TableSchema, data?: unknown[]) => void
 }
 
 export function TableEditor({ data, schema, onDataChange, onSchemaChange }: TableEditorProps) {
@@ -677,9 +677,8 @@ export function TableEditor({ data, schema, onDataChange, onSchemaChange }: Tabl
       return newRow
     })
 
-    onSchemaChange(newSchema)
+    onSchemaChange(newSchema, newData)
     setTableData(newData)
-    onDataChange(newData, 'Edit table schema')
   }
 
   const columnHelper = createColumnHelper<Record<string, unknown>>()
