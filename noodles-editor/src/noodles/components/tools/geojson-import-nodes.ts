@@ -7,7 +7,7 @@ type GeoJsonFeature = {
   geometry: {
     type: string
     coordinates: unknown
-  }
+  } | null
   properties?: Record<string, unknown>
 }
 
@@ -155,7 +155,9 @@ function flattenGeoJsonToTable(geojson: GeoJsonData): {
   const rows = geojson.features.map(feature => {
     const row: Record<string, unknown> = {}
 
-    if (feature.geometry.type === 'Point') {
+    if (!feature.geometry) {
+      row.geometry = null
+    } else if (feature.geometry.type === 'Point') {
       const coords = feature.geometry.coordinates as number[]
       row.geometry = [coords[0], coords[1]]
     } else {
@@ -171,7 +173,7 @@ function flattenGeoJsonToTable(geojson: GeoJsonData): {
 
   const columns: ColumnSchema[] = []
 
-  const allPoints = geojson.features.every(f => f.geometry.type === 'Point')
+  const allPoints = geojson.features.every(f => f.geometry?.type === 'Point')
   if (allPoints) {
     columns.push({ name: 'geometry', type: 'point2d', defaultValue: [0, 0] })
   } else {

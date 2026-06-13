@@ -328,5 +328,30 @@ describe('GeoJSON Import', () => {
       expect(data[0].name).toBe('valid')
       expect(data[1].name).toBeNull()
     })
+
+    it('table import handles features with null geometry (RFC 7946 §3.2)', () => {
+      const geojson = {
+        type: 'FeatureCollection' as const,
+        features: [
+          {
+            type: 'Feature' as const,
+            geometry: null,
+            properties: { name: 'unlocated' },
+          },
+          {
+            type: 'Feature' as const,
+            geometry: { type: 'Point', coordinates: [0, 0] },
+            properties: { name: 'located' },
+          },
+        ],
+      }
+
+      const result = createGeoJsonTableDropNodes(geojson as any, basePosition)
+      const tableOp = result.nodes.find(n => n.type === 'TableEditorOp')
+      const data = tableOp?.data.inputs.data as Array<Record<string, unknown>>
+      expect(data).toHaveLength(2)
+      expect(data[0].geometry).toBeNull()
+      expect(data[1].geometry).toEqual([0, 0])
+    })
   })
 })
