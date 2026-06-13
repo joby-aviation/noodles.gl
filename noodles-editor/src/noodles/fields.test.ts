@@ -1168,6 +1168,30 @@ describe('Point2DField', () => {
     field.setValue(geoJsonFeature)
     expect(field.value).toEqual([-118.4182302, 34.0576856])
   })
+
+  it('extracts coordinates from bare GeoJSON Point geometry', () => {
+    const field = new Point2DField()
+    field.setValue({ type: 'Point', coordinates: [-73.78, 40.64] })
+    expect(field.value).toEqual({ lng: -73.78, lat: 40.64 })
+  })
+
+  it('extracts coordinates from geometry column with [lng, lat] tuple', () => {
+    const field = new Point2DField()
+    field.setValue({ id: 1, geometry: [-73.78, 40.64] })
+    expect(field.value).toEqual({ lng: -73.78, lat: 40.64 })
+  })
+
+  it('extracts coordinates from geometry column with GeoJSON Point', () => {
+    const field = new Point2DField()
+    field.setValue({ id: 1, geometry: { type: 'Point', coordinates: [-73.78, 40.64] } })
+    expect(field.value).toEqual({ lng: -73.78, lat: 40.64 })
+  })
+
+  it('extracts coordinates from geometry column to tuple', () => {
+    const field = new Point2DField(undefined, { returnType: 'tuple' })
+    field.setValue({ id: 1, geometry: [-73.78, 40.64] })
+    expect(field.value).toEqual([-73.78, 40.64])
+  })
 })
 
 describe('Point3DField', () => {
@@ -1307,6 +1331,58 @@ describe('Point3DField', () => {
     }
     field.setValue(geoJsonFeature)
     expect(field.value).toEqual([-118.4182302, 34.0576856, 0])
+  })
+
+  it('extracts coordinates from bare GeoJSON Point geometry', () => {
+    const field = new Point3DField()
+    field.setValue({ type: 'Point', coordinates: [-73.78, 40.64, 100] })
+    expect(field.value).toEqual({ lng: -73.78, lat: 40.64, alt: 100 })
+  })
+
+  it('extracts 2D coordinates from bare GeoJSON Point geometry with alt=0', () => {
+    const field = new Point3DField()
+    field.setValue({ type: 'Point', coordinates: [-73.78, 40.64] })
+    expect(field.value).toEqual({ lng: -73.78, lat: 40.64, alt: 0 })
+  })
+
+  it('extracts coordinates from geometry column with [lng, lat] tuple', () => {
+    const field = new Point3DField()
+    field.setValue({ id: 1, geometry: [-73.78, 40.64] })
+    expect(field.value).toEqual({ lng: -73.78, lat: 40.64, alt: 0 })
+  })
+
+  it('extracts coordinates from geometry column with [lng, lat, alt] tuple', () => {
+    const field = new Point3DField()
+    field.setValue({ id: 1, geometry: [-73.78, 40.64, 100] })
+    expect(field.value).toEqual({ lng: -73.78, lat: 40.64, alt: 100 })
+  })
+
+  it('extracts coordinates from geometry column with GeoJSON Point', () => {
+    const field = new Point3DField()
+    field.setValue({ id: 1, geometry: { type: 'Point', coordinates: [-73.78, 40.64, 100] } })
+    expect(field.value).toEqual({ lng: -73.78, lat: 40.64, alt: 100 })
+  })
+
+  it('extracts coordinates from geometry column to tuple', () => {
+    const field = new Point3DField(undefined, { returnType: 'tuple' })
+    field.setValue({ id: 1, geometry: [-73.78, 40.64, 100] })
+    expect(field.value).toEqual([-73.78, 40.64, 100])
+  })
+
+  it('ignores geometry column with non-point data', () => {
+    const field = new Point3DField()
+    field.setValue({
+      id: 1,
+      geometry: {
+        type: 'LineString',
+        coordinates: [
+          [0, 0],
+          [1, 1],
+        ],
+      },
+    })
+    // Should fall back to default since no valid point data
+    expect(field.value).toEqual({ lng: 0, lat: 0, alt: 0 })
   })
 })
 

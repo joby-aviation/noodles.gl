@@ -26,6 +26,7 @@ import {
   MapViewOp,
   MathOp,
   MergeOp,
+  NetworkOp,
   NumberOp,
   Operator,
   PointOp,
@@ -3586,5 +3587,121 @@ describe('DirectionsOp', () => {
     // Verify DirectionsOp correctly parses the GeoJSON Features
     expect(directionsOp.inputs.origin.value).toEqual({ lng: -74.006, lat: 40.7128 })
     expect(directionsOp.inputs.destination.value).toEqual({ lng: -73.935242, lat: 40.73061 })
+  })
+})
+
+describe('NetworkOp with geometry column', () => {
+  it('still accepts direct {lng, lat, alt} objects (backward compat)', () => {
+    const networkOp = new NetworkOp('/network')
+    const points = [
+      { lng: -73.78, lat: 40.64, alt: 0 },
+      { lng: -122.37, lat: 37.62, alt: 0 },
+    ]
+
+    networkOp.inputs.skyports.setValue(points)
+    const result = networkOp.execute({ skyports: networkOp.inputs.skyports.value, hub: false })
+    expect(result.routes).toHaveLength(1)
+    expect(result.routes[0].origin).toEqual({ lng: -73.78, lat: 40.64, alt: 0 })
+    expect(result.routes[0].destination).toEqual({ lng: -122.37, lat: 37.62, alt: 0 })
+  })
+
+  it('still accepts {lng, lat} objects without alt (backward compat)', () => {
+    const networkOp = new NetworkOp('/network')
+    const points = [
+      { lng: -73.78, lat: 40.64 },
+      { lng: -122.37, lat: 37.62 },
+    ]
+
+    networkOp.inputs.skyports.setValue(points)
+    const result = networkOp.execute({ skyports: networkOp.inputs.skyports.value, hub: false })
+    expect(result.routes).toHaveLength(1)
+    expect(result.routes[0].origin).toEqual({ lng: -73.78, lat: 40.64, alt: 0 })
+    expect(result.routes[0].destination).toEqual({ lng: -122.37, lat: 37.62, alt: 0 })
+  })
+
+  it('accepts rows with geometry column as [lng, lat] tuple', () => {
+    const networkOp = new NetworkOp('/network')
+    const tableData = [
+      { name: 'JFK', geometry: [-73.78, 40.64] },
+      { name: 'SFO', geometry: [-122.37, 37.62] },
+      { name: 'LAX', geometry: [-118.41, 33.94] },
+    ]
+
+    networkOp.inputs.skyports.setValue(tableData)
+    const result = networkOp.execute({ skyports: networkOp.inputs.skyports.value, hub: false })
+    expect(result.routes).toHaveLength(3)
+    expect(result.routes[0].origin).toEqual({ lng: -73.78, lat: 40.64, alt: 0 })
+    expect(result.routes[0].destination).toEqual({ lng: -122.37, lat: 37.62, alt: 0 })
+  })
+
+  it('accepts rows with geometry column as GeoJSON Point', () => {
+    const networkOp = new NetworkOp('/network')
+    const tableData = [
+      { name: 'JFK', geometry: { type: 'Point', coordinates: [-73.78, 40.64] } },
+      { name: 'SFO', geometry: { type: 'Point', coordinates: [-122.37, 37.62] } },
+    ]
+
+    networkOp.inputs.skyports.setValue(tableData)
+    const result = networkOp.execute({ skyports: networkOp.inputs.skyports.value, hub: false })
+    expect(result.routes).toHaveLength(1)
+    expect(result.routes[0].origin).toEqual({ lng: -73.78, lat: 40.64, alt: 0 })
+    expect(result.routes[0].destination).toEqual({ lng: -122.37, lat: 37.62, alt: 0 })
+  })
+
+  it('accepts rows with geometry column as [lng, lat, alt] tuple', () => {
+    const networkOp = new NetworkOp('/network')
+    const tableData = [
+      { name: 'JFK', geometry: [-73.78, 40.64, 100] },
+      { name: 'SFO', geometry: [-122.37, 37.62, 200] },
+    ]
+
+    networkOp.inputs.skyports.setValue(tableData)
+    const result = networkOp.execute({ skyports: networkOp.inputs.skyports.value, hub: false })
+    expect(result.routes).toHaveLength(1)
+    expect(result.routes[0].origin).toEqual({ lng: -73.78, lat: 40.64, alt: 100 })
+    expect(result.routes[0].destination).toEqual({ lng: -122.37, lat: 37.62, alt: 200 })
+  })
+
+  it('accepts rows with geometry column as GeoJSON Point with altitude', () => {
+    const networkOp = new NetworkOp('/network')
+    const tableData = [
+      { name: 'JFK', geometry: { type: 'Point', coordinates: [-73.78, 40.64, 100] } },
+      { name: 'SFO', geometry: { type: 'Point', coordinates: [-122.37, 37.62, 200] } },
+    ]
+
+    networkOp.inputs.skyports.setValue(tableData)
+    const result = networkOp.execute({ skyports: networkOp.inputs.skyports.value, hub: false })
+    expect(result.routes).toHaveLength(1)
+    expect(result.routes[0].origin).toEqual({ lng: -73.78, lat: 40.64, alt: 100 })
+    expect(result.routes[0].destination).toEqual({ lng: -122.37, lat: 37.62, alt: 200 })
+  })
+
+  it('works in hub mode with geometry column', () => {
+    const networkOp = new NetworkOp('/network')
+    const tableData = [
+      { name: 'HUB', geometry: [-73.78, 40.64] },
+      { name: 'SFO', geometry: [-122.37, 37.62] },
+      { name: 'LAX', geometry: [-118.41, 33.94] },
+    ]
+
+    networkOp.inputs.skyports.setValue(tableData)
+    const result = networkOp.execute({ skyports: networkOp.inputs.skyports.value, hub: true })
+    expect(result.routes).toHaveLength(2)
+    expect(result.routes[0].origin).toEqual({ lng: -73.78, lat: 40.64, alt: 0 })
+    expect(result.routes[1].origin).toEqual({ lng: -73.78, lat: 40.64, alt: 0 })
+  })
+
+  it('accepts bare GeoJSON Point geometry at top level via Point3DField', () => {
+    const networkOp = new NetworkOp('/network')
+    const tableData = [
+      { type: 'Point', coordinates: [-73.78, 40.64] },
+      { type: 'Point', coordinates: [-122.37, 37.62] },
+    ]
+
+    networkOp.inputs.skyports.setValue(tableData)
+    const result = networkOp.execute({ skyports: networkOp.inputs.skyports.value, hub: false })
+    expect(result.routes).toHaveLength(1)
+    expect(result.routes[0].origin).toEqual({ lng: -73.78, lat: 40.64, alt: 0 })
+    expect(result.routes[0].destination).toEqual({ lng: -122.37, lat: 37.62, alt: 0 })
   })
 })
