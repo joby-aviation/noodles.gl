@@ -752,7 +752,7 @@ export class Point3DField extends Field<
     this.returnType = options?.returnType || 'object'
   }
 
-  createSchema({ returnType }: PointFieldOptions = { returnType: 'object' }) {
+  createSchema({ returnType = 'object' }: PointFieldOptions = {}) {
     const noop = (val: unknown) => val
     return z.union([
       z
@@ -911,7 +911,7 @@ export class Point2DField extends Field<
     this.returnType = options?.returnType || 'object'
   }
 
-  createSchema({ returnType }: PointFieldOptions = { returnType: 'object' }) {
+  createSchema({ returnType = 'object' }: PointFieldOptions = {}) {
     const noop = (val: unknown) => val
     return z.union([
       z
