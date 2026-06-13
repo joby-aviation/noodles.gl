@@ -54,10 +54,13 @@ describe('TableEditor - Edit Flow', () => {
       fireEvent.blur(input)
 
       // Should call onDataChange with new value
-      expect(onDataChange).toHaveBeenCalledWith([
-        { name: 'Charlie', count: 10 },
-        { name: 'Bob', count: 20 },
-      ])
+      expect(onDataChange).toHaveBeenCalledWith(
+        [
+          { name: 'Charlie', count: 10 },
+          { name: 'Bob', count: 20 },
+        ],
+        'Edit cell name'
+      )
     })
 
     it('should allow number cell to be clicked and edited', () => {
@@ -88,10 +91,13 @@ describe('TableEditor - Edit Flow', () => {
       fireEvent.blur(input)
 
       // Should commit on first blur
-      expect(onDataChange).toHaveBeenCalledWith([
-        { name: 'Alice', count: 20 },
-        { name: 'Bob', count: 20 },
-      ])
+      expect(onDataChange).toHaveBeenCalledWith(
+        [
+          { name: 'Alice', count: 20 },
+          { name: 'Bob', count: 20 },
+        ],
+        'Edit cell count'
+      )
     })
   })
 
@@ -118,10 +124,13 @@ describe('TableEditor - Edit Flow', () => {
       fireEvent.change(input, { target: { value: 'Charlie' } })
       fireEvent.blur(input)
 
-      expect(onDataChange).toHaveBeenCalledWith([
-        { name: 'Charlie', count: 10 },
-        { name: 'Bob', count: 20 },
-      ])
+      expect(onDataChange).toHaveBeenCalledWith(
+        [
+          { name: 'Charlie', count: 10 },
+          { name: 'Bob', count: 20 },
+        ],
+        'Edit cell name'
+      )
 
       // Simulate parent updating with new data
       const updatedData = [
@@ -148,10 +157,13 @@ describe('TableEditor - Edit Flow', () => {
       fireEvent.change(input, { target: { value: 'David' } })
       fireEvent.blur(input)
 
-      expect(onDataChange).toHaveBeenCalledWith([
-        { name: 'David', count: 10 },
-        { name: 'Bob', count: 20 },
-      ])
+      expect(onDataChange).toHaveBeenCalledWith(
+        [
+          { name: 'David', count: 10 },
+          { name: 'Bob', count: 20 },
+        ],
+        'Edit cell name'
+      )
     })
   })
 
@@ -196,10 +208,13 @@ describe('TableEditor - Edit Flow', () => {
       fireEvent.blur(input)
 
       // Now it should commit
-      expect(onDataChange).toHaveBeenCalledWith([
-        { name: 'Alicia', count: 10 },
-        { name: 'Bob', count: 20 },
-      ])
+      expect(onDataChange).toHaveBeenCalledWith(
+        [
+          { name: 'Alicia', count: 10 },
+          { name: 'Bob', count: 20 },
+        ],
+        'Edit cell name'
+      )
     })
   })
 
@@ -318,7 +333,8 @@ describe('TableEditor - Edit Flow', () => {
 
       // Should parse to 400
       expect(onDataChange).toHaveBeenCalledWith(
-        expect.arrayContaining([{ amount: 400 }])
+        expect.arrayContaining([{ amount: 400 }]),
+        'Edit cell amount'
       )
     })
 
@@ -354,7 +370,7 @@ describe('TableEditor - Edit Flow', () => {
       let input = container.querySelector('input.p-inputtext') as HTMLInputElement
       fireEvent.change(input, { target: { value: 'abc' } })
       fireEvent.blur(input)
-      expect(onDataChange).toHaveBeenCalledWith([{ score: 0 }])
+      expect(onDataChange).toHaveBeenCalledWith([{ score: 0 }], 'Edit cell score')
 
       onDataChange.mockClear()
 
@@ -363,7 +379,7 @@ describe('TableEditor - Edit Flow', () => {
       input = container.querySelector('input.p-inputtext') as HTMLInputElement
       fireEvent.change(input, { target: { value: '150' } })
       fireEvent.blur(input)
-      expect(onDataChange).toHaveBeenCalledWith([{ score: 100 }])
+      expect(onDataChange).toHaveBeenCalledWith([{ score: 100 }], 'Edit cell score')
 
       onDataChange.mockClear()
 
@@ -372,7 +388,7 @@ describe('TableEditor - Edit Flow', () => {
       input = container.querySelector('input.p-inputtext') as HTMLInputElement
       fireEvent.change(input, { target: { value: '-10' } })
       fireEvent.blur(input)
-      expect(onDataChange).toHaveBeenCalledWith([{ score: 0 }])
+      expect(onDataChange).toHaveBeenCalledWith([{ score: 0 }], 'Edit cell score')
     })
 
     it('should handle escape key to cancel number edit', () => {

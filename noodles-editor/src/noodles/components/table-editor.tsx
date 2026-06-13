@@ -640,7 +640,7 @@ interface TableEditorProps {
   op: TableEditorOp
   data: unknown[]
   schema: TableSchema
-  onDataChange: (data: unknown[]) => void
+  onDataChange: (data: unknown[], description?: string) => void
   onSchemaChange: (schema: TableSchema) => void
 }
 
@@ -658,7 +658,7 @@ export function TableEditor({ data, schema, onDataChange, onSchemaChange }: Tabl
     }
     const newData = [...tableData, newRow]
     setTableData(newData)
-    onDataChange(newData)
+    onDataChange(newData, 'Add table row')
   }
 
   const handleSchemaChange = (newSchema: TableSchema) => {
@@ -679,7 +679,7 @@ export function TableEditor({ data, schema, onDataChange, onSchemaChange }: Tabl
 
     onSchemaChange(newSchema)
     setTableData(newData)
-    onDataChange(newData)
+    onDataChange(newData, 'Edit table schema')
   }
 
   const columnHelper = createColumnHelper<Record<string, unknown>>()
@@ -730,12 +730,12 @@ export function TableEditor({ data, schema, onDataChange, onSchemaChange }: Tabl
           [columnId]: value,
         }
         setTableData(newData)
-        onDataChange(newData)
+        onDataChange(newData, `Edit cell ${columnId}`)
       },
       deleteRow: (rowIndex: number) => {
         const newData = tableData.filter((_, index) => index !== rowIndex)
         setTableData(newData)
-        onDataChange(newData)
+        onDataChange(newData, 'Delete table row')
       },
       schema,
     },

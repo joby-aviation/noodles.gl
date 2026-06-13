@@ -1726,15 +1726,19 @@ export function TableEditorOpComponent({
     }
   }, [op])
 
-  const handleDataChange = (newData: unknown[]) => {
+  const handleDataChange = (newData: unknown[], description = 'Edit table data') => {
+    const before = captureOperatorInputs()
     op.inputs.data.setValue(newData)
     op.outputs.data.setValue(newData)
+    firePropertyMutation(description, before)
   }
 
   const handleSchemaChange = (newSchema: TableSchema) => {
+    const before = captureOperatorInputs()
     op.inputs.schema.setValue(newSchema)
     op.outputs.schema.setValue(newSchema)
     setSchema(newSchema)
+    firePropertyMutation('Edit table schema', before)
   }
 
   return (
