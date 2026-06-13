@@ -6,6 +6,7 @@ import {
   AccessorOp,
   BitmapOverlayWidgetOp,
   BoundingBoxOp,
+  CategoricalColorRampOp,
   ChartOp,
   CodeOp,
   ConcatOp,
@@ -3428,6 +3429,88 @@ describe('BitmapOverlayWidgetOp', () => {
     expect(op.outputData.widget.placement).toBe('fill')
     expect(op.outputData.widget.offsetX).toBe(100)
     expect(op.outputData.widget.offsetY).toBe(50)
+  })
+})
+
+describe('CategoricalColorRampOp', () => {
+  it('initializes with accent scheme by default', () => {
+    const op = new CategoricalColorRampOp('/cat-ramp-0')
+    expect(op.inputs.colorScheme.value).toBe('accent')
+    expect(op.inputs.colorRamp.count).toBe(8)
+  })
+
+  it('maps categories to colors via execute', () => {
+    const op = new CategoricalColorRampOp('/cat-ramp-0')
+    const result = op.execute({
+      colorRamp: op.inputs.colorRamp.value,
+      value: 'A',
+    })
+    expect(result.color).toMatch(/^#[0-9a-f]{6}$/)
+  })
+
+  it('returns different colors for different categories', () => {
+    const op = new CategoricalColorRampOp('/cat-ramp-0')
+    const colorA = op.execute({ colorRamp: op.inputs.colorRamp.value, value: 'A' })
+    const colorB = op.execute({ colorRamp: op.inputs.colorRamp.value, value: 'B' })
+    expect(colorA.color).not.toBe(colorB.color)
+  })
+
+  it('steps field slices fixed schemes to fewer colors', () => {
+    const op = new CategoricalColorRampOp('/cat-ramp-0')
+    op.inputs.steps.setValue(10)
+    op.inputs.colorScheme.setValue('category10')
+    expect(op.inputs.colorRamp.count).toBe(10)
+
+    op.inputs.steps.setValue(5)
+    expect(op.inputs.colorRamp.count).toBe(5)
+  })
+
+  it('steps field selects correct array for stepped schemes', () => {
+    const op = new CategoricalColorRampOp('/cat-ramp-0')
+    op.inputs.colorScheme.setValue('greyscale')
+    op.inputs.steps.setValue(4)
+    expect(op.inputs.colorRamp.count).toBe(4)
+
+    op.inputs.steps.setValue(9)
+    expect(op.inputs.colorRamp.count).toBe(9)
+  })
+
+  it('steps field rejects values below minimum', () => {
+    const op = new CategoricalColorRampOp('/cat-ramp-0')
+    op.inputs.colorScheme.setValue('greyscale')
+    op.inputs.steps.setValue(3)
+    expect(op.inputs.colorRamp.count).toBe(3)
+
+    op.inputs.steps.setValue(1)
+    expect(op.inputs.steps.value).toBe(3)
+  })
+
+  it('steps clamps to max available for the scheme', () => {
+    const op = new CategoricalColorRampOp('/cat-ramp-0')
+    op.inputs.colorScheme.setValue('category10')
+    op.inputs.steps.setValue(11)
+    expect(op.inputs.colorRamp.count).toBe(10)
+  })
+
+  it('changing colorScheme updates the ramp', () => {
+    const op = new CategoricalColorRampOp('/cat-ramp-0')
+    op.inputs.steps.setValue(5)
+
+    op.inputs.colorScheme.setValue('category10')
+    expect(op.inputs.colorRamp.count).toBe(5)
+
+    op.inputs.colorScheme.setValue('greyscale')
+    expect(op.inputs.colorRamp.count).toBe(5)
+  })
+
+  it('greyscale scheme produces valid hex colors', () => {
+    const op = new CategoricalColorRampOp('/cat-ramp-0')
+    op.inputs.colorScheme.setValue('greyscale')
+    const result = op.execute({
+      colorRamp: op.inputs.colorRamp.value,
+      value: 'category1',
+    })
+    expect(result.color).toMatch(/^#[0-9a-f]{6}$/)
   })
 })
 
