@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
 
-// Auto-mock the store — provides stubs for all exports
-vi.mock('../../store')
+// Mock the store — getOpEntries returns empty array (no existing operators)
+vi.mock('../../store', () => ({
+  getOpEntries: () => [],
+}))
 
 // Mock nodeId to return predictable IDs without store dependency
 vi.mock('../../utils/id-utils', () => ({
@@ -16,8 +18,9 @@ vi.mock('../../utils/id-utils', () => ({
 }))
 
 // Import after mocks are set up
-const { createGeoJsonDropNodes, createGeoJsonFileDropNodes, GEOJSON_DECONSTRUCT_SOFT_LIMIT } =
-  await import('./data-importer-tool')
+const { createGeoJsonFileDropNodes, createGeoJsonTableDropNodes, isGeoJson } = await import(
+  './geojson-import-nodes'
+)
 
 describe('GeoJSON Import', () => {
   const basePosition = { x: 100, y: 200 }
@@ -58,254 +61,6 @@ describe('GeoJSON Import', () => {
       },
     ],
   }
-
-  describe('createGeoJsonDropNodes', () => {
-    it('creates a geometry operator for each feature plus GeoJsonOp and GeoJsonLayerOp', () => {
-      const result = createGeoJsonDropNodes(sampleGeoJson, basePosition)
-
-      // 3 feature ops + GeoJsonOp + GeoJsonLayerOp
-      expect(result.nodes).toHaveLength(5)
-    })
-
-    it('maps geometry types to correct operator types', () => {
-      const result = createGeoJsonDropNodes(sampleGeoJson, basePosition)
-
-      const nodeTypes = result.nodes.map(n => n.type)
-      expect(nodeTypes).toContain('PointOp')
-      expect(nodeTypes).toContain('LineStringOp')
-      expect(nodeTypes).toContain('PolygonOp')
-      expect(nodeTypes).toContain('GeoJsonOp')
-      expect(nodeTypes).toContain('GeoJsonLayerOp')
-    })
-
-    it('passes coordinates to PointOp as raw value', () => {
-      const result = createGeoJsonDropNodes(sampleGeoJson, basePosition)
-
-      const pointOp = result.nodes.find(n => n.type === 'PointOp')
-      expect(pointOp?.data.inputs.coordinates).toEqual([-74.006, 40.7128])
-      expect(pointOp?.data.inputs.properties).toEqual({ name: 'New York' })
-    })
-
-    it('passes geometry as JSON string to non-Point operators', () => {
-      const result = createGeoJsonDropNodes(sampleGeoJson, basePosition)
-
-      const lineOp = result.nodes.find(n => n.type === 'LineStringOp')
-      const lineCoords = JSON.parse(lineOp?.data.inputs.geometry as string)
-      expect(lineCoords).toEqual([
-        [-74.006, 40.7128],
-        [-118.2437, 34.0522],
-      ])
-      const lineProps = JSON.parse(lineOp?.data.inputs.properties as string)
-      expect(lineProps).toEqual({ name: 'NY to LA' })
-    })
-
-    it('connects each feature operator to the GeoJsonOp', () => {
-      const result = createGeoJsonDropNodes(sampleGeoJson, basePosition)
-
-      const featureToGeoJsonEdges = result.edges.filter(
-        e => e.targetHandle === 'par.features' && e.sourceHandle === 'out.feature'
-      )
-      expect(featureToGeoJsonEdges).toHaveLength(3)
-
-      const geojsonNode = result.nodes.find(n => n.type === 'GeoJsonOp')
-      expect(featureToGeoJsonEdges.every(e => e.target === geojsonNode?.id)).toBe(true)
-    })
-
-    it('connects GeoJsonOp to GeoJsonLayerOp', () => {
-      const result = createGeoJsonDropNodes(sampleGeoJson, basePosition)
-
-      const geojsonNode = result.nodes.find(n => n.type === 'GeoJsonOp')
-      const layerNode = result.nodes.find(n => n.type === 'GeoJsonLayerOp')
-
-      const edge = result.edges.find(
-        e => e.sourceHandle === 'out.featureCollection' && e.targetHandle === 'par.data'
-      )
-      expect(edge).toBeDefined()
-      expect(edge?.source).toBe(geojsonNode?.id)
-      expect(edge?.target).toBe(layerNode?.id)
-    })
-
-    it('connects GeoJsonLayerOp to DeckRendererOp', () => {
-      const result = createGeoJsonDropNodes(sampleGeoJson, basePosition)
-
-      const layerNode = result.nodes.find(n => n.type === 'GeoJsonLayerOp')
-
-      const edge = result.edges.find(
-        e => e.sourceHandle === 'out.layer' && e.targetHandle === 'par.layers'
-      )
-      expect(edge).toBeDefined()
-      expect(edge?.source).toBe(layerNode?.id)
-    })
-
-    it('creates correct total number of edges', () => {
-      const result = createGeoJsonDropNodes(sampleGeoJson, basePosition)
-
-      // 3 feature->geojson + geojson->layer + layer->deck = 5
-      expect(result.edges).toHaveLength(5)
-    })
-
-    it('generates unique edge IDs', () => {
-      const result = createGeoJsonDropNodes(sampleGeoJson, basePosition)
-
-      const edgeIds = result.edges.map(e => e.id)
-      const uniqueIds = new Set(edgeIds)
-      expect(uniqueIds.size).toBe(edgeIds.length)
-    })
-
-    it('positions feature operators in a grid layout', () => {
-      const result = createGeoJsonDropNodes(sampleGeoJson, basePosition)
-
-      const featureNodes = result.nodes.filter(n =>
-        ['PointOp', 'LineStringOp', 'PolygonOp'].includes(n.type)
-      )
-
-      // All 3 features in first row (maxColumns = 4), spaced by colSpacing = 350
-      expect(featureNodes[0].position.x).toBe(100)
-      expect(featureNodes[1].position.x).toBe(550)
-      expect(featureNodes[2].position.x).toBe(1000)
-      expect(featureNodes.every(n => n.position.y === 200)).toBe(true)
-    })
-
-    it('positions GeoJsonOp to the right of feature operators', () => {
-      const result = createGeoJsonDropNodes(sampleGeoJson, basePosition)
-
-      const geojsonNode = result.nodes.find(n => n.type === 'GeoJsonOp')
-      const featureNodes = result.nodes.filter(n =>
-        ['PointOp', 'LineStringOp', 'PolygonOp'].includes(n.type)
-      )
-
-      const maxFeatureX = Math.max(...featureNodes.map(n => n.position.x))
-      expect(geojsonNode!.position.x).toBeGreaterThan(maxFeatureX)
-    })
-  })
-
-  describe('GeoJSON geometry type mapping', () => {
-    it('handles all supported geometry types', () => {
-      const allTypesGeoJson = {
-        type: 'FeatureCollection' as const,
-        features: [
-          {
-            type: 'Feature' as const,
-            geometry: { type: 'Point', coordinates: [0, 0] },
-            properties: {},
-          },
-          {
-            type: 'Feature' as const,
-            geometry: {
-              type: 'LineString',
-              coordinates: [
-                [0, 0],
-                [1, 1],
-              ],
-            },
-            properties: {},
-          },
-          {
-            type: 'Feature' as const,
-            geometry: {
-              type: 'Polygon',
-              coordinates: [
-                [
-                  [0, 0],
-                  [1, 0],
-                  [1, 1],
-                  [0, 0],
-                ],
-              ],
-            },
-            properties: {},
-          },
-          {
-            type: 'Feature' as const,
-            geometry: {
-              type: 'MultiPoint',
-              coordinates: [
-                [0, 0],
-                [1, 1],
-              ],
-            },
-            properties: {},
-          },
-          {
-            type: 'Feature' as const,
-            geometry: {
-              type: 'MultiLineString',
-              coordinates: [
-                [
-                  [0, 0],
-                  [1, 1],
-                ],
-                [
-                  [2, 2],
-                  [3, 3],
-                ],
-              ],
-            },
-            properties: {},
-          },
-          {
-            type: 'Feature' as const,
-            geometry: {
-              type: 'MultiPolygon',
-              coordinates: [
-                [
-                  [
-                    [0, 0],
-                    [1, 0],
-                    [1, 1],
-                    [0, 0],
-                  ],
-                ],
-              ],
-            },
-            properties: {},
-          },
-        ],
-      }
-
-      const result = createGeoJsonDropNodes(allTypesGeoJson, basePosition)
-
-      const nodeTypes = result.nodes.map(n => n.type)
-      expect(nodeTypes).toContain('PointOp')
-      expect(nodeTypes).toContain('LineStringOp')
-      expect(nodeTypes).toContain('PolygonOp')
-      expect(nodeTypes).toContain('MultiPointOp')
-      expect(nodeTypes).toContain('MultiLineStringOp')
-      expect(nodeTypes).toContain('MultiPolygonOp')
-    })
-
-    it('skips unsupported geometry types', () => {
-      const unsupportedGeoJson = {
-        type: 'FeatureCollection' as const,
-        features: [
-          {
-            type: 'Feature' as const,
-            geometry: { type: 'GeometryCollection', coordinates: [] },
-            properties: {},
-          },
-        ],
-      }
-
-      const result = createGeoJsonDropNodes(unsupportedGeoJson, basePosition)
-
-      // Only GeoJsonOp + GeoJsonLayerOp (no feature ops)
-      expect(result.nodes).toHaveLength(2)
-    })
-
-    it('handles empty FeatureCollection', () => {
-      const emptyGeoJson = {
-        type: 'FeatureCollection' as const,
-        features: [],
-      }
-
-      const result = createGeoJsonDropNodes(emptyGeoJson, basePosition)
-
-      // Only GeoJsonOp + GeoJsonLayerOp
-      expect(result.nodes).toHaveLength(2)
-      // Only geojson->layer + layer->deck
-      expect(result.edges).toHaveLength(2)
-    })
-  })
 
   describe('createGeoJsonFileDropNodes', () => {
     it('creates FileOp and GeoJsonLayerOp', () => {
@@ -358,19 +113,220 @@ describe('GeoJSON Import', () => {
     })
   })
 
-  describe('GEOJSON_DECONSTRUCT_SOFT_LIMIT', () => {
-    it('is set to 20', () => {
-      expect(GEOJSON_DECONSTRUCT_SOFT_LIMIT).toBe(20)
+  describe('createGeoJsonTableDropNodes', () => {
+    it('creates TableEditorOp and ViewerOp', () => {
+      const result = createGeoJsonTableDropNodes(sampleGeoJson, basePosition)
+
+      const nodeTypes = result.nodes.map(n => n.type)
+      expect(nodeTypes).toContain('TableEditorOp')
+      expect(nodeTypes).toContain('ViewerOp')
+      expect(result.nodes).toHaveLength(2)
     })
 
-    it('collections at the limit default to deconstruct', () => {
-      const atLimit = GEOJSON_DECONSTRUCT_SOFT_LIMIT
-      expect(atLimit <= GEOJSON_DECONSTRUCT_SOFT_LIMIT).toBe(true)
+    it('flattens Point features with point2d geometry column', () => {
+      const pointsOnly = {
+        type: 'FeatureCollection' as const,
+        features: [
+          {
+            type: 'Feature' as const,
+            geometry: { type: 'Point', coordinates: [-74.006, 40.7128] },
+            properties: { name: 'NYC' },
+          },
+          {
+            type: 'Feature' as const,
+            geometry: { type: 'Point', coordinates: [-118.2437, 34.0522] },
+            properties: { name: 'LA' },
+          },
+        ],
+      }
+
+      const result = createGeoJsonTableDropNodes(pointsOnly, basePosition)
+      const tableOp = result.nodes.find(n => n.type === 'TableEditorOp')
+      const schema = tableOp?.data.inputs.schema as {
+        columns: Array<{ name: string; type: string }>
+      }
+
+      expect(schema.columns[0]).toEqual(
+        expect.objectContaining({ name: 'geometry', type: 'point2d' })
+      )
     })
 
-    it('collections over the limit default to file mode', () => {
-      const overLimit = GEOJSON_DECONSTRUCT_SOFT_LIMIT + 1
-      expect(overLimit > GEOJSON_DECONSTRUCT_SOFT_LIMIT).toBe(true)
+    it('stores non-Point geometry as JSON string', () => {
+      const result = createGeoJsonTableDropNodes(sampleGeoJson, basePosition)
+      const tableOp = result.nodes.find(n => n.type === 'TableEditorOp')
+      const data = tableOp?.data.inputs.data as Array<Record<string, unknown>>
+
+      // LineString geometry should be a JSON string
+      const lineRow = data[1]
+      expect(typeof lineRow.geometry).toBe('string')
+      const parsed = JSON.parse(lineRow.geometry as string)
+      expect(parsed.type).toBe('LineString')
+    })
+
+    it('creates columns from feature properties', () => {
+      const result = createGeoJsonTableDropNodes(sampleGeoJson, basePosition)
+      const tableOp = result.nodes.find(n => n.type === 'TableEditorOp')
+      const schema = tableOp?.data.inputs.schema as {
+        columns: Array<{ name: string; type: string }>
+      }
+
+      const colNames = schema.columns.map(c => c.name)
+      expect(colNames).toContain('geometry')
+      expect(colNames).toContain('name')
+    })
+
+    it('infers number columns from numeric properties', () => {
+      const numericGeoJson = {
+        type: 'FeatureCollection' as const,
+        features: [
+          {
+            type: 'Feature' as const,
+            geometry: { type: 'Point', coordinates: [0, 0] },
+            properties: { count: 42, label: 'test' },
+          },
+        ],
+      }
+
+      const result = createGeoJsonTableDropNodes(numericGeoJson, basePosition)
+      const tableOp = result.nodes.find(n => n.type === 'TableEditorOp')
+      const schema = tableOp?.data.inputs.schema as {
+        columns: Array<{ name: string; type: string }>
+      }
+
+      const countCol = schema.columns.find(c => c.name === 'count')
+      const labelCol = schema.columns.find(c => c.name === 'label')
+      expect(countCol?.type).toBe('number')
+      expect(labelCol?.type).toBe('string')
+    })
+
+    it('connects TableEditorOp to ViewerOp', () => {
+      const result = createGeoJsonTableDropNodes(sampleGeoJson, basePosition)
+
+      const tableToViewer = result.edges.find(
+        e => e.sourceHandle === 'out.data' && e.targetHandle === 'par.data'
+      )
+      expect(tableToViewer).toBeDefined()
+      expect(result.edges).toHaveLength(1)
+    })
+
+    it('handles empty FeatureCollection', () => {
+      const empty = { type: 'FeatureCollection' as const, features: [] }
+      const result = createGeoJsonTableDropNodes(empty, basePosition)
+      const tableOp = result.nodes.find(n => n.type === 'TableEditorOp')
+      const data = tableOp?.data.inputs.data as unknown[]
+      expect(data).toHaveLength(0)
+    })
+
+    it('collects property keys from all features', () => {
+      const mixedProps = {
+        type: 'FeatureCollection' as const,
+        features: [
+          {
+            type: 'Feature' as const,
+            geometry: { type: 'Point', coordinates: [0, 0] },
+            properties: { a: 1 },
+          },
+          {
+            type: 'Feature' as const,
+            geometry: { type: 'Point', coordinates: [1, 1] },
+            properties: { b: 'hello' },
+          },
+        ],
+      }
+
+      const result = createGeoJsonTableDropNodes(mixedProps, basePosition)
+      const tableOp = result.nodes.find(n => n.type === 'TableEditorOp')
+      const schema = tableOp?.data.inputs.schema as {
+        columns: Array<{ name: string }>
+      }
+      const data = tableOp?.data.inputs.data as Array<Record<string, unknown>>
+
+      const colNames = schema.columns.map(c => c.name)
+      expect(colNames).toContain('a')
+      expect(colNames).toContain('b')
+
+      // Missing properties filled with null
+      expect(data[0].b).toBeNull()
+      expect(data[1].a).toBeNull()
+    })
+  })
+
+  describe('isGeoJson', () => {
+    it('returns true for valid FeatureCollection', () => {
+      expect(isGeoJson({ type: 'FeatureCollection', features: [] })).toBe(true)
+    })
+
+    it('returns false for null', () => {
+      expect(isGeoJson(null)).toBe(false)
+    })
+
+    it('returns false for undefined', () => {
+      expect(isGeoJson(undefined)).toBe(false)
+    })
+
+    it('returns false for non-object types', () => {
+      expect(isGeoJson('string')).toBe(false)
+      expect(isGeoJson(42)).toBe(false)
+      expect(isGeoJson(true)).toBe(false)
+    })
+
+    it('returns false for objects without type field', () => {
+      expect(isGeoJson({ features: [] })).toBe(false)
+    })
+
+    it('returns false for objects with wrong type', () => {
+      expect(isGeoJson({ type: 'Feature', geometry: {}, properties: {} })).toBe(false)
+    })
+
+    it('returns false for FeatureCollection without features array', () => {
+      expect(isGeoJson({ type: 'FeatureCollection', features: 'not-an-array' })).toBe(false)
+      expect(isGeoJson({ type: 'FeatureCollection' })).toBe(false)
+    })
+  })
+
+  describe('error cases', () => {
+    it('table import handles features with null properties', () => {
+      const geojson = {
+        type: 'FeatureCollection' as const,
+        features: [
+          {
+            type: 'Feature' as const,
+            geometry: { type: 'Point', coordinates: [0, 0] },
+            properties: null,
+          },
+        ],
+      }
+
+      const result = createGeoJsonTableDropNodes(geojson as any, basePosition)
+      const tableOp = result.nodes.find(n => n.type === 'TableEditorOp')
+      expect(tableOp).toBeDefined()
+      const data = tableOp?.data.inputs.data as unknown[]
+      expect(data).toHaveLength(1)
+    })
+
+    it('table import handles mixed null and valid properties', () => {
+      const geojson = {
+        type: 'FeatureCollection' as const,
+        features: [
+          {
+            type: 'Feature' as const,
+            geometry: { type: 'Point', coordinates: [0, 0] },
+            properties: { name: 'valid' },
+          },
+          {
+            type: 'Feature' as const,
+            geometry: { type: 'Point', coordinates: [1, 1] },
+            properties: null,
+          },
+        ],
+      }
+
+      const result = createGeoJsonTableDropNodes(geojson as any, basePosition)
+      const tableOp = result.nodes.find(n => n.type === 'TableEditorOp')
+      const data = tableOp?.data.inputs.data as Array<Record<string, unknown>>
+      expect(data).toHaveLength(2)
+      expect(data[0].name).toBe('valid')
+      expect(data[1].name).toBeNull()
     })
   })
 })

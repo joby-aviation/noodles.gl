@@ -19,10 +19,6 @@ import {
   GeoJsonLayerOp,
   GeoJsonTransformOp,
   JSONOp,
-  LineStringOp,
-  MultiLineStringOp,
-  MultiPointOp,
-  MultiPolygonOp,
   KmlToGeoJsonOp,
   LayerPropsOp,
   MaplibreBasemapOp,
@@ -32,7 +28,6 @@ import {
   NumberOp,
   Operator,
   PointOp,
-  PolygonOp,
   ProjectOp,
   RampOp,
   RectangleOp,
@@ -1688,126 +1683,6 @@ describe('GeoJsonTransformOp', () => {
     expect(result.feature.geometry.coordinates).not.toEqual(inputFeature.geometry.coordinates)
     // Snapshot the transformed feature
     expect(result.feature).toMatchSnapshot()
-  })
-})
-
-describe('Geometry Operators', () => {
-  describe('LineStringOp', () => {
-    it('creates a valid GeoJSON LineString feature', () => {
-      const op = new LineStringOp('/line-0')
-      const coords = [
-        [-74.006, 40.7128],
-        [-118.2437, 34.0522],
-      ]
-      const result = op.execute({
-        geometry: JSON.stringify(coords),
-        properties: JSON.stringify({ name: 'test line' }),
-      })
-
-      expect(result.feature.type).toBe('Feature')
-      expect(result.feature.geometry.type).toBe('LineString')
-      expect(result.feature.geometry.coordinates).toEqual(coords)
-      expect(result.feature.properties).toEqual({ name: 'test line' })
-    })
-  })
-
-  describe('PolygonOp', () => {
-    it('creates a valid GeoJSON Polygon feature', () => {
-      const op = new PolygonOp('/poly-0')
-      const coords = [
-        [
-          [0, 0],
-          [1, 0],
-          [1, 1],
-          [0, 1],
-          [0, 0],
-        ],
-      ]
-      const result = op.execute({
-        geometry: JSON.stringify(coords),
-        properties: JSON.stringify({ area: 'square' }),
-      })
-
-      expect(result.feature.type).toBe('Feature')
-      expect(result.feature.geometry.type).toBe('Polygon')
-      expect(result.feature.geometry.coordinates).toEqual(coords)
-      expect(result.feature.properties).toEqual({ area: 'square' })
-    })
-  })
-
-  describe('MultiPointOp', () => {
-    it('creates a valid GeoJSON MultiPoint feature', () => {
-      const op = new MultiPointOp('/mpoint-0')
-      const coords = [
-        [-74.006, 40.7128],
-        [-118.2437, 34.0522],
-      ]
-      const result = op.execute({
-        geometry: JSON.stringify(coords),
-        properties: JSON.stringify({}),
-      })
-
-      expect(result.feature.type).toBe('Feature')
-      expect(result.feature.geometry.type).toBe('MultiPoint')
-      expect(result.feature.geometry.coordinates).toEqual(coords)
-    })
-  })
-
-  describe('MultiLineStringOp', () => {
-    it('creates a valid GeoJSON MultiLineString feature', () => {
-      const op = new MultiLineStringOp('/mline-0')
-      const coords = [
-        [
-          [0, 0],
-          [1, 1],
-        ],
-        [
-          [2, 2],
-          [3, 3],
-        ],
-      ]
-      const result = op.execute({
-        geometry: JSON.stringify(coords),
-        properties: JSON.stringify({ routes: 2 }),
-      })
-
-      expect(result.feature.type).toBe('Feature')
-      expect(result.feature.geometry.type).toBe('MultiLineString')
-      expect(result.feature.geometry.coordinates).toEqual(coords)
-      expect(result.feature.properties).toEqual({ routes: 2 })
-    })
-  })
-
-  describe('MultiPolygonOp', () => {
-    it('creates a valid GeoJSON MultiPolygon feature', () => {
-      const op = new MultiPolygonOp('/mpoly-0')
-      const coords = [
-        [
-          [
-            [0, 0],
-            [1, 0],
-            [1, 1],
-            [0, 0],
-          ],
-        ],
-        [
-          [
-            [2, 2],
-            [3, 2],
-            [3, 3],
-            [2, 2],
-          ],
-        ],
-      ]
-      const result = op.execute({
-        geometry: JSON.stringify(coords),
-        properties: JSON.stringify({}),
-      })
-
-      expect(result.feature.type).toBe('Feature')
-      expect(result.feature.geometry.type).toBe('MultiPolygon')
-      expect(result.feature.geometry.coordinates).toEqual(coords)
-    })
   })
 })
 

@@ -17,10 +17,18 @@ import type {
   ScatterplotLayerOp,
 } from '../../operators'
 import { writeAsset } from '../../storage'
-import { getOpEntries } from '../../store'
 import { projectScheme } from '../../utils/filesystem'
 import { edgeId, nodeId } from '../../utils/id-utils'
 import s from './data-importer-tool.module.css'
+import {
+  createGeoJsonFileDropNodes,
+  createGeoJsonTableDropNodes,
+  type GeoJsonData,
+  type GeoJsonImportMode,
+  isGeoJson,
+} from './geojson-import-nodes'
+
+export { createGeoJsonFileDropNodes, createGeoJsonTableDropNodes } from './geojson-import-nodes'
 
 function createFileDropNodes(url: string, format: string, basePosition: { x: number; y: number }) {
   const dataId = nodeId('data', '/')
@@ -118,191 +126,11 @@ function createFileDropNodes(url: string, format: string, basePosition: { x: num
   return { nodes, edges }
 }
 
-export function createGeoJsonFileDropNodes(url: string, basePosition: { x: number; y: number }) {
-  const dataId = nodeId('data', '/')
-  const geojsonLayerId = nodeId('geojson-layer', '/')
-
-  const existingDeck = getOpEntries().find(
-    ([_, op]) => (op.constructor as { displayName?: string }).displayName === 'DeckRenderer'
-  )
-  const deckId = existingDeck ? existingDeck[0] : nodeId('deck', '/')
-
-  const nodes: NodeJSON<OpType>[] = [
-    {
-      id: dataId,
-      type: 'FileOp',
-      data: {
-        inputs: { format: 'json', url },
-      },
-      position: { x: basePosition.x, y: basePosition.y },
-    },
-    {
-      id: geojsonLayerId,
-      type: 'GeoJsonLayerOp',
-      data: { inputs: {} },
-      position: { x: basePosition.x + 400, y: basePosition.y },
-    },
-  ]
-
-  const edges = [
-    {
-      source: dataId,
-      target: geojsonLayerId,
-      sourceHandle: 'out.data',
-      targetHandle: 'par.data',
-    },
-    {
-      source: geojsonLayerId,
-      target: deckId,
-      sourceHandle: 'out.layer',
-      targetHandle: 'par.layers',
-    },
-  ].map(connection => ({ ...connection, id: edgeId(connection) }))
-
-  return { nodes, edges }
-}
-
-type GeoJsonFeature = {
-  type: 'Feature'
-  geometry: {
-    type: string
-    coordinates: unknown
-  }
-  properties?: Record<string, unknown>
-}
-
-type GeoJsonData = {
-  type: 'FeatureCollection'
-  features: GeoJsonFeature[]
-}
-
-const GEOMETRY_TYPE_TO_OP: Record<string, OpType> = {
-  Point: 'PointOp',
-  LineString: 'LineStringOp',
-  Polygon: 'PolygonOp',
-  MultiPoint: 'MultiPointOp',
-  MultiLineString: 'MultiLineStringOp',
-  MultiPolygon: 'MultiPolygonOp',
-}
-
-export function createGeoJsonDropNodes(
-  geojson: GeoJsonData,
-  basePosition: { x: number; y: number }
-) {
-  const geojsonId = nodeId('geojson', '/')
-  const geojsonLayerId = nodeId('geojson-layer', '/')
-
-  // Find existing DeckRendererOp in the graph
-  const existingDeck = getOpEntries().find(
-    ([_, op]) => (op.constructor as { displayName?: string }).displayName === 'DeckRenderer'
-  )
-  const deckId = existingDeck ? existingDeck[0] : nodeId('deck', '/')
-
-  const nodes: NodeJSON<OpType>[] = []
-  const featureEdges: Array<{
-    source: string
-    target: string
-    sourceHandle: string
-    targetHandle: string
-  }> = []
-
-  // Create a geometry operator for each feature
-  const colSpacing = 450
-  const rowSpacing = 500
-  const maxColumns = 4
-  geojson.features.forEach((feature, i) => {
-    const opType = GEOMETRY_TYPE_TO_OP[feature.geometry.type]
-    if (!opType) return
-
-    const col = i % maxColumns
-    const row = Math.floor(i / maxColumns)
-    const featureId = nodeId(`feature-${i}`, '/')
-
-    const inputs: Record<string, unknown> =
-      opType === 'PointOp'
-        ? {
-            coordinates: feature.geometry.coordinates,
-            properties: feature.properties || {},
-          }
-        : {
-            geometry: JSON.stringify(feature.geometry.coordinates, null, 2),
-            properties: JSON.stringify(feature.properties || {}, null, 2),
-          }
-
-    nodes.push({
-      id: featureId,
-      type: opType,
-      data: { inputs },
-      position: {
-        x: basePosition.x + col * colSpacing,
-        y: basePosition.y + row * rowSpacing,
-      },
-    })
-
-    featureEdges.push({
-      source: featureId,
-      target: geojsonId,
-      sourceHandle: 'out.feature',
-      targetHandle: 'par.features',
-    })
-  })
-
-  const featureColumns = Math.min(geojson.features.length, maxColumns)
-  const geojsonX = basePosition.x + featureColumns * colSpacing
-
-  // GeoJsonOp collects all features — positioned to the right of feature columns
-  nodes.push({
-    id: geojsonId,
-    type: 'GeoJsonOp',
-    data: { inputs: {} },
-    position: { x: geojsonX, y: basePosition.y },
-  })
-
-  // GeoJsonLayerOp renders the collection
-  nodes.push({
-    id: geojsonLayerId,
-    type: 'GeoJsonLayerOp',
-    data: { inputs: {} },
-    position: { x: geojsonX + colSpacing, y: basePosition.y },
-  })
-
-  const allEdges = [
-    ...featureEdges,
-    {
-      source: geojsonId,
-      target: geojsonLayerId,
-      sourceHandle: 'out.featureCollection',
-      targetHandle: 'par.data',
-    },
-    {
-      source: geojsonLayerId,
-      target: deckId,
-      sourceHandle: 'out.layer',
-      targetHandle: 'par.layers',
-    },
-  ].map(connection => ({ ...connection, id: edgeId(connection) }))
-
-  return { nodes, edges: allEdges }
-}
-
-function isGeoJson(data: unknown): data is GeoJsonData {
-  return (
-    typeof data === 'object' &&
-    data !== null &&
-    'type' in data &&
-    (data as { type: string }).type === 'FeatureCollection' &&
-    'features' in data &&
-    Array.isArray((data as GeoJsonData).features)
-  )
-}
-
 interface DataImporterToolProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   reactFlowRef: React.RefObject<HTMLDivElement>
 }
-
-export const GEOJSON_DECONSTRUCT_SOFT_LIMIT = 20
 
 type GeoJsonPreview = {
   file: File
@@ -317,17 +145,22 @@ export function DataImporterTool({ open, onOpenChange, reactFlowRef }: DataImpor
   const [error, setError] = useState<string | null>(null)
   const [isImporting, setIsImporting] = useState(false)
   const [geojsonPreview, setGeojsonPreview] = useState<GeoJsonPreview | null>(null)
-  const [deconstructFeatures, setDeconstructFeatures] = useState(true)
+  const [importMode, setImportMode] = useState<GeoJsonImportMode>('table')
 
   const importFile = useCallback(
-    async (file: File, contents: string, geojsonData: GeoJsonData | null, deconstruct: boolean) => {
+    async (
+      file: File,
+      contents: string,
+      geojsonData: GeoJsonData | null,
+      mode: GeoJsonImportMode
+    ) => {
       const { currentProjectName, activeStorageType } = useFileSystemStore.getState()
       if (!currentProjectName) {
         throw new Error('No project loaded. Please save or load a project first.')
       }
 
       // Write to project storage for file-based imports
-      if (!geojsonData || !deconstruct) {
+      if (!geojsonData || mode === 'file') {
         const result = await writeAsset(activeStorageType, currentProjectName, file.name, contents)
         if (!result.success) {
           throw new Error(result.error?.message || `Failed to write file: ${file.name}`)
@@ -354,16 +187,16 @@ export function DataImporterTool({ open, onOpenChange, reactFlowRef }: DataImpor
         targetHandle: string
       }[]
 
-      if (geojsonData && deconstruct) {
-        const result = createGeoJsonDropNodes(geojsonData, basePosition)
+      if (geojsonData && mode === 'table') {
+        const result = createGeoJsonTableDropNodes(geojsonData, basePosition)
         nodes = result.nodes
         edges = result.edges
-        format = 'geojson'
-      } else if (geojsonData && !deconstruct) {
+        format = 'geojson_table'
+      } else if (geojsonData && mode === 'file') {
         const result = createGeoJsonFileDropNodes(projectScheme + file.name, basePosition)
         nodes = result.nodes
         edges = result.edges
-        format = 'geojson'
+        format = 'geojson_file'
       } else {
         format = file.type.includes('csv') ? 'csv' : 'json'
         const result = createFileDropNodes(projectScheme + file.name, format, basePosition)
@@ -376,7 +209,7 @@ export function DataImporterTool({ open, onOpenChange, reactFlowRef }: DataImpor
 
       analytics.track('data_imported', {
         source: 'tools_shelf',
-        format: deconstruct ? format : `${format}_file`,
+        format,
       })
     },
     [addNodes, addEdges, screenToFlowPosition, reactFlowRef]
@@ -391,7 +224,7 @@ export function DataImporterTool({ open, onOpenChange, reactFlowRef }: DataImpor
         geojsonPreview.file,
         geojsonPreview.contents,
         geojsonPreview.data,
-        deconstructFeatures
+        importMode
       )
       setGeojsonPreview(null)
       onOpenChange(false)
@@ -400,7 +233,7 @@ export function DataImporterTool({ open, onOpenChange, reactFlowRef }: DataImpor
     } finally {
       setIsImporting(false)
     }
-  }, [geojsonPreview, deconstructFeatures, importFile, onOpenChange])
+  }, [geojsonPreview, importMode, importFile, onOpenChange])
 
   const handleFileImport = useCallback(
     async (file: File) => {
@@ -421,7 +254,7 @@ export function DataImporterTool({ open, onOpenChange, reactFlowRef }: DataImpor
           try {
             const parsed = JSON.parse(contents)
             if (isGeoJson(parsed)) {
-              setDeconstructFeatures(parsed.features.length <= GEOJSON_DECONSTRUCT_SOFT_LIMIT)
+              setImportMode('table')
               setGeojsonPreview({ file, contents, data: parsed })
               setIsImporting(false)
               return
@@ -431,7 +264,7 @@ export function DataImporterTool({ open, onOpenChange, reactFlowRef }: DataImpor
           }
         }
 
-        await importFile(file, contents, null, false)
+        await importFile(file, contents, null, 'file')
         onOpenChange(false)
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to import file')
@@ -513,11 +346,6 @@ export function DataImporterTool({ open, onOpenChange, reactFlowRef }: DataImpor
                 <span className={s.featureCount}>
                   {geojsonPreview.data.features.length} features
                 </span>
-                {geojsonPreview.data.features.length > GEOJSON_DECONSTRUCT_SOFT_LIMIT && (
-                  <span className={s.featureWarning}>
-                    Large file — loading as a single FileOp is recommended
-                  </span>
-                )}
               </div>
 
               <div className={s.importModeToggle}>
@@ -525,20 +353,20 @@ export function DataImporterTool({ open, onOpenChange, reactFlowRef }: DataImpor
                   <input
                     type="radio"
                     name="importMode"
-                    checked={deconstructFeatures}
-                    onChange={() => setDeconstructFeatures(true)}
+                    checked={importMode === 'table'}
+                    onChange={() => setImportMode('table')}
                   />
                   <span className={s.toggleOption}>
-                    <strong>Deconstruct features</strong>
-                    <span>Create a separate operator for each feature</span>
+                    <strong>Import as table</strong>
+                    <span>Editable table with properties as columns</span>
                   </span>
                 </label>
                 <label className={s.toggleLabel}>
                   <input
                     type="radio"
                     name="importMode"
-                    checked={!deconstructFeatures}
-                    onChange={() => setDeconstructFeatures(false)}
+                    checked={importMode === 'file'}
+                    onChange={() => setImportMode('file')}
                   />
                   <span className={s.toggleOption}>
                     <strong>Load as file</strong>
