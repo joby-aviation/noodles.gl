@@ -18,7 +18,7 @@ describe('WebSocket Blob handling', () => {
   it('parseMessage handles ArrayBuffer data', () => {
     const original = createMessage(MessageType.PING, { data: 'test' })
     const json = JSON.stringify(original)
-    const buffer = new TextEncoder().encode(json)
+    const buffer = new TextEncoder().encode(json).buffer
     const parsed = parseMessage(buffer)
     expect(parsed).toEqual(original)
   })

@@ -66,6 +66,7 @@ export function useDeckDrawLoop({
         captureFrame?.()
       } catch (e) {
         const error = e instanceof Error ? e : new Error(String(e))
+        console.error('[Noodles] Draw loop error:', error)
         debugRender('[useDeckDrawLoop] Error during drawing:', error)
         captureFrame?.({ error })
       }

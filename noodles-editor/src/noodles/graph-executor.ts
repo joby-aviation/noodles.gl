@@ -1,8 +1,9 @@
 // GraphExecutor - Execution engine for the operator graph
 // Manages operator execution with topological sorting, dirty tracking, and a worker timer loop
 
-import { debugExecutor } from '../utils/debug'
+import { debugExecutor, debugExecutorFrame } from '../utils/debug'
 import { visibilityAdaptiveLoop } from '../utils/worker-timer'
+import type { Field } from './fields'
 import type { ForLoopBeginOp, ForLoopEndOp, ForLoopMetaOp, IOperator, Operator } from './operators'
 import { getAllOps } from './store'
 import type { OpId } from './utils/id-utils'
@@ -268,6 +269,14 @@ export class GraphExecutor {
     this.downstream.clear()
 
     for (const edge of edges) {
+      // Skip self-referencing parameter edges (not true cycles - output depends on input value)
+      const isSelfParameterReference =
+        edge.source === edge.target && edge.sourceHandle?.startsWith('par.')
+
+      if (isSelfParameterReference) {
+        continue
+      }
+
       this.edges.push({ source: edge.source, target: edge.target })
 
       if (!this.downstream.has(edge.source)) this.downstream.set(edge.source, new Set())
@@ -360,7 +369,10 @@ export class GraphExecutor {
     this.syncNodesFromStore()
     this.updateSort()
 
-    debugExecutor(
+    // Nothing to execute yet — skip silently until the graph is populated
+    if (this.nodes.size === 0) return results
+
+    debugExecutorFrame(
       'executeFrame: nodes=%d, edges=%d, dirty=%d',
       this.nodes.size,
       this.edges.length,
@@ -387,6 +399,7 @@ export class GraphExecutor {
         )
         results.set(scope.endOp.id, { value: { data: loopResults }, changed: true })
       } catch (error) {
+        console.error('[Noodles] ForLoop execution error:', error)
         results.set(scope.endOp.id, {
           value: null,
           changed: false,
@@ -399,7 +412,7 @@ export class GraphExecutor {
     // ForLoopEndOp may have downstream roots that will pull from its cached results
     const roots = this.findRootOperators()
 
-    debugExecutor(
+    debugExecutorFrame(
       'Pulling roots: %d dirty nodes, %d roots %O',
       this.dirtyNodes.size,
       roots.length,
@@ -442,7 +455,7 @@ export class GraphExecutor {
     this.metrics.executionCount = results.size
     this.metrics.totalOperators = this.nodes.size
 
-    debugExecutor('Frame complete: %dms', this.metrics.frameTime.toFixed(2))
+    debugExecutorFrame('Frame complete: %dms', this.metrics.frameTime.toFixed(2))
 
     return results
   }
@@ -626,6 +639,25 @@ export class GraphExecutor {
     // Get initial accumulator value if meta op exists
     let accumulator: unknown = metaOp?.inputs.initialValue.value ?? null
 
+    // Hoist edge lookup out of the loop for O(1) per-iteration performance
+    // Instead of calling getOutputValueForField() every iteration (O(edges) scan)
+    const lastIntermediateOp = executionOrder[executionOrder.length - 1]
+    let resultOutputKey: string | null = null
+    if (lastIntermediateOp) {
+      const targetHandle = this.getFieldHandle(endOp.inputs.item)
+      if (!targetHandle) {
+        console.warn(
+          `[GraphExecutor] getFieldHandle returned empty for endOp.inputs.item in ForLoop ${beginOp.id}`
+        )
+      }
+      const connectingEdge = this.edges.find(
+        edge => edge.source === lastIntermediateOp.id && edge.targetHandle === targetHandle
+      )
+      if (connectingEdge) {
+        resultOutputKey = connectingEdge.sourceHandle.split('.')[1] || null
+      }
+    }
+
     for (let index = 0; index < total; index++) {
       const item = data[index]
       const isFirst = index === 0
@@ -660,8 +692,14 @@ export class GraphExecutor {
         await op.pull()
       }
 
-      // Collect result from this iteration
-      results.push(endOp.inputs.item.value)
+      // Collect result from this iteration using pre-computed output key
+      const resultValue =
+        lastIntermediateOp && resultOutputKey && lastIntermediateOp._cachedOutput
+          ? (lastIntermediateOp._cachedOutput[resultOutputKey] ?? endOp.inputs.item.value)
+          : executionOrder.length > 0
+            ? endOp.inputs.item.value
+            : beginOp.outputs.item.value
+      results.push(resultValue)
 
       // Update accumulator from meta op's currentValue input for next iteration
       if (metaOp) {
@@ -742,6 +780,33 @@ export class GraphExecutor {
     }
 
     return scopes
+  }
+
+  // Helper to get the field handle string for a given field
+  private getFieldHandle(field: Field<unknown>): string {
+    // Fields are stored in operator.inputs or operator.outputs
+    // The handle format is "par.fieldName" or "out.fieldName"
+    const op = field.op
+    if (!op) {
+      console.warn('[GraphExecutor] getFieldHandle called with field that has no op reference')
+      return ''
+    }
+
+    // Check inputs
+    for (const [key, f] of Object.entries(op.inputs)) {
+      if (f === field) return `par.${key}`
+    }
+    // Check outputs
+    for (const [key, f] of Object.entries(op.outputs)) {
+      if (f === field) return `out.${key}`
+    }
+
+    // Field not found in enumerable properties - could be non-enumerable, Map-stored, or inherited
+    console.warn(
+      `[GraphExecutor] getFieldHandle could not find field in operator ${op.id} inputs/outputs. ` +
+        'This may indicate non-enumerable properties or unconventional field storage.'
+    )
+    return ''
   }
 }
 

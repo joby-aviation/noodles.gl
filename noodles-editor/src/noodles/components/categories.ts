@@ -9,6 +9,7 @@ export const categories = {
     'Bounds',
     'Chart',
     'Concat',
+    'Cross',
     'DateTime',
     'DeckRenderer',
     'Directions',
@@ -29,7 +30,7 @@ export const categories = {
     'Viewer',
     'ViewState',
   ],
-  geojson: ['GeoJson', 'GeoJsonTransform', 'KmlToGeoJson', 'Point', 'Rectangle'],
+  geojson: ['GeoJson', 'GeoJsonTransform', 'KmlToGeoJson', 'Point', 'Rectangle', 'Smooth'],
   layer: [
     'A5Layer',
     'ArcLayer',
@@ -79,21 +80,22 @@ export const categories = {
     'TerrainExtension',
     'VibranceExtension',
   ],
-  number: ['Number', 'MapRange', 'Extent', 'Math', 'BezierCurve', 'Time'],
+  number: ['Number', 'MapRange', 'Extent', 'Math', 'BezierCurve', 'Ramp', 'Time'],
   string: ['String'],
   utility: [
     'Blending',
     'Boolean',
     'Console',
     'LayerProps',
+    'MapStyleConfigurator',
     'Mouse',
     'Project',
     'Reroute',
     'Unproject',
-    'MapStyle',
   ],
   vector: ['CombineXY', 'CombineXYZ', 'SplitXY', 'SplitXYZ'],
   view: [
+    'CustomMapLibreLayer',
     'FirstPersonView',
     'GlobeView',
     'MaplibreBasemap',
@@ -103,7 +105,15 @@ export const categories = {
     'OrthographicView',
     'SplitMapViewState',
   ],
-  widget: ['CompassWidget', 'FpsWidget', 'FullscreenWidget', 'ScreenshotWidget', 'ZoomWidget'],
+  widget: [
+    'BitmapOverlayWidget',
+    'CompassWidget',
+    'FpsWidget',
+    'FullscreenWidget',
+    'LegendWidget',
+    'ScreenshotWidget',
+    'ZoomWidget',
+  ],
 } as const
 
 // TODO: Remove this function when we fully migrate to operator displayNames

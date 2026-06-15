@@ -1,10 +1,53 @@
 {
-  "version": 7,
+  "version": 14,
+  "edges": [
+    {
+      "id": "/basemap.out.maplibre->/renderer.par.basemap",
+      "source": "/basemap",
+      "target": "/renderer",
+      "sourceHandle": "out.maplibre",
+      "targetHandle": "par.basemap"
+    },
+    {
+      "id": "/point-cloud.out.layer->/renderer.par.layers",
+      "source": "/point-cloud",
+      "target": "/renderer",
+      "sourceHandle": "out.layer",
+      "targetHandle": "par.layers"
+    },
+    {
+      "id": "/video-spheres.out.data->/renderer.par.layers",
+      "source": "/video-spheres",
+      "target": "/renderer",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.layers"
+    },
+    {
+      "id": "/renderer.out.vis->/out.par.vis",
+      "source": "/renderer",
+      "target": "/out",
+      "sourceHandle": "out.vis",
+      "targetHandle": "par.vis"
+    }
+  ],
+  "viewport": {
+    "x": 200,
+    "y": 200,
+    "zoom": 0.75
+  },
+  "name": "Cesium + Hubble Video Spheres",
+  "editorSettings": {
+    "layoutMode": "noodles-on-top",
+    "showOverlay": true
+  },
   "nodes": [
     {
       "id": "/basemap",
       "type": "MaplibreBasemapOp",
-      "position": { "x": 300, "y": 300 },
+      "position": {
+        "x": 300,
+        "y": 300
+      },
       "data": {
         "inputs": {
           "mapStyle": "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",
@@ -22,7 +65,10 @@
     {
       "id": "/point-cloud",
       "type": "Tile3DLayerOp",
-      "position": { "x": -50, "y": -180 },
+      "position": {
+        "x": -50,
+        "y": -180
+      },
       "data": {
         "inputs": {
           "provider": "Cesium",
@@ -34,10 +80,16 @@
     {
       "id": "/video-spheres",
       "type": "CodeOp",
-      "position": { "x": -400, "y": 60 },
+      "position": {
+        "x": -400,
+        "y": 60
+      },
       "width": 900,
       "height": 680,
-      "measured": { "width": 900, "height": 680 },
+      "measured": {
+        "width": 900,
+        "height": 680
+      },
       "data": {
         "inputs": {
           "code": [
@@ -119,7 +171,10 @@
     {
       "id": "/renderer",
       "type": "DeckRendererOp",
-      "position": { "x": 800, "y": 60 },
+      "position": {
+        "x": 800,
+        "y": 60
+      },
       "data": {
         "inputs": {},
         "locked": false
@@ -128,55 +183,33 @@
     {
       "id": "/out",
       "type": "OutOp",
-      "position": { "x": 1100, "y": 60 },
+      "position": {
+        "x": 1100,
+        "y": 60
+      },
       "data": {
-        "inputs": {},
+        "inputs": {
+          "display": "fixed",
+          "width": 1920,
+          "height": 1080,
+          "lod": 2,
+          "waitForData": true,
+          "codec": "avc",
+          "bitrateMbps": 10,
+          "bitrateMode": "constant",
+          "scaleControl": 0.3,
+          "framerate": 24,
+          "captureDelay": 50
+        },
         "locked": false
       }
     }
   ],
-  "edges": [
-    {
-      "id": "/basemap.out.maplibre->/renderer.par.basemap",
-      "source": "/basemap",
-      "target": "/renderer",
-      "sourceHandle": "out.maplibre",
-      "targetHandle": "par.basemap"
-    },
-    {
-      "id": "/point-cloud.out.layer->/renderer.par.layers",
-      "source": "/point-cloud",
-      "target": "/renderer",
-      "sourceHandle": "out.layer",
-      "targetHandle": "par.layers"
-    },
-    {
-      "id": "/video-spheres.out.data->/renderer.par.layers",
-      "source": "/video-spheres",
-      "target": "/renderer",
-      "sourceHandle": "out.data",
-      "targetHandle": "par.layers"
-    },
-    {
-      "id": "/renderer.out.vis->/out.par.vis",
-      "source": "/renderer",
-      "target": "/out",
-      "sourceHandle": "out.vis",
-      "targetHandle": "par.vis"
-    }
-  ],
-  "viewport": {
-    "x": 200,
-    "y": 200,
-    "zoom": 0.75
-  },
   "timeline": {
     "sheetsById": {
       "Noodles": {
         "staticOverrides": {
-          "byObject": {
-            "render": { "framerate": 24 }
-          }
+          "byObject": {}
         },
         "sequence": {
           "subUnitsPerUnit": 30,
@@ -189,70 +222,550 @@
                   "type": "BasicKeyframedTrack",
                   "__debugName": "basemap:[\"viewState\",\"longitude\"]",
                   "keyframes": [
-                    { "id": "kf_lng_0", "position": 0,    "connectedRight": true,  "handles": [0.5, 1, 0.5, 0], "type": "bezier", "value": -74.01528014573182 },
-                    { "id": "kf_lng_1", "position": 4,    "connectedRight": true,  "handles": [0.5, 1, 0.5, 0], "type": "bezier", "value": -74.0152298040547 },
-                    { "id": "kf_lng_2", "position": 5.5,  "connectedRight": true,  "handles": [0.5, 1, 0.5, 0], "type": "bezier", "value": -74.00393041204993 },
-                    { "id": "kf_lng_3", "position": 7,    "connectedRight": true,  "handles": [0.5, 1, 0.5, 0], "type": "bezier", "value": -73.98427479072922 },
-                    { "id": "kf_lng_4", "position": 7.5,  "connectedRight": true,  "handles": [0.5, 1, 0.5, 0], "type": "bezier", "value": -73.98 },
-                    { "id": "kf_lng_5", "position": 11,   "connectedRight": true,  "handles": [0.5, 1, 0.5, 0], "type": "bezier", "value": -73.97857897544452 },
-                    { "id": "kf_lng_6", "position": 18,   "connectedRight": true,  "handles": [0.5, 1, 0.5, 0], "type": "bezier", "value": -73.99384768869895 },
-                    { "id": "kf_lng_7", "position": 19,   "connectedRight": false, "handles": [0.5, 1, 0.5, 0], "type": "bezier", "value": -73.99244100531732 }
+                    {
+                      "id": "kf_lng_0",
+                      "position": 0,
+                      "connectedRight": true,
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
+                      "type": "bezier",
+                      "value": -74.01528014573182
+                    },
+                    {
+                      "id": "kf_lng_1",
+                      "position": 4,
+                      "connectedRight": true,
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
+                      "type": "bezier",
+                      "value": -74.0152298040547
+                    },
+                    {
+                      "id": "kf_lng_2",
+                      "position": 5.5,
+                      "connectedRight": true,
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
+                      "type": "bezier",
+                      "value": -74.00393041204993
+                    },
+                    {
+                      "id": "kf_lng_3",
+                      "position": 7,
+                      "connectedRight": true,
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
+                      "type": "bezier",
+                      "value": -73.98427479072922
+                    },
+                    {
+                      "id": "kf_lng_4",
+                      "position": 7.5,
+                      "connectedRight": true,
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
+                      "type": "bezier",
+                      "value": -73.98
+                    },
+                    {
+                      "id": "kf_lng_5",
+                      "position": 11,
+                      "connectedRight": true,
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
+                      "type": "bezier",
+                      "value": -73.97857897544452
+                    },
+                    {
+                      "id": "kf_lng_6",
+                      "position": 18,
+                      "connectedRight": true,
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
+                      "type": "bezier",
+                      "value": -73.99384768869895
+                    },
+                    {
+                      "id": "kf_lng_7",
+                      "position": 19,
+                      "connectedRight": false,
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
+                      "type": "bezier",
+                      "value": -73.99244100531732
+                    }
                   ]
                 },
                 "latTrk001": {
                   "type": "BasicKeyframedTrack",
                   "__debugName": "basemap:[\"viewState\",\"latitude\"]",
                   "keyframes": [
-                    { "id": "kf_lat_0", "position": 0,    "connectedRight": true,  "handles": [0.5, 1, 0.5, 0], "type": "bezier", "value": 40.706616771021125 },
-                    { "id": "kf_lat_1", "position": 4,    "connectedRight": true,  "handles": [0.5, 1, 0.5, 0], "type": "bezier", "value": 40.70303169832896 },
-                    { "id": "kf_lat_2", "position": 5.5,  "connectedRight": true,  "handles": [0.5, 1, 0.5, 0], "type": "bezier", "value": 40.71734981243856 },
-                    { "id": "kf_lat_3", "position": 7,    "connectedRight": true,  "handles": [0.5, 1, 0.5, 0], "type": "bezier", "value": 40.75431303578706 },
-                    { "id": "kf_lat_4", "position": 7.5,  "connectedRight": true,  "handles": [0.5, 1, 0.5, 0], "type": "bezier", "value": 40.76 },
-                    { "id": "kf_lat_5", "position": 11,   "connectedRight": true,  "handles": [0.5, 1, 0.5, 0], "type": "bezier", "value": 40.76987541463695 },
-                    { "id": "kf_lat_6", "position": 18,   "connectedRight": true,  "handles": [0.5, 1, 0.5, 0], "type": "bezier", "value": 40.709429113152396 },
-                    { "id": "kf_lat_7", "position": 19,   "connectedRight": false, "handles": [0.5, 1, 0.5, 0], "type": "bezier", "value": 40.7096991343267 }
+                    {
+                      "id": "kf_lat_0",
+                      "position": 0,
+                      "connectedRight": true,
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
+                      "type": "bezier",
+                      "value": 40.706616771021125
+                    },
+                    {
+                      "id": "kf_lat_1",
+                      "position": 4,
+                      "connectedRight": true,
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
+                      "type": "bezier",
+                      "value": 40.70303169832896
+                    },
+                    {
+                      "id": "kf_lat_2",
+                      "position": 5.5,
+                      "connectedRight": true,
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
+                      "type": "bezier",
+                      "value": 40.71734981243856
+                    },
+                    {
+                      "id": "kf_lat_3",
+                      "position": 7,
+                      "connectedRight": true,
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
+                      "type": "bezier",
+                      "value": 40.75431303578706
+                    },
+                    {
+                      "id": "kf_lat_4",
+                      "position": 7.5,
+                      "connectedRight": true,
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
+                      "type": "bezier",
+                      "value": 40.76
+                    },
+                    {
+                      "id": "kf_lat_5",
+                      "position": 11,
+                      "connectedRight": true,
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
+                      "type": "bezier",
+                      "value": 40.76987541463695
+                    },
+                    {
+                      "id": "kf_lat_6",
+                      "position": 18,
+                      "connectedRight": true,
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
+                      "type": "bezier",
+                      "value": 40.709429113152396
+                    },
+                    {
+                      "id": "kf_lat_7",
+                      "position": 19,
+                      "connectedRight": false,
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
+                      "type": "bezier",
+                      "value": 40.7096991343267
+                    }
                   ]
                 },
                 "zmTrk0001": {
                   "type": "BasicKeyframedTrack",
                   "__debugName": "basemap:[\"viewState\",\"zoom\"]",
                   "keyframes": [
-                    { "id": "kf_zm_0", "position": 0,    "connectedRight": true,  "handles": [0.5, 1, 0.5, 0], "type": "bezier", "value": 20 },
-                    { "id": "kf_zm_1", "position": 4,    "connectedRight": true,  "handles": [0.5, 1, 0.5, 0], "type": "bezier", "value": 15.71886755188483 },
-                    { "id": "kf_zm_2", "position": 5.5,  "connectedRight": true,  "handles": [0.5, 1, 0.5, 0], "type": "bezier", "value": 15.71886755188483 },
-                    { "id": "kf_zm_3", "position": 7,    "connectedRight": true,  "handles": [0.5, 1, 0.5, 0], "type": "bezier", "value": 18.73975411019099 },
-                    { "id": "kf_zm_4", "position": 7.5,  "connectedRight": true,  "handles": [0.5, 1, 0.5, 0], "type": "bezier", "value": 17 },
-                    { "id": "kf_zm_5", "position": 11,   "connectedRight": true,  "handles": [0.5, 1, 0.5, 0], "type": "bezier", "value": 15 },
-                    { "id": "kf_zm_6", "position": 18,   "connectedRight": true,  "handles": [0.5, 1, 0.5, 0], "type": "bezier", "value": 14.5 },
-                    { "id": "kf_zm_7", "position": 19,   "connectedRight": false, "handles": [0.5, 1, 0.5, 0], "type": "bezier", "value": 17 }
+                    {
+                      "id": "kf_zm_0",
+                      "position": 0,
+                      "connectedRight": true,
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
+                      "type": "bezier",
+                      "value": 20
+                    },
+                    {
+                      "id": "kf_zm_1",
+                      "position": 4,
+                      "connectedRight": true,
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
+                      "type": "bezier",
+                      "value": 15.71886755188483
+                    },
+                    {
+                      "id": "kf_zm_2",
+                      "position": 5.5,
+                      "connectedRight": true,
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
+                      "type": "bezier",
+                      "value": 15.71886755188483
+                    },
+                    {
+                      "id": "kf_zm_3",
+                      "position": 7,
+                      "connectedRight": true,
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
+                      "type": "bezier",
+                      "value": 18.73975411019099
+                    },
+                    {
+                      "id": "kf_zm_4",
+                      "position": 7.5,
+                      "connectedRight": true,
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
+                      "type": "bezier",
+                      "value": 17
+                    },
+                    {
+                      "id": "kf_zm_5",
+                      "position": 11,
+                      "connectedRight": true,
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
+                      "type": "bezier",
+                      "value": 15
+                    },
+                    {
+                      "id": "kf_zm_6",
+                      "position": 18,
+                      "connectedRight": true,
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
+                      "type": "bezier",
+                      "value": 14.5
+                    },
+                    {
+                      "id": "kf_zm_7",
+                      "position": 19,
+                      "connectedRight": false,
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
+                      "type": "bezier",
+                      "value": 17
+                    }
                   ]
                 },
                 "ptTrk0001": {
                   "type": "BasicKeyframedTrack",
                   "__debugName": "basemap:[\"viewState\",\"pitch\"]",
                   "keyframes": [
-                    { "id": "kf_pt_0", "position": 0,    "connectedRight": true,  "handles": [0.5, 1, 0.5, 0], "type": "bezier", "value": 55.17280350846221 },
-                    { "id": "kf_pt_1", "position": 4,    "connectedRight": true,  "handles": [0.5, 1, 0.5, 0], "type": "bezier", "value": 60 },
-                    { "id": "kf_pt_2", "position": 5.5,  "connectedRight": true,  "handles": [0.5, 1, 0.5, 0], "type": "bezier", "value": 60 },
-                    { "id": "kf_pt_3", "position": 7,    "connectedRight": true,  "handles": [0.5, 1, 0.5, 0], "type": "bezier", "value": 60 },
-                    { "id": "kf_pt_4", "position": 7.5,  "connectedRight": true,  "handles": [0.5, 1, 0.5, 0], "type": "bezier", "value": 60 },
-                    { "id": "kf_pt_5", "position": 11,   "connectedRight": true,  "handles": [0.5, 1, 0.5, 0], "type": "bezier", "value": 60 },
-                    { "id": "kf_pt_6", "position": 18,   "connectedRight": true,  "handles": [0.5, 1, 0.5, 0], "type": "bezier", "value": 59.70381797146161 },
-                    { "id": "kf_pt_7", "position": 19,   "connectedRight": false, "handles": [0.5, 1, 0.5, 0], "type": "bezier", "value": 59.70381797146161 }
+                    {
+                      "id": "kf_pt_0",
+                      "position": 0,
+                      "connectedRight": true,
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
+                      "type": "bezier",
+                      "value": 55.17280350846221
+                    },
+                    {
+                      "id": "kf_pt_1",
+                      "position": 4,
+                      "connectedRight": true,
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
+                      "type": "bezier",
+                      "value": 60
+                    },
+                    {
+                      "id": "kf_pt_2",
+                      "position": 5.5,
+                      "connectedRight": true,
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
+                      "type": "bezier",
+                      "value": 60
+                    },
+                    {
+                      "id": "kf_pt_3",
+                      "position": 7,
+                      "connectedRight": true,
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
+                      "type": "bezier",
+                      "value": 60
+                    },
+                    {
+                      "id": "kf_pt_4",
+                      "position": 7.5,
+                      "connectedRight": true,
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
+                      "type": "bezier",
+                      "value": 60
+                    },
+                    {
+                      "id": "kf_pt_5",
+                      "position": 11,
+                      "connectedRight": true,
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
+                      "type": "bezier",
+                      "value": 60
+                    },
+                    {
+                      "id": "kf_pt_6",
+                      "position": 18,
+                      "connectedRight": true,
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
+                      "type": "bezier",
+                      "value": 59.70381797146161
+                    },
+                    {
+                      "id": "kf_pt_7",
+                      "position": 19,
+                      "connectedRight": false,
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
+                      "type": "bezier",
+                      "value": 59.70381797146161
+                    }
                   ]
                 },
                 "brTrk0001": {
                   "type": "BasicKeyframedTrack",
                   "__debugName": "basemap:[\"viewState\",\"bearing\"]",
                   "keyframes": [
-                    { "id": "kf_br_0", "position": 0,    "connectedRight": true,  "handles": [0.5, 1, 0.5, 0], "type": "bezier", "value": 2.3531249999999773 },
-                    { "id": "kf_br_1", "position": 4,    "connectedRight": true,  "handles": [0.5, 1, 0.5, 0], "type": "bezier", "value": 33.00937499999998 },
-                    { "id": "kf_br_2", "position": 5.5,  "connectedRight": true,  "handles": [0.5, 1, 0.5, 0], "type": "bezier", "value": 33.00937499999998 },
-                    { "id": "kf_br_3", "position": 7,    "connectedRight": true,  "handles": [0.5, 1, 0.5, 0], "type": "bezier", "value": 33.00937499999998 },
-                    { "id": "kf_br_4", "position": 7.5,  "connectedRight": true,  "handles": [0.5, 1, 0.5, 0], "type": "bezier", "value": 33.00937499999998 },
-                    { "id": "kf_br_5", "position": 11,   "connectedRight": true,  "handles": [0.5, 1, 0.5, 0], "type": "bezier", "value": 120 },
-                    { "id": "kf_br_6", "position": 18,   "connectedRight": true,  "handles": [0.5, 1, 0.5, 0], "type": "bezier", "value": 165.36231617647059 },
-                    { "id": "kf_br_7", "position": 19,   "connectedRight": false, "handles": [0.5, 1, 0.5, 0], "type": "bezier", "value": 165.36231617647059 }
+                    {
+                      "id": "kf_br_0",
+                      "position": 0,
+                      "connectedRight": true,
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
+                      "type": "bezier",
+                      "value": 2.3531249999999773
+                    },
+                    {
+                      "id": "kf_br_1",
+                      "position": 4,
+                      "connectedRight": true,
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
+                      "type": "bezier",
+                      "value": 33.00937499999998
+                    },
+                    {
+                      "id": "kf_br_2",
+                      "position": 5.5,
+                      "connectedRight": true,
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
+                      "type": "bezier",
+                      "value": 33.00937499999998
+                    },
+                    {
+                      "id": "kf_br_3",
+                      "position": 7,
+                      "connectedRight": true,
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
+                      "type": "bezier",
+                      "value": 33.00937499999998
+                    },
+                    {
+                      "id": "kf_br_4",
+                      "position": 7.5,
+                      "connectedRight": true,
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
+                      "type": "bezier",
+                      "value": 33.00937499999998
+                    },
+                    {
+                      "id": "kf_br_5",
+                      "position": 11,
+                      "connectedRight": true,
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
+                      "type": "bezier",
+                      "value": 120
+                    },
+                    {
+                      "id": "kf_br_6",
+                      "position": 18,
+                      "connectedRight": true,
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
+                      "type": "bezier",
+                      "value": 165.36231617647059
+                    },
+                    {
+                      "id": "kf_br_7",
+                      "position": 19,
+                      "connectedRight": false,
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
+                      "type": "bezier",
+                      "value": 165.36231617647059
+                    }
                   ]
                 }
               },
@@ -264,7 +777,8 @@
                 "[\"viewState\",\"bearing\"]": "brTrk0001"
               }
             }
-          }
+          },
+          "markers": []
         }
       }
     },

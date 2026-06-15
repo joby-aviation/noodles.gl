@@ -1,5 +1,6 @@
 import type z from 'zod/v4'
 import { type Field, ListField, UnknownField } from '../fields'
+import { debugConnect } from '../../utils/debug'
 
 export type ConnectionValidationResult = {
   valid: boolean
@@ -63,20 +64,41 @@ function unwrapSchema(schema: z.ZodType): z.ZodType {
 }
 
 // Check if source schema is structurally compatible with target schema
-export function schemasAreCompatible(from: z.ZodType, to: z.ZodType): boolean {
+export function schemasAreCompatible(from: z.ZodType, to: z.ZodType, depth = 0): boolean {
   // biome-ignore lint/suspicious/noExplicitAny: Zod internal API access
   const fromDef = (unwrapSchema(from) as any)._zod.def as ZodDef
   // biome-ignore lint/suspicious/noExplicitAny: Zod internal API access
   const toDef = (unwrapSchema(to) as any)._zod.def as ZodDef
 
+  if (debugConnect.enabled) {
+    const indent = '  '.repeat(depth)
+    debugConnect(`${indent}Comparing: from.type=${fromDef.type}, to.type=${toDef.type}`)
+  }
+
   // z.unknown() accepts anything
-  if (toDef.type === 'unknown') return true
+  if (toDef.type === 'unknown') {
+    if (debugConnect.enabled) {
+      const indent = '  '.repeat(depth)
+      debugConnect(`${indent}✓ Target is unknown (accepts anything)`)
+    }
+    return true
+  }
   // z.unknown() can produce anything — optimistically allow
-  if (fromDef.type === 'unknown') return true
+  if (fromDef.type === 'unknown') {
+    if (debugConnect.enabled) {
+      const indent = '  '.repeat(depth)
+      debugConnect(`${indent}✓ Source is unknown (optimistically allow)`)
+    }
+    return true
+  }
 
   // If target is a union and source is NOT a union, check if source is compatible with any option
   if (toDef.type === 'union' && fromDef.type !== 'union' && toDef.options) {
-    return toDef.options.some(toOpt => schemasAreCompatible(from, toOpt))
+    if (debugConnect.enabled) {
+      const indent = '  '.repeat(depth)
+      debugConnect(`${indent}Checking union compatibility`)
+    }
+    return toDef.options.some(toOpt => schemasAreCompatible(from, toOpt, depth + 1))
   }
 
   // Handle literal types — string is compatible with literal<string>, etc.
@@ -84,53 +106,185 @@ export function schemasAreCompatible(from: z.ZodType, to: z.ZodType): boolean {
   if (toDef.type === 'literal') {
     // biome-ignore lint/suspicious/noExplicitAny: Zod internal API access
     const literalValues = (toDef as any).values as unknown[]
-    if (!literalValues || literalValues.length === 0) return false
+    if (!literalValues || literalValues.length === 0) {
+      if (debugConnect.enabled) {
+        const indent = '  '.repeat(depth)
+        debugConnect(`${indent}✗ Literal has no values`)
+      }
+      return false
+    }
+
+    // If source is also a literal, both must have the same value
+    // Sort arrays to handle multi-value literals with different insertion orders
+    if (fromDef.type === 'literal') {
+      // biome-ignore lint/suspicious/noExplicitAny: Zod internal API access
+      const fromLiteralValues = (fromDef as any).values as unknown[]
+      const compatible =
+        JSON.stringify([...fromLiteralValues].sort()) === JSON.stringify([...literalValues].sort())
+      if (debugConnect.enabled) {
+        const indent = '  '.repeat(depth)
+        debugConnect(
+          `${indent}${compatible ? '✓' : '✗'} Literal to literal: from=${JSON.stringify(fromLiteralValues)}, to=${JSON.stringify(literalValues)}`
+        )
+      }
+      return compatible
+    }
+
+    // Otherwise, source must be a primitive type matching the literal's type
     const expectedType = typeof literalValues[0]
-    return fromDef.type === expectedType
+    const compatible = fromDef.type === expectedType
+    if (debugConnect.enabled) {
+      const indent = '  '.repeat(depth)
+      debugConnect(
+        `${indent}${compatible ? '✓' : '✗'} Literal check: expected=${expectedType}, got=${fromDef.type}`
+      )
+    }
+    return compatible
   }
 
   // Different base types are incompatible
-  if (fromDef.type !== toDef.type) return false
+  if (fromDef.type !== toDef.type) {
+    if (debugConnect.enabled) {
+      const indent = '  '.repeat(depth)
+      debugConnect(`${indent}✗ Type mismatch: ${fromDef.type} !== ${toDef.type}`)
+    }
+    return false
+  }
 
   switch (fromDef.type) {
     case 'array':
-      if (!fromDef.element || !toDef.element) return true
-      return schemasAreCompatible(fromDef.element, toDef.element)
+      if (debugConnect.enabled) {
+        const indent = '  '.repeat(depth)
+        debugConnect(`${indent}Checking array element compatibility`)
+      }
+      if (!fromDef.element || !toDef.element) {
+        if (debugConnect.enabled) {
+          const indent = '  '.repeat(depth)
+          debugConnect(`${indent}✓ Array has no element schema`)
+        }
+        return true
+      }
+      return schemasAreCompatible(fromDef.element, toDef.element, depth + 1)
 
     case 'object':
     case 'looseObject':
     case 'strictObject':
+      if (debugConnect.enabled) {
+        const indent = '  '.repeat(depth)
+        debugConnect(`${indent}Checking object shape compatibility`)
+      }
       // All required properties in target must exist in source with compatible types
-      if (!toDef.shape) return true
+      if (!toDef.shape) {
+        if (debugConnect.enabled) {
+          const indent = '  '.repeat(depth)
+          debugConnect(`${indent}✓ Target has no shape`)
+        }
+        return true
+      }
+      if (debugConnect.enabled) {
+        const indent = '  '.repeat(depth)
+        debugConnect(`${indent}Target shape keys: ${Object.keys(toDef.shape).join(', ')}`)
+        debugConnect(
+          `${indent}Source shape keys: ${fromDef.shape ? Object.keys(fromDef.shape).join(', ') : 'none'}`
+        )
+      }
       for (const [key, toSchema] of Object.entries(toDef.shape)) {
         const fromSchema = fromDef.shape?.[key]
-        if (!fromSchema) return false
-        if (!schemasAreCompatible(fromSchema, toSchema)) return false
+        if (!fromSchema) {
+          if (debugConnect.enabled) {
+            const indent = '  '.repeat(depth)
+            debugConnect(`${indent}✗ Missing property '${key}' in source`)
+          }
+          return false
+        }
+        if (debugConnect.enabled) {
+          const indent = '  '.repeat(depth)
+          debugConnect(`${indent}Checking property '${key}'`)
+        }
+        // IMPORTANT: Don't unwrap here - let the recursive call handle it
+        // The recursive schemasAreCompatible will unwrap both schemas at the start
+        if (!schemasAreCompatible(fromSchema, toSchema, depth + 1)) {
+          if (debugConnect.enabled) {
+            const indent = '  '.repeat(depth)
+            debugConnect(`${indent}✗ Property '${key}' incompatible`)
+          }
+          return false
+        }
+      }
+      if (debugConnect.enabled) {
+        const indent = '  '.repeat(depth)
+        debugConnect(`${indent}✓ All properties compatible`)
       }
       return true
 
     case 'union':
-      if (!fromDef.options || !toDef.options) return true
+      if (debugConnect.enabled) {
+        const indent = '  '.repeat(depth)
+        debugConnect(`${indent}Checking union compatibility`)
+      }
+      if (!fromDef.options || !toDef.options) {
+        if (debugConnect.enabled) {
+          const indent = '  '.repeat(depth)
+          debugConnect(`${indent}✓ Union has no options`)
+        }
+        return true
+      }
       // Every option in source must be compatible with at least one option in target
       return fromDef.options.every(fromOpt =>
-        toDef.options!.some(toOpt => schemasAreCompatible(fromOpt, toOpt))
+        toDef.options!.some(toOpt => schemasAreCompatible(fromOpt, toOpt, depth + 1))
       )
 
     case 'tuple':
-      if (!fromDef.items || !toDef.items) return true
-      if (fromDef.items.length !== toDef.items.length) return false
-      return fromDef.items.every((fromItem, i) => schemasAreCompatible(fromItem, toDef.items![i]))
+      if (debugConnect.enabled) {
+        const indent = '  '.repeat(depth)
+        debugConnect(`${indent}Checking tuple compatibility`)
+      }
+      if (!fromDef.items || !toDef.items) {
+        if (debugConnect.enabled) {
+          const indent = '  '.repeat(depth)
+          debugConnect(`${indent}✓ Tuple has no items`)
+        }
+        return true
+      }
+      if (fromDef.items.length !== toDef.items.length) {
+        if (debugConnect.enabled) {
+          const indent = '  '.repeat(depth)
+          debugConnect(
+            `${indent}✗ Tuple length mismatch: ${fromDef.items.length} !== ${toDef.items.length}`
+          )
+        }
+        return false
+      }
+      return fromDef.items.every((fromItem, i) =>
+        schemasAreCompatible(fromItem, toDef.items![i], depth + 1)
+      )
 
     default:
       // Primitives with same type are compatible
+      if (debugConnect.enabled) {
+        const indent = '  '.repeat(depth)
+        debugConnect(`${indent}✓ Primitive type ${fromDef.type}`)
+      }
       return true
   }
 }
 
 // Validates if two fields can be connected using structural schema comparison
 export function validateConnection(from: Field, to: Field): ConnectionValidationResult {
+  const fromFieldType = (from.constructor as typeof Field).type
+  const toFieldType = (to.constructor as typeof Field).type
+
+  if (debugConnect.enabled) {
+    debugConnect(`\n=== validateConnection ===`)
+    debugConnect(`From: ${from.constructor.name} (type=${fromFieldType})`)
+    debugConnect(`To: ${to.constructor.name} (type=${toFieldType})`)
+  }
+
   // UnknownField can connect to anything
   if (from instanceof UnknownField) {
+    if (debugConnect.enabled) {
+      debugConnect('✓ Source is UnknownField')
+    }
     return { valid: true }
   }
 
@@ -140,15 +294,22 @@ export function validateConnection(from: Field, to: Field): ConnectionValidation
   // biome-ignore lint/suspicious/noExplicitAny: Zod internal API access
   const fromType = (unwrapSchema(fromSchema) as any)._zod.def.type
 
+  if (debugConnect.enabled) {
+    debugConnect(`Schema comparison starting...`)
+  }
   // Structural type check
   if (!schemasAreCompatible(fromSchema, toSchema)) {
-    const fromFieldType = (from.constructor as typeof Field).type
-    const toFieldType = (to.constructor as typeof Field).type
+    if (debugConnect.enabled) {
+      debugConnect(`✗ Schema compatibility failed`)
+    }
     return {
       valid: false,
       severity: 'error',
       error: `Type mismatch: ${fromFieldType} cannot connect to ${toFieldType}`,
     }
+  }
+  if (debugConnect.enabled) {
+    debugConnect(`✓ Schema compatible`)
   }
 
   // Skip constraint validation for unknown schemas — they're optimistically compatible

@@ -16,6 +16,42 @@ import type {
 } from './types'
 import { parseModifications } from './types'
 
+// Type guards for ToolResult data
+interface ScreenshotData {
+  screenshot: string
+  format?: 'png' | 'jpeg'
+  width?: number
+  height?: number
+  originalWidth?: number
+  originalHeight?: number
+  timestamp?: number
+  pixelRatio?: number
+}
+
+interface ModificationsData {
+  modifications: ProjectModification[]
+  modificationsCount?: number
+  message?: string
+}
+
+function isScreenshotData(data: unknown): data is ScreenshotData {
+  return (
+    typeof data === 'object' &&
+    data !== null &&
+    'screenshot' in data &&
+    typeof (data as ScreenshotData).screenshot === 'string'
+  )
+}
+
+function isModificationsData(data: unknown): data is ModificationsData {
+  return (
+    typeof data === 'object' &&
+    data !== null &&
+    'modifications' in data &&
+    Array.isArray((data as ModificationsData).modifications)
+  )
+}
+
 export class ClaudeClient {
   // Configuration constants
   private static readonly MODEL = 'claude-sonnet-4-5-20250929'
@@ -198,7 +234,7 @@ export class ClaudeClient {
             result = await this.executeTool(content.name, content.input)
             toolCalls.push({
               name: content.name,
-              params: content.input,
+              params: content.input as Record<string, unknown>,
               result,
             })
 
@@ -207,7 +243,8 @@ export class ClaudeClient {
             if (
               content.name === 'capture_visualization' &&
               result.success &&
-              result.data?.screenshot
+              result.data &&
+              isScreenshotData(result.data)
             ) {
               capturedScreenshot = result.data.screenshot
               capturedScreenshotFormat = result.data.format || 'jpeg'
@@ -217,7 +254,8 @@ export class ClaudeClient {
             if (
               content.name === 'apply_modifications' &&
               result.success &&
-              result.data?.modifications
+              result.data &&
+              isModificationsData(result.data)
             ) {
               console.log(
                 '[Claude] Collected modifications from tool call:',
@@ -233,7 +271,7 @@ export class ClaudeClient {
             }
             toolCalls.push({
               name: content.name,
-              params: content.input,
+              params: content.input as Record<string, unknown>,
               result,
             })
           }
@@ -241,13 +279,12 @@ export class ClaudeClient {
           // Strip large data (like screenshots) from tool results before sending back to Claude
           // to prevent token overflow. Screenshots are attached as images in the next message.
           let sanitizedResult: ToolResult = result
-          if (result.success && result.data && 'screenshot' in result.data) {
-            const data = { ...result.data }
-            delete data.screenshot
+          if (result.success && result.data && isScreenshotData(result.data)) {
+            const { screenshot, ...rest } = result.data
             sanitizedResult = {
               success: true,
               data: {
-                ...data,
+                ...rest,
                 message:
                   'Screenshot captured successfully and attached to this message for your analysis',
               },

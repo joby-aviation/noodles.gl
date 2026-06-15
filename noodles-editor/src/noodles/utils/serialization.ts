@@ -4,12 +4,11 @@ import type {
   ReactFlowJsonObject,
   Node as ReactFlowNode,
 } from '@xyflow/react'
-import JSZip from 'jszip'
-
 import { debugSerialize } from '../../utils/debug'
 import { resizeableNodes } from '../components/op-components'
 import type { useOperatorStore } from '../store'
 import type { ExtractProps } from './extract-props'
+import type { StorageType } from './filesystem'
 import { parseHandleId } from './path-utils'
 
 export { NOODLES_VERSION } from './migrate-schema'
@@ -20,37 +19,13 @@ export type EditorSettings = {
   showDebugInfo?: boolean
 }
 
-export type RenderSettings = {
-  display: 'fixed' | 'responsive'
-  resolution: { width: number; height: number }
-  lod: number
-  waitForData: boolean
-  codec: 'avc' | 'hevc' | 'vp9' | 'av1'
-  bitrateMbps: number
-  bitrateMode: 'constant' | 'variable'
-  scaleControl: number
-  framerate: number
-  captureDelay: number
-  rendersDirectory: string
-}
-
-export const DEFAULT_RENDER_SETTINGS: RenderSettings = {
-  display: 'fixed',
-  resolution: { width: 1920, height: 1080 },
-  lod: 2,
-  waitForData: true,
-  codec: 'avc',
-  bitrateMbps: 10,
-  bitrateMode: 'constant',
-  scaleControl: 0.3,
-  framerate: 30,
-  captureDelay: 200,
-  rendersDirectory: 'renders',
-}
+export type { RenderSettings } from './render-settings-constants'
+export { DEFAULT_RENDER_SETTINGS } from './render-settings-constants'
 
 export type NoodlesProjectJSON = ReactFlowJsonObject & {
   version: number
   timeline: Record<string, unknown>
+  name?: string
   editorSettings?: EditorSettings
   renderSettings?: Partial<RenderSettings>
   apiKeys?: {
@@ -215,10 +190,15 @@ export function serializeNodes(
 
     preparedNodes.push({
       ...cleanedNode,
-      ...(resizeableNodes.includes(node.type) ? { width, height, measured } : {}),
+      ...(node.type && (resizeableNodes as readonly string[]).includes(node.type)
+        ? { width, height, measured }
+        : {}),
       data: {
         inputs,
         locked: op.locked.value,
+        ...(op.customInputDefinitions?.length > 0
+          ? { customInputs: op.customInputDefinitions }
+          : {}),
         ...visibilityData,
       },
     })
@@ -266,13 +246,20 @@ const exampleAssetUrls: Record<string, string> = import.meta.glob('../../example
 export async function saveProjectLocally(
   projectName: string,
   projectJson: NoodlesProjectJSON,
-  storageType: 'fileSystemAccess' | 'opfs' | 'publicFolder'
+  storageType: StorageType
 ) {
   debugSerialize('saveProjectLocally: %s (storage: %s)', projectName, storageType)
+  const { default: JSZip } = await import('jszip')
   const zip = new JSZip()
 
-  // Create a folder with the project name
-  const projectFolder = zip.folder(projectName)
+  // Use a readable folder name for the ZIP (strip draft ID prefixes)
+  const folderName =
+    projectName.startsWith('draft-') ||
+    projectName.startsWith('example-') ||
+    projectName.startsWith('import-')
+      ? 'project'
+      : projectName
+  const projectFolder = zip.folder(folderName)
   if (!projectFolder) {
     throw new Error('Failed to create project folder in zip')
   }
@@ -282,7 +269,14 @@ export async function saveProjectLocally(
   projectFolder.file('noodles.json', contents)
 
   // Handle data files based on storage type
-  if (storageType === 'publicFolder') {
+  if (storageType === 'memory') {
+    const { memoryProjectStore } = await import('./memory-project-store')
+    const assets = memoryProjectStore.getAllAssets(projectName)
+    for (const [fileName, blob] of assets) {
+      const arrayBuffer = await blob.arrayBuffer()
+      projectFolder.file(`data/${fileName}`, arrayBuffer)
+    }
+  } else if (storageType === 'publicFolder') {
     // For public folder projects, use pre-loaded asset URLs
     const projectPrefix = `../../examples/${projectName}/`
 
@@ -347,7 +341,7 @@ export async function saveProjectLocally(
   const blob = await zip.generateAsync({ type: 'blob' })
 
   const a = document.createElement('a')
-  a.download = `${projectName}.zip`
+  a.download = `${folderName}.zip`
   const url = URL.createObjectURL(blob)
   a.href = url
   document.body.appendChild(a)

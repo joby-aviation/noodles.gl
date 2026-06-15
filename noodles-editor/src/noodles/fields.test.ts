@@ -15,12 +15,16 @@ import {
   getFieldReferences,
   LayerField,
   ListField,
+  MapStyleField,
   NumberField,
   Point2DField,
   Point3DField,
   parseChoices,
   StringField,
   StringLiteralField,
+  UnknownField,
+  Vec2Field,
+  Vec3Field,
 } from './fields'
 import { NumberOp } from './operators'
 import { clearOps, setOp } from './store'
@@ -244,6 +248,117 @@ describe('FileUrlField', () => {
 
     const noAccept = new FileUrlField()
     expect(noAccept.accept).toBeUndefined()
+  })
+})
+
+describe('MapStyleField', () => {
+  it('accepts string values (URLs)', () => {
+    const field = new MapStyleField('https://example.com/style.json')
+    expect(field.value).toEqual('https://example.com/style.json')
+
+    field.setValue('@/style.json')
+    expect(field.value).toEqual('@/style.json')
+
+    field.setValue('mapbox://styles/mapbox/streets-v11')
+    expect(field.value).toEqual('mapbox://styles/mapbox/streets-v11')
+  })
+
+  it('accepts style objects', () => {
+    const styleObject = {
+      version: 8,
+      sources: {},
+      layers: [],
+    }
+    const field = new MapStyleField()
+
+    field.setValue(styleObject)
+    expect(field.value).toEqual(styleObject)
+  })
+
+  it('accepts string values from connected fields', () => {
+    const stringField = new StringField('https://example.com/style.json')
+    const mapStyleField = new MapStyleField()
+
+    expect(canConnect(stringField, mapStyleField)).toBe(true)
+    mapStyleField.addConnection('field', stringField, 'value')
+
+    expect(mapStyleField.value).toEqual('https://example.com/style.json')
+  })
+
+  it('accepts object values from connected fields', () => {
+    const unknownField = new UnknownField({ version: 8, sources: {}, layers: [] })
+    const mapStyleField = new MapStyleField()
+
+    expect(canConnect(unknownField, mapStyleField)).toBe(true)
+    mapStyleField.addConnection('field', unknownField, 'value')
+
+    expect(mapStyleField.value).toEqual({ version: 8, sources: {}, layers: [] })
+  })
+
+  it('rejects invalid types (numbers)', () => {
+    const field = new MapStyleField()
+
+    field.setValue(123 as unknown as string)
+    // Should not update value on validation failure
+    expect(field.value).toEqual('')
+  })
+
+  it('rejects invalid types (arrays)', () => {
+    const field = new MapStyleField()
+
+    field.setValue([1, 2, 3] as unknown as string)
+    // Should not update value on validation failure
+    expect(field.value).toEqual('')
+  })
+
+  it('stores options on the instance', () => {
+    const field = new MapStyleField('', {
+      accept: '.json',
+      suggestions: [
+        { value: 'https://example.com/style1.json', label: 'Style 1' },
+        { value: 'https://example.com/style2.json', label: 'Style 2' },
+      ],
+    })
+
+    expect(field.accept).toEqual('.json')
+    expect(field.suggestions).toHaveLength(2)
+    expect(field.suggestions[0]).toEqual({
+      value: 'https://example.com/style1.json',
+      label: 'Style 1',
+    })
+  })
+
+  it('defaults to empty array for suggestions', () => {
+    const field = new MapStyleField()
+    expect(field.suggestions).toEqual([])
+  })
+
+  it('serializes and deserializes string values correctly', () => {
+    const field = new MapStyleField('https://example.com/style.json')
+    const serialized = JSON.parse(JSON.stringify(field.value))
+
+    expect(serialized).toEqual('https://example.com/style.json')
+
+    const newField = new MapStyleField()
+    newField.setValue(serialized)
+    expect(newField.value).toEqual('https://example.com/style.json')
+  })
+
+  it('serializes and deserializes object values correctly', () => {
+    const styleObject = {
+      version: 8,
+      sources: { osm: { type: 'vector', url: 'mapbox://mapbox.mapbox-streets-v8' } },
+      layers: [{ id: 'background', type: 'background', paint: { 'background-color': '#000' } }],
+    }
+    const field = new MapStyleField()
+    field.setValue(styleObject)
+
+    const serialized = JSON.parse(JSON.stringify(field.value))
+    expect(serialized).toEqual(styleObject)
+
+    const newField = new MapStyleField()
+    newField.setValue(serialized)
+    expect(newField.value).toEqual(styleObject)
   })
 })
 
@@ -816,6 +931,95 @@ describe('Field references', () => {
     expect(references.length).toEqual(1)
     expect(references[0].opId).toEqual('../../grandparent/sibling')
   })
+
+  it('supports double-quoted op() references', () => {
+    const src = 'op("/source").out.data'
+    const references = getFieldReferences(src)
+    expect(references.length).toEqual(1)
+    expect(references[0].opId).toEqual('/source')
+    expect(references[0].inOut).toEqual('out')
+    expect(references[0].fieldPath).toEqual('data')
+  })
+
+  it('supports double-quoted relative path op() references', () => {
+    const src = 'op("./sibling").out.val + op("../parent").par.threshold'
+    const references = getFieldReferences(src)
+    expect(references.length).toEqual(2)
+    expect(references[0].opId).toEqual('./sibling')
+    expect(references[1].opId).toEqual('../parent')
+  })
+
+  it('handles mixed single and double quoted op() references', () => {
+    const src = 'op(\'/a\').out.val + op("/b").out.val'
+    const references = getFieldReferences(src)
+    expect(references.length).toEqual(2)
+    expect(references[0].opId).toEqual('/a')
+    expect(references[1].opId).toEqual('/b')
+  })
+
+  it('does not match mismatched quotes', () => {
+    const src = 'op(\'/path").out.val + op("/other\').par.value'
+    const references = getFieldReferences(src)
+    expect(references.length).toEqual(0)
+  })
+})
+
+describe('getFieldReferences self-parameter shorthand', () => {
+  it('should extract self-parameter reference from shorthand syntax', () => {
+    const refs = getFieldReferences('return d * {{par.val}}', '/code')
+    expect(refs).toHaveLength(1)
+    expect(refs[0].opId).toBe('/code')
+    expect(refs[0].inOut).toBe('par')
+    expect(refs[0].fieldPath).toBe('val')
+    expect(refs[0].handleId).toBe('par.val')
+  })
+
+  it('should return empty for shorthand without thisOpId context', () => {
+    const refs = getFieldReferences('return d * {{par.val}}')
+    expect(refs).toHaveLength(0)
+  })
+
+  it('should handle mixed shorthand and standard references', () => {
+    const refs = getFieldReferences('{{par.a}} + {{/other.par.b}}', '/code')
+    expect(refs).toHaveLength(2)
+    expect(refs.find(r => r.fieldPath === 'a')?.opId).toBe('/code')
+    expect(refs.find(r => r.fieldPath === 'b')?.opId).toBe('/other')
+  })
+
+  it('should handle multiple self-parameter references', () => {
+    const refs = getFieldReferences('{{par.scale}} * x + {{par.offset}}', '/code')
+    expect(refs).toHaveLength(2)
+    expect(refs[0].opId).toBe('/code')
+    expect(refs[0].fieldPath).toBe('scale')
+    expect(refs[1].opId).toBe('/code')
+    expect(refs[1].fieldPath).toBe('offset')
+  })
+
+  it('should deduplicate self-parameter references', () => {
+    const refs = getFieldReferences('{{par.val}} + {{par.val}} + {{par.val}}', '/code')
+    expect(refs).toHaveLength(1)
+    expect(refs[0].fieldPath).toBe('val')
+  })
+
+  it('should handle nested property access in self-parameter shorthand', () => {
+    const refs = getFieldReferences('{{par.location.lng}}', '/code')
+    expect(refs).toHaveLength(1)
+    // Only the first part of the path is the field path
+    expect(refs[0].fieldPath).toBe('location')
+  })
+
+  it('should not conflict with standard mustache syntax', () => {
+    // Self-parameter shorthand + sibling reference + absolute path
+    const refs = getFieldReferences('{{par.a}} + {{sibling.par.b}} + {{/other.par.c}}', '/code')
+    expect(refs).toHaveLength(3)
+    // All should resolve to their correct opIds
+    const aRef = refs.find(r => r.fieldPath === 'a')
+    const bRef = refs.find(r => r.fieldPath === 'b')
+    const cRef = refs.find(r => r.fieldPath === 'c')
+    expect(aRef?.opId).toBe('/code') // Self-reference shorthand
+    expect(bRef?.opId).toBe('/sibling') // Sibling operator
+    expect(cRef?.opId).toBe('/other') // Absolute path
+  })
 })
 
 describe('LayerField', () => {
@@ -827,6 +1031,12 @@ describe('LayerField', () => {
 })
 
 describe('Point2DField', () => {
+  it('transforms tuple to object by default (no options)', () => {
+    const field = new Point2DField()
+    field.setValue([1, 2])
+    expect(field.value).toEqual({ lng: 1, lat: 2 })
+  })
+
   it('parses object to object', () => {
     const field = new Point2DField(undefined, { returnType: 'object' })
     field.setValue({ lng: 1, lat: 2 })
@@ -866,9 +1076,139 @@ describe('Point2DField', () => {
   it('defaultValue is correct', () => {
     expect(Point2DField.defaultValue).toEqual({ lng: 0, lat: 0 })
   })
+
+  it('normalizes Longitude/Latitude column names', () => {
+    const field = new Point2DField(undefined, { returnType: 'object' })
+    field.setValue({ Longitude: 1, Latitude: 2 })
+    expect(field.value).toEqual({ lng: 1, lat: 2 })
+  })
+
+  it('normalizes case-insensitive column names', () => {
+    const field = new Point2DField(undefined, { returnType: 'object' })
+    field.setValue({ LONGITUDE: 1, LATITUDE: 2 })
+    expect(field.value).toEqual({ lng: 1, lat: 2 })
+  })
+
+  it('normalizes lowercase longitude/latitude', () => {
+    const field = new Point2DField(undefined, { returnType: 'object' })
+    field.setValue({ longitude: 1, latitude: 2 })
+    expect(field.value).toEqual({ lng: 1, lat: 2 })
+  })
+
+  it('normalizes mixed case column names', () => {
+    const field = new Point2DField(undefined, { returnType: 'object' })
+    field.setValue({ longitude: 1, Latitude: 2 })
+    expect(field.value).toEqual({ lng: 1, lat: 2 })
+  })
+
+  it('normalizes lon abbreviation', () => {
+    const field = new Point2DField(undefined, { returnType: 'object' })
+    field.setValue({ lon: 1, lat: 2 })
+    expect(field.value).toEqual({ lng: 1, lat: 2 })
+  })
+
+  it('preserves backward compatibility with lng/lat', () => {
+    const field = new Point2DField(undefined, { returnType: 'object' })
+    field.setValue({ lng: 1, lat: 2 })
+    expect(field.value).toEqual({ lng: 1, lat: 2 })
+  })
+
+  it('normalizes with extra properties preserved', () => {
+    const field = new Point2DField(undefined, { returnType: 'object' })
+    field.setValue({ Longitude: 1, Latitude: 2, name: 'Test', value: 42 })
+    expect(field.value).toEqual({ lng: 1, lat: 2, name: 'Test', value: 42 })
+  })
+
+  it('normalizes Longitude/Latitude to tuple', () => {
+    const field = new Point2DField(undefined, { returnType: 'tuple' })
+    field.setValue({ Longitude: 1, Latitude: 2 })
+    expect(field.value).toEqual([1, 2])
+  })
+
+  it('still accepts tuple formats', () => {
+    const field1 = new Point2DField(undefined, { returnType: 'object' })
+    field1.setValue([1, 2])
+    expect(field1.value).toEqual({ lng: 1, lat: 2 })
+
+    const field2 = new Point2DField(undefined, { returnType: 'object' })
+    field2.setValue([1, 2, 3])
+    expect(field2.value).toEqual({ lng: 1, lat: 2 })
+  })
+
+  it('extracts coordinates from GeoJSON Point Feature', () => {
+    const field = new Point2DField(undefined, { returnType: 'object' })
+    const geoJsonFeature = {
+      type: 'Feature',
+      properties: {},
+      geometry: {
+        type: 'Point',
+        coordinates: [-118.4182302, 34.0576856],
+      },
+    }
+    field.setValue(geoJsonFeature)
+    expect(field.value).toEqual({ lng: -118.4182302, lat: 34.0576856 })
+  })
+
+  it('extracts coordinates from GeoJSON Point Feature with 3D coordinates', () => {
+    const field = new Point2DField(undefined, { returnType: 'object' })
+    const geoJsonFeature = {
+      type: 'Feature',
+      properties: { name: 'Test Point' },
+      geometry: {
+        type: 'Point',
+        coordinates: [-117.8719428, 33.6784913, 100],
+      },
+    }
+    field.setValue(geoJsonFeature)
+    expect(field.value).toEqual({ lng: -117.8719428, lat: 33.6784913 })
+  })
+
+  it('extracts coordinates from GeoJSON Point Feature to tuple', () => {
+    const field = new Point2DField(undefined, { returnType: 'tuple' })
+    const geoJsonFeature = {
+      type: 'Feature',
+      properties: {},
+      geometry: {
+        type: 'Point',
+        coordinates: [-118.4182302, 34.0576856],
+      },
+    }
+    field.setValue(geoJsonFeature)
+    expect(field.value).toEqual([-118.4182302, 34.0576856])
+  })
+
+  it('extracts coordinates from bare GeoJSON Point geometry', () => {
+    const field = new Point2DField()
+    field.setValue({ type: 'Point', coordinates: [-73.78, 40.64] })
+    expect(field.value).toEqual({ lng: -73.78, lat: 40.64 })
+  })
+
+  it('extracts coordinates from geometry column with [lng, lat] tuple', () => {
+    const field = new Point2DField()
+    field.setValue({ id: 1, geometry: [-73.78, 40.64] })
+    expect(field.value).toEqual({ lng: -73.78, lat: 40.64 })
+  })
+
+  it('extracts coordinates from geometry column with GeoJSON Point', () => {
+    const field = new Point2DField()
+    field.setValue({ id: 1, geometry: { type: 'Point', coordinates: [-73.78, 40.64] } })
+    expect(field.value).toEqual({ lng: -73.78, lat: 40.64 })
+  })
+
+  it('extracts coordinates from geometry column to tuple', () => {
+    const field = new Point2DField(undefined, { returnType: 'tuple' })
+    field.setValue({ id: 1, geometry: [-73.78, 40.64] })
+    expect(field.value).toEqual([-73.78, 40.64])
+  })
 })
 
 describe('Point3DField', () => {
+  it('transforms tuple to object by default (no options)', () => {
+    const field = new Point3DField()
+    field.setValue([1, 2, 3])
+    expect(field.value).toEqual({ lng: 1, lat: 2, alt: 3 })
+  })
+
   it('parses object to object', () => {
     const field = new Point3DField(undefined, { returnType: 'object' })
     field.setValue({ lng: 1, lat: 2, alt: 3 })
@@ -913,6 +1253,214 @@ describe('Point3DField', () => {
 
   it('defaultValue is correct', () => {
     expect(Point3DField.defaultValue).toEqual({ lng: 0, lat: 0, alt: 0 })
+  })
+
+  it('normalizes Longitude/Latitude/Altitude column names', () => {
+    const field = new Point3DField(undefined, { returnType: 'object' })
+    field.setValue({ Longitude: 1, Latitude: 2, Altitude: 3 })
+    expect(field.value).toEqual({ lng: 1, lat: 2, alt: 3 })
+  })
+
+  it('normalizes case-insensitive column names', () => {
+    const field = new Point3DField(undefined, { returnType: 'object' })
+    field.setValue({ LONGITUDE: 1, LATITUDE: 2, ALTITUDE: 3 })
+    expect(field.value).toEqual({ lng: 1, lat: 2, alt: 3 })
+  })
+
+  it('normalizes Longitude/Latitude without Altitude', () => {
+    const field = new Point3DField(undefined, { returnType: 'object' })
+    field.setValue({ Longitude: 1, Latitude: 2 })
+    expect(field.value).toEqual({ lng: 1, lat: 2, alt: 0 })
+  })
+
+  it('preserves backward compatibility with lng/lat/alt', () => {
+    const field = new Point3DField(undefined, { returnType: 'object' })
+    field.setValue({ lng: 1, lat: 2, alt: 3 })
+    expect(field.value).toEqual({ lng: 1, lat: 2, alt: 3 })
+  })
+
+  it('normalizes with extra properties preserved', () => {
+    const field = new Point3DField(undefined, { returnType: 'object' })
+    field.setValue({ Longitude: 1, Latitude: 2, Altitude: 3, name: 'Test' })
+    expect(field.value).toEqual({ lng: 1, lat: 2, alt: 3, name: 'Test' })
+  })
+
+  it('normalizes Longitude/Latitude/Altitude to tuple', () => {
+    const field = new Point3DField(undefined, { returnType: 'tuple' })
+    field.setValue({ Longitude: 1, Latitude: 2, Altitude: 3 })
+    expect(field.value).toEqual([1, 2, 3])
+  })
+
+  it('extracts coordinates from GeoJSON Point Feature', () => {
+    const field = new Point3DField(undefined, { returnType: 'object' })
+    const geoJsonFeature = {
+      type: 'Feature',
+      properties: {},
+      geometry: {
+        type: 'Point',
+        coordinates: [-118.4182302, 34.0576856],
+      },
+    }
+    field.setValue(geoJsonFeature)
+    expect(field.value).toEqual({ lng: -118.4182302, lat: 34.0576856, alt: 0 })
+  })
+
+  it('extracts 3D coordinates from GeoJSON Point Feature', () => {
+    const field = new Point3DField(undefined, { returnType: 'object' })
+    const geoJsonFeature = {
+      type: 'Feature',
+      properties: { name: 'Airport' },
+      geometry: {
+        type: 'Point',
+        coordinates: [-117.8719428, 33.6784913, 100],
+      },
+    }
+    field.setValue(geoJsonFeature)
+    expect(field.value).toEqual({ lng: -117.8719428, lat: 33.6784913, alt: 100 })
+  })
+
+  it('extracts coordinates from GeoJSON Point Feature to tuple', () => {
+    const field = new Point3DField(undefined, { returnType: 'tuple' })
+    const geoJsonFeature = {
+      type: 'Feature',
+      properties: {},
+      geometry: {
+        type: 'Point',
+        coordinates: [-118.4182302, 34.0576856, 50],
+      },
+    }
+    field.setValue(geoJsonFeature)
+    expect(field.value).toEqual([-118.4182302, 34.0576856, 50])
+  })
+
+  it('extracts 2D coordinates from GeoJSON Point Feature to tuple with alt=0', () => {
+    const field = new Point3DField(undefined, { returnType: 'tuple' })
+    const geoJsonFeature = {
+      type: 'Feature',
+      properties: {},
+      geometry: {
+        type: 'Point',
+        coordinates: [-118.4182302, 34.0576856],
+      },
+    }
+    field.setValue(geoJsonFeature)
+    expect(field.value).toEqual([-118.4182302, 34.0576856, 0])
+  })
+
+  it('extracts coordinates from bare GeoJSON Point geometry', () => {
+    const field = new Point3DField()
+    field.setValue({ type: 'Point', coordinates: [-73.78, 40.64, 100] })
+    expect(field.value).toEqual({ lng: -73.78, lat: 40.64, alt: 100 })
+  })
+
+  it('extracts 2D coordinates from bare GeoJSON Point geometry with alt=0', () => {
+    const field = new Point3DField()
+    field.setValue({ type: 'Point', coordinates: [-73.78, 40.64] })
+    expect(field.value).toEqual({ lng: -73.78, lat: 40.64, alt: 0 })
+  })
+
+  it('extracts coordinates from geometry column with [lng, lat] tuple', () => {
+    const field = new Point3DField()
+    field.setValue({ id: 1, geometry: [-73.78, 40.64] })
+    expect(field.value).toEqual({ lng: -73.78, lat: 40.64, alt: 0 })
+  })
+
+  it('extracts coordinates from geometry column with [lng, lat, alt] tuple', () => {
+    const field = new Point3DField()
+    field.setValue({ id: 1, geometry: [-73.78, 40.64, 100] })
+    expect(field.value).toEqual({ lng: -73.78, lat: 40.64, alt: 100 })
+  })
+
+  it('extracts coordinates from geometry column with GeoJSON Point', () => {
+    const field = new Point3DField()
+    field.setValue({ id: 1, geometry: { type: 'Point', coordinates: [-73.78, 40.64, 100] } })
+    expect(field.value).toEqual({ lng: -73.78, lat: 40.64, alt: 100 })
+  })
+
+  it('extracts coordinates from geometry column to tuple', () => {
+    const field = new Point3DField(undefined, { returnType: 'tuple' })
+    field.setValue({ id: 1, geometry: [-73.78, 40.64, 100] })
+    expect(field.value).toEqual([-73.78, 40.64, 100])
+  })
+
+  it('ignores geometry column with non-point data', () => {
+    const field = new Point3DField()
+    field.setValue({
+      id: 1,
+      geometry: {
+        type: 'LineString',
+        coordinates: [
+          [0, 0],
+          [1, 1],
+        ],
+      },
+    })
+    // Should fall back to default since no valid point data
+    expect(field.value).toEqual({ lng: 0, lat: 0, alt: 0 })
+  })
+})
+
+describe('Vec2Field', () => {
+  it('transforms tuple to object by default (no options)', () => {
+    const field = new Vec2Field()
+    field.setValue([3, 7])
+    expect(field.value).toEqual({ x: 3, y: 7 })
+  })
+
+  it('transforms tuple to object with explicit option', () => {
+    const field = new Vec2Field(undefined, { returnType: 'object' })
+    field.setValue([3, 7])
+    expect(field.value).toEqual({ x: 3, y: 7 })
+  })
+
+  it('parses object to object', () => {
+    const field = new Vec2Field(undefined, { returnType: 'object' })
+    field.setValue({ x: 5, y: 9 })
+    expect(field.value).toEqual({ x: 5, y: 9 })
+  })
+
+  it('transforms object to tuple', () => {
+    const field = new Vec2Field(undefined, { returnType: 'tuple' })
+    field.setValue({ x: 5, y: 9 })
+    expect(field.value).toEqual([5, 9])
+  })
+
+  it('parses tuple to tuple', () => {
+    const field = new Vec2Field(undefined, { returnType: 'tuple' })
+    field.setValue([3, 7])
+    expect(field.value).toEqual([3, 7])
+  })
+})
+
+describe('Vec3Field', () => {
+  it('transforms tuple to object by default (no options)', () => {
+    const field = new Vec3Field()
+    field.setValue([1, 2, 3])
+    expect(field.value).toEqual({ x: 1, y: 2, z: 3 })
+  })
+
+  it('transforms tuple to object with explicit option', () => {
+    const field = new Vec3Field(undefined, { returnType: 'object' })
+    field.setValue([1, 2, 3])
+    expect(field.value).toEqual({ x: 1, y: 2, z: 3 })
+  })
+
+  it('parses object to object', () => {
+    const field = new Vec3Field(undefined, { returnType: 'object' })
+    field.setValue({ x: 4, y: 5, z: 6 })
+    expect(field.value).toEqual({ x: 4, y: 5, z: 6 })
+  })
+
+  it('transforms object to tuple', () => {
+    const field = new Vec3Field(undefined, { returnType: 'tuple' })
+    field.setValue({ x: 4, y: 5, z: 6 })
+    expect(field.value).toEqual([4, 5, 6])
+  })
+
+  it('parses tuple to tuple', () => {
+    const field = new Vec3Field(undefined, { returnType: 'tuple' })
+    field.setValue([1, 2, 3])
+    expect(field.value).toEqual([1, 2, 3])
   })
 })
 

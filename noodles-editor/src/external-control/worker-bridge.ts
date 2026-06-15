@@ -105,7 +105,19 @@ const handleWorkerMessage = async (event: MessageEvent) => {
   // Check if message requires authentication
   if (requiresAuth(message.type)) {
     // Extract token from message payload if present
-    const token = message.payload?.token || message.payload?.auth?.token
+    const payload = message.payload as Record<string, unknown> | undefined
+    const token = (
+      payload && typeof payload === 'object' && 'token' in payload
+        ? payload.token
+        : payload &&
+            typeof payload === 'object' &&
+            'auth' in payload &&
+            typeof payload.auth === 'object' &&
+            payload.auth &&
+            'token' in payload.auth
+          ? (payload.auth as { token: unknown }).token
+          : undefined
+    ) as string | undefined
 
     if (!token || !sessionManager.validateToken(token)) {
       sendToWorker({

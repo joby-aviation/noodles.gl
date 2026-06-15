@@ -1,13 +1,11 @@
 import { basename } from 'node:path'
 import type { InOut } from '../fields'
 import type { OpType } from '../operators'
-import { edgeId } from './id-utils'
+import { edgeId } from './migration-utils'
 import { parseHandleId } from './path-utils'
 import type { NoodlesProjectJSON } from './serialization'
 
-const migrations = import.meta.glob(['../__migrations__/*.ts', '!../__migrations__/*.test.ts'], {
-  eager: true,
-})
+const migrations = import.meta.glob(['../__migrations__/*.ts', '!../__migrations__/*.test.ts'])
 
 export const NOODLES_VERSION = Math.max(...Object.keys(migrations).map(versionFromFilename))
 
@@ -44,7 +42,7 @@ export async function migrateProject(
   if (to > project.version) {
     for (const { version, migration } of migrationVersions) {
       if (version > migrated.version && version <= to) {
-        const migrationModule = migration as IMigration
+        const migrationModule = await (migration as () => Promise<IMigration>)()
         if (migrationModule.up) {
           migrated = await migrationModule.up(migrated)
           migrated = { ...migrated, version }
@@ -56,7 +54,7 @@ export async function migrateProject(
   else if (to < project.version) {
     for (const { version, migration } of migrationVersions.reverse()) {
       if (version <= migrated.version && version > to) {
-        const migrationModule = migration as IMigration
+        const migrationModule = await (migration as () => Promise<IMigration>)()
         if (migrationModule.down) {
           migrated = await migrationModule.down(migrated)
           migrated = { ...migrated, version: version - 1 }
@@ -129,14 +127,16 @@ export function renameHandle({
 
     const { [oldFieldName as InputKey]: oldValue, ...restOfInputs } = node.data.inputs
 
+    // Only add the new field if the old value existed
+    const newInputs = oldValue !== undefined
+      ? { ...restOfInputs, [newFieldName as InputKey]: oldValue }
+      : restOfInputs
+
     const newNode = {
       ...node,
       data: {
         ...node.data,
-        inputs: {
-          ...restOfInputs,
-          [newFieldName as InputKey]: oldValue,
-        },
+        inputs: newInputs,
       },
     }
 
