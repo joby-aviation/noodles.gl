@@ -752,7 +752,7 @@ export class Point3DField extends Field<
     this.returnType = options?.returnType || 'object'
   }
 
-  createSchema({ returnType }: PointFieldOptions = { returnType: 'object' }) {
+  createSchema({ returnType = 'object' }: PointFieldOptions = {}) {
     const noop = (val: unknown) => val
     return z.union([
       z
@@ -911,7 +911,7 @@ export class Point2DField extends Field<
     this.returnType = options?.returnType || 'object'
   }
 
-  createSchema({ returnType }: PointFieldOptions = { returnType: 'object' }) {
+  createSchema({ returnType = 'object' }: PointFieldOptions = {}) {
     const noop = (val: unknown) => val
     return z.union([
       z
@@ -1000,7 +1000,7 @@ export class Vec2Field extends Field<
     super(override, options)
     this.returnType = options?.returnType || 'object'
   }
-  createSchema({ returnType }: Vec2FieldOptions = { returnType: 'object' }) {
+  createSchema({ returnType = 'object' }: Vec2FieldOptions = {}) {
     const noop = (val: unknown) => val
     return z.union([
       z
@@ -1036,7 +1036,7 @@ export class Vec3Field extends Field<
     super(override, options)
     this.returnType = options?.returnType || 'object'
   }
-  createSchema({ returnType }: Vec2FieldOptions = { returnType: 'object' }) {
+  createSchema({ returnType = 'object' }: Vec2FieldOptions = {}) {
     const noop = (val: unknown) => val
     return z.union([
       z
