@@ -639,11 +639,13 @@ function EditableCell({ getValue, row, column, table }: EditableCellProps) {
   const currentValue = getValue()
   const [isEditing, setIsEditing] = useState(false)
   const [value, setValue] = useState(currentValue)
+  const valueRef = useRef(currentValue)
   const prevValueRef = useRef(currentValue)
 
   // Sync state with current value when not editing
   if (!isEditing && currentValue !== prevValueRef.current) {
     setValue(currentValue)
+    valueRef.current = currentValue
     prevValueRef.current = currentValue
   }
 
@@ -659,10 +661,14 @@ function EditableCell({ getValue, row, column, table }: EditableCellProps) {
     setIsEditing(true)
   }
 
+  const handleChange = (newValue: unknown) => {
+    setValue(newValue)
+    valueRef.current = newValue
+  }
+
   const handleComplete = () => {
     setIsEditing(false)
-    // Always update - let updateData handle whether it's actually changed
-    table.options.meta?.updateData(row.index, column.id, value)
+    table.options.meta?.updateData(row.index, column.id, valueRef.current)
   }
 
   if (isEditing) {
@@ -670,7 +676,7 @@ function EditableCell({ getValue, row, column, table }: EditableCellProps) {
       <div className={cx(s.cell, s.editing)}>
         <EditorComponent
           value={value}
-          onChange={setValue}
+          onChange={handleChange}
           onComplete={handleComplete}
           column={colSchema}
         />
