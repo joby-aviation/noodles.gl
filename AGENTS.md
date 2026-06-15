@@ -671,7 +671,9 @@ The MCP proxy bridges Claude Code to a running Noodles browser session, giving a
 # 2. Start the MCP proxy (in a separate terminal)
 node noodles-editor/examples/external-control/mcp-proxy.js
 
-# 3. Add to Claude Desktop config (~/.claude/claude_desktop_config.json):
+# 3. Add to Claude Desktop config:
+#    macOS:   ~/Library/Application Support/Claude/claude_desktop_config.json
+#    Windows: %APPDATA%\Claude\claude_desktop_config.json
 {
   "mcpServers": {
     "noodles": {

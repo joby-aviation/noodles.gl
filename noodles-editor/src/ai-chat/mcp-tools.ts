@@ -6,8 +6,9 @@ import {
   captureTimelineState,
   fireTimelineMutation,
   getTimelineStore,
+  useTimelineStore,
 } from '../timeline/timeline-store'
-import type { Keyframe } from '../timeline/types'
+import type { Keyframe, KeyframeValue, Track } from '../timeline/types'
 import { safeStringify } from '../noodles/utils/serialization'
 import type { ContextLoader } from './context-loader'
 import type {
@@ -934,7 +935,11 @@ export class MCPTools {
     }
   }
 
-  // Add or update a keyframe on an animated field
+  // Add or update a keyframe on an animated field.
+  // Writes directly to useTimelineStore.setState so that both track creation
+  // and keyframe insertion land in a single undo entry (addKeyframe() fires
+  // its own internal history entry after track creation, leaving a ghost track
+  // on undo — bypassing it here fixes that).
   setKeyframe(params: {
     trackId: string
     position: number
@@ -943,40 +948,53 @@ export class MCPTools {
   }): ToolResult {
     try {
       const { trackId, position, value, interpolation = 'bezier' } = params
+      const kfValue = value as KeyframeValue
       const store = getTimelineStore()
+      const frameDuration = 1 / store.sequence.fps
 
+      // Capture before ANY mutation so undo covers the full operation
       const before = captureTimelineState()
 
-      let track = store.tracks.get(trackId)
-      if (!track) {
-        track = store.getOrCreateTrack(trackId, value as number | boolean | string)
-      }
-
-      // Check for existing keyframe near this position (within 1 frame)
-      const fps = store.sequence.fps
-      const frameDuration = 1 / fps
-      const existing = track.keyframes.find(
+      const existingTrack = store.tracks.get(trackId)
+      const nearbyKf = existingTrack?.keyframes.find(
         (kf: Keyframe) => Math.abs(kf.position - position) < frameDuration
       )
 
-      if (existing) {
-        store.updateKeyframe(trackId, existing.id, {
-          value: value as number | boolean | string,
-          interpolation,
-        })
+      if (nearbyKf) {
+        // Update in place — updateKeyframe has no internal history, so we fire it
+        store.updateKeyframe(trackId, nearbyKf.id, { value: kfValue, interpolation })
         fireTimelineMutation('Update keyframe via AI', before)
         return {
           success: true,
-          data: { keyframeId: existing.id, action: 'updated', trackId, position, value },
+          data: { keyframeId: nearbyKf.id, action: 'updated', trackId, position, value },
         }
       }
 
-      const keyframeId = store.addKeyframe(trackId, {
-        position,
-        value: value as number | boolean | string,
-        interpolation,
+      // Add new keyframe — write directly so track creation + insertion share one undo entry
+      const keyframeId = `kf_${Math.random().toString(36).slice(2, 10)}`
+      const newKf: Keyframe = { id: keyframeId, position, value: kfValue, interpolation }
+
+      useTimelineStore.setState(state => {
+        const newTracks = new Map(state.tracks)
+        const track = newTracks.get(trackId)
+        if (track) {
+          const keyframes = [...track.keyframes, newKf].sort(
+            (a: Keyframe, b: Keyframe) => a.position - b.position
+          )
+          newTracks.set(trackId, { ...track, keyframes })
+        } else {
+          const newTrack: Track = {
+            id: trackId,
+            fieldPath: trackId,
+            keyframes: [newKf],
+            defaultValue: kfValue,
+          }
+          newTracks.set(trackId, newTrack)
+        }
+        return { tracks: newTracks }
       })
 
+      fireTimelineMutation('Add keyframe via AI', before)
       return { success: true, data: { keyframeId, action: 'added', trackId, position, value } }
     } catch (error) {
       return {
@@ -1020,7 +1038,8 @@ export class MCPTools {
       store.setPosition(clamped)
       if (params.play === true) store.play()
       else if (params.play === false) store.pause()
-      return { success: true, data: { position: clamped, playing: store.playing } }
+      // Re-read store after mutations — the snapshot in `store` is stale
+      return { success: true, data: { position: clamped, playing: getTimelineStore().playing } }
     } catch (error) {
       return {
         success: false,
