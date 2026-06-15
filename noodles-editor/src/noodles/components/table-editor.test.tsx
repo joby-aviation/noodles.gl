@@ -94,11 +94,14 @@ describe('TableEditor', () => {
     const addButton = getByRole('button', { name: /add row/i })
     fireEvent.click(addButton)
 
-    expect(onDataChange).toHaveBeenCalledWith([
-      { name: 'Alice', count: 10 },
-      { name: 'Bob', count: 20 },
-      { name: '', count: 0 }, // New row with defaults
-    ])
+    expect(onDataChange).toHaveBeenCalledWith(
+      [
+        { name: 'Alice', count: 10 },
+        { name: 'Bob', count: 20 },
+        { name: '', count: 0 }, // New row with defaults
+      ],
+      'Add table row'
+    )
   })
 
   it('should render different column types', () => {
@@ -186,7 +189,7 @@ describe('TableEditor', () => {
     const deleteButtons = container.querySelectorAll('.pi-trash')
     fireEvent.click(deleteButtons[0])
 
-    expect(onDataChange).toHaveBeenCalledWith([{ name: 'Bob', count: 20 }])
+    expect(onDataChange).toHaveBeenCalledWith([{ name: 'Bob', count: 20 }], 'Delete table row')
   })
 
   it('should call onSchemaChange when schema is updated', () => {
@@ -276,20 +279,23 @@ describe('TableEditor', () => {
     const addButton = getByRole('button', { name: /add row/i })
     fireEvent.click(addButton)
 
-    expect(onDataChange).toHaveBeenCalledWith([
-      {
-        str: 'default',
-        num: 42,
-        bool: true,
-        color: '#ffffff',
-        point2d: [1, 2],
-        point3d: [1, 2, 3],
-        vec2: [5, 6],
-        vec3: [7, 8, 9],
-        date: '2026-01-01',
-        literal: 'a',
-      },
-    ])
+    expect(onDataChange).toHaveBeenCalledWith(
+      [
+        {
+          str: 'default',
+          num: 42,
+          bool: true,
+          color: '#ffffff',
+          point2d: [1, 2],
+          point3d: [1, 2, 3],
+          vec2: [5, 6],
+          vec3: [7, 8, 9],
+          date: '2026-01-01',
+          literal: 'a',
+        },
+      ],
+      'Add table row'
+    )
   })
 
   it('should convert existing values when column type changes', () => {

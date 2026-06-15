@@ -640,8 +640,8 @@ interface TableEditorProps {
   op: TableEditorOp
   data: unknown[]
   schema: TableSchema
-  onDataChange: (data: unknown[]) => void
-  onSchemaChange: (schema: TableSchema) => void
+  onDataChange: (data: unknown[], description?: string) => void
+  onSchemaChange: (schema: TableSchema, data?: unknown[]) => void
 }
 
 export function TableEditor({ data, schema, onDataChange, onSchemaChange }: TableEditorProps) {
@@ -658,7 +658,7 @@ export function TableEditor({ data, schema, onDataChange, onSchemaChange }: Tabl
     }
     const newData = [...tableData, newRow]
     setTableData(newData)
-    onDataChange(newData)
+    onDataChange(newData, 'Add table row')
   }
 
   const handleSchemaChange = (newSchema: TableSchema) => {
@@ -677,9 +677,8 @@ export function TableEditor({ data, schema, onDataChange, onSchemaChange }: Tabl
       return newRow
     })
 
-    onSchemaChange(newSchema)
+    onSchemaChange(newSchema, newData)
     setTableData(newData)
-    onDataChange(newData)
   }
 
   const columnHelper = createColumnHelper<Record<string, unknown>>()
@@ -730,12 +729,12 @@ export function TableEditor({ data, schema, onDataChange, onSchemaChange }: Tabl
           [columnId]: value,
         }
         setTableData(newData)
-        onDataChange(newData)
+        onDataChange(newData, `Edit cell ${columnId}`)
       },
       deleteRow: (rowIndex: number) => {
         const newData = tableData.filter((_, index) => index !== rowIndex)
         setTableData(newData)
-        onDataChange(newData)
+        onDataChange(newData, 'Delete table row')
       },
       schema,
     },
