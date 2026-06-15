@@ -502,6 +502,66 @@ export class ClaudeClient {
           required: ['nodeId'],
         },
       },
+      // Timeline tools
+      {
+        name: 'get_timeline',
+        description:
+          'Get the current animation timeline state: sequence length, FPS, playback position, and all animated tracks with their keyframes. Use this before adding keyframes to understand the current animation.',
+        input_schema: {
+          type: 'object',
+          properties: {},
+        },
+      },
+      {
+        name: 'set_keyframe',
+        description:
+          'Add or update a keyframe on an animated field. Track IDs follow the pattern "operator-name / fieldName" (e.g. "my-layer / opacity"). Position is in seconds. Interpolation is "bezier" (smooth) or "hold" (step). If a keyframe already exists within 1 frame of the position, it will be updated.',
+        input_schema: {
+          type: 'object',
+          properties: {
+            trackId: {
+              type: 'string',
+              description: 'Track identifier in format "operator-name / fieldName"',
+            },
+            position: { type: 'number', description: 'Time position in seconds' },
+            value: { description: 'The value at this keyframe (number, boolean, or string)' },
+            interpolation: {
+              type: 'string',
+              enum: ['bezier', 'hold'],
+              description: 'Interpolation type (default: bezier)',
+            },
+          },
+          required: ['trackId', 'position', 'value'],
+        },
+      },
+      {
+        name: 'delete_keyframe',
+        description: 'Delete a specific keyframe by its ID. Use get_timeline to find keyframe IDs.',
+        input_schema: {
+          type: 'object',
+          properties: {
+            trackId: { type: 'string', description: 'The track containing the keyframe' },
+            keyframeId: { type: 'string', description: 'The keyframe ID to delete' },
+          },
+          required: ['trackId', 'keyframeId'],
+        },
+      },
+      {
+        name: 'set_playback_position',
+        description:
+          'Scrub the timeline to a specific time position (in seconds) for inspection. Optionally start or stop playback.',
+        input_schema: {
+          type: 'object',
+          properties: {
+            position: { type: 'number', description: 'Time in seconds to seek to' },
+            play: {
+              type: 'boolean',
+              description: 'true to start playback, false to pause, omit to leave unchanged',
+            },
+          },
+          required: ['position'],
+        },
+      },
     ]
   }
 
@@ -528,6 +588,10 @@ export class ClaudeClient {
       list_nodes: () => this.tools.listNodes(),
       get_node_info: p => this.tools.getNodeInfo(p),
       get_node_output: p => this.tools.getNodeOutput(p),
+      get_timeline: () => this.tools.getTimeline(),
+      set_keyframe: p => this.tools.setKeyframe(p),
+      delete_keyframe: p => this.tools.deleteKeyframe(p),
+      set_playback_position: p => this.tools.setPlaybackPosition(p),
     }
 
     const method = methodMap[name]
