@@ -1031,6 +1031,12 @@ describe('LayerField', () => {
 })
 
 describe('Point2DField', () => {
+  it('transforms tuple to object by default (no options)', () => {
+    const field = new Point2DField()
+    field.setValue([1, 2])
+    expect(field.value).toEqual({ lng: 1, lat: 2 })
+  })
+
   it('parses object to object', () => {
     const field = new Point2DField(undefined, { returnType: 'object' })
     field.setValue({ lng: 1, lat: 2 })
@@ -1173,6 +1179,12 @@ describe('Point2DField', () => {
 })
 
 describe('Point3DField', () => {
+  it('transforms tuple to object by default (no options)', () => {
+    const field = new Point3DField()
+    field.setValue([1, 2, 3])
+    expect(field.value).toEqual({ lng: 1, lat: 2, alt: 3 })
+  })
+
   it('parses object to object', () => {
     const field = new Point3DField(undefined, { returnType: 'object' })
     field.setValue({ lng: 1, lat: 2, alt: 3 })
