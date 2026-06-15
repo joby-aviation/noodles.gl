@@ -280,6 +280,7 @@ function Point2DCellEditor({ value, onChange, onComplete, column }: CellEditorPr
         <button
           type="button"
           className={s.geocoderButton}
+          onMouseDown={e => e.preventDefault()}
           onClick={() => setGeocodingOpen(true)}
           title="Geocode address"
         >
