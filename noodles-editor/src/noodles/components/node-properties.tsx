@@ -186,26 +186,6 @@ function Tooltip({
   )
 }
 
-function PencilIcon({ onClick, isActive }: { onClick: () => void; isActive: boolean }) {
-  return (
-    <svg
-      className={cx(s.editIcon, { [s.editIconActive]: isActive })}
-      onClick={onClick}
-      viewBox="0 0 24 24"
-      width="14"
-      height="14"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <title>{isActive ? 'Exit edit mode' : 'Edit fields'}</title>
-      <path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-      <path d="m15 5 4 4" />
-    </svg>
-  )
-}
 
 function AddRemoveButton({
   type,
@@ -407,10 +387,8 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
   const dragDataRef = useRef<{ inputName: string; index: number } | null>(null)
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false)
   const [isTruncated, setIsTruncated] = useState(false)
-  const [isEditMode, setIsEditMode] = useState(false)
   const [isResetDialogOpen, setIsResetDialogOpen] = useState(false)
   const [pendingHideField, setPendingHideField] = useState<string | null>(null)
-  const [hiddenFieldSearch, setHiddenFieldSearch] = useState('')
   const [contextMenu, setContextMenu] = useState<{
     x: number
     y: number
@@ -439,12 +417,6 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
     return () => subscription.unsubscribe()
   }, [op])
 
-  // Exit edit mode and clear search when switching to a different node
-  // biome-ignore lint/correctness/useExhaustiveDependencies: intentionally run when nodeId changes
-  useEffect(() => {
-    setIsEditMode(false)
-    setHiddenFieldSearch('')
-  }, [nodeId])
 
   // Close context menu on outside click or Escape
   useEffect(() => {
@@ -634,22 +606,19 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
       <div className={s.section}>
         <div className={s.sectionHeader}>
           <div className={s.sectionTitle}>Inputs</div>
-          {Object.keys(op.inputs).length > 0 && (
-            <div className={s.sectionActions}>
-              {isEditMode &&
-                op.visibleFields.value !== null &&
-                (() => {
-                  const { toHide, toShow } = getVisibilityChanges(op, edges)
-                  const hasChanges = toHide.length > 0 || toShow.length > 0
-                  return hasChanges ? (
-                    <button type="button" className={s.resetButton} onClick={handleResetToDefaults}>
-                      Reset
-                    </button>
-                  ) : null
-                })()}
-              <PencilIcon onClick={() => setIsEditMode(!isEditMode)} isActive={isEditMode} />
-            </div>
-          )}
+          {Object.keys(op.inputs).length > 0 &&
+            op.visibleFields.value !== null &&
+            (() => {
+              const { toHide, toShow } = getVisibilityChanges(op, edges)
+              const hasChanges = toHide.length > 0 || toShow.length > 0
+              return hasChanges ? (
+                <div className={s.sectionActions}>
+                  <button type="button" className={s.resetButton} onClick={handleResetToDefaults}>
+                    Reset
+                  </button>
+                </div>
+              ) : null
+            })()}
         </div>
         <div className={s.propertyList}>
           <ErrorBoundary
@@ -663,10 +632,6 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
             }
           >
             {(() => {
-              // Filter inputs by visibility
-              const visibleInputs = inputs.filter(input => op.isFieldVisible(input.name))
-              const hiddenInputs = inputs.filter(input => !op.isFieldVisible(input.name))
-
               const handleShowField = (fieldName: string) => {
                 op.showField(fieldName)
               }
@@ -681,7 +646,8 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
                 hideField(op, fieldName)
               }
 
-              const renderInput = (input: (typeof inputs)[0], isVisible: boolean) => {
+              const renderInput = (input: (typeof inputs)[0]) => {
+                const isVisible = op.isFieldVisible(input.name)
                 const incomers = edges.filter(
                   e =>
                     e.target === nodeId &&
@@ -706,7 +672,7 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
                   <div
                     key={input.name}
                     role="listitem"
-                    className={cx(s.property, { [s.propertyWithAction]: isEditMode })}
+                    className={cx(s.property, s.propertyWithAction)}
                     onContextMenu={e => {
                       e.preventDefault()
                       const isAnimatable = isValueField(input.field) && incomers.length === 0
@@ -748,7 +714,7 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
                     }}
                   >
                     <div className={s.propertyRow}>
-                      {isEditMode && isVisible && (
+                      {isVisible ? (
                         <Tooltip
                           text={canHide ? 'Hide field' : hideCheck.reason || 'Cannot hide'}
                           position="right"
@@ -761,8 +727,7 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
                             />
                           </span>
                         </Tooltip>
-                      )}
-                      {isEditMode && !isVisible && (
+                      ) : (
                         <Tooltip text="Show field" position="right">
                           <span>
                             <AddRemoveButton
@@ -833,59 +798,8 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
                 )
               }
 
-              return (
-                <>
-                  {/* Visible fields (with hide button in edit mode) */}
-                  {visibleInputs.map(input => renderInput(input, true))}
+              return <>{inputs.map(input => renderInput(input))}</>
 
-                  {/* Divider and hidden fields (only in edit mode) */}
-                  {isEditMode && hiddenInputs.length > 0 && (
-                    <>
-                      <div className={s.fieldDivider}>
-                        <span>Hidden fields</span>
-                        <button
-                          type="button"
-                          className={s.showAllButton}
-                          onClick={() => {
-                            const fieldsToShow = hiddenFieldSearch
-                              ? hiddenInputs.filter(
-                                  input =>
-                                    input.name
-                                      .toLowerCase()
-                                      .includes(hiddenFieldSearch.toLowerCase()) ||
-                                    input.type
-                                      .toLowerCase()
-                                      .includes(hiddenFieldSearch.toLowerCase())
-                                )
-                              : hiddenInputs
-                            for (const input of fieldsToShow) {
-                              op.showField(input.name)
-                            }
-                            setHiddenFieldSearch('')
-                          }}
-                        >
-                          {hiddenFieldSearch ? 'Show matches' : 'Show all'}
-                        </button>
-                      </div>
-                      <input
-                        type="text"
-                        className={s.fieldSearch}
-                        placeholder="Search fields..."
-                        value={hiddenFieldSearch}
-                        onChange={e => setHiddenFieldSearch(e.target.value)}
-                      />
-                      {hiddenInputs
-                        .filter(
-                          input =>
-                            !hiddenFieldSearch ||
-                            input.name.toLowerCase().includes(hiddenFieldSearch.toLowerCase()) ||
-                            input.type.toLowerCase().includes(hiddenFieldSearch.toLowerCase())
-                        )
-                        .map(input => renderInput(input, false))}
-                    </>
-                  )}
-                </>
-              )
             })()}
           </ErrorBoundary>
         </div>
