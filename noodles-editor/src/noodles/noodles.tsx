@@ -394,7 +394,57 @@ export function getNoodles(): Visualization {
 
   const currentContainerId = useNestingStore(state => state.currentContainerId)
 
-  // Auto-layout function for current container (used by onConnect and node addition effects)
+  // Manual layout function - layouts selected nodes or all nodes in current container
+  const applyManualLayout = useCallback(() => {
+    // Get selected nodes in the current container
+    const selectedNodes = nodes.filter(node => {
+      if (!node.selected) return false
+      const nodeParent = getParentPath(node.id)
+      return currentContainerId === '/' ? nodeParent === '/' : nodeParent === currentContainerId
+    })
+
+    // If less than 2 nodes selected, use all nodes in container
+    const targetNodes =
+      selectedNodes.length >= 2
+        ? selectedNodes
+        : nodes.filter(node => {
+            const nodeParent = getParentPath(node.id)
+            return currentContainerId === '/' ? nodeParent === '/' : nodeParent === currentContainerId
+          })
+
+    if (targetNodes.length < 2) return
+
+    // Get edges between these nodes
+    const targetNodeIds = new Set(targetNodes.map(n => n.id))
+    const targetEdges = edges.filter(e => targetNodeIds.has(e.source) && targetNodeIds.has(e.target))
+
+    // Apply layout
+    const layoutedNodes = layoutNodes(targetNodes, targetEdges, autoLayout)
+
+    // Update node positions
+    setNodes(currentNodes =>
+      currentNodes.map(node => {
+        const layoutedNode = layoutedNodes.find(n => n.id === node.id)
+        if (layoutedNode) {
+          return {
+            ...node,
+            position: layoutedNode.position,
+          }
+        }
+        return node
+      })
+    )
+
+    // Fit view to show all nodes with animation
+    setTimeout(() => {
+      reactFlowInstanceRef.current?.fitView({
+        duration: 300,
+        padding: 0.2,
+      })
+    }, 0)
+  }, [autoLayout, nodes, edges, currentContainerId, setNodes])
+
+  // Auto-layout function for current container (used by onConnect trigger)
   const applyAutoLayoutToContainer = useCallback(() => {
     if (!autoLayout.enabled) return
 
@@ -786,9 +836,10 @@ export function getNoodles(): Visualization {
     [setNodes, currentContainerId]
   )
 
-  // Register platform-specific select-all shortcut
+  // Register platform-specific shortcuts
   const isMac = useMemo(() => navigator.platform.toUpperCase().indexOf('MAC') >= 0, [])
   useKeyboardShortcut(isMac ? 'cmd+a' : 'ctrl+a', selectAllNodes, [selectAllNodes, isMac])
+  useKeyboardShortcut(isMac ? 'cmd+l' : 'ctrl+l', applyManualLayout, [applyManualLayout, isMac])
 
   const [showOverlay, setShowOverlay] = useState(true)
   const [layoutMode, setLayoutMode] = useState<'split' | 'noodles-on-top' | 'output-on-top'>(
@@ -1357,43 +1408,19 @@ export function getNoodles(): Visualization {
     blockLibraryRef.current?.openModal(centerX, centerY)
   }, [])
 
-  // Auto-layout callback for selected nodes
+  // Layout callback for UI button (wraps applyManualLayout with analytics)
   const onAutoLayout = useCallback(() => {
     const selectedNodes = nodes.filter(n => n.selected)
-    if (selectedNodes.length < 3) return
+    if (selectedNodes.length < 2) return
 
-    // Get edges that connect the selected nodes
-    const selectedNodeIds = new Set(selectedNodes.map(n => n.id))
-    const relevantEdges = edges.filter(
-      e => selectedNodeIds.has(e.source) && selectedNodeIds.has(e.target)
-    )
+    analytics.track('auto_layout_applied', {
+      nodeCount: selectedNodes.length,
+      algorithm: autoLayout.algorithm,
+      trigger: 'manual_button',
+    })
 
-    // Apply layout
-    const layoutedNodes = layoutNodes(selectedNodes, relevantEdges, autoLayout)
-
-    // Update node positions with animation
-    setNodes(currentNodes =>
-      currentNodes.map(node => {
-        const layoutedNode = layoutedNodes.find(n => n.id === node.id)
-        if (layoutedNode) {
-          return {
-            ...node,
-            position: layoutedNode.position,
-          }
-        }
-        return node
-      })
-    )
-
-    // Fit view to show all layouted nodes with animation
-    setTimeout(() => {
-      reactFlowInstanceRef.current?.fitView({
-        nodes: selectedNodes,
-        duration: 300,
-        padding: 0.2,
-      })
-    }, 0)
-  }, [nodes, edges, autoLayout, setNodes])
+    applyManualLayout()
+  }, [nodes, autoLayout.algorithm, applyManualLayout])
 
   // Note: Auto-layout on node addition was removed based on PR feedback.
   // Users can still trigger layout manually via the Layout button in the property panel (3+ nodes selected).

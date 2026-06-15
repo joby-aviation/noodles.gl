@@ -1184,18 +1184,12 @@ export function PropertyPanel({ onAutoLayout, autoLayout }: PropertyPanelProps) 
             <div className={s.selectionInfo}>
               <div>{selectedNodeCount} nodes selected</div>
               <div>{selectedEdgeCount} edges selected</div>
-              {selectedNodeCount >= 3 && onAutoLayout && (
+              {selectedNodeCount >= 2 && onAutoLayout && (
                 <button
                   type="button"
                   className={s.layoutButton}
-                  onClick={() => {
-                    onAutoLayout()
-                    analytics.track('auto_layout_applied', {
-                      nodeCount: selectedNodeCount,
-                      algorithm: autoLayout?.algorithm,
-                    })
-                  }}
-                  title="Auto-layout selected nodes"
+                  onClick={onAutoLayout}
+                  title="Layout selected nodes (Cmd/Ctrl+L)"
                 >
                   <LayoutGrid size={16} />
                   <span>Layout</span>
