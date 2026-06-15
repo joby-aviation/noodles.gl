@@ -243,8 +243,7 @@ export const useRenderer = ({
         const simTime = i / fps
 
         // Advance virtual time for this frame (deterministic rendering)
-        const virtualTime = (i / fps) * 1000
-        maplibregl.setNow(virtualTime)
+        maplibregl.setNow(simTime * 1000)
 
         setPosition(simTime)
         redraw()
