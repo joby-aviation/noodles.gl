@@ -8,7 +8,7 @@ import {
 import cx from 'classnames'
 import { AutoComplete } from 'primereact/autocomplete'
 import { Button } from 'primereact/button'
-import { InputNumber } from 'primereact/inputnumber'
+import { GeocodingDialog } from './geocoding-dialog'
 import { InputSwitch } from 'primereact/inputswitch'
 import { InputText } from 'primereact/inputtext'
 import { useEffect, useRef, useState } from 'react'
@@ -212,48 +212,91 @@ function ColorCellEditor({ value, onChange, onComplete }: CellEditorProps) {
 
 function Point2DCellEditor({ value, onChange, onComplete, column }: CellEditorProps) {
   const [lng, lat] = (value as [number, number]) || [0, 0]
+  const [lngStr, setLngStr] = useState(String(lng))
+  const [latStr, setLatStr] = useState(String(lat))
+  const initialValueRef = useRef([lng, lat] as [number, number])
+  const latestRef = useRef([lng, lat] as [number, number])
+  const [geocodingOpen, setGeocodingOpen] = useState(false)
+
+  const parseLng = (str: string) => {
+    setLngStr(str)
+    const parsed = Number.parseFloat(str)
+    const newVal: [number, number] = [Number.isNaN(parsed) ? 0 : parsed, latestRef.current[1]]
+    latestRef.current = newVal
+    onChange(newVal)
+  }
+
+  const parseLat = (str: string) => {
+    setLatStr(str)
+    const parsed = Number.parseFloat(str)
+    const newVal: [number, number] = [latestRef.current[0], Number.isNaN(parsed) ? 0 : parsed]
+    latestRef.current = newVal
+    onChange(newVal)
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    e.stopPropagation()
+    if (e.key === 'Enter') onComplete()
+    if (e.key === 'Escape') {
+      onChange(initialValueRef.current)
+      requestAnimationFrame(() => onComplete())
+    }
+  }
+
+  const handleBlur = () => {
+    if (!geocodingOpen) onComplete()
+  }
+
+  const handleLocationSelected = (result: { longitude: number; latitude: number }) => {
+    const newVal: [number, number] = [result.longitude, result.latitude]
+    latestRef.current = newVal
+    setLngStr(String(result.longitude))
+    setLatStr(String(result.latitude))
+    onChange(newVal)
+    setGeocodingOpen(false)
+    onComplete()
+  }
 
   return (
     <div className={s.point2dEditor}>
-      <InputNumber
-        value={lng}
+      <DraggableNumberCellInput
+        value={lngStr}
+        onChange={parseLng}
+        onBlur={() => {}}
+        onKeyDown={handleKeyDown}
         step={0.0001}
-        onValueChange={e => onChange([e.value ?? 0, lat])}
-        onKeyDown={e => {
-          e.stopPropagation()
-          if (e.key === 'Enter' || e.key === 'Escape') {
-            onComplete()
-          }
-        }}
-        placeholder="lng"
+        autoFocus
         className={s.coordInput}
       />
-      <InputNumber
-        value={lat}
+      <DraggableNumberCellInput
+        value={latStr}
+        onChange={parseLat}
+        onBlur={handleBlur}
+        onKeyDown={handleKeyDown}
         step={0.0001}
-        onValueChange={e => onChange([lng, e.value ?? 0])}
-        onBlur={onComplete}
-        onKeyDown={e => {
-          e.stopPropagation()
-          if (e.key === 'Enter' || e.key === 'Escape') {
-            onComplete()
-          }
-        }}
-        placeholder="lat"
         className={s.coordInput}
       />
       {column.options?.geocoder && (
         <button
           type="button"
           className={s.geocoderButton}
-          onClick={() => {
-            // TODO: Open geocoder dialog
-            console.log('Geocoder not yet implemented')
-          }}
+          onClick={() => setGeocodingOpen(true)}
           title="Geocode address"
         >
           📍
         </button>
+      )}
+      {column.options?.geocoder && (
+        <GeocodingDialog
+          open={geocodingOpen}
+          onOpenChange={open => {
+            setGeocodingOpen(open)
+            if (!open) onComplete()
+          }}
+          mode="update-field"
+          initialValue={{ longitude: latestRef.current[0], latitude: latestRef.current[1] }}
+          onLocationSelected={handleLocationSelected}
+        />
       )}
     </div>
   )
@@ -261,44 +304,70 @@ function Point2DCellEditor({ value, onChange, onComplete, column }: CellEditorPr
 
 function Vec3CellEditor({ value, onChange, onComplete }: CellEditorProps) {
   const [x, y, z] = (value as [number, number, number]) || [0, 0, 0]
+  const [xStr, setXStr] = useState(String(x))
+  const [yStr, setYStr] = useState(String(y))
+  const [zStr, setZStr] = useState(String(z))
+  const initialValueRef = useRef([x, y, z] as [number, number, number])
+  const latestRef = useRef([x, y, z] as [number, number, number])
+
+  const parseX = (str: string) => {
+    setXStr(str)
+    const parsed = Number.parseFloat(str)
+    const newVal: [number, number, number] = [Number.isNaN(parsed) ? 0 : parsed, latestRef.current[1], latestRef.current[2]]
+    latestRef.current = newVal
+    onChange(newVal)
+  }
+
+  const parseY = (str: string) => {
+    setYStr(str)
+    const parsed = Number.parseFloat(str)
+    const newVal: [number, number, number] = [latestRef.current[0], Number.isNaN(parsed) ? 0 : parsed, latestRef.current[2]]
+    latestRef.current = newVal
+    onChange(newVal)
+  }
+
+  const parseZ = (str: string) => {
+    setZStr(str)
+    const parsed = Number.parseFloat(str)
+    const newVal: [number, number, number] = [latestRef.current[0], latestRef.current[1], Number.isNaN(parsed) ? 0 : parsed]
+    latestRef.current = newVal
+    onChange(newVal)
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    e.stopPropagation()
+    if (e.key === 'Enter') onComplete()
+    if (e.key === 'Escape') {
+      onChange(initialValueRef.current)
+      requestAnimationFrame(() => onComplete())
+    }
+  }
 
   return (
     <div className={s.vec3Editor}>
-      <InputNumber
-        value={x}
-        onValueChange={e => onChange([e.value ?? 0, y, z])}
-        onKeyDown={e => {
-          e.stopPropagation()
-          if (e.key === 'Enter' || e.key === 'Escape') {
-            onComplete()
-          }
-        }}
-        placeholder="x"
+      <DraggableNumberCellInput
+        value={xStr}
+        onChange={parseX}
+        onBlur={() => {}}
+        onKeyDown={handleKeyDown}
+        step={0.01}
+        autoFocus
         className={s.vecInput}
       />
-      <InputNumber
-        value={y}
-        onValueChange={e => onChange([x, e.value ?? 0, z])}
-        onKeyDown={e => {
-          e.stopPropagation()
-          if (e.key === 'Enter' || e.key === 'Escape') {
-            onComplete()
-          }
-        }}
-        placeholder="y"
+      <DraggableNumberCellInput
+        value={yStr}
+        onChange={parseY}
+        onBlur={() => {}}
+        onKeyDown={handleKeyDown}
+        step={0.01}
         className={s.vecInput}
       />
-      <InputNumber
-        value={z}
-        onValueChange={e => onChange([x, y, e.value ?? 0])}
+      <DraggableNumberCellInput
+        value={zStr}
+        onChange={parseZ}
         onBlur={onComplete}
-        onKeyDown={e => {
-          e.stopPropagation()
-          if (e.key === 'Enter' || e.key === 'Escape') {
-            onComplete()
-          }
-        }}
-        placeholder="z"
+        onKeyDown={handleKeyDown}
+        step={0.01}
         className={s.vecInput}
       />
     </div>
