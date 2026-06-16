@@ -324,6 +324,12 @@
   display: flex;
   flex-direction: column;
   font-size: 12px;
+  border-radius: 4px;
+  transition: background 0.1s;
+}
+
+.property:hover {
+  background: rgba(255, 255, 255, 0.03);
 }
 
 /* Single-row layout: dot · label · [input] · [diamond] */

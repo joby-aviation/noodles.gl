@@ -678,7 +678,8 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
               ) : null
             })()}
         </div>
-        <div className={s.propertyList}>
+        {/* biome-ignore lint/a11y/useSemanticElements: flex layout requires div */}
+        <div className={s.propertyList} role="list" onContextMenu={e => e.preventDefault()}>
           <ErrorBoundary
             title="Field Rendering Error"
             fallback={
@@ -841,7 +842,8 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
       </div>
       <div className={s.section}>
         <div className={s.sectionTitle}>Outputs</div>
-        <div className={s.propertyList}>
+        {/* biome-ignore lint/a11y/useSemanticElements: flex layout requires div */}
+        <div className={s.propertyList} role="list" onContextMenu={e => e.preventDefault()}>
           {outputs.map(output => (
             // biome-ignore lint/a11y/useSemanticElements: property list uses div containers for flex layout
             <div
