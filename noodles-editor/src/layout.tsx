@@ -35,7 +35,7 @@ export function Layout({
       <div className={s.topBar}>{top}</div>
 
       <div className={s.mainContent}>
-        <PanelGroup direction="horizontal" onLayout={savePanelState}>
+        <PanelGroup direction="horizontal" onLayoutChanged={savePanelState}>
           {/* Left Sidebar */}
           <Panel
             id="sidebar"
@@ -44,8 +44,10 @@ export function Layout({
             maxSize={30}
             collapsible={true}
             collapsedSize={0}
-            onCollapse={collapsed => setPanelCollapsed('sidebar', collapsed)}
-            onResize={size => setPanelSize('sidebar', size)}
+            onResize={size => {
+              setPanelSize('sidebar', size)
+              setPanelCollapsed('sidebar', size === 0)
+            }}
             className={s.sidebarPanel}
           >
             {left}
@@ -55,7 +57,7 @@ export function Layout({
 
           {/* Main Content Area (Map + Noodles) */}
           <Panel id="main" minSize={30}>
-            <PanelGroup direction="vertical" onLayout={savePanelState}>
+            <PanelGroup direction="vertical" onLayoutChanged={savePanelState}>
               {/* Map Output */}
               <Panel
                 id="map"
@@ -86,8 +88,10 @@ export function Layout({
             maxSize={30}
             collapsible={true}
             collapsedSize={0}
-            onCollapse={collapsed => setPanelCollapsed('properties', collapsed)}
-            onResize={size => setPanelSize('properties', size)}
+            onResize={size => {
+              setPanelSize('properties', size)
+              setPanelCollapsed('properties', size === 0)
+            }}
             className={s.rightPanel}
           >
             {right}
