@@ -419,7 +419,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 18px;
+  width: 0;
   height: 18px;
   padding: 0;
   border: none;
@@ -427,14 +427,18 @@
   background: none;
   cursor: pointer;
   flex-shrink: 0;
+  overflow: hidden;
   opacity: 0;
   transition:
     opacity 0.15s,
+    width 0.15s,
     background 0.15s;
 }
 
 .property:hover .kebabMenuBtn,
 .kebabMenuBtn:focus-visible {
+  width: 18px;
+  overflow: visible;
   opacity: 1;
 }
 
