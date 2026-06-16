@@ -417,6 +417,7 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
     inputName?: string // field name for "Reset to default"
     keyframeEntries?: Array<{ path: string; value: KeyframeValue }> // for "Sequence"
     listFieldInputName?: string // field name when it's a ListField with connections
+    anchorRight?: boolean // when true, menu appears to the left of the x coordinate
   } | null>(null)
   const descriptionRef = useRef<HTMLDivElement>(null)
   const draggingRef = useRef<HTMLElement | null>(null)
@@ -806,7 +807,7 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
                             }
                           }
                           setContextMenu({
-                            x: rect.right,
+                            x: rect.left,
                             y: rect.top,
                             codeRef: input.codeRef,
                             mustacheRef: input.mustacheRef,
@@ -822,6 +823,7 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
                               input.field instanceof ListField && incomers.length > 0
                                 ? input.name
                                 : undefined,
+                            anchorRight: true,
                           })
                         }}
                       />
@@ -893,10 +895,11 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
                   onClick={e => {
                     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
                     setContextMenu({
-                      x: rect.right,
+                      x: rect.left,
                       y: rect.top,
                       codeRef: output.codeRef,
                       mustacheRef: output.mustacheRef,
+                      anchorRight: true,
                     })
                   }}
                 />
@@ -1015,7 +1018,11 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
         createPortal(
           <div
             className={s.contextMenu}
-            style={{ top: contextMenu.y, left: contextMenu.x }}
+            style={{
+              top: contextMenu.y,
+              left: contextMenu.x,
+              transform: contextMenu.anchorRight ? 'translateX(-100%)' : undefined,
+            }}
             onPointerDown={e => e.stopPropagation()}
           >
             <button
