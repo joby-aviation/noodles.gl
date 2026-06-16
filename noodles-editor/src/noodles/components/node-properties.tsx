@@ -413,6 +413,8 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
     y: number
     codeRef: string
     mustacheRef: string
+    fieldName: string
+    fieldValue?: string
     fieldPath?: string
     inputName?: string // field name for "Reset to default"
     keyframeEntries?: Array<{ path: string; value: KeyframeValue }> // for "Sequence"
@@ -509,10 +511,19 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
         keyframeEntries = [{ path: getFieldPath(op.id, input.name), value: fieldCurrentValue! }]
       }
     }
+    let fieldValue: string | undefined
+    try {
+      const v = input.field.value
+      fieldValue = typeof v === 'string' ? v : JSON.stringify(v)
+    } catch {
+      /* ignore */
+    }
     setContextMenu({
       ...position,
       codeRef: input.codeRef,
       mustacheRef: input.mustacheRef,
+      fieldName: input.name,
+      fieldValue,
       fieldPath: isAnimatable ? getFieldPath(op.id, input.name) : undefined,
       inputName:
         incomers.length === 0 &&
@@ -857,6 +868,7 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
                   y: e.clientY,
                   codeRef: output.codeRef,
                   mustacheRef: output.mustacheRef,
+                  fieldName: output.name,
                 })
               }}
             >
@@ -871,6 +883,7 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
                       y: rect.top,
                       codeRef: output.codeRef,
                       mustacheRef: output.mustacheRef,
+                      fieldName: output.name,
                       anchorRight: true,
                     })
                   }}
@@ -990,6 +1003,13 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
         createPortal(
           <div
             className={s.contextMenu}
+            ref={el => {
+              if (!el) return
+              const rect = el.getBoundingClientRect()
+              if (rect.right > window.innerWidth) {
+                el.style.transform = 'translateX(-100%)'
+              }
+            }}
             style={{
               top: contextMenu.y,
               left: contextMenu.x,
@@ -1001,11 +1021,34 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
               type="button"
               className={s.contextMenuItem}
               onClick={() => {
+                copy(contextMenu.fieldName)
+                setContextMenu(null)
+              }}
+            >
+              Copy name
+            </button>
+            {contextMenu.fieldValue !== undefined && (
+              <button
+                type="button"
+                className={s.contextMenuItem}
+                onClick={() => {
+                  copy(contextMenu.fieldValue!)
+                  setContextMenu(null)
+                }}
+              >
+                Copy value
+              </button>
+            )}
+            <div className={s.contextMenuSeparator} />
+            <button
+              type="button"
+              className={s.contextMenuItem}
+              onClick={() => {
                 copy(contextMenu.codeRef)
                 setContextMenu(null)
               }}
             >
-              Copy path to property
+              Copy code reference
             </button>
             <button
               type="button"
@@ -1015,7 +1058,7 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
                 setContextMenu(null)
               }}
             >
-              Copy mustache path
+              Copy mustache reference
             </button>
             {contextMenu.keyframeEntries && (
               <>
