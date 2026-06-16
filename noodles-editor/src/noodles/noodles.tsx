@@ -1517,7 +1517,11 @@ export function getNoodles(): Visualization {
               <Background />
               <Controls position="bottom-right" />
               <BlockLibrary ref={blockLibraryRef} reactFlowRef={reactFlowRef} />
-              <CopyControls ref={copyControlsRef} />
+              <CopyControls
+                ref={copyControlsRef}
+                getAllNodes={() => nodesRef.current}
+                getAllEdges={() => edgesRef.current}
+              />
               <UndoRedoHandler ref={undoRedoRef} />
               <Suspense fallback={null}>
                 <ChatPanel
