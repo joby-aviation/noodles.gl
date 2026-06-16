@@ -1062,95 +1062,84 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
             >
               Copy mustache reference
             </button>
-            {contextMenu.keyframeEntries && (
-              <>
-                <div className={s.contextMenuSeparator} />
-                <button
-                  type="button"
-                  className={s.contextMenuItem}
-                  onClick={() => {
-                    const store = getTimelineStore()
-                    const position = store.position
-                    const before = captureTimelineState()
-                    for (const { path, value } of contextMenu.keyframeEntries!) {
-                      store.getOrCreateTrack(path, value)
-                      store.addKeyframe(path, { position, value, interpolation: 'bezier' })
-                    }
-                    fireTimelineMutation('Add keyframe', before)
-                    expandTimeline()
-                    setContextMenu(null)
-                  }}
-                >
-                  Sequence
-                </button>
-              </>
-            )}
-            {contextMenu.inputName && (
-              <>
-                <div className={s.contextMenuSeparator} />
-                <button
-                  type="button"
-                  className={s.contextMenuItem}
-                  onClick={() => {
-                    const field = op.inputs[contextMenu.inputName!]
-                    if (!field) return
-                    // If there's an active keyframe track, remove it first so the
-                    // static reset is actually reflected in the rendered output.
-                    const fp = getFieldPath(op.id, contextMenu.inputName!)
-                    const store = getTimelineStore()
-                    if (store.hasKeyframesForField(fp)) {
-                      const before = captureTimelineState()
-                      store.deleteTrack(fp)
-                      fireTimelineMutation('Reset to default', before)
-                    }
-                    field.setValue(field.defaultValue)
-                    setContextMenu(null)
-                  }}
-                >
-                  Reset to default
-                </button>
-              </>
-            )}
-            {contextMenu.listFieldInputName && (
-              <>
-                <div className={s.contextMenuSeparator} />
-                <button
-                  type="button"
-                  className={s.contextMenuItem}
-                  onClick={() => {
-                    const name = contextMenu.listFieldInputName!
-                    const toRemove = edges.filter(
-                      e =>
-                        e.target === nodeId &&
-                        (e.targetHandle === name || e.targetHandle === `par.${name}`)
-                    )
-                    onEdgesChange(toRemove.map(e => ({ type: 'remove' as const, id: e.id })))
-                    setContextMenu(null)
-                  }}
-                >
-                  Disconnect all inputs
-                </button>
-              </>
-            )}
-            {contextMenu.fieldPath &&
-              getTimelineStore().hasKeyframesForField(contextMenu.fieldPath) && (
-                <>
-                  <div className={s.contextMenuSeparator} />
-                  <button
-                    type="button"
-                    className={s.contextMenuItem}
-                    onClick={() => {
-                      const before = captureTimelineState()
-                      const store = getTimelineStore()
-                      store.deleteTrack(contextMenu.fieldPath!)
-                      fireTimelineMutation('Make static', before)
-                      setContextMenu(null)
-                    }}
-                  >
-                    Make static
-                  </button>
-                </>
-              )}
+            <div className={s.contextMenuSeparator} />
+            <button
+              type="button"
+              className={s.contextMenuItem}
+              disabled={!contextMenu.keyframeEntries}
+              onClick={() => {
+                if (!contextMenu.keyframeEntries) return
+                const store = getTimelineStore()
+                const position = store.position
+                const before = captureTimelineState()
+                for (const { path, value } of contextMenu.keyframeEntries) {
+                  store.getOrCreateTrack(path, value)
+                  store.addKeyframe(path, { position, value, interpolation: 'bezier' })
+                }
+                fireTimelineMutation('Add keyframe', before)
+                expandTimeline()
+                setContextMenu(null)
+              }}
+            >
+              Sequence
+            </button>
+            <button
+              type="button"
+              className={s.contextMenuItem}
+              disabled={
+                !contextMenu.fieldPath ||
+                !getTimelineStore().hasKeyframesForField(contextMenu.fieldPath)
+              }
+              onClick={() => {
+                if (!contextMenu.fieldPath) return
+                const before = captureTimelineState()
+                const store = getTimelineStore()
+                store.deleteTrack(contextMenu.fieldPath)
+                fireTimelineMutation('Make static', before)
+                setContextMenu(null)
+              }}
+            >
+              Make static
+            </button>
+            <button
+              type="button"
+              className={s.contextMenuItem}
+              disabled={!contextMenu.inputName}
+              onClick={() => {
+                if (!contextMenu.inputName) return
+                const field = op.inputs[contextMenu.inputName]
+                if (!field) return
+                const fp = getFieldPath(op.id, contextMenu.inputName)
+                const store = getTimelineStore()
+                if (store.hasKeyframesForField(fp)) {
+                  const before = captureTimelineState()
+                  store.deleteTrack(fp)
+                  fireTimelineMutation('Reset to default', before)
+                }
+                field.setValue(field.defaultValue)
+                setContextMenu(null)
+              }}
+            >
+              Reset to default
+            </button>
+            <button
+              type="button"
+              className={s.contextMenuItem}
+              disabled={!contextMenu.listFieldInputName}
+              onClick={() => {
+                if (!contextMenu.listFieldInputName) return
+                const name = contextMenu.listFieldInputName
+                const toRemove = edges.filter(
+                  e =>
+                    e.target === nodeId &&
+                    (e.targetHandle === name || e.targetHandle === `par.${name}`)
+                )
+                onEdgesChange(toRemove.map(e => ({ type: 'remove' as const, id: e.id })))
+                setContextMenu(null)
+              }}
+            >
+              Disconnect all inputs
+            </button>
           </div>,
           document.body
         )}
