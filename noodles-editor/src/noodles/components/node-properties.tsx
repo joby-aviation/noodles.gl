@@ -512,11 +512,13 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
       }
     }
     let fieldValue: string | undefined
-    try {
-      const v = input.field.value
-      fieldValue = typeof v === 'string' ? v : JSON.stringify(v)
-    } catch {
-      /* ignore */
+    if (isValueField(input.field)) {
+      try {
+        const v = input.field.value
+        fieldValue = typeof v === 'string' ? v : JSON.stringify(v)
+      } catch {
+        /* ignore */
+      }
     }
     setContextMenu({
       ...position,
