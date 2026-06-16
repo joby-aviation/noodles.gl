@@ -180,8 +180,10 @@ function ReferenceIcon({
   const [isHovering, setIsHovering] = useState(false)
 
   useEffect(() => {
+    if (!isHovering) return
+
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Shift' && isHovering) {
+      if (e.key === 'Shift') {
         setIsShiftHeld(true)
       }
     }
@@ -201,10 +203,10 @@ function ReferenceIcon({
 
   return (
     <Tooltip text={isShiftHeld ? 'Copy Mustache Format' : 'Copy Code Format'} position="left">
-      <svg
-        className={s.referenceIcon}
-        role="img"
-        aria-label="Copy reference"
+      <button
+        type="button"
+        className={s.referenceIconBtn}
+        aria-label={isShiftHeld ? 'Copy Mustache Format' : 'Copy Code Format'}
         onClick={e => {
           const reference = e.shiftKey ? altReference : codeReference
           copy(reference)
@@ -217,11 +219,11 @@ function ReferenceIcon({
           setIsHovering(false)
           setIsShiftHeld(false)
         }}
-        viewBox="0 -960 960 960"
       >
-        <title>{isShiftHeld ? 'Copy Mustache Format' : 'Copy Code Format'}</title>
-        <path d="M360-240q-29.7 0-50.85-21.15Q288-282.3 288-312v-480q0-29.7 21.15-50.85Q330.3-864 360-864h384q29.7 0 50.85 21.15Q816-821.7 816-792v480q0 29.7-21.15 50.85Q773.7-240 744-240H360Zm0-72h384v-480H360v480ZM216-96q-29.7 0-50.85-21.15Q144-138.3 144-168v-552h72v552h456v72H216Zm144-216v-480 480Z" />
-      </svg>
+        <svg className={s.referenceIcon} viewBox="0 -960 960 960" aria-hidden="true">
+          <path d="M360-240q-29.7 0-50.85-21.15Q288-282.3 288-312v-480q0-29.7 21.15-50.85Q330.3-864 360-864h384q29.7 0 50.85 21.15Q816-821.7 816-792v480q0 29.7-21.15 50.85Q773.7-240 744-240H360Zm0-72h384v-480H360v480ZM216-96q-29.7 0-50.85-21.15Q144-138.3 144-168v-552h72v552h456v72H216Zm144-216v-480 480Z" />
+        </svg>
+      </button>
     </Tooltip>
   )
 }
