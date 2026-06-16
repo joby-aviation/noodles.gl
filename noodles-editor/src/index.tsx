@@ -12,9 +12,16 @@ import { analytics } from './utils/analytics'
 analytics.initialize()
 
 // Log uncaught errors and unhandled promise rejections to the console
-window.addEventListener('error', e =>
+window.addEventListener('error', e => {
+  // Ignore benign ResizeObserver errors - these are harmless browser warnings
+  // that occur when ResizeObserver callbacks trigger layout changes
+  const message = e.error?.message || e.message || ''
+  if (message.includes('ResizeObserver loop')) {
+    e.preventDefault()
+    return
+  }
   console.error('[Noodles] uncaught error:', e.error ?? e.message)
-)
+})
 window.addEventListener('unhandledrejection', e =>
   console.error('[Noodles] unhandled rejection:', e.reason)
 )
