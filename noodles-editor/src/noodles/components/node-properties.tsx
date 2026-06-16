@@ -169,62 +169,23 @@ function copy(text: string) {
   navigator.clipboard.writeText(text)
 }
 
-function ReferenceIcon({
-  codeReference,
-  altReference,
-}: {
-  codeReference: string
-  altReference: string
-}) {
-  const [isShiftHeld, setIsShiftHeld] = useState(false)
-  const [isHovering, setIsHovering] = useState(false)
-
-  useEffect(() => {
-    if (!isHovering) return
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Shift') {
-        setIsShiftHeld(true)
-      }
-    }
-    const handleKeyUp = (e: KeyboardEvent) => {
-      if (e.key === 'Shift') {
-        setIsShiftHeld(false)
-      }
-    }
-
-    window.addEventListener('keydown', handleKeyDown)
-    window.addEventListener('keyup', handleKeyUp)
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown)
-      window.removeEventListener('keyup', handleKeyUp)
-    }
-  }, [isHovering])
-
+function KebabMenuButton({ onClick }: { onClick: (e: React.MouseEvent) => void }) {
   return (
-    <Tooltip text={isShiftHeld ? 'Copy Mustache Format' : 'Copy Code Format'} position="left">
-      <button
-        type="button"
-        className={s.referenceIconBtn}
-        aria-label={isShiftHeld ? 'Copy Mustache Format' : 'Copy Code Format'}
-        onClick={e => {
-          const reference = e.shiftKey ? altReference : codeReference
-          copy(reference)
-        }}
-        onMouseEnter={e => {
-          setIsHovering(true)
-          setIsShiftHeld(e.shiftKey)
-        }}
-        onMouseLeave={() => {
-          setIsHovering(false)
-          setIsShiftHeld(false)
-        }}
-      >
-        <svg className={s.referenceIcon} viewBox="0 -960 960 960" aria-hidden="true">
-          <path d="M360-240q-29.7 0-50.85-21.15Q288-282.3 288-312v-480q0-29.7 21.15-50.85Q330.3-864 360-864h384q29.7 0 50.85 21.15Q816-821.7 816-792v480q0 29.7-21.15 50.85Q773.7-240 744-240H360Zm0-72h384v-480H360v480ZM216-96q-29.7 0-50.85-21.15Q144-138.3 144-168v-552h72v552h456v72H216Zm144-216v-480 480Z" />
-        </svg>
-      </button>
-    </Tooltip>
+    <button
+      type="button"
+      className={s.kebabMenuBtn}
+      aria-label="More actions"
+      onClick={e => {
+        e.stopPropagation()
+        onClick(e)
+      }}
+    >
+      <svg className={s.kebabIcon} viewBox="0 0 16 16" aria-hidden="true">
+        <circle cx="8" cy="3" r="1.5" />
+        <circle cx="8" cy="8" r="1.5" />
+        <circle cx="8" cy="13" r="1.5" />
+      </svg>
+    </button>
   )
 }
 
@@ -818,9 +779,51 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
                           )}
                         </>
                       )}
-                      <ReferenceIcon
-                        codeReference={input.codeRef}
-                        altReference={input.mustacheRef}
+                      <KebabMenuButton
+                        onClick={e => {
+                          const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                          const isAnimatable = isValueField(input.field) && incomers.length === 0
+                          const channelKeys = isAnimatable
+                            ? ((input.field.constructor as typeof Vec2Field).channelKeys ?? null)
+                            : null
+                          let keyframeEntries:
+                            | Array<{ path: string; value: KeyframeValue }>
+                            | undefined
+                          if (isAnimatable) {
+                            if (channelKeys) {
+                              const raw = input.field.value as Record<string, number> | number[]
+                              keyframeEntries = channelKeys.map((k, i) => ({
+                                path: getFieldPath(op.id, input.name, [k]),
+                                value: (Array.isArray(raw) ? raw[i] : raw[k]) as number,
+                              }))
+                            } else {
+                              keyframeEntries = [
+                                {
+                                  path: getFieldPath(op.id, input.name),
+                                  value: fieldCurrentValue!,
+                                },
+                              ]
+                            }
+                          }
+                          setContextMenu({
+                            x: rect.right,
+                            y: rect.top,
+                            codeRef: input.codeRef,
+                            mustacheRef: input.mustacheRef,
+                            fieldPath: isAnimatable ? getFieldPath(op.id, input.name) : undefined,
+                            inputName:
+                              incomers.length === 0 &&
+                              input.field.defaultValue !== undefined &&
+                              hasNonDefaultValue(input.field)
+                                ? input.name
+                                : undefined,
+                            keyframeEntries,
+                            listFieldInputName:
+                              input.field instanceof ListField && incomers.length > 0
+                                ? input.name
+                                : undefined,
+                          })
+                        }}
                       />
                     </div>
                     {/* Compound field: expand sub-fields inline */}
@@ -886,7 +889,17 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
               <div className={s.propertyRow}>
                 <div className={cx(s.port, output.handleClass)} />
                 <span className={s.propertyLabel}>{output.name}</span>
-                <ReferenceIcon codeReference={output.codeRef} altReference={output.mustacheRef} />
+                <KebabMenuButton
+                  onClick={e => {
+                    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                    setContextMenu({
+                      x: rect.right,
+                      y: rect.top,
+                      codeRef: output.codeRef,
+                      mustacheRef: output.mustacheRef,
+                    })
+                  }}
+                />
               </div>
             </div>
           ))}
