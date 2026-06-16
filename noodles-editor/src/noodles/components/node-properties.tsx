@@ -1063,44 +1063,43 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
               Copy mustache reference
             </button>
             <div className={s.contextMenuSeparator} />
-            <button
-              type="button"
-              className={s.contextMenuItem}
-              disabled={!contextMenu.keyframeEntries}
-              onClick={() => {
-                if (!contextMenu.keyframeEntries) return
-                const store = getTimelineStore()
-                const position = store.position
-                const before = captureTimelineState()
-                for (const { path, value } of contextMenu.keyframeEntries) {
-                  store.getOrCreateTrack(path, value)
-                  store.addKeyframe(path, { position, value, interpolation: 'bezier' })
-                }
-                fireTimelineMutation('Add keyframe', before)
-                expandTimeline()
-                setContextMenu(null)
-              }}
-            >
-              Sequence
-            </button>
-            <button
-              type="button"
-              className={s.contextMenuItem}
-              disabled={
-                !contextMenu.fieldPath ||
-                !getTimelineStore().hasKeyframesForField(contextMenu.fieldPath)
-              }
-              onClick={() => {
-                if (!contextMenu.fieldPath) return
-                const before = captureTimelineState()
-                const store = getTimelineStore()
-                store.deleteTrack(contextMenu.fieldPath)
-                fireTimelineMutation('Make static', before)
-                setContextMenu(null)
-              }}
-            >
-              Make static
-            </button>
+            {contextMenu.fieldPath &&
+            getTimelineStore().hasKeyframesForField(contextMenu.fieldPath) ? (
+              <button
+                type="button"
+                className={s.contextMenuItem}
+                onClick={() => {
+                  const before = captureTimelineState()
+                  const store = getTimelineStore()
+                  store.deleteTrack(contextMenu.fieldPath!)
+                  fireTimelineMutation('Make static', before)
+                  setContextMenu(null)
+                }}
+              >
+                Make static
+              </button>
+            ) : (
+              <button
+                type="button"
+                className={s.contextMenuItem}
+                disabled={!contextMenu.keyframeEntries}
+                onClick={() => {
+                  if (!contextMenu.keyframeEntries) return
+                  const store = getTimelineStore()
+                  const position = store.position
+                  const before = captureTimelineState()
+                  for (const { path, value } of contextMenu.keyframeEntries) {
+                    store.getOrCreateTrack(path, value)
+                    store.addKeyframe(path, { position, value, interpolation: 'bezier' })
+                  }
+                  fireTimelineMutation('Add keyframe', before)
+                  expandTimeline()
+                  setContextMenu(null)
+                }}
+              >
+                Sequence
+              </button>
+            )}
             <button
               type="button"
               className={s.contextMenuItem}
