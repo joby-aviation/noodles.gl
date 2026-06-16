@@ -487,6 +487,45 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
     }
   })
 
+  const openInputContextMenu = (
+    input: (typeof inputs)[number],
+    incomers: Edge[],
+    fieldCurrentValue: KeyframeValue | undefined,
+    position: { x: number; y: number; anchorRight?: boolean }
+  ) => {
+    const isAnimatable = isValueField(input.field) && incomers.length === 0
+    const channelKeys = isAnimatable
+      ? ((input.field.constructor as typeof Vec2Field).channelKeys ?? null)
+      : null
+    let keyframeEntries: Array<{ path: string; value: KeyframeValue }> | undefined
+    if (isAnimatable) {
+      if (channelKeys) {
+        const raw = input.field.value as Record<string, number> | number[]
+        keyframeEntries = channelKeys.map((k, i) => ({
+          path: getFieldPath(op.id, input.name, [k]),
+          value: (Array.isArray(raw) ? raw[i] : raw[k]) as number,
+        }))
+      } else {
+        keyframeEntries = [{ path: getFieldPath(op.id, input.name), value: fieldCurrentValue! }]
+      }
+    }
+    setContextMenu({
+      ...position,
+      codeRef: input.codeRef,
+      mustacheRef: input.mustacheRef,
+      fieldPath: isAnimatable ? getFieldPath(op.id, input.name) : undefined,
+      inputName:
+        incomers.length === 0 &&
+        input.field.defaultValue !== undefined &&
+        hasNonDefaultValue(input.field)
+          ? input.name
+          : undefined,
+      keyframeEntries,
+      listFieldInputName:
+        input.field instanceof ListField && incomers.length > 0 ? input.name : undefined,
+    })
+  }
+
   const handleMoveConnection = (inputName: string, fromIndex: number, toIndex: number) => {
     const input = op.inputs[inputName]
     if (!(input instanceof ListField)) return
@@ -694,41 +733,9 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
                     className={cx(s.property, s.propertyWithAction)}
                     onContextMenu={e => {
                       e.preventDefault()
-                      const isAnimatable = isValueField(input.field) && incomers.length === 0
-                      const channelKeys = isAnimatable
-                        ? ((input.field.constructor as typeof Vec2Field).channelKeys ?? null)
-                        : null
-                      let keyframeEntries: Array<{ path: string; value: KeyframeValue }> | undefined
-                      if (isAnimatable) {
-                        if (channelKeys) {
-                          const raw = input.field.value as Record<string, number> | number[]
-                          keyframeEntries = channelKeys.map((k, i) => ({
-                            path: getFieldPath(op.id, input.name, [k]),
-                            value: (Array.isArray(raw) ? raw[i] : raw[k]) as number,
-                          }))
-                        } else {
-                          keyframeEntries = [
-                            { path: getFieldPath(op.id, input.name), value: fieldCurrentValue! },
-                          ]
-                        }
-                      }
-                      setContextMenu({
+                      openInputContextMenu(input, incomers, fieldCurrentValue, {
                         x: e.clientX,
                         y: e.clientY,
-                        codeRef: input.codeRef,
-                        mustacheRef: input.mustacheRef,
-                        fieldPath: isAnimatable ? getFieldPath(op.id, input.name) : undefined,
-                        inputName:
-                          incomers.length === 0 &&
-                          input.field.defaultValue !== undefined &&
-                          hasNonDefaultValue(input.field)
-                            ? input.name
-                            : undefined,
-                        keyframeEntries,
-                        listFieldInputName:
-                          input.field instanceof ListField && incomers.length > 0
-                            ? input.name
-                            : undefined,
                       })
                     }}
                   >
@@ -783,46 +790,9 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
                       <KebabMenuButton
                         onClick={e => {
                           const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-                          const isAnimatable = isValueField(input.field) && incomers.length === 0
-                          const channelKeys = isAnimatable
-                            ? ((input.field.constructor as typeof Vec2Field).channelKeys ?? null)
-                            : null
-                          let keyframeEntries:
-                            | Array<{ path: string; value: KeyframeValue }>
-                            | undefined
-                          if (isAnimatable) {
-                            if (channelKeys) {
-                              const raw = input.field.value as Record<string, number> | number[]
-                              keyframeEntries = channelKeys.map((k, i) => ({
-                                path: getFieldPath(op.id, input.name, [k]),
-                                value: (Array.isArray(raw) ? raw[i] : raw[k]) as number,
-                              }))
-                            } else {
-                              keyframeEntries = [
-                                {
-                                  path: getFieldPath(op.id, input.name),
-                                  value: fieldCurrentValue!,
-                                },
-                              ]
-                            }
-                          }
-                          setContextMenu({
+                          openInputContextMenu(input, incomers, fieldCurrentValue, {
                             x: rect.left,
                             y: rect.top,
-                            codeRef: input.codeRef,
-                            mustacheRef: input.mustacheRef,
-                            fieldPath: isAnimatable ? getFieldPath(op.id, input.name) : undefined,
-                            inputName:
-                              incomers.length === 0 &&
-                              input.field.defaultValue !== undefined &&
-                              hasNonDefaultValue(input.field)
-                                ? input.name
-                                : undefined,
-                            keyframeEntries,
-                            listFieldInputName:
-                              input.field instanceof ListField && incomers.length > 0
-                                ? input.name
-                                : undefined,
                             anchorRight: true,
                           })
                         }}
