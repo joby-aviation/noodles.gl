@@ -1019,19 +1019,19 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
             }}
             onPointerDown={e => e.stopPropagation()}
           >
-            {contextMenu.fieldValue !== undefined && (
-              <button
-                type="button"
-                className={s.contextMenuItem}
-                onClick={() => {
-                  copy(contextMenu.fieldValue!)
-                  setContextMenu(null)
-                }}
-              >
-                Copy value
-              </button>
-            )}
-            {contextMenu.fieldValue !== undefined && <div className={s.contextMenuSeparator} />}
+            <button
+              type="button"
+              className={s.contextMenuItem}
+              disabled={contextMenu.fieldValue === undefined}
+              onClick={() => {
+                if (contextMenu.fieldValue === undefined) return
+                copy(contextMenu.fieldValue)
+                setContextMenu(null)
+              }}
+            >
+              Copy value
+            </button>
+            <div className={s.contextMenuSeparator} />
             <button
               type="button"
               className={s.contextMenuItem}

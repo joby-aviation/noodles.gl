@@ -704,8 +704,13 @@
   transition: background 0.1s;
 }
 
-.contextMenuItem:hover {
+.contextMenuItem:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.08);
+}
+
+.contextMenuItem:disabled {
+  color: rgba(255, 255, 255, 0.25);
+  cursor: default;
 }
 
 .contextMenuSeparator {
