@@ -18,6 +18,7 @@ window.addEventListener('error', e => {
   const message = e.error?.message || e.message || ''
   if (message.includes('ResizeObserver loop')) {
     e.preventDefault()
+    // Don't log or crash for ResizeObserver errors
     return
   }
   console.error('[Noodles] uncaught error:', e.error ?? e.message)
@@ -32,6 +33,7 @@ keyboardManager.init()
 const root = ReactDOM.createRoot(document.getElementById('root') as HTMLElement, {
   // Called when React catches an error in an Error Boundary
   onCaughtError: (error, errorInfo) => {
+    console.error('[React] caught error:', error, errorInfo)
     analytics.captureException(error, {
       source: 'react_error_boundary',
       componentStack: errorInfo.componentStack,
@@ -39,6 +41,7 @@ const root = ReactDOM.createRoot(document.getElementById('root') as HTMLElement,
   },
   // Called when an error is thrown and not caught by an Error Boundary
   onUncaughtError: (error, errorInfo) => {
+    console.error('[React] uncaught error:', error, errorInfo)
     analytics.captureException(error, {
       source: 'react_uncaught',
       componentStack: errorInfo.componentStack,
@@ -46,12 +49,20 @@ const root = ReactDOM.createRoot(document.getElementById('root') as HTMLElement,
   },
   // Called when React automatically recovers from errors
   onRecoverableError: (error, errorInfo) => {
+    console.error('[React] recoverable error:', error, errorInfo)
     analytics.captureException(error, {
       source: 'react_recoverable',
       componentStack: errorInfo.componentStack,
     })
   },
 })
+console.log('[Noodles] React root created, rendering App...')
+root.render(
+  //<React.StrictMode>
+  <App />
+  //</React.StrictMode>
+)
+console.log('[Noodles] App render called')
 root.render(
   //<React.StrictMode>
   <App />
