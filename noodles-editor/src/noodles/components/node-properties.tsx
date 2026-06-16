@@ -27,6 +27,7 @@ import type { IOperator, Operator } from '../operators'
 import { OutOp } from '../operators'
 import { getOpStore, useUIStore } from '../store'
 import { getBaseName, parseHandleId } from '../utils/path-utils'
+import { ErrorBoundary } from './error-boundary'
 import {
   BooleanFieldComponent,
   ColorFieldComponent,
@@ -37,7 +38,6 @@ import {
 } from './field-components'
 import menuStyles from './menu.module.css'
 import s from './node-properties.module.css'
-import { ErrorBoundary } from './error-boundary'
 import { handleClass, headerClass, typeCategory } from './op-components'
 import { RenderSettingsPanel } from './render-settings-panel'
 
@@ -169,6 +169,63 @@ function copy(text: string) {
   navigator.clipboard.writeText(text)
 }
 
+function ReferenceIcon({
+  codeReference,
+  altReference,
+}: {
+  codeReference: string
+  altReference: string
+}) {
+  const [isShiftHeld, setIsShiftHeld] = useState(false)
+  const [isHovering, setIsHovering] = useState(false)
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Shift' && isHovering) {
+        setIsShiftHeld(true)
+      }
+    }
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.key === 'Shift') {
+        setIsShiftHeld(false)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    window.addEventListener('keyup', handleKeyUp)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+      window.removeEventListener('keyup', handleKeyUp)
+    }
+  }, [isHovering])
+
+  return (
+    <Tooltip text={isShiftHeld ? 'Copy Mustache Format' : 'Copy Code Format'} position="left">
+      <svg
+        className={s.referenceIcon}
+        role="img"
+        aria-label="Copy reference"
+        onClick={e => {
+          const reference = e.shiftKey ? altReference : codeReference
+          copy(reference)
+        }}
+        onMouseEnter={e => {
+          setIsHovering(true)
+          setIsShiftHeld(e.shiftKey)
+        }}
+        onMouseLeave={() => {
+          setIsHovering(false)
+          setIsShiftHeld(false)
+        }}
+        viewBox="0 -960 960 960"
+      >
+        <title>{isShiftHeld ? 'Copy Mustache Format' : 'Copy Code Format'}</title>
+        <path d="M360-240q-29.7 0-50.85-21.15Q288-282.3 288-312v-480q0-29.7 21.15-50.85Q330.3-864 360-864h384q29.7 0 50.85 21.15Q816-821.7 816-792v480q0 29.7-21.15 50.85Q773.7-240 744-240H360Zm0-72h384v-480H360v480ZM216-96q-29.7 0-50.85-21.15Q144-138.3 144-168v-552h72v552h456v72H216Zm144-216v-480 480Z" />
+      </svg>
+    </Tooltip>
+  )
+}
+
 function Tooltip({
   text,
   position = 'top',
@@ -185,7 +242,6 @@ function Tooltip({
     </div>
   )
 }
-
 
 function AddRemoveButton({
   type,
@@ -416,7 +472,6 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
     const subscription = op.visibleFields.subscribe(setVisibility)
     return () => subscription.unsubscribe()
   }, [op])
-
 
   // Close context menu on outside click or Escape
   useEffect(() => {
@@ -761,6 +816,10 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
                           )}
                         </>
                       )}
+                      <ReferenceIcon
+                        codeReference={input.codeRef}
+                        altReference={input.mustacheRef}
+                      />
                     </div>
                     {/* Compound field: expand sub-fields inline */}
                     {input.field instanceof CompoundPropsField && (
@@ -799,7 +858,6 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
               }
 
               return <>{inputs.map(input => renderInput(input))}</>
-
             })()}
           </ErrorBoundary>
         </div>
@@ -826,6 +884,7 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
               <div className={s.propertyRow}>
                 <div className={cx(s.port, output.handleClass)} />
                 <span className={s.propertyLabel}>{output.name}</span>
+                <ReferenceIcon codeReference={output.codeRef} altReference={output.mustacheRef} />
               </div>
             </div>
           ))}
