@@ -95,6 +95,40 @@ describe('copy-paste-utils', () => {
 
       expect(additionalNodes).toHaveLength(0)
     })
+
+    it('recursively collects nested container children', () => {
+      const outer = makeNode('/container', 'ContainerOp')
+      const nested = makeNode('/container/nested', 'ContainerOp')
+      const nestedInput = makeNode('/container/nested/container-input', 'GraphInputOp')
+      const nestedOutput = makeNode('/container/nested/container-output', 'GraphOutputOp')
+      const deepChild = makeNode('/container/nested/deep', 'NumberOp')
+      const directChild = makeNode('/container/child', 'NumberOp')
+
+      const allNodes = [outer, nested, nestedInput, nestedOutput, deepChild, directChild]
+      const nestedInEdge = makeEdge(
+        '/container/nested',
+        'par.in',
+        '/container/nested/container-input',
+        'par.parentValue'
+      )
+      const allEdges = [nestedInEdge]
+
+      const { additionalNodes, additionalEdges } = collectContainerChildren(
+        [outer],
+        allNodes,
+        allEdges
+      )
+
+      const ids = additionalNodes.map(n => n.id).sort()
+      expect(ids).toEqual([
+        '/container/child',
+        '/container/nested',
+        '/container/nested/container-input',
+        '/container/nested/container-output',
+        '/container/nested/deep',
+      ])
+      expect(additionalEdges).toHaveLength(1)
+    })
   })
 
   describe('sortParentsFirst', () => {

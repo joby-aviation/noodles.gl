@@ -20,10 +20,10 @@ export type CopyPasteEdge = {
 }
 
 /**
- * Given selected nodes, expands the set to include container children and
- * internal edges. Container children use path-based nesting (ID prefix),
- * not ReactFlow's parentId. They live in a different scope and must be
- * found from the full node/edge arrays.
+ * Given selected nodes, expands the set to include all descendant children
+ * and internal edges of any ContainerOp nodes. Recurses into nested containers
+ * so that `/container/nested/child` is collected when `/container` is selected.
+ * Container children use path-based nesting (ID prefix), not ReactFlow's parentId.
  */
 export function collectContainerChildren<N extends CopyPasteNode, E extends CopyPasteEdge>(
   selectedNodes: N[],
@@ -32,17 +32,27 @@ export function collectContainerChildren<N extends CopyPasteNode, E extends Copy
 ): { additionalNodes: N[]; additionalEdges: E[] } {
   const additionalNodes: N[] = []
   const additionalEdges: E[] = []
+  const visitedIds = new Set(selectedNodes.map(n => n.id))
 
-  for (const node of selectedNodes) {
-    if (node.type === 'ContainerOp') {
-      const children = allNodes.filter(childNode => getParentPath(childNode.id) === node.id)
-      additionalNodes.push(...children)
+  const queue = selectedNodes.filter(n => n.type === 'ContainerOp')
+  while (queue.length > 0) {
+    const container = queue.shift()!
+    const children = allNodes.filter(
+      childNode => getParentPath(childNode.id) === container.id && !visitedIds.has(childNode.id)
+    )
 
-      const containerAndChildrenIds = new Set([node.id, ...children.map(c => c.id)])
-      for (const edge of allEdges) {
-        if (containerAndChildrenIds.has(edge.source) && containerAndChildrenIds.has(edge.target)) {
-          additionalEdges.push(edge)
-        }
+    for (const child of children) {
+      visitedIds.add(child.id)
+      additionalNodes.push(child)
+      if (child.type === 'ContainerOp') {
+        queue.push(child)
+      }
+    }
+
+    const containerAndChildrenIds = new Set([container.id, ...children.map(c => c.id)])
+    for (const edge of allEdges) {
+      if (containerAndChildrenIds.has(edge.source) && containerAndChildrenIds.has(edge.target)) {
+        additionalEdges.push(edge)
       }
     }
   }
@@ -51,25 +61,27 @@ export function collectContainerChildren<N extends CopyPasteNode, E extends Copy
 }
 
 /**
- * Given selected nodes, expands the set to include parent group nodes
- * (for ForLoop visual grouping) and their internal edges.
+ * Given a set of nodes to copy, finds any parent group nodes (ForLoop visual
+ * grouping) that should be included, plus their internal edges.
+ * Pure function — does not mutate the input set.
  */
 export function collectGroupParents<N extends CopyPasteNode, E extends CopyPasteEdge>(
-  nodesToCopy: Set<N>,
+  nodesToCopy: ReadonlySet<N>,
   allGraphNodes: N[],
   allGraphEdges: E[]
 ): { additionalNodes: N[]; additionalEdges: E[] } {
   const additionalNodes: N[] = []
   const additionalEdges: E[] = []
+  const includedIds = new Set([...nodesToCopy].map(n => n.id))
 
   let addedParent = true
   while (addedParent) {
     addedParent = false
-    for (const node of nodesToCopy) {
-      if (node.parentId) {
+    for (const node of [...nodesToCopy, ...additionalNodes]) {
+      if (node.parentId && !includedIds.has(node.parentId)) {
         const parent = allGraphNodes.find(n => n.id === node.parentId)
-        if (parent && parent.type === 'group' && !nodesToCopy.has(parent)) {
-          nodesToCopy.add(parent)
+        if (parent && parent.type === 'group') {
+          includedIds.add(parent.id)
           additionalNodes.push(parent)
           addedParent = true
         }
@@ -77,7 +89,8 @@ export function collectGroupParents<N extends CopyPasteNode, E extends CopyPaste
     }
   }
 
-  for (const node of nodesToCopy) {
+  const allIncluded = [...nodesToCopy, ...additionalNodes]
+  for (const node of allIncluded) {
     if (node.type === 'group') {
       const children = allGraphNodes.filter(childNode => childNode.parentId === node.id)
       const groupAndChildrenIds = new Set([node.id, ...children.map(c => c.id)])
@@ -219,10 +232,15 @@ export function identifyContainerChildren(
   idMap: Map<string, string>,
   copiedNodeIds: Set<string>
 ): Set<string> {
+  const reverseIdMap = new Map<string, string>()
+  for (const [original, remapped] of idMap) {
+    reverseIdMap.set(remapped, original)
+  }
+
   const containerChildIds = new Set<string>()
   for (const node of pastedNodes) {
     if (!node.parentId) {
-      const originalId = [...idMap.entries()].find(([_, v]) => v === node.id)?.[0]
+      const originalId = reverseIdMap.get(node.id)
       if (originalId) {
         const pathParent = getParentPath(originalId)
         if (pathParent && pathParent !== '/' && copiedNodeIds.has(pathParent)) {

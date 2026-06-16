@@ -74,11 +74,12 @@ export const CopyControls = forwardRef<CopyControlsRef, CopyControlsProps>(
       for (const edge of containerEdges) edgesToCopySet.add(edge)
 
       // Auto-include parent group nodes (ForLoop body) and their edges
-      const { additionalEdges: groupEdges } = collectGroupParents(
+      const { additionalNodes: groupParents, additionalEdges: groupEdges } = collectGroupParents(
         nodesToCopySet,
         allGraphNodes,
         allGraphEdges
       )
+      for (const node of groupParents) nodesToCopySet.add(node)
       for (const edge of groupEdges) edgesToCopySet.add(edge)
 
       const nodesToCopy = Array.from(nodesToCopySet)
