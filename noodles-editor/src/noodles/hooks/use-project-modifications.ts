@@ -21,7 +21,7 @@ import type { IOperator, Operator } from '../operators'
 import { deleteOp, getAllOps, getOp, setOp } from '../store'
 import { canConnect, validateConnection } from '../utils/can-connect'
 import { edgeId } from '../utils/id-utils'
-import { generateQualifiedPath, parseHandleId } from '../utils/path-utils'
+import { generateQualifiedPath, getParentPath, parseHandleId } from '../utils/path-utils'
 
 // Using ReactFlowNode instead of AnyNodeJSON for compatibility
 export type ProjectModification =
@@ -86,7 +86,26 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
     }) => {
       if (nodesToDelete && nodesToDelete.length > 0) {
         const nodeIds = new Set(nodesToDelete.map(n => n.id))
-        setNodes(currentNodes => currentNodes.filter(n => !nodeIds.has(n.id)))
+        setNodes(currentNodes => {
+          // Cascade delete to path-based children (handles arbitrary nesting depth)
+          let expanded = true
+          while (expanded) {
+            expanded = false
+            for (const node of currentNodes) {
+              if (nodeIds.has(node.id)) continue
+              const pathParent = getParentPath(node.id)
+              if (pathParent && pathParent !== '/' && nodeIds.has(pathParent)) {
+                nodeIds.add(node.id)
+                expanded = true
+              }
+            }
+          }
+          return currentNodes.filter(n => !nodeIds.has(n.id))
+        })
+        // Remove edges that reference any deleted node (including cascaded children)
+        setEdges(currentEdges =>
+          currentEdges.filter(e => !nodeIds.has(e.source) && !nodeIds.has(e.target))
+        )
         analytics.track('node_deleted', { count: nodesToDelete.length })
       }
       if (edgesToDelete && edgesToDelete.length > 0) {
@@ -149,9 +168,30 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
         })
       }
 
-      // Intelligent edge reconnection (same logic as noodles.tsx)
+      // Cascade delete to path-based container children
+      const allDeletedIds = new Set([
+        ...nodesToDelete.map(n => n.id),
+        ...extraDeleted,
+      ])
+      setNodes(currentNodes => {
+        let expanded = true
+        while (expanded) {
+          expanded = false
+          for (const node of currentNodes) {
+            if (allDeletedIds.has(node.id)) continue
+            const pathParent = getParentPath(node.id)
+            if (pathParent && pathParent !== '/' && allDeletedIds.has(pathParent)) {
+              allDeletedIds.add(node.id)
+              expanded = true
+            }
+          }
+        }
+        return currentNodes.filter(n => !allDeletedIds.has(n.id))
+      })
+
+      // Intelligent edge reconnection, then remove orphaned edges
       setEdges(currentEdges => {
-        return nodesToDelete.reduce((acc, node) => {
+        const reconnected = nodesToDelete.reduce((acc, node) => {
           const incomers = getIncomers(node, nodes, edges)
           const outgoers = getOutgoers(node, nodes, edges)
           const connectedEdges = getConnectedEdges([node], edges)
@@ -206,6 +246,11 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
 
           return [...remainingEdges, ...createdEdges]
         }, currentEdges)
+
+        // Remove edges referencing any cascaded-deleted child
+        return reconnected.filter(
+          e => !allDeletedIds.has(e.source) && !allDeletedIds.has(e.target)
+        )
       })
 
       return { success: true, warnings: warnings.length > 0 ? warnings : undefined }
