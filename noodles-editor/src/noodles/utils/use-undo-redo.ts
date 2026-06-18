@@ -15,6 +15,7 @@ import {
   debugHistorySnapshot,
   debugHistoryUndo,
 } from '../../utils/debug'
+import type { GraphRef } from '../types'
 import { applyOperatorInputs } from './property-history'
 
 interface HistoryEntry {
@@ -49,8 +50,7 @@ interface UndoRedoPublicState {
 }
 
 interface UseUndoRedoOptions {
-  getFullNodes?: () => ReactFlowNode[]
-  getFullEdges?: () => ReactFlowEdge[]
+  graphRef?: GraphRef
 }
 
 export function useUndoRedo(options?: UseUndoRedoOptions) {
@@ -73,16 +73,14 @@ export function useUndoRedo(options?: UseUndoRedoOptions) {
   const onEdgesChange = useStore(s => s.onEdgesChange)
   const store = useStoreApi()
 
-  const getFullNodesRef = useRef(options?.getFullNodes)
-  const getFullEdgesRef = useRef(options?.getFullEdges)
-  getFullNodesRef.current = options?.getFullNodes
-  getFullEdgesRef.current = options?.getFullEdges
-
   const getSnapshot = useCallback(() => {
-    const nodes = getFullNodesRef.current?.() ?? store.getState().nodes
-    const edges = getFullEdgesRef.current?.() ?? store.getState().edges
+    if (options?.graphRef?.current) {
+      const { nodes, edges } = options.graphRef.current
+      return { nodes: [...nodes], edges: [...edges] }
+    }
+    const { nodes, edges } = store.getState()
     return { nodes: [...nodes], edges: [...edges] }
-  }, [store])
+  }, [store, options?.graphRef])
 
   const { history, currentIndex } = undoRedoState
 

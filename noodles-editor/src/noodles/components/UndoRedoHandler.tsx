@@ -1,14 +1,13 @@
-import type { Edge as ReactFlowEdge, Node as ReactFlowNode } from '@xyflow/react'
 import { forwardRef, useEffect, useImperativeHandle } from 'react'
 import { registerTimelineMutationCallback } from '../../timeline/timeline-store'
 import { analytics } from '../../utils/analytics'
 import { debugHistoryRedo, debugHistoryUndo } from '../../utils/debug'
+import type { GraphRef } from '../types'
 import { registerPropertyMutationCallback } from '../utils/property-history'
 import { useUndoRedo } from '../utils/use-undo-redo'
 
 export interface UndoRedoHandlerProps {
-  getFullNodes: () => ReactFlowNode[]
-  getFullEdges: () => ReactFlowEdge[]
+  graphRef: GraphRef
 }
 
 export interface UndoRedoHandlerRef {
@@ -27,8 +26,8 @@ export interface UndoRedoHandlerRef {
 
 // This component must be placed inside ReactFlow to access the zustand store
 export const UndoRedoHandler = forwardRef<UndoRedoHandlerRef, UndoRedoHandlerProps>(
-  ({ getFullNodes, getFullEdges }, ref) => {
-    const undoRedo = useUndoRedo({ getFullNodes, getFullEdges })
+  ({ graphRef }, ref) => {
+    const undoRedo = useUndoRedo({ graphRef })
 
   // Register the timeline mutation callback so timeline ops join the unified undo stack
   useEffect(() => {

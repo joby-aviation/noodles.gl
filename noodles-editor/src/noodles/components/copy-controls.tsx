@@ -4,6 +4,7 @@ import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef } from 
 import { debugUI } from '../../utils/debug'
 import { useProjectModifications } from '../hooks/use-project-modifications'
 import { getOpStore, useNestingStore } from '../store'
+import type { GraphRef } from '../types'
 import {
   type CopyPasteEdge,
   collectContainerChildren,
@@ -14,8 +15,7 @@ import {
 import { type CopiedNodesJSON, safeStringify, serializeNodes } from '../utils/serialization'
 
 export interface CopyControlsProps {
-  getAllNodes: () => Node[]
-  getAllEdges: () => CopyPasteEdge[]
+  graphRef: GraphRef
 }
 
 export interface CopyControlsRef {
@@ -35,7 +35,7 @@ function copy(text: string) {
 }
 
 export const CopyControls = forwardRef<CopyControlsRef, CopyControlsProps>(
-  ({ getAllNodes, getAllEdges }, ref) => {
+  ({ graphRef }, ref) => {
     const { toObject, getNodes, getEdges, setNodes, setEdges, screenToFlowPosition } =
       useReactFlow()
     const currentContainerId = useNestingStore(state => state.currentContainerId)
@@ -66,8 +66,8 @@ export const CopyControls = forwardRef<CopyControlsRef, CopyControlsProps>(
       const edgesToCopySet = new Set(selectedEdges.map(e => e))
 
       // Container children use path-based nesting and live in a different scope
-      const fullNodes = getAllNodes()
-      const fullEdges = getAllEdges()
+      const fullNodes = graphRef.current.nodes
+      const fullEdges = graphRef.current.edges
       const { additionalNodes: containerChildren, additionalEdges: containerEdges } =
         collectContainerChildren(selectedNodes, fullNodes, fullEdges)
       for (const child of containerChildren) nodesToCopySet.add(child)
@@ -93,7 +93,7 @@ export const CopyControls = forwardRef<CopyControlsRef, CopyControlsProps>(
 
       clipboardDataRef.current = data
       copy(data)
-    }, [toObject, getAllNodes, getAllEdges])
+    }, [toObject, graphRef])
 
     const doPaste = useCallback(() => {
       const data = clipboardDataRef.current
