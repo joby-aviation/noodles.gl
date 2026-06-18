@@ -1522,7 +1522,11 @@ export function getNoodles(): Visualization {
                 getAllNodes={() => nodesRef.current}
                 getAllEdges={() => edgesRef.current}
               />
-              <UndoRedoHandler ref={undoRedoRef} />
+              <UndoRedoHandler
+                ref={undoRedoRef}
+                getFullNodes={() => nodesRef.current}
+                getFullEdges={() => edgesRef.current}
+              />
               <Suspense fallback={null}>
                 <ChatPanel
                   project={{ nodes, edges }}

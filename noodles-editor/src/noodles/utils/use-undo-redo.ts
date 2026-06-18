@@ -48,7 +48,12 @@ interface UndoRedoPublicState {
   redoDescription?: string
 }
 
-export function useUndoRedo() {
+interface UseUndoRedoOptions {
+  getFullNodes?: () => ReactFlowNode[]
+  getFullEdges?: () => ReactFlowEdge[]
+}
+
+export function useUndoRedo(options?: UseUndoRedoOptions) {
   const [undoRedoState, setUndoRedoState] = useState<UndoRedoState>({
     history: [],
     currentIndex: -1,
@@ -67,6 +72,17 @@ export function useUndoRedo() {
   const onNodesChange = useStore(s => s.onNodesChange)
   const onEdgesChange = useStore(s => s.onEdgesChange)
   const store = useStoreApi()
+
+  const getFullNodesRef = useRef(options?.getFullNodes)
+  const getFullEdgesRef = useRef(options?.getFullEdges)
+  getFullNodesRef.current = options?.getFullNodes
+  getFullEdgesRef.current = options?.getFullEdges
+
+  const getSnapshot = useCallback(() => {
+    const nodes = getFullNodesRef.current?.() ?? store.getState().nodes
+    const edges = getFullEdgesRef.current?.() ?? store.getState().edges
+    return { nodes: [...nodes], edges: [...edges] }
+  }, [store])
 
   const { history, currentIndex } = undoRedoState
 
@@ -101,7 +117,7 @@ export function useUndoRedo() {
       }
 
       // Only capture state when there are significant changes to record
-      const { nodes: nodesBefore, edges: edgesBefore } = store.getState()
+      const { nodes: nodesBefore, edges: edgesBefore } = getSnapshot()
       const timelineStateBefore = captureTimelineState()
 
       userOnNodesChange(changes)
@@ -126,7 +142,7 @@ export function useUndoRedo() {
 
       // Capture state after changes (need to use setTimeout to get updated state from store)
       setTimeout(() => {
-        const { nodes: nodesAfter, edges: edgesAfter } = store.getState()
+        const { nodes: nodesAfter, edges: edgesAfter } = getSnapshot()
         const timelineStateAfter = captureTimelineState()
 
         debugHistorySnapshot('Captured after state counts: %O', {
@@ -215,7 +231,7 @@ export function useUndoRedo() {
       }
 
       // Only capture state when there are changes to record
-      const { nodes: nodesBefore, edges: edgesBefore } = store.getState()
+      const { nodes: nodesBefore, edges: edgesBefore } = getSnapshot()
       const timelineStateBefore = captureTimelineState()
 
       userOnEdgesChange(changes)
@@ -227,7 +243,7 @@ export function useUndoRedo() {
 
       // Capture state after changes (need to use setTimeout to get updated state from store)
       setTimeout(() => {
-        const { nodes: nodesAfter, edges: edgesAfter } = store.getState()
+        const { nodes: nodesAfter, edges: edgesAfter } = getSnapshot()
         const timelineStateAfter = captureTimelineState()
 
         const entry: HistoryEntry = {
@@ -307,8 +323,7 @@ export function useUndoRedo() {
     debugHistoryUndo('Undoing: %s', entry.description)
 
     // Calculate the changes needed to restore the state
-    const currentNodes = store.getState().nodes
-    const currentEdges = store.getState().edges
+    const { nodes: currentNodes, edges: currentEdges } = getSnapshot()
 
     debugHistoryUndo('Undo state comparison: %O', {
       currentNodeCount: currentNodes.length,
@@ -407,7 +422,7 @@ export function useUndoRedo() {
     queueMicrotask(() => {
       isRestoringRef.current = false
     })
-  }, [currentIndex, history, store])
+  }, [currentIndex, history, store, getSnapshot])
 
   const redo = useCallback(() => {
     if (currentIndex >= history.length - 1) return
@@ -418,8 +433,7 @@ export function useUndoRedo() {
     debugHistoryRedo('Redoing: %s', entry.description)
 
     // Calculate the changes needed to restore the "after" state
-    const currentNodes = store.getState().nodes
-    const currentEdges = store.getState().edges
+    const { nodes: currentNodes, edges: currentEdges } = getSnapshot()
 
     // Create remove changes for nodes that exist now but shouldn't
     const nodeIdsToKeep = new Set(entry.nodesAfter.map(n => n.id))
@@ -509,7 +523,7 @@ export function useUndoRedo() {
     queueMicrotask(() => {
       isRestoringRef.current = false
     })
-  }, [currentIndex, history, store])
+  }, [currentIndex, history, store, getSnapshot])
 
   const canUndo =
     currentIndex >= 0 && currentIndex < history.length && history[currentIndex] != null
@@ -533,17 +547,17 @@ export function useUndoRedo() {
   const recordTimelineChange = useCallback(
     (desc: string, timelineStateBefore: string, timelineStateAfter: string) => {
       if (isRestoringRef.current) return
-      const { nodes, edges } = store.getState()
+      const { nodes, edges } = getSnapshot()
       const entry: HistoryEntry = {
         id: crypto.randomUUID(),
         timestamp: Date.now(),
         description: desc,
         nodeChanges: [],
         edgeChanges: [],
-        nodesBefore: [...nodes],
-        edgesBefore: [...edges],
-        nodesAfter: [...nodes],
-        edgesAfter: [...edges],
+        nodesBefore: nodes,
+        edgesBefore: edges,
+        nodesAfter: nodes,
+        edgesAfter: edges,
         timelineStateBefore,
         timelineStateAfter,
       }
@@ -559,14 +573,14 @@ export function useUndoRedo() {
         return { history: finalHistory, currentIndex: newIndex }
       })
     },
-    [store]
+    [getSnapshot]
   )
 
   // Record a pure operator property change (no node/edge/timeline changes) into the unified history
   const recordPropertyChange = useCallback(
     (desc: string, operatorStateBefore: string, operatorStateAfter: string) => {
       if (isRestoringRef.current) return
-      const { nodes, edges } = store.getState()
+      const { nodes, edges } = getSnapshot()
       const timelineState = captureTimelineState()
       const entry: HistoryEntry = {
         id: crypto.randomUUID(),
@@ -574,10 +588,10 @@ export function useUndoRedo() {
         description: desc,
         nodeChanges: [],
         edgeChanges: [],
-        nodesBefore: [...nodes],
-        edgesBefore: [...edges],
-        nodesAfter: [...nodes],
-        edgesAfter: [...edges],
+        nodesBefore: nodes,
+        edgesBefore: edges,
+        nodesAfter: nodes,
+        edgesAfter: edges,
         timelineStateBefore: timelineState,
         timelineStateAfter: timelineState,
         operatorStateBefore,
@@ -595,7 +609,7 @@ export function useUndoRedo() {
         return { history: finalHistory, currentIndex: newIndex }
       })
     },
-    [store]
+    [getSnapshot]
   )
 
   return {
