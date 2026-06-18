@@ -1,7 +1,13 @@
 // Tests for operations that must cascade across container scope boundaries.
-// The "class of bug" being tested: ReactFlow only sees displayedNodes (current scope),
-// but operations like delete, copy, and undo must affect ALL nodes including
-// out-of-scope container children that use path-based nesting.
+//
+// Key architectural detail: <ReactFlow nodes={displayedNodes}> receives a FILTERED
+// subset of nodes — only those at the current container level. Container children
+// are not "hidden" in ReactFlow; they are excluded entirely from its controlled state.
+// The full nodes array lives in useNodesState and is accessible via graphRef.
+//
+// The "class of bug" being tested: code that queries ReactFlow's store (or toObject())
+// only sees the current scope. Operations like delete, copy, and undo must use the
+// full graph state (graphRef) to find and cascade to out-of-scope children.
 import type { Edge as ReactFlowEdge, Node as ReactFlowNode } from '@xyflow/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { clearOps, hasOp } from '../store'
