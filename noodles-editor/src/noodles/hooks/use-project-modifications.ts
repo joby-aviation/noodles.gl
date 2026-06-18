@@ -20,8 +20,9 @@ import { type Field, ListField } from '../fields'
 import type { IOperator, Operator } from '../operators'
 import { deleteOp, getAllOps, getOp, setOp } from '../store'
 import { canConnect, validateConnection } from '../utils/can-connect'
+import { expandDeleteSet } from '../utils/copy-paste-utils'
 import { edgeId } from '../utils/id-utils'
-import { generateQualifiedPath, getParentPath, parseHandleId } from '../utils/path-utils'
+import { generateQualifiedPath, parseHandleId } from '../utils/path-utils'
 
 // Using ReactFlowNode instead of AnyNodeJSON for compatibility
 export type ProjectModification =
@@ -87,22 +88,9 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
       if (nodesToDelete && nodesToDelete.length > 0) {
         const nodeIds = new Set(nodesToDelete.map(n => n.id))
         setNodes(currentNodes => {
-          // Cascade delete to path-based children (handles arbitrary nesting depth)
-          let expanded = true
-          while (expanded) {
-            expanded = false
-            for (const node of currentNodes) {
-              if (nodeIds.has(node.id)) continue
-              const pathParent = getParentPath(node.id)
-              if (pathParent && pathParent !== '/' && nodeIds.has(pathParent)) {
-                nodeIds.add(node.id)
-                expanded = true
-              }
-            }
-          }
+          expandDeleteSet(nodeIds, currentNodes)
           return currentNodes.filter(n => !nodeIds.has(n.id))
         })
-        // Remove edges that reference any deleted node (including cascaded children)
         setEdges(currentEdges =>
           currentEdges.filter(e => !nodeIds.has(e.source) && !nodeIds.has(e.target))
         )
@@ -174,18 +162,7 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
         ...extraDeleted,
       ])
       setNodes(currentNodes => {
-        let expanded = true
-        while (expanded) {
-          expanded = false
-          for (const node of currentNodes) {
-            if (allDeletedIds.has(node.id)) continue
-            const pathParent = getParentPath(node.id)
-            if (pathParent && pathParent !== '/' && allDeletedIds.has(pathParent)) {
-              allDeletedIds.add(node.id)
-              expanded = true
-            }
-          }
-        }
+        expandDeleteSet(allDeletedIds, currentNodes)
         return currentNodes.filter(n => !allDeletedIds.has(n.id))
       })
 

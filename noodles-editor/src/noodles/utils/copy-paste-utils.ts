@@ -224,6 +224,30 @@ export function remapPastedIds<N extends CopyPasteNode, E extends CopyPasteEdge>
 }
 
 /**
+ * Expand a set of node IDs to include all path-based descendants at any depth.
+ * Used by deletion paths to cascade container deletion to children.
+ * Mutates and returns the input set.
+ */
+export function expandDeleteSet(
+  nodeIds: Set<string>,
+  allNodes: { id: string }[]
+): Set<string> {
+  let expanded = true
+  while (expanded) {
+    expanded = false
+    for (const node of allNodes) {
+      if (nodeIds.has(node.id)) continue
+      const pathParent = getParentPath(node.id)
+      if (pathParent && pathParent !== '/' && nodeIds.has(pathParent)) {
+        nodeIds.add(node.id)
+        expanded = true
+      }
+    }
+  }
+  return nodeIds
+}
+
+/**
  * Identify which pasted nodes are container children (path-based, no parentId).
  * These should not be repositioned during paste — they keep their relative position.
  */

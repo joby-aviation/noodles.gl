@@ -4,6 +4,7 @@ import { transformGraph } from '../../transform-graph'
 import '../../operators'
 import {
   collectContainerChildren,
+  expandDeleteSet,
   identifyContainerChildren,
   remapPastedIds,
   sortParentsFirst,
@@ -309,6 +310,70 @@ describe('copy-paste-utils', () => {
       const childIds = identifyContainerChildren(pastedNodes, idMap, copiedNodeIds)
 
       expect(childIds.size).toBe(0)
+    })
+  })
+
+  describe('expandDeleteSet', () => {
+    it('expands to include direct path-based children', () => {
+      const nodeIds = new Set(['/container'])
+      const allNodes = [
+        { id: '/container' },
+        { id: '/container/child1' },
+        { id: '/container/child2' },
+        { id: '/other' },
+      ]
+
+      expandDeleteSet(nodeIds, allNodes)
+
+      expect(nodeIds.has('/container')).toBe(true)
+      expect(nodeIds.has('/container/child1')).toBe(true)
+      expect(nodeIds.has('/container/child2')).toBe(true)
+      expect(nodeIds.has('/other')).toBe(false)
+    })
+
+    it('cascades through nested containers', () => {
+      const nodeIds = new Set(['/outer'])
+      const allNodes = [
+        { id: '/outer' },
+        { id: '/outer/inner' },
+        { id: '/outer/inner/deep' },
+        { id: '/outer/sibling' },
+      ]
+
+      expandDeleteSet(nodeIds, allNodes)
+
+      expect(nodeIds.has('/outer/inner')).toBe(true)
+      expect(nodeIds.has('/outer/inner/deep')).toBe(true)
+      expect(nodeIds.has('/outer/sibling')).toBe(true)
+    })
+
+    it('does not include nodes that merely share a string prefix', () => {
+      const nodeIds = new Set(['/con'])
+      const allNodes = [
+        { id: '/con' },
+        { id: '/container/child' },
+      ]
+
+      expandDeleteSet(nodeIds, allNodes)
+
+      expect(nodeIds.has('/container/child')).toBe(false)
+    })
+
+    it('handles multiple roots being deleted simultaneously', () => {
+      const nodeIds = new Set(['/a', '/b'])
+      const allNodes = [
+        { id: '/a' },
+        { id: '/a/child' },
+        { id: '/b' },
+        { id: '/b/child' },
+        { id: '/c' },
+      ]
+
+      expandDeleteSet(nodeIds, allNodes)
+
+      expect(nodeIds.has('/a/child')).toBe(true)
+      expect(nodeIds.has('/b/child')).toBe(true)
+      expect(nodeIds.has('/c')).toBe(false)
     })
   })
 
