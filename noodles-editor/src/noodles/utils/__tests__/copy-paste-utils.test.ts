@@ -10,6 +10,7 @@ import {
   sortParentsFirst,
   uniqueNodeId,
 } from '../copy-paste-utils'
+import { getParentPath } from '../path-utils'
 
 vi.mock('../../globals', () => ({
   projectId: 'test-project',
@@ -349,10 +350,7 @@ describe('copy-paste-utils', () => {
 
     it('does not include nodes that merely share a string prefix', () => {
       const nodeIds = new Set(['/con'])
-      const allNodes = [
-        { id: '/con' },
-        { id: '/container/child' },
-      ]
+      const allNodes = [{ id: '/con' }, { id: '/container/child' }]
 
       expandDeleteSet(nodeIds, allNodes)
 
@@ -407,6 +405,77 @@ describe('copy-paste-utils', () => {
 
       const result = uniqueNodeId('child', '/parent', new Set())
       expect(result).toBe('/parent/child')
+    })
+  })
+
+  describe('invariant: no orphaned children after operations', () => {
+    function createNestedContainerNodes() {
+      return [
+        makeNode('/source'),
+        makeNode('/container', 'ContainerOp'),
+        makeNode('/container/container-input', 'GraphInputOp'),
+        makeNode('/container/container-output', 'GraphOutputOp'),
+        makeNode('/container/worker', 'MathOp'),
+        makeNode('/container/nested', 'ContainerOp'),
+        makeNode('/container/nested/container-input', 'GraphInputOp'),
+        makeNode('/container/nested/container-output', 'GraphOutputOp'),
+        makeNode('/container/nested/deep', 'NumberOp'),
+        makeNode('/sink'),
+      ]
+    }
+
+    it('no orphaned children remain after expandDeleteSet', () => {
+      const nodes = createNestedContainerNodes()
+
+      const deleteIds = new Set(['/container'])
+      expandDeleteSet(deleteIds, nodes)
+      const remaining = nodes.filter(n => !deleteIds.has(n.id))
+
+      for (const node of remaining) {
+        const pathParent = getParentPath(node.id)
+        if (pathParent && pathParent !== '/') {
+          const parentExists = remaining.some(n => n.id === pathParent)
+          expect(parentExists).toBe(true)
+        }
+      }
+    })
+
+    it('no orphaned children after paste with nested containers', () => {
+      const nodes = createNestedContainerNodes()
+      const edges = [
+        makeEdge(
+          '/container/nested/deep',
+          'out.val',
+          '/container/nested/container-output',
+          'par.value'
+        ),
+      ]
+      transformGraph({ nodes, edges })
+
+      const containerNode = nodes.find(n => n.id === '/container')!
+      const { additionalNodes, additionalEdges } = collectContainerChildren(
+        [containerNode],
+        nodes,
+        edges
+      )
+
+      const nodesToPaste = [containerNode, ...additionalNodes]
+      const existingIds = new Set(nodes.map(n => n.id))
+
+      const { nodes: pastedNodes } = remapPastedIds(
+        nodesToPaste,
+        additionalEdges,
+        undefined,
+        existingIds
+      )
+
+      const pastedIds = new Set(pastedNodes.map(n => n.id))
+      for (const node of pastedNodes) {
+        const pathParent = getParentPath(node.id)
+        if (pathParent && pathParent !== '/') {
+          expect(pastedIds.has(pathParent)).toBe(true)
+        }
+      }
     })
   })
 })
