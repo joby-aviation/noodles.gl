@@ -43,7 +43,8 @@ Style anchors: classic MSDN Win32 reference pages (structure), Raymond Chen's *T
 02 machine-readable ────────▶ 03 noodles-mcp (backing data: /r/, schema, mirrors)
 
 04 skills ──(no hard deps: graceful degradation; upgrades as 01–03 land)
-   └── validate-projects CLI ──▶ 03 validate_project tool wraps it (one impl, two surfaces)
+   └── validate-projects CLI ◀── imports 03's registry lint (workspace dep),
+                                  layers runtime-only checks on top
 
 05 phase 0 (agent-tools registry + project-bridge) ──(independent; fixes live bugs)
    ├──▶ 05 phases 1–3 (WebMCP provider, consent, origin trial)
@@ -58,7 +59,7 @@ Style anchors: classic MSDN Win32 reference pages (structure), Raymond Chen's *T
 Orderings that matter:
 
 - 02's generator ships **before** 01 finishes prose — it embeds Remarks conditionally and degrades gracefully when `docs/reference/operators/` is absent.
-- 03's `validate_project` must wrap 04's exported `validateProject()` function rather than reimplementing it.
+- Project validation ownership is settled: the registry-aware lint is owned by 03 (`noodles-mcp/src/validate/lint.ts`, importable from plain Node). 04's `validate-projects` CLI imports that lint via workspace dep and layers the runtime-only checks (migrations, anything needing the Vite-built world) on top; `validateProject()` remains 04's exported composite, and 07 consumes it. One rule set, no fork.
 - 04's skills teach the canonical snake_case tool names defined by 05's registry.
 - 05 phase 0 is pure refactoring + bug fixes and can land any time; later phases ride the Chrome origin trial.
 

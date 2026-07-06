@@ -202,7 +202,7 @@ Either way the workflow appends a machine-readable row to the series and comment
 
 ## Dependencies
 
-- None to start — **T0 is defined as the absence of the other sub-plans.** Consumes 04's `validateProject()` when it exists; tier definitions track each sub-plan's landing.
+- None to start — **T0 is defined as the absence of the other sub-plans.** Consumes 04's `validateProject()` when it exists (the composite: 03's registry lint plus 04's runtime checks); tier definitions track each sub-plan's landing.
 
 ## Open questions
 

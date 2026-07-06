@@ -66,7 +66,7 @@ Graceful degradation means the skills ship **before** sub-plans 01–03 land; th
 - New `noodles-editor/scripts/validate-project-files.ts` exporting `validateProject(json)`, plus `vite.config.validate.ts` (clone of `vite.config.migrate.ts`).
 - Checks: `version === NOODLES_VERSION` (error + "run `npm run migrate-projects`" hint); every `node.type` in `opTypes`; every input key exists on that operator; edges reference existing nodes; handle prefixes and real field names; canonical edge id; duplicate node ids; container path consistency; timeline integrity (track paths resolve, keyframes sorted, unique keyframe/marker ids, marker connections reference existing keyframes). Nonzero exit, per-file diagnostics.
 - npm script: `"validate-projects": "vite build --config vite.config.validate.ts && node dist/validate-project-files.js"`, accepting paths (default: `src/examples` + `public/noodles`).
-- **Sub-plan 03's `validate_project` MCP tool wraps this same rule set** — one implementation, two surfaces (03 carries the dependency-free lint; this CLI adds runtime-only checks).
+- **Ownership (settled)**: the registry-aware lint is 03's (`noodles-mcp/src/validate/lint.ts`, plain Node). This CLI imports it via workspace dep and layers the runtime-only checks (migrations, anything needing the Vite-built world) on top; the exported `validateProject()` is that composite, and 07's graders consume it. One rule set, no fork.
 - Interim fallback documented in the skill until the CLI lands: `npm test src/noodles/utils/examples-version.test.ts src/noodles/storage.test.ts`.
 
 ### D5. Freshness: generated includes + CI
@@ -150,7 +150,7 @@ Supporting file: `references/tool-catalog.md` (generated).
 
 ## Dependencies
 
-- None blocking (D3 graceful degradation). Upgrades when 01 (reference URLs), 02 (`/r/` URLs), 03 (MCP tools primary; `validate_project` wraps `validateProject()`), and 05 (canonical snake_case tool names in the catalog) land.
+- None blocking (D3 graceful degradation). Upgrades when 01 (reference URLs), 02 (`/r/` URLs), 03 (MCP tools primary; the `validate-projects` CLI imports 03's registry lint), and 05 (canonical snake_case tool names in the catalog) land.
 
 ## Open questions
 

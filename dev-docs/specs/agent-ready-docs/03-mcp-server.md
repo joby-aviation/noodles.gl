@@ -74,7 +74,7 @@ Runtime validation (actually executing migrations/operators) was rejected: it ne
 - When the project's declared `version` predates the registry's current one, lint messages distinguish **"wrong for your version"** (fails only against the *current* schema/registry — e.g. a handle a later migration renamed; remedy: `npm run migrate-projects`, or ignore if intentionally pinned to the old release) from **"wrong, period"** (fails against the schema matching the project's own declared version — malformed edge id, bad handle prefix). The versioned schema aliases from 02 (`noodles-project.v14.schema.json`, one per version, retained as new versions land) are what make the distinction computable; when no versioned schema exists for the project's declared version, the tool says so explicitly and falls back to current-version-only messaging rather than guessing.
 - `--base-url` is the documented escape hatch: point validation at an older deployed registry (or staging) when working against a pinned release.
 
-**Convergence requirement**: once sub-plan 04's `validate-projects` CLI exists in the editor workspace, its exported `validateProject()` and this lint must not fork. The lint rules live here (dependency-free); the CLI adds the runtime-only checks (migrations) on top. Reconcile when both exist — one rule set, two thicknesses.
+**Ownership (settled)**: the registry-aware lint lives here, in `src/validate/lint.ts`, importable from plain Node with no editor dependencies. Sub-plan 04's `validate-projects` CLI imports this lint via workspace dep and layers the runtime-only checks (migrations, anything needing the Vite-built world) on top; its exported `validateProject()` is that composite, and 07's graders consume it. One rule set, two thicknesses, no fork.
 
 ### D4. Convergence with existing surfaces
 
@@ -110,7 +110,7 @@ Runtime validation (actually executing migrations/operators) was rejected: it ne
 
 ## Dependencies
 
-- Inbound: 02 (backing data — hard), 01 (Remarks — soft), 04 (`validateProject()` reconciliation), 05 phase 0 (`agent-tools` ToolSpec table — hard for `--live` mode only; docs mode has no dependency on it).
+- Inbound: 02 (backing data — hard), 01 (Remarks — soft), 05 phase 0 (`agent-tools` ToolSpec table — hard for `--live` mode only; docs mode has no dependency on it). Outbound: 04's `validate-projects` CLI imports this package's registry lint (workspace dep).
 
 ## Open questions
 
