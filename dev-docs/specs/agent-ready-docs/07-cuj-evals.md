@@ -92,25 +92,23 @@ Tiers are enforced by environment construction, not by asking the agent to absta
 ```yaml
 dimensions:
   tool_use_discipline:
-    style: checklist          # countable from the transcript → binary sub-criteria
-    weight: 0.25
+    style: checklist          # binary sub-criteria, but each requires reading
+    weight: 0.20              # comprehension — the countable half lives in Layer 3
     aggregate: proportion     # score = 4 × passed / applicable; N/A criteria excluded
     criteria:
-      - id: schema-before-edges
-        text: Every edge written was preceded in the transcript by a schema lookup
-          for BOTH endpoint operators (MCP get_operator, reference-page fetch, or
-          reading operators.ts at T0). No edge precedes its lookups.
-      - id: no-invented-handles
-        text: Zero handle names in written edges that do not exist on the resolved
-          operator schema (cross-checked against the registry).
-      - id: verified-data-shape
-        text: After adding a data-source node, the agent inspected its output
-          (get_node_output, or reading the data file) before writing accessors
-          against its columns.
-      - id: lookup-retention
-        text: No identical lookup repeated 3+ times (indicates the agent is not
-          retaining what it read).
-        applicable_when: session performed 3+ lookups
+      - id: applied-what-it-read
+        text: The content of the agent's lookups demonstrably shaped its edits —
+          values, enum members, or defaults from a fetched schema appear in what
+          it wrote. A lookup performed and then ignored fails this.
+      - id: authoritative-source-choice
+        text: When multiple sources were available at this tier, the agent
+          preferred the authoritative one (registry, reference page, operators.ts)
+          over inferring from example projects or apparent memory.
+      - id: purposeful-verification
+        text: Inspections (get_node_output, reading data files) fed visible
+          decisions rather than being performed ritually — the agent's next step
+          depends on what the inspection returned.
+        applicable_when: task involves a data source
 
   edit_hygiene:
     style: anchors            # holistic judgment → per-level descriptions
@@ -136,7 +134,7 @@ Judge mechanics: the judge receives the task, rubric, artifacts, and transcript;
 
 **Judge calibration (before any cross-tier claim).** An LLM judge is itself an instrument that needs calibrating, and the T0 baseline transcripts are the calibration set: both maintainers independently hand-grade them against the same rubric YAML — blind to each other's scores and to the judge's — then per-dimension agreement between the human consensus and the LLM judge is computed (with the 0–4 scale, exact + adjacent agreement is enough; no need for anything fancier at this sample size). Any dimension below the agreement threshold is not trusted as-is. Since every dimension is already anchored or checklisted (see the rubric format above), a calibration failure means the wording itself is ambiguous: **sharpen the anchors** with exemplars from the actual T0 transcripts ("a 2 on edit hygiene looks like this diff"), **split criteria** that graders read differently, or **demote a dimension from anchors to checklist** when the holistic judgment turns out to be countable after all — then re-run the judge on the same transcripts until agreement clears the bar. Calibration results (per-dimension agreement, threshold, rubric revisions made) are recorded alongside the series; cross-tier claims may only cite dimensions that passed. Where the two humans disagree with *each other* beyond the threshold, the dimension is underspecified for humans too — that's a rubric bug, not a judge bug, and it gets the same anchoring treatment.
 
-**Layer 3 — process metrics (counted, not judged).** Hallucinated field/handle names per run (extractable: every `out.X`/`par.X` written, checked against the registry), validation-failure→retry cycles, lookups performed vs available. These are the diagnostic layer: when T3 beats T0, these say *why*.
+**Layer 3 — process metrics (counted, not judged).** The boundary rule: anything a parser can compute from the transcript belongs here, not in the judge's rubric — a judge spending its attention on countable facts is wasted attention, and a count is more trustworthy than a judgment of the same fact. Extracted per run: **lookup-preceded-edge ratio** (fraction of written edges where both endpoint operators had a prior schema lookup in-session — this is the mechanical half of tool-use discipline; the judge keeps only the judgment-requiring remainder above), hallucinated field/handle names (every `out.X`/`par.X` written, checked against the registry), identical-lookup repetition (same fetch 3+ times), data-source-inspected-before-accessors (ordering check), validation-failure→retry cycles, lookups performed vs available. These are the diagnostic layer: when T3 beats T0, these say *why* — and they appear in the scorecard alongside the scores, not buried in artifacts.
 
 ### D5. Runner
 
