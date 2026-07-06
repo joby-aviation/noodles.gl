@@ -68,8 +68,10 @@ export function createWorkspace(opts: WorkspaceOptions): string {
   fs.rmSync(ws, { recursive: true, force: true })
   fs.mkdirSync(path.dirname(ws), { recursive: true })
 
+  fs.mkdirSync(ws, { recursive: true })
   execSync(
-    `rsync -a --exclude node_modules ${JSON.stringify(`${template}/`)} ${JSON.stringify(`${ws}/`)}`
+    `tar -C ${JSON.stringify(template)} --exclude='node_modules' --exclude='./.evals-template-ready' -cf - . | tar -C ${JSON.stringify(ws)} -xf -`,
+    { shell: '/bin/bash' }
   )
   for (const nm of ['node_modules', 'noodles-editor/node_modules', 'website/node_modules']) {
     const src = path.join(template, nm)
