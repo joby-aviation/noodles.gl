@@ -39,7 +39,7 @@ evals/
     animate-camera.md
     live-drive.md         # (tier 5+ only)
   rubrics/
-    authoring.yaml        # shared rubric dimensions + weights per task family
+    authoring.yaml        # per task family: anchored or checklist dimensions + weights (no bare scales)
     contextualization.yaml
     judge-prompt.md       # the judge scaffold, versioned
   harness/
@@ -85,18 +85,56 @@ Tiers are enforced by environment construction, not by asking the agent to absta
 
 **Layer 1 — mechanical (objective, cheap, runs first).** Per task: `validateProject()` (04's CLI), project loads in the app under Playwright without console errors, screenshot is non-blank (pixel-variance threshold) and — where a task defines one — perceptually similar to a golden reference; required node types present; forbidden actions absent (hand-bumped `version`, malformed timeline edits: unsorted keyframes, dangling marker connections, unresolvable track paths). **A mechanical failure caps the task score at 40%** — a beautiful transcript that produced an invalid file is a failure with good manners.
 
-**Layer 2 — rubric LLM judge (subjective, structured).** Rubric dimensions, weighted per task family (weights in the YAML, not the judge's discretion):
+**Layer 2 — rubric LLM judge (subjective, structured).** Rubric dimensions, weighted per task family (weights in the YAML, not the judge's discretion). Dimensions: *correctness of result*, *tool-use discipline*, *edit hygiene*, *graph design conformance*, *efficiency* (informational weight at first — don't optimize agents into recklessness), *honesty* (does the final answer claim things the artifacts contradict?).
 
-- *Correctness of result* — does the artifact do what was asked (beyond mechanically valid)?
-- *Tool-use discipline* — did the session **look up** schemas/handles before writing edges, or guess? (Scored from the transcript: every edge written should be preceded by a schema lookup at tiers where one is available; at T0, by reading `operators.ts`.)
-- *Edit hygiene* — smallest change that satisfies the request; preserved what it didn't understand; recomputed edge ids.
-- *Graph design conformance* — the AGENTS.md/skill rules: 5–8 nodes, CodeOp consolidation, descriptive names, standard pipeline shape.
-- *Efficiency* — turns, tokens, wall-clock, dead ends (informational weight at first; don't optimize agents into recklessness).
-- *Honesty* — did the final answer claim things the artifacts contradict?
+**No bare scales.** A dimension named "tool-use discipline: 0–4" invites every grader — human or LLM — to invent their own scale, which is exactly the disagreement calibration then has to repair. So the rubric format forbids it: every dimension declares `style: anchors` (a description per level, for holistic judgments) or `style: checklist` (binary sub-criteria aggregated to the score, for countable behaviors), and `grade.ts` rejects a rubric containing a dimension with neither. Worked excerpt of `rubrics/authoring.yaml`, one of each style:
+
+```yaml
+dimensions:
+  tool_use_discipline:
+    style: checklist          # countable from the transcript → binary sub-criteria
+    weight: 0.25
+    aggregate: proportion     # score = 4 × passed / applicable; N/A criteria excluded
+    criteria:
+      - id: schema-before-edges
+        text: Every edge written was preceded in the transcript by a schema lookup
+          for BOTH endpoint operators (MCP get_operator, reference-page fetch, or
+          reading operators.ts at T0). No edge precedes its lookups.
+      - id: no-invented-handles
+        text: Zero handle names in written edges that do not exist on the resolved
+          operator schema (cross-checked against the registry).
+      - id: verified-data-shape
+        text: After adding a data-source node, the agent inspected its output
+          (get_node_output, or reading the data file) before writing accessors
+          against its columns.
+      - id: lookup-retention
+        text: No identical lookup repeated 3+ times (indicates the agent is not
+          retaining what it read).
+        applicable_when: session performed 3+ lookups
+
+  edit_hygiene:
+    style: anchors            # holistic judgment → per-level descriptions
+    weight: 0.20
+    levels:
+      0: Rewrote or reserialized the whole file (formatting/key-order churn on
+         untouched sections), or dropped keys it did not understand (timeline,
+         viewport, or unknown keys missing from the output).
+      1: Preserved unknown keys but made broad unrequested changes, e.g. renamed
+         node ids or reorganized node positions beyond the ask.
+      2: Changes confined to the right nodes, but collateral defects remain, e.g.
+         edge ids not recomputed after a handle change, or default-valued inputs
+         serialized redundantly.
+      3: Minimal diff that satisfies the request with all invariants maintained;
+         at most cosmetic noise.
+      4: Level 3, and the diff is the smallest plausible one — a reviewer reading
+         only the diff can reconstruct the request.
+```
+
+Checklist dimensions double as evidence prompts (the judge cites the transcript line satisfying or violating each criterion); anchor levels give the judge, and the calibrating humans, the same yardstick to disagree about — specific sentences, not vibes.
 
 Judge mechanics: the judge receives the task, rubric, artifacts, and transcript; scores each dimension 0–4 **with a cited quote/line per score**; three independent judge samples, median taken; judge model and prompt pinned per season and recorded in results. Judges never see the tier label (blind to the hypothesis).
 
-**Judge calibration (before any cross-tier claim).** An LLM judge is itself an instrument that needs calibrating, and the T0 baseline transcripts are the calibration set: both maintainers independently hand-grade them against the same rubric YAML — blind to each other's scores and to the judge's — then per-dimension agreement between the human consensus and the LLM judge is computed (with the 0–4 scale, exact + adjacent agreement is enough; no need for anything fancier at this sample size). Any dimension below the agreement threshold is not trusted as-is: rewrite it by **anchoring** (add concrete per-score exemplars to the rubric — "a 2 on tool-use discipline looks like this transcript excerpt") or **decomposing** (split a mushy dimension like "correctness of result" into narrower yes/no sub-questions), then re-run the judge on the same transcripts until agreement clears the bar. Calibration results (per-dimension agreement, threshold, rubric revisions made) are recorded alongside the series; cross-tier claims may only cite dimensions that passed. Where the two humans disagree with *each other* beyond the threshold, the dimension is underspecified for humans too — that's a rubric bug, not a judge bug, and it gets the same anchoring treatment.
+**Judge calibration (before any cross-tier claim).** An LLM judge is itself an instrument that needs calibrating, and the T0 baseline transcripts are the calibration set: both maintainers independently hand-grade them against the same rubric YAML — blind to each other's scores and to the judge's — then per-dimension agreement between the human consensus and the LLM judge is computed (with the 0–4 scale, exact + adjacent agreement is enough; no need for anything fancier at this sample size). Any dimension below the agreement threshold is not trusted as-is. Since every dimension is already anchored or checklisted (see the rubric format above), a calibration failure means the wording itself is ambiguous: **sharpen the anchors** with exemplars from the actual T0 transcripts ("a 2 on edit hygiene looks like this diff"), **split criteria** that graders read differently, or **demote a dimension from anchors to checklist** when the holistic judgment turns out to be countable after all — then re-run the judge on the same transcripts until agreement clears the bar. Calibration results (per-dimension agreement, threshold, rubric revisions made) are recorded alongside the series; cross-tier claims may only cite dimensions that passed. Where the two humans disagree with *each other* beyond the threshold, the dimension is underspecified for humans too — that's a rubric bug, not a judge bug, and it gets the same anchoring treatment.
 
 **Layer 3 — process metrics (counted, not judged).** Hallucinated field/handle names per run (extractable: every `out.X`/`par.X` written, checked against the registry), validation-failure→retry cycles, lookups performed vs available. These are the diagnostic layer: when T3 beats T0, these say *why*.
 
