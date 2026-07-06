@@ -73,7 +73,11 @@ Not carried forward as separate tools — with their capability preserved: `list
 Threat model: any user-invited browser agent (possibly prompt-injected via rendered dataset content) can call registered tools.
 
 - **Read tools default-ON** with a visible status pill — they expose nothing an in-browser agent can't already scrape from the DOM/canvas; that is WebMCP's trust model.
-- **Write/execute default-OFF** behind an "Allow agents to edit this project" toggle added to the existing `src/external-control/components/sharing-dialog.tsx` (button renamed "Agent Access"), persisted per-origin in localStorage (`off | read | read-write`), with a session-only override.
+- **Write/execute default-OFF** behind an "Allow agents to edit this project" toggle added to the existing `src/external-control/components/sharing-dialog.tsx` (button renamed "Agent Access"). The dialog is a UI over the consent store, not its owner — the store is a small stable contract other tooling can rely on:
+  - **Where**: `localStorage` key `noodles:agent-access` (per-origin by nature of localStorage).
+  - **Value**: exactly one of the string literals `'off' | 'read' | 'read-write'`. Absent key = `'read'` (read tools on, writes off — the default posture above).
+  - **Owner module**: `src/agent-tools/consent.ts` exports `getAgentAccess()`, `setAgentAccess(level, {persist?})`, and a change subscription; the sharing dialog, the executor's tier enforcement, and the status pill all consume this module.
+  - **Session-only override, settable headlessly**: the URL param `?agentAccess=off|read|read-write` applies for the lifetime of the page, is never persisted, and takes precedence over the stored value. Because it's a URL, it requires no UI and no prior state — this is the documented programmatic path for 07's T5 environment builder (launch with `?agentAccess=read-write`) and for Playwright-driven runs generally; Vitest browser tests import `consent.ts` directly and call `setAgentAccess(level, {persist: false})`.
 - Tier enforcement lives centrally in `executor.ts` per calling surface: WebMCP → consent store; WS → `session.permissions` (finally enforced); in-app chat → full access.
 - Activity counter flashes the pill per call. No stored-project/deletion tools exist in the table — `apply_modifications` touches only the open graph.
 
