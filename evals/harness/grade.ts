@@ -165,9 +165,24 @@ export async function gradeRun(series: string, runId: string, samples: number, r
     if (artifactLineCounts.has(base)) return artifactLineCounts.get(base)
     if (repoFileCache.has(cited)) return repoFileCache.get(cited)
     let lines: number | undefined
-    for (const candidate of [cited, `noodles-editor/${cited}`, `noodles-editor/src/${cited}`]) {
+    const candidates = [cited.replace(/^\.\//, ''), `noodles-editor/${cited}`, `noodles-editor/src/${cited}`]
+    try {
+      // Judges often cite by basename (operators.ts:4964) — resolve it against
+      // the commit's file tree.
+      const tree = execFileSync('git', ['ls-tree', '-r', '--name-only', String(run.meta.commit)], {
+        cwd: REPO_ROOT,
+        encoding: 'utf-8',
+        maxBuffer: 64 * 1024 * 1024,
+      }).split('\n')
+      const suffix = `/${base}`
+      const byBasename = tree.find(p => p.endsWith(suffix) || p === base)
+      if (byBasename) candidates.push(byBasename)
+    } catch {
+      /* tree unavailable; positional candidates only */
+    }
+    for (const candidate of candidates) {
       try {
-        const content = execFileSync('git', ['show', `${run.meta.commit}:${candidate.replace(/^\.\//, '')}`], {
+        const content = execFileSync('git', ['show', `${run.meta.commit}:${candidate}`], {
           cwd: REPO_ROOT,
           encoding: 'utf-8',
           maxBuffer: 64 * 1024 * 1024,
