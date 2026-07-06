@@ -847,7 +847,7 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
                 })
               }}
             >
-              <div className={s.propertyRow}>
+              <div className={cx(s.propertyRow, s.outputRow)}>
                 <div className={cx(s.port, output.handleClass)} />
                 <span className={s.propertyLabel}>{output.name}</span>
               </div>

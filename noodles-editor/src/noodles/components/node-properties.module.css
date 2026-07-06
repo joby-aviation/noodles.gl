@@ -127,6 +127,7 @@
   text-transform: uppercase;
   letter-spacing: 0.5px;
   color: rgba(255, 255, 255, 0.5);
+  padding-left: 6px;
 }
 
 /* Add/Remove buttons */
@@ -339,6 +340,11 @@
   align-items: center;
   gap: 6px;
   padding: 3px 0;
+}
+
+/* Output rows have no +/- button — pad left to align dot with input dots */
+.outputRow {
+  padding-left: 24px;
 }
 
 .propertyLabel {
