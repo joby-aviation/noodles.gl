@@ -26,7 +26,9 @@ export interface LoadCheckResult {
 // Stack-trace frames are stripped first — an external fetch failing inside
 // bundled code always carries localhost frame URLs.
 export function isEnvironmentNoise(text: string, locationUrl?: string): boolean {
-  if (/WebGL warning|AbortError/i.test(text)) return true
+  // ResizeObserver loop warnings are a benign browser artifact (ReactFlow at
+  // large viewports), unrelated to any project defect.
+  if (/WebGL warning|AbortError|ResizeObserver loop/i.test(text)) return true
   const isLocal = (u: string) => /localhost|127\.0\.0\.1/.test(u)
   if (locationUrl && !isLocal(locationUrl)) return true
   const withoutFrames = text
