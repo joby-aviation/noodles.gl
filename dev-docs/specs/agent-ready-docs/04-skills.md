@@ -71,7 +71,7 @@ Graceful degradation means the skills ship **before** sub-plans 01–03 land; th
 
 ### D5. Freshness: generated includes + CI
 
-- New `noodles-editor/scripts/generate-skill-includes.ts` (npm `generate:skills`, `--check`): rewrites blocks between `<!-- BEGIN GENERATED:x --> / <!-- END GENERATED:x -->` markers. Generated facts: NOODLES_VERSION; operator count + category→operator lists (reuse `parse-operators.ts`); live tool catalog (from `mcp-proxy.js` today, from the unified registry once 05 lands); reference-URL index; the `references/minimal-project.json` seed (a validated, current-version, empty-but-runnable project: MaplibreBasemapOp + DeckRendererOp + OutOp).
+- New `noodles-editor/scripts/generate-skill-includes.ts` (npm `generate:skills`, `--check`): rewrites blocks between `<!-- BEGIN GENERATED:x --> / <!-- END GENERATED:x -->` markers. Generated facts: NOODLES_VERSION; operator count + category→operator lists (reuse `parse-operators.ts`); live tool catalog (from `src/ai-chat/tool-definitions.ts`, landed via PR #508); reference-URL index; the `references/minimal-project.json` seed (a validated, current-version, empty-but-runnable project: MaplibreBasemapOp + DeckRendererOp + OutOp).
 - CI `skills-check` job in `test.yml`: `generate:skills --check` (drift), frontmatter lint (name/description present, description < 1024 chars, mentions triggers), `validate-projects` over `minimal-project.json` + examples, symlink integrity for `.claude/skills`.
 
 ### D6. Sync with `system-prompt.md`
@@ -113,7 +113,7 @@ Supporting files: `references/project-format.md` (full serialization detail: con
 ---
 name: noodles-live
 description: >
-  Drive a running Noodles.gl editor via the external-control MCP proxy or WebMCP.
+  Drive a running Noodles.gl editor via WebMCP (the relay or a WebMCP-capable browser).
   Use when a Noodles dev server is running (localhost:5173) or the user asks to
   change, inspect, animate, or debug what's currently on screen in Noodles.
   Trigger: noodles MCP tools are available, ?externalControl=true is mentioned,
@@ -121,7 +121,7 @@ description: >
 ---
 ```
 
-1. **Setup check** — is the `noodles` MCP server connected? If not: open `http://localhost:5173/examples/<p>?externalControl=true`, run `npx noodles-mcp --live` (interim: `node examples/external-control/mcp-proxy.js`); link `docs/developers/external-control-guide.md`.
+1. **Setup check** — are the WebMCP tools connected? If not: open `http://localhost:5173/examples/<p>?externalControl=true`, then `claude mcp add webmcp -- npx -y @mcp-b/webmcp-local-relay@4` (once); link the WebMCP section of AGENTS.md. The legacy WebSocket proxy still exists but is not the path to teach.
 2. **Tool catalog and priority** — generated block: reads (`list_nodes` → `get_node_info` → `get_node_output`) cheap, use often; mutations next; `capture_visualization` expensive, on explicit request.
 3. **Read before write** — always list+inspect before mutating; after adding a data node, `get_node_output` to verify structure before building layers.
 4. **Update the source node** — trace edges and mutate the upstream source's input, not the connected target handle (the ColorOp-vs-`getFillColor` rule).
@@ -145,7 +145,7 @@ Supporting file: `references/tool-catalog.md` (generated).
 1. Fresh agent, empty dir, `noodles-authoring` only: "plot California earthquakes as a scatterplot" with the example's data file — assert it consulted schemas before wiring; output validates; version current; loads at `localhost:5173` rendering points.
 2. Modify test: hand it `uk-commute`, "make arcs red and thicker" — source-node edit, timeline untouched (nothing about the ask involves animation), still validates.
 3. Animation test: hand it a project with an existing camera animation, "make the zoom-in take twice as long" — keyframe positions rescaled in the timeline JSON, ids and sort order intact, validates, and scrubs correctly in the app.
-4. Live test: `?externalControl=true` + proxy + `noodles-live`: a color change and a "why is it blank" debug.
+4. Live test: `?externalControl=true` + the WebMCP relay + `noodles-live`: a color change and a "why is it blank" debug.
 5. Rot test: simulate a `015-*.ts` migration → CI `--check` fails.
 
 ## Dependencies

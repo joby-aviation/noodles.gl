@@ -80,7 +80,8 @@ Runtime validation (actually executing migrations/operators) was rejected: it ne
 
 - **Quick win (independent PR)**: register the dormant `MCPTools` context tools (`list_operators`, `get_operator_schema`, `get_documentation`, `get_example`, `list_examples`, `search_code`) in `claude-client.ts`'s `getTools()`/`executeTool` so the in-app chat gets the same lookup powers.
 - **Live mode**: `mcp-proxy.js` is the working reference implementation that proved the stdio↔browser bridge — the port honors it rather than replaces it. `src/tools/live.ts` carries over its protocol verbatim (stdio ↔ WebSocket :8765, protocol 2024-11-05, request/response correlation, 30s timeout); the only things that change are distribution (`npx` instead of a checked-out script) and where tool schemas come from (queried from the browser instead of hard-coded — the hard-coded copies were fine when written, but every schema copy is a drift liability once the registry becomes the source of truth). The file itself stays with a deprecation pointer ("use `npx noodles-mcp --live`") so existing setups keep a working breadcrumb; remove it only after a release cycle.
-- **Tool definitions**: `noodles-mcp` consumes 05's `agent-tools` ToolSpec table from day one via a workspace dep on `noodles-editor` — 05 Phase 0 lands in Phase A, before this package exists, so there is never a second copy to reconcile. `src/tools/live.ts` imports only the declarative half of each ToolSpec (name, description, inputSchema, tier); the browser-bound `execute` bindings stay in the app, and the bridge proxies calls over the WebSocket as before. One constraint this places on 05: the ToolSpec table must be importable by a plain Node package without dragging in the app bundle (05 already specifies the module has no React imports; the table additionally must not import `MCPTools` at module scope — bind executors at registration time, not in the table).
+- **Tool definitions**: the canonical table landed via PR #508 as `src/ai-chat/tool-definitions.ts` (type-only imports, so it's importable from plain Node via workspace dep — the constraint holds). Any `--live` bridging imports the declarative half (name, description, inputSchema); browser-bound `execute` bindings stay in the app.
+- **`--live` mode is likely superseded** by the `@mcp-b/webmcp-local-relay` that #508 shipped: stdio MCP clients reach the running page through the relay directly, no WS bridge needed. Decide alongside 05 F4 (the WebSocket path's fix-or-remove question); if the WS path is removed, cut this mode from the package rather than porting `mcp-proxy.js`. Docs mode is unaffected either way.
 
 ### D5. Distribution
 
@@ -110,7 +111,7 @@ Runtime validation (actually executing migrations/operators) was rejected: it ne
 
 ## Dependencies
 
-- Inbound: 02 (backing data — hard), 01 (Remarks — soft), 05 phase 0 (`agent-tools` ToolSpec table — hard for `--live` mode only; docs mode has no dependency on it). Outbound: 04's `validate-projects` CLI imports this package's registry lint (workspace dep).
+- Inbound: 02 (backing data — hard), 01 (Remarks — soft); the tool-definition table already exists (`src/ai-chat/tool-definitions.ts`, landed via #508), needed only if `--live` mode survives the 05 F4 decision. Outbound: 04's `validate-projects` CLI imports this package's registry lint (workspace dep).
 
 ## Open questions
 

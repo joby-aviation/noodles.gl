@@ -30,9 +30,9 @@ Style anchors: classic MSDN Win32 reference pages (structure), Raymond Chen's *T
 |------|-------|----------------|
 | [01-operator-reference.md](01-operator-reference.md) | Operator reference pages | MSDN/Chen page per operator, generator with marker-preserved prose, style guide, sidebar, CI drift check |
 | [02-machine-readable.md](02-machine-readable.md) | Machine-readable surface | Stable `/r/` JSON URLs, `llms.txt`/`llms-full.txt`, raw-markdown mirrors, `noodles.json` JSON Schema, deploy-path cleanup |
-| [03-mcp-server.md](03-mcp-server.md) | `noodles-mcp` server | shadcn-style docs/registry MCP server (npx, stdio), `--local` and `--live` modes, tool-surface convergence |
+| [03-mcp-server.md](03-mcp-server.md) | `noodles-mcp` server | shadcn-style docs/registry MCP server (npx, stdio), `--local` mode; `--live` likely superseded by #508's relay |
 | [04-skills.md](04-skills.md) | AI skills | `noodles-authoring` + `noodles-live` SKILL.md suite, `validate-projects` CLI, generated includes, install story |
-| [05-webmcp.md](05-webmcp.md) | Unified tool registry + WebMCP | One canonical tool registry feeding chat/WS/stdio/WebMCP, project-bridge write path, consent UI, origin trial |
+| [05-webmcp.md](05-webmcp.md) | Unified tool registry + WebMCP | Core landed via PR #508 (shared tool definitions, bridge write path, WebMCP provider); spec now scopes follow-ups: access model, origin-trial token, embed hardening, WS fix-or-remove, docs |
 | [06-concept-essays.md](06-concept-essays.md) | Concept essays | Chen-style long-form pieces on the execution model, paths, memoization, timeline, fields — the connective tissue Remarks link to |
 | [07-cuj-evals.md](07-cuj-evals.md) | CUJ eval harness | Greenfield-session evals with rubrics + graders: baseline against today's repo, regrade at every roadmap landing — the program's success metric |
 
@@ -48,9 +48,10 @@ Style anchors: classic MSDN Win32 reference pages (structure), Raymond Chen's *T
    └── validate-projects CLI ◀── imports 03's registry lint (workspace dep),
                                   layers runtime-only checks on top
 
-05 phase 0 (agent-tools registry + project-bridge) ──(independent; fixes live bugs)
-   ├──▶ 05 phases 1–3 (WebMCP provider, consent, origin trial)
-   └──▶ 03 --live mode (imports the ToolSpec table via workspace dep)
+05 core (tool definitions + bridge + WebMCP provider) ── LANDED via PR #508
+   ├──▶ 05 follow-ups F1–F5 (access model, origin-trial token, embed hardening,
+   │                         WS fix-or-remove, docs)
+   └──▶ 03 --live mode ── likely superseded by #508's relay (decide with 05 F4)
 
 06 concept essays ──(independent; 01's Remarks link to them; 02 distributes them)
 
@@ -62,8 +63,8 @@ Orderings that matter:
 
 - 02's generator ships **before** 01 finishes prose — it embeds Remarks conditionally and degrades gracefully when `docs/reference/operators/` is absent.
 - Project validation ownership is settled: the registry-aware lint is owned by 03 (`noodles-mcp/src/validate/lint.ts`, importable from plain Node). 04's `validate-projects` CLI imports that lint via workspace dep and layers the runtime-only checks (migrations, anything needing the Vite-built world) on top; `validateProject()` remains 04's exported composite, and 07 consumes it. One rule set, no fork.
-- 04's skills teach the canonical snake_case tool names defined by 05's registry.
-- 05 phase 0 is pure refactoring + bug fixes and can land any time; later phases ride the Chrome origin trial.
+- 04's skills teach the canonical snake_case tool names defined in `src/ai-chat/tool-definitions.ts` (landed via PR #508), plus the relay connection for live sessions.
+- 05's core landed early and externally (PR #508, authored independently before this roadmap was reviewed — the two converged). 05 is now a follow-up sub-plan: access model, origin-trial token, embed hardening, WS fix-or-remove, docs. Note #508 also edited AGENTS.md, which is agent-visible context; since it merges before the eval harness exists, it simply becomes part of the T0 baseline rather than needing a measured smoke run.
 
 ## Phasing
 
@@ -73,10 +74,10 @@ Orderings that matter:
 **Phase A — foundations** (parallelizable)
 - 01: parser extensions, `generate-operator-docs.ts`, generated skeleton pages for all ~130 ops, sidebar, style guide, CI drift check.
 - 02: `project-schema.ts` + JSON Schema, `generate-reference.ts` + `/r/` surface + llms.txt regeneration, consolidate the two context-deploy paths (see Quick wins #2).
-- 05 phase 0: `src/agent-tools/` unified registry + project-bridge; migrate the three existing tool surfaces; enforce session permissions. Fixes four live bugs (see Quick wins).
+- 05 core: ~~unified registry + project-bridge + WebMCP provider~~ **landed via PR #508** (`src/ai-chat/tool-definitions.ts`, `src/webmcp/`). Remaining in Phase A from 05: the F1 access model (write gating + iframe guard) and F4's WS fix-or-remove decision; the WS bugs and unenforced permissions persist until F4.
 
 **Phase B — consumption**
-- 03: `noodles-mcp` package (docs mode, then `--live` mode carrying `mcp-proxy.js`'s protocol forward under npx distribution).
+- 03: `noodles-mcp` package (docs mode; `--live` is likely superseded by #508's relay — decide with 05 F4).
 - 04: both skills + `validate-projects` CLI + generated includes + CI freshness job.
 - 05 phase 1: WebMCP read-only provider behind feature detection.
 
@@ -85,7 +86,7 @@ Orderings that matter:
 - 06: concept essays 1–5, cross-linked from the priority pages (same author pass as the Remarks work where possible).
 - 03: npm publish, `.mcp.json` docs page.
 - 04: `.claude-plugin/marketplace.json` plugin packaging.
-- 05 phases 2–3: write tools behind consent UI, origin-trial token for noodles.gl, image tool results.
+- 05 follow-ups F1–F3: access model (write gating, iframe guard, indicator), origin-trial token for noodles.gl (committed; gated on the polyfill-vs-native answer), relay embed hardening.
 
 ## Knowledge accrual (how the repository keeps filling)
 
@@ -101,11 +102,11 @@ Generated skeletons make the docs *accurate*; these mechanisms make them *accumu
 
 A note on framing: several of these touch code that works as designed for the path it was built for — the gaps below are what surfaced when we probed the *other* paths. Also: any of these that change what a greenfield agent sees fall under 07 D7's standing question and must take a sanctioned path (measured, stripped, or forbidden) rather than silently shifting the eval baseline. Where a spec proposes deleting or consolidating something, it owes the reader three things: what the original was for, the concrete failure mode now, and what preserves the original capability. If a spec asserts intent that the original author knows to be wrong, that's a spec bug — please correct it in review.
 
-1. **Register the dormant context tools** in the in-app chat: `MCPTools` already implements `list_operators`, `get_operator_schema`, `get_documentation`, `search_code`, `get_example`, `list_examples` — the implementations are done and tested against the bundles; they are simply not registered in `claude-client.ts`'s `getTools()`. Pure unlock, no deletion.
+1. **Register the dormant context tools** — mostly landed via PR #508: all nine got schemas and WebMCP exposure in `tool-definitions.ts`. The remaining sliver: they carry `exposeToChat: false` (a deliberate token-budget call), so the in-app chat still can't invoke them. Flipping that for some subset is the leftover decision (05 F5).
 2. **Consolidate the two context-deploy paths** — `generate-context.yml` refreshes the AI context bundles on content changes without waiting for a full site deploy (a reasonable goal); `deploy-docs.yml` also regenerates them inside the Pages-artifact flow on every main push. The two publish to GitHub Pages by different mechanisms (gh-pages branch push vs. Pages artifact), and a Pages site has one publishing source — whichever is configured wins and the other's output is dead or, worse, flips the source. Proposal (02): `deploy-docs.yml` becomes the single owner; if bundle freshness between deploys matters, add path triggers to `deploy-docs.yml` rather than keeping a second publisher. **Confirm the original intent with whoever set it up before deleting.**
 3. **Refresh `AGENTS.md`** — it drifted as the code moved: claims project version 6 (actual: `NOODLES_VERSION` = 14, derived from migrations), points at `noodles-editor/examples/external-control/mcp-proxy.js` (actual: `examples/external-control/mcp-proxy.js`), references `public/examples` (actual: `src/examples`), and still warns against editing the `timeline` JSON — Theatre.js-era advice; the native timeline's serialized format is fully typed in `src/timeline/types.ts` and is a supported editing surface (see 02/04). This drift is the argument for sub-plan 04's generated includes — hand-maintained facts rot no matter how diligent the authors.
-4. **Finish the external-control write path** — the WebSocket surface reads perfectly but writes were left as scaffolding (consistent with `PIPELINE_TEST` and `DATA_UPLOAD` being explicit TODOs): `worker-bridge.ts` and `tool-adapter.ts` construct private `MCPTools` instances and never call `setProject()`, so `getCurrentProject` reports "No project loaded" and mutations validate-then-drop; `PIPELINE_CREATE` passes an object where the validator requires an array. Sub-plan 05's project-bridge is the designed fix; a targeted patch works sooner.
-5. **Enforce session permissions** — `session-manager.ts` already models `['read','write','execute']` permissions; the enforcement hook just never got wired into the dispatch path. The model is right; connect it.
+4. **Finish the external-control write path** — half landed: PR #508's `src/webmcp/bridge.ts` wires the editor's applier for the WebMCP surface, so `apply_modifications` mutates the real graph there. The WebSocket surface keeps its scaffolding bugs (`worker-bridge.ts`/`tool-adapter.ts` never call `setProject()`; `PIPELINE_CREATE` passes an object where the validator requires an array) and is now labeled legacy. Resolution is 05 F4: wire it through the same bridge, or set a removal date.
+5. **Enforce session permissions** — `session-manager.ts` already models `['read','write','execute']` permissions; the enforcement hook just never got wired into the dispatch path. Folded into 05 F4: if the WS path gets fixed, enforce these while there; if it gets removed, they go with it.
 
 ## Cross-cutting rules index
 

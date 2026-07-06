@@ -77,9 +77,9 @@ Seeded-broken fixtures and answer keys live under `evals/tasks/fixtures/`. Tasks
 | T2 | + machine-readable surface (`/r/`, schema, llms.txt) | 02 landed |
 | T3 | + `noodles-mcp` connected | 03 landed |
 | T4 | + skills installed | 04 landed |
-| T5 | + live app with unified tools / WebMCP | 05 landed |
+| T5 | + live app with WebMCP tools | 05 follow-ups landed (PR #508 shipped the tool surface early; ladder order still governs when T5 unlocks) |
 
-Tiers are enforced by environment construction, not by asking the agent to abstain. At tiers below T4 — including T3, where MCP is present but skills are not — the runner strips all three dogfooding artifacts from the checkout: `skills/`, the `.claude/skills` symlinks, and the AGENTS.md pointer line (see 04's eval-isolation note); T0–T2 additionally get no MCP config. T3+ get the pieces added per the ladder. The T5 environment must also **grant agent write access explicitly** — 05 gates write tools default-OFF, and `live-drive` requires writes; without this step T5 fails by design with `NotAllowedError` and the failure reads as a docs problem. The documented mechanism is 05's session-only override: launch the app with `?agentAccess=read-write` (never persisted, no UI or prior state required — 05 D4's consent contract).
+Tiers are enforced by environment construction, not by asking the agent to abstain. At tiers below T4 — including T3, where MCP is present but skills are not — the runner strips all three dogfooding artifacts from the checkout: `skills/`, the `.claude/skills` symlinks, and the AGENTS.md pointer line (see 04's eval-isolation note); T0–T2 additionally get no MCP config. T3+ get the pieces added per the ladder. The T5 environment must also **grant agent write access explicitly**. Once 05 F1 lands, the documented mechanism is the session-only `?agentAccess=read-write` param (never persisted, no UI or prior state required). Interim, after PR #508 and before F1: `?externalControl=true` alone grants writes, so the builder needs no extra step — but pin which regime a run used, since the grant mechanism is part of the environment definition.
 
 **Tiers unlock in ladder order regardless of merge order.** The ladder encodes 01→02→03→04→05 cumulatively, but the roadmap doesn't merge in that order (05 phase 0 lands in Phase A; 04 ships with graceful degradation and may precede 03). A tier is unlocked only when every rung below it has landed; resource states that exist between merges are off-ladder and belong to ablation mode, not to new tier definitions. Relatedly, the **agent-context-improving quick wins** (the AGENTS.md refresh, registering the dormant chat tools) improve the T0 baseline without unlocking any tier — that's baseline drift that would silently pollute the next tier's delta, so those PRs are explicitly run as `run-evals`-labeled smoke PRs: their effect gets measured at merge time instead of absorbed into whichever tier lands next.
 
@@ -207,4 +207,4 @@ Either way the workflow appends a machine-readable row to the series and comment
 ## Open questions
 
 - Whether to also score cost-normalized quality (score per dollar) once the curve exists.
-- Whether `live-drive` can run headlessly pre-WebMCP via the WS bridge (likely yes with `?externalControl=true` + the proxy), or waits for 05.
+- ~~Whether `live-drive` can run headlessly pre-WebMCP~~ Resolved by PR #508: the `@mcp-b/webmcp-local-relay` gives a headless-compatible stdio path against a localhost tab (`?externalControl=true` + the relay embed). The WS proxy is no longer the plan.
