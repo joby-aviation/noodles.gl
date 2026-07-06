@@ -6,13 +6,19 @@
 //
 //   npm run report -- [--series 2026-07-06.t0.abc123] [--rubric 1]
 
+import * as fs from 'node:fs'
+import * as path from 'node:path'
 import { readIndex } from './grade'
+import { RESULTS_ROOT } from './lib/config'
 import { median } from './lib/scoring'
 
 interface Cell {
   scores: number[]
   mechanical: number[]
   judge: number[]
+  turns: number[]
+  costUsd: number[]
+  lookups: number[]
 }
 
 export interface GroupStats {
@@ -24,6 +30,12 @@ export interface GroupStats {
   range: [number, number]
   mechanicalMedian: number
   judgeMedian: number
+  /** Efficiency medians — the headroom that stays measurable when a cell
+   * saturates the 0-4 scale: a tier landing that keeps the score at 4.00 but
+   * halves turns/cost/lookups is a real, reportable improvement. */
+  turnsMedian: number | null
+  costMedianUsd: number | null
+  lookupsMedian: number | null
 }
 
 export function computeStats(filter: { series?: string; rubricVersion?: number }): GroupStats[] {
@@ -45,12 +57,34 @@ export function computeStats(filter: { series?: string; rubricVersion?: number }
     if (row.lane !== 'milestone') continue
     const key = `${row.tier}|${row.taskId}|${row.sessionModel}`
     if (!groups.has(key)) {
-      groups.set(key, { task: row.taskId, sessionModel: row.sessionModel, tier: row.tier, scores: [], mechanical: [], judge: [] })
+      groups.set(key, {
+        task: row.taskId,
+        sessionModel: row.sessionModel,
+        tier: row.tier,
+        scores: [],
+        mechanical: [],
+        judge: [],
+        turns: [],
+        costUsd: [],
+        lookups: [],
+      })
     }
     const g = groups.get(key)!
     g.scores.push(row.scores.total)
     g.mechanical.push(row.scores.mechanical)
     g.judge.push(row.scores.judge)
+    if (typeof row.cost.sessionUsd === 'number') g.costUsd.push(row.cost.sessionUsd)
+    const lookups = (row.scores.process as { lookups?: number }).lookups
+    if (typeof lookups === 'number') g.lookups.push(lookups)
+    // turns live in the run's stored session-meta, joined via artifactsRef
+    try {
+      const meta = JSON.parse(
+        fs.readFileSync(path.join(RESULTS_ROOT, row.artifactsRef, 'session-meta.json'), 'utf-8')
+      )
+      if (typeof meta.numTurns === 'number') g.turns.push(meta.numTurns)
+    } catch {
+      /* artifacts unavailable; turns column stays sparse */
+    }
   }
 
   return [...groups.values()]
@@ -63,6 +97,9 @@ export function computeStats(filter: { series?: string; rubricVersion?: number }
       range: [round(Math.min(...g.scores)), round(Math.max(...g.scores))] as [number, number],
       mechanicalMedian: round(median(g.mechanical)),
       judgeMedian: round(median(g.judge)),
+      turnsMedian: g.turns.length ? round(median(g.turns)) : null,
+      costMedianUsd: g.costUsd.length ? round(median(g.costUsd)) : null,
+      lookupsMedian: g.lookups.length ? round(median(g.lookups)) : null,
     }))
     .sort((a, b) => a.task.localeCompare(b.task) || a.sessionModel.localeCompare(b.sessionModel))
 }
@@ -76,17 +113,17 @@ export function classifyDelta(a: GroupStats, b: GroupStats): 'no change' | 'impr
 
 export function renderScorecard(stats: GroupStats[]): string {
   const lines = [
-    '| task | session model | tier | n | total (median [range]) | mechanical | judge |',
-    '|---|---|---|---|---|---|---|',
+    '| task | session model | tier | n | total (median [range]) | mechanical | judge | turns | lookups | cost |',
+    '|---|---|---|---|---|---|---|---|---|---|',
   ]
   for (const s of stats) {
     lines.push(
-      `| ${s.task} | ${s.sessionModel} | ${s.tier} | ${s.n} | **${s.median.toFixed(2)}** [${s.range[0].toFixed(2)}–${s.range[1].toFixed(2)}] | ${s.mechanicalMedian.toFixed(2)} | ${s.judgeMedian.toFixed(2)} |`
+      `| ${s.task} | ${s.sessionModel} | ${s.tier} | ${s.n} | **${s.median.toFixed(2)}** [${s.range[0].toFixed(2)}–${s.range[1].toFixed(2)}] | ${s.mechanicalMedian.toFixed(2)} | ${s.judgeMedian.toFixed(2)} | ${s.turnsMedian ?? '—'} | ${s.lookupsMedian ?? '—'} | ${s.costMedianUsd !== null ? `$${s.costMedianUsd.toFixed(2)}` : '—'} |`
     )
   }
   lines.push('')
   lines.push(
-    '_Scale 0–4. The [range] across sessions is the per-task noise band; cross-tier deltas inside overlapping bands are reported as "no change"._'
+    '_Scale 0–4. The [range] across sessions is the per-task noise band; cross-tier deltas inside overlapping bands are reported as "no change". Turns/lookups/cost are per-session medians — the efficiency axis that stays measurable when a cell saturates the score scale: "same 4.00, half the lookups" is a real tier gain._'
   )
   return lines.join('\n')
 }
