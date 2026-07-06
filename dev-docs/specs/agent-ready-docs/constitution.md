@@ -1,6 +1,8 @@
 # Constitution
 
-The cross-cutting rules of the agent-ready docs program, consolidated from the sub-plans where they were first stated. Sub-plans and implementation PRs comply with these articles; a PR that can't comply argues for amending the article instead, in the same PR, with rationale. If Spec Kit is adopted post-merge, this file becomes `.specify/memory/constitution.md` unchanged.
+The cross-cutting rules of the agent-ready docs program, consolidated from the sub-plans where they were first stated. Sub-plans and implementation PRs within this program comply with these articles; a PR that can't comply argues for amending the article instead, in the same PR, with rationale.
+
+Scope: this governs the program, not the repository. If Spec Kit is adopted post-merge, this file is a seed for the repo-wide constitution, not a drop-in: some articles generalize as written (1, 3, 5, 9, 10, 11), others are program-specific machinery (4, 6, 7, 8) that would stay here, referenced from the relevant specs.
 
 Rules carry their rationale. A rule that doesn't argue for itself gets renegotiated in every PR.
 

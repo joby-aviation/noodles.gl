@@ -2,7 +2,7 @@
 
 This spec directory defines a program of work to make Noodles.gl's operators fully documented for humans and fully consumable by AI agents. It is a roadmap plus seven executable sub-plans, governed by a [constitution](constitution.md) that consolidates the program's cross-cutting rules. Each sub-plan is standalone: it can be picked up as its own task/PR series without reading the others first, and each one names its dependencies explicitly.
 
-Execution tooling note: if we adopt GitHub Spec Kit post-merge, `constitution.md` becomes `.specify/memory/constitution.md` unchanged, and each sub-plan feeds one `specify → plan → tasks → implement` cycle. Adoption is deliberately not part of this PR.
+Execution tooling note: if we adopt GitHub Spec Kit post-merge, `constitution.md` seeds the repo-wide `.specify/memory/constitution.md` (its generalizable articles promote; the program-specific ones stay here), and each sub-plan feeds one `specify → plan → tasks → implement` cycle. Adoption is deliberately not part of this PR.
 
 ## Vision
 
