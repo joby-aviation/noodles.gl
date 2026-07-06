@@ -111,17 +111,21 @@ function generate(series: string): void {
 
 ## How to grade this run
 
-1. Read the task prompt below, then \`mechanical.json\` (facts — don't re-litigate them).
-2. Read the artifacts, then the transcript (\`transcript.txt\`, the numbered rendering).
-3. Score every dimension. Anchors: pick the ONE level whose description fits best.
+1. **Fetch the materials** (run from \`evals/\`):
+   \`\`\`bash
+   npx tsx harness/calibrate.ts --open ${code} --series ${series}
+   \`\`\`
+   This copies the run's files into \`calibration/materials/${code}/\` without
+   exposing the run id: transcript.txt · artifacts/ (${artifacts.join(', ') || 'none'}) ·
+   mechanical.json · screenshot.png (if present). scores.json — the judge's
+   answers — is deliberately NOT copied.
+2. Read the task prompt below, then \`mechanical.json\` (facts — don't re-litigate them).
+3. Read the artifacts, then the transcript (\`transcript.txt\` — the numbered
+   rendering your \`L123\` citations resolve against).
+4. Score every dimension. Anchors: pick the ONE level whose description fits best.
    Checklist: pass/fail per criterion; \`na\` ONLY if the session had no opportunity
    to exhibit it. Every score needs a quote + location (L-number or file:line).
-4. Fill the YAML block at the bottom IN PLACE — it's parsed mechanically.
-
-**Materials**: run \`npx tsx harness/calibrate.ts --open ${code} --series ${series}\`
-from \`evals/\` to copy this run's materials into \`calibration/materials/${code}/\`
-without exposing the run id. Files: transcript.txt · artifacts/ (${artifacts.join(', ') || 'none'}) ·
-mechanical.json · screenshot.png (if present). scores.json is deliberately NOT copied.
+5. Fill the YAML block at the bottom IN PLACE — it's parsed mechanically.
 
 ## Task prompt (what the session was asked)
 
