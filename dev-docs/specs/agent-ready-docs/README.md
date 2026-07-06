@@ -1,6 +1,6 @@
 # Agent-Ready Operator Docs — Roadmap
 
-This spec directory defines a program of work to make Noodles.gl's operators fully documented for humans and fully consumable by AI agents. It is a roadmap plus five executable sub-plans. Each sub-plan is standalone: it can be picked up as its own task/PR series without reading the others first, and each one names its dependencies explicitly.
+This spec directory defines a program of work to make Noodles.gl's operators fully documented for humans and fully consumable by AI agents. It is a roadmap plus seven executable sub-plans. Each sub-plan is standalone: it can be picked up as its own task/PR series without reading the others first, and each one names its dependencies explicitly.
 
 ## Vision
 

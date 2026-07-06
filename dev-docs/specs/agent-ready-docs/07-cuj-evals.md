@@ -62,7 +62,7 @@ Each task file contains: the user prompt (verbatim, realistic), input data (or a
 | `modify-arcs` | 3 | "Make the arcs in this project red and 2× thicker" + `uk-commute` | validates; `timeline`/`viewport`/unknown keys byte-identical; edit hit the correct upstream node |
 | `debug-blank-viz` | 3 | A seeded-broken project (disconnected renderer + bad accessor) + "why is this blank?" | both defects identified; fix validates and renders |
 | `sql-h3-pipeline` | 3 | "Aggregate these points into H3 hexagons colored by count, using SQL" | validates; DuckDbOp + H3HexagonLayerOp wired; renders |
-| `contextualize-operator` | 2 | 10 factual questions with ground-truth answers ("what are TripsLayer's inputs and defaults?", "what does `sizeUnits: 'common'` mean?", "what changed about MapStyleOp?") | answer accuracy vs answer key |
+| `contextualize-operator` | 2 | 25–30 factual questions with ground-truth answers, spread across question kinds: field schemas and defaults ("what are TripsLayer's inputs and defaults?"), enum semantics ("what does `sizeUnits: 'common'` mean?"), operator history ("what changed about MapStyleOp?"), and format invariants ("what must an edge id look like?", "which prefix do input handles carry?") | answer accuracy vs answer key |
 | `animate-camera` | 3/4 | "Animate the camera from SF to LA over 5 seconds" | valid keyframes present (direct `timeline` JSON edits are a legitimate path); track paths resolve; keyframes sorted, ids unique; animation scrubs in the app |
 | `live-drive` | 4 | (tier 5+) "In the running app, change the point color and tell me the FPS" | correct tool calls; graph actually mutated; no guessed handle names |
 
