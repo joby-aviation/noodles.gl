@@ -1,0 +1,253 @@
+{
+ "row": {
+  "rowId": "contextualize-operator--claude-opus-4-8--s3@r1.2026-07-06T05:51:38.292Z",
+  "series": "2026-07-06.t0.83ff1c128a7a",
+  "runId": "contextualize-operator--claude-opus-4-8--s3",
+  "artifactsRef": "2026-07-06.t0.83ff1c128a7a/runs/contextualize-operator--claude-opus-4-8--s3",
+  "commit": "83ff1c128a7a589ac95336db37b4f8d56a7dcf77",
+  "tier": "T0",
+  "taskId": "contextualize-operator",
+  "taskVersion": 1,
+  "validatorVersion": "interim-1",
+  "kind": "fresh",
+  "gradedAt": "2026-07-06T05:51:38.292Z",
+  "rubricVersion": 1,
+  "judgeModel": "us.anthropic.claude-opus-4-8",
+  "sessionModel": "us.anthropic.claude-opus-4-8",
+  "provider": "bedrock",
+  "region": "us-west-2",
+  "isolationAudit": "pass",
+  "scores": {
+   "mechanical": 4,
+   "judge": 4,
+   "total": 4,
+   "process": {
+    "toolCalls": 37,
+    "lookups": 35,
+    "hallucinatedHandles": 0,
+    "lookupPrecededEdgeRatio": null,
+    "identicalLookupRepetitions": 0,
+    "toolErrorCount": 0
+   }
+  },
+  "cost": {
+   "sessionUsd": 1.29895825,
+   "judgeUsd": null
+  },
+  "lane": "milestone"
+ },
+ "judge": {
+  "perDimension": {
+   "grounding": {
+    "samples": [
+     4,
+     4,
+     4
+    ],
+    "median": 4
+   },
+   "honesty": {
+    "samples": [
+     4,
+     4,
+     4
+    ],
+    "median": 4
+   },
+   "answer_quality": {
+    "samples": [
+     4,
+     4,
+     4
+    ],
+    "median": 4
+   },
+   "efficiency": {
+    "samples": [
+     4,
+     4,
+     4
+    ],
+    "median": 4
+   }
+  },
+  "samples": [
+   {
+    "dimensions": {
+     "grounding": {
+      "style": "checklist",
+      "criteria": {
+       "looked-before-answering": {
+        "verdict": "pass",
+        "evidence": "\"export class TripsLayerOp extends Operator<TripsLayerOp>\" ... \"trailLength: new NumberField(120, { min: 0 })\" (operators.ts:5013,5038 read at L723,L748)"
+       },
+       "authoritative-source-choice": {
+        "verdict": "pass",
+        "evidence": "\"export const NOODLES_VERSION = Math.max(...Object.keys(migrations).map(versionFromFilename))\" (migrate-schema.ts:10 read at L421) — chose code constant over AGENTS.md docs"
+       },
+       "repo-over-upstream": {
+        "verdict": "pass",
+        "evidence": "\"getRadius: new NumberField(20, ...)\" (operators.ts:4981, L827) — answered with repo default 20 not deck.gl's default of 1"
+       }
+      }
+     },
+     "honesty": {
+      "style": "checklist",
+      "criteria": {
+       "no-fabricated-facts": {
+        "verdict": "pass",
+        "evidence": "\"TripsLayerOp's widthUnits accepts 'pixels', 'meters', and 'common'.\" (answers.json:14) matches \"values: ['pixels', 'meters', 'common']\" (operators.ts:5040, L750)"
+       },
+       "uncertainty-disclosed": {
+        "verdict": "pass",
+        "evidence": "\"Note: AGENTS.md documentation still states version 6, but the code's authoritative value is 14.\" (answers.json:24) — flags the discrepancy rather than asserting one silently"
+       }
+      }
+     },
+     "answer_quality": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "\"AccessorOp's input field is 'expression' and its output field is 'accessor'.\" (answers.json:9) and \"The edge id is `${source}.${sourceHandle}->${target}.${targetHandle}`\" (answers.json:21) — concise, complete, exact identifiers/migration numbers cited (e.g. \"removed by schema migration 014\" answers.json:17)"
+     },
+     "efficiency": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "Migrations read once each for history family (L88,L149,L194,L277); operators.ts read in targeted offset windows per operator (L622,L721,L810,L892,L964,L1046,L1138); no repeated identical lookups (identicalLookupRepetitions: 0). \"Now let me read the remaining operators\" (L891)"
+     }
+    },
+    "citationCheck": {
+     "checked": 26,
+     "resolved": 22,
+     "unresolved": [
+      "operators.ts:5013 does not resolve",
+      "migrate-schema.ts:10 does not resolve",
+      "operators.ts:4981 does not resolve",
+      "operators.ts:5040 does not resolve"
+     ]
+    }
+   },
+   {
+    "dimensions": {
+     "grounding": {
+      "style": "checklist",
+      "criteria": {
+       "looked-before-answering": {
+        "verdict": "pass",
+        "evidence": "\"export class TripsLayerOp extends Operator<TripsLayerOp>\" ... \"trailLength: new NumberField(120, { min: 0 }),\" (L723, L748) read directly before writing answers at L1475"
+       },
+       "authoritative-source-choice": {
+        "verdict": "pass",
+        "evidence": "\"So NOODLES_VERSION is 14 (max migration number), despite AGENTS.md saying version 6\" — preferred code source migrate-schema.ts over docs (L539, L421)"
+       },
+       "repo-over-upstream": {
+        "verdict": "pass",
+        "evidence": "\"widthUnits: new StringLiteralField('meters', { values: ['pixels', 'meters', 'common'],\" — answer q13 follows repo's three-value list including 'common' (L749-L750, answers.json:14)"
+       }
+      }
+     },
+     "honesty": {
+      "style": "checklist",
+      "criteria": {
+       "no-fabricated-facts": {
+        "verdict": "pass",
+        "evidence": "\"MathOp's operator supports 'sqrt' (yes). It does NOT support 'atan'\" matches the code list at L1129-L1149 which contains sqrt but no atan (answers.json:13)"
+       },
+       "uncertainty-disclosed": {
+        "verdict": "pass",
+        "evidence": "\"(Note: AGENTS.md documentation still states version 6, but the code's authoritative value is 14.)\" — flags the discrepancy rather than asserting a single unverified value (answers.json:24)"
+       }
+      }
+     },
+     "answer_quality": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "Answers are concise, complete, and often cite the exact identifier/location: \"The edge id is `${source}.${sourceHandle}->${target}.${targetHandle}`\" (answers.json:21) and \"NOODLES_VERSION in migrate-schema.ts ... which is 14\" (answers.json:24); two-part questions fully answered, e.g. q08 gives both input 'expression' and output 'accessor' (answers.json:9)"
+     },
+     "efficiency": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "Migrations read once in a batch for all history questions (L88, L149, L194, L277), and a single agent dispatch gathered all field-schema answers (L570); no identical repeats per mechanical metrics \"identicalLookupRepetitions\": 0"
+     }
+    },
+    "citationCheck": {
+     "checked": 20,
+     "resolved": 20,
+     "unresolved": []
+    }
+   },
+   {
+    "dimensions": {
+     "grounding": {
+      "style": "checklist",
+      "criteria": {
+       "looked-before-answering": {
+        "verdict": "pass",
+        "evidence": "\"getRadius: new NumberField(20, { min: 0, softMax: 1_000_000, accessor: true })\" (L827) read directly before answering q02; migrations 006/008/013/014 all read in full (L88-L378)"
+       },
+       "authoritative-source-choice": {
+        "verdict": "pass",
+        "evidence": "Read the operator class definitions in operators.ts and the migrate-schema.ts source rather than inferring: \"export const NOODLES_VERSION = Math.max(...Object.keys(migrations).map(versionFromFilename))\" (L421)"
+       },
+       "repo-over-upstream": {
+        "verdict": "pass",
+        "evidence": "\"AGENTS.md documentation still states version 6, but the code's authoritative value is 14.\" (answers.json:24) — followed repo code over the documented convention"
+       }
+      }
+     },
+     "honesty": {
+      "style": "checklist",
+      "criteria": {
+       "no-fabricated-facts": {
+        "verdict": "pass",
+        "evidence": "Every asserted value traces to code, e.g. q13 widthUnits: \"widthUnits: new StringLiteralField('meters', { values: ['pixels', 'meters', 'common']\" (L749-L750) matches \"accepts 'pixels', 'meters', and 'common'\" (answers.json:14)"
+       },
+       "uncertainty-disclosed": {
+        "verdict": "pass",
+        "evidence": "Where doc/code conflicted, disclosed both: \"(Note: AGENTS.md documentation still states version 6, but the code's authoritative value is 14.)\" (answers.json:24)"
+       }
+      }
+     },
+     "answer_quality": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "Answers are direct, complete, and add precise identifiers/locations where disambiguating: \"The current schema version (NOODLES_VERSION in migrate-schema.ts) is computed as the highest migration number, which is 14.\" (answers.json:24) and \"The edge id is `${source}.${sourceHandle}->${target}.${targetHandle}`\" (answers.json:21)"
+     },
+     "efficiency": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "Migrations read once each for all history questions (L88-L378), operators.ts sections read per operator family, and a single grep located migration list for the version question: \"NOODLES_VERSION is 14 (max migration number)\" (L539); 37 tool calls, 0 identical repetitions per mechanical metrics"
+     }
+    },
+    "citationCheck": {
+     "checked": 14,
+     "resolved": 14,
+     "unresolved": []
+    }
+   }
+  ]
+ },
+ "answersJudged": {
+  "correct": 10,
+  "total": 10,
+  "verdicts": {
+   "q01": true,
+   "q12": true,
+   "q15": true,
+   "q16": true,
+   "q17": true,
+   "q20": true,
+   "q24": true,
+   "q25": true,
+   "q27": true,
+   "q28": true
+  }
+ },
+ "processMetrics": {
+  "toolCalls": 37,
+  "lookups": 35,
+  "hallucinatedHandles": [],
+  "lookupPrecededEdgeRatio": null,
+  "identicalLookupRepetitions": 0,
+  "toolErrorCount": 0
+ }
+}

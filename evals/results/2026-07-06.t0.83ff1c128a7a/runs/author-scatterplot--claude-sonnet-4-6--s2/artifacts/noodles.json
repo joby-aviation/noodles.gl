@@ -1,0 +1,153 @@
+{
+  "version": 14,
+  "name": "California Earthquake Magnitude",
+  "viewport": {
+    "x": 400,
+    "y": 300,
+    "zoom": 1
+  },
+  "editorSettings": {
+    "layoutMode": "noodles-on-top",
+    "showOverlay": true
+  },
+  "nodes": [
+    {
+      "id": "/file",
+      "type": "FileOp",
+      "position": { "x": -800, "y": 0 },
+      "data": {
+        "inputs": {
+          "url": "@/data.csv"
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/position",
+      "type": "AccessorOp",
+      "position": { "x": -500, "y": 200 },
+      "data": {
+        "inputs": {
+          "expression": "[d.Longitude, d.Latitude]"
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/radius",
+      "type": "AccessorOp",
+      "position": { "x": -500, "y": 350 },
+      "data": {
+        "inputs": {
+          "expression": "Math.pow(2, d.Magnitude) * 500"
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/scatterplot",
+      "type": "ScatterplotLayerOp",
+      "position": { "x": -150, "y": 100 },
+      "data": {
+        "inputs": {
+          "getFillColor": "#ff4400cc",
+          "getLineColor": "#ffffff44",
+          "radiusUnits": "meters",
+          "opacity": 0.7
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/viewstate",
+      "type": "MapViewStateOp",
+      "position": { "x": -150, "y": -150 },
+      "data": {
+        "inputs": {
+          "longitude": -119,
+          "latitude": 37,
+          "zoom": 5
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/basemap",
+      "type": "MaplibreBasemapOp",
+      "position": { "x": 200, "y": 150 },
+      "data": {
+        "inputs": {},
+        "locked": false
+      }
+    },
+    {
+      "id": "/deck",
+      "type": "DeckRendererOp",
+      "position": { "x": 200, "y": -50 },
+      "data": {
+        "inputs": {},
+        "locked": false
+      }
+    },
+    {
+      "id": "/out",
+      "type": "OutOp",
+      "position": { "x": 500, "y": -50 },
+      "data": {
+        "inputs": {},
+        "locked": false
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "/file.out.data->/scatterplot.par.data",
+      "source": "/file",
+      "sourceHandle": "out.data",
+      "target": "/scatterplot",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/position.out.accessor->/scatterplot.par.getPosition",
+      "source": "/position",
+      "sourceHandle": "out.accessor",
+      "target": "/scatterplot",
+      "targetHandle": "par.getPosition"
+    },
+    {
+      "id": "/radius.out.accessor->/scatterplot.par.getRadius",
+      "source": "/radius",
+      "sourceHandle": "out.accessor",
+      "target": "/scatterplot",
+      "targetHandle": "par.getRadius"
+    },
+    {
+      "id": "/viewstate.out.viewState->/basemap.par.viewState",
+      "source": "/viewstate",
+      "sourceHandle": "out.viewState",
+      "target": "/basemap",
+      "targetHandle": "par.viewState"
+    },
+    {
+      "id": "/scatterplot.out.layer->/deck.par.layers",
+      "source": "/scatterplot",
+      "sourceHandle": "out.layer",
+      "target": "/deck",
+      "targetHandle": "par.layers"
+    },
+    {
+      "id": "/basemap.out.maplibre->/deck.par.basemap",
+      "source": "/basemap",
+      "sourceHandle": "out.maplibre",
+      "target": "/deck",
+      "targetHandle": "par.basemap"
+    },
+    {
+      "id": "/deck.out.vis->/out.par.vis",
+      "source": "/deck",
+      "sourceHandle": "out.vis",
+      "target": "/out",
+      "targetHandle": "par.vis"
+    }
+  ]
+}

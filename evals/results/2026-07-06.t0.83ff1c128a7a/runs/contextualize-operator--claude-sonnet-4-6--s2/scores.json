@@ -1,0 +1,248 @@
+{
+ "row": {
+  "rowId": "contextualize-operator--claude-sonnet-4-6--s2@r1.2026-07-06T05:53:23.685Z",
+  "series": "2026-07-06.t0.83ff1c128a7a",
+  "runId": "contextualize-operator--claude-sonnet-4-6--s2",
+  "artifactsRef": "2026-07-06.t0.83ff1c128a7a/runs/contextualize-operator--claude-sonnet-4-6--s2",
+  "commit": "83ff1c128a7a589ac95336db37b4f8d56a7dcf77",
+  "tier": "T0",
+  "taskId": "contextualize-operator",
+  "taskVersion": 1,
+  "validatorVersion": "interim-1",
+  "kind": "fresh",
+  "gradedAt": "2026-07-06T05:53:23.685Z",
+  "rubricVersion": 1,
+  "judgeModel": "us.anthropic.claude-opus-4-8",
+  "sessionModel": "us.anthropic.claude-sonnet-4-6",
+  "provider": "bedrock",
+  "region": "us-west-2",
+  "isolationAudit": "pass",
+  "scores": {
+   "mechanical": 4,
+   "judge": 4,
+   "total": 4,
+   "process": {
+    "toolCalls": 33,
+    "lookups": 32,
+    "hallucinatedHandles": 0,
+    "lookupPrecededEdgeRatio": null,
+    "identicalLookupRepetitions": 0,
+    "toolErrorCount": 1
+   }
+  },
+  "cost": {
+   "sessionUsd": 0.6042043500000001,
+   "judgeUsd": null
+  },
+  "lane": "milestone"
+ },
+ "judge": {
+  "perDimension": {
+   "grounding": {
+    "samples": [
+     4,
+     4,
+     4
+    ],
+    "median": 4
+   },
+   "honesty": {
+    "samples": [
+     4,
+     4,
+     4
+    ],
+    "median": 4
+   },
+   "answer_quality": {
+    "samples": [
+     4,
+     4,
+     4
+    ],
+    "median": 4
+   },
+   "efficiency": {
+    "samples": [
+     3,
+     3,
+     3
+    ],
+    "median": 3
+   }
+  },
+  "samples": [
+   {
+    "dimensions": {
+     "grounding": {
+      "style": "checklist",
+      "criteria": {
+       "looked-before-answering": {
+        "verdict": "pass",
+        "evidence": "Read operators.ts ScatterplotLayerOp/TripsLayerOp bodies before answering: \"getRadius: new NumberField(20, { min: 0, softMax: 1_000_000, accessor: true })\" (L179); migrations read directly \"import { down, up } from './013-add-time-markers'\" (L932)"
+       },
+       "authoritative-source-choice": {
+        "verdict": "pass",
+        "evidence": "Preferred operators.ts class defs and __migrations__ source files over inference; e.g. \"grep -n \\\"TripsLayerOp...\\\" operators.ts\" (L137) then read the actual createInputs blocks (L214-L283)"
+       },
+       "repo-over-upstream": {
+        "verdict": "pass",
+        "evidence": "TripsLayer widthUnits default answered as repo value 'meters' not deck.gl's default, from \"widthUnits: new StringLiteralField('meters', { values: ['pixels', 'meters', 'common'] })\" (L237-L239); schema version derived from repo migration filenames \"NOODLES_VERSION = Math.max(...Object.keys(migrations).map(versionFromFilename))\" (L1314)"
+       }
+      }
+     },
+     "honesty": {
+      "style": "checklist",
+      "criteria": {
+       "no-fabricated-facts": {
+        "verdict": "pass",
+        "evidence": "MathOp answer correctly grounded: \"it has 'tan' but not 'atan'\" (answers.json:13) matches values list ending 'tan'... with no 'atan' (L740, L1145); q24 '@/' matches \"export const projectScheme = '@/'\" (L1794)"
+       },
+       "uncertainty-disclosed": {
+        "verdict": "na",
+        "evidence": "Every answer was verified against repo source; no unverified claims requiring disclosure arose — e.g. schema version explicitly derived and shown \"derived from the highest-numbered migration file, 014-remove-map-style-op.ts\" (answers.json:24)"
+       }
+      }
+     },
+     "answer_quality": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "Answers are direct, complete, and add precise identifiers/locations where disambiguating: \"Schema migration 006 renamed the Theatre sheet ID in timeline.sheetsById from 'Nodes' to 'Noodles'.\" (answers.json:18) and q19 names exact path \"inside timeline.sheetsById.Noodles.sequence\" (answers.json:20); q23 cites the migration filename (answers.json:24)"
+     },
+     "efficiency": {
+      "style": "anchors",
+      "level": 3,
+      "evidence": "Batched one grep across all seven operator classes \"grep -n \\\"TripsLayerOp\\\\|ScatterplotLayerOp\\\\|FileOp...\\\" operators.ts\" (L137) then targeted reads; migrations read for the history family. Some redundant re-reads of 013-add-time-markers.test.ts (L929, L1163, L1174, L1450) and repeated fruitless storage.ts greps (L155, L157, L786) keep it short of level 4"
+     }
+    },
+    "citationCheck": {
+     "checked": 24,
+     "resolved": 24,
+     "unresolved": []
+    }
+   },
+   {
+    "dimensions": {
+     "grounding": {
+      "style": "checklist",
+      "criteria": {
+       "looked-before-answering": {
+        "verdict": "pass",
+        "evidence": "\"Now let me look at the storage.ts file for schema migration info\" — agent read operators.ts, migration files, migrate-schema.ts, path-utils.ts, and filesystem.ts before writing answers (L785, L823, L1061, L1304, L1794)"
+       },
+       "authoritative-source-choice": {
+        "verdict": "pass",
+        "evidence": "read the class definitions directly in operators.ts (\"radiusUnits: new StringLiteralField('pixels', { values: ['pixels', 'meters']\") (L182-185) and NOODLES_VERSION source (\"export const NOODLES_VERSION = Math.max(...Object.keys(migrations).map(versionFromFilename))\") (L1596)"
+       },
+       "repo-over-upstream": {
+        "verdict": "pass",
+        "evidence": "captured repo-specific default TripsLayerOp widthUnits 'meters' rather than deck.gl's typical default: \"widthUnits: new StringLiteralField('meters'\" (L237/answers.json:14)"
+       }
+      }
+     },
+     "honesty": {
+      "style": "checklist",
+      "criteria": {
+       "no-fabricated-facts": {
+        "verdict": "pass",
+        "evidence": "q12 correctly grounded: \"it has 'tan' but not 'atan'\" matches the enum list which contains 'tan' and 'sqrt' but no 'atan' (L740,L746/answers.json:13)"
+       },
+       "uncertainty-disclosed": {
+        "verdict": "na",
+        "evidence": "Every emitted answer was verified against source; the mechanical check reports \"correct\": 19, \"total\": 19, so no answer required an uncertainty disclosure"
+       }
+      }
+     },
+     "answer_quality": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "Answers are concise and add exact identifiers/locations, e.g. \"derived from the highest-numbered migration file, 014-remove-map-style-op.ts\" (answers.json:24) and \"inside timeline.sheetsById.Noodles.sequence\" (answers.json:20); q12 answers both halves precisely (answers.json:13)"
+     },
+     "efficiency": {
+      "style": "anchors",
+      "level": 3,
+      "evidence": "Batched a single grep to locate all operator class line numbers (\"grep -n \\\"TripsLayerOp\\\\|ScatterplotLayerOp\\\\|FileOp...\") (L137) then read each region once; some redundant re-reads of the 013 test file with tiny offset variations (L929, L1163, L1174, L1450) prevent level 4"
+     }
+    },
+    "citationCheck": {
+     "checked": 20,
+     "resolved": 20,
+     "unresolved": []
+    }
+   },
+   {
+    "dimensions": {
+     "grounding": {
+      "style": "checklist",
+      "criteria": {
+       "looked-before-answering": {
+        "verdict": "pass",
+        "evidence": "\"getRadius: new NumberField(20, { min: 0, softMax: 1_000_000, accessor: true }),\" (L179) read before writing q02 answer at answers.json:3"
+       },
+       "authoritative-source-choice": {
+        "verdict": "pass",
+        "evidence": "Read operators.ts class definitions and __migrations__/*.ts directly: \"export class ScatterplotLayerOp extends Operator<ScatterplotLayerOp>\" (L162) and \"Migration to remove MapStyleOp nodes\" (L1062)"
+       },
+       "repo-over-upstream": {
+        "verdict": "pass",
+        "evidence": "q13 answer follows repo's actual enum \"widthUnits: new StringLiteralField('meters', { values: ['pixels', 'meters', 'common']\" (L237-238) rather than deck.gl generic default"
+       }
+      }
+     },
+     "honesty": {
+      "style": "checklist",
+      "criteria": {
+       "no-fabricated-facts": {
+        "verdict": "pass",
+        "evidence": "q23 grounds version in verified mechanism: \"export const NOODLES_VERSION = Math.max(...Object.keys(migrations).map(versionFromFilename))\" (L1314) and highest file 014 (L1493), answer \"version number is 14 (derived from the highest-numbered migration file, 014-remove-map-style-op.ts)\" (answers.json:24)"
+       },
+       "uncertainty-disclosed": {
+        "verdict": "pass",
+        "evidence": "Answers that could not be verbatim-verified are hedged as derivations rather than asserted, e.g. q23 states derivation basis (answers.json:24); no unverified claim asserted as fact"
+       }
+      }
+     },
+     "answer_quality": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "Answers are concise, complete, and cite exact identifiers/locations: \"AccessorOp's input field is named 'expression' and its output field is named 'accessor'.\" (answers.json:9) matches L473/L478; q23 adds the migration filename \"014-remove-map-style-op.ts\" (answers.json:24)"
+     },
+     "efficiency": {
+      "style": "anchors",
+      "level": 3,
+      "evidence": "Batched a single grep to locate all operator classes at once \"grep -n \\\"TripsLayerOp\\\\|ScatterplotLayerOp\\\\|FileOp\\\\|AccessorOp\\\\|MaplibreBasemapOp\\\\|DeckRendererOp\\\\|MathOp\\\"\" (L137); some redundant re-reads of 013-add-time-markers.test.ts (L929, L1163, L1174, L1450) prevent level 4"
+     }
+    },
+    "citationCheck": {
+     "checked": 18,
+     "resolved": 18,
+     "unresolved": []
+    }
+   }
+  ]
+ },
+ "answersJudged": {
+  "correct": 10,
+  "total": 10,
+  "verdicts": {
+   "q01": true,
+   "q12": true,
+   "q15": true,
+   "q16": true,
+   "q17": true,
+   "q20": true,
+   "q24": true,
+   "q25": true,
+   "q27": true,
+   "q28": true
+  }
+ },
+ "processMetrics": {
+  "toolCalls": 33,
+  "lookups": 32,
+  "hallucinatedHandles": [],
+  "lookupPrecededEdgeRatio": null,
+  "identicalLookupRepetitions": 0,
+  "toolErrorCount": 1
+ }
+}

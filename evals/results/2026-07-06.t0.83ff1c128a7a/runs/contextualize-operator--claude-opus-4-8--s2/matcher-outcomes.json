@@ -1,0 +1,176 @@
+[
+ {
+  "id": "q01",
+  "match": "judge",
+  "correct": null,
+  "answer": "TripsLayerOp inputs and defaults: data (none/empty), visible (true), opacity (1), getPath (accessor: d => d.path||[]), getTimestamps (accessor: d => d.timestamps||[]), getColor ('#bfcae3'), getWidth (8), billboard (false), capRounded (true), jointRounded (true), currentTime (0), fadeTrail (false), trailLength (120), widthUnits ('meters'), widthMinPixels (2), widthScale (20), parameters ({depthTest: true}), extensions (empty list)."
+ },
+ {
+  "id": "q02",
+  "match": "regex",
+  "correct": true,
+  "answer": "20 (a NumberField with default 20)."
+ },
+ {
+  "id": "q03",
+  "match": "regex",
+  "correct": true,
+  "answer": "'pixels'."
+ },
+ {
+  "id": "q04",
+  "match": "containsAll",
+  "correct": true,
+  "answer": "'pixels' and 'meters'."
+ },
+ {
+  "id": "q05",
+  "match": "regex",
+  "correct": true,
+  "answer": "'layer' (a LayerField for ScatterplotLayerProps)."
+ },
+ {
+  "id": "q06",
+  "match": "containsAll",
+  "correct": true,
+  "answer": "'json', 'csv', 'tsv', 'text', and 'binary'."
+ },
+ {
+  "id": "q07",
+  "match": "regex",
+  "correct": true,
+  "answer": "'json'."
+ },
+ {
+  "id": "q08",
+  "match": "containsAll",
+  "correct": true,
+  "answer": "Input field is 'expression'; output field is 'accessor'."
+ },
+ {
+  "id": "q09",
+  "match": "regex",
+  "correct": true,
+  "answer": "'maplibre'."
+ },
+ {
+  "id": "q10",
+  "match": "regex",
+  "correct": true,
+  "answer": "'vis' (a VisualizationField)."
+ },
+ {
+  "id": "q11",
+  "match": "regex",
+  "correct": true,
+  "answer": "120."
+ },
+ {
+  "id": "q12",
+  "match": "judge",
+  "correct": null,
+  "answer": "Yes, MathOp's operator supports 'sqrt'. No, it does not support 'atan' (it supports 'tan' but not 'atan'). Full list: add, subtract, multiply, divide, sine, cosine, tan, min, max, modulo, power, log, sqrt, round, floor, ceil, abs, rad, deg."
+ },
+ {
+  "id": "q13",
+  "match": "containsAll",
+  "correct": true,
+  "answer": "'pixels', 'meters', and 'common'."
+ },
+ {
+  "id": "q14",
+  "match": "containsAll",
+  "correct": true,
+  "answer": "'mercator' and 'globe'."
+ },
+ {
+  "id": "q15",
+  "match": "judge",
+  "correct": null,
+  "answer": "In an AccessorOp expression these variables are available: d (current data row), i (index of the current row), data (the full dataset array), op (function to access other operators), sequenceTime (current timeline position), frame (current frame), totalFrames (total frames), sequence (timeline metadata), plus utility globals like d3, turf, etc. (freeExports)."
+ },
+ {
+  "id": "q16",
+  "match": "judge",
+  "correct": null,
+  "answer": "MapStyleOp was removed by schema migration 014 ('remove-map-style-op'); it was a pass-through node that only exposed a preset map-style URL. Migration up() deletes MapStyleOp nodes and inlines their style URL value directly onto the connected MaplibreBasemapOp's mapStyle input (falling back to CARTO_DARK when it had no value); the down() migration recreates a MapStyleOp node and edge for MaplibreBasemapOps that have a mapStyle value and no incoming mapStyle edge."
+ },
+ {
+  "id": "q17",
+  "match": "judge",
+  "correct": null,
+  "answer": "Migration 006 renamed the timeline (Theatre) sheet ID from 'Nodes' to 'Noodles' inside timeline.sheetsById, preserving all other timeline state."
+ },
+ {
+  "id": "q18",
+  "match": "containsAll",
+  "correct": true,
+  "answer": "Migration 008 renamed the operator type 'DateOp' to 'DateTimeOp'."
+ },
+ {
+  "id": "q19",
+  "match": "regex",
+  "correct": true,
+  "answer": "Migration 013 added time-markers support: it initializes an empty 'markers' array on the timeline's Noodles sheet sequence for projects that don't already have one."
+ },
+ {
+  "id": "q20",
+  "match": "judge",
+  "correct": null,
+  "answer": "An edge id is `${source}.${sourceHandle}->${target}.${targetHandle}` — e.g. '/add-1.out.result->/viewer.par.data'."
+ },
+ {
+  "id": "q21",
+  "match": "regex",
+  "correct": true,
+  "answer": "Input (target) handles carry the 'par.' prefix (e.g. 'par.data')."
+ },
+ {
+  "id": "q22",
+  "match": "regex",
+  "correct": true,
+  "answer": "Output (source) handles carry the 'out.' prefix (e.g. 'out.result')."
+ },
+ {
+  "id": "q23",
+  "match": "regex",
+  "correct": true,
+  "answer": "14 (NOODLES_VERSION is derived as the max migration file number, and the latest migration is 014). Note: the AGENTS.md doc still refers to version 6, but the code-driven current schema version is 14."
+ },
+ {
+  "id": "q24",
+  "match": "judge",
+  "correct": null,
+  "answer": "'@/' is the project scheme prefix meaning the path is relative to the current project's data/assets directory (the file is read from the project's assets rather than fetched as a URL)."
+ },
+ {
+  "id": "q25",
+  "match": "judge",
+  "correct": null,
+  "answer": "Node ids are Unix-style fully-qualified paths, absolute from root, e.g. '/my-node' or '/container/child'."
+ },
+ {
+  "id": "q26",
+  "match": "containsAll",
+  "correct": true,
+  "answer": "op('/data-loader').out.data"
+ },
+ {
+  "id": "q27",
+  "match": "judge",
+  "correct": null,
+  "answer": "It resolves to an operator named 'sibling' in the same container as the current operator (relative paths resolve against the context operator's parent container)."
+ },
+ {
+  "id": "q28",
+  "match": "judge",
+  "correct": null,
+  "answer": "A nested operator is addressed by appending its name to the container path, e.g. '/analysis/filter' (operator 'filter' inside container '/analysis')."
+ },
+ {
+  "id": "q29",
+  "match": "regex",
+  "correct": true,
+  "answer": "A single input accepts one connection (unless it is a ListField, which accepts multiple); connecting a new edge to a non-list input replaces the existing connection."
+ }
+]

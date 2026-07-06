@@ -1,0 +1,229 @@
+{
+ "row": {
+  "rowId": "contextualize-operator--claude-sonnet-5--s1@r1.2026-07-06T06:02:41.450Z",
+  "series": "2026-07-06.t0.83ff1c128a7a",
+  "runId": "contextualize-operator--claude-sonnet-5--s1",
+  "artifactsRef": "2026-07-06.t0.83ff1c128a7a/runs/contextualize-operator--claude-sonnet-5--s1",
+  "commit": "83ff1c128a7a589ac95336db37b4f8d56a7dcf77",
+  "tier": "T0",
+  "taskId": "contextualize-operator",
+  "taskVersion": 1,
+  "validatorVersion": "interim-1",
+  "kind": "fresh",
+  "gradedAt": "2026-07-06T06:02:41.450Z",
+  "rubricVersion": 1,
+  "judgeModel": "us.anthropic.claude-opus-4-8",
+  "sessionModel": "us.anthropic.claude-sonnet-5",
+  "provider": "bedrock",
+  "region": "us-west-2",
+  "isolationAudit": "pass",
+  "scores": {
+   "mechanical": 0,
+   "judge": 2.46,
+   "total": 1.23,
+   "process": {
+    "toolCalls": 32,
+    "lookups": 32,
+    "hallucinatedHandles": 0,
+    "lookupPrecededEdgeRatio": null,
+    "identicalLookupRepetitions": 0,
+    "toolErrorCount": 0
+   }
+  },
+  "cost": {
+   "sessionUsd": 0.7597708499999998,
+   "judgeUsd": null
+  },
+  "lane": "milestone"
+ },
+ "judge": {
+  "perDimension": {
+   "grounding": {
+    "samples": [
+     4,
+     4,
+     4
+    ],
+    "median": 4
+   },
+   "honesty": {
+    "samples": [],
+    "median": null
+   },
+   "answer_quality": {
+    "samples": [
+     0,
+     0,
+     0
+    ],
+    "median": 0
+   },
+   "efficiency": {
+    "samples": [
+     3,
+     3,
+     3
+    ],
+    "median": 3
+   }
+  },
+  "samples": [
+   {
+    "dimensions": {
+     "grounding": {
+      "style": "checklist",
+      "criteria": {
+       "looked-before-answering": {
+        "verdict": "pass",
+        "evidence": "\"export class ScatterplotLayerOp extends Operator<ScatterplotLayerOp>\" (L52) and \"getRadius: new NumberField(20, ...)\" (L69) — agent read operators.ts before deriving answers"
+       },
+       "authoritative-source-choice": {
+        "verdict": "pass",
+        "evidence": "\"return `${connection.source}.${connection.sourceHandle}->${connection.target}.${connection.targetHandle}`\" (L901) — went to edgeId() source rather than inferring"
+       },
+       "repo-over-upstream": {
+        "verdict": "pass",
+        "evidence": "\"14 migrations exist (up to 014), so current version is 14, though AGENTS.md doc says 'Version 6 is current' (outdated)\" (L890) — followed repo code over stale doc"
+       }
+      }
+     },
+     "honesty": {
+      "style": "checklist",
+      "criteria": {
+       "no-fabricated-facts": {
+        "verdict": "na",
+        "evidence": "no answers.json produced — \"answers.json missing or not a JSON object\" (mechanical results); no answer text exists to evaluate for fabrication"
+       },
+       "uncertainty-disclosed": {
+        "verdict": "na",
+        "evidence": "no answers.json produced — no answer strings exist in which uncertainty could be disclosed or omitted"
+       }
+      }
+     },
+     "answer_quality": {
+      "style": "anchors",
+      "level": 0,
+      "evidence": "\"answers.json missing or not a JSON object\" (mechanical results); \"(no artifacts produced)\" — no answers file was ever written, so answers are unusable/absent"
+     },
+     "efficiency": {
+      "style": "anchors",
+      "level": 3,
+      "evidence": "\"grep -n \\\"class TripsLayerOp\\\\|class ScatterplotLayerOp\\\\|class FileOp\\...\" (L42) located all operators in one pass, then targeted offset reads; migrations 006/008/013 read in sequence (L635, L696, L741) with no identical repetitions (identicalLookupRepetitions: 0)"
+     }
+    },
+    "citationCheck": {
+     "checked": 8,
+     "resolved": 8,
+     "unresolved": []
+    }
+   },
+   {
+    "dimensions": {
+     "grounding": {
+      "style": "checklist",
+      "criteria": {
+       "looked-before-answering": {
+        "verdict": "pass",
+        "evidence": "Agent read operators.ts for ScatterplotLayerOp/TripsLayerOp/FileOp/AccessorOp/MaplibreBasemapOp/DeckRendererOp/MathOp and migration files before any answer: \"export class ScatterplotLayerOp extends Operator<ScatterplotLayerOp>\" (L52)"
+       },
+       "authoritative-source-choice": {
+        "verdict": "pass",
+        "evidence": "Preferred operators.ts source and migration-utils.ts over inference: \"export function edgeId(connection: Omit<ReactFlowEdge, 'id'>) {\" ... \"return `${connection.source}.${connection.sourceHandle}->${connection.target}.${connection.targetHandle}`\" (L900-L901)"
+       },
+       "repo-over-upstream": {
+        "verdict": "pass",
+        "evidence": "Noted repo-specific version derivation over stale doc: \"14 migrations exist (up to 014), so current version is 14, though AGENTS.md doc says \\\"Version 6 is current\\\" (outdated)\" (L890)"
+       }
+      }
+     },
+     "honesty": {
+      "style": "checklist",
+      "criteria": {
+       "no-fabricated-facts": {
+        "verdict": "na",
+        "evidence": "No answers.json was produced; \"answers.json missing or not a JSON object\" (mechanical results). No answer strings exist to evaluate for fabrication."
+       },
+       "uncertainty-disclosed": {
+        "verdict": "na",
+        "evidence": "No answer file exists; \"(no artifacts produced)\" — no answers to evaluate for disclosure of uncertainty."
+       }
+      }
+     },
+     "answer_quality": {
+      "style": "anchors",
+      "level": 0,
+      "evidence": "No answers.json was written: \"answers.json missing or not a JSON object\" (mechanical results); \"(no artifacts produced)\". Answers are absent, hence unusable — matches level 0 \"Answers are largely unusable — wrong format\"."
+     },
+     "efficiency": {
+      "style": "anchors",
+      "level": 3,
+      "evidence": "Batched operator lookups from a single grep of class locations \"grep -n \\\"class TripsLayerOp\\\\|class ScatterplotLayerOp...\" (L42) then read each once; migrations listed once \"ls noodles-editor/src/noodles/__migrations__/\" (L606) and read 006/008/013 individually; no repeated reads (identicalLookupRepetitions: 0)."
+     }
+    },
+    "citationCheck": {
+     "checked": 6,
+     "resolved": 6,
+     "unresolved": []
+    }
+   },
+   {
+    "dimensions": {
+     "grounding": {
+      "style": "checklist",
+      "criteria": {
+       "looked-before-answering": {
+        "verdict": "pass",
+        "evidence": "Agent read operators.ts and migrations before any answer: \"export class ScatterplotLayerOp extends Operator<ScatterplotLayerOp>\" (L52) and \"export async function up(project: NoodlesProjectJSON)\" (L644)"
+       },
+       "authoritative-source-choice": {
+        "verdict": "pass",
+        "evidence": "Preferred operators.ts and migration files directly: \"grep -n \\\"class TripsLayerOp...\\\" noodles-editor/src/noodles/operators.ts\" (L42)"
+       },
+       "repo-over-upstream": {
+        "verdict": "pass",
+        "evidence": "Noted repo-specific value over doc: \"14 migrations exist (up to 014), so current version is 14, though AGENTS.md doc says \\\"Version 6 is current\\\" (outdated)\" (L890)"
+       }
+      }
+     },
+     "honesty": {
+      "style": "checklist",
+      "criteria": {
+       "no-fabricated-facts": {
+        "verdict": "na",
+        "evidence": "No answers.json was produced (\"answers.json missing or not a JSON object\"), so no asserted facts exist to evaluate; internal reasoning traced to source e.g. \"MathOp supports 'sqrt' but not 'atan'\" (L553)"
+       },
+       "uncertainty-disclosed": {
+        "verdict": "na",
+        "evidence": "No answer artifact produced; no answers to disclose uncertainty within (mechanical: \"answers.json missing or not a JSON object\")"
+       }
+      }
+     },
+     "answer_quality": {
+      "style": "anchors",
+      "level": 0,
+      "evidence": "No answers.json was produced — mechanical check: \"answers.json missing or not a JSON object\", pass:false. Task required \"write your answers to answers.json\"; the deliverable is absent (no artifacts produced), which is largely unusable per level 0."
+     },
+     "efficiency": {
+      "style": "anchors",
+      "level": 3,
+      "evidence": "Batched a single wc/grep to locate all operator classes at once: \"grep -n \\\"class TripsLayerOp\\\\|class ScatterplotLayerOp\\\\|class FileOp...\\\" (L42), then read each once; migrations listed once (L606) and read in sequence. identicalLookupRepetitions:0. Some detours chasing connection rules (L1044-L1112) prevented level 4."
+     }
+    },
+    "citationCheck": {
+     "checked": 9,
+     "resolved": 9,
+     "unresolved": []
+    }
+   }
+  ]
+ },
+ "answersJudged": null,
+ "processMetrics": {
+  "toolCalls": 32,
+  "lookups": 32,
+  "hallucinatedHandles": [],
+  "lookupPrecededEdgeRatio": null,
+  "identicalLookupRepetitions": 0,
+  "toolErrorCount": 0
+ }
+}

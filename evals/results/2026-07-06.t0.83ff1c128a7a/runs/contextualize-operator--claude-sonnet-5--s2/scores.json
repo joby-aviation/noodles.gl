@@ -1,0 +1,251 @@
+{
+ "row": {
+  "rowId": "contextualize-operator--claude-sonnet-5--s2@r1.2026-07-06T06:03:30.589Z",
+  "series": "2026-07-06.t0.83ff1c128a7a",
+  "runId": "contextualize-operator--claude-sonnet-5--s2",
+  "artifactsRef": "2026-07-06.t0.83ff1c128a7a/runs/contextualize-operator--claude-sonnet-5--s2",
+  "commit": "83ff1c128a7a589ac95336db37b4f8d56a7dcf77",
+  "tier": "T0",
+  "taskId": "contextualize-operator",
+  "taskVersion": 1,
+  "validatorVersion": "interim-1",
+  "kind": "fresh",
+  "gradedAt": "2026-07-06T06:03:30.589Z",
+  "rubricVersion": 1,
+  "judgeModel": "us.anthropic.claude-opus-4-8",
+  "sessionModel": "us.anthropic.claude-sonnet-5",
+  "provider": "bedrock",
+  "region": "us-west-2",
+  "isolationAudit": "pass",
+  "scores": {
+   "mechanical": 4,
+   "judge": 4,
+   "total": 4,
+   "process": {
+    "toolCalls": 39,
+    "lookups": 37,
+    "hallucinatedHandles": 0,
+    "lookupPrecededEdgeRatio": null,
+    "identicalLookupRepetitions": 0,
+    "toolErrorCount": 2
+   }
+  },
+  "cost": {
+   "sessionUsd": 0.8580747000000001,
+   "judgeUsd": null
+  },
+  "lane": "milestone"
+ },
+ "judge": {
+  "perDimension": {
+   "grounding": {
+    "samples": [
+     4,
+     4,
+     4
+    ],
+    "median": 4
+   },
+   "honesty": {
+    "samples": [
+     4,
+     4,
+     4
+    ],
+    "median": 4
+   },
+   "answer_quality": {
+    "samples": [
+     4,
+     4,
+     4
+    ],
+    "median": 4
+   },
+   "efficiency": {
+    "samples": [
+     4,
+     4,
+     4
+    ],
+    "median": 4
+   }
+  },
+  "samples": [
+   {
+    "dimensions": {
+     "grounding": {
+      "style": "checklist",
+      "criteria": {
+       "looked-before-answering": {
+        "verdict": "pass",
+        "evidence": "Agent read operators.ts for all field-schema questions before answering, e.g. \"getRadius: new NumberField(20, { min: 0, softMax: 1_000_000, accessor: true }),\" (L73) read at L55 before writing q02"
+       },
+       "authoritative-source-choice": {
+        "verdict": "pass",
+        "evidence": "Preferred operators.ts definitions and migration source files over inference; \"return `${connection.source}.${connection.sourceHandle}->${connection.target}.${connection.targetHandle}`\" (L1185) read directly from edgeId() before answering q20"
+       },
+       "repo-over-upstream": {
+        "verdict": "pass",
+        "evidence": "Followed repo-specific schema version rather than upstream/docs: \"AGENTS.md itself says 'Version 6 is current', which is out of date relative to the actual repository state.\" (answers.json:24), grounded in \"NOODLES_VERSION = Math.max(...\" (L1064)"
+       }
+      }
+     },
+     "honesty": {
+      "style": "checklist",
+      "criteria": {
+       "no-fabricated-facts": {
+        "verdict": "pass",
+        "evidence": "q12 correctly states atan is absent per verified values list \"'add','subtract',... 'sqrt','round','floor','ceil','abs','rad','deg'\" (L1129-L1148); no invented enum members"
+       },
+       "uncertainty-disclosed": {
+        "verdict": "pass",
+        "evidence": "Flagged the doc discrepancy rather than asserting the stale figure: \"(Note: AGENTS.md itself says 'Version 6 is current', which is out of date...)\" (answers.json:24)"
+       }
+      }
+     },
+     "answer_quality": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "Answers are concise, complete, and add exact identifiers/locations where disambiguating: \"This is implemented by the `edgeId()` helper in noodles-editor/src/noodles/utils/migration-utils.ts.\" (answers.json:20) and \"defined in noodles-editor/src/noodles/utils/filesystem.ts as '@/'\" (answers.json:25)"
+     },
+     "efficiency": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "One grep located all target operator classes at once \"1123:export class MathOp... 5013:export class TripsLayerOp...\" (L48-L54), and migrations were read once per family; no identical repeats (identicalLookupRepetitions: 0)"
+     }
+    },
+    "citationCheck": {
+     "checked": 12,
+     "resolved": 12,
+     "unresolved": []
+    }
+   },
+   {
+    "dimensions": {
+     "grounding": {
+      "style": "checklist",
+      "criteria": {
+       "looked-before-answering": {
+        "verdict": "pass",
+        "evidence": "\"export class ScatterplotLayerOp extends Operator<ScatterplotLayerOp> {\" (L56) read from operators.ts before answering q02-q05; migrations 006/008/013/014 read at L615-L810 before answering q16-q19"
+       },
+       "authoritative-source-choice": {
+        "verdict": "pass",
+        "evidence": "For version, preferred the computed constant and example files over the outdated doc: \"NOODLES_VERSION is computed as the max version number among files in src/noodles/__migrations__\" (answers.json:24), confirmed at \"export const NOODLES_VERSION = Math.max(...Object.keys(migrations).map(versionFromFilename))\" (L1064)"
+       },
+       "repo-over-upstream": {
+        "verdict": "pass",
+        "evidence": "q23 explicitly follows repo over the doc: \"(Note: AGENTS.md itself says 'Version 6 is current', which is out of date relative to the actual repository state.)\" (answers.json:24)"
+       }
+      }
+     },
+     "honesty": {
+      "style": "checklist",
+      "criteria": {
+       "no-fabricated-facts": {
+        "verdict": "pass",
+        "evidence": "q12 correctly lists the exact enum from source: \"add, subtract, multiply, divide, sine, cosine, tan, min, max, modulo, power, log, sqrt, round, floor, ceil, abs, rad, deg\" (answers.json:13) matching L1130-L1148; 19/19 deterministic answers correct per mechanical results"
+       },
+       "uncertainty-disclosed": {
+        "verdict": "pass",
+        "evidence": "q15 grounds the variable list in the actual code source rather than guessing: \"Per AccessorOp's description and its execute() implementation, the available variables are...\" (answers.json:16), and flags the doc discrepancy for q23 rather than asserting confidently"
+       }
+      }
+     },
+     "answer_quality": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "Answers are concise, direct, complete, and add precise repo locations/identifiers: \"This is implemented by the `edgeId()` helper in noodles-editor/src/noodles/utils/migration-utils.ts.\" (answers.json:21) and \"defined in noodles-editor/src/noodles/utils/filesystem.ts as '@/'\" (answers.json:25); q08 correctly disambiguates input vs output: \"Input field: expression (an ExpressionField). Output field: accessor (a FunctionField).\" (answers.json:9)"
+     },
+     "efficiency": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "Batched a single grep for all seven operator class line numbers (L47) then read each once; read all four migrations in sequence to answer the history family (L615-L810); one example noodles.json served q20-q26. 37 lookups for 29 questions, zero identical repetitions per mechanical metrics."
+     }
+    },
+    "citationCheck": {
+     "checked": 16,
+     "resolved": 16,
+     "unresolved": []
+    }
+   },
+   {
+    "dimensions": {
+     "grounding": {
+      "style": "checklist",
+      "criteria": {
+       "looked-before-answering": {
+        "verdict": "pass",
+        "evidence": "\"getRadius: new NumberField(20, { min: 0, softMax: 1_000_000, accessor: true }),\" (L73) read directly before answering q02, and every operator class was read in operators.ts (L55, L138, L240, L301, L402, L483)"
+       },
+       "authoritative-source-choice": {
+        "verdict": "pass",
+        "evidence": "Read migration source files directly rather than inferring: \"export async function up(project: NoodlesProjectJSON)\" (014-remove-map-style-op.ts:9, L819) and edgeId helper \"return `${connection.source}.${connection.sourceHandle}->...`\" (migration-utils.ts:8, L1185)"
+       },
+       "repo-over-upstream": {
+        "verdict": "pass",
+        "evidence": "For q23 the agent followed the repo's computed version over the stale AGENTS.md claim: \"AGENTS.md itself says 'Version 6 is current', which is out of date relative to the actual repository state\" (answers.json:24), verified against \"\\\"version\\\": 14\" (L1226)"
+       }
+      }
+     },
+     "honesty": {
+      "style": "checklist",
+      "criteria": {
+       "no-fabricated-facts": {
+        "verdict": "pass",
+        "evidence": "q12 correctly states 'atan' is absent from the enum: \"the allowed values are add, subtract, multiply, divide, sine, cosine, tan, min, max, modulo, power, log, sqrt, round, floor, ceil, abs, rad, deg\" (answers.json:13), matching the values list at L490-510"
+       },
+       "uncertainty-disclosed": {
+        "verdict": "na",
+        "evidence": "Every answer was verified against read source; no answer needed a disclosure of non-verification (mechanical: 19/19 deterministic correct)"
+       }
+      }
+     },
+     "answer_quality": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "Answers are concise, direct, and add precise identifiers/locations: \"This is implemented by the `edgeId()` helper in noodles-editor/src/noodles/utils/migration-utils.ts\" (answers.json:21) and \"NOODLES_VERSION is computed as the max version number among files in src/noodles/__migrations__\" (answers.json:24)"
+     },
+     "efficiency": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "One grep located all operator class line numbers at once (\"grep -n \\\"class TripsLayerOp\\\\|class ScatterplotLayerOp...\" L47), and all migration questions were sequenced from the single __migrations__ directory listing (L575, L721); no identical repetitions (identicalLookupRepetitions: 0)"
+     }
+    },
+    "citationCheck": {
+     "checked": 20,
+     "resolved": 18,
+     "unresolved": [
+      "014-remove-map-style-op.ts:9 does not resolve",
+      "migration-utils.ts:8 does not resolve"
+     ]
+    }
+   }
+  ]
+ },
+ "answersJudged": {
+  "correct": 10,
+  "total": 10,
+  "verdicts": {
+   "q01": true,
+   "q12": true,
+   "q15": true,
+   "q16": true,
+   "q17": true,
+   "q20": true,
+   "q24": true,
+   "q25": true,
+   "q27": true,
+   "q28": true
+  }
+ },
+ "processMetrics": {
+  "toolCalls": 39,
+  "lookups": 37,
+  "hallucinatedHandles": [],
+  "lookupPrecededEdgeRatio": null,
+  "identicalLookupRepetitions": 0,
+  "toolErrorCount": 2
+ }
+}

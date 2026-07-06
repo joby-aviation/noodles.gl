@@ -1,0 +1,11 @@
+{
+ "validatorVersion": "interim-1",
+ "pass": false,
+ "checks": {
+  "answersFileParses": {
+   "pass": false,
+   "detail": "answers.json missing or not a JSON object"
+  }
+ },
+ "score0to4": 0
+}

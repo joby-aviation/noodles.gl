@@ -1,0 +1,23 @@
+{
+ "validatorVersion": "interim-1",
+ "pass": false,
+ "checks": {
+  "validateProject": {
+   "pass": true,
+   "detail": "ok"
+  },
+  "requiredNodeTypes": {
+   "pass": true,
+   "detail": "ok"
+  },
+  "loadsWithoutConsoleErrors": {
+   "pass": false,
+   "detail": "[Noodles] Operator /file error: Error: Unable to read file \"@/data.csv\": Unexpected token 'D', \"DateTime,L\"... is not valid JSON\n    at FileOp.execute (http://localhost:5411/src/noodles/operators.ts:1635:13)\n    at async FileOp._pullExecution (http://localhost:5411/src/noodles/operators.ts:369:55)\n    at async FileOp.pull (http://localhost:5411/src/noodles/operators.ts:343:22)\n    at async Promise.all (index 0)\n    at async ScatterplotLayerOp._pullUpstreamDependencies (http://localhost:5411/src/ | [Noodles] Operator /scatter error: Error: Unable to read file \"@/data.csv\": Unexpected token 'D', \"DateTime,L\"... is not valid JSON\n    at FileOp.execute (http://localhost:5411/src/noodles/operators.ts:1635:13)\n    at async FileOp._pullExecution (http://localhost:5411/src/noodles/operators.ts:369:55)\n    at async FileOp.pull (http://localhost:5411/src/noodles/operators.ts:343:22)\n    at async Promise.all (index 0)\n    at async ScatterplotLayerOp._pullUpstreamDependencies (http://localhost:5411/s | [Noodles] Operator /deck error: Error: Unable to read file \"@/data.csv\": Unexpected token 'D', \"DateTime,L\"... is not valid JSON\n    at FileOp.execute (http://localhost:5411/src/noodles/operators.ts:1635:13)\n    at async FileOp._pullExecution (http://localhost:5411/src/noodles/operators.ts:369:55)\n    at async FileOp.pull (http://localhost:5411/src/noodles/operators.ts:343:22)\n    at async Promise.all (index 0)\n    at async ScatterplotLayerOp._pullUpstreamDependencies (http://localhost:5411/src/ | [Noodles] Operator /out error: Error: Unable to read file \"@/data.csv\": Unexpected token 'D', \"DateTime,L\"... is not valid JSON\n    at FileOp.execute (http://localhost:5411/src/noodles/operators.ts:1635:13)\n    at async FileOp._pullExecution (http://localhost:5411/src/noodles/operators.ts:369:55)\n    at async FileOp.pull (http://localhost:5411/src/noodles/operators.ts:343:22)\n    at async Promise.all (index 0)\n    at async ScatterplotLayerOp._pullUpstreamDependencies (http://localhost:5411/src/n"
+  },
+  "screenshotNonBlank": {
+   "pass": true,
+   "detail": "pixel stddev 22.87"
+  }
+ },
+ "score0to4": 3
+}

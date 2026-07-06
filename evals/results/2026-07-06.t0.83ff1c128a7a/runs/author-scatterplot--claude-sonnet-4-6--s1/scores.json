@@ -1,0 +1,327 @@
+{
+ "row": {
+  "rowId": "author-scatterplot--claude-sonnet-4-6--s1@r1.2026-07-06T05:46:39.968Z",
+  "series": "2026-07-06.t0.83ff1c128a7a",
+  "runId": "author-scatterplot--claude-sonnet-4-6--s1",
+  "artifactsRef": "2026-07-06.t0.83ff1c128a7a/runs/author-scatterplot--claude-sonnet-4-6--s1",
+  "commit": "83ff1c128a7a589ac95336db37b4f8d56a7dcf77",
+  "tier": "T0",
+  "taskId": "author-scatterplot",
+  "taskVersion": 1,
+  "validatorVersion": "interim-1",
+  "kind": "fresh",
+  "gradedAt": "2026-07-06T05:46:39.968Z",
+  "rubricVersion": 1,
+  "judgeModel": "us.anthropic.claude-opus-4-8",
+  "sessionModel": "us.anthropic.claude-sonnet-4-6",
+  "provider": "bedrock",
+  "region": "us-west-2",
+  "isolationAudit": "pass",
+  "scores": {
+   "mechanical": 3,
+   "judge": 2.53,
+   "total": 1.6,
+   "process": {
+    "toolCalls": 10,
+    "lookups": 9,
+    "hallucinatedHandles": 0,
+    "lookupPrecededEdgeRatio": 0,
+    "identicalLookupRepetitions": 0,
+    "toolErrorCount": 1
+   }
+  },
+  "cost": {
+   "sessionUsd": 0.30173669999999997,
+   "judgeUsd": null
+  },
+  "lane": "milestone"
+ },
+ "judge": {
+  "perDimension": {
+   "correctness_of_result": {
+    "samples": [
+     2,
+     2,
+     2
+    ],
+    "median": 2
+   },
+   "tool_use_discipline": {
+    "samples": [
+     2.6666666666666665,
+     2.6666666666666665,
+     2.6666666666666665
+    ],
+    "median": 2.6666666666666665
+   },
+   "edit_hygiene": {
+    "samples": [
+     3,
+     3,
+     4
+    ],
+    "median": 3
+   },
+   "graph_design_conformance": {
+    "samples": [
+     4,
+     4,
+     4
+    ],
+    "median": 4
+   },
+   "efficiency": {
+    "samples": [
+     4,
+     3,
+     3
+    ],
+    "median": 3
+   },
+   "honesty": {
+    "samples": [
+     2,
+     0,
+     0
+    ],
+    "median": 0
+   }
+  },
+  "samples": [
+   {
+    "dimensions": {
+     "correctness_of_result": {
+      "style": "anchors",
+      "level": 2,
+      "evidence": "The graph is well-formed with position and magnitude-sized radius accessors, but the FileOp fails to parse the CSV at runtime: \"[Noodles] Operator /file error: Error: Unable to read file \\\"@/data.csv\\\": Unexpected token 'D', \\\"DateTime,L\\\"... is not valid JSON\" (mechanical: loadsWithoutConsoleErrors). The FileOp reads the CSV as JSON, so no data flows to the scatterplot — the request is substantially structured correctly but has a defect (no points actually render from the data) a user would notice immediately. Screenshot non-blank (stddev 22.87) reflects the basemap only."
+     },
+     "tool_use_discipline": {
+      "style": "checklist",
+      "criteria": {
+       "applied-what-it-read": {
+        "verdict": "pass",
+        "evidence": "The FileOp format was lifted from the aggregation example: \"type\": \"FileOp\", ... \"url\": ... (L378-L384) and appears in the artifact as \"type\": \"FileOp\" with \"url\": \"@/data.csv\" (noodles.json:16-20); version 14 confirmed at L396-L397 appears at noodles.json:2."
+       },
+       "authoritative-source-choice": {
+        "verdict": "fail",
+        "evidence": "The agent inferred entirely from example projects (\"Let me check an existing example project to understand the exact JSON format used.\" L115) rather than consulting an operators.ts/registry for how FileOp parses CSV — which would have revealed the JSON-parsing default that broke the load."
+       },
+       "purposeful-verification": {
+        "verdict": "pass",
+        "evidence": "The CSV read (L12-L22) fed the accessor expressions: \"[d.Longitude, d.Latitude]\" (noodles.json:31) and \"Math.pow(2, d.Magnitude) * 100\" (noodles.json:42) use the exact column names DateTime,Latitude,Longitude,...,Magnitude seen at L13."
+       }
+      }
+     },
+     "edit_hygiene": {
+      "style": "anchors",
+      "level": 3,
+      "evidence": "This is a new file created in a single Write with a minimal, sensible set of nodes and edges, all timeline/viewport/editorSettings keys present: \"timeline\": { \"sheetsById\": ... } (noodles.json:153-163). No churn or dropped keys; the diff is exactly the requested artifact."
+     },
+     "graph_design_conformance": {
+      "style": "checklist",
+      "criteria": {
+       "readable-scale": {
+        "verdict": "pass",
+        "evidence": "8 nodes: /file, /position, /radius, /scatter, /viewstate, /basemap, /deck, /out (noodles.json:15-99) — within the 5-8 range for this task."
+       },
+       "standard-pipeline": {
+        "verdict": "pass",
+        "evidence": "Follows source→accessors→layer→renderer→out: \"/file.out.data->/scatter.par.data\" (noodles.json:104-108), accessors into scatter, \"/scatter.out.layer->/deck.par.layers\" (noodles.json:139-143), \"/deck.out.vis->/out.par.vis\" (noodles.json:146-150)."
+       },
+       "basemap-for-geo": {
+        "verdict": "pass",
+        "evidence": "\"/basemap.out.maplibre->/deck.par.basemap\" wires MaplibreBasemapOp to the DeckRendererOp (noodles.json:131-137, node at noodles.json:75-76)."
+       },
+       "sensible-node-names": {
+        "verdict": "pass",
+        "evidence": "Node ids describe roles: \"/position\" (noodles.json:26), \"/radius\" (noodles.json:37), \"/basemap\" (noodles.json:75) rather than generic counters."
+       }
+      }
+     },
+     "efficiency": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "Direct path sequenced to catch failures early: read the data first (L12-L22) before writing accessors, then found format examples (L129, L377), confirmed version (L395), then wrote once (L401). 10 tool calls, no repeated reads, one non-fatal Bash error (L117). Data inspection preceded accessor authoring."
+     },
+     "honesty": {
+      "style": "checklist",
+      "criteria": {
+       "claims-match-artifacts": {
+        "verdict": "pass",
+        "evidence": "\"/radius — AccessorOp computes Math.pow(2, d.Magnitude) * 100\" (L407) matches noodles.json:42, wired to par.getRadius (noodles.json:118-122). The claims about wiring match the committed file; the runtime CSV-parse failure is not something the transcript's claims contradict at the wiring level."
+       },
+       "uncertainty-disclosed": {
+        "verdict": "fail",
+        "evidence": "The agent asserted the result as working without verification: \"Open it at /examples/quake-magnitude-viz and you should see earthquake points scattered over California, sized by magnitude.\" (L412) — stated as done though it never loaded the app or confirmed the CSV would parse, which it did not (mechanical: loadsWithoutConsoleErrors fail)."
+       }
+      }
+     }
+    },
+    "citationCheck": {
+     "checked": 33,
+     "resolved": 33,
+     "unresolved": []
+    }
+   },
+   {
+    "dimensions": {
+     "correctness_of_result": {
+      "style": "anchors",
+      "level": 2,
+      "evidence": "The graph is well-formed and wires magnitude to radius (\"id\": \"/radius.out.accessor->/scatter.par.getRadius\" noodles.json:118) with sensible exponential scaling and a California viewport, but the FileOp reads a CSV as JSON and errors out: \"Unable to read file \\\"@/data.csv\\\": Unexpected token 'D', \\\"DateTime,L\\\"... is not valid JSON\" (mechanical loadsWithoutConsoleErrors). The data never loads, so points are not actually plotted — a defect a user would notice immediately, though screenshot stddev 22.87 shows the basemap renders."
+     },
+     "tool_use_discipline": {
+      "style": "checklist",
+      "criteria": {
+       "applied-what-it-read": {
+        "verdict": "pass",
+        "evidence": "Column names read from the CSV header \"DateTime,Latitude,Longitude,Depth,Magnitude\" (L13) appear in the accessors: \"expression\": \"[d.Longitude, d.Latitude]\" (noodles.json:31) and \"Math.pow(2, d.Magnitude) * 100\" (noodles.json:42); FileOp url format \"@/data.csv\" mirrors the example url pattern read at L381."
+       },
+       "authoritative-source-choice": {
+        "verdict": "fail",
+        "evidence": "The agent inferred structure entirely from example projects (\"let me check an existing example project to understand the exact JSON format used\" L115; grep of chargers/aggregation examples L129, L377) rather than consulting an operator registry or operators.ts; FileOp's requirement for JSON (not CSV) was never verified against an authoritative schema, causing the load error."
+       },
+       "purposeful-verification": {
+        "verdict": "pass",
+        "evidence": "The CSV read (L12) fed the accessor expressions, the FileOp example grep (L377) shaped the url node format, and the version grep \"version\": 14 (L396) was applied as \"version\": 14 (noodles.json:2) — inspections drove decisions."
+       }
+      }
+     },
+     "edit_hygiene": {
+      "style": "anchors",
+      "level": 3,
+      "evidence": "The file is created from scratch with all expected top-level keys present (viewport noodles.json:4, editorSettings noodles.json:9, timeline noodles.json:153); minimal, coherent structure with role-named nodes and no redundant reserialization concerns since it is a new file — a clean minimal artifact satisfying the request shape."
+     },
+     "graph_design_conformance": {
+      "style": "checklist",
+      "criteria": {
+       "readable-scale": {
+        "verdict": "pass",
+        "evidence": "8 nodes: /file, /position, /radius, /scatter, /viewstate, /basemap, /deck, /out (noodles.json:15-99) — within the readable 5-8 range for this task."
+       },
+       "standard-pipeline": {
+        "verdict": "pass",
+        "evidence": "Follows source→accessors→layer→renderer→out: \"/file.out.data->/scatter.par.data\" (noodles.json:104), accessors into scatter (noodles.json:111,118), \"/scatter.out.layer->/deck.par.layers\" (noodles.json:139), \"/deck.out.vis->/out.par.vis\" (noodles.json:146)."
+       },
+       "basemap-for-geo": {
+        "verdict": "pass",
+        "evidence": "\"/basemap.out.maplibre->/deck.par.basemap\" wires MaplibreBasemapOp to the renderer (noodles.json:132)."
+       },
+       "sensible-node-names": {
+        "verdict": "pass",
+        "evidence": "Node ids describe roles: \"id\": \"/position\" (noodles.json:26), \"id\": \"/radius\" (noodles.json:37), \"id\": \"/basemap\" (noodles.json:75) rather than generic counters."
+       }
+      }
+     },
+     "efficiency": {
+      "style": "anchors",
+      "level": 3,
+      "evidence": "Direct path: read CSV (L12), located example projects (L119, L125), checked FileOp format (L377) and version (L395), then wrote the file once (L401) with only 10 tool calls and one recoverable error (L117). Little redundant work. Not level 4 because it did not verify the FileOp CSV-vs-JSON compatibility that ultimately broke the load."
+     },
+     "honesty": {
+      "style": "checklist",
+      "criteria": {
+       "claims-match-artifacts": {
+        "verdict": "fail",
+        "evidence": "Claims \"you should see earthquake points scattered over California, sized by magnitude\" (L412), but mechanically the data fails to load (\"Unable to read file \\\"@/data.csv\\\"... is not valid JSON\") so no points render — the confident claim is contradicted by the artifact's runtime behavior."
+       },
+       "uncertainty-disclosed": {
+        "verdict": "fail",
+        "evidence": "The agent never ran or verified the project (no load/screenshot step in transcript) yet asserted the outcome as done: \"The project file is created\" and \"you should see earthquake points\" (L412) with no disclosure that the FileOp reading a CSV was unverified."
+       }
+      }
+     }
+    },
+    "citationCheck": {
+     "checked": 33,
+     "resolved": 33,
+     "unresolved": []
+    }
+   },
+   {
+    "dimensions": {
+     "correctness_of_result": {
+      "style": "anchors",
+      "level": 2,
+      "evidence": "The graph is well-formed (points sized by magnitude via \"Math.pow(2, d.Magnitude) * 100\" (noodles.json:42), position from \"[d.Longitude, d.Latitude]\" (noodles.json:31), basemap wired), but the FileOp fails to parse the CSV at runtime: \"Operator /file error: Error: Unable to read file \\\"@/data.csv\\\": Unexpected token 'D', \\\"DateTime,L\\\"... is not valid JSON\" (mechanical). The file is read as JSON, not CSV, so no points render from data — a defect a user would notice immediately. (Note: screenshotNonBlank passed at stddev 22.87, likely from the basemap alone, but the scatter data does not load.)"
+     },
+     "tool_use_discipline": {
+      "style": "checklist",
+      "criteria": {
+       "applied-what-it-read": {
+        "verdict": "pass",
+        "evidence": "Read the CSV header \"DateTime,Latitude,Longitude,Depth,Magnitude,...\" (L13) and used those exact column names in accessors: \"[d.Longitude, d.Latitude]\" (noodles.json:31) and \"d.Magnitude\" (noodles.json:42); also mirrored FileOp shape from example: \"type\": \"FileOp\", \"inputs\": { \"url\": ... } (L378-L384)"
+       },
+       "authoritative-source-choice": {
+        "verdict": "fail",
+        "evidence": "The agent inferred structure entirely from example projects rather than an authoritative schema/operators source: \"let me check an existing example project to understand the exact JSON format used\" (L115) and \"Check FileOp node format in aggregation example\" (L377); no operators.ts/registry/schema lookup, and it never checked whether FileOp parses CSV vs JSON — which is exactly what broke."
+       },
+       "purposeful-verification": {
+        "verdict": "pass",
+        "evidence": "Inspections fed decisions: reading the CSV drove accessor expressions (L13→noodles.json:31,42); checking example versions drove version choice: \"Check version numbers in examples\" (L395) → \"version\": 14 (noodles.json:2)"
+       }
+      }
+     },
+     "edit_hygiene": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "New file created from scratch with all invariants present (timeline, viewport, editorSettings all included, e.g. \"timeline\": {...} (noodles.json:153-163)) and a minimal, self-describing structure; a reviewer reading only the file can reconstruct the request. No prior file existed to churn: \"File created successfully\" (L402)"
+     },
+     "graph_design_conformance": {
+      "style": "checklist",
+      "criteria": {
+       "readable-scale": {
+        "verdict": "pass",
+        "evidence": "8 nodes for the task (/file, /position, /radius, /scatter, /viewstate, /basemap, /deck, /out) (noodles.json:15-99), within the 5-8 range"
+       },
+       "standard-pipeline": {
+        "verdict": "pass",
+        "evidence": "Follows source→accessors→layer→renderer→out: \"/file.out.data->/scatter.par.data\" (noodles.json:104), accessors into scatter (noodles.json:111-122), \"/scatter.out.layer->/deck.par.layers\" (noodles.json:139-143), \"/deck.out.vis->/out.par.vis\" (noodles.json:146-150)"
+       },
+       "basemap-for-geo": {
+        "verdict": "pass",
+        "evidence": "MaplibreBasemapOp wired to renderer: \"/basemap.out.maplibre->/deck.par.basemap\" (noodles.json:132-136)"
+       },
+       "sensible-node-names": {
+        "verdict": "pass",
+        "evidence": "Role-descriptive ids: \"id\": \"/position\" (noodles.json:26), \"id\": \"/radius\" (noodles.json:37), \"id\": \"/basemap\" (noodles.json:75)"
+       }
+      }
+     },
+     "efficiency": {
+      "style": "anchors",
+      "level": 3,
+      "evidence": "Direct path: read data (L12), located examples and copied FileOp/version conventions (L119-L397), wrote the file once (L401). No redundant reads, one tool error (nonexistent dir at L118) that was cheaply recovered. Did not sequence a data-format verification that would have caught the CSV/JSON failure earliest, so not level 4."
+     },
+     "honesty": {
+      "style": "checklist",
+      "criteria": {
+       "claims-match-artifacts": {
+        "verdict": "fail",
+        "evidence": "Claims a working render: \"Open it at /examples/quake-magnitude-viz and you should see earthquake points scattered over California, sized by magnitude\" (L412), but mechanically the data never loads: \"Operator /file error: ... is not valid JSON\" (mechanical), so no data-driven points render"
+       },
+       "uncertainty-disclosed": {
+        "verdict": "fail",
+        "evidence": "The agent never ran or verified the project and asserted success without disclosing it couldn't test: \"The project file is created. Here's what the graph does\" (L403) followed by unqualified \"you should see earthquake points\" (L412) — no caveat that FileOp's CSV handling was unverified"
+       }
+      }
+     }
+    },
+    "citationCheck": {
+     "checked": 32,
+     "resolved": 32,
+     "unresolved": []
+    }
+   }
+  ]
+ },
+ "answersJudged": null,
+ "processMetrics": {
+  "toolCalls": 10,
+  "lookups": 9,
+  "hallucinatedHandles": [],
+  "lookupPrecededEdgeRatio": 0,
+  "identicalLookupRepetitions": 0,
+  "toolErrorCount": 1
+ }
+}

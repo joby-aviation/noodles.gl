@@ -1,0 +1,15 @@
+{
+ "validatorVersion": "interim-1",
+ "pass": true,
+ "checks": {
+  "answersFileParses": {
+   "pass": true,
+   "detail": "ok"
+  }
+ },
+ "answersDeterministic": {
+  "correct": 19,
+  "total": 19
+ },
+ "score0to4": 4
+}

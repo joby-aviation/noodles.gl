@@ -1,0 +1,23 @@
+{
+ "validatorVersion": "interim-1",
+ "pass": true,
+ "checks": {
+  "validateProject": {
+   "pass": true,
+   "detail": "ok"
+  },
+  "requiredNodeTypes": {
+   "pass": true,
+   "detail": "ok"
+  },
+  "loadsWithoutConsoleErrors": {
+   "pass": true,
+   "detail": "ok"
+  },
+  "screenshotNonBlank": {
+   "pass": true,
+   "detail": "pixel stddev 21.56"
+  }
+ },
+ "score0to4": 4
+}

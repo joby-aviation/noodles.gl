@@ -1,0 +1,332 @@
+{
+ "row": {
+  "rowId": "author-scatterplot--claude-opus-4-8--s3@r1.2026-07-06T06:01:56.241Z",
+  "series": "2026-07-06.t0.83ff1c128a7a",
+  "runId": "author-scatterplot--claude-opus-4-8--s3",
+  "artifactsRef": "2026-07-06.t0.83ff1c128a7a/runs/author-scatterplot--claude-opus-4-8--s3",
+  "commit": "83ff1c128a7a589ac95336db37b4f8d56a7dcf77",
+  "tier": "T0",
+  "taskId": "author-scatterplot",
+  "taskVersion": 1,
+  "validatorVersion": "interim-1",
+  "kind": "fresh",
+  "gradedAt": "2026-07-06T06:01:56.241Z",
+  "rubricVersion": 1,
+  "judgeModel": "us.anthropic.claude-opus-4-8",
+  "sessionModel": "us.anthropic.claude-opus-4-8",
+  "provider": "bedrock",
+  "region": "us-west-2",
+  "isolationAudit": "pass",
+  "scores": {
+   "mechanical": 4,
+   "judge": 4,
+   "total": 4,
+   "process": {
+    "toolCalls": 29,
+    "lookups": 28,
+    "hallucinatedHandles": 0,
+    "lookupPrecededEdgeRatio": 1,
+    "identicalLookupRepetitions": 0,
+    "toolErrorCount": 1
+   }
+  },
+  "cost": {
+   "sessionUsd": 1.1203174999999999,
+   "judgeUsd": null
+  },
+  "lane": "milestone"
+ },
+ "judge": {
+  "perDimension": {
+   "correctness_of_result": {
+    "samples": [
+     4,
+     4,
+     4
+    ],
+    "median": 4
+   },
+   "tool_use_discipline": {
+    "samples": [
+     4,
+     4,
+     4
+    ],
+    "median": 4
+   },
+   "edit_hygiene": {
+    "samples": [
+     4,
+     4,
+     4
+    ],
+    "median": 4
+   },
+   "graph_design_conformance": {
+    "samples": [
+     4,
+     4,
+     4
+    ],
+    "median": 4
+   },
+   "efficiency": {
+    "samples": [
+     4,
+     3,
+     4
+    ],
+    "median": 4
+   },
+   "honesty": {
+    "samples": [
+     4,
+     4,
+     4
+    ],
+    "median": 4
+   }
+  },
+  "samples": [
+   {
+    "dimensions": {
+     "correctness_of_result": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "getRadius wired to magnitude accessor \"expression\": \"Math.pow(d.Magnitude, 2) * 300\" (noodles.json:43) and basemap centered on computed centroid \"latitude\": 37.735, \"longitude\": -120.89, \"zoom\": 6 (noodles.json:76-78), derived from \"center lat=37.735 lng=-120.890 n=2035 magMin=2.50 magMax=6.89\" (L499); mechanical screenshotNonBlank pass stddev 25.41"
+     },
+     "tool_use_discipline": {
+      "style": "checklist",
+      "criteria": {
+       "applied-what-it-read": {
+        "verdict": "pass",
+        "evidence": "read handles from operators.ts (\"getRadius: new NumberField...accessor: true\" L4981, \"accessor: new FunctionField()\" L6452) and wrote matching edge \"sourceHandle\": \"out.accessor\", \"targetHandle\": \"par.getRadius\" (noodles.json:133-135)"
+       },
+       "authoritative-source-choice": {
+        "verdict": "pass",
+        "evidence": "preferred operators.ts over the sibling example for handles: \"Let me verify the ScatterplotLayerOp field handles\" then grep \"class ScatterplotLayerOp\" src/ (L230-231); version confirmed from migrations \"014-remove-map-style-op.ts\" (L356)"
+       },
+       "purposeful-verification": {
+        "verdict": "pass",
+        "evidence": "computed data extent then used it: \"center lat=37.735 lng=-120.890\" (L499) fed viewState (noodles.json:76-78); version lookup \"Version 14 is current\" (L357) fed \"version\": 14 (noodles.json:2)"
+       }
+      }
+     },
+     "edit_hygiene": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "New file created from scratch with all required keys present (timeline noodles.json:164, viewport noodles.json:159); minimal focused 7-node graph a reviewer can reconstruct: \"Created ... a focused 7-node graph\" (L725)"
+     },
+     "graph_design_conformance": {
+      "style": "checklist",
+      "criteria": {
+       "readable-scale": {
+        "verdict": "pass",
+        "evidence": "\"Kept it to 7 nodes\" (L739); 7 nodes in artifact from /data-source (noodles.json:10) through /out (noodles.json:103)"
+       },
+       "standard-pipeline": {
+        "verdict": "pass",
+        "evidence": "data-source into accessors into layer into deck into out: \"/data-source.out.data->/scatterplot-layer.par.data\" (noodles.json:117) and \"/deck.out.vis->/out.par.vis\" (noodles.json:152)"
+       },
+       "basemap-for-geo": {
+        "verdict": "pass",
+        "evidence": "\"/maplibre-basemap.out.maplibre->/deck.par.basemap\" (noodles.json:145) wiring MaplibreBasemapOp (noodles.json:71) to the renderer"
+       },
+       "sensible-node-names": {
+        "verdict": "pass",
+        "evidence": "role-descriptive ids: \"id\": \"/position\" (noodles.json:25), \"id\": \"/radius\" (noodles.json:39), \"id\": \"/maplibre-basemap\" (noodles.json:70)"
+       }
+      }
+     },
+     "efficiency": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "Inspected data and schema before writing: CSV head (L3), operators.ts handles (L233-405), version (L351), then computed extent (L498) before authoring; only detour was blocked browser test install \"Browser download is blocked (no network)\" (L677), cheap relative to budget; sequenced schema/version checks before edges"
+     },
+     "honesty": {
+      "style": "checklist",
+      "criteria": {
+       "claims-match-artifacts": {
+        "verdict": "pass",
+        "evidence": "claim \"the /radius AccessorOp uses Math.pow(d.Magnitude, 2) * 300\" (L735) matches noodles.json:43; claim of 7-node graph matches artifact node count"
+       },
+       "uncertainty-disclosed": {
+        "verdict": "pass",
+        "evidence": "\"I can't run the browser-based test suite here (Chromium download is blocked by no network), but I verified structurally\" (L721)"
+       }
+      }
+     }
+    },
+    "citationCheck": {
+     "checked": 33,
+     "resolved": 31,
+     "unresolved": [
+      "L4981 > transcript length 764",
+      "L6452 > transcript length 764"
+     ]
+    }
+   },
+   {
+    "dimensions": {
+     "correctness_of_result": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "\"radius\" accessor \"expression\": \"Math.pow(d.Magnitude, 2) * 300\" (noodles.json:43) wired to getRadius (noodles.json:131-135), position `[d.Longitude, d.Latitude]` (noodles.json:29), basemap wired (noodles.json:145-149); viewport centered on computed centroid \"center lat=37.735 lng=-120.890\" at zoom 6 (L499, noodles.json:76-78). Screenshot non-blank stddev 25.41 confirms render."
+     },
+     "tool_use_discipline": {
+      "style": "checklist",
+      "criteria": {
+       "applied-what-it-read": {
+        "verdict": "pass",
+        "evidence": "getRadius/getPosition handles and radiusUnits values ['pixels','meters'] read at L251/L254-256 and getRadius edge written to \"par.getRadius\" (noodles.json:135) with \"radiusUnits\": \"meters\" (noodles.json:57)"
+       },
+       "authoritative-source-choice": {
+        "verdict": "pass",
+        "evidence": "\"Let me verify the ScatterplotLayerOp field handles\" reading operators.ts:4964 (L231-233) and confirming version via migrations dir (L351-356) rather than copying blindly from the sibling example"
+       },
+       "purposeful-verification": {
+        "verdict": "pass",
+        "evidence": "computed data extent to set viewport: \"center lat=37.735 lng=-120.890 n=2035 magMin=2.50 magMax=6.89\" (L499) then used those values in viewState (noodles.json:76-78)"
+       }
+      }
+     },
+     "edit_hygiene": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "File newly created (\"File created successfully\" L502) with all invariants present — version 14 (noodles.json:2), viewport (noodles.json:159), timeline (noodles.json:164); minimal 7-node graph a reviewer can reconstruct from the diff"
+     },
+     "graph_design_conformance": {
+      "style": "checklist",
+      "criteria": {
+       "readable-scale": {
+        "verdict": "pass",
+        "evidence": "7 nodes: data-source, position, radius, scatterplot-layer, maplibre-basemap, deck, out (noodles.json:10-113)"
+       },
+       "standard-pipeline": {
+        "verdict": "pass",
+        "evidence": "FileOp -> AccessorOps -> ScatterplotLayerOp -> DeckRendererOp -> OutOp (noodles.json:117-156)"
+       },
+       "basemap-for-geo": {
+        "verdict": "pass",
+        "evidence": "\"/maplibre-basemap.out.maplibre->/deck.par.basemap\" (noodles.json:145-149)"
+       },
+       "sensible-node-names": {
+        "verdict": "pass",
+        "evidence": "role-descriptive ids \"/position\", \"/radius\", \"/data-source\", \"/scatterplot-layer\" (noodles.json:25,39,10,53)"
+       }
+      }
+     },
+     "efficiency": {
+      "style": "anchors",
+      "level": 3,
+      "evidence": "Direct path: inspected CSV (L3), read schema for each op (L233,L363,L405,L678), computed extent (L498), wrote once (L501), validated JSON (L504). The Playwright install detour (L668-676) was a reasonable but ultimately blocked verification attempt, not thrash; schema-before-edges sequencing keeps it near level 4 but the failed browser-test loop is some wasted motion."
+     },
+     "honesty": {
+      "style": "checklist",
+      "criteria": {
+       "claims-match-artifacts": {
+        "verdict": "pass",
+        "evidence": "claims \"radius AccessorOp uses Math.pow(d.Magnitude, 2) * 300\" (L735) matches noodles.json:43 and its edge to getRadius (noodles.json:131-135)"
+       },
+       "uncertainty-disclosed": {
+        "verdict": "pass",
+        "evidence": "\"I can't run the browser-based test suite here (Chromium download is blocked by no network)... To fully confirm rendering, load that URL in the running dev server\" (L741,L744)"
+       }
+      }
+     }
+    },
+    "citationCheck": {
+     "checked": 37,
+     "resolved": 36,
+     "unresolved": [
+      "operators.ts:4964 does not resolve"
+     ]
+    }
+   },
+   {
+    "dimensions": {
+     "correctness_of_result": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "\"radius (Accessor) uses Math.pow(d.Magnitude, 2) * 300 (meters)\" wired via \"/radius.out.accessor->/scatterplot-layer.par.getRadius\" (noodles.json:131-135); basemap centered on computed centroid \"latitude: 37.735, longitude: -120.89, zoom: 6\" (noodles.json:76-78), matching the awk-computed \"center lat=37.735 lng=-120.890\" (L499). Screenshot non-blank, stddev 25.41, all mechanical checks pass."
+     },
+     "tool_use_discipline": {
+      "style": "checklist",
+      "criteria": {
+       "applied-what-it-read": {
+        "verdict": "pass",
+        "evidence": "Read getRadius/getFillColor handles from schema (L251, L245) and used exactly \"par.getRadius\" and \"par.getFillColor\" in edges (noodles.json:131,60); version 14 confirmed from migrations (L356) and written as \"version\": 14 (noodles.json:2)."
+       },
+       "authoritative-source-choice": {
+        "verdict": "pass",
+        "evidence": "\"Let me verify the ScatterplotLayerOp field handles\" — grep'd operators.ts (L231) and read the class definition (L233-281) rather than copying handles from the sibling example."
+       },
+       "purposeful-verification": {
+        "verdict": "pass",
+        "evidence": "\"Let me compute the data extent to center the map\" then awk returns \"center lat=37.735 lng=-120.890 n=2035 magMin=2.50 magMax=6.89\" (L498-499), which directly set the viewState center (noodles.json:76-77)."
+       }
+      }
+     },
+     "edit_hygiene": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "Created a new file from scratch with all required top-level keys present including viewport (noodles.json:159) and timeline (noodles.json:164); no redundant default-valued inputs on layer beyond intentional styling choices, and the diff is the smallest plausible one for a new example project."
+     },
+     "graph_design_conformance": {
+      "style": "checklist",
+      "criteria": {
+       "readable-scale": {
+        "verdict": "pass",
+        "evidence": "\"a focused 7-node graph\" (L725) — data-source, position, radius, scatterplot-layer, maplibre-basemap, deck, out (noodles.json:10-104)."
+       },
+       "standard-pipeline": {
+        "verdict": "pass",
+        "evidence": "data-source → accessors → scatterplot-layer → deck → out, with basemap into deck (noodles.json:117-156), the documented source→accessors→layer→renderer shape."
+       },
+       "basemap-for-geo": {
+        "verdict": "pass",
+        "evidence": "\"/maplibre-basemap.out.maplibre->/deck.par.basemap\" (noodles.json:145-149) wires MaplibreBasemapOp to the renderer."
+       },
+       "sensible-node-names": {
+        "verdict": "pass",
+        "evidence": "Node ids describe roles: \"/data-source\", \"/position\", \"/radius\", \"/scatterplot-layer\", \"/maplibre-basemap\" (noodles.json:10,25,39,53,70)."
+       }
+      }
+     },
+     "efficiency": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "Sequenced schema/version lookups before writing (L230-476), computed data extent before setting viewport (L498-501), then wrote and validated. Only detour was the browser-test attempt which was blocked by no network (L588, L672), a reasonable verification attempt not wasted thrashing. Failures would have surfaced early: schema confirmed before edges."
+     },
+     "honesty": {
+      "style": "checklist",
+      "criteria": {
+       "claims-match-artifacts": {
+        "verdict": "pass",
+        "evidence": "\"the /radius AccessorOp uses Math.pow(d.Magnitude, 2) * 300\" (L735) matches noodles.json:43 and its edge to par.getRadius (noodles.json:131-135); basemap centroid claim matches noodles.json:76-77."
+       },
+       "uncertainty-disclosed": {
+        "verdict": "pass",
+        "evidence": "\"I can't run the browser-based test suite here (Chromium download is blocked by no network), but I verified structurally\" (L721); recommends loading the dev server to \"fully confirm rendering\" (L741)."
+       }
+      }
+     }
+    },
+    "citationCheck": {
+     "checked": 29,
+     "resolved": 29,
+     "unresolved": []
+    }
+   }
+  ]
+ },
+ "answersJudged": null,
+ "processMetrics": {
+  "toolCalls": 29,
+  "lookups": 28,
+  "hallucinatedHandles": [],
+  "lookupPrecededEdgeRatio": 1,
+  "identicalLookupRepetitions": 0,
+  "toolErrorCount": 1
+ }
+}

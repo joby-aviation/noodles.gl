@@ -1,0 +1,248 @@
+{
+ "row": {
+  "rowId": "contextualize-operator--claude-sonnet-4-6--s1@r1.2026-07-06T05:52:33.703Z",
+  "series": "2026-07-06.t0.83ff1c128a7a",
+  "runId": "contextualize-operator--claude-sonnet-4-6--s1",
+  "artifactsRef": "2026-07-06.t0.83ff1c128a7a/runs/contextualize-operator--claude-sonnet-4-6--s1",
+  "commit": "83ff1c128a7a589ac95336db37b4f8d56a7dcf77",
+  "tier": "T0",
+  "taskId": "contextualize-operator",
+  "taskVersion": 1,
+  "validatorVersion": "interim-1",
+  "kind": "fresh",
+  "gradedAt": "2026-07-06T05:52:33.703Z",
+  "rubricVersion": 1,
+  "judgeModel": "us.anthropic.claude-opus-4-8",
+  "sessionModel": "us.anthropic.claude-sonnet-4-6",
+  "provider": "bedrock",
+  "region": "us-west-2",
+  "isolationAudit": "pass",
+  "scores": {
+   "mechanical": 4,
+   "judge": 4,
+   "total": 4,
+   "process": {
+    "toolCalls": 44,
+    "lookups": 42,
+    "hallucinatedHandles": 0,
+    "lookupPrecededEdgeRatio": null,
+    "identicalLookupRepetitions": 0,
+    "toolErrorCount": 2
+   }
+  },
+  "cost": {
+   "sessionUsd": 0.6889007999999999,
+   "judgeUsd": null
+  },
+  "lane": "milestone"
+ },
+ "judge": {
+  "perDimension": {
+   "grounding": {
+    "samples": [
+     4,
+     4,
+     4
+    ],
+    "median": 4
+   },
+   "honesty": {
+    "samples": [
+     4,
+     4,
+     4
+    ],
+    "median": 4
+   },
+   "answer_quality": {
+    "samples": [
+     4,
+     4,
+     4
+    ],
+    "median": 4
+   },
+   "efficiency": {
+    "samples": [
+     3,
+     3,
+     3
+    ],
+    "median": 3
+   }
+  },
+  "samples": [
+   {
+    "dimensions": {
+     "grounding": {
+      "style": "checklist",
+      "criteria": {
+       "looked-before-answering": {
+        "verdict": "pass",
+        "evidence": "\"5013\texport class TripsLayerOp extends Operator<TripsLayerOp> {\" (L694) and full reads of operators.ts sections and migration files before writing answers at L2803"
+       },
+       "authoritative-source-choice": {
+        "verdict": "pass",
+        "evidence": "read operator class definitions directly in operators.ts (L610, L693, L780) and migration source files (L880, L942, L988, L1072) rather than inferring from example projects; version derived from \"export const NOODLES_VERSION = Math.max(...Object.keys(migrations).map(versionFromFilename))\" (L1681)"
+       },
+       "repo-over-upstream": {
+        "verdict": "pass",
+        "evidence": "widthUnits answer follows the repo's three-value enum: \"widthUnits: new StringLiteralField('meters', { values: ['pixels', 'meters', 'common']\" (L720) → \"TripsLayerOp's widthUnits input accepts: 'pixels', 'meters', and 'common'.\" (answers.json:14)"
+       }
+      }
+     },
+     "honesty": {
+      "style": "checklist",
+      "criteria": {
+       "no-fabricated-facts": {
+        "verdict": "pass",
+        "evidence": "each asserted default traces to source, e.g. \"getRadius: new NumberField(20\" (L628) → \"getRadius input is 20\" (answers.json:3); MathOp enum lacking 'atan' confirmed at L1215 → answers.json:13"
+       },
+       "uncertainty-disclosed": {
+        "verdict": "na",
+        "evidence": "every answer was verified in-repo (19/19 deterministic correct per mechanical results); no unverified claim required disclosure"
+       }
+      }
+     },
+     "answer_quality": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "answers are concise, direct, and add exact identifiers: \"Migration 006 renamed the Theatre.js sheet ID in timeline.sheetsById from 'Nodes' to 'Noodles'.\" (answers.json:18) and \"MaplibreBasemapOp's output field is named 'maplibre'.\" (answers.json:10) with precise migration numbers and field names as spelled in code"
+     },
+     "efficiency": {
+      "style": "anchors",
+      "level": 3,
+      "evidence": "batched operator lookups by grepping class-definition line numbers first (L171-L187) then reading each section once, and read migration files individually; some redundancy re-cat-ing migrations 006/008/013/014 (L2137, L2197, L2279) that were already read (L880, L942, L988, L1072), and a wandering search for schema version (L1580-L1663) before settling on the example project file (L1763)"
+     }
+    },
+    "citationCheck": {
+     "checked": 30,
+     "resolved": 30,
+     "unresolved": []
+    }
+   },
+   {
+    "dimensions": {
+     "grounding": {
+      "style": "checklist",
+      "criteria": {
+       "looked-before-answering": {
+        "verdict": "pass",
+        "evidence": "\"5013\texport class TripsLayerOp extends Operator<TripsLayerOp> {\" (L694) — read directly before answering q01; migrations read at L880, L942, L988, L1072 before history answers"
+       },
+       "authoritative-source-choice": {
+        "verdict": "pass",
+        "evidence": "\"10:export const NOODLES_VERSION = Math.max(...Object.keys(migrations).map(versionFromFilename))\" (L1681) — used the actual version-derivation source and migration files/operators.ts rather than inferring from memory"
+       },
+       "repo-over-upstream": {
+        "verdict": "pass",
+        "evidence": "\"widthUnits: new StringLiteralField('meters', { values: ['pixels', 'meters', 'common']\" (L720) — answer q13 follows the repo's three-value enum, and q05 'layer' output name is taken from repo code (L646)"
+       }
+      }
+     },
+     "honesty": {
+      "style": "checklist",
+      "criteria": {
+       "no-fabricated-facts": {
+        "verdict": "pass",
+        "evidence": "\"MathOp's operator input supports 'sqrt' (it is in the enum). It does NOT support 'atan' (not in the enum).\" (answers.json:13) — verified against enum listing 'sqrt' at L209 and absence of 'atan'; deterministic checks report 19/19 correct"
+       },
+       "uncertainty-disclosed": {
+        "verdict": "na",
+        "evidence": "Every answered item was verified in-repo (e.g. version confirmed at L1764 \"\\\"version\\\": 14,\"); no answer required a disclosed-uncertainty hedge"
+       }
+      }
+     },
+     "answer_quality": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "\"AccessorOp's input field is named 'expression' and its output field is named 'accessor'.\" (answers.json:9) and \"Migration 008 renamed the operator type 'DateOp' to 'DateTimeOp'\" (answers.json:19) — concise, complete, and disambiguated with exact identifiers/migration numbers"
+     },
+     "efficiency": {
+      "style": "anchors",
+      "level": 3,
+      "evidence": "Batched grep for class line numbers (L171-L187) then read each operator once (L189, L311, L393, L510, L610, L693, L780); migrations read once each. Some redundant re-reads of 006/008/013/014 late in the session (L2137-L2280) and repeated version-hunting greps (L1580-L1663) keep it below level 4"
+     }
+    },
+    "citationCheck": {
+     "checked": 26,
+     "resolved": 26,
+     "unresolved": []
+    }
+   },
+   {
+    "dimensions": {
+     "grounding": {
+      "style": "checklist",
+      "criteria": {
+       "looked-before-answering": {
+        "verdict": "pass",
+        "evidence": "\"5013\texport class TripsLayerOp extends Operator<TripsLayerOp> {\" (L694) — agent read operator classes and migration files before writing answers at L2803"
+       },
+       "authoritative-source-choice": {
+        "verdict": "pass",
+        "evidence": "\"export const NOODLES_VERSION = Math.max(...Object.keys(migrations).map(versionFromFilename))\" (L1681) — used migrate-schema.ts and operators.ts as source of truth, not example projects"
+       },
+       "repo-over-upstream": {
+        "verdict": "pass",
+        "evidence": "\"widthUnits: new StringLiteralField('meters', {\" (L720) — reported repo-specific default 'meters' rather than deck.gl's usual 'pixels', and q13 correctly lists 'common'"
+       }
+      }
+     },
+     "honesty": {
+      "style": "checklist",
+      "criteria": {
+       "no-fabricated-facts": {
+        "verdict": "pass",
+        "evidence": "\"MathOp's operator input supports 'sqrt' (it is in the enum). It does NOT support 'atan' (not in the enum).\" (answers.json:13) — verified against enum at L1142/absence of atan"
+       },
+       "uncertainty-disclosed": {
+        "verdict": "na",
+        "evidence": "All 19 deterministic answers correct (mechanical results: 19/19); every answer was verified in-repo so no undisclosed uncertainty situation arose"
+       }
+      }
+     },
+     "answer_quality": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "\"Migration 006 renamed the Theatre.js sheet ID in timeline.sheetsById from 'Nodes' to 'Noodles'.\" (answers.json:18) — answers add exact identifiers (migration numbers, field names like 'expression'/'accessor', 'timeline.sheetsById') without padding"
+     },
+     "efficiency": {
+      "style": "anchors",
+      "level": 3,
+      "evidence": "\"grep -n \\\"AccessorOp\\\\|MaplibreBasemapOp\\\\|DeckRendererOp\\\\|MathOp\\\\|MapStyleOp\\\" ... | grep \\\"^[0-9]*:export class\\\"\" (L183) — located all operator class line numbers in one grep then read each once; migrations read once each. Some redundant re-reads of migrations 006/008/013/014 (L2137-L2280 repeat L880-L1072) and a few dead-end version searches (L1580-L1662) keep it short of level 4"
+     }
+    },
+    "citationCheck": {
+     "checked": 14,
+     "resolved": 14,
+     "unresolved": []
+    }
+   }
+  ]
+ },
+ "answersJudged": {
+  "correct": 10,
+  "total": 10,
+  "verdicts": {
+   "q01": true,
+   "q12": true,
+   "q15": true,
+   "q16": true,
+   "q17": true,
+   "q20": true,
+   "q24": true,
+   "q25": true,
+   "q27": true,
+   "q28": true
+  }
+ },
+ "processMetrics": {
+  "toolCalls": 44,
+  "lookups": 42,
+  "hallucinatedHandles": [],
+  "lookupPrecededEdgeRatio": null,
+  "identicalLookupRepetitions": 0,
+  "toolErrorCount": 2
+ }
+}

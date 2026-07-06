@@ -1,0 +1,44 @@
+{
+ "runId": "author-scatterplot--claude-sonnet-5--s2",
+ "series": "2026-07-06.t0.83ff1c128a7a",
+ "taskId": "author-scatterplot",
+ "taskVersion": 1,
+ "tier": "T0",
+ "commit": "83ff1c128a7a589ac95336db37b4f8d56a7dcf77",
+ "sessionModel": "us.anthropic.claude-sonnet-5",
+ "provider": "bedrock",
+ "region": "us-west-2",
+ "budget": {
+  "maxTurns": 40,
+  "maxWallClockSeconds": 1500
+ },
+ "numTurns": 41,
+ "durationMs": 325459,
+ "timedOut": false,
+ "exitCode": 1,
+ "isError": true,
+ "costUsd": 1.04501415,
+ "usage": {
+  "input_tokens": 222,
+  "cache_creation_input_tokens": 51333,
+  "cache_read_input_tokens": 2169248,
+  "output_tokens": 13405,
+  "server_tool_use": {
+   "web_search_requests": 0,
+   "web_fetch_requests": 0
+  },
+  "service_tier": "standard",
+  "cache_creation": {
+   "ephemeral_1h_input_tokens": 0,
+   "ephemeral_5m_input_tokens": 51333
+  },
+  "inference_geo": "",
+  "iterations": [],
+  "speed": "standard"
+ },
+ "isolationAudit": {
+  "pass": true,
+  "violations": []
+ },
+ "startedAt": "2026-07-06T05:43:16.355Z"
+}

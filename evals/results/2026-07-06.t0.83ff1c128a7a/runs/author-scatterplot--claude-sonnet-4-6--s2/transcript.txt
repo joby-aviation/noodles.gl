@@ -1,0 +1,315 @@
+L1: [system] session started (tools + workspace initialized)
+L2: [system] session started (tools + workspace initialized)
+L3: [system] session started (tools + workspace initialized)
+L4: [system] session started (tools + workspace initialized)
+L5: [system] session started (tools + workspace initialized)
+L6: [system] session started (tools + workspace initialized)
+L7: [system] session started (tools + workspace initialized)
+L8: [system] session started (tools + workspace initialized)
+L9: [system] session started (tools + workspace initialized)
+L10: [system] session started (tools + workspace initialized)
+L11: [system] session started (tools + workspace initialized)
+L12: [system] session started (tools + workspace initialized)
+L13: [system] session started (tools + workspace initialized)
+L14: [system] session started (tools + workspace initialized)
+L15: [system] session started (tools + workspace initialized)
+L16: [assistant] Let me look at the CSV data and an existing example project to understand the format.
+L17: [tool_use Read] {"file_path":"/tmp/noodles-evals/workspaces/author-scatterplot--claude-sonnet-4-6--s2/noodles-editor/src/examples/quake-magnitude-viz/data.csv","limit":10}
+L18: [tool_result] 1	DateTime,Latitude,Longitude,Depth,Magnitude,MagType,NbStations,Gap,Distance,RMS,Source,EventID
+L19: 2	1967/08/01 10:33:50.47,36.08000,-121.07083,80.339,2.50,Mx,10,292,42,0.25,NCSN,1000872
+L20: 3	1968/03/19 00:04:34.04,37.13600,-121.54100,8.673,2.58,Mx,9,156,13,0.04,NCSN,1001500
+L21: 4	1968/06/15 13:53:24.02,37.42417,-121.80650,8.176,2.60,ML,24,157,16,0.06,NCSN,1001680
+L22: 5	1968/10/06 07:31:23.74,36.97300,-121.42767,6.560,2.58,Mx,10,149,8,0.06,NCSN,1001909
+L23: 6	1969/01/04 15:28:41.49,36.91717,-121.30400,9.095,3.71,Md,17,164,15,0.08,NCSN,1002105
+L24: 7	1969/02/15 19:35:48.50,36.98067,-121.61916,2.389,2.76,Md,9,100,7,0.08,NCSN,1002225
+L25: 8	1969/03/16 13:09:29.96,37.65850,-122.05466,8.604,2.67,Md,19,163,12,0.05,NCSN,1002327
+L26: 9	1969/04/28 09:14:14.90,36.00850,-120.56150,4.722,2.76,Md,4,323,11,0.03,NCSN,1002453
+L27: 10	1969/05/27 13:37:39.30,36.55883,-121.14983,4.425,3.00,ML,14,135,11,0.13,NCSN,1002562
+L28: [tool_use Bash] {"command":"ls /tmp/noodles-evals/workspaces/author-scatterplot--claude-sonnet-4-6--s2/noodles-editor/public/examples/ | head -10","description":"List example projects"}
+L29: [tool_result] ls: cannot access '/tmp/noodles-evals/workspaces/author-scatterplot--claude-sonnet-4-6--s2/noodles-editor/public/examples/': No such file or directory
+L30: [tool_use Bash] {"command":"find /tmp/noodles-evals/workspaces/author-scatterplot--claude-sonnet-4-6--s2/noodles-editor -name \"noodles.json\" | head -5","description":"Find existing noodles.json example files"}
+L31: [tool_result] /tmp/noodles-evals/workspaces/author-scatterplot--claude-sonnet-4-6--s2/noodles-editor/src/examples/simple-mesh-example/noodles.json
+L32: /tmp/noodles-evals/workspaces/author-scatterplot--claude-sonnet-4-6--s2/noodles-editor/src/examples/custom-maplibre-layer-test/noodles.json
+L33: /tmp/noodles-evals/workspaces/author-scatterplot--claude-sonnet-4-6--s2/noodles-editor/src/examples/aggregation-example/noodles.json
+L34: /tmp/noodles-evals/workspaces/author-scatterplot--claude-sonnet-4-6--s2/noodles-editor/src/examples/chargers/noodles.json
+L35: /tmp/noodles-evals/workspaces/author-scatterplot--claude-sonnet-4-6--s2/noodles-editor/src/examples/sf-elevation-contours/noodles.json
+L36: [tool_use Read] {"file_path":"/tmp/noodles-evals/workspaces/author-scatterplot--claude-sonnet-4-6--s2/noodles-editor/src/examples/chargers/noodles.json"}
+L37: [tool_result] 1	{
+L38: 2	  "viewport": {
+L39: 3	    "x": 1304.5705824698812,
+L40: 4	    "y": 562.2542727922879,
+L41: 5	    "zoom": 0.5709600637849074
+L42: 6	  },
+L43: 7	  "version": 14,
+L44: 8	  "name": "EV Chargers with Live API Data",
+L45: 9	  "edges": [
+L46: 10	    {
+L47: 11	      "source": "/duckdb-0",
+L48: 12	      "sourceHandle": "out.data",
+L49: 13	      "target": "/boundingbox-0",
+L50: 14	      "targetHandle": "par.data",
+L51: 15	      "id": "/duckdb-0.out.data->/boundingbox-0.par.data"
+L52: 16	    },
+L53: 17	    {
+L54: 18	      "source": "/duckdb-0",
+L55: 19	      "sourceHandle": "out.data",
+L56: 20	      "target": "/scatterplotlayer-0",
+L57: 21	      "targetHandle": "par.data",
+L58: 22	      "id": "/duckdb-0.out.data->/scatterplotlayer-0.par.data"
+L59: 23	    },
+L60: 24	    {
+L61: 25	      "source": "/accessor-0",
+L62: 26	      "sourceHandle": "out.accessor",
+L63: 27	      "target": "/scatterplotlayer-0",
+L64: 28	      "targetHandle": "par.getPosition",
+L65: 29	      "id": "/accessor-0.out.accessor->/scatterplotlayer-0.par.getPosition"
+L66: 30	    },
+L67: 31	    {
+L68: 32	      "source": "/boundingbox-0",
+L69: 33	      "sourceHandle": "out.longitude",
+L70: 34	      "target": "/viewstate-0",
+L71: 35	      "targetHandle": "par.longitude",
+L72: 36	      "id": "/boundingbox-0.out.longitude->/viewstate-0.par.longitude"
+L73: 37	    },
+L74: 38	    {
+L75: 39	      "source": "/boundingbox-0",
+L76: 40	      "sourceHandle": "out.latitude",
+L77: 41	      "target": "/viewstate-0",
+L78: 42	      "targetHandle": "par.latitude",
+L79: 43	      "id": "/boundingbox-0.out.latitude->/viewstate-0.par.latitude"
+L80: 44	    },
+L81: 45	    {
+L82: 46	      "id": "/viewstate-0.out.viewState->/basemap-0.par.viewState",
+L83: 47	      "source": "/viewstate-0",
+L84: 48	      "target": "/basemap-0",
+L85: 49	      "sourceHandle": "out.viewState",
+L86: 50	      "targetHandle": "par.viewState"
+L87: 51	    },
+L88: 52	    {
+L89: 53	      "source": "/scatterplotlayer-0",
+L90: 54	      "sourceHandle": "out.layer",
+L91: 55	      "target": "/switch-0",
+L92: 56	      "targetHandle": "par.values",
+L93: 57	      "id": "/scatterplotlayer-0.out.layer->/switch-0.par.values"
+L94: 58	    },
+L95: 59	    {
+L96: 60	      "source": "/switch-0",
+L97: 61	      "sourceHandle": "out.value",
+L98: 62	      "target": "/deck",
+L99: 63	      "targetHandle": "par.layers",
+L100: 64	      "id": "/switch-0.out.value->/deck.par.layers"
+L101: 65	    },
+L102: 66	    {
+L103: 67	      "source": "/duckdb-0",
+L104: 68	      "sourceHandle": "out.data",
+L105: 69	      "target": "/heatmaplayer-0",
+L106: 70	      "targetHandle": "par.data",
+L107: 71	      "id": "/duckdb-0.out.data->/heatmaplayer-0.par.data"
+L108: 72	    },
+L109: 73	    {
+L110: 74	      "source": "/accessor-0",
+L111: 75	      "sourceHandle": "out.accessor",
+L112: 76	      "target": "/heatmaplayer-0",
+L113: 77	      "targetHandle": "par.getPosition",
+L114: 78	      "id": "/accessor-0.out.accessor->/heatmaplayer-0.par.getPosition"
+L115: 79	    },
+L116: 80	    {
+L117: 81	      "source": "/heatmaplayer-0",
+L118: 82	      "sourceHandle": "out.layer",
+L119: 83	      "target": "/switch-0",
+L120: 84	      "targetHandle": "par.values",
+L121: 85	      "id": "/heatmaplayer-0.out.layer->/switch-0.par.values"
+L122: 86	    },
+L123: 87	    {
+L124: 88	      "id": "/basemap-0.out.maplibre->/deck.par.basemap",
+L125: 89	      "source": "/basemap-0",
+L126: 90	      "target": "/deck",
+L127: 91	      "sourceHandle": "out.maplibre",
+L128: 92	      "targetHandle": "par.basemap"
+L129: 93	    },
+L130: 94	    {
+L131: 95	      "id": "/deck.out.vis->/out.par.vis",
+L132: 96	      "source": "/deck",
+L133: 97	      "target": "/out",
+L134: 98	      "sourceHandle": "out.vis",
+L135: 99	      "targetHandle": "par.vis"
+L136: 100	    },
+L137: 101	    {
+L138: 102	      "id": "/centroid.out.location->/duckdb-0.par.query",
+L139: 103	      "type": "ReferenceEdge",
+L140: 104	      "source": "/centroid",
+L141: 105	      "sourceHandle": "out.location",
+L142: 106	      "target": "/duckdb-0",
+L143: 107	      "targetHandle": "par.query"
+L144: 108	    }
+L145: 109	  ],
+L146: 110	  "editorSettings": {
+L147: 111	    "layoutMode": "noodles-on-top",
+L148: 112	    "showOverlay": true
+L149: 113	  },
+L150: 114	  "nodes": [
+L151: 115	    {
+L152: 116	      "id": "/deck",
+L153: 117	      "type": "DeckRendererOp",
+L154: 118	      "data": {
+L155: 119	        "inputs": {},
+L156: 120	        "locked": false
+L157: 121	      },
+L158: 122	      "position": {
+L159: 123	        "x": 621.0648631276329,
+L160: 124	        "y": -15.15716566510391
+L161: 125	      }
+L162: 126	    },
+L163: 127	    {
+L164: 128	      "id": "/duckdb-0",
+L165: 129	      "type": "DuckDbOp",
+L166: 130	      "position": {
+L167: 131	        "x
+L168: ...[truncated 4969 chars]
+L169: [system] session started (tools + workspace initialized)
+L170: [system] session started (tools + workspace initialized)
+L171: [system] session started (tools + workspace initialized)
+L172: [system] session started (tools + workspace initialized)
+L173: [system] session started (tools + workspace initialized)
+L174: [system] session started (tools + workspace initialized)
+L175: [system] session started (tools + workspace initialized)
+L176: [system] session started (tools + workspace initialized)
+L177: [system] session started (tools + workspace initialized)
+L178: [system] session started (tools + workspace initialized)
+L179: [system] session started (tools + workspace initialized)
+L180: [system] session started (tools + workspace initialized)
+L181: [system] session started (tools + workspace initialized)
+L182: [system] session started (tools + workspace initialized)
+L183: [system] session started (tools + workspace initialized)
+L184: [system] session started (tools + workspace initialized)
+L185: [system] session started (tools + workspace initialized)
+L186: [system] session started (tools + workspace initialized)
+L187: [system] session started (tools + workspace initialized)
+L188: [system] session started (tools + workspace initialized)
+L189: [system] session started (tools + workspace initialized)
+L190: [system] session started (tools + workspace initialized)
+L191: [system] session started (tools + workspace initialized)
+L192: [system] session started (tools + workspace initialized)
+L193: [system] session started (tools + workspace initialized)
+L194: [system] session started (tools + workspace initialized)
+L195: [system] session started (tools + workspace initialized)
+L196: [system] session started (tools + workspace initialized)
+L197: [system] session started (tools + workspace initialized)
+L198: [system] session started (tools + workspace initialized)
+L199: [system] session started (tools + workspace initialized)
+L200: [system] session started (tools + workspace initialized)
+L201: [system] session started (tools + workspace initialized)
+L202: [system] session started (tools + workspace initialized)
+L203: [system] session started (tools + workspace initialized)
+L204: [system] session started (tools + workspace initialized)
+L205: [system] session started (tools + workspace initialized)
+L206: [system] session started (tools + workspace initialized)
+L207: [system] session started (tools + workspace initialized)
+L208: [system] session started (tools + workspace initialized)
+L209: [system] session started (tools + workspace initialized)
+L210: [system] session started (tools + workspace initialized)
+L211: [system] session started (tools + workspace initialized)
+L212: [system] session started (tools + workspace initialized)
+L213: [system] session started (tools + workspace initialized)
+L214: [system] session started (tools + workspace initialized)
+L215: [system] session started (tools + workspace initialized)
+L216: [system] session started (tools + workspace initialized)
+L217: [system] session started (tools + workspace initialized)
+L218: [system] session started (tools + workspace initialized)
+L219: [system] session started (tools + workspace initialized)
+L220: [system] session started (tools + workspace initialized)
+L221: [system] session started (tools + workspace initialized)
+L222: [system] session started (tools + workspace initialized)
+L223: [system] session started (tools + workspace initialized)
+L224: [system] session started (tools + workspace initialized)
+L225: [system] session started (tools + workspace initialized)
+L226: [system] session started (tools + workspace initialized)
+L227: [system] session started (tools + workspace initialized)
+L228: [system] session started (tools + workspace initialized)
+L229: [system] session started (tools + workspace initialized)
+L230: [system] session started (tools + workspace initialized)
+L231: [system] session started (tools + workspace initialized)
+L232: [system] session started (tools + workspace initialized)
+L233: [system] session started (tools + workspace initialized)
+L234: [system] session started (tools + workspace initialized)
+L235: [system] session started (tools + workspace initialized)
+L236: [system] session started (tools + workspace initialized)
+L237: [system] session started (tools + workspace initialized)
+L238: [system] session started (tools + workspace initialized)
+L239: [system] session started (tools + workspace initialized)
+L240: [system] session started (tools + workspace initialized)
+L241: [system] session started (tools + workspace initialized)
+L242: [system] session started (tools + workspace initialized)
+L243: [system] session started (tools + workspace initialized)
+L244: [system] session started (tools + workspace initialized)
+L245: [system] session started (tools + workspace initialized)
+L246: [system] session started (tools + workspace initialized)
+L247: [system] session started (tools + workspace initialized)
+L248: [system] session started (tools + workspace initialized)
+L249: [system] session started (tools + workspace initialized)
+L250: [system] session started (tools + workspace initialized)
+L251: [system] session started (tools + workspace initialized)
+L252: [system] session started (tools + workspace initialized)
+L253: [system] session started (tools + workspace initialized)
+L254: [system] session started (tools + workspace initialized)
+L255: [system] session started (tools + workspace initialized)
+L256: [system] session started (tools + workspace initialized)
+L257: [system] session started (tools + workspace initialized)
+L258: [system] session started (tools + workspace initialized)
+L259: [system] session started (tools + workspace initialized)
+L260: [system] session started (tools + workspace initialized)
+L261: [system] session started (tools + workspace initialized)
+L262: [system] session started (tools + workspace initialized)
+L263: [system] session started (tools + workspace initialized)
+L264: [system] session started (tools + workspace initialized)
+L265: [system] session started (tools + workspace initialized)
+L266: [system] session started (tools + workspace initialized)
+L267: [system] session started (tools + workspace initialized)
+L268: [system] session started (tools + workspace initialized)
+L269: [system] session started (tools + workspace initialized)
+L270: [system] session started (tools + workspace initialized)
+L271: [system] session started (tools + workspace initialized)
+L272: [system] session started (tools + workspace initialized)
+L273: [system] session started (tools + workspace initialized)
+L274: [system] session started (tools + workspace initialized)
+L275: [system] session started (tools + workspace initialized)
+L276: [assistant] Now I have enough context. Let me check how `FileOp` is used in another example:
+L277: [tool_use Bash] {"command":"grep -rl \"FileOp\" /tmp/noodles-evals/workspaces/author-scatterplot--claude-sonnet-4-6--s2/noodles-editor/src/examples/ | head -3","description":"Find examples using FileOp"}
+L278: [tool_result] /tmp/noodles-evals/workspaces/author-scatterplot--claude-sonnet-4-6--s2/noodles-editor/src/examples/aggregation-example/noodles.json
+L279: /tmp/noodles-evals/workspaces/author-scatterplot--claude-sonnet-4-6--s2/noodles-editor/src/examples/uk-commute/noodles.json
+L280: /tmp/noodles-evals/workspaces/author-scatterplot--claude-sonnet-4-6--s2/noodles-editor/src/examples/us-county-unemployment/noodles.json
+L281: [tool_use Bash] {"command":"grep -A 10 '\"type\": \"FileOp\"' /tmp/noodles-evals/workspaces/author-scatterplot--claude-sonnet-4-6--s2/noodles-editor/src/examples/aggregation-example/noodles.json | head -20","description":"Check FileOp node structure"}
+L282: [tool_result]       "type": "FileOp",
+L283:       "data": {
+L284:         "inputs": {
+L285:           "url": "https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/sf-bike-parking.json"
+L286:         },
+L287:         "locked": false
+L288:       },
+L289:       "position": {
+L290:         "x": -500.2487592119116,
+L291:         "y": -528.1170745332273
+L292:       }
+L293: [assistant] I have what I need. Now I'll create the project file.
+L294: [tool_use Write] {"file_path":"/tmp/noodles-evals/workspaces/author-scatterplot--claude-sonnet-4-6--s2/noodles-editor/src/examples/quake-magnitude-viz/noodles.json","content":"{\n  \"version\": 14,\n  \"name\": \"California Earthquake Magnitude\",\n  \"viewport\": {\n    \"x\": 400,\n    \"y\": 300,\n    \"zoom\": 1\n  },\n  \"editorSettings\": {\n    \"layoutMode\": \"noodles-on-top\",\n    \"showOverlay\": true\n  },\n  \"nodes\": [\n    {\n      \"id\": \"/file\",\n      \"type\": \"FileOp\",\n      \"position\": { \"x\": -800, \"y\": 0 },\n      \"data\": {\n        \"inputs\": {\n          \"url\": \"@/data.csv\"\n        },\n        \"locked\": false\n      }\n    },\n    {\n      \"id\": \"/position\",\n      \"type\": \"AccessorOp\",\n      \"position\": { \"x\": -500, \"y\": 200 },\n      \"data\": {\n        \"inputs\": {\n          \"expression\": \"[d.Longitude, d.Latitude]\"\n        },\n        \"locked\": false\n      }\n    },\n    {\n      \"id\": \"/radius\",\n      \"type\": \"AccessorOp\",\n      \"position\": { \"x\": -500, \"y\": 350 },\n      \"data\": {\n        \"inputs\": {\n          \"expression\": \"Math.pow(2, d.Magnitude) * 500\"\n        },\n        \"locked\": false\n      }\n    },\n    {\n      \"id\": \"/scatterplot\",\n      \"type\": \"ScatterplotLayerOp\",\n      \"position\": { \"x\": -150, \"y\": 100 },\n      \"data\": {\n        \"inputs\": {\n          \"getFillColor\": \"#ff4400cc\",\n          \"getLineColor\": \"#ffffff44\",\n          \"radiusUnits\": \"meters\",\n          \"opacity\": 0.7\n        },\n        \"locked\": false\n      }\n    },\n    {\n      \"id\": \"/viewstate\",\n      \"type\": \"MapViewStateOp\",\n      \"position\": { \"x\": -150, \"y\": -150 },\n      \"data\": {\n        \"inputs\": {\n          \"longitude\": -119,\n          \"latitude\": 37,\n          \"zoom\": 5\n        },\n        \"locked\": false\n      }\n    },\n    {\n      \"id\": \"/basemap\",\n      \"type\": \"MaplibreBasemapOp\",\n      \"position\": { \"x\": 200, \"y\": 150 },\n      \"data\": {\n        \"inputs\": {},\n        \"locked\": false\n      }\n    },\n    {\n      \"id\": \"/deck\",\n      \"type\": \"DeckRendererOp\",\n      \"position\": { \"x\": 200, \"y\": -50 },\n      \"data\": {\n        \"inputs\": {},\n        \"locked\": false\n      }\n    },\n    {\n      \"id\": \"/out\",\n      \"type\": \"OutOp\",\n      \"position\": { \"x\": 500, \"y\": -50 },\n      \"data\": {\n        \"inputs\": {},\n        \"locked\": false\n      }\n    }\n  ],\n  \"edges\": [\n    {\n      \"id\": \"/file.out.data->/scatterplot.par.data\",\n      \"source\": \"/file\",\n      \"sourceHandle\": \"out.data\",\n      \"target\": \"/scatterplot\",\n      \"targetHandle\": \"par.data\"\n    },\n    {\n      \"id\": \"/position.out.accessor->/scatterplot.par.getPosition\",\n      \"source\": \"/position\",\n      \"sourceHandle\": \"out.accessor\",\n      \"target\": \"/scatterplot\",\n      \"targetHandle\": \"par.getPosition\"\n    },\n    {\n      \"id\": \"/radius.out.accessor->/scatterplot.par.getRadius\",\n      \"source\": \"/radius\",\n      \"sourceHandle\": \"out.accessor\",\n      \"target\": \"/scatterplot\",\n      \"targetHandle\": \"par.getRadius\"\n    },\n    {\n      \"id\": \"/viewstate.out.viewState->/basemap.par.viewState\",\n      \"source\": \"/viewstate\",\n      \"sourceHandle\": \"out.viewState\",\n      \"target\": \"/basemap\",\n      \"targetHandle\": \"par.viewState\"\n    },\n    {\n      \"id\": \"/scatterplot.out.layer->/deck.par.layers\",\n      \"source\": \"/scatterplot\",\n      \"sourceHandle\": \"out.layer\",\n      \"target\": \"/deck\",\n      \"targetHandle\": \"par.layers\"\n    },\n    {\n      \"id\": \"/basemap.out.maplibre->/deck.par.basemap\",\n      \"source\": \"/basemap\",\n      \"sourceHandle\": \"out.maplibre\",\n      \"target\": \"/deck\",\n      \"targetHandle\": \"par.basemap\"\n    },\n    {\n      \"id\": \"/deck.out.vis->/out.par.vis\",\n      \"source\": \"/deck\",\n      \"sourceHandle\": \"out.vis\",\n      \"target\": \"/out\",\n      \"targetHandle\": \"par.vis\"\n    }\n  ]\n}\n"}
+L295: [tool_result] File created successfully at: /tmp/noodles-evals/workspaces/author-scatterplot--claude-sonnet-4-6--s2/noodles-editor/src/examples/quake-magnitude-viz/noodles.json (file state is current in your context — no need to Read it back)
+L296: [assistant] The project file is created at `noodles-editor/src/examples/quake-magnitude-viz/noodles.json`. Here's what the graph does:
+L297: 
+L298: - **`/file`** — `FileOp` loads `data.csv` from the project directory (`@/` prefix)
+L299: - **`/position`** — `AccessorOp` extracts `[Longitude, Latitude]` per row for point placement
+L300: - **`/radius`** — `AccessorOp` computes `Math.pow(2, d.Magnitude) * 500` (meters), so each magnitude step doubles the point area
+L301: - **`/scatterplot`** — `ScatterplotLayerOp` receives data, position, and radius; styled with a semi-transparent orange fill
+L302: - **`/viewstate`** — centers on California (lat 37, lng -119, zoom 5)
+L303: - **`/basemap`** + **`/deck`** + **`/out`** — standard rendering pipeline
+L304: 
+L305: Open it at `/examples/quake-magnitude-viz` and you should see earthquake points over the map sized by magnitude.
+L306: [result] The project file is created at `noodles-editor/src/examples/quake-magnitude-viz/noodles.json`. Here's what the graph does:
+L307: 
+L308: - **`/file`** — `FileOp` loads `data.csv` from the project directory (`@/` prefix)
+L309: - **`/position`** — `AccessorOp` extracts `[Longitude, Latitude]` per row for point placement
+L310: - **`/radius`** — `AccessorOp` computes `Math.pow(2, d.Magnitude) * 500` (meters), so each magnitude step doubles the point area
+L311: - **`/scatterplot`** — `ScatterplotLayerOp` receives data, position, and radius; styled with a semi-transparent orange fill
+L312: - **`/viewstate`** — centers on California (lat 37, lng -119, zoom 5)
+L313: - **`/basemap`** + **`/deck`** + **`/out`** — standard rendering pipeline
+L314: 
+L315: Open it at `/examples/quake-magnitude-viz` and you should see earthquake points over the map sized by magnitude.

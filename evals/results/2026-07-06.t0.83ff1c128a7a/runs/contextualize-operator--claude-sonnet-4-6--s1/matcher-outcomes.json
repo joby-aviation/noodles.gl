@@ -1,0 +1,176 @@
+[
+ {
+  "id": "q01",
+  "match": "judge",
+  "correct": null,
+  "answer": "TripsLayerOp inputs and defaults: data (none), visible (true), opacity (1), getPath ((d) => d?.path || []), getTimestamps ((d) => d?.timestamps || []), getColor ('#bfcae3'), getWidth (8), billboard (false), capRounded (true), jointRounded (true), currentTime (0), fadeTrail (false), trailLength (120), widthUnits ('meters'), widthMinPixels (2), widthScale (20), parameters ({depthTest: true}), extensions (none)."
+ },
+ {
+  "id": "q02",
+  "match": "regex",
+  "correct": true,
+  "answer": "The default value of ScatterplotLayerOp's getRadius input is 20."
+ },
+ {
+  "id": "q03",
+  "match": "regex",
+  "correct": true,
+  "answer": "The default value of ScatterplotLayerOp's radiusUnits input is 'pixels'."
+ },
+ {
+  "id": "q04",
+  "match": "containsAll",
+  "correct": true,
+  "answer": "ScatterplotLayerOp's radiusUnits input accepts: 'pixels' and 'meters'."
+ },
+ {
+  "id": "q05",
+  "match": "regex",
+  "correct": true,
+  "answer": "ScatterplotLayerOp's output field is named 'layer'."
+ },
+ {
+  "id": "q06",
+  "match": "containsAll",
+  "correct": true,
+  "answer": "FileOp's format input accepts: 'json', 'csv', 'tsv', 'text', and 'binary'."
+ },
+ {
+  "id": "q07",
+  "match": "regex",
+  "correct": true,
+  "answer": "The default value of FileOp's format input is 'json'."
+ },
+ {
+  "id": "q08",
+  "match": "containsAll",
+  "correct": true,
+  "answer": "AccessorOp's input field is named 'expression' and its output field is named 'accessor'."
+ },
+ {
+  "id": "q09",
+  "match": "regex",
+  "correct": true,
+  "answer": "MaplibreBasemapOp's output field is named 'maplibre'."
+ },
+ {
+  "id": "q10",
+  "match": "regex",
+  "correct": true,
+  "answer": "DeckRendererOp's output field is named 'vis'."
+ },
+ {
+  "id": "q11",
+  "match": "regex",
+  "correct": true,
+  "answer": "The default value of TripsLayerOp's trailLength input is 120."
+ },
+ {
+  "id": "q12",
+  "match": "judge",
+  "correct": null,
+  "answer": "MathOp's operator input supports 'sqrt' (it is in the enum). It does NOT support 'atan' (not in the enum)."
+ },
+ {
+  "id": "q13",
+  "match": "containsAll",
+  "correct": true,
+  "answer": "TripsLayerOp's widthUnits input accepts: 'pixels', 'meters', and 'common'."
+ },
+ {
+  "id": "q14",
+  "match": "containsAll",
+  "correct": true,
+  "answer": "MaplibreBasemapOp's projection input accepts: 'mercator' and 'globe'."
+ },
+ {
+  "id": "q15",
+  "match": "judge",
+  "correct": null,
+  "answer": "Inside an AccessorOp expression, 'd' refers to the current data item being processed, and 'data' refers to the full dataset array."
+ },
+ {
+  "id": "q16",
+  "match": "judge",
+  "correct": null,
+  "answer": "MapStyleOp was removed from the codebase. Migration 014 handles projects that used it by removing all MapStyleOp nodes, inlining each node's mapStyle URL value directly onto the connected MaplibreBasemapOp's mapStyle input field, and deleting the connecting edges."
+ },
+ {
+  "id": "q17",
+  "match": "judge",
+  "correct": null,
+  "answer": "Migration 006 renamed the Theatre.js sheet ID in timeline.sheetsById from 'Nodes' to 'Noodles'."
+ },
+ {
+  "id": "q18",
+  "match": "containsAll",
+  "correct": true,
+  "answer": "Migration 008 renamed the operator type 'DateOp' to 'DateTimeOp' for all nodes in the project."
+ },
+ {
+  "id": "q19",
+  "match": "regex",
+  "correct": true,
+  "answer": "Migration 013 added an empty markers array (markers: []) to the Noodles sheet's sequence object in the timeline, initializing time-marker support for older projects."
+ },
+ {
+  "id": "q20",
+  "match": "judge",
+  "correct": null,
+  "answer": "An edge's id must follow the formula: '{sourceNodeId}.{sourceHandle}->{targetNodeId}.{targetHandle}', e.g. '/add-1.out.result->/viewer.par.data'."
+ },
+ {
+  "id": "q21",
+  "match": "regex",
+  "correct": true,
+  "answer": "Input (target) handles carry the 'par.' prefix, e.g. 'par.data'."
+ },
+ {
+  "id": "q22",
+  "match": "regex",
+  "correct": true,
+  "answer": "Output (source) handles carry the 'out.' prefix, e.g. 'out.result'."
+ },
+ {
+  "id": "q23",
+  "match": "regex",
+  "correct": true,
+  "answer": "The current noodles.json project schema version number is 14."
+ },
+ {
+  "id": "q24",
+  "match": "judge",
+  "correct": null,
+  "answer": "The '@/' prefix means the path is relative to the project's data directory (the directory containing the project's data files)."
+ },
+ {
+  "id": "q25",
+  "match": "judge",
+  "correct": null,
+  "answer": "Node ids follow Unix-style absolute paths with a leading slash, e.g. '/my-node' for root-level nodes or '/container/child' for nested nodes."
+ },
+ {
+  "id": "q26",
+  "match": "containsAll",
+  "correct": true,
+  "answer": "op('/data-loader').out.data"
+ },
+ {
+  "id": "q27",
+  "match": "judge",
+  "correct": null,
+  "answer": "op('./sibling') resolves to an operator named 'sibling' in the same container as the current operator."
+ },
+ {
+  "id": "q28",
+  "match": "judge",
+  "correct": null,
+  "answer": "An operator nested inside a container is addressed as '/container/child', e.g. '/analysis/filter'."
+ },
+ {
+  "id": "q29",
+  "match": "regex",
+  "correct": true,
+  "answer": "A single operator input can accept only one connection at a time."
+ }
+]

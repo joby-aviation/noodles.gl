@@ -1,0 +1,248 @@
+{
+ "row": {
+  "rowId": "contextualize-operator--claude-sonnet-4-6--s3@r1.2026-07-06T05:54:19.786Z",
+  "series": "2026-07-06.t0.83ff1c128a7a",
+  "runId": "contextualize-operator--claude-sonnet-4-6--s3",
+  "artifactsRef": "2026-07-06.t0.83ff1c128a7a/runs/contextualize-operator--claude-sonnet-4-6--s3",
+  "commit": "83ff1c128a7a589ac95336db37b4f8d56a7dcf77",
+  "tier": "T0",
+  "taskId": "contextualize-operator",
+  "taskVersion": 1,
+  "validatorVersion": "interim-1",
+  "kind": "fresh",
+  "gradedAt": "2026-07-06T05:54:19.786Z",
+  "rubricVersion": 1,
+  "judgeModel": "us.anthropic.claude-opus-4-8",
+  "sessionModel": "us.anthropic.claude-sonnet-4-6",
+  "provider": "bedrock",
+  "region": "us-west-2",
+  "isolationAudit": "pass",
+  "scores": {
+   "mechanical": 4,
+   "judge": 4,
+   "total": 4,
+   "process": {
+    "toolCalls": 30,
+    "lookups": 29,
+    "hallucinatedHandles": 0,
+    "lookupPrecededEdgeRatio": null,
+    "identicalLookupRepetitions": 0,
+    "toolErrorCount": 1
+   }
+  },
+  "cost": {
+   "sessionUsd": 0.5328103499999999,
+   "judgeUsd": null
+  },
+  "lane": "milestone"
+ },
+ "judge": {
+  "perDimension": {
+   "grounding": {
+    "samples": [
+     4,
+     4,
+     4
+    ],
+    "median": 4
+   },
+   "honesty": {
+    "samples": [
+     4,
+     4,
+     4
+    ],
+    "median": 4
+   },
+   "answer_quality": {
+    "samples": [
+     4,
+     4,
+     4
+    ],
+    "median": 4
+   },
+   "efficiency": {
+    "samples": [
+     4,
+     4,
+     4
+    ],
+    "median": 4
+   }
+  },
+  "samples": [
+   {
+    "dimensions": {
+     "grounding": {
+      "style": "checklist",
+      "criteria": {
+       "looked-before-answering": {
+        "verdict": "pass",
+        "evidence": "\"5013\texport class TripsLayerOp extends Operator<TripsLayerOp> {\" (L126) — the agent read operators.ts sections and migration files before writing answers.json at L1676"
+       },
+       "authoritative-source-choice": {
+        "verdict": "pass",
+        "evidence": "\"export const NOODLES_VERSION = Math.max(...Object.keys(migrations).map(versionFromFilename))\" (L1073) — used the actual version-derivation code and migrate-schema, not inference"
+       },
+       "repo-over-upstream": {
+        "verdict": "pass",
+        "evidence": "\"widthUnits: new StringLiteralField('meters', { values: ['pixels', 'meters', 'common'] })\" (L152-154) — answered the repo default 'meters', not deck.gl's usual 'meters'/'pixels' default; q23 traced to migration 014, not upstream conventions"
+       }
+      }
+     },
+     "honesty": {
+      "style": "checklist",
+      "criteria": {
+       "no-fabricated-facts": {
+        "verdict": "pass",
+        "evidence": "\"MathOp's operator input supports 'sqrt' ... does not support 'atan' (not present; 'tan' is supported but not 'atan')\" (answers.json:13) — verified against values list at L659, L653 which contains 'tan' and 'sqrt' but no 'atan'"
+       },
+       "uncertainty-disclosed": {
+        "verdict": "na",
+        "evidence": "Every answer was verified against read source; no answer required a disclosed-uncertainty hedge, so the criterion had no opportunity to manifest — all 19 deterministic checks passed (mechanical results)"
+       }
+      }
+     },
+     "answer_quality": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "\"The current noodles.json project schema version number is 14 (derived from the highest migration file, 014-remove-map-style-op.ts).\" (answers.json:24) and \"AccessorOp's input field is named 'expression' and its output field is named 'accessor'.\" (answers.json:9) — answers are concise, complete, and cite the precise identifier/migration number where it disambiguates"
+     },
+     "efficiency": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "\"grep -n \\\"TripsLayerOp\\\\|ScatterplotLayerOp\\\\|FileOp\\\\|AccessorOp\\\\|MaplibreBasemapOp\\\\|DeckRendererOp\\\\|MathOp\\\\|MapStyleOp\\\" ... | grep \\\"class\\\\|export\\\"\" (L116) located all operator classes in one grep; migrations were read once each for the history family (L857, L918, L963); 29 lookups, 0 identical repetitions"
+     }
+    },
+    "citationCheck": {
+     "checked": 13,
+     "resolved": 13,
+     "unresolved": []
+    }
+   },
+   {
+    "dimensions": {
+     "grounding": {
+      "style": "checklist",
+      "criteria": {
+       "looked-before-answering": {
+        "verdict": "pass",
+        "evidence": "\"export class TripsLayerOp extends Operator<TripsLayerOp> {\" ... \"trailLength: new NumberField(120, { min: 0 }),\" (L126, L151) — read before writing answers at L1676"
+       },
+       "authoritative-source-choice": {
+        "verdict": "pass",
+        "evidence": "\"export const NOODLES_VERSION = Math.max(...Object.keys(migrations).map(versionFromFilename))\" (L1115) and edgeId formula \"return `${connection.source}.${connection.sourceHandle}->${connection.target}.${connection.targetHandle}`\" (L1235) — derived from source, not memory"
+       },
+       "repo-over-upstream": {
+        "verdict": "pass",
+        "evidence": "\"widthUnits: new StringLiteralField('meters', { values: ['pixels', 'meters', 'common']\" (L152-153) — answer q13 follows repo's default 'meters' and repo-specific value list rather than deck.gl defaults"
+       }
+      }
+     },
+     "honesty": {
+      "style": "checklist",
+      "criteria": {
+       "no-fabricated-facts": {
+        "verdict": "pass",
+        "evidence": "q12 answer \"It does not support 'atan' (not present; 'tan' is supported but not 'atan')\" (answers.json:13) matches the actual values list which contains 'tan' but not 'atan' (L653, L1136-1148)"
+       },
+       "uncertainty-disclosed": {
+        "verdict": "na",
+        "evidence": "Every answer was verified against source; no answer required a disclosed-uncertainty hedge, and 19/19 deterministic checks passed"
+       }
+      }
+     },
+     "answer_quality": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "\"The current noodles.json project schema version number is 14 (derived from the highest migration file, 014-remove-map-style-op.ts).\" (answers.json:24) and \"AccessorOp's input field is named 'expression' and its output field is named 'accessor'.\" (answers.json:9) — concise, complete, and add the exact identifier/location where it disambiguates"
+     },
+     "efficiency": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "operators.ts read once via targeted grep for class line numbers (L116) then offset reads per operator; migrations listed once (L705/L1076) and read in a batch for q16-q19; no repeated reads (identicalLookupRepetitions: 0). One File read failed on size and was recovered with offset/limit (L115 -> L125)"
+     }
+    },
+    "citationCheck": {
+     "checked": 16,
+     "resolved": 16,
+     "unresolved": []
+    }
+   },
+   {
+    "dimensions": {
+     "grounding": {
+      "style": "checklist",
+      "criteria": {
+       "looked-before-answering": {
+        "verdict": "pass",
+        "evidence": "Agent read operators.ts sections (\"5013\texport class TripsLayerOp extends Operator<TripsLayerOp>\" L126) and migration files (\"014-remove-map-style-op.ts\" L755) before writing answers at L1676."
+       },
+       "authoritative-source-choice": {
+        "verdict": "pass",
+        "evidence": "Read the operator class definitions directly and the edge formula from source: \"return `${connection.source}.${connection.sourceHandle}->${connection.target}.${connection.targetHandle}`\" (L1235)."
+       },
+       "repo-over-upstream": {
+        "verdict": "pass",
+        "evidence": "widthUnits answer follows the repo's own values list \"values: ['pixels', 'meters', 'common']\" (L153) rather than deck.gl defaults, and version derived from repo migrations \"NOODLES_VERSION = Math.max(...Object.keys(migrations).map(versionFromFilename))\" (L1115)."
+       }
+      }
+     },
+     "honesty": {
+      "style": "checklist",
+      "criteria": {
+       "no-fabricated-facts": {
+        "verdict": "pass",
+        "evidence": "Mechanical results confirm \"correct\": 19, \"total\": 19 and \"hallucinatedHandles\": []; each answer maps to read source, e.g. q07 'json' matches \"format: new StringLiteralField('json'...\" (L302)."
+       },
+       "uncertainty-disclosed": {
+        "verdict": "na",
+        "evidence": "Every answer was verified against read source (e.g., q24 '@/' from \"export const projectScheme = '@/'\" L1258); no unverified answer was emitted requiring disclosure."
+       }
+      }
+     },
+     "answer_quality": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "Answers are concise, direct, and add precise identifiers/locations: \"Migration 008 renamed the operator type 'DateOp' to 'DateTimeOp'\" (answers.json:19), \"An edge's id must be: '{source}.{sourceHandle}->{target}.{targetHandle}'\" (answers.json:21), and q23 cites the exact migration file \"014-remove-map-style-op.ts\" (answers.json:24)."
+     },
+     "efficiency": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "Sequenced families from single sources: one grep located all operator classes (\"grep -n \\\"TripsLayerOp\\\\|ScatterplotLayerOp...\" L116), migrations read once each for history questions (L755-L1044), and only one tool error (oversized file read at L115) with zero repeated lookups."
+     }
+    },
+    "citationCheck": {
+     "checked": 15,
+     "resolved": 15,
+     "unresolved": []
+    }
+   }
+  ]
+ },
+ "answersJudged": {
+  "correct": 10,
+  "total": 10,
+  "verdicts": {
+   "q01": true,
+   "q12": true,
+   "q15": true,
+   "q16": true,
+   "q17": true,
+   "q20": true,
+   "q24": true,
+   "q25": true,
+   "q27": true,
+   "q28": true
+  }
+ },
+ "processMetrics": {
+  "toolCalls": 30,
+  "lookups": 29,
+  "hallucinatedHandles": [],
+  "lookupPrecededEdgeRatio": null,
+  "identicalLookupRepetitions": 0,
+  "toolErrorCount": 1
+ }
+}

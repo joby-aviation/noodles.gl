@@ -1,3 +1,708 @@
 {
- "rows": []
+ "rows": [
+  {
+   "rowId": "author-scatterplot--claude-sonnet-4-6--s1@r1.2026-07-06T05:46:39.968Z",
+   "series": "2026-07-06.t0.83ff1c128a7a",
+   "runId": "author-scatterplot--claude-sonnet-4-6--s1",
+   "artifactsRef": "2026-07-06.t0.83ff1c128a7a/runs/author-scatterplot--claude-sonnet-4-6--s1",
+   "commit": "83ff1c128a7a589ac95336db37b4f8d56a7dcf77",
+   "tier": "T0",
+   "taskId": "author-scatterplot",
+   "taskVersion": 1,
+   "validatorVersion": "interim-1",
+   "kind": "fresh",
+   "gradedAt": "2026-07-06T05:46:39.968Z",
+   "rubricVersion": 1,
+   "judgeModel": "us.anthropic.claude-opus-4-8",
+   "sessionModel": "us.anthropic.claude-sonnet-4-6",
+   "provider": "bedrock",
+   "region": "us-west-2",
+   "isolationAudit": "pass",
+   "scores": {
+    "mechanical": 3,
+    "judge": 2.53,
+    "total": 1.6,
+    "process": {
+     "toolCalls": 10,
+     "lookups": 9,
+     "hallucinatedHandles": 0,
+     "lookupPrecededEdgeRatio": 0,
+     "identicalLookupRepetitions": 0,
+     "toolErrorCount": 1
+    }
+   },
+   "cost": {
+    "sessionUsd": 0.30173669999999997,
+    "judgeUsd": null
+   },
+   "lane": "milestone"
+  },
+  {
+   "rowId": "author-scatterplot--claude-sonnet-4-6--s2@r1.2026-07-06T05:47:52.552Z",
+   "series": "2026-07-06.t0.83ff1c128a7a",
+   "runId": "author-scatterplot--claude-sonnet-4-6--s2",
+   "artifactsRef": "2026-07-06.t0.83ff1c128a7a/runs/author-scatterplot--claude-sonnet-4-6--s2",
+   "commit": "83ff1c128a7a589ac95336db37b4f8d56a7dcf77",
+   "tier": "T0",
+   "taskId": "author-scatterplot",
+   "taskVersion": 1,
+   "validatorVersion": "interim-1",
+   "kind": "fresh",
+   "gradedAt": "2026-07-06T05:47:52.552Z",
+   "rubricVersion": 1,
+   "judgeModel": "us.anthropic.claude-opus-4-8",
+   "sessionModel": "us.anthropic.claude-sonnet-4-6",
+   "provider": "bedrock",
+   "region": "us-west-2",
+   "isolationAudit": "pass",
+   "scores": {
+    "mechanical": 3,
+    "judge": 2.73,
+    "total": 1.6,
+    "process": {
+     "toolCalls": 7,
+     "lookups": 6,
+     "hallucinatedHandles": 0,
+     "lookupPrecededEdgeRatio": 0,
+     "identicalLookupRepetitions": 0,
+     "toolErrorCount": 0
+    }
+   },
+   "cost": {
+    "sessionUsd": 0.1972602,
+    "judgeUsd": null
+   },
+   "lane": "milestone"
+  },
+  {
+   "rowId": "author-scatterplot--claude-sonnet-4-6--s3@r1.2026-07-06T05:49:07.269Z",
+   "series": "2026-07-06.t0.83ff1c128a7a",
+   "runId": "author-scatterplot--claude-sonnet-4-6--s3",
+   "artifactsRef": "2026-07-06.t0.83ff1c128a7a/runs/author-scatterplot--claude-sonnet-4-6--s3",
+   "commit": "83ff1c128a7a589ac95336db37b4f8d56a7dcf77",
+   "tier": "T0",
+   "taskId": "author-scatterplot",
+   "taskVersion": 1,
+   "validatorVersion": "interim-1",
+   "kind": "fresh",
+   "gradedAt": "2026-07-06T05:49:07.269Z",
+   "rubricVersion": 1,
+   "judgeModel": "us.anthropic.claude-opus-4-8",
+   "sessionModel": "us.anthropic.claude-sonnet-4-6",
+   "provider": "bedrock",
+   "region": "us-west-2",
+   "isolationAudit": "pass",
+   "scores": {
+    "mechanical": 2,
+    "judge": 2.23,
+    "total": 1.6,
+    "process": {
+     "toolCalls": 8,
+     "lookups": 7,
+     "hallucinatedHandles": 0,
+     "lookupPrecededEdgeRatio": 0,
+     "identicalLookupRepetitions": 0,
+     "toolErrorCount": 1
+    }
+   },
+   "cost": {
+    "sessionUsd": 0.27262035,
+    "judgeUsd": null
+   },
+   "lane": "milestone"
+  },
+  {
+   "rowId": "contextualize-operator--claude-opus-4-8--s1@r1.2026-07-06T05:49:50.800Z",
+   "series": "2026-07-06.t0.83ff1c128a7a",
+   "runId": "contextualize-operator--claude-opus-4-8--s1",
+   "artifactsRef": "2026-07-06.t0.83ff1c128a7a/runs/contextualize-operator--claude-opus-4-8--s1",
+   "commit": "83ff1c128a7a589ac95336db37b4f8d56a7dcf77",
+   "tier": "T0",
+   "taskId": "contextualize-operator",
+   "taskVersion": 1,
+   "validatorVersion": "interim-1",
+   "kind": "fresh",
+   "gradedAt": "2026-07-06T05:49:50.800Z",
+   "rubricVersion": 1,
+   "judgeModel": "us.anthropic.claude-opus-4-8",
+   "sessionModel": "us.anthropic.claude-opus-4-8",
+   "provider": "bedrock",
+   "region": "us-west-2",
+   "isolationAudit": "pass",
+   "scores": {
+    "mechanical": 4,
+    "judge": 4,
+    "total": 4,
+    "process": {
+     "toolCalls": 24,
+     "lookups": 23,
+     "hallucinatedHandles": 0,
+     "lookupPrecededEdgeRatio": null,
+     "identicalLookupRepetitions": 0,
+     "toolErrorCount": 2
+    }
+   },
+   "cost": {
+    "sessionUsd": 0.9201642500000001,
+    "judgeUsd": null
+   },
+   "lane": "milestone"
+  },
+  {
+   "rowId": "contextualize-operator--claude-opus-4-8--s2@r1.2026-07-06T05:50:47.535Z",
+   "series": "2026-07-06.t0.83ff1c128a7a",
+   "runId": "contextualize-operator--claude-opus-4-8--s2",
+   "artifactsRef": "2026-07-06.t0.83ff1c128a7a/runs/contextualize-operator--claude-opus-4-8--s2",
+   "commit": "83ff1c128a7a589ac95336db37b4f8d56a7dcf77",
+   "tier": "T0",
+   "taskId": "contextualize-operator",
+   "taskVersion": 1,
+   "validatorVersion": "interim-1",
+   "kind": "fresh",
+   "gradedAt": "2026-07-06T05:50:47.535Z",
+   "rubricVersion": 1,
+   "judgeModel": "us.anthropic.claude-opus-4-8",
+   "sessionModel": "us.anthropic.claude-opus-4-8",
+   "provider": "bedrock",
+   "region": "us-west-2",
+   "isolationAudit": "pass",
+   "scores": {
+    "mechanical": 4,
+    "judge": 4,
+    "total": 4,
+    "process": {
+     "toolCalls": 24,
+     "lookups": 23,
+     "hallucinatedHandles": 0,
+     "lookupPrecededEdgeRatio": null,
+     "identicalLookupRepetitions": 0,
+     "toolErrorCount": 1
+    }
+   },
+   "cost": {
+    "sessionUsd": 0.9615209999999997,
+    "judgeUsd": null
+   },
+   "lane": "milestone"
+  },
+  {
+   "rowId": "contextualize-operator--claude-opus-4-8--s3@r1.2026-07-06T05:51:38.292Z",
+   "series": "2026-07-06.t0.83ff1c128a7a",
+   "runId": "contextualize-operator--claude-opus-4-8--s3",
+   "artifactsRef": "2026-07-06.t0.83ff1c128a7a/runs/contextualize-operator--claude-opus-4-8--s3",
+   "commit": "83ff1c128a7a589ac95336db37b4f8d56a7dcf77",
+   "tier": "T0",
+   "taskId": "contextualize-operator",
+   "taskVersion": 1,
+   "validatorVersion": "interim-1",
+   "kind": "fresh",
+   "gradedAt": "2026-07-06T05:51:38.292Z",
+   "rubricVersion": 1,
+   "judgeModel": "us.anthropic.claude-opus-4-8",
+   "sessionModel": "us.anthropic.claude-opus-4-8",
+   "provider": "bedrock",
+   "region": "us-west-2",
+   "isolationAudit": "pass",
+   "scores": {
+    "mechanical": 4,
+    "judge": 4,
+    "total": 4,
+    "process": {
+     "toolCalls": 37,
+     "lookups": 35,
+     "hallucinatedHandles": 0,
+     "lookupPrecededEdgeRatio": null,
+     "identicalLookupRepetitions": 0,
+     "toolErrorCount": 0
+    }
+   },
+   "cost": {
+    "sessionUsd": 1.29895825,
+    "judgeUsd": null
+   },
+   "lane": "milestone"
+  },
+  {
+   "rowId": "contextualize-operator--claude-sonnet-4-6--s1@r1.2026-07-06T05:52:33.703Z",
+   "series": "2026-07-06.t0.83ff1c128a7a",
+   "runId": "contextualize-operator--claude-sonnet-4-6--s1",
+   "artifactsRef": "2026-07-06.t0.83ff1c128a7a/runs/contextualize-operator--claude-sonnet-4-6--s1",
+   "commit": "83ff1c128a7a589ac95336db37b4f8d56a7dcf77",
+   "tier": "T0",
+   "taskId": "contextualize-operator",
+   "taskVersion": 1,
+   "validatorVersion": "interim-1",
+   "kind": "fresh",
+   "gradedAt": "2026-07-06T05:52:33.703Z",
+   "rubricVersion": 1,
+   "judgeModel": "us.anthropic.claude-opus-4-8",
+   "sessionModel": "us.anthropic.claude-sonnet-4-6",
+   "provider": "bedrock",
+   "region": "us-west-2",
+   "isolationAudit": "pass",
+   "scores": {
+    "mechanical": 4,
+    "judge": 4,
+    "total": 4,
+    "process": {
+     "toolCalls": 44,
+     "lookups": 42,
+     "hallucinatedHandles": 0,
+     "lookupPrecededEdgeRatio": null,
+     "identicalLookupRepetitions": 0,
+     "toolErrorCount": 2
+    }
+   },
+   "cost": {
+    "sessionUsd": 0.6889007999999999,
+    "judgeUsd": null
+   },
+   "lane": "milestone"
+  },
+  {
+   "rowId": "contextualize-operator--claude-sonnet-4-6--s2@r1.2026-07-06T05:53:23.685Z",
+   "series": "2026-07-06.t0.83ff1c128a7a",
+   "runId": "contextualize-operator--claude-sonnet-4-6--s2",
+   "artifactsRef": "2026-07-06.t0.83ff1c128a7a/runs/contextualize-operator--claude-sonnet-4-6--s2",
+   "commit": "83ff1c128a7a589ac95336db37b4f8d56a7dcf77",
+   "tier": "T0",
+   "taskId": "contextualize-operator",
+   "taskVersion": 1,
+   "validatorVersion": "interim-1",
+   "kind": "fresh",
+   "gradedAt": "2026-07-06T05:53:23.685Z",
+   "rubricVersion": 1,
+   "judgeModel": "us.anthropic.claude-opus-4-8",
+   "sessionModel": "us.anthropic.claude-sonnet-4-6",
+   "provider": "bedrock",
+   "region": "us-west-2",
+   "isolationAudit": "pass",
+   "scores": {
+    "mechanical": 4,
+    "judge": 4,
+    "total": 4,
+    "process": {
+     "toolCalls": 33,
+     "lookups": 32,
+     "hallucinatedHandles": 0,
+     "lookupPrecededEdgeRatio": null,
+     "identicalLookupRepetitions": 0,
+     "toolErrorCount": 1
+    }
+   },
+   "cost": {
+    "sessionUsd": 0.6042043500000001,
+    "judgeUsd": null
+   },
+   "lane": "milestone"
+  },
+  {
+   "rowId": "contextualize-operator--claude-sonnet-4-6--s3@r1.2026-07-06T05:54:19.786Z",
+   "series": "2026-07-06.t0.83ff1c128a7a",
+   "runId": "contextualize-operator--claude-sonnet-4-6--s3",
+   "artifactsRef": "2026-07-06.t0.83ff1c128a7a/runs/contextualize-operator--claude-sonnet-4-6--s3",
+   "commit": "83ff1c128a7a589ac95336db37b4f8d56a7dcf77",
+   "tier": "T0",
+   "taskId": "contextualize-operator",
+   "taskVersion": 1,
+   "validatorVersion": "interim-1",
+   "kind": "fresh",
+   "gradedAt": "2026-07-06T05:54:19.786Z",
+   "rubricVersion": 1,
+   "judgeModel": "us.anthropic.claude-opus-4-8",
+   "sessionModel": "us.anthropic.claude-sonnet-4-6",
+   "provider": "bedrock",
+   "region": "us-west-2",
+   "isolationAudit": "pass",
+   "scores": {
+    "mechanical": 4,
+    "judge": 4,
+    "total": 4,
+    "process": {
+     "toolCalls": 30,
+     "lookups": 29,
+     "hallucinatedHandles": 0,
+     "lookupPrecededEdgeRatio": null,
+     "identicalLookupRepetitions": 0,
+     "toolErrorCount": 1
+    }
+   },
+   "cost": {
+    "sessionUsd": 0.5328103499999999,
+    "judgeUsd": null
+   },
+   "lane": "milestone"
+  },
+  {
+   "rowId": "author-scatterplot--claude-sonnet-5--s1@r1.2026-07-06T05:55:53.115Z",
+   "series": "2026-07-06.t0.83ff1c128a7a",
+   "runId": "author-scatterplot--claude-sonnet-5--s1",
+   "artifactsRef": "2026-07-06.t0.83ff1c128a7a/runs/author-scatterplot--claude-sonnet-5--s1",
+   "commit": "83ff1c128a7a589ac95336db37b4f8d56a7dcf77",
+   "tier": "T0",
+   "taskId": "author-scatterplot",
+   "taskVersion": 1,
+   "validatorVersion": "interim-1",
+   "kind": "fresh",
+   "gradedAt": "2026-07-06T05:55:53.115Z",
+   "rubricVersion": 1,
+   "judgeModel": "us.anthropic.claude-opus-4-8",
+   "sessionModel": "us.anthropic.claude-sonnet-5",
+   "provider": "bedrock",
+   "region": "us-west-2",
+   "isolationAudit": "pass",
+   "scores": {
+    "mechanical": 4,
+    "judge": 4,
+    "total": 4,
+    "process": {
+     "toolCalls": 42,
+     "lookups": 40,
+     "hallucinatedHandles": 0,
+     "lookupPrecededEdgeRatio": 1,
+     "identicalLookupRepetitions": 0,
+     "toolErrorCount": 2
+    }
+   },
+   "cost": {
+    "sessionUsd": 1.16883675,
+    "judgeUsd": null
+   },
+   "lane": "milestone"
+  },
+  {
+   "rowId": "author-scatterplot--claude-sonnet-5--s2@r1.2026-07-06T05:57:14.292Z",
+   "series": "2026-07-06.t0.83ff1c128a7a",
+   "runId": "author-scatterplot--claude-sonnet-5--s2",
+   "artifactsRef": "2026-07-06.t0.83ff1c128a7a/runs/author-scatterplot--claude-sonnet-5--s2",
+   "commit": "83ff1c128a7a589ac95336db37b4f8d56a7dcf77",
+   "tier": "T0",
+   "taskId": "author-scatterplot",
+   "taskVersion": 1,
+   "validatorVersion": "interim-1",
+   "kind": "fresh",
+   "gradedAt": "2026-07-06T05:57:14.292Z",
+   "rubricVersion": 1,
+   "judgeModel": "us.anthropic.claude-opus-4-8",
+   "sessionModel": "us.anthropic.claude-sonnet-5",
+   "provider": "bedrock",
+   "region": "us-west-2",
+   "isolationAudit": "pass",
+   "scores": {
+    "mechanical": 4,
+    "judge": 3.8,
+    "total": 3.9,
+    "process": {
+     "toolCalls": 41,
+     "lookups": 38,
+     "hallucinatedHandles": 0,
+     "lookupPrecededEdgeRatio": 1,
+     "identicalLookupRepetitions": 0,
+     "toolErrorCount": 4
+    }
+   },
+   "cost": {
+    "sessionUsd": 1.04501415,
+    "judgeUsd": null
+   },
+   "lane": "milestone"
+  },
+  {
+   "rowId": "author-scatterplot--claude-sonnet-5--s3@r1.2026-07-06T05:58:35.357Z",
+   "series": "2026-07-06.t0.83ff1c128a7a",
+   "runId": "author-scatterplot--claude-sonnet-5--s3",
+   "artifactsRef": "2026-07-06.t0.83ff1c128a7a/runs/author-scatterplot--claude-sonnet-5--s3",
+   "commit": "83ff1c128a7a589ac95336db37b4f8d56a7dcf77",
+   "tier": "T0",
+   "taskId": "author-scatterplot",
+   "taskVersion": 1,
+   "validatorVersion": "interim-1",
+   "kind": "fresh",
+   "gradedAt": "2026-07-06T05:58:35.357Z",
+   "rubricVersion": 1,
+   "judgeModel": "us.anthropic.claude-opus-4-8",
+   "sessionModel": "us.anthropic.claude-sonnet-5",
+   "provider": "bedrock",
+   "region": "us-west-2",
+   "isolationAudit": "pass",
+   "scores": {
+    "mechanical": 4,
+    "judge": 3.53,
+    "total": 3.77,
+    "process": {
+     "toolCalls": 23,
+     "lookups": 21,
+     "hallucinatedHandles": 0,
+     "lookupPrecededEdgeRatio": 0,
+     "identicalLookupRepetitions": 0,
+     "toolErrorCount": 4
+    }
+   },
+   "cost": {
+    "sessionUsd": 0.6213387,
+    "judgeUsd": null
+   },
+   "lane": "milestone"
+  },
+  {
+   "rowId": "author-scatterplot--claude-opus-4-8--s1@r1.2026-07-06T05:59:46.548Z",
+   "series": "2026-07-06.t0.83ff1c128a7a",
+   "runId": "author-scatterplot--claude-opus-4-8--s1",
+   "artifactsRef": "2026-07-06.t0.83ff1c128a7a/runs/author-scatterplot--claude-opus-4-8--s1",
+   "commit": "83ff1c128a7a589ac95336db37b4f8d56a7dcf77",
+   "tier": "T0",
+   "taskId": "author-scatterplot",
+   "taskVersion": 1,
+   "validatorVersion": "interim-1",
+   "kind": "fresh",
+   "gradedAt": "2026-07-06T05:59:46.548Z",
+   "rubricVersion": 1,
+   "judgeModel": "us.anthropic.claude-opus-4-8",
+   "sessionModel": "us.anthropic.claude-opus-4-8",
+   "provider": "bedrock",
+   "region": "us-west-2",
+   "isolationAudit": "pass",
+   "scores": {
+    "mechanical": 4,
+    "judge": 4,
+    "total": 4,
+    "process": {
+     "toolCalls": 24,
+     "lookups": 21,
+     "hallucinatedHandles": 0,
+     "lookupPrecededEdgeRatio": 1,
+     "identicalLookupRepetitions": 0,
+     "toolErrorCount": 0
+    }
+   },
+   "cost": {
+    "sessionUsd": 1.2911027499999999,
+    "judgeUsd": null
+   },
+   "lane": "milestone"
+  },
+  {
+   "rowId": "author-scatterplot--claude-opus-4-8--s2@r1.2026-07-06T06:00:50.847Z",
+   "series": "2026-07-06.t0.83ff1c128a7a",
+   "runId": "author-scatterplot--claude-opus-4-8--s2",
+   "artifactsRef": "2026-07-06.t0.83ff1c128a7a/runs/author-scatterplot--claude-opus-4-8--s2",
+   "commit": "83ff1c128a7a589ac95336db37b4f8d56a7dcf77",
+   "tier": "T0",
+   "taskId": "author-scatterplot",
+   "taskVersion": 1,
+   "validatorVersion": "interim-1",
+   "kind": "fresh",
+   "gradedAt": "2026-07-06T06:00:50.847Z",
+   "rubricVersion": 1,
+   "judgeModel": "us.anthropic.claude-opus-4-8",
+   "sessionModel": "us.anthropic.claude-opus-4-8",
+   "provider": "bedrock",
+   "region": "us-west-2",
+   "isolationAudit": "pass",
+   "scores": {
+    "mechanical": 4,
+    "judge": 4,
+    "total": 4,
+    "process": {
+     "toolCalls": 25,
+     "lookups": 22,
+     "hallucinatedHandles": 0,
+     "lookupPrecededEdgeRatio": 1,
+     "identicalLookupRepetitions": 0,
+     "toolErrorCount": 2
+    }
+   },
+   "cost": {
+    "sessionUsd": 1.08002625,
+    "judgeUsd": null
+   },
+   "lane": "milestone"
+  },
+  {
+   "rowId": "author-scatterplot--claude-opus-4-8--s3@r1.2026-07-06T06:01:56.241Z",
+   "series": "2026-07-06.t0.83ff1c128a7a",
+   "runId": "author-scatterplot--claude-opus-4-8--s3",
+   "artifactsRef": "2026-07-06.t0.83ff1c128a7a/runs/author-scatterplot--claude-opus-4-8--s3",
+   "commit": "83ff1c128a7a589ac95336db37b4f8d56a7dcf77",
+   "tier": "T0",
+   "taskId": "author-scatterplot",
+   "taskVersion": 1,
+   "validatorVersion": "interim-1",
+   "kind": "fresh",
+   "gradedAt": "2026-07-06T06:01:56.241Z",
+   "rubricVersion": 1,
+   "judgeModel": "us.anthropic.claude-opus-4-8",
+   "sessionModel": "us.anthropic.claude-opus-4-8",
+   "provider": "bedrock",
+   "region": "us-west-2",
+   "isolationAudit": "pass",
+   "scores": {
+    "mechanical": 4,
+    "judge": 4,
+    "total": 4,
+    "process": {
+     "toolCalls": 29,
+     "lookups": 28,
+     "hallucinatedHandles": 0,
+     "lookupPrecededEdgeRatio": 1,
+     "identicalLookupRepetitions": 0,
+     "toolErrorCount": 1
+    }
+   },
+   "cost": {
+    "sessionUsd": 1.1203174999999999,
+    "judgeUsd": null
+   },
+   "lane": "milestone"
+  },
+  {
+   "rowId": "contextualize-operator--claude-sonnet-5--s1@r1.2026-07-06T06:02:41.450Z",
+   "series": "2026-07-06.t0.83ff1c128a7a",
+   "runId": "contextualize-operator--claude-sonnet-5--s1",
+   "artifactsRef": "2026-07-06.t0.83ff1c128a7a/runs/contextualize-operator--claude-sonnet-5--s1",
+   "commit": "83ff1c128a7a589ac95336db37b4f8d56a7dcf77",
+   "tier": "T0",
+   "taskId": "contextualize-operator",
+   "taskVersion": 1,
+   "validatorVersion": "interim-1",
+   "kind": "fresh",
+   "gradedAt": "2026-07-06T06:02:41.450Z",
+   "rubricVersion": 1,
+   "judgeModel": "us.anthropic.claude-opus-4-8",
+   "sessionModel": "us.anthropic.claude-sonnet-5",
+   "provider": "bedrock",
+   "region": "us-west-2",
+   "isolationAudit": "pass",
+   "scores": {
+    "mechanical": 0,
+    "judge": 2.46,
+    "total": 1.23,
+    "process": {
+     "toolCalls": 32,
+     "lookups": 32,
+     "hallucinatedHandles": 0,
+     "lookupPrecededEdgeRatio": null,
+     "identicalLookupRepetitions": 0,
+     "toolErrorCount": 0
+    }
+   },
+   "cost": {
+    "sessionUsd": 0.7597708499999998,
+    "judgeUsd": null
+   },
+   "lane": "milestone"
+  },
+  {
+   "rowId": "contextualize-operator--claude-sonnet-5--s2@r1.2026-07-06T06:03:30.589Z",
+   "series": "2026-07-06.t0.83ff1c128a7a",
+   "runId": "contextualize-operator--claude-sonnet-5--s2",
+   "artifactsRef": "2026-07-06.t0.83ff1c128a7a/runs/contextualize-operator--claude-sonnet-5--s2",
+   "commit": "83ff1c128a7a589ac95336db37b4f8d56a7dcf77",
+   "tier": "T0",
+   "taskId": "contextualize-operator",
+   "taskVersion": 1,
+   "validatorVersion": "interim-1",
+   "kind": "fresh",
+   "gradedAt": "2026-07-06T06:03:30.589Z",
+   "rubricVersion": 1,
+   "judgeModel": "us.anthropic.claude-opus-4-8",
+   "sessionModel": "us.anthropic.claude-sonnet-5",
+   "provider": "bedrock",
+   "region": "us-west-2",
+   "isolationAudit": "pass",
+   "scores": {
+    "mechanical": 4,
+    "judge": 4,
+    "total": 4,
+    "process": {
+     "toolCalls": 39,
+     "lookups": 37,
+     "hallucinatedHandles": 0,
+     "lookupPrecededEdgeRatio": null,
+     "identicalLookupRepetitions": 0,
+     "toolErrorCount": 2
+    }
+   },
+   "cost": {
+    "sessionUsd": 0.8580747000000001,
+    "judgeUsd": null
+   },
+   "lane": "milestone"
+  },
+  {
+   "rowId": "contextualize-operator--claude-sonnet-5--s3@r1.2026-07-06T06:04:21.406Z",
+   "series": "2026-07-06.t0.83ff1c128a7a",
+   "runId": "contextualize-operator--claude-sonnet-5--s3",
+   "artifactsRef": "2026-07-06.t0.83ff1c128a7a/runs/contextualize-operator--claude-sonnet-5--s3",
+   "commit": "83ff1c128a7a589ac95336db37b4f8d56a7dcf77",
+   "tier": "T0",
+   "taskId": "contextualize-operator",
+   "taskVersion": 1,
+   "validatorVersion": "interim-1",
+   "kind": "fresh",
+   "gradedAt": "2026-07-06T06:04:21.406Z",
+   "rubricVersion": 1,
+   "judgeModel": "us.anthropic.claude-opus-4-8",
+   "sessionModel": "us.anthropic.claude-sonnet-5",
+   "provider": "bedrock",
+   "region": "us-west-2",
+   "isolationAudit": "pass",
+   "scores": {
+    "mechanical": 0,
+    "judge": 2.46,
+    "total": 1.23,
+    "process": {
+     "toolCalls": 30,
+     "lookups": 30,
+     "hallucinatedHandles": 0,
+     "lookupPrecededEdgeRatio": null,
+     "identicalLookupRepetitions": 0,
+     "toolErrorCount": 0
+    }
+   },
+   "cost": {
+    "sessionUsd": 0.7422988500000002,
+    "judgeUsd": null
+   },
+   "lane": "milestone"
+  },
+  {
+   "rowId": "author-scatterplot--claude-sonnet-5--s1@r1.2026-07-06T06:06:47.699Z",
+   "series": "2026-07-06.t0.83ff1c128a7a",
+   "runId": "author-scatterplot--claude-sonnet-5--s1",
+   "artifactsRef": "2026-07-06.t0.83ff1c128a7a/runs/author-scatterplot--claude-sonnet-5--s1",
+   "commit": "83ff1c128a7a589ac95336db37b4f8d56a7dcf77",
+   "tier": "T0",
+   "taskId": "author-scatterplot",
+   "taskVersion": 1,
+   "validatorVersion": "interim-1",
+   "kind": "regrade",
+   "regradeOf": "author-scatterplot--claude-sonnet-5--s1@r1.2026-07-06T05:55:53.115Z",
+   "gradedAt": "2026-07-06T06:06:47.699Z",
+   "rubricVersion": 1,
+   "judgeModel": "us.anthropic.claude-opus-4-8",
+   "sessionModel": "us.anthropic.claude-sonnet-5",
+   "provider": "bedrock",
+   "region": "us-west-2",
+   "isolationAudit": "pass",
+   "scores": {
+    "mechanical": 4,
+    "judge": 4,
+    "total": 4,
+    "process": {
+     "toolCalls": 42,
+     "lookups": 40,
+     "hallucinatedHandles": 0,
+     "lookupPrecededEdgeRatio": 1,
+     "identicalLookupRepetitions": 0,
+     "toolErrorCount": 2
+    }
+   },
+   "cost": {
+    "sessionUsd": 1.16883675,
+    "judgeUsd": null
+   },
+   "lane": "milestone"
+  }
+ ]
 }

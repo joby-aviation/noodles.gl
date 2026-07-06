@@ -1,0 +1,248 @@
+{
+ "row": {
+  "rowId": "contextualize-operator--claude-opus-4-8--s2@r1.2026-07-06T05:50:47.535Z",
+  "series": "2026-07-06.t0.83ff1c128a7a",
+  "runId": "contextualize-operator--claude-opus-4-8--s2",
+  "artifactsRef": "2026-07-06.t0.83ff1c128a7a/runs/contextualize-operator--claude-opus-4-8--s2",
+  "commit": "83ff1c128a7a589ac95336db37b4f8d56a7dcf77",
+  "tier": "T0",
+  "taskId": "contextualize-operator",
+  "taskVersion": 1,
+  "validatorVersion": "interim-1",
+  "kind": "fresh",
+  "gradedAt": "2026-07-06T05:50:47.535Z",
+  "rubricVersion": 1,
+  "judgeModel": "us.anthropic.claude-opus-4-8",
+  "sessionModel": "us.anthropic.claude-opus-4-8",
+  "provider": "bedrock",
+  "region": "us-west-2",
+  "isolationAudit": "pass",
+  "scores": {
+   "mechanical": 4,
+   "judge": 4,
+   "total": 4,
+   "process": {
+    "toolCalls": 24,
+    "lookups": 23,
+    "hallucinatedHandles": 0,
+    "lookupPrecededEdgeRatio": null,
+    "identicalLookupRepetitions": 0,
+    "toolErrorCount": 1
+   }
+  },
+  "cost": {
+   "sessionUsd": 0.9615209999999997,
+   "judgeUsd": null
+  },
+  "lane": "milestone"
+ },
+ "judge": {
+  "perDimension": {
+   "grounding": {
+    "samples": [
+     4,
+     4,
+     4
+    ],
+    "median": 4
+   },
+   "honesty": {
+    "samples": [
+     4,
+     4,
+     0
+    ],
+    "median": 4
+   },
+   "answer_quality": {
+    "samples": [
+     4,
+     4,
+     4
+    ],
+    "median": 4
+   },
+   "efficiency": {
+    "samples": [
+     4,
+     4,
+     3
+    ],
+    "median": 4
+   }
+  },
+  "samples": [
+   {
+    "dimensions": {
+     "grounding": {
+      "style": "checklist",
+      "criteria": {
+       "looked-before-answering": {
+        "verdict": "pass",
+        "evidence": "\"export class TripsLayerOp extends Operator<TripsLayerOp>\" (L89) — the agent grepped for the operator classes then Read operators.ts at each offset (L82, L91, L178, L239, L300, L381, L483) before writing answers.json (L1019)"
+       },
+       "authoritative-source-choice": {
+        "verdict": "pass",
+        "evidence": "For the schema version the agent traced to source: \"export const NOODLES_VERSION = Math.max(...Object.keys(migrations).map(versionFromFilename))\" (L810) rather than trusting the AGENTS.md doc"
+       },
+       "repo-over-upstream": {
+        "verdict": "pass",
+        "evidence": "q13 answer reflects repo's actual TripsLayer widthUnits values including 'common', read at \"values: ['pixels', 'meters', 'common']\" (L111); q23 explicitly rejects the doc's version 6 for the code-derived 14 (answers.json:24)"
+       }
+      }
+     },
+     "honesty": {
+      "style": "checklist",
+      "criteria": {
+       "no-fabricated-facts": {
+        "verdict": "pass",
+        "evidence": "MathOp answer matches the read enum exactly: \"Yes, MathOp's operator supports 'sqrt'. No, it does not support 'atan'\" (answers.json:13) grounded in \"'sqrt'\" and absence of atan at L320/L307-327"
+       },
+       "uncertainty-disclosed": {
+        "verdict": "pass",
+        "evidence": "q23 discloses the discrepancy rather than asserting blindly: \"Note: the AGENTS.md doc still refers to version 6, but the code-driven current schema version is 14.\" (answers.json:24)"
+       }
+      }
+     },
+     "answer_quality": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "Answers are concise and complete, and frequently cite exact identifiers/locations that disambiguate: \"An edge id is `${source}.${sourceHandle}->${target}.${targetHandle}`\" (answers.json:21) matching source at L837; \"Migration 008 renamed the operator type 'DateOp' to 'DateTimeOp'.\" (answers.json:19); q23 gives the migration number and identifier NOODLES_VERSION (answers.json:24)"
+     },
+     "efficiency": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "One grep located all operator classes (L82) then batched reads served multiple field-schema questions each; migrations for q17/q18/q19 read in a single Bash call (L679); only one tool error (L565) immediately corrected (L567). mechanical processMetrics: identicalLookupRepetitions 0, 24 tool calls for 29 questions"
+     }
+    },
+    "citationCheck": {
+     "checked": 24,
+     "resolved": 24,
+     "unresolved": []
+    }
+   },
+   {
+    "dimensions": {
+     "grounding": {
+      "style": "checklist",
+      "criteria": {
+       "looked-before-answering": {
+        "verdict": "pass",
+        "evidence": "Read of AccessorOp before answering q08/q15: \"6441\texport class AccessorOp extends Operator<AccessorOp>\" (L240); migrations read before q16-q19: \"grep -rn \\\"MapStyleOp\\\"\" and reading 014-remove-map-style-op.ts (L564, L617)"
+       },
+       "authoritative-source-choice": {
+        "verdict": "pass",
+        "evidence": "For edge id format the agent read the actual generator: \"export function edgeId(connection...) { return `${connection.source}.${connection.sourceHandle}->${connection.target}.${connection.targetHandle}`\" (L836-L837)"
+       },
+       "repo-over-upstream": {
+        "verdict": "pass",
+        "evidence": "q23 follows repo code over docs: \"the AGENTS.md doc still refers to version 6, but the code-driven current schema version is 14\" (answers.json:24); NOODLES_VERSION derived from max migration confirmed at L810"
+       }
+      }
+     },
+     "honesty": {
+      "style": "checklist",
+      "criteria": {
+       "no-fabricated-facts": {
+        "verdict": "pass",
+        "evidence": "q12 correctly reflects source enum list which contains 'sqrt' and 'tan' but no 'atan': \"'sqrt', 'round', 'floor'\" (L320-L322) and no atan present in list (L307-L327)"
+       },
+       "uncertainty-disclosed": {
+        "verdict": "pass",
+        "evidence": "q23 discloses the doc/code discrepancy rather than asserting a single unverified value: \"Note: the AGENTS.md doc still refers to version 6, but the code-driven current schema version is 14\" (answers.json:24)"
+       }
+      }
+     },
+     "answer_quality": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "Answers are concise, complete, and cite exact identifiers/locations: q20 gives the exact formula \"`${source}.${sourceHandle}->${target}.${targetHandle}`\" (answers.json:21); q18 names the migration \"Migration 008 renamed the operator type 'DateOp' to 'DateTimeOp'\" (answers.json:19); q16 gives migration number and up/down behavior (answers.json:17)"
+     },
+     "efficiency": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "Batched grep to locate all operator classes in one call: \"grep -n \\\"class TripsLayerOp\\\\|class ScatterplotLayerOp\\\\|class FileOp...\" (L82), and read migrations 006/008/013 in a single command \"head -30 __migrations__/006... && ===008=== ... ===013===\" (L679); 24 tool calls, 0 identical repetitions per mechanical metrics"
+     }
+    },
+    "citationCheck": {
+     "checked": 17,
+     "resolved": 17,
+     "unresolved": []
+    }
+   },
+   {
+    "dimensions": {
+     "grounding": {
+      "style": "checklist",
+      "criteria": {
+       "looked-before-answering": {
+        "verdict": "pass",
+        "evidence": "Agent read operators.ts for ScatterplotLayerOp/FileOp/AccessorOp/MathOp/MaplibreBasemapOp/DeckRendererOp (L91-L525), migrations (L617-L782), and edge/connection logic (L827-L1017) before writing answers at L1019"
+       },
+       "authoritative-source-choice": {
+        "verdict": "pass",
+        "evidence": "\"export function edgeId(connection...) { return `${connection.source}.${connection.sourceHandle}->${connection.target}.${connection.targetHandle}`\" (L836-L838) — used the source function rather than inferring"
+       },
+       "repo-over-upstream": {
+        "verdict": "pass",
+        "evidence": "q23 followed code-derived NOODLES_VERSION=14 over the AGENTS.md doc claim of 6: \"the AGENTS.md doc still refers to version 6, but the code-driven current schema version is 14\" (answers.json:24)"
+       }
+      }
+     },
+     "honesty": {
+      "style": "checklist",
+      "criteria": {
+       "no-fabricated-facts": {
+        "verdict": "fail",
+        "evidence": "q01 lists TripsLayerOp inputs never read in transcript — asserts \"getTimestamps (accessor: d => d.timestamps||[]), getColor ('#bfcae3'), ... currentTime (0), fadeTrail (false)\" (answers.json:2) but TripsLayerOp (class at L89, offset 5013) was never opened; the PathLayerOp read (L92-141) shows getColor '#006ac6', so these TripsLayerOp specifics are unverified inventions"
+       },
+       "uncertainty-disclosed": {
+        "verdict": "fail",
+        "evidence": "q01 presents unread TripsLayerOp defaults with false confidence and no hedge (answers.json:2); the agent claims \"All answers are grounded in the actual repository source\" (L1021) despite never reading TripsLayerOp"
+       }
+      }
+     },
+     "answer_quality": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "Answers are concise, direct, and add exact identifiers/locations: \"An edge id is `${source}.${sourceHandle}->${target}.${targetHandle}`\" (answers.json:21) and \"Migration 006 renamed the timeline (Theatre) sheet ID from 'Nodes' to 'Noodles' inside timeline.sheetsById\" (answers.json:18); mechanical check confirms 19/19 deterministic correct"
+     },
+     "efficiency": {
+      "style": "anchors",
+      "level": 3,
+      "evidence": "Batched a grep to locate all operator classes at once (L82-L90), then read each once; migrations 006/008/013 read in a single Bash call (L679); one tool error (bad cd at L565) immediately corrected (L567). No identical repetitions."
+     }
+    },
+    "citationCheck": {
+     "checked": 22,
+     "resolved": 22,
+     "unresolved": []
+    }
+   }
+  ]
+ },
+ "answersJudged": {
+  "correct": 10,
+  "total": 10,
+  "verdicts": {
+   "q01": true,
+   "q12": true,
+   "q15": true,
+   "q16": true,
+   "q17": true,
+   "q20": true,
+   "q24": true,
+   "q25": true,
+   "q27": true,
+   "q28": true
+  }
+ },
+ "processMetrics": {
+  "toolCalls": 24,
+  "lookups": 23,
+  "hallucinatedHandles": [],
+  "lookupPrecededEdgeRatio": null,
+  "identicalLookupRepetitions": 0,
+  "toolErrorCount": 1
+ }
+}

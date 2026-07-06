@@ -1,0 +1,180 @@
+{
+  "edges": [
+    {
+      "id": "/data-source.out.data->/scatterplot-layer.par.data",
+      "source": "/data-source",
+      "target": "/scatterplot-layer",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/position-accessor.out.accessor->/scatterplot-layer.par.getPosition",
+      "source": "/position-accessor",
+      "target": "/scatterplot-layer",
+      "sourceHandle": "out.accessor",
+      "targetHandle": "par.getPosition"
+    },
+    {
+      "id": "/radius-accessor.out.accessor->/scatterplot-layer.par.getRadius",
+      "source": "/radius-accessor",
+      "target": "/scatterplot-layer",
+      "sourceHandle": "out.accessor",
+      "targetHandle": "par.getRadius"
+    },
+    {
+      "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap",
+      "source": "/maplibre-basemap",
+      "target": "/deck",
+      "sourceHandle": "out.maplibre",
+      "targetHandle": "par.basemap"
+    },
+    {
+      "id": "/scatterplot-layer.out.layer->/deck.par.layers",
+      "source": "/scatterplot-layer",
+      "target": "/deck",
+      "sourceHandle": "out.layer",
+      "targetHandle": "par.layers"
+    },
+    {
+      "id": "/deck.out.vis->/out.par.vis",
+      "source": "/deck",
+      "target": "/out",
+      "sourceHandle": "out.vis",
+      "targetHandle": "par.vis"
+    }
+  ],
+  "viewport": {
+    "x": 0,
+    "y": 0,
+    "zoom": 0.75
+  },
+  "version": 14,
+  "name": "Quake Magnitude Viz",
+  "editorSettings": {
+    "layoutMode": "noodles-on-top",
+    "showOverlay": true
+  },
+  "nodes": [
+    {
+      "id": "/data-source",
+      "type": "FileOp",
+      "data": {
+        "inputs": {
+          "format": "csv",
+          "url": "@/data.csv"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "id": "/position-accessor",
+      "type": "AccessorOp",
+      "data": {
+        "inputs": {
+          "expression": "[d.Longitude, d.Latitude]"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 0,
+        "y": 160
+      }
+    },
+    {
+      "id": "/radius-accessor",
+      "type": "AccessorOp",
+      "data": {
+        "inputs": {
+          "expression": "Math.pow(2, d.Magnitude - 2.5) * 3 + 3"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 0,
+        "y": 320
+      }
+    },
+    {
+      "id": "/scatterplot-layer",
+      "type": "ScatterplotLayerOp",
+      "data": {
+        "inputs": {
+          "stroked": false,
+          "radiusUnits": "pixels",
+          "opacity": 0.6,
+          "getFillColor": "#ff6633cc"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 420,
+        "y": 120
+      }
+    },
+    {
+      "id": "/maplibre-basemap",
+      "type": "MaplibreBasemapOp",
+      "data": {
+        "inputs": {
+          "mapStyle": "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
+          "viewState": {
+            "latitude": 37.059,
+            "longitude": -119.963,
+            "zoom": 6,
+            "pitch": 0,
+            "bearing": 0
+          }
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 420,
+        "y": 400
+      }
+    },
+    {
+      "id": "/deck",
+      "type": "DeckRendererOp",
+      "data": {
+        "inputs": {},
+        "locked": false
+      },
+      "position": {
+        "x": 800,
+        "y": 200
+      }
+    },
+    {
+      "id": "/out",
+      "type": "OutOp",
+      "data": {
+        "inputs": {
+          "display": "fixed",
+          "width": 1920,
+          "height": 1080,
+          "waitForData": true
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 1100,
+        "y": 200
+      }
+    }
+  ],
+  "timeline": {
+    "sheetsById": {
+      "Noodles": {
+        "staticOverrides": {
+          "byObject": {}
+        }
+      }
+    },
+    "definitionVersion": "0.4.0",
+    "revisionHistory": []
+  }
+}
