@@ -67,15 +67,23 @@ function generate(series: string): void {
   const worksheetsDir = path.join(CALIBRATION_ROOT, 'worksheets')
   fs.mkdirSync(worksheetsDir, { recursive: true })
 
-  // Deterministic anonymization: sort by runId, assign c01..cNN.
-  const mapping: Record<string, string> = {}
-  runs.sort((a, b) => a.runId.localeCompare(b.runId))
-  runs.forEach((run, i) => {
-    mapping[`c${String(i + 1).padStart(2, '0')}`] = run.runId
-  })
-  fs.writeFileSync(path.join(CALIBRATION_ROOT, 'mapping.json'), JSON.stringify({ series, mapping }, null, 1))
+  // Anonymization mapping is append-only: existing codes never change (filled
+  // worksheets must stay valid), new runs get the next codes.
+  const mappingPath = path.join(CALIBRATION_ROOT, 'mapping.json')
+  const mapping: Record<string, string> = fs.existsSync(mappingPath)
+    ? (JSON.parse(fs.readFileSync(mappingPath, 'utf-8')) as { mapping: Record<string, string> }).mapping
+    : {}
+  const known = new Set(Object.values(mapping))
+  let next = Object.keys(mapping).length + 1
+  for (const run of runs.sort((a, b) => a.runId.localeCompare(b.runId))) {
+    if (!known.has(run.runId)) {
+      mapping[`c${String(next++).padStart(2, '0')}`] = run.runId
+    }
+  }
+  fs.writeFileSync(mappingPath, JSON.stringify({ series, mapping }, null, 1))
 
   for (const [code, runId] of Object.entries(mapping)) {
+    if (!runs.some(r => r.runId === runId)) continue
     const run = runs.find(r => r.runId === runId)!
     const task = loadTask(run.taskId)
     const rubric = resolveApplicability(loadRubric(task.grader.rubric), task.tags)
