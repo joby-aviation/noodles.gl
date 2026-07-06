@@ -77,7 +77,9 @@ export async function loadAndScreenshot(opts: {
     const { chromium } = await import('playwright')
     const browser = await chromium.launch().catch(() => chromium.launch({ executablePath: '/opt/pw-browsers/chromium' }))
     try {
-      const page = await browser.newPage({ viewport: { width: 1280, height: 800 } })
+      // deviceScaleFactor 2 keeps UI text (error toasts, node labels) readable
+      // in the committed screenshots — at 1x they pixelate beyond legibility.
+      const page = await browser.newPage({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 2 })
       const consoleErrors: string[] = []
       page.on('console', msg => {
         if (msg.type() === 'error' && !isEnvironmentNoise(msg.text(), msg.location()?.url)) {
