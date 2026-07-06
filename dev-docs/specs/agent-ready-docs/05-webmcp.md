@@ -16,7 +16,7 @@ One canonical agent-tool registry inside the editor, feeding all four surfaces �
 
 ## Verified findings that shape this plan
 
-Exploration surfaced a structural problem to fix *before* WebMCP writes are meaningful — **the external-control write path is a no-op today**:
+First, framing: the three existing tool surfaces (in-app chat, external-control `ToolRegistry`, `mcp-proxy.js`) were each built for one consumer at different times, and each is correct for the path it was built to serve. The divergence between them is a growth artifact — three consumers arrived faster than a shared abstraction — not a design error, and this plan's parity snapshots exist precisely so consolidation can *prove* it changes nothing for existing consumers. With that said, probing the paths beyond each surface's original consumer surfaced a structural gap to fix *before* WebMCP writes are meaningful — **the external-control write path is scaffolding that was never finished** (consistent with `PIPELINE_TEST` and `DATA_UPLOAD` being explicit TODOs in the same module):
 
 - `MCPTools.applyModifications` (`src/ai-chat/mcp-tools.ts:590`) only **validates** and returns "…will be applied". Actual mutation happens exclusively in `ChatPanel` (`src/ai-chat/chat-panel.tsx:145-147`) via the `useProjectModifications` ReactFlow hook.
 - `worker-bridge.ts:66` and `tool-adapter.ts:41` construct private `MCPTools` instances and never call `setProject()` — over WebSocket, `getCurrentProject` returns "No project loaded" and `createNode`/`connectNodes`/`deleteNode` "succeed" without mutating anything.
@@ -33,7 +33,7 @@ W3C Web Machine Learning CG draft (Feb 2026); Chrome origin trial roughly 149–
 
 ### D1. Unified registry: new `noodles-editor/src/agent-tools/`
 
-`tool-adapter.ts` is the wrong home: its `parameters` shape isn't JSON Schema, its executor duplicates worker-bridge's, and it lives in the lazily-loaded external-control chunk. New module, no React imports:
+Why a new module rather than growing `tool-adapter.ts`: the `ToolRegistry` there was shaped for exactly one consumer (the WS protocol) and fits it well — but three properties that were fine for one surface block it as the shared home for four: its `parameters` shape predates standardizing on JSON Schema, its executor is a parallel copy of worker-bridge's dispatch (harmless with one consumer, a divergence engine with four), and it lives in the lazily-loaded external-control chunk while the chat and WebMCP surfaces need tools without that chunk. Nothing in it is discarded — its tool wrappers and parameter descriptions port into the new registry, and its names survive as aliases. New module, no React imports:
 
 ```
 src/agent-tools/
@@ -66,7 +66,7 @@ Result mapping: `{content:[{type:'text', text: safeStringify(result)}]}` (reuse 
 | **write** (consent-gated) | `apply_modifications` (the primitive, now real via project-bridge), `create_node`, `connect_nodes`, `delete_node` (thin wrappers ported from tool-adapter, camelCase aliases), `set_keyframe`, `delete_keyframe` |
 | **execute** (consent-gated) | `set_playback_position` |
 
-Dropped: `listOperatorTypes` (alias of `list_operators`), `createPipeline` (WS-protocol construct; rebuilt on `apply_modifications`, which also fixes the array bug). Schemas copied from `claude-client.ts`'s `getTools()` — the best-written set — enriched with mcp-proxy's parameter descriptions.
+Not carried forward as separate tools — with their capability preserved: `listOperatorTypes` becomes an alias of `list_operators` (same data, one name canonical); `createPipeline`'s high-level pipeline-spec form is reimplemented *on top of* `apply_modifications` (which also fixes the object-vs-array mismatch that currently prevents it from working at all), so existing WS clients sending `PIPELINE_CREATE` keep working. Schemas are copied from `claude-client.ts`'s `getTools()` — the best-written set — enriched with mcp-proxy's parameter descriptions, so the prior authors' descriptive work carries into the unified registry rather than being rewritten.
 
 ### D4. Security and gating
 

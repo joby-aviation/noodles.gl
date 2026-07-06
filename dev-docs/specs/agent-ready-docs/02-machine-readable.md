@@ -58,9 +58,11 @@ Rationale for the combination: shadcn-style per-item JSON gives one fetch per op
 - CI: `generate:schema -- --check` step in `.github/workflows/test.yml`. A new migration changes `NOODLES_VERSION`, the check fails, the schema gets regenerated in the same PR — that's the sync mechanism.
 - Prose accompanying the schema (and the authoring guide it pairs with, sub-plan 03) is the `noodles.json` **file-format spec** — the only documents written in RFC 2119 register (capitalized MUST/SHOULD/MAY for interoperability contracts: `version`, node/edge shapes, `out.`/`par.` handle prefixes, the edge-id formula). See sub-plan 01 D5 for the scoping rule.
 
-### D3. Deploy-path cleanup
+### D3. Deploy-path consolidation
 
-Delete `.github/workflows/generate-context.yml`. `deploy-docs.yml` becomes the single owner: `generate:context` → `generate:reference` → `build:all`. (Also add `generate:reference` to `build:all:cloudflare`.)
+`generate-context.yml` exists for a good reason: refresh the AI context bundles when `src/**`, `docs/**`, or examples change, without waiting for a full site deploy. The problem is mechanical, not conceptual: it publishes via a peaceiris gh-pages **branch push** while `deploy-docs.yml` publishes via the **Pages artifact** flow, and a GitHub Pages site has exactly one publishing source — so one of the two is inert at any given time, and switching the source to fix one silently breaks the other.
+
+Consolidation, preserving the intent: retire `generate-context.yml` and make `deploy-docs.yml` the single owner (`generate:context` → `generate:reference` → `build:all`; also add `generate:reference` to `build:all:cloudflare`). If bundle freshness *between* main deploys turns out to matter, add this workflow's path triggers (`src/**`, `docs/**`, examples) to `deploy-docs.yml` — same freshness, one publisher. Before removal, confirm with the workflow's author that there isn't a consumer of the gh-pages branch itself.
 
 ### D4. Generation details
 
@@ -70,7 +72,7 @@ Delete `.github/workflows/generate-context.yml`. `deploy-docs.yml` becomes the s
 
 ## Implementation steps
 
-1. Delete `.github/workflows/generate-context.yml`.
+1. Retire `.github/workflows/generate-context.yml` per D3 (after confirming intent with its author).
 2. Add `project-schema.ts` + tests; add `generate-project-schema.ts` + `generate:schema` script; commit the schema output; wire `--check` into `test.yml`.
 3. Write `generate-reference.ts` + `generate:reference` script; extract shared helpers from `generate-context.ts` into `scripts/lib/`; update `.gitignore`.
 4. Rewrite `website/static/llms.txt` into hand-head + generated-section form.

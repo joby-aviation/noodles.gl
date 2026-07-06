@@ -68,11 +68,11 @@ Orderings that matter:
 
 **Phase A — foundations** (parallelizable)
 - 01: parser extensions, `generate-operator-docs.ts`, generated skeleton pages for all ~130 ops, sidebar, style guide, CI drift check.
-- 02: `project-schema.ts` + JSON Schema, `generate-reference.ts` + `/r/` surface + llms.txt regeneration, delete the conflicting `generate-context.yml` workflow.
+- 02: `project-schema.ts` + JSON Schema, `generate-reference.ts` + `/r/` surface + llms.txt regeneration, consolidate the two context-deploy paths (see Quick wins #2).
 - 05 phase 0: `src/agent-tools/` unified registry + project-bridge; migrate the three existing tool surfaces; enforce session permissions. Fixes four live bugs (see Quick wins).
 
 **Phase B — consumption**
-- 03: `noodles-mcp` package (docs mode, then `--live` mode absorbing `mcp-proxy.js`).
+- 03: `noodles-mcp` package (docs mode, then `--live` mode carrying `mcp-proxy.js`'s protocol forward under npx distribution).
 - 04: both skills + `validate-projects` CLI + generated includes + CI freshness job.
 - 05 phase 1: WebMCP read-only provider behind feature detection.
 
@@ -95,11 +95,13 @@ Generated skeletons make the docs *accurate*; these mechanisms make them *accumu
 
 ## Quick wins (small standalone PRs, high value, no phase gating)
 
-1. **Register the dormant context tools** in the in-app chat: `MCPTools` already implements `list_operators`, `get_operator_schema`, `get_documentation`, `search_code`, `get_example`, `list_examples` — they are simply not registered in `claude-client.ts`'s `getTools()`.
-2. **Delete `.github/workflows/generate-context.yml`** — its peaceiris gh-pages branch push mechanically conflicts with `deploy-docs.yml`'s Pages-artifact flow, which already regenerates context on every push to main.
-3. **Fix stale `AGENTS.md`** — it claims project version 6 (actual: `NOODLES_VERSION` = 14, derived from migrations), points at `noodles-editor/examples/external-control/mcp-proxy.js` (actual: `examples/external-control/mcp-proxy.js`), and references `public/examples` (actual: `src/examples`).
-4. **Fix the external-control write path** — `worker-bridge.ts` and `tool-adapter.ts` construct private `MCPTools` instances and never call `setProject()`, so `getCurrentProject` returns "No project loaded" and mutations validate-then-drop; `PIPELINE_CREATE` passes an object where the validator requires an array.
-5. **Enforce session permissions** — `session-manager.ts` issues `['read','write','execute']` permissions that nothing checks.
+A note on framing: several of these touch code that works as designed for the path it was built for — the gaps below are what surfaced when we probed the *other* paths. Where a spec proposes deleting or consolidating something, it owes the reader three things: what the original was for, the concrete failure mode now, and what preserves the original capability. If a spec asserts intent that the original author knows to be wrong, that's a spec bug — please correct it in review.
+
+1. **Register the dormant context tools** in the in-app chat: `MCPTools` already implements `list_operators`, `get_operator_schema`, `get_documentation`, `search_code`, `get_example`, `list_examples` — the implementations are done and tested against the bundles; they are simply not registered in `claude-client.ts`'s `getTools()`. Pure unlock, no deletion.
+2. **Consolidate the two context-deploy paths** — `generate-context.yml` refreshes the AI context bundles on content changes without waiting for a full site deploy (a reasonable goal); `deploy-docs.yml` also regenerates them inside the Pages-artifact flow on every main push. The two publish to GitHub Pages by different mechanisms (gh-pages branch push vs. Pages artifact), and a Pages site has one publishing source — whichever is configured wins and the other's output is dead or, worse, flips the source. Proposal (02): `deploy-docs.yml` becomes the single owner; if bundle freshness between deploys matters, add path triggers to `deploy-docs.yml` rather than keeping a second publisher. **Confirm the original intent with whoever set it up before deleting.**
+3. **Refresh `AGENTS.md`** — it drifted as the code moved: claims project version 6 (actual: `NOODLES_VERSION` = 14, derived from migrations), points at `noodles-editor/examples/external-control/mcp-proxy.js` (actual: `examples/external-control/mcp-proxy.js`), and references `public/examples` (actual: `src/examples`). This drift is the argument for sub-plan 04's generated includes — hand-maintained facts rot no matter how diligent the authors.
+4. **Finish the external-control write path** — the WebSocket surface reads perfectly but writes were left as scaffolding (consistent with `PIPELINE_TEST` and `DATA_UPLOAD` being explicit TODOs): `worker-bridge.ts` and `tool-adapter.ts` construct private `MCPTools` instances and never call `setProject()`, so `getCurrentProject` reports "No project loaded" and mutations validate-then-drop; `PIPELINE_CREATE` passes an object where the validator requires an array. Sub-plan 05's project-bridge is the designed fix; a targeted patch works sooner.
+5. **Enforce session permissions** — `session-manager.ts` already models `['read','write','execute']` permissions; the enforcement hook just never got wired into the dispatch path. The model is right; connect it.
 
 ## Ownership boundaries
 
