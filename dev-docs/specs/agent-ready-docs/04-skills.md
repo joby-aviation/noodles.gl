@@ -46,6 +46,7 @@ A third skill would share 80% of its trigger surface with these two and cause ac
 - Dogfood: `.claude/skills/<name>` → relative symlinks to `../../skills/<name>`.
 - Install story, phased: (1) documented curl one-liner per agent into `~/.claude/skills/`; (2) `.claude-plugin/marketplace.json` exposing a `noodles` plugin containing both skills (`/plugin marketplace add joby-aviation/noodles.gl`).
 - One line added to `AGENTS.md` pointing at the skills as the authoritative graph-authoring guidance.
+- **Eval isolation** (cross-reference 07 D3): dogfooding is for humans working in this repo — at eval tiers below T4, the runner must strip all three skill artifacts from the session's checkout: `skills/`, the `.claude/skills` symlinks, and the AGENTS.md pointer line. Any one of them leaking into a T0–T3 session (including T3, where MCP is present but skills are not) feeds skill guidance to a tier that's defined by not having it.
 
 ### D3. Content strategy: thin router
 
@@ -54,7 +55,9 @@ A third skill would share 80% of its trigger surface with these two and cause ac
 **Fetched, in priority order** (spelled out as a lookup table in the skill):
 1. MCP docs tools (`get_operator`, `validate_project`, `get_example`) if connected,
 2. published reference: `https://noodles.gl/r/ops/<kebab>.json` / reference pages,
-3. local fallback: `noodles-editor/public/context/operator-registry.json` (run `npm run generate:context` if absent) or read `operators.ts` directly.
+3. local fallback: read `noodles-editor/public/context/manifest.json` to locate the operator-registry bundle — the bundle filenames are content-hashed (`operator-registry.<hash>.json`), so the manifest is the stable entry point; run `npm run generate:context` if the directory is absent — or read `operators.ts` directly. Once the stable alias below lands, the fallback simplifies to reading `noodles-editor/public/context/operator-registry.json` directly.
+
+As part of this sub-plan, `generate:context` additionally writes a **stable unhashed alias** `operator-registry.json` beside the hashed bundle: a two-hop manifest indirection is exactly the kind of instruction agents flub, the alias is one line where `writeBundle` is called, and 03's `--local` mode gets the same fixed path for free. The hashed bundles and manifest are untouched — the in-app loader keeps its content-addressed cache behavior.
 
 Graceful degradation means the skills ship **before** sub-plans 01–03 land; those landings only promote steps 1–2 to primary.
 
@@ -134,7 +137,7 @@ Supporting file: `references/tool-catalog.md` (generated).
 2. `skills/noodles-authoring/` — SKILL.md + references, sourced from system-prompt.md, corrected AGENTS.md content, critical-user-journeys.md, and a realistic example (e.g. `california-earthquakes`). Generated-block markers from day one, hand-filled initially.
 3. `skills/noodles-live/` — SKILL.md + tool catalog.
 4. Dogfooding: `.claude/skills/` symlinks; AGENTS.md pointer + staleness fixes (version, proxy path, examples path).
-5. `generate-skill-includes.ts` + `generate:skills` + CI `skills-check` job.
+5. `generate-skill-includes.ts` + `generate:skills` + CI `skills-check` job; extend `generate-context.ts` to also write the stable `operator-registry.json` alias (D3).
 6. `docs/developers/skills.md` (+ sidebar): what skills are, per-agent install, dogfooding note, relation to the in-app assistant and MCP server. Phase-2 marketplace.json.
 
 ## Verification
