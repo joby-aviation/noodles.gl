@@ -20,9 +20,9 @@ SKILL.md packages — modeled on shadcn's skills — that give coding agents the
 1. WHEN an agent with `noodles-authoring` installed is asked to create a Noodles visualization THEN it SHALL consult an authoritative schema source (MCP tool, published reference, or local registry) before writing any edge.
 2. WHEN an agent authors or modifies a project file THEN it SHALL validate the result with `validate-projects` (or the MCP `validate_project` tool) before delivering.
 3. WHEN an agent modifies an existing project THEN it SHALL preserve everything it was not asked to change (`viewport`, unrecognized keys, untouched timeline tracks), SHALL NOT hand-bump `version`, and SHALL recompute edge ids when endpoints change.
-3a. WHEN an agent is asked to create or modify an animation THEN it SHALL treat the `timeline` key as a supported editing surface: edit against the documented format, maintain its invariants (sorted keyframes, unique ids, resolvable track paths), and validate afterward.
-4. WHEN a new migration lands (NOODLES_VERSION changes) THEN CI SHALL fail until the skills' generated blocks are regenerated.
-5. WHEN a Claude Code session opens in this repo THEN both skills SHALL be auto-discoverable via `.claude/skills/`.
+4. WHEN an agent is asked to create or modify an animation THEN it SHALL treat the `timeline` key as a supported editing surface: edit against the documented format, maintain its invariants (sorted keyframes, unique ids, resolvable track paths), and validate afterward.
+5. WHEN a new migration lands (NOODLES_VERSION changes) THEN CI SHALL fail until the skills' generated blocks are regenerated.
+6. WHEN a Claude Code session opens in this repo THEN both skills SHALL be auto-discoverable via `.claude/skills/`.
 
 ## Verified groundwork
 
@@ -141,9 +141,9 @@ Supporting file: `references/tool-catalog.md` (generated).
 
 1. Fresh agent, empty dir, `noodles-authoring` only: "plot California earthquakes as a scatterplot" with the example's data file — assert it consulted schemas before wiring; output validates; version current; loads at `localhost:5173` rendering points.
 2. Modify test: hand it `uk-commute`, "make arcs red and thicker" — source-node edit, timeline untouched (nothing about the ask involves animation), still validates.
-2a. Animation test: hand it a project with an existing camera animation, "make the zoom-in take twice as long" — keyframe positions rescaled in the timeline JSON, ids and sort order intact, validates, and scrubs correctly in the app.
-3. Live test: `?externalControl=true` + proxy + `noodles-live`: a color change and a "why is it blank" debug.
-4. Rot test: simulate a `015-*.ts` migration → CI `--check` fails.
+3. Animation test: hand it a project with an existing camera animation, "make the zoom-in take twice as long" — keyframe positions rescaled in the timeline JSON, ids and sort order intact, validates, and scrubs correctly in the app.
+4. Live test: `?externalControl=true` + proxy + `noodles-live`: a color change and a "why is it blank" debug.
+5. Rot test: simulate a `015-*.ts` migration → CI `--check` fails.
 
 ## Dependencies
 
