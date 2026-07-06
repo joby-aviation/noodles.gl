@@ -169,26 +169,6 @@ function copy(text: string) {
   navigator.clipboard.writeText(text)
 }
 
-function KebabMenuButton({ onClick }: { onClick: (e: React.MouseEvent) => void }) {
-  return (
-    <button
-      type="button"
-      className={s.kebabMenuBtn}
-      aria-label="More actions"
-      onClick={e => {
-        e.stopPropagation()
-        onClick(e)
-      }}
-    >
-      <svg className={s.kebabIcon} viewBox="0 0 16 16" aria-hidden="true">
-        <circle cx="8" cy="3" r="1.5" />
-        <circle cx="8" cy="8" r="1.5" />
-        <circle cx="8" cy="13" r="1.5" />
-      </svg>
-    </button>
-  )
-}
-
 function Tooltip({
   text,
   position = 'top',
@@ -419,7 +399,8 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
     inputName?: string // field name for "Reset to default"
     keyframeEntries?: Array<{ path: string; value: KeyframeValue }> // for "Sequence"
     listFieldInputName?: string // field name when it's a ListField with connections
-    anchorRight?: boolean // when true, menu appears to the left of the x coordinate
+    isVisible?: boolean // whether the field is currently shown
+    hasConnection?: boolean // whether the field has an incoming edge
   } | null>(null)
   const descriptionRef = useRef<HTMLDivElement>(null)
   const draggingRef = useRef<HTMLElement | null>(null)
@@ -493,7 +474,7 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
     input: (typeof inputs)[number],
     incomers: Edge[],
     fieldCurrentValue: KeyframeValue | undefined,
-    position: { x: number; y: number; anchorRight?: boolean }
+    position: { x: number; y: number }
   ) => {
     const isAnimatable = isValueField(input.field) && incomers.length === 0
     const channelKeys = isAnimatable
@@ -536,6 +517,8 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
       keyframeEntries,
       listFieldInputName:
         input.field instanceof ListField && incomers.length > 0 ? input.name : undefined,
+      isVisible: op.isFieldVisible(input.name),
+      hasConnection: incomers.length > 0,
     })
   }
 
@@ -801,16 +784,6 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
                           )}
                         </>
                       )}
-                      <KebabMenuButton
-                        onClick={e => {
-                          const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-                          openInputContextMenu(input, incomers, fieldCurrentValue, {
-                            x: rect.left,
-                            y: rect.top,
-                            anchorRight: true,
-                          })
-                        }}
-                      />
                     </div>
                     {/* Compound field: expand sub-fields inline */}
                     {input.field instanceof CompoundPropsField && (
@@ -877,19 +850,6 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
               <div className={s.propertyRow}>
                 <div className={cx(s.port, output.handleClass)} />
                 <span className={s.propertyLabel}>{output.name}</span>
-                <KebabMenuButton
-                  onClick={e => {
-                    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-                    setContextMenu({
-                      x: rect.left,
-                      y: rect.top,
-                      codeRef: output.codeRef,
-                      mustacheRef: output.mustacheRef,
-                      fieldName: output.name,
-                      anchorRight: true,
-                    })
-                  }}
-                />
               </div>
             </div>
           ))}
@@ -1015,7 +975,6 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
             style={{
               top: contextMenu.y,
               left: contextMenu.x,
-              transform: contextMenu.anchorRight ? 'translateX(-100%)' : undefined,
             }}
             onPointerDown={e => e.stopPropagation()}
           >
@@ -1139,6 +1098,37 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
             >
               Disconnect all inputs
             </button>
+            <div className={s.contextMenuSeparator} />
+            {contextMenu.isVisible ? (
+              <button
+                type="button"
+                className={s.contextMenuItem}
+                disabled={contextMenu.hasConnection}
+                onClick={() => {
+                  if (contextMenu.hasConnection) return
+                  const field = op.inputs[contextMenu.fieldName]
+                  if (field && hasNonDefaultValue(field)) {
+                    setPendingHideField(contextMenu.fieldName)
+                  } else {
+                    hideField(op, contextMenu.fieldName)
+                  }
+                  setContextMenu(null)
+                }}
+              >
+                Hide field
+              </button>
+            ) : (
+              <button
+                type="button"
+                className={s.contextMenuItem}
+                onClick={() => {
+                  op.showField(contextMenu.fieldName)
+                  setContextMenu(null)
+                }}
+              >
+                Show field
+              </button>
+            )}
           </div>,
           document.body
         )}
