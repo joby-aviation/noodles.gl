@@ -46,7 +46,8 @@ Style anchors: classic MSDN Win32 reference pages (structure), Raymond Chen's *T
    └── validate-projects CLI ──▶ 03 validate_project tool wraps it (one impl, two surfaces)
 
 05 phase 0 (agent-tools registry + project-bridge) ──(independent; fixes live bugs)
-   └──▶ 05 phases 1–3 (WebMCP provider, consent, origin trial)
+   ├──▶ 05 phases 1–3 (WebMCP provider, consent, origin trial)
+   └──▶ 03 --live mode (imports the ToolSpec table via workspace dep)
 
 06 concept essays ──(independent; 01's Remarks link to them; 02 distributes them)
 

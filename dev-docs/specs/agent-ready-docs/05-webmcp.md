@@ -50,7 +50,7 @@ src/agent-tools/
 - **Canonical names are snake_case** (matches chat + MCP ecosystem); camelCase `ToolRegistry` names become deprecated aliases.
 - **project-bridge**: the editor registers `{getProject, applyModifications}` from a `useEffect` where ReactFlow context exists (the pattern ChatPanel already uses), following the established `window.__deckInstance` registration idiom but typed and module-scoped. This makes writes real for WS, stdio, and WebMCP simultaneously.
 
-**Migration of the three surfaces**: (1) `claude-client.ts` — replace inline `getTools()` (:383) with `toAnthropicTools(listToolSpecs())` and the `executeTool` method map (:568) with `executor.execute()`; chat-only context tools stay a chat-local extension array. (2) `worker-bridge.ts` — dispatch through `executor.execute(resolveAlias(name), args)`, delete its private MCPTools, and finally enforce `session.permissions` against `ToolSpec.tier` on non-localhost. (3) `mcp-proxy.js` / `noodles-mcp --live` — delete hard-coded schemas; add `TOOL_LIST`/`TOOL_LIST_RESPONSE` to `message-protocol.ts` so the bridge answers `tools/list` by querying the running browser (cached fallback when disconnected). Coordinate with sub-plan 03's `tool-defs.ts`: once this module exists, that file re-exports these specs.
+**Migration of the three surfaces**: (1) `claude-client.ts` — replace inline `getTools()` (:383) with `toAnthropicTools(listToolSpecs())` and the `executeTool` method map (:568) with `executor.execute()`; chat-only context tools stay a chat-local extension array. (2) `worker-bridge.ts` — dispatch through `executor.execute(resolveAlias(name), args)`, delete its private MCPTools, and finally enforce `session.permissions` against `ToolSpec.tier` on non-localhost. (3) `mcp-proxy.js` / `noodles-mcp --live` — delete hard-coded schemas; add `TOOL_LIST`/`TOOL_LIST_RESPONSE` to `message-protocol.ts` so the bridge answers `tools/list` by querying the running browser (cached fallback when disconnected). `noodles-mcp` (03) imports this table directly via workspace dep; there is no second copy — which requires the ToolSpec table file to be importable from plain Node (no app-bundle imports at module scope; executors bind at registration time).
 
 ### D2. WebMCP provider
 
@@ -107,7 +107,7 @@ If the origin trial lapses: Phases 0 and 2 remain fully valuable for the WS path
 
 ## Dependencies
 
-- Inbound: none for Phase 0. Coordinates with 03 (`tool-defs.ts` becomes a re-export), 04 (skills teach canonical snake_case names + `apply_modifications` shapes), 01/02 (get_documentation-style tools once bundles/pages exist).
+- Inbound: none for Phase 0. Outbound: 03's `--live` mode imports this module's ToolSpec table (Phase 0 must land first — it does, per the roadmap phasing), 04 (skills teach canonical snake_case names + `apply_modifications` shapes), 01/02 (get_documentation-style tools once bundles/pages exist).
 
 ## Open questions
 
