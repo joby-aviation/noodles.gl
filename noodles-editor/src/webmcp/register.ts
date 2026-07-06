@@ -42,7 +42,10 @@ export async function initWebMCP(signal: AbortSignal): Promise<void> {
 
   try {
     // Side-effect import: installs the navigator.modelContext polyfill and the
-    // transports that bridge tools to the WebMCP extension / local relay
+    // transports that bridge tools to the WebMCP extension / local relay.
+    // Note: zod-to-json-schema in package.json exists solely to satisfy this
+    // package's top-level optional-peer import — vite build fails without it,
+    // even though we only pass plain JSON Schema (its Zod path needs Zod 3)
     await import('@mcp-b/global')
 
     // Load the context bundles (code index, docs, examples) so the search/docs
@@ -66,6 +69,7 @@ export async function initWebMCP(signal: AbortSignal): Promise<void> {
         {
           name: definition.name,
           description: definition.description,
+          annotations: definition.annotations,
           inputSchema: definition.inputSchema as InputSchema,
           execute: async (args: Record<string, unknown>) =>
             toToolResponse(definition.name, await runTool(tools, definition, args ?? {})),

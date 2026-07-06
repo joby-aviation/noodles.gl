@@ -12,10 +12,21 @@ export interface ToolInputSchema {
   required?: string[]
 }
 
+// Behavior hints per the MCP/WebMCP ToolAnnotations spec. MCP clients use
+// these to decide which calls to auto-approve vs surface to the user, so
+// every definition must declare them — a new mutating tool can't silently
+// pass for read-only
+export interface ToolAnnotations {
+  readOnlyHint: boolean
+  destructiveHint?: boolean
+  idempotentHint?: boolean
+}
+
 export interface ToolDefinition {
   // snake_case, matches the in-app chat tool names
   name: string
   description: string
+  annotations: ToolAnnotations
   inputSchema: ToolInputSchema
   // false = executable but not offered to the in-app chat (keeps chat token budget unchanged)
   exposeToChat?: boolean
@@ -31,6 +42,7 @@ export const toolDefinitions: ToolDefinition[] = [
   // Visual debugging tools
   {
     name: 'capture_visualization',
+    annotations: { readOnlyHint: true },
     description:
       'Capture a screenshot of the current visualization. The screenshot will be attached to your next message so you can see it.',
     inputSchema: {
@@ -48,6 +60,7 @@ export const toolDefinitions: ToolDefinition[] = [
   },
   {
     name: 'get_console_errors',
+    annotations: { readOnlyHint: true },
     description: 'Get recent browser console errors and warnings',
     inputSchema: {
       type: 'object',
@@ -64,6 +77,7 @@ export const toolDefinitions: ToolDefinition[] = [
   },
   {
     name: 'get_render_stats',
+    annotations: { readOnlyHint: true },
     description: 'Get deck.gl rendering statistics',
     inputSchema: {
       type: 'object',
@@ -73,6 +87,7 @@ export const toolDefinitions: ToolDefinition[] = [
   },
   {
     name: 'inspect_layer',
+    annotations: { readOnlyHint: true },
     description: 'Get layer information',
     inputSchema: {
       type: 'object',
@@ -86,6 +101,7 @@ export const toolDefinitions: ToolDefinition[] = [
   // Project state tools
   {
     name: 'apply_modifications',
+    annotations: { readOnlyHint: false, destructiveHint: true },
     description:
       'Apply modifications to the project (add/update/delete nodes or edges). Use this instead of returning JSON in text.',
     inputSchema: {
@@ -117,6 +133,7 @@ export const toolDefinitions: ToolDefinition[] = [
   },
   {
     name: 'get_current_project',
+    annotations: { readOnlyHint: true },
     description: 'Get the current project state including all nodes and edges',
     inputSchema: {
       type: 'object',
@@ -126,6 +143,7 @@ export const toolDefinitions: ToolDefinition[] = [
   },
   {
     name: 'list_nodes',
+    annotations: { readOnlyHint: true },
     description: 'List all nodes in the project with their current state and execution status',
     inputSchema: {
       type: 'object',
@@ -135,6 +153,7 @@ export const toolDefinitions: ToolDefinition[] = [
   },
   {
     name: 'get_node_info',
+    annotations: { readOnlyHint: true },
     description: 'Get detailed information about a specific node including connections and schema',
     inputSchema: {
       type: 'object',
@@ -147,6 +166,7 @@ export const toolDefinitions: ToolDefinition[] = [
   },
   {
     name: 'get_node_output',
+    annotations: { readOnlyHint: true },
     description:
       'Read the output data from a specific operator/node. Useful for inspecting data at any point in the pipeline.',
     inputSchema: {
@@ -165,6 +185,7 @@ export const toolDefinitions: ToolDefinition[] = [
   // Timeline tools
   {
     name: 'get_timeline',
+    annotations: { readOnlyHint: true },
     description:
       'Get the current animation timeline state: sequence length, FPS, playback position, and all animated tracks with their keyframes. Use this before adding keyframes to understand the current animation.',
     inputSchema: {
@@ -175,6 +196,7 @@ export const toolDefinitions: ToolDefinition[] = [
   },
   {
     name: 'set_keyframe',
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
     description:
       'Add or update a keyframe on an animated field. Track IDs follow the pattern "operator-name / fieldName" (e.g. "my-layer / opacity"). Position is in seconds. Interpolation is "bezier" (smooth) or "hold" (step). If a keyframe already exists within 1 frame of the position, it will be updated.',
     inputSchema: {
@@ -206,6 +228,7 @@ export const toolDefinitions: ToolDefinition[] = [
   },
   {
     name: 'delete_keyframe',
+    annotations: { readOnlyHint: false, destructiveHint: true },
     description: 'Delete a specific keyframe by its ID. Use get_timeline to find keyframe IDs.',
     inputSchema: {
       type: 'object',
@@ -220,6 +243,7 @@ export const toolDefinitions: ToolDefinition[] = [
   },
   {
     name: 'set_playback_position',
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
     description:
       'Scrub the timeline to a specific time position (in seconds) for inspection. Optionally start or stop playback.',
     inputSchema: {
@@ -240,6 +264,7 @@ export const toolDefinitions: ToolDefinition[] = [
   // loop and WebMCP, but not offered in the chat's tool list to save tokens
   {
     name: 'search_code',
+    annotations: { readOnlyHint: true },
     description:
       'Search the Noodles.gl source code with a regex pattern. Returns matching lines with surrounding context.',
     inputSchema: {
@@ -260,6 +285,7 @@ export const toolDefinitions: ToolDefinition[] = [
   },
   {
     name: 'get_source_code',
+    annotations: { readOnlyHint: true },
     description: 'Get source code for a specific file, optionally limited to a line range',
     inputSchema: {
       type: 'object',
@@ -276,6 +302,7 @@ export const toolDefinitions: ToolDefinition[] = [
   },
   {
     name: 'get_operator_schema',
+    annotations: { readOnlyHint: true },
     description:
       'Get the input/output field schema for an operator type (e.g. FileOp, ScatterplotLayerOp)',
     inputSchema: {
@@ -290,6 +317,7 @@ export const toolDefinitions: ToolDefinition[] = [
   },
   {
     name: 'list_operators',
+    annotations: { readOnlyHint: true },
     description: 'List all available operator types, optionally filtered by category',
     inputSchema: {
       type: 'object',
@@ -302,6 +330,7 @@ export const toolDefinitions: ToolDefinition[] = [
   },
   {
     name: 'get_documentation',
+    annotations: { readOnlyHint: true },
     description: 'Search the Noodles.gl documentation',
     inputSchema: {
       type: 'object',
@@ -323,6 +352,7 @@ export const toolDefinitions: ToolDefinition[] = [
   },
   {
     name: 'get_example',
+    annotations: { readOnlyHint: true },
     description: 'Get an example project by ID, including its full node graph',
     inputSchema: {
       type: 'object',
@@ -336,6 +366,7 @@ export const toolDefinitions: ToolDefinition[] = [
   },
   {
     name: 'list_examples',
+    annotations: { readOnlyHint: true },
     description: 'List all example projects, optionally filtered by category or tag',
     inputSchema: {
       type: 'object',
@@ -349,6 +380,7 @@ export const toolDefinitions: ToolDefinition[] = [
   },
   {
     name: 'find_symbol',
+    annotations: { readOnlyHint: true },
     description: 'Find a symbol (class, function, type) by name in the Noodles.gl source code',
     inputSchema: {
       type: 'object',
@@ -362,6 +394,7 @@ export const toolDefinitions: ToolDefinition[] = [
   },
   {
     name: 'analyze_project',
+    annotations: { readOnlyHint: true },
     description: 'Analyze the current project for validation issues or performance problems',
     inputSchema: {
       type: 'object',

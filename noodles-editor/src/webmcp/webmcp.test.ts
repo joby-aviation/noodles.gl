@@ -48,6 +48,7 @@ vi.mock('../ai-chat/mcp-tools', () => {
 interface RegisteredTool {
   name: string
   description: string
+  annotations?: { readOnlyHint?: boolean; destructiveHint?: boolean }
   inputSchema: { type: string }
   execute: (args: Record<string, unknown>) => Promise<{
     content: Array<{ type: string; text?: string; data?: string; mimeType?: string }>
@@ -99,6 +100,15 @@ describe('initWebMCP', () => {
     for (const call of registerTool.mock.calls) {
       expect(call[1]?.signal).toBeInstanceOf(AbortSignal)
     }
+  })
+
+  it('passes behavior annotations through to registerTool', async () => {
+    await init()
+    for (const def of toolDefinitions) {
+      expect(getRegistered(def.name).annotations, def.name).toEqual(def.annotations)
+    }
+    expect(getRegistered('apply_modifications').annotations?.destructiveHint).toBe(true)
+    expect(getRegistered('list_nodes').annotations?.readOnlyHint).toBe(true)
   })
 
   it('skips re-initialization while already active', async () => {

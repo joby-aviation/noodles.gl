@@ -59,6 +59,24 @@ describe('toolDefinitions', () => {
     }
   })
 
+  it('marks exactly the mutating tools as non-read-only', () => {
+    const writeTools = toolDefinitions
+      .filter(d => d.annotations.readOnlyHint === false)
+      .map(d => d.name)
+    expect(writeTools.sort()).toEqual([
+      'apply_modifications',
+      'delete_keyframe',
+      'set_keyframe',
+      'set_playback_position',
+    ])
+  })
+
+  it('declares annotations on every definition', () => {
+    for (const def of toolDefinitions) {
+      expect(typeof def.annotations.readOnlyHint, def.name).toBe('boolean')
+    }
+  })
+
   it('only requires properties that exist in the schema', () => {
     for (const def of toolDefinitions) {
       for (const required of def.inputSchema.required ?? []) {

@@ -38,6 +38,12 @@ function loadRelayEmbed() {
 
 export const WebMCPProvider: FC = () => {
   useEffect(() => {
+    // An embedding page must not inherit the tool surface — only the top-level
+    // document the user explicitly opted into gets registered
+    if (window.self !== window.top) {
+      debugWebMCP('embedded in an iframe, skipping tool registration')
+      return
+    }
     const controller = new AbortController()
     initWebMCP(controller.signal).catch(error => {
       debugWebMCP('init failed:', error)
