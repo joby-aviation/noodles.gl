@@ -19,7 +19,8 @@ SKILL.md packages — modeled on shadcn's skills — that give coding agents the
 
 1. WHEN an agent with `noodles-authoring` installed is asked to create a Noodles visualization THEN it SHALL consult an authoritative schema source (MCP tool, published reference, or local registry) before writing any edge.
 2. WHEN an agent authors or modifies a project file THEN it SHALL validate the result with `validate-projects` (or the MCP `validate_project` tool) before delivering.
-3. WHEN an agent modifies an existing project THEN it SHALL preserve `timeline`, `viewport`, and unrecognized keys, SHALL NOT hand-bump `version`, and SHALL recompute edge ids when endpoints change.
+3. WHEN an agent modifies an existing project THEN it SHALL preserve everything it was not asked to change (`viewport`, unrecognized keys, untouched timeline tracks), SHALL NOT hand-bump `version`, and SHALL recompute edge ids when endpoints change.
+3a. WHEN an agent is asked to create or modify an animation THEN it SHALL treat the `timeline` key as a supported editing surface: edit against the documented format, maintain its invariants (sorted keyframes, unique ids, resolvable track paths), and validate afterward.
 4. WHEN a new migration lands (NOODLES_VERSION changes) THEN CI SHALL fail until the skills' generated blocks are regenerated.
 5. WHEN a Claude Code session opens in this repo THEN both skills SHALL be auto-discoverable via `.claude/skills/`.
 
@@ -48,7 +49,7 @@ A third skill would share 80% of its trigger surface with these two and cause ac
 
 ### D3. Content strategy: thin router
 
-**Inline in SKILL.md** (small, stable, or generator-injected): handle format (`out.<field>` / `par.<field>`, never `in.`); edge id formula `"{source}.{sourceHandle}->{target}.{targetHandle}"`; Unix-path node IDs; `@/` data-path prefix; `version` = current NOODLES_VERSION (injected, never hand-typed); graph design rules (5–8 nodes, CodeOp consolidation, standard pipeline `FileOp/DuckDbOp → CodeOp → AccessorOp → LayerOp → DeckRendererOp → OutOp`, always `MaplibreBasemapOp` for geo, left→right layout x+=350); "only serialize non-default inputs"; "never hand-edit `timeline`"; "preserve unknown keys".
+**Inline in SKILL.md** (small, stable, or generator-injected): handle format (`out.<field>` / `par.<field>`, never `in.`); edge id formula `"{source}.{sourceHandle}->{target}.{targetHandle}"`; Unix-path node IDs; `@/` data-path prefix; `version` = current NOODLES_VERSION (injected, never hand-typed); graph design rules (5–8 nodes, CodeOp consolidation, standard pipeline `FileOp/DuckDbOp → CodeOp → AccessorOp → LayerOp → DeckRendererOp → OutOp`, always `MaplibreBasemapOp` for geo, left→right layout x+=350); "only serialize non-default inputs"; timeline invariants (keyframes sorted by position, unique `kf_*`/`tm_*` ids, track paths must resolve, the `sheetsById.Noodles` nesting is legacy shape to preserve, not structure to reorganize); "preserve unknown keys".
 
 **Fetched, in priority order** (spelled out as a lookup table in the skill):
 1. MCP docs tools (`get_operator`, `validate_project`, `get_example`) if connected,
@@ -60,7 +61,7 @@ Graceful degradation means the skills ship **before** sub-plans 01–03 land; th
 ### D4. Validation loop: `npm run validate-projects`
 
 - New `noodles-editor/scripts/validate-project-files.ts` exporting `validateProject(json)`, plus `vite.config.validate.ts` (clone of `vite.config.migrate.ts`).
-- Checks: `version === NOODLES_VERSION` (error + "run `npm run migrate-projects`" hint); every `node.type` in `opTypes`; every input key exists on that operator; edges reference existing nodes; handle prefixes and real field names; canonical edge id; duplicate node ids; container path consistency. Nonzero exit, per-file diagnostics.
+- Checks: `version === NOODLES_VERSION` (error + "run `npm run migrate-projects`" hint); every `node.type` in `opTypes`; every input key exists on that operator; edges reference existing nodes; handle prefixes and real field names; canonical edge id; duplicate node ids; container path consistency; timeline integrity (track paths resolve, keyframes sorted, unique keyframe/marker ids, marker connections reference existing keyframes). Nonzero exit, per-file diagnostics.
 - npm script: `"validate-projects": "vite build --config vite.config.validate.ts && node dist/validate-project-files.js"`, accepting paths (default: `src/examples` + `public/noodles`).
 - **Sub-plan 03's `validate_project` MCP tool wraps this same rule set** — one implementation, two surfaces (03 carries the dependency-free lint; this CLI adds runtime-only checks).
 - Interim fallback documented in the skill until the CLI lands: `npm test src/noodles/utils/examples-version.test.ts src/noodles/storage.test.ts`.
@@ -95,12 +96,13 @@ description: >
 2. **Project file invariants** — generated block: version; node/edge shapes with the edge-id formula; `out.`/`par.` rules with the WRONG-examples table from system-prompt.md; Unix-path ids; `@/` prefix; non-default inputs only.
 3. **Graph design rules** — generated block extracted from system-prompt.md.
 4. **Creating a new project** — start from `references/minimal-project.json`; per-operator schema lookup; wire edges; descriptive node names (`/earthquake-data`, not `/node-1`); place in `src/examples/<name>/` with data beside it.
-5. **Modifying an existing project** — read whole file first; if `version <` current, `npm run migrate-projects` before editing, never hand-bump; preserve `timeline`/`viewport`/unknown keys; inputs merge; recompute edge ids; timeline edits → point to noodles-live.
+5. **Modifying an existing project** — read whole file first; if `version <` current, `npm run migrate-projects` before editing, never hand-bump; preserve `viewport`/unknown keys and any timeline tracks you weren't asked to touch; inputs merge; recompute edge ids.
+5a. **Animating** — the `timeline` key is yours to edit: the format reference (`references/timeline-format.md`, generated from `src/timeline/types.ts`) shows the track/keyframe/handle shapes with a worked zoom-animation example. Maintain the invariants (sorted keyframes, unique ids, resolvable track paths), validate afterward, and scrub the result in the app. When a live session is available, the `set_keyframe` tools are the ergonomic path (they maintain ids and sorting for you), but they are a convenience, not a boundary.
 6. **Validate before you're done** — `cd noodles-editor && npm run validate-projects <path>` (or MCP `validate_project`); error→fix table; then load `http://localhost:5173/examples/<name>`.
 7. **Common mistakes** — `in.`/bare handles, missing DeckRenderer/Out terminus, stale edge ids, invented `get*` field names, edited version.
 8. **Deeper references** — `references/project-format.md`, `references/graph-recipes.md`, docs URLs, examples index (generated).
 
-Supporting files: `references/project-format.md` (full serialization detail: containers, GraphInput/GraphOutput, timeline shape read-only, path prefixes); `references/graph-recipes.md` (per-CUJ node+edge JSON skeletons distilled from `critical-user-journeys.md`: points, arcs, polygons, heatmap, SQL pipelines); `references/minimal-project.json` (generated, CI-validated).
+Supporting files: `references/project-format.md` (full serialization detail: containers, GraphInput/GraphOutput, path prefixes); `references/timeline-format.md` (generated from `src/timeline/types.ts`: track/keyframe/handle/marker shapes, invariants, and a worked two-keyframe animation example); `references/graph-recipes.md` (per-CUJ node+edge JSON skeletons distilled from `critical-user-journeys.md`: points, arcs, polygons, heatmap, SQL pipelines); `references/minimal-project.json` (generated, CI-validated).
 
 ### `skills/noodles-live/SKILL.md`
 
@@ -121,7 +123,7 @@ description: >
 3. **Read before write** — always list+inspect before mutating; after adding a data node, `get_node_output` to verify structure before building layers.
 4. **Update the source node** — trace edges and mutate the upstream source's input, not the connected target handle (the ColorOp-vs-`getFillColor` rule).
 5. **Debugging runbook** — `get_console_errors` → graph completeness → edges attached → common causes (missing edges, opacity 0, bad accessor, disconnected renderer) → screenshot last.
-6. **Timeline/animation** — timeline tools, never JSON edits.
+6. **Timeline/animation** — prefer the live timeline tools here (they maintain keyframe ids and sort order for you, and you see the result scrub immediately); durable or bulk animation edits can also go through the JSON per `noodles-authoring`'s timeline reference.
 7. **When to switch modes** — durable file changes / bulk refactors → save and switch to `noodles-authoring`; skills cross-reference each other.
 
 Supporting file: `references/tool-catalog.md` (generated).
@@ -138,7 +140,8 @@ Supporting file: `references/tool-catalog.md` (generated).
 ## Verification
 
 1. Fresh agent, empty dir, `noodles-authoring` only: "plot California earthquakes as a scatterplot" with the example's data file — assert it consulted schemas before wiring; output validates; version current; loads at `localhost:5173` rendering points.
-2. Modify test: hand it `uk-commute`, "make arcs red and thicker" — source-node edit, timeline untouched, still validates.
+2. Modify test: hand it `uk-commute`, "make arcs red and thicker" — source-node edit, timeline untouched (nothing about the ask involves animation), still validates.
+2a. Animation test: hand it a project with an existing camera animation, "make the zoom-in take twice as long" — keyframe positions rescaled in the timeline JSON, ids and sort order intact, validates, and scrubs correctly in the app.
 3. Live test: `?externalControl=true` + proxy + `noodles-live`: a color change and a "why is it blank" debug.
 4. Rot test: simulate a `015-*.ts` migration → CI `--check` fails.
 

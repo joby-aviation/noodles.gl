@@ -63,7 +63,7 @@ Each task file contains: the user prompt (verbatim, realistic), input data (or a
 | `debug-blank-viz` | 3 | A seeded-broken project (disconnected renderer + bad accessor) + "why is this blank?" | both defects identified; fix validates and renders |
 | `sql-h3-pipeline` | 3 | "Aggregate these points into H3 hexagons colored by count, using SQL" | validates; DuckDbOp + H3HexagonLayerOp wired; renders |
 | `contextualize-operator` | 2 | 10 factual questions with ground-truth answers ("what are TripsLayer's inputs and defaults?", "what does `sizeUnits: 'common'` mean?", "what changed about MapStyleOp?") | answer accuracy vs answer key |
-| `animate-camera` | 3/4 | "Animate the camera from SF to LA over 5 seconds" | keyframes present via legitimate means; no hand-edited `timeline` JSON |
+| `animate-camera` | 3/4 | "Animate the camera from SF to LA over 5 seconds" | valid keyframes present (direct `timeline` JSON edits are a legitimate path); track paths resolve; keyframes sorted, ids unique; animation scrubs in the app |
 | `live-drive` | 4 | (tier 5+) "In the running app, change the point color and tell me the FPS" | correct tool calls; graph actually mutated; no guessed handle names |
 
 Seeded-broken fixtures and answer keys live under `evals/tasks/fixtures/`. Tasks are **versioned**; a changed task starts a new comparison series (never silently edit a task mid-season).
@@ -83,7 +83,7 @@ Tiers are enforced by environment construction, not by asking the agent to absta
 
 ### D4. Grading: three layers, strictly ordered
 
-**Layer 1 — mechanical (objective, cheap, runs first).** Per task: `validateProject()` (04's CLI), project loads in the app under Playwright without console errors, screenshot is non-blank (pixel-variance threshold) and — where a task defines one — perceptually similar to a golden reference; required node types present; forbidden actions absent (hand-edited `timeline`, hand-bumped `version`). **A mechanical failure caps the task score at 40%** — a beautiful transcript that produced an invalid file is a failure with good manners.
+**Layer 1 — mechanical (objective, cheap, runs first).** Per task: `validateProject()` (04's CLI), project loads in the app under Playwright without console errors, screenshot is non-blank (pixel-variance threshold) and — where a task defines one — perceptually similar to a golden reference; required node types present; forbidden actions absent (hand-bumped `version`, malformed timeline edits: unsorted keyframes, dangling marker connections, unresolvable track paths). **A mechanical failure caps the task score at 40%** — a beautiful transcript that produced an invalid file is a failure with good manners.
 
 **Layer 2 — rubric LLM judge (subjective, structured).** Rubric dimensions, weighted per task family (weights in the YAML, not the judge's discretion):
 
