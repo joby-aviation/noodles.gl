@@ -1,0 +1,333 @@
+{
+ "row": {
+  "rowId": "debug-blank-viz--claude-opus-4-8--s2@r1.2026-07-06T08:05:34.274Z",
+  "series": "2026-07-06.t0.83ff1c128a7a",
+  "runId": "debug-blank-viz--claude-opus-4-8--s2",
+  "artifactsRef": "2026-07-06.t0.83ff1c128a7a/runs/debug-blank-viz--claude-opus-4-8--s2",
+  "commit": "83ff1c128a7a589ac95336db37b4f8d56a7dcf77",
+  "tier": "T0",
+  "taskId": "debug-blank-viz",
+  "taskVersion": 1,
+  "validatorVersion": "interim-2",
+  "kind": "fresh",
+  "gradedAt": "2026-07-06T08:05:34.274Z",
+  "rubricVersion": 1,
+  "judgeModel": "us.anthropic.claude-opus-4-8",
+  "sessionModel": "us.anthropic.claude-opus-4-8",
+  "provider": "bedrock",
+  "region": "us-west-2",
+  "isolationAudit": "pass",
+  "scores": {
+   "mechanical": 4,
+   "judge": 3.7,
+   "total": 3.85,
+   "process": {
+    "toolCalls": 14,
+    "lookups": 12,
+    "hallucinatedHandles": 0,
+    "lookupPrecededEdgeRatio": 1,
+    "identicalLookupRepetitions": 0,
+    "toolErrorCount": 0
+   }
+  },
+  "cost": {
+   "sessionUsd": 0.5826735000000001,
+   "judgeUsd": null
+  },
+  "lane": "milestone"
+ },
+ "judge": {
+  "perDimension": {
+   "correctness_of_result": {
+    "samples": [
+     3,
+     3,
+     4
+    ],
+    "median": 3
+   },
+   "tool_use_discipline": {
+    "samples": [
+     4,
+     4,
+     4
+    ],
+    "median": 4
+   },
+   "edit_hygiene": {
+    "samples": [
+     4,
+     4,
+     4
+    ],
+    "median": 4
+   },
+   "graph_design_conformance": {
+    "samples": [
+     4,
+     4,
+     4
+    ],
+    "median": 4
+   },
+   "efficiency": {
+    "samples": [
+     4,
+     4,
+     4
+    ],
+    "median": 4
+   },
+   "honesty": {
+    "samples": [
+     4,
+     4,
+     4
+    ],
+    "median": 4
+   }
+  },
+  "samples": [
+   {
+    "dimensions": {
+     "correctness_of_result": {
+      "style": "anchors",
+      "level": 3,
+      "evidence": "\"custom:renderer-edge-restored\": edges into /deck.par.layers from: /scatterplot-layer; \"custom:accessor-columns-fixed\": position accessor expression: \"[d.Longitude, d.Latitude]\" — both bugs fixed and screenshotNonBlank pass (pixel stddev 22.41). Final answer identifies both root causes (L419)"
+     },
+     "tool_use_discipline": {
+      "style": "checklist",
+      "criteria": {
+       "applied-what-it-read": {
+        "verdict": "pass",
+        "evidence": "After reading DeckRendererOp inputs (\"layers: new ListField(new LayerField())\", L3913) and ScatterplotLayerOp outputs (\"layer: new LayerField<ScatterplotLayerProps>()\", L280), it wrote the edge with sourceHandle \"out.layer\" and targetHandle \"par.layers\" (L390)"
+       },
+       "authoritative-source-choice": {
+        "verdict": "pass",
+        "evidence": "Preferred operators.ts for handle/schema facts — \"Let me verify against the operator definitions\" (L156) and grep of DeckRendererOp/ScatterplotLayerOp (L157, L241); used the california example only to confirm edge format after (L350)"
+       },
+       "purposeful-verification": {
+        "verdict": "pass",
+        "evidence": "Inspected CSV headers \"DateTime,Latitude,Longitude,...\" (L148) then verified d3.autoType path \"parseFn = ... ? d3.autoType : null\" (L312), which fed the casing fix at L393"
+       }
+      }
+     },
+     "edit_hygiene": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "Two targeted Edits: inserting the missing edge (L390) and changing \"[d.longitude, d.latitude]\" to \"[d.Longitude, d.Latitude]\" (L393). Unknown keys preserved — timeline, viewport, editorSettings all intact (noodles.json:81, noodles.json:269). A reviewer reading the diff reconstructs exactly the two-bug fix"
+     },
+     "graph_design_conformance": {
+      "style": "checklist",
+      "criteria": {
+       "readable-scale": {
+        "verdict": "pass",
+        "evidence": "Graph is ~11 nodes (deck, out, data-source, scatterplot-layer, position-accessor, magnitude-color, magnitude-accessor, map-range, sqrt, multiply, maplibre-basemap) but session preserved the existing structure rather than sprawling; no single-purpose node churn (noodles.json:92-267)"
+       },
+       "standard-pipeline": {
+        "verdict": "pass",
+        "evidence": "Restored the documented shape: data-source into scatterplot-layer into deck into out, with accessors feeding the layer (noodles.json:2-79)"
+       },
+       "basemap-for-geo": {
+        "verdict": "pass",
+        "evidence": "\"/maplibre-basemap.out.maplibre->/deck.par.basemap\" edge present (noodles.json:53)"
+       },
+       "sensible-node-names": {
+        "verdict": "pass",
+        "evidence": "Node ids describe roles: /position-accessor, /magnitude-accessor, /data-source, /scatterplot-layer (noodles.json:130, 162, 190, 145)"
+       }
+      }
+     },
+     "efficiency": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "14 tool calls, 0 errors, 0 identical repetitions (processMetrics). Sequenced schema/data inspection before edits: read schema (L159), CSV headers (L148), autoType path (L312), then made both fixes and validated JSON (L396) — failures would surface at the earliest checkable point"
+     },
+     "honesty": {
+      "style": "checklist",
+      "criteria": {
+       "claims-match-artifacts": {
+        "verdict": "pass",
+        "evidence": "Claims layer edge added — matches noodles.json:4-9; claims accessor fixed to \"[d.Longitude, d.Latitude]\" (L419) — matches noodles.json:166"
+       },
+       "uncertainty-disclosed": {
+        "verdict": "pass",
+        "evidence": "Did not assert visual verification it couldn't perform: \"Load /examples/quake-map-broken in the browser to visually verify the earthquake points now render\" (L423)"
+       }
+      }
+     }
+    },
+    "citationCheck": {
+     "checked": 27,
+     "resolved": 26,
+     "unresolved": [
+      "L3913 > transcript length 449"
+     ]
+    }
+   },
+   {
+    "dimensions": {
+     "correctness_of_result": {
+      "style": "anchors",
+      "level": 3,
+      "evidence": "Mechanical checks confirm both fixes landed: \"edges into /deck.par.layers from: /scatterplot-layer\" and \"position accessor expression: \\\"[d.Longitude, d.Latitude]\\\"\", with screenshotNonBlank pass (pixel stddev 22.41). The two root causes were correctly identified and repaired (L405, L419)."
+     },
+     "tool_use_discipline": {
+      "style": "checklist",
+      "criteria": {
+       "applied-what-it-read": {
+        "verdict": "pass",
+        "evidence": "Read of ScatterplotLayerOp createOutputs confirmed the handle name before writing the edge: \"layer: new LayerField<ScatterplotLayerProps>()\" (L280) then wrote \"sourceHandle\": \"out.layer\" (noodles.json:7); read of FileOp confirmed autoType preserves casing: \"const parseFn = this.inputs.autoType.value ? d3.autoType : null\" (L312) shaping the casing fix (L419)."
+       },
+       "authoritative-source-choice": {
+        "verdict": "pass",
+        "evidence": "Preferred operators.ts over examples for the schema: \"grep -rn \\\"class DeckRendererOp\\\" src/\" (L157) and read operators.ts directly (L159); used the california-earthquakes example only as confirmation afterward (L366)."
+       },
+       "purposeful-verification": {
+        "verdict": "pass",
+        "evidence": "Inspection of CSV headers fed the diagnosis: \"DateTime,Latitude,Longitude,...,Magnitude\" (L148) directly informed \"the CSV columns are Longitude and Latitude (capitalized)\" (L419); grep -c \"layers\" returning 0 (L386) confirmed the missing edge before the edit."
+       }
+      }
+     },
+     "edit_hygiene": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "Two surgical Edit calls with precise old/new strings — inserted the layer edge (L390) and changed only the accessor casing (L393). All unknown keys preserved (timeline noodles.json:269, viewport noodles.json:81). A reviewer reading the diff can reconstruct exactly what was requested: add missing edge, fix column casing."
+     },
+     "graph_design_conformance": {
+      "style": "checklist",
+      "criteria": {
+       "readable-scale": {
+        "verdict": "pass",
+        "evidence": "Graph has ~11 purposeful nodes for a full sizing+coloring pipeline (deck, out, data-source, scatterplot-layer, position-accessor, magnitude-color, magnitude-accessor, map-range, sqrt, multiply, maplibre-basemap) (noodles.json:92-267); the agent did not add or remove nodes, only restored one edge."
+       },
+       "standard-pipeline": {
+        "verdict": "pass",
+        "evidence": "Restored the documented source→layer→renderer→out topology: \"/scatterplot-layer.out.layer->/deck.par.layers\" (noodles.json:4) and \"/deck.out.vis->/out.par.vis\" (noodles.json:11)."
+       },
+       "basemap-for-geo": {
+        "verdict": "pass",
+        "evidence": "Basemap operator wired to renderer: \"/maplibre-basemap.out.maplibre->/deck.par.basemap\" (noodles.json:53)."
+       },
+       "sensible-node-names": {
+        "verdict": "pass",
+        "evidence": "Node ids describe roles: \"/position-accessor\" (noodles.json:162), \"/magnitude-accessor\" (noodles.json:190), \"/data-source\" (noodles.json:130) — preserved, not renamed."
+       }
+      }
+     },
+     "efficiency": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "14 tool calls, no repeated reads, no tool errors (processMetrics). Sequenced schema/data inspection before edits: read the file (L3), inspected CSV + operator schemas (L147-L332), confirmed the missing edge (L386), then made both edits and validated JSON (L396). Failures would have been caught earliest — schema and column casing verified before writing."
+     },
+     "honesty": {
+      "style": "checklist",
+      "criteria": {
+       "claims-match-artifacts": {
+        "verdict": "pass",
+        "evidence": "Claim \"I added it\" with the layer edge (L407) matches noodles.json:4-8; claim \"Fixed to [d.Longitude, d.Latitude]\" (L419) matches noodles.json:166."
+       },
+       "uncertainty-disclosed": {
+        "verdict": "pass",
+        "evidence": "Did not overclaim visual verification, instead: \"Load /examples/quake-map-broken in the browser to visually verify the earthquake points now render over California\" (L423) — the browser render was not run by the agent and it says so."
+       }
+      }
+     }
+    },
+    "citationCheck": {
+     "checked": 33,
+     "resolved": 33,
+     "unresolved": []
+    }
+   },
+   {
+    "dimensions": {
+     "correctness_of_result": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "Both root causes fixed and verified mechanically: \"edges into /deck.par.layers from: /scatterplot-layer\" and \"position accessor expression: \\\"[d.Longitude, d.Latitude]\\\"\"; the agent also caught two independent bugs \"either of which alone would produce a blank map\" (L402), showing judgment beyond fixing only the first symptom."
+     },
+     "tool_use_discipline": {
+      "style": "checklist",
+      "criteria": {
+       "applied-what-it-read": {
+        "verdict": "pass",
+        "evidence": "After reading DeckRendererOp inputs (\"layers: new ListField(new LayerField())\" L3913) and ScatterplotLayerOp outputs (\"layer: new LayerField<ScatterplotLayerProps>()\" L4999) it wrote the edge with exactly those handles: \"sourceHandle\": \"out.layer\", \"targetHandle\": \"par.layers\" (noodles.json:7-8)"
+       },
+       "authoritative-source-choice": {
+        "verdict": "pass",
+        "evidence": "The agent grepped and read operators.ts for the definitive handle/parse behavior — \"grep -rn \\\"class DeckRendererOp\\\" src/\" (L157) and confirmed d3.autoType parsing \"return await csv(url, parseFn)\" (L1922) — before falling back to the sibling example for cross-check."
+       },
+       "purposeful-verification": {
+        "verdict": "pass",
+        "evidence": "The CSV header inspection directly drove the casing fix: \"DateTime,Latitude,Longitude,...\" (L148) led to \"Wrong column casing in the position accessor\" (L418); and \"grep -c \\\"layers\\\"\" returning \"0\" (L385-386) confirmed the missing edge before the edit."
+       }
+      }
+     },
+     "edit_hygiene": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "Two surgical string-replace edits — inserting the one edge block (L390) and flipping the accessor casing \"[d.longitude, d.latitude]\" -> \"[d.Longitude, d.Latitude]\" (L393) — with all other keys (timeline, viewport, editorSettings) preserved intact (noodles.json:269-279); a reviewer reading only the diff can reconstruct the request."
+     },
+     "graph_design_conformance": {
+      "style": "checklist",
+      "criteria": {
+       "readable-scale": {
+        "verdict": "pass",
+        "evidence": "The graph is a fixed pre-existing set of ~11 role nodes (data-source, scatterplot-layer, accessors, math, deck, out) and the agent added no new nodes — \"scatterplot-layer\" (noodles.json:145), \"position-accessor\" (noodles.json:162), etc."
+       },
+       "standard-pipeline": {
+        "verdict": "pass",
+        "evidence": "Restored the documented shape: data-source -> scatterplot-layer -> deck -> out, with the fix being the layer->renderer edge \"/scatterplot-layer.out.layer->/deck.par.layers\" (noodles.json:4)"
+       },
+       "basemap-for-geo": {
+        "verdict": "pass",
+        "evidence": "Basemap present and wired: \"/maplibre-basemap.out.maplibre->/deck.par.basemap\" (noodles.json:53)"
+       },
+       "sensible-node-names": {
+        "verdict": "pass",
+        "evidence": "Node ids describe roles, e.g. \"id\": \"/position-accessor\" (noodles.json:162) and \"id\": \"/magnitude-accessor\" (noodles.json:190)"
+       }
+      }
+     },
+     "efficiency": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "14 tool calls, no repeats: read the file, inspected CSV headers, then verified operator schemas before edits (schema at L157-159 before writing the edge at L390), inspected data casing before the accessor fix — failures would surface earliest. \"identicalLookupRepetitions\": 0, \"toolErrorCount\": 0."
+     },
+     "honesty": {
+      "style": "checklist",
+      "criteria": {
+       "claims-match-artifacts": {
+        "verdict": "pass",
+        "evidence": "Claim \"I added it\" with the edge block (L407) matches noodles.json:4-9; claim \"Fixed to [d.Longitude, d.Latitude]\" (L419) matches noodles.json:166."
+       },
+       "uncertainty-disclosed": {
+        "verdict": "pass",
+        "evidence": "Rather than asserting the visual render as done, the agent defers to browser check: \"Load /examples/quake-map-broken in the browser to visually verify the earthquake points now render\" (L423)"
+       }
+      }
+     }
+    },
+    "citationCheck": {
+     "checked": 25,
+     "resolved": 22,
+     "unresolved": [
+      "L3913 > transcript length 449",
+      "L4999 > transcript length 449",
+      "L1922 > transcript length 449"
+     ]
+    }
+   }
+  ]
+ },
+ "answersJudged": null,
+ "processMetrics": {
+  "toolCalls": 14,
+  "lookups": 12,
+  "hallucinatedHandles": [],
+  "lookupPrecededEdgeRatio": 1,
+  "identicalLookupRepetitions": 0,
+  "toolErrorCount": 0
+ }
+}

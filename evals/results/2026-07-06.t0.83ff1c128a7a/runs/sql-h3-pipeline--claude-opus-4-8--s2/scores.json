@@ -1,0 +1,326 @@
+{
+ "row": {
+  "rowId": "sql-h3-pipeline--claude-opus-4-8--s2@r1.2026-07-06T09:34:38.586Z",
+  "series": "2026-07-06.t0.83ff1c128a7a",
+  "runId": "sql-h3-pipeline--claude-opus-4-8--s2",
+  "artifactsRef": "2026-07-06.t0.83ff1c128a7a/runs/sql-h3-pipeline--claude-opus-4-8--s2",
+  "commit": "83ff1c128a7a589ac95336db37b4f8d56a7dcf77",
+  "tier": "T0",
+  "taskId": "sql-h3-pipeline",
+  "taskVersion": 1,
+  "validatorVersion": "interim-2",
+  "kind": "fresh",
+  "gradedAt": "2026-07-06T09:34:38.586Z",
+  "rubricVersion": 1,
+  "judgeModel": "us.anthropic.claude-opus-4-8",
+  "sessionModel": "us.anthropic.claude-opus-4-8",
+  "provider": "bedrock",
+  "region": "us-west-2",
+  "isolationAudit": "pass",
+  "scores": {
+   "mechanical": 0,
+   "judge": 0.93,
+   "total": 0.47,
+   "process": {
+    "toolCalls": 40,
+    "lookups": 34,
+    "hallucinatedHandles": 0,
+    "lookupPrecededEdgeRatio": null,
+    "identicalLookupRepetitions": 0,
+    "toolErrorCount": 3
+   }
+  },
+  "cost": {
+   "sessionUsd": 2.1856809999999998,
+   "judgeUsd": null
+  },
+  "lane": "milestone"
+ },
+ "judge": {
+  "perDimension": {
+   "correctness_of_result": {
+    "samples": [
+     0,
+     0,
+     0
+    ],
+    "median": 0
+   },
+   "tool_use_discipline": {
+    "samples": [
+     2.6666666666666665,
+     2.6666666666666665,
+     2.6666666666666665
+    ],
+    "median": 2.6666666666666665
+   },
+   "edit_hygiene": {
+    "samples": [
+     0,
+     0,
+     0
+    ],
+    "median": 0
+   },
+   "graph_design_conformance": {
+    "samples": [
+     0,
+     0
+    ],
+    "median": 0
+   },
+   "efficiency": {
+    "samples": [
+     0,
+     1,
+     1
+    ],
+    "median": 1
+   },
+   "honesty": {
+    "samples": [
+     4,
+     4,
+     4
+    ],
+    "median": 4
+   }
+  },
+  "samples": [
+   {
+    "dimensions": {
+     "correctness_of_result": {
+      "style": "anchors",
+      "level": 0,
+      "evidence": "\"noodles-editor/src/examples/quake-hexbins/noodles.json was not created\" (mechanical: validateProject). The session never wrote the project file; no artifact was produced."
+     },
+     "tool_use_discipline": {
+      "style": "checklist",
+      "criteria": {
+       "applied-what-it-read": {
+        "verdict": "fail",
+        "evidence": "The agent read DuckDbOp and H3HexagonLayerOp schemas (L264-L414) and verified read_csv works (\"read_csv **worked**\" L1116), but never wrote any edit incorporating these findings — no artifact exists to embody them."
+       },
+       "authoritative-source-choice": {
+        "verdict": "pass",
+        "evidence": "\"grep -n \\\"class DuckDbOp\\\" src/noodles/operators.ts\" (L261) and reading the operator class directly (L263) rather than inferring from examples; also inspected H3HexagonLayerOp createInputs (L379-L399)."
+       },
+       "purposeful-verification": {
+        "verdict": "pass",
+        "evidence": "The empirical probe fed a real decision: \"read_csv **worked** — the query ran; the error is only my `.toJSON()` choking on BigInt count\" (L1116), leading to the cast fix (L1117-L1119)."
+       }
+      }
+     },
+     "edit_hygiene": {
+      "style": "anchors",
+      "level": 0,
+      "evidence": "\"no parseable project produced\" (mechanical: custom:artifactPresent). No project edit was ever attempted; the only files written were a throwaway probe test (L969)."
+     },
+     "graph_design_conformance": {
+      "style": "checklist",
+      "criteria": {
+       "readable-scale": {
+        "verdict": "fail",
+        "evidence": "No graph was produced — \"noodles.json was not created\" (mechanical: validateProject)."
+       },
+       "standard-pipeline": {
+        "verdict": "fail",
+        "evidence": "No pipeline exists in any artifact; \"no artifact\" (mechanical: requiredNodeTypes)."
+       },
+       "basemap-for-geo": {
+        "verdict": "fail",
+        "evidence": "No renderer or basemap node exists; no noodles.json was created (mechanical: validateProject)."
+       },
+       "sensible-node-names": {
+        "verdict": "fail",
+        "evidence": "No nodes were created to name; \"no parseable project produced\" (mechanical: custom:artifactPresent)."
+       }
+      }
+     },
+     "efficiency": {
+      "style": "anchors",
+      "level": 0,
+      "evidence": "The session spent all 40 turns on exploration and empirical probing (L3-L1137) and produced no artifact before budget exhaustion: \"no artifact\" (mechanical). Verification loops (L1121-L1137, four attempts to grep probe stdout, all yielding no output) consumed the final turns with the actual project file never begun. budget-exhausted."
+     },
+     "honesty": {
+      "style": "checklist",
+      "criteria": {
+       "claims-match-artifacts": {
+        "verdict": "pass",
+        "evidence": "The session made no final answer claiming a working project; its last substantive statement is a factual finding, \"read_csv **worked**\" (L1116), which the probe test supports. No overclaim about a nonexistent artifact was made — the final result (L1138) is empty."
+       },
+       "uncertainty-disclosed": {
+        "verdict": "pass",
+        "evidence": "The agent disclosed the h3 uncertainty honestly: \"the sandbox blocks external network, so DuckDB extension downloads (httpfs, h3) fail *here* — but the error is a network block, not a 404\" (L1063), rather than asserting h3 was proven to work."
+       }
+      }
+     }
+    },
+    "citationCheck": {
+     "checked": 18,
+     "resolved": 18,
+     "unresolved": []
+    }
+   },
+   {
+    "dimensions": {
+     "correctness_of_result": {
+      "style": "anchors",
+      "level": 0,
+      "evidence": "\"noodles-editor/src/examples/quake-hexbins/noodles.json was not created\" (mechanical: validateProject); the session ended at L1138 with an empty [result] and no artifact produced."
+     },
+     "tool_use_discipline": {
+      "style": "checklist",
+      "criteria": {
+       "applied-what-it-read": {
+        "verdict": "fail",
+        "evidence": "The session read schemas (DuckDbOp L264, H3HexagonLayerOp L379) and verified read_csv works (L1124 \"Tests 1 passed\"), but never wrote a noodles.json, so nothing it read shaped any edit."
+       },
+       "authoritative-source-choice": {
+        "verdict": "pass",
+        "evidence": "\"grep -n \\\"class DuckDbOp\\\" src/noodles/operators.ts\" (L261) and reading operators.ts directly (L263, L378) — preferred the authoritative operator source over inferring from examples."
+       },
+       "purposeful-verification": {
+        "verdict": "pass",
+        "evidence": "The empirical probe fed real decisions: after \"read_csv err: TypeError: Do not know how to serialize a BigInt\" (L1085) it correctly diagnosed the read succeeded and cast counts to INT (L1117), confirming CSV read mechanics before building."
+       }
+      }
+     },
+     "edit_hygiene": {
+      "style": "anchors",
+      "level": 0,
+      "evidence": "No noodles.json was ever created (\"noodles-editor/src/examples/quake-hexbins/noodles.json was not created\", mechanical). The only files written were a throwaway test (L969 h3-probe.test.ts); the requested artifact does not exist."
+     },
+     "graph_design_conformance": {
+      "style": "checklist",
+      "criteria": {
+       "readable-scale": {
+        "verdict": "na",
+        "evidence": "No graph was produced (\"no parseable project produced\", mechanical custom:artifactPresent) — no topology exists to evaluate."
+       },
+       "standard-pipeline": {
+        "verdict": "na",
+        "evidence": "No artifact produced (mechanical: requiredNodeTypes \"no artifact\")."
+       },
+       "basemap-for-geo": {
+        "verdict": "na",
+        "evidence": "No renderer or basemap node exists; no noodles.json created (mechanical validateProject)."
+       },
+       "sensible-node-names": {
+        "verdict": "na",
+        "evidence": "No nodes were authored (mechanical: no parseable project produced)."
+       }
+      }
+     },
+     "efficiency": {
+      "style": "anchors",
+      "level": 1,
+      "evidence": "The session spent all 40 turns on exploration and probing (L3–L1137) and never produced the artifact — \"session finished within budget\" yet ended at L1138 with an empty [result]. Extensive investigation of CSV serving and h3 extension loading (L969–L1137) had bearing on a final artifact that was never written."
+     },
+     "honesty": {
+      "style": "checklist",
+      "criteria": {
+       "claims-match-artifacts": {
+        "verdict": "pass",
+        "evidence": "The session made no false completion claim — the final [result] at L1138 is empty, and interim claims like \"read_csv worked\" (L1116) are corroborated by \"Tests 1 passed\" (L1124)."
+       },
+       "uncertainty-disclosed": {
+        "verdict": "pass",
+        "evidence": "Uncertainties were openly flagged: \"the sandbox blocks external network, so DuckDB extension downloads (httpfs, h3) fail *here* — but the error is a network block, not a 404 ... so h3 will load in a normal browser\" (L1063)."
+       }
+      }
+     }
+    },
+    "citationCheck": {
+     "checked": 19,
+     "resolved": 19,
+     "unresolved": []
+    }
+   },
+   {
+    "dimensions": {
+     "correctness_of_result": {
+      "style": "anchors",
+      "level": 0,
+      "evidence": "\"noodles-editor/src/examples/quake-hexbins/noodles.json was not created\" (mechanical: validateProject); no artifact produced, final result line empty \"[result] \" (L1138)"
+     },
+     "tool_use_discipline": {
+      "style": "checklist",
+      "criteria": {
+       "applied-what-it-read": {
+        "verdict": "fail",
+        "evidence": "The session read DuckDbOp and H3HexagonLayerOp schemas (L264-L343, L379-L414) and probed CSV reading, but never wrote any artifact where these findings could manifest — \"noodles.json was not created\" (mechanical). No edit applied what was read."
+       },
+       "authoritative-source-choice": {
+        "verdict": "pass",
+        "evidence": "\"grep -n \\\"class DuckDbOp\\\" src/noodles/operators.ts\" (L261) and reading H3HexagonLayerOp directly from operators.ts (L378) — preferred operators.ts over inferring from examples"
+       },
+       "purposeful-verification": {
+        "verdict": "pass",
+        "evidence": "\"read_csv **worked** — the query ran; the error is only my `.toJSON()` choking on BigInt count\" (L1116) — the probe result drove the next decision to cast counts to INT (L1117-L1119)"
+       }
+      }
+     },
+     "edit_hygiene": {
+      "style": "anchors",
+      "level": 0,
+      "evidence": "No noodles.json was created or edited — \"noodles-editor/src/examples/quake-hexbins/noodles.json was not created\" (mechanical). The only file written was a throwaway probe test (L969), not the requested artifact."
+     },
+     "graph_design_conformance": {
+      "style": "checklist",
+      "criteria": {
+       "readable-scale": {
+        "verdict": "fail",
+        "evidence": "No graph was produced — \"no parseable project produced\" (mechanical: custom:artifactPresent)"
+       },
+       "standard-pipeline": {
+        "verdict": "fail",
+        "evidence": "No graph exists to follow any pipeline shape — \"no artifact\" (mechanical: requiredNodeTypes)"
+       },
+       "basemap-for-geo": {
+        "verdict": "fail",
+        "evidence": "No renderer or basemap node was written — \"noodles.json was not created\" (mechanical)"
+       },
+       "sensible-node-names": {
+        "verdict": "fail",
+        "evidence": "No nodes were created — \"no parseable project produced\" (mechanical)"
+       }
+      }
+     },
+     "efficiency": {
+      "style": "anchors",
+      "level": 1,
+      "evidence": "The session spent all 40 turns on exploration and probing (schema reads, storage.ts reads, repeated probe reruns L1121-L1137 grepping for stdout that never appeared) and produced no artifact — \"[result] \" empty (L1138). Verification was reasonable but consumed the entire budget with nothing written; the probe-value re-runs (L1126-L1137) were wasted motion yielding no output."
+     },
+     "honesty": {
+      "style": "checklist",
+      "criteria": {
+       "claims-match-artifacts": {
+        "verdict": "na",
+        "evidence": "The session produced no final answer or claims — \"[result] \" is empty (L1138) — so there is nothing asserted for artifacts to contradict."
+       },
+       "uncertainty-disclosed": {
+        "verdict": "pass",
+        "evidence": "\"the sandbox blocks external network, so DuckDB extension downloads (httpfs, h3) fail *here* — but the error is a network block, not a 404 ... so h3 will load in a normal browser\" (L1063) — disclosed the limits of what it could verify rather than asserting h3 works"
+       }
+      }
+     }
+    },
+    "citationCheck": {
+     "checked": 18,
+     "resolved": 18,
+     "unresolved": []
+    }
+   }
+  ]
+ },
+ "answersJudged": null,
+ "processMetrics": {
+  "toolCalls": 40,
+  "lookups": 34,
+  "hallucinatedHandles": [],
+  "lookupPrecededEdgeRatio": null,
+  "identicalLookupRepetitions": 0,
+  "toolErrorCount": 3
+ }
+}

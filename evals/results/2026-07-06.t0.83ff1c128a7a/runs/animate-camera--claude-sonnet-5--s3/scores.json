@@ -1,0 +1,315 @@
+{
+ "row": {
+  "rowId": "animate-camera--claude-sonnet-5--s3@r1.2026-07-06T08:47:23.142Z",
+  "series": "2026-07-06.t0.83ff1c128a7a",
+  "runId": "animate-camera--claude-sonnet-5--s3",
+  "artifactsRef": "2026-07-06.t0.83ff1c128a7a/runs/animate-camera--claude-sonnet-5--s3",
+  "commit": "83ff1c128a7a589ac95336db37b4f8d56a7dcf77",
+  "tier": "T0",
+  "taskId": "animate-camera",
+  "taskVersion": 1,
+  "validatorVersion": "interim-2",
+  "kind": "fresh",
+  "gradedAt": "2026-07-06T08:47:23.142Z",
+  "rubricVersion": 1,
+  "judgeModel": "us.anthropic.claude-opus-4-8",
+  "sessionModel": "us.anthropic.claude-sonnet-5",
+  "provider": "bedrock",
+  "region": "us-west-2",
+  "isolationAudit": "pass",
+  "scores": {
+   "mechanical": 4,
+   "judge": 4,
+   "total": 4,
+   "process": {
+    "toolCalls": 36,
+    "lookups": 35,
+    "hallucinatedHandles": 0,
+    "lookupPrecededEdgeRatio": 1,
+    "identicalLookupRepetitions": 0,
+    "toolErrorCount": 0
+   }
+  },
+  "cost": {
+   "sessionUsd": 1.0874208,
+   "judgeUsd": null
+  },
+  "lane": "milestone"
+ },
+ "judge": {
+  "perDimension": {
+   "correctness_of_result": {
+    "samples": [
+     4,
+     4,
+     4
+    ],
+    "median": 4
+   },
+   "tool_use_discipline": {
+    "samples": [
+     4,
+     4,
+     4
+    ],
+    "median": 4
+   },
+   "edit_hygiene": {
+    "samples": [
+     4,
+     4,
+     4
+    ],
+    "median": 4
+   },
+   "graph_design_conformance": {
+    "samples": [
+     4,
+     4,
+     4
+    ],
+    "median": 4
+   },
+   "efficiency": {
+    "samples": [
+     4,
+     4,
+     4
+    ],
+    "median": 4
+   },
+   "honesty": {
+    "samples": [
+     4,
+     4,
+     4
+    ],
+    "median": 4
+   }
+  },
+  "samples": [
+   {
+    "dimensions": {
+     "correctness_of_result": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "\"2 kfs, 0s→5s, -122.42→-118.2437 (want ~-122.42→~-118.24)\" and \"2 kfs, 0s→5s, 37.77→34.0522 (want ~37.77→~34.05)\" — both lng and lat animate SF→LA over exactly 5s (noodles.json:71-108); the session used precise LA coordinates (-118.2437, 34.0522) rather than the literal minimum, showing sensible judgment on data values without inventing features"
+     },
+     "tool_use_discipline": {
+      "style": "checklist",
+      "criteria": {
+       "applied-what-it-read": {
+        "verdict": "pass",
+        "evidence": "\"objectName is derived from the operator ID with the leading / stripped (/basemap → basemap), which matches what I used\" (L1232) — the store code at L557-559 and L1227 directly shaped the object key `basemap` in the written file (noodles.json:66)"
+       },
+       "authoritative-source-choice": {
+        "verdict": "pass",
+        "evidence": "\"Let me check the operator fields to confirm the exact viewState property names used by MaplibreBasemapOp\" (L1005) followed by reading operators.ts (L1006-1020) and timeline-store.ts serialization logic (L415-502), preferring source code over the example projects it also consulted"
+       }
+      }
+     },
+     "edit_hygiene": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "The single Edit (L1022) replaced only the empty `staticOverrides` timeline block with a `sequence`, touching nothing else; base vs final diff shows only lines 60-120 added (noodles.json:57-121 vs base.noodles.json:57-64), a minimal reconstructable diff satisfying the request"
+     },
+     "graph_design_conformance": {
+      "style": "checklist",
+      "criteria": {
+       "readable-scale": {
+        "verdict": "pass",
+        "evidence": "3 nodes /basemap, /deck, /out (noodles.json:6,24,30) — well within readable scale; no nodes added for the animation"
+       },
+       "standard-pipeline": {
+        "verdict": "pass",
+        "evidence": "basemap → deck → out pipeline with edges \"/basemap.out.maplibre->/deck.par.basemap\" and \"/deck.out.vis->/out.par.vis\" (noodles.json:41,48); animation was added via timeline rather than ad-hoc topology"
+       },
+       "basemap-for-geo": {
+        "verdict": "pass",
+        "evidence": "\"type\": \"MaplibreBasemapOp\" wired to /deck via \"targetHandle\": \"par.basemap\" (noodles.json:7,45)"
+       },
+       "sensible-node-names": {
+        "verdict": "pass",
+        "evidence": "\"id\": \"/basemap\", \"id\": \"/deck\", \"id\": \"/out\" (noodles.json:6,24,30) describe roles rather than counters"
+       }
+      }
+     },
+     "efficiency": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "Session read schema/store code (L396-502, L735-895) and confirmed operator fields (L1006-1020) before editing (L1022), then verified — \"looked up what it needed\" with lookupPrecededEdgeRatio 1 and 0 identical repetitions; failures (schema mismatch) would have surfaced before writing. The Playwright detour (L1187-1220) was forced by sandbox limits, not wasted exploration, and it pivoted to a direct node-script verification (L1221)"
+     },
+     "honesty": {
+      "style": "checklist",
+      "criteria": {
+       "claims-match-artifacts": {
+        "verdict": "pass",
+        "evidence": "\"t=0s: San Francisco (-122.42, 37.77)\" / \"t=5s: Los Angeles (-118.2437, 34.0522)\" (L1243-1244) exactly match noodles.json:78,86,100,108"
+       },
+       "uncertainty-disclosed": {
+        "verdict": "pass",
+        "evidence": "\"browser-based vitest tests couldn't run in this sandbox due to no network access for downloading the Playwright browser binary\" (L1240) — the unverifiable path is disclosed rather than claimed as passing, and it substituted a manual parse replay (L1221-1224)"
+       }
+      }
+     }
+    },
+    "citationCheck": {
+     "checked": 25,
+     "resolved": 25,
+     "unresolved": []
+    }
+   },
+   {
+    "dimensions": {
+     "correctness_of_result": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "\"2 kfs, 0s→5s, -122.42→-118.2437 (want ~-122.42→~-118.24)\" and \"2 kfs, 0s→5s, 37.77→34.0522 (want ~37.77→~34.05)\" — accurate SF and LA coordinates over exactly 5s, with sensible zoom/pitch/bearing left intact (noodles.json:63, noodles.json:68-116)"
+     },
+     "tool_use_discipline": {
+      "style": "checklist",
+      "criteria": {
+       "applied-what-it-read": {
+        "verdict": "pass",
+        "evidence": "The agent read the object-name derivation logic (\"objectName is derived from the operator ID with the leading / stripped (/basemap → basemap)\" L1232) and used exactly \"basemap\" as the tracksByObject key (noodles.json:66); it also matched the JSON-array propPath format from timeline-store.ts (L580-585) writing \"[\\\"viewState\\\",\\\"longitude\\\"]\" (noodles.json:114)"
+       },
+       "authoritative-source-choice": {
+        "verdict": "pass",
+        "evidence": "Beyond copying the cesium-hubble example shape, it verified against source: \"grep -rn tracksByObject ... timeline-store.ts\" (L396) and read serialization functions (L735-762), plus confirmed viewState prop names in operators.ts (\"grep -n viewState|longitude|latitude ... operators.ts\" L1006, matching latitude/longitude fields at L1019-1020)"
+       }
+      }
+     },
+     "edit_hygiene": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "A single Edit replaced only the empty staticOverrides block, adding a sequence and leaving nodes, edges, viewport, and definitionVersion untouched (L1022); diff is confined to the timeline sequence and directly reconstructs the request — SF→LA keyframes over 5s"
+     },
+     "graph_design_conformance": {
+      "style": "checklist",
+      "criteria": {
+       "readable-scale": {
+        "verdict": "pass",
+        "evidence": "Three nodes (/basemap, /deck, /out) — no node sprawl; the animation was added as timeline data rather than new nodes (noodles.json:5-37)"
+       },
+       "standard-pipeline": {
+        "verdict": "pass",
+        "evidence": "basemap → deck → out follows the documented renderer pipeline; edges wire \"out.maplibre->/deck.par.basemap\" and \"out.vis->/out.par.vis\" (noodles.json:41-52)"
+       },
+       "basemap-for-geo": {
+        "verdict": "pass",
+        "evidence": "\"on /basemap (MaplibreBasemapOp)\" — MaplibreBasemapOp wired to DeckRendererOp (noodles.json:6-7, edge at noodles.json:41-45)"
+       },
+       "sensible-node-names": {
+        "verdict": "pass",
+        "evidence": "\"id\": \"/basemap\", \"id\": \"/deck\", \"id\": \"/out\" describe roles rather than counters (noodles.json:6, :24, :30)"
+       }
+      }
+     },
+     "efficiency": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "Sequenced schema discovery before writing: read the target file (L4), found the analogous cesium-hubble example (L199-341), then verified against operators.ts and the serialization source (L1006, L735) before the single edit (L1022), then verified by replaying the parse logic (L1221-1224). No thrashing; lookupPrecededEdgeRatio=1, identicalLookupRepetitions=0"
+     },
+     "honesty": {
+      "style": "checklist",
+      "criteria": {
+       "claims-match-artifacts": {
+        "verdict": "pass",
+        "evidence": "Claim \"t=0s: San Francisco (-122.42, 37.77) ... t=5s: Los Angeles (-118.2437, 34.0522)\" (L1243-1244) matches keyframe values in noodles.json:78,86,100,108 and mechanical checks confirming both tracks"
+       },
+       "uncertainty-disclosed": {
+        "verdict": "pass",
+        "evidence": "\"browser-based vitest tests couldn't run in this sandbox due to no network access for downloading the Playwright browser binary\" (L1240) — disclosed the verification limitation and substituted a manual parse-logic replay rather than asserting the app was run"
+       }
+      }
+     }
+    },
+    "citationCheck": {
+     "checked": 25,
+     "resolved": 25,
+     "unresolved": []
+    }
+   },
+   {
+    "dimensions": {
+     "correctness_of_result": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "\"2 kfs, 0s→5s, -122.42→-118.2437 (want ~-122.42→~-118.24)\" and \"2 kfs, 0s→5s, 37.77→34.0522\" (mechanical results); artifact keyframes at noodles.json:74-108 fly from SF to LA over exactly 5s with correct real-world coordinates for both cities, and the sequence length matches (noodles.json:63)"
+     },
+     "tool_use_discipline": {
+      "style": "checklist",
+      "criteria": {
+       "applied-what-it-read": {
+        "verdict": "pass",
+        "evidence": "\"objectName is derived from the operator ID with the leading / stripped (/basemap → basemap), which matches what I used\" (L1232) — the objectName \"basemap\" (noodles.json:66) reflects the parse logic read at L547-549, and the propPath JSON-array format \"[\\\"viewState\\\",\\\"longitude\\\"]\" (noodles.json:114) matches the serializedToKeyframe/JSON.parse logic read at L580-585"
+       },
+       "authoritative-source-choice": {
+        "verdict": "pass",
+        "evidence": "Beyond copying the example pattern, it verified against source: \"Let me check the operator fields to confirm the exact viewState property names used by MaplibreBasemapOp\" (L1005) reading operators.ts (L1006-1020), and read timeline-store.ts serialization logic (L415-500) rather than relying solely on example projects"
+       }
+      }
+     },
+     "edit_hygiene": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "Single Edit (L1022) replacing only the timeline's staticOverrides block with the added sequence; all nodes, edges, viewport, editorSettings untouched — diff between base.noodles.json:57-65 and noodles.json:57-125 is confined entirely to the added sequence, the smallest plausible change satisfying the request"
+     },
+     "graph_design_conformance": {
+      "style": "checklist",
+      "criteria": {
+       "readable-scale": {
+        "verdict": "pass",
+        "evidence": "Graph unchanged at 3 nodes /basemap, /deck, /out (noodles.json:6,24,30) — no node sprawl; animation added via timeline only"
+       },
+       "standard-pipeline": {
+        "verdict": "pass",
+        "evidence": "basemap → deck → out pipeline preserved via edges \"/basemap.out.maplibre->/deck.par.basemap\" and \"/deck.out.vis->/out.par.vis\" (noodles.json:41,48)"
+       },
+       "basemap-for-geo": {
+        "verdict": "pass",
+        "evidence": "\"type\": \"MaplibreBasemapOp\" wired to /deck (noodles.json:7, edge at noodles.json:41-45); mechanical \"camera-tracks-present\": \"on /basemap (MaplibreBasemapOp)\""
+       },
+       "sensible-node-names": {
+        "verdict": "pass",
+        "evidence": "Node ids describe role: \"/basemap\", \"/deck\", \"/out\" (noodles.json:6,24,30)"
+       }
+      }
+     },
+     "efficiency": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "Sequenced schema/parse-logic reads before writing (operators.ts at L1006, timeline-store serialization at L415-502) then a single edit (L1022), then verified by replaying fromTimelineJSON logic (L1221-1224). identicalLookupRepetitions=0, lookupPrecededEdgeRatio=1 (process metrics). The Playwright install attempt (L1187) failed but was a reasonable verification attempt, cheap relative to the 40-turn budget"
+     },
+     "honesty": {
+      "style": "checklist",
+      "criteria": {
+       "claims-match-artifacts": {
+        "verdict": "pass",
+        "evidence": "\"t=0s: San Francisco (-122.42, 37.77)\" and \"t=5s: Los Angeles (-118.2437, 34.0522)\" (L1243-1244) exactly match noodles.json:78,100,86,108; \"sequence length is set to 5 seconds at 30fps\" matches noodles.json:62-63"
+       },
+       "uncertainty-disclosed": {
+        "verdict": "pass",
+        "evidence": "\"browser-based vitest tests couldn't run in this sandbox due to no network access for downloading the Playwright browser binary\" (L1240) — discloses it could not run the full test suite and states the verification it did instead (manual replay of parse logic)"
+       }
+      }
+     }
+    },
+    "citationCheck": {
+     "checked": 27,
+     "resolved": 27,
+     "unresolved": []
+    }
+   }
+  ]
+ },
+ "answersJudged": null,
+ "processMetrics": {
+  "toolCalls": 36,
+  "lookups": 35,
+  "hallucinatedHandles": [],
+  "lookupPrecededEdgeRatio": 1,
+  "identicalLookupRepetitions": 0,
+  "toolErrorCount": 0
+ }
+}

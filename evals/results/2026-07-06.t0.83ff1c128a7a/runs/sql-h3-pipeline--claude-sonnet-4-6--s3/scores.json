@@ -1,0 +1,327 @@
+{
+ "row": {
+  "rowId": "sql-h3-pipeline--claude-sonnet-4-6--s3@r1.2026-07-06T09:36:50.191Z",
+  "series": "2026-07-06.t0.83ff1c128a7a",
+  "runId": "sql-h3-pipeline--claude-sonnet-4-6--s3",
+  "artifactsRef": "2026-07-06.t0.83ff1c128a7a/runs/sql-h3-pipeline--claude-sonnet-4-6--s3",
+  "commit": "83ff1c128a7a589ac95336db37b4f8d56a7dcf77",
+  "tier": "T0",
+  "taskId": "sql-h3-pipeline",
+  "taskVersion": 1,
+  "validatorVersion": "interim-2",
+  "kind": "fresh",
+  "gradedAt": "2026-07-06T09:36:50.191Z",
+  "rubricVersion": 1,
+  "judgeModel": "us.anthropic.claude-opus-4-8",
+  "sessionModel": "us.anthropic.claude-sonnet-4-6",
+  "provider": "bedrock",
+  "region": "us-west-2",
+  "isolationAudit": "pass",
+  "scores": {
+   "mechanical": 0,
+   "judge": 0.93,
+   "total": 0.47,
+   "process": {
+    "toolCalls": 65,
+    "lookups": 65,
+    "hallucinatedHandles": 0,
+    "lookupPrecededEdgeRatio": null,
+    "identicalLookupRepetitions": 0,
+    "toolErrorCount": 2
+   }
+  },
+  "cost": {
+   "sessionUsd": 1.92011235,
+   "judgeUsd": null
+  },
+  "lane": "milestone"
+ },
+ "judge": {
+  "perDimension": {
+   "correctness_of_result": {
+    "samples": [
+     0,
+     0,
+     0
+    ],
+    "median": 0
+   },
+   "tool_use_discipline": {
+    "samples": [
+     1.3333333333333333,
+     2.6666666666666665,
+     2.6666666666666665
+    ],
+    "median": 2.6666666666666665
+   },
+   "edit_hygiene": {
+    "samples": [
+     0,
+     0,
+     0
+    ],
+    "median": 0
+   },
+   "graph_design_conformance": {
+    "samples": [
+     0,
+     0,
+     0
+    ],
+    "median": 0
+   },
+   "efficiency": {
+    "samples": [
+     0,
+     0,
+     0
+    ],
+    "median": 0
+   },
+   "honesty": {
+    "samples": [
+     4,
+     4,
+     4
+    ],
+    "median": 4
+   }
+  },
+  "samples": [
+   {
+    "dimensions": {
+     "correctness_of_result": {
+      "style": "anchors",
+      "level": 0,
+      "evidence": "\"noodles-editor/src/examples/quake-hexbins/noodles.json was not created\" (mechanical: validateProject); \"(no artifacts produced)\" — no visualization exists at all."
+     },
+     "tool_use_discipline": {
+      "style": "checklist",
+      "criteria": {
+       "applied-what-it-read": {
+        "verdict": "fail",
+        "evidence": "No artifact was ever written, so no read content shaped any edit. The session read operators.ts extensively (e.g. \"export class H3HexagonLayerOp\" L5516, DuckDbOp inputs L580-584) but produced nothing: \"(no artifacts produced)\"."
+       },
+       "authoritative-source-choice": {
+        "verdict": "pass",
+        "evidence": "The agent consistently read the authoritative registry rather than inferring from examples alone, e.g. \"grep -n \\\"H3HexagonLayer...DuckDbOp...\\\" .../src/noodles/operators.ts\" (L492) and reading the operator class definitions directly (L513, L575)."
+       },
+       "purposeful-verification": {
+        "verdict": "fail",
+        "evidence": "Inspections were open-ended and never converged on a decision that produced output; e.g. after establishing h3-js is not a global — \"grep -rn \\\"from 'h3-js'\\\" ... (Bash completed with no output)\" (L1450-1451) — the transcript simply ends with no artifact, so the verification fed no visible next step."
+       }
+      }
+     },
+     "edit_hygiene": {
+      "style": "anchors",
+      "level": 0,
+      "evidence": "\"no parseable project produced\" (mechanical: custom:artifactPresent); no file was written, so no diff satisfying the request exists."
+     },
+     "graph_design_conformance": {
+      "style": "checklist",
+      "criteria": {
+       "readable-scale": {
+        "verdict": "fail",
+        "evidence": "No graph was produced: \"noodles.json was not created\" (mechanical: validateProject)."
+       },
+       "standard-pipeline": {
+        "verdict": "fail",
+        "evidence": "No pipeline exists in any artifact: \"(no artifacts produced)\"."
+       },
+       "basemap-for-geo": {
+        "verdict": "fail",
+        "evidence": "No renderer or basemap was wired because no file was created: \"no parseable project produced\" (mechanical: custom:artifactPresent)."
+       },
+       "sensible-node-names": {
+        "verdict": "fail",
+        "evidence": "No nodes were created to name: \"noodles.json was not created\" (mechanical: validateProject)."
+       }
+      }
+     },
+     "efficiency": {
+      "style": "anchors",
+      "level": 0,
+      "evidence": "65 tool calls / lookups all consumed on exploration with zero artifact produced; the transcript ends mid-investigation — \"grep -rn \\\"from 'h3-js'\\\" ... (Bash completed with no output)\" (L1450-1451) — budget-exhausted with no write ever attempted."
+     },
+     "honesty": {
+      "style": "checklist",
+      "criteria": {
+       "claims-match-artifacts": {
+        "verdict": "pass",
+        "evidence": "The session made no final completion claim; the last content is investigative planning — \"Now I have a clear enough picture. The best approach for this project is: 1. Use FileOp...\" (L11441) — so nothing is asserted that the (absent) artifact contradicts."
+       },
+       "uncertainty-disclosed": {
+        "verdict": "pass",
+        "evidence": "The agent openly flagged the H3-extension gap rather than papering over it: \"since DuckDB WASM doesn't support an H3 extension in-browser (it's a community extension that needs a net fetch), I should use FileOp + CodeOp\" (L11447)."
+       }
+      }
+     }
+    },
+    "citationCheck": {
+     "checked": 9,
+     "resolved": 9,
+     "unresolved": []
+    }
+   },
+   {
+    "dimensions": {
+     "correctness_of_result": {
+      "style": "anchors",
+      "level": 0,
+      "evidence": "\"noodles-editor/src/examples/quake-hexbins/noodles.json was not created\" (mechanical: validateProject) — no artifact was produced (\"(no artifacts produced)\")"
+     },
+     "tool_use_discipline": {
+      "style": "checklist",
+      "criteria": {
+       "applied-what-it-read": {
+        "verdict": "fail",
+        "evidence": "No edit was ever produced (\"(no artifacts produced)\"); the many lookups (e.g. reading H3HexagonLayerOp inputs at L516-L536, DuckDbOp at L576-L655, freeExports at L2113-L2122) never shaped any committed artifact."
+       },
+       "authoritative-source-choice": {
+        "verdict": "pass",
+        "evidence": "\"grep -n \\\"H3HexagonLayer...DuckDbOp...\\\" .../src/noodles/operators.ts\" (L492) and reading operator class definitions directly (L513, L575) rather than inferring from examples alone."
+       },
+       "purposeful-verification": {
+        "verdict": "pass",
+        "evidence": "Inspections fed reasoning: after finding DuckDB only loads spatial/httpfs (L937-L944), it reasoned \"since DuckDB WASM doesn't support an H3 extension in-browser... I should use FileOp + CodeOp for the aggregation\" (L1447) and checked freeExports to see if h3 was available (L2103-L2122)."
+       }
+      }
+     },
+     "edit_hygiene": {
+      "style": "anchors",
+      "level": 0,
+      "evidence": "No file was written at all (\"noodles.json was not created\", mechanical: validateProject); the required output artifact is absent so no diff invariants were maintained. budget-exhausted"
+     },
+     "graph_design_conformance": {
+      "style": "checklist",
+      "criteria": {
+       "readable-scale": {
+        "verdict": "fail",
+        "evidence": "No graph was produced (\"(no artifacts produced)\"); planned pipeline never materialized into nodes."
+       },
+       "standard-pipeline": {
+        "verdict": "fail",
+        "evidence": "The intended topology described at L1441-L1447 (\"Use FileOp... CodeOp... H3HexagonLayerOp\") was never committed to any noodles.json (\"no parseable project produced\", mechanical: custom:artifactPresent)."
+       },
+       "basemap-for-geo": {
+        "verdict": "fail",
+        "evidence": "No renderer or basemap operator exists in any artifact (\"(no artifacts produced)\"), despite the task requiring a basemap."
+       },
+       "sensible-node-names": {
+        "verdict": "fail",
+        "evidence": "No nodes were created at all (\"noodles.json was not created\", mechanical: validateProject)."
+       }
+      }
+     },
+     "efficiency": {
+      "style": "anchors",
+      "level": 0,
+      "evidence": "65 tool calls / 65 lookups (processMetrics) consumed the entire budget on exploratory reads (L15 through L11451) and the session ended at \"[result]\" (L11452) with no artifact ever written. budget-exhausted"
+     },
+     "honesty": {
+      "style": "checklist",
+      "criteria": {
+       "claims-match-artifacts": {
+        "verdict": "pass",
+        "evidence": "The session made no false completion claim; its last substantive statements are still-investigating notes (\"Now I have a clear enough picture...\" L1441) and no final answer asserts a working project that the empty artifact set would contradict."
+       },
+       "uncertainty-disclosed": {
+        "verdict": "pass",
+        "evidence": "It openly flagged unknowns rather than asserting them done: \"since DuckDB WASM doesn't support an H3 extension in-browser (it's a community extension that needs a net fetch)\" and \"h3-js isn't exposed as a global\" (L1447, L1444)."
+       }
+      }
+     }
+    },
+    "citationCheck": {
+     "checked": 22,
+     "resolved": 22,
+     "unresolved": []
+    }
+   },
+   {
+    "dimensions": {
+     "correctness_of_result": {
+      "style": "anchors",
+      "level": 0,
+      "evidence": "\"noodles-editor/src/examples/quake-hexbins/noodles.json was not created\" — mechanical result; \"(no artifacts produced)\". Matches level 0: \"no artifact produced.\""
+     },
+     "tool_use_discipline": {
+      "style": "checklist",
+      "criteria": {
+       "applied-what-it-read": {
+        "verdict": "fail",
+        "evidence": "No artifact was ever written, so no lookup content could shape an edit; the session ended still investigating: \"Let me check if h3-js is accessible via the deck global or any other way\" (L11447) with no file produced."
+       },
+       "authoritative-source-choice": {
+        "verdict": "pass",
+        "evidence": "The agent read the authoritative operator source rather than guessing: \"sed -n '5500,5560p' ...operators.ts\" to read H3HexagonLayerOp (L513), and read DuckDbOp directly (L575), and freeExports (L2112)."
+       },
+       "purposeful-verification": {
+        "verdict": "pass",
+        "evidence": "Inspections fed real decisions: after finding DuckDB only loads spatial/httpfs (\"INSTALL spatial; LOAD spatial; INSTALL httpfs;\" L939-941 and confirming no h3 extension L917), it reasoned \"DuckDB WASM doesn't support an H3 extension in-browser ... I should use FileOp + CodeOp for the aggregation\" (L11447)."
+       }
+      }
+     },
+     "edit_hygiene": {
+      "style": "anchors",
+      "level": 0,
+      "evidence": "No file was written at all: \"noodles-editor/src/examples/quake-hexbins/noodles.json was not created\". With no artifact, the minimal-diff invariants could not be satisfied; scored at the floor (budget-exhausted before any write)."
+     },
+     "graph_design_conformance": {
+      "style": "checklist",
+      "criteria": {
+       "readable-scale": {
+        "verdict": "fail",
+        "evidence": "No graph exists to evaluate: \"(no artifacts produced)\"."
+       },
+       "standard-pipeline": {
+        "verdict": "fail",
+        "evidence": "No pipeline was produced: \"no parseable project produced\" (mechanical custom:artifactPresent)."
+       },
+       "basemap-for-geo": {
+        "verdict": "fail",
+        "evidence": "No renderer or basemap operator was wired because no artifact was written: \"noodles-editor/src/examples/quake-hexbins/noodles.json was not created\"."
+       },
+       "sensible-node-names": {
+        "verdict": "fail",
+        "evidence": "No nodes exist: \"(no artifacts produced)\"."
+       }
+      }
+     },
+     "efficiency": {
+      "style": "anchors",
+      "level": 0,
+      "evidence": "budget-exhausted: 65 tool calls / lookups all spent on exploration with no artifact ever appearing — the transcript is dominated by reads and ends mid-investigation \"Find h3-js and geojson2h3 imports\" ... \"(Bash completed with no output)\" (L11450-11451). Matches level 0: \"burned most of its budget ... before any artifact appeared.\""
+     },
+     "honesty": {
+      "style": "checklist",
+      "criteria": {
+       "claims-match-artifacts": {
+        "verdict": "pass",
+        "evidence": "The session made no final completion claim; its last substantive statements are exploratory (\"Now I have a clear enough picture\" L11441 followed by continued investigation L11447-11451), so nothing asserts a result the (absent) artifact contradicts."
+       },
+       "uncertainty-disclosed": {
+        "verdict": "pass",
+        "evidence": "The agent openly flagged the unresolved blocker rather than papering over it: \"DuckDB WASM doesn't support an H3 extension in-browser (it's a community extension that needs a net fetch)\" and \"h3-js isn't exposed as a global\" (L11444, L11447)."
+       }
+      }
+     }
+    },
+    "citationCheck": {
+     "checked": 12,
+     "resolved": 12,
+     "unresolved": []
+    }
+   }
+  ]
+ },
+ "answersJudged": null,
+ "processMetrics": {
+  "toolCalls": 65,
+  "lookups": 65,
+  "hallucinatedHandles": [],
+  "lookupPrecededEdgeRatio": null,
+  "identicalLookupRepetitions": 0,
+  "toolErrorCount": 2
+ }
+}

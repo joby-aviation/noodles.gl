@@ -1,0 +1,280 @@
+{
+  "edges": [
+    {
+      "id": "/scatterplot-layer.out.layer->/deck.par.layers",
+      "source": "/scatterplot-layer",
+      "target": "/deck",
+      "sourceHandle": "out.layer",
+      "targetHandle": "par.layers"
+    },
+    {
+      "id": "/deck.out.vis->/out.par.vis",
+      "source": "/deck",
+      "target": "/out",
+      "sourceHandle": "out.vis",
+      "targetHandle": "par.vis"
+    },
+    {
+      "id": "/data-source.out.data->/scatterplot-layer.par.data",
+      "source": "/data-source",
+      "target": "/scatterplot-layer",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/position-accessor.out.accessor->/scatterplot-layer.par.getPosition",
+      "source": "/position-accessor",
+      "target": "/scatterplot-layer",
+      "sourceHandle": "out.accessor",
+      "targetHandle": "par.getPosition"
+    },
+    {
+      "source": "/multiply",
+      "sourceHandle": "out.result",
+      "target": "/scatterplot-layer",
+      "targetHandle": "par.getRadius",
+      "id": "/multiply.out.result->/scatterplot-layer.par.getRadius"
+    },
+    {
+      "source": "/magnitude-color",
+      "sourceHandle": "out.color",
+      "target": "/scatterplot-layer",
+      "targetHandle": "par.getFillColor",
+      "id": "/magnitude-color.out.color->/scatterplot-layer.par.getFillColor"
+    },
+    {
+      "source": "/map-range",
+      "sourceHandle": "out.scaled",
+      "target": "/magnitude-color",
+      "targetHandle": "par.value",
+      "id": "/map-range.out.scaled->/magnitude-color.par.value"
+    },
+    {
+      "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap",
+      "source": "/maplibre-basemap",
+      "target": "/deck",
+      "sourceHandle": "out.maplibre",
+      "targetHandle": "par.basemap"
+    },
+    {
+      "source": "/magnitude-accessor",
+      "sourceHandle": "out.accessor",
+      "target": "/map-range",
+      "targetHandle": "par.val",
+      "id": "/magnitude-accessor.out.accessor->/map-range.par.val"
+    },
+    {
+      "source": "/magnitude-accessor",
+      "sourceHandle": "out.accessor",
+      "target": "/sqrt",
+      "targetHandle": "par.a",
+      "id": "/magnitude-accessor.out.accessor->/sqrt.par.a"
+    },
+    {
+      "source": "/magnitude-accessor",
+      "sourceHandle": "out.accessor",
+      "target": "/multiply",
+      "targetHandle": "par.a",
+      "id": "/magnitude-accessor.out.accessor->/multiply.par.a"
+    }
+  ],
+  "viewport": {
+    "x": 143.291766562843,
+    "y": 172.88548024794358,
+    "zoom": 0.4813563009649149
+  },
+  "version": 14,
+  "name": "Quake Map",
+  "editorSettings": {
+    "layoutMode": "noodles-on-top",
+    "showOverlay": true
+  },
+  "nodes": [
+    {
+      "id": "/deck",
+      "type": "DeckRendererOp",
+      "data": {
+        "inputs": {},
+        "locked": false
+      },
+      "position": {
+        "x": 1200,
+        "y": 200
+      }
+    },
+    {
+      "id": "/out",
+      "type": "OutOp",
+      "data": {
+        "inputs": {
+          "display": "fixed",
+          "width": 1920,
+          "height": 1080,
+          "lod": 2,
+          "waitForData": true,
+          "codec": "avc",
+          "bitrateMbps": 10,
+          "bitrateMode": "constant",
+          "scaleControl": 0.3,
+          "framerate": 30,
+          "captureDelay": 50
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 1500,
+        "y": 200
+      }
+    },
+    {
+      "id": "/data-source",
+      "type": "FileOp",
+      "data": {
+        "inputs": {
+          "format": "csv",
+          "url": "@/data.csv"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": -30.281922090095136,
+        "y": -18.432474315710078
+      }
+    },
+    {
+      "id": "/scatterplot-layer",
+      "type": "ScatterplotLayerOp",
+      "data": {
+        "inputs": {
+          "stroked": false,
+          "billboard": true,
+          "getLineColor": "#ffffffff",
+          "radiusUnits": "meters"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 660.3778338957691,
+        "y": 152.6642123306002
+      }
+    },
+    {
+      "id": "/position-accessor",
+      "type": "AccessorOp",
+      "data": {
+        "inputs": {
+          "expression": "[d.Longitude, d.Latitude]"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": -58.11664384808154,
+        "y": 231.6605308265006
+      }
+    },
+    {
+      "id": "/magnitude-color",
+      "type": "ColorRampOp",
+      "data": {
+        "inputs": {
+          "colorScheme": "turbo"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 239.2501455353884,
+        "y": 321.2516952166614
+      }
+    },
+    {
+      "id": "/magnitude-accessor",
+      "type": "AccessorOp",
+      "data": {
+        "inputs": {
+          "expression": "d.Magnitude"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": -471.58272967234626,
+        "y": 390.13392481159116
+      }
+    },
+    {
+      "type": "MaplibreBasemapOp",
+      "id": "/maplibre-basemap",
+      "position": {
+        "x": 562.9490410841586,
+        "y": 576.4871147356512
+      },
+      "data": {
+        "inputs": {
+          "mapStyle": "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json",
+          "viewState": {
+            "latitude": 37.059,
+            "longitude": -119.963,
+            "zoom": 7,
+            "pitch": 0,
+            "bearing": 0
+          }
+        },
+        "locked": false
+      }
+    },
+    {
+      "type": "MapRangeOp",
+      "id": "/map-range",
+      "position": {
+        "x": -77.87578429545218,
+        "y": 323.1939851432402
+      },
+      "data": {
+        "inputs": {
+          "inMin": 2.5,
+          "inMax": 7
+        },
+        "locked": false
+      }
+    },
+    {
+      "type": "MathOp",
+      "id": "/sqrt",
+      "position": {
+        "x": -74.586918742845,
+        "y": 555.6638521710034
+      },
+      "data": {
+        "inputs": {
+          "operator": "sqrt"
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/multiply",
+      "type": "MathOp",
+      "data": {
+        "inputs": {
+          "operator": "multiply",
+          "b": 1000
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 235.19973882458825,
+        "y": 548.5423198131313
+      }
+    }
+  ],
+  "timeline": {
+    "sheetsById": {
+      "Noodles": {
+        "staticOverrides": {
+          "byObject": {}
+        }
+      }
+    },
+    "definitionVersion": "0.4.0",
+    "revisionHistory": []
+  }
+}

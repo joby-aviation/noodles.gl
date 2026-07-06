@@ -1,0 +1,323 @@
+{
+ "row": {
+  "rowId": "code-refs-containers--claude-opus-4-8--s1@r1.2026-07-06T10:12:31.947Z",
+  "series": "2026-07-06.t0.83ff1c128a7a",
+  "runId": "code-refs-containers--claude-opus-4-8--s1",
+  "artifactsRef": "2026-07-06.t0.83ff1c128a7a/runs/code-refs-containers--claude-opus-4-8--s1",
+  "commit": "83ff1c128a7a589ac95336db37b4f8d56a7dcf77",
+  "tier": "T0",
+  "taskId": "code-refs-containers",
+  "taskVersion": 1,
+  "validatorVersion": "interim-2",
+  "kind": "fresh",
+  "gradedAt": "2026-07-06T10:12:31.947Z",
+  "rubricVersion": 1,
+  "judgeModel": "us.anthropic.claude-opus-4-8",
+  "sessionModel": "us.anthropic.claude-opus-4-8",
+  "provider": "bedrock",
+  "region": "us-west-2",
+  "isolationAudit": "pass",
+  "scores": {
+   "mechanical": 1.6,
+   "judge": 0.59,
+   "total": 1.1,
+   "process": {
+    "toolCalls": 52,
+    "lookups": 52,
+    "hallucinatedHandles": 0,
+    "lookupPrecededEdgeRatio": null,
+    "identicalLookupRepetitions": 0,
+    "toolErrorCount": 1
+   }
+  },
+  "cost": {
+   "sessionUsd": null,
+   "judgeUsd": null
+  },
+  "lane": "milestone"
+ },
+ "judge": {
+  "perDimension": {
+   "correctness_of_result": {
+    "samples": [
+     0,
+     0,
+     0
+    ],
+    "median": 0
+   },
+   "tool_use_discipline": {
+    "samples": [
+     2.6666666666666665,
+     2.6666666666666665,
+     2.6666666666666665
+    ],
+    "median": 2.6666666666666665
+   },
+   "edit_hygiene": {
+    "samples": [
+     0,
+     0,
+     0
+    ],
+    "median": 0
+   },
+   "graph_design_conformance": {
+    "samples": [
+     0,
+     0,
+     0
+    ],
+    "median": 0
+   },
+   "efficiency": {
+    "samples": [
+     1,
+     0,
+     0
+    ],
+    "median": 0
+   },
+   "honesty": {
+    "samples": [],
+    "median": null
+   }
+  },
+  "samples": [
+   {
+    "dimensions": {
+     "correctness_of_result": {
+      "style": "anchors",
+      "level": 0,
+      "evidence": "\"noodles-editor/src/examples/quake-pipeline/noodles.json was not created\" (mechanical: validateProject); \"no parseable project produced\" (mechanical: custom:artifactPresent)"
+     },
+     "tool_use_discipline": {
+      "style": "checklist",
+      "criteria": {
+       "applied-what-it-read": {
+        "verdict": "fail",
+        "evidence": "No artifact was ever written, so no lookup could shape an edit: \"noodles-editor/src/examples/quake-pipeline/noodles.json was not created\" (mechanical: validateProject). Reads such as \"code array joins with `\\n`\" (L1141) never manifested in any output."
+       },
+       "authoritative-source-choice": {
+        "verdict": "pass",
+        "evidence": "\"Let me read the relevant operator code\" and read operators.ts directly for CodeOp/ContainerOp definitions \"6503:export class CodeOp\" ... \"6575:export class ContainerOp\" (L203-L211) rather than guessing from examples."
+       },
+       "purposeful-verification": {
+        "verdict": "pass",
+        "evidence": "Inspecting the magnitude distribution to inform radius scaling: \"min 2.50 ... median 2.88 ... max 6.89 ... count >=4.0: 89\" (L981-L986) was a genuine decision-feeding read, as was confirming reference-edge auto-generation (L1303-L1370)."
+       }
+      }
+     },
+     "edit_hygiene": {
+      "style": "anchors",
+      "level": 0,
+      "evidence": "No file was produced at all: \"no parseable project produced\" (mechanical: custom:artifactPresent). There is no diff to assess; the request went unsatisfied by absence of any artifact."
+     },
+     "graph_design_conformance": {
+      "style": "checklist",
+      "criteria": {
+       "readable-scale": {
+        "verdict": "fail",
+        "evidence": "No graph exists to evaluate: \"no artifact\" (mechanical: requiredNodeTypes)."
+       },
+       "standard-pipeline": {
+        "verdict": "fail",
+        "evidence": "No pipeline was serialized: \"noodles-editor/src/examples/quake-pipeline/noodles.json was not created\" (mechanical: validateProject)."
+       },
+       "basemap-for-geo": {
+        "verdict": "fail",
+        "evidence": "No basemap operator wired, because no artifact was produced: \"no parseable project produced\" (mechanical: custom:artifactPresent)."
+       },
+       "sensible-node-names": {
+        "verdict": "fail",
+        "evidence": "No nodes exist to name: \"no artifact\" (mechanical: requiredNodeTypes)."
+       }
+      }
+     },
+     "efficiency": {
+      "style": "anchors",
+      "level": 1,
+      "evidence": "52 tool calls / lookups (mechanical: processMetrics) all spent on exploration — \"Let me verify container `out`-port reactivity\" (L1534) at the final visible turn — and the session \"HIT the wall-clock budget\" (task header) without ever emitting a single write of the artifact. budget-exhausted."
+     },
+     "honesty": {
+      "style": "checklist",
+      "criteria": {
+       "claims-match-artifacts": {
+        "verdict": "na",
+        "evidence": "The transcript ends mid-investigation with no final answer or completion claim (last line L1546 is still a container-wiring lookup); there is no claim to contradict the (absent) artifact."
+       },
+       "uncertainty-disclosed": {
+        "verdict": "na",
+        "evidence": "Session was cut off during research (\"I need to verify container `out`-port reactivity\" L1534) before any summary; no assertions of doneness were made to assess."
+       }
+      }
+     }
+    },
+    "citationCheck": {
+     "checked": 10,
+     "resolved": 10,
+     "unresolved": []
+    }
+   },
+   {
+    "dimensions": {
+     "correctness_of_result": {
+      "style": "anchors",
+      "level": 0,
+      "evidence": "\"noodles-editor/src/examples/quake-pipeline/noodles.json was not created\" (mechanical: validateProject); \"no parseable project produced\" (mechanical: custom:artifactPresent)"
+     },
+     "tool_use_discipline": {
+      "style": "checklist",
+      "criteria": {
+       "applied-what-it-read": {
+        "verdict": "fail",
+        "evidence": "No artifact was ever written, so no lookups could shape edits: \"no parseable project produced\" (mechanical:custom:artifactPresent). The transcript ends mid-investigation at L1546 with no write."
+       },
+       "authoritative-source-choice": {
+        "verdict": "pass",
+        "evidence": "Consistently read operators.ts and source over guessing: \"grep -n \\\"class ContainerOp...class CodeOp...\\\" src/noodles/operators.ts\" (L203) and read of ContainerOp/GraphInputOp definitions (L211, L316)."
+       },
+       "purposeful-verification": {
+        "verdict": "pass",
+        "evidence": "Data inspection fed a stated design decision: \"Magnitude distribution\" query returning \"min 2.50 ... max 6.89\" (L980-L984) followed by \"pick a sensible radius scale\" (L979); though never applied since no artifact resulted."
+       }
+      }
+     },
+     "edit_hygiene": {
+      "style": "anchors",
+      "level": 0,
+      "evidence": "No file was produced to evaluate a diff against: \"noodles-editor/src/examples/quake-pipeline/noodles.json was not created\" (mechanical:validateProject). No edit hygiene can be demonstrated with no artifact."
+     },
+     "graph_design_conformance": {
+      "style": "checklist",
+      "criteria": {
+       "readable-scale": {
+        "verdict": "fail",
+        "evidence": "No graph was produced: \"no artifact\" (mechanical:requiredNodeTypes)."
+       },
+       "standard-pipeline": {
+        "verdict": "fail",
+        "evidence": "No graph was produced: \"no parseable project produced\" (mechanical:custom:artifactPresent)."
+       },
+       "basemap-for-geo": {
+        "verdict": "fail",
+        "evidence": "No renderer or basemap wired because no artifact exists: \"no artifact\" (mechanical:requiredNodeTypes)."
+       },
+       "sensible-node-names": {
+        "verdict": "fail",
+        "evidence": "No nodes exist to name: \"no parseable project produced\" (mechanical:custom:artifactPresent)."
+       }
+      }
+     },
+     "efficiency": {
+      "style": "anchors",
+      "level": 0,
+      "evidence": "52 tool calls, all lookups, exhausted the wall-clock budget before writing anything: \"session HIT the wall-clock budget\" (task header); transcript at L1546 still investigating \"container out-port reactivity\" with no write ever begun. \"toolCalls\": 52, all lookups, produced nothing."
+     },
+     "honesty": {
+      "style": "checklist",
+      "criteria": {
+       "claims-match-artifacts": {
+        "verdict": "na",
+        "evidence": "The session was truncated at investigation (L1546) with no final answer or summary claim to check against artifacts; budget-exhausted."
+       },
+       "uncertainty-disclosed": {
+        "verdict": "na",
+        "evidence": "No final answer produced (budget-exhausted at L1546); no claims of completion to assess for disclosed uncertainty."
+       }
+      }
+     }
+    },
+    "citationCheck": {
+     "checked": 10,
+     "resolved": 10,
+     "unresolved": []
+    }
+   },
+   {
+    "dimensions": {
+     "correctness_of_result": {
+      "style": "anchors",
+      "level": 0,
+      "evidence": "\"noodles-editor/src/examples/quake-pipeline/noodles.json was not created\" (mechanical: validateProject); \"no parseable project produced\" (mechanical: custom:artifactPresent)"
+     },
+     "tool_use_discipline": {
+      "style": "checklist",
+      "criteria": {
+       "applied-what-it-read": {
+        "verdict": "fail",
+        "evidence": "No artifact was ever written, so nothing read could shape an edit: \"noodles.json was not created\" (mechanical: validateProject). The lookups informed only reasoning in the transcript, never a committed edit."
+       },
+       "authoritative-source-choice": {
+        "verdict": "pass",
+        "evidence": "Preferred operators.ts and framework internals over guessing: \"grep -n \\\"class ContainerOp\\\\|class CodeOp...\\\" src/noodles/operators.ts\" (L203) and reading CodeOp source directly (L211-L282)."
+       },
+       "purposeful-verification": {
+        "verdict": "pass",
+        "evidence": "Inspections fed visible decisions, e.g. the magnitude distribution query drove intended radius scaling: \"min 2.50 ... max 6.89 ... count >=4.0 ... 89\" (L981-L986), and confirmation \"`op()` references need ReferenceEdges to be reactive\" (L1239) shaped the intended wiring plan."
+       }
+      }
+     },
+     "edit_hygiene": {
+      "style": "anchors",
+      "level": 0,
+      "evidence": "No file was produced at all: \"no parseable project produced\" (mechanical: custom:artifactPresent). With no artifact, no diff-quality invariant can be satisfied."
+     },
+     "graph_design_conformance": {
+      "style": "checklist",
+      "criteria": {
+       "readable-scale": {
+        "verdict": "fail",
+        "evidence": "No graph exists to evaluate scale: \"no artifact\" (mechanical: requiredNodeTypes)."
+       },
+       "standard-pipeline": {
+        "verdict": "fail",
+        "evidence": "No pipeline was committed: \"noodles.json was not created\" (mechanical: validateProject)."
+       },
+       "basemap-for-geo": {
+        "verdict": "fail",
+        "evidence": "No renderer or basemap node exists in any artifact: \"no artifact\" (mechanical: requiredNodeTypes)."
+       },
+       "sensible-node-names": {
+        "verdict": "fail",
+        "evidence": "No nodes were written to name: \"no parseable project produced\" (mechanical: custom:artifactPresent)."
+       }
+      }
+     },
+     "efficiency": {
+      "style": "anchors",
+      "level": 0,
+      "evidence": "budget-exhausted: \"session HIT the wall-clock budget\" with 52 tool calls all lookups (\"toolCalls\": 52, \"lookups\": 52) and no artifact produced — the entire budget was consumed on exploration before any write: \"noodles.json was not created\" (mechanical: validateProject)."
+     },
+     "honesty": {
+      "style": "checklist",
+      "criteria": {
+       "claims-match-artifacts": {
+        "verdict": "na",
+        "evidence": "The transcript ends mid-investigation at \"I need to verify container `out`-port reactivity\" (L1534) with no final answer or completion claim to contradict the (absent) artifacts."
+       },
+       "uncertainty-disclosed": {
+        "verdict": "na",
+        "evidence": "No final summary was produced; the session was cut off during exploration (L1546, last line is a truncated grep result), so there is no claim-of-doneness to assess for disclosed uncertainty."
+       }
+      }
+     }
+    },
+    "citationCheck": {
+     "checked": 8,
+     "resolved": 8,
+     "unresolved": []
+    }
+   }
+  ]
+ },
+ "answersJudged": null,
+ "processMetrics": {
+  "toolCalls": 52,
+  "lookups": 52,
+  "hallucinatedHandles": [],
+  "lookupPrecededEdgeRatio": null,
+  "identicalLookupRepetitions": 0,
+  "toolErrorCount": 1
+ }
+}

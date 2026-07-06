@@ -1,0 +1,315 @@
+{
+ "row": {
+  "rowId": "animate-camera--claude-sonnet-4-6--s2@r1.2026-07-06T08:38:48.352Z",
+  "series": "2026-07-06.t0.83ff1c128a7a",
+  "runId": "animate-camera--claude-sonnet-4-6--s2",
+  "artifactsRef": "2026-07-06.t0.83ff1c128a7a/runs/animate-camera--claude-sonnet-4-6--s2",
+  "commit": "83ff1c128a7a589ac95336db37b4f8d56a7dcf77",
+  "tier": "T0",
+  "taskId": "animate-camera",
+  "taskVersion": 1,
+  "validatorVersion": "interim-2",
+  "kind": "fresh",
+  "gradedAt": "2026-07-06T08:38:48.352Z",
+  "rubricVersion": 1,
+  "judgeModel": "us.anthropic.claude-opus-4-8",
+  "sessionModel": "us.anthropic.claude-sonnet-4-6",
+  "provider": "bedrock",
+  "region": "us-west-2",
+  "isolationAudit": "pass",
+  "scores": {
+   "mechanical": 4,
+   "judge": 3.8,
+   "total": 3.9,
+   "process": {
+    "toolCalls": 7,
+    "lookups": 6,
+    "hallucinatedHandles": 0,
+    "lookupPrecededEdgeRatio": 0,
+    "identicalLookupRepetitions": 0,
+    "toolErrorCount": 0
+   }
+  },
+  "cost": {
+   "sessionUsd": 0.2567271,
+   "judgeUsd": null
+  },
+  "lane": "milestone"
+ },
+ "judge": {
+  "perDimension": {
+   "correctness_of_result": {
+    "samples": [
+     4,
+     4,
+     4
+    ],
+    "median": 4
+   },
+   "tool_use_discipline": {
+    "samples": [
+     4,
+     4,
+     4
+    ],
+    "median": 4
+   },
+   "edit_hygiene": {
+    "samples": [
+     3,
+     3,
+     3
+    ],
+    "median": 3
+   },
+   "graph_design_conformance": {
+    "samples": [
+     4,
+     4,
+     4
+    ],
+    "median": 4
+   },
+   "efficiency": {
+    "samples": [
+     4,
+     4,
+     4
+    ],
+    "median": 4
+   },
+   "honesty": {
+    "samples": [
+     4,
+     4,
+     4
+    ],
+    "median": 4
+   }
+  },
+  "samples": [
+   {
+    "dimensions": {
+     "correctness_of_result": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "\"longitude\": kfs 0s→5s -122.4194→-118.2437 and \"latitude\": 37.7749→34.0522 (noodles.json:80-93, 102-115); mechanical \"custom:longitude-keyframes\": \"2 kfs, 0s→5s, -122.4194→-118.2437 (want ~-122.42→~-118.24)\" pass. The camera flies SF→LA over exactly 5s ('\"length\": 5', noodles.json:63), and it shows judgment beyond the literal ask by holding zoom/pitch/bearing constant with keyframes rather than inventing unrequested motion: \"zoom\": 9 → 9 (\"constant — keeps a city-level view throughout\") (L616)"
+     },
+     "tool_use_discipline": {
+      "style": "checklist",
+      "criteria": {
+       "applied-what-it-read": {
+        "verdict": "pass",
+        "evidence": "Read cesium-hubble propPaths \"[\\\"viewState\\\",\\\"longitude\\\"]\": \"lngTrk001\" (L278) and reproduced exactly the same trackIdByPropPath structure in the artifact (noodles.json:68-72); also adopted subUnitsPerUnit:30 seen at L284"
+       },
+       "authoritative-source-choice": {
+        "verdict": "pass",
+        "evidence": "Filtered for examples that actually animate viewState — \"Find examples with timeline sequences\" (L125) — and inspected cesium-hubble which animates the same basemap viewState (L270-284), the most relevant reference available in-tier"
+       }
+      }
+     },
+     "edit_hygiene": {
+      "style": "anchors",
+      "level": 3,
+      "evidence": "Nodes, edges, viewport, editorSettings all preserved byte-identical; only the timeline sequence was added (compare base.noodles.json:57-65 with noodles.json:57-194). However the /basemap viewState longitude/latitude were also changed from \"-122.42\"/\"37.77\" (base.noodles.json:13-14) to \"-122.4194\"/\"37.7749\" (noodles.json:13-14) — a small collateral tweak to the initial view beyond the pure keyframe addition, keeping it below level 4's smallest-plausible-diff"
+     },
+     "graph_design_conformance": {
+      "style": "checklist",
+      "criteria": {
+       "readable-scale": {
+        "verdict": "pass",
+        "evidence": "Graph remains 3 nodes: /basemap, /deck, /out (noodles.json:6,24,30); no node sprawl added — animation lives in the timeline"
+       },
+       "standard-pipeline": {
+        "verdict": "pass",
+        "evidence": "basemap → deck → out via \"/basemap.out.maplibre->/deck.par.basemap\" and \"/deck.out.vis->/out.par.vis\" (noodles.json:41-52), the documented renderer pipeline shape"
+       },
+       "basemap-for-geo": {
+        "verdict": "pass",
+        "evidence": "\"type\": \"MaplibreBasemapOp\" wired to \"target\": \"/deck\" via \"targetHandle\": \"par.basemap\" (noodles.json:7, 43-45); mechanical: \"camera-tracks-present\": \"on /basemap (MaplibreBasemapOp)\""
+       },
+       "sensible-node-names": {
+        "verdict": "pass",
+        "evidence": "Node ids \"/basemap\", \"/deck\", \"/out\" describe their roles (noodles.json:6,24,30)"
+       }
+      }
+     },
+     "efficiency": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "7 tool calls total: read target (L28), found sequence-bearing examples (L125), inspected world-flights and cesium-hubble propPaths/tracks (L128,L271,L284), then wrote once (L608). Schema/structure understood before the single write — \"Now I have everything I need\" (L607); processMetrics toolCalls:7, identicalLookupRepetitions:0, toolErrorCount:0"
+     },
+     "honesty": {
+      "style": "checklist",
+      "criteria": {
+       "claims-match-artifacts": {
+        "verdict": "pass",
+        "evidence": "Claim \"longitude: -122.4194 (SF) → -118.2437 (LA)\" (L614) matches noodles.json:85,93; \"length: 5 seconds\" (L612) matches \"length\": 5 (noodles.json:63)"
+       },
+       "uncertainty-disclosed": {
+        "verdict": "pass",
+        "evidence": "No overclaiming of runtime verification; described what was written, e.g. \"matching the pattern from the other examples\" (L619), consistent with its reference-driven approach"
+       }
+      }
+     }
+    },
+    "citationCheck": {
+     "checked": 28,
+     "resolved": 28,
+     "unresolved": []
+    }
+   },
+   {
+    "dimensions": {
+     "correctness_of_result": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "\"longitude-keyframes: 2 kfs, 0s→5s, -122.4194→-118.2437\" and \"latitude-keyframes: 2 kfs, 0s→5s, 37.7749→34.0522\" (mechanical results); keyframes present at noodles.json:78-95 and noodles.json:100-117. Beyond the literal ask, it added constant-value zoom/pitch/bearing tracks to keep a stable city-level framing throughout the fly: \"zoom: 9 → 9 (constant — keeps a city-level view throughout)\" (L616)"
+     },
+     "tool_use_discipline": {
+      "style": "checklist",
+      "criteria": {
+       "applied-what-it-read": {
+        "verdict": "pass",
+        "evidence": "The propPath keys, track structure, handles, and subUnitsPerUnit read from cesium-hubble (L278-283, L295-301) appear verbatim in what it wrote: \"[\\\"viewState\\\",\\\"longitude\\\"]\": \"lngTrk001\" (noodles.json:68) and \"handles\": [0.5, 1, 0.5, 0] (noodles.json:83)"
+       },
+       "authoritative-source-choice": {
+        "verdict": "na",
+        "evidence": "Only example projects contained the timeline sequence format; no registry/reference/operators.ts source for the timeline shape was available at this tier — \"Let me look at another example that uses timeline animation to understand the keyframe structure\" (L124)"
+       }
+      }
+     },
+     "edit_hygiene": {
+      "style": "anchors",
+      "level": 3,
+      "evidence": "Nodes, edges, viewport, editorSettings all preserved byte-for-byte; only the timeline sequence was added, and the two viewState anchor values were normalized to full precision (-122.42→-122.4194 at noodles.json:13). The write reserialized the whole file rather than a surgical patch, and it altered the untouched basemap viewState longitude/latitude values (base.noodles.json:13-14 vs noodles.json:13-14), so it is not the smallest plausible diff, but the changes stay confined to the request with invariants maintained"
+     },
+     "graph_design_conformance": {
+      "style": "checklist",
+      "criteria": {
+       "readable-scale": {
+        "verdict": "pass",
+        "evidence": "Three nodes (/basemap, /deck, /out) — no sprawl or monolith (noodles.json:6, noodles.json:24, noodles.json:30)"
+       },
+       "standard-pipeline": {
+        "verdict": "pass",
+        "evidence": "basemap → deck renderer → out follows the documented shape: \"sourceHandle\": \"out.maplibre\", \"targetHandle\": \"par.basemap\" then \"out.vis\"→\"par.vis\" (noodles.json:44-45, 51-52)"
+       },
+       "basemap-for-geo": {
+        "verdict": "pass",
+        "evidence": "\"custom:camera-tracks-present\": \"on /basemap (MaplibreBasemapOp)\" wired to /deck (noodles.json:41-45)"
+       },
+       "sensible-node-names": {
+        "verdict": "pass",
+        "evidence": "Node ids describe roles: \"/basemap\", \"/deck\", \"/out\" (noodles.json:6, 24, 30)"
+       }
+      }
+     },
+     "efficiency": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "Read target file, filtered examples for those with a sequence, inspected cesium-hubble's track structure, then wrote once and finished — 7 tool calls, 0 errors, 0 repeated lookups (processMetrics). Schema/structure inspected before writing edges: \"Now I have everything I need. The tracksByObject key is the node ID without the leading /\" (L607)"
+     },
+     "honesty": {
+      "style": "checklist",
+      "criteria": {
+       "claims-match-artifacts": {
+        "verdict": "pass",
+        "evidence": "Claim \"longitude: -122.4194 (SF) → -118.2437 (LA)\" (L614) matches noodles.json:85 and noodles.json:93; \"Sequence length: 5 seconds\" (L612) matches \"length\": 5 (noodles.json:63)"
+       },
+       "uncertainty-disclosed": {
+        "verdict": "na",
+        "evidence": "The session made no claims requiring verification it did not do; it did not assert the app was run or rendered — it only described what it wrote (L610-619)"
+       }
+      }
+     }
+    },
+    "citationCheck": {
+     "checked": 24,
+     "resolved": 24,
+     "unresolved": []
+    }
+   },
+   {
+    "dimensions": {
+     "correctness_of_result": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "Mechanical checks confirm \"2 kfs, 0s→5s, -122.4194→-118.2437\" and \"2 kfs, 0s→5s, 37.7749→34.0522\" with \"sequence.length = 5\"; the result also shows judgment beyond the literal ask by keeping zoom constant at city-level: \"zoom: 9 → 9 (constant — keeps a city-level view throughout)\" (L616)"
+     },
+     "tool_use_discipline": {
+      "style": "checklist",
+      "criteria": {
+       "applied-what-it-read": {
+        "verdict": "pass",
+        "evidence": "Read cesium-hubble propPaths \"[\\\"viewState\\\",\\\"longitude\\\"]\": \"lngTrk001\" (L278) and reproduced the exact same trackIdByPropPath structure in the artifact: \"[\\\"viewState\\\",\\\"longitude\\\"]\": \"lngTrk001\" (noodles.json:68)"
+       },
+       "authoritative-source-choice": {
+        "verdict": "pass",
+        "evidence": "Systematically searched for examples that actually use timeline sequences rather than guessing: \"for f in ...; do if python3 ... sequence ... then echo Has sequence\" (L125), then studied cesium-hubble's basemap viewState track (L271, L284) as the closest reference"
+       }
+      }
+     },
+     "edit_hygiene": {
+      "style": "anchors",
+      "level": 3,
+      "evidence": "The nodes, edges, viewport, editorSettings and staticOverrides are byte-identical to the base; only the sequence was added under the existing sheet: \"staticOverrides\": { \"byObject\": {} }, \"sequence\": {...} (noodles.json:60-61). Only deviation is the tool used a full Write reserialization, but no untouched sections churned — the anchor rule ('minimal diff that satisfies the request with all invariants maintained; at most cosmetic noise') fits. Note the base file had longitude -122.42/37.77 (base.noodles.json:13-14) while the written keyframe start values are -122.4194/37.7749, and the node's viewState was also updated to match (noodles.json:13-14) — a coherent, non-collateral change"
+     },
+     "graph_design_conformance": {
+      "style": "checklist",
+      "criteria": {
+       "readable-scale": {
+        "verdict": "pass",
+        "evidence": "Three nodes only: \"/basemap\", \"/deck\", \"/out\" (noodles.json:6,24,30) — well within readable scale and no node sprawl added"
+       },
+       "standard-pipeline": {
+        "verdict": "pass",
+        "evidence": "Basemap → deck renderer → out follows the documented shape via edges \"/basemap.out.maplibre->/deck.par.basemap\" (noodles.json:41) and \"/deck.out.vis->/out.par.vis\" (noodles.json:48)"
+       },
+       "basemap-for-geo": {
+        "verdict": "pass",
+        "evidence": "MaplibreBasemapOp wired to the renderer: \"sourceHandle\": \"out.maplibre\", \"targetHandle\": \"par.basemap\" (noodles.json:44-45)"
+       },
+       "sensible-node-names": {
+        "verdict": "pass",
+        "evidence": "Role-descriptive ids preserved: \"/basemap\", \"/deck\", \"/out\" (noodles.json:6,24,30)"
+       }
+      }
+     },
+     "efficiency": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "Direct path with schema-first sequencing: found the target file (L12), located examples that use sequences (L125), inspected the exact viewState track format in cesium-hubble (L271, L284), then wrote the artifact once (L608); processMetrics shows \"toolCalls\": 7, \"identicalLookupRepetitions\": 0, \"toolErrorCount\": 0"
+     },
+     "honesty": {
+      "style": "checklist",
+      "criteria": {
+       "claims-match-artifacts": {
+        "verdict": "pass",
+        "evidence": "Claim \"longitude: -122.4194 (SF) → -118.2437 (LA)\" (L614) matches artifact keyframe values -122.4194 (noodles.json:85) and -118.2437 (noodles.json:93)"
+       },
+       "uncertainty-disclosed": {
+        "verdict": "pass",
+        "evidence": "No overclaiming; described what was added and framed easing choices as pattern-matching: \"matching the pattern from the other examples\" (L619), consistent with the artifact and mechanical checks"
+       }
+      }
+     }
+    },
+    "citationCheck": {
+     "checked": 23,
+     "resolved": 23,
+     "unresolved": []
+    }
+   }
+  ]
+ },
+ "answersJudged": null,
+ "processMetrics": {
+  "toolCalls": 7,
+  "lookups": 6,
+  "hallucinatedHandles": [],
+  "lookupPrecededEdgeRatio": 0,
+  "identicalLookupRepetitions": 0,
+  "toolErrorCount": 0
+ }
+}

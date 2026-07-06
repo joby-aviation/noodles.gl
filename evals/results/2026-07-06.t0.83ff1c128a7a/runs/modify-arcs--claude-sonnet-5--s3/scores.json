@@ -1,0 +1,315 @@
+{
+ "row": {
+  "rowId": "modify-arcs--claude-sonnet-5--s3@r1.2026-07-06T08:03:33.109Z",
+  "series": "2026-07-06.t0.83ff1c128a7a",
+  "runId": "modify-arcs--claude-sonnet-5--s3",
+  "artifactsRef": "2026-07-06.t0.83ff1c128a7a/runs/modify-arcs--claude-sonnet-5--s3",
+  "commit": "83ff1c128a7a589ac95336db37b4f8d56a7dcf77",
+  "tier": "T0",
+  "taskId": "modify-arcs",
+  "taskVersion": 1,
+  "validatorVersion": "interim-2",
+  "kind": "fresh",
+  "gradedAt": "2026-07-06T08:03:33.109Z",
+  "rubricVersion": 1,
+  "judgeModel": "us.anthropic.claude-opus-4-8",
+  "sessionModel": "us.anthropic.claude-sonnet-5",
+  "provider": "bedrock",
+  "region": "us-west-2",
+  "isolationAudit": "pass",
+  "scores": {
+   "mechanical": 4,
+   "judge": 3.7,
+   "total": 3.85,
+   "process": {
+    "toolCalls": 12,
+    "lookups": 10,
+    "hallucinatedHandles": 0,
+    "lookupPrecededEdgeRatio": 1,
+    "identicalLookupRepetitions": 0,
+    "toolErrorCount": 0
+   }
+  },
+  "cost": {
+   "sessionUsd": 0.42978315000000006,
+   "judgeUsd": null
+  },
+  "lane": "milestone"
+ },
+ "judge": {
+  "perDimension": {
+   "correctness_of_result": {
+    "samples": [
+     3,
+     3,
+     3
+    ],
+    "median": 3
+   },
+   "tool_use_discipline": {
+    "samples": [
+     4,
+     4,
+     4
+    ],
+    "median": 4
+   },
+   "edit_hygiene": {
+    "samples": [
+     3,
+     4,
+     4
+    ],
+    "median": 4
+   },
+   "graph_design_conformance": {
+    "samples": [
+     4,
+     4,
+     4
+    ],
+    "median": 4
+   },
+   "efficiency": {
+    "samples": [
+     3,
+     4,
+     4
+    ],
+    "median": 4
+   },
+   "honesty": {
+    "samples": [
+     4,
+     4,
+     4
+    ],
+    "median": 4
+   }
+  },
+  "samples": [
+   {
+    "dimensions": {
+     "correctness_of_result": {
+      "style": "anchors",
+      "level": 3,
+      "evidence": "getWidth = 160 (expected 160 = 2 × 80), getSourceColor/getTargetColor = \"#ff0000ff\" via literal (mechanical checks custom:arc-width-doubled, custom:arc-getSourceColor-red); \"getWidth\": 160, \"getSourceColor\": \"#ff0000ff\", \"getTargetColor\": \"#ff0000ff\" (noodles.json:192-195)"
+     },
+     "tool_use_discipline": {
+      "style": "checklist",
+      "criteria": {
+       "applied-what-it-read": {
+        "verdict": "pass",
+        "evidence": "Read ArcLayerOp schema showing getSourceColor: new ColorField('#fff', { accessor: true, transform: hexToColor }) and getWidth: new NumberField(1,...) (L143-149), then wrote \"getSourceColor\": \"#ff0000ff\" and doubled getWidth to 160 (noodles.json:192-195); also inspected color.test.ts confirming hex+alpha format hexToColor('#dc000082') (L242) matching the #ff0000ff literal it used"
+       },
+       "authoritative-source-choice": {
+        "verdict": "pass",
+        "evidence": "grep for ArcLayerOp then read operators.ts definition class ArcLayerOp extends Operator (L133) rather than inferring from example projects or memory"
+       }
+      }
+     },
+     "edit_hygiene": {
+      "style": "anchors",
+      "level": 3,
+      "evidence": "Two targeted edits: removed the two now-unused source/target color edges into the arc layer (L271) and set width+colors on /arc-layer (L273); timeline/viewport/name/editorSettings/version all reported identical by mechanical checks (custom:untouched-*). The removed edges are a defensible consequence of moving colors to literals, and no unknown keys were dropped."
+     },
+     "graph_design_conformance": {
+      "style": "checklist",
+      "criteria": {
+       "readable-scale": {
+        "verdict": "pass",
+        "evidence": "Graph retains its original ~12 named nodes (/deck, /out, /data-source, /arc-layer, /residence-layer, /workplace-layer, /home-position, /work-position, /source-color, /target-color, /blending, /maplibre-basemap) with no sprawl added (noodles.json:134-326)"
+       },
+       "standard-pipeline": {
+        "verdict": "pass",
+        "evidence": "Pipeline shape preserved: /data-source (FileOp) → layers → /deck (DeckRendererOp) → /out (OutOp) (noodles.json:81-99, 4-8)"
+       },
+       "basemap-for-geo": {
+        "verdict": "pass",
+        "evidence": "\"id\": \"/maplibre-basemap.out.maplibre->/deck.par.basemap\" wiring MaplibreBasemapOp to renderer retained (noodles.json:74-78)"
+       },
+       "sensible-node-names": {
+        "verdict": "pass",
+        "evidence": "Role-descriptive ids like /arc-layer, /home-position, /source-color, /maplibre-basemap preserved (noodles.json:187, 237, 265, 308)"
+       }
+      }
+     },
+     "efficiency": {
+      "style": "anchors",
+      "level": 3,
+      "evidence": "Direct path: located file (L2-3), read it (L4), read ArcLayerOp schema (L132), confirmed color format (L233), made two edits (L271, L273), re-read and validated JSON (L397-398). 12 tool calls, no repeated identical lookups. The failed npm test (L399-501) was a cheap detour correctly diagnosed as an environment issue."
+     },
+     "honesty": {
+      "style": "checklist",
+      "criteria": {
+       "claims-match-artifacts": {
+        "verdict": "pass",
+        "evidence": "\"Set getSourceColor and getTargetColor to #ff0000ff (red) ... Doubled getWidth from 80 to 160\" (L506-507) matches noodles.json:192-195 and mechanical checks"
+       },
+       "uncertainty-disclosed": {
+        "verdict": "pass",
+        "evidence": "\"The test failure is an environment issue (missing Playwright browser binaries), unrelated to this change. The JSON parses correctly.\" (L502) — correctly disclosed the test could not run and limited its verification claim to JSON parsing"
+       }
+      }
+     }
+    },
+    "citationCheck": {
+     "checked": 22,
+     "resolved": 22,
+     "unresolved": []
+    }
+   },
+   {
+    "dimensions": {
+     "correctness_of_result": {
+      "style": "anchors",
+      "level": 3,
+      "evidence": "\"getWidth = 160 (expected 160 = 2 × 80)\" and getSourceColor/getTargetColor = \"#ff0000ff\" (custom checks all pass); arcs are red and doubled in width (noodles.json:192-195)"
+     },
+     "tool_use_discipline": {
+      "style": "checklist",
+      "criteria": {
+       "applied-what-it-read": {
+        "verdict": "pass",
+        "evidence": "Read schema showing \"getSourceColor: new ColorField('#fff', { accessor: true, transform: hexToColor })\" (L143) and the hex-with-alpha format from color.test.ts \"expect(colorToHex([255, 0, 0, 255])).toEqual('#ff0000ff')\" (L252), then wrote \"getSourceColor\": \"#ff0000ff\" (noodles.json:194)"
+       },
+       "authoritative-source-choice": {
+        "verdict": "pass",
+        "evidence": "Consulted operators.ts ArcLayerOp definition \"export class ArcLayerOp extends Operator<ArcLayerOp>\" (L133) and color.ts rather than inferring from example projects"
+       }
+      }
+     },
+     "edit_hygiene": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "Two targeted edits: removed the now-obsolete source/target-color→arc edges (L271) and set getWidth+colors on /arc-layer (L273); timeline/viewport/name/editorSettings/version all report \"identical\" and the diff is minimal and reconstructable"
+     },
+     "graph_design_conformance": {
+      "style": "checklist",
+      "criteria": {
+       "readable-scale": {
+        "verdict": "pass",
+        "evidence": "Graph unchanged in scale; nodes remain a small readable set e.g. /deck, /arc-layer, /residence-layer, /source-color (noodles.json:136-326)"
+       },
+       "standard-pipeline": {
+        "verdict": "pass",
+        "evidence": "Data source into layers into deck renderer preserved: \"/data-source.out.data->/arc-layer.par.data\" ... \"/arc-layer.out.layer->/deck.par.layers\" (noodles.json:11-15, 81-85)"
+       },
+       "basemap-for-geo": {
+        "verdict": "pass",
+        "evidence": "\"/maplibre-basemap.out.maplibre->/deck.par.basemap\" wired to renderer (noodles.json:74-78)"
+       },
+       "sensible-node-names": {
+        "verdict": "pass",
+        "evidence": "Role-descriptive ids retained: \"id\": \"/arc-layer\", \"/residence-layer\", \"/source-color\" (noodles.json:187, 205, 265)"
+       }
+      }
+     },
+     "efficiency": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "Located file, read schema for ArcLayerOp (L133), confirmed color hex format (L252) and softMax for width (L266-270) before editing, then made edits and validated JSON — schema lookups preceded edits (lookupPrecededEdgeRatio 1, identicalLookupRepetitions 0)"
+     },
+     "honesty": {
+      "style": "checklist",
+      "criteria": {
+       "claims-match-artifacts": {
+        "verdict": "pass",
+        "evidence": "\"Set getSourceColor and getTargetColor to #ff0000ff (red) ... Doubled getWidth from 80 to 160\" (L506-507) matches noodles.json:192-195"
+       },
+       "uncertainty-disclosed": {
+        "verdict": "pass",
+        "evidence": "\"The test failure is an environment issue (missing Playwright browser binaries), unrelated to this change. The JSON parses correctly.\" (L502) — correctly attributes the failing test to the missing browser binary shown at L455"
+       }
+      }
+     }
+    },
+    "citationCheck": {
+     "checked": 18,
+     "resolved": 18,
+     "unresolved": []
+    }
+   },
+   {
+    "dimensions": {
+     "correctness_of_result": {
+      "style": "anchors",
+      "level": 3,
+      "evidence": "\"getWidth = 160 (expected 160 = 2 × 80)\" and \"getSourceColor = \\\"#ff0000ff\\\" via literal\" (mechanical results); arcs are red and doubled width, dots unchanged (\"/residence-layer fill = \\\"#f69a00\\\" (must remain #f69a00)\"), timeline/viewport identical."
+     },
+     "tool_use_discipline": {
+      "style": "checklist",
+      "criteria": {
+       "applied-what-it-read": {
+        "verdict": "pass",
+        "evidence": "Read the schema field `getSourceColor: new ColorField('#fff', { accessor: true, transform: hexToColor })` (L143) and `getWidth: new NumberField(1, { min: 0, softMax: 100, accessor: true })` (L149), then wrote literal `#ff0000ff` colors and `getWidth: 160` on the arc-layer (L273)."
+       },
+       "authoritative-source-choice": {
+        "verdict": "pass",
+        "evidence": "Preferred `operators.ts` for the ArcLayerOp field definitions: \"export class ArcLayerOp extends Operator<ArcLayerOp>\" (L133) and the color util `hexToColor` (L263) rather than guessing from the example."
+       }
+      }
+     },
+     "edit_hygiene": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "Two surgical edits only: removed the two now-redundant arc-color edges (L271) and set the four inputs on /arc-layer (L273). Timeline, viewport, name, editorSettings, version all \"identical\" (mechanical results); a reviewer reading the diff reconstructs the request exactly."
+     },
+     "graph_design_conformance": {
+      "style": "checklist",
+      "criteria": {
+       "readable-scale": {
+        "verdict": "pass",
+        "evidence": "Graph unchanged in count; ~12 role-named nodes for a multi-layer map, no sprawl added (nodes list unchanged, noodles.json:134-326)."
+       },
+       "standard-pipeline": {
+        "verdict": "pass",
+        "evidence": "Preserved documented shape: data-source -> layer -> deck renderer, e.g. \"/arc-layer.out.layer->/deck.par.layers\" (noodles.json:80-85)."
+       },
+       "basemap-for-geo": {
+        "verdict": "pass",
+        "evidence": "\"/maplibre-basemap.out.maplibre->/deck.par.basemap\" retained (noodles.json:73-78)."
+       },
+       "sensible-node-names": {
+        "verdict": "pass",
+        "evidence": "Role-descriptive ids retained, e.g. \"id\": \"/arc-layer\" (noodles.json:187) and \"id\": \"/source-color\" (noodles.json:265)."
+       }
+      }
+     },
+     "efficiency": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "Located file (L2), read it (L4), consulted operators.ts schema (L132) and color util (L233) before editing (L271-273), then verified JSON validity (L397). Schema inspected before writing edits; 12 tool calls, 0 errors, no repeated lookups."
+     },
+     "honesty": {
+      "style": "checklist",
+      "criteria": {
+       "claims-match-artifacts": {
+        "verdict": "pass",
+        "evidence": "\"Set getSourceColor and getTargetColor to #ff0000ff (red)... Doubled getWidth from 80 to 160\" (L506-507) matches artifact noodles.json:192-195 and mechanical checks."
+       },
+       "uncertainty-disclosed": {
+        "verdict": "pass",
+        "evidence": "\"The test failure is an environment issue (missing Playwright browser binaries), unrelated to this change. The JSON parses correctly.\" (L502) — correctly attributes the test error to environment rather than asserting a passing test suite."
+       }
+      }
+     }
+    },
+    "citationCheck": {
+     "checked": 21,
+     "resolved": 21,
+     "unresolved": []
+    }
+   }
+  ]
+ },
+ "answersJudged": null,
+ "processMetrics": {
+  "toolCalls": 12,
+  "lookups": 10,
+  "hallucinatedHandles": [],
+  "lookupPrecededEdgeRatio": 1,
+  "identicalLookupRepetitions": 0,
+  "toolErrorCount": 0
+ }
+}

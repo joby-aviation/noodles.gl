@@ -1,0 +1,315 @@
+{
+ "row": {
+  "rowId": "modify-arcs--claude-sonnet-4-6--s3@r1.2026-07-06T08:02:12.535Z",
+  "series": "2026-07-06.t0.83ff1c128a7a",
+  "runId": "modify-arcs--claude-sonnet-4-6--s3",
+  "artifactsRef": "2026-07-06.t0.83ff1c128a7a/runs/modify-arcs--claude-sonnet-4-6--s3",
+  "commit": "83ff1c128a7a589ac95336db37b4f8d56a7dcf77",
+  "tier": "T0",
+  "taskId": "modify-arcs",
+  "taskVersion": 1,
+  "validatorVersion": "interim-2",
+  "kind": "fresh",
+  "gradedAt": "2026-07-06T08:02:12.535Z",
+  "rubricVersion": 1,
+  "judgeModel": "us.anthropic.claude-opus-4-8",
+  "sessionModel": "us.anthropic.claude-sonnet-4-6",
+  "provider": "bedrock",
+  "region": "us-west-2",
+  "isolationAudit": "pass",
+  "scores": {
+   "mechanical": 4,
+   "judge": 3.7,
+   "total": 3.85,
+   "process": {
+    "toolCalls": 3,
+    "lookups": 1,
+    "hallucinatedHandles": 0,
+    "lookupPrecededEdgeRatio": 0,
+    "identicalLookupRepetitions": 0,
+    "toolErrorCount": 0
+   }
+  },
+  "cost": {
+   "sessionUsd": 0.14759460000000002,
+   "judgeUsd": null
+  },
+  "lane": "milestone"
+ },
+ "judge": {
+  "perDimension": {
+   "correctness_of_result": {
+    "samples": [
+     3,
+     3,
+     3
+    ],
+    "median": 3
+   },
+   "tool_use_discipline": {
+    "samples": [
+     4,
+     4,
+     4
+    ],
+    "median": 4
+   },
+   "edit_hygiene": {
+    "samples": [
+     3,
+     4,
+     4
+    ],
+    "median": 4
+   },
+   "graph_design_conformance": {
+    "samples": [
+     4,
+     4,
+     4
+    ],
+    "median": 4
+   },
+   "efficiency": {
+    "samples": [
+     3,
+     3,
+     3
+    ],
+    "median": 3
+   },
+   "honesty": {
+    "samples": [
+     4,
+     4,
+     4
+    ],
+    "median": 4
+   }
+  },
+  "samples": [
+   {
+    "dimensions": {
+     "correctness_of_result": {
+      "style": "anchors",
+      "level": 3,
+      "evidence": "\"getSourceColor = \\\"#ff0000\\\" via literal\" and \"getWidth = 160 (expected 160 = 2 × 80)\" (mechanical results); scatter layers preserved: \"/residence-layer fill = \\\"#f69a00\\\" (must remain #f69a00)\" (mechanical results). Arcs red and doubled width, dots unchanged. No unrequested enhancement, so not level 4."
+     },
+     "tool_use_discipline": {
+      "style": "checklist",
+      "criteria": {
+       "applied-what-it-read": {
+        "verdict": "pass",
+        "evidence": "\"getWidth\": 160 doubling the read value \"getWidth\": 80 (noodles.json:193 vs base.noodles.json:206); the agent identified shared color nodes from the edges it read and acted on them: \"The arc layer's colors come from `/source-color` and `/target-color` nodes, which are also shared with the scatter plot layers\" (L304)"
+       },
+       "authoritative-source-choice": {
+        "verdict": "na",
+        "evidence": "Only one lookup performed (\"lookups\": 1) — a Read of the project file itself (L12); no competing sources were consulted or available to choose between at this tier."
+       }
+      }
+     },
+     "edit_hygiene": {
+      "style": "anchors",
+      "level": 3,
+      "evidence": "Two targeted edits: removing the two arc color edges (L309) and adding inline color+width to the arc node (L311). Timeline, viewport, name, editorSettings, version all preserved: \"identical\" (mechanical results). Only cosmetic noise is a leftover blank line: \"noodles.json:59:\" (blank) where the edges were removed, preventing level 4's smallest-plausible-diff."
+     },
+     "graph_design_conformance": {
+      "style": "checklist",
+      "criteria": {
+       "readable-scale": {
+        "verdict": "pass",
+        "evidence": "Node count unchanged and modest (deck, out, data-source, arc-layer, two scatter layers, two accessors, two colors, blending, basemap) — no nodes added or removed (noodles.json:135-328)"
+       },
+       "standard-pipeline": {
+        "verdict": "pass",
+        "evidence": "Pipeline shape preserved: data-source→arc-layer→deck→out with accessors and color feeds intact; only two color edges removed and colors inlined (L309, noodles.json:193-196)"
+       },
+       "basemap-for-geo": {
+        "verdict": "pass",
+        "evidence": "\"id\": \"/maplibre-basemap.out.maplibre->/deck.par.basemap\" retained (noodles.json:75-79)"
+       },
+       "sensible-node-names": {
+        "verdict": "pass",
+        "evidence": "Role-descriptive ids retained: \"/arc-layer\", \"/source-color\", \"/home-position\" (noodles.json:188, 266, 238)"
+       }
+      }
+     },
+     "efficiency": {
+      "style": "anchors",
+      "level": 3,
+      "evidence": "One Read then two Edits, no redundant work: \"toolCalls\": 3, \"identicalLookupRepetitions\": 0 (process metrics). \"Let me read the project file first.\" (L11) then direct edits (L309, L311). Not level 4: no explicit verification/read-back after editing (edit tool noted \"no need to Read it back\", L312, and agent did not re-verify)."
+     },
+     "honesty": {
+      "style": "checklist",
+      "criteria": {
+       "claims-match-artifacts": {
+        "verdict": "pass",
+        "evidence": "\"getSourceColor` and `getTargetColor` set to `#ff0000` (red) inline, and `getWidth` doubled from 80 to 160\" (L313) matches noodles.json:193-196; \"The two edges that previously fed the shared orange/purple colors into the arc layer have been removed\" (L313) matches removed edges (absent from noodles.json edges list)"
+       },
+       "uncertainty-disclosed": {
+        "verdict": "pass",
+        "evidence": "The claims made are all directly verifiable in the artifact and correct; no undisclosed unverified assertions — the reasoning about shared color nodes affecting scatter plots (L304) is accurate per mechanical check \"/residence-layer fill = \\\"#f69a00\\\" (must remain #f69a00)\""
+       }
+      }
+     }
+    },
+    "citationCheck": {
+     "checked": 20,
+     "resolved": 20,
+     "unresolved": []
+    }
+   },
+   {
+    "dimensions": {
+     "correctness_of_result": {
+      "style": "anchors",
+      "level": 3,
+      "evidence": "\"getSourceColor = \\\"#ff0000\\\" via literal\" and \"getWidth = 160 (expected 160 = 2 × 80)\" (mechanical results); \"getWidth\": 160, \"getSourceColor\": \"#ff0000\", \"getTargetColor\": \"#ff0000\" (noodles.json:193-196). Scatter layers unchanged: /residence-layer fill = #f69a00, /workplace-layer fill = #950c69 (mechanical results)."
+     },
+     "tool_use_discipline": {
+      "style": "checklist",
+      "criteria": {
+       "applied-what-it-read": {
+        "verdict": "pass",
+        "evidence": "The agent read the file and recognized the shared color nodes: \"The arc layer's colors come from `/source-color` and `/target-color` nodes, which are also shared with the scatter plot layers\" (L304), then acted on that by removing exactly those two arc edges (L309)."
+       },
+       "authoritative-source-choice": {
+        "verdict": "na",
+        "evidence": "Only one lookup was performed (the project file itself, the target of the edit); no competing sources were consulted or available in this session (processMetrics.lookups = 1)."
+       }
+      }
+     },
+     "edit_hygiene": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "Two targeted Edits: removed the two arc color edges (L309) and set getWidth+colors inline (L311). Untouched checks all identical: \"custom:untouched-timeline\": \"identical\", \"custom:untouched-viewport\": \"identical\". A reviewer reading the diff can reconstruct the request: doubled width, red arc colors, removed shared color feeds so scatter layers stay unaffected."
+     },
+     "graph_design_conformance": {
+      "style": "checklist",
+      "criteria": {
+       "readable-scale": {
+        "verdict": "pass",
+        "evidence": "The graph retains its existing ~11 role-named nodes and adds none; edit only removed two edges and changed inline inputs (noodles.json:188-327)."
+       },
+       "standard-pipeline": {
+        "verdict": "pass",
+        "evidence": "Pipeline preserved: /data-source (FileOp) -> /arc-layer (ArcLayerOp) -> /deck (DeckRendererOp) -> /out (OutOp) (noodles.json:11-15, 82-86, 4-8)."
+       },
+       "basemap-for-geo": {
+        "verdict": "pass",
+        "evidence": "Basemap remains wired: \"/maplibre-basemap.out.maplibre->/deck.par.basemap\" (noodles.json:75-79)."
+       },
+       "sensible-node-names": {
+        "verdict": "pass",
+        "evidence": "Node ids describe roles, e.g. \"id\": \"/arc-layer\" and \"id\": \"/home-position\" (noodles.json:188, 238) — unchanged by the edit."
+       }
+      }
+     },
+     "efficiency": {
+      "style": "anchors",
+      "level": 3,
+      "evidence": "One Read (L12) then two targeted Edits (L309, L311) and done (L313). processMetrics: toolCalls 3, toolErrorCount 0, identicalLookupRepetitions 0 — direct path with no redundant work."
+     },
+     "honesty": {
+      "style": "checklist",
+      "criteria": {
+       "claims-match-artifacts": {
+        "verdict": "pass",
+        "evidence": "Claim \"getSourceColor and getTargetColor set to #ff0000 (red) inline, and getWidth doubled from 80 to 160\" (L313) matches noodles.json:193-196; claim \"two edges ... have been removed\" matches absence of the arc color edges (noodles.json:59-66)."
+       },
+       "uncertainty-disclosed": {
+        "verdict": "na",
+        "evidence": "The edit was mechanically verifiable and the agent asserted only what the artifact shows (L313); nothing material was left unverified requiring disclosure."
+       }
+      }
+     }
+    },
+    "citationCheck": {
+     "checked": 17,
+     "resolved": 17,
+     "unresolved": []
+    }
+   },
+   {
+    "dimensions": {
+     "correctness_of_result": {
+      "style": "anchors",
+      "level": 3,
+      "evidence": "\"getSourceColor = \\\"#ff0000\\\" via literal\" and \"getWidth = 160 (expected 160 = 2 × 80)\" (mechanical results); arc-layer inputs show \"getWidth\": 160, \"getSourceColor\": \"#ff0000\", \"getTargetColor\": \"#ff0000\" (noodles.json:193-196), scatter fills unchanged (noodles.json:270,284)"
+     },
+     "tool_use_discipline": {
+      "style": "checklist",
+      "criteria": {
+       "applied-what-it-read": {
+        "verdict": "pass",
+        "evidence": "\"The arc layer's colors come from `/source-color` and `/target-color` nodes, which are also shared with the scatter plot layers\" (L304) — the read of edges directly shaped the decision to remove arc edges and inline colors"
+       },
+       "authoritative-source-choice": {
+        "verdict": "na",
+        "evidence": "Only the project file itself was read (L12); no competing schema/registry sources were consulted for this minimal edit, and the edit relied on the file's own structure"
+       }
+      }
+     },
+     "edit_hygiene": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "Two targeted edits: removed the two arc color edges (L309) and set the arc inputs (L311); timeline, viewport, name, editorSettings, version all \"identical\" (mechanical results). The diff is the smallest plausible one to satisfy the request"
+     },
+     "graph_design_conformance": {
+      "style": "checklist",
+      "criteria": {
+       "readable-scale": {
+        "verdict": "pass",
+        "evidence": "Graph retains its original ~12 named nodes (/deck, /arc-layer, /residence-layer, etc.) with no new nodes added (noodles.json:135-327)"
+       },
+       "standard-pipeline": {
+        "verdict": "pass",
+        "evidence": "data-source → accessors/colors → layers → deck renderer pipeline preserved; only the arc color edges removed in favor of inline inputs (noodles.json:2-122)"
+       },
+       "basemap-for-geo": {
+        "verdict": "pass",
+        "evidence": "\"/maplibre-basemap.out.maplibre->/deck.par.basemap\" basemap wired to renderer remains intact (noodles.json:75-79)"
+       },
+       "sensible-node-names": {
+        "verdict": "pass",
+        "evidence": "Node ids like \"/arc-layer\", \"/residence-layer\", \"/source-color\" describe roles (noodles.json:188,206,266)"
+       }
+      }
+     },
+     "efficiency": {
+      "style": "anchors",
+      "level": 3,
+      "evidence": "One read (L12) then two targeted edits (L309, L311); \"toolCalls\": 3, \"identicalLookupRepetitions\": 0 (process metrics) — direct path with no redundant work"
+     },
+     "honesty": {
+      "style": "checklist",
+      "criteria": {
+       "claims-match-artifacts": {
+        "verdict": "pass",
+        "evidence": "\"getSourceColor` and `getTargetColor` set to `#ff0000` (red) inline, and `getWidth` doubled from 80 to 160\" (L313) matches noodles.json:193-196; \"the two edges ... have been removed\" matches the deleted edges (noodles.json:59-60)"
+       },
+       "uncertainty-disclosed": {
+        "verdict": "na",
+        "evidence": "The edit was fully verifiable by structure; the session made no unverifiable assertions requiring a caveat (L313)"
+       }
+      }
+     }
+    },
+    "citationCheck": {
+     "checked": 17,
+     "resolved": 17,
+     "unresolved": []
+    }
+   }
+  ]
+ },
+ "answersJudged": null,
+ "processMetrics": {
+  "toolCalls": 3,
+  "lookups": 1,
+  "hallucinatedHandles": [],
+  "lookupPrecededEdgeRatio": 0,
+  "identicalLookupRepetitions": 0,
+  "toolErrorCount": 0
+ }
+}

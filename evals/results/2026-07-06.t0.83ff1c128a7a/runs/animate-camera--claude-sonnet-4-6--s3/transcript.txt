@@ -1,0 +1,884 @@
+L1: [system] session started (tools + workspace initialized)
+L2: [system] session started (tools + workspace initialized)
+L3: [system] session started (tools + workspace initialized)
+L4: [system] session started (tools + workspace initialized)
+L5: [system] session started (tools + workspace initialized)
+L6: [system] session started (tools + workspace initialized)
+L7: [system] session started (tools + workspace initialized)
+L8: [system] session started (tools + workspace initialized)
+L9: [system] session started (tools + workspace initialized)
+L10: [system] session started (tools + workspace initialized)
+L11: [assistant] Let me read the current camera-tour project file first.
+L12: [tool_use Bash] {"command":"find /tmp/noodles-evals/workspaces/animate-camera--claude-sonnet-4-6--s3/noodles-editor/src/examples/camera-tour -type f 2>/dev/null || find /tmp/noodles-evals/workspaces/animate-camera--claude-sonnet-4-6--s3/noodles-editor -path \"*/camera-tour*\" -type f 2>/dev/null","description":"Find camera-tour example files"}
+L13: [tool_result] /tmp/noodles-evals/workspaces/animate-camera--claude-sonnet-4-6--s3/noodles-editor/src/examples/camera-tour/noodles.json
+L14: [tool_use Read] {"file_path":"/tmp/noodles-evals/workspaces/animate-camera--claude-sonnet-4-6--s3/noodles-editor/src/examples/camera-tour/noodles.json"}
+L15: [tool_result] 1	{
+L16: 2	  "version": 14,
+L17: 3	  "name": "Camera Tour",
+L18: 4	  "nodes": [
+L19: 5	    {
+L20: 6	      "id": "/basemap",
+L21: 7	      "type": "MaplibreBasemapOp",
+L22: 8	      "position": { "x": 0, "y": 200 },
+L23: 9	      "data": {
+L24: 10	        "inputs": {
+L25: 11	          "mapStyle": "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json",
+L26: 12	          "viewState": {
+L27: 13	            "longitude": -122.42,
+L28: 14	            "latitude": 37.77,
+L29: 15	            "zoom": 9,
+L30: 16	            "pitch": 0,
+L31: 17	            "bearing": 0
+L32: 18	          }
+L33: 19	        },
+L34: 20	        "locked": false
+L35: 21	      }
+L36: 22	    },
+L37: 23	    {
+L38: 24	      "id": "/deck",
+L39: 25	      "type": "DeckRendererOp",
+L40: 26	      "position": { "x": 350, "y": 100 },
+L41: 27	      "data": { "inputs": {}, "locked": false }
+L42: 28	    },
+L43: 29	    {
+L44: 30	      "id": "/out",
+L45: 31	      "type": "OutOp",
+L46: 32	      "position": { "x": 700, "y": 100 },
+L47: 33	      "data": {
+L48: 34	        "inputs": { "display": "fixed", "width": 1920, "height": 1080, "framerate": 30 },
+L49: 35	        "locked": false
+L50: 36	      }
+L51: 37	    }
+L52: 38	  ],
+L53: 39	  "edges": [
+L54: 40	    {
+L55: 41	      "id": "/basemap.out.maplibre->/deck.par.basemap",
+L56: 42	      "source": "/basemap",
+L57: 43	      "target": "/deck",
+L58: 44	      "sourceHandle": "out.maplibre",
+L59: 45	      "targetHandle": "par.basemap"
+L60: 46	    },
+L61: 47	    {
+L62: 48	      "id": "/deck.out.vis->/out.par.vis",
+L63: 49	      "source": "/deck",
+L64: 50	      "target": "/out",
+L65: 51	      "sourceHandle": "out.vis",
+L66: 52	      "targetHandle": "par.vis"
+L67: 53	    }
+L68: 54	  ],
+L69: 55	  "viewport": { "x": 0, "y": 0, "zoom": 1 },
+L70: 56	  "editorSettings": { "layoutMode": "noodles-on-top", "showOverlay": true },
+L71: 57	  "timeline": {
+L72: 58	    "sheetsById": {
+L73: 59	      "Noodles": {
+L74: 60	        "staticOverrides": { "byObject": {} }
+L75: 61	      }
+L76: 62	    },
+L77: 63	    "definitionVersion": "0.4.0",
+L78: 64	    "revisionHistory": []
+L79: 65	  }
+L80: 66	}
+L81: 67	
+L82: [system] session started (tools + workspace initialized)
+L83: [system] session started (tools + workspace initialized)
+L84: [system] session started (tools + workspace initialized)
+L85: [system] session started (tools + workspace initialized)
+L86: [system] session started (tools + workspace initialized)
+L87: [system] session started (tools + workspace initialized)
+L88: [system] session started (tools + workspace initialized)
+L89: [system] session started (tools + workspace initialized)
+L90: [system] session started (tools + workspace initialized)
+L91: [system] session started (tools + workspace initialized)
+L92: [system] session started (tools + workspace initialized)
+L93: [system] session started (tools + workspace initialized)
+L94: [system] session started (tools + workspace initialized)
+L95: [system] session started (tools + workspace initialized)
+L96: [system] session started (tools + workspace initialized)
+L97: [system] session started (tools + workspace initialized)
+L98: [system] session started (tools + workspace initialized)
+L99: [system] session started (tools + workspace initialized)
+L100: [system] session started (tools + workspace initialized)
+L101: [system] session started (tools + workspace initialized)
+L102: [system] session started (tools + workspace initialized)
+L103: [system] session started (tools + workspace initialized)
+L104: [system] session started (tools + workspace initialized)
+L105: [system] session started (tools + workspace initialized)
+L106: [system] session started (tools + workspace initialized)
+L107: [system] session started (tools + workspace initialized)
+L108: [system] session started (tools + workspace initialized)
+L109: [system] session started (tools + workspace initialized)
+L110: [system] session started (tools + workspace initialized)
+L111: [system] session started (tools + workspace initialized)
+L112: [system] session started (tools + workspace initialized)
+L113: [system] session started (tools + workspace initialized)
+L114: [system] session started (tools + workspace initialized)
+L115: [system] session started (tools + workspace initialized)
+L116: [system] session started (tools + workspace initialized)
+L117: [system] session started (tools + workspace initialized)
+L118: [system] session started (tools + workspace initialized)
+L119: [system] session started (tools + workspace initialized)
+L120: [system] session started (tools + workspace initialized)
+L121: [system] session started (tools + workspace initialized)
+L122: [system] session started (tools + workspace initialized)
+L123: [system] session started (tools + workspace initialized)
+L124: [system] session started (tools + workspace initialized)
+L125: [system] session started (tools + workspace initialized)
+L126: [assistant] Now let me look at how the timeline/keyframes are structured in other examples to understand the format.
+L127: [tool_use Bash] {"command":"find /tmp/noodles-evals/workspaces/animate-camera--claude-sonnet-4-6--s3/noodles-editor -name \"noodles.json\" | head -10 | xargs grep -l \"keyframes\\|sequenceTracks\\|sheetsById\" 2>/dev/null | head -5","description":"Find examples with timeline keyframes"}
+L128: [tool_result] /tmp/noodles-evals/workspaces/animate-camera--claude-sonnet-4-6--s3/noodles-editor/src/examples/orbit/noodles.json
+L129: /tmp/noodles-evals/workspaces/animate-camera--claude-sonnet-4-6--s3/noodles-editor/src/examples/cesium-hubble/noodles.json
+L130: /tmp/noodles-evals/workspaces/animate-camera--claude-sonnet-4-6--s3/noodles-editor/src/examples/geojson-example/noodles.json
+L131: /tmp/noodles-evals/workspaces/animate-camera--claude-sonnet-4-6--s3/noodles-editor/src/examples/camera-tour/noodles.json
+L132: /tmp/noodles-evals/workspaces/animate-camera--claude-sonnet-4-6--s3/noodles-editor/src/examples/simple-mesh-example/noodles.json
+L133: [tool_use Read] {"file_path":"/tmp/noodles-evals/workspaces/animate-camera--claude-sonnet-4-6--s3/noodles-editor/src/examples/orbit/noodles.json"}
+L134: [tool_result] 1	{
+L135: 2	  "edges": [
+L136: 3	    {
+L137: 4	      "id": "/deck.out.vis->/out.par.vis",
+L138: 5	      "source": "/deck",
+L139: 6	      "target": "/out",
+L140: 7	      "sourceHandle": "out.vis",
+L141: 8	      "targetHandle": "par.vis"
+L142: 9	    },
+L143: 10	    {
+L144: 11	      "source": "/orbitview-0",
+L145: 12	      "sourceHandle": "out.view",
+L146: 13	      "target": "/deck",
+L147: 14	      "targetHandle": "par.views",
+L148: 15	      "id": "/orbitview-0.out.view->/deck.par.views"
+L149: 16	    },
+L150: 17	    {
+L151: 18	      "source": "/scenegraphlayer-0",
+L152: 19	      "sourceHandle": "out.layer",
+L153: 20	      "target": "/deck",
+L154: 21	      "targetHandle": "par.layers",
+L155: 22	      "id": "/scenegraphlayer-0.out.layer->/deck.par.layers"
+L156: 23	    },
+L157: 24	    {
+L158: 25	      "source": "/expression-0",
+L159: 26	      "sourceHandle": "out.data",
+L160: 27	      "target": "/scenegraphlayer-0",
+L161: 28	      "targetHandle": "par.data",
+L162: 29	      "id": "/expression-0.out.data->/scenegraphlayer-0.par.data"
+L163: 30	    }
+L164: 31	  ],
+L165: 32	  "viewport": {
+L166: 33	    "x": 1368.6650642622628,
+L167: 34	    "y": 546.6972278664407,
+L168: 35	    "zoom": 0.981085979917294
+L169: 36	  },
+L170: 37	  "version": 14,
+L171: 38	  "name": "Orbit View 3D Scene",
+L172: 39	  "editorSettings": {
+L173: 40	    "layoutMode": "noodles-on-top",
+L174: 41	    "showOverlay": true
+L175: 42	  },
+L176: 43	  "nodes": [
+L177: 44	    {
+L178: 45	      "id": "/deck",
+L179: 46	      "type": "DeckRendererOp",
+L180: 47	      "data": {
+L181: 48	        "inputs": {
+L182: 49	          "basemap": null
+L183: 50	        },
+L184: 51	        "locked": false
+L185: 52	      },
+L186: 53	      "position": {
+L187: 54	        "x": 0,
+L188: 55	        "y": 0
+L189: 56	      }
+L190: 57	    },
+L191: 58	    {
+L192: 59	      "id": "/out",
+L193: 60	      "type": "OutOp",
+L194: 61	      "data": {
+L195: 62	        "inputs": {
+L196: 63	          "display": "fixed",
+L197: 64	          "width": 1920,
+L198: 65	          "height": 1080,
+L199: 66	          "lod": 2,
+L200: 67	          "waitForData": true,
+L201: 68	          "codec": "avc",
+L202: 69	          "bitrateMbps": 10,
+L203: 70	          "bitrateMode": "constant",
+L204: 71	          "scaleControl": 0.3,
+L205: 72	          "framerate": 30,
+L206: 73	          "captureDelay": 50
+L207: 74	        },
+L208: 75	        "locked": false
+L209: 76	      },
+L210: 77	      "position": {
+L211: 78	        "x": 390,
+L212: 79	        "y": 0
+L213: 80	      }
+L214: 81	    },
+L215: 82	    {
+L216: 83	      "id": "/orbitview-0",
+L217: 84	      "type": "OrbitViewOp",
+L218: 85	      "position": {
+L219: 86	        "x": -565.1875,
+L220: 87	        "y": 169.25
+L221: 88	      },
+L222: 89	      "data": {
+L223: 90	        "inputs": {
+L224: 91	          "clear": true,
+L225: 92	          "clearColor": "#2997ffff",
+L226: 93	          "fovy": 50
+L227: 94	        },
+L228: 95	        "locked": false
+L229: 96	      }
+L230: 97	    },
+L231: 98	    {
+L232: 99	      "id": "/scenegraphlayer-0",
+L233: 100	      "type": "ScenegraphLayerOp",
+L234: 101	      "position": {
+L235: 102	        "x": -539.9180707890639,
+L236: 103	        "y": -285.7888584218722
+L237: 104	      },
+L238: 105	      "data": {
+L239: 106	        "inputs": {
+L240: 107	          "sizeMinPixels": 10,
+L241: 108	          "getColor": "#ffffffff"
+L242: 109	        },
+L243: 110	        "locked": false
+L244: 111	      }
+L245: 112	    },
+L246: 113	    {
+L247: 114	      "id": "/expression-0",
+L248: 115	      "type": "ExpressionOp",
+L249: 116	      "position": {
+L250: 117	        "x": -1013.8408708542686,
+L251: 118	        "y": -139.4872739249836
+L252: 119	      },
+L253: 120	      "data": {
+L254: 121	        "inputs": {
+L255: 122	          "expression": "[null]"
+L256: 123	        },
+L257: 124	        "locked": false
+L258: 125	      }
+L259: 126	    }
+L260: 127	  ],
+L261: 128	  "timeline": {
+L262: 129	    "sheetsById": {
+L263: 130	      "Noodles": {
+L264: 131	        "staticOverrides": {
+L265: 132	          "byObject": {
+L266: 133	            "scenegraphlayer-0": {
+L267: 134	              "getColor": {
+L268: 135	                "r": 1,
+L269: 136	                "g": 1,
+L270: 137	                "b": 1,
+L271: 138	                "a": 1
+L272: 139	              }
+L273: 140	            },
+L274: 141	            "orbitview-0": {
+L275: 142	              "clearColor": {
+L276: 143	                "r": 0.1607843137254902,
+L277: 144	                "g": 0.592156862745098,
+L278: 145	                "b": 1,
+L279: 146	                "a": 1
+L280: 147	              }
+L281: 148	            }
+L282: 149	          }
+L283: 150	        }
+L284: 151	      }
+L285: 152	    },
+L286: 153	    "definitionVersion": "0.4.0",
+L287: 154	    "revisionHistory": [
+L288: 155	      "JtY15U_d_cPZoRLu",
+L289: 156	      "9EsczZKTvYsUK8uR",
+L290: 157	      "R6gN92Yj6dfyRehM"
+L291: 158	    ]
+L292: 159	  }
+L293: 160	}
+L294: 161	
+L295: [assistant] That example doesn't show keyframe sequences. Let me look at a more complex example.
+L296: [tool_use Read] {"file_path":"/tmp/noodles-evals/workspaces/animate-camera--claude-sonnet-4-6--s3/noodles-editor/src/examples/geojson-example/noodles.json"}
+L297: [tool_result] 1	{
+L298: 2	  "edges": [
+L299: 3	    {
+L300: 4	      "id": "/deck.out.vis->/out.par.vis",
+L301: 5	      "source": "/deck",
+L302: 6	      "target": "/out",
+L303: 7	      "sourceHandle": "out.vis",
+L304: 8	      "targetHandle": "par.vis"
+L305: 9	    },
+L306: 10	    {
+L307: 11	      "id": "/data-source.out.data->/geojson-layer.par.data",
+L308: 12	      "source": "/data-source",
+L309: 13	      "target": "/geojson-layer",
+L310: 14	      "sourceHandle": "out.data",
+L311: 15	      "targetHandle": "par.data"
+L312: 16	    },
+L313: 17	    {
+L314: 18	      "id": "/fill-color.out.color->/geojson-layer.par.getFillColor",
+L315: 19	      "source": "/fill-color",
+L316: 20	      "target": "/geojson-layer",
+L317: 21	      "sourceHandle": "out.color",
+L318: 22	      "targetHandle": "par.getFillColor"
+L319: 23	    },
+L320: 24	    {
+L321: 25	      "id": "/line-color-accessor.out.accessor->/geojson-layer.par.getLineColor",
+L322: 26	      "source": "/line-color-accessor",
+L323: 27	      "target": "/geojson-layer",
+L324: 28	      "sourceHandle": "out.accessor",
+L325: 29	      "targetHandle": "par.getLineColor"
+L326: 30	    },
+L327: 31	    {
+L328: 32	      "id": "/text-accessor.out.accessor->/geojson-layer.par.getText",
+L329: 33	      "source": "/text-accessor",
+L330: 34	      "target": "/geojson-layer",
+L331: 35	      "sourceHandle": "out.accessor",
+L332: 36	      "targetHandle": "par.getText"
+L333: 37	    },
+L334: 38	    {
+L335: 39	      "id": "/geojson-layer.out.layer->/deck.par.layers",
+L336: 40	      "source": "/geojson-layer",
+L337: 41	      "target": "/deck",
+L338: 42	      "sourceHandle": "out.layer",
+L339: 43	      "targetHandle": "par.layers"
+L340: 44	    },
+L341: 45	    {
+L342: 46	      "source": "/maplibre-basemap",
+L343: 47	      "sourceHandle": "out.maplibre",
+L344: 48	      "target": "/deck",
+L345: 49	      "targetHandle": "par.basemap",
+L346: 50	      "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap"
+L347: 51	    }
+L348: 52	  ],
+L349: 53	  "viewport": {
+L350: 54	    "x": 545.8912906768109,
+L351: 55	    "y": 46.884631018890104,
+L352: 56	    "zoom": 0.5895523675768745
+L353: 57	  },
+L354: 58	  "version": 14,
+L355: 59	  "name": "GeoJSON BART Stations",
+L356: 60	  "editorSettings": {
+L357: 61	    "layoutMode": "noodles-on-top",
+L358: 62	    "showOverlay": true
+L359: 63	  },
+L360: 64	  "nodes": [
+L361: 65	    {
+L362: 66	      "id": "/deck",
+L363: 67	      "type": "DeckRendererOp",
+L364: 68	      "data": {
+L365: 69	        "inputs": {},
+L366: 70	        "locked": false
+L367: 71	      },
+L368: 72	      "position": {
+L369: 73	        "x": 400,
+L370: 74	        "y": 0
+L371: 75	      }
+L372: 76	    },
+L373: 77	    {
+L374: 78	      "id": "/out",
+L375: 79	      "type": "OutOp",
+L376: 80	      "data": {
+L377: 81	        "inputs": {
+L378: 82	          "display": "fixed",
+L379: 83	          "width": 1920,
+L380: 84	          "height": 1080,
+L381: 85	          "lod": 2,
+L382: 86	          "waitForData": true,
+L383: 87	          "codec": "avc",
+L384: 88	          "bitrateMbps": 10,
+L385: 89	          "bitrateMode": "constant",
+L386: 90	          "scaleControl": 0.3,
+L387: 91	          "framerate": 30,
+L388: 92	          "captureDelay": 50
+L389: 93	        },
+L390: 94	        "locked": false
+L391: 95	      },
+L392: 96	      "position": {
+L393: 97	        "x": 696,
+L394: 98	        "y": 0
+L395: 99	      }
+L396: 100	    },
+L397: 101	    {
+L398: 102	      "id": "/data-source",
+L399: 103	      "type": "FileOp",
+L400: 104	      "data": {
+L401: 105	        "inputs": {
+L402: 106	          "url": "https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/bart.geo.json"
+L403: 107	        },
+L404: 108	        "locked": false
+L405: 109	      },
+L406: 110	      "position": {
+L407: 111	        "x": -395.9478357380689,
+L408: 112	        "y": -300.04661487236405
+L409: 113	      }
+L410: 114	    },
+L411: 115	    {
+L412: 116	      "id": "/geojson-layer",
+L413: 117	      "type": "GeoJsonLayerOp",
+L414: 118	      "data": {
+L415: 119	        "inputs": {
+L416: 120	          "pointType": "circle+text",
+L417: 121	          "getPointRadius": 4,
+L418: 122	          "stroked": false,
+L419: 123	          "getLineWidth": 100,
+L420: 124	          "lineWidthMinPixels": 4,
+L421: 125	          "extruded": true,
+L422: 126	          "getElevation": 30
+L423: 127	        },
+L424: 128	        "locked": false
+L425: 129	      },
+L426: 130	      "position": {
+L427: 131	        "x": 0,
+L428: 132	        "y": -300
+L429: 133	      }
+L430: 134	    },
+L431: 135	    {
+L432: 136	      "id": "/fill-color",
+L433: 137	      "type": "ColorOp",
+L434: 138	      "data": {
+L435: 139	        "inputs": {
+L436: 140	          "color": "#01017e"
+L437: 141	        },
+L438: 142	        "locked": false
+L439: 143	      },
+L440: 144	      "position": {
+L441: 145	        "x": -400,
+L442: 146	        "y": 17.466148723640398
+L443: 147	      }
+L444: 148	    },
+L445: 149	    {
+L446: 
+L447: ...[truncated 1731 chars]
+L448: [assistant] These examples don't have keyframe sequences. Let me search more specifically for timeline sequences/keyframes.
+L449: [tool_use Bash] {"command":"grep -rl \"sequenceTracks\\|keyframes\\|position.*unitValues\\|\\\"position\\\".*\\\"0\\\"\" /tmp/noodles-evals/workspaces/animate-camera--claude-sonnet-4-6--s3/noodles-editor/src/examples/ 2>/dev/null | head -5","description":"Find examples with sequence tracks or keyframes"}
+L450: [tool_result] /tmp/noodles-evals/workspaces/animate-camera--claude-sonnet-4-6--s3/noodles-editor/src/examples/cesium-hubble/noodles.json
+L451: /tmp/noodles-evals/workspaces/animate-camera--claude-sonnet-4-6--s3/noodles-editor/src/examples/world-flights/noodles.json
+L452: [tool_use Read] {"file_path":"/tmp/noodles-evals/workspaces/animate-camera--claude-sonnet-4-6--s3/noodles-editor/src/examples/cesium-hubble/noodles.json"}
+L453: [tool_result] 1	{
+L454: 2	  "version": 14,
+L455: 3	  "edges": [
+L456: 4	    {
+L457: 5	      "id": "/basemap.out.maplibre->/renderer.par.basemap",
+L458: 6	      "source": "/basemap",
+L459: 7	      "target": "/renderer",
+L460: 8	      "sourceHandle": "out.maplibre",
+L461: 9	      "targetHandle": "par.basemap"
+L462: 10	    },
+L463: 11	    {
+L464: 12	      "id": "/point-cloud.out.layer->/renderer.par.layers",
+L465: 13	      "source": "/point-cloud",
+L466: 14	      "target": "/renderer",
+L467: 15	      "sourceHandle": "out.layer",
+L468: 16	      "targetHandle": "par.layers"
+L469: 17	    },
+L470: 18	    {
+L471: 19	      "id": "/video-spheres.out.data->/renderer.par.layers",
+L472: 20	      "source": "/video-spheres",
+L473: 21	      "target": "/renderer",
+L474: 22	      "sourceHandle": "out.data",
+L475: 23	      "targetHandle": "par.layers"
+L476: 24	    },
+L477: 25	    {
+L478: 26	      "id": "/renderer.out.vis->/out.par.vis",
+L479: 27	      "source": "/renderer",
+L480: 28	      "target": "/out",
+L481: 29	      "sourceHandle": "out.vis",
+L482: 30	      "targetHandle": "par.vis"
+L483: 31	    }
+L484: 32	  ],
+L485: 33	  "viewport": {
+L486: 34	    "x": 200,
+L487: 35	    "y": 200,
+L488: 36	    "zoom": 0.75
+L489: 37	  },
+L490: 38	  "name": "Cesium + Hubble Video Spheres",
+L491: 39	  "editorSettings": {
+L492: 40	    "layoutMode": "noodles-on-top",
+L493: 41	    "showOverlay": true
+L494: 42	  },
+L495: 43	  "nodes": [
+L496: 44	    {
+L497: 45	      "id": "/basemap",
+L498: 46	      "type": "MaplibreBasemapOp",
+L499: 47	      "position": {
+L500: 48	        "x": 300,
+L501: 49	        "y": 300
+L502: 50	      },
+L503: 51	      "data": {
+L504: 52	        "inputs": {
+L505: 53	          "mapStyle": "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",
+L506: 54	          "viewState": {
+L507: 55	            "longitude": -74.01528014573182,
+L508: 56	            "latitude": 40.706616771021125,
+L509: 57	            "zoom": 20,
+L510: 58	            "pitch": 55.17280350846221,
+L511: 59	            "bearing": 2.3531249999999773
+L512: 60	          }
+L513: 61	        },
+L514: 62	        "locked": false
+L515: 63	      }
+L516: 64	    },
+L517: 65	    {
+L518: 66	      "id": "/point-cloud",
+L519: 67	      "type": "Tile3DLayerOp",
+L520: 68	      "position": {
+L521: 69	        "x": -50,
+L522: 70	        "y": -180
+L523: 71	      },
+L524: 72	      "data": {
+L525: 73	        "inputs": {
+L526: 74	          "provider": "Cesium",
+L527: 75	          "flatLighting": true
+L528: 76	        },
+L529: 77	        "locked": false
+L530: 78	      }
+L531: 79	    },
+L532: 80	    {
+L533: 81	      "id": "/video-spheres",
+L534: 82	      "type": "CodeOp",
+L535: 83	      "position": {
+L536: 84	        "x": -400,
+L537: 85	        "y": 60
+L538: 86	      },
+L539: 87	      "width": 900,
+L540: 88	      "height": 680,
+L541: 89	      "measured": {
+L542: 90	        "width": 900,
+L543: 91	        "height": 680
+L544: 92	      },
+L545: 93	      "data": {
+L546: 94	        "inputs": {
+L547: 95	          "code": [
+L548: 96	            "// Generate a UV sphere as a loaders.gl Mesh object (deck.gl accepts this natively)",
+L549: 97	            "function generateSphere(radius, nlat, nlong) {",
+L550: 98	            "  const positions = [], normals = [], texCoords = [], indices = []",
+L551: 99	            "  for (let lat = 0; lat <= nlat; lat++) {",
+L552: 100	            "    const theta = (lat * Math.PI) / nlat",
+L553: 101	            "    const sinTheta = Math.sin(theta), cosTheta = Math.cos(theta)",
+L554: 102	            "    for (let lon = 0; lon <= nlong; lon++) {",
+L555: 103	            "      const phi = (lon * 2 * Math.PI) / nlong",
+L556: 104	            "      const x = Math.cos(phi) * sinTheta, y = cosTheta, z = Math.sin(phi) * sinTheta",
+L557: 105	            "      positions.push(x * radius, y * radius, z * radius)",
+L558: 106	            "      normals.push(x, y, z)",
+L559: 107	            "      texCoords.push(lon / nlong, lat / nlat)",
+L560: 108	            "    }",
+L561: 109	            "  }",
+L562: 110	            "  for (let lat = 0; lat < nlat; lat++) {",
+L563: 111	            "    for (let lon = 0; lon < nlong; lon++) {",
+L564: 112	            "      const a = lat * (nlong + 1) + lon, b = a + nlong + 1",
+L565: 113	            "      indices.push(a, b, a + 1, b, b + 1, a + 1)",
+L566: 114	            "    }",
+L567: 115	            "  }",
+L568: 116	            "  return {",
+L569: 117	            "    topology: 'triangle-list',",
+L570: 118	            "    attributes: {",
+L571: 119	            "      POSITION: { size: 3, value: new Float32Array(positions) },",
+L572: 120	            "      NORMAL: { size: 3, value: new Float32Array(normals) },",
+L573: 121	            "      TEXCOORD_0: { size: 2, value: new 
+L574: ...[truncated 26290 chars]
+L575: [system] session started (tools + workspace initialized)
+L576: [system] session started (tools + workspace initialized)
+L577: [system] session started (tools + workspace initialized)
+L578: [system] session started (tools + workspace initialized)
+L579: [system] session started (tools + workspace initialized)
+L580: [system] session started (tools + workspace initialized)
+L581: [system] session started (tools + workspace initialized)
+L582: [system] session started (tools + workspace initialized)
+L583: [system] session started (tools + workspace initialized)
+L584: [system] session started (tools + workspace initialized)
+L585: [system] session started (tools + workspace initialized)
+L586: [system] session started (tools + workspace initialized)
+L587: [system] session started (tools + workspace initialized)
+L588: [system] session started (tools + workspace initialized)
+L589: [system] session started (tools + workspace initialized)
+L590: [system] session started (tools + workspace initialized)
+L591: [system] session started (tools + workspace initialized)
+L592: [system] session started (tools + workspace initialized)
+L593: [system] session started (tools + workspace initialized)
+L594: [system] session started (tools + workspace initialized)
+L595: [system] session started (tools + workspace initialized)
+L596: [system] session started (tools + workspace initialized)
+L597: [system] session started (tools + workspace initialized)
+L598: [system] session started (tools + workspace initialized)
+L599: [system] session started (tools + workspace initialized)
+L600: [system] session started (tools + workspace initialized)
+L601: [system] session started (tools + workspace initialized)
+L602: [system] session started (tools + workspace initialized)
+L603: [system] session started (tools + workspace initialized)
+L604: [system] session started (tools + workspace initialized)
+L605: [system] session started (tools + workspace initialized)
+L606: [system] session started (tools + workspace initialized)
+L607: [system] session started (tools + workspace initialized)
+L608: [system] session started (tools + workspace initialized)
+L609: [system] session started (tools + workspace initialized)
+L610: [system] session started (tools + workspace initialized)
+L611: [system] session started (tools + workspace initialized)
+L612: [system] session started (tools + workspace initialized)
+L613: [system] session started (tools + workspace initialized)
+L614: [system] session started (tools + workspace initialized)
+L615: [system] session started (tools + workspace initialized)
+L616: [system] session started (tools + workspace initialized)
+L617: [system] session started (tools + workspace initialized)
+L618: [system] session started (tools + workspace initialized)
+L619: [system] session started (tools + workspace initialized)
+L620: [system] session started (tools + workspace initialized)
+L621: [system] session started (tools + workspace initialized)
+L622: [system] session started (tools + workspace initialized)
+L623: [system] session started (tools + workspace initialized)
+L624: [system] session started (tools + workspace initialized)
+L625: [system] session started (tools + workspace initialized)
+L626: [system] session started (tools + workspace initialized)
+L627: [system] session started (tools + workspace initialized)
+L628: [system] session started (tools + workspace initialized)
+L629: [system] session started (tools + workspace initialized)
+L630: [system] session started (tools + workspace initialized)
+L631: [system] session started (tools + workspace initialized)
+L632: [system] session started (tools + workspace initialized)
+L633: [system] session started (tools + workspace initialized)
+L634: [system] session started (tools + workspace initialized)
+L635: [system] session started (tools + workspace initialized)
+L636: [system] session started (tools + workspace initialized)
+L637: [system] session started (tools + workspace initialized)
+L638: [system] session started (tools + workspace initialized)
+L639: [system] session started (tools + workspace initialized)
+L640: [system] session started (tools + workspace initialized)
+L641: [system] session started (tools + workspace initialized)
+L642: [system] session started (tools + workspace initialized)
+L643: [system] session started (tools + workspace initialized)
+L644: [system] session started (tools + workspace initialized)
+L645: [system] session started (tools + workspace initialized)
+L646: [system] session started (tools + workspace initialized)
+L647: [system] session started (tools + workspace initialized)
+L648: [system] session started (tools + workspace initialized)
+L649: [system] session started (tools + workspace initialized)
+L650: [system] session started (tools + workspace initialized)
+L651: [system] session started (tools + workspace initialized)
+L652: [system] session started (tools + workspace initialized)
+L653: [system] session started (tools + workspace initialized)
+L654: [system] session started (tools + workspace initialized)
+L655: [system] session started (tools + workspace initialized)
+L656: [system] session started (tools + workspace initialized)
+L657: [system] session started (tools + workspace initialized)
+L658: [system] session started (tools + workspace initialized)
+L659: [system] session started (tools + workspace initialized)
+L660: [system] session started (tools + workspace initialized)
+L661: [system] session started (tools + workspace initialized)
+L662: [system] session started (tools + workspace initialized)
+L663: [system] session started (tools + workspace initialized)
+L664: [system] session started (tools + workspace initialized)
+L665: [system] session started (tools + workspace initialized)
+L666: [system] session started (tools + workspace initialized)
+L667: [system] session started (tools + workspace initialized)
+L668: [system] session started (tools + workspace initialized)
+L669: [system] session started (tools + workspace initialized)
+L670: [system] session started (tools + workspace initialized)
+L671: [system] session started (tools + workspace initialized)
+L672: [system] session started (tools + workspace initialized)
+L673: [system] session started (tools + workspace initialized)
+L674: [system] session started (tools + workspace initialized)
+L675: [system] session started (tools + workspace initialized)
+L676: [system] session started (tools + workspace initialized)
+L677: [system] session started (tools + workspace initialized)
+L678: [system] session started (tools + workspace initialized)
+L679: [system] session started (tools + workspace initialized)
+L680: [system] session started (tools + workspace initialized)
+L681: [system] session started (tools + workspace initialized)
+L682: [system] session started (tools + workspace initialized)
+L683: [system] session started (tools + workspace initialized)
+L684: [system] session started (tools + workspace initialized)
+L685: [system] session started (tools + workspace initialized)
+L686: [system] session started (tools + workspace initialized)
+L687: [system] session started (tools + workspace initialized)
+L688: [system] session started (tools + workspace initialized)
+L689: [system] session started (tools + workspace initialized)
+L690: [system] session started (tools + workspace initialized)
+L691: [system] session started (tools + workspace initialized)
+L692: [system] session started (tools + workspace initialized)
+L693: [system] session started (tools + workspace initialized)
+L694: [system] session started (tools + workspace initialized)
+L695: [system] session started (tools + workspace initialized)
+L696: [system] session started (tools + workspace initialized)
+L697: [system] session started (tools + workspace initialized)
+L698: [system] session started (tools + workspace initialized)
+L699: [system] session started (tools + workspace initialized)
+L700: [system] session started (tools + workspace initialized)
+L701: [system] session started (tools + workspace initialized)
+L702: [system] session started (tools + workspace initialized)
+L703: [system] session started (tools + workspace initialized)
+L704: [system] session started (tools + workspace initialized)
+L705: [system] session started (tools + workspace initialized)
+L706: [system] session started (tools + workspace initialized)
+L707: [system] session started (tools + workspace initialized)
+L708: [system] session started (tools + workspace initialized)
+L709: [system] session started (tools + workspace initialized)
+L710: [system] session started (tools + workspace initialized)
+L711: [system] session started (tools + workspace initialized)
+L712: [system] session started (tools + workspace initialized)
+L713: [system] session started (tools + workspace initialized)
+L714: [system] session started (tools + workspace initialized)
+L715: [system] session started (tools + workspace initialized)
+L716: [system] session started (tools + workspace initialized)
+L717: [system] session started (tools + workspace initialized)
+L718: [system] session started (tools + workspace initialized)
+L719: [system] session started (tools + workspace initialized)
+L720: [system] session started (tools + workspace initialized)
+L721: [system] session started (tools + workspace initialized)
+L722: [system] session started (tools + workspace initialized)
+L723: [system] session started (tools + workspace initialized)
+L724: [system] session started (tools + workspace initialized)
+L725: [system] session started (tools + workspace initialized)
+L726: [system] session started (tools + workspace initialized)
+L727: [system] session started (tools + workspace initialized)
+L728: [system] session started (tools + workspace initialized)
+L729: [system] session started (tools + workspace initialized)
+L730: [system] session started (tools + workspace initialized)
+L731: [system] session started (tools + workspace initialized)
+L732: [system] session started (tools + workspace initialized)
+L733: [system] session started (tools + workspace initialized)
+L734: [system] session started (tools + workspace initialized)
+L735: [system] session started (tools + workspace initialized)
+L736: [system] session started (tools + workspace initialized)
+L737: [system] session started (tools + workspace initialized)
+L738: [system] session started (tools + workspace initialized)
+L739: [system] session started (tools + workspace initialized)
+L740: [system] session started (tools + workspace initialized)
+L741: [system] session started (tools + workspace initialized)
+L742: [system] session started (tools + workspace initialized)
+L743: [system] session started (tools + workspace initialized)
+L744: [system] session started (tools + workspace initialized)
+L745: [system] session started (tools + workspace initialized)
+L746: [system] session started (tools + workspace initialized)
+L747: [system] session started (tools + workspace initialized)
+L748: [system] session started (tools + workspace initialized)
+L749: [system] session started (tools + workspace initialized)
+L750: [system] session started (tools + workspace initialized)
+L751: [system] session started (tools + workspace initialized)
+L752: [system] session started (tools + workspace initialized)
+L753: [system] session started (tools + workspace initialized)
+L754: [system] session started (tools + workspace initialized)
+L755: [system] session started (tools + workspace initialized)
+L756: [system] session started (tools + workspace initialized)
+L757: [system] session started (tools + workspace initialized)
+L758: [system] session started (tools + workspace initialized)
+L759: [system] session started (tools + workspace initialized)
+L760: [system] session started (tools + workspace initialized)
+L761: [system] session started (tools + workspace initialized)
+L762: [system] session started (tools + workspace initialized)
+L763: [system] session started (tools + workspace initialized)
+L764: [system] session started (tools + workspace initialized)
+L765: [system] session started (tools + workspace initialized)
+L766: [system] session started (tools + workspace initialized)
+L767: [system] session started (tools + workspace initialized)
+L768: [system] session started (tools + workspace initialized)
+L769: [system] session started (tools + workspace initialized)
+L770: [system] session started (tools + workspace initialized)
+L771: [system] session started (tools + workspace initialized)
+L772: [system] session started (tools + workspace initialized)
+L773: [system] session started (tools + workspace initialized)
+L774: [system] session started (tools + workspace initialized)
+L775: [system] session started (tools + workspace initialized)
+L776: [system] session started (tools + workspace initialized)
+L777: [system] session started (tools + workspace initialized)
+L778: [system] session started (tools + workspace initialized)
+L779: [system] session started (tools + workspace initialized)
+L780: [system] session started (tools + workspace initialized)
+L781: [system] session started (tools + workspace initialized)
+L782: [system] session started (tools + workspace initialized)
+L783: [system] session started (tools + workspace initialized)
+L784: [system] session started (tools + workspace initialized)
+L785: [system] session started (tools + workspace initialized)
+L786: [system] session started (tools + workspace initialized)
+L787: [system] session started (tools + workspace initialized)
+L788: [system] session started (tools + workspace initialized)
+L789: [system] session started (tools + workspace initialized)
+L790: [system] session started (tools + workspace initialized)
+L791: [system] session started (tools + workspace initialized)
+L792: [system] session started (tools + workspace initialized)
+L793: [system] session started (tools + workspace initialized)
+L794: [system] session started (tools + workspace initialized)
+L795: [system] session started (tools + workspace initialized)
+L796: [system] session started (tools + workspace initialized)
+L797: [system] session started (tools + workspace initialized)
+L798: [system] session started (tools + workspace initialized)
+L799: [system] session started (tools + workspace initialized)
+L800: [system] session started (tools + workspace initialized)
+L801: [system] session started (tools + workspace initialized)
+L802: [system] session started (tools + workspace initialized)
+L803: [system] session started (tools + workspace initialized)
+L804: [system] session started (tools + workspace initialized)
+L805: [system] session started (tools + workspace initialized)
+L806: [system] session started (tools + workspace initialized)
+L807: [system] session started (tools + workspace initialized)
+L808: [system] session started (tools + workspace initialized)
+L809: [system] session started (tools + workspace initialized)
+L810: [system] session started (tools + workspace initialized)
+L811: [system] session started (tools + workspace initialized)
+L812: [system] session started (tools + workspace initialized)
+L813: [system] session started (tools + workspace initialized)
+L814: [system] session started (tools + workspace initialized)
+L815: [system] session started (tools + workspace initialized)
+L816: [system] session started (tools + workspace initialized)
+L817: [system] session started (tools + workspace initialized)
+L818: [system] session started (tools + workspace initialized)
+L819: [system] session started (tools + workspace initialized)
+L820: [system] session started (tools + workspace initialized)
+L821: [system] session started (tools + workspace initialized)
+L822: [system] session started (tools + workspace initialized)
+L823: [system] session started (tools + workspace initialized)
+L824: [system] session started (tools + workspace initialized)
+L825: [system] session started (tools + workspace initialized)
+L826: [system] session started (tools + workspace initialized)
+L827: [system] session started (tools + workspace initialized)
+L828: [system] session started (tools + workspace initialized)
+L829: [system] session started (tools + workspace initialized)
+L830: [system] session started (tools + workspace initialized)
+L831: [system] session started (tools + workspace initialized)
+L832: [system] session started (tools + workspace initialized)
+L833: [system] session started (tools + workspace initialized)
+L834: [system] session started (tools + workspace initialized)
+L835: [system] session started (tools + workspace initialized)
+L836: [system] session started (tools + workspace initialized)
+L837: [system] session started (tools + workspace initialized)
+L838: [system] session started (tools + workspace initialized)
+L839: [system] session started (tools + workspace initialized)
+L840: [system] session started (tools + workspace initialized)
+L841: [system] session started (tools + workspace initialized)
+L842: [system] session started (tools + workspace initialized)
+L843: [system] session started (tools + workspace initialized)
+L844: [system] session started (tools + workspace initialized)
+L845: [system] session started (tools + workspace initialized)
+L846: [system] session started (tools + workspace initialized)
+L847: [system] session started (tools + workspace initialized)
+L848: [system] session started (tools + workspace initialized)
+L849: [system] session started (tools + workspace initialized)
+L850: [system] session started (tools + workspace initialized)
+L851: [system] session started (tools + workspace initialized)
+L852: [system] session started (tools + workspace initialized)
+L853: [system] session started (tools + workspace initialized)
+L854: [system] session started (tools + workspace initialized)
+L855: [system] session started (tools + workspace initialized)
+L856: [system] session started (tools + workspace initialized)
+L857: [system] session started (tools + workspace initialized)
+L858: [system] session started (tools + workspace initialized)
+L859: [system] session started (tools + workspace initialized)
+L860: [system] session started (tools + workspace initialized)
+L861: [system] session started (tools + workspace initialized)
+L862: [system] session started (tools + workspace initialized)
+L863: [system] session started (tools + workspace initialized)
+L864: [system] session started (tools + workspace initialized)
+L865: [system] session started (tools + workspace initialized)
+L866: [assistant] Now I have a clear picture of the timeline format. I'll add keyframes to animate the `/basemap` node's `viewState` properties — longitude, latitude, and zoom — flying from SF to LA over 5 seconds using the same `BasicKeyframedTrack` structure seen in the cesium-hubble example.
+L867: [tool_use Write] {"file_path":"/tmp/noodles-evals/workspaces/animate-camera--claude-sonnet-4-6--s3/noodles-editor/src/examples/camera-tour/noodles.json","content":"{\n  \"version\": 14,\n  \"name\": \"Camera Tour\",\n  \"nodes\": [\n    {\n      \"id\": \"/basemap\",\n      \"type\": \"MaplibreBasemapOp\",\n      \"position\": { \"x\": 0, \"y\": 200 },\n      \"data\": {\n        \"inputs\": {\n          \"mapStyle\": \"https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json\",\n          \"viewState\": {\n            \"longitude\": -122.42,\n            \"latitude\": 37.77,\n            \"zoom\": 9,\n            \"pitch\": 0,\n            \"bearing\": 0\n          }\n        },\n        \"locked\": false\n      }\n    },\n    {\n      \"id\": \"/deck\",\n      \"type\": \"DeckRendererOp\",\n      \"position\": { \"x\": 350, \"y\": 100 },\n      \"data\": { \"inputs\": {}, \"locked\": false }\n    },\n    {\n      \"id\": \"/out\",\n      \"type\": \"OutOp\",\n      \"position\": { \"x\": 700, \"y\": 100 },\n      \"data\": {\n        \"inputs\": { \"display\": \"fixed\", \"width\": 1920, \"height\": 1080, \"framerate\": 30 },\n        \"locked\": false\n      }\n    }\n  ],\n  \"edges\": [\n    {\n      \"id\": \"/basemap.out.maplibre->/deck.par.basemap\",\n      \"source\": \"/basemap\",\n      \"target\": \"/deck\",\n      \"sourceHandle\": \"out.maplibre\",\n      \"targetHandle\": \"par.basemap\"\n    },\n    {\n      \"id\": \"/deck.out.vis->/out.par.vis\",\n      \"source\": \"/deck\",\n      \"target\": \"/out\",\n      \"sourceHandle\": \"out.vis\",\n      \"targetHandle\": \"par.vis\"\n    }\n  ],\n  \"viewport\": { \"x\": 0, \"y\": 0, \"zoom\": 1 },\n  \"editorSettings\": { \"layoutMode\": \"noodles-on-top\", \"showOverlay\": true },\n  \"timeline\": {\n    \"sheetsById\": {\n      \"Noodles\": {\n        \"staticOverrides\": { \"byObject\": {} },\n        \"sequence\": {\n          \"subUnitsPerUnit\": 30,\n          \"length\": 5,\n          \"type\": \"PositionalSequence\",\n          \"tracksByObject\": {\n            \"basemap\": {\n              \"trackData\": {\n                \"lngTrk001\": {\n                  \"type\": \"BasicKeyframedTrack\",\n                  \"__debugName\": \"basemap:[\\\"viewState\\\",\\\"longitude\\\"]\",\n                  \"keyframes\": [\n                    {\n                      \"id\": \"kf_lng_0\",\n                      \"position\": 0,\n                      \"connectedRight\": true,\n                      \"handles\": [0.5, 1, 0.5, 0],\n                      \"type\": \"bezier\",\n                      \"value\": -122.42\n                    },\n                    {\n                      \"id\": \"kf_lng_1\",\n                      \"position\": 5,\n                      \"connectedRight\": false,\n                      \"handles\": [0.5, 1, 0.5, 0],\n                      \"type\": \"bezier\",\n                      \"value\": -118.2437\n                    }\n                  ]\n                },\n                \"latTrk001\": {\n                  \"type\": \"BasicKeyframedTrack\",\n                  \"__debugName\": \"basemap:[\\\"viewState\\\",\\\"latitude\\\"]\",\n                  \"keyframes\": [\n                    {\n                      \"id\": \"kf_lat_0\",\n                      \"position\": 0,\n                      \"connectedRight\": true,\n                      \"handles\": [0.5, 1, 0.5, 0],\n                      \"type\": \"bezier\",\n                      \"value\": 37.77\n                    },\n                    {\n                      \"id\": \"kf_lat_1\",\n                      \"position\": 5,\n                      \"connectedRight\": false,\n                      \"handles\": [0.5, 1, 0.5, 0],\n                      \"type\": \"bezier\",\n                      \"value\": 34.0522\n                    }\n                  ]\n                },\n                \"zmTrk0001\": {\n                  \"type\": \"BasicKeyframedTrack\",\n                  \"__debugName\": \"basemap:[\\\"viewState\\\",\\\"zoom\\\"]\",\n                  \"keyframes\": [\n                    {\n                      \"id\": \"kf_zm_0\",\n                      \"position\": 0,\n                      \"connectedRight\": true,\n                      \"handles\": [0.5, 1, 0.5, 0],\n                      \"type\": \"bezier\",\n                      \"value\": 9\n                    },\n                    {\n                      \"id\": \"kf_zm_1\",\n                      \"position\": 2.5,\n                      \"connectedRight\": true,\n                      \"handles\": [0.5, 1, 0.5, 0],\n                      \"type\": \"bezier\",\n                      \"value\": 5\n                    },\n                    {\n                      \"id\": \"kf_zm_2\",\n                      \"position\": 5,\n                      \"connectedRight\": false,\n                      \"handles\": [0.5, 1, 0.5, 0],\n                      \"type\": \"bezier\",\n                      \"value\": 9\n                    }\n                  ]\n                }\n              },\n              \"trackIdByPropPath\": {\n                \"[\\\"viewState\\\",\\\"longitude\\\"]\": \"lngTrk001\",\n                \"[\\\"viewState\\\",\\\"latitude\\\"]\": \"latTrk001\",\n                \"[\\\"viewState\\\",\\\"zoom\\\"]\": \"zmTrk0001\"\n              }\n            }\n          },\n          \"markers\": []\n        }\n      }\n    },\n    \"definitionVersion\": \"0.4.0\",\n    \"revisionHistory\": []\n  }\n}\n"}
+L868: [tool_result] The file /tmp/noodles-evals/workspaces/animate-camera--claude-sonnet-4-6--s3/noodles-editor/src/examples/camera-tour/noodles.json has been updated successfully. (file state is current in your context — no need to Read it back)
+L869: [assistant] The camera-tour project now has a 5-second animation. Here's what was added to the `timeline` section:
+L870: 
+L871: - **Sequence length**: 5 seconds (`subUnitsPerUnit: 30` means positions are in seconds)
+L872: - **Longitude**: keyframed from `-122.42` (SF) → `-118.2437` (LA)
+L873: - **Latitude**: keyframed from `37.77` (SF) → `34.0522` (LA)
+L874: - **Zoom**: arcs from `9` down to `5` at the midpoint (pulling back to show the full flight path) then back up to `9` at arrival — giving the animation a natural "fly out and in" feel
+L875: 
+L876: All three tracks use bezier easing (`handles: [0.5, 1, 0.5, 0]`) for smooth acceleration and deceleration, matching the pattern from the other animated examples in the project.
+L877: [result] The camera-tour project now has a 5-second animation. Here's what was added to the `timeline` section:
+L878: 
+L879: - **Sequence length**: 5 seconds (`subUnitsPerUnit: 30` means positions are in seconds)
+L880: - **Longitude**: keyframed from `-122.42` (SF) → `-118.2437` (LA)
+L881: - **Latitude**: keyframed from `37.77` (SF) → `34.0522` (LA)
+L882: - **Zoom**: arcs from `9` down to `5` at the midpoint (pulling back to show the full flight path) then back up to `9` at arrival — giving the animation a natural "fly out and in" feel
+L883: 
+L884: All three tracks use bezier easing (`handles: [0.5, 1, 0.5, 0]`) for smooth acceleration and deceleration, matching the pattern from the other animated examples in the project.

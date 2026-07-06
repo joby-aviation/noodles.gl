@@ -1,0 +1,44 @@
+{
+ "runId": "sql-h3-pipeline--claude-sonnet-4-6--s1",
+ "series": "2026-07-06.t0.83ff1c128a7a",
+ "taskId": "sql-h3-pipeline",
+ "taskVersion": 1,
+ "tier": "T0",
+ "commit": "83ff1c128a7a589ac95336db37b4f8d56a7dcf77",
+ "sessionModel": "us.anthropic.claude-sonnet-4-6",
+ "provider": "bedrock",
+ "region": "us-west-2",
+ "budget": {
+  "maxTurns": 40,
+  "maxWallClockSeconds": 1500
+ },
+ "numTurns": 41,
+ "durationMs": 547735,
+ "timedOut": false,
+ "exitCode": 1,
+ "isError": true,
+ "costUsd": 1.04630175,
+ "usage": {
+  "input_tokens": 42,
+  "cache_creation_input_tokens": 51327,
+  "cache_read_input_tokens": 1984315,
+  "output_tokens": 17227,
+  "server_tool_use": {
+   "web_search_requests": 0,
+   "web_fetch_requests": 0
+  },
+  "service_tier": "standard",
+  "cache_creation": {
+   "ephemeral_1h_input_tokens": 0,
+   "ephemeral_5m_input_tokens": 51327
+  },
+  "inference_geo": "",
+  "iterations": [],
+  "speed": "standard"
+ },
+ "isolationAudit": {
+  "pass": true,
+  "violations": []
+ },
+ "startedAt": "2026-07-06T07:11:47.642Z"
+}

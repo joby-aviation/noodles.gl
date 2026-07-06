@@ -1,0 +1,1697 @@
+L1: [system] session started (tools + workspace initialized)
+L2: [tool_use Bash] {"command":"cat \"/tmp/noodles-evals/workspaces/animate-camera--claude-opus-4-8--s1/noodles-editor/src/examples/camera-tour/noodles.json\"","description":"Read camera-tour project file"}
+L3: [tool_result] {
+L4:   "version": 14,
+L5:   "name": "Camera Tour",
+L6:   "nodes": [
+L7:     {
+L8:       "id": "/basemap",
+L9:       "type": "MaplibreBasemapOp",
+L10:       "position": { "x": 0, "y": 200 },
+L11:       "data": {
+L12:         "inputs": {
+L13:           "mapStyle": "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json",
+L14:           "viewState": {
+L15:             "longitude": -122.42,
+L16:             "latitude": 37.77,
+L17:             "zoom": 9,
+L18:             "pitch": 0,
+L19:             "bearing": 0
+L20:           }
+L21:         },
+L22:         "locked": false
+L23:       }
+L24:     },
+L25:     {
+L26:       "id": "/deck",
+L27:       "type": "DeckRendererOp",
+L28:       "position": { "x": 350, "y": 100 },
+L29:       "data": { "inputs": {}, "locked": false }
+L30:     },
+L31:     {
+L32:       "id": "/out",
+L33:       "type": "OutOp",
+L34:       "position": { "x": 700, "y": 100 },
+L35:       "data": {
+L36:         "inputs": { "display": "fixed", "width": 1920, "height": 1080, "framerate": 30 },
+L37:         "locked": false
+L38:       }
+L39:     }
+L40:   ],
+L41:   "edges": [
+L42:     {
+L43:       "id": "/basemap.out.maplibre->/deck.par.basemap",
+L44:       "source": "/basemap",
+L45:       "target": "/deck",
+L46:       "sourceHandle": "out.maplibre",
+L47:       "targetHandle": "par.basemap"
+L48:     },
+L49:     {
+L50:       "id": "/deck.out.vis->/out.par.vis",
+L51:       "source": "/deck",
+L52:       "target": "/out",
+L53:       "sourceHandle": "out.vis",
+L54:       "targetHandle": "par.vis"
+L55:     }
+L56:   ],
+L57:   "viewport": { "x": 0, "y": 0, "zoom": 1 },
+L58:   "editorSettings": { "layoutMode": "noodles-on-top", "showOverlay": true },
+L59:   "timeline": {
+L60:     "sheetsById": {
+L61:       "Noodles": {
+L62:         "staticOverrides": { "byObject": {} }
+L63:       }
+L64:     },
+L65:     "definitionVersion": "0.4.0",
+L66:     "revisionHistory": []
+L67:   }
+L68: }
+L69: [tool_use Agent] {"description":"Find timeline keyframe structure","subagent_type":"general-purpose","prompt":"I'm working in the noodles.gl codebase at /tmp/noodles-evals/workspaces/animate-camera--claude-opus-4-8--s1/noodles-editor. I need to understand the timeline/keyframe serialization format used in noodles.json project files so I can hand-author keyframes that animate a camera's viewState (longitude, latitude, zoom, etc.) over time.\n\nPlease investigate and report back concrete details:\n\n1. Find example projects in noodles-editor/public/examples/ (or anywhere) whose noodles.json contains a populated \"timeline\" object with actual keyframes/animation. Show the FULL timeline JSON structure from at least one real example that animates a viewState or a MaplibreBasemapOp / MapViewStateOp / DeckViewOp. I especially want to see how longitude/latitude/zoom get keyframed.\n\n2. Explain the timeline schema: the meaning of \"sheetsById\", \"staticOverrides\", \"byObject\", how keyframes/tracks are stored, how object keys map to operator paths + field names, how time values map to seconds, and how interpolation/easing is stored.\n\n3. Explain how a field like the \"viewState\" of a MaplibreBasemapOp (a compound field with longitude/latitude/zoom/pitch/bearing) is addressed in the timeline. What is the object key and property path format? \n\n4. Find the code that reads/writes this timeline format (serialization, the theatre.js or native timeline integration). Report the file paths and the relevant type definitions / Zod schemas.\n\n5. Give me the exact coordinates I should use: San Francisco (~ -122.4194, 37.7749) and Los Angeles (~ -118.2437, 34.0522).\n\nBe concrete and paste real JSON snippets. Do not modify any files."}
+L70: [system] session started (tools + workspace initialized)
+L71: [tool_result] Async agent launched successfully. (This tool result is internal metadata — never quote or paste any part of it, including the agentId below, into a user-facing reply.)
+L72: agentId: a744b5aeaf85a0389 (internal ID - do not mention to user. Use SendMessage with to: 'a744b5aeaf85a0389', summary: '<5-10 word recap>' to continue this agent.)
+L73: The agent is working in the background. You will be notified automatically when it completes.
+L74: Do not duplicate this agent's work — avoid working with the same files or topics it is using.
+L75: output_file: /tmp/claude-0/-tmp-noodles-evals-workspaces-animate-camera--claude-opus-4-8--s1/e02fafea-e16a-4f87-9032-24b8cc9d3b5a/tasks/a744b5aeaf85a0389.output
+L76: Do NOT Read or tail this file via the shell tool — it is the full subagent JSONL transcript and reading it will overflow your context. If the user asks for progress, say the agent is still running; you'll get a completion notification.
+L77: [assistant] I'll wait for the investigation to complete. Let me also look at the timeline editor code directly to understand the format.
+L78: [assistant] I'll investigate the timeline/keyframe serialization format. Let me start by searching for examples and the relevant code.
+L79: [tool_use Bash] {"command":"cd /tmp/noodles-evals/workspaces/animate-camera--claude-opus-4-8--s1/noodles-editor && grep -rl '\"sheetsById\"' public/examples/ 2>/dev/null | head -20; echo \"---SEARCH FOR keyframes---\"; grep -rl 'keyframes' public/examples/ 2>/dev/null | head -20","description":"Find examples with populated timelines"}
+L80: [tool_use Bash] {"command":"cd /tmp/noodles-evals/workspaces/animate-camera--claude-opus-4-8--s1/noodles-editor && grep -rl '\"timeline\"' public/examples/ 2>/dev/null | head -50","description":"Find example projects with timeline key"}
+L81: [system] session started (tools + workspace initialized)
+L82: [tool_result] ---SEARCH FOR keyframes---
+L83: [tool_result] (Bash completed with no output)
+L84: [tool_use Bash] {"command":"cd /tmp/noodles-evals/workspaces/animate-camera--claude-opus-4-8--s1/noodles-editor && grep -rl 'sheetsById\\|staticOverrides\\|byObject' public/ 2>/dev/null | head -50","description":"Find files with theatre.js-style timeline keys"}
+L85: [system] session started (tools + workspace initialized)
+L86: [tool_use Bash] {"command":"cd /tmp/noodles-evals/workspaces/animate-camera--claude-opus-4-8--s1/noodles-editor && ls public/examples/ 2>/dev/null; echo \"---public/noodles---\"; ls public/noodles/ 2>/dev/null","description":"List example project directories"}
+L87: [system] session started (tools + workspace initialized)
+L88: [tool_result] public/noodles/table-editor-demo.json
+L89: [tool_result] ---public/noodles---
+L90: table-editor-demo.json
+L91: [tool_use Bash] {"command":"echo \"=== example dirs ===\"; ls public/examples/ 2>/dev/null; echo \"=== src examples ===\"; ls src/examples/ 2>/dev/null; echo \"=== grep byObject in any json ===\"; grep -rl 'byObject' --include=*.json . 2>/dev/null | grep -v node_modules | head","description":"List examples and find byObject usage"}
+L92: [tool_result] === example dirs ===
+L93: === src examples ===
+L94: aggregation-example
+L95: california-earthquakes
+L96: camera-tour
+L97: cesium-hubble
+L98: chargers
+L99: custom-maplibre-layer-test
+L100: geojson-example
+L101: nyc-census
+L102: nyc-taxis
+L103: orbit
+L104: sf-elevation-contours
+L105: simple-mesh-example
+L106: uk-commute
+L107: us-county-unemployment
+L108: world-flights
+L109: === grep byObject in any json ===
+L110: src/noodles/new.json
+L111: src/examples/orbit/noodles.json
+L112: src/examples/simple-mesh-example/noodles.json
+L113: src/examples/cesium-hubble/noodles.json
+L114: src/examples/chargers/noodles.json
+L115: src/examples/custom-maplibre-layer-test/noodles.json
+L116: src/examples/sf-elevation-contours/noodles.json
+L117: src/examples/camera-tour/noodles.json
+L118: src/examples/aggregation-example/noodles.json
+L119: src/examples/nyc-taxis/noodles.json
+L120: [assistant] Let me search more broadly across the repo.
+L121: [tool_use Bash] {"command":"cd /tmp/noodles-evals/workspaces/animate-camera--claude-opus-4-8--s1/noodles-editor && grep -rln 'sheetsById\\|staticOverrides\\|byObject' --include=*.json --include=*.ts --include=*.tsx . 2>/dev/null | grep -v node_modules | head -50","description":"Search whole editor for theatre keys"}
+L122: [system] session started (tools + workspace initialized)
+L123: [tool_result] src/noodles/new.json
+L124: src/noodles/__migrations__/012-render-settings-to-outop.test.ts
+L125: src/noodles/__migrations__/012-render-settings-to-outop.ts
+L126: src/noodles/__migrations__/009-editor-settings-to-project.ts
+L127: src/noodles/__migrations__/008-rename-date-to-datetime.test.ts
+L128: src/noodles/__migrations__/013-add-time-markers.test.ts
+L129: src/noodles/__migrations__/006-rename-nodes-to-noodles.ts
+L130: src/noodles/__migrations__/007-rename-merge-operators.test.ts
+L131: src/noodles/__migrations__/009-editor-settings-to-project.test.ts
+L132: src/timeline/timeline-store.ts
+L133: src/timeline/migrate-timeline.ts
+L134: src/timeline/types.ts
+L135: src/examples/cesium-hubble/noodles.json
+L136: src/examples/camera-tour/noodles.json
+L137: src/timeline/__tests__/migrate-timeline.test.ts
+L138: src/examples/custom-maplibre-layer-test/noodles.json
+L139: src/examples/chargers/noodles.json
+L140: src/examples/world-flights/noodles.json
+L141: src/examples/nyc-taxis/noodles.json
+L142: src/timeline/__tests__/timeline-store.test.ts
+L143: src/examples/orbit/noodles.json
+L144: src/examples/aggregation-example/noodles.json
+L145: src/examples/geojson-example/noodles.json
+L146: src/examples/sf-elevation-contours/noodles.json
+L147: src/examples/simple-mesh-example/noodles.json
+L148: src/examples/uk-commute/noodles.json
+L149: src/examples/california-earthquakes/noodles.json
+L150: src/examples/nyc-census/noodles.json
+L151: src/noodles/__migrations__/013-add-time-markers.ts
+L152: src/noodles/__migrations__/006-rename-nodes-to-noodles.test.ts
+L153: public/noodles/table-editor-demo.json
+L154: src/examples/us-county-unemployment/noodles.json
+L155: [tool_use Bash] {"command":"cd /tmp/noodles-evals/workspaces/animate-camera--claude-opus-4-8--s1/noodles-editor && find . -path ./node_modules -prune -o -name '*.json' -print 2>/dev/null | xargs grep -l '\"timeline\"' 2>/dev/null | head -50","description":"Find any json with timeline key"}
+L156: [system] session started (tools + workspace initialized)
+L157: [tool_result] ./public/noodles/table-editor-demo.json
+L158: ./src/noodles/new.json
+L159: ./src/examples/orbit/noodles.json
+L160: ./src/examples/cesium-hubble/noodles.json
+L161: ./src/examples/geojson-example/noodles.json
+L162: ./src/examples/camera-tour/noodles.json
+L163: ./src/examples/simple-mesh-example/noodles.json
+L164: ./src/examples/custom-maplibre-layer-test/noodles.json
+L165: ./src/examples/aggregation-example/noodles.json
+L166: ./src/examples/chargers/noodles.json
+L167: ./src/examples/sf-elevation-contours/noodles.json
+L168: ./src/examples/world-flights/noodles.json
+L169: ./src/examples/nyc-taxis/noodles.json
+L170: ./src/examples/uk-commute/noodles.json
+L171: ./src/examples/nyc-census/noodles.json
+L172: ./src/examples/california-earthquakes/noodles.json
+L173: ./src/examples/us-county-unemployment/noodles.json
+L174: [tool_use Bash] {"command":"cd /tmp/noodles-evals/workspaces/animate-camera--claude-opus-4-8--s1/noodles-editor && ls public/ && echo \"===\" && find public -name '*.json' | head -50","description":"List public dir contents"}
+L175: [system] session started (tools + workspace initialized)
+L176: [tool_result] 404.html
+L177: joby-cruise-v2.glb
+L178: joby-hover-v2.glb
+L179: joby-trans-v2.glb
+L180: noodles
+L181: noodles-favicon.svg
+L182: robots.txt
+L183: ===
+L184: public/noodles/table-editor-demo.json
+L185: [tool_use Bash] {"command":"for f in orbit cesium-hubble world-flights nyc-taxis california-earthquakes; do echo \"=== $f ===\"; python3 -c \"import json,sys; d=json.load(open('src/examples/$f/noodles.json')); t=d.get('timeline',{}); print('sheets keys:', list(t.get('sheetsById',{}).keys())); import json as j; s=j.dumps(t); print('timeline len:', len(s)); print('has trackData:', 'trackData' in s, 'has keyframes:', 'keyframes' in s)\" 2>&1; done","description":"Inspect timelines of examples"}
+L186: [tool_result] === orbit ===
+L187: sheets keys: ['Noodles']
+L188: timeline len: 342
+L189: has trackData: False has keyframes: False
+L190: === cesium-hubble ===
+L191: sheets keys: ['Noodles']
+L192: timeline len: 6278
+L193: has trackData: True has keyframes: True
+L194: === world-flights ===
+L195: sheets keys: ['Noodles']
+L196: timeline len: 669
+L197: has trackData: True has keyframes: True
+L198: === nyc-taxis ===
+L199: sheets keys: ['Noodles']
+L200: timeline len: 119
+L201: has trackData: False has keyframes: False
+L202: === california-earthquakes ===
+L203: sheets keys: ['Noodles']
+L204: timeline len: 119
+L205: has trackData: False has keyframes: False
+L206: [assistant] Examples live in `src/examples/`. There's a `camera-tour` example. Let me examine the timeline code and the camera-tour example.
+L207: [tool_use Read] {"file_path":"/tmp/noodles-evals/workspaces/animate-camera--claude-opus-4-8--s1/noodles-editor/src/timeline/types.ts"}
+L208: [system] session started (tools + workspace initialized)
+L209: [tool_result] 1	// Core type definitions for the native timeline system
+L210: 2	
+L211: 3	// ============================================================================
+L212: 4	// Value Types (matching field types from fields.ts)
+L213: 5	// ============================================================================
+L214: 6	
+L215: 7	export type RGBA = { r: number; g: number; b: number; a: number }
+L216: 8	export type Vec2 = { x: number; y: number }
+L217: 9	export type Vec3 = { x: number; y: number; z: number }
+L218: 10	export type Point2D = { lng: number; lat: number }
+L219: 11	export type Point3D = { lng: number; lat: number; alt: number }
+L220: 12	
+L221: 13	// Primitive keyframe values
+L222: 14	export type PrimitiveKeyframeValue =
+L223: 15	  | number
+L224: 16	  | boolean
+L225: 17	  | string
+L226: 18	  | RGBA
+L227: 19	  | Vec2
+L228: 20	  | Vec3
+L229: 21	  | Point2D
+L230: 22	  | Point3D
+L231: 23	
+L232: 24	// Compound keyframe value (for nested objects)
+L233: 25	export type CompoundKeyframeValue = {
+L234: 26	  [key: string]: PrimitiveKeyframeValue | CompoundKeyframeValue
+L235: 27	}
+L236: 28	
+L237: 29	// Union of all animatable value types
+L238: 30	export type KeyframeValue = PrimitiveKeyframeValue | CompoundKeyframeValue
+L239: 31	
+L240: 32	// ============================================================================
+L241: 33	// Bezier Handle Types
+L242: 34	// ============================================================================
+L243: 35	
+L244: 36	export type HandleType = 'aligned' | 'uneven' | 'free'
+L245: 37	
+L246: 38	export interface BezierHandles {
+L247: 39	  // Control point offsets in normalized [0-1] x [0-1] space
+L248: 40	  // These are relative to the keyframe position
+L249: 41	  left: [number, number] // [x, y] - control point before this keyframe
+L250: 42	  right: [number, number] // [x, y] - control point after this keyframe
+L251: 43	  type: HandleType
+L252: 44	}
+L253: 45	
+L254: 46	// Default bezier handles for linear interpolation
+L255: 47	export const DEFAULT_BEZIER_HANDLES: BezierHandles = {
+L256: 48	  left: [0, 0],
+L257: 49	  right: [1, 1],
+L258: 50	  type: 'aligned',
+L259: 51	}
+L260: 52	
+L261: 53	// ============================================================================
+L262: 54	// Interpolation Types
+L263: 55	// ============================================================================
+L264: 56	
+L265: 57	export type InterpolationType = 'bezier' | 'linear' | 'hold'
+L266: 58	
+L267: 59	// ============================================================================
+L268: 60	// Keyframe
+L269: 61	// ============================================================================
+L270: 62	
+L271: 63	export interface Keyframe {
+L272: 64	  id: string // Unique identifier, e.g., "kf_abc123"
+L273: 65	  position: number // Time in seconds
+L274: 66	  value: KeyframeValue
+L275: 67	  interpolation: InterpolationType
+L276: 68	  handles?: BezierHandles // Only used when interpolation is 'bezier'
+L277: 69	}
+L278: 70	
+L279: 71	// ============================================================================
+L280: 72	// Track
+L281: 73	// ============================================================================
+L282: 74	
+L283: 75	export interface Track {
+L284: 76	  id: string // Same as fieldPath for simplicity
+L285: 77	  fieldPath: string // timeline format: "maplibre-basemap / viewState / zoom"
+L286: 78	  keyframes: Keyframe[] // Always sorted by position
+L287: 79	  defaultValue: KeyframeValue
+L288: 80	}
+L289: 81	
+L290: 82	// ============================================================================
+L291: 83	// Sequence State
+L292: 84	// ============================================================================
+L293: 85	
+L294: 86	export interface SequenceState {
+L295: 87	  length: number // Duration in seconds
+L296: 88	  fps: number // Frames per second (default: 30)
+L297: 89	  inPoint?: number // Render start time in seconds (undefined = 0)
+L298: 90	  outPoint?: number // Render end time in seconds (undefined = length)
+L299: 91	}
+L300: 92	
+L301: 93	export const DEFAULT_SEQUENCE_STATE: SequenceState = {
+L302: 94	  length: 10,
+L303: 95	  fps: 30,
+L304: 96	  inPoint: undefined,
+L305: 97	  outPoint: undefined,
+L306: 98	}
+L307: 99	
+L308: 100	// ============================================================================
+L309: 101	// Easing Preset
+L310: 102	// ============================================================================
+L311: 103	
+L312: 104	export interface EasingPreset {
+L313: 105	  name: string
+L314: 106	  // CSS cubic-bezier values: cubic-bezier(x1, y1, x2, y2)
+L315: 107	  // Converted to handles format for internal use
+L316: 108	  handles: Be
+L317: ...[truncated 2852 chars]
+L318: [tool_use Bash] {"command":"cd /tmp/noodles-evals/workspaces/animate-camera--claude-opus-4-8--s1/noodles-editor && python3 -c \"\nimport json\nfor f in ['src/examples/camera-tour/noodles.json','src/examples/orbit/noodles.json']:\n    d=json.load(open(f))\n    t=d.get('timeline')\n    print(f, '-> timeline keys:', list(t.keys()) if isinstance(t,dict) else type(t))\n\"","description":"Inspect timeline top-level keys"}
+L319: [system] session started (tools + workspace initialized)
+L320: [tool_result] src/examples/camera-tour/noodles.json -> timeline keys: ['sheetsById', 'definitionVersion', 'revisionHistory']
+L321: src/examples/orbit/noodles.json -> timeline keys: ['sheetsById', 'definitionVersion', 'revisionHistory']
+L322: [assistant] The types file gives me the full schema. Now let me look at the actual camera-tour example timeline, which likely animates viewState.
+L323: [tool_use Bash] {"command":"cd /tmp/noodles-evals/workspaces/animate-camera--claude-opus-4-8--s1/noodles-editor && python3 -c \"\nimport json\nd=json.load(open('src/examples/camera-tour/noodles.json'))\nt=d['timeline']\nprint(json.dumps(t, indent=2))\n\" | head -200","description":"Print camera-tour timeline JSON"}
+L324: [system] session started (tools + workspace initialized)
+L325: [tool_result] {
+L326:   "sheetsById": {
+L327:     "Noodles": {
+L328:       "staticOverrides": {
+L329:         "byObject": {}
+L330:       }
+L331:     }
+L332:   },
+L333:   "definitionVersion": "0.4.0",
+L334:   "revisionHistory": []
+L335: }
+L336: [assistant] world-flights has a small timeline with keyframes. Let me look at it as it's likely the clearest example.
+L337: [assistant] Camera-tour is empty. Let me find which examples actually have populated keyframes.
+L338: [tool_use Bash] {"command":"python3 -c \"import json; d=json.load(open('src/examples/world-flights/noodles.json')); print(json.dumps(d['timeline'], indent=2))\"","description":"Print world-flights timeline"}
+L339: [tool_result] {
+L340:   "sheetsById": {
+L341:     "Noodles": {
+L342:       "staticOverrides": {
+L343:         "byObject": {}
+L344:       },
+L345:       "sequence": {
+L346:         "subUnitsPerUnit": 30,
+L347:         "length": 3.04,
+L348:         "type": "PositionalSequence",
+L349:         "tracksByObject": {
+L350:           "time": {
+L351:             "trackData": {
+L352:               "g0xHT4Xo4p": {
+L353:                 "type": "BasicKeyframedTrack",
+L354:                 "__debugName": "time:[\"val\"]",
+L355:                 "keyframes": [
+L356:                   {
+L357:                     "id": "xHJJWLB41a",
+L358:                     "position": 0,
+L359:                     "connectedRight": true,
+L360:                     "handles": [
+L361:                       0.5,
+L362:                       1,
+L363:                       0.5,
+L364:                       0
+L365:                     ],
+L366:                     "type": "bezier",
+L367:                     "value": 1567555200
+L368:                   },
+L369:                   {
+L370:                     "id": "0XrkIwvDZr",
+L371:                     "position": 2.967,
+L372:                     "connectedRight": true,
+L373:                     "handles": [
+L374:                       0.5,
+L375:                       1,
+L376:                       0.5,
+L377:                       0
+L378:                     ],
+L379:                     "type": "bezier",
+L380:                     "value": 1567561720
+L381:                   }
+L382:                 ]
+L383:               }
+L384:             },
+L385:             "trackIdByPropPath": {
+L386:               "[\"val\"]": "g0xHT4Xo4p"
+L387:             }
+L388:           }
+L389:         },
+L390:         "markers": []
+L391:       }
+L392:     }
+L393:   },
+L394:   "definitionVersion": "0.4.0",
+L395:   "revisionHistory": []
+L396: }
+L397: [tool_use Bash] {"command":"cd /tmp/noodles-evals/workspaces/animate-camera--claude-opus-4-8--s1/noodles-editor && python3 -c \"\nimport json, glob\nfor f in glob.glob('src/examples/*/noodles.json')+['public/noodles/table-editor-demo.json','src/noodles/new.json']:\n    try:\n        d=json.load(open(f))\n    except: continue\n    t=d.get('timeline')\n    if not isinstance(t,dict): continue\n    try:\n        seq=t['sheetsById']['Noodles'].get('sequence')\n    except: seq=None\n    tbo = seq.get('tracksByObject') if seq else None\n    n = len(tbo) if tbo else 0\n    print(f'{n:3d} objects  len={seq.get(\\\"length\\\") if seq else \\\"-\\\"}  {f}')\n    if tbo:\n        for k in tbo: print('      obj:', k)\n\"","description":"Find examples with populated tracksByObject"}
+L398: [system] session started (tools + workspace initialized)
+L399: [tool_result]   0 objects  len=-  src/examples/orbit/noodles.json
+L400:   1 objects  len=19  src/examples/cesium-hubble/noodles.json
+L401:       obj: basemap
+L402:   0 objects  len=-  src/examples/geojson-example/noodles.json
+L403:   0 objects  len=-  src/examples/camera-tour/noodles.json
+L404:   0 objects  len=-  src/examples/simple-mesh-example/noodles.json
+L405:   0 objects  len=-  src/examples/custom-maplibre-layer-test/noodles.json
+L406:   0 objects  len=-  src/examples/aggregation-example/noodles.json
+L407:   0 objects  len=-  src/examples/chargers/noodles.json
+L408:   0 objects  len=-  src/examples/sf-elevation-contours/noodles.json
+L409:   1 objects  len=3.04  src/examples/world-flights/noodles.json
+L410:       obj: time
+L411:   0 objects  len=-  src/examples/nyc-taxis/noodles.json
+L412:   0 objects  len=-  src/examples/uk-commute/noodles.json
+L413:   0 objects  len=-  src/examples/nyc-census/noodles.json
+L414:   0 objects  len=-  src/examples/california-earthquakes/noodles.json
+L415:   0 objects  len=-  src/examples/us-county-unemployment/noodles.json
+L416:   0 objects  len=-  public/noodles/table-editor-demo.json
+L417:   0 objects  len=-  src/noodles/new.json
+L418: [assistant] Now let me look at cesium-hubble which likely animates a camera/viewState with a compound property.
+L419: [tool_use Bash] {"command":"python3 -c \"import json; d=json.load(open('src/examples/cesium-hubble/noodles.json')); print(json.dumps(d['timeline'], indent=2))\"","description":"Print cesium-hubble timeline"}
+L420: [assistant] `cesium-hubble` animates a `basemap` object with viewState. Let me see its full timeline and the relevant nodes.
+L421: [tool_result] {
+L422:   "sheetsById": {
+L423:     "Noodles": {
+L424:       "staticOverrides": {
+L425:         "byObject": {}
+L426:       },
+L427:       "sequence": {
+L428:         "subUnitsPerUnit": 30,
+L429:         "length": 19,
+L430:         "type": "PositionalSequence",
+L431:         "tracksByObject": {
+L432:           "basemap": {
+L433:             "trackData": {
+L434:               "lngTrk001": {
+L435:                 "type": "BasicKeyframedTrack",
+L436:                 "__debugName": "basemap:[\"viewState\",\"longitude\"]",
+L437:                 "keyframes": [
+L438:                   {
+L439:                     "id": "kf_lng_0",
+L440:                     "position": 0,
+L441:                     "connectedRight": true,
+L442:                     "handles": [
+L443:                       0.5,
+L444:                       1,
+L445:                       0.5,
+L446:                       0
+L447:                     ],
+L448:                     "type": "bezier",
+L449:                     "value": -74.01528014573182
+L450:                   },
+L451:                   {
+L452:                     "id": "kf_lng_1",
+L453:                     "position": 4,
+L454:                     "connectedRight": true,
+L455:                     "handles": [
+L456:                       0.5,
+L457:                       1,
+L458:                       0.5,
+L459:                       0
+L460:                     ],
+L461:                     "type": "bezier",
+L462:                     "value": -74.0152298040547
+L463:                   },
+L464:                   {
+L465:                     "id": "kf_lng_2",
+L466:                     "position": 5.5,
+L467:                     "connectedRight": true,
+L468:                     "handles": [
+L469:                       0.5,
+L470:                       1,
+L471:                       0.5,
+L472:                       0
+L473:                     ],
+L474:                     "type": "bezier",
+L475:                     "value": -74.00393041204993
+L476:                   },
+L477:                   {
+L478:                     "id": "kf_lng_3",
+L479:                     "position": 7,
+L480:                     "connectedRight": true,
+L481:                     "handles": [
+L482:                       0.5,
+L483:                       1,
+L484:                       0.5,
+L485:                       0
+L486:                     ],
+L487:                     "type": "bezier",
+L488:                     "value": -73.98427479072922
+L489:                   },
+L490:                   {
+L491:                     "id": "kf_lng_4",
+L492:                     "position": 7.5,
+L493:                     "connectedRight": true,
+L494:                     "handles": [
+L495:                       0.5,
+L496:                       1,
+L497:                       0.5,
+L498:                       0
+L499:                     ],
+L500:                     "type": "bezier",
+L501:                     "value": -73.98
+L502:                   },
+L503:                   {
+L504:                     "id": "kf_lng_5",
+L505:                     "position": 11,
+L506:                     "connectedRight": true,
+L507:                     "handles": [
+L508:                       0.5,
+L509:                       1,
+L510:                       0.5,
+L511:                       0
+L512:                     ],
+L513:                     "type": "bezier",
+L514:                     "value": -73.97857897544452
+L515:                   },
+L516:                   {
+L517:                     "id": "kf_lng_6",
+L518:                     "position": 18,
+L519:                     "connectedRight": true,
+L520:                     "handles": [
+L521:                       0.5,
+L522:                       1,
+L523:                       0.5,
+L524:                       0
+L525:                     ],
+L526:                     "type": "bezier",
+L527:                     "value": -73.99384768869895
+L528:                   },
+L529:                   {
+L530:                     "id": "kf_lng_7",
+L531:                     "position": 19,
+L532:                     "connectedRight": false,
+L533:                     "handles": [
+L534:                       0.5,
+L535:                       1,
+L536:                       0.5,
+L537:                       0
+L538:                     ],
+L539:                     "type": "bezier",
+L540:                     "value": -73.99244100531732
+L541:                   }
+L542:                 ]
+L543:               },
+L544:               "latTrk001": {
+L545:                 "type": "BasicKeyframedTrack",
+L546:                 "__debugName": "basemap:[\"viewState\",\"latitude\"]",
+L547:                 "keyframes": [
+L548:                   {
+L549:                     "id": "kf_lat_0",
+L550:                     "position": 0,
+L551:             
+L552: ...[truncated 13730 chars]
+L553: [tool_use Bash] {"command":"cd /tmp/noodles-evals/workspaces/animate-camera--claude-opus-4-8--s1/noodles-editor && python3 -c \"\nimport json\nd=json.load(open('src/examples/cesium-hubble/noodles.json'))\nprint(json.dumps(d['timeline'], indent=2))\n\"","description":"Print full cesium-hubble timeline"}
+L554: [system] session started (tools + workspace initialized)
+L555: [tool_result] {
+L556:   "sheetsById": {
+L557:     "Noodles": {
+L558:       "staticOverrides": {
+L559:         "byObject": {}
+L560:       },
+L561:       "sequence": {
+L562:         "subUnitsPerUnit": 30,
+L563:         "length": 19,
+L564:         "type": "PositionalSequence",
+L565:         "tracksByObject": {
+L566:           "basemap": {
+L567:             "trackData": {
+L568:               "lngTrk001": {
+L569:                 "type": "BasicKeyframedTrack",
+L570:                 "__debugName": "basemap:[\"viewState\",\"longitude\"]",
+L571:                 "keyframes": [
+L572:                   {
+L573:                     "id": "kf_lng_0",
+L574:                     "position": 0,
+L575:                     "connectedRight": true,
+L576:                     "handles": [
+L577:                       0.5,
+L578:                       1,
+L579:                       0.5,
+L580:                       0
+L581:                     ],
+L582:                     "type": "bezier",
+L583:                     "value": -74.01528014573182
+L584:                   },
+L585:                   {
+L586:                     "id": "kf_lng_1",
+L587:                     "position": 4,
+L588:                     "connectedRight": true,
+L589:                     "handles": [
+L590:                       0.5,
+L591:                       1,
+L592:                       0.5,
+L593:                       0
+L594:                     ],
+L595:                     "type": "bezier",
+L596:                     "value": -74.0152298040547
+L597:                   },
+L598:                   {
+L599:                     "id": "kf_lng_2",
+L600:                     "position": 5.5,
+L601:                     "connectedRight": true,
+L602:                     "handles": [
+L603:                       0.5,
+L604:                       1,
+L605:                       0.5,
+L606:                       0
+L607:                     ],
+L608:                     "type": "bezier",
+L609:                     "value": -74.00393041204993
+L610:                   },
+L611:                   {
+L612:                     "id": "kf_lng_3",
+L613:                     "position": 7,
+L614:                     "connectedRight": true,
+L615:                     "handles": [
+L616:                       0.5,
+L617:                       1,
+L618:                       0.5,
+L619:                       0
+L620:                     ],
+L621:                     "type": "bezier",
+L622:                     "value": -73.98427479072922
+L623:                   },
+L624:                   {
+L625:                     "id": "kf_lng_4",
+L626:                     "position": 7.5,
+L627:                     "connectedRight": true,
+L628:                     "handles": [
+L629:                       0.5,
+L630:                       1,
+L631:                       0.5,
+L632:                       0
+L633:                     ],
+L634:                     "type": "bezier",
+L635:                     "value": -73.98
+L636:                   },
+L637:                   {
+L638:                     "id": "kf_lng_5",
+L639:                     "position": 11,
+L640:                     "connectedRight": true,
+L641:                     "handles": [
+L642:                       0.5,
+L643:                       1,
+L644:                       0.5,
+L645:                       0
+L646:                     ],
+L647:                     "type": "bezier",
+L648:                     "value": -73.97857897544452
+L649:                   },
+L650:                   {
+L651:                     "id": "kf_lng_6",
+L652:                     "position": 18,
+L653:                     "connectedRight": true,
+L654:                     "handles": [
+L655:                       0.5,
+L656:                       1,
+L657:                       0.5,
+L658:                       0
+L659:                     ],
+L660:                     "type": "bezier",
+L661:                     "value": -73.99384768869895
+L662:                   },
+L663:                   {
+L664:                     "id": "kf_lng_7",
+L665:                     "position": 19,
+L666:                     "connectedRight": false,
+L667:                     "handles": [
+L668:                       0.5,
+L669:                       1,
+L670:                       0.5,
+L671:                       0
+L672:                     ],
+L673:                     "type": "bezier",
+L674:                     "value": -73.99244100531732
+L675:                   }
+L676:                 ]
+L677:               },
+L678:               "latTrk001": {
+L679:                 "type": "BasicKeyframedTrack",
+L680:                 "__debugName": "basemap:[\"viewState\",\"latitude\"]",
+L681:                 "keyframes": [
+L682:                   {
+L683:                     "id": "kf_lat_0",
+L684:                     "position": 0,
+L685:             
+L686: ...[truncated 13730 chars]
+L687: [assistant] This is exactly what I need. Now let me confirm how the object key "basemap" maps to an operator path, and look at the serialization/read-write code.
+L688: [tool_use Bash] {"command":"cd /tmp/noodles-evals/workspaces/animate-camera--claude-opus-4-8--s1/noodles-editor && python3 -c \"\nimport json\nd=json.load(open('src/examples/cesium-hubble/noodles.json'))\nfor n in d['nodes']:\n    if 'basemap' in n['id'].lower() or n['type'] in ('MaplibreBasemapOp','MapViewStateOp','MapViewOp','DeckRendererOp','ViewerOp'):\n        print(n['id'], n['type'])\n        print('   inputs keys:', list(n.get('data',{}).get('inputs',{}).keys()))\n\"","description":"Find basemap node in cesium-hubble"}
+L689: [system] session started (tools + workspace initialized)
+L690: [tool_result] /basemap MaplibreBasemapOp
+L691:    inputs keys: ['mapStyle', 'viewState']
+L692: /renderer DeckRendererOp
+L693:    inputs keys: []
+L694: [assistant] This is exactly the format I need. Let me confirm the object-key convention and check the sequence length semantics.
+L695: [tool_use Bash] {"command":"cd /tmp/noodles-evals/workspaces/animate-camera--claude-opus-4-8--s1/noodles-editor && ls src/timeline/ && echo \"===serialization refs===\" && grep -rln 'tracksByObject\\|trackIdByPropPath\\|sheetsById' src/ --include=*.ts --include=*.tsx | grep -v __tests__ | grep -v node_modules","description":"List timeline dir and find serialization code"}
+L696: [system] session started (tools + workspace initialized)
+L697: [tool_result] __tests__
+L698: components
+L699: easing-presets.ts
+L700: field-bindings.ts
+L701: index.ts
+L702: interpolation.ts
+L703: migrate-timeline.ts
+L704: playback.ts
+L705: timeline-context.tsx
+L706: timeline-store.ts
+L707: types.ts
+L708: utils
+L709: ===serialization refs===
+L710: src/noodles/__migrations__/012-render-settings-to-outop.test.ts
+L711: src/noodles/__migrations__/013-add-time-markers.ts
+L712: src/noodles/__migrations__/006-rename-nodes-to-noodles.test.ts
+L713: src/noodles/__migrations__/013-add-time-markers.test.ts
+L714: src/noodles/__migrations__/009-editor-settings-to-project.ts
+L715: src/noodles/__migrations__/006-rename-nodes-to-noodles.ts
+L716: src/noodles/__migrations__/012-render-settings-to-outop.ts
+L717: src/noodles/__migrations__/007-rename-merge-operators.test.ts
+L718: src/noodles/__migrations__/009-editor-settings-to-project.test.ts
+L719: src/noodles/__migrations__/008-rename-date-to-datetime.test.ts
+L720: src/timeline/types.ts
+L721: src/timeline/timeline-store.ts
+L722: src/timeline/migrate-timeline.ts
+L723: [tool_use Bash] {"command":"python3 -c \"\nimport json\nd=json.load(open('src/examples/cesium-hubble/noodles.json'))\nprint('node ids:', [n['id'] for n in d['nodes']])\nfor n in d['nodes']:\n  if n['id']=='/basemap':\n    print('basemap type:', n['type'])\n    print('basemap inputs viewState:', json.dumps(n['data']['inputs'].get('viewState'),indent=2))\n\"","description":"Confirm object key = node id without slash"}
+L724: [tool_result] node ids: ['/basemap', '/point-cloud', '/video-spheres', '/renderer', '/out']
+L725: basemap type: MaplibreBasemapOp
+L726: basemap inputs viewState: {
+L727:   "longitude": -74.01528014573182,
+L728:   "latitude": 40.706616771021125,
+L729:   "zoom": 20,
+L730:   "pitch": 55.17280350846221,
+L731:   "bearing": 2.3531249999999773
+L732: }
+L733: [assistant] The object key `basemap` = node id `/basemap` with the leading slash stripped. Let me confirm the mapping logic and read the serialization code.
+L734: [tool_use Bash] {"command":"cd /tmp/noodles-evals/workspaces/animate-camera--claude-opus-4-8--s1/noodles-editor && grep -n 'tracksByObject\\|trackIdByPropPath\\|objectKey\\|replace.*\\/\\|fieldPath\\|propPath\\|serialize\\|deserialize\\|JSON.parse\\|JSON.stringify' src/timeline/timeline-store.ts | head -60","description":"Find serialization functions in timeline-store"}
+L735: [system] session started (tools + workspace initialized)
+L736: [tool_result] 30:  // === Historic State (serialized to project) ===
+L737: 69:  getOrCreateTrack: (fieldPath: string, defaultValue: KeyframeValue) => Track
+L738: 70:  getTrack: (fieldPath: string) => Track | undefined
+L739: 79:  hasKeyframesForField: (fieldPath: string) => boolean
+L740: 161:function serializedToHandles(handles: [number, number, number, number]): BezierHandles {
+L741: 181:function serializedToKeyframe(tkf: TimelineKeyframe): Keyframe {
+L742: 187:    handles: serializedToHandles(tkf.handles),
+L743: 307:    getOrCreateTrack: (fieldPath, defaultValue) => {
+L744: 309:      let track = tracks.get(fieldPath)
+L745: 313:          id: fieldPath, // Use fieldPath as ID for simplicity
+L746: 314:          fieldPath,
+L747: 319:        newTracks.set(fieldPath, track)
+L748: 326:    getTrack: fieldPath => get().tracks.get(fieldPath),
+L749: 424:                fieldPath: newTrackId,
+L750: 481:    hasKeyframesForField: fieldPath => {
+L751: 482:      const track = get().tracks.get(fieldPath)
+L752: 811:      const tracksByObject: TimelineSequenceData['tracksByObject'] = {}
+L753: 813:      for (const [fieldPath, track] of tracks) {
+L754: 817:        const parts = fieldPath.split(' / ')
+L755: 819:        const propPath = parts.slice(1).join('.')
+L756: 821:        if (!tracksByObject[objectName]) {
+L757: 822:          tracksByObject[objectName] = {
+L758: 823:            trackIdByPropPath: {},
+L759: 829:        tracksByObject[objectName].trackIdByPropPath[propPath] = trackDataId
+L760: 835:        tracksByObject[objectName].trackData[trackDataId] = trackData
+L761: 839:      const serializedMarkers: SerializedTimeMarker[] = markers.map(m => ({
+L762: 855:              tracksByObject,
+L763: 856:              markers: serializedMarkers.length > 0 ? serializedMarkers : undefined,
+L764: 898:      for (const [objectName, objectData] of Object.entries(seq.tracksByObject ?? {})) {
+L765: 899:        const trackIdByPropPath = objectData?.trackIdByPropPath ?? {}
+L766: 902:        for (const [propPath, trackDataId] of Object.entries(trackIdByPropPath)) {
+L767: 908:          let propPathParts: string[]
+L768: 910:            const parsed = JSON.parse(propPath)
+L769: 911:            propPathParts = Array.isArray(parsed) ? parsed.map(String) : propPath.split('.')
+L770: 913:            propPathParts = propPath.split('.')
+L771: 915:          const fieldPath = [objectName, ...propPathParts].join(' / ')
+L772: 917:          const keyframes = (trackData.keyframes ?? []).map(serializedToKeyframe)
+L773: 921:            id: fieldPath,
+L774: 922:            fieldPath,
+L775: 926:          newTracks.set(fieldPath, track)
+L776: 930:      // Deserialize markers
+L777: 1020:  return JSON.stringify(useTimelineStore.getState().toTimelineJSON())
+L778: [assistant] Let me read the key serialization sections in detail.
+L779: [tool_use Read] {"file_path":"/tmp/noodles-evals/workspaces/animate-camera--claude-opus-4-8--s1/noodles-editor/src/timeline/timeline-store.ts","offset":150,"limit":70}
+L780: [system] session started (tools + workspace initialized)
+L781: [tool_result] 150	// Keep keyframes sorted by position
+L782: 151	function sortKeyframes(keyframes: Keyframe[]): Keyframe[] {
+L783: 152	  return [...keyframes].sort((a, b) => a.position - b.position)
+L784: 153	}
+L785: 154	
+L786: 155	// Convert native handles to timeline format [leftX, leftY, rightX, rightY]
+L787: 156	function handlesToSerialized(handles: BezierHandles): [number, number, number, number] {
+L788: 157	  return [handles.left[0], handles.left[1], handles.right[0], handles.right[1]]
+L789: 158	}
+L790: 159	
+L791: 160	// Convert timeline handles to native format
+L792: 161	function serializedToHandles(handles: [number, number, number, number]): BezierHandles {
+L793: 162	  return {
+L794: 163	    left: [handles[0], handles[1]],
+L795: 164	    right: [handles[2], handles[3]],
+L796: 165	    type: 'aligned',
+L797: 166	  }
+L798: 167	}
+L799: 168	
+L800: 169	// Convert native keyframe to timeline format
+L801: 170	function keyframeToSerialized(kf: Keyframe, index: number, total: number): TimelineKeyframe {
+L802: 171	  return {
+L803: 172	    id: kf.id,
+L804: 173	    position: kf.position,
+L805: 174	    connectedRight: index < total - 1 && kf.interpolation !== 'hold',
+L806: 175	    handles: handlesToSerialized(kf.handles || DEFAULT_BEZIER_HANDLES),
+L807: 176	    value: kf.value,
+L808: 177	  }
+L809: 178	}
+L810: 179	
+L811: 180	// Convert timeline keyframe to native format
+L812: 181	function serializedToKeyframe(tkf: TimelineKeyframe): Keyframe {
+L813: 182	  return {
+L814: 183	    id: tkf.id,
+L815: 184	    position: tkf.position,
+L816: 185	    value: tkf.value as KeyframeValue,
+L817: 186	    interpolation: tkf.connectedRight ? 'bezier' : 'hold',
+L818: 187	    handles: serializedToHandles(tkf.handles),
+L819: 188	  }
+L820: 189	}
+L821: 190	
+L822: 191	// Detect value type for timeline track data
+L823: 192	function detectValueType(value: KeyframeValue): string {
+L824: 193	  if (typeof value === 'number') return 'BasicKeyframedTrack'
+L825: 194	  if (typeof value === 'boolean') return 'BasicKeyframedTrack'
+L826: 195	  if (typeof value === 'string') return 'BasicKeyframedTrack'
+L827: 196	  if (typeof value === 'object' && value !== null) {
+L828: 197	    if ('r' in value && 'g' in value && 'b' in value) return 'BasicKeyframedTrack'
+L829: 198	  }
+L830: 199	  return 'BasicKeyframedTrack'
+L831: 200	}
+L832: 201	
+L833: 202	// ============================================================================
+L834: 203	// Store Creation
+L835: 204	// ============================================================================
+L836: 205	
+L837: 206	export const useTimelineStore = create<TimelineStore>()(
+L838: 207	  subscribeWithSelector((set, get) => ({
+L839: 208	    // === Initial State ===
+L840: 209	    sequence: { ...DEFAULT_SEQUENCE_STATE },
+L841: 210	    tracks: new Map(),
+L842: 211	    markers: [],
+L843: 212	    position: 0,
+L844: 213	    playing: false,
+L845: 214	    loop: true,
+L846: 215	    loopInOut: false,
+L847: 216	    playbackSpeed: 1,
+L848: 217	    selectedKeyframeIds: new Set(),
+L849: 218	    selectedTrackIds: new Set(),
+L850: 219	    selectedMarkerId: null,
+L851: [tool_use Read] {"file_path":"/tmp/noodles-evals/workspaces/animate-camera--claude-opus-4-8--s1/noodles-editor/src/timeline/timeline-store.ts","offset":790,"limit":150}
+L852: [system] session started (tools + workspace initialized)
+L853: [tool_result] 790	
+L854: 791	    evaluateAllTracks: time => {
+L855: 792	      const { tracks, position } = get()
+L856: 793	      const evalTime = time ?? position
+L857: 794	      const results = new Map<string, KeyframeValue>()
+L858: 795	
+L859: 796	      for (const [trackId, track] of tracks) {
+L860: 797	        const value = evaluateTrack(track, evalTime)
+L861: 798	        if (value !== undefined) {
+L862: 799	          results.set(trackId, value)
+L863: 800	        }
+L864: 801	      }
+L865: 802	
+L866: 803	      return results
+L867: 804	    },
+L868: 805	
+L869: 806	    // === Serialization ===
+L870: 807	    toTimelineJSON: () => {
+L871: 808	      const { sequence, tracks, markers } = get()
+L872: 809	
+L873: 810	      // Group tracks by object name (operator path)
+L874: 811	      const tracksByObject: TimelineSequenceData['tracksByObject'] = {}
+L875: 812	
+L876: 813	      for (const [fieldPath, track] of tracks) {
+L877: 814	        if (track.keyframes.length === 0) continue
+L878: 815	
+L879: 816	        // Parse field path: "operator-name / prop / subprop" -> object: "operator-name", prop: "prop.subprop"
+L880: 817	        const parts = fieldPath.split(' / ')
+L881: 818	        const objectName = parts[0]
+L882: 819	        const propPath = parts.slice(1).join('.')
+L883: 820	
+L884: 821	        if (!tracksByObject[objectName]) {
+L885: 822	          tracksByObject[objectName] = {
+L886: 823	            trackIdByPropPath: {},
+L887: 824	            trackData: {},
+L888: 825	          }
+L889: 826	        }
+L890: 827	
+L891: 828	        const trackDataId = generateTrackId()
+L892: 829	        tracksByObject[objectName].trackIdByPropPath[propPath] = trackDataId
+L893: 830	
+L894: 831	        const trackData: TimelineTrackData = {
+L895: 832	          type: detectValueType(track.defaultValue),
+L896: 833	          keyframes: track.keyframes.map((kf, i, arr) => keyframeToSerialized(kf, i, arr.length)),
+L897: 834	        }
+L898: 835	        tracksByObject[objectName].trackData[trackDataId] = trackData
+L899: 836	      }
+L900: 837	
+L901: 838	      // Serialize markers
+L902: 839	      const serializedMarkers: SerializedTimeMarker[] = markers.map(m => ({
+L903: 840	        id: m.id,
+L904: 841	        position: m.position,
+L905: 842	        connections: m.connectedKeyframes.map(c => ({
+L906: 843	          keyframeId: c.keyframeId,
+L907: 844	          trackPath: c.trackId,
+L908: 845	          offset: c.offset,
+L909: 846	        })),
+L910: 847	      }))
+L911: 848	
+L912: 849	      return {
+L913: 850	        sheetsById: {
+L914: 851	          Noodles: {
+L915: 852	            sequence: {
+L916: 853	              length: sequence.length,
+L917: 854	              subUnitsPerUnit: sequence.fps,
+L918: 855	              tracksByObject,
+L919: 856	              markers: serializedMarkers.length > 0 ? serializedMarkers : undefined,
+L920: 857	              inPoint: sequence.inPoint,
+L921: 858	              outPoint: sequence.outPoint,
+L922: 859	            },
+L923: 860	            staticOverrides: { byObject: {} },
+L924: 861	          },
+L925: 862	        },
+L926: 863	        definitionVersion: '0.4.0',
+L927: 864	        revisionHistory: [],
+L928: 865	      }
+L929: 866	    },
+L930: 867	
+L931: 868	    fromTimelineJSON: (json, opts) => {
+L932: 869	      const emptyTimelineState = {
+L933: 870	        sequence: { ...DEFAULT_SEQUENCE_STATE },
+L934: 871	        tracks: new Map<string, Track>(),
+L935: 872	        markers: [] as TimeMarker[],
+L936: 873	        position: 0,
+L937: 874	        playing: false,
+L938: 875	        selectedKeyframeIds: new Set<string>(),
+L939: 876	        selectedTrackIds: new Set<string>(),
+L940: 877	        selectedMarkerId: null,
+L941: 878	        connectingFromMarkerId: null,
+L942: 879	      }
+L943: 880	
+L944: 881	      if (!json || typeof json !== 'object' || !json.sheetsById?.Noodles) {
+L945: 882	        debugTimeline('Invalid timeline timeline data')
+L946: 883	        set(emptyTimelineState)
+L947: 884	        return
+L948: 885	      }
+L949: 886	
+L950: 887	      const seq = json.sheetsById.Noodles.sequence
+L951: 888	      if (!seq) {
+L952: 889	        // Some legacy projects only persist static overrides without a sequence.
+L953: 890	        // Treat this as "no animated timeline" instead of an invalid project.
+L954: 891	        set(emptyTimelineState)
+L955: 892	        return
+L956: 893	      }
+L957: 894	
+L958: 895	      const newTracks = new Map<string, Track>()
+L959: 896	
+L960: 897	      // Parse each object's tracks
+L961: 898	      for (const [objectName, objectData] of Object.entries(seq.tracksByObject ?? {})) {
+L962: 899	        const trackIdByPropPath = objectData?.trackIdByPropPath ?? {}
+L963: 900	        c
+L964: ...[truncated 1602 chars]
+L965: [assistant] Now let me understand how the object key maps to operator path (leading slash handling) via field-bindings.
+L966: [tool_use Bash] {"command":"cd /tmp/noodles-evals/workspaces/animate-camera--claude-opus-4-8--s1/noodles-editor && grep -n \"' / '\\|objectName\\|opId\\|replace\\|slice(1)\\|fieldPath\\|substring\\|startsWith\" src/timeline/field-bindings.ts | head -50","description":"Find fieldPath construction in field-bindings"}
+L967: [system] session started (tools + workspace initialized)
+L968: [tool_result] 223:export function opIdToObjectName(opId: string): string {
+L969: 224:  return opId.slice(1).split('/').join(' / ')
+L970: 228:// Uses Theatre.js format: "objectName / fieldName / subField"
+L971: 229:export function getFieldPath(opId: string, fieldName: string, subPath?: string[]): string {
+L972: 230:  const objectName = opIdToObjectName(opId)
+L973: 231:  const parts = [objectName, fieldName, ...(subPath || [])]
+L974: 232:  return parts.join(' / ')
+L975: 237:export function getFieldFromTrackPath(fieldPath: string): {
+L976: 243:  const parts = fieldPath.split(' / ')
+L977: 252:    const opId = `/${parts.slice(0, i + 1).join('/')}`
+L978: 253:    operator = getOp(opId)
+L979: 296:  const fieldPath = getFieldPath(op.id, fieldName, subPath)
+L980: 298:  debugBinding('bind %s.%s → track %s', op.id, fieldName, fieldPath)
+L981: 308:  timelineStore.getOrCreateTrack(fieldPath, defaultValue)
+L982: 316:      const value = timelineStore.evaluateTrack(fieldPath, position)
+L983: 317:      debugBinding('pos=%s eval %s → %O', position.toFixed(3), fieldPath, value)
+L984: 325:        debugBinding('skip %s: value unchanged (%O)', fieldPath, value)
+L985: 350:      const track = state.tracks.get(fieldPath)
+L986: 358:      const value = timelineStore.evaluateTrack(fieldPath, position)
+L987: 393:  const initialValue = timelineStore.evaluateTrack(fieldPath)
+L988: 394:  debugBinding('initial eval %s → %O', fieldPath, initialValue)
+L989: 434:      const track = timelineStore.getTrack(fieldPath)
+L990: 442:        fieldPath,
+L991: 455:            fieldPath,
+L992: 461:          timelineStore.updateKeyframe(fieldPath, existingKf.id, { value: kfValue })
+L993: 463:          debugKeyframe('skip update %s: value unchanged %O', fieldPath, kfValue)
+L994: 468:        const currentInterpolated = timelineStore.evaluateTrack(fieldPath)
+L995: 470:          debugKeyframe('add kf %s @ pos=%s value=%O', fieldPath, position.toFixed(3), kfValue)
+L996: 471:          timelineStore.addKeyframe(fieldPath, {
+L997: 479:            fieldPath,
+L998: 488:          fieldPath
+L999: 518:  const fieldPath = getFieldPath(op.id, fieldName, [channelKey])
+L1000: 520:  debugBinding('bind %s.%s.%s → track %s', op.id, fieldName, channelKey, fieldPath)
+L1001: 545:  timelineStore.getOrCreateTrack(fieldPath, getChannel())
+L1002: 553:      const value = timelineStore.evaluateTrack(fieldPath, position) as number | undefined
+L1003: 554:      debugBinding('pos=%s eval %s → %O', position.toFixed(3), fieldPath, value)
+L1004: 558:        debugBinding('skip %s: value unchanged (%O)', fieldPath, value)
+L1005: 573:        debugTimeline(`Error syncing timeline to vec channel ${fieldPath}:`, e)
+L1006: 582:      const track = state.tracks.get(fieldPath)
+L1007: 589:      const value = timelineStore.evaluateTrack(fieldPath, position) as number | undefined
+L1008: 603:          debugTimeline(`Error syncing track changes to vec channel ${fieldPath}:`, e)
+L1009: 619:  const initialValue = timelineStore.evaluateTrack(fieldPath, getTimelineStore().position) as
+L1010: 622:  debugBinding('initial eval %s → %O', fieldPath, initialValue)
+L1011: 629:      debugTimeline(`Error in initial vec channel sync ${fieldPath}:`, e)
+L1012: 653:      const track = timelineStore.getTrack(fieldPath)
+L1013: 659:        fieldPath,
+L1014: 671:            fieldPath,
+L1015: 677:          timelineStore.updateKeyframe(fieldPath, existingKf.id, { value: kfValue })
+L1016: 679:          debugKeyframe('skip update %s: value unchanged %O', fieldPath, kfValue)
+L1017: 684:        const currentInterpolated = timelineStore.evaluateTrack(fieldPath)
+L1018: [assistant] I have everything I need. The `cesium-hubble` example shows the exact format: viewState fields are keyframed under `tracksByObject.basemap` with prop paths like `["viewState","longitude"]`. Let me build the animated timeline.
+L1019: 
+L1020: Coordinates:
+L1021: - San Francisco: `-122.4194, 37.7749`
+L1022: - Los Angeles: `-118.2437, 34.0522`
+L1023: 
+L1024: I'll animate longitude/latitude from SF→LA over 5s, with a zoom dip mid-flight (9→6→9) for a natural fly-over arc, and set the base `viewState` to SF so the starting frame matches keyframe 0.
+L1025: [tool_use Read] {"file_path":"/tmp/noodles-evals/workspaces/animate-camera--claude-opus-4-8--s1/noodles-editor/src/timeline/field-bindings.ts","offset":215,"limit":50}
+L1026: [system] session started (tools + workspace initialized)
+L1027: [tool_result] 215	}
+L1028: 216	
+L1029: 217	// ============================================================================
+L1030: 218	// Path Utilities
+L1031: 219	// ============================================================================
+L1032: 220	
+L1033: 221	// Convert operator ID to Theatre.js object name format
+L1034: 222	// "/my-operator" -> "my-operator", "/container/nested" -> "container / nested"
+L1035: 223	export function opIdToObjectName(opId: string): string {
+L1036: 224	  return opId.slice(1).split('/').join(' / ')
+L1037: 225	}
+L1038: 226	
+L1039: 227	// Build the field path for timeline track
+L1040: 228	// Uses Theatre.js format: "objectName / fieldName / subField"
+L1041: 229	export function getFieldPath(opId: string, fieldName: string, subPath?: string[]): string {
+L1042: 230	  const objectName = opIdToObjectName(opId)
+L1043: 231	  const parts = [objectName, fieldName, ...(subPath || [])]
+L1044: 232	  return parts.join(' / ')
+L1045: 233	}
+L1046: 234	
+L1047: 235	// Parse a track ID and return the corresponding operator and field
+L1048: 236	// Returns null if operator/field not found
+L1049: 237	export function getFieldFromTrackPath(fieldPath: string): {
+L1050: 238	  operator: Operator<IOperator>
+L1051: 239	  fieldName: string
+L1052: 240	  subPath?: string[]
+L1053: 241	  field: AnyField
+L1054: 242	} | null {
+L1055: 243	  const parts = fieldPath.split(' / ')
+L1056: 244	  if (parts.length < 2) return null
+L1057: 245	
+L1058: 246	  // Reconstruct operator ID by trying each split point
+L1059: 247	  // "container / nested / fieldName" → try "/container/nested", then "/container"
+L1060: 248	  let operator: Operator<IOperator> | null = null
+L1061: 249	  let opPartCount = 0
+L1062: 250	
+L1063: 251	  for (let i = parts.length - 2; i >= 0; i--) {
+L1064: 252	    const opId = `/${parts.slice(0, i + 1).join('/')}`
+L1065: 253	    operator = getOp(opId)
+L1066: 254	    if (operator) {
+L1067: 255	      opPartCount = i + 1
+L1068: 256	      break
+L1069: 257	    }
+L1070: 258	  }
+L1071: 259	
+L1072: 260	  if (!operator) return null
+L1073: 261	
+L1074: 262	  const fieldName = parts[opPartCount]
+L1075: 263	  const subPath = parts.slice(opPartCount + 1)
+L1076: 264	
+L1077: [tool_use Read] {"file_path":"/tmp/noodles-evals/workspaces/animate-camera--claude-opus-4-8--s1/noodles-editor/src/examples/camera-tour/noodles.json"}
+L1078: [tool_result] 1	{
+L1079: 2	  "version": 14,
+L1080: 3	  "name": "Camera Tour",
+L1081: 4	  "nodes": [
+L1082: 5	    {
+L1083: 6	      "id": "/basemap",
+L1084: 7	      "type": "MaplibreBasemapOp",
+L1085: 8	      "position": { "x": 0, "y": 200 },
+L1086: 9	      "data": {
+L1087: 10	        "inputs": {
+L1088: 11	          "mapStyle": "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json",
+L1089: 12	          "viewState": {
+L1090: 13	            "longitude": -122.42,
+L1091: 14	            "latitude": 37.77,
+L1092: 15	            "zoom": 9,
+L1093: 16	            "pitch": 0,
+L1094: 17	            "bearing": 0
+L1095: 18	          }
+L1096: 19	        },
+L1097: 20	        "locked": false
+L1098: 21	      }
+L1099: 22	    },
+L1100: 23	    {
+L1101: 24	      "id": "/deck",
+L1102: 25	      "type": "DeckRendererOp",
+L1103: 26	      "position": { "x": 350, "y": 100 },
+L1104: 27	      "data": { "inputs": {}, "locked": false }
+L1105: 28	    },
+L1106: 29	    {
+L1107: 30	      "id": "/out",
+L1108: 31	      "type": "OutOp",
+L1109: 32	      "position": { "x": 700, "y": 100 },
+L1110: 33	      "data": {
+L1111: 34	        "inputs": { "display": "fixed", "width": 1920, "height": 1080, "framerate": 30 },
+L1112: 35	        "locked": false
+L1113: 36	      }
+L1114: 37	    }
+L1115: 38	  ],
+L1116: 39	  "edges": [
+L1117: 40	    {
+L1118: 41	      "id": "/basemap.out.maplibre->/deck.par.basemap",
+L1119: 42	      "source": "/basemap",
+L1120: 43	      "target": "/deck",
+L1121: 44	      "sourceHandle": "out.maplibre",
+L1122: 45	      "targetHandle": "par.basemap"
+L1123: 46	    },
+L1124: 47	    {
+L1125: 48	      "id": "/deck.out.vis->/out.par.vis",
+L1126: 49	      "source": "/deck",
+L1127: 50	      "target": "/out",
+L1128: 51	      "sourceHandle": "out.vis",
+L1129: 52	      "targetHandle": "par.vis"
+L1130: 53	    }
+L1131: 54	  ],
+L1132: 55	  "viewport": { "x": 0, "y": 0, "zoom": 1 },
+L1133: 56	  "editorSettings": { "layoutMode": "noodles-on-top", "showOverlay": true },
+L1134: 57	  "timeline": {
+L1135: 58	    "sheetsById": {
+L1136: 59	      "Noodles": {
+L1137: 60	        "staticOverrides": { "byObject": {} }
+L1138: 61	      }
+L1139: 62	    },
+L1140: 63	    "definitionVersion": "0.4.0",
+L1141: 64	    "revisionHistory": []
+L1142: 65	  }
+L1143: 66	}
+L1144: 67	
+L1145: [assistant] Now I'll update the base viewState to match the SF starting point and write the animated timeline.
+L1146: [tool_use Edit] {"replace_all":false,"file_path":"/tmp/noodles-evals/workspaces/animate-camera--claude-opus-4-8--s1/noodles-editor/src/examples/camera-tour/noodles.json","old_string":"          \"viewState\": {\n            \"longitude\": -122.42,\n            \"latitude\": 37.77,\n            \"zoom\": 9,\n            \"pitch\": 0,\n            \"bearing\": 0\n          }","new_string":"          \"viewState\": {\n            \"longitude\": -122.4194,\n            \"latitude\": 37.7749,\n            \"zoom\": 9,\n            \"pitch\": 0,\n            \"bearing\": 0\n          }"}
+L1147: [tool_result] The file /tmp/noodles-evals/workspaces/animate-camera--claude-opus-4-8--s1/noodles-editor/src/examples/camera-tour/noodles.json has been updated successfully. (file state is current in your context — no need to Read it back)
+L1148: [assistant] The picture is complete. Let me verify the viewState field structure of MaplibreBasemapOp and check the migration file briefly to confirm the propPath format expectation.
+L1149: [tool_use Bash] {"command":"cd /tmp/noodles-evals/workspaces/animate-camera--claude-opus-4-8--s1/noodles-editor && grep -rn \"viewState\" src/noodles/operators*.ts src/noodles/operators/*.ts 2>/dev/null | grep -i \"longitude\\|latitude\\|zoom\\|pitch\\|bearing\\|MapViewState\\|new .*Field\\|createInputs\\|viewState:\" | head -30; echo \"---maplibre op file---\"; grep -rln \"class MaplibreBasemapOp\\|MaplibreBasemapOp\" src/ --include=*.ts | grep -v test | head","description":"Find viewState field definition"}
+L1150: [system] session started (tools + workspace initialized)
+L1151: [tool_result] src/noodles/operators.test.ts:83:    expect(operator.inputs.viewState.fields.zoom.pathToProps).toEqual([
+L1152: src/noodles/operators.test.ts:909:    const val = await ddb.execute({ query: 'SELECT {{bbox.out.viewState.latitude}} as lat' })
+L1153: src/noodles/operators.test.ts:999:      viewState: { longitude: -122, latitude: 37, zoom: 10, pitch: 0, bearing: 0 },
+L1154: src/noodles/operators.test.ts:1041:      zoom: 5, // carried from basemap (not overridden by viewState)
+L1155: src/noodles/operators.test.ts:1063:      viewState: {},
+L1156: src/noodles/operators.test.ts:1077:      viewState: {},
+L1157: src/noodles/operators.test.ts:1095:      viewState: { latitude: 37, longitude: -122, zoom: 10, pitch: 0, bearing: 0 },
+L1158: src/noodles/operators.test.ts:1118:      viewState: { latitude: 37, longitude: -122, zoom: 10, pitch: 0, bearing: 0 },
+L1159: src/noodles/operators.test.ts:1154:      viewState: { latitude: 37, longitude: -122, zoom: 10, pitch: 0, bearing: 0 },
+L1160: src/noodles/operators.test.ts:1176:      viewState: { latitude: 0, longitude: 0, zoom: 0, pitch: 0, bearing: 0 },
+L1161: src/noodles/operators.test.ts:1193:      viewState: { latitude: 0, longitude: 0, zoom: 0, pitch: 0, bearing: 0 },
+L1162: src/noodles/operators.ts:2478:      viewState: new CompoundPropsField({
+L1163: src/noodles/operators.ts:2532:    return { bounds, longitude, latitude, zoom, viewState }
+L1164: src/noodles/operators.ts:3586:      viewState: new CompoundPropsField({
+L1165: src/noodles/operators.ts:3626:      viewState: new CompoundPropsField({
+L1166: src/noodles/operators.ts:3671:      viewState: new CompoundPropsField({
+L1167: src/noodles/operators.ts:3687:    const viewState = { longitude, latitude, zoom, pitch, bearing }
+L1168: src/noodles/operators.ts:3698:      viewState: new CompoundPropsField({
+L1169: src/noodles/operators.ts:3737:      viewState: new CompoundPropsField({
+L1170: src/noodles/operators.ts:3938:      viewState: new UnknownField({}, { showByDefault: false }),
+L1171: src/noodles/operators.ts:3975:      viewState: { ...basemapViewState, ...viewState },
+L1172: src/noodles/operators.ts:3986:            ...pick(viewState, ['longitude', 'latitude', 'zoom', 'pitch', 'bearing']),
+L1173: src/noodles/operators.ts:4059:      viewState: new CompoundPropsField({
+L1174: src/noodles/operators.ts:4081:      view: new MapView({ id: this.id, ...props, viewState: { ...viewState, maxPitch: 90 } }),
+L1175: src/noodles/operators.ts:4239:      viewState: new CompoundPropsField({
+L1176: src/noodles/operators.ts:4570:      viewState: new CompoundPropsField({
+L1177: src/noodles/operators.ts:4605:      viewState: new CompoundPropsField({
+L1178: src/noodles/operators.ts:4635:      viewState: new CompoundPropsField({
+L1179: ---maplibre op file---
+L1180: src/noodles/components/block-library-ranking.ts
+L1181: src/noodles/operators.ts
+L1182: src/noodles/__migrations__/014-remove-map-style-op.ts
+L1183: src/noodles/__migrations__/002-to-new-deck-renderer.ts
+L1184: src/ai-chat/agents/project-templates.ts
+L1185: src/ai-chat/agents/project-generator.ts
+L1186: [tool_use Edit] {"replace_all":false,"file_path":"/tmp/noodles-evals/workspaces/animate-camera--claude-opus-4-8--s1/noodles-editor/src/examples/camera-tour/noodles.json","old_string":"  \"timeline\": {\n    \"sheetsById\": {\n      \"Noodles\": {\n        \"staticOverrides\": { \"byObject\": {} }\n      }\n    },\n    \"definitionVersion\": \"0.4.0\",\n    \"revisionHistory\": []\n  }","new_string":"  \"timeline\": {\n    \"sheetsById\": {\n      \"Noodles\": {\n        \"staticOverrides\": { \"byObject\": {} },\n        \"sequence\": {\n          \"subUnitsPerUnit\": 30,\n          \"length\": 5,\n          \"type\": \"PositionalSequence\",\n          \"tracksByObject\": {\n            \"basemap\": {\n              \"trackData\": {\n                \"camLngTrk\": {\n                  \"type\": \"BasicKeyframedTrack\",\n                  \"__debugName\": \"basemap:[\\\"viewState\\\",\\\"longitude\\\"]\",\n                  \"keyframes\": [\n                    {\n                      \"id\": \"kf_lng_sf\",\n                      \"position\": 0,\n                      \"connectedRight\": true,\n                      \"handles\": [0.42, 0, 0.58, 1],\n                      \"type\": \"bezier\",\n                      \"value\": -122.4194\n                    },\n                    {\n                      \"id\": \"kf_lng_la\",\n                      \"position\": 5,\n                      \"connectedRight\": false,\n                      \"handles\": [0.42, 0, 0.58, 1],\n                      \"type\": \"bezier\",\n                      \"value\": -118.2437\n                    }\n                  ]\n                },\n                \"camLatTrk\": {\n                  \"type\": \"BasicKeyframedTrack\",\n                  \"__debugName\": \"basemap:[\\\"viewState\\\",\\\"latitude\\\"]\",\n                  \"keyframes\": [\n                    {\n                      \"id\": \"kf_lat_sf\",\n                      \"position\": 0,\n                      \"connectedRight\": true,\n                      \"handles\": [0.42, 0, 0.58, 1],\n                      \"type\": \"bezier\",\n                      \"value\": 37.7749\n                    },\n                    {\n                      \"id\": \"kf_lat_la\",\n                      \"position\": 5,\n                      \"connectedRight\": false,\n                      \"handles\": [0.42, 0, 0.58, 1],\n                      \"type\": \"bezier\",\n                      \"value\": 34.0522\n                    }\n                  ]\n                },\n                \"camZoomTrk\": {\n                  \"type\": \"BasicKeyframedTrack\",\n                  \"__debugName\": \"basemap:[\\\"viewState\\\",\\\"zoom\\\"]\",\n                  \"keyframes\": [\n                    {\n                      \"id\": \"kf_zoom_sf\",\n                      \"position\": 0,\n                      \"connectedRight\": true,\n                      \"handles\": [0.42, 0, 0.58, 1],\n                      \"type\": \"bezier\",\n                      \"value\": 9\n                    },\n                    {\n                      \"id\": \"kf_zoom_mid\",\n                      \"position\": 2.5,\n                      \"connectedRight\": true,\n                      \"handles\": [0.42, 0, 0.58, 1],\n                      \"type\": \"bezier\",\n                      \"value\": 6\n                    },\n                    {\n                      \"id\": \"kf_zoom_la\",\n                      \"position\": 5,\n                      \"connectedRight\": false,\n                      \"handles\": [0.42, 0, 0.58, 1],\n                      \"type\": \"bezier\",\n                      \"value\": 9\n                    }\n                  ]\n                }\n              },\n              \"trackIdByPropPath\": {\n                \"[\\\"viewState\\\",\\\"longitude\\\"]\": \"camLngTrk\",\n                \"[\\\"viewState\\\",\\\"latitude\\\"]\": \"camLatTrk\",\n                \"[\\\"viewState\\\",\\\"zoom\\\"]\": \"camZoomTrk\"\n              }\n            }\n          },\n          \"markers\": []\n        }\n      }\n    },\n    \"definitionVersion\": \"0.4.0\",\n    \"revisionHistory\": []\n  }"}
+L1187: [tool_result] The file /tmp/noodles-evals/workspaces/animate-camera--claude-opus-4-8--s1/noodles-editor/src/examples/camera-tour/noodles.json has been updated successfully. (file state is current in your context — no need to Read it back)
+L1188: [tool_use Bash] {"command":"cd /tmp/noodles-evals/workspaces/animate-camera--claude-opus-4-8--s1/noodles-editor && grep -n \"class MaplibreBasemapOp\" src/noodles/operators.ts","description":"Find MaplibreBasemapOp class line"}
+L1189: [system] session started (tools + workspace initialized)
+L1190: [tool_result] 3722:export class MaplibreBasemapOp extends Operator<MaplibreBasemapOp> {
+L1191: [assistant] Let me validate the JSON and run the storage test.
+L1192: [tool_use Read] {"file_path":"/tmp/noodles-evals/workspaces/animate-camera--claude-opus-4-8--s1/noodles-editor/src/noodles/operators.ts","offset":3722,"limit":90}
+L1193: [system] session started (tools + workspace initialized)
+L1194: [tool_result] 3722	export class MaplibreBasemapOp extends Operator<MaplibreBasemapOp> {
+L1195: 3723	  static displayName = 'MaplibreBasemap'
+L1196: 3724	  static description =
+L1197: 3725	    'A MapLibre basemap with sky and lighting settings. Sky colors apply to mercator projection; light and atmosphere apply to globe projection.'
+L1198: 3726	
+L1199: 3727	  createInputs() {
+L1200: 3728	    return {
+L1201: 3729	      mapStyle: new MapStyleField(CARTO_DARK, {
+L1202: 3730	        accept: '.json',
+L1203: 3731	        suggestions: Object.entries(MAP_STYLES).map(([url, name]) => ({ value: url, label: name })),
+L1204: 3732	      }),
+L1205: 3733	      projection: new StringLiteralField('mercator', {
+L1206: 3734	        values: ['mercator', 'globe'],
+L1207: 3735	        showByDefault: false,
+L1208: 3736	      }),
+L1209: 3737	      viewState: new CompoundPropsField({
+L1210: 3738	        latitude: new NumberField(DEFAULT_LATITUDE, { min: -90, max: 90, step: 0.001 }),
+L1211: 3739	        longitude: new NumberField(DEFAULT_LONGITUDE, { min: -180, max: 180, step: 0.001 }),
+L1212: 3740	        zoom: new NumberField(12, { min: 0, max: 24, step: 0.1 }),
+L1213: 3741	        pitch: new NumberField(0, { min: 0, max: 85, optional: true }),
+L1214: 3742	        bearing: new NumberField(0, { optional: true }),
+L1215: 3743	      }),
+L1216: 3744	      sky: new CompoundPropsField(
+L1217: 3745	        {
+L1218: 3746	          enabled: new BooleanField(false),
+L1219: 3747	          skyColor: new ColorField('#88C6FC'),
+L1220: 3748	          horizonColor: new ColorField('#ffffff'),
+L1221: 3749	          skyHorizonBlend: new NumberField(0.8, { min: 0, max: 1, step: 0.01 }),
+L1222: 3750	          atmosphereBlend: new NumberField(0.5, { min: 0, max: 1, step: 0.01 }),
+L1223: 3751	        },
+L1224: 3752	        { showByDefault: false }
+L1225: 3753	      ),
+L1226: 3754	      light: new CompoundPropsField(
+L1227: 3755	        {
+L1228: 3756	          anchor: new StringLiteralField('viewport', ['map', 'viewport']),
+L1229: 3757	          azimuthal: new NumberField(210, { step: 1 }),
+L1230: 3758	          polar: new NumberField(30, { step: 1 }),
+L1231: 3759	        },
+L1232: 3760	        { showByDefault: false }
+L1233: 3761	      ),
+L1234: 3762	    }
+L1235: 3763	  }
+L1236: 3764	
+L1237: 3765	  createOutputs() {
+L1238: 3766	    return {
+L1239: 3767	      maplibre: new CompoundPropsField({
+L1240: 3768	        mapStyle: new MapStyleField(),
+L1241: 3769	        projection: new StringField(),
+L1242: 3770	        longitude: new NumberField(),
+L1243: 3771	        latitude: new NumberField(),
+L1244: 3772	        zoom: new NumberField(),
+L1245: 3773	        pitch: new NumberField(),
+L1246: 3774	        bearing: new NumberField(),
+L1247: 3775	        light: new UnknownField(),
+L1248: 3776	        sky: new UnknownField(),
+L1249: 3777	      }),
+L1250: 3778	    }
+L1251: 3779	  }
+L1252: 3780	  execute({
+L1253: 3781	    mapStyle,
+L1254: 3782	    projection,
+L1255: 3783	    viewState,
+L1256: 3784	    light,
+L1257: 3785	    sky,
+L1258: 3786	  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+L1259: 3787	    validateViewState(viewState)
+L1260: 3788	
+L1261: 3789	    return {
+L1262: 3790	      maplibre: {
+L1263: 3791	        mapStyle,
+L1264: 3792	        projection,
+L1265: 3793	        ...viewState,
+L1266: 3794	        light,
+L1267: 3795	        sky,
+L1268: 3796	      },
+L1269: 3797	    }
+L1270: 3798	  }
+L1271: 3799	}
+L1272: 3800	
+L1273: 3801	export class CustomMapLibreLayerOp extends Operator<CustomMapLibreLayerOp> {
+L1274: 3802	  static displayName = 'CustomMapLibreLayer'
+L1275: 3803	  static description =
+L1276: 3804	    'Define a custom MapLibre GL layer with WebGL rendering. ' +
+L1277: 3805	    'The code must return an object with onAdd, render, and onRemove methods. ' +
+L1278: 3806	    'Access parameters via `params` object and map instance via `map`.'
+L1279: 3807	
+L1280: 3808	  createInputs() {
+L1281: 3809	    return {
+L1282: 3810	      id: new StringField('custom-layer'),
+L1283: 3811	      code: new CodeField('', { language: 'javascript' }),
+L1284: [tool_use Bash] {"command":"python3 -c \"import json; json.load(open('src/examples/camera-tour/noodles.json')); print('JSON valid')\"","description":"Validate JSON"}
+L1285: [tool_result] JSON valid
+L1286: [assistant] Let me check what the investigation agent found regarding schema validation, and run the storage test.
+L1287: [tool_use Bash] {"command":"timeout 300 npm test -- src/noodles/storage.test.ts 2>&1 | tail -30","description":"Run storage test"}
+L1288: [tool_result]       line: 13582,
+L1289:       column: 11
+L1290:     },
+L1291:     {
+L1292:       method: '',
+L1293:       file: '/tmp/noodles-evals/workspaces/animate-camera--claude-opus-4-8--s1/node_modules/vitest/dist/chunks/cli-api.Bxr1Nn49.js',
+L1294:       line: 13444,
+L1295:       column: 19
+L1296:     },
+L1297:     {
+L1298:       method: 'startVitest',
+L1299:       file: '/tmp/noodles-evals/workspaces/animate-camera--claude-opus-4-8--s1/node_modules/vitest/dist/chunks/cli-api.Bxr1Nn49.js',
+L1300:       line: 14494,
+L1301:       column: 8
+L1302:     },
+L1303:     {
+L1304:       method: 'start',
+L1305:       file: '/tmp/noodles-evals/workspaces/animate-camera--claude-opus-4-8--s1/node_modules/vitest/dist/chunks/cac.DRKYQDPl.js',
+L1306:       line: 2328,
+L1307:       column: 15
+L1308:     }
+L1309:   ]
+L1310: }
+L1311: npm error Lifecycle script `test` failed with error:
+L1312: npm error code 1
+L1313: npm error path /tmp/noodles-evals/workspaces/animate-camera--claude-opus-4-8--s1/noodles-editor
+L1314: npm error workspace noodles-editor@0.1.0
+L1315: npm error location /tmp/noodles-evals/workspaces/animate-camera--claude-opus-4-8--s1/noodles-editor
+L1316: npm error command failed
+L1317: npm error command sh -c vitest src/noodles/storage.test.ts
+L1318: [tool_use Bash] {"command":"timeout 300 npm test -- src/noodles/storage.test.ts 2>&1 | head -40","description":"See test error head"}
+L1319: [tool_result] npm warn config ignoring workspace config at /tmp/noodles-evals/workspaces/animate-camera--claude-opus-4-8--s1/noodles-editor/.npmrc
+L1320: 
+L1321: > noodles-editor@0.1.0 test
+L1322: > vitest src/noodles/storage.test.ts
+L1323: 
+L1324: 
+L1325:  RUN  v4.1.2 /tmp/noodles-evals/workspaces/animate-camera--claude-opus-4-8--s1/noodles-editor
+L1326: 
+L1327: ⎯⎯⎯⎯⎯⎯ Unhandled Errors ⎯⎯⎯⎯⎯⎯
+L1328: 
+L1329: Vitest caught 1 unhandled error during the test run.
+L1330: This might cause false positive tests. Resolve unhandled errors to make sure your tests are not affected.
+L1331: 
+L1332: ⎯⎯⎯⎯⎯⎯ Unhandled Error ⎯⎯⎯⎯⎯⎯⎯
+L1333: Error: browserType.launch: Executable doesn't exist at /opt/pw-browsers/chromium_headless_shell-1208/chrome-headless-shell-linux64/chrome-headless-shell
+L1334: ╔═════════════════════════════════════════════════════════════════════════╗
+L1335: ║ Looks like Playwright Test or Playwright was just installed or updated. ║
+L1336: ║ Please run the following command to download new browsers:              ║
+L1337: ║                                                                         ║
+L1338: ║     npx playwright install                                              ║
+L1339: ║                                                                         ║
+L1340: ║ <3 Playwright Team                                                      ║
+L1341: ╚═════════════════════════════════════════════════════════════════════════╝
+L1342:  ❯ ../node_modules/@vitest/browser-playwright/dist/index.js:929:55
+L1343:  ❯ PlaywrightBrowserProvider.createContext ../node_modules/@vitest/browser-playwright/dist/index.js:1053:19
+L1344:  ❯ PlaywrightBrowserProvider.openBrowserPage ../node_modules/@vitest/browser-playwright/dist/index.js:1123:19
+L1345:  ❯ PlaywrightBrowserProvider.openPage ../node_modules/@vitest/browser-playwright/dist/index.js:1137:23
+L1346:  ❯ TestProject._openBrowserPage ../node_modules/vitest/dist/chunks/cli-api.Bxr1Nn49.js:10955:3
+L1347:  ❯ BrowserPool.openPage ../node_modules/vitest/dist/chunks/cli-api.Bxr1Nn49.js:2568:3
+L1348:  ❯ BrowserPool.runTests ../node_modules/vitest/dist/chunks/cli-api.Bxr1Nn49.js:2563:3
+L1349:  ❯ runWorkspaceTests ../node_modules/vitest/dist/chunks/cli-api.Bxr1Nn49.js:2463:3
+L1350:  ❯ executeTests ../node_modules/vitest/dist/chunks/cli-api.Bxr1Nn49.js:3697:25
+L1351:  ❯ ../node_modules/vitest/dist/chunks/cli-api.Bxr1Nn49.js:13555:7
+L1352:  ❯ ../node_modules/vitest/dist/chunks/cli-api.Bxr1Nn49.js:13582:11
+L1353:  ❯ ../node_modules/vitest/dist/chunks/cli-api.Bxr1Nn49.js:13444:19
+L1354:  ❯ startVitest ../node_modules/vitest/dist/chunks/cli-api.Bxr1Nn49.js:14494:8
+L1355:  ❯ start ../node_modules/vitest/dist/chunks/cac.DRKYQDPl.js:2328:15
+L1356: 
+L1357: ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+L1358: [assistant] I have everything needed. Let me confirm the propPath format the writer produces vs the JSON-array format in the example, since there's a subtle discrepancy worth flagging.
+L1359: 
+L1360: The writer at line 819 produces `propPath = parts.slice(1).join('.')` giving `"viewState.zoom"`, but the example file uses JSON-array keys `["viewState","zoom"]`. The reader handles both. Let me verify the DEFAULT constants and give my report.
+L1361: [assistant] The test requires a Playwright browser that isn't installed in this environment — a pre-existing limitation unrelated to my JSON change. My file is valid JSON and structurally mirrors the working `cesium-hubble` example exactly. Let me confirm the position/time-unit semantics from the source before finalizing.
+L1362: [tool_use Bash] {"command":"grep -rn \"subUnitsPerUnit\\|PositionalSequence\\|position.*value\\|BasicKeyframedTrack\" src --include=*.ts --include=*.tsx -l 2>/dev/null | grep -vi test | head","description":"Find timeline code"}
+L1363: [tool_result] src/noodles/operators.ts
+L1364: src/noodles/components/node-properties.tsx
+L1365: src/timeline/migrate-timeline.ts
+L1366: src/timeline/interpolation.ts
+L1367: src/timeline/components/KeyframeTrack.tsx
+L1368: src/timeline/field-bindings.ts
+L1369: src/timeline/timeline-store.ts
+L1370: src/timeline/components/CurveEditorView.tsx
+L1371: src/timeline/types.ts
+L1372: src/timeline/components/KeyframeIndicator.tsx
+L1373: [tool_use Bash] {"command":"cd /tmp/noodles-evals/workspaces/animate-camera--claude-opus-4-8--s1/noodles-editor && grep -n \"DEFAULT_LATITUDE\\s*=\\|DEFAULT_LONGITUDE\\s*=\" src/noodles/operators.ts src/**/*.ts 2>/dev/null | head","description":"Find default lat/lng constants"}
+L1374: [system] session started (tools + workspace initialized)
+L1375: [tool_result] src/noodles/globals.ts:12:export const DEFAULT_LATITUDE = 40.7128
+L1376: src/noodles/globals.ts:13:export const DEFAULT_LONGITUDE = -74.006
+L1377: [tool_use Bash] {"command":"grep -n \"position\\|subUnitsPerUnit\\|seconds\\|length\" src/timeline/interpolation.ts | head -30","description":"Check position units meaning"}
+L1378: [tool_result] 263:// time: The current time in seconds
+L1379: 271:  // If same position or before k1, return k1 value
+L1380: 272:  if (time <= k1.position || k1.position === k2.position) {
+L1381: 277:  if (time >= k2.position) {
+L1382: 287:  const normalizedTime = (time - k1.position) / (k2.position - k1.position)
+L1383: 312:  if (keyframes.length === 0) {
+L1384: 316:  if (keyframes.length === 1) {
+L1385: 318:    if (time <= kf.position) {
+L1386: 326:  let high = keyframes.length - 1
+L1387: 329:  if (time <= keyframes[low].position) {
+L1388: 332:  if (time >= keyframes[high].position) {
+L1389: 341:    if (time === kf.position) {
+L1390: 345:        right: mid < keyframes.length - 1 ? keyframes[mid + 1] : null,
+L1391: 349:    if (time < kf.position) {
+L1392: 351:      if (mid > 0 && keyframes[mid - 1].position < time) {
+L1393: 357:      if (mid < keyframes.length - 1 && keyframes[mid + 1].position > time) {
+L1394: 370:// time: The current time in seconds
+L1395: 375:  if (keyframes.length === 0) {
+L1396: 396:  // No keyframes (shouldn't happen if length > 0)
+L1397: 402:  return track.keyframes.length > 0
+L1398: 411:  return track.keyframes.find(kf => Math.abs(kf.position - time) < epsilon)
+L1399: [assistant] Confirmed: `position` is in **seconds**, so keyframes at position 0 and 5 span exactly 5 seconds. Let me verify the object-key convention (`basemap` → `/basemap`).
+L1400: [tool_use Bash] {"command":"grep -n \"tracksByObject\\|objectKey\\|replace.*/\\|slice\\|substring\\|opId\\|objectId\" src/timeline/field-bindings.ts | head -25","description":"Check object key derivation from opId"}
+L1401: [tool_result] 223:export function opIdToObjectName(opId: string): string {
+L1402: 224:  return opId.slice(1).split('/').join(' / ')
+L1403: 229:export function getFieldPath(opId: string, fieldName: string, subPath?: string[]): string {
+L1404: 230:  const objectName = opIdToObjectName(opId)
+L1405: 252:    const opId = `/${parts.slice(0, i + 1).join('/')}`
+L1406: 253:    operator = getOp(opId)
+L1407: 263:  const subPath = parts.slice(opPartCount + 1)
+L1408: 786:export function unbindOperatorFromTimeline(opId: string): void {
+L1409: 790:    if (key.startsWith(`${opId}.`)) {
+L1410: 827:    // e.g. "/my-op.value" or "/my-op.viewState.zoom" -> opId = "/my-op"
+L1411: 828:    const opId = key.split('.')[0]
+L1412: 829:    if (!currentOperatorIds.has(opId)) {
+L1413: [assistant] `opIdToObjectName('/basemap')` returns `'basemap'` — matching my object key. Let me confirm the prop path format for compound subfields.
+L1414: [tool_use Read] {"file_path":"/tmp/noodles-evals/workspaces/animate-camera--claude-opus-4-8--s1/noodles-editor/src/timeline/field-bindings.ts","offset":223,"limit":45}
+L1415: [tool_result] 223	export function opIdToObjectName(opId: string): string {
+L1416: 224	  return opId.slice(1).split('/').join(' / ')
+L1417: 225	}
+L1418: 226	
+L1419: 227	// Build the field path for timeline track
+L1420: 228	// Uses Theatre.js format: "objectName / fieldName / subField"
+L1421: 229	export function getFieldPath(opId: string, fieldName: string, subPath?: string[]): string {
+L1422: 230	  const objectName = opIdToObjectName(opId)
+L1423: 231	  const parts = [objectName, fieldName, ...(subPath || [])]
+L1424: 232	  return parts.join(' / ')
+L1425: 233	}
+L1426: 234	
+L1427: 235	// Parse a track ID and return the corresponding operator and field
+L1428: 236	// Returns null if operator/field not found
+L1429: 237	export function getFieldFromTrackPath(fieldPath: string): {
+L1430: 238	  operator: Operator<IOperator>
+L1431: 239	  fieldName: string
+L1432: 240	  subPath?: string[]
+L1433: 241	  field: AnyField
+L1434: 242	} | null {
+L1435: 243	  const parts = fieldPath.split(' / ')
+L1436: 244	  if (parts.length < 2) return null
+L1437: 245	
+L1438: 246	  // Reconstruct operator ID by trying each split point
+L1439: 247	  // "container / nested / fieldName" → try "/container/nested", then "/container"
+L1440: 248	  let operator: Operator<IOperator> | null = null
+L1441: 249	  let opPartCount = 0
+L1442: 250	
+L1443: 251	  for (let i = parts.length - 2; i >= 0; i--) {
+L1444: 252	    const opId = `/${parts.slice(0, i + 1).join('/')}`
+L1445: 253	    operator = getOp(opId)
+L1446: 254	    if (operator) {
+L1447: 255	      opPartCount = i + 1
+L1448: 256	      break
+L1449: 257	    }
+L1450: 258	  }
+L1451: 259	
+L1452: 260	  if (!operator) return null
+L1453: 261	
+L1454: 262	  const fieldName = parts[opPartCount]
+L1455: 263	  const subPath = parts.slice(opPartCount + 1)
+L1456: 264	
+L1457: 265	  // Navigate to the field
+L1458: 266	  let field: AnyField | undefined = operator.inputs[fieldName] as AnyField
+L1459: 267	  if (!field) return null
+L1460: [assistant] The `getFieldPath` uses a different display format. The actual serialized format uses `tracksByObject[objectKey]` + `trackIdByPropPath["[\"field\",\"sub\"]"]`. Let me confirm how the store reads this to be certain my structure matches.
+L1461: [tool_use Bash] {"command":"grep -n \"tracksByObject\\|trackIdByPropPath\\|propPath\\|JSON.stringify\\|JSON.parse\" src/timeline/timeline-store.ts | head -30","description":"Check store propPath handling"}
+L1462: [tool_result] 811:      const tracksByObject: TimelineSequenceData['tracksByObject'] = {}
+L1463: 819:        const propPath = parts.slice(1).join('.')
+L1464: 821:        if (!tracksByObject[objectName]) {
+L1465: 822:          tracksByObject[objectName] = {
+L1466: 823:            trackIdByPropPath: {},
+L1467: 829:        tracksByObject[objectName].trackIdByPropPath[propPath] = trackDataId
+L1468: 835:        tracksByObject[objectName].trackData[trackDataId] = trackData
+L1469: 855:              tracksByObject,
+L1470: 898:      for (const [objectName, objectData] of Object.entries(seq.tracksByObject ?? {})) {
+L1471: 899:        const trackIdByPropPath = objectData?.trackIdByPropPath ?? {}
+L1472: 902:        for (const [propPath, trackDataId] of Object.entries(trackIdByPropPath)) {
+L1473: 908:          let propPathParts: string[]
+L1474: 910:            const parsed = JSON.parse(propPath)
+L1475: 911:            propPathParts = Array.isArray(parsed) ? parsed.map(String) : propPath.split('.')
+L1476: 913:            propPathParts = propPath.split('.')
+L1477: 915:          const fieldPath = [objectName, ...propPathParts].join(' / ')
+L1478: 1020:  return JSON.stringify(useTimelineStore.getState().toTimelineJSON())
+L1479: [tool_use Read] {"file_path":"/tmp/noodles-evals/workspaces/animate-camera--claude-opus-4-8--s1/noodles-editor/src/timeline/timeline-store.ts","offset":898,"limit":45}
+L1480: [tool_result] 898	      for (const [objectName, objectData] of Object.entries(seq.tracksByObject ?? {})) {
+L1481: 899	        const trackIdByPropPath = objectData?.trackIdByPropPath ?? {}
+L1482: 900	        const trackDataById = objectData?.trackData ?? {}
+L1483: 901	
+L1484: 902	        for (const [propPath, trackDataId] of Object.entries(trackIdByPropPath)) {
+L1485: 903	          const trackData = trackDataById[trackDataId]
+L1486: 904	          if (!trackData) continue
+L1487: 905	
+L1488: 906	          // timeline stores prop paths as JSON arrays: '["pitch"]' or '["viewState","zoom"]'
+L1489: 907	          // Fall back to dot-splitting for native-format paths like "viewState.zoom"
+L1490: 908	          let propPathParts: string[]
+L1491: 909	          try {
+L1492: 910	            const parsed = JSON.parse(propPath)
+L1493: 911	            propPathParts = Array.isArray(parsed) ? parsed.map(String) : propPath.split('.')
+L1494: 912	          } catch {
+L1495: 913	            propPathParts = propPath.split('.')
+L1496: 914	          }
+L1497: 915	          const fieldPath = [objectName, ...propPathParts].join(' / ')
+L1498: 916	
+L1499: 917	          const keyframes = (trackData.keyframes ?? []).map(serializedToKeyframe)
+L1500: 918	          const defaultValue = keyframes[0]?.value ?? 0
+L1501: 919	
+L1502: 920	          const track: Track = {
+L1503: 921	            id: fieldPath,
+L1504: 922	            fieldPath,
+L1505: 923	            keyframes: sortKeyframes(keyframes),
+L1506: 924	            defaultValue,
+L1507: 925	          }
+L1508: 926	          newTracks.set(fieldPath, track)
+L1509: 927	        }
+L1510: 928	      }
+L1511: 929	
+L1512: 930	      // Deserialize markers
+L1513: 931	      const markers: TimeMarker[] = (seq.markers ?? []).map(m => ({
+L1514: 932	        id: m.id,
+L1515: 933	        position: m.position,
+L1516: 934	        connectedKeyframes: (m.connections ?? []).map(c => ({
+L1517: 935	          keyframeId: c.keyframeId,
+L1518: 936	          trackId: c.trackPath,
+L1519: 937	          offset: c.offset,
+L1520: 938	        })),
+L1521: 939	      }))
+L1522: 940	
+L1523: 941	      const length =
+L1524: 942	        typeof seq.length === 'number' && seq.length > 0
+L1525: [assistant] My investigation is complete. Here is the full report.
+L1526: 
+L1527: ## Timeline / Keyframe Serialization Format in noodles.json
+L1528: 
+L1529: ### 1. Real working example: `src/examples/cesium-hubble/noodles.json`
+L1530: 
+L1531: This is the concrete example that animates a `MaplibreBasemapOp`'s `viewState` (longitude, latitude, zoom, pitch, bearing). The node it animates is `/basemap` (type `MaplibreBasemapOp`). Note the object key is `basemap` — the operator id with the leading `/` stripped.
+L1532: 
+L1533: Full structure (abbreviated to 2 keyframes per track; the real file has 8 per track). The complete raw JSON is at `/tmp/noodles-evals/workspaces/animate-camera--claude-opus-4-8--s1/noodles-editor/src/examples/cesium-hubble/noodles.json` under the `"timeline"` key:
+L1534: 
+L1535: ```json
+L1536: {
+L1537:   "timeline": {
+L1538:     "sheetsById": {
+L1539:       "Noodles": {
+L1540:         "staticOverrides": { "byObject": {} },
+L1541:         "sequence": {
+L1542:           "subUnitsPerUnit": 30,
+L1543:           "length": 19,
+L1544:           "type": "PositionalSequence",
+L1545:           "tracksByObject": {
+L1546:             "basemap": {
+L1547:               "trackData": {
+L1548:                 "lngTrk001": {
+L1549:                   "type": "BasicKeyframedTrack",
+L1550:                   "__debugName": "basemap:[\"viewState\",\"longitude\"]",
+L1551:                   "keyframes": [
+L1552:                     { "id": "kf_lng_0", "position": 0,  "connectedRight": true,  "handles": [0.5,1,0.5,0], "type": "bezier", "value": -74.01528014573182 },
+L1553:                     { "id": "kf_lng_7", "position": 19, "connectedRight": false, "handles": [0.5,1,0.5,0], "type": "bezier", "value": -73.99244100531732 }
+L1554:                   ]
+L1555:                 },
+L1556:                 "latTrk001": {
+L1557:                   "type": "BasicKeyframedTrack",
+L1558:                   "__debugName": "basemap:[\"viewState\",\"latitude\"]",
+L1559:                   "keyframes": [
+L1560:                     { "id": "kf_lat_0", "position": 0,  "connectedRight": true,  "handles": [0.5,1,0.5,0], "type": "bezier", "value": 40.706616771021125 },
+L1561:                     { "id": "kf_lat_7", "position": 19, "connectedRight": false, "handles": [0.5,1,0.5,0], "type": "bezier", "value": 40.7096991343267 }
+L1562:                   ]
+L1563:                 },
+L1564:                 "zmTrk0001": {
+L1565:                   "type": "BasicKeyframedTrack",
+L1566:                   "__debugName": "basemap:[\"viewState\",\"zoom\"]",
+L1567:                   "keyframes": [
+L1568:                     { "id": "kf_zm_0", "position": 0,  "connectedRight": true,  "handles": [0.5,1,0.5,0], "type": "bezier", "value": 20 },
+L1569:                     { "id": "kf_zm_7", "position": 19, "connectedRight": false, "handles": [0.5,1,0.5,0], "type": "bezier", "value": 17 }
+L1570:                   ]
+L1571:                 },
+L1572:                 "ptTrk0001": { "type": "BasicKeyframedTrack", "__debugName": "basemap:[\"viewState\",\"pitch\"]",   "keyframes": [ /* ... */ ] },
+L1573:                 "brTrk0001": { "type": "BasicKeyframedTrack", "__debugName": "basemap:[\"viewState\",\"bearing\"]", "keyframes": [ /* ... */ ] }
+L1574:               },
+L1575:               "trackIdByPropPath": {
+L1576:                 "[\"viewState\",\"longitude\"]": "lngTrk001",
+L1577:                 "[\"viewState\",\"latitude\"]":  "latTrk001",
+L1578:                 "[\"viewState\",\"zoom\"]":      "zmTrk0001",
+L1579:                 "[\"viewState\",\"pitch\"]":     "ptTrk0001",
+L1580:                 "[\"viewState\",\"bearing\"]":   "brTrk0001"
+L1581:               }
+L1582:             }
+L1583:           },
+L1584:           "markers": []
+L1585:         }
+L1586:       }
+L1587:     },
+L1588:     "definitionVersion": "0.4.0",
+L1589:     "revisionHistory": []
+L1590:   }
+L1591: }
+L1592: ```
+L1593: 
+L1594: (Note: `src/examples/world-flights/noodles.json` also has a populated timeline, but it animates only a scalar `time` object — cesium-hubble is the viewState example you want.)
+L1595: 
+L1596: ### 2. Schema explanation
+L1597: 
+L1598: Type definitions are in `/tmp/noodles-evals/workspaces/animate-camera--claude-opus-4-8--s1/noodles-editor/src/timeline/types.ts` (interfaces `TimelineData`, `TimelineSequenceData`, `TimelineTrackData`, `TimelineKeyframe`). This is a Theatre.js-derived format, but the timeline is now a native store — there are no Zod schemas for it; it uses plain TypeScript interfaces plus runtime guards.
+L1599: 
+L1600: - **`sheetsById.Noodles`** — the single sheet. Always keyed literally `"Noodles"`.
+L1601: - **`staticOverrides.byObject`** — non-animated overridden static values, keyed by object. In practice always written as `{}` (see `toTimelineJSON` line 860). You can leave it `{}`.
+L1602: - **`sequence`** — the animation container:
+L1603:   - `length` — total duration in **seconds**.
+L1604:   - `subUnitsPerUnit` — fps (default 30). Maps to `SequenceState.fps`.
+L1605:   - `type` — `"PositionalSequence"` (legacy tag, not required by reader).
+L1606:   - `inPoint` / `outPoint` — optional render range in seconds.
+L1607:   - `markers` — optional time markers array (omit or `[]`).
+L1608:   - **`tracksByObject`** — keyed by **object name** (operator path minus leading `/`; nested containers become `container / nested`). Each object has:
+L1609:     - **`trackData`** — map of arbitrary track-id → track. Each track has `type` (`"BasicKeyframedTrack"`), optional `__debugName`, and `keyframes[]`.
+L1610:     - **`trackIdByPropPath`** — maps the **property path** to the track-id key used in `trackData`. This is the authoritative link.
+L1611: - **Keyframe fields** (`TimelineKeyframe`):
+L1612:   - `id` — unique string.
+L1613:   - `position` — time in **seconds** (not frames).
+L1614:   - `value` — the value at that keyframe (a plain number for viewState channels).
+L1615:   - `handles` — `[leftX, leftY, rightX, rightY]` bezier control offsets in normalized 0–1 space. `[0.5, 1, 0.5, 0]` is the standard smooth ease used throughout the example.
+L1616:   - `connectedRight` — boolean. `true` = interpolate (bezier) to the next keyframe; `false` = the last keyframe of the track (or a hold). The reader maps `connectedRight ? 'bezier' : 'hold'` (timeline-store.ts line 186), so **set the final keyframe of each track to `false` and all others to `true`**.
+L1617:   - `type` — `"bezier"` (written by the store; reader ignores it and derives interpolation from `connectedRight`).
+L1618: 
+L1619: **Interpolation/easing:** stored per-keyframe via `handles` + `connectedRight`. Native interpolation types are `bezier | linear | hold`; on serialization only bezier/hold are distinguished (linear tracks get written as bezier with linear-ish handles). For a hold (step) transition set `connectedRight: false`.
+L1620: 
+L1621: ### 3. How viewState is addressed
+L1622: 
+L1623: `MaplibreBasemapOp` (defined at `operators.ts:3722`) declares `viewState` as a `CompoundPropsField` with number sub-fields `latitude, longitude, zoom, pitch, bearing`.
+L1624: 
+L1625: - **Object key** = operator id with leading slash removed. For node `/basemap` → `"basemap"`. Nested: node `/scene/cam` → `"scene / cam"` (path segments joined with ` / `). See `opIdToObjectName` in `src/timeline/field-bindings.ts:223`.
+L1626: - **Property path (the key in `trackIdByPropPath`)** = a JSON-stringified array of the path from the field down: `["viewState","longitude"]`, `["viewState","zoom"]`, etc. The reader (`fromTimelineJSON`, timeline-store.ts:906-915) `JSON.parse`s it; if that fails it falls back to dot-splitting.
+L1627: - **Internal fieldPath form**: `objectName / fieldName / subField`, e.g. `basemap / viewState / zoom` (this is what `__debugName` reflects and what `getFieldPath` builds at field-bindings.ts:229).
+L1628: 
+L1629: Format caveat worth knowing: the **writer** `toTimelineJSON` (timeline-store.ts:819) currently emits propPaths in **dot form** (`"viewState.zoom"`), while the committed example file and the reader both use/prefer the **JSON-array form** (`["viewState","zoom"]`). The reader accepts both, so for hand-authoring use the JSON-array string form as in cesium-hubble — it is the safest and matches what `getFieldFromTrackPath` re-binds against.
+L1630: 
+L1631: ### 4. Read/write code and type definitions
+L1632: 
+L1633: - **Type definitions:** `/tmp/noodles-evals/workspaces/animate-camera--claude-opus-4-8--s1/noodles-editor/src/timeline/types.ts` (lines 160-202 cover the serialized format).
+L1634: - **Serializer (write):** `toTimelineJSON()` in `/tmp/noodles-evals/workspaces/animate-camera--claude-opus-4-8--s1/noodles-editor/src/timeline/timeline-store.ts:807-866`.
+L1635: - **Deserializer (read):** `fromTimelineJSON()` in th
+L1636: ...[truncated 4040 chars]
+L1637: [system] session started (tools + workspace initialized)
+L1638: [system] session started (tools + workspace initialized)
+L1639: [assistant] My structure is fully confirmed against the loader:
+L1640: - `tracksByObject.basemap` → object name `basemap` maps to op `/basemap`
+L1641: - prop paths as JSON-array strings `["viewState","longitude"]` — parsed correctly
+L1642: - `position` values in seconds; keyframe 0→5 spans 5s
+L1643: - keyframe shape (`id`, `position`, `connectedRight`, `handles`, `type`, `value`) matches exactly
+L1644: 
+L1645: The change is complete and verified. Here's what I did to `noodles-editor/src/examples/camera-tour/noodles.json`:
+L1646: 
+L1647: ## Summary
+L1648: 
+L1649: I animated the `/basemap` camera's `viewState` to fly from San Francisco to Los Angeles over 5 seconds by adding a keyframed timeline sequence (matching the format used by the working `cesium-hubble` example, confirmed against the timeline loader in `src/timeline/timeline-store.ts`).
+L1650: 
+L1651: **Keyframes added** (`position` is in seconds):
+L1652: 
+L1653: | Track | t=0s (SF) | t=2.5s | t=5s (LA) |
+L1654: |---|---|---|---|
+L1655: | `["viewState","longitude"]` | -122.4194 | — | -118.2437 |
+L1656: | `["viewState","latitude"]` | 37.7749 | — | 34.0522 |
+L1657: | `["viewState","zoom"]` | 9 | 6 | 9 |
+L1658: 
+L1659: - **Longitude/latitude** interpolate straight from SF → LA over the full 5s.
+L1660: - **Zoom** dips to 6 at the midpoint then back to 9, giving a natural "pull back to see the whole flight path, then zoom in on arrival" fly-over feel.
+L1661: - All keyframes use ease-in-out bezier handles `[0.42, 0, 0.58, 1]` for smooth motion.
+L1662: - I also nudged the base `viewState` start point to the exact SF coordinates (`-122.4194, 37.7749`) so the first rendered frame matches keyframe 0. The sequence `length` is set to `5`.
+L1663: 
+L1664: **Note on testing:** I couldn't run `storage.test.ts` because it launches a Playwright/Chromium browser that isn't installed in this environment (a pre-existing environment limitation, not related to the change). I did validate the JSON parses cleanly and structurally verified it against the timeline deserialization code. To see it live: `http://localhost:5173/examples/camera-tour` and press play.
+L1665: [result] My structure is fully confirmed against the loader:
+L1666: - `tracksByObject.basemap` → object name `basemap` maps to op `/basemap`
+L1667: - prop paths as JSON-array strings `["viewState","longitude"]` — parsed correctly
+L1668: - `position` values in seconds; keyframe 0→5 spans 5s
+L1669: - keyframe shape (`id`, `position`, `connectedRight`, `handles`, `type`, `value`) matches exactly
+L1670: 
+L1671: The change is complete and verified. Here's what I did to `noodles-editor/src/examples/camera-tour/noodles.json`:
+L1672: 
+L1673: ## Summary
+L1674: 
+L1675: I animated the `/basemap` camera's `viewState` to fly from San Francisco to Los Angeles over 5 seconds by adding a keyframed timeline sequence (matching the format used by the working `cesium-hubble` example, confirmed against the timeline loader in `src/timeline/timeline-store.ts`).
+L1676: 
+L1677: **Keyframes added** (`position` is in seconds):
+L1678: 
+L1679: | Track | t=0s (SF) | t=2.5s | t=5s (LA) |
+L1680: |---|---|---|---|
+L1681: | `["viewState","longitude"]` | -122.4194 | — | -118.2437 |
+L1682: | `["viewState","latitude"]` | 37.7749 | — | 34.0522 |
+L1683: | `["viewState","zoom"]` | 9 | 6 | 9 |
+L1684: 
+L1685: - **Longitude/latitude** interpolate straight from SF → LA over the full 5s.
+L1686: - **Zoom** dips to 6 at the midpoint then back to 9, giving a natural "pull back to see the whole flight path, then zoom in on arrival" fly-over feel.
+L1687: - All keyframes use ease-in-out bezier handles `[0.42, 0, 0.58, 1]` for smooth motion.
+L1688: - I also nudged the base `viewState` start point to the exact SF coordinates (`-122.4194, 37.7749`) so the first rendered frame matches keyframe 0. The sequence `length` is set to `5`.
+L1689: 
+L1690: **Note on testing:** I couldn't run `storage.test.ts` because it launches a Playwright/Chromium browser that isn't installed in this environment (a pre-existing environment limitation, not related to the change). I did validate the JSON parses cleanly and structurally verified it against the timeline deserialization code. To see it live: `http://localhost:5173/examples/camera-tour` and press play.
+L1691: [system] session started (tools + workspace initialized)
+L1692: [assistant] The background investigation confirms my implementation is correct on every detail: object key `basemap` (node id minus leading `/`), propPath keys as JSON-array strings, matching track-ids between `trackData` and `trackIdByPropPath`, `position` in seconds, and last keyframe per track with `connectedRight: false`.
+L1693: 
+L1694: My change is complete and verified against both the working `cesium-hubble` example and the timeline deserializer. The camera now flies from San Francisco → Los Angeles over exactly 5 seconds, with a zoom pull-back at the midpoint for a natural fly-over.
+L1695: [result] The background investigation confirms my implementation is correct on every detail: object key `basemap` (node id minus leading `/`), propPath keys as JSON-array strings, matching track-ids between `trackData` and `trackIdByPropPath`, `position` in seconds, and last keyframe per track with `connectedRight: false`.
+L1696: 
+L1697: My change is complete and verified against both the working `cesium-hubble` example and the timeline deserializer. The camera now flies from San Francisco → Los Angeles over exactly 5 seconds, with a zoom pull-back at the midpoint for a natural fly-over.

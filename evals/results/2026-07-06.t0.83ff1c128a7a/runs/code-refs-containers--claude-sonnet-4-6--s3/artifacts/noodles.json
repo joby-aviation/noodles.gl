@@ -1,0 +1,193 @@
+{
+  "version": 14,
+  "name": "California Earthquakes",
+  "viewport": {
+    "x": 200,
+    "y": 100,
+    "zoom": 0.7
+  },
+  "editorSettings": {
+    "layoutMode": "noodles-on-top",
+    "showOverlay": true
+  },
+  "nodes": [
+    {
+      "id": "/cutoff",
+      "type": "NumberOp",
+      "position": { "x": -600, "y": 0 },
+      "data": {
+        "inputs": {
+          "val": 4.0
+        }
+      }
+    },
+    {
+      "id": "/data",
+      "type": "FileOp",
+      "position": { "x": -600, "y": 150 },
+      "data": {
+        "inputs": {
+          "format": "csv",
+          "url": "@/data.csv"
+        }
+      }
+    },
+    {
+      "id": "/processing",
+      "type": "ContainerOp",
+      "position": { "x": -300, "y": 0 },
+      "data": {
+        "inputs": {}
+      }
+    },
+    {
+      "id": "/processing/filter",
+      "type": "CodeOp",
+      "position": { "x": -200, "y": 80 },
+      "data": {
+        "inputs": {
+          "code": "const cutoff = op('/cutoff').par.val\nreturn data.filter(d => parseFloat(d.Magnitude) >= cutoff).map(d => ({\n  ...d,\n  magnitude: parseFloat(d.Magnitude),\n  longitude: parseFloat(d.Longitude),\n  latitude: parseFloat(d.Latitude),\n  energy: Math.pow(10, 1.5 * parseFloat(d.Magnitude))\n}))"
+        }
+      }
+    },
+    {
+      "id": "/position",
+      "type": "AccessorOp",
+      "position": { "x": 150, "y": -100 },
+      "data": {
+        "inputs": {
+          "expression": "[d.longitude, d.latitude]"
+        }
+      }
+    },
+    {
+      "id": "/radius",
+      "type": "AccessorOp",
+      "position": { "x": 150, "y": 50 },
+      "data": {
+        "inputs": {
+          "expression": "Math.pow(d.energy, 0.25) * 0.5"
+        }
+      }
+    },
+    {
+      "id": "/layer",
+      "type": "ScatterplotLayerOp",
+      "position": { "x": 450, "y": 0 },
+      "data": {
+        "inputs": {
+          "opacity": 0.7,
+          "getFillColor": "#ff4400ff",
+          "radiusUnits": "pixels"
+        }
+      }
+    },
+    {
+      "id": "/basemap",
+      "type": "MaplibreBasemapOp",
+      "position": { "x": 750, "y": 200 },
+      "data": {
+        "inputs": {
+          "mapStyle": "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
+          "viewState": {
+            "latitude": 37.5,
+            "longitude": -119.5,
+            "zoom": 5.5,
+            "pitch": 0,
+            "bearing": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "/deck",
+      "type": "DeckRendererOp",
+      "position": { "x": 750, "y": 0 },
+      "data": {
+        "inputs": {}
+      }
+    },
+    {
+      "id": "/out",
+      "type": "OutOp",
+      "position": { "x": 1050, "y": 0 },
+      "data": {
+        "inputs": {
+          "display": "fixed",
+          "width": 1920,
+          "height": 1080
+        }
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "/data.out.data->/processing/filter.par.data",
+      "source": "/data",
+      "target": "/processing/filter",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/cutoff.out.val->/processing/filter.par.code",
+      "type": "ReferenceEdge",
+      "source": "/cutoff",
+      "target": "/processing/filter",
+      "sourceHandle": "out.val",
+      "targetHandle": "par.code"
+    },
+    {
+      "id": "/processing/filter.out.data->/layer.par.data",
+      "source": "/processing/filter",
+      "target": "/layer",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/position.out.accessor->/layer.par.getPosition",
+      "source": "/position",
+      "target": "/layer",
+      "sourceHandle": "out.accessor",
+      "targetHandle": "par.getPosition"
+    },
+    {
+      "id": "/radius.out.accessor->/layer.par.getRadius",
+      "source": "/radius",
+      "target": "/layer",
+      "sourceHandle": "out.accessor",
+      "targetHandle": "par.getRadius"
+    },
+    {
+      "id": "/layer.out.layer->/deck.par.layers",
+      "source": "/layer",
+      "target": "/deck",
+      "sourceHandle": "out.layer",
+      "targetHandle": "par.layers"
+    },
+    {
+      "id": "/basemap.out.maplibre->/deck.par.basemap",
+      "source": "/basemap",
+      "target": "/deck",
+      "sourceHandle": "out.maplibre",
+      "targetHandle": "par.basemap"
+    },
+    {
+      "id": "/deck.out.vis->/out.par.vis",
+      "source": "/deck",
+      "target": "/out",
+      "sourceHandle": "out.vis",
+      "targetHandle": "par.vis"
+    }
+  ],
+  "timeline": {
+    "sheetsById": {
+      "Noodles": {
+        "staticOverrides": {
+          "byObject": {}
+        }
+      }
+    },
+    "definitionVersion": "0.4.0",
+    "revisionHistory": []
+  }
+}

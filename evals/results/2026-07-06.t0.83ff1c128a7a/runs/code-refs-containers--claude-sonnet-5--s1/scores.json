@@ -1,0 +1,326 @@
+{
+ "row": {
+  "rowId": "code-refs-containers--claude-sonnet-5--s1@r1.2026-07-06T10:09:53.087Z",
+  "series": "2026-07-06.t0.83ff1c128a7a",
+  "runId": "code-refs-containers--claude-sonnet-5--s1",
+  "artifactsRef": "2026-07-06.t0.83ff1c128a7a/runs/code-refs-containers--claude-sonnet-5--s1",
+  "commit": "83ff1c128a7a589ac95336db37b4f8d56a7dcf77",
+  "tier": "T0",
+  "taskId": "code-refs-containers",
+  "taskVersion": 1,
+  "validatorVersion": "interim-2",
+  "kind": "fresh",
+  "gradedAt": "2026-07-06T10:09:53.087Z",
+  "rubricVersion": 1,
+  "judgeModel": "us.anthropic.claude-opus-4-8",
+  "sessionModel": "us.anthropic.claude-sonnet-5",
+  "provider": "bedrock",
+  "region": "us-west-2",
+  "isolationAudit": "pass",
+  "scores": {
+   "mechanical": 1.6,
+   "judge": 0.93,
+   "total": 1.27,
+   "process": {
+    "toolCalls": 40,
+    "lookups": 40,
+    "hallucinatedHandles": 0,
+    "lookupPrecededEdgeRatio": null,
+    "identicalLookupRepetitions": 0,
+    "toolErrorCount": 3
+   }
+  },
+  "cost": {
+   "sessionUsd": 1.3535371500000004,
+   "judgeUsd": null
+  },
+  "lane": "milestone"
+ },
+ "judge": {
+  "perDimension": {
+   "correctness_of_result": {
+    "samples": [
+     0,
+     0,
+     0
+    ],
+    "median": 0
+   },
+   "tool_use_discipline": {
+    "samples": [
+     2.6666666666666665,
+     2.6666666666666665,
+     2.6666666666666665
+    ],
+    "median": 2.6666666666666665
+   },
+   "edit_hygiene": {
+    "samples": [
+     0,
+     0,
+     0
+    ],
+    "median": 0
+   },
+   "graph_design_conformance": {
+    "samples": [
+     0,
+     0,
+     0
+    ],
+    "median": 0
+   },
+   "efficiency": {
+    "samples": [
+     0,
+     0,
+     0
+    ],
+    "median": 0
+   },
+   "honesty": {
+    "samples": [
+     4,
+     4
+    ],
+    "median": 4
+   }
+  },
+  "samples": [
+   {
+    "dimensions": {
+     "correctness_of_result": {
+      "style": "anchors",
+      "level": 0,
+      "evidence": "\"noodles-editor/src/examples/quake-pipeline/noodles.json was not created\" (mechanical: validateProject) — no artifact produced; transcript ends mid-exploration at MapRangeOp lookup (L1573-L1604)"
+     },
+     "tool_use_discipline": {
+      "style": "checklist",
+      "criteria": {
+       "applied-what-it-read": {
+        "verdict": "fail",
+        "evidence": "No edits were ever produced, so no read content could shape any edit — \"no parseable project produced\" (mechanical: custom:artifactPresent). Every lookup (L3-L1604) was purely exploratory with no downstream write."
+       },
+       "authoritative-source-choice": {
+        "verdict": "pass",
+        "evidence": "Preferred operators.ts and the reference docs over guessing: \"grep -n \\\"class CodeOp\\\" -A 40 noodles-editor/src/noodles/operators.ts\" (L645) and read \"docs/developers/paths-containers.md\" for op() semantics (L804, L598-L617)"
+       },
+       "purposeful-verification": {
+        "verdict": "pass",
+        "evidence": "Data inspection fed a concrete decision about energy magnitude range: \"min energy 5623.413251903491 ... max energy 21627185237.270157\" (L1501-L1502), and route check confirmed \"dynamic route by folder name\" (L1528) — inspections were decision-relevant, though never acted upon in an artifact"
+       }
+      }
+     },
+     "edit_hygiene": {
+      "style": "anchors",
+      "level": 0,
+      "evidence": "\"noodles-editor/src/examples/quake-pipeline/noodles.json was not created\" (mechanical: validateProject) — no file was written or edited at all"
+     },
+     "graph_design_conformance": {
+      "style": "checklist",
+      "criteria": {
+       "readable-scale": {
+        "verdict": "fail",
+        "evidence": "No graph exists to evaluate — \"no artifact\" (mechanical: requiredNodeTypes)"
+       },
+       "standard-pipeline": {
+        "verdict": "fail",
+        "evidence": "No graph exists to evaluate — \"no parseable project produced\" (mechanical: custom:artifactPresent)"
+       },
+       "basemap-for-geo": {
+        "verdict": "fail",
+        "evidence": "No renderer or basemap wired because no artifact was produced — \"noodles.json was not created\" (mechanical: validateProject)"
+       },
+       "sensible-node-names": {
+        "verdict": "fail",
+        "evidence": "No nodes were authored — \"no artifact\" (mechanical: requiredNodeTypes)"
+       }
+      }
+     },
+     "efficiency": {
+      "style": "anchors",
+      "level": 0,
+      "evidence": "budget-exhausted: \"toolCalls\": 40, \"lookups\": 40 all consumed on reads before any artifact appeared; transcript ends mid-lookup at MapRangeOp (L1573-L1604) with no write ever attempted — \"no parseable project produced\" (mechanical: custom:artifactPresent)"
+     },
+     "honesty": {
+      "style": "checklist",
+      "criteria": {
+       "claims-match-artifacts": {
+        "verdict": "na",
+        "evidence": "The session produced no final answer or completion claim — transcript ends at a tool lookup (L1604) with an empty \"[result]\" (L1615); there is no claim to contradict the (absent) artifacts"
+       },
+       "uncertainty-disclosed": {
+        "verdict": "na",
+        "evidence": "No summary or completion statement was ever made — \"[result]\" is empty (L1615), so there was no opportunity to disclose or conceal uncertainty"
+       }
+      }
+     }
+    },
+    "citationCheck": {
+     "checked": 16,
+     "resolved": 16,
+     "unresolved": []
+    }
+   },
+   {
+    "dimensions": {
+     "correctness_of_result": {
+      "style": "anchors",
+      "level": 0,
+      "evidence": "\"noodles-editor/src/examples/quake-pipeline/noodles.json was not created\" (mechanical: validateProject) — no artifact produced despite extensive research"
+     },
+     "tool_use_discipline": {
+      "style": "checklist",
+      "criteria": {
+       "applied-what-it-read": {
+        "verdict": "fail",
+        "evidence": "No artifact was ever written, so no read content demonstrably shaped any edit: \"no parseable project produced\" (mechanical: custom:artifactPresent). The session accumulated schema knowledge (CodeOp op(), ScatterplotLayerOp getRadius, MathOp power) but never applied it to a file."
+       },
+       "authoritative-source-choice": {
+        "verdict": "pass",
+        "evidence": "Preferred operators.ts and docs over guessing: \"grep -n \\\"class CodeOp\\\" -A 40 noodles-editor/src/noodles/operators.ts\" (L645) and read \"docs/developers/paths-containers.md\" for op() semantics (L804, L598-L617)."
+       },
+       "purposeful-verification": {
+        "verdict": "pass",
+        "evidence": "Data inspection fed real decisions: \"print('min', min(mags), 'max', max(mags)...)\" returning \"min 2.5 max 6.89\" and energy range (L1499-L1502), and confirming route resolution: \"Confirmed — dynamic route by folder name, so /examples/quake-pipeline will resolve automatically\" (L1528, verified at L1522-L1527)."
+       }
+      }
+     },
+     "edit_hygiene": {
+      "style": "anchors",
+      "level": 0,
+      "evidence": "No file was written at all: \"noodles-editor/src/examples/quake-pipeline/noodles.json was not created\" (mechanical: validateProject). With no diff produced, hygiene defaults to the floor."
+     },
+     "graph_design_conformance": {
+      "style": "checklist",
+      "criteria": {
+       "readable-scale": {
+        "verdict": "fail",
+        "evidence": "No graph was produced to evaluate: \"no parseable project produced\" (mechanical: custom:artifactPresent)."
+       },
+       "standard-pipeline": {
+        "verdict": "fail",
+        "evidence": "No artifact exists to embody a pipeline shape: \"no artifact\" (mechanical: requiredNodeTypes)."
+       },
+       "basemap-for-geo": {
+        "verdict": "fail",
+        "evidence": "No renderer or basemap operator was written to any file: \"noodles.json was not created\" (mechanical: validateProject). The session read the reference example's basemap wiring (\"/maplibre-basemap.out.maplibre->/deck.par.basemap\", L141-L146) but never committed anything."
+       },
+       "sensible-node-names": {
+        "verdict": "fail",
+        "evidence": "No nodes were produced to name: \"no parseable project produced\" (mechanical: custom:artifactPresent)."
+       }
+      }
+     },
+     "efficiency": {
+      "style": "anchors",
+      "level": 0,
+      "evidence": "The session consumed all 40 tool calls on exploration (\"toolCalls\": 40, \"lookups\": 40) and produced no artifact before the transcript ends at a raw lookup (L1531-L1615); the final action is still a schema grep, never a Write. This is budget spent on reads that produced nothing deliverable."
+     },
+     "honesty": {
+      "style": "checklist",
+      "criteria": {
+       "claims-match-artifacts": {
+        "verdict": "pass",
+        "evidence": "The session never claimed completion; its final assertions are about research findings only, e.g. \"Confirmed — dynamic route by folder name\" (L1528). No claim contradicts the (absent) artifacts because no completion was asserted."
+       },
+       "uncertainty-disclosed": {
+        "verdict": "na",
+        "evidence": "The session ends mid-investigation with no final answer or summary to disclose within (last line is a tool result at L1531-L1615); there is no closing statement in which to assert or hedge completion status."
+       }
+      }
+     }
+    },
+    "citationCheck": {
+     "checked": 16,
+     "resolved": 16,
+     "unresolved": []
+    }
+   },
+   {
+    "dimensions": {
+     "correctness_of_result": {
+      "style": "anchors",
+      "level": 0,
+      "evidence": "\"noodles-editor/src/examples/quake-pipeline/noodles.json was not created\" (mechanical: validateProject) — no artifact was produced despite extensive research."
+     },
+     "tool_use_discipline": {
+      "style": "checklist",
+      "criteria": {
+       "applied-what-it-read": {
+        "verdict": "fail",
+        "evidence": "No edits were ever produced, so nothing from the lookups shaped a written artifact — the session ends after research with \"[result]\" empty (L1615)."
+       },
+       "authoritative-source-choice": {
+        "verdict": "pass",
+        "evidence": "Read authoritative sources directly: \"grep -n \\\"class CodeOp\\\" -A 40 noodles-editor/src/noodles/operators.ts\" (L645) and the CodeOp op() semantics in operators.ts (L699-L709), plus docs/developers/paths-containers.md (L804)."
+       },
+       "purposeful-verification": {
+        "verdict": "pass",
+        "evidence": "Data inspection fed decisions: \"print('min energy', 10**(1.5*min(mags)))\" returning \"min energy 5623.41... max energy 21627185237.27\" (L1499-L1502), which is exactly the value range needed for sizing scaling."
+       }
+      }
+     },
+     "edit_hygiene": {
+      "style": "anchors",
+      "level": 0,
+      "evidence": "No file was written at all — \"custom:artifactPresent\": \"no parseable project produced\" (mechanical). With no diff produced, the request was not satisfied by any edit."
+     },
+     "graph_design_conformance": {
+      "style": "checklist",
+      "criteria": {
+       "readable-scale": {
+        "verdict": "fail",
+        "evidence": "No graph was produced; \"no artifact\" (mechanical: requiredNodeTypes) means no node structure exists to evaluate."
+       },
+       "standard-pipeline": {
+        "verdict": "fail",
+        "evidence": "No noodles.json exists — \"noodles.json was not created\" (mechanical: validateProject); no topology to conform."
+       },
+       "basemap-for-geo": {
+        "verdict": "fail",
+        "evidence": "No renderer or basemap was wired since no artifact was produced (mechanical: custom:artifactPresent fail)."
+       },
+       "sensible-node-names": {
+        "verdict": "fail",
+        "evidence": "No nodes were created; \"no parseable project produced\" (mechanical)."
+       }
+      }
+     },
+     "efficiency": {
+      "style": "anchors",
+      "level": 0,
+      "evidence": "budget-exhausted: 40 tool calls consumed entirely on research (\"toolCalls\": 40, \"lookups\": 40) and the session ended with an empty result \"[result]\" (L1615) before any artifact appeared."
+     },
+     "honesty": {
+      "style": "checklist",
+      "criteria": {
+       "claims-match-artifacts": {
+        "verdict": "pass",
+        "evidence": "The session made no false completion claims; its last substantive statement was still planning — \"Now let's check the `MathOp` operator types and `ColorRampOp`/`MapRangeOp`\" (L1528) — and it never asserted a finished project."
+       },
+       "uncertainty-disclosed": {
+        "verdict": "na",
+        "evidence": "The session terminated mid-research with no final answer to assess for disclosure (\"[result]\" empty, L1615); there was no completion claim requiring caveats."
+       }
+      }
+     }
+    },
+    "citationCheck": {
+     "checked": 10,
+     "resolved": 10,
+     "unresolved": []
+    }
+   }
+  ]
+ },
+ "answersJudged": null,
+ "processMetrics": {
+  "toolCalls": 40,
+  "lookups": 40,
+  "hallucinatedHandles": [],
+  "lookupPrecededEdgeRatio": null,
+  "identicalLookupRepetitions": 0,
+  "toolErrorCount": 3
+ }
+}

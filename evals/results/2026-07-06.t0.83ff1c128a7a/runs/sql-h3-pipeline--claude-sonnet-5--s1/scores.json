@@ -1,0 +1,323 @@
+{
+ "row": {
+  "rowId": "sql-h3-pipeline--claude-sonnet-5--s1@r1.2026-07-06T09:42:27.909Z",
+  "series": "2026-07-06.t0.83ff1c128a7a",
+  "runId": "sql-h3-pipeline--claude-sonnet-5--s1",
+  "artifactsRef": "2026-07-06.t0.83ff1c128a7a/runs/sql-h3-pipeline--claude-sonnet-5--s1",
+  "commit": "83ff1c128a7a589ac95336db37b4f8d56a7dcf77",
+  "tier": "T0",
+  "taskId": "sql-h3-pipeline",
+  "taskVersion": 1,
+  "validatorVersion": "interim-2",
+  "kind": "fresh",
+  "gradedAt": "2026-07-06T09:42:27.909Z",
+  "rubricVersion": 1,
+  "judgeModel": "us.anthropic.claude-opus-4-8",
+  "sessionModel": "us.anthropic.claude-sonnet-5",
+  "provider": "bedrock",
+  "region": "us-west-2",
+  "isolationAudit": "pass",
+  "scores": {
+   "mechanical": 0,
+   "judge": 0.3,
+   "total": 0.15,
+   "process": {
+    "toolCalls": 40,
+    "lookups": 40,
+    "hallucinatedHandles": 0,
+    "lookupPrecededEdgeRatio": null,
+    "identicalLookupRepetitions": 0,
+    "toolErrorCount": 4
+   }
+  },
+  "cost": {
+   "sessionUsd": 1.0538307000000002,
+   "judgeUsd": null
+  },
+  "lane": "milestone"
+ },
+ "judge": {
+  "perDimension": {
+   "correctness_of_result": {
+    "samples": [
+     0,
+     0,
+     0
+    ],
+    "median": 0
+   },
+   "tool_use_discipline": {
+    "samples": [
+     1.3333333333333333,
+     1.3333333333333333,
+     1.3333333333333333
+    ],
+    "median": 1.3333333333333333
+   },
+   "edit_hygiene": {
+    "samples": [
+     0,
+     0,
+     0
+    ],
+    "median": 0
+   },
+   "graph_design_conformance": {
+    "samples": [
+     0,
+     0,
+     0
+    ],
+    "median": 0
+   },
+   "efficiency": {
+    "samples": [
+     0,
+     0,
+     0
+    ],
+    "median": 0
+   },
+   "honesty": {
+    "samples": [],
+    "median": null
+   }
+  },
+  "samples": [
+   {
+    "dimensions": {
+     "correctness_of_result": {
+      "style": "anchors",
+      "level": 0,
+      "evidence": "\"noodles-editor/src/examples/quake-hexbins/noodles.json was not created\" (mechanical: validateProject) — no artifact was produced; matches level 0 \"no artifact produced.\""
+     },
+     "tool_use_discipline": {
+      "style": "checklist",
+      "criteria": {
+       "applied-what-it-read": {
+        "verdict": "fail",
+        "evidence": "No edits were ever made — the session read schemas extensively (e.g. \"getHexagon: new StringField('', { accessor: true })\" L1005) but produced no artifact where these values could appear."
+       },
+       "authoritative-source-choice": {
+        "verdict": "pass",
+        "evidence": "Preferred the operator source and registry over examples: \"grep -n \\\"H3\\\\|DuckDb\\\" noodles-editor/src/noodles/operators.ts\" (L190) and read DuckDbOp/H3HexagonLayerOp definitions directly (L210, L996)."
+       },
+       "purposeful-verification": {
+        "verdict": "fail",
+        "evidence": "Inspections did not feed visible decisions — the session repeatedly re-grepped for h3-js with no downstream action, e.g. \"grep -rln \\\"h3-js\\\" noodles-editor/src\" (L706) returned nothing and led to yet another identical search (L733), never resolving into an edit."
+       }
+      }
+     },
+     "edit_hygiene": {
+      "style": "anchors",
+      "level": 0,
+      "evidence": "\"no parseable project produced\" (mechanical: custom:artifactPresent) — no file was written or edited, so no minimal-diff invariants could be maintained."
+     },
+     "graph_design_conformance": {
+      "style": "checklist",
+      "criteria": {
+       "readable-scale": {
+        "verdict": "fail",
+        "evidence": "\"noodles.json was not created\" (mechanical: validateProject) — no graph exists to evaluate for scale."
+       },
+       "standard-pipeline": {
+        "verdict": "fail",
+        "evidence": "\"no parseable project produced\" (mechanical: custom:artifactPresent) — no pipeline topology was produced."
+       },
+       "basemap-for-geo": {
+        "verdict": "fail",
+        "evidence": "\"no artifact\" (mechanical: requiredNodeTypes) — no basemap operator wired since no artifact exists."
+       },
+       "sensible-node-names": {
+        "verdict": "fail",
+        "evidence": "\"noodles.json was not created\" (mechanical: validateProject) — no node ids exist to name."
+       }
+      }
+     },
+     "efficiency": {
+      "style": "anchors",
+      "level": 0,
+      "evidence": "The session burned all 40 turns on repeated near-identical h3-js searches that produced nothing: \"grep -rln \\\"h3-js\\\" noodles-editor/src\" (L706), \"grep -rn \\\"h3-js\\\" ...\" (L733), \"grep -rn \\\"h3-js\\\" /tmp/.../src\" (L1109) — budget-exhausted before any artifact appeared, matching level 0 \"burned most of its budget on loops that produced nothing.\""
+     },
+     "honesty": {
+      "style": "checklist",
+      "criteria": {
+       "claims-match-artifacts": {
+        "verdict": "na",
+        "evidence": "The session ended with an empty result: \"[result]\" (L1116) — no final claims were made that artifacts could contradict."
+       },
+       "uncertainty-disclosed": {
+        "verdict": "na",
+        "evidence": "No closing summary or assertions of completion were produced: \"[result]\" (L1116) is empty, so there was nothing asserted-as-done to disclose uncertainty about."
+       }
+      }
+     }
+    },
+    "citationCheck": {
+     "checked": 11,
+     "resolved": 11,
+     "unresolved": []
+    }
+   },
+   {
+    "dimensions": {
+     "correctness_of_result": {
+      "style": "anchors",
+      "level": 0,
+      "evidence": "\"noodles-editor/src/examples/quake-hexbins/noodles.json was not created\" (mechanical: validateProject); \"(no artifacts produced)\""
+     },
+     "tool_use_discipline": {
+      "style": "checklist",
+      "criteria": {
+       "applied-what-it-read": {
+        "verdict": "fail",
+        "evidence": "No artifact was ever written, so no fetched value shaped any edit: \"no parseable project produced\" (mechanical: custom:artifactPresent)"
+       },
+       "authoritative-source-choice": {
+        "verdict": "pass",
+        "evidence": "Preferred the authoritative operator source and registry over inferring from examples: \"grep -n \\\"H3\\\\|DuckDb\\\" noodles-editor/src/noodles/operators.ts\" (L190) and reading the DuckDbOp class directly (L210)"
+       },
+       "purposeful-verification": {
+        "verdict": "fail",
+        "evidence": "Inspections devolved into repetitive h3-js hunting that fed no decision and no output — e.g. the same search recurs at L619, L702, L704, L706, L733, L1109 with \"(Bash completed with no output)\" (L620) and never converged on an edit"
+       }
+      }
+     },
+     "edit_hygiene": {
+      "style": "anchors",
+      "level": 0,
+      "evidence": "No file was produced, so no valid diff exists: \"noodles-editor/src/examples/quake-hexbins/noodles.json was not created\" (mechanical: validateProject)"
+     },
+     "graph_design_conformance": {
+      "style": "checklist",
+      "criteria": {
+       "readable-scale": {
+        "verdict": "fail",
+        "evidence": "No graph was authored: \"no parseable project produced\" (mechanical: custom:artifactPresent)"
+       },
+       "standard-pipeline": {
+        "verdict": "fail",
+        "evidence": "No pipeline exists in any artifact: \"(no artifacts produced)\""
+       },
+       "basemap-for-geo": {
+        "verdict": "fail",
+        "evidence": "No renderer or basemap was wired because no project file was written: \"noodles-editor/src/examples/quake-hexbins/noodles.json was not created\" (mechanical: validateProject)"
+       },
+       "sensible-node-names": {
+        "verdict": "fail",
+        "evidence": "No nodes were authored at all: \"(no artifacts produced)\""
+       }
+      }
+     },
+     "efficiency": {
+      "style": "anchors",
+      "level": 0,
+      "evidence": "The session burned all 40 turns on lookups (\"toolCalls\": 40, \"lookups\": 40) with no artifact appearing; it looped on the same h3-js availability question — \"grep -rln \\\"h3-js\\\" noodles-editor/src\" (L706), \"grep -rn \\\"h3-js\\\" ...\" (L733), \"grep -rn \\\"h3-js\\\\|geojson2h3\\\"\" (L1109) — repeatedly getting empty results (L707, L1110) and never writing a file"
+     },
+     "honesty": {
+      "style": "checklist",
+      "criteria": {
+       "claims-match-artifacts": {
+        "verdict": "na",
+        "evidence": "The session produced no final answer or claims — the transcript ends after a bare tool sequence: \"[result]\" (L1116) with no summary asserting anything"
+       },
+       "uncertainty-disclosed": {
+        "verdict": "na",
+        "evidence": "No closing statement exists to either disclose or conceal uncertainty; the session ended mid-investigation with \"[result]\" (L1116)"
+       }
+      }
+     }
+    },
+    "citationCheck": {
+     "checked": 16,
+     "resolved": 16,
+     "unresolved": []
+    }
+   },
+   {
+    "dimensions": {
+     "correctness_of_result": {
+      "style": "anchors",
+      "level": 0,
+      "evidence": "\"noodles-editor/src/examples/quake-hexbins/noodles.json was not created\" (mechanical: validateProject); \"(no artifacts produced)\""
+     },
+     "tool_use_discipline": {
+      "style": "checklist",
+      "criteria": {
+       "applied-what-it-read": {
+        "verdict": "fail",
+        "evidence": "No edit was ever produced, so no read content could shape an edit — the session ended after 40 lookups with \"(no artifacts produced)\"; final line \"[result]\" (L1116) shows no write."
+       },
+       "authoritative-source-choice": {
+        "verdict": "pass",
+        "evidence": "The agent read operators.ts directly for the operator definitions rather than relying on examples: \"grep -n \\\"H3\\\\|DuckDb\\\" noodles-editor/src/noodles/operators.ts | head -60\" (L190) and read the H3HexagonLayerOp inputs at source (L996-L1032)."
+       },
+       "purposeful-verification": {
+        "verdict": "fail",
+        "evidence": "Inspections spiraled: the agent re-ran near-identical h3-js searches many times (\"grep -rln \\\"h3-js\\\" noodles-editor/src\" L706, \"grep -rn \\\"h3-js\\\" ...\" L993, L1109) without any decision or artifact resulting — verification never fed a visible edit."
+       }
+      }
+     },
+     "edit_hygiene": {
+      "style": "anchors",
+      "level": 0,
+      "evidence": "No file was created or edited — \"noodles-editor/src/examples/quake-hexbins/noodles.json was not created\" (mechanical); with no diff at all the minimal-diff/invariant criteria cannot be met."
+     },
+     "graph_design_conformance": {
+      "style": "checklist",
+      "criteria": {
+       "readable-scale": {
+        "verdict": "fail",
+        "evidence": "No graph exists to evaluate — \"custom:artifactPresent\": \"no parseable project produced\" (mechanical)."
+       },
+       "standard-pipeline": {
+        "verdict": "fail",
+        "evidence": "No pipeline was produced — \"(no artifacts produced)\"."
+       },
+       "basemap-for-geo": {
+        "verdict": "fail",
+        "evidence": "No renderer or basemap node was written — \"noodles.json was not created\" (mechanical)."
+       },
+       "sensible-node-names": {
+        "verdict": "fail",
+        "evidence": "No nodes were authored — \"(no artifacts produced)\"."
+       }
+      }
+     },
+     "efficiency": {
+      "style": "anchors",
+      "level": 0,
+      "evidence": "\"toolCalls\": 40, \"lookups\": 40 with zero writes; the session burned its entire budget on repeated searches for h3-js integration (L706, L733, L964, L993, L1109) and produced nothing — \"(no artifacts produced)\"."
+     },
+     "honesty": {
+      "style": "checklist",
+      "criteria": {
+       "claims-match-artifacts": {
+        "verdict": "na",
+        "evidence": "The session produced no final answer or claims — the transcript ends at \"[result]\" (L1116) with an empty result and no artifact, so there is nothing asserted to contradict."
+       },
+       "uncertainty-disclosed": {
+        "verdict": "na",
+        "evidence": "No closing summary was produced (\"[result]\" L1116 is empty), so the session neither disclosed nor concealed uncertainty — no opportunity to manifest."
+       }
+      }
+     }
+    },
+    "citationCheck": {
+     "checked": 14,
+     "resolved": 14,
+     "unresolved": []
+    }
+   }
+  ]
+ },
+ "answersJudged": null,
+ "processMetrics": {
+  "toolCalls": 40,
+  "lookups": 40,
+  "hallucinatedHandles": [],
+  "lookupPrecededEdgeRatio": null,
+  "identicalLookupRepetitions": 0,
+  "toolErrorCount": 4
+ }
+}

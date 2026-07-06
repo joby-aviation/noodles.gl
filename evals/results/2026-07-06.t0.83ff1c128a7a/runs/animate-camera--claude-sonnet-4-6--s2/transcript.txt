@@ -1,0 +1,629 @@
+L1: [system] session started (tools + workspace initialized)
+L2: [system] session started (tools + workspace initialized)
+L3: [system] session started (tools + workspace initialized)
+L4: [system] session started (tools + workspace initialized)
+L5: [system] session started (tools + workspace initialized)
+L6: [system] session started (tools + workspace initialized)
+L7: [system] session started (tools + workspace initialized)
+L8: [system] session started (tools + workspace initialized)
+L9: [system] session started (tools + workspace initialized)
+L10: [system] session started (tools + workspace initialized)
+L11: [assistant] Let me start by reading the current camera-tour project file.
+L12: [tool_use Bash] {"command":"find /tmp/noodles-evals/workspaces/animate-camera--claude-sonnet-4-6--s2 -name \"noodles.json\" | grep -i camera","description":"Find camera-tour noodles.json"}
+L13: [tool_result] /tmp/noodles-evals/workspaces/animate-camera--claude-sonnet-4-6--s2/noodles-editor/src/examples/orbit/noodles.json
+L14: /tmp/noodles-evals/workspaces/animate-camera--claude-sonnet-4-6--s2/noodles-editor/src/examples/cesium-hubble/noodles.json
+L15: /tmp/noodles-evals/workspaces/animate-camera--claude-sonnet-4-6--s2/noodles-editor/src/examples/geojson-example/noodles.json
+L16: /tmp/noodles-evals/workspaces/animate-camera--claude-sonnet-4-6--s2/noodles-editor/src/examples/camera-tour/noodles.json
+L17: /tmp/noodles-evals/workspaces/animate-camera--claude-sonnet-4-6--s2/noodles-editor/src/examples/simple-mesh-example/noodles.json
+L18: /tmp/noodles-evals/workspaces/animate-camera--claude-sonnet-4-6--s2/noodles-editor/src/examples/custom-maplibre-layer-test/noodles.json
+L19: /tmp/noodles-evals/workspaces/animate-camera--claude-sonnet-4-6--s2/noodles-editor/src/examples/aggregation-example/noodles.json
+L20: /tmp/noodles-evals/workspaces/animate-camera--claude-sonnet-4-6--s2/noodles-editor/src/examples/chargers/noodles.json
+L21: /tmp/noodles-evals/workspaces/animate-camera--claude-sonnet-4-6--s2/noodles-editor/src/examples/sf-elevation-contours/noodles.json
+L22: /tmp/noodles-evals/workspaces/animate-camera--claude-sonnet-4-6--s2/noodles-editor/src/examples/world-flights/noodles.json
+L23: /tmp/noodles-evals/workspaces/animate-camera--claude-sonnet-4-6--s2/noodles-editor/src/examples/nyc-taxis/noodles.json
+L24: /tmp/noodles-evals/workspaces/animate-camera--claude-sonnet-4-6--s2/noodles-editor/src/examples/uk-commute/noodles.json
+L25: /tmp/noodles-evals/workspaces/animate-camera--claude-sonnet-4-6--s2/noodles-editor/src/examples/nyc-census/noodles.json
+L26: /tmp/noodles-evals/workspaces/animate-camera--claude-sonnet-4-6--s2/noodles-editor/src/examples/california-earthquakes/noodles.json
+L27: /tmp/noodles-evals/workspaces/animate-camera--claude-sonnet-4-6--s2/noodles-editor/src/examples/us-county-unemployment/noodles.json
+L28: [tool_use Read] {"file_path":"/tmp/noodles-evals/workspaces/animate-camera--claude-sonnet-4-6--s2/noodles-editor/src/examples/camera-tour/noodles.json"}
+L29: [tool_result] 1	{
+L30: 2	  "version": 14,
+L31: 3	  "name": "Camera Tour",
+L32: 4	  "nodes": [
+L33: 5	    {
+L34: 6	      "id": "/basemap",
+L35: 7	      "type": "MaplibreBasemapOp",
+L36: 8	      "position": { "x": 0, "y": 200 },
+L37: 9	      "data": {
+L38: 10	        "inputs": {
+L39: 11	          "mapStyle": "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json",
+L40: 12	          "viewState": {
+L41: 13	            "longitude": -122.42,
+L42: 14	            "latitude": 37.77,
+L43: 15	            "zoom": 9,
+L44: 16	            "pitch": 0,
+L45: 17	            "bearing": 0
+L46: 18	          }
+L47: 19	        },
+L48: 20	        "locked": false
+L49: 21	      }
+L50: 22	    },
+L51: 23	    {
+L52: 24	      "id": "/deck",
+L53: 25	      "type": "DeckRendererOp",
+L54: 26	      "position": { "x": 350, "y": 100 },
+L55: 27	      "data": { "inputs": {}, "locked": false }
+L56: 28	    },
+L57: 29	    {
+L58: 30	      "id": "/out",
+L59: 31	      "type": "OutOp",
+L60: 32	      "position": { "x": 700, "y": 100 },
+L61: 33	      "data": {
+L62: 34	        "inputs": { "display": "fixed", "width": 1920, "height": 1080, "framerate": 30 },
+L63: 35	        "locked": false
+L64: 36	      }
+L65: 37	    }
+L66: 38	  ],
+L67: 39	  "edges": [
+L68: 40	    {
+L69: 41	      "id": "/basemap.out.maplibre->/deck.par.basemap",
+L70: 42	      "source": "/basemap",
+L71: 43	      "target": "/deck",
+L72: 44	      "sourceHandle": "out.maplibre",
+L73: 45	      "targetHandle": "par.basemap"
+L74: 46	    },
+L75: 47	    {
+L76: 48	      "id": "/deck.out.vis->/out.par.vis",
+L77: 49	      "source": "/deck",
+L78: 50	      "target": "/out",
+L79: 51	      "sourceHandle": "out.vis",
+L80: 52	      "targetHandle": "par.vis"
+L81: 53	    }
+L82: 54	  ],
+L83: 55	  "viewport": { "x": 0, "y": 0, "zoom": 1 },
+L84: 56	  "editorSettings": { "layoutMode": "noodles-on-top", "showOverlay": true },
+L85: 57	  "timeline": {
+L86: 58	    "sheetsById": {
+L87: 59	      "Noodles": {
+L88: 60	        "staticOverrides": { "byObject": {} }
+L89: 61	      }
+L90: 62	    },
+L91: 63	    "definitionVersion": "0.4.0",
+L92: 64	    "revisionHistory": []
+L93: 65	  }
+L94: 66	}
+L95: 67	
+L96: [system] session started (tools + workspace initialized)
+L97: [system] session started (tools + workspace initialized)
+L98: [system] session started (tools + workspace initialized)
+L99: [system] session started (tools + workspace initialized)
+L100: [system] session started (tools + workspace initialized)
+L101: [system] session started (tools + workspace initialized)
+L102: [system] session started (tools + workspace initialized)
+L103: [system] session started (tools + workspace initialized)
+L104: [system] session started (tools + workspace initialized)
+L105: [system] session started (tools + workspace initialized)
+L106: [system] session started (tools + workspace initialized)
+L107: [system] session started (tools + workspace initialized)
+L108: [system] session started (tools + workspace initialized)
+L109: [system] session started (tools + workspace initialized)
+L110: [system] session started (tools + workspace initialized)
+L111: [system] session started (tools + workspace initialized)
+L112: [system] session started (tools + workspace initialized)
+L113: [system] session started (tools + workspace initialized)
+L114: [system] session started (tools + workspace initialized)
+L115: [system] session started (tools + workspace initialized)
+L116: [system] session started (tools + workspace initialized)
+L117: [system] session started (tools + workspace initialized)
+L118: [system] session started (tools + workspace initialized)
+L119: [system] session started (tools + workspace initialized)
+L120: [system] session started (tools + workspace initialized)
+L121: [system] session started (tools + workspace initialized)
+L122: [system] session started (tools + workspace initialized)
+L123: [system] session started (tools + workspace initialized)
+L124: [assistant] Let me look at another example that uses timeline animation to understand the keyframe structure.
+L125: [tool_use Bash] {"command":"for f in /tmp/noodles-evals/workspaces/animate-camera--claude-sonnet-4-6--s2/noodles-editor/src/examples/*/noodles.json; do\n  if python3 -c \"import json,sys; d=json.load(open('$f')); sys.exit(0 if d.get('timeline',{}).get('sheetsById',{}).get('Noodles',{}).get('sequence') else 1)\" 2>/dev/null; then\n    echo \"Has sequence: $f\"\n  fi\ndone","description":"Find examples with timeline sequences"}
+L126: [tool_result] Has sequence: /tmp/noodles-evals/workspaces/animate-camera--claude-sonnet-4-6--s2/noodles-editor/src/examples/cesium-hubble/noodles.json
+L127: Has sequence: /tmp/noodles-evals/workspaces/animate-camera--claude-sonnet-4-6--s2/noodles-editor/src/examples/world-flights/noodles.json
+L128: [tool_use Read] {"file_path":"/tmp/noodles-evals/workspaces/animate-camera--claude-sonnet-4-6--s2/noodles-editor/src/examples/world-flights/noodles.json"}
+L129: [tool_result] 1	{
+L130: 2	  "edges": [
+L131: 3	    {
+L132: 4	      "id": "/deck.out.vis->/out.par.vis",
+L133: 5	      "source": "/deck",
+L134: 6	      "target": "/out",
+L135: 7	      "sourceHandle": "out.vis",
+L136: 8	      "targetHandle": "par.vis"
+L137: 9	    },
+L138: 10	    {
+L139: 11	      "id": "/origin-country.out.accessor->/color-ramp.par.value",
+L140: 12	      "source": "/origin-country",
+L141: 13	      "target": "/color-ramp",
+L142: 14	      "sourceHandle": "out.accessor",
+L143: 15	      "targetHandle": "par.value"
+L144: 16	    },
+L145: 17	    {
+L146: 18	      "id": "/color-ramp.out.color->/geojson-layer.par.getLineColor",
+L147: 19	      "source": "/color-ramp",
+L148: 20	      "target": "/geojson-layer",
+L149: 21	      "sourceHandle": "out.color",
+L150: 22	      "targetHandle": "par.getLineColor"
+L151: 23	    },
+L152: 24	    {
+L153: 25	      "id": "/color-ramp.out.color->/trips-layer.par.getColor",
+L154: 26	      "source": "/color-ramp",
+L155: 27	      "target": "/trips-layer",
+L156: 28	      "sourceHandle": "out.color",
+L157: 29	      "targetHandle": "par.getColor"
+L158: 30	    },
+L159: 31	    {
+L160: 32	      "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap",
+L161: 33	      "source": "/maplibre-basemap",
+L162: 34	      "target": "/deck",
+L163: 35	      "sourceHandle": "out.maplibre",
+L164: 36	      "targetHandle": "par.basemap"
+L165: 37	    },
+L166: 38	    {
+L167: 39	      "source": "/time",
+L168: 40	      "sourceHandle": "out.val",
+L169: 41	      "target": "/time-series",
+L170: 42	      "targetHandle": "par.currentTime",
+L171: 43	      "id": "/time.out.val->/time-series.par.currentTime"
+L172: 44	    },
+L173: 45	    {
+L174: 46	      "source": "/properties",
+L175: 47	      "sourceHandle": "out.accessor",
+L176: 48	      "target": "/time-series",
+L177: 49	      "targetHandle": "par.getProperties",
+L178: 50	      "id": "/properties.out.accessor->/time-series.par.getProperties"
+L179: 51	    },
+L180: 52	    {
+L181: 53	      "source": "/path",
+L182: 54	      "sourceHandle": "out.accessor",
+L183: 55	      "target": "/time-series",
+L184: 56	      "targetHandle": "par.getValues",
+L185: 57	      "id": "/path.out.accessor->/time-series.par.getValues"
+L186: 58	    },
+L187: 59	    {
+L188: 60	      "source": "/data-source",
+L189: 61	      "sourceHandle": "out.data",
+L190: 62	      "target": "/code",
+L191: 63	      "targetHandle": "par.data",
+L192: 64	      "id": "/data-source.out.data->/code.par.data"
+L193: 65	    },
+L194: 66	    {
+L195: 67	      "source": "/code",
+L196: 68	      "sourceHandle": "out.data",
+L197: 69	      "target": "/time-series",
+L198: 70	      "targetHandle": "par.data",
+L199: 71	      "id": "/code.out.data->/time-series.par.data"
+L200: 72	    },
+L201: 73	    {
+L202: 74	      "source": "/position",
+L203: 75	      "sourceHandle": "out.accessor",
+L204: 76	      "target": "/scatterplot-layer",
+L205: 77	      "targetHandle": "par.getPosition",
+L206: 78	      "id": "/position.out.accessor->/scatterplot-layer.par.getPosition"
+L207: 79	    },
+L208: 80	    {
+L209: 81	      "source": "/time-series",
+L210: 82	      "sourceHandle": "out.data",
+L211: 83	      "target": "/scatterplot-layer",
+L212: 84	      "targetHandle": "par.data",
+L213: 85	      "id": "/time-series.out.data->/scatterplot-layer.par.data"
+L214: 86	    },
+L215: 87	    {
+L216: 88	      "source": "/scatterplot-layer",
+L217: 89	      "sourceHandle": "out.layer",
+L218: 90	      "target": "/deck",
+L219: 91	      "targetHandle": "par.layers",
+L220: 92	      "id": "/scatterplot-layer.out.layer->/deck.par.layers"
+L221: 93	    },
+L222: 94	    {
+L223: 95	      "source": "/code",
+L224: 96	      "sourceHandle": "out.data",
+L225: 97	      "target": "/trips-layer",
+L226: 98	      "targetHandle": "par.data",
+L227: 99	      "id": "/code.out.data->/trips-layer.par.data"
+L228: 100	    },
+L229: 101	    {
+L230: 102	      "source": "/path",
+L231: 103	      "sourceHandle": "out.accessor",
+L232: 104	      "target": "/trips-layer",
+L233: 105	      "targetHandle": "par.getPath",
+L234: 106	      "id": "/path.out.accessor->/trips-layer.par.getPath"
+L235: 107	    },
+L236: 108	    {
+L237: 109	      "source": "/timestamps",
+L238: 110	      "sourceHandle": "out.accessor",
+L239: 111	      "target": "/trips-layer",
+L240: 112	      "targetHandle": "par.getTimestamps",
+L241: 113	      "id": "/timestamps.out.accessor->/trips-layer.par.getTimestamps"
+L242: 114	    },
+L243: 115	    {
+L244: 116	      "source": "/timestamps",
+L245: 117	      "sourceHandle": "out.accessor",
+L246: 118	      "target": "/time-series",
+L247: 119	      "targetHandle": "par.getTimestamps",
+L248: 120	      "id": "/timestamps.out.accessor->/time-series.par.getTimestamps"
+L249: 121	    },
+L250: 122	    {
+L251: 123	      "source": "/trips-layer",
+L252: 1
+L253: ...[truncated 9978 chars]
+L254: [system] session started (tools + workspace initialized)
+L255: [system] session started (tools + workspace initialized)
+L256: [system] session started (tools + workspace initialized)
+L257: [system] session started (tools + workspace initialized)
+L258: [system] session started (tools + workspace initialized)
+L259: [system] session started (tools + workspace initialized)
+L260: [system] session started (tools + workspace initialized)
+L261: [system] session started (tools + workspace initialized)
+L262: [system] session started (tools + workspace initialized)
+L263: [system] session started (tools + workspace initialized)
+L264: [system] session started (tools + workspace initialized)
+L265: [system] session started (tools + workspace initialized)
+L266: [system] session started (tools + workspace initialized)
+L267: [system] session started (tools + workspace initialized)
+L268: [system] session started (tools + workspace initialized)
+L269: [system] session started (tools + workspace initialized)
+L270: [assistant] Now I understand the timeline format. Let me also check if the cesium-hubble example animates a camera/viewState to get the exact property path format.
+L271: [tool_use Bash] {"command":"python3 -c \"\nimport json\nd = json.load(open('/tmp/noodles-evals/workspaces/animate-camera--claude-sonnet-4-6--s2/noodles-editor/src/examples/cesium-hubble/noodles.json'))\nseq = d['timeline']['sheetsById']['Noodles']['sequence']\nprint(json.dumps(list(seq['tracksByObject'].keys()), indent=2))\nprint()\nfor obj, tracks in seq['tracksByObject'].items():\n    print(f'=== {obj} ===')\n    print(json.dumps(tracks['trackIdByPropPath'], indent=2))\n\"\n","description":"Show tracksByObject keys and propPaths in cesium-hubble"}
+L272: [tool_result] [
+L273:   "basemap"
+L274: ]
+L275: 
+L276: === basemap ===
+L277: {
+L278:   "[\"viewState\",\"longitude\"]": "lngTrk001",
+L279:   "[\"viewState\",\"latitude\"]": "latTrk001",
+L280:   "[\"viewState\",\"zoom\"]": "zmTrk0001",
+L281:   "[\"viewState\",\"pitch\"]": "ptTrk0001",
+L282:   "[\"viewState\",\"bearing\"]": "brTrk0001"
+L283: }
+L284: [tool_use Bash] {"command":"python3 -c \"\nimport json\nd = json.load(open('/tmp/noodles-evals/workspaces/animate-camera--claude-sonnet-4-6--s2/noodles-editor/src/examples/cesium-hubble/noodles.json'))\nseq = d['timeline']['sheetsById']['Noodles']['sequence']\nprint(json.dumps(seq['tracksByObject']['basemap'], indent=2))\nprint('length:', seq['length'])\nprint('subUnitsPerUnit:', seq['subUnitsPerUnit'])\n\"\n","description":"Show basemap track details in cesium-hubble"}
+L285: [tool_result] {
+L286:   "trackData": {
+L287:     "lngTrk001": {
+L288:       "type": "BasicKeyframedTrack",
+L289:       "__debugName": "basemap:[\"viewState\",\"longitude\"]",
+L290:       "keyframes": [
+L291:         {
+L292:           "id": "kf_lng_0",
+L293:           "position": 0,
+L294:           "connectedRight": true,
+L295:           "handles": [
+L296:             0.5,
+L297:             1,
+L298:             0.5,
+L299:             0
+L300:           ],
+L301:           "type": "bezier",
+L302:           "value": -74.01528014573182
+L303:         },
+L304:         {
+L305:           "id": "kf_lng_1",
+L306:           "position": 4,
+L307:           "connectedRight": true,
+L308:           "handles": [
+L309:             0.5,
+L310:             1,
+L311:             0.5,
+L312:             0
+L313:           ],
+L314:           "type": "bezier",
+L315:           "value": -74.0152298040547
+L316:         },
+L317:         {
+L318:           "id": "kf_lng_2",
+L319:           "position": 5.5,
+L320:           "connectedRight": true,
+L321:           "handles": [
+L322:             0.5,
+L323:             1,
+L324:             0.5,
+L325:             0
+L326:           ],
+L327:           "type": "bezier",
+L328:           "value": -74.00393041204993
+L329:         },
+L330:         {
+L331:           "id": "kf_lng_3",
+L332:           "position": 7,
+L333:           "connectedRight": true,
+L334:           "handles": [
+L335:             0.5,
+L336:             1,
+L337:             0.5,
+L338:             0
+L339:           ],
+L340:           "type": "bezier",
+L341:           "value": -73.98427479072922
+L342:         },
+L343:         {
+L344:           "id": "kf_lng_4",
+L345:           "position": 7.5,
+L346:           "connectedRight": true,
+L347:           "handles": [
+L348:             0.5,
+L349:             1,
+L350:             0.5,
+L351:             0
+L352:           ],
+L353:           "type": "bezier",
+L354:           "value": -73.98
+L355:         },
+L356:         {
+L357:           "id": "kf_lng_5",
+L358:           "position": 11,
+L359:           "connectedRight": true,
+L360:           "handles": [
+L361:             0.5,
+L362:             1,
+L363:             0.5,
+L364:             0
+L365:           ],
+L366:           "type": "bezier",
+L367:           "value": -73.97857897544452
+L368:         },
+L369:         {
+L370:           "id": "kf_lng_6",
+L371:           "position": 18,
+L372:           "connectedRight": true,
+L373:           "handles": [
+L374:             0.5,
+L375:             1,
+L376:             0.5,
+L377:             0
+L378:           ],
+L379:           "type": "bezier",
+L380:           "value": -73.99384768869895
+L381:         },
+L382:         {
+L383:           "id": "kf_lng_7",
+L384:           "position": 19,
+L385:           "connectedRight": false,
+L386:           "handles": [
+L387:             0.5,
+L388:             1,
+L389:             0.5,
+L390:             0
+L391:           ],
+L392:           "type": "bezier",
+L393:           "value": -73.99244100531732
+L394:         }
+L395:       ]
+L396:     },
+L397:     "latTrk001": {
+L398:       "type": "BasicKeyframedTrack",
+L399:       "__debugName": "basemap:[\"viewState\",\"latitude\"]",
+L400:       "keyframes": [
+L401:         {
+L402:           "id": "kf_lat_0",
+L403:           "position": 0,
+L404:           "connectedRight": true,
+L405:           "handles": [
+L406:             0.5,
+L407:             1,
+L408:             0.5,
+L409:             0
+L410:           ],
+L411:           "type": "bezier",
+L412:           "value": 40.706616771021125
+L413:         },
+L414:         {
+L415:           "id": "kf_lat_1",
+L416:           "position": 4,
+L417:           "connectedRight": true,
+L418:           "handles": [
+L419:             0.5,
+L420:             1,
+L421:             0.5,
+L422:             0
+L423:           ],
+L424:           "type": "bezier",
+L425:           "value": 40.70303169832896
+L426:         },
+L427:         {
+L428:           "id": "kf_lat_2",
+L429:           "position": 5.5,
+L430:           "connectedRight": true,
+L431:           "handles": [
+L432:             0.5,
+L433:             1,
+L434:             0.5,
+L435:             0
+L436:           ],
+L437:           "type": "bezier",
+L438:           "value": 40.71734981243856
+L439:         },
+L440:         {
+L441:           "id": "kf_lat_3",
+L442:           "position": 7,
+L443:           "connectedRight": true,
+L444:           "handles": [
+L445:             0.5,
+L446:             1,
+L447:             0.5,
+L448:             0
+L449:           ],
+L450:           "type": "bezier",
+L451:           "value": 40.75431303578706
+L452:         },
+L453:         {
+L454:           "id": "kf_lat_4",
+L455:           "position": 7.5,
+L456:           "connectedRight": true,
+L457:           "handles": [
+L458:             0.5,
+L459:             1,
+L460:             0.5,
+L461:             0
+L462:           ],
+L463:           "type": "bezier",
+L464:           "value": 40.76
+L465:         },
+L466:         {
+L467:           "id": "kf_lat_5",
+L468:           "position": 11,
+L469:           "connectedRight": true,
+L470:           "handles": [
+L471:             0.5,
+L472:             1,
+L473:      
+L474: ...[truncated 7795 chars]
+L475: [system] session started (tools + workspace initialized)
+L476: [system] session started (tools + workspace initialized)
+L477: [system] session started (tools + workspace initialized)
+L478: [system] session started (tools + workspace initialized)
+L479: [system] session started (tools + workspace initialized)
+L480: [system] session started (tools + workspace initialized)
+L481: [system] session started (tools + workspace initialized)
+L482: [system] session started (tools + workspace initialized)
+L483: [system] session started (tools + workspace initialized)
+L484: [system] session started (tools + workspace initialized)
+L485: [system] session started (tools + workspace initialized)
+L486: [system] session started (tools + workspace initialized)
+L487: [system] session started (tools + workspace initialized)
+L488: [system] session started (tools + workspace initialized)
+L489: [system] session started (tools + workspace initialized)
+L490: [system] session started (tools + workspace initialized)
+L491: [system] session started (tools + workspace initialized)
+L492: [system] session started (tools + workspace initialized)
+L493: [system] session started (tools + workspace initialized)
+L494: [system] session started (tools + workspace initialized)
+L495: [system] session started (tools + workspace initialized)
+L496: [system] session started (tools + workspace initialized)
+L497: [system] session started (tools + workspace initialized)
+L498: [system] session started (tools + workspace initialized)
+L499: [system] session started (tools + workspace initialized)
+L500: [system] session started (tools + workspace initialized)
+L501: [system] session started (tools + workspace initialized)
+L502: [system] session started (tools + workspace initialized)
+L503: [system] session started (tools + workspace initialized)
+L504: [system] session started (tools + workspace initialized)
+L505: [system] session started (tools + workspace initialized)
+L506: [system] session started (tools + workspace initialized)
+L507: [system] session started (tools + workspace initialized)
+L508: [system] session started (tools + workspace initialized)
+L509: [system] session started (tools + workspace initialized)
+L510: [system] session started (tools + workspace initialized)
+L511: [system] session started (tools + workspace initialized)
+L512: [system] session started (tools + workspace initialized)
+L513: [system] session started (tools + workspace initialized)
+L514: [system] session started (tools + workspace initialized)
+L515: [system] session started (tools + workspace initialized)
+L516: [system] session started (tools + workspace initialized)
+L517: [system] session started (tools + workspace initialized)
+L518: [system] session started (tools + workspace initialized)
+L519: [system] session started (tools + workspace initialized)
+L520: [system] session started (tools + workspace initialized)
+L521: [system] session started (tools + workspace initialized)
+L522: [system] session started (tools + workspace initialized)
+L523: [system] session started (tools + workspace initialized)
+L524: [system] session started (tools + workspace initialized)
+L525: [system] session started (tools + workspace initialized)
+L526: [system] session started (tools + workspace initialized)
+L527: [system] session started (tools + workspace initialized)
+L528: [system] session started (tools + workspace initialized)
+L529: [system] session started (tools + workspace initialized)
+L530: [system] session started (tools + workspace initialized)
+L531: [system] session started (tools + workspace initialized)
+L532: [system] session started (tools + workspace initialized)
+L533: [system] session started (tools + workspace initialized)
+L534: [system] session started (tools + workspace initialized)
+L535: [system] session started (tools + workspace initialized)
+L536: [system] session started (tools + workspace initialized)
+L537: [system] session started (tools + workspace initialized)
+L538: [system] session started (tools + workspace initialized)
+L539: [system] session started (tools + workspace initialized)
+L540: [system] session started (tools + workspace initialized)
+L541: [system] session started (tools + workspace initialized)
+L542: [system] session started (tools + workspace initialized)
+L543: [system] session started (tools + workspace initialized)
+L544: [system] session started (tools + workspace initialized)
+L545: [system] session started (tools + workspace initialized)
+L546: [system] session started (tools + workspace initialized)
+L547: [system] session started (tools + workspace initialized)
+L548: [system] session started (tools + workspace initialized)
+L549: [system] session started (tools + workspace initialized)
+L550: [system] session started (tools + workspace initialized)
+L551: [system] session started (tools + workspace initialized)
+L552: [system] session started (tools + workspace initialized)
+L553: [system] session started (tools + workspace initialized)
+L554: [system] session started (tools + workspace initialized)
+L555: [system] session started (tools + workspace initialized)
+L556: [system] session started (tools + workspace initialized)
+L557: [system] session started (tools + workspace initialized)
+L558: [system] session started (tools + workspace initialized)
+L559: [system] session started (tools + workspace initialized)
+L560: [system] session started (tools + workspace initialized)
+L561: [system] session started (tools + workspace initialized)
+L562: [system] session started (tools + workspace initialized)
+L563: [system] session started (tools + workspace initialized)
+L564: [system] session started (tools + workspace initialized)
+L565: [system] session started (tools + workspace initialized)
+L566: [system] session started (tools + workspace initialized)
+L567: [system] session started (tools + workspace initialized)
+L568: [system] session started (tools + workspace initialized)
+L569: [system] session started (tools + workspace initialized)
+L570: [system] session started (tools + workspace initialized)
+L571: [system] session started (tools + workspace initialized)
+L572: [system] session started (tools + workspace initialized)
+L573: [system] session started (tools + workspace initialized)
+L574: [system] session started (tools + workspace initialized)
+L575: [system] session started (tools + workspace initialized)
+L576: [system] session started (tools + workspace initialized)
+L577: [system] session started (tools + workspace initialized)
+L578: [system] session started (tools + workspace initialized)
+L579: [system] session started (tools + workspace initialized)
+L580: [system] session started (tools + workspace initialized)
+L581: [system] session started (tools + workspace initialized)
+L582: [system] session started (tools + workspace initialized)
+L583: [system] session started (tools + workspace initialized)
+L584: [system] session started (tools + workspace initialized)
+L585: [system] session started (tools + workspace initialized)
+L586: [system] session started (tools + workspace initialized)
+L587: [system] session started (tools + workspace initialized)
+L588: [system] session started (tools + workspace initialized)
+L589: [system] session started (tools + workspace initialized)
+L590: [system] session started (tools + workspace initialized)
+L591: [system] session started (tools + workspace initialized)
+L592: [system] session started (tools + workspace initialized)
+L593: [system] session started (tools + workspace initialized)
+L594: [system] session started (tools + workspace initialized)
+L595: [system] session started (tools + workspace initialized)
+L596: [system] session started (tools + workspace initialized)
+L597: [system] session started (tools + workspace initialized)
+L598: [system] session started (tools + workspace initialized)
+L599: [system] session started (tools + workspace initialized)
+L600: [system] session started (tools + workspace initialized)
+L601: [system] session started (tools + workspace initialized)
+L602: [system] session started (tools + workspace initialized)
+L603: [system] session started (tools + workspace initialized)
+L604: [system] session started (tools + workspace initialized)
+L605: [system] session started (tools + workspace initialized)
+L606: [system] session started (tools + workspace initialized)
+L607: [assistant] Now I have everything I need. The `tracksByObject` key is the node ID without the leading `/`, and each viewState property gets its own `BasicKeyframedTrack`. I'll write the animation: SF at t=0, LA at t=5.
+L608: [tool_use Write] {"file_path":"/tmp/noodles-evals/workspaces/animate-camera--claude-sonnet-4-6--s2/noodles-editor/src/examples/camera-tour/noodles.json","content":"{\n  \"version\": 14,\n  \"name\": \"Camera Tour\",\n  \"nodes\": [\n    {\n      \"id\": \"/basemap\",\n      \"type\": \"MaplibreBasemapOp\",\n      \"position\": { \"x\": 0, \"y\": 200 },\n      \"data\": {\n        \"inputs\": {\n          \"mapStyle\": \"https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json\",\n          \"viewState\": {\n            \"longitude\": -122.4194,\n            \"latitude\": 37.7749,\n            \"zoom\": 9,\n            \"pitch\": 0,\n            \"bearing\": 0\n          }\n        },\n        \"locked\": false\n      }\n    },\n    {\n      \"id\": \"/deck\",\n      \"type\": \"DeckRendererOp\",\n      \"position\": { \"x\": 350, \"y\": 100 },\n      \"data\": { \"inputs\": {}, \"locked\": false }\n    },\n    {\n      \"id\": \"/out\",\n      \"type\": \"OutOp\",\n      \"position\": { \"x\": 700, \"y\": 100 },\n      \"data\": {\n        \"inputs\": { \"display\": \"fixed\", \"width\": 1920, \"height\": 1080, \"framerate\": 30 },\n        \"locked\": false\n      }\n    }\n  ],\n  \"edges\": [\n    {\n      \"id\": \"/basemap.out.maplibre->/deck.par.basemap\",\n      \"source\": \"/basemap\",\n      \"target\": \"/deck\",\n      \"sourceHandle\": \"out.maplibre\",\n      \"targetHandle\": \"par.basemap\"\n    },\n    {\n      \"id\": \"/deck.out.vis->/out.par.vis\",\n      \"source\": \"/deck\",\n      \"target\": \"/out\",\n      \"sourceHandle\": \"out.vis\",\n      \"targetHandle\": \"par.vis\"\n    }\n  ],\n  \"viewport\": { \"x\": 0, \"y\": 0, \"zoom\": 1 },\n  \"editorSettings\": { \"layoutMode\": \"noodles-on-top\", \"showOverlay\": true },\n  \"timeline\": {\n    \"sheetsById\": {\n      \"Noodles\": {\n        \"staticOverrides\": { \"byObject\": {} },\n        \"sequence\": {\n          \"subUnitsPerUnit\": 30,\n          \"length\": 5,\n          \"type\": \"PositionalSequence\",\n          \"tracksByObject\": {\n            \"basemap\": {\n              \"trackIdByPropPath\": {\n                \"[\\\"viewState\\\",\\\"longitude\\\"]\": \"lngTrk001\",\n                \"[\\\"viewState\\\",\\\"latitude\\\"]\": \"latTrk001\",\n                \"[\\\"viewState\\\",\\\"zoom\\\"]\": \"zmTrk0001\",\n                \"[\\\"viewState\\\",\\\"pitch\\\"]\": \"ptTrk0001\",\n                \"[\\\"viewState\\\",\\\"bearing\\\"]\": \"brTrk0001\"\n              },\n              \"trackData\": {\n                \"lngTrk001\": {\n                  \"type\": \"BasicKeyframedTrack\",\n                  \"__debugName\": \"basemap:[\\\"viewState\\\",\\\"longitude\\\"]\",\n                  \"keyframes\": [\n                    {\n                      \"id\": \"kf_lng_0\",\n                      \"position\": 0,\n                      \"connectedRight\": true,\n                      \"handles\": [0.5, 1, 0.5, 0],\n                      \"type\": \"bezier\",\n                      \"value\": -122.4194\n                    },\n                    {\n                      \"id\": \"kf_lng_1\",\n                      \"position\": 5,\n                      \"connectedRight\": false,\n                      \"handles\": [0.5, 1, 0.5, 0],\n                      \"type\": \"bezier\",\n                      \"value\": -118.2437\n                    }\n                  ]\n                },\n                \"latTrk001\": {\n                  \"type\": \"BasicKeyframedTrack\",\n                  \"__debugName\": \"basemap:[\\\"viewState\\\",\\\"latitude\\\"]\",\n                  \"keyframes\": [\n                    {\n                      \"id\": \"kf_lat_0\",\n                      \"position\": 0,\n                      \"connectedRight\": true,\n                      \"handles\": [0.5, 1, 0.5, 0],\n                      \"type\": \"bezier\",\n                      \"value\": 37.7749\n                    },\n                    {\n                      \"id\": \"kf_lat_1\",\n                      \"position\": 5,\n                      \"connectedRight\": false,\n                      \"handles\": [0.5, 1, 0.5, 0],\n                      \"type\": \"bezier\",\n                      \"value\": 34.0522\n                    }\n                  ]\n                },\n                \"zmTrk0001\": {\n                  \"type\": \"BasicKeyframedTrack\",\n                  \"__debugName\": \"basemap:[\\\"viewState\\\",\\\"zoom\\\"]\",\n                  \"keyframes\": [\n                    {\n                      \"id\": \"kf_zm_0\",\n                      \"position\": 0,\n                      \"connectedRight\": true,\n                      \"handles\": [0.5, 1, 0.5, 0],\n                      \"type\": \"bezier\",\n                      \"value\": 9\n                    },\n                    {\n                      \"id\": \"kf_zm_1\",\n                      \"position\": 5,\n                      \"connectedRight\": false,\n                      \"handles\": [0.5, 1, 0.5, 0],\n                      \"type\": \"bezier\",\n                      \"value\": 9\n                    }\n                  ]\n                },\n                \"ptTrk0001\": {\n                  \"type\": \"BasicKeyframedTrack\",\n                  \"__debugName\": \"basemap:[\\\"viewState\\\",\\\"pitch\\\"]\",\n                  \"keyframes\": [\n                    {\n                      \"id\": \"kf_pt_0\",\n                      \"position\": 0,\n                      \"connectedRight\": true,\n                      \"handles\": [0.5, 1, 0.5, 0],\n                      \"type\": \"bezier\",\n                      \"value\": 0\n                    },\n                    {\n                      \"id\": \"kf_pt_1\",\n                      \"position\": 5,\n                      \"connectedRight\": false,\n                      \"handles\": [0.5, 1, 0.5, 0],\n                      \"type\": \"bezier\",\n                      \"value\": 0\n                    }\n                  ]\n                },\n                \"brTrk0001\": {\n                  \"type\": \"BasicKeyframedTrack\",\n                  \"__debugName\": \"basemap:[\\\"viewState\\\",\\\"bearing\\\"]\",\n                  \"keyframes\": [\n                    {\n                      \"id\": \"kf_br_0\",\n                      \"position\": 0,\n                      \"connectedRight\": true,\n                      \"handles\": [0.5, 1, 0.5, 0],\n                      \"type\": \"bezier\",\n                      \"value\": 0\n                    },\n                    {\n                      \"id\": \"kf_br_1\",\n                      \"position\": 5,\n                      \"connectedRight\": false,\n                      \"handles\": [0.5, 1, 0.5, 0],\n                      \"type\": \"bezier\",\n                      \"value\": 0\n                    }\n                  ]\n                }\n              }\n            }\n          },\n          \"markers\": []\n        }\n      }\n    },\n    \"definitionVersion\": \"0.4.0\",\n    \"revisionHistory\": []\n  }\n}\n"}
+L609: [tool_result] The file /tmp/noodles-evals/workspaces/animate-camera--claude-sonnet-4-6--s2/noodles-editor/src/examples/camera-tour/noodles.json has been updated successfully. (file state is current in your context — no need to Read it back)
+L610: [assistant] The camera-tour project now has a 5-second animation. Here's what was added to the `timeline` section:
+L611: 
+L612: - **Sequence length**: 5 seconds (`"length": 5`), 30 subunits/second
+L613: - **5 keyframed tracks** on the `/basemap` node's `viewState`:
+L614:   - **longitude**: `-122.4194` (SF) → `-118.2437` (LA)
+L615:   - **latitude**: `37.7749` (SF) → `34.0522` (LA)
+L616:   - **zoom**: `9` → `9` (constant — keeps a city-level view throughout)
+L617:   - **pitch** and **bearing**: both `0` → `0` (no tilt or rotation)
+L618: 
+L619: All keyframes use bezier easing (`handles: [0.5, 1, 0.5, 0]`) for a smooth ease-in/ease-out fly, matching the pattern from the other examples.
+L620: [result] The camera-tour project now has a 5-second animation. Here's what was added to the `timeline` section:
+L621: 
+L622: - **Sequence length**: 5 seconds (`"length": 5`), 30 subunits/second
+L623: - **5 keyframed tracks** on the `/basemap` node's `viewState`:
+L624:   - **longitude**: `-122.4194` (SF) → `-118.2437` (LA)
+L625:   - **latitude**: `37.7749` (SF) → `34.0522` (LA)
+L626:   - **zoom**: `9` → `9` (constant — keeps a city-level view throughout)
+L627:   - **pitch** and **bearing**: both `0` → `0` (no tilt or rotation)
+L628: 
+L629: All keyframes use bezier easing (`handles: [0.5, 1, 0.5, 0]`) for a smooth ease-in/ease-out fly, matching the pattern from the other examples.

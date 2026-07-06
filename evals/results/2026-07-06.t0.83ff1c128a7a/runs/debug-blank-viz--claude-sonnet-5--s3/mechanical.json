@@ -1,0 +1,35 @@
+{
+ "validatorVersion": "interim-2",
+ "pass": false,
+ "checks": {
+  "validateProject": {
+   "pass": true,
+   "detail": "ok"
+  },
+  "loadsWithoutConsoleErrors": {
+   "pass": true,
+   "detail": "ok"
+  },
+  "screenshotNonBlank": {
+   "pass": true,
+   "detail": "pixel stddev 21.89"
+  },
+  "custom:renderer-edge-restored": {
+   "pass": false,
+   "detail": "no edge into /deck.par.layers"
+  },
+  "custom:accessor-columns-fixed": {
+   "pass": true,
+   "detail": "position accessor expression: \"[d.Longitude, d.Latitude]\""
+  },
+  "custom:diagnosis-mentions-disconnection": {
+   "pass": false,
+   "detail": "final answer length 1038"
+  },
+  "custom:diagnosis-mentions-column-case": {
+   "pass": true,
+   "detail": "see final answer"
+  }
+ },
+ "score0to4": 2.857142857142857
+}

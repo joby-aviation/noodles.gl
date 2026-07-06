@@ -1,0 +1,44 @@
+{
+ "runId": "animate-camera--claude-opus-4-8--s1",
+ "series": "2026-07-06.t0.83ff1c128a7a",
+ "taskId": "animate-camera",
+ "taskVersion": 1,
+ "tier": "T0",
+ "commit": "83ff1c128a7a589ac95336db37b4f8d56a7dcf77",
+ "sessionModel": "us.anthropic.claude-opus-4-8",
+ "provider": "bedrock",
+ "region": "us-west-2",
+ "budget": {
+  "maxTurns": 40,
+  "maxWallClockSeconds": 1500
+ },
+ "numTurns": 1,
+ "durationMs": 318923,
+ "timedOut": false,
+ "exitCode": 0,
+ "isError": false,
+ "costUsd": 1.83005475,
+ "usage": {
+  "input_tokens": 2,
+  "cache_creation_input_tokens": 6200,
+  "cache_read_input_tokens": 48396,
+  "output_tokens": 312,
+  "server_tool_use": {
+   "web_search_requests": 0,
+   "web_fetch_requests": 0
+  },
+  "service_tier": "standard",
+  "cache_creation": {
+   "ephemeral_1h_input_tokens": 0,
+   "ephemeral_5m_input_tokens": 6200
+  },
+  "inference_geo": "",
+  "iterations": [],
+  "speed": "standard"
+ },
+ "isolationAudit": {
+  "pass": true,
+  "violations": []
+ },
+ "startedAt": "2026-07-06T08:17:18.386Z"
+}

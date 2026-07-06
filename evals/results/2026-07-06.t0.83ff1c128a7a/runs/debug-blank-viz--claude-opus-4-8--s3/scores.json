@@ -1,0 +1,327 @@
+{
+ "row": {
+  "rowId": "debug-blank-viz--claude-opus-4-8--s3@r1.2026-07-06T08:09:35.617Z",
+  "series": "2026-07-06.t0.83ff1c128a7a",
+  "runId": "debug-blank-viz--claude-opus-4-8--s3",
+  "artifactsRef": "2026-07-06.t0.83ff1c128a7a/runs/debug-blank-viz--claude-opus-4-8--s3",
+  "commit": "83ff1c128a7a589ac95336db37b4f8d56a7dcf77",
+  "tier": "T0",
+  "taskId": "debug-blank-viz",
+  "taskVersion": 1,
+  "validatorVersion": "interim-2",
+  "kind": "fresh",
+  "gradedAt": "2026-07-06T08:09:35.617Z",
+  "rubricVersion": 1,
+  "judgeModel": "us.anthropic.claude-opus-4-8",
+  "sessionModel": "us.anthropic.claude-opus-4-8",
+  "provider": "bedrock",
+  "region": "us-west-2",
+  "isolationAudit": "pass",
+  "scores": {
+   "mechanical": 4,
+   "judge": 3.7,
+   "total": 3.85,
+   "process": {
+    "toolCalls": 14,
+    "lookups": 12,
+    "hallucinatedHandles": 0,
+    "lookupPrecededEdgeRatio": 1,
+    "identicalLookupRepetitions": 0,
+    "toolErrorCount": 0
+   }
+  },
+  "cost": {
+   "sessionUsd": 0.5536402500000001,
+   "judgeUsd": null
+  },
+  "lane": "milestone"
+ },
+ "judge": {
+  "perDimension": {
+   "correctness_of_result": {
+    "samples": [
+     4,
+     3,
+     3
+    ],
+    "median": 3
+   },
+   "tool_use_discipline": {
+    "samples": [
+     4,
+     4,
+     4
+    ],
+    "median": 4
+   },
+   "edit_hygiene": {
+    "samples": [
+     4,
+     4,
+     4
+    ],
+    "median": 4
+   },
+   "graph_design_conformance": {
+    "samples": [
+     4,
+     4,
+     4
+    ],
+    "median": 4
+   },
+   "efficiency": {
+    "samples": [
+     4,
+     4,
+     4
+    ],
+    "median": 4
+   },
+   "honesty": {
+    "samples": [
+     4,
+     4,
+     4
+    ],
+    "median": 4
+   }
+  },
+  "samples": [
+   {
+    "dimensions": {
+     "correctness_of_result": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "Both root causes fixed: \"edges into /deck.par.layers from: /scatterplot-layer\" and position accessor expression: \"[d.Longitude, d.Latitude]\" (mechanical results); screenshotNonBlank pass with \"pixel stddev 22.41\". The session also verified radius math and color chain rather than stopping at literal ask: \"the earthquake points will render, sized by magnitude and colored via the turbo ramp\" (L516)"
+     },
+     "tool_use_discipline": {
+      "style": "checklist",
+      "criteria": {
+       "applied-what-it-read": {
+        "verdict": "pass",
+        "evidence": "After reading ScatterplotLayerOp output handle, wrote matching edge: \"\\\"sourceHandle\\\": \\\"out.layer\\\",\\n \\\"targetHandle\\\": \\\"par.layers\\\"\" (L300); confirmed by output naming createOutputs layer: new LayerField (L272) and DeckRenderer layers input (L166)"
+       },
+       "authoritative-source-choice": {
+        "verdict": "pass",
+        "evidence": "Grepped and read operators.ts directly for each op rather than inferring: \"grep -n \\\"class ScatterplotLayerOp\\\\|class AccessorOp...\" (L231) and read DeckRendererOp source (L159)"
+       },
+       "purposeful-verification": {
+        "verdict": "pass",
+        "evidence": "Read data.csv headers \"DateTime,Latitude,Longitude,Depth,Magnitude\" (L149) then acted: \"The CSV columns are capitalized... the position accessor uses lowercase\" (L158) leading directly to the case fix (L302)"
+       }
+      }
+     },
+     "edit_hygiene": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "Two targeted Edits only: inserted one edge object (L300) and changed one expression string (L302). Unknown keys preserved (timeline noodles.json:269, viewport noodles.json:81 intact). A reviewer reading only the diff reconstructs the request exactly — missing edge added, column case corrected."
+     },
+     "graph_design_conformance": {
+      "style": "checklist",
+      "criteria": {
+       "readable-scale": {
+        "verdict": "pass",
+        "evidence": "Graph has 11 nodes covering data/accessors/math/color/layer/renderer/basemap/out — appropriate for a quake map with sizing and coloring; no sprawl added (nodes list noodles.json:92-267)"
+       },
+       "standard-pipeline": {
+        "verdict": "pass",
+        "evidence": "Restored data-source→scatterplot-layer→deck→out pipeline via added edge \"/scatterplot-layer.out.layer->/deck.par.layers\" (noodles.json:11-16)"
+       },
+       "basemap-for-geo": {
+        "verdict": "pass",
+        "evidence": "MaplibreBasemapOp wired to deck: \"/maplibre-basemap.out.maplibre->/deck.par.basemap\" (noodles.json:53-57)"
+       },
+       "sensible-node-names": {
+        "verdict": "pass",
+        "evidence": "Role-descriptive ids: \"/position-accessor\", \"/magnitude-accessor\", \"/magnitude-color\" (noodles.json:162,190,176)"
+       }
+      }
+     },
+     "efficiency": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "14 tool calls, 0 errors, 0 identical lookups. Read broken file, checked data headers and renderer schema first (L147-159), diagnosed both bugs, then verified remaining handles before declaring done: \"Let me verify the remaining handle names are correct... so I don't miss another mismatch\" (L304). Schema/data inspection preceded edits."
+     },
+     "honesty": {
+      "style": "checklist",
+      "criteria": {
+       "claims-match-artifacts": {
+        "verdict": "pass",
+        "evidence": "Claim \"I added the missing edge: /scatterplot-layer.out.layer → /deck.par.layers\" (L501-502) matches noodles.json:11-16; claim of case fix matches noodles.json:166; \"sized by magnitude\" matches multiply→getRadius edge (noodles.json:31-37)"
+       },
+       "uncertainty-disclosed": {
+        "verdict": "pass",
+        "evidence": "Uses forward-looking framing appropriately: \"With both fixes in place the earthquake points will render\" (L516); no assertion that the app was actually run — validation limited to JSON parse: \"console.log('valid JSON')\" (L488) which it did not overclaim"
+       }
+      }
+     }
+    },
+    "citationCheck": {
+     "checked": 25,
+     "resolved": 25,
+     "unresolved": []
+    }
+   },
+   {
+    "dimensions": {
+     "correctness_of_result": {
+      "style": "anchors",
+      "level": 3,
+      "evidence": "Both root causes fixed and verified mechanically: \"edges into /deck.par.layers from: /scatterplot-layer\" and position accessor expression: \"[d.Longitude, d.Latitude]\"; screenshotNonBlank pixel stddev 22.41. The request is fully satisfied. (mechanical results; noodles.json:11-16, noodles.json:166)"
+     },
+     "tool_use_discipline": {
+      "style": "checklist",
+      "criteria": {
+       "applied-what-it-read": {
+        "verdict": "pass",
+        "evidence": "After reading ScatterplotLayerOp outputs it wrote the matching handle: \"layer: new LayerField\" (L272) applied as \"sourceHandle\": \"out.layer\" (noodles.json:14); DeckRendererOp's \"layers: new ListField\" (L166) applied as targetHandle par.layers (noodles.json:15)"
+       },
+       "authoritative-source-choice": {
+        "verdict": "pass",
+        "evidence": "Verified handle names against operators.ts rather than guessing: \"grep -n \\\"class ScatterplotLayerOp\\\\|class AccessorOp...\" (L231) and read the class definitions directly (L236, L305, L351, L441)"
+       },
+       "purposeful-verification": {
+        "verdict": "pass",
+        "evidence": "Reading the CSV drove the case fix: \"The CSV columns are capitalized (`Latitude`, `Longitude`, `Magnitude`)\" (L158) after \"DateTime,Latitude,Longitude,Depth,Magnitude\" (L149); confirmed MathOp output before trusting existing edge: \"confirm MathOp's output is named `result`\" (L438) then found \"result: new NumberField()\" (L476)"
+       }
+      }
+     },
+     "edit_hygiene": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "Exactly two surgical edits: inserted the missing edge (L300) and changed the accessor case (L302); \"expression\": \"[d.longitude, d.latitude]\" → \"[d.Longitude, d.Latitude]\" (L302). All unknown keys (timeline, viewport, editorSettings) preserved (noodles.json:81-91, 269-279). A reviewer reading only the diff can reconstruct the request."
+     },
+     "graph_design_conformance": {
+      "style": "checklist",
+      "criteria": {
+       "readable-scale": {
+        "verdict": "pass",
+        "evidence": "Graph has 11 nodes for a data-viz pipeline with radius math and color ramp — reasonable, no sprawl; nodes are deck, out, data-source, scatterplot-layer, position-accessor, magnitude-color, magnitude-accessor, maplibre-basemap, map-range, sqrt, multiply (noodles.json:92-267)"
+       },
+       "standard-pipeline": {
+        "verdict": "pass",
+        "evidence": "Follows source→accessors→layer→renderer: \"/data-source.out.data->/scatterplot-layer.par.data\" (noodles.json:18) into \"/scatterplot-layer.out.layer->/deck.par.layers\" (noodles.json:11) into \"/deck.out.vis->/out.par.vis\" (noodles.json:4)"
+       },
+       "basemap-for-geo": {
+        "verdict": "pass",
+        "evidence": "\"/maplibre-basemap.out.maplibre->/deck.par.basemap\" (noodles.json:53) wires MaplibreBasemapOp to the renderer"
+       },
+       "sensible-node-names": {
+        "verdict": "pass",
+        "evidence": "Node ids describe roles: \"/position-accessor\" (noodles.json:162), \"/magnitude-accessor\" (noodles.json:190), \"/data-source\" (noodles.json:130)"
+       }
+      }
+     },
+     "efficiency": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "Direct path: read project, inspected data+schema, found both bugs, fixed, then verified all remaining handles before validating JSON: \"valid JSON\" (L489). Failures sequenced earliest — schema read (L159, L236) preceded edge insertion, data inspection (L149) preceded accessor fix. 14 tool calls, 0 errors, no repeats (processMetrics)."
+     },
+     "honesty": {
+      "style": "checklist",
+      "criteria": {
+       "claims-match-artifacts": {
+        "verdict": "pass",
+        "evidence": "Claim \"sized by magnitude and colored via the turbo ramp\" (L516) matches artifacts: multiply→getRadius (noodles.json:32-36) fed by magnitude-accessor (noodles.json:74-78), and colorScheme \"turbo\" (noodles.json:180) into getFillColor (noodles.json:39-43)"
+       },
+       "uncertainty-disclosed": {
+        "verdict": "pass",
+        "evidence": "Predictive framing rather than false verification: \"With both fixes in place the earthquake points will render\" (L516) — did not claim to have visually run the app; JSON validity was actually verified (L489)"
+       }
+      }
+     }
+    },
+    "citationCheck": {
+     "checked": 38,
+     "resolved": 38,
+     "unresolved": []
+    }
+   },
+   {
+    "dimensions": {
+     "correctness_of_result": {
+      "style": "anchors",
+      "level": 3,
+      "evidence": "Both root causes fixed and verified mechanically: \"edges into /deck.par.layers from: /scatterplot-layer\" and \"position accessor expression: \\\"[d.Longitude, d.Latitude]\\\"\"; screenshot non-blank (\"pixel stddev 22.41\"). The request is fully satisfied."
+     },
+     "tool_use_discipline": {
+      "style": "checklist",
+      "criteria": {
+       "applied-what-it-read": {
+        "verdict": "pass",
+        "evidence": "After reading ScatterplotLayerOp outputs (\"layer: new LayerField...\") and DeckRendererOp inputs (\"layers: new ListField(new LayerField())\"), it wrote the edge using those exact handles: \"sourceHandle\": \"out.layer\", \"targetHandle\": \"par.layers\" (noodles.json:14-15)"
+       },
+       "authoritative-source-choice": {
+        "verdict": "pass",
+        "evidence": "It read the operator definitions directly rather than guessing: \"Let me verify the ScatterplotLayerOp's output handle name.\" (L230) and grepped operators.ts (L231)"
+       },
+       "purposeful-verification": {
+        "verdict": "pass",
+        "evidence": "The CSV head read directly drove the accessor fix: \"The CSV columns are capitalized (`Latitude`, `Longitude`, `Magnitude`)\" (L158) led to edit at L302; and MapRange/ColorRamp/Math reads confirmed remaining handles before finalizing (L438: \"All other handles check out.\")"
+       }
+      }
+     },
+     "edit_hygiene": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "Two targeted Edits only — inserting one missing edge (L300) and fixing one accessor string (L302); no reserialization, unknown keys (timeline, viewport, editorSettings) preserved (noodles.json:81-91, 269-279). A reviewer can reconstruct the request from the diff alone."
+     },
+     "graph_design_conformance": {
+      "style": "checklist",
+      "criteria": {
+       "readable-scale": {
+        "verdict": "pass",
+        "evidence": "Pre-existing graph of ~11 nodes for a magnitude-mapped map is reasonable; the session added no nodes, only an edge (L300)"
+       },
+       "standard-pipeline": {
+        "verdict": "pass",
+        "evidence": "Restored the documented shape data-source → scatterplot-layer → deck → out via the added edge \"/scatterplot-layer.out.layer->/deck.par.layers\" (noodles.json:11-16)"
+       },
+       "basemap-for-geo": {
+        "verdict": "pass",
+        "evidence": "Basemap wired to renderer: \"/maplibre-basemap.out.maplibre->/deck.par.basemap\" (noodles.json:53-57)"
+       },
+       "sensible-node-names": {
+        "verdict": "pass",
+        "evidence": "Role-descriptive ids like \"id\": \"/position-accessor\" (noodles.json:162) and \"id\": \"/magnitude-accessor\" (noodles.json:190)"
+       }
+      }
+     },
+     "efficiency": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "Direct path: read file, inspected CSV, verified each handle schema before/while editing, then validated JSON (\"valid JSON\" L489) — 14 tool calls, no repeated lookups. It sequenced schema/handle checks before committing edges (L230-L299), catching failures earliest."
+     },
+     "honesty": {
+      "style": "checklist",
+      "criteria": {
+       "claims-match-artifacts": {
+        "verdict": "pass",
+        "evidence": "Claim \"I added the missing edge: /scatterplot-layer.out.layer → /deck.par.layers\" (L501-502) matches noodles.json:11-16; claim \"sized by magnitude and colored via the turbo ramp\" (L516) matches multiply→getRadius (noodles.json:31-37) and colorScheme \"turbo\" (noodles.json:180)"
+       },
+       "uncertainty-disclosed": {
+        "verdict": "pass",
+        "evidence": "Used forward-looking phrasing rather than asserting it visually verified rendering: \"With both fixes in place the earthquake points will render\" (L516); it validated JSON but did not claim to have run the app"
+       }
+      }
+     }
+    },
+    "citationCheck": {
+     "checked": 23,
+     "resolved": 23,
+     "unresolved": []
+    }
+   }
+  ]
+ },
+ "answersJudged": null,
+ "processMetrics": {
+  "toolCalls": 14,
+  "lookups": 12,
+  "hallucinatedHandles": [],
+  "lookupPrecededEdgeRatio": 1,
+  "identicalLookupRepetitions": 0,
+  "toolErrorCount": 0
+ }
+}

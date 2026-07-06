@@ -1,0 +1,126 @@
+{
+  "version": 14,
+  "name": "Camera Tour",
+  "nodes": [
+    {
+      "id": "/basemap",
+      "type": "MaplibreBasemapOp",
+      "position": { "x": 0, "y": 200 },
+      "data": {
+        "inputs": {
+          "mapStyle": "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json",
+          "viewState": {
+            "longitude": -122.42,
+            "latitude": 37.77,
+            "zoom": 9,
+            "pitch": 0,
+            "bearing": 0
+          }
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/deck",
+      "type": "DeckRendererOp",
+      "position": { "x": 350, "y": 100 },
+      "data": { "inputs": {}, "locked": false }
+    },
+    {
+      "id": "/out",
+      "type": "OutOp",
+      "position": { "x": 700, "y": 100 },
+      "data": {
+        "inputs": { "display": "fixed", "width": 1920, "height": 1080, "framerate": 30 },
+        "locked": false
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "/basemap.out.maplibre->/deck.par.basemap",
+      "source": "/basemap",
+      "target": "/deck",
+      "sourceHandle": "out.maplibre",
+      "targetHandle": "par.basemap"
+    },
+    {
+      "id": "/deck.out.vis->/out.par.vis",
+      "source": "/deck",
+      "target": "/out",
+      "sourceHandle": "out.vis",
+      "targetHandle": "par.vis"
+    }
+  ],
+  "viewport": { "x": 0, "y": 0, "zoom": 1 },
+  "editorSettings": { "layoutMode": "noodles-on-top", "showOverlay": true },
+  "timeline": {
+    "sheetsById": {
+      "Noodles": {
+        "staticOverrides": { "byObject": {} },
+        "sequence": {
+          "subUnitsPerUnit": 30,
+          "length": 5,
+          "type": "PositionalSequence",
+          "tracksByObject": {
+            "basemap": {
+              "trackData": {
+                "lngTrack001": {
+                  "type": "BasicKeyframedTrack",
+                  "__debugName": "basemap:[\"viewState\",\"longitude\"]",
+                  "keyframes": [
+                    {
+                      "id": "kf_lng_0",
+                      "position": 0,
+                      "connectedRight": true,
+                      "handles": [0.5, 1, 0.5, 0],
+                      "type": "bezier",
+                      "value": -122.42
+                    },
+                    {
+                      "id": "kf_lng_1",
+                      "position": 5,
+                      "connectedRight": false,
+                      "handles": [0.5, 1, 0.5, 0],
+                      "type": "bezier",
+                      "value": -118.2437
+                    }
+                  ]
+                },
+                "latTrack001": {
+                  "type": "BasicKeyframedTrack",
+                  "__debugName": "basemap:[\"viewState\",\"latitude\"]",
+                  "keyframes": [
+                    {
+                      "id": "kf_lat_0",
+                      "position": 0,
+                      "connectedRight": true,
+                      "handles": [0.5, 1, 0.5, 0],
+                      "type": "bezier",
+                      "value": 37.77
+                    },
+                    {
+                      "id": "kf_lat_1",
+                      "position": 5,
+                      "connectedRight": false,
+                      "handles": [0.5, 1, 0.5, 0],
+                      "type": "bezier",
+                      "value": 34.0522
+                    }
+                  ]
+                }
+              },
+              "trackIdByPropPath": {
+                "[\"viewState\",\"longitude\"]": "lngTrack001",
+                "[\"viewState\",\"latitude\"]": "latTrack001"
+              }
+            }
+          },
+          "markers": []
+        }
+      }
+    },
+    "definitionVersion": "0.4.0",
+    "revisionHistory": []
+  }
+}

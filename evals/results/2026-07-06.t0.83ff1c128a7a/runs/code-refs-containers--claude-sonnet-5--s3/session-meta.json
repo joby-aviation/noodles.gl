@@ -1,0 +1,27 @@
+{
+ "runId": "code-refs-containers--claude-sonnet-5--s3",
+ "series": "2026-07-06.t0.83ff1c128a7a",
+ "taskId": "code-refs-containers",
+ "taskVersion": 1,
+ "tier": "T0",
+ "commit": "83ff1c128a7a589ac95336db37b4f8d56a7dcf77",
+ "sessionModel": "us.anthropic.claude-sonnet-5",
+ "provider": "bedrock",
+ "region": "us-west-2",
+ "budget": {
+  "maxTurns": 40,
+  "maxWallClockSeconds": 1500
+ },
+ "numTurns": null,
+ "durationMs": 1500112,
+ "timedOut": true,
+ "exitCode": 143,
+ "isError": true,
+ "costUsd": null,
+ "usage": null,
+ "isolationAudit": {
+  "pass": true,
+  "violations": []
+ },
+ "startedAt": "2026-07-06T08:31:45.376Z"
+}

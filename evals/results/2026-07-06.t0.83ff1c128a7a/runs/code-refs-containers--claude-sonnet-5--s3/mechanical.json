@@ -1,0 +1,27 @@
+{
+ "validatorVersion": "interim-2",
+ "pass": false,
+ "checks": {
+  "validateProject": {
+   "pass": false,
+   "detail": "noodles-editor/src/examples/quake-pipeline/noodles.json was not created"
+  },
+  "requiredNodeTypes": {
+   "pass": false,
+   "detail": "no artifact"
+  },
+  "loadsWithoutConsoleErrors": {
+   "pass": true,
+   "detail": "ok"
+  },
+  "screenshotNonBlank": {
+   "pass": true,
+   "detail": "pixel stddev 12.20"
+  },
+  "custom:artifactPresent": {
+   "pass": false,
+   "detail": "no parseable project produced"
+  }
+ },
+ "score0to4": 1.6
+}

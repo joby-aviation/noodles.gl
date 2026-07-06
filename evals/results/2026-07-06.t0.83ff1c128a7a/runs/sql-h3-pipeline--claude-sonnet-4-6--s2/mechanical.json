@@ -1,0 +1,19 @@
+{
+ "validatorVersion": "interim-2",
+ "pass": false,
+ "checks": {
+  "validateProject": {
+   "pass": false,
+   "detail": "noodles-editor/src/examples/quake-hexbins/noodles.json was not created"
+  },
+  "requiredNodeTypes": {
+   "pass": false,
+   "detail": "no artifact"
+  },
+  "custom:artifactPresent": {
+   "pass": false,
+   "detail": "no parseable project produced"
+  }
+ },
+ "score0to4": 0
+}

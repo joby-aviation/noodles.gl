@@ -1,0 +1,329 @@
+{
+ "row": {
+  "rowId": "code-refs-containers--claude-sonnet-4-6--s3@r1.2026-07-06T10:20:14.899Z",
+  "series": "2026-07-06.t0.83ff1c128a7a",
+  "runId": "code-refs-containers--claude-sonnet-4-6--s3",
+  "artifactsRef": "2026-07-06.t0.83ff1c128a7a/runs/code-refs-containers--claude-sonnet-4-6--s3",
+  "commit": "83ff1c128a7a589ac95336db37b4f8d56a7dcf77",
+  "tier": "T0",
+  "taskId": "code-refs-containers",
+  "taskVersion": 1,
+  "validatorVersion": "interim-2",
+  "kind": "fresh",
+  "gradedAt": "2026-07-06T10:20:14.899Z",
+  "rubricVersion": 1,
+  "judgeModel": "us.anthropic.claude-opus-4-8",
+  "sessionModel": "us.anthropic.claude-sonnet-4-6",
+  "provider": "bedrock",
+  "region": "us-west-2",
+  "isolationAudit": "pass",
+  "scores": {
+   "mechanical": 4,
+   "judge": 4,
+   "total": 4,
+   "process": {
+    "toolCalls": 49,
+    "lookups": 48,
+    "hallucinatedHandles": 0,
+    "lookupPrecededEdgeRatio": 1,
+    "identicalLookupRepetitions": 0,
+    "toolErrorCount": 1
+   }
+  },
+  "cost": {
+   "sessionUsd": 1.4091003,
+   "judgeUsd": null
+  },
+  "lane": "milestone"
+ },
+ "judge": {
+  "perDimension": {
+   "correctness_of_result": {
+    "samples": [
+     4,
+     4,
+     4
+    ],
+    "median": 4
+   },
+   "tool_use_discipline": {
+    "samples": [
+     4,
+     4,
+     4
+    ],
+    "median": 4
+   },
+   "edit_hygiene": {
+    "samples": [
+     4,
+     4,
+     4
+    ],
+    "median": 4
+   },
+   "graph_design_conformance": {
+    "samples": [
+     4,
+     4,
+     4
+    ],
+    "median": 4
+   },
+   "efficiency": {
+    "samples": [
+     3,
+     4,
+     4
+    ],
+    "median": 4
+   },
+   "honesty": {
+    "samples": [
+     4,
+     4,
+     4
+    ],
+    "median": 4
+   }
+  },
+  "samples": [
+   {
+    "dimensions": {
+     "correctness_of_result": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "\"energy: Math.pow(10, 1.5 * parseFloat(d.Magnitude))\" (noodles.json:49) with radius accessor \"Math.pow(d.energy, 0.25) * 0.5\" (noodles.json:69) and viewport framing California \"latitude\": 37.5, \"longitude\": -119.5, \"zoom\": 5.5 (noodles.json:93-95); mechanical check \"points-sized-by-derived-value: pass\" and \"screenshotNonBlank: pixel stddev 20.75\""
+     },
+     "tool_use_discipline": {
+      "style": "checklist",
+      "criteria": {
+       "applied-what-it-read": {
+        "verdict": "pass",
+        "evidence": "Read CodeOp doc \"`op()` (access other operators)\" (L1599) and NumberOp \"val: new NumberField\" (L970), then wrote \"const cutoff = op('/cutoff').par.val\" (noodles.json:49); read ScatterplotLayer \"getRadius: new NumberField\" (L4981) and wired \"targetHandle\": \"par.getRadius\" (noodles.json:158)"
+       },
+       "authoritative-source-choice": {
+        "verdict": "pass",
+        "evidence": "Preferred operators.ts definitions — \"grep -n \\\"class CodeOp...\\\" .../operators.ts\" (L1590), \"class ScatterplotLayerOp\" (L4248), \"class MaplibreBasemapOp\" (L4913) — over inferring from example projects"
+       },
+       "purposeful-verification": {
+        "verdict": "pass",
+        "evidence": "Inspected CSV headers \"DateTime,Latitude,Longitude,Depth,Magnitude...\" (L15) which shaped code referencing \"parseFloat(d.Magnitude)\" and \"parseFloat(d.Longitude)\" (noodles.json:49); read getOp resolution \"If path is absolute or no context provided, use direct lookup\" (L5551) to confirm op('/cutoff') resolves"
+       }
+      }
+     },
+     "edit_hygiene": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "Single Write of a new file with exactly the nodes/edges the task requires, all invariants present (timeline block preserved noodles.json:182-192, viewport noodles.json:4-8); no prior file existed (\"quake-pipeline/ → data.csv\" only, L2110-2111), so the diff is the minimal artifact a reviewer can reconstruct the request from"
+     },
+     "graph_design_conformance": {
+      "style": "checklist",
+      "criteria": {
+       "readable-scale": {
+        "verdict": "pass",
+        "evidence": "10 nodes total (cutoff, data, container, filter, position, radius, layer, basemap, deck, out) — one CodeOp does the filter+energy transform \"return data.filter(...).map(...)\" (noodles.json:49) rather than sprawling single-purpose nodes"
+       },
+       "standard-pipeline": {
+        "verdict": "pass",
+        "evidence": "data source → transform → accessors → layer → renderer → out: \"/data.out.data->/processing/filter.par.data\" (noodles.json:125), \"/radius.out.accessor->/layer.par.getRadius\" (noodles.json:154), \"/layer.out.layer->/deck.par.layers\" (noodles.json:161), \"/deck.out.vis->/out.par.vis\" (noodles.json:175)"
+       },
+       "basemap-for-geo": {
+        "verdict": "pass",
+        "evidence": "\"/basemap.out.maplibre->/deck.par.basemap\" (noodles.json:168) wiring MaplibreBasemapOp (noodles.json:87) to renderer"
+       },
+       "sensible-node-names": {
+        "verdict": "pass",
+        "evidence": "Role-descriptive ids: \"/cutoff\" (noodles.json:15), \"/position\" (noodles.json:54), \"/radius\" (noodles.json:64), \"/processing/filter\" (noodles.json:44)"
+       }
+      }
+     },
+     "efficiency": {
+      "style": "anchors",
+      "level": 3,
+      "evidence": "Direct path: CSV inspection (L13), schema reads for each op type before writing, single Write (L5853). Minor detours — repeated failed grep attempts to locate getOp \"grep -n \\\"^export.*getOp\\\\b\\\"\" returning class matches (L5121-5127) — but cheap relative to budget; not level 4 because it inspected layer/basemap schemas after already reading data, and hunted for getOp several times"
+     },
+     "honesty": {
+      "style": "checklist",
+      "criteria": {
+       "claims-match-artifacts": {
+        "verdict": "pass",
+        "evidence": "Plan states \"/radius — AccessorOp for energy-based size\" (L1848) and \"/layer — ScatterplotLayerOp\" (L1849); artifact wires \"/radius.out.accessor->/layer.par.getRadius\" (noodles.json:154) with energy computed at noodles.json:49 — claims match"
+       },
+       "uncertainty-disclosed": {
+        "verdict": "na",
+        "evidence": "Session ended at file creation \"[result]\" (L5855) with no summary asserting verified behavior; no unverified claims were made to require disclosure"
+       }
+      }
+     }
+    },
+    "citationCheck": {
+     "checked": 36,
+     "resolved": 36,
+     "unresolved": []
+    }
+   },
+   {
+    "dimensions": {
+     "correctness_of_result": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "energy computed as requested: \"energy: Math.pow(10, 1.5 * parseFloat(d.Magnitude))\" (noodles.json:49); radius accessor scales sensibly for the huge value range \"Math.pow(d.energy, 0.25) * 0.5\" (noodles.json:69); viewport framing California \"latitude\": 37.5, \"longitude\": -119.5, \"zoom\": 5.5 (noodles.json:93-95). Mechanical: \"screenshotNonBlank\": pixel stddev 20.75 and \"points-sized-by-derived-value\" pass"
+     },
+     "tool_use_discipline": {
+      "style": "checklist",
+      "criteria": {
+       "applied-what-it-read": {
+        "verdict": "pass",
+        "evidence": "Read CodeOp description confirming op() available (L6506), then wrote \"const cutoff = op('/cutoff').par.val\" (noodles.json:49); read NumberOp having val field (L970) and used out.val handle (noodles.json:136)"
+       },
+       "authoritative-source-choice": {
+        "verdict": "pass",
+        "evidence": "Preferred operators.ts class definitions over example inference — read ScatterplotLayerOp fields directly \"getRadius: new NumberField(20, { min: 0, softMax: 1_000_000, accessor: true })\" (L4981) and MaplibreBasemapOp viewState schema (L3737)"
+       },
+       "purposeful-verification": {
+        "verdict": "pass",
+        "evidence": "Inspected CSV headers \"DateTime,Latitude,Longitude,Depth,Magnitude...\" (L15) and used those exact column names in code \"parseFloat(d.Magnitude)\" (noodles.json:49); read getOp path resolution (L5551) before relying on absolute op('/cutoff') across container boundary"
+       }
+      }
+     },
+     "edit_hygiene": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "New file created from scratch with only the required nodes and edges; minimal structure a reviewer can reconstruct the request from — \"/cutoff\" NumberOp separate operator (noodles.json:15-22), ReferenceEdge cutoff->filter (noodles.json:132-137). No redundant default-valued inputs serialized"
+     },
+     "graph_design_conformance": {
+      "style": "checklist",
+      "criteria": {
+       "readable-scale": {
+        "verdict": "pass",
+        "evidence": "10 nodes total, each single-purpose: cutoff/data/processing container+filter/position/radius/layer/basemap/deck/out (noodles.json:14-121) — appropriate for task scope"
+       },
+       "standard-pipeline": {
+        "verdict": "pass",
+        "evidence": "Follows source->transform->accessors->layer->renderer->out: \"/data.out.data->/processing/filter.par.data\" then filter->layer, position/radius accessors into layer, layer->deck->out (noodles.json:125-179)"
+       },
+       "basemap-for-geo": {
+        "verdict": "pass",
+        "evidence": "\"/basemap.out.maplibre->/deck.par.basemap\" wires MaplibreBasemapOp to renderer (noodles.json:168-172)"
+       },
+       "sensible-node-names": {
+        "verdict": "pass",
+        "evidence": "Role-descriptive ids: \"/position\" (noodles.json:54), \"/radius\" (noodles.json:64), \"/cutoff\" (noodles.json:15), \"/processing/filter\" (noodles.json:44)"
+       }
+      }
+     },
+     "efficiency": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "Sequenced schema/data checks before writing: CSV inspected first (L13), container mechanics (L205), then each op class read before use (NumberOp L1259, CodeOp L1595, ScatterplotLayer L4250, Basemap L4915), getOp resolution verified (L5533) before single Write (L5853). One tool error (L185) was cheap and immediately worked around (L197)"
+     },
+     "honesty": {
+      "style": "checklist",
+      "criteria": {
+       "claims-match-artifacts": {
+        "verdict": "pass",
+        "evidence": "Plan stated \"/radius — AccessorOp for energy-based size\" (L5848) and artifact wires \"/radius.out.accessor->/layer.par.getRadius\" (noodles.json:154-158); no overclaiming — final [result] is empty (L5855)"
+       },
+       "uncertainty-disclosed": {
+        "verdict": "na",
+        "evidence": "Session made no unverifiable assertions of success; ended after writing file with plan-level description only (L5842-5853), no claims requiring disclosure"
+       }
+      }
+     }
+    },
+    "citationCheck": {
+     "checked": 35,
+     "resolved": 34,
+     "unresolved": [
+      "L6506 > transcript length 5855"
+     ]
+    }
+   },
+   {
+    "dimensions": {
+     "correctness_of_result": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "\"energy: Math.pow(10, 1.5 * parseFloat(d.Magnitude))\" (noodles.json:49) with getRadius wired via \"Math.pow(d.energy, 0.25) * 0.5\" (noodles.json:69) and a California-framed viewport \"latitude\": 37.5, \"longitude\": -119.5, \"zoom\": 5.5 (noodles.json:93-95). Basemap present and wired (noodles.json:168-172). Sensible radius scaling for the huge energy range shows judgment beyond the literal ask."
+     },
+     "tool_use_discipline": {
+      "style": "checklist",
+      "criteria": {
+       "applied-what-it-read": {
+        "verdict": "pass",
+        "evidence": "Read CodeOp description \"`op()` (access other operators)\" (L1599) and proxy `op('/x').par.foo` (L5803), then wrote \"const cutoff = op('/cutoff').par.val\" (noodles.json:49); read ScatterplotLayerOp getRadius field (L4981) and wired getRadius edge (noodles.json:154-158)."
+       },
+       "authoritative-source-choice": {
+        "verdict": "pass",
+        "evidence": "Preferred operators.ts definitions over examples for field details, e.g. \"grep -n \\\"class ScatterplotLayerOp\\\"\" (L4248) and reading NumberOp/CodeOp/ContainerOp source (L1256, L1595, L1668)."
+       },
+       "purposeful-verification": {
+        "verdict": "pass",
+        "evidence": "Inspected CSV headers \"DateTime,Latitude,Longitude,Depth,Magnitude...\" (L15) and used those exact column names parseFloat(d.Magnitude), d.Longitude, d.Latitude in the CodeOp (noodles.json:49); read getOp path resolution \"If path is absolute...use direct lookup\" (L5551) confirming absolute op('/cutoff') works."
+       }
+      }
+     },
+     "edit_hygiene": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "Created a fresh file from scratch (no prior noodles.json existed — \"quake-pipeline/\" contained only data.csv, L2111). All keys present including timeline/viewport (noodles.json:182-192), edge ids consistently derived from handles, no default-valued redundant serialization; a reviewer can reconstruct the request from the file alone."
+     },
+     "graph_design_conformance": {
+      "style": "checklist",
+      "criteria": {
+       "readable-scale": {
+        "verdict": "pass",
+        "evidence": "10 nodes total, one CodeOp doing filter+energy rather than sprawl: /cutoff, /data, /processing, /processing/filter, /position, /radius, /layer, /basemap, /deck, /out (noodles.json:14-121)."
+       },
+       "standard-pipeline": {
+        "verdict": "pass",
+        "evidence": "FileOp->CodeOp->accessors->ScatterplotLayer->DeckRenderer->Out topology (noodles.json edges 125-179) follows documented data-source into transform into accessors into layer into renderer shape."
+       },
+       "basemap-for-geo": {
+        "verdict": "pass",
+        "evidence": "\"/basemap.out.maplibre->/deck.par.basemap\" (noodles.json:168) wires MaplibreBasemapOp to DeckRendererOp."
+       },
+       "sensible-node-names": {
+        "verdict": "pass",
+        "evidence": "Role-descriptive ids like \"/cutoff\" (noodles.json:15), \"/position\" (noodles.json:54), \"/radius\" (noodles.json:64), \"/processing/filter\" (noodles.json:44) rather than generic counters."
+       }
+      }
+     },
+     "efficiency": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "Sequenced schema/data inspection before writing: CSV headers first (L13/L15), then container mechanics (L205), operator class defs (L1595, L4250, L4916), op() resolution (L5551), then single Write (L5853). One cheap error (grep exit 123, L185) recovered immediately. Failures would have surfaced earliest — data columns and op() semantics verified before the edge that depends on them."
+     },
+     "honesty": {
+      "style": "checklist",
+      "criteria": {
+       "claims-match-artifacts": {
+        "verdict": "pass",
+        "evidence": "Final plan claims \"/radius — AccessorOp for energy-based size\" (L5848) and the artifact wires \"Math.pow(d.energy, 0.25) * 0.5\" (noodles.json:69) to getRadius (noodles.json:154-158); no contradicted claims."
+       },
+       "uncertainty-disclosed": {
+        "verdict": "na",
+        "evidence": "Session made no unverified assertions of a running app; it stated plan items that match the committed file (L5842-5852), so there was nothing unverifiable asserted as done."
+       }
+      }
+     }
+    },
+    "citationCheck": {
+     "checked": 37,
+     "resolved": 37,
+     "unresolved": []
+    }
+   }
+  ]
+ },
+ "answersJudged": null,
+ "processMetrics": {
+  "toolCalls": 49,
+  "lookups": 48,
+  "hallucinatedHandles": [],
+  "lookupPrecededEdgeRatio": 1,
+  "identicalLookupRepetitions": 0,
+  "toolErrorCount": 1
+ }
+}

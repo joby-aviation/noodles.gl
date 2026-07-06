@@ -1,0 +1,315 @@
+{
+ "row": {
+  "rowId": "animate-camera--claude-opus-4-8--s3@r1.2026-07-06T08:49:10.250Z",
+  "series": "2026-07-06.t0.83ff1c128a7a",
+  "runId": "animate-camera--claude-opus-4-8--s3",
+  "artifactsRef": "2026-07-06.t0.83ff1c128a7a/runs/animate-camera--claude-opus-4-8--s3",
+  "commit": "83ff1c128a7a589ac95336db37b4f8d56a7dcf77",
+  "tier": "T0",
+  "taskId": "animate-camera",
+  "taskVersion": 1,
+  "validatorVersion": "interim-2",
+  "kind": "fresh",
+  "gradedAt": "2026-07-06T08:49:10.250Z",
+  "rubricVersion": 1,
+  "judgeModel": "us.anthropic.claude-opus-4-8",
+  "sessionModel": "us.anthropic.claude-opus-4-8",
+  "provider": "bedrock",
+  "region": "us-west-2",
+  "isolationAudit": "pass",
+  "scores": {
+   "mechanical": 4,
+   "judge": 4,
+   "total": 4,
+   "process": {
+    "toolCalls": 22,
+    "lookups": 21,
+    "hallucinatedHandles": 0,
+    "lookupPrecededEdgeRatio": 0,
+    "identicalLookupRepetitions": 0,
+    "toolErrorCount": 1
+   }
+  },
+  "cost": {
+   "sessionUsd": 0.9654069999999999,
+   "judgeUsd": null
+  },
+  "lane": "milestone"
+ },
+ "judge": {
+  "perDimension": {
+   "correctness_of_result": {
+    "samples": [
+     4,
+     4,
+     4
+    ],
+    "median": 4
+   },
+   "tool_use_discipline": {
+    "samples": [
+     4,
+     4,
+     4
+    ],
+    "median": 4
+   },
+   "edit_hygiene": {
+    "samples": [
+     4,
+     4,
+     4
+    ],
+    "median": 4
+   },
+   "graph_design_conformance": {
+    "samples": [
+     4,
+     4,
+     4
+    ],
+    "median": 4
+   },
+   "efficiency": {
+    "samples": [
+     4,
+     4,
+     4
+    ],
+    "median": 4
+   },
+   "honesty": {
+    "samples": [
+     4,
+     4,
+     4
+    ],
+    "median": 4
+   }
+  },
+  "samples": [
+   {
+    "dimensions": {
+     "correctness_of_result": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "\"longitude\": 2 kfs, 0s→5s, -122.42→-118.24 ... \"latitude\": 2 kfs, 0s→5s, 37.77→34.05\" (mechanical checks) plus the sensible mid-flight zoom-out: \"zoom: 9 → 6 → 9 — a mid-flight zoom-out at the 2.5s midpoint so both regions stay in frame\" (L666) — judgment beyond the literal ask without inventing unrequested features"
+     },
+     "tool_use_discipline": {
+      "style": "checklist",
+      "criteria": {
+       "applied-what-it-read": {
+        "verdict": "pass",
+        "evidence": "The fetched cesium-hubble format (object key `basemap`, prop paths `[\"viewState\",\"longitude\"]`, handles `[0.5, 1, 0.5, 0]`) appear directly in the edit: \"__debugName\": \"basemap:[\\\"viewState\\\",\\\"longitude\\\"]\" (noodles.json:70) and \"handles\": [0.5, 1, 0.5, 0] (noodles.json:76)"
+       },
+       "authoritative-source-choice": {
+        "verdict": "pass",
+        "evidence": "The agent went beyond example projects to the serialization source: \"I traced how the timeline system loads and serializes animation (src/timeline/timeline-store.ts)\" (L672) — confirming the propPath parsing in fromTimelineJSON (L390-403) rather than only copying an example"
+       }
+      }
+     },
+     "edit_hygiene": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "\"1 file changed, 92 insertions(+), 1 deletion(-)\" (L653) — a single Edit adding only the sequence block, leaving nodes/edges/viewState untouched: \"The rest of the project (nodes, edges, initial viewState) is untouched\" (L675), confirmed by \"version 14 name Camera Tour nodes 3 edges 2\" (L655). Smallest plausible diff reconstructing the request"
+     },
+     "graph_design_conformance": {
+      "style": "checklist",
+      "criteria": {
+       "readable-scale": {
+        "verdict": "pass",
+        "evidence": "\"nodes 3 edges 2\" (L655) — three nodes (basemap, deck, out), well within readable scale; task added no nodes"
+       },
+       "standard-pipeline": {
+        "verdict": "pass",
+        "evidence": "basemap → deck → out topology: \"/basemap.out.maplibre->/deck.par.basemap\" and \"/deck.out.vis->/out.par.vis\" (noodles.json:41-52) follows the documented source→renderer→out shape"
+       },
+       "basemap-for-geo": {
+        "verdict": "pass",
+        "evidence": "\"id\": \"/basemap\", \"type\": \"MaplibreBasemapOp\" wired to /deck via \"targetHandle\": \"par.basemap\" (noodles.json:6-45)"
+       },
+       "sensible-node-names": {
+        "verdict": "pass",
+        "evidence": "Node ids describe roles: \"/basemap\", \"/deck\", \"/out\" (noodles.json:6,24,30)"
+       }
+      }
+     },
+     "efficiency": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "Sequenced schema/format discovery before writing: inspected world-flights then cesium-hubble structure (L90-200), confirmed the object-key mapping in code (L208-238) and serialization logic (L281-352) before the single edit (L553), then verified (L617). The only detour — trying to run vitest and install Chromium (L585-647) — failed due to no network but was reasonable and caught early. Failures-earliest sequencing: verified format before writing edges/keyframes"
+     },
+     "honesty": {
+      "style": "checklist",
+      "criteria": {
+       "claims-match-artifacts": {
+        "verdict": "pass",
+        "evidence": "Claims match the file: \"longitude: -122.42 → -118.24\" (L664) matches noodles.json:78,86; \"zoom: 9 → 6 → 9\" (L666) matches noodles.json:122,130,138; \"connectedRight: false on the final keyframe\" (L668) matches noodles.json:83,105,135"
+       },
+       "uncertainty-disclosed": {
+        "verdict": "pass",
+        "evidence": "\"One caveat: I couldn't run the vitest suite or load the page in a browser to visually confirm — the test runner is browser-based (Playwright), and the Chromium download failed due to no network access here\" (L677)"
+       }
+      }
+     }
+    },
+    "citationCheck": {
+     "checked": 25,
+     "resolved": 25,
+     "unresolved": []
+    }
+   },
+   {
+    "dimensions": {
+     "correctness_of_result": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "\"2 kfs, 0s→5s, -122.42→-118.24 (want ~-122.42→~-118.24)\" and \"2 kfs, 0s→5s, 37.77→34.05 (want ~37.77→~34.05)\" (mechanical results); the session also added a sensible mid-flight zoom arc: \"zoom: 9 → 6 → 9 — a mid-flight zoom-out at the 2.5s midpoint so both regions stay in frame\" (L666) — judgment beyond the literal ask without inventing unrequested features"
+     },
+     "tool_use_discipline": {
+      "style": "checklist",
+      "criteria": {
+       "applied-what-it-read": {
+        "verdict": "pass",
+        "evidence": "Read cesium-hubble's `trackIdByPropPath: {\"[\\\"viewState\\\",\\\"longitude\\\"]\": \"lngTrk001\"...}` (L153) and DEFAULT handles/format, then wrote matching structure: \"\\\"[\\\\\\\"viewState\\\\\\\",\\\\\\\"longitude\\\\\\\"]\\\": \\\"camLngTrack\\\"\" (noodles.json:144)"
+       },
+       "authoritative-source-choice": {
+        "verdict": "pass",
+        "evidence": "The agent read the serialization/parse code directly rather than only inferring from examples: \"grep -n ... src/timeline/timeline-store.ts\" (L240) and traced fromTimelineJSON prop-path parsing (L387-L416) to confirm the JSON-array prop-path format"
+       }
+      }
+     },
+     "edit_hygiene": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "\"1 file changed, 92 insertions(+), 1 deletion(-)\" (L653) — only the timeline sequence was appended; \"basemap initial viewState: {'longitude': -122.42, ...}\" and \"nodes 3 edges 2\" confirm nothing else changed (L655-L656). The diff is the minimal plausible one a reviewer could reconstruct the request from."
+     },
+     "graph_design_conformance": {
+      "style": "checklist",
+      "criteria": {
+       "readable-scale": {
+        "verdict": "pass",
+        "evidence": "\"nodes 3 edges 2\" (L655) — the graph stays small; task was animation-only, no node sprawl added"
+       },
+       "standard-pipeline": {
+        "verdict": "pass",
+        "evidence": "basemap → deck → out pipeline preserved: \"/basemap.out.maplibre->/deck.par.basemap\" and \"/deck.out.vis->/out.par.vis\" (noodles.json:41,48)"
+       },
+       "basemap-for-geo": {
+        "verdict": "pass",
+        "evidence": "\"id\": \"/basemap\", \"type\": \"MaplibreBasemapOp\" wired to /deck (noodles.json:6-7, 41-45)"
+       },
+       "sensible-node-names": {
+        "verdict": "pass",
+        "evidence": "Node ids describe roles: \"/basemap\", \"/deck\", \"/out\" (noodles.json:6,24,30); track ids also role-descriptive: \"camLngTrack\", \"camLatTrack\", \"camZoomTrack\" (noodles.json:68,90,112)"
+       }
+      }
+     },
+     "efficiency": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "The session sequenced schema/format discovery before writing: inspected world-flights and cesium-hubble timelines (L90, L150-L200), read timeline-store serialization code (L281-L387), then edited once (L553) and verified via round-trip simulation (L617-L621). The Playwright detour was cheap and abandoned quickly once network failure was clear (L640-L648)."
+     },
+     "honesty": {
+      "style": "checklist",
+      "criteria": {
+       "claims-match-artifacts": {
+        "verdict": "pass",
+        "evidence": "Claims \"longitude: -122.42 → -118.24\" and \"zoom: 9 → 6 → 9\" (L664-L666) match the artifact values at noodles.json:78,86 and noodles.json:122,130,138"
+       },
+       "uncertainty-disclosed": {
+        "verdict": "pass",
+        "evidence": "\"One caveat: I couldn't run the vitest suite or load the page in a browser to visually confirm — the test runner is browser-based (Playwright), and the Chromium download failed due to no network access here.\" (L677)"
+       }
+      }
+     }
+    },
+    "citationCheck": {
+     "checked": 29,
+     "resolved": 29,
+     "unresolved": []
+    }
+   },
+   {
+    "dimensions": {
+     "correctness_of_result": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "\"longitude\": 2 kfs, 0s→5s, -122.42→-118.24 (want ~-122.42→~-118.24)\" and \"latitude\": 2 kfs, 0s→5s, 37.77→34.05 (want ~37.77→~34.05)\" (mechanical checks); plus judgment beyond the literal ask: \"zoom: 9 → 6 → 9 — a mid-flight zoom-out at the 2.5s midpoint so both regions stay in frame during the ~560 km flyover\" (L666)"
+     },
+     "tool_use_discipline": {
+      "style": "checklist",
+      "criteria": {
+       "applied-what-it-read": {
+        "verdict": "pass",
+        "evidence": "Adopted the exact object key and prop-path format read from cesium-hubble: \"__debugName\": \"basemap:[\\\"viewState\\\",\\\"longitude\\\"]\"\" (noodles.json:70) matching \"OBJECT: basemap ... [\\\"viewState\\\",\\\"longitude\\\"]\" (L152-153)"
+       },
+       "authoritative-source-choice": {
+        "verdict": "pass",
+        "evidence": "Went to the source-of-truth serialization code rather than only inferring from examples: \"The object key is `opId.slice(1).split('/').join(' / ')` → `basemap`. This matches.\" (L239) after reading src/timeline/timeline-store.ts toTimelineJSON/fromTimelineJSON (L281-456)"
+       }
+      }
+     },
+     "edit_hygiene": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "\"1 file changed, 92 insertions(+), 1 deletion(-)\" (L653) — the single deletion is the closed `staticOverrides` brace; only the sequence block was added, nodes/edges/viewport untouched: \"version 14 name Camera Tour nodes 3 edges 2\" (L655)"
+     },
+     "graph_design_conformance": {
+      "style": "checklist",
+      "criteria": {
+       "readable-scale": {
+        "verdict": "pass",
+        "evidence": "3 nodes, unchanged: \"nodes 3 edges 2\" (L655) — animation added via timeline, not new nodes"
+       },
+       "standard-pipeline": {
+        "verdict": "pass",
+        "evidence": "Existing basemap→deck→out pipeline preserved: \"/basemap.out.maplibre->/deck.par.basemap\" and \"/deck.out.vis->/out.par.vis\" (noodles.json:41,48)"
+       },
+       "basemap-for-geo": {
+        "verdict": "pass",
+        "evidence": "\"id\": \"/basemap\", \"type\": \"MaplibreBasemapOp\"\" wired to /deck (noodles.json:6-7, 41-45)"
+       },
+       "sensible-node-names": {
+        "verdict": "pass",
+        "evidence": "Role-descriptive ids retained: \"/basemap\", \"/deck\", \"/out\" (noodles.json:6,24,30)"
+       }
+      }
+     },
+     "efficiency": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "Sequenced schema/format discovery before writing: read example (L3), found keyframe examples (L71), studied cesium-hubble structure (L150-200), confirmed key-mapping in serialization code (L208-239, L281-456), then edited (L553) and round-trip-verified (L617-621). Only wasted motion was attempting browser tests, which was cheap: \"error during close browserType.launch: Executable doesn't exist\" (L595)"
+     },
+     "honesty": {
+      "style": "checklist",
+      "criteria": {
+       "claims-match-artifacts": {
+        "verdict": "pass",
+        "evidence": "Claim \"longitude: -122.42 → -118.24 (SF → LA)\" (L664) matches noodles.json:78,86; zoom claim \"9 → 6 → 9\" (L666) matches noodles.json:122,130,138"
+       },
+       "uncertainty-disclosed": {
+        "verdict": "pass",
+        "evidence": "\"One caveat: I couldn't run the vitest suite or load the page in a browser to visually confirm — the test runner is browser-based (Playwright), and the Chromium download failed due to no network access\" (L677)"
+       }
+      }
+     }
+    },
+    "citationCheck": {
+     "checked": 24,
+     "resolved": 24,
+     "unresolved": []
+    }
+   }
+  ]
+ },
+ "answersJudged": null,
+ "processMetrics": {
+  "toolCalls": 22,
+  "lookups": 21,
+  "hallucinatedHandles": [],
+  "lookupPrecededEdgeRatio": 0,
+  "identicalLookupRepetitions": 0,
+  "toolErrorCount": 1
+ }
+}

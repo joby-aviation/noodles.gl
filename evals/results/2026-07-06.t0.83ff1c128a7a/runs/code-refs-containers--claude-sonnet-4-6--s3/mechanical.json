@@ -1,0 +1,43 @@
+{
+ "validatorVersion": "interim-2",
+ "pass": true,
+ "checks": {
+  "validateProject": {
+   "pass": true,
+   "detail": "ok"
+  },
+  "requiredNodeTypes": {
+   "pass": true,
+   "detail": "ok"
+  },
+  "loadsWithoutConsoleErrors": {
+   "pass": true,
+   "detail": "ok"
+  },
+  "screenshotNonBlank": {
+   "pass": true,
+   "detail": "pixel stddev 20.75"
+  },
+  "custom:container-present": {
+   "pass": true,
+   "detail": "1 ContainerOp(s)"
+  },
+  "custom:container-has-functional-children": {
+   "pass": true,
+   "detail": "children: /processing/filter (CodeOp)"
+  },
+  "custom:code-op-present": {
+   "pass": true,
+   "detail": "1 code-ish node(s)"
+  },
+  "custom:op-reference-resolves": {
+   "pass": true,
+   "detail": "op('/cutoff') in /processing/filter"
+  },
+  "custom:points-sized-by-derived-value": {
+   "pass": true,
+   "detail": "getRadius = undefined (edges in: 1)"
+  }
+ },
+ "score0to4": 4
+}

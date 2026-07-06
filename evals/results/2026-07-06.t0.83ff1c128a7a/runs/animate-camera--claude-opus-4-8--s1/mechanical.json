@@ -1,0 +1,35 @@
+{
+ "validatorVersion": "interim-2",
+ "pass": true,
+ "checks": {
+  "validateProject": {
+   "pass": true,
+   "detail": "ok"
+  },
+  "loadsWithoutConsoleErrors": {
+   "pass": true,
+   "detail": "ok"
+  },
+  "screenshotNonBlank": {
+   "pass": true,
+   "detail": "pixel stddev 27.02"
+  },
+  "custom:camera-tracks-present": {
+   "pass": true,
+   "detail": "on /basemap (MaplibreBasemapOp)"
+  },
+  "custom:sequence-covers-5s": {
+   "pass": true,
+   "detail": "sequence.length = 5"
+  },
+  "custom:longitude-keyframes": {
+   "pass": true,
+   "detail": "2 kfs, 0s→5s, -122.4194→-118.2437 (want ~-122.42→~-118.24)"
+  },
+  "custom:latitude-keyframes": {
+   "pass": true,
+   "detail": "2 kfs, 0s→5s, 37.7749→34.0522 (want ~37.77→~34.05)"
+  }
+ },
+ "score0to4": 4
+}

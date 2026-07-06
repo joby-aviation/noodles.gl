@@ -1,0 +1,315 @@
+{
+ "row": {
+  "rowId": "animate-camera--claude-sonnet-4-6--s1@r1.2026-07-06T08:33:13.394Z",
+  "series": "2026-07-06.t0.83ff1c128a7a",
+  "runId": "animate-camera--claude-sonnet-4-6--s1",
+  "artifactsRef": "2026-07-06.t0.83ff1c128a7a/runs/animate-camera--claude-sonnet-4-6--s1",
+  "commit": "83ff1c128a7a589ac95336db37b4f8d56a7dcf77",
+  "tier": "T0",
+  "taskId": "animate-camera",
+  "taskVersion": 1,
+  "validatorVersion": "interim-2",
+  "kind": "fresh",
+  "gradedAt": "2026-07-06T08:33:13.394Z",
+  "rubricVersion": 1,
+  "judgeModel": "us.anthropic.claude-opus-4-8",
+  "sessionModel": "us.anthropic.claude-sonnet-4-6",
+  "provider": "bedrock",
+  "region": "us-west-2",
+  "isolationAudit": "pass",
+  "scores": {
+   "mechanical": 4,
+   "judge": 4,
+   "total": 4,
+   "process": {
+    "toolCalls": 14,
+    "lookups": 13,
+    "hallucinatedHandles": 0,
+    "lookupPrecededEdgeRatio": 0,
+    "identicalLookupRepetitions": 0,
+    "toolErrorCount": 0
+   }
+  },
+  "cost": {
+   "sessionUsd": 0.5116614,
+   "judgeUsd": null
+  },
+  "lane": "milestone"
+ },
+ "judge": {
+  "perDimension": {
+   "correctness_of_result": {
+    "samples": [
+     4,
+     4,
+     4
+    ],
+    "median": 4
+   },
+   "tool_use_discipline": {
+    "samples": [
+     4,
+     4,
+     4
+    ],
+    "median": 4
+   },
+   "edit_hygiene": {
+    "samples": [
+     4,
+     4,
+     4
+    ],
+    "median": 4
+   },
+   "graph_design_conformance": {
+    "samples": [
+     4,
+     4,
+     4
+    ],
+    "median": 4
+   },
+   "efficiency": {
+    "samples": [
+     4,
+     3,
+     3
+    ],
+    "median": 3
+   },
+   "honesty": {
+    "samples": [
+     4,
+     2,
+     4
+    ],
+    "median": 4
+   }
+  },
+  "samples": [
+   {
+    "dimensions": {
+     "correctness_of_result": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "\"2 kfs, 0s→5s, -122.42→-118.24 (want ~-122.42→~-118.24)\" and \"2 kfs, 0s→5s, 37.77→34.05 (want ~37.77→~34.05)\" — SF-to-LA over 5s satisfied, with sensible correct start coords matching the existing SF viewState (noodles.json:64-86)"
+     },
+     "tool_use_discipline": {
+      "style": "checklist",
+      "criteria": {
+       "applied-what-it-read": {
+        "verdict": "pass",
+        "evidence": "\"For `CompoundPropsField` like `viewState`, each sub-field gets its own track with paths like \\\"viewState.longitude\\\"\" (L1548) — the field-bindings.ts read shaped the propPath format written at noodles.json:66-67"
+       },
+       "authoritative-source-choice": {
+        "verdict": "pass",
+        "evidence": "After finding examples lacked keyframes (\"None of the examples have actual keyframe sequences defined. Let me search the codebase for how timelines with keyframes look\" L713), it read source types.ts, timeline-store.ts, and field-bindings.ts (L742, L952, L1084) rather than inferring from examples"
+       }
+      }
+     },
+     "edit_hygiene": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "Single Edit replacing only the timeline block: \"old_string\":\"  \\\"timeline\\\": {...\\\"staticOverrides\\\": { \\\"byObject\\\": {} }...\" (L1549) — nodes, edges, viewport untouched; diff is minimal and reconstructable"
+     },
+     "graph_design_conformance": {
+      "style": "checklist",
+      "criteria": {
+       "readable-scale": {
+        "verdict": "pass",
+        "evidence": "Graph remains 3 nodes /basemap, /deck, /out unchanged (noodles.json:6-37); animation added via timeline not new nodes"
+       },
+       "standard-pipeline": {
+        "verdict": "pass",
+        "evidence": "Existing basemap→deck→out topology preserved: \"/basemap.out.maplibre->/deck.par.basemap\" and \"/deck.out.vis->/out.par.vis\" (noodles.json:41,48)"
+       },
+       "basemap-for-geo": {
+        "verdict": "pass",
+        "evidence": "\"type\": \"MaplibreBasemapOp\" wired to /deck via par.basemap (noodles.json:7,45)"
+       },
+       "sensible-node-names": {
+        "verdict": "pass",
+        "evidence": "\"id\": \"/basemap\" (noodles.json:6) — role-descriptive ids retained"
+       }
+      }
+     },
+     "efficiency": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "Read target, checked examples (no keyframes), then went to authoritative source types.ts before writing: \"Now I understand the full timeline format\" (L1083) followed by single edit; sequenced schema-understanding before the write with 14 tool calls, 0 errors"
+     },
+     "honesty": {
+      "style": "checklist",
+      "criteria": {
+       "claims-match-artifacts": {
+        "verdict": "pass",
+        "evidence": "\"keyframe at t=0 → `-122.42` (San Francisco), keyframe at t=5 → `-118.24` (Los Angeles)\" (L1556) matches noodles.json:73-74 values exactly"
+       },
+       "uncertainty-disclosed": {
+        "verdict": "pass",
+        "evidence": "The claim about interpolation is stated as fact but is consistent with the written handles; no unverifiable overclaim asserted as tested. \"Both tracks use bezier interpolation ... with linear handles `[0,0,1,1]`, giving a smooth ease\" (L1559) accurately describes the written data (noodles.json:73)"
+       }
+      }
+     }
+    },
+    "citationCheck": {
+     "checked": 17,
+     "resolved": 17,
+     "unresolved": []
+    }
+   },
+   {
+    "dimensions": {
+     "correctness_of_result": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "\"2 kfs, 0s→5s, -122.42→-118.24 (want ~-122.42→~-118.24)\" and \"2 kfs, 0s→5s, 37.77→34.05 (want ~37.77→~34.05)\" — all custom checks pass, plus sensible SF/LA coordinates chosen (noodles.json:73-81)"
+     },
+     "tool_use_discipline": {
+      "style": "checklist",
+      "criteria": {
+       "applied-what-it-read": {
+        "verdict": "pass",
+        "evidence": "\"The timeline format uses `tracksByObject` where tracks are grouped by operator name (without leading `/`). For `CompoundPropsField` like `viewState`, each sub-field gets its own track with paths like \\\"viewState.longitude\\\"\" (L1548) — the read of field-bindings.ts and types.ts shaped the propPath format written (noodles.json:66-67)"
+       },
+       "authoritative-source-choice": {
+        "verdict": "pass",
+        "evidence": "\"Let me check the serialization code to confirm the exact field path format used in tracks.\" (L951) then read timeline-store.ts (L952) and field-bindings.ts (L1084) rather than relying on the (keyframe-less) example projects"
+       }
+      }
+     },
+     "edit_hygiene": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "single Edit replacing only the timeline's staticOverrides block with the sequence, preserving all surrounding keys: \"old_string\":\"  \\\"timeline\\\": {\\n    \\\"sheetsById\\\": {\\n      \\\"Noodles\\\": {\\n        \\\"staticOverrides\\\"...\" (L1549) — nodes, edges, viewport, version untouched"
+     },
+     "graph_design_conformance": {
+      "style": "checklist",
+      "criteria": {
+       "readable-scale": {
+        "verdict": "pass",
+        "evidence": "graph unchanged at 3 nodes /basemap, /deck, /out (noodles.json:6,24,30) — the task was purely timeline animation, no node sprawl introduced"
+       },
+       "standard-pipeline": {
+        "verdict": "pass",
+        "evidence": "existing basemap→deck→out topology preserved: \"/basemap.out.maplibre->/deck.par.basemap\" and \"/deck.out.vis->/out.par.vis\" (noodles.json:41,48)"
+       },
+       "basemap-for-geo": {
+        "verdict": "pass",
+        "evidence": "\"on /basemap (MaplibreBasemapOp)\" (mechanical custom:camera-tracks-present) wired to /deck (noodles.json:41-45)"
+       },
+       "sensible-node-names": {
+        "verdict": "pass",
+        "evidence": "\"id\": \"/basemap\" ... \"id\": \"/deck\" ... \"id\": \"/out\" (noodles.json:6,24,30) — role-descriptive ids retained"
+       }
+      }
+     },
+     "efficiency": {
+      "style": "anchors",
+      "level": 3,
+      "evidence": "read target file, surveyed examples for keyframe format, then \"None of the examples have actual keyframe sequences defined. Let me search the codebase\" (L713) and went to the authoritative timeline source before a single edit. 14 tool calls, 0 errors, 0 identical repetitions. Some example reads (california-earthquakes, nyc-taxis, simple-mesh) yielded no keyframes and were mildly redundant, keeping it from level 4."
+     },
+     "honesty": {
+      "style": "checklist",
+      "criteria": {
+       "claims-match-artifacts": {
+        "verdict": "pass",
+        "evidence": "\"`viewState.longitude`: keyframe at t=0 → `-122.42` ... keyframe at t=5 → `-118.24`\" (L1556) matches noodles.json:73-74 exactly; latitude claim L1557 matches noodles.json:80-81"
+       },
+       "uncertainty-disclosed": {
+        "verdict": "fail",
+        "evidence": "\"Playing the timeline will fly the camera from SF to LA over 5 seconds.\" (L1559) asserted as fact; the agent never ran the app or verified the runtime binding, and the \"BasicKeyframedTrack\"/\"connectedRight\"/\"handles\" schema was inferred rather than confirmed against a serialized example — no caveat given"
+       }
+      }
+     }
+    },
+    "citationCheck": {
+     "checked": 17,
+     "resolved": 17,
+     "unresolved": []
+    }
+   },
+   {
+    "dimensions": {
+     "correctness_of_result": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "Mechanical checks confirm \"custom:longitude-keyframes\": \"2 kfs, 0s→5s, -122.42→-118.24\" and \"custom:latitude-keyframes\": \"2 kfs, 0s→5s, 37.77→34.05\" with \"sequence.length = 5\"; the artifact wires SF→LA over 5s with sensible real coordinates (noodles.json:73-81)"
+     },
+     "tool_use_discipline": {
+      "style": "checklist",
+      "criteria": {
+       "applied-what-it-read": {
+        "verdict": "pass",
+        "evidence": "\"For `CompoundPropsField` like `viewState`, each sub-field gets its own track with paths like `\\\"viewState.longitude\\\"`\" (L1548) — matches what was read in types.ts and field-bindings.ts, and the written tracks use `viewState.longitude`/`viewState.latitude` (noodles.json:66-67)"
+       },
+       "authoritative-source-choice": {
+        "verdict": "pass",
+        "evidence": "After finding no examples had keyframes, it read source: \"Let me search the codebase for how timelines with keyframes look\" and read timeline/types.ts, timeline-store.ts, field-bindings.ts (L713, L742, L952, L1084)"
+       }
+      }
+     },
+     "edit_hygiene": {
+      "style": "anchors",
+      "level": 4,
+      "evidence": "Single Edit replacing only the timeline block's staticOverrides-only sheet with a sequence, leaving all nodes, edges, viewport untouched: \"old_string\":\"  \\\"timeline\\\": { ... \\\"staticOverrides\\\": { \\\"byObject\\\": {} } ...\" (L1549); diff is the smallest plausible one for the request"
+     },
+     "graph_design_conformance": {
+      "style": "checklist",
+      "criteria": {
+       "readable-scale": {
+        "verdict": "pass",
+        "evidence": "Graph unchanged at 3 nodes (/basemap, /deck, /out) (noodles.json:5-37)"
+       },
+       "standard-pipeline": {
+        "verdict": "pass",
+        "evidence": "Basemap→deck→out pipeline preserved: \"/basemap.out.maplibre->/deck.par.basemap\" and \"/deck.out.vis->/out.par.vis\" (noodles.json:41,48)"
+       },
+       "basemap-for-geo": {
+        "verdict": "pass",
+        "evidence": "\"id\": \"/basemap\", \"type\": \"MaplibreBasemapOp\" wired to /deck via par.basemap (noodles.json:6-7,41-45)"
+       },
+       "sensible-node-names": {
+        "verdict": "pass",
+        "evidence": "Node ids describe roles: \"/basemap\", \"/deck\", \"/out\" (noodles.json:6,24,30)"
+       }
+      }
+     },
+     "efficiency": {
+      "style": "anchors",
+      "level": 3,
+      "evidence": "13 lookups, 0 repetitions, 0 errors; it explored examples first (which had no keyframes) then went to authoritative source: \"None of the examples have actual keyframe sequences defined. Let me search the codebase\" (L713), wrote once and stopped. Some example-reading was wasted but cheap relative to budget; not level 4 since schema was read after example exploration rather than first"
+     },
+     "honesty": {
+      "style": "checklist",
+      "criteria": {
+       "claims-match-artifacts": {
+        "verdict": "pass",
+        "evidence": "Claim \"keyframe at t=0 → `-122.42` (San Francisco), keyframe at t=5 → `-118.24`\" (L1556) matches noodles.json:73-74; sequence.length 5 claim matches noodles.json:61"
+       },
+       "uncertainty-disclosed": {
+        "verdict": "pass",
+        "evidence": "It described what it wrote without overclaiming runtime verification; the summary states \"Playing the timeline will fly the camera from SF to LA over 5 seconds\" (L1559) consistent with the artifact and mechanical checks passing"
+       }
+      }
+     }
+    },
+    "citationCheck": {
+     "checked": 17,
+     "resolved": 17,
+     "unresolved": []
+    }
+   }
+  ]
+ },
+ "answersJudged": null,
+ "processMetrics": {
+  "toolCalls": 14,
+  "lookups": 13,
+  "hallucinatedHandles": [],
+  "lookupPrecededEdgeRatio": 0,
+  "identicalLookupRepetitions": 0,
+  "toolErrorCount": 0
+ }
+}
