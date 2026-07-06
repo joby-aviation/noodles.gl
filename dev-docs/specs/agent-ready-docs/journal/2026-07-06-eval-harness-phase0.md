@@ -153,3 +153,48 @@ failing localhost fetch (missing data.csv) still counts against the project.
   fit. D5 pins budgets precisely so this registers as a low score, and lighter lookups at
   higher tiers are expected to move exactly this number. Also noted: the CLI's reported
   `num_turns` can exceed `--max-turns` by one (31 vs 30) — counting nuance, recorded as-is.
+
+## 2026-07-06 — T0 findings: where the headroom is, and what the ceilings mean
+
+Steps 1–4 are complete with this entry (scaffold → mechanical graders → judge orchestration →
+committed T0 baseline for the two phase-0 tasks). Step 5 — the remaining five tasks, the full
+T0 baseline across them, and judge calibration — is the next unit of work, and it must finish
+**before the first cross-tier claim is published** (D4 makes calibration a precondition; the
+practical deadline is the first tier-unlock milestone run, i.e. before 01's landing gets a T1
+comparison).
+
+Reading the baseline (scorecard in `evals/results/2026-07-06.t0.83ff1c128a7a/scorecard.md`):
+
+1. **Score headroom lives in the failing cells, and both failures are the program's target
+   failure classes.** sonnet-4-6 authoring (1.60): all three sessions left FileOp's `format`
+   at its `json` default for a CSV — a guessed default instead of a checked one — and one
+   hallucinated `radiusMinPixels` from deck.gl memory (caught by the handle-lint). sonnet-5
+   knowledge (1.23): two of three sessions spent the 30-turn budget verifying in an 8k-line
+   `operators.ts` and never wrote `answers.json`. Reference pages (01), the machine-readable
+   surface (02), and MCP lookups (03) are hypothesized to move exactly these two numbers.
+
+2. **Saturated cells (opus at 4.00 on both tasks) still carry measurable improvement — on the
+   efficiency axis, not the score axis.** A 4.00 at T0 costs opus ~26 turns / ~22 lookups /
+   ~$1.12 per authoring session, most of it grepping `operators.ts` for field schemas. If a
+   tier landing keeps the score at 4.00 but halves turns/lookups/cost, that is a real,
+   reportable gain — so the scorecard now carries per-cell medians for turns, lookups, and
+   session cost alongside the scores (report.ts change, same rubric/validator, no regrade
+   needed — these are Layer-3/meta facts already frozen per run). The spec's open question on
+   cost-normalized quality (score per dollar) becomes answerable the moment there are two
+   tiers to compare.
+
+3. **The efficiency columns also explain the failures.** sonnet-4-6's failed authoring runs
+   took 9 turns / 7 lookups — fast, cheap, and wrong — against opus's 26/22 slow-and-right.
+   The lookup deficit *is* the tool-use-discipline story the rubric and Layer 3 exist to
+   catch; at higher tiers the bet is that being right stops requiring being slow.
+
+4. **"Too easy?" — split verdict, revisit at step 5.** author-scatterplot is easy *for opus*
+   but flunked a current mid-tier model on a real schema gap; the step-5 tasks
+   (debug-blank-viz, sql-h3-pipeline, animate-camera, code-refs-containers) are structurally
+   harder and should pull opus off the ceiling. contextualize-operator's high scores are
+   working-as-intended (the questions are deliberately lookup-verifiable; the pressure is the
+   budget), and its judge 4.00s are provisional until calibration — anchored judges are known
+   to be generous at the top, and a calibration-driven anchor sharpening would regrade the
+   whole series forward (D5). If opus still pins 4.00 across all seven tasks after step 5,
+   *that* is the "tasks too easy" verdict, answered with harder task versions (explicit
+   taskVersion bumps, new comparison series per D7).
