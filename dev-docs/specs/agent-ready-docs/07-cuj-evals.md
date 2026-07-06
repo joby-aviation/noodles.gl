@@ -141,7 +141,7 @@ Either way the workflow appends a machine-readable row to the series and comment
 2. Mechanical graders: Playwright load + screenshot check reusing the app's existing Playwright setup; validation via 04's `validateProject()` (interim: schema + handle-lint inline until 04 lands).
 3. `judge-prompt.md` + first rubric YAML; `grade.ts` orchestration (3 samples, median, evidence required).
 4. **Run the T0 baseline for the two tasks; commit results.** This is the program's "before" photo — do it before any roadmap sub-plan merges.
-5. Add the remaining tasks; complete the T0 baseline across all of them; record the noise band.
+5. Add the remaining tasks; complete the T0 baseline across all of them; record the noise band; run judge calibration on the T0 transcripts (both maintainers hand-grade, compute per-dimension agreement, anchor/decompose failing dimensions per D4) before any tier comparison is published.
 6. Surfacing (D6): the sticky-comment `docs-metrics` job in `test.yml`; `run-evals.yml` with dispatch + label triggers and the delta comment; `evals/results/index.json` series + badge endpoint.
 7. Re-run at each roadmap landing (tier unlock) + the matching ablation; `report.ts` longitudinal output linked from this spec directory.
 
