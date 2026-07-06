@@ -96,6 +96,8 @@ Tiers are enforced by environment construction, not by asking the agent to absta
 
 Judge mechanics: the judge receives the task, rubric, artifacts, and transcript; scores each dimension 0–4 **with a cited quote/line per score**; three independent judge samples, median taken; judge model and prompt pinned per season and recorded in results. Judges never see the tier label (blind to the hypothesis).
 
+**Judge calibration (before any cross-tier claim).** An LLM judge is itself an instrument that needs calibrating, and the T0 baseline transcripts are the calibration set: both maintainers independently hand-grade them against the same rubric YAML — blind to each other's scores and to the judge's — then per-dimension agreement between the human consensus and the LLM judge is computed (with the 0–4 scale, exact + adjacent agreement is enough; no need for anything fancier at this sample size). Any dimension below the agreement threshold is not trusted as-is: rewrite it by **anchoring** (add concrete per-score exemplars to the rubric — "a 2 on tool-use discipline looks like this transcript excerpt") or **decomposing** (split a mushy dimension like "correctness of result" into narrower yes/no sub-questions), then re-run the judge on the same transcripts until agreement clears the bar. Calibration results (per-dimension agreement, threshold, rubric revisions made) are recorded alongside the series; cross-tier claims may only cite dimensions that passed. Where the two humans disagree with *each other* beyond the threshold, the dimension is underspecified for humans too — that's a rubric bug, not a judge bug, and it gets the same anchoring treatment.
+
 **Layer 3 — process metrics (counted, not judged).** Hallucinated field/handle names per run (extractable: every `out.X`/`par.X` written, checked against the registry), validation-failure→retry cycles, lookups performed vs available. These are the diagnostic layer: when T3 beats T0, these say *why*.
 
 ### D5. Runner
@@ -146,8 +148,9 @@ Either way the workflow appends a machine-readable row to the series and comment
 ## Verification
 
 1. Two T0 baseline runs on the same commit produce scores within noise of each other (run-to-run variance is known before any cross-tier claim is made).
-2. A deliberately broken artifact (invalid handles) scores ≤ 40% regardless of judge output.
-3. Judge evidence citations resolve to real transcript/file locations on spot-check.
+2. Judge calibration on the T0 transcripts: both maintainers independently hand-grade against the rubric YAML; per-dimension agreement with the LLM judge is computed; every dimension used in a cross-tier claim clears the agreement threshold (rewritten via anchoring or decomposition if not, per D4).
+3. A deliberately broken artifact (invalid handles) scores ≤ 40% regardless of judge output.
+4. Judge evidence citations resolve to real transcript/file locations on spot-check.
 
 ## Dependencies
 
