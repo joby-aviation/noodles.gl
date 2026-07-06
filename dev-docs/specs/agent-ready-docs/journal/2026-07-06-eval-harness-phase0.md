@@ -198,3 +198,36 @@ Reading the baseline (scorecard in `evals/results/2026-07-06.t0.83ff1c128a7a/sco
    whole series forward (D5). If opus still pins 4.00 across all seven tasks after step 5,
    *that* is the "tasks too easy" verdict, answered with harder task versions (explicit
    taskVersion bumps, new comparison series per D7).
+
+## 2026-07-06 — step-5 harness half complete: full 7-task T0 baseline
+
+The five remaining tasks landed (with custom Layer-1 checks, seeded/golden fixtures, and
+polarity self-tests) and the 45-session baseline ran and graded clean — 63 total T0 runs in the
+series, ~$53 of session cost, every isolation audit passing. Scorecard:
+`evals/results/2026-07-06.t0.83ff1c128a7a/scorecard.md`. What the new tasks measured:
+
+- **The difficulty gradient the phase-0 pair lacked now exists.** Ceilings: `animate-camera`
+  (4.00 everywhere — every model found cesium-hubble and imitated its tracks; keyframe
+  authoring is not a T0 gap) and `modify-arcs` (3.85–4.00 — every model dodged the shared-
+  ColorOp trap). Mid: `author-scatterplot`, `debug-blank-viz`, `contextualize-operator`
+  (model-separating). Floors: `sql-h3-pipeline` (0.30–0.47, all models) and
+  `code-refs-containers` (1.10–1.60 median, one lone 4.00).
+- **Research-until-death is the dominant T0 failure mode on unverifiable tasks.** All nine
+  sql-h3 sessions — opus included — exhausted their budgets (turn cap, or for opus on
+  code-refs the 25-minute wall clock) without writing ANY artifact: no model falls back to
+  best-effort authoring when it can't verify. The mechanical checks only require coherent
+  wiring, so the task is completable by an agent that knows the pattern — docs/MCP teaching
+  the pattern is precisely the intervention these cells measure.
+- **Opus inverted on code-refs-containers** (all three sessions failed at ~$2.2 each, while a
+  sonnet-4-6 session that "winged it" scored the only 4.00) — thoroughness becomes a liability
+  when the resources can't answer the question being researched.
+- `debug-blank-viz`'s two-defect design worked: weaker sessions consistently found the accessor
+  bug and shipped without noticing the disconnected renderer; opus found both, 3/3.
+- One transient judge-output parse failure across 190+ judge samples; the retry graded clean.
+
+Calibration: worksheets now cover all 63 runs (`c01`–`c63`); the shared 12-sheet sample
+(stratified across rubric families, tasks, models, and pass/fail outcomes) is published in
+`evals/calibration/README.md` — codes only, so the outcome stratification doesn't leak run
+identities. Remaining step-5 work is the human half: both maintainers grade the shared sample,
+then `calibrate.ts --agreement` decides which dimensions are trusted (and item 5b's
+regrade-after-bump follows if any anchor gets sharpened).

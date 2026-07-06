@@ -36,8 +36,10 @@ Commit your filled folder when done (`calibration/materials/` stays local).
 
 ## Which sheets
 
-> **Shared sample: _posted here after the full 7-task baseline is graded —
-> hold off until then._**
+> **Shared sample** (stratified across both rubric families, all 7 tasks, all
+> 3 session models, and a pass/fail mix — codes only, on purpose):
+>
+> **c01 · c04 · c14 · c16 · c33 · c34 · c37 · c41 · c47 · c53 · c56 · c59**
 
 Both graders grade exactly that sample (overlap is required: human↔human
 agreement is what separates rubric bugs from judge bugs). Extra sheets are
