@@ -30,6 +30,9 @@ import { useLocation, useParams } from 'wouter'
 import { globalContextManager } from '../ai-chat/global-context-manager'
 import { getPendingQuickStartAction } from '../components/quick-start-modal'
 import { analytics } from '../utils/analytics'
+import type { NoodlesProject } from '../ai-chat/types'
+import { setCurrentProject, setModificationApplier } from '../webmcp/bridge'
+import { externalControl } from './globals'
 import { getKeysForProject, getKeysStore } from './keys-store'
 import newProjectJSON from './new.json'
 import { BitmapOverlayWidget, type BitmapOverlayWidgetProps } from './widgets/bitmap-overlay-widget'
@@ -376,6 +379,7 @@ export function getNoodles(): Visualization {
 
   // Use shared hook for project modifications
   const {
+    applyModifications,
     onConnect: onConnectBase,
     onNodesDelete: onNodesDeleteBase,
     updateOperatorId,
@@ -385,6 +389,20 @@ export function getNoodles(): Visualization {
     setNodes,
     setEdges,
   })
+
+  // Keep the WebMCP tool surface in sync with editor state when external
+  // control is enabled (?externalControl=true)
+  useEffect(() => {
+    if (!externalControl) return
+    setModificationApplier(applyModifications)
+    return () => setModificationApplier(null)
+  }, [applyModifications])
+
+  useEffect(() => {
+    if (!externalControl) return
+    // ReactFlow edges type sourceHandle as string | null; the project shape uses undefined
+    setCurrentProject({ nodes, edges } as NoodlesProject)
+  }, [nodes, edges])
 
   // Wrap onConnect to mark unsaved changes
   const onConnect = useCallback(

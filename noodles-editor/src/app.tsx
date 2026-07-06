@@ -2,6 +2,7 @@ import { Component, lazy, type ReactNode, Suspense, useEffect } from 'react'
 import { Redirect, Route, Router, Switch, useRoute, useSearchParams } from 'wouter'
 import { AnalyticsConsentBanner } from './components/analytics-consent-banner'
 import { type ModalView, QuickStartModal } from './components/quick-start-modal'
+import { externalControl } from './noodles/globals'
 import { useUIStore } from './noodles/store'
 import TimelineEditor from './timeline-editor'
 import { debugApp } from './utils/debug'
@@ -9,6 +10,8 @@ import { debugApp } from './utils/debug'
 const ExternalControlProvider = lazy(() =>
   import('./external-control').then(m => ({ default: m.ExternalControlProvider }))
 )
+
+const WebMCPProvider = lazy(() => import('./webmcp').then(m => ({ default: m.WebMCPProvider })))
 
 // Error boundary to catch analytics failures
 class AnalyticsErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
@@ -41,14 +44,16 @@ function App() {
 
   // Check if external control should be enabled based on URL params
   const urlParams = new URLSearchParams(window.location.search)
-  const enableExternalControl = urlParams.get('externalControl') === 'true'
   const externalControlDebug = urlParams.get('externalControlDebug') === 'true'
 
   return (
     <Router base={baseUrl}>
-      {/* External control provider - only enable when requested via URL params */}
-      {enableExternalControl && (
+      {/* External control providers - only enabled when requested via URL params.
+          WebMCPProvider registers tools on navigator.modelContext (primary path);
+          ExternalControlProvider is the legacy WebSocket bridge. */}
+      {externalControl && (
         <Suspense fallback={null}>
+          <WebMCPProvider />
           <ExternalControlProvider
             autoConnect={false}
             debug={externalControlDebug}

@@ -33,6 +33,10 @@ export class MCPTools {
     this.project = project
   }
 
+  getProject(): NoodlesProject | null {
+    return this.project
+  }
+
   // Extract common operator properties to avoid duplication
   private mapOperatorProperties(op: {
     type: string

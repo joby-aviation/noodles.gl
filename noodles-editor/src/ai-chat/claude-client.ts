@@ -6,6 +6,7 @@ import {
 } from './conversation-compaction'
 import type { MCPTools } from './mcp-tools'
 import systemPromptTemplate from './system-prompt.md?raw'
+import { getToolDefinition, toolDefinitions } from './tool-definitions'
 import type {
   ClaudeResponse,
   Message,
@@ -381,225 +382,27 @@ export class ClaudeClient {
   }
 
   private getTools(): Anthropic.Tool[] {
-    // Essential tools for visualization, debugging, and project state manipulation
-    return [
-      // Visual debugging tools
-      {
-        name: 'capture_visualization',
-        description:
-          'Capture a screenshot of the current visualization. The screenshot will be attached to your next message so you can see it.',
-        input_schema: {
-          type: 'object',
-          properties: {
-            includeUI: { type: 'boolean' },
-            format: { type: 'string', enum: ['png', 'jpeg'] },
-            quality: { type: 'number', description: 'JPEG quality 0-1, default 0.7' },
-          },
-        },
-      },
-      {
-        name: 'get_console_errors',
-        description: 'Get recent browser console errors and warnings',
-        input_schema: {
-          type: 'object',
-          properties: {
-            since: { type: 'number' },
-            level: { type: 'string', enum: ['error', 'warn', 'all'] },
-            maxResults: { type: 'number' },
-          },
-        },
-      },
-      {
-        name: 'get_render_stats',
-        description: 'Get deck.gl rendering statistics',
-        input_schema: {
-          type: 'object',
-          properties: {},
-        },
-      },
-      {
-        name: 'inspect_layer',
-        description: 'Get layer information',
-        input_schema: {
-          type: 'object',
-          properties: {
-            layerId: { type: 'string' },
-          },
-          required: ['layerId'],
-        },
-      },
-      // Project state tools
-      {
-        name: 'apply_modifications',
-        description:
-          'Apply modifications to the project (add/update/delete nodes or edges). Use this instead of returning JSON in text.',
-        input_schema: {
-          type: 'object',
-          properties: {
-            modifications: {
-              type: 'array',
-              description: 'Array of modifications to apply',
-              items: {
-                type: 'object',
-                properties: {
-                  type: {
-                    type: 'string',
-                    enum: ['add_node', 'update_node', 'delete_node', 'add_edge', 'delete_edge'],
-                  },
-                  data: {
-                    type: 'object',
-                    description: 'The node or edge data',
-                  },
-                },
-                required: ['type', 'data'],
-              },
-            },
-          },
-          required: ['modifications'],
-        },
-      },
-      {
-        name: 'get_current_project',
-        description: 'Get the current project state including all nodes and edges',
-        input_schema: {
-          type: 'object',
-          properties: {},
-        },
-      },
-      {
-        name: 'list_nodes',
-        description: 'List all nodes in the project with their current state and execution status',
-        input_schema: {
-          type: 'object',
-          properties: {},
-        },
-      },
-      {
-        name: 'get_node_info',
-        description:
-          'Get detailed information about a specific node including connections and schema',
-        input_schema: {
-          type: 'object',
-          properties: {
-            nodeId: { type: 'string', description: 'The ID of the node to inspect' },
-          },
-          required: ['nodeId'],
-        },
-      },
-      {
-        name: 'get_node_output',
-        description:
-          'Read the output data from a specific operator/node. Useful for inspecting data at any point in the pipeline.',
-        input_schema: {
-          type: 'object',
-          properties: {
-            nodeId: { type: 'string', description: 'The ID of the node to read output from' },
-            maxRows: {
-              type: 'number',
-              description: 'Maximum number of rows to return (default: 10)',
-            },
-          },
-          required: ['nodeId'],
-        },
-      },
-      // Timeline tools
-      {
-        name: 'get_timeline',
-        description:
-          'Get the current animation timeline state: sequence length, FPS, playback position, and all animated tracks with their keyframes. Use this before adding keyframes to understand the current animation.',
-        input_schema: {
-          type: 'object',
-          properties: {},
-        },
-      },
-      {
-        name: 'set_keyframe',
-        description:
-          'Add or update a keyframe on an animated field. Track IDs follow the pattern "operator-name / fieldName" (e.g. "my-layer / opacity"). Position is in seconds. Interpolation is "bezier" (smooth) or "hold" (step). If a keyframe already exists within 1 frame of the position, it will be updated.',
-        input_schema: {
-          type: 'object',
-          properties: {
-            trackId: {
-              type: 'string',
-              description: 'Track identifier in format "operator-name / fieldName"',
-            },
-            position: { type: 'number', description: 'Time position in seconds' },
-            value: { description: 'The value at this keyframe (number, boolean, or string)' },
-            interpolation: {
-              type: 'string',
-              enum: ['bezier', 'hold'],
-              description: 'Interpolation type (default: bezier)',
-            },
-          },
-          required: ['trackId', 'position', 'value'],
-        },
-      },
-      {
-        name: 'delete_keyframe',
-        description: 'Delete a specific keyframe by its ID. Use get_timeline to find keyframe IDs.',
-        input_schema: {
-          type: 'object',
-          properties: {
-            trackId: { type: 'string', description: 'The track containing the keyframe' },
-            keyframeId: { type: 'string', description: 'The keyframe ID to delete' },
-          },
-          required: ['trackId', 'keyframeId'],
-        },
-      },
-      {
-        name: 'set_playback_position',
-        description:
-          'Scrub the timeline to a specific time position (in seconds) for inspection. Optionally start or stop playback.',
-        input_schema: {
-          type: 'object',
-          properties: {
-            position: { type: 'number', description: 'Time in seconds to seek to' },
-            play: {
-              type: 'boolean',
-              description: 'true to start playback, false to pause, omit to leave unchanged',
-            },
-          },
-          required: ['position'],
-        },
-      },
-    ]
+    // Essential tools for visualization, debugging, and project state manipulation;
+    // definitions with exposeToChat: false stay executable but aren't offered here
+    return toolDefinitions
+      .filter(def => def.exposeToChat !== false)
+      .map(def => ({
+        name: def.name,
+        description: def.description,
+        input_schema: def.inputSchema as Anthropic.Tool['input_schema'],
+      }))
   }
 
   private async executeTool(name: string, params: unknown): Promise<ToolResult> {
-    // params comes from Claude's tool_use with validated schema
-    // Using any here since we're dispatching to properly typed methods
-    // biome-ignore lint/suspicious/noExplicitAny: params validated by Anthropic SDK schema
-    const methodMap: Record<string, (params: any) => Promise<ToolResult>> = {
-      search_code: p => this.tools.searchCode(p),
-      get_source_code: p => this.tools.getSourceCode(p),
-      get_operator_schema: p => this.tools.getOperatorSchema(p),
-      list_operators: p => this.tools.listOperators(p),
-      get_documentation: p => this.tools.getDocumentation(p),
-      get_example: p => this.tools.getExample(p),
-      list_examples: p => this.tools.listExamples(p),
-      find_symbol: p => this.tools.findSymbol(p),
-      analyze_project: p => this.tools.analyzeProject(p),
-      capture_visualization: p => this.tools.captureVisualization(p),
-      get_console_errors: p => this.tools.getConsoleErrors(p),
-      get_render_stats: () => this.tools.getRenderStats(),
-      inspect_layer: p => this.tools.inspectLayer(p),
-      apply_modifications: p => this.tools.applyModifications(p),
-      get_current_project: () => this.tools.getCurrentProject(),
-      list_nodes: () => this.tools.listNodes(),
-      get_node_info: p => this.tools.getNodeInfo(p),
-      get_node_output: p => this.tools.getNodeOutput(p),
-      get_timeline: () => this.tools.getTimeline(),
-      set_keyframe: p => this.tools.setKeyframe(p),
-      delete_keyframe: p => this.tools.deleteKeyframe(p),
-      set_playback_position: p => this.tools.setPlaybackPosition(p),
-    }
-
-    const method = methodMap[name]
-    if (!method) {
+    const definition = getToolDefinition(name)
+    if (!definition) {
       return { success: false, error: `Unknown tool: ${name}` }
     }
 
-    return method(params)
+    // params comes from Claude's tool_use with validated schema
+    return definition.execute(this.tools, (params ?? {}) as Record<string, unknown>, () =>
+      this.tools.getProject()
+    )
   }
 
   private extractProjectModifications(text: string): ProjectModification[] {
