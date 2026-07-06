@@ -28,6 +28,38 @@ interface ProjectNode {
 
 const NODE_ID_RE = /^\/[A-Za-z0-9_\-./ ]*$/
 
+function isDirectChild(childId: string | undefined, parentId: string | undefined): boolean {
+  if (!childId || !parentId) return false
+  return childId.startsWith(`${parentId}/`) && !childId.slice(parentId.length + 1).includes('/')
+}
+
+function isContainerBridge(
+  edge: ProjectEdge,
+  nodeById: Map<string, ProjectNode>
+): boolean {
+  const source = edge.source ? nodeById.get(edge.source) : undefined
+  const target = edge.target ? nodeById.get(edge.target) : undefined
+  if (
+    source?.type === 'ContainerOp' &&
+    target?.type === 'GraphInputOp' &&
+    edge.sourceHandle === 'par.in' &&
+    edge.targetHandle === 'par.parentValue' &&
+    isDirectChild(edge.target, edge.source)
+  ) {
+    return true
+  }
+  if (
+    source?.type === 'GraphOutputOp' &&
+    target?.type === 'ContainerOp' &&
+    edge.sourceHandle === 'out.propagatedValue' &&
+    edge.targetHandle === 'out.out' &&
+    isDirectChild(edge.source, edge.target)
+  ) {
+    return true
+  }
+  return false
+}
+
 export function validateProject(
   raw: string,
   registry: Registry,
@@ -93,6 +125,13 @@ export function validateProject(
         errors.push(`edge ${label}: ${end} ${JSON.stringify(id)} does not reference an existing node`)
       }
     }
+
+    // Container bridge edges (created by the app itself, node-creation-utils):
+    // ContainerOp.par.in → child GraphInputOp.par.parentValue (input→input) and
+    // child GraphOutputOp.out.propagatedValue → ContainerOp.out.out (out→out).
+    // interim-2: these two exact shapes are exempt from the prefix rules.
+    if (isContainerBridge(edge, nodeById)) continue
+
     if (typeof edge.sourceHandle !== 'string' || !edge.sourceHandle.startsWith('out.')) {
       errors.push(`edge ${label}: sourceHandle ${JSON.stringify(edge.sourceHandle)} must carry the "out." prefix`)
     }

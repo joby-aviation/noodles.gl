@@ -19,7 +19,12 @@ export interface TaskDefinition {
   family: string
   tags: string[]
   budget: { maxTurns: number; maxWallClockSeconds: number }
-  workspace?: { fixtures?: TaskFixture[] }
+  workspace?: {
+    fixtures?: TaskFixture[]
+    /** existing project (workspace-relative) the task modifies; snapshotted
+     * before the session so checks can diff before/after */
+    project?: string
+  }
   grader: {
     rubric: string
     artifact: string
@@ -28,6 +33,8 @@ export interface TaskDefinition {
       load?: { route: string; screenshot: string }
       requiredNodeTypes?: string[]
       answers?: { file: string; key: string }
+      /** task-specific checks, dispatched from lib/task-checks by this id */
+      custom?: string
     }
   }
   body: string

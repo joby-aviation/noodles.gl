@@ -142,6 +142,89 @@ test('median', () => {
   assert.equal(median([1, 4]), 2.5)
 })
 
+// ---- step-5 task goldens: validity + custom-check polarity ----
+
+const fixturesDir = path.join(REPO_ROOT, 'evals', 'tasks', 'fixtures')
+const loadJson = (p: string) => JSON.parse(fs.readFileSync(p, 'utf-8'))
+const golden = (id: string) => loadJson(path.join(fixturesDir, 'golden', `${id}.noodles.json`))
+const allPass = (r: Record<string, { pass: boolean; detail?: string }>) => {
+  const failing = Object.entries(r).filter(([, v]) => !v.pass)
+  assert.ok(failing.length === 0, failing.map(([k, v]) => `${k}: ${v.detail}`).join('; '))
+}
+const someFail = (r: Record<string, { pass: boolean }>) => {
+  assert.ok(
+    Object.values(r).some(v => !v.pass),
+    'expected at least one failing check'
+  )
+}
+
+test('every golden fixture passes the interim validator (incl. container bridges)', async () => {
+  const { CUSTOM_CHECKS } = await import('./lib/task-checks')
+  for (const id of Object.keys(CUSTOM_CHECKS)) {
+    const result = validateProject(JSON.stringify(golden(id)), registry, version)
+    assert.ok(result.valid, `${id} golden: ${result.errors.slice(0, 3).join('; ')}`)
+  }
+  // the seeded-broken fixture and camera-tour base must also validate (their
+  // defects are semantic, not schema-level)
+  for (const f of ['quake-map-broken.noodles.json', 'camera-tour.noodles.json']) {
+    const result = validateProject(fs.readFileSync(path.join(fixturesDir, f), 'utf-8'), registry, version)
+    assert.ok(result.valid, `${f}: ${result.errors.slice(0, 3).join('; ')}`)
+  }
+})
+
+test('modify-arcs checks: golden passes, unmodified base fails', async () => {
+  const { CUSTOM_CHECKS } = await import('./lib/task-checks')
+  const base = loadJson(path.join(REPO_ROOT, 'noodles-editor', 'src', 'examples', 'uk-commute', 'noodles.json'))
+  allPass(CUSTOM_CHECKS['modify-arcs']({ after: golden('modify-arcs'), before: base, resultText: null }))
+  someFail(CUSTOM_CHECKS['modify-arcs']({ after: base, before: base, resultText: null }))
+  // the trap: recoloring the shared ColorOps (dots turn red too) must fail
+  const trapped = JSON.parse(JSON.stringify(base))
+  for (const id of ['/source-color', '/target-color']) {
+    trapped.nodes.find((n: { id: string }) => n.id === id).data.inputs.color = '#ff0000'
+  }
+  trapped.nodes.find((n: { id: string }) => n.id === '/arc-layer').data.inputs.getWidth = 160
+  someFail(CUSTOM_CHECKS['modify-arcs']({ after: trapped, before: base, resultText: null }))
+})
+
+test('debug-blank-viz checks: fixed+diagnosed passes, broken fails', async () => {
+  const { CUSTOM_CHECKS } = await import('./lib/task-checks')
+  const diagnosis =
+    'Two problems: the scatterplot layer was disconnected from the renderer, and the position accessor used lowercase d.longitude/d.latitude while the CSV columns are capitalized (Longitude/Latitude).'
+  allPass(CUSTOM_CHECKS['debug-blank-viz']({ after: golden('debug-blank-viz'), before: null, resultText: diagnosis }))
+  const broken = loadJson(path.join(fixturesDir, 'quake-map-broken.noodles.json'))
+  someFail(CUSTOM_CHECKS['debug-blank-viz']({ after: broken, before: null, resultText: '' }))
+})
+
+test('sql-h3-pipeline checks: golden passes, unrelated project fails', async () => {
+  const { CUSTOM_CHECKS } = await import('./lib/task-checks')
+  allPass(CUSTOM_CHECKS['sql-h3-pipeline']({ after: golden('sql-h3-pipeline'), before: null, resultText: null }))
+  someFail(CUSTOM_CHECKS['sql-h3-pipeline']({ after: golden('code-refs-containers'), before: null, resultText: null }))
+})
+
+test('animate-camera checks: golden passes, static base fails', async () => {
+  const { CUSTOM_CHECKS } = await import('./lib/task-checks')
+  allPass(CUSTOM_CHECKS['animate-camera']({ after: golden('animate-camera'), before: null, resultText: null }))
+  const base = loadJson(path.join(fixturesDir, 'camera-tour.noodles.json'))
+  someFail(CUSTOM_CHECKS['animate-camera']({ after: base, before: null, resultText: null }))
+})
+
+test('code-refs-containers checks: golden passes, containerless project fails', async () => {
+  const { CUSTOM_CHECKS } = await import('./lib/task-checks')
+  allPass(CUSTOM_CHECKS['code-refs-containers']({ after: golden('code-refs-containers'), before: null, resultText: null }))
+  someFail(CUSTOM_CHECKS['code-refs-containers']({ after: golden('sql-h3-pipeline'), before: null, resultText: null }))
+})
+
+test('all five new task files load with custom checks wired', async () => {
+  const { loadTask } = await import('./lib/task')
+  const { CUSTOM_CHECKS } = await import('./lib/task-checks')
+  for (const id of ['modify-arcs', 'debug-blank-viz', 'sql-h3-pipeline', 'animate-camera', 'code-refs-containers']) {
+    const task = loadTask(id)
+    assert.equal(task.grader.mechanical.custom, id)
+    assert.ok(CUSTOM_CHECKS[id], `no custom checks registered for ${id}`)
+    assert.ok(task.prompt.length > 50)
+  }
+})
+
 if (failures > 0) {
   console.error(`\n${failures} self-test(s) failed`)
   process.exit(1)

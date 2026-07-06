@@ -9,6 +9,7 @@ import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { RESULTS_ROOT, TASKS_ROOT, TIER, VALIDATOR_VERSION, assertProviderEnv } from './lib/config'
 import { loadAndScreenshot } from './lib/playwright-check'
+import { CUSTOM_CHECKS } from './lib/task-checks'
 import { type KeyEntry, scoreAnswers } from './lib/matchers'
 import { loadRegistry, noodlesVersion } from './lib/registry'
 import { renderTranscript, runSession } from './lib/session'
@@ -65,6 +66,13 @@ export async function runOne(args: {
   console.log(`[${runId}] creating workspace (commit ${commit.slice(0, 12)})`)
   const ws = createWorkspace({ runId, fixtures: task.workspace?.fixtures, fixturesRoot: TASKS_ROOT })
 
+  // Base-project snapshot for modify tasks — read BEFORE the session runs.
+  let baseRaw: string | null = null
+  if (task.workspace?.project) {
+    const basePath = path.join(ws, task.workspace.project)
+    if (fs.existsSync(basePath)) baseRaw = fs.readFileSync(basePath, 'utf-8')
+  }
+
   // Registry snapshot for this series (grading input; one copy per series).
   const registry = loadRegistry(ws)
   const registryPath = path.join(RESULTS_ROOT, args.series, 'registry.json')
@@ -109,6 +117,10 @@ export async function runOne(args: {
     if (fs.existsSync(artifactAbs)) {
       artifactRaw = fs.readFileSync(artifactAbs, 'utf-8')
       fs.writeFileSync(path.join(runDir, 'artifacts', path.basename(artifactRel)), artifactRaw)
+    }
+    if (baseRaw !== null) {
+      // stored so graders/judges can diff the modification against the base
+      fs.writeFileSync(path.join(runDir, 'artifacts', 'base.noodles.json'), baseRaw)
     }
 
     // ---- Layer 1 (frozen at run time) ----
@@ -155,6 +167,23 @@ export async function runOne(args: {
       checks.screenshotNonBlank = {
         pass: load.screenshotNonBlank === true,
         detail: `pixel stddev ${load.pixelStddev?.toFixed(2) ?? 'n/a'}`,
+      }
+    }
+
+    if (task.grader.mechanical.custom) {
+      const custom = CUSTOM_CHECKS[task.grader.mechanical.custom]
+      if (!custom) throw new Error(`unknown custom check set "${task.grader.mechanical.custom}"`)
+      const parse = (raw: string | null) => {
+        if (raw === null) return null
+        try {
+          return JSON.parse(raw)
+        } catch {
+          return null
+        }
+      }
+      const results = custom({ after: parse(artifactRaw), before: parse(baseRaw), resultText: session.resultText })
+      for (const [name, result] of Object.entries(results)) {
+        checks[`custom:${name}`] = result
       }
     }
 

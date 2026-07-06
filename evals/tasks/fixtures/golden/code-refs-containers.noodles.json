@@ -1,0 +1,175 @@
+{
+  "version": 14,
+  "name": "Quake Pipeline",
+  "nodes": [
+    {
+      "id": "/quake-data",
+      "type": "FileOp",
+      "position": { "x": -1050, "y": 0 },
+      "data": { "inputs": { "format": "csv", "url": "@/data.csv" }, "locked": false }
+    },
+    {
+      "id": "/min-magnitude",
+      "type": "NumberOp",
+      "position": { "x": -1050, "y": 200 },
+      "data": { "inputs": { "val": 4 }, "locked": false }
+    },
+    {
+      "id": "/processing",
+      "type": "ContainerOp",
+      "position": { "x": -700, "y": 0 },
+      "data": { "inputs": {}, "locked": false }
+    },
+    {
+      "id": "/processing/container-input",
+      "type": "GraphInputOp",
+      "position": { "x": -1000, "y": 0 },
+      "data": { "inputs": {}, "locked": false }
+    },
+    {
+      "id": "/processing/energy",
+      "type": "CodeOp",
+      "position": { "x": -650, "y": 0 },
+      "data": {
+        "inputs": {
+          "code": "const minMagnitude = op('/min-magnitude').par.val\nreturn data\n  .filter(d => d.Magnitude >= minMagnitude)\n  .map(d => ({ ...d, energy: Math.pow(10, 1.5 * d.Magnitude) }))"
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/processing/container-output",
+      "type": "GraphOutputOp",
+      "position": { "x": -300, "y": 0 },
+      "data": { "inputs": {}, "locked": false }
+    },
+    {
+      "id": "/position",
+      "type": "AccessorOp",
+      "position": { "x": -350, "y": 250 },
+      "data": { "inputs": { "expression": "[d.Longitude, d.Latitude]" }, "locked": false }
+    },
+    {
+      "id": "/energy-radius",
+      "type": "AccessorOp",
+      "position": { "x": -350, "y": 380 },
+      "data": { "inputs": { "expression": "Math.cbrt(d.energy) / 40" }, "locked": false }
+    },
+    {
+      "id": "/quake-points",
+      "type": "ScatterplotLayerOp",
+      "position": { "x": 0, "y": 0 },
+      "data": { "inputs": { "radiusUnits": "meters", "getFillColor": "#ff5533", "opacity": 0.6 }, "locked": false }
+    },
+    {
+      "id": "/basemap",
+      "type": "MaplibreBasemapOp",
+      "position": { "x": 0, "y": 250 },
+      "data": {
+        "inputs": {
+          "mapStyle": "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
+          "viewState": { "longitude": -119.96, "latitude": 37.06, "zoom": 5.5, "pitch": 0, "bearing": 0 }
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/deck",
+      "type": "DeckRendererOp",
+      "position": { "x": 350, "y": 100 },
+      "data": { "inputs": {}, "locked": false }
+    },
+    {
+      "id": "/out",
+      "type": "OutOp",
+      "position": { "x": 700, "y": 100 },
+      "data": { "inputs": {}, "locked": false }
+    }
+  ],
+  "edges": [
+    {
+      "id": "/quake-data.out.data->/processing.par.in",
+      "source": "/quake-data",
+      "target": "/processing",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.in"
+    },
+    {
+      "id": "/processing.par.in->/processing/container-input.par.parentValue",
+      "source": "/processing",
+      "target": "/processing/container-input",
+      "sourceHandle": "par.in",
+      "targetHandle": "par.parentValue"
+    },
+    {
+      "id": "/processing/container-input.out.value->/processing/energy.par.data",
+      "source": "/processing/container-input",
+      "target": "/processing/energy",
+      "sourceHandle": "out.value",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/processing/energy.out.data->/processing/container-output.par.value",
+      "source": "/processing/energy",
+      "target": "/processing/container-output",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.value"
+    },
+    {
+      "id": "/processing/container-output.out.propagatedValue->/processing.out.out",
+      "source": "/processing/container-output",
+      "target": "/processing",
+      "sourceHandle": "out.propagatedValue",
+      "targetHandle": "out.out"
+    },
+    {
+      "id": "/processing.out.out->/quake-points.par.data",
+      "source": "/processing",
+      "target": "/quake-points",
+      "sourceHandle": "out.out",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/position.out.accessor->/quake-points.par.getPosition",
+      "source": "/position",
+      "target": "/quake-points",
+      "sourceHandle": "out.accessor",
+      "targetHandle": "par.getPosition"
+    },
+    {
+      "id": "/energy-radius.out.accessor->/quake-points.par.getRadius",
+      "source": "/energy-radius",
+      "target": "/quake-points",
+      "sourceHandle": "out.accessor",
+      "targetHandle": "par.getRadius"
+    },
+    {
+      "id": "/quake-points.out.layer->/deck.par.layers",
+      "source": "/quake-points",
+      "target": "/deck",
+      "sourceHandle": "out.layer",
+      "targetHandle": "par.layers"
+    },
+    {
+      "id": "/basemap.out.maplibre->/deck.par.basemap",
+      "source": "/basemap",
+      "target": "/deck",
+      "sourceHandle": "out.maplibre",
+      "targetHandle": "par.basemap"
+    },
+    {
+      "id": "/deck.out.vis->/out.par.vis",
+      "source": "/deck",
+      "target": "/out",
+      "sourceHandle": "out.vis",
+      "targetHandle": "par.vis"
+    }
+  ],
+  "viewport": { "x": 0, "y": 0, "zoom": 1 },
+  "editorSettings": { "layoutMode": "noodles-on-top", "showOverlay": true },
+  "timeline": {
+    "sheetsById": { "Noodles": { "staticOverrides": { "byObject": {} } } },
+    "definitionVersion": "0.4.0",
+    "revisionHistory": []
+  }
+}

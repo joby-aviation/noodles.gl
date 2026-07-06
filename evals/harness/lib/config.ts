@@ -21,7 +21,13 @@ export const JUDGE_MODEL = 'us.anthropic.claude-opus-4-8'
 export const SMALL_FAST_MODEL = 'us.anthropic.claude-haiku-4-5-20251001-v1:0'
 
 export const TIER = 'T0'
-export const VALIDATOR_VERSION = 'interim-1'
+// interim-2: adds the container-bridge exemption to the handle-prefix rules
+// (ContainerOp par.in→GraphInputOp par.parentValue and GraphOutputOp
+// out.propagatedValue→ContainerOp out.out are app-generated shapes). Runs
+// graded before the bump keep their frozen interim-1 results — per 07 D5,
+// mechanical scores across a series may come from different validator
+// versions, and the rows record which.
+export const VALIDATOR_VERSION = 'interim-2'
 export const JUDGE_SAMPLES = 3
 
 const REQUIRED_ENV = ['AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY', 'AWS_REGION'] as const
