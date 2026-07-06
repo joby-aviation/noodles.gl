@@ -225,6 +225,47 @@ test('all five new task files load with custom checks wired', async () => {
   }
 })
 
+test('archive-season round-trip on a fake series (no model calls)', async () => {
+  const { archiveSeason } = await import('./archive-season')
+  const { RESULTS_ROOT } = await import('./lib/config')
+  const series = '.selftest-archive'
+  const seriesDir = path.join(RESULTS_ROOT, series)
+  const runDir = path.join(seriesDir, 'runs', 'fake-run--s1')
+  const outDir = path.join('/tmp/noodles-evals', 'selftest-archive-out')
+  try {
+    fs.mkdirSync(runDir, { recursive: true })
+    fs.writeFileSync(path.join(runDir, 'transcript.jsonl'), '{"type":"result"}\n')
+    fs.writeFileSync(path.join(runDir, 'transcript.txt'), 'L1: [result]\n')
+    fs.writeFileSync(path.join(runDir, 'screenshot.png'), 'not-a-real-png')
+    fs.writeFileSync(path.join(runDir, 'scores.json'), '{}')
+    fs.writeFileSync(path.join(runDir, 'mechanical.json'), '{}')
+
+    const tarball = archiveSeason(series, outDir, false)
+    assert.ok(fs.existsSync(tarball))
+    assert.ok(fs.existsSync(path.join(seriesDir, 'ARCHIVED.md')), 'ARCHIVED.md written')
+    // heavy gone, curve stays
+    assert.ok(!fs.existsSync(path.join(runDir, 'transcript.jsonl')))
+    assert.ok(!fs.existsSync(path.join(runDir, 'screenshot.png')))
+    assert.ok(fs.existsSync(path.join(runDir, 'scores.json')))
+    assert.ok(fs.existsSync(path.join(runDir, 'mechanical.json')))
+    // tarball round-trips the heavy files
+    const { execFileSync } = await import('node:child_process')
+    const listing = execFileSync('tar', ['-tzf', tarball], { encoding: 'utf-8' }).trim().split('\n')
+    assert.equal(listing.length, 3, `tarball lists ${listing.length} files`)
+    // double-archive refused
+    assert.throws(() => archiveSeason(series, outDir, false), /already archived/)
+  } finally {
+    fs.rmSync(seriesDir, { recursive: true, force: true })
+    fs.rmSync(outDir, { recursive: true, force: true })
+  }
+})
+
+test('archive-season refuses the current season without --force', async () => {
+  const { archiveSeason } = await import('./archive-season')
+  const { CURRENT_SERIES } = await import('./lib/config')
+  assert.throws(() => archiveSeason(CURRENT_SERIES, '/tmp/noodles-evals/never', false), /CURRENT season/)
+})
+
 if (failures > 0) {
   console.error(`\n${failures} self-test(s) failed`)
   process.exit(1)

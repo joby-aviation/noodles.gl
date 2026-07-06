@@ -30,7 +30,14 @@ export function ensureTemplate(log: (msg: string) => void = console.log): string
   log(`building template workspace at ${dir} ...`)
   fs.rmSync(dir, { recursive: true, force: true })
   fs.mkdirSync(dir, { recursive: true })
-  execSync(`git archive ${mainCommit()} | tar -x -C ${JSON.stringify(dir)}`, { cwd: REPO_ROOT })
+  // Exclude the eval program's own trees at archive time: packing megabytes of
+  // committed results/specs just for the strip step to delete them is waste
+  // once evals/ lives on the measured branch. The strip list below remains as
+  // belt-and-braces for everything else.
+  execSync(
+    `git archive ${mainCommit()} -- . ':(exclude)evals' ':(exclude)dev-docs/specs/agent-ready-docs' | tar -x -C ${JSON.stringify(dir)}`,
+    { cwd: REPO_ROOT }
+  )
 
   stripAgentVisibleArtifacts(dir)
 

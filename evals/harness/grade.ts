@@ -31,6 +31,15 @@ interface RunStore {
 
 function loadRun(series: string, runId: string): RunStore {
   const runDir = path.join(RESULTS_ROOT, series, 'runs', runId)
+  if (
+    !fs.existsSync(path.join(runDir, 'transcript.jsonl')) &&
+    fs.existsSync(path.join(RESULTS_ROOT, series, 'ARCHIVED.md'))
+  ) {
+    throw new Error(
+      `season ${series} is archived — a closed instrument is not regraded. To inspect or reproduce, ` +
+        `restore the Release tarball first (see results/${series}/ARCHIVED.md).`
+    )
+  }
   const artifacts = new Map<string, string>()
   const artifactsDir = path.join(runDir, 'artifacts')
   if (fs.existsSync(artifactsDir)) {

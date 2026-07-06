@@ -8,7 +8,8 @@
     "grade": "tsx harness/grade.ts",
     "report": "tsx harness/report.ts",
     "selftest": "tsx harness/selftest.ts",
-    "calibrate": "tsx harness/calibrate.ts"
+    "calibrate": "tsx harness/calibrate.ts",
+    "archive-season": "tsx harness/archive-season.ts"
   },
   "dependencies": {
     "@anthropic-ai/bedrock-sdk": "^0.32.0",

@@ -135,6 +135,37 @@ components, then the Layer-1 cap. The scorecard always shows the components
 next to it; the blend is a phase-0 definition and calibration (step 5) may
 revisit it.
 
+## Storage & retention
+
+Each run commits its pruned evidence bundle; transcripts + screenshots are
+~95% of the bytes. Measured: the full 63-run T0 series is ~43MB in checkout,
+~20–25MB packed. Future milestones run **one primary session model** (picked
+after calibration; the other two pins get a single sensitivity re-run at
+season end), which bounds a milestone at ~13MB.
+
+**Old results cannot pollute future runs**: the workspace builder excludes
+`evals/` at `git archive` time *and* strips it defensively; the per-run
+isolation audit records any tool call that references it; and series /
+rubricVersion / taskVersion separation in `index.json` keeps gradings from
+mixing.
+
+**Season archival**: while a season is open its artifacts stay in-tree —
+regrades require them. **Season 1 closes when the curve is complete** (T1–T5
+milestone runs + ablations graded, calibration settled, rubric-bump regrades
+applied) or earlier only on a forced re-pin (judge model unavailable, task
+rewrite breaking the series) — whichever comes first. At close:
+
+```bash
+npm run archive-season -- --series <series>   # refuses the CURRENT season without --force
+gh release create evals-<series> <tarball>    # printed by the script
+```
+
+Heavy evidence (transcripts, screenshots) moves to the Release asset;
+`index.json`, `scores.json`, frozen mechanical/session metadata, final
+artifacts, and scorecards stay in-tree — the inspectable curve. An archived
+season is a **closed instrument**: `grade.ts` refuses regrades until the
+tarball is restored per its `ARCHIVED.md`.
+
 Deferred to step 5: judge calibration (both maintainers hand-grade the T0
 transcripts; ≥80% exact+adjacent agreement per dimension) and the
 regrade-after-rubric-bump round-trip. Until calibration passes, treat judge

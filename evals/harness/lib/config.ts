@@ -21,6 +21,13 @@ export const JUDGE_MODEL = 'us.anthropic.claude-opus-4-8'
 export const SMALL_FAST_MODEL = 'us.anthropic.claude-haiku-4-5-20251001-v1:0'
 
 export const TIER = 'T0'
+
+// The season currently being measured. archive-season refuses to archive it
+// without --force: an open season's regrades require its artifacts in-tree.
+// Season 1 closes when the curve is complete (T1-T5 milestones + ablations
+// graded, calibration settled, rubric-bump regrades applied) or on a forced
+// re-pin — see evals/README.md "Storage & retention".
+export const CURRENT_SERIES = '2026-07-06.t0.83ff1c128a7a'
 // interim-2: adds the container-bridge exemption to the handle-prefix rules
 // (ContainerOp par.in→GraphInputOp par.parentValue and GraphOutputOp
 // out.propagatedValue→ContainerOp out.out are app-generated shapes). Runs

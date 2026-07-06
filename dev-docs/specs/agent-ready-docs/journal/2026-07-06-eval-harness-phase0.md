@@ -231,3 +231,25 @@ Calibration: worksheets now cover all 63 runs (`c01`–`c63`); the shared 12-she
 identities. Remaining step-5 work is the human half: both maintainers grade the shared sample,
 then `calibrate.ts --agreement` decides which dimensions are trusted (and item 5b's
 regrade-after-bump follows if any anchor gets sharpened).
+
+## 2026-07-06 — storage decisions: in-repo for the open season, Release-archived at close
+
+The maintainer raised the two storage questions the results-in-git design owes answers to:
+volume and pollution. Measured: the 63-run T0 series is ~43MB checkout / ~20-25MB packed,
+~95% of it transcripts + screenshots. Pollution was already structurally closed (archive-time
+exclusion now added on top of the strip list; isolation audit; series/rubricVersion/taskVersion
+separation) — the decisions below bound the volume:
+
+1. **Artifacts stay in-repo while a season is open** — regrades are the load-bearing reason;
+   `grade.ts` must be re-runnable from stored artifacts at any time (D5).
+2. **Season 1 closes when the curve is complete**: T1–T5 milestone runs + ablations graded,
+   calibration settled, and any rubric-bump regrades applied — or earlier only on a forced
+   re-pin (judge model unavailable; task rewrite breaking the series), whichever comes first.
+   At close, `archive-season` moves heavy evidence to a GitHub Release asset (sha256-stamped
+   `ARCHIVED.md` left behind); grading rows, frozen mechanical results, final artifacts, and
+   scorecards remain in-tree. Archived seasons are closed instruments — `grade.ts` refuses
+   them until the tarball is restored.
+3. **Milestones after T0 run one primary session model** (picked after calibration — the
+   sonnets are the discriminating ones; opus sits at ceiling on 5 of 7 tasks), with a single
+   three-model sensitivity re-run at season end. Restores the spec's single-pin intent and
+   bounds a milestone at ~13MB.
