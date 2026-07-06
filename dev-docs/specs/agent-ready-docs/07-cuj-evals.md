@@ -144,6 +144,8 @@ Judge mechanics: the judge receives the task, rubric, artifacts, and transcript;
 
 `report.ts` emits the scorecard: per-task and aggregate scores at each tier over time — the **docs ROI curve** — plus the process-metric deltas. Results directories are committed (artifacts pruned to transcript + final files + one screenshot).
 
+**Regrade semantics.** Running and grading are decoupled, and that's load-bearing: a session run produces artifacts (transcript, final files, screenshots, tool-call log) plus its Layer-1 mechanical results, which are **frozen facts recorded at run time** (did it validate, load, render — properties of the run, not of any rubric). `grade.ts` consumes only these stored inputs and MUST be re-runnable at any time without spawning new sessions — judge calls are the only cost of a regrade; the app is never re-executed. When `rubricVersion` bumps (a calibration fix, an anchor sharpened, a criterion split), all prior **milestone** runs are regraded under the new rubric. This is what keeps `index.json` one continuous, comparable series instead of fracturing at every rubric repair: scores are only comparable within a rubricVersion, and regrading brings the whole history forward to the current one. Smoke-lane rows are not regraded (ephemeral by design). Task-version changes still break the series (D7) — no rubric can make artifacts from two different tasks comparable.
+
 ### D6. Longitudinal tracking and PR surfacing (the Coveralls model)
 
 Two speeds, because the two signals have wildly different costs:
@@ -163,13 +165,13 @@ Either way the workflow appends a machine-readable row to the series and comment
 
 > **CUJ evals (smoke, T4)** · author-scatterplot: 3.1 → **3.4** · contextualize-operator: 2.2 → **2.6** · vs baseline `evals/results/index.json@main` · [full artifacts](link)
 
-**Series storage.** Every run appends to `evals/results/index.json` — one row per run: `{date, commit, tier, taskVersion, rubricVersion, model, scores: {task: {mechanical, judge, process}}, cost}`. The row is the unit of tracking; the per-run directories hold the evidence. `report.ts` renders the series as the longitudinal table/chart, and a tiny endpoint JSON (`website/static/evals/latest.json`) feeds a shields.io badge in the README — the outward-facing Coveralls number.
+**Series storage.** `index.json` separates **run identity** from **grading events**. A run (one session, one set of artifacts) has a stable `runId`; grading appends rows: `{runId, artifactsRef, commit, tier, taskVersion, kind: "fresh" | "regrade", regradeOf?, gradedAt, rubricVersion, judgeModel, scores: {task: {mechanical, judge, process}}, cost}`. A fresh run creates its artifacts directory plus its first grading row (`kind: "fresh"`); a rubricVersion bump appends `kind: "regrade"` rows pointing at the same `runId`/artifacts, with `regradeOf` naming the superseded row. `report.ts` renders the series using the latest grading per run by default (one comparable line, current rubric) and can pin a `rubricVersion` to audit what a past report claimed. The calibration record (D4) names the rubricVersion it validated, so it's always checkable whether the current series is running on a calibrated instrument. `report.ts` renders the series as the longitudinal table/chart, and a tiny endpoint JSON (`website/static/evals/latest.json`) feeds a shields.io badge in the README — the outward-facing Coveralls number.
 
 **Noise discipline.** Verification step 1 measures run-to-run variance at T0; the reporter treats any delta inside that band as "no change" and says so explicitly. A Coveralls-style comment that flaps ±0.1 on every PR trains everyone to ignore it — the noise band is what keeps the signal credible. Smoke-lane results are labeled as smoke and never overwrite milestone rows in the series.
 
 ### D7. Anti-gaming and drift
 
-- Tasks and rubrics are versioned; score series break on task changes.
+- Tasks and rubrics are versioned. Task changes break the score series (new comparison starts); rubric changes do NOT break it — they trigger a regrade of prior milestone runs instead (D5), so a rubric fix never tempts anyone to keep a broken rubric for continuity's sake.
 - The eval tasks must NOT be committed verbatim into skills/docs (that's training on the test set). Spot-check: skill/doc changes that mention eval fixtures by name get flagged in review.
 - Add one **held-out variation** per task family per season (same skill, different dataset/geometry) to detect overfitting of the resources to the published tasks.
 
@@ -189,6 +191,7 @@ Either way the workflow appends a machine-readable row to the series and comment
 2. Judge calibration on the T0 transcripts: both maintainers independently hand-grade against the rubric YAML; per-dimension agreement with the LLM judge is computed; every dimension used in a cross-tier claim clears the agreement threshold (rewritten via anchoring or decomposition if not, per D4).
 3. A deliberately broken artifact (invalid handles) scores ≤ 40% regardless of judge output.
 4. Judge evidence citations resolve to real transcript/file locations on spot-check.
+5. Regrade round-trip: running `grade.ts` over a stored run's artifacts with no session spawned (a) reproduces scores within the judge-sampling noise band under the same rubricVersion, and (b) after a rubricVersion bump, appends `kind: "regrade"` rows for prior milestone runs while leaving their artifacts and mechanical results untouched.
 
 ## Dependencies
 
