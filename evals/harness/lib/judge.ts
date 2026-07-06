@@ -57,7 +57,7 @@ export async function judgeOnce(
   prompt: string,
   rubric: Rubric,
   transcriptLineCount: number,
-  artifactLineCounts: Map<string, number>
+  resolveFileLines: (path: string) => number | undefined
 ): Promise<JudgeSample> {
   let lastError = ''
   for (let attempt = 0; attempt < 2; attempt++) {
@@ -72,7 +72,7 @@ export async function judgeOnce(
       .join('\n')
     try {
       const parsed = parseJudgeJson(text, rubric)
-      const citationCheck = checkCitations(parsed, transcriptLineCount, artifactLineCounts)
+      const citationCheck = checkCitations(parsed, transcriptLineCount, resolveFileLines)
       return { ...parsed, citationCheck, raw: text }
     } catch (e) {
       lastError = (e as Error).message
@@ -117,11 +117,12 @@ function parseJudgeJson(
 }
 
 /** Verify that cited locations resolve: L<n> within the transcript, file:line
- * within a provided artifact (Verification item 4's automated half). */
+ * within a stored artifact or a repo file at the run's commit (Verification
+ * item 4's automated half). */
 export function checkCitations(
   parsed: { dimensions: Record<string, DimensionJudgment> },
   transcriptLineCount: number,
-  artifactLineCounts: Map<string, number>
+  resolveFileLines: (path: string) => number | undefined
 ): { checked: number; resolved: number; unresolved: string[] } {
   let checked = 0
   let resolved = 0
@@ -139,8 +140,7 @@ export function checkCitations(
     }
     for (const m of evidence.matchAll(/([\w./-]+\.(?:json|ts|tsx|csv|md)):(\d+)/g)) {
       checked++
-      const base = path.basename(m[1])
-      const lineCount = artifactLineCounts.get(base)
+      const lineCount = resolveFileLines(m[1])
       if (lineCount !== undefined && Number.parseInt(m[2], 10) <= lineCount) resolved++
       else unresolved.push(`${m[1]}:${m[2]} does not resolve`)
     }

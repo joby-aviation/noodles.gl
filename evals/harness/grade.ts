@@ -6,9 +6,10 @@
 //   npm run grade -- --series 2026-07-06.t0.abc123 [--run <runId>] [--samples 3]
 //   npm run grade -- --series ... --regrade   # after a rubricVersion bump
 
+import { execFileSync } from 'node:child_process'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
-import { JUDGE_MODEL, JUDGE_SAMPLES, PROVIDER, RESULTS_ROOT, TASKS_ROOT, assertProviderEnv } from './lib/config'
+import { JUDGE_MODEL, JUDGE_SAMPLES, PROVIDER, REPO_ROOT, RESULTS_ROOT, TASKS_ROOT, assertProviderEnv } from './lib/config'
 import { buildJudgePrompt, judgeOnce, type JudgeSample } from './lib/judge'
 import { AnthropicBedrock } from '@anthropic-ai/bedrock-sdk'
 import { type KeyEntry } from './lib/matchers'
@@ -156,6 +157,30 @@ export async function gradeRun(series: string, runId: string, samples: number, r
     .join('\n\n')
   const artifactLineCounts = new Map([...run.artifacts].map(([name, c]) => [name, c.split('\n').length]))
   const transcriptLineCount = run.transcriptTxt.split('\n').length
+  // Citation resolver: stored artifacts first, then repo files at the run's
+  // commit (judges legitimately cite workspace sources like operators.ts).
+  const repoFileCache = new Map<string, number | undefined>()
+  const resolveFileLines = (cited: string): number | undefined => {
+    const base = path.basename(cited)
+    if (artifactLineCounts.has(base)) return artifactLineCounts.get(base)
+    if (repoFileCache.has(cited)) return repoFileCache.get(cited)
+    let lines: number | undefined
+    for (const candidate of [cited, `noodles-editor/${cited}`, `noodles-editor/src/${cited}`]) {
+      try {
+        const content = execFileSync('git', ['show', `${run.meta.commit}:${candidate.replace(/^\.\//, '')}`], {
+          cwd: REPO_ROOT,
+          encoding: 'utf-8',
+          maxBuffer: 64 * 1024 * 1024,
+        })
+        lines = content.split('\n').length
+        break
+      } catch {
+        /* try next candidate */
+      }
+    }
+    repoFileCache.set(cited, lines)
+    return lines
+  }
   const prompt = buildJudgePrompt({
     task: `${task.prompt}\n\n(budget: ${task.budget.maxTurns} turns / ${task.budget.maxWallClockSeconds}s; session ${run.meta.timedOut ? 'HIT the wall-clock budget' : 'finished within budget'})`,
     rubric,
@@ -167,7 +192,7 @@ export async function gradeRun(series: string, runId: string, samples: number, r
   const judgeSamples: JudgeSample[] = []
   for (let i = 0; i < samples; i++) {
     console.log(`[${runId}] judge sample ${i + 1}/${samples}`)
-    judgeSamples.push(await judgeOnce(prompt, rubric, transcriptLineCount, artifactLineCounts))
+    judgeSamples.push(await judgeOnce(prompt, rubric, transcriptLineCount, resolveFileLines))
   }
   const judgeScore = reduceJudgeSamples(judgeSamples, rubric)
   const mechanicalForTotal = { ...run.mechanical, score0to4: mechanicalScore }

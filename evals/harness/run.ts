@@ -195,7 +195,7 @@ export async function runOne(args: {
     const mechanical: MechanicalResults = { validatorVersion: VALIDATOR_VERSION, pass, checks, answersDeterministic, score0to4 }
     fs.writeFileSync(path.join(runDir, 'mechanical.json'), JSON.stringify(mechanical, null, 1))
 
-    const audit = isolationAudit(session.transcriptJsonl)
+    const audit = isolationAudit(session.transcriptJsonl, ws)
     const meta = {
       runId,
       series: args.series,

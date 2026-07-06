@@ -21,13 +21,22 @@ export interface LoadCheckResult {
 // container's egress policy blocks some external hosts (basemap tiles, duckdb
 // WASM extensions) on any project, including known-good ones — layer
 // rendering still exercises the pixel-variance check. An error is treated as
-// environment noise iff every URL it mentions is external (non-localhost):
-// a failing localhost fetch (missing data.csv) stays a real error.
-function isEnvironmentNoise(text: string): boolean {
+// environment noise iff the resource it's about is external (non-localhost):
+// a failing localhost fetch (missing data.csv, 404) stays a real error.
+// Stack-trace frames are stripped first — an external fetch failing inside
+// bundled code always carries localhost frame URLs.
+export function isEnvironmentNoise(text: string, locationUrl?: string): boolean {
   if (/WebGL warning|AbortError/i.test(text)) return true
-  const urls = text.match(/https?:\/\/[^\s'")]+/g) ?? []
-  if (urls.length === 0) return false
-  return urls.every(u => !/localhost|127\.0\.0\.1/.test(u))
+  const isLocal = (u: string) => /localhost|127\.0\.0\.1/.test(u)
+  if (locationUrl && !isLocal(locationUrl)) return true
+  const withoutFrames = text
+    .split('\n')
+    .filter(line => !/^\s*at /.test(line))
+    .join('\n')
+  const urls = withoutFrames.match(/https?:\/\/[^\s'")]+/g) ?? []
+  if (urls.length > 0) return urls.every(u => !isLocal(u))
+  // No URL anywhere: proxy/tunnel failures are environment; anything else counts.
+  return /net::ERR_TUNNEL_CONNECTION_FAILED|net::ERR_NAME_NOT_RESOLVED|net::ERR_PROXY/.test(text)
 }
 
 export async function loadAndScreenshot(opts: {
@@ -71,7 +80,7 @@ export async function loadAndScreenshot(opts: {
       const page = await browser.newPage({ viewport: { width: 1280, height: 800 } })
       const consoleErrors: string[] = []
       page.on('console', msg => {
-        if (msg.type() === 'error' && !isEnvironmentNoise(msg.text())) {
+        if (msg.type() === 'error' && !isEnvironmentNoise(msg.text(), msg.location()?.url)) {
           consoleErrors.push(msg.text().slice(0, 500))
         }
       })

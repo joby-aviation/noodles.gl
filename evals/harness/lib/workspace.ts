@@ -104,9 +104,19 @@ export function destroyWorkspace(ws: string): void {
 }
 
 /** Post-run isolation audit: no tool call may reference the harness checkout,
- * the spec directory, or evals/ (07 D7). Scans raw tool_use inputs. */
-export function isolationAudit(transcriptJsonl: string): { pass: boolean; violations: string[] } {
-  const forbidden = [REPO_ROOT, 'dev-docs/specs/agent-ready-docs', /\bevals\//]
+ * the spec directory, or an evals/ directory (07 D7). Scans raw tool_use
+ * inputs. References to the session's own workspace are legal — its path
+ * (under /tmp/noodles-evals) is masked before matching so the "evals/"
+ * pattern can't false-positive on it. */
+export function isolationAudit(
+  transcriptJsonl: string,
+  workspacePath?: string
+): { pass: boolean; violations: string[] } {
+  const forbidden: Array<string | RegExp> = [
+    REPO_ROOT,
+    'dev-docs/specs/agent-ready-docs',
+    /(^|[^\w-])evals\//, // path segment "evals/", not "...noodles-evals/"
+  ]
   const violations: string[] = []
   for (const line of transcriptJsonl.split('\n')) {
     if (!line.trim()) continue
@@ -120,7 +130,9 @@ export function isolationAudit(transcriptJsonl: string): { pass: boolean; violat
     if (!Array.isArray(content)) continue
     for (const block of content) {
       if ((block as { type?: string }).type !== 'tool_use') continue
-      const input = JSON.stringify((block as { input?: unknown }).input ?? {})
+      let input = JSON.stringify((block as { input?: unknown }).input ?? {})
+      if (workspacePath) input = input.split(workspacePath).join('<workspace>')
+      input = input.split(WORK_ROOT).join('<work-root>')
       for (const f of forbidden) {
         if (typeof f === 'string' ? input.includes(f) : f.test(input)) {
           violations.push(`${(block as { name?: string }).name}: ${input.slice(0, 200)}`)

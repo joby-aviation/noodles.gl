@@ -106,6 +106,37 @@ test('answer matchers behave', () => {
   assert.equal(wrong.deterministicCorrect, 0)
 })
 
+test('console-noise filter: external failures ignored, localhost failures count', async () => {
+  const { isEnvironmentNoise } = await import('./lib/playwright-check')
+  assert.ok(isEnvironmentNoise('Failed to load resource: net::ERR_TUNNEL_CONNECTION_FAILED'))
+  assert.ok(
+    isEnvironmentNoise(
+      "NetworkError: Failed to load 'https://extensions.duckdb.org/x.wasm'.\n    at f.onMessage (http://localhost:5402/node_modules/duckdb.mjs:1:1)"
+    )
+  )
+  assert.ok(
+    isEnvironmentNoise(
+      'AJAXError: Failed to fetch (0): https://basemaps.cartocdn.com/style.json\n    at http://localhost:5402/node_modules/maplibre.js:408:25'
+    )
+  )
+  assert.ok(!isEnvironmentNoise('Failed to load resource: 404', 'http://localhost:5402/examples/x/data.csv'))
+  assert.ok(!isEnvironmentNoise("TypeError: Cannot read properties of undefined (reading 'map')"))
+  assert.ok(!isEnvironmentNoise("Failed to load 'http://localhost:5173/data.csv'"))
+})
+
+test('isolation audit: own workspace legal, harness paths flagged', async () => {
+  const { isolationAudit } = await import('./lib/workspace')
+  const ws = '/tmp/noodles-evals/workspaces/test--s1'
+  const event = (input: string) =>
+    JSON.stringify({ message: { content: [{ type: 'tool_use', name: 'Bash', input: { command: input } }] } })
+  const clean = [event(`ls ${ws}/noodles-editor/src`), event('cat AGENTS.md')].join('\n')
+  assert.ok(isolationAudit(clean, ws).pass)
+  const dirty = [event('cat /home/user/noodles.gl/evals/tasks/author-scatterplot.md')].join('\n')
+  assert.ok(!isolationAudit(dirty, ws).pass)
+  const specDirty = [event('grep -r foo dev-docs/specs/agent-ready-docs/')].join('\n')
+  assert.ok(!isolationAudit(specDirty, ws).pass)
+})
+
 test('median', () => {
   assert.equal(median([3, 1, 2]), 2)
   assert.equal(median([1, 4]), 2.5)
