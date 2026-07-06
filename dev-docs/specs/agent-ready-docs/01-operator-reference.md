@@ -53,6 +53,12 @@ The marker pattern has broad precedent (`terraform-docs`, `doctoc`, README-injec
 
 **The Description-column problem.** Field tables live inside generated regions, but their Description column is hand-written. Solved by **read-back preservation**: before rewriting a table region, the generator parses the existing table keyed by field name (column 1) and carries each row's Description cell forward. New fields get an empty cell; removed fields drop out; renamed fields lose their text — visible in the diff, which is the correct signal. No sidecar files.
 
+Read-back must survive hostile-but-ordinary markdown:
+
+- **Pipes**: the renderer escapes `|` in Description cells as `\|`; the read-back parser unescapes on extraction and re-escapes on render. An unescaped pipe shifts every column right and silently corrupts the field-name keying.
+- **Formatters**: `docs/reference/operators/` is never touched by a markdown formatter. Today this holds for free: Biome (`noodles-editor/biome.json`) is scoped to `noodles-editor/` and does not format markdown. If a markdown formatter is ever added to the repo, this directory goes on its ignore list first; re-wrapped tables churn generated regions and defeat the keying.
+- **Preservation unit tests** ship with the generator, covering four cases: a table re-wrapped by a formatter (descriptions still recovered by field-name key), a renamed field (text intentionally dropped, visible in the diff), a pipe inside a Description cell (round-trips exactly), and a multi-line cell if the renderer permits one (or a test asserting the renderer never emits one, whichever the implementation picks).
+
 ### D2. Page template
 
 The "Syntax" equivalent for a node-based operator is the serialized node form plus the expression-language access form. Sections in fixed order (`[gen]` = inside markers, `[hand]` = outside):
@@ -241,7 +247,7 @@ Decisions:
 - **History region**: a `parseMigrations()` pass over `src/noodles/__migrations__/*.ts` (they use structured helpers — `renameHandle`, `changeDefaultValue` — plus op-type string literals, so a static scan attributes most migrations to operators). Emits the generated History section per page: "v7 — input `data` renamed to `items`", "v14 — MapStyleOp removed, use MaplibreBasemapOp". Migrations are the repo's existing record of "what we tried first" — this mines them instead of asking anyone to remember. Unattributable migrations are listed on the index page rather than dropped silently.
 - **Math aliases**: one `math.md` page. Generated "Operations" region lists the 19 `operator` enum values; generated "Aliases" region lists the 13 virtual ops with their descriptions, each noted as "inserts a Math node with `operator` preset". No 13 stub pages.
 - **Splice safety**: error on missing or duplicated markers rather than guessing.
-- **Prose-staleness stamp**: each page gets a generated comment recording a hash of the operator's source range (`<!-- gen:src-hash abc123 -->`). When the hash changes but nothing outside the generated regions was touched since, the page lands on a "needs prose review" list emitted by `--check` (a warning list, not a build failure). Schema drift is caught hard by CI; this converts silent *prose* rot into a visible queue. The same pass scans the concept essays' `<!-- src: -->` traceability comments (see sub-plan 06) — one scanner, one review queue for all long-form prose.
+- **Prose-staleness stamp**: each page gets a generated comment recording a hash of the operator's source (`<!-- gen:src-hash abc123 -->`). The hash is computed over the whitespace-normalized text of the operator's extracted class body, not byte offsets or line ranges, so pure reorganizations of the 8,353-line `operators.ts` that move an operator without changing it do not flood the prose-review queue with false positives. When the hash changes but nothing outside the generated regions was touched since, the page lands on a "needs prose review" list emitted by `--check` (a warning list, not a build failure). Schema drift is caught hard by CI; this converts silent *prose* rot into a visible queue. The same pass scans the concept essays' `<!-- src: -->` traceability comments (see sub-plan 06) — one scanner, one review queue for all long-form prose.
 - **Examples are tested**: `--check` also extracts fenced `json` blocks from Examples sections and validates them (project-shaped snippets against the project schema / lint rules from sub-plans 02/04), and verifies that `op('/path').out.X` / `.par.X` snippets reference fields that exist on the documented operator. Broken examples are worse than no examples — agents copy them verbatim.
 
 ### D4. Sidebar
@@ -338,9 +344,10 @@ The question-sheet step is the load-bearing one: it converts the scarce resource
 
 1. Idempotence: run the generator twice; the second run is a no-op.
 2. Prose survival: edit a Description cell and a Remarks paragraph, re-run, confirm both survive.
-3. Drift: change a default in `operators.ts`; `--check` fails.
-4. `npm run build:website` locally: passes `onBrokenLinks: 'throw'`, sidebar renders, confirm index dedup behavior.
-5. `npm run generate:context` still succeeds and indexes the new pages.
+3. Preservation test suite green: re-wrapped table, renamed field, pipe in a Description cell, multi-line cell (per D1).
+4. Drift: change a default in `operators.ts`; `--check` fails.
+5. `npm run build:website` locally: passes `onBrokenLinks: 'throw'`, sidebar renders, confirm index dedup behavior.
+6. `npm run generate:context` still succeeds and indexes the new pages.
 
 ## Dependencies
 
