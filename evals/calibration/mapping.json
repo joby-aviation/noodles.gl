@@ -1,0 +1,23 @@
+{
+ "series": "2026-07-06.t0.83ff1c128a7a",
+ "mapping": {
+  "c01": "author-scatterplot--claude-opus-4-8--s1",
+  "c02": "author-scatterplot--claude-opus-4-8--s2",
+  "c03": "author-scatterplot--claude-opus-4-8--s3",
+  "c04": "author-scatterplot--claude-sonnet-4-6--s1",
+  "c05": "author-scatterplot--claude-sonnet-4-6--s2",
+  "c06": "author-scatterplot--claude-sonnet-4-6--s3",
+  "c07": "author-scatterplot--claude-sonnet-5--s1",
+  "c08": "author-scatterplot--claude-sonnet-5--s2",
+  "c09": "author-scatterplot--claude-sonnet-5--s3",
+  "c10": "contextualize-operator--claude-opus-4-8--s1",
+  "c11": "contextualize-operator--claude-opus-4-8--s2",
+  "c12": "contextualize-operator--claude-opus-4-8--s3",
+  "c13": "contextualize-operator--claude-sonnet-4-6--s1",
+  "c14": "contextualize-operator--claude-sonnet-4-6--s2",
+  "c15": "contextualize-operator--claude-sonnet-4-6--s3",
+  "c16": "contextualize-operator--claude-sonnet-5--s1",
+  "c17": "contextualize-operator--claude-sonnet-5--s2",
+  "c18": "contextualize-operator--claude-sonnet-5--s3"
+ }
+}

@@ -42,3 +42,4 @@ venv.bak/
 .claude
 .spec-workflow/
 !.spec-workflow/specs
+calibration/materials/
