@@ -130,3 +130,19 @@ Pipeline smoke (no agent) also passed: template + workspace build, vite + Playwr
 policy blocks more than basemap tiles (duckdb WASM extension host), so the console-error filter
 is now URL-aware: an error is environment noise iff every URL it mentions is non-localhost — a
 failing localhost fetch (missing data.csv) still counts against the project.
+
+## 2026-07-06 — baseline observations (instrument notes, not score commentary)
+
+- The dry-run session hit `--dangerously-skip-permissions cannot be used with root` — the eval
+  container runs as root, so `sessionEnv()` sets `IS_SANDBOX=1`. Two grader false-positive
+  classes were fixed and self-tested before the baseline: the isolation audit flagged the
+  session's own workspace (`/tmp/noodles-evals/...` matches an `evals/` pattern — workspace
+  paths are masked before matching), and egress-blocked console errors carry either no URL or
+  localhost stack frames (filter now strips frames, checks `msg.location()`, and treats
+  tunnel/proxy errors as environment noise).
+- **`screenshotNonBlank` is a weak check as implemented**: the capture is the whole app page,
+  and the node-editor UI alone provides pixel variance, so a broken viz can still pass it. In
+  the first baseline lane the console-error check did the real detection (FileOp left at
+  `format: json` for a CSV → runtime error; also one hallucinated `radiusMinPixels` input
+  caught by the schema lint). Tightening the capture to the deck canvas element is queued for
+  the next validatorVersion — not changed mid-series.
