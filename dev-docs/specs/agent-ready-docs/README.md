@@ -31,6 +31,7 @@ Style anchors: classic MSDN Win32 reference pages (structure), Raymond Chen's *T
 | [03-mcp-server.md](03-mcp-server.md) | `noodles-mcp` server | shadcn-style docs/registry MCP server (npx, stdio), `--local` and `--live` modes, tool-surface convergence |
 | [04-skills.md](04-skills.md) | AI skills | `noodles-authoring` + `noodles-live` SKILL.md suite, `validate-projects` CLI, generated includes, install story |
 | [05-webmcp.md](05-webmcp.md) | Unified tool registry + WebMCP | One canonical tool registry feeding chat/WS/stdio/WebMCP, project-bridge write path, consent UI, origin trial |
+| [06-concept-essays.md](06-concept-essays.md) | Concept essays | Chen-style long-form pieces on the execution model, paths, memoization, timeline, fields — the connective tissue Remarks link to |
 
 ## Dependency graph
 
@@ -45,6 +46,8 @@ Style anchors: classic MSDN Win32 reference pages (structure), Raymond Chen's *T
 
 05 phase 0 (agent-tools registry + project-bridge) ──(independent; fixes live bugs)
    └──▶ 05 phases 1–3 (WebMCP provider, consent, origin trial)
+
+06 concept essays ──(independent; 01's Remarks link to them; 02 distributes them)
 ```
 
 Orderings that matter:
@@ -67,10 +70,21 @@ Orderings that matter:
 - 05 phase 1: WebMCP read-only provider behind feature detection.
 
 **Phase C — polish and rollout**
-- 01: hand-written Remarks/Examples for the 16 priority operators, then incrementally for the rest.
+- 01: hand-written Remarks/Examples for the 16 priority operators, then incrementally for the rest — driven by the index coverage counter and the prose-staleness queue, not memory.
+- 06: concept essays 1–5, cross-linked from the priority pages (same author pass as the Remarks work where possible).
 - 03: npm publish, `.mcp.json` docs page.
 - 04: `.claude-plugin/marketplace.json` plugin packaging.
 - 05 phases 2–3: write tools behind consent UI, origin-trial token for noodles.gl, image tool results.
+
+## Knowledge accrual (how the repository keeps filling)
+
+Generated skeletons make the docs *accurate*; these mechanisms make them *accumulate*:
+
+- **Mine what already exists**: the History region (01) extracts per-operator change stories from `__migrations__/` — the repo's existing record of "what we tried first". Git log and PR descriptions feed the priority-page Remarks.
+- **Make progress visible**: the reference index shows "N of M operators have written Remarks"; `--check` emits a prose-staleness queue (operator source changed, prose untouched).
+- **Make it a ritual**: the PR template asks "does this change an operator's behavior? Update its Remarks" (01 step 8).
+- **Keep examples honest**: fenced examples on reference pages are validated in CI (01), the same way authored projects are (04).
+- **Close the loop from agents** (later): once 03/04 are live, `validate_project` failures and in-app assistant misses are a direct signal of what users get wrong — use that data to prioritize which Remarks and essays to write next. No tooling now; just look at it when Phase C prioritizes.
 
 ## Quick wins (small standalone PRs, high value, no phase gating)
 

@@ -102,6 +102,13 @@ op('/<kebab-name>').par.<firstInput>    // read an input parameter
 | **Defined in** | `noodles-editor/src/noodles/operators.ts` |
 <!-- gen:end requirements -->
 
+## History
+<!-- gen:begin history -->
+[generated from src/noodles/__migrations__/ — one bullet per migration that touches
+this operator, e.g. "v7 — input `data` renamed to `items`"; omitted entirely when
+no migration mentions the op]
+<!-- gen:end history -->
+
 ## See Also
 [hand — seeded once by the scaffold with same-category siblings, then hand-curated]
 ```
@@ -230,9 +237,12 @@ renderIndex() → docs/reference/operators/index.md (fully generated, header say
 Decisions:
 
 - **Flat directory**, `<kebab>.md` from decamelized displayName (`IconLayerOp` → `icon-layer.md`, `DuckDbOp` → `duck-db.md`), with a collision assert. Per-category subdirectories were rejected: category membership changes over time and moving files orphans prose and breaks URLs. MSDN was alphabetical; the categorized view belongs to the index.
-- **Index page**: one H2 per category (13 from `categories.ts`, unlisted ops fall back to `utility` exactly as `generate-context.ts` does), each op as `[DisplayName](./kebab.md) — description`.
+- **Index page**: one H2 per category (13 from `categories.ts`, unlisted ops fall back to `utility` exactly as `generate-context.ts` does), each op as `[DisplayName](./kebab.md) — description`. The index header also carries the **coverage signal**: "N of M operators have written Remarks" — the generator knows which pages have empty Remarks sections, and making the number visible on the landing page is what keeps Phase C's prose backlog burning down.
+- **History region**: a `parseMigrations()` pass over `src/noodles/__migrations__/*.ts` (they use structured helpers — `renameHandle`, `changeDefaultValue` — plus op-type string literals, so a static scan attributes most migrations to operators). Emits the generated History section per page: "v7 — input `data` renamed to `items`", "v14 — MapStyleOp removed, use MaplibreBasemapOp". Migrations are the repo's existing record of "what we tried first" — this mines them instead of asking anyone to remember. Unattributable migrations are listed on the index page rather than dropped silently.
 - **Math aliases**: one `math.md` page. Generated "Operations" region lists the 19 `operator` enum values; generated "Aliases" region lists the 13 virtual ops with their descriptions, each noted as "inserts a Math node with `operator` preset". No 13 stub pages.
 - **Splice safety**: error on missing or duplicated markers rather than guessing.
+- **Prose-staleness stamp**: each page gets a generated comment recording a hash of the operator's source range (`<!-- gen:src-hash abc123 -->`). When the hash changes but nothing outside the generated regions was touched since, the page lands on a "needs prose review" list emitted by `--check` (a warning list, not a build failure). Schema drift is caught hard by CI; this converts silent *prose* rot into a visible queue.
+- **Examples are tested**: `--check` also extracts fenced `json` blocks from Examples sections and validates them (project-shaped snippets against the project schema / lint rules from sub-plans 02/04), and verifies that `op('/path').out.X` / `.par.X` snippets reference fields that exist on the documented operator. Broken examples are worse than no examples — agents copy them verbatim.
 
 ### D4. Sidebar
 
@@ -271,13 +281,14 @@ New page `docs/developers/documenting-operators.md`, added to the Framework Deve
 
 ## Implementation steps
 
-1. Extend `noodles-editor/scripts/parse-operators.ts` (`defaultValueText`, `parseMathOps()`); verify `npm run generate:context` output is unchanged except additive keys.
-2. Write `noodles-editor/scripts/generate-operator-docs.ts` (functions: `buildDocModel`, `kebabName`, `renderInputsTable`, `renderRegion`, `parseExistingDescriptions`, `spliceRegions`, `renderIndexPage`, `main({check})`); add the npm script.
+1. Extend `noodles-editor/scripts/parse-operators.ts` (`defaultValueText`, `parseMathOps()`, `parseMigrations()`); verify `npm run generate:context` output is unchanged except additive keys.
+2. Write `noodles-editor/scripts/generate-operator-docs.ts` (functions: `buildDocModel`, `kebabName`, `renderInputsTable`, `renderRegion`, `renderHistory`, `parseExistingDescriptions`, `spliceRegions`, `renderIndexPage` incl. coverage count, `stampSourceHash`, `checkExamples`, `main({check})`); add the npm script.
 3. First generation: commit ~121 files under `docs/reference/operators/` (133 classes − 13 aliases folded into `math.md` + `index.md`; exact count from the collision assert).
 4. Sidebar entry in `website/sidebars.ts`; link the new index from `docs/users/operators-guide.md`.
 5. Write `docs/developers/documenting-operators.md`; add to sidebar.
 6. Hand-write the 16 priority pages, reading each op's `execute()` for accuracy: FileOp, DuckDbOp, CodeOp, ExpressionOp, AccessorOp, NumberOp, MathOp (carries the aliases), ScatterplotLayerOp, PathLayerOp, GeoJsonLayerOp, IconLayerOp, DeckRendererOp, MaplibreBasemapOp, MapViewOp + MapViewStateOp (documented as a cross-linked pair), ContainerOp, TripsLayerOp.
-7. CI: add `npm run generate:op-docs -- --check` to the `lint-format` job in `.github/workflows/test.yml` (working-directory `noodles-editor`). No `deploy-docs.yml` change — docs are committed; generating at deploy time would mask drift.
+7. CI: add `npm run generate:op-docs -- --check` to the `lint-format` job in `.github/workflows/test.yml` (working-directory `noodles-editor`). The check covers drift, Examples validation, and emits the prose-staleness warning list. No `deploy-docs.yml` change — docs are committed; generating at deploy time would mask drift.
+8. Accrual ritual: add a line to the PR template (create `.github/pull_request_template.md` if absent): "Does this PR change an operator's behavior? Update its Remarks in `docs/reference/operators/`." Cheap, but it's the difference between docs written once and docs that keep pace.
 
 ## Verification
 
