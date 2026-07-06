@@ -42,7 +42,7 @@ Essay 6 doubles as companion prose to the file-format spec (sub-plans 02/03) —
 
 ### Writing process
 
-Each essay is drafted from source + `dev-docs/architecture.md` by whoever (human or agent) is implementing, then **reviewed by a maintainer for historical accuracy** — the "what we tried first" material can't be derived from code, and wrong history is worse than no history. The review is the knowledge-capture event; budget it.
+Essays are **LLM-drafted** under sub-plan 01's D6 protocol (context pack, traceability, no invented history, `<!-- verify -->` flags), from source + `dev-docs/architecture.md` + git/PR history, then **reviewed by a maintainer for historical accuracy** — the "what we tried first" material can't be derived from code, and wrong history is worse than no history. The maintainer review is the knowledge-capture event; budget it. For essays specifically, a short maintainer interview (10 minutes of "why is it pull-based? what broke with push?") recorded as bullet notes in the PR is often the cheapest way to feed the drafting session real history.
 
 ## Implementation steps
 

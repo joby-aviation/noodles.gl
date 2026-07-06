@@ -32,6 +32,7 @@ Style anchors: classic MSDN Win32 reference pages (structure), Raymond Chen's *T
 | [04-skills.md](04-skills.md) | AI skills | `noodles-authoring` + `noodles-live` SKILL.md suite, `validate-projects` CLI, generated includes, install story |
 | [05-webmcp.md](05-webmcp.md) | Unified tool registry + WebMCP | One canonical tool registry feeding chat/WS/stdio/WebMCP, project-bridge write path, consent UI, origin trial |
 | [06-concept-essays.md](06-concept-essays.md) | Concept essays | Chen-style long-form pieces on the execution model, paths, memoization, timeline, fields — the connective tissue Remarks link to |
+| [07-cuj-evals.md](07-cuj-evals.md) | CUJ eval harness | Greenfield-session evals with rubrics + graders: baseline against today's repo, regrade at every roadmap landing — the program's success metric |
 
 ## Dependency graph
 
@@ -48,6 +49,9 @@ Style anchors: classic MSDN Win32 reference pages (structure), Raymond Chen's *T
    └──▶ 05 phases 1–3 (WebMCP provider, consent, origin trial)
 
 06 concept essays ──(independent; 01's Remarks link to them; 02 distributes them)
+
+07 CUJ evals ──(T0 baseline BEFORE anything else lands; regrades track every landing;
+                consumes 04's validateProject() once it exists)
 ```
 
 Orderings that matter:
@@ -58,6 +62,9 @@ Orderings that matter:
 - 05 phase 0 is pure refactoring + bug fixes and can land any time; later phases ride the Chrome origin trial.
 
 ## Phasing
+
+**Phase 0 — the before photo**
+- 07: scaffold the eval harness and **run the T0 baseline against today's repo before any sub-plan merges**. Every later landing re-runs the same tasks at the new tier; the delta is the measured value of that investment.
 
 **Phase A — foundations** (parallelizable)
 - 01: parser extensions, `generate-operator-docs.ts`, generated skeleton pages for all ~130 ops, sidebar, style guide, CI drift check.
@@ -70,7 +77,7 @@ Orderings that matter:
 - 05 phase 1: WebMCP read-only provider behind feature detection.
 
 **Phase C — polish and rollout**
-- 01: hand-written Remarks/Examples for the 16 priority operators, then incrementally for the rest — driven by the index coverage counter and the prose-staleness queue, not memory.
+- 01: prose for the priority operators, then the rest in category batches — LLM-drafted under the D6 protocol (exemplar canon, context packs, no invented history), maintainer-reviewed; driven by the index coverage counter and the prose-staleness queue, not memory.
 - 06: concept essays 1–5, cross-linked from the priority pages (same author pass as the Remarks work where possible).
 - 03: npm publish, `.mcp.json` docs page.
 - 04: `.claude-plugin/marketplace.json` plugin packaging.
