@@ -52,6 +52,9 @@ export function sessionEnv(): Record<string, string> {
   env.ANTHROPIC_SMALL_FAST_MODEL = SMALL_FAST_MODEL
   env.DISABLE_AUTOUPDATER = '1'
   env.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC = '1'
+  // The eval container runs as root; the CLI refuses --dangerously-skip-
+  // permissions as root unless it knows it's inside a sandbox.
+  env.IS_SANDBOX = '1'
   return env
 }
 
