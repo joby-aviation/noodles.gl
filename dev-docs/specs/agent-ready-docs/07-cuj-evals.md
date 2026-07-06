@@ -177,6 +177,7 @@ Either way the workflow appends a machine-readable row to the series and comment
 
 ### D7. Anti-gaming and drift
 
+- **The standing question, asked of every PR that adds agent-visible convenience: "does this change what a greenfield agent sees?"** If yes, it takes one of exactly three sanctioned paths: **measured** — run as a `run-evals`-labeled smoke PR (the agent-context quick wins, D3); **stripped** — excluded by the tier builder at tiers where it shouldn't exist (the dogfooding artifacts, D3 and 04's eval-isolation note); or **forbidden** — never committed at all (eval tasks verbatim in skills/docs, below). Silent absorption into the baseline is the one unsanctioned option — it's how a measurement program stops measuring without anyone deciding to stop.
 - Tasks and rubrics are versioned. Task changes break the score series (new comparison starts); rubric changes do NOT break it — they trigger a regrade of prior milestone runs instead (D5), so a rubric fix never tempts anyone to keep a broken rubric for continuity's sake.
 - The eval tasks must NOT be committed verbatim into skills/docs (that's training on the test set). Spot-check: skill/doc changes that mention eval fixtures by name get flagged in review.
 - Add one **held-out variation** per task family per season (same skill, different dataset/geometry) to detect overfitting of the resources to the published tasks.
