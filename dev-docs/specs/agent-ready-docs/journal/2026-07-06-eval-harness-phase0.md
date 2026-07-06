@@ -146,3 +146,10 @@ failing localhost fetch (missing data.csv) still counts against the project.
   `format: json` for a CSV → runtime error; also one hallucinated `radiusMinPixels` input
   caught by the schema lint). Tightening the capture to the deck canvas element is queued for
   the next validatorVersion — not changed mid-series.
+- **Budget-capped sessions are real T0 signal, kept as scored**: two of three
+  `contextualize-operator` sessions on sonnet-5 ended `error_max_turns` at the pinned 30-turn
+  budget without writing `answers.json` (mechanical 0, capped) — the model spent its budget
+  verifying thoroughly rather than answering. sonnet-4-6 (22–34 turns) and opus-4-8 (25–29)
+  fit. D5 pins budgets precisely so this registers as a low score, and lighter lookups at
+  higher tiers are expected to move exactly this number. Also noted: the CLI's reported
+  `num_turns` can exceed `--max-turns` by one (31 vs 30) — counting nuance, recorded as-is.
