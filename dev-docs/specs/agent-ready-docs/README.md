@@ -1,8 +1,8 @@
 # Agent-Ready Operator Docs — Roadmap
 
-This spec directory defines a program of work to make Noodles.gl's operators fully documented for humans and fully consumable by AI agents. It is a roadmap plus seven executable sub-plans, governed by a [constitution](constitution.md) that consolidates the program's cross-cutting rules. Each sub-plan is standalone: it can be picked up as its own task/PR series without reading the others first, and each one names its dependencies explicitly.
+This spec directory defines a program of work to make Noodles.gl's operators fully documented for humans and fully consumable by AI agents. It is a roadmap plus seven executable sub-plans. Each sub-plan is standalone: it can be picked up as its own task/PR series without reading the others first, and each one names its dependencies explicitly. The [cross-cutting rules index](#cross-cutting-rules-index) below collects the program's recurring principles in one place.
 
-Execution tooling note: if we adopt GitHub Spec Kit post-merge, `constitution.md` seeds the repo-wide `.specify/memory/constitution.md` (its generalizable articles promote; the program-specific ones stay here), and each sub-plan feeds one `specify → plan → tasks → implement` cycle. Adoption is deliberately not part of this PR.
+Execution tooling note: if we adopt GitHub Spec Kit post-merge, each sub-plan feeds one `specify → plan → tasks → implement` cycle. Adoption is deliberately not part of this PR.
 
 ## Vision
 
@@ -106,6 +106,22 @@ A note on framing: several of these touch code that works as designed for the pa
 3. **Refresh `AGENTS.md`** — it drifted as the code moved: claims project version 6 (actual: `NOODLES_VERSION` = 14, derived from migrations), points at `noodles-editor/examples/external-control/mcp-proxy.js` (actual: `examples/external-control/mcp-proxy.js`), references `public/examples` (actual: `src/examples`), and still warns against editing the `timeline` JSON — Theatre.js-era advice; the native timeline's serialized format is fully typed in `src/timeline/types.ts` and is a supported editing surface (see 02/04). This drift is the argument for sub-plan 04's generated includes — hand-maintained facts rot no matter how diligent the authors.
 4. **Finish the external-control write path** — the WebSocket surface reads perfectly but writes were left as scaffolding (consistent with `PIPELINE_TEST` and `DATA_UPLOAD` being explicit TODOs): `worker-bridge.ts` and `tool-adapter.ts` construct private `MCPTools` instances and never call `setProject()`, so `getCurrentProject` reports "No project loaded" and mutations validate-then-drop; `PIPELINE_CREATE` passes an object where the validator requires an array. Sub-plan 05's project-bridge is the designed fix; a targeted patch works sooner.
 5. **Enforce session permissions** — `session-manager.ts` already models `['read','write','execute']` permissions; the enforcement hook just never got wired into the dispatch path. The model is right; connect it.
+
+## Cross-cutting rules index
+
+These principles recur across the sub-plans. Each is owned by the section that defines and enforces it; this list is the index, not the law.
+
+- **One owner per fact** — generators harvest, never define (Ownership boundaries, below)
+- **Generated and hand-written content never mix silently** — markers, idempotent regeneration, CI drift gates, staleness queues (01 D1, D3)
+- **No invented history** — behavioral claims from code/tests; history only from migrations/git/PRs/maintainer notes; uncertainty flagged inline (01 D6; 06 writing process)
+- **Two voices, strictly separated** — normative vs Remarks; RFC 2119 only in the `noodles.json` file-format spec (01 D5)
+- **Deletion carries its courtesy** — original intent, concrete failure mode, preserved capability, invited correction (Quick wins note, below)
+- **Nothing changes what a greenfield agent sees without a sanctioned path** — measured, stripped, or forbidden (07 D7)
+- **Count what's countable; judge only what requires judgment** — no bare scales; tag-matched applicability (07 D4)
+- **No quality claim without a calibrated instrument** — (rubricVersion, judgeModel) calibration, pre-committed thresholds, noise bands, regrade-not-fork (07 D4–D6)
+- **Dependencies flow toward plain Node** — npx/CI code never imports Vite-built code; shared definitions live at the most dependency-free importable point (03 D4; Orderings, above)
+- **Capability outlives its container** — aliases for a release cycle, schema versions retained forever, provenance embedded in responses (02 D1–D2, 03 D3–D4, 05 D1)
+- **Review is sampling backed by machines** — CI holds the mechanical line; humans spend attention on flagged claims and expensive-to-fail samples (01 D6 batch workflow)
 
 ## Ownership boundaries
 
