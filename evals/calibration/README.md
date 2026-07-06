@@ -86,10 +86,31 @@ human-consensus↔judge agreement against the 80% bar. What happens next:
 Commit your filled sheets (`calibration/<your-name>/`) when done —
 `calibration/materials/` stays local (gitignored).
 
-## Scope
+## Grading strategy: the shared sample
 
 Worksheets are generated from graded runs (`--generate` appends new codes as
-new runs land; existing codes never change, so your filled sheets stay valid).
-You don't need to grade every worksheet — per-dimension agreement tolerates a
-stratified sample (e.g. one run per task×model) — but more graded sheets mean
-better exemplars for anchor-sharpening.
+new runs land; existing codes never change, so filled sheets stay valid).
+Nobody grades all of them — the agreement bar is per-dimension and tolerates
+sampling. The plan of record:
+
+- **One shared sample of 12 worksheets; both graders grade the same 12.**
+  The overlap is half the instrument: human↔human agreement (same sheet, two
+  readers) is what separates rubric-wording bugs from judge bugs, and the
+  consensus↔judge comparison needs a consensus to exist. Disjoint sets would
+  double coverage but collapse the diagnostic — `--agreement` skips sheets
+  not graded by both.
+- **The sample is drawn after the full 7-task T0 baseline is graded**, so it
+  can be stratified across both rubric families, all seven tasks, all three
+  session models, and — deliberately — a mix of clean and failing runs.
+  Agreement on perfect runs is cheap; anchors earn their keep on the messy
+  ones (budget-capped sessions, mechanical failures, trap-taking edits), and
+  that's also where anchor-sharpening exemplars come from.
+- Only the worksheet **codes** are published (the outcome stratification would
+  otherwise leak run identities).
+- Budget: ~2–2½ hours per grader, splittable — each sheet is self-contained.
+- Extra sheets beyond the shared 12 are optional solo work: useful as
+  exemplar-mining, but they don't enter the agreement record (no overlap, no
+  consensus).
+
+> **The shared sample: _to be posted here once the full baseline is graded —
+> hold off grading until then._**
