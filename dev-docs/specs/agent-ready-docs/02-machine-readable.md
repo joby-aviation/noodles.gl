@@ -56,6 +56,7 @@ Rationale for the combination: shadcn-style per-item JSON gives one fetch per op
 - New `noodles-editor/src/noodles/utils/project-schema.ts`: a **strict, hand-authored zod schema** for `NoodlesProjectJSON` — `version: z.literal(NOODLES_VERSION)`, node shape (id as Unix path, type in `opTypes`… as far as zod can express statically), edge shape with `^out\.` / `^par\.` regexes on handles, passthrough for `timeline`/`viewport`/unknown keys. Unit test validates every project under `src/examples/`.
 - New `noodles-editor/scripts/generate-project-schema.ts` emits it via `z.toJSONSchema()`; npm script `generate:schema` with `--check`. Output **checked in** (changes rarely, should be code-reviewed, and is fetchable from raw.githubusercontent as a bonus).
 - CI: `generate:schema -- --check` step in `.github/workflows/test.yml`. A new migration changes `NOODLES_VERSION`, the check fails, the schema gets regenerated in the same PR — that's the sync mechanism.
+- Prose accompanying the schema (and the authoring guide it pairs with, sub-plan 03) is the `noodles.json` **file-format spec** — the only documents written in RFC 2119 register (capitalized MUST/SHOULD/MAY for interoperability contracts: `version`, node/edge shapes, `out.`/`par.` handle prefixes, the edge-id formula). See sub-plan 01 D5 for the scoping rule.
 
 ### D3. Deploy-path cleanup
 

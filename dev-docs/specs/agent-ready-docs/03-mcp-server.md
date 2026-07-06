@@ -57,7 +57,7 @@ noodles-mcp/
 | `get_authoring_guide` | `{}` | authoring rules markdown | new `docs/developers/authoring-noodles-json.md` |
 | *(`--live` only)* the live tools | per `tool-defs.ts` | proxied | WebSocket :8765 to the running browser |
 
-`get_authoring_guide` serves a new docs page whose content is lifted from `src/ai-chat/system-prompt.md` (handle formats `out.X`/`par.X`, edge id formula, path rules, a minimal valid project skeleton, the schema URL) — the same invariants sub-plan 04's skill inlines.
+`get_authoring_guide` serves a new docs page whose content is lifted from `src/ai-chat/system-prompt.md` (handle formats `out.X`/`par.X`, edge id formula, path rules, a minimal valid project skeleton, the schema URL) — the same invariants sub-plan 04's skill inlines. This page is the **`noodles.json` file-format spec**, and it is the one place (together with the JSON Schema docs, sub-plan 02) written in RFC 2119 register — capitalized MUST/SHOULD/MAY for contract-strength statements, per the style guide in sub-plan 01 D5.
 
 ### D3. `validate_project`: schema + registry lint, not runtime
 
