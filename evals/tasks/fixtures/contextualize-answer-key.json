@@ -1,0 +1,84 @@
+{
+  "_comment": "Ground truth for contextualize-operator v1. Every 'source' points at the repo location the fact was verified against (origin/main). match kinds: regex (case-insensitive), containsAll (every substring present, case-insensitive), judge (grade-time judge call comparing the answer to 'expected'; flagged so regrades know a model was involved).",
+  "answers": [
+    {
+      "id": "q01",
+      "match": "judge",
+      "expected": "Inputs and defaults: data (none), visible (true), opacity (1), getPath (accessor, default extracts d.path), getTimestamps (accessor, default extracts d.timestamps), getColor ('#bfcae3'), getWidth (8), billboard (false), capRounded (true), jointRounded (true), currentTime (0), fadeTrail (false), trailLength (120), widthUnits ('meters'), widthMinPixels (2), widthScale (20), parameters (depthTest true), extensions (empty list). Credit: names at least 12 of these with correct defaults for the ones it names, and invents no fields that do not exist.",
+      "source": "noodles-editor/src/noodles/operators.ts (TripsLayerOp createInputs)"
+    },
+    { "id": "q02", "match": "regex", "expected": "\\b20\\b", "source": "noodles-editor/src/noodles/operators.ts (ScatterplotLayerOp getRadius: NumberField(20))" },
+    { "id": "q03", "match": "regex", "expected": "pixels", "source": "noodles-editor/src/noodles/operators.ts (ScatterplotLayerOp radiusUnits default 'pixels')" },
+    { "id": "q04", "match": "containsAll", "expected": ["pixels", "meters"], "source": "noodles-editor/src/noodles/operators.ts (ScatterplotLayerOp radiusUnits values)" },
+    { "id": "q05", "match": "regex", "expected": "\\blayer\\b", "source": "noodles-editor/src/noodles/operators.ts (ScatterplotLayerOp createOutputs)" },
+    { "id": "q06", "match": "containsAll", "expected": ["json", "csv", "tsv", "text", "binary"], "source": "noodles-editor/src/noodles/operators.ts (FileOp format values)" },
+    { "id": "q07", "match": "regex", "expected": "\\bjson\\b", "source": "noodles-editor/src/noodles/operators.ts (FileOp format default 'json')" },
+    { "id": "q08", "match": "containsAll", "expected": ["expression", "accessor"], "source": "noodles-editor/src/noodles/operators.ts (AccessorOp createInputs/createOutputs)" },
+    { "id": "q09", "match": "regex", "expected": "\\bmaplibre\\b", "source": "noodles-editor/src/noodles/operators.ts (MaplibreBasemapOp createOutputs)" },
+    { "id": "q10", "match": "regex", "expected": "\\bvis\\b", "source": "noodles-editor/src/noodles/operators.ts (DeckRendererOp createOutputs)" },
+    { "id": "q11", "match": "regex", "expected": "\\b120\\b", "source": "noodles-editor/src/noodles/operators.ts (TripsLayerOp trailLength: NumberField(120))" },
+    {
+      "id": "q12",
+      "match": "judge",
+      "expected": "sqrt: yes, it is in the operator values list. atan: no — the list has 'tan' but not 'atan'. Full list: add, subtract, multiply, divide, sine, cosine, tan, min, max, modulo, power, log, sqrt, round, floor, ceil, abs, rad, deg. Credit: says yes to sqrt AND no to atan.",
+      "source": "noodles-editor/src/noodles/operators.ts (MathOp operator values)"
+    },
+    { "id": "q13", "match": "containsAll", "expected": ["pixels", "meters", "common"], "source": "noodles-editor/src/noodles/operators.ts (TripsLayerOp widthUnits values)" },
+    { "id": "q14", "match": "containsAll", "expected": ["mercator", "globe"], "source": "noodles-editor/src/noodles/operators.ts (MaplibreBasemapOp projection values)" },
+    {
+      "id": "q15",
+      "match": "judge",
+      "expected": "d — the current data item; data — the full dataset array. (The utils object and library globals are also in scope, but d and data are the accessor context.) Credit: identifies both d (current item) and data (full dataset) with correct meanings.",
+      "source": "AGENTS.md (AccessorOp Context section)"
+    },
+    {
+      "id": "q16",
+      "match": "judge",
+      "expected": "MapStyleOp was removed (schema migration 014). It was a pass-through node exposing a preset map style URL; the migration deletes MapStyleOp nodes and inlines the style URL value onto the connected MaplibreBasemapOp's mapStyle input. Credit: says it was removed by a migration AND that its value was inlined onto MaplibreBasemapOp (mentioning v14 or migration 014 is a plus, not required).",
+      "source": "noodles-editor/src/noodles/__migrations__/014-remove-map-style-op.ts"
+    },
+    {
+      "id": "q17",
+      "match": "judge",
+      "expected": "It renamed the timeline (Theatre) sheet id in timeline.sheetsById from 'Nodes' to 'Noodles' — it did NOT rename node types or node ids. Credit: identifies the timeline sheet id rename; an answer claiming node types/ids were renamed fails.",
+      "source": "noodles-editor/src/noodles/__migrations__/006-rename-nodes-to-noodles.ts"
+    },
+    { "id": "q18", "match": "containsAll", "expected": ["DateOp", "DateTimeOp"], "source": "noodles-editor/src/noodles/__migrations__/008-rename-date-to-datetime.ts" },
+    { "id": "q19", "match": "regex", "expected": "marker", "source": "noodles-editor/src/noodles/__migrations__/013-add-time-markers.ts (adds empty markers array to timeline sequence)" },
+    {
+      "id": "q20",
+      "match": "judge",
+      "expected": "{source}.{sourceHandle}->{target}.{targetHandle}, e.g. /data-loader.out.data->/filter.par.data. Credit: the four components in that order joined with '.' and '->'.",
+      "source": "AGENTS.md (Edge Structure) and every src/examples/*/noodles.json"
+    },
+    { "id": "q21", "match": "regex", "expected": "\\bpar\\b", "source": "AGENTS.md (edge targetHandle 'par.fieldName'); src/examples/*/noodles.json edges" },
+    { "id": "q22", "match": "regex", "expected": "\\bout\\b", "source": "AGENTS.md (edge sourceHandle 'out.fieldName'); src/examples/*/noodles.json edges" },
+    { "id": "q23", "match": "regex", "expected": "\\b14\\b", "source": "noodles-editor/src/noodles/__migrations__/ (highest migration 014); src/examples/*/noodles.json version field" },
+    {
+      "id": "q24",
+      "match": "judge",
+      "expected": "'@/' means the path is relative to the project's data directory — the file is resolved inside the project's own folder. Credit: relative-to-project-data-directory (or project folder) resolution.",
+      "source": "AGENTS.md (Path Prefixes in File References)"
+    },
+    {
+      "id": "q25",
+      "match": "judge",
+      "expected": "Unix-style absolute paths starting with '/', e.g. /data-loader or /container/child for nested operators. Credit: absolute slash-prefixed path format.",
+      "source": "AGENTS.md (Operator Path System); src/examples/*/noodles.json node ids"
+    },
+    { "id": "q26", "match": "containsAll", "expected": ["op('/data-loader')", "out", "data"], "source": "AGENTS.md (Reactive References: op('/data-loader').out.data)" },
+    {
+      "id": "q27",
+      "match": "judge",
+      "expected": "An operator named 'sibling' in the same container as the referencing operator (relative path resolved against the current operator's container). Credit: same-container / sibling resolution.",
+      "source": "AGENTS.md (Operator Path System: op('./sibling') — same container)"
+    },
+    {
+      "id": "q28",
+      "match": "judge",
+      "expected": "By its full path with the container as a path prefix, e.g. /analysis/filter for operator 'filter' inside container '/analysis'. Credit: container-prefixed absolute path with an example of the /container/child shape.",
+      "source": "AGENTS.md (Operator Path System: op('/analysis/filter'))"
+    },
+    { "id": "q29", "match": "regex", "expected": "\\b(one|1|single)\\b", "source": "AGENTS.md (Connection Rules: Single Input — each input accepts one connection)" }
+  ]
+}
