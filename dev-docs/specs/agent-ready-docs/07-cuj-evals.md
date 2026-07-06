@@ -104,7 +104,30 @@ Judge mechanics: the judge receives the task, rubric, artifacts, and transcript;
 
 `report.ts` emits the scorecard: per-task and aggregate scores at each tier over time — the **docs ROI curve** — plus the process-metric deltas. Results directories are committed (artifacts pruned to transcript + final files + one screenshot).
 
-### D6. Anti-gaming and drift
+### D6. Longitudinal tracking and PR surfacing (the Coveralls model)
+
+Two speeds, because the two signals have wildly different costs:
+
+**Fast lane — deterministic docs metrics, every PR.** No agent sessions required: docs Remarks coverage (N/M from the 01 index counter), prose-staleness queue length, skill/schema drift status are all computable in seconds from the checkout. A `docs-metrics` job in `test.yml` computes them and a GitHub Action posts/updates a **sticky PR comment** (upsert by marker, exactly like Coveralls):
+
+> **Docs metrics** · Remarks coverage: 16/130 (**+2**) · stale-prose queue: 7 (−1) · drift checks: ✅
+
+This is the per-PR heartbeat. It costs nothing and makes documentation-regressing PRs visible at review time.
+
+**Slow lane — eval grades, on demand + milestones.** Full greenfield eval runs stay off the per-PR path (cost, latency, variance). A `run-evals.yml` workflow with two triggers:
+
+- `workflow_dispatch` with tier/task inputs — the milestone run.
+- A PR **label** (`run-evals`) — runs a **smoke subset** (2 designated tasks, 1 judge sample instead of 3) against the PR's checkout, for PRs that plausibly move the needle (skills, reference pages, MCP server, prompts).
+
+Either way the workflow appends a machine-readable row to the series and comments the delta on the PR/commit:
+
+> **CUJ evals (smoke, T4)** · author-scatterplot: 3.1 → **3.4** · contextualize-operator: 2.2 → **2.6** · vs baseline `evals/results/index.json@main` · [full artifacts](link)
+
+**Series storage.** Every run appends to `evals/results/index.json` — one row per run: `{date, commit, tier, taskVersion, rubricVersion, model, scores: {task: {mechanical, judge, process}}, cost}`. The row is the unit of tracking; the per-run directories hold the evidence. `report.ts` renders the series as the longitudinal table/chart, and a tiny endpoint JSON (`website/static/evals/latest.json`) feeds a shields.io badge in the README — the outward-facing Coveralls number.
+
+**Noise discipline.** Verification step 1 measures run-to-run variance at T0; the reporter treats any delta inside that band as "no change" and says so explicitly. A Coveralls-style comment that flaps ±0.1 on every PR trains everyone to ignore it — the noise band is what keeps the signal credible. Smoke-lane results are labeled as smoke and never overwrite milestone rows in the series.
+
+### D7. Anti-gaming and drift
 
 - Tasks and rubrics are versioned; score series break on task changes.
 - The eval tasks must NOT be committed verbatim into skills/docs (that's training on the test set). Spot-check: skill/doc changes that mention eval fixtures by name get flagged in review.
@@ -116,8 +139,9 @@ Judge mechanics: the judge receives the task, rubric, artifacts, and transcript;
 2. Mechanical graders: Playwright load + screenshot check reusing the app's existing Playwright setup; validation via 04's `validateProject()` (interim: schema + handle-lint inline until 04 lands).
 3. `judge-prompt.md` + first rubric YAML; `grade.ts` orchestration (3 samples, median, evidence required).
 4. **Run the T0 baseline for the two tasks; commit results.** This is the program's "before" photo — do it before any roadmap sub-plan merges.
-5. Add the remaining tasks; complete the T0 baseline across all of them.
-6. Re-run at each roadmap landing (tier unlock) + the matching ablation; `report.ts` longitudinal output linked from this spec directory.
+5. Add the remaining tasks; complete the T0 baseline across all of them; record the noise band.
+6. Surfacing (D6): the sticky-comment `docs-metrics` job in `test.yml`; `run-evals.yml` with dispatch + label triggers and the delta comment; `evals/results/index.json` series + badge endpoint.
+7. Re-run at each roadmap landing (tier unlock) + the matching ablation; `report.ts` longitudinal output linked from this spec directory.
 
 ## Verification
 
