@@ -55,7 +55,7 @@ export async function runOne(args: {
 }): Promise<string> {
   assertProviderEnv()
   const task = loadTask(args.task)
-  const modelSlug = args.model.replace(/^anthropic\./, '')
+  const modelSlug = args.model.replace(/^(us\.)?anthropic\./, '')
   const runId = `${task.id}--${modelSlug}--s${args.sessionIndex}`
   const runDir = path.join(RESULTS_ROOT, args.series, 'runs', runId)
   fs.rmSync(runDir, { recursive: true, force: true })

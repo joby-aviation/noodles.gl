@@ -33,17 +33,22 @@ in `noodles-editor/scripts/parse-operators.ts`).
 ## Provider
 
 The season runs on **AWS Bedrock**. Model pins live in
-`harness/lib/config.ts` and are recorded verbatim in every results row:
-sessions under test `anthropic.claude-sonnet-4-6` / `anthropic.claude-sonnet-5`
-/ `anthropic.claude-opus-4-8` (the T0 baseline runs all three; cross-tier
-claims only ever compare within one session model), judge
-`anthropic.claude-opus-4-8`, small-fast `anthropic.claude-haiku-4-5`.
+`harness/lib/config.ts` and are recorded verbatim in every results row —
+they are `us.`-prefixed cross-region inference-profile ids (raw model ids
+404 on invocation): sessions under test `us.anthropic.claude-sonnet-4-6` /
+`us.anthropic.claude-sonnet-5` / `us.anthropic.claude-opus-4-8` (the T0
+baseline runs all three; cross-tier claims only ever compare within one
+session model), judge `us.anthropic.claude-opus-4-8`, small-fast
+`us.anthropic.claude-haiku-4-5-20251001-v1:0`.
 
-`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and `AWS_REGION` must be set:
-the harness fails fast listing whichever are missing, never prompts, and never
-falls back to the Anthropic API. Sessions are spawned through the `claude` CLI
-with `CLAUDE_CODE_USE_BEDROCK=1`; judge calls use `AnthropicBedrockMantle`
-from `@anthropic-ai/bedrock-sdk`.
+`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and `AWS_REGION` must be set
+(plus `AWS_SESSION_TOKEN` for temporary credentials): the harness fails fast
+listing whichever are missing, never prompts, and never falls back to the
+Anthropic API. Sessions are spawned through the `claude` CLI with
+`CLAUDE_CODE_USE_BEDROCK=1`; judge calls use the classic `AnthropicBedrock`
+client from `@anthropic-ai/bedrock-sdk` (the `AnthropicBedrockMantle`
+endpoint does not serve the pinned models in this account/region — see the
+journal).
 
 ## Running
 

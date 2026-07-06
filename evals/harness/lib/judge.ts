@@ -1,10 +1,12 @@
 // Judge orchestration (07 D4): 3 independent samples per run, median per
 // dimension, evidence citation required per score and verified to resolve.
 // The judge is blind to tier, session model, and hypothesis. Calls go through
-// AnthropicBedrockMantle (@anthropic-ai/bedrock-sdk) — same messages.create
-// surface as the standard SDK.
+// the classic AnthropicBedrock client (bedrock-runtime InvokeModel): the
+// intended AnthropicBedrockMantle endpoint does not serve the pinned models
+// in this account/region (persistent 404s for every naming form; see the
+// journal entry for 2026-07-06) — same messages.create surface either way.
 
-import { AnthropicBedrockMantle } from '@anthropic-ai/bedrock-sdk'
+import { AnthropicBedrock } from '@anthropic-ai/bedrock-sdk'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { JUDGE_MODEL, RUBRICS_ROOT } from './config'
@@ -29,9 +31,9 @@ export interface JudgeSample {
   raw: string
 }
 
-let client: AnthropicBedrockMantle | null = null
-function bedrock(): AnthropicBedrockMantle {
-  if (!client) client = new AnthropicBedrockMantle({ awsRegion: process.env.AWS_REGION })
+let client: AnthropicBedrock | null = null
+function bedrock(): AnthropicBedrock {
+  if (!client) client = new AnthropicBedrock({ awsRegion: process.env.AWS_REGION })
   return client
 }
 

@@ -7,14 +7,18 @@ import { fileURLToPath } from 'node:url'
 
 export const PROVIDER = 'bedrock' as const
 
-// Pinned Bedrock model ids — recorded verbatim in results rows.
+// Pinned Bedrock model ids — recorded verbatim in results rows. These are
+// us.-prefixed cross-region inference profile IDs: raw model IDs appear in
+// ListFoundationModels but invocation 404s without the profile prefix. The
+// haiku profile only exists in dated form (there is no undated
+// us.anthropic.claude-haiku-4-5 in ListInferenceProfiles).
 export const SESSION_MODELS = [
-  'anthropic.claude-sonnet-4-6',
-  'anthropic.claude-sonnet-5',
-  'anthropic.claude-opus-4-8',
+  'us.anthropic.claude-sonnet-4-6',
+  'us.anthropic.claude-sonnet-5',
+  'us.anthropic.claude-opus-4-8',
 ] as const
-export const JUDGE_MODEL = 'anthropic.claude-opus-4-8'
-export const SMALL_FAST_MODEL = 'anthropic.claude-haiku-4-5'
+export const JUDGE_MODEL = 'us.anthropic.claude-opus-4-8'
+export const SMALL_FAST_MODEL = 'us.anthropic.claude-haiku-4-5-20251001-v1:0'
 
 export const TIER = 'T0'
 export const VALIDATOR_VERSION = 'interim-1'

@@ -99,3 +99,34 @@ re-escalating them):
 Also noted for 04: the spec'd `kf_*`/`tm_*` id prefixes don't match real data — keyframe ids in
 committed projects are random base62 (`xHJJWLB41a`); interim-1 checks uniqueness + sort order,
 not prefix shape.
+
+## 2026-07-06 — credentials arrived; pre-flight green after two model-routing discoveries
+
+The maintainer supplied temporary STS credentials (region **us-west-2**, superseding the earlier
+us-east-1 choice; expiry 17:00Z). Pre-flight results, in order:
+
+1. **Model ids must be `us.`-prefixed inference-profile ids.** Raw ids
+   (`anthropic.claude-opus-4-8`) appear in ListFoundationModels but 404 on invocation;
+   ListInferenceProfiles shows the ACTIVE profiles. Pins are now
+   `us.anthropic.claude-sonnet-4-6` / `us.anthropic.claude-sonnet-5` /
+   `us.anthropic.claude-opus-4-8` (sessions), `us.anthropic.claude-opus-4-8` (judge), and
+   `us.anthropic.claude-haiku-4-5-20251001-v1:0` (small-fast — the haiku profile only exists in
+   dated form). Recorded verbatim in results rows, as the amended D6 requires.
+2. **`AnthropicBedrockMantle` cannot serve the pinned models here** — its endpoint
+   (`bedrock-mantle.us-west-2.api.aws/anthropic`) returns 404 "model does not exist" for every
+   naming form of the pins (raw, `us.`-prefixed, bare), and a persistent 500 for
+   `anthropic.claude-haiku-4-5`. The classic `AnthropicBedrock` client (bedrock-runtime
+   InvokeModel) serves all four pinned models. **Deviation from the provider directive**: judge
+   calls use `AnthropicBedrock` instead of `AnthropicBedrockMantle` — same `messages.create`
+   surface, same SigV4 credentials, verified working; reported to the maintainer rather than
+   substituted silently.
+3. The claude CLI on Bedrock (`CLAUDE_CODE_USE_BEDROCK=1`) answers with all three session-model
+   profiles. The parent container's Claude Code env vars (`CLAUDE_CODE_PROVIDER_MANAGED_BY_HOST`,
+   `ANTHROPIC_BASE_URL`) must not leak into sessions — `sessionEnv()` already strips all
+   `CLAUDE_*`/`ANTHROPIC_*` vars, which the pre-flight confirmed is required, not just hygiene.
+
+Pipeline smoke (no agent) also passed: template + workspace build, vite + Playwright load of
+`california-earthquakes`, non-blank screenshot (pixel stddev 31). It surfaced that the egress
+policy blocks more than basemap tiles (duckdb WASM extension host), so the console-error filter
+is now URL-aware: an error is environment noise iff every URL it mentions is non-localhost — a
+failing localhost fetch (missing data.csv) still counts against the project.

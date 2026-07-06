@@ -17,12 +17,18 @@ export interface LoadCheckResult {
   detail: string
 }
 
-// Console noise that says nothing about the authored project: tile/CDN fetch
-// failures happen whenever the egress policy blocks a basemap host, on any
-// project including known-good ones. Layer rendering still exercises the
-// pixel-variance check. Anything else (JS exceptions, schema errors) counts.
-const IGNORED_CONSOLE_RE =
-  /(Failed to load resource|net::ERR|fetch|CORS|WebGL warning|AbortError|basemaps\.cartocdn|tile)/i
+// Console noise that says nothing about the authored project: the eval
+// container's egress policy blocks some external hosts (basemap tiles, duckdb
+// WASM extensions) on any project, including known-good ones — layer
+// rendering still exercises the pixel-variance check. An error is treated as
+// environment noise iff every URL it mentions is external (non-localhost):
+// a failing localhost fetch (missing data.csv) stays a real error.
+function isEnvironmentNoise(text: string): boolean {
+  if (/WebGL warning|AbortError/i.test(text)) return true
+  const urls = text.match(/https?:\/\/[^\s'")]+/g) ?? []
+  if (urls.length === 0) return false
+  return urls.every(u => !/localhost|127\.0\.0\.1/.test(u))
+}
 
 export async function loadAndScreenshot(opts: {
   workspace: string
@@ -65,12 +71,14 @@ export async function loadAndScreenshot(opts: {
       const page = await browser.newPage({ viewport: { width: 1280, height: 800 } })
       const consoleErrors: string[] = []
       page.on('console', msg => {
-        if (msg.type() === 'error' && !IGNORED_CONSOLE_RE.test(msg.text())) {
+        if (msg.type() === 'error' && !isEnvironmentNoise(msg.text())) {
           consoleErrors.push(msg.text().slice(0, 500))
         }
       })
       page.on('pageerror', err => {
-        consoleErrors.push(`pageerror: ${String(err).slice(0, 500)}`)
+        if (!isEnvironmentNoise(String(err))) {
+          consoleErrors.push(`pageerror: ${String(err).slice(0, 500)}`)
+        }
       })
 
       const url = `http://localhost:${opts.port}${opts.route}`

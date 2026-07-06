@@ -12,7 +12,7 @@ A system of rubrics and graders that measures how well a **greenfield LLM sessio
 ## Non-goals
 
 - Per-PR CI gating (too slow/expensive; this runs on demand and at milestones).
-- Benchmarking models against each other — the variable under test is the **resources**, so the model and prompt scaffold stay pinned per eval season. (Phase-0 nuance: the T0 baseline is run under **three** pinned session models — `anthropic.claude-sonnet-4-6`, `anthropic.claude-sonnet-5`, `anthropic.claude-opus-4-8` — to record model sensitivity once, at the season's start. Cross-tier claims still only ever compare rows sharing a `sessionModel`; the non-goal stands.)
+- Benchmarking models against each other — the variable under test is the **resources**, so the model and prompt scaffold stay pinned per eval season. (Phase-0 nuance: the T0 baseline is run under **three** pinned session models — `us.anthropic.claude-sonnet-4-6`, `us.anthropic.claude-sonnet-5`, `us.anthropic.claude-opus-4-8`, Bedrock inference-profile ids recorded verbatim — to record model sensitivity once, at the season's start. Cross-tier claims still only ever compare rows sharing a `sessionModel`; the non-goal stands.)
 - Grading the in-app chat assistant (worthwhile, but a different harness; revisit after 05 unifies the tool surfaces).
 
 ## Requirements

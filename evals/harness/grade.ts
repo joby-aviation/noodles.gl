@@ -10,7 +10,7 @@ import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { JUDGE_MODEL, JUDGE_SAMPLES, PROVIDER, RESULTS_ROOT, TASKS_ROOT, assertProviderEnv } from './lib/config'
 import { buildJudgePrompt, judgeOnce, type JudgeSample } from './lib/judge'
-import { AnthropicBedrockMantle } from '@anthropic-ai/bedrock-sdk'
+import { AnthropicBedrock } from '@anthropic-ai/bedrock-sdk'
 import { type KeyEntry } from './lib/matchers'
 import { computeProcessMetrics } from './lib/process-metrics'
 import type { Registry } from './lib/registry'
@@ -94,7 +94,7 @@ async function judgeAnswers(
     answer: answers[e.id] ?? null,
   }))
   const prompt = `You are grading factual answers against an answer key. For each item decide whether the answer states the facts the key requires (the "Credit:" clause is the bar). Phrasing differences are fine; missing or contradicting the required facts is not. Return ONLY JSON: {"verdicts": {"<id>": true|false, ...}}\n\n${JSON.stringify(items, null, 1)}`
-  const client = new AnthropicBedrockMantle({ awsRegion: process.env.AWS_REGION })
+  const client = new AnthropicBedrock({ awsRegion: process.env.AWS_REGION })
   const message = await client.messages.create({
     model: JUDGE_MODEL,
     max_tokens: 1500,
