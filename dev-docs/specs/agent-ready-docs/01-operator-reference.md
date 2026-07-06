@@ -310,6 +310,19 @@ The intent is that **an LLM drafts all of the prose** — Remarks, Examples, fie
 
 **Delivery cadence.** Draft PRs in batches of ~10 pages grouped by category (all layer ops together, etc.), so one reviewer holds one mental model per batch. Reviewer attention goes to flagged claims and one spot-checked page per batch; the mechanical checks (Examples validation, drift, idempotence) are CI's job, not the reviewer's.
 
+**Human + agent batch workflow (the long tail, ~114 pages).** This is not open-ended "write the rest eventually" — it's a repeatable loop with defined roles. The human is the **historian and taste arbiter**; the agent is the **drafter and evidence gatherer**. Humans never start from a blank page; agents never invent history.
+
+Per batch (~10 ops, one category, one PR):
+
+1. **Order the backlog by impact, not alphabet**: count each op type's occurrences across `src/examples/*/noodles.json` (and product analytics if available); document the most-used categories first. The index coverage counter is the backlog tracker — no separate spreadsheet.
+2. **Questions before prose**: the agent assembles the D6 context packs for the whole batch and emits a *question sheet* — every would-be `<!-- verify -->` flag, collected up front ("is IconLayer's 50-entry cache cap intentional?", "why does GeoJsonLayer have both `stroked` and `getLineWidth`?"). This is the batch's entire demand on human memory, concentrated into one sitting.
+3. **The human answers in bulk** — or writes "no history known" per item, which licenses the agent to write the constraint rationale and skip the origin story. Ten minutes of maintainer time per batch, async, in a PR comment or the question-sheet file.
+4. **The agent drafts all pages**, incorporating the answers, exemplar canon open in context, and opens the PR with a one-line provenance note per page (which sources fed it, which answers it used).
+5. **Review is sampling, not proofreading**: the reviewer checks the resolved question sheet, reads one randomly-chosen page in full, and skims the rest for voice. CI holds the mechanical line. If the sampled page fails, the batch goes back — the sample *is* the quality gate, so failing it must be expensive.
+6. **Merge; the coverage counter ticks; the next batch starts.** At ~1 batch per week of one maintainer-hour each, the long tail clears in a quarter without any heroic documentation sprint.
+
+The question-sheet step is the load-bearing one: it converts the scarce resource (maintainer memory) from a per-page review obligation into a per-batch interview, and it's the only step where knowledge that exists nowhere but in someone's head enters the repository.
+
 ## Implementation steps
 
 1. Extend `noodles-editor/scripts/parse-operators.ts` (`defaultValueText`, `parseMathOps()`, `parseMigrations()`); verify `npm run generate:context` output is unchanged except additive keys.
