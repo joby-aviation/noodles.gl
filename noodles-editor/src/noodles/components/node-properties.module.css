@@ -15,9 +15,9 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding-bottom: 12px;
+  padding: 0 0 12px;
+  margin: 0 6px 12px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  margin-bottom: 12px;
 }
 
 .title {
@@ -93,6 +93,7 @@
 /* Op meta (displayName + description near Inputs) */
 .opMeta {
   margin-bottom: 4px;
+  padding: 0 6px;
 }
 
 .opDisplayName {
@@ -113,6 +114,7 @@
   align-items: center;
   justify-content: space-between;
   margin-bottom: 8px;
+  padding-right: 6px;
 }
 
 .sectionActions {
@@ -146,6 +148,7 @@
   flex-shrink: 0;
   line-height: 1;
   padding: 0;
+  user-select: none;
 }
 
 .addBtn {
@@ -270,6 +273,7 @@
   font-size: 11px;
   cursor: pointer;
   text-decoration: none;
+  user-select: none;
 }
 
 .resetButton:hover {

@@ -1163,12 +1163,12 @@ export function PropertyPanel() {
             <div className={s.title}>Page</div>
           </div>
           {selectedNodeCount > 1 ? (
-            <div>
+            <div className={s.opMeta}>
               <div>{selectedNodeCount} nodes selected</div>
               <div>{selectedEdgeCount} edges selected</div>
             </div>
           ) : (
-            <div>Select a node to see properties</div>
+            <div className={s.opMeta}>Select a node to see properties</div>
           )}
         </>
       )}
