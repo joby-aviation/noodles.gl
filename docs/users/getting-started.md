@@ -15,6 +15,7 @@ Basic workflows for using Noodles.gl to create geospatial visualizations and ani
 - **Configure Inputs**: Adjust operator parameters
 - **Reorder Fields**: Drag to change input order
 - **Timeline Controls**: Keyframe values for animation
+- See the full [Properties Panel](./properties-panel.md) reference for context menu actions and field management
 
 ### Timeline Editor
 - **Keyframes**: Click any parameter in property panel to add keyframes
