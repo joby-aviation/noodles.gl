@@ -58,6 +58,19 @@ resize_page({ width: 1280, height: 800 })
      }));
    }
    ```
+6. **Render a fake cursor** to show where a click/right-click happened:
+   ```javascript
+   () => {
+     const cursor = document.createElement('div');
+     cursor.id = 'fake-cursor';
+     cursor.style.cssText = 'position:fixed; left:1094px; top:211px; z-index:999999; pointer-events:none;';
+     cursor.innerHTML = `<svg width="16" height="20" viewBox="0 0 16 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+       <path d="M1 1L1 16L5.5 12L9 19L11.5 18L8 11L14 11L1 1Z" fill="white" stroke="black" stroke-width="1.2"/>
+     </svg>`;
+     document.body.appendChild(cursor);
+   }
+   ```
+   Position `left`/`top` at the click coordinates (offset a few px up-left so the arrow tip lands on the target). Remove after capturing with `document.getElementById('fake-cursor').remove()`.
 
 ## File Conventions
 
@@ -80,3 +93,5 @@ resize_page({ width: 1280, height: 800 })
 - Use `evaluate_script` to dispatch synthetic events for context menus, hover states, etc.
 - Delete intermediate full-page screenshots after cropping
 - If the panel position shifts (e.g., viewport resize), re-query the element's bounding rect before cropping
+- For context menus, trigger on a field near the top of the list so the menu opens downward without covering the target field's label
+- Add a fake cursor (step 6 above) to indicate where the user right-clicked — position it so the arrow tip points at the target row
