@@ -48,9 +48,11 @@ Output fields display the values produced by the operator. They cannot be edited
 
 ## Right-Click Context Menu
 
-Right-click any input or output field row to access the context menu:
+Right-click any field row to access the context menu:
 
 ![Right-click context menu](/img/properties-panel-context-menu.png)
+
+### Input fields
 
 | Action | Description |
 |--------|-------------|
@@ -61,9 +63,20 @@ Right-click any input or output field row to access the context menu:
 | **Sequence** | Convert to a keyframed animation track (shown when field has no keyframes) |
 | **Make static** | Remove all keyframes and lock to current value (shown when field has keyframes) |
 | **Reset to default** | Reset the field to its original default value (disabled when already at default or connected) |
-| **Disconnect all inputs** | Remove all incoming connections to this field |
+| **Disconnect all inputs** | Remove all incoming connections to this field (enabled only for list fields with connections) |
 | **Hide field** | Hide the field from the panel (disabled when connected) |
 | **Show field** | Show a hidden field in the panel |
+
+### Output fields
+
+Output fields show a reduced context menu with copy actions only:
+
+| Action | Description |
+|--------|-------------|
+| **Copy value** | Copy the output's current value (disabled if value is not serializable) |
+| **Copy field name** | Copy the field's identifier |
+| **Copy code reference** | Copy a JavaScript reference (e.g., `op('/arc-layer').out.layer`) |
+| **Copy mustache reference** | Copy a mustache template reference |
 
 Actions are context-sensitive: items appear disabled when not applicable to the current field state.
 
