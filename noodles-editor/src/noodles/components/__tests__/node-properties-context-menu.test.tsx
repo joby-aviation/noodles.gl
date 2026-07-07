@@ -328,6 +328,47 @@ describe('Context menu Hide/Show field', () => {
   })
 })
 
+describe('Context menu on output fields', () => {
+  beforeEach(() => {
+    clearOps()
+    mockEdges = []
+  })
+
+  afterEach(() => {
+    cleanup()
+    clearOps()
+  })
+
+  it('does not show input-only actions for output fields', () => {
+    transformGraph({
+      nodes: [{ id: '/num', type: 'NumberOp', position: { x: 0, y: 0 }, data: {} }],
+      edges: [],
+    })
+    renderNodeProperties('/num')
+
+    // Right-click on the output field "val"
+    const label = screen.getAllByText('val').find(el => {
+      const listItem = el.closest('[role="listitem"]')
+      return listItem?.querySelector('[class*="outputRow"]')
+    })
+    expect(label).toBeDefined()
+    fireEvent.contextMenu(label!.closest('[role="listitem"]')!)
+
+    // Input-only actions should not be present
+    expect(screen.queryByRole('button', { name: 'Hide field' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Show field' })).not.toBeInTheDocument()
+    expect(screen.queryByText('Sequence')).not.toBeInTheDocument()
+    expect(screen.queryByText('Reset to default')).not.toBeInTheDocument()
+    expect(screen.queryByText('Disconnect all inputs')).not.toBeInTheDocument()
+
+    // Copy actions should still be present
+    expect(screen.getByText('Copy value')).toBeInTheDocument()
+    expect(screen.getByText('Copy field name')).toBeInTheDocument()
+    expect(screen.getByText('Copy code reference')).toBeInTheDocument()
+    expect(screen.getByText('Copy mustache reference')).toBeInTheDocument()
+  })
+})
+
 describe('Context menu Disconnect all inputs', () => {
   beforeEach(() => {
     clearOps()
