@@ -103,6 +103,7 @@ import {
   schemeBrBG,
   schemeCategory10,
   schemeDark2,
+  schemeGreys,
   schemePaired,
   schemePiYG,
   schemePRGn,
@@ -495,6 +496,11 @@ export abstract class Operator<OP extends IOperator> {
     debugExecute('%s: starting %O', this.id, { inputs: this.data })
 
     let executionTime = 0
+    let startTime = 0
+    // Show executing indicator only for ops taking longer than 200ms
+    const executingTimer = setTimeout(() => {
+      this.executionState.next({ status: 'executing' })
+    }, 200)
 
     try {
       // Pull upstream dependencies first
@@ -513,7 +519,7 @@ export abstract class Operator<OP extends IOperator> {
       }
 
       // Execute the operator - measure only own execution time
-      const startTime = performance.now()
+      startTime = performance.now()
       const result = this.execute(inputValues)
       const finalResult = result instanceof Promise ? await result : result
       executionTime = performance.now() - startTime
@@ -521,6 +527,8 @@ export abstract class Operator<OP extends IOperator> {
       if (finalResult === null) {
         throw new Error(`Operator ${this.id} returned null`)
       }
+
+      clearTimeout(executingTimer)
 
       // Cache result and mark clean
       this._cachedOutput = finalResult
@@ -555,7 +563,11 @@ export abstract class Operator<OP extends IOperator> {
 
       return finalResult
     } catch (err) {
+      clearTimeout(executingTimer)
       const error = err instanceof Error ? err : new Error(String(err))
+
+      // Calculate actual elapsed time even on error
+      executionTime = performance.now() - startTime
 
       // Only log if this is a new/different error
       if (this._lastLoggedError !== error.message) {
@@ -1661,7 +1673,7 @@ export class CategoricalColorRampOp extends Operator<CategoricalColorRampOp> {
   createInputs() {
     const colorRamp = new CategoricalColorRampField()
 
-    const schemes = {
+    const fixedSchemes = {
       accent: schemeAccent,
       category10: schemeCategory10,
       dark: schemeDark2,
@@ -1671,36 +1683,53 @@ export class CategoricalColorRampOp extends Operator<CategoricalColorRampOp> {
       set3: schemeSet3,
       tableau10: schemeTableau10,
       joby: JOBY_COLORS,
-
-      // These schemes are arrays of arrays, ordered by number of stops. In the future we should
-      // allow the user to select the number of stops
-      BrownGreen: schemeBrBG[11],
-      PurpleGreen: schemePRGn[11],
-      PurpleBlue: schemePuBu[9],
-      PinkYellowGreen: schemePiYG[11],
-      RedBlue: schemeRdBu[11],
-      RedGrey: schemeRdGy[11],
-      RedYellowBlue: schemeRdYlBu[11],
-      RedYellowGreen: schemeRdYlGn[11],
-      YellowGreen: schemeYlGn[9],
-      spectral: schemeSpectral[11],
     }
 
-    const colorScheme = new StringLiteralField('accent', Object.keys(schemes))
+    const steppedSchemes = {
+      greyscale: schemeGreys,
+      BrownGreen: schemeBrBG,
+      PurpleGreen: schemePRGn,
+      PurpleBlue: schemePuBu,
+      PinkYellowGreen: schemePiYG,
+      RedBlue: schemeRdBu,
+      RedGrey: schemeRdGy,
+      RedYellowBlue: schemeRdYlBu,
+      RedYellowGreen: schemeRdYlGn,
+      YellowGreen: schemeYlGn,
+      spectral: schemeSpectral,
+    }
 
-    // TODO: Should this move to the execute function and component?
-    colorScheme.subscribe(val => {
-      const scheme = schemes[val as keyof typeof schemes]
+    const allSchemeNames = [...Object.keys(fixedSchemes), ...Object.keys(steppedSchemes)]
+
+    const colorScheme = new StringLiteralField('accent', allSchemeNames)
+    const steps = new NumberField(8, { min: 3, max: 11, step: 1 })
+
+    const updateRamp = () => {
+      const schemeName = colorScheme.value
+      const n = Math.max(Math.round(steps.value), 3)
+      let scheme: readonly string[]
+      if (schemeName in fixedSchemes) {
+        const full = fixedSchemes[schemeName as keyof typeof fixedSchemes]
+        scheme = full.slice(0, Math.min(n, full.length))
+      } else {
+        const steppedScheme = steppedSchemes[schemeName as keyof typeof steppedSchemes]
+        const clamped = Math.min(n, steppedScheme.length - 1)
+        scheme = steppedScheme[clamped] as readonly string[]
+      }
       const interpolate = scaleOrdinal(scheme)
       colorRamp.count = scheme.length
       colorRamp.setValue(interpolate)
-    })
+    }
+
+    colorScheme.subscribe(updateRamp)
+    steps.subscribe(updateRamp)
 
     const value = new StringField('', { accessor: true })
 
     return {
       colorRamp,
       colorScheme,
+      steps,
       value,
     }
   }
@@ -6397,6 +6426,17 @@ export function fnWithSource(args: string[], body: string, id: string): Function
   }
 }
 
+// Creates a safe wrapper around getOp that throws a clear error when operator not found.
+function safeOpGetter(contextOpId: string): (path: string) => Operator<IOperator> {
+  return (path: string) => {
+    const op = getOp(path, contextOpId)
+    if (!op) {
+      throw new Error(`Operator '${path}' not found`)
+    }
+    return op
+  }
+}
+
 // An Accessor is an ExpressionOp that returns a function instead of executing it
 export class AccessorOp extends Operator<AccessorOp> {
   static displayName = 'Accessor'
@@ -6434,7 +6474,7 @@ export class AccessorOp extends Operator<AccessorOp> {
 
     // https://deck.gl/docs/developer-guide/using-layers#accessors
     const accessor = (d: unknown, dInfo: { index: number; data: unknown; target: number[] }) => {
-      const contextualGetOp = (path: string) => getOp(path, this.id)
+      const contextualGetOp = safeOpGetter(this.id)
       // Get fresh timeline values for each accessor call
       const timelineContext = getTimelineContext()
       try {
@@ -6500,7 +6540,7 @@ export class CodeOp extends Operator<CodeOp> {
     subscribeOpToTimeline(this)
 
     // Create a context-aware getOp function for the code execution
-    const contextualGetOp = (path: string) => getOp(path, this.id)
+    const contextualGetOp = safeOpGetter(this.id)
     const fn = fnWithSource(
       [
         'data',
@@ -6599,7 +6639,7 @@ export class ExpressionOp extends Operator<ExpressionOp> {
       this.id
     )
     // Create a context-aware getOp function for the expression execution
-    const contextualGetOp = (path: string) => getOp(path, this.id)
+    const contextualGetOp = safeOpGetter(this.id)
 
     // Check if any data items are accessor functions
     const hasAccessors = data.some(isAccessor)

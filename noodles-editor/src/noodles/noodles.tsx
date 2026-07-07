@@ -30,6 +30,9 @@ import { useLocation, useParams } from 'wouter'
 import { globalContextManager } from '../ai-chat/global-context-manager'
 import { getPendingQuickStartAction } from '../components/quick-start-modal'
 import { analytics } from '../utils/analytics'
+import type { NoodlesProject } from '../ai-chat/types'
+import { setCurrentProject, setModificationApplier } from '../webmcp/bridge'
+import { externalControl } from './globals'
 import { getKeysForProject, getKeysStore } from './keys-store'
 import newProjectJSON from './new.json'
 import { BitmapOverlayWidget, type BitmapOverlayWidgetProps } from './widgets/bitmap-overlay-widget'
@@ -148,13 +151,21 @@ const defaultEdgeOptions: DefaultEdgeOptions = {
 // Syncs edge data from React Flow store to centralized EdgeConnectionStore for O(1) lookups
 function EdgeConnectionSynchronizer() {
   const store = useStoreApi()
+  const prevEdgesRef = useRef<ReactFlowEdge[] | null>(null)
 
   useEffect(() => {
     const unsubscribe = store.subscribe(state => {
+      // Skip if edges array identity hasn't changed (position-only updates)
+      if (prevEdgesRef.current === state.edges) {
+        return
+      }
+      prevEdgesRef.current = state.edges
       useEdgeConnectionStore.getState().updateFromEdges(state.edges)
     })
     // Initial sync
-    useEdgeConnectionStore.getState().updateFromEdges(store.getState().edges)
+    const currentEdges = store.getState().edges
+    prevEdgesRef.current = currentEdges
+    useEdgeConnectionStore.getState().updateFromEdges(currentEdges)
     return unsubscribe
   }, [store])
 
@@ -285,6 +296,10 @@ export function getNoodles(): Visualization {
   // Warn before leaving page with unsaved changes
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      // Don't warn for examples - they're read-only demos
+      if (isExamplesRoute) {
+        return
+      }
       if (hasUnsavedChanges || storageType === 'memory') {
         e.preventDefault()
         e.returnValue = ''
@@ -295,13 +310,15 @@ export function getNoodles(): Visualization {
       storageType === 'memory'
         ? memoryProjectStore.getDisplayName(projectName || '') || 'Untitled'
         : projectName
+    // Don't show asterisk for examples - they're read-only
+    const showAsterisk = !isExamplesRoute && (hasUnsavedChanges || storageType === 'memory')
     document.title = displayName
-      ? `Noodles.gl - ${displayName}${hasUnsavedChanges || storageType === 'memory' ? ' *' : ''}`
+      ? `Noodles.gl - ${displayName}${showAsterisk ? ' *' : ''}`
       : 'Noodles.gl'
 
     window.addEventListener('beforeunload', handleBeforeUnload)
     return () => window.removeEventListener('beforeunload', handleBeforeUnload)
-  }, [hasUnsavedChanges, projectName, storageType])
+  }, [hasUnsavedChanges, projectName, storageType, isExamplesRoute])
 
   // Only changes when graph structure changes (nodes added/removed/type changed, edges reconnected)
   // Intentionally excludes node position so dragging does NOT re-run transformGraph
@@ -362,6 +379,7 @@ export function getNoodles(): Visualization {
 
   // Use shared hook for project modifications
   const {
+    applyModifications,
     onConnect: onConnectBase,
     onNodesDelete: onNodesDeleteBase,
     updateOperatorId,
@@ -371,6 +389,20 @@ export function getNoodles(): Visualization {
     setNodes,
     setEdges,
   })
+
+  // Keep the WebMCP tool surface in sync with editor state when external
+  // control is enabled (?externalControl=true)
+  useEffect(() => {
+    if (!externalControl) return
+    setModificationApplier(applyModifications)
+    return () => setModificationApplier(null)
+  }, [applyModifications])
+
+  useEffect(() => {
+    if (!externalControl) return
+    // ReactFlow edges type sourceHandle as string | null; the project shape uses undefined
+    setCurrentProject({ nodes, edges } as NoodlesProject)
+  }, [nodes, edges])
 
   // Wrap onConnect to mark unsaved changes
   const onConnect = useCallback(
