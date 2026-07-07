@@ -71,6 +71,12 @@ npm run grade -- --series 2026-07-06.t0.<commit12> --regrade
 
 # scorecard: median [range] per task per session model
 npm run report
+
+# flat CSVs for analysis/presentations (runs.csv + dimensions.csv + README)
+npm run export-metrics -- --series <series> [--out /tmp/eval-metrics]
+
+# small evidence pack: one failed + one passing run, rubric/transcript excerpts
+npm run evidence-pack -- --series <series> --fail <runId> --pass <runId> [--out /tmp/eval-evidence]
 ```
 
 Workspaces are built under `/tmp/noodles-evals` (override: `EVALS_WORK_ROOT`)
