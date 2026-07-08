@@ -792,9 +792,12 @@ export function getNoodles(): Visualization {
       const ops = transformGraph({ nodes, edges })
       setOperators(ops)
 
-      // Update React Flow state (for rendering; graph is already set up above)
+      // Update React Flow state (for rendering; graph is already set up above).
+      // Normalizing here (after transformGraph, so operators exist for the ListField
+      // lookup) derives multi-input slot rendering caches from the file's edge order —
+      // project files never store them.
       setNodes(nodes)
-      setEdges(edges)
+      setEdges(normalizeMultiInputEdges(edges as ReactFlowEdge[]))
 
       // Load editor settings from project with defaults
       setLayoutMode(editorSettings?.layoutMode ?? 'noodles-on-top')

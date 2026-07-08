@@ -1,155 +1,113 @@
-import { Handle, Position, useConnection, useEdges, useNodeId, useReactFlow, useUpdateNodeInternals } from '@xyflow/react'
-import { useEffect, useMemo, useRef } from 'react'
+import {
+  Handle,
+  Position,
+  useConnection,
+  useInternalNode,
+  useNodeId,
+  useStore,
+  useUpdateNodeInternals,
+} from '@xyflow/react'
 import cx from 'classnames'
+import { useEffect, useMemo } from 'react'
 import type { Field } from '../fields'
 import { ListField } from '../fields'
-import { getBaseName } from '../utils/path-utils'
 import { setPendingInsertionIndex } from '../store'
+import {
+  SLOT_GAP,
+  SLOT_HEIGHT,
+  SLOT_SPACING,
+  insertionIndexFromPointerY,
+} from '../utils/multi-input-utils'
+import { getBaseName } from '../utils/path-utils'
 import s from './multi-input-handle.module.css'
 
 interface MultiInputHandleProps {
   id: string
-  isListField: boolean
+  field: Field
   className: string
   style: React.CSSProperties
 }
 
-export function MultiInputHandle({ id, isListField, className, style }: MultiInputHandleProps) {
+// Blender-style multi-input handle: grows one slot per connection and, while a connection
+// or reconnection drag hovers it, tracks which slot boundary the pointer is closest to so
+// the drop inserts (or reorders) at that position. The tracked index is published to
+// pendingInsertionIndex and consumed by onConnect/onReconnect.
+export function MultiInputHandle({ id, field, className, style }: MultiInputHandleProps) {
   const nid = useNodeId()
-  const edges = useEdges()
-  const { getNode } = useReactFlow()
   const updateNodeInternals = useUpdateNodeInternals()
-  const connection = useConnection()
-  const handleRef = useRef<HTMLDivElement>(null)
-  const prevConnectionCountRef = useRef(0)
+  const isListField = field instanceof ListField
 
-  // Get all incoming edges for this handle
-  const incomingEdges = useMemo(() => {
-    return edges.filter(edge => edge.target === nid && edge.targetHandle === id)
-  }, [edges, nid, id])
+  // Sources of incoming edges in slot order, collapsed to a string so re-renders only
+  // happen when this handle's connections actually change
+  const incomingKey = useStore(store =>
+    store.edges
+      .filter(edge => edge.target === nid && edge.targetHandle === id)
+      .map(edge => edge.source)
+      .join('\n')
+  )
+  const sources = useMemo(() => (incomingKey ? incomingKey.split('\n') : []), [incomingKey])
+  const connectionCount = sources.length
 
-  const connectionCount = incomingEdges.length
+  // Pointer y (flow coordinates) while a drag hovers this handle, null otherwise
+  const pointerY = useConnection(connection =>
+    connection.inProgress &&
+    connection.toHandle?.nodeId === nid &&
+    connection.toHandle?.id === id
+      ? connection.to.y
+      : null
+  )
 
-  // Detect if we're actively dragging a connection to this handle
-  const isDraggingToThisHandle = useMemo(() => {
-    return connection.inProgress && connection.toNode?.id === nid && connection.toHandle?.id === id
-  }, [connection, nid, id])
-
-  // Calculate insertion index based on mouse position
+  // Boundary index the pointer is closest to, derived in flow coordinates from the
+  // handle's measured bounds so it stays correct at any zoom level
+  const internalNode = useInternalNode(nid ?? '')
   const insertionIndex = useMemo(() => {
-    if (!isDraggingToThisHandle || !handleRef.current || connectionCount === 0) {
-      return connectionCount // Append to end by default
-    }
+    if (!isListField || pointerY === null || !internalNode) return null
+    const handleBounds = internalNode.internals.handleBounds?.target?.find(h => h.id === id)
+    if (!handleBounds) return null
+    const centerY =
+      internalNode.internals.positionAbsolute.y + handleBounds.y + handleBounds.height / 2
+    return insertionIndexFromPointerY(pointerY, centerY, connectionCount)
+  }, [isListField, pointerY, internalNode, id, connectionCount])
 
-    const handleRect = handleRef.current.getBoundingClientRect()
-    const mouseY = connection.toY || 0
-    const relativeY = mouseY - handleRect.top
-    const handleHeight = handleRect.height
-
-    const SLOT_HEIGHT = 6
-    const SLOT_GAP = 1.5
-    const SLOT_SPACING = SLOT_HEIGHT + SLOT_GAP
-
-    // Calculate total height and center offset
-    const totalSlotsHeight = connectionCount * SLOT_SPACING
-    const centerOffset = (handleHeight - totalSlotsHeight) / 2
-
-    // Adjust relativeY to account for centering
-    const adjustedY = relativeY - centerOffset
-
-    // Determine which slot boundary we're closest to
-    // Each slot starts at index * SLOT_SPACING
-    // We want to insert *between* slots, so calculate which boundary
-    const normalizedPosition = adjustedY / SLOT_SPACING
-
-    // Round to nearest boundary (0, 1, 2, ... connectionCount)
-    const slotIndex = Math.round(normalizedPosition)
-
-    // Clamp to valid range [0, connectionCount] (inclusive of end for appending)
-    return Math.max(0, Math.min(connectionCount, slotIndex))
-  }, [isDraggingToThisHandle, connection.toY, connectionCount])
-
-  // Update store with pending insertion index
+  // Publish the tracked slot for onConnect/onReconnect to consume. Stale values from
+  // abandoned hovers are guarded by target matching in takePendingInsertionIndex and
+  // cleared by onConnectEnd/onReconnectEnd.
   useEffect(() => {
-    if (isDraggingToThisHandle && nid) {
+    if (nid && insertionIndex !== null) {
       setPendingInsertionIndex({ nodeId: nid, handleId: id, index: insertionIndex })
-    } else if (!connection.inProgress) {
-      // Clear when connection is complete
-      setPendingInsertionIndex(null)
     }
-  }, [isDraggingToThisHandle, nid, id, insertionIndex, connection.inProgress])
+  }, [nid, id, insertionIndex])
 
-  // Update node internals when connection count changes (for edge reordering)
+  // The handle grows with its connections — tell React Flow to re-measure so edge
+  // anchors and hit areas follow (useUpdateNodeInternals is the public API for this)
   useEffect(() => {
-    if (connectionCount !== prevConnectionCountRef.current && nid) {
-      prevConnectionCountRef.current = connectionCount
+    if (nid) {
       updateNodeInternals(nid)
     }
   }, [connectionCount, nid, updateNodeInternals])
 
-  // Generate title showing connection order (just base names)
+  // Numbered slot order shown on hover
   const title = useMemo(() => {
     if (!isListField || connectionCount === 0) return undefined
+    return sources.map((source, index) => `${index + 1}. ${getBaseName(source)}`).join('\n')
+  }, [isListField, connectionCount, sources])
 
-    const connections = incomingEdges
-      .map((edge, index) => {
-        const baseName = getBaseName(edge.source)
-        return `${index + 1}. ${baseName}`
-      })
-      .join('\n')
+  const handleHeight =
+    isListField && connectionCount > 1
+      ? connectionCount * SLOT_HEIGHT + (connectionCount - 1) * SLOT_GAP
+      : undefined
 
-    return connections
-  }, [isListField, connectionCount, incomingEdges])
-
-  // Calculate dynamic handle height based on connection count
-  const handleHeight = useMemo(() => {
-    if (!isListField || connectionCount <= 1) return undefined
-
-    const slotHeight = 6
-    const slotGap = 1.5
-    return connectionCount * slotHeight + (connectionCount - 1) * slotGap
-  }, [isListField, connectionCount])
-
-  // Apply dynamic styling for multi-input visualization
-  const dynamicStyle = useMemo(() => {
-    if (!handleHeight) return style
-
-    return {
-      ...style,
-      height: `${handleHeight}px`,
-      borderRadius: '4px',
-      width: '8px',
-    }
-  }, [style, handleHeight])
-
-  const handleClassName = cx(className, {
-    [s.multiInputHandle]: isListField && connectionCount > 1,
-  })
-
-  // Calculate slot positions for distributing edges vertically
-  const slots = useMemo(() => {
-    if (!isListField || connectionCount === 0) return []
-
-    const slotHeight = 6
-    const slotGap = 1.5
-    const totalHeight = connectionCount * slotHeight + (connectionCount - 1) * slotGap
-
-    return incomingEdges.map((edge, index) => {
-      const yOffset = index * (slotHeight + slotGap) - totalHeight / 2
-      return {
-        edge,
-        index,
-        yOffset,
-      }
-    })
-  }, [isListField, connectionCount, incomingEdges])
+  const dynamicStyle = handleHeight
+    ? { ...style, height: `${handleHeight}px`, borderRadius: '4px', width: '8px' }
+    : style
 
   return (
-    <div className={s.handleContainer} ref={handleRef}>
-      {/* Main handle for all connections */}
+    <div className={s.handleContainer}>
       <Handle
         id={id}
-        className={handleClassName}
+        className={cx(className, {
+          [s.multiInputHandle]: isListField && connectionCount > 1,
+        })}
         style={dynamicStyle}
         type="target"
         position={Position.Left}
@@ -157,21 +115,18 @@ export function MultiInputHandle({ id, isListField, className, style }: MultiInp
         isConnectable={true}
       />
 
-      {/* Insertion indicator when dragging */}
-      {isDraggingToThisHandle && isListField && (
+      {/* Boundary marker for the slot the drag would drop into */}
+      {insertionIndex !== null && (
         <div
           className={s.insertionIndicator}
           style={{
-            top: `${(insertionIndex / (connectionCount + 1)) * 100}%`,
+            top: `calc(50% + ${(insertionIndex - connectionCount / 2) * SLOT_SPACING}px)`,
           }}
         />
       )}
 
-      {/* Visual indicator for multiple connections */}
       {isListField && connectionCount > 1 && (
-        <div className={s.connectionCount}>
-          {connectionCount}
-        </div>
+        <div className={s.connectionCount}>{connectionCount}</div>
       )}
     </div>
   )
