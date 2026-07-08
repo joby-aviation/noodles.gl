@@ -82,6 +82,9 @@ export class AnalyticsManager {
       if (this.initialized) {
         if (enabled) {
           posthog.opt_in_capturing()
+          // Capture the landing page if the user consents without having navigated away —
+          // posthog.init fires capture_pageview only when already opted in at init time.
+          posthog.capture('$pageview')
         } else {
           posthog.opt_out_capturing()
         }

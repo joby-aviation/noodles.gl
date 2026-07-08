@@ -38,14 +38,20 @@ class AnalyticsErrorBoundary extends Component<{ children: ReactNode }, { hasErr
   }
 }
 
-// Fires $pageview on each route change; skips first render since PostHog init captures that.
+// Fires $pageview on each route change. Skips first render only when the user already had consent
+// at mount time — in that case PostHog's capture_pageview:true init already fired the event.
+// First-time visitors who consent on the landing page are covered by setConsent's capturePageview call.
 function PageviewTracker() {
   const [location] = useLocation()
+  // Snapshot at mount: was PostHog already tracking when this component rendered?
+  const hadConsentAtMount = useRef(analytics.isEnabled())
   const isFirstRender = useRef(true)
   useEffect(() => {
     if (isFirstRender.current) {
       isFirstRender.current = false
-      return
+      if (hadConsentAtMount.current) {
+        return // PostHog init already captured this pageview
+      }
     }
     analytics.capturePageview()
   }, [location])
