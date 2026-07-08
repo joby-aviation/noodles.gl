@@ -431,6 +431,9 @@ export function getNoodles(): Visualization {
     [setEdges]
   )
 
+  const spreadsheetVisible = useUIStore(state => state.spreadsheetVisible)
+  const setSpreadsheetVisible = useUIStore(state => state.setSpreadsheetVisible)
+
   // Track connection drag state for dimming unconnectable nodes
   const setConnectionDragState = useUIStore(state => state.setConnectionDragState)
   const connectionDragState = useUIStore(state => state.connectionDragState)
@@ -1751,6 +1754,7 @@ export function getNoodles(): Visualization {
 
   return {
     flowGraph,
+    selectedNodeIds: nodes.filter(n => n.selected).map(n => n.id),
     nodeSidebar: (
       <ErrorBoundary title="Node Tree Error">
         <NodeTreeSidebar updateOperatorId={updateOperatorId} />
@@ -1763,6 +1767,14 @@ export function getNoodles(): Visualization {
     onChangeShowOverlay: setShowOverlay,
     showDebugInfo,
     onChangeShowDebugInfo: setShowDebugInfo,
+    spreadsheetVisible,
+    onChangeSpreadsheetVisible: useCallback(
+      (visible: boolean) => {
+        setSpreadsheetVisible(visible)
+        if (visible && layoutMode !== 'split') setLayoutMode('split')
+      },
+      [setSpreadsheetVisible, layoutMode]
+    ),
     // Render settings are now read from OutOp via useRenderSettings() hook
     // Export these so timeline-editor can create the menu with render actions
     projectName:

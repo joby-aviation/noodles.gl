@@ -65,11 +65,27 @@
   overflow: hidden;
 }
 
-.outputArea,
+.outputArea {
+  position: absolute;
+  left: 0;
+  right: 0;
+  overflow: hidden;
+}
+
 .noodlesArea {
   position: absolute;
   left: 0;
   right: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: row;
+}
+
+.nodeGraphArea {
+  flex: 1;
+  position: relative;
+  min-width: 0;
+  height: 100%;
   overflow: hidden;
 }
 
