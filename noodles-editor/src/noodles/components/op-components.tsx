@@ -28,6 +28,7 @@ import {
   memo,
   type ReactNode,
   useCallback,
+  useContext,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -652,14 +653,9 @@ function NodeComponent({
   type,
   selected,
 }: ReactFlowNodeProps<NodeDataJSON<Operator<IOperator>>> & { type: OpType }) {
-  // Memoize operator lookup to avoid redundant store access in hooks
-  const op = useMemo(() => {
-    const operator = getOp(id as string)
-    if (!operator) {
-      throw new Error(`Operator with id ${id} not found`)
-    }
-    return operator
-  }, [id])
+  const op = getOp(id as string)
+  if (!op) return null
+
   const locked = useLocked(op)
   const [breakpointEnabled, toggleBreakpoint] = useBreakpoint(op)
   const executionState = useExecutionState(op)
@@ -855,7 +851,7 @@ function RampOpComponent({
   type,
 }: ReactFlowNodeProps<NodeDataJSON<RampOp>> & { type: 'RampOp' }) {
   const op = getOp(id as string) as RampOp | undefined
-  if (!op) throw new Error(`Operator with id ${id} not found`)
+  if (!op) return null
   const locked = useLocked(op)
   const executionState = useExecutionState(op)
   const connectionErrors = useConnectionErrors(op)
@@ -1484,9 +1480,7 @@ function GeocoderOpComponent({
   type,
 }: ReactFlowNodeProps<NodeDataJSON<GeocoderOp>> & { type: 'GeocoderOp' }) {
   const op = getOp(id as string)
-  if (!op) {
-    throw new Error(`Operator with id ${id} not found`)
-  }
+  if (!op) return null
 
   const containerRef = useRef<HTMLDivElement>(null)
   const geocoderRef = useRef<MapboxGeocoder>()
@@ -1605,9 +1599,7 @@ function DirectionsOpComponent({
   type,
 }: ReactFlowNodeProps<NodeDataJSON<DirectionsOp>> & { type: 'DirectionsOp' }) {
   const op = getOp(id as string)
-  if (!op) {
-    throw new Error(`Operator with id ${id} not found`)
-  }
+  if (!op) return null
 
   // Reactive - automatically updates when keys change
   const hasMapboxKey = useKeysStore(state => state.hasKey('mapbox'))
@@ -1641,9 +1633,7 @@ function MouseOpComponent({
   type,
 }: ReactFlowNodeProps<NodeDataJSON<MouseOp>> & { type: 'MouseOp' }) {
   const op = getOp(id as string)
-  if (!op) {
-    throw new Error(`Operator with id ${id} not found`)
-  }
+  if (!op) return null
 
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 })
   const isDimmed = useNodeDimmed(id)
@@ -1692,9 +1682,7 @@ export function TableEditorOpComponent({
   selected,
 }: ReactFlowNodeProps<NodeDataJSON<TableEditorOp>> & { type: 'TableEditorOp' }) {
   const op = getOp(id as string)
-  if (!op) {
-    throw new Error(`Operator with id ${id} not found`)
-  }
+  if (!op) return null
 
   const isDimmed = useNodeDimmed(id)
   const locked = useLocked(op)
@@ -1829,9 +1817,7 @@ function ViewerOpComponent({
   selected,
 }: ReactFlowNodeProps<NodeDataJSON<ViewerOp>> & { type: 'ViewerOp' }) {
   const op = getOp(id as string)
-  if (!op) {
-    throw new Error(`Operator with id ${id} not found`)
-  }
+  if (!op) return null
 
   const isDimmed = useNodeDimmed(id)
   const { setNodes, setEdges } = useReactFlow()
@@ -1963,11 +1949,10 @@ function ContainerOpComponent({
   selected,
 }: ReactFlowNodeProps<NodeDataJSON<ContainerOp>>) {
   const op = getOp(id as string)
-  if (!op) {
-    throw new Error(`Operator with id ${id} not found`)
-  }
+  if (!op) return null
 
   const isDimmed = useNodeDimmed(id)
+
   const setCurrentContainerId = useNestingStore(state => state.setCurrentContainerId)
   const reactFlow = useReactFlow()
 
@@ -2022,10 +2007,9 @@ function TimeOpComponent({
   type,
 }: ReactFlowNodeProps<NodeDataJSON<TimeOp>> & { type: 'TimeOp' }) {
   const op = getOp(id as string)
-  if (!op) {
-    throw new Error(`Operator with id ${id} not found`)
-  }
+  if (!op) return null
   const isDimmed = useNodeDimmed(id)
+
 
   const [now, setNow] = useState(0)
   const [sequenceTime, setSequenceTime] = useState(0)
@@ -2097,9 +2081,7 @@ function RerouteOpComponent({
 // Render settings are hidden from the node UI and shown in the properties panel instead.
 function OutOpComponent({ id, type }: ReactFlowNodeProps<NodeDataJSON<OutOp>> & { type: 'OutOp' }) {
   const op = getOp(id as string)
-  if (!op) {
-    throw new Error(`Operator with id ${id} not found`)
-  }
+  if (!op) return null
   const locked = useLocked(op)
   const executionState = useExecutionState(op)
   const connectionErrors = useConnectionErrors(op)
