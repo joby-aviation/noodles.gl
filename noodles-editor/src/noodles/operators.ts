@@ -2551,7 +2551,9 @@ export class GeocoderOp extends Operator<GeocoderOp> {
     if (!getKey('mapbox')) {
       throw new Error('Mapbox API key required (Settings > API Keys)')
     }
-    return null
+    // Push-based: the UI component drives op.outputs.location.next() directly.
+    // Return current output so downstream pull-chain succeeds.
+    return this.outputData
   }
 }
 
