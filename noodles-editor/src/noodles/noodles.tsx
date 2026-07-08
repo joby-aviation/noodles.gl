@@ -1749,7 +1749,7 @@ export function getNoodles(): Visualization {
         setSpreadsheetVisible(visible)
         if (visible && layoutMode !== 'split') setLayoutMode('split')
       },
-      [setSpreadsheetVisible, layoutMode, setLayoutMode]
+      [setSpreadsheetVisible, layoutMode]
     ),
     // Render settings are now read from OutOp via useRenderSettings() hook
     // Export these so timeline-editor can create the menu with render actions
