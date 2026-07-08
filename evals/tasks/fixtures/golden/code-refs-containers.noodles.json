@@ -89,7 +89,7 @@
       },
       "data": {
         "inputs": {
-          "radiusUnits": "meters",
+          "radiusUnits": "pixels",
           "getFillColor": "#ff5533",
           "opacity": 0.6
         },
