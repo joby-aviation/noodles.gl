@@ -14,6 +14,7 @@ export interface LoadCheckResult {
   screenshotPath: string | null
   screenshotNonBlank: boolean | null
   pixelStddev: number | null
+  bodyText: string | null
   detail: string
 }
 
@@ -55,6 +56,8 @@ export async function loadAndScreenshot(opts: {
   screenshotPath: string
   port: number
   settleMs?: number
+  /** Capture document.body.innerText after settle — lets callers read on-screen op output (e.g. a ViewerOp's rendered value). */
+  grabBodyText?: boolean
 }): Promise<LoadCheckResult> {
   const editorDir = path.join(opts.workspace, 'noodles-editor')
   const server = spawn('npx', ['vite', '--port', String(opts.port), '--strictPort'], {
@@ -80,6 +83,7 @@ export async function loadAndScreenshot(opts: {
         screenshotPath: null,
         screenshotNonBlank: null,
         pixelStddev: null,
+        bodyText: null,
         detail: `vite dev server did not start: ${serverLog.slice(-500)}`,
       }
     }
@@ -87,10 +91,10 @@ export async function loadAndScreenshot(opts: {
     const { chromium } = await import('playwright')
     const browser = await chromium.launch().catch(() => chromium.launch({ executablePath: '/opt/pw-browsers/chromium' }))
     try {
-      // Full-HD window so the app lays out at a realistic size (small windows
-      // shrink node labels/toasts before they're ever captured), plus
-      // deviceScaleFactor 2 so the text stays legible when zoomed.
-      const page = await browser.newPage({ viewport: { width: 1920, height: 1080 }, deviceScaleFactor: 2 })
+      // Native 2K capture (2560x1440 @ 1x): a large layout area keeps canvas
+      // ops readable without retina doubling — half the pixels of the previous
+      // 1080p@2x setting, so smaller committed screenshots.
+      const page = await browser.newPage({ viewport: { width: 2560, height: 1440 }, deviceScaleFactor: 1 })
       const consoleErrors: string[] = []
       page.on('console', msg => {
         if (msg.type() === 'error' && !isEnvironmentNoise(msg.text(), msg.location()?.url)) {
@@ -109,6 +113,13 @@ export async function loadAndScreenshot(opts: {
       // Give data loading + first render time to settle.
       await page.waitForTimeout(opts.settleMs ?? 15_000)
       await page.screenshot({ path: opts.screenshotPath })
+      // Evaluated in the browser, where document exists; the harness tsconfig
+      // has no DOM lib, so reference it dynamically.
+      const bodyText = opts.grabBodyText
+        ? await page
+            .evaluate(() => (globalThis as { document?: { body: { innerText: string } } }).document?.body.innerText ?? null)
+            .catch(() => null)
+        : null
 
       const { nonBlank, stddev } = analyzeScreenshot(opts.screenshotPath)
       return {
@@ -117,6 +128,7 @@ export async function loadAndScreenshot(opts: {
         screenshotPath: opts.screenshotPath,
         screenshotNonBlank: nonBlank,
         pixelStddev: stddev,
+        bodyText,
         detail: canvas ? 'ok' : 'no canvas element appeared',
       }
     } finally {

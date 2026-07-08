@@ -8,6 +8,7 @@
     "grade": "tsx harness/grade.ts",
     "report": "tsx harness/report.ts",
     "selftest": "tsx harness/selftest.ts",
+    "verify-goldens": "tsx harness/verify-goldens.ts",
     "calibrate": "tsx harness/calibrate.ts",
     "archive-season": "tsx harness/archive-season.ts",
     "export-metrics": "tsx harness/export-metrics.ts",

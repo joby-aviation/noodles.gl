@@ -294,3 +294,44 @@ Empirical gate verdicts (both goldens through Playwright in a real workspace):
 
 Re-baseline required: hiking-time 3×3 (new) + code-refs@2 3×3 (series break) = 18 sessions +
 54 judge samples, pending fresh AWS credentials.
+
+## 2026-07-08 — golden verification pass + native-2K captures
+
+Before spending the 18-session re-baseline, we verified every golden and expected-result
+artifact is *correct*, not merely loadable ("better to find problems now than later").
+
+**New committed tool: `npm run verify-goldens`** (`harness/verify-goldens.ts`). Three layers
+per golden: static (interim validator + custom-check polarity, reusing `CUSTOM_CHECKS`),
+semantic (independent recomputation of the values the task grades on), visual (2K load in a
+greenfield workspace). Human-in-the-loop by design: `--task X --candidate <file>` verifies a
+maintainer-edited project in place of the committed golden (structural diff printed first),
+`--promote` lands it once green. Because the semantic layer reads constants/endpoints from the
+project itself, tweaked candidates verify without code changes.
+
+Semantic-layer highlights:
+
+- **hiking-time**: the golden's CodeOp sources are executed in Node against a stubbed `op()`
+  fed from the project's own NumberOps; `turf.distance` is cross-checked against an
+  independent haversine (agree to <0.01 km on the 39.68 km Boulder→Estes Park leg); the full
+  formula agrees with an independent Naismith+Langmuir implementation (568.81 min) and
+  reproduces all three worked examples in `naismith-reference.md` (232.8 / 81 / 289.2 min);
+  the terrain heuristic matches the reference table at 8 probe points including boundaries.
+  The rendered ViewerOp's `totalTime` is read back from the DOM (new `grabBodyText` option on
+  the load check) and compared against the independent number.
+- **debug-blank-viz**: the fixture still carries BOTH seeded defects (inverse polarity — an
+  accidentally-fixed fixture would trivialize the task), and the golden differs from the
+  fixture by exactly the two repairs, nothing else.
+- **modify-arcs**: the checks' doubling target (160) re-derived as 2× the base project's
+  actual width; the hardcoded trap colors re-verified against the base ColorOps.
+- **answer key**: all 29 contextualize answers mechanically re-checked against the sources
+  they cite (operator defaults, migration semantics, version 14, edge shape in a committed
+  example).
+
+**Result: zero golden defects.** The initial run surfaced 3 findings; all were verifier bugs
+(sql-h3's accessors are edge-fed AccessorOps my column check didn't follow; MathOp's `sqrt`
+sat past a 400-char extraction window), fixed in the verifier.
+
+**Capture resolution changed to native 2K** (2560×1440 @ 1x, was 1920×1080 @ 2x): canvas ops
+were too small to read at some zoom levels; a larger layout area fixes that without retina
+doubling — half the pixels of the old setting, so smaller committed screenshots. Applies to
+future runs only; frozen run/calibration screenshots are never regenerated (D5).

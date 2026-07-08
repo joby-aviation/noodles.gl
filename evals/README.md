@@ -58,6 +58,17 @@ cd evals && npm install
 # token-free self-tests (also Verification item 3's cap check)
 npm run selftest
 
+# golden verification: validator + custom-check polarity + independent
+# recomputation of graded values + 2K greenfield load per golden, plus the
+# contextualize answer key re-checked against the sources it cites.
+# Human-in-the-loop: verify a maintainer-edited project against a task's
+# checks (prints a structural diff first), then land it once green.
+npm run verify-goldens
+npm run verify-goldens -- --task hiking-time --candidate /path/to/edited.noodles.json
+npm run verify-goldens -- --task hiking-time --candidate ... --promote
+npm run verify-goldens -- --screens-only    # just the 2K captures
+npm run verify-goldens -- --no-browser      # static + semantic only
+
 # one milestone task, 3 sessions, one session model
 npm run run -- --task author-scatterplot --model anthropic.claude-sonnet-5 \
   --sessions 3 --series 2026-07-06.t0.<commit12>
