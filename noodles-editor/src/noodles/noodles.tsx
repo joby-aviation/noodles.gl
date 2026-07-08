@@ -14,7 +14,6 @@ import {
   Controls,
   ReactFlow,
   type ReactFlowInstance,
-  reconnectEdge,
   useEdgesState,
   useNodesState,
   useReactFlow,
@@ -85,6 +84,7 @@ import {
   save,
 } from './storage'
 import {
+  clearPendingInsertionIndex,
   getOp,
   getOpStore,
   getUIStore,
@@ -104,6 +104,7 @@ import {
 import { edgeId, nodeId } from './utils/id-utils'
 import { generateDraftId, memoryProjectStore } from './utils/memory-project-store'
 import { migrateProject } from './utils/migrate-schema'
+import { normalizeMultiInputEdges } from './utils/multi-input-utils'
 import { getParentPath, parseHandleId } from './utils/path-utils'
 import { applyOperatorInputs, getLastCommittedBeforeState } from './utils/property-history'
 import {
@@ -348,6 +349,11 @@ export function getNoodles(): Visualization {
     if (isProjectLoadRef.current) return
     const ops = transformGraph({ nodes, edges })
     setOperators(ops)
+    // Catch-all for multi-input slot caches: re-derive orderIndex/groupSize now that the
+    // operators exist in the store (covers undo/redo restores, keyboard deletes, and AI/paste
+    // paths that added edges before their operators were instantiated). Returns the same
+    // array reference when nothing changed, so this doesn't loop.
+    setEdges(eds => normalizeMultiInputEdges(eds))
   }, [graphStructureKey])
 
   // Reset isProjectLoadRef after every render so the flag never gets stuck when
@@ -382,6 +388,7 @@ export function getNoodles(): Visualization {
   const {
     applyModifications,
     onConnect: onConnectBase,
+    onReconnect: onReconnectBase,
     onNodesDelete: onNodesDeleteBase,
     updateOperatorId,
   } = useProjectModifications({
@@ -426,11 +433,16 @@ export function getNoodles(): Visualization {
   // Wrap onReconnect to mark unsaved changes
   const onReconnect = useCallback(
     (oldEdge: ReactFlowEdge, newConnection: Connection) => {
-      setEdges(els => reconnectEdge(oldEdge, newConnection, els))
+      onReconnectBase(oldEdge, newConnection)
       setHasUnsavedChanges(true)
     },
-    [setEdges]
+    [onReconnectBase]
   )
+
+  // Clear any leftover multi-input slot state when a reconnect drag is dropped or cancelled
+  const onReconnectEnd = useCallback(() => {
+    clearPendingInsertionIndex()
+  }, [])
 
   const spreadsheetVisible = useUIStore(state => state.spreadsheetVisible)
   const setSpreadsheetVisible = useUIStore(state => state.setSpreadsheetVisible)
@@ -516,6 +528,9 @@ export function getNoodles(): Visualization {
       onConnectionDropEnd(event, connectionState)
       setConnectionDragState(null)
       setTargetedEdge(null)
+      // Drop any multi-input slot state from a cancelled drag (successful connects
+      // already consumed it in onConnect)
+      clearPendingInsertionIndex()
     },
     [onConnectionDropEnd, setConnectionDragState, setTargetedEdge]
   )
@@ -1521,6 +1536,7 @@ export function getNoodles(): Visualization {
               onConnectStart={onConnectStart}
               onConnectEnd={onConnectEnd}
               onReconnect={onReconnect}
+              onReconnectEnd={onReconnectEnd}
               onNodeContextMenu={onNodeContextMenu}
               onNodesDelete={onNodesDelete}
               onNodeDrag={onNodeDrag}

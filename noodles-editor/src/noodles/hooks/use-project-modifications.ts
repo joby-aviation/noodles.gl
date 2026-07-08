@@ -2,15 +2,12 @@
 // Used by both the UI and the AI chat system
 
 import {
-  applyEdgeChanges,
+  type Connection,
   getConnectedEdges,
   getIncomers,
   getOutgoers,
-  reconnectEdge,
-  type OnConnect,
   type Edge as ReactFlowEdge,
   type Node as ReactFlowNode,
-  addEdge as reactFlowAddEdge,
 } from '@xyflow/react'
 import { useCallback } from 'react'
 import { getTimelineStore } from '../../timeline/timeline-store'
@@ -18,9 +15,15 @@ import { analytics } from '../../utils/analytics'
 import { debugUI } from '../../utils/debug'
 import { type Field, ListField } from '../fields'
 import type { IOperator, Operator } from '../operators'
-import { deleteOp, getAllOps, getOp, pendingInsertionIndex, setOp } from '../store'
+import { deleteOp, getAllOps, getOp, setOp, takePendingInsertionIndex } from '../store'
 import { canConnect, validateConnection } from '../utils/can-connect'
 import { edgeId } from '../utils/id-utils'
+import {
+  insertEdgeAtGroupIndex,
+  moveEdgeWithinGroup,
+  normalizeMultiInputEdges,
+  orderedEdgeIdsForHandle,
+} from '../utils/multi-input-utils'
 import { generateQualifiedPath, parseHandleId } from '../utils/path-utils'
 
 // Using ReactFlowNode instead of AnyNodeJSON for compatibility
@@ -67,7 +70,7 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
 
   const addEdges = useCallback(
     (newEdges: ReactFlowEdge[]) => {
-      setEdges(currentEdges => [...currentEdges, ...newEdges])
+      setEdges(currentEdges => normalizeMultiInputEdges([...currentEdges, ...newEdges]))
       // Track edge addition
       if (newEdges.length > 0) {
         analytics.track('edge_added', { count: newEdges.length })
@@ -91,46 +94,9 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
       }
       if (edgesToDelete && edgesToDelete.length > 0) {
         const edgeIds = new Set(edgesToDelete.map(e => e.id))
-        setEdges(currentEdges => {
-          const remaining = currentEdges.filter(e => !edgeIds.has(e.id))
-
-          // Reindex MultiInputEdge connections
-          const groupedByHandle = new Map<string, ReactFlowEdge[]>()
-          remaining.forEach(edge => {
-            if (edge.type === 'MultiInputEdge') {
-              const key = `${edge.target}-${edge.targetHandle}`
-              if (!groupedByHandle.has(key)) {
-                groupedByHandle.set(key, [])
-              }
-              groupedByHandle.get(key)!.push(edge)
-            }
-          })
-
-          // Sort each group by old order index (do this once before mapping)
-          const sortedGroups = new Map<string, ReactFlowEdge[]>()
-          for (const [key, group] of groupedByHandle.entries()) {
-            const sorted = [...group].sort((a, b) => {
-              const aIndex = (a.data as { orderIndex?: number })?.orderIndex ?? 0
-              const bIndex = (b.data as { orderIndex?: number })?.orderIndex ?? 0
-              return aIndex - bIndex
-            })
-            sortedGroups.set(key, sorted)
-          }
-
-          // Reindex each group
-          return remaining.map(edge => {
-            if (edge.type === 'MultiInputEdge') {
-              const key = `${edge.target}-${edge.targetHandle}`
-              const group = sortedGroups.get(key)!
-              const newIndex = group.findIndex(e => e.id === edge.id)
-              return {
-                ...edge,
-                data: { ...edge.data, orderIndex: newIndex },
-              }
-            }
-            return edge
-          })
-        })
+        setEdges(currentEdges =>
+          normalizeMultiInputEdges(currentEdges.filter(e => !edgeIds.has(e.id)))
+        )
         analytics.track('edge_deleted', { count: edgesToDelete.length })
       }
     },
@@ -190,7 +156,8 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
 
       // Intelligent edge reconnection (same logic as noodles.tsx)
       setEdges(currentEdges => {
-        return nodesToDelete.reduce((acc, node) => {
+        return normalizeMultiInputEdges(
+          nodesToDelete.reduce((acc, node) => {
           const incomers = getIncomers(node, nodes, edges)
           const outgoers = getOutgoers(node, nodes, edges)
           const connectedEdges = getConnectedEdges([node], edges)
@@ -243,8 +210,9 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
             )
           }
 
-          return [...remainingEdges, ...createdEdges]
-        }, currentEdges)
+            return [...remainingEdges, ...createdEdges]
+          }, currentEdges)
+        )
       })
 
       return { success: true, warnings: warnings.length > 0 ? warnings : undefined }
@@ -612,7 +580,11 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
           })
 
           if (edgesToAddOptimistically.length > 0) {
-            setEdges(currentEdges => [...currentEdges, ...edgesToAddOptimistically])
+            // Normalization here can miss edges into just-added nodes (their operators don't
+            // exist in the store yet); the transformGraph effect re-normalizes right after
+            setEdges(currentEdges =>
+              normalizeMultiInputEdges([...currentEdges, ...edgesToAddOptimistically])
+            )
             debugUI(`✅ Added ${edgesToAddOptimistically.length} edge(s) optimistically`)
           }
 
@@ -698,7 +670,7 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
 
           // Add all valid edges atomically
           if (validEdges.length > 0) {
-            setEdges(currentEdges => [...currentEdges, ...validEdges])
+            setEdges(currentEdges => normalizeMultiInputEdges([...currentEdges, ...validEdges]))
 
             // Update field connections for valid edges
             for (const { edge, sourceField, targetField } of edgeFieldConnections) {
@@ -734,31 +706,23 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
   )
 
   // ReactFlow-compatible onConnect callback
-  // Handles edge creation with validation and field updates
-  const onConnect: OnConnect = useCallback(
-    connection => {
+  // Handles edge creation with validation and field updates.
+  // opts.insertionIndex places the edge at a specific multi-input slot; opts.replaceEdgeId
+  // atomically removes an old edge in the same update (used by onReconnect so the
+  // intermediate remove-then-add state is never committed separately)
+  const onConnect = useCallback(
+    (connection: Connection, opts?: { insertionIndex?: number; replaceEdgeId?: string }) => {
       if (connection.source === connection.target) return
 
       const nodes = getNodes()
-      const edges = getEdges()
+      const edges = opts?.replaceEdgeId
+        ? getEdges().filter(e => e.id !== opts.replaceEdgeId)
+        : getEdges()
 
-      // Calculate order index for ListField inputs
-      const existingEdgesForHandle = edges.filter(
-        e => e.target === connection.target && e.targetHandle === connection.targetHandle
-      )
+      // Consume the slot index MultiInputHandle tracked during the drag; consuming also
+      // clears it so a hover over one handle can't leak into a later gesture
+      const pendingIndex = takePendingInsertionIndex(connection.target, connection.targetHandle)
 
-      // Check if we have a pending insertion index from MultiInputHandle
-      let orderIndex = existingEdgesForHandle.length
-      const hasPendingInsertion =
-        pendingInsertionIndex &&
-        pendingInsertionIndex.nodeId === connection.target &&
-        pendingInsertionIndex.handleId === connection.targetHandle
-
-      if (hasPendingInsertion) {
-        orderIndex = pendingInsertionIndex.index
-      }
-
-      // Will set edge type after we know if target is ListField
       const newEdge: ReactFlowEdge = {
         ...connection,
         id: edgeId(connection),
@@ -766,8 +730,10 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
         target: connection.target!,
         sourceHandle: connection.sourceHandle || null,
         targetHandle: connection.targetHandle || null,
-        data: { orderIndex },
       }
+
+      // Duplicate connection (same source, target, and handles): edge ids collide
+      if (edges.some(e => e.id === newEdge.id)) return
 
       const source = nodes.find(n => n.id === connection.source)
       if (!source) {
@@ -813,73 +779,43 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
       // but track the error on the target operator
       const validation = validateConnection(sourceField, targetField)
 
-      // Set edge type for ListField multi-input edges
-      let finalEdgeId = newEdge.id
       if (targetField instanceof ListField) {
-        newEdge.type = 'MultiInputEdge'
-
-        // If inserting in the middle, update order indices of existing edges
-        if (hasPendingInsertion && orderIndex < existingEdgesForHandle.length) {
-          setEdges(eds => {
-            // Update existing edges to make room for the new edge
-            // Also ensure all edges to this handle have MultiInputEdge type
-            const updatedEdges = eds.map(e => {
-              if (e.target === newEdge.target && e.targetHandle === newEdge.targetHandle) {
-                const currentOrderIndex = (e.data as { orderIndex?: number })?.orderIndex ?? 0
-                return {
-                  ...e,
-                  type: 'MultiInputEdge',
-                  data: {
-                    ...e.data,
-                    orderIndex: currentOrderIndex >= orderIndex ? currentOrderIndex + 1 : currentOrderIndex,
-                  },
-                }
-              }
-              return e
-            })
-            // Add the new edge
-            return reactFlowAddEdge(newEdge, updatedEdges as ReactFlowEdge[])
-          })
-        } else {
-          // Append to end - also ensure all edges to this handle have MultiInputEdge type
-          setEdges(eds => {
-            const updatedEdges = eds.map(e => {
-              if (e.target === newEdge.target && e.targetHandle === newEdge.targetHandle && e.type !== 'MultiInputEdge') {
-                return {
-                  ...e,
-                  type: 'MultiInputEdge',
-                  data: { ...e.data, orderIndex: (e.data as { orderIndex?: number })?.orderIndex ?? 0 },
-                }
-              }
-              return e
-            })
-            return reactFlowAddEdge(newEdge, updatedEdges as ReactFlowEdge[])
-          })
-        }
+        // Multi-input: insert at the slot hovered during the drag, else append. The edge
+        // array position is the source of truth for slot order; normalization derives the
+        // orderIndex/groupSize render caches from it.
+        const index =
+          opts?.insertionIndex ??
+          pendingIndex ??
+          orderedEdgeIdsForHandle(edges, newEdge.target, newEdge.targetHandle).length
+        const next = normalizeMultiInputEdges(insertEdgeAtGroupIndex(edges, newEdge, index))
+        setEdges(next)
+        targetField.addConnection(newEdge.id, sourceField)
+        targetField.setConnectionOrder(
+          orderedEdgeIdsForHandle(next, newEdge.target, newEdge.targetHandle)
+        )
       } else {
-        // Update edges - replace existing if target is not a ListField
-        setEdges(eds => {
-          const existing = eds.find(
-            e => e.target === newEdge.target && e.targetHandle === newEdge.targetHandle
+        // Single input: replace any existing connection, keeping our edge id convention
+        const existing = edges.find(
+          e => e.target === newEdge.target && e.targetHandle === newEdge.targetHandle
+        )
+        if (existing) {
+          targetOp.removeConnectionError(existing.id)
+          targetField.removeConnection(existing.id)
+        }
+        setEdges(
+          normalizeMultiInputEdges(
+            edges.filter(e => e.id !== existing?.id).concat(newEdge)
           )
-          if (existing) {
-            // Clear any previous error for the replaced edge
-            targetOp.removeConnectionError(existing.id)
-            // reconnectEdge preserves the old edge ID
-            finalEdgeId = existing.id
-            return reconnectEdge(existing, newEdge, eds as ReactFlowEdge[])
-          }
-          return reactFlowAddEdge(newEdge, eds as ReactFlowEdge[])
-        })
+        )
+        targetField.addConnection(newEdge.id, sourceField)
       }
 
       // Track connection error if validation failed, or clear error if valid
-      // Use finalEdgeId which matches the actual edge ID in the store
       if (!validation.valid && validation.error) {
-        targetOp.addConnectionError(finalEdgeId, validation.error)
+        targetOp.addConnectionError(newEdge.id, validation.error)
       } else {
         // Clear any existing error for this edge if connection is now valid
-        targetOp.removeConnectionError(finalEdgeId)
+        targetOp.removeConnectionError(newEdge.id)
       }
 
       // Update target node with new input value
@@ -912,11 +848,70 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
 
         return updated
       })
-
-      // Add connection to field
-      targetField.addConnection(newEdge.id, sourceField)
     },
-    [getNodes, setNodes, setEdges]
+    [getNodes, getEdges, setNodes, setEdges]
+  )
+
+  // Reconnect an existing edge (drag on an edge endpoint). Dragging a multi-input edge's
+  // endpoint to a different slot of the same handle reorders it Blender-style; moving it
+  // to a different source or handle behaves like disconnect + connect, preserving the
+  // slot when only the source end changes.
+  const onReconnect = useCallback(
+    (oldEdge: ReactFlowEdge, connection: Connection) => {
+      if (connection.source === connection.target) return
+
+      const sameSource =
+        oldEdge.source === connection.source && oldEdge.sourceHandle === connection.sourceHandle
+      const sameTargetHandle =
+        oldEdge.target === connection.target && oldEdge.targetHandle === connection.targetHandle
+
+      if (sameSource && sameTargetHandle) {
+        // Pure reorder within one multi-input handle: same edge, new slot
+        const pendingIndex = takePendingInsertionIndex(connection.target, connection.targetHandle)
+        const handleInfo = parseHandleId(connection.targetHandle || '')
+        const targetField = handleInfo && getOp(connection.target)?.inputs[handleInfo.fieldName]
+        if (!(targetField instanceof ListField) || pendingIndex === null) return
+
+        // The dragged edge is removed before re-insertion, so slots after it shift down one:
+        // dropping on a boundary past its own slot means one slot earlier post-removal
+        const currentIndex = orderedEdgeIdsForHandle(
+          getEdges(),
+          oldEdge.target,
+          oldEdge.targetHandle
+        ).indexOf(oldEdge.id)
+        const toIndex = pendingIndex > currentIndex ? pendingIndex - 1 : pendingIndex
+
+        const next = normalizeMultiInputEdges(moveEdgeWithinGroup(getEdges(), oldEdge.id, toIndex))
+        if (next === getEdges()) return
+        setEdges(next)
+        targetField.setConnectionOrder(
+          orderedEdgeIdsForHandle(next, oldEdge.target, oldEdge.targetHandle)
+        )
+        return
+      }
+
+      // Endpoint moved: capture the old slot so a source swap on the same multi-input
+      // handle keeps its position, then disconnect the old edge and connect the new one
+      // in a single edge-array update via replaceEdgeId
+      const preservedIndex = sameTargetHandle
+        ? orderedEdgeIdsForHandle(getEdges(), oldEdge.target, oldEdge.targetHandle).indexOf(
+            oldEdge.id
+          )
+        : -1
+
+      const oldHandleInfo = parseHandleId(oldEdge.targetHandle || '')
+      const oldTargetOp = getOp(oldEdge.target)
+      if (oldHandleInfo && oldTargetOp) {
+        oldTargetOp.inputs[oldHandleInfo.fieldName]?.removeConnection(oldEdge.id)
+        oldTargetOp.removeConnectionError(oldEdge.id)
+      }
+
+      onConnect(connection, {
+        replaceEdgeId: oldEdge.id,
+        insertionIndex: preservedIndex >= 0 ? preservedIndex : undefined,
+      })
+    },
+    [getEdges, setEdges, onConnect]
   )
 
   // ReactFlow-compatible onNodesDelete callback
@@ -1051,6 +1046,7 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
 
     // ReactFlow callbacks
     onConnect,
+    onReconnect,
     onNodesDelete,
   }
 }

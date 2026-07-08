@@ -37,10 +37,33 @@ interface OperatorStoreState {
   batch: (fn: () => void) => void
 }
 
-// Track insertion index for multi-input handle reordering
-export let pendingInsertionIndex: { nodeId: string; handleId: string; index: number } | null = null
-export const setPendingInsertionIndex = (info: { nodeId: string; handleId: string; index: number } | null) => {
+// Pending slot index for multi-input handles: written by MultiInputHandle while a
+// connection (or reconnection) drag hovers it, consumed once by onConnect/onReconnect,
+// cleared by onConnectEnd/onReconnectEnd when a drag is cancelled
+let pendingInsertionIndex: { nodeId: string; handleId: string; index: number } | null = null
+
+export const setPendingInsertionIndex = (
+  info: { nodeId: string; handleId: string; index: number } | null
+) => {
   pendingInsertionIndex = info
+}
+
+export const clearPendingInsertionIndex = () => {
+  pendingInsertionIndex = null
+}
+
+// Consume-and-clear, guarded on the drop target so a stale index from hovering one
+// handle can't leak into a drop on a different handle
+export const takePendingInsertionIndex = (
+  nodeId: string | null | undefined,
+  handleId: string | null | undefined
+): number | null => {
+  const pending = pendingInsertionIndex
+  pendingInsertionIndex = null
+  if (pending && pending.nodeId === nodeId && pending.handleId === handleId) {
+    return pending.index
+  }
+  return null
 }
 
 export const useOperatorStore = create<OperatorStoreState>((set, get) => ({
