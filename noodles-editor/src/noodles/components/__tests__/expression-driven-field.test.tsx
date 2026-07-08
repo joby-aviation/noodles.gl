@@ -1,6 +1,6 @@
 // UI tests for per-field expression mode: the field right-click context menu in
 // FieldComponent and the ExpressionDrivenInput editor
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { ReactFlowProvider } from '@xyflow/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { NumberOp } from '../../operators'
@@ -134,6 +134,25 @@ describe('per-field expression mode UI', () => {
     expect(op.inputs.val.value).toEqual(42)
     // Back to the regular number input
     expect(screen.queryByPlaceholderText('Enter expression…')).toBeNull()
+  })
+
+  it('does not flag valid await expressions as syntax errors', async () => {
+    const op = new NumberOp('/num')
+    setOp('/num', op)
+    renderField(op)
+
+    fireEvent.contextMenu(screen.getByText('val'))
+    fireEvent.click(screen.getByText('Add expression'))
+    const input = screen.getByPlaceholderText('Enter expression…')
+    fireEvent.change(input, { target: { value: 'await Promise.resolve(5)' } })
+    fireEvent.blur(input)
+
+    // The evaluator runs await expressions as AsyncFunction; the syntax check must agree
+    expect(screen.queryByText('⚠')).toBeNull()
+    await act(async () => {
+      for (let i = 0; i < 5; i++) await Promise.resolve()
+    })
+    expect(op.inputs.val.value).toEqual(5)
   })
 
   it('syncs reference edges for cross-op expressions', () => {

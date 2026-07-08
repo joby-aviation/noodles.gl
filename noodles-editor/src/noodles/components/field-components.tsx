@@ -212,6 +212,8 @@ export function TextFieldComponent({
   )
 }
 
+const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor as FunctionConstructor
+
 // Validates an expression by attempting to parse it
 // Returns an error message if invalid, null if valid
 function validateExpression(expression: string): string | null {
@@ -220,8 +222,11 @@ function validateExpression(expression: string): string | null {
   try {
     // Try to parse as a function body (wrapping with return like the operators do)
     // Match the actual parameters available in AccessorOp.execute() and ExpressionOp.execute()
+    // fnWithSource duck-types async the same way, so `await` expressions parse like the
+    // evaluator will actually run them
+    const Ctor = /\bawait\b/.test(expression) ? AsyncFunction : Function
     // eslint-disable-next-line no-new-func
-    new Function(
+    new Ctor(
       'd',
       'i',
       'data',

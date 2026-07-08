@@ -151,6 +151,35 @@ describe('field expression mode', () => {
       expect(op.inputs.val.value).toEqual(2)
     })
 
+    it('does not stack-overflow on mutual sibling references', () => {
+      const op = new TwoFieldOp('/two')
+      setOp('/two', op)
+      op.inputs.val.setExpression('par.other + 1')
+      // Divergent circular arithmetic: without the re-entrancy guard this recurses
+      // synchronously until the stack overflows
+      expect(() => op.inputs.other.setExpression('par.val + 1')).not.toThrow()
+      expect(Number.isFinite(op.inputs.val.value as number)).toBe(true)
+      expect(Number.isFinite(op.inputs.other.value as number)).toBe(true)
+
+      // Each change still propagates one pass around the cycle and settles
+      op.inputs.other.setValue(10)
+      expect(op.inputs.val.value).toEqual(11)
+    })
+
+    it('does not stack-overflow on cross-op reference cycles', () => {
+      const a = new NumberOp('/a')
+      const b = new NumberOp('/b')
+      setOp('/a', a)
+      setOp('/b', b)
+      a.inputs.val.setExpression("op('/b').par.val + 1")
+      b.inputs.val.setExpression("op('/a').par.val + 1")
+      // Wire the reference connections both ways, as transform-graph would
+      a.inputs.val.addConnection('ref-b-a', b.inputs.val, 'reference')
+      expect(() => b.inputs.val.addConnection('ref-a-b', a.inputs.val, 'reference')).not.toThrow()
+      expect(Number.isFinite(a.inputs.val.value as number)).toBe(true)
+      expect(Number.isFinite(b.inputs.val.value as number)).toBe(true)
+    })
+
     it('cleans up sibling subscriptions on clearExpression', () => {
       const op = new TwoFieldOp('/two')
       setOp('/two', op)

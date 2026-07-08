@@ -262,7 +262,11 @@ function EditableFieldInput({
 }) {
   const { type } = field.constructor as typeof Field
 
-  // Expression-driven fields show the expression editor regardless of type
+  // Expression-driven fields show the expression editor regardless of type.
+  // The canvas variant is safe here: the whole Layout — this panel included — renders
+  // inside timeline-editor's ReactFlowProvider (this file already relies on that via
+  // useReactFlow/useStore above), and it keeps reference edges synced when expressions
+  // are edited from the panel. Use ExpressionInputBase instead if that ever changes.
   const expression = useObservable(field.expression$, field.expression)
   if (expression !== null) {
     return <ExpressionDrivenInput id={fieldName} field={field} disabled={disabled} />

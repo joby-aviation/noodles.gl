@@ -31,6 +31,13 @@ const TIMELINE_IDENTIFIER_RE = /\b(?:sequenceTime|frame|totalFrames|sequence)\b/
 // Monotonic token per field so late-resolving async evaluations can't clobber newer results
 const evaluationTokens = new WeakMap<Field, number>()
 
+// Fields currently being evaluated on this call stack. BehaviorSubject emissions are
+// synchronous, so circular references (a: `par.b + 1`, b: `par.a + 1` — or longer cycles
+// through cross-op reference connections) would otherwise recurse until the stack
+// overflows. A field already evaluating higher up the stack skips re-entry: each change
+// propagates one pass around the cycle and settles.
+const evaluating = new Set<Field>()
+
 function deepEqual(a: unknown, b: unknown): boolean {
   if (Object.is(a, b)) return true
   if (a === null || b === null || typeof a !== 'object' || typeof b !== 'object') return false
@@ -78,7 +85,16 @@ export function evaluateFieldExpression(field: Field): void {
     field.expressionError$.next(null)
     return
   }
+  if (evaluating.has(field)) return
+  evaluating.add(field)
+  try {
+    evaluateGuarded(field, expr)
+  } finally {
+    evaluating.delete(field)
+  }
+}
 
+function evaluateGuarded(field: Field, expr: string): void {
   const op = field.op
   const opId = op?.id ?? ''
   const fieldPath = field.pathToProps.join('.')
