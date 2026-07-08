@@ -391,3 +391,20 @@ react-json-view's `float` type tag between key and value) — after which the re
    after being touched — it is a session INPUT fixture of a baselined task, and even a
    cosmetic fixture change breaks strict D7 comparability; the golden (never shown to
    sessions) diverges in positions only.
+
+### Round 3: isolated app-fix PR, full egress, timeline-open captures
+
+- **Reference-edge fix moved to its own PR (#514)** off latest origin/main and dropped from
+  this branch's history (rebase) — the eval-harness PR stays app-neutral, and the fix can
+  merge on its own track. The code-refs golden keeps its explicit data edge (valid under both
+  behaviors) until #514 ships to main and workspaces pick it up.
+- **The environment now has full egress** (user opened the network policy):
+  basemaps.cartocdn.com returns 200 where it previously 403'd, so goldens capture with real
+  basemap imagery via the proxy-aware fetch interception. This also retests the Monaco
+  worker-init noise class under open egress.
+- **Animation evidence: timeline panel now opened before capture** for animation tasks
+  (`load.openTimeline: true` in animate-camera's frontmatter, wired through run.ts and
+  verify-goldens; camera-tour-base captures with the empty panel as contrast). Keyframes are
+  the graded artifact — a shut panel hid them from both the judge's screenshot and human
+  review. Capture-environment change like the 2K move, not a task-semantics change.
+- animate-camera golden re-spaced (basemap/deck were still adjacent).

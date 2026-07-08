@@ -656,6 +656,7 @@ async function runVisualChecks(targets: Target[]): Promise<void> {
     route: string
     render: 'healthy' | 'informational' | 'expected-unhealthy'
     grabBodyText?: boolean
+    openTimeline?: boolean
   }
   const visuals: Visual[] = []
 
@@ -671,7 +672,13 @@ async function runVisualChecks(targets: Target[]): Promise<void> {
     fs.mkdirSync(path.dirname(artifact), { recursive: true })
     fs.copyFileSync(candidatePath ?? goldenPath(target.id), artifact)
     const route = task.grader.mechanical.load?.route ?? `/examples/${path.basename(path.dirname(artifact))}`
-    visuals.push({ name: target.id, route, render: target.render, grabBodyText: target.grabBodyText })
+    visuals.push({
+      name: target.id,
+      route,
+      render: target.render,
+      grabBodyText: target.grabBodyText,
+      openTimeline: task.grader.mechanical.load?.openTimeline,
+    })
   }
 
   // Fixture baselines, captured for eyeball review when running the full set:
@@ -688,7 +695,9 @@ async function runVisualChecks(targets: Target[]): Promise<void> {
       if (name === 'quake-map-broken-base') {
         fs.copyFileSync(path.join(FIXTURES, 'earthquakes.csv'), path.join(dir, 'data.csv'))
       }
-      visuals.push({ name, route: `/examples/${name}`, render })
+      // camera-tour-base gets the open timeline too: the empty panel is the
+      // visual contrast against the animate golden's keyframed one.
+      visuals.push({ name, route: `/examples/${name}`, render, openTimeline: name === 'camera-tour-base' })
     }
   }
 
@@ -703,6 +712,7 @@ async function runVisualChecks(targets: Target[]): Promise<void> {
         screenshotPath,
         port: port++,
         grabBodyText: v.grabBodyText,
+        openTimeline: v.openTimeline,
       })
     } catch (e) {
       // One wedged capture (e.g. the software rasterizer starving on a huge

@@ -159,6 +159,7 @@ export async function runOne(args: {
         route: task.grader.mechanical.load.route,
         screenshotPath: path.join(runDir, 'screenshot.png'),
         port: args.port,
+        openTimeline: task.grader.mechanical.load.openTimeline,
       })
       checks.loadsWithoutConsoleErrors = {
         pass: load.loaded && load.consoleErrors.length === 0,

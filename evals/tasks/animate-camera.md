@@ -23,6 +23,10 @@ grader:
     load:
       route: /examples/camera-tour
       screenshot: non-blank
+      # Animation tasks are graded on keyframes — capture with the timeline
+      # panel expanded so the evidence shows them (capture environment, like
+      # the 2K resolution; the graded surface is unchanged).
+      openTimeline: true
 ---
 
 # animate-camera

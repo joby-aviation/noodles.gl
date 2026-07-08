@@ -30,7 +30,7 @@ export interface TaskDefinition {
     artifact: string
     mechanical: {
       validateProject?: string
-      load?: { route: string; screenshot: string }
+      load?: { route: string; screenshot: string; openTimeline?: boolean }
       requiredNodeTypes?: string[]
       answers?: { file: string; key: string }
       /** task-specific checks, dispatched from lib/task-checks by this id */

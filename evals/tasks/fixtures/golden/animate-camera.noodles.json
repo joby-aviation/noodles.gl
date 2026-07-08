@@ -27,8 +27,8 @@
       "id": "/deck",
       "type": "DeckRendererOp",
       "position": {
-        "x": 500,
-        "y": 100
+        "x": 700,
+        "y": 60
       },
       "data": {
         "inputs": {},
@@ -39,8 +39,8 @@
       "id": "/out",
       "type": "OutOp",
       "position": {
-        "x": 820,
-        "y": 100
+        "x": 1050,
+        "y": 60
       },
       "data": {
         "inputs": {
@@ -71,7 +71,7 @@
   ],
   "viewport": {
     "x": 300,
-    "y": 250,
+    "y": 300,
     "zoom": 1
   },
   "editorSettings": {

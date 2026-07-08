@@ -58,6 +58,9 @@ export async function loadAndScreenshot(opts: {
   settleMs?: number
   /** Capture document.body.innerText after settle — lets callers read on-screen op output (e.g. a ViewerOp's rendered value). */
   grabBodyText?: boolean
+  /** Expand the collapsed timeline panel before the screenshot — animation
+   * tasks are graded on keyframes, which are invisible with the panel shut. */
+  openTimeline?: boolean
 }): Promise<LoadCheckResult> {
   const editorDir = path.join(opts.workspace, 'noodles-editor')
   const server = spawn('npx', ['vite', '--port', String(opts.port), '--strictPort'], {
@@ -156,6 +159,14 @@ export async function loadAndScreenshot(opts: {
       const canvas = await page.waitForSelector('canvas', { timeout: 60_000 }).catch(() => null)
       // Give data loading + first render time to settle.
       await page.waitForTimeout(opts.settleMs ?? 15_000)
+      if (opts.openTimeline) {
+        await page
+          .click('button[title="Expand Timeline (click to open)"]', { timeout: 5_000 })
+          .then(() => page.waitForTimeout(2_000))
+          .catch(() => {
+            /* already expanded or tab missing — screenshot proceeds either way */
+          })
+      }
       // Generous timeout: pages rendering large datasets under the headless
       // software rasterizer can starve the compositor past the default 30s.
       await page.screenshot({ path: opts.screenshotPath, timeout: 180_000 })
