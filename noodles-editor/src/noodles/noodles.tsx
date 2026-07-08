@@ -1761,13 +1761,7 @@ export function getNoodles(): Visualization {
     showDebugInfo,
     onChangeShowDebugInfo: setShowDebugInfo,
     spreadsheetVisible,
-    onChangeSpreadsheetVisible: useCallback(
-      (visible: boolean) => {
-        setSpreadsheetVisible(visible)
-        if (visible && layoutMode !== 'split') setLayoutMode('split')
-      },
-      [setSpreadsheetVisible, layoutMode]
-    ),
+    onChangeSpreadsheetVisible: setSpreadsheetVisible,
     // Render settings are now read from OutOp via useRenderSettings() hook
     // Export these so timeline-editor can create the menu with render actions
     projectName:
