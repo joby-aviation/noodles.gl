@@ -75,7 +75,8 @@ export function TopMenuBar({
 }: TopMenuBarProps) {
   const settingsDialogOpen = useUIStore(state => state.settingsDialogOpen)
   const setSettingsDialogOpen = useUIStore(state => state.setSettingsDialogOpen)
-  const setSidebarVisible = useUIStore(state => state.setSidebarVisible)
+  const mapFloating = useUIStore(state => state.mapFloating)
+  const setMapFloating = useUIStore(state => state.setMapFloating)
   const triggerSidebarSearch = useUIStore(state => state.triggerSidebarSearch)
   const [, navigate] = useLocation()
   const [recentProjects, setRecentProjects] = useState<string[]>([])
@@ -116,7 +117,6 @@ export function TopMenuBar({
         analytics.track('keyboard_shortcut_used', { action: 'import' })
       } else if (isMod && e.key === 'f') {
         e.preventDefault()
-        setSidebarVisible(true)
         triggerSidebarSearch()
         analytics.track('keyboard_shortcut_used', { action: 'find' })
       }
@@ -124,7 +124,7 @@ export function TopMenuBar({
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [onSaveProject, onNewProject, onOpen, onImport, setSidebarVisible, triggerSidebarSearch])
+  }, [onSaveProject, onNewProject, onOpen, onImport, triggerSidebarSearch])
 
   // Detect platform for keyboard shortcuts
   const isMac = useMemo(() => navigator.platform.toUpperCase().indexOf('MAC') >= 0, [])
@@ -365,7 +365,6 @@ export function TopMenuBar({
                       <DropdownMenu.Item
                         className={s.dropdownItem}
                         onSelect={() => {
-                          setSidebarVisible(true)
                           triggerSidebarSearch()
                           analytics.track('keyboard_shortcut_used', { action: 'find' })
                         }}
@@ -447,7 +446,16 @@ export function TopMenuBar({
                         </DropdownMenu.ItemIndicator>
                         Show spreadsheet
                       </DropdownMenu.CheckboxItem>
-
+                      <DropdownMenu.CheckboxItem
+                        className={s.dropdownItem}
+                        checked={mapFloating}
+                        onCheckedChange={setMapFloating}
+                      >
+                        <DropdownMenu.ItemIndicator className={s.itemIndicator}>
+                          <i className="pi pi-check" style={{ fontSize: '12px' }} />
+                        </DropdownMenu.ItemIndicator>
+                        Float map window
+                      </DropdownMenu.CheckboxItem>
                     </DropdownMenu.SubContent>
                   </DropdownMenu.Portal>
                 </DropdownMenu.Sub>

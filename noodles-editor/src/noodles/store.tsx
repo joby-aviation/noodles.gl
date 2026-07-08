@@ -126,45 +126,23 @@ interface UIStoreState {
   setTargetedEdge: (edge: { id: string; compatible: boolean } | null) => void
   nodeDragState: NodeDragState | null
   setNodeDragState: (state: NodeDragState | null) => void
-  sidebarVisible: boolean
-  setSidebarVisible: (visible: boolean) => void
   sidebarSearchFocusTrigger: number
   triggerSidebarSearch: () => void
   settingsDialogOpen: boolean
   setSettingsDialogOpen: (open: boolean) => void
   quickStartModalOpen: boolean
   setQuickStartModalOpen: (open: boolean) => void
-
-  // Panel state for resizable layout
-  panelSizes: {
-    sidebar: number
-    properties: number
-    mainSplit: number
-  }
-  panelCollapsed: {
-    sidebar: boolean
-    properties: boolean
-    timeline: boolean
-  }
-  setPanelSize: (panel: keyof UIStoreState['panelSizes'], size: number) => void
-  setPanelCollapsed: (panel: keyof UIStoreState['panelCollapsed'], collapsed: boolean) => void
-  loadPanelState: () => void
-  savePanelState: () => void
-
-  // Timeline panel state (kept for CollapsibleTimelinePanel backward compatibility)
   timelineExpanded: boolean
   setTimelineExpanded: (expanded: boolean) => void
-  timelineHeight: number
-  setTimelineHeight: (height: number) => void
   spreadsheetVisible: boolean
   setSpreadsheetVisible: (visible: boolean) => void
   pinnedSpreadsheetNodeId: string | null
   setPinnedSpreadsheetNodeId: (id: string | null) => void
-  spreadsheetWidth: number
-  setSpreadsheetWidth: (width: number) => void
+  mapFloating: boolean
+  setMapFloating: (floating: boolean) => void
 }
 
-export const useUIStore = create<UIStoreState>((set, get) => ({
+export const useUIStore = create<UIStoreState>(set => ({
   hoveredOutputHandle: null,
   setHoveredOutputHandle: handle => set({ hoveredOutputHandle: handle }),
   connectionDragState: null,
@@ -173,8 +151,6 @@ export const useUIStore = create<UIStoreState>((set, get) => ({
   setTargetedEdge: edge => set({ targetedEdge: edge }),
   nodeDragState: null,
   setNodeDragState: state => set({ nodeDragState: state }),
-  sidebarVisible: false,
-  setSidebarVisible: visible => set({ sidebarVisible: visible }),
   sidebarSearchFocusTrigger: 0,
   triggerSidebarSearch: () =>
     set(state => ({ sidebarSearchFocusTrigger: state.sidebarSearchFocusTrigger + 1 })),
@@ -182,87 +158,16 @@ export const useUIStore = create<UIStoreState>((set, get) => ({
   setSettingsDialogOpen: open => set({ settingsDialogOpen: open }),
   quickStartModalOpen: false,
   setQuickStartModalOpen: open => set({ quickStartModalOpen: open }),
-
-  // Panel state defaults
-  panelSizes: {
-    sidebar: 12,
-    properties: 15,
-    mainSplit: 50,
-  },
-  panelCollapsed: {
-    sidebar: false,
-    properties: false,
-    timeline: false,
-  },
-
-  setPanelSize: (panel, size) =>
-    set(state => ({
-      panelSizes: { ...state.panelSizes, [panel]: size },
-    })),
-
-  setPanelCollapsed: (panel, collapsed) =>
-    set(state => ({
-      panelCollapsed: { ...state.panelCollapsed, [panel]: collapsed },
-    })),
-
-  loadPanelState: () => {
-    try {
-      const sizes = localStorage.getItem('noodles-panel-sizes')
-      const collapsed = localStorage.getItem('noodles-panel-collapsed')
-
-      // Validate and merge with defaults to handle stale localStorage data
-      const defaultSizes = { sidebar: 12, properties: 15, mainSplit: 50 }
-      const defaultCollapsed = { sidebar: false, properties: false, timeline: false }
-
-      if (sizes) {
-        const parsed = JSON.parse(sizes)
-        if (parsed && typeof parsed === 'object') {
-          set({ panelSizes: { ...defaultSizes, ...parsed } })
-        }
-      }
-      if (collapsed) {
-        const parsed = JSON.parse(collapsed)
-        if (parsed && typeof parsed === 'object') {
-          set({ panelCollapsed: { ...defaultCollapsed, ...parsed } })
-        }
-      }
-    } catch (e) {
-      console.warn('Failed to load panel state:', e)
-    }
-  },
-
-  savePanelState: () => {
-    const { panelSizes, panelCollapsed } = get()
-    try {
-      localStorage.setItem('noodles-panel-sizes', JSON.stringify(panelSizes))
-      localStorage.setItem('noodles-panel-collapsed', JSON.stringify(panelCollapsed))
-    } catch (e) {
-      console.warn('Failed to save panel state:', e)
-    }
-  },
-
-  // Timeline panel state (backward compatibility with CollapsibleTimelinePanel)
   timelineExpanded: false,
   setTimelineExpanded: expanded => set({ timelineExpanded: expanded }),
-  timelineHeight: 250,
-  setTimelineHeight: height => set({ timelineHeight: height }),
   spreadsheetVisible: false,
   setSpreadsheetVisible: visible => set({ spreadsheetVisible: visible }),
   pinnedSpreadsheetNodeId: null,
   setPinnedSpreadsheetNodeId: id => set({ pinnedSpreadsheetNodeId: id }),
-  spreadsheetWidth: (() => {
-    try {
-      const stored = localStorage.getItem('noodles-spreadsheet-width')
-      return stored ? Number(stored) : 400
-    } catch {
-      return 400
-    }
-  })(),
-  setSpreadsheetWidth: width => {
-    set({ spreadsheetWidth: width })
-    try {
-      localStorage.setItem('noodles-spreadsheet-width', String(width))
-    } catch {}
+  mapFloating: localStorage.getItem('noodles-map-floating') === 'true',
+  setMapFloating: floating => {
+    set({ mapFloating: floating })
+    localStorage.setItem('noodles-map-floating', String(floating))
   },
 }))
 
