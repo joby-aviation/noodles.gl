@@ -2547,17 +2547,11 @@ export class GeocoderOp extends Operator<GeocoderOp> {
     }
   }
   async execute(_: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    // This is a special-case because it's essentially a pass-through. The Geocoder component will handle the API call
+    const { getKey } = getKeysStore()
+    if (!getKey('mapbox')) {
+      throw new Error('Mapbox API key required (Settings > API Keys)')
+    }
     return null
-
-    /*
-    const response = await fetch(
-      `https://api.mapbox.com/geocoding/v5/mapbox.places/${query}.json?access_token=${MAPBOX_ACCESS_TOKEN}`
-    )
-    const data = await response.json()
-    const location = data.features[0].center
-    return { location }
-    */
   }
 }
 

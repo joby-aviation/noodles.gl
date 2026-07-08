@@ -1490,25 +1490,30 @@ function GeocoderOpComponent({
 
   const containerRef = useRef<HTMLDivElement>(null)
   const geocoderRef = useRef<MapboxGeocoder>()
-  const [error, setError] = useState<string | null>(null)
+  const prevApiKeyRef = useRef<string | null | undefined>(undefined)
+  const executionState = useExecutionState(op)
+  const connectionErrors = useConnectionErrors(op)
+  const hasConnectionErrors = connectionErrors.size > 0
   const isDimmed = useNodeDimmed(id)
 
   // Get API key directly from store (reactive)
   const apiKey = useKeysStore(state => state.getKey('mapbox'))
 
   useLayoutEffect(() => {
-    // Clear previous error
-    setError(null)
+    op.removeConnectionError('geocoder-setup')
 
     if (!containerRef.current) {
       return
     }
 
-    // Check if Mapbox API key is available
+    // No key — execute() will throw and show the error via the standard mechanism
     if (!apiKey) {
-      setError('API key required (Settings > API Keys)')
+      prevApiKeyRef.current = null
       return
     }
+
+    const keyJustAdded = prevApiKeyRef.current === null && !!apiKey
+    prevApiKeyRef.current = apiKey
 
     const container = containerRef.current
 
@@ -1531,8 +1536,13 @@ function GeocoderOpComponent({
       g.addTo(container)
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Invalid token'
-      setError(`Geocoder error: ${message}`)
+      op.addConnectionError('geocoder-setup', `Geocoder error: ${message}`)
       return
+    }
+
+    // Key was just added — re-execute to clear the "no key" error from executionState
+    if (keyJustAdded) {
+      op.inputs.query.setValue(op.inputs.query.value)
     }
 
     g.query(op.inputs.query.value)
@@ -1564,9 +1574,16 @@ function GeocoderOpComponent({
     }
   }, [locked])
 
+  const hasError = executionState.status === 'error' || hasConnectionErrors
+
   return (
-    <div className={cx(s.wrapper, { [s.wrapperDimmed]: isDimmed })}>
-      <NodeHeader id={id} type={type} op={op} />
+    <div
+      className={cx(s.wrapper, {
+        [s.wrapperError]: hasError,
+        [s.wrapperDimmed]: isDimmed,
+      })}
+    >
+      <NodeHeader id={id} type={type} op={op} connectionErrors={connectionErrors} />
       <div className={s.content}>
         {Object.entries(op.inputs)
           .filter(([key]) => op.isFieldVisible(key))
@@ -1580,15 +1597,10 @@ function GeocoderOpComponent({
               renderInput={false}
             />
           ))}
-        {error && (
-          <div className={s.fieldWrapper} style={{ padding: '8px', color: '#ff6b6b' }}>
-            ⚠️ {error}
-          </div>
-        )}
         <div
           ref={containerRef}
           className={s.fieldWrapper}
-          style={{ display: error ? 'none' : 'block' }}
+          style={{ display: hasError ? 'none' : 'block' }}
         />
         <div className={s.outputHandleContainer}>
           {Object.entries(op.outputs).map(([key, field]) => (
@@ -1833,6 +1845,9 @@ function ViewerOpComponent({
     throw new Error(`Operator with id ${id} not found`)
   }
 
+  const executionState = useExecutionState(op)
+  const connectionErrors = useConnectionErrors(op)
+  const hasConnectionErrors = connectionErrors.size > 0
   const isDimmed = useNodeDimmed(id)
   const { setNodes, setEdges } = useReactFlow()
 
@@ -1920,8 +1935,13 @@ function ViewerOpComponent({
     Object.keys(viewerData[0]).length < 20
 
   return (
-    <div className={cx(s.wrapper, { [s.wrapperDimmed]: isDimmed })}>
-      <NodeHeader id={id} type={type} op={op} />
+    <div
+      className={cx(s.wrapper, {
+        [s.wrapperError]: executionState.status === 'error' || hasConnectionErrors,
+        [s.wrapperDimmed]: isDimmed,
+      })}
+    >
+      <NodeHeader id={id} type={type} op={op} connectionErrors={connectionErrors} />
       <NodeResizer isVisible={selected} minWidth={400} minHeight={200} />
       <div className={s.content}>
         {Object.entries(op.inputs)
@@ -1967,6 +1987,8 @@ function ContainerOpComponent({
     throw new Error(`Operator with id ${id} not found`)
   }
 
+  const connectionErrors = useConnectionErrors(op)
+  const hasConnectionErrors = connectionErrors.size > 0
   const isDimmed = useNodeDimmed(id)
   const setCurrentContainerId = useNestingStore(state => state.setCurrentContainerId)
   const reactFlow = useReactFlow()
@@ -1982,7 +2004,7 @@ function ContainerOpComponent({
   return (
     <div
       role="tree"
-      className={cx(s.wrapper, { [s.wrapperDimmed]: isDimmed })}
+      className={cx(s.wrapper, { [s.wrapperError]: hasConnectionErrors, [s.wrapperDimmed]: isDimmed })}
       onDoubleClick={() => {
         // Clear selection when changing levels
         reactFlow.setNodes(nodes => nodes.map(node => ({ ...node, selected: false })))
@@ -1991,7 +2013,7 @@ function ContainerOpComponent({
         reactFlow.fitView({ duration: 0 })
       }}
     >
-      <NodeHeader id={id} type={type} op={op} />
+      <NodeHeader id={id} type={type} op={op} connectionErrors={connectionErrors} />
       <NodeResizer isVisible={selected} minWidth={200} minHeight={50} />
       <div className={s.content}>
         {Object.entries(op.inputs)
