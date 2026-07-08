@@ -95,16 +95,6 @@ describe('NodeProperties field visibility editing', () => {
     )
   }
 
-  // Helper to find the edit (pencil) SVG button
-  const findEditButton = () => {
-    // Find the SVG element with class containing 'editIcon'
-    const svgs = document.querySelectorAll('svg[class*="editIcon"]')
-    if (svgs.length === 0) {
-      throw new Error('Edit button not found')
-    }
-    return svgs[0] as HTMLElement
-  }
-
   const findFieldActionButton = (fieldName: string) => {
     const fieldLabel = screen.getByText(fieldName)
     const propertyItem = fieldLabel.closest('[role="listitem"]')
@@ -112,37 +102,10 @@ describe('NodeProperties field visibility editing', () => {
     return propertyItem?.querySelector('button')
   }
 
-  describe('Edit mode toggle', () => {
-    it('shows edit (pencil) button in inputs section', () => {
+  describe('Field visibility controls', () => {
+    it('shows hide buttons (−) for visible fields', () => {
       const node = setupOperator('DeckRendererOp', '/deck')
       renderNodeProperties(node)
-
-      // Find the edit button by its class
-      const editButton = findEditButton()
-      expect(editButton).toBeInTheDocument()
-    })
-
-    it('toggles edit mode when pencil icon is clicked', () => {
-      const node = setupOperator('DeckRendererOp', '/deck')
-      renderNodeProperties(node)
-
-      // Initially, "Hidden fields" divider should not be visible
-      expect(screen.queryByText('Hidden fields')).not.toBeInTheDocument()
-
-      // Click the edit button
-      const editButton = findEditButton()
-      fireEvent.click(editButton)
-
-      // Now "Hidden fields" should be visible (DeckRendererOp has many hidden fields)
-      expect(screen.getByText('Hidden fields')).toBeInTheDocument()
-    })
-
-    it('shows hide buttons (−) for visible fields in edit mode', () => {
-      const node = setupOperator('DeckRendererOp', '/deck')
-      renderNodeProperties(node)
-
-      // Enter edit mode
-      fireEvent.click(findEditButton())
 
       // Find hide buttons (the − buttons) - they have type="button" and contain '−'
       const allButtons = screen.getAllByRole('button')
@@ -150,17 +113,23 @@ describe('NodeProperties field visibility editing', () => {
       expect(hideButtons.length).toBeGreaterThan(0)
     })
 
-    it('shows add buttons (+) for hidden fields in edit mode', () => {
+    it('shows add buttons (+) for hidden fields', () => {
       const node = setupOperator('DeckRendererOp', '/deck')
       renderNodeProperties(node)
-
-      // Enter edit mode
-      fireEvent.click(findEditButton())
 
       // Find add buttons (the + buttons)
       const allButtons = screen.getAllByRole('button')
       const addButtons = allButtons.filter(btn => btn.textContent === '+')
       expect(addButtons.length).toBeGreaterThan(0)
+    })
+
+    it('all fields are always visible in list', () => {
+      const node = setupOperator('DeckRendererOp', '/deck')
+      renderNodeProperties(node)
+
+      // Both visible and hidden fields should be present
+      // 'effects' is hidden by default but should still be in the list
+      expect(screen.getByText('effects')).toBeInTheDocument()
     })
   })
 
@@ -174,73 +143,12 @@ describe('NodeProperties field visibility editing', () => {
       expect(op.inputs.effects.showByDefault).toBe(false)
       expect(op.isFieldVisible('effects')).toBe(false)
 
-      // Enter edit mode
-      fireEvent.click(findEditButton())
-
       const addButton = findFieldActionButton('effects')
       expect(addButton?.textContent).toBe('+')
       fireEvent.click(addButton!)
 
       // Now the field should be visible
       expect(op.isFieldVisible('effects')).toBe(true)
-    })
-
-    it('search filters hidden fields', () => {
-      const node = setupOperator('DeckRendererOp', '/deck')
-      renderNodeProperties(node)
-
-      // Enter edit mode
-      fireEvent.click(findEditButton())
-
-      // Find search input
-      const searchInput = screen.getByPlaceholderText('Search fields...')
-      expect(searchInput).toBeInTheDocument()
-
-      // Type a search term that matches 'effects' but not 'widgets'
-      fireEvent.change(searchInput, { target: { value: 'effect' } })
-
-      // The 'effects' field should still be visible
-      expect(screen.getByText('effects')).toBeInTheDocument()
-
-      // 'widgets' should not be visible in hidden fields section (doesn't match search)
-      // We need to check if it's present in the document at all
-      const widgetsElements = screen.queryAllByText('widgets')
-      // If widgets is in hidden fields section after search, it should be filtered out
-      // The search filters the hidden fields list
-      expect(
-        widgetsElements.filter(el => {
-          // Check if this element is in the hidden fields section
-          const container = el.closest('[class*="property"]')
-          const addButton = container?.querySelector('button')
-          return addButton?.textContent === '+'
-        }).length
-      ).toBe(0)
-    })
-
-    it('Show all button shows all hidden fields', () => {
-      const node = setupOperator('DeckRendererOp', '/deck')
-      renderNodeProperties(node)
-
-      const op = getOp('/deck') as DeckRendererOp
-
-      // Count initially hidden fields
-      const initiallyHiddenCount = Object.entries(op.inputs).filter(
-        ([name]) => !op.isFieldVisible(name)
-      ).length
-      expect(initiallyHiddenCount).toBeGreaterThan(0)
-
-      // Enter edit mode
-      fireEvent.click(findEditButton())
-
-      // Click "Show all" button
-      const showAllButton = screen.getByText('Show all')
-      fireEvent.click(showAllButton)
-
-      // All fields should now be visible
-      const nowHiddenCount = Object.entries(op.inputs).filter(
-        ([name]) => !op.isFieldVisible(name)
-      ).length
-      expect(nowHiddenCount).toBe(0)
     })
   })
 
@@ -307,10 +215,7 @@ describe('NodeProperties field visibility editing', () => {
       const op = getOp('/deck') as DeckRendererOp
       expect(op.isFieldVisible('effects')).toBe(true)
 
-      // Enter edit mode
-      fireEvent.click(findEditButton())
-
-      // Find the effects field - it should be in visible fields section (has − button)
+      // Find the effects field - it should have a − button
       const hideButton = findFieldActionButton('effects')
       expect(hideButton?.textContent).toBe('−')
       fireEvent.click(hideButton!)
@@ -355,9 +260,6 @@ describe('NodeProperties field visibility editing', () => {
       }
       renderNodeProperties(node)
 
-      // Enter edit mode
-      fireEvent.click(findEditButton())
-
       // Find the layers field and its − button
       const hideButton = findFieldActionButton('layers')
       expect(hideButton?.textContent).toBe('−')
@@ -376,9 +278,6 @@ describe('NodeProperties field visibility editing', () => {
       const op = getOp('/geojson') as GeoJsonLayerOp
       expect(op.inputs.opacity.value).toBe(0.5)
       expect(op.inputs.opacity.defaultValue).toBe(1)
-
-      // Enter edit mode
-      fireEvent.click(findEditButton())
 
       // Find the opacity field and click its − button
       const opacityText = screen.getByText('opacity')
@@ -404,9 +303,6 @@ describe('NodeProperties field visibility editing', () => {
       ])
       renderNodeProperties(node)
 
-      // Enter edit mode
-      fireEvent.click(findEditButton())
-
       // Reset button should be visible
       expect(screen.getByRole('button', { name: 'Reset' })).toBeInTheDocument()
     })
@@ -414,9 +310,6 @@ describe('NodeProperties field visibility editing', () => {
     it('does not show Reset button when visibility matches defaults (null)', () => {
       const node = setupOperator('NumberOp', '/num')
       renderNodeProperties(node)
-
-      // Enter edit mode
-      fireEvent.click(findEditButton())
 
       // Reset button should not be visible (NumberOp has all fields visible by default
       // and visibleFields.value is null)
@@ -434,9 +327,6 @@ describe('NodeProperties field visibility editing', () => {
         'effects',
       ])
       renderNodeProperties(node)
-
-      // Enter edit mode
-      fireEvent.click(findEditButton())
 
       // Click Reset
       fireEvent.click(screen.getByRole('button', { name: 'Reset' }))
@@ -460,9 +350,6 @@ describe('NodeProperties field visibility editing', () => {
 
       const op = getOp('/deck') as DeckRendererOp
       expect(op.isFieldVisible('effects')).toBe(true)
-
-      // Enter edit mode
-      fireEvent.click(findEditButton())
 
       // Click Reset
       fireEvent.click(screen.getByRole('button', { name: 'Reset' }))
@@ -496,7 +383,7 @@ describe('NodeProperties field visibility editing', () => {
       expect(screen.getByText('Reset to default')).toBeInTheDocument()
     })
 
-    it('does not show "Reset to default" when field value equals the default', () => {
+    it('disables "Reset to default" when field value equals the default', () => {
       // GeoJsonLayerOp.opacity defaults to 1 — leave at default
       const node = setupOperator('GeoJsonLayerOp', '/geo', { opacity: 1 })
       renderNodeProperties(node)
@@ -504,7 +391,7 @@ describe('NodeProperties field visibility editing', () => {
       const opacityLabel = screen.getByText('opacity', { selector: 'span' })
       fireEvent.contextMenu(opacityLabel.closest('[role="listitem"]')!)
 
-      expect(screen.queryByText('Reset to default')).not.toBeInTheDocument()
+      expect(screen.getByText('Reset to default')).toBeDisabled()
     })
 
     it('clicking "Reset to default" resets the field value to its default', () => {
@@ -519,7 +406,7 @@ describe('NodeProperties field visibility editing', () => {
       expect(op.inputs.opacity.value).toBe(1)
     })
 
-    it('does not show "Reset to default" when field has an incoming connection', () => {
+    it('disables "Reset to default" when field has an incoming connection', () => {
       const nodes = [
         {
           id: '/src',
@@ -551,7 +438,7 @@ describe('NodeProperties field visibility editing', () => {
       const opacityLabel = screen.getByText('opacity')
       fireEvent.contextMenu(opacityLabel.closest('[role="listitem"]')!)
 
-      expect(screen.queryByText('Reset to default')).not.toBeInTheDocument()
+      expect(screen.getByText('Reset to default')).toBeDisabled()
     })
 
     it('shows "Reset to default" for UnknownField (DeckRendererOp basemap)', () => {
@@ -578,9 +465,6 @@ describe('NodeProperties field visibility editing', () => {
 
       const op = getOp('/deck') as DeckRendererOp
       expect(op.isFieldVisible('effects')).toBe(false)
-
-      // Enter edit mode
-      fireEvent.click(findEditButton())
 
       // Show the effects field
       const addButton = findFieldActionButton('effects')

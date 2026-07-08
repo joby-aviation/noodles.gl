@@ -5,6 +5,10 @@ const queryParams = new URLSearchParams(window?.location.search ?? '')
 // app has broken in an invalid state
 export const safeMode = queryParams.get('safeMode') === 'true'
 
+// Enables external control of the app (WebMCP tool registration and the
+// legacy WebSocket bridge)
+export const externalControl = queryParams.get('externalControl') === 'true'
+
 export const IS_PROD =
   typeof location !== 'undefined' ? location.hostname === import.meta.env.VITE_PROD_HOSTNAME : false
 
