@@ -1727,6 +1727,7 @@ export function getNoodles(): Visualization {
 
   return {
     flowGraph,
+    selectedNodeIds: nodes.filter(n => n.selected).map(n => n.id),
     nodeSidebar: (
       <ErrorBoundary title="Node Tree Error">
         <NodeTreeSidebar updateOperatorId={updateOperatorId} />

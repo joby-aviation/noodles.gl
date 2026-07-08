@@ -89,10 +89,8 @@ export default function TimelineEditor() {
   }, [])
 
   const noodles = getNoodles()
-  const { flowGraph, nodeSidebar, propertiesPanel, layoutMode, ...visualization } = noodles
-
-  // Get selected nodes for spreadsheet pane
-  const selectedNodeIds = noodles.nodes.filter(n => n.selected).map(n => n.id)
+  const { flowGraph, nodeSidebar, propertiesPanel, layoutMode, selectedNodeIds, ...visualization } =
+    noodles
 
   // Render settings are now stored as OutOp inputs
   const renderSettings = useRenderSettings()
