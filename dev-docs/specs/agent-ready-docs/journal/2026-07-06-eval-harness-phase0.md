@@ -335,3 +335,31 @@ sat past a 400-char extraction window), fixed in the verifier.
 were too small to read at some zoom levels; a larger layout area fixes that without retina
 doubling — half the pixels of the old setting, so smaller committed screenshots. Applies to
 future runs only; frozen run/calibration screenshots are never regenerated (D5).
+
+### Addendum: two real findings from the eyeball + probe pass
+
+The zero-defect verdict above was premature — the 2K captures surfaced what the mechanical
+gates could not:
+
+1. **code-refs golden rendered no points at all.** Two stacked causes, both fixed:
+   - Radii were 2.5–70 *meters* at zoom 5.5 (~2,800 m/px) — sub-pixel. Now `radiusUnits:
+     pixels` (same cbrt(energy) sizing, 2.5–70 px).
+   - **Reference-only data paths inside containers go stale on fresh load.** Browser probes
+     (ViewerOps attached to the live pipeline) showed the FileOp had 2,035 rows and the
+     promoted param read 4 — yet the container child's output was an empty array. Root cause:
+     reference edges are synced into the executor by the CodeField editor component
+     (`field-components.tsx`, getFieldReferences → setEdges), which never renders for
+     collapsed container children. The child executed once before the CSV arrived and was
+     never re-executed. The golden now feeds the child via a real `par.data` edge and keeps
+     the `op()` reference for the static promoted cutoff. Product/docs implication journaled
+     in the task file: sessions authoring the reference-only pattern silently render a blank
+     viz — a docs-worthy footgun and a candidate for a future mechanical check
+     (this is exactly the failure mode the load-gate's pixel check can't see, since node
+     cards alone pass non-blankness).
+2. **The "loads clean" gate is weaker than it looks.** Both defects coexisted with
+   loaded=true, zero real console errors, and a non-blank screenshot. Golden acceptance now
+   includes the verifier's semantic layer plus a human eyeball of the 2K captures.
+
+The DOM cross-check itself needed two fixes to read the ViewerOp (textContent vs innerText;
+react-json-view's `float` type tag between key and value) — after which the rendered
+`totalTime` (568.8062846500267) matched the independent computation exactly.

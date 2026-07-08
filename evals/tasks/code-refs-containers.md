@@ -66,6 +66,16 @@ table for step 5; this is that task.)
   GraphInputOp/GraphOutputOp + bridge edges are the app's pass-through
   mechanism, but `op()` references across the boundary are also legitimate —
   the checks don't mandate the bridge.
+- **Reference-only data paths inside containers go stale on fresh load** (found
+  during golden verification, 2026-07-08): reference edges are synced into the
+  executor by the CodeField editor component, which never renders for collapsed
+  container children — a child whose only link to upstream data is an `op()`
+  read executes once before async data arrives and never re-executes, silently
+  yielding an empty layer. The golden therefore feeds the child through a real
+  `par.data` edge and keeps the `op()` reference for the (static) promoted
+  cutoff. Sessions that author the reference-only pattern render a blank viz;
+  the judge sees that in the screenshot, but no mechanical check catches it
+  today.
 - **taskVersion 2** (breaks the v1 comparison series per 07 D7): v1 kept the
   cutoff in a standalone NumberOp; v2 requires promoting it onto the
   container's own interface (`data.customInputs`) — the promoted-parameters

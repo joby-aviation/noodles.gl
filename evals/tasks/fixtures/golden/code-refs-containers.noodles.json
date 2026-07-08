@@ -47,7 +47,7 @@
       },
       "data": {
         "inputs": {
-          "code": "const rows = op('/quake-data').out.data ?? []\nconst minMagnitude = op('/processing').par.minMagnitude\nreturn rows\n  .filter(d => d.Magnitude >= minMagnitude)\n  .map(d => ({ ...d, energy: Math.pow(10, 1.5 * d.Magnitude) }))"
+          "code": "const rows = data[0] ?? []\nconst minMagnitude = op('/processing').par.minMagnitude\nreturn rows\n  .filter(d => d.Magnitude >= minMagnitude)\n  .map(d => ({ ...d, energy: Math.pow(10, 1.5 * d.Magnitude) }))"
         },
         "locked": false
       }
@@ -143,6 +143,13 @@
     }
   ],
   "edges": [
+    {
+      "id": "/quake-data.out.data->/processing/energy.par.data",
+      "source": "/quake-data",
+      "sourceHandle": "out.data",
+      "target": "/processing/energy",
+      "targetHandle": "par.data"
+    },
     {
       "id": "/position.out.accessor->/quake-points.par.getPosition",
       "source": "/position",
