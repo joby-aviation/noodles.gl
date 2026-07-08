@@ -1,0 +1,45 @@
+name: Generate AI Assistant Context (Manual)
+permissions:
+  contents: write
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'noodles-editor/src/**'
+      - 'docs/**'
+      - 'noodles-editor/public/examples/**'
+  workflow_dispatch:
+
+jobs:
+  generate-context:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Clean old context files
+        run: |
+          cd noodles-editor
+          rm -rf public/app/context/*
+          mkdir -p public/app/context
+
+      - name: Generate context bundles
+        run: |
+          cd noodles-editor
+          npm run generate:context
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./noodles-editor/public/context
+          destination_dir: app/context
+          keep_files: true

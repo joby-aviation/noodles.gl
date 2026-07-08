@@ -6,7 +6,7 @@ const DB_VERSION = 1
 const STORE_NAME = 'handles'
 
 // Cache entry stored in IndexedDB (serializable version)
-interface CachedHandleEntry {
+export interface CachedHandleEntry {
   projectName: string
   handle: FileSystemDirectoryHandle
   path: string
@@ -155,6 +155,37 @@ export class DirectoryHandleCache {
 
       request.onerror = () => reject(new Error('Failed to retrieve project names'))
     })
+  }
+
+  // Get all cached handles (for recent projects list)
+  async getAllCachedHandles(): Promise<CachedHandleEntry[]> {
+    if (!this.db) await this.init()
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction([STORE_NAME], 'readonly')
+      const store = transaction.objectStore(STORE_NAME)
+      const request = store.getAll()
+
+      request.onsuccess = () => {
+        const entries = request.result as CachedHandleEntry[]
+        // Sort by most recently cached
+        entries.sort((a, b) => (b.cachedAt || 0) - (a.cachedAt || 0))
+        resolve(entries)
+      }
+
+      request.onerror = () => reject(new Error('Failed to retrieve cached handles'))
+    })
+  }
+
+  // Rename a project (update cache entry with new name and handle)
+  async renameProject(
+    oldName: string,
+    newName: string,
+    newHandle: FileSystemDirectoryHandle
+  ): Promise<void> {
+    // Remove old entry and add new entry
+    await this.removeHandle(oldName)
+    await this.cacheHandle(newName, newHandle, newHandle.name)
   }
 }
 

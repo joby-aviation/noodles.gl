@@ -1,9 +1,7 @@
 import { scaleLinear } from 'd3'
 
-/**
- * Create a function that maps from a numerical input array to a numerical output array.
- * Supports easing.
- */
+// Create a function that maps from a numerical input array to a numerical output array.
+// Supports easing.
 export function interpolate(
   input: [number, number],
   output: [number, number],

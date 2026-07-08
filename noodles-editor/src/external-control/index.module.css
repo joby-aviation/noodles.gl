@@ -1,0 +1,24 @@
+.indicator {
+  position: fixed;
+  bottom: 10px;
+  right: 10px;
+  padding: 8px 12px;
+  color: white;
+  border-radius: 4px;
+  font-size: 12px;
+  font-family: monospace;
+  z-index: var(--z-index-modal);
+  pointer-events: none;
+}
+
+.connected {
+  background: #4caf50;
+}
+
+.error {
+  background: #f44336;
+}
+
+.disconnected {
+  background: #666;
+}

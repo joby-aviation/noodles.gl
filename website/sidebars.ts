@@ -1,17 +1,15 @@
-import type {SidebarsConfig} from '@docusaurus/plugin-content-docs';
+import type { SidebarsConfig } from '@docusaurus/plugin-content-docs'
 
 // This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
 
-/**
- * Creating a sidebar enables you to:
- - create an ordered group of docs
- - render a sidebar for each doc of that group
- - provide next/previous navigation
-
- The sidebars can be generated from the filesystem, or explicitly defined here.
-
- Create as many sidebars as you want.
- */
+// Creating a sidebar enables you to:
+// - create an ordered group of docs
+// - render a sidebar for each doc of that group
+// - provide next/previous navigation
+//
+// The sidebars can be generated from the filesystem, or explicitly defined here.
+//
+// Create as many sidebars as you want.
 const sidebars: SidebarsConfig = {
   // Organized sidebar structure
   docs: [
@@ -22,8 +20,12 @@ const sidebars: SidebarsConfig = {
       collapsed: false,
       items: [
         'users/getting-started',
+        'users/workflows-intro',
+        'users/properties-panel',
         'users/operators-guide',
+        'users/deckgl-maplibre-guide',
         'users/data-guide',
+        'users/animation-and-rendering',
         'users/comparison',
       ],
     },
@@ -36,11 +38,13 @@ const sidebars: SidebarsConfig = {
         'developers/creating-operators',
         'developers/field-system',
         'developers/data-flow',
+        'developers/node-based-tools',
         'developers/paths-containers',
-        'developers/contributing',
+        'developers/framework-extension',
       ],
     },
+    'changelog',
   ],
-};
+}
 
-export default sidebars;
+export default sidebars

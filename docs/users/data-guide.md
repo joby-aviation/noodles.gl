@@ -4,7 +4,16 @@ Learn how to load, process, and transform data in Noodles.gl for your visualizat
 
 ## Data Sources
 
-Use a `FileOp` to read a file from a URL or text. Supports csv and json, such as:
+Use a `FileOp` to read a file from a URL or text. Supported formats:
+
+| Format | Output Type | Use Case |
+|--------|-------------|----------|
+| `json` | Parsed object/array | JSON data files |
+| `csv` | Array of row objects | Tabular data |
+| `text` | Raw string | Plain text files, custom parsing |
+| `binary` | ArrayBuffer/Uint8Array | Images, binary files |
+
+### Common Data Formats
 
 ### JSON Data
 ```javascript
@@ -12,14 +21,14 @@ Use a `FileOp` to read a file from a URL or text. Supports csv and json, such as
   "flights": [
     {
       "origin": "SFO",
-      "destination": "LAX", 
+      "destination": "LAX",
       "coordinates": [-122.4194, 37.7749]
     }
   ]
 }
 ```
 
-### CSV Data  
+### CSV Data
 ```javascript
 origin,destination,passengers,coordinates
 SFO,LAX,150,"[-122.4194, 37.7749]"
@@ -45,20 +54,51 @@ SFO,LAX,150,"[-122.4194, 37.7749]"
 }
 ```
 
+### Text Format
+
+Use `text` format to load raw file contents as a string, useful for custom parsing:
+
+```javascript
+// FileOp with format: 'text'
+// Output is the raw file contents as a string
+
+// Then in a CodeOp, parse however you need:
+const lines = data.split('\n')
+const parsed = lines.map(line => {
+  const [name, value] = line.split(':')
+  return { name: name.trim(), value: parseFloat(value) }
+})
+return parsed
+```
+
+### Binary Format
+
+Use `binary` format for non-text files like images or custom binary data:
+
+```javascript
+// FileOp with format: 'binary'
+// Output is ArrayBuffer (from URL) or Uint8Array (from text input)
+
+// Example: Process binary data in a CodeOp
+const buffer = data  // ArrayBuffer from FileOp
+const view = new DataView(buffer)
+const header = view.getUint32(0, true)  // Read 4-byte header
+```
+
 ## Data Processing
 
 ### Code Operators
 
-Run custom JavaScript code on the data. Use `data` to access the input data list, `d` for the first element of the list, and `op` to access other operators. Also passes a freeExports object with `turf` and `d3` utils. Use `this` to store state.
+Run custom JavaScript code on the data. Use `data` to access the input data list, `d` for the first element of the list, and `op` to access other operators. Also passes utils like `turf` and `d3`, and all Noodles.gl operator classes as variables. Use `this` to store state.
 
 ```javascript
 // CodeOp
 const csvData = d // input data list connected to FileOp
-const filtered = csvData.filter(row => row.passengers > 100)
-return filtered.map(row => ({
-  ...row,
-  coordinates: JSON.parse(row.coordinates)
-}))
+const parsed = d3.csvParse(csvData) // parse CSV string using available d3 utility
+const filtered = parsed.filter(row => row.passengers > 100)
+return turf.featureCollection(filtered.map(row => (
+  turf.point([row.lng, row.lat], { name: row.name, passengers: row.passengers })
+)))
 ```
 
 ### Referencing Operators
@@ -85,18 +125,26 @@ return d3.scaleLinear()
 
 ```javascript
 // CodeOp - import an ESM module
-const _ = await import('https://esm.sh/lodash');
+const _ = await import('https://esm.sh/lodash')
 return _.mapValues(
   _.groupBy(d, 'name'),
   group => _.sortBy(group, 'ts'),
 )
 ```
 
+```javascript
+// CodeOp - use turf for geospatial calculations
+const buffered = d.map(feature =>
+  turf.buffer(feature, 5, { units: 'kilometers' })
+)
+return buffered
+```
+
 ## Common Data Tasks
 
 ### Coordinate Conversion
 ```javascript
-// Convert lat/lng to [lng, lat] for Deck.gl
+// Convert lat/lng to [lng, lat] for Deck.gl as a reactive reference
 const data = op('./raw-coordinates').out.data
 return data.map(point => ({
   ...point,

@@ -1,0 +1,145 @@
+.layout {
+  display: grid;
+  height: 100vh;
+  grid-template-areas:
+    "top-bar top-bar top-bar"
+    "left-widget fill-widget right-widget"
+    "bottom-widget bottom-widget bottom-widget";
+  grid-template-rows: auto 1fr auto;
+  grid-template-columns: auto 1fr auto;
+  position: relative;
+}
+
+.sidebarContainer {
+  width: 240px;
+  min-width: 240px;
+  max-width: 240px;
+  background: var(--color-bg-base);
+  border-right: 1px solid var(--color-border);
+  overflow: hidden;
+}
+
+.sidebarToggle {
+  position: fixed;
+  left: 240px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: var(--z-index-chrome);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 40px;
+  padding: 0;
+  background: var(--color-bg-base);
+  border: 1px solid var(--color-border);
+  border-left: none;
+  border-radius: 0 4px 4px 0;
+  cursor: pointer;
+  color: var(--color-text-secondary);
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.sidebarToggle:hover {
+  background: var(--color-bg-hover);
+  color: var(--color-text-primary);
+  width: 24px;
+}
+
+.sidebarToggle:active {
+  background: var(--color-bg-active);
+}
+
+.sidebarToggle i {
+  font-size: 10px;
+}
+
+.sidebarToggleCollapsed {
+  left: 0;
+}
+
+.fillWidget {
+  grid-area: fill-widget;
+  position: relative;
+  overflow: hidden;
+}
+
+.outputArea {
+  position: absolute;
+  left: 0;
+  right: 0;
+  overflow: hidden;
+}
+
+.noodlesArea {
+  position: absolute;
+  left: 0;
+  right: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: row;
+}
+
+.nodeGraphArea {
+  flex: 1;
+  position: relative;
+  min-width: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Split mode: divide space vertically */
+.fillWidget.layoutSplit .outputArea {
+  top: 0;
+  bottom: 50%;
+}
+
+.fillWidget.layoutSplit .noodlesArea {
+  top: 50%;
+  bottom: 0;
+}
+
+/* Noodles on top mode: noodles overlays output */
+.fillWidget.layoutNoodlesOnTop .outputArea {
+  top: 0;
+  bottom: 0;
+  isolation: isolate;
+}
+
+.fillWidget.layoutNoodlesOnTop .noodlesArea {
+  top: 0;
+  bottom: 0;
+  z-index: 1;
+}
+
+/* Output on top mode: output overlays noodles */
+.fillWidget.layoutOutputOnTop .outputArea {
+  top: 0;
+  bottom: 0;
+  z-index: 1;
+}
+
+.fillWidget.layoutOutputOnTop .noodlesArea {
+  top: 0;
+  bottom: 0;
+  isolation: isolate;
+}
+
+/* In output-on-top mode, disable pointer events on the container but enable them on children */
+.fillWidget.layoutOutputOnTop .outputArea {
+  pointer-events: none;
+}
+
+.fillWidget.layoutOutputOnTop .outputArea > * {
+  pointer-events: auto;
+}
+
+/* Right widget wrapper */
+.rightWidgetWrapper {
+  grid-area: right-widget;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background-color: var(--property-panel-background-color);
+}

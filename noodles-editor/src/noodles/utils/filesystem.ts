@@ -7,7 +7,7 @@ export type FileSystemSupport = {
   opfs: boolean
 }
 
-export type StorageType = keyof FileSystemSupport
+export type StorageType = keyof FileSystemSupport | 'publicFolder' | 'memory'
 
 // ============================================================================
 // OPFS (Origin Private File System) Functions
@@ -51,6 +51,15 @@ export async function readFileFromDirectory(
   const fileHandle = await directoryHandle.getFileHandle(fileName)
   const file = await fileHandle.getFile()
   return await file.text()
+}
+
+export async function readFileFromDirectoryBinary(
+  directoryHandle: FileSystemDirectoryHandle,
+  fileName: string
+): Promise<ArrayBuffer> {
+  const fileHandle = await directoryHandle.getFileHandle(fileName)
+  const file = await fileHandle.getFile()
+  return await file.arrayBuffer()
 }
 
 export async function writeFileToDirectory(

@@ -11,29 +11,73 @@ permissions:
   contents: read
 
 jobs:
+  lint-format:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check lint
+        run: |
+          cd noodles-editor
+          npm run lint
+
+      - name: Check formatting
+        run: |
+          cd noodles-editor
+          npm run format:check
+
   test-app:
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-      - uses: volta-cli/action@5c175f92dea6f48441c436471e6479dbc192e194 # v4.2.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
         with:
-          cache: 'yarn'
+          node-version-file: '.nvmrc'
+          cache: 'npm'
 
       - name: Install dependencies
-        run: |
-          cd noodles-editor
-          yarn
+        run: npm ci
 
-      - name: Install playwright
+      - name: Get Playwright version
+        id: playwright-version
+        working-directory: noodles-editor
+        run: |
+          version=$(node -e "console.log(require('./package.json').devDependencies['playwright'])")
+          echo "version=$version" >> $GITHUB_OUTPUT
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.2.0
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ steps.playwright-version.outputs.version }}
+
+      - name: Install Playwright browsers
         run: |
           cd noodles-editor
           npx playwright install chromium --with-deps
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
 
-      - name: Check lint
+      - name: Ensure Playwright browsers are available
         run: |
           cd noodles-editor
-          # yarn lint
+          npx playwright install chromium
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
 
       - name: Run tests
         env:
@@ -43,7 +87,7 @@ jobs:
           VITE_CESIUM_ACCESS_TOKEN: ${{ secrets.VITE_CESIUM_ACCESS_TOKEN }}
         run: |
           cd noodles-editor
-          yarn test
+          npm test
 
   test-website:
     runs-on: ubuntu-latest
@@ -53,16 +97,17 @@ jobs:
 
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-      - uses: volta-cli/action@5c175f92dea6f48441c436471e6479dbc192e194 # v4.2.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
         with:
-          cache: 'yarn'
+          node-version-file: '.nvmrc'
+          cache: 'npm'
 
       - name: Install dependencies
-        run: |
-          cd website
-          yarn
+        run: npm ci
 
       - name: Build website
         run: |
           cd website
-          yarn build
+          npm run build

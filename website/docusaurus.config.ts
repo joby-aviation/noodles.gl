@@ -1,6 +1,6 @@
-import {themes as prismThemes} from 'prism-react-renderer';
-import type {Config} from '@docusaurus/types';
-import type * as Preset from '@docusaurus/preset-classic';
+import { themes as prismThemes } from 'prism-react-renderer'
+import type { Config } from '@docusaurus/types'
+import type * as Preset from '@docusaurus/preset-classic'
 
 // This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
 
@@ -8,24 +8,29 @@ import type * as Preset from '@docusaurus/preset-classic';
 const config: Config = {
   title: 'Noodles.gl',
   tagline: 'Interactive geospatial visualization and animation platform',
-  favicon: 'img/noodles-logo.png',
+  favicon: 'img/noodles-favicon.png',
 
   // Future flags, see https://docusaurus.io/docs/api/docusaurus-config#future
   future: {
     v4: true, // Improve compatibility with the upcoming Docusaurus v4
   },
 
-  url: 'https://joby.github.io',
+  url: 'https://noodles.gl',
   // Set the /<baseUrl>/ pathname under which your site is served
-  // For GitHub pages deployment, it is often '/<projectName>/'
-  baseUrl: '/noodles.gl/docs/',
+  // For custom domain deployment
+  baseUrl: '/',
 
   // GitHub pages deployment config.
   organizationName: 'joby',
   projectName: 'noodles.gl',
 
   onBrokenLinks: 'throw',
-  onBrokenMarkdownLinks: 'warn',
+
+  markdown: {
+    hooks: {
+      onBrokenMarkdownLinks: 'warn',
+    },
+  },
 
   // Even if you don't use internationalization, you can use this field to set
   // useful metadata like html lang. For example, if your site is Chinese, you
@@ -42,7 +47,7 @@ const config: Config = {
         docs: {
           path: '../docs',
           sidebarPath: './sidebars.ts',
-          editUrl: 'https://github.com/joby/noodles.gl/tree/main/docs/',
+          editUrl: 'https://github.com/joby-aviation/noodles.gl/tree/main/docs/',
           routeBasePath: '/', // Serve docs at root of baseURL instead of /docs
         },
         blog: false, // Disable blog since we're docs-only
@@ -53,17 +58,47 @@ const config: Config = {
     ],
   ],
 
-  plugins: ['./symlink-plugin'],
+  plugins: [
+    './symlink-plugin',
+    [
+      '@docusaurus/plugin-google-gtag',
+      {
+        trackingID: 'G-Q2MLT93C10',
+      },
+    ],
+    [
+      './posthog-plugin',
+      {
+        // PostHog web keys are public-facing (same as GA tracking IDs — visible in the page source).
+        // Override with POSTHOG_API_KEY env var if you need to use a different project.
+        apiKey: process.env.POSTHOG_API_KEY ?? 'phc_JfAar8Lcv7PZnNGkn0iAYxFlahhDQgXazrIJcxhQe7n',
+        host: process.env.POSTHOG_HOST ?? 'https://us.i.posthog.com',
+      },
+    ],
+  ],
 
   themeConfig: {
     // Replace with your project's social card
     image: 'img/docusaurus-social-card.jpg',
+    colorMode: {
+      defaultMode: 'dark',
+      disableSwitch: false,
+      respectPrefersColorScheme: false,
+    },
+    algolia: {
+      appId: '51PYD2IBGO',
+      apiKey: '14545660beb6f71aa7e1a59704dfd030',
+      indexName: 'noodles-gl',
+      contextualSearch: true,
+      searchParameters: {},
+      searchPagePath: 'search',
+    },
     navbar: {
       title: 'Noodles.gl',
       logo: {
         alt: 'Noodles.gl Logo',
-        src: 'img/noodles-logo.png',
-        href: process.env.NODE_ENV === 'development' ? 'http://localhost:4173/' : 'https://joby.github.io/noodles.gl/',
+        src: 'img/noodles-favicon.png',
+        href: '/',
       },
       items: [
         {
@@ -72,7 +107,7 @@ const config: Config = {
           label: 'Docs',
         },
         {
-          href: 'https://github.com/joby/noodles.gl',
+          href: 'https://github.com/joby-aviation/noodles.gl',
           label: 'GitHub',
           position: 'right',
         },
@@ -95,11 +130,11 @@ const config: Config = {
           items: [
             {
               label: 'GitHub Issues',
-              href: 'https://github.com/joby/noodles.gl/issues',
+              href: 'https://github.com/joby-aviation/noodles.gl/issues',
             },
             {
               label: 'Discussions',
-              href: 'https://github.com/joby/noodles.gl/discussions',
+              href: 'https://github.com/joby-aviation/noodles.gl/discussions',
             },
           ],
         },
@@ -108,18 +143,22 @@ const config: Config = {
           items: [
             {
               label: 'GitHub',
-              href: 'https://github.com/joby/noodles.gl',
+              href: 'https://github.com/joby-aviation/noodles.gl',
+            },
+            {
+              label: 'Privacy',
+              to: '/privacy',
             },
           ],
         },
       ],
-      copyright: `Copyright © ${new Date().getFullYear()} Joby Aero, Inc.`,
+      copyright: `Copyright © ${new Date().getFullYear()} <a href="https://jobyaviation.com" target="_blank" rel="noopener noreferrer">Joby Aero, Inc.</a><br />Noodles.gl is an open-source project sponsored by Joby Aviation. It is not a Joby product.`,
     },
     prism: {
       theme: prismThemes.github,
       darkTheme: prismThemes.dracula,
     },
   } satisfies Preset.ThemeConfig,
-};
+}
 
-export default config;
+export default config

@@ -180,7 +180,7 @@ export function isDirectChild(childOperatorId: string, containerOperatorId: stri
   return childParentPath === containerOperatorId
 }
 
-// Get all direct child operators of a container from the opMap
+// Get all direct child operators of a container from an operator map
 export function getDirectChildren<T extends { id: string }>(
   containerOperatorId: string,
   opMap: Map<string, T>

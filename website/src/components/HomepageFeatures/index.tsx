@@ -15,7 +15,7 @@ const FeatureList: FeatureItem[] = [
     icon: '🎬',
     description: (
       <>
-        Built on Theatre.js for professional animation timeline control.
+        Professional animation timeline with bezier curve interpolation.
         Create smooth, synchronized animations with precise timing control.
       </>
     ),
@@ -37,6 +37,36 @@ const FeatureList: FeatureItem[] = [
       <>
         Create compelling data stories with interactive presentations.
         Combine datasets, animations, and visualizations into engaging narratives.
+      </>
+    ),
+  },
+  {
+    title: 'Node-Based Workflow',
+    icon: '🔗',
+    description: (
+      <>
+        Intuitive visual programming with a powerful node graph editor.
+        Connect operators to build complex data pipelines without code.
+      </>
+    ),
+  },
+  {
+    title: 'Real-Time Performance',
+    icon: '⚡',
+    description: (
+      <>
+        GPU-accelerated rendering powered by WebGL for smooth 60fps performance.
+        Handle massive datasets with optimized data structures and rendering.
+      </>
+    ),
+  },
+  {
+    title: 'Open Source & Extensible',
+    icon: '🚀',
+    description: (
+      <>
+        Fully open-source with a modular architecture.
+        Build custom operators, data sources, and visualizations to fit your needs.
       </>
     ),
   },

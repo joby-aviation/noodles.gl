@@ -5,11 +5,31 @@ Operators are the core processing units in the Noodles.gl system. They take inpu
 ## Operator Fundamentals
 
 ### Basic Structure
+
 ```typescript
-class MyOperator extends Operator {
-  execute(inputs: InputType): OutputType {
-    // Pure function: inputs → outputs
-    return processedData
+export class SliceOp extends Operator<SliceOp> {
+  static displayName = 'Slice'
+  static description = 'Slice an array of data'
+  createInputs() {
+    return {
+      data: new DataField(),
+      start: new NumberField(0, { min: 0, step: 1 }),
+      end: new NumberField(10, { min: 0, step: 1, optional: true }),
+    }
+  }
+  createOutputs() {
+    return {
+      data: new DataField(),
+    }
+  }
+  execute({
+    data,
+    start,
+    end,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    return {
+      data: data.slice(start, end)
+    }
   }
 }
 ```
@@ -25,17 +45,18 @@ class MyOperator extends Operator {
 
 ### Data Operators
 
-- **JSONOp**: Load and parse JSON data
+- **FileOp**: Load JSON, CSV, text, or binary files from URL or text
+- **JSONOp**: Parse JSON from text with templating support
 - **DuckDbOp**: SQL queries with reactive references
-- **CSVOp**: Parse CSV files and data
 - **GeocoderOp**: Convert addresses to coordinates
 
 ### Processing Operators
 
 - **FilterOp**: Filter data based on conditions
-- **MapOp**: Transform data arrays
-- **GroupByOp**: Group and aggregate data
-- **JoinOp**: Combine multiple datasets
+- **SliceOp**: Select a subset of array elements
+- **SortOp**: Sort data by field
+- **MergeOp**: Combine multiple datasets
+- **ConcatOp**: Concatenate arrays
 
 ### Math Operators
 
@@ -54,6 +75,7 @@ class MyOperator extends Operator {
 ## Code Operators
 
 ### CodeOp
+
 For complex data processing with full JavaScript support:
 
 ```javascript
@@ -73,9 +95,11 @@ return distances
 - `turf` - Turf.js geospatial functions
 - `deck` - Deck.gl utilities
 - `Plot` - Observable Plot
+- `utils` - Utility functions (color conversion, geospatial helpers, KML conversion, etc.)
 - All Operator classes for instantiation
 
 ### AccessorOp
+
 For Deck.gl layer accessors (per-item functions):
 
 ```javascript
@@ -92,6 +116,7 @@ d.value > 100 ? [255, 0, 0] : [0, 255, 0]
 - `data` - Full dataset array
 
 ### ExpressionOp
+
 For simple single-line calculations:
 
 ```javascript
@@ -206,7 +231,7 @@ Path resolution in SQL:
 Operators can be organized into containers to create logical groupings and avoid naming conflicts:
 
 ```
-/                          (root)
+/                         (root)
 ├── data-loader           (root-level operator)
 ├── threshold             (root-level operator)
 └── analysis/             (container)
@@ -229,27 +254,79 @@ Operators can be organized into containers to create logical groupings and avoid
 - **Path Updates**: References automatically update when operators move
 - **Nested Containers**: Create containers within containers for complex organization
 
+## ForLoop Patterns
+
+ForLoop operators enable map-like iteration over arrays, where each iteration's result is collected into an output array.
+
+### Basic Structure
+
+```
+[Input Array] → ForLoopBegin → [Processing] → ForLoopEnd → [Output Array]
+```
+
+**ForLoopBeginOp** outputs:
+- `item` - Current array element being processed
+- `index` - Current iteration index (0-based)
+- `total` - Total number of elements in the array
+
+**ForLoopEndOp**:
+- Input: `item` - The result to collect from this iteration
+- Output: `data` - Array containing ALL collected results
+
+### Example: Transform Array Elements
+
+To double each number in an array `[1, 2, 3]`:
+
+```
+FileOp (data: [1, 2, 3])
+    ↓
+ForLoopBegin
+    ↓ item (outputs: 1, then 2, then 3)
+ExpressionOp (code: `item * 2`)
+    ↓
+ForLoopEnd (item input)
+    ↓ data
+Result: [2, 4, 6]
+```
+
+### When to Use ForLoop vs CodeOp
+
+**Use ForLoop when:**
+- Each iteration needs multiple operators (complex transformations)
+- You want visual debugging of each step
+- The transformation involves other graph nodes
+
+**Use CodeOp when:**
+- Simple `Array.map()` suffices
+- All logic fits in one code block
+- Performance is critical (ForLoop has per-iteration overhead)
+
 ## Custom Operators
 
 Create new operators by extending the base class:
 
 ```typescript
-export class CustomOperator extends Operator<{
-  input: DataField
-  threshold: NumberField
-}> {
+export class CustomOperator extends Operator<CustomOperator> {
   static displayName = 'Custom Processor'
   static description = 'Processes data with custom logic'
 
-  constructor() {
-    super({
+  createInputs() {
+    return {
       input: new DataField(),
-      threshold: new NumberField({ min: 0, max: 100 })
-    })
+      threshold: new NumberField(50, { min: 0, max: 100 })
+    }
   }
 
-  execute({ input, threshold }) {
-    return input.filter(item => item.value > threshold)
+  createOutputs() {
+    return {
+      result: new DataField()
+    }
+  }
+
+  execute({ input, threshold }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    return {
+      result: input.filter(item => item.value > threshold)
+    }
   }
 }
 ```
