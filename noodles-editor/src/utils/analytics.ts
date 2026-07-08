@@ -41,7 +41,7 @@ export class AnalyticsManager {
         opt_out_capturing_by_default: !consent?.enabled,
         autocapture: false, // Privacy: manual events only
         disable_session_recording: true, // Privacy: no session recording
-        capture_pageview: false, // Manual tracking
+        capture_pageview: true, // Captures initial page load; route changes tracked manually
         capture_pageleave: true,
         capture_exceptions: true, // Capture unhandled exceptions
         loaded: posthog => {
@@ -82,6 +82,9 @@ export class AnalyticsManager {
       if (this.initialized) {
         if (enabled) {
           posthog.opt_in_capturing()
+          // Capture the landing page if the user consents without having navigated away —
+          // posthog.init fires capture_pageview only when already opted in at init time.
+          posthog.capture('$pageview')
         } else {
           posthog.opt_out_capturing()
         }
@@ -155,6 +158,17 @@ export class AnalyticsManager {
       posthog.reset()
     } catch (error) {
       debugAnalytics('Analytics reset failed:', error)
+    }
+  }
+
+  capturePageview() {
+    if (!this.initialized || !this.getConsent()?.enabled) {
+      return
+    }
+    try {
+      posthog.capture('$pageview')
+    } catch (error) {
+      debugAnalytics('Analytics pageview capture failed:', error)
     }
   }
 
