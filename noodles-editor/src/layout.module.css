@@ -65,11 +65,27 @@
   overflow: hidden;
 }
 
-.outputArea,
+.outputArea {
+  position: absolute;
+  left: 0;
+  right: 0;
+  overflow: hidden;
+}
+
 .noodlesArea {
   position: absolute;
   left: 0;
   right: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: row;
+}
+
+.nodeGraphArea {
+  flex: 1;
+  position: relative;
+  min-width: 0;
+  height: 100%;
   overflow: hidden;
 }
 
@@ -119,12 +135,11 @@
   pointer-events: auto;
 }
 
-/* Right widget wrapper - unified background for Theatre.js and properties panel */
+/* Right widget wrapper */
 .rightWidgetWrapper {
   grid-area: right-widget;
   display: flex;
   flex-direction: column;
   min-height: 0;
   background-color: var(--property-panel-background-color);
-  width: 296px; /* Fixed width: property panel width (280px) + Theatre panel padding (16px) */
 }

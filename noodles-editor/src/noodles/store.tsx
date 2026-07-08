@@ -144,6 +144,12 @@ interface UIStoreState {
   setTimelineHeight: (height: number) => void
   quickStartModalOpen: boolean
   setQuickStartModalOpen: (open: boolean) => void
+  spreadsheetVisible: boolean
+  setSpreadsheetVisible: (visible: boolean) => void
+  pinnedSpreadsheetNodeId: string | null
+  setPinnedSpreadsheetNodeId: (id: string | null) => void
+  spreadsheetWidth: number
+  setSpreadsheetWidth: (width: number) => void
 }
 
 export const useUIStore = create<UIStoreState>(set => ({
@@ -168,6 +174,24 @@ export const useUIStore = create<UIStoreState>(set => ({
   setTimelineHeight: height => set({ timelineHeight: height }),
   quickStartModalOpen: false,
   setQuickStartModalOpen: open => set({ quickStartModalOpen: open }),
+  spreadsheetVisible: false,
+  setSpreadsheetVisible: visible => set({ spreadsheetVisible: visible }),
+  pinnedSpreadsheetNodeId: null,
+  setPinnedSpreadsheetNodeId: id => set({ pinnedSpreadsheetNodeId: id }),
+  spreadsheetWidth: (() => {
+    try {
+      const stored = localStorage.getItem('noodles-spreadsheet-width')
+      return stored ? Number(stored) : 400
+    } catch {
+      return 400
+    }
+  })(),
+  setSpreadsheetWidth: width => {
+    set({ spreadsheetWidth: width })
+    try {
+      localStorage.setItem('noodles-spreadsheet-width', String(width))
+    } catch {}
+  },
 }))
 
 // ============================================================================

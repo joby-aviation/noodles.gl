@@ -48,7 +48,7 @@ Fields are the individual parameters on each operator. They come in two types:
 
 **Input Fields** (left side):
 - Accept values from connections or manual entry
-- Can be configured in the Properties Panel
+- Can be configured in the [Properties Panel](./properties-panel.md)
 - Can be animated with keyframes
 
 **Output Fields** (right side):
