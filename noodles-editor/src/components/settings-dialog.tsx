@@ -217,7 +217,7 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
             <div className={s.keysGroup}>
               <KeyGroup
                 label="Mapbox Access Token"
-                description="Required for Mapbox basemaps and directions"
+                description="Enables Mapbox basemaps and high-quality driving directions. Without it, directions fall back to OSRM (free, OpenStreetMap-based) and place search falls back to Photon."
                 placeholder="pk.eyJ1..."
                 browserValue={browserKeys.mapbox || ''}
                 projectValue={projectKeys.mapbox}
@@ -232,7 +232,7 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
 
               <KeyGroup
                 label="Google Maps API Key"
-                description="Required for Google Maps transit directions"
+                description="Enables transit directions and higher-quality place search. Optional — place search works without it via Photon (OpenStreetMap)."
                 placeholder="AIza..."
                 browserValue={browserKeys.googleMaps || ''}
                 projectValue={projectKeys.googleMaps}
@@ -247,7 +247,7 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
 
               <KeyGroup
                 label="Cesium Ion Access Token"
-                description="Required for Cesium 3D tiles"
+                description="Required for Cesium Ion 3D tile datasets. Not needed if you use custom 3D tile URLs directly."
                 placeholder="eyJhb..."
                 browserValue={browserKeys.cesium || ''}
                 projectValue={projectKeys.cesium}
@@ -262,7 +262,7 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
 
               <KeyGroup
                 label="Anthropic API Key"
-                description="Required for Claude AI assistant features"
+                description="Required to use the AI assistant panel. Without it, the AI panel shows an empty state with setup instructions."
                 placeholder="sk-ant-..."
                 browserValue={browserKeys.anthropic || ''}
                 projectValue={projectKeys.anthropic}
