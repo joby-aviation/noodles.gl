@@ -2,7 +2,6 @@ import {
   Handle,
   Position,
   useConnection,
-  useInternalNode,
   useNodeId,
   useStore,
   useUpdateNodeInternals,
@@ -48,35 +47,37 @@ export function MultiInputHandle({ id, field, className, style }: MultiInputHand
   const sources = useMemo(() => (incomingKey ? incomingKey.split('\n') : []), [incomingKey])
   const connectionCount = sources.length
 
-  // Pointer y (flow coordinates) while a drag hovers this handle, null otherwise
-  const pointerY = useConnection(connection =>
+  // Drag hover state for this handle: connection.pointer is the pointer in
+  // container-screen coordinates (connection.to is useless here — it snaps to the handle
+  // center once the hover is valid), and connection.toHandle.y is the handle's center in
+  // flow coordinates
+  const hover = useConnection(connection =>
     connection.inProgress &&
     connection.toHandle?.nodeId === nid &&
     connection.toHandle?.id === id
-      ? connection.to.y
+      ? { pointerY: connection.pointer.y, centerY: connection.toHandle.y }
       : null
   )
 
-  // Boundary index the pointer is closest to, derived in flow coordinates from the
-  // handle's measured bounds so it stays correct at any zoom level
-  const internalNode = useInternalNode(nid ?? '')
-  const insertionIndex = useMemo(() => {
-    if (!isListField || pointerY === null || !internalNode) return null
-    const handleBounds = internalNode.internals.handleBounds?.target?.find(h => h.id === id)
-    if (!handleBounds) return null
-    const centerY =
-      internalNode.internals.positionAbsolute.y + handleBounds.y + handleBounds.height / 2
-    return insertionIndexFromPointerY(pointerY, centerY, connectionCount)
-  }, [isListField, pointerY, internalNode, id, connectionCount])
+  // Viewport transform to lift the pointer into flow coordinates (zoom independent)
+  const translateY = useStore(store => store.transform[1])
+  const zoom = useStore(store => store.transform[2])
 
-  // Publish the tracked slot for onConnect/onReconnect to consume. Stale values from
-  // abandoned hovers are guarded by target matching in takePendingInsertionIndex and
-  // cleared by onConnectEnd/onReconnectEnd.
+  const insertionIndex = useMemo(() => {
+    if (!isListField || hover === null) return null
+    const pointerFlowY = (hover.pointerY - translateY) / zoom
+    return insertionIndexFromPointerY(pointerFlowY, hover.centerY, connectionCount)
+  }, [isListField, hover, translateY, zoom, connectionCount])
+
+  // Publish the tracked slot for onConnect/onReconnect to consume. Keyed on the hover
+  // object (fresh per pointer move) so a new drag republishes even when the computed
+  // index matches the previous drag's. Stale values from abandoned hovers are guarded by
+  // target matching in takePendingInsertionIndex and cleared on connect/reconnect end.
   useEffect(() => {
-    if (nid && insertionIndex !== null) {
+    if (nid && hover !== null && insertionIndex !== null) {
       setPendingInsertionIndex({ nodeId: nid, handleId: id, index: insertionIndex })
     }
-  }, [nid, id, insertionIndex])
+  }, [nid, id, hover, insertionIndex])
 
   // The handle grows with its connections — tell React Flow to re-measure so edge
   // anchors and hit areas follow (useUpdateNodeInternals is the public API for this)
