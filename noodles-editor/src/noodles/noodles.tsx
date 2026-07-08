@@ -407,6 +407,9 @@ export function getNoodles(): Visualization {
     [setEdges]
   )
 
+  const spreadsheetVisible = useUIStore(state => state.spreadsheetVisible)
+  const setSpreadsheetVisible = useUIStore(state => state.setSpreadsheetVisible)
+
   // Track connection drag state for dimming unconnectable nodes
   const setConnectionDragState = useUIStore(state => state.setConnectionDragState)
   const connectionDragState = useUIStore(state => state.connectionDragState)
@@ -1740,14 +1743,14 @@ export function getNoodles(): Visualization {
     onChangeShowOverlay: setShowOverlay,
     showDebugInfo,
     onChangeShowDebugInfo: setShowDebugInfo,
-    spreadsheetVisible: useUIStore(state => state.spreadsheetVisible),
-    onChangeSpreadsheetVisible: (visible: boolean) => {
-      useUIStore.getState().setSpreadsheetVisible(visible)
-      // Auto-switch to split mode when enabling spreadsheet
-      if (visible && layoutMode !== 'split') {
-        setLayoutMode('split')
-      }
-    },
+    spreadsheetVisible,
+    onChangeSpreadsheetVisible: useCallback(
+      (visible: boolean) => {
+        setSpreadsheetVisible(visible)
+        if (visible && layoutMode !== 'split') setLayoutMode('split')
+      },
+      [setSpreadsheetVisible, layoutMode, setLayoutMode]
+    ),
     // Render settings are now read from OutOp via useRenderSettings() hook
     // Export these so timeline-editor can create the menu with render actions
     projectName:

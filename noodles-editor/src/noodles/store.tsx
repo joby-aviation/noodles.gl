@@ -172,11 +172,18 @@ export const useUIStore = create<UIStoreState>(set => ({
   setSpreadsheetVisible: visible => set({ spreadsheetVisible: visible }),
   pinnedSpreadsheetNodeId: null,
   setPinnedSpreadsheetNodeId: id => set({ pinnedSpreadsheetNodeId: id }),
-  spreadsheetWidth: 400,
+  spreadsheetWidth: (() => {
+    try {
+      const stored = localStorage.getItem('noodles-spreadsheet-width')
+      return stored ? Number(stored) : 400
+    } catch {
+      return 400
+    }
+  })(),
   setSpreadsheetWidth: width => {
     set({ spreadsheetWidth: width })
     try {
-      localStorage?.setItem('noodles-spreadsheet-width', String(width))
+      localStorage.setItem('noodles-spreadsheet-width', String(width))
     } catch {}
   },
 }))

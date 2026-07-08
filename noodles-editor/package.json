@@ -25,6 +25,7 @@
     "@radix-ui/react-menubar": "^1.1.16",
     "@radix-ui/react-tooltip": "^1.2.8",
     "@tanstack/react-table": "^8.21.3",
+    "@tanstack/react-virtual": "^3.14.5",
     "@tmcw/togeojson": "^7.1.2",
     "@turf/turf": "^7.3.4",
     "@types/rbush": "^4.0.0",

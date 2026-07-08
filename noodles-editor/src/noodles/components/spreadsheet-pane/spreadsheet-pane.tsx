@@ -1,5 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import type { Subscription } from 'rxjs'
+import { useCallback, useEffect, useState } from 'react'
 import { getOp, useUIStore } from '../../store'
 import { SpreadsheetViewer } from './spreadsheet-viewer'
 import s from './spreadsheet-pane.module.css'
@@ -16,26 +15,22 @@ export function SpreadsheetPane({ selectedNodeIds }: { selectedNodeIds: string[]
 
   const [data, setData] = useState<unknown>(null)
   const [error, setError] = useState<string | null>(null)
-  const subscriptionRef = useRef<Subscription | null>(null)
 
   // Determine which operator to display (pinned or selected)
   const targetNodeId = pinnedNodeId || (selectedNodeIds.length === 1 ? selectedNodeIds[0] : null)
 
   // Subscribe to operator's first output field
   useEffect(() => {
-    if (!visible || !targetNodeId) {
-      setData(null)
-      setError(null)
-      return
-    }
+    setData(null)
+    setError(null)
+
+    if (!visible || !targetNodeId) return
 
     const op = getOp(targetNodeId)
     if (!op) {
       setError('Operator not found')
       // Clear pinned node if it was deleted
-      if (pinnedNodeId) {
-        setPinnedNodeId(null)
-      }
+      if (pinnedNodeId) setPinnedNodeId(null)
       return
     }
 
@@ -45,18 +40,14 @@ export function SpreadsheetPane({ selectedNodeIds }: { selectedNodeIds: string[]
       return
     }
 
-    const firstOutput = outputFields[0]
-    subscriptionRef.current = firstOutput.subscribe(value => {
+    // Capture subscription in a local const so cleanup always unsubscribes the right one
+    const sub = outputFields[0].subscribe(value => {
       setData(value)
       setError(null)
     })
-
-    return () => {
-      subscriptionRef.current?.unsubscribe()
-    }
+    return () => sub.unsubscribe()
   }, [visible, targetNodeId, pinnedNodeId, setPinnedNodeId])
 
-  // Resize handling
   const handleResizeMouseDown = useCallback(
     (e: React.MouseEvent) => {
       e.preventDefault()
@@ -64,9 +55,8 @@ export function SpreadsheetPane({ selectedNodeIds }: { selectedNodeIds: string[]
       const startWidth = width
 
       function onMouseMove(moveEvent: MouseEvent) {
-        const deltaX = startX - moveEvent.clientX
-        const newWidth = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, startWidth + deltaX))
-        setWidth(newWidth)
+        const delta = startX - moveEvent.clientX
+        setWidth(Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, startWidth + delta)))
       }
 
       function onMouseUp() {
@@ -80,13 +70,8 @@ export function SpreadsheetPane({ selectedNodeIds }: { selectedNodeIds: string[]
     [width, setWidth]
   )
 
-  // Pin/unpin handler
   const handleTogglePin = useCallback(() => {
-    if (pinnedNodeId) {
-      setPinnedNodeId(null)
-    } else if (targetNodeId) {
-      setPinnedNodeId(targetNodeId)
-    }
+    setPinnedNodeId(pinnedNodeId ? null : targetNodeId)
   }, [pinnedNodeId, targetNodeId, setPinnedNodeId])
 
   if (!visible) return null
@@ -116,7 +101,7 @@ export function SpreadsheetPane({ selectedNodeIds }: { selectedNodeIds: string[]
         {error ? (
           <div className={s.emptyState}>{error}</div>
         ) : targetNodeId ? (
-          <SpreadsheetViewer data={data} />
+          <SpreadsheetViewer data={data} operatorId={targetNodeId} />
         ) : (
           <div className={s.emptyState}>Select a node to view its data</div>
         )}

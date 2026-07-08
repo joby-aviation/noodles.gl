@@ -85,6 +85,8 @@
   flex: 1;
   position: relative;
   min-width: 0;
+  height: 100%;
+  overflow: hidden;
 }
 
 /* Split mode: divide space vertically */
