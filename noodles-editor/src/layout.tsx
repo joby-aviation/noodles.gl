@@ -10,6 +10,7 @@ export function Layout({
   left,
   right,
   flowGraph,
+  spreadsheet,
   children,
 }: PropsWithChildren<{
   top?: ReactNode
@@ -17,6 +18,7 @@ export function Layout({
   left?: ReactNode
   right?: ReactNode
   flowGraph?: ReactNode
+  spreadsheet?: ReactNode
 }>) {
   const panelSizes = useUIStore(state => state.panelSizes)
   const panelCollapsed = useUIStore(state => state.panelCollapsed)
@@ -73,7 +75,8 @@ export function Layout({
 
               {/* Node Editor */}
               <Panel id="noodles" minSize={20} className={s.noodlesArea}>
-                {flowGraph}
+                <div className={s.nodeGraphArea}>{flowGraph}</div>
+                {spreadsheet}
               </Panel>
             </PanelGroup>
           </Panel>

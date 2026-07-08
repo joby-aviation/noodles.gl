@@ -15,6 +15,7 @@
     "@mapbox/mapbox-gl-geocoder": "^5.1.2",
     "@mapbox/polyline": "^1.2.1",
     "@math.gl/web-mercator": "^4.1.0",
+    "@mcp-b/global": "^3.0.0",
     "@microlink/react-json-view": "^1.31.15",
     "@observablehq/plot": "^0.6.17",
     "@radix-ui/colors": "^3.0.0",
@@ -25,13 +26,14 @@
     "@radix-ui/react-menubar": "^1.1.16",
     "@radix-ui/react-tooltip": "^1.2.8",
     "@tanstack/react-table": "^8.21.3",
+    "@tanstack/react-virtual": "^3.14.5",
     "@tmcw/togeojson": "^7.1.2",
     "@turf/turf": "^7.3.4",
     "@types/rbush": "^4.0.0",
     "@types/react-color": "^3.0.13",
     "@types/suncalc": "^1.9.2",
     "@vitejs/plugin-react": "^5.2.0",
-    "@xyflow/react": "^12.10.1",
+    "@xyflow/react": "^12.11.0",
     "classnames": "^2.5.1",
     "d3": "^7.9.0",
     "debug": "^4.4.3",
@@ -61,7 +63,8 @@
     "validator": "^13.15.26",
     "web-vitals": "^5.2.0",
     "wouter": "^3.9.0",
-    "zod": "^4.3.6"
+    "zod": "^4.3.6",
+    "zod-to-json-schema": "^3.25.0"
   },
   "overrides": {
     "d3-scale-chromatic": "3.1.x"
@@ -95,6 +98,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.9",
+    "@mcp-b/webmcp-types": "^3.0.0",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",

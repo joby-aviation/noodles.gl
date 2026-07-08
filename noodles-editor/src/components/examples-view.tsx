@@ -86,10 +86,10 @@ export const CURATED_EXAMPLES = [
     icon: 'pi-car',
   },
   {
-    id: 'sf-street-trees',
-    title: 'SF Street Trees',
-    description: 'Urban forest inventory across San Francisco',
-    icon: 'pi-sitemap',
+    id: 'aggregation-example',
+    title: 'SF Bike Parking',
+    description: 'Bike parking facilities across San Francisco',
+    icon: 'pi-map',
   },
 ]
 

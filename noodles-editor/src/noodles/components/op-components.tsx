@@ -28,6 +28,7 @@ import {
   memo,
   type ReactNode,
   useCallback,
+  useContext,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -43,6 +44,7 @@ import { useKeysStore } from '../keys-store'
 import s from '../noodles.module.css'
 import { inferSchema, type TableSchema } from '../table-schema'
 import type { ExecutionState, IOperator, OpType } from '../operators'
+import { convertViewerToTableEditor } from '../utils/operator-conversion'
 import {
   type ContainerOp,
   type DirectionsOp,
@@ -651,14 +653,9 @@ function NodeComponent({
   type,
   selected,
 }: ReactFlowNodeProps<NodeDataJSON<Operator<IOperator>>> & { type: OpType }) {
-  // Memoize operator lookup to avoid redundant store access in hooks
-  const op = useMemo(() => {
-    const operator = getOp(id as string)
-    if (!operator) {
-      throw new Error(`Operator with id ${id} not found`)
-    }
-    return operator
-  }, [id])
+  const op = getOp(id as string)
+  if (!op) return null
+
   const locked = useLocked(op)
   const [breakpointEnabled, toggleBreakpoint] = useBreakpoint(op)
   const executionState = useExecutionState(op)
@@ -854,7 +851,7 @@ function RampOpComponent({
   type,
 }: ReactFlowNodeProps<NodeDataJSON<RampOp>> & { type: 'RampOp' }) {
   const op = getOp(id as string) as RampOp | undefined
-  if (!op) throw new Error(`Operator with id ${id} not found`)
+  if (!op) return null
   const locked = useLocked(op)
   const executionState = useExecutionState(op)
   const connectionErrors = useConnectionErrors(op)
@@ -1483,31 +1480,34 @@ function GeocoderOpComponent({
   type,
 }: ReactFlowNodeProps<NodeDataJSON<GeocoderOp>> & { type: 'GeocoderOp' }) {
   const op = getOp(id as string)
-  if (!op) {
-    throw new Error(`Operator with id ${id} not found`)
-  }
+  if (!op) return null
 
   const containerRef = useRef<HTMLDivElement>(null)
   const geocoderRef = useRef<MapboxGeocoder>()
-  const [error, setError] = useState<string | null>(null)
+  const prevApiKeyRef = useRef<string | null | undefined>(undefined)
+  const executionState = useExecutionState(op)
+  const connectionErrors = useConnectionErrors(op)
+  const hasConnectionErrors = connectionErrors.size > 0
   const isDimmed = useNodeDimmed(id)
 
   // Get API key directly from store (reactive)
   const apiKey = useKeysStore(state => state.getKey('mapbox'))
 
   useLayoutEffect(() => {
-    // Clear previous error
-    setError(null)
+    op.removeConnectionError('geocoder-setup')
 
     if (!containerRef.current) {
       return
     }
 
-    // Check if Mapbox API key is available
+    // No key — execute() will throw and show the error via the standard mechanism
     if (!apiKey) {
-      setError('API key required (Settings > API Keys)')
+      prevApiKeyRef.current = null
       return
     }
+
+    const keyJustAdded = prevApiKeyRef.current === null && !!apiKey
+    prevApiKeyRef.current = apiKey
 
     const container = containerRef.current
 
@@ -1530,8 +1530,13 @@ function GeocoderOpComponent({
       g.addTo(container)
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Invalid token'
-      setError(`Geocoder error: ${message}`)
+      op.addConnectionError('geocoder-setup', `Geocoder error: ${message}`)
       return
+    }
+
+    // Key was just added — re-execute to clear the "no key" error from executionState
+    if (keyJustAdded) {
+      op.inputs.query.setValue(op.inputs.query.value)
     }
 
     g.query(op.inputs.query.value)
@@ -1563,9 +1568,16 @@ function GeocoderOpComponent({
     }
   }, [locked])
 
+  const hasError = executionState.status === 'error' || hasConnectionErrors
+
   return (
-    <div className={cx(s.wrapper, { [s.wrapperDimmed]: isDimmed })}>
-      <NodeHeader id={id} type={type} op={op} />
+    <div
+      className={cx(s.wrapper, {
+        [s.wrapperError]: hasError,
+        [s.wrapperDimmed]: isDimmed,
+      })}
+    >
+      <NodeHeader id={id} type={type} op={op} connectionErrors={connectionErrors} />
       <div className={s.content}>
         {Object.entries(op.inputs)
           .filter(([key]) => op.isFieldVisible(key))
@@ -1579,15 +1591,10 @@ function GeocoderOpComponent({
               renderInput={false}
             />
           ))}
-        {error && (
-          <div className={s.fieldWrapper} style={{ padding: '8px', color: '#ff6b6b' }}>
-            ⚠️ {error}
-          </div>
-        )}
         <div
           ref={containerRef}
           className={s.fieldWrapper}
-          style={{ display: error ? 'none' : 'block' }}
+          style={{ display: hasError ? 'none' : 'block' }}
         />
         <div className={s.outputHandleContainer}>
           {Object.entries(op.outputs).map(([key, field]) => (
@@ -1604,9 +1611,7 @@ function DirectionsOpComponent({
   type,
 }: ReactFlowNodeProps<NodeDataJSON<DirectionsOp>> & { type: 'DirectionsOp' }) {
   const op = getOp(id as string)
-  if (!op) {
-    throw new Error(`Operator with id ${id} not found`)
-  }
+  if (!op) return null
 
   // Reactive - automatically updates when keys change
   const hasMapboxKey = useKeysStore(state => state.hasKey('mapbox'))
@@ -1640,9 +1645,7 @@ function MouseOpComponent({
   type,
 }: ReactFlowNodeProps<NodeDataJSON<MouseOp>> & { type: 'MouseOp' }) {
   const op = getOp(id as string)
-  if (!op) {
-    throw new Error(`Operator with id ${id} not found`)
-  }
+  if (!op) return null
 
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 })
   const isDimmed = useNodeDimmed(id)
@@ -1691,9 +1694,7 @@ export function TableEditorOpComponent({
   selected,
 }: ReactFlowNodeProps<NodeDataJSON<TableEditorOp>> & { type: 'TableEditorOp' }) {
   const op = getOp(id as string)
-  if (!op) {
-    throw new Error(`Operator with id ${id} not found`)
-  }
+  if (!op) return null
 
   const isDimmed = useNodeDimmed(id)
   const locked = useLocked(op)
@@ -1725,15 +1726,23 @@ export function TableEditorOpComponent({
     }
   }, [op])
 
-  const handleDataChange = (newData: unknown[]) => {
+  const handleDataChange = (newData: unknown[], description = 'Edit table data') => {
+    const before = captureOperatorInputs()
     op.inputs.data.setValue(newData)
     op.outputs.data.setValue(newData)
+    firePropertyMutation(description, before)
   }
 
-  const handleSchemaChange = (newSchema: TableSchema) => {
+  const handleSchemaChange = (newSchema: TableSchema, newData?: unknown[]) => {
+    const before = captureOperatorInputs()
     op.inputs.schema.setValue(newSchema)
     op.outputs.schema.setValue(newSchema)
     setSchema(newSchema)
+    if (newData) {
+      op.inputs.data.setValue(newData)
+      op.outputs.data.setValue(newData)
+    }
+    firePropertyMutation('Edit table schema', before)
   }
 
   return (
@@ -1820,11 +1829,13 @@ function ViewerOpComponent({
   selected,
 }: ReactFlowNodeProps<NodeDataJSON<ViewerOp>> & { type: 'ViewerOp' }) {
   const op = getOp(id as string)
-  if (!op) {
-    throw new Error(`Operator with id ${id} not found`)
-  }
+  if (!op) return null
 
+  const executionState = useExecutionState(op)
+  const connectionErrors = useConnectionErrors(op)
+  const hasConnectionErrors = connectionErrors.size > 0
   const isDimmed = useNodeDimmed(id)
+  const { setNodes, setEdges } = useReactFlow()
 
   // TODO: use react-flow helpers
   const [viewerData, setViewerData] = useState(viewerFormatter(op.inputs.data.value))
@@ -1835,6 +1846,13 @@ function ViewerOpComponent({
     })
     return () => sub.unsubscribe()
   }, [op])
+
+  const handleConvertToTableEditor = useCallback(() => {
+    const success = convertViewerToTableEditor(id, setNodes, setEdges)
+    if (!success) {
+      console.error('Failed to convert to TableEditor: data is not in a suitable format')
+    }
+  }, [id, setNodes, setEdges])
 
   let content = null
   if (viewerData === null) {
@@ -1893,9 +1911,23 @@ function ViewerOpComponent({
   const locked = useLocked(op)
   useFieldVisibility(op)
 
+  // Show conversion button when viewing tabular data (array of plain objects)
+  // Match the same conditions used for table rendering
+  const showConversionButton =
+    Array.isArray(viewerData) &&
+    viewerData.length > 0 &&
+    viewerData.length < 20 &&
+    isPlainObject(viewerData[0]) &&
+    Object.keys(viewerData[0]).length < 20
+
   return (
-    <div className={cx(s.wrapper, { [s.wrapperDimmed]: isDimmed })}>
-      <NodeHeader id={id} type={type} op={op} />
+    <div
+      className={cx(s.wrapper, {
+        [s.wrapperError]: executionState.status === 'error' || hasConnectionErrors,
+        [s.wrapperDimmed]: isDimmed,
+      })}
+    >
+      <NodeHeader id={id} type={type} op={op} connectionErrors={connectionErrors} />
       <NodeResizer isVisible={selected} minWidth={400} minHeight={200} />
       <div className={s.content}>
         {Object.entries(op.inputs)
@@ -1910,6 +1942,17 @@ function ViewerOpComponent({
             />
           ))}
         {content}
+        {showConversionButton && (
+          <div style={{ marginTop: '8px', textAlign: 'center' }}>
+            <Button
+              label="Convert to Table Editor"
+              icon="pi pi-table"
+              onClick={handleConvertToTableEditor}
+              size="small"
+              outlined
+            />
+          </div>
+        )}
         <div className={s.outputHandleContainer}>
           {Object.entries(op.outputs).map(([key, field]) => (
             <OutputHandle key={key} id={key} field={field} />
@@ -1926,11 +1969,12 @@ function ContainerOpComponent({
   selected,
 }: ReactFlowNodeProps<NodeDataJSON<ContainerOp>>) {
   const op = getOp(id as string)
-  if (!op) {
-    throw new Error(`Operator with id ${id} not found`)
-  }
+  if (!op) return null
 
+  const connectionErrors = useConnectionErrors(op)
+  const hasConnectionErrors = connectionErrors.size > 0
   const isDimmed = useNodeDimmed(id)
+
   const setCurrentContainerId = useNestingStore(state => state.setCurrentContainerId)
   const reactFlow = useReactFlow()
 
@@ -1945,7 +1989,7 @@ function ContainerOpComponent({
   return (
     <div
       role="tree"
-      className={cx(s.wrapper, { [s.wrapperDimmed]: isDimmed })}
+      className={cx(s.wrapper, { [s.wrapperError]: hasConnectionErrors, [s.wrapperDimmed]: isDimmed })}
       onDoubleClick={() => {
         // Clear selection when changing levels
         reactFlow.setNodes(nodes => nodes.map(node => ({ ...node, selected: false })))
@@ -1954,7 +1998,7 @@ function ContainerOpComponent({
         reactFlow.fitView({ duration: 0 })
       }}
     >
-      <NodeHeader id={id} type={type} op={op} />
+      <NodeHeader id={id} type={type} op={op} connectionErrors={connectionErrors} />
       <NodeResizer isVisible={selected} minWidth={200} minHeight={50} />
       <div className={s.content}>
         {Object.entries(op.inputs)
@@ -1985,10 +2029,9 @@ function TimeOpComponent({
   type,
 }: ReactFlowNodeProps<NodeDataJSON<TimeOp>> & { type: 'TimeOp' }) {
   const op = getOp(id as string)
-  if (!op) {
-    throw new Error(`Operator with id ${id} not found`)
-  }
+  if (!op) return null
   const isDimmed = useNodeDimmed(id)
+
 
   const [now, setNow] = useState(0)
   const [sequenceTime, setSequenceTime] = useState(0)
@@ -2060,9 +2103,7 @@ function RerouteOpComponent({
 // Render settings are hidden from the node UI and shown in the properties panel instead.
 function OutOpComponent({ id, type }: ReactFlowNodeProps<NodeDataJSON<OutOp>> & { type: 'OutOp' }) {
   const op = getOp(id as string)
-  if (!op) {
-    throw new Error(`Operator with id ${id} not found`)
-  }
+  if (!op) return null
   const locked = useLocked(op)
   const executionState = useExecutionState(op)
   const connectionErrors = useConnectionErrors(op)
