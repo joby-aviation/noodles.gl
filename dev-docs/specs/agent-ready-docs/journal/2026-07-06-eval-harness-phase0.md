@@ -408,3 +408,29 @@ react-json-view's `float` type tag between key and value) — after which the re
   the graded artifact — a shut panel hid them from both the judge's screenshot and human
   review. Capture-environment change like the 2K move, not a task-semantics change.
 - animate-camera golden re-spaced (basemap/deck were still adjacent).
+
+### Round 3 addendum: what it actually took to render basemaps headless
+
+Three independent obstacles, each empirically isolated:
+
+1. **Chromium can't use the egress proxy directly**: pointing the browser at it
+   (raw `--proxy-server` + semicolon bypass list keeps localhost working — Playwright's
+   `proxy.bypass` option does not) gets its TLS ClientHello reset by the enforcer
+   (netlog: `SSL_HANDSHAKE_ERROR os_error 104`) while curl/openssl/Node pass. PQ/ECH
+   feature flags don't help. Dead end, documented.
+2. **`NODE_USE_ENV_PROXY` only works at process start.** Setting it at runtime silently
+   fetches direct, and direct egress 403s most hosts even with the "full egress" policy
+   (the network still requires the explicit proxy; gtm and duckdb-extensions 403 either
+   way). The npm scripts (`run`, `verify-goldens`) now set it; playwright-check warns if
+   it's missing. A probe chain led here the long way — including one round where the
+   probed routes didn't exist in the rebuilt workspace ("Example Not Found" renders an
+   empty project with no basemap and no error).
+3. **`page.route` never sees worker requests**, and MapLibre fetches tiles/glyphs/sprites
+   from workers. The load check now runs a localhost fetch relay; style/TileJSON bodies
+   passing through interception get their resource URLs rewritten to relay form
+   (template placeholders survive as path text). Workers fetch localhost — no proxy needed.
+
+Result: goldens capture with real basemap imagery (voyager tiles under the camera-tour
+keyframes; stddev 21.8 → 84.2). App-side nothing was wrong: probes showed
+MaplibreBasemapOp/DeckRendererOp execute correctly and react-map-gl constructs the map the
+moment the style fetch stops 403ing.

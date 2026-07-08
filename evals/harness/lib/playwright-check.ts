@@ -93,6 +93,7 @@ export async function loadAndScreenshot(opts: {
 
     const { chromium } = await import('playwright')
     const browser = await chromium.launch().catch(() => chromium.launch({ executablePath: '/opt/pw-browsers/chromium' }))
+    let relay: FetchRelay | null = null
     try {
       // Native 2K capture (2560x1440 @ 1x): a large layout area keeps canvas
       // ops readable without retina doubling — half the pixels of the previous
@@ -100,42 +101,41 @@ export async function loadAndScreenshot(opts: {
       const page = await browser.newPage({ viewport: { width: 2560, height: 1440 }, deviceScaleFactor: 1 })
 
       // External fetches (remote CSVs, basemap styles/tiles) are fulfilled via
-      // Node's proxy-aware fetch: Chromium doesn't read HTTPS_PROXY, and
-      // browser-level proxying breaks the localhost vite connection. Hosts the
-      // egress policy denies still fail (403 at the proxy) — that is policy,
-      // not something to route around. NODE_USE_ENV_PROXY makes Node's global
-      // fetch honor HTTPS_PROXY (Node >= 22.21).
+      // Node's proxy-aware fetch: Chromium doesn't read HTTPS_PROXY, the
+      // egress enforcer resets Chromium's TLS ClientHello when the browser is
+      // pointed at the proxy directly (curl/openssl/Node pass), and
+      // browser-level proxying breaks the localhost vite connection anyway.
+      // page.route only sees main-thread requests — MapLibre fetches tiles
+      // from WORKERS — so JSON that references further resources (map style,
+      // TileJSON) gets those URLs rewritten to a localhost relay that
+      // forwards via the same proxy-aware fetch. Workers then fetch
+      // localhost, which needs no proxy. NODE_USE_ENV_PROXY makes Node's
+      // global fetch honor HTTPS_PROXY (Node >= 22.21).
       if (process.env.HTTPS_PROXY || process.env.https_proxy) {
-        process.env.NODE_USE_ENV_PROXY ??= '1'
+        // Node only honors this at PROCESS START (the npm scripts set it);
+        // flag the misconfiguration instead of silently fetching direct,
+        // where the egress enforcer 403s most hosts.
+        if (!process.env.NODE_USE_ENV_PROXY) {
+          console.warn(
+            '[playwright-check] HTTPS_PROXY is set but NODE_USE_ENV_PROXY is not — external fetches will bypass ' +
+              'the proxy and mostly 403. Run via the npm scripts, or export NODE_USE_ENV_PROXY=1.'
+          )
+        }
+        relay = await startFetchRelay()
+        const relayPort = relay.port
         await page.route(
           url => !/^(localhost|127\.0\.0\.1)$/.test(url.hostname),
           async route => {
             const request = route.request()
             try {
-              const resp = await fetch(request.url(), {
-                method: request.method(),
-                headers: { ...request.headers(), 'accept-encoding': 'identity' },
-                body: request.postDataBuffer() ?? undefined,
-              })
-              const headers: Record<string, string> = {}
-              resp.headers.forEach((v, k) => {
-                if (!/^(content-encoding|content-length|transfer-encoding)$/i.test(k)) headers[k] = v
-              })
-              let body = Buffer.from(await resp.arrayBuffer())
-              // Cap huge textual datasets (cut at a line boundary): the
-              // headless software rasterizer cannot draw ~100k additive arcs
-              // at 2K — the compositor starves and screenshots time out even
-              // at 180s. A few thousand rows render a representative frame;
-              // the non-blank gate doesn't measure completeness.
-              const MAX_TEXT_BYTES = 2_000_000
-              const contentType = resp.headers.get('content-type') ?? ''
-              const textual =
-                /text|csv|json/i.test(contentType) || /\.(csv|tsv|txt|json|geojson)(\?|$)/i.test(request.url())
-              if (textual && body.length > MAX_TEXT_BYTES) {
-                const cut = body.lastIndexOf(0x0a, MAX_TEXT_BYTES)
-                body = body.subarray(0, cut > 0 ? cut : MAX_TEXT_BYTES)
-              }
-              await route.fulfill({ status: resp.status, headers, body })
+              const { status, headers, body } = await proxiedFetch(
+                request.url(),
+                relayPort,
+                request.method(),
+                { ...request.headers(), 'accept-encoding': 'identity' },
+                request.postDataBuffer() ?? undefined
+              )
+              await route.fulfill({ status, headers, body })
             } catch {
               await route.abort()
             }
@@ -195,11 +195,89 @@ export async function loadAndScreenshot(opts: {
         detail: canvas ? 'ok' : 'no canvas element appeared',
       }
     } finally {
+      relay?.close()
       await browser.close()
     }
   } finally {
     killTree(server)
   }
+}
+
+interface FetchRelay {
+  port: number
+  close: () => void
+}
+
+/** Localhost relay: GET /p/<absolute-url> forwards via Node's proxy-aware
+ * fetch. Exists because page.route can't intercept WORKER requests — MapLibre
+ * fetches tiles/glyphs/sprites from workers, and the egress enforcer resets
+ * Chromium's own TLS. Style/TileJSON bodies get their URLs rewritten to /p/
+ * form (template placeholders like {z}/{x}/{y} survive as path text and are
+ * substituted by MapLibre before the request reaches the relay). */
+async function startFetchRelay(): Promise<FetchRelay> {
+  const http = await import('node:http')
+  const server = http.createServer(async (req, res) => {
+    const target = (req.url ?? '').replace(/^\/p\//, '')
+    if (!/^https?:\/\//.test(target)) {
+      res.writeHead(400).end('relay expects /p/<absolute-url>')
+      return
+    }
+    try {
+      const port = (server.address() as { port: number }).port
+      const { status, headers, body } = await proxiedFetch(target, port, 'GET', {})
+      res.writeHead(status, { ...headers, 'access-control-allow-origin': '*' })
+      res.end(body)
+    } catch (e) {
+      res.writeHead(502).end(String(e).slice(0, 200))
+    }
+  })
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
+  const port = (server.address() as { port: number }).port
+  return { port, close: () => server.close() }
+}
+
+/** Proxy-aware fetch shared by the page-route interception and the relay.
+ * Rewrites resource URLs inside style/TileJSON bodies to relay form and caps
+ * huge textual datasets (the headless software rasterizer cannot draw ~100k
+ * additive arcs at 2K — the compositor starves and screenshots time out; a
+ * few thousand rows render a representative frame, and the non-blank gate
+ * doesn't measure completeness). */
+async function proxiedFetch(
+  url: string,
+  relayPort: number,
+  method: string,
+  requestHeaders: Record<string, string>,
+  postBody?: Buffer
+): Promise<{ status: number; headers: Record<string, string>; body: Buffer }> {
+  const resp = await fetch(url, {
+    method,
+    headers: { ...requestHeaders, 'accept-encoding': 'identity' },
+    body: postBody,
+  })
+  const headers: Record<string, string> = {}
+  resp.headers.forEach((v, k) => {
+    if (!/^(content-encoding|content-length|transfer-encoding)$/i.test(k)) headers[k] = v
+  })
+  let body = Buffer.from(await resp.arrayBuffer())
+
+  const contentType = resp.headers.get('content-type') ?? ''
+  const isJson = /json/i.test(contentType) || /\.json(\?|$)/i.test(url)
+  const text = isJson ? body.toString('utf-8') : null
+  if (text && /"(tiles|glyphs|sprite|tilejson)"/.test(text)) {
+    body = Buffer.from(
+      text.replace(/https?:\/\/[^"]+/g, m => `http://127.0.0.1:${relayPort}/p/${m}`),
+      'utf-8'
+    )
+    return { status: resp.status, headers, body }
+  }
+
+  const MAX_TEXT_BYTES = 2_000_000
+  const textual = /text|csv|json/i.test(contentType) || /\.(csv|tsv|txt|json|geojson)(\?|$)/i.test(url)
+  if (textual && body.length > MAX_TEXT_BYTES) {
+    const cut = body.lastIndexOf(0x0a, MAX_TEXT_BYTES)
+    body = body.subarray(0, cut > 0 ? cut : MAX_TEXT_BYTES)
+  }
+  return { status: resp.status, headers, body }
 }
 
 /** Non-blank = meaningful pixel variance AND no single color covering ~everything. */
