@@ -1,4 +1,4 @@
-import { assert, type LayerProps, View } from '@deck.gl/core'
+import { type LayerProps, View } from '@deck.gl/core'
 import { interpolateLab, scaleOrdinal, schemeAccent } from 'd3'
 import { BehaviorSubject, combineLatest, type Subscription } from 'rxjs'
 import { Temporal } from 'temporal-polyfill'
@@ -1268,18 +1268,19 @@ export class ListField<F extends Field> extends Field<
     this.setValue(Array.from(this.fields.values()).map(f => f.value) as F[])
   }
 
-  reorderInputs(fromIndex: number, toIndex: number): void {
-    if (fromIndex === toIndex) {
+  // Idempotently reorder connections to match orderedIds (typically the edge array order).
+  // Unknown ids are ignored; connections not listed keep their relative order at the end.
+  setConnectionOrder(orderedIds: string[]): void {
+    const currentIds = Array.from(this.fields.keys())
+    const listed = orderedIds.filter(id => this.fields.has(id))
+    const unlisted = currentIds.filter(id => !orderedIds.includes(id))
+    const nextIds = [...listed, ...unlisted]
+
+    if (nextIds.every((id, i) => id === currentIds[i])) {
       return
     }
-    const fields = Array.from(this.fields.entries())
 
-    assert(fromIndex >= 0 && fromIndex < fields.length, 'fromIndex is out of bounds')
-    assert(toIndex >= 0 && toIndex < fields.length, 'toIndex is out of bounds')
-
-    const [movedField] = fields.splice(fromIndex, 1)
-    fields.splice(toIndex, 0, movedField)
-    this.fields = new Map(fields)
+    this.fields = new Map(nextIds.map(id => [id, this.fields.get(id) as F]))
     this.setValue(Array.from(this.fields.values()).map(f => f.value) as F[])
   }
 }

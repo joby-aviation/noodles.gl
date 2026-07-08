@@ -378,57 +378,6 @@ export function getNoodles(): Visualization {
     }
   }, [operators])
 
-  // Migrate existing edges to MultiInputEdge type for ListField inputs
-  useEffect(() => {
-    const needsMigration = edges.some(edge => {
-      const targetOp = opMap.get(edge.target)
-      if (!targetOp) return false
-      const handleInfo = parseHandleId(edge.targetHandle || '')
-      if (!handleInfo) return false
-      const targetField = targetOp.inputs[handleInfo.fieldName]
-      return targetField instanceof ListField && edge.type !== 'MultiInputEdge'
-    })
-
-    if (needsMigration) {
-      setEdges(eds => {
-        // Group edges by handle to assign order indices
-        const groupedByHandle = new Map<string, ReactFlowEdge[]>()
-        eds.forEach(edge => {
-          const targetOp = opMap.get(edge.target)
-          if (!targetOp) return
-          const handleInfo = parseHandleId(edge.targetHandle || '')
-          if (!handleInfo) return
-          const targetField = targetOp.inputs[handleInfo.fieldName]
-
-          if (targetField instanceof ListField) {
-            const key = `${edge.target}-${edge.targetHandle}`
-            if (!groupedByHandle.has(key)) {
-              groupedByHandle.set(key, [])
-            }
-            const group = groupedByHandle.get(key)
-            if (group) {
-              group.push(edge as ReactFlowEdge)
-            }
-          }
-        })
-
-        return eds.map(edge => {
-          const key = `${edge.target}-${edge.targetHandle}`
-          const group = groupedByHandle.get(key)
-          if (group) {
-            const orderIndex = group.findIndex(e => e.id === edge.id)
-            return {
-              ...edge,
-              type: 'MultiInputEdge',
-              data: { ...edge.data, orderIndex },
-            } as ReactFlowEdge
-          }
-          return edge
-        })
-      })
-    }
-  }, [edges, setEdges])
-
   // Use shared hook for project modifications
   const {
     applyModifications,
