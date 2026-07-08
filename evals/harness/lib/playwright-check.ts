@@ -114,10 +114,16 @@ export async function loadAndScreenshot(opts: {
       await page.waitForTimeout(opts.settleMs ?? 15_000)
       await page.screenshot({ path: opts.screenshotPath })
       // Evaluated in the browser, where document exists; the harness tsconfig
-      // has no DOM lib, so reference it dynamically.
+      // has no DOM lib, so reference it dynamically. textContent, not
+      // innerText: ReactFlow's transformed canvas nodes are dropped from
+      // innerText but their rendered values are what callers read.
       const bodyText = opts.grabBodyText
         ? await page
-            .evaluate(() => (globalThis as { document?: { body: { innerText: string } } }).document?.body.innerText ?? null)
+            .evaluate(
+              () =>
+                (globalThis as { document?: { body: { textContent: string | null } } }).document?.body.textContent ??
+                null
+            )
             .catch(() => null)
         : null
 

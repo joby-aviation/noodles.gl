@@ -719,7 +719,9 @@ async function runVisualChecks(targets: Target[]): Promise<void> {
 
     if (v.grabBodyText && expectedHikingTotal !== null) {
       const text = result.bodyText ?? ''
-      const m = text.match(/totalTime\s*"?\s*:?\s*(-?\d+(?:\.\d+)?)/)
+      // react-json-view renders `"totalTime" : float 568.806...` — allow the
+      // quote/colon/type-tag between the key and the number.
+      const m = text.match(/totalTime\D{0,20}?(-?\d+(?:\.\d+)?)/)
       const domTotal = m ? Number(m[1]) : null
       report(
         v.name,
