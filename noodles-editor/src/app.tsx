@@ -1,10 +1,11 @@
-import { Component, lazy, type ReactNode, Suspense, useEffect } from 'react'
-import { Redirect, Route, Router, Switch, useRoute, useSearchParams } from 'wouter'
+import { Component, lazy, type ReactNode, Suspense, useEffect, useRef } from 'react'
+import { Redirect, Route, Router, Switch, useLocation, useRoute, useSearchParams } from 'wouter'
 import { AnalyticsConsentBanner } from './components/analytics-consent-banner'
 import { type ModalView, QuickStartModal } from './components/quick-start-modal'
 import { externalControl } from './noodles/globals'
 import { useUIStore } from './noodles/store'
 import TimelineEditor from './timeline-editor'
+import { analytics } from './utils/analytics'
 import { debugApp } from './utils/debug'
 
 const ExternalControlProvider = lazy(() =>
@@ -37,6 +38,20 @@ class AnalyticsErrorBoundary extends Component<{ children: ReactNode }, { hasErr
   }
 }
 
+// Fires $pageview on each route change; skips first render since PostHog init captures that.
+function PageviewTracker() {
+  const [location] = useLocation()
+  const isFirstRender = useRef(true)
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false
+      return
+    }
+    analytics.capturePageview()
+  }, [location])
+  return null
+}
+
 const baseUrl = import.meta.env.BASE_URL.replace(/\/+$/, '')
 
 function App() {
@@ -48,6 +63,7 @@ function App() {
 
   return (
     <Router base={baseUrl}>
+      <PageviewTracker />
       {/* External control providers - only enabled when requested via URL params.
           WebMCPProvider registers tools on navigator.modelContext (primary path);
           ExternalControlProvider is the legacy WebSocket bridge. */}
