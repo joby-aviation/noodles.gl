@@ -1240,45 +1240,6 @@
 }
 
 /* Per-field expression mode ("drivers") */
-.fieldRow {
-  position: relative;
-}
-
-/* ƒx toggle: hidden until the row is hovered, always visible while driven */
-.expressionToggle {
-  position: absolute;
-  top: 50%;
-  right: 0;
-  transform: translateY(-50%);
-  padding: 1px 4px;
-  font-size: 10px;
-  font-style: italic;
-  line-height: 1.4;
-  color: var(--color-text-secondary);
-  background-color: var(--color-bg-secondary);
-  border: 1px solid var(--color-border);
-  border-radius: 3px;
-  cursor: pointer;
-  opacity: 0;
-  transition: opacity 0.1s ease, color 0.15s ease, border-color 0.15s ease;
-  z-index: 1;
-}
-
-.fieldRow:hover .expressionToggle {
-  opacity: 1;
-}
-
-.expressionToggle:hover {
-  color: var(--color-text-primary);
-  border-color: var(--color-border-hover);
-}
-
-.expressionToggleActive {
-  opacity: 1;
-  color: #a78bfa;
-  border-color: #a78bfa;
-}
-
 /* Driven field input: monospace with a violet tint, like Blender's driver fields */
 .expressionDrivenInput {
   font-family: var(--font-mono);
@@ -1292,10 +1253,9 @@
   background-color: rgba(139, 92, 246, 0.14);
 }
 
-/* Compact live preview of the evaluated value; margin clears the always-visible ƒx toggle */
+/* Compact live preview of the evaluated value */
 .expressionValueBadge {
   flex: none;
-  margin-right: 20px;
   max-width: 40%;
   overflow: hidden;
   text-overflow: ellipsis;

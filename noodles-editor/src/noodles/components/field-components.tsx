@@ -22,6 +22,8 @@ const CodeiumEditor = lazy(() =>
   import('@codeium/react-code-editor').then(m => ({ default: m.CodeiumEditor }))
 )
 
+import { createPortal } from 'react-dom'
+
 import { Temporal } from 'temporal-polyfill'
 import { VectorKeyframeIndicator } from '../../timeline/components/KeyframeIndicator'
 import { getFieldPath } from '../../timeline/field-bindings'
@@ -59,11 +61,16 @@ import { useEdgeConnectionStore } from '../store'
 import { type ExpressionContext, getExpressionContext } from '../utils/expression-context'
 import { projectScheme } from '../utils/filesystem'
 import { edgeId, type OpId } from '../utils/id-utils'
-import { usePropertyHistory } from '../utils/property-history'
+import {
+  captureOperatorInputs,
+  firePropertyMutation,
+  usePropertyHistory,
+} from '../utils/property-history'
 import { ColorSwatch } from './color-swatch'
 import { ExpressionEditorOverlay } from './ExpressionEditorOverlay'
 import { GeocodingDialog } from './geocoding-dialog'
 import menuStyles from './menu.module.css'
+import contextMenuStyles from './node-properties.module.css'
 import { handleClass, useHandleDimmed } from './op-components'
 
 type InputComponent = React.ComponentType<{
@@ -2639,7 +2646,13 @@ const EXPRESSION_EXCLUDED_TYPES = new Set([
   'visualization',
 ])
 
-// Seed the expression editor with the field's current value so toggling ƒx on
+// Whether a field's type supports expression mode (connection state is checked separately)
+export function canFieldBeDriven(field: Field): boolean {
+  const { type } = field.constructor as typeof Field
+  return !EXPRESSION_EXCLUDED_TYPES.has(type)
+}
+
+// Seed the expression editor with the field's current value so entering expression mode
 // starts from something meaningful (Houdini-style)
 function toInitialExpressionSource(value: unknown): string {
   if (typeof value === 'function' || value === undefined) return ''
@@ -2649,6 +2662,65 @@ function toInitialExpressionSource(value: unknown): string {
   } catch {
     return ''
   }
+}
+
+// Enter or exit expression mode on a field, recording an undo/redo snapshot.
+// Shared by the canvas field context menu and the Properties Panel context menu.
+export function toggleFieldExpression(field: Field): void {
+  const before = captureOperatorInputs()
+  if (field.expression !== null) {
+    field.clearExpression()
+    firePropertyMutation('Remove expression', before)
+  } else {
+    field.setExpression(toInitialExpressionSource(field.value))
+    firePropertyMutation('Add expression', before)
+  }
+}
+
+// Right-click context menu for a field row. Currently holds the expression-mode toggle;
+// a natural home for more per-field actions later.
+export function FieldContextMenu({
+  field,
+  position,
+  onClose,
+}: {
+  field: Field
+  position: { x: number; y: number }
+  onClose: () => void
+}) {
+  const isDriven = field.expression !== null
+
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    document.addEventListener('pointerdown', onClose)
+    document.addEventListener('keydown', handleKey)
+    return () => {
+      document.removeEventListener('pointerdown', onClose)
+      document.removeEventListener('keydown', handleKey)
+    }
+  }, [onClose])
+
+  return createPortal(
+    <div
+      className={contextMenuStyles.contextMenu}
+      style={{ top: position.y, left: position.x }}
+      onPointerDown={e => e.stopPropagation()}
+    >
+      <button
+        type="button"
+        className={contextMenuStyles.contextMenuItem}
+        onClick={() => {
+          toggleFieldExpression(field)
+          onClose()
+        }}
+      >
+        {isDriven ? 'Remove expression' : 'Add expression'}
+      </button>
+    </div>,
+    document.body
+  )
 }
 
 export function FieldComponent({
@@ -2674,26 +2746,22 @@ export function FieldComponent({
 
   const expression = useObservable(field.expression$, field.expression)
   const isDriven = expression !== null
-  const { captureStart, commitChange } = usePropertyHistory()
+  const [contextMenuPos, setContextMenuPos] = useState<{ x: number; y: number } | null>(null)
 
   // Expression mode only applies to input fields (par namespace)
   const canDrive =
-    renderInput &&
-    handle?.namespace !== 'out' &&
-    !EXPRESSION_EXCLUDED_TYPES.has(type) &&
-    !hasIncomingConnection
+    renderInput && handle?.namespace !== 'out' && canFieldBeDriven(field) && !hasIncomingConnection
 
-  const toggleExpressionMode = useCallback(() => {
-    if (disabled) return
-    captureStart()
-    if (field.expression !== null) {
-      field.clearExpression()
-      commitChange('Remove expression')
-    } else {
-      field.setExpression(toInitialExpressionSource(field.value))
-      commitChange('Add expression')
-    }
-  }, [field, disabled, captureStart, commitChange])
+  const onContextMenu = useCallback(
+    (e: React.MouseEvent) => {
+      if (disabled) return
+      e.preventDefault()
+      // Keep node-level context menus (e.g. the parameter editor) from also firing
+      e.stopPropagation()
+      setContextMenuPos({ x: e.clientX, y: e.clientY })
+    },
+    [disabled]
+  )
 
   const hasKeyframes = useTimelineStore(state => {
     if (!nid || !renderInput) return false
@@ -2713,7 +2781,11 @@ export function FieldComponent({
     : { transform: 'translate(-17px, 15px)' }
 
   return (
-    <div style={{ position: 'relative' }} className={s.fieldRow}>
+    // biome-ignore lint/a11y/noStaticElementInteractions: right-click menu is a shortcut; the same actions are reachable via the Properties Panel context menu
+    <div
+      style={{ position: 'relative' }}
+      onContextMenu={canDrive || isDriven ? onContextMenu : undefined}
+    >
       {handle && (
         <Handle
           id={qualifiedFieldId}
@@ -2735,16 +2807,12 @@ export function FieldComponent({
         ) : (
           <InputComp id={fieldId} field={field} disabled={disabled} />
         ))}
-      {canDrive && (
-        <button
-          type="button"
-          className={cx(s.expressionToggle, { [s.expressionToggleActive]: isDriven })}
-          title={isDriven ? 'Remove expression (keeps current value)' : 'Drive with expression'}
-          onClick={toggleExpressionMode}
-          disabled={disabled}
-        >
-          ƒx
-        </button>
+      {contextMenuPos && (
+        <FieldContextMenu
+          field={field}
+          position={contextMenuPos}
+          onClose={() => setContextMenuPos(null)}
+        />
       )}
     </div>
   )

@@ -32,10 +32,12 @@ import { ErrorBoundary } from './error-boundary'
 import {
   BooleanFieldComponent,
   ColorFieldComponent,
+  canFieldBeDriven,
   DateFieldComponent,
   ExpressionDrivenInput,
   NumberFieldComponent,
   TextFieldComponent,
+  toggleFieldExpression,
   VectorFieldComponent,
 } from './field-components'
 import menuStyles from './menu.module.css'
@@ -409,6 +411,7 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
     listFieldInputName?: string // field name when it's a ListField with connections
     isVisible?: boolean // whether the field is currently shown
     hasConnection?: boolean // whether the field has an incoming edge
+    expressionField?: Field // field instance when expression mode can be toggled
   } | null>(null)
   const descriptionRef = useRef<HTMLDivElement>(null)
   const draggingRef = useRef<HTMLElement | null>(null)
@@ -527,6 +530,12 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
         input.field instanceof ListField && incomers.length > 0 ? input.name : undefined,
       isVisible: op.isFieldVisible(input.name),
       hasConnection: incomers.length > 0,
+      // Expression mode: drivable when the type allows it and nothing is wired in;
+      // always removable while driven
+      expressionField:
+        (canFieldBeDriven(input.field) && incomers.length === 0) || input.field.expression !== null
+          ? input.field
+          : undefined,
     })
   }
 
@@ -1105,6 +1114,20 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
                   }}
                 >
                   Reset to default
+                </button>
+                <button
+                  type="button"
+                  className={s.contextMenuItem}
+                  disabled={!contextMenu.expressionField}
+                  onClick={() => {
+                    if (!contextMenu.expressionField) return
+                    toggleFieldExpression(contextMenu.expressionField)
+                    setContextMenu(null)
+                  }}
+                >
+                  {contextMenu.expressionField?.expression != null
+                    ? 'Remove expression'
+                    : 'Add expression'}
                 </button>
                 <button
                   type="button"

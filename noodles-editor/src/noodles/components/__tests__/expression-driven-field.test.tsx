@@ -1,5 +1,5 @@
-// UI tests for per-field expression mode: the ƒx toggle in FieldComponent and the
-// ExpressionDrivenInput editor
+// UI tests for per-field expression mode: the field right-click context menu in
+// FieldComponent and the ExpressionDrivenInput editor
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { ReactFlowProvider } from '@xyflow/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -47,11 +47,12 @@ describe('per-field expression mode UI', () => {
     clearOps()
   })
 
-  it('shows the ƒx toggle for drivable fields', () => {
+  it('offers Add expression in the field context menu for drivable fields', () => {
     const op = new NumberOp('/num')
     setOp('/num', op)
     renderField(op)
-    expect(screen.getByTitle('Drive with expression')).toBeTruthy()
+    fireEvent.contextMenu(screen.getByText('val'))
+    expect(screen.getByText('Add expression')).toBeTruthy()
   })
 
   it('enters expression mode pre-filled with the current value', () => {
@@ -60,7 +61,8 @@ describe('per-field expression mode UI', () => {
     op.inputs.val.setValue(12)
     renderField(op)
 
-    fireEvent.click(screen.getByTitle('Drive with expression'))
+    fireEvent.contextMenu(screen.getByText('val'))
+    fireEvent.click(screen.getByText('Add expression'))
 
     expect(op.inputs.val.expression).toEqual('12')
     // The driven input shows the expression source
@@ -73,7 +75,8 @@ describe('per-field expression mode UI', () => {
     setOp('/num', op)
     renderField(op)
 
-    fireEvent.click(screen.getByTitle('Drive with expression'))
+    fireEvent.contextMenu(screen.getByText('val'))
+    fireEvent.click(screen.getByText('Add expression'))
     const input = screen.getByPlaceholderText('Enter expression…')
     fireEvent.change(input, { target: { value: '2 + 3' } })
     fireEvent.blur(input)
@@ -88,7 +91,8 @@ describe('per-field expression mode UI', () => {
     setOp('/num', op)
     renderField(op)
 
-    fireEvent.click(screen.getByTitle('Drive with expression'))
+    fireEvent.contextMenu(screen.getByText('val'))
+    fireEvent.click(screen.getByText('Add expression'))
     const input = screen.getByPlaceholderText('Enter expression…')
     fireEvent.change(input, { target: { value: '2 +' } })
     fireEvent.blur(input)
@@ -101,7 +105,8 @@ describe('per-field expression mode UI', () => {
     setOp('/num', op)
     renderField(op)
 
-    fireEvent.click(screen.getByTitle('Drive with expression'))
+    fireEvent.contextMenu(screen.getByText('val'))
+    fireEvent.click(screen.getByText('Add expression'))
     const input = screen.getByPlaceholderText('Enter expression…')
     fireEvent.change(input, { target: { value: "op('/missing').out.val" } })
     fireEvent.blur(input)
@@ -115,13 +120,15 @@ describe('per-field expression mode UI', () => {
     setOp('/num', op)
     renderField(op)
 
-    fireEvent.click(screen.getByTitle('Drive with expression'))
+    fireEvent.contextMenu(screen.getByText('val'))
+    fireEvent.click(screen.getByText('Add expression'))
     const input = screen.getByPlaceholderText('Enter expression…')
     fireEvent.change(input, { target: { value: '40 + 2' } })
     fireEvent.blur(input)
     expect(op.inputs.val.value).toEqual(42)
 
-    fireEvent.click(screen.getByTitle('Remove expression (keeps current value)'))
+    fireEvent.contextMenu(screen.getByText('val'))
+    fireEvent.click(screen.getByText('Remove expression'))
 
     expect(op.inputs.val.expression).toBeNull()
     expect(op.inputs.val.value).toEqual(42)
@@ -137,7 +144,8 @@ describe('per-field expression mode UI', () => {
     setOp('/num', op)
     renderField(op)
 
-    fireEvent.click(screen.getByTitle('Drive with expression'))
+    fireEvent.contextMenu(screen.getByText('val'))
+    fireEvent.click(screen.getByText('Add expression'))
     const input = screen.getByPlaceholderText('Enter expression…')
     fireEvent.change(input, { target: { value: "op('/source').out.val + 1" } })
     fireEvent.blur(input)
@@ -156,7 +164,7 @@ describe('per-field expression mode UI', () => {
     })
   })
 
-  it('does not show the toggle for expression-type fields', async () => {
+  it('does not offer expression mode for expression-type fields', async () => {
     const { ExpressionOp } = await import('../../operators')
     const exprOp = new ExpressionOp('/expr')
     setOp('/expr', exprOp)
@@ -165,6 +173,7 @@ describe('per-field expression mode UI', () => {
         <FieldComponent id="expression" field={exprOp.inputs.expression} disabled={false} />
       </ReactFlowProvider>
     )
-    expect(screen.queryByTitle('Drive with expression')).toBeNull()
+    fireEvent.contextMenu(screen.getByText('expression'))
+    expect(screen.queryByText('Add expression')).toBeNull()
   })
 })

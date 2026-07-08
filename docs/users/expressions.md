@@ -4,9 +4,9 @@ Drive any input field with a live JavaScript expression — like expressions in 
 
 ## Enabling Expression Mode
 
-Hover over any input field and click the **ƒx** button that appears on the right side of the row. The field switches to expression mode, pre-filled with its current value, and turns violet to show it's driven.
+Right-click any input field — on a node body or in the Properties Panel — and choose **Add expression**. The field switches to expression mode, pre-filled with its current value, and turns violet to show it's driven.
 
-Click **ƒx** again to remove the expression. The field keeps its last evaluated value.
+Right-click again and choose **Remove expression** to exit. The field keeps its last evaluated value.
 
 ## Writing Expressions
 
