@@ -68,8 +68,20 @@ describe('normalizeMultiInputEdges', () => {
     })
     const result = normalizeMultiInputEdges([stale], isMulti)
 
-    expect(result[0].type).toBeUndefined()
+    // Keys are omitted, not set to undefined, so the shape matches a fresh edge
+    expect('type' in result[0]).toBe(false)
     expect(result[0].data).toEqual({ keep: 'me' })
+  })
+
+  it('omits the data key entirely when stripping leaves it empty', () => {
+    const stale = edge('s', '/viewer', 'par.data', {
+      type: MULTI_INPUT_EDGE_TYPE,
+      data: { orderIndex: 0, groupSize: 1 },
+    })
+    const result = normalizeMultiInputEdges([stale], isMulti)
+
+    expect('type' in result[0]).toBe(false)
+    expect('data' in result[0]).toBe(false)
   })
 
   it('is idempotent and returns the same reference when nothing changed', () => {

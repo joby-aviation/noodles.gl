@@ -7,10 +7,10 @@ import {
   useUpdateNodeInternals,
 } from '@xyflow/react'
 import cx from 'classnames'
-import { useEffect, useMemo } from 'react'
+import { useEffect, useLayoutEffect, useMemo } from 'react'
 import type { Field } from '../fields'
 import { ListField } from '../fields'
-import { setPendingInsertionIndex } from '../store'
+import { clearPendingInsertionIndex, getUIStore, setPendingInsertionIndex } from '../store'
 import {
   SLOT_GAP,
   SLOT_HEIGHT,
@@ -69,15 +69,28 @@ export function MultiInputHandle({ id, field, className, style }: MultiInputHand
     return insertionIndexFromPointerY(pointerFlowY, hover.centerY, connectionCount)
   }, [isListField, hover, translateY, zoom, connectionCount])
 
-  // Publish the tracked slot for onConnect/onReconnect to consume. Keyed on the hover
-  // object (fresh per pointer move) so a new drag republishes even when the computed
-  // index matches the previous drag's. Stale values from abandoned hovers are guarded by
-  // target matching in takePendingInsertionIndex and cleared on connect/reconnect end.
-  useEffect(() => {
+  // Publish the tracked slot for onConnect/onReconnect to consume. Layout effect so the
+  // publish commits synchronously with the render — a passive effect can lose the race
+  // against a fast mouseup, silently dropping a reorder. Keyed on the hover object (fresh
+  // per pointer move) so a new drag republishes even when the computed index matches the
+  // previous drag's. Stale values from abandoned hovers are guarded by target matching in
+  // takePendingInsertionIndex and cleared on connect/reconnect end.
+  useLayoutEffect(() => {
     if (nid && hover !== null && insertionIndex !== null) {
       setPendingInsertionIndex({ nodeId: nid, handleId: id, index: insertionIndex })
     }
   }, [nid, id, hover, insertionIndex])
+
+  // Drop our published slot if this handle unmounts mid-drag (e.g. project navigation) —
+  // otherwise a later connect to the same node/handle pair would consume the stale index
+  useEffect(() => {
+    return () => {
+      const pending = getUIStore().pendingInsertionIndex
+      if (pending && pending.nodeId === nid && pending.handleId === id) {
+        clearPendingInsertionIndex()
+      }
+    }
+  }, [nid, id])
 
   // The handle grows with its connections — tell React Flow to re-measure so edge
   // anchors and hit areas follow (useUpdateNodeInternals is the public API for this)

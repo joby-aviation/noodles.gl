@@ -58,11 +58,14 @@ export function normalizeMultiInputEdges<E extends ReactFlowEdge>(
     if (groupSize === undefined) {
       if (edge.type !== MULTI_INPUT_EDGE_TYPE) return edge
       changed = true
-      const { orderIndex: _o, groupSize: _g, ...data } = (edge.data ?? {}) as Record<
+      // Omit the keys entirely (not `type: undefined`) so the shape matches a freshly
+      // created edge for both `edge.type` and `'type' in edge` style guards
+      const { type: _type, data: oldData, ...rest } = edge
+      const { orderIndex: _o, groupSize: _g, ...data } = (oldData ?? {}) as Record<
         string,
         unknown
       >
-      return { ...edge, type: undefined, data }
+      return (Object.keys(data).length > 0 ? { ...rest, data } : rest) as unknown as E
     }
 
     const orderIndex = nextIndex.get(groupKey(edge)) ?? 0
