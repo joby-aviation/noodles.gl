@@ -81,10 +81,13 @@ export class AnalyticsManager {
 
       if (this.initialized) {
         if (enabled) {
+          // Only fire a manual $pageview if the user was previously opted out —
+          // for new visitors posthog.init already fired it via capture_pageview: true.
+          const wasOptedOut = posthog.has_opted_out_capturing()
           posthog.opt_in_capturing()
-          // Capture the landing page if the user consents without having navigated away —
-          // posthog.init fires capture_pageview only when already opted in at init time.
-          posthog.capture('$pageview')
+          if (wasOptedOut) {
+            posthog.capture('$pageview')
+          }
         } else {
           posthog.opt_out_capturing()
         }
@@ -123,7 +126,7 @@ export class AnalyticsManager {
   }
 
   track(event: string, properties?: Record<string, unknown>) {
-    if (!this.initialized || !this.getConsent()?.enabled) {
+    if (!this.initialized || this.getConsent()?.enabled === false) {
       return
     }
 
@@ -137,7 +140,7 @@ export class AnalyticsManager {
   }
 
   identify(userId: string, properties?: Record<string, unknown>) {
-    if (!this.initialized || !this.getConsent()?.enabled) {
+    if (!this.initialized || this.getConsent()?.enabled === false) {
       return
     }
 
@@ -162,7 +165,7 @@ export class AnalyticsManager {
   }
 
   capturePageview() {
-    if (!this.initialized || !this.getConsent()?.enabled) {
+    if (!this.initialized || this.getConsent()?.enabled === false) {
       return
     }
     try {
@@ -235,7 +238,7 @@ export class AnalyticsManager {
 
   // Helper method to check if analytics is available and enabled
   isEnabled(): boolean {
-    return this.initialized && !!this.getConsent()?.enabled
+    return this.initialized && this.getConsent()?.enabled !== false
   }
 }
 
