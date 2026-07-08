@@ -253,3 +253,44 @@ separation) — the decisions below bound the volume:
    sonnets are the discriminating ones; opus sits at ceiling on 5 of 7 tasks), with a single
    three-model sensitivity re-run at season end. Restores the spec's single-pin intent and
    bounds a milestone at ~13MB.
+
+## 2026-07-07 — author-hiking-time (public demo task) + code-refs-containers v2 (promoted parameters)
+
+Two suite changes from maintainer review, both grounded in verified app facts:
+
+1. **`author-hiking-time` added** from maintainer-contributed materials — the public,
+   non-proprietary analog of the flight-time-estimate pattern (Naismith's Rule). Coverage it
+   adds, none of which existed: SwitchOp (computed-vs-manual toggling), a ViewerOp-terminal
+   calculator graph (every other authoring task ends in a map renderer), and reference-document
+   →graph fidelity (all other prompts are two sentences; this one ships a formula document with
+   worked examples the judge can check exactly). Designated the D6 smoke-lane task: cheapest in
+   the suite (no data files, no basemap, no egress). Corrections to the contributed materials:
+   golden `version: 6 → 14` + standard timeline/editorSettings; artifact path moved under
+   `noodles-editor/src/examples/` so the Playwright load check applies; checks ported to
+   harness types.
+2. **`code-refs-containers` bumped to taskVersion 2**: the prompt now requires promoting the
+   minimum-magnitude cutoff as a parameter on the container itself (`data.customInputs` —
+   serialization.ts:199), replacing v1's standalone NumberOp. Promoted parameters had zero
+   coverage anywhere in the suite. Per D7 this breaks the v1 comparison series — the v1 rows
+   (including the opus-inversion finding) remain as their own historical line, and the reporter
+   now keys series by (taskId, taskVersion). Validator bumped to **interim-3**: the
+   unknown-input check accepts input keys declared in `data.customInputs`.
+
+Empirical gate verdicts (both goldens through Playwright in a real workspace):
+
+- **Promoted-parameter route confirmed**: a container declaring
+  `customInputs: [{name: 'minMagnitude', type: 'number', ...}]` with a child reading
+  `op('/processing').par.minMagnitude` loads and executes with zero console errors.
+- **CodeOp `par.data` fan-in confirmed**: the hiking golden's two-edges-into-one-`par.data`
+  pattern (`d` + `data[1]` indexing) executes without operator errors — previously had no
+  committed precedent.
+- **New environment-noise class found and filtered**: Monaco (the in-app code editor) fails
+  worker initialization in the headless container on any project with visible top-level
+  CodeOps — committed-good `world-flights` triggers it identically to the new goldens, so it
+  says nothing about an artifact. The console filter now drops `Monaco initialization: error`
+  and the accompanying bare-`Event` rejections (message-carrying rejections still count).
+  Earlier gates missed it because none of the gated projects had top-level CodeOps
+  (code-refs' CodeOp lives inside a container and isn't rendered).
+
+Re-baseline required: hiking-time 3×3 (new) + code-refs@2 3×3 (series break) = 18 sessions +
+54 judge samples, pending fresh AWS credentials.

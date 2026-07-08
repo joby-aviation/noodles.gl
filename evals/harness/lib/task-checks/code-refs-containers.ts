@@ -1,10 +1,19 @@
-// code-refs-containers: CodeOp transform + op() reference + ContainerOp
-// grouping (the D2 task added in phase 0 for the coverage gap). Container
-// membership is encoded by the /container/child id path prefix; the
-// GraphInput/Output bridge is one legitimate route across the boundary but
-// op() references are another, so the checks don't mandate the bridge.
+// code-refs-containers v2: CodeOp transform + op() reference + ContainerOp
+// grouping + a PROMOTED PARAMETER on the container (taskVersion 2 — v1 used a
+// standalone NumberOp for the cutoff; promoting it to the container's own
+// interface is the added ask). Container membership is encoded by the
+// /container/child id path prefix; promoted params serialize as
+// node.data.customInputs [{id, name, type, order, defaultValue}]. The
+// GraphInput/Output bridge is one legitimate route for the value; an
+// op('/<container>').par.<name> reference is another — neither is mandated.
 
 import { type CheckContext, type CheckResult, edgesInto, findResolvingOpReference, nodesByType } from './types'
+
+interface CustomInputDef {
+  name?: string
+  type?: string
+  defaultValue?: unknown
+}
 
 const PASS_THROUGH_TYPES = new Set(['GraphInputOp', 'GraphOutputOp'])
 
@@ -36,6 +45,49 @@ export function customChecks(ctx: CheckContext): Record<string, CheckResult> {
   checks['op-reference-resolves'] = {
     pass: ref !== null,
     detail: ref ? `${ref.ref} in ${ref.nodeId}` : 'no op() reference resolving to an existing node',
+  }
+
+  // v2: the cutoff must be a promoted parameter on the container itself.
+  const customDefs = ((container?.data as { customInputs?: CustomInputDef[] } | undefined)?.customInputs ?? []).filter(
+    d => d && typeof d.name === 'string'
+  )
+  const numericDef = customDefs.find(d => d.type === 'number')
+  checks['container-has-promoted-param'] = {
+    pass: numericDef !== undefined,
+    detail: customDefs.length
+      ? `customInputs: ${customDefs.map(d => `${d.name}:${d.type}`).join(', ')}`
+      : 'container declares no customInputs (promoted parameters)',
+  }
+
+  if (container?.id && numericDef?.name) {
+    // The promoted value must actually feed the pipeline: a code-ish input
+    // references op('<container>').par.<name>, or a direct-child GraphInputOp
+    // carries the mirrored dynamic input.
+    const refPattern = new RegExp(`op\\(\\s*['"]${container.id}['"]\\s*\\)\\s*\\.par\\.${numericDef.name}\\b`)
+    const referencedInCode = (after.nodes ?? []).some(n =>
+      Object.values(n.data?.inputs ?? {}).some(v => typeof v === 'string' && refPattern.test(v))
+    )
+    const prefix = `${container.id}/`
+    const graphInputCarries = (after.nodes ?? []).some(
+      n =>
+        n.type === 'GraphInputOp' &&
+        n.id?.startsWith(prefix) &&
+        (n.data?.inputs?.[numericDef.name as string] !== undefined ||
+          (after.edges ?? []).some(e => e.source === n.id))
+    )
+    checks['promoted-param-feeds-cutoff'] = {
+      pass: referencedInCode || graphInputCarries,
+      detail: referencedInCode
+        ? `referenced via op('${container.id}').par.${numericDef.name}`
+        : graphInputCarries
+          ? 'flows through a direct-child GraphInputOp'
+          : `promoted param "${numericDef.name}" is declared but nothing consumes it`,
+    }
+  } else {
+    checks['promoted-param-feeds-cutoff'] = {
+      pass: false,
+      detail: 'no numeric promoted parameter to consume',
+    }
   }
 
   const scatter = nodesByType(after, 'ScatterplotLayerOp')[0]

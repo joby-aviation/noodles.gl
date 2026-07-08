@@ -208,10 +208,38 @@ test('animate-camera checks: golden passes, static base fails', async () => {
   someFail(CUSTOM_CHECKS['animate-camera']({ after: base, before: null, resultText: null }))
 })
 
-test('code-refs-containers checks: golden passes, containerless project fails', async () => {
+test('code-refs-containers v2 checks: golden passes, containerless AND v1-shaped projects fail', async () => {
   const { CUSTOM_CHECKS } = await import('./lib/task-checks')
   allPass(CUSTOM_CHECKS['code-refs-containers']({ after: golden('code-refs-containers'), before: null, resultText: null }))
   someFail(CUSTOM_CHECKS['code-refs-containers']({ after: golden('sql-h3-pipeline'), before: null, resultText: null }))
+  // v1 shape (no promoted parameter on the container) must fail v2's checks
+  const v1shaped = JSON.parse(JSON.stringify(golden('code-refs-containers')))
+  const container = v1shaped.nodes.find((n: { id: string }) => n.id === '/processing')
+  container.data.customInputs = undefined
+  someFail(CUSTOM_CHECKS['code-refs-containers']({ after: v1shaped, before: null, resultText: null }))
+})
+
+test('hiking-time checks: golden passes, unrelated project fails', async () => {
+  const { CUSTOM_CHECKS } = await import('./lib/task-checks')
+  allPass(CUSTOM_CHECKS['hiking-time']({ after: golden('hiking-time'), before: null, resultText: null }))
+  someFail(CUSTOM_CHECKS['hiking-time']({ after: golden('sql-h3-pipeline'), before: null, resultText: null }))
+})
+
+test('author-hiking-time task file loads with checks wired', async () => {
+  const { loadTask } = await import('./lib/task')
+  const { CUSTOM_CHECKS } = await import('./lib/task-checks')
+  const task = loadTask('author-hiking-time')
+  assert.equal(task.grader.mechanical.custom, 'hiking-time')
+  assert.equal(task.taskVersion, 1)
+  assert.ok(CUSTOM_CHECKS['hiking-time'])
+  assert.ok(task.prompt.includes('REFERENCE.md'))
+})
+
+test('code-refs-containers task is at version 2', async () => {
+  const { loadTask } = await import('./lib/task')
+  const task = loadTask('code-refs-containers')
+  assert.equal(task.taskVersion, 2)
+  assert.ok(task.prompt.toLowerCase().includes('promote'))
 })
 
 test('all five new task files load with custom checks wired', async () => {

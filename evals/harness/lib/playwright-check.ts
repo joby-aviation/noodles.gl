@@ -29,6 +29,14 @@ export function isEnvironmentNoise(text: string, locationUrl?: string): boolean 
   // ResizeObserver loop warnings are a benign browser artifact (ReactFlow at
   // large viewports), unrelated to any project defect.
   if (/WebGL warning|AbortError|ResizeObserver loop/i.test(text)) return true
+  // Monaco (the in-app code editor) fails to initialize its workers in this
+  // headless container on any project with visible CodeOps — committed-good
+  // examples (world-flights) trigger it identically, so it says nothing about
+  // the artifact. The accompanying opaque `Event` rejections are the same
+  // init failure surfacing through the app's error handler; only the
+  // bare-Event forms are filtered (a real project rejection carries a message).
+  if (/Monaco initialization: error/i.test(text)) return true
+  if (/^(\[Noodles\] unhandled rejection: |pageerror: )?Event$/.test(text.trim())) return true
   const isLocal = (u: string) => /localhost|127\.0\.0\.1/.test(u)
   if (locationUrl && !isLocal(locationUrl)) return true
   const withoutFrames = text

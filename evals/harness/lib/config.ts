@@ -28,13 +28,13 @@ export const TIER = 'T0'
 // graded, calibration settled, rubric-bump regrades applied) or on a forced
 // re-pin — see evals/README.md "Storage & retention".
 export const CURRENT_SERIES = '2026-07-06.t0.83ff1c128a7a'
-// interim-2: adds the container-bridge exemption to the handle-prefix rules
-// (ContainerOp par.in→GraphInputOp par.parentValue and GraphOutputOp
-// out.propagatedValue→ContainerOp out.out are app-generated shapes). Runs
-// graded before the bump keep their frozen interim-1 results — per 07 D5,
-// mechanical scores across a series may come from different validator
-// versions, and the rows record which.
-export const VALIDATOR_VERSION = 'interim-2'
+// interim-2 added the container-bridge exemption to the handle-prefix rules
+// (app-generated ContainerOp bridge edges). interim-3 makes the unknown-input
+// check aware of promoted parameters (node.data.customInputs declares dynamic
+// input names). Runs graded under earlier versions keep their frozen results —
+// per 07 D5, mechanical scores across a series may come from different
+// validator versions, and the rows record which.
+export const VALIDATOR_VERSION = 'interim-3'
 export const JUDGE_SAMPLES = 3
 
 const REQUIRED_ENV = ['AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY', 'AWS_REGION'] as const

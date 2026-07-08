@@ -1,6 +1,6 @@
 ---
 id: code-refs-containers
-taskVersion: 1
+taskVersion: 2
 cuj: 3
 family: authoring
 tags: [authoring, data-source, references, containers]
@@ -37,10 +37,11 @@ table for step 5; this is that task.)
 > `noodles-editor/src/examples/quake-pipeline/data.csv`. Build a project at
 > `noodles-editor/src/examples/quake-pipeline/noodles.json` that plots the
 > quakes on a map with each point sized by its energy — compute the energy
-> with a CodeOp as `10^(1.5 × magnitude)`. Keep the minimum-magnitude cutoff
-> (use 4.0) in its own separate operator, and have the code reference it with
-> `op()` so I can change the cutoff in one place. Organize the data-processing
-> nodes into a container to keep the graph tidy. It should open at
+> with a CodeOp as `10^(1.5 × magnitude)`. Organize the data-processing nodes
+> into a container to keep the graph tidy, and promote the minimum-magnitude
+> cutoff (use 4.0) as a parameter on the container itself, so I can adjust it
+> from the container without opening it. Have the code reference the cutoff
+> with `op()` so it's defined in one place. It should open at
 > `/examples/quake-pipeline`.
 
 ## Mechanical checks (Layer 1, frozen at run time)
@@ -52,7 +53,11 @@ table for step 5; this is that task.)
 3. Custom (`code-refs-containers`): the container has ≥ 1 functional
    (non-GraphInput/Output) child addressed by the `/container/child` path
    prefix; a code-ish input contains an `op()` reference that resolves to an
-   existing node; the scatterplot's radius is fed by the derived value.
+   existing node; the scatterplot's radius is fed by the derived value;
+   **(v2)** the container declares a numeric promoted parameter
+   (`data.customInputs`) and the cutoff actually flows from it (an
+   `op('/<container>').par.<name>` reference or a direct-child GraphInputOp
+   carrying the mirrored dynamic input).
 4. Loads under Playwright without console errors; screenshot non-blank.
 
 ## Notes
@@ -61,3 +66,8 @@ table for step 5; this is that task.)
   GraphInputOp/GraphOutputOp + bridge edges are the app's pass-through
   mechanism, but `op()` references across the boundary are also legitimate —
   the checks don't mandate the bridge.
+- **taskVersion 2** (breaks the v1 comparison series per 07 D7): v1 kept the
+  cutoff in a standalone NumberOp; v2 requires promoting it onto the
+  container's own interface (`data.customInputs`) — the promoted-parameters
+  feature had no coverage anywhere in the suite. v1 rows remain in the series
+  as their own historical line.

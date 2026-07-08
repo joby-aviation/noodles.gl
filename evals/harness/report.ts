@@ -23,6 +23,7 @@ interface Cell {
 
 export interface GroupStats {
   task: string
+  taskVersion: number
   sessionModel: string
   tier: string
   n: number
@@ -52,13 +53,16 @@ export function computeStats(filter: { series?: string; rubricVersion?: number }
     if (!prior || row.gradedAt > prior.gradedAt) latest.set(key, row)
   }
 
-  const groups = new Map<string, Cell & { task: string; sessionModel: string; tier: string }>()
+  // Task changes break the series (07 D7): a version is its own comparison
+  // line, so taskVersion is part of the grouping key.
+  const groups = new Map<string, Cell & { task: string; taskVersion: number; sessionModel: string; tier: string }>()
   for (const row of latest.values()) {
     if (row.lane !== 'milestone') continue
-    const key = `${row.tier}|${row.taskId}|${row.sessionModel}`
+    const key = `${row.tier}|${row.taskId}@${row.taskVersion}|${row.sessionModel}`
     if (!groups.has(key)) {
       groups.set(key, {
         task: row.taskId,
+        taskVersion: row.taskVersion,
         sessionModel: row.sessionModel,
         tier: row.tier,
         scores: [],
@@ -90,6 +94,7 @@ export function computeStats(filter: { series?: string; rubricVersion?: number }
   return [...groups.values()]
     .map(g => ({
       task: g.task,
+      taskVersion: g.taskVersion,
       sessionModel: g.sessionModel,
       tier: g.tier,
       n: g.scores.length,
@@ -101,7 +106,10 @@ export function computeStats(filter: { series?: string; rubricVersion?: number }
       costMedianUsd: g.costUsd.length ? round(median(g.costUsd)) : null,
       lookupsMedian: g.lookups.length ? round(median(g.lookups)) : null,
     }))
-    .sort((a, b) => a.task.localeCompare(b.task) || a.sessionModel.localeCompare(b.sessionModel))
+    .sort(
+      (a, b) =>
+        a.task.localeCompare(b.task) || a.taskVersion - b.taskVersion || a.sessionModel.localeCompare(b.sessionModel)
+    )
 }
 
 /** Noise discipline (07 D6): a delta inside overlapping ranges is no change. */
@@ -117,8 +125,9 @@ export function renderScorecard(stats: GroupStats[]): string {
     '|---|---|---|---|---|---|---|---|---|---|',
   ]
   for (const s of stats) {
+    const taskLabel = s.taskVersion > 1 ? `${s.task}@${s.taskVersion}` : s.task
     lines.push(
-      `| ${s.task} | ${s.sessionModel} | ${s.tier} | ${s.n} | **${s.median.toFixed(2)}** [${s.range[0].toFixed(2)}–${s.range[1].toFixed(2)}] | ${s.mechanicalMedian.toFixed(2)} | ${s.judgeMedian.toFixed(2)} | ${s.turnsMedian ?? '—'} | ${s.lookupsMedian ?? '—'} | ${s.costMedianUsd !== null ? `$${s.costMedianUsd.toFixed(2)}` : '—'} |`
+      `| ${taskLabel} | ${s.sessionModel} | ${s.tier} | ${s.n} | **${s.median.toFixed(2)}** [${s.range[0].toFixed(2)}–${s.range[1].toFixed(2)}] | ${s.mechanicalMedian.toFixed(2)} | ${s.judgeMedian.toFixed(2)} | ${s.turnsMedian ?? '—'} | ${s.lookupsMedian ?? '—'} | ${s.costMedianUsd !== null ? `$${s.costMedianUsd.toFixed(2)}` : '—'} |`
     )
   }
   lines.push('')

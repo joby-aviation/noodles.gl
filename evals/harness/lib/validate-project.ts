@@ -23,7 +23,11 @@ interface ProjectEdge {
 interface ProjectNode {
   id?: string
   type?: string
-  data?: { inputs?: Record<string, unknown> }
+  data?: {
+    inputs?: Record<string, unknown>
+    /** promoted parameters (interim-3): user-defined dynamic fields */
+    customInputs?: Array<{ name?: string }>
+  }
 }
 
 const NODE_ID_RE = /^\/[A-Za-z0-9_\-./ ]*$/
@@ -102,8 +106,13 @@ export function validateProject(
     }
     const schema = registry.schemas.get(node.type)
     if (schema && !schema.inputsOpen && schema.inputs.size > 0) {
+      // interim-3: promoted parameters (data.customInputs) declare dynamic
+      // input names that are as valid as registry fields.
+      const promoted = new Set(
+        (node.data?.customInputs ?? []).map(d => d?.name).filter((n): n is string => typeof n === 'string')
+      )
       for (const key of Object.keys(node.data?.inputs ?? {})) {
-        if (!schema.inputs.has(key)) {
+        if (!schema.inputs.has(key) && !promoted.has(key)) {
           errors.push(`node ${node.id} (${node.type}) serializes unknown input "${key}"`)
         }
       }

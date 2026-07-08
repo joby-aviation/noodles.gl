@@ -18,20 +18,6 @@
       }
     },
     {
-      "id": "/min-magnitude",
-      "type": "NumberOp",
-      "position": {
-        "x": -1050,
-        "y": 200
-      },
-      "data": {
-        "inputs": {
-          "val": 4
-        },
-        "locked": false
-      }
-    },
-    {
       "id": "/processing",
       "type": "ContainerOp",
       "position": {
@@ -40,7 +26,16 @@
       },
       "data": {
         "inputs": {},
-        "locked": false
+        "locked": false,
+        "customInputs": [
+          {
+            "id": "1",
+            "name": "minMagnitude",
+            "type": "number",
+            "order": 0,
+            "defaultValue": 4
+          }
+        ]
       }
     },
     {
@@ -52,7 +47,7 @@
       },
       "data": {
         "inputs": {
-          "code": "const rows = op('/quake-data').out.data ?? []\nconst minMagnitude = op('/min-magnitude').par.val\nreturn rows\n  .filter(d => d.Magnitude >= minMagnitude)\n  .map(d => ({ ...d, energy: Math.pow(10, 1.5 * d.Magnitude) }))"
+          "code": "const rows = op('/quake-data').out.data ?? []\nconst minMagnitude = op('/processing').par.minMagnitude\nreturn rows\n  .filter(d => d.Magnitude >= minMagnitude)\n  .map(d => ({ ...d, energy: Math.pow(10, 1.5 * d.Magnitude) }))"
         },
         "locked": false
       }
