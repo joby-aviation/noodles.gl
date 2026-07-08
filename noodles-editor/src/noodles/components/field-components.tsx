@@ -8,8 +8,8 @@ import { Button } from 'primereact/button'
 import { InputText } from 'primereact/inputtext'
 import {
   Fragment,
-  lazy,
   Suspense,
+  lazy,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -21,10 +21,9 @@ import {
 const CodeiumEditor = lazy(() =>
   import('@codeium/react-code-editor').then(m => ({ default: m.CodeiumEditor }))
 )
-
 import { Temporal } from 'temporal-polyfill'
-import { VectorKeyframeIndicator } from '../../timeline/components/KeyframeIndicator'
 import { getFieldPath } from '../../timeline/field-bindings'
+import { VectorKeyframeIndicator } from '../../timeline/components/KeyframeIndicator'
 import { useTimelineStore } from '../../timeline/timeline-store'
 import {
   type BezierCurveField,
@@ -59,7 +58,6 @@ import { getExpressionContext } from '../utils/expression-context'
 import { projectScheme } from '../utils/filesystem'
 import { edgeId, type OpId } from '../utils/id-utils'
 import { usePropertyHistory } from '../utils/property-history'
-import { AttributeFieldWrapper } from './attribute-field-wrapper'
 import { ColorSwatch } from './color-swatch'
 import { ExpressionEditorOverlay } from './ExpressionEditorOverlay'
 import { GeocodingDialog } from './geocoding-dialog'
@@ -1913,7 +1911,7 @@ export function BezierCurveFieldComponent({
       width: svgSize.width - padding.left - padding.right,
       height: svgSize.height - padding.top - padding.bottom,
     }),
-    [padding.bottom, padding.left, padding.right, padding.top, svgSize.height, svgSize.width]
+    []
   )
 
   // Convert SVG coordinates to curve coordinates (0-1, 0-1)
@@ -1926,7 +1924,7 @@ export function BezierCurveFieldComponent({
         y: Math.max(0, Math.min(1, curveY)),
       }
     },
-    [graphArea.width, graphArea.height, padding.left, padding.top]
+    [graphArea.width, graphArea.height]
   )
 
   // Convert curve coordinates to SVG coordinates
@@ -1935,7 +1933,7 @@ export function BezierCurveFieldComponent({
       x: padding.left + x * graphArea.width,
       y: padding.top + (1 - y) * graphArea.height, // Flip Y axis
     }),
-    [graphArea.width, graphArea.height, padding.left, padding.top]
+    [graphArea.width, graphArea.height]
   )
 
   // Generate SVG path for the bezier curve
@@ -2005,7 +2003,7 @@ export function BezierCurveFieldComponent({
     }
 
     return lines
-  }, [graphArea, padding.left, padding.top])
+  }, [graphArea])
 
   // Find what the user is trying to interact with
   const getInteractionTarget = useCallback(
@@ -2483,28 +2481,6 @@ export function FieldComponent({
     ? { transform: 'translate(-17px, -50%)' }
     : { transform: 'translate(-17px, 15px)' }
 
-  const renderFieldInput = () => {
-    if (hasIncomingConnection) {
-      return <EmptyFieldComponent id={fieldId} field={field} />
-    }
-
-    const inputComponent = <InputComp id={fieldId} field={field} disabled={disabled} />
-
-    if (field.defaultAttribute) {
-      return (
-        <AttributeFieldWrapper id={fieldId} field={field} disabled={disabled}>
-          {inputComponent}
-        </AttributeFieldWrapper>
-      )
-    }
-
-    if (hasKeyframes) {
-      return <div className={s.keyframedFieldInput}>{inputComponent}</div>
-    }
-
-    return inputComponent
-  }
-
   return (
     <div style={{ position: 'relative' }}>
       {handle && (
@@ -2516,7 +2492,16 @@ export function FieldComponent({
           position={Position.Left}
         />
       )}
-      {renderInput && renderFieldInput()}
+      {renderInput &&
+        (hasIncomingConnection ? (
+          <EmptyFieldComponent id={fieldId} field={field} />
+        ) : hasKeyframes ? (
+          <div className={s.keyframedFieldInput}>
+            <InputComp id={fieldId} field={field} disabled={disabled} />
+          </div>
+        ) : (
+          <InputComp id={fieldId} field={field} disabled={disabled} />
+        ))}
     </div>
   )
 }

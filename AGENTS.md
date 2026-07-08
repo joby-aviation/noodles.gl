@@ -242,12 +242,12 @@ Projects are stored as JSON files with this structure:
 - **GroupByOp**: Group and aggregate data
 - **JoinOp**: Combine multiple datasets
 - **SliceOp**: Slice arrays
-- **CreateAttributeOp**: Create binary attributes from data columns for GPU rendering
 
 ### Math & Logic
 - **NumberOp**: Numeric constants
 - **ExpressionOp**: Single-line JavaScript expressions
 - **CodeOp**: Multi-line custom JavaScript code
+- **AccessorOp**: Data accessor functions for Deck.gl
 
 ### GeoJSON Operations
 - **GeoJsonOp**: Create GeoJSON from data
@@ -296,38 +296,20 @@ return distances
 - `utils` - Collection of utility functions (arc geometry, color conversion, geospatial operations, interpolation, etc.)
 - All Operator classes for instantiation
 
-### CreateAttributeOp
-Creates binary GPU attributes from data columns or expressions.
-
-**Expression-only mode** - Evaluates JavaScript expressions per row to generate attributes:
+### AccessorOp
+Per-item accessor functions for Deck.gl layers:
 
 ```javascript
-// Example: Create position attribute from lat/lng columns
-expression: '[d.lng, d.lat, 0]'
+// Example: Get position
+[d.longitude, d.latitude]
 
-// Example: Create color attribute based on value
-expression: 'd.value > 100 ? [255, 0, 0, 255] : [0, 255, 0, 255]'
-
-// Example: Simple column reference
-expression: 'd.radius'
+// Example: Conditional color
+d.value > 100 ? [255, 0, 0] : [0, 255, 0]
 ```
 
-**Inputs:**
-- `data` - Array or Arrow table input
-- `name` - Attribute name (e.g., 'position', 'fillColor')
-- `expression` - JavaScript expression (access row data via `d`)
-- `size` - Components per item (1 for scalar, 3 for position, 4 for RGBA)
-- `type` - Output type ('float32', 'uint8', 'int32')
-
-**Output:**
-- `data` - Attribute-enhanced data with `{ data, attributes }` structure
-
-**Context in expressions:**
+**Context:**
 - `d` - Current data item
-- Access columns via `d.columnName`
-- Use array syntax for multi-component attributes `[d.x, d.y, d.z]`
-
-**Auto-detection:** When data connects to layer operators, fields with `defaultAttribute` are automatically populated based on data schema (GeoJSON, lat/lng pairs, Houdini conventions like `Cd` for color)
+- `data` - Full dataset array
 
 ### ExpressionOp
 Single-line calculations:
@@ -379,10 +361,10 @@ const altToIntensity = utils.interpolate([0, 10000], [0, 255])
 All operator classes are available as globals in CodeOp for programmatic instantiation:
 
 **Data Sources & Processing:**
-`FileOp`, `DuckDbOp`, `NetworkOp`, `GeocoderOp`, `DirectionsOp`, `FilterOp`, `MapRangeOp`, `MergeOp`, `ConcatOp`, `SliceOp`, `SortOp`, `SelectOp`, `SwitchOp`, `TableEditorOp`, `CreateAttributeOp`
+`FileOp`, `DuckDbOp`, `NetworkOp`, `GeocoderOp`, `DirectionsOp`, `FilterOp`, `MapRangeOp`, `MergeOp`, `ConcatOp`, `SliceOp`, `SortOp`, `SelectOp`, `SwitchOp`, `TableEditorOp`
 
 **Math & Logic:**
-`NumberOp`, `BooleanOp`, `StringOp`, `DateOp`, `TimeOp`, `MathOp`, `ExpressionOp`, `CodeOp`, `JSONOp`, `HSLOp`, `ColorOp`
+`NumberOp`, `BooleanOp`, `StringOp`, `DateOp`, `TimeOp`, `MathOp`, `ExpressionOp`, `CodeOp`, `AccessorOp`, `JSONOp`, `HSLOp`, `ColorOp`
 
 **Geometry & Transforms:**
 `PointOp`, `BoundsOp`, `RectangleOp`, `ArcOp`, `BezierCurveOp`, `BoundingBoxOp`, `ExtentOp`, `ProjectOp`, `UnprojectOp`, `GeoJsonOp`, `GeoJsonTransformOp`, `ScatterOp`
@@ -531,16 +513,6 @@ export class CustomOperator extends Operator<CustomOperator> {
 - **CompoundPropsField**: Object with multiple properties
 - **PointField**: Geographic coordinates [lng, lat]
 - **Vec2Field**: 2D vectors
-
-### Accessor Fields with Attribute Toggle
-
-Layer operator accessor fields (e.g., `getPosition`, `getFillColor`, `getRadius`) support three modes via a toggle UI:
-
-1. **Uniform mode** - Single static value for all items (e.g., `[0, 0, 0]` for position)
-2. **Attribute mode** - Read from named column in data (e.g., `'position'` attribute)
-3. **Expression mode** - Per-item JavaScript expression (e.g., `'[d.lng, d.lat, 0]'`)
-
-Fields with `defaultAttribute` option enable the toggle and support auto-detection when data is connected.
 
 ## State Management
 

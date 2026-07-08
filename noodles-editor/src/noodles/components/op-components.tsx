@@ -35,7 +35,6 @@ import { Temporal } from 'temporal-polyfill'
 
 import { analytics } from '../../utils/analytics'
 import { ArrayField, type Field, type IField, ListField } from '../fields'
-import { useObservable } from '../hooks/use-observable'
 import { useKeysStore } from '../keys-store'
 import s from '../noodles.module.css'
 import type { ExecutionState, IOperator, OpType } from '../operators'

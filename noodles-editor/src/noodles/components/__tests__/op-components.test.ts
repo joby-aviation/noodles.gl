@@ -102,8 +102,8 @@ describe('op-components utilities', () => {
 
     it('should return correct class for code category', () => {
       expect(headerClass('CodeOp')).toContain('headerCode')
+      expect(headerClass('AccessorOp')).toContain('headerCode')
       expect(headerClass('DuckDbOp')).toContain('headerCode')
-      expect(headerClass('ExpressionOp')).toContain('headerCode')
     })
 
     it('should return correct class for number category including pseudo-operators', () => {

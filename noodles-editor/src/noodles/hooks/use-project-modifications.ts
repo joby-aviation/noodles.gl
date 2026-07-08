@@ -19,7 +19,6 @@ import { debugUI } from '../../utils/debug'
 import { type Field, ListField } from '../fields'
 import type { IOperator, Operator } from '../operators'
 import { deleteOp, getAllOps, getOp, setOp } from '../store'
-import { autoFillLayerAccessors } from '../utils/attribute-auto-detection'
 import { canConnect, validateConnection } from '../utils/can-connect'
 import { edgeId } from '../utils/id-utils'
 import { generateQualifiedPath, parseHandleId } from '../utils/path-utils'
@@ -307,20 +306,6 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
 
       // Add the edge
       addEdges([edge])
-
-      // Auto-detect and fill layer accessor fields when data connects to layer
-      if (targetHandleInfo.fieldName === 'data') {
-        try {
-          // Get the source data value
-          const sourceData = sourceField.value
-          if (sourceData) {
-            autoFillLayerAccessors(targetOp, sourceData)
-          }
-        } catch (error) {
-          // Auto-detection is best-effort, don't fail the connection
-          debugUI('Auto-detection failed:', error)
-        }
-      }
 
       return { success: true }
     },

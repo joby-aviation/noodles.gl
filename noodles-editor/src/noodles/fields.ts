@@ -12,16 +12,6 @@ import type { IOperator, Operator } from './operators'
 import type { ExtractProps } from './utils/extract-props'
 import { resolvePath } from './utils/path-utils'
 
-export type AttributeValue = {
-  values: Float32Array | Float64Array | Int32Array | Uint8Array
-  size: number
-}
-
-export type AttributeEnhancedData = {
-  data: unknown[]
-  attributes?: Record<string, AttributeValue>
-}
-
 export interface IField<
   S extends z.ZodType = z.ZodType,
   O extends BaseFieldOptions = BaseFieldOptions,
@@ -43,7 +33,6 @@ type BaseFieldOptions = {
   transform?: (val: unknown, ...args: unknown[]) => unknown
   accessor?: boolean
   showByDefault?: boolean // Defaults to true. Set to false to hide field by default in UI.
-  defaultAttribute?: string // Default attribute name for auto-detection (e.g., 'position', 'radius')
 }
 
 type PointFieldOptions = BaseFieldOptions & {
@@ -107,13 +96,6 @@ export abstract class Field<
   // as a callback function. For example, `getPosition`, `getLineColor`, `getFillColor` etc.
   accessor = false
 
-  // Name of the default attribute to read from data stream (e.g., 'position', 'color', 'radius')
-  // When set, enables 3-state toggle: Uniform | Attribute | Expression
-  defaultAttribute?: string
-
-  // Was this field's value auto-detected from data schema?
-  autoDetected = false
-
   // Should this field be shown by default in the UI? Defaults to true.
   showByDefault = true
 
@@ -124,10 +106,6 @@ export abstract class Field<
 
   // Allows this field to be used with Theatre, and debugging with zod
   pathToProps: string[] = []
-
-  // Batching support to prevent cascading updates
-  private _batchDepth = 0
-  private _pendingDirty = false
 
   constructor(initialValue?: z.input<S> | undefined | Partial<O>, options?: Partial<O>) {
     // This is fine since we set the value immediately after
@@ -163,7 +141,7 @@ export abstract class Field<
   }
 
   // Wrap schema in additional functionality like optional, transform, accessor etc.
-  enhanceSchema({ accessor, optional, transform, showByDefault, defaultAttribute }: Partial<O>) {
+  enhanceSchema({ accessor, optional, transform, showByDefault }: Partial<O>) {
     let schema = this.schema
 
     // Set showByDefault (defaults to true if not specified)
@@ -171,38 +149,24 @@ export abstract class Field<
       this.showByDefault = showByDefault
     }
 
-    // Set defaultAttribute for auto-detection
-    if (defaultAttribute !== undefined) {
-      this.defaultAttribute = defaultAttribute
-    }
-
     if (accessor) {
       this.accessor = true
-      schema = schema
-        .or(
-          z
-            .function()
-            .input(
-              z.union([
-                z.tuple([]),
-                z.tuple([z.unknown()]),
-                z.tuple([z.unknown(), z.unknown()]),
-                z.tuple([z.unknown(), z.unknown(), z.unknown()]),
-              ])
-            )
-            .output(z.unknown())
-        )
-        .or(z.object({ attributeName: z.string() }))
-        .or(z.object({ expression: z.string() }))
+      schema = schema.or(
+        z
+          .function()
+          .input(
+            z.union([
+              z.tuple([]),
+              z.tuple([z.unknown()]),
+              z.tuple([z.unknown(), z.unknown()]),
+              z.tuple([z.unknown(), z.unknown(), z.unknown()]),
+            ])
+          )
+          .output(z.unknown())
+      )
 
       if (transform) {
         schema = schema.transform((val: unknown) => {
-          // Don't transform attribute/expression objects - they're metadata, not values
-          if (typeof val === 'object' && val !== null) {
-            if ('attributeName' in val || 'expression' in val) {
-              return val
-            }
-          }
           return typeof val === 'function'
             ? (...args: unknown[]) => transform(val(...args))
             : transform(val)
@@ -219,18 +183,6 @@ export abstract class Field<
     return schema
   }
 
-  beginBatch(): void {
-    this._batchDepth++
-  }
-
-  endBatch(): void {
-    this._batchDepth--
-    if (this._batchDepth === 0 && this._pendingDirty) {
-      this._pendingDirty = false
-      this.op?.markDirty()
-    }
-  }
-
   setValue(value: z.input<S>): void {
     const oldValue = this.value
     const path = this.pathToProps.join('.')
@@ -242,12 +194,8 @@ export abstract class Field<
       debugSetValue('%s: %O -> %O', path, oldValue, parsed.data)
       this.next(parsed.data)
 
-      // Mark the owning operator as dirty (defer if batching)
-      if (this._batchDepth > 0) {
-        this._pendingDirty = true
-      } else {
-        this.op?.markDirty()
-      }
+      // Mark the owning operator as dirty
+      this.op?.markDirty()
     } else {
       debugSetValue('%s: %O -> %O [PARSE FAILED]', path, oldValue, value)
       debugSetValue('Parse error', parsed.error.issues)
@@ -749,43 +697,6 @@ export class ArrowDataField extends Field<z.ZodUnknown> {
 
   constructor() {
     super(null)
-  }
-}
-
-type BinaryAttributeValue = {
-  values: Float32Array | Float64Array | Int32Array | Uint8Array
-  size: number
-}
-
-export class BinaryAttributeField extends Field<
-  z.ZodObject<{
-    values: z.ZodUnion<
-      [
-        z.ZodType<Float32Array>,
-        z.ZodType<Float64Array>,
-        z.ZodType<Int32Array>,
-        z.ZodType<Uint8Array>,
-      ]
-    >
-    size: z.ZodNumber
-  }>
-> {
-  static type = 'binary-attribute' as const
-  static defaultValue: BinaryAttributeValue = {
-    values: new Float32Array(0),
-    size: 1,
-  }
-
-  createSchema() {
-    return z.object({
-      values: z.union([
-        z.instanceof(Float32Array),
-        z.instanceof(Float64Array),
-        z.instanceof(Int32Array),
-        z.instanceof(Uint8Array),
-      ]),
-      size: z.number().int().positive(),
-    })
   }
 }
 
