@@ -695,13 +695,21 @@ async function runVisualChecks(targets: Target[]): Promise<void> {
   let port = PORT_BASE
   for (const v of visuals) {
     const screenshotPath = path.join(SCREENS_DIR, `${v.name}.png`)
-    const result = await loadAndScreenshot({
-      workspace: ws,
-      route: v.route,
-      screenshotPath,
-      port: port++,
-      grabBodyText: v.grabBodyText,
-    })
+    let result: Awaited<ReturnType<typeof loadAndScreenshot>>
+    try {
+      result = await loadAndScreenshot({
+        workspace: ws,
+        route: v.route,
+        screenshotPath,
+        port: port++,
+        grabBodyText: v.grabBodyText,
+      })
+    } catch (e) {
+      // One wedged capture (e.g. the software rasterizer starving on a huge
+      // dataset) must not kill the remaining targets' captures.
+      report(v.name, 'render-2k', false, `capture failed: ${String(e).split('\n')[0].slice(0, 160)}`)
+      continue
+    }
     const healthy = result.loaded && result.consoleErrors.length === 0 && result.screenshotNonBlank === true
     const detail =
       `loaded=${result.loaded} errors=${result.consoleErrors.length} nonBlank=${result.screenshotNonBlank} ` +

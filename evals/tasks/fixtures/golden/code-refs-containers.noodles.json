@@ -6,7 +6,7 @@
       "id": "/quake-data",
       "type": "FileOp",
       "position": {
-        "x": -1050,
+        "x": -1200,
         "y": 0
       },
       "data": {
@@ -21,7 +21,7 @@
       "id": "/processing",
       "type": "ContainerOp",
       "position": {
-        "x": -700,
+        "x": -750,
         "y": 0
       },
       "data": {
@@ -42,8 +42,8 @@
       "id": "/processing/energy",
       "type": "CodeOp",
       "position": {
-        "x": -650,
-        "y": 0
+        "x": -700,
+        "y": 40
       },
       "data": {
         "inputs": {
@@ -57,7 +57,7 @@
       "type": "AccessorOp",
       "position": {
         "x": -350,
-        "y": 250
+        "y": 300
       },
       "data": {
         "inputs": {
@@ -71,7 +71,7 @@
       "type": "AccessorOp",
       "position": {
         "x": -350,
-        "y": 380
+        "y": 430
       },
       "data": {
         "inputs": {
@@ -84,7 +84,7 @@
       "id": "/quake-points",
       "type": "ScatterplotLayerOp",
       "position": {
-        "x": 0,
+        "x": 50,
         "y": 0
       },
       "data": {
@@ -100,8 +100,8 @@
       "id": "/basemap",
       "type": "MaplibreBasemapOp",
       "position": {
-        "x": 0,
-        "y": 250
+        "x": 50,
+        "y": 300
       },
       "data": {
         "inputs": {
@@ -121,7 +121,7 @@
       "id": "/deck",
       "type": "DeckRendererOp",
       "position": {
-        "x": 350,
+        "x": 500,
         "y": 100
       },
       "data": {
@@ -133,7 +133,7 @@
       "id": "/out",
       "type": "OutOp",
       "position": {
-        "x": 700,
+        "x": 800,
         "y": 100
       },
       "data": {
@@ -194,8 +194,8 @@
     }
   ],
   "viewport": {
-    "x": 0,
-    "y": 0,
+    "x": 1300,
+    "y": 200,
     "zoom": 1
   },
   "editorSettings": {

@@ -363,3 +363,31 @@ gates could not:
 The DOM cross-check itself needed two fixes to read the ViewerOp (textContent vs innerText;
 react-json-view's `float` type tag between key and value) — after which the rendered
 `totalTime` (568.8062846500267) matched the independent computation exactly.
+
+### Round 2 (user review feedback): basemaps, overlapping nodes, and fixing the app bug itself
+
+1. **The reference-staleness footgun is now fixed in the app** (transform-graph.ts):
+   `transformGraph` derives reference edges from `op()`/mustache text for every node on each
+   rebuild, using the CodeField component's exact id/handle shape so the two sync paths
+   dedupe. Verified by unit tests and in-browser (reference-only container pattern now yields
+   89 rows where it silently produced 0). The graded assumption "the app is functional"
+   holds again. Note: greenfield workspaces build from origin/main, so eval sessions won't
+   see the fix until it merges — the golden keeps its explicit data edge (valid under both
+   behaviors); revisit the task note once the fix ships.
+2. **Why goldens never show a basemap**: Chromium doesn't read HTTPS_PROXY, and this
+   container's egress policy 403-blocks basemaps.cartocdn.com / tiles.basemaps.cartocdn.com
+   outright (checked at the proxy; policy denials are reported, not routed around). The load
+   check now intercepts external requests and fulfills them via Node's proxy-aware fetch
+   (NODE_USE_ENV_PROXY) — allowed hosts now load (uk-commute's remote CSV renders real red
+   arcs in the modify-arcs capture), carto stays blocked until the environment's network
+   policy allowlists it. Browser-level proxying was tried first and abandoned: Chromium's
+   bypass list never exempted the localhost vite server.
+3. **Software-rasterizer ceiling found**: the full 29 MB / ~120k-row uk-commute CSV wedges
+   headless SwiftShader at 2K — no frame in 180 s. The interception layer caps textual
+   payloads at 2 MB (line-boundary cut, ~8k rows): representative frames, no wedge; the
+   non-blank gate never measured completeness.
+4. **Node overlap in review captures**: authored goldens re-laid-out with generous spacing
+   (code-refs, sql-h3, hiking-time, animate-camera). camera-tour.noodles.json was reverted
+   after being touched — it is a session INPUT fixture of a baselined task, and even a
+   cosmetic fixture change breaks strict D7 comparability; the golden (never shown to
+   sessions) diverges in positions only.

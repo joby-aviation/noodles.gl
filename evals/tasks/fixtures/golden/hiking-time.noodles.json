@@ -5,8 +5,8 @@
       "id": "/origin",
       "type": "PointOp",
       "position": {
-        "x": -1200,
-        "y": -400
+        "x": -1250,
+        "y": -500
       },
       "data": {
         "inputs": {
@@ -22,8 +22,8 @@
       "id": "/destination",
       "type": "PointOp",
       "position": {
-        "x": -1200,
-        "y": -200
+        "x": -1250,
+        "y": -280
       },
       "data": {
         "inputs": {
@@ -40,7 +40,7 @@
       "type": "CodeOp",
       "position": {
         "x": -800,
-        "y": -350
+        "y": -550
       },
       "data": {
         "inputs": {
@@ -56,7 +56,7 @@
       "type": "NumberOp",
       "position": {
         "x": -800,
-        "y": -150
+        "y": -160
       },
       "data": {
         "inputs": {
@@ -69,8 +69,8 @@
       "id": "/distance-switch",
       "type": "SwitchOp",
       "position": {
-        "x": -450,
-        "y": -300
+        "x": -350,
+        "y": -400
       },
       "data": {
         "inputs": {},
@@ -81,8 +81,8 @@
       "id": "/est-terrain-factor",
       "type": "CodeOp",
       "position": {
-        "x": -100,
-        "y": -550
+        "x": 0,
+        "y": -800
       },
       "data": {
         "inputs": {
@@ -106,8 +106,8 @@
       "id": "/manual-terrain",
       "type": "NumberOp",
       "position": {
-        "x": -100,
-        "y": -200
+        "x": 0,
+        "y": -400
       },
       "data": {
         "inputs": {},
@@ -118,8 +118,8 @@
       "id": "/terrain-switch",
       "type": "SwitchOp",
       "position": {
-        "x": 250,
-        "y": -400
+        "x": 500,
+        "y": -650
       },
       "data": {
         "inputs": {},
@@ -130,8 +130,8 @@
       "id": "/base-speed",
       "type": "NumberOp",
       "position": {
-        "x": 250,
-        "y": -700
+        "x": 500,
+        "y": -350
       },
       "data": {
         "inputs": {
@@ -144,8 +144,8 @@
       "id": "/elev-gain",
       "type": "NumberOp",
       "position": {
-        "x": 250,
-        "y": -600
+        "x": 500,
+        "y": -230
       },
       "data": {
         "inputs": {
@@ -158,8 +158,8 @@
       "id": "/elev-descent",
       "type": "NumberOp",
       "position": {
-        "x": 250,
-        "y": -100
+        "x": 500,
+        "y": -110
       },
       "data": {
         "inputs": {
@@ -172,8 +172,8 @@
       "id": "/hiking-time",
       "type": "CodeOp",
       "position": {
-        "x": 650,
-        "y": -550
+        "x": 950,
+        "y": -800
       },
       "data": {
         "inputs": {
@@ -221,8 +221,8 @@
       "id": "/result",
       "type": "ViewerOp",
       "position": {
-        "x": 1100,
-        "y": -550
+        "x": 1450,
+        "y": -800
       },
       "data": {
         "inputs": {},
@@ -233,8 +233,8 @@
       "id": "/terrain-viewer",
       "type": "ViewerOp",
       "position": {
-        "x": 250,
-        "y": -850
+        "x": 500,
+        "y": -950
       },
       "data": {
         "inputs": {},
@@ -322,8 +322,8 @@
     }
   ],
   "viewport": {
-    "x": 400,
-    "y": 600,
+    "x": 950,
+    "y": 780,
     "zoom": 0.7
   },
   "name": "Hiking Time Estimate",

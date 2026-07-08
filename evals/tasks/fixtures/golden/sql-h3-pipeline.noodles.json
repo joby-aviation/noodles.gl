@@ -6,8 +6,8 @@
       "id": "/hex-aggregate",
       "type": "DuckDbOp",
       "position": {
-        "x": -350,
-        "y": 0
+        "x": -650,
+        "y": -50
       },
       "data": {
         "inputs": {
@@ -20,8 +20,8 @@
       "id": "/count-color",
       "type": "AccessorOp",
       "position": {
-        "x": -350,
-        "y": 250
+        "x": -650,
+        "y": 450
       },
       "data": {
         "inputs": {
@@ -34,7 +34,7 @@
       "id": "/hex-layer",
       "type": "H3HexagonLayerOp",
       "position": {
-        "x": 0,
+        "x": -100,
         "y": 0
       },
       "data": {
@@ -49,8 +49,8 @@
       "id": "/hexagon-accessor",
       "type": "AccessorOp",
       "position": {
-        "x": -350,
-        "y": 130
+        "x": -650,
+        "y": 320
       },
       "data": {
         "inputs": {
@@ -63,8 +63,8 @@
       "id": "/basemap",
       "type": "MaplibreBasemapOp",
       "position": {
-        "x": 0,
-        "y": 250
+        "x": -100,
+        "y": 320
       },
       "data": {
         "inputs": {
@@ -84,7 +84,7 @@
       "id": "/deck",
       "type": "DeckRendererOp",
       "position": {
-        "x": 350,
+        "x": 400,
         "y": 100
       },
       "data": {
@@ -96,7 +96,7 @@
       "id": "/out",
       "type": "OutOp",
       "position": {
-        "x": 700,
+        "x": 750,
         "y": 100
       },
       "data": {
@@ -150,8 +150,8 @@
     }
   ],
   "viewport": {
-    "x": 0,
-    "y": 0,
+    "x": 750,
+    "y": 150,
     "zoom": 1
   },
   "editorSettings": {

@@ -95,6 +95,50 @@ export async function loadAndScreenshot(opts: {
       // ops readable without retina doubling — half the pixels of the previous
       // 1080p@2x setting, so smaller committed screenshots.
       const page = await browser.newPage({ viewport: { width: 2560, height: 1440 }, deviceScaleFactor: 1 })
+
+      // External fetches (remote CSVs, basemap styles/tiles) are fulfilled via
+      // Node's proxy-aware fetch: Chromium doesn't read HTTPS_PROXY, and
+      // browser-level proxying breaks the localhost vite connection. Hosts the
+      // egress policy denies still fail (403 at the proxy) — that is policy,
+      // not something to route around. NODE_USE_ENV_PROXY makes Node's global
+      // fetch honor HTTPS_PROXY (Node >= 22.21).
+      if (process.env.HTTPS_PROXY || process.env.https_proxy) {
+        process.env.NODE_USE_ENV_PROXY ??= '1'
+        await page.route(
+          url => !/^(localhost|127\.0\.0\.1)$/.test(url.hostname),
+          async route => {
+            const request = route.request()
+            try {
+              const resp = await fetch(request.url(), {
+                method: request.method(),
+                headers: { ...request.headers(), 'accept-encoding': 'identity' },
+                body: request.postDataBuffer() ?? undefined,
+              })
+              const headers: Record<string, string> = {}
+              resp.headers.forEach((v, k) => {
+                if (!/^(content-encoding|content-length|transfer-encoding)$/i.test(k)) headers[k] = v
+              })
+              let body = Buffer.from(await resp.arrayBuffer())
+              // Cap huge textual datasets (cut at a line boundary): the
+              // headless software rasterizer cannot draw ~100k additive arcs
+              // at 2K — the compositor starves and screenshots time out even
+              // at 180s. A few thousand rows render a representative frame;
+              // the non-blank gate doesn't measure completeness.
+              const MAX_TEXT_BYTES = 2_000_000
+              const contentType = resp.headers.get('content-type') ?? ''
+              const textual =
+                /text|csv|json/i.test(contentType) || /\.(csv|tsv|txt|json|geojson)(\?|$)/i.test(request.url())
+              if (textual && body.length > MAX_TEXT_BYTES) {
+                const cut = body.lastIndexOf(0x0a, MAX_TEXT_BYTES)
+                body = body.subarray(0, cut > 0 ? cut : MAX_TEXT_BYTES)
+              }
+              await route.fulfill({ status: resp.status, headers, body })
+            } catch {
+              await route.abort()
+            }
+          }
+        )
+      }
       const consoleErrors: string[] = []
       page.on('console', msg => {
         if (msg.type() === 'error' && !isEnvironmentNoise(msg.text(), msg.location()?.url)) {
@@ -112,7 +156,9 @@ export async function loadAndScreenshot(opts: {
       const canvas = await page.waitForSelector('canvas', { timeout: 60_000 }).catch(() => null)
       // Give data loading + first render time to settle.
       await page.waitForTimeout(opts.settleMs ?? 15_000)
-      await page.screenshot({ path: opts.screenshotPath })
+      // Generous timeout: pages rendering large datasets under the headless
+      // software rasterizer can starve the compositor past the default 30s.
+      await page.screenshot({ path: opts.screenshotPath, timeout: 180_000 })
       // Evaluated in the browser, where document exists; the harness tsconfig
       // has no DOM lib, so reference it dynamically. textContent, not
       // innerText: ReactFlow's transformed canvas nodes are dropped from
