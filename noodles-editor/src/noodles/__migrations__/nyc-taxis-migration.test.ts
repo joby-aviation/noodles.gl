@@ -3,10 +3,10 @@ import nycTaxisProject from '../../../src/examples/nyc-taxis/noodles.json'
 import { migrateProject } from '../utils/migrate-schema'
 
 describe('NYC Taxis example migration', () => {
-  it('should migrate NYC taxis from v6 to v15 without duplicates', async () => {
+  it('should migrate NYC taxis from v14 to v15 without duplicates', async () => {
     const project = nycTaxisProject as any
 
-    expect(project.version).toBe(6)
+    expect(project.version).toBe(14)
 
     // Before migration
     const accessorsBefore = project.nodes.filter(n => n.type === 'AccessorOp')
