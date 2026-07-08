@@ -15,11 +15,33 @@ Basic workflows for using Noodles.gl to create geospatial visualizations and ani
 - **Configure Inputs**: Adjust operator parameters
 - **Reorder Fields**: Drag to change input order
 - **Timeline Controls**: Keyframe values for animation
+- See the full [Properties Panel](./properties-panel.md) reference for context menu actions and field management
 
 ### Timeline Editor
 - **Keyframes**: Click any parameter in property panel to add keyframes
-- **Animation**: Use [Theatre.js timeline](https://www.theatrejs.com/docs/latest/manual/sequences#addingremoving-keyframes) for smooth motion
+- **Animation**: Create smooth motion with bezier curve interpolation
 - **Playback**: Press 'space' to play animation
+
+### Tools Shelf
+
+The Tools Shelf in the top menu provides quick access to common operations:
+
+| Tool | Description |
+|------|-------------|
+| **Add Node** | Opens the operator menu at canvas center |
+| **Create Point** | Geocoding wizard to create a PointOp from an address or coordinates |
+| **Import Data** | Import CSV/JSON files and auto-create a visualization pipeline |
+
+#### Create Point Wizard
+Search for locations by address or paste coordinates. The wizard uses multiple geocoding services with automatic fallback:
+1. Google Places (if API key configured)
+2. Mapbox (if API key configured)
+3. Photon (free, no key required)
+
+Creates a PointOp node with the selected coordinates.
+
+#### Import Data
+Drag-and-drop or browse for CSV/JSON files. The importer automatically creates a complete visualization pipeline including data source, layer, and map components. Files are saved to your project's data directory.
 
 ## Your First Project
 
@@ -32,3 +54,35 @@ Basic workflows for using Noodles.gl to create geospatial visualizations and ani
 3. **Style & Configure**: Use the properties panel to customize appearance
 4. **Animate**: [Add timeline keyframes](./animation-and-rendering.md) to create smooth animations
 5. **Export**: Generate images, videos, or interactive applications
+
+## API Keys Configuration
+
+Access API key settings via the gear icon in the top menu bar.
+
+### Key Sources
+
+Keys are resolved in priority order:
+1. **Browser** - Stored in localStorage, persists across sessions
+2. **Project** - Saved in project file (if "Save in project" is enabled)
+3. **Environment** - Set via environment variables
+
+The first source with a valid key is used automatically.
+
+### Supported Keys
+
+| Key | Purpose | Required For |
+|-----|---------|--------------|
+| Mapbox Access Token | Basemaps, directions | MaplibreBasemapOp with Mapbox styles |
+| Google Maps API Key | Places geocoding | Create Point wizard, DirectionsOp |
+| Anthropic API Key | Claude AI assistant | AI chat features |
+
+### Privacy
+
+API keys are stored locally and never sent to Noodles.gl servers. Browser keys are stored in localStorage; project keys are stored in the project's noodles.json file.
+
+### Environment Variables
+
+For development or CI/CD, set keys via environment variables:
+- `VITE_MAPBOX_ACCESS_TOKEN`
+- `VITE_GOOGLE_MAPS_API_KEY`
+- `VITE_CLAUDE_API_KEY`

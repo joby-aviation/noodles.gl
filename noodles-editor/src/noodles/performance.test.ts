@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { CodeOp, JSONOp, NumberOp } from './operators'
-import { clearOps, deleteOp, getAllOps, getOp, setOp, getOpStore } from './store'
+import { clearOps, deleteOp, getAllOps, getOp, getOpStore, setOp } from './store'
 import {
   getBaseName,
   getDirectChildren,
@@ -282,13 +282,14 @@ describe('Performance Tests for Qualified Paths', () => {
       }
 
       const startTime = performance.now()
+      const { operators } = getOpStore()
 
       // Test isWithinContainer performance
       for (let c = 1; c <= containers; c++) {
         const containerPath = `/container${c}`
         let withinCount = 0
 
-        for (const [operatorId] of getOpStore().operators) {
+        for (const [operatorId] of operators) {
           if (isWithinContainer(operatorId, containerPath)) {
             withinCount++
           }

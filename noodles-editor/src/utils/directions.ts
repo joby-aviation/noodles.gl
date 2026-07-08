@@ -1,8 +1,7 @@
 import polyline from '@mapbox/polyline'
 import haversine from 'haversine-distance'
-
-const MAPBOX_ACCESS_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN
-const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY
+import { getKeysStore } from '../noodles/keys-store'
+import { loadGoogleMapsAPI } from './geocoding'
 
 export type AnimatedDirections = {
   distance: number
@@ -10,6 +9,20 @@ export type AnimatedDirections = {
   durationFormatted: string
   path: number[][]
   timestamps: number[]
+}
+
+// Mapbox Directions API response types
+// See: https://docs.mapbox.com/api/navigation/directions/
+interface MapboxRoute {
+  geometry: string // polyline-encoded string
+  distance: number // meters
+  duration: number // seconds
+}
+
+interface MapboxDirectionsResponse {
+  code: string
+  message?: string
+  routes: MapboxRoute[]
 }
 
 export const DRIVING = 'driving'
@@ -41,10 +54,18 @@ async function getDrivingDirections({
   origin: { lat: number; lng: number }
   destination: { lat: number; lng: number }
 }): Promise<AnimatedDirections> {
+  const keysStore = getKeysStore()
+  const token = keysStore.getKey('mapbox')
+  if (!token) {
+    throw new Error(
+      'Mapbox access token not configured. Please add your token in Settings > API Keys.'
+    )
+  }
+
   const res = await fetch(
-    `https://api.mapbox.com/directions/v5/mapbox/driving/${origin.lng},${origin.lat};${destination.lng},${destination.lat}?access_token=${MAPBOX_ACCESS_TOKEN}&overview=full`
+    `https://api.mapbox.com/directions/v5/mapbox/driving/${origin.lng},${origin.lat};${destination.lng},${destination.lat}?access_token=${token}&overview=full`
   )
-  const data = await res.json()
+  const data: MapboxDirectionsResponse = await res.json()
 
   if (data.code === 'NoSegment' || data.code === 'InvalidInput') {
     throw new Error(data.message)
@@ -88,23 +109,26 @@ async function getTransitDirections({
   origin: { lat: number; lng: number }
   destination: { lat: number; lng: number }
 }): Promise<AnimatedDirections> {
-  const params = new URLSearchParams({
-    v: 'weekly',
-    key: GOOGLE_MAPS_API_KEY,
-  })
-
-  await import(/* @vite-ignore */ `https://maps.googleapis.com/maps/api/js?${params.toString()}`)
-
-  const directionsService = new google.maps.DirectionsService()
-  const request = {
-    origin: `${origin.lat}, ${origin.lng}`,
-    destination: `${destination.lat}, ${destination.lng}`,
-    travelMode: 'TRANSIT',
+  const keysStore = getKeysStore()
+  const apiKey = keysStore.getKey('googleMaps')
+  if (!apiKey) {
+    throw new Error(
+      'Google Maps API key not configured. Please add your key in Settings > API Keys.'
+    )
   }
 
-  const data = await new Promise((resolve, reject) => {
+  await loadGoogleMapsAPI(apiKey)
+
+  const directionsService = new google.maps.DirectionsService()
+  const request: google.maps.DirectionsRequest = {
+    origin: `${origin.lat}, ${origin.lng}`,
+    destination: `${destination.lat}, ${destination.lng}`,
+    travelMode: google.maps.TravelMode.TRANSIT,
+  }
+
+  const data = await new Promise<google.maps.DirectionsResult>((resolve, reject) => {
     directionsService.route(request, (result, status) => {
-      if (status === 'OK') {
+      if (status === 'OK' && result) {
         resolve(result)
       } else {
         reject(new Error(status))

@@ -1,6 +1,46 @@
-:root {
-  color-scheme: dark !important;
+/*
+ * Noodles.gl Component Styles
+ *
+ * This file contains component-specific styles for the node-based editor.
+ *
+ * CSS Architecture:
+ * - Vendor CSS is imported via layers.css and placed in the 'vendors' layer
+ * - Critical overrides below are UNLAYERED (not in any @layer)
+ * - Unlayered styles have highest priority and will override layered styles
+ * - This approach makes styling robust against import order changes
+ *
+ * Note: The !important declarations ensure these overrides work reliably
+ * even when vendor libraries update their styles or specificity.
+ */
 
+:root {
+  color-scheme: dark;
+
+  /* Generic UI colors - used throughout the interface */
+  --color-bg-base: #1a1a1a;
+  --color-bg-primary: #282b2fde;
+  --color-bg-primary-solid: #282b2f;
+  --color-bg-secondary: #2a2a2a;
+  --color-bg-hover: rgba(255, 255, 255, 0.1);
+  --color-bg-active: rgba(255, 255, 255, 0.15);
+  --color-bg-accent: rgba(255, 255, 255, 0.15);
+
+  --color-text-primary: #e2dede;
+  --color-text-secondary: #888;
+  --color-text-disabled: #555;
+  --color-text-accent: #4a9eff;
+
+  --color-border: #333;
+  --color-border-hover: #555;
+  --color-border-focus: rgba(255, 255, 255, 0.2);
+
+  --color-input-hover: #383838;
+  --color-input-focus: #2d2d2d;
+  --color-input-disabled: #1c1c1c;
+
+  --color-selected: #3367d9;
+
+  /* Node type colors */
   --node-string-color: #1299be;
   --node-number-color: #bc1212;
   --node-boolean-color: #c69a16;
@@ -19,14 +59,7 @@
   --node-view-color: #0e8fc9;
   --node-widget-color: #7a61d5;
 
-  --node-header-text-color: #dadada;
-  --node-header-text-color-dark: #292929;
-  --node-header-border-color: #e0e0e0;
-
-  --node-input-hover-color: #383838;
-  --node-input-focus-color: #2d2d2d;
-
-  --property-panel-width: 280px;
+  --property-panel-width: 296px;
   --property-panel-background-color: #282b2fcc;
   --tooltip-icon-color: #919191;
   --tooltip-background-color: #383838;
@@ -34,13 +67,18 @@
   --xy-controls-button-color: #383838;
   --xy-controls-button-color-hover: #262626;
 
-  --z-index-for-loop: -99;
-  --z-index-tooltip-container: 101;
-  --z-index-react-flow: 999;
-  --z-index-breadcrumbs: 1000;
-  --z-index-menu: 10000;
-  --z-index-viewer-preview: 9999;
-  --z-index-step-ladder: 10001;
+  --timeline-accent: #48c6cf;
+}
+
+:root {
+  --z-index-background: -99;
+  --z-index-node-tooltip: 101;
+  --z-index-canvas: 999;
+  --z-index-chrome: 1000;
+  --z-index-banner: 9998;
+  --z-index-backdrop: 9999;
+  --z-index-modal: 10000;
+  --z-index-top: 10001;
 }
 
 /**
@@ -54,19 +92,25 @@
 :global(.react-flow) {
   --node-group-background-color: rgba(244, 79, 9, 0.1);
 
-  --node-background-color: #282b2fde;
-  --node-text-color: #e2dede;
-  --node-selected-color: #3367d9;
+  /* Node-specific aliases (use generic colors) */
+  --node-background-color: var(--color-bg-primary);
+  --node-text-color: var(--color-text-primary);
+  --node-selected-color: var(--color-selected);
+  --node-add-menu-header-text-color: var(--color-text-primary);
+  --node-header-text-color: #dadada;
+  --node-header-text-color-dark: #292929;
+  --node-header-border-color: #e0e0e0;
+  --node-input-hover-color: var(--color-input-hover);
+  --node-input-focus-color: var(--color-input-focus);
+  --node-input-disaabled-color: var(--color-input-disabled);
+
   --node-add-menu-background-color: #404040;
-  --node-add-menu-header-text-color: #fff;
   --node-add-menu-header-background-color: black;
   --node-add-menu-hover-color: #313131;
 
   --node-handle-outline-color: #808080;
 
   --node-field-hint-color: #808080;
-
-  --node-input-disaabled-color: #1c1c1c;
 
   /* Execution state indicators */
   --node-execution-executing-color: #3b82f6;
@@ -77,7 +121,7 @@
 }
 
 :global(.react-flow-wrapper) {
-  z-index: var(--z-index-react-flow);
+  z-index: var(--z-index-canvas);
   width: 100%;
   height: 100%;
 }
@@ -104,7 +148,7 @@
 
 :global(.react-flow__resize-control.line) {
   /* Hide the border on resizable nodes. Overrides React Flow class */
-  border-width: 0 !important;
+  border-width: 0;
 }
 
 :global(.react-flow__node.selectable:focus) {
@@ -112,14 +156,22 @@
 }
 
 :global(.react-flow__node-group) {
-  background: var(--node-group-background-color);
+  background-color: var(--node-group-background-color);
   /* Allow nodes to be selected over the ForLoopBody. Needs to override the style prop */
-  z-index: var(--z-index-for-loop) !important;
-  pointer-events: none !important;
+  z-index: var(--z-index-background);
+  pointer-events: none;
 }
 
 :global(.deck-widget-icon-button) {
   all: revert;
+}
+
+.dragHandle {
+  cursor: grab;
+}
+
+.dragHandle:active {
+  cursor: grabbing;
 }
 
 .header {
@@ -128,8 +180,7 @@
   color: var(--node-header-text-color);
   font-weight: bold;
   margin-bottom: 0.5em;
-  padding: .25em .75em .25em 1em;
-
+  padding: 0.25em 0.75em 0.25em 1em;
 
   display: flex;
   justify-content: space-between;
@@ -150,7 +201,7 @@
 }
 
 .headerIdInput {
-  background-color: rgba(0, 0, 0, .2);
+  background-color: rgba(0, 0, 0, 0.2);
 }
 
 .headerIdInputError {
@@ -179,6 +230,52 @@
 
 .headerLockLocked {
   filter: brightness(0.5);
+}
+
+/* Context Menu Styles */
+.contextMenu {
+  min-width: 180px;
+  background: var(--color-bg-base);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  padding: 4px;
+  box-shadow:
+    0 10px 38px -10px rgba(0, 0, 0, 0.35),
+    0 10px 20px -15px rgba(0, 0, 0, 0.2);
+  z-index: var(--z-index-chrome);
+}
+
+.contextMenuItem {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  padding-left: 28px;
+  font-size: 13px;
+  color: var(--color-text-primary);
+  border-radius: 3px;
+  cursor: pointer;
+  outline: none;
+  user-select: none;
+  transition: background-color 0.15s;
+  position: relative;
+}
+
+.contextMenuItem:hover {
+  background: var(--color-bg-hover);
+}
+
+.contextMenuItem:focus {
+  background: var(--color-bg-hover);
+}
+
+.contextMenuIndicator {
+  position: absolute;
+  left: 8px;
+  width: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-primary);
 }
 
 .headerDownload {
@@ -260,64 +357,78 @@
   background-color: var(--node-widget-color);
 }
 
-/* Handle colors */
-
-.handleNumber {
-  background: var(--node-number-color);
-}
-
-.handleString {
-  background: var(--node-string-color);
-}
-
-.handleBoolean {
-  background: var(--node-boolean-color);
-  color: var(--node-header-text-color-dark);
-}
-
-.handleColor {
-  background: var(--node-color-color);
-}
-
-.handleData {
-  background: var(--node-data-color);
-}
-
-.handleGeojson {
-  background: var(--node-geojson-color);
-}
-
-.handleVector {
-  background: var(--node-vector-color);
-}
-
-.handleCompound {
-  background: var(--node-compound-color);
-}
-
+/* Handle sizes */
 .handleList {
-  height: .75em;
+  height: 0.75em;
   border-radius: 5px;
 }
 
+/* Handle colors */
+
+.handleNumber {
+  --xy-handle-background-color: var(--node-number-color);
+  background-color: var(--node-number-color);
+}
+
+.handleString {
+  --xy-handle-background-color: var(--node-string-color);
+  background-color: var(--node-string-color);
+}
+
+.handleBoolean {
+  color: var(--node-header-text-color-dark);
+  --xy-handle-background-color: var(--node-boolean-color);
+  background-color: var(--node-boolean-color);
+}
+
+.handleColor {
+  --xy-handle-background-color: var(--node-color-color);
+  background-color: var(--node-color-color);
+}
+
+.handleData {
+  --xy-handle-background-color: var(--node-data-color);
+  background-color: var(--node-data-color);
+}
+
+.handleGeojson {
+  --xy-handle-background-color: var(--node-geojson-color);
+  background-color: var(--node-geojson-color);
+}
+
+.handleVector {
+  --xy-handle-background-color: var(--node-vector-color);
+  background-color: var(--node-vector-color);
+}
+
+.handleCompound {
+  --xy-handle-background-color: var(--node-compound-color);
+  background-color: var(--node-compound-color);
+}
+
 .handleView {
-  background: var(--node-view-color);
+  --xy-handle-background-color: var(--node-view-color);
+  background-color: var(--node-view-color);
 }
 
 .handleLayer {
-  background: var(--node-layer-color);
+  --xy-handle-background-color: var(--node-layer-color);
+  background-color: var(--node-layer-color);
 }
 
 .handleEffect {
-  background: var(--node-effect-color);
+  --xy-handle-background-color: var(--node-effect-color);
+  background-color: var(--node-effect-color);
 }
 
 .handleExtension {
-  background: var(--node-extension-color);
+  --xy-handle-background-color: var(--node-extension-color);
+  background-color: var(--node-extension-color);
 }
 
 .handleWidget {
-  background: var(--node-widget-color);
+  --xy-handle-background-color: var(--node-widget-color);
+  background-color: var(--node-widget-color);
 }
 
 .content {
@@ -365,6 +476,10 @@
   flex: 2;
 }
 
+.keyframedFieldInput {
+  background: color-mix(in srgb, var(--timeline-accent) 7%, transparent);
+}
+
 .fieldInput {
   border: none;
   text-align: right;
@@ -386,6 +501,15 @@
   background: var(--node-input-disaabled-color);
 }
 
+.fieldTextarea {
+  resize: vertical;
+  min-height: 1.8em;
+  font-family: inherit;
+  font-size: inherit;
+  line-height: 1.4;
+  padding: 4px 6px;
+}
+
 .fieldInputGroup {
   gap: 8px;
 }
@@ -396,6 +520,11 @@
 
 .fieldInputGroup:focus-within {
   background: var(--node-input-focus-color);
+}
+
+.fieldInputUploadButton {
+  cursor: pointer;
+  height: 1em;
 }
 
 .fieldCompoundWrapper {
@@ -464,11 +593,24 @@
 
 .fieldInputWrapperVector {
   display: flex;
-  gap: 5px;
+  gap: 3px;
+}
+
+.fieldInputWrapperVector .fieldInputNumber {
+  margin-right: 0;
 }
 
 .fieldInputVector {
-  width: 50px;
+  width: 32px;
+}
+
+.fieldLookupButton {
+  margin-left: 4px;
+  padding: 0;
+  width: 24px;
+  height: 24px;
+  min-width: 24px;
+  flex-shrink: 0;
 }
 
 .fieldInputUpload {
@@ -486,9 +628,136 @@
   border: none;
 }
 
+/* Color swatch button - Simple Chrome-style with checkered background */
+.colorSwatch {
+  width: 32px;
+  height: 24px;
+  padding: 2px;
+  border: 1px solid #808080;
+  border-radius: 2px;
+  cursor: pointer;
+  position: relative;
+  background-color: #1a1a1a;
+}
+
+.colorSwatch:hover:not(:disabled) {
+  border-color: #999999;
+}
+
+.colorSwatch:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Checkered background pattern layer - sits behind the color */
+.colorSwatchInner {
+  width: 100%;
+  height: 100%;
+  border-radius: 1px;
+  position: relative;
+  background-image:
+    linear-gradient(45deg, #808080 25%, transparent 25%),
+    linear-gradient(-45deg, #808080 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #808080 75%),
+    linear-gradient(-45deg, transparent 75%, #808080 75%);
+  background-size: 8px 8px;
+  background-position:
+    0 0,
+    0 4px,
+    4px -4px,
+    -4px 0px;
+  background-color: #404040;
+}
+
+/* Color overlay - sits on top of checkered pattern */
+.colorSwatchInner::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 1px;
+  background-color: var(--color-value);
+}
+
+/* Button to open the Map Style Configurator dialog from within a node */
+.configureButton {
+  width: 100%;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.8rem;
+  background-color: #3b82f6;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  margin: 0.25rem 0;
+  font-family: inherit;
+  transition: background-color 0.15s;
+}
+
+.configureButton:hover {
+  background-color: #2563eb;
+}
+
+.configureButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Portal wrapper for the color picker — position/z-index here, top/left set dynamically */
+.colorPickerPortal {
+  position: fixed;
+  z-index: var(--z-index-modal);
+}
+
+/* Dark mode ChromePicker wrapper */
+.chromePickerWrapper {
+  /* Override react-color's ChromePicker styles for dark mode */
+  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.5));
+}
+
+.chromePickerWrapper :global(.chrome-picker) {
+  background: #282b2f;
+  border-radius: 4px;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+
+.chromePickerWrapper :global(.chrome-picker input) {
+  background: #1a1a1a;
+  color: #e2dede;
+  border: 1px solid #333;
+  box-shadow: none;
+}
+
+.chromePickerWrapper :global(.chrome-picker label) {
+  color: #888;
+}
+
+.chromePickerWrapper :global(.chrome-picker .flexbox-fix:last-child) {
+  /* Color input fields container */
+  background: transparent;
+}
+
+.chromePickerWrapper :global(.chrome-picker .flexbox-fix:last-child > div) {
+  /* Individual input wrappers */
+  background: transparent;
+}
+
+.chromePickerWrapper :global(.chrome-picker svg) {
+  /* Color model picker icon (RGB/HSL/HEX toggle) */
+  fill: #e2dede;
+}
+
+.chromePickerWrapper :global(.chrome-picker path) {
+  /* SVG paths in the color model picker icon */
+  fill: #e2dede;
+}
+
 .fieldInputColorRamp {
   background-color: white;
   image-rendering: -moz-crisp-edges;
+  /* biome-ignore lint/suspicious/noDuplicateProperties: Firefox fallback, standard follows */
   image-rendering: pixelated;
 
   width: 200px;
@@ -500,6 +769,68 @@
   background: transparent;
   color: var(--node-text-color);
   text-align: right;
+}
+
+.nodeFieldWrapper {
+  display: flex;
+}
+
+.fieldFileInputGroup {
+  width: unset;
+}
+
+.fieldFileInputGroupSuggestions {
+  position: relative;
+}
+
+.fieldInputFileUrl {
+  padding: 0 1em;
+}
+
+.fileUrlSuggestions {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: var(--z-index-modal);
+  margin: 2px 0 0;
+  padding: 4px 0;
+  list-style: none;
+  background: rgba(22, 22, 24, 0.98);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.fileUrlSuggestion {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 6px 10px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.fileUrlSuggestion:hover,
+.fileUrlSuggestionActive {
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.fileUrlSuggestionLabel {
+  font-size: 11px;
+  color: var(--node-text-color, rgba(255, 255, 255, 0.9));
+  font-weight: 500;
+}
+
+.fileUrlSuggestionUrl {
+  font-size: 9px;
+  color: rgba(255, 255, 255, 0.35);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .fieldInputButton {
@@ -516,11 +847,11 @@
   position: absolute;
   display: flex;
   flex-direction: column;
-  background: var(--node-background-color);
+  background: var(--color-bg-primary-solid);
   border: 1px solid var(--node-handle-outline-color);
   border-radius: 2px;
   padding: 4px 2px;
-  z-index: var(--z-index-step-ladder);
+  z-index: var(--z-index-top);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
   min-width: 60px;
   pointer-events: none;
@@ -532,7 +863,7 @@
   justify-content: center;
   padding: 3px 6px;
   font-size: 11px;
-  font-family: 'Courier New', monospace;
+  font-family: "Courier New", monospace;
   color: var(--node-field-hint-color);
   border-radius: 1px;
   transition: all 0.1s ease;
@@ -559,6 +890,47 @@
   stroke-width: 1.5;
   pointer-events: none;
   stroke: #888;
+}
+
+.targetedEdge {
+  stroke: #3b82f6;
+  stroke-width: 3;
+  filter: drop-shadow(0 0 6px rgba(59, 130, 246, 0.7));
+  animation: edgeTargetPulse 0.8s ease-in-out infinite;
+}
+
+.targetedEdgeIncompatible {
+  stroke: #9a8878;
+  stroke-width: 2;
+}
+
+@keyframes edgeTargetPulse {
+  0%,
+  100% {
+    stroke-opacity: 1;
+    filter: drop-shadow(0 0 6px rgba(59, 130, 246, 0.7));
+  }
+  50% {
+    stroke-opacity: 0.7;
+    filter: drop-shadow(0 0 12px rgba(59, 130, 246, 0.9));
+  }
+}
+
+.nodeDropTarget {
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.6);
+  animation: nodeDropPulse 0.8s ease-in-out infinite;
+}
+
+@keyframes nodeDropPulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.6);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 0 5px rgba(59, 130, 246, 0.8), 0 0 20px rgba(59, 130, 246, 0.4);
+    transform: scale(1.02);
+  }
 }
 
 /* Mapbox geocoder */
@@ -589,14 +961,14 @@
   width: 260px;
   padding-bottom: 1em;
   position: absolute;
-  z-index: var(--z-index-menu);
+  z-index: var(--z-index-modal);
   overflow: auto;
   border-radius: 8px;
 }
 
 .addNodeMenuHeader {
   font-weight: bold;
-  padding: .5em;
+  padding: 0.5em;
   background: var(--node-add-menu-header-background-color);
   color: var(--node-add-menu-header-text-color);
   position: sticky;
@@ -647,29 +1019,6 @@
   width: 100%;
 }
 
-.dropTarget {
-  width: 100%;
-  height: 100%;
-  padding: 8px;
-  flex: 2;
-}
-
-.dropTargetOverlay {
-  width: 100%;
-  height: 100%;
-  border-radius: 24px;
-  border: 4px dashed #3d424a;
-  box-sizing: border-box;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  color: var(--node-drop-target-text-color);
-  font-size: 24px;
-  pointer-events: none;
-  z-index: var(--z-index-menu);
-}
-
 .projectNameBar {
   display: flex;
   padding: 3px;
@@ -682,6 +1031,7 @@
   flex-direction: column;
   flex: 1;
   height: 100%;
+  overflow: auto;
 }
 
 .executionIndicator {
@@ -712,7 +1062,6 @@
 }
 
 @keyframes pulse {
-
   0%,
   100% {
     opacity: 0.6;
@@ -723,14 +1072,81 @@
   }
 }
 
-.wrapper {}
-
 .wrapperError {
   box-shadow: 0 0 0 1px var(--node-execution-error-color);
 }
 
+/* Wrapper gives the absolute-positioned popover an anchor point */
+.errorPopoverAnchor {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.errorPopover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1a1a2e;
+  border: 1px solid var(--node-execution-error-color);
+  border-radius: 6px;
+  padding: 7px 26px 7px 10px;
+  min-width: 160px;
+  max-width: 300px;
+  font-size: 11px;
+  color: #fca5a5;
+  z-index: 1000;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
+  line-height: 1.5;
+  word-break: break-word;
+  pointer-events: all;
+  isolation: isolate;
+}
+
+.errorPopoverMessage {
+  display: block;
+  white-space: pre-wrap;
+}
+
+.errorPopoverClose {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  background: none;
+  border: none;
+  color: #fca5a5;
+  cursor: pointer;
+  padding: 2px 4px;
+  font-size: 9px;
+  opacity: 0.6;
+  line-height: 1;
+}
+
+.errorPopoverClose:hover {
+  opacity: 1;
+}
+
 .wrapperExecuting {
   box-shadow: 0 0 0 1px var(--node-execution-executing-color);
+}
+
+.wrapperDimmed {
+  opacity: 0.35;
+  filter: grayscale(0.5);
+  pointer-events: none;
+  transition:
+    opacity 0.15s ease-out,
+    filter 0.15s ease-out;
+}
+
+.handleDimmed {
+  opacity: 0.25;
+  filter: grayscale(0.8);
+  pointer-events: none;
+  transition:
+    opacity 0.15s ease-out,
+    filter 0.15s ease-out;
 }
 
 .outputHandleContainer {
@@ -742,4 +1158,104 @@
   flex-direction: column;
   justify-content: space-evenly;
   pointer-events: none;
+}
+
+/* Expression Editor Overlay */
+.expressionEditorOverlay {
+  position: fixed;
+  z-index: var(--z-index-modal);
+  background-color: var(--color-bg-secondary);
+  border: 1px solid var(--color-border-hover);
+  border-radius: 6px;
+  box-shadow:
+    0 4px 12px rgba(0, 0, 0, 0.4),
+    0 0 0 1px rgba(255, 255, 255, 0.05);
+  overflow: hidden;
+}
+
+.expressionEditorContent {
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.expressionEditorError {
+  padding: 4px 8px;
+  font-size: 11px;
+  color: #ef4444;
+  background-color: rgba(239, 68, 68, 0.1);
+  border-top: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+.expressionEditorHint {
+  padding: 4px 8px;
+  font-size: 10px;
+  color: var(--color-text-secondary);
+  background-color: var(--color-bg-base);
+  border-top: 1px solid var(--color-border);
+}
+
+/* Expression field with edit button */
+.expressionFieldWrapper {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.expressionFieldInput {
+  flex: 1;
+  cursor: pointer;
+}
+
+.expressionFieldInput:hover {
+  background-color: var(--color-input-hover);
+}
+
+.expressionFieldEditButton {
+  padding: 2px 6px;
+  font-size: 10px;
+  color: var(--color-text-secondary);
+  background-color: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.expressionFieldEditButton:hover {
+  color: var(--color-text-primary);
+  background-color: var(--color-bg-hover);
+  border-color: var(--color-border-hover);
+}
+
+/* Error state for expression input */
+.expressionFieldError {
+  border-color: #ef4444 !important;
+  box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.3);
+}
+
+.expressionFieldErrorIcon {
+  color: #ef4444;
+  font-size: 12px;
+  margin-left: 4px;
+}
+
+.rerouteNode {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background-color: var(--color-bg-secondary);
+  border: 2px solid #666;
+  position: relative;
+  cursor: pointer;
+}
+
+:global(.react-flow__node.selected) .rerouteNode {
+  border-color: var(--node-selected-color);
+}
+
+.rerouteHandle {
+  width: 10px !important;
+  height: 10px !important;
+  background-color: transparent !important;
+  border: none !important;
 }

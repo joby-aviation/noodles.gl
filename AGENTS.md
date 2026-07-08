@@ -20,6 +20,15 @@ This document provides essential context for Large Language Models (LLMs) workin
 - Data scientists exploring and analyzing data
 - Research teams publishing geospatial analysis
 
+## Quick Reference Links
+
+- **[Architecture](dev-docs/architecture.md)** - System architecture, state management, and error handling
+- **[Development Guide](dev-docs/developing.md)** - Setup, commands, workflows, and best practices
+- **[Testing Guide](dev-docs/testing-guide.md)** - Testing strategy, critical components, and runbook guidelines
+- **[PR Guidelines](dev-docs/pr-guidelines.md)** - Creating focused PRs with tests and documentation
+- **[Analytics](dev-docs/analytics.md)** - Privacy-preserving analytics guidelines
+- **[Tech Stack](dev-docs/tech-stack.md)** - Complete technology listing
+
 ## Architecture
 
 ### Fundamental Concepts
@@ -36,55 +45,30 @@ This document provides essential context for Large Language Models (LLMs) workin
 - Can be keyframed in timeline for animations
 - Custom React components for specialized UI controls
 
-**Reactive Flow**: Automatic updates using RxJS
-- Unidirectional data flow from outputs to inputs
-- Lazy evaluation: nodes only execute when upstream values change
+**Pull-Based Execution**: Demand-driven operator execution
+- Operators only execute when outputs are requested and inputs have changed
+- Dirty flag system tracks which operators need re-execution
 - Topological sorting determines execution order
 - Parallel execution for independent branches
+- GraphExecutor manages the execution loop with RAF-based timing
 
 ### Technology Stack
 
-**Core Framework**
-- React 18 with TypeScript
-- Vite for build tool and dev server
-- Yarn for package management
+**Core:** React 18, TypeScript, Vite, Yarn
 
-**Animation & Timeline**
-- Theatre.js for animation timeline editor and runtime
-- Any parameter can be keyframed to create smooth animations
+**Animation:** Native timeline system (bezier interpolation, keyframeable parameters)
 
-**Visualization & Mapping**
-- Deck.gl - WebGL data visualization
-- MapLibre GL - Open-source mapping
-- luma.gl - WebGL rendering engine
-- D3.js for data manipulation
+**Visualization:** Deck.gl (WebGL data visualization), MapLibre GL (mapping), luma.gl (rendering), D3.js (data)
 
-**Geospatial & Data Processing**
-- @turf/turf - Geospatial analysis
-- H3-js - Hexagonal hierarchical geospatial indexing
-- DuckDB-WASM - In-browser analytical database
-- Apache Arrow - Columnar data format
+**Geospatial:** @turf/turf (analysis), H3-js (indexing), DuckDB-WASM (SQL), Apache Arrow (columnar data)
 
-**UI & Node Editor**
-- @xyflow/react - Node-based editor components
-- Radix UI - Accessible component primitives
-- PrimeReact - Rich UI component library
+**UI:** @xyflow/react (node editor), Radix UI, PrimeReact
 
-**State Management**
+**State:** Zustand (global state, timeline state), RxJS (reactive data flow)
 
-- Zustand for global state management
-- Operator and sheet object storage
-- Batching support for atomic updates
-- Non-reactive access patterns via `getOpStore()`
+**Dev Tools:** Biome (linting/formatting), TypeScript, Vitest, Playwright
 
-**Reactive Programming**
-- RxJS for reactive data flow
-
-**Development Tools**
-- Biome - Fast linter and formatter (replaces ESLint/Prettier)
-- TypeScript for type checking
-- Vitest for unit testing
-- Playwright for end-to-end testing
+See [tech-stack.md](dev-docs/tech-stack.md) for complete details.
 
 ## Project Structure
 
@@ -123,6 +107,10 @@ noodles-gl-public/
 │   └── users/                # User guides
 ├── dev-docs/                 # Internal dev docs
 │   ├── architecture.md
+│   ├── developing.md
+│   ├── testing-guide.md
+│   ├── pr-guidelines.md
+│   ├── analytics.md
 │   ├── tech-stack.md
 │   └── specs/                # Design specs
 ├── README.md
@@ -135,10 +123,11 @@ noodles-gl-public/
 
 - **`noodles-editor/src/noodles/operators.ts`** - Registry of all available operators. Add new operators here.
 - **`noodles-editor/src/noodles/fields.ts`** - Field system implementation. All field types defined here.
+- **`noodles-editor/src/noodles/graph-executor.ts`** - Pull-based execution engine with topological sorting, dirty tracking, and RAF loop.
 - **`noodles-editor/src/noodles/components/op-components.tsx`** - React components for rendering operator nodes. Most use default renderer, some have custom components.
 - **`noodles-editor/src/noodles/components/field-components.tsx`** - React components for rendering field inputs.
 - **`noodles-editor/src/noodles/noodles.tsx`** - Main visualization component that loads projects and manages state, orchestrates nodes with React Flow.
-- **`noodles-editor/src/timeline-editor.tsx`** - Timeline editor interface for Theatre.js integration.
+- **`noodles-editor/src/timeline-editor.tsx`** - Timeline editor interface with native timeline components.
 
 ### Utilities
 
@@ -200,6 +189,45 @@ WHERE age > {{/threshold.par.value}}
 - **Multiple Outputs**: Outputs can connect to many inputs
 - **Cycle Detection**: Prevents circular dependencies
 
+## Project Files (noodles.json)
+
+Projects are stored as JSON files with this structure:
+
+```json
+{
+  "version": 6,
+  "nodes": [
+    {
+      "id": "/data-loader",
+      "type": "FileOp",
+      "position": {"x": 100, "y": 100},
+      "data": {
+        "inputs": {
+          "url": "@/data.csv",
+          "format": "csv"
+        }
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "/data-loader.out.data->/filter.par.data",
+      "source": "/data-loader",
+      "target": "/filter",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.data"
+    }
+  ],
+  "viewport": {"x": 0, "y": 0, "zoom": 1}
+}
+```
+
+**Path Prefixes in File References:**
+
+- `@/` - Relative to project data directory
+- Absolute paths work as-is
+- URLs can reference remote resources
+
 ## Operator Categories
 
 ### Data Sources
@@ -260,11 +288,12 @@ return distances
 ```
 
 **Available globals:**
-- `d3` - D3.js library
-- `turf` - Turf.js geospatial functions
-- `deck` - Deck.gl utilities
-- `Plot` - Observable Plot
-- `utils` - Utility functions (color conversion, geospatial helpers, KML conversion, etc.)
+- `d3` - D3.js library for data manipulation and visualization
+- `turf` - Turf.js geospatial analysis functions
+- `deck` - Deck.gl utilities and components
+- `Plot` - Observable Plot for creating charts
+- `Temporal` - TC39 Temporal API for dates and times
+- `utils` - Collection of utility functions (arc geometry, color conversion, geospatial operations, interpolation, etc.)
 - All Operator classes for instantiation
 
 ### AccessorOp
@@ -289,40 +318,146 @@ Single-line calculations:
 Math.PI * Math.pow(d.radius, 2)
 ```
 
+## Available Utility Functions (`utils` object)
+
+The `utils` object is available globally in CodeOp, AccessorOp, and ExpressionOp. It provides commonly-used functions:
+
+**Key utilities include:**
+
+- **Arc Geometry**: `getArc()` - Generate 3D arc paths between two points
+- **Color Conversion**: `hexToColor()`, `colorToHex()`, `rgbaToColor()` - Convert between color formats
+- **Geospatial**: `getDirections()` - Get routing directions between points
+- **Interpolation**: `interpolate()` - Create mapping functions between ranges
+- **Array Operations**: `cross()` - Generate all unique pairs from an array
+- **Search**: `binarySearchClosest()` - Find closest value in sorted array
+- **Distance Constants**: `FEET_TO_METERS`, `MILES_TO_METERS`, etc.
+- **Map Styles**: `CARTO_DARK`, `MAP_STYLES` - Predefined basemap URLs
+- **Random**: `mulberry32(seed)` - Deterministic pseudo-random number generator
+
+**Example usage:**
+```javascript
+// Create a 3D arc between two cities
+const arc = utils.getArc({
+  source: { lat: 40.7128, lng: -74.0060, alt: 0 },
+  target: { lat: 51.5074, lng: -0.1278, alt: 0 },
+  arcHeight: 500000,  // 500km peak height
+  segmentCount: 100
+})
+
+// Convert hex color to Deck.gl format
+const deckColor = utils.hexToColor('#ff5733')
+
+// Create interpolation function
+const altToIntensity = utils.interpolate([0, 10000], [0, 255])
+```
+
+**For complete API documentation with all parameters and examples**, see:
+
+- [Utils API Reference](docs/developers/utils-api-reference.md) - Comprehensive function documentation
+- Source code: [noodles-editor/src/utils/](noodles-editor/src/utils/) - Implementation with inline comments
+
+## Available Operator Classes (`opTypes`)
+
+All operator classes are available as globals in CodeOp for programmatic instantiation:
+
+**Data Sources & Processing:**
+`FileOp`, `DuckDbOp`, `NetworkOp`, `GeocoderOp`, `DirectionsOp`, `FilterOp`, `MapRangeOp`, `MergeOp`, `ConcatOp`, `SliceOp`, `SortOp`, `SelectOp`, `SwitchOp`, `TableEditorOp`
+
+**Math & Logic:**
+`NumberOp`, `BooleanOp`, `StringOp`, `DateOp`, `TimeOp`, `MathOp`, `ExpressionOp`, `CodeOp`, `AccessorOp`, `JSONOp`, `HSLOp`, `ColorOp`
+
+**Geometry & Transforms:**
+`PointOp`, `BoundsOp`, `RectangleOp`, `ArcOp`, `BezierCurveOp`, `BoundingBoxOp`, `ExtentOp`, `ProjectOp`, `UnprojectOp`, `GeoJsonOp`, `GeoJsonTransformOp`, `ScatterOp`
+
+**Combinators:**
+`CombineRGBAOp`, `CombineXYOp`, `CombineXYZOp`, `SplitRGBAOp`, `SplitXYOp`, `SplitXYZOp`, `SplitMapViewStateOp`
+
+**Deck.gl Layers:**
+`ScatterplotLayerOp`, `PathLayerOp`, `ArcLayerOp`, `LineLayerOp`, `IconLayerOp`, `TextLayerOp`, `PolygonLayerOp`, `SolidPolygonLayerOp`, `GeoJsonLayerOp`, `ColumnLayerOp`, `GridLayerOp`, `GridCellLayerOp`, `HexagonLayerOp`, `ContourLayerOp`, `ScreenGridLayerOp`, `HeatmapLayerOp`, `H3HexagonLayerOp`, `H3ClusterLayerOp`, `GreatCircleLayerOp`, `TripsLayerOp`, `BitmapLayerOp`, `TileLayerOp`, `MVTLayerOp`, `TerrainLayerOp`, `Tile3DLayerOp`, `PointCloudLayerOp`, `ScenegraphLayerOp`, `SimpleMeshLayerOp`, `GeohashLayerOp`, `S2LayerOp`, `QuadkeyLayerOp`, `A5LayerOp`, `RasterTileLayerOp`
+
+**Deck.gl Extensions:**
+`BrushingExtensionOp`, `DataFilterExtensionOp`, `ClipExtensionOp`, `MaskExtensionOp`, `Mask3DExtensionOp`, `PathStyleExtensionOp`, `FillStyleExtensionOp`, `CollisionFilterExtensionOp`, `TerrainExtensionOp`, `BrightnessContrastExtensionOp`, `HueSaturationExtensionOp`, `VibranceExtensionOp`
+
+**Views & Rendering:**
+`MapViewOp`, `GlobeViewOp`, `OrbitViewOp`, `FirstPersonViewOp`, `MapViewStateOp`, `DeckRendererOp`, `MaplibreBasemapOp`, `MapStyleOp`, `ViewerOp`
+
+**Color & Styling:**
+`ColorRampOp`, `CategoricalColorRampOp`, `LayerPropsOp`, `RandomizeAttributeOp`
+
+**Control Flow & Organization:**
+`ContainerOp`, `ForLoopBeginOp`, `ForLoopEndOp`, `GraphInputOp`, `GraphOutputOp`, `OutOp`, `ConsoleOp`, `FpsWidgetOp`, `MouseOp`
+
+```javascript
+// Example: Instantiate operators programmatically
+const numberOps = data.map((value, i) => {
+  const op = new NumberOp(`/dynamic-${i}`)
+  op.inputs.value.setValue(value)
+  return op
+})
+```
+
 ## Development Workflow
 
 ### Quick Start Commands
 
 ```bash
 # Install dependencies
-yarn install:all
+npm run install:all
 
 # Start development server
-yarn start:app            # or cd noodles-editor && yarn start
+cd noodles-editor && npm start
 
 # Run tests
-cd noodles-editor && yarn test
+cd noodles-editor && npm test
 
 # Lint and format
-cd noodles-editor && yarn lint
-cd noodles-editor && yarn fix-lint
+cd noodles-editor && npm run lint
+cd noodles-editor && npm run fix-lint
 
 # Build for production
-yarn build:all
+npm run build:all
 ```
+
+**Node.js and Package Manager Requirements:**
+- Node.js version pinned in `.nvmrc`
+- npm is bundled with Node.js — no additional setup needed
+- If you encounter Node.js compatibility errors, ensure you're using the correct version from `.nvmrc`
+- **Recommended**: Use [fnm](https://github.com/Schniz/fnm) for fast Node.js version management
+  - fnm automatically uses the correct Node version from `.nvmrc`
+  - Alternative: Use [nvm](https://github.com/nvm-sh/nvm) or any Node version manager
 
 ### Development URLs
 
-- **Local**: `http://localhost:5173/?project=example`
-- **Specific Project**: Replace `example` with project name from `noodles-editor/public/noodles/`
-- **Safe Mode**: Add `&safeMode=true` to disable code execution
+- **Local**: `http://localhost:5173/examples/nyc-taxis`
+- **Specific Project**: Replace `nyc-taxis` with project name from `noodles-editor/public/examples/`
+- **Safe Mode**: Add `?safeMode=true` to disable code execution
 
 ### Testing
 
 - Unit tests co-located with source files (`*.test.ts`)
 - Vitest for unit testing
 - Playwright for browser integration tests
-- Run specific tests: `yarn test src/noodles/operators.test.ts`
+- Run specific tests: `npm test src/noodles/operators.test.ts`
+
+### Debug Logging
+
+The codebase uses the `debug` package for development logging. Debug output is disabled by default and has zero overhead when disabled.
+
+**Enable in browser console:**
+```javascript
+localStorage.debug = 'noodles:*'        // All noodles logging
+localStorage.debug = 'noodles:history*' // Just history/undo-redo
+localStorage.debug = ''                 // Disable
+// Refresh the page after changing
+```
+
+**Available namespaces:** see [`noodles-editor/src/utils/debug.ts`](noodles-editor/src/utils/debug.ts) for the full list with descriptions.
+
+**Adding new debug logging:**
+```typescript
+import { debugHistory } from '../../utils/debug'
+debugHistory('Message with %s formatting', value)
+```
 
 ## Creating New Operators
 
@@ -378,180 +513,41 @@ export class CustomOperator extends Operator<CustomOperator> {
 - **PointField**: Geographic coordinates [lng, lat]
 - **Vec2Field**: 2D vectors
 
-## Performance Considerations
+## State Management
 
-### Memoization
-- Results automatically cached based on input hash
-- Cache invalidated when inputs change
-- LRU eviction prevents unbounded growth
+The application uses Zustand for global state. See [architecture.md](dev-docs/architecture.md#state-management-with-zustand) for complete details.
 
-### Optimization Tips
-- Keep operators pure and stateless
-- Avoid heavy computations in AccessorOps (runs per data item)
-- Batch data operations when possible
-- Use DuckDB for large dataset queries
-- Profile bottlenecks with execution tracing
-
-### Batching Updates
-
+**Quick reference:**
 ```typescript
-// Batch multiple changes to avoid cascading updates
-batch(() => {
-  node1.fields.param1.setValue(value1)
-  node2.fields.param2.setValue(value2)
-})
-```
+import { getOp, setOp, deleteOp, hasOp } from './store'
 
-## Project Files (noodles.json)
+// Get operator by path (absolute or relative)
+const op = getOp('/data-loader')
+const relative = getOp('./sibling', contextOpId)
 
-Projects are stored as JSON files with this structure:
-
-```json
-{
-  "version": 6,
-  "nodes": [
-    {
-      "id": "/data-loader",
-      "type": "FileOp",
-      "position": {"x": 100, "y": 100},
-      "data": {
-        "inputs": {
-          "url": "@/data.csv",
-          "format": "csv"
-        }
-      }
-    }
-  ],
-  "edges": [
-    {
-      "id": "/data-loader.out.data->/filter.par.data",
-      "source": "/data-loader",
-      "target": "/filter",
-      "sourceHandle": "out.data",
-      "targetHandle": "par.data"
-    }
-  ],
-  "viewport": {"x": 0, "y": 0, "zoom": 1}
-}
-```
-
-### Path Prefixes in File References
-
-- `@/` - Relative to project directory
-- Absolute paths work as-is
-- URLs can reference remote resources
-
-## Migration System
-
-When schema changes occur, add migrations in `noodles-editor/src/noodles/__migrations__/`:
-
-```typescript
-export const migration = {
-  version: 7,
-  migrate(project: ProjectV6): ProjectV7 {
-    // Transform project structure
-    return transformedProject
-  }
-}
-```
-
-## State Management with Zustand
-
-The application uses Zustand for global state management, storing operators and Theatre.js sheet objects.
-
-### Store Architecture
-
-```typescript
-// The store contains:
-// - operators: Map<OpId, Operator<IOperator>>
-// - sheetObjects: Map<OpId, ISheetObject>
-// - hoveredOutputHandle: { nodeId: string; handleId: string } | null
-// - Batching support for atomic updates
-```
-
-### Accessing the Store
-
-**Direct Store Access (non-reactive):**
-
-```typescript
-import { getOpStore } from './store'
-
-// Get the store instance
-const store = getOpStore()
-
-// Access operators
-const op = store.getOp('/data-loader')
-const allOps = store.getAllOps()
-const entries = store.getOpEntries()
-```
-
-**Convenience Helpers (recommended):**
-
-```typescript
-import { getOp, getAllOps, getOpEntries, setOp, deleteOp, hasOp } from './store'
-
-// Get a single operator by absolute or relative path
-const op = getOp('/data-loader')  // Absolute path
-const relative = getOp('./sibling', contextOpId)  // Relative path
-
-// Check existence
-if (hasOp('/data-loader')) { /* ... */ }
-
-// Get all operators
-const allOps = getAllOps()
-
-// Iterate over operators
-for (const [id, op] of getOpEntries()) {
-  // ...
-}
-
-// Add/update operators
-setOp('/new-op', operatorInstance)
-
-// Remove operators
-deleteOp('/old-op')
-```
-
-**Batching for Performance:**
-
-```typescript
-import { getOpStore } from './store'
-
-// Batch multiple store operations to trigger single update
+// Batch updates for performance
 getOpStore().batch(() => {
   setOp('/op1', op1)
   setOp('/op2', op2)
-  deleteOp('/op3')
-  // Only one state update after batch completes
 })
 ```
 
-### Sheet Object Management
+## Performance Tips
 
-```typescript
-import { getSheetObject, setSheetObject, deleteSheetObject, hasSheetObject } from './store'
+- Keep operators pure and stateless
+- Avoid heavy computations in AccessorOps (runs per data item)
+- Batch related changes together using `batch()`
+- Use DuckDB for large dataset queries
+- Profile bottlenecks with execution tracing
 
-// Manage Theatre.js sheet objects
-const sheetObj = getSheetObject('/data-loader')
-setSheetObject('/data-loader', sheetObject)
-deleteSheetObject('/data-loader')
-if (hasSheetObject('/data-loader')) { /* ... */ }
-```
-
-### Important Notes
-
-- **Non-reactive by design**: Store access via `getOpStore()` does NOT trigger React re-renders
-- **Use in tests**: Test files should use the convenience helpers (`getOp`, `getAllOps`, etc.)
-- **Path resolution**: `getOp()` supports both absolute (`/foo/bar`) and relative (`./sibling`, `../parent`) paths
-- **Batching**: Always use `store.batch()` when making multiple related changes
-- **No `opMap` access**: The old `opMap` global is deprecated - use store helpers instead
+See [developing.md](dev-docs/developing.md#best-practices) for complete best practices (2 spaces, no semicolons, single quotes).
 
 ## Common Patterns
 
 ### Accessing Operator Outputs
 
 ```javascript
-// In CodeField or AccessorOp - uses the getOp helper internally
+// In CodeField or AccessorOp
 const data = op('/data-loader').out.data
 const threshold = op('./threshold').par.value
 ```
@@ -571,148 +567,7 @@ return {
 
 ### Timeline Animation
 
-Any field can be keyframed:
-1. Fields are connected to Theatre.js via `useSheetValue` hook
-2. Changes in timeline propagate through reactive system
-3. Smooth interpolation between keyframes
-
-## Error Handling
-
-### Validation
-- Zod schemas validate all field values
-- Type mismatches caught at runtime
-- Clear error messages displayed in UI
-
-### Error Propagation
-```typescript
-try {
-  const result = operator.execute(inputs)
-  field.next(result)
-} catch (error) {
-  field.error(error)  // Propagate downstream
-}
-```
-
-### Debugging
-- Execution tracing tracks data flow
-- Performance profiling measures execution times
-- State inspection examines intermediate values
-
-## Best Practices
-
-### Graph Design
-- Minimize connections to reduce complexity
-- Group related operations in containers
-- Use descriptive node and field names
-- Document complex transformations
-
-### Performance
-- Avoid deep graph nesting
-- Batch related changes together
-- Profile and optimize hot paths
-- Use DuckDB for heavy data operations
-
-### Code Style
-- Follow Biome configuration
-- Write unit tests for operators
-- Use TypeScript strictly
-- Comment complex logic
-
-### Maintenance
-- Add migration scripts for schema changes
-- Version control graph changes
-- Keep documentation up-to-date
-- Test operators in isolation
-
-## Testing Strategy
-
-### When to Add Tests
-
-**Always add tests for:**
-- New operators and core functionality
-- Changes to critical components (listed below)
-- Complex state management or hook modifications
-- Bug fixes to prevent regressions
-- Non-trivial utility functions
-
-**Test Types:**
-
-- **Unit Tests**: For operator logic, pure functions, and utilities
-- **Integration Tests**: For graph transformations, hook interactions, and data flow
-- **Component Tests**: For React components with React Testing Library
-- **E2E Tests**: For full user workflows with Playwright
-
-### Critical Components Requiring Extra Scrutiny
-
-These components are core to the application and require thorough testing and careful review:
-
-**Core Node System:**
-
-- `noodles-editor/src/noodles/operators.ts` - Operator registry and execution
-- `noodles-editor/src/noodles/fields.ts` - Field system and validation
-- `noodles-editor/src/noodles/noodles.tsx` - Main application orchestration
-
-**State Management:**
-
-- `noodles-editor/src/noodles/hooks/use-project-modifications.ts` - Project state mutations
-- `noodles-editor/src/noodles/storage.ts` - File system and persistence
-- All custom hooks in `noodles-editor/src/noodles/hooks/`
-
-**Data Flow:**
-
-- `noodles-editor/src/noodles/utils/path-utils.ts` - Operator path resolution
-- `noodles-editor/src/noodles/utils/serialization.ts` - Project save/load
-- Graph transformation functions in `noodles.tsx`
-
-### Testing Best Practices
-
-**For Operators:**
-
-```typescript
-describe('CustomOperator', () => {
-  it('should transform data correctly', () => {
-    const op = new CustomOperator('/test-op')
-    const result = op.execute({ data: testData, threshold: 50 })
-    expect(result.output).toEqual(expectedOutput)
-  })
-})
-```
-
-**For React Hooks:**
-
-```typescript
-import { renderHook, act } from '@testing-library/react'
-
-it('should update state correctly', () => {
-  const { result } = renderHook(() => useCustomHook())
-  act(() => {
-    result.current.setValue(newValue)
-  })
-  expect(result.current.value).toBe(newValue)
-})
-```
-
-**For Integration Tests:**
-
-- Test operator connectivity and data flow through the graph
-- Verify subscriptions are properly created and cleaned up
-- Test that graph transformations match real application behavior
-- Mock Theatre.js and other external dependencies appropriately
-
-### Test Organization
-
-- Co-locate unit tests with source files (`*.test.ts` alongside the file being tested)
-- Integration and component tests can go in `__tests__` directories when they span multiple files
-- Use descriptive test names that explain what is being tested
-- Clean up resources in `afterEach` to prevent test pollution
-
-## Additional Resources
-
-- **Documentation**: [docs/](docs/) folder contains user and developer guides
-- **Examples**: [noodles-editor/public/noodles/](noodles-editor/public/noodles/) contains example projects
-- **Architecture**: [dev-docs/architecture.md](dev-docs/architecture.md) for detailed architecture
-- **Tech Stack**: [dev-docs/tech-stack.md](dev-docs/tech-stack.md) for technology details
-- **Contributing**: [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines
+Any field can be keyframed via the native timeline system. Changes in timeline propagate through the reactive system with smooth bezier interpolation between keyframes.
 
 ## Common Tasks for LLMs
 
@@ -722,7 +577,7 @@ it('should update state correctly', () => {
 3. Define outputs with `createOutputs()` method
 4. Implement `execute()` method with pure function logic
 5. Register operator in operator registry
-6. Add to category in `components/categories.ts`
+6. Add to category in `components/categories.ts` using display name without "Op" suffix (e.g., `'File'` not `'FileOp'`)
 7. **Write unit tests** (required for all operators)
 8. Document behavior and limitations if complex
 9. Test in UI with example projects
@@ -735,17 +590,6 @@ it('should update state correctly', () => {
 5. Add tests for bug fixes to prevent regressions
 6. Update documentation if behavior changes
 7. Test in UI with example projects
-
-### Modifying Critical Components
-
-When changing files listed in "Critical Components Requiring Extra Scrutiny":
-
-1. **Add tests first** if they don't exist
-2. Make your changes
-3. Ensure all existing tests pass
-4. **Add new tests** for changed behavior
-5. Consider integration tests for complex state changes
-6. If the change is large, consider splitting into smaller PRs
 
 ### Debugging Data Flow
 1. Check operator paths are correct (use absolute paths from root)
@@ -761,67 +605,139 @@ When changing files listed in "Critical Components Requiring Extra Scrutiny":
 4. Add custom UI component in `field-components.tsx` if needed
 5. Register in field registry
 
-## Pull Request Guidelines
+## Testing and Pull Requests
 
-### Creating Focused PRs
+**Testing:** Add tests for new operators, bug fixes, and changes to critical components. See [testing-guide.md](dev-docs/testing-guide.md) for strategy and best practices.
 
-When implementing features or fixes:
+**Pull Requests:** Keep PRs focused, include tests and documentation, provide test runbooks for UI changes. See [pr-guidelines.md](dev-docs/pr-guidelines.md) for complete guidelines.
 
-- **Keep PRs focused**: Each PR should address a single concern or feature
-- **Split large changes**: Separate unrelated changes into different PRs (e.g., separate AI chat changes from core app state changes)
-- **Smaller is better**: Smaller PRs are easier to review thoroughly and catch issues
-- **Context matters**: Make it easy for reviewers by keeping related changes together
-
-### What to Include in PRs
-
-- **Tests**: Add tests for new features, bug fixes, and changes to critical components
-- **Documentation**: Update relevant docs when behavior changes or new features are added
-- **Operator Documentation**: For complex operators, document input/output behavior and limitations
-- **Edge Cases**: Document known limitations or edge cases in code comments or docs
-
-### Documentation Best Practices
-
-**When to Document:**
-
-- Non-obvious behavior or implementation choices
-- Known limitations or edge cases
-- Complex algorithms or data transformations
-- Operator-specific behavior (especially for SQL, code execution, etc.)
-
-**Where to Document:**
-
-- Code comments for implementation details
-- Operator reference pages for user-facing behavior
-- AGENTS.md for framework-level patterns and conventions
-- README files for examples and walkthroughs
-
-**Example - Documenting Edge Cases:**
-
-```typescript
-// DuckDbOp: Multi-statement SQL support
-// - Multiple statements separated by semicolons are executed sequentially
-// - Only the result from the final SELECT is returned
-// - Limitation: Semicolons inside string literals will incorrectly split statements
-// - Use SET statements for configuration, CTEs for complex queries
-```
+**Analytics:** Add `analytics.track()` for user actions and feature usage. Never track sensitive data. See [analytics.md](dev-docs/analytics.md) for guidelines.
 
 ## Important Notes for LLMs
 
 1. **Operators are pure functions** - They should not have side effects or maintain state
-2. **Paths are always absolute from root** - Use `/` prefix for absolute, `./` for relative
+2. **Paths use Unix-style syntax** - Use `/` prefix for absolute, `./` for relative
 3. **Fields are observables** - Use `field.setValue()` to update, `field.value` to read
 4. **Memoization is automatic** - Don't worry about caching, the framework handles it
 5. **Type safety is critical** - Always use Zod schemas for validation
-6. **Timeline integration** - Any parameter can be animated via Theatre.js
+6. **Timeline integration** - Any parameter can be animated via the native timeline
 7. **Project files are JSON** - Easy to parse and modify programmatically
 8. **Testing is expected** - Add tests for new features and changes to critical components
 9. **Document edge cases** - Users may not expect implementation-specific behavior
 10. **Keep PRs focused** - Split large changes into reviewable chunks when possible
-11. **Use store helpers** - Always use `getOp()`, `getAllOps()`, etc. instead of direct `opMap` access
-12. **Batch store updates** - Use `getOpStore().batch()` when making multiple related changes
-13. **Non-reactive store access** - Store helpers don't trigger React re-renders; use hooks for reactive access
+
+## Using Claude Code with Noodles.gl
+
+This section covers using Claude Code (the CLI tool) to work directly with projects, as opposed to the in-app Claude chat panel.
+
+### Setup
+
+```bash
+# Start the dev server
+cd noodles-editor && npm start
+
+# Projects are in noodles-editor/public/examples/
+# Each project directory contains a noodles.json and optional data files
+ls noodles-editor/public/examples/
+```
+
+### Editing Project Files Directly
+
+Project files (`noodles.json`) are plain JSON and can be read and written by Claude Code. See the **Project Files** section above for the full schema. Key points:
+
+- Node IDs are Unix-style paths: `/my-node`, `/container/child`
+- Edge handles: `out.fieldName` (source) → `par.fieldName` (target)
+- Only non-default input values need to be serialized
+- Version 6 is current; do not change the version field
+
+### Validating Changes
+
+After editing a project file, run the project's tests to catch schema issues:
+
+```bash
+cd noodles-editor && npm test src/noodles/storage.test.ts
+```
+
+Load it in the browser at `http://localhost:5173/examples/<project-name>` to visually verify.
+
+### Connecting Claude Code to a Running Browser Instance
+
+#### WebMCP (recommended)
+
+With `?externalControl=true`, the app registers its full AI tool surface (~22 tools) on `navigator.modelContext` (the W3C WebMCP API, polyfilled via `@mcp-b/global`). External MCP clients reach those tools through the `@mcp-b/webmcp-local-relay` stdio bridge — no proxy code to run:
+
+```bash
+# 1. Start the app with external control enabled
+# Open: http://localhost:5173/examples/nyc-taxis?externalControl=true
+
+# 2. Register the relay with Claude Code (once)
+claude mcp add webmcp -- npx -y @mcp-b/webmcp-local-relay@4
+
+# For Claude Desktop / Cursor, use the equivalent config:
+{
+  "mcpServers": {
+    "webmcp": {
+      "command": "npx",
+      "args": ["-y", "@mcp-b/webmcp-local-relay@4"]
+    }
+  }
+}
+```
+
+Tool names match the in-app chat (snake_case): `get_current_project`, `list_nodes`, `get_node_info`, `get_node_output`, `apply_modifications`, `capture_visualization`, `get_timeline`, `set_keyframe`, `get_operator_schema`, `search_code`, and more. `apply_modifications` mutates the live editor graph, so changes appear immediately in the browser.
+
+Notes:
+
+- The relay embed script is only injected on localhost. Alternatives that need no relay: the WebMCP browser extension, or native Chrome WebMCP (origin trial).
+- If multiple Noodles tabs are open, the relay suffixes tool names with a tab ID.
+- Code search/docs tools download their context bundles on page load when external control is enabled.
+
+#### Legacy WebSocket proxy
+
+The older MCP proxy bridges Claude Code to the browser over a WebSocket. It exposes a smaller camelCase tool surface (`getCurrentProject`, `listNodes`, `createNode`, `connectNodes`, `captureVisualization`, …):
+
+```bash
+# 1. Start the app with external control enabled
+# Open: http://localhost:5173/examples/nyc-taxis?externalControl=true
+
+# 2. Start the MCP proxy (in a separate terminal)
+node noodles-editor/examples/external-control/mcp-proxy.js
+
+# 3. Add to Claude Desktop config:
+#    macOS:   ~/Library/Application Support/Claude/claude_desktop_config.json
+#    Windows: %APPDATA%\Claude\claude_desktop_config.json
+{
+  "mcpServers": {
+    "noodles": {
+      "command": "node",
+      "args": ["/path/to/noodles-editor/examples/external-control/mcp-proxy.js"]
+    }
+  }
+}
+```
+
+### Graph Design Guidelines for Claude Code
+
+When generating or modifying `noodles.json` programmatically:
+
+- **Keep graphs simple** — aim for 5–8 nodes. A human must be able to read and modify the result.
+- **Prefer CodeOp for data transformation** over chaining FilterOp → MapOp → SortOp. One CodeOp node with a few lines of JavaScript is more reliable and easier to inspect:
+  ```json
+  {
+    "id": "/transform",
+    "type": "CodeOp",
+    "data": { "inputs": { "code": "return data.filter(d => d.value > 0).sort((a,b) => b.value - a.value)" } }
+  }
+  ```
+- **Standard pipeline**: FileOp/DuckDbOp → CodeOp (transform) → AccessorOp (position) → LayerOp → DeckRendererOp
+- **Always include MaplibreBasemapOp** for geographic visualizations
+- **Verify handle names** using `get_operator_schema` or the operator registry before writing edges
+
+### Timeline / Animation
+
+The timeline is serialized inside `noodles.json` under the `"timeline"` key. The structure is complex — prefer using the in-app chat's `set_keyframe` / `get_timeline` tools rather than editing the timeline JSON directly.
 
 ---
 
-**Last Updated**: 2025-01-12
-**Version**: Based on project version 6 schema with Zustand state management
+**Last Updated**: 2026-07-04
+**Version**: Based on project version 6 schema

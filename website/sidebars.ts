@@ -21,6 +21,7 @@ const sidebars: SidebarsConfig = {
       items: [
         'users/getting-started',
         'users/workflows-intro',
+        'users/properties-panel',
         'users/operators-guide',
         'users/deckgl-maplibre-guide',
         'users/data-guide',
@@ -42,6 +43,7 @@ const sidebars: SidebarsConfig = {
         'developers/framework-extension',
       ],
     },
+    'changelog',
   ],
 }
 

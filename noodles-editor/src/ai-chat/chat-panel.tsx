@@ -1,31 +1,30 @@
 // ChatPanel - Main UI component for Claude AI integration
 
-import { useEffect, useRef, useState, type FC } from 'react'
 import { useReactFlow } from '@xyflow/react'
-
+import { type FC, useEffect, useRef, useState } from 'react'
+import {
+  type ProjectModification,
+  useProjectModifications,
+} from '../noodles/hooks/use-project-modifications'
+import { useKeysStore } from '../noodles/keys-store'
+import { useUIStore } from '../noodles/store'
+import { debugAiChat } from '../utils/debug'
+import styles from './chat-panel.module.css'
 import { ClaudeClient } from './claude-client'
+import { loadConversation, saveConversation } from './conversation-history'
+import { ConversationHistoryPanel } from './conversation-history-panel'
 import { globalContextManager } from './global-context-manager'
 import { MCPTools } from './mcp-tools'
-import type { Message } from './types'
-import {
-  saveConversation,
-  loadConversation,
-} from './conversation-history'
-import { ConversationHistoryPanel } from './conversation-history-panel'
-import styles from './chat-panel.module.css'
-import { useProjectModifications, type ProjectModification } from '../noodles/hooks/use-project-modifications'
+import type { Message, NoodlesProject } from './types'
 
 interface ChatPanelProps {
-  project: any
+  project: NoodlesProject
   onClose: () => void
   isVisible: boolean
+  initialMessage?: string
 }
 
-export const ChatPanel: FC<ChatPanelProps> = ({
-  project,
-  onClose,
-  isVisible
-}) => {
+export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, initialMessage }) => {
   // Get ReactFlow state for the modification hook
   const { getNodes, getEdges, setNodes, setEdges } = useReactFlow()
 
@@ -34,13 +33,12 @@ export const ChatPanel: FC<ChatPanelProps> = ({
     getNodes,
     getEdges,
     setNodes,
-    setEdges
+    setEdges,
   })
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [contextLoading, setContextLoading] = useState(true)
-  const [showApiKeyModal, setShowApiKeyModal] = useState(false)
   const [claudeClient, setClaudeClient] = useState<ClaudeClient | null>(null)
   const [mcpTools, setMcpTools] = useState<MCPTools | null>(null)
   const [autoCapture, setAutoCapture] = useState(true)
@@ -48,11 +46,17 @@ export const ChatPanel: FC<ChatPanelProps> = ({
   const [showHistory, setShowHistory] = useState(false)
   const [contextProgress, setContextProgress] = useState<string>('')
 
+  // Get API key directly from store (reactive)
+  const apiKey = useKeysStore(state => state.getKey('anthropic'))
+
+  // Get the function to open settings dialog
+  const setSettingsDialogOpen = useUIStore(state => state.setSettingsDialogOpen)
+
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   // Subscribe to context loading progress
   useEffect(() => {
-    const unsubscribe = globalContextManager.subscribe((state) => {
+    const unsubscribe = globalContextManager.subscribe(state => {
       if (state.status === 'loading') {
         setContextProgress(`Loading ${state.progress.stage}...`)
       } else {
@@ -63,36 +67,33 @@ export const ChatPanel: FC<ChatPanelProps> = ({
     return unsubscribe
   }, [])
 
+  // Initialize Claude client when API key is available
   useEffect(() => {
+    if (!apiKey) {
+      setContextLoading(false)
+      return
+    }
+
     const init = async () => {
-      const apiKey = localStorage.getItem('noodles-claude-api-key') ||
-                     sessionStorage.getItem('noodles-claude-api-key') ||
-                     import.meta.env.VITE_CLAUDE_API_KEY
-
-      if (!apiKey) {
-        setShowApiKeyModal(true)
-        setContextLoading(false)
-        return
-      }
-
+      setContextLoading(true)
       try {
         // Wait for context to be ready (should be instant if already loaded)
         const loader = await globalContextManager.waitForReady()
 
         const tools = new MCPTools(loader)
-        const client = new ClaudeClient(apiKey.trim(), tools)
+        const client = new ClaudeClient(apiKey, tools)
 
         setMcpTools(tools)
         setClaudeClient(client)
-        setContextLoading(false)
       } catch (error) {
-        console.error('Failed to initialize Claude:', error)
+        debugAiChat('Failed to initialize Claude:', error)
+      } finally {
         setContextLoading(false)
       }
     }
 
     init()
-  }, [])
+  }, [apiKey])
 
   // Update MCPTools with current project whenever it changes
   useEffect(() => {
@@ -101,17 +102,24 @@ export const ChatPanel: FC<ChatPanelProps> = ({
     }
   }, [mcpTools, project])
 
+  // Handle initial message from quick start modal
+  useEffect(() => {
+    if (initialMessage && isVisible && messages.length === 0) {
+      setInput(initialMessage)
+    }
+  }, [initialMessage, isVisible, messages.length])
+
   // Auto-scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+  }, [])
 
   const handleSend = async () => {
     if (!input.trim() || !claudeClient || !project) return
 
     const userMessage: Message = {
       role: 'user',
-      content: input
+      content: input,
     }
 
     setMessages(prev => [...prev, userMessage])
@@ -123,91 +131,76 @@ export const ChatPanel: FC<ChatPanelProps> = ({
         message: input,
         project,
         autoCapture,
-        conversationHistory: messages
+        conversationHistory: messages,
       })
 
       const assistantMessage: Message = {
         role: 'assistant',
-        content: response.message
+        content: response.message,
       }
 
       setMessages(prev => [...prev, assistantMessage])
 
       // Apply project modifications if any
       if (response.projectModifications && response.projectModifications.length > 0) {
-        console.log('Applying project modifications:', response.projectModifications)
+        debugAiChat('Applying project modifications:', response.projectModifications)
         const result = applyModifications(response.projectModifications as ProjectModification[])
 
         if (!result.success) {
           // Surface validation errors back to the user and AI
           const errorMessage = `Failed to apply modifications: ${result.error}`
-          console.error(errorMessage)
-          setMessages(prev => [...prev, {
-            role: 'assistant',
-            content: errorMessage
-          }])
+          debugAiChat(errorMessage)
+          setMessages(prev => [
+            ...prev,
+            {
+              role: 'assistant',
+              content: errorMessage,
+            },
+          ])
         } else if (result.warnings && result.warnings.length > 0) {
           // Show warnings in console and chat
-          console.warn('Modification warnings:', result.warnings)
+          debugAiChat('Modification warnings:', result.warnings)
           const warningMessage = `⚠️ Modifications applied with warnings:\n${result.warnings.map(w => `• ${w}`).join('\n')}`
-          setMessages(prev => [...prev, {
-            role: 'assistant',
-            content: warningMessage
-          }])
+          setMessages(prev => [
+            ...prev,
+            {
+              role: 'assistant',
+              content: warningMessage,
+            },
+          ])
         }
       }
     } catch (error) {
-      console.error('Error sending message:', error)
+      debugAiChat('Error sending message:', error)
 
       // Check if this is an authentication error
       const errorStr = error instanceof Error ? error.message : String(error)
-      const isAuthError = errorStr.includes('authentication') ||
-                          errorStr.includes('401') ||
-                          errorStr.includes('invalid_api_key') ||
-                          errorStr.includes('api_key')
+      const isAuthError =
+        errorStr.includes('authentication') ||
+        errorStr.includes('401') ||
+        errorStr.includes('invalid_api_key') ||
+        errorStr.includes('api_key')
 
       if (isAuthError) {
-        localStorage.removeItem('noodles-claude-api-key')
-        sessionStorage.removeItem('noodles-claude-api-key')
-        setMessages(prev => [...prev, {
-          role: 'assistant',
-          content: 'Authentication Error: Your API key is invalid. Please enter a valid API key.'
-        }])
-        setShowApiKeyModal(true)
+        setMessages(prev => [
+          ...prev,
+          {
+            role: 'assistant',
+            content:
+              'Authentication Error: Your API key is invalid. Please check your API key in Settings > API Keys.',
+          },
+        ])
       } else {
-        setMessages(prev => [...prev, {
-          role: 'assistant',
-          content: `Error: ${errorStr}`
-        }])
+        setMessages(prev => [
+          ...prev,
+          {
+            role: 'assistant',
+            content: `Error: ${errorStr}`,
+          },
+        ])
       }
     } finally {
       setLoading(false)
-    }
-  }
-
-
-  const handleApiKeySubmit = async (key: string, remember: boolean) => {
-    if (remember) {
-      localStorage.setItem('noodles-claude-api-key', key)
-      sessionStorage.removeItem('noodles-claude-api-key')
-    } else {
-      sessionStorage.setItem('noodles-claude-api-key', key)
-      localStorage.removeItem('noodles-claude-api-key')
-    }
-
-    setShowApiKeyModal(false)
-
-    try {
-      // Wait for context to be ready (should be instant if already loaded)
-      const loader = await globalContextManager.waitForReady()
-
-      const tools = new MCPTools(loader)
-      const client = new ClaudeClient(key, tools)
-
-      setMcpTools(tools)
-      setClaudeClient(client)
-    } catch (error) {
-      console.error('Failed to reinitialize Claude:', error)
     }
   }
 
@@ -218,7 +211,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({
     if (result.success) {
       alert('Screenshot captured! It will be included with your next message.')
     } else {
-      alert('Failed to capture screenshot: ' + result.error)
+      alert(`Failed to capture screenshot: ${result.error}`)
     }
   }
 
@@ -227,9 +220,9 @@ export const ChatPanel: FC<ChatPanelProps> = ({
     if (messages.length > 0 && !currentConversationId) {
       try {
         const id = saveConversation(messages)
-        console.log('Auto-saved conversation:', id)
+        debugAiChat('Auto-saved conversation:', id)
       } catch (error) {
-        console.warn('Failed to auto-save conversation:', error)
+        debugAiChat('Failed to auto-save conversation:', error)
       }
     }
 
@@ -239,19 +232,19 @@ export const ChatPanel: FC<ChatPanelProps> = ({
     setShowHistory(false)
   }
 
-  const saveCurrentConversation = () => {
-    if (messages.length === 0) {
-      alert('No messages to save')
-      return
+  const handleClose = () => {
+    // Auto-save current conversation if it has messages and hasn't been saved yet
+    if (messages.length > 0 && !currentConversationId) {
+      try {
+        const id = saveConversation(messages)
+        setCurrentConversationId(id) // prevent duplicate saves on repeated close
+        console.log('Auto-saved conversation on close:', id)
+      } catch (error) {
+        console.warn('Failed to auto-save conversation on close:', error)
+      }
     }
 
-    try {
-      const id = saveConversation(messages)
-      setCurrentConversationId(id)
-      alert('Conversation saved!')
-    } catch (error) {
-      alert('Failed to save conversation: ' + (error instanceof Error ? error.message : 'Unknown error'))
-    }
+    onClose()
   }
 
   const loadConversationById = (id: string) => {
@@ -260,7 +253,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({
       try {
         saveConversation(messages)
       } catch (error) {
-        console.warn('Failed to auto-save before loading:', error)
+        debugAiChat('Failed to auto-save before loading:', error)
       }
     }
 
@@ -276,10 +269,38 @@ export const ChatPanel: FC<ChatPanelProps> = ({
 
   if (!isVisible) return null
 
-  if (showApiKeyModal) {
+  // Check if API key is missing
+  if (!apiKey && !contextLoading) {
     return (
       <div className={styles.chatPanel}>
-        <ApiKeyModal onSubmit={handleApiKeySubmit} />
+        <div className={styles.chatPanelLoading}>
+          <h3>Anthropic API Key Required</h3>
+          <p>
+            To use the Noodles assistant, you need to configure your Claude API key in{' '}
+            <button
+              type="button"
+              onClick={() => setSettingsDialogOpen(true)}
+              className={styles.linkButton}
+            >
+              Settings
+            </button>{' '}
+            (top menu).
+          </p>
+          <p>
+            Get your API key from{' '}
+            <a href="https://console.anthropic.com/" target="_blank" rel="noopener noreferrer">
+              Anthropic Console
+            </a>
+            , then add it in <strong>Settings → API Keys</strong>.
+          </p>
+          <div
+            style={{ marginTop: '1rem', display: 'flex', gap: '0.5rem', justifyContent: 'center' }}
+          >
+            <button type="button" onClick={handleClose} className={styles.chatSendBtn}>
+              Close
+            </button>
+          </div>
+        </div>
       </div>
     )
   }
@@ -319,15 +340,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({
           <button
             type="button"
             className={styles.chatPanelActionBtn}
-            onClick={() => setShowApiKeyModal(true)}
-            title="Change API Key"
-          >
-            ⚙
-          </button>
-          <button
-            type="button"
-            className={styles.chatPanelActionBtn}
-            onClick={onClose}
+            onClick={handleClose}
             title="Close"
           >
             ✕
@@ -340,7 +353,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({
           <input
             type="checkbox"
             checked={autoCapture}
-            onChange={(e) => setAutoCapture(e.target.checked)}
+            onChange={e => setAutoCapture(e.target.checked)}
           />
           <span>Auto-capture screenshots</span>
         </label>
@@ -371,12 +384,15 @@ export const ChatPanel: FC<ChatPanelProps> = ({
         )}
 
         {messages.map((msg, idx) => (
-          <div key={`msg-${idx}-${msg.role}`} className={`${styles.chatMessage} ${msg.role === 'user' ? styles.chatMessageUser : styles.chatMessageAssistant}`}>
-            <div className={styles.chatMessageRole}>
-              {msg.role === 'user' ? 'You' : 'Claude'}
-            </div>
+          <div
+            key={`msg-${idx}-${msg.role}`}
+            className={`${styles.chatMessage} ${msg.role === 'user' ? styles.chatMessageUser : styles.chatMessageAssistant}`}
+          >
+            <div className={styles.chatMessageRole}>{msg.role === 'user' ? 'You' : 'Claude'}</div>
             <div className={styles.chatMessageContent}>
-              <MessageContent content={Array.isArray(msg.content) ? msg.content.join('\n') : msg.content} />
+              <MessageContent
+                content={Array.isArray(msg.content) ? msg.content.join('\n') : msg.content}
+              />
             </div>
           </div>
         ))}
@@ -386,9 +402,9 @@ export const ChatPanel: FC<ChatPanelProps> = ({
             <div className={styles.chatMessageRole}>Claude</div>
             <div className={styles.chatMessageContent}>
               <div className={styles.typingIndicator}>
-                <span></span>
-                <span></span>
-                <span></span>
+                <span />
+                <span />
+                <span />
               </div>
             </div>
           </div>
@@ -400,8 +416,8 @@ export const ChatPanel: FC<ChatPanelProps> = ({
       <div className={styles.chatPanelInput}>
         <textarea
           value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => {
+          onChange={e => setInput(e.target.value)}
+          onKeyDown={e => {
             if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault()
               handleSend()
@@ -437,89 +453,19 @@ const MessageContent: FC<{ content: string }> = ({ content }) => {
   const renderContent = () => {
     const parts = content.split(/(```[\s\S]*?```)/g)
     return parts.map((part, idx) => {
+      // Use combination of index and content snippet for stable key
+      const key = `${idx}-${part.substring(0, 20)}`
       if (part.startsWith('```')) {
         const code = part.replace(/```(\w+)?\n?/, '').replace(/```$/, '')
         return (
-          <pre key={idx}>
+          <pre key={key}>
             <code>{code}</code>
           </pre>
         )
       }
-      return <p key={idx}>{part}</p>
+      return <p key={key}>{part}</p>
     })
   }
 
   return <div>{renderContent()}</div>
-}
-
-// API Key Modal
-const ApiKeyModal: FC<{ onSubmit: (key: string, remember: boolean) => void }> = ({ onSubmit }) => {
-  const [key, setKey] = useState('')
-  const [error, setError] = useState('')
-  const [rememberKey, setRememberKey] = useState(true)
-
-  const handleSubmit = () => {
-    if (!key.trim()) {
-      setError('API key is required')
-      return
-    }
-
-    setError('')
-    onSubmit(key.trim(), rememberKey)
-  }
-
-  return (
-    <div className={styles.apiKeyModalOverlay}>
-      <div className={styles.apiKeyModal}>
-        <h3>Enter Anthropic API Key</h3>
-        <p>
-          To use the Noodles assistant, you need a Claude API key from{' '}
-          <a href="https://console.anthropic.com/" target="_blank" rel="noopener noreferrer">
-            Anthropic Console
-          </a>
-        </p>
-        <input
-          type="password"
-          value={key}
-          onChange={(e) => {
-            setKey(e.target.value)
-            setError('') // Clear error when user types
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              handleSubmit()
-            }
-          }}
-          placeholder="sk-ant-..."
-          className={styles.apiKeyInput}
-        />
-        {error && <p className={styles.apiKeyError}>{error}</p>}
-        <label className={styles.rememberKeyLabel}>
-          <input
-            type="checkbox"
-            checked={rememberKey}
-            onChange={(e) => setRememberKey(e.target.checked)}
-            className={styles.rememberKeyCheckbox}
-          />
-          <span>Remember my API key (stored in browser localStorage)</span>
-        </label>
-        <div className={styles.apiKeyModalActions}>
-          <button
-            type="button"
-            onClick={handleSubmit}
-            disabled={!key.trim()}
-            className={styles.apiKeySubmitBtn}
-          >
-            Save
-          </button>
-        </div>
-        <p className={styles.apiKeyNote}>
-          {rememberKey
-            ? 'Your API key will be stored in localStorage and persist across sessions.'
-            : 'Your API key will only be stored for this session and cleared when you close the tab.'}
-          {' '}Keys are never sent to Noodles.gl servers.
-        </p>
-      </div>
-    </div>
-  )
 }

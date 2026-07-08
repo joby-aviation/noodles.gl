@@ -53,19 +53,6 @@ vi.mock('@codeium/react-code-editor', () => ({
   },
 }))
 
-// Mock Theatre.js to avoid side effects
-vi.mock('@theatre/studio', () => ({
-  default: {
-    transaction: vi.fn(fn =>
-      fn({
-        __experimental_forgetSheet: vi.fn(),
-      })
-    ),
-    setSelection: vi.fn(),
-    createContentOfSaveFile: vi.fn(() => ({ sheetsById: {} })),
-  },
-}))
-
 describe('CodeFieldComponent edge management', () => {
   beforeEach(() => {
     clearOps()
@@ -275,7 +262,11 @@ WHERE id = {{./source1.out.val}}
     rerender(
       <ReactFlowProvider>
         <div data-node-id={queryField.op.id}>
-          <CodeFieldComponent id={queryField.pathToProps.join('.')} field={queryField} disabled={false} />
+          <CodeFieldComponent
+            id={queryField.pathToProps.join('.')}
+            field={queryField}
+            disabled={false}
+          />
         </div>
       </ReactFlowProvider>
     )
@@ -316,7 +307,11 @@ WHERE id = {{./source1.out.val}}
       rerender(
         <ReactFlowProvider>
           <div data-node-id={queryField.op.id}>
-            <CodeFieldComponent id={queryField.pathToProps.join('.')} field={queryField} disabled={false} />
+            <CodeFieldComponent
+              id={queryField.pathToProps.join('.')}
+              field={queryField}
+              disabled={false}
+            />
           </div>
         </ReactFlowProvider>
       )

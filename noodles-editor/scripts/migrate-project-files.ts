@@ -1,8 +1,9 @@
 import { readdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { migrateProject } from '../src/visualizations/noodles/utils/migrate-schema.js'
+import { migrateProject } from '../src/noodles/utils/migrate-schema.js'
 
-const PUBLIC_NOODLES_DIR = './public/noodles'
+const EXAMPLES_DIR = './src/examples'
+const PUBLIC_DIR = './public/noodles'
 
 async function getAllFiles(dir: string, extension = '.json'): Promise<string[]> {
   const entries = await readdir(dir, { withFileTypes: true })
@@ -21,8 +22,11 @@ async function getAllFiles(dir: string, extension = '.json'): Promise<string[]> 
 
 async function migrateFiles() {
   try {
-    const files = await getAllFiles(PUBLIC_NOODLES_DIR)
+    const exampleFiles = await getAllFiles(EXAMPLES_DIR)
+    const publicFiles = await getAllFiles(PUBLIC_DIR)
+    const files = [...exampleFiles, ...publicFiles]
     let migratedCount = 0
+    let skippedCount = 0
 
     for (const filePath of files) {
       try {
@@ -31,16 +35,18 @@ async function migrateFiles() {
 
         // Check if this is a noodles project file (has version and nodes properties)
         if (typeof projectData.version === 'number' && Array.isArray(projectData.nodes)) {
-          console.log(`Migrating: ${filePath}`)
+          const currentVersion = projectData.version
           const migrated = await migrateProject(projectData)
+          const newVersion = migrated.version
 
           // Only write if the project was actually changed
           if (JSON.stringify(migrated) !== JSON.stringify(projectData)) {
-            await writeFile(filePath, JSON.stringify(migrated, null, 2))
+            await writeFile(filePath, JSON.stringify(migrated, null, 2) + '\n')
             migratedCount++
-            console.log(`✓ Migrated ${filePath}`)
+            console.log(`✓ Migrated ${filePath} (v${currentVersion} → v${newVersion})`)
           } else {
-            console.log(`- No changes needed for ${filePath}`)
+            skippedCount++
+            console.log(`- No changes needed for ${filePath} (already v${currentVersion})`)
           }
         }
       } catch (error) {
@@ -48,7 +54,7 @@ async function migrateFiles() {
       }
     }
 
-    console.log(`\nMigration complete. ${migratedCount} file(s) updated.`)
+    console.log(`\nMigration complete. ${migratedCount} file(s) updated, ${skippedCount} file(s) already up to date.`)
     return migratedCount
   } catch (error) {
     console.error('Migration failed:', error)

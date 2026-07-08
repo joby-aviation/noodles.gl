@@ -1,10 +1,50 @@
 /// <reference types="./index.d.ts" />
+import 'primeicons/primeicons.css'
+import 'primereact/resources/themes/viva-dark/theme.css'
 import ReactDOM from 'react-dom/client'
 import App from './app'
 import './index.css'
+import { keyboardManager } from './noodles/utils/keyboard-manager'
 import reportWebVitals from './reportWebVitals'
+import { analytics } from './utils/analytics'
 
-const root = ReactDOM.createRoot(document.getElementById('root') as HTMLElement)
+// Initialize analytics
+analytics.initialize()
+
+// Log uncaught errors and unhandled promise rejections to the console
+window.addEventListener('error', e =>
+  console.error('[Noodles] uncaught error:', e.error ?? e.message)
+)
+window.addEventListener('unhandledrejection', e =>
+  console.error('[Noodles] unhandled rejection:', e.reason)
+)
+
+// Initialize keyboard manager
+keyboardManager.init()
+
+const root = ReactDOM.createRoot(document.getElementById('root') as HTMLElement, {
+  // Called when React catches an error in an Error Boundary
+  onCaughtError: (error, errorInfo) => {
+    analytics.captureException(error, {
+      source: 'react_error_boundary',
+      componentStack: errorInfo.componentStack,
+    })
+  },
+  // Called when an error is thrown and not caught by an Error Boundary
+  onUncaughtError: (error, errorInfo) => {
+    analytics.captureException(error, {
+      source: 'react_uncaught',
+      componentStack: errorInfo.componentStack,
+    })
+  },
+  // Called when React automatically recovers from errors
+  onRecoverableError: (error, errorInfo) => {
+    analytics.captureException(error, {
+      source: 'react_recoverable',
+      componentStack: errorInfo.componentStack,
+    })
+  },
+})
 root.render(
   //<React.StrictMode>
   <App />

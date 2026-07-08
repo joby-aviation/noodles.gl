@@ -2,18 +2,20 @@ import * as Dialog from '@radix-ui/react-dialog'
 import { Cross2Icon } from '@radix-ui/react-icons'
 import cx from 'classnames'
 import { useCallback, useState } from 'react'
-import newProjectJSON from '../../../public/noodles/new/noodles.json?url'
+import { debugUI } from '../../utils/debug'
 import { useFileSystemStore } from '../filesystem-store'
 import { load } from '../storage'
 import { selectDirectory } from '../utils/filesystem'
 import { migrateProject } from '../utils/migrate-schema'
-import { EMPTY_PROJECT, type NoodlesProjectJSON } from '../utils/serialization'
+import type { NoodlesProjectJSON } from '../utils/serialization'
 import s from './menu.module.css'
 
 interface ProjectNotFoundDialogProps {
   projectName: string
   open: boolean
   onProjectLoaded: (project: NoodlesProjectJSON, projectName: string) => void
+  onNewProject: () => Promise<void>
+  onImport: () => Promise<void>
   onClose: () => void
 }
 
@@ -21,12 +23,14 @@ export const ProjectNotFoundDialog = ({
   projectName,
   open,
   onProjectLoaded,
+  onNewProject,
+  onImport: onImportCallback,
   onClose,
 }: ProjectNotFoundDialogProps) => {
   const [error, setError] = useState<string | null>(null)
   const [isLocating, setIsLocating] = useState(false)
   const [isImporting, setIsImporting] = useState(false)
-  const { setCurrentDirectory } = useFileSystemStore()
+  const { setCurrentDirectory, setActiveStorageType } = useFileSystemStore()
 
   const onLocateFolder = useCallback(async () => {
     setIsLocating(true)
@@ -48,14 +52,15 @@ export const ProjectNotFoundDialog = ({
         try {
           const project = await migrateProject(result.data.projectData)
           setCurrentDirectory(result.data.directoryHandle, projectName)
+          setActiveStorageType('fileSystemAccess')
           onProjectLoaded(project, projectName)
           onClose()
         } catch (error) {
-          console.error('Error migrating project:', error)
+          debugUI('Error migrating project:', error)
           setError(error instanceof Error ? error.message : 'Failed to migrate project.')
         }
       } else {
-        console.error('Failed to load project:', result.error)
+        debugUI('Failed to load project:', result.error)
         setError(result.error.message)
       }
     } catch (error) {
@@ -63,58 +68,47 @@ export const ProjectNotFoundDialog = ({
       if (error instanceof Error && error.name === 'AbortError') {
         return
       }
-      console.error('Error opening folder:', error)
+      debugUI('Error opening folder:', error)
       setError(error instanceof Error ? error.message : 'Failed to open folder.')
     } finally {
       setIsLocating(false)
     }
-  }, [projectName, onProjectLoaded, onClose, setCurrentDirectory])
+  }, [projectName, onProjectLoaded, onClose, setCurrentDirectory, setActiveStorageType])
 
   const onImport = useCallback(async () => {
     setIsImporting(true)
     setError(null)
     try {
-      const [fileHandle] = await window.showOpenFilePicker({
-        types: [
-          {
-            description: 'JSON Files',
-            accept: {
-              'application/json': ['.json'],
-            },
-          },
-        ],
-        excludeAcceptAllOption: true,
-        multiple: false,
-      })
-      const file = await fileHandle.getFile()
-      const contents = await file.text()
-      const parsed = JSON.parse(contents) as Partial<NoodlesProjectJSON>
-      const project = await migrateProject({
-        ...EMPTY_PROJECT,
-        ...parsed,
-      } as NoodlesProjectJSON)
-      // Import the file and use the original project name
-      onProjectLoaded(project, projectName)
+      // Use the onImport callback which handles File System Access API setup
+      await onImportCallback()
       onClose()
     } catch (error) {
       // Handle abort error silently (user cancelled file picker)
       if (error instanceof Error && error.name === 'AbortError') {
         return
       }
-      console.error('Error importing project:', error)
+      debugUI('Error importing project:', error)
       setError(error instanceof Error ? error.message : 'Failed to import project.')
     } finally {
       setIsImporting(false)
     }
-  }, [projectName, onProjectLoaded, onClose])
+  }, [onImportCallback, onClose])
 
   const onCreateNew = useCallback(async () => {
     setError(null)
-    // Load blank template with the project name
-    const project = await fetch(newProjectJSON).then(r => r.json()) as NoodlesProjectJSON
-    onProjectLoaded(project, projectName)
-    onClose()
-  }, [projectName, onProjectLoaded, onClose])
+    try {
+      // Use the onNewProject callback which handles File System Access API setup
+      await onNewProject()
+      onClose()
+    } catch (error) {
+      // Handle abort error silently (user cancelled folder picker)
+      if (error instanceof Error && error.name === 'AbortError') {
+        return
+      }
+      debugUI('Error creating new project:', error)
+      setError(error instanceof Error ? error.message : 'Failed to create new project.')
+    }
+  }, [onNewProject, onClose])
 
   return (
     <Dialog.Root open={open} onOpenChange={open => !open && onClose()}>
@@ -125,7 +119,8 @@ export const ProjectNotFoundDialog = ({
           <Dialog.Description className={s.dialogDescription}>
             Project "{projectName}" was not found in storage.
             <br />
-            Would you like to locate the project folder, import a project file, or create a new project with this name?
+            Would you like to locate the project folder, import a project file, or create a new
+            project with this name?
           </Dialog.Description>
           {error && <p className={s.dialogError}>{error}</p>}
           <div className={s.dialogRightSlot}>

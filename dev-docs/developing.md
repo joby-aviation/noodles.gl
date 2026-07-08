@@ -1,20 +1,71 @@
-# Development Commands
+# Development Guide
 
-## Build & Test
+## Quick Start Commands
 
-- `yarn start` - Start development server
-- `yarn build` - Build for production
-- `yarn test` - Run all tests
-- `yarn test src/visualizations/noodles/noodles.test.ts` - Run specific test file
-- `yarn test -t "should transform graph"` - Run test with specific name
+### Installation
 
-## Linting
+```bash
+# Install dependencies
+npm run install:all
 
-- `yarn lint` - Run linter
-- `yarn fix-lint` - Automatically fix linting issues
+# Start development server
+npm run start:app         # or cd noodles-editor && npm start
+```
 
-## Environment Variables
-- Copy `.env.local.example` to `.env.local` and fill in required API keys (Google Maps, Mapbox, MapTiler, Cesium, etc.)
+### Development URLs
+
+- **Local**: `http://localhost:5173/examples/nyc-taxis`
+- **Specific Project**: Replace `nyc-taxis` with project name from `noodles-editor/public/examples/`
+- **Safe Mode**: Add `?safeMode=true` to disable code execution
+
+### Build & Test
+
+```bash
+# Run tests
+cd noodles-editor && npm test
+
+# Run specific test file
+npm test src/visualizations/noodles/noodles.test.ts
+
+# Run test with specific name
+npm test -- -t "should transform graph"
+
+# Build for production
+npm run build:all
+```
+
+### Linting & Formatting
+
+```bash
+# Run linter
+cd noodles-editor && npm run lint
+
+# Automatically fix linting issues
+cd noodles-editor && npm run fix-lint
+
+# Type checking
+npm run typecheck
+```
+
+## Environment Setup
+
+### Environment Variables
+
+Copy `.env.local.example` to `.env.local` and fill in required API keys:
+
+- Google Maps API key
+- Mapbox API key
+- MapTiler API key
+- Cesium API key
+
+### Development Tools
+
+The project uses:
+
+- **Biome** for fast linting and formatting (replaces ESLint/Prettier)
+- **TypeScript** for type checking
+- **Vitest** for unit testing
+- **Playwright** for end-to-end testing
 
 ## Code Style Guidelines
 
@@ -32,9 +83,50 @@
 - **State Management**: Use React context with custom hooks
 - **Testing**: Use vitest with mock data and snapshots
 
+## Best Practices
+
+### Graph Design
+
+- Minimize connections to reduce complexity
+- Group related operations in containers
+- Use descriptive node and field names
+- Document complex transformations
+
+### Performance
+
+- Avoid deep graph nesting
+- Batch related changes together
+- Profile and optimize hot paths
+- Use DuckDB for heavy data operations
+
+### Code Quality
+
+- Follow Biome configuration in biome.json (2 spaces, no semicolons, single quotes)
+- Write unit tests for operators
+- Use TypeScript strictly
+- Comment complex logic
+- **Avoid `constructor.name`** - it gets minified in production builds. Use static `displayName`/`description` properties and access them via `(operator.constructor as typeof Operator).displayName`
+
+### Maintenance
+
+- Add migration scripts for schema changes
+- Version control graph changes
+- Keep documentation up-to-date
+- Test operators in isolation
+
+### Batching Updates
+
+```typescript
+// Batch multiple changes to avoid cascading updates
+batch(() => {
+  node1.fields.param1.setValue(value1)
+  node2.fields.param2.setValue(value2)
+})
+```
+
 ## Project Structure
 
 - Visualizations are composed of nodes with inputs/outputs
 - Operators (Op) define the behavior of nodes
 - React Flow used for node graph visualization
-- TheatreJS used for animation timeline
+- Native timeline system used for keyframe animation
