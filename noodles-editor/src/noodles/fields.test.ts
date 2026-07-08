@@ -24,6 +24,8 @@ import {
   StringField,
   StringLiteralField,
   UnknownField,
+  Vec2Field,
+  Vec3Field,
 } from './fields'
 import { NumberOp } from './operators'
 import { clearOps, setOp } from './store'
@@ -1030,6 +1032,12 @@ describe('LayerField', () => {
 })
 
 describe('Point2DField', () => {
+  it('transforms tuple to object by default (no options)', () => {
+    const field = new Point2DField()
+    field.setValue([1, 2])
+    expect(field.value).toEqual({ lng: 1, lat: 2 })
+  })
+
   it('parses object to object', () => {
     const field = new Point2DField(undefined, { returnType: 'object' })
     field.setValue({ lng: 1, lat: 2 })
@@ -1169,9 +1177,39 @@ describe('Point2DField', () => {
     field.setValue(geoJsonFeature)
     expect(field.value).toEqual([-118.4182302, 34.0576856])
   })
+
+  it('extracts coordinates from bare GeoJSON Point geometry', () => {
+    const field = new Point2DField()
+    field.setValue({ type: 'Point', coordinates: [-73.78, 40.64] })
+    expect(field.value).toEqual({ lng: -73.78, lat: 40.64 })
+  })
+
+  it('extracts coordinates from geometry column with [lng, lat] tuple', () => {
+    const field = new Point2DField()
+    field.setValue({ id: 1, geometry: [-73.78, 40.64] })
+    expect(field.value).toEqual({ lng: -73.78, lat: 40.64 })
+  })
+
+  it('extracts coordinates from geometry column with GeoJSON Point', () => {
+    const field = new Point2DField()
+    field.setValue({ id: 1, geometry: { type: 'Point', coordinates: [-73.78, 40.64] } })
+    expect(field.value).toEqual({ lng: -73.78, lat: 40.64 })
+  })
+
+  it('extracts coordinates from geometry column to tuple', () => {
+    const field = new Point2DField(undefined, { returnType: 'tuple' })
+    field.setValue({ id: 1, geometry: [-73.78, 40.64] })
+    expect(field.value).toEqual([-73.78, 40.64])
+  })
 })
 
 describe('Point3DField', () => {
+  it('transforms tuple to object by default (no options)', () => {
+    const field = new Point3DField()
+    field.setValue([1, 2, 3])
+    expect(field.value).toEqual({ lng: 1, lat: 2, alt: 3 })
+  })
+
   it('parses object to object', () => {
     const field = new Point3DField(undefined, { returnType: 'object' })
     field.setValue({ lng: 1, lat: 2, alt: 3 })
@@ -1308,6 +1346,122 @@ describe('Point3DField', () => {
     }
     field.setValue(geoJsonFeature)
     expect(field.value).toEqual([-118.4182302, 34.0576856, 0])
+  })
+
+  it('extracts coordinates from bare GeoJSON Point geometry', () => {
+    const field = new Point3DField()
+    field.setValue({ type: 'Point', coordinates: [-73.78, 40.64, 100] })
+    expect(field.value).toEqual({ lng: -73.78, lat: 40.64, alt: 100 })
+  })
+
+  it('extracts 2D coordinates from bare GeoJSON Point geometry with alt=0', () => {
+    const field = new Point3DField()
+    field.setValue({ type: 'Point', coordinates: [-73.78, 40.64] })
+    expect(field.value).toEqual({ lng: -73.78, lat: 40.64, alt: 0 })
+  })
+
+  it('extracts coordinates from geometry column with [lng, lat] tuple', () => {
+    const field = new Point3DField()
+    field.setValue({ id: 1, geometry: [-73.78, 40.64] })
+    expect(field.value).toEqual({ lng: -73.78, lat: 40.64, alt: 0 })
+  })
+
+  it('extracts coordinates from geometry column with [lng, lat, alt] tuple', () => {
+    const field = new Point3DField()
+    field.setValue({ id: 1, geometry: [-73.78, 40.64, 100] })
+    expect(field.value).toEqual({ lng: -73.78, lat: 40.64, alt: 100 })
+  })
+
+  it('extracts coordinates from geometry column with GeoJSON Point', () => {
+    const field = new Point3DField()
+    field.setValue({ id: 1, geometry: { type: 'Point', coordinates: [-73.78, 40.64, 100] } })
+    expect(field.value).toEqual({ lng: -73.78, lat: 40.64, alt: 100 })
+  })
+
+  it('extracts coordinates from geometry column to tuple', () => {
+    const field = new Point3DField(undefined, { returnType: 'tuple' })
+    field.setValue({ id: 1, geometry: [-73.78, 40.64, 100] })
+    expect(field.value).toEqual([-73.78, 40.64, 100])
+  })
+
+  it('ignores geometry column with non-point data', () => {
+    const field = new Point3DField()
+    field.setValue({
+      id: 1,
+      geometry: {
+        type: 'LineString',
+        coordinates: [
+          [0, 0],
+          [1, 1],
+        ],
+      },
+    })
+    // Should fall back to default since no valid point data
+    expect(field.value).toEqual({ lng: 0, lat: 0, alt: 0 })
+  })
+})
+
+describe('Vec2Field', () => {
+  it('transforms tuple to object by default (no options)', () => {
+    const field = new Vec2Field()
+    field.setValue([3, 7])
+    expect(field.value).toEqual({ x: 3, y: 7 })
+  })
+
+  it('transforms tuple to object with explicit option', () => {
+    const field = new Vec2Field(undefined, { returnType: 'object' })
+    field.setValue([3, 7])
+    expect(field.value).toEqual({ x: 3, y: 7 })
+  })
+
+  it('parses object to object', () => {
+    const field = new Vec2Field(undefined, { returnType: 'object' })
+    field.setValue({ x: 5, y: 9 })
+    expect(field.value).toEqual({ x: 5, y: 9 })
+  })
+
+  it('transforms object to tuple', () => {
+    const field = new Vec2Field(undefined, { returnType: 'tuple' })
+    field.setValue({ x: 5, y: 9 })
+    expect(field.value).toEqual([5, 9])
+  })
+
+  it('parses tuple to tuple', () => {
+    const field = new Vec2Field(undefined, { returnType: 'tuple' })
+    field.setValue([3, 7])
+    expect(field.value).toEqual([3, 7])
+  })
+})
+
+describe('Vec3Field', () => {
+  it('transforms tuple to object by default (no options)', () => {
+    const field = new Vec3Field()
+    field.setValue([1, 2, 3])
+    expect(field.value).toEqual({ x: 1, y: 2, z: 3 })
+  })
+
+  it('transforms tuple to object with explicit option', () => {
+    const field = new Vec3Field(undefined, { returnType: 'object' })
+    field.setValue([1, 2, 3])
+    expect(field.value).toEqual({ x: 1, y: 2, z: 3 })
+  })
+
+  it('parses object to object', () => {
+    const field = new Vec3Field(undefined, { returnType: 'object' })
+    field.setValue({ x: 4, y: 5, z: 6 })
+    expect(field.value).toEqual({ x: 4, y: 5, z: 6 })
+  })
+
+  it('transforms object to tuple', () => {
+    const field = new Vec3Field(undefined, { returnType: 'tuple' })
+    field.setValue({ x: 4, y: 5, z: 6 })
+    expect(field.value).toEqual([4, 5, 6])
+  })
+
+  it('parses tuple to tuple', () => {
+    const field = new Vec3Field(undefined, { returnType: 'tuple' })
+    field.setValue([1, 2, 3])
+    expect(field.value).toEqual([1, 2, 3])
   })
 })
 

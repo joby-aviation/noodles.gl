@@ -6,6 +6,7 @@ import {
   AccessorOp,
   BitmapOverlayWidgetOp,
   BoundingBoxOp,
+  CategoricalColorRampOp,
   ChartOp,
   CodeOp,
   ConcatOp,
@@ -25,6 +26,7 @@ import {
   MapViewOp,
   MathOp,
   MergeOp,
+  NetworkOp,
   NumberOp,
   Operator,
   PointOp,
@@ -3456,6 +3458,88 @@ describe('BitmapOverlayWidgetOp', () => {
   })
 })
 
+describe('CategoricalColorRampOp', () => {
+  it('initializes with accent scheme by default', () => {
+    const op = new CategoricalColorRampOp('/cat-ramp-0')
+    expect(op.inputs.colorScheme.value).toBe('accent')
+    expect(op.inputs.colorRamp.count).toBe(8)
+  })
+
+  it('maps categories to colors via execute', () => {
+    const op = new CategoricalColorRampOp('/cat-ramp-0')
+    const result = op.execute({
+      colorRamp: op.inputs.colorRamp.value,
+      value: 'A',
+    })
+    expect(result.color).toMatch(/^#[0-9a-f]{6}$/)
+  })
+
+  it('returns different colors for different categories', () => {
+    const op = new CategoricalColorRampOp('/cat-ramp-0')
+    const colorA = op.execute({ colorRamp: op.inputs.colorRamp.value, value: 'A' })
+    const colorB = op.execute({ colorRamp: op.inputs.colorRamp.value, value: 'B' })
+    expect(colorA.color).not.toBe(colorB.color)
+  })
+
+  it('steps field slices fixed schemes to fewer colors', () => {
+    const op = new CategoricalColorRampOp('/cat-ramp-0')
+    op.inputs.steps.setValue(10)
+    op.inputs.colorScheme.setValue('category10')
+    expect(op.inputs.colorRamp.count).toBe(10)
+
+    op.inputs.steps.setValue(5)
+    expect(op.inputs.colorRamp.count).toBe(5)
+  })
+
+  it('steps field selects correct array for stepped schemes', () => {
+    const op = new CategoricalColorRampOp('/cat-ramp-0')
+    op.inputs.colorScheme.setValue('greyscale')
+    op.inputs.steps.setValue(4)
+    expect(op.inputs.colorRamp.count).toBe(4)
+
+    op.inputs.steps.setValue(9)
+    expect(op.inputs.colorRamp.count).toBe(9)
+  })
+
+  it('steps field rejects values below minimum', () => {
+    const op = new CategoricalColorRampOp('/cat-ramp-0')
+    op.inputs.colorScheme.setValue('greyscale')
+    op.inputs.steps.setValue(3)
+    expect(op.inputs.colorRamp.count).toBe(3)
+
+    op.inputs.steps.setValue(1)
+    expect(op.inputs.steps.value).toBe(3)
+  })
+
+  it('steps clamps to max available for the scheme', () => {
+    const op = new CategoricalColorRampOp('/cat-ramp-0')
+    op.inputs.colorScheme.setValue('category10')
+    op.inputs.steps.setValue(11)
+    expect(op.inputs.colorRamp.count).toBe(10)
+  })
+
+  it('changing colorScheme updates the ramp', () => {
+    const op = new CategoricalColorRampOp('/cat-ramp-0')
+    op.inputs.steps.setValue(5)
+
+    op.inputs.colorScheme.setValue('category10')
+    expect(op.inputs.colorRamp.count).toBe(5)
+
+    op.inputs.colorScheme.setValue('greyscale')
+    expect(op.inputs.colorRamp.count).toBe(5)
+  })
+
+  it('greyscale scheme produces valid hex colors', () => {
+    const op = new CategoricalColorRampOp('/cat-ramp-0')
+    op.inputs.colorScheme.setValue('greyscale')
+    const result = op.execute({
+      colorRamp: op.inputs.colorRamp.value,
+      value: 'category1',
+    })
+    expect(result.color).toMatch(/^#[0-9a-f]{6}$/)
+  })
+})
+
 describe('DirectionsOp', () => {
   it('accepts GeoJSON Point Features via Point2DField', () => {
     const directionsOp = new DirectionsOp('/directions')
@@ -3528,5 +3612,121 @@ describe('DirectionsOp', () => {
     // Verify DirectionsOp correctly parses the GeoJSON Features
     expect(directionsOp.inputs.origin.value).toEqual({ lng: -74.006, lat: 40.7128 })
     expect(directionsOp.inputs.destination.value).toEqual({ lng: -73.935242, lat: 40.73061 })
+  })
+})
+
+describe('NetworkOp with geometry column', () => {
+  it('still accepts direct {lng, lat, alt} objects (backward compat)', () => {
+    const networkOp = new NetworkOp('/network')
+    const points = [
+      { lng: -73.78, lat: 40.64, alt: 0 },
+      { lng: -122.37, lat: 37.62, alt: 0 },
+    ]
+
+    networkOp.inputs.skyports.setValue(points)
+    const result = networkOp.execute({ skyports: networkOp.inputs.skyports.value, hub: false })
+    expect(result.routes).toHaveLength(1)
+    expect(result.routes[0].origin).toEqual({ lng: -73.78, lat: 40.64, alt: 0 })
+    expect(result.routes[0].destination).toEqual({ lng: -122.37, lat: 37.62, alt: 0 })
+  })
+
+  it('still accepts {lng, lat} objects without alt (backward compat)', () => {
+    const networkOp = new NetworkOp('/network')
+    const points = [
+      { lng: -73.78, lat: 40.64 },
+      { lng: -122.37, lat: 37.62 },
+    ]
+
+    networkOp.inputs.skyports.setValue(points)
+    const result = networkOp.execute({ skyports: networkOp.inputs.skyports.value, hub: false })
+    expect(result.routes).toHaveLength(1)
+    expect(result.routes[0].origin).toEqual({ lng: -73.78, lat: 40.64, alt: 0 })
+    expect(result.routes[0].destination).toEqual({ lng: -122.37, lat: 37.62, alt: 0 })
+  })
+
+  it('accepts rows with geometry column as [lng, lat] tuple', () => {
+    const networkOp = new NetworkOp('/network')
+    const tableData = [
+      { name: 'JFK', geometry: [-73.78, 40.64] },
+      { name: 'SFO', geometry: [-122.37, 37.62] },
+      { name: 'LAX', geometry: [-118.41, 33.94] },
+    ]
+
+    networkOp.inputs.skyports.setValue(tableData)
+    const result = networkOp.execute({ skyports: networkOp.inputs.skyports.value, hub: false })
+    expect(result.routes).toHaveLength(3)
+    expect(result.routes[0].origin).toEqual({ lng: -73.78, lat: 40.64, alt: 0 })
+    expect(result.routes[0].destination).toEqual({ lng: -122.37, lat: 37.62, alt: 0 })
+  })
+
+  it('accepts rows with geometry column as GeoJSON Point', () => {
+    const networkOp = new NetworkOp('/network')
+    const tableData = [
+      { name: 'JFK', geometry: { type: 'Point', coordinates: [-73.78, 40.64] } },
+      { name: 'SFO', geometry: { type: 'Point', coordinates: [-122.37, 37.62] } },
+    ]
+
+    networkOp.inputs.skyports.setValue(tableData)
+    const result = networkOp.execute({ skyports: networkOp.inputs.skyports.value, hub: false })
+    expect(result.routes).toHaveLength(1)
+    expect(result.routes[0].origin).toEqual({ lng: -73.78, lat: 40.64, alt: 0 })
+    expect(result.routes[0].destination).toEqual({ lng: -122.37, lat: 37.62, alt: 0 })
+  })
+
+  it('accepts rows with geometry column as [lng, lat, alt] tuple', () => {
+    const networkOp = new NetworkOp('/network')
+    const tableData = [
+      { name: 'JFK', geometry: [-73.78, 40.64, 100] },
+      { name: 'SFO', geometry: [-122.37, 37.62, 200] },
+    ]
+
+    networkOp.inputs.skyports.setValue(tableData)
+    const result = networkOp.execute({ skyports: networkOp.inputs.skyports.value, hub: false })
+    expect(result.routes).toHaveLength(1)
+    expect(result.routes[0].origin).toEqual({ lng: -73.78, lat: 40.64, alt: 100 })
+    expect(result.routes[0].destination).toEqual({ lng: -122.37, lat: 37.62, alt: 200 })
+  })
+
+  it('accepts rows with geometry column as GeoJSON Point with altitude', () => {
+    const networkOp = new NetworkOp('/network')
+    const tableData = [
+      { name: 'JFK', geometry: { type: 'Point', coordinates: [-73.78, 40.64, 100] } },
+      { name: 'SFO', geometry: { type: 'Point', coordinates: [-122.37, 37.62, 200] } },
+    ]
+
+    networkOp.inputs.skyports.setValue(tableData)
+    const result = networkOp.execute({ skyports: networkOp.inputs.skyports.value, hub: false })
+    expect(result.routes).toHaveLength(1)
+    expect(result.routes[0].origin).toEqual({ lng: -73.78, lat: 40.64, alt: 100 })
+    expect(result.routes[0].destination).toEqual({ lng: -122.37, lat: 37.62, alt: 200 })
+  })
+
+  it('works in hub mode with geometry column', () => {
+    const networkOp = new NetworkOp('/network')
+    const tableData = [
+      { name: 'HUB', geometry: [-73.78, 40.64] },
+      { name: 'SFO', geometry: [-122.37, 37.62] },
+      { name: 'LAX', geometry: [-118.41, 33.94] },
+    ]
+
+    networkOp.inputs.skyports.setValue(tableData)
+    const result = networkOp.execute({ skyports: networkOp.inputs.skyports.value, hub: true })
+    expect(result.routes).toHaveLength(2)
+    expect(result.routes[0].origin).toEqual({ lng: -73.78, lat: 40.64, alt: 0 })
+    expect(result.routes[1].origin).toEqual({ lng: -73.78, lat: 40.64, alt: 0 })
+  })
+
+  it('accepts bare GeoJSON Point geometry at top level via Point3DField', () => {
+    const networkOp = new NetworkOp('/network')
+    const tableData = [
+      { type: 'Point', coordinates: [-73.78, 40.64] },
+      { type: 'Point', coordinates: [-122.37, 37.62] },
+    ]
+
+    networkOp.inputs.skyports.setValue(tableData)
+    const result = networkOp.execute({ skyports: networkOp.inputs.skyports.value, hub: false })
+    expect(result.routes).toHaveLength(1)
+    expect(result.routes[0].origin).toEqual({ lng: -73.78, lat: 40.64, alt: 0 })
+    expect(result.routes[0].destination).toEqual({ lng: -122.37, lat: 37.62, alt: 0 })
   })
 })

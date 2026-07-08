@@ -103,6 +103,7 @@ import {
   schemeBrBG,
   schemeCategory10,
   schemeDark2,
+  schemeGreys,
   schemePaired,
   schemePiYG,
   schemePRGn,
@@ -1675,7 +1676,7 @@ export class CategoricalColorRampOp extends Operator<CategoricalColorRampOp> {
   createInputs() {
     const colorRamp = new CategoricalColorRampField()
 
-    const schemes = {
+    const fixedSchemes = {
       accent: schemeAccent,
       category10: schemeCategory10,
       dark: schemeDark2,
@@ -1685,36 +1686,53 @@ export class CategoricalColorRampOp extends Operator<CategoricalColorRampOp> {
       set3: schemeSet3,
       tableau10: schemeTableau10,
       joby: JOBY_COLORS,
-
-      // These schemes are arrays of arrays, ordered by number of stops. In the future we should
-      // allow the user to select the number of stops
-      BrownGreen: schemeBrBG[11],
-      PurpleGreen: schemePRGn[11],
-      PurpleBlue: schemePuBu[9],
-      PinkYellowGreen: schemePiYG[11],
-      RedBlue: schemeRdBu[11],
-      RedGrey: schemeRdGy[11],
-      RedYellowBlue: schemeRdYlBu[11],
-      RedYellowGreen: schemeRdYlGn[11],
-      YellowGreen: schemeYlGn[9],
-      spectral: schemeSpectral[11],
     }
 
-    const colorScheme = new StringLiteralField('accent', Object.keys(schemes))
+    const steppedSchemes = {
+      greyscale: schemeGreys,
+      BrownGreen: schemeBrBG,
+      PurpleGreen: schemePRGn,
+      PurpleBlue: schemePuBu,
+      PinkYellowGreen: schemePiYG,
+      RedBlue: schemeRdBu,
+      RedGrey: schemeRdGy,
+      RedYellowBlue: schemeRdYlBu,
+      RedYellowGreen: schemeRdYlGn,
+      YellowGreen: schemeYlGn,
+      spectral: schemeSpectral,
+    }
 
-    // TODO: Should this move to the execute function and component?
-    colorScheme.subscribe(val => {
-      const scheme = schemes[val as keyof typeof schemes]
+    const allSchemeNames = [...Object.keys(fixedSchemes), ...Object.keys(steppedSchemes)]
+
+    const colorScheme = new StringLiteralField('accent', allSchemeNames)
+    const steps = new NumberField(8, { min: 3, max: 11, step: 1 })
+
+    const updateRamp = () => {
+      const schemeName = colorScheme.value
+      const n = Math.max(Math.round(steps.value), 3)
+      let scheme: readonly string[]
+      if (schemeName in fixedSchemes) {
+        const full = fixedSchemes[schemeName as keyof typeof fixedSchemes]
+        scheme = full.slice(0, Math.min(n, full.length))
+      } else {
+        const steppedScheme = steppedSchemes[schemeName as keyof typeof steppedSchemes]
+        const clamped = Math.min(n, steppedScheme.length - 1)
+        scheme = steppedScheme[clamped] as readonly string[]
+      }
       const interpolate = scaleOrdinal(scheme)
       colorRamp.count = scheme.length
       colorRamp.setValue(interpolate)
-    })
+    }
+
+    colorScheme.subscribe(updateRamp)
+    steps.subscribe(updateRamp)
 
     const value = new StringField('', { accessor: true })
 
     return {
       colorRamp,
       colorScheme,
+      steps,
       value,
     }
   }
@@ -2580,17 +2598,13 @@ export class GeocoderOp extends Operator<GeocoderOp> {
     }
   }
   async execute(_: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    // This is a special-case because it's essentially a pass-through. The Geocoder component will handle the API call
-    return null
-
-    /*
-    const response = await fetch(
-      `https://api.mapbox.com/geocoding/v5/mapbox.places/${query}.json?access_token=${MAPBOX_ACCESS_TOKEN}`
-    )
-    const data = await response.json()
-    const location = data.features[0].center
-    return { location }
-    */
+    const { getKey } = getKeysStore()
+    if (!getKey('mapbox')) {
+      throw new Error('Mapbox API key required (Settings > API Keys)')
+    }
+    // Push-based: the UI component drives op.outputs.location.next() directly.
+    // Return current output so downstream pull-chain succeeds.
+    return this.outputData
   }
 }
 
