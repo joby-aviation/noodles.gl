@@ -147,6 +147,7 @@ import { FilterColorExtension } from './extensions/filter-color-extension'
 import { Mask3DExtension } from './extensions/mask-3d-extension'
 import {
   ArrayField,
+  applySerializedFieldValue,
   BezierCurveField,
   BooleanField,
   CategoricalColorRampField,
@@ -200,6 +201,9 @@ import { isDirectChild } from './utils/path-utils'
 import { pick } from './utils/pick'
 import { getTimelineContext } from './utils/timeline-context'
 import { subscribeOpToTimeline, unsubscribeOpFromTimeline } from './utils/timeline-dependencies'
+// Side-effect import: registers the field expression evaluator so { $expr } payloads
+// applied in the Operator constructor evaluate immediately
+import './utils/field-expressions'
 import { validateViewState } from './utils/viewstate-helpers'
 
 // https://stackoverflow.com/questions/66044717/typescript-infer-type-of-abstract-methods-implementation
@@ -328,9 +332,8 @@ export abstract class Operator<OP extends IOperator> {
     if (data) {
       for (const [key, value] of Object.entries(data)) {
         if (key in this.inputs) {
-          const field = this.inputs[key]
-          const parsed = field.constructor.deserialize(value)
-          field.setValue(parsed)
+          // Routes { $expr } payloads to setExpression, plain values to setValue
+          applySerializedFieldValue(this.inputs[key], value)
         }
       }
     }
@@ -956,6 +959,11 @@ export abstract class Operator<OP extends IOperator> {
     this.unsubscribeListeners()
     this.executionState.complete()
     this.customFieldsChanged.complete()
+
+    // Cleanup expression-mode subscriptions (sibling/timeline reactivity)
+    for (const field of Object.values(this.inputs)) {
+      field.expressionCleanup?.()
+    }
 
     // Cleanup timeline subscriptions
     unsubscribeOpFromTimeline(this.id)
@@ -8337,7 +8345,7 @@ function proxyFields(op: Operator<IOperator>, fields: 'inputs' | 'outputs') {
 }
 
 // For convenience in code / expression blocks
-const freeExports = {
+export const freeExports = {
   utils,
   d3,
   turf,

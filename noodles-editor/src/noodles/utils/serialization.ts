@@ -141,8 +141,11 @@ export function serializeNodes(
       } catch {
         // If parsing fails, use the raw default value
       }
+      // Expression-driven fields always serialize — the expression must persist even
+      // when its current evaluated value happens to equal the default
       const hasNonDefaultValue =
-        serialized !== undefined && !deepEqual(field.value, normalizedDefault)
+        serialized !== undefined &&
+        (field.expression !== null || !deepEqual(field.value, normalizedDefault))
       if (hasNonDefaultValue && !incomers.has(name)) {
         inputs[name] = serialized
       }

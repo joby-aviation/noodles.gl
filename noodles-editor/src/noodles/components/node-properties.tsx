@@ -23,6 +23,7 @@ import {
   OUT_NS,
   type Vec2Field,
 } from '../fields'
+import { useObservable } from '../hooks/use-observable'
 import type { IOperator, Operator } from '../operators'
 import { OutOp } from '../operators'
 import { getOpStore, useUIStore } from '../store'
@@ -32,6 +33,7 @@ import {
   BooleanFieldComponent,
   ColorFieldComponent,
   DateFieldComponent,
+  ExpressionDrivenInput,
   NumberFieldComponent,
   TextFieldComponent,
   VectorFieldComponent,
@@ -257,6 +259,12 @@ function EditableFieldInput({
   expandTimeline?: () => void
 }) {
   const { type } = field.constructor as typeof Field
+
+  // Expression-driven fields show the expression editor regardless of type
+  const expression = useObservable(field.expression$, field.expression)
+  if (expression !== null) {
+    return <ExpressionDrivenInput id={fieldName} field={field} disabled={disabled} />
+  }
 
   switch (type) {
     case 'number':
