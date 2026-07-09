@@ -1,4 +1,4 @@
-import type { PropsWithChildren } from 'react'
+import type { PropsWithChildren, ReactNode } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import s from './dockable-pane.module.css'
 
@@ -48,27 +48,31 @@ function loadRect(storageKey: string, fallback: Rect): Rect {
   return fallback
 }
 
+export type PaneMode = 'docked' | 'floating' | 'underlay'
+
 // Hosts content that must never unmount or reparent — moving a WebGL canvas in the DOM
 // loses its context (MapLibre recovers, deck.gl's layer resources don't). The pane is a
-// single fixed-position element that is either pinned over dockTo's bounding box or
-// floats as a draggable window (drag by title bar, resize by the corner handle). The
-// floating rect persists to localStorage under storageKey.
+// single fixed-position element pinned over dockTo's bounding box ('docked' above the
+// surrounding UI, 'underlay' behind it) or floating as a draggable window (drag by
+// title bar, resize by the corner handle). The floating rect persists to localStorage
+// under storageKey. dockedActions renders as corner controls in docked mode.
 export function DockablePane({
   title,
   storageKey,
-  floating,
+  mode,
   dockTo,
-  onPopOut,
   onDock,
+  dockedActions,
   children,
 }: PropsWithChildren<{
   title: string
   storageKey: string
-  floating: boolean
+  mode: PaneMode
   dockTo: HTMLElement | null
-  onPopOut: () => void
   onDock: () => void
+  dockedActions?: ReactNode
 }>) {
+  const floating = mode === 'floating'
   const [floatRect, setFloatRect] = useState(() => loadRect(storageKey, DEFAULT_RECT))
   const [dockRect, setDockRect] = useState<Rect | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -158,10 +162,12 @@ export function DockablePane({
 
   const rect = floating ? floatRect : dockRect
 
+  const modeClass = { docked: s.docked, floating: s.floating, underlay: s.underlay }[mode]
+
   return (
     <div
       ref={containerRef}
-      className={floating ? s.floating : s.docked}
+      className={modeClass}
       style={
         rect
           ? { left: rect.x, top: rect.y, width: rect.width, height: rect.height }
@@ -183,16 +189,7 @@ export function DockablePane({
       )}
       <div className={s.content}>
         {children}
-        {!floating && (
-          <button
-            type="button"
-            className={s.popOutButton}
-            onClick={onPopOut}
-            title={`Pop out ${title.toLowerCase()} into a floating window`}
-          >
-            <i className="pi pi-external-link" />
-          </button>
-        )}
+        {mode === 'docked' && <div className={s.dockedActions}>{dockedActions}</div>}
       </div>
       {floating && (
         <div

@@ -1,3 +1,4 @@
+import cx from 'classnames'
 import type { PropsWithChildren, ReactNode } from 'react'
 import { useEffect, useState } from 'react'
 import { Group, Panel, Separator, useDefaultLayout, usePanelRef } from 'react-resizable-panels'
@@ -47,23 +48,27 @@ export function Layout({
   const timelineExpanded = useUIStore(state => state.timelineExpanded)
   const setTimelineExpanded = useUIStore(state => state.setTimelineExpanded)
   const spreadsheetVisible = useUIStore(state => state.spreadsheetVisible)
-  const mapFloating = useUIStore(state => state.mapFloating)
-  const setMapFloating = useUIStore(state => state.setMapFloating)
+  const mapMode = useUIStore(state => state.mapMode)
+  const setMapMode = useUIStore(state => state.setMapMode)
   const sidebarSearchFocusTrigger = useUIStore(state => state.sidebarSearchFocusTrigger)
 
   const sidebarRef = usePanelRef()
   const timelineRef = usePanelRef()
   const spreadsheetRef = usePanelRef()
 
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(true)
+
   // TimelinePanel needs its height as a number to size its canvases
   const [timelineHeightPx, setTimelineHeightPx] = useState(() =>
     loadPx(TIMELINE_HEIGHT_KEY, TIMELINE_DEFAULT_HEIGHT)
   )
 
-  // The map lives in a DockablePane pinned over this anchor when docked (its WebGL
-  // canvas must never move in the DOM — see DockablePane). The anchor is an empty div
-  // filling the map Panel that only provides the rect to pin to.
+  // The map lives in a DockablePane pinned over one of these anchors (its WebGL canvas
+  // must never move in the DOM — see DockablePane). The anchors are empty divs that only
+  // provide the rect to pin to: the map Panel when docked, the node graph area when the
+  // map is an underlay behind the graph.
   const [mapDockAnchor, setMapDockAnchor] = useState<HTMLDivElement | null>(null)
+  const [mapUnderlayAnchor, setMapUnderlayAnchor] = useState<HTMLDivElement | null>(null)
 
   // Edit > Find focuses the sidebar search box; make sure the sidebar is visible first
   useEffect(() => {
@@ -76,7 +81,7 @@ export function Layout({
   })
   const mainSplitLayout = useDefaultLayout({
     id: 'noodles:main-split',
-    panelIds: mapFloating ? ['noodles'] : ['map', 'noodles'],
+    panelIds: mapMode === 'docked' ? ['map', 'noodles'] : ['noodles'],
   })
 
   return (
@@ -97,11 +102,12 @@ export function Layout({
             <Panel
               id="sidebar"
               panelRef={sidebarRef}
-              defaultSize="12%"
+              defaultSize="0%"
               minSize="10%"
               maxSize="30%"
               collapsible
               collapsedSize={0}
+              onResize={size => setSidebarCollapsed(size.asPercentage === 0)}
               className={s.sidebarPanel}
             >
               {left}
@@ -115,7 +121,7 @@ export function Layout({
                 defaultLayout={mainSplitLayout.defaultLayout}
                 onLayoutChanged={mainSplitLayout.onLayoutChanged}
               >
-                {!mapFloating && (
+                {mapMode === 'docked' && (
                   <>
                     <Panel id="map" defaultSize="50%" minSize="20%" className={s.outputArea}>
                       <div className={s.mapHost} ref={setMapDockAnchor} />
@@ -132,7 +138,20 @@ export function Layout({
                     }
                   >
                     <Panel id="nodeGraph" minSize="20%" className={s.nodeGraphArea}>
+                      {mapMode === 'underlay' && (
+                        <div className={s.mapUnderlayAnchor} ref={setMapUnderlayAnchor} />
+                      )}
                       {flowGraph}
+                      {mapMode === 'underlay' && (
+                        <button
+                          type="button"
+                          className={cx(s.paneActionButton, s.underlayRestoreButton)}
+                          onClick={() => setMapMode('docked')}
+                          title="Dock map back into its own panel"
+                        >
+                          <i className="pi pi-window-maximize" />
+                        </button>
+                      )}
                     </Panel>
                     {spreadsheetVisible && (
                       <>
@@ -189,6 +208,17 @@ export function Layout({
         )}
       </Group>
 
+      {sidebarCollapsed && (
+        <button
+          type="button"
+          className={s.sidebarToggle}
+          onClick={() => sidebarRef.current?.expand()}
+          title="Show sidebar"
+        >
+          <i className="pi pi-chevron-right" />
+        </button>
+      )}
+
       {!timelineExpanded && timeline && (
         <button
           type="button"
@@ -204,10 +234,29 @@ export function Layout({
       <DockablePane
         title="Map"
         storageKey="noodles-floating-map"
-        floating={mapFloating}
-        dockTo={mapDockAnchor}
-        onPopOut={() => setMapFloating(true)}
-        onDock={() => setMapFloating(false)}
+        mode={mapMode}
+        dockTo={mapMode === 'underlay' ? mapUnderlayAnchor : mapDockAnchor}
+        onDock={() => setMapMode('docked')}
+        dockedActions={
+          <>
+            <button
+              type="button"
+              className={s.paneActionButton}
+              onClick={() => setMapMode('underlay')}
+              title="Show map behind the node graph"
+            >
+              <i className="pi pi-clone" />
+            </button>
+            <button
+              type="button"
+              className={s.paneActionButton}
+              onClick={() => setMapMode('floating')}
+              title="Pop out map into a floating window"
+            >
+              <i className="pi pi-external-link" />
+            </button>
+          </>
+        }
       >
         {children}
       </DockablePane>

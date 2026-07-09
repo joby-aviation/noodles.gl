@@ -6,6 +6,15 @@
   z-index: 1;
 }
 
+/* Behind the node graph (which gets z-index: 1 in layout.module.css) */
+.underlay {
+  position: fixed;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  z-index: 0;
+}
+
 .floating {
   position: fixed;
   display: flex;
@@ -87,37 +96,21 @@
   overflow: hidden;
 }
 
-.popOutButton {
+.dockedActions {
   position: absolute;
   top: 8px;
   right: 8px;
   z-index: 1;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  padding: 0;
-  background: var(--color-bg-base);
-  border: 1px solid var(--color-border);
-  border-radius: 4px;
-  color: var(--color-text-secondary);
-  cursor: pointer;
+  gap: 4px;
   opacity: 0;
-  transition:
-    opacity 150ms ease,
-    color 150ms ease;
+  transition: opacity 150ms ease;
 }
 
-.content:hover .popOutButton {
+.content:hover .dockedActions {
   opacity: 0.85;
 }
 
-.popOutButton:hover {
+.dockedActions:hover {
   opacity: 1;
-  color: var(--color-text-primary);
-}
-
-.popOutButton i {
-  font-size: 11px;
 }

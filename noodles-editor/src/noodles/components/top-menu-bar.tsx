@@ -9,7 +9,7 @@ import { ExternalControlButton } from '../../external-control/components/externa
 import { analytics } from '../../utils/analytics'
 import { debugUI } from '../../utils/debug'
 import { ContainerOp } from '../operators'
-import { getOpStore, useNestingStore, useUIStore } from '../store'
+import { getOpStore, type MapMode, useNestingStore, useUIStore } from '../store'
 import { directoryHandleCache } from '../utils/directory-handle-cache'
 import { getParentPath, splitPath } from '../utils/path-utils'
 import { Breadcrumbs } from './breadcrumbs'
@@ -75,8 +75,8 @@ export function TopMenuBar({
 }: TopMenuBarProps) {
   const settingsDialogOpen = useUIStore(state => state.settingsDialogOpen)
   const setSettingsDialogOpen = useUIStore(state => state.setSettingsDialogOpen)
-  const mapFloating = useUIStore(state => state.mapFloating)
-  const setMapFloating = useUIStore(state => state.setMapFloating)
+  const mapMode = useUIStore(state => state.mapMode)
+  const setMapMode = useUIStore(state => state.setMapMode)
   const triggerSidebarSearch = useUIStore(state => state.triggerSidebarSearch)
   const [, navigate] = useLocation()
   const [recentProjects, setRecentProjects] = useState<string[]>([])
@@ -446,16 +446,44 @@ export function TopMenuBar({
                         </DropdownMenu.ItemIndicator>
                         Show spreadsheet
                       </DropdownMenu.CheckboxItem>
-                      <DropdownMenu.CheckboxItem
-                        className={s.dropdownItem}
-                        checked={mapFloating}
-                        onCheckedChange={setMapFloating}
-                      >
-                        <DropdownMenu.ItemIndicator className={s.itemIndicator}>
-                          <i className="pi pi-check" style={{ fontSize: '12px' }} />
-                        </DropdownMenu.ItemIndicator>
-                        Float map window
-                      </DropdownMenu.CheckboxItem>
+                      <DropdownMenu.Separator className={s.dropdownSeparator} />
+
+                      <DropdownMenu.Sub>
+                        <DropdownMenu.SubTrigger className={s.dropdownItem}>
+                          Map
+                          <i
+                            className="pi pi-chevron-right"
+                            style={{ marginLeft: 'auto', fontSize: '10px' }}
+                          />
+                        </DropdownMenu.SubTrigger>
+                        <DropdownMenu.Portal>
+                          <DropdownMenu.SubContent className={s.dropdownContent} sideOffset={2}>
+                            <DropdownMenu.RadioGroup
+                              value={mapMode}
+                              onValueChange={value => setMapMode(value as MapMode)}
+                            >
+                              <DropdownMenu.RadioItem className={s.dropdownItem} value="docked">
+                                <DropdownMenu.ItemIndicator className={s.itemIndicator}>
+                                  <i className="pi pi-check" style={{ fontSize: '12px' }} />
+                                </DropdownMenu.ItemIndicator>
+                                Docked panel
+                              </DropdownMenu.RadioItem>
+                              <DropdownMenu.RadioItem className={s.dropdownItem} value="floating">
+                                <DropdownMenu.ItemIndicator className={s.itemIndicator}>
+                                  <i className="pi pi-check" style={{ fontSize: '12px' }} />
+                                </DropdownMenu.ItemIndicator>
+                                Floating window
+                              </DropdownMenu.RadioItem>
+                              <DropdownMenu.RadioItem className={s.dropdownItem} value="underlay">
+                                <DropdownMenu.ItemIndicator className={s.itemIndicator}>
+                                  <i className="pi pi-check" style={{ fontSize: '12px' }} />
+                                </DropdownMenu.ItemIndicator>
+                                Behind node graph
+                              </DropdownMenu.RadioItem>
+                            </DropdownMenu.RadioGroup>
+                          </DropdownMenu.SubContent>
+                        </DropdownMenu.Portal>
+                      </DropdownMenu.Sub>
                     </DropdownMenu.SubContent>
                   </DropdownMenu.Portal>
                 </DropdownMenu.Sub>

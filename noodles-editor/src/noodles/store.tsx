@@ -138,8 +138,20 @@ interface UIStoreState {
   setSpreadsheetVisible: (visible: boolean) => void
   pinnedSpreadsheetNodeId: string | null
   setPinnedSpreadsheetNodeId: (id: string | null) => void
-  mapFloating: boolean
-  setMapFloating: (floating: boolean) => void
+  mapMode: MapMode
+  setMapMode: (mode: MapMode) => void
+}
+
+// docked: map in its own panel above the node graph
+// floating: map in a draggable window
+// underlay: map fills the node graph area, drawn behind the graph
+export type MapMode = 'docked' | 'floating' | 'underlay'
+
+const MAP_MODES: MapMode[] = ['docked', 'floating', 'underlay']
+
+function loadMapMode(): MapMode {
+  const stored = localStorage.getItem('noodles-map-mode') as MapMode | null
+  return stored && MAP_MODES.includes(stored) ? stored : 'docked'
 }
 
 export const useUIStore = create<UIStoreState>(set => ({
@@ -164,10 +176,10 @@ export const useUIStore = create<UIStoreState>(set => ({
   setSpreadsheetVisible: visible => set({ spreadsheetVisible: visible }),
   pinnedSpreadsheetNodeId: null,
   setPinnedSpreadsheetNodeId: id => set({ pinnedSpreadsheetNodeId: id }),
-  mapFloating: localStorage.getItem('noodles-map-floating') === 'true',
-  setMapFloating: floating => {
-    set({ mapFloating: floating })
-    localStorage.setItem('noodles-map-floating', String(floating))
+  mapMode: loadMapMode(),
+  setMapMode: mode => {
+    set({ mapMode: mode })
+    localStorage.setItem('noodles-map-mode', mode)
   },
 }))
 
