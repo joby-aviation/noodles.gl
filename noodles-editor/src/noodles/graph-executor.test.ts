@@ -951,6 +951,98 @@ describe('markDirty propagation soundness', () => {
   })
 })
 
+describe('markDirty wave pruning', () => {
+  // The wave calls _setPullExecutionStatus once per operator it marks, so a
+  // spy on it counts wave visits: a fully pruned wave makes zero calls.
+  const spyOnStatusWrites = () =>
+    vi.spyOn(Operator.prototype as any, '_setPullExecutionStatus' as any)
+
+  it('should prune a repeated wave when nothing left DIRTY in between', () => {
+    const a = new NumberOp('/prune-a')
+    const b = new MathOp('/prune-b')
+    const c = new MathOp('/prune-c')
+    a.addDownstreamDependent(b)
+    b.addDownstreamDependent(c)
+
+    // First wave marks and stamps the whole closure with the current epoch
+    a.markDirty()
+    expect(a.pullExecutionStatus).toBe(PullExecutionStatus.DIRTY)
+    expect(b.pullExecutionStatus).toBe(PullExecutionStatus.DIRTY)
+    expect(c.pullExecutionStatus).toBe(PullExecutionStatus.DIRTY)
+
+    // Second wave with no status transitions in between: pruned at the root,
+    // no operator is re-visited
+    const spy = spyOnStatusWrites()
+    a.markDirty()
+    expect(spy).not.toHaveBeenCalled()
+    spy.mockRestore()
+
+    // Everything is still dirty
+    expect(b.pullExecutionStatus).toBe(PullExecutionStatus.DIRTY)
+    expect(c.pullExecutionStatus).toBe(PullExecutionStatus.DIRTY)
+  })
+
+  it('should invalidate pruning when any operator leaves DIRTY', async () => {
+    const a = new NumberOp('/inv-a')
+    const b = new MathOp('/inv-b')
+    const c = new MathOp('/inv-c')
+
+    a.inputs.val.setValue(1)
+    b.inputs.a.addConnection('a-to-b', a.outputs.val)
+    b.inputs.b.setValue(1)
+    b.inputs.operator.setValue('add')
+    b.addUpstreamDependency(a)
+    a.addDownstreamDependent(b)
+    c.inputs.a.addConnection('b-to-c', b.outputs.result)
+    c.inputs.b.setValue(0)
+    c.inputs.operator.setValue('add')
+    c.addUpstreamDependency(b)
+    b.addDownstreamDependent(c)
+
+    // Stamp the whole chain in the current epoch
+    a.markDirty()
+
+    // A single operator leaving DIRTY (here via setCachedOutput, the ForLoop
+    // path) must invalidate the prune: a stale stamp on a would otherwise
+    // leave c CLEAN behind a pruned wave — the dirty island again
+    c.setCachedOutput({ result: 99 })
+    expect(c.pullExecutionStatus).toBe(PullExecutionStatus.CLEAN)
+    a.markDirty()
+    expect(c.pullExecutionStatus).toBe(PullExecutionStatus.DIRTY)
+
+    // Same via a real pull: clean the whole chain, then re-mark — the wave
+    // must re-mark every operator, not prune on the stale stamps
+    const result = await c.pull()
+    expect(result.result).toBe(2) // (1 + 1) + 0
+    expect(b.pullExecutionStatus).toBe(PullExecutionStatus.CLEAN)
+    expect(c.pullExecutionStatus).toBe(PullExecutionStatus.CLEAN)
+    a.markDirty()
+    expect(b.pullExecutionStatus).toBe(PullExecutionStatus.DIRTY)
+    expect(c.pullExecutionStatus).toBe(PullExecutionStatus.DIRTY)
+  })
+
+  it('should visit a long chain once for repeated marks between pulls', () => {
+    // Synthetic 250-node chain, 25 marks between two frame pulls (e.g.
+    // timeline scrubbing): total wave visits must be O(chain), not 25x
+    const ops = Array.from({ length: 250 }, (_, i) => new NumberOp(`/bench-${i}`))
+    for (let i = 0; i < ops.length - 1; i++) {
+      ops[i].addDownstreamDependent(ops[i + 1])
+    }
+
+    const spy = spyOnStatusWrites()
+    ops[0].markDirty()
+    expect(spy).toHaveBeenCalledTimes(250) // first wave walks the chain once
+
+    for (let i = 0; i < 24; i++) {
+      ops[0].markDirty()
+    }
+    expect(spy).toHaveBeenCalledTimes(250) // repeated marks fully pruned
+    spy.mockRestore()
+
+    expect(ops[249].pullExecutionStatus).toBe(PullExecutionStatus.DIRTY)
+  })
+})
+
 describe('Graph execution', () => {
   it('should execute a single operator and produce output', async () => {
     const num = new NumberOp('/num')

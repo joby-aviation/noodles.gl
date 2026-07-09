@@ -281,8 +281,16 @@ export abstract class Operator<OP extends IOperator> {
   visibleFields = new BehaviorSubject<Set<string> | null>(null)
 
   // === Pull-based execution additions ===
+  // Global dirty epoch for markDirty wave pruning. Incremented whenever ANY
+  // operator's status transitions away from DIRTY (see
+  // _setPullExecutionStatus) and whenever the dependency graph gains an edge
+  // (see addDownstreamDependent). See markDirty for the pruning invariant.
+  private static _dirtyEpoch = 0
+
   // Execution status for pull-based model
   private _pullExecutionStatus: PullExecutionStatus = PullExecutionStatus.DIRTY
+  // Epoch of the markDirty wave that last marked this operator (see markDirty)
+  private _dirtyMarkEpoch = -1
   private _cachedOutput: ExtractProps<(typeof this)['outputs']> | null = null
   private _lastExecutionTime = 0
   private _computingPromise: Promise<ExtractProps<(typeof this)['outputs']>> | null = null
@@ -481,7 +489,7 @@ export abstract class Operator<OP extends IOperator> {
     debugPull('%s: %s -> executing', this.id, this._pullExecutionStatus)
 
     // Mark as computing
-    this._pullExecutionStatus = PullExecutionStatus.COMPUTING
+    this._setPullExecutionStatus(PullExecutionStatus.COMPUTING)
 
     // Create computation promise
     this._computingPromise = this._pullExecution()
@@ -519,7 +527,7 @@ export abstract class Operator<OP extends IOperator> {
       // Marks arriving from here on (e.g. an async upstream resolving while
       // execute() awaits) are NOT reflected in the snapshot and must keep the
       // operator dirty — see the completion check below.
-      this._pullExecutionStatus = PullExecutionStatus.COMPUTING
+      this._setPullExecutionStatus(PullExecutionStatus.COMPUTING)
 
       // Debug breakpoint - pause execution if enabled
       if (this.breakpointEnabled.value) {
@@ -555,10 +563,10 @@ export abstract class Operator<OP extends IOperator> {
       this._cachedOutput = finalResult
       if (markedAfterSnapshot || this._hasDirtyUpstreamDependency()) {
         debugPull('%s: dirtied mid-execution, staying dirty for re-execution', this.id)
-        this._pullExecutionStatus = PullExecutionStatus.DIRTY
+        this._setPullExecutionStatus(PullExecutionStatus.DIRTY)
         this.dirty = true
       } else {
-        this._pullExecutionStatus = PullExecutionStatus.CLEAN
+        this._setPullExecutionStatus(PullExecutionStatus.CLEAN)
         this.dirty = false // Also clear the dirty flag for GraphExecutor
       }
       this._lastExecutionTime = executionTime
@@ -612,7 +620,7 @@ export abstract class Operator<OP extends IOperator> {
       // mid-flight DIRTY: markDirty clears ERROR back to DIRTY on the next
       // wave anyway (any future input change retries), while preserving DIRTY
       // here would silently retry a failing operator every frame.
-      this._pullExecutionStatus = PullExecutionStatus.ERROR
+      this._setPullExecutionStatus(PullExecutionStatus.ERROR)
       this._cachedOutput = null
 
       // Update execution state for UI
@@ -653,6 +661,23 @@ export abstract class Operator<OP extends IOperator> {
     return false
   }
 
+  // Single write point for _pullExecutionStatus. Bumps the global dirty epoch
+  // whenever a status transitions AWAY from DIRTY — that is precisely the
+  // event that can invalidate the markDirty prune ("this op and its whole
+  // downstream closure are still dirty"): a wave's claim about its closure
+  // only breaks when something in it becomes clean. Route every status
+  // assignment through this helper so a future write site cannot silently
+  // skip the bump.
+  private _setPullExecutionStatus(status: PullExecutionStatus): void {
+    if (
+      this._pullExecutionStatus === PullExecutionStatus.DIRTY &&
+      status !== PullExecutionStatus.DIRTY
+    ) {
+      Operator._dirtyEpoch++
+    }
+    this._pullExecutionStatus = status
+  }
+
   // Mark this operator as dirty and propagate downstream.
   //
   // WHY the wave must always propagate: an earlier version early-returned when
@@ -670,7 +695,22 @@ export abstract class Operator<OP extends IOperator> {
   // unconditional recursion would overflow the stack. Walking iteratively with
   // a visited set marks each operator at most once per wave, terminating on
   // cycles without relying on prior dirty state.
+  //
+  // WHY the epoch prune is sound: an op that is DIRTY with a stamp from the
+  // CURRENT epoch was marked by a wave in this epoch, and that wave walked the
+  // op's entire downstream closure (marking or pruning inductively). The epoch
+  // only stays current while no operator anywhere transitions away from DIRTY
+  // (_setPullExecutionStatus) and no dependency edge is added
+  // (addDownstreamDependent) — so the closure is provably still all-DIRTY and
+  // re-walking it is redundant. This locally re-establishes the old
+  // "dirty implies downstream dirty" invariant: it was CLEANING interleaved
+  // with marks that broke it, and cleaning is exactly what bumps the epoch and
+  // disables the prune. The global epoch is deliberately coarse (any op
+  // leaving DIRTY anywhere disables pruning until the next wave re-stamps);
+  // correctness first — the hot path (repeated marks between two frame pulls,
+  // e.g. timeline scrubbing keyframed ops) stays O(1) per repeated mark.
   markDirty(): void {
+    const epoch = Operator._dirtyEpoch
     const visited = new Set<Operator<IOperator>>()
     const stack: Operator<IOperator>[] = [this as Operator<IOperator>]
 
@@ -678,6 +718,13 @@ export abstract class Operator<OP extends IOperator> {
       const op = stack.pop()
       if (op === undefined || visited.has(op)) continue
       visited.add(op)
+
+      // Prune: already marked by a wave in the current epoch and still dirty,
+      // so its whole downstream closure is still dirty (see comment above)
+      if (op._pullExecutionStatus === PullExecutionStatus.DIRTY && op._dirtyMarkEpoch === epoch) {
+        debugDirty('%s already marked in epoch %d, pruning wave', op.id, epoch)
+        continue
+      }
 
       // Log recovery from error state
       if (op._pullExecutionStatus === PullExecutionStatus.ERROR) {
@@ -691,7 +738,8 @@ export abstract class Operator<OP extends IOperator> {
         op._downstreamDependents.size
       )
 
-      op._pullExecutionStatus = PullExecutionStatus.DIRTY
+      op._setPullExecutionStatus(PullExecutionStatus.DIRTY)
+      op._dirtyMarkEpoch = epoch
       op._cachedOutput = null
       op.dirty = true // Also set the dirty flag for GraphExecutor
 
@@ -712,6 +760,10 @@ export abstract class Operator<OP extends IOperator> {
   // Add downstream dependent (for pull-based model)
   addDownstreamDependent(op: Operator<IOperator>): void {
     this._downstreamDependents.add(op)
+    // A new edge grows downstream closures, so a wave stamped before this
+    // edge existed never walked the new dependent — invalidate the prune.
+    // (Removing an edge only shrinks closures and stays sound.)
+    Operator._dirtyEpoch++
   }
 
   // Remove upstream dependency (for pull-based model)
@@ -737,14 +789,16 @@ export abstract class Operator<OP extends IOperator> {
   // Set cached output and mark clean (for use by GraphExecutor ForLoop handling)
   setCachedOutput(output: ExtractProps<(typeof this)['outputs']>): void {
     this._cachedOutput = output
-    this._pullExecutionStatus = PullExecutionStatus.CLEAN
+    this._setPullExecutionStatus(PullExecutionStatus.CLEAN)
     this.dirty = false
   }
 
-  // Clear cached output and mark dirty
+  // Clear cached output and mark dirty. NOTE: deliberately does not stamp
+  // _dirtyMarkEpoch — this sets DIRTY without walking downstream, so future
+  // waves must not prune at this operator.
   clearCache(): void {
     this._cachedOutput = null
-    this._pullExecutionStatus = PullExecutionStatus.DIRTY
+    this._setPullExecutionStatus(PullExecutionStatus.DIRTY)
     this.dirty = true
   }
 
