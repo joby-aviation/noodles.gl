@@ -482,3 +482,25 @@ Consequences for the harness:
   two-bridge variant stack-overflows; the crossing-edge variant (previous golden) renders but
   is not a supported pattern. There is currently NO authorable container-with-async-data
   project that renders on fresh load.
+
+### Round 5: repro projects on the PRs; executor bug fixed and verified (PR #516)
+
+- Self-contained repro projects (noodles.json + 200-row CSV + how-to-repro README) committed
+  to each fix branch under `dev-docs/repros/`: `container-reference-edges/` (#514),
+  `graph-input-rebuild-orphan/` (#515), `executor-dirty-propagation/` (#516). PR bodies carry
+  Reproduction sections pointing at them.
+- **Bug 3 fixed (PR #516, sub-agent implementation, browser-verified here).** Two composing
+  defects: markDirty's already-dirty early return (fixed with a cycle-safe visited-set wave —
+  the container bridge cycle forbids naive unconditional recursion), and _pullExecution
+  unconditionally setting CLEAN on completion, clobbering marks that arrive after the input
+  snapshot (the CSV resolving inside the same frame's pull walk — the wave fix alone verified
+  insufficient in-browser, trace showed `pull /viewer clean x847` after the mid-frame marks).
+  Completion now keeps DIRTY when marked-after-snapshot or any upstream ended the frame DIRTY;
+  pre-snapshot marks are absorbed to preserve single-frame convergence; pull()'s in-flight
+  guard keys on the computing promise so a mid-compute DIRTY can't double-execute. Three
+  regression tests, each proven red without its fix.
+- **End-to-end confirmation** on a worktree with #515 + #516: the sanctioned container idiom
+  flows on fresh load — container.in 200 → GraphInput 200 → child 12 (magnitude ≥ 4 filter)
+  → GraphOutput 12 → container.out 12 → viewer. The code-refs@2 baseline unblocks when #515
+  and #516 merge to main (workspaces build from origin/main); #514 additionally fixes the
+  reference-only variant sessions may author.
