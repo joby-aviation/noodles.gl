@@ -777,6 +777,97 @@ describe('Operator dirty flag', () => {
   })
 })
 
+describe('markDirty propagation soundness', () => {
+  // Regression test for the "dirty island" bug: when async data arrives while
+  // an intermediate operator is already dirty and the sink is CLEAN with a
+  // cached output, the dirty wave used to stop at the already-dirty
+  // intermediate (early return), leaving the sink permanently serving stale
+  // cached output. markDirty must propagate the full wave regardless of prior
+  // dirty state.
+  it('should propagate past an already-dirty intermediate to a clean sink', async () => {
+    const source = new NumberOp('/source')
+    const mid = new MathOp('/mid')
+    const sink = new MathOp('/sink')
+
+    source.inputs.val.setValue(1)
+
+    // source -> mid -> sink
+    mid.inputs.a.addConnection('source-to-mid', source.outputs.val)
+    mid.inputs.b.setValue(1)
+    mid.inputs.operator.setValue('add')
+    mid.addUpstreamDependency(source)
+    source.addDownstreamDependent(mid)
+
+    sink.inputs.a.addConnection('mid-to-sink', mid.outputs.result)
+    sink.inputs.b.setValue(0)
+    sink.inputs.operator.setValue('add')
+    sink.addUpstreamDependency(mid)
+    mid.addDownstreamDependent(sink)
+
+    // Initial frame pull: everything executes and becomes CLEAN
+    const result1 = await sink.pull()
+    expect(result1.result).toBe(2) // (1 + 1) + 0
+    expect(sink.pullExecutionStatus).toBe(PullExecutionStatus.CLEAN)
+
+    // Simulate the interleaving: the intermediate becomes dirty again without
+    // propagating (clearCache does not propagate) while the sink stays CLEAN
+    mid.clearCache()
+    expect(mid.pullExecutionStatus).toBe(PullExecutionStatus.DIRTY)
+    expect(sink.pullExecutionStatus).toBe(PullExecutionStatus.CLEAN)
+
+    // Async data arrives at the source (e.g. a FileOp resolving a CSV)
+    source.inputs.val.setValue(41)
+    source.markDirty()
+
+    // The dirty wave must reach the sink even though mid was already dirty
+    expect(sink.pullExecutionStatus).toBe(PullExecutionStatus.DIRTY)
+
+    // A subsequent frame pull on the sink must re-execute the dirty island
+    const result2 = await sink.pull()
+    expect(result2.result).toBe(42) // (41 + 1) + 0
+  })
+
+  it('should terminate on downstream dependency cycles without stack overflow', async () => {
+    // Container bridge edges create node-level dependency cycles:
+    // container -> GraphInput -> child -> GraphOutput -> container.
+    // Model that shape with a downstream-dependent cycle a -> b -> c -> a.
+    const a = new NumberOp('/a')
+    const b = new MathOp('/b')
+    const c = new MathOp('/c')
+
+    a.addDownstreamDependent(b)
+    b.addDownstreamDependent(c)
+    c.addDownstreamDependent(a)
+
+    // Acyclic pull path: c pulls b, b pulls a
+    b.addUpstreamDependency(a)
+    c.addUpstreamDependency(b)
+
+    a.inputs.val.setValue(5)
+    b.inputs.a.addConnection('a-to-b', a.outputs.val)
+    b.inputs.b.setValue(2)
+    b.inputs.operator.setValue('multiply')
+    c.inputs.a.addConnection('b-to-c', b.outputs.result)
+    c.inputs.b.setValue(3)
+    c.inputs.operator.setValue('add')
+
+    // Must terminate: unconditional recursion would overflow the stack here
+    expect(() => a.markDirty()).not.toThrow()
+    expect(a.pullExecutionStatus).toBe(PullExecutionStatus.DIRTY)
+    expect(b.pullExecutionStatus).toBe(PullExecutionStatus.DIRTY)
+    expect(c.pullExecutionStatus).toBe(PullExecutionStatus.DIRTY)
+
+    // Pull must still work after a cyclic dirty wave
+    const result = await c.pull()
+    expect(result.result).toBe(13) // 5 * 2 + 3
+
+    // Marking dirty from mid-cycle after a clean pull must also terminate
+    expect(() => b.markDirty()).not.toThrow()
+    const result2 = await c.pull()
+    expect(result2.result).toBe(13)
+  })
+})
+
 describe('Graph execution', () => {
   it('should execute a single operator and produce output', async () => {
     const num = new NumberOp('/num')

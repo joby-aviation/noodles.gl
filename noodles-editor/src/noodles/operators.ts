@@ -608,33 +608,54 @@ export abstract class Operator<OP extends IOperator> {
     // Field connections will have updated the values already via subscriptions
   }
 
-  // Mark this operator as dirty and propagate downstream
+  // Mark this operator as dirty and propagate downstream.
+  //
+  // WHY the wave must always propagate: an earlier version early-returned when
+  // an operator was already DIRTY, assuming the invariant "if I'm dirty,
+  // everything downstream of me is already dirty". That invariant breaks when
+  // async data arrival interleaves with frame pulls: a frame pull can clean
+  // the sink chain while an intermediate operator is re-marked dirty, so when
+  // upstream data later arrives (e.g. a FileOp resolving a CSV) the dirty wave
+  // stops at the already-dirty intermediate and never reaches the CLEAN sink.
+  // The sink then returns its cached output forever and the dirty island is
+  // never re-executed. Propagating unconditionally restores soundness.
+  //
+  // WHY the visited set: container bridge edges (container -> GraphInput ->
+  // child -> GraphOutput -> container) create node-level dependency cycles, so
+  // unconditional recursion would overflow the stack. Walking iteratively with
+  // a visited set marks each operator at most once per wave, terminating on
+  // cycles without relying on prior dirty state.
   markDirty(): void {
-    const alreadyDirty = this._pullExecutionStatus === PullExecutionStatus.DIRTY
-    if (alreadyDirty) {
-      debugDirty('%s already dirty, skipping', this.id)
-      return // Already dirty
-    }
+    const visited = new Set<Operator<IOperator>>()
+    const stack: Operator<IOperator>[] = [this as Operator<IOperator>]
 
-    // Log recovery from error state
-    if (this._pullExecutionStatus === PullExecutionStatus.ERROR) {
-      debugDirty('%s cleared from error state', this.id)
-      this._lastLoggedError = null
-    }
+    while (stack.length > 0) {
+      const op = stack.pop()
+      if (op === undefined || visited.has(op)) continue
+      visited.add(op)
 
-    debugDirty(
-      '%s marked dirty, propagating to %d downstream',
-      this.id,
-      this._downstreamDependents.size
-    )
+      // Log recovery from error state
+      if (op._pullExecutionStatus === PullExecutionStatus.ERROR) {
+        debugDirty('%s cleared from error state', op.id)
+        op._lastLoggedError = null
+      }
 
-    this._pullExecutionStatus = PullExecutionStatus.DIRTY
-    this._cachedOutput = null
-    this.dirty = true // Also set the dirty flag for GraphExecutor
+      debugDirty(
+        '%s marked dirty, propagating to %d downstream',
+        op.id,
+        op._downstreamDependents.size
+      )
 
-    // Propagate dirty flag to downstream dependents
-    for (const dependent of this._downstreamDependents) {
-      dependent.markDirty()
+      op._pullExecutionStatus = PullExecutionStatus.DIRTY
+      op._cachedOutput = null
+      op.dirty = true // Also set the dirty flag for GraphExecutor
+
+      // Propagate dirty flag to downstream dependents
+      for (const dependent of op._downstreamDependents) {
+        if (!visited.has(dependent)) {
+          stack.push(dependent)
+        }
+      }
     }
   }
 
