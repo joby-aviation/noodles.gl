@@ -39,6 +39,7 @@ import {
   type FileUrlField,
   getFieldReferences,
   type IField,
+  ListField,
   type MapStyleField,
   type NumberField,
   Point2DField,
@@ -61,8 +62,9 @@ import { usePropertyHistory } from '../utils/property-history'
 import { ColorSwatch } from './color-swatch'
 import { ExpressionEditorOverlay } from './ExpressionEditorOverlay'
 import { GeocodingDialog } from './geocoding-dialog'
-import menuStyles from './menu.module.css'
 import { handleClass, useHandleDimmed } from './op-components'
+import { MultiInputHandle } from './multi-input-handle'
+import menuStyles from './menu.module.css'
 
 type InputComponent = React.ComponentType<{
   id: OpId
@@ -2483,13 +2485,22 @@ export function FieldComponent({
   return (
     <div style={{ position: 'relative' }}>
       {handle && (
-        <Handle
-          id={qualifiedFieldId}
-          className={cx(handleClass(field), { [s.handleDimmed]: isHandleDimmed })}
-          style={handleStyle}
-          type={handle.type}
-          position={Position.Left}
-        />
+        field instanceof ListField ? (
+          <MultiInputHandle
+            id={qualifiedFieldId}
+            field={field}
+            className={cx(handleClass(field), { [s.handleDimmed]: isHandleDimmed })}
+            style={handleStyle}
+          />
+        ) : (
+          <Handle
+            id={qualifiedFieldId}
+            className={cx(handleClass(field), { [s.handleDimmed]: isHandleDimmed })}
+            style={handleStyle}
+            type={handle.type}
+            position={Position.Left}
+          />
+        )
       )}
       {renderInput &&
         (hasIncomingConnection ? (

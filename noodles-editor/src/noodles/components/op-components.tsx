@@ -77,6 +77,7 @@ import {
   getEnableExpressionDependencies,
 } from '../utils/enable-expression-evaluator'
 import type { NodeType } from '../utils/node-creation-utils'
+import { type MultiInputEdgeData, slotOffsetY } from '../utils/multi-input-utils'
 import { generateQualifiedPath, getBaseName, getParentPath } from '../utils/path-utils'
 import {
   captureOperatorInputs,
@@ -225,6 +226,7 @@ export const nodeComponents = {
 export const edgeComponents = {
   default: DefaultEdgeComponent,
   ReferenceEdge: ReferenceEdgeComponent,
+  MultiInputEdge: MultiInputEdgeComponent,
 } as const as ReactFlowEdgeTypes
 
 function DefaultEdgeComponent({
@@ -284,6 +286,50 @@ function ReferenceEdgeComponent({
   return (
     <BaseEdge path={edgePath} markerEnd={markerEnd} className={s.referenceEdge} style={style} />
   )
+}
+
+function MultiInputEdgeComponent({
+  id,
+  sourceX,
+  sourceY,
+  targetX,
+  targetY,
+  sourcePosition,
+  targetPosition,
+  style = {},
+  markerEnd,
+  data,
+}: EdgeProps) {
+  const targetedEdge = useUIStore(s => s.targetedEdge)
+  const nodeDragState = useUIStore(s => s.nodeDragState)
+
+  // Anchor the edge on its slot within the grown handle. React Flow reports targetY at the
+  // handle's vertical center; slotOffsetY spreads the group symmetrically around it using
+  // the orderIndex/groupSize caches maintained by normalizeMultiInputEdges.
+  const { orderIndex = 0, groupSize = 1 } = (data ?? {}) as Partial<MultiInputEdgeData>
+
+  const [edgePath] = getBezierPath({
+    sourceX,
+    sourceY,
+    targetX,
+    targetY: targetY + slotOffsetY(orderIndex, groupSize),
+    sourcePosition: sourcePosition || Position.Right,
+    targetPosition: targetPosition || Position.Left,
+  })
+
+  const isConnectionTarget = targetedEdge?.id === id
+  const isNodeDropTarget = nodeDragState?.targetedEdge?.id === id
+
+  let edgeClassName: string | undefined
+  if (isConnectionTarget) {
+    edgeClassName = targetedEdge.compatible ? s.targetedEdge : s.targetedEdgeIncompatible
+  } else if (isNodeDropTarget) {
+    edgeClassName = nodeDragState.targetedEdge.canInsert
+      ? s.targetedEdge
+      : s.targetedEdgeIncompatible
+  }
+
+  return <BaseEdge path={edgePath} markerEnd={markerEnd} style={style} className={edgeClassName} />
 }
 
 export const resizeableNodes = [
