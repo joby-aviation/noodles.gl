@@ -1200,7 +1200,11 @@ describe('derived reference edges (unmounted nodes)', () => {
       {
         id: '/code',
         type: 'CodeOp',
-        data: { inputs: { code: ["const x = op('/a').out.val", "const y = op('/gone').out.val", 'return x'] } },
+        data: {
+          inputs: {
+            code: ["const x = op('/a').out.val", "const y = op('/gone').out.val", 'return x'],
+          },
+        },
         position: { x: 50, y: 0 },
       },
     ]

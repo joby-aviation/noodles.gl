@@ -106,7 +106,12 @@ function topologicalSort<N extends Operator<IOperator>>(
  * target + targetHandle + sourceHandle) treats them as already present. */
 export function deriveReferenceEdges(
   nodes: ReadonlyArray<{ id: string; data?: { inputs?: Record<string, unknown> } }>,
-  existingEdges: ReadonlyArray<{ source: string; sourceHandle?: string | null; target: string; targetHandle?: string | null }>
+  existingEdges: ReadonlyArray<{
+    source: string
+    sourceHandle?: string | null
+    target: string
+    targetHandle?: string | null
+  }>
 ): Array<Record<string, unknown>> {
   const nodeIds = new Set(nodes.map(n => n.id))
   const seen = new Set(
