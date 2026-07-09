@@ -1,0 +1,153 @@
+{
+  "version": 14,
+  "viewport": {
+    "x": 500,
+    "y": 300,
+    "zoom": 1
+  },
+  "name": "Repro: container in/out idiom drops async data",
+  "editorSettings": {
+    "layoutMode": "noodles-on-top",
+    "showOverlay": true
+  },
+  "timeline": {
+    "sheetsById": {
+      "Noodles": {
+        "staticOverrides": {
+          "byObject": {}
+        }
+      }
+    },
+    "definitionVersion": "0.4.0",
+    "revisionHistory": []
+  },
+  "nodes": [
+    {
+      "id": "/quake-data",
+      "type": "FileOp",
+      "position": {
+        "x": -450,
+        "y": 0
+      },
+      "data": {
+        "inputs": {
+          "format": "csv",
+          "url": "@/data.csv"
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/box",
+      "type": "ContainerOp",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "inputs": {},
+        "locked": false,
+        "customInputs": [
+          {
+            "id": "ci1",
+            "name": "minMagnitude",
+            "type": "number",
+            "order": 0,
+            "defaultValue": 4
+          }
+        ]
+      }
+    },
+    {
+      "id": "/box/input",
+      "type": "GraphInputOp",
+      "position": {
+        "x": 30,
+        "y": 40
+      },
+      "data": {
+        "inputs": {},
+        "locked": false
+      }
+    },
+    {
+      "id": "/box/child",
+      "type": "CodeOp",
+      "position": {
+        "x": 300,
+        "y": 40
+      },
+      "data": {
+        "inputs": {
+          "code": [
+            "const rows = data[0] ?? []",
+            "const minMagnitude = op('/box').par.minMagnitude",
+            "return rows.filter(d => d.Magnitude >= minMagnitude)"
+          ]
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/box/output",
+      "type": "GraphOutputOp",
+      "position": {
+        "x": 700,
+        "y": 40
+      },
+      "data": {
+        "inputs": {},
+        "locked": false
+      }
+    },
+    {
+      "id": "/viewer",
+      "type": "ViewerOp",
+      "position": {
+        "x": 500,
+        "y": 0
+      },
+      "data": {
+        "inputs": {},
+        "locked": false
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "/quake-data.out.data->/box.par.in",
+      "source": "/quake-data",
+      "sourceHandle": "out.data",
+      "target": "/box",
+      "targetHandle": "par.in"
+    },
+    {
+      "id": "/box/input.out.value->/box/child.par.data",
+      "source": "/box/input",
+      "sourceHandle": "out.value",
+      "target": "/box/child",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/box/child.out.data->/box/output.par.value",
+      "source": "/box/child",
+      "sourceHandle": "out.data",
+      "target": "/box/output",
+      "targetHandle": "par.value"
+    },
+    {
+      "id": "/box/output.out.propagatedValue->/box.out.out",
+      "source": "/box/output",
+      "sourceHandle": "out.propagatedValue",
+      "target": "/box",
+      "targetHandle": "out.out"
+    },
+    {
+      "id": "/box.out.out->/viewer.par.data",
+      "source": "/box",
+      "sourceHandle": "out.out",
+      "target": "/viewer",
+      "targetHandle": "par.data"
+    }
+  ]
+}
