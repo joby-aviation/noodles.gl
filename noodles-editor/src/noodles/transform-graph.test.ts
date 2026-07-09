@@ -1178,7 +1178,12 @@ describe('GraphInputOp rebuildFromContainer keeps the container link alive', () 
       {
         id: '/box',
         type: 'ContainerOp',
-        data: { inputs: {}, customInputs: [{ id: 'ci1', name: 'threshold', type: 'number', order: 0, defaultValue: 4 }] },
+        data: {
+          inputs: {},
+          customInputs: [
+            { id: 'ci1', name: 'threshold', type: 'number', order: 0, defaultValue: 4 },
+          ],
+        },
         position: { x: 0, y: 0 },
       },
       { id: '/box/input', type: 'GraphInputOp', data: { inputs: {} }, position: { x: 10, y: 0 } },
@@ -1188,7 +1193,9 @@ describe('GraphInputOp rebuildFromContainer keeps the container link alive', () 
 
     const { getOp } = getOpStore()
     const box = getOp('/box')!
-    const graphInput = getOp('/box/input')! as InstanceType<(typeof import('./operators'))['GraphInputOp']>
+    const graphInput = getOp('/box/input')! as InstanceType<
+      typeof import('./operators')['GraphInputOp']
+    >
 
     box.inputs.in.setValue([1, 2, 3])
     expect(graphInput.inputs.parentValue.value).toEqual([1, 2, 3])
