@@ -4,6 +4,7 @@ import { type Edge as ExecutorEdge, updateGraph } from './graph-executor'
 import type { Edge } from './noodles'
 import type { IOperator, Operator, OpType } from './operators'
 import { ContainerOp, ForLoopEndOp, GraphInputOp, opTypes, type SpecialNodeType } from './operators'
+import { ListField } from './fields'
 import { getOpStore } from './store'
 import { validateConnection } from './utils/can-connect'
 import { getParentPath, isDirectChild, parseHandleId } from './utils/path-utils'
@@ -296,6 +297,21 @@ export function transformGraph<
         edge.id,
         `Broken connection: source node "${edge.source}" no longer exists. This may be caused by a failed node rename.`
       )
+    }
+  }
+
+  // Sync ListField connection order to edge-array order. addConnection early-returns for
+  // already-connected ids and appends new ones at the Map end, so reused operators would
+  // otherwise keep stale order after edges are inserted mid-group or the array is reordered.
+  for (const op of instances) {
+    for (const [name, field] of Object.entries(op.inputs)) {
+      if (field instanceof ListField) {
+        field.setConnectionOrder(
+          edges
+            .filter(e => e.target === op.id && String(e.targetHandle) === `par.${name}`)
+            .map(e => e.id)
+        )
+      }
     }
   }
 

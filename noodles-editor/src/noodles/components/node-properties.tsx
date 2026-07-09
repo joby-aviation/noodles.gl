@@ -26,7 +26,13 @@ import {
 import type { IOperator, Operator } from '../operators'
 import { OutOp } from '../operators'
 import { getOpStore, useUIStore } from '../store'
+import {
+  moveEdgeWithinGroup,
+  normalizeMultiInputEdges,
+  orderedEdgeIdsForHandle,
+} from '../utils/multi-input-utils'
 import { getBaseName, parseHandleId } from '../utils/path-utils'
+import { ErrorBoundary } from './error-boundary'
 import {
   BooleanFieldComponent,
   ColorFieldComponent,
@@ -37,7 +43,6 @@ import {
 } from './field-components'
 import menuStyles from './menu.module.css'
 import s from './node-properties.module.css'
-import { ErrorBoundary } from './error-boundary'
 import { handleClass, headerClass, typeCategory } from './op-components'
 import { RenderSettingsPanel } from './render-settings-panel'
 
@@ -185,7 +190,6 @@ function Tooltip({
     </div>
   )
 }
-
 
 function AddRemoveButton({
   type,
@@ -372,7 +376,7 @@ function CompoundSubFields({
 
 // Exported for testing
 export function NodeProperties({ nodeId }: { nodeId: string }) {
-  const { setEdges } = useReactFlow()
+  const { setEdges, getEdges } = useReactFlow()
   const onEdgesChange = useStore(s => s.onEdgesChange)
   // Only re-renders when this node's incoming edges change (not on position updates)
   const edges = useStore(
@@ -394,10 +398,14 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
     y: number
     codeRef: string
     mustacheRef: string
+    fieldName: string
+    fieldValue?: string
     fieldPath?: string
     inputName?: string // field name for "Reset to default"
     keyframeEntries?: Array<{ path: string; value: KeyframeValue }> // for "Sequence"
     listFieldInputName?: string // field name when it's a ListField with connections
+    isVisible?: boolean // whether the field is currently shown
+    hasConnection?: boolean // whether the field has an incoming edge
   } | null>(null)
   const descriptionRef = useRef<HTMLDivElement>(null)
   const draggingRef = useRef<HTMLElement | null>(null)
@@ -416,7 +424,6 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
     const subscription = op.visibleFields.subscribe(setVisibility)
     return () => subscription.unsubscribe()
   }, [op])
-
 
   // Close context menu on outside click or Escape
   useEffect(() => {
@@ -468,33 +475,70 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
     }
   })
 
+  const openInputContextMenu = (
+    input: (typeof inputs)[number],
+    incomers: Edge[],
+    fieldCurrentValue: KeyframeValue | undefined,
+    position: { x: number; y: number }
+  ) => {
+    const isAnimatable = isValueField(input.field) && incomers.length === 0
+    const channelKeys = isAnimatable
+      ? ((input.field.constructor as typeof Vec2Field).channelKeys ?? null)
+      : null
+    let keyframeEntries: Array<{ path: string; value: KeyframeValue }> | undefined
+    if (isAnimatable) {
+      if (channelKeys) {
+        const raw = input.field.value as Record<string, number> | number[]
+        keyframeEntries = channelKeys.map((k, i) => ({
+          path: getFieldPath(op.id, input.name, [k]),
+          value: (Array.isArray(raw) ? raw[i] : raw[k]) as number,
+        }))
+      } else {
+        keyframeEntries = [{ path: getFieldPath(op.id, input.name), value: fieldCurrentValue! }]
+      }
+    }
+    let fieldValue: string | undefined
+    if (isValueField(input.field)) {
+      try {
+        const v = input.field.value
+        fieldValue = typeof v === 'string' ? v : JSON.stringify(v)
+      } catch {
+        /* ignore */
+      }
+    }
+    setContextMenu({
+      ...position,
+      codeRef: input.codeRef,
+      mustacheRef: input.mustacheRef,
+      fieldName: input.name,
+      fieldValue,
+      fieldPath: isAnimatable ? getFieldPath(op.id, input.name) : undefined,
+      inputName:
+        incomers.length === 0 &&
+        input.field.defaultValue !== undefined &&
+        hasNonDefaultValue(input.field)
+          ? input.name
+          : undefined,
+      keyframeEntries,
+      listFieldInputName:
+        input.field instanceof ListField && incomers.length > 0 ? input.name : undefined,
+      isVisible: op.isFieldVisible(input.name),
+      hasConnection: incomers.length > 0,
+    })
+  }
+
   const handleMoveConnection = (inputName: string, fromIndex: number, toIndex: number) => {
     const input = op.inputs[inputName]
     if (!(input instanceof ListField)) return
 
-    setEdges(edges => {
-      // Get all edges connected to this input
-      const relevantEdges = edges.filter(
-        e =>
-          e.target === nodeId &&
-          (e.targetHandle === inputName || e.targetHandle === `${IN_NS}.${inputName}`)
-      )
-      if (relevantEdges.length < 2) return edges
+    const handleId = `${IN_NS}.${inputName}`
+    const edges = getEdges()
+    const groupIds = orderedEdgeIdsForHandle(edges, nodeId, handleId)
+    if (groupIds.length < 2 || !groupIds[fromIndex]) return
 
-      // Create new array with reordered edges
-      const newEdges = [...edges]
-      const edgeIndexMap = new Map(
-        relevantEdges.map((e, _i) => [e.id, edges.findIndex(edge => edge.id === e.id)])
-      )
-      const [movedEdge] = newEdges.splice(edgeIndexMap.get(relevantEdges[fromIndex].id)!, 1)
-      const targetIndex = edgeIndexMap.get(relevantEdges[toIndex].id)!
-      newEdges.splice(targetIndex, 0, movedEdge)
-
-      // Update the ListField's internal order
-      input.reorderInputs(fromIndex, toIndex)
-
-      return newEdges
-    })
+    const next = normalizeMultiInputEdges(moveEdgeWithinGroup(edges, groupIds[fromIndex], toIndex))
+    setEdges(next)
+    input.setConnectionOrder(orderedEdgeIdsForHandle(next, nodeId, handleId))
   }
 
   const handleDragStart = (e: React.DragEvent, inputName: string, index: number) => {
@@ -620,7 +664,8 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
               ) : null
             })()}
         </div>
-        <div className={s.propertyList}>
+        {/* biome-ignore lint/a11y/useSemanticElements: flex layout requires div */}
+        <div className={s.propertyList} role="list" onContextMenu={e => e.preventDefault()}>
           <ErrorBoundary
             title="Field Rendering Error"
             fallback={
@@ -675,41 +720,9 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
                     className={cx(s.property, s.propertyWithAction)}
                     onContextMenu={e => {
                       e.preventDefault()
-                      const isAnimatable = isValueField(input.field) && incomers.length === 0
-                      const channelKeys = isAnimatable
-                        ? ((input.field.constructor as typeof Vec2Field).channelKeys ?? null)
-                        : null
-                      let keyframeEntries: Array<{ path: string; value: KeyframeValue }> | undefined
-                      if (isAnimatable) {
-                        if (channelKeys) {
-                          const raw = input.field.value as Record<string, number> | number[]
-                          keyframeEntries = channelKeys.map((k, i) => ({
-                            path: getFieldPath(op.id, input.name, [k]),
-                            value: (Array.isArray(raw) ? raw[i] : raw[k]) as number,
-                          }))
-                        } else {
-                          keyframeEntries = [
-                            { path: getFieldPath(op.id, input.name), value: fieldCurrentValue! },
-                          ]
-                        }
-                      }
-                      setContextMenu({
+                      openInputContextMenu(input, incomers, fieldCurrentValue, {
                         x: e.clientX,
                         y: e.clientY,
-                        codeRef: input.codeRef,
-                        mustacheRef: input.mustacheRef,
-                        fieldPath: isAnimatable ? getFieldPath(op.id, input.name) : undefined,
-                        inputName:
-                          incomers.length === 0 &&
-                          input.field.defaultValue !== undefined &&
-                          hasNonDefaultValue(input.field)
-                            ? input.name
-                            : undefined,
-                        keyframeEntries,
-                        listFieldInputName:
-                          input.field instanceof ListField && incomers.length > 0
-                            ? input.name
-                            : undefined,
                       })
                     }}
                   >
@@ -799,14 +812,14 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
               }
 
               return <>{inputs.map(input => renderInput(input))}</>
-
             })()}
           </ErrorBoundary>
         </div>
       </div>
       <div className={s.section}>
         <div className={s.sectionTitle}>Outputs</div>
-        <div className={s.propertyList}>
+        {/* biome-ignore lint/a11y/useSemanticElements: flex layout requires div */}
+        <div className={s.propertyList} role="list" onContextMenu={e => e.preventDefault()}>
           {outputs.map(output => (
             // biome-ignore lint/a11y/useSemanticElements: property list uses div containers for flex layout
             <div
@@ -815,15 +828,24 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
               className={s.property}
               onContextMenu={e => {
                 e.preventDefault()
+                let fieldValue: string | undefined
+                try {
+                  const v = output.field.value
+                  fieldValue = typeof v === 'string' ? v : JSON.stringify(v)
+                } catch {
+                  /* ignore non-serializable */
+                }
                 setContextMenu({
                   x: e.clientX,
                   y: e.clientY,
                   codeRef: output.codeRef,
                   mustacheRef: output.mustacheRef,
+                  fieldName: output.name,
+                  fieldValue,
                 })
               }}
             >
-              <div className={s.propertyRow}>
+              <div className={cx(s.propertyRow, s.outputRow)}>
                 <div className={cx(s.port, output.handleClass)} />
                 <span className={s.propertyLabel}>{output.name}</span>
               </div>
@@ -941,9 +963,50 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
         createPortal(
           <div
             className={s.contextMenu}
-            style={{ top: contextMenu.y, left: contextMenu.x }}
+            ref={el => {
+              if (!el) return
+              const rect = el.getBoundingClientRect()
+              let tx = ''
+              let ty = ''
+              if (rect.right > window.innerWidth) {
+                tx = '-100%'
+              }
+              if (rect.bottom > window.innerHeight) {
+                ty = '-100%'
+              }
+              if (tx || ty) {
+                el.style.transform = `translate(${tx || '0'}, ${ty || '0'})`
+              }
+            }}
+            style={{
+              top: contextMenu.y,
+              left: contextMenu.x,
+            }}
             onPointerDown={e => e.stopPropagation()}
           >
+            <button
+              type="button"
+              className={s.contextMenuItem}
+              disabled={contextMenu.fieldValue === undefined}
+              onClick={() => {
+                if (contextMenu.fieldValue === undefined) return
+                copy(contextMenu.fieldValue)
+                setContextMenu(null)
+              }}
+            >
+              Copy value
+            </button>
+            <div className={s.contextMenuSeparator} />
+            <button
+              type="button"
+              className={s.contextMenuItem}
+              onClick={() => {
+                copy(contextMenu.fieldName)
+                setContextMenu(null)
+              }}
+            >
+              Copy field name
+            </button>
             <button
               type="button"
               className={s.contextMenuItem}
@@ -952,7 +1015,7 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
                 setContextMenu(null)
               }}
             >
-              Copy path to property
+              Copy code reference
             </button>
             <button
               type="button"
@@ -962,82 +1025,13 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
                 setContextMenu(null)
               }}
             >
-              Copy mustache path
+              Copy mustache reference
             </button>
-            {contextMenu.keyframeEntries && (
+            {contextMenu.isVisible !== undefined && (
               <>
                 <div className={s.contextMenuSeparator} />
-                <button
-                  type="button"
-                  className={s.contextMenuItem}
-                  onClick={() => {
-                    const store = getTimelineStore()
-                    const position = store.position
-                    const before = captureTimelineState()
-                    for (const { path, value } of contextMenu.keyframeEntries!) {
-                      store.getOrCreateTrack(path, value)
-                      store.addKeyframe(path, { position, value, interpolation: 'bezier' })
-                    }
-                    fireTimelineMutation('Add keyframe', before)
-                    expandTimeline()
-                    setContextMenu(null)
-                  }}
-                >
-                  Sequence
-                </button>
-              </>
-            )}
-            {contextMenu.inputName && (
-              <>
-                <div className={s.contextMenuSeparator} />
-                <button
-                  type="button"
-                  className={s.contextMenuItem}
-                  onClick={() => {
-                    const field = op.inputs[contextMenu.inputName!]
-                    if (!field) return
-                    // If there's an active keyframe track, remove it first so the
-                    // static reset is actually reflected in the rendered output.
-                    const fp = getFieldPath(op.id, contextMenu.inputName!)
-                    const store = getTimelineStore()
-                    if (store.hasKeyframesForField(fp)) {
-                      const before = captureTimelineState()
-                      store.deleteTrack(fp)
-                      fireTimelineMutation('Reset to default', before)
-                    }
-                    field.setValue(field.defaultValue)
-                    setContextMenu(null)
-                  }}
-                >
-                  Reset to default
-                </button>
-              </>
-            )}
-            {contextMenu.listFieldInputName && (
-              <>
-                <div className={s.contextMenuSeparator} />
-                <button
-                  type="button"
-                  className={s.contextMenuItem}
-                  onClick={() => {
-                    const name = contextMenu.listFieldInputName!
-                    const toRemove = edges.filter(
-                      e =>
-                        e.target === nodeId &&
-                        (e.targetHandle === name || e.targetHandle === `par.${name}`)
-                    )
-                    onEdgesChange(toRemove.map(e => ({ type: 'remove' as const, id: e.id })))
-                    setContextMenu(null)
-                  }}
-                >
-                  Disconnect all inputs
-                </button>
-              </>
-            )}
-            {contextMenu.fieldPath &&
-              getTimelineStore().hasKeyframesForField(contextMenu.fieldPath) && (
-                <>
-                  <div className={s.contextMenuSeparator} />
+                {contextMenu.fieldPath &&
+                getTimelineStore().hasKeyframesForField(contextMenu.fieldPath) ? (
                   <button
                     type="button"
                     className={s.contextMenuItem}
@@ -1051,8 +1045,100 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
                   >
                     Make static
                   </button>
-                </>
-              )}
+                ) : (
+                  <button
+                    type="button"
+                    className={s.contextMenuItem}
+                    disabled={!contextMenu.keyframeEntries}
+                    onClick={() => {
+                      if (!contextMenu.keyframeEntries) return
+                      const store = getTimelineStore()
+                      const position = store.position
+                      const before = captureTimelineState()
+                      for (const { path, value } of contextMenu.keyframeEntries) {
+                        store.getOrCreateTrack(path, value)
+                        store.addKeyframe(path, { position, value, interpolation: 'bezier' })
+                      }
+                      fireTimelineMutation('Add keyframe', before)
+                      expandTimeline()
+                      setContextMenu(null)
+                    }}
+                  >
+                    Sequence
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className={s.contextMenuItem}
+                  disabled={!contextMenu.inputName}
+                  onClick={() => {
+                    if (!contextMenu.inputName) return
+                    const field = op.inputs[contextMenu.inputName]
+                    if (!field) return
+                    const fp = getFieldPath(op.id, contextMenu.inputName)
+                    const store = getTimelineStore()
+                    if (store.hasKeyframesForField(fp)) {
+                      const before = captureTimelineState()
+                      store.deleteTrack(fp)
+                      fireTimelineMutation('Reset to default', before)
+                    }
+                    field.setValue(field.defaultValue)
+                    setContextMenu(null)
+                  }}
+                >
+                  Reset to default
+                </button>
+                <button
+                  type="button"
+                  className={s.contextMenuItem}
+                  disabled={!contextMenu.listFieldInputName}
+                  onClick={() => {
+                    if (!contextMenu.listFieldInputName) return
+                    const name = contextMenu.listFieldInputName
+                    const toRemove = edges.filter(
+                      e =>
+                        e.target === nodeId &&
+                        (e.targetHandle === name || e.targetHandle === `par.${name}`)
+                    )
+                    onEdgesChange(toRemove.map(e => ({ type: 'remove' as const, id: e.id })))
+                    setContextMenu(null)
+                  }}
+                >
+                  Disconnect all inputs
+                </button>
+                <div className={s.contextMenuSeparator} />
+                {contextMenu.isVisible ? (
+                  <button
+                    type="button"
+                    className={s.contextMenuItem}
+                    disabled={contextMenu.hasConnection}
+                    onClick={() => {
+                      if (contextMenu.hasConnection) return
+                      const field = op.inputs[contextMenu.fieldName]
+                      if (field && hasNonDefaultValue(field)) {
+                        setPendingHideField(contextMenu.fieldName)
+                      } else {
+                        hideField(op, contextMenu.fieldName)
+                      }
+                      setContextMenu(null)
+                    }}
+                  >
+                    Hide field
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className={s.contextMenuItem}
+                    onClick={() => {
+                      op.showField(contextMenu.fieldName)
+                      setContextMenu(null)
+                    }}
+                  >
+                    Show field
+                  </button>
+                )}
+              </>
+            )}
           </div>,
           document.body
         )}
@@ -1087,12 +1173,12 @@ export function PropertyPanel() {
             <div className={s.title}>Page</div>
           </div>
           {selectedNodeCount > 1 ? (
-            <div>
+            <div className={s.opMeta}>
               <div>{selectedNodeCount} nodes selected</div>
               <div>{selectedEdgeCount} edges selected</div>
             </div>
           ) : (
-            <div>Select a node to see properties</div>
+            <div className={s.opMeta}>Select a node to see properties</div>
           )}
         </>
       )}

@@ -383,7 +383,7 @@ describe('NodeProperties field visibility editing', () => {
       expect(screen.getByText('Reset to default')).toBeInTheDocument()
     })
 
-    it('does not show "Reset to default" when field value equals the default', () => {
+    it('disables "Reset to default" when field value equals the default', () => {
       // GeoJsonLayerOp.opacity defaults to 1 — leave at default
       const node = setupOperator('GeoJsonLayerOp', '/geo', { opacity: 1 })
       renderNodeProperties(node)
@@ -391,7 +391,7 @@ describe('NodeProperties field visibility editing', () => {
       const opacityLabel = screen.getByText('opacity', { selector: 'span' })
       fireEvent.contextMenu(opacityLabel.closest('[role="listitem"]')!)
 
-      expect(screen.queryByText('Reset to default')).not.toBeInTheDocument()
+      expect(screen.getByText('Reset to default')).toBeDisabled()
     })
 
     it('clicking "Reset to default" resets the field value to its default', () => {
@@ -406,7 +406,7 @@ describe('NodeProperties field visibility editing', () => {
       expect(op.inputs.opacity.value).toBe(1)
     })
 
-    it('does not show "Reset to default" when field has an incoming connection', () => {
+    it('disables "Reset to default" when field has an incoming connection', () => {
       const nodes = [
         {
           id: '/src',
@@ -438,7 +438,7 @@ describe('NodeProperties field visibility editing', () => {
       const opacityLabel = screen.getByText('opacity')
       fireEvent.contextMenu(opacityLabel.closest('[role="listitem"]')!)
 
-      expect(screen.queryByText('Reset to default')).not.toBeInTheDocument()
+      expect(screen.getByText('Reset to default')).toBeDisabled()
     })
 
     it('shows "Reset to default" for UnknownField (DeckRendererOp basemap)', () => {

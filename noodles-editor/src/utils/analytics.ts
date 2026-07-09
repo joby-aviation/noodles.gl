@@ -38,10 +38,10 @@ export class AnalyticsManager {
 
       posthog.init(POSTHOG_API_KEY, {
         api_host: POSTHOG_HOST,
-        opt_out_capturing_by_default: !consent?.enabled,
+        opt_out_capturing_by_default: consent?.enabled === false, // only opt out if explicitly declined
         autocapture: false, // Privacy: manual events only
         disable_session_recording: true, // Privacy: no session recording
-        capture_pageview: false, // Manual tracking
+        capture_pageview: true, // Captures initial page load; route changes tracked manually
         capture_pageleave: true,
         capture_exceptions: true, // Capture unhandled exceptions
         loaded: posthog => {
@@ -81,7 +81,13 @@ export class AnalyticsManager {
 
       if (this.initialized) {
         if (enabled) {
+          // Only fire a manual $pageview if the user was previously opted out —
+          // for new visitors posthog.init already fired it via capture_pageview: true.
+          const wasOptedOut = posthog.has_opted_out_capturing()
           posthog.opt_in_capturing()
+          if (wasOptedOut) {
+            posthog.capture('$pageview')
+          }
         } else {
           posthog.opt_out_capturing()
         }
@@ -120,7 +126,7 @@ export class AnalyticsManager {
   }
 
   track(event: string, properties?: Record<string, unknown>) {
-    if (!this.initialized || !this.getConsent()?.enabled) {
+    if (!this.initialized || this.getConsent()?.enabled === false) {
       return
     }
 
@@ -134,7 +140,7 @@ export class AnalyticsManager {
   }
 
   identify(userId: string, properties?: Record<string, unknown>) {
-    if (!this.initialized || !this.getConsent()?.enabled) {
+    if (!this.initialized || this.getConsent()?.enabled === false) {
       return
     }
 
@@ -155,6 +161,17 @@ export class AnalyticsManager {
       posthog.reset()
     } catch (error) {
       debugAnalytics('Analytics reset failed:', error)
+    }
+  }
+
+  capturePageview() {
+    if (!this.initialized || this.getConsent()?.enabled === false) {
+      return
+    }
+    try {
+      posthog.capture('$pageview')
+    } catch (error) {
+      debugAnalytics('Analytics pageview capture failed:', error)
     }
   }
 
@@ -221,7 +238,7 @@ export class AnalyticsManager {
 
   // Helper method to check if analytics is available and enabled
   isEnabled(): boolean {
-    return this.initialized && !!this.getConsent()?.enabled
+    return this.initialized && this.getConsent()?.enabled !== false
   }
 }
 

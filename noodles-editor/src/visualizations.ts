@@ -34,6 +34,9 @@ export type Visualization = {
   onChangeShowOverlay?: (show: boolean) => void
   showDebugInfo?: boolean
   onChangeShowDebugInfo?: (show: boolean) => void
+  spreadsheetVisible?: boolean
+  onChangeSpreadsheetVisible?: (visible: boolean) => void
+  selectedNodeIds?: string[]
   // Noodles props for creating menu in timeline-editor
   projectName?: string
   getTimelineJson?: () => Record<string, unknown>

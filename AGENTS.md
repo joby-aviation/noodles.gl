@@ -662,7 +662,39 @@ Load it in the browser at `http://localhost:5173/examples/<project-name>` to vis
 
 ### Connecting Claude Code to a Running Browser Instance
 
-The MCP proxy bridges Claude Code to a running Noodles browser session, giving access to the same 18+ tools the in-app chat uses:
+#### WebMCP (recommended)
+
+With `?externalControl=true`, the app registers its full AI tool surface (~22 tools) on `navigator.modelContext` (the W3C WebMCP API, polyfilled via `@mcp-b/global`). External MCP clients reach those tools through the `@mcp-b/webmcp-local-relay` stdio bridge — no proxy code to run:
+
+```bash
+# 1. Start the app with external control enabled
+# Open: http://localhost:5173/examples/nyc-taxis?externalControl=true
+
+# 2. Register the relay with Claude Code (once)
+claude mcp add webmcp -- npx -y @mcp-b/webmcp-local-relay@4
+
+# For Claude Desktop / Cursor, use the equivalent config:
+{
+  "mcpServers": {
+    "webmcp": {
+      "command": "npx",
+      "args": ["-y", "@mcp-b/webmcp-local-relay@4"]
+    }
+  }
+}
+```
+
+Tool names match the in-app chat (snake_case): `get_current_project`, `list_nodes`, `get_node_info`, `get_node_output`, `apply_modifications`, `capture_visualization`, `get_timeline`, `set_keyframe`, `get_operator_schema`, `search_code`, and more. `apply_modifications` mutates the live editor graph, so changes appear immediately in the browser.
+
+Notes:
+
+- The relay embed script is only injected on localhost. Alternatives that need no relay: the WebMCP browser extension, or native Chrome WebMCP (origin trial).
+- If multiple Noodles tabs are open, the relay suffixes tool names with a tab ID.
+- Code search/docs tools download their context bundles on page load when external control is enabled.
+
+#### Legacy WebSocket proxy
+
+The older MCP proxy bridges Claude Code to the browser over a WebSocket. It exposes a smaller camelCase tool surface (`getCurrentProject`, `listNodes`, `createNode`, `connectNodes`, `captureVisualization`, …):
 
 ```bash
 # 1. Start the app with external control enabled
@@ -683,8 +715,6 @@ node noodles-editor/examples/external-control/mcp-proxy.js
   }
 }
 ```
-
-The proxy exposes tools: `getCurrentProject`, `listNodes`, `createNode`, `connectNodes`, `captureVisualization`, and more — the same surface as the in-app chat.
 
 ### Graph Design Guidelines for Claude Code
 
@@ -709,5 +739,5 @@ The timeline is serialized inside `noodles.json` under the `"timeline"` key. The
 
 ---
 
-**Last Updated**: 2026-06-02
+**Last Updated**: 2026-07-04
 **Version**: Based on project version 6 schema

@@ -2,6 +2,7 @@
 
 import type { Operator } from '../noodles/operators'
 import { getOpStore } from '../noodles/store'
+import { safeStringify } from '../noodles/utils/serialization'
 import {
   captureTimelineState,
   fireTimelineMutation,
@@ -9,7 +10,6 @@ import {
   useTimelineStore,
 } from '../timeline/timeline-store'
 import type { Keyframe, KeyframeValue, Track } from '../timeline/types'
-import { safeStringify } from '../noodles/utils/serialization'
 import type { ContextLoader } from './context-loader'
 import type {
   ConsoleError,
@@ -31,6 +31,10 @@ export class MCPTools {
   // Set current project for MCP tools to access
   setProject(project: NoodlesProject) {
     this.project = project
+  }
+
+  getProject(): NoodlesProject | null {
+    return this.project
   }
 
   // Extract common operator properties to avoid duplication

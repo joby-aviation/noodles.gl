@@ -14,7 +14,6 @@ import {
   Controls,
   ReactFlow,
   type ReactFlowInstance,
-  reconnectEdge,
   useEdgesState,
   useNodesState,
   useReactFlow,
@@ -28,8 +27,11 @@ import { PrimeReactProvider } from 'primereact/api'
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useParams } from 'wouter'
 import { globalContextManager } from '../ai-chat/global-context-manager'
+import type { NoodlesProject } from '../ai-chat/types'
 import { getPendingQuickStartAction } from '../components/quick-start-modal'
 import { analytics } from '../utils/analytics'
+import { setCurrentProject, setModificationApplier } from '../webmcp/bridge'
+import { externalControl } from './globals'
 import { getKeysForProject, getKeysStore } from './keys-store'
 import newProjectJSON from './new.json'
 import { BitmapOverlayWidget, type BitmapOverlayWidgetProps } from './widgets/bitmap-overlay-widget'
@@ -82,6 +84,7 @@ import {
   save,
 } from './storage'
 import {
+  clearPendingInsertionIndex,
   getOp,
   getOpStore,
   getUIStore,
@@ -101,6 +104,7 @@ import {
 import { edgeId, nodeId } from './utils/id-utils'
 import { generateDraftId, memoryProjectStore } from './utils/memory-project-store'
 import { migrateProject } from './utils/migrate-schema'
+import { normalizeMultiInputEdges } from './utils/multi-input-utils'
 import { getParentPath, parseHandleId } from './utils/path-utils'
 import { applyOperatorInputs, getLastCommittedBeforeState } from './utils/property-history'
 import {
@@ -337,6 +341,11 @@ export function getNoodles(): Visualization {
     if (isProjectLoadRef.current) return
     const ops = transformGraph({ nodes, edges })
     setOperators(ops)
+    // Catch-all for multi-input slot caches: re-derive orderIndex/groupSize now that the
+    // operators exist in the store (covers undo/redo restores, keyboard deletes, and AI/paste
+    // paths that added edges before their operators were instantiated). Returns the same
+    // array reference when nothing changed, so this doesn't loop.
+    setEdges(eds => normalizeMultiInputEdges(eds))
   }, [graphStructureKey])
 
   // Reset isProjectLoadRef after every render so the flag never gets stuck when
@@ -369,7 +378,9 @@ export function getNoodles(): Visualization {
 
   // Use shared hook for project modifications
   const {
+    applyModifications,
     onConnect: onConnectBase,
+    onReconnect: onReconnectBase,
     onNodesDelete: onNodesDeleteBase,
     updateOperatorId,
   } = useProjectModifications({
@@ -378,6 +389,20 @@ export function getNoodles(): Visualization {
     setNodes,
     setEdges,
   })
+
+  // Keep the WebMCP tool surface in sync with editor state when external
+  // control is enabled (?externalControl=true)
+  useEffect(() => {
+    if (!externalControl) return
+    setModificationApplier(applyModifications)
+    return () => setModificationApplier(null)
+  }, [applyModifications])
+
+  useEffect(() => {
+    if (!externalControl) return
+    // ReactFlow edges type sourceHandle as string | null; the project shape uses undefined
+    setCurrentProject({ nodes, edges } as NoodlesProject)
+  }, [nodes, edges])
 
   // Wrap onConnect to mark unsaved changes
   const onConnect = useCallback(
@@ -400,11 +425,19 @@ export function getNoodles(): Visualization {
   // Wrap onReconnect to mark unsaved changes
   const onReconnect = useCallback(
     (oldEdge: ReactFlowEdge, newConnection: Connection) => {
-      setEdges(els => reconnectEdge(oldEdge, newConnection, els))
+      onReconnectBase(oldEdge, newConnection)
       setHasUnsavedChanges(true)
     },
-    [setEdges]
+    [onReconnectBase]
   )
+
+  // Clear any leftover multi-input slot state when a reconnect drag is dropped or cancelled
+  const onReconnectEnd = useCallback(() => {
+    clearPendingInsertionIndex()
+  }, [])
+
+  const spreadsheetVisible = useUIStore(state => state.spreadsheetVisible)
+  const setSpreadsheetVisible = useUIStore(state => state.setSpreadsheetVisible)
 
   // Track connection drag state for dimming unconnectable nodes
   const setConnectionDragState = useUIStore(state => state.setConnectionDragState)
@@ -487,6 +520,9 @@ export function getNoodles(): Visualization {
       onConnectionDropEnd(event, connectionState)
       setConnectionDragState(null)
       setTargetedEdge(null)
+      // Drop any multi-input slot state from a cancelled drag (successful connects
+      // already consumed it in onConnect)
+      clearPendingInsertionIndex()
     },
     [onConnectionDropEnd, setConnectionDragState, setTargetedEdge]
   )
@@ -748,9 +784,12 @@ export function getNoodles(): Visualization {
       const ops = transformGraph({ nodes, edges })
       setOperators(ops)
 
-      // Update React Flow state (for rendering; graph is already set up above)
+      // Update React Flow state (for rendering; graph is already set up above).
+      // Normalizing here (after transformGraph, so operators exist for the ListField
+      // lookup) derives multi-input slot rendering caches from the file's edge order —
+      // project files never store them.
       setNodes(nodes)
-      setEdges(edges)
+      setEdges(normalizeMultiInputEdges(edges as ReactFlowEdge[]))
 
       // Load editor settings from project with defaults
       setLayoutMode(editorSettings?.layoutMode ?? 'noodles-on-top')
@@ -1492,6 +1531,7 @@ export function getNoodles(): Visualization {
               onConnectStart={onConnectStart}
               onConnectEnd={onConnectEnd}
               onReconnect={onReconnect}
+              onReconnectEnd={onReconnectEnd}
               onNodeContextMenu={onNodeContextMenu}
               onNodesDelete={onNodesDelete}
               onNodeDrag={onNodeDrag}
@@ -1726,6 +1766,7 @@ export function getNoodles(): Visualization {
 
   return {
     flowGraph,
+    selectedNodeIds: nodes.filter(n => n.selected).map(n => n.id),
     nodeSidebar: (
       <ErrorBoundary title="Node Tree Error">
         <NodeTreeSidebar updateOperatorId={updateOperatorId} />
@@ -1738,6 +1779,14 @@ export function getNoodles(): Visualization {
     onChangeShowOverlay: setShowOverlay,
     showDebugInfo,
     onChangeShowDebugInfo: setShowDebugInfo,
+    spreadsheetVisible,
+    onChangeSpreadsheetVisible: useCallback(
+      (visible: boolean) => {
+        setSpreadsheetVisible(visible)
+        if (visible && layoutMode !== 'split') setLayoutMode('split')
+      },
+      [setSpreadsheetVisible, layoutMode]
+    ),
     // Render settings are now read from OutOp via useRenderSettings() hook
     // Export these so timeline-editor can create the menu with render actions
     projectName:
