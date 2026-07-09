@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Edge } from './noodles'
 import {
   type CodeOp,
+  type ConcatOp,
   type DeckRendererOp,
   type GeoJsonLayerOp,
   type IOperator,
@@ -1198,5 +1199,63 @@ describe('GraphInputOp rebuildFromContainer keeps the container link alive', () 
 
     box.inputs.in.setValue([4, 5, 6, 7])
     expect(graphInput.inputs.parentValue.value).toEqual([4, 5, 6, 7])
+  })
+})
+
+describe('ListField connection order sync', () => {
+  afterEach(() => {
+    clearOps()
+  })
+
+  const numberNode = (id: string, val: number) => ({
+    id,
+    type: 'NumberOp',
+    data: { inputs: { val } },
+    position: { x: 0, y: 0 },
+  })
+
+  const concatNode = { id: '/concat', type: 'ConcatOp', data: {}, position: { x: 0, y: 0 } }
+
+  const listEdge = (source: string) => ({
+    id: edgeId({ source, target: '/concat', sourceHandle: 'out.val', targetHandle: 'par.values' }),
+    source,
+    target: '/concat',
+    sourceHandle: 'out.val',
+    targetHandle: 'par.values',
+  })
+
+  const connectionOrder = () => {
+    const concat = getOpStore().getOp('/concat') as ConcatOp
+    return Array.from(concat.inputs.values.fields.keys())
+  }
+
+  it('orders ListField connections by edge array order on first build', () => {
+    const nodes = [numberNode('/a', 1), numberNode('/b', 2), numberNode('/c', 3), concatNode]
+    const edges = [listEdge('/a'), listEdge('/b'), listEdge('/c')]
+
+    transformGraph({ nodes, edges })
+
+    expect(connectionOrder()).toEqual([listEdge('/a').id, listEdge('/b').id, listEdge('/c').id])
+  })
+
+  it('reorders existing connections when the edge array order changes', () => {
+    const nodes = [numberNode('/a', 1), numberNode('/b', 2), numberNode('/c', 3), concatNode]
+
+    transformGraph({ nodes, edges: [listEdge('/a'), listEdge('/b'), listEdge('/c')] })
+    // Same edge ids, different array order — operators are reused from the store, and
+    // addConnection alone would keep the stale Map order
+    transformGraph({ nodes, edges: [listEdge('/c'), listEdge('/a'), listEdge('/b')] })
+
+    expect(connectionOrder()).toEqual([listEdge('/c').id, listEdge('/a').id, listEdge('/b').id])
+  })
+
+  it('places a newly inserted mid-group edge at its array position', () => {
+    const nodes = [numberNode('/a', 1), numberNode('/b', 2), numberNode('/c', 3), concatNode]
+
+    transformGraph({ nodes, edges: [listEdge('/a'), listEdge('/c')] })
+    // /b inserted between /a and /c; addConnection would append it last
+    transformGraph({ nodes, edges: [listEdge('/a'), listEdge('/b'), listEdge('/c')] })
+
+    expect(connectionOrder()).toEqual([listEdge('/a').id, listEdge('/b').id, listEdge('/c').id])
   })
 })
