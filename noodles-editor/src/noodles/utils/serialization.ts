@@ -9,6 +9,7 @@ import { resizeableNodes } from '../components/op-components'
 import type { useOperatorStore } from '../store'
 import type { ExtractProps } from './extract-props'
 import type { StorageType } from './filesystem'
+import { MULTI_INPUT_EDGE_TYPE } from './multi-input-utils'
 import { parseHandleId } from './path-utils'
 
 export { NOODLES_VERSION } from './migrate-schema'
@@ -228,11 +229,26 @@ export function serializeEdges(
       }
       return true
     })
-    .map(edge =>
-      Object.fromEntries(
+    .map(edge => {
+      const serialized = Object.fromEntries(
         Object.entries(edge).filter(([key]) => !['selected', 'animated'].includes(key))
       )
-    )
+
+      // Multi-input slot state (edge type + orderIndex/groupSize) is derived from edge
+      // array order at load time — keep files canonical by not persisting it
+      if (serialized.type === MULTI_INPUT_EDGE_TYPE) {
+        delete serialized.type
+        const { orderIndex: _orderIndex, groupSize: _groupSize, ...data } = (serialized.data ??
+          {}) as Record<string, unknown>
+        if (Object.keys(data).length > 0) {
+          serialized.data = data
+        } else {
+          delete serialized.data
+        }
+      }
+
+      return serialized
+    })
 }
 
 // Pre-load all example asset URLs for download functionality

@@ -4,8 +4,9 @@
 import { act, renderHook } from '@testing-library/react'
 import type { Edge as ReactFlowEdge, Node as ReactFlowNode } from '@xyflow/react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { DeckRendererOp, NumberOp } from '../../operators'
-import { clearOps, setOp } from '../../store'
+import { ConcatOp, DeckRendererOp, NumberOp } from '../../operators'
+import { clearOps, setOp, setPendingInsertionIndex } from '../../store'
+import { MULTI_INPUT_EDGE_TYPE } from '../../utils/multi-input-utils'
 import { type ProjectModification, useProjectModifications } from '../use-project-modifications'
 
 describe('useProjectModifications', () => {
@@ -967,6 +968,206 @@ describe('useProjectModifications', () => {
       // Verify metadata preserved
       expect(edges[0].targetHandle).toBe(originalTargetHandle)
       expect(edges[0].target).toBe('/target')
+    })
+  })
+  describe('multi-input (ListField) connections', () => {
+    const numberSource = (id: string, val: number) => {
+      setOp(id, new NumberOp(id, { val }))
+      nodes.push({ id, type: 'NumberOp', position: { x: 0, y: 0 }, data: {} })
+    }
+
+    const listConnection = (source: string) => ({
+      source,
+      target: '/concat',
+      sourceHandle: 'out.val',
+      targetHandle: 'par.values',
+    })
+
+    const listEdgeId = (source: string) => `${source}.out.val->/concat.par.values`
+
+    const groupIds = () =>
+      edges.filter(e => e.target === '/concat' && e.targetHandle === 'par.values').map(e => e.id)
+
+    const fieldOrder = (concat: ConcatOp) => Array.from(concat.inputs.values.fields.keys())
+
+    let concat: ConcatOp
+
+    beforeEach(() => {
+      concat = new ConcatOp('/concat')
+      setOp('/concat', concat)
+      nodes.push({ id: '/concat', type: 'ConcatOp', position: { x: 0, y: 0 }, data: {} })
+      numberSource('/a', 1)
+      numberSource('/b', 2)
+      numberSource('/c', 3)
+      setPendingInsertionIndex(null)
+    })
+
+    const setup = () =>
+      renderHook(() => useProjectModifications({ getNodes, getEdges, setNodes, setEdges })).result
+
+    it('onConnect appends to the end and normalizes edge data', () => {
+      const result = setup()
+
+      act(() => {
+        result.current.onConnect(listConnection('/a'))
+        result.current.onConnect(listConnection('/b'))
+      })
+
+      expect(groupIds()).toEqual([listEdgeId('/a'), listEdgeId('/b')])
+      expect(edges.map(e => e.type)).toEqual([MULTI_INPUT_EDGE_TYPE, MULTI_INPUT_EDGE_TYPE])
+      expect(edges.map(e => e.data?.orderIndex)).toEqual([0, 1])
+      expect(edges.map(e => e.data?.groupSize)).toEqual([2, 2])
+      expect(fieldOrder(concat)).toEqual([listEdgeId('/a'), listEdgeId('/b')])
+    })
+
+    it('onConnect inserts at the slot tracked during the drag', () => {
+      const result = setup()
+
+      act(() => {
+        result.current.onConnect(listConnection('/a'))
+        result.current.onConnect(listConnection('/b'))
+      })
+
+      // MultiInputHandle tracked the pointer between slots 0 and 1 during the drag
+      act(() => {
+        setPendingInsertionIndex({ nodeId: '/concat', handleId: 'par.values', index: 1 })
+        result.current.onConnect(listConnection('/c'))
+      })
+
+      expect(groupIds()).toEqual([listEdgeId('/a'), listEdgeId('/c'), listEdgeId('/b')])
+      expect(edges.map(e => e.data?.orderIndex)).toEqual([0, 1, 2])
+      // The actual data order the operator receives must match the visual slot order
+      expect(fieldOrder(concat)).toEqual([listEdgeId('/a'), listEdgeId('/c'), listEdgeId('/b')])
+    })
+
+    it('onConnect ignores a pending index left over from a different handle', () => {
+      const result = setup()
+
+      act(() => {
+        setPendingInsertionIndex({ nodeId: '/other', handleId: 'par.values', index: 0 })
+        result.current.onConnect(listConnection('/a'))
+      })
+
+      expect(groupIds()).toEqual([listEdgeId('/a')])
+    })
+
+    it('onConnect is a no-op for a duplicate connection', () => {
+      const result = setup()
+
+      act(() => {
+        result.current.onConnect(listConnection('/a'))
+        result.current.onConnect(listConnection('/a'))
+      })
+
+      expect(edges).toHaveLength(1)
+      expect(fieldOrder(concat)).toEqual([listEdgeId('/a')])
+    })
+
+    it('onReconnect reorders an edge within the same handle', () => {
+      const result = setup()
+
+      act(() => {
+        result.current.onConnect(listConnection('/a'))
+        result.current.onConnect(listConnection('/b'))
+        result.current.onConnect(listConnection('/c'))
+      })
+
+      // Drag /a's edge endpoint to the boundary below /c (boundary index 3 of 3 slots)
+      act(() => {
+        setPendingInsertionIndex({ nodeId: '/concat', handleId: 'par.values', index: 3 })
+        const oldEdge = edges.find(e => e.id === listEdgeId('/a'))!
+        result.current.onReconnect(oldEdge, listConnection('/a'))
+      })
+
+      expect(groupIds()).toEqual([listEdgeId('/b'), listEdgeId('/c'), listEdgeId('/a')])
+      expect(edges.map(e => e.data?.orderIndex)).toEqual([0, 1, 2])
+      expect(fieldOrder(concat)).toEqual([listEdgeId('/b'), listEdgeId('/c'), listEdgeId('/a')])
+    })
+
+    it('onReconnect without a tracked slot leaves order unchanged', () => {
+      const result = setup()
+
+      act(() => {
+        result.current.onConnect(listConnection('/a'))
+        result.current.onConnect(listConnection('/b'))
+      })
+
+      act(() => {
+        const oldEdge = edges.find(e => e.id === listEdgeId('/a'))!
+        result.current.onReconnect(oldEdge, listConnection('/a'))
+      })
+
+      expect(groupIds()).toEqual([listEdgeId('/a'), listEdgeId('/b')])
+    })
+
+    it('onReconnect to a new source keeps the slot position', () => {
+      numberSource('/d', 4)
+      const result = setup()
+
+      act(() => {
+        result.current.onConnect(listConnection('/a'))
+        result.current.onConnect(listConnection('/b'))
+        result.current.onConnect(listConnection('/c'))
+      })
+
+      // Swap the middle edge's source from /b to /d
+      act(() => {
+        const oldEdge = edges.find(e => e.id === listEdgeId('/b'))!
+        result.current.onReconnect(oldEdge, listConnection('/d'))
+      })
+
+      expect(groupIds()).toEqual([listEdgeId('/a'), listEdgeId('/d'), listEdgeId('/c')])
+      expect(fieldOrder(concat)).toEqual([listEdgeId('/a'), listEdgeId('/d'), listEdgeId('/c')])
+      expect(concat.inputs.values.subscriptions.has(listEdgeId('/b'))).toBe(false)
+    })
+
+    it('onReconnect to a different handle disconnects the old field and connects the new one', () => {
+      const other = new ConcatOp('/concat-2')
+      setOp('/concat-2', other)
+      nodes.push({ id: '/concat-2', type: 'ConcatOp', position: { x: 0, y: 0 }, data: {} })
+      const result = setup()
+
+      act(() => {
+        result.current.onConnect(listConnection('/a'))
+        result.current.onConnect(listConnection('/b'))
+      })
+
+      act(() => {
+        const oldEdge = edges.find(e => e.id === listEdgeId('/b'))!
+        result.current.onReconnect(oldEdge, {
+          source: '/b',
+          target: '/concat-2',
+          sourceHandle: 'out.val',
+          targetHandle: 'par.values',
+        })
+      })
+
+      expect(groupIds()).toEqual([listEdgeId('/a')])
+      expect(fieldOrder(concat)).toEqual([listEdgeId('/a')])
+      expect(fieldOrder(other)).toEqual(['/b.out.val->/concat-2.par.values'])
+      // The remaining single-member group is renormalized
+      expect(edges.find(e => e.id === listEdgeId('/a'))?.data).toEqual({
+        orderIndex: 0,
+        groupSize: 1,
+      })
+    })
+
+    it('deleteEdge closes slot gaps and renormalizes the group', () => {
+      const result = setup()
+
+      act(() => {
+        result.current.onConnect(listConnection('/a'))
+        result.current.onConnect(listConnection('/b'))
+        result.current.onConnect(listConnection('/c'))
+      })
+
+      act(() => {
+        result.current.deleteEdge(listEdgeId('/b'))
+      })
+
+      expect(groupIds()).toEqual([listEdgeId('/a'), listEdgeId('/c')])
+      expect(edges.map(e => e.data?.orderIndex)).toEqual([0, 1])
+      expect(edges.map(e => e.data?.groupSize)).toEqual([2, 2])
     })
   })
 })
