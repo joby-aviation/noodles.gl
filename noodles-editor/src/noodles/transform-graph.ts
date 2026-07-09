@@ -112,7 +112,18 @@ export function deriveReferenceEdges(
     target: string
     targetHandle?: string | null
   }>
-): Array<Record<string, unknown>> {
+): Array<{
+  id: string
+  type: 'ReferenceEdge'
+  selectable: false
+  deletable: false
+  focusable: false
+  reconnectable: false
+  source: string
+  sourceHandle: string
+  target: string
+  targetHandle: string
+}> {
   const nodeIds = new Set(nodes.map(n => n.id))
   const seen = new Set(
     existingEdges.map(e => `${e.source}.${e.sourceHandle}->${e.target}.${e.targetHandle}`)
