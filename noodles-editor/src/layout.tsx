@@ -79,6 +79,11 @@ export function Layout({
     id: 'noodles:columns',
     panelIds: ['sidebar', 'main', 'properties'],
   })
+  // The sidebar always starts collapsed, overriding whatever the restored layout says —
+  // it's an occasional-use palette, opened via the edge chevron or Cmd+F
+  const columnsDefaultLayout = columnsLayout.defaultLayout
+    ? { ...columnsLayout.defaultLayout, sidebar: 0 }
+    : undefined
   const mainSplitLayout = useDefaultLayout({
     id: 'noodles:main-split',
     panelIds: mapMode === 'docked' ? ['map', 'noodles'] : ['noodles'],
@@ -96,7 +101,7 @@ export function Layout({
         <Panel id="workspace" minSize="20%">
           <Group
             orientation="horizontal"
-            defaultLayout={columnsLayout.defaultLayout}
+            defaultLayout={columnsDefaultLayout}
             onLayoutChanged={columnsLayout.onLayoutChanged}
           >
             <Panel

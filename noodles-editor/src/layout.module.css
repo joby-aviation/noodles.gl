@@ -161,18 +161,18 @@
   opacity: 0.85;
 }
 
-/* Resize Handles — a subtle 1px line that doubles as the panel border.
-   The grab area is wider than the line (resizeTargetMinimumSize, 10px default). */
+/* Resize Handles — invisible until hovered; the grab area is wider than the
+   1px line (resizeTargetMinimumSize, 10px default). */
 .verticalHandle {
   width: 1px;
-  background: var(--color-border);
+  background: transparent;
   cursor: col-resize;
   transition: background 150ms ease 150ms;
 }
 
 .horizontalHandle {
   height: 1px;
-  background: var(--color-border);
+  background: transparent;
   cursor: row-resize;
   transition: background 150ms ease 150ms;
 }
