@@ -504,3 +504,16 @@ Consequences for the harness:
   → GraphOutput 12 → container.out 12 → viewer. The code-refs@2 baseline unblocks when #515
   and #516 merge to main (workspaces build from origin/main); #514 additionally fixes the
   reference-only variant sessions may author.
+
+### Round 5 addendum: #516 epoch-pruned waves after scale review
+
+The maintainer challenged the "downstream sets are small" perf note with a real 265-node /
+250-edge / 22-container production project. Measured downstream closures there: median 3,
+p90 25, max 58 — fine at that scale, but the unconditional wave made repeated marks
+O(closure) where the old (unsound) code was O(1). #516 now prunes waves with a global dirty
+epoch, bumped whenever any op's status leaves DIRTY (single write-point helper) or a
+dependency edge is added: repeated marks between frame pulls are O(1) again, and the
+soundness argument is the mirror of the original bug — cleaning broke the old invariant, so
+cleaning is what disables the prune. Red-proof: removing the epoch bump fails both the new
+prune-invalidation test and the original dirty-island regression. Suite 96/96; E2E repro
+re-verified in-browser on the pruned build (200 → 200 → 200 → 12 → 12 → 12).
