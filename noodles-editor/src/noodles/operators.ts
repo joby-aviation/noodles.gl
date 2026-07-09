@@ -652,6 +652,17 @@ export abstract class Operator<OP extends IOperator> {
   // an upstream that ended this frame dirty (e.g. its async data arrived
   // mid-pull) has fresh data that our just-taken input snapshot missed, so we
   // must not mark ourselves CLEAN on top of it.
+  //
+  // NOTE: this check is intentionally approximate. It scans the flat upstream
+  // set, so it can fire on UNRELATED upstream dirtiness: an upstream marked
+  // dirty by a separate source after we pulled it keeps us DIRTY for one
+  // extra frame even though our snapshot already captured everything we
+  // needed from it. That direction of error is always SAFE — one redundant
+  // re-execution next frame — whereas the opposite direction (declaring CLEAN
+  // over an upstream whose new data we missed) recreates the permanent
+  // stale-cache dirty island. Do not narrow this check (e.g. by tracking
+  // which upstream each snapshot value came from) without revisiting the
+  // lost-update soundness argument in _pullExecution's completion path.
   private _hasDirtyUpstreamDependency(): boolean {
     for (const dep of this._upstreamDependencies) {
       if (dep._pullExecutionStatus === PullExecutionStatus.DIRTY) {
