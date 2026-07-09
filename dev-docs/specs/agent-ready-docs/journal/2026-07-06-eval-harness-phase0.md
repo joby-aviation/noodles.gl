@@ -434,3 +434,51 @@ Result: goldens capture with real basemap imagery (voyager tiles under the camer
 keyframes; stddev 21.8 → 84.2). App-side nothing was wrong: probes showed
 MaplibreBasemapOp/DeckRendererOp execute correctly and react-map-gl constructs the map the
 moment the style fetch stops 403ing.
+
+### Round 4 (maintainer review): code-refs golden restructured to the container idiom
+
+The maintainer flagged that the golden's cross-boundary data edge (hidden child →
+top-level layer) is not a supported pattern — the executor runs it, but no wire is drawn
+while the container is collapsed, and it reads as "layer has no data input." The supported
+idiom is the GraphInputOp/GraphOutputOp pair with the container's own ports. Golden now
+models exactly that: quake-data → /processing.par.in → GraphInput → energy CodeOp →
+GraphOutput → /processing.out.out → layer, with both app-shaped bridge edges serialized
+(the interim-2 validator exemption covers them). The promoted-cutoff read stays an
+op('/processing').par.minMagnitude reference — references across the boundary are the
+sanctioned way to consume promoted parameters; edges are not. Task notes updated to state
+the supported route explicitly (a session authoring the cross-boundary-edge shape passes
+today's mechanical checks — tightening that is a candidate taskVersion 3 check).
+
+### Round 4 addendum: the container idiom is broken end-to-end by three separate app bugs
+
+Restructuring the golden to the sanctioned shape (file → container.par.in → GraphInput →
+CodeOp → GraphOutput → container.out.out → layer) and probing each hop headless found, in
+order:
+
+1. **PR #514** — reference edges never materialize for unmounted container children
+   (CodeField editor component is the only sync point).
+2. **PR #515** — `GraphInputOp.rebuildFromContainer` recreated the base `parentValue`/`value`
+   field objects, orphaning the container→child connection transformGraph wires; late-arriving
+   data (async FileOp) then never entered the container. Fixed by preserving the base fields;
+   regression test fails on main, passes with the fix.
+3. **Executor dirty-propagation unsoundness (unfixed, needs maintainer)** — with #515 applied,
+   `parentValue` receives the rows but `GraphInputOp` never re-executes. Traces show the dirty
+   cascade stopping at the already-dirty ContainerOp (`markDirty` early-returns without
+   propagating, assuming downstream is already dirty), while the sink chain above was pulled
+   clean in an earlier frame. `pull()` returns cache for clean ops without recursing, so the
+   dirty island under the clean sink is never re-executed — the container's children stay
+   frozen on their initial empty values with zero console errors. A naive always-propagate
+   change would recurse forever on the container's node-level cycle (matching the
+   "Maximum call stack size exceeded" seen when both app-shaped bridge edges are present in a
+   project file: processing → input → energy → output → processing).
+
+Consequences for the harness:
+- The code-refs golden keeps the sanctioned idiom (maintainer direction) — it is structurally
+  correct and validator/check-green, but renders an empty layer until bug 3 is fixed on main.
+- **The code-refs@2 baseline is ON HOLD**: any session that builds the idiom faithfully
+  renders a blank viz through no fault of its own, corrupting judge scores. hiking-time
+  (no containers) is unaffected and can baseline independently.
+- The one-bridge-edge variant (GraphOutput→container only) loads clean but hits bug 3; the
+  two-bridge variant stack-overflows; the crossing-edge variant (previous golden) renders but
+  is not a supported pattern. There is currently NO authorable container-with-async-data
+  project that renders on fresh load.

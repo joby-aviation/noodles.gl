@@ -42,8 +42,8 @@
       "id": "/processing/energy",
       "type": "CodeOp",
       "position": {
-        "x": -700,
-        "y": 40
+        "x": -350,
+        "y": 60
       },
       "data": {
         "inputs": {
@@ -140,14 +140,66 @@
         "inputs": {},
         "locked": false
       }
+    },
+    {
+      "id": "/processing/input",
+      "type": "GraphInputOp",
+      "position": {
+        "x": -680,
+        "y": 60
+      },
+      "data": {
+        "inputs": {},
+        "locked": false
+      }
+    },
+    {
+      "id": "/processing/output",
+      "type": "GraphOutputOp",
+      "position": {
+        "x": 40,
+        "y": 60
+      },
+      "data": {
+        "inputs": {},
+        "locked": false
+      }
     }
   ],
   "edges": [
     {
-      "id": "/quake-data.out.data->/processing/energy.par.data",
+      "id": "/quake-data.out.data->/processing.par.in",
       "source": "/quake-data",
       "sourceHandle": "out.data",
+      "target": "/processing",
+      "targetHandle": "par.in"
+    },
+    {
+      "id": "/processing/input.out.value->/processing/energy.par.data",
+      "source": "/processing/input",
+      "sourceHandle": "out.value",
       "target": "/processing/energy",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/processing/energy.out.data->/processing/output.par.value",
+      "source": "/processing/energy",
+      "sourceHandle": "out.data",
+      "target": "/processing/output",
+      "targetHandle": "par.value"
+    },
+    {
+      "id": "/processing/output.out.propagatedValue->/processing.out.out",
+      "source": "/processing/output",
+      "sourceHandle": "out.propagatedValue",
+      "target": "/processing",
+      "targetHandle": "out.out"
+    },
+    {
+      "id": "/processing.out.out->/quake-points.par.data",
+      "source": "/processing",
+      "sourceHandle": "out.out",
+      "target": "/quake-points",
       "targetHandle": "par.data"
     },
     {
@@ -184,13 +236,6 @@
       "target": "/out",
       "sourceHandle": "out.vis",
       "targetHandle": "par.vis"
-    },
-    {
-      "source": "/processing/energy",
-      "sourceHandle": "out.data",
-      "target": "/quake-points",
-      "targetHandle": "par.data",
-      "id": "/processing/energy.out.data->/quake-points.par.data"
     }
   ],
   "viewport": {

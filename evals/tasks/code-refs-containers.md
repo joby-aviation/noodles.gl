@@ -62,20 +62,24 @@ table for step 5; this is that task.)
 
 ## Notes
 
-- Container membership is encoded purely in the node-id path prefix;
-  GraphInputOp/GraphOutputOp + bridge edges are the app's pass-through
-  mechanism, but `op()` references across the boundary are also legitimate —
-  the checks don't mandate the bridge.
+- Container membership is encoded purely in the node-id path prefix. **The
+  supported data route across the boundary is the GraphInputOp/GraphOutputOp
+  pair + the container's own `par.in`/`out.out` ports** (maintainer guidance,
+  2026-07-09): wiring a child directly to a node outside the container is not
+  a supported pattern — the executor happens to run it, but the app draws no
+  wire for it while the container is collapsed. The golden models the
+  supported shape: file → container.in → GraphInput → child → GraphOutput →
+  container.out → layer. `op()` *references* across the boundary remain
+  legitimate for reading values (that is how the promoted parameter is
+  consumed) — it is cross-boundary *edges* that are out.
 - **Reference-only data paths inside containers go stale on fresh load** (found
   during golden verification, 2026-07-08): reference edges are synced into the
   executor by the CodeField editor component, which never renders for collapsed
   container children — a child whose only link to upstream data is an `op()`
   read executes once before async data arrives and never re-executes, silently
-  yielding an empty layer. The golden therefore feeds the child through a real
-  `par.data` edge and keeps the `op()` reference for the (static) promoted
-  cutoff. Sessions that author the reference-only pattern render a blank viz;
-  the judge sees that in the screenshot, but no mechanical check catches it
-  today.
+  yielding an empty layer. App fix in PR #514; until it merges to main,
+  sessions that author the reference-only pattern render a blank viz — the
+  judge sees that in the screenshot, but no mechanical check catches it today.
 - **taskVersion 2** (breaks the v1 comparison series per 07 D7): v1 kept the
   cutoff in a standalone NumberOp; v2 requires promoting it onto the
   container's own interface (`data.customInputs`) — the promoted-parameters
