@@ -62,7 +62,22 @@ export function preprocessExpression(expr: string, opId: string): string {
 }
 
 function applyResult(field: Field, result: unknown): void {
-  const parsed = field.schema.safeParse(result)
+  let parsed = field.schema.safeParse(result)
+  if (!parsed.success) {
+    // Transformed fields parse input-space values (e.g. ColorField parses '#ffffffff'
+    // and transforms to [r,g,b,a]), but expressions naturally produce value-space
+    // results like [255, 255, 255, 255]. The field's static deserialize already maps
+    // value space back to input space (colorToHex for ColorField), so retry through it.
+    const ctor = field.constructor as typeof Field & { deserialize(value: unknown): unknown }
+    try {
+      const deserialized = ctor.deserialize(result)
+      if (deserialized !== result) {
+        parsed = field.schema.safeParse(deserialized)
+      }
+    } catch {
+      // Fall through with the original parse error
+    }
+  }
   if (!parsed.success) {
     const issue = parsed.error.issues[0]
     field.expressionError$.next(

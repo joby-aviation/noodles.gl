@@ -56,6 +56,8 @@ Driven fields re-evaluate automatically when their dependencies change:
 
 Expression results are validated against the field's schema. If an expression returns the wrong type (say, a string into a number field), the field keeps its last good value and shows a ⚠ indicator with the error. Syntax errors and unknown operator paths are reported the same way — the graph keeps running with the previous value.
 
+Fields that transform their input accept results in either form. A color field takes a hex string (`'#ff0000'`) or the RGBA array the layer actually consumes (`[255, 0, 0, 255]`) — whichever your expression naturally produces.
+
 ## Serialization
 
 Expressions are saved with the project as `{ "$expr": "..." }` payloads in the field's slot, and they round-trip through undo/redo and copy/paste.

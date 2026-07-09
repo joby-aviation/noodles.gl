@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useTimelineStore } from '../../timeline/timeline-store'
+import { hexToColor } from '../../utils/color'
 import {
   applySerializedFieldValue,
+  ColorField,
   isSerializedExpression,
   NumberField,
   StringField,
@@ -319,6 +321,46 @@ describe('field expression mode', () => {
       expect(preprocessExpression('{{/a.out.val}} + {{par.x}}', '/self')).toEqual(
         "op('/a').out.val + op('/self').par.x"
       )
+    })
+  })
+
+  describe('transformed fields (ColorField with hexToColor)', () => {
+    // Mirrors how layer ops declare color inputs, e.g. ScatterplotLayerOp.getFillColor
+    const makeColorField = () => {
+      const field = new ColorField('#fff', { accessor: true, transform: hexToColor })
+      const holder = new NumberOp('/holder')
+      field.op = holder
+      field.pathToProps = ['/holder', 'par', 'getFillColor']
+      return field
+    }
+
+    it('accepts value-space color arrays', () => {
+      const field = makeColorField()
+      field.setExpression('[255, 255, 255, 255]')
+      expect(field.expressionError$.value).toBeNull()
+      expect(field.value).toEqual([255, 255, 255, 255])
+    })
+
+    it('fills in alpha for 3-element arrays', () => {
+      const field = makeColorField()
+      field.setExpression('[255, 0, 0]')
+      expect(field.expressionError$.value).toBeNull()
+      expect(field.value).toEqual([255, 0, 0, 255])
+    })
+
+    it('still accepts input-space hex strings', () => {
+      const field = makeColorField()
+      field.setExpression("'#ff0000'")
+      expect(field.expressionError$.value).toBeNull()
+      expect(field.value).toEqual([255, 0, 0, 255])
+    })
+
+    it('still rejects values that fit neither space', () => {
+      const field = makeColorField()
+      const before = field.value
+      field.setExpression("'not a color'")
+      expect(field.expressionError$.value).toMatch(/doesn't fit/)
+      expect(field.value).toEqual(before)
     })
   })
 
