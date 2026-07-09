@@ -460,12 +460,15 @@ export abstract class Operator<OP extends IOperator> {
       return this._cachedOutput
     }
 
-    // Wait for ongoing computation
-    if (
-      this._pullExecutionStatus === PullExecutionStatus.COMPUTING &&
-      this._computingPromise !== null
-    ) {
-      debugPull('%s: %s -> waiting', this.id, PullExecutionStatus.COMPUTING)
+    // Wait for ongoing computation. Guard on _computingPromise alone, not on
+    // status === COMPUTING: a markDirty arriving mid-execution resets the
+    // status to DIRTY while a computation is still in flight, and falling
+    // through here would start a second concurrent _pullExecution for the
+    // same operator. The DIRTY status survives completion of the in-flight
+    // run (see _pullExecution), so the next pull after it settles will
+    // re-execute with the fresh inputs.
+    if (this._computingPromise !== null) {
+      debugPull('%s: %s -> waiting', this.id, this._pullExecutionStatus)
       return this._computingPromise
     }
 
@@ -506,8 +509,17 @@ export abstract class Operator<OP extends IOperator> {
       // Pull upstream dependencies first
       await this._pullUpstreamDependencies()
 
-      // Get current input values
+      // Get current input values (eager snapshot of all input fields)
       const inputValues = this.data
+
+      // Absorb dirty marks that arrived before the snapshot: value
+      // propagation from the upstream pulls above lands via setValue ->
+      // markDirty while we are COMPUTING, but those values are captured in
+      // the snapshot we just took, so they don't invalidate this execution.
+      // Marks arriving from here on (e.g. an async upstream resolving while
+      // execute() awaits) are NOT reflected in the snapshot and must keep the
+      // operator dirty — see the completion check below.
+      this._pullExecutionStatus = PullExecutionStatus.COMPUTING
 
       // Debug breakpoint - pause execution if enabled
       if (this.breakpointEnabled.value) {
@@ -530,10 +542,25 @@ export abstract class Operator<OP extends IOperator> {
 
       clearTimeout(executingTimer)
 
-      // Cache result and mark clean
+      // Cache result and mark clean — but only transition COMPUTING -> CLEAN.
+      // If a markDirty arrived after the input snapshot (status was reset to
+      // DIRTY mid-flight), or an upstream dependency finished this frame
+      // DIRTY (its fresh data has not flowed into our inputs yet), the result
+      // we just computed is already stale — e.g. a FileOp resolving its CSV
+      // during this same frame's pull walk. Setting CLEAN unconditionally
+      // here clobbered that mark (lost update): the operator then served the
+      // stale cache forever because pull() never re-executes a CLEAN op.
+      // Leave it DIRTY so the next frame re-executes with the new inputs.
+      const markedAfterSnapshot = this._pullExecutionStatus !== PullExecutionStatus.COMPUTING
       this._cachedOutput = finalResult
-      this._pullExecutionStatus = PullExecutionStatus.CLEAN
-      this.dirty = false // Also clear the dirty flag for GraphExecutor
+      if (markedAfterSnapshot || this._hasDirtyUpstreamDependency()) {
+        debugPull('%s: dirtied mid-execution, staying dirty for re-execution', this.id)
+        this._pullExecutionStatus = PullExecutionStatus.DIRTY
+        this.dirty = true
+      } else {
+        this._pullExecutionStatus = PullExecutionStatus.CLEAN
+        this.dirty = false // Also clear the dirty flag for GraphExecutor
+      }
       this._lastExecutionTime = executionTime
 
       debugExecute('%s: %dms %O', this.id, this._lastExecutionTime.toFixed(2), {
@@ -580,6 +607,11 @@ export abstract class Operator<OP extends IOperator> {
         this._lastLoggedError = error.message
       }
 
+      // Set ERROR unconditionally, even if a markDirty arrived mid-execution.
+      // Unlike the success path we deliberately let ERROR win over a
+      // mid-flight DIRTY: markDirty clears ERROR back to DIRTY on the next
+      // wave anyway (any future input change retries), while preserving DIRTY
+      // here would silently retry a failing operator every frame.
       this._pullExecutionStatus = PullExecutionStatus.ERROR
       this._cachedOutput = null
 
@@ -606,6 +638,19 @@ export abstract class Operator<OP extends IOperator> {
 
     await Promise.all(promises)
     // Field connections will have updated the values already via subscriptions
+  }
+
+  // True if any upstream dependency is DIRTY. Used at execution completion:
+  // an upstream that ended this frame dirty (e.g. its async data arrived
+  // mid-pull) has fresh data that our just-taken input snapshot missed, so we
+  // must not mark ourselves CLEAN on top of it.
+  private _hasDirtyUpstreamDependency(): boolean {
+    for (const dep of this._upstreamDependencies) {
+      if (dep._pullExecutionStatus === PullExecutionStatus.DIRTY) {
+        return true
+      }
+    }
+    return false
   }
 
   // Mark this operator as dirty and propagate downstream.

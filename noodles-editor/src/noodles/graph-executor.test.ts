@@ -1,15 +1,47 @@
 // Test file for GraphExecutor implementation
 import { describe, expect, it, vi } from 'vitest'
+import { NumberField } from './fields'
 import { GraphExecutor, GraphScope, topologicalSort } from './graph-executor'
-import type { IOperator, Operator } from './operators'
+import type { IOperator } from './operators'
 import {
   ForLoopBeginOp,
   ForLoopEndOp,
   ForLoopMetaOp,
   MathOp,
   NumberOp,
+  Operator,
   PullExecutionStatus,
 } from './operators'
+import type { ExtractProps } from './utils/extract-props'
+
+// Test operator whose async execute() blocks on a controllable gate, used to
+// interleave markDirty with an in-flight execution
+class GatedOp extends Operator<GatedOp> {
+  static displayName = 'Gated'
+  static gate: Promise<void> = Promise.resolve()
+  static onExecuteStart: () => void = () => {}
+  static executionCount = 0
+
+  createInputs() {
+    return {
+      value: new NumberField(0),
+    }
+  }
+
+  createOutputs() {
+    return {
+      result: new NumberField(0),
+    }
+  }
+
+  async execute({ value }: ExtractProps<typeof this.inputs>) {
+    GatedOp.executionCount++
+    GatedOp.onExecuteStart()
+    // Only blocks while the gate is unresolved
+    await GatedOp.gate
+    return { result: value }
+  }
+}
 
 describe('topologicalSort', () => {
   it('should sort a linear chain correctly', () => {
@@ -865,6 +897,57 @@ describe('markDirty propagation soundness', () => {
     expect(() => b.markDirty()).not.toThrow()
     const result2 = await c.pull()
     expect(result2.result).toBe(13)
+  })
+
+  // Regression test for the mid-execution lost update: an async upstream
+  // (e.g. a FileOp resolving a CSV) can mark an operator dirty while that
+  // operator is COMPUTING in the same frame's pull walk. Completing the
+  // execution used to unconditionally set CLEAN, clobbering the mark, so the
+  // operator served the stale result forever.
+  it('should stay dirty when marked dirty mid-execution (lost update)', async () => {
+    let release = () => {}
+    const gate = new Promise<void>(resolve => {
+      release = resolve
+    })
+    let signalStarted = () => {}
+    const executeStarted = new Promise<void>(resolve => {
+      signalStarted = resolve
+    })
+
+    GatedOp.gate = gate
+    GatedOp.onExecuteStart = signalStarted
+    GatedOp.executionCount = 0
+
+    const op = new GatedOp('/gated')
+    op.inputs.value.setValue(1)
+
+    // Start a pull and wait until execute() has read value=1 and is blocked
+    const firstPull = op.pull()
+    expect(op.pullExecutionStatus).toBe(PullExecutionStatus.COMPUTING)
+    await executeStarted
+
+    // New data arrives mid-execution and marks the operator dirty
+    op.inputs.value.setValue(2)
+    expect(op.pullExecutionStatus).toBe(PullExecutionStatus.DIRTY)
+
+    // A concurrent pull while dirty-mid-compute must join the in-flight
+    // execution, not start a second one
+    const concurrentPull = op.pull()
+
+    release()
+    const [first, concurrent] = await Promise.all([firstPull, concurrentPull])
+    expect(first.result).toBe(1) // computed from the stale input snapshot
+    expect(concurrent).toBe(first) // joined the in-flight run
+    expect(GatedOp.executionCount).toBe(1)
+
+    // The mid-execution mark must survive completion (not clobbered by CLEAN)
+    expect(op.pullExecutionStatus).toBe(PullExecutionStatus.DIRTY)
+    expect(op.dirty).toBe(true)
+
+    // The next pull re-executes with the fresh input
+    const second = await op.pull()
+    expect(second.result).toBe(2)
+    expect(GatedOp.executionCount).toBe(2)
   })
 })
 
