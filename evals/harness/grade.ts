@@ -16,6 +16,7 @@ import { type KeyEntry } from './lib/matchers'
 import { computeProcessMetrics } from './lib/process-metrics'
 import type { Registry } from './lib/registry'
 import { loadRubric, resolveApplicability } from './lib/rubric'
+import { pullHint, requireRunFiles } from './lib/run-store'
 import { type MechanicalResults, type SeriesRow, reduceJudgeSamples, totalScore } from './lib/scoring'
 import { loadTask } from './lib/task'
 
@@ -37,9 +38,10 @@ function loadRun(series: string, runId: string): RunStore {
   ) {
     throw new Error(
       `season ${series} is archived — a closed instrument is not regraded. To inspect or reproduce, ` +
-        `restore the Release tarball first (see results/${series}/ARCHIVED.md).`
+        `restore its evidence first: ${pullHint(series)} (see results/${series}/ARCHIVED.md).`
     )
   }
+  requireRunFiles(series, runId, ['transcript.jsonl', 'transcript.txt', 'session-meta.json', 'mechanical.json'])
   const artifacts = new Map<string, string>()
   const artifactsDir = path.join(runDir, 'artifacts')
   if (fs.existsSync(artifactsDir)) {

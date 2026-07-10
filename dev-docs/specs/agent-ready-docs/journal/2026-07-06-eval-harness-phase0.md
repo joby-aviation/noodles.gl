@@ -517,3 +517,40 @@ soundness argument is the mirror of the original bug — cleaning broke the old 
 cleaning is what disables the prune. Red-proof: removing the epoch bump fails both the new
 prune-invalidation test and the original dirty-island regression. Suite 96/96; E2E repro
 re-verified in-browser on the pruned build (200 → 200 → 200 → 12 → 12 → 12).
+
+## Round 6 (2026-07-10): run evidence moves to R2
+
+PR #509 review (maintainer): the committed results are repo noise — "We have R2 access
+where we can store this stuff. It doesn't need to live in the repo." Agreed split: series
+metadata stays in git, blobs go to blob storage. This supersedes the phase-0 season-archival
+design (GitHub Release tarball at season close): evidence now leaves the tree continuously,
+not just at close.
+
+- **What git keeps per series**: `index.json` rows (unchanged), `scorecard.md`,
+  `registry.json`, and a new `manifest.json` — R2 key, sha256, byte size for every object
+  under `runs/`. The 63-run T0 series drops from 434 tracked files / 43MB to 4 summary files.
+- **`sync-results`** (`--push` / `--verify [--all]` / `--pull [--run]`): R2 keys mirror the
+  local tree (`<series>/runs/<runId>/<file>`). Push is idempotent and rewrites the manifest
+  from local truth; verify HEADs every key and hash-checks a deterministic sample (`--all`
+  for everything); pull refuses any download whose sha256 disagrees with the manifest.
+  Implementation detail that matters here: requests are SigV4-signed over `fetch` via
+  aws4fetch instead of `@aws-sdk/client-s3`, because the SDK's node-http-handler ignores
+  `NODE_USE_ENV_PROXY`/`HTTPS_PROXY` while undici fetch honors the egress proxy exactly like
+  the Bedrock SDK already does. Credentials: `EVALS_R2_*` env vars, never committed.
+- **Consumers fail actionably**: `grade`, `calibrate`, `export-metrics`, `evidence-pack`
+  call `requireRunFiles` and turn a missing local file into the exact pull command,
+  distinguishing "in the manifest, pull it" from "never recorded". `report` stays graceful
+  (sparse turns column) — a series summary shouldn't demand a 43MB download.
+- **`archive-season` is now only the closed-instrument marker**: it verifies the manifest
+  covers all local evidence (a season must never be sealed while bytes exist only on one
+  ephemeral disk), then writes `ARCHIVED.md`; no tarball, no deletions. grade.ts keeps
+  refusing regrades on archived seasons, with the pull command as the restore path.
+- **Selftest**: the tarball round-trip tests are replaced by offline `FsObjectStore` tests —
+  push→manifest→wipe→pull byte-identical round-trip, idempotent second push, tamper
+  detection in both verify and pull — plus archive-marker coverage rules and the
+  requireRunFiles hints. The selftest runner now awaits async tests (previously async
+  failures only surfaced as unhandled rejections).
+- **Sequencing** (agreed): tooling lands first; the 43MB stays tracked until the R2
+  credentials arrive and `--push` + `--verify --all` come back clean; only then does
+  `git rm -r --cached` slim the branch. No history rewrite — a squash merge keeps the blobs
+  out of main entirely.

@@ -10,6 +10,7 @@ import * as path from 'node:path'
 import { readIndex } from './grade'
 import { RESULTS_ROOT } from './lib/config'
 import { loadRubric, type Rubric } from './lib/rubric'
+import { requireRunFiles } from './lib/run-store'
 import { loadTask } from './lib/task'
 
 function csv(rows: Array<Array<string | number | boolean | null | undefined>>): string {
@@ -84,6 +85,7 @@ export function exportMetrics(series: string, outDir: string): { runs: number; d
   for (const runId of runIds) {
     const row = latest.get(runId)!
     const runDir = path.join(RESULTS_ROOT, series, 'runs', runId)
+    requireRunFiles(series, runId, ['session-meta.json', 'mechanical.json', 'transcript.jsonl'])
     const meta = JSON.parse(fs.readFileSync(path.join(runDir, 'session-meta.json'), 'utf-8'))
     const mechanical = JSON.parse(fs.readFileSync(path.join(runDir, 'mechanical.json'), 'utf-8')) as {
       checks: Record<string, { pass: boolean }>

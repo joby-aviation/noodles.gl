@@ -13,6 +13,7 @@ import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { readIndex } from './grade'
 import { RESULTS_ROOT, RUBRICS_ROOT, TASKS_ROOT } from './lib/config'
+import { requireRunFiles } from './lib/run-store'
 import { loadTask } from './lib/task'
 
 const MAX_EXCERPT_LINE = 400
@@ -31,6 +32,8 @@ export function buildEvidencePack(opts: Options): string[] {
   const runDir = (runId: string) => path.join(RESULTS_ROOT, opts.series, 'runs', runId)
   const failDir = runDir(opts.failRunId)
   const passDir = runDir(opts.passRunId)
+  requireRunFiles(opts.series, opts.failRunId, ['session-meta.json', 'mechanical.json', 'scores.json', 'transcript.txt'])
+  requireRunFiles(opts.series, opts.passRunId, ['screenshot.png'])
   const failMeta = JSON.parse(fs.readFileSync(path.join(failDir, 'session-meta.json'), 'utf-8'))
   const task = loadTask(String(failMeta.taskId))
   fs.mkdirSync(opts.outDir, { recursive: true })

@@ -20,6 +20,7 @@ import * as path from 'node:path'
 import YAML from 'yaml'
 import { EVALS_ROOT, JUDGE_MODEL, RESULTS_ROOT } from './lib/config'
 import { loadRubric, resolveApplicability, type Rubric } from './lib/rubric'
+import { pullHint, requireRunFiles } from './lib/run-store'
 import { loadTask } from './lib/task'
 
 const CALIBRATION_ROOT = path.join(EVALS_ROOT, 'calibration')
@@ -32,6 +33,12 @@ interface RunRef {
 
 function gradedRuns(series: string): RunRef[] {
   const runsDir = path.join(RESULTS_ROOT, series, 'runs')
+  if (!fs.existsSync(runsDir)) {
+    throw new Error(
+      `no local run evidence for series ${series} — calibration reads the same package the judge saw. ` +
+        `Restore it first:\n  ${pullHint(series)}`
+    )
+  }
   return fs
     .readdirSync(runsDir)
     .filter(runId => fs.existsSync(path.join(runsDir, runId, 'scores.json')))
@@ -88,6 +95,7 @@ function generate(series: string): void {
     const task = loadTask(run.taskId)
     const rubric = resolveApplicability(loadRubric(task.grader.rubric), task.tags)
     const runDir = path.join(RESULTS_ROOT, series, 'runs', runId)
+    requireRunFiles(series, runId, ['mechanical.json'])
     const mechanical = fs.readFileSync(path.join(runDir, 'mechanical.json'), 'utf-8')
     const artifacts = fs.existsSync(path.join(runDir, 'artifacts'))
       ? fs.readdirSync(path.join(runDir, 'artifacts'))
@@ -191,6 +199,7 @@ function agreement(series: string, graders: string[]): void {
   const rows: Array<{ dim: string; humanA: number; humanB: number; judge: number | null }> = []
   for (const [code, runId] of Object.entries(mapping)) {
     const runDir = path.join(RESULTS_ROOT, series, 'runs', runId)
+    requireRunFiles(series, runId, ['session-meta.json'])
     const taskId = JSON.parse(fs.readFileSync(path.join(runDir, 'session-meta.json'), 'utf-8')).taskId
     const task = loadTask(taskId)
     const rubric = resolveApplicability(loadRubric(task.grader.rubric), task.tags)
@@ -245,6 +254,7 @@ function openMaterials(series: string, code: string): void {
   const runId = mapping[code]
   if (!runId) throw new Error(`unknown worksheet code ${code}`)
   const runDir = path.join(RESULTS_ROOT, series, 'runs', runId)
+  requireRunFiles(series, runId, ['transcript.txt', 'mechanical.json'])
   const dest = path.join(CALIBRATION_ROOT, 'materials', code)
   fs.rmSync(dest, { recursive: true, force: true })
   fs.mkdirSync(dest, { recursive: true })

@@ -1,93 +1,80 @@
-// Season archival (storage policy, journal 2026-07-06): when a season closes
-// — curve complete: T1-T5 milestones + ablations graded, calibration settled,
-// rubric-bump regrades applied; or a forced re-pin — its heavy per-run
-// evidence (transcripts + screenshots, ~95% of the bytes) moves to a GitHub
-// Release asset and leaves the tree. What stays in-tree is the inspectable
-// curve: index.json rows, scores.json, mechanical.json, session-meta.json,
-// final artifacts/, registry.json, scorecard.md. An archived season is a
-// closed instrument: grade.ts refuses regrades until the tarball is restored.
+// Season close (storage policy 2026-07-10): run evidence lives in R2 from
+// the moment it's graded (harness/sync-results.ts), so closing a season no
+// longer moves bytes — it writes the closed-instrument marker. A season
+// closes when its curve is complete (T1-T5 milestones + ablations graded,
+// calibration settled, rubric-bump regrades applied) or on a forced re-pin.
+// Once ARCHIVED.md exists, grade.ts refuses regrades: the season's
+// (rubricVersion, judgeModel) pair is retired.
 //
-//   npm run archive-season -- --series <series> [--out <dir>] [--force]
+// Closing verifies the manifest actually covers the local evidence first —
+// a season must never be sealed while some of its bytes exist only on one
+// ephemeral disk.
+//
+//   npm run archive-season -- --series <series> [--force]
 
-import { execFileSync } from 'node:child_process'
-import { createHash } from 'node:crypto'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { CURRENT_SERIES, RESULTS_ROOT } from './lib/config'
+import { collectLocalObjects, pullHint, readManifest } from './lib/run-store'
 
-const HEAVY = ['transcript.jsonl', 'transcript.txt', 'screenshot.png']
-
-export function archiveSeason(series: string, outDir: string, force: boolean): string {
+export function archiveSeason(series: string, force: boolean): string {
   if (series === CURRENT_SERIES && !force) {
     throw new Error(
-      `${series} is the CURRENT season (harness/lib/config.ts) — an open season's regrades require its artifacts. ` +
-        'Archive only after the curve is complete, or pass --force if the season is being closed early (forced re-pin).'
+      `${series} is the CURRENT season (harness/lib/config.ts) — an open season's regrades require it to stay open. ` +
+        'Close only after the curve is complete, or pass --force if the season is being closed early (forced re-pin).'
     )
   }
   const seriesDir = path.join(RESULTS_ROOT, series)
-  const runsDir = path.join(seriesDir, 'runs')
-  if (!fs.existsSync(runsDir)) throw new Error(`no runs directory for series ${series}`)
-  if (fs.existsSync(path.join(seriesDir, 'ARCHIVED.md'))) throw new Error(`${series} is already archived`)
+  const marker = path.join(seriesDir, 'ARCHIVED.md')
+  if (fs.existsSync(marker)) throw new Error(`${series} is already archived`)
 
-  const files: string[] = []
-  for (const run of fs.readdirSync(runsDir)) {
-    for (const f of HEAVY) {
-      const rel = path.join('runs', run, f)
-      if (fs.existsSync(path.join(seriesDir, rel))) files.push(rel)
-    }
+  const manifest = readManifest(series)
+  if (!manifest) {
+    throw new Error(`series ${series} has no manifest.json — push its evidence first: npm run sync-results -- --push --series ${series}`)
   }
-  if (files.length === 0) throw new Error(`no heavy artifacts found under ${runsDir}`)
+  // Every local run file must be in the manifest with a matching hash; local
+  // evidence the manifest doesn't cover would be lost the moment this disk
+  // goes away. (Remote integrity is sync-results --verify's job.)
+  const manifestByKey = new Map(manifest.objects.map(o => [o.key, o]))
+  const uncovered = collectLocalObjects(series).filter(o => manifestByKey.get(o.key)?.sha256 !== o.sha256)
+  if (uncovered.length > 0) {
+    throw new Error(
+      `${uncovered.length} local run file(s) are missing from or stale in the manifest ` +
+        `(first: ${uncovered[0].key}) — re-push before closing: npm run sync-results -- --push --series ${series}`
+    )
+  }
 
-  fs.mkdirSync(outDir, { recursive: true })
-  const tarball = path.join(outDir, `${series}-artifacts.tar.gz`)
-  execFileSync('tar', ['-czf', tarball, '-C', seriesDir, ...files])
-
-  const sha256 = createHash('sha256').update(fs.readFileSync(tarball)).digest('hex')
-  const manifest = files.map(f => ` - ${f}`).join('\n')
-  const tag = `evals-${series}`
   fs.writeFileSync(
-    path.join(seriesDir, 'ARCHIVED.md'),
+    marker,
     `# Season archived
 
-Heavy per-run evidence for this series was moved out of the tree at season
-close (storage policy: evals/README.md "Storage & retention").
+This season is a **closed instrument** — its (rubricVersion, judgeModel) pair
+is retired and no further regrades happen (storage policy: evals/README.md
+"Storage & retention").
 
-- tarball: \`${path.basename(tarball)}\`
-- sha256: \`${sha256}\`
-- files: ${files.length}
-- intended GitHub Release tag: \`${tag}\`
+- objects: ${manifest.objects.length} (results/${series}/manifest.json)
+- store: \`${manifest.bucket}\`
+- closed: ${new Date().toISOString()}
 
-**An archived season is a closed instrument** — its (rubricVersion, judgeModel)
-pair is retired and no further regrades happen. To inspect or reproduce, download
-the Release asset and extract it into this directory:
+To inspect or reproduce, restore the evidence locally:
 
 \`\`\`bash
-gh release download ${tag} --pattern '${path.basename(tarball)}'
-tar -xzf ${path.basename(tarball)} -C evals/results/${series}
+${pullHint(series)}
 \`\`\`
-
-## Archived files
-${manifest}
 `
   )
-  for (const f of files) fs.rmSync(path.join(seriesDir, f))
-
-  console.log(`archived ${files.length} files → ${tarball}`)
-  console.log(`sha256 ${sha256}`)
-  console.log('\nUpload it (manual, once):')
-  console.log(`  gh release create ${tag} ${tarball} --title "Eval artifacts: ${series}" --notes "sha256 ${sha256}"`)
-  console.log(`\nThen commit the slimmed evals/results/${series} (ARCHIVED.md + removals).`)
-  return tarball
+  console.log(`closed season ${series}: ARCHIVED.md written (${manifest.objects.length} objects in ${manifest.bucket})`)
+  return marker
 }
 
 const invokedDirectly = process.argv[1] && import.meta.url === `file://${process.argv[1]}`
 if (invokedDirectly) {
   const argv = process.argv.slice(2)
-  const get = (name: string, fallback?: string) => {
+  const get = (name: string) => {
     const i = argv.indexOf(`--${name}`)
-    return i >= 0 ? argv[i + 1] : fallback
+    return i >= 0 ? argv[i + 1] : undefined
   }
   const series = get('series')
   if (!series) throw new Error('missing --series')
-  archiveSeason(series, get('out', '/tmp/noodles-evals-archives') as string, argv.includes('--force'))
+  archiveSeason(series, argv.includes('--force'))
 }

@@ -2,12 +2,13 @@
   "name": "noodles-evals",
   "private": true,
   "type": "module",
-  "description": "CUJ eval harness (dev-docs/specs/agent-ready-docs/07-cuj-evals.md). Runs against the repo, not inside the app \u2014 plain Node only, never imports Vite-built code.",
+  "description": "CUJ eval harness (dev-docs/specs/agent-ready-docs/07-cuj-evals.md). Runs against the repo, not inside the app — plain Node only, never imports Vite-built code.",
   "scripts": {
     "run": "NODE_USE_ENV_PROXY=1 tsx harness/run.ts",
     "grade": "tsx harness/grade.ts",
     "report": "tsx harness/report.ts",
     "selftest": "tsx harness/selftest.ts",
+    "sync-results": "NODE_USE_ENV_PROXY=1 tsx harness/sync-results.ts",
     "verify-goldens": "NODE_USE_ENV_PROXY=1 tsx harness/verify-goldens.ts",
     "calibrate": "tsx harness/calibrate.ts",
     "archive-season": "tsx harness/archive-season.ts",
@@ -18,6 +19,7 @@
     "@anthropic-ai/bedrock-sdk": "^0.32.0",
     "@types/node": "^26.1.0",
     "@types/pngjs": "^6.0.5",
+    "aws4fetch": "^1.0.20",
     "pngjs": "^7.0.0",
     "yaml": "^2.6.0"
   },

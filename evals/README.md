@@ -22,7 +22,9 @@ evals/
                   grade.ts (judge orchestration + Layer-3 process metrics,
                   re-runnable from stored artifacts), report.ts (scorecard),
                   selftest.ts (token-free checks)
-  results/        committed run artifacts (pruned) + index.json series rows
+  results/        index.json series rows + per-series summaries (scorecard,
+                  registry, R2 manifest); run evidence itself lives in R2
+                  (see "Storage & retention")
 ```
 
 `evals/` sits at repo root, outside `noodles-editor` — the harness runs
@@ -145,7 +147,8 @@ rubricVersion, judgeModel, sessionModel, provider, region, isolationAudit,
 scores: {mechanical, judge, total, process}, cost, lane}`. Run directories are
 pruned to transcript (`.jsonl` + judge-facing `.txt`), final artifact files,
 one screenshot, and the frozen `mechanical.json`/`session-meta.json`;
-`registry.json` is stored once per series.
+`registry.json` is stored once per series. The run directories themselves are
+gitignored and synced to R2 — see "Storage & retention".
 
 The **total** on the 0–4 scale is an equal blend of the mechanical and judge
 components, then the Layer-1 cap. The scorecard always shows the components
@@ -154,11 +157,31 @@ revisit it.
 
 ## Storage & retention
 
-Each run commits its pruned evidence bundle; transcripts + screenshots are
-~95% of the bytes. Measured: the full 63-run T0 series is ~43MB in checkout,
-~20–25MB packed. Future milestones run **one primary session model** (picked
-after calibration; the other two pins get a single sensitivity re-run at
-season end), which bounds a milestone at ~13MB.
+**Run evidence lives in R2, not the repo** (PR #509 review, 2026-07-10).
+Git keeps only the series summaries — `results/index.json` (every grading
+row), and per series `scorecard.md`, `registry.json`, and `manifest.json`
+(the R2 key, sha256, and size of every object). Everything under
+`results/<series>/runs/` — transcripts, screenshots, artifacts, per-run
+JSONs, ~43MB for the 63-run T0 series — is gitignored and synced to an R2
+bucket, keyed exactly like the local tree:
+
+```bash
+npm run sync-results -- --push                           # after grading; writes manifest.json — commit it
+npm run sync-results -- --verify --series <series> --all # HEAD + hash-check against the manifest
+npm run sync-results -- --pull   --series <series> [--run <runId>]   # before regrading/inspecting
+```
+
+Credentials come from `EVALS_R2_ACCOUNT_ID`, `EVALS_R2_ACCESS_KEY_ID`,
+`EVALS_R2_SECRET_ACCESS_KEY`, `EVALS_R2_BUCKET` — never committed. Requests
+are SigV4-signed over `fetch` (aws4fetch), so the egress proxy works exactly
+as it does for Bedrock. Every consumer of run files (`grade`, `calibrate`,
+`export-metrics`, `evidence-pack`) turns a missing local copy into the pull
+command above instead of a bare ENOENT; `report` degrades gracefully (sparse
+turns column) since it only joins optional metadata.
+
+The grade-time commit is therefore: updated `index.json`, the series
+`scorecard.md`, and the refreshed `manifest.json` — a handful of files, not
+hundreds.
 
 **Old results cannot pollute future runs**: the workspace builder excludes
 `evals/` at `git archive` time *and* strips it defensively; the per-run
@@ -166,22 +189,20 @@ isolation audit records any tool call that references it; and series /
 rubricVersion / taskVersion separation in `index.json` keeps gradings from
 mixing.
 
-**Season archival**: while a season is open its artifacts stay in-tree —
-regrades require them. **Season 1 closes when the curve is complete** (T1–T5
+**Season close**: since the bytes are already in R2, closing a season no
+longer moves anything. **Season 1 closes when the curve is complete** (T1–T5
 milestone runs + ablations graded, calibration settled, rubric-bump regrades
 applied) or earlier only on a forced re-pin (judge model unavailable, task
 rewrite breaking the series) — whichever comes first. At close:
 
 ```bash
 npm run archive-season -- --series <series>   # refuses the CURRENT season without --force
-gh release create evals-<series> <tarball>    # printed by the script
 ```
 
-Heavy evidence (transcripts, screenshots) moves to the Release asset;
-`index.json`, `scores.json`, frozen mechanical/session metadata, final
-artifacts, and scorecards stay in-tree — the inspectable curve. An archived
-season is a **closed instrument**: `grade.ts` refuses regrades until the
-tarball is restored per its `ARCHIVED.md`.
+This verifies the manifest covers all local evidence, then writes
+`ARCHIVED.md` — the **closed instrument** marker: `grade.ts` refuses further
+regrades; the season's (rubricVersion, judgeModel) pair is retired. To
+inspect or reproduce an archived season, `sync-results --pull` it.
 
 Deferred to step 5: judge calibration (both maintainers hand-grade the T0
 transcripts; ≥80% exact+adjacent agreement per dimension) and the

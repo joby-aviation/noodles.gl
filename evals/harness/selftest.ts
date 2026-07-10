@@ -17,13 +17,21 @@ import { MECHANICAL_FAILURE_CAP, type MechanicalResults, median, totalScore } fr
 import { validateProject } from './lib/validate-project'
 
 let failures = 0
-function test(name: string, fn: () => void): void {
-  try {
-    fn()
-    console.log(`ok   ${name}`)
-  } catch (e) {
+const pending: Promise<void>[] = []
+function test(name: string, fn: () => void | Promise<void>): void {
+  const fail = (e: unknown) => {
     failures++
     console.error(`FAIL ${name}: ${(e as Error).message}`)
+  }
+  try {
+    const result = fn()
+    if (result instanceof Promise) {
+      pending.push(result.then(() => console.log(`ok   ${name}`)).catch(fail))
+      return
+    }
+    console.log(`ok   ${name}`)
+  } catch (e) {
+    fail(e)
   }
 }
 
@@ -253,47 +261,119 @@ test('all five new task files load with custom checks wired', async () => {
   }
 })
 
-test('archive-season round-trip on a fake series (no model calls)', async () => {
+test('sync-results round-trip on a fake series (offline object store)', async () => {
+  const { pullSeries, pushSeries, verifySeries } = await import('./sync-results')
+  const { FsObjectStore } = await import('./lib/object-store')
+  const { readManifest } = await import('./lib/run-store')
+  const { RESULTS_ROOT } = await import('./lib/config')
+  const series = '.selftest-sync'
+  const seriesDir = path.join(RESULTS_ROOT, series)
+  const runDir = path.join(seriesDir, 'runs', 'fake-run--s1')
+  const storeDir = path.join('/tmp/noodles-evals', 'selftest-sync-store')
+  try {
+    fs.rmSync(seriesDir, { recursive: true, force: true })
+    fs.rmSync(storeDir, { recursive: true, force: true })
+    fs.mkdirSync(path.join(runDir, 'artifacts'), { recursive: true })
+    fs.writeFileSync(path.join(runDir, 'transcript.jsonl'), '{"type":"result"}\n')
+    fs.writeFileSync(path.join(runDir, 'screenshot.png'), 'not-a-real-png')
+    fs.writeFileSync(path.join(runDir, 'artifacts', 'noodles.json'), '{"version":6}')
+    const store = new FsObjectStore(storeDir)
+
+    const first = await pushSeries(series, store)
+    assert.equal(first.uploaded, 3)
+    const manifest = readManifest(series)
+    assert.equal(manifest?.objects.length, 3)
+    assert.ok(manifest?.objects.every(o => o.key.startsWith(`${series}/runs/fake-run--s1/`)))
+    // push is idempotent
+    const second = await pushSeries(series, store)
+    assert.equal(second.uploaded, 0)
+    assert.equal(second.skipped, 3)
+    // full verify clean
+    const clean = await verifySeries(series, store, { all: true })
+    assert.equal(clean.problems.length, 0, clean.problems.join('; '))
+    // wipe local evidence; pull restores it byte-identically
+    const original = fs.readFileSync(path.join(runDir, 'transcript.jsonl'))
+    fs.rmSync(path.join(seriesDir, 'runs'), { recursive: true })
+    const pulled = await pullSeries(series, store)
+    assert.equal(pulled.downloaded, 3)
+    assert.deepEqual(fs.readFileSync(path.join(runDir, 'transcript.jsonl')), original)
+    // tamper with a remote object: verify flags it, pull refuses it
+    await store.put(`${series}/runs/fake-run--s1/screenshot.png`, Buffer.from('tampered'))
+    const tampered = await verifySeries(series, store, { all: true })
+    assert.ok(
+      tampered.problems.some(p => p.includes('mismatch')),
+      tampered.problems.join('; ')
+    )
+    fs.rmSync(path.join(runDir, 'screenshot.png'))
+    await assert.rejects(() => pullSeries(series, store), /sha256 mismatch/)
+  } finally {
+    fs.rmSync(seriesDir, { recursive: true, force: true })
+    fs.rmSync(storeDir, { recursive: true, force: true })
+  }
+})
+
+test('archive-season is a marker that requires full manifest coverage', async () => {
   const { archiveSeason } = await import('./archive-season')
+  const { pushSeries } = await import('./sync-results')
+  const { FsObjectStore } = await import('./lib/object-store')
   const { RESULTS_ROOT } = await import('./lib/config')
   const series = '.selftest-archive'
   const seriesDir = path.join(RESULTS_ROOT, series)
   const runDir = path.join(seriesDir, 'runs', 'fake-run--s1')
-  const outDir = path.join('/tmp/noodles-evals', 'selftest-archive-out')
+  const storeDir = path.join('/tmp/noodles-evals', 'selftest-archive-store')
   try {
+    fs.rmSync(seriesDir, { recursive: true, force: true })
+    fs.rmSync(storeDir, { recursive: true, force: true })
     fs.mkdirSync(runDir, { recursive: true })
     fs.writeFileSync(path.join(runDir, 'transcript.jsonl'), '{"type":"result"}\n')
-    fs.writeFileSync(path.join(runDir, 'transcript.txt'), 'L1: [result]\n')
-    fs.writeFileSync(path.join(runDir, 'screenshot.png'), 'not-a-real-png')
+    // no manifest yet: refuses to seal a season whose bytes exist only here
+    assert.throws(() => archiveSeason(series, false), /no manifest\.json/)
+    const store = new FsObjectStore(storeDir)
+    await pushSeries(series, store)
+    // local evidence the manifest doesn't cover also refuses
     fs.writeFileSync(path.join(runDir, 'scores.json'), '{}')
-    fs.writeFileSync(path.join(runDir, 'mechanical.json'), '{}')
-
-    const tarball = archiveSeason(series, outDir, false)
-    assert.ok(fs.existsSync(tarball))
+    assert.throws(() => archiveSeason(series, false), /missing from or stale/)
+    await pushSeries(series, store)
+    archiveSeason(series, false)
     assert.ok(fs.existsSync(path.join(seriesDir, 'ARCHIVED.md')), 'ARCHIVED.md written')
-    // heavy gone, curve stays
-    assert.ok(!fs.existsSync(path.join(runDir, 'transcript.jsonl')))
-    assert.ok(!fs.existsSync(path.join(runDir, 'screenshot.png')))
-    assert.ok(fs.existsSync(path.join(runDir, 'scores.json')))
-    assert.ok(fs.existsSync(path.join(runDir, 'mechanical.json')))
-    // tarball round-trips the heavy files
-    const { execFileSync } = await import('node:child_process')
-    const listing = execFileSync('tar', ['-tzf', tarball], { encoding: 'utf-8' }).trim().split('\n')
-    assert.equal(listing.length, 3, `tarball lists ${listing.length} files`)
-    // double-archive refused
-    assert.throws(() => archiveSeason(series, outDir, false), /already archived/)
+    // marker only: local evidence is untouched
+    assert.ok(fs.existsSync(path.join(runDir, 'transcript.jsonl')))
+    assert.throws(() => archiveSeason(series, false), /already archived/)
   } finally {
     fs.rmSync(seriesDir, { recursive: true, force: true })
-    fs.rmSync(outDir, { recursive: true, force: true })
+    fs.rmSync(storeDir, { recursive: true, force: true })
   }
 })
 
 test('archive-season refuses the current season without --force', async () => {
   const { archiveSeason } = await import('./archive-season')
   const { CURRENT_SERIES } = await import('./lib/config')
-  assert.throws(() => archiveSeason(CURRENT_SERIES, '/tmp/noodles-evals/never', false), /CURRENT season/)
+  assert.throws(() => archiveSeason(CURRENT_SERIES, false), /CURRENT season/)
 })
 
+test('requireRunFiles names the pull command for remote-only evidence', async () => {
+  const { requireRunFiles, writeManifest } = await import('./lib/run-store')
+  const { RESULTS_ROOT } = await import('./lib/config')
+  const series = '.selftest-runstore'
+  const seriesDir = path.join(RESULTS_ROOT, series)
+  try {
+    fs.mkdirSync(seriesDir, { recursive: true })
+    writeManifest({
+      series,
+      bucket: 'fs:test',
+      generatedAt: '2026-07-10T00:00:00.000Z',
+      objects: [{ key: `${series}/runs/gone--s1/transcript.jsonl`, sha256: 'x', bytes: 1 }],
+    })
+    // in the manifest but not on disk → actionable pull command
+    assert.throws(() => requireRunFiles(series, 'gone--s1', ['transcript.jsonl']), /sync-results -- --pull/)
+    // never recorded anywhere → says so instead of suggesting a futile pull
+    assert.throws(() => requireRunFiles(series, 'never-ran--s1', ['transcript.jsonl']), /not in the series manifest/)
+  } finally {
+    fs.rmSync(seriesDir, { recursive: true, force: true })
+  }
+})
+
+await Promise.all(pending)
 if (failures > 0) {
   console.error(`\n${failures} self-test(s) failed`)
   process.exit(1)
