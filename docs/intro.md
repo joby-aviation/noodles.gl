@@ -1,29 +1,36 @@
+---
+sidebar_position: 1
+---
+
 # Welcome to Noodles.gl
 
-Noodles.gl is a node-based editor for creating geospatial visualizations and animations. It combines visual programming with reactive data flow to build interactive presentations and high-quality renders.
+Noodles.gl is a node-based editor for building geospatial visualizations and animations that are ready to publish — in the browser, no install required.
 
-![Noodles.gl Interface](/img/noodles.png)
+<video autoPlay loop muted playsInline style={{width: '100%', borderRadius: '12px', marginBottom: '1.5rem'}}>
+  <source src="/img/example-nyc-taxi-brushing.mp4" type="video/mp4" />
+</video>
 
+## What you can build
 
-## What is Noodles.gl?
+- **Animated route maps** — keyframe camera moves, layer opacity, and data filters to tell a story over time
+- **Live data dashboards** — wire up a DuckDB SQL query to a map layer; the output updates as the inputs change
+- **Publication-quality renders** — export frames at any resolution for print, video, or interactive web embeds
+- **Repeatable workflows** — every project is a JSON file you can version, share, and re-run on new data
 
-- **Node-based Editor**: Drag and drop operators to build data pipelines
-- **Real-time Updates**: Changes propagate automatically through your data flow
-- **Geospatial**: Built on Deck.gl for maps, routes, and spatial data
-- **Timeline Integration**: Keyframe any parameter to create smooth animations
-- **Data Formats**: Support for JSON, CSV, GeoJSON, and more
-- **Export Options**: Generate videos, images, or interactive web presentations
+## Who uses it
 
-## Who Uses Noodles.gl
+**Visualization experts** creating presentation-ready graphics for stakeholders and publications.  
+**Developers** prototyping new data products — faster to wire up a node graph than to write boilerplate.  
+**Data scientists** exploring spatial data interactively before committing to a pipeline.  
+**Research teams** publishing polished geospatial analysis with reproducible, shareable project files.
 
-- **Visualization Experts**: Creating high-quality, presentation-ready graphics
-- **Developers**: Rapid visualization prototyping
-- **Data Scientists**: Data exploration and analysis
-- **Research Teams**: Publishing polished geospatial analysis and insights
+## How it works
 
-## Get Started
+Noodles.gl uses a **pull-based reactive graph**: you connect operators (data sources, transforms, visualization layers) and the output updates automatically when any upstream input changes. There's no "run" button — changes propagate in real time.
 
-Choose your path:
+![EV charging stations across the Pacific Northwest — live data loaded via DuckDB SQL](/img/example-chargemap.png)
 
-- **[Application Users →](./users/getting-started)** - Learn to use Noodles.gl for creating visualizations
-- **[Framework Developers →](./developers/overview)** - Extend Noodles.gl with custom operators and fields
+## Get started
+
+- **[Application Users →](./users/getting-started)** — learn to load data, build graphs, and export visualizations
+- **[Framework Developers →](./developers/overview)** — extend Noodles.gl with custom operators and field types
