@@ -68,6 +68,7 @@ const showcaseItems = [
 		description: "Brush and filter 1M+ trips in real time",
 		tag: "Transportation",
 		wide: true,
+		example: "nyc-taxis",
 	},
 	{
 		media: "/img/example-world-flights.png",
@@ -76,6 +77,7 @@ const showcaseItems = [
 		description: "Animated flight paths colored by origin country",
 		tag: "Aviation",
 		wide: false,
+		example: "world-flights",
 	},
 	{
 		media: "/img/example-chargemap.png",
@@ -84,6 +86,7 @@ const showcaseItems = [
 		description: "Live API data across thousands of stations",
 		tag: "Energy",
 		wide: false,
+		example: "chargers",
 	},
 	{
 		media: "/img/example-california-earthquakes.png",
@@ -92,18 +95,21 @@ const showcaseItems = [
 		description: "Magnitude-scaled scatter with turbo color ramp",
 		tag: "Science",
 		wide: false,
+		example: "california-earthquakes",
 	},
 	{
-		media: "/img/example-joby-storytelling.png",
+		media: "/img/example-us-unemployment.png",
 		type: "image" as const,
-		title: "Route Storytelling",
-		description: "Animated aviation routes for presentations",
-		tag: "Storytelling",
+		title: "US County Unemployment",
+		description: "Choropleth map with DuckDB SQL aggregation",
+		tag: "Economics",
 		wide: false,
+		example: "us-county-unemployment",
 	},
 ];
 
 function ShowcaseGallery() {
+	const appUrl = process.env.NODE_ENV === "development" ? "" : "/app";
 	return (
 		<section className={styles.gallerySection}>
 			<div className="container">
@@ -117,8 +123,9 @@ function ShowcaseGallery() {
 				</div>
 				<div className={styles.galleryGrid}>
 					{showcaseItems.map((item, i) => (
-						<div
+						<a
 							key={i}
+							href={`${appUrl}/examples/${item.example}`}
 							className={clsx(
 								styles.galleryCard,
 								item.wide && styles.galleryCardWide,
@@ -149,8 +156,35 @@ function ShowcaseGallery() {
 									</div>
 								</div>
 							</div>
-						</div>
+						</a>
 					))}
+				</div>
+			</div>
+		</section>
+	);
+}
+
+function VideoSection() {
+	return (
+		<section className={styles.videoSection}>
+			<div className="container">
+				<div className={styles.sectionHeader}>
+					<Heading as="h2" className={styles.sectionTitle}>
+						See it in action
+					</Heading>
+					<p className={styles.sectionSubtitle}>
+						Watch how Noodles.gl turns raw data into animated, interactive maps
+					</p>
+				</div>
+				<div className={styles.videoWrapper}>
+					<iframe
+						className={styles.videoEmbed}
+						src="https://www.youtube.com/embed/GJ0ftFB8r4I"
+						title="Noodles.gl Demo"
+						frameBorder="0"
+						allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+						allowFullScreen
+					/>
 				</div>
 			</div>
 		</section>
@@ -305,6 +339,7 @@ export default function Home() {
 			<HomepageHeader />
 			<main>
 				<ShowcaseGallery />
+				<VideoSection />
 				<UseCases />
 				<HowItWorks />
 				<CTASection />
