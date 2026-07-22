@@ -1349,16 +1349,19 @@ export function NodeHeader({
         return
       }
 
-      const isContainer = type === 'ContainerOp'
+      // Only update if the name actually changed
+      if (trimmedName !== baseName) {
+        const isContainer = type === 'ContainerOp'
 
-      // Call the store function to update the operator
-      updateOperatorId(id, trimmedName, isContainer, setNodes, setEdges)
+        // Call the store function to update the operator
+        updateOperatorId(id, trimmedName, isContainer, setNodes, setEdges)
+      }
 
       setEditing(false)
       setHasConflict(false)
       setInputValue('')
     },
-    [id, type, setNodes, setEdges, checkForConflict]
+    [id, type, baseName, setNodes, setEdges, checkForConflict]
   )
 
   const onInputChange = useCallback(
