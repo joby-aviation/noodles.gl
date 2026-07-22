@@ -2,6 +2,8 @@
 
 Basic workflows for using Noodles.gl to create geospatial visualizations and animations.
 
+![Noodles.gl editor with a multi-layer node graph and live map visualization](/img/noodles-big-project.png)
+
 > New to node-based workflows? Start with [Introduction to Workflows](./workflows-intro.md) to learn the fundamentals of how data flows through Noodles.gl.
 
 ## Interface Overview
