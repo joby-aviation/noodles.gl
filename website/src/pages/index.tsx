@@ -176,15 +176,17 @@ function VideoSection() {
 						Watch how Noodles.gl turns raw data into animated, interactive maps
 					</p>
 				</div>
-				<div className={styles.videoWrapper}>
-					<iframe
-						className={styles.videoEmbed}
-						src="https://www.youtube.com/embed/GJ0ftFB8r4I"
-						title="Noodles.gl Demo"
-						frameBorder="0"
-						allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-						allowFullScreen
-					/>
+				<div className={styles.videoOuter}>
+					<div className={styles.videoWrapper}>
+						<iframe
+							className={styles.videoEmbed}
+							src="https://www.youtube.com/embed/GJ0ftFB8r4I"
+							title="Noodles.gl Demo"
+							frameBorder="0"
+							allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+							allowFullScreen
+						/>
+					</div>
 				</div>
 			</div>
 		</section>
