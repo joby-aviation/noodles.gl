@@ -46,10 +46,29 @@ function detectFormatFromUrl(url: string): DetectedFormat {
   return 'json'
 }
 
+const LNG_PATTERNS = ['lng', 'lon', 'longitude', 'long', 'x']
+const LAT_PATTERNS = ['lat', 'latitude', 'y']
+
+function detectPositionAccessor(contents?: string): string {
+  if (!contents) return '[d.lng, d.lat]'
+  const firstLine = contents.split('\n')[0]
+  if (!firstLine) return '[d.lng, d.lat]'
+
+  const columns = firstLine.split(/[,\t]/).map(c => c.trim().replace(/^["']|["']$/g, ''))
+  const lower = columns.map(c => c.toLowerCase())
+
+  const lngCol = columns.find((_, i) => LNG_PATTERNS.includes(lower[i]))
+  const latCol = columns.find((_, i) => LAT_PATTERNS.includes(lower[i]))
+
+  if (lngCol && latCol) return `[d["${lngCol}"], d["${latCol}"]]`
+  return '[d.lng, d.lat]'
+}
+
 function createScatterPipeline(
   url: string,
   format: string,
-  basePosition: { x: number; y: number }
+  basePosition: { x: number; y: number },
+  positionExpression = '[d.lng, d.lat]'
 ) {
   const dataId = nodeId('data', '/')
   const scatterId = nodeId('scatter', '/')
@@ -63,7 +82,7 @@ function createScatterPipeline(
       type: 'AccessorOp',
       data: {
         inputs: {
-          expression: '[d.lng, d.lat]',
+          expression: positionExpression,
         },
       },
       position: { x: basePosition.x + 300, y: basePosition.y },
@@ -234,12 +253,14 @@ function createGeoJsonPipeline(url: string, basePosition: { x: number; y: number
 function createFileDropNodes(
   url: string,
   format: DetectedFormat,
-  basePosition: { x: number; y: number }
+  basePosition: { x: number; y: number },
+  contents?: string
 ) {
   if (format === 'geojson') {
     return createGeoJsonPipeline(url, basePosition)
   }
-  return createScatterPipeline(url, format, basePosition)
+  const positionExpression = format === 'csv' ? detectPositionAccessor(contents) : '[d.lng, d.lat]'
+  return createScatterPipeline(url, format, basePosition, positionExpression)
 }
 
 interface DataImporterToolProps {
@@ -290,7 +311,8 @@ export function DataImporterTool({ open, onOpenChange, reactFlowRef }: DataImpor
         const { nodes, edges } = createFileDropNodes(
           projectScheme + file.name,
           format,
-          basePosition
+          basePosition,
+          contents
         )
 
         addNodes(nodes)
