@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { BlockLibraryRef } from './block-library'
 import { DataImporterTool } from './tools/data-importer-tool'
+import { MeasureTool } from './tools/measure-tool'
 import { PointWizardTool } from './tools/point-wizard-tool'
 import s from './tools-shelf.module.css'
 
@@ -12,6 +13,7 @@ interface ToolsShelfProps {
 export function ToolsShelf({ reactFlowRef, blockLibraryRef }: ToolsShelfProps) {
   const [showPointWizard, setShowPointWizard] = useState(false)
   const [showDataImporter, setShowDataImporter] = useState(false)
+  const [showMeasure, setShowMeasure] = useState(false)
 
   const handleAddNode = () => {
     // Get center of viewport
@@ -39,6 +41,11 @@ export function ToolsShelf({ reactFlowRef, blockLibraryRef }: ToolsShelfProps) {
           <i className="pi pi-file-import" />
           <span className={s.toolLabel}>Import Data</span>
         </button>
+
+        <button type="button" className={s.toolButton} onClick={() => setShowMeasure(true)}>
+          <i className="pi pi-arrows-h" />
+          <span className={s.toolLabel}>Measure</span>
+        </button>
       </div>
 
       <PointWizardTool
@@ -52,6 +59,8 @@ export function ToolsShelf({ reactFlowRef, blockLibraryRef }: ToolsShelfProps) {
         onOpenChange={setShowDataImporter}
         reactFlowRef={reactFlowRef}
       />
+
+      <MeasureTool open={showMeasure} onOpenChange={setShowMeasure} />
     </>
   )
 }
