@@ -19,10 +19,6 @@ import {
 import cx from 'classnames'
 import { Layer } from 'deck.gl'
 import { Button } from 'primereact/button'
-import { Column } from 'primereact/column'
-import { DataTable } from 'primereact/datatable'
-import { InputNumber } from 'primereact/inputnumber'
-import { InputText } from 'primereact/inputtext'
 import {
   type ComponentType,
   memo,
@@ -30,7 +26,6 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
-  useMemo,
   useRef,
   useState,
 } from 'react'
@@ -41,9 +36,7 @@ import { analytics } from '../../utils/analytics'
 import { ArrayField, type Field, type IField, ListField } from '../fields'
 import { useKeysStore } from '../keys-store'
 import s from '../noodles.module.css'
-import { inferSchema, type TableSchema } from '../table-schema'
 import type { ExecutionState, IOperator, OpType } from '../operators'
-import { convertViewerToTableEditor } from '../utils/operator-conversion'
 import {
   type ContainerOp,
   type DirectionsOp,
@@ -70,14 +63,16 @@ import {
   useOperatorStore,
   useUIStore,
 } from '../store'
+import { inferSchema, type TableSchema } from '../table-schema'
 import type { NodeDataJSON } from '../transform-graph'
 import { canConnect } from '../utils/can-connect'
 import {
   evaluateEnableExpression,
   getEnableExpressionDependencies,
 } from '../utils/enable-expression-evaluator'
-import type { NodeType } from '../utils/node-creation-utils'
 import { type MultiInputEdgeData, slotOffsetY } from '../utils/multi-input-utils'
+import type { NodeType } from '../utils/node-creation-utils'
+import { convertViewerToTableEditor } from '../utils/operator-conversion'
 import { generateQualifiedPath, getBaseName, getParentPath } from '../utils/path-utils'
 import {
   captureOperatorInputs,
@@ -86,10 +81,11 @@ import {
 } from '../utils/property-history'
 import { categories as baseCategories, nodeTypeToDisplayName } from './categories'
 import { FieldComponent, type inputComponents } from './field-components'
+import { GeoEditorOpComponent } from './geo-editor-op'
 import previewStyles from './handle-preview.module.css'
+import { MapStyleConfiguratorOpComponent } from './map-style-configurator-op'
 import RampEditor, { type RampStop } from './ramp-editor'
 import { TableEditor } from './table-editor'
-import { MapStyleConfiguratorOpComponent } from './map-style-configurator-op'
 
 const isPlainObject = (v: unknown): v is Record<string, unknown> =>
   v !== null && typeof v === 'object' && Object.getPrototypeOf(v) === Object.prototype
@@ -211,6 +207,7 @@ for (const key of Object.keys(opTypes)) {
 export const nodeComponents = {
   ...defaultNodeComponents,
   GeocoderOp: memo(GeocoderOpComponent, nodePropsAreEqual),
+  GeoEditorOp: memo(GeoEditorOpComponent, nodePropsAreEqual),
   MapStyleConfiguratorOp: memo(MapStyleConfiguratorOpComponent, nodePropsAreEqual),
   DirectionsOp: memo(DirectionsOpComponent, nodePropsAreEqual),
   MouseOp: memo(MouseOpComponent, nodePropsAreEqual),
@@ -254,7 +251,7 @@ function DefaultEdgeComponent({
   // Edge is targeted if either connection drag or node drag is targeting it
   const isConnectionTarget = targetedEdge?.id === id
   const isNodeDropTarget = nodeDragState?.targetedEdge?.id === id
-  const isTarget = isConnectionTarget || isNodeDropTarget
+  const _isTarget = isConnectionTarget || isNodeDropTarget
 
   let edgeClassName: string | undefined
   if (isConnectionTarget) {
@@ -731,7 +728,9 @@ function NodeComponent({
 
   // Get all inputs (including custom fields for operators that support them)
   const allInputs = op
-    ? ((op.constructor as typeof Operator).supportsCustomFields ? op.getAllInputs() : op.inputs)
+    ? (op.constructor as typeof Operator).supportsCustomFields
+      ? op.getAllInputs()
+      : op.inputs
     : {}
 
   // Get custom field definitions for enable expression checking
@@ -752,7 +751,7 @@ function NodeComponent({
       }
       // Find the custom field definition
       const def = customFieldDefs.find(d => d.name === fieldName)
-      if (!def || !def.enableExpression) {
+      if (!def?.enableExpression) {
         return true // No expression means always enabled
       }
       const result = evaluateEnableExpression(def.enableExpression, op, getOp)
@@ -1913,7 +1912,9 @@ function ViewerOpComponent({
   const { setNodes, setEdges } = useReactFlow()
 
   // TODO: use react-flow helpers
-  const [viewerData, setViewerData] = useState(() => op ? viewerFormatter(op.inputs.data.value) : null)
+  const [viewerData, setViewerData] = useState(() =>
+    op ? viewerFormatter(op.inputs.data.value) : null
+  )
 
   useEffect(() => {
     if (!op) return
@@ -2068,7 +2069,10 @@ function ContainerOpComponent({
   return (
     <div
       role="tree"
-      className={cx(s.wrapper, { [s.wrapperError]: hasConnectionErrors, [s.wrapperDimmed]: isDimmed })}
+      className={cx(s.wrapper, {
+        [s.wrapperError]: hasConnectionErrors,
+        [s.wrapperDimmed]: isDimmed,
+      })}
       onDoubleClick={() => {
         // Clear selection when changing levels
         reactFlow.setNodes(nodes => nodes.map(node => ({ ...node, selected: false })))
@@ -2109,7 +2113,6 @@ function TimeOpComponent({
 }: ReactFlowNodeProps<NodeDataJSON<TimeOp>> & { type: 'TimeOp' }) {
   const op = getOp(id as string)
   const isDimmed = useNodeDimmed(id)
-
 
   const [now, setNow] = useState(0)
   const [sequenceTime, setSequenceTime] = useState(0)
