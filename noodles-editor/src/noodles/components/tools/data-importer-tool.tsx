@@ -22,6 +22,29 @@ import { projectScheme } from '../../utils/filesystem'
 import { edgeId, nodeId } from '../../utils/id-utils'
 import s from './data-importer-tool.module.css'
 
+const SAMPLE_DATASETS = [
+  {
+    name: 'World Countries',
+    url: 'https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson',
+    format: 'geojson' as const,
+  },
+  {
+    name: 'US States',
+    url: 'https://raw.githubusercontent.com/PublicaMundi/MappingAPI/master/data/geojson/us-states.json',
+    format: 'geojson' as const,
+  },
+  {
+    name: 'World Airports',
+    url: 'https://raw.githubusercontent.com/datasets/airport-codes/master/data/airport-codes.csv',
+    format: 'csv' as const,
+  },
+  {
+    name: 'World Cities',
+    url: 'https://raw.githubusercontent.com/datasets/world-cities/master/data/world-cities.csv',
+    format: 'csv' as const,
+  },
+]
+
 type DetectedFormat = 'csv' | 'json' | 'geojson'
 
 function detectFormat(filename: string, contents?: string): DetectedFormat {
@@ -480,6 +503,37 @@ export function DataImporterTool({ open, onOpenChange, reactFlowRef }: DataImpor
               >
                 Load
               </button>
+            </div>
+          </div>
+
+          <div className={s.sampleSection}>
+            <div className={s.urlLabel}>Sample datasets</div>
+            <div className={s.sampleGrid}>
+              {SAMPLE_DATASETS.map(sample => (
+                <button
+                  key={sample.url}
+                  type="button"
+                  className={s.sampleButton}
+                  disabled={isImporting}
+                  onClick={() => {
+                    setUrlInput(sample.url)
+                    const format = sample.format
+                    const basePosition = getBasePosition()
+                    const { nodes, edges } = createFileDropNodes(sample.url, format, basePosition)
+                    addNodes(nodes)
+                    addEdges(edges)
+                    analytics.track('data_imported', {
+                      source: 'sample_dataset',
+                      format,
+                      dataset: sample.name,
+                    })
+                    onOpenChange(false)
+                  }}
+                >
+                  <span className={s.sampleName}>{sample.name}</span>
+                  <span className={s.sampleFormat}>{sample.format}</span>
+                </button>
+              ))}
             </div>
           </div>
 
