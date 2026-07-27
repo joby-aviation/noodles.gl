@@ -22,6 +22,15 @@
   padding: 4px 0;
 }
 
+.layerGroup {
+  border-bottom: 1px solid transparent;
+}
+
+.layerGroupExpanded {
+  background-color: rgba(255, 255, 255, 0.02);
+  border-bottom-color: var(--color-border);
+}
+
 .layerItem {
   display: flex;
   align-items: center;
@@ -96,10 +105,124 @@
   accent-color: #3b82f6;
 }
 
+.navigateButton {
+  width: 22px;
+  height: 22px;
+  border: none;
+  background: none;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 3px;
+  font-size: 10px;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: all 0.15s;
+}
+
+.layerItem:hover .navigateButton {
+  opacity: 1;
+}
+
+.navigateButton:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+  color: var(--color-text-primary);
+}
+
 .emptyState {
   padding: 24px 16px;
   text-align: center;
   font-size: 12px;
   color: var(--color-text-secondary);
   line-height: 1.5;
+}
+
+/* Style Editor (Phase 4B) */
+.styleEditor {
+  padding: 8px 12px 12px 36px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.styleRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 24px;
+}
+
+.styleLabel {
+  font-size: 10px;
+  color: var(--color-text-secondary);
+  width: 72px;
+  flex-shrink: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.colorInput {
+  width: 28px;
+  height: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 3px;
+  cursor: pointer;
+  padding: 0;
+  background: none;
+}
+
+.colorInput::-webkit-color-swatch-wrapper {
+  padding: 1px;
+}
+
+.colorInput::-webkit-color-swatch {
+  border: none;
+  border-radius: 2px;
+}
+
+.numberControl {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+}
+
+.styleSlider {
+  flex: 1;
+  height: 4px;
+  cursor: pointer;
+  accent-color: #3b82f6;
+}
+
+.numberValue {
+  font-size: 10px;
+  color: var(--color-text-secondary);
+  min-width: 28px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.toggleButton {
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background-color: rgba(255, 255, 255, 0.03);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: inherit;
+}
+
+.toggleButton:hover {
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+.toggleOn {
+  background-color: rgba(59, 130, 246, 0.15);
+  border-color: rgba(59, 130, 246, 0.4);
+  color: #93c5fd;
 }
