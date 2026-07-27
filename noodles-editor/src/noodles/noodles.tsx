@@ -58,8 +58,10 @@ import { CopyControls, type CopyControlsRef } from './components/copy-controls'
 import { NodeInfoOverlay, ViewportInfoPanel } from './components/devtools'
 import { ErrorBoundary } from './components/error-boundary'
 import { ExampleNotFoundDialog } from './components/example-not-found-dialog'
+import { LayerPanel } from './components/layer-panel'
 import { PropertyPanel } from './components/node-properties'
 import { NodeTreeSidebar } from './components/node-tree-sidebar'
+import { SidebarTabs } from './components/sidebar-tabs'
 import { edgeComponents, nodeComponents } from './components/op-components'
 import { ParameterEditorDialog } from './components/parameter-editor-dialog'
 import { ProjectNotFoundDialog } from './components/project-not-found-dialog'
@@ -1775,8 +1777,23 @@ export function getNoodles(): Visualization {
     flowGraph,
     selectedNodeIds: nodes.filter(n => n.selected).map(n => n.id),
     nodeSidebar: (
-      <ErrorBoundary title="Node Tree Error">
-        <NodeTreeSidebar updateOperatorId={updateOperatorId} />
+      <ErrorBoundary title="Sidebar Error">
+        <SidebarTabs
+          tabs={[
+            {
+              id: 'nodes',
+              label: 'Nodes',
+              icon: 'pi-sitemap',
+              content: <NodeTreeSidebar updateOperatorId={updateOperatorId} />,
+            },
+            {
+              id: 'layers',
+              label: 'Layers',
+              icon: 'pi-clone',
+              content: <LayerPanel />,
+            },
+          ]}
+        />
       </ErrorBoundary>
     ),
     propertiesPanel,
