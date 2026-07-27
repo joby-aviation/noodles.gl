@@ -12,6 +12,7 @@ import type {
   BoundingBoxOp,
   DeckRendererOp,
   FileOp,
+  GeoJsonLayerOp,
   MaplibreBasemapOp,
   OpType,
   ScatterplotLayerOp,
@@ -21,7 +22,35 @@ import { projectScheme } from '../../utils/filesystem'
 import { edgeId, nodeId } from '../../utils/id-utils'
 import s from './data-importer-tool.module.css'
 
-function createFileDropNodes(url: string, format: string, basePosition: { x: number; y: number }) {
+type DetectedFormat = 'csv' | 'json' | 'geojson'
+
+function detectFormat(filename: string, contents?: string): DetectedFormat {
+  const ext = filename.toLowerCase().split('.').pop()
+  if (ext === 'csv' || ext === 'tsv') return 'csv'
+  if (ext === 'geojson') return 'geojson'
+  if (ext === 'json' && contents) {
+    try {
+      const parsed = JSON.parse(contents)
+      if (parsed.type === 'FeatureCollection' || parsed.type === 'Feature' || parsed.features) {
+        return 'geojson'
+      }
+    } catch {}
+  }
+  return 'json'
+}
+
+function detectFormatFromUrl(url: string): DetectedFormat {
+  const path = new URL(url, 'https://placeholder.com').pathname.toLowerCase()
+  if (path.endsWith('.csv') || path.endsWith('.tsv')) return 'csv'
+  if (path.endsWith('.geojson')) return 'geojson'
+  return 'json'
+}
+
+function createScatterPipeline(
+  url: string,
+  format: string,
+  basePosition: { x: number; y: number }
+) {
   const dataId = nodeId('data', '/')
   const scatterId = nodeId('scatter', '/')
   const scatterPositionId = nodeId('scatter-position', '/')
@@ -117,6 +146,102 @@ function createFileDropNodes(url: string, format: string, basePosition: { x: num
   return { nodes, edges }
 }
 
+function createGeoJsonPipeline(url: string, basePosition: { x: number; y: number }) {
+  const dataId = nodeId('data', '/')
+  const layerId = nodeId('geojson-layer', '/')
+  const bboxId = nodeId('bbox', '/')
+  const mapId = nodeId('basemap', '/')
+  const deckId = nodeId('deck', '/')
+  const nodes: NodeJSON<OpType>[] = [
+    {
+      id: dataId,
+      type: 'FileOp',
+      data: {
+        inputs: { format: 'json', url },
+      },
+      position: { x: basePosition.x, y: basePosition.y },
+    },
+    {
+      id: layerId,
+      type: 'GeoJsonLayerOp',
+      data: {
+        inputs: {
+          stroked: true,
+          filled: true,
+          getFillColor: '#3b82f6',
+          getLineColor: '#1e40af',
+          getLineWidth: 2,
+          getPointRadius: 5,
+        },
+      },
+      position: { x: basePosition.x + 500, y: basePosition.y },
+    },
+    {
+      id: bboxId,
+      type: 'BoundingBoxOp',
+      data: { inputs: {} },
+      position: { x: basePosition.x + 250, y: basePosition.y + 250 },
+    },
+    {
+      id: mapId,
+      type: 'MaplibreBasemapOp',
+      data: { inputs: {} },
+      position: { x: basePosition.x + 500, y: basePosition.y + 250 },
+    },
+    {
+      id: deckId,
+      type: 'DeckRendererOp',
+      data: { inputs: {} },
+      position: { x: basePosition.x + 800, y: basePosition.y + 100 },
+    },
+  ]
+
+  const edges = [
+    {
+      source: dataId,
+      target: layerId,
+      sourceHandle: 'out.data',
+      targetHandle: 'par.data',
+    } as Edge<FileOp, GeoJsonLayerOp>,
+    {
+      source: layerId,
+      target: deckId,
+      sourceHandle: 'out.layer',
+      targetHandle: 'par.layers',
+    } as Edge<GeoJsonLayerOp, DeckRendererOp>,
+    {
+      source: dataId,
+      target: bboxId,
+      sourceHandle: 'out.data',
+      targetHandle: 'par.data',
+    } as Edge<FileOp, BoundingBoxOp>,
+    {
+      source: bboxId,
+      target: mapId,
+      sourceHandle: 'out.viewState',
+      targetHandle: 'par.viewState',
+    } as Edge<BoundingBoxOp, MaplibreBasemapOp>,
+    {
+      source: mapId,
+      target: deckId,
+      sourceHandle: 'out.maplibre',
+      targetHandle: 'par.basemap',
+    } as Edge<MaplibreBasemapOp, DeckRendererOp>,
+  ].map(connection => ({ ...connection, id: edgeId(connection) }))
+  return { nodes, edges }
+}
+
+function createFileDropNodes(
+  url: string,
+  format: DetectedFormat,
+  basePosition: { x: number; y: number }
+) {
+  if (format === 'geojson') {
+    return createGeoJsonPipeline(url, basePosition)
+  }
+  return createScatterPipeline(url, format, basePosition)
+}
+
 interface DataImporterToolProps {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -129,6 +254,16 @@ export function DataImporterTool({ open, onOpenChange, reactFlowRef }: DataImpor
   const [isDragging, setIsDragging] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isImporting, setIsImporting] = useState(false)
+  const [urlInput, setUrlInput] = useState('')
+
+  const getBasePosition = useCallback(() => {
+    const pane = reactFlowRef.current?.getBoundingClientRect()
+    if (!pane) return { x: 0, y: 0 }
+    return screenToFlowPosition({
+      x: pane.left + pane.width / 2,
+      y: pane.top + pane.height / 2,
+    })
+  }, [reactFlowRef, screenToFlowPosition])
 
   const handleFileImport = useCallback(
     async (file: File) => {
@@ -136,13 +271,11 @@ export function DataImporterTool({ open, onOpenChange, reactFlowRef }: DataImpor
       setIsImporting(true)
 
       try {
-        // Get current project and storage type
         const { currentProjectName, activeStorageType } = useFileSystemStore.getState()
         if (!currentProjectName) {
           throw new Error('No project loaded. Please save or load a project first.')
         }
 
-        // Read file contents and write to project's data directory
         const contents = await file.text()
         const result = await writeAsset(activeStorageType, currentProjectName, file.name, contents)
 
@@ -151,28 +284,23 @@ export function DataImporterTool({ open, onOpenChange, reactFlowRef }: DataImpor
         }
 
         debugUI('File imported:', file.name)
-        const type = file.type.includes('csv') ? 'csv' : 'json'
+        const format = detectFormat(file.name, contents)
 
-        // Position nodes at center of viewport (same as block library)
-        const pane = reactFlowRef.current?.getBoundingClientRect()
-        if (!pane) return
-
-        const basePosition = screenToFlowPosition({
-          x: pane.left + pane.width / 2,
-          y: pane.top + pane.height / 2,
-        })
-
-        const { nodes, edges } = createFileDropNodes(projectScheme + file.name, type, basePosition)
+        const basePosition = getBasePosition()
+        const { nodes, edges } = createFileDropNodes(
+          projectScheme + file.name,
+          format,
+          basePosition
+        )
 
         addNodes(nodes)
         addEdges(edges)
 
         analytics.track('data_imported', {
           source: 'tools_shelf',
-          format: type,
+          format,
         })
 
-        // Close dialog on success
         onOpenChange(false)
         setError(null)
       } catch (err) {
@@ -181,8 +309,37 @@ export function DataImporterTool({ open, onOpenChange, reactFlowRef }: DataImpor
         setIsImporting(false)
       }
     },
-    [addNodes, addEdges, screenToFlowPosition, reactFlowRef, onOpenChange]
+    [addNodes, addEdges, getBasePosition, onOpenChange]
   )
+
+  const handleUrlImport = useCallback(async () => {
+    const url = urlInput.trim()
+    if (!url) return
+
+    setError(null)
+    setIsImporting(true)
+
+    try {
+      const format = detectFormatFromUrl(url)
+      const basePosition = getBasePosition()
+      const { nodes, edges } = createFileDropNodes(url, format, basePosition)
+
+      addNodes(nodes)
+      addEdges(edges)
+
+      analytics.track('data_imported', {
+        source: 'tools_shelf_url',
+        format,
+      })
+
+      setUrlInput('')
+      onOpenChange(false)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load URL')
+    } finally {
+      setIsImporting(false)
+    }
+  }, [urlInput, addNodes, addEdges, getBasePosition, onOpenChange])
 
   const handleFileSelect = useCallback(
     async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -241,7 +398,7 @@ export function DataImporterTool({ open, onOpenChange, reactFlowRef }: DataImpor
         <Dialog.Content className={s.dialogContent}>
           <Dialog.Title className={s.dialogTitle}>Import Data</Dialog.Title>
           <Dialog.Description className={s.dialogDescription}>
-            Upload CSV or JSON files to create a visualization pipeline.
+            Add data from a file or URL to create a visualization pipeline.
           </Dialog.Description>
 
           {/* biome-ignore lint/a11y/useSemanticElements: div needed for drag-and-drop zone styling */}
@@ -257,7 +414,7 @@ export function DataImporterTool({ open, onOpenChange, reactFlowRef }: DataImpor
             <input
               ref={fileInputRef}
               type="file"
-              accept=".csv,.json"
+              accept=".csv,.json,.geojson,.tsv"
               onChange={handleFileSelect}
               multiple
               style={{ display: 'none' }}
@@ -275,7 +432,32 @@ export function DataImporterTool({ open, onOpenChange, reactFlowRef }: DataImpor
               >
                 Browse Files
               </button>
-              <div className={s.dropZoneHint}>Supports CSV and JSON files</div>
+              <div className={s.dropZoneHint}>CSV, JSON, GeoJSON</div>
+            </div>
+          </div>
+
+          <div className={s.urlSection}>
+            <div className={s.urlLabel}>Or load from URL</div>
+            <div className={s.urlInputGroup}>
+              <input
+                type="url"
+                className={s.urlInput}
+                placeholder="https://example.com/data.geojson"
+                value={urlInput}
+                onChange={e => setUrlInput(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') handleUrlImport()
+                }}
+                disabled={isImporting}
+              />
+              <button
+                type="button"
+                className={s.urlLoadButton}
+                onClick={handleUrlImport}
+                disabled={isImporting || !urlInput.trim()}
+              >
+                Load
+              </button>
             </div>
           </div>
 
