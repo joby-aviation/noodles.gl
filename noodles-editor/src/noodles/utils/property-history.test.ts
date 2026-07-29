@@ -1,10 +1,12 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
+  type OperatorSnapshot,
   applyOperatorInputs,
   captureOperatorInputs,
   firePropertyMutation,
   getLastCommittedBeforeState,
   registerPropertyMutationCallback,
+  snapshotsEqual,
 } from './property-history'
 
 // Mock the store module
@@ -15,10 +17,11 @@ vi.mock('../store', () => ({
 
 import { getAllOps, getOpStore } from '../store'
 
-// Helper to create a mock field with serialize/setValue
-function mockField(serializedValue: unknown) {
+// Helper to create a mock field with value/setValue
+function mockField(fieldValue: unknown) {
   return {
-    serialize: vi.fn(() => serializedValue),
+    value: fieldValue,
+    serialize: vi.fn(() => fieldValue),
     setValue: vi.fn(),
   }
 }
@@ -32,18 +35,15 @@ const mockedGetAllOps = vi.mocked(getAllOps)
 const mockedGetOpStore = vi.mocked(getOpStore)
 
 describe('captureOperatorInputs', () => {
-  it('serializes all operator field values using serialize()', () => {
+  it('captures all operator field values using field.value', () => {
     const fieldA = mockField(42)
     const fieldB = mockField('hello')
     const op = mockOp('/my-op', { fieldA, fieldB })
     mockedGetAllOps.mockReturnValue([op as never])
 
     const result = captureOperatorInputs()
-    const parsed = JSON.parse(result)
 
-    expect(parsed['/my-op']).toEqual({ fieldA: 42, fieldB: 'hello' })
-    expect(fieldA.serialize).toHaveBeenCalled()
-    expect(fieldB.serialize).toHaveBeenCalled()
+    expect(result['/my-op']).toEqual({ fieldA: 42, fieldB: 'hello' })
   })
 
   it('captures all operators including nested fields', () => {
@@ -52,39 +52,29 @@ describe('captureOperatorInputs', () => {
     mockedGetAllOps.mockReturnValue([op1 as never, op2 as never])
 
     const result = captureOperatorInputs()
-    const parsed = JSON.parse(result)
 
-    expect(parsed['/op1']).toEqual({ x: 1 })
-    expect(parsed['/op2']).toEqual({ y: 2 })
+    expect(result['/op1']).toEqual({ x: 1 })
+    expect(result['/op2']).toEqual({ y: 2 })
   })
 
   it('returns empty object when no operators', () => {
     mockedGetAllOps.mockReturnValue([])
 
     const result = captureOperatorInputs()
-    expect(JSON.parse(result)).toEqual({})
+    expect(result).toEqual({})
   })
 
-  it('serializes null and complex values correctly', () => {
+  it('captures complex values correctly', () => {
     const field = mockField({ nested: [1, 2, 3] })
     const op = mockOp('/op', { compound: field })
     mockedGetAllOps.mockReturnValue([op as never])
 
     const result = captureOperatorInputs()
-    const parsed = JSON.parse(result)
-    expect(parsed['/op'].compound).toEqual({ nested: [1, 2, 3] })
+    expect(result['/op'].compound).toEqual({ nested: [1, 2, 3] })
   })
 })
 
 describe('applyOperatorInputs', () => {
-  beforeEach(() => {
-    // Set up getOpStore mock
-    const store = {
-      getOp: vi.fn(),
-    }
-    mockedGetOpStore.mockReturnValue(store as never)
-  })
-
   it('restores field values by calling setValue for each field', () => {
     const field = mockField(0)
     const op = mockOp('/my-op', { value: field })
@@ -92,8 +82,7 @@ describe('applyOperatorInputs', () => {
     const store = { getOp: vi.fn((id: string) => (id === '/my-op' ? op : undefined)) }
     mockedGetOpStore.mockReturnValue(store as never)
 
-    const snapshot = JSON.stringify({ '/my-op': { value: 99 } })
-    applyOperatorInputs(snapshot)
+    applyOperatorInputs({ '/my-op': { value: 99 } })
 
     expect(field.setValue).toHaveBeenCalledWith(99)
   })
@@ -102,9 +91,8 @@ describe('applyOperatorInputs', () => {
     const store = { getOp: vi.fn(() => undefined) }
     mockedGetOpStore.mockReturnValue(store as never)
 
-    // Should not throw even though the op doesn't exist
     expect(() => {
-      applyOperatorInputs(JSON.stringify({ '/missing-op': { x: 1 } }))
+      applyOperatorInputs({ '/missing-op': { x: 1 } })
     }).not.toThrow()
   })
 
@@ -114,22 +102,9 @@ describe('applyOperatorInputs', () => {
     const store = { getOp: vi.fn(() => op) }
     mockedGetOpStore.mockReturnValue(store as never)
 
-    // Snapshot has a field that doesn't exist on the op
-    applyOperatorInputs(JSON.stringify({ '/op': { existingField: 5, ghostField: 99 } }))
+    applyOperatorInputs({ '/op': { existingField: 5, ghostField: 99 } })
 
     expect(field.setValue).toHaveBeenCalledWith(5)
-    // No error thrown for ghostField
-  })
-
-  it('handles invalid JSON gracefully', () => {
-    const store = { getOp: vi.fn() }
-    mockedGetOpStore.mockReturnValue(store as never)
-
-    expect(() => {
-      applyOperatorInputs('not valid json {{{')
-    }).not.toThrow()
-
-    expect(store.getOp).not.toHaveBeenCalled()
   })
 
   it('restores multiple operators in a single snapshot', () => {
@@ -146,16 +121,94 @@ describe('applyOperatorInputs', () => {
     }
     mockedGetOpStore.mockReturnValue(store as never)
 
-    applyOperatorInputs(JSON.stringify({ '/op1': { x: 42 }, '/op2': { text: 'hello' } }))
+    applyOperatorInputs({ '/op1': { x: 42 }, '/op2': { text: 'hello' } })
 
     expect(field1.setValue).toHaveBeenCalledWith(42)
     expect(field2.setValue).toHaveBeenCalledWith('hello')
   })
 })
 
+describe('snapshotsEqual', () => {
+  it('returns true for identical snapshots', () => {
+    const a: OperatorSnapshot = { '/op': { x: 1, y: 'hello' } }
+    const b: OperatorSnapshot = { '/op': { x: 1, y: 'hello' } }
+    expect(snapshotsEqual(a, b)).toBe(true)
+  })
+
+  it('returns false when field values differ', () => {
+    const a: OperatorSnapshot = { '/op': { x: 1 } }
+    const b: OperatorSnapshot = { '/op': { x: 2 } }
+    expect(snapshotsEqual(a, b)).toBe(false)
+  })
+
+  it('returns false when operators differ', () => {
+    const a: OperatorSnapshot = { '/op1': { x: 1 } }
+    const b: OperatorSnapshot = { '/op2': { x: 1 } }
+    expect(snapshotsEqual(a, b)).toBe(false)
+  })
+
+  it('returns false when field count differs', () => {
+    const a: OperatorSnapshot = { '/op': { x: 1 } }
+    const b: OperatorSnapshot = { '/op': { x: 1, y: 2 } }
+    expect(snapshotsEqual(a, b)).toBe(false)
+  })
+
+  it('returns false when operator count differs', () => {
+    const a: OperatorSnapshot = { '/op1': { x: 1 } }
+    const b: OperatorSnapshot = { '/op1': { x: 1 }, '/op2': { y: 2 } }
+    expect(snapshotsEqual(a, b)).toBe(false)
+  })
+
+  it('uses Object.is for value comparison (same reference = equal)', () => {
+    const arr = [1, 2, 3]
+    const a: OperatorSnapshot = { '/op': { data: arr } }
+    const b: OperatorSnapshot = { '/op': { data: arr } }
+    expect(snapshotsEqual(a, b)).toBe(true)
+  })
+
+  it('arrays with same content but different references are equal (deep comparison)', () => {
+    const a: OperatorSnapshot = { '/op': { data: [1, 2, 3] } }
+    const b: OperatorSnapshot = { '/op': { data: [1, 2, 3] } }
+    expect(snapshotsEqual(a, b)).toBe(true)
+  })
+
+  it('arrays with different content are not equal', () => {
+    const a: OperatorSnapshot = { '/op': { data: [1, 2, 3] } }
+    const b: OperatorSnapshot = { '/op': { data: [1, 2, 4] } }
+    expect(snapshotsEqual(a, b)).toBe(false)
+  })
+
+  it('plain objects with same properties are equal (CompoundPropsField)', () => {
+    const a: OperatorSnapshot = { '/op': { viewState: { lat: 40, lng: -73, zoom: 13 } } }
+    const b: OperatorSnapshot = { '/op': { viewState: { lat: 40, lng: -73, zoom: 13 } } }
+    expect(snapshotsEqual(a, b)).toBe(true)
+  })
+
+  it('plain objects with different properties are not equal', () => {
+    const a: OperatorSnapshot = { '/op': { viewState: { lat: 40, lng: -73, zoom: 13 } } }
+    const b: OperatorSnapshot = { '/op': { viewState: { lat: 41, lng: -73, zoom: 13 } } }
+    expect(snapshotsEqual(a, b)).toBe(false)
+  })
+
+  it('nested objects are compared deeply', () => {
+    const a: OperatorSnapshot = { '/op': { config: { bounds: { north: 40, south: 30 } } } }
+    const b: OperatorSnapshot = { '/op': { config: { bounds: { north: 40, south: 30 } } } }
+    expect(snapshotsEqual(a, b)).toBe(true)
+  })
+
+  it('nested objects with different values are not equal', () => {
+    const a: OperatorSnapshot = { '/op': { config: { bounds: { north: 40, south: 30 } } } }
+    const b: OperatorSnapshot = { '/op': { config: { bounds: { north: 40, south: 31 } } } }
+    expect(snapshotsEqual(a, b)).toBe(false)
+  })
+
+  it('returns true for two empty snapshots', () => {
+    expect(snapshotsEqual({}, {})).toBe(true)
+  })
+})
+
 describe('registerPropertyMutationCallback and firePropertyMutation', () => {
   afterEach(() => {
-    // Clean up callback registration after each test
     registerPropertyMutationCallback(undefined)
   })
 
@@ -164,34 +217,27 @@ describe('registerPropertyMutationCallback and firePropertyMutation', () => {
     const op = mockOp('/op', { x: field })
     mockedGetAllOps.mockReturnValue([op as never])
 
-    // No throw, no callback
     expect(() => {
-      firePropertyMutation('Change value', JSON.stringify({ '/op': { x: 5 } }))
+      firePropertyMutation('Change value', { '/op': { x: 5 } })
     }).not.toThrow()
   })
 
-  it('calls registered callback with description, before, and after state', () => {
+  it('calls registered callback with description, before, and after snapshots', () => {
     const callback = vi.fn()
     registerPropertyMutationCallback(callback)
 
-    // before: x=5, after: x=10
-    const fieldBefore = mockField(5)
-    const _op = mockOp('/op', { x: fieldBefore })
-    const before = JSON.stringify({ '/op': { x: 5 } })
-
-    // After capture: x=10
     mockedGetAllOps.mockReturnValue([
-      { id: '/op', inputs: { x: { serialize: () => 10 } } } as never,
+      { id: '/op', inputs: { x: { value: 10, serialize: () => 10 } } } as never,
     ])
 
+    const before: OperatorSnapshot = { '/op': { x: 5 } }
     firePropertyMutation('Change value', before)
 
     expect(callback).toHaveBeenCalledTimes(1)
     const [desc, beforeArg, afterArg] = callback.mock.calls[0]
     expect(desc).toBe('Change value')
     expect(beforeArg).toBe(before)
-    const afterParsed = JSON.parse(afterArg)
-    expect(afterParsed['/op'].x).toBe(10)
+    expect(afterArg['/op'].x).toBe(10)
   })
 
   it('skips callback when before and after states are identical (no change)', () => {
@@ -203,7 +249,6 @@ describe('registerPropertyMutationCallback and firePropertyMutation', () => {
     mockedGetAllOps.mockReturnValue([op as never])
 
     const before = captureOperatorInputs()
-    // before and after will be identical since the field hasn't changed
     firePropertyMutation('No change', before)
 
     expect(callback).not.toHaveBeenCalled()
@@ -217,7 +262,7 @@ describe('registerPropertyMutationCallback and firePropertyMutation', () => {
     const field = mockField(1)
     mockedGetAllOps.mockReturnValue([{ id: '/op', inputs: { x: field } } as never])
 
-    firePropertyMutation('Test', JSON.stringify({ '/op': { x: 0 } }))
+    firePropertyMutation('Test', { '/op': { x: 0 } })
     expect(callback).not.toHaveBeenCalled()
   })
 
@@ -227,10 +272,9 @@ describe('registerPropertyMutationCallback and firePropertyMutation', () => {
     registerPropertyMutationCallback(cb1)
     registerPropertyMutationCallback(cb2)
 
-    // before: x=0, after: x=1
-    mockedGetAllOps.mockReturnValue([{ id: '/op', inputs: { x: { serialize: () => 1 } } } as never])
+    mockedGetAllOps.mockReturnValue([{ id: '/op', inputs: { x: { value: 1, serialize: () => 1 } } } as never])
 
-    firePropertyMutation('Test', JSON.stringify({ '/op': { x: 0 } }))
+    firePropertyMutation('Test', { '/op': { x: 0 } })
 
     expect(cb1).not.toHaveBeenCalled()
     expect(cb2).toHaveBeenCalledTimes(1)
@@ -240,9 +284,9 @@ describe('registerPropertyMutationCallback and firePropertyMutation', () => {
     const callback = vi.fn()
     registerPropertyMutationCallback(callback)
 
-    const before = JSON.stringify({ '/op': { x: 5 } })
+    const before: OperatorSnapshot = { '/op': { x: 5 } }
     mockedGetAllOps.mockReturnValue([
-      { id: '/op', inputs: { x: { serialize: () => 10 } } } as never,
+      { id: '/op', inputs: { x: { value: 10, serialize: () => 10 } } } as never,
     ])
 
     firePropertyMutation('Change value', before)
@@ -254,9 +298,8 @@ describe('registerPropertyMutationCallback and firePropertyMutation', () => {
     const callback = vi.fn()
     registerPropertyMutationCallback(callback)
 
-    // Set a known before state via a successful mutation
-    const firstBefore = JSON.stringify({ '/op': { x: 0 } })
-    mockedGetAllOps.mockReturnValue([{ id: '/op', inputs: { x: { serialize: () => 1 } } } as never])
+    const firstBefore: OperatorSnapshot = { '/op': { x: 0 } }
+    mockedGetAllOps.mockReturnValue([{ id: '/op', inputs: { x: { value: 1, serialize: () => 1 } } } as never])
     firePropertyMutation('First change', firstBefore)
     const stateAfterFirst = getLastCommittedBeforeState()
 
@@ -267,25 +310,21 @@ describe('registerPropertyMutationCallback and firePropertyMutation', () => {
     const unchanged = captureOperatorInputs()
     firePropertyMutation('No change', unchanged)
 
-    // Crash recovery state should not have changed
     expect(getLastCommittedBeforeState()).toBe(stateAfterFirst)
   })
 
   it('does not update crash recovery state when no callback is registered', () => {
-    // Register then immediately unregister
     registerPropertyMutationCallback(vi.fn())
-    const beforeFirst = JSON.stringify({ '/op': { x: 99 } })
+    const beforeFirst: OperatorSnapshot = { '/op': { x: 99 } }
     mockedGetAllOps.mockReturnValue([
-      { id: '/op', inputs: { x: { serialize: () => 100 } } } as never,
+      { id: '/op', inputs: { x: { value: 100, serialize: () => 100 } } } as never,
     ])
     firePropertyMutation('Setup', beforeFirst)
     const stateAfterSetup = getLastCommittedBeforeState()
 
-    // Unregister callback
     registerPropertyMutationCallback(undefined)
 
-    // Fire another mutation — should be ignored
-    firePropertyMutation('Ignored', JSON.stringify({ '/op': { x: 0 } }))
+    firePropertyMutation('Ignored', { '/op': { x: 0 } })
 
     expect(getLastCommittedBeforeState()).toBe(stateAfterSetup)
   })
@@ -293,8 +332,10 @@ describe('registerPropertyMutationCallback and firePropertyMutation', () => {
 
 describe('captureOperatorInputs skips connected fields', () => {
   it('excludes fields that have active subscriptions (connected inputs)', () => {
+    const bigData = Array.from({ length: 50000 }, (_, i) => ({ id: i }))
     const connectedField = {
-      serialize: vi.fn(() => Array.from({ length: 50000 }, (_, i) => ({ id: i }))),
+      value: bigData,
+      serialize: vi.fn(() => bigData),
       setValue: vi.fn(),
       subscriptions: new Map([['edge-1', {}]]),
     }
@@ -303,15 +344,14 @@ describe('captureOperatorInputs skips connected fields', () => {
     mockedGetAllOps.mockReturnValue([op as never])
 
     const result = captureOperatorInputs()
-    const parsed = JSON.parse(result)
 
-    expect(parsed['/scatter'].getRadius).toBe(20)
-    expect(parsed['/scatter'].data).toBeUndefined()
-    expect(connectedField.serialize).not.toHaveBeenCalled()
+    expect(result['/scatter'].getRadius).toBe(20)
+    expect(result['/scatter'].data).toBeUndefined()
   })
 
   it('includes fields with empty subscriptions (no connections)', () => {
     const field = {
+      value: 'test-value',
       serialize: vi.fn(() => 'test-value'),
       setValue: vi.fn(),
       subscriptions: new Map(),
@@ -320,9 +360,8 @@ describe('captureOperatorInputs skips connected fields', () => {
     mockedGetAllOps.mockReturnValue([op as never])
 
     const result = captureOperatorInputs()
-    const parsed = JSON.parse(result)
 
-    expect(parsed['/op'].name).toBe('test-value')
+    expect(result['/op'].name).toBe('test-value')
   })
 
   it('includes fields without subscriptions property (legacy/interface fields)', () => {
@@ -331,17 +370,18 @@ describe('captureOperatorInputs skips connected fields', () => {
     mockedGetAllOps.mockReturnValue([op as never])
 
     const result = captureOperatorInputs()
-    const parsed = JSON.parse(result)
 
-    expect(parsed['/op'].text).toBe('hello')
+    expect(result['/op'].text).toBe('hello')
   })
 })
 
 describe('captureOperatorInputs performance', () => {
   it('completes in under 50ms even with many operators and large connected data', () => {
+    const bigData = Array.from({ length: 100000 }, () => ({ x: 1, y: 2 }))
     const ops = Array.from({ length: 50 }, (_, i) => {
       const connectedDataField = {
-        serialize: vi.fn(() => Array.from({ length: 100000 }, () => ({ x: 1, y: 2 }))),
+        value: bigData,
+        serialize: vi.fn(() => bigData),
         setValue: vi.fn(),
         subscriptions: new Map([['edge', {}]]),
       }
@@ -355,18 +395,15 @@ describe('captureOperatorInputs performance', () => {
     const elapsed = performance.now() - start
 
     expect(elapsed).toBeLessThan(50)
-    const parsed = JSON.parse(result)
-    expect(Object.keys(parsed)).toHaveLength(50)
-    expect(parsed['/op-0'].value).toBe(0)
-    expect(parsed['/op-0'].data).toBeUndefined()
+    expect(Object.keys(result)).toHaveLength(50)
+    expect(result['/op-0'].value).toBe(0)
+    expect(result['/op-0'].data).toBeUndefined()
   })
 
-  it('does not call serialize() on connected fields', () => {
-    const expensiveSerialize = vi.fn(() => {
-      throw new Error('Should not be called')
-    })
+  it('skips connected fields entirely', () => {
     const connectedField = {
-      serialize: expensiveSerialize,
+      value: 'should not appear',
+      serialize: vi.fn(),
       setValue: vi.fn(),
       subscriptions: new Map([['edge-1', {}]]),
     }
@@ -374,25 +411,9 @@ describe('captureOperatorInputs performance', () => {
     mockedGetAllOps.mockReturnValue([op as never])
 
     const result = captureOperatorInputs()
-    const parsed = JSON.parse(result)
 
-    expect(expensiveSerialize).not.toHaveBeenCalled()
-    expect(parsed['/op'].radius).toBe(5)
-  })
-
-  it('returns null when stringify would throw', () => {
-    const circular: any = {}
-    circular.self = circular
-    const field = {
-      serialize: vi.fn(() => circular),
-      setValue: vi.fn(),
-      subscriptions: new Map(),
-    }
-    const op = mockOp('/op', { bad: field })
-    mockedGetAllOps.mockReturnValue([op as never])
-
-    const result = captureOperatorInputs()
-    expect(result).toBeNull()
+    expect(result['/op'].bigData).toBeUndefined()
+    expect(result['/op'].radius).toBe(5)
   })
 
   it('firePropertyMutation skips recording when before is null', () => {
@@ -400,28 +421,10 @@ describe('captureOperatorInputs performance', () => {
     registerPropertyMutationCallback(callback)
 
     mockedGetAllOps.mockReturnValue([
-      { id: '/op', inputs: { x: { serialize: () => 10, subscriptions: new Map() } } } as never,
+      { id: '/op', inputs: { x: { value: 10, serialize: () => 10, subscriptions: new Map() } } } as never,
     ])
 
     firePropertyMutation('Change value', null)
-    expect(callback).not.toHaveBeenCalled()
-  })
-
-  it('firePropertyMutation skips recording when after capture returns null', () => {
-    const callback = vi.fn()
-    registerPropertyMutationCallback(callback)
-
-    const circular: any = {}
-    circular.self = circular
-    const field = {
-      serialize: vi.fn(() => circular),
-      setValue: vi.fn(),
-      subscriptions: new Map(),
-    }
-    const op = mockOp('/op', { bad: field })
-    mockedGetAllOps.mockReturnValue([op as never])
-
-    firePropertyMutation('Change value', JSON.stringify({ '/op': { bad: 'old' } }))
     expect(callback).not.toHaveBeenCalled()
   })
 })
@@ -432,18 +435,30 @@ describe('captureOperatorInputs + applyOperatorInputs round-trip', () => {
     const op = mockOp('/op', { value: field })
     mockedGetAllOps.mockReturnValue([op as never])
 
-    // Capture initial state
     const snapshot = captureOperatorInputs()
 
-    // Simulate field changing
-    field.serialize.mockReturnValue(99)
+    // Simulate field value changing
+    field.value = 99
 
-    // Restore from snapshot
     const store = { getOp: vi.fn(() => op) }
     mockedGetOpStore.mockReturnValue(store as never)
     applyOperatorInputs(snapshot)
 
-    // setValue should be called with the original value (42)
     expect(field.setValue).toHaveBeenCalledWith(42)
+  })
+
+  it('skips setValue when field value has not changed', () => {
+    const field = mockField(42)
+    const op = mockOp('/op', { value: field })
+    mockedGetAllOps.mockReturnValue([op as never])
+
+    const snapshot = captureOperatorInputs()
+
+    // Field value is still 42 — same as snapshot
+    const store = { getOp: vi.fn(() => op) }
+    mockedGetOpStore.mockReturnValue(store as never)
+    applyOperatorInputs(snapshot)
+
+    expect(field.setValue).not.toHaveBeenCalled()
   })
 })

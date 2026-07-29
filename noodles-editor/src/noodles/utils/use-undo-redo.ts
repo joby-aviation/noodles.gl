@@ -15,7 +15,7 @@ import {
   debugHistorySnapshot,
   debugHistoryUndo,
 } from '../../utils/debug'
-import { applyOperatorInputs } from './property-history'
+import { applyOperatorInputs, type OperatorSnapshot } from './property-history'
 
 interface HistoryEntry {
   id: string
@@ -32,8 +32,8 @@ interface HistoryEntry {
   timelineStateBefore?: string
   timelineStateAfter?: string
   // Operator input value snapshots for property change undo/redo
-  operatorStateBefore?: string
-  operatorStateAfter?: string
+  operatorStateBefore?: OperatorSnapshot
+  operatorStateAfter?: OperatorSnapshot
 }
 
 interface UndoRedoState {
@@ -564,7 +564,7 @@ export function useUndoRedo() {
 
   // Record a pure operator property change (no node/edge/timeline changes) into the unified history
   const recordPropertyChange = useCallback(
-    (desc: string, operatorStateBefore: string, operatorStateAfter: string) => {
+    (desc: string, operatorStateBefore: OperatorSnapshot, operatorStateAfter: OperatorSnapshot) => {
       if (isRestoringRef.current) return
       const { nodes, edges } = store.getState()
       const timelineState = captureTimelineState()
