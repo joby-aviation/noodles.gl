@@ -122,6 +122,10 @@ import {
   tsvParse,
 } from 'd3'
 import * as deck from 'deck.gl'
+import type {
+  Feature as GeoJsonFeature,
+  FeatureCollection as GeoJsonFeatureCollection,
+} from 'geojson'
 import { BehaviorSubject, combineLatest, Subject, type Subscription } from 'rxjs'
 import { filter, mergeMap } from 'rxjs/operators'
 import { Temporal } from 'temporal-polyfill'
@@ -193,6 +197,13 @@ import { getAllOps, getOp } from './store'
 import { prepareTableDataForOutput, type TableSchema } from './table-schema'
 import type { ExtensionConstructorArgs, LayerPropsValue } from './types'
 import { composeAccessor, isAccessor } from './utils/accessor-helpers'
+import {
+  detectGeoKey,
+  type Geography,
+  type GeoKey,
+  getBoundaries,
+  joinDataToFeatures,
+} from './utils/choropleth-boundaries'
 import type { ExtractProps } from './utils/extract-props'
 import { projectScheme } from './utils/filesystem'
 import type { OpId } from './utils/id-utils'
@@ -6974,6 +6985,289 @@ export class GeoJsonTransformOp extends Operator<GeoJsonTransformOp> {
   }
 }
 
+// ==================== Choropleth ====================
+
+// Shared geography and geoKey options
+const GEOGRAPHY_OPTIONS: { value: Geography; label: string }[] = [
+  { value: 'us-states', label: 'US States' },
+  { value: 'world-countries', label: 'World Countries' },
+  { value: 'ca-provinces', label: 'Canadian Provinces' },
+  { value: 'custom', label: 'Custom (use boundaries input)' },
+]
+
+const GEO_KEY_OPTIONS: { value: GeoKey; label: string }[] = [
+  { value: 'auto', label: 'Auto-detect' },
+  { value: 'name', label: 'Name' },
+  { value: 'abbrev', label: 'Abbreviation / Code' },
+  { value: 'fips', label: 'FIPS Code (US)' },
+  { value: 'iso2', label: 'ISO Alpha-2' },
+  { value: 'iso3', label: 'ISO Alpha-3' },
+]
+
+async function joinDataToFeaturesViaDuckDb(
+  boundaries: GeoJsonFeatureCollection,
+  data: Record<string, unknown>[],
+  customSQL: string
+): Promise<GeoJsonFeatureCollection> {
+  // Flatten boundary features to rows (no geometry) keyed by __idx for round-tripping
+  const boundaryRows = boundaries.features.map((f, i) => ({
+    __idx: i,
+    ...(f.properties ?? {}),
+  }))
+
+  const db = await duckDbInstance
+  const suffix = Math.random().toString(36).slice(2)
+  const boundsFile = `__choropleth_bounds_${suffix}.json`
+  const dataFile = `__choropleth_data_${suffix}.json`
+
+  await db.registerFileText(boundsFile, JSON.stringify(boundaryRows))
+  await db.registerFileText(dataFile, JSON.stringify(data))
+
+  const conn = await db.connect()
+  try {
+    await conn.query(
+      `CREATE OR REPLACE TEMP VIEW boundaries AS SELECT * FROM read_json('${boundsFile}', format='array')`
+    )
+    await conn.query(
+      `CREATE OR REPLACE TEMP VIEW data AS SELECT * FROM read_json('${dataFile}', format='array')`
+    )
+
+    const result = await conn.query(customSQL)
+    const rows: Record<string, unknown>[] = result.toArray().map(r => {
+      const obj: Record<string, unknown> = {}
+      for (const [k, v] of r as Iterable<[string, unknown]>) obj[k] = v
+      return obj
+    })
+
+    // Re-attach joined properties back to original features using __idx
+    const rowByIdx = new Map<number, Record<string, unknown>>()
+    for (const row of rows) {
+      if (row.__idx != null) rowByIdx.set(row.__idx as number, row)
+    }
+
+    const features = boundaries.features.map((f, i) => {
+      const match = rowByIdx.get(i)
+      if (!match) return f
+      const { __idx: _, ...matchProps } = match
+      return { ...f, properties: { ...f.properties, ...matchProps } }
+    })
+
+    return { type: 'FeatureCollection', features }
+  } finally {
+    await conn.close().catch(() => null)
+    await db.dropFile(boundsFile).catch(() => null)
+    await db.dropFile(dataFile).catch(() => null)
+  }
+}
+
+function buildChoroplethInputs() {
+  const data = new DataField(new ArrayField(new UnknownField()))
+  const geography = new StringLiteralField('us-states', GEOGRAPHY_OPTIONS)
+  const boundaries = new GeoJsonField()
+  const joinKey = new StringLiteralField('', [])
+  const geoKey = new StringLiteralField('auto', GEO_KEY_OPTIONS)
+  const customSQL = new CodeField('', { language: 'sql', showByDefault: false })
+
+  data.subscribe((d: unknown[]) => {
+    if (d.length > 0) joinKey.updateChoices(Object.keys(d[0]))
+  })
+
+  return { data, geography, boundaries, joinKey, geoKey, customSQL }
+}
+
+async function resolveBoundariesAndJoin(
+  data: unknown[],
+  geography: string,
+  boundaries: unknown,
+  joinKey: string,
+  geoKey: string,
+  customSQL?: string
+) {
+  const geo = geography as Geography
+  const gk = geoKey as GeoKey
+  const userBoundaries =
+    geography === 'custom' ? (boundaries as GeoJsonFeatureCollection) : undefined
+  const resolvedBoundaries = await getBoundaries(geo, userBoundaries)
+
+  const rows = data as Record<string, unknown>[]
+
+  if (customSQL?.trim()) {
+    return joinDataToFeaturesViaDuckDb(resolvedBoundaries, rows, customSQL)
+  }
+
+  const resolvedGeoKey =
+    gk === 'auto' && geo !== 'custom'
+      ? detectGeoKey(rows, joinKey, geo)
+      : gk === 'auto'
+        ? 'name'
+        : gk
+
+  return joinDataToFeatures(resolvedBoundaries, rows, joinKey, resolvedGeoKey)
+}
+
+export class ChoroplethJoinOp extends Operator<ChoroplethJoinOp> {
+  static displayName = 'ChoroplethJoin'
+  static description =
+    'Join tabular data onto geographic boundaries (US states, world countries, Canadian provinces) to produce a colored FeatureCollection'
+
+  asDownload = () => this.outputData
+
+  createInputs() {
+    return buildChoroplethInputs()
+  }
+
+  createOutputs() {
+    return {
+      features: new GeoJsonField(),
+    }
+  }
+
+  async execute({
+    data,
+    geography,
+    boundaries,
+    joinKey,
+    geoKey,
+    customSQL,
+  }: ExtractProps<typeof this.inputs>): Promise<ExtractProps<typeof this.outputs>> {
+    const features = await resolveBoundariesAndJoin(
+      data,
+      geography,
+      boundaries,
+      joinKey,
+      geoKey,
+      customSQL
+    )
+    return { features }
+  }
+}
+
+// Map of color scheme names to d3 interpolators (mirrors ColorRampOp)
+const choroplethInterpolators = {
+  viridis: interpolateViridis,
+  inferno: interpolateInferno,
+  plasma: interpolatePlasma,
+  magma: interpolateMagma,
+  turbo: interpolateTurbo,
+  cividis: interpolateCividis,
+  warm: interpolateWarm,
+  cool: interpolateCool,
+  blues: interpolateBlues,
+  greens: interpolateGreens,
+  greys: interpolateGreys,
+  reds: interpolateReds,
+  oranges: interpolateOranges,
+  purples: interpolatePurples,
+  RedBlue: interpolateRdBu,
+  RedYellowBlue: interpolateRdYlBu,
+  BlueGreen: interpolateBuGn,
+  GreenBlue: interpolateGnBu,
+}
+
+export class ChoroplethLayerOp extends Operator<ChoroplethLayerOp> {
+  static displayName = 'ChoroplethLayer'
+  static description =
+    'All-in-one choropleth: joins tabular data onto geographic boundaries and renders with a color scale'
+  static cacheable = false
+
+  createInputs() {
+    const base = buildChoroplethInputs()
+    const valueColumn = new StringLiteralField('', [])
+    const colorScheme = new StringLiteralField('viridis', Object.keys(choroplethInterpolators))
+    const opacity = new NumberField(0.85, { min: 0, max: 1, step: 0.01 })
+    const stroked = new BooleanField(true, { showByDefault: false })
+    const getLineColor = new ColorField('#000000', { transform: hexToColor, showByDefault: false })
+    const getLineWidth = new NumberField(1, { min: 0, softMax: 100, showByDefault: false })
+    const visible = new BooleanField(true)
+
+    base.data.subscribe((d: unknown[]) => {
+      if (d.length > 0) valueColumn.updateChoices(Object.keys(d[0]))
+    })
+
+    return {
+      ...base,
+      valueColumn,
+      colorScheme,
+      opacity,
+      stroked,
+      getLineColor,
+      getLineWidth,
+      visible,
+    }
+  }
+
+  createOutputs() {
+    return {
+      layer: new LayerField<GeoJsonLayerProps>(),
+    }
+  }
+
+  async execute({
+    data,
+    geography,
+    boundaries,
+    joinKey,
+    geoKey,
+    customSQL,
+    valueColumn,
+    colorScheme,
+    opacity,
+    stroked,
+    getLineColor,
+    getLineWidth,
+    visible,
+  }: ExtractProps<typeof this.inputs>): Promise<ExtractProps<typeof this.outputs>> {
+    const featureCollection = await resolveBoundariesAndJoin(
+      data,
+      geography,
+      boundaries,
+      joinKey,
+      geoKey,
+      customSQL
+    )
+
+    const interpolator =
+      choroplethInterpolators[colorScheme as keyof typeof choroplethInterpolators] ??
+      interpolateViridis
+
+    // Auto-compute domain from matched features' valueColumn
+    const values = featureCollection.features
+      .map(f => f.properties?.[valueColumn])
+      .filter((v): v is number => typeof v === 'number' && !Number.isNaN(v))
+
+    const domainMin = values.length > 0 ? Math.min(...values) : 0
+    const domainMax = values.length > 0 ? Math.max(...values) : 1
+    const range = domainMax - domainMin || 1
+
+    const getFillColor = (f: GeoJsonFeature) => {
+      const val = f.properties?.[valueColumn]
+      if (typeof val !== 'number' || Number.isNaN(val))
+        return [180, 180, 180, 100] as [number, number, number, number]
+      const t = (val - domainMin) / range
+      const hex = d3Color(interpolator(t))?.formatHex() ?? '#808080'
+      return hexToColor(hex) ?? ([128, 128, 128, 255] as [number, number, number, number])
+    }
+
+    const layer = {
+      type: 'GeoJsonLayer' as const,
+      id: this.id,
+      data: featureCollection,
+      visible,
+      opacity,
+      filled: true,
+      stroked,
+      getFillColor,
+      getLineColor,
+      getLineWidth,
+      updateTriggers: {
+        getFillColor: [valueColumn, colorScheme, domainMin, domainMax],
+      },
+    }
+
+    return { layer }
+  }
+}
+
 export class SimplifyOp extends Operator<SimplifyOp> {
   static displayName = 'Simplify'
   static description = 'Simplify GeoJSON geometries using Ramer-Douglas-Peucker algorithm'
@@ -8175,6 +8469,8 @@ export const opTypes = {
   BrightnessContrastExtensionOp,
   BrushingExtensionOp,
   CategoricalColorRampOp,
+  ChoroplethJoinOp,
+  ChoroplethLayerOp,
   ChartOp,
   ClipExtensionOp,
   CodeOp,
