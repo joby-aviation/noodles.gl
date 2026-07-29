@@ -47,3 +47,6 @@ export const debugParams = createDebug('noodles:params')
 
 // Connection validation namespace
 export const debugConnect = createDebug('noodles:connect') // connection validation and schema compatibility
+
+// SQL compilation namespace
+export const debugSQL = createDebug('noodles:sql') // SQL compilation and DuckDB execution
