@@ -182,6 +182,7 @@ Before requesting review, ensure:
 - [ ] Linter passes (`npm run lint` or `npm run fix-lint`)
 - [ ] Type checker passes (`npm run typecheck`)
 - [ ] Manual testing completed (if applicable)
+- [ ] **Performance testing completed (for export/rendering changes)** - see below
 - [ ] Documentation updated (if applicable)
 - [ ] Test runbook provided (for user-facing changes)
 - [ ] Commit messages are clear and descriptive
@@ -189,6 +190,32 @@ Before requesting review, ensure:
 - [ ] No unrelated changes included
 - [ ] No commented-out code or debug statements
 - [ ] No sensitive information (API keys, credentials, etc.)
+
+### Performance Testing (Export/Rendering)
+
+For changes affecting video export or rendering performance:
+
+1. **Run performance tests:**
+   ```bash
+   npm test export-performance
+   npm test export-e2e
+   ```
+
+2. **Measure actual performance:**
+   - Export 30 frames from `nyc-taxis` example
+   - Enable debug logging: `localStorage.debug = 'noodles:render*'`
+   - Record console output timing breakdown
+
+3. **Include in PR description:**
+   - Before/after frame times
+   - Realtime factors (e.g., 0.93x → 1.33x)
+   - Time breakdown (wait/capture/encode percentages)
+
+4. **Regression check:**
+   - Ensure no performance degradation vs. current main
+   - Document if tradeoffs were made (e.g., quality vs. speed)
+
+See `src/render/PERFORMANCE.md` for detailed performance documentation.
 
 ## Common PR Patterns
 

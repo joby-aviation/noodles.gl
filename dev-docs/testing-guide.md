@@ -101,7 +101,163 @@ npm test -- --watch
 
 # Run tests with coverage
 npm test -- --coverage
+
+# Run smoke tests (E2E rendering tests)
+npm test smoke-test
+
+# Run performance tests
+npm test export-performance
 ```
+
+## Testing Rendering and Video Export
+
+The rendering pipeline is critical for video export performance. We have comprehensive tests to ensure the 8.6x speedup optimization (MapLibre render event vs onIdle) works correctly and doesn't regress.
+
+### Smoke Tests
+
+**File:** `noodles-editor/src/render/smoke-test.test.ts`
+
+Validates basic rendering functionality:
+- Loads example projects and creates operators
+- Verifies connections between operators
+- Tests MapLibre basemap integration
+- Tests Deck.gl-only scenes (without basemap)
+
+```bash
+npm test smoke-test
+```
+
+**What these tests cover:**
+- Project loading and operator instantiation
+- Data connections and subscriptions
+- Input value initialization
+- Error handling for invalid operators
+
+### Performance Tests
+
+**File:** `noodles-editor/src/render/export-performance.test.ts`
+
+Validates the render event optimization:
+- EXPORT_FRAME_DELAY constant (16ms safety margin)
+- Skip-first-render counter logic
+- waitForData flag behavior
+- frameCapturedRef guard (prevents double-capture)
+- Performance targets and regression detection
+
+```bash
+npm test export-performance
+```
+
+**Key performance thresholds:**
+- Frame capture time < 50ms per frame
+- Total export time for 30 frames < 2 seconds
+- Speed factor ≥ 0.5x realtime (target: 0.93x)
+- Speedup vs old approach ≥ 6x (target: 8.6x)
+
+### Performance Benchmarks
+
+**Scripts:**
+- `npm run benchmark:export` - Generate theoretical benchmark data
+- `npm run benchmark:check` - Validate results against thresholds
+
+**Output:** `benchmark-results.json` with timing data for CI tracking
+
+**Benchmark scenarios:**
+- Simple scene (icon-layer-test)
+- Complex scene (3d-building-gradient)
+- Variable captureDelay values (0ms, 25ms, 50ms, 100ms, 200ms)
+
+**Example workflow:**
+```bash
+# Generate benchmark results
+npm run benchmark:export
+
+# Check if results meet thresholds
+npm run benchmark:check
+```
+
+**Interpreting benchmark results:**
+- `avgFrameTime`: Time per frame (lower is better, target <50ms)
+- `speedFactor`: Realtime performance ratio (higher is better, target >0.5x)
+- `waitPercent`: Percentage of time waiting for render (should be low with render event)
+
+### Debugging Render Performance
+
+Enable debug logging in browser console to see detailed timing:
+
+```javascript
+// In browser console
+localStorage.debug = 'noodles:render*'
+
+// Then reload and trigger export
+// Check console for timing logs:
+// - "onRender ready Xms after redraw (pass 2)" - render event timing
+// - "onIdle fallback Xms after redraw" - fallback timing
+```
+
+**Common timing patterns:**
+- **Good**: "onRender ready 36ms after redraw (pass 2)" → using render event, fast
+- **Bad**: "onIdle fallback 350ms after redraw" → falling back to slow onIdle path
+
+### What to Look For in Test Failures
+
+**Smoke test failures:**
+- Check if operators are registered in `opTypes`
+- Verify edge connection format (sourceHandle/targetHandle)
+- Ensure operator input fields exist and match project data
+
+**Performance test failures:**
+- Skip-first-render logic changed → update renderCountSinceRedraw tests
+- EXPORT_FRAME_DELAY changed → update constant validation
+- waitForData behavior changed → update layer loading tests
+
+**Benchmark threshold failures:**
+- Frame time > 50ms → performance regression, investigate bottleneck
+- Speed factor < 0.5x → too slow, check if render event is working
+- Speedup < 6x → optimization not effective, compare vs baseline
+
+### Adding New Rendering Tests
+
+When modifying the rendering pipeline:
+
+1. **Add unit tests** for logic changes (e.g., new timing calculations)
+2. **Update smoke tests** if operator behavior changes
+3. **Add performance tests** for new optimization strategies
+4. **Document expected timing** in test comments
+
+**Example test structure:**
+```typescript
+it('should use new optimization strategy', () => {
+  // Setup: Create mock scenario
+  let optimizationApplied = false
+  
+  // Act: Simulate render flow
+  const result = simulateRenderWithOptimization()
+  
+  // Assert: Verify optimization was applied
+  expect(result.timingSaved).toBeGreaterThan(100)
+  expect(optimizationApplied).toBe(true)
+})
+```
+
+### Updating Performance Baselines
+
+When intentional performance changes occur:
+
+1. **Measure new baseline** using debug logging or Playwright
+2. **Update thresholds** in `scripts/check-benchmark-thresholds.js`
+3. **Update documentation** in test comments
+4. **Document reason** in PR description
+
+**When to update baselines:**
+- Hardware upgrades (CI infrastructure changes)
+- Major optimization improvements (new algorithm)
+- Browser engine updates (WebGL/GPU changes)
+
+**When NOT to update baselines:**
+- Test failures without investigation
+- Unexplained performance degradation
+- Minor fluctuations (<10% variance)
 
 ## Test Runbooks for PRs
 

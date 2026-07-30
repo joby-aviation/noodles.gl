@@ -18,6 +18,10 @@ interface UseDeckDrawLoopProps {
   props?: Partial<DeckProps>
 }
 
+// Reduced from 16ms to 8ms with time freezing optimization.
+// Time freezing eliminates skip-first-render, so we need less safety margin.
+const EXPORT_FRAME_DELAY = 8
+
 const isDeckReady = (deck: Deck | null) =>
   !deck || deck.props.layers.every(layer => !layer || (!Array.isArray(layer) && layer.isLoaded))
 
@@ -33,7 +37,7 @@ export function useDeckDrawLoop({
       return
     }
 
-    const { waitForData, captureDelay } = rendererConfig
+    const { waitForData } = rendererConfig
 
     async function drawPass() {
       try {
@@ -50,8 +54,7 @@ export function useDeckDrawLoop({
               debugRender('deck waiting for layers to load')
               return // layers aren't loaded
             }
-            // Use worker timer so the delay fires even when the tab is hidden.
-            workerSetTimeout(() => resolvePass(), captureDelay)
+            workerSetTimeout(() => resolvePass(), EXPORT_FRAME_DELAY)
           },
         })
         // Pump Deck.gl's render directly via worker timer so onAfterRender fires even when
