@@ -66,11 +66,28 @@
 
 .editing {
   background: var(--surface-section);
-  padding: 4px;
+  padding: 0;
 }
 
 .cellEditor {
   width: 100%;
+}
+
+/* Override PrimeReact input padding to match cell padding */
+.cellEditor :global(.p-inputtext) {
+  padding: 8px 12px;
+  border: none;
+  background: transparent;
+}
+
+.cellEditor :global(.p-inputnumber-input) {
+  padding: 8px 12px;
+  border: none;
+  background: transparent;
+}
+
+.cellEditor :global(.p-inputswitch) {
+  margin: 8px 12px;
 }
 
 .colorDisplay {

@@ -103,6 +103,7 @@ import {
   schemeBrBG,
   schemeCategory10,
   schemeDark2,
+  schemeGreys,
   schemePaired,
   schemePiYG,
   schemePRGn,
@@ -493,8 +494,14 @@ export abstract class Operator<OP extends IOperator> {
 
   // Internal pull execution logic
   private async _pullExecution(): Promise<ExtractProps<(typeof this)['outputs']>> {
-    const startTime = performance.now()
     debugExecute('%s: starting %O', this.id, { inputs: this.data })
+
+    let executionTime = 0
+    let startTime = 0
+    // Show executing indicator only for ops taking longer than 200ms
+    const executingTimer = setTimeout(() => {
+      this.executionState.next({ status: 'executing' })
+    }, 200)
 
     try {
       // Pull upstream dependencies first
@@ -512,19 +519,23 @@ export abstract class Operator<OP extends IOperator> {
         debugger
       }
 
-      // Execute the operator
+      // Execute the operator - measure only own execution time
+      startTime = performance.now()
       const result = this.execute(inputValues)
       const finalResult = result instanceof Promise ? await result : result
+      executionTime = performance.now() - startTime
 
       if (finalResult === null) {
         throw new Error(`Operator ${this.id} returned null`)
       }
 
+      clearTimeout(executingTimer)
+
       // Cache result and mark clean
       this._cachedOutput = finalResult
       this._pullExecutionStatus = PullExecutionStatus.CLEAN
       this.dirty = false // Also clear the dirty flag for GraphExecutor
-      this._lastExecutionTime = performance.now() - startTime
+      this._lastExecutionTime = executionTime
 
       debugExecute('%s: %dms %O', this.id, this._lastExecutionTime.toFixed(2), {
         outputs: finalResult,
@@ -534,7 +545,7 @@ export abstract class Operator<OP extends IOperator> {
       this.executionState.next({
         status: 'success',
         lastExecuted: Date.now(),
-        executionTime: this._lastExecutionTime,
+        executionTime: executionTime,
       })
 
       // Clear any stale connection errors on successful execution
@@ -563,7 +574,11 @@ export abstract class Operator<OP extends IOperator> {
 
       return finalResult
     } catch (err) {
+      clearTimeout(executingTimer)
       const error = err instanceof Error ? err : new Error(String(err))
+
+      // Calculate actual elapsed time even on error
+      executionTime = performance.now() - startTime
 
       // Only log if this is a new/different error
       if (this._lastLoggedError !== error.message) {
@@ -583,7 +598,7 @@ export abstract class Operator<OP extends IOperator> {
       this.executionState.next({
         status: 'error',
         lastExecuted: Date.now(),
-        executionTime: performance.now() - startTime,
+        executionTime: executionTime,
         error: error.message,
       })
 
@@ -1679,7 +1694,7 @@ export class CategoricalColorRampOp extends Operator<CategoricalColorRampOp> {
   createInputs() {
     const colorRamp = new CategoricalColorRampField()
 
-    const schemes = {
+    const fixedSchemes = {
       accent: schemeAccent,
       category10: schemeCategory10,
       dark: schemeDark2,
@@ -1689,36 +1704,53 @@ export class CategoricalColorRampOp extends Operator<CategoricalColorRampOp> {
       set3: schemeSet3,
       tableau10: schemeTableau10,
       joby: JOBY_COLORS,
-
-      // These schemes are arrays of arrays, ordered by number of stops. In the future we should
-      // allow the user to select the number of stops
-      BrownGreen: schemeBrBG[11],
-      PurpleGreen: schemePRGn[11],
-      PurpleBlue: schemePuBu[9],
-      PinkYellowGreen: schemePiYG[11],
-      RedBlue: schemeRdBu[11],
-      RedGrey: schemeRdGy[11],
-      RedYellowBlue: schemeRdYlBu[11],
-      RedYellowGreen: schemeRdYlGn[11],
-      YellowGreen: schemeYlGn[9],
-      spectral: schemeSpectral[11],
     }
 
-    const colorScheme = new StringLiteralField('accent', Object.keys(schemes))
+    const steppedSchemes = {
+      greyscale: schemeGreys,
+      BrownGreen: schemeBrBG,
+      PurpleGreen: schemePRGn,
+      PurpleBlue: schemePuBu,
+      PinkYellowGreen: schemePiYG,
+      RedBlue: schemeRdBu,
+      RedGrey: schemeRdGy,
+      RedYellowBlue: schemeRdYlBu,
+      RedYellowGreen: schemeRdYlGn,
+      YellowGreen: schemeYlGn,
+      spectral: schemeSpectral,
+    }
 
-    // TODO: Should this move to the execute function and component?
-    colorScheme.subscribe(val => {
-      const scheme = schemes[val as keyof typeof schemes]
+    const allSchemeNames = [...Object.keys(fixedSchemes), ...Object.keys(steppedSchemes)]
+
+    const colorScheme = new StringLiteralField('accent', allSchemeNames)
+    const steps = new NumberField(8, { min: 3, max: 11, step: 1 })
+
+    const updateRamp = () => {
+      const schemeName = colorScheme.value
+      const n = Math.max(Math.round(steps.value), 3)
+      let scheme: readonly string[]
+      if (schemeName in fixedSchemes) {
+        const full = fixedSchemes[schemeName as keyof typeof fixedSchemes]
+        scheme = full.slice(0, Math.min(n, full.length))
+      } else {
+        const steppedScheme = steppedSchemes[schemeName as keyof typeof steppedSchemes]
+        const clamped = Math.min(n, steppedScheme.length - 1)
+        scheme = steppedScheme[clamped] as readonly string[]
+      }
       const interpolate = scaleOrdinal(scheme)
       colorRamp.count = scheme.length
       colorRamp.setValue(interpolate)
-    })
+    }
+
+    colorScheme.subscribe(updateRamp)
+    steps.subscribe(updateRamp)
 
     const value = new StringField('', { accessor: true })
 
     return {
       colorRamp,
       colorScheme,
+      steps,
       value,
     }
   }
@@ -2536,17 +2568,13 @@ export class GeocoderOp extends Operator<GeocoderOp> {
     }
   }
   async execute(_: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    // This is a special-case because it's essentially a pass-through. The Geocoder component will handle the API call
-    return null
-
-    /*
-    const response = await fetch(
-      `https://api.mapbox.com/geocoding/v5/mapbox.places/${query}.json?access_token=${MAPBOX_ACCESS_TOKEN}`
-    )
-    const data = await response.json()
-    const location = data.features[0].center
-    return { location }
-    */
+    const { getKey } = getKeysStore()
+    if (!getKey('mapbox')) {
+      throw new Error('Mapbox API key required (Settings > API Keys)')
+    }
+    // Push-based: the UI component drives op.outputs.location.next() directly.
+    // Return current output so downstream pull-chain succeeds.
+    return this.outputData
   }
 }
 
@@ -4915,6 +4943,7 @@ export class PathLayerOp extends Operator<PathLayerOp> {
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
       billboard: new BooleanField(true, { showByDefault: false }),
       capRounded: new BooleanField(true, { showByDefault: false }),
+      jointRounded: new BooleanField(false, { showByDefault: false }),
       getPath: new UnknownField((d: unknown) => d?.path || [], { accessor: true }),
       // getPath: new ArrayField(new Point3DField([0, 0, 0], { returnType: 'tuple' }), { accessor: true }),
       getColor: new ColorField('#006ac6', { accessor: true, transform: hexToColor }),
@@ -6409,6 +6438,17 @@ export function fnWithSource(args: string[], body: string, id: string): Function
   }
 }
 
+// Creates a safe wrapper around getOp that throws a clear error when operator not found.
+function safeOpGetter(contextOpId: string): (path: string) => Operator<IOperator> {
+  return (path: string) => {
+    const op = getOp(path, contextOpId)
+    if (!op) {
+      throw new Error(`Operator '${path}' not found`)
+    }
+    return op
+  }
+}
+
 // An Accessor is an ExpressionOp that returns a function instead of executing it
 export class AccessorOp extends Operator<AccessorOp> {
   static displayName = 'Accessor'
@@ -6446,7 +6486,7 @@ export class AccessorOp extends Operator<AccessorOp> {
 
     // https://deck.gl/docs/developer-guide/using-layers#accessors
     const accessor = (d: unknown, dInfo: { index: number; data: unknown; target: number[] }) => {
-      const contextualGetOp = (path: string) => getOp(path, this.id)
+      const contextualGetOp = safeOpGetter(this.id)
       // Get fresh timeline values for each accessor call
       const timelineContext = getTimelineContext()
       try {
@@ -6512,7 +6552,7 @@ export class CodeOp extends Operator<CodeOp> {
     subscribeOpToTimeline(this)
 
     // Create a context-aware getOp function for the code execution
-    const contextualGetOp = (path: string) => getOp(path, this.id)
+    const contextualGetOp = safeOpGetter(this.id)
     const fn = fnWithSource(
       [
         'data',
@@ -6611,7 +6651,7 @@ export class ExpressionOp extends Operator<ExpressionOp> {
       this.id
     )
     // Create a context-aware getOp function for the expression execution
-    const contextualGetOp = (path: string) => getOp(path, this.id)
+    const contextualGetOp = safeOpGetter(this.id)
 
     // Check if any data items are accessor functions
     const hasAccessors = data.some(isAccessor)
@@ -6982,6 +7022,97 @@ export class SimplifyOp extends Operator<SimplifyOp> {
     })
 
     return { feature: simplified }
+  }
+}
+
+export class SmoothOp extends Operator<SmoothOp> {
+  static displayName = 'Smooth'
+  static description = 'Apply smoothing to LineString coordinates using Gaussian or boxcar kernel'
+  asDownload = () => this.outputData
+
+  createInputs() {
+    return {
+      feature: new GeoJsonField(),
+      windowSize: new NumberField(5, { min: 1, max: 100, step: 2 }),
+      method: new StringLiteralField('gaussian', ['gaussian', 'boxcar']),
+    }
+  }
+
+  createOutputs() {
+    return {
+      feature: new GeoJsonField(),
+    }
+  }
+
+  execute({
+    feature,
+    windowSize,
+    method,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    // Handle LineString
+    if (feature.geometry.type === 'LineString') {
+      if (feature.geometry.coordinates.length <= 1) {
+        return { feature }
+      }
+
+      const smoothedCoords = this.smoothCoordinates(
+        feature.geometry.coordinates,
+        windowSize,
+        method
+      )
+      return { feature: turf.lineString(smoothedCoords, feature.properties) }
+    }
+
+    // Handle MultiLineString
+    if (feature.geometry.type === 'MultiLineString') {
+      const smoothedLines = feature.geometry.coordinates.map(line =>
+        this.smoothCoordinates(line, windowSize, method)
+      )
+      return { feature: turf.multiLineString(smoothedLines, feature.properties) }
+    }
+
+    // Pass through other geometry types unchanged
+    return { feature }
+  }
+
+  private smoothCoordinates(
+    coords: number[][],
+    windowSize: number,
+    method: 'boxcar' | 'gaussian'
+  ): number[][] {
+    const radius = Math.floor(windowSize / 2)
+    const sigma = method === 'gaussian' ? windowSize / 6 : 0
+
+    return coords.map((pt, i) => {
+      let lonSum = 0
+      let latSum = 0
+      let weightSum = 0
+
+      // Iterate over window centered on current point
+      for (let j = i - radius; j <= i + radius; j++) {
+        if (j < 0 || j >= coords.length) continue
+
+        // Calculate weight based on smoothing method
+        let weight: number
+        if (method === 'gaussian') {
+          const distance = Math.abs(j - i)
+          weight = Math.exp(-0.5 * Math.pow(distance / sigma, 2))
+        } else {
+          weight = 1 // Boxcar: uniform weights
+        }
+
+        lonSum += coords[j][0] * weight
+        latSum += coords[j][1] * weight
+        weightSum += weight
+      }
+
+      // Return smoothed lon/lat plus preserved extra channels
+      return [
+        lonSum / weightSum,
+        latSum / weightSum,
+        ...pt.slice(2), // Preserve altitude, timestamps, etc.
+      ]
+    })
   }
 }
 
@@ -8151,6 +8282,7 @@ export const opTypes = {
   ScreenshotWidgetOp,
   SimpleMeshLayerOp,
   SimplifyOp,
+  SmoothOp,
   SelectOp,
   SliceOp,
   SolidPolygonLayerOp,

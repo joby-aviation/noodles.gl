@@ -355,7 +355,9 @@ function CoordEditor({
               step={0.001}
               disabled={disabled}
               onChange={e => setVals(v => ({ ...v, [key]: e.target.value }))}
-              onFocus={() => { focusedRef.current = true }}
+              onFocus={() => {
+                focusedRef.current = true
+              }}
               onBlur={e => {
                 focusedRef.current = false
                 applyVal(key, e.target.value)
@@ -554,7 +556,12 @@ export function CurvePopup({
 
   return createPortal(
     // biome-ignore lint/a11y/noStaticElementInteractions: stopPropagation prevents portal mousedown from bubbling through React tree to timeline scrub handler
-    <div ref={popupRef} className={s.curvePopup} style={style} onMouseDown={e => e.stopPropagation()}>
+    <div
+      ref={popupRef}
+      className={s.curvePopup}
+      style={style}
+      onMouseDown={e => e.stopPropagation()}
+    >
       {applyToSelected && selectedCount > 1 && (
         <div className={s.curvePopupMultiHint}>Applying to {selectedCount} keyframes</div>
       )}
@@ -607,7 +614,13 @@ export function CurvePopup({
               onClick={() => setShowEdit(v => !v)}
             >
               <svg width="11" height="11" viewBox="0 0 11 11" fill="none" aria-hidden="true">
-                <path d="M8 1.5L9.5 3L4 8.5H2.5V7L8 1.5Z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" fill="none" />
+                <path
+                  d="M8 1.5L9.5 3L4 8.5H2.5V7L8 1.5Z"
+                  stroke="currentColor"
+                  strokeWidth="1.2"
+                  strokeLinejoin="round"
+                  fill="none"
+                />
               </svg>
             </button>
             <button
@@ -618,8 +631,22 @@ export function CurvePopup({
               onClick={() => navigator.clipboard.writeText(formatCubicBezier(activeHandles))}
             >
               <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true">
-                <rect x="4" y="4" width="8" height="8" rx="1.5" stroke="currentColor" strokeWidth="1.2" fill="none" />
-                <path d="M2 9H1.5A1.5 1.5 0 0 1 0 7.5v-6A1.5 1.5 0 0 1 1.5 0h6A1.5 1.5 0 0 1 9 1.5V2" stroke="currentColor" strokeWidth="1.2" fill="none" />
+                <rect
+                  x="4"
+                  y="4"
+                  width="8"
+                  height="8"
+                  rx="1.5"
+                  stroke="currentColor"
+                  strokeWidth="1.2"
+                  fill="none"
+                />
+                <path
+                  d="M2 9H1.5A1.5 1.5 0 0 1 0 7.5v-6A1.5 1.5 0 0 1 1.5 0h6A1.5 1.5 0 0 1 9 1.5V2"
+                  stroke="currentColor"
+                  strokeWidth="1.2"
+                  fill="none"
+                />
               </svg>
             </button>
           </div>

@@ -12,8 +12,12 @@ import { analytics } from './utils/analytics'
 analytics.initialize()
 
 // Log uncaught errors and unhandled promise rejections to the console
-window.addEventListener('error', e => console.error('[Noodles] uncaught error:', e.error ?? e.message))
-window.addEventListener('unhandledrejection', e => console.error('[Noodles] unhandled rejection:', e.reason))
+window.addEventListener('error', e =>
+  console.error('[Noodles] uncaught error:', e.error ?? e.message)
+)
+window.addEventListener('unhandledrejection', e =>
+  console.error('[Noodles] unhandled rejection:', e.reason)
+)
 
 // Initialize keyboard manager
 keyboardManager.init()
@@ -21,13 +25,16 @@ keyboardManager.init()
 const root = ReactDOM.createRoot(document.getElementById('root') as HTMLElement, {
   // Called when React catches an error in an Error Boundary
   onCaughtError: (error, errorInfo) => {
+    console.error('[Noodles] React caught error:', error, errorInfo.componentStack)
     analytics.captureException(error, {
       source: 'react_error_boundary',
       componentStack: errorInfo.componentStack,
     })
   },
-  // Called when an error is thrown and not caught by an Error Boundary
+  // Called when an error is thrown and not caught by an Error Boundary — log to console
+  // since this replaces React's default error logging
   onUncaughtError: (error, errorInfo) => {
+    console.error('[Noodles] React uncaught error:', error, errorInfo.componentStack)
     analytics.captureException(error, {
       source: 'react_uncaught',
       componentStack: errorInfo.componentStack,
@@ -35,6 +42,7 @@ const root = ReactDOM.createRoot(document.getElementById('root') as HTMLElement,
   },
   // Called when React automatically recovers from errors
   onRecoverableError: (error, errorInfo) => {
+    console.error('[Noodles] React recoverable error:', error, errorInfo.componentStack)
     analytics.captureException(error, {
       source: 'react_recoverable',
       componentStack: errorInfo.componentStack,

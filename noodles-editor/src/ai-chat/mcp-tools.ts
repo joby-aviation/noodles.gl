@@ -3,6 +3,13 @@
 import type { Operator } from '../noodles/operators'
 import { getOpStore } from '../noodles/store'
 import { safeStringify } from '../noodles/utils/serialization'
+import {
+  captureTimelineState,
+  fireTimelineMutation,
+  getTimelineStore,
+  useTimelineStore,
+} from '../timeline/timeline-store'
+import type { Keyframe, KeyframeValue, Track } from '../timeline/types'
 import type { ContextLoader } from './context-loader'
 import type {
   ConsoleError,
@@ -24,6 +31,10 @@ export class MCPTools {
   // Set current project for MCP tools to access
   setProject(project: NoodlesProject) {
     this.project = project
+  }
+
+  getProject(): NoodlesProject | null {
+    return this.project
   }
 
   // Extract common operator properties to avoid duplication
@@ -277,7 +288,8 @@ export class MCPTools {
       }
 
       if (params.tag) {
-        results = results.filter(ex => ex.tags.includes(params.tag))
+        const tag = params.tag
+        results = results.filter(ex => ex.tags.includes(tag))
       }
 
       return {
@@ -674,15 +686,16 @@ export class MCPTools {
       }
 
       // Get the output data from the operator
-      // biome-ignore lint/suspicious/noExplicitAny: dynamic operator output structure
-      const outputData: any = {}
+      const outputData: Record<string, unknown> = {}
       // biome-ignore lint/suspicious/noExplicitAny: dynamic operator outputs object
       const outputs = (operator as any).outputs || {}
       const { displayName } = operator.constructor as typeof Operator
 
-      for (const [key, field] of Object.entries(outputs)) {
-        // biome-ignore lint/suspicious/noExplicitAny: dynamic field value access
-        const value = (field as any).value
+      for (const [key, field] of Object.entries(outputs) as [string, unknown][]) {
+        const value =
+          field && typeof field === 'object' && 'value' in field
+            ? (field as Record<string, unknown>).value
+            : undefined
         outputData[key] = value
       }
 
@@ -698,12 +711,13 @@ export class MCPTools {
         if (Array.isArray(data)) {
           totalRows = data.length
           sample = data.slice(0, maxRows)
-        } else if (data && typeof data === 'object' && data.features) {
+        } else if (data && typeof data === 'object' && 'features' in data) {
           // GeoJSON
-          totalRows = data.features.length
+          const geoJsonData = data as { features: unknown[] }
+          totalRows = geoJsonData.features.length
           sample = {
             ...data,
-            features: data.features.slice(0, maxRows),
+            features: geoJsonData.features.slice(0, maxRows),
           }
         }
 
@@ -876,6 +890,164 @@ export class MCPTools {
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Failed to get node info',
+      }
+    }
+  }
+
+  // Get the current timeline state
+  getTimeline(): ToolResult {
+    try {
+      const store = getTimelineStore()
+      const tracks: Record<
+        string,
+        {
+          keyframes: Array<{ id: string; position: number; value: unknown; interpolation: string }>
+        }
+      > = {}
+
+      for (const [trackId, track] of store.tracks) {
+        tracks[trackId] = {
+          keyframes: track.keyframes.map((kf: Keyframe) => ({
+            id: kf.id,
+            position: kf.position,
+            value: kf.value,
+            interpolation: kf.interpolation,
+          })),
+        }
+      }
+
+      return {
+        success: true,
+        data: {
+          sequence: {
+            length: store.sequence.length,
+            fps: store.sequence.fps,
+            inPoint: store.sequence.inPoint,
+            outPoint: store.sequence.outPoint,
+          },
+          position: store.position,
+          playing: store.playing,
+          trackCount: store.tracks.size,
+          tracks,
+        },
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to get timeline state',
+      }
+    }
+  }
+
+  // Add or update a keyframe on an animated field.
+  // Writes directly to useTimelineStore.setState so that both track creation
+  // and keyframe insertion land in a single undo entry (addKeyframe() fires
+  // its own internal history entry after track creation, leaving a ghost track
+  // on undo — bypassing it here fixes that).
+  setKeyframe(params: {
+    trackId: string
+    position: number
+    value: unknown
+    interpolation?: 'bezier' | 'hold'
+  }): ToolResult {
+    try {
+      const { trackId, position, value, interpolation = 'bezier' } = params
+      const kfValue = value as KeyframeValue
+      const store = getTimelineStore()
+      const frameDuration = 1 / store.sequence.fps
+
+      // Capture before ANY mutation so undo covers the full operation
+      const before = captureTimelineState()
+
+      const existingTrack = store.tracks.get(trackId)
+      const nearbyKf = existingTrack?.keyframes.find(
+        (kf: Keyframe) => Math.abs(kf.position - position) < frameDuration
+      )
+
+      if (nearbyKf) {
+        // Update in place — updateKeyframe has no internal history, so we fire it
+        store.updateKeyframe(trackId, nearbyKf.id, { value: kfValue, interpolation })
+        fireTimelineMutation('Update keyframe via AI', before)
+        return {
+          success: true,
+          data: { keyframeId: nearbyKf.id, action: 'updated', trackId, position, value },
+        }
+      }
+
+      // Add new keyframe — write directly so track creation + insertion share one undo entry
+      const keyframeId = `kf_${Math.random().toString(36).slice(2, 10)}`
+      const newKf: Keyframe = { id: keyframeId, position, value: kfValue, interpolation }
+
+      useTimelineStore.setState(state => {
+        const newTracks = new Map(state.tracks)
+        const track = newTracks.get(trackId)
+        if (track) {
+          const keyframes = [...track.keyframes, newKf].sort(
+            (a: Keyframe, b: Keyframe) => a.position - b.position
+          )
+          newTracks.set(trackId, { ...track, keyframes })
+        } else {
+          const newTrack: Track = {
+            id: trackId,
+            fieldPath: trackId,
+            keyframes: [newKf],
+            defaultValue: kfValue,
+          }
+          newTracks.set(trackId, newTrack)
+        }
+        return { tracks: newTracks }
+      })
+
+      fireTimelineMutation('Add keyframe via AI', before)
+      return { success: true, data: { keyframeId, action: 'added', trackId, position, value } }
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to set keyframe',
+      }
+    }
+  }
+
+  // Delete a keyframe by ID
+  deleteKeyframe(params: { trackId: string; keyframeId: string }): ToolResult {
+    try {
+      const { trackId, keyframeId } = params
+      const store = getTimelineStore()
+      const track = store.tracks.get(trackId)
+
+      if (!track) {
+        return { success: false, error: `Track not found: ${trackId}` }
+      }
+
+      const exists = track.keyframes.some((kf: Keyframe) => kf.id === keyframeId)
+      if (!exists) {
+        return { success: false, error: `Keyframe not found: ${keyframeId}` }
+      }
+
+      store.deleteKeyframe(trackId, keyframeId)
+      return { success: true, data: { deleted: keyframeId, trackId } }
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to delete keyframe',
+      }
+    }
+  }
+
+  // Set the current playback position (scrub to a time)
+  setPlaybackPosition(params: { position: number; play?: boolean }): ToolResult {
+    try {
+      const store = getTimelineStore()
+      const clamped = Math.max(0, Math.min(params.position, store.sequence.length))
+      store.setPosition(clamped)
+      if (params.play === true) store.play()
+      else if (params.play === false) store.pause()
+      // Re-read store after mutations — the snapshot in `store` is stale
+      return { success: true, data: { position: clamped, playing: getTimelineStore().playing } }
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to set playback position',
       }
     }
   }

@@ -15,6 +15,7 @@ export function Layout({
   left,
   right,
   flowGraph,
+  spreadsheet,
   children,
   layoutMode = 'split',
 }: PropsWithChildren<{
@@ -23,6 +24,7 @@ export function Layout({
   left?: ReactNode
   right?: ReactNode
   flowGraph?: ReactNode
+  spreadsheet?: ReactNode
   layoutMode?: 'split' | 'noodles-on-top' | 'output-on-top'
 }>) {
   const sidebarVisible = useUIStore(state => state.sidebarVisible)
@@ -53,7 +55,10 @@ export function Layout({
       <div style={{ gridArea: 'bottom-widget' }}>{bottom}</div>
       <div className={cx(s.fillWidget, layoutClass)}>
         <div className={s.outputArea}>{children}</div>
-        <div className={s.noodlesArea}>{flowGraph}</div>
+        <div className={s.noodlesArea}>
+          <div className={s.nodeGraphArea}>{flowGraph}</div>
+          {spreadsheet}
+        </div>
       </div>
     </div>
   )

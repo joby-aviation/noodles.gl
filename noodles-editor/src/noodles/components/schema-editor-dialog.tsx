@@ -29,7 +29,6 @@ const COLUMN_TYPES: Array<{ label: string; value: ColumnType }> = [
   { label: 'String Literal', value: 'stringLiteral' },
 ]
 
-
 interface ColumnEditorProps {
   column: ColumnSchema
   onChange: (column: ColumnSchema) => void
@@ -44,7 +43,7 @@ function ColumnEditor({ column, onChange, onDelete, onMoveUp, onMoveDown }: Colu
       <div className={s.columnControls}>
         <InputText
           value={column.name}
-          onChange={(e) => onChange({ ...column, name: e.target.value })}
+          onChange={e => onChange({ ...column, name: e.target.value })}
           placeholder="Column name"
           className={s.columnNameInput}
         />
@@ -53,7 +52,7 @@ function ColumnEditor({ column, onChange, onDelete, onMoveUp, onMoveDown }: Colu
           options={COLUMN_TYPES}
           optionLabel="label"
           optionValue="value"
-          onChange={(e) => {
+          onChange={e => {
             const newType = e.value as ColumnType
             onChange({
               ...column,
@@ -96,7 +95,7 @@ function ColumnEditor({ column, onChange, onDelete, onMoveUp, onMoveDown }: Colu
             Min:
             <InputNumber
               value={column.options?.min}
-              onChange={(e) =>
+              onChange={e =>
                 onChange({
                   ...column,
                   options: { ...column.options, min: e.value ?? undefined },
@@ -110,7 +109,7 @@ function ColumnEditor({ column, onChange, onDelete, onMoveUp, onMoveDown }: Colu
             Max:
             <InputNumber
               value={column.options?.max}
-              onChange={(e) =>
+              onChange={e =>
                 onChange({
                   ...column,
                   options: { ...column.options, max: e.value ?? undefined },
@@ -124,7 +123,8 @@ function ColumnEditor({ column, onChange, onDelete, onMoveUp, onMoveDown }: Colu
             Step:
             <InputNumber
               value={column.options?.step ?? 1}
-              onChange={(e) =>
+              step={0.001}
+              onChange={e =>
                 onChange({
                   ...column,
                   options: { ...column.options, step: e.value ?? 1 },
@@ -142,7 +142,7 @@ function ColumnEditor({ column, onChange, onDelete, onMoveUp, onMoveDown }: Colu
             <span>Geocoder:</span>
             <InputSwitch
               checked={column.options?.geocoder ?? false}
-              onChange={(e) =>
+              onChange={e =>
                 onChange({
                   ...column,
                   options: { ...column.options, geocoder: e.value },
@@ -159,14 +159,14 @@ function ColumnEditor({ column, onChange, onDelete, onMoveUp, onMoveDown }: Colu
             Values (comma-separated):
             <InputText
               value={column.options?.values?.join(', ') ?? ''}
-              onChange={(e) =>
+              onChange={e =>
                 onChange({
                   ...column,
                   options: {
                     ...column.options,
                     values: e.target.value
                       .split(',')
-                      .map((v) => v.trim())
+                      .map(v => v.trim())
                       .filter(Boolean),
                   },
                 })
@@ -286,7 +286,7 @@ export function SchemaEditorDialog({ schema, onChange, onClose }: SchemaEditorDi
                   <ColumnEditor
                     key={index}
                     column={col}
-                    onChange={(updated) => updateColumn(index, updated)}
+                    onChange={updated => updateColumn(index, updated)}
                     onDelete={() => deleteColumn(index)}
                     onMoveUp={index > 0 ? () => moveColumn(index, 'up') : undefined}
                     onMoveDown={

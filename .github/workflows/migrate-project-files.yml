@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
     paths:
-      - 'animations/timeline-editor/src/visualizations/noodles/__migrations__/*.ts'
+      - 'noodles-editor/src/noodles/__migrations__/*.ts'
   workflow_dispatch:
 
 permissions:
@@ -25,7 +25,7 @@ jobs:
       - name: Check for new migration files
         id: check-migrations
         run: |
-          if git diff HEAD~1 HEAD --name-only | grep -q "animations/timeline-editor/src/visualizations/noodles/__migrations__/.*\.ts$"; then
+          if git diff HEAD~1 HEAD --name-only | grep -q "noodles-editor/src/noodles/__migrations__/.*\.ts$"; then
             echo "has-new-migrations=true" >> $GITHUB_OUTPUT
             echo "New migration files detected"
           else
@@ -81,7 +81,7 @@ jobs:
           body: |
             ## Automated Project File Migration
 
-            This PR contains automated migrations of project files in `noodles-editor/public/examples/` after detecting new migration files in the codebase.
+            This PR contains automated migrations of project files in `noodles-editor/src/examples/` and `noodles-editor/public/noodles/` after detecting new migration files in the codebase.
 
             ### Changes
             - Applied latest schema migrations to project files

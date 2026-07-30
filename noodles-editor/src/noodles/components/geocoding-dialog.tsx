@@ -18,6 +18,7 @@ import {
   geocodeWithPhoton,
 } from '../../utils/geocoding'
 import { useKeysStore } from '../keys-store'
+import { useUIStore } from '../store'
 import s from './geocoding-dialog.module.css'
 
 const DEFAULT_LOCATION = { longitude: -74.006, latitude: 40.7128, zoom: 12 } // NYC
@@ -141,11 +142,13 @@ export function GeocodingDialog({
   const [suggestions, setSuggestions] = useState<GeocodingSuggestion[]>([])
   const [showDropdown, setShowDropdown] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const [lastSearchProvider, setLastSearchProvider] = useState<string | null>(null)
   const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   const getKey = useKeysStore(state => state.getKey)
   const googleMapsKey = getKey('googleMaps')
   const mapboxKey = getKey('mapbox')
+  const setSettingsDialogOpen = useUIStore(state => state.setSettingsDialogOpen)
 
   // Access the map instance for flyTo animations
   const { [MAP_ID]: mapInstance } = useMap()
@@ -231,6 +234,7 @@ export function GeocodingDialog({
         }
 
         analytics.track('geocoding_search', { method })
+        setLastSearchProvider(method)
 
         return places.map(place => ({
           type: 'place' as const,
@@ -355,6 +359,29 @@ export function GeocodingDialog({
               </div>
             )}
           </div>
+
+          {/* Provider indicator — shown after a place search */}
+          {lastSearchProvider && (
+            <div className={s.providerBadge}>
+              {lastSearchProvider === 'photon' ? (
+                <>
+                  Using Photon (free, OpenStreetMap).{' '}
+                  <button
+                    type="button"
+                    className={s.providerSettingsLink}
+                    onClick={() => setSettingsDialogOpen(true)}
+                  >
+                    Add a Mapbox or Google Maps key
+                  </button>{' '}
+                  in Settings for better results.
+                </>
+              ) : lastSearchProvider === 'mapbox' ? (
+                'Using Mapbox geocoding.'
+              ) : (
+                'Using Google Places.'
+              )}
+            </div>
+          )}
 
           {/* Map */}
           {mapCoordinates.longitude != null && mapCoordinates.latitude != null && (

@@ -120,10 +120,7 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
 
       // Adjust scroll to keep playhead at same screen position
       const scrollDelta = playheadPxAfter - playheadPxBefore
-      scrollAreaRef.current.scrollLeft = Math.max(
-        0,
-        scrollAreaRef.current.scrollLeft + scrollDelta
-      )
+      scrollAreaRef.current.scrollLeft = Math.max(0, scrollAreaRef.current.scrollLeft + scrollDelta)
 
       setPixelsPerSecond(clampedZoom)
     },
@@ -381,6 +378,18 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
         e.preventDefault()
         const store = getTimelineStore()
         store.selectAllKeyframes()
+      }
+
+      // Cmd/Ctrl+C to copy selected keyframes
+      if ((e.key === 'c' || e.key === 'C') && (e.metaKey || e.ctrlKey) && selectedKeyframeIds.size > 0) {
+        e.preventDefault()
+        getTimelineStore().copySelectedKeyframes()
+      }
+
+      // Cmd/Ctrl+V to paste keyframes
+      if ((e.key === 'v' || e.key === 'V') && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault()
+        getTimelineStore().pasteKeyframes()
       }
 
       // T to cycle handle type for selected keyframes

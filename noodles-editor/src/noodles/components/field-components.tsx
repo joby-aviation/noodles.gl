@@ -39,6 +39,7 @@ import {
   type FileUrlField,
   getFieldReferences,
   type IField,
+  ListField,
   type MapStyleField,
   type NumberField,
   Point2DField,
@@ -61,8 +62,9 @@ import { usePropertyHistory } from '../utils/property-history'
 import { ColorSwatch } from './color-swatch'
 import { ExpressionEditorOverlay } from './ExpressionEditorOverlay'
 import { GeocodingDialog } from './geocoding-dialog'
-import menuStyles from './menu.module.css'
 import { handleClass, useHandleDimmed } from './op-components'
+import { MultiInputHandle } from './multi-input-handle'
+import menuStyles from './menu.module.css'
 
 type InputComponent = React.ComponentType<{
   id: OpId
@@ -696,7 +698,12 @@ export function CodeFieldComponent({
         <Suspense
           fallback={
             <textarea
-              style={{ width: '100%', height: nodeHeight - 80, background: '#1e1e1e', color: '#d4d4d4' }}
+              style={{
+                width: '100%',
+                height: nodeHeight - 80,
+                background: '#1e1e1e',
+                color: '#d4d4d4',
+              }}
               value={value}
               onChange={e => field.setValue(e.target.value)}
             />
@@ -835,8 +842,12 @@ export function FileUrlFieldComponent({
     const exists = await checkAssetExists(activeStorageType, currentProjectName, file.name)
     if (exists) {
       // If the user picked the exact same file already in the data directory, just use it
-      const existingHandle = await getAssetFileHandle(activeStorageType, currentProjectName, file.name)
-      if (existingHandle && await fileHandle.isSameEntry(existingHandle)) {
+      const existingHandle = await getAssetFileHandle(
+        activeStorageType,
+        currentProjectName,
+        file.name
+      )
+      if (existingHandle && (await fileHandle.isSameEntry(existingHandle))) {
         captureStart()
         field.setValue(projectScheme + file.name)
         setValue(projectScheme + file.name)
@@ -894,13 +905,18 @@ export function FileUrlFieldComponent({
         <label className={s.nodeFieldLabel} htmlFor={id}>
           {id}
         </label>
-        <div className={cx('p-inputgroup', s.fieldFileInputGroup, s.fieldFileInputGroupSuggestions)}>
+        <div
+          className={cx('p-inputgroup', s.fieldFileInputGroup, s.fieldFileInputGroupSuggestions)}
+        >
           <InputText
             id={id}
             placeholder="https://"
             className={cx(s.fieldInput, s.fieldInputFileUrl)}
             value={value}
-            onFocus={() => { captureStart(); setSuggestionsOpen(true) }}
+            onFocus={() => {
+              captureStart()
+              setSuggestionsOpen(true)
+            }}
             onBlur={onBlur}
             onChange={onChange}
             disabled={disabled}
@@ -913,7 +929,9 @@ export function FileUrlFieldComponent({
                   key={val}
                   role="option"
                   aria-selected={val === value}
-                  className={cx(s.fileUrlSuggestion, { [s.fileUrlSuggestionActive]: val === value })}
+                  className={cx(s.fileUrlSuggestion, {
+                    [s.fileUrlSuggestionActive]: val === value,
+                  })}
                   onMouseDown={() => onSuggestionSelect(val)}
                 >
                   <span className={s.fileUrlSuggestionLabel}>{label}</span>
@@ -1037,8 +1055,12 @@ export function MapStyleFieldComponent({
 
     const exists = await checkAssetExists(activeStorageType, currentProjectName, file.name)
     if (exists) {
-      const existingHandle = await getAssetFileHandle(activeStorageType, currentProjectName, file.name)
-      if (existingHandle && await fileHandle.isSameEntry(existingHandle)) {
+      const existingHandle = await getAssetFileHandle(
+        activeStorageType,
+        currentProjectName,
+        file.name
+      )
+      if (existingHandle && (await fileHandle.isSameEntry(existingHandle))) {
         captureStart()
         field.setValue(projectScheme + file.name)
         setValue(projectScheme + file.name)
@@ -2463,13 +2485,22 @@ export function FieldComponent({
   return (
     <div style={{ position: 'relative' }}>
       {handle && (
-        <Handle
-          id={qualifiedFieldId}
-          className={cx(handleClass(field), { [s.handleDimmed]: isHandleDimmed })}
-          style={handleStyle}
-          type={handle.type}
-          position={Position.Left}
-        />
+        field instanceof ListField ? (
+          <MultiInputHandle
+            id={qualifiedFieldId}
+            field={field}
+            className={cx(handleClass(field), { [s.handleDimmed]: isHandleDimmed })}
+            style={handleStyle}
+          />
+        ) : (
+          <Handle
+            id={qualifiedFieldId}
+            className={cx(handleClass(field), { [s.handleDimmed]: isHandleDimmed })}
+            style={handleStyle}
+            type={handle.type}
+            position={Position.Left}
+          />
+        )
       )}
       {renderInput &&
         (hasIncomingConnection ? (

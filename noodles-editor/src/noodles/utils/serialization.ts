@@ -10,6 +10,7 @@ import type { useOperatorStore } from '../store'
 import { deepEqual } from './deep-equal'
 import type { ExtractProps } from './extract-props'
 import type { StorageType } from './filesystem'
+import { MULTI_INPUT_EDGE_TYPE } from './multi-input-utils'
 import { parseHandleId } from './path-utils'
 
 export { NOODLES_VERSION } from './migrate-schema'
@@ -20,33 +21,8 @@ export type EditorSettings = {
   showDebugInfo?: boolean
 }
 
-export type RenderSettings = {
-  display: 'fixed' | 'responsive'
-  resolution: { width: number; height: number }
-  lod: number
-  waitForData: boolean
-  codec: 'avc' | 'hevc' | 'vp9' | 'av1'
-  bitrateMbps: number
-  bitrateMode: 'constant' | 'variable'
-  scaleControl: number
-  framerate: number
-  captureDelay: number
-  rendersDirectory: string
-}
-
-export const DEFAULT_RENDER_SETTINGS: RenderSettings = {
-  display: 'fixed',
-  resolution: { width: 1920, height: 1080 },
-  lod: 2,
-  waitForData: true,
-  codec: 'avc',
-  bitrateMbps: 10,
-  bitrateMode: 'constant',
-  scaleControl: 0.3,
-  framerate: 30,
-  captureDelay: 50,
-  rendersDirectory: 'renders',
-}
+export type { RenderSettings } from './render-settings-constants'
+export { DEFAULT_RENDER_SETTINGS } from './render-settings-constants'
 
 export type NoodlesProjectJSON = ReactFlowJsonObject & {
   version: number
@@ -244,11 +220,26 @@ export function serializeEdges(
       }
       return true
     })
-    .map(edge =>
-      Object.fromEntries(
+    .map(edge => {
+      const serialized = Object.fromEntries(
         Object.entries(edge).filter(([key]) => !['selected', 'animated'].includes(key))
       )
-    )
+
+      // Multi-input slot state (edge type + orderIndex/groupSize) is derived from edge
+      // array order at load time — keep files canonical by not persisting it
+      if (serialized.type === MULTI_INPUT_EDGE_TYPE) {
+        delete serialized.type
+        const { orderIndex: _orderIndex, groupSize: _groupSize, ...data } = (serialized.data ??
+          {}) as Record<string, unknown>
+        if (Object.keys(data).length > 0) {
+          serialized.data = data
+        } else {
+          delete serialized.data
+        }
+      }
+
+      return serialized
+    })
 }
 
 // Pre-load all example asset URLs for download functionality

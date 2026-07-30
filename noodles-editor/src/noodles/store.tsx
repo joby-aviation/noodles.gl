@@ -37,6 +37,12 @@ interface OperatorStoreState {
   batch: (fn: () => void) => void
 }
 
+export interface PendingInsertionIndex {
+  nodeId: string
+  handleId: string
+  index: number
+}
+
 export const useOperatorStore = create<OperatorStoreState>((set, get) => ({
   operators: new Map(),
   sheetObjects: new Map(),
@@ -122,6 +128,11 @@ interface UIStoreState {
   setHoveredOutputHandle: (handle: { nodeId: string; handleId: string } | null) => void
   connectionDragState: ConnectionDragState | null
   setConnectionDragState: (state: ConnectionDragState | null) => void
+  // Slot index for multi-input handles: written by MultiInputHandle while a connection
+  // (or reconnection) drag hovers it, consumed once by onConnect/onReconnect, cleared
+  // when a drag is cancelled or the publishing handle unmounts
+  pendingInsertionIndex: PendingInsertionIndex | null
+  setPendingInsertionIndex: (info: PendingInsertionIndex | null) => void
   targetedEdge: { id: string; compatible: boolean } | null
   setTargetedEdge: (edge: { id: string; compatible: boolean } | null) => void
   nodeDragState: NodeDragState | null
@@ -138,6 +149,12 @@ interface UIStoreState {
   setTimelineHeight: (height: number) => void
   quickStartModalOpen: boolean
   setQuickStartModalOpen: (open: boolean) => void
+  spreadsheetVisible: boolean
+  setSpreadsheetVisible: (visible: boolean) => void
+  pinnedSpreadsheetNodeId: string | null
+  setPinnedSpreadsheetNodeId: (id: string | null) => void
+  spreadsheetWidth: number
+  setSpreadsheetWidth: (width: number) => void
 }
 
 export const useUIStore = create<UIStoreState>(set => ({
@@ -145,6 +162,8 @@ export const useUIStore = create<UIStoreState>(set => ({
   setHoveredOutputHandle: handle => set({ hoveredOutputHandle: handle }),
   connectionDragState: null,
   setConnectionDragState: state => set({ connectionDragState: state }),
+  pendingInsertionIndex: null,
+  setPendingInsertionIndex: info => set({ pendingInsertionIndex: info }),
   targetedEdge: null,
   setTargetedEdge: edge => set({ targetedEdge: edge }),
   nodeDragState: null,
@@ -162,6 +181,24 @@ export const useUIStore = create<UIStoreState>(set => ({
   setTimelineHeight: height => set({ timelineHeight: height }),
   quickStartModalOpen: false,
   setQuickStartModalOpen: open => set({ quickStartModalOpen: open }),
+  spreadsheetVisible: false,
+  setSpreadsheetVisible: visible => set({ spreadsheetVisible: visible }),
+  pinnedSpreadsheetNodeId: null,
+  setPinnedSpreadsheetNodeId: id => set({ pinnedSpreadsheetNodeId: id }),
+  spreadsheetWidth: (() => {
+    try {
+      const stored = localStorage.getItem('noodles-spreadsheet-width')
+      return stored ? Number(stored) : 400
+    } catch {
+      return 400
+    }
+  })(),
+  setSpreadsheetWidth: width => {
+    set({ spreadsheetWidth: width })
+    try {
+      localStorage.setItem('noodles-spreadsheet-width', String(width))
+    } catch {}
+  },
 }))
 
 // ============================================================================
@@ -237,6 +274,26 @@ export const getAllSheetObjectIds = () => Array.from(getOpStore().sheetObjects.k
 // Hovered output handle helpers
 export const setHoveredOutputHandle = (handle: { nodeId: string; handleId: string } | null) =>
   getUIStore().setHoveredOutputHandle(handle)
+
+// Multi-input pending slot helpers (see pendingInsertionIndex in UIStoreState)
+export const setPendingInsertionIndex = (info: PendingInsertionIndex | null) =>
+  getUIStore().setPendingInsertionIndex(info)
+
+export const clearPendingInsertionIndex = () => getUIStore().setPendingInsertionIndex(null)
+
+// Consume-and-clear, guarded on the drop target so a stale index from hovering one
+// handle can't leak into a drop on a different handle
+export const takePendingInsertionIndex = (
+  nodeId: string | null | undefined,
+  handleId: string | null | undefined
+): number | null => {
+  const pending = getUIStore().pendingInsertionIndex
+  getUIStore().setPendingInsertionIndex(null)
+  if (pending && pending.nodeId === nodeId && pending.handleId === handleId) {
+    return pending.index
+  }
+  return null
+}
 
 // ============================================================================
 // Operator ID Update Helper

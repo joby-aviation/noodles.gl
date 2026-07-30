@@ -173,17 +173,22 @@ describe('ToolRegistry', () => {
 
         expect(result.success).toBe(true)
         expect(result.result).toBeDefined()
-        expect(result.result.FileOp).toBeDefined()
-        expect(result.result.FilterOp).toBeDefined()
-        expect(result.result.NumberOp).toBeDefined()
-        expect(result.result.CodeOp).toBeDefined()
+        const resultData = result.result as Record<string, unknown>
+        expect(resultData.FileOp).toBeDefined()
+        expect(resultData.FilterOp).toBeDefined()
+        expect(resultData.NumberOp).toBeDefined()
+        expect(resultData.CodeOp).toBeDefined()
       })
 
       it('includes displayName and description', async () => {
         const result = await registry.execute('listOperatorTypes', {})
 
-        expect(result.result.FileOp.displayName).toBe('File')
-        expect(result.result.FileOp.description).toBe('Load files')
+        const resultData = result.result as Record<
+          string,
+          { displayName: string; description: string }
+        >
+        expect(resultData.FileOp.displayName).toBe('File')
+        expect(resultData.FileOp.description).toBe('Load files')
       })
     })
 
@@ -197,9 +202,14 @@ describe('ToolRegistry', () => {
         })
 
         expect(result.success).toBe(true)
-        expect(result.result.nodeId).toBe('/my-number')
-        expect(result.result.type).toBe('NumberOp')
-        expect(result.result.position).toEqual({ x: 200, y: 300 })
+        const resultData = result.result as {
+          nodeId: string
+          type: string
+          position: { x: number; y: number }
+        }
+        expect(resultData.nodeId).toBe('/my-number')
+        expect(resultData.type).toBe('NumberOp')
+        expect(resultData.position).toEqual({ x: 200, y: 300 })
       })
 
       it('generates ID if not provided', async () => {
@@ -208,7 +218,8 @@ describe('ToolRegistry', () => {
         })
 
         expect(result.success).toBe(true)
-        expect(result.result.nodeId).toMatch(/^\/numberop-\d+$/)
+        const resultData = result.result as { nodeId: string }
+        expect(resultData.nodeId).toMatch(/^\/numberop-\d+$/)
       })
 
       it('uses default position if not provided', async () => {
@@ -217,7 +228,8 @@ describe('ToolRegistry', () => {
         })
 
         expect(result.success).toBe(true)
-        expect(result.result.position).toEqual({ x: 100, y: 100 })
+        const resultData = result.result as { position: { x: number; y: number } }
+        expect(resultData.position).toEqual({ x: 100, y: 100 })
       })
 
       it('returns error for unknown operator type', async () => {
@@ -247,9 +259,10 @@ describe('ToolRegistry', () => {
         })
 
         expect(result.success).toBe(true)
-        expect(result.result.source).toBe('/source-node')
-        expect(result.result.target).toBe('/target-node')
-        expect(result.result.edgeId).toBe('/source-node.out.data->/target-node.par.input')
+        const resultData = result.result as { source: string; target: string; edgeId: string }
+        expect(resultData.source).toBe('/source-node')
+        expect(resultData.target).toBe('/target-node')
+        expect(resultData.edgeId).toBe('/source-node.out.data->/target-node.par.input')
       })
 
       it('uses default fields if not provided', async () => {
@@ -259,7 +272,8 @@ describe('ToolRegistry', () => {
         })
 
         expect(result.success).toBe(true)
-        expect(result.result.edgeId).toBe('/source-node.out.result->/target-node.par.data')
+        const resultData = result.result as { edgeId: string }
+        expect(resultData.edgeId).toBe('/source-node.out.result->/target-node.par.data')
       })
 
       it('requires sourceId and targetId parameters', async () => {
@@ -284,8 +298,9 @@ describe('ToolRegistry', () => {
         })
 
         expect(result.success).toBe(true)
-        expect(result.result.nodeId).toBe('/node-to-delete')
-        expect(result.result.deleted).toBe(true)
+        const resultData = result.result as { nodeId: string; deleted: boolean }
+        expect(resultData.nodeId).toBe('/node-to-delete')
+        expect(resultData.deleted).toBe(true)
       })
 
       it('requires nodeId parameter', async () => {

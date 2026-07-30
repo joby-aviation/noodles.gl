@@ -1,7 +1,7 @@
 import { basename } from 'node:path'
 import type { InOut } from '../fields'
 import type { OpType } from '../operators'
-import { edgeId } from './id-utils'
+import { edgeId } from './migration-utils'
 import { parseHandleId } from './path-utils'
 import type { NoodlesProjectJSON } from './serialization'
 
@@ -127,14 +127,16 @@ export function renameHandle({
 
     const { [oldFieldName as InputKey]: oldValue, ...restOfInputs } = node.data.inputs
 
+    // Only add the new field if the old value existed
+    const newInputs = oldValue !== undefined
+      ? { ...restOfInputs, [newFieldName as InputKey]: oldValue }
+      : restOfInputs
+
     const newNode = {
       ...node,
       data: {
         ...node.data,
-        inputs: {
-          ...restOfInputs,
-          [newFieldName as InputKey]: oldValue,
-        },
+        inputs: newInputs,
       },
     }
 

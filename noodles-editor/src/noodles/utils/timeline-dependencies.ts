@@ -22,7 +22,7 @@ export const useTimelineDependencyStore = create<TimelineDependencyState>((set, 
 
     // Subscribe to position changes (affects sequenceTime, frame, totalFrames)
     const posUnsub = useTimelineStore.subscribe(
-      (state) => ({ position: state.position, fps: state.sequence.fps }),
+      state => ({ position: state.position, fps: state.sequence.fps }),
       () => {
         debugDirty('%s marked dirty by timeline position/fps change', op.id)
         op.markDirty()
@@ -33,7 +33,7 @@ export const useTimelineDependencyStore = create<TimelineDependencyState>((set, 
 
     // Subscribe to sequence changes (affects sequence, totalFrames)
     const seqUnsub = useTimelineStore.subscribe(
-      (state) => state.sequence,
+      state => state.sequence,
       () => {
         debugDirty('%s marked dirty by timeline sequence change', op.id)
         op.markDirty()
@@ -42,7 +42,7 @@ export const useTimelineDependencyStore = create<TimelineDependencyState>((set, 
     )
     cleanupFns.push(seqUnsub)
 
-    set((state) => ({
+    set(state => ({
       subscriptions: new Map(state.subscriptions).set(op.id, cleanupFns),
     }))
   },
@@ -51,7 +51,7 @@ export const useTimelineDependencyStore = create<TimelineDependencyState>((set, 
     const { subscriptions } = get()
     const cleanupFns = subscriptions.get(opId)
     if (cleanupFns) {
-      cleanupFns.forEach((fn) => fn())
+      cleanupFns.forEach(fn => fn())
       const newSubscriptions = new Map(subscriptions)
       newSubscriptions.delete(opId)
       set({ subscriptions: newSubscriptions })
