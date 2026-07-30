@@ -1685,10 +1685,16 @@ export function getNoodles(): Visualization {
   }, [nodes])
 
   useEffect(() => {
-    // Subscribe to DeckRendererOp output instead of OutOp input
-    // This creates an active subscription chain that keeps upstream operators executing
-    if (deckRendererOp) {
-      const visSub = deckRendererOp.outputs.vis.subscribe(
+    // Subscribe to DeckRendererOp output if available, otherwise fall back to OutOp input
+    // DeckRendererOp creates active subscription chain, but may not be available during initial render
+    const field = deckRendererOp?.outputs.vis || outOp?.inputs.vis
+
+    if (field) {
+      debugVis(
+        'Creating vis subscription from %s',
+        deckRendererOp ? 'DeckRendererOp.outputs.vis' : 'OutOp.inputs.vis'
+      )
+      const visSub = field.subscribe(
         ({ deckProps: { layers, widgets, ...deckProps }, mapProps }) => {
           // Map layers from POJOs to deck.gl instances
           const instantiatedLayers =
@@ -1726,7 +1732,10 @@ export function getNoodles(): Visualization {
                 ...layer,
                 ...(instantiatedExtensions ? { extensions: instantiatedExtensions } : {}),
                 // Prevent deck.gl layer errors from crashing the GPU process
-                onError: (e: Error) => debugVis('Layer error in %s: %o', type, e),
+                onError: (e: Error) => {
+                  console.error(`[Noodles] Layer error in ${layer.id} (${type}):`, e)
+                  debugVis('Layer error in %s (id=%s): %o', type, layer.id, e)
+                },
               })
             }) || []
 
@@ -1772,10 +1781,11 @@ export function getNoodles(): Visualization {
         }
       )
       return () => {
+        debugVis('Cleaning up vis subscription')
         visSub.unsubscribe()
       }
     }
-  }, [deckRendererOp, selectedGeoJsonFeatures])
+  }, [deckRendererOp, outOp, selectedGeoJsonFeatures])
 
   const propertiesPanel = (
     <ErrorBoundary title="Property Panel Error">
