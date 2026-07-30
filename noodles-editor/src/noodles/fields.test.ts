@@ -355,6 +355,93 @@ describe('MapStyleField', () => {
     expect(field.suggestions).toEqual([])
   })
 
+  it('skips setValue when object content is deeply equal', () => {
+    const field = new MapStyleField()
+    const style1 = {
+      version: 8,
+      sources: { osm: { type: 'raster', tiles: ['https://tile.example.com/{z}/{x}/{y}.png'] } },
+      layers: [{ id: 'osm', type: 'raster', source: 'osm' }],
+    }
+    const style2 = {
+      version: 8,
+      sources: { osm: { type: 'raster', tiles: ['https://tile.example.com/{z}/{x}/{y}.png'] } },
+      layers: [{ id: 'osm', type: 'raster', source: 'osm' }],
+    }
+
+    field.setValue(style1)
+    expect(field.value).toEqual(style1)
+
+    const spy = vi.fn()
+    field.subscribe(spy)
+    spy.mockClear()
+
+    field.setValue(style2)
+    // Should not emit because content is identical
+    expect(spy).not.toHaveBeenCalled()
+  })
+
+  it('updates when object content actually differs', () => {
+    const field = new MapStyleField()
+    const style1 = { version: 8, sources: {}, layers: [] }
+    const style2 = { version: 8, sources: {}, layers: [{ id: 'new' }] }
+
+    field.setValue(style1)
+    const spy = vi.fn()
+    field.subscribe(spy)
+    spy.mockClear()
+
+    field.setValue(style2)
+    expect(spy).toHaveBeenCalled()
+    expect(field.value).toEqual(style2)
+  })
+
+  it('always updates for string values (no deep equal needed)', () => {
+    const field = new MapStyleField('https://example.com/style1.json')
+    const spy = vi.fn()
+    field.subscribe(spy)
+    spy.mockClear()
+
+    field.setValue('https://example.com/style2.json')
+    expect(spy).toHaveBeenCalled()
+    expect(field.value).toEqual('https://example.com/style2.json')
+  })
+
+  it('handles transition from string to object', () => {
+    const field = new MapStyleField('https://example.com/style.json')
+    const styleObj = { version: 8, sources: {}, layers: [] }
+
+    field.setValue(styleObj)
+    expect(field.value).toEqual(styleObj)
+  })
+
+  it('handles transition from object to string', () => {
+    const field = new MapStyleField()
+    field.setValue({ version: 8, sources: {}, layers: [] })
+
+    field.setValue('https://example.com/style.json')
+    expect(field.value).toEqual('https://example.com/style.json')
+  })
+
+  it('does not markDirty when object content is identical', () => {
+    const field = new MapStyleField()
+    const style = {
+      version: 8,
+      sources: {},
+      layers: [{ id: 'bg', type: 'background', paint: { 'background-color': '#000' } }],
+    }
+
+    field.setValue(style)
+
+    const nextSpy = vi.spyOn(field, 'next')
+
+    // Set identical content with new reference
+    field.setValue({ ...style, layers: [...style.layers] })
+
+    // next() should not be called because setValue returns early
+    expect(nextSpy).not.toHaveBeenCalled()
+    nextSpy.mockRestore()
+  })
+
   it('serializes and deserializes string values correctly', () => {
     const field = new MapStyleField('https://example.com/style.json')
     const serialized = JSON.parse(JSON.stringify(field.value))

@@ -72,7 +72,7 @@ import { findEdgeAtPosition, useConnectionDropOnEdge } from './hooks/use-connect
 import { useKeyboardShortcut } from './hooks/use-keyboard-shortcut'
 import { useNodeDropOnEdge } from './hooks/use-node-drop-on-edge'
 import { useProjectModifications } from './hooks/use-project-modifications'
-import type { IOperator, Operator, OutOp } from './operators'
+import type { DeckRendererOp, IOperator, Operator, OutOp } from './operators'
 import { extensionMap } from './operators'
 import {
   copyDataDirectory,
@@ -1650,7 +1650,19 @@ export function getNoodles(): Visualization {
   const OUT_OP_ID = '/out'
   const outOp = operators.find(n => n.id === OUT_OP_ID)! as unknown as OutOp
 
-  const [visProps, setVisProps] = useState(outOp?.inputs.vis.value || {})
+  // Find the DeckRendererOp that connects to OutOp
+  // Subscribe to its output instead of OutOp's input to create active subscription chain
+  const deckRendererOp = useMemo(() => {
+    const visConnection = edges.find(e => e.target === OUT_OP_ID && e.targetHandle === 'par.vis')
+    if (visConnection) {
+      return operators.find(op => op.id === visConnection.source) as DeckRendererOp | undefined
+    }
+    return undefined
+  }, [operators, edges])
+
+  const [visProps, setVisProps] = useState(
+    deckRendererOp?.outputs.vis.value || outOp?.inputs.vis.value || {}
+  )
 
   // Create overlay layer for selected GeoJSON-producing operators
   const selectedGeoJsonFeatures = useMemo(() => {
@@ -1673,8 +1685,10 @@ export function getNoodles(): Visualization {
   }, [nodes])
 
   useEffect(() => {
-    if (outOp) {
-      const visSub = outOp.inputs.vis.subscribe(
+    // Subscribe to DeckRendererOp output instead of OutOp input
+    // This creates an active subscription chain that keeps upstream operators executing
+    if (deckRendererOp) {
+      const visSub = deckRendererOp.outputs.vis.subscribe(
         ({ deckProps: { layers, widgets, ...deckProps }, mapProps }) => {
           // Map layers from POJOs to deck.gl instances
           const instantiatedLayers =
@@ -1761,7 +1775,7 @@ export function getNoodles(): Visualization {
         visSub.unsubscribe()
       }
     }
-  }, [outOp, selectedGeoJsonFeatures])
+  }, [deckRendererOp, selectedGeoJsonFeatures])
 
   const propertiesPanel = (
     <ErrorBoundary title="Property Panel Error">

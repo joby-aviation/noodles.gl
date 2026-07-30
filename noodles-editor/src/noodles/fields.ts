@@ -9,6 +9,7 @@ import { debugSetValue } from '../utils/debug'
 import type { BetterDeckProps, BetterMapProps } from '../visualizations'
 import type { inputComponents } from './components/field-components'
 import type { IOperator, Operator } from './operators'
+import { deepEqual } from './utils/deep-equal'
 import type { ExtractProps } from './utils/extract-props'
 import { resolvePath } from './utils/path-utils'
 
@@ -33,6 +34,8 @@ type BaseFieldOptions = {
   transform?: (val: unknown, ...args: unknown[]) => unknown
   accessor?: boolean
   showByDefault?: boolean // Defaults to true. Set to false to hide field by default in UI.
+  useDeepEquality?: boolean // Use deep equality when comparing values to prevent unnecessary updates
+  maxDepth?: number // Maximum depth for deep equality checks (Infinity = unlimited)
 }
 
 type PointFieldOptions = BaseFieldOptions & {
@@ -99,6 +102,15 @@ export abstract class Field<
   // Should this field be shown by default in the UI? Defaults to true.
   showByDefault = true
 
+  // Use deep equality when comparing values to prevent unnecessary updates
+  // Only enable for fields with stable, value-typed data (plain objects, arrays, primitives)
+  // Do not enable for fields containing class instances, Date, Map, Set with identity semantics
+  useDeepEquality = false
+
+  // Maximum depth for deep equality checks (only relevant if useDeepEquality=true)
+  // Infinity = unlimited depth, 0 = reference equality only, 1 = shallow, 2+ = limited depth
+  maxDepth = Infinity
+
   // Hold a reference to the operator that owns this field. Only used for debugging at the moment.
   op!: Operator<IOperator>
 
@@ -141,12 +153,29 @@ export abstract class Field<
   }
 
   // Wrap schema in additional functionality like optional, transform, accessor etc.
-  enhanceSchema({ accessor, optional, transform, showByDefault }: Partial<O>) {
+  enhanceSchema({
+    accessor,
+    optional,
+    transform,
+    showByDefault,
+    useDeepEquality,
+    maxDepth,
+  }: Partial<O>) {
     let schema = this.schema
 
     // Set showByDefault (defaults to true if not specified)
     if (showByDefault !== undefined) {
       this.showByDefault = showByDefault
+    }
+
+    // Set useDeepEquality if specified
+    if (useDeepEquality !== undefined) {
+      this.useDeepEquality = useDeepEquality
+    }
+
+    // Set maxDepth if specified
+    if (maxDepth !== undefined) {
+      this.maxDepth = maxDepth
     }
 
     if (accessor) {
@@ -306,6 +335,20 @@ export class MapStyleField extends Field<
 
   createSchema(_options?: Partial<MapStyleFieldOptions>) {
     return z.union([z.string(), z.record(z.string(), z.unknown())])
+  }
+
+  // Skip update if object content is identical to avoid unnecessary downstream re-execution
+  setValue(value: z.input<typeof this.schema>): void {
+    if (
+      typeof value === 'object' &&
+      value !== null &&
+      typeof this.value === 'object' &&
+      this.value !== null &&
+      deepEqual(this.value, value)
+    ) {
+      return
+    }
+    super.setValue(value)
   }
 }
 
