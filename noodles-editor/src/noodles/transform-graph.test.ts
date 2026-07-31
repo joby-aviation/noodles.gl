@@ -11,7 +11,7 @@ import {
   NumberOp,
   type Operator,
 } from './operators'
-import { clearOps, getOpStore } from './store'
+import { clearOps, getOpStore, hasOp } from './store'
 import { transformGraph } from './transform-graph'
 import { edgeId } from './utils/id-utils'
 
@@ -1219,5 +1219,69 @@ describe('ListField connection order sync', () => {
     transformGraph({ nodes, edges: [listEdge('/a'), listEdge('/b'), listEdge('/c')] })
 
     expect(connectionOrder()).toEqual([listEdge('/a').id, listEdge('/b').id, listEdge('/c').id])
+  })
+})
+
+describe('transform-graph container cascade deletion', () => {
+  afterEach(() => {
+    clearOps()
+  })
+
+  it('operator store is cleaned up when re-transforming without deleted container children', () => {
+    const nodes = [
+      { id: '/source', type: 'NumberOp', data: { inputs: {} }, position: { x: 0, y: 0 } },
+      { id: '/container', type: 'ContainerOp', data: { inputs: {} }, position: { x: 0, y: 0 } },
+      {
+        id: '/container/container-input',
+        type: 'GraphInputOp',
+        data: { inputs: {} },
+        position: { x: 0, y: 0 },
+      },
+      {
+        id: '/container/container-output',
+        type: 'GraphOutputOp',
+        data: { inputs: {} },
+        position: { x: 0, y: 0 },
+      },
+      { id: '/container/worker', type: 'MathOp', data: { inputs: {} }, position: { x: 0, y: 0 } },
+      { id: '/sink', type: 'MathOp', data: { inputs: {} }, position: { x: 0, y: 0 } },
+    ]
+    const edges = [
+      {
+        id: '/source.out.val->/container.par.in',
+        source: '/source',
+        target: '/container',
+        sourceHandle: 'out.val',
+        targetHandle: 'par.in',
+      },
+      {
+        id: '/container/container-input.out.parentValue->/container/worker.par.a',
+        source: '/container/container-input',
+        target: '/container/worker',
+        sourceHandle: 'out.parentValue',
+        targetHandle: 'par.a',
+      },
+    ]
+
+    transformGraph({ nodes, edges })
+
+    expect(hasOp('/container')).toBe(true)
+    expect(hasOp('/container/worker')).toBe(true)
+    expect(hasOp('/container/container-input')).toBe(true)
+    expect(hasOp('/container/container-output')).toBe(true)
+
+    // Re-transform without the container and its children (simulates cascade delete)
+    const remainingNodes = nodes.filter(n => !n.id.startsWith('/container'))
+    const remainingEdges = edges.filter(
+      e => !e.source.startsWith('/container') && !e.target.startsWith('/container')
+    )
+    transformGraph({ nodes: remainingNodes, edges: remainingEdges })
+
+    expect(hasOp('/container')).toBe(false)
+    expect(hasOp('/container/worker')).toBe(false)
+    expect(hasOp('/container/container-input')).toBe(false)
+    expect(hasOp('/container/container-output')).toBe(false)
+    expect(hasOp('/source')).toBe(true)
+    expect(hasOp('/sink')).toBe(true)
   })
 })

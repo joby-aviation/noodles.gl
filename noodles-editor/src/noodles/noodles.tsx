@@ -207,21 +207,14 @@ export function getNoodles(): Visualization {
   const [edges, setEdges, onEdgesChangeBase] = useEdgesState<ReactFlowEdge<unknown>>([])
   const [defaultViewport, setDefaultViewport] = useState({ x: 0, y: 0, zoom: 1 })
 
-  // Refs to access current nodes/edges without triggering callback recreations
-  const nodesRef = useRef(nodes)
-  const edgesRef = useRef(edges)
+  // Single ref providing synchronous access to the full graph state.
+  // Used by CopyControls, UndoRedoHandler, and hooks that need all nodes/edges
+  // without triggering re-renders or being limited to the displayed scope.
+  const graphRef = useRef({ nodes, edges })
+  graphRef.current = { nodes, edges }
 
   // Spatial index for fast edge proximity queries (R-tree)
   const spatialIndexRef = useRef<EdgeSpatialIndex | null>(null)
-
-  // Keep refs in sync with state
-  useEffect(() => {
-    nodesRef.current = nodes
-  }, [nodes])
-
-  useEffect(() => {
-    edgesRef.current = edges
-  }, [edges])
 
   // Update spatial index when nodes or edges change
   useEffect(() => {
@@ -545,8 +538,8 @@ export function getNoodles(): Visualization {
       const edge = findEdgeAtPosition(
         pos,
         connectionDragState.sourceNodeId,
-        () => nodesRef.current,
-        () => edgesRef.current,
+        () => graphRef.current.nodes,
+        () => graphRef.current.edges,
         connectionDragState.compatibleEdgeIds,
         spatialIndexRef.current || undefined
       )
@@ -561,8 +554,8 @@ export function getNoodles(): Visualization {
 
   // Hook for dropping nodes onto edges to insert them
   const { onNodeDrag: onNodeDragBase, onNodeDragStop: onNodeDragStopBase } = useNodeDropOnEdge({
-    getNodes: useCallback(() => nodesRef.current, []),
-    getEdges: useCallback(() => edgesRef.current, []),
+    getNodes: useCallback(() => graphRef.current.nodes, []),
+    getEdges: useCallback(() => graphRef.current.edges, []),
     setEdges,
   })
 
@@ -1557,8 +1550,8 @@ export function getNoodles(): Visualization {
               <Background />
               <Controls position="bottom-right" />
               <BlockLibrary ref={blockLibraryRef} reactFlowRef={reactFlowRef} />
-              <CopyControls ref={copyControlsRef} />
-              <UndoRedoHandler ref={undoRedoRef} />
+              <CopyControls ref={copyControlsRef} graphRef={graphRef} />
+              <UndoRedoHandler ref={undoRedoRef} graphRef={graphRef} />
               <Suspense fallback={null}>
                 <ChatPanel
                   project={{ nodes, edges }}
