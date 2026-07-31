@@ -152,6 +152,9 @@ export class GraphExecutor {
   private isPulling = false
   private lastFrameTime = 0
   private frameInterval: number
+  // Prevent unchanged or failed ForLoop scopes from rerunning every RAF frame.
+  private executedForLoopScopes = new Set<string>()
+  private edgeSignature = ''
 
   // Dirty tracking
   private dirtyNodes: Set<string> = new Set()
@@ -217,6 +220,7 @@ export class GraphExecutor {
   addNode(node: Operator<IOperator>): void {
     this.nodes.set(node.id, node)
     this.manuallyAddedNodes.add(node.id) // Track manually added nodes
+    this.executedForLoopScopes.clear()
     this.isDirty = true
   }
 
@@ -227,6 +231,7 @@ export class GraphExecutor {
     this.edges = this.edges.filter(edge => edge.source !== nodeId && edge.target !== nodeId)
     this.upstream.delete(nodeId)
     this.downstream.delete(nodeId)
+    this.executedForLoopScopes.clear()
     for (const set of this.upstream.values()) set.delete(nodeId)
     for (const set of this.downstream.values()) set.delete(nodeId)
     this.isDirty = true
@@ -243,6 +248,7 @@ export class GraphExecutor {
     }
 
     this.edges.push({ source: sourceId, target: targetId })
+    this.executedForLoopScopes.clear()
 
     // Update upstream/downstream maps
     if (!this.downstream.has(sourceId)) this.downstream.set(sourceId, new Set())
@@ -257,6 +263,7 @@ export class GraphExecutor {
   // Remove an edge
   removeEdge(sourceId: string, targetId: string): void {
     this.edges = this.edges.filter(edge => !(edge.source === sourceId && edge.target === targetId))
+    this.executedForLoopScopes.clear()
     this.downstream.get(sourceId)?.delete(targetId)
     this.upstream.get(targetId)?.delete(sourceId)
     this.isDirty = true
@@ -264,9 +271,21 @@ export class GraphExecutor {
 
   // Build graph from edges array
   buildFromEdges(edges: Edge[]): void {
+    const nextEdgeSignature = edges
+      .map(edge =>
+        [edge.id, edge.source, edge.sourceHandle, edge.target, edge.targetHandle].join(':')
+      )
+      .sort()
+      .join('|')
+    const edgesChanged = nextEdgeSignature !== this.edgeSignature
+    this.edgeSignature = nextEdgeSignature
+
     this.edges = []
     this.upstream.clear()
     this.downstream.clear()
+    if (edgesChanged) {
+      this.executedForLoopScopes.clear()
+    }
 
     for (const edge of edges) {
       // Skip self-referencing parameter edges (not true cycles - output depends on input value)
@@ -390,6 +409,11 @@ export class GraphExecutor {
     const forLoopScopes = this.findForLoopScopes()
 
     for (const scope of forLoopScopes) {
+      const scopeIsDirty = scope.scopeNodeIds.some(id => this.nodes.get(id)?.dirty)
+      if (this.executedForLoopScopes.has(scope.endOp.id) && !scopeIsDirty) {
+        continue
+      }
+
       try {
         const loopResults = await this.executeForLoopScope(
           scope.beginOp,
@@ -399,12 +423,24 @@ export class GraphExecutor {
         )
         results.set(scope.endOp.id, { value: { data: loopResults }, changed: true })
       } catch (error) {
+        // pull() leaves a failed operator in ERROR state. Clear only the public
+        // dirty bit so the RAF loop does not immediately retry it; a real input
+        // change calls markDirty() and makes the scope eligible again.
+        for (const id of scope.scopeNodeIds) {
+          const op = this.nodes.get(id)
+          if (op) op.dirty = false
+        }
+        // Keep the last completed output cached so downstream root pulls do not
+        // enter ForLoopEndOp's fallback iterator and retry within this frame.
+        scope.endOp.setCachedOutput({ data: scope.endOp.outputs.data.value })
         console.error('[Noodles] ForLoop execution error:', error)
         results.set(scope.endOp.id, {
           value: null,
           changed: false,
           error: error instanceof Error ? error : new Error(String(error)),
         })
+      } finally {
+        this.executedForLoopScopes.add(scope.endOp.id)
       }
     }
 
@@ -568,7 +604,10 @@ export class GraphExecutor {
       }
     }
 
-    if (changed) this.isDirty = true
+    if (changed) {
+      this.executedForLoopScopes.clear()
+      this.isDirty = true
+    }
   }
 
   // Find root operators (sinks - DeckRenderer, Out, Viewer, etc.)
