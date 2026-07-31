@@ -136,6 +136,7 @@ import { getArc } from '../utils/arc-geometry'
 import { colorToHex, hexToColor } from '../utils/color'
 import { debugDirty, debugExecute, debugParams, debugPull } from '../utils/debug'
 import { getDirections } from '../utils/directions'
+import { geocodeWithMapbox } from '../utils/geocoding'
 import {
   applyStyleOverrides,
   type MaplibreStyle,
@@ -2567,14 +2568,37 @@ export class GeocoderOp extends Operator<GeocoderOp> {
       location: new Point2DField(),
     }
   }
-  async execute(_: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+  async execute({
+    query,
+  }: ExtractProps<typeof this.inputs>): Promise<ExtractProps<typeof this.outputs>> {
     const { getKey } = getKeysStore()
-    if (!getKey('mapbox')) {
+    const apiKey = getKey('mapbox')
+    if (!apiKey) {
       throw new Error('Mapbox API key required (Settings > API Keys)')
     }
-    // Push-based: the UI component drives op.outputs.location.next() directly.
-    // Return current output so downstream pull-chain succeeds.
-    return this.outputData
+
+    // An unconnected query is driven by GeocoderOpComponent so the user can
+    // inspect Mapbox's suggestions and choose a result. Only connected queries
+    // should geocode automatically during graph execution.
+    if (this.inputs.query.subscriptions.size === 0) {
+      return this.outputData
+    }
+
+    if (!query.trim()) {
+      return this.outputData
+    }
+
+    const [result] = await geocodeWithMapbox(query, apiKey)
+    if (!result) {
+      throw new Error(`No geocoding results for "${query}"`)
+    }
+
+    return {
+      location: {
+        lng: result.coordinates.longitude,
+        lat: result.coordinates.latitude,
+      },
+    }
   }
 }
 

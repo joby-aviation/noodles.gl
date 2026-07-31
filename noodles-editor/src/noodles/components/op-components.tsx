@@ -66,6 +66,7 @@ import {
   hasOp,
   setHoveredOutputHandle,
   updateOperatorId,
+  useEdgeConnectionStore,
   useNestingStore,
   useOperatorStore,
   useUIStore,
@@ -1555,6 +1556,9 @@ function GeocoderOpComponent({
   const connectionErrors = useConnectionErrors(op)
   const hasConnectionErrors = connectionErrors.size > 0
   const isDimmed = useNodeDimmed(id)
+  const queryConnected = useEdgeConnectionStore(state =>
+    state.connectionMap.has(`${id}::par.query`)
+  )
 
   // Get API key directly from store (reactive)
   const apiKey = useKeysStore(state => state.getKey('mapbox'))
@@ -1562,6 +1566,12 @@ function GeocoderOpComponent({
   useLayoutEffect(() => {
     if (!op) return
     op.removeConnectionError('geocoder-setup')
+
+    // Connected queries execute headlessly; match other connected inputs by
+    // hiding the editor instead of mounting a second, interactive query UI.
+    if (queryConnected) {
+      return
+    }
 
     if (!containerRef.current) {
       return
@@ -1624,7 +1634,7 @@ function GeocoderOpComponent({
       g.onRemove()
       geocoderRef.current = undefined
     }
-  }, [op, apiKey])
+  }, [op, apiKey, queryConnected])
 
   const locked = useLocked(op)
   useFieldVisibility(op)
@@ -1663,7 +1673,7 @@ function GeocoderOpComponent({
         <div
           ref={containerRef}
           className={s.fieldWrapper}
-          style={{ display: hasError ? 'none' : 'block' }}
+          style={{ display: hasError || queryConnected ? 'none' : 'block' }}
         />
         <div className={s.outputHandleContainer}>
           {Object.entries(op.outputs).map(([key, field]) => (

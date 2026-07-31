@@ -1,7 +1,8 @@
 import * as turf from '@turf/turf'
 import { Temporal } from 'temporal-polyfill'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { NumberField } from './fields'
+import { NumberField, StringField } from './fields'
+import { getKeysStore } from './keys-store'
 import {
   AccessorOp,
   BitmapOverlayWidgetOp,
@@ -17,6 +18,7 @@ import {
   ExpressionOp,
   FileOp,
   FilterOp,
+  GeocoderOp,
   GeoJsonLayerOp,
   GeoJsonTransformOp,
   JSONOp,
@@ -3837,6 +3839,61 @@ describe('DirectionsOp', () => {
     // Verify DirectionsOp correctly parses the GeoJSON Features
     expect(directionsOp.inputs.origin.value).toEqual({ lng: -74.006, lat: 40.7128 })
     expect(directionsOp.inputs.destination.value).toEqual({ lng: -73.935242, lat: 40.73061 })
+  })
+})
+
+describe('GeocoderOp', () => {
+  afterEach(() => {
+    getKeysStore().clearBrowserKey('mapbox')
+    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
+  })
+
+  it('geocodes its query when executed', async () => {
+    getKeysStore().setBrowserKey('mapbox', 'test-token')
+    const fetchMock = vi.fn().mockResolvedValue({
+      json: vi.fn().mockResolvedValue({
+        features: [
+          {
+            place_name: 'Los Angeles, California, United States',
+            center: [-118.2437, 34.0522],
+          },
+        ],
+      }),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const geocoderOp = new GeocoderOp('/geocoder')
+    geocoderOp.inputs.query.addConnection('query-connection', new StringField('Los Angeles'))
+    const result = await geocoderOp.execute({ query: 'Los Angeles' })
+
+    expect(result).toEqual({ location: { lng: -118.2437, lat: 34.0522 } })
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://api.mapbox.com/geocoding/v5/mapbox.places/Los%20Angeles.json?access_token=test-token&limit=5'
+    )
+  })
+
+  it('preserves the user-selected result when its query is not connected', async () => {
+    getKeysStore().setBrowserKey('mapbox', 'test-token')
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+
+    const geocoderOp = new GeocoderOp('/geocoder')
+    geocoderOp.outputs.location.next({ lng: -118.2437, lat: 34.0522 })
+
+    await expect(geocoderOp.execute({ query: 'Los Angeles' })).resolves.toEqual({
+      location: { lng: -118.2437, lat: 34.0522 },
+    })
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('requires a Mapbox API key', async () => {
+    vi.spyOn(getKeysStore(), 'getKey').mockReturnValue(undefined)
+    const geocoderOp = new GeocoderOp('/geocoder')
+
+    await expect(geocoderOp.execute({ query: 'Los Angeles' })).rejects.toThrow(
+      'Mapbox API key required (Settings > API Keys)'
+    )
   })
 })
 
