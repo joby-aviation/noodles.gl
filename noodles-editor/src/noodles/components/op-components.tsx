@@ -1667,7 +1667,7 @@ function GeocoderOpComponent({
               field={field}
               disabled={locked}
               handle={PAR_HANDLE_OPTIONS}
-              renderInput={false}
+              renderInput={queryConnected}
             />
           ))}
         <div
