@@ -2566,6 +2566,7 @@ export class GeocoderOp extends Operator<GeocoderOp> {
   createOutputs() {
     return {
       location: new Point2DField(),
+      results: new DataField(),
     }
   }
   async execute({
@@ -2584,20 +2585,19 @@ export class GeocoderOp extends Operator<GeocoderOp> {
       return this.outputData
     }
 
-    if (!query.trim()) {
-      return this.outputData
-    }
+    const emptyResult = { location: { lng: 0, lat: 0 }, results: [] }
+    if (!query.trim()) return emptyResult
 
-    const [result] = await geocodeWithMapbox(query, apiKey)
-    if (!result) {
-      throw new Error(`No geocoding results for "${query}"`)
-    }
+    const results = await geocodeWithMapbox(query, apiKey)
+    const [result] = results
+    if (!result) return emptyResult
 
     return {
       location: {
         lng: result.coordinates.longitude,
         lat: result.coordinates.latitude,
       },
+      results,
     }
   }
 }
