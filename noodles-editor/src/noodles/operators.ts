@@ -5135,11 +5135,6 @@ export class TextLayerOp extends Operator<TextLayerOp> {
       getPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true }),
       getText: new StringField('', { accessor: true }),
       billboard: new BooleanField(true),
-      characterSet: new StringLiteralField(undefined, {
-        values: ['auto'],
-        optional: true,
-        showByDefault: false,
-      }),
       fontFamily: new StringField('Inter'),
       fontWeight: new NumberField(400, { min: 100, max: 900, step: 100 }),
       sizeUnits: new StringLiteralField('pixels', {

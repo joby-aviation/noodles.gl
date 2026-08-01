@@ -38,7 +38,6 @@ describe('TextLayerOp', () => {
     op.inputs.lineHeight.setValue(1.25)
     op.inputs.wordBreak.setValue('break-all')
     op.inputs.maxWidth.setValue(12)
-    op.inputs.characterSet.setValue('auto')
 
     const { layer } = op.execute(getInputProps(op))
 
@@ -58,7 +57,6 @@ describe('TextLayerOp', () => {
       lineHeight: 1.25,
       wordBreak: 'break-all',
       maxWidth: 12,
-      characterSet: 'auto',
     })
   })
 
