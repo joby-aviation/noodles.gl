@@ -1138,6 +1138,47 @@ describe('ForLoop execution via GraphExecutor.executeFrame()', () => {
     expect(endOp.outputs.data.value).toEqual([11, 12, 13])
   })
 
+  it('does not re-execute a clean loop after unrelated graph mutations', async () => {
+    const executor = new GraphExecutor()
+    const beginOp = new ForLoopBeginOp('/forloop-begin')
+    const mathOp = new MathOp('/math')
+    const endOp = new ForLoopEndOp('/forloop-end')
+
+    beginOp.inputs.data.setValue([1, 2, 3])
+    mathOp.inputs.a.addConnection('begin-to-math', beginOp.outputs.item)
+    mathOp.inputs.b.setValue(1)
+    mathOp.inputs.operator.setValue('add')
+    mathOp.addUpstreamDependency(beginOp)
+    beginOp.addDownstreamDependent(mathOp)
+    endOp.inputs.item.addConnection('math-to-end', mathOp.outputs.result)
+    endOp.addUpstreamDependency(mathOp)
+    mathOp.addDownstreamDependent(endOp)
+    endOp.createForLoopListeners([beginOp, mathOp, endOp])
+
+    executor.addNode(beginOp)
+    executor.addNode(mathOp)
+    executor.addNode(endOp)
+    executor.addEdge(beginOp.id, mathOp.id)
+    executor.addEdge(mathOp.id, endOp.id)
+
+    const executeSpy = vi.spyOn(mathOp, 'execute')
+    await executor.executeFrame(performance.now())
+    expect(executeSpy).toHaveBeenCalledTimes(3)
+
+    const unrelatedA = new NumberOp('/unrelated-a')
+    const unrelatedB = new NumberOp('/unrelated-b')
+    executor.addNode(unrelatedA)
+    executor.addNode(unrelatedB)
+    executor.addEdge(unrelatedA.id, unrelatedB.id)
+    await executor.executeFrame(performance.now())
+    expect(executeSpy).toHaveBeenCalledTimes(3)
+
+    executor.removeEdge(unrelatedA.id, unrelatedB.id)
+    executor.removeNode(unrelatedB.id)
+    await executor.executeFrame(performance.now())
+    expect(executeSpy).toHaveBeenCalledTimes(3)
+  })
+
   it('does not retry a failed loop until an input changes', async () => {
     const executor = new GraphExecutor()
     const beginOp = new ForLoopBeginOp('/forloop-begin')

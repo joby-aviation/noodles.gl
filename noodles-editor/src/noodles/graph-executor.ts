@@ -153,8 +153,7 @@ export class GraphExecutor {
   private lastFrameTime = 0
   private frameInterval: number
   // Prevent unchanged or failed ForLoop scopes from rerunning every RAF frame.
-  private executedForLoopScopes = new Set<string>()
-  private edgeSignature = ''
+  private executedForLoopScopes = new Map<string, string>()
 
   // Dirty tracking
   private dirtyNodes: Set<string> = new Set()
@@ -220,7 +219,6 @@ export class GraphExecutor {
   addNode(node: Operator<IOperator>): void {
     this.nodes.set(node.id, node)
     this.manuallyAddedNodes.add(node.id) // Track manually added nodes
-    this.executedForLoopScopes.clear()
     this.isDirty = true
   }
 
@@ -231,7 +229,6 @@ export class GraphExecutor {
     this.edges = this.edges.filter(edge => edge.source !== nodeId && edge.target !== nodeId)
     this.upstream.delete(nodeId)
     this.downstream.delete(nodeId)
-    this.executedForLoopScopes.clear()
     for (const set of this.upstream.values()) set.delete(nodeId)
     for (const set of this.downstream.values()) set.delete(nodeId)
     this.isDirty = true
@@ -248,7 +245,6 @@ export class GraphExecutor {
     }
 
     this.edges.push({ source: sourceId, target: targetId })
-    this.executedForLoopScopes.clear()
 
     // Update upstream/downstream maps
     if (!this.downstream.has(sourceId)) this.downstream.set(sourceId, new Set())
@@ -263,7 +259,6 @@ export class GraphExecutor {
   // Remove an edge
   removeEdge(sourceId: string, targetId: string): void {
     this.edges = this.edges.filter(edge => !(edge.source === sourceId && edge.target === targetId))
-    this.executedForLoopScopes.clear()
     this.downstream.get(sourceId)?.delete(targetId)
     this.upstream.get(targetId)?.delete(sourceId)
     this.isDirty = true
@@ -271,21 +266,9 @@ export class GraphExecutor {
 
   // Build graph from edges array
   buildFromEdges(edges: Edge[]): void {
-    const nextEdgeSignature = edges
-      .map(edge =>
-        [edge.id, edge.source, edge.sourceHandle, edge.target, edge.targetHandle].join(':')
-      )
-      .sort()
-      .join('|')
-    const edgesChanged = nextEdgeSignature !== this.edgeSignature
-    this.edgeSignature = nextEdgeSignature
-
     this.edges = []
     this.upstream.clear()
     this.downstream.clear()
-    if (edgesChanged) {
-      this.executedForLoopScopes.clear()
-    }
 
     for (const edge of edges) {
       // Skip self-referencing parameter edges (not true cycles - output depends on input value)
@@ -407,10 +390,15 @@ export class GraphExecutor {
     // Find and execute ForLoop scopes first
     // ForLoop scopes need to complete their iterations before downstream operators can pull their results
     const forLoopScopes = this.findForLoopScopes()
+    const activeForLoopEndIds = new Set(forLoopScopes.map(scope => scope.endOp.id))
+    for (const endOpId of this.executedForLoopScopes.keys()) {
+      if (!activeForLoopEndIds.has(endOpId)) this.executedForLoopScopes.delete(endOpId)
+    }
 
     for (const scope of forLoopScopes) {
       const scopeIsDirty = scope.scopeNodeIds.some(id => this.nodes.get(id)?.dirty)
-      if (this.executedForLoopScopes.has(scope.endOp.id) && !scopeIsDirty) {
+      const scopeSignature = this.getForLoopScopeSignature(scope.scopeNodeIds)
+      if (this.executedForLoopScopes.get(scope.endOp.id) === scopeSignature && !scopeIsDirty) {
         continue
       }
 
@@ -440,7 +428,7 @@ export class GraphExecutor {
           error: error instanceof Error ? error : new Error(String(error)),
         })
       } finally {
-        this.executedForLoopScopes.add(scope.endOp.id)
+        this.executedForLoopScopes.set(scope.endOp.id, scopeSignature)
       }
     }
 
@@ -604,10 +592,7 @@ export class GraphExecutor {
       }
     }
 
-    if (changed) {
-      this.executedForLoopScopes.clear()
-      this.isDirty = true
-    }
+    if (changed) this.isDirty = true
   }
 
   // Find root operators (sinks - DeckRenderer, Out, Viewer, etc.)
@@ -751,6 +736,17 @@ export class GraphExecutor {
     endOp.setCachedOutput({ data: results })
 
     return results
+  }
+
+  private getForLoopScopeSignature(scopeNodeIds: string[]): string {
+    const nodeIds = [...new Set(scopeNodeIds)].sort()
+    const nodeIdSet = new Set(nodeIds)
+    const edges = this.edges
+      .filter(edge => nodeIdSet.has(edge.source) && nodeIdSet.has(edge.target))
+      .map(edge => `${edge.source}->${edge.target}`)
+      .sort()
+
+    return `${nodeIds.join('|')}::${edges.join('|')}`
   }
 
   // Find ForLoop scopes in the graph (ForLoopBegin + ForLoopEnd pairs within same group)
