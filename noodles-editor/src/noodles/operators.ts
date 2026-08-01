@@ -5138,11 +5138,65 @@ export class TextLayerOp extends Operator<TextLayerOp> {
       fontFamily: new StringField('Inter'),
       fontWeight: new NumberField(400, { min: 100, max: 900, step: 100 }),
       sizeUnits: new StringLiteralField('pixels', {
-        values: ['pixels', 'meters'],
+        values: ['pixels', 'meters', 'common'],
+        showByDefault: false,
+      }),
+      sizeScale: new NumberField(1, { min: 0, softMax: 100, showByDefault: false }),
+      sizeMinPixels: new NumberField(0, { min: 0, softMax: 200, showByDefault: false }),
+      sizeMaxPixels: new NumberField(Number.MAX_SAFE_INTEGER, {
+        min: 0,
+        softMax: 2048,
         showByDefault: false,
       }),
       getSize: new NumberField(48, { min: 0, softMax: 200, accessor: true }),
       getColor: new ColorField('#f0f0f0', { accessor: true, transform: hexToColor }),
+      background: new BooleanField(false, { showByDefault: false }),
+      getBackgroundColor: new ColorField('#ffffffff', {
+        accessor: true,
+        transform: hexToColor,
+        showByDefault: false,
+      }),
+      getBorderColor: new ColorField('#000000ff', {
+        accessor: true,
+        transform: hexToColor,
+        showByDefault: false,
+      }),
+      getBorderWidth: new NumberField(0, {
+        min: 0,
+        softMax: 20,
+        accessor: true,
+        showByDefault: false,
+      }),
+      backgroundPadding: new Vec2Field(
+        { x: 0, y: 0 },
+        { returnType: 'tuple', showByDefault: false }
+      ),
+      backgroundBorderRadius: new NumberField(0, {
+        min: 0,
+        softMax: 100,
+        showByDefault: true,
+      }),
+      lineHeight: new NumberField(1, {
+        min: 0,
+        softMax: 4,
+        step: 0.05,
+        showByDefault: false,
+      }),
+      outlineWidth: new NumberField(0, {
+        min: 0,
+        softMax: 12,
+        step: 0.1,
+        showByDefault: false,
+      }),
+      outlineColor: new ColorField('#000000ff', {
+        transform: hexToColor,
+        showByDefault: false,
+      }),
+      wordBreak: new StringLiteralField('break-word', {
+        values: ['break-word', 'break-all'],
+        showByDefault: false,
+      }),
+      maxWidth: new NumberField(-1, { min: -1, softMax: 100, showByDefault: false }),
       getAngle: new NumberField(0, {
         softMin: 0,
         softMax: 360,
@@ -5179,7 +5233,6 @@ export class TextLayerOp extends Operator<TextLayerOp> {
         },
         { showByDefault: false }
       ),
-      backgroundBorderRadius: new NumberField(0, { min: 0, optional: true }),
       extensions: new ListField(new ExtensionField(), { showByDefault: false }),
     }
   }
