@@ -5184,8 +5184,8 @@ export class TextLayerOp extends Operator<TextLayerOp> {
       }),
       outlineWidth: new NumberField(0, {
         min: 0,
-        softMax: 1,
-        step: 0.01,
+        softMax: 12,
+        step: 0.1,
         showByDefault: false,
       }),
       outlineColor: new ColorField('#000000ff', {

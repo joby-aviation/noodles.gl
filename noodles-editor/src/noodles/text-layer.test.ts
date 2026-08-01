@@ -18,6 +18,8 @@ describe('TextLayerOp', () => {
     expect(layer.backgroundBorderRadius).toBe(0)
     expect(layer.outlineWidth).toBe(0)
     expect(layer.outlineColor).toEqual([0, 0, 0, 255])
+    expect(op.inputs.outlineWidth.softMax).toBe(12)
+    expect(op.inputs.outlineWidth.step).toBe(0.1)
   })
 
   it('passes text background, border, outline, sizing, and wrapping props through', () => {
