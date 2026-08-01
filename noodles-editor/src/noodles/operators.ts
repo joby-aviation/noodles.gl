@@ -5220,7 +5220,8 @@ export class IconLayerOp extends Operator<IconLayerOp> {
         'https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/icon-atlas.png',
         { showByDefault: false, accept: '.png,.jpg,.jpeg,.gif,.webp,.svg' }
       ),
-      iconMapping: new FileUrlField(
+      // MapStyleField accepts either a URL string or a parsed JSON object and retains file upload UI.
+      iconMapping: new MapStyleField(
         'https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/icon-atlas.json',
         { showByDefault: false, accept: '.json' }
       ),
@@ -5302,6 +5303,39 @@ export class IconLayerOp extends Operator<IconLayerOp> {
 
       const blob = new Blob([result.data], { type: mimeType })
       return URL.createObjectURL(blob)
+    }
+
+    const resolveIconMapping = async (
+      mapping: string | Record<string, unknown>
+    ): Promise<string | Record<string, unknown>> => {
+      if (typeof mapping !== 'string' || !mapping.startsWith(projectScheme)) {
+        return mapping
+      }
+
+      const { readAsset } = await import('./storage')
+      const { useFileSystemStore } = await import('./filesystem-store')
+
+      const { currentProjectName, activeStorageType } = useFileSystemStore.getState()
+      if (!currentProjectName) {
+        throw new Error('No project loaded. Please save or load a project first.')
+      }
+
+      const fileName = mapping.substring(projectScheme.length)
+      const result = await readAsset(activeStorageType, currentProjectName, fileName)
+      if (!result.success) {
+        throw new Error(result.error.message)
+      }
+
+      try {
+        const parsed = JSON.parse(result.data)
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+          throw new Error('icon mapping must be a JSON object')
+        }
+        return parsed as Record<string, unknown>
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        throw new Error(`Unable to parse icon mapping "${mapping}": ${message}`)
+      }
     }
 
     // Helper to resolve image URL and extract dimensions
@@ -5386,9 +5420,13 @@ export class IconLayerOp extends Operator<IconLayerOp> {
 
       iconProps = { getIcon: cached.accessor }
     } else {
-      // Atlas mode - resolve atlas URL
+      // Atlas mode - resolve uploaded project assets and accept parsed JSON from connected inputs
       const resolvedIconAtlas = await resolveProjectUrl(iconAtlas)
-      iconProps = { iconMapping, iconAtlas: resolvedIconAtlas }
+      const resolvedIconMapping = await resolveIconMapping(iconMapping)
+      iconProps = {
+        iconMapping: resolvedIconMapping as IconLayerProps['iconMapping'],
+        iconAtlas: resolvedIconAtlas,
+      }
     }
 
     const props: IconLayerProps = {
