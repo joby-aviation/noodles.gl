@@ -111,6 +111,7 @@ export const categories = {
     'FpsWidget',
     'FullscreenWidget',
     'LegendWidget',
+    'ScaleWidget',
     'ScreenshotWidget',
     'ZoomWidget',
   ],
