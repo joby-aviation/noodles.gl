@@ -194,6 +194,12 @@ function StringLiteralCellEditor({ value, onChange, onComplete, column }: CellEd
     selectRef.current?.focus()
   }, [])
 
+  if (configuredValues.length === 0) {
+    return (
+      <StringCellEditor value={value} onChange={onChange} onComplete={onComplete} column={column} />
+    )
+  }
+
   return (
     <select
       ref={selectRef}

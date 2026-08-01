@@ -136,6 +136,32 @@ describe('TableEditor - Edit Flow', () => {
 
       expect(onDataChange).toHaveBeenCalledWith([{ anchor: 'end' }], 'Edit cell anchor')
     })
+
+    it('should allow free text editing when a string literal has no configured choices', () => {
+      const onDataChange = vi.fn()
+      const literalSchema: TableSchema = {
+        columns: [{ name: 'anchor', type: 'stringLiteral', defaultValue: '' }],
+      }
+
+      const { getByText, getByRole, queryByRole } = render(
+        <TableEditor
+          op={mockOp}
+          data={[{ anchor: 'custom' }]}
+          schema={literalSchema}
+          onDataChange={onDataChange}
+          onSchemaChange={vi.fn()}
+        />
+      )
+
+      fireEvent.click(getByText('custom'))
+
+      expect(queryByRole('combobox')).toBeNull()
+      const input = getByRole('textbox') as HTMLInputElement
+      fireEvent.change(input, { target: { value: 'updated' } })
+      fireEvent.blur(input)
+
+      expect(onDataChange).toHaveBeenCalledWith([{ anchor: 'updated' }], 'Edit cell anchor')
+    })
   })
 
   describe('Multiple edit cycles', () => {
