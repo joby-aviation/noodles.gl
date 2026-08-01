@@ -5179,7 +5179,7 @@ export class TextLayerOp extends Operator<TextLayerOp> {
       backgroundBorderRadius: new NumberField(0, {
         min: 0,
         softMax: 100,
-        showByDefault: false,
+        showByDefault: true,
       }),
       lineHeight: new NumberField(1, {
         min: 0,
