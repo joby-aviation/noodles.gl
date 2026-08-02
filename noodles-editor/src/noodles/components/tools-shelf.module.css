@@ -46,6 +46,43 @@
   font-size: 16px;
 }
 
+/* Groups of related tools are separated by a hairline rather than extra gap */
+.divider {
+  width: 1px;
+  align-self: stretch;
+  margin: 4px 2px;
+  background-color: var(--color-border);
+}
+
+/* Horizontal variant used by the grouped GIS tools dropdown trigger */
+.toolButtonWide {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  background-color: transparent;
+  color: var(--color-text-primary);
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.toolButtonWide:hover,
+.toolButtonWide[data-state="open"] {
+  background-color: var(--color-bg-hover);
+}
+
+.toolButtonWide i {
+  font-size: 16px;
+}
+
+.caret {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+}
+
 .toolLabel {
   font-size: 11px;
   font-weight: 500;
