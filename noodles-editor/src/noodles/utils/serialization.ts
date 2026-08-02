@@ -7,8 +7,10 @@ import type {
 import { debugSerialize } from '../../utils/debug'
 import { resizeableNodes } from '../components/op-components'
 import type { useOperatorStore } from '../store'
+import { deepEqual } from './deep-equal'
 import type { ExtractProps } from './extract-props'
 import type { StorageType } from './filesystem'
+import { MULTI_INPUT_EDGE_TYPE } from './multi-input-utils'
 import { parseHandleId } from './path-utils'
 
 export { NOODLES_VERSION } from './migrate-schema'
@@ -72,16 +74,6 @@ export type SerializeNodesOptions = {
   // even if visibility matches heuristic. This handles fields visible due to connections
   // that won't exist after paste.
   forClipboard?: boolean
-}
-
-function deepEqual(a: unknown, b: unknown): boolean {
-  if (a === b) return true
-  if (a === null || b === null || typeof a !== 'object' || typeof b !== 'object') return false
-  if (Array.isArray(a) !== Array.isArray(b)) return false
-  const keysA = Object.keys(a as object)
-  const keysB = Object.keys(b as object)
-  if (keysA.length !== keysB.length) return false
-  return keysA.every(k => deepEqual((a as any)[k], (b as any)[k]))
 }
 
 // Check if two sets have the same elements
@@ -227,11 +219,26 @@ export function serializeEdges(
       }
       return true
     })
-    .map(edge =>
-      Object.fromEntries(
+    .map(edge => {
+      const serialized = Object.fromEntries(
         Object.entries(edge).filter(([key]) => !['selected', 'animated'].includes(key))
       )
-    )
+
+      // Multi-input slot state (edge type + orderIndex/groupSize) is derived from edge
+      // array order at load time — keep files canonical by not persisting it
+      if (serialized.type === MULTI_INPUT_EDGE_TYPE) {
+        delete serialized.type
+        const { orderIndex: _orderIndex, groupSize: _groupSize, ...data } = (serialized.data ??
+          {}) as Record<string, unknown>
+        if (Object.keys(data).length > 0) {
+          serialized.data = data
+        } else {
+          delete serialized.data
+        }
+      }
+
+      return serialized
+    })
 }
 
 // Pre-load all example asset URLs for download functionality

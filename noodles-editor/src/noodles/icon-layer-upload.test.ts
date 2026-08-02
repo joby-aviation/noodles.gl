@@ -325,9 +325,9 @@ describe('IconLayerOp Upload Support', () => {
       })
 
       const iconData = (result.layer.getIcon as () => any)()
-      // Should normalize to 512px max (sizeMaxPixels * 2, capped at 512)
+      // sizeMaxPixels=256 → 512px texture (256 * 2), image is 4003x2155
+      // 4003 > 512, so normalize: width=512, height=512/(4003/2155)≈276
       expect(iconData.width).toBe(512)
-      // Height should maintain aspect ratio: 512 / (4003/2155) ≈ 276
       expect(iconData.height).toBe(276)
       expect(iconData.id).toBe('https://example.com/large-aircraft.png')
     })
