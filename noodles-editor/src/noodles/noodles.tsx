@@ -738,9 +738,6 @@ export function getNoodles(): Visualization {
   }, [])
 
   const [showOverlay, setShowOverlay] = useState(true)
-  const [layoutMode, setLayoutMode] = useState<'split' | 'noodles-on-top' | 'output-on-top'>(
-    'noodles-on-top'
-  )
   const [showDebugInfo, setShowDebugInfo] = useState(false)
 
   // Render settings are now stored as OutOp inputs (see migration 012)
@@ -792,7 +789,6 @@ export function getNoodles(): Visualization {
       setEdges(normalizeMultiInputEdges(edges as ReactFlowEdge[]))
 
       // Load editor settings from project with defaults
-      setLayoutMode(editorSettings?.layoutMode ?? 'noodles-on-top')
       setShowOverlay(editorSettings?.showOverlay ?? true)
       setShowDebugInfo(editorSettings?.showDebugInfo ?? false)
 
@@ -1002,13 +998,12 @@ export function getNoodles(): Visualization {
       viewport,
       timeline,
       editorSettings: {
-        layoutMode,
         showOverlay,
         showDebugInfo,
       },
       ...(projectKeys ? { apiKeys: projectKeys } : {}),
     }
-  }, [nodes, edges, layoutMode, showOverlay, showDebugInfo, timelineStore.toTimelineJSON])
+  }, [nodes, edges, showOverlay, showDebugInfo, timelineStore.toTimelineJSON])
 
   const onMenuSave = useCallback(async () => {
     if (!projectName) return
@@ -1797,20 +1792,12 @@ export function getNoodles(): Visualization {
       </ErrorBoundary>
     ),
     propertiesPanel,
-    layoutMode,
     showOverlay,
-    onChangeLayoutMode: setLayoutMode,
     onChangeShowOverlay: setShowOverlay,
     showDebugInfo,
     onChangeShowDebugInfo: setShowDebugInfo,
     spreadsheetVisible,
-    onChangeSpreadsheetVisible: useCallback(
-      (visible: boolean) => {
-        setSpreadsheetVisible(visible)
-        if (visible && layoutMode !== 'split') setLayoutMode('split')
-      },
-      [setSpreadsheetVisible, layoutMode]
-    ),
+    onChangeSpreadsheetVisible: setSpreadsheetVisible,
     // Render settings are now read from OutOp via useRenderSettings() hook
     // Export these so timeline-editor can create the menu with render actions
     projectName:
