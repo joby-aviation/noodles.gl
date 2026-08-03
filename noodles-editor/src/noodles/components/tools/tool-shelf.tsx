@@ -10,12 +10,14 @@ import {
   type RecipeGroup,
 } from './geo-recipes'
 import { useMapToolStore } from './map-tool-store'
-import { computeVisibleCount } from './overflow'
+import { computeShelfLayout } from './overflow'
 import s from './tool-shelf.module.css'
 
 // The shelf shows as many tool categories as fit, and moves the rest into a More menu.
-// Widths are measured from a hidden copy of the row rendered at natural size, so the
-// visible count reflects real button widths rather than an estimate.
+// More is pure overflow: it only appears when a category could not fit, and it only
+// lists the categories that were pushed out of the row. Widths are measured from a
+// hidden copy of the row rendered at natural size, so the visible count reflects real
+// button widths rather than an estimate.
 
 interface ToolShelfProps {
   onOpenAddNode?: () => void
@@ -32,7 +34,7 @@ const SHELF_GROUPS: RecipeGroup[] = ['geometry', 'combine', 'analysis', 'transfo
 
 const SOURCE_RECIPES = GEO_RECIPES.filter(recipe => recipe.group === 'source')
 
-// Space kept clear for the always-visible items (Import, Draw, Measure, More, Add Op)
+// Space kept clear for the always-visible items (Import, Point, Draw, Measure, Add Op)
 const RESERVED_WIDTH = 330
 const GAP = 4
 
@@ -47,7 +49,8 @@ export function ToolShelf({
 
   const rowRef = useRef<HTMLDivElement>(null)
   const measureRef = useRef<HTMLDivElement>(null)
-  const [visibleCount, setVisibleCount] = useState(SHELF_GROUPS.length)
+  const moreMeasureRef = useRef<HTMLButtonElement>(null)
+  const [layout, setLayout] = useState({ visibleCount: SHELF_GROUPS.length, showMore: false })
 
   const groups = useMemo(
     () =>
@@ -58,15 +61,16 @@ export function ToolShelf({
     []
   )
 
-  // Re-measure on resize. The hidden row always renders every group, so its children
-  // give the natural width of each button regardless of what is currently visible.
+  // Re-measure on resize. The hidden row always renders every group plus a More
+  // button, so its children give natural widths regardless of what is visible now.
   const remeasure = useCallback(() => {
     const row = rowRef.current
     const measurer = measureRef.current
     if (!row || !measurer) return
     const widths = Array.from(measurer.children).map(child => child.getBoundingClientRect().width)
     const available = row.getBoundingClientRect().width - RESERVED_WIDTH
-    setVisibleCount(computeVisibleCount(widths, available, GAP))
+    const moreWidth = moreMeasureRef.current?.getBoundingClientRect().width ?? 0
+    setLayout(computeShelfLayout(widths, available, GAP, moreWidth))
   }, [])
 
   useEffect(() => {
@@ -76,8 +80,8 @@ export function ToolShelf({
     return () => observer.disconnect()
   }, [remeasure])
 
-  const visibleGroups = groups.slice(0, visibleCount)
-  const overflowGroups = groups.slice(visibleCount)
+  const visibleGroups = groups.slice(0, layout.visibleCount)
+  const overflowGroups = groups.slice(layout.visibleCount)
 
   const runRecipe = useCallback(
     (recipe: GeoRecipe, source: string) => {
@@ -179,12 +183,14 @@ export function ToolShelf({
         />
       ))}
 
-      {/* More is always present: it holds whatever overflowed plus a search over
-          every recipe, which is the only way to reach one by name. */}
-      <MoreMenu
-        overflowGroups={overflowGroups}
-        onSelect={recipe => runRecipe(recipe, 'shelf_more')}
-      />
+      {/* More holds only what did not fit, so it disappears when the row has room
+          for every category */}
+      {layout.showMore && overflowGroups.length > 0 && (
+        <MoreMenu
+          overflowGroups={overflowGroups}
+          onSelect={recipe => runRecipe(recipe, 'shelf_more')}
+        />
+      )}
 
       <div className={s.divider} />
 
@@ -200,14 +206,21 @@ export function ToolShelf({
         <span className={s.label}>Add Op</span>
       </button>
 
-      {/* Hidden measurement row: every group at natural width, never shown to the user */}
-      <div className={s.measurer} ref={measureRef} aria-hidden="true">
-        {groups.map(({ group }) => (
-          <button type="button" className={s.button} key={group} tabIndex={-1}>
-            <i className={GROUP_ICONS[group]} />
-            <span className={s.label}>{GROUP_LABELS[group]}</span>
-          </button>
-        ))}
+      {/* Hidden measurement row: every group at natural width, never shown to the user.
+          The More button is measured separately since it is not part of the fit. */}
+      <div className={s.measurer} aria-hidden="true">
+        <div ref={measureRef} className={s.measurerRow}>
+          {groups.map(({ group }) => (
+            <button type="button" className={s.button} key={group} tabIndex={-1}>
+              <i className={GROUP_ICONS[group]} />
+              <span className={s.label}>{GROUP_LABELS[group]}</span>
+            </button>
+          ))}
+        </div>
+        <button type="button" className={s.button} ref={moreMeasureRef} tabIndex={-1}>
+          <i className="pi pi-ellipsis-h" />
+          <span className={s.label}>More</span>
+        </button>
       </div>
     </div>
   )
@@ -256,8 +269,9 @@ function MoreMenu({
 }) {
   const [query, setQuery] = useState('')
 
-  // Search spans every recipe, including ones reachable from a visible group button,
-  // so typing a name always finds it wherever it happens to live right now.
+  // Browsing shows only the overflowed categories, since the rest have their own
+  // button. Search deliberately spans every recipe: once the user types a name they
+  // want it found wherever it currently lives, visible or not.
   const matches = useMemo(() => {
     const trimmed = query.trim().toLowerCase()
     if (!trimmed) return null
@@ -310,35 +324,33 @@ function MoreMenu({
               ))}
             </>
           ) : (
-            (overflowGroups.length > 0 ? overflowGroups : RECIPES_BY_GROUP).map(
-              ({ group, recipes }) => (
-                <DropdownMenu.Sub key={group}>
-                  <DropdownMenu.SubTrigger className={s.subTrigger}>
-                    <i className={`${GROUP_ICONS[group]} ${s.itemIcon}`} />
-                    <span className={s.itemName}>{GROUP_LABELS[group]}</span>
-                    <span className={s.count}>{recipes.length}</span>
-                    <i className={`pi pi-angle-right ${s.chevron}`} />
-                  </DropdownMenu.SubTrigger>
-                  <DropdownMenu.Portal>
-                    <DropdownMenu.SubContent className={s.menu} sideOffset={2} alignOffset={-4}>
-                      {recipes.map(recipe => (
-                        <DropdownMenu.Item
-                          key={recipe.id}
-                          className={s.item}
-                          onSelect={() => onSelect(recipe)}
-                        >
-                          <i className={`${recipe.icon} ${s.itemIcon}`} />
-                          <span className={s.itemText}>
-                            <span className={s.itemName}>{recipe.name}</span>
-                            <span className={s.itemSummary}>{recipe.summary}</span>
-                          </span>
-                        </DropdownMenu.Item>
-                      ))}
-                    </DropdownMenu.SubContent>
-                  </DropdownMenu.Portal>
-                </DropdownMenu.Sub>
-              )
-            )
+            overflowGroups.map(({ group, recipes }) => (
+              <DropdownMenu.Sub key={group}>
+                <DropdownMenu.SubTrigger className={s.subTrigger}>
+                  <i className={`${GROUP_ICONS[group]} ${s.itemIcon}`} />
+                  <span className={s.itemName}>{GROUP_LABELS[group]}</span>
+                  <span className={s.count}>{recipes.length}</span>
+                  <i className={`pi pi-angle-right ${s.chevron}`} />
+                </DropdownMenu.SubTrigger>
+                <DropdownMenu.Portal>
+                  <DropdownMenu.SubContent className={s.menu} sideOffset={2} alignOffset={-4}>
+                    {recipes.map(recipe => (
+                      <DropdownMenu.Item
+                        key={recipe.id}
+                        className={s.item}
+                        onSelect={() => onSelect(recipe)}
+                      >
+                        <i className={`${recipe.icon} ${s.itemIcon}`} />
+                        <span className={s.itemText}>
+                          <span className={s.itemName}>{recipe.name}</span>
+                          <span className={s.itemSummary}>{recipe.summary}</span>
+                        </span>
+                      </DropdownMenu.Item>
+                    ))}
+                  </DropdownMenu.SubContent>
+                </DropdownMenu.Portal>
+              </DropdownMenu.Sub>
+            ))
           )}
         </DropdownMenu.Content>
       </DropdownMenu.Portal>

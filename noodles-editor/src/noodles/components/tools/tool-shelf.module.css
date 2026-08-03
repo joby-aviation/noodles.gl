@@ -137,6 +137,13 @@
   left: -9999px;
 }
 
+/* The group buttons are measured as a set, so they need their own row: the
+   surrounding measurer also holds the More button, which is sized separately */
+.measurerRow {
+  display: flex;
+  gap: 4px;
+}
+
 /* Dropdown surfaces, shared by the split button, group menus and More */
 .menu {
   min-width: 260px;

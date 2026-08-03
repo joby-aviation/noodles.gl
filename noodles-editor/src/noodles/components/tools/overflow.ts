@@ -13,3 +13,31 @@ export function computeVisibleCount(widths: number[], available: number, gap: nu
   }
   return widths.length
 }
+
+export interface ShelfLayout {
+  // Number of leading items that get their own button
+  visibleCount: number
+  // Whether a More button is needed to hold the rest
+  showMore: boolean
+}
+
+// Decide how many shelf items get their own button, and whether More is needed at all.
+//
+// Two passes, because the answers depend on each other: More occupies space, but it
+// only exists if something overflowed. So first check whether everything fits with no
+// More; only when it does not, redo the fit against the narrower space that leaves
+// room for the More button.
+export function computeShelfLayout(
+  widths: number[],
+  available: number,
+  gap: number,
+  moreWidth: number
+): ShelfLayout {
+  if (computeVisibleCount(widths, available, gap) === widths.length) {
+    return { visibleCount: widths.length, showMore: false }
+  }
+  return {
+    visibleCount: computeVisibleCount(widths, available - moreWidth - gap, gap),
+    showMore: true,
+  }
+}
