@@ -1,6 +1,6 @@
 import * as Dialog from '@radix-ui/react-dialog'
 import { Cross2Icon } from '@radix-ui/react-icons'
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import ReactMapGL, { Layer, Source } from 'react-map-gl/maplibre'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { CARTO_DARK } from '../../utils/map-styles'
@@ -24,7 +24,12 @@ interface GeoEditorDialogProps {
   operator: Operator<IOperator>
 }
 
-function parseGeoJson(value: string): Feature[] {
+// A LineString needs 2 distinct positions; a Polygon ring needs 3 before closing
+export function minPointsFor(mode: DrawMode): number {
+  return mode === 'polygon' ? 3 : 2
+}
+
+export function parseGeoJson(value: string): Feature[] {
   try {
     const parsed = JSON.parse(value)
     if (parsed.type === 'FeatureCollection') return parsed.features ?? []
@@ -38,9 +43,15 @@ function parseGeoJson(value: string): Feature[] {
 export function GeoEditorDialog({ open, onOpenChange, operator }: GeoEditorDialogProps) {
   const [drawMode, setDrawMode] = useState<DrawMode>('polygon')
   const [currentPoints, setCurrentPoints] = useState<[number, number][]>([])
-  const [features, setFeatures] = useState<Feature[]>(() =>
-    parseGeoJson(String(operator.inputs.geojson?.value ?? ''))
-  )
+  const [features, setFeatures] = useState<Feature[]>([])
+
+  // Re-read the operator every time the dialog opens. Initializing state once would
+  // let a later upstream change be overwritten by whatever was on screen last time.
+  useEffect(() => {
+    if (!open) return
+    setFeatures(parseGeoJson(String(operator.inputs.geojson?.value ?? '')))
+    setCurrentPoints([])
+  }, [open, operator])
 
   const handleMapClick = useCallback(
     (e: { lngLat: { lng: number; lat: number } }) => {
@@ -62,7 +73,7 @@ export function GeoEditorDialog({ open, onOpenChange, operator }: GeoEditorDialo
   )
 
   const finishShape = useCallback(() => {
-    if (currentPoints.length < 2) return
+    if (currentPoints.length < minPointsFor(drawMode)) return
 
     let newFeature: Feature
     if (drawMode === 'line') {
@@ -157,7 +168,7 @@ export function GeoEditorDialog({ open, onOpenChange, operator }: GeoEditorDialo
               <i className="pi pi-stop" />
             </button>
             <div className={s.toolDivider} />
-            {currentPoints.length >= 2 && (
+            {currentPoints.length >= minPointsFor(drawMode) && (
               <button
                 type="button"
                 className={s.toolBtn}
@@ -220,7 +231,11 @@ export function GeoEditorDialog({ open, onOpenChange, operator }: GeoEditorDialo
           <div className={s.footer}>
             <span className={s.featureCount}>
               {features.length} feature{features.length !== 1 ? 's' : ''}
-              {currentPoints.length > 0 && ` | Drawing: ${currentPoints.length} points`}
+              {currentPoints.length > 0 &&
+                ` | Drawing: ${currentPoints.length} point${currentPoints.length !== 1 ? 's' : ''}`}
+              {currentPoints.length > 0 &&
+                currentPoints.length < minPointsFor(drawMode) &&
+                ` (need ${minPointsFor(drawMode)} for a ${drawMode})`}
             </span>
             <div className={s.footerActions}>
               <Dialog.Close asChild>

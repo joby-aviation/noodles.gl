@@ -143,6 +143,7 @@ import {
 } from '../utils/map-style-utils'
 import { CARTO_DARK, MAP_STYLES } from '../utils/map-styles'
 import { mulberry32 } from '../utils/random'
+import { sqlIdentifier, sqlLiteral } from '../utils/sql'
 import { FilterColorExtension } from './extensions/filter-color-extension'
 import { Mask3DExtension } from './extensions/mask-3d-extension'
 import {
@@ -6964,9 +6965,11 @@ export class GeoParquetOp extends Operator<GeoParquetOp> {
     const conn = await db.connect()
     try {
       await conn.query('INSTALL spatial; LOAD spatial;')
-      const limitClause = limit > 0 ? `LIMIT ${limit}` : ''
+      const limitClause = limit > 0 ? `LIMIT ${Math.floor(limit)}` : ''
+      // Quote both interpolations so URLs and column names containing quotes stay literal
+      const geomIdent = sqlIdentifier(geometryColumn)
       const result = await conn.query(
-        `SELECT ST_AsGeoJSON(${geometryColumn}) as geojson, * EXCLUDE(${geometryColumn}) FROM read_parquet('${url}') ${limitClause}`
+        `SELECT ST_AsGeoJSON(${geomIdent}) as geojson, * EXCLUDE(${geomIdent}) FROM read_parquet(${sqlLiteral(url)}) ${limitClause}`
       )
       const rows = result
         .toArray()

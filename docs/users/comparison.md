@@ -8,31 +8,31 @@ If you need **animated, data-driven map stories** — camera flythroughs, tempor
 
 ## Detailed comparison
 
-### vs. Kepler.gl / Studio
+### vs. Kepler.gl / Foursquare Studio
 
-Kepler is excellent for fast geospatial exploration — drop a CSV, see points on a map, adjust filters. But it produces **static views**. There's no timeline, no keyframeable parameters, no way to animate a camera move or export a video. When you need the visualization to *move*, Kepler is the starting point you outgrow.
+Kepler is excellent for fast geospatial exploration — drop a CSV, see points on a map, adjust filters. Its animation story centers on the time filter: you can play data through time and export that as a video. What it doesn't have is a general keyframe timeline — no camera moves, no easing curves, no animating an arbitrary parameter. When the story needs directed motion rather than a time sweep, that's where Noodles picks up.
 
-| | Kepler.gl | Noodles.gl |
+| | Kepler.gl / FSQ Studio | Noodles.gl |
 |---|---|---|
 | Drop CSV and explore | Instant | Instant (via Import Data) |
 | Animate camera | No | Keyframeable with curves |
-| Animate data over time | Time filter widget only | Full timeline, any parameter |
+| Animate data over time | Time filter playback | Full timeline, any parameter |
 | Composable pipeline | No | Reactive node graph |
-| Export video | No | MP4, any resolution |
-| Custom code | Limited expressions | Full JavaScript, DuckDB SQL |
+| Export video | Time filter only, preset resolutions | MP4, any resolution |
+| Custom code | DuckDB SQL; expressions on Studio Enterprise | Full JavaScript + DuckDB SQL, no tier |
 
 ### vs. After Effects / Motion Design
 
-After Effects is the gold standard for motion graphics — but it has no concept of geospatial data, map projections, or reactive data flow. To animate a map in AE, you'd export frames from a GIS tool, import them as assets, and manually keyframe everything. If the data changes, you start over.
+After Effects is the gold standard for motion graphics — but on its own it has no concept of geospatial data, map projections, or reactive data flow. The usual setup in this niche is **AE plus the GeoLayers plugin**, which is widely used and genuinely capable. It also means a paid plugin on top of a subscription, and the data still arrives as exported assets: change the query and you redo the work.
 
 Noodles.gl gives you AE-style keyframing (bezier curves, timeline scrubbing, easing) applied directly to a live data pipeline. Change the underlying query and every frame of your animation updates automatically.
 
-| | After Effects | Noodles.gl |
+| | After Effects + GeoLayers | Noodles.gl |
 |---|---|---|
 | Keyframe timeline | Full, professional | Full, with bezier curves |
-| Data-driven | Manual import | Live reactive pipeline |
-| Map projections | None (raster only) | Globe, Mercator, Orthographic |
-| 40+ geo layer types | No | Arc, hex, heatmap, trips, etc. |
+| Data-driven | Static import per revision | Live reactive pipeline |
+| Map projections | Via plugin | Globe, Mercator, Orthographic |
+| 40+ geo layer types | Limited set | Arc, hex, heatmap, trips, etc. |
 | Update when data changes | Re-do manually | Automatic propagation |
 | Runs in browser | No | Yes, no install |
 
@@ -51,14 +51,14 @@ D3 gives you complete control, but every visualization is code from scratch. The
 
 ### vs. QGIS / GeoLibre (desktop GIS)
 
-Desktop GIS tools are unbeatable for spatial analysis — hundreds of algorithms, format support, and editing capabilities. But they produce static maps. Noodles.gl is not trying to be a GIS workbench. It's the tool you reach for *after* analysis, when you need to present results with motion and narrative.
+Desktop GIS tools are unbeatable for spatial analysis — hundreds of algorithms, format support, and editing capabilities. But they produce static maps. Noodles.gl is not trying to be a GIS workbench. It's the tool you reach for *after* analysis, when you need to present results with motion and narrative — so getting your finished analysis in should be the easy part. Drop a GeoJSON, Shapefile, or GeoParquet on the canvas and Import Data builds the pipeline for you.
 
 | | QGIS / GeoLibre | Noodles.gl |
 |---|---|---|
-| Spatial analysis algorithms | Hundreds | CodeOp + DuckDB |
-| Format support | 30+ | GeoJSON, CSV, Parquet, SQL |
-| Geometry editing | Full | Coming soon (GeoEditor) |
-| Animation / timeline | None | Core feature |
+| Spatial analysis algorithms | Hundreds | Common ops as nodes, plus CodeOp + DuckDB |
+| Format support | 30+ | GeoJSON, CSV, Shapefile, GeoParquet, PMTiles, SQL |
+| Geometry editing | Full | Basic (GeoEditor) |
+| Animation / timeline | Trips layer playback (GeoLibre) | Full timeline, any parameter |
 | Video export | Basic (limited) | Full MP4, any resolution |
 | Data-driven styling | Static rules | Reactive, animated |
 | Browser-based | GeoLibre yes, QGIS no | Yes |
@@ -69,7 +69,7 @@ Template-based visualization tools are easy to use but constrained. You get pre-
 
 | | Flourish | Noodles.gl |
 |---|---|---|
-| Time to first visualization | Minutes | Minutes |
+| Time to first visualization | Minutes | Minutes from a template or with the AI assistant; longer if you start from a blank graph |
 | Customization ceiling | Low (templates) | Unlimited (composable graph) |
 | Map animations | Preset transitions | Any parameter, any curve |
 | Custom data transforms | No | CodeOp, DuckDB, expressions |
@@ -86,7 +86,7 @@ Template-based visualization tools are easy to use but constrained. You get pre-
 ## When to use something else
 
 - **Quick data exploration** with no animation needs → Kepler.gl
-- **Traditional GIS analysis** (buffer, intersect, spatial joins on hundreds of layers) → QGIS
+- **Deep GIS analysis** — long processing chains, topology validation, hundreds of layers → QGIS
 - **General motion graphics** with live action compositing → After Effects
 - **Simple embedded charts** with no customization → Datawrapper
 - **Fully custom non-map visualizations** → D3.js / Observable
