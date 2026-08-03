@@ -21,7 +21,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 12px;
+  /* Tighter than the outer sections: this row holds six tools plus two dividers */
+  gap: 4px;
   flex-shrink: 0;
   position: absolute;
   left: 50%;
@@ -299,4 +300,41 @@
   color: var(--color-text-secondary);
   text-align: center;
   white-space: nowrap;
+}
+
+/* Groups of related tools are separated by a hairline rather than extra gap */
+.toolDivider {
+  width: 1px;
+  align-self: stretch;
+  margin: 4px 0;
+  background-color: var(--color-border);
+}
+
+/* Horizontal variant used by the grouped GIS tools dropdown trigger */
+.toolButtonWide {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  background-color: transparent;
+  color: var(--color-text-primary);
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.toolButtonWide:hover,
+.toolButtonWide[data-state="open"] {
+  background-color: var(--color-bg-hover);
+}
+
+.toolButtonWide i {
+  font-size: 14px;
+}
+
+.caret {
+  font-size: 10px;
+  color: var(--color-text-secondary);
 }
