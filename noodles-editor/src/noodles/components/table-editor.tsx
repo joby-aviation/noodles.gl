@@ -182,6 +182,51 @@ function StringCellEditor({ value, onChange, onComplete }: CellEditorProps) {
   )
 }
 
+function StringLiteralCellEditor({ value, onChange, onComplete, column }: CellEditorProps) {
+  const selectRef = useRef<HTMLSelectElement>(null)
+  const currentValue = String(value ?? '')
+  const configuredValues = column.options?.values ?? []
+  const values = configuredValues.includes(currentValue)
+    ? configuredValues
+    : [currentValue, ...configuredValues]
+
+  useEffect(() => {
+    selectRef.current?.focus()
+  }, [])
+
+  if (configuredValues.length === 0) {
+    return (
+      <StringCellEditor value={value} onChange={onChange} onComplete={onComplete} column={column} />
+    )
+  }
+
+  return (
+    <select
+      ref={selectRef}
+      value={currentValue}
+      onChange={e => {
+        onChange(e.currentTarget.value)
+        onComplete()
+      }}
+      onBlur={onComplete}
+      onKeyDown={e => {
+        e.stopPropagation()
+        if (e.key === 'Enter' || e.key === 'Escape') {
+          onComplete()
+        }
+      }}
+      aria-label={`Edit ${column.name}`}
+      className={cx('p-inputtext', s.cellEditor)}
+    >
+      {values.map(option => (
+        <option key={option} value={option}>
+          {option}
+        </option>
+      ))}
+    </select>
+  )
+}
+
 function BooleanCellEditor({ value, onChange, onComplete }: CellEditorProps) {
   return (
     <InputSwitch
@@ -518,8 +563,9 @@ function getCellEditor(type: ColumnType) {
     case 'number':
       return NumberCellEditor
     case 'string':
-    case 'stringLiteral':
       return StringCellEditor
+    case 'stringLiteral':
+      return StringLiteralCellEditor
     case 'boolean':
       return BooleanCellEditor
     case 'color':
