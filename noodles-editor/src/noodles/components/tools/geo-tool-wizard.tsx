@@ -6,6 +6,7 @@ import { analytics } from '../../../utils/analytics'
 import type { Operator, OpType } from '../../operators'
 import { useNestingStore, useOperatorStore } from '../../store'
 import type { NodeJSON } from '../../transform-graph'
+import { resolveNodeOverlaps } from '../../utils/node-layout'
 import { getBaseName } from '../../utils/path-utils'
 import {
   buildRecipe,
@@ -107,7 +108,7 @@ export function GeoToolWizard({ recipe, onOpenChange, reactFlowRef }: GeoToolWiz
     }
 
     try {
-      const { nodes, edges, primaryNodeId } = buildRecipe({
+      const built = buildRecipe({
         recipe,
         values,
         sources: resolvedSources,
@@ -116,6 +117,8 @@ export function GeoToolWizard({ recipe, onOpenChange, reactFlowRef }: GeoToolWiz
         addLayer: addLayer && recipe.layerable,
         rendererId,
       })
+      const { edges, primaryNodeId } = built
+      const nodes = resolveNodeOverlaps(built.nodes, reactFlow.getNodes())
 
       reactFlow.addNodes(nodes as NodeJSON<OpType>[])
       if (edges.length > 0) reactFlow.addEdges(edges)

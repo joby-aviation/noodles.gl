@@ -158,57 +158,57 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
       setEdges(currentEdges => {
         return normalizeMultiInputEdges(
           nodesToDelete.reduce((acc, node) => {
-          const incomers = getIncomers(node, nodes, edges)
-          const outgoers = getOutgoers(node, nodes, edges)
-          const connectedEdges = getConnectedEdges([node], edges)
+            const incomers = getIncomers(node, nodes, edges)
+            const outgoers = getOutgoers(node, nodes, edges)
+            const connectedEdges = getConnectedEdges([node], edges)
 
-          const remainingEdges = acc.filter(edge => !connectedEdges.includes(edge))
+            const remainingEdges = acc.filter(edge => !connectedEdges.includes(edge))
 
-          // Try to reconnect incomers to outgoers
-          const sourceHandle = connectedEdges.find(edge => edge.target === node.id)?.sourceHandle
-          const targetHandle = connectedEdges.find(edge => edge.source === node.id)?.targetHandle
+            // Try to reconnect incomers to outgoers
+            const sourceHandle = connectedEdges.find(edge => edge.target === node.id)?.sourceHandle
+            const targetHandle = connectedEdges.find(edge => edge.source === node.id)?.targetHandle
 
-          if (!sourceHandle || !targetHandle) {
-            return remainingEdges
-          }
+            if (!sourceHandle || !targetHandle) {
+              return remainingEdges
+            }
 
-          const sourceHandleInfo = parseHandleId(sourceHandle)
-          const targetHandleInfo = parseHandleId(targetHandle)
+            const sourceHandleInfo = parseHandleId(sourceHandle)
+            const targetHandleInfo = parseHandleId(targetHandle)
 
-          if (!sourceHandleInfo || !targetHandleInfo) {
-            return remainingEdges
-          }
+            if (!sourceHandleInfo || !targetHandleInfo) {
+              return remainingEdges
+            }
 
-          // Create edges between compatible incomers and outgoers
-          const createdEdges = incomers.flatMap(({ id: source }) =>
-            outgoers
-              .filter(({ id: target }) => {
-                const sourceField = getOp(source)?.outputs[sourceHandleInfo.fieldName]
-                const targetField = getOp(target)?.inputs[targetHandleInfo.fieldName]
-                if (!sourceField || !targetField) {
-                  return false
-                }
-                return canConnect(sourceField, targetField)
-              })
-              .map(({ id: target }) => ({
-                id: edgeId({
+            // Create edges between compatible incomers and outgoers
+            const createdEdges = incomers.flatMap(({ id: source }) =>
+              outgoers
+                .filter(({ id: target }) => {
+                  const sourceField = getOp(source)?.outputs[sourceHandleInfo.fieldName]
+                  const targetField = getOp(target)?.inputs[targetHandleInfo.fieldName]
+                  if (!sourceField || !targetField) {
+                    return false
+                  }
+                  return canConnect(sourceField, targetField)
+                })
+                .map(({ id: target }) => ({
+                  id: edgeId({
+                    source,
+                    target,
+                    sourceHandle,
+                    targetHandle,
+                  }),
                   source,
                   target,
                   sourceHandle,
                   targetHandle,
-                }),
-                source,
-                target,
-                sourceHandle,
-                targetHandle,
-              }))
-          )
-
-          if (createdEdges.length > 0) {
-            warnings.push(
-              `Reconnected ${createdEdges.length} edge(s) after deleting node ${node.id}`
+                }))
             )
-          }
+
+            if (createdEdges.length > 0) {
+              warnings.push(
+                `Reconnected ${createdEdges.length} edge(s) after deleting node ${node.id}`
+              )
+            }
 
             return [...remainingEdges, ...createdEdges]
           }, currentEdges)
@@ -802,11 +802,7 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
           targetOp.removeConnectionError(existing.id)
           targetField.removeConnection(existing.id)
         }
-        setEdges(
-          normalizeMultiInputEdges(
-            edges.filter(e => e.id !== existing?.id).concat(newEdge)
-          )
-        )
+        setEdges(normalizeMultiInputEdges(edges.filter(e => e.id !== existing?.id).concat(newEdge)))
         targetField.addConnection(newEdge.id, sourceField)
       }
 

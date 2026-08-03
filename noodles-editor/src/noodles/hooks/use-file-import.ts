@@ -14,6 +14,7 @@ import type { Operator } from '../operators'
 import { writeAsset } from '../storage'
 import { useOperatorStore } from '../store'
 import { projectScheme } from '../utils/filesystem'
+import { resolveNodeOverlaps } from '../utils/node-layout'
 
 // Shared import behaviour for the Import Data dialog and for dropping a file onto
 // the canvas: copy the file into the project, scaffold a pipeline for its format,
@@ -33,7 +34,7 @@ interface UseFileImportOptions {
 }
 
 export function useFileImport({ getBasePosition, onImported }: UseFileImportOptions) {
-  const { addNodes, addEdges, setNodes, fitView } = useReactFlow()
+  const { addNodes, addEdges, setNodes, fitView, getNodes } = useReactFlow()
 
   const addPipeline = useCallback(
     (
@@ -42,13 +43,15 @@ export function useFileImport({ getBasePosition, onImported }: UseFileImportOpti
       basePosition: { x: number; y: number },
       contents?: string
     ) => {
-      const { nodes, edges, primaryNodeId } = createImportPipeline({
+      const built = createImportPipeline({
         url,
         format,
         basePosition,
         contents,
         rendererId: findRendererId(),
       })
+      const { edges, primaryNodeId } = built
+      const nodes = resolveNodeOverlaps(built.nodes, getNodes())
 
       addNodes(nodes)
       if (edges.length > 0) addEdges(edges)
@@ -57,7 +60,7 @@ export function useFileImport({ getBasePosition, onImported }: UseFileImportOpti
         fitView({ nodes: nodes.map(n => ({ id: n.id })), duration: 300, padding: 0.3 })
       })
     },
-    [addNodes, addEdges, setNodes, fitView]
+    [addNodes, addEdges, setNodes, fitView, getNodes]
   )
 
   // Copy a dropped or picked file into the project's data directory, then build its pipeline

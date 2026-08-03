@@ -1,6 +1,5 @@
 import type { Map as MapLibre } from 'maplibre-gl'
 import { type RefObject, useCallback, useEffect, useRef, useState } from 'react'
-import { getTransformScaleFactor } from '../../../render/transform-scale'
 import { analytics } from '../../../utils/analytics'
 import s from './map-tool-overlay.module.css'
 import { type DistanceUnit, type DrawMode, useMapToolStore } from './map-tool-store'
@@ -12,6 +11,7 @@ import {
   pathLength,
   polygonArea,
 } from './measure-math'
+import { clientToMapPoint, mapPointToOverlay } from './overlay-coords'
 
 // Interactive layer over the output pane. When a map tool is armed, this captures
 // clicks, converts them to lng/lat with the live map, and draws the in-progress
@@ -101,28 +101,50 @@ export function MapToolOverlay({ mapRef, onSaveDrawing, onSaveMeasurement }: Map
     }
   }, [mapRef, activeTool])
 
+  // maplibre projects against its own canvas, which is not the same box as this
+  // overlay: the map lives inside a scaled wrapper and, in fixed display mode, is
+  // letterboxed inside the pane at a fixed resolution. Everything below converts
+  // through the canvas rect so clicks land on the pixel the user pointed at
+  // regardless of pane size or split-view layout.
+  const canvasRect = useCallback((): DOMRect | null => {
+    const map = mapRef.current
+    if (!map) return null
+    return map.getCanvas().getBoundingClientRect()
+  }, [mapRef])
+
   const toLngLat = useCallback(
     (event: { clientX: number; clientY: number }): LngLat | null => {
       const map = mapRef.current
-      const surface = surfaceRef.current
-      if (!map || !surface) return null
-      const rect = surface.getBoundingClientRect()
-      const scale = getTransformScaleFactor(surface)
-      const x = (event.clientX - rect.left) / scale.x
-      const y = (event.clientY - rect.top) / scale.y
-      const { lng, lat } = map.unproject([x, y])
+      const rect = canvasRect()
+      if (!map || !rect) return null
+      const canvas = map.getCanvas()
+      const mapPoint = clientToMapPoint({ x: event.clientX, y: event.clientY }, rect, {
+        width: canvas.clientWidth,
+        height: canvas.clientHeight,
+      })
+      if (!mapPoint) return null
+      const { lng, lat } = map.unproject([mapPoint.x, mapPoint.y])
       return { lng, lat }
     },
-    [mapRef]
+    [mapRef, canvasRect]
   )
 
   // Not memoized: it reads the live camera, so it must be recreated on every
   // render (the map move handler above forces those renders).
   const toScreen = (point: LngLat): ScreenPoint | null => {
     const map = mapRef.current
-    if (!map) return null
+    const surface = surfaceRef.current
+    const rect = canvasRect()
+    if (!map || !surface || !rect) return null
+    const canvas = map.getCanvas()
     const projected = map.project([point.lng, point.lat])
-    return { x: projected.x, y: projected.y }
+    return mapPointToOverlay(
+      projected,
+      rect,
+      { width: canvas.clientWidth, height: canvas.clientHeight },
+      surface.getBoundingClientRect(),
+      { width: surface.offsetWidth, height: surface.offsetHeight }
+    )
   }
 
   const finishDrawnShape = useCallback(
