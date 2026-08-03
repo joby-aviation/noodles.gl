@@ -34,6 +34,7 @@ import {
   RampOp,
   RectangleOp,
   RerouteOp,
+  ScaleWidgetOp,
   ScatterplotLayerOp,
   SelectOp,
   SmoothOp,
@@ -3430,6 +3431,42 @@ describe('BitmapOverlayWidgetOp', () => {
     expect(op.outputData.widget.placement).toBe('fill')
     expect(op.outputData.widget.offsetX).toBe(100)
     expect(op.outputData.widget.offsetY).toBe(50)
+  })
+})
+
+describe('ScaleWidgetOp', () => {
+  it('creates a scale widget with deck.gl defaults', async () => {
+    const op = new ScaleWidgetOp('/scale-widget-0')
+    await op.pull()
+
+    expect(op.outputData.widget).toEqual({
+      id: '/scale-widget-0',
+      type: '_ScaleWidget',
+      placement: 'bottom-left',
+      label: 'Scale',
+    })
+  })
+
+  it('accepts custom scale widget properties', async () => {
+    const op = new ScaleWidgetOp('/scale-widget-0')
+    op.inputs.placement.setValue('top-right')
+    op.inputs.label.setValue('Distance')
+    op.inputs.viewId.setValue('map-view')
+    await op.pull()
+
+    expect(op.outputData.widget).toMatchObject({
+      placement: 'top-right',
+      label: 'Distance',
+      viewId: 'map-view',
+    })
+  })
+
+  it('excludes an empty viewId', async () => {
+    const op = new ScaleWidgetOp('/scale-widget-0')
+    op.inputs.viewId.setValue('')
+    await op.pull()
+
+    expect(op.outputData.widget.viewId).toBeUndefined()
   })
 })
 
