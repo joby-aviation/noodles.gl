@@ -15,7 +15,10 @@ import { getParentPath, splitPath } from '../utils/path-utils'
 import { Breadcrumbs } from './breadcrumbs'
 import type { CopyControlsRef } from './copy-controls'
 import { DataImporterTool } from './tools/data-importer-tool'
+import type { GeoRecipe } from './tools/geo-recipes'
+import { GeoToolWizard } from './tools/geo-tool-wizard'
 import { PointWizardTool } from './tools/point-wizard-tool'
+import { ToolShelf } from './tools/tool-shelf'
 import s from './top-menu-bar.module.css'
 import type { UndoRedoHandlerRef } from './UndoRedoHandler'
 
@@ -82,6 +85,7 @@ export function TopMenuBar({
   const [recentProjects, setRecentProjects] = useState<string[]>([])
   const [showPointWizard, setShowPointWizard] = useState(false)
   const [showDataImporter, setShowDataImporter] = useState(false)
+  const [activeRecipe, setActiveRecipe] = useState<GeoRecipe | null>(null)
   const currentContainerId = useNestingStore(state => state.currentContainerId)
   const setCurrentContainerId = useNestingStore(state => state.setCurrentContainerId)
   const reactFlow = useReactFlow()
@@ -556,39 +560,14 @@ export function TopMenuBar({
           </div>
         </div>
 
-        <div className={s.centerSection}>
-          {reactFlowRef && (
-            <>
-              <button
-                type="button"
-                className={s.toolButton}
-                onClick={onOpenAddNode}
-                disabled={!onOpenAddNode}
-              >
-                <i className="pi pi-plus-circle" />
-                <span className={s.toolLabel}>Add Op</span>
-              </button>
-
-              <button
-                type="button"
-                className={s.toolButton}
-                onClick={() => setShowPointWizard(true)}
-              >
-                <i className="pi pi-map-marker" />
-                <span className={s.toolLabel}>Create Point</span>
-              </button>
-
-              <button
-                type="button"
-                className={s.toolButton}
-                onClick={() => setShowDataImporter(true)}
-              >
-                <i className="pi pi-file-import" />
-                <span className={s.toolLabel}>Import Data</span>
-              </button>
-            </>
-          )}
-        </div>
+        {reactFlowRef && (
+          <ToolShelf
+            onOpenAddNode={onOpenAddNode}
+            onCreatePoint={() => setShowPointWizard(true)}
+            onImportFile={() => setShowDataImporter(true)}
+            onRunRecipe={setActiveRecipe}
+          />
+        )}
 
         <div className={s.rightSection}>
           <ExternalControlButton />
@@ -617,6 +596,14 @@ export function TopMenuBar({
           <DataImporterTool
             open={showDataImporter}
             onOpenChange={setShowDataImporter}
+            reactFlowRef={reactFlowRef}
+          />
+
+          <GeoToolWizard
+            recipe={activeRecipe}
+            onOpenChange={open => {
+              if (!open) setActiveRecipe(null)
+            }}
             reactFlowRef={reactFlowRef}
           />
         </>

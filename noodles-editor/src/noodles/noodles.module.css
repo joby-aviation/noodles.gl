@@ -524,7 +524,7 @@
 
 .fieldInputUploadButton {
   cursor: pointer;
-  height: 1em;
+  padding: .25rem .875rem;
 }
 
 .fieldCompoundWrapper {

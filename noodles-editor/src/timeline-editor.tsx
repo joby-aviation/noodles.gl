@@ -8,6 +8,7 @@ import ReactMapGL, { type MapProps, useControl } from 'react-map-gl/maplibre'
 import { Layout } from './layout'
 import { ErrorBoundary } from './noodles/components/error-boundary'
 import { SpreadsheetPane } from './noodles/components/spreadsheet-pane/spreadsheet-pane'
+import { MapToolLayer } from './noodles/components/tools/map-tool-layer'
 import { TopMenuBar } from './noodles/components/top-menu-bar'
 import { ExportActionsProvider } from './noodles/contexts/export-actions-context'
 import { useActiveStorageType, useCurrentDirectory } from './noodles/filesystem-store'
@@ -553,6 +554,8 @@ export default function TimelineEditor() {
             isRendering={isRendering}
             {...deckProps}
           />
+          {/* Interactive Draw and Measure tools, armed from the top shelf */}
+          <MapToolLayer mapRef={mapRef} basemapEnabled isRendering={isRendering} />
         </ReactMapGL>
       )
     }

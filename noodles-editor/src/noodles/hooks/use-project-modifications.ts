@@ -824,11 +824,7 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
           targetOp.removeConnectionError(existing.id)
           targetField.removeConnection(existing.id)
         }
-        setEdges(
-          normalizeMultiInputEdges(
-            edges.filter(e => e.id !== existing?.id).concat(newEdge)
-          )
-        )
+        setEdges(normalizeMultiInputEdges(edges.filter(e => e.id !== existing?.id).concat(newEdge)))
         targetField.addConnection(newEdge.id, sourceField)
       }
 
