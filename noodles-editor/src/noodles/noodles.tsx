@@ -61,13 +61,14 @@ import { ExampleNotFoundDialog } from './components/example-not-found-dialog'
 import { LayerPanel } from './components/layer-panel'
 import { PropertyPanel } from './components/node-properties'
 import { NodeTreeSidebar } from './components/node-tree-sidebar'
-import { SidebarTabs } from './components/sidebar-tabs'
 import { edgeComponents, nodeComponents } from './components/op-components'
 import { ParameterEditorDialog } from './components/parameter-editor-dialog'
 import { ProjectNotFoundDialog } from './components/project-not-found-dialog'
 import { RenameDialog } from './components/rename-dialog'
 import { SaveAsDialog } from './components/save-as-dialog'
+import { SidebarTabs } from './components/sidebar-tabs'
 import { StorageErrorHandler } from './components/storage-error-handler'
+import { CanvasDropImport } from './components/tools/canvas-drop-import'
 import { UndoRedoHandler, type UndoRedoHandlerRef } from './components/UndoRedoHandler'
 import { useActiveStorageType, useFileSystemStore } from './filesystem-store'
 import { findEdgeAtPosition, useConnectionDropOnEdge } from './hooks/use-connection-drop-on-edge'
@@ -1556,6 +1557,7 @@ export function getNoodles(): Visualization {
             >
               <ReactFlowInstanceCapture />
               <EdgeConnectionSynchronizer />
+              <CanvasDropImport />
               <Background />
               <Controls position="bottom-right" />
               <BlockLibrary ref={blockLibraryRef} reactFlowRef={reactFlowRef} />
