@@ -887,7 +887,20 @@ describe('DuckDbOp', () => {
     const val = await operator.execute({
       query: 'SELECT 1 as v',
     })
-    expect(val).toEqual({ data: [expect.objectContaining({ v: 1 })] })
+    expect(val).toEqual({
+      data: [expect.objectContaining({ v: 1 })],
+      table: expect.objectContaining({ numRows: 1 }),
+    })
+  })
+
+  it('returns an Arrow table alongside data', async () => {
+    const ddb = new DuckDbOp('/ddb-arrow', {}, false)
+    const val = await ddb.execute({ query: 'SELECT 42 as x, 99 as y' })
+    expect(val).not.toBeNull()
+    expect(val!.table).toBeDefined()
+    expect(val!.table.numRows).toBe(1)
+    expect(val!.table.numCols).toBe(2)
+    expect(val!.table.schema.fields.map(f => f.name)).toEqual(['x', 'y'])
   })
 
   it('allows references to other operators', async () => {
@@ -899,7 +912,10 @@ describe('DuckDbOp', () => {
 
     // Wait for async operations to complete
     await Promise.resolve()
-    expect(val).toEqual({ data: [expect.objectContaining({ $1: 1 })] })
+    expect(val).toEqual({
+      data: [expect.objectContaining({ $1: 1 })],
+      table: expect.objectContaining({ numRows: 1 }),
+    })
   })
 
   it('supports nested references', async () => {
@@ -909,7 +925,16 @@ describe('DuckDbOp', () => {
     const ddb = new DuckDbOp('/ddb', {}, false)
     const val = await ddb.execute({ query: 'SELECT {{bbox.out.viewState.latitude}} as lat' })
 
-    expect(val).toEqual({ data: [expect.objectContaining({ lat: 0 })] })
+    expect(val).toEqual({
+      data: [expect.objectContaining({ lat: 0 })],
+      table: expect.objectContaining({ numRows: 1 }),
+    })
+  })
+
+  it('returns null table for empty query', async () => {
+    const ddb = new DuckDbOp('/ddb-empty', {}, false)
+    const val = await ddb.execute({ query: '' })
+    expect(val).toEqual({ data: [], table: null })
   })
 
   it('throws an error for unresolved references', async () => {

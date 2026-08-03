@@ -87,6 +87,7 @@ export const inputComponents = {
   code: CodeFieldComponent,
   compound: CompoundFieldComponent,
   data: EmptyFieldComponent,
+  'arrow-data': EmptyFieldComponent,
   date: DateFieldComponent,
   effect: EmptyFieldComponent,
   expression: ExpressionFieldComponent,

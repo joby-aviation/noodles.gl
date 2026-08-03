@@ -503,6 +503,7 @@ export class CustomOperator extends Operator<CustomOperator> {
 ## Common Field Types
 
 - **DataField**: Generic data arrays
+- **ArrowDataField**: Apache Arrow columnar tables (zero-copy, high performance)
 - **NumberField**: Numeric values with min/max/step
 - **StringField**: Text values
 - **BooleanField**: Boolean flags

@@ -147,6 +147,7 @@ import { FilterColorExtension } from './extensions/filter-color-extension'
 import { Mask3DExtension } from './extensions/mask-3d-extension'
 import {
   ArrayField,
+  ArrowDataField,
   BezierCurveField,
   BooleanField,
   CategoricalColorRampField,
@@ -2161,6 +2162,7 @@ export class DuckDbOp extends Operator<DuckDbOp> {
   createOutputs() {
     return {
       data: new DataField(),
+      table: new ArrowDataField(),
     }
   }
 
@@ -2173,18 +2175,19 @@ export class DuckDbOp extends Operator<DuckDbOp> {
       .filter(Boolean)
       .map(s => `${s};`)
     if (!queries?.length) {
-      return { data: [] }
+      return { data: [], table: null }
     }
 
     const db = await duckDbInstance
     const conn = await db.connect()
 
     try {
-      let data = []
+      let table = null
+      let data: unknown[] = []
       for (const query of queries) {
         if (!mustacheRe.test(query)) {
-          const result = await conn.query(query)
-          data = result.toArray()
+          table = await conn.query(query)
+          data = table.toArray()
           continue
         }
 
@@ -2213,11 +2216,11 @@ export class DuckDbOp extends Operator<DuckDbOp> {
         // Prepare the query with the current connection
         const prepared = await conn.prepare(parameterizedQuery)
 
-        const result = await prepared.query(...positionalParams)
-        data = result.toArray()
+        table = await prepared.query(...positionalParams)
+        data = table.toArray()
       }
       await conn.close()
-      return { data }
+      return { data, table }
     } catch (e) {
       debugExecute('Error executing query', e)
       await conn.close()

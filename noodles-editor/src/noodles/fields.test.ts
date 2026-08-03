@@ -4,6 +4,7 @@ import z from 'zod/v4'
 import { hexToColor } from '../utils/color'
 import {
   ArrayField,
+  ArrowDataField,
   ColorField,
   CompoundPropsField,
   DataField,
@@ -1760,5 +1761,35 @@ describe('GeoJsonField', () => {
     }
     field.setValue(featureCollection)
     expect(field.value).toEqual(featureCollection)
+  })
+})
+
+describe('ArrowDataField', () => {
+  it('has null as default value', () => {
+    const field = new ArrowDataField()
+    expect(field.value).toBeNull()
+  })
+
+  it('has type arrow-data', () => {
+    expect(ArrowDataField.type).toBe('arrow-data')
+  })
+
+  it('accepts any value via setValue', () => {
+    const field = new ArrowDataField()
+    const fakeTable = { numRows: 3, numCols: 2, schema: {}, batches: [] }
+    field.setValue(fakeTable)
+    expect(field.value).toEqual(fakeTable)
+  })
+
+  it('can connect to UnknownField', () => {
+    const arrowField = new ArrowDataField()
+    const unknownField = new UnknownField()
+    expect(canConnect(arrowField, unknownField)).toBe(true)
+  })
+
+  it('can connect to DataField', () => {
+    const arrowField = new ArrowDataField()
+    const dataField = new DataField()
+    expect(canConnect(arrowField, dataField)).toBe(true)
   })
 })

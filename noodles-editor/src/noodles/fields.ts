@@ -733,6 +733,19 @@ export class GeoJsonField<D extends Field = Field, TElement = unknown> extends F
   }
 }
 
+export class ArrowDataField extends Field<z.ZodUnknown> {
+  static type = 'arrow-data' as const
+  static defaultValue = null
+
+  createSchema() {
+    return z.unknown()
+  }
+
+  constructor() {
+    super(null)
+  }
+}
+
 // Helper to extract coordinates from GeoJSON Point geometries or Features
 // Used by Point2DField and Point3DField to accept PointOp outputs and geometry columns
 function extractGeoJsonPointCoordinates(
@@ -1800,5 +1813,6 @@ export const fieldTypeToClass = {
   'bezier-curve': BezierCurveField,
   'string-literal': StringLiteralField,
   data: DataField,
+  'arrow-data': ArrowDataField,
   unknown: UnknownField,
 } as const satisfies Record<string, typeof Field>
