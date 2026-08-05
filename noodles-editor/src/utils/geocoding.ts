@@ -162,25 +162,20 @@ export async function geocodeWithGooglePlaces(query: string): Promise<GeocodingR
 
 // Geocode using Mapbox Geocoding API
 export async function geocodeWithMapbox(query: string, apiKey: string): Promise<GeocodingResult[]> {
-  try {
-    const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${apiKey}&limit=5`
-    const response = await fetch(url)
-    const data: MapboxGeocodingResponse = await response.json()
-
-    if (data.features) {
-      return data.features.map(feature => ({
-        place_name: feature.place_name,
-        coordinates: {
-          longitude: feature.center[0],
-          latitude: feature.center[1],
-        },
-      }))
-    }
-    return []
-  } catch (error) {
-    debugGeocode('Mapbox geocoding error:', error)
-    return []
+  const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${apiKey}&limit=5`
+  const response = await fetch(url)
+  if (!response.ok) {
+    throw new Error(`Mapbox geocoding failed: ${response.status} ${response.statusText}`)
   }
+
+  const data: MapboxGeocodingResponse = await response.json()
+  return (data.features ?? []).map(feature => ({
+    place_name: feature.place_name,
+    coordinates: {
+      longitude: feature.center[0],
+      latitude: feature.center[1],
+    },
+  }))
 }
 
 // Geocode using Photon API (free, OSM-based)
