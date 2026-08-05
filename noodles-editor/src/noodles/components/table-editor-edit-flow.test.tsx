@@ -99,6 +99,69 @@ describe('TableEditor - Edit Flow', () => {
         'Edit cell count'
       )
     })
+
+    it('should render string literals as a dropdown and commit the selection immediately', () => {
+      const onDataChange = vi.fn()
+      const literalSchema: TableSchema = {
+        columns: [
+          {
+            name: 'anchor',
+            type: 'stringLiteral',
+            defaultValue: 'start',
+            options: { values: ['start', 'middle', 'end'] },
+          },
+        ],
+      }
+
+      const { getByText, getByRole } = render(
+        <TableEditor
+          op={mockOp}
+          data={[{ anchor: 'start' }]}
+          schema={literalSchema}
+          onDataChange={onDataChange}
+          onSchemaChange={vi.fn()}
+        />
+      )
+
+      fireEvent.click(getByText('start'))
+
+      const dropdown = getByRole('combobox') as HTMLSelectElement
+      expect(Array.from(dropdown.options, option => option.value)).toEqual([
+        'start',
+        'middle',
+        'end',
+      ])
+
+      fireEvent.change(dropdown, { target: { value: 'end' } })
+
+      expect(onDataChange).toHaveBeenCalledWith([{ anchor: 'end' }], 'Edit cell anchor')
+    })
+
+    it('should allow free text editing when a string literal has no configured choices', () => {
+      const onDataChange = vi.fn()
+      const literalSchema: TableSchema = {
+        columns: [{ name: 'anchor', type: 'stringLiteral', defaultValue: '' }],
+      }
+
+      const { getByText, getByRole, queryByRole } = render(
+        <TableEditor
+          op={mockOp}
+          data={[{ anchor: 'custom' }]}
+          schema={literalSchema}
+          onDataChange={onDataChange}
+          onSchemaChange={vi.fn()}
+        />
+      )
+
+      fireEvent.click(getByText('custom'))
+
+      expect(queryByRole('combobox')).toBeNull()
+      const input = getByRole('textbox') as HTMLInputElement
+      fireEvent.change(input, { target: { value: 'updated' } })
+      fireEvent.blur(input)
+
+      expect(onDataChange).toHaveBeenCalledWith([{ anchor: 'updated' }], 'Edit cell anchor')
+    })
   })
 
   describe('Multiple edit cycles', () => {

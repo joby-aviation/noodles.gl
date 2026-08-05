@@ -1,6 +1,0 @@
-{
-    "scripts": {
-        "setup": "(cd noodles-editor && npm install)",
-        "run": "(cd noodles-editor && npm start)"
-    }
-}

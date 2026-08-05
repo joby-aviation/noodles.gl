@@ -27,6 +27,11 @@ import { useObservable } from '../hooks/use-observable'
 import type { IOperator, Operator } from '../operators'
 import { OutOp } from '../operators'
 import { getOpStore, useUIStore } from '../store'
+import {
+  moveEdgeWithinGroup,
+  normalizeMultiInputEdges,
+  orderedEdgeIdsForHandle,
+} from '../utils/multi-input-utils'
 import { getBaseName, parseHandleId } from '../utils/path-utils'
 import { ErrorBoundary } from './error-boundary'
 import {
@@ -385,7 +390,7 @@ function CompoundSubFields({
 
 // Exported for testing
 export function NodeProperties({ nodeId }: { nodeId: string }) {
-  const { setEdges } = useReactFlow()
+  const { setEdges, getEdges } = useReactFlow()
   const onEdgesChange = useStore(s => s.onEdgesChange)
   // Only re-renders when this node's incoming edges change (not on position updates)
   const edges = useStore(
@@ -547,29 +552,14 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
     const input = op.inputs[inputName]
     if (!(input instanceof ListField)) return
 
-    setEdges(edges => {
-      // Get all edges connected to this input
-      const relevantEdges = edges.filter(
-        e =>
-          e.target === nodeId &&
-          (e.targetHandle === inputName || e.targetHandle === `${IN_NS}.${inputName}`)
-      )
-      if (relevantEdges.length < 2) return edges
+    const handleId = `${IN_NS}.${inputName}`
+    const edges = getEdges()
+    const groupIds = orderedEdgeIdsForHandle(edges, nodeId, handleId)
+    if (groupIds.length < 2 || !groupIds[fromIndex]) return
 
-      // Create new array with reordered edges
-      const newEdges = [...edges]
-      const edgeIndexMap = new Map(
-        relevantEdges.map((e, _i) => [e.id, edges.findIndex(edge => edge.id === e.id)])
-      )
-      const [movedEdge] = newEdges.splice(edgeIndexMap.get(relevantEdges[fromIndex].id)!, 1)
-      const targetIndex = edgeIndexMap.get(relevantEdges[toIndex].id)!
-      newEdges.splice(targetIndex, 0, movedEdge)
-
-      // Update the ListField's internal order
-      input.reorderInputs(fromIndex, toIndex)
-
-      return newEdges
-    })
+    const next = normalizeMultiInputEdges(moveEdgeWithinGroup(edges, groupIds[fromIndex], toIndex))
+    setEdges(next)
+    input.setConnectionOrder(orderedEdgeIdsForHandle(next, nodeId, handleId))
   }
 
   const handleDragStart = (e: React.DragEvent, inputName: string, index: number) => {

@@ -7,7 +7,7 @@ import type * as Preset from '@docusaurus/preset-classic'
 
 const config: Config = {
   title: 'Noodles.gl',
-  tagline: 'Interactive geospatial visualization and animation platform',
+  tagline: 'The animation studio for maps',
   favicon: 'img/noodles-favicon.png',
 
   // Future flags, see https://docusaurus.io/docs/api/docusaurus-config#future

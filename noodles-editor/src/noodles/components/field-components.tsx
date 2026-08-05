@@ -18,6 +18,8 @@ import {
   useState,
 } from 'react'
 
+import { BasemapGallery } from './basemap-gallery'
+
 const CodeiumEditor = lazy(() =>
   import('@codeium/react-code-editor').then(m => ({ default: m.CodeiumEditor }))
 )
@@ -42,6 +44,7 @@ import {
   type FileUrlField,
   getFieldReferences,
   type IField,
+  ListField,
   type MapStyleField,
   type NumberField,
   Point2DField,
@@ -72,6 +75,7 @@ import { GeocodingDialog } from './geocoding-dialog'
 import menuStyles from './menu.module.css'
 import contextMenuStyles from './node-properties.module.css'
 import { handleClass, useHandleDimmed } from './op-components'
+import { MultiInputHandle } from './multi-input-handle'
 
 type InputComponent = React.ComponentType<{
   id: OpId
@@ -1216,6 +1220,15 @@ export function MapStyleFieldComponent({
     commitChange('Change map style')
   }
 
+  const [galleryOpen, setGalleryOpen] = useState(false)
+
+  const onGallerySelect = (val: string | object) => {
+    captureStart()
+    field.setValue(val)
+    setValue(typeof val === 'string' ? val : val)
+    commitChange('Change map style')
+  }
+
   const [replaceDialogOpen, setReplaceDialogOpen] = useState(false)
   const [pendingFile, setPendingFile] = useState<{ name: string; contents: Blob } | null>(null)
 
@@ -1324,6 +1337,13 @@ export function MapStyleFieldComponent({
             disabled={disabled || isObject}
           />
           <Button
+            icon="pi pi-images"
+            className={s.fieldInputUploadButton}
+            onClick={() => setGalleryOpen(true)}
+            title="Browse Basemaps"
+            size="small"
+          />
+          <Button
             icon="pi pi-upload"
             className={s.fieldInputUploadButton}
             onClick={onUpload}
@@ -1333,6 +1353,13 @@ export function MapStyleFieldComponent({
           />
         </div>
       </div>
+
+      <BasemapGallery
+        open={galleryOpen}
+        onOpenChange={setGalleryOpen}
+        onSelect={onGallerySelect}
+        currentValue={typeof value === 'string' ? value : undefined}
+      />
 
       <Dialog.Root open={replaceDialogOpen} onOpenChange={setReplaceDialogOpen}>
         <Dialog.Portal>
@@ -2792,13 +2819,22 @@ export function FieldComponent({
       onContextMenu={canDrive || isDriven ? onContextMenu : undefined}
     >
       {handle && (
-        <Handle
-          id={qualifiedFieldId}
-          className={cx(handleClass(field), { [s.handleDimmed]: isHandleDimmed })}
-          style={handleStyle}
-          type={handle.type}
-          position={Position.Left}
-        />
+        field instanceof ListField ? (
+          <MultiInputHandle
+            id={qualifiedFieldId}
+            field={field}
+            className={cx(handleClass(field), { [s.handleDimmed]: isHandleDimmed })}
+            style={handleStyle}
+          />
+        ) : (
+          <Handle
+            id={qualifiedFieldId}
+            className={cx(handleClass(field), { [s.handleDimmed]: isHandleDimmed })}
+            style={handleStyle}
+            type={handle.type}
+            position={Position.Left}
+          />
+        )
       )}
       {renderInput &&
         (hasIncomingConnection ? (

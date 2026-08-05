@@ -14,7 +14,6 @@ import {
   Controls,
   ReactFlow,
   type ReactFlowInstance,
-  reconnectEdge,
   useEdgesState,
   useNodesState,
   useReactFlow,
@@ -59,6 +58,7 @@ import { CopyControls, type CopyControlsRef } from './components/copy-controls'
 import { NodeInfoOverlay, ViewportInfoPanel } from './components/devtools'
 import { ErrorBoundary } from './components/error-boundary'
 import { ExampleNotFoundDialog } from './components/example-not-found-dialog'
+import { LayerPanel } from './components/layer-panel'
 import { PropertyPanel } from './components/node-properties'
 import { NodeTreeSidebar } from './components/node-tree-sidebar'
 import { edgeComponents, nodeComponents } from './components/op-components'
@@ -66,14 +66,16 @@ import { ParameterEditorDialog } from './components/parameter-editor-dialog'
 import { ProjectNotFoundDialog } from './components/project-not-found-dialog'
 import { RenameDialog } from './components/rename-dialog'
 import { SaveAsDialog } from './components/save-as-dialog'
+import { SidebarTabs } from './components/sidebar-tabs'
 import { StorageErrorHandler } from './components/storage-error-handler'
+import { CanvasDropImport } from './components/tools/canvas-drop-import'
 import { UndoRedoHandler, type UndoRedoHandlerRef } from './components/UndoRedoHandler'
 import { useActiveStorageType, useFileSystemStore } from './filesystem-store'
 import { findEdgeAtPosition, useConnectionDropOnEdge } from './hooks/use-connection-drop-on-edge'
 import { useKeyboardShortcut } from './hooks/use-keyboard-shortcut'
 import { useNodeDropOnEdge } from './hooks/use-node-drop-on-edge'
 import { useProjectModifications } from './hooks/use-project-modifications'
-import type { IOperator, Operator, OutOp } from './operators'
+import type { DeckRendererOp, IOperator, Operator, OutOp } from './operators'
 import { extensionMap } from './operators'
 import {
   copyDataDirectory,
@@ -85,6 +87,7 @@ import {
   save,
 } from './storage'
 import {
+  clearPendingInsertionIndex,
   getOp,
   getOpStore,
   getUIStore,
@@ -104,6 +107,7 @@ import {
 import { edgeId, nodeId } from './utils/id-utils'
 import { generateDraftId, memoryProjectStore } from './utils/memory-project-store'
 import { migrateProject } from './utils/migrate-schema'
+import { normalizeMultiInputEdges } from './utils/multi-input-utils'
 import { getParentPath, parseHandleId } from './utils/path-utils'
 import { applyOperatorInputs, getLastCommittedBeforeState } from './utils/property-history'
 import {
@@ -206,21 +210,14 @@ export function getNoodles(): Visualization {
   const [edges, setEdges, onEdgesChangeBase] = useEdgesState<ReactFlowEdge<unknown>>([])
   const [defaultViewport, setDefaultViewport] = useState({ x: 0, y: 0, zoom: 1 })
 
-  // Refs to access current nodes/edges without triggering callback recreations
-  const nodesRef = useRef(nodes)
-  const edgesRef = useRef(edges)
+  // Single ref providing synchronous access to the full graph state.
+  // Used by CopyControls, UndoRedoHandler, and hooks that need all nodes/edges
+  // without triggering re-renders or being limited to the displayed scope.
+  const graphRef = useRef({ nodes, edges })
+  graphRef.current = { nodes, edges }
 
   // Spatial index for fast edge proximity queries (R-tree)
   const spatialIndexRef = useRef<EdgeSpatialIndex | null>(null)
-
-  // Keep refs in sync with state
-  useEffect(() => {
-    nodesRef.current = nodes
-  }, [nodes])
-
-  useEffect(() => {
-    edgesRef.current = edges
-  }, [edges])
 
   // Update spatial index when nodes or edges change
   useEffect(() => {
@@ -347,6 +344,11 @@ export function getNoodles(): Visualization {
     if (isProjectLoadRef.current) return
     const ops = transformGraph({ nodes, edges })
     setOperators(ops)
+    // Catch-all for multi-input slot caches: re-derive orderIndex/groupSize now that the
+    // operators exist in the store (covers undo/redo restores, keyboard deletes, and AI/paste
+    // paths that added edges before their operators were instantiated). Returns the same
+    // array reference when nothing changed, so this doesn't loop.
+    setEdges(eds => normalizeMultiInputEdges(eds))
   }, [graphStructureKey])
 
   // Reset isProjectLoadRef after every render so the flag never gets stuck when
@@ -381,6 +383,7 @@ export function getNoodles(): Visualization {
   const {
     applyModifications,
     onConnect: onConnectBase,
+    onReconnect: onReconnectBase,
     onNodesDelete: onNodesDeleteBase,
     updateOperatorId,
   } = useProjectModifications({
@@ -425,11 +428,16 @@ export function getNoodles(): Visualization {
   // Wrap onReconnect to mark unsaved changes
   const onReconnect = useCallback(
     (oldEdge: ReactFlowEdge, newConnection: Connection) => {
-      setEdges(els => reconnectEdge(oldEdge, newConnection, els))
+      onReconnectBase(oldEdge, newConnection)
       setHasUnsavedChanges(true)
     },
-    [setEdges]
+    [onReconnectBase]
   )
+
+  // Clear any leftover multi-input slot state when a reconnect drag is dropped or cancelled
+  const onReconnectEnd = useCallback(() => {
+    clearPendingInsertionIndex()
+  }, [])
 
   const spreadsheetVisible = useUIStore(state => state.spreadsheetVisible)
   const setSpreadsheetVisible = useUIStore(state => state.setSpreadsheetVisible)
@@ -515,6 +523,9 @@ export function getNoodles(): Visualization {
       onConnectionDropEnd(event, connectionState)
       setConnectionDragState(null)
       setTargetedEdge(null)
+      // Drop any multi-input slot state from a cancelled drag (successful connects
+      // already consumed it in onConnect)
+      clearPendingInsertionIndex()
     },
     [onConnectionDropEnd, setConnectionDragState, setTargetedEdge]
   )
@@ -530,8 +541,8 @@ export function getNoodles(): Visualization {
       const edge = findEdgeAtPosition(
         pos,
         connectionDragState.sourceNodeId,
-        () => nodesRef.current,
-        () => edgesRef.current,
+        () => graphRef.current.nodes,
+        () => graphRef.current.edges,
         connectionDragState.compatibleEdgeIds,
         spatialIndexRef.current || undefined
       )
@@ -546,8 +557,8 @@ export function getNoodles(): Visualization {
 
   // Hook for dropping nodes onto edges to insert them
   const { onNodeDrag: onNodeDragBase, onNodeDragStop: onNodeDragStopBase } = useNodeDropOnEdge({
-    getNodes: useCallback(() => nodesRef.current, []),
-    getEdges: useCallback(() => edgesRef.current, []),
+    getNodes: useCallback(() => graphRef.current.nodes, []),
+    getEdges: useCallback(() => graphRef.current.edges, []),
     setEdges,
   })
 
@@ -730,9 +741,6 @@ export function getNoodles(): Visualization {
   }, [])
 
   const [showOverlay, setShowOverlay] = useState(true)
-  const [layoutMode, setLayoutMode] = useState<'split' | 'noodles-on-top' | 'output-on-top'>(
-    'noodles-on-top'
-  )
   const [showDebugInfo, setShowDebugInfo] = useState(false)
 
   // Render settings are now stored as OutOp inputs (see migration 012)
@@ -776,12 +784,14 @@ export function getNoodles(): Visualization {
       const ops = transformGraph({ nodes, edges })
       setOperators(ops)
 
-      // Update React Flow state (for rendering; graph is already set up above)
+      // Update React Flow state (for rendering; graph is already set up above).
+      // Normalizing here (after transformGraph, so operators exist for the ListField
+      // lookup) derives multi-input slot rendering caches from the file's edge order —
+      // project files never store them.
       setNodes(nodes)
-      setEdges(edges)
+      setEdges(normalizeMultiInputEdges(edges as ReactFlowEdge[]))
 
       // Load editor settings from project with defaults
-      setLayoutMode(editorSettings?.layoutMode ?? 'noodles-on-top')
       setShowOverlay(editorSettings?.showOverlay ?? true)
       setShowDebugInfo(editorSettings?.showDebugInfo ?? false)
 
@@ -991,13 +1001,12 @@ export function getNoodles(): Visualization {
       viewport,
       timeline,
       editorSettings: {
-        layoutMode,
         showOverlay,
         showDebugInfo,
       },
       ...(projectKeys ? { apiKeys: projectKeys } : {}),
     }
-  }, [nodes, edges, layoutMode, showOverlay, showDebugInfo, timelineStore.toTimelineJSON])
+  }, [nodes, edges, showOverlay, showDebugInfo, timelineStore.toTimelineJSON])
 
   const onMenuSave = useCallback(async () => {
     if (!projectName) return
@@ -1520,6 +1529,7 @@ export function getNoodles(): Visualization {
               onConnectStart={onConnectStart}
               onConnectEnd={onConnectEnd}
               onReconnect={onReconnect}
+              onReconnectEnd={onReconnectEnd}
               onNodeContextMenu={onNodeContextMenu}
               onNodesDelete={onNodesDelete}
               onNodeDrag={onNodeDrag}
@@ -1535,11 +1545,12 @@ export function getNoodles(): Visualization {
             >
               <ReactFlowInstanceCapture />
               <EdgeConnectionSynchronizer />
+              <CanvasDropImport />
               <Background />
               <Controls position="bottom-right" />
               <BlockLibrary ref={blockLibraryRef} reactFlowRef={reactFlowRef} />
-              <CopyControls ref={copyControlsRef} />
-              <UndoRedoHandler ref={undoRedoRef} />
+              <CopyControls ref={copyControlsRef} graphRef={graphRef} />
+              <UndoRedoHandler ref={undoRedoRef} graphRef={graphRef} />
               <Suspense fallback={null}>
                 <ChatPanel
                   project={{ nodes, edges }}
@@ -1631,7 +1642,19 @@ export function getNoodles(): Visualization {
   const OUT_OP_ID = '/out'
   const outOp = operators.find(n => n.id === OUT_OP_ID)! as unknown as OutOp
 
-  const [visProps, setVisProps] = useState(outOp?.inputs.vis.value || {})
+  // Find the DeckRendererOp that connects to OutOp
+  // Subscribe to its output instead of OutOp's input to create active subscription chain
+  const deckRendererOp = useMemo(() => {
+    const visConnection = edges.find(e => e.target === OUT_OP_ID && e.targetHandle === 'par.vis')
+    if (visConnection) {
+      return operators.find(op => op.id === visConnection.source) as DeckRendererOp | undefined
+    }
+    return undefined
+  }, [operators, edges])
+
+  const [visProps, setVisProps] = useState(
+    deckRendererOp?.outputs.vis.value || outOp?.inputs.vis.value || {}
+  )
 
   // Create overlay layer for selected GeoJSON-producing operators
   const selectedGeoJsonFeatures = useMemo(() => {
@@ -1654,8 +1677,16 @@ export function getNoodles(): Visualization {
   }, [nodes])
 
   useEffect(() => {
-    if (outOp) {
-      const visSub = outOp.inputs.vis.subscribe(
+    // Subscribe to DeckRendererOp output if available, otherwise fall back to OutOp input
+    // DeckRendererOp creates active subscription chain, but may not be available during initial render
+    const field = deckRendererOp?.outputs.vis || outOp?.inputs.vis
+
+    if (field) {
+      debugVis(
+        'Creating vis subscription from %s',
+        deckRendererOp ? 'DeckRendererOp.outputs.vis' : 'OutOp.inputs.vis'
+      )
+      const visSub = field.subscribe(
         ({ deckProps: { layers, widgets, ...deckProps }, mapProps }) => {
           // Map layers from POJOs to deck.gl instances
           const instantiatedLayers =
@@ -1693,7 +1724,10 @@ export function getNoodles(): Visualization {
                 ...layer,
                 ...(instantiatedExtensions ? { extensions: instantiatedExtensions } : {}),
                 // Prevent deck.gl layer errors from crashing the GPU process
-                onError: (e: Error) => debugVis('Layer error in %s: %o', type, e),
+                onError: (e: Error) => {
+                  console.error(`[Noodles] Layer error in ${layer.id} (${type}):`, e)
+                  debugVis('Layer error in %s (id=%s): %o', type, layer.id, e)
+                },
               })
             }) || []
 
@@ -1739,10 +1773,11 @@ export function getNoodles(): Visualization {
         }
       )
       return () => {
+        debugVis('Cleaning up vis subscription')
         visSub.unsubscribe()
       }
     }
-  }, [outOp, selectedGeoJsonFeatures])
+  }, [deckRendererOp, outOp, selectedGeoJsonFeatures])
 
   const propertiesPanel = (
     <ErrorBoundary title="Property Panel Error">
@@ -1756,25 +1791,32 @@ export function getNoodles(): Visualization {
     flowGraph,
     selectedNodeIds: nodes.filter(n => n.selected).map(n => n.id),
     nodeSidebar: (
-      <ErrorBoundary title="Node Tree Error">
-        <NodeTreeSidebar updateOperatorId={updateOperatorId} />
+      <ErrorBoundary title="Sidebar Error">
+        <SidebarTabs
+          tabs={[
+            {
+              id: 'nodes',
+              label: 'Nodes',
+              icon: 'pi-sitemap',
+              content: <NodeTreeSidebar updateOperatorId={updateOperatorId} />,
+            },
+            {
+              id: 'layers',
+              label: 'Layers',
+              icon: 'pi-clone',
+              content: <LayerPanel />,
+            },
+          ]}
+        />
       </ErrorBoundary>
     ),
     propertiesPanel,
-    layoutMode,
     showOverlay,
-    onChangeLayoutMode: setLayoutMode,
     onChangeShowOverlay: setShowOverlay,
     showDebugInfo,
     onChangeShowDebugInfo: setShowDebugInfo,
     spreadsheetVisible,
-    onChangeSpreadsheetVisible: useCallback(
-      (visible: boolean) => {
-        setSpreadsheetVisible(visible)
-        if (visible && layoutMode !== 'split') setLayoutMode('split')
-      },
-      [setSpreadsheetVisible, layoutMode]
-    ),
+    onChangeSpreadsheetVisible: setSpreadsheetVisible,
     // Render settings are now read from OutOp via useRenderSettings() hook
     // Export these so timeline-editor can create the menu with render actions
     projectName:

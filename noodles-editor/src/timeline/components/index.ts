@@ -1,6 +1,5 @@
 // Timeline UI Components - Public Exports
 
-export { CollapsibleTimelinePanel } from './CollapsibleTimelinePanel'
 export type { CurveEditorProps } from './CurveEditor'
 export { CurveEditor } from './CurveEditor'
 export type {

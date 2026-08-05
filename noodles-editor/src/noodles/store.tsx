@@ -37,6 +37,12 @@ interface OperatorStoreState {
   batch: (fn: () => void) => void
 }
 
+export interface PendingInsertionIndex {
+  nodeId: string
+  handleId: string
+  index: number
+}
+
 export const useOperatorStore = create<OperatorStoreState>((set, get) => ({
   operators: new Map(),
   sheetObjects: new Map(),
@@ -122,28 +128,41 @@ interface UIStoreState {
   setHoveredOutputHandle: (handle: { nodeId: string; handleId: string } | null) => void
   connectionDragState: ConnectionDragState | null
   setConnectionDragState: (state: ConnectionDragState | null) => void
+  // Slot index for multi-input handles: written by MultiInputHandle while a connection
+  // (or reconnection) drag hovers it, consumed once by onConnect/onReconnect, cleared
+  // when a drag is cancelled or the publishing handle unmounts
+  pendingInsertionIndex: PendingInsertionIndex | null
+  setPendingInsertionIndex: (info: PendingInsertionIndex | null) => void
   targetedEdge: { id: string; compatible: boolean } | null
   setTargetedEdge: (edge: { id: string; compatible: boolean } | null) => void
   nodeDragState: NodeDragState | null
   setNodeDragState: (state: NodeDragState | null) => void
-  sidebarVisible: boolean
-  setSidebarVisible: (visible: boolean) => void
   sidebarSearchFocusTrigger: number
   triggerSidebarSearch: () => void
   settingsDialogOpen: boolean
   setSettingsDialogOpen: (open: boolean) => void
-  timelineExpanded: boolean
-  setTimelineExpanded: (expanded: boolean) => void
-  timelineHeight: number
-  setTimelineHeight: (height: number) => void
   quickStartModalOpen: boolean
   setQuickStartModalOpen: (open: boolean) => void
+  timelineExpanded: boolean
+  setTimelineExpanded: (expanded: boolean) => void
   spreadsheetVisible: boolean
   setSpreadsheetVisible: (visible: boolean) => void
   pinnedSpreadsheetNodeId: string | null
   setPinnedSpreadsheetNodeId: (id: string | null) => void
-  spreadsheetWidth: number
-  setSpreadsheetWidth: (width: number) => void
+  mapMode: MapMode
+  setMapMode: (mode: MapMode) => void
+}
+
+// docked: map in its own panel above the node graph
+// floating: map in a draggable window
+// underlay: map fills the node graph area, drawn behind the graph
+export type MapMode = 'docked' | 'floating' | 'underlay'
+
+const MAP_MODES: MapMode[] = ['docked', 'floating', 'underlay']
+
+function loadMapMode(): MapMode {
+  const stored = localStorage.getItem('noodles-map-mode') as MapMode | null
+  return stored && MAP_MODES.includes(stored) ? stored : 'docked'
 }
 
 export const useUIStore = create<UIStoreState>(set => ({
@@ -151,40 +170,29 @@ export const useUIStore = create<UIStoreState>(set => ({
   setHoveredOutputHandle: handle => set({ hoveredOutputHandle: handle }),
   connectionDragState: null,
   setConnectionDragState: state => set({ connectionDragState: state }),
+  pendingInsertionIndex: null,
+  setPendingInsertionIndex: info => set({ pendingInsertionIndex: info }),
   targetedEdge: null,
   setTargetedEdge: edge => set({ targetedEdge: edge }),
   nodeDragState: null,
   setNodeDragState: state => set({ nodeDragState: state }),
-  sidebarVisible: false,
-  setSidebarVisible: visible => set({ sidebarVisible: visible }),
   sidebarSearchFocusTrigger: 0,
   triggerSidebarSearch: () =>
     set(state => ({ sidebarSearchFocusTrigger: state.sidebarSearchFocusTrigger + 1 })),
   settingsDialogOpen: false,
   setSettingsDialogOpen: open => set({ settingsDialogOpen: open }),
-  timelineExpanded: false,
-  setTimelineExpanded: expanded => set({ timelineExpanded: expanded }),
-  timelineHeight: 250,
-  setTimelineHeight: height => set({ timelineHeight: height }),
   quickStartModalOpen: false,
   setQuickStartModalOpen: open => set({ quickStartModalOpen: open }),
+  timelineExpanded: false,
+  setTimelineExpanded: expanded => set({ timelineExpanded: expanded }),
   spreadsheetVisible: false,
   setSpreadsheetVisible: visible => set({ spreadsheetVisible: visible }),
   pinnedSpreadsheetNodeId: null,
   setPinnedSpreadsheetNodeId: id => set({ pinnedSpreadsheetNodeId: id }),
-  spreadsheetWidth: (() => {
-    try {
-      const stored = localStorage.getItem('noodles-spreadsheet-width')
-      return stored ? Number(stored) : 400
-    } catch {
-      return 400
-    }
-  })(),
-  setSpreadsheetWidth: width => {
-    set({ spreadsheetWidth: width })
-    try {
-      localStorage.setItem('noodles-spreadsheet-width', String(width))
-    } catch {}
+  mapMode: loadMapMode(),
+  setMapMode: mode => {
+    set({ mapMode: mode })
+    localStorage.setItem('noodles-map-mode', mode)
   },
 }))
 
@@ -261,6 +269,26 @@ export const getAllSheetObjectIds = () => Array.from(getOpStore().sheetObjects.k
 // Hovered output handle helpers
 export const setHoveredOutputHandle = (handle: { nodeId: string; handleId: string } | null) =>
   getUIStore().setHoveredOutputHandle(handle)
+
+// Multi-input pending slot helpers (see pendingInsertionIndex in UIStoreState)
+export const setPendingInsertionIndex = (info: PendingInsertionIndex | null) =>
+  getUIStore().setPendingInsertionIndex(info)
+
+export const clearPendingInsertionIndex = () => getUIStore().setPendingInsertionIndex(null)
+
+// Consume-and-clear, guarded on the drop target so a stale index from hovering one
+// handle can't leak into a drop on a different handle
+export const takePendingInsertionIndex = (
+  nodeId: string | null | undefined,
+  handleId: string | null | undefined
+): number | null => {
+  const pending = getUIStore().pendingInsertionIndex
+  getUIStore().setPendingInsertionIndex(null)
+  if (pending && pending.nodeId === nodeId && pending.handleId === handleId) {
+    return pending.index
+  }
+  return null
+}
 
 // ============================================================================
 // Operator ID Update Helper

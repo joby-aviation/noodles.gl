@@ -22,11 +22,11 @@
       "id": "/population-color.out.color->/geojson-layer.par.getFillColor"
     },
     {
-      "source": "/map-range-1",
+      "source": "/population-to-elevation",
       "sourceHandle": "out.scaled",
       "target": "/geojson-layer",
       "targetHandle": "par.getElevation",
-      "id": "/map-range-1.out.scaled->/geojson-layer.par.getElevation"
+      "id": "/population-to-elevation.out.scaled->/geojson-layer.par.getElevation"
     },
     {
       "source": "/map-range",
@@ -59,9 +59,9 @@
     {
       "source": "/elevation-accessor",
       "sourceHandle": "out.accessor",
-      "target": "/map-range-1",
+      "target": "/population-to-elevation",
       "targetHandle": "par.val",
-      "id": "/elevation-accessor.out.accessor->/map-range-1.par.val"
+      "id": "/elevation-accessor.out.accessor->/population-to-elevation.par.val"
     }
   ],
   "viewport": {
@@ -69,7 +69,7 @@
     "y": 75.01093484232683,
     "zoom": 0.4556733508888464
   },
-  "version": 14,
+  "version": 15,
   "name": "NYC Census",
   "editorSettings": {
     "layoutMode": "noodles-on-top",
@@ -223,7 +223,7 @@
     },
     {
       "type": "MapRangeOp",
-      "id": "/map-range-1",
+      "id": "/population-to-elevation",
       "position": {
         "x": 418.01764914528434,
         "y": 519.3400164575731
