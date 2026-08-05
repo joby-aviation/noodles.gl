@@ -4156,9 +4156,14 @@ export class GraphInputOp extends Operator<GraphInputOp> {
       oldOutputValues.set(name, field.value)
     }
 
-    // Rebuild inputs: parentValue + custom fields
+    // Rebuild inputs: parentValue + custom fields. The base parentValue field
+    // object is PRESERVED, not recreated: transformGraph wires the parent
+    // container's `in` field to it via addConnection, and replacing the object
+    // orphans that subscription — data arriving after the rebuild (e.g. an
+    // async FileOp upstream of the container) then never reaches the
+    // container's children, silently freezing them on the initial value.
     const newInputs: Record<string, Field> = {
-      parentValue: new UnknownField(null, { optional: true }),
+      parentValue: this.inputs.parentValue ?? new UnknownField(null, { optional: true }),
     }
     for (const def of containerOp.customInputDefinitions) {
       const field = this.createFieldFromDefinition(def)
@@ -4166,9 +4171,10 @@ export class GraphInputOp extends Operator<GraphInputOp> {
     }
     this.inputs = newInputs as ReturnType<GraphInputOp['createInputs']>
 
-    // Rebuild outputs: value + custom fields
+    // Rebuild outputs: value + custom fields (base `value` preserved for the
+    // same reason — downstream edges subscribe to the field object).
     const newOutputs: Record<string, Field> = {
-      value: new UnknownField(null, { optional: true }),
+      value: this.outputs.value ?? new UnknownField(null, { optional: true }),
     }
     for (const def of containerOp.customInputDefinitions) {
       const field = this.createFieldFromDefinition(def)
