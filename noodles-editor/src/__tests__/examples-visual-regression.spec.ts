@@ -13,10 +13,10 @@
  * Update snapshots: npx playwright test examples-visual-regression --update-snapshots
  */
 
-import { test, expect } from '@playwright/test'
-import { readdirSync, readFileSync, existsSync } from 'fs'
-import { join, dirname } from 'path'
-import { fileURLToPath } from 'url'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { expect, test } from '@playwright/test'
 
 // Test frames for animated examples (in seconds)
 const TEST_FRAMES = [0, 0.5, 1.0, 2.0]
@@ -63,11 +63,14 @@ test.describe('Example Projects Visual Regression', () => {
         await page.goto(`/examples/${exampleName}`, { waitUntil: 'networkidle' })
 
         // Wait for window.deck to be available and canvas to render
-        await page.waitForFunction(() => {
-          const canvas = document.querySelector('canvas')
-          const deck = (window as any).deck
-          return canvas !== null && deck !== undefined
-        }, { timeout: 30000 })
+        await page.waitForFunction(
+          () => {
+            const canvas = document.querySelector('canvas')
+            const deck = (window as any).deck
+            return canvas !== null && deck !== undefined
+          },
+          { timeout: 30000 }
+        )
 
         // Wait for data to load and render
         // TODO: Hook into actual data loading state instead of fixed timeout
