@@ -165,6 +165,8 @@ export class GraphExecutor {
   private isPulling = false
   private lastFrameTime = 0
   private frameInterval: number
+  // Prevent unchanged or failed ForLoop scopes from rerunning every RAF frame.
+  private executedForLoopScopes = new Map<string, string>()
 
   // Dirty tracking
   private dirtyNodes: Set<string> = new Set()
@@ -405,6 +407,10 @@ export class GraphExecutor {
     // Find and execute ForLoop scopes first
     // ForLoop scopes need to complete their iterations before downstream operators can pull their results
     const forLoopScopes = this.findForLoopScopes()
+    const activeForLoopEndIds = new Set(forLoopScopes.map(scope => scope.endOp.id))
+    for (const endOpId of this.executedForLoopScopes.keys()) {
+      if (!activeForLoopEndIds.has(endOpId)) this.executedForLoopScopes.delete(endOpId)
+    }
 
     const nestedBeginIds = new Set(
       forLoopScopes.flatMap(parentScope =>
@@ -415,6 +421,12 @@ export class GraphExecutor {
     )
 
     for (const scope of forLoopScopes.filter(scope => !nestedBeginIds.has(scope.beginOp.id))) {
+      const scopeIsDirty = scope.scopeNodeIds.some(id => this.nodes.get(id)?.dirty)
+      const scopeSignature = this.getForLoopScopeSignature(scope.scopeNodeIds)
+      if (this.executedForLoopScopes.get(scope.endOp.id) === scopeSignature && !scopeIsDirty) {
+        continue
+      }
+
       try {
         const loopResults = await this.executeForLoopScope(
           scope.beginOp,
@@ -425,12 +437,24 @@ export class GraphExecutor {
         )
         results.set(scope.endOp.id, { value: { data: loopResults }, changed: true })
       } catch (error) {
+        // pull() leaves a failed operator in ERROR state. Clear only the public
+        // dirty bit so the RAF loop does not immediately retry it; a real input
+        // change calls markDirty() and makes the scope eligible again.
+        for (const id of scope.scopeNodeIds) {
+          const op = this.nodes.get(id)
+          if (op) op.dirty = false
+        }
+        // Keep the last completed output cached so downstream root pulls do not
+        // enter ForLoopEndOp's fallback iterator and retry within this frame.
+        scope.endOp.setCachedOutput({ data: scope.endOp.outputs.data.value })
         console.error('[Noodles] ForLoop execution error:', error)
         results.set(scope.endOp.id, {
           value: null,
           changed: false,
           error: error instanceof Error ? error : new Error(String(error)),
         })
+      } finally {
+        this.executedForLoopScopes.set(scope.endOp.id, scopeSignature)
       }
     }
 
@@ -793,6 +817,17 @@ export class GraphExecutor {
             possibleParent !== child && this.isNestedForLoopScope(possibleParent, child)
         )
     )
+  }
+
+  private getForLoopScopeSignature(scopeNodeIds: string[]): string {
+    const nodeIds = [...new Set(scopeNodeIds)].sort()
+    const nodeIdSet = new Set(nodeIds)
+    const edges = this.edges
+      .filter(edge => nodeIdSet.has(edge.source) && nodeIdSet.has(edge.target))
+      .map(edge => `${edge.source}->${edge.target}`)
+      .sort()
+
+    return `${nodeIds.join('|')}::${edges.join('|')}`
   }
 
   // Find ForLoop scopes in the graph. A scope contains only nodes that are both
