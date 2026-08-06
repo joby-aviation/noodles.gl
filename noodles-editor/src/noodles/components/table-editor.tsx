@@ -11,7 +11,7 @@ import { Button } from 'primereact/button'
 import { InputSwitch } from 'primereact/inputswitch'
 import { InputText } from 'primereact/inputtext'
 import { GeocodingDialog } from './geocoding-dialog'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Temporal } from 'temporal-polyfill'
 import type { TableEditorOp } from '../operators'
 import type { ColumnSchema, ColumnType, DateTimeValue, TableSchema } from '../table-schema'
@@ -666,6 +666,36 @@ function getCellRenderer(type: ColumnType) {
   }
 }
 
+// Tracks the cell currently in edit mode so row mutations can commit it first.
+// Without this, clicking "Add Row" or a delete button while a cell is mid-edit
+// can drop the pending value.
+interface ActiveEdit {
+  set: (commit: () => void) => void
+  clear: () => void
+  flush: () => void
+}
+
+function useActiveEdit(): ActiveEdit {
+  const commitRef = useRef<(() => void) | null>(null)
+
+  return useMemo(
+    () => ({
+      set: commit => {
+        commitRef.current = commit
+      },
+      clear: () => {
+        commitRef.current = null
+      },
+      flush: () => {
+        const commit = commitRef.current
+        commitRef.current = null
+        commit?.()
+      },
+    }),
+    []
+  )
+}
+
 // Editable cell component
 interface EditableCellProps {
   getValue: () => unknown
@@ -677,6 +707,7 @@ interface EditableCellProps {
         updateData: (rowIndex: number, columnId: string, value: unknown) => void
         deleteRow: (rowIndex: number) => void
         schema: TableSchema
+        activeEdit: ActiveEdit
       }
     }
   }
@@ -688,6 +719,7 @@ function EditableCell({ getValue, row, column, table }: EditableCellProps) {
   const [value, setValue] = useState(currentValue)
   const valueRef = useRef(currentValue)
   const prevValueRef = useRef(currentValue)
+  const isEditingRef = useRef(false)
 
   // Sync state with current value when not editing
   if (!isEditing && currentValue !== prevValueRef.current) {
@@ -704,9 +736,7 @@ function EditableCell({ getValue, row, column, table }: EditableCellProps) {
   const EditorComponent = getCellEditor(colSchema.type)
   const renderer = getCellRenderer(colSchema.type)
 
-  const startEditing = () => {
-    setIsEditing(true)
-  }
+  const activeEdit = table.options.meta?.activeEdit
 
   const handleChange = (newValue: unknown) => {
     setValue(newValue)
@@ -714,8 +744,20 @@ function EditableCell({ getValue, row, column, table }: EditableCellProps) {
   }
 
   const handleComplete = () => {
+    // Guard against committing twice when a flush is followed by the blur it caused
+    if (!isEditingRef.current) return
+    isEditingRef.current = false
     setIsEditing(false)
+    activeEdit?.clear()
     table.options.meta?.updateData(row.index, column.id, valueRef.current)
+  }
+
+  const startEditing = () => {
+    // Commit any other cell still in edit mode before taking over
+    activeEdit?.flush()
+    isEditingRef.current = true
+    setIsEditing(true)
+    activeEdit?.set(handleComplete)
   }
 
   if (isEditing) {
@@ -768,24 +810,36 @@ interface TableEditorProps {
 
 export function TableEditor({ data, schema, onDataChange, onSchemaChange }: TableEditorProps) {
   const [tableData, setTableData] = useState(data)
+  const activeEdit = useActiveEdit()
+
+  // Mirrors tableData so a flushed cell edit and the row mutation that triggered
+  // it can both run in one tick without the second reading stale state
+  const tableDataRef = useRef(tableData)
+  tableDataRef.current = tableData
+
+  const commitData = (newData: unknown[], description: string) => {
+    tableDataRef.current = newData
+    setTableData(newData)
+    onDataChange(newData, description)
+  }
 
   useEffect(() => {
     setTableData(data)
   }, [data])
 
   const addRow = () => {
+    activeEdit.flush()
     const newRow: Record<string, unknown> = {}
     for (const col of schema.columns) {
       newRow[col.name] = col.defaultValue ?? getDefaultValue(col)
     }
-    const newData = [...tableData, newRow]
-    setTableData(newData)
-    onDataChange(newData, 'Add table row')
+    commitData([...tableDataRef.current, newRow], 'Add table row')
   }
 
   const handleSchemaChange = (newSchema: TableSchema) => {
+    activeEdit.flush()
     // Update data to match new schema
-    const newData = tableData.map(row => {
+    const newData = tableDataRef.current.map(row => {
       const newRow: Record<string, unknown> = {}
       for (const col of newSchema.columns) {
         const existingValue = row[col.name]
@@ -800,6 +854,7 @@ export function TableEditor({ data, schema, onDataChange, onSchemaChange }: Tabl
     })
 
     onSchemaChange(newSchema, newData)
+    tableDataRef.current = newData
     setTableData(newData)
   }
 
@@ -826,8 +881,12 @@ export function TableEditor({ data, schema, onDataChange, onSchemaChange }: Tabl
         <Button
           icon="pi pi-trash"
           className={`p-button-text p-button-sm ${s.deleteButton}`}
+          // Suppress the editor blur so unmounting it doesn't reflow the row and
+          // move this button out from under the pointer before mouseup lands
+          onMouseDown={e => e.preventDefault()}
           onClick={() => props.table.options.meta?.deleteRow(props.row.index)}
           tooltip="Delete row"
+          aria-label="Delete row"
         />
       ),
       size: 50,
@@ -841,24 +900,25 @@ export function TableEditor({ data, schema, onDataChange, onSchemaChange }: Tabl
     meta: {
       updateData: (rowIndex: number, columnId: string, value: unknown) => {
         // Only update if value actually changed
-        const currentValue = tableData[rowIndex]?.[columnId]
+        const currentData = tableDataRef.current
+        const currentValue = currentData[rowIndex]?.[columnId]
         if (currentValue === value) {
           return
         }
-        const newData = [...tableData]
+        const newData = [...currentData]
         newData[rowIndex] = {
           ...newData[rowIndex],
           [columnId]: value,
         }
-        setTableData(newData)
-        onDataChange(newData, `Edit cell ${columnId}`)
+        commitData(newData, `Edit cell ${columnId}`)
       },
       deleteRow: (rowIndex: number) => {
-        const newData = tableData.filter((_, index) => index !== rowIndex)
-        setTableData(newData)
-        onDataChange(newData, 'Delete table row')
+        activeEdit.flush()
+        const newData = tableDataRef.current.filter((_, index) => index !== rowIndex)
+        commitData(newData, 'Delete table row')
       },
       schema,
+      activeEdit,
     },
   })
 
@@ -906,6 +966,7 @@ export function TableEditor({ data, schema, onDataChange, onSchemaChange }: Tabl
         <Button
           label="Add Row"
           icon="pi pi-plus"
+          onMouseDown={e => e.preventDefault()}
           onClick={addRow}
           className={`p-button-sm p-button-text ${s.addRowButton}`}
         />
