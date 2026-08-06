@@ -16,8 +16,14 @@ let content = fs.readFileSync(filePath, 'utf-8')
 
 const needle = /(\t+)return route\.fulfill\(\{\n\t+body,\n\t+headers: getHeaders\(this\.project\.browser\.vite\.config\)\n\t+\}\);/
 
-const replacement = (_, indent) =>
-  `${indent}try { return await route.fulfill({ body, headers: getHeaders(this.project.browser.vite.config) }) } catch (e) { if (!e?.message?.includes('already handled')) throw e }`
+const patchedRouteHandler =
+  "try { return await route.fulfill({ body, headers: getHeaders(this.project.browser.vite.config) }) } catch (e) { if (!e?.message?.includes('already handled')) throw e }"
+
+const replacement = (_, indent) => `${indent}${patchedRouteHandler}`
+
+if (content.includes(patchedRouteHandler)) {
+  process.exit(0)
+}
 
 if (!needle.test(content)) {
   console.warn('patch: @vitest/browser-playwright target not found — patch may be outdated, skipping')
