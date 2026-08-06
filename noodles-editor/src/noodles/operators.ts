@@ -4302,7 +4302,7 @@ export class GlobeViewOp extends Operator<GlobeViewOp> {
 
 export class FpsWidgetOp extends Operator<FpsWidgetOp> {
   static displayName = 'FpsWidget'
-  static description = 'Display frames per second (FPS) widget'
+  static description = 'Display frames per second (FPS) and rendering stats widget'
 
   createInputs() {
     return {
@@ -4325,7 +4325,7 @@ export class FpsWidgetOp extends Operator<FpsWidgetOp> {
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     const widget = {
       id: this.id,
-      type: '_FpsWidget',
+      type: '_StatsWidget',
       placement,
       ...(viewId && viewId !== '' ? { viewId } : {}),
     }
@@ -4358,7 +4358,7 @@ export class FullscreenWidgetOp extends Operator<FullscreenWidgetOp> {
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     const widget = {
       id: this.id,
-      type: '_FullscreenWidget',
+      type: 'FullscreenWidget',
       placement,
       ...(viewId && viewId !== '' ? { viewId } : {}),
     }
@@ -4391,7 +4391,7 @@ export class ZoomWidgetOp extends Operator<ZoomWidgetOp> {
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     const widget = {
       id: this.id,
-      type: '_ZoomWidget',
+      type: 'ZoomWidget',
       placement,
       ...(viewId && viewId !== '' ? { viewId } : {}),
     }
@@ -4424,7 +4424,7 @@ export class CompassWidgetOp extends Operator<CompassWidgetOp> {
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     const widget = {
       id: this.id,
-      type: '_CompassWidget',
+      type: 'CompassWidget',
       placement,
       ...(viewId && viewId !== '' ? { viewId } : {}),
     }
@@ -4493,7 +4493,7 @@ export class ScreenshotWidgetOp extends Operator<ScreenshotWidgetOp> {
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     const widget = {
       id: this.id,
-      type: '_ScreenshotWidget',
+      type: 'ScreenshotWidget',
       placement,
       ...(viewId && viewId !== '' ? { viewId } : {}),
     }

@@ -19,6 +19,7 @@ import { fnWithSource } from './noodles/operators'
 import type { RenderSettings } from './noodles/utils/serialization'
 import { useDeckDrawLoop } from './render/draw-loop'
 import { captureScreenshot, useRenderer } from './render/renderer'
+import { deckRenderingDefaults, mapRenderingDefaults } from './render/rendering-defaults'
 import { TransformScale } from './render/transform-scale'
 import { useUIStore } from './noodles/store'
 import { TimelinePanel } from './timeline/components/TimelinePanel'
@@ -140,14 +141,7 @@ export default function TimelineEditor() {
   const fpsRef = useRef(0)
 
   const deckProps: DeckProps = {
-    deviceProps: {
-      type: 'webgl',
-      powerPreference: 'high-performance',
-      webgl: {
-        stencil: true,
-      },
-    },
-    useDevicePixels: false,
+    ...deckRenderingDefaults,
     ...visualization.deckProps,
     onDeviceInitialized: device => {
       visualization.deckProps?.onDeviceInitialized?.(device)
@@ -180,9 +174,7 @@ export default function TimelineEditor() {
   // Destructure light and sky since they're applied imperatively via setLight/setSky
   const { light, sky, ...basemapProps } = visualization.mapProps ?? {}
   const mapProps: MapProps = {
-    interactive: false,
-    antialias: true,
-    preserveDrawingBuffer: true,
+    ...mapRenderingDefaults,
     onLoad: ({ target: map }) => {
       // Redraw react to ensure hooks check for map ref changes
       mapRef.current = map
