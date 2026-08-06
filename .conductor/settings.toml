@@ -1,7 +1,7 @@
 "$schema" = "https://conductor.build/schemas/settings.repo.schema.json"
 
 [scripts]
-setup = "(cd noodles-editor && npm install)"
+setup = "npm install"
 
 [scripts.run.run]
 available_in = "local"
