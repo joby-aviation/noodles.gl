@@ -47,8 +47,59 @@ describe('layoutGroups', () => {
 
     expect(body.position).toEqual({ x: 60, y: 60 })
     expect(body.style).toMatchObject({ width: 480, height: 140 })
+    expect(body).toMatchObject({
+      width: 480,
+      height: 140,
+      measured: { width: 480, height: 140 },
+    })
     expect(absolutePosition(result, '/begin')).toEqual({ x: 100, y: 100 })
     expect(absolutePosition(result, '/end')).toEqual({ x: 400, y: 100 })
+  })
+
+  it('replaces stale React Flow dimensions when the fitted style is already correct', () => {
+    const body = {
+      ...group('/body', { x: 60, y: 60 }),
+      width: 1200,
+      height: 400,
+      measured: { width: 1200, height: 400 },
+      style: { width: 480, height: 140 },
+    }
+    const nodes = [
+      body,
+      node('/begin', { x: 40, y: 40 }, '/body', { width: 100, height: 60 }),
+      node('/end', { x: 340, y: 40 }, '/body', { width: 100, height: 60 }),
+    ]
+    const parents = new Map(nodes.map(node => [node.id, node.parentId]))
+
+    const result = layoutGroups(nodes, new Set(['/body']), parents)
+
+    expect(byId(result, '/body')).toMatchObject({
+      width: 480,
+      height: 140,
+      measured: { width: 480, height: 140 },
+      style: { width: 480, height: 140 },
+    })
+  })
+
+  it('keeps the fitted style instead of stale dimensions while children are unmeasured', () => {
+    const body = {
+      ...group('/body', { x: 60, y: 60 }),
+      width: 1200,
+      height: 400,
+      measured: { width: 1200, height: 400 },
+      style: { width: 480, height: 140 },
+    }
+    const nodes = [body, node('/waiting', { x: 40, y: 40 }, '/body')]
+    const parents = new Map(nodes.map(node => [node.id, node.parentId]))
+
+    const result = layoutGroups(nodes, new Set(['/body']), parents)
+
+    expect(byId(result, '/body')).toMatchObject({
+      width: 480,
+      height: 140,
+      measured: { width: 480, height: 140 },
+      style: { width: 480, height: 140 },
+    })
   })
 
   it('reparents nodes without changing their canvas position and orders the parent first', () => {

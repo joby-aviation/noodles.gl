@@ -22,6 +22,12 @@ function nodeSize(node: Node): { width: number; height: number } | undefined {
   return width !== undefined && height !== undefined ? { width, height } : undefined
 }
 
+function styledSize(node: Node): { width: number; height: number } | undefined {
+  const width = finiteNumber(node.style?.width)
+  const height = finiteNumber(node.style?.height)
+  return width !== undefined && height !== undefined ? { width, height } : undefined
+}
+
 function samePosition(a: Position, b: Position): boolean {
   return a.x === b.x && a.y === b.y
 }
@@ -89,7 +95,9 @@ export function layoutGroups<TNode extends Node>(
       })
     } else {
       const group = nodesById.get(groupId)!
-      const size = nodeSize(group)
+      // Group style is the canonical persisted size. React Flow's width and
+      // measured fields are runtime caches and can still contain the old bounds.
+      const size = styledSize(group) ?? nodeSize(group)
       if (size) nextGroupSize.set(groupId, size)
     }
 
@@ -116,7 +124,11 @@ export function layoutGroups<TNode extends Node>(
     const sizeChanged =
       groupSize !== undefined &&
       (finiteNumber(node.style?.width) !== groupSize.width ||
-        finiteNumber(node.style?.height) !== groupSize.height)
+        finiteNumber(node.style?.height) !== groupSize.height ||
+        finiteNumber(node.width) !== groupSize.width ||
+        finiteNumber(node.height) !== groupSize.height ||
+        finiteNumber(node.measured?.width) !== groupSize.width ||
+        finiteNumber(node.measured?.height) !== groupSize.height)
 
     if (!parentChanged && !positionChanged && !expandParentChanged && !sizeChanged) return node
 
@@ -126,7 +138,12 @@ export function layoutGroups<TNode extends Node>(
       expandParent: nextExpandParent,
       position,
       ...(groupSize
-        ? { style: { ...node.style, width: groupSize.width, height: groupSize.height } }
+        ? {
+            width: groupSize.width,
+            height: groupSize.height,
+            measured: { ...node.measured, ...groupSize },
+            style: { ...node.style, width: groupSize.width, height: groupSize.height },
+          }
         : {}),
     } as TNode
   })
