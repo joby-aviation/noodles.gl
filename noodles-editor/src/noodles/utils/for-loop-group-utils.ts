@@ -11,6 +11,13 @@ export type ForLoopDefinition = {
   metaIds: string[]
 }
 
+const LOOP_BEGIN_SUFFIX = /for-loop-begin(-\d+)?$/
+
+function relatedLoopId(beginId: string, part: 'body' | 'end' | 'meta'): string | undefined {
+  if (!LOOP_BEGIN_SUFFIX.test(beginId)) return undefined
+  return beginId.replace(LOOP_BEGIN_SUFFIX, `for-loop-${part}$1`)
+}
+
 type LoopGroup = {
   groupId: string
   beginId: string
@@ -165,4 +172,72 @@ export function reconcileForLoopGroups<TNode extends Node>(
   }
 
   return layoutGroups(nodes, loopGroupIds, desiredParent)
+}
+
+/**
+ * Repairs loop groups produced before loop body IDs were unique. The repair is
+ * deliberately conservative: it only reconstructs generated Begin/End pairs
+ * whose numeric suffixes match and that still have a directed path between them.
+ */
+export function repairLegacyForLoopGroups<TNode extends Node>(
+  nodes: TNode[],
+  edges: GraphEdge[]
+): TNode[] {
+  const nodesById = new Map(nodes.map(node => [node.id, node]))
+  const existingDefinitions = findForLoopDefinitions(nodes)
+  const definedBeginIds = new Set(existingDefinitions.map(definition => definition.beginId))
+  const adjacency = new Map<string, Set<string>>()
+  for (const edge of edges) {
+    if (!adjacency.has(edge.source)) adjacency.set(edge.source, new Set())
+    adjacency.get(edge.source)!.add(edge.target)
+  }
+
+  const repairedNodes = [...nodes]
+  const desiredParent = new Map(nodes.map(node => [node.id, node.parentId]))
+  const loopGroupIds = new Set(existingDefinitions.map(definition => definition.groupId))
+  let repaired = false
+
+  for (const begin of nodes.filter(node => node.type === 'ForLoopBeginOp')) {
+    if (definedBeginIds.has(begin.id)) continue
+
+    const groupId = relatedLoopId(begin.id, 'body')
+    const endId = relatedLoopId(begin.id, 'end')
+    const metaId = relatedLoopId(begin.id, 'meta')
+    if (!groupId || !endId) continue
+
+    const end = nodesById.get(endId)
+    if (end?.type !== 'ForLoopEndOp' || !reachableFrom(begin.id, adjacency).has(end.id)) continue
+
+    let group = nodesById.get(groupId)
+    if (group && group.type !== 'group') continue
+
+    if (!group) {
+      group = {
+        id: groupId,
+        type: 'group',
+        data: {},
+        selectable: false,
+        draggable: false,
+        parentId: begin.parentId,
+        position: { ...begin.position },
+        style: { width: 1200, height: 400 },
+      } as TNode
+      repairedNodes.push(group)
+      nodesById.set(groupId, group)
+      desiredParent.set(groupId, begin.parentId)
+      repaired = true
+    }
+
+    loopGroupIds.add(groupId)
+    for (const marker of [begin, end, metaId ? nodesById.get(metaId) : undefined]) {
+      if (!marker) continue
+      if (marker.parentId !== groupId) repaired = true
+      desiredParent.set(marker.id, groupId)
+    }
+  }
+
+  if (!repaired) return nodes
+
+  const seededNodes = layoutGroups(repairedNodes, loopGroupIds, desiredParent)
+  return reconcileForLoopGroups(seededNodes, edges)
 }
