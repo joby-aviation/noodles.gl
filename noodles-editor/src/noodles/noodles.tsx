@@ -104,6 +104,7 @@ import {
   selectDirectory,
   writeFileToDirectory,
 } from './utils/filesystem'
+import { reconcileForLoopGroups } from './utils/for-loop-group-utils'
 import { edgeId, nodeId } from './utils/id-utils'
 import { generateDraftId, memoryProjectStore } from './utils/memory-project-store'
 import { migrateProject } from './utils/migrate-schema'
@@ -330,6 +331,30 @@ export function getNoodles(): Visualization {
       .join(',')
     return `${nodeIds}|${edgeIds}`
   }, [nodes, edges])
+
+  // Visual ForLoop groups are derived from the directed Begin-to-End subgraph. Re-run
+  // when connectivity, membership, or measured dimensions change, but not during a drag.
+  const forLoopLayoutKey = useMemo(() => {
+    const nodeState = nodes
+      .map(
+        node =>
+          `${node.id}:${node.type}:${node.parentId ?? ''}:${node.measured?.width ?? ''}x${node.measured?.height ?? ''}`
+      )
+      .sort()
+      .join(',')
+    const connectivity = edges
+      .map(edge => `${edge.source}->${edge.target}`)
+      .sort()
+      .join(',')
+    return `${nodeState}|${connectivity}`
+  }, [nodes, edges])
+
+  // nodes/edges are represented by forLoopLayoutKey; position-only updates intentionally
+  // do not trigger this effect because drag-stop performs the fit once per gesture.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional key-based reconciliation
+  useEffect(() => {
+    setNodes(currentNodes => reconcileForLoopGroups(currentNodes, edges))
+  }, [forLoopLayoutKey, setNodes])
 
   // `transformGraph` needs all nodes to build the opMap and resolve connections
   // Use useEffect instead of useMemo to avoid setState during render
@@ -574,12 +599,13 @@ export function getNoodles(): Visualization {
   const onNodeDragStop = useCallback(
     (event: React.MouseEvent, node: ReactFlowNode) => {
       const result = onNodeDragStopBase(event, node)
+      setNodes(currentNodes => reconcileForLoopGroups(currentNodes, graphRef.current.edges))
       // Mark as unsaved if a node was inserted into an edge
       if (result) {
         setHasUnsavedChanges(true)
       }
     },
-    [onNodeDragStopBase]
+    [onNodeDragStopBase, setNodes]
   )
 
   const onNodeContextMenu = useCallback(
