@@ -6,6 +6,7 @@ import { visibilityAdaptiveLoop } from '../utils/worker-timer'
 import type { Field } from './fields'
 import type { ForLoopBeginOp, ForLoopEndOp, ForLoopMetaOp, IOperator, Operator } from './operators'
 import { getAllOps } from './store'
+import type { ForLoopDefinition } from './utils/for-loop-group-utils'
 import type { OpId } from './utils/id-utils'
 
 export type ComputeResult<T = unknown> = {
@@ -142,6 +143,7 @@ export class GraphExecutor {
   private downstream: Map<string, Set<string>> = new Map()
   private sortedOrder: string[] = []
   private executionLevels: string[][] = []
+  private forLoopDefinitions: ForLoopDefinition[] = []
   private isDirty = true
   private options: Required<ExecutorOptions>
   // Track nodes added directly via addNode() (not from store sync)
@@ -173,6 +175,10 @@ export class GraphExecutor {
       enableProfiling: options.enableProfiling ?? false,
     }
     this.frameInterval = 1000 / this.options.targetFPS
+  }
+
+  setForLoopDefinitions(definitions: ForLoopDefinition[]): void {
+    this.forLoopDefinitions = definitions
   }
 
   // Start the execution loop
@@ -714,7 +720,8 @@ export class GraphExecutor {
     return results
   }
 
-  // Find ForLoop scopes in the graph (ForLoopBegin + ForLoopEnd pairs within same group)
+  // Find ForLoop scopes in the graph. A scope contains only nodes that are both
+  // downstream of Begin and upstream of its paired End (nodes on a Begin-to-End path).
   findForLoopScopes(): Array<{
     beginOp: ForLoopBeginOp
     endOp: ForLoopEndOp
@@ -730,50 +737,61 @@ export class GraphExecutor {
       groupId: string
     }> = []
 
+    const reachable = (startId: string, graph: Map<string, Set<string>>): Set<string> => {
+      const visited = new Set<string>()
+      const queue = [startId]
+      while (queue.length > 0) {
+        const id = queue.shift()!
+        if (visited.has(id)) continue
+        visited.add(id)
+        queue.push(...(graph.get(id) ?? []))
+      }
+      return visited
+    }
+
+    const definitionByBeginId = new Map(
+      this.forLoopDefinitions.map(definition => [definition.beginId, definition])
+    )
+
     // Find all ForLoopBeginOp nodes
     for (const [_, op] of this.nodes) {
       const opType = (op.constructor as { displayName?: string }).displayName
       if (opType === 'ForLoopBegin') {
-        // Find the corresponding ForLoopEndOp by traversing downstream
-        const visited = new Set<string>()
-        const queue = [op.id]
-        let endOp: ForLoopEndOp | undefined
-        let metaOp: ForLoopMetaOp | undefined
-        const scopeNodeIds: string[] = [op.id]
-
-        while (queue.length > 0) {
-          const nodeId = queue.shift()!
-          if (visited.has(nodeId)) continue
-          visited.add(nodeId)
-
-          const downstream = this.getDownstream(nodeId)
-          for (const downstreamId of downstream) {
-            const downstreamNode = this.nodes.get(downstreamId)
-            if (!downstreamNode) continue
-
-            const downstreamType = (downstreamNode.constructor as { displayName?: string })
-              .displayName
-            if (downstreamType === 'ForLoopEnd') {
-              endOp = downstreamNode as ForLoopEndOp
-              scopeNodeIds.push(downstreamId)
-            } else if (downstreamType === 'ForLoopMeta') {
-              metaOp = downstreamNode as ForLoopMetaOp
-              scopeNodeIds.push(downstreamId)
-              queue.push(downstreamId)
-            } else {
-              scopeNodeIds.push(downstreamId)
-              queue.push(downstreamId)
-            }
-          }
-        }
+        const definition = definitionByBeginId.get(op.id)
+        const downstream = reachable(op.id, this.downstream)
+        const configuredEnd = definition ? this.nodes.get(definition.endId) : undefined
+        const inferredEnd = [...downstream]
+          .map(id => this.nodes.get(id))
+          .find(
+            candidate =>
+              (candidate?.constructor as { displayName?: string } | undefined)?.displayName ===
+              'ForLoopEnd'
+          )
+        const endOp = (configuredEnd ?? inferredEnd) as ForLoopEndOp | undefined
 
         if (endOp) {
+          const upstream = reachable(endOp.id, this.upstream)
+          const scopeNodeIds = [...this.nodes.keys()].filter(
+            id => downstream.has(id) && upstream.has(id)
+          )
+          const configuredMeta = definition?.metaIds
+            .map(id => this.nodes.get(id))
+            .find(candidate => candidate && scopeNodeIds.includes(candidate.id))
+          const inferredMeta = scopeNodeIds
+            .map(id => this.nodes.get(id))
+            .find(
+              candidate =>
+                (candidate?.constructor as { displayName?: string } | undefined)?.displayName ===
+                'ForLoopMeta'
+            )
+          const metaOp = (configuredMeta ?? inferredMeta) as ForLoopMetaOp | undefined
+
           scopes.push({
             beginOp: op as ForLoopBeginOp,
             endOp,
             metaOp,
             scopeNodeIds,
-            groupId: op.id.split('/').slice(0, -1).join('/') || '/',
+            groupId: definition?.groupId ?? (op.id.split('/').slice(0, -1).join('/') || '/'),
           })
         }
       }
@@ -941,7 +959,7 @@ export function stopExecutor(): void {
 }
 
 // Update graph from edges - syncs nodes from the store
-export function updateGraph(edges: Edge[]): void {
+export function updateGraph(edges: Edge[], forLoopDefinitions: ForLoopDefinition[] = []): void {
   if (!globalExecutor) {
     initializeExecutor()
   }
@@ -950,6 +968,7 @@ export function updateGraph(edges: Edge[]): void {
     globalExecutor.syncNodesFromStore()
     // Build edge relationships
     globalExecutor.buildFromEdges(edges)
+    globalExecutor.setForLoopDefinitions(forLoopDefinitions)
     // Start the RAF loop if not already running
     if (!globalExecutor.isRunning) {
       globalExecutor.start()

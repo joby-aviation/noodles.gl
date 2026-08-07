@@ -1289,6 +1289,65 @@ describe('ForLoop execution via GraphExecutor.executeFrame()', () => {
     expect(scopes[0].beginOp).toBe(beginOp)
     expect(scopes[0].endOp).toBe(endOp)
   })
+
+  it('excludes downstream branches that do not reconnect before ForLoopEnd', () => {
+    const executor = new GraphExecutor()
+    const beginOp = new ForLoopBeginOp('/forloop-begin')
+    const bodyOp = new MathOp('/body')
+    const deadEndOp = new MathOp('/dead-end')
+    const endOp = new ForLoopEndOp('/forloop-end')
+
+    for (const op of [beginOp, bodyOp, deadEndOp, endOp]) executor.addNode(op)
+    executor.addEdge(beginOp.id, bodyOp.id)
+    executor.addEdge(bodyOp.id, endOp.id)
+    executor.addEdge(beginOp.id, deadEndOp.id)
+
+    const [scope] = executor.findForLoopScopes()
+
+    expect(scope.scopeNodeIds).toEqual([beginOp.id, bodyOp.id, endOp.id])
+    expect(scope.scopeNodeIds).not.toContain(deadEndOp.id)
+  })
+
+  it('uses visual group definitions to pair nested loop boundaries', () => {
+    const executor = new GraphExecutor()
+    const outerBegin = new ForLoopBeginOp('/outer-begin')
+    const innerBegin = new ForLoopBeginOp('/inner-begin')
+    const innerEnd = new ForLoopEndOp('/inner-end')
+    const outerEnd = new ForLoopEndOp('/outer-end')
+
+    for (const op of [outerBegin, innerBegin, innerEnd, outerEnd]) executor.addNode(op)
+    executor.addEdge(outerBegin.id, innerBegin.id)
+    executor.addEdge(innerBegin.id, innerEnd.id)
+    executor.addEdge(innerEnd.id, outerEnd.id)
+    executor.setForLoopDefinitions([
+      {
+        groupId: '/outer-body',
+        beginId: outerBegin.id,
+        endId: outerEnd.id,
+        metaIds: [],
+      },
+      {
+        groupId: '/inner-body',
+        beginId: innerBegin.id,
+        endId: innerEnd.id,
+        metaIds: [],
+      },
+    ])
+
+    const scopes = executor.findForLoopScopes()
+    const outerScope = scopes.find(scope => scope.beginOp === outerBegin)!
+    const innerScope = scopes.find(scope => scope.beginOp === innerBegin)!
+
+    expect(outerScope.endOp).toBe(outerEnd)
+    expect(outerScope.scopeNodeIds).toEqual([
+      outerBegin.id,
+      innerBegin.id,
+      innerEnd.id,
+      outerEnd.id,
+    ])
+    expect(innerScope.endOp).toBe(innerEnd)
+    expect(innerScope.scopeNodeIds).toEqual([innerBegin.id, innerEnd.id])
+  })
 })
 
 describe('GraphExecutor - ForLoop execution with executeForLoopScope', () => {

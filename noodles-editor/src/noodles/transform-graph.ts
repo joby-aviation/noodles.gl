@@ -7,6 +7,7 @@ import type { IOperator, Operator, OpType } from './operators'
 import { ContainerOp, ForLoopEndOp, GraphInputOp, opTypes, type SpecialNodeType } from './operators'
 import { getOpStore } from './store'
 import { validateConnection } from './utils/can-connect'
+import { findForLoopDefinitions } from './utils/for-loop-group-utils'
 import { getParentPath, isDirectChild, parseHandleId } from './utils/path-utils'
 import { computeVisibilityHeuristic } from './utils/visibility-heuristic'
 
@@ -204,7 +205,7 @@ export function transformGraph<
   })
 
   // Update dependency graph
-  updateGraph(edges as unknown as ExecutorEdge[])
+  updateGraph(edges as unknown as ExecutorEdge[], findForLoopDefinitions(nodes))
 
   // Remove any connections that are not in the edges array.
   // Also clear connection errors for removed edges.
