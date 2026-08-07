@@ -1,3 +1,4 @@
+import * as deckWidgets from '@deck.gl/widgets'
 import * as turf from '@turf/turf'
 import { Temporal } from 'temporal-polyfill'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -10,6 +11,7 @@ import {
   CategoricalColorRampOp,
   ChartOp,
   CodeOp,
+  CompassWidgetOp,
   ConcatOp,
   CrossOp,
   DeckRendererOp,
@@ -18,6 +20,8 @@ import {
   ExpressionOp,
   FileOp,
   FilterOp,
+  FpsWidgetOp,
+  FullscreenWidgetOp,
   GeocoderOp,
   GeoJsonLayerOp,
   GeoJsonTransformOp,
@@ -38,11 +42,13 @@ import {
   RerouteOp,
   ScaleWidgetOp,
   ScatterplotLayerOp,
+  ScreenshotWidgetOp,
   SelectOp,
   SmoothOp,
   SwitchOp,
   Tile3DLayerOp,
   TimeSeriesOp,
+  ZoomWidgetOp,
 } from './operators'
 import { deleteOp, getOpStore, setOp } from './store'
 import { isAccessor } from './utils/accessor-helpers'
@@ -3469,6 +3475,24 @@ describe('ScaleWidgetOp', () => {
     await op.pull()
 
     expect(op.outputData.widget.viewId).toBeUndefined()
+  })
+})
+
+describe('deck.gl widget operators', () => {
+  it.each([
+    ['FpsWidgetOp', FpsWidgetOp, '_StatsWidget'],
+    ['FullscreenWidgetOp', FullscreenWidgetOp, 'FullscreenWidget'],
+    ['ZoomWidgetOp', ZoomWidgetOp, 'ZoomWidget'],
+    ['CompassWidgetOp', CompassWidgetOp, 'CompassWidget'],
+    ['ScaleWidgetOp', ScaleWidgetOp, '_ScaleWidget'],
+    ['ScreenshotWidgetOp', ScreenshotWidgetOp, 'ScreenshotWidget'],
+  ])('%s emits an available deck.gl widget constructor', async (_name, WidgetOp, type) => {
+    const op = new WidgetOp('/widget-0')
+    await op.pull()
+
+    expect(op.outputData.widget.type).toBe(type)
+    // biome-ignore lint/performance/noDynamicNamespaceImportAccess: Match the runtime widget lookup.
+    expect(deckWidgets[type as keyof typeof deckWidgets]).toBeTypeOf('function')
   })
 })
 
