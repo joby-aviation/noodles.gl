@@ -1348,6 +1348,92 @@ describe('ForLoop execution via GraphExecutor.executeFrame()', () => {
     expect(innerScope.endOp).toBe(innerEnd)
     expect(innerScope.scopeNodeIds).toEqual([innerBegin.id, innerEnd.id])
   })
+
+  it('executes nested loop boundaries only within their parent iteration', async () => {
+    const executor = new GraphExecutor()
+    const outerBegin = new ForLoopBeginOp('/outer-begin')
+    const innerBegin = new ForLoopBeginOp('/inner-begin')
+    const innerMath = new MathOp('/inner-math')
+    const innerEnd = new ForLoopEndOp('/inner-end')
+    const outerEnd = new ForLoopEndOp('/outer-end')
+
+    outerBegin.inputs.data.setValue([
+      [1, 2],
+      [3, 4],
+    ])
+    innerBegin.inputs.data.addConnection('outer-to-inner', outerBegin.outputs.item)
+    innerMath.inputs.a.addConnection('inner-to-math', innerBegin.outputs.item)
+    innerMath.inputs.b.setValue(2)
+    innerMath.inputs.operator.setValue('multiply')
+    innerEnd.inputs.item.addConnection('math-to-inner-end', innerMath.outputs.result)
+    outerEnd.inputs.item.addConnection('inner-end-to-outer-end', innerEnd.outputs.data)
+
+    innerBegin.addUpstreamDependency(outerBegin)
+    outerBegin.addDownstreamDependent(innerBegin)
+    innerMath.addUpstreamDependency(innerBegin)
+    innerBegin.addDownstreamDependent(innerMath)
+    innerEnd.addUpstreamDependency(innerMath)
+    innerMath.addDownstreamDependent(innerEnd)
+    outerEnd.addUpstreamDependency(innerEnd)
+    innerEnd.addDownstreamDependent(outerEnd)
+
+    for (const op of [outerBegin, innerBegin, innerMath, innerEnd, outerEnd]) {
+      executor.addNode(op)
+    }
+    executor.buildFromEdges([
+      {
+        id: 'outer-to-inner',
+        source: outerBegin.id,
+        sourceHandle: 'out.item',
+        target: innerBegin.id,
+        targetHandle: 'par.data',
+      },
+      {
+        id: 'inner-to-math',
+        source: innerBegin.id,
+        sourceHandle: 'out.item',
+        target: innerMath.id,
+        targetHandle: 'par.a',
+      },
+      {
+        id: 'math-to-inner-end',
+        source: innerMath.id,
+        sourceHandle: 'out.result',
+        target: innerEnd.id,
+        targetHandle: 'par.item',
+      },
+      {
+        id: 'inner-end-to-outer-end',
+        source: innerEnd.id,
+        sourceHandle: 'out.data',
+        target: outerEnd.id,
+        targetHandle: 'par.item',
+      },
+    ])
+    executor.setForLoopDefinitions([
+      {
+        groupId: '/outer-body',
+        beginId: outerBegin.id,
+        endId: outerEnd.id,
+        metaIds: [],
+      },
+      {
+        groupId: '/inner-body',
+        beginId: innerBegin.id,
+        endId: innerEnd.id,
+        metaIds: [],
+      },
+    ])
+    const executeScope = vi.spyOn(executor, 'executeForLoopScope')
+
+    await executor.executeFrame(performance.now())
+
+    expect(outerEnd.outputs.data.value).toEqual([
+      [2, 4],
+      [6, 8],
+    ])
+    expect(executeScope.mock.calls.filter(([begin]) => begin === innerBegin)).toHaveLength(2)
+  })
 })
 
 describe('GraphExecutor - ForLoop execution with executeForLoopScope', () => {
