@@ -6,7 +6,11 @@ import { visibilityAdaptiveLoop } from '../utils/worker-timer'
 import type { Field } from './fields'
 import type { ForLoopBeginOp, ForLoopEndOp, ForLoopMetaOp, IOperator, Operator } from './operators'
 import { getAllOps } from './store'
-import type { ForLoopDefinition } from './utils/for-loop-group-utils'
+import {
+  type ForLoopDefinition,
+  findForLoopDefinitions,
+  type GraphNode,
+} from './utils/for-loop-group-utils'
 import type { OpId } from './utils/id-utils'
 
 export type ComputeResult<T = unknown> = {
@@ -140,7 +144,6 @@ type ForLoopScope = {
   endOp: ForLoopEndOp
   metaOp?: ForLoopMetaOp
   scopeNodeIds: string[]
-  groupId: string
 }
 
 // GraphExecutor - manages execution of the operator graph
@@ -650,7 +653,6 @@ export class GraphExecutor {
       endOp,
       metaOp,
       scopeNodeIds,
-      groupId: allScopes?.find(scope => scope.beginOp === beginOp)?.groupId ?? '',
     }
     const loopScopes = allScopes ?? this.findForLoopScopes()
     const nestedScopes = this.findDirectNestedForLoopScopes(currentScope, loopScopes)
@@ -852,7 +854,6 @@ export class GraphExecutor {
             endOp,
             metaOp,
             scopeNodeIds,
-            groupId: definition?.groupId ?? (op.id.split('/').slice(0, -1).join('/') || '/'),
           })
         }
       }
@@ -1020,7 +1021,7 @@ export function stopExecutor(): void {
 }
 
 // Update graph from edges - syncs nodes from the store
-export function updateGraph(edges: Edge[], forLoopDefinitions: ForLoopDefinition[] = []): void {
+export function updateGraph(nodes: GraphNode[], edges: Edge[]): void {
   if (!globalExecutor) {
     initializeExecutor()
   }
@@ -1029,7 +1030,7 @@ export function updateGraph(edges: Edge[], forLoopDefinitions: ForLoopDefinition
     globalExecutor.syncNodesFromStore()
     // Build edge relationships
     globalExecutor.buildFromEdges(edges)
-    globalExecutor.setForLoopDefinitions(forLoopDefinitions)
+    globalExecutor.setForLoopDefinitions(findForLoopDefinitions(nodes))
     // Start the RAF loop if not already running
     if (!globalExecutor.isRunning) {
       globalExecutor.start()
