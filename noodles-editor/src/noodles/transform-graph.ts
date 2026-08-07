@@ -204,7 +204,7 @@ export function transformGraph<
   })
 
   // Update dependency graph
-  updateGraph(edges as unknown as ExecutorEdge[])
+  updateGraph(_nodes, edges as unknown as ExecutorEdge[])
 
   // Remove any connections that are not in the edges array.
   // Also clear connection errors for removed edges.

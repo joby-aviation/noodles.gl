@@ -2,7 +2,7 @@ import type { Node } from '@xyflow/react'
 import { layoutGroups } from './group-layout-utils'
 
 type GraphEdge = { source: string; target: string }
-type GraphNode = { id: string; type?: string; parentId?: string }
+export type GraphNode = { id: string; type?: string; parentId?: string }
 
 export type ForLoopDefinition = {
   groupId: string
