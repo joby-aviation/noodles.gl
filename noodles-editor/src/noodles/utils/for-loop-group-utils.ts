@@ -105,10 +105,19 @@ export function reconcileForLoopGroups<TNode extends Node>(
   edges: GraphEdge[]
 ): TNode[] {
   const loopGroups = findLoopGroups(nodes, edges)
-  if (loopGroups.length === 0) return nodes
+  const loopMarkerTypes = new Set(['ForLoopBeginOp', 'ForLoopEndOp', 'ForLoopMetaOp'])
+  const loopGroupIds = new Set(
+    nodes
+      .filter(
+        group =>
+          group.type === 'group' &&
+          nodes.some(node => node.parentId === group.id && loopMarkerTypes.has(node.type ?? ''))
+      )
+      .map(group => group.id)
+  )
+  if (loopGroupIds.size === 0) return nodes
 
   const nodesById = new Map(nodes.map(node => [node.id, node]))
-  const loopGroupIds = new Set(loopGroups.map(group => group.groupId))
   const candidatesByNodeId = new Map<string, LoopGroup[]>()
 
   for (const group of loopGroups) {
@@ -122,7 +131,10 @@ export function reconcileForLoopGroups<TNode extends Node>(
   const desiredParent = new Map<string, string | undefined>()
   for (const node of nodes) {
     desiredParent.set(node.id, node.parentId)
-    if (node.type === 'group') continue
+    if (node.type === 'group') {
+      if (loopGroupIds.has(node.parentId ?? '')) desiredParent.set(node.id, undefined)
+      continue
+    }
 
     const ownLoop = loopGroups.find(
       group =>

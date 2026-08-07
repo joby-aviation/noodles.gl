@@ -74,6 +74,22 @@ describe('reconcileForLoopGroups', () => {
     expect(absolutePosition(result, '/old')).toEqual({ x: 250, y: 40 })
   })
 
+  it('clears stale membership when the final loop is missing an endpoint', () => {
+    const nodes = [
+      group('/body', { x: 100, y: 100 }),
+      node('/begin', 'ForLoopBeginOp', { x: 40, y: 40 }, '/body'),
+      node('/meta', 'ForLoopMetaOp', { x: 300, y: 40 }, '/body'),
+      node('/old', 'MathOp', { x: 550, y: 40 }, '/body'),
+    ]
+
+    const result = reconcileForLoopGroups(nodes, [])
+
+    expect(byId(result, '/begin').parentId).toBeUndefined()
+    expect(byId(result, '/meta').parentId).toBeUndefined()
+    expect(byId(result, '/old').parentId).toBeUndefined()
+    expect(absolutePosition(result, '/old')).toEqual({ x: 650, y: 140 })
+  })
+
   it('includes rejoining branches but excludes dead-end branches', () => {
     const nodes = [
       group('/body'),
