@@ -4,21 +4,22 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Mock store
 const storeState = {
-  spreadsheetVisible: true,
-  spreadsheetWidth: 400,
   pinnedSpreadsheetNodeId: null as string | null,
 }
-const mockSetWidth = vi.fn((w: number) => { storeState.spreadsheetWidth = w })
-const mockSetPinnedNodeId = vi.fn((id: string | null) => { storeState.pinnedSpreadsheetNodeId = id })
+const mockSetPinnedNodeId = vi.fn((id: string | null) => {
+  storeState.pinnedSpreadsheetNodeId = id
+})
 
 vi.mock('../../store', () => ({
-  useUIStore: (selector: (s: typeof storeState & {
-    setSpreadsheetWidth: typeof mockSetWidth
-    setPinnedSpreadsheetNodeId: typeof mockSetPinnedNodeId
-  }) => unknown) =>
+  useUIStore: (
+    selector: (
+      s: typeof storeState & {
+        setPinnedSpreadsheetNodeId: typeof mockSetPinnedNodeId
+      }
+    ) => unknown
+  ) =>
     selector({
       ...storeState,
-      setSpreadsheetWidth: mockSetWidth,
       setPinnedSpreadsheetNodeId: mockSetPinnedNodeId,
     }),
   getOp: vi.fn(),
@@ -42,20 +43,12 @@ const mockGetOp = vi.mocked(getOp)
 
 describe('SpreadsheetPane', () => {
   beforeEach(() => {
-    storeState.spreadsheetVisible = true
-    storeState.spreadsheetWidth = 400
     storeState.pinnedSpreadsheetNodeId = null
     mockGetOp.mockReset()
     mockSetPinnedNodeId.mockClear()
   })
 
   afterEach(() => cleanup())
-
-  it('renders nothing when spreadsheet is not visible', () => {
-    storeState.spreadsheetVisible = false
-    const { container } = render(<SpreadsheetPane selectedNodeIds={['/op-1']} />)
-    expect(container.firstChild).toBeNull()
-  })
 
   it('shows empty state when no node is selected', () => {
     render(<SpreadsheetPane selectedNodeIds={[]} />)
@@ -100,17 +93,18 @@ describe('SpreadsheetPane', () => {
     expect(subscribeSpy).toHaveBeenCalledOnce()
   })
 
-  it('unsubscribes when hidden', () => {
+  it('unsubscribes when unmounted (Layout hides the pane by unmounting it)', () => {
     const subject = new Subject<unknown>()
     const unsubSpy = vi.fn()
-    vi.spyOn(subject, 'subscribe').mockReturnValue({ unsubscribe: unsubSpy } as ReturnType<Subject<unknown>['subscribe']>)
+    vi.spyOn(subject, 'subscribe').mockReturnValue({
+      unsubscribe: unsubSpy,
+    } as unknown as ReturnType<Subject<unknown>['subscribe']>)
     mockGetOp.mockReturnValue({
       outputs: { result: subject },
     } as unknown as ReturnType<typeof getOp>)
 
-    const { rerender } = render(<SpreadsheetPane selectedNodeIds={['/op-1']} />)
-    storeState.spreadsheetVisible = false
-    rerender(<SpreadsheetPane selectedNodeIds={['/op-1']} />)
+    const { unmount } = render(<SpreadsheetPane selectedNodeIds={['/op-1']} />)
+    unmount()
     expect(unsubSpy).toHaveBeenCalledOnce()
   })
 

@@ -32,8 +32,8 @@ function HomepageHeader() {
 					{siteConfig.title}
 				</Heading>
 				<p className={styles.heroSubtitle}>
-					Turn geospatial data into stunning, animated visualizations — no
-					coding required.
+					The animation studio for maps. Build cinematic, data-driven
+					geospatial stories — entirely in the browser.
 				</p>
 				<div className={styles.heroButtons}>
 					<a
@@ -65,8 +65,9 @@ const showcaseItems = [
 		media: "/img/example-nyc-taxi-brushing.mp4",
 		type: "video" as const,
 		title: "NYC Taxi Trips",
-		description: "Brush and filter 1M+ trips in real time",
-		tag: "Transportation",
+		description:
+			"Animated arc flows across 1M+ trips with real-time brushing and filtering",
+		tag: "Animated",
 		wide: true,
 		example: "nyc-taxis",
 	},
@@ -74,8 +75,9 @@ const showcaseItems = [
 		media: "/img/example-world-flights.png",
 		type: "image" as const,
 		title: "World Flights",
-		description: "Animated flight paths colored by origin country",
-		tag: "Aviation",
+		description:
+			"Arc layer with camera flythrough, animated by timestamp and colored by airline",
+		tag: "Cinematic",
 		wide: false,
 		example: "world-flights",
 	},
@@ -83,8 +85,9 @@ const showcaseItems = [
 		media: "/img/example-chargemap.png",
 		type: "image" as const,
 		title: "EV Charging Network",
-		description: "Live API data across thousands of stations",
-		tag: "Energy",
+		description:
+			"Live DuckDB query drives a heatmap that updates as filters change",
+		tag: "Data-driven",
 		wide: false,
 		example: "chargers",
 	},
@@ -92,8 +95,9 @@ const showcaseItems = [
 		media: "/img/example-california-earthquakes.png",
 		type: "image" as const,
 		title: "California Earthquakes",
-		description: "Magnitude-scaled scatter with turbo color ramp",
-		tag: "Science",
+		description:
+			"Magnitude-scaled scatter with animated time window and turbo color ramp",
+		tag: "Scientific",
 		wide: false,
 		example: "california-earthquakes",
 	},
@@ -101,8 +105,9 @@ const showcaseItems = [
 		media: "/img/example-us-unemployment.png",
 		type: "image" as const,
 		title: "US County Unemployment",
-		description: "Choropleth map with DuckDB SQL aggregation",
-		tag: "Economics",
+		description:
+			"Choropleth driven by SQL, exportable as print-resolution image or video",
+		tag: "Publication",
 		wide: false,
 		example: "us-county-unemployment",
 	},
@@ -118,7 +123,8 @@ function ShowcaseGallery() {
 						Built with Noodles.gl
 					</Heading>
 					<p className={styles.sectionSubtitle}>
-						From quick explorations to polished, publication-ready renders
+						Animated maps, data-driven storytelling, and publication-quality
+						renders — all from visual pipelines
 					</p>
 				</div>
 				<div className={styles.galleryGrid}>
@@ -164,6 +170,63 @@ function ShowcaseGallery() {
 	);
 }
 
+function Positioning() {
+	return (
+		<section className={styles.positioningSection}>
+			<div className="container">
+				<div className={styles.sectionHeader}>
+					<Heading as="h2" className={styles.sectionTitle}>
+						Static maps tell facts. Animated maps tell stories.
+					</Heading>
+					<p className={styles.sectionSubtitle}>
+						Most mapping tools stop at the screenshot. Noodles.gl starts
+						there — giving you a full keyframe timeline, reactive data
+						pipelines, and cinema-quality GPU rendering to turn spatial data
+						into narrative.
+					</p>
+				</div>
+				<div className={styles.positioningGrid}>
+					<div className={styles.positioningCard}>
+						<h3>Timeline-first design</h3>
+						<p>
+							Every parameter in your visualization is animatable. Camera
+							position, arc height, filter threshold, color ramp midpoint —
+							set keyframes, adjust bezier curves, scrub through time.
+							The workflow motion designers already know, applied to maps.
+						</p>
+					</div>
+					<div className={styles.positioningCard}>
+						<h3>Reactive, not static</h3>
+						<p>
+							Wire a DuckDB query to a heatmap layer. Change the WHERE
+							clause and the map updates in the same frame. Chain ten
+							transforms together — the whole pipeline stays live. No
+							re-runs, no stale caches.
+						</p>
+					</div>
+					<div className={styles.positioningCard}>
+						<h3>40+ GPU layer types</h3>
+						<p>
+							Arcs, trips, hexagons, heatmaps, point clouds, 3D columns,
+							contours, great circles, icon clusters — each rendered at
+							60fps on the GPU via Deck.gl. Handle millions of data points
+							without dropping frames.
+						</p>
+					</div>
+					<div className={styles.positioningCard}>
+						<h3>Export anything</h3>
+						<p>
+							MP4 video at any framerate and resolution. High-DPI PNG stills
+							for print. Interactive embeds for the web. Or drive the
+							visualization live from external tools via the MCP API.
+						</p>
+					</div>
+				</div>
+			</div>
+		</section>
+	);
+}
+
 function VideoSection() {
 	return (
 		<section className={styles.videoSection}>
@@ -173,7 +236,8 @@ function VideoSection() {
 						See it in action
 					</Heading>
 					<p className={styles.sectionSubtitle}>
-						Watch how Noodles.gl turns raw data into animated, interactive maps
+						From raw data to cinematic map animation — the full workflow in
+						under 5 minutes
 					</p>
 				</div>
 				<div className={styles.videoOuter}>
@@ -195,23 +259,23 @@ function VideoSection() {
 
 const useCases = [
 	{
-		headline: "Animate anything on a map",
-		body: "Keyframe any parameter — color, size, opacity, position — and scrub through time with a professional timeline editor. Export to video for presentations or share as interactive web pages.",
+		headline: "Keyframe everything",
+		body: "Camera position, layer opacity, filter thresholds, colors, radii — every parameter is animatable. Scrub with a professional timeline editor, shape curves with bezier handles, and export directly to video.",
 		icon: "🎬",
 	},
 	{
-		headline: "Connect data, see results instantly",
-		body: "Load a CSV, drag a few nodes, and your data appears on a WebGL-rendered globe. Changes propagate through the graph in real time — no manual refreshes, no waiting.",
+		headline: "Reactive data pipelines",
+		body: "Wire a SQL query to a map layer; when the query changes, the map updates instantly. Chain transforms, filters, and visual encodings as a live graph — no run button, no waiting.",
 		icon: "⚡",
 	},
 	{
-		headline: "From prototype to publication",
-		body: "Start with built-in layers like heatmaps, arc flows, and hexagonal bins. Add custom JavaScript when you need it. Export at print resolution when you're done.",
+		headline: "Cinema-quality map renders",
+		body: "40+ GPU-accelerated layer types: arcs, heatmaps, hexagons, trip animations, 3D columns, point clouds. Export at any resolution — 4K video, print-ready stills, or interactive web embeds.",
 		icon: "🗺️",
 	},
 	{
-		headline: "Reproducible workflows",
-		body: "Every project is a JSON file. Share it with a colleague, open it six months later, and get the exact same result. No hidden state, no version drift.",
+		headline: "Ship it, share it, replay it",
+		body: "Every project is a portable JSON file. Hand it to a colleague — they get the exact same visualization, data pipeline, and animation. No environment drift, no missing dependencies.",
 		icon: "🔁",
 	},
 ];
@@ -248,8 +312,8 @@ function HowItWorks() {
 						Visual data pipelines
 					</Heading>
 					<p className={styles.sectionSubtitle}>
-						Connect operators like building blocks. Each node does one thing
-						well.
+						Connect operators like building blocks — data flows through the
+						graph and the map updates live.
 					</p>
 				</div>
 				<div className={styles.pipelineRow}>
@@ -257,17 +321,20 @@ function HowItWorks() {
 						<div className={styles.pipelineStepNum}>1</div>
 						<div className={styles.pipelineStepContent}>
 							<h3>Load your data</h3>
-							<p>CSV, GeoJSON, JSON, live APIs, or SQL queries via DuckDB</p>
+							<p>
+								CSV, GeoJSON, GeoParquet, live APIs, or SQL queries via
+								DuckDB
+							</p>
 						</div>
 					</div>
 					<div className={styles.pipelineArrow}>→</div>
 					<div className={styles.pipelineStep}>
 						<div className={styles.pipelineStepNum}>2</div>
 						<div className={styles.pipelineStepContent}>
-							<h3>Build your graph</h3>
+							<h3>Compose the pipeline</h3>
 							<p>
-								Filter, transform, and wire up visualization layers with
-								drag-and-drop nodes
+								Chain transforms, pick a layer type, configure visual
+								encodings — all with drag-and-drop
 							</p>
 						</div>
 					</div>
@@ -275,10 +342,10 @@ function HowItWorks() {
 					<div className={styles.pipelineStep}>
 						<div className={styles.pipelineStepNum}>3</div>
 						<div className={styles.pipelineStepContent}>
-							<h3>Render and share</h3>
+							<h3>Animate and export</h3>
 							<p>
-								Animate with the timeline, export to video, or embed as an
-								interactive map
+								Keyframe any value, scrub the timeline, then export to MP4,
+								high-res PNG, or interactive embed
 							</p>
 						</div>
 					</div>
@@ -301,10 +368,10 @@ function CTASection() {
 		<section className={styles.ctaSection}>
 			<div className="container">
 				<Heading as="h2" className={styles.ctaSectionTitle}>
-					Ready to visualize your data?
+					Your data deserves motion
 				</Heading>
 				<p className={styles.ctaSectionSubtitle}>
-					Open-source, runs in the browser, no install required.
+					Open-source, runs entirely in the browser, no install required.
 				</p>
 				<div className={styles.heroButtons}>
 					<a
@@ -336,11 +403,12 @@ export default function Home() {
 	return (
 		<Layout
 			title={"Home"}
-			description="Turn geospatial data into stunning, animated visualizations — no coding required."
+			description="The animation studio for maps. Build cinematic, data-driven geospatial stories with keyframeable pipelines — entirely in the browser."
 		>
 			<HomepageHeader />
 			<main>
 				<ShowcaseGallery />
+				<Positioning />
 				<VideoSection />
 				<UseCases />
 				<HowItWorks />

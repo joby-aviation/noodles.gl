@@ -1,0 +1,116 @@
+.docked {
+  position: fixed;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  z-index: 1;
+}
+
+/* Behind the node graph (which gets z-index: 1 in layout.module.css) */
+.underlay {
+  position: fixed;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  z-index: 0;
+}
+
+.floating {
+  position: fixed;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-bg-base);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+  /* Above the editor panels, below menus (--z-index-chrome) and dialogs */
+  z-index: var(--z-index-canvas);
+}
+
+.resizeHandle {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 16px;
+  height: 16px;
+  cursor: nwse-resize;
+  /* Diagonal grip lines in the corner */
+  background: linear-gradient(
+    135deg,
+    transparent 0 50%,
+    var(--color-border) 50% 60%,
+    transparent 60% 70%,
+    var(--color-border) 70% 80%,
+    transparent 80%
+  );
+}
+
+.titleBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  height: 32px;
+  padding: 0 6px 0 10px;
+  background: var(--color-bg-elevated);
+  border-bottom: 1px solid var(--color-border);
+  cursor: move;
+  user-select: none;
+  touch-action: none;
+}
+
+.title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.titleBarButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+.titleBarButton:hover {
+  background: var(--color-bg-hover);
+  color: var(--color-text-primary);
+}
+
+.titleBarButton i {
+  font-size: 11px;
+}
+
+.content {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.dockedActions {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 1;
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+
+.content:hover .dockedActions {
+  opacity: 0.85;
+}
+
+.dockedActions:hover {
+  opacity: 1;
+}

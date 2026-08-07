@@ -229,10 +229,43 @@
 	opacity: 0.85;
 }
 
+/* ── Positioning ── */
+.positioningSection {
+	padding: 5rem 0;
+	background: var(--ifm-background-surface-color);
+}
+
+.positioningGrid {
+	display: grid;
+	grid-template-columns: repeat(2, 1fr);
+	gap: 1.5rem;
+}
+
+.positioningCard {
+	padding: 2rem;
+	border-radius: 16px;
+	background: var(--card-bg);
+	border: 1.5px solid var(--card-border);
+}
+
+.positioningCard h3 {
+	font-size: 1.1rem;
+	font-weight: 700;
+	margin: 0 0 0.75rem;
+	color: var(--text-primary);
+}
+
+.positioningCard p {
+	font-size: 0.95rem;
+	color: var(--text-secondary);
+	line-height: 1.65;
+	margin: 0;
+}
+
 /* ── Video ── */
 .videoSection {
 	padding: 5rem 0;
-	background: var(--ifm-background-surface-color);
+	background: var(--ifm-background-color);
 }
 
 .videoOuter {
@@ -268,7 +301,7 @@
 /* ── Use Cases ── */
 .useCasesSection {
 	padding: 5rem 0;
-	background: var(--ifm-background-surface-color);
+	background: var(--ifm-background-color);
 }
 
 .useCasesGrid {
@@ -443,6 +476,10 @@
 
 	.galleryCardWide {
 		grid-column: span 1;
+	}
+
+	.positioningGrid {
+		grid-template-columns: 1fr;
 	}
 
 	.useCasesGrid {

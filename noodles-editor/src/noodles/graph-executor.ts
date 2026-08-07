@@ -6,6 +6,11 @@ import { visibilityAdaptiveLoop } from '../utils/worker-timer'
 import type { Field } from './fields'
 import type { ForLoopBeginOp, ForLoopEndOp, ForLoopMetaOp, IOperator, Operator } from './operators'
 import { getAllOps } from './store'
+import {
+  type ForLoopDefinition,
+  findForLoopDefinitions,
+  type GraphNode,
+} from './utils/for-loop-group-utils'
 import type { OpId } from './utils/id-utils'
 
 export type ComputeResult<T = unknown> = {
@@ -134,6 +139,13 @@ export type PerformanceMetrics = {
   totalOperators: number
 }
 
+type ForLoopScope = {
+  beginOp: ForLoopBeginOp
+  endOp: ForLoopEndOp
+  metaOp?: ForLoopMetaOp
+  scopeNodeIds: string[]
+}
+
 // GraphExecutor - manages execution of the operator graph
 export class GraphExecutor {
   private nodes: Map<string, Operator<IOperator>> = new Map()
@@ -142,6 +154,7 @@ export class GraphExecutor {
   private downstream: Map<string, Set<string>> = new Map()
   private sortedOrder: string[] = []
   private executionLevels: string[][] = []
+  private forLoopDefinitions: ForLoopDefinition[] = []
   private isDirty = true
   private options: Required<ExecutorOptions>
   // Track nodes added directly via addNode() (not from store sync)
@@ -175,6 +188,10 @@ export class GraphExecutor {
       enableProfiling: options.enableProfiling ?? false,
     }
     this.frameInterval = 1000 / this.options.targetFPS
+  }
+
+  setForLoopDefinitions(definitions: ForLoopDefinition[]): void {
+    this.forLoopDefinitions = definitions
   }
 
   // Start the execution loop
@@ -395,7 +412,15 @@ export class GraphExecutor {
       if (!activeForLoopEndIds.has(endOpId)) this.executedForLoopScopes.delete(endOpId)
     }
 
-    for (const scope of forLoopScopes) {
+    const nestedBeginIds = new Set(
+      forLoopScopes.flatMap(parentScope =>
+        forLoopScopes
+          .filter(scope => this.isNestedForLoopScope(parentScope, scope))
+          .map(scope => scope.beginOp.id)
+      )
+    )
+
+    for (const scope of forLoopScopes.filter(scope => !nestedBeginIds.has(scope.beginOp.id))) {
       const scopeIsDirty = scope.scopeNodeIds.some(id => this.nodes.get(id)?.dirty)
       const scopeSignature = this.getForLoopScopeSignature(scope.scopeNodeIds)
       if (this.executedForLoopScopes.get(scope.endOp.id) === scopeSignature && !scopeIsDirty) {
@@ -407,7 +432,8 @@ export class GraphExecutor {
           scope.beginOp,
           scope.endOp,
           scope.scopeNodeIds,
-          scope.metaOp
+          scope.metaOp,
+          forLoopScopes
         )
         results.set(scope.endOp.id, { value: { data: loopResults }, changed: true })
       } catch (error) {
@@ -630,7 +656,8 @@ export class GraphExecutor {
     beginOp: ForLoopBeginOp,
     endOp: ForLoopEndOp,
     scopeNodeIds: string[],
-    metaOp?: ForLoopMetaOp
+    metaOp?: ForLoopMetaOp,
+    allScopes?: ForLoopScope[]
   ): Promise<unknown[]> {
     // First pull beginOp to get the input data
     await beginOp.pull()
@@ -645,41 +672,53 @@ export class GraphExecutor {
     const total = data.length
     const results: unknown[] = []
 
-    // Get intermediate nodes (excluding begin, meta, end)
-    const intermediateNodeIds = scopeNodeIds.filter(
+    const currentScope: ForLoopScope = {
+      beginOp,
+      endOp,
+      metaOp,
+      scopeNodeIds,
+    }
+    const loopScopes = allScopes ?? this.findForLoopScopes()
+    const nestedScopes = this.findDirectNestedForLoopScopes(currentScope, loopScopes)
+    const nestedScopeByNodeId = new Map<string, ForLoopScope>()
+    for (const nestedScope of nestedScopes) {
+      for (const nodeId of nestedScope.scopeNodeIds) {
+        nestedScopeByNodeId.set(nodeId, nestedScope)
+      }
+    }
+
+    // Sort the complete path so nested loops can execute atomically at the point
+    // where their Begin boundary occurs in the parent's execution order.
+    const executionNodeIds = scopeNodeIds.filter(
       id => id !== beginOp.id && id !== endOp.id && id !== metaOp?.id
     )
-
-    // Sort intermediate nodes topologically for execution order
     const scopeNodes = new Map(
-      intermediateNodeIds
+      executionNodeIds
         .map(id => [id, this.nodes.get(id)] as const)
         .filter((entry): entry is [string, Operator<IOperator>] => entry[1] !== undefined)
     )
     const scopeEdges = this.edges.filter(e => scopeNodes.has(e.source) && scopeNodes.has(e.target))
     const { sorted } = topologicalSort(scopeNodes, scopeEdges)
-    const executionOrder = sorted.map(id => this.nodes.get(id)!).filter(Boolean)
+    const executionOrder = sorted
 
     // Get initial accumulator value if meta op exists
     let accumulator: unknown = metaOp?.inputs.initialValue.value ?? null
 
     // Hoist edge lookup out of the loop for O(1) per-iteration performance
     // Instead of calling getOutputValueForField() every iteration (O(edges) scan)
-    const lastIntermediateOp = executionOrder[executionOrder.length - 1]
+    const targetHandle = this.getFieldHandle(endOp.inputs.item)
+    const connectingEdge = this.edges.find(
+      edge => edge.target === endOp.id && edge.targetHandle === targetHandle
+    )
+    const resultSourceOp = connectingEdge ? this.nodes.get(connectingEdge.source) : undefined
     let resultOutputKey: string | null = null
-    if (lastIntermediateOp) {
-      const targetHandle = this.getFieldHandle(endOp.inputs.item)
-      if (!targetHandle) {
-        console.warn(
-          `[GraphExecutor] getFieldHandle returned empty for endOp.inputs.item in ForLoop ${beginOp.id}`
-        )
-      }
-      const connectingEdge = this.edges.find(
-        edge => edge.source === lastIntermediateOp.id && edge.targetHandle === targetHandle
+    if (!targetHandle) {
+      console.warn(
+        `[GraphExecutor] getFieldHandle returned empty for endOp.inputs.item in ForLoop ${beginOp.id}`
       )
-      if (connectingEdge) {
-        resultOutputKey = connectingEdge.sourceHandle.split('.')[1] || null
-      }
+    }
+    if (connectingEdge) {
+      resultOutputKey = connectingEdge.sourceHandle.split('.')[1] || null
     }
 
     for (let index = 0; index < total; index++) {
@@ -707,19 +746,39 @@ export class GraphExecutor {
       }
 
       // Mark intermediate operators dirty for this iteration
-      for (const op of executionOrder) {
-        op.markDirty()
+      for (const nodeId of executionOrder) {
+        this.nodes.get(nodeId)?.markDirty()
       }
 
-      // Pull each intermediate operator in order
-      for (const op of executionOrder) {
-        await op.pull()
+      // Pull ordinary operators in order. A nested loop executes once, as an
+      // atomic operation, when its Begin boundary is reached; the parent skips
+      // the rest of that loop's internal nodes.
+      const executedNestedScopes = new Set<string>()
+      for (const nodeId of executionOrder) {
+        const nestedScope = nestedScopeByNodeId.get(nodeId)
+        if (nestedScope) {
+          if (
+            nodeId === nestedScope.beginOp.id &&
+            !executedNestedScopes.has(nestedScope.beginOp.id)
+          ) {
+            await this.executeForLoopScope(
+              nestedScope.beginOp,
+              nestedScope.endOp,
+              nestedScope.scopeNodeIds,
+              nestedScope.metaOp,
+              loopScopes
+            )
+            executedNestedScopes.add(nestedScope.beginOp.id)
+          }
+          continue
+        }
+        await this.nodes.get(nodeId)?.pull()
       }
 
       // Collect result from this iteration using pre-computed output key
       const resultValue =
-        lastIntermediateOp && resultOutputKey && lastIntermediateOp._cachedOutput
-          ? (lastIntermediateOp._cachedOutput[resultOutputKey] ?? endOp.inputs.item.value)
+        resultSourceOp && resultOutputKey && resultSourceOp._cachedOutput
+          ? (resultSourceOp._cachedOutput[resultOutputKey] ?? endOp.inputs.item.value)
           : executionOrder.length > 0
             ? endOp.inputs.item.value
             : beginOp.outputs.item.value
@@ -749,66 +808,86 @@ export class GraphExecutor {
     return `${nodeIds.join('|')}::${edges.join('|')}`
   }
 
-  // Find ForLoop scopes in the graph (ForLoopBegin + ForLoopEnd pairs within same group)
-  findForLoopScopes(): Array<{
-    beginOp: ForLoopBeginOp
-    endOp: ForLoopEndOp
-    metaOp?: ForLoopMetaOp
-    scopeNodeIds: string[]
-    groupId: string
-  }> {
-    const scopes: Array<{
-      beginOp: ForLoopBeginOp
-      endOp: ForLoopEndOp
-      metaOp?: ForLoopMetaOp
-      scopeNodeIds: string[]
-      groupId: string
-    }> = []
+  private isNestedForLoopScope(parent: ForLoopScope, child: ForLoopScope): boolean {
+    return (
+      parent.beginOp !== child.beginOp &&
+      parent.scopeNodeIds.includes(child.beginOp.id) &&
+      parent.scopeNodeIds.includes(child.endOp.id)
+    )
+  }
+
+  private findDirectNestedForLoopScopes(
+    parent: ForLoopScope,
+    scopes: ForLoopScope[]
+  ): ForLoopScope[] {
+    const nestedScopes = scopes.filter(scope => this.isNestedForLoopScope(parent, scope))
+    return nestedScopes.filter(
+      child =>
+        !nestedScopes.some(
+          possibleParent =>
+            possibleParent !== child && this.isNestedForLoopScope(possibleParent, child)
+        )
+    )
+  }
+
+  // Find ForLoop scopes in the graph. A scope contains only nodes that are both
+  // downstream of Begin and upstream of its paired End (nodes on a Begin-to-End path).
+  findForLoopScopes(): ForLoopScope[] {
+    const scopes: ForLoopScope[] = []
+
+    const reachable = (startId: string, graph: Map<string, Set<string>>): Set<string> => {
+      const visited = new Set<string>()
+      const queue = [startId]
+      while (queue.length > 0) {
+        const id = queue.shift()!
+        if (visited.has(id)) continue
+        visited.add(id)
+        queue.push(...(graph.get(id) ?? []))
+      }
+      return visited
+    }
+    const definitionByBeginId = new Map(
+      this.forLoopDefinitions.map(definition => [definition.beginId, definition])
+    )
 
     // Find all ForLoopBeginOp nodes
     for (const [_, op] of this.nodes) {
       const opType = (op.constructor as { displayName?: string }).displayName
       if (opType === 'ForLoopBegin') {
-        // Find the corresponding ForLoopEndOp by traversing downstream
-        const visited = new Set<string>()
-        const queue = [op.id]
-        let endOp: ForLoopEndOp | undefined
-        let metaOp: ForLoopMetaOp | undefined
-        const scopeNodeIds: string[] = [op.id]
-
-        while (queue.length > 0) {
-          const nodeId = queue.shift()!
-          if (visited.has(nodeId)) continue
-          visited.add(nodeId)
-
-          const downstream = this.getDownstream(nodeId)
-          for (const downstreamId of downstream) {
-            const downstreamNode = this.nodes.get(downstreamId)
-            if (!downstreamNode) continue
-
-            const downstreamType = (downstreamNode.constructor as { displayName?: string })
-              .displayName
-            if (downstreamType === 'ForLoopEnd') {
-              endOp = downstreamNode as ForLoopEndOp
-              scopeNodeIds.push(downstreamId)
-            } else if (downstreamType === 'ForLoopMeta') {
-              metaOp = downstreamNode as ForLoopMetaOp
-              scopeNodeIds.push(downstreamId)
-              queue.push(downstreamId)
-            } else {
-              scopeNodeIds.push(downstreamId)
-              queue.push(downstreamId)
-            }
-          }
-        }
+        const definition = definitionByBeginId.get(op.id)
+        const downstream = reachable(op.id, this.downstream)
+        const configuredEnd = definition ? this.nodes.get(definition.endId) : undefined
+        const inferredEnd = [...downstream]
+          .map(id => this.nodes.get(id))
+          .find(
+            candidate =>
+              (candidate?.constructor as { displayName?: string } | undefined)?.displayName ===
+              'ForLoopEnd'
+          )
+        const endOp = (configuredEnd ?? inferredEnd) as ForLoopEndOp | undefined
 
         if (endOp) {
+          const upstream = reachable(endOp.id, this.upstream)
+          const scopeNodeIds = [...this.nodes.keys()].filter(
+            id => downstream.has(id) && upstream.has(id)
+          )
+          const configuredMeta = definition?.metaIds
+            .map(id => this.nodes.get(id))
+            .find(candidate => candidate && scopeNodeIds.includes(candidate.id))
+          const inferredMeta = scopeNodeIds
+            .map(id => this.nodes.get(id))
+            .find(
+              candidate =>
+                (candidate?.constructor as { displayName?: string } | undefined)?.displayName ===
+                'ForLoopMeta'
+            )
+          const metaOp = (configuredMeta ?? inferredMeta) as ForLoopMetaOp | undefined
+
           scopes.push({
             beginOp: op as ForLoopBeginOp,
             endOp,
             metaOp,
             scopeNodeIds,
-            groupId: op.id.split('/').slice(0, -1).join('/') || '/',
           })
         }
       }
@@ -976,7 +1055,7 @@ export function stopExecutor(): void {
 }
 
 // Update graph from edges - syncs nodes from the store
-export function updateGraph(edges: Edge[]): void {
+export function updateGraph(nodes: GraphNode[], edges: Edge[]): void {
   if (!globalExecutor) {
     initializeExecutor()
   }
@@ -985,6 +1064,7 @@ export function updateGraph(edges: Edge[]): void {
     globalExecutor.syncNodesFromStore()
     // Build edge relationships
     globalExecutor.buildFromEdges(edges)
+    globalExecutor.setForLoopDefinitions(findForLoopDefinitions(nodes))
     // Start the RAF loop if not already running
     if (!globalExecutor.isRunning) {
       globalExecutor.start()
