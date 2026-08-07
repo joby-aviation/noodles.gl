@@ -34,36 +34,38 @@ function makeProject(nodes: Node[], edges: Edge[]): NoodlesProjectJSON {
 }
 
 describe('016-repair-forloop-groups', () => {
-  it('reconstructs unique groups for legacy unparented loop triplets', async () => {
+  it('reconstructs unique groups from operator types and connectivity after markers are renamed', async () => {
     const nodes: Node[] = [
       {
-        id: '/for-loop-body',
+        id: '/legacy-loop-shell',
         type: 'group',
         position: { x: -5000, y: -4000 },
         style: { width: 12000, height: 7000 },
+        selectable: false,
+        draggable: false,
         data: {},
       },
-      node('/for-loop-begin', 'ForLoopBeginOp', { x: -4300, y: 900 }),
+      node('/start-alpha', 'ForLoopBeginOp', { x: -4300, y: 900 }),
       node('/first-body', 'MathOp', { x: -3900, y: 900 }),
-      node('/for-loop-end', 'ForLoopEndOp', { x: -3400, y: 900 }),
-      node('/for-loop-meta', 'ForLoopMetaOp', { x: -3800, y: 1200 }),
-      node('/for-loop-begin-1', 'ForLoopBeginOp', { x: 2000, y: -3600 }),
+      node('/finish-alpha', 'ForLoopEndOp', { x: -3400, y: 900 }),
+      node('/meta-near-alpha', 'ForLoopMetaOp', { x: -3800, y: 1200 }),
+      node('/renamed-start', 'ForLoopBeginOp', { x: 2000, y: -3600 }),
       node('/second-body', 'MathOp', { x: 3500, y: -3600 }),
-      node('/for-loop-end-1', 'ForLoopEndOp', { x: 4800, y: -3600 }),
-      node('/for-loop-meta-1', 'ForLoopMetaOp', { x: 3500, y: -3100 }),
-      node('/for-loop-begin-2', 'ForLoopBeginOp', { x: -700, y: -4700 }),
+      node('/renamed-finish', 'ForLoopEndOp', { x: 4800, y: -3600 }),
+      node('/unrelated-meta-name', 'ForLoopMetaOp', { x: 3500, y: -3100 }),
+      node('/loop-entry-custom', 'ForLoopBeginOp', { x: -700, y: -4700 }),
       node('/third-body', 'MathOp', { x: -300, y: -4700 }),
-      node('/for-loop-end-2', 'ForLoopEndOp', { x: 100, y: -4700 }),
-      node('/for-loop-meta-2', 'ForLoopMetaOp', { x: -300, y: -4400 }),
+      node('/loop-exit-custom', 'ForLoopEndOp', { x: 100, y: -4700 }),
+      node('/metadata-custom', 'ForLoopMetaOp', { x: -300, y: -4400 }),
       node('/unrelated', 'MathOp', { x: 7000, y: 7000 }),
     ]
     const edges = [
-      edge('/for-loop-begin', '/first-body'),
-      edge('/first-body', '/for-loop-end'),
-      edge('/for-loop-begin-1', '/second-body'),
-      edge('/second-body', '/for-loop-end-1'),
-      edge('/for-loop-begin-2', '/third-body'),
-      edge('/third-body', '/for-loop-end-2'),
+      edge('/start-alpha', '/first-body'),
+      edge('/first-body', '/finish-alpha'),
+      edge('/renamed-start', '/second-body'),
+      edge('/second-body', '/renamed-finish'),
+      edge('/loop-entry-custom', '/third-body'),
+      edge('/third-body', '/loop-exit-custom'),
     ]
     const originalPositions = new Map(
       nodes
@@ -76,27 +78,24 @@ describe('016-repair-forloop-groups', () => {
 
     expect(
       migratedNodes.filter(current => current.type === 'group').map(current => current.id)
-    ).toEqual(['/for-loop-body', '/for-loop-body-1', '/for-loop-body-2'])
-    for (const suffix of ['', '-1', '-2']) {
-      const groupId = `/for-loop-body${suffix}`
-      expect(
-        migratedNodes.find(current => current.id === `/for-loop-begin${suffix}`)?.parentId
-      ).toBe(groupId)
-      expect(migratedNodes.find(current => current.id === `/for-loop-end${suffix}`)?.parentId).toBe(
-        groupId
-      )
-      expect(
-        migratedNodes.find(current => current.id === `/for-loop-meta${suffix}`)?.parentId
-      ).toBe(groupId)
+    ).toEqual(['/legacy-loop-shell', '/for-loop-body', '/for-loop-body-1'])
+    for (const [beginId, endId, metaId, groupId] of [
+      ['/start-alpha', '/finish-alpha', '/meta-near-alpha', '/legacy-loop-shell'],
+      ['/renamed-start', '/renamed-finish', '/unrelated-meta-name', '/for-loop-body'],
+      ['/loop-entry-custom', '/loop-exit-custom', '/metadata-custom', '/for-loop-body-1'],
+    ]) {
+      expect(migratedNodes.find(current => current.id === beginId)?.parentId).toBe(groupId)
+      expect(migratedNodes.find(current => current.id === endId)?.parentId).toBe(groupId)
+      expect(migratedNodes.find(current => current.id === metaId)?.parentId).toBe(groupId)
     }
     expect(migratedNodes.find(current => current.id === '/first-body')?.parentId).toBe(
-      '/for-loop-body'
+      '/legacy-loop-shell'
     )
     expect(migratedNodes.find(current => current.id === '/second-body')?.parentId).toBe(
-      '/for-loop-body-1'
+      '/for-loop-body'
     )
     expect(migratedNodes.find(current => current.id === '/third-body')?.parentId).toBe(
-      '/for-loop-body-2'
+      '/for-loop-body-1'
     )
     expect(migratedNodes.find(current => current.id === '/unrelated')?.parentId).toBeUndefined()
     for (const [id, position] of originalPositions) {
@@ -104,17 +103,42 @@ describe('016-repair-forloop-groups', () => {
     }
   })
 
-  it('does not guess when generated boundaries are incomplete or disconnected', async () => {
+  it('does not guess when boundaries are incomplete or disconnected', async () => {
     const nodes = [
-      node('/for-loop-begin', 'ForLoopBeginOp', { x: 0, y: 0 }),
-      node('/for-loop-end', 'ForLoopEndOp', { x: 500, y: 0 }),
-      node('/for-loop-begin-1', 'ForLoopBeginOp', { x: 0, y: 300 }),
+      node('/start', 'ForLoopBeginOp', { x: 0, y: 0 }),
+      node('/finish', 'ForLoopEndOp', { x: 500, y: 0 }),
+      node('/another-start', 'ForLoopBeginOp', { x: 0, y: 300 }),
     ]
     const project = makeProject(nodes, [])
 
     const migrated = await up(project)
 
     expect(migrated).toBe(project)
+  })
+
+  it('pairs nested boundaries from the inside out', async () => {
+    const nodes = [
+      node('/outer-start', 'ForLoopBeginOp', { x: 0, y: 0 }),
+      node('/inner-start', 'ForLoopBeginOp', { x: 300, y: 100 }),
+      node('/inner-finish', 'ForLoopEndOp', { x: 600, y: 100 }),
+      node('/outer-finish', 'ForLoopEndOp', { x: 900, y: 0 }),
+    ]
+    const edges = [
+      edge('/outer-start', '/inner-start'),
+      edge('/inner-start', '/inner-finish'),
+      edge('/inner-finish', '/outer-finish'),
+    ]
+
+    const migrated = await up(makeProject(nodes, edges))
+    const migratedNodes = migrated.nodes as Node[]
+    const innerGroupId = migratedNodes.find(node => node.id === '/inner-start')?.parentId
+    const outerGroupId = migratedNodes.find(node => node.id === '/outer-start')?.parentId
+
+    expect(innerGroupId).toBe('/for-loop-body')
+    expect(outerGroupId).toBe('/for-loop-body-1')
+    expect(migratedNodes.find(node => node.id === '/inner-finish')?.parentId).toBe(innerGroupId)
+    expect(migratedNodes.find(node => node.id === '/outer-finish')?.parentId).toBe(outerGroupId)
+    expect(migratedNodes.find(node => node.id === innerGroupId)?.parentId).toBe(outerGroupId)
   })
 
   it('keeps repaired v16 group data when migrating down', async () => {
