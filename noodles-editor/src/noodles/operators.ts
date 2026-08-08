@@ -192,7 +192,12 @@ import {
 import { DEFAULT_LATITUDE, DEFAULT_LONGITUDE, safeMode } from './globals'
 import { getKeysStore } from './keys-store'
 import { getAllOps, getOp } from './store'
-import { prepareTableDataForOutput, type TableSchema } from './table-schema'
+import {
+  flattenTableField,
+  migrateTableData,
+  prepareTableDataForOutput,
+  type TableSchema,
+} from './table-schema'
 import type { ExtensionConstructorArgs, LayerPropsValue } from './types'
 import { composeAccessor, isAccessor } from './utils/accessor-helpers'
 import { deepEqual } from './utils/deep-equal'
@@ -2424,7 +2429,9 @@ export class TableEditorOp extends Operator<TableEditorOp> {
 
   createInputs() {
     return {
-      data: new DataField(),
+      // Nested CompoundPropsField structure: { row_<uuid>: { colName: Field, ... }, ... }
+      // Each cell is individually keyframeable in the timeline
+      data: new CompoundPropsField({ subschema: {} }),
       schema: new UnknownField(null), // TableSchema | null - optional schema override
     }
   }
@@ -2437,13 +2444,47 @@ export class TableEditorOp extends Operator<TableEditorOp> {
   }
 
   execute({ data, schema }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    if (!schema) {
+      return {
+        data: [],
+        schema: null,
+      }
+    }
+
+    const tableSchema = schema as TableSchema
+
+    // Flatten nested CompoundPropsField back to array format
+    const flatData = flattenTableField(data, tableSchema)
+
     // Convert dateTime strings to Temporal.ZonedDateTime for output
     // This happens at the operator boundary: internal storage = strings, output = Temporal
-    const outputData = schema ? prepareTableDataForOutput(data, schema as TableSchema) : data
+    const outputData = prepareTableDataForOutput(flatData, tableSchema)
 
     return {
       data: outputData,
-      schema: schema || null,
+      schema: tableSchema,
+    }
+  }
+
+  // Migration: detect old DataField array format and convert to CompoundPropsField
+  onDeserialize() {
+    const dataInput = this.inputs.data
+    const schemaInput = this.inputs.schema
+
+    // Check if data is in old format (DataField was accidentally used before)
+    // In the old format, data.value would be an array directly
+    const oldValue = (dataInput as unknown as DataField).value
+
+    if (Array.isArray(oldValue) && schemaInput.value) {
+      const tableSchema = schemaInput.value as TableSchema
+
+      // Migrate to new CompoundPropsField format
+      const migratedField = migrateTableData(oldValue, tableSchema)
+
+      // Replace the data field's subschema with the migrated structure
+      ;(dataInput as CompoundPropsField).subschema = migratedField.subschema
+
+      console.log(`Migrated TableEditorOp ${this.id} from DataField to CompoundPropsField format`)
     }
   }
 }

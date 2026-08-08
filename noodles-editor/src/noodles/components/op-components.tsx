@@ -33,9 +33,17 @@ import { createPortal } from 'react-dom'
 import { Temporal } from 'temporal-polyfill'
 
 import { analytics } from '../../utils/analytics'
-import { ArrayField, type Field, type IField, ListField } from '../fields'
+import { ArrayField, CompoundPropsField, type Field, type IField, ListField } from '../fields'
 import { useKeysStore } from '../keys-store'
 import s from '../noodles.module.css'
+import {
+  convertValue,
+  createTableCompoundField,
+  flattenTableField,
+  getDefaultValue,
+  inferSchema,
+  type TableSchema,
+} from '../table-schema'
 import type { ExecutionState, IOperator, OpType } from '../operators'
 import {
   type ContainerOp,
@@ -64,7 +72,6 @@ import {
   useOperatorStore,
   useUIStore,
 } from '../store'
-import { inferSchema, type TableSchema } from '../table-schema'
 import type { NodeDataJSON } from '../transform-graph'
 import { canConnect } from '../utils/can-connect'
 import {
@@ -1782,51 +1789,105 @@ export function TableEditorOpComponent({
   const locked = useLocked(op)
   useFieldVisibility(op)
 
-  const [data, setData] = useState((op?.inputs.data.value ?? []) as unknown[])
   const [schema, setSchema] = useState<TableSchema>(() => {
-    // Get schema from output or infer from data
-    const outputSchema = op?.outputs.schema.value
-    if (outputSchema && typeof outputSchema === 'object' && 'columns' in outputSchema) {
-      return outputSchema as TableSchema
+    // Get schema from input or infer
+    const inputSchema = op?.inputs.schema.value
+    if (inputSchema && typeof inputSchema === 'object' && 'columns' in inputSchema) {
+      return inputSchema as TableSchema
     }
-    return inferSchema((op?.inputs.data.value ?? []) as unknown[])
+    return { columns: [] }
+  })
+
+  // Convert CompoundPropsField to array for display
+  const [data, setData] = useState(() => {
+    if (!op || !schema || schema.columns.length === 0) {
+      return []
+    }
+    return flattenTableField(op.inputs.data as unknown as CompoundPropsField, schema)
   })
 
   // Subscribe to data and schema changes
   useEffect(() => {
     if (!op) return
-    const dataSub = op.inputs.data.subscribe(newData => {
-      setData(newData as unknown[])
+    const dataSub = op.inputs.data.subscribe(() => {
+      if (schema && schema.columns.length > 0) {
+        const flatData = flattenTableField(op.inputs.data as unknown as CompoundPropsField, schema)
+        setData(flatData)
+      }
     })
-    const schemaSub = op.outputs.schema.subscribe(newSchema => {
+    const schemaSub = op.inputs.schema.subscribe((newSchema) => {
       if (newSchema && typeof newSchema === 'object' && 'columns' in newSchema) {
-        setSchema(newSchema as TableSchema)
+        const tableSchema = newSchema as TableSchema
+        setSchema(tableSchema)
+        // Update data display when schema changes
+        const flatData = flattenTableField(op.inputs.data as unknown as CompoundPropsField, tableSchema)
+        setData(flatData)
       }
     })
     return () => {
       dataSub.unsubscribe()
       schemaSub.unsubscribe()
     }
-  }, [op])
+  }, [op, schema])
 
   if (!op) return null
 
   const handleDataChange = (newData: unknown[], description = 'Edit table data') => {
+    if (!schema) {
+      return
+    }
+
     const before = captureOperatorInputs()
-    op.inputs.data.setValue(newData)
-    op.outputs.data.setValue(newData)
+
+    // Convert flat array back to CompoundPropsField structure
+    const compoundField = createTableCompoundField(newData, schema)
+
+    // Update the subschema directly to preserve the CompoundPropsField instance
+    const dataField = op.inputs.data as unknown as CompoundPropsField
+    dataField.subschema = compoundField.subschema
+
+    // Trigger change notification
+    op.markDirty()
+
     firePropertyMutation(description, before)
   }
 
   const handleSchemaChange = (newSchema: TableSchema, newData?: unknown[]) => {
     const before = captureOperatorInputs()
+
+    // When schema changes, rebuild the CompoundPropsField structure
+    const flatData = flattenTableField(op.inputs.data as unknown as CompoundPropsField, schema)
+
+    // Update data to match new schema (convert column types)
+    const updatedData = (newData ?? flatData).map((row) => {
+      if (typeof row !== 'object' || row === null || Array.isArray(row)) {
+        return row
+      }
+
+      const newRow: Record<string, unknown> = { _rowId: (row as Record<string, unknown>)._rowId }
+      for (const col of newSchema.columns) {
+        const existingValue = (row as Record<string, unknown>)[col.name]
+        if (existingValue !== undefined) {
+          newRow[col.name] = convertValue(existingValue, col.type)
+        } else {
+          newRow[col.name] = col.defaultValue ?? getDefaultValue(col)
+        }
+      }
+      return newRow
+    })
+
+    // Rebuild CompoundPropsField with new schema
+    const compoundField = createTableCompoundField(updatedData, newSchema)
+    const dataField = op.inputs.data as unknown as CompoundPropsField
+    dataField.subschema = compoundField.subschema
+
+    // Update schema field
     op.inputs.schema.setValue(newSchema)
-    op.outputs.schema.setValue(newSchema)
     setSchema(newSchema)
-    if (newData) {
-      op.inputs.data.setValue(newData)
-      op.outputs.data.setValue(newData)
-    }
+
+    // Trigger change notification
+    op.markDirty()
+
     firePropertyMutation('Edit table schema', before)
   }
 
