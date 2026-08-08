@@ -275,7 +275,7 @@ export function validateValue(value: unknown, schema: ColumnSchema): boolean {
       if (schema.options?.freeform) {
         return true
       }
-      if (schema.options?.values) {
+      if (schema.options?.values && schema.options.values.length > 0) {
         return schema.options.values.includes(value)
       }
       return true
