@@ -1,5 +1,6 @@
 import { getIncomers, type Node as ReactFlowNode } from '@xyflow/react'
 import { debugExecutor } from '../utils/debug'
+import { ListField } from './fields'
 import { type Edge as ExecutorEdge, updateGraph } from './graph-executor'
 import type { Edge } from './noodles'
 import type { IOperator, Operator, OpType } from './operators'
@@ -203,7 +204,7 @@ export function transformGraph<
   })
 
   // Update dependency graph
-  updateGraph(edges as unknown as ExecutorEdge[])
+  updateGraph(_nodes, edges as unknown as ExecutorEdge[])
 
   // Remove any connections that are not in the edges array.
   // Also clear connection errors for removed edges.
@@ -296,6 +297,21 @@ export function transformGraph<
         edge.id,
         `Broken connection: source node "${edge.source}" no longer exists. This may be caused by a failed node rename.`
       )
+    }
+  }
+
+  // Sync ListField connection order to edge-array order. addConnection early-returns for
+  // already-connected ids and appends new ones at the Map end, so reused operators would
+  // otherwise keep stale order after edges are inserted mid-group or the array is reordered.
+  for (const op of instances) {
+    for (const [name, field] of Object.entries(op.inputs)) {
+      if (field instanceof ListField) {
+        field.setConnectionOrder(
+          edges
+            .filter(e => e.target === op.id && String(e.targetHandle) === `par.${name}`)
+            .map(e => e.id)
+        )
+      }
     }
   }
 

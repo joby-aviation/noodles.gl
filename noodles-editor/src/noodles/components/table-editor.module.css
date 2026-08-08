@@ -80,12 +80,6 @@
   background: transparent;
 }
 
-.cellEditor :global(.p-inputnumber-input) {
-  padding: 8px 12px;
-  border: none;
-  background: transparent;
-}
-
 .cellEditor :global(.p-inputswitch) {
   margin: 8px 12px;
 }

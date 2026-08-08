@@ -19,6 +19,8 @@ import {
 } from 'react'
 import { createPortal } from 'react-dom'
 
+import { BasemapGallery } from './basemap-gallery'
+
 const CodeiumEditor = lazy(() =>
   import('@codeium/react-code-editor').then(m => ({ default: m.CodeiumEditor }))
 )
@@ -40,6 +42,7 @@ import {
   type FileUrlField,
   getFieldReferences,
   type IField,
+  ListField,
   type MapStyleField,
   type NumberField,
   Point2DField,
@@ -62,8 +65,9 @@ import { usePropertyHistory } from '../utils/property-history'
 import { ColorSwatch } from './color-swatch'
 import { ExpressionEditorOverlay } from './ExpressionEditorOverlay'
 import { GeocodingDialog } from './geocoding-dialog'
-import menuStyles from './menu.module.css'
 import { handleClass, useHandleDimmed } from './op-components'
+import { MultiInputHandle } from './multi-input-handle'
+import menuStyles from './menu.module.css'
 
 type InputComponent = React.ComponentType<{
   id: OpId
@@ -151,8 +155,8 @@ function StringLiteralTypeaheadInput({
     if (suggestionsOpen && inputRef.current) {
       const rect = inputRef.current.getBoundingClientRect()
       setPosition({
-        top: rect.bottom + window.scrollY,
-        left: rect.left + window.scrollX,
+        top: rect.bottom,
+        left: rect.left,
         width: rect.width,
       })
     }
@@ -196,16 +200,6 @@ function StringLiteralTypeaheadInput({
 
   const showSuggestions = suggestionsOpen && filteredSuggestions.length > 0
 
-  useEffect(() => {
-    if (showSuggestions) {
-      console.log('Rendering suggestions:', {
-        count: filteredSuggestions.length,
-        position,
-        suggestions: filteredSuggestions,
-      })
-    }
-  }, [showSuggestions, position, filteredSuggestions])
-
   return (
     <>
       <input
@@ -229,7 +223,6 @@ function StringLiteralTypeaheadInput({
               top: `${position.top}px`,
               left: `${position.left}px`,
               width: `${position.width}px`,
-              background: 'red',
             }}
           >
             {filteredSuggestions.map(({ value: v, label }) => (
@@ -283,7 +276,7 @@ export function TextFieldComponent({
 
   let input = null
   if (field instanceof StringLiteralField) {
-    const useTypeahead = field.choices.length > 0 && field.options?.freeform === true
+    const useTypeahead = field.choices.length > 0 && field.freeform
 
     if (useTypeahead) {
       input = (
@@ -1187,6 +1180,15 @@ export function MapStyleFieldComponent({
     commitChange('Change map style')
   }
 
+  const [galleryOpen, setGalleryOpen] = useState(false)
+
+  const onGallerySelect = (val: string | object) => {
+    captureStart()
+    field.setValue(val)
+    setValue(typeof val === 'string' ? val : val)
+    commitChange('Change map style')
+  }
+
   const [replaceDialogOpen, setReplaceDialogOpen] = useState(false)
   const [pendingFile, setPendingFile] = useState<{ name: string; contents: Blob } | null>(null)
 
@@ -1295,6 +1297,13 @@ export function MapStyleFieldComponent({
             disabled={disabled || isObject}
           />
           <Button
+            icon="pi pi-images"
+            className={s.fieldInputUploadButton}
+            onClick={() => setGalleryOpen(true)}
+            title="Browse Basemaps"
+            size="small"
+          />
+          <Button
             icon="pi pi-upload"
             className={s.fieldInputUploadButton}
             onClick={onUpload}
@@ -1304,6 +1313,13 @@ export function MapStyleFieldComponent({
           />
         </div>
       </div>
+
+      <BasemapGallery
+        open={galleryOpen}
+        onOpenChange={setGalleryOpen}
+        onSelect={onGallerySelect}
+        currentValue={typeof value === 'string' ? value : undefined}
+      />
 
       <Dialog.Root open={replaceDialogOpen} onOpenChange={setReplaceDialogOpen}>
         <Dialog.Portal>
@@ -2650,13 +2666,22 @@ export function FieldComponent({
   return (
     <div style={{ position: 'relative' }}>
       {handle && (
-        <Handle
-          id={qualifiedFieldId}
-          className={cx(handleClass(field), { [s.handleDimmed]: isHandleDimmed })}
-          style={handleStyle}
-          type={handle.type}
-          position={Position.Left}
-        />
+        field instanceof ListField ? (
+          <MultiInputHandle
+            id={qualifiedFieldId}
+            field={field}
+            className={cx(handleClass(field), { [s.handleDimmed]: isHandleDimmed })}
+            style={handleStyle}
+          />
+        ) : (
+          <Handle
+            id={qualifiedFieldId}
+            className={cx(handleClass(field), { [s.handleDimmed]: isHandleDimmed })}
+            style={handleStyle}
+            type={handle.type}
+            position={Position.Left}
+          />
+        )
       )}
       {renderInput &&
         (hasIncomingConnection ? (

@@ -1,4 +1,4 @@
-import { assert, type LayerProps, View } from '@deck.gl/core'
+import { type LayerProps, View } from '@deck.gl/core'
 import { interpolateLab, scaleOrdinal, schemeAccent } from 'd3'
 import { BehaviorSubject, combineLatest, type Subscription } from 'rxjs'
 import { Temporal } from 'temporal-polyfill'
@@ -9,6 +9,7 @@ import { debugSetValue } from '../utils/debug'
 import type { BetterDeckProps, BetterMapProps } from '../visualizations'
 import type { inputComponents } from './components/field-components'
 import type { IOperator, Operator } from './operators'
+import { deepEqual } from './utils/deep-equal'
 import type { ExtractProps } from './utils/extract-props'
 import { resolvePath } from './utils/path-utils'
 
@@ -33,6 +34,8 @@ type BaseFieldOptions = {
   transform?: (val: unknown, ...args: unknown[]) => unknown
   accessor?: boolean
   showByDefault?: boolean // Defaults to true. Set to false to hide field by default in UI.
+  useDeepEquality?: boolean // Use deep equality when comparing values to prevent unnecessary updates
+  maxDepth?: number // Maximum depth for deep equality checks (Infinity = unlimited)
 }
 
 type PointFieldOptions = BaseFieldOptions & {
@@ -100,6 +103,15 @@ export abstract class Field<
   // Should this field be shown by default in the UI? Defaults to true.
   showByDefault = true
 
+  // Use deep equality when comparing values to prevent unnecessary updates
+  // Only enable for fields with stable, value-typed data (plain objects, arrays, primitives)
+  // Do not enable for fields containing class instances, Date, Map, Set with identity semantics
+  useDeepEquality = false
+
+  // Maximum depth for deep equality checks (only relevant if useDeepEquality=true)
+  // Infinity = unlimited depth, 0 = reference equality only, 1 = shallow, 2+ = limited depth
+  maxDepth = Infinity
+
   // Hold a reference to the operator that owns this field. Only used for debugging at the moment.
   op!: Operator<IOperator>
 
@@ -142,12 +154,29 @@ export abstract class Field<
   }
 
   // Wrap schema in additional functionality like optional, transform, accessor etc.
-  enhanceSchema({ accessor, optional, transform, showByDefault }: Partial<O>) {
+  enhanceSchema({
+    accessor,
+    optional,
+    transform,
+    showByDefault,
+    useDeepEquality,
+    maxDepth,
+  }: Partial<O>) {
     let schema = this.schema
 
     // Set showByDefault (defaults to true if not specified)
     if (showByDefault !== undefined) {
       this.showByDefault = showByDefault
+    }
+
+    // Set useDeepEquality if specified
+    if (useDeepEquality !== undefined) {
+      this.useDeepEquality = useDeepEquality
+    }
+
+    // Set maxDepth if specified
+    if (maxDepth !== undefined) {
+      this.maxDepth = maxDepth
     }
 
     if (accessor) {
@@ -228,7 +257,10 @@ export abstract class Field<
   removeConnection(id: string, connectionType: 'reference' | 'value' = 'value') {
     if (
       connectionType === 'value' &&
-      (this instanceof DataField || this instanceof ExpressionField || this instanceof CodeField)
+      (this instanceof DataField ||
+        this instanceof ExpressionField ||
+        this instanceof CodeField ||
+        this instanceof UnknownField)
     ) {
       this.setValue(this.defaultValue)
     }
@@ -305,6 +337,20 @@ export class MapStyleField extends Field<
   createSchema(_options?: Partial<MapStyleFieldOptions>) {
     return z.union([z.string(), z.record(z.string(), z.unknown())])
   }
+
+  // Skip update if object content is identical to avoid unnecessary downstream re-execution
+  setValue(value: z.input<typeof this.schema>): void {
+    if (
+      typeof value === 'object' &&
+      value !== null &&
+      typeof this.value === 'object' &&
+      this.value !== null &&
+      deepEqual(this.value, value)
+    ) {
+      return
+    }
+    super.setValue(value)
+  }
 }
 
 export const IN_NS = 'par'
@@ -338,9 +384,9 @@ export const mustacheRe = new RegExp(
   `{{(?<opId>${OPERATOR_ID_PATTERN})\\.(?<inOut>par|out)\\.(?<fieldPath>[\\w-.]+)}}`,
   'g'
 )
-// Function-style references: op('/path/to/operator').out.val
+// Function-style references: op('/path/to/operator').out.val or op("/path/to/operator").out.val
 export const fnRe = new RegExp(
-  `op\\('(?<opId>${OPERATOR_ID_PATTERN})'\\)\\.(?<inOut>par|out)\\.(?<fieldPath>[\\w-.]+)`,
+  `op\\((?<q>['"])(?<opId>${OPERATOR_ID_PATTERN})\\k<q>\\)\\.(?<inOut>par|out)\\.(?<fieldPath>[\\w-.]+)`,
   'g'
 )
 
@@ -486,6 +532,7 @@ export class StringLiteralField extends Field<
   static type = 'string-literal'
   static defaultValue = ''
   choices: StringLiteralOption[] = []
+  freeform = false
   createSchema(options: Partial<StringLiteralFieldOptions>) {
     const values = (options.values || []) as StringLiteralOption[]
     const freeform = options.freeform ?? false
@@ -502,11 +549,13 @@ export class StringLiteralField extends Field<
     const choices = parseChoices(opts)
     super(override, { ...(Array.isArray(opts) ? {} : opts), values: choices })
     this.choices = choices
+    this.freeform = !Array.isArray(opts) && (opts?.freeform ?? false)
   }
 
   updateChoices(opts: Partial<StringLiteralFieldOptions> | StringLiteralOption[] | string[]) {
     const choices = parseChoices(opts)
     this.choices = choices
+    this.freeform = !Array.isArray(opts) && (opts.freeform ?? false)
     const mergedOpts = { ...(Array.isArray(opts) ? {} : opts), values: choices }
     this.schema = this.createSchema(mergedOpts)
     this.schema = this.enhanceSchema(mergedOpts)
@@ -689,6 +738,90 @@ export class GeoJsonField<D extends Field = Field, TElement = unknown> extends F
   }
 }
 
+// Helper to extract coordinates from GeoJSON Point geometries or Features
+// Used by Point2DField and Point3DField to accept PointOp outputs and geometry columns
+function extractGeoJsonPointCoordinates(
+  val: unknown,
+  dimensions: 2 | 3 = 3
+): { lng: number; lat: number; alt: number } | { lng: number; lat: number } | null {
+  if (typeof val !== 'object' || val === null || Array.isArray(val)) {
+    return null
+  }
+
+  const obj = val as Record<string, unknown>
+
+  // Check if it's a bare GeoJSON Point geometry
+  if (obj.type === 'Point' && Array.isArray(obj.coordinates) && obj.coordinates.length >= 2) {
+    const coords = obj.coordinates as number[]
+    if (dimensions === 3) {
+      return {
+        lng: coords[0],
+        lat: coords[1],
+        alt: coords.length >= 3 ? coords[2] : 0,
+      }
+    }
+    return {
+      lng: coords[0],
+      lat: coords[1],
+    }
+  }
+
+  // Check if it's a GeoJSON Point Feature
+  if (obj.type === 'Feature' && typeof obj.geometry === 'object' && obj.geometry !== null) {
+    const geom = obj.geometry as Record<string, unknown>
+    if (geom.type === 'Point' && Array.isArray(geom.coordinates) && geom.coordinates.length >= 2) {
+      const coords = geom.coordinates as number[]
+      if (dimensions === 3) {
+        return {
+          lng: coords[0],
+          lat: coords[1],
+          alt: coords.length >= 3 ? coords[2] : 0,
+        }
+      }
+      return {
+        lng: coords[0],
+        lat: coords[1],
+      }
+    }
+  }
+
+  return null
+}
+
+// Extract point coordinates from a row object's "geometry" column.
+// Handles: [lng, lat], [lng, lat, alt], {type: "Point", coordinates: [...]}, and GeoJSON Features.
+function extractGeometryColumn(
+  obj: Record<string, unknown>,
+  dimensions: 2 | 3 = 3
+): { lng: number; lat: number; alt: number } | { lng: number; lat: number } | null {
+  const geom = obj.geometry
+  if (geom === undefined || geom === null) {
+    return null
+  }
+
+  // geometry is a [lng, lat] or [lng, lat, alt] tuple
+  if (
+    Array.isArray(geom) &&
+    geom.length >= 2 &&
+    typeof geom[0] === 'number' &&
+    typeof geom[1] === 'number'
+  ) {
+    if (dimensions === 3) {
+      const alt = geom.length >= 3 && typeof geom[2] === 'number' ? geom[2] : 0
+      return { lng: geom[0], lat: geom[1], alt }
+    }
+    return { lng: geom[0], lat: geom[1] }
+  }
+
+  // geometry is a GeoJSON Point geometry or Feature
+  const geoJsonCoords = extractGeoJsonPointCoordinates(geom, dimensions)
+  if (geoJsonCoords) {
+    return geoJsonCoords
+  }
+
+  return null
+}
+
 type Point3DFieldValue =
   | { lng: number; lat: number; alt: number; [key: string]: unknown }
   | [number, number, number]
@@ -716,15 +849,28 @@ export class Point3DField extends Field<
     this.returnType = options?.returnType || 'object'
   }
 
-  createSchema({ returnType }: PointFieldOptions = { returnType: 'object' }) {
+  createSchema({ returnType = 'object' }: PointFieldOptions = {}) {
     const noop = (val: unknown) => val
     return z.union([
       z
         .unknown()
         .transform(val => {
+          // Try to extract GeoJSON Point geometry or Feature coordinates (3D)
+          const geoJsonCoords = extractGeoJsonPointCoordinates(val, 3)
+          if (geoJsonCoords) {
+            return geoJsonCoords
+          }
+
           // Normalize column names: support Longitude/Latitude, longitude/latitude, lon/lat
           if (typeof val === 'object' && val !== null && !Array.isArray(val)) {
             const obj = val as Record<string, unknown>
+
+            // Check for a "geometry" column containing point data
+            const geomCoords = extractGeometryColumn(obj, 3)
+            if (geomCoords) {
+              return geomCoords
+            }
+
             const normalized: Record<string, unknown> = {}
             let hasLng = false
             let hasLat = false
@@ -782,7 +928,8 @@ export class Point3DField extends Field<
       z
         .unknown()
         .transform(val => {
-          // Normalize column names for 2D variant
+          // Normalize column names for 2D variant (no altitude)
+          // Note: GeoJSON Point geometries/Features and geometry columns are handled by the first union arm
           if (typeof val === 'object' && val !== null && !Array.isArray(val)) {
             const obj = val as Record<string, unknown>
             const normalized: Record<string, unknown> = {}
@@ -868,15 +1015,28 @@ export class Point2DField extends Field<
     this.returnType = options?.returnType || 'object'
   }
 
-  createSchema({ returnType }: PointFieldOptions = { returnType: 'object' }) {
+  createSchema({ returnType = 'object' }: PointFieldOptions = {}) {
     const noop = (val: unknown) => val
     return z.union([
       z
         .unknown()
         .transform(val => {
+          // Try to extract GeoJSON Point geometry or Feature coordinates (2D)
+          const geoJsonCoords = extractGeoJsonPointCoordinates(val, 2)
+          if (geoJsonCoords) {
+            return geoJsonCoords
+          }
+
           // Normalize column names: support Longitude/Latitude, longitude/latitude, lon/lat
           if (typeof val === 'object' && val !== null && !Array.isArray(val)) {
             const obj = val as Record<string, unknown>
+
+            // Check for a "geometry" column containing point data
+            const geomCoords = extractGeometryColumn(obj, 2)
+            if (geomCoords) {
+              return geomCoords
+            }
+
             const normalized: Record<string, unknown> = {}
             let hasLng = false
             let hasLat = false
@@ -951,7 +1111,7 @@ export class Vec2Field extends Field<
     super(override, options)
     this.returnType = options?.returnType || 'object'
   }
-  createSchema({ returnType }: Vec2FieldOptions = { returnType: 'object' }) {
+  createSchema({ returnType = 'object' }: Vec2FieldOptions = {}) {
     const noop = (val: unknown) => val
     return z.union([
       z
@@ -987,7 +1147,7 @@ export class Vec3Field extends Field<
     super(override, options)
     this.returnType = options?.returnType || 'object'
   }
-  createSchema({ returnType }: Vec2FieldOptions = { returnType: 'object' }) {
+  createSchema({ returnType = 'object' }: Vec2FieldOptions = {}) {
     const noop = (val: unknown) => val
     return z.union([
       z
@@ -1160,18 +1320,19 @@ export class ListField<F extends Field> extends Field<
     this.setValue(Array.from(this.fields.values()).map(f => f.value) as F[])
   }
 
-  reorderInputs(fromIndex: number, toIndex: number): void {
-    if (fromIndex === toIndex) {
+  // Idempotently reorder connections to match orderedIds (typically the edge array order).
+  // Unknown ids are ignored; connections not listed keep their relative order at the end.
+  setConnectionOrder(orderedIds: string[]): void {
+    const currentIds = Array.from(this.fields.keys())
+    const listed = orderedIds.filter(id => this.fields.has(id))
+    const unlisted = currentIds.filter(id => !orderedIds.includes(id))
+    const nextIds = [...listed, ...unlisted]
+
+    if (nextIds.every((id, i) => id === currentIds[i])) {
       return
     }
-    const fields = Array.from(this.fields.entries())
 
-    assert(fromIndex >= 0 && fromIndex < fields.length, 'fromIndex is out of bounds')
-    assert(toIndex >= 0 && toIndex < fields.length, 'toIndex is out of bounds')
-
-    const [movedField] = fields.splice(fromIndex, 1)
-    fields.splice(toIndex, 0, movedField)
-    this.fields = new Map(fields)
+    this.fields = new Map(nextIds.map(id => [id, this.fields.get(id) as F]))
     this.setValue(Array.from(this.fields.values()).map(f => f.value) as F[])
   }
 }

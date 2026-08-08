@@ -1,4 +1,66 @@
 {
+  "edges": [
+    {
+      "id": "/deck.out.vis->/out.par.vis",
+      "source": "/deck",
+      "target": "/out",
+      "sourceHandle": "out.vis",
+      "targetHandle": "par.vis"
+    },
+    {
+      "id": "/data-source.out.data->/mesh-layer.par.data",
+      "source": "/data-source",
+      "target": "/mesh-layer",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/position-accessor.out.accessor->/mesh-layer.par.getPosition",
+      "source": "/position-accessor",
+      "target": "/mesh-layer",
+      "sourceHandle": "out.accessor",
+      "targetHandle": "par.getPosition"
+    },
+    {
+      "id": "/color-accessor.out.accessor->/mesh-layer.par.getColor",
+      "source": "/color-accessor",
+      "target": "/mesh-layer",
+      "sourceHandle": "out.accessor",
+      "targetHandle": "par.getColor"
+    },
+    {
+      "id": "/orientation-accessor.out.accessor->/mesh-layer.par.getOrientation",
+      "source": "/orientation-accessor",
+      "target": "/mesh-layer",
+      "sourceHandle": "out.accessor",
+      "targetHandle": "par.getOrientation"
+    },
+    {
+      "id": "/mesh-layer.out.layer->/deck.par.layers",
+      "source": "/mesh-layer",
+      "target": "/deck",
+      "sourceHandle": "out.layer",
+      "targetHandle": "par.layers"
+    },
+    {
+      "source": "/maplibre-basemap",
+      "sourceHandle": "out.maplibre",
+      "target": "/deck",
+      "targetHandle": "par.basemap",
+      "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap"
+    }
+  ],
+  "viewport": {
+    "x": 679.3077440622253,
+    "y": 608.5965459146154,
+    "zoom": 1.2637785153212067
+  },
+  "version": 16,
+  "name": "Simple Mesh Layer BART Stations",
+  "editorSettings": {
+    "layoutMode": "noodles-on-top",
+    "showOverlay": true
+  },
   "nodes": [
     {
       "id": "/deck",
@@ -16,7 +78,19 @@
       "id": "/out",
       "type": "OutOp",
       "data": {
-        "inputs": {},
+        "inputs": {
+          "display": "fixed",
+          "width": 1920,
+          "height": 1080,
+          "lod": 2,
+          "waitForData": true,
+          "codec": "avc",
+          "bitrateMbps": 10,
+          "bitrateMode": "constant",
+          "scaleControl": 0.3,
+          "framerate": 30,
+          "captureDelay": 50
+        },
         "locked": false
       },
       "position": {
@@ -116,63 +190,6 @@
       }
     }
   ],
-  "edges": [
-    {
-      "id": "/deck.out.vis->/out.par.vis",
-      "source": "/deck",
-      "target": "/out",
-      "sourceHandle": "out.vis",
-      "targetHandle": "par.vis"
-    },
-    {
-      "id": "/data-source.out.data->/mesh-layer.par.data",
-      "source": "/data-source",
-      "target": "/mesh-layer",
-      "sourceHandle": "out.data",
-      "targetHandle": "par.data"
-    },
-    {
-      "id": "/position-accessor.out.accessor->/mesh-layer.par.getPosition",
-      "source": "/position-accessor",
-      "target": "/mesh-layer",
-      "sourceHandle": "out.accessor",
-      "targetHandle": "par.getPosition"
-    },
-    {
-      "id": "/color-accessor.out.accessor->/mesh-layer.par.getColor",
-      "source": "/color-accessor",
-      "target": "/mesh-layer",
-      "sourceHandle": "out.accessor",
-      "targetHandle": "par.getColor"
-    },
-    {
-      "id": "/orientation-accessor.out.accessor->/mesh-layer.par.getOrientation",
-      "source": "/orientation-accessor",
-      "target": "/mesh-layer",
-      "sourceHandle": "out.accessor",
-      "targetHandle": "par.getOrientation"
-    },
-    {
-      "id": "/mesh-layer.out.layer->/deck.par.layers",
-      "source": "/mesh-layer",
-      "target": "/deck",
-      "sourceHandle": "out.layer",
-      "targetHandle": "par.layers"
-    },
-    {
-      "source": "/maplibre-basemap",
-      "sourceHandle": "out.maplibre",
-      "target": "/deck",
-      "targetHandle": "par.basemap",
-      "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap"
-    }
-  ],
-  "viewport": {
-    "x": 679.3077440622253,
-    "y": 608.5965459146154,
-    "zoom": 1.2637785153212067
-  },
-  "version": 6,
   "timeline": {
     "sheetsById": {
       "Noodles": {
@@ -191,6 +208,5 @@
       "qU_B0bL0ImX9r18-",
       "JLOlCBVrfoKUFxpr"
     ]
-  },
-  "name": "Simple Mesh Layer BART Stations"
+  }
 }

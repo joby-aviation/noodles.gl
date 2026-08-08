@@ -1,4 +1,80 @@
 {
+  "edges": [
+    {
+      "id": "/deck.out.vis->/out.par.vis",
+      "source": "/deck",
+      "target": "/out",
+      "sourceHandle": "out.vis",
+      "targetHandle": "par.vis"
+    },
+    {
+      "id": "/data-source.out.data->/geojson-layer.par.data",
+      "source": "/data-source",
+      "target": "/geojson-layer",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.data"
+    },
+    {
+      "source": "/population-color",
+      "sourceHandle": "out.color",
+      "target": "/geojson-layer",
+      "targetHandle": "par.getFillColor",
+      "id": "/population-color.out.color->/geojson-layer.par.getFillColor"
+    },
+    {
+      "source": "/population-to-elevation",
+      "sourceHandle": "out.scaled",
+      "target": "/geojson-layer",
+      "targetHandle": "par.getElevation",
+      "id": "/population-to-elevation.out.scaled->/geojson-layer.par.getElevation"
+    },
+    {
+      "source": "/map-range",
+      "sourceHandle": "out.scaled",
+      "target": "/population-color",
+      "targetHandle": "par.value",
+      "id": "/map-range.out.scaled->/population-color.par.value"
+    },
+    {
+      "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap",
+      "source": "/maplibre-basemap",
+      "target": "/deck",
+      "sourceHandle": "out.maplibre",
+      "targetHandle": "par.basemap"
+    },
+    {
+      "id": "/geojson-layer.out.layer->/deck.par.layers",
+      "source": "/geojson-layer",
+      "target": "/deck",
+      "sourceHandle": "out.layer",
+      "targetHandle": "par.layers"
+    },
+    {
+      "source": "/population-accessor",
+      "sourceHandle": "out.accessor",
+      "target": "/map-range",
+      "targetHandle": "par.val",
+      "id": "/population-accessor.out.accessor->/map-range.par.val"
+    },
+    {
+      "source": "/elevation-accessor",
+      "sourceHandle": "out.accessor",
+      "target": "/population-to-elevation",
+      "targetHandle": "par.val",
+      "id": "/elevation-accessor.out.accessor->/population-to-elevation.par.val"
+    }
+  ],
+  "viewport": {
+    "x": 47.242109497431784,
+    "y": 75.01093484232683,
+    "zoom": 0.4556733508888464
+  },
+  "version": 16,
+  "name": "NYC Census",
+  "editorSettings": {
+    "layoutMode": "noodles-on-top",
+    "showOverlay": true
+  },
   "nodes": [
     {
       "id": "/deck",
@@ -16,7 +92,19 @@
       "id": "/out",
       "type": "OutOp",
       "data": {
-        "inputs": {},
+        "inputs": {
+          "display": "fixed",
+          "width": 1920,
+          "height": 1080,
+          "lod": 2,
+          "waitForData": true,
+          "codec": "avc",
+          "bitrateMbps": 10,
+          "bitrateMode": "constant",
+          "scaleControl": 0.3,
+          "framerate": 30,
+          "captureDelay": 50
+        },
         "locked": false
       },
       "position": {
@@ -135,7 +223,7 @@
     },
     {
       "type": "MapRangeOp",
-      "id": "/map-range-1",
+      "id": "/population-to-elevation",
       "position": {
         "x": 418.01764914528434,
         "y": 519.3400164575731
@@ -149,76 +237,6 @@
       }
     }
   ],
-  "edges": [
-    {
-      "id": "/deck.out.vis->/out.par.vis",
-      "source": "/deck",
-      "target": "/out",
-      "sourceHandle": "out.vis",
-      "targetHandle": "par.vis"
-    },
-    {
-      "id": "/data-source.out.data->/geojson-layer.par.data",
-      "source": "/data-source",
-      "target": "/geojson-layer",
-      "sourceHandle": "out.data",
-      "targetHandle": "par.data"
-    },
-    {
-      "source": "/population-color",
-      "sourceHandle": "out.color",
-      "target": "/geojson-layer",
-      "targetHandle": "par.getFillColor",
-      "id": "/population-color.out.color->/geojson-layer.par.getFillColor"
-    },
-    {
-      "source": "/map-range-1",
-      "sourceHandle": "out.scaled",
-      "target": "/geojson-layer",
-      "targetHandle": "par.getElevation",
-      "id": "/map-range-1.out.scaled->/geojson-layer.par.getElevation"
-    },
-    {
-      "source": "/map-range",
-      "sourceHandle": "out.scaled",
-      "target": "/population-color",
-      "targetHandle": "par.value",
-      "id": "/map-range.out.scaled->/population-color.par.value"
-    },
-    {
-      "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap",
-      "source": "/maplibre-basemap",
-      "target": "/deck",
-      "sourceHandle": "out.maplibre",
-      "targetHandle": "par.basemap"
-    },
-    {
-      "id": "/geojson-layer.out.layer->/deck.par.layers",
-      "source": "/geojson-layer",
-      "target": "/deck",
-      "sourceHandle": "out.layer",
-      "targetHandle": "par.layers"
-    },
-    {
-      "source": "/population-accessor",
-      "sourceHandle": "out.accessor",
-      "target": "/map-range",
-      "targetHandle": "par.val",
-      "id": "/population-accessor.out.accessor->/map-range.par.val"
-    },
-    {
-      "source": "/elevation-accessor",
-      "sourceHandle": "out.accessor",
-      "target": "/map-range-1",
-      "targetHandle": "par.val",
-      "id": "/elevation-accessor.out.accessor->/map-range-1.par.val"
-    }
-  ],
-  "viewport": {
-    "x": 47.242109497431784,
-    "y": 75.01093484232683,
-    "zoom": 0.4556733508888464
-  },
   "timeline": {
     "sheetsById": {
       "Noodles": {
@@ -229,7 +247,5 @@
     },
     "definitionVersion": "0.4.0",
     "revisionHistory": []
-  },
-  "version": 6,
-  "name": "NYC Census"
+  }
 }

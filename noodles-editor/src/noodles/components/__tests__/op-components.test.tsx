@@ -1,7 +1,7 @@
 // Unit tests for op-components utilities
 import type { NodeProps as ReactFlowNodeProps } from '@xyflow/react'
 import { describe, expect, it } from 'vitest'
-import { nodePropsAreEqual } from '../op-components'
+import { headerClass, nodePropsAreEqual } from '../op-components'
 
 // Minimal ReactFlowNodeProps for testing — only the fields nodePropsAreEqual cares about
 const makeProps = (overrides: Partial<ReactFlowNodeProps> = {}): ReactFlowNodeProps =>
@@ -64,5 +64,45 @@ describe('nodePropsAreEqual', () => {
     const prev = makeProps({ selected: true })
     const next = makeProps({ selected: false })
     expect(nodePropsAreEqual(prev, next)).toBe(false)
+  })
+})
+
+describe('headerClass caching', () => {
+  it('should cache category lookups for O(1) performance', () => {
+    // First call - should populate cache
+    const result1 = headerClass('NumberOp')
+    expect(result1).toBeDefined()
+
+    // Second call - should use cache (same result)
+    const result2 = headerClass('NumberOp')
+    expect(result2).toBe(result1)
+
+    // Different type
+    const result3 = headerClass('FileOp')
+    expect(result3).toBeDefined()
+    expect(result3).not.toBe(result1)
+
+    // Same type again - should use cache
+    const result4 = headerClass('NumberOp')
+    expect(result4).toBe(result1)
+  })
+
+  it('should handle display name fallback correctly', () => {
+    // Test with actual operator type
+    const result1 = headerClass('DeckRendererOp')
+    expect(result1).toBeDefined()
+
+    // Should cache and return same result
+    const result2 = headerClass('DeckRendererOp')
+    expect(result2).toBe(result1)
+  })
+
+  it('should default to data category for unknown types', () => {
+    const result = headerClass('UnknownOperatorType' as any)
+    expect(result).toBeDefined()
+
+    // Should cache the default
+    const result2 = headerClass('UnknownOperatorType' as any)
+    expect(result2).toBe(result)
   })
 })

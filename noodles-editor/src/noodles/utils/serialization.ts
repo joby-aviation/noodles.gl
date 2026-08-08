@@ -7,45 +7,21 @@ import type {
 import { debugSerialize } from '../../utils/debug'
 import { resizeableNodes } from '../components/op-components'
 import type { useOperatorStore } from '../store'
+import { deepEqual } from './deep-equal'
 import type { ExtractProps } from './extract-props'
 import type { StorageType } from './filesystem'
+import { MULTI_INPUT_EDGE_TYPE } from './multi-input-utils'
 import { parseHandleId } from './path-utils'
 
 export { NOODLES_VERSION } from './migrate-schema'
 
 export type EditorSettings = {
-  layoutMode?: 'split' | 'noodles-on-top' | 'output-on-top'
   showOverlay?: boolean
   showDebugInfo?: boolean
 }
 
-export type RenderSettings = {
-  display: 'fixed' | 'responsive'
-  resolution: { width: number; height: number }
-  lod: number
-  waitForData: boolean
-  codec: 'avc' | 'hevc' | 'vp9' | 'av1'
-  bitrateMbps: number
-  bitrateMode: 'constant' | 'variable'
-  scaleControl: number
-  framerate: number
-  captureDelay: number
-  rendersDirectory: string
-}
-
-export const DEFAULT_RENDER_SETTINGS: RenderSettings = {
-  display: 'fixed',
-  resolution: { width: 1920, height: 1080 },
-  lod: 2,
-  waitForData: true,
-  codec: 'avc',
-  bitrateMbps: 10,
-  bitrateMode: 'constant',
-  scaleControl: 0.3,
-  framerate: 30,
-  captureDelay: 50,
-  rendersDirectory: 'renders',
-}
+export type { RenderSettings } from './render-settings-constants'
+export { DEFAULT_RENDER_SETTINGS } from './render-settings-constants'
 
 export type NoodlesProjectJSON = ReactFlowJsonObject & {
   version: number
@@ -100,16 +76,6 @@ export type SerializeNodesOptions = {
   forClipboard?: boolean
 }
 
-function deepEqual(a: unknown, b: unknown): boolean {
-  if (a === b) return true
-  if (a === null || b === null || typeof a !== 'object' || typeof b !== 'object') return false
-  if (Array.isArray(a) !== Array.isArray(b)) return false
-  const keysA = Object.keys(a as object)
-  const keysB = Object.keys(b as object)
-  if (keysA.length !== keysB.length) return false
-  return keysA.every(k => deepEqual((a as any)[k], (b as any)[k]))
-}
-
 // Check if two sets have the same elements
 function setsEqual(a: Set<string>, b: Set<string>): boolean {
   if (a.size !== b.size) return false
@@ -137,8 +103,22 @@ export function serializeNodes(
   const preparedNodes: NodeJSON<unknown>[] = []
   for (const node of nodes) {
     if (node.type === 'group') {
-      // Include visual aid nodes (e.g. for loops) as-is
-      preparedNodes.push(node)
+      // React Flow's runtime dimensions override style dimensions when a project
+      // is loaded. Persist the fitted size in style, not the transient measurement
+      // cache, so a stale measurement cannot resurrect old group bounds.
+      const { measured, width, height, ...cleanedGroup } = node
+      const fittedWidth = node.style?.width ?? measured?.width ?? width
+      const fittedHeight = node.style?.height ?? measured?.height ?? height
+      preparedNodes.push({
+        ...cleanedGroup,
+        ...((fittedWidth !== undefined || fittedHeight !== undefined) && {
+          style: {
+            ...node.style,
+            ...(fittedWidth !== undefined && { width: fittedWidth }),
+            ...(fittedHeight !== undefined && { height: fittedHeight }),
+          },
+        }),
+      })
       continue
     }
     const op = store.getOp(node.id)
@@ -253,11 +233,29 @@ export function serializeEdges(
       }
       return true
     })
-    .map(edge =>
-      Object.fromEntries(
+    .map(edge => {
+      const serialized = Object.fromEntries(
         Object.entries(edge).filter(([key]) => !['selected', 'animated'].includes(key))
       )
-    )
+
+      // Multi-input slot state (edge type + orderIndex/groupSize) is derived from edge
+      // array order at load time — keep files canonical by not persisting it
+      if (serialized.type === MULTI_INPUT_EDGE_TYPE) {
+        delete serialized.type
+        const {
+          orderIndex: _orderIndex,
+          groupSize: _groupSize,
+          ...data
+        } = (serialized.data ?? {}) as Record<string, unknown>
+        if (Object.keys(data).length > 0) {
+          serialized.data = data
+        } else {
+          delete serialized.data
+        }
+      }
+
+      return serialized
+    })
 }
 
 // Pre-load all example asset URLs for download functionality

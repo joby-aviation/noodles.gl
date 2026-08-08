@@ -1,123 +1,5 @@
 {
-  "version": 6,
-  "nodes": [
-    {
-      "id": "/cities-table",
-      "type": "TableEditorOp",
-      "position": { "x": 100, "y": 100 },
-      "data": {
-        "inputs": {
-          "schema": {
-            "columns": [
-              { "name": "city", "type": "string", "defaultValue": "" },
-              {
-                "name": "position",
-                "type": "point2d",
-                "defaultValue": [0, 0],
-                "options": { "geocoder": true }
-              },
-              {
-                "name": "population",
-                "type": "number",
-                "defaultValue": 0,
-                "options": { "min": 0, "step": 1 }
-              },
-              { "name": "color", "type": "color", "defaultValue": "#3b82f6" },
-              { "name": "active", "type": "boolean", "defaultValue": true }
-            ]
-          },
-          "data": [
-            {
-              "city": "New York City",
-              "position": [-74.006, 40.7128],
-              "population": 8336817,
-              "color": "#ff5733",
-              "active": true
-            },
-            {
-              "city": "San Francisco",
-              "position": [-122.4194, 37.7749],
-              "population": 873965,
-              "color": "#33ff57",
-              "active": true
-            },
-            {
-              "city": "Los Angeles",
-              "position": [-118.2437, 34.0522],
-              "population": 3979576,
-              "color": "#3357ff",
-              "active": true
-            },
-            {
-              "city": "Chicago",
-              "position": [-87.6298, 41.8781],
-              "population": 2693976,
-              "color": "#ff33f5",
-              "active": false
-            },
-            {
-              "city": "Seattle",
-              "position": [-122.3321, 47.6062],
-              "population": 753675,
-              "color": "#f5ff33",
-              "active": true
-            }
-          ]
-        }
-      }
-    },
-    {
-      "id": "/scatter",
-      "type": "ScatterplotLayerOp",
-      "position": { "x": 400, "y": 100 },
-      "data": {
-        "inputs": {
-          "data": null,
-          "getPosition": "d => d.position",
-          "getRadius": "d => Math.sqrt(d.population) * 5",
-          "getFillColor": "d => hexToColor(d.color)",
-          "radiusMinPixels": 5,
-          "radiusMaxPixels": 50,
-          "pickable": true
-        }
-      }
-    },
-    {
-      "id": "/text-layer",
-      "type": "TextLayerOp",
-      "position": { "x": 400, "y": 300 },
-      "data": {
-        "inputs": {
-          "data": null,
-          "getPosition": "d => d.position",
-          "getText": "d => d.city",
-          "getSize": 14,
-          "getColor": "[255, 255, 255, 255]",
-          "getPixelOffset": "[0, -20]",
-          "fontWeight": 600,
-          "pickable": true
-        }
-      }
-    },
-    {
-      "id": "/viewer",
-      "type": "ViewerOp",
-      "position": { "x": 700, "y": 200 },
-      "data": {
-        "inputs": {
-          "layers": null
-        }
-      }
-    },
-    {
-      "id": "/merge-layers",
-      "type": "MergeOp",
-      "position": { "x": 550, "y": 200 },
-      "data": {
-        "inputs": {}
-      }
-    }
-  ],
+  "version": 16,
   "edges": [
     {
       "id": "/cities-table.out.data->/scatter.par.data",
@@ -155,5 +37,190 @@
       "targetHandle": "par.layers"
     }
   ],
-  "viewport": { "x": 0, "y": 0, "zoom": 1 }
+  "viewport": {
+    "x": 0,
+    "y": 0,
+    "zoom": 1
+  },
+  "editorSettings": {
+    "layoutMode": "noodles-on-top",
+    "showOverlay": true
+  },
+  "nodes": [
+    {
+      "id": "/cities-table",
+      "type": "TableEditorOp",
+      "position": {
+        "x": 100,
+        "y": 100
+      },
+      "data": {
+        "inputs": {
+          "schema": {
+            "columns": [
+              {
+                "name": "city",
+                "type": "string",
+                "defaultValue": ""
+              },
+              {
+                "name": "position",
+                "type": "point2d",
+                "defaultValue": [
+                  0,
+                  0
+                ],
+                "options": {
+                  "geocoder": true
+                }
+              },
+              {
+                "name": "population",
+                "type": "number",
+                "defaultValue": 0,
+                "options": {
+                  "min": 0,
+                  "step": 1
+                }
+              },
+              {
+                "name": "color",
+                "type": "color",
+                "defaultValue": "#3b82f6"
+              },
+              {
+                "name": "active",
+                "type": "boolean",
+                "defaultValue": true
+              }
+            ]
+          },
+          "data": [
+            {
+              "city": "New York City",
+              "position": [
+                -74.006,
+                40.7128
+              ],
+              "population": 8336817,
+              "color": "#ff5733",
+              "active": true
+            },
+            {
+              "city": "San Francisco",
+              "position": [
+                -122.4194,
+                37.7749
+              ],
+              "population": 873965,
+              "color": "#33ff57",
+              "active": true
+            },
+            {
+              "city": "Los Angeles",
+              "position": [
+                -118.2437,
+                34.0522
+              ],
+              "population": 3979576,
+              "color": "#3357ff",
+              "active": true
+            },
+            {
+              "city": "Chicago",
+              "position": [
+                -87.6298,
+                41.8781
+              ],
+              "population": 2693976,
+              "color": "#ff33f5",
+              "active": false
+            },
+            {
+              "city": "Seattle",
+              "position": [
+                -122.3321,
+                47.6062
+              ],
+              "population": 753675,
+              "color": "#f5ff33",
+              "active": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "/scatter",
+      "type": "ScatterplotLayerOp",
+      "position": {
+        "x": 400,
+        "y": 100
+      },
+      "data": {
+        "inputs": {
+          "data": null,
+          "getPosition": "d => d.position",
+          "getRadius": "d => Math.sqrt(d.population) * 5",
+          "getFillColor": "d => hexToColor(d.color)",
+          "radiusMinPixels": 5,
+          "radiusMaxPixels": 50,
+          "pickable": true
+        }
+      }
+    },
+    {
+      "id": "/text-layer",
+      "type": "TextLayerOp",
+      "position": {
+        "x": 400,
+        "y": 300
+      },
+      "data": {
+        "inputs": {
+          "data": null,
+          "getPosition": "d => d.position",
+          "getText": "d => d.city",
+          "getSize": 14,
+          "getColor": "[255, 255, 255, 255]",
+          "getPixelOffset": "[0, -20]",
+          "fontWeight": 600,
+          "pickable": true
+        }
+      }
+    },
+    {
+      "id": "/viewer",
+      "type": "ViewerOp",
+      "position": {
+        "x": 700,
+        "y": 200
+      },
+      "data": {
+        "inputs": {
+          "layers": null
+        }
+      }
+    },
+    {
+      "id": "/merge-layers",
+      "type": "ConcatOp",
+      "position": {
+        "x": 550,
+        "y": 200
+      },
+      "data": {
+        "inputs": {}
+      }
+    }
+  ],
+  "timeline": {
+    "sheetsById": {
+      "Noodles": {
+        "staticOverrides": {
+          "byObject": {}
+        }
+      }
+    }
+  }
 }

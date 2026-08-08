@@ -7,7 +7,7 @@ import type * as Preset from '@docusaurus/preset-classic'
 
 const config: Config = {
   title: 'Noodles.gl',
-  tagline: 'Interactive geospatial visualization and animation platform',
+  tagline: 'The animation studio for maps',
   favicon: 'img/noodles-favicon.png',
 
   // Future flags, see https://docusaurus.io/docs/api/docusaurus-config#future
@@ -64,6 +64,15 @@ const config: Config = {
       '@docusaurus/plugin-google-gtag',
       {
         trackingID: 'G-Q2MLT93C10',
+      },
+    ],
+    [
+      './posthog-plugin',
+      {
+        // PostHog web keys are public-facing (same as GA tracking IDs — visible in the page source).
+        // Override with POSTHOG_API_KEY env var if you need to use a different project.
+        apiKey: process.env.POSTHOG_API_KEY ?? 'phc_JfAar8Lcv7PZnNGkn0iAYxFlahhDQgXazrIJcxhQe7n',
+        host: process.env.POSTHOG_HOST ?? 'https://us.i.posthog.com',
       },
     ],
   ],

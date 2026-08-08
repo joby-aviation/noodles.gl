@@ -1,27 +1,31 @@
 .layout {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   height: 100vh;
-  grid-template-areas:
-    "top-bar top-bar top-bar"
-    "left-widget fill-widget right-widget"
-    "bottom-widget bottom-widget bottom-widget";
-  grid-template-rows: auto 1fr auto;
-  grid-template-columns: auto 1fr auto;
-  position: relative;
+  width: 100vw;
+  overflow: hidden;
 }
 
-.sidebarContainer {
-  width: 240px;
-  min-width: 240px;
-  max-width: 240px;
+.topBar {
+  flex-shrink: 0;
+}
+
+.rootGroup {
+  flex: 1;
+  min-height: 0;
+}
+
+/* Panels */
+.sidebarPanel {
   background: var(--color-bg-base);
-  border-right: 1px solid var(--color-border);
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .sidebarToggle {
   position: fixed;
-  left: 240px;
+  left: 0;
   top: 50%;
   transform: translateY(-50%);
   z-index: var(--z-index-chrome);
@@ -38,7 +42,6 @@
   cursor: pointer;
   color: var(--color-text-secondary);
   transition: all 0.2s ease;
-  flex-shrink: 0;
 }
 
 .sidebarToggle:hover {
@@ -47,84 +50,136 @@
   width: 24px;
 }
 
-.sidebarToggle:active {
-  background: var(--color-bg-active);
-}
-
 .sidebarToggle i {
   font-size: 10px;
 }
 
-.sidebarToggleCollapsed {
-  left: 0;
+.rightPanel {
+  background-color: var(--property-panel-background-color);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
-.fillWidget {
-  grid-area: fill-widget;
+.outputArea {
   position: relative;
+  height: 100%;
   overflow: hidden;
 }
 
-.outputArea,
-.noodlesArea {
+.mapHost {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.nodeGraphArea {
+  position: relative;
+  /* Above the map underlay pane (see dockable-pane.module.css) */
+  z-index: 1;
+  height: 100%;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* Empty rect the map underlay pane pins to; the graph renders over it */
+.mapUnderlayAnchor {
   position: absolute;
-  left: 0;
-  right: 0;
-  overflow: hidden;
-}
-
-/* Split mode: divide space vertically */
-.fillWidget.layoutSplit .outputArea {
-  top: 0;
-  bottom: 50%;
-}
-
-.fillWidget.layoutSplit .noodlesArea {
-  top: 50%;
-  bottom: 0;
-}
-
-/* Noodles on top mode: noodles overlays output */
-.fillWidget.layoutNoodlesOnTop .outputArea {
-  top: 0;
-  bottom: 0;
-  isolation: isolate;
-}
-
-.fillWidget.layoutNoodlesOnTop .noodlesArea {
-  top: 0;
-  bottom: 0;
-  z-index: 1;
-}
-
-/* Output on top mode: output overlays noodles */
-.fillWidget.layoutOutputOnTop .outputArea {
-  top: 0;
-  bottom: 0;
-  z-index: 1;
-}
-
-.fillWidget.layoutOutputOnTop .noodlesArea {
-  top: 0;
-  bottom: 0;
-  isolation: isolate;
-}
-
-/* In output-on-top mode, disable pointer events on the container but enable them on children */
-.fillWidget.layoutOutputOnTop .outputArea {
+  inset: 0;
   pointer-events: none;
 }
 
-.fillWidget.layoutOutputOnTop .outputArea > * {
-  pointer-events: auto;
+.paneActionButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  background: var(--color-bg-base);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: color 150ms ease;
 }
 
-/* Right widget wrapper - unified background for Theatre.js and properties panel */
-.rightWidgetWrapper {
-  grid-area: right-widget;
+.paneActionButton:hover {
+  color: var(--color-text-primary);
+}
+
+.paneActionButton i {
+  font-size: 11px;
+}
+
+.underlayRestoreButton {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 1;
+  opacity: 0.4;
+  transition:
+    opacity 150ms ease,
+    color 150ms ease;
+}
+
+.underlayRestoreButton:hover {
+  opacity: 1;
+}
+
+.timelinePanel {
+  overflow: hidden;
+}
+
+.timelineCollapseTab {
   display: flex;
-  flex-direction: column;
-  min-height: 0;
-  background-color: var(--property-panel-background-color);
-  width: 296px; /* Fixed width: property panel width (280px) + Theatre panel padding (16px) */
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex-shrink: 0;
+  width: 100%;
+  height: 24px;
+  background: linear-gradient(180deg, #1b2230 0%, #151b27 100%);
+  border: none;
+  border-top: 1px solid #2f3b4c;
+  color: #748095;
+  cursor: pointer;
+  font-family: Inter, "Segoe UI", "SF Pro Text", system-ui, sans-serif;
+  font-size: 11px;
+  transition:
+    background 0.12s ease,
+    color 0.12s ease;
+}
+
+.timelineCollapseTab:hover {
+  background: linear-gradient(180deg, #212a39 0%, #1a2231 100%);
+  color: #b9c3cf;
+}
+
+.timelineCollapseTab svg {
+  opacity: 0.85;
+}
+
+/* Resize Handles — invisible until hovered; the grab area is wider than the
+   1px line (resizeTargetMinimumSize, 10px default). */
+.verticalHandle {
+  width: 1px;
+  background: transparent;
+  cursor: col-resize;
+  transition: background 150ms ease 150ms;
+}
+
+.horizontalHandle {
+  height: 1px;
+  background: transparent;
+  cursor: row-resize;
+  transition: background 150ms ease 150ms;
+}
+
+.verticalHandle:hover,
+.horizontalHandle:hover,
+.verticalHandle:active,
+.horizontalHandle:active {
+  background: var(--color-accent, #3b82f6);
 }

@@ -2,6 +2,8 @@
 
 Basic workflows for using Noodles.gl to create geospatial visualizations and animations.
 
+![Noodles.gl editor with a multi-layer node graph and live map visualization](/img/noodles-big-project.png)
+
 > New to node-based workflows? Start with [Introduction to Workflows](./workflows-intro.md) to learn the fundamentals of how data flows through Noodles.gl.
 
 ## Interface Overview
@@ -15,6 +17,7 @@ Basic workflows for using Noodles.gl to create geospatial visualizations and ani
 - **Configure Inputs**: Adjust operator parameters
 - **Reorder Fields**: Drag to change input order
 - **Timeline Controls**: Keyframe values for animation
+- See the full [Properties Panel](./properties-panel.md) reference for context menu actions and field management
 
 ### Timeline Editor
 - **Keyframes**: Click any parameter in property panel to add keyframes
