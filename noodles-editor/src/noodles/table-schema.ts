@@ -34,6 +34,7 @@ export interface ColumnSchema {
 
     // StringLiteralField options
     values?: string[]
+    freeform?: boolean
 
     // Point2D options
     geocoder?: boolean
@@ -270,6 +271,9 @@ export function validateValue(value: unknown, schema: ColumnSchema): boolean {
     case 'stringLiteral':
       if (typeof value !== 'string') {
         return false
+      }
+      if (schema.options?.freeform) {
+        return true
       }
       if (schema.options?.values) {
         return schema.options.values.includes(value)
