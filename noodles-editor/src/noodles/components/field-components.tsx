@@ -184,12 +184,10 @@ function StringLiteralTypeaheadInput({
   }
 
   const onSuggestionSelect = (selectedValue: string) => {
-    captureStart()
     setLocalValue(selectedValue)
     field.setValue(selectedValue)
     commitChange('Change value')
     setSuggestionsOpen(false)
-    inputRef.current?.focus()
   }
 
   const filteredSuggestions = field.choices.filter(
@@ -199,6 +197,7 @@ function StringLiteralTypeaheadInput({
   )
 
   const showSuggestions = suggestionsOpen && filteredSuggestions.length > 0
+  const suggestionsId = `${id}-suggestions`
 
   return (
     <>
@@ -206,6 +205,10 @@ function StringLiteralTypeaheadInput({
         ref={inputRef}
         id={id}
         type="text"
+        role="combobox"
+        aria-autocomplete="list"
+        aria-controls={suggestionsId}
+        aria-expanded={showSuggestions}
         className={cx(s.fieldInput, s.fieldInputTypeahead)}
         value={localValue}
         onChange={onInputChange}
@@ -216,7 +219,9 @@ function StringLiteralTypeaheadInput({
       />
       {showSuggestions &&
         createPortal(
-          <ul
+          <div
+            id={suggestionsId}
+            role="listbox"
             className={s.stringLiteralSuggestions}
             style={{
               position: 'fixed',
@@ -226,19 +231,25 @@ function StringLiteralTypeaheadInput({
             }}
           >
             {filteredSuggestions.map(({ value: v, label }) => (
-              <li
+              <div
                 key={v}
                 role="option"
+                tabIndex={-1}
                 aria-selected={v === localValue}
                 className={cx(s.stringLiteralSuggestion, {
                   [s.stringLiteralSuggestionActive]: v === localValue,
                 })}
-                onMouseDown={() => onSuggestionSelect(v)}
+                onMouseDown={event => {
+                  // Keep focus on the input so selecting an option cannot also
+                  // trigger the blur commit path.
+                  event.preventDefault()
+                  onSuggestionSelect(v)
+                }}
               >
                 {label}
-              </li>
+              </div>
             ))}
-          </ul>,
+          </div>,
           document.body
         )}
     </>
