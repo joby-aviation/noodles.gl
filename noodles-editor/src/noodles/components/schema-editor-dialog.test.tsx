@@ -249,6 +249,38 @@ describe('SchemaEditorDialog', () => {
     })
   })
 
+  it('should normalize reversed number bounds before choosing a default', () => {
+    const onChange = vi.fn()
+    const schema: TableSchema = {
+      columns: [
+        {
+          name: 'offset',
+          type: 'number',
+          defaultValue: 0,
+          options: { min: 10, max: 5 },
+        },
+      ],
+    }
+
+    render(<SchemaEditorDialog schema={schema} onChange={onChange} />)
+    fireEvent.click(screen.getByRole('button'))
+
+    const defaultEditor = screen.getByRole('group', { name: 'Default value for offset' })
+    expect(within(defaultEditor).getByRole('spinbutton')).toHaveValue('5')
+
+    fireEvent.click(screen.getByText('Save'))
+    expect(onChange).toHaveBeenCalledWith({
+      columns: [
+        {
+          name: 'offset',
+          type: 'number',
+          defaultValue: 5,
+          options: { min: 5, max: 10 },
+        },
+      ],
+    })
+  })
+
   it('should call onChange with updated schema when Save is clicked', () => {
     const onChange = vi.fn()
     render(<SchemaEditorDialog schema={mockSchema} onChange={onChange} />)
