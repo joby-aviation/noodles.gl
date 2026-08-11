@@ -40,11 +40,31 @@ interface ColumnEditorProps {
 }
 
 function normalizeColumnDefault(column: ColumnSchema): ColumnSchema {
-  if (column.defaultValue !== undefined && validateValue(column.defaultValue, column)) {
-    return column
+  let normalizedColumn = column
+  if (
+    column.type === 'number' &&
+    column.options?.min !== undefined &&
+    column.options.max !== undefined &&
+    column.options.min > column.options.max
+  ) {
+    normalizedColumn = {
+      ...column,
+      options: {
+        ...column.options,
+        min: column.options.max,
+        max: column.options.min,
+      },
+    }
   }
 
-  return { ...column, defaultValue: getDefaultValue(column) }
+  if (
+    normalizedColumn.defaultValue !== undefined &&
+    validateValue(normalizedColumn.defaultValue, normalizedColumn)
+  ) {
+    return normalizedColumn
+  }
+
+  return { ...normalizedColumn, defaultValue: getDefaultValue(normalizedColumn) }
 }
 
 function normalizeSchemaDefaults(schema: TableSchema): TableSchema {
