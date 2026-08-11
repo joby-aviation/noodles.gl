@@ -596,6 +596,7 @@ export class GraphExecutor {
     const ops = getAllOps()
 
     let changed = false
+    let replacedNode = false
 
     // Remove nodes that no longer exist in store (but preserve manually added nodes)
     for (const [id] of this.nodes) {
@@ -606,18 +607,27 @@ export class GraphExecutor {
       }
     }
 
-    // Add/update nodes from store
+    // Add/update nodes from store. A project reload can reuse operator IDs while
+    // replacing every operator instance, so identity changes must invalidate
+    // execution caches even when the graph topology is unchanged.
     for (const op of ops) {
-      if (!this.nodes.has(op.id)) {
+      const existing = this.nodes.get(op.id)
+      if (!existing) {
         this.nodes.set(op.id, op)
         // New nodes are dirty by default
         if (op.dirty) {
           this.dirtyNodes.add(op.id)
         }
         changed = true
+      } else if (existing !== op && !this.manuallyAddedNodes.has(op.id)) {
+        this.nodes.set(op.id, op)
+        this.dirtyNodes.add(op.id)
+        changed = true
+        replacedNode = true
       }
     }
 
+    if (replacedNode) this.executedForLoopScopes.clear()
     if (changed) this.isDirty = true
   }
 
