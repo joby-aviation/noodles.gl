@@ -10,6 +10,7 @@ import {
   NumberOp,
   PullExecutionStatus,
 } from './operators'
+import { clearOps, setOp } from './store'
 
 describe('topologicalSort', () => {
   it('should sort a linear chain correctly', () => {
@@ -291,6 +292,39 @@ describe('GraphExecutor', () => {
     // Second sync with same nodes should NOT mark dirty
     executor.syncNodesFromStore()
     expect((executor as any).isDirty).toBe(false)
+  })
+
+  it('replaces reused operator IDs and invalidates loop caches on project reload', () => {
+    clearOps()
+
+    try {
+      const executor = new GraphExecutor()
+      const originalBegin = new ForLoopBeginOp('/forloop-begin')
+      const originalEnd = new ForLoopEndOp('/forloop-end')
+      setOp(originalBegin.id, originalBegin)
+      setOp(originalEnd.id, originalEnd)
+      executor.syncNodesFromStore()
+
+      ;(executor as any).executedForLoopScopes.set(originalEnd.id, 'cached-signature')
+
+      const replacementBegin = new ForLoopBeginOp('/forloop-begin')
+      const replacementEnd = new ForLoopEndOp('/forloop-end')
+      replacementBegin.dirty = false
+      replacementEnd.dirty = false
+      setOp(replacementBegin.id, replacementBegin)
+      setOp(replacementEnd.id, replacementEnd)
+
+      executor.syncNodesFromStore()
+
+      expect(executor.getNode(replacementBegin.id)).toBe(replacementBegin)
+      expect(executor.getNode(replacementEnd.id)).toBe(replacementEnd)
+      expect((executor as any).executedForLoopScopes.size).toBe(0)
+      expect((executor as any).dirtyNodes).toEqual(
+        new Set([replacementBegin.id, replacementEnd.id])
+      )
+    } finally {
+      clearOps()
+    }
   })
 })
 
