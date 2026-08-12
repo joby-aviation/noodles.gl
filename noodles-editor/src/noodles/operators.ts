@@ -2934,8 +2934,6 @@ export class ForLoopEndOp extends Operator<ForLoopEndOp> {
     'End a loop started by ForLoopBegin. Collects all the processed items into an array and passes them to downstream operators.'
   static defaultValue = []
 
-  // This is a special case where we need to keep track of the loop
-  _subs: Subscription[] = []
   chain: Operator<IOperator>[] = []
   private _iterating = false // Flag to prevent concurrent iterations
 
@@ -2950,178 +2948,15 @@ export class ForLoopEndOp extends Operator<ForLoopEndOp> {
     }
   }
 
-  // Override createListeners to NOT set up default reactive listeners.
-  // ForLoopEndOp needs special iteration handling - the default behavior would
-  // just call execute() which passes through a single value.
-  // The actual listeners are set up in createForLoopListeners() when the chain is ready.
+  // GraphExecutor owns loop scheduling; a normal reactive listener would run
+  // the body again when each iteration changes an internal input.
   createListeners() {
-    // Do nothing - ForLoopEndOp needs special iteration handling
-    // that will be set up in createForLoopListeners() when the chain is ready
+    // Intentionally empty.
   }
 
-  // This is a complicated operator that needs to keep track of the loop.
-  // We need to know when the loop is done, and when to start the next iteration
-  // It hijacks event-oriented nature of Operators, firing an event on the beginLoopOp
-  // and then listening for the endLoopOp to know when to stop, using the number of
-  // elements in the data array to know when to stop and pass along the results to
-  // the downstream operators
+  // Store the chain used by pull() while leaving scheduling to GraphExecutor.
   createForLoopListeners(chain: Operator<IOperator>[] = []) {
     this.chain = chain
-
-    // Clean up any previous subscriptions
-    for (const sub of this._subs) {
-      sub.unsubscribe()
-    }
-    this._subs = []
-
-    const beginOp = chain.find(op => op instanceof ForLoopBeginOp) as ForLoopBeginOp | undefined
-    if (!beginOp) {
-      return // No begin op found, can't set up iteration
-    }
-
-    // Helper to trigger re-execution
-    const triggerIteration = () => {
-      // Debounce with microtask to allow synchronous operations to complete first
-      Promise.resolve().then(() => {
-        // Don't run if already iterating (pull() is in progress)
-        if (this._iterating) {
-          return
-        }
-        this.executeIteration(beginOp.inputs.data.value)
-      })
-    }
-
-    // Subscribe to the BeginOp's data input - this triggers iteration when data changes
-    const dataSub = beginOp.inputs.data
-      .pipe(filter(() => !safeMode && !this.locked.value))
-      .subscribe(() => triggerIteration())
-    this._subs.push(dataSub)
-
-    // Also subscribe to ALL inputs of intermediate operators (excluding beginOp and this)
-    // This ensures the loop re-runs when e.g. MathOp.b changes from 10 to 0
-    for (const op of chain) {
-      if (op === beginOp || op === this) continue
-      if (op instanceof ForLoopMetaOp) continue
-
-      for (const [_key, field] of Object.entries(op.inputs)) {
-        const inputSub = field
-          .pipe(filter(() => !safeMode && !this.locked.value))
-          .subscribe(() => triggerIteration())
-        this._subs.push(inputSub)
-      }
-    }
-  }
-
-  // Perform the iteration and collect results
-  private async executeIteration(data: unknown) {
-    // Prevent concurrent iterations
-    if (this._iterating) return
-    this._iterating = true
-
-    debugExecute('[ForLoopEndOp.executeIteration] Starting with data:', data)
-    debugExecute(
-      '[ForLoopEndOp.executeIteration] Chain:',
-      this.chain.map(op => `${op.id} (${op.constructor.name})`)
-    )
-
-    try {
-      const beginOp = this.chain.find(op => op instanceof ForLoopBeginOp) as
-        | ForLoopBeginOp
-        | undefined
-      if (!beginOp) {
-        console.log('[ForLoopEndOp.executeIteration] No beginOp found in chain!')
-        return
-      }
-
-      // Skip if not array or empty
-      if (!Array.isArray(data) || data.length === 0) {
-        this.outputs.data.next([])
-        return
-      }
-
-      const total = data.length
-      const results: unknown[] = []
-
-      // Get proper execution order (chain is reverse order from EndOp)
-      const executionOrder = [...this.chain].reverse()
-      debugExecute(
-        '[ForLoopEndOp.executeIteration] Execution order:',
-        executionOrder.map(op => `${op.id} (${op.constructor.name})`)
-      )
-
-      // Find metaOp if present
-      const metaOp = this.chain.find(op => op instanceof ForLoopMetaOp) as ForLoopMetaOp | undefined
-      let accumulator: unknown = metaOp?.inputs.initialValue.value ?? null
-
-      for (let index = 0; index < total; index++) {
-        const item = data[index]
-        const isFirst = index === 0
-        const isLast = index === total - 1
-
-        debugExecute(`[ForLoopEndOp.executeIteration] Iteration ${index}: item =`, item)
-
-        // Set iteration values on BeginOp outputs
-        beginOp.outputs.item.next(item)
-        beginOp.outputs.index.next(index)
-        beginOp.outputs.total.next(total)
-
-        // Cache BeginOp output so downstream pulls return iteration values
-        beginOp.setCachedOutput({ item, index, total })
-
-        // Set metaOp values if present
-        if (metaOp) {
-          metaOp.outputs.accumulator.next(accumulator)
-          metaOp.outputs.index.next(index)
-          metaOp.outputs.total.next(total)
-          metaOp.outputs.isFirst.next(isFirst)
-          metaOp.outputs.isLast.next(isLast)
-          metaOp.setCachedOutput({ accumulator, index, total, isFirst, isLast })
-        }
-
-        // Clear cache on intermediate operators so pull() re-executes them
-        // NOTE: We use clearCache() not markDirty() because pull() checks _pullExecutionStatus, not dirty
-        for (const op of executionOrder) {
-          if (op !== beginOp && op !== metaOp && op !== this) {
-            op.clearCache()
-          }
-        }
-
-        // Execute chain by pulling each intermediate operator
-        for (const op of executionOrder) {
-          if (op !== beginOp && op !== metaOp && op !== this) {
-            debugExecute(
-              `[ForLoopEndOp.executeIteration] Pulling ${op.id} (${op.constructor.name})`
-            )
-            await op.pull()
-            // Log the outputs after pulling
-            const outputs: Record<string, unknown> = {}
-            for (const [key, field] of Object.entries(op.outputs)) {
-              outputs[key] = field.value
-            }
-            debugExecute(`[ForLoopEndOp.executeIteration] After pull, ${op.id} outputs:`, outputs)
-          }
-        }
-
-        // Collect result - the input field should now have the value from upstream
-        const collectedValue = this.inputs.item.value
-        debugExecute(
-          `[ForLoopEndOp.executeIteration] Iteration ${index}: collecting this.inputs.item.value =`,
-          collectedValue
-        )
-        results.push(collectedValue)
-
-        // Update accumulator from meta op for next iteration
-        if (metaOp) {
-          accumulator = metaOp.inputs.currentValue.value
-        }
-      }
-
-      debugExecute('[ForLoopEndOp.executeIteration] Final results:', results)
-      // Update output with collected results
-      this.outputs.data.next(results)
-    } finally {
-      this._iterating = false
-    }
   }
 
   // Override pull() to iterate through input data and collect results
@@ -3132,7 +2967,7 @@ export class ForLoopEndOp extends Operator<ForLoopEndOp> {
       | ForLoopBeginOp
       | undefined
     if (!beginOp || this.chain.length === 0) {
-      // Return cached if clean and no chain (set by executeIteration after loop completes)
+      // Return cached if clean and no chain.
       if (this._pullExecutionStatus === PullExecutionStatus.CLEAN && this._cachedOutput !== null) {
         return this._cachedOutput as ExtractProps<typeof this.outputs>
       }

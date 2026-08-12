@@ -165,6 +165,8 @@ export class GraphExecutor {
   private isPulling = false
   private lastFrameTime = 0
   private frameInterval: number
+  // Prevent unchanged or failed ForLoop scopes from rerunning every RAF frame.
+  private executedForLoopScopes = new Map<string, string>()
 
   // Dirty tracking
   private dirtyNodes: Set<string> = new Set()
@@ -405,6 +407,10 @@ export class GraphExecutor {
     // Find and execute ForLoop scopes first
     // ForLoop scopes need to complete their iterations before downstream operators can pull their results
     const forLoopScopes = this.findForLoopScopes()
+    const activeForLoopEndIds = new Set(forLoopScopes.map(scope => scope.endOp.id))
+    for (const endOpId of this.executedForLoopScopes.keys()) {
+      if (!activeForLoopEndIds.has(endOpId)) this.executedForLoopScopes.delete(endOpId)
+    }
 
     const nestedBeginIds = new Set(
       forLoopScopes.flatMap(parentScope =>
@@ -415,6 +421,12 @@ export class GraphExecutor {
     )
 
     for (const scope of forLoopScopes.filter(scope => !nestedBeginIds.has(scope.beginOp.id))) {
+      const scopeIsDirty = scope.scopeNodeIds.some(id => this.nodes.get(id)?.dirty)
+      const scopeSignature = this.getForLoopScopeSignature(scope.scopeNodeIds)
+      if (this.executedForLoopScopes.get(scope.endOp.id) === scopeSignature && !scopeIsDirty) {
+        continue
+      }
+
       try {
         const loopResults = await this.executeForLoopScope(
           scope.beginOp,
@@ -425,12 +437,24 @@ export class GraphExecutor {
         )
         results.set(scope.endOp.id, { value: { data: loopResults }, changed: true })
       } catch (error) {
+        // pull() leaves a failed operator in ERROR state. Clear only the public
+        // dirty bit so the RAF loop does not immediately retry it; a real input
+        // change calls markDirty() and makes the scope eligible again.
+        for (const id of scope.scopeNodeIds) {
+          const op = this.nodes.get(id)
+          if (op) op.dirty = false
+        }
+        // Keep the last completed output cached so downstream root pulls do not
+        // enter ForLoopEndOp's fallback iterator and retry within this frame.
+        scope.endOp.setCachedOutput({ data: scope.endOp.outputs.data.value })
         console.error('[Noodles] ForLoop execution error:', error)
         results.set(scope.endOp.id, {
           value: null,
           changed: false,
           error: error instanceof Error ? error : new Error(String(error)),
         })
+      } finally {
+        this.executedForLoopScopes.set(scope.endOp.id, scopeSignature)
       }
     }
 
@@ -572,6 +596,7 @@ export class GraphExecutor {
     const ops = getAllOps()
 
     let changed = false
+    let replacedNode = false
 
     // Remove nodes that no longer exist in store (but preserve manually added nodes)
     for (const [id] of this.nodes) {
@@ -582,18 +607,27 @@ export class GraphExecutor {
       }
     }
 
-    // Add/update nodes from store
+    // Add/update nodes from store. A project reload can reuse operator IDs while
+    // replacing every operator instance, so identity changes must invalidate
+    // execution caches even when the graph topology is unchanged.
     for (const op of ops) {
-      if (!this.nodes.has(op.id)) {
+      const existing = this.nodes.get(op.id)
+      if (!existing) {
         this.nodes.set(op.id, op)
         // New nodes are dirty by default
         if (op.dirty) {
           this.dirtyNodes.add(op.id)
         }
         changed = true
+      } else if (existing !== op && !this.manuallyAddedNodes.has(op.id)) {
+        this.nodes.set(op.id, op)
+        this.dirtyNodes.add(op.id)
+        changed = true
+        replacedNode = true
       }
     }
 
+    if (replacedNode) this.executedForLoopScopes.clear()
     if (changed) this.isDirty = true
   }
 
@@ -773,6 +807,17 @@ export class GraphExecutor {
     return results
   }
 
+  private getForLoopScopeSignature(scopeNodeIds: string[]): string {
+    const nodeIds = [...new Set(scopeNodeIds)].sort()
+    const nodeIdSet = new Set(nodeIds)
+    const edges = this.edges
+      .filter(edge => nodeIdSet.has(edge.source) && nodeIdSet.has(edge.target))
+      .map(edge => `${edge.source}->${edge.target}`)
+      .sort()
+
+    return `${nodeIds.join('|')}::${edges.join('|')}`
+  }
+
   private isNestedForLoopScope(parent: ForLoopScope, child: ForLoopScope): boolean {
     return (
       parent.beginOp !== child.beginOp &&
@@ -811,7 +856,6 @@ export class GraphExecutor {
       }
       return visited
     }
-
     const definitionByBeginId = new Map(
       this.forLoopDefinitions.map(definition => [definition.beginId, definition])
     )
