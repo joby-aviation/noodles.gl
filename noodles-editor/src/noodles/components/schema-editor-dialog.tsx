@@ -4,7 +4,7 @@ import { Dropdown } from 'primereact/dropdown'
 import { InputNumber } from 'primereact/inputnumber'
 import { InputSwitch } from 'primereact/inputswitch'
 import { InputText } from 'primereact/inputtext'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { ColumnSchema, ColumnType, TableSchema } from '../table-schema'
 import { getDefaultValue } from '../table-schema'
 import s from './schema-editor-dialog.module.css'
@@ -35,6 +35,38 @@ interface ColumnEditorProps {
   onDelete: () => void
   onMoveUp?: () => void
   onMoveDown?: () => void
+}
+
+function StringLiteralValuesInput({
+  values,
+  onChange,
+}: {
+  values: string[] | undefined
+  onChange: (values: string[]) => void
+}) {
+  const [inputValue, setInputValue] = useState('')
+
+  useEffect(() => {
+    setInputValue(values?.join(', ') ?? '')
+  }, [values])
+
+  const handleBlur = () => {
+    const parsed = inputValue
+      .split(',')
+      .map((v) => v.trim())
+      .filter(Boolean)
+    onChange(parsed)
+  }
+
+  return (
+    <InputText
+      value={inputValue}
+      onChange={(e) => setInputValue(e.target.value)}
+      onBlur={handleBlur}
+      placeholder="option1, option2, option3"
+      className={s.fullWidthInput}
+    />
+  )
 }
 
 function ColumnEditor({ column, onChange, onDelete, onMoveUp, onMoveDown }: ColumnEditorProps) {
@@ -157,22 +189,27 @@ function ColumnEditor({ column, onChange, onDelete, onMoveUp, onMoveDown }: Colu
         <div className={s.typeOptions}>
           <label>
             Values (comma-separated):
-            <InputText
-              value={column.options?.values?.join(', ') ?? ''}
+            <StringLiteralValuesInput
+              values={column.options?.values}
+              onChange={values =>
+                onChange({
+                  ...column,
+                  options: { ...column.options, values },
+                })
+              }
+            />
+          </label>
+
+          <label className={s.switchLabel}>
+            <span>Freeform input:</span>
+            <InputSwitch
+              checked={column.options?.freeform ?? false}
               onChange={e =>
                 onChange({
                   ...column,
-                  options: {
-                    ...column.options,
-                    values: e.target.value
-                      .split(',')
-                      .map(v => v.trim())
-                      .filter(Boolean),
-                  },
+                  options: { ...column.options, freeform: e.value },
                 })
               }
-              placeholder="option1, option2, option3"
-              className={s.fullWidthInput}
             />
           </label>
         </div>

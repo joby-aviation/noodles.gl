@@ -833,6 +833,39 @@
   text-overflow: ellipsis;
 }
 
+.fieldInputTypeahead {
+  width: 100%;
+  padding: 0 0.5em;
+}
+
+.stringLiteralSuggestions {
+  z-index: 99999;
+  margin: 2px 0 0;
+  padding: 4px 0;
+  list-style: none;
+  background: rgba(22, 22, 24, 0.98);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+  max-height: 200px;
+  overflow-y: auto;
+  pointer-events: auto;
+}
+
+.stringLiteralSuggestion {
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: background 0.1s;
+  font-size: 13px;
+  color: var(--node-text-color);
+}
+
+.stringLiteralSuggestion:hover,
+.stringLiteralSuggestionActive {
+  background: rgba(255, 255, 255, 0.07);
+}
+
 .fieldInputButton {
   background: var(--node-background-color);
   border: 1px solid var(--node-text-color);

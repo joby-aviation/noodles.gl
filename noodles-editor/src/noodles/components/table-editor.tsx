@@ -185,7 +185,10 @@ function StringCellEditor({ value, onChange, onComplete }: CellEditorProps) {
 function StringLiteralCellEditor({ value, onChange, onComplete, column }: CellEditorProps) {
   const selectRef = useRef<HTMLSelectElement>(null)
   const currentValue = String(value ?? '')
+  const [localValue, setLocalValue] = useState(currentValue)
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false)
   const configuredValues = column.options?.values ?? []
+  const freeform = column.options?.freeform ?? false
   const values = configuredValues.includes(currentValue)
     ? configuredValues
     : [currentValue, ...configuredValues]
@@ -194,36 +197,87 @@ function StringLiteralCellEditor({ value, onChange, onComplete, column }: CellEd
     selectRef.current?.focus()
   }, [])
 
-  if (configuredValues.length === 0) {
+  if (!freeform && configuredValues.length === 0) {
     return (
       <StringCellEditor value={value} onChange={onChange} onComplete={onComplete} column={column} />
     )
   }
 
-  return (
-    <select
-      ref={selectRef}
-      value={currentValue}
-      onChange={e => {
-        onChange(e.currentTarget.value)
-        onComplete()
-      }}
-      onBlur={onComplete}
-      onKeyDown={e => {
-        e.stopPropagation()
-        if (e.key === 'Enter' || e.key === 'Escape') {
+  if (!freeform) {
+    return (
+      <select
+        ref={selectRef}
+        value={currentValue}
+        onChange={e => {
+          onChange(e.currentTarget.value)
           onComplete()
-        }
-      }}
-      aria-label={`Edit ${column.name}`}
-      className={cx('p-inputtext', s.cellEditor)}
-    >
-      {values.map(option => (
-        <option key={option} value={option}>
-          {option}
-        </option>
-      ))}
-    </select>
+        }}
+        onBlur={onComplete}
+        onKeyDown={e => {
+          e.stopPropagation()
+          if (e.key === 'Enter' || e.key === 'Escape') {
+            onComplete()
+          }
+        }}
+        aria-label={`Edit ${column.name}`}
+        className={cx('p-inputtext', s.cellEditor)}
+      >
+        {values.map(option => (
+          <option key={option} value={option}>
+            {option}
+          </option>
+        ))}
+      </select>
+    )
+  }
+
+  const filteredValues = configuredValues.filter(option =>
+    option.toLowerCase().includes(localValue.toLowerCase())
+  )
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <InputText
+        value={localValue}
+        onChange={e => {
+          setLocalValue(e.target.value)
+          onChange(e.target.value)
+          setSuggestionsOpen(true)
+        }}
+        onFocus={() => setSuggestionsOpen(true)}
+        onBlur={() => {
+          setTimeout(() => setSuggestionsOpen(false), 150)
+          onComplete()
+        }}
+        onKeyDown={e => {
+          e.stopPropagation()
+          if (e.key === 'Enter' || e.key === 'Escape') {
+            onComplete()
+          }
+        }}
+        autoFocus
+        className={s.cellEditor}
+        placeholder="Type or select…"
+      />
+      {suggestionsOpen && filteredValues.length > 0 && (
+        <ul className={s.cellSuggestions}>
+          {filteredValues.map(option => (
+            <li
+              key={option}
+              onMouseDown={() => {
+                setLocalValue(option)
+                onChange(option)
+                setSuggestionsOpen(false)
+                onComplete()
+              }}
+              className={s.cellSuggestion}
+            >
+              {option}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   )
 }
 
