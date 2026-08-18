@@ -1,8 +1,9 @@
 import type { NodeJSON } from '@xyflow/react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { getExecutor } from './graph-executor'
 import type { Edge } from './noodles'
 import type { OpType } from './operators'
-import { ContainerOp, GraphInputOp, GraphOutputOp } from './operators'
+import { ContainerOp, GraphInputOp, GraphOutputOp, type ViewerOp } from './operators'
 import { clearOps, getOp } from './store'
 import { transformGraph } from './transform-graph'
 
@@ -177,6 +178,80 @@ describe('Container Integration with Transform Graph', () => {
 
     // The container should return the value from its child GraphOutputOp
     expect(result.out).toBe('container-output-value')
+  })
+
+  it('pulls the child GraphOutput before publishing the initial container output', async () => {
+    const nodes: NodeJSON<OpType>[] = [
+      {
+        id: '/analysis',
+        type: 'ContainerOp',
+        position: { x: 0, y: 0 },
+        data: { inputs: { in: 5 } },
+      },
+      {
+        id: '/analysis/input',
+        type: 'GraphInputOp',
+        position: { x: 100, y: 0 },
+        data: { inputs: {} },
+      },
+      {
+        id: '/analysis/double',
+        type: 'MathOp',
+        position: { x: 200, y: 0 },
+        data: { inputs: { operator: 'multiply', b: 2 } },
+      },
+      {
+        id: '/analysis/output',
+        type: 'GraphOutputOp',
+        position: { x: 300, y: 0 },
+        data: { inputs: {} },
+      },
+      {
+        id: '/viewer',
+        type: 'ViewerOp',
+        position: { x: 400, y: 0 },
+        data: { inputs: {} },
+      },
+    ]
+    const edges: Edge[] = [
+      {
+        id: '/analysis/input.out.value->/analysis/double.par.a',
+        source: '/analysis/input',
+        target: '/analysis/double',
+        sourceHandle: 'out.value',
+        targetHandle: 'par.a',
+      },
+      {
+        id: '/analysis/double.out.result->/analysis/output.par.value',
+        source: '/analysis/double',
+        target: '/analysis/output',
+        sourceHandle: 'out.result',
+        targetHandle: 'par.value',
+      },
+      {
+        id: '/analysis.out.out->/viewer.par.data',
+        source: '/analysis',
+        target: '/viewer',
+        sourceHandle: 'out.out',
+        targetHandle: 'par.data',
+      },
+    ]
+
+    transformGraph({ nodes, edges })
+    await getExecutor()!.executeFrame(performance.now())
+
+    const output = getOp('/analysis/output') as GraphOutputOp
+    const container = getOp('/analysis') as ContainerOp
+    const viewer = getOp('/viewer') as ViewerOp
+    expect(output.outputs.propagatedValue.value).toBe(10)
+    expect(container.outputs.out.value).toBe(10)
+    expect(viewer.inputs.data.value).toBe(10)
+
+    container.inputs.in.setValue(7)
+    await getExecutor()!.executeFrame(performance.now())
+    expect(output.outputs.propagatedValue.value).toBe(14)
+    expect(container.outputs.out.value).toBe(14)
+    expect(viewer.inputs.data.value).toBe(14)
   })
 
   describe('Container Custom Field Integration', () => {
