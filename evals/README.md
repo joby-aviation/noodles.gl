@@ -64,9 +64,66 @@ tokens, not dollars — `costUsd` is computed from the pinned
 so the turn budget is enforced as wall-clock only; turns are still counted
 from `turn.completed` events and recorded.
 
+**Local models via openclaw** — any OpenAI-compatible local server. Use the
+model id `local/<name>` (e.g. `local/qwen3-coder`); the harness routes it
+through the same codex backend with a `model_providers` override pointing at
+`OPENCLAW_BASE_URL` (e.g. `http://127.0.0.1:8642/v1`; set `OPENCLAW_API_KEY`
+only if the server wants one). The server sees the bare `<name>` as the
+model. `costUsd` is recorded as 0 (local compute, not unknown). Local
+session runs do NOT require AWS credentials — only grading does. Comparator
+note: local models share codex's agent scaffolding, so cross-model claims
+against claude-CLI rows carry a harness confound the same way gpt-5.6 rows
+do; rows record `provider` so slices stay honest.
+
 Either way the harness fails fast listing whichever env vars are missing,
 never prompts, and never falls back to another provider. Cross-tier claims
 only ever compare within one session model.
+
+## Season 2 local runbook (handoff)
+
+Fresh machine to first graded row:
+
+```bash
+git clone -b claude/eval-harness-phase0-c8wgcm <repo> && cd noodles.gl
+# node from .nvmrc, then:
+npm run install:all && (cd evals && npm install)
+npx playwright install chromium   # for the load check / screenshots
+
+# credentials (whichever providers you're running)
+export AWS_ACCESS_KEY_ID=... AWS_SECRET_ACCESS_KEY=... AWS_SESSION_TOKEN=... \
+       AWS_CREDENTIAL_EXPIRATION=... AWS_REGION=us-west-2   # bedrock sessions + judge
+export OPENAI_API_KEY=...                                   # gpt-5.6 sessions
+export OPENCLAW_BASE_URL=http://127.0.0.1:8642/v1           # local sessions
+export EVALS_R2_ACCOUNT_ID=... EVALS_R2_ACCESS_KEY_ID=... \
+       EVALS_R2_SECRET_ACCESS_KEY=... EVALS_R2_BUCKET=noodles  # evidence sync
+
+cd evals && npm run selftest        # offline, must pass
+# smoke one session per provider you plan to run:
+npm run run -- --task modify-arcs --model us.anthropic.claude-fable-5 --sessions 1 --series 2026-08-18.t0.cc1dbe58da32
+npm run run -- --task modify-arcs --model gpt-5.6-luna              --sessions 1 --series 2026-08-18.t0.cc1dbe58da32
+npm run run -- --task modify-arcs --model local/<name>              --sessions 1 --series 2026-08-18.t0.cc1dbe58da32
+
+# full matrix (sequential; ~8 tasks x 3 sessions per model)
+for m in us.anthropic.claude-sonnet-4-6 us.anthropic.claude-sonnet-5 \
+         us.anthropic.claude-opus-4-8 us.anthropic.claude-fable-5 \
+         gpt-5.6-sol gpt-5.6-terra gpt-5.6-luna; do
+  for t in author-scatterplot modify-arcs debug-blank-viz sql-h3-pipeline \
+           animate-camera contextualize-operator author-hiking-time code-refs-containers; do
+    npm run run -- --task "$t" --model "$m" --sessions 3 --series 2026-08-18.t0.cc1dbe58da32
+  done
+done
+
+npm run grade  -- --series 2026-08-18.t0.cc1dbe58da32   # needs bedrock env (judge)
+npm run report -- --series 2026-08-18.t0.cc1dbe58da32
+npm run sync-results -- --push --series 2026-08-18.t0.cc1dbe58da32 && \
+npm run sync-results -- --verify --series 2026-08-18.t0.cc1dbe58da32 --all
+```
+
+The measured surface is pinned in `harness/lib/config.ts` (`MEASURED_REF`,
+currently stack #551's top app branch) — workspaces build from it
+automatically; make sure `git fetch origin` has run so the ref exists
+locally. Templates land under `/tmp/noodles-evals` (override:
+`EVALS_WORK_ROOT`); the first run per measured commit pays one npm install.
 
 ## Running
 

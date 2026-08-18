@@ -640,3 +640,15 @@ the refresh instruction instead of letting sessions die on the SDK's opaque "Cou
 credentials from any providers"; the dead run was deleted (credential noise, not model
 evidence). Season 2 runs are blocked on: fresh AWS session credentials (Bedrock) and
 `OPENAI_API_KEY` (codex). Everything else is in place.
+
+### Round 8 addendum 2: local models (openclaw) + handoff runbook
+
+Third provider: `local/<name>` model ids route through the same codex backend with a
+`model_providers` override pointing at `OPENCLAW_BASE_URL` (openclaw's OpenAI-compatible
+server); the server sees the bare name, `costUsd` records 0 (local compute), and — fixed
+while wiring this — a session run now asserts only ITS provider's env, so local benchmarking
+needs no AWS credentials (grading still does; the expired-creds check applies only when
+bedrock is in the required set). README gains a season-2 local runbook: clone → install →
+creds → per-provider smoke → full 7-model matrix loop → grade/report → R2 push+verify. The
+session moves to the user's machine from here; comparator note recorded (codex scaffolding
+confound for non-claude rows, sliced honestly via the per-row provider field).

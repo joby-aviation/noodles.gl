@@ -34,7 +34,7 @@ export interface SessionOptions {
 }
 
 export async function runSession(opts: SessionOptions): Promise<SessionResult> {
-  return providerFor(opts.model) === 'openai' ? runCodexSession(opts) : runClaudeSession(opts)
+  return providerFor(opts.model) === 'bedrock' ? runClaudeSession(opts) : runCodexSession(opts)
 }
 
 async function runClaudeSession(opts: SessionOptions): Promise<SessionResult> {
@@ -105,7 +105,12 @@ function codexBin(): string {
   return fs.existsSync(pinned) ? pinned : 'codex'
 }
 
-async function runCodexSession(opts: SessionOptions): Promise<SessionResult> {
+/** codex exec argv for a session — exported for offline selftests. For
+ * local/* models the codex `model_providers` config points at the
+ * OpenAI-compatible openclaw server (OPENCLAW_BASE_URL); the model name the
+ * server sees is the part after `local/`. */
+export function codexArgs(opts: Pick<SessionOptions, 'model' | 'prompt'>): string[] {
+  const provider = providerFor(opts.model)
   const args = [
     'exec',
     '--json',
@@ -116,16 +121,39 @@ async function runCodexSession(opts: SessionOptions): Promise<SessionResult> {
     '--dangerously-bypass-approvals-and-sandbox',
     '--ephemeral', // no rollout files outside the workspace
     '--ignore-user-config',
-    '--model',
-    opts.model,
-    opts.prompt,
   ]
+  if (provider === 'local') {
+    const baseUrl = process.env.OPENCLAW_BASE_URL
+    args.push(
+      '-c',
+      'model_provider=openclaw',
+      '-c',
+      'model_providers.openclaw.name=openclaw',
+      '-c',
+      `model_providers.openclaw.base_url=${baseUrl}`,
+      '-c',
+      'model_providers.openclaw.wire_api=chat'
+    )
+    if (process.env.OPENCLAW_API_KEY) {
+      args.push('-c', 'model_providers.openclaw.env_key=OPENCLAW_API_KEY')
+    }
+    args.push('--model', opts.model.slice('local/'.length))
+  } else {
+    args.push('--model', opts.model)
+  }
+  args.push(opts.prompt)
+  return args
+}
+
+async function runCodexSession(opts: SessionOptions): Promise<SessionResult> {
+  const provider = providerFor(opts.model)
+  const args = codexArgs(opts)
 
   const started = Date.now()
   const out = fs.createWriteStream(opts.transcriptPath)
   const child = spawn(codexBin(), args, {
     cwd: opts.workspace,
-    env: codexSessionEnv(),
+    env: codexSessionEnv(provider === 'local' ? 'local' : 'openai'),
     stdio: ['ignore', 'pipe', 'pipe'],
   })
   child.stdout.pipe(out)
@@ -159,7 +187,8 @@ async function runCodexSession(opts: SessionOptions): Promise<SessionResult> {
     durationMs: Date.now() - started,
     timedOut,
     exitCode,
-    costUsd: parsed.costUsd,
+    // A local model has no API cost — 0 is a measurement, null means unknown.
+    costUsd: provider === 'local' ? 0 : parsed.costUsd,
     usage: parsed.usage,
     resultText: parsed.lastAgentMessage,
     isError: parsed.failed || exitCode !== 0,

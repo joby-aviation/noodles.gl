@@ -56,7 +56,8 @@ export async function runOne(args: {
 }): Promise<string> {
   assertProviderEnv(args.model)
   const task = loadTask(args.task)
-  const modelSlug = args.model.replace(/^(us\.)?anthropic\./, '')
+  // runIds are directory names: strip the profile prefix, flatten local/ slashes.
+  const modelSlug = args.model.replace(/^(us\.)?anthropic\./, '').replace(/\//g, '-')
   const runId = `${task.id}--${modelSlug}--s${args.sessionIndex}`
   const runDir = path.join(RESULTS_ROOT, args.series, 'runs', runId)
   fs.rmSync(runDir, { recursive: true, force: true })

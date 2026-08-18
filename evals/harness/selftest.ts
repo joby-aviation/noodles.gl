@@ -11,7 +11,7 @@ import * as path from 'node:path'
 import YAML from 'yaml'
 import { REPO_ROOT, SESSION_MODELS, assertProviderEnv, providerFor } from './lib/config'
 import { scoreAnswers } from './lib/matchers'
-import { parseCodexTranscript, renderTranscript } from './lib/session'
+import { codexArgs, parseCodexTranscript, renderTranscript } from './lib/session'
 import { loadRegistry, noodlesVersion } from './lib/registry'
 import { loadRubric, resolveApplicability } from './lib/rubric'
 import { MECHANICAL_FAILURE_CAP, type MechanicalResults, median, totalScore } from './lib/scoring'
@@ -157,7 +157,30 @@ test('providerFor maps every pinned session model; unknown ids throw', () => {
   for (const m of SESSION_MODELS) providerFor(m) // must not throw
   assert.equal(providerFor('us.anthropic.claude-fable-5'), 'bedrock')
   assert.equal(providerFor('gpt-5.6-luna'), 'openai')
+  assert.equal(providerFor('local/qwen3-coder'), 'local')
   assert.throws(() => providerFor('gemini-3-pro'))
+})
+
+test('local/openclaw codex args point at OPENCLAW_BASE_URL, cost is 0, AWS not required', () => {
+  const saved = process.env.OPENCLAW_BASE_URL
+  const savedExp = process.env.AWS_CREDENTIAL_EXPIRATION
+  process.env.OPENCLAW_BASE_URL = 'http://127.0.0.1:8642/v1'
+  // expired AWS creds must NOT block a local session (provider set excludes bedrock)
+  process.env.AWS_CREDENTIAL_EXPIRATION = '2020-01-01T00:00:00Z'
+  try {
+    assertProviderEnv('local/qwen3-coder')
+    const args = codexArgs({ model: 'local/qwen3-coder', prompt: 'p' })
+    assert.ok(args.includes('model_providers.openclaw.base_url=http://127.0.0.1:8642/v1'))
+    assert.ok(args.includes('model_provider=openclaw'))
+    // the server sees the bare model name
+    assert.equal(args[args.indexOf('--model') + 1], 'qwen3-coder')
+    delete process.env.OPENCLAW_BASE_URL
+    assert.throws(() => assertProviderEnv('local/qwen3-coder'), /OPENCLAW_BASE_URL/)
+  } finally {
+    if (saved !== undefined) process.env.OPENCLAW_BASE_URL = saved
+    if (savedExp !== undefined) process.env.AWS_CREDENTIAL_EXPIRATION = savedExp
+    else delete process.env.AWS_CREDENTIAL_EXPIRATION
+  }
 })
 
 test('assertProviderEnv demands OPENAI_API_KEY only for codex models', () => {

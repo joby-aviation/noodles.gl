@@ -5,14 +5,18 @@
 import * as path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-// Season 2 measures two providers. Provider is derived per model id (see
-// providerFor): us.anthropic.* runs the claude CLI against Bedrock,
-// gpt-* runs the OpenAI Codex CLI (codex exec) against the OpenAI API.
-export type Provider = 'bedrock' | 'openai'
+// Season 2 measures multiple providers. Provider is derived per model id
+// (see providerFor): us.anthropic.* runs the claude CLI against Bedrock;
+// gpt-* runs the OpenAI Codex CLI (codex exec) against the OpenAI API;
+// local/* runs codex exec against an OpenAI-compatible local server
+// (openclaw) at OPENCLAW_BASE_URL — the part after the slash is the server's
+// model name (e.g. local/qwen3-coder).
+export type Provider = 'bedrock' | 'openai' | 'local'
 
 export function providerFor(model: string): Provider {
   if (model.startsWith('us.anthropic.')) return 'bedrock'
   if (model.startsWith('gpt-')) return 'openai'
+  if (model.startsWith('local/')) return 'local'
   throw new Error(`no provider mapping for model id "${model}"`)
 }
 
@@ -70,15 +74,16 @@ export const JUDGE_SAMPLES = 3
 const REQUIRED_ENV: Record<Provider, readonly string[]> = {
   bedrock: ['AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY', 'AWS_REGION'],
   openai: ['OPENAI_API_KEY'],
+  local: ['OPENCLAW_BASE_URL'],
 }
 
 // Fail fast, list what's missing, never prompt, never fall back to another
-// provider (provider directive, journal 2026-07-06). Judging always needs
-// Bedrock regardless of the session model, so bedrock env is asserted for
-// every model; openai env only when the session model runs on codex.
+// provider (provider directive, journal 2026-07-06). With a model given
+// (run.ts) only that session provider's env is required — a local/openclaw
+// run must not demand AWS credentials. Without one (grade.ts, judging) the
+// judge's Bedrock env is required.
 export function assertProviderEnv(model?: string): void {
-  const providers: Provider[] =
-    model && providerFor(model) === 'openai' ? ['bedrock', 'openai'] : ['bedrock']
+  const providers: Provider[] = model ? [providerFor(model)] : ['bedrock']
   const missing = providers.flatMap(p => REQUIRED_ENV[p].filter(name => !process.env[name]))
   if (missing.length > 0) {
     throw new Error(
@@ -90,6 +95,7 @@ export function assertProviderEnv(model?: string): void {
   // message instead of letting every spawned session die with the SDK's
   // "Could not load credentials from any providers" (cost of learning this
   // the hard way: one dead smoke run, 2026-08-18).
+  if (!providers.includes('bedrock')) return
   const exp = process.env.AWS_CREDENTIAL_EXPIRATION
   if (exp && !Number.isNaN(Date.parse(exp)) && Date.parse(exp) <= Date.now()) {
     throw new Error(
@@ -127,9 +133,14 @@ export function sessionEnv(): Record<string, string> {
 
 // Codex CLI sessions: add only the API key. codex exec reads CODEX_API_KEY
 // (its non-interactive auth path); the harness's user-facing variable stays
-// OPENAI_API_KEY, mapped here.
-export function codexSessionEnv(): Record<string, string> {
+// OPENAI_API_KEY, mapped here. local/openclaw sessions authenticate with
+// OPENCLAW_API_KEY only if the local server wants one.
+export function codexSessionEnv(provider: 'openai' | 'local' = 'openai'): Record<string, string> {
   const env = baseSessionEnv()
+  if (provider === 'local') {
+    if (process.env.OPENCLAW_API_KEY) env.OPENCLAW_API_KEY = process.env.OPENCLAW_API_KEY
+    return env
+  }
   const key = process.env.CODEX_API_KEY ?? process.env.OPENAI_API_KEY
   if (key) env.CODEX_API_KEY = key
   return env
