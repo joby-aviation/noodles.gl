@@ -629,7 +629,18 @@ function verifyAnswerKey(): void {
     multi.add(key)
   }
   q('q29-single-input', singleInput, 'no scalar input receives two edges in the committed example')
-  q('q23-version-14', noodlesVersion(REPO_ROOT) === 14 && example.version === 14, `migrations max = ${noodlesVersion(REPO_ROOT)}, uk-commute version = ${example.version}`)
+  // q23 rots whenever a migration lands on main: assert the key's expected
+  // regex matches the LIVE repo version instead of hardcoding it here too.
+  const answerKey = JSON.parse(
+    fs.readFileSync(path.join(TASKS_ROOT, 'fixtures/contextualize-answer-key.json'), 'utf-8')
+  ) as { answers: Array<{ id: string; expected: string }> }
+  const q23 = answerKey.answers.find(a => a.id === 'q23')
+  const liveVersion = noodlesVersion(REPO_ROOT)
+  q(
+    'q23-version',
+    q23 !== undefined && new RegExp(q23.expected).test(String(liveVersion)) && example.version === liveVersion,
+    `key expects ${q23?.expected}, migrations max = ${liveVersion}, uk-commute version = ${example.version}`
+  )
   q('q24-at-prefix', /`@\/` - Relative to project data directory/.test(agents), 'AGENTS.md path-prefix section')
   q('q25-28-path-system', ["op('/data-loader')", "op('./sibling')", "op('/analysis/filter')"].every(s => agents.includes(s)), 'AGENTS.md operator path examples present')
   q('q26-reactive-ref', agents.includes("op('/data-loader').out.data"), 'AGENTS.md reactive reference example')

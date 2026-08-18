@@ -554,3 +554,46 @@ not just at close.
   credentials arrive and `--push` + `--verify --all` come back clean; only then does
   `git rm -r --cached` slim the branch. No history rewrite — a squash merge keeps the blobs
   out of main entirely.
+
+## Round 7 (2026-08-18): the stack assembles — and composition finds bug 4
+
+The three fix PRs, the docs program, and this harness are now one native GitHub stack
+(**stack #551**, created via the new Stacks REST API — public preview since 2026-07-30):
+`main ← #514 ← #515 ← #516 ← #507 ← #509`. Each branch merges the one below it, every PR
+diff is exactly its own commits, and the harness can finally measure the fixes before they
+land: `EVALS_WORKSPACE_REF=HEAD` builds eval workspaces from the stack tip instead of
+`origin/main` (default unchanged; workspaces stay `.git`-less archive extractions).
+
+- **Main moved under us** (39 commits): project schema 14 → 16, vitest now runs in browser
+  mode, and #523 landed in the executor. The #516 merge with #523 was the feared conflict;
+  147 executor/transform-graph tests green after resolution. All 8 fixture projects
+  migrated with the app's own `migrate-projects` script; the modify-arcs golden's
+  `editorSettings` re-synced with the migrated uk-commute base (main added `layoutMode`);
+  answer-key q23 updated to v16.
+
+- **Validation earned its keep — composing the three fixes exposed a fourth bug.** With
+  #514's derived reference edges finally materializing headlessly, the sanctioned idiom's
+  `op('/parent').par.minMagnitude` (child reading its container's promoted param) became a
+  parent → child dependency edge; with the child → GraphOutput → parent bridge edge that's a
+  cycle, and `pull()` recursed to `RangeError` on load — the code-refs golden and both
+  container repros died instantly on the assembled stack, each PR having been verified green
+  in isolation. Round-5's end-to-end confirmation ran #515+#516 *without* #514, so the
+  derived edge that closes the loop never existed. The fix is the same exemption the
+  executor already applied to self-references, generalized: a `par.*`-sourced edge whose
+  target is *enclosed by* its source is a value subscription, not an execution dependency —
+  reading an input never requires executing its owner, and the owner's execution already
+  encompasses the child. Applied at both layers that maintain dependency structure
+  (`transformGraph`'s `_upstreamDependencies` sets on #514; `buildFromEdges` on #516), with
+  regression tests on each. Field-layer subscriptions are untouched, so param edits still
+  re-execute readers.
+
+- **Post-fix validation, workspace built from the stack tip**: all three repro projects render
+  their READMEs' expected values (200 rows; 12 filtered rows twice) with zero console
+  errors; verify-goldens ALL PASS including the code-refs container golden that has never
+  rendered on any measured surface before. The code-refs@2 baseline is now runnable
+  pre-merge via `EVALS_WORKSPACE_REF=HEAD`.
+
+- Also this round: CodeQL high on #509 (CLI arg interpolated into a RegExp in
+  evidence-pack) escaped, and verify-goldens' q23 check de-rotted — it now asserts the
+  answer key's expected regex against the live migration version instead of hardcoding 14
+  in the verifier too.
