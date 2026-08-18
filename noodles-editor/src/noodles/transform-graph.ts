@@ -360,11 +360,20 @@ export function transformGraph<
         }
       }
 
-      // Update operator dependencies for pull-based execution
-      // Skip self-references to parameters (not true cycles - output depends on input value)
-      const isSelfParameterReference = edge.source === edge.target && sourceNamespace === 'par'
+      // Update operator dependencies for pull-based execution.
+      // Skip parameter-sourced references that stay inside the operator they
+      // read: self-references, and a container child reading an enclosing
+      // container's promoted param (op('/parent').par.x). Reading an input
+      // value never requires executing its owner — and the owner's execution
+      // already encompasses the child — so as a pull dependency the edge
+      // closes a false cycle (parent → child → GraphOutput → parent) that
+      // _pullUpstreamDependencies recurses on until the stack overflows. The
+      // field connection added above still delivers param changes reactively.
+      const isEnclosedParameterReference =
+        sourceNamespace === 'par' &&
+        (edge.source === edge.target || edge.target.startsWith(`${edge.source}/`))
 
-      if (!isSelfParameterReference) {
+      if (!isEnclosedParameterReference) {
         sourceOp.addDownstreamDependent(targetOp)
         targetOp.addUpstreamDependency(sourceOp)
       }

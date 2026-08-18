@@ -1364,6 +1364,63 @@ describe('derived reference edges (unmounted nodes)', () => {
     ]
     expect(deriveReferenceEdges(nodes, existing)).toHaveLength(0)
   })
+
+  it('does not make an enclosing-container param reference a pull dependency (false cycle)', () => {
+    // op('/box').par.minMagnitude inside /box/child derives the reference
+    // edge /box -> /box/child. With the child -> GraphOutput -> /box bridge
+    // edge that would be a pull-dependency cycle _pullUpstreamDependencies
+    // recurses on forever. The reference must stay a field-layer
+    // subscription without entering the operator dependency sets.
+    const nodes = [
+      {
+        id: '/box',
+        type: 'ContainerOp',
+        data: {
+          inputs: {},
+          customInputs: [
+            { id: 'ci1', name: 'minMagnitude', type: 'number', order: 0, defaultValue: 4 },
+          ],
+        },
+        position: { x: 0, y: 0 },
+      },
+      {
+        id: '/box/child',
+        type: 'CodeOp',
+        data: { inputs: { code: "return op('/box').par.minMagnitude" } },
+        position: { x: 10, y: 0 },
+      },
+      { id: '/box/output', type: 'GraphOutputOp', data: { inputs: {} }, position: { x: 20, y: 0 } },
+    ]
+    const edges = [
+      {
+        id: '/box/child.out.data->/box/output.par.value',
+        source: '/box/child',
+        target: '/box/output',
+        sourceHandle: 'out.data',
+        targetHandle: 'par.value',
+      },
+      {
+        id: '/box/output.out.propagatedValue->/box.out.out',
+        source: '/box/output',
+        target: '/box',
+        sourceHandle: 'out.propagatedValue',
+        targetHandle: 'out.out',
+      },
+    ]
+
+    transformGraph({ nodes, edges })
+
+    const { getOp } = getOpStore()
+    const box = getOp('/box')!
+    const child = getOp('/box/child')!
+    const deps = (child as unknown as { _upstreamDependencies: Set<unknown> })
+      ._upstreamDependencies
+    expect(deps.has(box)).toBe(false)
+    // The field-layer subscription for the derived reference edge remains.
+    expect(child.inputs.code.subscriptions.has('/box.par.minMagnitude->/box/child.par.code')).toBe(
+      true
+    )
+  })
 })
 
 describe('ListField connection order sync', () => {
