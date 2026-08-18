@@ -3829,6 +3829,24 @@ describe('CategoricalColorRampOp', () => {
 })
 
 describe('DirectionsOp', () => {
+  it('exposes traffic scheduling inputs with backward-compatible defaults', () => {
+    const directionsOp = new DirectionsOp('/directions')
+
+    expect(directionsOp.inputs.mode.value).toBe('transit')
+    expect(directionsOp.inputs.departureMode.value).toBe('now')
+    expect(directionsOp.inputs.departureTime.value).toBeInstanceOf(Temporal.PlainDateTime)
+    expect(directionsOp.isFieldVisible('departureMode')).toBe(false)
+    expect(directionsOp.isFieldVisible('departureTime')).toBe(false)
+
+    directionsOp.inputs.mode.setValue('driving-traffic')
+    expect(directionsOp.isFieldVisible('departureMode')).toBe(true)
+    expect(directionsOp.isFieldVisible('departureTime')).toBe(false)
+    directionsOp.inputs.departureMode.setValue('scheduled')
+    expect(directionsOp.inputs.mode.value).toBe('driving-traffic')
+    expect(directionsOp.inputs.departureMode.value).toBe('scheduled')
+    expect(directionsOp.isFieldVisible('departureTime')).toBe(true)
+  })
+
   it('accepts GeoJSON Point Features via Point2DField', () => {
     const directionsOp = new DirectionsOp('/directions')
     const feature = {

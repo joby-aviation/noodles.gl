@@ -1,5 +1,7 @@
 import polyline from '@mapbox/polyline'
 import haversine from 'haversine-distance'
+import { Temporal } from 'temporal-polyfill'
+import tzLookup from 'tz-lookup'
 import { getKeysStore } from '../noodles/keys-store'
 import { loadGoogleMapsAPI } from './geocoding'
 
@@ -26,25 +28,82 @@ interface MapboxDirectionsResponse {
 }
 
 export const DRIVING = 'driving'
+export const DRIVING_TRAFFIC = 'driving-traffic'
 export const TRANSIT = 'transit'
+
+export type DirectionsMode = typeof DRIVING | typeof DRIVING_TRAFFIC | typeof TRANSIT
+
+export function resolveOriginDepartureTime({
+  origin,
+  localTime,
+  now = Temporal.Now.instant(),
+}: {
+  origin: { lat: number; lng: number }
+  localTime: Temporal.PlainDateTime
+  now?: Temporal.Instant
+}): Date {
+  let timeZone: string
+  try {
+    timeZone = tzLookup(origin.lat, origin.lng)
+  } catch {
+    throw new Error('Could not determine the departure timezone from the route origin.')
+  }
+
+  let instant: Temporal.Instant
+  try {
+    instant = localTime.toZonedDateTime(timeZone, { disambiguation: 'reject' }).toInstant()
+  } catch {
+    throw new Error(
+      `The departure time ${localTime.toString()} is ambiguous or does not exist in ${timeZone} because of daylight saving time.`
+    )
+  }
+
+  if (Temporal.Instant.compare(instant, now) <= 0) {
+    throw new Error(`Departure time must be in the future at the route origin (${timeZone}).`)
+  }
+
+  return new Date(instant.epochMilliseconds)
+}
 
 export async function getDirections({
   origin,
   destination,
   mode = DRIVING,
+  departureTime,
 }: {
   origin: { lat: number; lng: number }
   destination: { lat: number; lng: number }
-  mode?: typeof DRIVING | typeof TRANSIT
+  mode?: DirectionsMode
+  departureTime?: Temporal.PlainDateTime
 }): Promise<AnimatedDirections> {
   switch (mode) {
     case DRIVING:
       return getDrivingDirections({ origin, destination })
+    case DRIVING_TRAFFIC:
+      return getTrafficAwareDrivingDirections({ origin, destination, departureTime })
     case TRANSIT:
       return getTransitDirections({ origin, destination })
     default:
       throw new Error(`Invalid mode: ${mode}`)
   }
+}
+
+function formatDuration(duration: number): string {
+  return `${Math.round(duration / 60)} mins, ${Math.round(duration % 60)} secs`
+}
+
+function createTimestamps(path: number[][], distance: number, duration: number): number[] {
+  if (path.length === 0 || distance <= 0 || duration <= 0) return []
+
+  // Millisecond precision matches TripsLayer's existing route animation contract.
+  const speed = distance / duration / 1000
+  const timestamps = [0]
+  for (let i = 1; i < path.length; i++) {
+    const previous = timestamps[i - 1]
+    const segmentDistance = haversine([path[i - 1][1], path[i - 1][0]], [path[i][1], path[i][0]])
+    timestamps.push(previous + segmentDistance / speed)
+  }
+  return timestamps
 }
 
 // OSRM public demo server response types
@@ -84,18 +143,8 @@ async function getDrivingDirectionsOSRM({
   const [{ geometry, distance, duration }] = data.routes
   const coords = geometry.coordinates // already [lng, lat]
 
-  // use millisecond precision for smooth motion
-  const speed = distance / duration / 1000
-  const timestamps = [0]
-
-  for (let i = 1; i < coords.length; i++) {
-    const prev = timestamps[i - 1]
-    // haversine expects [lat, lng]
-    const dist = haversine([coords[i - 1][1], coords[i - 1][0]], [coords[i][1], coords[i][0]])
-    timestamps.push(prev + dist / speed)
-  }
-
-  const durationFormatted = `${Math.round(duration / 60)} mins, ${Math.round(duration % 60)} secs`
+  const timestamps = createTimestamps(coords, distance, duration)
+  const durationFormatted = formatDuration(duration)
 
   return {
     distance,
@@ -128,23 +177,10 @@ async function getDrivingDirections({
 
     const [{ geometry, distance, duration }] = data.routes
 
-    // use millisecond precision for smooth motion
-    // https://docs.unfolded.ai/studio/layer-reference/trip#geojson-as-input
-    const speed = distance / duration / 1000
     const coords = polyline.decode(geometry)
-
-    const startTime = 0
-    const timestamps = [startTime]
-
-    for (let i = 1; i < coords.length; i++) {
-      const prev = timestamps[i - 1]
-      const dist = haversine(coords[i - 1], coords[i])
-      const delta = dist / speed
-      timestamps.push(prev + delta)
-    }
-
     const path = coords.map(([lat, lng]) => [lng, lat])
-    const durationFormatted = `${Math.round(duration / 60)} mins, ${Math.round(duration % 60)} secs`
+    const timestamps = createTimestamps(path, distance, duration)
+    const durationFormatted = formatDuration(duration)
 
     return { distance, duration, durationFormatted, path, timestamps }
   }
@@ -156,6 +192,65 @@ async function getDrivingDirections({
     throw new Error(
       `Directions failed using free OSRM fallback: ${error instanceof Error ? error.message : error}. ` +
         'Add a Mapbox access token in Settings > API Keys for more reliable routing.'
+    )
+  }
+}
+
+async function getTrafficAwareDrivingDirections({
+  origin,
+  destination,
+  departureTime,
+}: {
+  origin: { lat: number; lng: number }
+  destination: { lat: number; lng: number }
+  departureTime?: Temporal.PlainDateTime
+}): Promise<AnimatedDirections> {
+  const apiKey = getKeysStore().getKey('googleMaps')
+  if (!apiKey) {
+    throw new Error(
+      'Google Maps API key not configured. Add one in Settings > API Keys to use traffic-aware driving.'
+    )
+  }
+
+  await loadGoogleMapsAPI(apiKey)
+  const { PolylineQuality, Route, RoutingPreference, TrafficModel, TravelMode } =
+    await google.maps.importLibrary('routes')
+
+  const scheduledDeparture = departureTime
+    ? resolveOriginDepartureTime({ origin, localTime: departureTime })
+    : undefined
+
+  try {
+    const { routes } = await Route.computeRoutes({
+      origin,
+      destination,
+      travelMode: TravelMode.DRIVING,
+      routingPreference: RoutingPreference.TRAFFIC_AWARE_OPTIMAL,
+      trafficModel: TrafficModel.BEST_GUESS,
+      polylineQuality: PolylineQuality.HIGH_QUALITY,
+      fields: ['path', 'distanceMeters', 'durationMillis'],
+      ...(scheduledDeparture ? { departureTime: scheduledDeparture } : {}),
+    })
+
+    const route = routes?.[0]
+    const distance = route?.distanceMeters
+    const durationMillis = route?.durationMillis
+    const path = route?.path?.map(point => [point.lng, point.lat])
+    if (!route || distance === undefined || durationMillis == null || !path?.length) {
+      throw new Error('Google returned no complete route.')
+    }
+
+    const duration = durationMillis / 1000
+    return {
+      distance,
+      duration,
+      durationFormatted: formatDuration(duration),
+      path,
+      timestamps: createTimestamps(path, distance, duration),
+    }
+  } catch (error) {
+    throw new Error(
+      `Google traffic directions failed: ${error instanceof Error ? error.message : String(error)}`
     )
   }
 }
