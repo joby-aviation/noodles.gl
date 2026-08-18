@@ -28,7 +28,7 @@ Web Mercator scale is `2^zoom`. After multiplying LOD by `n`, add `log2(n)` to t
 
 This compensation can activate additional style layers, including minor roads. LOD is therefore not a map-detail control: if a map has too much semantic detail, use a simpler basemap or customize the basemap style.
 
-See [Voyager LOD evidence](../../dev-docs/render-lod-evidence.md) for a reproducible comparison of dimensions, bounds, active road layers, and screenshots.
+See the [Voyager LOD evidence](https://github.com/joby-aviation/noodles.gl/blob/main/dev-docs/render-lod-evidence.md) for a reproducible comparison of dimensions, bounds, active road layers, and screenshots.
 
 ## Procedural animation
 All values are reactive and can be driven by any other property.
