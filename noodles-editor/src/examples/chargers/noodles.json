@@ -4,89 +4,89 @@
     "y": 562.2542727922879,
     "zoom": 0.5709600637849074
   },
-  "version": 14,
+  "version": 16,
   "name": "EV Chargers with Live API Data",
   "edges": [
     {
-      "source": "/duckdb-0",
+      "source": "/charger-query",
       "sourceHandle": "out.data",
-      "target": "/boundingbox-0",
+      "target": "/charger-bounds",
       "targetHandle": "par.data",
-      "id": "/duckdb-0.out.data->/boundingbox-0.par.data"
+      "id": "/charger-query.out.data->/charger-bounds.par.data"
     },
     {
-      "source": "/duckdb-0",
+      "source": "/charger-query",
       "sourceHandle": "out.data",
-      "target": "/scatterplotlayer-0",
+      "target": "/charger-points",
       "targetHandle": "par.data",
-      "id": "/duckdb-0.out.data->/scatterplotlayer-0.par.data"
+      "id": "/charger-query.out.data->/charger-points.par.data"
     },
     {
-      "source": "/accessor-0",
+      "source": "/charger-position",
       "sourceHandle": "out.accessor",
-      "target": "/scatterplotlayer-0",
+      "target": "/charger-points",
       "targetHandle": "par.getPosition",
-      "id": "/accessor-0.out.accessor->/scatterplotlayer-0.par.getPosition"
+      "id": "/charger-position.out.accessor->/charger-points.par.getPosition"
     },
     {
-      "source": "/boundingbox-0",
+      "source": "/charger-bounds",
       "sourceHandle": "out.longitude",
-      "target": "/viewstate-0",
+      "target": "/auto-view",
       "targetHandle": "par.longitude",
-      "id": "/boundingbox-0.out.longitude->/viewstate-0.par.longitude"
+      "id": "/charger-bounds.out.longitude->/auto-view.par.longitude"
     },
     {
-      "source": "/boundingbox-0",
+      "source": "/charger-bounds",
       "sourceHandle": "out.latitude",
-      "target": "/viewstate-0",
+      "target": "/auto-view",
       "targetHandle": "par.latitude",
-      "id": "/boundingbox-0.out.latitude->/viewstate-0.par.latitude"
+      "id": "/charger-bounds.out.latitude->/auto-view.par.latitude"
     },
     {
-      "id": "/viewstate-0.out.viewState->/basemap-0.par.viewState",
-      "source": "/viewstate-0",
-      "target": "/basemap-0",
+      "id": "/auto-view.out.viewState->/basemap.par.viewState",
+      "source": "/auto-view",
+      "target": "/basemap",
       "sourceHandle": "out.viewState",
       "targetHandle": "par.viewState"
     },
     {
-      "source": "/scatterplotlayer-0",
+      "source": "/charger-points",
       "sourceHandle": "out.layer",
-      "target": "/switch-0",
+      "target": "/layer-toggle",
       "targetHandle": "par.values",
-      "id": "/scatterplotlayer-0.out.layer->/switch-0.par.values"
+      "id": "/charger-points.out.layer->/layer-toggle.par.values"
     },
     {
-      "source": "/switch-0",
+      "source": "/layer-toggle",
       "sourceHandle": "out.value",
       "target": "/deck",
       "targetHandle": "par.layers",
-      "id": "/switch-0.out.value->/deck.par.layers"
+      "id": "/layer-toggle.out.value->/deck.par.layers"
     },
     {
-      "source": "/duckdb-0",
+      "source": "/charger-query",
       "sourceHandle": "out.data",
-      "target": "/heatmaplayer-0",
+      "target": "/charger-heatmap",
       "targetHandle": "par.data",
-      "id": "/duckdb-0.out.data->/heatmaplayer-0.par.data"
+      "id": "/charger-query.out.data->/charger-heatmap.par.data"
     },
     {
-      "source": "/accessor-0",
+      "source": "/charger-position",
       "sourceHandle": "out.accessor",
-      "target": "/heatmaplayer-0",
+      "target": "/charger-heatmap",
       "targetHandle": "par.getPosition",
-      "id": "/accessor-0.out.accessor->/heatmaplayer-0.par.getPosition"
+      "id": "/charger-position.out.accessor->/charger-heatmap.par.getPosition"
     },
     {
-      "source": "/heatmaplayer-0",
+      "source": "/charger-heatmap",
       "sourceHandle": "out.layer",
-      "target": "/switch-0",
+      "target": "/layer-toggle",
       "targetHandle": "par.values",
-      "id": "/heatmaplayer-0.out.layer->/switch-0.par.values"
+      "id": "/charger-heatmap.out.layer->/layer-toggle.par.values"
     },
     {
-      "id": "/basemap-0.out.maplibre->/deck.par.basemap",
-      "source": "/basemap-0",
+      "id": "/basemap.out.maplibre->/deck.par.basemap",
+      "source": "/basemap",
       "target": "/deck",
       "sourceHandle": "out.maplibre",
       "targetHandle": "par.basemap"
@@ -99,11 +99,11 @@
       "targetHandle": "par.vis"
     },
     {
-      "id": "/centroid.out.location->/duckdb-0.par.query",
+      "id": "/centroid.out.location->/charger-query.par.query",
       "type": "ReferenceEdge",
       "source": "/centroid",
       "sourceHandle": "out.location",
-      "target": "/duckdb-0",
+      "target": "/charger-query",
       "targetHandle": "par.query"
     }
   ],
@@ -125,7 +125,7 @@
       }
     },
     {
-      "id": "/duckdb-0",
+      "id": "/charger-query",
       "type": "DuckDbOp",
       "position": {
         "x": -1264.3775772798185,
@@ -165,7 +165,7 @@
       }
     },
     {
-      "id": "/boundingbox-0",
+      "id": "/charger-bounds",
       "type": "BoundingBoxOp",
       "position": {
         "x": -707.2197014646986,
@@ -179,7 +179,7 @@
       }
     },
     {
-      "id": "/scatterplotlayer-0",
+      "id": "/charger-points",
       "type": "ScatterplotLayerOp",
       "position": {
         "x": -443.51651196326486,
@@ -195,7 +195,7 @@
       }
     },
     {
-      "id": "/accessor-0",
+      "id": "/charger-position",
       "type": "AccessorOp",
       "position": {
         "x": -987.3019403521371,
@@ -209,7 +209,7 @@
       }
     },
     {
-      "id": "/viewstate-0",
+      "id": "/auto-view",
       "type": "MapViewStateOp",
       "position": {
         "x": -322.94795308841765,
@@ -223,7 +223,7 @@
       }
     },
     {
-      "id": "/switch-0",
+      "id": "/layer-toggle",
       "type": "SwitchOp",
       "position": {
         "x": 137.09785434585186,
@@ -235,7 +235,7 @@
       }
     },
     {
-      "id": "/heatmaplayer-0",
+      "id": "/charger-heatmap",
       "type": "HeatmapLayerOp",
       "position": {
         "x": -440.1008136696714,
@@ -250,7 +250,7 @@
       }
     },
     {
-      "id": "/basemap-0",
+      "id": "/basemap",
       "type": "MaplibreBasemapOp",
       "position": {
         "x": 621.0648631276329,
@@ -291,7 +291,7 @@
       "Noodles": {
         "staticOverrides": {
           "byObject": {
-            "scatterplotlayer-0": {
+            "charger-points": {
               "getFillColor": {
                 "r": 1,
                 "g": 0.34901960784313724,

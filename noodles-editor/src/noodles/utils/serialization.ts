@@ -7,6 +7,7 @@ import type {
 import { debugSerialize } from '../../utils/debug'
 import { resizeableNodes } from '../components/op-components'
 import type { useOperatorStore } from '../store'
+import { deepEqual } from './deep-equal'
 import type { ExtractProps } from './extract-props'
 import type { StorageType } from './filesystem'
 import { MULTI_INPUT_EDGE_TYPE } from './multi-input-utils'
@@ -15,7 +16,6 @@ import { parseHandleId } from './path-utils'
 export { NOODLES_VERSION } from './migrate-schema'
 
 export type EditorSettings = {
-  layoutMode?: 'split' | 'noodles-on-top' | 'output-on-top'
   showOverlay?: boolean
   showDebugInfo?: boolean
 }
@@ -76,16 +76,6 @@ export type SerializeNodesOptions = {
   forClipboard?: boolean
 }
 
-function deepEqual(a: unknown, b: unknown): boolean {
-  if (a === b) return true
-  if (a === null || b === null || typeof a !== 'object' || typeof b !== 'object') return false
-  if (Array.isArray(a) !== Array.isArray(b)) return false
-  const keysA = Object.keys(a as object)
-  const keysB = Object.keys(b as object)
-  if (keysA.length !== keysB.length) return false
-  return keysA.every(k => deepEqual((a as any)[k], (b as any)[k]))
-}
-
 // Check if two sets have the same elements
 function setsEqual(a: Set<string>, b: Set<string>): boolean {
   if (a.size !== b.size) return false
@@ -113,8 +103,22 @@ export function serializeNodes(
   const preparedNodes: NodeJSON<unknown>[] = []
   for (const node of nodes) {
     if (node.type === 'group') {
-      // Include visual aid nodes (e.g. for loops) as-is
-      preparedNodes.push(node)
+      // React Flow's runtime dimensions override style dimensions when a project
+      // is loaded. Persist the fitted size in style, not the transient measurement
+      // cache, so a stale measurement cannot resurrect old group bounds.
+      const { measured, width, height, ...cleanedGroup } = node
+      const fittedWidth = node.style?.width ?? measured?.width ?? width
+      const fittedHeight = node.style?.height ?? measured?.height ?? height
+      preparedNodes.push({
+        ...cleanedGroup,
+        ...((fittedWidth !== undefined || fittedHeight !== undefined) && {
+          style: {
+            ...node.style,
+            ...(fittedWidth !== undefined && { width: fittedWidth }),
+            ...(fittedHeight !== undefined && { height: fittedHeight }),
+          },
+        }),
+      })
       continue
     }
     const op = store.getOp(node.id)
@@ -238,8 +242,11 @@ export function serializeEdges(
       // array order at load time — keep files canonical by not persisting it
       if (serialized.type === MULTI_INPUT_EDGE_TYPE) {
         delete serialized.type
-        const { orderIndex: _orderIndex, groupSize: _groupSize, ...data } = (serialized.data ??
-          {}) as Record<string, unknown>
+        const {
+          orderIndex: _orderIndex,
+          groupSize: _groupSize,
+          ...data
+        } = (serialized.data ?? {}) as Record<string, unknown>
         if (Object.keys(data).length > 0) {
           serialized.data = data
         } else {
