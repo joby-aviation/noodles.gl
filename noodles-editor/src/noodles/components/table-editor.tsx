@@ -8,10 +8,10 @@ import {
 import cx from 'classnames'
 import { AutoComplete } from 'primereact/autocomplete'
 import { Button } from 'primereact/button'
-import { InputNumber } from 'primereact/inputnumber'
 import { InputSwitch } from 'primereact/inputswitch'
 import { InputText } from 'primereact/inputtext'
-import { useEffect, useRef, useState } from 'react'
+import { GeocodingDialog } from './geocoding-dialog'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Temporal } from 'temporal-polyfill'
 import type { TableEditorOp } from '../operators'
 import type { ColumnSchema, ColumnType, DateTimeValue, TableSchema } from '../table-schema'
@@ -182,6 +182,105 @@ function StringCellEditor({ value, onChange, onComplete }: CellEditorProps) {
   )
 }
 
+function StringLiteralCellEditor({ value, onChange, onComplete, column }: CellEditorProps) {
+  const selectRef = useRef<HTMLSelectElement>(null)
+  const currentValue = String(value ?? '')
+  const [localValue, setLocalValue] = useState(currentValue)
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false)
+  const configuredValues = column.options?.values ?? []
+  const freeform = column.options?.freeform ?? false
+  const values = configuredValues.includes(currentValue)
+    ? configuredValues
+    : [currentValue, ...configuredValues]
+
+  useEffect(() => {
+    selectRef.current?.focus()
+  }, [])
+
+  if (!freeform && configuredValues.length === 0) {
+    return (
+      <StringCellEditor value={value} onChange={onChange} onComplete={onComplete} column={column} />
+    )
+  }
+
+  if (!freeform) {
+    return (
+      <select
+        ref={selectRef}
+        value={currentValue}
+        onChange={e => {
+          onChange(e.currentTarget.value)
+          onComplete()
+        }}
+        onBlur={onComplete}
+        onKeyDown={e => {
+          e.stopPropagation()
+          if (e.key === 'Enter' || e.key === 'Escape') {
+            onComplete()
+          }
+        }}
+        aria-label={`Edit ${column.name}`}
+        className={cx('p-inputtext', s.cellEditor)}
+      >
+        {values.map(option => (
+          <option key={option} value={option}>
+            {option}
+          </option>
+        ))}
+      </select>
+    )
+  }
+
+  const filteredValues = configuredValues.filter(option =>
+    option.toLowerCase().includes(localValue.toLowerCase())
+  )
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <InputText
+        value={localValue}
+        onChange={e => {
+          setLocalValue(e.target.value)
+          onChange(e.target.value)
+          setSuggestionsOpen(true)
+        }}
+        onFocus={() => setSuggestionsOpen(true)}
+        onBlur={() => {
+          setTimeout(() => setSuggestionsOpen(false), 150)
+          onComplete()
+        }}
+        onKeyDown={e => {
+          e.stopPropagation()
+          if (e.key === 'Enter' || e.key === 'Escape') {
+            onComplete()
+          }
+        }}
+        autoFocus
+        className={s.cellEditor}
+        placeholder="Type or select…"
+      />
+      {suggestionsOpen && filteredValues.length > 0 && (
+        <ul className={s.cellSuggestions}>
+          {filteredValues.map(option => (
+            <li
+              key={option}
+              onMouseDown={() => {
+                setLocalValue(option)
+                onChange(option)
+                setSuggestionsOpen(false)
+                onComplete()
+              }}
+              className={s.cellSuggestion}
+            >
+              {option}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
 function BooleanCellEditor({ value, onChange, onComplete }: CellEditorProps) {
   return (
     <InputSwitch
@@ -212,48 +311,92 @@ function ColorCellEditor({ value, onChange, onComplete }: CellEditorProps) {
 
 function Point2DCellEditor({ value, onChange, onComplete, column }: CellEditorProps) {
   const [lng, lat] = (value as [number, number]) || [0, 0]
+  const [lngStr, setLngStr] = useState(String(lng))
+  const [latStr, setLatStr] = useState(String(lat))
+  const initialValueRef = useRef([lng, lat] as [number, number])
+  const latestRef = useRef([lng, lat] as [number, number])
+  const [geocodingOpen, setGeocodingOpen] = useState(false)
+
+  const parseLng = (str: string) => {
+    setLngStr(str)
+    const parsed = Number.parseFloat(str)
+    const newVal: [number, number] = [Number.isNaN(parsed) ? 0 : parsed, latestRef.current[1]]
+    latestRef.current = newVal
+    onChange(newVal)
+  }
+
+  const parseLat = (str: string) => {
+    setLatStr(str)
+    const parsed = Number.parseFloat(str)
+    const newVal: [number, number] = [latestRef.current[0], Number.isNaN(parsed) ? 0 : parsed]
+    latestRef.current = newVal
+    onChange(newVal)
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    e.stopPropagation()
+    if (e.key === 'Enter') onComplete()
+    if (e.key === 'Escape') {
+      onChange(initialValueRef.current)
+      requestAnimationFrame(() => onComplete())
+    }
+  }
+
+  const handleBlur = () => {
+    if (!geocodingOpen) onComplete()
+  }
+
+  const handleLocationSelected = (result: { longitude: number; latitude: number }) => {
+    const newVal: [number, number] = [result.longitude, result.latitude]
+    latestRef.current = newVal
+    setLngStr(String(result.longitude))
+    setLatStr(String(result.latitude))
+    onChange(newVal)
+    setGeocodingOpen(false)
+    onComplete()
+  }
 
   return (
     <div className={s.point2dEditor}>
-      <InputNumber
-        value={lng}
+      <DraggableNumberCellInput
+        value={lngStr}
+        onChange={parseLng}
+        onBlur={() => {}}
+        onKeyDown={handleKeyDown}
         step={0.0001}
-        onValueChange={e => onChange([e.value ?? 0, lat])}
-        onKeyDown={e => {
-          e.stopPropagation()
-          if (e.key === 'Enter' || e.key === 'Escape') {
-            onComplete()
-          }
-        }}
-        placeholder="lng"
+        autoFocus
         className={s.coordInput}
       />
-      <InputNumber
-        value={lat}
+      <DraggableNumberCellInput
+        value={latStr}
+        onChange={parseLat}
+        onBlur={handleBlur}
+        onKeyDown={handleKeyDown}
         step={0.0001}
-        onValueChange={e => onChange([lng, e.value ?? 0])}
-        onBlur={onComplete}
-        onKeyDown={e => {
-          e.stopPropagation()
-          if (e.key === 'Enter' || e.key === 'Escape') {
-            onComplete()
-          }
-        }}
-        placeholder="lat"
         className={s.coordInput}
       />
       {column.options?.geocoder && (
         <button
           type="button"
           className={s.geocoderButton}
-          onClick={() => {
-            // TODO: Open geocoder dialog
-            console.log('Geocoder not yet implemented')
-          }}
+          onMouseDown={e => e.preventDefault()}
+          onClick={() => setGeocodingOpen(true)}
           title="Geocode address"
         >
           📍
         </button>
+      )}
+      {column.options?.geocoder && (
+        <GeocodingDialog
+          open={geocodingOpen}
+          onOpenChange={open => {
+            setGeocodingOpen(open)
+            if (!open) onComplete()
+          }}
+          mode="update-field"
+          initialValue={{ longitude: latestRef.current[0], latitude: latestRef.current[1] }}
+          onLocationSelected={handleLocationSelected}
+        />
       )}
     </div>
   )
@@ -261,44 +404,70 @@ function Point2DCellEditor({ value, onChange, onComplete, column }: CellEditorPr
 
 function Vec3CellEditor({ value, onChange, onComplete }: CellEditorProps) {
   const [x, y, z] = (value as [number, number, number]) || [0, 0, 0]
+  const [xStr, setXStr] = useState(String(x))
+  const [yStr, setYStr] = useState(String(y))
+  const [zStr, setZStr] = useState(String(z))
+  const initialValueRef = useRef([x, y, z] as [number, number, number])
+  const latestRef = useRef([x, y, z] as [number, number, number])
+
+  const parseX = (str: string) => {
+    setXStr(str)
+    const parsed = Number.parseFloat(str)
+    const newVal: [number, number, number] = [Number.isNaN(parsed) ? 0 : parsed, latestRef.current[1], latestRef.current[2]]
+    latestRef.current = newVal
+    onChange(newVal)
+  }
+
+  const parseY = (str: string) => {
+    setYStr(str)
+    const parsed = Number.parseFloat(str)
+    const newVal: [number, number, number] = [latestRef.current[0], Number.isNaN(parsed) ? 0 : parsed, latestRef.current[2]]
+    latestRef.current = newVal
+    onChange(newVal)
+  }
+
+  const parseZ = (str: string) => {
+    setZStr(str)
+    const parsed = Number.parseFloat(str)
+    const newVal: [number, number, number] = [latestRef.current[0], latestRef.current[1], Number.isNaN(parsed) ? 0 : parsed]
+    latestRef.current = newVal
+    onChange(newVal)
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    e.stopPropagation()
+    if (e.key === 'Enter') onComplete()
+    if (e.key === 'Escape') {
+      onChange(initialValueRef.current)
+      requestAnimationFrame(() => onComplete())
+    }
+  }
 
   return (
     <div className={s.vec3Editor}>
-      <InputNumber
-        value={x}
-        onValueChange={e => onChange([e.value ?? 0, y, z])}
-        onKeyDown={e => {
-          e.stopPropagation()
-          if (e.key === 'Enter' || e.key === 'Escape') {
-            onComplete()
-          }
-        }}
-        placeholder="x"
+      <DraggableNumberCellInput
+        value={xStr}
+        onChange={parseX}
+        onBlur={() => {}}
+        onKeyDown={handleKeyDown}
+        step={0.01}
+        autoFocus
         className={s.vecInput}
       />
-      <InputNumber
-        value={y}
-        onValueChange={e => onChange([x, e.value ?? 0, z])}
-        onKeyDown={e => {
-          e.stopPropagation()
-          if (e.key === 'Enter' || e.key === 'Escape') {
-            onComplete()
-          }
-        }}
-        placeholder="y"
+      <DraggableNumberCellInput
+        value={yStr}
+        onChange={parseY}
+        onBlur={() => {}}
+        onKeyDown={handleKeyDown}
+        step={0.01}
         className={s.vecInput}
       />
-      <InputNumber
-        value={z}
-        onValueChange={e => onChange([x, y, e.value ?? 0])}
+      <DraggableNumberCellInput
+        value={zStr}
+        onChange={parseZ}
         onBlur={onComplete}
-        onKeyDown={e => {
-          e.stopPropagation()
-          if (e.key === 'Enter' || e.key === 'Escape') {
-            onComplete()
-          }
-        }}
-        placeholder="z"
+        onKeyDown={handleKeyDown}
+        step={0.01}
         className={s.vecInput}
       />
     </div>
@@ -448,8 +617,9 @@ function getCellEditor(type: ColumnType) {
     case 'number':
       return NumberCellEditor
     case 'string':
-    case 'stringLiteral':
       return StringCellEditor
+    case 'stringLiteral':
+      return StringLiteralCellEditor
     case 'boolean':
       return BooleanCellEditor
     case 'color':
@@ -550,6 +720,36 @@ function getCellRenderer(type: ColumnType) {
   }
 }
 
+// Tracks the cell currently in edit mode so row mutations can commit it first.
+// Without this, clicking "Add Row" or a delete button while a cell is mid-edit
+// can drop the pending value.
+interface ActiveEdit {
+  set: (commit: () => void) => void
+  clear: () => void
+  flush: () => void
+}
+
+function useActiveEdit(): ActiveEdit {
+  const commitRef = useRef<(() => void) | null>(null)
+
+  return useMemo(
+    () => ({
+      set: commit => {
+        commitRef.current = commit
+      },
+      clear: () => {
+        commitRef.current = null
+      },
+      flush: () => {
+        const commit = commitRef.current
+        commitRef.current = null
+        commit?.()
+      },
+    }),
+    []
+  )
+}
+
 // Editable cell component
 interface EditableCellProps {
   getValue: () => unknown
@@ -561,6 +761,7 @@ interface EditableCellProps {
         updateData: (rowIndex: number, columnId: string, value: unknown) => void
         deleteRow: (rowIndex: number) => void
         schema: TableSchema
+        activeEdit: ActiveEdit
       }
     }
   }
@@ -570,11 +771,14 @@ function EditableCell({ getValue, row, column, table }: EditableCellProps) {
   const currentValue = getValue()
   const [isEditing, setIsEditing] = useState(false)
   const [value, setValue] = useState(currentValue)
+  const valueRef = useRef(currentValue)
   const prevValueRef = useRef(currentValue)
+  const isEditingRef = useRef(false)
 
   // Sync state with current value when not editing
   if (!isEditing && currentValue !== prevValueRef.current) {
     setValue(currentValue)
+    valueRef.current = currentValue
     prevValueRef.current = currentValue
   }
 
@@ -586,14 +790,28 @@ function EditableCell({ getValue, row, column, table }: EditableCellProps) {
   const EditorComponent = getCellEditor(colSchema.type)
   const renderer = getCellRenderer(colSchema.type)
 
-  const startEditing = () => {
-    setIsEditing(true)
+  const activeEdit = table.options.meta?.activeEdit
+
+  const handleChange = (newValue: unknown) => {
+    setValue(newValue)
+    valueRef.current = newValue
   }
 
   const handleComplete = () => {
+    // Guard against committing twice when a flush is followed by the blur it caused
+    if (!isEditingRef.current) return
+    isEditingRef.current = false
     setIsEditing(false)
-    // Always update - let updateData handle whether it's actually changed
-    table.options.meta?.updateData(row.index, column.id, value)
+    activeEdit?.clear()
+    table.options.meta?.updateData(row.index, column.id, valueRef.current)
+  }
+
+  const startEditing = () => {
+    // Commit any other cell still in edit mode before taking over
+    activeEdit?.flush()
+    isEditingRef.current = true
+    setIsEditing(true)
+    activeEdit?.set(handleComplete)
   }
 
   if (isEditing) {
@@ -601,7 +819,7 @@ function EditableCell({ getValue, row, column, table }: EditableCellProps) {
       <div className={cx(s.cell, s.editing)}>
         <EditorComponent
           value={value}
-          onChange={setValue}
+          onChange={handleChange}
           onComplete={handleComplete}
           column={colSchema}
         />
@@ -646,24 +864,36 @@ interface TableEditorProps {
 
 export function TableEditor({ data, schema, onDataChange, onSchemaChange }: TableEditorProps) {
   const [tableData, setTableData] = useState(data)
+  const activeEdit = useActiveEdit()
+
+  // Mirrors tableData so a flushed cell edit and the row mutation that triggered
+  // it can both run in one tick without the second reading stale state
+  const tableDataRef = useRef(tableData)
+  tableDataRef.current = tableData
+
+  const commitData = (newData: unknown[], description: string) => {
+    tableDataRef.current = newData
+    setTableData(newData)
+    onDataChange(newData, description)
+  }
 
   useEffect(() => {
     setTableData(data)
   }, [data])
 
   const addRow = () => {
+    activeEdit.flush()
     const newRow: Record<string, unknown> = {}
     for (const col of schema.columns) {
       newRow[col.name] = col.defaultValue ?? getDefaultValue(col)
     }
-    const newData = [...tableData, newRow]
-    setTableData(newData)
-    onDataChange(newData, 'Add table row')
+    commitData([...tableDataRef.current, newRow], 'Add table row')
   }
 
   const handleSchemaChange = (newSchema: TableSchema) => {
+    activeEdit.flush()
     // Update data to match new schema
-    const newData = tableData.map(row => {
+    const newData = tableDataRef.current.map(row => {
       const newRow: Record<string, unknown> = {}
       for (const col of newSchema.columns) {
         const existingValue = row[col.name]
@@ -678,6 +908,7 @@ export function TableEditor({ data, schema, onDataChange, onSchemaChange }: Tabl
     })
 
     onSchemaChange(newSchema, newData)
+    tableDataRef.current = newData
     setTableData(newData)
   }
 
@@ -704,8 +935,12 @@ export function TableEditor({ data, schema, onDataChange, onSchemaChange }: Tabl
         <Button
           icon="pi pi-trash"
           className={`p-button-text p-button-sm ${s.deleteButton}`}
+          // Suppress the editor blur so unmounting it doesn't reflow the row and
+          // move this button out from under the pointer before mouseup lands
+          onMouseDown={e => e.preventDefault()}
           onClick={() => props.table.options.meta?.deleteRow(props.row.index)}
           tooltip="Delete row"
+          aria-label="Delete row"
         />
       ),
       size: 50,
@@ -719,24 +954,25 @@ export function TableEditor({ data, schema, onDataChange, onSchemaChange }: Tabl
     meta: {
       updateData: (rowIndex: number, columnId: string, value: unknown) => {
         // Only update if value actually changed
-        const currentValue = tableData[rowIndex]?.[columnId]
+        const currentData = tableDataRef.current
+        const currentValue = currentData[rowIndex]?.[columnId]
         if (currentValue === value) {
           return
         }
-        const newData = [...tableData]
+        const newData = [...currentData]
         newData[rowIndex] = {
           ...newData[rowIndex],
           [columnId]: value,
         }
-        setTableData(newData)
-        onDataChange(newData, `Edit cell ${columnId}`)
+        commitData(newData, `Edit cell ${columnId}`)
       },
       deleteRow: (rowIndex: number) => {
-        const newData = tableData.filter((_, index) => index !== rowIndex)
-        setTableData(newData)
-        onDataChange(newData, 'Delete table row')
+        activeEdit.flush()
+        const newData = tableDataRef.current.filter((_, index) => index !== rowIndex)
+        commitData(newData, 'Delete table row')
       },
       schema,
+      activeEdit,
     },
   })
 
@@ -784,6 +1020,7 @@ export function TableEditor({ data, schema, onDataChange, onSchemaChange }: Tabl
         <Button
           label="Add Row"
           icon="pi pi-plus"
+          onMouseDown={e => e.preventDefault()}
           onClick={addRow}
           className={`p-button-sm p-button-text ${s.addRowButton}`}
         />

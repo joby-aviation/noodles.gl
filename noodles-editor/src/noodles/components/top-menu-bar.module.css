@@ -9,30 +9,21 @@
   gap: 12px;
 }
 
+/* The side sections take their natural width and the tool shelf claims what is left,
+   so the shelf can measure real available space and decide what overflows. */
 .leftSection {
   display: flex;
   align-items: center;
-  flex: 1;
+  flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
-}
-
-.centerSection {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  flex-shrink: 0;
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
 }
 
 .rightSection {
   display: flex;
   align-items: center;
   gap: 8px;
-  flex: 1 0 auto;
+  flex: 0 0 auto;
   justify-content: flex-end;
 }
 
@@ -257,46 +248,4 @@
 .dropdownItem[data-state="unchecked"] {
   padding-left: 28px;
   position: relative;
-}
-
-/* Tool button styles */
-.toolButton {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  padding: 4px 10px;
-  background-color: transparent;
-  color: var(--color-text-primary);
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: all 0.15s;
-  min-width: 60px;
-}
-
-.toolButton:hover {
-  background-color: var(--color-bg-hover);
-}
-
-.toolButton:active {
-  background-color: var(--color-bg-active);
-}
-
-.toolButton:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.toolButton i {
-  font-size: 14px;
-}
-
-.toolLabel {
-  font-size: 10px;
-  font-weight: 500;
-  color: var(--color-text-secondary);
-  text-align: center;
-  white-space: nowrap;
 }

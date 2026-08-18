@@ -1,5 +1,5 @@
 {
-  "version": 14,
+  "version": 16,
   "edges": [
     {
       "id": "/maplibre-basemap.maplibre->/deck-renderer.basemap",
@@ -9,8 +9,8 @@
       "targetHandle": "par.basemap"
     },
     {
-      "id": "/custom-layer.layer->/deck-renderer.maplibreLayers",
-      "source": "/custom-layer",
+      "id": "/test-layer.layer->/deck-renderer.maplibreLayers",
+      "source": "/test-layer",
       "target": "/deck-renderer",
       "sourceHandle": "out.layer",
       "targetHandle": "par.maplibreLayers"
@@ -55,7 +55,7 @@
       }
     },
     {
-      "id": "/custom-layer",
+      "id": "/test-layer",
       "type": "CustomMapLibreLayerOp",
       "position": {
         "x": 100,
