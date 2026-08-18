@@ -652,3 +652,14 @@ bedrock is in the required set). README gains a season-2 local runbook: clone �
 creds → per-provider smoke → full 7-model matrix loop → grade/report → R2 push+verify. The
 session moves to the user's machine from here; comparator note recorded (codex scaffolding
 confound for non-claude rows, sliced honestly via the per-row provider field).
+
+### Round 8 addendum 3: #514–#516 merged — season re-pins to origin/main
+
+The three app fixes squash-merged to main (cfb45ef, 7a85027, c62c28c) and GitHub's stack
+auto-rebased the remaining layers: #507 re-targeted to main, both surviving branches
+force-updated onto it (local work reconciled by resetting to the rebased remotes — content
+identical, hashes new). Season 2 re-pins before any runs exist: **MEASURED_REF =
+`origin/main`**, **CURRENT_SERIES = `2026-08-18.t0.c62c28c99a5d`** (main at pin time). The
+pre-pin series dir (registry snapshot only, zero runs) is deleted, not archived — it never
+became an instrument. Full verify-goldens re-run against pure main is the proof the merged
+fixes carry the container idiom without the stack.

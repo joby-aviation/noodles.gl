@@ -99,9 +99,9 @@ export EVALS_R2_ACCOUNT_ID=... EVALS_R2_ACCESS_KEY_ID=... \
 
 cd evals && npm run selftest        # offline, must pass
 # smoke one session per provider you plan to run:
-npm run run -- --task modify-arcs --model us.anthropic.claude-fable-5 --sessions 1 --series 2026-08-18.t0.cc1dbe58da32
-npm run run -- --task modify-arcs --model gpt-5.6-luna              --sessions 1 --series 2026-08-18.t0.cc1dbe58da32
-npm run run -- --task modify-arcs --model local/<name>              --sessions 1 --series 2026-08-18.t0.cc1dbe58da32
+npm run run -- --task modify-arcs --model us.anthropic.claude-fable-5 --sessions 1 --series 2026-08-18.t0.c62c28c99a5d
+npm run run -- --task modify-arcs --model gpt-5.6-luna              --sessions 1 --series 2026-08-18.t0.c62c28c99a5d
+npm run run -- --task modify-arcs --model local/<name>              --sessions 1 --series 2026-08-18.t0.c62c28c99a5d
 
 # full matrix (sequential; ~8 tasks x 3 sessions per model)
 for m in us.anthropic.claude-sonnet-4-6 us.anthropic.claude-sonnet-5 \
@@ -109,20 +109,20 @@ for m in us.anthropic.claude-sonnet-4-6 us.anthropic.claude-sonnet-5 \
          gpt-5.6-sol gpt-5.6-terra gpt-5.6-luna; do
   for t in author-scatterplot modify-arcs debug-blank-viz sql-h3-pipeline \
            animate-camera contextualize-operator author-hiking-time code-refs-containers; do
-    npm run run -- --task "$t" --model "$m" --sessions 3 --series 2026-08-18.t0.cc1dbe58da32
+    npm run run -- --task "$t" --model "$m" --sessions 3 --series 2026-08-18.t0.c62c28c99a5d
   done
 done
 
-npm run grade  -- --series 2026-08-18.t0.cc1dbe58da32   # needs bedrock env (judge)
-npm run report -- --series 2026-08-18.t0.cc1dbe58da32
-npm run sync-results -- --push --series 2026-08-18.t0.cc1dbe58da32 && \
-npm run sync-results -- --verify --series 2026-08-18.t0.cc1dbe58da32 --all
+npm run grade  -- --series 2026-08-18.t0.c62c28c99a5d   # needs bedrock env (judge)
+npm run report -- --series 2026-08-18.t0.c62c28c99a5d
+npm run sync-results -- --push --series 2026-08-18.t0.c62c28c99a5d && \
+npm run sync-results -- --verify --series 2026-08-18.t0.c62c28c99a5d --all
 ```
 
 The measured surface is pinned in `harness/lib/config.ts` (`MEASURED_REF`,
-currently stack #551's top app branch) — workspaces build from it
-automatically; make sure `git fetch origin` has run so the ref exists
-locally. Templates land under `/tmp/noodles-evals` (override:
+currently `origin/main` — the container-idiom fixes merged 2026-08-18) —
+workspaces build from it automatically; make sure `git fetch origin` has run
+so the ref is current. Templates land under `/tmp/noodles-evals` (override:
 `EVALS_WORK_ROOT`); the first run per measured commit pays one npm install.
 
 ## Running
@@ -166,11 +166,11 @@ npm run evidence-pack -- --series <series> --fail <runId> --pass <runId> [--out 
 ```
 
 Workspaces are built under `/tmp/noodles-evals` (override: `EVALS_WORK_ROOT`)
-from a `git archive` extraction of `origin/main` (override the ref with
-`EVALS_WORKSPACE_REF`, e.g. `=origin/claude/fix-executor-dirty-propagation` to measure the
-app fixes of stack #551 before they merge — point it at the topmost *app* branch, not this
-harness branch: the measured surface stays "main + fixes", and the installed template is
-keyed to the ref's sha, so a ref that only moves on app changes avoids rebuilding it on
+from a `git archive` extraction of the pinned `MEASURED_REF` (override with
+`EVALS_WORKSPACE_REF` for ad-hoc runs, e.g. a stack's topmost *app* branch to
+measure unmerged fixes — never this harness branch: the measured surface
+should carry only app changes, and the installed template is keyed to the
+ref's sha, so a ref that only moves on app changes avoids rebuilding it on
 every harness commit) —
 no `.git`, so a session can't reach other branches — with the dogfooding artifacts stripped defensively
 (`evals/`, `dev-docs/specs/agent-ready-docs/`, `skills/`, `.claude/skills`,

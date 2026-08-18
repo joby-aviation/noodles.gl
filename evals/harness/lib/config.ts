@@ -54,14 +54,14 @@ export const TIER = 'T0'
 // Season 1 closes when the curve is complete (T1-T5 milestones + ablations
 // graded, calibration settled, rubric-bump regrades applied) or on a forced
 // re-pin — see evals/README.md "Storage & retention".
-export const CURRENT_SERIES = '2026-08-18.t0.cc1dbe58da32'
+export const CURRENT_SERIES = '2026-08-18.t0.c62c28c99a5d'
 
-// The measured app surface for this season: the topmost APP branch of stack
-// #551 (main + the three container-idiom fixes), NOT the harness branch and
-// not origin/main — code-refs@2 requires the fixes to render at all.
-// EVALS_WORKSPACE_REF still overrides for ad-hoc runs. Season 1 measured
-// origin/main@83ff1c1; the sha12 in CURRENT_SERIES names this ref's commit.
-export const MEASURED_REF = 'origin/claude/fix-executor-dirty-propagation'
+// The measured app surface for this season. #514/#515/#516 squash-merged to
+// main on 2026-08-18 (their branches are deleted), so the season measures
+// origin/main again — code-refs@2's required fixes are in it. The sha12 in
+// CURRENT_SERIES names this ref's commit at pin time (main@c62c28c).
+// EVALS_WORKSPACE_REF still overrides for ad-hoc runs.
+export const MEASURED_REF = 'origin/main'
 // interim-2 added the container-bridge exemption to the handle-prefix rules
 // (app-generated ContainerOp bridge edges). interim-3 makes the unknown-input
 // check aware of promoted parameters (node.data.customInputs declares dynamic
