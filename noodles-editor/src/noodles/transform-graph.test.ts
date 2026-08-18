@@ -1241,6 +1241,51 @@ describe('connection error suppression for undefined source fields', () => {
   })
 })
 
+describe('GraphInputOp rebuildFromContainer keeps the container link alive', () => {
+  afterEach(() => {
+    clearOps()
+  })
+
+  it('still receives container.par.in updates after a custom-fields rebuild', () => {
+    // rebuildFromContainer used to recreate the parentValue field object,
+    // orphaning the container.par.in -> parentValue connection wired by
+    // transformGraph. Data arriving after any rebuild (async FileOp upstream
+    // of the container) then never reached the container's children.
+    const nodes = [
+      {
+        id: '/box',
+        type: 'ContainerOp',
+        data: {
+          inputs: {},
+          customInputs: [
+            { id: 'ci1', name: 'threshold', type: 'number', order: 0, defaultValue: 4 },
+          ],
+        },
+        position: { x: 0, y: 0 },
+      },
+      { id: '/box/input', type: 'GraphInputOp', data: { inputs: {} }, position: { x: 10, y: 0 } },
+    ]
+
+    transformGraph({ nodes, edges: [] })
+
+    const { getOp } = getOpStore()
+    const box = getOp('/box')!
+    const graphInput = getOp('/box/input')! as InstanceType<
+      typeof import('./operators')['GraphInputOp']
+    >
+
+    box.inputs.in.setValue([1, 2, 3])
+    expect(graphInput.inputs.parentValue.value).toEqual([1, 2, 3])
+
+    // Simulate what the customFieldsChanged subscription does on any later
+    // custom-field change.
+    graphInput.rebuildFromContainer(box as never)
+
+    box.inputs.in.setValue([4, 5, 6, 7])
+    expect(graphInput.inputs.parentValue.value).toEqual([4, 5, 6, 7])
+  })
+})
+
 describe('derived reference edges (unmounted nodes)', () => {
   afterEach(() => {
     clearOps()
