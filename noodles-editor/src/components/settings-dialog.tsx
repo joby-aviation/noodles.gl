@@ -311,8 +311,8 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
                   <div className={s.settingName}>Add browser keys to this project</div>
                   <div className={s.settingDescription}>
                     Include browser keys when saving. Keys already loaded from this project remain
-                    until you remove them above. Only share with trusted collaborators: project
-                    keys are stored in plain text.
+                    until you remove them above. Only share with trusted collaborators: project keys
+                    are stored in plain text.
                   </div>
                 </div>
               </label>
