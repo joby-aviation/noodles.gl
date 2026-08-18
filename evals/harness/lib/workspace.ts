@@ -4,8 +4,11 @@
 // stripped defensively, living outside the harness checkout entirely.
 //
 // The archived ref defaults to origin/main (the measured surface for a season
-// baseline). EVALS_WORKSPACE_REF overrides it for pre-merge runs against a
-// stack tip — e.g. EVALS_WORKSPACE_REF=HEAD to measure fixes before they land.
+// baseline). EVALS_WORKSPACE_REF overrides it for pre-merge runs — point it at
+// the topmost APP branch of a stack (e.g. origin/claude/fix-executor-dirty-
+// propagation), not the harness branch: the measured surface stays "main +
+// fixes", eval artifacts never enter the archived commit, and the sha-keyed
+// template only rebuilds when the app actually changes.
 
 import { execFileSync, execSync } from 'node:child_process'
 import * as fs from 'node:fs'

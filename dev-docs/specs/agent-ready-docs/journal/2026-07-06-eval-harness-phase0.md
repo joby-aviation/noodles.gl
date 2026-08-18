@@ -561,7 +561,7 @@ The three fix PRs, the docs program, and this harness are now one native GitHub 
 (**stack #551**, created via the new Stacks REST API — public preview since 2026-07-30):
 `main ← #514 ← #515 ← #516 ← #507 ← #509`. Each branch merges the one below it, every PR
 diff is exactly its own commits, and the harness can finally measure the fixes before they
-land: `EVALS_WORKSPACE_REF=HEAD` builds eval workspaces from the stack tip instead of
+land: `EVALS_WORKSPACE_REF` builds eval workspaces from a chosen ref instead of
 `origin/main` (default unchanged; workspaces stay `.git`-less archive extractions).
 
 - **Main moved under us** (39 commits): project schema 14 → 16, vitest now runs in browser
@@ -591,7 +591,11 @@ land: `EVALS_WORKSPACE_REF=HEAD` builds eval workspaces from the stack tip inste
   their READMEs' expected values (200 rows; 12 filtered rows twice) with zero console
   errors; verify-goldens ALL PASS including the code-refs container golden that has never
   rendered on any measured surface before. The code-refs@2 baseline is now runnable
-  pre-merge via `EVALS_WORKSPACE_REF=HEAD`.
+  pre-merge via `EVALS_WORKSPACE_REF=origin/claude/fix-executor-dirty-propagation` — the
+  topmost app branch, so the measured surface is exactly "main + the three fixes" and the
+  sha-keyed template ignores harness commits. (This round's validation used `=HEAD`;
+  equivalent, since above #516 the stack adds only archive-excluded paths and
+  `.gitignore`.)
 
 - Also this round: CodeQL high on #509 (CLI arg interpolated into a RegExp in
   evidence-pack) escaped, and verify-goldens' q23 check de-rotted — it now asserts the

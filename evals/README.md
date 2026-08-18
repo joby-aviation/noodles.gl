@@ -94,7 +94,11 @@ npm run evidence-pack -- --series <series> --fail <runId> --pass <runId> [--out 
 
 Workspaces are built under `/tmp/noodles-evals` (override: `EVALS_WORK_ROOT`)
 from a `git archive` extraction of `origin/main` (override the ref with
-`EVALS_WORKSPACE_REF`, e.g. `=HEAD` to measure a stack tip before it merges) —
+`EVALS_WORKSPACE_REF`, e.g. `=origin/claude/fix-executor-dirty-propagation` to measure the
+app fixes of stack #551 before they merge — point it at the topmost *app* branch, not this
+harness branch: the measured surface stays "main + fixes", and the installed template is
+keyed to the ref's sha, so a ref that only moves on app changes avoids rebuilding it on
+every harness commit) —
 no `.git`, so a session can't reach other branches — with the dogfooding artifacts stripped defensively
 (`evals/`, `dev-docs/specs/agent-ready-docs/`, `skills/`, `.claude/skills`,
 AGENTS.md skill-pointer lines; 07 D7 / 04's eval-isolation note). A post-run
