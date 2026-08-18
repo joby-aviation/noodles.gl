@@ -1,5 +1,5 @@
 {
-  "version": 14,
+  "version": 16,
   "name": "Quake Hexbins",
   "nodes": [
     {
@@ -155,7 +155,6 @@
     "zoom": 1
   },
   "editorSettings": {
-    "layoutMode": "noodles-on-top",
     "showOverlay": true
   },
   "timeline": {

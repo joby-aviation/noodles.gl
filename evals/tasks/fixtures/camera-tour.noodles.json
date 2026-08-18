@@ -1,11 +1,14 @@
 {
-  "version": 14,
+  "version": 16,
   "name": "Camera Tour",
   "nodes": [
     {
       "id": "/basemap",
       "type": "MaplibreBasemapOp",
-      "position": { "x": 0, "y": 200 },
+      "position": {
+        "x": 0,
+        "y": 200
+      },
       "data": {
         "inputs": {
           "mapStyle": "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json",
@@ -23,15 +26,29 @@
     {
       "id": "/deck",
       "type": "DeckRendererOp",
-      "position": { "x": 350, "y": 100 },
-      "data": { "inputs": {}, "locked": false }
+      "position": {
+        "x": 350,
+        "y": 100
+      },
+      "data": {
+        "inputs": {},
+        "locked": false
+      }
     },
     {
       "id": "/out",
       "type": "OutOp",
-      "position": { "x": 700, "y": 100 },
+      "position": {
+        "x": 700,
+        "y": 100
+      },
       "data": {
-        "inputs": { "display": "fixed", "width": 1920, "height": 1080, "framerate": 30 },
+        "inputs": {
+          "display": "fixed",
+          "width": 1920,
+          "height": 1080,
+          "framerate": 30
+        },
         "locked": false
       }
     }
@@ -52,12 +69,20 @@
       "targetHandle": "par.vis"
     }
   ],
-  "viewport": { "x": 0, "y": 0, "zoom": 1 },
-  "editorSettings": { "layoutMode": "noodles-on-top", "showOverlay": true },
+  "viewport": {
+    "x": 0,
+    "y": 0,
+    "zoom": 1
+  },
+  "editorSettings": {
+    "showOverlay": true
+  },
   "timeline": {
     "sheetsById": {
       "Noodles": {
-        "staticOverrides": { "byObject": {} }
+        "staticOverrides": {
+          "byObject": {}
+        }
       }
     },
     "definitionVersion": "0.4.0",

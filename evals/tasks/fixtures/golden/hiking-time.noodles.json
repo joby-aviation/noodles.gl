@@ -1,5 +1,5 @@
 {
-  "version": 14,
+  "version": 16,
   "nodes": [
     {
       "id": "/origin",
@@ -328,7 +328,6 @@
   },
   "name": "Hiking Time Estimate",
   "editorSettings": {
-    "layoutMode": "noodles-on-top",
     "showOverlay": true
   },
   "timeline": {

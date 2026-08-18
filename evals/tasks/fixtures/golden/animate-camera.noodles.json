@@ -1,5 +1,5 @@
 {
-  "version": 14,
+  "version": 16,
   "name": "Camera Tour",
   "nodes": [
     {
@@ -75,7 +75,6 @@
     "zoom": 1
   },
   "editorSettings": {
-    "layoutMode": "noodles-on-top",
     "showOverlay": true
   },
   "timeline": {

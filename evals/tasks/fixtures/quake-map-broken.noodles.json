@@ -76,10 +76,9 @@
     "y": 172.88548024794358,
     "zoom": 0.4813563009649149
   },
-  "version": 14,
+  "version": 16,
   "name": "Quake Map",
   "editorSettings": {
-    "layoutMode": "noodles-on-top",
     "showOverlay": true
   },
   "nodes": [
