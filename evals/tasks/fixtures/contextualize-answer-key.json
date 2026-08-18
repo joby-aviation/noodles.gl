@@ -53,7 +53,7 @@
     },
     { "id": "q21", "match": "regex", "expected": "\\bpar\\b", "source": "AGENTS.md (edge targetHandle 'par.fieldName'); src/examples/*/noodles.json edges" },
     { "id": "q22", "match": "regex", "expected": "\\bout\\b", "source": "AGENTS.md (edge sourceHandle 'out.fieldName'); src/examples/*/noodles.json edges" },
-    { "id": "q23", "match": "regex", "expected": "\\b14\\b", "source": "noodles-editor/src/noodles/__migrations__/ (highest migration 014); src/examples/*/noodles.json version field" },
+    { "id": "q23", "match": "regex", "expected": "\\b16\\b", "source": "noodles-editor/src/noodles/__migrations__/ (highest migration 016); src/examples/*/noodles.json version field" },
     {
       "id": "q24",
       "match": "judge",
