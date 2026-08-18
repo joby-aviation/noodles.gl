@@ -139,6 +139,48 @@
   text-align: right;
 }
 
+.effectiveCanvas {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin: -1px 0 7px 78px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  background: rgba(59, 130, 246, 0.08);
+  color: rgba(255, 255, 255, 0.58);
+  font-size: 10px;
+}
+
+.effectiveCanvas strong {
+  color: rgba(255, 255, 255, 0.82);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.renderHelp {
+  margin: 8px 0 2px;
+  padding: 7px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  color: rgba(255, 255, 255, 0.58);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.renderHelp summary {
+  color: rgba(255, 255, 255, 0.72);
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.renderHelp p {
+  margin: 7px 0 0;
+}
+
+.renderHelp code {
+  color: rgba(255, 255, 255, 0.78);
+}
+
 .checkbox {
   width: 14px;
   height: 14px;

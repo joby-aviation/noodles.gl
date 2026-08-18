@@ -19,6 +19,7 @@ import { fnWithSource } from './noodles/operators'
 import type { RenderSettings } from './noodles/utils/serialization'
 import { useDeckDrawLoop } from './render/draw-loop'
 import { captureScreenshot, useRenderer } from './render/renderer'
+import { getEffectiveRenderResolution } from './render/render-resolution'
 import { deckRenderingDefaults, mapRenderingDefaults } from './render/rendering-defaults'
 import { TransformScale } from './render/transform-scale'
 import { useUIStore } from './noodles/store'
@@ -525,12 +526,7 @@ export default function TimelineEditor() {
     activeStorageType,
   ])
 
-  // Increase the render target resolution to increase map tile detail.
-  // To convert viewport bounds back to their original size, add about 1 to the zoom value.
-  const lodResolution = {
-    width: Math.round(resolution.width * lod),
-    height: Math.round(resolution.height * lod),
-  }
+  const lodResolution = getEffectiveRenderResolution(resolution, lod)
 
   // Use fixed resolution for 'fixed' display mode, undefined for 'responsive' mode to use natural dimensions
   const isFixedMode = renderSettings.display === 'fixed'

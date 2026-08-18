@@ -1,4 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
+import {
+  getEffectiveRenderResolution,
+  getLodZoomCompensation,
+} from '../../render/render-resolution'
 import { useExportActions } from '../contexts/export-actions-context'
 import type { OutOp } from '../operators'
 import { useActiveOutOpStore } from '../store'
@@ -41,6 +45,8 @@ export function RenderSettingsPanel({ op }: RenderSettingsPanelProps) {
   const [waitForData, setWaitForData] = useState(op.inputs.waitForData.value)
   const [captureDelay, setCaptureDelay] = useState(op.inputs.captureDelay.value)
   const [rendersDirectory, setRendersDirectory] = useState(op.inputs.rendersDirectory.value)
+  const effectiveCanvas = getEffectiveRenderResolution({ width, height }, lod)
+  const zoomCompensation = getLodZoomCompensation(lod)
 
   useEffect(() => {
     const subscriptions = [
@@ -164,6 +170,14 @@ export function RenderSettingsPanel({ op }: RenderSettingsPanelProps) {
               </div>
             </div>
 
+            <div className={s.effectiveCanvas} aria-live="polite">
+              <span>Effective canvas</span>
+              <strong>
+                {effectiveCanvas.width.toLocaleString()} × {effectiveCanvas.height.toLocaleString()}{' '}
+                px
+              </strong>
+            </div>
+
             <div className={s.settingRow}>
               <label htmlFor="render-scale-control" className={s.label}>
                 Scale
@@ -199,6 +213,23 @@ export function RenderSettingsPanel({ op }: RenderSettingsPanelProps) {
           />
           <span className={s.value}>{lod.toFixed(1)}×</span>
         </div>
+
+        <details className={s.renderHelp}>
+          <summary>How resolution, LOD, and camera zoom differ</summary>
+          <p>
+            Resolution sets the base dimensions. LOD multiplies those dimensions and sharpness;
+            it does not simplify the basemap.
+          </p>
+          <p>
+            Camera zoom controls geographic framing and which style layers are visible. At this
+            LOD, add <strong>{zoomCompensation.toFixed(2)}</strong> to camera zoom to preserve the
+            original bounds (<code>log2({lod.toFixed(1)})</code>).
+          </p>
+          <p>
+            The compensated zoom can activate minor-road layers. For less semantic detail, choose
+            a simpler basemap or customize its style.
+          </p>
+        </details>
       </div>
 
       {/* Video Encoding Section */}

@@ -16,6 +16,20 @@ On the lefthand node tree, find the "render" sheet object under the current proj
 
 You can adjust parameters like framerate, codec and resolution before exporting. Clicking the `startRender` button will open a dialog asking where to save your video file. The app will progress through your timeline and render to the file as a video.
 
+### Resolution, LOD, and map zoom
+
+These controls affect different parts of a map render:
+
+- **Resolution** establishes the base width and height.
+- **LOD** multiplies both dimensions and increases sharpness. For example, 1920 × 1080 at 2× LOD creates an effective 3840 × 2160 canvas.
+- **Camera zoom** controls geographic framing and which basemap style layers are visible.
+
+Web Mercator scale is `2^zoom`. After multiplying LOD by `n`, add `log2(n)` to the camera zoom to preserve the original geographic bounds. For example, 2× LOD needs `+1` camera zoom and 4× LOD needs `+2`.
+
+This compensation can activate additional style layers, including minor roads. LOD is therefore not a map-detail control: if a map has too much semantic detail, use a simpler basemap or customize the basemap style.
+
+See [Voyager LOD evidence](../../dev-docs/render-lod-evidence.md) for a reproducible comparison of dimensions, bounds, active road layers, and screenshots.
+
 ## Procedural animation
 All values are reactive and can be driven by any other property.
 
