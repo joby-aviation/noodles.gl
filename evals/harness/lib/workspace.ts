@@ -1,12 +1,18 @@
 // Greenfield workspace construction (07 D7 first bullet, 04's eval-isolation
-// note). Workspaces are git-archive extractions of origin/main — no .git, so
-// a session cannot reach any other branch — with the dogfooding artifacts
+// note). Workspaces are git-archive extractions of a single commit — no .git,
+// so a session cannot reach any other branch — with the dogfooding artifacts
 // stripped defensively, living outside the harness checkout entirely.
+//
+// The archived ref defaults to origin/main (the measured surface for a season
+// baseline). EVALS_WORKSPACE_REF overrides it for pre-merge runs against a
+// stack tip — e.g. EVALS_WORKSPACE_REF=HEAD to measure fixes before they land.
 
 import { execFileSync, execSync } from 'node:child_process'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { REPO_ROOT, WORK_ROOT } from './config'
+
+const WORKSPACE_REF = process.env.EVALS_WORKSPACE_REF || 'origin/main'
 
 // Stripped from every eval checkout (none exist on origin/main today; the
 // list is defensive so a future landing can't silently leak into T0-T3).
@@ -14,7 +20,7 @@ const STRIP_PATHS = ['evals', 'dev-docs/specs/agent-ready-docs', 'skills', '.cla
 const AGENTS_MD_POINTER_RE = /\bskills\//
 
 export function mainCommit(): string {
-  return execFileSync('git', ['rev-parse', 'origin/main'], { cwd: REPO_ROOT, encoding: 'utf-8' }).trim()
+  return execFileSync('git', ['rev-parse', WORKSPACE_REF], { cwd: REPO_ROOT, encoding: 'utf-8' }).trim()
 }
 
 export function templateDir(): string {
