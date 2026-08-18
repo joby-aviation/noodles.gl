@@ -33,6 +33,7 @@ export function RenderSettingsPanel({ op }: RenderSettingsPanelProps) {
   const [width, setWidth] = useState(op.inputs.width.value)
   const [height, setHeight] = useState(op.inputs.height.value)
   const [lod, setLod] = useState(op.inputs.lod.value)
+  const [scaleMode, setScaleMode] = useState(op.inputs.scaleMode.value)
   const [scaleControl, setScaleControl] = useState(op.inputs.scaleControl.value)
   const [codec, setCodec] = useState(op.inputs.codec.value)
   const [framerate, setFramerate] = useState(op.inputs.framerate.value)
@@ -48,6 +49,7 @@ export function RenderSettingsPanel({ op }: RenderSettingsPanelProps) {
       op.inputs.width.subscribe(v => setWidth(v)),
       op.inputs.height.subscribe(v => setHeight(v)),
       op.inputs.lod.subscribe(v => setLod(v)),
+      op.inputs.scaleMode.subscribe(v => setScaleMode(v)),
       op.inputs.scaleControl.subscribe(v => setScaleControl(v)),
       op.inputs.codec.subscribe(v => setCodec(v)),
       op.inputs.framerate.subscribe(v => setFramerate(v)),
@@ -76,6 +78,7 @@ export function RenderSettingsPanel({ op }: RenderSettingsPanelProps) {
     op.inputs.width.setValue(DEFAULT_RENDER_SETTINGS.resolution.width)
     op.inputs.height.setValue(DEFAULT_RENDER_SETTINGS.resolution.height)
     op.inputs.lod.setValue(DEFAULT_RENDER_SETTINGS.lod)
+    op.inputs.scaleMode.setValue(DEFAULT_RENDER_SETTINGS.scaleMode)
     op.inputs.scaleControl.setValue(DEFAULT_RENDER_SETTINGS.scaleControl)
     op.inputs.codec.setValue(DEFAULT_RENDER_SETTINGS.codec)
     op.inputs.framerate.setValue(DEFAULT_RENDER_SETTINGS.framerate)
@@ -165,21 +168,38 @@ export function RenderSettingsPanel({ op }: RenderSettingsPanelProps) {
             </div>
 
             <div className={s.settingRow}>
-              <label htmlFor="render-scale-control" className={s.label}>
-                Scale
+              <label htmlFor="render-scale-mode" className={s.label}>
+                Preview
               </label>
-              <input
-                id="render-scale-control"
-                type="range"
-                min="0.1"
-                max="1"
-                step="0.05"
-                value={scaleControl}
-                onChange={e => op.inputs.scaleControl.setValue(Number(e.target.value))}
-                className={s.slider}
-              />
-              <span className={s.value}>{Math.round(scaleControl * 100)}%</span>
+              <select
+                id="render-scale-mode"
+                className={s.select}
+                value={scaleMode}
+                onChange={e => op.inputs.scaleMode.setValue(e.target.value as 'fit' | 'manual')}
+              >
+                <option value="fit">Fit to panel</option>
+                <option value="manual">Manual scale</option>
+              </select>
             </div>
+
+            {scaleMode === 'manual' && (
+              <div className={s.settingRow}>
+                <label htmlFor="render-scale-control" className={s.label}>
+                  Scale
+                </label>
+                <input
+                  id="render-scale-control"
+                  type="range"
+                  min="0.1"
+                  max="1"
+                  step="0.05"
+                  value={scaleControl}
+                  onChange={e => op.inputs.scaleControl.setValue(Number(e.target.value))}
+                  className={s.slider}
+                />
+                <span className={s.value}>{Math.round(scaleControl * 100)}%</span>
+              </div>
+            )}
           </>
         )}
 

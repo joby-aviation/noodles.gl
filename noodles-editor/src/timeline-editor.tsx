@@ -708,7 +708,10 @@ export default function TimelineEditor() {
               </div>
             )}
             {isFixedMode ? (
-              <TransformScale scale={renderSettings.scaleControl}>
+              <TransformScale
+                scale={renderSettings.scaleControl}
+                scaleMode={renderSettings.scaleMode}
+              >
                 <ErrorBoundary title="Visualization Error">{renderContent()}</ErrorBoundary>
               </TransformScale>
             ) : (
