@@ -13,7 +13,7 @@ import {
   type Operator,
 } from './operators'
 import { clearOps, getOpStore, hasOp } from './store'
-import { transformGraph } from './transform-graph'
+import { deriveReferenceEdges, transformGraph } from './transform-graph'
 import { edgeId } from './utils/id-utils'
 
 describe('transform-graph topological sort with missing upstream nodes', () => {
@@ -1238,6 +1238,142 @@ describe('connection error suppression for undefined source fields', () => {
 
     // Error should be cleared — source has no value, so we cannot confirm the mismatch
     expect(add.hasConnectionErrors()).toBe(false)
+  })
+})
+
+describe('derived reference edges (unmounted nodes)', () => {
+  afterEach(() => {
+    clearOps()
+  })
+
+  it('wires an op() reference in a container child that has no persisted edge', () => {
+    // Reference edges are synced by the CodeField editor component, which never
+    // mounts for collapsed container children. transformGraph must derive them
+    // from the code text so the child re-executes when the referenced operator
+    // produces data (previously it executed once against undefined and went
+    // permanently stale — an empty layer with zero console errors).
+    const nodes = [
+      { id: '/num', type: 'NumberOp', data: { inputs: { val: 7 } }, position: { x: 0, y: 0 } },
+      { id: '/box', type: 'ContainerOp', data: { inputs: {} }, position: { x: 100, y: 0 } },
+      {
+        id: '/box/child',
+        type: 'CodeOp',
+        data: { inputs: { code: "return op('/num').out.val * 2" } },
+        position: { x: 110, y: 0 },
+      },
+    ]
+
+    transformGraph({ nodes, edges: [] })
+
+    const { getOp } = getOpStore()
+    const child = getOp('/box/child')!
+    const refEdgeId = '/num.out.val->/box/child.par.code'
+    expect(child.inputs.code.subscriptions.has(refEdgeId)).toBe(true)
+  })
+
+  it('derives edges for array-form code and mustache references, skipping unresolvable ones', () => {
+    const nodes = [
+      { id: '/a', type: 'NumberOp', data: { inputs: { val: 1 } }, position: { x: 0, y: 0 } },
+      {
+        id: '/code',
+        type: 'CodeOp',
+        data: {
+          inputs: {
+            code: ["const x = op('/a').out.val", "const y = op('/gone').out.val", 'return x'],
+          },
+        },
+        position: { x: 50, y: 0 },
+      },
+    ]
+    const derived = deriveReferenceEdges(nodes, [])
+    expect(derived).toHaveLength(1)
+    expect(derived[0]).toMatchObject({
+      id: '/a.out.val->/code.par.code',
+      type: 'ReferenceEdge',
+      source: '/a',
+      sourceHandle: 'out.val',
+      target: '/code',
+      targetHandle: 'par.code',
+    })
+  })
+
+  it('does not duplicate a reference edge the component already synced', () => {
+    const nodes = [
+      { id: '/a', type: 'NumberOp', data: { inputs: { val: 1 } }, position: { x: 0, y: 0 } },
+      {
+        id: '/code',
+        type: 'CodeOp',
+        data: { inputs: { code: "return op('/a').out.val" } },
+        position: { x: 50, y: 0 },
+      },
+    ]
+    const existing = [
+      {
+        id: '/a.out.val->/code.par.code',
+        type: 'ReferenceEdge',
+        source: '/a',
+        sourceHandle: 'out.val',
+        target: '/code',
+        targetHandle: 'par.code',
+      },
+    ]
+    expect(deriveReferenceEdges(nodes, existing)).toHaveLength(0)
+  })
+
+  it('does not make an enclosing-container param reference a pull dependency (false cycle)', () => {
+    // op('/box').par.minMagnitude inside /box/child derives the reference
+    // edge /box -> /box/child. With the child -> GraphOutput -> /box bridge
+    // edge that would be a pull-dependency cycle _pullUpstreamDependencies
+    // recurses on forever. The reference must stay a field-layer
+    // subscription without entering the operator dependency sets.
+    const nodes = [
+      {
+        id: '/box',
+        type: 'ContainerOp',
+        data: {
+          inputs: {},
+          customInputs: [
+            { id: 'ci1', name: 'minMagnitude', type: 'number', order: 0, defaultValue: 4 },
+          ],
+        },
+        position: { x: 0, y: 0 },
+      },
+      {
+        id: '/box/child',
+        type: 'CodeOp',
+        data: { inputs: { code: "return op('/box').par.minMagnitude" } },
+        position: { x: 10, y: 0 },
+      },
+      { id: '/box/output', type: 'GraphOutputOp', data: { inputs: {} }, position: { x: 20, y: 0 } },
+    ]
+    const edges = [
+      {
+        id: '/box/child.out.data->/box/output.par.value',
+        source: '/box/child',
+        target: '/box/output',
+        sourceHandle: 'out.data',
+        targetHandle: 'par.value',
+      },
+      {
+        id: '/box/output.out.propagatedValue->/box.out.out',
+        source: '/box/output',
+        target: '/box',
+        sourceHandle: 'out.propagatedValue',
+        targetHandle: 'out.out',
+      },
+    ]
+
+    transformGraph({ nodes, edges })
+
+    const { getOp } = getOpStore()
+    const box = getOp('/box')!
+    const child = getOp('/box/child')!
+    const deps = (child as unknown as { _upstreamDependencies: Set<unknown> })._upstreamDependencies
+    expect(deps.has(box)).toBe(false)
+    // The field-layer subscription for the derived reference edge remains.
+    expect(child.inputs.code.subscriptions.has('/box.par.minMagnitude->/box/child.par.code')).toBe(
+      true
+    )
   })
 })
 
