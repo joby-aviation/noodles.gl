@@ -1,5 +1,6 @@
 import type { Node as ReactFlowNode } from '@xyflow/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { getExecutor } from './graph-executor'
 import type { Edge } from './noodles'
 import {
   type CodeOp,
@@ -11,8 +12,8 @@ import {
   NumberOp,
   type Operator,
 } from './operators'
-import { clearOps, getOpStore } from './store'
-import { transformGraph } from './transform-graph'
+import { clearOps, getOpStore, hasOp } from './store'
+import { deriveReferenceEdges, transformGraph } from './transform-graph'
 import { edgeId } from './utils/id-utils'
 
 describe('transform-graph topological sort with missing upstream nodes', () => {
@@ -271,6 +272,82 @@ describe('transform-graph stale edge and unknown type warnings', () => {
       String(call[0]).includes('Unknown operator type')
     )
     expect(unknownTypeErrors).toHaveLength(0)
+  })
+
+  it('passes visual group definitions to the executor for nested loop pairing', () => {
+    const nodes = [
+      {
+        id: '/outer-body',
+        type: 'group',
+        data: {},
+        position: { x: 0, y: 0 },
+      },
+      {
+        id: '/outer-begin',
+        type: 'ForLoopBeginOp',
+        data: { inputs: {} },
+        position: { x: 0, y: 0 },
+        parentId: '/outer-body',
+      },
+      {
+        id: '/outer-end',
+        type: 'ForLoopEndOp',
+        data: { inputs: {} },
+        position: { x: 900, y: 0 },
+        parentId: '/outer-body',
+      },
+      {
+        id: '/inner-body',
+        type: 'group',
+        data: {},
+        position: { x: 300, y: 100 },
+      },
+      {
+        id: '/inner-begin',
+        type: 'ForLoopBeginOp',
+        data: { inputs: {} },
+        position: { x: 0, y: 0 },
+        parentId: '/inner-body',
+      },
+      {
+        id: '/inner-end',
+        type: 'ForLoopEndOp',
+        data: { inputs: {} },
+        position: { x: 300, y: 0 },
+        parentId: '/inner-body',
+      },
+    ]
+    const edges = [
+      {
+        id: '/outer-begin.out.item->/inner-begin.par.data',
+        source: '/outer-begin',
+        target: '/inner-begin',
+        sourceHandle: 'out.item',
+        targetHandle: 'par.data',
+      },
+      {
+        id: '/inner-begin.out.item->/inner-end.par.item',
+        source: '/inner-begin',
+        target: '/inner-end',
+        sourceHandle: 'out.item',
+        targetHandle: 'par.item',
+      },
+      {
+        id: '/inner-end.out.data->/outer-end.par.item',
+        source: '/inner-end',
+        target: '/outer-end',
+        sourceHandle: 'out.data',
+        targetHandle: 'par.item',
+      },
+    ]
+
+    transformGraph({ nodes, edges })
+
+    const scopes = getExecutor()!.findForLoopScopes()
+    const outerScope = scopes.find(scope => scope.beginOp.id === '/outer-begin')!
+    const innerScope = scopes.find(scope => scope.beginOp.id === '/inner-begin')!
+    expect(outerScope.endOp.id).toBe('/outer-end')
+    expect(innerScope.endOp.id).toBe('/inner-end')
   })
 
   it('sets a connection error on the target operator when source node is missing', () => {
@@ -1209,6 +1286,86 @@ describe('GraphInputOp rebuildFromContainer keeps the container link alive', () 
   })
 })
 
+describe('derived reference edges (unmounted nodes)', () => {
+  afterEach(() => {
+    clearOps()
+  })
+
+  it('wires an op() reference in a container child that has no persisted edge', () => {
+    // Reference edges are synced by the CodeField editor component, which never
+    // mounts for collapsed container children. transformGraph must derive them
+    // from the code text so the child re-executes when the referenced operator
+    // produces data (previously it executed once against undefined and went
+    // permanently stale — an empty layer with zero console errors).
+    const nodes = [
+      { id: '/num', type: 'NumberOp', data: { inputs: { val: 7 } }, position: { x: 0, y: 0 } },
+      { id: '/box', type: 'ContainerOp', data: { inputs: {} }, position: { x: 100, y: 0 } },
+      {
+        id: '/box/child',
+        type: 'CodeOp',
+        data: { inputs: { code: "return op('/num').out.val * 2" } },
+        position: { x: 110, y: 0 },
+      },
+    ]
+
+    transformGraph({ nodes, edges: [] })
+
+    const { getOp } = getOpStore()
+    const child = getOp('/box/child')!
+    const refEdgeId = '/num.out.val->/box/child.par.code'
+    expect(child.inputs.code.subscriptions.has(refEdgeId)).toBe(true)
+  })
+
+  it('derives edges for array-form code and mustache references, skipping unresolvable ones', () => {
+    const nodes = [
+      { id: '/a', type: 'NumberOp', data: { inputs: { val: 1 } }, position: { x: 0, y: 0 } },
+      {
+        id: '/code',
+        type: 'CodeOp',
+        data: {
+          inputs: {
+            code: ["const x = op('/a').out.val", "const y = op('/gone').out.val", 'return x'],
+          },
+        },
+        position: { x: 50, y: 0 },
+      },
+    ]
+    const derived = deriveReferenceEdges(nodes, [])
+    expect(derived).toHaveLength(1)
+    expect(derived[0]).toMatchObject({
+      id: '/a.out.val->/code.par.code',
+      type: 'ReferenceEdge',
+      source: '/a',
+      sourceHandle: 'out.val',
+      target: '/code',
+      targetHandle: 'par.code',
+    })
+  })
+
+  it('does not duplicate a reference edge the component already synced', () => {
+    const nodes = [
+      { id: '/a', type: 'NumberOp', data: { inputs: { val: 1 } }, position: { x: 0, y: 0 } },
+      {
+        id: '/code',
+        type: 'CodeOp',
+        data: { inputs: { code: "return op('/a').out.val" } },
+        position: { x: 50, y: 0 },
+      },
+    ]
+    const existing = [
+      {
+        id: '/a.out.val->/code.par.code',
+        type: 'ReferenceEdge',
+        source: '/a',
+        sourceHandle: 'out.val',
+        target: '/code',
+        targetHandle: 'par.code',
+      },
+    ]
+    expect(deriveReferenceEdges(nodes, existing)).toHaveLength(0)
+  })
+})
+
 describe('ListField connection order sync', () => {
   afterEach(() => {
     clearOps()
@@ -1264,5 +1421,69 @@ describe('ListField connection order sync', () => {
     transformGraph({ nodes, edges: [listEdge('/a'), listEdge('/b'), listEdge('/c')] })
 
     expect(connectionOrder()).toEqual([listEdge('/a').id, listEdge('/b').id, listEdge('/c').id])
+  })
+})
+
+describe('transform-graph container cascade deletion', () => {
+  afterEach(() => {
+    clearOps()
+  })
+
+  it('operator store is cleaned up when re-transforming without deleted container children', () => {
+    const nodes = [
+      { id: '/source', type: 'NumberOp', data: { inputs: {} }, position: { x: 0, y: 0 } },
+      { id: '/container', type: 'ContainerOp', data: { inputs: {} }, position: { x: 0, y: 0 } },
+      {
+        id: '/container/container-input',
+        type: 'GraphInputOp',
+        data: { inputs: {} },
+        position: { x: 0, y: 0 },
+      },
+      {
+        id: '/container/container-output',
+        type: 'GraphOutputOp',
+        data: { inputs: {} },
+        position: { x: 0, y: 0 },
+      },
+      { id: '/container/worker', type: 'MathOp', data: { inputs: {} }, position: { x: 0, y: 0 } },
+      { id: '/sink', type: 'MathOp', data: { inputs: {} }, position: { x: 0, y: 0 } },
+    ]
+    const edges = [
+      {
+        id: '/source.out.val->/container.par.in',
+        source: '/source',
+        target: '/container',
+        sourceHandle: 'out.val',
+        targetHandle: 'par.in',
+      },
+      {
+        id: '/container/container-input.out.parentValue->/container/worker.par.a',
+        source: '/container/container-input',
+        target: '/container/worker',
+        sourceHandle: 'out.parentValue',
+        targetHandle: 'par.a',
+      },
+    ]
+
+    transformGraph({ nodes, edges })
+
+    expect(hasOp('/container')).toBe(true)
+    expect(hasOp('/container/worker')).toBe(true)
+    expect(hasOp('/container/container-input')).toBe(true)
+    expect(hasOp('/container/container-output')).toBe(true)
+
+    // Re-transform without the container and its children (simulates cascade delete)
+    const remainingNodes = nodes.filter(n => !n.id.startsWith('/container'))
+    const remainingEdges = edges.filter(
+      e => !e.source.startsWith('/container') && !e.target.startsWith('/container')
+    )
+    transformGraph({ nodes: remainingNodes, edges: remainingEdges })
+
+    expect(hasOp('/container')).toBe(false)
+    expect(hasOp('/container/worker')).toBe(false)
+    expect(hasOp('/container/container-input')).toBe(false)
+    expect(hasOp('/container/container-output')).toBe(false)
+    expect(hasOp('/source')).toBe(true)
+    expect(hasOp('/sink')).toBe(true)
   })
 })

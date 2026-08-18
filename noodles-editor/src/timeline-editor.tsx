@@ -8,6 +8,7 @@ import ReactMapGL, { type MapProps, useControl } from 'react-map-gl/maplibre'
 import { Layout } from './layout'
 import { ErrorBoundary } from './noodles/components/error-boundary'
 import { SpreadsheetPane } from './noodles/components/spreadsheet-pane/spreadsheet-pane'
+import { MapToolLayer } from './noodles/components/tools/map-tool-layer'
 import { TopMenuBar } from './noodles/components/top-menu-bar'
 import { ExportActionsProvider } from './noodles/contexts/export-actions-context'
 import { useActiveStorageType, useCurrentDirectory } from './noodles/filesystem-store'
@@ -18,8 +19,10 @@ import { fnWithSource } from './noodles/operators'
 import type { RenderSettings } from './noodles/utils/serialization'
 import { useDeckDrawLoop } from './render/draw-loop'
 import { captureScreenshot, useRenderer } from './render/renderer'
+import { deckRenderingDefaults, mapRenderingDefaults } from './render/rendering-defaults'
 import { TransformScale } from './render/transform-scale'
-import { CollapsibleTimelinePanel } from './timeline/components/CollapsibleTimelinePanel'
+import { useUIStore } from './noodles/store'
+import { TimelinePanel } from './timeline/components/TimelinePanel'
 import { getTimelineStore, useTimelineStore } from './timeline/timeline-store'
 import s from './timeline-editor.module.css'
 import { debugRender } from './utils/debug'
@@ -89,8 +92,9 @@ export default function TimelineEditor() {
   }, [])
 
   const noodles = getNoodles()
-  const { flowGraph, nodeSidebar, propertiesPanel, layoutMode, selectedNodeIds, ...visualization } =
-    noodles
+  const { flowGraph, nodeSidebar, propertiesPanel, selectedNodeIds, ...visualization } = noodles
+
+  const setTimelineExpanded = useUIStore(state => state.setTimelineExpanded)
 
   // Render settings are now stored as OutOp inputs
   const renderSettings = useRenderSettings()
@@ -137,14 +141,7 @@ export default function TimelineEditor() {
   const fpsRef = useRef(0)
 
   const deckProps: DeckProps = {
-    deviceProps: {
-      type: 'webgl',
-      powerPreference: 'high-performance',
-      webgl: {
-        stencil: true,
-      },
-    },
-    useDevicePixels: false,
+    ...deckRenderingDefaults,
     ...visualization.deckProps,
     onDeviceInitialized: device => {
       visualization.deckProps?.onDeviceInitialized?.(device)
@@ -177,9 +174,7 @@ export default function TimelineEditor() {
   // Destructure light and sky since they're applied imperatively via setLight/setSky
   const { light, sky, ...basemapProps } = visualization.mapProps ?? {}
   const mapProps: MapProps = {
-    interactive: false,
-    antialias: true,
-    preserveDrawingBuffer: true,
+    ...mapRenderingDefaults,
     onLoad: ({ target: map }) => {
       // Redraw react to ensure hooks check for map ref changes
       mapRef.current = map
@@ -418,7 +413,16 @@ export default function TimelineEditor() {
       startFrame: Math.floor((inPoint ?? 0) * framerate),
       endFrame: Math.floor((outPoint ?? sequenceLength) * framerate),
     })
-  }, [startCapture, codec, resolution, basemapEnabled, framerate, inPoint, outPoint, sequenceLength])
+  }, [
+    startCapture,
+    codec,
+    resolution,
+    basemapEnabled,
+    framerate,
+    inPoint,
+    outPoint,
+    sequenceLength,
+  ])
 
   const takeScreenshot = useCallback(async () => {
     if (!deckRef.current) {
@@ -542,6 +546,8 @@ export default function TimelineEditor() {
             isRendering={isRendering}
             {...deckProps}
           />
+          {/* Interactive Draw and Measure tools, armed from the top shelf */}
+          <MapToolLayer mapRef={mapRef} basemapEnabled isRendering={isRendering} />
         </ReactMapGL>
       )
     }
@@ -580,8 +586,6 @@ export default function TimelineEditor() {
       onChangeShowDebugInfo={noodles.onChangeShowDebugInfo}
       spreadsheetVisible={noodles.spreadsheetVisible}
       onChangeSpreadsheetVisible={noodles.onChangeSpreadsheetVisible}
-      layoutMode={noodles.layoutMode}
-      onChangeLayoutMode={noodles.onChangeLayoutMode}
     />
   )
 
@@ -608,10 +612,11 @@ export default function TimelineEditor() {
             top={topBar}
             left={nodeSidebar}
             right={propertiesPanel}
-            bottom={<CollapsibleTimelinePanel />}
+            timeline={heightPx => (
+              <TimelinePanel height={heightPx} onCollapse={() => setTimelineExpanded(false)} />
+            )}
             flowGraph={flowGraph}
-            spreadsheet={<SpreadsheetPane selectedNodeIds={selectedNodeIds} />}
-            layoutMode={layoutMode}
+            spreadsheet={<SpreadsheetPane selectedNodeIds={selectedNodeIds ?? []} />}
           >
             {isFixedMode ? (
               <TransformScale scale={renderSettings.scaleControl}>

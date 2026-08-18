@@ -138,12 +138,7 @@ describe('SpreadsheetViewer', () => {
       fireEvent.click(screen.getByTitle('Toggle columns'))
 
       // Switch operator
-      rerender(
-        <SpreadsheetViewer
-          data={[{ city: 'NYC', pop: 8000000 }]}
-          operatorId="/op-b"
-        />
-      )
+      rerender(<SpreadsheetViewer data={[{ city: 'NYC', pop: 8000000 }]} operatorId="/op-b" />)
       // New columns visible — 'city' should appear in the header
       expect(screen.getByRole('columnheader', { name: 'city' })).toBeTruthy()
       expect(screen.getByText('NYC')).toBeTruthy()
@@ -152,23 +147,13 @@ describe('SpreadsheetViewer', () => {
 
   describe('formatCellValue edge cases', () => {
     it('renders null cells as empty string', () => {
-      render(
-        <SpreadsheetViewer
-          data={[{ value: null }, { value: 'hello' }]}
-          operatorId="/op"
-        />
-      )
+      render(<SpreadsheetViewer data={[{ value: null }, { value: 'hello' }]} operatorId="/op" />)
       // 'hello' should be there, no crash on null
       expect(screen.getByText('hello')).toBeTruthy()
     })
 
     it('renders objects as JSON', () => {
-      render(
-        <SpreadsheetViewer
-          data={[{ meta: { x: 1 } }]}
-          operatorId="/op"
-        />
-      )
+      render(<SpreadsheetViewer data={[{ meta: { x: 1 } }]} operatorId="/op" />)
       expect(screen.getByText('{"x":1}')).toBeTruthy()
     })
   })
