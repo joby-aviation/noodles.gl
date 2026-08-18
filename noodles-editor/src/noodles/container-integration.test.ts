@@ -254,6 +254,78 @@ describe('Container Integration with Transform Graph', () => {
     expect(viewer.inputs.data.value).toBe(14)
   })
 
+  it('uses the same GraphOutput for scheduling and execution when a container has multiple', async () => {
+    const nodes: NodeJSON<OpType>[] = [
+      {
+        id: '/analysis',
+        type: 'ContainerOp',
+        position: { x: 0, y: 0 },
+        data: { inputs: {} },
+      },
+      {
+        id: '/analysis/selected-output',
+        type: 'GraphOutputOp',
+        position: { x: 300, y: 0 },
+        data: { inputs: {} },
+      },
+      {
+        id: '/analysis/other-output',
+        type: 'GraphOutputOp',
+        position: { x: 300, y: 100 },
+        data: { inputs: {} },
+      },
+      {
+        id: '/selected-value',
+        type: 'NumberOp',
+        position: { x: 100, y: 0 },
+        data: { inputs: { val: 10 } },
+      },
+      {
+        id: '/other-value',
+        type: 'NumberOp',
+        position: { x: 100, y: 100 },
+        data: { inputs: { val: 20 } },
+      },
+      {
+        id: '/viewer',
+        type: 'ViewerOp',
+        position: { x: 400, y: 0 },
+        data: { inputs: {} },
+      },
+    ]
+    const edges: Edge[] = [
+      {
+        id: '/selected-value.out.val->/analysis/selected-output.par.value',
+        source: '/selected-value',
+        target: '/analysis/selected-output',
+        sourceHandle: 'out.val',
+        targetHandle: 'par.value',
+      },
+      {
+        id: '/other-value.out.val->/analysis/other-output.par.value',
+        source: '/other-value',
+        target: '/analysis/other-output',
+        sourceHandle: 'out.val',
+        targetHandle: 'par.value',
+      },
+      {
+        id: '/analysis.out.out->/viewer.par.data',
+        source: '/analysis',
+        target: '/viewer',
+        sourceHandle: 'out.out',
+        targetHandle: 'par.data',
+      },
+    ]
+
+    transformGraph({ nodes, edges })
+    await getExecutor()!.executeFrame(performance.now())
+
+    const container = getOp('/analysis') as ContainerOp
+    const viewer = getOp('/viewer') as ViewerOp
+    expect(container.outputs.out.value).toBe(10)
+    expect(viewer.inputs.data.value).toBe(10)
+  })
+
   describe('Container Custom Field Integration', () => {
     it('GraphInputOp mirrors container custom parameters as outputs', () => {
       const nodes: NodeJSON<OpType>[] = [

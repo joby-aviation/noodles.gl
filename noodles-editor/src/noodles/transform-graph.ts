@@ -54,28 +54,6 @@ export type NodeJSON<T extends OpType> = ReactFlowNode<
   type: T
 }
 
-const containerOutputDependencies = new WeakMap<ContainerOp, GraphOutputOp>()
-
-function setContainerOutputDependency(container: ContainerOp, output?: GraphOutputOp) {
-  const previousOutput = containerOutputDependencies.get(container)
-  if (previousOutput === output) return
-
-  if (previousOutput) {
-    previousOutput.removeDownstreamDependent(container)
-    container.removeUpstreamDependency(previousOutput)
-  }
-
-  if (output) {
-    output.addDownstreamDependent(container)
-    container.addUpstreamDependency(output)
-    containerOutputDependencies.set(container, output)
-  } else {
-    containerOutputDependencies.delete(container)
-  }
-
-  container.markDirty()
-}
-
 function topologicalSort<N extends Operator<IOperator>>(
   nodes: NodeJSON<OpType>[],
   edges: Edge<N, N>[]
@@ -227,11 +205,13 @@ export function transformGraph<
   // A container's output boundary is structural, not a persisted React Flow edge.
   // Include it in the executor graph so the container cannot race its child
   // GraphOutputOp as an independent root during the first frame.
+  const containerOutputNodeIds = new Map<string, string>()
   const implicitContainerOutputEdges: ExecutorEdge[] = nodes.flatMap(containerNode => {
     if (containerNode.type !== 'ContainerOp') return []
     const outputNode = nodes.find(
       node => node.type === 'GraphOutputOp' && isDirectChild(node.id, containerNode.id)
     )
+    if (outputNode) containerOutputNodeIds.set(containerNode.id, outputNode.id)
     if (
       !outputNode ||
       edges.some(edge => edge.source === outputNode.id && edge.target === containerNode.id)
@@ -521,16 +501,13 @@ export function transformGraph<
   for (const op of store.getAllOps()) {
     if (op instanceof ContainerOp) {
       const containerOp = op
-      const graphOutput = store
-        .getAllOps()
-        .find(
-          (childOp): childOp is GraphOutputOp =>
-            childOp instanceof GraphOutputOp && isDirectChild(childOp.id, containerOp.id)
-        )
+      const graphOutputId = containerOutputNodeIds.get(containerOp.id)
+      const selectedOutput = graphOutputId ? store.getOp(graphOutputId) : undefined
+      const graphOutput = selectedOutput instanceof GraphOutputOp ? selectedOutput : undefined
       // The implicit executor edge above establishes scheduling order. Mirror
       // it in Operator's pull graph so a downstream pull awaits the child
       // output and future child updates dirty the container and its consumers.
-      setContainerOutputDependency(containerOp, graphOutput)
+      containerOp.setGraphOutputOp(graphOutput)
 
       for (const childOp of store.getAllOps()) {
         if (childOp instanceof GraphInputOp && isDirectChild(childOp.id, containerOp.id)) {

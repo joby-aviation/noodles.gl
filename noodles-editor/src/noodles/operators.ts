@@ -6977,6 +6977,8 @@ export class ContainerOp extends Operator<ContainerOp> {
   static description = 'Encapsulates a subgraph of operators. Visually groups child nodes.'
   static supportsCustomFields = true
 
+  private graphOutputOp?: GraphOutputOp
+
   createInputs() {
     return { in: new UnknownField(null, { optional: true }) }
   }
@@ -6985,17 +6987,34 @@ export class ContainerOp extends Operator<ContainerOp> {
     return { out: new UnknownField(null, { optional: true }) }
   }
 
+  setGraphOutputOp(output?: GraphOutputOp) {
+    if (this.graphOutputOp === output) return
+
+    if (this.graphOutputOp) {
+      this.graphOutputOp.removeDownstreamDependent(this)
+      this.removeUpstreamDependency(this.graphOutputOp)
+    }
+
+    this.graphOutputOp = output
+    if (output) {
+      output.addDownstreamDependent(this)
+      this.addUpstreamDependency(output)
+    }
+    this.markDirty()
+  }
+
   execute(_: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    let outputValue = null
     // The 'in' port of ContainerOp drives its execution.
     // The 'out' port should reflect the value from a GraphOutputOp inside it.
-    for (const op of getAllOps()) {
-      if (op instanceof GraphOutputOp && isDirectChild(op.id, this.id)) {
-        outputValue = op.outputs.propagatedValue.value
-        break // Take the first one found
-      }
-    }
-    return { out: outputValue }
+    const output =
+      this.graphOutputOp ??
+      getAllOps().find(op => op instanceof GraphOutputOp && isDirectChild(op.id, this.id))
+    return { out: output?.outputs.propagatedValue.value ?? null }
+  }
+
+  dispose() {
+    this.setGraphOutputOp(undefined)
+    super.dispose()
   }
 }
 
