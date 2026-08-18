@@ -601,3 +601,31 @@ land: `EVALS_WORKSPACE_REF` builds eval workspaces from a chosen ref instead of
   evidence-pack) escaped, and verify-goldens' q23 check de-rotted — it now asserts the
   answer key's expected regex against the live migration version instead of hardcoding 14
   in the verifier too.
+
+## Round 8 (2026-08-18): season 2 — two providers, seven models, fresh baseline
+
+Season 1 (2026-07-06.t0.83ff1c128a7a) is force-closed (ARCHIVED.md; a deliberate re-pin:
+tasks and the app changed too much under it — schema v16, the four container fixes, golden
+restructure). Season 2 pins in config:
+
+- **CURRENT_SERIES `2026-08-18.t0.cc1dbe58da32`**, where the sha names the new
+  **MEASURED_REF `origin/claude/fix-executor-dirty-propagation`** — the topmost app branch
+  of stack #551. `mainSha()`/workspaces now default to the config pin
+  (`EVALS_WORKSPACE_REF` still overrides ad hoc).
+- **Roster grows 3 → 7**: sonnet-4-6, sonnet-5, opus-4-8, **fable-5** (Bedrock), and
+  OpenAI's GPT-5.6 family **sol / terra / luna** (released 2026-07-09). Judge stays
+  opus-4-8 — season-1 continuity, and Fable must not grade itself.
+- **Second session backend**: `providerFor(model)` dispatches `us.anthropic.*` to the
+  claude CLI (Bedrock, unchanged) and `gpt-*` to the pinned `@openai/codex` CLI
+  (`codex exec --json --skip-git-repo-check --dangerously-bypass-approvals-and-sandbox
+  --ephemeral --ignore-user-config`). Flags verified against the pinned binary
+  (codex-cli 0.147.0), event/field names verified in its strings (`turn.completed` carries
+  `last_agent_message` + `TokenUsage`). Raw codex JSONL is the frozen transcript;
+  `renderTranscript` renders both formats with the same labels the judge already cites.
+  Codex reports tokens not dollars — cost comes from the pinned GPT-5.6 price table
+  (cached input billed at full input rate until the cache discount is pinned). No turn
+  cap in codex exec, so that budget is wall-clock-only there (turns still recorded).
+  `OPENAI_API_KEY` is the user-facing env var (mapped to `CODEX_API_KEY`); fail-fast
+  verified end-to-end while the key is not yet provisioned.
+- Selftest grows 5 tests: provider mapping, per-provider env assertions, codex
+  parse/usage/cost, dual-format rendering, turn.failed handling. All offline.

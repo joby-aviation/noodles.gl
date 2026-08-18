@@ -3,8 +3,8 @@
 // so a session cannot reach any other branch — with the dogfooding artifacts
 // stripped defensively, living outside the harness checkout entirely.
 //
-// The archived ref defaults to origin/main (the measured surface for a season
-// baseline). EVALS_WORKSPACE_REF overrides it for pre-merge runs — point it at
+// The archived ref defaults to config.MEASURED_REF (the surface the current
+// season pins). EVALS_WORKSPACE_REF overrides it for ad-hoc runs — point it at
 // the topmost APP branch of a stack (e.g. origin/claude/fix-executor-dirty-
 // propagation), not the harness branch: the measured surface stays "main +
 // fixes", eval artifacts never enter the archived commit, and the sha-keyed
@@ -13,9 +13,9 @@
 import { execFileSync, execSync } from 'node:child_process'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
-import { REPO_ROOT, WORK_ROOT } from './config'
+import { MEASURED_REF, REPO_ROOT, WORK_ROOT } from './config'
 
-const WORKSPACE_REF = process.env.EVALS_WORKSPACE_REF || 'origin/main'
+const WORKSPACE_REF = process.env.EVALS_WORKSPACE_REF || MEASURED_REF
 
 // Stripped from every eval checkout (none exist on origin/main today; the
 // list is defensive so a future landing can't silently leak into T0-T3).

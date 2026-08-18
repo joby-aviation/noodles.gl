@@ -9,8 +9,9 @@ import * as assert from 'node:assert'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import YAML from 'yaml'
-import { REPO_ROOT } from './lib/config'
+import { REPO_ROOT, SESSION_MODELS, assertProviderEnv, providerFor } from './lib/config'
 import { scoreAnswers } from './lib/matchers'
+import { parseCodexTranscript, renderTranscript } from './lib/session'
 import { loadRegistry, noodlesVersion } from './lib/registry'
 import { loadRubric, resolveApplicability } from './lib/rubric'
 import { MECHANICAL_FAILURE_CAP, type MechanicalResults, median, totalScore } from './lib/scoring'
@@ -148,6 +149,71 @@ test('isolation audit: own workspace legal, harness paths flagged', async () => 
 test('median', () => {
   assert.equal(median([3, 1, 2]), 2)
   assert.equal(median([1, 4]), 2.5)
+})
+
+// ---- season-2 provider dispatch: codex (OpenAI) backend, no tokens spent ----
+
+test('providerFor maps every pinned session model; unknown ids throw', () => {
+  for (const m of SESSION_MODELS) providerFor(m) // must not throw
+  assert.equal(providerFor('us.anthropic.claude-fable-5'), 'bedrock')
+  assert.equal(providerFor('gpt-5.6-luna'), 'openai')
+  assert.throws(() => providerFor('gemini-3-pro'))
+})
+
+test('assertProviderEnv demands OPENAI_API_KEY only for codex models', () => {
+  const saved = process.env.OPENAI_API_KEY
+  delete process.env.OPENAI_API_KEY
+  try {
+    assertProviderEnv('us.anthropic.claude-fable-5') // bedrock env is set in CI/dev
+    assert.throws(() => assertProviderEnv('gpt-5.6-sol'), /OPENAI_API_KEY/)
+  } finally {
+    if (saved !== undefined) process.env.OPENAI_API_KEY = saved
+  }
+})
+
+const codexFixture = [
+  JSON.stringify({ type: 'thread.started', thread_id: 't1' }),
+  JSON.stringify({ type: 'turn.started' }),
+  JSON.stringify({
+    type: 'item.completed',
+    item: { type: 'command_execution', command: 'ls noodles-editor', aggregated_output: 'src\npackage.json', exit_code: 0 },
+  }),
+  JSON.stringify({
+    type: 'item.completed',
+    item: { type: 'agent_message', text: 'Added the scatterplot layer.' },
+  }),
+  JSON.stringify({
+    type: 'turn.completed',
+    last_agent_message: 'Added the scatterplot layer.',
+    usage: { input_tokens: 1000, cached_input_tokens: 200, output_tokens: 500, reasoning_output_tokens: 100 },
+  }),
+].join('\n')
+
+test('codex transcript: turns, usage, cost from the pinned price table', () => {
+  const parsed = parseCodexTranscript(codexFixture, 'gpt-5.6-luna')
+  assert.equal(parsed.turns, 1)
+  assert.equal(parsed.failed, false)
+  assert.equal(parsed.lastAgentMessage, 'Added the scatterplot layer.')
+  // luna: $1/M input (1000 + 200 cached), $6/M output (500 + 100 reasoning)
+  assert.ok(Math.abs((parsed.costUsd ?? 0) - (1200 * 1 + 600 * 6) / 1_000_000) < 1e-9)
+  // unpinned model -> tokens recorded, no cost invented
+  assert.equal(parseCodexTranscript(codexFixture, 'gpt-7-unknown').costUsd, null)
+})
+
+test('codex transcript renders for the judge with stable labels', () => {
+  const rendered = renderTranscript(codexFixture)
+  assert.match(rendered, /L1: \[system] session started \(codex exec/)
+  assert.match(rendered, /\[tool_use command] ls noodles-editor/)
+  assert.match(rendered, /\[tool_result] src/)
+  assert.match(rendered, /\[assistant] Added the scatterplot layer\./)
+  // claude-format transcripts still render identically
+  const claude = JSON.stringify({ type: 'assistant', message: { content: [{ type: 'text', text: 'hi' }] } })
+  assert.match(renderTranscript(claude), /L1: \[assistant] hi/)
+})
+
+test('codex transcript: turn.failed marks the run failed', () => {
+  const failed = `${JSON.stringify({ type: 'turn.failed', error: { message: 'context limit' } })}\n`
+  assert.equal(parseCodexTranscript(failed, 'gpt-5.6-sol').failed, true)
 })
 
 // ---- step-5 task goldens: validity + custom-check polarity ----

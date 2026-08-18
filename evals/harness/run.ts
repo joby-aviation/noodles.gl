@@ -7,7 +7,7 @@
 
 import * as fs from 'node:fs'
 import * as path from 'node:path'
-import { RESULTS_ROOT, TASKS_ROOT, TIER, VALIDATOR_VERSION, assertProviderEnv } from './lib/config'
+import { RESULTS_ROOT, TASKS_ROOT, TIER, VALIDATOR_VERSION, assertProviderEnv, providerFor } from './lib/config'
 import { loadAndScreenshot } from './lib/playwright-check'
 import { CUSTOM_CHECKS } from './lib/task-checks'
 import { type KeyEntry, scoreAnswers } from './lib/matchers'
@@ -54,7 +54,7 @@ export async function runOne(args: {
   keepWorkspace?: boolean
   port: number
 }): Promise<string> {
-  assertProviderEnv()
+  assertProviderEnv(args.model)
   const task = loadTask(args.task)
   const modelSlug = args.model.replace(/^(us\.)?anthropic\./, '')
   const runId = `${task.id}--${modelSlug}--s${args.sessionIndex}`
@@ -233,9 +233,9 @@ export async function runOne(args: {
       taskVersion: task.taskVersion,
       tier: TIER,
       commit,
-      sessionModel: args.model, // Bedrock id, verbatim
-      provider: 'bedrock',
-      region: process.env.AWS_REGION,
+      sessionModel: args.model, // provider model id, verbatim
+      provider: providerFor(args.model),
+      region: providerFor(args.model) === 'bedrock' ? process.env.AWS_REGION : null,
       budget: task.budget,
       numTurns: session.numTurns,
       durationMs: session.durationMs,

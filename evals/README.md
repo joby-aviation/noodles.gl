@@ -32,25 +32,41 @@ evals/
 (plain Node + `tsx` only; the registry comes from the TS-compiler-API parser
 in `noodles-editor/scripts/parse-operators.ts`).
 
-## Provider
+## Providers
 
-The season runs on **AWS Bedrock**. Model pins live in
-`harness/lib/config.ts` and are recorded verbatim in every results row —
-they are `us.`-prefixed cross-region inference-profile ids (raw model ids
-404 on invocation): sessions under test `us.anthropic.claude-sonnet-4-6` /
-`us.anthropic.claude-sonnet-5` / `us.anthropic.claude-opus-4-8` (the T0
-baseline runs all three; cross-tier claims only ever compare within one
-session model), judge `us.anthropic.claude-opus-4-8`, small-fast
-`us.anthropic.claude-haiku-4-5-20251001-v1:0`.
+Season 2 measures **two providers**; the provider is derived per model id
+(`providerFor` in `harness/lib/config.ts`) and recorded per results row.
+Model pins live in `harness/lib/config.ts` and are recorded verbatim.
 
-`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and `AWS_REGION` must be set
-(plus `AWS_SESSION_TOKEN` for temporary credentials): the harness fails fast
-listing whichever are missing, never prompts, and never falls back to the
-Anthropic API. Sessions are spawned through the `claude` CLI with
-`CLAUDE_CODE_USE_BEDROCK=1`; judge calls use the classic `AnthropicBedrock`
-client from `@anthropic-ai/bedrock-sdk` (the `AnthropicBedrockMantle`
-endpoint does not serve the pinned models in this account/region — see the
-journal).
+**Anthropic via AWS Bedrock** — `us.`-prefixed cross-region
+inference-profile ids (raw model ids 404 on invocation):
+`us.anthropic.claude-sonnet-4-6` / `us.anthropic.claude-sonnet-5` /
+`us.anthropic.claude-opus-4-8` / `us.anthropic.claude-fable-5`. Sessions are
+spawned through the `claude` CLI with `CLAUDE_CODE_USE_BEDROCK=1`; judge
+(`us.anthropic.claude-opus-4-8` — kept for continuity with season 1 and so
+Fable never grades itself) and small-fast
+(`us.anthropic.claude-haiku-4-5-20251001-v1:0`) use the classic
+`AnthropicBedrock` client from `@anthropic-ai/bedrock-sdk` (the
+`AnthropicBedrockMantle` endpoint does not serve the pinned models in this
+account/region — see the journal). Requires `AWS_ACCESS_KEY_ID`,
+`AWS_SECRET_ACCESS_KEY`, `AWS_REGION` (plus `AWS_SESSION_TOKEN` for
+temporary credentials).
+
+**OpenAI via Codex CLI** — the GPT-5.6 family: `gpt-5.6-sol` /
+`gpt-5.6-terra` / `gpt-5.6-luna`. Sessions are spawned through the pinned
+`@openai/codex` devDependency (`codex exec --json --skip-git-repo-check
+--dangerously-bypass-approvals-and-sandbox --ephemeral
+--ignore-user-config`); the raw JSONL event stream is the frozen transcript
+and `renderTranscript` renders both formats for the judge. Codex reports
+tokens, not dollars — `costUsd` is computed from the pinned
+`OPENAI_PRICING_PER_MTOK` table. Requires `OPENAI_API_KEY` (mapped to
+`CODEX_API_KEY` for the child). Budget note: `codex exec` has no turn cap,
+so the turn budget is enforced as wall-clock only; turns are still counted
+from `turn.completed` events and recorded.
+
+Either way the harness fails fast listing whichever env vars are missing,
+never prompts, and never falls back to another provider. Cross-tier claims
+only ever compare within one session model.
 
 ## Running
 

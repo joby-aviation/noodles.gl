@@ -9,7 +9,7 @@
 import { execFileSync } from 'node:child_process'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
-import { JUDGE_MODEL, JUDGE_SAMPLES, PROVIDER, REPO_ROOT, RESULTS_ROOT, TASKS_ROOT, assertProviderEnv } from './lib/config'
+import { JUDGE_MODEL, JUDGE_SAMPLES, REPO_ROOT, RESULTS_ROOT, TASKS_ROOT, assertProviderEnv } from './lib/config'
 import { buildJudgePrompt, judgeOnce, type JudgeSample } from './lib/judge'
 import { AnthropicBedrock } from '@anthropic-ai/bedrock-sdk'
 import { type KeyEntry } from './lib/matchers'
@@ -243,7 +243,8 @@ export async function gradeRun(series: string, runId: string, samples: number, r
     rubricVersion: rubric.rubricVersion,
     judgeModel: JUDGE_MODEL,
     sessionModel: String(run.meta.sessionModel),
-    provider: PROVIDER,
+    // Per-run: season 2 mixes bedrock (claude CLI) and openai (codex CLI).
+    provider: String(run.meta.provider ?? 'bedrock'),
     region: String(run.meta.region),
     isolationAudit: (run.meta.isolationAudit as { pass: boolean })?.pass ? 'pass' : 'fail',
     scores: {
