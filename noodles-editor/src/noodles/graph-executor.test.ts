@@ -1358,6 +1358,73 @@ describe('buildFromEdges self-parameter filtering', () => {
     expect(executor.getEdges()).toHaveLength(1)
     expect(executor.getEdges()[0]).toEqual({ source: '/op1', target: '/op2' })
   })
+
+  it('skips a child reading its enclosing container param (false cycle with the bridge edge)', () => {
+    // op('/box').par.minMagnitude in a container child materializes as a
+    // reference edge /box(par.minMagnitude) -> /box/child. Together with the
+    // child -> GraphOutput -> /box bridge edge that would be a dependency
+    // cycle pull() recurses on forever; the param read must stay a
+    // field-layer subscription only.
+    const executor = new GraphExecutor()
+    for (const id of ['/box', '/box/child', '/box/output']) {
+      executor.addNode(new NumberOp(id))
+    }
+
+    executor.buildFromEdges([
+      {
+        id: '/box.par.minMagnitude->/box/child.par.code',
+        source: '/box',
+        target: '/box/child',
+        sourceHandle: 'par.minMagnitude',
+        targetHandle: 'par.code',
+      },
+      {
+        id: '/box/child.out.data->/box/output.par.value',
+        source: '/box/child',
+        target: '/box/output',
+        sourceHandle: 'out.data',
+        targetHandle: 'par.value',
+      },
+      {
+        id: '/box/output.out.propagatedValue->/box.out.out',
+        source: '/box/output',
+        target: '/box',
+        sourceHandle: 'out.propagatedValue',
+        targetHandle: 'out.out',
+      },
+    ])
+
+    // The param reference is dropped from the dependency graph; the two
+    // bridge edges stay, and the result is acyclic.
+    expect(executor.getEdges()).toHaveLength(2)
+    expect(executor.getUpstream('/box/child').has('/box')).toBe(false)
+    expect(executor.getUpstream('/box').has('/box/output')).toBe(true)
+    const { sorted, cycles } = topologicalSort(
+      new Map(['/box', '/box/child', '/box/output'].map(id => [id, { id } as never])),
+      executor.getEdges().map(e => ({ ...e, sourceHandle: '', targetHandle: '' }) as never)
+    )
+    expect(cycles).toEqual([])
+    expect(sorted).toEqual(['/box/child', '/box/output', '/box'])
+  })
+
+  it('keeps a param reference to a non-enclosing operator as a dependency edge', () => {
+    const executor = new GraphExecutor()
+    executor.addNode(new NumberOp('/threshold'))
+    executor.addNode(new NumberOp('/reader'))
+
+    executor.buildFromEdges([
+      {
+        id: '/threshold.par.val->/reader.par.code',
+        source: '/threshold',
+        target: '/reader',
+        sourceHandle: 'par.val',
+        targetHandle: 'par.code',
+      },
+    ])
+
+    expect(executor.getEdges()).toHaveLength(1)
+    expect(executor.getUpstream('/reader').has('/threshold')).toBe(true)
+  })
 })
 
 describe('ForLoop execution via GraphExecutor.executeFrame()', () => {
