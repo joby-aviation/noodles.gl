@@ -1368,8 +1368,7 @@ describe('derived reference edges (unmounted nodes)', () => {
     const { getOp } = getOpStore()
     const box = getOp('/box')!
     const child = getOp('/box/child')!
-    const deps = (child as unknown as { _upstreamDependencies: Set<unknown> })
-      ._upstreamDependencies
+    const deps = (child as unknown as { _upstreamDependencies: Set<unknown> })._upstreamDependencies
     expect(deps.has(box)).toBe(false)
     // The field-layer subscription for the derived reference edge remains.
     expect(child.inputs.code.subscriptions.has('/box.par.minMagnitude->/box/child.par.code')).toBe(
