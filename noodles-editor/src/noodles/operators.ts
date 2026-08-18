@@ -3567,6 +3567,46 @@ export class MapViewStateOp extends Operator<MapViewStateOp> {
   }
 }
 
+export class PointViewStateOp extends Operator<PointViewStateOp> {
+  static displayName = 'PointViewState'
+  static description = 'Create a map view state centered on a geographic point.'
+  createInputs() {
+    return {
+      point: new Point2DField(),
+      zoom: new NumberField(12, { min: 0, max: 24, step: 0.1 }),
+      pitch: new NumberField(0, { min: 0, max: 85, optional: true }),
+      bearing: new NumberField(0, { optional: true }),
+    }
+  }
+  createOutputs() {
+    return {
+      viewState: new CompoundPropsField({
+        longitude: new NumberField(),
+        latitude: new NumberField(),
+        zoom: new NumberField(),
+        pitch: new NumberField(),
+        bearing: new NumberField(),
+      }),
+    }
+  }
+  execute({
+    point,
+    zoom,
+    pitch,
+    bearing,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const viewState = {
+      longitude: point.lng,
+      latitude: point.lat,
+      zoom,
+      pitch,
+      bearing,
+    }
+    validateViewState(viewState)
+    return { viewState }
+  }
+}
+
 export class SplitMapViewStateOp extends Operator<SplitMapViewStateOp> {
   static displayName = 'SplitMapViewState'
   static description = 'Split a viewState object into its individual components.'
@@ -9520,6 +9560,7 @@ export const opTypes = {
   PointGridOp,
   PointInPolygonOp,
   PointOp,
+  PointViewStateOp,
   PolygonLayerOp,
   PolygonToLineOp,
   ProjectOp,
