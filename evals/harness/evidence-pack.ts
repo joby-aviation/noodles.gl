@@ -50,7 +50,8 @@ export function buildEvidencePack(opts: Options): string[] {
   const rubricFile = task.grader.rubric
   const rubricRaw = fs.readFileSync(path.join(RUBRICS_ROOT, rubricFile), 'utf-8')
   const blocks = opts.rubricDims.map(dim => {
-    const match = rubricRaw.match(new RegExp(`^  ${dim}:\\n(?:^(?:    .*|)\\n?)*`, 'm'))
+    const dimEscaped = dim.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const match = rubricRaw.match(new RegExp(`^  ${dimEscaped}:\\n(?:^(?:    .*|)\\n?)*`, 'm'))
     if (!match) throw new Error(`dimension "${dim}" not found in ${rubricFile}`)
     return match[0].trimEnd()
   })

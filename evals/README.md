@@ -93,8 +93,9 @@ npm run evidence-pack -- --series <series> --fail <runId> --pass <runId> [--out 
 ```
 
 Workspaces are built under `/tmp/noodles-evals` (override: `EVALS_WORK_ROOT`)
-from a `git archive origin/main` extraction — no `.git`, so a session can't
-reach other branches — with the dogfooding artifacts stripped defensively
+from a `git archive` extraction of `origin/main` (override the ref with
+`EVALS_WORKSPACE_REF`, e.g. `=HEAD` to measure a stack tip before it merges) —
+no `.git`, so a session can't reach other branches — with the dogfooding artifacts stripped defensively
 (`evals/`, `dev-docs/specs/agent-ready-docs/`, `skills/`, `.claude/skills`,
 AGENTS.md skill-pointer lines; 07 D7 / 04's eval-isolation note). A post-run
 isolation audit scans every tool call for the harness checkout, the spec dir,
