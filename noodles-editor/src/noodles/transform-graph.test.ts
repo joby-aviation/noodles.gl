@@ -1316,6 +1316,46 @@ describe('derived reference edges (unmounted nodes)', () => {
     expect(child.inputs.code.subscriptions.has(refEdgeId)).toBe(true)
   })
 
+  it('keeps an unmounted container child reactive through its derived reference', async () => {
+    const nodes = [
+      {
+        id: '/source',
+        type: 'NumberOp',
+        data: { inputs: { val: 200 } },
+        position: { x: 0, y: 0 },
+      },
+      { id: '/box', type: 'ContainerOp', data: { inputs: {} }, position: { x: 100, y: 0 } },
+      {
+        id: '/box/child',
+        type: 'CodeOp',
+        data: { inputs: { code: "return op('/source').out.val" } },
+        position: { x: 110, y: 0 },
+      },
+      { id: '/viewer', type: 'ViewerOp', data: { inputs: {} }, position: { x: 200, y: 0 } },
+    ]
+    const edges = [
+      {
+        id: '/box/child.out.data->/viewer.par.data',
+        source: '/box/child',
+        target: '/viewer',
+        sourceHandle: 'out.data',
+        targetHandle: 'par.data',
+      },
+    ]
+
+    transformGraph({ nodes, edges })
+    await getExecutor()!.executeFrame(performance.now())
+
+    const { getOp } = getOpStore()
+    const source = getOp('/source') as NumberOp
+    const viewer = getOp('/viewer')!
+    expect(viewer.inputs.data.value).toBe(200)
+
+    source.inputs.val.setValue(201)
+    await getExecutor()!.executeFrame(performance.now())
+    expect(viewer.inputs.data.value).toBe(201)
+  })
+
   it('derives edges for array-form code and mustache references, skipping unresolvable ones', () => {
     const nodes = [
       { id: '/a', type: 'NumberOp', data: { inputs: { val: 1 } }, position: { x: 0, y: 0 } },
