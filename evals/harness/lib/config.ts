@@ -86,6 +86,17 @@ export function assertProviderEnv(model?: string): void {
         'Set them and re-run; the harness does not fall back to another provider.'
     )
   }
+  // Temporary AWS credentials advertise their expiry — fail here with a clear
+  // message instead of letting every spawned session die with the SDK's
+  // "Could not load credentials from any providers" (cost of learning this
+  // the hard way: one dead smoke run, 2026-08-18).
+  const exp = process.env.AWS_CREDENTIAL_EXPIRATION
+  if (exp && !Number.isNaN(Date.parse(exp)) && Date.parse(exp) <= Date.now()) {
+    throw new Error(
+      `AWS session credentials expired at ${exp}. Refresh AWS_ACCESS_KEY_ID/` +
+        'AWS_SECRET_ACCESS_KEY/AWS_SESSION_TOKEN (and AWS_CREDENTIAL_EXPIRATION) and re-run.'
+    )
+  }
 }
 
 // Base environment for any spawned greenfield session: start clean of the

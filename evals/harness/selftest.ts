@@ -162,12 +162,19 @@ test('providerFor maps every pinned session model; unknown ids throw', () => {
 
 test('assertProviderEnv demands OPENAI_API_KEY only for codex models', () => {
   const saved = process.env.OPENAI_API_KEY
+  const savedExp = process.env.AWS_CREDENTIAL_EXPIRATION
   delete process.env.OPENAI_API_KEY
+  delete process.env.AWS_CREDENTIAL_EXPIRATION
   try {
     assertProviderEnv('us.anthropic.claude-fable-5') // bedrock env is set in CI/dev
     assert.throws(() => assertProviderEnv('gpt-5.6-sol'), /OPENAI_API_KEY/)
+    // expired temporary AWS creds fail fast with the refresh instruction
+    process.env.AWS_CREDENTIAL_EXPIRATION = '2020-01-01T00:00:00Z'
+    assert.throws(() => assertProviderEnv('us.anthropic.claude-fable-5'), /expired/)
   } finally {
     if (saved !== undefined) process.env.OPENAI_API_KEY = saved
+    if (savedExp !== undefined) process.env.AWS_CREDENTIAL_EXPIRATION = savedExp
+    else delete process.env.AWS_CREDENTIAL_EXPIRATION
   }
 })
 

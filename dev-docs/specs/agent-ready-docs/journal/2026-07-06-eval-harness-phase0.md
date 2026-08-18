@@ -629,3 +629,14 @@ restructure). Season 2 pins in config:
   verified end-to-end while the key is not yet provisioned.
 - Selftest grows 5 tests: provider mapping, per-provider env assertions, codex
   parse/usage/cost, dual-format rendering, turn.failed handling. All offline.
+
+### Round 8 addendum: smoke blocked on credentials, fail-fast hardened
+
+The Fable smoke (modify-arcs, 1 session) exercised the full season-2 pipeline — measured-ref
+template build, spawn, mechanical checks, isolation audit all ran — but the session itself
+died in 4s: this container's temporary AWS credentials expired 2026-07-06 (they are the
+season-1 creds). `assertProviderEnv` now checks `AWS_CREDENTIAL_EXPIRATION` and refuses with
+the refresh instruction instead of letting sessions die on the SDK's opaque "Could not load
+credentials from any providers"; the dead run was deleted (credential noise, not model
+evidence). Season 2 runs are blocked on: fresh AWS session credentials (Bedrock) and
+`OPENAI_API_KEY` (codex). Everything else is in place.
