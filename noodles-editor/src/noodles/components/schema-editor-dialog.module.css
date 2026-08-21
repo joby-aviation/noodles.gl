@@ -121,6 +121,44 @@
   border-top: 1px solid var(--surface-border);
 }
 
+.defaultValueRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-top: 8px;
+  border-top: 1px solid var(--surface-border);
+}
+
+.optionLabel {
+  min-width: 52px;
+  font-size: 0.75rem;
+  color: var(--text-color-secondary);
+}
+
+.defaultInput {
+  width: min(260px, 100%);
+}
+
+.vectorDefaultInputs,
+.dateTimeDefaultInputs {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+.vectorDefaultInputs label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.75rem;
+  color: var(--text-color-secondary);
+}
+
+.timezoneDropdown {
+  width: 220px;
+}
+
 .typeOptions label {
   display: flex;
   flex-direction: column;

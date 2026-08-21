@@ -17,6 +17,9 @@ import {
   useRef,
   useState,
 } from 'react'
+import { createPortal } from 'react-dom'
+
+import { BasemapGallery } from './basemap-gallery'
 
 const CodeiumEditor = lazy(() =>
   import('@codeium/react-code-editor').then(m => ({ default: m.CodeiumEditor }))
@@ -39,6 +42,7 @@ import {
   type FileUrlField,
   getFieldReferences,
   type IField,
+  ListField,
   type MapStyleField,
   type NumberField,
   Point2DField,
@@ -61,8 +65,9 @@ import { usePropertyHistory } from '../utils/property-history'
 import { ColorSwatch } from './color-swatch'
 import { ExpressionEditorOverlay } from './ExpressionEditorOverlay'
 import { GeocodingDialog } from './geocoding-dialog'
-import menuStyles from './menu.module.css'
 import { handleClass, useHandleDimmed } from './op-components'
+import { MultiInputHandle } from './multi-input-handle'
+import menuStyles from './menu.module.css'
 
 type InputComponent = React.ComponentType<{
   id: OpId
@@ -120,6 +125,137 @@ const formatText = (val: unknown) =>
       ? val
       : JSON.stringify(val, null, 2)
 
+function StringLiteralTypeaheadInput({
+  id,
+  field,
+  value,
+  onChange,
+  disabled,
+  captureStart,
+  commitChange,
+}: {
+  id: OpId
+  field: StringLiteralField
+  value: string
+  onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void
+  disabled: boolean
+  captureStart: () => void
+  commitChange: (message: string) => void
+}) {
+  const [localValue, setLocalValue] = useState(value)
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false)
+  const [position, setPosition] = useState({ top: 0, left: 0, width: 0 })
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    setLocalValue(value)
+  }, [value])
+
+  useEffect(() => {
+    if (suggestionsOpen && inputRef.current) {
+      const rect = inputRef.current.getBoundingClientRect()
+      setPosition({
+        top: rect.bottom,
+        left: rect.left,
+        width: rect.width,
+      })
+    }
+  }, [suggestionsOpen])
+
+  const onInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newValue = e.target.value
+    setLocalValue(newValue)
+    const syntheticEvent = {
+      ...e,
+      currentTarget: { value: newValue } as HTMLTextAreaElement,
+      target: { value: newValue } as HTMLTextAreaElement,
+    } as React.ChangeEvent<HTMLTextAreaElement>
+    onChange(syntheticEvent)
+  }
+
+  const onFocus = () => {
+    captureStart()
+    setSuggestionsOpen(true)
+  }
+
+  const onBlur = () => {
+    commitChange('Change value')
+    setTimeout(() => setSuggestionsOpen(false), 150)
+  }
+
+  const onSuggestionSelect = (selectedValue: string) => {
+    setLocalValue(selectedValue)
+    field.setValue(selectedValue)
+    commitChange('Change value')
+    setSuggestionsOpen(false)
+  }
+
+  const filteredSuggestions = field.choices.filter(
+    ({ value: v, label }) =>
+      v.toLowerCase().includes(localValue.toLowerCase()) ||
+      label.toLowerCase().includes(localValue.toLowerCase())
+  )
+
+  const showSuggestions = suggestionsOpen && filteredSuggestions.length > 0
+  const suggestionsId = `${id}-suggestions`
+
+  return (
+    <>
+      <input
+        ref={inputRef}
+        id={id}
+        type="text"
+        role="combobox"
+        aria-autocomplete="list"
+        aria-controls={suggestionsId}
+        aria-expanded={showSuggestions}
+        className={cx(s.fieldInput, s.fieldInputTypeahead)}
+        value={localValue}
+        onChange={onInputChange}
+        onFocus={onFocus}
+        onBlur={onBlur}
+        disabled={disabled}
+        placeholder="Type or select..."
+      />
+      {showSuggestions &&
+        createPortal(
+          <div
+            id={suggestionsId}
+            role="listbox"
+            className={s.stringLiteralSuggestions}
+            style={{
+              position: 'fixed',
+              top: `${position.top}px`,
+              left: `${position.left}px`,
+              width: `${position.width}px`,
+            }}
+          >
+            {filteredSuggestions.map(({ value: v, label }) => (
+              <div
+                key={v}
+                role="option"
+                tabIndex={-1}
+                aria-selected={v === localValue}
+                className={cx(s.stringLiteralSuggestion, {
+                  [s.stringLiteralSuggestionActive]: v === localValue,
+                })}
+                onMouseDown={event => {
+                  // Keep focus on the input so selecting an option cannot also
+                  // trigger the blur commit path.
+                  event.preventDefault()
+                  onSuggestionSelect(v)
+                }}
+              >
+                {label}
+              </div>
+            ))}
+          </div>,
+          document.body
+        )}
+    </>
+  )
+}
+
 export function TextFieldComponent({
   id,
   field,
@@ -151,27 +287,62 @@ export function TextFieldComponent({
 
   let input = null
   if (field instanceof StringLiteralField) {
-    // Select dropdown: capture before + commit after inline since change is atomic
-    const onSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-      captureStart()
-      onChange(e)
-      commitChange('Change value')
+    const useTypeahead = field.choices.length > 0 && field.freeform
+
+    if (useTypeahead) {
+      input = (
+        <StringLiteralTypeaheadInput
+          id={id}
+          field={field}
+          value={value}
+          onChange={onChange}
+          disabled={disabled}
+          captureStart={captureStart}
+          commitChange={commitChange}
+        />
+      )
+    } else if (field.choices.length > 0) {
+      // Select dropdown: capture before + commit after inline since change is atomic
+      const onSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        captureStart()
+        onChange(e)
+        commitChange('Change value')
+      }
+      input = (
+        <select
+          id={id}
+          className={cx(s.fieldInput, s.fieldInputSelect)}
+          value={value}
+          onChange={onSelectChange}
+          disabled={disabled}
+        >
+          {field.choices.map(({ label, value }) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </select>
+      )
+    } else {
+      // No choices - use plain text input
+      const lineCount = typeof value === 'string' ? value.split('\n').length : 1
+      input = (
+        <textarea
+          id={id}
+          className={cx(s.fieldInput, s.fieldTextarea)}
+          title={value}
+          value={value}
+          onFocus={captureStart}
+          onBlur={e => {
+            onChange(e)
+            commitChange('Change text')
+          }}
+          onChange={onChange}
+          disabled={disabled}
+          rows={lineCount}
+        />
+      )
     }
-    input = (
-      <select
-        id={id}
-        className={cx(s.fieldInput, s.fieldInputSelect)}
-        value={value}
-        onChange={onSelectChange}
-        disabled={disabled}
-      >
-        {field.choices.map(({ label, value }) => (
-          <option key={value} value={value}>
-            {label}
-          </option>
-        ))}
-      </select>
-    )
   } else {
     // Always use textarea - handles both single-line and multiline naturally
     const lineCount = typeof value === 'string' ? value.split('\n').length : 1
@@ -1020,6 +1191,15 @@ export function MapStyleFieldComponent({
     commitChange('Change map style')
   }
 
+  const [galleryOpen, setGalleryOpen] = useState(false)
+
+  const onGallerySelect = (val: string | object) => {
+    captureStart()
+    field.setValue(val)
+    setValue(typeof val === 'string' ? val : val)
+    commitChange('Change map style')
+  }
+
   const [replaceDialogOpen, setReplaceDialogOpen] = useState(false)
   const [pendingFile, setPendingFile] = useState<{ name: string; contents: Blob } | null>(null)
 
@@ -1128,6 +1308,13 @@ export function MapStyleFieldComponent({
             disabled={disabled || isObject}
           />
           <Button
+            icon="pi pi-images"
+            className={s.fieldInputUploadButton}
+            onClick={() => setGalleryOpen(true)}
+            title="Browse Basemaps"
+            size="small"
+          />
+          <Button
             icon="pi pi-upload"
             className={s.fieldInputUploadButton}
             onClick={onUpload}
@@ -1137,6 +1324,13 @@ export function MapStyleFieldComponent({
           />
         </div>
       </div>
+
+      <BasemapGallery
+        open={galleryOpen}
+        onOpenChange={setGalleryOpen}
+        onSelect={onGallerySelect}
+        currentValue={typeof value === 'string' ? value : undefined}
+      />
 
       <Dialog.Root open={replaceDialogOpen} onOpenChange={setReplaceDialogOpen}>
         <Dialog.Portal>
@@ -2483,13 +2677,22 @@ export function FieldComponent({
   return (
     <div style={{ position: 'relative' }}>
       {handle && (
-        <Handle
-          id={qualifiedFieldId}
-          className={cx(handleClass(field), { [s.handleDimmed]: isHandleDimmed })}
-          style={handleStyle}
-          type={handle.type}
-          position={Position.Left}
-        />
+        field instanceof ListField ? (
+          <MultiInputHandle
+            id={qualifiedFieldId}
+            field={field}
+            className={cx(handleClass(field), { [s.handleDimmed]: isHandleDimmed })}
+            style={handleStyle}
+          />
+        ) : (
+          <Handle
+            id={qualifiedFieldId}
+            className={cx(handleClass(field), { [s.handleDimmed]: isHandleDimmed })}
+            style={handleStyle}
+            type={handle.type}
+            position={Position.Left}
+          />
+        )
       )}
       {renderInput &&
         (hasIncomingConnection ? (

@@ -1,4 +1,13 @@
+import type { Edge as ReactFlowEdge, Node as ReactFlowNode } from '@xyflow/react'
+import type { RefObject } from 'react'
+
 // Common type definitions for the Noodles.gl codebase
+
+// Ref providing synchronous read access to the full graph state (all nodes/edges,
+// not just the currently displayed scope). Used by CopyControls, UndoRedoHandler,
+// and hooks that need the complete graph without triggering re-renders.
+// Uses the widest Node/Edge types since consumers only need base properties (id, type, position, etc).
+export type GraphRef = RefObject<{ nodes: ReactFlowNode[]; edges: ReactFlowEdge[] }>
 
 // Valid values for Deck.gl layer properties
 // Represents the common types that can be passed as layer props

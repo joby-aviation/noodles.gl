@@ -150,6 +150,30 @@
   background-color: rgba(251, 191, 36, 0.1);
 }
 
+/* Provider indicator shown after a place search */
+.providerBadge {
+  font-size: 0.8rem;
+  color: var(--color-text-secondary);
+  margin-bottom: 0.75rem;
+  opacity: 0.8;
+}
+
+.providerSettingsLink {
+  background: none;
+  border: none;
+  color: #3b82f6;
+  cursor: pointer;
+  font-size: inherit;
+  font-family: inherit;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.providerSettingsLink:hover {
+  color: #60a5fa;
+}
+
 /* Map Section */
 .mapContainer {
   margin-bottom: 1rem;

@@ -1,11 +1,13 @@
 import { getIncomers, type Node as ReactFlowNode } from '@xyflow/react'
 import { debugExecutor } from '../utils/debug'
+import { getFieldReferences, ListField } from './fields'
 import { type Edge as ExecutorEdge, updateGraph } from './graph-executor'
 import type { Edge } from './noodles'
 import type { IOperator, Operator, OpType } from './operators'
 import { ContainerOp, ForLoopEndOp, GraphInputOp, opTypes, type SpecialNodeType } from './operators'
 import { getOpStore } from './store'
 import { validateConnection } from './utils/can-connect'
+import { edgeId } from './utils/id-utils'
 import { getParentPath, isDirectChild, parseHandleId } from './utils/path-utils'
 import { computeVisibilityHeuristic } from './utils/visibility-heuristic'
 
@@ -92,12 +94,89 @@ function topologicalSort<N extends Operator<IOperator>>(
   return sortedNodes.reverse()
 }
 
+/** Reference edges derived from `op()` / mustache references inside
+ * string-valued inputs. The CodeField editor component keeps these in sync
+ * for MOUNTED nodes, but reference edges are never persisted and container
+ * children aren't mounted while collapsed — without this pass, a child whose
+ * only upstream link is an `op()` reference is invisible to the executor: it
+ * executes once before async upstream data arrives and never re-executes,
+ * silently producing empty output. Derived edges use the same id/handle
+ * shape as the component's, so the component's sync (which matches on
+ * target + targetHandle + sourceHandle) treats them as already present. */
+export function deriveReferenceEdges(
+  nodes: ReadonlyArray<{ id: string; data?: { inputs?: Record<string, unknown> } }>,
+  existingEdges: ReadonlyArray<{
+    source: string
+    sourceHandle?: string | null
+    target: string
+    targetHandle?: string | null
+  }>
+): Array<{
+  id: string
+  type: 'ReferenceEdge'
+  selectable: false
+  deletable: false
+  focusable: false
+  reconnectable: false
+  source: string
+  sourceHandle: string
+  target: string
+  targetHandle: string
+}> {
+  const nodeIds = new Set(nodes.map(n => n.id))
+  const seen = new Set(
+    existingEdges.map(e => `${e.source}.${e.sourceHandle}->${e.target}.${e.targetHandle}`)
+  )
+  const derived: Array<Record<string, unknown>> = []
+  for (const node of nodes) {
+    for (const [fieldName, value] of Object.entries(node.data?.inputs ?? {})) {
+      const text = Array.isArray(value)
+        ? value.filter((v): v is string => typeof v === 'string').join('\n')
+        : typeof value === 'string'
+          ? value
+          : null
+      // Cheap prefilter — reference syntaxes are `op('...')` and `{{...}}`.
+      if (!text || !(text.includes('op(') || text.includes('{{'))) continue
+      for (const ref of getFieldReferences(text, node.id)) {
+        if (!nodeIds.has(ref.opId)) continue
+        const connection = {
+          source: ref.opId,
+          sourceHandle: ref.handleId,
+          target: node.id,
+          targetHandle: `par.${fieldName}`,
+        }
+        const key = `${connection.source}.${connection.sourceHandle}->${connection.target}.${connection.targetHandle}`
+        if (seen.has(key)) continue
+        seen.add(key)
+        derived.push({
+          id: edgeId(connection),
+          type: 'ReferenceEdge',
+          selectable: false,
+          deletable: false,
+          focusable: false,
+          reconnectable: false,
+          ...connection,
+        })
+      }
+    }
+  }
+  return derived
+}
+
 export function transformGraph<
   OP extends Operator<IOperator>,
   E extends Edge<OP, OP>,
   T extends OpType,
->({ nodes: _nodes, edges }: { nodes: NodeJSON<unknown>[]; edges: E[] }): OP[] {
+>({ nodes: _nodes, edges: _edges }: { nodes: NodeJSON<unknown>[]; edges: E[] }): OP[] {
   const nodes = _nodes.filter(n => opTypes[n.type as T] !== undefined) as NodeJSON<OpType>[]
+  // Reference edges for every node — mounted or not (see deriveReferenceEdges).
+  const edges = [
+    ..._edges,
+    ...(deriveReferenceEdges(
+      _nodes as ReadonlyArray<{ id: string; data?: { inputs?: Record<string, unknown> } }>,
+      _edges
+    ) as unknown as E[]),
+  ]
   const store = getOpStore()
 
   // Error about unknown node types — nodes present in the project file that aren't registered
@@ -203,7 +282,7 @@ export function transformGraph<
   })
 
   // Update dependency graph
-  updateGraph(edges as unknown as ExecutorEdge[])
+  updateGraph(_nodes, edges as unknown as ExecutorEdge[])
 
   // Remove any connections that are not in the edges array.
   // Also clear connection errors for removed edges.
@@ -281,11 +360,20 @@ export function transformGraph<
         }
       }
 
-      // Update operator dependencies for pull-based execution
-      // Skip self-references to parameters (not true cycles - output depends on input value)
-      const isSelfParameterReference = edge.source === edge.target && sourceNamespace === 'par'
+      // Update operator dependencies for pull-based execution.
+      // Skip parameter-sourced references that stay inside the operator they
+      // read: self-references, and a container child reading an enclosing
+      // container's promoted param (op('/parent').par.x). Reading an input
+      // value never requires executing its owner — and the owner's execution
+      // already encompasses the child — so as a pull dependency the edge
+      // closes a false cycle (parent → child → GraphOutput → parent) that
+      // _pullUpstreamDependencies recurses on until the stack overflows. The
+      // field connection added above still delivers param changes reactively.
+      const isEnclosedParameterReference =
+        sourceNamespace === 'par' &&
+        (edge.source === edge.target || edge.target.startsWith(`${edge.source}/`))
 
-      if (!isSelfParameterReference) {
+      if (!isEnclosedParameterReference) {
         sourceOp.addDownstreamDependent(targetOp)
         targetOp.addUpstreamDependency(sourceOp)
       }
@@ -296,6 +384,21 @@ export function transformGraph<
         edge.id,
         `Broken connection: source node "${edge.source}" no longer exists. This may be caused by a failed node rename.`
       )
+    }
+  }
+
+  // Sync ListField connection order to edge-array order. addConnection early-returns for
+  // already-connected ids and appends new ones at the Map end, so reused operators would
+  // otherwise keep stale order after edges are inserted mid-group or the array is reordered.
+  for (const op of instances) {
+    for (const [name, field] of Object.entries(op.inputs)) {
+      if (field instanceof ListField) {
+        field.setConnectionOrder(
+          edges
+            .filter(e => e.target === op.id && String(e.targetHandle) === `par.${name}`)
+            .map(e => e.id)
+        )
+      }
     }
   }
 

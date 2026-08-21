@@ -1,8 +1,10 @@
 import type { Node as ReactFlowNode } from '@xyflow/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { getExecutor } from './graph-executor'
 import type { Edge } from './noodles'
 import {
   type CodeOp,
+  type ConcatOp,
   type DeckRendererOp,
   type GeoJsonLayerOp,
   type IOperator,
@@ -10,8 +12,8 @@ import {
   NumberOp,
   type Operator,
 } from './operators'
-import { clearOps, getOpStore } from './store'
-import { transformGraph } from './transform-graph'
+import { clearOps, getOpStore, hasOp } from './store'
+import { deriveReferenceEdges, transformGraph } from './transform-graph'
 import { edgeId } from './utils/id-utils'
 
 describe('transform-graph topological sort with missing upstream nodes', () => {
@@ -270,6 +272,82 @@ describe('transform-graph stale edge and unknown type warnings', () => {
       String(call[0]).includes('Unknown operator type')
     )
     expect(unknownTypeErrors).toHaveLength(0)
+  })
+
+  it('passes visual group definitions to the executor for nested loop pairing', () => {
+    const nodes = [
+      {
+        id: '/outer-body',
+        type: 'group',
+        data: {},
+        position: { x: 0, y: 0 },
+      },
+      {
+        id: '/outer-begin',
+        type: 'ForLoopBeginOp',
+        data: { inputs: {} },
+        position: { x: 0, y: 0 },
+        parentId: '/outer-body',
+      },
+      {
+        id: '/outer-end',
+        type: 'ForLoopEndOp',
+        data: { inputs: {} },
+        position: { x: 900, y: 0 },
+        parentId: '/outer-body',
+      },
+      {
+        id: '/inner-body',
+        type: 'group',
+        data: {},
+        position: { x: 300, y: 100 },
+      },
+      {
+        id: '/inner-begin',
+        type: 'ForLoopBeginOp',
+        data: { inputs: {} },
+        position: { x: 0, y: 0 },
+        parentId: '/inner-body',
+      },
+      {
+        id: '/inner-end',
+        type: 'ForLoopEndOp',
+        data: { inputs: {} },
+        position: { x: 300, y: 0 },
+        parentId: '/inner-body',
+      },
+    ]
+    const edges = [
+      {
+        id: '/outer-begin.out.item->/inner-begin.par.data',
+        source: '/outer-begin',
+        target: '/inner-begin',
+        sourceHandle: 'out.item',
+        targetHandle: 'par.data',
+      },
+      {
+        id: '/inner-begin.out.item->/inner-end.par.item',
+        source: '/inner-begin',
+        target: '/inner-end',
+        sourceHandle: 'out.item',
+        targetHandle: 'par.item',
+      },
+      {
+        id: '/inner-end.out.data->/outer-end.par.item',
+        source: '/inner-end',
+        target: '/outer-end',
+        sourceHandle: 'out.data',
+        targetHandle: 'par.item',
+      },
+    ]
+
+    transformGraph({ nodes, edges })
+
+    const scopes = getExecutor()!.findForLoopScopes()
+    const outerScope = scopes.find(scope => scope.beginOp.id === '/outer-begin')!
+    const innerScope = scopes.find(scope => scope.beginOp.id === '/inner-begin')!
+    expect(outerScope.endOp.id).toBe('/outer-end')
+    expect(innerScope.endOp.id).toBe('/inner-end')
   })
 
   it('sets a connection error on the target operator when source node is missing', () => {
@@ -1160,5 +1238,308 @@ describe('connection error suppression for undefined source fields', () => {
 
     // Error should be cleared — source has no value, so we cannot confirm the mismatch
     expect(add.hasConnectionErrors()).toBe(false)
+  })
+})
+
+describe('GraphInputOp rebuildFromContainer keeps the container link alive', () => {
+  afterEach(() => {
+    clearOps()
+  })
+
+  it('still receives container.par.in updates after a custom-fields rebuild', () => {
+    // rebuildFromContainer used to recreate the parentValue field object,
+    // orphaning the container.par.in -> parentValue connection wired by
+    // transformGraph. Data arriving after any rebuild (async FileOp upstream
+    // of the container) then never reached the container's children.
+    const nodes = [
+      {
+        id: '/box',
+        type: 'ContainerOp',
+        data: {
+          inputs: {},
+          customInputs: [
+            { id: 'ci1', name: 'threshold', type: 'number', order: 0, defaultValue: 4 },
+          ],
+        },
+        position: { x: 0, y: 0 },
+      },
+      { id: '/box/input', type: 'GraphInputOp', data: { inputs: {} }, position: { x: 10, y: 0 } },
+    ]
+
+    transformGraph({ nodes, edges: [] })
+
+    const { getOp } = getOpStore()
+    const box = getOp('/box')!
+    const graphInput = getOp('/box/input')! as InstanceType<
+      typeof import('./operators')['GraphInputOp']
+    >
+
+    box.inputs.in.setValue([1, 2, 3])
+    expect(graphInput.inputs.parentValue.value).toEqual([1, 2, 3])
+
+    // Simulate what the customFieldsChanged subscription does on any later
+    // custom-field change.
+    graphInput.rebuildFromContainer(box as never)
+
+    box.inputs.in.setValue([4, 5, 6, 7])
+    expect(graphInput.inputs.parentValue.value).toEqual([4, 5, 6, 7])
+  })
+})
+
+describe('derived reference edges (unmounted nodes)', () => {
+  afterEach(() => {
+    clearOps()
+  })
+
+  it('wires an op() reference in a container child that has no persisted edge', () => {
+    // Reference edges are synced by the CodeField editor component, which never
+    // mounts for collapsed container children. transformGraph must derive them
+    // from the code text so the child re-executes when the referenced operator
+    // produces data (previously it executed once against undefined and went
+    // permanently stale — an empty layer with zero console errors).
+    const nodes = [
+      { id: '/num', type: 'NumberOp', data: { inputs: { val: 7 } }, position: { x: 0, y: 0 } },
+      { id: '/box', type: 'ContainerOp', data: { inputs: {} }, position: { x: 100, y: 0 } },
+      {
+        id: '/box/child',
+        type: 'CodeOp',
+        data: { inputs: { code: "return op('/num').out.val * 2" } },
+        position: { x: 110, y: 0 },
+      },
+    ]
+
+    transformGraph({ nodes, edges: [] })
+
+    const { getOp } = getOpStore()
+    const child = getOp('/box/child')!
+    const refEdgeId = '/num.out.val->/box/child.par.code'
+    expect(child.inputs.code.subscriptions.has(refEdgeId)).toBe(true)
+  })
+
+  it('derives edges for array-form code and mustache references, skipping unresolvable ones', () => {
+    const nodes = [
+      { id: '/a', type: 'NumberOp', data: { inputs: { val: 1 } }, position: { x: 0, y: 0 } },
+      {
+        id: '/code',
+        type: 'CodeOp',
+        data: {
+          inputs: {
+            code: ["const x = op('/a').out.val", "const y = op('/gone').out.val", 'return x'],
+          },
+        },
+        position: { x: 50, y: 0 },
+      },
+    ]
+    const derived = deriveReferenceEdges(nodes, [])
+    expect(derived).toHaveLength(1)
+    expect(derived[0]).toMatchObject({
+      id: '/a.out.val->/code.par.code',
+      type: 'ReferenceEdge',
+      source: '/a',
+      sourceHandle: 'out.val',
+      target: '/code',
+      targetHandle: 'par.code',
+    })
+  })
+
+  it('does not duplicate a reference edge the component already synced', () => {
+    const nodes = [
+      { id: '/a', type: 'NumberOp', data: { inputs: { val: 1 } }, position: { x: 0, y: 0 } },
+      {
+        id: '/code',
+        type: 'CodeOp',
+        data: { inputs: { code: "return op('/a').out.val" } },
+        position: { x: 50, y: 0 },
+      },
+    ]
+    const existing = [
+      {
+        id: '/a.out.val->/code.par.code',
+        type: 'ReferenceEdge',
+        source: '/a',
+        sourceHandle: 'out.val',
+        target: '/code',
+        targetHandle: 'par.code',
+      },
+    ]
+    expect(deriveReferenceEdges(nodes, existing)).toHaveLength(0)
+  })
+
+  it('does not make an enclosing-container param reference a pull dependency (false cycle)', () => {
+    // op('/box').par.minMagnitude inside /box/child derives the reference
+    // edge /box -> /box/child. With the child -> GraphOutput -> /box bridge
+    // edge that would be a pull-dependency cycle _pullUpstreamDependencies
+    // recurses on forever. The reference must stay a field-layer
+    // subscription without entering the operator dependency sets.
+    const nodes = [
+      {
+        id: '/box',
+        type: 'ContainerOp',
+        data: {
+          inputs: {},
+          customInputs: [
+            { id: 'ci1', name: 'minMagnitude', type: 'number', order: 0, defaultValue: 4 },
+          ],
+        },
+        position: { x: 0, y: 0 },
+      },
+      {
+        id: '/box/child',
+        type: 'CodeOp',
+        data: { inputs: { code: "return op('/box').par.minMagnitude" } },
+        position: { x: 10, y: 0 },
+      },
+      { id: '/box/output', type: 'GraphOutputOp', data: { inputs: {} }, position: { x: 20, y: 0 } },
+    ]
+    const edges = [
+      {
+        id: '/box/child.out.data->/box/output.par.value',
+        source: '/box/child',
+        target: '/box/output',
+        sourceHandle: 'out.data',
+        targetHandle: 'par.value',
+      },
+      {
+        id: '/box/output.out.propagatedValue->/box.out.out',
+        source: '/box/output',
+        target: '/box',
+        sourceHandle: 'out.propagatedValue',
+        targetHandle: 'out.out',
+      },
+    ]
+
+    transformGraph({ nodes, edges })
+
+    const { getOp } = getOpStore()
+    const box = getOp('/box')!
+    const child = getOp('/box/child')!
+    const deps = (child as unknown as { _upstreamDependencies: Set<unknown> })._upstreamDependencies
+    expect(deps.has(box)).toBe(false)
+    // The field-layer subscription for the derived reference edge remains.
+    expect(child.inputs.code.subscriptions.has('/box.par.minMagnitude->/box/child.par.code')).toBe(
+      true
+    )
+  })
+})
+
+describe('ListField connection order sync', () => {
+  afterEach(() => {
+    clearOps()
+  })
+
+  const numberNode = (id: string, val: number) => ({
+    id,
+    type: 'NumberOp',
+    data: { inputs: { val } },
+    position: { x: 0, y: 0 },
+  })
+
+  const concatNode = { id: '/concat', type: 'ConcatOp', data: {}, position: { x: 0, y: 0 } }
+
+  const listEdge = (source: string) => ({
+    id: edgeId({ source, target: '/concat', sourceHandle: 'out.val', targetHandle: 'par.values' }),
+    source,
+    target: '/concat',
+    sourceHandle: 'out.val',
+    targetHandle: 'par.values',
+  })
+
+  const connectionOrder = () => {
+    const concat = getOpStore().getOp('/concat') as ConcatOp
+    return Array.from(concat.inputs.values.fields.keys())
+  }
+
+  it('orders ListField connections by edge array order on first build', () => {
+    const nodes = [numberNode('/a', 1), numberNode('/b', 2), numberNode('/c', 3), concatNode]
+    const edges = [listEdge('/a'), listEdge('/b'), listEdge('/c')]
+
+    transformGraph({ nodes, edges })
+
+    expect(connectionOrder()).toEqual([listEdge('/a').id, listEdge('/b').id, listEdge('/c').id])
+  })
+
+  it('reorders existing connections when the edge array order changes', () => {
+    const nodes = [numberNode('/a', 1), numberNode('/b', 2), numberNode('/c', 3), concatNode]
+
+    transformGraph({ nodes, edges: [listEdge('/a'), listEdge('/b'), listEdge('/c')] })
+    // Same edge ids, different array order — operators are reused from the store, and
+    // addConnection alone would keep the stale Map order
+    transformGraph({ nodes, edges: [listEdge('/c'), listEdge('/a'), listEdge('/b')] })
+
+    expect(connectionOrder()).toEqual([listEdge('/c').id, listEdge('/a').id, listEdge('/b').id])
+  })
+
+  it('places a newly inserted mid-group edge at its array position', () => {
+    const nodes = [numberNode('/a', 1), numberNode('/b', 2), numberNode('/c', 3), concatNode]
+
+    transformGraph({ nodes, edges: [listEdge('/a'), listEdge('/c')] })
+    // /b inserted between /a and /c; addConnection would append it last
+    transformGraph({ nodes, edges: [listEdge('/a'), listEdge('/b'), listEdge('/c')] })
+
+    expect(connectionOrder()).toEqual([listEdge('/a').id, listEdge('/b').id, listEdge('/c').id])
+  })
+})
+
+describe('transform-graph container cascade deletion', () => {
+  afterEach(() => {
+    clearOps()
+  })
+
+  it('operator store is cleaned up when re-transforming without deleted container children', () => {
+    const nodes = [
+      { id: '/source', type: 'NumberOp', data: { inputs: {} }, position: { x: 0, y: 0 } },
+      { id: '/container', type: 'ContainerOp', data: { inputs: {} }, position: { x: 0, y: 0 } },
+      {
+        id: '/container/container-input',
+        type: 'GraphInputOp',
+        data: { inputs: {} },
+        position: { x: 0, y: 0 },
+      },
+      {
+        id: '/container/container-output',
+        type: 'GraphOutputOp',
+        data: { inputs: {} },
+        position: { x: 0, y: 0 },
+      },
+      { id: '/container/worker', type: 'MathOp', data: { inputs: {} }, position: { x: 0, y: 0 } },
+      { id: '/sink', type: 'MathOp', data: { inputs: {} }, position: { x: 0, y: 0 } },
+    ]
+    const edges = [
+      {
+        id: '/source.out.val->/container.par.in',
+        source: '/source',
+        target: '/container',
+        sourceHandle: 'out.val',
+        targetHandle: 'par.in',
+      },
+      {
+        id: '/container/container-input.out.parentValue->/container/worker.par.a',
+        source: '/container/container-input',
+        target: '/container/worker',
+        sourceHandle: 'out.parentValue',
+        targetHandle: 'par.a',
+      },
+    ]
+
+    transformGraph({ nodes, edges })
+
+    expect(hasOp('/container')).toBe(true)
+    expect(hasOp('/container/worker')).toBe(true)
+    expect(hasOp('/container/container-input')).toBe(true)
+    expect(hasOp('/container/container-output')).toBe(true)
+
+    // Re-transform without the container and its children (simulates cascade delete)
+    const remainingNodes = nodes.filter(n => !n.id.startsWith('/container'))
+    const remainingEdges = edges.filter(
+      e => !e.source.startsWith('/container') && !e.target.startsWith('/container')
+    )
+    transformGraph({ nodes: remainingNodes, edges: remainingEdges })
+
+    expect(hasOp('/container')).toBe(false)
+    expect(hasOp('/container/worker')).toBe(false)
+    expect(hasOp('/container/container-input')).toBe(false)
+    expect(hasOp('/container/container-output')).toBe(false)
+    expect(hasOp('/source')).toBe(true)
+    expect(hasOp('/sink')).toBe(true)
   })
 })
