@@ -433,3 +433,76 @@ describe('Context menu Disconnect all inputs', () => {
     expect(screen.getByText('Disconnect all inputs')).not.toBeDisabled()
   })
 })
+
+describe('Context menu expression actions', () => {
+  beforeEach(() => {
+    clearOps()
+    mockEdges = []
+  })
+
+  afterEach(() => {
+    cleanup()
+    clearOps()
+  })
+
+  it('shows "Add expression" for drivable fields and enters expression mode', () => {
+    transformGraph({
+      nodes: [{ id: '/num', type: 'NumberOp', position: { x: 0, y: 0 }, data: {} }],
+      edges: [],
+    })
+    renderNodeProperties('/num')
+    // NumberOp has both an input and an output named 'val'; inputs render first
+    const label = screen.getAllByText('val', { selector: 'span' })[0]
+    fireEvent.contextMenu(label.closest('[role="listitem"]')!)
+
+    const item = screen.getByText('Add expression')
+    expect(item).not.toBeDisabled()
+    fireEvent.click(item)
+
+    expect(getOp('/num')?.inputs.val.expression).toEqual('0')
+  })
+
+  it('shows "Remove expression" for driven fields and exits keeping the value', () => {
+    transformGraph({
+      nodes: [{ id: '/num', type: 'NumberOp', position: { x: 0, y: 0 }, data: {} }],
+      edges: [],
+    })
+    const field = getOp('/num')!.inputs.val
+    field.setExpression('40 + 2')
+    renderNodeProperties('/num')
+    // NumberOp has both an input and an output named 'val'; inputs render first
+    const label = screen.getAllByText('val', { selector: 'span' })[0]
+    fireEvent.contextMenu(label.closest('[role="listitem"]')!)
+
+    fireEvent.click(screen.getByText('Remove expression'))
+
+    expect(field.expression).toBeNull()
+    expect(field.value).toEqual(42)
+  })
+
+  it('disables the expression item for connected fields', () => {
+    const edges = [
+      {
+        id: '/src.out.val->/num.par.val',
+        source: '/src',
+        target: '/num',
+        sourceHandle: 'out.val',
+        targetHandle: 'par.val',
+      },
+    ]
+    transformGraph({
+      nodes: [
+        { id: '/src', type: 'NumberOp', position: { x: 0, y: 0 }, data: {} },
+        { id: '/num', type: 'NumberOp', position: { x: 100, y: 0 }, data: {} },
+      ],
+      edges,
+    })
+    mockEdges = edges
+    renderNodeProperties('/num')
+    // NumberOp has both an input and an output named 'val'; inputs render first
+    const label = screen.getAllByText('val', { selector: 'span' })[0]
+    fireEvent.contextMenu(label.closest('[role="listitem"]')!)
+
+    expect(screen.getByText('Add expression')).toBeDisabled()
+  })
+})

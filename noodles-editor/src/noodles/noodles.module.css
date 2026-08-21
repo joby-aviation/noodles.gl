@@ -1272,6 +1272,35 @@
   margin-left: 4px;
 }
 
+/* Per-field expression mode ("drivers") */
+/* Driven field input: monospace with a violet tint, like Blender's driver fields */
+.expressionDrivenInput {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: #c4b5fd;
+  background-color: rgba(139, 92, 246, 0.08);
+  border-color: rgba(139, 92, 246, 0.45);
+}
+
+.expressionDrivenInput:hover {
+  background-color: rgba(139, 92, 246, 0.14);
+}
+
+/* Compact live preview of the evaluated value */
+.expressionValueBadge {
+  flex: none;
+  max-width: 40%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 1px 4px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--color-text-secondary);
+  background-color: var(--color-bg-base);
+  border-radius: 3px;
+}
+
 .rerouteNode {
   width: 20px;
   height: 20px;

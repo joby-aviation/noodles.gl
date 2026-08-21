@@ -23,6 +23,7 @@ import {
   OUT_NS,
   type Vec2Field,
 } from '../fields'
+import { useObservable } from '../hooks/use-observable'
 import type { IOperator, OpType, Operator } from '../operators'
 import { OutOp } from '../operators'
 import { getOpStore, useNestingStore, useUIStore } from '../store'
@@ -39,9 +40,12 @@ import { ErrorBoundary } from './error-boundary'
 import {
   BooleanFieldComponent,
   ColorFieldComponent,
+  canFieldBeDriven,
   DateFieldComponent,
+  ExpressionDrivenInput,
   NumberFieldComponent,
   TextFieldComponent,
+  toggleFieldExpression,
   VectorFieldComponent,
 } from './field-components'
 import menuStyles from './menu.module.css'
@@ -267,6 +271,16 @@ function EditableFieldInput({
 }) {
   const { type } = field.constructor as typeof Field
 
+  // Expression-driven fields show the expression editor regardless of type.
+  // The canvas variant is safe here: the whole Layout — this panel included — renders
+  // inside timeline-editor's ReactFlowProvider (this file already relies on that via
+  // useReactFlow/useStore above), and it keeps reference edges synced when expressions
+  // are edited from the panel. Use ExpressionInputBase instead if that ever changes.
+  const expression = useObservable(field.expression$, field.expression)
+  if (expression !== null) {
+    return <ExpressionDrivenInput id={fieldName} field={field} disabled={disabled} />
+  }
+
   switch (type) {
     case 'number':
       // biome-ignore lint/suspicious/noExplicitAny: Type checked at runtime
@@ -416,6 +430,7 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
     listFieldInputName?: string // field name when it's a ListField with connections
     isVisible?: boolean // whether the field is currently shown
     hasConnection?: boolean // whether the field has an incoming edge
+    expressionField?: Field // field instance when expression mode can be toggled
   } | null>(null)
   const descriptionRef = useRef<HTMLDivElement>(null)
   const draggingRef = useRef<HTMLElement | null>(null)
@@ -574,6 +589,12 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
         input.field instanceof ListField && incomers.length > 0 ? input.name : undefined,
       isVisible: op.isFieldVisible(input.name),
       hasConnection: incomers.length > 0,
+      // Expression mode: drivable when the type allows it and nothing is wired in;
+      // always removable while driven
+      expressionField:
+        (canFieldBeDriven(input.field) && incomers.length === 0) || input.field.expression !== null
+          ? input.field
+          : undefined,
     })
   }
 
@@ -1138,6 +1159,20 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
                   }}
                 >
                   Reset to default
+                </button>
+                <button
+                  type="button"
+                  className={s.contextMenuItem}
+                  disabled={!contextMenu.expressionField}
+                  onClick={() => {
+                    if (!contextMenu.expressionField) return
+                    toggleFieldExpression(contextMenu.expressionField)
+                    setContextMenu(null)
+                  }}
+                >
+                  {contextMenu.expressionField?.expression != null
+                    ? 'Remove expression'
+                    : 'Add expression'}
                 </button>
                 <button
                   type="button"

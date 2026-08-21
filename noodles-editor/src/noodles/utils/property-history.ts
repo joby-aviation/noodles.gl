@@ -1,6 +1,6 @@
 import { useCallback, useRef } from 'react'
 import { debugHistory, debugHistorySnapshot } from '../../utils/debug'
-import type { IField } from '../fields'
+import { applySerializedFieldValue, type Field, type IField } from '../fields'
 import { getAllOps, getOpStore } from '../store'
 import type { OpId } from './id-utils'
 
@@ -22,7 +22,16 @@ export function captureOperatorInputs(): string | null {
   for (const op of ops) {
     const inputs: Record<string, unknown> = {}
     for (const [name, field] of Object.entries(op.inputs as Record<string, IField>)) {
-      if ('subscriptions' in field && (field as { subscriptions: Map<unknown, unknown> }).subscriptions.size > 0) continue
+      // Expression-driven fields serialize their (small) expression source, so include
+      // them even when reference connections have populated `subscriptions`
+      const isDriven =
+        'expression' in field && (field as { expression: string | null }).expression !== null
+      if (
+        !isDriven &&
+        'subscriptions' in field &&
+        (field as { subscriptions: Map<unknown, unknown> }).subscriptions.size > 0
+      )
+        continue
       inputs[name] = field.serialize()
     }
     state[op.id] = inputs
@@ -55,7 +64,8 @@ export function applyOperatorInputs(snapshot: string): void {
     for (const [name, value] of Object.entries(inputs)) {
       const field = opInputs[name]
       if (field) {
-        field.setValue(value)
+        // Routes { $expr } payloads to setExpression, plain values to setValue
+        applySerializedFieldValue(field as Field, value)
       }
     }
   }

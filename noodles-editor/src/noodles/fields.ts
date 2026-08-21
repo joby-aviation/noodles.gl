@@ -73,6 +73,28 @@ type CodeFieldOptions = BaseFieldOptions & {
   language?: 'javascript' | 'json' | 'sql'
 }
 
+// Serialized form of a field driven by an expression, e.g. { $expr: "op('/time').out.seconds * 2" }
+export type SerializedExpression = { $expr: string }
+
+export function isSerializedExpression(value: unknown): value is SerializedExpression {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    '$expr' in value &&
+    typeof (value as SerializedExpression).$expr === 'string'
+  )
+}
+
+// The expression engine (utils/field-expressions.ts) registers itself here so Field
+// doesn't import the evaluator directly — that would create an import cycle through
+// operators.ts (which needs fnWithSource, freeExports, and the op store).
+type FieldExpressionEvaluator = (field: Field) => void
+let fieldExpressionEvaluator: FieldExpressionEvaluator | null = null
+
+export function registerFieldExpressionEvaluator(evaluator: FieldExpressionEvaluator | null) {
+  fieldExpressionEvaluator = evaluator
+}
+
 // Field has a lot going on. It's both a type and a value. It's meant to be connected to
 // or own its own data, and it's meant to be able to interpolate over time. It's also meant
 // to be able to be serialized and deserialized. It's also meant to serve as a template for
@@ -119,6 +141,20 @@ export abstract class Field<
 
   // Allows this field to be used with Theatre, and debugging with zod
   pathToProps: string[] = []
+
+  // Expression mode ("drivers"): when set, the field's value is computed by evaluating
+  // a JavaScript expression instead of holding a literal. Null means literal mode.
+  expression$ = new BehaviorSubject<string | null>(null)
+
+  // Last evaluation error (null when the expression evaluated cleanly or in literal mode)
+  expressionError$ = new BehaviorSubject<string | null>(null)
+
+  // Teardown for engine-managed subscriptions (e.g. timeline reactivity); owned by the engine
+  expressionCleanup: (() => void) | null = null
+
+  get expression(): string | null {
+    return this.expression$.value
+  }
 
   constructor(initialValue?: z.input<S> | undefined | Partial<O>, options?: Partial<O>) {
     // This is fine since we set the value immediately after
@@ -232,6 +268,36 @@ export abstract class Field<
     }
   }
 
+  // Enter expression mode. The value becomes the result of evaluating `expr`;
+  // re-evaluation is triggered by reference connections (see addConnection) and,
+  // for timeline-dependent expressions, by the engine's timeline subscription.
+  setExpression(expr: string): void {
+    this.expressionCleanup?.()
+    this.expressionCleanup = null
+    this.expression$.next(expr)
+    if (fieldExpressionEvaluator) {
+      fieldExpressionEvaluator(this)
+    } else {
+      debugSetValue('%s: no expression evaluator registered', this.pathToProps.join('.'))
+    }
+  }
+
+  // Exit expression mode, keeping the last evaluated value as the new literal value
+  clearExpression(): void {
+    if (this.expression === null) return
+    this.expressionCleanup?.()
+    this.expressionCleanup = null
+    this.expression$.next(null)
+    this.expressionError$.next(null)
+  }
+
+  // Re-run the expression (no-op in literal mode)
+  evaluateExpression(): void {
+    if (this.expression !== null) {
+      fieldExpressionEvaluator?.(this)
+    }
+  }
+
   addConnection<F extends Field>(
     id: string,
     field: F,
@@ -244,6 +310,9 @@ export abstract class Field<
     const subscription = field.subscribe(value => {
       if (connectionType === 'value') {
         this.setValue(value)
+      } else if (this.expression !== null) {
+        // Reference feeding an expression-driven field: recompute the value
+        this.evaluateExpression()
       } else {
         this.next(this.value)
         // For reference connections, also mark dirty
@@ -273,6 +342,9 @@ export abstract class Field<
   // Override when the field's value is not the same as the serialized value.
   // e.g. CodeField should serialize the template string with handlebar references, not the resolved value.
   serialize() {
+    if (this.expression !== null) {
+      return { $expr: this.expression }
+    }
     return this.value
   }
 
@@ -1789,6 +1861,22 @@ export class BezierCurveField extends Field<z.ZodType<BezierCurveData>> {
 
 // Mapping of field type strings to Field class constructors
 // Used for creating custom fields dynamically
+// Apply a serialized value to a field, routing expression payloads ({ $expr }) to
+// setExpression and everything else through the field's normal deserialize + setValue path.
+// Used by project loading and undo/redo restore. Feature-detects the expression methods
+// since some callers pass minimal IField implementations (e.g. test mocks).
+export function applySerializedFieldValue(field: Field, value: unknown): void {
+  if (isSerializedExpression(value) && typeof field.setExpression === 'function') {
+    field.setExpression(value.$expr)
+    return
+  }
+  if (typeof field.clearExpression === 'function' && field.expression != null) {
+    field.clearExpression()
+  }
+  const ctor = field.constructor as typeof Field & { deserialize?: (value: unknown) => unknown }
+  field.setValue(typeof ctor.deserialize === 'function' ? ctor.deserialize(value) : value)
+}
+
 export const fieldTypeToClass = {
   number: NumberField,
   string: StringField,
