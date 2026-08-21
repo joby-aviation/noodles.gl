@@ -61,3 +61,7 @@ Fields that transform their input accept results in either form. A color field t
 ## Serialization
 
 Expressions are saved with the project as `{ "$expr": "..." }` payloads in the field's slot, and they round-trip through undo/redo and copy/paste.
+
+## Safe Mode
+
+Expressions are JavaScript, so they follow the same trust model as Code operators: loading a project with `?safeMode=true` skips expression evaluation. Driven fields keep their saved values and show a ⚠ indicator explaining that evaluation is disabled. The expressions themselves are preserved and run again once safe mode is off.

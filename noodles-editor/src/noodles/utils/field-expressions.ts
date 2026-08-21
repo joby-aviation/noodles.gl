@@ -21,6 +21,7 @@ import {
   registerFieldExpressionEvaluator,
   selfParMustacheRe,
 } from '../fields'
+import { safeMode } from '../globals'
 import { fnWithSource, freeExports } from '../operators'
 import { getOp } from '../store'
 import { getEnableExpressionDependencies } from './enable-expression-evaluator'
@@ -98,6 +99,12 @@ export function evaluateFieldExpression(field: Field): void {
   if (expr === null) return
   if (expr.trim() === '') {
     field.expressionError$.next(null)
+    return
+  }
+  // Field expressions are arbitrary JS, same trust model as CodeOp — safe mode must
+  // block them too. The field keeps its last value; the error explains why it's stale.
+  if (safeMode) {
+    field.expressionError$.next('Expression evaluation is disabled in safe mode')
     return
   }
   if (evaluating.has(field)) return
