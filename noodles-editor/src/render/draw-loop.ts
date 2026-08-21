@@ -18,8 +18,37 @@ interface UseDeckDrawLoopProps {
   props?: Partial<DeckProps>
 }
 
-const isDeckReady = (deck: Deck | null) =>
-  !deck || deck.props.layers.every(layer => !layer || (!Array.isArray(layer) && layer.isLoaded))
+const isDeckReady = (deck: Deck | null) => {
+  if (!deck) return true
+
+  const unloadedLayers = deck.props.layers.filter(
+    layer => layer && !Array.isArray(layer) && !layer.isLoaded
+  )
+
+  if (unloadedLayers.length > 0) {
+    // Check for layers in error state
+    const errorLayers = unloadedLayers.filter(layer => {
+      // Deck.gl layers have an internalState that tracks loading errors
+      // biome-ignore lint/suspicious/noExplicitAny: accessing deck.gl internal state
+      const state = (layer as any).internalState
+      return state?.loadOptions?.error || state?.asyncPropLoadError
+    })
+
+    if (errorLayers.length > 0) {
+      const errorDetails = errorLayers
+        .map(layer => {
+          // biome-ignore lint/suspicious/noExplicitAny: accessing deck.gl internal state
+          const state = (layer as any).internalState
+          const error = state?.loadOptions?.error || state?.asyncPropLoadError
+          return `${layer.id}: ${error?.message || error}`
+        })
+        .join('; ')
+      debugRender('deck has layers in error state (will never load): %s', errorDetails)
+    }
+  }
+
+  return deck.props.layers.every(layer => !layer || (!Array.isArray(layer) && layer.isLoaded))
+}
 
 export function useDeckDrawLoop({
   deck,
@@ -38,9 +67,24 @@ export function useDeckDrawLoop({
     async function drawPass() {
       try {
         let resolvePass: (value?: unknown) => void
-        const passPromise = new Promise(res => {
+        // biome-ignore lint/suspicious/noExplicitAny: Promise.reject accepts any error type
+        let rejectPass: (reason?: any) => void
+        const passPromise = new Promise((res, rej) => {
           resolvePass = res
+          rejectPass = rej
         })
+
+        // Timeout after 30 seconds to prevent infinite waiting
+        const cancelTimeout = workerSetTimeout(() => {
+          if (waitForData && !isDeckReady(deck)) {
+            const unloadedLayers =
+              deck?.props.layers.filter(
+                layer => layer && !Array.isArray(layer) && !layer.isLoaded
+              ) || []
+            const layerInfo = unloadedLayers.map(l => `${l.id} (${l.constructor.name})`).join(', ')
+            rejectPass(new Error(`Render timeout: layers did not load after 30s: ${layerInfo}`))
+          }
+        }, 30000)
 
         deck?.setProps({
           ...props,
@@ -51,7 +95,10 @@ export function useDeckDrawLoop({
               return // layers aren't loaded
             }
             // Use worker timer so the delay fires even when the tab is hidden.
-            workerSetTimeout(() => resolvePass(), captureDelay)
+            workerSetTimeout(() => {
+              cancelTimeout()
+              resolvePass()
+            }, captureDelay)
           },
         })
         // Pump Deck.gl's render directly via worker timer so onAfterRender fires even when
@@ -61,11 +108,13 @@ export function useDeckDrawLoop({
         try {
           await passPromise
         } finally {
+          cancelTimeout()
           cancelRedrawLoop()
         }
         captureFrame?.()
       } catch (e) {
         const error = e instanceof Error ? e : new Error(String(e))
+        console.error('[Noodles] Draw loop error:', error)
         debugRender('[useDeckDrawLoop] Error during drawing:', error)
         captureFrame?.({ error })
       }

@@ -145,7 +145,6 @@ export function parseHandleId(handleId: string):
     return undefined
   }
 
-  // Parse namespace.fieldName format
   if (handleId.startsWith('par.') || handleId.startsWith('out.')) {
     const [namespace, ...fieldParts] = handleId.split('.')
     const fieldName = fieldParts.join('.')

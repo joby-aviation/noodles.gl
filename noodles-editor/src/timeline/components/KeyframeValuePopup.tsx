@@ -3,6 +3,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { Point2DField, Point3DField, Vec2Field, Vec3Field } from '../../noodles/fields'
+import { getFieldFromTrackPath, keyframeValueToFieldValue } from '../field-bindings'
 import { captureTimelineState, fireTimelineMutation, useTimelineStore } from '../timeline-store'
 import type { Keyframe, KeyframeValue, Point2D, Point3D, RGBA, Vec2, Vec3 } from '../types'
 import s from './TimelinePanel.module.css'
@@ -296,7 +298,52 @@ export function KeyframeValuePopup({
   const handleValueChange = useCallback(
     (newValue: KeyframeValue) => {
       hasChangedRef.current = true
+
+      // Update keyframe in timeline store
       useTimelineStore.getState().updateKeyframe(trackId, keyframe.id, { value: newValue })
+
+      // Re-evaluate timeline at current position and apply to field
+      const timelineStore = useTimelineStore.getState()
+      const currentPosition = timelineStore.position
+      const evaluatedValue = timelineStore.evaluateTrack(trackId, currentPosition)
+
+      if (evaluatedValue !== undefined) {
+        const fieldInfo = getFieldFromTrackPath(trackId)
+
+        if (fieldInfo && !fieldInfo.operator.locked?.value) {
+          const { field, subPath } = fieldInfo
+
+          // Handle vec/point channel updates (e.g., "position / x")
+          if (
+            subPath &&
+            subPath.length > 0 &&
+            (field instanceof Vec2Field ||
+              field instanceof Vec3Field ||
+              field instanceof Point2DField ||
+              field instanceof Point3DField)
+          ) {
+            const channelKey = subPath[0]
+            const channelValue = evaluatedValue as number
+
+            // Update specific channel while preserving others
+            if (field.returnType === 'tuple') {
+              const channelKeys = (field.constructor as typeof Vec2Field).channelKeys
+              const idx = channelKeys.indexOf(channelKey as (typeof channelKeys)[number])
+              const tuple = [...(field.value as number[])]
+              tuple[idx] = channelValue
+              field.setValue(tuple as any)
+            } else {
+              field.setValue({ ...field.value, [channelKey]: channelValue } as any)
+            }
+          } else {
+            // Regular field update (not a vec/point channel)
+            const fieldValue = keyframeValueToFieldValue(field, evaluatedValue)
+            if (fieldValue !== undefined) {
+              field.setValue(fieldValue)
+            }
+          }
+        }
+      }
     },
     [trackId, keyframe.id]
   )

@@ -4,9 +4,10 @@ import type { Edge as ReactFlowEdge, Node as ReactFlowNode } from '@xyflow/react
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { clearOps, getOp, getOpStore, hasOp } from '../store'
 import { transformGraph } from '../transform-graph'
+import { remapPastedIds } from '../utils/copy-paste-utils'
 import { edgeId, nodeId } from '../utils/id-utils'
 import { createNodesForType } from '../utils/node-creation-utils'
-import { getBaseName } from '../utils/path-utils'
+import { getBaseName, getParentPath } from '../utils/path-utils'
 import { serializeNodes } from '../utils/serialization'
 // Import operators to ensure they're registered before tests run
 import '../operators'
@@ -74,7 +75,9 @@ function createTestGraph(options: TestGraphOptions = {}) {
       edges.push({ ...edge1, id: edgeId(edge1) }, { ...edge2, id: edgeId(edge2) })
     }
   } else {
-    // Container with children
+    // Container with children — matches real app behavior:
+    // Container children use path-based nesting (ID prefix), NOT ReactFlow's parentId.
+    // GraphInputOp and GraphOutputOp are auto-created with internal edges.
     nodes.push(
       {
         id: '/num1',
@@ -89,17 +92,27 @@ function createTestGraph(options: TestGraphOptions = {}) {
         data: { inputs: {} },
       },
       {
+        id: '/container/container-input',
+        type: 'GraphInputOp',
+        position: { x: -700, y: 0 },
+        data: { inputs: {} },
+      },
+      {
+        id: '/container/container-output',
+        type: 'GraphOutputOp',
+        position: { x: 0, y: 0 },
+        data: { inputs: {} },
+      },
+      {
         id: '/container/child1',
         type: 'MathOp',
         position: { x: 50, y: 50 },
-        parentId: '/container',
         data: { inputs: { operator: 'add', b: 10 } },
       },
       {
         id: '/container/child2',
         type: 'NumberOp',
         position: { x: 50, y: 150 },
-        parentId: '/container',
         data: { inputs: { val: 20 } },
       },
       {
@@ -110,21 +123,65 @@ function createTestGraph(options: TestGraphOptions = {}) {
       }
     )
 
+    // Internal container edges (same as createNodesForType produces)
+    const inEdge = {
+      source: '/container',
+      sourceHandle: 'par.in',
+      target: '/container/container-input',
+      targetHandle: 'par.parentValue',
+    }
+    const outEdge = {
+      source: '/container/container-output',
+      sourceHandle: 'out.propagatedValue',
+      target: '/container',
+      targetHandle: 'out.out',
+    }
+    edges.push({ ...inEdge, id: edgeId(inEdge) }, { ...outEdge, id: edgeId(outEdge) })
+
     if (nestedContainers) {
-      nodes.push({
-        id: '/container/nested',
-        type: 'ContainerOp',
-        position: { x: 50, y: 250 },
-        parentId: '/container',
-        data: { inputs: {} },
-      })
-      nodes.push({
-        id: '/container/nested/deepChild',
-        type: 'NumberOp',
-        position: { x: 50, y: 50 },
-        parentId: '/container/nested',
-        data: { inputs: { val: 100 } },
-      })
+      nodes.push(
+        {
+          id: '/container/nested',
+          type: 'ContainerOp',
+          position: { x: 50, y: 250 },
+          data: { inputs: {} },
+        },
+        {
+          id: '/container/nested/container-input',
+          type: 'GraphInputOp',
+          position: { x: -700, y: 0 },
+          data: { inputs: {} },
+        },
+        {
+          id: '/container/nested/container-output',
+          type: 'GraphOutputOp',
+          position: { x: 0, y: 0 },
+          data: { inputs: {} },
+        },
+        {
+          id: '/container/nested/deepChild',
+          type: 'NumberOp',
+          position: { x: 50, y: 50 },
+          data: { inputs: { val: 100 } },
+        }
+      )
+
+      const nestedInEdge = {
+        source: '/container/nested',
+        sourceHandle: 'par.in',
+        target: '/container/nested/container-input',
+        targetHandle: 'par.parentValue',
+      }
+      const nestedOutEdge = {
+        source: '/container/nested/container-output',
+        sourceHandle: 'out.propagatedValue',
+        target: '/container/nested',
+        targetHandle: 'out.out',
+      }
+      edges.push(
+        { ...nestedInEdge, id: edgeId(nestedInEdge) },
+        { ...nestedOutEdge, id: edgeId(nestedOutEdge) }
+      )
     }
 
     if (withConnections) {
@@ -175,13 +232,20 @@ function verifyGraphConsistency(nodes: ReactFlowNode[], edges: ReactFlowEdge[]) 
     expect(edge.id).toBe(edgeId(edge))
   }
 
-  // Every child node should have a valid parent
+  // Every child node should have a valid parent (either parentId-based or path-based)
   for (const node of nodes) {
     if (node.parentId) {
+      // parentId-based (ForLoop groups)
       const parent = nodes.find(n => n.id === node.parentId)
       expect(parent).toBeDefined()
-      // Parent can be either ContainerOp or group (ForLoop body)
       expect(['ContainerOp', 'group']).toContain(parent?.type)
+    }
+    // Path-based container children (e.g., /container/child)
+    const pathParent = getParentPath(node.id)
+    if (pathParent && pathParent !== '/') {
+      const parent = nodes.find(n => n.id === pathParent)
+      expect(parent).toBeDefined()
+      expect(parent?.type).toBe('ContainerOp')
     }
   }
 }
@@ -263,42 +327,14 @@ function renameNode(
   return { nodes: updatedNodes, edges: updatedEdges }
 }
 
-// Generate a unique node ID, checking both operators and existing React Flow nodes
-function uniqueNodeId(
-  baseName: string,
-  containerId: string | undefined,
-  existingNodeIds: Set<string>
-): string {
-  // First try the standard nodeId function
-  const newId = nodeId(baseName, containerId)
-
-  // If nodeId returned a unique ID that doesn't conflict with existing nodes, use it
-  if (!existingNodeIds.has(newId)) {
-    return newId
-  }
-
-  // Otherwise, find a unique variant by appending numbers
-  const containerPrefix = containerId?.startsWith('/') ? containerId : `/${containerId || ''}`
-  const pathPrefix = containerPrefix === '/' ? '/' : `${containerPrefix}/`
-
-  for (let i = 1; i < 100_000; i++) {
-    const candidatePath = pathPrefix === '/' ? `/${baseName}-${i}` : `${pathPrefix}${baseName}-${i}`
-    if (!existingNodeIds.has(candidatePath) && !hasOp(candidatePath)) {
-      return candidatePath
-    }
-  }
-
-  return newId // Fallback
-}
-
-// Simulates copy/paste operation
+// Simulates copy/paste: serializes nodes (clipboard), then calls the same
+// remapPastedIds utility used in production to deconflict IDs.
 function copyPasteNodes(
   nodesToCopy: ReactFlowNode[],
   edgesToCopy: ReactFlowEdge[],
   allNodes: ReactFlowNode[],
   currentContainerId?: string
 ): { nodes: ReactFlowNode[]; edges: ReactFlowEdge[] } {
-  // Serialize nodes (simulating clipboard)
   const store = getOpStore()
   const serialized = serializeNodes(
     store,
@@ -306,69 +342,14 @@ function copyPasteNodes(
     edgesToCopy
   )
 
-  // Sort nodes so parents come before children (ensures parent IDs are in idMap first)
-  const sortedNodes = [...serialized].sort((a, b) => {
-    // Group nodes (parents) should come first
-    if (a.type === 'group' && b.type !== 'group') return -1
-    if (b.type === 'group' && a.type !== 'group') return 1
-    // If one is the parent of the other, parent comes first
-    if (a.parentId === b.id) return 1
-    if (b.parentId === a.id) return -1
-    return 0
-  })
-
-  // Build set of existing node IDs (both operators and React Flow nodes like groups)
   const existingNodeIds = new Set(allNodes.map(n => n.id))
-
-  // Build a map of node types for looking up parent types
-  const nodeTypeMap = new Map(sortedNodes.map(n => [n.id, n.type]))
-
-  // Deserialize and deconflict IDs
-  const idMap = new Map<string, string>()
-
-  // First pass: generate new IDs and populate idMap
-  // ContainerOp children use the container ID as namespace
-  // Group (ForLoop body) children stay as siblings (same namespace as group)
-  for (const node of sortedNodes) {
-    const baseName = getBaseName(node.id).replace(/-\d+$/, '')
-
-    // Determine the containerId for generating the new ID
-    // - ContainerOp: children are namespaced under the container
-    // - group (ForLoop body): children are siblings, NOT namespaced under the group
-    let containerId = currentContainerId
-    if (node.parentId && idMap.has(node.parentId)) {
-      const parentType = nodeTypeMap.get(node.parentId)
-      // Only use parent as containerId for ContainerOp, not for group nodes
-      if (parentType === 'ContainerOp') {
-        containerId = idMap.get(node.parentId)
-      }
-    }
-
-    const newId = uniqueNodeId(baseName, containerId, existingNodeIds)
-    idMap.set(node.id, newId)
-    // Add new ID to existing set to avoid conflicts with subsequent nodes
-    existingNodeIds.add(newId)
-  }
-
-  // Second pass: create nodes with remapped parentIds
-  const pastedNodes = sortedNodes.map(node => {
-    const newId = idMap.get(node.id)!
-    const newParentId = node.parentId ? idMap.get(node.parentId) : undefined
-    return { ...node, id: newId, parentId: newParentId }
-  })
-
-  const pastedEdges = edgesToCopy.map(edge => {
-    const source = idMap.get(edge.source) || edge.source
-    const target = idMap.get(edge.target) || edge.target
-    return {
-      ...edge,
-      id: edgeId({ ...edge, source, target }),
-      source,
-      target,
-    }
-  })
-
-  return { nodes: pastedNodes, edges: pastedEdges }
+  const { nodes, edges } = remapPastedIds(
+    serialized,
+    edgesToCopy,
+    currentContainerId,
+    existingNodeIds
+  )
+  return { nodes, edges }
 }
 
 describe('Node Operations Integration Tests', () => {
@@ -505,7 +486,6 @@ describe('Node Operations Integration Tests', () => {
           id: '/container-1/child',
           type: 'NumberOp',
           position: { x: 50, y: 50 },
-          parentId: '/container-1',
           data: { inputs: { val: 1 } },
         },
         {
@@ -518,7 +498,6 @@ describe('Node Operations Integration Tests', () => {
           id: '/container-10/child',
           type: 'NumberOp',
           position: { x: 50, y: 50 },
-          parentId: '/container-10',
           data: { inputs: { val: 10 } },
         },
       ]
@@ -576,13 +555,13 @@ describe('Node Operations Integration Tests', () => {
       verifyGraphConsistency(allNodes, allEdges)
     })
 
-    it('copies a container and includes all children', () => {
+    it('copies a container and includes all children (path-based nesting)', () => {
       const { nodes, edges } = createTestGraph({ withContainer: true })
       transformGraph({ nodes, edges })
 
-      // Copy container (should auto-include children in real implementation)
+      // Copy container — children are found via path prefix, not parentId
       const container = nodes.find(n => n.id === '/container')!
-      const children = nodes.filter(n => n.parentId === '/container')
+      const children = nodes.filter(n => getParentPath(n.id) === container.id)
 
       const nodesToCopy = [container, ...children]
       const edgesToCopy = edges.filter(
@@ -607,15 +586,31 @@ describe('Node Operations Integration Tests', () => {
       expect(newContainer).toBeDefined()
       expect(newContainer?.id).not.toBe('/container')
 
-      // Verify children were copied
-      const newChildren = pastedNodes.filter(n => n.parentId === newContainer?.id)
-      expect(newChildren.length).toBe(2)
+      // Verify children were copied using path-based nesting
+      const newChildren = pastedNodes.filter(n => getParentPath(n.id) === newContainer?.id)
+      expect(newChildren.length).toBe(4) // GraphInputOp, GraphOutputOp, child1, child2
 
-      // Verify children have correct parent ID
+      // Verify children are namespaced under the new container
       for (const child of newChildren) {
-        expect(child.parentId).toBe(newContainer?.id)
         expect(child.id.startsWith(`${newContainer?.id}/`)).toBe(true)
       }
+
+      // Verify GraphInputOp and GraphOutputOp are included
+      const newGraphInput = newChildren.find(n => n.type === 'GraphInputOp')
+      const newGraphOutput = newChildren.find(n => n.type === 'GraphOutputOp')
+      expect(newGraphInput).toBeDefined()
+      expect(newGraphOutput).toBeDefined()
+
+      // Verify internal edges were remapped correctly
+      const inEdge = pastedEdges.find(e => e.targetHandle === 'par.parentValue')
+      expect(inEdge).toBeDefined()
+      expect(inEdge?.source).toBe(newContainer?.id)
+      expect(inEdge?.target).toBe(newGraphInput?.id)
+
+      const outEdge = pastedEdges.find(e => e.sourceHandle === 'out.propagatedValue')
+      expect(outEdge).toBeDefined()
+      expect(outEdge?.source).toBe(newGraphOutput?.id)
+      expect(outEdge?.target).toBe(newContainer?.id)
 
       verifyGraphConsistency(allNodes, allEdges)
     })
@@ -635,22 +630,24 @@ describe('Node Operations Integration Tests', () => {
 
       const { nodes: pastedNodes } = copyPasteNodes(nodesToCopy, edgesToCopy, nodes)
 
-      const _allNodes = [...nodes, ...pastedNodes]
-
-      // Find the new nested structure
-      const newContainer = pastedNodes.find(n => n.type === 'ContainerOp' && !n.parentId)
-      const newNested = pastedNodes.find(
-        n => n.type === 'ContainerOp' && n.parentId === newContainer?.id
+      // Find the new nested structure using path-based nesting
+      const newContainer = pastedNodes.find(
+        n => n.type === 'ContainerOp' && getParentPath(n.id) === '/'
       )
-      const newDeepChild = pastedNodes.find(n => n.parentId === newNested?.id)
-
       expect(newContainer).toBeDefined()
+
+      const newNested = pastedNodes.find(
+        n => n.type === 'ContainerOp' && getParentPath(n.id) === newContainer?.id
+      )
       expect(newNested).toBeDefined()
+
+      const newDeepChild = pastedNodes.find(
+        n => n.type === 'NumberOp' && getParentPath(n.id) === newNested?.id
+      )
       expect(newDeepChild).toBeDefined()
 
-      // Verify hierarchy
-      expect(newNested?.parentId).toBe(newContainer?.id)
-      expect(newDeepChild?.parentId).toBe(newNested?.id)
+      // Verify hierarchy via paths
+      expect(newNested?.id.startsWith(`${newContainer?.id}/`)).toBe(true)
       expect(newDeepChild?.id.startsWith(`${newNested?.id}/`)).toBe(true)
     })
 
@@ -862,31 +859,43 @@ describe('Node Operations Integration Tests', () => {
       const { nodes, edges } = createTestGraph({ withContainer: true })
       transformGraph({ nodes, edges })
 
-      // Copy container with children
+      // Copy container with children (path-based detection)
       const container = nodes.find(n => n.id === '/container')!
-      const children = nodes.filter(n => n.parentId === '/container')
+      const children = nodes.filter(n => getParentPath(n.id) === '/container')
       const nodesToCopy = [container, ...children]
+      const internalEdges = edges.filter(
+        e =>
+          (e.source === container.id || e.source.startsWith(`${container.id}/`)) &&
+          (e.target === container.id || e.target.startsWith(`${container.id}/`))
+      )
 
-      const { nodes: pastedNodes } = copyPasteNodes(nodesToCopy, [], nodes)
+      const { nodes: pastedNodes, edges: pastedEdges } = copyPasteNodes(
+        nodesToCopy,
+        internalEdges,
+        nodes
+      )
 
       const allNodes = [...nodes, ...pastedNodes]
-      transformGraph({ nodes: allNodes, edges })
+      const allEdges = [...edges, ...pastedEdges]
+      transformGraph({ nodes: allNodes, edges: allEdges })
 
       // Find pasted container
       const pastedContainer = pastedNodes.find(n => n.type === 'ContainerOp')!
 
       // Rename pasted container
-      const { nodes: renamedNodes } = renameNode(
+      const { nodes: renamedNodes, edges: renamedEdges } = renameNode(
         pastedContainer.id,
         'new-container',
         allNodes,
-        edges
+        allEdges
       )
 
-      transformGraph({ nodes: renamedNodes, edges })
+      transformGraph({ nodes: renamedNodes, edges: renamedEdges })
 
       // Verify renamed container and its children
       expect(hasOp('/new-container')).toBe(true)
+      expect(hasOp('/new-container/container-input')).toBe(true)
+      expect(hasOp('/new-container/container-output')).toBe(true)
       expect(hasOp('/new-container/child1')).toBe(true)
       expect(hasOp('/new-container/child2')).toBe(true)
 
@@ -1173,6 +1182,22 @@ describe('Node Operations Integration Tests', () => {
       expect(beginNode.parentId).toBe(groupNode.id)
       expect(endNode.parentId).toBe(groupNode.id)
       expect(metaNode.parentId).toBe(groupNode.id)
+    })
+
+    it('creates a unique visual group for each ForLoop', () => {
+      const first = createNodesForType('ForLoop', { x: 100, y: 100 }, '/')
+      transformGraph({ nodes: first.nodes as any, edges: first.edges as any })
+
+      const second = createNodesForType('ForLoop', { x: 200, y: 200 }, '/')
+
+      const firstGroup = first.nodes.find(n => n.type === 'group')!
+      const secondGroup = second.nodes.find(n => n.type === 'group')!
+      expect(secondGroup.id).not.toBe(firstGroup.id)
+
+      for (const child of second.nodes.filter(n => n.type !== 'group')) {
+        expect(child.parentId).toBe(secondGroup.id)
+        expect(child.parentId).not.toBe(firstGroup.id)
+      }
     })
 
     it('creates ForLoop child node IDs within the group namespace', () => {

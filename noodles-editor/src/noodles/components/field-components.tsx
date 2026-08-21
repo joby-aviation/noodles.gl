@@ -1,4 +1,3 @@
-import { CodeiumEditor } from '@codeium/react-code-editor'
 import type { OnMount } from '@monaco-editor/react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { Cross2Icon } from '@radix-ui/react-icons'
@@ -7,9 +6,27 @@ import cx from 'classnames'
 import type { ScaleLinear, ScaleOrdinal } from 'd3'
 import { Button } from 'primereact/button'
 import { InputText } from 'primereact/inputtext'
-import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import {
+  Fragment,
+  Suspense,
+  lazy,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
+import { createPortal } from 'react-dom'
+
+import { BasemapGallery } from './basemap-gallery'
+
+const CodeiumEditor = lazy(() =>
+  import('@codeium/react-code-editor').then(m => ({ default: m.CodeiumEditor }))
+)
 import { Temporal } from 'temporal-polyfill'
 import { getFieldPath } from '../../timeline/field-bindings'
+import { VectorKeyframeIndicator } from '../../timeline/components/KeyframeIndicator'
 import { useTimelineStore } from '../../timeline/timeline-store'
 import {
   type BezierCurveField,
@@ -25,19 +42,21 @@ import {
   type FileUrlField,
   getFieldReferences,
   type IField,
+  ListField,
+  type MapStyleField,
   type NumberField,
   Point2DField,
   Point3DField,
   StringLiteralField,
-  Vec2Field,
-  Vec3Field,
+  type Vec2Field,
+  type Vec3Field,
 } from '../fields'
 import { useFileSystemStore } from '../filesystem-store'
 import type { Edge as GraphEdge } from '../graph-executor'
 import type { Edge } from '../noodles'
 import s from '../noodles.module.css'
 import { getFriendlyErrorMessage, type IOperator, type Operator } from '../operators'
-import { checkAssetExists, writeAsset } from '../storage'
+import { checkAssetExists, getAssetFileHandle, writeAsset } from '../storage'
 import { useEdgeConnectionStore } from '../store'
 import { getExpressionContext } from '../utils/expression-context'
 import { projectScheme } from '../utils/filesystem'
@@ -46,8 +65,9 @@ import { usePropertyHistory } from '../utils/property-history'
 import { ColorSwatch } from './color-swatch'
 import { ExpressionEditorOverlay } from './ExpressionEditorOverlay'
 import { GeocodingDialog } from './geocoding-dialog'
-import menuStyles from './menu.module.css'
 import { handleClass, useHandleDimmed } from './op-components'
+import { MultiInputHandle } from './multi-input-handle'
+import menuStyles from './menu.module.css'
 
 type InputComponent = React.ComponentType<{
   id: OpId
@@ -80,6 +100,7 @@ export const inputComponents = {
   'geopoint-3d': VectorFieldComponent,
   layer: EmptyFieldComponent,
   list: EmptyFieldComponent,
+  'map-style': MapStyleFieldComponent,
   number: NumberFieldComponent,
   string: TextFieldComponent,
   'string-literal': TextFieldComponent,
@@ -103,6 +124,137 @@ const formatText = (val: unknown) =>
     : typeof val === 'string'
       ? val
       : JSON.stringify(val, null, 2)
+
+function StringLiteralTypeaheadInput({
+  id,
+  field,
+  value,
+  onChange,
+  disabled,
+  captureStart,
+  commitChange,
+}: {
+  id: OpId
+  field: StringLiteralField
+  value: string
+  onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void
+  disabled: boolean
+  captureStart: () => void
+  commitChange: (message: string) => void
+}) {
+  const [localValue, setLocalValue] = useState(value)
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false)
+  const [position, setPosition] = useState({ top: 0, left: 0, width: 0 })
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    setLocalValue(value)
+  }, [value])
+
+  useEffect(() => {
+    if (suggestionsOpen && inputRef.current) {
+      const rect = inputRef.current.getBoundingClientRect()
+      setPosition({
+        top: rect.bottom,
+        left: rect.left,
+        width: rect.width,
+      })
+    }
+  }, [suggestionsOpen])
+
+  const onInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newValue = e.target.value
+    setLocalValue(newValue)
+    const syntheticEvent = {
+      ...e,
+      currentTarget: { value: newValue } as HTMLTextAreaElement,
+      target: { value: newValue } as HTMLTextAreaElement,
+    } as React.ChangeEvent<HTMLTextAreaElement>
+    onChange(syntheticEvent)
+  }
+
+  const onFocus = () => {
+    captureStart()
+    setSuggestionsOpen(true)
+  }
+
+  const onBlur = () => {
+    commitChange('Change value')
+    setTimeout(() => setSuggestionsOpen(false), 150)
+  }
+
+  const onSuggestionSelect = (selectedValue: string) => {
+    setLocalValue(selectedValue)
+    field.setValue(selectedValue)
+    commitChange('Change value')
+    setSuggestionsOpen(false)
+  }
+
+  const filteredSuggestions = field.choices.filter(
+    ({ value: v, label }) =>
+      v.toLowerCase().includes(localValue.toLowerCase()) ||
+      label.toLowerCase().includes(localValue.toLowerCase())
+  )
+
+  const showSuggestions = suggestionsOpen && filteredSuggestions.length > 0
+  const suggestionsId = `${id}-suggestions`
+
+  return (
+    <>
+      <input
+        ref={inputRef}
+        id={id}
+        type="text"
+        role="combobox"
+        aria-autocomplete="list"
+        aria-controls={suggestionsId}
+        aria-expanded={showSuggestions}
+        className={cx(s.fieldInput, s.fieldInputTypeahead)}
+        value={localValue}
+        onChange={onInputChange}
+        onFocus={onFocus}
+        onBlur={onBlur}
+        disabled={disabled}
+        placeholder="Type or select..."
+      />
+      {showSuggestions &&
+        createPortal(
+          <div
+            id={suggestionsId}
+            role="listbox"
+            className={s.stringLiteralSuggestions}
+            style={{
+              position: 'fixed',
+              top: `${position.top}px`,
+              left: `${position.left}px`,
+              width: `${position.width}px`,
+            }}
+          >
+            {filteredSuggestions.map(({ value: v, label }) => (
+              <div
+                key={v}
+                role="option"
+                tabIndex={-1}
+                aria-selected={v === localValue}
+                className={cx(s.stringLiteralSuggestion, {
+                  [s.stringLiteralSuggestionActive]: v === localValue,
+                })}
+                onMouseDown={event => {
+                  // Keep focus on the input so selecting an option cannot also
+                  // trigger the blur commit path.
+                  event.preventDefault()
+                  onSuggestionSelect(v)
+                }}
+              >
+                {label}
+              </div>
+            ))}
+          </div>,
+          document.body
+        )}
+    </>
+  )
+}
 
 export function TextFieldComponent({
   id,
@@ -135,27 +287,62 @@ export function TextFieldComponent({
 
   let input = null
   if (field instanceof StringLiteralField) {
-    // Select dropdown: capture before + commit after inline since change is atomic
-    const onSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-      captureStart()
-      onChange(e)
-      commitChange('Change value')
+    const useTypeahead = field.choices.length > 0 && field.freeform
+
+    if (useTypeahead) {
+      input = (
+        <StringLiteralTypeaheadInput
+          id={id}
+          field={field}
+          value={value}
+          onChange={onChange}
+          disabled={disabled}
+          captureStart={captureStart}
+          commitChange={commitChange}
+        />
+      )
+    } else if (field.choices.length > 0) {
+      // Select dropdown: capture before + commit after inline since change is atomic
+      const onSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        captureStart()
+        onChange(e)
+        commitChange('Change value')
+      }
+      input = (
+        <select
+          id={id}
+          className={cx(s.fieldInput, s.fieldInputSelect)}
+          value={value}
+          onChange={onSelectChange}
+          disabled={disabled}
+        >
+          {field.choices.map(({ label, value }) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </select>
+      )
+    } else {
+      // No choices - use plain text input
+      const lineCount = typeof value === 'string' ? value.split('\n').length : 1
+      input = (
+        <textarea
+          id={id}
+          className={cx(s.fieldInput, s.fieldTextarea)}
+          title={value}
+          value={value}
+          onFocus={captureStart}
+          onBlur={e => {
+            onChange(e)
+            commitChange('Change text')
+          }}
+          onChange={onChange}
+          disabled={disabled}
+          rows={lineCount}
+        />
+      )
     }
-    input = (
-      <select
-        id={id}
-        className={cx(s.fieldInput, s.fieldInputSelect)}
-        value={value}
-        onChange={onSelectChange}
-        disabled={disabled}
-      >
-        {field.choices.map(({ label, value }) => (
-          <option key={value} value={value}>
-            {label}
-          </option>
-        ))}
-      </select>
-    )
   } else {
     // Always use textarea - handles both single-line and multiline naturally
     const lineCount = typeof value === 'string' ? value.split('\n').length : 1
@@ -398,10 +585,16 @@ export function VectorFieldComponent({
   id,
   field,
   disabled,
+  opId,
+  fieldName,
+  expandTimeline,
 }: {
   id: OpId
   field: Vec2Field | Vec3Field | Point2DField | Point3DField
   disabled: boolean
+  opId?: string
+  fieldName?: string
+  expandTimeline?: () => void
 }) {
   const [value, setValue] = useState<
     { [key: string]: number } | [number, number] | [number, number, number]
@@ -412,16 +605,7 @@ export function VectorFieldComponent({
   const isPointField = field instanceof Point2DField || field instanceof Point3DField
   const isPoint3D = field instanceof Point3DField
 
-  const keys =
-    field instanceof Point3DField
-      ? ['lng', 'lat', 'alt']
-      : field instanceof Point2DField
-        ? ['lng', 'lat']
-        : field instanceof Vec2Field
-          ? ['x', 'y']
-          : field instanceof Vec3Field
-            ? ['x', 'y', 'z']
-            : Object.keys(value)
+  const keys = (field.constructor as typeof Vec2Field).channelKeys ?? Object.keys(value)
 
   // Track the latest value in a ref for onCommit
   const latestValueRef = useRef(value)
@@ -500,7 +684,7 @@ export function VectorFieldComponent({
       <label className={s.fieldLabel} htmlFor={id}>
         {id}
       </label>
-      <div id={id} className={s.fieldInputWrapper}>
+      <div id={id} className={cx(s.fieldInputWrapper, s.fieldInputWrapperVector)}>
         {keys.map((key, i) => {
           const objectKey = field.returnType === 'tuple' ? i : key
           return (
@@ -529,6 +713,17 @@ export function VectorFieldComponent({
             disabled={disabled}
             severity="secondary"
             text
+          />
+        )}
+        {opId && fieldName && (
+          <VectorKeyframeIndicator
+            opId={opId}
+            fieldName={fieldName}
+            keys={keys}
+            value={value as Record<string | number, number>}
+            returnType={field.returnType}
+            disabled={disabled}
+            onKeyframeAdded={expandTimeline}
           />
         )}
       </div>
@@ -669,26 +864,41 @@ export function CodeFieldComponent({
   return (
     <div className={cx(s.fieldWrapper, s.fieldWrapperCode)} ref={containerRef}>
       <div className={s.fieldInputWrapperCodeEditor}>
-        <CodeiumEditor
-          language={field.language}
-          options={{
-            tabSize: 2,
-            scrollBeyondLastLine: false,
-            minimap: { enabled: false },
-            automaticLayout: true,
-            fixedOverflowWidgets: true,
-            scrollbar: {
-              vertical: 'visible',
-              horizontal: 'visible',
-            },
-          }}
-          theme="vs-dark"
-          width="100%"
-          height={nodeHeight - 80}
-          defaultValue={field.value}
-          onChange={handleEditorChange}
-          onMount={handleEditorDidMount}
-        />
+        <Suspense
+          fallback={
+            <textarea
+              style={{
+                width: '100%',
+                height: nodeHeight - 80,
+                background: '#1e1e1e',
+                color: '#d4d4d4',
+              }}
+              value={value}
+              onChange={e => field.setValue(e.target.value)}
+            />
+          }
+        >
+          <CodeiumEditor
+            language={field.language}
+            options={{
+              tabSize: 2,
+              scrollBeyondLastLine: false,
+              minimap: { enabled: false },
+              automaticLayout: true,
+              fixedOverflowWidgets: true,
+              scrollbar: {
+                vertical: 'visible',
+                horizontal: 'visible',
+              },
+            }}
+            theme="vs-dark"
+            width="100%"
+            height={nodeHeight - 80}
+            defaultValue={field.value}
+            onChange={handleEditorChange}
+            onMount={handleEditorDidMount}
+          />
+        </Suspense>
       </div>
     </div>
   )
@@ -725,6 +935,7 @@ export function FileUrlFieldComponent({
 }) {
   const [value, setValue] = useState(guardAccessorFallback(field.value))
   const { captureStart, commitChange } = usePropertyHistory()
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false)
 
   useEffect(() => {
     const sub = field.subscribe(newVal => {
@@ -747,7 +958,23 @@ export function FileUrlFieldComponent({
       field.setValue(val)
     }
     commitChange('Change file')
+    // Delay closing so a suggestion click registers first
+    setTimeout(() => setSuggestionsOpen(false), 150)
   }
+
+  const onSuggestionSelect = (val: string) => {
+    captureStart()
+    field.setValue(val)
+    setValue(val)
+    commitChange('Change file')
+    setSuggestionsOpen(false)
+  }
+
+  const filteredSuggestions = field.suggestions.filter(
+    ({ value: v, label }) =>
+      v.toLowerCase().includes(value.toLowerCase()) ||
+      label.toLowerCase().includes(value.toLowerCase())
+  )
 
   const [replaceDialogOpen, setReplaceDialogOpen] = useState(false)
   const [pendingFile, setPendingFile] = useState<{ name: string; contents: Blob } | null>(null)
@@ -783,6 +1010,19 @@ export function FileUrlFieldComponent({
 
     const exists = await checkAssetExists(activeStorageType, currentProjectName, file.name)
     if (exists) {
+      // If the user picked the exact same file already in the data directory, just use it
+      const existingHandle = await getAssetFileHandle(
+        activeStorageType,
+        currentProjectName,
+        file.name
+      )
+      if (existingHandle && (await fileHandle.isSameEntry(existingHandle))) {
+        captureStart()
+        field.setValue(projectScheme + file.name)
+        setValue(projectScheme + file.name)
+        commitChange('Change file')
+        return
+      }
       captureStart()
       setPendingFile({ name: file.name, contents })
       setReplaceDialogOpen(true)
@@ -834,28 +1074,263 @@ export function FileUrlFieldComponent({
         <label className={s.nodeFieldLabel} htmlFor={id}>
           {id}
         </label>
-        <div className={cx('p-inputgroup', field.accept ? s.fieldFileInputGroup : undefined)}>
+        <div
+          className={cx('p-inputgroup', s.fieldFileInputGroup, s.fieldFileInputGroupSuggestions)}
+        >
           <InputText
             id={id}
             placeholder="https://"
-            className={cx(s.fieldInput, field.accept ? s.fieldInputFileUrl : undefined)}
+            className={cx(s.fieldInput, s.fieldInputFileUrl)}
             value={value}
-            onFocus={captureStart}
+            onFocus={() => {
+              captureStart()
+              setSuggestionsOpen(true)
+            }}
             onBlur={onBlur}
             onChange={onChange}
             disabled={disabled}
           />
-          {field.accept && (
-            <Button
-              icon="pi pi-upload"
-              className={s.fieldInputUploadButton}
-              onClick={onUpload}
-              title="Upload File"
-              size="small"
-            />
+          {field.suggestions.length > 0 && suggestionsOpen && filteredSuggestions.length > 0 && (
+            <ul className={s.fileUrlSuggestions}>
+              {filteredSuggestions.map(({ value: val, label }) => (
+                // biome-ignore lint/a11y/useSemanticElements: custom combobox option
+                <li
+                  key={val}
+                  role="option"
+                  aria-selected={val === value}
+                  className={cx(s.fileUrlSuggestion, {
+                    [s.fileUrlSuggestionActive]: val === value,
+                  })}
+                  onMouseDown={() => onSuggestionSelect(val)}
+                >
+                  <span className={s.fileUrlSuggestionLabel}>{label}</span>
+                  <span className={s.fileUrlSuggestionUrl}>{val}</span>
+                </li>
+              ))}
+            </ul>
           )}
+          <Button
+            icon="pi pi-upload"
+            className={s.fieldInputUploadButton}
+            onClick={onUpload}
+            title="Upload File"
+            size="small"
+          />
         </div>
       </div>
+
+      <Dialog.Root open={replaceDialogOpen} onOpenChange={setReplaceDialogOpen}>
+        <Dialog.Portal>
+          <Dialog.Overlay className={menuStyles.dialogOverlay} />
+          <Dialog.Content className={menuStyles.dialogContent}>
+            <Dialog.Title className={menuStyles.dialogTitle}>Replace file</Dialog.Title>
+            <Dialog.Description className={menuStyles.dialogDescription}>
+              A file named "{pendingFile?.name}" already exists. Do you want to replace it?
+            </Dialog.Description>
+            <div className={menuStyles.dialogRightSlot}>
+              <Dialog.Close asChild>
+                <button type="button" className={menuStyles.dialogButton} onClick={onCancelReplace}>
+                  Cancel
+                </button>
+              </Dialog.Close>
+              <button
+                type="button"
+                className={cx(menuStyles.dialogButton, menuStyles.red)}
+                onClick={onConfirmReplace}
+              >
+                Replace
+              </button>
+            </div>
+            <Dialog.Close asChild onClick={onCancelReplace}>
+              <button type="button" className={menuStyles.dialogIconButton} aria-label="Close">
+                <Cross2Icon />
+              </button>
+            </Dialog.Close>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
+    </>
+  )
+}
+
+export function MapStyleFieldComponent({
+  id,
+  field,
+  disabled,
+}: {
+  id: OpId
+  field: MapStyleField
+  disabled: boolean
+}) {
+  const [value, setValue] = useState(guardAccessorFallback(field.value))
+  const { captureStart, commitChange } = usePropertyHistory()
+
+  useEffect(() => {
+    const sub = field.subscribe(newVal => {
+      if (typeof newVal === 'function') return
+      setValue(newVal)
+    })
+    return () => sub.unsubscribe()
+  }, [field])
+
+  const isObject = typeof value === 'object' && value !== null
+  const displayValue = isObject ? '[Style Object]' : value
+
+  const onChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.currentTarget.value
+    if (typeof field.value !== 'object' && val !== field.value) {
+      setValue(val)
+    }
+  }
+
+  const onBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+    const val = e.currentTarget.value
+    if (typeof field.value !== 'object' && val !== field.value) {
+      field.setValue(val)
+    }
+    commitChange('Change map style')
+  }
+
+  const [galleryOpen, setGalleryOpen] = useState(false)
+
+  const onGallerySelect = (val: string | object) => {
+    captureStart()
+    field.setValue(val)
+    setValue(typeof val === 'string' ? val : val)
+    commitChange('Change map style')
+  }
+
+  const [replaceDialogOpen, setReplaceDialogOpen] = useState(false)
+  const [pendingFile, setPendingFile] = useState<{ name: string; contents: Blob } | null>(null)
+
+  const onUpload = async () => {
+    try {
+      await doUpload()
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return
+      throw err
+    }
+  }
+
+  const doUpload = async () => {
+    const { currentProjectName, activeStorageType } = useFileSystemStore.getState()
+    if (!currentProjectName) {
+      throw new Error('No project loaded. Please save or load a project first.')
+    }
+
+    const pickerOpts: OpenFilePickerOptions = field.accept
+      ? {
+          types: [{ description: 'Files', accept: extToMimeTypes(field.accept) }],
+          excludeAcceptAllOption: true,
+          multiple: false,
+        }
+      : { multiple: false }
+
+    const [fileHandle] = await window.showOpenFilePicker(pickerOpts)
+    const file = await fileHandle.getFile()
+    const buffer = await file.arrayBuffer()
+    const contents = new Blob([buffer], { type: file.type })
+
+    const exists = await checkAssetExists(activeStorageType, currentProjectName, file.name)
+    if (exists) {
+      const existingHandle = await getAssetFileHandle(
+        activeStorageType,
+        currentProjectName,
+        file.name
+      )
+      if (existingHandle && (await fileHandle.isSameEntry(existingHandle))) {
+        captureStart()
+        field.setValue(projectScheme + file.name)
+        setValue(projectScheme + file.name)
+        commitChange('Change map style')
+        return
+      }
+      captureStart()
+      setPendingFile({ name: file.name, contents })
+      setReplaceDialogOpen(true)
+      return
+    }
+
+    const result = await writeAsset(activeStorageType, currentProjectName, file.name, contents)
+    if (!result.success) {
+      throw new Error(result.error?.message || `Failed to write file: ${file.name}`)
+    }
+
+    captureStart()
+    field.setValue(projectScheme + file.name)
+    setValue(projectScheme + file.name)
+    commitChange('Change map style')
+  }
+
+  const onConfirmReplace = async () => {
+    if (!pendingFile) return
+
+    const { currentProjectName, activeStorageType } = useFileSystemStore.getState()
+    if (!currentProjectName) return
+
+    const result = await writeAsset(
+      activeStorageType,
+      currentProjectName,
+      pendingFile.name,
+      pendingFile.contents
+    )
+    if (!result.success) {
+      throw new Error(result.error?.message || `Failed to write file: ${pendingFile.name}`)
+    }
+
+    field.setValue(projectScheme + pendingFile.name)
+    setValue(projectScheme + pendingFile.name)
+    commitChange('Change map style')
+    setReplaceDialogOpen(false)
+    setPendingFile(null)
+  }
+
+  const onCancelReplace = () => {
+    setReplaceDialogOpen(false)
+    setPendingFile(null)
+  }
+
+  return (
+    <>
+      <div className={s.nodeFieldWrapper}>
+        <label className={s.nodeFieldLabel} htmlFor={id}>
+          {id}
+        </label>
+        <div className={cx('p-inputgroup', s.fieldFileInputGroup)}>
+          <InputText
+            id={id}
+            placeholder={isObject ? '' : 'https://'}
+            className={cx(s.fieldInput, s.fieldInputFileUrl)}
+            value={displayValue}
+            onFocus={captureStart}
+            onBlur={onBlur}
+            onChange={onChange}
+            disabled={disabled || isObject}
+          />
+          <Button
+            icon="pi pi-images"
+            className={s.fieldInputUploadButton}
+            onClick={() => setGalleryOpen(true)}
+            title="Browse Basemaps"
+            size="small"
+          />
+          <Button
+            icon="pi pi-upload"
+            className={s.fieldInputUploadButton}
+            onClick={onUpload}
+            title="Upload File"
+            size="small"
+            disabled={isObject}
+          />
+        </div>
+      </div>
+
+      <BasemapGallery
+        open={galleryOpen}
+        onOpenChange={setGalleryOpen}
+        onSelect={onGallerySelect}
+        currentValue={typeof value === 'string' ? value : undefined}
+      />
 
       <Dialog.Root open={replaceDialogOpen} onOpenChange={setReplaceDialogOpen}>
         <Dialog.Portal>
@@ -2202,13 +2677,22 @@ export function FieldComponent({
   return (
     <div style={{ position: 'relative' }}>
       {handle && (
-        <Handle
-          id={qualifiedFieldId}
-          className={cx(handleClass(field), { [s.handleDimmed]: isHandleDimmed })}
-          style={handleStyle}
-          type={handle.type}
-          position={Position.Left}
-        />
+        field instanceof ListField ? (
+          <MultiInputHandle
+            id={qualifiedFieldId}
+            field={field}
+            className={cx(handleClass(field), { [s.handleDimmed]: isHandleDimmed })}
+            style={handleStyle}
+          />
+        ) : (
+          <Handle
+            id={qualifiedFieldId}
+            className={cx(handleClass(field), { [s.handleDimmed]: isHandleDimmed })}
+            style={handleStyle}
+            type={handle.type}
+            position={Position.Left}
+          />
+        )
       )}
       {renderInput &&
         (hasIncomingConnection ? (

@@ -2,23 +2,28 @@ import type { Deck, DeckProps } from '@deck.gl/core'
 import { MapboxOverlay, type MapboxOverlayProps } from '@deck.gl/mapbox'
 import { DeckGL } from '@deck.gl/react'
 import { ReactFlowProvider } from '@xyflow/react'
-import type { Map as MapLibre } from 'maplibre-gl'
+import type { CustomLayerInterface, Map as MapLibre } from 'maplibre-gl'
 import { forwardRef, useCallback, useEffect, useRef, useState } from 'react'
 import ReactMapGL, { type MapProps, useControl } from 'react-map-gl/maplibre'
 import { Layout } from './layout'
 import { ErrorBoundary } from './noodles/components/error-boundary'
+import { SpreadsheetPane } from './noodles/components/spreadsheet-pane/spreadsheet-pane'
+import { MapToolLayer } from './noodles/components/tools/map-tool-layer'
 import { TopMenuBar } from './noodles/components/top-menu-bar'
 import { ExportActionsProvider } from './noodles/contexts/export-actions-context'
 import { useActiveStorageType, useCurrentDirectory } from './noodles/filesystem-store'
 import { useActiveOutOp } from './noodles/hooks/use-active-outop'
 import { useRenderSettings } from './noodles/hooks/use-render-settings'
 import { getNoodles } from './noodles/noodles'
+import { fnWithSource } from './noodles/operators'
 import type { RenderSettings } from './noodles/utils/serialization'
 import { useDeckDrawLoop } from './render/draw-loop'
 import { captureScreenshot, useRenderer } from './render/renderer'
+import { deckRenderingDefaults, mapRenderingDefaults } from './render/rendering-defaults'
 import { TransformScale } from './render/transform-scale'
-import { CollapsibleTimelinePanel } from './timeline/components/CollapsibleTimelinePanel'
-import { useTimelineStore } from './timeline/timeline-store'
+import { useUIStore } from './noodles/store'
+import { TimelinePanel } from './timeline/components/TimelinePanel'
+import { getTimelineStore, useTimelineStore } from './timeline/timeline-store'
 import s from './timeline-editor.module.css'
 import { debugRender } from './utils/debug'
 import setRef from './utils/set-ref'
@@ -71,6 +76,9 @@ export default function TimelineEditor() {
   const isRenderingRef = useRef(false)
   // Session-only handle set by selectRendersDirectory; takes priority over project subdir
   const rendersDirectoryHandleRef = useRef<FileSystemDirectoryHandle | null>(null)
+  const customLayersRef = useRef<Set<string>>(new Set())
+  // Track style version to trigger layer re-addition after style changes
+  const [styleVersion, setStyleVersion] = useState(0)
 
   // Trigger a redraw of React, mapbox and deck when the renderer state changes,
   // to ensure that the VideoStreamReader in renderer.ts runs
@@ -84,7 +92,9 @@ export default function TimelineEditor() {
   }, [])
 
   const noodles = getNoodles()
-  const { flowGraph, nodeSidebar, propertiesPanel, layoutMode, ...visualization } = noodles
+  const { flowGraph, nodeSidebar, propertiesPanel, selectedNodeIds, ...visualization } = noodles
+
+  const setTimelineExpanded = useUIStore(state => state.setTimelineExpanded)
 
   // Render settings are now stored as OutOp inputs
   const renderSettings = useRenderSettings()
@@ -95,6 +105,8 @@ export default function TimelineEditor() {
   const activeStorageType = useActiveStorageType()
 
   const sequenceLength = useSequenceLength()
+  const inPoint = useTimelineStore(state => state.sequence.inPoint)
+  const outPoint = useTimelineStore(state => state.sequence.outPoint)
 
   const {
     framerate,
@@ -129,14 +141,7 @@ export default function TimelineEditor() {
   const fpsRef = useRef(0)
 
   const deckProps: DeckProps = {
-    deviceProps: {
-      type: 'webgl',
-      powerPreference: 'high-performance',
-      webgl: {
-        stencil: true,
-      },
-    },
-    useDevicePixels: false,
+    ...deckRenderingDefaults,
     ...visualization.deckProps,
     onDeviceInitialized: device => {
       visualization.deckProps?.onDeviceInitialized?.(device)
@@ -169,9 +174,7 @@ export default function TimelineEditor() {
   // Destructure light and sky since they're applied imperatively via setLight/setSky
   const { light, sky, ...basemapProps } = visualization.mapProps ?? {}
   const mapProps: MapProps = {
-    interactive: false,
-    antialias: true,
-    preserveDrawingBuffer: true,
+    ...mapRenderingDefaults,
     onLoad: ({ target: map }) => {
       // Redraw react to ensure hooks check for map ref changes
       mapRef.current = map
@@ -208,6 +211,122 @@ export default function TimelineEditor() {
       map.setSky(undefined)
     }
   }, [light, sky])
+
+  // Helper function to evaluate MapLibre layer code using shared fnWithSource utility
+  const evaluateMapLibreLayerCode = (
+    code: string,
+    params: Record<string, unknown>,
+    layerId: string,
+    map: MapLibre
+  ): Partial<CustomLayerInterface> => {
+    const fn = fnWithSource(['params', 'map'], code, layerId)
+    const result = fn(params, map)
+
+    if (typeof result !== 'object' || result === null) {
+      throw new Error('Layer code must return an object')
+    }
+
+    if (typeof result.render !== 'function') {
+      throw new Error('Layer code must define a render() method')
+    }
+
+    return result as Partial<CustomLayerInterface>
+  }
+
+  // Manage custom MapLibre layers
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !map.isStyleLoaded()) return
+
+    const layerConfigs = visualization.maplibreLayers || []
+    const desiredLayerIds = new Set(layerConfigs.map(config => config.id))
+
+    // Remove layers that are no longer in the config
+    for (const existingId of customLayersRef.current) {
+      if (!desiredLayerIds.has(existingId)) {
+        try {
+          if (map.getLayer(existingId)) {
+            map.removeLayer(existingId)
+            debugRender('Removed custom MapLibre layer: %s', existingId)
+          }
+        } catch (e) {
+          debugRender('Error removing custom MapLibre layer %s: %o', existingId, e)
+        }
+      }
+    }
+
+    // Add or update layers
+    for (const config of layerConfigs) {
+      try {
+        const existingLayer = map.getLayer(config.id)
+
+        if (existingLayer) {
+          map.removeLayer(config.id)
+        }
+
+        const layerImpl = evaluateMapLibreLayerCode(
+          config.code,
+          config.params || {},
+          config.id,
+          map
+        )
+
+        const customLayer: CustomLayerInterface = {
+          ...layerImpl,
+          id: config.id,
+          type: 'custom',
+          renderingMode: config.renderingMode || '3d',
+        }
+
+        map.addLayer(customLayer, config.beforeId)
+        customLayersRef.current.add(config.id)
+
+        debugRender('Added/updated custom MapLibre layer: %s', config.id)
+      } catch (e) {
+        const error = e instanceof Error ? e : new Error(String(e))
+        debugRender('Error adding custom MapLibre layer %s: %o', config.id, error)
+      }
+    }
+
+    customLayersRef.current = desiredLayerIds
+  }, [visualization.maplibreLayers, styleVersion])
+
+  // Clean up custom layers on unmount
+  useEffect(() => {
+    return () => {
+      const map = mapRef.current
+      if (!map) return
+
+      for (const layerId of customLayersRef.current) {
+        try {
+          if (map.getLayer(layerId)) {
+            map.removeLayer(layerId)
+          }
+        } catch (e) {
+          debugRender('Error removing layer on cleanup: %o', e)
+        }
+      }
+      customLayersRef.current.clear()
+    }
+  }, [])
+
+  // Handle map style changes - increment styleVersion to trigger layer re-addition
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+
+    const handleStyleData = () => {
+      customLayersRef.current.clear()
+      setStyleVersion(v => v + 1)
+    }
+
+    map.on('styledata', handleStyleData)
+
+    return () => {
+      map.off('styledata', handleStyleData)
+    }
+  }, [])
+
   // Expose deck.gl canvas and instance for Claude AI visual debugging
   useEffect(() => {
     if (deckRef.current) {
@@ -291,8 +410,19 @@ export default function TimelineEditor() {
       codec,
       // This always scales the video to the specified value, regardless of `canvas` size
       ...resolution,
+      startFrame: Math.floor((inPoint ?? 0) * framerate),
+      endFrame: Math.floor((outPoint ?? sequenceLength) * framerate),
     })
-  }, [startCapture, codec, resolution, basemapEnabled])
+  }, [
+    startCapture,
+    codec,
+    resolution,
+    basemapEnabled,
+    framerate,
+    inPoint,
+    outPoint,
+    sequenceLength,
+  ])
 
   const takeScreenshot = useCallback(async () => {
     if (!deckRef.current) {
@@ -376,14 +506,16 @@ export default function TimelineEditor() {
       directoryHandle: rendersDir,
       captureDelay,
       waitForData,
-      startFrame: 0,
-      endFrame: Math.floor(sequenceLength * framerate),
+      startFrame: Math.floor((inPoint ?? 0) * framerate),
+      endFrame: Math.floor((outPoint ?? sequenceLength) * framerate),
       onFrameStart: (frame, total) => debugRender('Exporting frame %d/%d', frame + 1, total),
       onFrameComplete: (frame, total) => debugRender('Completed frame %d/%d', frame, total),
     })
   }, [
     startSequenceCapture,
     sequenceLength,
+    inPoint,
+    outPoint,
     framerate,
     captureDelay,
     waitForData,
@@ -414,6 +546,8 @@ export default function TimelineEditor() {
             isRendering={isRendering}
             {...deckProps}
           />
+          {/* Interactive Draw and Measure tools, armed from the top shelf */}
+          <MapToolLayer mapRef={mapRef} basemapEnabled isRendering={isRendering} />
         </ReactMapGL>
       )
     }
@@ -450,8 +584,8 @@ export default function TimelineEditor() {
       onChangeShowOverlay={noodles.onChangeShowOverlay}
       showDebugInfo={noodles.showDebugInfo}
       onChangeShowDebugInfo={noodles.onChangeShowDebugInfo}
-      layoutMode={noodles.layoutMode}
-      onChangeLayoutMode={noodles.onChangeLayoutMode}
+      spreadsheetVisible={noodles.spreadsheetVisible}
+      onChangeSpreadsheetVisible={noodles.onChangeSpreadsheetVisible}
     />
   )
 
@@ -478,9 +612,11 @@ export default function TimelineEditor() {
             top={topBar}
             left={nodeSidebar}
             right={propertiesPanel}
-            bottom={<CollapsibleTimelinePanel />}
+            timeline={heightPx => (
+              <TimelinePanel height={heightPx} onCollapse={() => setTimelineExpanded(false)} />
+            )}
             flowGraph={flowGraph}
-            layoutMode={layoutMode}
+            spreadsheet={<SpreadsheetPane selectedNodeIds={selectedNodeIds ?? []} />}
           >
             {isFixedMode ? (
               <TransformScale scale={renderSettings.scaleControl}>

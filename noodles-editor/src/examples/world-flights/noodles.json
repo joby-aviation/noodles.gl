@@ -1,4 +1,171 @@
 {
+  "edges": [
+    {
+      "id": "/deck.out.vis->/out.par.vis",
+      "source": "/deck",
+      "target": "/out",
+      "sourceHandle": "out.vis",
+      "targetHandle": "par.vis"
+    },
+    {
+      "id": "/origin-country.out.accessor->/color-ramp.par.value",
+      "source": "/origin-country",
+      "target": "/color-ramp",
+      "sourceHandle": "out.accessor",
+      "targetHandle": "par.value"
+    },
+    {
+      "id": "/color-ramp.out.color->/geojson-layer.par.getLineColor",
+      "source": "/color-ramp",
+      "target": "/geojson-layer",
+      "sourceHandle": "out.color",
+      "targetHandle": "par.getLineColor"
+    },
+    {
+      "id": "/color-ramp.out.color->/trips-layer.par.getColor",
+      "source": "/color-ramp",
+      "target": "/trips-layer",
+      "sourceHandle": "out.color",
+      "targetHandle": "par.getColor"
+    },
+    {
+      "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap",
+      "source": "/maplibre-basemap",
+      "target": "/deck",
+      "sourceHandle": "out.maplibre",
+      "targetHandle": "par.basemap"
+    },
+    {
+      "source": "/time",
+      "sourceHandle": "out.val",
+      "target": "/time-series",
+      "targetHandle": "par.currentTime",
+      "id": "/time.out.val->/time-series.par.currentTime"
+    },
+    {
+      "source": "/properties",
+      "sourceHandle": "out.accessor",
+      "target": "/time-series",
+      "targetHandle": "par.getProperties",
+      "id": "/properties.out.accessor->/time-series.par.getProperties"
+    },
+    {
+      "source": "/path",
+      "sourceHandle": "out.accessor",
+      "target": "/time-series",
+      "targetHandle": "par.getValues",
+      "id": "/path.out.accessor->/time-series.par.getValues"
+    },
+    {
+      "source": "/data-source",
+      "sourceHandle": "out.data",
+      "target": "/transform-flights",
+      "targetHandle": "par.data",
+      "id": "/data-source.out.data->/transform-flights.par.data"
+    },
+    {
+      "source": "/transform-flights",
+      "sourceHandle": "out.data",
+      "target": "/time-series",
+      "targetHandle": "par.data",
+      "id": "/transform-flights.out.data->/time-series.par.data"
+    },
+    {
+      "source": "/position",
+      "sourceHandle": "out.accessor",
+      "target": "/scatterplot-layer",
+      "targetHandle": "par.getPosition",
+      "id": "/position.out.accessor->/scatterplot-layer.par.getPosition"
+    },
+    {
+      "source": "/time-series",
+      "sourceHandle": "out.data",
+      "target": "/scatterplot-layer",
+      "targetHandle": "par.data",
+      "id": "/time-series.out.data->/scatterplot-layer.par.data"
+    },
+    {
+      "source": "/scatterplot-layer",
+      "sourceHandle": "out.layer",
+      "target": "/deck",
+      "targetHandle": "par.layers",
+      "id": "/scatterplot-layer.out.layer->/deck.par.layers"
+    },
+    {
+      "source": "/transform-flights",
+      "sourceHandle": "out.data",
+      "target": "/trips-layer",
+      "targetHandle": "par.data",
+      "id": "/transform-flights.out.data->/trips-layer.par.data"
+    },
+    {
+      "source": "/path",
+      "sourceHandle": "out.accessor",
+      "target": "/trips-layer",
+      "targetHandle": "par.getPath",
+      "id": "/path.out.accessor->/trips-layer.par.getPath"
+    },
+    {
+      "source": "/timestamps",
+      "sourceHandle": "out.accessor",
+      "target": "/trips-layer",
+      "targetHandle": "par.getTimestamps",
+      "id": "/timestamps.out.accessor->/trips-layer.par.getTimestamps"
+    },
+    {
+      "source": "/timestamps",
+      "sourceHandle": "out.accessor",
+      "target": "/time-series",
+      "targetHandle": "par.getTimestamps",
+      "id": "/timestamps.out.accessor->/time-series.par.getTimestamps"
+    },
+    {
+      "source": "/trips-layer",
+      "sourceHandle": "out.layer",
+      "target": "/deck",
+      "targetHandle": "par.layers",
+      "id": "/trips-layer.out.layer->/deck.par.layers"
+    },
+    {
+      "source": "/time",
+      "sourceHandle": "out.val",
+      "target": "/trips-layer",
+      "targetHandle": "par.currentTime",
+      "id": "/time.out.val->/trips-layer.par.currentTime"
+    },
+    {
+      "source": "/geojson-layer",
+      "sourceHandle": "out.layer",
+      "target": "/deck",
+      "targetHandle": "par.layers",
+      "id": "/geojson-layer.out.layer->/deck.par.layers"
+    },
+    {
+      "source": "/data-source",
+      "sourceHandle": "out.data",
+      "target": "/geojson-layer",
+      "targetHandle": "par.data",
+      "id": "/data-source.out.data->/geojson-layer.par.data"
+    },
+    {
+      "source": "/color-ramp",
+      "sourceHandle": "out.color",
+      "target": "/scatterplot-layer",
+      "targetHandle": "par.getFillColor",
+      "id": "/color-ramp.out.color->/scatterplot-layer.par.getFillColor"
+    }
+  ],
+  "viewport": {
+    "x": 371.10759039675463,
+    "y": 461.29570352289136,
+    "zoom": 0.5265126624852493
+  },
+  "version": 16,
+  "name": "World Flights",
+  "editorSettings": {
+    "layoutMode": "noodles-on-top",
+    "showOverlay": true
+  },
   "nodes": [
     {
       "id": "/deck",
@@ -16,7 +183,19 @@
       "id": "/out",
       "type": "OutOp",
       "data": {
-        "inputs": {},
+        "inputs": {
+          "display": "fixed",
+          "width": 1920,
+          "height": 1080,
+          "lod": 2,
+          "waitForData": true,
+          "codec": "avc",
+          "bitrateMbps": 10,
+          "bitrateMode": "constant",
+          "scaleControl": 0.3,
+          "framerate": 60,
+          "captureDelay": 50
+        },
         "locked": false
       },
       "position": {
@@ -190,7 +369,7 @@
     },
     {
       "type": "CodeOp",
-      "id": "/code",
+      "id": "/transform-flights",
       "position": {
         "x": -25.623289069461407,
         "y": -460.52226064152904
@@ -248,176 +427,11 @@
       }
     }
   ],
-  "edges": [
-    {
-      "id": "/deck.out.vis->/out.par.vis",
-      "source": "/deck",
-      "target": "/out",
-      "sourceHandle": "out.vis",
-      "targetHandle": "par.vis"
-    },
-    {
-      "id": "/origin-country.out.accessor->/color-ramp.par.value",
-      "source": "/origin-country",
-      "target": "/color-ramp",
-      "sourceHandle": "out.accessor",
-      "targetHandle": "par.value"
-    },
-    {
-      "id": "/color-ramp.out.color->/geojson-layer.par.getLineColor",
-      "source": "/color-ramp",
-      "target": "/geojson-layer",
-      "sourceHandle": "out.color",
-      "targetHandle": "par.getLineColor"
-    },
-    {
-      "id": "/color-ramp.out.color->/trips-layer.par.getColor",
-      "source": "/color-ramp",
-      "target": "/trips-layer",
-      "sourceHandle": "out.color",
-      "targetHandle": "par.getColor"
-    },
-    {
-      "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap",
-      "source": "/maplibre-basemap",
-      "target": "/deck",
-      "sourceHandle": "out.maplibre",
-      "targetHandle": "par.basemap"
-    },
-    {
-      "source": "/time",
-      "sourceHandle": "out.val",
-      "target": "/time-series",
-      "targetHandle": "par.currentTime",
-      "id": "/time.out.val->/time-series.par.currentTime"
-    },
-    {
-      "source": "/properties",
-      "sourceHandle": "out.accessor",
-      "target": "/time-series",
-      "targetHandle": "par.getProperties",
-      "id": "/properties.out.accessor->/time-series.par.getProperties"
-    },
-    {
-      "source": "/path",
-      "sourceHandle": "out.accessor",
-      "target": "/time-series",
-      "targetHandle": "par.getValues",
-      "id": "/path.out.accessor->/time-series.par.getValues"
-    },
-    {
-      "source": "/data-source",
-      "sourceHandle": "out.data",
-      "target": "/code",
-      "targetHandle": "par.data",
-      "id": "/data-source.out.data->/code.par.data"
-    },
-    {
-      "source": "/code",
-      "sourceHandle": "out.data",
-      "target": "/time-series",
-      "targetHandle": "par.data",
-      "id": "/code.out.data->/time-series.par.data"
-    },
-    {
-      "source": "/position",
-      "sourceHandle": "out.accessor",
-      "target": "/scatterplot-layer",
-      "targetHandle": "par.getPosition",
-      "id": "/position.out.accessor->/scatterplot-layer.par.getPosition"
-    },
-    {
-      "source": "/time-series",
-      "sourceHandle": "out.data",
-      "target": "/scatterplot-layer",
-      "targetHandle": "par.data",
-      "id": "/time-series.out.data->/scatterplot-layer.par.data"
-    },
-    {
-      "source": "/scatterplot-layer",
-      "sourceHandle": "out.layer",
-      "target": "/deck",
-      "targetHandle": "par.layers",
-      "id": "/scatterplot-layer.out.layer->/deck.par.layers"
-    },
-    {
-      "source": "/code",
-      "sourceHandle": "out.data",
-      "target": "/trips-layer",
-      "targetHandle": "par.data",
-      "id": "/code.out.data->/trips-layer.par.data"
-    },
-    {
-      "source": "/path",
-      "sourceHandle": "out.accessor",
-      "target": "/trips-layer",
-      "targetHandle": "par.getPath",
-      "id": "/path.out.accessor->/trips-layer.par.getPath"
-    },
-    {
-      "source": "/timestamps",
-      "sourceHandle": "out.accessor",
-      "target": "/trips-layer",
-      "targetHandle": "par.getTimestamps",
-      "id": "/timestamps.out.accessor->/trips-layer.par.getTimestamps"
-    },
-    {
-      "source": "/timestamps",
-      "sourceHandle": "out.accessor",
-      "target": "/time-series",
-      "targetHandle": "par.getTimestamps",
-      "id": "/timestamps.out.accessor->/time-series.par.getTimestamps"
-    },
-    {
-      "source": "/trips-layer",
-      "sourceHandle": "out.layer",
-      "target": "/deck",
-      "targetHandle": "par.layers",
-      "id": "/trips-layer.out.layer->/deck.par.layers"
-    },
-    {
-      "source": "/time",
-      "sourceHandle": "out.val",
-      "target": "/trips-layer",
-      "targetHandle": "par.currentTime",
-      "id": "/time.out.val->/trips-layer.par.currentTime"
-    },
-    {
-      "source": "/geojson-layer",
-      "sourceHandle": "out.layer",
-      "target": "/deck",
-      "targetHandle": "par.layers",
-      "id": "/geojson-layer.out.layer->/deck.par.layers"
-    },
-    {
-      "source": "/data-source",
-      "sourceHandle": "out.data",
-      "target": "/geojson-layer",
-      "targetHandle": "par.data",
-      "id": "/data-source.out.data->/geojson-layer.par.data"
-    },
-    {
-      "source": "/color-ramp",
-      "sourceHandle": "out.color",
-      "target": "/scatterplot-layer",
-      "targetHandle": "par.getFillColor",
-      "id": "/color-ramp.out.color->/scatterplot-layer.par.getFillColor"
-    }
-  ],
-  "viewport": {
-    "x": 371.10759039675463,
-    "y": 461.29570352289136,
-    "zoom": 0.5265126624852493
-  },
   "timeline": {
     "sheetsById": {
       "Noodles": {
         "staticOverrides": {
-          "byObject": {
-            "render": {
-              "framerate": 60
-            }
-          }
+          "byObject": {}
         },
         "sequence": {
           "subUnitsPerUnit": 30,
@@ -463,12 +477,12 @@
                 "[\"val\"]": "g0xHT4Xo4p"
               }
             }
-          }
+          },
+          "markers": []
         }
       }
     },
     "definitionVersion": "0.4.0",
     "revisionHistory": []
-  },
-  "version": 7
+  }
 }

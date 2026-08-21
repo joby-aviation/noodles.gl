@@ -9,6 +9,7 @@ import {
   type Message,
   MessageMatcher,
   MessageType,
+  type PingMessage,
   parseMessage,
   serializeMessage,
 } from './message-protocol'
@@ -71,7 +72,7 @@ describe('createMessage', () => {
     const msg = createMessage(MessageType.PING, { data: 'test' })
 
     expect(msg.type).toBe(MessageType.PING)
-    expect(msg.payload).toEqual({ data: 'test' })
+    expect((msg as PingMessage).payload).toEqual({ data: 'test' })
     expect(msg.id).toBeDefined()
     expect(msg.timestamp).toBeDefined()
     expect(typeof msg.timestamp).toBe('number')
@@ -204,7 +205,7 @@ describe('parseMessage', () => {
       timestamp: Date.now(),
     }
     const json = JSON.stringify(original)
-    const buffer = new TextEncoder().encode(json)
+    const buffer = new TextEncoder().encode(json).buffer
     const parsed = parseMessage(buffer)
 
     expect(parsed).toEqual(original)
@@ -261,7 +262,11 @@ describe('MessageMatcher', () => {
       id: requestId,
       type: MessageType.TOOL_RESPONSE,
       timestamp: Date.now(),
-      payload: { result: 'success' },
+      payload: {
+        tool: 'testTool',
+        result: 'success',
+        executionTime: 100,
+      },
     }
 
     const handled = matcher.handleResponse(response)
@@ -286,6 +291,11 @@ describe('MessageMatcher', () => {
       id: 'unknown-id',
       type: MessageType.TOOL_RESPONSE,
       timestamp: Date.now(),
+      payload: {
+        tool: 'testTool',
+        result: 'test',
+        executionTime: 100,
+      },
     }
 
     const handled = matcher.handleResponse(response)
@@ -303,6 +313,11 @@ describe('MessageMatcher', () => {
       id: requestId,
       type: MessageType.TOOL_RESPONSE,
       timestamp: Date.now(),
+      payload: {
+        tool: 'testTool',
+        result: 'test',
+        executionTime: 100,
+      },
     }
 
     const handled = matcher.handleResponse(response)
@@ -325,23 +340,39 @@ describe('MessageMatcher', () => {
       id: 'req-2',
       type: MessageType.TOOL_RESPONSE,
       timestamp: Date.now(),
-      payload: { data: 'response2' },
+      payload: {
+        tool: 'testTool2',
+        result: 'response2',
+        executionTime: 100,
+      },
     }
 
     matcher.handleResponse(response2)
     const result2 = await promise2
-    expect(result2.payload).toEqual({ data: 'response2' })
+    expect((result2 as BaseMessage & { payload: unknown }).payload).toEqual({
+      tool: 'testTool2',
+      result: 'response2',
+      executionTime: 100,
+    })
 
     const response1: Message = {
       id: 'req-1',
       type: MessageType.TOOL_RESPONSE,
       timestamp: Date.now(),
-      payload: { data: 'response1' },
+      payload: {
+        tool: 'testTool1',
+        result: 'response1',
+        executionTime: 100,
+      },
     }
 
     matcher.handleResponse(response1)
     const result1 = await promise1
-    expect(result1.payload).toEqual({ data: 'response1' })
+    expect((result1 as BaseMessage & { payload: unknown }).payload).toEqual({
+      tool: 'testTool1',
+      result: 'response1',
+      executionTime: 100,
+    })
 
     // req-3 should timeout
     vi.advanceTimersByTime(6000)
@@ -356,6 +387,11 @@ describe('MessageMatcher', () => {
       id: requestId,
       type: MessageType.TOOL_RESPONSE,
       timestamp: Date.now(),
+      payload: {
+        tool: 'testTool',
+        result: 'test',
+        executionTime: 100,
+      },
     }
 
     // First handling succeeds

@@ -565,7 +565,7 @@ console.log(results)
 **Run during build:**
 
 ```bash
-yarn generate:rag
+npm run generate:rag
 ```
 
 **Script outline:**
@@ -638,10 +638,10 @@ function serializeEmbeddings(chunks: any[]): Buffer {
 ```yaml
 # .github/workflows/deploy.yml
 - name: Generate RAG embeddings
-  run: yarn generate:rag
+  run: npm run generate:rag
 
 - name: Build app
-  run: yarn build:all
+  run: npm run build:all
 ```
 
 ### Tool Implementation

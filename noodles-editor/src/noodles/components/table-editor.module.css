@@ -1,0 +1,243 @@
+.tableContainer {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tableWrapper {
+  flex: 1;
+  overflow: auto;
+  border: 1px solid var(--surface-border);
+  border-radius: 4px;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.header {
+  background: var(--surface-ground);
+  padding: 8px 12px;
+  text-align: left;
+  font-weight: 600;
+  border-bottom: 2px solid var(--surface-border);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.row {
+  border-bottom: 1px solid var(--surface-border);
+}
+
+.row:hover {
+  background: var(--surface-hover);
+}
+
+.cellContainer {
+  padding: 0;
+  border-right: 1px solid var(--surface-border);
+}
+
+.cellContainer:last-child {
+  border-right: none;
+}
+
+.cell {
+  padding: 8px 12px;
+  min-height: 36px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+}
+
+.cell:hover {
+  background: var(--surface-hover);
+}
+
+.cell:focus {
+  outline: 2px solid var(--primary-color);
+  outline-offset: -2px;
+}
+
+.editing {
+  background: var(--surface-section);
+  padding: 0;
+}
+
+.cellEditor {
+  width: 100%;
+}
+
+/* Override PrimeReact input padding to match cell padding */
+.cellEditor :global(.p-inputtext) {
+  padding: 8px 12px;
+  border: none;
+  background: transparent;
+}
+
+.cellEditor :global(.p-inputswitch) {
+  margin: 8px 12px;
+}
+
+.colorDisplay {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.colorSwatch {
+  width: 20px;
+  height: 20px;
+  border: 1px solid var(--surface-border);
+  border-radius: 2px;
+}
+
+.point2dEditor,
+.vec3Editor {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.coordInput,
+.vecInput {
+  flex: 1;
+  min-width: 60px;
+}
+
+.geocoderButton {
+  background: var(--surface-ground);
+  border: 1px solid var(--surface-border);
+  border-radius: 4px;
+  padding: 4px 8px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.geocoderButton:hover {
+  background: var(--surface-hover);
+}
+
+.dateTimeCellEditor {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+
+.timezoneIndicator {
+  font-size: 0.7rem;
+  color: var(--text-color-secondary);
+  white-space: nowrap;
+  opacity: 0.7;
+  font-weight: 500;
+  padding: 2px 4px;
+  background: var(--surface-ground);
+  border-radius: 2px;
+}
+
+.timezoneDropdown {
+  width: 120px;
+  font-size: 0.75rem;
+}
+
+.timezoneDropdown :global(.p-inputtext) {
+  font-size: 0.75rem;
+  padding: 4px 6px;
+}
+
+.timezoneDropdown :global(.p-autocomplete-dropdown) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.timezonePanel {
+  font-size: 0.75rem;
+  max-height: 300px;
+}
+
+.toolbar {
+  display: flex;
+  gap: 8px;
+  padding: 8px;
+  background: var(--surface-ground);
+  border-radius: 4px;
+  align-items: center;
+}
+
+.stats {
+  margin-left: auto;
+  font-size: 0.75rem;
+  color: var(--text-color-secondary);
+}
+
+.rowNumber {
+  text-align: center;
+  color: var(--text-color-secondary);
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 48px;
+  text-align: center;
+  color: var(--text-color-secondary);
+}
+
+.emptyState p {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.deleteButton {
+  color: var(--text-color-secondary) !important;
+  opacity: 0.6;
+}
+
+.deleteButton:hover {
+  opacity: 1;
+  color: var(--text-color) !important;
+}
+
+.addRowButton {
+  color: var(--text-color-secondary) !important;
+}
+
+.cellSuggestions {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 10000;
+  margin: 2px 0 0;
+  padding: 4px 0;
+  list-style: none;
+  background: var(--surface-card);
+  border: 1px solid var(--surface-border);
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  max-height: 150px;
+  overflow-y: auto;
+}
+
+.cellSuggestion {
+  padding: 6px 10px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.cellSuggestion:hover {
+  background: var(--surface-hover);
+}

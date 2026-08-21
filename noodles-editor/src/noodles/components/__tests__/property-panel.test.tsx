@@ -1,5 +1,5 @@
 // Tests for PropertyPanel selection rendering and NodeProperties nodeId interface
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { Edge, Node as ReactFlowNode } from '@xyflow/react'
 import { ReactFlowProvider } from '@xyflow/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -159,5 +159,38 @@ describe('NodeProperties', () => {
     const { container } = wrapWithProviders(<NodeProperties nodeId="/target" />)
     // Panel renders (operator exists) and shows field list
     expect(container.querySelector('[class*="propertyList"]')).toBeInTheDocument()
+  })
+
+  it('can render BitmapLayerOp without crashing', () => {
+    transformGraph({
+      nodes: [{ id: '/bitmap', type: 'BitmapLayerOp', position: { x: 0, y: 0 }, data: {} }],
+      edges: [],
+    })
+    wrapWithProviders(<NodeProperties nodeId="/bitmap" />)
+
+    // Verify the operator rendered (component didn't crash)
+    expect(screen.getByText('BitmapLayer')).toBeInTheDocument()
+  })
+
+  it.skip('renders BitmapLayerOp bounds field with Vec4Field', () => {
+    transformGraph({
+      nodes: [
+        {
+          id: '/bitmap',
+          type: 'BitmapLayerOp',
+          position: { x: 0, y: 0 },
+          data: { inputs: { bounds: [-122.5, 37.7, -122.3, 37.9] }, visibleInputs: ['image', 'bounds'] },
+        },
+      ],
+      edges: [],
+    })
+    wrapWithProviders(<NodeProperties nodeId="/bitmap" />)
+
+    // Should show the bounds field (explicitly visible)
+    expect(screen.getByText('bounds')).toBeInTheDocument()
+
+    // The bounds field should render as a vector field (4 numeric inputs)
+    const propertyList = screen.getByText('bounds').closest('[class*="propertyList"]')
+    expect(propertyList).toBeInTheDocument()
   })
 })

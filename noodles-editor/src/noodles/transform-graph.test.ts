@@ -1,8 +1,10 @@
 import type { Node as ReactFlowNode } from '@xyflow/react'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { getExecutor } from './graph-executor'
 import type { Edge } from './noodles'
 import {
   type CodeOp,
+  type ConcatOp,
   type DeckRendererOp,
   type GeoJsonLayerOp,
   type IOperator,
@@ -10,9 +12,420 @@ import {
   NumberOp,
   type Operator,
 } from './operators'
-import { clearOps, getOpStore } from './store'
-import { transformGraph } from './transform-graph'
+import { clearOps, getOpStore, hasOp } from './store'
+import { deriveReferenceEdges, transformGraph } from './transform-graph'
 import { edgeId } from './utils/id-utils'
+
+describe('transform-graph topological sort with missing upstream nodes', () => {
+  afterEach(() => {
+    clearOps()
+  })
+
+  it('instantiates a node whose only upstream source does not exist in the graph', () => {
+    // Reproduces the KmlToGeoJsonOp bug: an edge references /file as source, but /file is not
+    // in the nodes list. Without the fix, /kml-to-geo-json would be silently dropped from the
+    // sorted output and never stored, causing "Operator with id X not found" at render time.
+    const nodes = [
+      {
+        id: '/kml-to-geo-json',
+        type: 'NumberOp', // operator type doesn't matter for this test
+        data: { inputs: {} },
+        position: { x: 0, y: 0 },
+      },
+    ]
+    const edges = [
+      {
+        // /file does not exist in nodes — stale edge
+        source: '/file',
+        target: '/kml-to-geo-json',
+        sourceHandle: 'out.data',
+        targetHandle: 'par.val',
+        id: '/file.out.data->/kml-to-geo-json.par.val',
+      },
+    ]
+
+    const instances = transformGraph({ nodes, edges })
+
+    expect(instances).toHaveLength(1)
+    expect(instances[0].id).toBe('/kml-to-geo-json')
+
+    const { getOp } = getOpStore()
+    expect(getOp('/kml-to-geo-json')).toBeDefined()
+  })
+
+  it('instantiates all nodes when multiple have missing upstream sources', () => {
+    const nodes = [
+      { id: '/a', type: 'NumberOp', data: { inputs: {} }, position: { x: 0, y: 0 } },
+      { id: '/b', type: 'NumberOp', data: { inputs: {} }, position: { x: 0, y: 0 } },
+    ]
+    const edges = [
+      // Both targets reference sources that don't exist
+      {
+        source: '/missing-1',
+        target: '/a',
+        sourceHandle: 'out.val',
+        targetHandle: 'par.val',
+        id: '/missing-1.out.val->/a.par.val',
+      },
+      {
+        source: '/missing-2',
+        target: '/b',
+        sourceHandle: 'out.val',
+        targetHandle: 'par.val',
+        id: '/missing-2.out.val->/b.par.val',
+      },
+    ]
+
+    const instances = transformGraph({ nodes, edges })
+
+    expect(instances).toHaveLength(2)
+    const { getOp } = getOpStore()
+    expect(getOp('/a')).toBeDefined()
+    expect(getOp('/b')).toBeDefined()
+  })
+
+  it('correctly orders reachable nodes before unreachable ones', () => {
+    // /source -> /downstream (reachable), /orphan has stale incoming edge from /ghost (unreachable)
+    const nodes = [
+      { id: '/source', type: 'NumberOp', data: { inputs: { val: 1 } }, position: { x: 0, y: 0 } },
+      {
+        id: '/downstream',
+        type: 'MathOp',
+        data: { inputs: { operator: 'add', b: 0 } },
+        position: { x: 0, y: 0 },
+      },
+      { id: '/orphan', type: 'NumberOp', data: { inputs: {} }, position: { x: 0, y: 0 } },
+    ]
+    const edges = [
+      {
+        source: '/source',
+        target: '/downstream',
+        sourceHandle: 'out.val',
+        targetHandle: 'par.a',
+        id: '/source.out.val->/downstream.par.a',
+      },
+      {
+        source: '/ghost', // doesn't exist
+        target: '/orphan',
+        sourceHandle: 'out.val',
+        targetHandle: 'par.val',
+        id: '/ghost.out.val->/orphan.par.val',
+      },
+    ]
+
+    const instances = transformGraph({ nodes, edges })
+
+    expect(instances).toHaveLength(3)
+    // /source must come before /downstream in execution order
+    const ids = instances.map(op => op.id)
+    expect(ids.indexOf('/source')).toBeLessThan(ids.indexOf('/downstream'))
+    // /orphan must also be present
+    expect(ids).toContain('/orphan')
+  })
+
+  it('still works correctly when all nodes are reachable (no regression)', () => {
+    const nodes = [
+      { id: '/num', type: 'NumberOp', data: { inputs: { val: 5 } }, position: { x: 0, y: 0 } },
+      { id: '/math', type: 'MathOp', data: { inputs: { b: 3 } }, position: { x: 0, y: 0 } },
+    ]
+    const edges = [
+      {
+        source: '/num',
+        target: '/math',
+        sourceHandle: 'out.val',
+        targetHandle: 'par.a',
+        id: '/num.out.val->/math.par.a',
+      },
+    ]
+
+    const instances = transformGraph({ nodes, edges })
+
+    expect(instances).toHaveLength(2)
+    const ids = instances.map(op => op.id)
+    expect(ids.indexOf('/num')).toBeLessThan(ids.indexOf('/math'))
+  })
+})
+
+describe('transform-graph stale edge and unknown type warnings', () => {
+  let errorSpy: ReturnType<typeof vi.spyOn>
+
+  beforeEach(() => {
+    errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+  })
+
+  afterEach(() => {
+    errorSpy.mockRestore()
+    clearOps()
+  })
+
+  it('errors when an edge source node does not exist', () => {
+    const nodes = [{ id: '/b', type: 'NumberOp', data: { inputs: {} }, position: { x: 0, y: 0 } }]
+    const edges = [
+      {
+        source: '/missing',
+        target: '/b',
+        sourceHandle: 'out.val',
+        targetHandle: 'par.val',
+        id: '/missing.out.val->/b.par.val',
+      },
+    ]
+
+    transformGraph({ nodes, edges })
+
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('Stale edge detected'))
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('"/missing"'))
+  })
+
+  it('errors when an edge target node does not exist', () => {
+    const nodes = [{ id: '/a', type: 'NumberOp', data: { inputs: {} }, position: { x: 0, y: 0 } }]
+    const edges = [
+      {
+        source: '/a',
+        target: '/missing',
+        sourceHandle: 'out.val',
+        targetHandle: 'par.val',
+        id: '/a.out.val->/missing.par.val',
+      },
+    ]
+
+    transformGraph({ nodes, edges })
+
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('Stale edge detected'))
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('"/missing"'))
+  })
+
+  it('emits one error per stale edge', () => {
+    const nodes = [{ id: '/b', type: 'NumberOp', data: { inputs: {} }, position: { x: 0, y: 0 } }]
+    const edges = [
+      {
+        source: '/ghost-1',
+        target: '/b',
+        sourceHandle: 'out.val',
+        targetHandle: 'par.val',
+        id: '/ghost-1.out.val->/b.par.val',
+      },
+      {
+        source: '/ghost-2',
+        target: '/b',
+        sourceHandle: 'out.val',
+        targetHandle: 'par.val',
+        id: '/ghost-2.out.val->/b.par.val',
+      },
+    ]
+
+    transformGraph({ nodes, edges })
+
+    const staleErrors = errorSpy.mock.calls.filter(call =>
+      String(call[0]).includes('Stale edge detected')
+    )
+    expect(staleErrors).toHaveLength(2)
+  })
+
+  it('does not error for a clean graph with no stale edges', () => {
+    const nodes = [
+      { id: '/a', type: 'NumberOp', data: { inputs: { val: 1 } }, position: { x: 0, y: 0 } },
+      {
+        id: '/b',
+        type: 'MathOp',
+        data: { inputs: { operator: 'add', b: 0 } },
+        position: { x: 0, y: 0 },
+      },
+    ]
+    const edges = [
+      {
+        source: '/a',
+        target: '/b',
+        sourceHandle: 'out.val',
+        targetHandle: 'par.a',
+        id: '/a.out.val->/b.par.a',
+      },
+    ]
+
+    transformGraph({ nodes, edges })
+
+    const staleErrors = errorSpy.mock.calls.filter(call =>
+      String(call[0]).includes('Stale edge detected')
+    )
+    expect(staleErrors).toHaveLength(0)
+  })
+
+  it('errors about unknown operator types', () => {
+    const nodes = [
+      { id: '/unknown-op', type: 'NonExistentOp', data: { inputs: {} }, position: { x: 0, y: 0 } },
+    ]
+
+    transformGraph({ nodes, edges: [] })
+
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('Unknown operator type'))
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('"NonExistentOp"'))
+  })
+
+  it('does not error for "group" special node type (React Flow group nodes)', () => {
+    const nodes = [
+      { id: 'for-loop-scope', type: 'group', data: {}, position: { x: 0, y: 0 } },
+      { id: '/num', type: 'NumberOp', data: { inputs: {} }, position: { x: 0, y: 0 } },
+    ]
+
+    transformGraph({ nodes, edges: [] })
+
+    const unknownTypeErrors = errorSpy.mock.calls.filter(call =>
+      String(call[0]).includes('Unknown operator type')
+    )
+    expect(unknownTypeErrors).toHaveLength(0)
+  })
+
+  it('passes visual group definitions to the executor for nested loop pairing', () => {
+    const nodes = [
+      {
+        id: '/outer-body',
+        type: 'group',
+        data: {},
+        position: { x: 0, y: 0 },
+      },
+      {
+        id: '/outer-begin',
+        type: 'ForLoopBeginOp',
+        data: { inputs: {} },
+        position: { x: 0, y: 0 },
+        parentId: '/outer-body',
+      },
+      {
+        id: '/outer-end',
+        type: 'ForLoopEndOp',
+        data: { inputs: {} },
+        position: { x: 900, y: 0 },
+        parentId: '/outer-body',
+      },
+      {
+        id: '/inner-body',
+        type: 'group',
+        data: {},
+        position: { x: 300, y: 100 },
+      },
+      {
+        id: '/inner-begin',
+        type: 'ForLoopBeginOp',
+        data: { inputs: {} },
+        position: { x: 0, y: 0 },
+        parentId: '/inner-body',
+      },
+      {
+        id: '/inner-end',
+        type: 'ForLoopEndOp',
+        data: { inputs: {} },
+        position: { x: 300, y: 0 },
+        parentId: '/inner-body',
+      },
+    ]
+    const edges = [
+      {
+        id: '/outer-begin.out.item->/inner-begin.par.data',
+        source: '/outer-begin',
+        target: '/inner-begin',
+        sourceHandle: 'out.item',
+        targetHandle: 'par.data',
+      },
+      {
+        id: '/inner-begin.out.item->/inner-end.par.item',
+        source: '/inner-begin',
+        target: '/inner-end',
+        sourceHandle: 'out.item',
+        targetHandle: 'par.item',
+      },
+      {
+        id: '/inner-end.out.data->/outer-end.par.item',
+        source: '/inner-end',
+        target: '/outer-end',
+        sourceHandle: 'out.data',
+        targetHandle: 'par.item',
+      },
+    ]
+
+    transformGraph({ nodes, edges })
+
+    const scopes = getExecutor()!.findForLoopScopes()
+    const outerScope = scopes.find(scope => scope.beginOp.id === '/outer-begin')!
+    const innerScope = scopes.find(scope => scope.beginOp.id === '/inner-begin')!
+    expect(outerScope.endOp.id).toBe('/outer-end')
+    expect(innerScope.endOp.id).toBe('/inner-end')
+  })
+
+  it('sets a connection error on the target operator when source node is missing', () => {
+    const nodes = [{ id: '/b', type: 'NumberOp', data: { inputs: {} }, position: { x: 0, y: 0 } }]
+    const edges = [
+      {
+        source: '/missing',
+        target: '/b',
+        sourceHandle: 'out.val',
+        targetHandle: 'par.val',
+        id: '/missing.out.val->/b.par.val',
+      },
+    ]
+
+    transformGraph({ nodes, edges })
+
+    const { getOp } = getOpStore()
+    const op = getOp('/b') as NumberOp
+    expect(op.hasConnectionErrors()).toBe(true)
+    const msgs = op.getConnectionErrorMessages()
+    expect(msgs[0]).toContain('Broken connection')
+    expect(msgs[0]).toContain('"/missing"')
+  })
+
+  it('clears the broken-connection error when the stale edge is removed', () => {
+    const nodes = [{ id: '/b', type: 'NumberOp', data: { inputs: {} }, position: { x: 0, y: 0 } }]
+    const edges = [
+      {
+        source: '/missing',
+        target: '/b',
+        sourceHandle: 'out.val',
+        targetHandle: 'par.val',
+        id: '/missing.out.val->/b.par.val',
+      },
+    ]
+
+    transformGraph({ nodes, edges })
+
+    // Confirm error is set
+    const { getOp } = getOpStore()
+    expect(getOp('/b')!.hasConnectionErrors()).toBe(true)
+
+    // Remove the stale edge
+    transformGraph({ nodes, edges: [] })
+
+    expect(getOp('/b')!.hasConnectionErrors()).toBe(false)
+  })
+
+  it('does not fire stale-edge error for edges to unknown-type nodes', () => {
+    // An edge connecting to a node with an unknown type should only fire the "Unknown operator
+    // type" error, not a second "Stale edge detected" error for the same missing node ID.
+    const nodes = [
+      { id: '/a', type: 'NumberOp', data: { inputs: {} }, position: { x: 0, y: 0 } },
+      { id: '/b', type: 'NonExistentOp', data: { inputs: {} }, position: { x: 0, y: 0 } },
+    ]
+    const edges = [
+      {
+        source: '/a',
+        target: '/b',
+        sourceHandle: 'out.val',
+        targetHandle: 'par.val',
+        id: '/a.out.val->/b.par.val',
+      },
+    ]
+
+    transformGraph({ nodes, edges })
+
+    const staleErrors = errorSpy.mock.calls.filter(call =>
+      String(call[0]).includes('Stale edge detected')
+    )
+    expect(staleErrors).toHaveLength(0)
+    // The unknown-type error should still fire
+    const unknownTypeErrors = errorSpy.mock.calls.filter(call =>
+      String(call[0]).includes('Unknown operator type')
+    )
+    expect(unknownTypeErrors).toHaveLength(1)
+  })
+})
 
 describe('transform-graph', () => {
   it('handles qualified handle IDs', () => {
@@ -825,5 +1238,308 @@ describe('connection error suppression for undefined source fields', () => {
 
     // Error should be cleared — source has no value, so we cannot confirm the mismatch
     expect(add.hasConnectionErrors()).toBe(false)
+  })
+})
+
+describe('GraphInputOp rebuildFromContainer keeps the container link alive', () => {
+  afterEach(() => {
+    clearOps()
+  })
+
+  it('still receives container.par.in updates after a custom-fields rebuild', () => {
+    // rebuildFromContainer used to recreate the parentValue field object,
+    // orphaning the container.par.in -> parentValue connection wired by
+    // transformGraph. Data arriving after any rebuild (async FileOp upstream
+    // of the container) then never reached the container's children.
+    const nodes = [
+      {
+        id: '/box',
+        type: 'ContainerOp',
+        data: {
+          inputs: {},
+          customInputs: [
+            { id: 'ci1', name: 'threshold', type: 'number', order: 0, defaultValue: 4 },
+          ],
+        },
+        position: { x: 0, y: 0 },
+      },
+      { id: '/box/input', type: 'GraphInputOp', data: { inputs: {} }, position: { x: 10, y: 0 } },
+    ]
+
+    transformGraph({ nodes, edges: [] })
+
+    const { getOp } = getOpStore()
+    const box = getOp('/box')!
+    const graphInput = getOp('/box/input')! as InstanceType<
+      typeof import('./operators')['GraphInputOp']
+    >
+
+    box.inputs.in.setValue([1, 2, 3])
+    expect(graphInput.inputs.parentValue.value).toEqual([1, 2, 3])
+
+    // Simulate what the customFieldsChanged subscription does on any later
+    // custom-field change.
+    graphInput.rebuildFromContainer(box as never)
+
+    box.inputs.in.setValue([4, 5, 6, 7])
+    expect(graphInput.inputs.parentValue.value).toEqual([4, 5, 6, 7])
+  })
+})
+
+describe('derived reference edges (unmounted nodes)', () => {
+  afterEach(() => {
+    clearOps()
+  })
+
+  it('wires an op() reference in a container child that has no persisted edge', () => {
+    // Reference edges are synced by the CodeField editor component, which never
+    // mounts for collapsed container children. transformGraph must derive them
+    // from the code text so the child re-executes when the referenced operator
+    // produces data (previously it executed once against undefined and went
+    // permanently stale — an empty layer with zero console errors).
+    const nodes = [
+      { id: '/num', type: 'NumberOp', data: { inputs: { val: 7 } }, position: { x: 0, y: 0 } },
+      { id: '/box', type: 'ContainerOp', data: { inputs: {} }, position: { x: 100, y: 0 } },
+      {
+        id: '/box/child',
+        type: 'CodeOp',
+        data: { inputs: { code: "return op('/num').out.val * 2" } },
+        position: { x: 110, y: 0 },
+      },
+    ]
+
+    transformGraph({ nodes, edges: [] })
+
+    const { getOp } = getOpStore()
+    const child = getOp('/box/child')!
+    const refEdgeId = '/num.out.val->/box/child.par.code'
+    expect(child.inputs.code.subscriptions.has(refEdgeId)).toBe(true)
+  })
+
+  it('derives edges for array-form code and mustache references, skipping unresolvable ones', () => {
+    const nodes = [
+      { id: '/a', type: 'NumberOp', data: { inputs: { val: 1 } }, position: { x: 0, y: 0 } },
+      {
+        id: '/code',
+        type: 'CodeOp',
+        data: {
+          inputs: {
+            code: ["const x = op('/a').out.val", "const y = op('/gone').out.val", 'return x'],
+          },
+        },
+        position: { x: 50, y: 0 },
+      },
+    ]
+    const derived = deriveReferenceEdges(nodes, [])
+    expect(derived).toHaveLength(1)
+    expect(derived[0]).toMatchObject({
+      id: '/a.out.val->/code.par.code',
+      type: 'ReferenceEdge',
+      source: '/a',
+      sourceHandle: 'out.val',
+      target: '/code',
+      targetHandle: 'par.code',
+    })
+  })
+
+  it('does not duplicate a reference edge the component already synced', () => {
+    const nodes = [
+      { id: '/a', type: 'NumberOp', data: { inputs: { val: 1 } }, position: { x: 0, y: 0 } },
+      {
+        id: '/code',
+        type: 'CodeOp',
+        data: { inputs: { code: "return op('/a').out.val" } },
+        position: { x: 50, y: 0 },
+      },
+    ]
+    const existing = [
+      {
+        id: '/a.out.val->/code.par.code',
+        type: 'ReferenceEdge',
+        source: '/a',
+        sourceHandle: 'out.val',
+        target: '/code',
+        targetHandle: 'par.code',
+      },
+    ]
+    expect(deriveReferenceEdges(nodes, existing)).toHaveLength(0)
+  })
+
+  it('does not make an enclosing-container param reference a pull dependency (false cycle)', () => {
+    // op('/box').par.minMagnitude inside /box/child derives the reference
+    // edge /box -> /box/child. With the child -> GraphOutput -> /box bridge
+    // edge that would be a pull-dependency cycle _pullUpstreamDependencies
+    // recurses on forever. The reference must stay a field-layer
+    // subscription without entering the operator dependency sets.
+    const nodes = [
+      {
+        id: '/box',
+        type: 'ContainerOp',
+        data: {
+          inputs: {},
+          customInputs: [
+            { id: 'ci1', name: 'minMagnitude', type: 'number', order: 0, defaultValue: 4 },
+          ],
+        },
+        position: { x: 0, y: 0 },
+      },
+      {
+        id: '/box/child',
+        type: 'CodeOp',
+        data: { inputs: { code: "return op('/box').par.minMagnitude" } },
+        position: { x: 10, y: 0 },
+      },
+      { id: '/box/output', type: 'GraphOutputOp', data: { inputs: {} }, position: { x: 20, y: 0 } },
+    ]
+    const edges = [
+      {
+        id: '/box/child.out.data->/box/output.par.value',
+        source: '/box/child',
+        target: '/box/output',
+        sourceHandle: 'out.data',
+        targetHandle: 'par.value',
+      },
+      {
+        id: '/box/output.out.propagatedValue->/box.out.out',
+        source: '/box/output',
+        target: '/box',
+        sourceHandle: 'out.propagatedValue',
+        targetHandle: 'out.out',
+      },
+    ]
+
+    transformGraph({ nodes, edges })
+
+    const { getOp } = getOpStore()
+    const box = getOp('/box')!
+    const child = getOp('/box/child')!
+    const deps = (child as unknown as { _upstreamDependencies: Set<unknown> })._upstreamDependencies
+    expect(deps.has(box)).toBe(false)
+    // The field-layer subscription for the derived reference edge remains.
+    expect(child.inputs.code.subscriptions.has('/box.par.minMagnitude->/box/child.par.code')).toBe(
+      true
+    )
+  })
+})
+
+describe('ListField connection order sync', () => {
+  afterEach(() => {
+    clearOps()
+  })
+
+  const numberNode = (id: string, val: number) => ({
+    id,
+    type: 'NumberOp',
+    data: { inputs: { val } },
+    position: { x: 0, y: 0 },
+  })
+
+  const concatNode = { id: '/concat', type: 'ConcatOp', data: {}, position: { x: 0, y: 0 } }
+
+  const listEdge = (source: string) => ({
+    id: edgeId({ source, target: '/concat', sourceHandle: 'out.val', targetHandle: 'par.values' }),
+    source,
+    target: '/concat',
+    sourceHandle: 'out.val',
+    targetHandle: 'par.values',
+  })
+
+  const connectionOrder = () => {
+    const concat = getOpStore().getOp('/concat') as ConcatOp
+    return Array.from(concat.inputs.values.fields.keys())
+  }
+
+  it('orders ListField connections by edge array order on first build', () => {
+    const nodes = [numberNode('/a', 1), numberNode('/b', 2), numberNode('/c', 3), concatNode]
+    const edges = [listEdge('/a'), listEdge('/b'), listEdge('/c')]
+
+    transformGraph({ nodes, edges })
+
+    expect(connectionOrder()).toEqual([listEdge('/a').id, listEdge('/b').id, listEdge('/c').id])
+  })
+
+  it('reorders existing connections when the edge array order changes', () => {
+    const nodes = [numberNode('/a', 1), numberNode('/b', 2), numberNode('/c', 3), concatNode]
+
+    transformGraph({ nodes, edges: [listEdge('/a'), listEdge('/b'), listEdge('/c')] })
+    // Same edge ids, different array order — operators are reused from the store, and
+    // addConnection alone would keep the stale Map order
+    transformGraph({ nodes, edges: [listEdge('/c'), listEdge('/a'), listEdge('/b')] })
+
+    expect(connectionOrder()).toEqual([listEdge('/c').id, listEdge('/a').id, listEdge('/b').id])
+  })
+
+  it('places a newly inserted mid-group edge at its array position', () => {
+    const nodes = [numberNode('/a', 1), numberNode('/b', 2), numberNode('/c', 3), concatNode]
+
+    transformGraph({ nodes, edges: [listEdge('/a'), listEdge('/c')] })
+    // /b inserted between /a and /c; addConnection would append it last
+    transformGraph({ nodes, edges: [listEdge('/a'), listEdge('/b'), listEdge('/c')] })
+
+    expect(connectionOrder()).toEqual([listEdge('/a').id, listEdge('/b').id, listEdge('/c').id])
+  })
+})
+
+describe('transform-graph container cascade deletion', () => {
+  afterEach(() => {
+    clearOps()
+  })
+
+  it('operator store is cleaned up when re-transforming without deleted container children', () => {
+    const nodes = [
+      { id: '/source', type: 'NumberOp', data: { inputs: {} }, position: { x: 0, y: 0 } },
+      { id: '/container', type: 'ContainerOp', data: { inputs: {} }, position: { x: 0, y: 0 } },
+      {
+        id: '/container/container-input',
+        type: 'GraphInputOp',
+        data: { inputs: {} },
+        position: { x: 0, y: 0 },
+      },
+      {
+        id: '/container/container-output',
+        type: 'GraphOutputOp',
+        data: { inputs: {} },
+        position: { x: 0, y: 0 },
+      },
+      { id: '/container/worker', type: 'MathOp', data: { inputs: {} }, position: { x: 0, y: 0 } },
+      { id: '/sink', type: 'MathOp', data: { inputs: {} }, position: { x: 0, y: 0 } },
+    ]
+    const edges = [
+      {
+        id: '/source.out.val->/container.par.in',
+        source: '/source',
+        target: '/container',
+        sourceHandle: 'out.val',
+        targetHandle: 'par.in',
+      },
+      {
+        id: '/container/container-input.out.parentValue->/container/worker.par.a',
+        source: '/container/container-input',
+        target: '/container/worker',
+        sourceHandle: 'out.parentValue',
+        targetHandle: 'par.a',
+      },
+    ]
+
+    transformGraph({ nodes, edges })
+
+    expect(hasOp('/container')).toBe(true)
+    expect(hasOp('/container/worker')).toBe(true)
+    expect(hasOp('/container/container-input')).toBe(true)
+    expect(hasOp('/container/container-output')).toBe(true)
+
+    // Re-transform without the container and its children (simulates cascade delete)
+    const remainingNodes = nodes.filter(n => !n.id.startsWith('/container'))
+    const remainingEdges = edges.filter(
+      e => !e.source.startsWith('/container') && !e.target.startsWith('/container')
+    )
+    transformGraph({ nodes: remainingNodes, edges: remainingEdges })
+
+    expect(hasOp('/container')).toBe(false)
+    expect(hasOp('/container/worker')).toBe(false)
+    expect(hasOp('/container/container-input')).toBe(false)
+    expect(hasOp('/container/container-output')).toBe(false)
+    expect(hasOp('/source')).toBe(true)
+    expect(hasOp('/sink')).toBe(true)
   })
 })

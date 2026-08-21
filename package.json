@@ -2,19 +2,24 @@
   "name": "noodles.gl",
   "version": "1.0.0",
   "private": true,
+  "workspaces": [
+    "website",
+    "noodles-editor"
+  ],
   "scripts": {
-    "install:website": "(cd website && yarn install)",
-    "install:app": "(cd noodles-editor && yarn install)",
-    "install:all": "yarn install:website && yarn install:app",
-    "build:app": "(cd noodles-editor && yarn build)",
-    "build:app:cloudflare": "(cd noodles-editor && yarn generate:context && VITE_USE_CDN_DUCKDB=true yarn build)",
-    "build:website": "(cd website && yarn build)",
-    "build:all": "yarn build:app && yarn build:website && mkdir -p website/build/app && cp -r noodles-editor/dist/* website/build/app/",
-    "build:all:cloudflare": "yarn build:website && yarn build:app:cloudflare && mkdir -p website/build/app && cp -r noodles-editor/dist/* website/build/app/",
-    "start:website": "(cd website && yarn start)",
-    "start:app": "(cd noodles-editor && yarn start)",
-    "serve:website": "(cd website && yarn serve)",
-    "serve:app": "(cd noodles-editor && yarn serve)"
+    "postinstall": "node scripts/patch-vitest-browser-playwright.cjs",
+    "build:app": "(cd noodles-editor && npm run build)",
+    "build:app:cloudflare": "(cd noodles-editor && npm run generate:context && VITE_USE_CDN_DUCKDB=true npm run build)",
+    "build:website": "(cd website && npm run build)",
+    "build:all": "npm run build:app && npm run build:website && mkdir -p website/build/app && cp -r noodles-editor/dist/* website/build/app/",
+    "build:all:cloudflare": "npm run build:website && npm run build:app:cloudflare && mkdir -p website/build/app && cp -r noodles-editor/dist/* website/build/app/",
+    "start:website": "(cd website && npm start)",
+    "start:app": "(cd noodles-editor && npm start)",
+    "serve:website": "(cd website && npm run serve)",
+    "serve:app": "(cd noodles-editor && npm run serve)",
+    "validate:examples": "node scripts/validate-examples.js"
   },
-  "packageManager": "yarn@4.5.3"
+  "devDependencies": {
+    "@testing-library/dom": "^10.4.1"
+  }
 }

@@ -149,7 +149,9 @@ export class SessionManager {
     try {
       const sessionsArray = Array.from(this.sessions.entries()).map(([token, session]) => ({
         token,
-        ...session,
+        id: session.id,
+        name: session.name,
+        permissions: session.permissions,
         createdAt: session.createdAt.toISOString(),
         expiresAt: session.expiresAt.toISOString(),
       }))

@@ -59,7 +59,7 @@
   --node-view-color: #0e8fc9;
   --node-widget-color: #7a61d5;
 
-  --property-panel-width: 280px;
+  --property-panel-width: 296px;
   --property-panel-background-color: #282b2fcc;
   --tooltip-icon-color: #919191;
   --tooltip-background-color: #383838;
@@ -68,7 +68,6 @@
   --xy-controls-button-color-hover: #262626;
 
   --timeline-accent: #48c6cf;
-
 }
 
 :root {
@@ -231,6 +230,52 @@
 
 .headerLockLocked {
   filter: brightness(0.5);
+}
+
+/* Context Menu Styles */
+.contextMenu {
+  min-width: 180px;
+  background: var(--color-bg-base);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  padding: 4px;
+  box-shadow:
+    0 10px 38px -10px rgba(0, 0, 0, 0.35),
+    0 10px 20px -15px rgba(0, 0, 0, 0.2);
+  z-index: var(--z-index-chrome);
+}
+
+.contextMenuItem {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  padding-left: 28px;
+  font-size: 13px;
+  color: var(--color-text-primary);
+  border-radius: 3px;
+  cursor: pointer;
+  outline: none;
+  user-select: none;
+  transition: background-color 0.15s;
+  position: relative;
+}
+
+.contextMenuItem:hover {
+  background: var(--color-bg-hover);
+}
+
+.contextMenuItem:focus {
+  background: var(--color-bg-hover);
+}
+
+.contextMenuIndicator {
+  position: absolute;
+  left: 8px;
+  width: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-primary);
 }
 
 .headerDownload {
@@ -479,7 +524,7 @@
 
 .fieldInputUploadButton {
   cursor: pointer;
-  height: 1em;
+  padding: .25rem .875rem;
 }
 
 .fieldCompoundWrapper {
@@ -548,11 +593,15 @@
 
 .fieldInputWrapperVector {
   display: flex;
-  gap: 5px;
+  gap: 3px;
+}
+
+.fieldInputWrapperVector .fieldInputNumber {
+  margin-right: 0;
 }
 
 .fieldInputVector {
-  width: 50px;
+  width: 32px;
 }
 
 .fieldLookupButton {
@@ -632,6 +681,30 @@
   background-color: var(--color-value);
 }
 
+/* Button to open the Map Style Configurator dialog from within a node */
+.configureButton {
+  width: 100%;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.8rem;
+  background-color: #3b82f6;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  margin: 0.25rem 0;
+  font-family: inherit;
+  transition: background-color 0.15s;
+}
+
+.configureButton:hover {
+  background-color: #2563eb;
+}
+
+.configureButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* Portal wrapper for the color picker — position/z-index here, top/left set dynamically */
 .colorPickerPortal {
   position: fixed;
@@ -706,8 +779,91 @@
   width: unset;
 }
 
+.fieldFileInputGroupSuggestions {
+  position: relative;
+}
+
 .fieldInputFileUrl {
   padding: 0 1em;
+}
+
+.fileUrlSuggestions {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: var(--z-index-modal);
+  margin: 2px 0 0;
+  padding: 4px 0;
+  list-style: none;
+  background: rgba(22, 22, 24, 0.98);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.fileUrlSuggestion {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 6px 10px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.fileUrlSuggestion:hover,
+.fileUrlSuggestionActive {
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.fileUrlSuggestionLabel {
+  font-size: 11px;
+  color: var(--node-text-color, rgba(255, 255, 255, 0.9));
+  font-weight: 500;
+}
+
+.fileUrlSuggestionUrl {
+  font-size: 9px;
+  color: rgba(255, 255, 255, 0.35);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fieldInputTypeahead {
+  width: 100%;
+  padding: 0 0.5em;
+}
+
+.stringLiteralSuggestions {
+  z-index: 99999;
+  margin: 2px 0 0;
+  padding: 4px 0;
+  list-style: none;
+  background: rgba(22, 22, 24, 0.98);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+  max-height: 200px;
+  overflow-y: auto;
+  pointer-events: auto;
+}
+
+.stringLiteralSuggestion {
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: background 0.1s;
+  font-size: 13px;
+  color: var(--node-text-color);
+}
+
+.stringLiteralSuggestion:hover,
+.stringLiteralSuggestionActive {
+  background: rgba(255, 255, 255, 0.07);
 }
 
 .fieldInputButton {
@@ -767,6 +923,47 @@
   stroke-width: 1.5;
   pointer-events: none;
   stroke: #888;
+}
+
+.targetedEdge {
+  stroke: #3b82f6;
+  stroke-width: 3;
+  filter: drop-shadow(0 0 6px rgba(59, 130, 246, 0.7));
+  animation: edgeTargetPulse 0.8s ease-in-out infinite;
+}
+
+.targetedEdgeIncompatible {
+  stroke: #9a8878;
+  stroke-width: 2;
+}
+
+@keyframes edgeTargetPulse {
+  0%,
+  100% {
+    stroke-opacity: 1;
+    filter: drop-shadow(0 0 6px rgba(59, 130, 246, 0.7));
+  }
+  50% {
+    stroke-opacity: 0.7;
+    filter: drop-shadow(0 0 12px rgba(59, 130, 246, 0.9));
+  }
+}
+
+.nodeDropTarget {
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.6);
+  animation: nodeDropPulse 0.8s ease-in-out infinite;
+}
+
+@keyframes nodeDropPulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.6);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 0 5px rgba(59, 130, 246, 0.8), 0 0 20px rgba(59, 130, 246, 0.4);
+    transform: scale(1.02);
+  }
 }
 
 /* Mapbox geocoder */
@@ -910,6 +1107,57 @@
 
 .wrapperError {
   box-shadow: 0 0 0 1px var(--node-execution-error-color);
+}
+
+/* Wrapper gives the absolute-positioned popover an anchor point */
+.errorPopoverAnchor {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.errorPopover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1a1a2e;
+  border: 1px solid var(--node-execution-error-color);
+  border-radius: 6px;
+  padding: 7px 26px 7px 10px;
+  min-width: 160px;
+  max-width: 300px;
+  font-size: 11px;
+  color: #fca5a5;
+  z-index: 1000;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
+  line-height: 1.5;
+  word-break: break-word;
+  pointer-events: all;
+  isolation: isolate;
+}
+
+.errorPopoverMessage {
+  display: block;
+  white-space: pre-wrap;
+}
+
+.errorPopoverClose {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  background: none;
+  border: none;
+  color: #fca5a5;
+  cursor: pointer;
+  padding: 2px 4px;
+  font-size: 9px;
+  opacity: 0.6;
+  line-height: 1;
+}
+
+.errorPopoverClose:hover {
+  opacity: 1;
 }
 
 .wrapperExecuting {

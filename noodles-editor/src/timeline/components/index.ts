@@ -1,11 +1,17 @@
 // Timeline UI Components - Public Exports
 
-export type { CollapsibleTimelinePanelProps } from './CollapsibleTimelinePanel'
-export { CollapsibleTimelinePanel } from './CollapsibleTimelinePanel'
 export type { CurveEditorProps } from './CurveEditor'
 export { CurveEditor } from './CurveEditor'
-export type { KeyframeIndicatorProps, WithKeyframeIndicatorProps } from './KeyframeIndicator'
-export { KeyframeIndicator, WithKeyframeIndicator } from './KeyframeIndicator'
+export type {
+  KeyframeIndicatorProps,
+  VectorKeyframeIndicatorProps,
+  WithKeyframeIndicatorProps,
+} from './KeyframeIndicator'
+export {
+  KeyframeIndicator,
+  VectorKeyframeIndicator,
+  WithKeyframeIndicator,
+} from './KeyframeIndicator'
 export type { KeyframeTrackProps } from './KeyframeTrack'
 export { KeyframeTrack } from './KeyframeTrack'
 

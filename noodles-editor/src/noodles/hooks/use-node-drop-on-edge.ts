@@ -2,13 +2,14 @@
 // This provides a UX similar to Houdini, Blender, and TouchDesigner
 
 import type { Edge as ReactFlowEdge, Node as ReactFlowNode, XYPosition } from '@xyflow/react'
-import { useCallback } from 'react'
+import { useCallback, useEffect } from 'react'
 import { analytics } from '../../utils/analytics'
 import type { IOperator, Operator } from '../operators'
-import { getOp } from '../store'
+import { getOp, useUIStore } from '../store'
 import { canConnect } from '../utils/can-connect'
 import { getNodeCenter, pointToLineDistance } from '../utils/edge-geometry'
 import { edgeId } from '../utils/id-utils'
+import { normalizeMultiInputEdges } from '../utils/multi-input-utils'
 import { parseHandleId } from '../utils/path-utils'
 
 // Distance threshold in pixels for considering a node "on" an edge
@@ -121,12 +122,24 @@ function canInsertNode(
 
 export function useNodeDropOnEdge(options: UseNodeDropOnEdgeOptions) {
   const { getNodes, getEdges, setEdges } = options
+  const setNodeDragState = useUIStore(s => s.setNodeDragState)
+
+  // Clear drag state on unmount or when edges change
+  useEffect(() => {
+    return () => setNodeDragState(null)
+  }, [setNodeDragState])
 
   // Find the edge closest to the dropped node, if within threshold
   const findEdgeAtPosition = useCallback(
     (nodeId: string, nodeCenter: XYPosition): ReactFlowEdge | null => {
       const nodes = getNodes()
       const edges = getEdges()
+
+      // Quick win: Create a Map for O(1) node lookups instead of O(n) find() calls
+      const nodeMap = new Map<string, ReactFlowNode>()
+      for (const node of nodes) {
+        nodeMap.set(node.id, node)
+      }
 
       let closestEdge: ReactFlowEdge | null = null
       let closestDistance = EDGE_DROP_THRESHOLD
@@ -137,8 +150,9 @@ export function useNodeDropOnEdge(options: UseNodeDropOnEdgeOptions) {
           continue
         }
 
-        const sourceNode = nodes.find(n => n.id === edge.source)
-        const targetNode = nodes.find(n => n.id === edge.target)
+        // Quick win: Use Map.get() instead of Array.find() for O(1) lookup
+        const sourceNode = nodeMap.get(edge.source)
+        const targetNode = nodeMap.get(edge.target)
 
         if (!sourceNode || !targetNode) {
           continue
@@ -154,6 +168,11 @@ export function useNodeDropOnEdge(options: UseNodeDropOnEdgeOptions) {
         if (distance < closestDistance) {
           closestDistance = distance
           closestEdge = edge
+
+          // Quick win: Early exit if we found a very close edge (within 5 pixels)
+          if (closestDistance < 5) {
+            break
+          }
         }
       }
 
@@ -206,10 +225,14 @@ export function useNodeDropOnEdge(options: UseNodeDropOnEdgeOptions) {
         targetHandle: droppedToTarget.targetHandle,
       }
 
-      // Remove the old edge and add the new ones
+      // Remove the old edge and add the new ones. newEdge2 takes the removed edge's array
+      // position so inserting a node on a multi-input edge keeps its slot order.
       setEdges(currentEdges => {
-        const filteredEdges = currentEdges.filter(e => e.id !== edge.id)
-        return [...filteredEdges, newEdge1, newEdge2]
+        const replacedIndex = currentEdges.findIndex(e => e.id === edge.id)
+        const nextEdges = currentEdges.filter(e => e.id !== edge.id)
+        nextEdges.splice(replacedIndex === -1 ? nextEdges.length : replacedIndex, 0, newEdge2)
+        nextEdges.push(newEdge1)
+        return normalizeMultiInputEdges(nextEdges)
       })
 
       // Track this action for analytics
@@ -227,16 +250,57 @@ export function useNodeDropOnEdge(options: UseNodeDropOnEdgeOptions) {
     [findEdgeAtPosition, setEdges]
   )
 
+  // Callback for node drag (update visual feedback)
+  const onNodeDrag = useCallback(
+    (_event: React.MouseEvent, node: ReactFlowNode) => {
+      const nodeCenter = getNodeCenter(node)
+      const edge = findEdgeAtPosition(node.id, nodeCenter)
+
+      if (!edge) {
+        setNodeDragState(null)
+        return
+      }
+
+      // Check if node has existing connections
+      const edges = getEdges()
+      const hasExistingConnections = edges.some(e => e.source === node.id || e.target === node.id)
+
+      // Check if we can insert this node
+      const { canInsert } = canInsertNode(edge, node.id)
+
+      setNodeDragState({
+        nodeId: node.id,
+        hasExistingConnections,
+        targetedEdge: { id: edge.id, canInsert },
+      })
+    },
+    [findEdgeAtPosition, getEdges, setNodeDragState]
+  )
+
   // Callback to be used with ReactFlow's onNodeDragStop
   // Returns the result of the drop operation (or null if no insertion happened)
+  // Requires Shift key for nodes with existing connections
   const onNodeDragStop = useCallback(
-    (_event: React.MouseEvent, node: ReactFlowNode): NodeDropResult | null => {
+    (event: React.MouseEvent, node: ReactFlowNode): NodeDropResult | null => {
+      // Clear drag state
+      setNodeDragState(null)
+
+      // Check if node has existing connections
+      const edges = getEdges()
+      const hasExistingConnections = edges.some(e => e.source === node.id || e.target === node.id)
+
+      // Require Shift key for nodes with existing connections to prevent accidental drops
+      if (hasExistingConnections && !event.shiftKey) {
+        return null
+      }
+
       return handleNodeDropOnEdge(node)
     },
-    [handleNodeDropOnEdge]
+    [handleNodeDropOnEdge, getEdges, setNodeDragState]
   )
 
   return {
+    onNodeDrag,
     onNodeDragStop,
     handleNodeDropOnEdge,
     findEdgeAtPosition,

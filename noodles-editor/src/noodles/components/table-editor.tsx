@@ -1,0 +1,1034 @@
+import {
+  type ColumnDef,
+  createColumnHelper,
+  flexRender,
+  getCoreRowModel,
+  useReactTable,
+} from '@tanstack/react-table'
+import cx from 'classnames'
+import { AutoComplete } from 'primereact/autocomplete'
+import { Button } from 'primereact/button'
+import { InputSwitch } from 'primereact/inputswitch'
+import { InputText } from 'primereact/inputtext'
+import { GeocodingDialog } from './geocoding-dialog'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import type { Temporal } from 'temporal-polyfill'
+import type { TableEditorOp } from '../operators'
+import type { ColumnSchema, ColumnType, DateTimeValue, TableSchema } from '../table-schema'
+import { convertValue, getDefaultValue, temporalToString } from '../table-schema'
+import { getTimezoneOptions } from '../utils/timezone-utils'
+import { ColorSwatch } from './color-swatch'
+import { SchemaEditorDialog } from './schema-editor-dialog'
+import s from './table-editor.module.css'
+
+// Cell editor components for each column type
+
+interface CellEditorProps {
+  value: unknown
+  onChange: (value: unknown) => void
+  onComplete: () => void
+  column: ColumnSchema
+}
+
+// Simplified draggable number input for table cells
+function DraggableNumberCellInput({
+  value,
+  onChange,
+  onBlur,
+  onKeyDown,
+  step = 1,
+  autoFocus,
+  className,
+}: {
+  value: string
+  onChange: (value: string) => void
+  onBlur: () => void
+  onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void
+  step?: number
+  autoFocus?: boolean
+  className?: string
+}) {
+  const [isDragging, setIsDragging] = useState(false)
+  const [isActive, setIsActive] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const dragStartRef = useRef<{ x: number; value: number } | null>(null)
+
+  const handleMouseDown = (e: React.MouseEvent<HTMLInputElement>) => {
+    if (isActive) return // Don't drag while editing text
+
+    const numValue = Number.parseFloat(value) || 0
+    dragStartRef.current = {
+      x: e.clientX,
+      value: numValue,
+    }
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      if (!dragStartRef.current) return
+
+      const deltaX = moveEvent.clientX - dragStartRef.current.x
+      const valueChange = Math.round(deltaX) * step
+      const newValue = dragStartRef.current.value + valueChange
+
+      setIsDragging(true)
+      onChange(newValue.toString())
+    }
+
+    const handleMouseUp = () => {
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+      dragStartRef.current = null
+      setIsDragging(false)
+    }
+
+    document.addEventListener('mousemove', handleMouseMove)
+    document.addEventListener('mouseup', handleMouseUp)
+  }
+
+  return (
+    <input
+      ref={inputRef}
+      type="text"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      onMouseDown={handleMouseDown}
+      onFocus={() => setIsActive(true)}
+      onBlur={() => {
+        setIsActive(false)
+        onBlur()
+      }}
+      onKeyDown={onKeyDown}
+      autoFocus={autoFocus}
+      className={`p-inputtext ${className || ''}`}
+      style={{
+        cursor: isActive ? 'text' : 'ew-resize',
+        userSelect: isDragging ? 'none' : 'auto',
+      }}
+    />
+  )
+}
+
+function NumberCellEditor({ value, onChange, onComplete, column }: CellEditorProps) {
+  // Hold string value locally for editing
+  const [stringValue, setStringValue] = useState(String(value ?? ''))
+  // Track the initial value for Escape key
+  const initialValueRef = useRef(value as number)
+
+  const parseAndApplyConstraints = (str: string) => {
+    const parsed = Number.parseFloat(str)
+    const finalValue = Number.isNaN(parsed) ? (column.defaultValue ?? 0) : parsed
+
+    // Apply min/max constraints
+    let constrainedValue = finalValue
+    if (column.options?.min !== undefined && constrainedValue < column.options.min) {
+      constrainedValue = column.options.min
+    }
+    if (column.options?.max !== undefined && constrainedValue > column.options.max) {
+      constrainedValue = column.options.max
+    }
+
+    return constrainedValue
+  }
+
+  const handleChange = (newStringValue: string) => {
+    setStringValue(newStringValue)
+    // Parse and update parent on every change
+    const parsedValue = parseAndApplyConstraints(newStringValue)
+    onChange(parsedValue)
+  }
+
+  return (
+    <DraggableNumberCellInput
+      value={stringValue}
+      onChange={handleChange}
+      onBlur={onComplete}
+      onKeyDown={(e) => {
+        e.stopPropagation()
+        if (e.key === 'Enter') {
+          onComplete()
+        }
+        if (e.key === 'Escape') {
+          // Revert to initial value captured at mount
+          setStringValue(String(initialValueRef.current ?? ''))
+          onChange(initialValueRef.current)
+          // Give the onChange time to propagate before completing
+          requestAnimationFrame(() => onComplete())
+        }
+      }}
+      step={column.options?.step ?? 1}
+      autoFocus
+      className={s.cellEditor}
+    />
+  )
+}
+
+function StringCellEditor({ value, onChange, onComplete }: CellEditorProps) {
+  return (
+    <InputText
+      value={value as string}
+      onChange={e => onChange(e.target.value)}
+      onBlur={onComplete}
+      onKeyDown={e => {
+        e.stopPropagation()
+        if (e.key === 'Enter') {
+          onComplete()
+        }
+        if (e.key === 'Escape') {
+          onComplete()
+        }
+      }}
+      autoFocus
+      className={s.cellEditor}
+    />
+  )
+}
+
+function StringLiteralCellEditor({ value, onChange, onComplete, column }: CellEditorProps) {
+  const selectRef = useRef<HTMLSelectElement>(null)
+  const currentValue = String(value ?? '')
+  const [localValue, setLocalValue] = useState(currentValue)
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false)
+  const configuredValues = column.options?.values ?? []
+  const freeform = column.options?.freeform ?? false
+  const values = configuredValues.includes(currentValue)
+    ? configuredValues
+    : [currentValue, ...configuredValues]
+
+  useEffect(() => {
+    selectRef.current?.focus()
+  }, [])
+
+  if (!freeform && configuredValues.length === 0) {
+    return (
+      <StringCellEditor value={value} onChange={onChange} onComplete={onComplete} column={column} />
+    )
+  }
+
+  if (!freeform) {
+    return (
+      <select
+        ref={selectRef}
+        value={currentValue}
+        onChange={e => {
+          onChange(e.currentTarget.value)
+          onComplete()
+        }}
+        onBlur={onComplete}
+        onKeyDown={e => {
+          e.stopPropagation()
+          if (e.key === 'Enter' || e.key === 'Escape') {
+            onComplete()
+          }
+        }}
+        aria-label={`Edit ${column.name}`}
+        className={cx('p-inputtext', s.cellEditor)}
+      >
+        {values.map(option => (
+          <option key={option} value={option}>
+            {option}
+          </option>
+        ))}
+      </select>
+    )
+  }
+
+  const filteredValues = configuredValues.filter(option =>
+    option.toLowerCase().includes(localValue.toLowerCase())
+  )
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <InputText
+        value={localValue}
+        onChange={e => {
+          setLocalValue(e.target.value)
+          onChange(e.target.value)
+          setSuggestionsOpen(true)
+        }}
+        onFocus={() => setSuggestionsOpen(true)}
+        onBlur={() => {
+          setTimeout(() => setSuggestionsOpen(false), 150)
+          onComplete()
+        }}
+        onKeyDown={e => {
+          e.stopPropagation()
+          if (e.key === 'Enter' || e.key === 'Escape') {
+            onComplete()
+          }
+        }}
+        autoFocus
+        className={s.cellEditor}
+        placeholder="Type or select…"
+      />
+      {suggestionsOpen && filteredValues.length > 0 && (
+        <ul className={s.cellSuggestions}>
+          {filteredValues.map(option => (
+            <li
+              key={option}
+              onMouseDown={() => {
+                setLocalValue(option)
+                onChange(option)
+                setSuggestionsOpen(false)
+                onComplete()
+              }}
+              className={s.cellSuggestion}
+            >
+              {option}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
+function BooleanCellEditor({ value, onChange, onComplete }: CellEditorProps) {
+  return (
+    <InputSwitch
+      checked={value as boolean}
+      onChange={e => {
+        onChange(e.value)
+        onComplete()
+      }}
+      autoFocus
+    />
+  )
+}
+
+function ColorCellEditor({ value, onChange, onComplete }: CellEditorProps) {
+  return (
+    <div
+      onBlur={onComplete}
+      onKeyDown={e => {
+        if (e.key === 'Enter' || e.key === 'Escape') {
+          onComplete()
+        }
+      }}
+    >
+      <ColorSwatch color={(value as string) || '#000000'} onChange={onChange} />
+    </div>
+  )
+}
+
+function Point2DCellEditor({ value, onChange, onComplete, column }: CellEditorProps) {
+  const [lng, lat] = (value as [number, number]) || [0, 0]
+  const [lngStr, setLngStr] = useState(String(lng))
+  const [latStr, setLatStr] = useState(String(lat))
+  const initialValueRef = useRef([lng, lat] as [number, number])
+  const latestRef = useRef([lng, lat] as [number, number])
+  const [geocodingOpen, setGeocodingOpen] = useState(false)
+
+  const parseLng = (str: string) => {
+    setLngStr(str)
+    const parsed = Number.parseFloat(str)
+    const newVal: [number, number] = [Number.isNaN(parsed) ? 0 : parsed, latestRef.current[1]]
+    latestRef.current = newVal
+    onChange(newVal)
+  }
+
+  const parseLat = (str: string) => {
+    setLatStr(str)
+    const parsed = Number.parseFloat(str)
+    const newVal: [number, number] = [latestRef.current[0], Number.isNaN(parsed) ? 0 : parsed]
+    latestRef.current = newVal
+    onChange(newVal)
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    e.stopPropagation()
+    if (e.key === 'Enter') onComplete()
+    if (e.key === 'Escape') {
+      onChange(initialValueRef.current)
+      requestAnimationFrame(() => onComplete())
+    }
+  }
+
+  const handleBlur = () => {
+    if (!geocodingOpen) onComplete()
+  }
+
+  const handleLocationSelected = (result: { longitude: number; latitude: number }) => {
+    const newVal: [number, number] = [result.longitude, result.latitude]
+    latestRef.current = newVal
+    setLngStr(String(result.longitude))
+    setLatStr(String(result.latitude))
+    onChange(newVal)
+    setGeocodingOpen(false)
+    onComplete()
+  }
+
+  return (
+    <div className={s.point2dEditor}>
+      <DraggableNumberCellInput
+        value={lngStr}
+        onChange={parseLng}
+        onBlur={() => {}}
+        onKeyDown={handleKeyDown}
+        step={0.0001}
+        autoFocus
+        className={s.coordInput}
+      />
+      <DraggableNumberCellInput
+        value={latStr}
+        onChange={parseLat}
+        onBlur={handleBlur}
+        onKeyDown={handleKeyDown}
+        step={0.0001}
+        className={s.coordInput}
+      />
+      {column.options?.geocoder && (
+        <button
+          type="button"
+          className={s.geocoderButton}
+          onMouseDown={e => e.preventDefault()}
+          onClick={() => setGeocodingOpen(true)}
+          title="Geocode address"
+        >
+          📍
+        </button>
+      )}
+      {column.options?.geocoder && (
+        <GeocodingDialog
+          open={geocodingOpen}
+          onOpenChange={open => {
+            setGeocodingOpen(open)
+            if (!open) onComplete()
+          }}
+          mode="update-field"
+          initialValue={{ longitude: latestRef.current[0], latitude: latestRef.current[1] }}
+          onLocationSelected={handleLocationSelected}
+        />
+      )}
+    </div>
+  )
+}
+
+function Vec3CellEditor({ value, onChange, onComplete }: CellEditorProps) {
+  const [x, y, z] = (value as [number, number, number]) || [0, 0, 0]
+  const [xStr, setXStr] = useState(String(x))
+  const [yStr, setYStr] = useState(String(y))
+  const [zStr, setZStr] = useState(String(z))
+  const initialValueRef = useRef([x, y, z] as [number, number, number])
+  const latestRef = useRef([x, y, z] as [number, number, number])
+
+  const parseX = (str: string) => {
+    setXStr(str)
+    const parsed = Number.parseFloat(str)
+    const newVal: [number, number, number] = [Number.isNaN(parsed) ? 0 : parsed, latestRef.current[1], latestRef.current[2]]
+    latestRef.current = newVal
+    onChange(newVal)
+  }
+
+  const parseY = (str: string) => {
+    setYStr(str)
+    const parsed = Number.parseFloat(str)
+    const newVal: [number, number, number] = [latestRef.current[0], Number.isNaN(parsed) ? 0 : parsed, latestRef.current[2]]
+    latestRef.current = newVal
+    onChange(newVal)
+  }
+
+  const parseZ = (str: string) => {
+    setZStr(str)
+    const parsed = Number.parseFloat(str)
+    const newVal: [number, number, number] = [latestRef.current[0], latestRef.current[1], Number.isNaN(parsed) ? 0 : parsed]
+    latestRef.current = newVal
+    onChange(newVal)
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    e.stopPropagation()
+    if (e.key === 'Enter') onComplete()
+    if (e.key === 'Escape') {
+      onChange(initialValueRef.current)
+      requestAnimationFrame(() => onComplete())
+    }
+  }
+
+  return (
+    <div className={s.vec3Editor}>
+      <DraggableNumberCellInput
+        value={xStr}
+        onChange={parseX}
+        onBlur={() => {}}
+        onKeyDown={handleKeyDown}
+        step={0.01}
+        autoFocus
+        className={s.vecInput}
+      />
+      <DraggableNumberCellInput
+        value={yStr}
+        onChange={parseY}
+        onBlur={() => {}}
+        onKeyDown={handleKeyDown}
+        step={0.01}
+        className={s.vecInput}
+      />
+      <DraggableNumberCellInput
+        value={zStr}
+        onChange={parseZ}
+        onBlur={onComplete}
+        onKeyDown={handleKeyDown}
+        step={0.01}
+        className={s.vecInput}
+      />
+    </div>
+  )
+}
+
+function DateCellEditor({ value, onChange, onComplete }: CellEditorProps) {
+  return (
+    <InputText
+      type="date"
+      value={value as string}
+      onChange={e => onChange(e.target.value)}
+      onBlur={onComplete}
+      onKeyDown={e => {
+        e.stopPropagation()
+        if (e.key === 'Enter' || e.key === 'Escape') {
+          onComplete()
+        }
+      }}
+      autoFocus
+      className={s.cellEditor}
+    />
+  )
+}
+
+function DateTimeCellEditor({ value, onChange, onComplete, column }: CellEditorProps) {
+  const timezoneOptions = useState(() => getTimezoneOptions())[0]
+
+  // Extract datetime and timezone from DateTimeValue
+  const dateTimeValue =
+    value && typeof value === 'object' && 'datetime' in value && 'timezone' in value
+      ? (value as DateTimeValue)
+      : { datetime: '', timezone: 'UTC' }
+
+  const [filteredTimezones, setFilteredTimezones] = useState<string[]>(timezoneOptions)
+  const [timezoneInputValue, setTimezoneInputValue] = useState<string>(dateTimeValue.timezone)
+  const [pendingTimezone, setPendingTimezone] = useState<string>(dateTimeValue.timezone)
+  const [datetimeValue, setDatetimeValue] = useState<string>(dateTimeValue.datetime)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  // Apply pending timezone change to cell value
+  const applyTimezoneChange = () => {
+    if (
+      pendingTimezone &&
+      pendingTimezone !== dateTimeValue.timezone &&
+      timezoneOptions.includes(pendingTimezone)
+    ) {
+      // Update cell value with new timezone
+      const newValue: DateTimeValue = {
+        datetime: datetimeValue,
+        timezone: pendingTimezone,
+      }
+      onChange(newValue)
+    }
+  }
+
+  // Update cell value when datetime changes
+  const handleDatetimeChange = (newDatetime: string) => {
+    setDatetimeValue(newDatetime)
+    const newValue: DateTimeValue = {
+      datetime: newDatetime,
+      timezone: pendingTimezone,
+    }
+    onChange(newValue)
+  }
+
+  // Handle blur - check if focus is moving to AutoComplete panel
+  const handleBlur = (e: React.FocusEvent) => {
+    // Use setTimeout to allow new focus target to be set
+    setTimeout(() => {
+      const activeElement = document.activeElement
+      const container = containerRef.current
+
+      // Check if focus moved to AutoComplete dropdown panel
+      const isInAutocompletePanel = activeElement?.closest('.p-autocomplete-panel')
+      const isInContainer = container && container.contains(activeElement)
+
+      // Only complete if focus truly left (not in container and not in dropdown panel)
+      if (!isInContainer && !isInAutocompletePanel) {
+        applyTimezoneChange()
+        onComplete()
+      }
+    }, 0)
+  }
+
+  return (
+    <div ref={containerRef} className={s.dateTimeCellEditor} onBlur={handleBlur}>
+      <InputText
+        type="datetime-local"
+        step={0.001}
+        value={datetimeValue}
+        onChange={e => handleDatetimeChange(e.target.value)}
+        onKeyDown={e => {
+          e.stopPropagation()
+          if (e.key === 'Enter' || e.key === 'Escape') {
+            onComplete()
+          }
+        }}
+        autoFocus
+        className={s.cellEditor}
+      />
+      <AutoComplete
+        value={timezoneInputValue}
+        suggestions={filteredTimezones}
+        completeMethod={e => {
+          const query = e.query.toLowerCase()
+          const filtered = query
+            ? timezoneOptions.filter(tz => tz.toLowerCase().includes(query))
+            : timezoneOptions
+          // Always set suggestions immediately to avoid spinner
+          setFilteredTimezones(filtered.length > 0 ? filtered : timezoneOptions)
+        }}
+        onChange={e => {
+          setTimezoneInputValue(e.value || dateTimeValue.timezone)
+        }}
+        onDropdownClick={() => {
+          setFilteredTimezones(timezoneOptions)
+        }}
+        onSelect={e => {
+          if (e.value && typeof e.value === 'string' && timezoneOptions.includes(e.value)) {
+            setPendingTimezone(e.value)
+            setTimezoneInputValue(e.value)
+          }
+        }}
+        dropdown
+        autoHighlight={false}
+        placeholder="TZ"
+        className={s.timezoneDropdown}
+        panelClassName={s.timezonePanel}
+        itemTemplate={item => (
+          <div
+            onMouseDown={() => {
+              setPendingTimezone(item)
+            }}
+          >
+            {item}
+          </div>
+        )}
+      />
+    </div>
+  )
+}
+
+// Get cell editor component for column type
+function getCellEditor(type: ColumnType) {
+  switch (type) {
+    case 'number':
+      return NumberCellEditor
+    case 'string':
+      return StringCellEditor
+    case 'stringLiteral':
+      return StringLiteralCellEditor
+    case 'boolean':
+      return BooleanCellEditor
+    case 'color':
+      return ColorCellEditor
+    case 'point2d':
+      return Point2DCellEditor
+    case 'vec2':
+      return Point2DCellEditor // Vec2 uses same editor as Point2D
+    case 'vec3':
+    case 'point3d':
+      return Vec3CellEditor
+    case 'date':
+      return DateCellEditor
+    case 'dateTime':
+      return DateTimeCellEditor
+    default:
+      return StringCellEditor
+  }
+}
+
+// Cell renderer functions for display mode
+
+function renderNumberCell(value: unknown): React.ReactNode {
+  if (typeof value !== 'number') return '0'
+  return value.toLocaleString()
+}
+
+function renderBooleanCell(value: unknown): string {
+  return value ? '✓' : '✗'
+}
+
+function renderColorCell(value: unknown): React.ReactNode {
+  const color = typeof value === 'string' ? value : '#000000'
+  return (
+    <div className={s.colorDisplay}>
+      <div className={s.colorSwatch} style={{ backgroundColor: color }} />
+      <span>{color}</span>
+    </div>
+  )
+}
+
+function renderPoint2DCell(value: unknown): string {
+  if (!Array.isArray(value) || value.length !== 2) return '[0, 0]'
+  const [lng, lat] = value
+  return `[${(lng as number).toFixed(4)}, ${(lat as number).toFixed(4)}]`
+}
+
+function renderVec3Cell(value: unknown): string {
+  if (!Array.isArray(value) || value.length !== 3) return '[0, 0, 0]'
+  const [x, y, z] = value
+  return `[${(x as number).toFixed(2)}, ${(y as number).toFixed(2)}, ${(z as number).toFixed(2)}]`
+}
+
+function renderDateCell(value: unknown): string {
+  if (typeof value === 'string') return value
+  if (value instanceof Date) return value.toISOString().split('T')[0]
+  return ''
+}
+
+function renderDateTimeCell(value: unknown, column: ColumnSchema): string {
+  // Only handle DateTimeValue format
+  if (value && typeof value === 'object' && 'datetime' in value && 'timezone' in value) {
+    const dateTimeValue = value as DateTimeValue
+    const tzAbbrev =
+      dateTimeValue.timezone === 'UTC'
+        ? 'UTC'
+        : (dateTimeValue.timezone.split('/').pop() ?? dateTimeValue.timezone)
+    return `${dateTimeValue.datetime} ${tzAbbrev}`
+  }
+  return ''
+}
+
+function renderStringCell(value: unknown): string {
+  return String(value ?? '')
+}
+
+// Get cell renderer for column type
+function getCellRenderer(type: ColumnType) {
+  switch (type) {
+    case 'number':
+      return renderNumberCell
+    case 'boolean':
+      return renderBooleanCell
+    case 'color':
+      return renderColorCell
+    case 'point2d':
+    case 'vec2':
+      return renderPoint2DCell
+    case 'vec3':
+    case 'point3d':
+      return renderVec3Cell
+    case 'date':
+      return renderDateCell
+    case 'dateTime':
+      return renderDateTimeCell
+    default:
+      return renderStringCell
+  }
+}
+
+// Tracks the cell currently in edit mode so row mutations can commit it first.
+// Without this, clicking "Add Row" or a delete button while a cell is mid-edit
+// can drop the pending value.
+interface ActiveEdit {
+  set: (commit: () => void) => void
+  clear: () => void
+  flush: () => void
+}
+
+function useActiveEdit(): ActiveEdit {
+  const commitRef = useRef<(() => void) | null>(null)
+
+  return useMemo(
+    () => ({
+      set: commit => {
+        commitRef.current = commit
+      },
+      clear: () => {
+        commitRef.current = null
+      },
+      flush: () => {
+        const commit = commitRef.current
+        commitRef.current = null
+        commit?.()
+      },
+    }),
+    []
+  )
+}
+
+// Editable cell component
+interface EditableCellProps {
+  getValue: () => unknown
+  row: { index: number }
+  column: { id: string }
+  table: {
+    options: {
+      meta?: {
+        updateData: (rowIndex: number, columnId: string, value: unknown) => void
+        deleteRow: (rowIndex: number) => void
+        schema: TableSchema
+        activeEdit: ActiveEdit
+      }
+    }
+  }
+}
+
+function EditableCell({ getValue, row, column, table }: EditableCellProps) {
+  const currentValue = getValue()
+  const [isEditing, setIsEditing] = useState(false)
+  const [value, setValue] = useState(currentValue)
+  const valueRef = useRef(currentValue)
+  const prevValueRef = useRef(currentValue)
+  const isEditingRef = useRef(false)
+
+  // Sync state with current value when not editing
+  if (!isEditing && currentValue !== prevValueRef.current) {
+    setValue(currentValue)
+    valueRef.current = currentValue
+    prevValueRef.current = currentValue
+  }
+
+  const colSchema = table.options.meta?.schema.columns.find(col => col.name === column.id)
+  if (!colSchema) {
+    return <div className={s.cell}>{String(currentValue)}</div>
+  }
+
+  const EditorComponent = getCellEditor(colSchema.type)
+  const renderer = getCellRenderer(colSchema.type)
+
+  const activeEdit = table.options.meta?.activeEdit
+
+  const handleChange = (newValue: unknown) => {
+    setValue(newValue)
+    valueRef.current = newValue
+  }
+
+  const handleComplete = () => {
+    // Guard against committing twice when a flush is followed by the blur it caused
+    if (!isEditingRef.current) return
+    isEditingRef.current = false
+    setIsEditing(false)
+    activeEdit?.clear()
+    table.options.meta?.updateData(row.index, column.id, valueRef.current)
+  }
+
+  const startEditing = () => {
+    // Commit any other cell still in edit mode before taking over
+    activeEdit?.flush()
+    isEditingRef.current = true
+    setIsEditing(true)
+    activeEdit?.set(handleComplete)
+  }
+
+  if (isEditing) {
+    return (
+      <div className={cx(s.cell, s.editing)}>
+        <EditorComponent
+          value={value}
+          onChange={handleChange}
+          onComplete={handleComplete}
+          column={colSchema}
+        />
+      </div>
+    )
+  }
+
+  // Render cell - dateTime renderer needs column schema for timezone
+  const renderedValue =
+    colSchema.type === 'dateTime'
+      ? (renderer as (value: unknown, column: ColumnSchema) => React.ReactNode)(
+          currentValue,
+          colSchema
+        )
+      : (renderer as (value: unknown) => React.ReactNode)(currentValue)
+
+  return (
+    <div
+      className={s.cell}
+      onClick={startEditing}
+      onKeyDown={e => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          startEditing()
+        }
+      }}
+      tabIndex={0}
+    >
+      {renderedValue}
+    </div>
+  )
+}
+
+// Main table component
+
+interface TableEditorProps {
+  op: TableEditorOp
+  data: unknown[]
+  schema: TableSchema
+  onDataChange: (data: unknown[], description?: string) => void
+  onSchemaChange: (schema: TableSchema, data?: unknown[]) => void
+}
+
+export function TableEditor({ data, schema, onDataChange, onSchemaChange }: TableEditorProps) {
+  const [tableData, setTableData] = useState(data)
+  const activeEdit = useActiveEdit()
+
+  // Mirrors tableData so a flushed cell edit and the row mutation that triggered
+  // it can both run in one tick without the second reading stale state
+  const tableDataRef = useRef(tableData)
+  tableDataRef.current = tableData
+
+  const commitData = (newData: unknown[], description: string) => {
+    tableDataRef.current = newData
+    setTableData(newData)
+    onDataChange(newData, description)
+  }
+
+  useEffect(() => {
+    setTableData(data)
+  }, [data])
+
+  const addRow = () => {
+    activeEdit.flush()
+    const newRow: Record<string, unknown> = {}
+    for (const col of schema.columns) {
+      newRow[col.name] = col.defaultValue ?? getDefaultValue(col)
+    }
+    commitData([...tableDataRef.current, newRow], 'Add table row')
+  }
+
+  const handleSchemaChange = (newSchema: TableSchema) => {
+    activeEdit.flush()
+    // Update data to match new schema
+    const newData = tableDataRef.current.map(row => {
+      const newRow: Record<string, unknown> = {}
+      for (const col of newSchema.columns) {
+        const existingValue = row[col.name]
+        // Convert existing value to new type, or use default if missing
+        if (existingValue !== undefined) {
+          newRow[col.name] = convertValue(existingValue, col.type)
+        } else {
+          newRow[col.name] = col.defaultValue ?? getDefaultValue(col)
+        }
+      }
+      return newRow
+    })
+
+    onSchemaChange(newSchema, newData)
+    tableDataRef.current = newData
+    setTableData(newData)
+  }
+
+  const columnHelper = createColumnHelper<Record<string, unknown>>()
+
+  // Add row number column and action column
+  const columns: ColumnDef<Record<string, unknown>>[] = [
+    columnHelper.display({
+      id: '_rowNumber',
+      header: '#',
+      cell: props => <div className={s.rowNumber}>{props.row.index + 1}</div>,
+      size: 50,
+    }),
+    ...schema.columns.map(colSchema =>
+      columnHelper.accessor(colSchema.name, {
+        header: colSchema.name,
+        cell: EditableCell,
+      })
+    ),
+    columnHelper.display({
+      id: '_actions',
+      header: () => <SchemaEditorDialog schema={schema} onChange={handleSchemaChange} />,
+      cell: props => (
+        <Button
+          icon="pi pi-trash"
+          className={`p-button-text p-button-sm ${s.deleteButton}`}
+          // Suppress the editor blur so unmounting it doesn't reflow the row and
+          // move this button out from under the pointer before mouseup lands
+          onMouseDown={e => e.preventDefault()}
+          onClick={() => props.table.options.meta?.deleteRow(props.row.index)}
+          tooltip="Delete row"
+          aria-label="Delete row"
+        />
+      ),
+      size: 50,
+    }),
+  ]
+
+  const table = useReactTable({
+    data: tableData,
+    columns,
+    getCoreRowModel: getCoreRowModel(),
+    meta: {
+      updateData: (rowIndex: number, columnId: string, value: unknown) => {
+        // Only update if value actually changed
+        const currentData = tableDataRef.current
+        const currentValue = currentData[rowIndex]?.[columnId]
+        if (currentValue === value) {
+          return
+        }
+        const newData = [...currentData]
+        newData[rowIndex] = {
+          ...newData[rowIndex],
+          [columnId]: value,
+        }
+        commitData(newData, `Edit cell ${columnId}`)
+      },
+      deleteRow: (rowIndex: number) => {
+        activeEdit.flush()
+        const newData = tableDataRef.current.filter((_, index) => index !== rowIndex)
+        commitData(newData, 'Delete table row')
+      },
+      schema,
+      activeEdit,
+    },
+  })
+
+  if (!tableData || tableData.length === 0) {
+    return (
+      <div className={s.emptyState}>
+        <p>No data. Add rows to get started.</p>
+        <Button label="Add Row" icon="pi pi-plus" onClick={addRow} />
+        <SchemaEditorDialog schema={schema} onChange={handleSchemaChange} />
+      </div>
+    )
+  }
+
+  return (
+    <div className={s.tableContainer}>
+      <div className={s.tableWrapper}>
+        <table className={s.table}>
+          <thead>
+            {table.getHeaderGroups().map(headerGroup => (
+              <tr key={headerGroup.id}>
+                {headerGroup.headers.map(header => (
+                  <th key={header.id} className={s.header}>
+                    {header.isPlaceholder
+                      ? null
+                      : flexRender(header.column.columnDef.header, header.getContext())}
+                  </th>
+                ))}
+              </tr>
+            ))}
+          </thead>
+          <tbody>
+            {table.getRowModel().rows.map(row => (
+              <tr key={row.id} className={s.row}>
+                {row.getVisibleCells().map(cell => (
+                  <td key={cell.id} className={s.cellContainer}>
+                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className={s.toolbar}>
+        <Button
+          label="Add Row"
+          icon="pi pi-plus"
+          onMouseDown={e => e.preventDefault()}
+          onClick={addRow}
+          className={`p-button-sm p-button-text ${s.addRowButton}`}
+        />
+        <div className={s.stats}>
+          {tableData.length} row{tableData.length !== 1 ? 's' : ''} × {schema.columns.length} column
+          {schema.columns.length !== 1 ? 's' : ''}
+        </div>
+      </div>
+    </div>
+  )
+}

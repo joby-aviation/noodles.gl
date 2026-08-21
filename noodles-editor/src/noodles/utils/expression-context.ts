@@ -46,6 +46,27 @@ const EXPRESSION_GLOBALS: GlobalDefinition[] = [
   { name: 'data', description: 'Full data array', type: 'variable' },
   { name: 'op', description: 'Access other operators by path', type: 'function' },
   {
+    name: 'sequenceTime',
+    description: 'Current timeline position in seconds',
+    type: 'variable',
+  },
+  {
+    name: 'frame',
+    description: 'Current frame number (computed from sequenceTime * fps)',
+    type: 'variable',
+  },
+  {
+    name: 'totalFrames',
+    description: 'Total frames in sequence (sequence.length * sequence.fps)',
+    type: 'variable',
+  },
+  {
+    name: 'sequence',
+    description: 'Sequence metadata',
+    type: 'library',
+    properties: ['length', 'fps'],
+  },
+  {
     name: 'utils',
     description: 'Utility functions',
     type: 'library',

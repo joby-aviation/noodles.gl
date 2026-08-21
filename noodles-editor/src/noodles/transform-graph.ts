@@ -1,12 +1,13 @@
 import { getIncomers, type Node as ReactFlowNode } from '@xyflow/react'
 import { debugExecutor } from '../utils/debug'
+import { getFieldReferences, ListField } from './fields'
 import { type Edge as ExecutorEdge, updateGraph } from './graph-executor'
 import type { Edge } from './noodles'
 import type { IOperator, Operator, OpType } from './operators'
-import { ContainerOp, ForLoopEndOp, GraphInputOp, opTypes } from './operators'
+import { ContainerOp, ForLoopEndOp, GraphInputOp, opTypes, type SpecialNodeType } from './operators'
 import { getOpStore } from './store'
 import { validateConnection } from './utils/can-connect'
-import { memoize } from './utils/memoize'
+import { edgeId } from './utils/id-utils'
 import { getParentPath, isDirectChild, parseHandleId } from './utils/path-utils'
 import { computeVisibilityHeuristic } from './utils/visibility-heuristic'
 
@@ -30,6 +31,14 @@ export {
 export type NodeDataJSON<_T extends Operator<IOperator> = Operator<IOperator>> = {
   inputs?: Record<string, unknown>
   locked?: boolean
+  customInputs?: Array<{
+    id: string
+    name: string
+    type: string
+    order: number
+    options?: Record<string, unknown>
+    defaultValue?: unknown
+  }>
 }
 
 export type NodeJSON<T extends OpType> = ReactFlowNode<
@@ -70,18 +79,139 @@ function topologicalSort<N extends Operator<IOperator>>(
     traverse(node)
   }
 
+  // Include nodes that weren't reachable from any source — this happens when an edge references
+  // a source node that no longer exists in the graph (e.g. a stale edge after a node is deleted).
+  // Without this, those downstream nodes would be silently dropped from the sorted output and
+  // never instantiated, causing "Operator with id X not found" errors at render time.
+  for (const node of nodes) {
+    if (!visitedNodes.has(node.id)) {
+      sortedNodes.push(node)
+    }
+  }
+
   // TODO: check for cycles, and throw an error if one is found
   // TODO: Fix reversed order
   return sortedNodes.reverse()
+}
+
+/** Reference edges derived from `op()` / mustache references inside
+ * string-valued inputs. The CodeField editor component keeps these in sync
+ * for MOUNTED nodes, but reference edges are never persisted and container
+ * children aren't mounted while collapsed — without this pass, a child whose
+ * only upstream link is an `op()` reference is invisible to the executor: it
+ * executes once before async upstream data arrives and never re-executes,
+ * silently producing empty output. Derived edges use the same id/handle
+ * shape as the component's, so the component's sync (which matches on
+ * target + targetHandle + sourceHandle) treats them as already present. */
+export function deriveReferenceEdges(
+  nodes: ReadonlyArray<{ id: string; data?: { inputs?: Record<string, unknown> } }>,
+  existingEdges: ReadonlyArray<{
+    source: string
+    sourceHandle?: string | null
+    target: string
+    targetHandle?: string | null
+  }>
+): Array<{
+  id: string
+  type: 'ReferenceEdge'
+  selectable: false
+  deletable: false
+  focusable: false
+  reconnectable: false
+  source: string
+  sourceHandle: string
+  target: string
+  targetHandle: string
+}> {
+  const nodeIds = new Set(nodes.map(n => n.id))
+  const seen = new Set(
+    existingEdges.map(e => `${e.source}.${e.sourceHandle}->${e.target}.${e.targetHandle}`)
+  )
+  const derived: Array<Record<string, unknown>> = []
+  for (const node of nodes) {
+    for (const [fieldName, value] of Object.entries(node.data?.inputs ?? {})) {
+      const text = Array.isArray(value)
+        ? value.filter((v): v is string => typeof v === 'string').join('\n')
+        : typeof value === 'string'
+          ? value
+          : null
+      // Cheap prefilter — reference syntaxes are `op('...')` and `{{...}}`.
+      if (!text || !(text.includes('op(') || text.includes('{{'))) continue
+      for (const ref of getFieldReferences(text, node.id)) {
+        if (!nodeIds.has(ref.opId)) continue
+        const connection = {
+          source: ref.opId,
+          sourceHandle: ref.handleId,
+          target: node.id,
+          targetHandle: `par.${fieldName}`,
+        }
+        const key = `${connection.source}.${connection.sourceHandle}->${connection.target}.${connection.targetHandle}`
+        if (seen.has(key)) continue
+        seen.add(key)
+        derived.push({
+          id: edgeId(connection),
+          type: 'ReferenceEdge',
+          selectable: false,
+          deletable: false,
+          focusable: false,
+          reconnectable: false,
+          ...connection,
+        })
+      }
+    }
+  }
+  return derived
 }
 
 export function transformGraph<
   OP extends Operator<IOperator>,
   E extends Edge<OP, OP>,
   T extends OpType,
->({ nodes: _nodes, edges }: { nodes: NodeJSON<unknown>[]; edges: E[] }): OP[] {
+>({ nodes: _nodes, edges: _edges }: { nodes: NodeJSON<unknown>[]; edges: E[] }): OP[] {
   const nodes = _nodes.filter(n => opTypes[n.type as T] !== undefined) as NodeJSON<OpType>[]
+  // Reference edges for every node — mounted or not (see deriveReferenceEdges).
+  const edges = [
+    ..._edges,
+    ...(deriveReferenceEdges(
+      _nodes as ReadonlyArray<{ id: string; data?: { inputs?: Record<string, unknown> } }>,
+      _edges
+    ) as unknown as E[]),
+  ]
   const store = getOpStore()
+
+  // Error about unknown node types — nodes present in the project file that aren't registered
+  // operators. Intentional special types like 'group' (React Flow group nodes) are excluded.
+  const specialNodeTypes = new Set<string>(['group'] satisfies SpecialNodeType[])
+  for (const node of _nodes) {
+    if (opTypes[node.type as T] === undefined && !specialNodeTypes.has(node.type as string)) {
+      console.error(
+        `[noodles] Unknown operator type "${node.type}" for node "${(node as { id: string }).id}". ` +
+          'This node will be skipped. Is the operator registered in opTypes?'
+      )
+    }
+  }
+
+  // Error about stale edges — edges that reference nodes not present in the graph.
+  // This typically indicates a failed node rename where edges weren't updated to match the new ID.
+  // Use _nodes (unfiltered) to build nodeIds so unknown-type nodes don't also trigger stale-edge errors.
+  const nodeIds = new Set(_nodes.map(n => (n as { id: string }).id))
+  for (const edge of edges) {
+    const missingSource = !nodeIds.has(edge.source)
+    const missingTarget = !nodeIds.has(edge.target)
+    if (missingSource || missingTarget) {
+      const missing = [
+        missingSource ? `source "${edge.source}"` : null,
+        missingTarget ? `target "${edge.target}"` : null,
+      ]
+        .filter(Boolean)
+        .join(', ')
+      console.error(
+        `[noodles] Stale edge detected: edge "${edge.id}" references missing node(s): ${missing}. ` +
+          'This may be caused by a failed node rename. The graph will load, but affected connections will be missing.'
+      )
+      debugExecutor('Stale edge: %s (missing: %s)', edge.id, missing)
+    }
+  }
 
   const sortedNodes = topologicalSort(nodes, edges)
   const created: Operator<IOperator>[] = []
@@ -107,9 +237,13 @@ export function transformGraph<
         const containerId = getParentPath(id)
         // Create operator with fully qualified path as id and store containerId
         op = new ctor(id, data?.inputs, data?.locked, containerId) as unknown as OP
-        if (ctor.cacheable) {
-          op.execute = memoize(op.execute)
+
+        // Restore custom field definitions if present
+        if (data?.customInputs && Array.isArray(data.customInputs)) {
+          op.customInputDefinitions = data.customInputs
+          op.rebuildInputs()
         }
+
         created.push(op)
         // Store operator in store using fully qualified path
         store.setOp(id, op)
@@ -148,19 +282,25 @@ export function transformGraph<
   })
 
   // Update dependency graph
-  updateGraph(edges as unknown as ExecutorEdge[])
+  updateGraph(_nodes, edges as unknown as ExecutorEdge[])
 
-  // Remove any connections that are not in the edges array
-  // Also clear connection errors for removed edges
+  // Remove any connections that are not in the edges array.
+  // Also clear connection errors for removed edges.
+  const currentEdgeIds = new Set(edges.map(e => e.id))
   for (const op of instances) {
     for (const [_key, field] of Object.entries(op.inputs)) {
       for (const [id] of field.subscriptions) {
-        const edge = edges.find(edge => edge.id === id)
-        if (!edge) {
+        if (!currentEdgeIds.has(id)) {
           field.removeConnection(id, 'reference')
-          // Also remove any connection error for this edge
           op.removeConnectionError(id)
         }
+      }
+    }
+    // Also clear errors for edges that no longer exist but had no subscription
+    // (e.g. stale-edge errors from a previous run where the source was missing)
+    for (const [errorEdgeId] of op.connectionErrors.value) {
+      if (!currentEdgeIds.has(errorEdgeId)) {
+        op.removeConnectionError(errorEdgeId)
       }
     }
   }
@@ -220,9 +360,45 @@ export function transformGraph<
         }
       }
 
-      // Update operator dependencies for pull-based execution
-      sourceOp.addDownstreamDependent(targetOp)
-      targetOp.addUpstreamDependency(sourceOp)
+      // Update operator dependencies for pull-based execution.
+      // Skip parameter-sourced references that stay inside the operator they
+      // read: self-references, and a container child reading an enclosing
+      // container's promoted param (op('/parent').par.x). Reading an input
+      // value never requires executing its owner — and the owner's execution
+      // already encompasses the child — so as a pull dependency the edge
+      // closes a false cycle (parent → child → GraphOutput → parent) that
+      // _pullUpstreamDependencies recurses on until the stack overflows. The
+      // field connection added above still delivers param changes reactively.
+      const isEnclosedParameterReference =
+        sourceNamespace === 'par' &&
+        (edge.source === edge.target || edge.target.startsWith(`${edge.source}/`))
+
+      if (!isEnclosedParameterReference) {
+        sourceOp.addDownstreamDependent(targetOp)
+        targetOp.addUpstreamDependency(sourceOp)
+      }
+    } else if (targetOp && !sourceOp) {
+      // Source node doesn't exist — surface a broken-connection error on the target operator
+      // so it appears in the UI via the error popover on the node header.
+      targetOp.addConnectionError(
+        edge.id,
+        `Broken connection: source node "${edge.source}" no longer exists. This may be caused by a failed node rename.`
+      )
+    }
+  }
+
+  // Sync ListField connection order to edge-array order. addConnection early-returns for
+  // already-connected ids and appends new ones at the Map end, so reused operators would
+  // otherwise keep stale order after edges are inserted mid-group or the array is reordered.
+  for (const op of instances) {
+    for (const [name, field] of Object.entries(op.inputs)) {
+      if (field instanceof ListField) {
+        field.setConnectionOrder(
+          edges
+            .filter(e => e.target === op.id && String(e.targetHandle) === `par.${name}`)
+            .map(e => e.id)
+        )
+      }
     }
   }
 
@@ -264,11 +440,25 @@ export function transformGraph<
       const containerOp = op
       for (const childOp of store.getAllOps()) {
         if (childOp instanceof GraphInputOp && isDirectChild(childOp.id, containerOp.id)) {
+          // Set up parent container relationship (triggers output rebuild)
+          childOp.setParentContainer(containerOp)
+
+          // Wire the base 'in' field to GraphInputOp's parentValue
           const parentValueField = childOp.inputs.parentValue
           const containerInField = containerOp.inputs.in
-
           const connectionId = `container_in_to_child_${childOp.id}`
           parentValueField.addConnection(connectionId, containerInField, 'value')
+
+          // Wire container's custom inputs to GraphInputOp's dynamic inputs
+          // This allows values to flow: container input → GraphInputOp input → execute() → GraphInputOp output
+          for (const def of containerOp.customInputDefinitions) {
+            const containerCustomField = containerOp.inputs[def.name]
+            const graphInputInputField = childOp.inputs[def.name]
+            if (containerCustomField && graphInputInputField) {
+              const customConnectionId = `container_custom_${def.name}_to_child_${childOp.id}`
+              graphInputInputField.addConnection(customConnectionId, containerCustomField, 'value')
+            }
+          }
         }
       }
     }

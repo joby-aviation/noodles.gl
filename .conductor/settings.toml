@@ -1,0 +1,10 @@
+"$schema" = "https://conductor.build/schemas/settings.repo.schema.json"
+
+[scripts]
+setup = "npm install"
+
+[scripts.run.run]
+available_in = "local"
+command = "(cd noodles-editor && npm start)"
+default = true
+icon = "play"
