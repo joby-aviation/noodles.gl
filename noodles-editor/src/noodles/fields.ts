@@ -66,6 +66,7 @@ type CompoundPropsFieldOptions = BaseFieldOptions &
 
 type StringLiteralFieldOptions = BaseFieldOptions & {
   values: string[] | Record<string, unknown> | { value: unknown; label: string }[]
+  freeform?: boolean
 }
 
 type CodeFieldOptions = BaseFieldOptions & {
@@ -603,12 +604,14 @@ export class StringLiteralField extends Field<
   static type = 'string-literal'
   static defaultValue = ''
   choices: StringLiteralOption[] = []
+  freeform = false
   createSchema(options: Partial<StringLiteralFieldOptions>) {
     const values = (options.values || []) as StringLiteralOption[]
+    const freeform = options.freeform ?? false
     // TODO: use zod enum? transform StringLiteralOption input type to string?
-    return values.length > 0
-      ? z.union(values.map(({ value }: StringLiteralOption) => z.literal(value)))
-      : z.string()
+    return freeform || values.length === 0
+      ? z.string()
+      : z.union(values.map(({ value }: StringLiteralOption) => z.literal(value)))
   }
 
   constructor(
@@ -618,11 +621,13 @@ export class StringLiteralField extends Field<
     const choices = parseChoices(opts)
     super(override, { ...(Array.isArray(opts) ? {} : opts), values: choices })
     this.choices = choices
+    this.freeform = !Array.isArray(opts) && (opts?.freeform ?? false)
   }
 
   updateChoices(opts: Partial<StringLiteralFieldOptions> | StringLiteralOption[] | string[]) {
     const choices = parseChoices(opts)
     this.choices = choices
+    this.freeform = !Array.isArray(opts) && (opts.freeform ?? false)
     const mergedOpts = { ...(Array.isArray(opts) ? {} : opts), values: choices }
     this.schema = this.createSchema(mergedOpts)
     this.schema = this.enhanceSchema(mergedOpts)

@@ -1184,6 +1184,22 @@ describe('Node Operations Integration Tests', () => {
       expect(metaNode.parentId).toBe(groupNode.id)
     })
 
+    it('creates a unique visual group for each ForLoop', () => {
+      const first = createNodesForType('ForLoop', { x: 100, y: 100 }, '/')
+      transformGraph({ nodes: first.nodes as any, edges: first.edges as any })
+
+      const second = createNodesForType('ForLoop', { x: 200, y: 200 }, '/')
+
+      const firstGroup = first.nodes.find(n => n.type === 'group')!
+      const secondGroup = second.nodes.find(n => n.type === 'group')!
+      expect(secondGroup.id).not.toBe(firstGroup.id)
+
+      for (const child of second.nodes.filter(n => n.type !== 'group')) {
+        expect(child.parentId).toBe(secondGroup.id)
+        expect(child.parentId).not.toBe(firstGroup.id)
+      }
+    })
+
     it('creates ForLoop child node IDs within the group namespace', () => {
       const { nodes } = createNodesForType('ForLoop', { x: 100, y: 100 }, '/')
 

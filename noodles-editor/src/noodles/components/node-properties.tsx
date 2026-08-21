@@ -24,14 +24,17 @@ import {
   type Vec2Field,
 } from '../fields'
 import { useObservable } from '../hooks/use-observable'
-import type { IOperator, Operator } from '../operators'
+import type { IOperator, OpType, Operator } from '../operators'
 import { OutOp } from '../operators'
-import { getOpStore, useUIStore } from '../store'
+import { getOpStore, useNestingStore, useUIStore } from '../store'
+import type { ConnectionPlan } from '../utils/auto-connect'
+import { edgeId } from '../utils/id-utils'
 import {
   moveEdgeWithinGroup,
   normalizeMultiInputEdges,
   orderedEdgeIdsForHandle,
 } from '../utils/multi-input-utils'
+import { type NodeType, createNodesForType } from '../utils/node-creation-utils'
 import { getBaseName, parseHandleId } from '../utils/path-utils'
 import { ErrorBoundary } from './error-boundary'
 import {
@@ -49,6 +52,7 @@ import menuStyles from './menu.module.css'
 import s from './node-properties.module.css'
 import { handleClass, headerClass, typeCategory } from './op-components'
 import { RenderSettingsPanel } from './render-settings-panel'
+import { SuggestedNodesSection } from './SuggestedNodes'
 
 // === Field Visibility Helper Functions ===
 
@@ -390,7 +394,7 @@ function CompoundSubFields({
 
 // Exported for testing
 export function NodeProperties({ nodeId }: { nodeId: string }) {
-  const { setEdges, getEdges } = useReactFlow()
+  const { setEdges, addNodes, addEdges, getEdges } = useReactFlow()
   const onEdgesChange = useStore(s => s.onEdgesChange)
   // Only re-renders when this node's incoming edges change (not on position updates)
   const edges = useStore(
@@ -399,6 +403,12 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
   )
   // Only re-renders when node type changes (stable during drag)
   const nodeType = useStore(s => s.nodes.find(n => n.id === nodeId)?.type ?? '')
+  // Only re-renders when this node's position changes
+  const nodePosition = useStore(s => {
+    const n = s.nodes.find(n => n.id === nodeId)
+    return n ? { x: n.position.x, y: n.position.y } : { x: 0, y: 0 }
+  })
+  const currentContainerId = useNestingStore(state => state.currentContainerId)
   const expandTimeline = useCallback(() => {
     useUIStore.getState().setTimelineExpanded(true)
   }, [])
@@ -462,6 +472,46 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
       setIsTruncated(isTruncated)
     }
   }, [description])
+
+  // Handler to add a suggested node and connect it
+  const handleAddNode = useCallback(
+    (opType: OpType, connection: ConnectionPlan) => {
+      // Calculate position to the right of current node
+      const newPosition = {
+        x: nodePosition.x + 300,
+        y: nodePosition.y,
+      }
+
+      // Create new node
+      const { nodes: newNodes, edges: newEdges } = createNodesForType(
+        opType as NodeType,
+        newPosition,
+        currentContainerId
+      )
+
+      if (newNodes.length === 0) return
+
+      const newNodeId = newNodes[0].id
+
+      // Create connection edge
+      const connectionEdge = {
+        id: edgeId({
+          source: nodeId,
+          sourceHandle: `out.${connection.sourceOutput}`,
+          target: newNodeId,
+          targetHandle: `par.${connection.targetInput}`,
+        }),
+        source: nodeId,
+        target: newNodeId,
+        sourceHandle: `out.${connection.sourceOutput}`,
+        targetHandle: `par.${connection.targetInput}`,
+      }
+
+      addNodes(newNodes)
+      addEdges([...newEdges, connectionEdge])
+    },
+    [nodeId, nodePosition.x, nodePosition.y, currentContainerId, addNodes, addEdges]
+  )
 
   // Early return after all hooks
   if (!op) return null
@@ -874,6 +924,7 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
           ))}
         </div>
       </div>
+      <SuggestedNodesSection operator={op} nodeId={nodeId} onAddNode={handleAddNode} />
 
       {/* Reset to defaults confirmation dialog */}
       <Dialog.Root open={isResetDialogOpen} onOpenChange={setIsResetDialogOpen}>

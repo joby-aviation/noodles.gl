@@ -1,7 +1,9 @@
+import * as deckWidgets from '@deck.gl/widgets'
 import * as turf from '@turf/turf'
 import { Temporal } from 'temporal-polyfill'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { NumberField } from './fields'
+import { NumberField, StringField } from './fields'
+import { getKeysStore } from './keys-store'
 import {
   AccessorOp,
   BitmapOverlayWidgetOp,
@@ -9,6 +11,7 @@ import {
   CategoricalColorRampOp,
   ChartOp,
   CodeOp,
+  CompassWidgetOp,
   ConcatOp,
   CrossOp,
   DeckRendererOp,
@@ -17,6 +20,9 @@ import {
   ExpressionOp,
   FileOp,
   FilterOp,
+  FpsWidgetOp,
+  FullscreenWidgetOp,
+  GeocoderOp,
   GeoJsonLayerOp,
   GeoJsonTransformOp,
   JSONOp,
@@ -36,11 +42,13 @@ import {
   RerouteOp,
   ScaleWidgetOp,
   ScatterplotLayerOp,
+  ScreenshotWidgetOp,
   SelectOp,
   SmoothOp,
   SwitchOp,
   Tile3DLayerOp,
   TimeSeriesOp,
+  ZoomWidgetOp,
 } from './operators'
 import { deleteOp, getOpStore, setOp } from './store'
 import { isAccessor } from './utils/accessor-helpers'
@@ -3470,6 +3478,24 @@ describe('ScaleWidgetOp', () => {
   })
 })
 
+describe('deck.gl widget operators', () => {
+  it.each([
+    ['FpsWidgetOp', FpsWidgetOp, '_StatsWidget'],
+    ['FullscreenWidgetOp', FullscreenWidgetOp, 'FullscreenWidget'],
+    ['ZoomWidgetOp', ZoomWidgetOp, 'ZoomWidget'],
+    ['CompassWidgetOp', CompassWidgetOp, 'CompassWidget'],
+    ['ScaleWidgetOp', ScaleWidgetOp, '_ScaleWidget'],
+    ['ScreenshotWidgetOp', ScreenshotWidgetOp, 'ScreenshotWidget'],
+  ])('%s emits an available deck.gl widget constructor', async (_name, WidgetOp, type) => {
+    const op = new WidgetOp('/widget-0')
+    await op.pull()
+
+    expect(op.outputData.widget.type).toBe(type)
+    // biome-ignore lint/performance/noDynamicNamespaceImportAccess: Match the runtime widget lookup.
+    expect(deckWidgets[type as keyof typeof deckWidgets]).toBeTypeOf('function')
+  })
+})
+
 describe('Operator output deep equality for CompoundPropsField', () => {
   it('should not trigger field updates when CompoundPropsField content is identical', async () => {
     const op = new MaplibreBasemapOp('/maplibre-test')
@@ -3874,6 +3900,132 @@ describe('DirectionsOp', () => {
     // Verify DirectionsOp correctly parses the GeoJSON Features
     expect(directionsOp.inputs.origin.value).toEqual({ lng: -74.006, lat: 40.7128 })
     expect(directionsOp.inputs.destination.value).toEqual({ lng: -73.935242, lat: 40.73061 })
+  })
+})
+
+describe('GeocoderOp', () => {
+  afterEach(() => {
+    getKeysStore().clearBrowserKey('mapbox')
+    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
+  })
+
+  it('geocodes its query when executed', async () => {
+    getKeysStore().setBrowserKey('mapbox', 'test-token')
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({
+        features: [
+          {
+            place_name: 'Los Angeles, California, United States',
+            center: [-118.2437, 34.0522],
+          },
+        ],
+      }),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const geocoderOp = new GeocoderOp('/geocoder')
+    geocoderOp.inputs.query.addConnection('query-connection', new StringField('Los Angeles'))
+    const result = await geocoderOp.execute({ query: 'Los Angeles' })
+
+    expect(result).toEqual({
+      location: { lng: -118.2437, lat: 34.0522 },
+      results: [
+        {
+          place_name: 'Los Angeles, California, United States',
+          coordinates: { longitude: -118.2437, latitude: 34.0522 },
+        },
+      ],
+    })
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://api.mapbox.com/geocoding/v5/mapbox.places/Los%20Angeles.json?access_token=test-token&limit=5'
+    )
+  })
+
+  it('preserves the user-selected result when its query is not connected', async () => {
+    getKeysStore().setBrowserKey('mapbox', 'test-token')
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+
+    const geocoderOp = new GeocoderOp('/geocoder')
+    geocoderOp.outputs.location.next({ lng: -118.2437, lat: 34.0522 })
+
+    await expect(geocoderOp.execute({ query: 'Los Angeles' })).resolves.toEqual({
+      location: { lng: -118.2437, lat: 34.0522 },
+      results: [],
+    })
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('requires a Mapbox API key', async () => {
+    vi.spyOn(getKeysStore(), 'getKey').mockReturnValue(undefined)
+    const geocoderOp = new GeocoderOp('/geocoder')
+
+    await expect(geocoderOp.execute({ query: 'Los Angeles' })).rejects.toThrow(
+      'Mapbox API key required (Settings > API Keys)'
+    )
+  })
+
+  it('clears stale outputs when a connected query becomes blank', async () => {
+    vi.spyOn(getKeysStore(), 'getKey').mockReturnValue('test-token')
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({
+        features: [{ place_name: 'Long Beach', center: [-118.1937, 33.7701] }],
+      }),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const geocoderOp = new GeocoderOp('/geocoder')
+    geocoderOp.inputs.query.addConnection('query-connection', new StringField('Long Beach'))
+    const firstResult = await geocoderOp.execute({ query: 'Long Beach' })
+    geocoderOp.outputs.location.next(firstResult.location)
+    geocoderOp.outputs.results.next(firstResult.results)
+
+    await expect(geocoderOp.execute({ query: '   ' })).resolves.toEqual({
+      location: { lng: 0, lat: 0 },
+      results: [],
+    })
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('returns empty outputs without error when Mapbox has no results', async () => {
+    vi.spyOn(getKeysStore(), 'getKey').mockReturnValue('test-token')
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: vi.fn().mockResolvedValue({ features: [] }),
+      })
+    )
+
+    const geocoderOp = new GeocoderOp('/geocoder')
+    geocoderOp.inputs.query.addConnection('query-connection', new StringField('Unknown place'))
+
+    await expect(geocoderOp.execute({ query: 'Unknown place' })).resolves.toEqual({
+      location: { lng: 0, lat: 0 },
+      results: [],
+    })
+  })
+
+  it('surfaces Mapbox service failures separately from empty results', async () => {
+    vi.spyOn(getKeysStore(), 'getKey').mockReturnValue('test-token')
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 429,
+        statusText: 'Too Many Requests',
+      })
+    )
+
+    const geocoderOp = new GeocoderOp('/geocoder')
+    geocoderOp.inputs.query.addConnection('query-connection', new StringField('Long Beach'))
+
+    await expect(geocoderOp.execute({ query: 'Long Beach' })).rejects.toThrow(
+      'Mapbox geocoding failed: 429 Too Many Requests'
+    )
   })
 })
 

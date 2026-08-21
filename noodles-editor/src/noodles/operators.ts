@@ -136,6 +136,7 @@ import { getArc } from '../utils/arc-geometry'
 import { colorToHex, hexToColor } from '../utils/color'
 import { debugDirty, debugExecute, debugParams, debugPull } from '../utils/debug'
 import { getDirections } from '../utils/directions'
+import { geocodeWithMapbox } from '../utils/geocoding'
 import {
   applyStyleOverrides,
   type MaplibreStyle,
@@ -287,8 +288,16 @@ export abstract class Operator<OP extends IOperator> {
   visibleFields = new BehaviorSubject<Set<string> | null>(null)
 
   // === Pull-based execution additions ===
+  // Global dirty epoch for markDirty wave pruning. Incremented whenever ANY
+  // operator's status transitions away from DIRTY (see
+  // _setPullExecutionStatus) and whenever the dependency graph gains an edge
+  // (see addDownstreamDependent). See markDirty for the pruning invariant.
+  private static _dirtyEpoch = 0
+
   // Execution status for pull-based model
   private _pullExecutionStatus: PullExecutionStatus = PullExecutionStatus.DIRTY
+  // Epoch of the markDirty wave that last marked this operator (see markDirty)
+  private _dirtyMarkEpoch = -1
   private _cachedOutput: ExtractProps<(typeof this)['outputs']> | null = null
   private _lastExecutionTime = 0
   private _computingPromise: Promise<ExtractProps<(typeof this)['outputs']>> | null = null
@@ -465,12 +474,15 @@ export abstract class Operator<OP extends IOperator> {
       return this._cachedOutput
     }
 
-    // Wait for ongoing computation
-    if (
-      this._pullExecutionStatus === PullExecutionStatus.COMPUTING &&
-      this._computingPromise !== null
-    ) {
-      debugPull('%s: %s -> waiting', this.id, PullExecutionStatus.COMPUTING)
+    // Wait for ongoing computation. Guard on _computingPromise alone, not on
+    // status === COMPUTING: a markDirty arriving mid-execution resets the
+    // status to DIRTY while a computation is still in flight, and falling
+    // through here would start a second concurrent _pullExecution for the
+    // same operator. The DIRTY status survives completion of the in-flight
+    // run (see _pullExecution), so the next pull after it settles will
+    // re-execute with the fresh inputs.
+    if (this._computingPromise !== null) {
+      debugPull('%s: %s -> waiting', this.id, this._pullExecutionStatus)
       return this._computingPromise
     }
 
@@ -483,7 +495,7 @@ export abstract class Operator<OP extends IOperator> {
     debugPull('%s: %s -> executing', this.id, this._pullExecutionStatus)
 
     // Mark as computing
-    this._pullExecutionStatus = PullExecutionStatus.COMPUTING
+    this._setPullExecutionStatus(PullExecutionStatus.COMPUTING)
 
     // Create computation promise
     this._computingPromise = this._pullExecution()
@@ -511,8 +523,17 @@ export abstract class Operator<OP extends IOperator> {
       // Pull upstream dependencies first
       await this._pullUpstreamDependencies()
 
-      // Get current input values
+      // Get current input values (eager snapshot of all input fields)
       const inputValues = this.data
+
+      // Absorb dirty marks that arrived before the snapshot: value
+      // propagation from the upstream pulls above lands via setValue ->
+      // markDirty while we are COMPUTING, but those values are captured in
+      // the snapshot we just took, so they don't invalidate this execution.
+      // Marks arriving from here on (e.g. an async upstream resolving while
+      // execute() awaits) are NOT reflected in the snapshot and must keep the
+      // operator dirty — see the completion check below.
+      this._setPullExecutionStatus(PullExecutionStatus.COMPUTING)
 
       // Debug breakpoint - pause execution if enabled
       if (this.breakpointEnabled.value) {
@@ -535,10 +556,25 @@ export abstract class Operator<OP extends IOperator> {
 
       clearTimeout(executingTimer)
 
-      // Cache result and mark clean
+      // Cache result and mark clean — but only transition COMPUTING -> CLEAN.
+      // If a markDirty arrived after the input snapshot (status was reset to
+      // DIRTY mid-flight), or an upstream dependency finished this frame
+      // DIRTY (its fresh data has not flowed into our inputs yet), the result
+      // we just computed is already stale — e.g. a FileOp resolving its CSV
+      // during this same frame's pull walk. Setting CLEAN unconditionally
+      // here clobbered that mark (lost update): the operator then served the
+      // stale cache forever because pull() never re-executes a CLEAN op.
+      // Leave it DIRTY so the next frame re-executes with the new inputs.
+      const markedAfterSnapshot = this._pullExecutionStatus !== PullExecutionStatus.COMPUTING
       this._cachedOutput = finalResult
-      this._pullExecutionStatus = PullExecutionStatus.CLEAN
-      this.dirty = false // Also clear the dirty flag for GraphExecutor
+      if (markedAfterSnapshot || this._hasDirtyUpstreamDependency()) {
+        debugPull('%s: dirtied mid-execution, staying dirty for re-execution', this.id)
+        this._setPullExecutionStatus(PullExecutionStatus.DIRTY)
+        this.dirty = true
+      } else {
+        this._setPullExecutionStatus(PullExecutionStatus.CLEAN)
+        this.dirty = false // Also clear the dirty flag for GraphExecutor
+      }
       this._lastExecutionTime = executionTime
 
       debugExecute('%s: %dms %O', this.id, this._lastExecutionTime.toFixed(2), {
@@ -595,7 +631,12 @@ export abstract class Operator<OP extends IOperator> {
         this._lastLoggedError = error.message
       }
 
-      this._pullExecutionStatus = PullExecutionStatus.ERROR
+      // Set ERROR unconditionally, even if a markDirty arrived mid-execution.
+      // Unlike the success path we deliberately let ERROR win over a
+      // mid-flight DIRTY: markDirty clears ERROR back to DIRTY on the next
+      // wave anyway (any future input change retries), while preserving DIRTY
+      // here would silently retry a failing operator every frame.
+      this._setPullExecutionStatus(PullExecutionStatus.ERROR)
       this._cachedOutput = null
 
       // Update execution state for UI
@@ -623,33 +664,118 @@ export abstract class Operator<OP extends IOperator> {
     // Field connections will have updated the values already via subscriptions
   }
 
-  // Mark this operator as dirty and propagate downstream
+  // True if any upstream dependency is DIRTY. Used at execution completion:
+  // an upstream that ended this frame dirty (e.g. its async data arrived
+  // mid-pull) has fresh data that our just-taken input snapshot missed, so we
+  // must not mark ourselves CLEAN on top of it.
+  //
+  // NOTE: this check is intentionally approximate. It scans the flat upstream
+  // set, so it can fire on UNRELATED upstream dirtiness: an upstream marked
+  // dirty by a separate source after we pulled it keeps us DIRTY for one
+  // extra frame even though our snapshot already captured everything we
+  // needed from it. That direction of error is always SAFE — one redundant
+  // re-execution next frame — whereas the opposite direction (declaring CLEAN
+  // over an upstream whose new data we missed) recreates the permanent
+  // stale-cache dirty island. Do not narrow this check (e.g. by tracking
+  // which upstream each snapshot value came from) without revisiting the
+  // lost-update soundness argument in _pullExecution's completion path.
+  private _hasDirtyUpstreamDependency(): boolean {
+    for (const dep of this._upstreamDependencies) {
+      if (dep._pullExecutionStatus === PullExecutionStatus.DIRTY) {
+        return true
+      }
+    }
+    return false
+  }
+
+  // Single write point for _pullExecutionStatus. Bumps the global dirty epoch
+  // whenever a status transitions AWAY from DIRTY — that is precisely the
+  // event that can invalidate the markDirty prune ("this op and its whole
+  // downstream closure are still dirty"): a wave's claim about its closure
+  // only breaks when something in it becomes clean. Route every status
+  // assignment through this helper so a future write site cannot silently
+  // skip the bump.
+  private _setPullExecutionStatus(status: PullExecutionStatus): void {
+    if (
+      this._pullExecutionStatus === PullExecutionStatus.DIRTY &&
+      status !== PullExecutionStatus.DIRTY
+    ) {
+      Operator._dirtyEpoch++
+    }
+    this._pullExecutionStatus = status
+  }
+
+  // Mark this operator as dirty and propagate downstream.
+  //
+  // WHY the wave must always propagate: an earlier version early-returned when
+  // an operator was already DIRTY, assuming the invariant "if I'm dirty,
+  // everything downstream of me is already dirty". That invariant breaks when
+  // async data arrival interleaves with frame pulls: a frame pull can clean
+  // the sink chain while an intermediate operator is re-marked dirty, so when
+  // upstream data later arrives (e.g. a FileOp resolving a CSV) the dirty wave
+  // stops at the already-dirty intermediate and never reaches the CLEAN sink.
+  // The sink then returns its cached output forever and the dirty island is
+  // never re-executed. Propagating unconditionally restores soundness.
+  //
+  // WHY the visited set: container bridge edges (container -> GraphInput ->
+  // child -> GraphOutput -> container) create node-level dependency cycles, so
+  // unconditional recursion would overflow the stack. Walking iteratively with
+  // a visited set marks each operator at most once per wave, terminating on
+  // cycles without relying on prior dirty state.
+  //
+  // WHY the epoch prune is sound: an op that is DIRTY with a stamp from the
+  // CURRENT epoch was marked by a wave in this epoch, and that wave walked the
+  // op's entire downstream closure (marking or pruning inductively). The epoch
+  // only stays current while no operator anywhere transitions away from DIRTY
+  // (_setPullExecutionStatus) and no dependency edge is added
+  // (addDownstreamDependent) — so the closure is provably still all-DIRTY and
+  // re-walking it is redundant. This locally re-establishes the old
+  // "dirty implies downstream dirty" invariant: it was CLEANING interleaved
+  // with marks that broke it, and cleaning is exactly what bumps the epoch and
+  // disables the prune. The global epoch is deliberately coarse (any op
+  // leaving DIRTY anywhere disables pruning until the next wave re-stamps);
+  // correctness first — the hot path (repeated marks between two frame pulls,
+  // e.g. timeline scrubbing keyframed ops) stays O(1) per repeated mark.
   markDirty(): void {
-    const alreadyDirty = this._pullExecutionStatus === PullExecutionStatus.DIRTY
-    if (alreadyDirty) {
-      debugDirty('%s already dirty, skipping', this.id)
-      return // Already dirty
-    }
+    const epoch = Operator._dirtyEpoch
+    const visited = new Set<Operator<IOperator>>()
+    const stack: Operator<IOperator>[] = [this as Operator<IOperator>]
 
-    // Log recovery from error state
-    if (this._pullExecutionStatus === PullExecutionStatus.ERROR) {
-      debugDirty('%s cleared from error state', this.id)
-      this._lastLoggedError = null
-    }
+    while (stack.length > 0) {
+      const op = stack.pop()
+      if (op === undefined || visited.has(op)) continue
+      visited.add(op)
 
-    debugDirty(
-      '%s marked dirty, propagating to %d downstream',
-      this.id,
-      this._downstreamDependents.size
-    )
+      // Prune: already marked by a wave in the current epoch and still dirty,
+      // so its whole downstream closure is still dirty (see comment above)
+      if (op._pullExecutionStatus === PullExecutionStatus.DIRTY && op._dirtyMarkEpoch === epoch) {
+        debugDirty('%s already marked in epoch %d, pruning wave', op.id, epoch)
+        continue
+      }
 
-    this._pullExecutionStatus = PullExecutionStatus.DIRTY
-    this._cachedOutput = null
-    this.dirty = true // Also set the dirty flag for GraphExecutor
+      // Log recovery from error state
+      if (op._pullExecutionStatus === PullExecutionStatus.ERROR) {
+        debugDirty('%s cleared from error state', op.id)
+        op._lastLoggedError = null
+      }
 
-    // Propagate dirty flag to downstream dependents
-    for (const dependent of this._downstreamDependents) {
-      dependent.markDirty()
+      debugDirty(
+        '%s marked dirty, propagating to %d downstream',
+        op.id,
+        op._downstreamDependents.size
+      )
+
+      op._setPullExecutionStatus(PullExecutionStatus.DIRTY)
+      op._dirtyMarkEpoch = epoch
+      op._cachedOutput = null
+      op.dirty = true // Also set the dirty flag for GraphExecutor
+
+      // Propagate dirty flag to downstream dependents
+      for (const dependent of op._downstreamDependents) {
+        if (!visited.has(dependent)) {
+          stack.push(dependent)
+        }
+      }
     }
   }
 
@@ -661,6 +787,10 @@ export abstract class Operator<OP extends IOperator> {
   // Add downstream dependent (for pull-based model)
   addDownstreamDependent(op: Operator<IOperator>): void {
     this._downstreamDependents.add(op)
+    // A new edge grows downstream closures, so a wave stamped before this
+    // edge existed never walked the new dependent — invalidate the prune.
+    // (Removing an edge only shrinks closures and stays sound.)
+    Operator._dirtyEpoch++
   }
 
   // Remove upstream dependency (for pull-based model)
@@ -686,14 +816,16 @@ export abstract class Operator<OP extends IOperator> {
   // Set cached output and mark clean (for use by GraphExecutor ForLoop handling)
   setCachedOutput(output: ExtractProps<(typeof this)['outputs']>): void {
     this._cachedOutput = output
-    this._pullExecutionStatus = PullExecutionStatus.CLEAN
+    this._setPullExecutionStatus(PullExecutionStatus.CLEAN)
     this.dirty = false
   }
 
-  // Clear cached output and mark dirty
+  // Clear cached output and mark dirty. NOTE: deliberately does not stamp
+  // _dirtyMarkEpoch — this sets DIRTY without walking downstream, so future
+  // waves must not prune at this operator.
   clearCache(): void {
     this._cachedOutput = null
-    this._pullExecutionStatus = PullExecutionStatus.DIRTY
+    this._setPullExecutionStatus(PullExecutionStatus.DIRTY)
     this.dirty = true
   }
 
@@ -2574,16 +2706,39 @@ export class GeocoderOp extends Operator<GeocoderOp> {
   createOutputs() {
     return {
       location: new Point2DField(),
+      results: new DataField(),
     }
   }
-  async execute(_: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+  async execute({
+    query,
+  }: ExtractProps<typeof this.inputs>): Promise<ExtractProps<typeof this.outputs>> {
     const { getKey } = getKeysStore()
-    if (!getKey('mapbox')) {
+    const apiKey = getKey('mapbox')
+    if (!apiKey) {
       throw new Error('Mapbox API key required (Settings > API Keys)')
     }
-    // Push-based: the UI component drives op.outputs.location.next() directly.
-    // Return current output so downstream pull-chain succeeds.
-    return this.outputData
+
+    // An unconnected query is driven by GeocoderOpComponent so the user can
+    // inspect Mapbox's suggestions and choose a result. Only connected queries
+    // should geocode automatically during graph execution.
+    if (this.inputs.query.subscriptions.size === 0) {
+      return this.outputData
+    }
+
+    const emptyResult = { location: { lng: 0, lat: 0 }, results: [] }
+    if (!query.trim()) return emptyResult
+
+    const results = await geocodeWithMapbox(query, apiKey)
+    const [result] = results
+    if (!result) return emptyResult
+
+    return {
+      location: {
+        lng: result.coordinates.longitude,
+        lat: result.coordinates.latitude,
+      },
+      results,
+    }
   }
 }
 
@@ -2918,8 +3073,6 @@ export class ForLoopEndOp extends Operator<ForLoopEndOp> {
     'End a loop started by ForLoopBegin. Collects all the processed items into an array and passes them to downstream operators.'
   static defaultValue = []
 
-  // This is a special case where we need to keep track of the loop
-  _subs: Subscription[] = []
   chain: Operator<IOperator>[] = []
   private _iterating = false // Flag to prevent concurrent iterations
 
@@ -2934,178 +3087,15 @@ export class ForLoopEndOp extends Operator<ForLoopEndOp> {
     }
   }
 
-  // Override createListeners to NOT set up default reactive listeners.
-  // ForLoopEndOp needs special iteration handling - the default behavior would
-  // just call execute() which passes through a single value.
-  // The actual listeners are set up in createForLoopListeners() when the chain is ready.
+  // GraphExecutor owns loop scheduling; a normal reactive listener would run
+  // the body again when each iteration changes an internal input.
   createListeners() {
-    // Do nothing - ForLoopEndOp needs special iteration handling
-    // that will be set up in createForLoopListeners() when the chain is ready
+    // Intentionally empty.
   }
 
-  // This is a complicated operator that needs to keep track of the loop.
-  // We need to know when the loop is done, and when to start the next iteration
-  // It hijacks event-oriented nature of Operators, firing an event on the beginLoopOp
-  // and then listening for the endLoopOp to know when to stop, using the number of
-  // elements in the data array to know when to stop and pass along the results to
-  // the downstream operators
+  // Store the chain used by pull() while leaving scheduling to GraphExecutor.
   createForLoopListeners(chain: Operator<IOperator>[] = []) {
     this.chain = chain
-
-    // Clean up any previous subscriptions
-    for (const sub of this._subs) {
-      sub.unsubscribe()
-    }
-    this._subs = []
-
-    const beginOp = chain.find(op => op instanceof ForLoopBeginOp) as ForLoopBeginOp | undefined
-    if (!beginOp) {
-      return // No begin op found, can't set up iteration
-    }
-
-    // Helper to trigger re-execution
-    const triggerIteration = () => {
-      // Debounce with microtask to allow synchronous operations to complete first
-      Promise.resolve().then(() => {
-        // Don't run if already iterating (pull() is in progress)
-        if (this._iterating) {
-          return
-        }
-        this.executeIteration(beginOp.inputs.data.value)
-      })
-    }
-
-    // Subscribe to the BeginOp's data input - this triggers iteration when data changes
-    const dataSub = beginOp.inputs.data
-      .pipe(filter(() => !safeMode && !this.locked.value))
-      .subscribe(() => triggerIteration())
-    this._subs.push(dataSub)
-
-    // Also subscribe to ALL inputs of intermediate operators (excluding beginOp and this)
-    // This ensures the loop re-runs when e.g. MathOp.b changes from 10 to 0
-    for (const op of chain) {
-      if (op === beginOp || op === this) continue
-      if (op instanceof ForLoopMetaOp) continue
-
-      for (const [_key, field] of Object.entries(op.inputs)) {
-        const inputSub = field
-          .pipe(filter(() => !safeMode && !this.locked.value))
-          .subscribe(() => triggerIteration())
-        this._subs.push(inputSub)
-      }
-    }
-  }
-
-  // Perform the iteration and collect results
-  private async executeIteration(data: unknown) {
-    // Prevent concurrent iterations
-    if (this._iterating) return
-    this._iterating = true
-
-    debugExecute('[ForLoopEndOp.executeIteration] Starting with data:', data)
-    debugExecute(
-      '[ForLoopEndOp.executeIteration] Chain:',
-      this.chain.map(op => `${op.id} (${op.constructor.name})`)
-    )
-
-    try {
-      const beginOp = this.chain.find(op => op instanceof ForLoopBeginOp) as
-        | ForLoopBeginOp
-        | undefined
-      if (!beginOp) {
-        console.log('[ForLoopEndOp.executeIteration] No beginOp found in chain!')
-        return
-      }
-
-      // Skip if not array or empty
-      if (!Array.isArray(data) || data.length === 0) {
-        this.outputs.data.next([])
-        return
-      }
-
-      const total = data.length
-      const results: unknown[] = []
-
-      // Get proper execution order (chain is reverse order from EndOp)
-      const executionOrder = [...this.chain].reverse()
-      debugExecute(
-        '[ForLoopEndOp.executeIteration] Execution order:',
-        executionOrder.map(op => `${op.id} (${op.constructor.name})`)
-      )
-
-      // Find metaOp if present
-      const metaOp = this.chain.find(op => op instanceof ForLoopMetaOp) as ForLoopMetaOp | undefined
-      let accumulator: unknown = metaOp?.inputs.initialValue.value ?? null
-
-      for (let index = 0; index < total; index++) {
-        const item = data[index]
-        const isFirst = index === 0
-        const isLast = index === total - 1
-
-        debugExecute(`[ForLoopEndOp.executeIteration] Iteration ${index}: item =`, item)
-
-        // Set iteration values on BeginOp outputs
-        beginOp.outputs.item.next(item)
-        beginOp.outputs.index.next(index)
-        beginOp.outputs.total.next(total)
-
-        // Cache BeginOp output so downstream pulls return iteration values
-        beginOp.setCachedOutput({ item, index, total })
-
-        // Set metaOp values if present
-        if (metaOp) {
-          metaOp.outputs.accumulator.next(accumulator)
-          metaOp.outputs.index.next(index)
-          metaOp.outputs.total.next(total)
-          metaOp.outputs.isFirst.next(isFirst)
-          metaOp.outputs.isLast.next(isLast)
-          metaOp.setCachedOutput({ accumulator, index, total, isFirst, isLast })
-        }
-
-        // Clear cache on intermediate operators so pull() re-executes them
-        // NOTE: We use clearCache() not markDirty() because pull() checks _pullExecutionStatus, not dirty
-        for (const op of executionOrder) {
-          if (op !== beginOp && op !== metaOp && op !== this) {
-            op.clearCache()
-          }
-        }
-
-        // Execute chain by pulling each intermediate operator
-        for (const op of executionOrder) {
-          if (op !== beginOp && op !== metaOp && op !== this) {
-            debugExecute(
-              `[ForLoopEndOp.executeIteration] Pulling ${op.id} (${op.constructor.name})`
-            )
-            await op.pull()
-            // Log the outputs after pulling
-            const outputs: Record<string, unknown> = {}
-            for (const [key, field] of Object.entries(op.outputs)) {
-              outputs[key] = field.value
-            }
-            debugExecute(`[ForLoopEndOp.executeIteration] After pull, ${op.id} outputs:`, outputs)
-          }
-        }
-
-        // Collect result - the input field should now have the value from upstream
-        const collectedValue = this.inputs.item.value
-        debugExecute(
-          `[ForLoopEndOp.executeIteration] Iteration ${index}: collecting this.inputs.item.value =`,
-          collectedValue
-        )
-        results.push(collectedValue)
-
-        // Update accumulator from meta op for next iteration
-        if (metaOp) {
-          accumulator = metaOp.inputs.currentValue.value
-        }
-      }
-
-      debugExecute('[ForLoopEndOp.executeIteration] Final results:', results)
-      // Update output with collected results
-      this.outputs.data.next(results)
-    } finally {
-      this._iterating = false
-    }
   }
 
   // Override pull() to iterate through input data and collect results
@@ -3116,7 +3106,7 @@ export class ForLoopEndOp extends Operator<ForLoopEndOp> {
       | ForLoopBeginOp
       | undefined
     if (!beginOp || this.chain.length === 0) {
-      // Return cached if clean and no chain (set by executeIteration after loop completes)
+      // Return cached if clean and no chain.
       if (this._pullExecutionStatus === PullExecutionStatus.CLEAN && this._cachedOutput !== null) {
         return this._cachedOutput as ExtractProps<typeof this.outputs>
       }
@@ -4174,9 +4164,14 @@ export class GraphInputOp extends Operator<GraphInputOp> {
       oldOutputValues.set(name, field.value)
     }
 
-    // Rebuild inputs: parentValue + custom fields
+    // Rebuild inputs: parentValue + custom fields. The base parentValue field
+    // object is PRESERVED, not recreated: transformGraph wires the parent
+    // container's `in` field to it via addConnection, and replacing the object
+    // orphans that subscription — data arriving after the rebuild (e.g. an
+    // async FileOp upstream of the container) then never reaches the
+    // container's children, silently freezing them on the initial value.
     const newInputs: Record<string, Field> = {
-      parentValue: new UnknownField(null, { optional: true }),
+      parentValue: this.inputs.parentValue ?? new UnknownField(null, { optional: true }),
     }
     for (const def of containerOp.customInputDefinitions) {
       const field = this.createFieldFromDefinition(def)
@@ -4184,9 +4179,10 @@ export class GraphInputOp extends Operator<GraphInputOp> {
     }
     this.inputs = newInputs as ReturnType<GraphInputOp['createInputs']>
 
-    // Rebuild outputs: value + custom fields
+    // Rebuild outputs: value + custom fields (base `value` preserved for the
+    // same reason — downstream edges subscribe to the field object).
     const newOutputs: Record<string, Field> = {
-      value: new UnknownField(null, { optional: true }),
+      value: this.outputs.value ?? new UnknownField(null, { optional: true }),
     }
     for (const def of containerOp.customInputDefinitions) {
       const field = this.createFieldFromDefinition(def)
@@ -4286,7 +4282,7 @@ export class GlobeViewOp extends Operator<GlobeViewOp> {
 
 export class FpsWidgetOp extends Operator<FpsWidgetOp> {
   static displayName = 'FpsWidget'
-  static description = 'Display frames per second (FPS) widget'
+  static description = 'Display frames per second (FPS) and rendering stats widget'
 
   createInputs() {
     return {
@@ -4309,7 +4305,7 @@ export class FpsWidgetOp extends Operator<FpsWidgetOp> {
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     const widget = {
       id: this.id,
-      type: '_FpsWidget',
+      type: '_StatsWidget',
       placement,
       ...(viewId && viewId !== '' ? { viewId } : {}),
     }
@@ -4342,7 +4338,7 @@ export class FullscreenWidgetOp extends Operator<FullscreenWidgetOp> {
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     const widget = {
       id: this.id,
-      type: '_FullscreenWidget',
+      type: 'FullscreenWidget',
       placement,
       ...(viewId && viewId !== '' ? { viewId } : {}),
     }
@@ -4375,7 +4371,7 @@ export class ZoomWidgetOp extends Operator<ZoomWidgetOp> {
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     const widget = {
       id: this.id,
-      type: '_ZoomWidget',
+      type: 'ZoomWidget',
       placement,
       ...(viewId && viewId !== '' ? { viewId } : {}),
     }
@@ -4408,7 +4404,7 @@ export class CompassWidgetOp extends Operator<CompassWidgetOp> {
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     const widget = {
       id: this.id,
-      type: '_CompassWidget',
+      type: 'CompassWidget',
       placement,
       ...(viewId && viewId !== '' ? { viewId } : {}),
     }
@@ -4477,7 +4473,7 @@ export class ScreenshotWidgetOp extends Operator<ScreenshotWidgetOp> {
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     const widget = {
       id: this.id,
-      type: '_ScreenshotWidget',
+      type: 'ScreenshotWidget',
       placement,
       ...(viewId && viewId !== '' ? { viewId } : {}),
     }

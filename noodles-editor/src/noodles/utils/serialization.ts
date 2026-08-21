@@ -103,8 +103,22 @@ export function serializeNodes(
   const preparedNodes: NodeJSON<unknown>[] = []
   for (const node of nodes) {
     if (node.type === 'group') {
-      // Include visual aid nodes (e.g. for loops) as-is
-      preparedNodes.push(node)
+      // React Flow's runtime dimensions override style dimensions when a project
+      // is loaded. Persist the fitted size in style, not the transient measurement
+      // cache, so a stale measurement cannot resurrect old group bounds.
+      const { measured, width, height, ...cleanedGroup } = node
+      const fittedWidth = node.style?.width ?? measured?.width ?? width
+      const fittedHeight = node.style?.height ?? measured?.height ?? height
+      preparedNodes.push({
+        ...cleanedGroup,
+        ...((fittedWidth !== undefined || fittedHeight !== undefined) && {
+          style: {
+            ...node.style,
+            ...(fittedWidth !== undefined && { width: fittedWidth }),
+            ...(fittedHeight !== undefined && { height: fittedHeight }),
+          },
+        }),
+      })
       continue
     }
     const op = store.getOp(node.id)
@@ -231,8 +245,11 @@ export function serializeEdges(
       // array order at load time — keep files canonical by not persisting it
       if (serialized.type === MULTI_INPUT_EDGE_TYPE) {
         delete serialized.type
-        const { orderIndex: _orderIndex, groupSize: _groupSize, ...data } = (serialized.data ??
-          {}) as Record<string, unknown>
+        const {
+          orderIndex: _orderIndex,
+          groupSize: _groupSize,
+          ...data
+        } = (serialized.data ?? {}) as Record<string, unknown>
         if (Object.keys(data).length > 0) {
           serialized.data = data
         } else {

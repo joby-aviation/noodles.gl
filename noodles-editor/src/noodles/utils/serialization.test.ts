@@ -136,10 +136,27 @@ describe('serializeNodes', () => {
     clearOps()
   })
 
-  it('includes group nodes as-is', () => {
-    const groupNode = { id: 'group1', type: 'group', data: {}, position: { x: 0, y: 0 } }
+  it('serializes group dimensions canonically in style', () => {
+    const groupNode = {
+      id: 'group1',
+      type: 'group',
+      data: {},
+      position: { x: 0, y: 0 },
+      width: 1200,
+      height: 400,
+      measured: { width: 1200, height: 400 },
+      style: { width: 480, height: 140 },
+    }
     const result = serializeNodes(getOpStore(), [groupNode], [])
-    expect(result).toEqual([groupNode])
+    expect(result).toEqual([
+      {
+        id: 'group1',
+        type: 'group',
+        data: {},
+        position: { x: 0, y: 0 },
+        style: { width: 480, height: 140 },
+      },
+    ])
   })
 
   it('skips nodes without corresponding op', () => {

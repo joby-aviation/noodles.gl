@@ -214,3 +214,30 @@
 .addRowButton {
   color: var(--text-color-secondary) !important;
 }
+
+.cellSuggestions {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 10000;
+  margin: 2px 0 0;
+  padding: 4px 0;
+  list-style: none;
+  background: var(--surface-card);
+  border: 1px solid var(--surface-border);
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  max-height: 150px;
+  overflow-y: auto;
+}
+
+.cellSuggestion {
+  padding: 6px 10px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.cellSuggestion:hover {
+  background: var(--surface-hover);
+}

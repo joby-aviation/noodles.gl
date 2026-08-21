@@ -1,5 +1,6 @@
 import type { Map as MapLibre } from 'maplibre-gl'
 import { type RefObject, useCallback, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { analytics } from '../../../utils/analytics'
 import s from './map-tool-overlay.module.css'
 import { type DistanceUnit, type DrawMode, useMapToolStore } from './map-tool-store'
@@ -322,7 +323,8 @@ export function MapToolOverlay({ mapRef, onSaveDrawing, onSaveMeasurement }: Map
         </svg>
       </div>
 
-      <div className={s.panel}>
+      {createPortal(
+        <div className={s.panel}>
         <div className={s.panelHeader}>
           <i className={activeTool === 'measure' ? 'pi pi-arrows-h' : 'pi pi-pencil'} />
           <span className={s.panelTitle}>{activeTool === 'measure' ? 'Measure' : 'Draw'}</span>
@@ -473,7 +475,9 @@ export function MapToolOverlay({ mapRef, onSaveDrawing, onSaveMeasurement }: Map
             </button>
           )}
         </div>
-      </div>
+        </div>,
+        document.body
+      )}
     </>
   )
 }
