@@ -12,6 +12,7 @@ import { ContainerOp } from '../operators'
 import { getOpStore, type MapMode, useNestingStore, useUIStore } from '../store'
 import { directoryHandleCache } from '../utils/directory-handle-cache'
 import { getParentPath, splitPath } from '../utils/path-utils'
+import type { AutoLayoutSettings } from '../utils/serialization'
 import { Breadcrumbs } from './breadcrumbs'
 import type { CopyControlsRef } from './copy-controls'
 import { DataImporterTool } from './tools/data-importer-tool'
@@ -48,6 +49,8 @@ interface TopMenuBarProps {
   spreadsheetVisible?: boolean
   onChangeSpreadsheetVisible?: (show: boolean) => void
   reactFlowRef?: RefObject<HTMLDivElement>
+  autoLayout?: AutoLayoutSettings
+  onChangeAutoLayout?: (settings: AutoLayoutSettings) => void
 }
 
 export function TopMenuBar({
@@ -75,6 +78,8 @@ export function TopMenuBar({
   spreadsheetVisible,
   onChangeSpreadsheetVisible,
   reactFlowRef,
+  autoLayout,
+  onChangeAutoLayout,
 }: TopMenuBarProps) {
   const settingsDialogOpen = useUIStore(state => state.settingsDialogOpen)
   const setSettingsDialogOpen = useUIStore(state => state.setSettingsDialogOpen)
@@ -485,6 +490,136 @@ export function TopMenuBar({
                                 Behind node graph
                               </DropdownMenu.RadioItem>
                             </DropdownMenu.RadioGroup>
+                          </DropdownMenu.SubContent>
+                        </DropdownMenu.Portal>
+                      </DropdownMenu.Sub>
+
+                      <DropdownMenu.Separator className={s.dropdownSeparator} />
+
+                      <DropdownMenu.Sub>
+                        <DropdownMenu.SubTrigger className={s.dropdownItem}>
+                          Auto-Layout
+                          <i
+                            className="pi pi-chevron-right"
+                            style={{ marginLeft: 'auto', fontSize: '10px' }}
+                          />
+                        </DropdownMenu.SubTrigger>
+                        <DropdownMenu.Portal>
+                          <DropdownMenu.SubContent className={s.dropdownContent} sideOffset={2}>
+                            <DropdownMenu.CheckboxItem
+                              className={s.dropdownItem}
+                              checked={autoLayout?.enabled}
+                              onCheckedChange={checked =>
+                                onChangeAutoLayout?.({ ...autoLayout!, enabled: checked })
+                              }
+                              disabled={!autoLayout || !onChangeAutoLayout}
+                            >
+                              <DropdownMenu.ItemIndicator className={s.itemIndicator}>
+                                <i className="pi pi-check" style={{ fontSize: '12px' }} />
+                              </DropdownMenu.ItemIndicator>
+                              Auto-layout on changes
+                            </DropdownMenu.CheckboxItem>
+
+                            <DropdownMenu.Separator className={s.dropdownSeparator} />
+
+                            <DropdownMenu.Sub>
+                              <DropdownMenu.SubTrigger
+                                className={s.dropdownItem}
+                                disabled={!autoLayout || !onChangeAutoLayout}
+                              >
+                                Algorithm
+                                <i
+                                  className="pi pi-chevron-right"
+                                  style={{ marginLeft: 'auto', fontSize: '10px' }}
+                                />
+                              </DropdownMenu.SubTrigger>
+                              <DropdownMenu.Portal>
+                                <DropdownMenu.SubContent
+                                  className={s.dropdownContent}
+                                  sideOffset={2}
+                                >
+                                  <DropdownMenu.RadioGroup
+                                    value={autoLayout?.algorithm}
+                                    onValueChange={value =>
+                                      onChangeAutoLayout?.({
+                                        ...autoLayout!,
+                                        algorithm: value as 'dagre' | 'd3-force' | 'semantic',
+                                      })
+                                    }
+                                  >
+                                    <DropdownMenu.RadioItem
+                                      className={s.dropdownItem}
+                                      value="semantic"
+                                    >
+                                      <DropdownMenu.ItemIndicator className={s.itemIndicator}>
+                                        <i className="pi pi-check" style={{ fontSize: '12px' }} />
+                                      </DropdownMenu.ItemIndicator>
+                                      Semantic (Recommended)
+                                    </DropdownMenu.RadioItem>
+                                    <DropdownMenu.RadioItem
+                                      className={s.dropdownItem}
+                                      value="dagre"
+                                    >
+                                      <DropdownMenu.ItemIndicator className={s.itemIndicator}>
+                                        <i className="pi pi-check" style={{ fontSize: '12px' }} />
+                                      </DropdownMenu.ItemIndicator>
+                                      Dagre (Hierarchical)
+                                    </DropdownMenu.RadioItem>
+                                    <DropdownMenu.RadioItem
+                                      className={s.dropdownItem}
+                                      value="d3-force"
+                                    >
+                                      <DropdownMenu.ItemIndicator className={s.itemIndicator}>
+                                        <i className="pi pi-check" style={{ fontSize: '12px' }} />
+                                      </DropdownMenu.ItemIndicator>
+                                      D3-Force (Organic)
+                                    </DropdownMenu.RadioItem>
+                                  </DropdownMenu.RadioGroup>
+                                </DropdownMenu.SubContent>
+                              </DropdownMenu.Portal>
+                            </DropdownMenu.Sub>
+
+                            <DropdownMenu.Sub>
+                              <DropdownMenu.SubTrigger
+                                className={s.dropdownItem}
+                                disabled={!autoLayout || !onChangeAutoLayout}
+                              >
+                                Direction
+                                <i
+                                  className="pi pi-chevron-right"
+                                  style={{ marginLeft: 'auto', fontSize: '10px' }}
+                                />
+                              </DropdownMenu.SubTrigger>
+                              <DropdownMenu.Portal>
+                                <DropdownMenu.SubContent
+                                  className={s.dropdownContent}
+                                  sideOffset={2}
+                                >
+                                  <DropdownMenu.RadioGroup
+                                    value={autoLayout?.direction}
+                                    onValueChange={value =>
+                                      onChangeAutoLayout?.({
+                                        ...autoLayout!,
+                                        direction: value as 'LR' | 'TB',
+                                      })
+                                    }
+                                  >
+                                    <DropdownMenu.RadioItem className={s.dropdownItem} value="LR">
+                                      <DropdownMenu.ItemIndicator className={s.itemIndicator}>
+                                        <i className="pi pi-check" style={{ fontSize: '12px' }} />
+                                      </DropdownMenu.ItemIndicator>
+                                      Left to Right
+                                    </DropdownMenu.RadioItem>
+                                    <DropdownMenu.RadioItem className={s.dropdownItem} value="TB">
+                                      <DropdownMenu.ItemIndicator className={s.itemIndicator}>
+                                        <i className="pi pi-check" style={{ fontSize: '12px' }} />
+                                      </DropdownMenu.ItemIndicator>
+                                      Top to Bottom
+                                    </DropdownMenu.RadioItem>
+                                  </DropdownMenu.RadioGroup>
+                                </DropdownMenu.SubContent>
+                              </DropdownMenu.Portal>
+                            </DropdownMenu.Sub>
                           </DropdownMenu.SubContent>
                         </DropdownMenu.Portal>
                       </DropdownMenu.Sub>

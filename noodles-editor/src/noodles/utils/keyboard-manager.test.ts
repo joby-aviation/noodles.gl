@@ -193,4 +193,95 @@ describe('KeyboardManager', () => {
 
     expect(handler).not.toHaveBeenCalled()
   })
+
+  describe('modifier key shortcuts', () => {
+    it('should trigger cmd+a shortcut on keydown', () => {
+      const handler = vi.fn()
+      keyboardManager.register('cmd+a', handler)
+
+      const event = new KeyboardEvent('keydown', { key: 'a', metaKey: true })
+      document.dispatchEvent(event)
+
+      expect(handler).toHaveBeenCalledTimes(1)
+      expect(handler).toHaveBeenCalledWith(event)
+    })
+
+    it('should trigger ctrl+a shortcut on keydown', () => {
+      const handler = vi.fn()
+      keyboardManager.register('ctrl+a', handler)
+
+      const event = new KeyboardEvent('keydown', { key: 'a', ctrlKey: true })
+      document.dispatchEvent(event)
+
+      expect(handler).toHaveBeenCalledTimes(1)
+    })
+
+    it('should trigger ctrl+shift+s shortcut', () => {
+      const handler = vi.fn()
+      keyboardManager.register('ctrl+shift+s', handler)
+
+      const event = new KeyboardEvent('keydown', { key: 's', ctrlKey: true, shiftKey: true })
+      document.dispatchEvent(event)
+
+      expect(handler).toHaveBeenCalledTimes(1)
+    })
+
+    it('should not trigger cmd+a when only a is pressed', () => {
+      const handler = vi.fn()
+      keyboardManager.register('cmd+a', handler)
+
+      const event = new KeyboardEvent('keydown', { key: 'a' })
+      document.dispatchEvent(event)
+
+      expect(handler).not.toHaveBeenCalled()
+    })
+
+    it('should not trigger single-key shortcut when modifier is pressed', () => {
+      const handler = vi.fn()
+      keyboardManager.register('a', handler)
+
+      const event = new KeyboardEvent('keyup', { key: 'a', metaKey: true })
+      document.dispatchEvent(event)
+
+      expect(handler).not.toHaveBeenCalled()
+    })
+
+    it('should not trigger modifier shortcuts in input fields', () => {
+      const handler = vi.fn()
+      keyboardManager.register('cmd+a', handler)
+
+      const input = document.createElement('input')
+      document.body.appendChild(input)
+
+      const event = new KeyboardEvent('keydown', { key: 'a', metaKey: true, bubbles: true })
+      input.dispatchEvent(event)
+
+      expect(handler).not.toHaveBeenCalled()
+
+      document.body.removeChild(input)
+    })
+
+    it('should support alt modifier', () => {
+      const handler = vi.fn()
+      keyboardManager.register('alt+a', handler)
+
+      const event = new KeyboardEvent('keydown', { key: 'a', altKey: true })
+      document.dispatchEvent(event)
+
+      expect(handler).toHaveBeenCalledTimes(1)
+    })
+
+    it('should stop propagation when modifier handler returns false', () => {
+      const handler1 = vi.fn(() => false)
+      const handler2 = vi.fn()
+      keyboardManager.register('cmd+a', handler1)
+      keyboardManager.register('cmd+a', handler2)
+
+      const event = new KeyboardEvent('keydown', { key: 'a', metaKey: true })
+      document.dispatchEvent(event)
+
+      expect(handler1).toHaveBeenCalledTimes(1)
+      expect(handler2).not.toHaveBeenCalled()
+    })
+  })
 })

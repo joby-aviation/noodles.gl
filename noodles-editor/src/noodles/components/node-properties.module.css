@@ -575,6 +575,37 @@
   color: var(--color-text-primary);
 }
 
+/* Selection info */
+.selectionInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 0;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 12px;
+}
+
+/* Layout button */
+.layoutButton {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  margin-top: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  color: var(--color-text-primary);
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.2s;
+}
+
+.layoutButton:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
 /* Suggested Nodes Section */
 .suggestedNodesList {
   display: flex;

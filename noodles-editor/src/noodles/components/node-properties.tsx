@@ -3,6 +3,7 @@ import { Cross2Icon } from '@radix-ui/react-icons'
 import type { Edge } from '@xyflow/react'
 import { useReactFlow, useStore } from '@xyflow/react'
 import cx from 'classnames'
+import { LayoutGrid } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { KeyframeIndicator } from '../../timeline/components/KeyframeIndicator'
@@ -14,6 +15,7 @@ import {
   useTimelineStore,
 } from '../../timeline/timeline-store'
 import type { KeyframeValue } from '../../timeline/types'
+import { analytics } from '../../utils/analytics'
 import {
   CompoundPropsField,
   type Field,
@@ -49,6 +51,7 @@ import {
   VectorFieldComponent,
 } from './field-components'
 import menuStyles from './menu.module.css'
+import type { AutoLayoutSettings } from '../utils/serialization'
 import s from './node-properties.module.css'
 import { handleClass, headerClass, typeCategory } from './op-components'
 import { RenderSettingsPanel } from './render-settings-panel'
@@ -1232,7 +1235,12 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
   )
 }
 
-export function PropertyPanel() {
+interface PropertyPanelProps {
+  onAutoLayout?: () => void
+  autoLayout?: AutoLayoutSettings
+}
+
+export function PropertyPanel({ onAutoLayout, autoLayout }: PropertyPanelProps) {
   // Only re-renders when selection changes, not on position updates during drag
   const { selectedNodeId, selectedNodeCount, selectedEdgeCount } = useStore(
     s => {
@@ -1259,9 +1267,20 @@ export function PropertyPanel() {
             <div className={s.title}>Page</div>
           </div>
           {selectedNodeCount > 1 ? (
-            <div className={s.opMeta}>
+            <div className={s.selectionInfo}>
               <div>{selectedNodeCount} nodes selected</div>
               <div>{selectedEdgeCount} edges selected</div>
+              {selectedNodeCount >= 2 && onAutoLayout && (
+                <button
+                  type="button"
+                  className={s.layoutButton}
+                  onClick={onAutoLayout}
+                  title="Layout selected nodes (Cmd/Ctrl+L)"
+                >
+                  <LayoutGrid size={16} />
+                  <span>Layout</span>
+                </button>
+              )}
             </div>
           ) : (
             <div className={s.opMeta}>Select a node to see properties</div>

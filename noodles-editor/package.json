@@ -6,6 +6,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.80.0",
     "@codeium/react-code-editor": "^1.0.12",
+    "@dagrejs/dagre": "^1.1.8",
     "@duckdb/duckdb-wasm": "1.32.0",
     "@loaders.gl/3d-tiles": "^4.3.4",
     "@loaders.gl/obj": "^4.3.4",
@@ -44,6 +45,7 @@
     "haversine-distance": "^1.2.4",
     "jszip": "^3.10.1",
     "lodash": "^4.17.23",
+    "lucide-react": "^0.562.0",
     "maplibre-gl": "^5.21.1",
     "mediabunny": "^1.40.1",
     "memoize-one": "^6.0.0",
