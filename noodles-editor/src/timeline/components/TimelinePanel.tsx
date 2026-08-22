@@ -346,9 +346,7 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       if (e.key !== 'Delete' && e.key !== 'Backspace') return
-      const target = e.target as HTMLElement
-      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)
-        return
+      if (shouldBlockKeyboardShortcut(e)) return
 
       if (selectedMarkerId) {
         e.preventDefault()
