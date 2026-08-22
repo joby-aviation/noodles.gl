@@ -104,6 +104,7 @@ import {
   selectDirectory,
   writeFileToDirectory,
 } from './utils/filesystem'
+import { shouldBlockKeyboardShortcut } from './utils/input-detection'
 import { reconcileForLoopGroups } from './utils/for-loop-group-utils'
 import { edgeId, nodeId } from './utils/id-utils'
 import { generateDraftId, memoryProjectStore } from './utils/memory-project-store'
@@ -1277,6 +1278,8 @@ export function getNoodles(): Visualization {
   // Handle mod+shift+s for Save As and mod+shift+a for Rename Project
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (shouldBlockKeyboardShortcut(e)) return
+
       const key = e.key.toLowerCase()
       const isMod = e.metaKey || e.ctrlKey
       const isShift = e.shiftKey
