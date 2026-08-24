@@ -374,7 +374,7 @@ export function TextFieldComponent({
   }
 
   return (
-    <div className={s.fieldWrapper}>
+    <div className={cx(s.fieldWrapper, 'nokey')}>
       <label className={s.fieldLabel} htmlFor={id}>
         {id}
       </label>
@@ -518,7 +518,7 @@ export function ExpressionFieldComponent({
   )
 
   return (
-    <div className={s.fieldWrapper}>
+    <div className={cx(s.fieldWrapper, 'nokey')}>
       <label className={s.fieldLabel} htmlFor={id}>
         {id}
       </label>
@@ -866,7 +866,7 @@ export function VectorFieldComponent({
   )
 
   return (
-    <div className={s.fieldWrapper}>
+    <div className={cx(s.fieldWrapper, 'nokey')}>
       <label className={s.fieldLabel} htmlFor={id}>
         {id}
       </label>
@@ -1997,7 +1997,7 @@ export function NumberFieldComponent({
   )
 
   return (
-    <div className={s.fieldWrapper}>
+    <div className={cx(s.fieldWrapper, 'nokey')}>
       <label className={s.fieldLabel} htmlFor={id}>
         {id}
       </label>
@@ -2050,7 +2050,7 @@ export function BooleanFieldComponent({
   )
 
   return (
-    <div className={s.fieldWrapper}>
+    <div className={cx(s.fieldWrapper, 'nokey')}>
       <label className={s.fieldLabel} htmlFor={id}>
         {id}
       </label>
@@ -2103,7 +2103,7 @@ export function DateFieldComponent({
   const formatted = value?.toString?.()?.substring(0, 23) || ''
 
   return (
-    <div className={s.fieldWrapper}>
+    <div className={cx(s.fieldWrapper, 'nokey')}>
       <label className={s.fieldLabel} htmlFor={id}>
         {id}
       </label>
@@ -2150,7 +2150,7 @@ export function ColorFieldComponent({
   )
 
   return (
-    <div className={s.fieldWrapper}>
+    <div className={cx(s.fieldWrapper, 'nokey')}>
       <label className={s.fieldLabel} htmlFor={id}>
         {id}
       </label>
@@ -2217,7 +2217,7 @@ export function ColorRampComponent({
   }, [interpolate, field, id, steps])
 
   return (
-    <div className={s.fieldWrapper}>
+    <div className={cx(s.fieldWrapper, 'nokey')}>
       <canvas className={s.fieldInputColorRamp} ref={canvasRef} width={steps} height={1} />
     </div>
   )
@@ -2234,7 +2234,7 @@ export function CompoundFieldComponent({
 }) {
   const [expanded, setExpanded] = useState(true)
   return (
-    <div className={s.fieldWrapper}>
+    <div className={cx(s.fieldWrapper, 'nokey')}>
       <button
         className={s.fieldLabel}
         type="button"
@@ -2267,7 +2267,7 @@ export function CompoundFieldComponent({
 
 export function EmptyFieldComponent({ id }: { id: OpId; field: Field<IField> }) {
   return (
-    <div className={s.fieldWrapper}>
+    <div className={cx(s.fieldWrapper, 'nokey')}>
       <div className={s.fieldLabel}>{id}</div>
     </div>
   )
@@ -2571,7 +2571,7 @@ export function BezierCurveFieldComponent({
   const gridLines = generateGridLines()
 
   return (
-    <div className={s.fieldWrapper} ref={containerRef}>
+    <div className={cx(s.fieldWrapper, 'nokey')} ref={containerRef}>
       <label className={s.fieldLabel} htmlFor={id}>
         {id}
       </label>

@@ -147,7 +147,7 @@ export function ExpressionEditorOverlay({
   // Use createPortal to render outside of ReactFlow's transformed container
   // This ensures position: fixed works correctly relative to the viewport
   return createPortal(
-    <div ref={containerRef} className={s.expressionEditorOverlay} style={overlayStyle()}>
+    <div ref={containerRef} className={`${s.expressionEditorOverlay} nokey`} style={overlayStyle()}>
       <div className={s.expressionEditorContent}>
         <Editor
           height="60px"
