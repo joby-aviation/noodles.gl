@@ -2974,10 +2974,13 @@ export function FieldComponent({
     return false
   })
 
-  // When renderInput is false, position handle absolutely to avoid relying on container height
+  // Position handle at the center of the 25px label row (12.5px from top)
+  // This ensures alignment even when field content expands (CompoundProps, ListField)
+  // ListFields use MultiInputHandle with left: -3px container, so need less translateX
+  const translateX = field instanceof ListField ? '-10px' : '-17px'
   const handleStyle = renderInput
-    ? { transform: 'translate(-17px, -50%)' }
-    : { transform: 'translate(-17px, 15px)' }
+    ? { top: '12.5px', transform: `translateX(${translateX})` }
+    : { top: '15px', transform: `translateX(${translateX})` }
 
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions: right-click menu is a shortcut; the same actions are reachable via the Properties Panel context menu
@@ -2985,8 +2988,8 @@ export function FieldComponent({
       style={{ position: 'relative' }}
       onContextMenu={canDrive || isDriven ? onContextMenu : undefined}
     >
-      {handle && (
-        field instanceof ListField ? (
+      {handle &&
+        (field instanceof ListField ? (
           <MultiInputHandle
             id={qualifiedFieldId}
             field={field}
@@ -3001,8 +3004,7 @@ export function FieldComponent({
             type={handle.type}
             position={Position.Left}
           />
-        )
-      )}
+        ))}
       {renderInput &&
         (hasIncomingConnection ? (
           <EmptyFieldComponent id={fieldId} field={field} />

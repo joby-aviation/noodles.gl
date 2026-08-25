@@ -532,6 +532,11 @@
   margin-left: 10px;
 }
 
+/* CompoundPropsField wrapper needs top alignment so handle aligns with label button */
+.fieldWrapper:has(.fieldCompoundWrapper) {
+  align-items: flex-start;
+}
+
 /* Field specific */
 :global(.react-flow__node-CodeOp) {
   min-width: 425px;
