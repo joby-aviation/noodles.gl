@@ -1,6 +1,6 @@
 /* Base panel */
 .panel {
-  width: var(--property-panel-width);
+  width: 100%;
   padding: 8px;
   font-size: 11px;
   display: flex;
