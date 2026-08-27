@@ -104,9 +104,9 @@ import {
   selectDirectory,
   writeFileToDirectory,
 } from './utils/filesystem'
-import { shouldBlockKeyboardShortcut } from './utils/input-detection'
 import { reconcileForLoopGroups } from './utils/for-loop-group-utils'
 import { edgeId, nodeId } from './utils/id-utils'
+import { shouldBlockKeyboardShortcut } from './utils/input-detection'
 import { generateDraftId, memoryProjectStore } from './utils/memory-project-store'
 import { migrateProject } from './utils/migrate-schema'
 import { normalizeMultiInputEdges } from './utils/multi-input-utils'
