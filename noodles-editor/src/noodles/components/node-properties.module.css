@@ -1,7 +1,8 @@
 /* Base panel */
 .panel {
-  width: var(--property-panel-width);
+  width: 100%;
   padding: 8px;
+  box-sizing: border-box;
   font-size: 11px;
   display: flex;
   flex-direction: column;
