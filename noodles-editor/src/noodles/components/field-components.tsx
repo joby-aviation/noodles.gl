@@ -25,8 +25,6 @@ const CodeiumEditor = lazy(() =>
   import('@codeium/react-code-editor').then(m => ({ default: m.CodeiumEditor }))
 )
 
-import { createPortal } from 'react-dom'
-
 import { Temporal } from 'temporal-polyfill'
 import { VectorKeyframeIndicator } from '../../timeline/components/KeyframeIndicator'
 import { getFieldPath } from '../../timeline/field-bindings'
