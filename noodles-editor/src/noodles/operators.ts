@@ -2798,6 +2798,23 @@ export class DirectionsOp extends Operator<DirectionsOp> {
   }
 }
 
+/**
+ * Query OpenStreetMap data using Overpass API
+ *
+ * Executes Overpass QL queries against the Overpass API and converts
+ * the OSM JSON response to GeoJSON format. Supports bbox template
+ * replacement for dynamic bounding box queries.
+ *
+ * @example
+ * ```overpass-ql
+ * [out:json][timeout:25];
+ * (
+ *   way["leisure"="park"]({{bbox}});
+ *   relation["leisure"="park"]({{bbox}});
+ * );
+ * out geom;
+ * ```
+ */
 export class OverpassOp extends Operator<OverpassOp> {
   static displayName = 'Overpass'
   static description = 'Query OpenStreetMap data using Overpass API'
@@ -2871,7 +2888,6 @@ export class OverpassOp extends Operator<OverpassOp> {
       // Check for timeout or other errors
       if (osmData.remark && osmData.remark.includes('timeout')) {
         throw new Error('Overpass query timeout - try a smaller area or simpler query')
-        // return { data: { type: 'FeatureCollection', features: [] } }
       }
 
       // Convert OSM JSON to GeoJSON
@@ -2915,11 +2931,12 @@ export class OverpassOp extends Operator<OverpassOp> {
 
           if (coordinates.length < 2) continue
 
-          // Check if way is closed (polygon)
+          // Check if way is closed (polygon) using epsilon comparison for floating point coordinates
+          const epsilon = 1e-9
           const isClosed =
             coordinates.length > 2 &&
-            coordinates[0][0] === coordinates[coordinates.length - 1][0] &&
-            coordinates[0][1] === coordinates[coordinates.length - 1][1]
+            Math.abs(coordinates[0][0] - coordinates[coordinates.length - 1][0]) < epsilon &&
+            Math.abs(coordinates[0][1] - coordinates[coordinates.length - 1][1]) < epsilon
 
           features.push({
             type: 'Feature',
