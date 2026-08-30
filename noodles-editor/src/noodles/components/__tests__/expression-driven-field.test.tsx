@@ -20,6 +20,7 @@ vi.mock('@xyflow/react', async () => {
       setNodes: vi.fn(),
       getNodes: vi.fn(() => []),
     }),
+    useNodeId: () => '/num',
   }
 })
 
@@ -47,12 +48,12 @@ describe('per-field expression mode UI', () => {
     clearOps()
   })
 
-  it('offers Add expression in the field context menu for drivable fields', () => {
+  it('offers Edit expression in the field context menu for drivable fields', () => {
     const op = new NumberOp('/num')
     setOp('/num', op)
     renderField(op)
     fireEvent.contextMenu(screen.getByText('val'))
-    expect(screen.getByText('Add expression')).toBeTruthy()
+    expect(screen.getByText('Edit expression')).toBeTruthy()
   })
 
   it('enters expression mode pre-filled with the current value', () => {
@@ -62,7 +63,7 @@ describe('per-field expression mode UI', () => {
     renderField(op)
 
     fireEvent.contextMenu(screen.getByText('val'))
-    fireEvent.click(screen.getByText('Add expression'))
+    fireEvent.click(screen.getByText('Edit expression'))
 
     expect(op.inputs.val.expression).toEqual('12')
     // The driven input shows the expression source
@@ -76,7 +77,7 @@ describe('per-field expression mode UI', () => {
     renderField(op)
 
     fireEvent.contextMenu(screen.getByText('val'))
-    fireEvent.click(screen.getByText('Add expression'))
+    fireEvent.click(screen.getByText('Edit expression'))
     const input = screen.getByPlaceholderText('Enter expression…')
     fireEvent.change(input, { target: { value: '2 + 3' } })
     fireEvent.blur(input)
@@ -92,7 +93,7 @@ describe('per-field expression mode UI', () => {
     renderField(op)
 
     fireEvent.contextMenu(screen.getByText('val'))
-    fireEvent.click(screen.getByText('Add expression'))
+    fireEvent.click(screen.getByText('Edit expression'))
     const input = screen.getByPlaceholderText('Enter expression…')
     fireEvent.change(input, { target: { value: '2 +' } })
     fireEvent.blur(input)
@@ -106,7 +107,7 @@ describe('per-field expression mode UI', () => {
     renderField(op)
 
     fireEvent.contextMenu(screen.getByText('val'))
-    fireEvent.click(screen.getByText('Add expression'))
+    fireEvent.click(screen.getByText('Edit expression'))
     const input = screen.getByPlaceholderText('Enter expression…')
     fireEvent.change(input, { target: { value: "op('/missing').out.val" } })
     fireEvent.blur(input)
@@ -121,7 +122,7 @@ describe('per-field expression mode UI', () => {
     renderField(op)
 
     fireEvent.contextMenu(screen.getByText('val'))
-    fireEvent.click(screen.getByText('Add expression'))
+    fireEvent.click(screen.getByText('Edit expression'))
     const input = screen.getByPlaceholderText('Enter expression…')
     fireEvent.change(input, { target: { value: '40 + 2' } })
     fireEvent.blur(input)
@@ -142,7 +143,7 @@ describe('per-field expression mode UI', () => {
     renderField(op)
 
     fireEvent.contextMenu(screen.getByText('val'))
-    fireEvent.click(screen.getByText('Add expression'))
+    fireEvent.click(screen.getByText('Edit expression'))
     const input = screen.getByPlaceholderText('Enter expression…')
     fireEvent.change(input, { target: { value: 'await Promise.resolve(5)' } })
     fireEvent.blur(input)
@@ -164,7 +165,7 @@ describe('per-field expression mode UI', () => {
     renderField(op)
 
     fireEvent.contextMenu(screen.getByText('val'))
-    fireEvent.click(screen.getByText('Add expression'))
+    fireEvent.click(screen.getByText('Edit expression'))
     const input = screen.getByPlaceholderText('Enter expression…')
     fireEvent.change(input, { target: { value: "op('/source').out.val + 1" } })
     fireEvent.blur(input)
@@ -193,6 +194,6 @@ describe('per-field expression mode UI', () => {
       </ReactFlowProvider>
     )
     fireEvent.contextMenu(screen.getByText('expression'))
-    expect(screen.queryByText('Add expression')).toBeNull()
+    expect(screen.queryByText('Edit expression')).toBeNull()
   })
 })

@@ -204,3 +204,59 @@ export function isWithinContainer(operatorId: string, containerOperatorId: strin
   // The operator is within the container if its path starts with the container's path followed by '/'
   return operatorId.startsWith(`${containerOperatorId}/`)
 }
+
+// Compute a relative path from contextPath to targetPath
+// The relative path is computed from the context operator's CONTAINER (parent directory)
+// This matches how operator references work: op('./sibling') means "in my parent container"
+// Examples:
+//   computeRelativePath('/container/target', '/container/source') → './target'
+//   computeRelativePath('/container/sub/target', '/other/source') → '../../container/sub/target'
+//   computeRelativePath('/target', '/container/source') → '../../target'
+export function computeRelativePath(targetPath: string, contextPath: string): string {
+  if (!targetPath || !contextPath) {
+    return targetPath
+  }
+
+  // Same path returns '.'
+  if (targetPath === contextPath) {
+    return '.'
+  }
+
+  // Get the container of the context operator (its parent path)
+  // Relative paths are resolved from the operator's container, not the operator itself
+  const contextContainer = getParentPath(contextPath)
+  if (!contextContainer) {
+    return targetPath
+  }
+
+  // Split paths into segments
+  const targetSegments = targetPath.split('/').filter(s => s !== '')
+  const containerSegments =
+    contextContainer === '/' ? [] : contextContainer.split('/').filter(s => s !== '')
+
+  // Find common ancestor by comparing segments
+  let commonLength = 0
+  const minLength = Math.min(targetSegments.length, containerSegments.length)
+  for (let i = 0; i < minLength; i++) {
+    if (targetSegments[i] === containerSegments[i]) {
+      commonLength++
+    } else {
+      break
+    }
+  }
+
+  // Calculate how many levels up from context container to common ancestor
+  const levelsUp = containerSegments.length - commonLength
+
+  // Build relative path
+  if (levelsUp === 0) {
+    // Same container - use ./ prefix
+    const remainingSegments = targetSegments.slice(commonLength)
+    return `./${remainingSegments.join('/')}`
+  }
+
+  // Go up levels and append remaining target segments
+  const upSegments = Array(levelsUp).fill('..')
+  const remainingSegments = targetSegments.slice(commonLength)
+  return [...upSegments, ...remainingSegments].join('/')
+}

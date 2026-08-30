@@ -117,7 +117,7 @@ describe('Context menu copy actions', () => {
     expect(mockClipboard.writeText).toHaveBeenCalledWith('0.5')
   })
 
-  it('clicking "Copy field name" writes field name to clipboard', () => {
+  it('clicking "Copy reference" writes absolute code ref to clipboard', () => {
     transformGraph({
       nodes: [
         {
@@ -131,47 +131,10 @@ describe('Context menu copy actions', () => {
     })
     renderNodeProperties('/geo')
     openContextMenuOnField('opacity')
-    fireEvent.click(screen.getByText('Copy field name'))
 
-    expect(mockClipboard.writeText).toHaveBeenCalledWith('opacity')
-  })
-
-  it('clicking "Copy code reference" writes code ref to clipboard', () => {
-    transformGraph({
-      nodes: [
-        {
-          id: '/geo',
-          type: 'GeoJsonLayerOp',
-          position: { x: 0, y: 0 },
-          data: { inputs: { opacity: 0.5 } },
-        },
-      ],
-      edges: [],
-    })
-    renderNodeProperties('/geo')
-    openContextMenuOnField('opacity')
-    fireEvent.click(screen.getByText('Copy code reference'))
+    fireEvent.click(screen.getByText('Copy reference'))
 
     expect(mockClipboard.writeText).toHaveBeenCalledWith("op('/geo').par.opacity")
-  })
-
-  it('clicking "Copy mustache reference" writes mustache ref to clipboard', () => {
-    transformGraph({
-      nodes: [
-        {
-          id: '/geo',
-          type: 'GeoJsonLayerOp',
-          position: { x: 0, y: 0 },
-          data: { inputs: { opacity: 0.5 } },
-        },
-      ],
-      edges: [],
-    })
-    renderNodeProperties('/geo')
-    openContextMenuOnField('opacity')
-    fireEvent.click(screen.getByText('Copy mustache reference'))
-
-    expect(mockClipboard.writeText).toHaveBeenCalledWith('{{/geo.par.opacity}}')
   })
 })
 
@@ -363,9 +326,7 @@ describe('Context menu on output fields', () => {
 
     // Copy actions should still be present
     expect(screen.getByText('Copy value')).toBeInTheDocument()
-    expect(screen.getByText('Copy field name')).toBeInTheDocument()
-    expect(screen.getByText('Copy code reference')).toBeInTheDocument()
-    expect(screen.getByText('Copy mustache reference')).toBeInTheDocument()
+    expect(screen.getByText('Copy reference')).toBeInTheDocument()
   })
 })
 
@@ -445,7 +406,7 @@ describe('Context menu expression actions', () => {
     clearOps()
   })
 
-  it('shows "Add expression" for drivable fields and enters expression mode', () => {
+  it('shows "Edit expression" for drivable fields and enters expression mode', () => {
     transformGraph({
       nodes: [{ id: '/num', type: 'NumberOp', position: { x: 0, y: 0 }, data: {} }],
       edges: [],
@@ -455,7 +416,7 @@ describe('Context menu expression actions', () => {
     const label = screen.getAllByText('val', { selector: 'span' })[0]
     fireEvent.contextMenu(label.closest('[role="listitem"]')!)
 
-    const item = screen.getByText('Add expression')
+    const item = screen.getByText('Edit expression')
     expect(item).not.toBeDisabled()
     fireEvent.click(item)
 
@@ -503,6 +464,6 @@ describe('Context menu expression actions', () => {
     const label = screen.getAllByText('val', { selector: 'span' })[0]
     fireEvent.contextMenu(label.closest('[role="listitem"]')!)
 
-    expect(screen.getByText('Add expression')).toBeDisabled()
+    expect(screen.getByText('Edit expression')).toBeDisabled()
   })
 })
