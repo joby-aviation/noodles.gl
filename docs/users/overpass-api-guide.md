@@ -60,16 +60,21 @@ out geom;
 
 **Important:** Connect the `BoundsOp` output to the `OverpassOp` bbox input. The `{{bbox}}` template will only be replaced when a valid bounding box is connected. Without a bbox connection, queries using `{{bbox}}` will fail.
 
-#### Understanding Overpass QL
+#### Deconstructing the Example Query
 
-- **`[out:json]`**: Return results as JSON
-- **`[timeout:25]`**: Query timeout in seconds
-- **`way["leisure"="park"]`**: Ways (areas/lines) tagged as parks
-- **`relation["leisure"="park"]`**: Relations (complex geometries) tagged as parks
-- **`({{bbox}})`**: Bounding box placeholder - automatically replaced with coordinates
-- **`out geom;`**: Include full geometry in output
+```
+[out:json][timeout:25];          // Return JSON with 25 second timeout
+(
+  way["leisure"="park"]({{bbox}});      // Ways tagged as parks in bbox
+  relation["leisure"="park"]({{bbox}}); // Relations tagged as parks in bbox
+);
+out geom;                        // Include full geometry
+```
 
-> **New to Overpass QL?** Learn the query language syntax at the [Overpass QL Language Guide](https://wiki.openstreetmap.org/wiki/Overpass_API/Overpass_QL) or try the interactive [Overpass Turbo](https://overpass-turbo.eu/) query builder.
+- `{{bbox}}` is automatically replaced with coordinates from the connected `BoundsOp`
+- `out geom;` includes complete geometry (vs `out;` which only returns node references)
+
+> **New to Overpass QL?** Learn the query language at the [Overpass QL Language Guide](https://wiki.openstreetmap.org/wiki/Overpass_API/Overpass_QL) or try the interactive [Overpass Turbo](https://overpass-turbo.eu/) query builder.
 
 ### Step 3: Visualize with GeoJsonLayer
 
@@ -174,52 +179,6 @@ out;
 
 Note: This uses a fixed bbox instead of the `{{bbox}}` template for precise areas. Simply don't connect a BoundsOp to the bbox input.
 
-## Advanced Queries
-
-### Combining Multiple Filters
-
-Query parks with specific amenities:
-
-```
-[out:json][timeout:25];
-(
-  // Parks
-  way["leisure"="park"]({{bbox}});
-
-  // Playgrounds within those parks
-  node["leisure"="playground"]({{bbox}});
-
-  // Drinking water fountains
-  node["amenity"="drinking_water"]({{bbox}});
-);
-out geom;
-```
-
-### Using Regular Expressions
-
-Query shops of various types:
-
-```
-[out:json][timeout:25];
-(
-  node["shop"~"^(supermarket|convenience|grocery)$"]({{bbox}});
-);
-out;
-```
-
-### Recursion (Get Related Features)
-
-Query bus stops with their routes:
-
-```
-[out:json][timeout:25];
-(
-  node["highway"="bus_stop"]({{bbox}});
-  <;  // Recurse up to get parent relations (routes)
-);
-out geom;
-```
-
 ## Query Without Bounding Box
 
 For landmark or named feature queries, you can omit the bbox input:
@@ -294,22 +253,6 @@ If you see errors, try:
 | **Performance** | Rate limited, smaller queries | Large queries, pre-indexed |
 | **Use Case** | Current POIs, routing | Analytics, bulk processing |
 | **Data Model** | OSM tags (flexible) | Structured schema (consistent) |
-
-## When to Use Overpass vs Overture
-
-**Use Overpass API when:**
-
-- You need the latest OSM data
-- Querying specific, smaller areas
-- Working with OSM-specific tags and relations
-- Building tools that interact with OSM community data
-
-**Use Overture Maps when:**
-
-- Querying large geographic areas
-- Need consistent global schema
-- Performing analytics on bulk data
-- Don't need real-time updates
 
 ## Resources
 
