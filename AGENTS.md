@@ -492,13 +492,66 @@ export class CustomOperator extends Operator<CustomOperator> {
 }
 ```
 
+### Registration (Critical!)
+
+After creating the operator class, you must register it in two places:
+
+**1. Add to `opTypes` object in `operators.ts`** (alphabetically):
+
+```typescript
+export const opTypes = {
+  // ... other operators ...
+  CustomOperator,  // Add your operator here
+  // ... more operators ...
+} as const
+```
+
+**2. Add to appropriate category in `components/categories.ts`**:
+
+```typescript
+export const categories = {
+  data: [
+    'FileOp',
+    'DuckDbOp',
+    'CustomOperator',  // Add here if it's a data source
+    // ...
+  ],
+  // Or in another category:
+  layer: [
+    'GeoJsonLayerOp',
+    // ...
+  ],
+  code: [
+    'CodeOp',
+    // ...
+  ],
+  // ... other categories
+} as const
+```
+
+**Available categories:**
+
+- `code` - Code execution and expressions
+- `data` - Data sources and transformations
+- `color` - Color manipulation
+- `geojson` - GeoJSON utilities
+- `layer` - Visualization layers
+- `extension` - Deck.gl extensions
+- `number` - Numeric operations
+- `string` - String operations
+- `utility` - General utilities
+- `vector` - Vector math
+- `view` - Camera and viewport
+- `widget` - UI widgets
+- `grouping` - Container/loop operators
+
 ### Key Principles
 
 1. **Pure Functions**: Operators should be deterministic
 2. **Typed Inputs/Outputs**: Use Field types with Zod schemas
 3. **Reactive**: Changes propagate automatically
 4. **Memoized**: Results cached based on input values
-5. **Register**: Add to operator registry in `operators.ts`
+5. **Register**: Add to `opTypes` object in `operators.ts` AND to a category in `components/categories.ts`
 
 ## Common Field Types
 
@@ -576,11 +629,13 @@ Any field can be keyframed via the native timeline system. Changes in timeline p
 2. Define inputs with `createInputs()` method
 3. Define outputs with `createOutputs()` method
 4. Implement `execute()` method with pure function logic
-5. Register operator in operator registry
-6. Add to category in `components/categories.ts` using display name without "Op" suffix (e.g., `'File'` not `'FileOp'`)
+5. **Register operator in `opTypes` object** in `operators.ts` (alphabetically)
+6. **Add to appropriate category** in `components/categories.ts` using display name without "Op" suffix (e.g., `'File'` not `'FileOp'`)
 7. **Write unit tests** (required for all operators)
 8. Document behavior and limitations if complex
 9. Test in UI with example projects
+
+**Important:** Steps 5 and 6 are critical - the operator will not appear in the Add Node menu without these registrations!
 
 ### Modifying Existing Operator
 1. Locate operator in `operators.ts`
