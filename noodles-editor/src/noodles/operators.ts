@@ -2828,7 +2828,13 @@ export class OverpassOp extends Operator<OverpassOp> {
         }
       ),
       // TODO: We should add a bbox type
-      bbox: new UnknownField([{ lng: -74.006, lat: 40.7128 }, { lng: -73.935, lat: 40.73061 }], { optional: true }),
+      bbox: new UnknownField(
+        [
+          { lng: -74.006, lat: 40.7128 },
+          { lng: -73.935, lat: 40.73061 },
+        ],
+        { optional: true }
+      ),
       endpoint: new StringField('https://overpass-api.de/api/interpreter'),
       pulse: new NumberField(0, { min: 0, step: 1 }),
     }
@@ -2847,19 +2853,20 @@ export class OverpassOp extends Operator<OverpassOp> {
       // Replace {{bbox}} template with actual coordinates if bbox is provided and valid
       // Overpass format: (south,west,north,east)
       let processedQuery = query
-      if (
-        bbox &&
-        Array.isArray(bbox) &&
-        bbox.length === 2 &&
-        /\{\{bbox\}\}/.test(query)
-      ) {
-        const [southwest, northeast] = bbox
-        let west, south, east, north
-        if (southwest.lng) {
+      if (bbox && Array.isArray(bbox) && bbox.length === 2 && /\{\{bbox\}\}/.test(query)) {
+        const [southwest, northeast] = bbox as [
+          { lng: number; lat: number } | [number, number],
+          { lng: number; lat: number } | [number, number],
+        ]
+        let west: number
+        let south: number
+        let east: number
+        let north: number
+        if ('lng' in southwest && typeof southwest.lng === 'number') {
           west = southwest.lng
           south = southwest.lat
-          east = northeast.lng
-          north = northeast.lat
+          east = ('lng' in northeast && northeast.lng) || 0
+          north = ('lat' in northeast && northeast.lat) || 0
         } else if (Array.isArray(southwest)) {
           west = southwest[0]
           south = southwest[1]
@@ -2886,7 +2893,7 @@ export class OverpassOp extends Operator<OverpassOp> {
       const osmData = await response.json()
 
       // Check for timeout or other errors
-      if (osmData.remark && osmData.remark.includes('timeout')) {
+      if (osmData.remark?.includes('timeout')) {
         throw new Error('Overpass query timeout - try a smaller area or simpler query')
       }
 
@@ -2899,11 +2906,29 @@ export class OverpassOp extends Operator<OverpassOp> {
     }
   }
 
-  private osmToGeoJson(osmData: any): any {
-    const features: any[] = []
+  private osmToGeoJson(osmData: {
+    elements?: Array<{
+      type: string
+      id: number
+      lat?: number
+      lon?: number
+      tags?: Record<string, string>
+      geometry?: Array<{ lat: number; lon: number }>
+      nodes?: number[]
+    }>
+  }): { type: 'FeatureCollection'; features: unknown[] } {
+    const features: unknown[] = []
 
     // Build node map for way processing
-    const nodeMap: Record<number, any> = {}
+    const nodeMap: Record<
+      number,
+      {
+        id: number
+        lat: number
+        lon: number
+        tags?: Record<string, string>
+      }
+    > = {}
     for (const element of osmData.elements || []) {
       if (element.type === 'node') {
         nodeMap[element.id] = element
@@ -2927,7 +2952,7 @@ export class OverpassOp extends Operator<OverpassOp> {
       if (element.type === 'way' && element.tags) {
         // If geometry is included (from 'out geom'), use it directly
         if (element.geometry) {
-          const coordinates = element.geometry.map((node: any) => [node.lon, node.lat])
+          const coordinates = element.geometry.map(node => [node.lon, node.lat])
 
           if (coordinates.length < 2) continue
 
@@ -2951,10 +2976,12 @@ export class OverpassOp extends Operator<OverpassOp> {
         else if (element.nodes) {
           const coordinates = element.nodes
             .map((nodeId: number) => {
-              const node = nodeMap[nodeId] || osmData.elements.find((n: any) => n.id === nodeId)
-              return node ? [node.lon, node.lat] : null
+              const node = nodeMap[nodeId] || osmData.elements?.find(n => n.id === nodeId)
+              return node?.lat !== undefined && node?.lon !== undefined
+                ? [node.lon, node.lat]
+                : null
             })
-            .filter((coord: any) => coord !== null)
+            .filter((coord): coord is [number, number] => coord !== null)
 
           if (coordinates.length < 2) continue
 
