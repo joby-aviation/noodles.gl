@@ -3000,6 +3000,59 @@ export class OverpassOp extends Operator<OverpassOp> {
       }
     }
 
+    // Process relations (multipolygons and other complex geometries)
+    for (const element of osmData.elements || []) {
+      if (element.type === 'relation' && element.tags) {
+        // Relations with 'out geom;' include member geometries
+        const members = (
+          element as unknown as {
+            members?: Array<{
+              type: string
+              ref: number
+              role: string
+              lat?: number
+              lon?: number
+              geometry?: Array<{ lat: number; lon: number }>
+            }>
+          }
+        ).members
+
+        if (!members) continue
+
+        // Group members by role (outer/inner for multipolygons)
+        const outerWays = members.filter(m => m.role === 'outer' && m.geometry)
+        const innerWays = members.filter(m => m.role === 'inner' && m.geometry)
+
+        if (outerWays.length > 0) {
+          // Build polygon rings
+          const outerRings = outerWays.map(way => way.geometry!.map(node => [node.lon, node.lat]))
+          const innerRings = innerWays.map(way => way.geometry!.map(node => [node.lon, node.lat]))
+
+          // If single outer ring, create Polygon; otherwise MultiPolygon
+          if (outerRings.length === 1) {
+            features.push({
+              type: 'Feature',
+              geometry: {
+                type: 'Polygon',
+                coordinates: [outerRings[0], ...innerRings],
+              },
+              properties: { ...element.tags, osm_id: element.id, osm_type: 'relation' },
+            })
+          } else {
+            // Multiple outer rings - create MultiPolygon
+            features.push({
+              type: 'Feature',
+              geometry: {
+                type: 'MultiPolygon',
+                coordinates: outerRings.map(outer => [outer, ...innerRings]),
+              },
+              properties: { ...element.tags, osm_id: element.id, osm_type: 'relation' },
+            })
+          }
+        }
+      }
+    }
+
     return {
       type: 'FeatureCollection',
       features,

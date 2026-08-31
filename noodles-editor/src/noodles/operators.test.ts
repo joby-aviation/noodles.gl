@@ -4569,4 +4569,196 @@ describe('OverpassOp', () => {
     )
     expect(capturedRequest.options.body).toBe('[out:json];node;out;')
   })
+
+  it('converts OSM relations to GeoJSON Polygon features', async () => {
+    const op = new OverpassOp('/overpass')
+
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        elements: [
+          {
+            type: 'relation',
+            id: 12345,
+            tags: { leisure: 'park', name: 'Central Park' },
+            members: [
+              {
+                type: 'way',
+                ref: 100,
+                role: 'outer',
+                geometry: [
+                  { lat: 40.7128, lon: -74.006 },
+                  { lat: 40.7129, lon: -74.006 },
+                  { lat: 40.7129, lon: -74.0061 },
+                  { lat: 40.7128, lon: -74.006 },
+                ],
+              },
+            ],
+          },
+        ],
+      }),
+    })
+
+    const result = await op.execute({
+      query: '[out:json];relation["leisure"="park"];out geom;',
+      bbox: undefined,
+      endpoint: 'https://overpass-api.de/api/interpreter',
+    })
+
+    expect(result.data.features).toHaveLength(1)
+    expect(result.data.features[0].geometry.type).toBe('Polygon')
+    expect(result.data.features[0].geometry.coordinates).toEqual([
+      [
+        [-74.006, 40.7128],
+        [-74.006, 40.7129],
+        [-74.0061, 40.7129],
+        [-74.006, 40.7128],
+      ],
+    ])
+    expect(result.data.features[0].properties).toEqual({
+      leisure: 'park',
+      name: 'Central Park',
+      osm_id: 12345,
+      osm_type: 'relation',
+    })
+  })
+
+  it('converts OSM relations with inner rings (holes) to Polygon', async () => {
+    const op = new OverpassOp('/overpass')
+
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        elements: [
+          {
+            type: 'relation',
+            id: 54321,
+            tags: { leisure: 'park', name: 'Park with Lake' },
+            members: [
+              {
+                type: 'way',
+                ref: 200,
+                role: 'outer',
+                geometry: [
+                  { lat: 40.7, lon: -74.0 },
+                  { lat: 40.71, lon: -74.0 },
+                  { lat: 40.71, lon: -74.01 },
+                  { lat: 40.7, lon: -74.01 },
+                  { lat: 40.7, lon: -74.0 },
+                ],
+              },
+              {
+                type: 'way',
+                ref: 201,
+                role: 'inner',
+                geometry: [
+                  { lat: 40.705, lon: -74.005 },
+                  { lat: 40.706, lon: -74.005 },
+                  { lat: 40.706, lon: -74.006 },
+                  { lat: 40.705, lon: -74.006 },
+                  { lat: 40.705, lon: -74.005 },
+                ],
+              },
+            ],
+          },
+        ],
+      }),
+    })
+
+    const result = await op.execute({
+      query: '[out:json];relation["leisure"="park"];out geom;',
+      bbox: undefined,
+      endpoint: 'https://overpass-api.de/api/interpreter',
+    })
+
+    expect(result.data.features).toHaveLength(1)
+    expect(result.data.features[0].geometry.type).toBe('Polygon')
+    // First ring is outer, second is inner (hole)
+    expect(result.data.features[0].geometry.coordinates).toHaveLength(2)
+    expect(result.data.features[0].geometry.coordinates[0]).toHaveLength(5) // outer
+    expect(result.data.features[0].geometry.coordinates[1]).toHaveLength(5) // inner
+  })
+
+  it('converts OSM relations with multiple outer rings to MultiPolygon', async () => {
+    const op = new OverpassOp('/overpass')
+
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        elements: [
+          {
+            type: 'relation',
+            id: 99999,
+            tags: { leisure: 'park', name: 'Multi-part Park' },
+            members: [
+              {
+                type: 'way',
+                ref: 300,
+                role: 'outer',
+                geometry: [
+                  { lat: 40.7, lon: -74.0 },
+                  { lat: 40.71, lon: -74.0 },
+                  { lat: 40.71, lon: -74.01 },
+                  { lat: 40.7, lon: -74.0 },
+                ],
+              },
+              {
+                type: 'way',
+                ref: 301,
+                role: 'outer',
+                geometry: [
+                  { lat: 40.72, lon: -74.0 },
+                  { lat: 40.73, lon: -74.0 },
+                  { lat: 40.73, lon: -74.01 },
+                  { lat: 40.72, lon: -74.0 },
+                ],
+              },
+            ],
+          },
+        ],
+      }),
+    })
+
+    const result = await op.execute({
+      query: '[out:json];relation["leisure"="park"];out geom;',
+      bbox: undefined,
+      endpoint: 'https://overpass-api.de/api/interpreter',
+    })
+
+    expect(result.data.features).toHaveLength(1)
+    expect(result.data.features[0].geometry.type).toBe('MultiPolygon')
+    expect(result.data.features[0].geometry.coordinates).toHaveLength(2)
+  })
+
+  it('skips relations without geometry data', async () => {
+    const op = new OverpassOp('/overpass')
+
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        elements: [
+          {
+            type: 'relation',
+            id: 11111,
+            tags: { leisure: 'park' },
+            // No members array - query without 'out geom;'
+          },
+          {
+            type: 'relation',
+            id: 22222,
+            tags: { leisure: 'park' },
+            members: [], // Empty members
+          },
+        ],
+      }),
+    })
+
+    const result = await op.execute({
+      query: '[out:json];relation["leisure"="park"];out;',
+      bbox: undefined,
+      endpoint: 'https://overpass-api.de/api/interpreter',
+    })
+
+    expect(result.data.features).toHaveLength(0)
+  })
 })
