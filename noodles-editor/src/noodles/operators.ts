@@ -151,6 +151,7 @@ import {
   ArrayField,
   applySerializedFieldValue,
   BezierCurveField,
+  BboxField,
   BooleanField,
   CategoricalColorRampField,
   CodeField,
@@ -7746,7 +7747,10 @@ export class PointGridOp extends Operator<PointGridOp> {
   asDownload = () => this.outputData
   createInputs() {
     return {
-      bbox: new UnknownField([-180, -90, 180, 90]),
+      bbox: new BboxField({
+        southwest: { lng: -180, lat: -90 },
+        northeast: { lng: 180, lat: 90 },
+      }),
       cellSize: new NumberField(10, { min: 0.001, step: 1 }),
       units: new StringLiteralField('kilometers', {
         values: ['kilometers', 'miles', 'meters', 'degrees'],
@@ -7763,7 +7767,13 @@ export class PointGridOp extends Operator<PointGridOp> {
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     const turf = (globalThis as unknown as Record<string, unknown>)
       .turf as typeof import('@turf/turf')
-    const grid = turf.pointGrid(bbox as [number, number, number, number], cellSize, {
+    const turfBbox: [number, number, number, number] = [
+      bbox.southwest.lng,
+      bbox.southwest.lat,
+      bbox.northeast.lng,
+      bbox.northeast.lat,
+    ]
+    const grid = turf.pointGrid(turfBbox, cellSize, {
       units: units as 'kilometers',
     })
     return { featureCollection: grid }
@@ -7776,7 +7786,10 @@ export class HexGridOp extends Operator<HexGridOp> {
   asDownload = () => this.outputData
   createInputs() {
     return {
-      bbox: new UnknownField([-180, -90, 180, 90]),
+      bbox: new BboxField({
+        southwest: { lng: -180, lat: -90 },
+        northeast: { lng: 180, lat: 90 },
+      }),
       cellSize: new NumberField(10, { min: 0.001, step: 1 }),
       units: new StringLiteralField('kilometers', {
         values: ['kilometers', 'miles', 'meters', 'degrees'],
@@ -7793,7 +7806,13 @@ export class HexGridOp extends Operator<HexGridOp> {
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     const turf = (globalThis as unknown as Record<string, unknown>)
       .turf as typeof import('@turf/turf')
-    const grid = turf.hexGrid(bbox as [number, number, number, number], cellSize, {
+    const turfBbox: [number, number, number, number] = [
+      bbox.southwest.lng,
+      bbox.southwest.lat,
+      bbox.northeast.lng,
+      bbox.northeast.lat,
+    ]
+    const grid = turf.hexGrid(turfBbox, cellSize, {
       units: units as 'kilometers',
     })
     return { featureCollection: grid }
@@ -7806,7 +7825,10 @@ export class SquareGridOp extends Operator<SquareGridOp> {
   asDownload = () => this.outputData
   createInputs() {
     return {
-      bbox: new UnknownField([-180, -90, 180, 90]),
+      bbox: new BboxField({
+        southwest: { lng: -180, lat: -90 },
+        northeast: { lng: 180, lat: 90 },
+      }),
       cellSize: new NumberField(10, { min: 0.001, step: 1 }),
       units: new StringLiteralField('kilometers', {
         values: ['kilometers', 'miles', 'meters', 'degrees'],
@@ -7823,7 +7845,13 @@ export class SquareGridOp extends Operator<SquareGridOp> {
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     const turf = (globalThis as unknown as Record<string, unknown>)
       .turf as typeof import('@turf/turf')
-    const grid = turf.squareGrid(bbox as [number, number, number, number], cellSize, {
+    const turfBbox: [number, number, number, number] = [
+      bbox.southwest.lng,
+      bbox.southwest.lat,
+      bbox.northeast.lng,
+      bbox.northeast.lat,
+    ]
+    const grid = turf.squareGrid(turfBbox, cellSize, {
       units: units as 'kilometers',
     })
     return { featureCollection: grid }
