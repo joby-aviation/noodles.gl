@@ -58,6 +58,7 @@ import { CopyControls, type CopyControlsRef } from './components/copy-controls'
 import { NodeInfoOverlay, ViewportInfoPanel } from './components/devtools'
 import { ErrorBoundary } from './components/error-boundary'
 import { ExampleNotFoundDialog } from './components/example-not-found-dialog'
+import { type GraphError, GraphErrorDialog } from './components/graph-error-dialog'
 import { LayerPanel } from './components/layer-panel'
 import { PropertyPanel } from './components/node-properties'
 import { NodeTreeSidebar } from './components/node-tree-sidebar'
@@ -200,6 +201,7 @@ export function getNoodles(): Visualization {
     hasDataFiles: boolean
   } | null>(null)
   const [showExampleNotFoundDialog, setShowExampleNotFoundDialog] = useState(false)
+  const [graphErrors, setGraphErrors] = useState<GraphError[]>([])
   const storageType = useActiveStorageType()
   const { currentDirectory, setCurrentDirectory, setActiveStorageType, setError } =
     useFileSystemStore()
@@ -368,8 +370,17 @@ export function getNoodles(): Visualization {
   useEffect(() => {
     // loadProjectFile already called transformGraph directly, so skip this triggered re-run
     if (isProjectLoadRef.current) return
-    const ops = transformGraph({ nodes, edges })
-    setOperators(ops)
+    const result = transformGraph({ nodes, edges })
+    setOperators(result.operators)
+    // Show error dialog if there are graph errors
+    if (result.errors.length > 0) {
+      setGraphErrors(
+        result.errors.map(e => ({
+          type: e.type,
+          message: e.message,
+        }))
+      )
+    }
     // Catch-all for multi-input slot caches: re-derive orderIndex/groupSize now that the
     // operators exist in the store (covers undo/redo restores, keyboard deletes, and AI/paste
     // paths that added edges before their operators were instantiated). Returns the same
@@ -794,6 +805,7 @@ export function getNoodles(): Visualization {
       // Load timeline state before transformGraph so field bindings see the right keyframe data
       clearAllBindings()
       const hasTimeline = timeline && Object.keys(timeline).length > 0
+      const timelineErrors: GraphError[] = []
       if (hasTimeline) {
         try {
           // Timeline data uses a timeline JSON format.
@@ -802,14 +814,30 @@ export function getNoodles(): Visualization {
           )
         } catch (error) {
           console.error('Failed to load timeline:', error)
+          timelineErrors.push({
+            type: 'operator-execution',
+            message: 'Failed to load timeline data',
+            details: error instanceof Error ? error.stack : String(error),
+          })
         }
       } else {
         timelineStore.reset()
       }
 
       // Build the operator graph synchronously — operators are ready before any re-render
-      const ops = transformGraph({ nodes, edges })
-      setOperators(ops)
+      const result = transformGraph({ nodes, edges })
+      setOperators(result.operators)
+      // Show error dialog if there are graph or timeline errors
+      const allErrors = [
+        ...timelineErrors,
+        ...result.errors.map(e => ({
+          type: e.type,
+          message: e.message,
+        })),
+      ]
+      if (allErrors.length > 0) {
+        setGraphErrors(allErrors)
+      }
 
       // Update React Flow state (for rendering; graph is already set up above).
       // Normalizing here (after transformGraph, so operators exist for the ListField
@@ -1661,6 +1689,12 @@ export function getNoodles(): Visualization {
           onBrowseExamples={onBrowseExamples}
           onCheckMyProjects={onCheckMyProjects}
           onClose={() => setShowExampleNotFoundDialog(false)}
+        />
+        <GraphErrorDialog
+          open={graphErrors.length > 0}
+          errors={graphErrors}
+          onClose={() => setGraphErrors([])}
+          validOperatorCount={operators.length}
         />
         <StorageErrorHandler />
       </div>

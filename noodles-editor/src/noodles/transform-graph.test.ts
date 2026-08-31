@@ -44,10 +44,12 @@ describe('transform-graph topological sort with missing upstream nodes', () => {
       },
     ]
 
-    const instances = transformGraph({ nodes, edges })
+    const result = transformGraph({ nodes, edges })
 
-    expect(instances).toHaveLength(1)
-    expect(instances[0].id).toBe('/kml-to-geo-json')
+    expect(result.operators).toHaveLength(1)
+    expect(result.operators[0].id).toBe('/kml-to-geo-json')
+    expect(result.errors).toHaveLength(1)
+    expect(result.errors[0].type).toBe('stale-edge')
 
     const { getOp } = getOpStore()
     expect(getOp('/kml-to-geo-json')).toBeDefined()
@@ -76,9 +78,9 @@ describe('transform-graph topological sort with missing upstream nodes', () => {
       },
     ]
 
-    const instances = transformGraph({ nodes, edges })
+    const result = transformGraph({ nodes, edges })
 
-    expect(instances).toHaveLength(2)
+    expect(result.operators).toHaveLength(2)
     const { getOp } = getOpStore()
     expect(getOp('/a')).toBeDefined()
     expect(getOp('/b')).toBeDefined()
@@ -113,11 +115,11 @@ describe('transform-graph topological sort with missing upstream nodes', () => {
       },
     ]
 
-    const instances = transformGraph({ nodes, edges })
+    const result = transformGraph({ nodes, edges })
 
-    expect(instances).toHaveLength(3)
+    expect(result.operators).toHaveLength(3)
     // /source must come before /downstream in execution order
-    const ids = instances.map(op => op.id)
+    const ids = result.operators.map(op => op.id)
     expect(ids.indexOf('/source')).toBeLessThan(ids.indexOf('/downstream'))
     // /orphan must also be present
     expect(ids).toContain('/orphan')
@@ -138,10 +140,10 @@ describe('transform-graph topological sort with missing upstream nodes', () => {
       },
     ]
 
-    const instances = transformGraph({ nodes, edges })
+    const result = transformGraph({ nodes, edges })
 
-    expect(instances).toHaveLength(2)
-    const ids = instances.map(op => op.id)
+    expect(result.operators).toHaveLength(2)
+    const ids = result.operators.map(op => op.id)
     expect(ids.indexOf('/num')).toBeLessThan(ids.indexOf('/math'))
   })
 })
@@ -453,8 +455,8 @@ describe('transform-graph', () => {
       ],
     }
 
-    const instances = transformGraph(graph)
-    expect(instances).toHaveLength(2)
+    const result = transformGraph(graph)
+    expect(result.operators).toHaveLength(2)
 
     const [num, add] = instances
     expect(num).toBeInstanceOf(NumberOp)
@@ -533,8 +535,8 @@ describe('transform-graph', () => {
       ],
     }
 
-    const instances = transformGraph(graph)
-    expect(instances).toHaveLength(2)
+    const result = transformGraph(graph)
+    expect(result.operators).toHaveLength(2)
 
     const [num, add] = instances
     expect(num).toBeInstanceOf(NumberOp)
@@ -572,8 +574,8 @@ describe('transform-graph', () => {
       ],
     }
 
-    const instances = transformGraph(graph)
-    const code = instances.find(op => op.id === '/code') as CodeOp
+    const result = transformGraph(graph)
+    const code = result.operators.find(op => op.id === '/code') as CodeOp
     expect(code.hasConnectionErrors()).toBe(false)
   })
 
@@ -603,8 +605,8 @@ describe('transform-graph', () => {
       ],
     }
 
-    const instances = transformGraph(graph)
-    const code = instances.find(op => op.id === '/code') as CodeOp
+    const result = transformGraph(graph)
+    const code = result.operators.find(op => op.id === '/code') as CodeOp
     expect(code.hasConnectionErrors()).toBe(true)
     const errorMessage = code.connectionErrors.value.get('/num.out.val->/code.par.code')
     expect(errorMessage).toContain('Type mismatch')
@@ -641,8 +643,8 @@ describe('transform-graph', () => {
       ],
     }
 
-    const instances = transformGraph(graph)
-    const add = instances.find(op => op.id === '/add') as MathOp
+    const result = transformGraph(graph)
+    const add = result.operators.find(op => op.id === '/add') as MathOp
 
     // Connection should be established despite type mismatch
     expect(add.inputs.a.subscriptions.size).toBe(1)
@@ -719,8 +721,8 @@ describe('transform-graph', () => {
       ],
     }
 
-    const instances = transformGraph(graphWithValidConnection)
-    const add = instances.find(op => op.id === '/add') as MathOp
+    const result = transformGraph(graphWithValidConnection)
+    const add = result.operators.find(op => op.id === '/add') as MathOp
 
     // Valid connection should be established
     expect(add.inputs.a.subscriptions.size).toBe(1)
@@ -785,8 +787,8 @@ describe('transform-graph', () => {
       edges: [], // No edges
     }
 
-    const instances = transformGraph(graphWithoutConnection)
-    const add = instances.find(op => op.id === '/add') as MathOp
+    const result = transformGraph(graphWithoutConnection)
+    const add = result.operators.find(op => op.id === '/add') as MathOp
 
     // No subscriptions should exist
     expect(add.inputs.a.subscriptions.size).toBe(0)
@@ -1119,8 +1121,8 @@ describe('connection error suppression for undefined source fields', () => {
       },
     ]
 
-    const instances = transformGraph({ nodes, edges })
-    const deck = instances.find(op => op.id === '/deck') as DeckRendererOp
+    const result = transformGraph({ nodes, edges })
+    const deck = result.operators.find(op => op.id === '/deck') as DeckRendererOp
 
     expect(deck.hasConnectionErrors()).toBe(false)
   })
@@ -1153,8 +1155,8 @@ describe('connection error suppression for undefined source fields', () => {
       },
     ]
 
-    const instances = transformGraph({ nodes, edges })
-    const add = instances.find(op => op.id === '/add') as MathOp
+    const result = transformGraph({ nodes, edges })
+    const add = result.operators.find(op => op.id === '/add') as MathOp
 
     expect(add.hasConnectionErrors()).toBe(false)
   })
@@ -1187,8 +1189,8 @@ describe('connection error suppression for undefined source fields', () => {
       },
     ]
 
-    const instances = transformGraph({ nodes, edges })
-    const add = instances.find(op => op.id === '/add') as MathOp
+    const result = transformGraph({ nodes, edges })
+    const add = result.operators.find(op => op.id === '/add') as MathOp
 
     expect(add.hasConnectionErrors()).toBe(true)
     expect(add.connectionErrors.value.get('/str.out.val->/add.par.a')).toContain('Type mismatch')

@@ -163,11 +163,29 @@ export function deriveReferenceEdges(
   return derived
 }
 
+export interface GraphLoadError {
+  type: 'unknown-operator' | 'stale-edge'
+  nodeId?: string
+  nodeType?: string
+  edgeId?: string
+  message: string
+}
+
 export function transformGraph<
   OP extends Operator<IOperator>,
   E extends Edge<OP, OP>,
   T extends OpType,
->({ nodes: _nodes, edges: _edges }: { nodes: NodeJSON<unknown>[]; edges: E[] }): OP[] {
+>({
+  nodes: _nodes,
+  edges: _edges,
+}: {
+  nodes: NodeJSON<unknown>[]
+  edges: E[]
+}): {
+  operators: OP[]
+  errors: GraphLoadError[]
+} {
+  const errors: GraphLoadError[] = []
   const nodes = _nodes.filter(n => opTypes[n.type as T] !== undefined) as NodeJSON<OpType>[]
   // Reference edges for every node — mounted or not (see deriveReferenceEdges).
   const edges = [
@@ -184,10 +202,15 @@ export function transformGraph<
   const specialNodeTypes = new Set<string>(['group'] satisfies SpecialNodeType[])
   for (const node of _nodes) {
     if (opTypes[node.type as T] === undefined && !specialNodeTypes.has(node.type as string)) {
-      console.error(
-        `[noodles] Unknown operator type "${node.type}" for node "${(node as { id: string }).id}". ` +
-          'This node will be skipped. Is the operator registered in opTypes?'
-      )
+      const nodeId = (node as { id: string }).id
+      const errorMsg = `Unknown operator type "${node.type}" for node "${nodeId}". This node will be skipped.`
+      console.error(`[noodles] ${errorMsg}`)
+      errors.push({
+        type: 'unknown-operator',
+        nodeId,
+        nodeType: node.type as string,
+        message: `Node "${nodeId}" (type: ${node.type})`,
+      })
     }
   }
 
@@ -205,11 +228,17 @@ export function transformGraph<
       ]
         .filter(Boolean)
         .join(', ')
+      const errorMsg = `Edge "${edge.id}" references missing node(s): ${missing}`
       console.error(
-        `[noodles] Stale edge detected: edge "${edge.id}" references missing node(s): ${missing}. ` +
+        `[noodles] Stale edge detected: ${errorMsg}. ` +
           'This may be caused by a failed node rename. The graph will load, but affected connections will be missing.'
       )
       debugExecutor('Stale edge: %s (missing: %s)', edge.id, missing)
+      errors.push({
+        type: 'stale-edge',
+        edgeId: edge.id,
+        message: errorMsg,
+      })
     }
   }
 
@@ -464,5 +493,5 @@ export function transformGraph<
     }
   }
 
-  return instances
+  return { operators: instances, errors }
 }
