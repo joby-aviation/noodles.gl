@@ -1,0 +1,299 @@
+{
+  "nodes": [
+    {
+      "id": "/duckdb-flight-data",
+      "type": "DuckDbOp",
+      "position": {
+        "x": -1183.0445205479452,
+        "y": -279.4189497716895
+      },
+      "data": {
+        "inputs": {
+          "query": [
+            "WITH raw_flights AS (",
+            "  SELECT",
+            "    icao,",
+            "    r AS registration,",
+            "    aircraft_type,",
+            "    start_t,",
+            "    end_t,",
+            "    start_height_agl_ft,",
+            "    end_height_agl_ft,",
+            "    ST_AsText(",
+            "      ST_MakeLine(",
+            "        list_transform(geometry, g -> ST_Point(g.x, g.y))",
+            "      )",
+            "    ) AS geom_text",
+            "  FROM read_parquet([",
+            "    'https://data.source.coop/root-geospatial/flight-tracks/quadkey_z8=02301200/year=2024/month=6/day=15/flights-2024-06-15.parquet',",
+            "    'https://data.source.coop/root-geospatial/flight-tracks/quadkey_z8=02301201/year=2024/month=6/day=15/flights-2024-06-15.parquet',",
+            "    'https://data.source.coop/root-geospatial/flight-tracks/quadkey_z8=02301210/year=2024/month=6/day=15/flights-2024-06-15.parquet',",
+            "    'https://data.source.coop/root-geospatial/flight-tracks/quadkey_z8=02301211/year=2024/month=6/day=15/flights-2024-06-15.parquet'",
+            "  ])",
+            "),",
+            "unique_flights AS (",
+            "  SELECT DISTINCT ON (icao, end_t)",
+            "    icao,",
+            "    registration,",
+            "    aircraft_type,",
+            "    start_t,",
+            "    end_t,",
+            "    start_height_agl_ft,",
+            "    end_height_agl_ft,",
+            "    geom_text",
+            "  FROM raw_flights",
+            "  WHERE geom_text IS NOT NULL",
+            ")",
+            "SELECT * FROM unique_flights",
+            "LIMIT 500;"
+          ]
+        },
+        "locked": false
+      },
+      "width": 600,
+      "height": 500,
+      "measured": {
+        "width": 600,
+        "height": 500
+      }
+    },
+    {
+      "id": "/path-layer",
+      "type": "PathLayerOp",
+      "position": {
+        "x": 12.242330508321743,
+        "y": 247.56712805717322
+      },
+      "data": {
+        "inputs": {
+          "opacity": 0.6,
+          "getColor": "#00bfffff",
+          "getWidth": 2,
+          "widthUnits": "pixels"
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/path-accessor",
+      "type": "AccessorOp",
+      "position": {
+        "x": -455.0379350854169,
+        "y": 385.13555905252576
+      },
+      "data": {
+        "inputs": {
+          "expression": "d.geom_text.replace('LINESTRING (', '').replace(')', '').split(',').map(coord => coord.trim().split(' ').map(Number).reverse())"
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/scatterplot-start",
+      "type": "ScatterplotLayerOp",
+      "position": {
+        "x": 0,
+        "y": -200
+      },
+      "data": {
+        "inputs": {
+          "opacity": 0.8,
+          "getFillColor": "#00ff00ff",
+          "getLineColor": "#ffffffff",
+          "getRadius": 500,
+          "radiusUnits": "meters"
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/start-position-accessor",
+      "type": "AccessorOp",
+      "position": {
+        "x": -433.70069415474563,
+        "y": -72.47768858170832
+      },
+      "data": {
+        "inputs": {
+          "expression": "(() => { const coords = d.geom_text.replace('LINESTRING (', '').replace(')', '').split(',')[0].trim().split(' ').map(Number); return [coords[0], coords[1]]; })()"
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/scatterplot-end",
+      "type": "ScatterplotLayerOp",
+      "position": {
+        "x": 1.850456621004568,
+        "y": -607.7137557077626
+      },
+      "data": {
+        "inputs": {
+          "opacity": 0.8,
+          "getFillColor": "#ff0000ff",
+          "getLineColor": "#ffffffff",
+          "getRadius": 500,
+          "radiusUnits": "meters"
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/end-position-accessor",
+      "type": "AccessorOp",
+      "position": {
+        "x": -420.35502283105023,
+        "y": -477.7191780821918
+      },
+      "data": {
+        "inputs": {
+          "expression": "(() => { const coords = d.geom_text.replace('LINESTRING (', '').replace(')', '').split(','); const last = coords[coords.length - 1].trim().split(' ').map(Number); return [last[0], last[1]]; })()"
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/basemap",
+      "type": "MaplibreBasemapOp",
+      "position": {
+        "x": 400,
+        "y": 300
+      },
+      "data": {
+        "inputs": {
+          "mapStyle": "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
+          "viewState": {
+            "latitude": 36.3593,
+            "longitude": -121.646,
+            "zoom": 10,
+            "pitch": 0,
+            "bearing": 0
+          }
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/deck",
+      "type": "DeckRendererOp",
+      "position": {
+        "x": 400,
+        "y": 0
+      },
+      "data": {
+        "inputs": {},
+        "locked": false
+      }
+    },
+    {
+      "id": "/out",
+      "type": "OutOp",
+      "position": {
+        "x": 700,
+        "y": 0
+      },
+      "data": {
+        "inputs": {},
+        "locked": false
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "/duckdb-flight-data.out.data->/path-layer.par.data",
+      "source": "/duckdb-flight-data",
+      "sourceHandle": "out.data",
+      "target": "/path-layer",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/path-accessor.out.accessor->/path-layer.par.getPath",
+      "source": "/path-accessor",
+      "sourceHandle": "out.accessor",
+      "target": "/path-layer",
+      "targetHandle": "par.getPath"
+    },
+    {
+      "id": "/duckdb-flight-data.out.data->/scatterplot-start.par.data",
+      "source": "/duckdb-flight-data",
+      "sourceHandle": "out.data",
+      "target": "/scatterplot-start",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/start-position-accessor.out.accessor->/scatterplot-start.par.getPosition",
+      "source": "/start-position-accessor",
+      "sourceHandle": "out.accessor",
+      "target": "/scatterplot-start",
+      "targetHandle": "par.getPosition"
+    },
+    {
+      "id": "/duckdb-flight-data.out.data->/scatterplot-end.par.data",
+      "source": "/duckdb-flight-data",
+      "sourceHandle": "out.data",
+      "target": "/scatterplot-end",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/end-position-accessor.out.accessor->/scatterplot-end.par.getPosition",
+      "source": "/end-position-accessor",
+      "sourceHandle": "out.accessor",
+      "target": "/scatterplot-end",
+      "targetHandle": "par.getPosition"
+    },
+    {
+      "id": "/path-layer.out.layer->/deck.par.layers",
+      "source": "/path-layer",
+      "sourceHandle": "out.layer",
+      "target": "/deck",
+      "targetHandle": "par.layers"
+    },
+    {
+      "id": "/scatterplot-start.out.layer->/deck.par.layers",
+      "source": "/scatterplot-start",
+      "sourceHandle": "out.layer",
+      "target": "/deck",
+      "targetHandle": "par.layers"
+    },
+    {
+      "id": "/scatterplot-end.out.layer->/deck.par.layers",
+      "source": "/scatterplot-end",
+      "sourceHandle": "out.layer",
+      "target": "/deck",
+      "targetHandle": "par.layers"
+    },
+    {
+      "id": "/basemap.out.maplibre->/deck.par.basemap",
+      "source": "/basemap",
+      "sourceHandle": "out.maplibre",
+      "target": "/deck",
+      "targetHandle": "par.basemap"
+    },
+    {
+      "id": "/deck.out.vis->/out.par.vis",
+      "source": "/deck",
+      "sourceHandle": "out.vis",
+      "target": "/out",
+      "targetHandle": "par.vis"
+    }
+  ],
+  "viewport": {
+    "x": 534.0033593826707,
+    "y": 343.55942368830074,
+    "zoom": 0.3391789834557667
+  },
+  "timeline": {
+    "sheetsById": {
+      "Noodles": {
+        "staticOverrides": {
+          "byObject": {}
+        }
+      }
+    },
+    "definitionVersion": "0.4.0",
+    "revisionHistory": [
+      "vrjd4WA23V7f--Q9"
+    ]
+  },
+  "version": 7
+}
