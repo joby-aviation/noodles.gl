@@ -573,12 +573,12 @@ describe('VectorFieldComponent', () => {
       expect(inputs).toHaveLength(2)
     })
 
-    it('displays x and y labels', () => {
+    it('displays x and y placeholders', () => {
       const field = new Vec2Field({ x: 10, y: 20 })
       render(<VectorFieldComponent id="test-field" field={field} disabled={false} />)
 
-      expect(screen.getByText('x')).toBeInTheDocument()
-      expect(screen.getByText('y')).toBeInTheDocument()
+      expect(screen.getByPlaceholderText('x')).toBeInTheDocument()
+      expect(screen.getByPlaceholderText('y')).toBeInTheDocument()
     })
 
     it('renders with correct initial values', () => {
@@ -608,13 +608,13 @@ describe('VectorFieldComponent', () => {
       expect(inputs).toHaveLength(3)
     })
 
-    it('displays x, y, and z labels', () => {
+    it('displays x, y, and z placeholders', () => {
       const field = new Vec3Field({ x: 1, y: 2, z: 3 })
       render(<VectorFieldComponent id="test-field" field={field} disabled={false} />)
 
-      expect(screen.getByText('x')).toBeInTheDocument()
-      expect(screen.getByText('y')).toBeInTheDocument()
-      expect(screen.getByText('z')).toBeInTheDocument()
+      expect(screen.getByPlaceholderText('x')).toBeInTheDocument()
+      expect(screen.getByPlaceholderText('y')).toBeInTheDocument()
+      expect(screen.getByPlaceholderText('z')).toBeInTheDocument()
     })
 
     it('renders with correct initial values', () => {
@@ -637,12 +637,12 @@ describe('VectorFieldComponent', () => {
       expect(inputs).toHaveLength(2)
     })
 
-    it('displays lng and lat labels', () => {
+    it('displays lng and lat placeholders', () => {
       const field = new Point2DField({ lng: -122.4, lat: 37.8 })
       render(<VectorFieldComponent id="test-field" field={field} disabled={false} />)
 
-      expect(screen.getByText('lng')).toBeInTheDocument()
-      expect(screen.getByText('lat')).toBeInTheDocument()
+      expect(screen.getByPlaceholderText('lng')).toBeInTheDocument()
+      expect(screen.getByPlaceholderText('lat')).toBeInTheDocument()
     })
 
     it('renders lookup button for Point2DField', () => {
@@ -671,13 +671,13 @@ describe('VectorFieldComponent', () => {
       expect(inputs).toHaveLength(3)
     })
 
-    it('displays lng, lat, and alt labels', () => {
+    it('displays lng, lat, and alt placeholders', () => {
       const field = new Point3DField({ lng: -122.4, lat: 37.8, alt: 100 })
       render(<VectorFieldComponent id="test-field" field={field} disabled={false} />)
 
-      expect(screen.getByText('lng')).toBeInTheDocument()
-      expect(screen.getByText('lat')).toBeInTheDocument()
-      expect(screen.getByText('alt')).toBeInTheDocument()
+      expect(screen.getByPlaceholderText('lng')).toBeInTheDocument()
+      expect(screen.getByPlaceholderText('lat')).toBeInTheDocument()
+      expect(screen.getByPlaceholderText('alt')).toBeInTheDocument()
     })
 
     it('renders lookup button for Point3DField', () => {

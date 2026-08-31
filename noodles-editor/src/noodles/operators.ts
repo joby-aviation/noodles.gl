@@ -2596,8 +2596,8 @@ export class BoundsOp extends Operator<BoundsOp> {
   static description = 'Create a bounding box from two points'
   createInputs() {
     return {
-      point1: new Point2DField(),
-      point2: new Point2DField(),
+      southwest: new Point2DField(),
+      northeast: new Point2DField(),
     }
   }
   createOutputs() {
@@ -2605,11 +2605,14 @@ export class BoundsOp extends Operator<BoundsOp> {
       bounds: new ArrayField(new Point2DField([0, 0], { returnType: 'tuple' })),
     }
   }
-  execute({ point1, point2 }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const west = Math.min(point1.lng, point2.lng)
-    const east = Math.max(point1.lng, point2.lng)
-    const south = Math.min(point1.lat, point2.lat)
-    const north = Math.max(point1.lat, point2.lat)
+  execute({
+    southwest,
+    northeast,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const west = Math.min(southwest.lng, northeast.lng)
+    const east = Math.max(southwest.lng, northeast.lng)
+    const south = Math.min(southwest.lat, northeast.lat)
+    const north = Math.max(southwest.lat, northeast.lat)
 
     const bounds = [
       [west, south],

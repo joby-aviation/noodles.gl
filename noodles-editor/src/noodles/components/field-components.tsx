@@ -753,19 +753,17 @@ function VectorNumberInput({
   )
 
   return (
-    <Fragment>
-      <div className={cx(s.fieldLabel, s.fieldLabelVector)}>{keyName}</div>
-      <DraggableNumberInput
-        value={value}
-        disabled={disabled}
-        onChange={handleChange}
-        onCommit={onCommit}
-        onInteractionStart={onInteractionStart}
-        step={0.1}
-        className={cx(s.fieldInput, s.fieldInputVector, s.fieldInputNumber)}
-        title={`${keyName}: ${value}`}
-      />
-    </Fragment>
+    <DraggableNumberInput
+      value={value}
+      disabled={disabled}
+      onChange={handleChange}
+      onCommit={onCommit}
+      onInteractionStart={onInteractionStart}
+      step={0.1}
+      className={cx(s.fieldInput, s.fieldInputVector, s.fieldInputNumber)}
+      title={`${keyName}: ${value}`}
+      placeholder={keyName}
+    />
   )
 }
 
@@ -1771,6 +1769,7 @@ function DraggableNumberInput({
   step = 1,
   className,
   title,
+  placeholder,
 }: {
   id?: string
   value: number
@@ -1785,6 +1784,7 @@ function DraggableNumberInput({
   step?: number
   className?: string
   title?: string
+  placeholder?: string
 }) {
   const [displayValue, setDisplayValue] = useState<string>(value?.toString() ?? '0')
   const [isActive, setIsActive] = useState<boolean>(false)
@@ -1952,6 +1952,7 @@ function DraggableNumberInput({
         })}
         value={isActive ? displayValue : formatted}
         title={title || displayValue}
+        placeholder={placeholder}
         onChange={onInputChange}
         disabled={disabled}
         min={Number.isFinite(softMin ?? -Infinity) ? softMin : min}
@@ -3056,9 +3057,10 @@ export function BboxFieldComponent({
     return val
   }
 
-  const [value, setValue] = useState<{ southwest: { lng: number; lat: number }; northeast: { lng: number; lat: number } }>(
-    normalizeValue(guardAccessorFallback(field.value))
-  )
+  const [value, setValue] = useState<{
+    southwest: { lng: number; lat: number }
+    northeast: { lng: number; lat: number }
+  }>(normalizeValue(guardAccessorFallback(field.value)))
   const [geocodingOpen, setGeocodingOpen] = useState(false)
   const [geocodingCorner, setGeocodingCorner] = useState<'southwest' | 'northeast'>('southwest')
   const { captureStart, commitChange } = usePropertyHistory()
@@ -3120,7 +3122,10 @@ export function BboxFieldComponent({
         {id}
       </label>
       <div id={id} className={s.fieldCompoundWrapper}>
-        <div className={s.fieldLabel} style={{ fontSize: '11px', opacity: 0.7, marginBottom: '4px' }}>
+        <div
+          className={s.fieldLabel}
+          style={{ fontSize: '11px', opacity: 0.7, marginBottom: '4px' }}
+        >
           Southwest
         </div>
         <div className={cx(s.fieldInputWrapper, s.fieldInputWrapperVector)}>
@@ -3158,7 +3163,10 @@ export function BboxFieldComponent({
           />
         </div>
 
-        <div className={s.fieldLabel} style={{ fontSize: '11px', opacity: 0.7, marginBottom: '4px', marginTop: '8px' }}>
+        <div
+          className={s.fieldLabel}
+          style={{ fontSize: '11px', opacity: 0.7, marginBottom: '4px', marginTop: '8px' }}
+        >
           Northeast
         </div>
         <div className={cx(s.fieldInputWrapper, s.fieldInputWrapperVector)}>

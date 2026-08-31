@@ -605,7 +605,13 @@
 }
 
 .fieldInputVector {
-  width: 32px;
+  width: 68px;
+  text-align: right;
+}
+
+.fieldInputVector::placeholder {
+  text-align: left;
+  opacity: 0.4;
 }
 
 .fieldLookupButton {
