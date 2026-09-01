@@ -15,7 +15,8 @@ export type ReferenceFormat = 'code' | 'mustache'
 // Supports both code format: op('path').par.field
 // and mustache format: {{path.par.field}}
 export function parseReference(text: string): ParsedReference | null {
-  // Reset regex state
+  // fnRe and mustacheRe are global regexes (defined with /g flag in fields.ts)
+  // Reset lastIndex to ensure idempotent behavior across multiple calls
   fnRe.lastIndex = 0
   mustacheRe.lastIndex = 0
 
