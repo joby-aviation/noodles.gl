@@ -15,13 +15,8 @@ export type ReferenceFormat = 'code' | 'mustache'
 // Supports both code format: op('path').par.field
 // and mustache format: {{path.par.field}}
 export function parseReference(text: string): ParsedReference | null {
-  // fnRe and mustacheRe are global regexes (defined with /g flag in fields.ts)
-  // Reset lastIndex to ensure idempotent behavior across multiple calls
-  fnRe.lastIndex = 0
-  mustacheRe.lastIndex = 0
-
   // Try function-style first: op('path').par.field
-  const fnMatch = fnRe.exec(text)
+  const fnMatch = text.matchAll(fnRe).next().value
   if (fnMatch?.groups) {
     const fieldPath = fnMatch.groups.fieldPath?.split('.')[0]
     return {
@@ -32,7 +27,7 @@ export function parseReference(text: string): ParsedReference | null {
   }
 
   // Try mustache-style: {{path.par.field}}
-  const mustacheMatch = mustacheRe.exec(text)
+  const mustacheMatch = text.matchAll(mustacheRe).next().value
   if (mustacheMatch?.groups) {
     const fieldPath = mustacheMatch.groups.fieldPath?.split('.')[0]
     return {
