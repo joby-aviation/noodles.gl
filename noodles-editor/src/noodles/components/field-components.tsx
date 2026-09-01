@@ -2852,7 +2852,7 @@ const EXPRESSION_EXCLUDED_TYPES = new Set([
 ])
 
 // Returns true for scalar/value field types that can show an editable input
-function isValueField(field: Field): boolean {
+export function isValueField(field: Field): boolean {
   const { type } = field.constructor as typeof Field
   return [
     'number',

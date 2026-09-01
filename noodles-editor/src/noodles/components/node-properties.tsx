@@ -51,6 +51,7 @@ import {
   canFieldBeDriven,
   DateFieldComponent,
   ExpressionDrivenInput,
+  isValueField,
   NumberFieldComponent,
   TextFieldComponent,
   toggleFieldExpression,
@@ -394,23 +395,6 @@ function EditableFieldInput({
         </div>
       )
   }
-}
-
-// Returns true for scalar/value field types that can show an editable input
-function isValueField(field: Field): boolean {
-  const { type } = field.constructor as typeof Field
-  return [
-    'number',
-    'boolean',
-    'color',
-    'string',
-    'string-literal',
-    'date',
-    'vec2',
-    'vec3',
-    'geopoint-2d',
-    'geopoint-3d',
-  ].includes(type)
 }
 
 // Renders compound field sub-fields inline with labels, inputs, and keyframe indicators

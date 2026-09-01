@@ -1,4 +1,7 @@
 // Utilities for parsing and formatting operator field references
+// Reuses existing regex patterns from fields.ts to avoid duplication
+
+import { fnRe, mustacheRe } from '../fields'
 
 export type ParsedReference = {
   opPath: string
@@ -12,19 +15,29 @@ export type ReferenceFormat = 'code' | 'mustache'
 // Supports both code format: op('path').par.field
 // and mustache format: {{path.par.field}}
 export function parseReference(text: string): ParsedReference | null {
-  // Parse op('path').par.field format
-  const fnMatch = text.match(/op\(['"]([^'"]+)['"]\)\.(par|out)\.(\w+)/)
-  if (fnMatch) {
-    return { opPath: fnMatch[1], namespace: fnMatch[2] as 'par' | 'out', fieldName: fnMatch[3] }
+  // Reset regex state
+  fnRe.lastIndex = 0
+  mustacheRe.lastIndex = 0
+
+  // Try function-style first: op('path').par.field
+  const fnMatch = fnRe.exec(text)
+  if (fnMatch?.groups) {
+    const fieldPath = fnMatch.groups.fieldPath?.split('.')[0]
+    return {
+      opPath: fnMatch.groups.opId,
+      namespace: fnMatch.groups.inOut as 'par' | 'out',
+      fieldName: fieldPath || '',
+    }
   }
 
-  // Parse {{path.par.field}} format
-  const mustacheMatch = text.match(/\{\{([^}]+)\.(par|out)\.(\w+)\}\}/)
-  if (mustacheMatch) {
+  // Try mustache-style: {{path.par.field}}
+  const mustacheMatch = mustacheRe.exec(text)
+  if (mustacheMatch?.groups) {
+    const fieldPath = mustacheMatch.groups.fieldPath?.split('.')[0]
     return {
-      opPath: mustacheMatch[1],
-      namespace: mustacheMatch[2] as 'par' | 'out',
-      fieldName: mustacheMatch[3],
+      opPath: mustacheMatch.groups.opId,
+      namespace: mustacheMatch.groups.inOut as 'par' | 'out',
+      fieldName: fieldPath || '',
     }
   }
 
@@ -32,10 +45,7 @@ export function parseReference(text: string): ParsedReference | null {
 }
 
 // Format a parsed reference in the specified format
-export function formatReference(
-  ref: ParsedReference,
-  format: ReferenceFormat
-): string {
+export function formatReference(ref: ParsedReference, format: ReferenceFormat): string {
   const { opPath, namespace, fieldName } = ref
   if (format === 'mustache') {
     return `{{${opPath}.${namespace}.${fieldName}}}`
@@ -44,10 +54,7 @@ export function formatReference(
 }
 
 // Convert a reference string from one format to another
-export function convertReferenceFormat(
-  text: string,
-  targetFormat: ReferenceFormat
-): string | null {
+export function convertReferenceFormat(text: string, targetFormat: ReferenceFormat): string | null {
   const parsed = parseReference(text)
   if (!parsed) return null
   return formatReference(parsed, targetFormat)
