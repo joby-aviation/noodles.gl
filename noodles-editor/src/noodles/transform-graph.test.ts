@@ -458,7 +458,7 @@ describe('transform-graph', () => {
     const result = transformGraph(graph)
     expect(result.operators).toHaveLength(2)
 
-    const [num, add] = instances
+    const [num, add] = result.operators
     expect(num).toBeInstanceOf(NumberOp)
     expect(add).toBeInstanceOf(MathOp)
     expect(num.id).toBe('/num')
@@ -538,7 +538,7 @@ describe('transform-graph', () => {
     const result = transformGraph(graph)
     expect(result.operators).toHaveLength(2)
 
-    const [num, add] = instances
+    const [num, add] = result.operators
     expect(num).toBeInstanceOf(NumberOp)
     expect(add).toBeInstanceOf(MathOp)
 
