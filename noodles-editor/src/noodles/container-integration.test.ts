@@ -47,7 +47,7 @@ describe('Container Integration with Transform Graph', () => {
     const edges: Edge[] = []
 
     // Transform the graph
-    const operators = transformGraph({ nodes, edges })
+    const { operators } = transformGraph({ nodes, edges })
 
     // Verify operators were created with correct IDs
     expect(operators).toHaveLength(4)
@@ -112,7 +112,7 @@ describe('Container Integration with Transform Graph', () => {
     const edges: Edge[] = []
 
     // Transform the graph
-    const operators = transformGraph({ nodes, edges })
+    const { operators } = transformGraph({ nodes, edges })
 
     // Verify operators were created
     expect(operators).toHaveLength(4)

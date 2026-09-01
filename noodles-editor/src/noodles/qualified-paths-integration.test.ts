@@ -70,7 +70,7 @@ describe('Qualified Paths Integration Tests', () => {
       ]
 
       // Transform the graph
-      const operators = transformGraph({ nodes, edges })
+      const { operators } = transformGraph({ nodes, edges })
 
       // Verify all operators were created with correct qualified IDs
       expect(operators).toHaveLength(4)
@@ -190,7 +190,7 @@ describe('Qualified Paths Integration Tests', () => {
       ]
 
       // Transform the graph
-      const operators = transformGraph({ nodes, edges })
+      const { operators } = transformGraph({ nodes, edges })
 
       // Verify all operators were created
       expect(operators).toHaveLength(6)
@@ -277,7 +277,7 @@ describe('Qualified Paths Integration Tests', () => {
       const edges: Edge[] = []
 
       // Transform the graph
-      const operators = transformGraph({ nodes, edges })
+      const { operators } = transformGraph({ nodes, edges })
 
       // Verify all operators were created
       expect(operators).toHaveLength(6)
@@ -411,7 +411,7 @@ describe('Qualified Paths Integration Tests', () => {
       ]
 
       // Transform the graph
-      const operators = transformGraph({ nodes, edges })
+      const { operators } = transformGraph({ nodes, edges })
 
       // Verify all operators were created with correct hierarchy
       expect(operators).toHaveLength(11)
@@ -526,7 +526,7 @@ describe('Qualified Paths Integration Tests', () => {
       const edges: Edge[] = []
 
       // Transform the graph
-      const operators = transformGraph({ nodes, edges })
+      const { operators } = transformGraph({ nodes, edges })
 
       // Verify all operators were created
       expect(operators).toHaveLength(7)
@@ -605,7 +605,7 @@ describe('Qualified Paths Integration Tests', () => {
       ]
 
       // Transform the graph
-      const operators = transformGraph({ nodes, edges })
+      const { operators } = transformGraph({ nodes, edges })
 
       // Verify operators were created
       expect(operators).toHaveLength(3)
@@ -771,7 +771,7 @@ describe('Qualified Paths Integration Tests', () => {
       ]
 
       // Transform the graph
-      const operators = transformGraph({ nodes, edges })
+      const { operators } = transformGraph({ nodes, edges })
 
       // Verify all operators were created
       expect(operators).toHaveLength(8)
