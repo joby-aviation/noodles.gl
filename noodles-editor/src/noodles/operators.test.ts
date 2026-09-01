@@ -42,6 +42,7 @@ import {
   RectangleOp,
   RerouteOp,
   ScaleWidgetOp,
+  ScatterOp,
   ScatterplotLayerOp,
   ScreenshotWidgetOp,
   SelectOp,
