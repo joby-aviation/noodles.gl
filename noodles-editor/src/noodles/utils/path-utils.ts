@@ -2,7 +2,7 @@
 // Supports Unix-style absolute and relative path resolution
 import path from 'node:path'
 
-const { basename, dirname, isAbsolute, join, normalize, resolve } = path.posix
+const { basename, dirname, isAbsolute, join, normalize, relative, resolve } = path.posix
 
 export function isAbsolutePath(pathStr: string): boolean {
   if (!pathStr) return false
@@ -229,34 +229,9 @@ export function computeRelativePath(targetPath: string, contextPath: string): st
     return targetPath
   }
 
-  // Split paths into segments
-  const targetSegments = targetPath.split('/').filter(s => s !== '')
-  const containerSegments =
-    contextContainer === '/' ? [] : contextContainer.split('/').filter(s => s !== '')
+  // Use Node's path.relative for the heavy lifting
+  const relativePath = relative(contextContainer, targetPath) || '.'
 
-  // Find common ancestor by comparing segments
-  let commonLength = 0
-  const minLength = Math.min(targetSegments.length, containerSegments.length)
-  for (let i = 0; i < minLength; i++) {
-    if (targetSegments[i] === containerSegments[i]) {
-      commonLength++
-    } else {
-      break
-    }
-  }
-
-  // Calculate how many levels up from context container to common ancestor
-  const levelsUp = containerSegments.length - commonLength
-
-  // Build relative path
-  if (levelsUp === 0) {
-    // Same container - use ./ prefix
-    const remainingSegments = targetSegments.slice(commonLength)
-    return `./${remainingSegments.join('/')}`
-  }
-
-  // Go up levels and append remaining target segments
-  const upSegments = Array(levelsUp).fill('..')
-  const remainingSegments = targetSegments.slice(commonLength)
-  return [...upSegments, ...remainingSegments].join('/')
+  // Add './' prefix for same-container paths (paths that don't start with '..')
+  return relativePath.startsWith('..') ? relativePath : `./${relativePath}`
 }
