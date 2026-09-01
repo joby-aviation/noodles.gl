@@ -1,5 +1,5 @@
 import * as Dialog from '@radix-ui/react-dialog'
-import { Cross2Icon } from '@radix-ui/react-icons'
+import { Cross2Icon, EyeNoneIcon, EyeOpenIcon, Link2Icon } from '@radix-ui/react-icons'
 import type { Edge } from '@xyflow/react'
 import { useReactFlow, useStore } from '@xyflow/react'
 import cx from 'classnames'
@@ -286,8 +286,9 @@ function AddRemoveButton({
       className={cx(s.addRemoveBtn, type === 'add' ? s.addBtn : s.removeBtn)}
       onClick={onClick}
       disabled={disabled}
+      aria-label={type === 'add' ? 'Show field' : 'Hide field'}
     >
-      {type === 'add' ? '+' : '−'}
+      {type === 'add' ? <EyeOpenIcon /> : <EyeNoneIcon />}
     </button>
   )
 }
@@ -892,7 +893,16 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
                         </Tooltip>
                       )}
                       <div className={cx(s.port, input.handleClass)} />
-                      <span className={s.propertyLabel}>{input.name}</span>
+                      <span className={s.propertyLabel}>
+                        <span className={s.propertyLabelText}>{input.name}</span>
+                        {incomers.length > 0 && (
+                          <Tooltip text="Field is connected" position="right">
+                            <span className={s.connectedIcon}>
+                              <Link2Icon />
+                            </span>
+                          </Tooltip>
+                        )}
+                      </span>
                       {/* Value type, not connected: editable input + keyframe indicator */}
                       {isValueField(input.field) && incomers.length === 0 && (
                         <>
