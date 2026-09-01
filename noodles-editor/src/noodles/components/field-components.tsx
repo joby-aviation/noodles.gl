@@ -61,15 +61,21 @@ import type { Edge } from '../noodles'
 import s from '../noodles.module.css'
 import { getFriendlyErrorMessage, type IOperator, type Operator } from '../operators'
 import { checkAssetExists, getAssetFileHandle, writeAsset } from '../storage'
-import { useEdgeConnectionStore } from '../store'
+import { getOp, useEdgeConnectionStore } from '../store'
 import { type ExpressionContext, getExpressionContext } from '../utils/expression-context'
 import { projectScheme } from '../utils/filesystem'
 import { edgeId, type OpId } from '../utils/id-utils'
+import { computeRelativePath } from '../utils/path-utils'
 import {
   captureOperatorInputs,
   firePropertyMutation,
   usePropertyHistory,
 } from '../utils/property-history'
+import {
+  formatReference,
+  parseReference,
+  type ReferenceFormat,
+} from '../utils/reference-utils'
 import { ColorSwatch } from './color-swatch'
 import { ExpressionEditorOverlay } from './ExpressionEditorOverlay'
 import { GeocodingDialog } from './geocoding-dialog'
@@ -2845,6 +2851,23 @@ const EXPRESSION_EXCLUDED_TYPES = new Set([
   'visualization',
 ])
 
+// Returns true for scalar/value field types that can show an editable input
+export function isValueField(field: Field): boolean {
+  const { type } = field.constructor as typeof Field
+  return [
+    'number',
+    'boolean',
+    'color',
+    'string',
+    'string-literal',
+    'date',
+    'vec2',
+    'vec3',
+    'geopoint-2d',
+    'geopoint-3d',
+  ].includes(type)
+}
+
 // Whether a field's type supports expression mode (connection state is checked separately)
 export function canFieldBeDriven(field: Field): boolean {
   const { type } = field.constructor as typeof Field
@@ -2876,18 +2899,116 @@ export function toggleFieldExpression(field: Field): void {
   }
 }
 
-// Right-click context menu for a field row. Currently holds the expression-mode toggle;
-// a natural home for more per-field actions later.
+// Determine the preferred reference format for a field type
+function getPreferredReferenceFormat(field: Field): ReferenceFormat {
+  // SQL code fields use mustache syntax
+  if (field instanceof CodeField && field.language === 'sql') {
+    return 'mustache'
+  }
+  // JavaScript code and expression fields use code syntax
+  if (field instanceof CodeField || field instanceof ExpressionField) {
+    return 'code'
+  }
+  // Default to code format for other fields
+  return 'code'
+}
+
+async function pasteReference(
+  field: Field,
+  operatorId: string,
+  useRelativePath: boolean
+): Promise<boolean> {
+  try {
+    const text = await navigator.clipboard.readText()
+    const parsed = parseReference(text)
+    if (!parsed) {
+      return false
+    }
+
+    // Validate reference points to valid field
+    const { opPath, namespace, fieldName } = parsed
+    const targetOp = getOp(opPath, operatorId)
+    if (!targetOp) {
+      console.warn(`Paste reference: operator not found: ${opPath}`)
+      return false
+    }
+
+    const targetField =
+      namespace === 'par' ? targetOp.inputs[fieldName] : targetOp.outputs[fieldName]
+    if (!targetField) {
+      console.warn(`Paste reference: field not found: ${fieldName}`)
+      return false
+    }
+
+    // Convert to relative path if requested
+    let finalPath = opPath
+    if (useRelativePath) {
+      finalPath = computeRelativePath(targetOp.id, operatorId)
+    }
+
+    // Determine format based on field type
+    const preferredFormat = getPreferredReferenceFormat(field)
+    const ref = { opPath: finalPath, namespace, fieldName }
+    const formattedRef = formatReference(ref, preferredFormat)
+
+    // Set expression on field
+    const before = captureOperatorInputs()
+    field.setExpression(formattedRef.trim())
+    firePropertyMutation('Paste reference', before)
+
+    return true
+  } catch (err) {
+    console.error('Failed to paste reference:', err)
+    return false
+  }
+}
+
+// Right-click context menu for a field row.
 export function FieldContextMenu({
   field,
+  operatorId,
+  fieldName,
+  namespace,
   position,
   onClose,
 }: {
   field: Field
+  operatorId: string
+  fieldName: string
+  namespace: 'par' | 'out'
   position: { x: number; y: number }
   onClose: () => void
 }) {
   const isDriven = field.expression !== null
+
+  // Generate absolute code reference
+  const absoluteCodeRef = `op('${operatorId}').${namespace}.${fieldName}`
+
+  // Lazy field value serialization - only compute when copying
+  const canCopyValue = isValueField(field)
+  const getFieldValue = useCallback((): string | undefined => {
+    if (!isValueField(field)) return undefined
+    try {
+      const v = field.value
+      return typeof v === 'string' ? v : JSON.stringify(v)
+    } catch {
+      return undefined
+    }
+  }, [field])
+
+  // Check clipboard for valid reference
+  const [clipboardHasReference, setClipboardHasReference] = useState(false)
+  useEffect(() => {
+    navigator.clipboard
+      .readText()
+      .then(text => {
+        const parsed = parseReference(text)
+        setClipboardHasReference(parsed !== null)
+      })
+      .catch(() => {
+        setClipboardHasReference(false)
+      })
+  }, [])
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
@@ -2910,12 +3031,65 @@ export function FieldContextMenu({
       <button
         type="button"
         className={contextMenuStyles.contextMenuItem}
+        disabled={!canCopyValue}
+        onClick={() => {
+          const fieldValue = getFieldValue()
+          if (fieldValue === undefined) return
+          navigator.clipboard.writeText(fieldValue)
+          onClose()
+        }}
+      >
+        Copy value
+      </button>
+      <div className={contextMenuStyles.contextMenuSeparator} />
+      <button
+        type="button"
+        className={contextMenuStyles.contextMenuItem}
+        onClick={() => {
+          navigator.clipboard.writeText(absoluteCodeRef)
+          onClose()
+        }}
+      >
+        Copy reference
+      </button>
+      {clipboardHasReference && (
+        <>
+          <button
+            type="button"
+            className={contextMenuStyles.contextMenuItem}
+            onClick={async () => {
+              const success = await pasteReference(field, operatorId, false)
+              if (success) {
+                onClose()
+              }
+            }}
+          >
+            Paste as absolute reference
+          </button>
+          <button
+            type="button"
+            className={contextMenuStyles.contextMenuItem}
+            onClick={async () => {
+              const success = await pasteReference(field, operatorId, true)
+              if (success) {
+                onClose()
+              }
+            }}
+          >
+            Paste as relative reference
+          </button>
+        </>
+      )}
+      <div className={contextMenuStyles.contextMenuSeparator} />
+      <button
+        type="button"
+        className={contextMenuStyles.contextMenuItem}
         onClick={() => {
           toggleFieldExpression(field)
           onClose()
         }}
       >
-        {isDriven ? 'Remove expression' : 'Add expression'}
+        {isDriven ? 'Remove expression' : 'Edit expression'}
       </button>
     </div>,
     document.body
@@ -3017,9 +3191,12 @@ export function FieldComponent({
         ) : (
           <InputComp id={fieldId} field={field} disabled={disabled} />
         ))}
-      {contextMenuPos && (
+      {contextMenuPos && nid && (
         <FieldContextMenu
           field={field}
+          operatorId={nid}
+          fieldName={fieldId}
+          namespace={handle?.namespace ?? 'par'}
           position={contextMenuPos}
           onClose={() => setContextMenuPos(null)}
         />

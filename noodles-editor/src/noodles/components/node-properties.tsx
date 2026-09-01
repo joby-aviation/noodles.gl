@@ -15,7 +15,9 @@ import {
 } from '../../timeline/timeline-store'
 import type { KeyframeValue } from '../../timeline/types'
 import {
+  CodeField,
   CompoundPropsField,
+  ExpressionField,
   type Field,
   type IField,
   IN_NS,
@@ -26,7 +28,7 @@ import {
 import { useObservable } from '../hooks/use-observable'
 import type { IOperator, OpType, Operator } from '../operators'
 import { OutOp } from '../operators'
-import { getOpStore, useNestingStore, useUIStore } from '../store'
+import { getOp, getOpStore, useNestingStore, useUIStore } from '../store'
 import type { ConnectionPlan } from '../utils/auto-connect'
 import { edgeId } from '../utils/id-utils'
 import {
@@ -35,7 +37,13 @@ import {
   orderedEdgeIdsForHandle,
 } from '../utils/multi-input-utils'
 import { type NodeType, createNodesForType } from '../utils/node-creation-utils'
-import { getBaseName, parseHandleId } from '../utils/path-utils'
+import { computeRelativePath, getBaseName, parseHandleId } from '../utils/path-utils'
+import { captureOperatorInputs, firePropertyMutation } from '../utils/property-history'
+import {
+  formatReference,
+  parseReference,
+  type ReferenceFormat,
+} from '../utils/reference-utils'
 import { ErrorBoundary } from './error-boundary'
 import {
   BooleanFieldComponent,
@@ -43,6 +51,7 @@ import {
   canFieldBeDriven,
   DateFieldComponent,
   ExpressionDrivenInput,
+  isValueField,
   NumberFieldComponent,
   TextFieldComponent,
   toggleFieldExpression,
@@ -180,6 +189,69 @@ function resetToDefaults(op: Operator<IOperator>, edges: Edge[]) {
 
 function copy(text: string) {
   navigator.clipboard.writeText(text)
+}
+
+// Determine the preferred reference format for a field type
+function getPreferredReferenceFormat(field: Field): ReferenceFormat {
+  // SQL code fields use mustache syntax
+  if (field instanceof CodeField && field.language === 'sql') {
+    return 'mustache'
+  }
+  // JavaScript code and expression fields use code syntax
+  if (field instanceof CodeField || field instanceof ExpressionField) {
+    return 'code'
+  }
+  // Default to code format for other fields
+  return 'code'
+}
+
+async function pasteReference(
+  field: Field,
+  operatorId: string,
+  useRelativePath: boolean
+): Promise<boolean> {
+  try {
+    const text = await navigator.clipboard.readText()
+    const parsed = parseReference(text)
+    if (!parsed) {
+      return false
+    }
+
+    // Validate reference points to valid field
+    const { opPath, namespace, fieldName } = parsed
+    const targetOp = getOp(opPath, operatorId)
+    if (!targetOp) {
+      console.warn(`Paste reference: operator not found: ${opPath}`)
+      return false
+    }
+
+    const targetField = namespace === 'par' ? targetOp.inputs[fieldName] : targetOp.outputs[fieldName]
+    if (!targetField) {
+      console.warn(`Paste reference: field not found: ${fieldName}`)
+      return false
+    }
+
+    // Convert to relative path if requested
+    let finalPath = opPath
+    if (useRelativePath) {
+      finalPath = computeRelativePath(targetOp.id, operatorId)
+    }
+
+    // Determine format based on field type
+    const preferredFormat = getPreferredReferenceFormat(field)
+    const ref = { opPath: finalPath, namespace, fieldName }
+    const formattedRef = formatReference(ref, preferredFormat)
+
+    // Set expression on field
+    const before = captureOperatorInputs()
+    field.setExpression(formattedRef.trim())
+    firePropertyMutation('Paste reference', before)
+
+    return true
+  } catch (err) {
+    console.error('Failed to paste reference:', err)
+    return false
+  }
 }
 
 function Tooltip({
@@ -325,23 +397,6 @@ function EditableFieldInput({
   }
 }
 
-// Returns true for scalar/value field types that can show an editable input
-function isValueField(field: Field): boolean {
-  const { type } = field.constructor as typeof Field
-  return [
-    'number',
-    'boolean',
-    'color',
-    'string',
-    'string-literal',
-    'date',
-    'vec2',
-    'vec3',
-    'geopoint-2d',
-    'geopoint-3d',
-  ].includes(type)
-}
-
 // Renders compound field sub-fields inline with labels, inputs, and keyframe indicators
 function CompoundSubFields({
   field,
@@ -421,7 +476,6 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
     x: number
     y: number
     codeRef: string
-    mustacheRef: string
     fieldName: string
     fieldValue?: string
     fieldPath?: string
@@ -431,6 +485,7 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
     isVisible?: boolean // whether the field is currently shown
     hasConnection?: boolean // whether the field has an incoming edge
     expressionField?: Field // field instance when expression mode can be toggled
+    clipboardReference?: string // parsed reference from clipboard if valid
   } | null>(null)
   const descriptionRef = useRef<HTMLDivElement>(null)
   const draggingRef = useRef<HTMLElement | null>(null)
@@ -571,10 +626,25 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
         /* ignore */
       }
     }
+    // Check clipboard for valid reference async
+    navigator.clipboard
+      .readText()
+      .then(text => {
+        const parsed = parseReference(text)
+        if (parsed) {
+          // Update context menu with clipboard reference
+          setContextMenu(prev =>
+            prev ? { ...prev, clipboardReference: text } : prev
+          )
+        }
+      })
+      .catch(() => {
+        // Clipboard read failed, ignore
+      })
+
     setContextMenu({
       ...position,
       codeRef: input.codeRef,
-      mustacheRef: input.mustacheRef,
       fieldName: input.name,
       fieldValue,
       fieldPath: isAnimatable ? getFieldPath(op.id, input.name) : undefined,
@@ -1073,32 +1143,42 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
               type="button"
               className={s.contextMenuItem}
               onClick={() => {
-                copy(contextMenu.fieldName)
-                setContextMenu(null)
-              }}
-            >
-              Copy field name
-            </button>
-            <button
-              type="button"
-              className={s.contextMenuItem}
-              onClick={() => {
                 copy(contextMenu.codeRef)
                 setContextMenu(null)
               }}
             >
-              Copy code reference
+              Copy reference
             </button>
-            <button
-              type="button"
-              className={s.contextMenuItem}
-              onClick={() => {
-                copy(contextMenu.mustacheRef)
-                setContextMenu(null)
-              }}
-            >
-              Copy mustache reference
-            </button>
+            {contextMenu.clipboardReference && contextMenu.expressionField && (
+              <>
+                <button
+                  type="button"
+                  className={s.contextMenuItem}
+                  onClick={async () => {
+                    if (!contextMenu.expressionField) return
+                    const success = await pasteReference(contextMenu.expressionField, nodeId, false)
+                    if (success) {
+                      setContextMenu(null)
+                    }
+                  }}
+                >
+                  Paste as absolute reference
+                </button>
+                <button
+                  type="button"
+                  className={s.contextMenuItem}
+                  onClick={async () => {
+                    if (!contextMenu.expressionField) return
+                    const success = await pasteReference(contextMenu.expressionField, nodeId, true)
+                    if (success) {
+                      setContextMenu(null)
+                    }
+                  }}
+                >
+                  Paste as relative reference
+                </button>
+              </>
+            )}
             {contextMenu.isVisible !== undefined && (
               <>
                 <div className={s.contextMenuSeparator} />
@@ -1172,7 +1252,7 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
                 >
                   {contextMenu.expressionField?.expression != null
                     ? 'Remove expression'
-                    : 'Add expression'}
+                    : 'Edit expression'}
                 </button>
                 <button
                   type="button"
