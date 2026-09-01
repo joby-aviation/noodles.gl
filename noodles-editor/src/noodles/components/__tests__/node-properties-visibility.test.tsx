@@ -103,23 +103,23 @@ describe('NodeProperties field visibility editing', () => {
   }
 
   describe('Field visibility controls', () => {
-    it('shows hide buttons (−) for visible fields', () => {
+    it('shows hide buttons (eye icons) for visible fields', () => {
       const node = setupOperator('DeckRendererOp', '/deck')
       renderNodeProperties(node)
 
-      // Find hide buttons (the − buttons) - they have type="button" and contain '−'
+      // Find hide buttons (EyeNoneIcon) - they have type="button" and contain an SVG
       const allButtons = screen.getAllByRole('button')
-      const hideButtons = allButtons.filter(btn => btn.textContent === '−')
+      const hideButtons = allButtons.filter(btn => btn.querySelector('svg') && !btn.textContent)
       expect(hideButtons.length).toBeGreaterThan(0)
     })
 
-    it('shows add buttons (+) for hidden fields', () => {
+    it('shows add buttons (eye icons) for hidden fields', () => {
       const node = setupOperator('DeckRendererOp', '/deck')
       renderNodeProperties(node)
 
-      // Find add buttons (the + buttons)
+      // Find add buttons (EyeOpenIcon) - they have type="button" and contain an SVG
       const allButtons = screen.getAllByRole('button')
-      const addButtons = allButtons.filter(btn => btn.textContent === '+')
+      const addButtons = allButtons.filter(btn => btn.querySelector('svg') && !btn.textContent)
       expect(addButtons.length).toBeGreaterThan(0)
     })
 
@@ -134,7 +134,7 @@ describe('NodeProperties field visibility editing', () => {
   })
 
   describe('Showing hidden fields', () => {
-    it('clicking + button shows a hidden field', () => {
+    it('clicking eye icon button shows a hidden field', () => {
       const node = setupOperator('DeckRendererOp', '/deck')
       renderNodeProperties(node)
 
@@ -144,7 +144,7 @@ describe('NodeProperties field visibility editing', () => {
       expect(op.isFieldVisible('effects')).toBe(false)
 
       const addButton = findFieldActionButton('effects')
-      expect(addButton?.textContent).toBe('+')
+      expect(addButton?.querySelector('svg')).toBeInTheDocument()
       fireEvent.click(addButton!)
 
       // Now the field should be visible
@@ -202,7 +202,7 @@ describe('NodeProperties field visibility editing', () => {
   })
 
   describe('Hiding visible fields', () => {
-    it('clicking − button hides a field without custom value', () => {
+    it('clicking eye icon button hides a field without custom value', () => {
       // Start with 'effects' explicitly visible
       const node = setupOperator('DeckRendererOp', '/deck', {}, [
         'layers',
@@ -215,9 +215,9 @@ describe('NodeProperties field visibility editing', () => {
       const op = getOp('/deck') as DeckRendererOp
       expect(op.isFieldVisible('effects')).toBe(true)
 
-      // Find the effects field - it should have a − button
+      // Find the effects field - it should have an eye icon button
       const hideButton = findFieldActionButton('effects')
-      expect(hideButton?.textContent).toBe('−')
+      expect(hideButton?.querySelector('svg')).toBeInTheDocument()
       fireEvent.click(hideButton!)
 
       // Now the field should be hidden
@@ -260,9 +260,9 @@ describe('NodeProperties field visibility editing', () => {
       }
       renderNodeProperties(node)
 
-      // Find the layers field and its − button
+      // Find the layers field and its eye icon button
       const hideButton = findFieldActionButton('layers')
-      expect(hideButton?.textContent).toBe('−')
+      expect(hideButton?.querySelector('svg')).toBeInTheDocument()
 
       // Button should be disabled
       expect(hideButton).toBeDisabled()

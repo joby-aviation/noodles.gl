@@ -152,6 +152,11 @@
   user-select: none;
 }
 
+.addRemoveBtn svg {
+  width: 14px;
+  height: 14px;
+}
+
 .addBtn {
   background: rgba(34, 197, 94, 0.15);
   color: #22c55e;
@@ -358,6 +363,21 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.connectedIcon {
+  display: inline-flex;
+  align-items: center;
+  color: rgba(234, 179, 8, 0.8);
+  flex-shrink: 0;
+}
+
+.connectedIcon svg {
+  width: 12px;
+  height: 12px;
 }
 
 /* Port */
