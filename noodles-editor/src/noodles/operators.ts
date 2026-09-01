@@ -150,8 +150,8 @@ import { Mask3DExtension } from './extensions/mask-3d-extension'
 import {
   ArrayField,
   applySerializedFieldValue,
-  BezierCurveField,
   BboxField,
+  BezierCurveField,
   BooleanField,
   CategoricalColorRampField,
   CodeField,

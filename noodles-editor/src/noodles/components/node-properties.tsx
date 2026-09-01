@@ -286,6 +286,7 @@ function AddRemoveButton({
       className={cx(s.addRemoveBtn, type === 'add' ? s.addBtn : s.removeBtn)}
       onClick={onClick}
       disabled={disabled}
+      aria-label={type === 'add' ? 'Show field' : 'Hide field'}
     >
       {type === 'add' ? <EyeOpenIcon /> : <EyeNoneIcon />}
     </button>
@@ -893,7 +894,7 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
                       )}
                       <div className={cx(s.port, input.handleClass)} />
                       <span className={s.propertyLabel}>
-                        {input.name}
+                        <span className={s.propertyLabelText}>{input.name}</span>
                         {incomers.length > 0 && (
                           <Tooltip text="Field is connected" position="right">
                             <span className={s.connectedIcon}>

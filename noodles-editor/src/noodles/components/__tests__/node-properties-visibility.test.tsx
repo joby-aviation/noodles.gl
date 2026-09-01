@@ -107,20 +107,22 @@ describe('NodeProperties field visibility editing', () => {
       const node = setupOperator('DeckRendererOp', '/deck')
       renderNodeProperties(node)
 
-      // Find hide buttons (EyeNoneIcon) - they have type="button" and contain an SVG
-      const allButtons = screen.getAllByRole('button')
-      const hideButtons = allButtons.filter(btn => btn.querySelector('svg') && !btn.textContent)
+      // Find hide buttons by aria-label
+      const hideButtons = screen.getAllByLabelText('Hide field')
       expect(hideButtons.length).toBeGreaterThan(0)
+      // Verify they contain SVG icons
+      expect(hideButtons[0].querySelector('svg')).toBeInTheDocument()
     })
 
     it('shows add buttons (eye icons) for hidden fields', () => {
       const node = setupOperator('DeckRendererOp', '/deck')
       renderNodeProperties(node)
 
-      // Find add buttons (EyeOpenIcon) - they have type="button" and contain an SVG
-      const allButtons = screen.getAllByRole('button')
-      const addButtons = allButtons.filter(btn => btn.querySelector('svg') && !btn.textContent)
+      // Find add buttons by aria-label
+      const addButtons = screen.getAllByLabelText('Show field')
       expect(addButtons.length).toBeGreaterThan(0)
+      // Verify they contain SVG icons
+      expect(addButtons[0].querySelector('svg')).toBeInTheDocument()
     })
 
     it('all fields are always visible in list', () => {
