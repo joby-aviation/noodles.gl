@@ -2805,6 +2805,8 @@ export class DirectionsOp extends Operator<DirectionsOp> {
  * the OSM JSON response to GeoJSON format. Supports bbox template
  * replacement for dynamic bounding box queries.
  *
+ * Uses overpass.kumi.systems mirror which supports CORS.
+ *
  * @example
  * ```overpass-ql
  * [out:json][timeout:25];
@@ -2835,7 +2837,7 @@ export class OverpassOp extends Operator<OverpassOp> {
         ],
         { optional: true }
       ),
-      endpoint: new StringField('https://overpass-api.de/api/interpreter'),
+      endpoint: new StringField('https://overpass.kumi.systems/api/interpreter'),
       pulse: new NumberField(0, { min: 0, step: 1 }),
     }
   }
