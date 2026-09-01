@@ -41,6 +41,7 @@ import {
   RectangleOp,
   RerouteOp,
   ScaleWidgetOp,
+  ScatterOp,
   ScatterplotLayerOp,
   ScreenshotWidgetOp,
   SelectOp,
@@ -4142,5 +4143,37 @@ describe('NetworkOp with geometry column', () => {
     expect(result.routes).toHaveLength(1)
     expect(result.routes[0].origin).toEqual({ lng: -73.78, lat: 40.64, alt: 0 })
     expect(result.routes[0].destination).toEqual({ lng: -122.37, lat: 37.62, alt: 0 })
+  })
+})
+
+describe('ScatterOp', () => {
+  it('generates random points within default bounds', () => {
+    const scatter = new ScatterOp('/scatter-0')
+    const boundsValue = scatter.inputs.bounds.value
+
+    // Verify bounds field returns tuple format
+    expect(Array.isArray(boundsValue)).toBe(true)
+    expect(boundsValue).toHaveLength(2)
+    expect(Array.isArray(boundsValue[0])).toBe(true)
+    expect(Array.isArray(boundsValue[1])).toBe(true)
+    expect(boundsValue[0]).toEqual([-180, -90])
+    expect(boundsValue[1]).toEqual([180, 90])
+
+    const result = scatter.execute({
+      bounds: boundsValue,
+      count: scatter.inputs.count.value,
+      seed: scatter.inputs.seed.value,
+    })
+
+    expect(result.points).toHaveLength(100)
+    expect(result.points[0]).toHaveProperty('lng')
+    expect(result.points[0]).toHaveProperty('lat')
+    // Points should be within world bounds
+    result.points.forEach(p => {
+      expect(p.lng).toBeGreaterThanOrEqual(-180)
+      expect(p.lng).toBeLessThanOrEqual(180)
+      expect(p.lat).toBeGreaterThanOrEqual(-90)
+      expect(p.lat).toBeLessThanOrEqual(90)
+    })
   })
 })
