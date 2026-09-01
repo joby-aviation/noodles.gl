@@ -186,7 +186,6 @@ import {
   UnknownField,
   Vec2Field,
   Vec3Field,
-  Vec4Field,
   ViewField,
   VisualizationField,
   WidgetField,
@@ -8534,10 +8533,10 @@ export class BitmapLayerOp extends Operator<BitmapLayerOp> {
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
       image: new StringField(''),
-      bounds: new Vec4Field([-122.5, 37.7, -122.3, 37.9], {
-        label: 'Bounds [minLng, minLat, maxLng, maxLat]',
-        channelKeys: ['minLng', 'minLat', 'maxLng', 'maxLat'],
-      }),
+      bounds: new BboxField(
+        { southwest: { lng: -122.5, lat: 37.7 }, northeast: { lng: -122.3, lat: 37.9 } },
+        { returnType: 'tuple' }
+      ),
       desaturate: new NumberField(0, { min: 0, max: 1, step: 0.01, showByDefault: false }),
       transparentColor: new ColorField(null, {
         optional: true,
@@ -9202,7 +9201,7 @@ export class TerrainLayerOp extends Operator<TerrainLayerOp> {
         bScaler: new NumberField(0),
         offset: new NumberField(0),
       }),
-      bounds: new UnknownField(null, { optional: true }),
+      bounds: new BboxField(null, { optional: true, returnType: 'tuple' }),
       color: new ColorField('#ffffff', { transform: hexToColor }),
       wireframe: new BooleanField(false, { showByDefault: false }),
       parameters: new CompoundPropsField(
