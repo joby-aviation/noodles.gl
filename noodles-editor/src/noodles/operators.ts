@@ -151,6 +151,7 @@ import {
   ArrayField,
   applySerializedFieldValue,
   BezierCurveField,
+  BboxField,
   BooleanField,
   CategoricalColorRampField,
   CodeField,
@@ -185,7 +186,6 @@ import {
   UnknownField,
   Vec2Field,
   Vec3Field,
-  Vec4Field,
   ViewField,
   VisualizationField,
   WidgetField,
@@ -2552,7 +2552,10 @@ export class ScatterOp extends Operator<ScatterOp> {
   static description = 'Scatter points randomly within a bounding box'
   createInputs() {
     return {
-      bounds: new ArrayField(new Point2DField([0, 0], { returnType: 'tuple' })),
+      bounds: new BboxField(
+        { southwest: { lng: -180, lat: -90 }, northeast: { lng: 180, lat: 90 } },
+        { returnType: 'tuple' }
+      ),
       count: new NumberField(100, { min: 1, step: 1 }),
       seed: new NumberField(1, { min: 0, step: 1 }),
     }
@@ -2595,8 +2598,8 @@ export class BoundsOp extends Operator<BoundsOp> {
   static description = 'Create a bounding box from two points'
   createInputs() {
     return {
-      point1: new Point2DField(),
-      point2: new Point2DField(),
+      southwest: new Point2DField(),
+      northeast: new Point2DField(),
     }
   }
   createOutputs() {
@@ -2604,11 +2607,14 @@ export class BoundsOp extends Operator<BoundsOp> {
       bounds: new ArrayField(new Point2DField([0, 0], { returnType: 'tuple' })),
     }
   }
-  execute({ point1, point2 }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const west = Math.min(point1.lng, point2.lng)
-    const east = Math.max(point1.lng, point2.lng)
-    const south = Math.min(point1.lat, point2.lat)
-    const north = Math.max(point1.lat, point2.lat)
+  execute({
+    southwest,
+    northeast,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const west = Math.min(southwest.lng, northeast.lng)
+    const east = Math.max(southwest.lng, northeast.lng)
+    const south = Math.min(southwest.lat, northeast.lat)
+    const north = Math.max(southwest.lat, northeast.lat)
 
     const bounds = [
       [west, south],
@@ -7746,7 +7752,10 @@ export class PointGridOp extends Operator<PointGridOp> {
   asDownload = () => this.outputData
   createInputs() {
     return {
-      bbox: new UnknownField([-180, -90, 180, 90]),
+      bbox: new BboxField({
+        southwest: { lng: -180, lat: -90 },
+        northeast: { lng: 180, lat: 90 },
+      }),
       cellSize: new NumberField(10, { min: 0.001, step: 1 }),
       units: new StringLiteralField('kilometers', {
         values: ['kilometers', 'miles', 'meters', 'degrees'],
@@ -7763,7 +7772,13 @@ export class PointGridOp extends Operator<PointGridOp> {
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     const turf = (globalThis as unknown as Record<string, unknown>)
       .turf as typeof import('@turf/turf')
-    const grid = turf.pointGrid(bbox as [number, number, number, number], cellSize, {
+    const turfBbox: [number, number, number, number] = [
+      bbox.southwest.lng,
+      bbox.southwest.lat,
+      bbox.northeast.lng,
+      bbox.northeast.lat,
+    ]
+    const grid = turf.pointGrid(turfBbox, cellSize, {
       units: units as 'kilometers',
     })
     return { featureCollection: grid }
@@ -7776,7 +7791,10 @@ export class HexGridOp extends Operator<HexGridOp> {
   asDownload = () => this.outputData
   createInputs() {
     return {
-      bbox: new UnknownField([-180, -90, 180, 90]),
+      bbox: new BboxField({
+        southwest: { lng: -180, lat: -90 },
+        northeast: { lng: 180, lat: 90 },
+      }),
       cellSize: new NumberField(10, { min: 0.001, step: 1 }),
       units: new StringLiteralField('kilometers', {
         values: ['kilometers', 'miles', 'meters', 'degrees'],
@@ -7793,7 +7811,13 @@ export class HexGridOp extends Operator<HexGridOp> {
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     const turf = (globalThis as unknown as Record<string, unknown>)
       .turf as typeof import('@turf/turf')
-    const grid = turf.hexGrid(bbox as [number, number, number, number], cellSize, {
+    const turfBbox: [number, number, number, number] = [
+      bbox.southwest.lng,
+      bbox.southwest.lat,
+      bbox.northeast.lng,
+      bbox.northeast.lat,
+    ]
+    const grid = turf.hexGrid(turfBbox, cellSize, {
       units: units as 'kilometers',
     })
     return { featureCollection: grid }
@@ -7806,7 +7830,10 @@ export class SquareGridOp extends Operator<SquareGridOp> {
   asDownload = () => this.outputData
   createInputs() {
     return {
-      bbox: new UnknownField([-180, -90, 180, 90]),
+      bbox: new BboxField({
+        southwest: { lng: -180, lat: -90 },
+        northeast: { lng: 180, lat: 90 },
+      }),
       cellSize: new NumberField(10, { min: 0.001, step: 1 }),
       units: new StringLiteralField('kilometers', {
         values: ['kilometers', 'miles', 'meters', 'degrees'],
@@ -7823,7 +7850,13 @@ export class SquareGridOp extends Operator<SquareGridOp> {
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     const turf = (globalThis as unknown as Record<string, unknown>)
       .turf as typeof import('@turf/turf')
-    const grid = turf.squareGrid(bbox as [number, number, number, number], cellSize, {
+    const turfBbox: [number, number, number, number] = [
+      bbox.southwest.lng,
+      bbox.southwest.lat,
+      bbox.northeast.lng,
+      bbox.northeast.lat,
+    ]
+    const grid = turf.squareGrid(turfBbox, cellSize, {
       units: units as 'kilometers',
     })
     return { featureCollection: grid }
@@ -8500,10 +8533,10 @@ export class BitmapLayerOp extends Operator<BitmapLayerOp> {
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
       image: new StringField(''),
-      bounds: new Vec4Field([-122.5, 37.7, -122.3, 37.9], {
-        label: 'Bounds [minLng, minLat, maxLng, maxLat]',
-        channelKeys: ['minLng', 'minLat', 'maxLng', 'maxLat'],
-      }),
+      bounds: new BboxField(
+        { southwest: { lng: -122.5, lat: 37.7 }, northeast: { lng: -122.3, lat: 37.9 } },
+        { returnType: 'tuple' }
+      ),
       desaturate: new NumberField(0, { min: 0, max: 1, step: 0.01, showByDefault: false }),
       transparentColor: new ColorField(null, {
         optional: true,
@@ -9168,7 +9201,7 @@ export class TerrainLayerOp extends Operator<TerrainLayerOp> {
         bScaler: new NumberField(0),
         offset: new NumberField(0),
       }),
-      bounds: new UnknownField(null, { optional: true }),
+      bounds: new BboxField(null, { optional: true, returnType: 'tuple' }),
       color: new ColorField('#ffffff', { transform: hexToColor }),
       wireframe: new BooleanField(false, { showByDefault: false }),
       parameters: new CompoundPropsField(

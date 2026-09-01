@@ -32,6 +32,7 @@ import { VectorKeyframeIndicator } from '../../timeline/components/KeyframeIndic
 import { getFieldPath } from '../../timeline/field-bindings'
 import { useTimelineStore } from '../../timeline/timeline-store'
 import {
+  type BboxField,
   type BezierCurveField,
   type BooleanField,
   CategoricalColorRampField,
@@ -97,6 +98,7 @@ export interface HandleOptions {
 
 export const inputComponents = {
   array: EmptyFieldComponent,
+  bbox: BboxFieldComponent,
   'bezier-curve': BezierCurveFieldComponent,
   boolean: BooleanFieldComponent,
   'category-color-ramp': ColorRampComponent,
@@ -757,19 +759,17 @@ function VectorNumberInput({
   )
 
   return (
-    <Fragment>
-      <div className={cx(s.fieldLabel, s.fieldLabelVector)}>{keyName}</div>
-      <DraggableNumberInput
-        value={value}
-        disabled={disabled}
-        onChange={handleChange}
-        onCommit={onCommit}
-        onInteractionStart={onInteractionStart}
-        step={0.1}
-        className={cx(s.fieldInput, s.fieldInputVector, s.fieldInputNumber)}
-        title={`${keyName}: ${value}`}
-      />
-    </Fragment>
+    <DraggableNumberInput
+      value={value}
+      disabled={disabled}
+      onChange={handleChange}
+      onCommit={onCommit}
+      onInteractionStart={onInteractionStart}
+      step={0.1}
+      className={cx(s.fieldInput, s.fieldInputVector, s.fieldInputNumber)}
+      title={`${keyName}: ${value}`}
+      placeholder={keyName}
+    />
   )
 }
 
@@ -1775,6 +1775,7 @@ function DraggableNumberInput({
   step = 1,
   className,
   title,
+  placeholder,
 }: {
   id?: string
   value: number
@@ -1789,6 +1790,7 @@ function DraggableNumberInput({
   step?: number
   className?: string
   title?: string
+  placeholder?: string
 }) {
   const [displayValue, setDisplayValue] = useState<string>(value?.toString() ?? '0')
   const [isActive, setIsActive] = useState<boolean>(false)
@@ -1956,6 +1958,7 @@ function DraggableNumberInput({
         })}
         value={isActive ? displayValue : formatted}
         title={title || displayValue}
+        placeholder={placeholder}
         onChange={onInputChange}
         disabled={disabled}
         min={Number.isFinite(softMin ?? -Infinity) ? softMin : min}
@@ -3201,6 +3204,195 @@ export function FieldComponent({
           onClose={() => setContextMenuPos(null)}
         />
       )}
+    </div>
+  )
+}
+
+export function BboxFieldComponent({
+  id,
+  field,
+  disabled,
+  opId,
+  fieldName,
+  expandTimeline,
+}: {
+  id: OpId
+  field: BboxField
+  disabled: boolean
+  opId?: string
+  fieldName?: string
+  expandTimeline?: () => void
+}) {
+  // Normalize bbox value to object format for internal use
+  const normalizeValue = (val: any) => {
+    if (Array.isArray(val)) {
+      // Tuple format: [[lng, lat], [lng, lat]] or [{lng, lat}, {lng, lat}]
+      const sw = Array.isArray(val[0]) ? { lng: val[0][0], lat: val[0][1] } : val[0]
+      const ne = Array.isArray(val[1]) ? { lng: val[1][0], lat: val[1][1] } : val[1]
+      return { southwest: sw, northeast: ne }
+    }
+    return val
+  }
+
+  const [value, setValue] = useState<{
+    southwest: { lng: number; lat: number }
+    northeast: { lng: number; lat: number }
+  }>(normalizeValue(guardAccessorFallback(field.value)))
+  const [geocodingOpen, setGeocodingOpen] = useState(false)
+  const [geocodingCorner, setGeocodingCorner] = useState<'southwest' | 'northeast'>('southwest')
+  const { captureStart, commitChange } = usePropertyHistory()
+
+  // Track the latest value in a ref for onCommit
+  const latestValueRef = useRef(value)
+  latestValueRef.current = value
+
+  useEffect(() => {
+    const sub = field.subscribe(newVal => {
+      if (typeof newVal === 'function') return
+      setValue(normalizeValue(newVal))
+    })
+    return () => sub.unsubscribe()
+  }, [field])
+
+  const onChange = useCallback(
+    (corner: 'southwest' | 'northeast', coord: 'lng' | 'lat', val: number) => {
+      setValue(prevValue => {
+        const updated = {
+          ...prevValue,
+          [corner]: {
+            ...prevValue[corner],
+            [coord]: val,
+          },
+        }
+        latestValueRef.current = updated
+        return updated
+      })
+    },
+    []
+  )
+
+  const onCommit = useCallback(() => {
+    field.setValue(latestValueRef.current)
+    commitChange('Change bbox')
+  }, [field, commitChange])
+
+  // Handle location selection from geocoding dialog
+  const handleLocationSelected = useCallback(
+    ({ longitude, latitude }: { longitude: number; latitude: number }) => {
+      setValue(prevValue => {
+        const updated = {
+          ...prevValue,
+          [geocodingCorner]: { lng: longitude, lat: latitude },
+        }
+        field.setValue(updated)
+        return updated
+      })
+      commitChange('Change bbox corner')
+      setGeocodingOpen(false)
+    },
+    [field, geocodingCorner, commitChange]
+  )
+
+  return (
+    <div className={cx(s.fieldWrapper, 'nokey')}>
+      <label className={s.fieldLabel} htmlFor={id}>
+        {id}
+      </label>
+      <div id={id} className={s.fieldCompoundWrapper}>
+        <div
+          className={s.fieldLabel}
+          style={{ fontSize: '11px', opacity: 0.7, marginBottom: '4px' }}
+        >
+          Southwest
+        </div>
+        <div className={cx(s.fieldInputWrapper, s.fieldInputWrapperVector)}>
+          <VectorNumberInput
+            keyName="lng"
+            value={value.southwest.lng}
+            objectKey="lng"
+            disabled={disabled}
+            onChange={(_, val) => onChange('southwest', 'lng', val)}
+            onCommit={onCommit}
+            onInteractionStart={captureStart}
+          />
+          <VectorNumberInput
+            keyName="lat"
+            value={value.southwest.lat}
+            objectKey="lat"
+            disabled={disabled}
+            onChange={(_, val) => onChange('southwest', 'lat', val)}
+            onCommit={onCommit}
+            onInteractionStart={captureStart}
+          />
+          <Button
+            icon="pi pi-map-marker"
+            className={s.fieldLookupButton}
+            onClick={() => {
+              captureStart()
+              setGeocodingCorner('southwest')
+              setGeocodingOpen(true)
+            }}
+            title="Lookup Southwest Corner"
+            size="small"
+            disabled={disabled}
+            severity="secondary"
+            text
+          />
+        </div>
+
+        <div
+          className={s.fieldLabel}
+          style={{ fontSize: '11px', opacity: 0.7, marginBottom: '4px', marginTop: '8px' }}
+        >
+          Northeast
+        </div>
+        <div className={cx(s.fieldInputWrapper, s.fieldInputWrapperVector)}>
+          <VectorNumberInput
+            keyName="lng"
+            value={value.northeast.lng}
+            objectKey="lng"
+            disabled={disabled}
+            onChange={(_, val) => onChange('northeast', 'lng', val)}
+            onCommit={onCommit}
+            onInteractionStart={captureStart}
+          />
+          <VectorNumberInput
+            keyName="lat"
+            value={value.northeast.lat}
+            objectKey="lat"
+            disabled={disabled}
+            onChange={(_, val) => onChange('northeast', 'lat', val)}
+            onCommit={onCommit}
+            onInteractionStart={captureStart}
+          />
+          <Button
+            icon="pi pi-map-marker"
+            className={s.fieldLookupButton}
+            onClick={() => {
+              captureStart()
+              setGeocodingCorner('northeast')
+              setGeocodingOpen(true)
+            }}
+            title="Lookup Northeast Corner"
+            size="small"
+            disabled={disabled}
+            severity="secondary"
+            text
+          />
+        </div>
+      </div>
+
+      <GeocodingDialog
+        open={geocodingOpen}
+        onOpenChange={setGeocodingOpen}
+        mode="update-field"
+        initialValue={
+          geocodingCorner === 'southwest'
+            ? { longitude: value.southwest.lng, latitude: value.southwest.lat }
+            : { longitude: value.northeast.lng, latitude: value.northeast.lat }
+        }
+        onLocationSelected={handleLocationSelected}
+      />
     </div>
   )
 }

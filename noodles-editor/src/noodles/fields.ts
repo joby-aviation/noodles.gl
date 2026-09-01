@@ -1055,6 +1055,9 @@ export class Point3DField extends Field<
 }
 
 type Point2DFieldValue = { lng: number; lat: number; [key: string]: unknown } | [number, number]
+type BboxFieldValue =
+  | { southwest: Point2DFieldValue; northeast: Point2DFieldValue }
+  | [Point2DFieldValue, Point2DFieldValue]
 
 // Should this just be a Vec2? Should it be a GeoJSON Point Or does it need to be a special case
 export class Point2DField extends Field<
@@ -1159,6 +1162,75 @@ export class Point2DField extends Field<
       z
         .tuple([z.number(), z.number()])
         .transform(returnType === 'object' ? val => ({ lng: val[0], lat: val[1] }) : noop),
+    ])
+  }
+}
+
+export class BboxField extends Field<
+  z.ZodUnion<
+    [
+      z.ZodObject<{
+        southwest: z.ZodType<Point2DFieldValue>
+        northeast: z.ZodType<Point2DFieldValue>
+      }>,
+      z.ZodTuple<[z.ZodType<Point2DFieldValue>, z.ZodType<Point2DFieldValue>]>,
+    ]
+  >,
+  PointFieldOptions
+> {
+  static type = 'bbox'
+  static defaultValue = {
+    southwest: { lng: -74.05, lat: 40.68 },
+    northeast: { lng: -73.9, lat: 40.82 },
+  }
+  static channelKeys = ['southwest', 'northeast'] as const
+
+  returnType: 'object' | 'tuple' = 'object'
+
+  constructor(override?: BboxFieldValue, options?: PointFieldOptions) {
+    super(override, options)
+    this.returnType = options?.returnType || 'object'
+  }
+
+  createSchema({ returnType = 'object' }: PointFieldOptions = {}) {
+    const point2dSchema = z.union([
+      z.object({ lng: z.number(), lat: z.number() }).passthrough(),
+      z.tuple([z.number(), z.number()]),
+    ])
+
+    return z.union([
+      z
+        .object({
+          southwest: point2dSchema,
+          northeast: point2dSchema,
+        })
+        .transform(val => {
+          if (returnType === 'tuple') {
+            const sw = Array.isArray(val.southwest)
+              ? val.southwest
+              : [val.southwest.lng, val.southwest.lat]
+            const ne = Array.isArray(val.northeast)
+              ? val.northeast
+              : [val.northeast.lng, val.northeast.lat]
+            return [sw, ne]
+          }
+          // Normalize points to {lng, lat} format
+          const sw = Array.isArray(val.southwest)
+            ? { lng: val.southwest[0], lat: val.southwest[1] }
+            : val.southwest
+          const ne = Array.isArray(val.northeast)
+            ? { lng: val.northeast[0], lat: val.northeast[1] }
+            : val.northeast
+          return { southwest: sw, northeast: ne }
+        }),
+      z.tuple([point2dSchema, point2dSchema]).transform(val => {
+        if (returnType === 'object') {
+          const sw = Array.isArray(val[0]) ? { lng: val[0][0], lat: val[0][1] } : val[0]
+          const ne = Array.isArray(val[1]) ? { lng: val[1][0], lat: val[1][1] } : val[1]
+          return { southwest: sw, northeast: ne }
+        }
+        return val
+      }),
     ])
   }
 }
@@ -1887,6 +1959,7 @@ export const fieldTypeToClass = {
   vec4: Vec4Field,
   'geopoint-2d': Point2DField,
   'geopoint-3d': Point3DField,
+  bbox: BboxField,
   date: DateField,
   expression: ExpressionField,
   code: CodeField,

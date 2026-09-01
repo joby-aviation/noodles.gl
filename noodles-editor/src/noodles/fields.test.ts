@@ -4,6 +4,7 @@ import z from 'zod/v4'
 import { hexToColor } from '../utils/color'
 import {
   ArrayField,
+  BboxField,
   ColorField,
   CompoundPropsField,
   DataField,
@@ -1760,5 +1761,77 @@ describe('GeoJsonField', () => {
     }
     field.setValue(featureCollection)
     expect(field.value).toEqual(featureCollection)
+  })
+})
+
+describe('BboxField', () => {
+  it('should normalize object input to object format by default', () => {
+    const field = new BboxField()
+    const bbox = {
+      southwest: { lng: -74.05, lat: 40.68 },
+      northeast: { lng: -73.9, lat: 40.82 },
+    }
+    field.setValue(bbox)
+    expect(field.value).toEqual(bbox)
+  })
+
+  it('should normalize tuple input to object format by default', () => {
+    const field = new BboxField()
+    field.setValue([
+      [-74.05, 40.68],
+      [-73.9, 40.82],
+    ] as any)
+    expect(field.value).toEqual({
+      southwest: { lng: -74.05, lat: 40.68 },
+      northeast: { lng: -73.9, lat: 40.82 },
+    })
+  })
+
+  it('should normalize object input to tuple format with returnType: tuple', () => {
+    const field = new BboxField(undefined, { returnType: 'tuple' })
+    field.setValue({
+      southwest: { lng: -74.05, lat: 40.68 },
+      northeast: { lng: -73.9, lat: 40.82 },
+    } as any)
+    expect(field.value).toEqual([
+      [-74.05, 40.68],
+      [-73.9, 40.82],
+    ])
+  })
+
+  it('should normalize tuple input to tuple format with returnType: tuple', () => {
+    const field = new BboxField(undefined, { returnType: 'tuple' })
+    field.setValue([
+      [-74.05, 40.68],
+      [-73.9, 40.82],
+    ] as any)
+    expect(field.value).toEqual([
+      [-74.05, 40.68],
+      [-73.9, 40.82],
+    ])
+  })
+
+  it('should normalize mixed object/array points to tuple format', () => {
+    const field = new BboxField(undefined, { returnType: 'tuple' })
+    field.setValue({
+      southwest: [-74.05, 40.68],
+      northeast: { lng: -73.9, lat: 40.82 },
+    } as any)
+    expect(field.value).toEqual([
+      [-74.05, 40.68],
+      [-73.9, 40.82],
+    ])
+  })
+
+  it('should normalize tuple of objects to object format', () => {
+    const field = new BboxField()
+    field.setValue([
+      { lng: -74.05, lat: 40.68 },
+      { lng: -73.9, lat: 40.82 },
+    ] as any)
+    expect(field.value).toEqual({
+      southwest: { lng: -74.05, lat: 40.68 },
+      northeast: { lng: -73.9, lat: 40.82 },
+    })
   })
 })
