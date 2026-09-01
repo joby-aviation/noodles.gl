@@ -2553,7 +2553,10 @@ export class ScatterOp extends Operator<ScatterOp> {
   static description = 'Scatter points randomly within a bounding box'
   createInputs() {
     return {
-      bounds: new ArrayField(new Point2DField([0, 0], { returnType: 'tuple' })),
+      bounds: new BboxField(
+        { southwest: { lng: -180, lat: -90 }, northeast: { lng: 180, lat: 90 } },
+        { returnType: 'tuple' }
+      ),
       count: new NumberField(100, { min: 1, step: 1 }),
       seed: new NumberField(1, { min: 0, step: 1 }),
     }
