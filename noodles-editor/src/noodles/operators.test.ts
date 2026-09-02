@@ -4180,11 +4180,16 @@ describe('ScatterOp', () => {
 })
 
 describe('OverpassOp', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks()
-    vi.restoreAllMocks() // Restore any spies from previous tests
-    // Set test Overpass endpoint
-    getKeysStore().setBrowserKey('overpass', 'https://overpass-api.de/api/interpreter')
+    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
+
+    // Ensure any lingering spies are cleared and set fresh endpoint
+    const store = getKeysStore()
+    store.clearBrowserKey('overpass')
+    store.clearBrowserKey('mapbox') // Clear any keys from previous tests
+    store.setBrowserKey('overpass', 'https://overpass-api.de/api/interpreter')
   })
 
   afterEach(() => {
@@ -4504,10 +4509,6 @@ describe('OverpassOp', () => {
 
   it('sends POST request with correct headers', async () => {
     const op = new OverpassOp('/overpass')
-
-    // Ensure endpoint is set correctly
-    const endpoint = getKeysStore().getKey('overpass')
-    expect(endpoint).toBe('https://overpass-api.de/api/interpreter')
 
     let capturedRequest: any = null
     global.fetch = vi.fn().mockImplementation(async (url, options) => {

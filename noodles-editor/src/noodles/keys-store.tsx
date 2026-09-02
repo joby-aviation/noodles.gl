@@ -133,6 +133,7 @@ export function getEnvKeys(): KeysConfig {
     googleMaps: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
     cesium: import.meta.env.VITE_CESIUM_ACCESS_TOKEN,
     anthropic: import.meta.env.VITE_CLAUDE_API_KEY,
-    overpass: import.meta.env.VITE_OVERPASS_ENDPOINT || 'https://overpass.kumi.systems/api/interpreter',
+    overpass:
+      import.meta.env.VITE_OVERPASS_ENDPOINT || 'https://overpass.kumi.systems/api/interpreter',
   }
 }
