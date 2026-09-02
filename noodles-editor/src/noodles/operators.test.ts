@@ -3970,7 +3970,7 @@ describe('GeocoderOp', () => {
   })
 
   it('clears stale outputs when a connected query becomes blank', async () => {
-    vi.spyOn(getKeysStore(), 'getKey').mockReturnValue('test-token')
+    const getKeySpy = vi.spyOn(getKeysStore(), 'getKey').mockReturnValue('test-token')
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       json: vi.fn().mockResolvedValue({
@@ -3990,10 +3990,11 @@ describe('GeocoderOp', () => {
       results: [],
     })
     expect(fetchMock).toHaveBeenCalledTimes(1)
+    getKeySpy.mockRestore()
   })
 
   it('returns empty outputs without error when Mapbox has no results', async () => {
-    vi.spyOn(getKeysStore(), 'getKey').mockReturnValue('test-token')
+    const getKeySpy = vi.spyOn(getKeysStore(), 'getKey').mockReturnValue('test-token')
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({
@@ -4009,10 +4010,11 @@ describe('GeocoderOp', () => {
       location: { lng: 0, lat: 0 },
       results: [],
     })
+    getKeySpy.mockRestore()
   })
 
   it('surfaces Mapbox service failures separately from empty results', async () => {
-    vi.spyOn(getKeysStore(), 'getKey').mockReturnValue('test-token')
+    const getKeySpy = vi.spyOn(getKeysStore(), 'getKey').mockReturnValue('test-token')
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({
@@ -4028,6 +4030,7 @@ describe('GeocoderOp', () => {
     await expect(geocoderOp.execute({ query: 'Long Beach' })).rejects.toThrow(
       'Mapbox geocoding failed: 429 Too Many Requests'
     )
+    getKeySpy.mockRestore()
   })
 })
 
@@ -4180,21 +4183,20 @@ describe('ScatterOp', () => {
 })
 
 describe('OverpassOp', () => {
-  beforeEach(async () => {
+  beforeEach(() => {
     vi.clearAllMocks()
     vi.restoreAllMocks()
     vi.unstubAllGlobals()
 
-    // Ensure any lingering spies are cleared and set fresh endpoint
+    // Clear all keys and set test endpoint
     const store = getKeysStore()
     store.clearBrowserKey('overpass')
-    store.clearBrowserKey('mapbox') // Clear any keys from previous tests
+    store.clearBrowserKey('mapbox')
     store.setBrowserKey('overpass', 'https://overpass-api.de/api/interpreter')
   })
 
   afterEach(() => {
     getKeysStore().clearBrowserKey('overpass')
-    vi.restoreAllMocks()
   })
 
   it('converts OSM nodes to GeoJSON Point features', async () => {
