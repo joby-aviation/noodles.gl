@@ -1,6 +1,7 @@
 import * as Dialog from '@radix-ui/react-dialog'
 import { Cross2Icon } from '@radix-ui/react-icons'
 import { useEffect, useState } from 'react'
+import type { ProviderPreference } from '../noodles/keys-store'
 import { getEnvKeys, useKeysStore } from '../noodles/keys-store'
 import { analytics } from '../utils/analytics'
 import s from './settings-dialog.module.css'
@@ -115,21 +116,38 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
   const browserKeys = useKeysStore(state => state.browserKeys)
   const saveInProject = useKeysStore(state => state.saveInProject)
   const projectKeys = useKeysStore(state => state.projectKeys || {})
+  const providerPreference = useKeysStore(state => state.getProviderPreference())
+  const customEndpoint = useKeysStore(state => state.getCustomEndpoint())
   const setBrowserKey = useKeysStore(state => state.setBrowserKey)
   const setSaveInProjectAction = useKeysStore(state => state.setSaveInProject)
+  const setProviderPreference = useKeysStore(state => state.setProviderPreference)
+  const setCustomEndpoint = useKeysStore(state => state.setCustomEndpoint)
   const getActiveSource = useKeysStore(state => state.getActiveSource)
+
+  // Custom endpoint state (local form state)
+  const [endpointBaseUrl, setEndpointBaseUrl] = useState(customEndpoint?.baseUrl || '')
+  const [endpointApiKey, setEndpointApiKey] = useState(customEndpoint?.apiKey || '')
+  const [endpointModel, setEndpointModel] = useState(customEndpoint?.model || '')
+  const [endpointDisplayName, setEndpointDisplayName] = useState(customEndpoint?.displayName || '')
 
   // Environment keys (static)
   const envKeys = getEnvKeys()
 
-  // Sync analytics settings when dialog opens
+  // Sync settings when dialog opens
   useEffect(() => {
     if (open) {
       const consent = analytics.getConsent()
       setAnalyticsEnabled(consent?.enabled ?? false)
       setErrorCaptureEnabled(analytics.getErrorCaptureEnabled())
+
+      // Sync custom endpoint from store
+      const endpoint = customEndpoint
+      setEndpointBaseUrl(endpoint?.baseUrl || '')
+      setEndpointApiKey(endpoint?.apiKey || '')
+      setEndpointModel(endpoint?.model || '')
+      setEndpointDisplayName(endpoint?.displayName || '')
     }
-  }, [open])
+  }, [open, customEndpoint])
 
   const handleAnalyticsToggle = (enabled: boolean) => {
     setAnalyticsEnabled(enabled)
@@ -155,6 +173,54 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
     if (enabled) {
       analytics.track('keys_save_in_project_enabled')
     }
+  }
+
+  const handleProviderPreferenceChange = (preference: ProviderPreference) => {
+    setProviderPreference(preference)
+    analytics.track('ai_provider_preference_changed', { preference })
+  }
+
+  const handleSaveCustomEndpoint = () => {
+    if (endpointBaseUrl && endpointApiKey && endpointModel) {
+      setCustomEndpoint({
+        baseUrl: endpointBaseUrl,
+        apiKey: endpointApiKey,
+        model: endpointModel,
+        displayName: endpointDisplayName || undefined,
+      })
+      analytics.track('custom_endpoint_saved')
+    }
+  }
+
+  const handleClearCustomEndpoint = () => {
+    setCustomEndpoint(undefined)
+    setEndpointBaseUrl('')
+    setEndpointApiKey('')
+    setEndpointModel('')
+    setEndpointDisplayName('')
+    analytics.track('custom_endpoint_cleared')
+  }
+
+  // Preset configurations for popular providers
+  const applyPreset = (preset: 'groq' | 'openrouter' | 'openai') => {
+    switch (preset) {
+      case 'groq':
+        setEndpointBaseUrl('https://api.groq.com/openai/v1')
+        setEndpointModel('llama-3.1-70b-versatile')
+        setEndpointDisplayName('Groq (Llama 3.1 70B)')
+        break
+      case 'openrouter':
+        setEndpointBaseUrl('https://openrouter.ai/api/v1')
+        setEndpointModel('meta-llama/llama-3.1-70b-instruct')
+        setEndpointDisplayName('OpenRouter (Llama 3.1 70B)')
+        break
+      case 'openai':
+        setEndpointBaseUrl('https://api.openai.com/v1')
+        setEndpointModel('gpt-4o')
+        setEndpointDisplayName('OpenAI (GPT-4o)')
+        break
+    }
+    analytics.track('custom_endpoint_preset_applied', { preset })
   }
 
   return (
@@ -202,6 +268,252 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
                   </div>
                 </div>
               </label>
+            </div>
+          </div>
+
+          {/* AI Provider Section */}
+          <div className={s.section}>
+            <h3 className={s.sectionTitle}>AI Provider</h3>
+
+            <div className={s.settingItem}>
+              <div className={s.settingContent} style={{ width: '100%' }}>
+                <div className={s.settingName}>Choose AI Provider</div>
+                <div className={s.settingDescription}>
+                  Select which AI service powers the Noodles Assistant.
+                </div>
+                <div
+                  style={{
+                    marginTop: '12px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '8px',
+                  }}
+                >
+                  <label
+                    style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
+                  >
+                    <input
+                      type="radio"
+                      name="providerPreference"
+                      value="automatic"
+                      checked={providerPreference === 'automatic'}
+                      onChange={e =>
+                        handleProviderPreferenceChange(e.target.value as ProviderPreference)
+                      }
+                    />
+                    <div>
+                      <strong>Automatic (recommended)</strong> — Uses Claude if you have a key,
+                      otherwise falls back to custom endpoint or Chrome Built-in AI
+                    </div>
+                  </label>
+                  <label
+                    style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
+                  >
+                    <input
+                      type="radio"
+                      name="providerPreference"
+                      value="anthropic"
+                      checked={providerPreference === 'anthropic'}
+                      onChange={e =>
+                        handleProviderPreferenceChange(e.target.value as ProviderPreference)
+                      }
+                    />
+                    <div>
+                      <strong>Always use Claude</strong> — Premium quality (requires API key below)
+                    </div>
+                  </label>
+                  <label
+                    style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
+                  >
+                    <input
+                      type="radio"
+                      name="providerPreference"
+                      value="custom"
+                      checked={providerPreference === 'custom'}
+                      onChange={e =>
+                        handleProviderPreferenceChange(e.target.value as ProviderPreference)
+                      }
+                    />
+                    <div>
+                      <strong>Custom endpoint</strong> — Use Groq, OpenRouter, OpenAI, or
+                      self-hosted (configure below)
+                    </div>
+                  </label>
+                  <label
+                    style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
+                  >
+                    <input
+                      type="radio"
+                      name="providerPreference"
+                      value="chrome-ai"
+                      checked={providerPreference === 'chrome-ai'}
+                      onChange={e =>
+                        handleProviderPreferenceChange(e.target.value as ProviderPreference)
+                      }
+                    />
+                    <div>
+                      <strong>Chrome Built-in AI</strong> — Free, local, no API key (Chrome 127+
+                      required)
+                    </div>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            {/* Custom Endpoint Configuration */}
+            <div className={s.settingItem} style={{ marginTop: '16px' }}>
+              <div className={s.settingContent} style={{ width: '100%' }}>
+                <div className={s.settingName}>Custom Endpoint Configuration</div>
+                <div className={s.settingDescription}>
+                  Configure an OpenAI-compatible API endpoint. Use presets for popular providers.
+                </div>
+
+                {/* Preset buttons */}
+                <div style={{ marginTop: '12px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    onClick={() => applyPreset('groq')}
+                    style={{
+                      padding: '6px 12px',
+                      fontSize: '13px',
+                      border: '1px solid #444',
+                      borderRadius: '4px',
+                      background: '#2a2a2a',
+                      color: '#fff',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Groq (Free)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => applyPreset('openrouter')}
+                    style={{
+                      padding: '6px 12px',
+                      fontSize: '13px',
+                      border: '1px solid #444',
+                      borderRadius: '4px',
+                      background: '#2a2a2a',
+                      color: '#fff',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    OpenRouter
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => applyPreset('openai')}
+                    style={{
+                      padding: '6px 12px',
+                      fontSize: '13px',
+                      border: '1px solid #444',
+                      borderRadius: '4px',
+                      background: '#2a2a2a',
+                      color: '#fff',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    OpenAI
+                  </button>
+                </div>
+
+                {/* Form fields */}
+                <div
+                  style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '12px' }}
+                >
+                  <div>
+                    <label style={{ display: 'block', marginBottom: '4px', fontSize: '13px' }}>
+                      Base URL
+                    </label>
+                    <input
+                      type="text"
+                      value={endpointBaseUrl}
+                      onChange={e => setEndpointBaseUrl(e.target.value)}
+                      placeholder="https://api.groq.com/openai/v1"
+                      className={s.input}
+                      style={{ width: '100%' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', marginBottom: '4px', fontSize: '13px' }}>
+                      API Key
+                    </label>
+                    <input
+                      type="password"
+                      value={endpointApiKey}
+                      onChange={e => setEndpointApiKey(e.target.value)}
+                      placeholder="Your API key"
+                      className={s.input}
+                      style={{ width: '100%' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', marginBottom: '4px', fontSize: '13px' }}>
+                      Model
+                    </label>
+                    <input
+                      type="text"
+                      value={endpointModel}
+                      onChange={e => setEndpointModel(e.target.value)}
+                      placeholder="llama-3.1-70b-versatile"
+                      className={s.input}
+                      style={{ width: '100%' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', marginBottom: '4px', fontSize: '13px' }}>
+                      Display Name (optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={endpointDisplayName}
+                      onChange={e => setEndpointDisplayName(e.target.value)}
+                      placeholder="My Custom AI"
+                      className={s.input}
+                      style={{ width: '100%' }}
+                    />
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button
+                      type="button"
+                      onClick={handleSaveCustomEndpoint}
+                      disabled={!endpointBaseUrl || !endpointApiKey || !endpointModel}
+                      style={{
+                        padding: '8px 16px',
+                        fontSize: '13px',
+                        border: 'none',
+                        borderRadius: '4px',
+                        background: '#3b82f6',
+                        color: 'white',
+                        cursor:
+                          !endpointBaseUrl || !endpointApiKey || !endpointModel
+                            ? 'not-allowed'
+                            : 'pointer',
+                        opacity: !endpointBaseUrl || !endpointApiKey || !endpointModel ? 0.5 : 1,
+                      }}
+                    >
+                      Save Endpoint
+                    </button>
+                    {customEndpoint && (
+                      <button
+                        type="button"
+                        onClick={handleClearCustomEndpoint}
+                        style={{
+                          padding: '8px 16px',
+                          fontSize: '13px',
+                          border: '1px solid #444',
+                          borderRadius: '4px',
+                          background: 'transparent',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -261,8 +573,8 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
               />
 
               <KeyGroup
-                label="Anthropic API Key"
-                description="Required to use the AI assistant panel. Without it, the AI panel shows an empty state with setup instructions."
+                label="Anthropic API Key (Claude)"
+                description="Premium AI provider with best quality. Optional — the assistant works without it using custom endpoint or Chrome Built-in AI. Get your key from console.anthropic.com"
                 placeholder="sk-ant-..."
                 browserValue={browserKeys.anthropic || ''}
                 projectValue={projectKeys.anthropic}

@@ -10,11 +10,12 @@ import { useKeysStore } from '../noodles/keys-store'
 import { useUIStore } from '../noodles/store'
 import { debugAiChat } from '../utils/debug'
 import styles from './chat-panel.module.css'
-import { ClaudeClient } from './claude-client'
 import { loadConversation, saveConversation } from './conversation-history'
 import { ConversationHistoryPanel } from './conversation-history-panel'
 import { globalContextManager } from './global-context-manager'
 import { MCPTools } from './mcp-tools'
+import type { AIProvider } from './providers/ai-provider-interface'
+import { getProviderRegistry } from './providers/provider-registry'
 import type { Message, NoodlesProject } from './types'
 
 interface ChatPanelProps {
@@ -39,15 +40,18 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [contextLoading, setContextLoading] = useState(true)
-  const [claudeClient, setClaudeClient] = useState<ClaudeClient | null>(null)
+  const [aiProvider, setAiProvider] = useState<AIProvider | null>(null)
   const [mcpTools, setMcpTools] = useState<MCPTools | null>(null)
   const [autoCapture, setAutoCapture] = useState(true)
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null)
   const [showHistory, setShowHistory] = useState(false)
   const [contextProgress, setContextProgress] = useState<string>('')
+  const [providerError, setProviderError] = useState<string | null>(null)
 
-  // Get API key directly from store (reactive)
-  const apiKey = useKeysStore(state => state.getKey('anthropic'))
+  // Get API keys and config from store (reactive) - watch for changes to trigger provider refresh
+  const anthropicKey = useKeysStore(state => state.getKey('anthropic'))
+  const customEndpoint = useKeysStore(state => state.getCustomEndpoint())
+  const providerPreference = useKeysStore(state => state.getProviderPreference())
 
   // Get the function to open settings dialog
   const setSettingsDialogOpen = useUIStore(state => state.setSettingsDialogOpen)
@@ -67,33 +71,38 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
     return unsubscribe
   }, [])
 
-  // Initialize Claude client when API key is available
+  // Initialize AI provider when keys or preference change
   useEffect(() => {
-    if (!apiKey) {
-      setContextLoading(false)
-      return
-    }
-
     const init = async () => {
       setContextLoading(true)
+      setProviderError(null)
       try {
         // Wait for context to be ready (should be instant if already loaded)
         const loader = await globalContextManager.waitForReady()
 
         const tools = new MCPTools(loader)
-        const client = new ClaudeClient(apiKey, tools)
+        const registry = getProviderRegistry()
+        registry.setTools(tools)
+        registry.setPreference(providerPreference)
+
+        // Get appropriate provider based on available keys and preference
+        const provider = await registry.getProvider()
 
         setMcpTools(tools)
-        setClaudeClient(client)
+        setAiProvider(provider)
+        debugAiChat(`Initialized ${provider.displayName} (${provider.tier})`)
       } catch (error) {
-        debugAiChat('Failed to initialize Claude:', error)
+        debugAiChat('Failed to initialize AI provider:', error)
+        setProviderError(
+          error instanceof Error ? error.message : 'Failed to initialize AI provider'
+        )
       } finally {
         setContextLoading(false)
       }
     }
 
     init()
-  }, [apiKey])
+  }, [anthropicKey, customEndpoint, providerPreference])
 
   // Update MCPTools with current project whenever it changes
   useEffect(() => {
@@ -115,7 +124,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
   }, [])
 
   const handleSend = async () => {
-    if (!input.trim() || !claudeClient || !project) return
+    if (!input.trim() || !aiProvider || !project) return
 
     const userMessage: Message = {
       role: 'user',
@@ -127,7 +136,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
     setLoading(true)
 
     try {
-      const response = await claudeClient.sendMessage({
+      const response = await aiProvider.sendMessage({
         message: input,
         project,
         autoCapture,
@@ -269,29 +278,24 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
 
   if (!isVisible) return null
 
-  // Check if API key is missing
-  if (!apiKey && !contextLoading) {
+  // Show error if provider initialization failed
+  if (providerError && !contextLoading) {
     return (
       <div className={styles.chatPanel}>
         <div className={styles.chatPanelLoading}>
-          <h3>Anthropic API Key Required</h3>
+          <h3>AI Provider Error</h3>
+          <p style={{ color: '#ff6b6b', marginBottom: '1rem', whiteSpace: 'pre-wrap' }}>
+            {providerError}
+          </p>
           <p>
-            To use the Noodles assistant, you need to configure your Claude API key in{' '}
+            Configure an AI provider in{' '}
             <button
               type="button"
               onClick={() => setSettingsDialogOpen(true)}
               className={styles.linkButton}
             >
-              Settings
-            </button>{' '}
-            (top menu).
-          </p>
-          <p>
-            Get your API key from{' '}
-            <a href="https://console.anthropic.com/" target="_blank" rel="noopener noreferrer">
-              Anthropic Console
-            </a>
-            , then add it in <strong>Settings → API Keys</strong>.
+              Settings → AI Provider
+            </button>
           </p>
           <div
             style={{ marginTop: '1rem', display: 'flex', gap: '0.5rem', justifyContent: 'center' }}
@@ -316,10 +320,44 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
     )
   }
 
+  // Get rate limit info if available
+  const rateLimit = aiProvider?.getRateLimit()
+  const rateLimitWarning = rateLimit && rateLimit.remaining < rateLimit.limit * 0.2
+
   return (
     <div className={styles.chatPanel}>
       <div className={styles.chatPanelHeader}>
-        <h3>Noodles Assistant</h3>
+        <div>
+          <h3>Noodles Assistant</h3>
+          {aiProvider && (
+            <div style={{ fontSize: '11px', opacity: 0.7, marginTop: '2px' }}>
+              {aiProvider.tier === 'free' ? '🆓 ' : '⭐ '}
+              {aiProvider.displayName}
+              {rateLimit && (
+                <span
+                  style={{
+                    marginLeft: '8px',
+                    color: rateLimitWarning ? '#ff6b6b' : 'inherit',
+                  }}
+                >
+                  ({rateLimit.remaining.toLocaleString()}/{rateLimit.limit.toLocaleString()}{' '}
+                  {rateLimit.windowDescription})
+                </span>
+              )}
+              {!anthropicKey && aiProvider.tier === 'free' && (
+                <button
+                  type="button"
+                  onClick={() => setSettingsDialogOpen(true)}
+                  className={styles.linkButton}
+                  style={{ marginLeft: '8px', fontSize: '11px' }}
+                  title="Add Anthropic API key for premium quality"
+                >
+                  Upgrade to Premium
+                </button>
+              )}
+            </div>
+          )}
+        </div>
         <div className={styles.chatPanelActions}>
           <button
             type="button"

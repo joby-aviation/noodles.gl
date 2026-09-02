@@ -11,11 +11,22 @@ export interface KeysConfig {
   overpass?: string
 }
 
+export type ProviderPreference = 'automatic' | 'anthropic' | 'custom' | 'chrome-ai'
+
+export interface CustomEndpointConfig {
+  baseUrl: string
+  apiKey: string
+  model: string
+  displayName?: string
+}
+
 // Separate state and actions for clarity
 interface KeysState {
   // Persisted to localStorage
   browserKeys: KeysConfig
   saveInProject: boolean
+  providerPreference: ProviderPreference
+  customEndpoint: CustomEndpointConfig | undefined
 
   // NOT persisted (comes from loaded project)
   projectKeys: KeysConfig | undefined
@@ -28,11 +39,15 @@ interface KeysActions {
   clearBrowserKey: (key: KeyType) => void
   setSaveInProject: (enabled: boolean) => void
   setProjectKeys: (keys: KeysConfig | undefined) => void
+  setProviderPreference: (preference: ProviderPreference) => void
+  setCustomEndpoint: (config: CustomEndpointConfig | undefined) => void
 
   // Computed getters
   getKey: (key: KeyType) => string | undefined
   hasKey: (key: KeyType) => boolean
   getActiveSource: (key: KeyType) => 'browser' | 'project' | 'env' | null
+  getProviderPreference: () => ProviderPreference
+  getCustomEndpoint: () => CustomEndpointConfig | undefined
 }
 
 type KeysStore = KeysState & KeysActions
@@ -43,6 +58,8 @@ export const useKeysStore = create<KeysStore>()(
       // Initial state
       browserKeys: {},
       saveInProject: false,
+      providerPreference: 'automatic',
+      customEndpoint: undefined,
       projectKeys: undefined,
 
       // Actions
@@ -80,6 +97,14 @@ export const useKeysStore = create<KeysStore>()(
         set({ projectKeys: keys })
       },
 
+      setProviderPreference: preference => {
+        set({ providerPreference: preference })
+      },
+
+      setCustomEndpoint: config => {
+        set({ customEndpoint: config })
+      },
+
       // Computed getters (priority: browser > project > env)
       getKey: key => {
         const state = get()
@@ -101,12 +126,22 @@ export const useKeysStore = create<KeysStore>()(
         if (envKeys[key]) return 'env'
         return null
       },
+
+      getProviderPreference: () => {
+        return get().providerPreference
+      },
+
+      getCustomEndpoint: () => {
+        return get().customEndpoint
+      },
     }),
     {
       name: 'noodles-keys',
       partialize: state => ({
         browserKeys: state.browserKeys,
         saveInProject: state.saveInProject,
+        providerPreference: state.providerPreference,
+        customEndpoint: state.customEndpoint,
         // Don't persist projectKeys - comes from project file
       }),
     }
