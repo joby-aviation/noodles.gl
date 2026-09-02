@@ -5,6 +5,15 @@ const ANALYTICS_CONSENT_KEY = 'noodles-analytics-consent'
 const ERROR_CAPTURE_CONSENT_KEY = 'noodles-error-capture-consent'
 const POSTHOG_API_KEY = import.meta.env.VITE_POSTHOG_API_KEY
 const POSTHOG_HOST = import.meta.env.VITE_POSTHOG_HOST || 'https://us.i.posthog.com'
+const GA_MEASUREMENT_ID = import.meta.env.VITE_GA_MEASUREMENT_ID
+
+// Declare gtag types for TypeScript
+declare global {
+  interface Window {
+    dataLayer?: unknown[]
+    gtag?: (...args: unknown[]) => void
+  }
+}
 
 export interface AnalyticsConsent {
   enabled: boolean
@@ -19,7 +28,8 @@ interface ErrorCaptureConsent {
 
 export class AnalyticsManager {
   private static instance: AnalyticsManager
-  private initialized = false
+  private posthogInitialized = false
+  private gaInitialized = false
 
   static getInstance(): AnalyticsManager {
     if (!AnalyticsManager.instance) {
@@ -29,7 +39,12 @@ export class AnalyticsManager {
   }
 
   initialize() {
-    if (this.initialized || !POSTHOG_API_KEY) {
+    this.initializePostHog()
+    this.initializeGoogleAnalytics()
+  }
+
+  private initializePostHog() {
+    if (this.posthogInitialized || !POSTHOG_API_KEY) {
       return
     }
 
@@ -51,11 +66,53 @@ export class AnalyticsManager {
         },
       })
 
-      this.initialized = true
+      this.posthogInitialized = true
     } catch (error) {
       // Silently fail if PostHog is blocked by ad blockers
-      debugAnalytics('Analytics initialization failed (likely blocked by ad blocker):', error)
-      this.initialized = false
+      debugAnalytics('PostHog initialization failed (likely blocked by ad blocker):', error)
+      this.posthogInitialized = false
+    }
+  }
+
+  private initializeGoogleAnalytics() {
+    if (this.gaInitialized || !GA_MEASUREMENT_ID) {
+      return
+    }
+
+    try {
+      const consent = this.getConsent()
+
+      // Load gtag.js script
+      const script = document.createElement('script')
+      script.async = true
+      script.src = `https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`
+      document.head.appendChild(script)
+
+      // Initialize dataLayer and gtag function
+      window.dataLayer = window.dataLayer || []
+      window.gtag = function gtag(...args: unknown[]) {
+        window.dataLayer?.push(args)
+      }
+      window.gtag('js', new Date())
+
+      // Configure with consent - default to denied until explicit consent
+      window.gtag('consent', 'default', {
+        analytics_storage: consent?.enabled === true ? 'granted' : 'denied',
+      })
+
+      window.gtag('config', GA_MEASUREMENT_ID, {
+        send_page_view: true,
+        anonymize_ip: true, // Privacy: anonymize IP addresses
+      })
+
+      this.gaInitialized = true
+    } catch (error) {
+      // Silently fail if Google Analytics is blocked
+      debugAnalytics(
+        'Google Analytics initialization failed (likely blocked by ad blocker):',
+        error
+      )
+      this.gaInitialized = false
     }
   }
 
@@ -79,7 +136,8 @@ export class AnalyticsManager {
     try {
       localStorage.setItem(ANALYTICS_CONSENT_KEY, JSON.stringify(consent))
 
-      if (this.initialized) {
+      // Update PostHog consent
+      if (this.posthogInitialized) {
         if (enabled) {
           // Only fire a manual $pageview if the user was previously opted out —
           // for new visitors posthog.init already fired it via capture_pageview: true.
@@ -90,6 +148,35 @@ export class AnalyticsManager {
           }
         } else {
           posthog.opt_out_capturing()
+        }
+      }
+
+      // Update Google Analytics consent
+      if (this.gaInitialized && window.gtag) {
+        window.gtag('consent', 'update', {
+          analytics_storage: enabled ? 'granted' : 'denied',
+        })
+      }
+
+      // Track the consent decision itself (this will only send if enabled)
+      if (enabled) {
+        this.track('analytics_consent_granted')
+      } else {
+        // For opt-out tracking, we send one final event to both providers before disabling
+        // This helps us measure opt-out rates
+        if (this.posthogInitialized) {
+          try {
+            posthog.capture('analytics_consent_denied')
+          } catch (e) {
+            debugAnalytics('Failed to track opt-out to PostHog:', e)
+          }
+        }
+        if (this.gaInitialized && window.gtag) {
+          try {
+            window.gtag('event', 'analytics_consent_denied')
+          } catch (e) {
+            debugAnalytics('Failed to track opt-out to GA:', e)
+          }
         }
       }
     } catch (error) {
@@ -126,16 +213,30 @@ export class AnalyticsManager {
   }
 
   track(event: string, properties?: Record<string, unknown>) {
-    if (!this.initialized || this.getConsent()?.enabled === false) {
+    const consent = this.getConsent()
+    if (consent?.enabled === false) {
       return
     }
 
-    try {
-      // Filter out sensitive properties
-      const safeProperties = this.filterSensitiveData(properties || {})
-      posthog.capture(event, safeProperties)
-    } catch (error) {
-      debugAnalytics('Analytics tracking failed:', event, error)
+    // Filter out sensitive properties
+    const safeProperties = this.filterSensitiveData(properties || {})
+
+    // Track to PostHog
+    if (this.posthogInitialized) {
+      try {
+        posthog.capture(event, safeProperties)
+      } catch (error) {
+        debugAnalytics('PostHog tracking failed:', event, error)
+      }
+    }
+
+    // Track to Google Analytics
+    if (this.gaInitialized && window.gtag) {
+      try {
+        window.gtag('event', event, safeProperties)
+      } catch (error) {
+        debugAnalytics('Google Analytics tracking failed:', event, error)
+      }
     }
   }
 
@@ -165,13 +266,30 @@ export class AnalyticsManager {
   }
 
   capturePageview() {
-    if (!this.initialized || this.getConsent()?.enabled === false) {
+    const consent = this.getConsent()
+    if (consent?.enabled === false) {
       return
     }
-    try {
-      posthog.capture('$pageview')
-    } catch (error) {
-      debugAnalytics('Analytics pageview capture failed:', error)
+
+    // PostHog pageview
+    if (this.posthogInitialized) {
+      try {
+        posthog.capture('$pageview')
+      } catch (error) {
+        debugAnalytics('PostHog pageview capture failed:', error)
+      }
+    }
+
+    // Google Analytics pageview
+    if (this.gaInitialized && window.gtag) {
+      try {
+        window.gtag('event', 'page_view', {
+          page_location: window.location.href,
+          page_path: window.location.pathname,
+        })
+      } catch (error) {
+        debugAnalytics('Google Analytics pageview capture failed:', error)
+      }
     }
   }
 
@@ -180,14 +298,32 @@ export class AnalyticsManager {
     properties?: Record<string, unknown> & { source?: string; componentStack?: string }
   ) {
     // Check if user has disabled error capture
-    if (!this.initialized || !this.getErrorCaptureEnabled()) {
+    if (!this.getErrorCaptureEnabled()) {
       return
     }
 
-    try {
-      posthog.captureException(error, properties)
-    } catch (err) {
-      debugAnalytics('Analytics exception capture failed:', err)
+    // PostHog exception capture
+    if (this.posthogInitialized) {
+      try {
+        posthog.captureException(error, properties)
+      } catch (err) {
+        debugAnalytics('PostHog exception capture failed:', err)
+      }
+    }
+
+    // Google Analytics exception capture
+    if (this.gaInitialized && window.gtag) {
+      try {
+        // Filter sensitive data from exception properties
+        const safeProperties = this.filterSensitiveData(properties || {})
+        window.gtag('event', 'exception', {
+          description: error.name, // Use error.name instead of error.message to avoid leaking file paths
+          fatal: false,
+          ...safeProperties,
+        })
+      } catch (err) {
+        debugAnalytics('Google Analytics exception capture failed:', err)
+      }
     }
   }
 
@@ -238,7 +374,8 @@ export class AnalyticsManager {
 
   // Helper method to check if analytics is available and enabled
   isEnabled(): boolean {
-    return this.initialized && this.getConsent()?.enabled !== false
+    const hasAnyProvider = this.posthogInitialized || this.gaInitialized
+    return hasAnyProvider && this.getConsent()?.enabled !== false
   }
 }
 
