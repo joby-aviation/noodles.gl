@@ -179,9 +179,8 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
                 <div className={s.settingContent}>
                   <div className={s.settingName}>Share anonymous usage data</div>
                   <div className={s.settingDescription}>
-                    Help improve Noodles.gl by sharing anonymous feature usage data via PostHog and
-                    Google Analytics. We never collect your project data, node content, API keys, or
-                    personal information.
+                    Help improve Noodles.gl by sharing anonymous feature usage data. We never
+                    collect your project data, node content, API keys, or personal information.
                   </div>
                 </div>
               </label>
