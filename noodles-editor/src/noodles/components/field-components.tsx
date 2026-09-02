@@ -1,6 +1,6 @@
 import type { OnMount } from '@monaco-editor/react'
 import * as Dialog from '@radix-ui/react-dialog'
-import { Cross2Icon } from '@radix-ui/react-icons'
+import { Cross2Icon, QuestionMarkCircledIcon } from '@radix-ui/react-icons'
 import { Handle, Position, useEdges, useNodeId, useReactFlow } from '@xyflow/react'
 import cx from 'classnames'
 import type { ScaleLinear, ScaleOrdinal } from 'd3'
@@ -757,17 +757,20 @@ function VectorNumberInput({
   )
 
   return (
-    <DraggableNumberInput
-      value={value}
-      disabled={disabled}
-      onChange={handleChange}
-      onCommit={onCommit}
-      onInteractionStart={onInteractionStart}
-      step={0.1}
-      className={cx(s.fieldInput, s.fieldInputVector, s.fieldInputNumber)}
-      title={`${keyName}: ${value}`}
-      placeholder={keyName}
-    />
+    <div className={s.fieldVectorChannel}>
+      <span className={s.fieldLabelVector}>{keyName}</span>
+      <DraggableNumberInput
+        value={value}
+        disabled={disabled}
+        onChange={handleChange}
+        onCommit={onCommit}
+        onInteractionStart={onInteractionStart}
+        step={0.1}
+        className={cx(s.fieldInput, s.fieldInputVector, s.fieldInputNumber)}
+        title={`${keyName}: ${value}`}
+        placeholder={keyName}
+      />
+    </div>
   )
 }
 
@@ -1282,8 +1285,8 @@ export function FileUrlFieldComponent({
 
   return (
     <>
-      <div className={s.nodeFieldWrapper}>
-        <label className={s.nodeFieldLabel} htmlFor={id}>
+      <div className={cx(s.fieldWrapper, 'nokey')}>
+        <label className={s.fieldLabel} htmlFor={id}>
           {id}
         </label>
         <div
@@ -1504,8 +1507,8 @@ export function MapStyleFieldComponent({
 
   return (
     <>
-      <div className={s.nodeFieldWrapper}>
-        <label className={s.nodeFieldLabel} htmlFor={id}>
+      <div className={cx(s.fieldWrapper, 'nokey')}>
+        <label className={s.fieldLabel} htmlFor={id}>
           {id}
         </label>
         <div className={cx('p-inputgroup', s.fieldFileInputGroup)}>
@@ -2130,7 +2133,7 @@ export function DateFieldComponent({
         <input
           id={id}
           type="datetime-local"
-          className={s.fieldInput}
+          className={cx(s.fieldInput, s.fieldInputDate)}
           value={formatted}
           onChange={onChange}
           disabled={disabled}
@@ -2237,7 +2240,17 @@ export function ColorRampComponent({
 
   return (
     <div className={cx(s.fieldWrapper, 'nokey')}>
-      <canvas className={s.fieldInputColorRamp} ref={canvasRef} width={steps} height={1} />
+      <label className={s.fieldLabel} htmlFor={id}>
+        {id}
+      </label>
+      <canvas
+        id={id}
+        aria-label={`${id} color ramp`}
+        className={s.fieldInputColorRamp}
+        ref={canvasRef}
+        width={steps}
+        height={1}
+      />
     </div>
   )
 }
@@ -2304,6 +2317,7 @@ export function BezierCurveFieldComponent({
   const svgRef = useRef<SVGSVGElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const { captureStart, commitChange } = usePropertyHistory()
+  const [isHelpOpen, setIsHelpOpen] = useState(false)
   const [dragState, setDragState] = useState<{
     isDragging: boolean
     dragIndex: number
@@ -2594,7 +2608,7 @@ export function BezierCurveFieldComponent({
       <label className={s.fieldLabel} htmlFor={id}>
         {id}
       </label>
-      <div className="bezier-curve-editor">
+      <div className={s.bezierCurveEditor}>
         <svg
           ref={svgRef}
           width={svgSize.width}
@@ -2825,11 +2839,24 @@ export function BezierCurveFieldComponent({
           </div>
         )}
 
-        <div
-          className="bezier-curve-controls"
-          style={{ marginTop: '8px', fontSize: '12px', color: '#888' }}
-        >
-          Click to add point • Click point to select • Double-click to remove • Drag to move
+        <div className={s.bezierHelp}>
+          <button
+            type="button"
+            className={cx(s.bezierHelpButton, 'nodrag')}
+            aria-label={`${isHelpOpen ? 'Hide' : 'Show'} Bézier curve help`}
+            aria-controls={`${id}-bezier-help`}
+            aria-expanded={isHelpOpen}
+            title="Bézier curve help"
+            onClick={() => setIsHelpOpen(open => !open)}
+          >
+            <QuestionMarkCircledIcon aria-hidden="true" />
+          </button>
+          {isHelpOpen && (
+            <div id={`${id}-bezier-help`} className={s.bezierHelpPopover} role="note">
+              Click to add a point. Click a point to select it. Double-click to remove it. Drag to
+              move it.
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -3309,10 +3336,7 @@ export function BboxFieldComponent({
         {id}
       </label>
       <div id={id} className={s.fieldCompoundWrapper}>
-        <div
-          className={s.fieldLabel}
-          style={{ fontSize: '11px', opacity: 0.7, marginBottom: '4px' }}
-        >
+        <div className={s.fieldGroupLabel}>
           Southwest
         </div>
         <div className={cx(s.fieldInputWrapper, s.fieldInputWrapperVector)}>
@@ -3350,10 +3374,7 @@ export function BboxFieldComponent({
           />
         </div>
 
-        <div
-          className={s.fieldLabel}
-          style={{ fontSize: '11px', opacity: 0.7, marginBottom: '4px', marginTop: '8px' }}
-        >
+        <div className={cx(s.fieldGroupLabel, s.fieldGroupLabelSpaced)}>
           Northeast
         </div>
         <div className={cx(s.fieldInputWrapper, s.fieldInputWrapperVector)}>

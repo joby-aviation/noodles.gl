@@ -101,7 +101,7 @@
   --node-header-border-color: #e0e0e0;
   --node-input-hover-color: var(--color-input-hover);
   --node-input-focus-color: var(--color-input-focus);
-  --node-input-disaabled-color: var(--color-input-disabled);
+  --node-input-disabled-color: var(--color-input-disabled);
 
   --node-add-menu-background-color: #404040;
   --node-add-menu-header-background-color: black;
@@ -438,6 +438,7 @@
   height: 100%;
   display: flex;
   flex-direction: column;
+  gap: 2px;
   min-height: inherit;
 }
 
@@ -446,12 +447,23 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  min-height: 25px;
-  gap: 10px;
+  width: 100%;
+  min-height: 28px;
+  gap: 12px;
+  box-sizing: border-box;
+  font: inherit;
+  line-height: 1.25;
 }
 
 .fieldLabel {
-  flex: 1;
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  font: inherit;
+  line-height: inherit;
+  color: inherit;
+  text-align: left;
 }
 
 .compoundPropsExpander {
@@ -472,7 +484,8 @@
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  flex: 2;
+  flex: 0 1 auto;
+  min-width: 0;
 }
 
 .keyframedFieldInput {
@@ -480,11 +493,20 @@
 }
 
 .fieldInput {
+  box-sizing: border-box;
   border: none;
   text-align: right;
-  flex: 1;
+  flex: 0 1 auto;
+  width: 12rem;
+  min-width: 7.5rem;
+  max-width: 18rem;
+  min-height: 24px;
+  padding: 2px 6px;
   background: transparent;
   color: var(--node-text-color);
+  font: inherit;
+  line-height: 20px;
+  field-sizing: content;
 }
 
 .fieldInput:hover {
@@ -497,16 +519,14 @@
 }
 
 .fieldInput:disabled {
-  background: var(--node-input-disaabled-color);
+  background: var(--node-input-disabled-color);
 }
 
 .fieldTextarea {
   resize: vertical;
-  min-height: 1.8em;
-  font-family: inherit;
-  font-size: inherit;
-  line-height: 1.4;
-  padding: 4px 6px;
+  min-height: 24px;
+  max-height: 10rem;
+  overflow: auto;
 }
 
 .fieldInputGroup {
@@ -522,13 +542,73 @@
 }
 
 .fieldInputUploadButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 24px;
+  width: 24px;
+  min-width: 24px;
+  height: 24px;
   cursor: pointer;
-  padding: .25rem .875rem;
+  padding: 0;
 }
 
 .fieldCompoundWrapper {
-  flex: 1;
-  margin-left: 10px;
+  flex: 0 1 auto;
+  min-width: 13rem;
+}
+
+.bezierCurveEditor {
+  position: relative;
+}
+
+.bezierHelp {
+  position: relative;
+  display: flex;
+  justify-content: flex-end;
+  height: 20px;
+  margin-top: 4px;
+}
+
+.bezierHelpButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  color: var(--color-text-secondary);
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border-hover);
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.bezierHelpButton:hover,
+.bezierHelpButton[aria-expanded="true"] {
+  color: var(--color-text-primary);
+  background: var(--color-bg-hover);
+}
+
+.bezierHelpButton:focus-visible {
+  outline: 2px solid #91a8ba;
+  outline-offset: 1px;
+}
+
+.bezierHelpPopover {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 6px);
+  z-index: 1;
+  width: 190px;
+  padding: 7px 9px;
+  color: var(--color-text-primary);
+  background: var(--tooltip-background-color);
+  border: 1px solid var(--color-border-hover);
+  border-radius: 4px;
+  font-size: 11px;
+  line-height: 1.35;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.24);
 }
 
 /* CompoundPropsField wrapper needs top alignment so handle aligns with label button */
@@ -563,7 +643,8 @@
 }
 
 .fieldInputNumber {
-  margin-right: -12px;
+  width: 7.5rem;
+  min-width: 7.5rem;
   cursor: ew-resize;
   user-select: none;
 }
@@ -591,13 +672,24 @@
 }
 
 .fieldLabelVector {
-  width: 10px;
+  display: inline-flex;
+  align-items: center;
+  align-self: stretch;
+  flex: 0 0 auto;
+  min-width: 8px;
   color: var(--node-field-hint-color);
+  font-size: 10px;
+  line-height: 1;
+  text-align: center;
+  text-transform: lowercase;
+  transform: translateY(1px);
 }
 
 .fieldInputWrapperVector {
   display: flex;
-  gap: 3px;
+  align-items: center;
+  min-height: 24px;
+  gap: 6px;
 }
 
 .fieldInputWrapperVector .fieldInputNumber {
@@ -605,8 +697,16 @@
 }
 
 .fieldInputVector {
-  width: 68px;
+  width: 5rem;
+  min-width: 5rem;
   text-align: right;
+}
+
+.fieldVectorChannel {
+  display: flex;
+  align-items: center;
+  height: 24px;
+  gap: 3px;
 }
 
 .fieldInputVector::placeholder {
@@ -615,6 +715,9 @@
 }
 
 .fieldLookupButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   margin-left: 4px;
   padding: 0;
   width: 24px;
@@ -623,12 +726,62 @@
   flex-shrink: 0;
 }
 
+.fieldLookupButton :global(.p-button-icon) {
+  transform: none;
+}
+
+.fieldInputUploadButton,
+.fieldLookupButton {
+  --field-action-color: #486780;
+  --field-action-hover-color: #587993;
+  --field-action-border-color: #6f899e;
+
+  color: #fff;
+  background: var(--field-action-color);
+  border: 1px solid var(--field-action-border-color);
+  border-radius: 4px;
+  box-shadow: none;
+}
+
+.fieldInputUploadButton:hover:not(:disabled),
+.fieldLookupButton:hover:not(:disabled) {
+  background: var(--field-action-hover-color);
+  border-color: #8299ab;
+}
+
+.fieldInputUploadButton:focus-visible,
+.fieldLookupButton:focus-visible {
+  outline: 2px solid #91a8ba;
+  outline-offset: 1px;
+}
+
+.fieldInputUploadButton:disabled,
+.fieldLookupButton:disabled {
+  opacity: 0.45;
+}
+
+.fieldInputUploadButton :global(.p-button-icon),
+.fieldLookupButton :global(.p-button-icon) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1em;
+  height: 1em;
+  margin: 0;
+  font-size: 12px;
+  line-height: 1;
+}
+
 .fieldInputUpload {
   cursor: pointer;
 }
 
 .fieldInputCheckbox {
-  flex: unset;
+  flex: 0 0 auto;
+  width: 16px;
+  min-width: 16px;
+  min-height: 16px;
+  padding: 0;
   cursor: pointer;
 }
 
@@ -770,23 +923,29 @@
   /* biome-ignore lint/suspicious/noDuplicateProperties: Firefox fallback, standard follows */
   image-rendering: pixelated;
 
-  width: 200px;
-  height: 40px;
+  width: 12rem;
+  height: 28px;
+  border-radius: 2px;
 }
 
 .fieldInputSelect {
-  border: none;
-  background: transparent;
-  color: var(--node-text-color);
-  text-align: right;
+  width: auto;
+  min-width: 7.5rem;
+  padding-right: 4px;
 }
 
-.nodeFieldWrapper {
-  display: flex;
+.fieldInputDate {
+  width: auto;
+  min-width: 11.5rem;
 }
 
 .fieldFileInputGroup {
-  width: unset;
+  display: flex;
+  align-items: center;
+  flex: 0 1 auto;
+  width: fit-content;
+  min-width: 0;
+  gap: 2px;
 }
 
 .fieldFileInputGroupSuggestions {
@@ -794,7 +953,10 @@
 }
 
 .fieldInputFileUrl {
-  padding: 0 1em;
+  width: 11rem;
+  min-width: 9rem;
+  max-width: 16rem;
+  padding: 2px 8px;
 }
 
 .fileUrlSuggestions {
@@ -844,8 +1006,18 @@
 }
 
 .fieldInputTypeahead {
-  width: 100%;
-  padding: 0 0.5em;
+  width: 12rem;
+}
+
+.fieldGroupLabel {
+  margin: 0 0 3px;
+  color: var(--node-field-hint-color);
+  font-size: 10px;
+  line-height: 1.2;
+}
+
+.fieldGroupLabelSpaced {
+  margin-top: 8px;
 }
 
 .stringLiteralSuggestions {
