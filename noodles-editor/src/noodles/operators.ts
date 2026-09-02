@@ -2824,7 +2824,7 @@ export class OverpassOp extends Operator<OverpassOp> {
   createInputs() {
     return {
       query: new CodeField(
-        '[out:json][timeout:25];\n(\n  node["name"="Central Park"];\n  way["name"="Central Park"];\n);\nout geom;',
+        '[out:json][timeout:25];\n(\n  way["leisure"="park"]({{bbox}});\n  relation["leisure"="park"]({{bbox}});\n);\nout geom;',
         {
           language: 'overpass-ql',
         }
@@ -2834,7 +2834,7 @@ export class OverpassOp extends Operator<OverpassOp> {
           southwest: { lng: -74.05, lat: 40.68 },
           northeast: { lng: -73.9, lat: 40.82 },
         },
-        { optional: true }
+        { optional: false }
       ),
       pulse: new NumberField(0, { min: 0, step: 1 }),
     }
