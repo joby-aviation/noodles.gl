@@ -419,59 +419,64 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
 
                 {/* Form fields */}
                 <div
-                  style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '12px' }}
+                  style={{
+                    marginTop: '12px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '12px',
+                  }}
                 >
                   <div>
-                    <label style={{ display: 'block', marginBottom: '4px', fontSize: '13px' }}>
-                      Base URL
+                    <label style={{ display: 'block', fontSize: '13px' }}>
+                      <div style={{ marginBottom: '4px' }}>Base URL</div>
+                      <input
+                        type="text"
+                        value={endpointBaseUrl}
+                        onChange={e => setEndpointBaseUrl(e.target.value)}
+                        placeholder="https://api.groq.com/openai/v1"
+                        className={s.input}
+                        style={{ width: '100%' }}
+                      />
                     </label>
-                    <input
-                      type="text"
-                      value={endpointBaseUrl}
-                      onChange={e => setEndpointBaseUrl(e.target.value)}
-                      placeholder="https://api.groq.com/openai/v1"
-                      className={s.input}
-                      style={{ width: '100%' }}
-                    />
                   </div>
                   <div>
-                    <label style={{ display: 'block', marginBottom: '4px', fontSize: '13px' }}>
-                      API Key
+                    <label style={{ display: 'block', fontSize: '13px' }}>
+                      <div style={{ marginBottom: '4px' }}>API Key</div>
+                      <input
+                        type="password"
+                        value={endpointApiKey}
+                        onChange={e => setEndpointApiKey(e.target.value)}
+                        placeholder="Your API key"
+                        className={s.input}
+                        style={{ width: '100%' }}
+                      />
                     </label>
-                    <input
-                      type="password"
-                      value={endpointApiKey}
-                      onChange={e => setEndpointApiKey(e.target.value)}
-                      placeholder="Your API key"
-                      className={s.input}
-                      style={{ width: '100%' }}
-                    />
                   </div>
                   <div>
-                    <label style={{ display: 'block', marginBottom: '4px', fontSize: '13px' }}>
-                      Model
+                    <label style={{ display: 'block', fontSize: '13px' }}>
+                      <div style={{ marginBottom: '4px' }}>Model</div>
+                      <input
+                        type="text"
+                        value={endpointModel}
+                        onChange={e => setEndpointModel(e.target.value)}
+                        placeholder="llama-3.1-70b-versatile"
+                        className={s.input}
+                        style={{ width: '100%' }}
+                      />
                     </label>
-                    <input
-                      type="text"
-                      value={endpointModel}
-                      onChange={e => setEndpointModel(e.target.value)}
-                      placeholder="llama-3.1-70b-versatile"
-                      className={s.input}
-                      style={{ width: '100%' }}
-                    />
                   </div>
                   <div>
-                    <label style={{ display: 'block', marginBottom: '4px', fontSize: '13px' }}>
-                      Display Name (optional)
+                    <label style={{ display: 'block', fontSize: '13px' }}>
+                      <div style={{ marginBottom: '4px' }}>Display Name (optional)</div>
+                      <input
+                        type="text"
+                        value={endpointDisplayName}
+                        onChange={e => setEndpointDisplayName(e.target.value)}
+                        placeholder="My Custom AI"
+                        className={s.input}
+                        style={{ width: '100%' }}
+                      />
                     </label>
-                    <input
-                      type="text"
-                      value={endpointDisplayName}
-                      onChange={e => setEndpointDisplayName(e.target.value)}
-                      placeholder="My Custom AI"
-                      className={s.input}
-                      style={{ width: '100%' }}
-                    />
                   </div>
 
                   <div style={{ display: 'flex', gap: '8px' }}>
