@@ -35,6 +35,7 @@ import {
   NetworkOp,
   NumberOp,
   Operator,
+  OverpassOp,
   PointOp,
   ProjectOp,
   RampOp,
@@ -3969,7 +3970,7 @@ describe('GeocoderOp', () => {
   })
 
   it('clears stale outputs when a connected query becomes blank', async () => {
-    vi.spyOn(getKeysStore(), 'getKey').mockReturnValue('test-token')
+    const getKeySpy = vi.spyOn(getKeysStore(), 'getKey').mockReturnValue('test-token')
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       json: vi.fn().mockResolvedValue({
@@ -3989,10 +3990,11 @@ describe('GeocoderOp', () => {
       results: [],
     })
     expect(fetchMock).toHaveBeenCalledTimes(1)
+    getKeySpy.mockRestore()
   })
 
   it('returns empty outputs without error when Mapbox has no results', async () => {
-    vi.spyOn(getKeysStore(), 'getKey').mockReturnValue('test-token')
+    const getKeySpy = vi.spyOn(getKeysStore(), 'getKey').mockReturnValue('test-token')
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({
@@ -4008,10 +4010,11 @@ describe('GeocoderOp', () => {
       location: { lng: 0, lat: 0 },
       results: [],
     })
+    getKeySpy.mockRestore()
   })
 
   it('surfaces Mapbox service failures separately from empty results', async () => {
-    vi.spyOn(getKeysStore(), 'getKey').mockReturnValue('test-token')
+    const getKeySpy = vi.spyOn(getKeysStore(), 'getKey').mockReturnValue('test-token')
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({
@@ -4027,6 +4030,7 @@ describe('GeocoderOp', () => {
     await expect(geocoderOp.execute({ query: 'Long Beach' })).rejects.toThrow(
       'Mapbox geocoding failed: 429 Too Many Requests'
     )
+    getKeySpy.mockRestore()
   })
 })
 
@@ -4175,5 +4179,546 @@ describe('ScatterOp', () => {
       expect(p.lat).toBeGreaterThanOrEqual(-90)
       expect(p.lat).toBeLessThanOrEqual(90)
     })
+  })
+})
+
+describe('OverpassOp', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
+
+    // Clear all keys and set test endpoint
+    const store = getKeysStore()
+    store.clearBrowserKey('overpass')
+    store.clearBrowserKey('mapbox')
+    store.setBrowserKey('overpass', 'https://overpass-api.de/api/interpreter')
+  })
+
+  afterEach(() => {
+    getKeysStore().clearBrowserKey('overpass')
+  })
+
+  it('converts OSM nodes to GeoJSON Point features', async () => {
+    const op = new OverpassOp('/overpass')
+
+    // Mock fetch to return OSM data with tagged nodes
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        elements: [
+          {
+            type: 'node',
+            id: 123,
+            lat: 40.7128,
+            lon: -74.006,
+            tags: { name: 'Test Point', amenity: 'cafe' },
+          },
+          {
+            type: 'node',
+            id: 456,
+            lat: 40.7589,
+            lon: -73.9851,
+            tags: { name: 'Another Point', shop: 'bakery' },
+          },
+        ],
+      }),
+    })
+
+    const result = await op.execute({
+      query: '[out:json];node["amenity"="cafe"];out;',
+      bbox: undefined,
+    })
+
+    expect(result.data).toEqual({
+      type: 'FeatureCollection',
+      features: [
+        {
+          type: 'Feature',
+          geometry: { type: 'Point', coordinates: [-74.006, 40.7128] },
+          properties: { name: 'Test Point', amenity: 'cafe', osm_id: 123, osm_type: 'node' },
+        },
+        {
+          type: 'Feature',
+          geometry: { type: 'Point', coordinates: [-73.9851, 40.7589] },
+          properties: { name: 'Another Point', shop: 'bakery', osm_id: 456, osm_type: 'node' },
+        },
+      ],
+    })
+  })
+
+  it('skips untagged nodes (coordinate-only nodes)', async () => {
+    const op = new OverpassOp('/overpass')
+
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        elements: [
+          { type: 'node', id: 123, lat: 40.7128, lon: -74.006 }, // No tags
+          { type: 'node', id: 456, lat: 40.7589, lon: -73.9851, tags: { name: 'Tagged' } },
+        ],
+      }),
+    })
+
+    const result = await op.execute({
+      query: '[out:json];node;out;',
+      bbox: undefined,
+    })
+
+    expect(result.data.features).toHaveLength(1)
+    expect(result.data.features[0].properties.name).toBe('Tagged')
+  })
+
+  it('converts OSM ways with geometry to LineString or Polygon', async () => {
+    const op = new OverpassOp('/overpass')
+
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        elements: [
+          {
+            type: 'way',
+            id: 789,
+            tags: { highway: 'primary', name: 'Main Street' },
+            geometry: [
+              { lat: 40.7128, lon: -74.006 },
+              { lat: 40.7129, lon: -74.0061 },
+              { lat: 40.713, lon: -74.0062 },
+            ],
+          },
+        ],
+      }),
+    })
+
+    const result = await op.execute({
+      query: '[out:json];way["highway"];out geom;',
+      bbox: undefined,
+    })
+
+    expect(result.data.features).toHaveLength(1)
+    expect(result.data.features[0].geometry.type).toBe('LineString')
+    expect(result.data.features[0].geometry.coordinates).toEqual([
+      [-74.006, 40.7128],
+      [-74.0061, 40.7129],
+      [-74.0062, 40.713],
+    ])
+    expect(result.data.features[0].properties.highway).toBe('primary')
+  })
+
+  it('detects closed ways as Polygon using epsilon comparison', async () => {
+    const op = new OverpassOp('/overpass')
+
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        elements: [
+          {
+            type: 'way',
+            id: 999,
+            tags: { leisure: 'park', name: 'Central Park' },
+            geometry: [
+              { lat: 40.7128, lon: -74.006 },
+              { lat: 40.7129, lon: -74.006 },
+              { lat: 40.7129, lon: -74.0061 },
+              { lat: 40.7128, lon: -74.006 }, // Closed - same as first
+            ],
+          },
+        ],
+      }),
+    })
+
+    const result = await op.execute({
+      query: '[out:json];way["leisure"="park"];out geom;',
+      bbox: undefined,
+    })
+
+    expect(result.data.features).toHaveLength(1)
+    expect(result.data.features[0].geometry.type).toBe('Polygon')
+    expect(result.data.features[0].geometry.coordinates).toEqual([
+      [
+        [-74.006, 40.7128],
+        [-74.006, 40.7129],
+        [-74.0061, 40.7129],
+        [-74.006, 40.7128],
+      ],
+    ])
+  })
+
+  it('detects closed ways using node ID comparison', async () => {
+    const op = new OverpassOp('/overpass')
+
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        elements: [
+          { type: 'node', id: 1, lat: 40.7128, lon: -74.006 },
+          { type: 'node', id: 2, lat: 40.7129, lon: -74.006 },
+          { type: 'node', id: 3, lat: 40.7129, lon: -74.0061 },
+          {
+            type: 'way',
+            id: 888,
+            tags: { building: 'yes' },
+            nodes: [1, 2, 3, 1], // Closed - first and last node IDs match
+          },
+        ],
+      }),
+    })
+
+    const result = await op.execute({
+      query: '[out:json];way["building"];out;',
+      bbox: undefined,
+    })
+
+    expect(result.data.features).toHaveLength(1)
+    expect(result.data.features[0].geometry.type).toBe('Polygon')
+  })
+
+  it('replaces {{bbox}} template with BboxField format', async () => {
+    const op = new OverpassOp('/overpass')
+
+    let capturedQuery = ''
+    global.fetch = vi.fn().mockImplementation(async (_url, options) => {
+      capturedQuery = options?.body as string
+      return {
+        ok: true,
+        json: async () => ({ elements: [] }),
+      }
+    })
+
+    await op.execute({
+      query: '[out:json];node["amenity"]({{bbox}});out;',
+      bbox: {
+        southwest: { lng: -74.05, lat: 40.68 },
+        northeast: { lng: -73.9, lat: 40.82 },
+      },
+    })
+
+    expect(capturedQuery).toBe('[out:json];node["amenity"](40.68,-74.05,40.82,-73.9);out;')
+  })
+
+  it('handles multiple {{bbox}} replacements in query', async () => {
+    const op = new OverpassOp('/overpass')
+
+    let capturedQuery = ''
+    global.fetch = vi.fn().mockImplementation(async (_url, options) => {
+      capturedQuery = options?.body as string
+      return {
+        ok: true,
+        json: async () => ({ elements: [] }),
+      }
+    })
+
+    await op.execute({
+      query: '[out:json];(node({{bbox}});way({{bbox}}););out geom;',
+      bbox: {
+        southwest: { lng: -74.0, lat: 40.7 },
+        northeast: { lng: -73.9, lat: 40.8 },
+      },
+    })
+
+    expect(capturedQuery).toContain('(40.7,-74,40.8,-73.9)')
+    expect(capturedQuery.match(/40\.7,-74,40\.8,-73\.9/g)).toHaveLength(2)
+  })
+
+  it('throws error on Overpass API timeout', async () => {
+    const op = new OverpassOp('/overpass')
+
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        remark: 'runtime error: Query run out of memory using about 2048 MB of RAM (timeout).',
+      }),
+    })
+
+    await expect(
+      op.execute({
+        query: '[out:json];node;out;',
+        bbox: undefined,
+      })
+    ).rejects.toThrow('Overpass query timeout')
+  })
+
+  it('throws error on HTTP error response', async () => {
+    const op = new OverpassOp('/overpass')
+
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 429,
+      statusText: 'Too Many Requests',
+    })
+
+    await expect(
+      op.execute({
+        query: '[out:json];node;out;',
+        bbox: undefined,
+      })
+    ).rejects.toThrow('Overpass API error: 429 Too Many Requests')
+  })
+
+  it('handles empty OSM response', async () => {
+    const op = new OverpassOp('/overpass')
+
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ elements: [] }),
+    })
+
+    const result = await op.execute({
+      query: '[out:json];node["nonexistent"];out;',
+      bbox: undefined,
+    })
+
+    expect(result.data).toEqual({
+      type: 'FeatureCollection',
+      features: [],
+    })
+  })
+
+  it('handles ways with insufficient coordinates', async () => {
+    const op = new OverpassOp('/overpass')
+
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        elements: [
+          {
+            type: 'way',
+            id: 111,
+            tags: { highway: 'path' },
+            geometry: [{ lat: 40.7128, lon: -74.006 }], // Only 1 point - invalid
+          },
+          {
+            type: 'way',
+            id: 222,
+            tags: { highway: 'road' },
+            geometry: [
+              { lat: 40.7128, lon: -74.006 },
+              { lat: 40.7129, lon: -74.0061 },
+            ], // Valid - 2 points
+          },
+        ],
+      }),
+    })
+
+    const result = await op.execute({
+      query: '[out:json];way["highway"];out geom;',
+      bbox: undefined,
+    })
+
+    expect(result.data.features).toHaveLength(1)
+    expect(result.data.features[0].properties.osm_id).toBe(222)
+  })
+
+  it('sends POST request with correct headers', async () => {
+    const op = new OverpassOp('/overpass')
+
+    let capturedRequest: any = null
+    global.fetch = vi.fn().mockImplementation(async (url, options) => {
+      capturedRequest = { url, options }
+      return {
+        ok: true,
+        json: async () => ({ elements: [] }),
+      }
+    })
+
+    await op.execute({
+      query: '[out:json];node;out;',
+      bbox: undefined,
+    })
+
+    expect(capturedRequest.url).toBe('https://overpass-api.de/api/interpreter')
+    expect(capturedRequest.options.method).toBe('POST')
+    expect(capturedRequest.options.headers['Content-Type']).toBe(
+      'application/x-www-form-urlencoded'
+    )
+    expect(capturedRequest.options.body).toBe('[out:json];node;out;')
+  })
+
+  it('converts OSM relations to GeoJSON Polygon features', async () => {
+    const op = new OverpassOp('/overpass')
+
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        elements: [
+          {
+            type: 'relation',
+            id: 12345,
+            tags: { leisure: 'park', name: 'Central Park' },
+            members: [
+              {
+                type: 'way',
+                ref: 100,
+                role: 'outer',
+                geometry: [
+                  { lat: 40.7128, lon: -74.006 },
+                  { lat: 40.7129, lon: -74.006 },
+                  { lat: 40.7129, lon: -74.0061 },
+                  { lat: 40.7128, lon: -74.006 },
+                ],
+              },
+            ],
+          },
+        ],
+      }),
+    })
+
+    const result = await op.execute({
+      query: '[out:json];relation["leisure"="park"];out geom;',
+      bbox: undefined,
+    })
+
+    expect(result.data.features).toHaveLength(1)
+    expect(result.data.features[0].geometry.type).toBe('Polygon')
+    expect(result.data.features[0].geometry.coordinates).toEqual([
+      [
+        [-74.006, 40.7128],
+        [-74.006, 40.7129],
+        [-74.0061, 40.7129],
+        [-74.006, 40.7128],
+      ],
+    ])
+    expect(result.data.features[0].properties).toEqual({
+      leisure: 'park',
+      name: 'Central Park',
+      osm_id: 12345,
+      osm_type: 'relation',
+    })
+  })
+
+  it('converts OSM relations with inner rings (holes) to Polygon', async () => {
+    const op = new OverpassOp('/overpass')
+
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        elements: [
+          {
+            type: 'relation',
+            id: 54321,
+            tags: { leisure: 'park', name: 'Park with Lake' },
+            members: [
+              {
+                type: 'way',
+                ref: 200,
+                role: 'outer',
+                geometry: [
+                  { lat: 40.7, lon: -74.0 },
+                  { lat: 40.71, lon: -74.0 },
+                  { lat: 40.71, lon: -74.01 },
+                  { lat: 40.7, lon: -74.01 },
+                  { lat: 40.7, lon: -74.0 },
+                ],
+              },
+              {
+                type: 'way',
+                ref: 201,
+                role: 'inner',
+                geometry: [
+                  { lat: 40.705, lon: -74.005 },
+                  { lat: 40.706, lon: -74.005 },
+                  { lat: 40.706, lon: -74.006 },
+                  { lat: 40.705, lon: -74.006 },
+                  { lat: 40.705, lon: -74.005 },
+                ],
+              },
+            ],
+          },
+        ],
+      }),
+    })
+
+    const result = await op.execute({
+      query: '[out:json];relation["leisure"="park"];out geom;',
+      bbox: undefined,
+    })
+
+    expect(result.data.features).toHaveLength(1)
+    expect(result.data.features[0].geometry.type).toBe('Polygon')
+    // First ring is outer, second is inner (hole)
+    expect(result.data.features[0].geometry.coordinates).toHaveLength(2)
+    expect(result.data.features[0].geometry.coordinates[0]).toHaveLength(5) // outer
+    expect(result.data.features[0].geometry.coordinates[1]).toHaveLength(5) // inner
+  })
+
+  it('converts OSM relations with multiple outer rings to MultiPolygon', async () => {
+    const op = new OverpassOp('/overpass')
+
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        elements: [
+          {
+            type: 'relation',
+            id: 99999,
+            tags: { leisure: 'park', name: 'Multi-part Park' },
+            members: [
+              {
+                type: 'way',
+                ref: 300,
+                role: 'outer',
+                geometry: [
+                  { lat: 40.7, lon: -74.0 },
+                  { lat: 40.71, lon: -74.0 },
+                  { lat: 40.71, lon: -74.01 },
+                  { lat: 40.7, lon: -74.0 },
+                ],
+              },
+              {
+                type: 'way',
+                ref: 301,
+                role: 'outer',
+                geometry: [
+                  { lat: 40.72, lon: -74.0 },
+                  { lat: 40.73, lon: -74.0 },
+                  { lat: 40.73, lon: -74.01 },
+                  { lat: 40.72, lon: -74.0 },
+                ],
+              },
+            ],
+          },
+        ],
+      }),
+    })
+
+    const result = await op.execute({
+      query: '[out:json];relation["leisure"="park"];out geom;',
+      bbox: undefined,
+    })
+
+    expect(result.data.features).toHaveLength(1)
+    expect(result.data.features[0].geometry.type).toBe('MultiPolygon')
+    expect(result.data.features[0].geometry.coordinates).toHaveLength(2)
+  })
+
+  it('skips relations without geometry data', async () => {
+    const op = new OverpassOp('/overpass')
+
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        elements: [
+          {
+            type: 'relation',
+            id: 11111,
+            tags: { leisure: 'park' },
+            // No members array - query without 'out geom;'
+          },
+          {
+            type: 'relation',
+            id: 22222,
+            tags: { leisure: 'park' },
+            members: [], // Empty members
+          },
+        ],
+      }),
+    })
+
+    const result = await op.execute({
+      query: '[out:json];relation["leisure"="park"];out;',
+      bbox: undefined,
+    })
+
+    expect(result.data.features).toHaveLength(0)
   })
 })

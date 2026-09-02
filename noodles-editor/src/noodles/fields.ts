@@ -70,7 +70,7 @@ type StringLiteralFieldOptions = BaseFieldOptions & {
 }
 
 type CodeFieldOptions = BaseFieldOptions & {
-  language?: 'javascript' | 'json' | 'sql'
+  language?: 'javascript' | 'json' | 'sql' | 'overpass-ql'
 }
 
 // Serialized form of a field driven by an expression, e.g. { $expr: "op('/time').out.seconds * 2" }
@@ -520,7 +520,7 @@ export class CodeField extends Field<
 > {
   static type = 'code'
   static defaultValue = ''
-  language: 'javascript' | 'sql' | 'json' = 'javascript'
+  language: 'javascript' | 'sql' | 'json' | 'overpass-ql' = 'javascript'
 
   subscribedFields = new Map()
 
