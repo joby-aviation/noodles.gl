@@ -4182,6 +4182,14 @@ describe('ScatterOp', () => {
 describe('OverpassOp', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.restoreAllMocks() // Restore any spies from previous tests
+    // Set test Overpass endpoint
+    getKeysStore().setBrowserKey('overpass', 'https://overpass-api.de/api/interpreter')
+  })
+
+  afterEach(() => {
+    getKeysStore().clearBrowserKey('overpass')
+    vi.restoreAllMocks()
   })
 
   it('converts OSM nodes to GeoJSON Point features', async () => {
@@ -4213,7 +4221,6 @@ describe('OverpassOp', () => {
     const result = await op.execute({
       query: '[out:json];node["amenity"="cafe"];out;',
       bbox: undefined,
-      endpoint: 'https://overpass-api.de/api/interpreter',
     })
 
     expect(result.data).toEqual({
@@ -4249,7 +4256,6 @@ describe('OverpassOp', () => {
     const result = await op.execute({
       query: '[out:json];node;out;',
       bbox: undefined,
-      endpoint: 'https://overpass-api.de/api/interpreter',
     })
 
     expect(result.data.features).toHaveLength(1)
@@ -4280,7 +4286,6 @@ describe('OverpassOp', () => {
     const result = await op.execute({
       query: '[out:json];way["highway"];out geom;',
       bbox: undefined,
-      endpoint: 'https://overpass-api.de/api/interpreter',
     })
 
     expect(result.data.features).toHaveLength(1)
@@ -4318,7 +4323,6 @@ describe('OverpassOp', () => {
     const result = await op.execute({
       query: '[out:json];way["leisure"="park"];out geom;',
       bbox: undefined,
-      endpoint: 'https://overpass-api.de/api/interpreter',
     })
 
     expect(result.data.features).toHaveLength(1)
@@ -4356,14 +4360,13 @@ describe('OverpassOp', () => {
     const result = await op.execute({
       query: '[out:json];way["building"];out;',
       bbox: undefined,
-      endpoint: 'https://overpass-api.de/api/interpreter',
     })
 
     expect(result.data.features).toHaveLength(1)
     expect(result.data.features[0].geometry.type).toBe('Polygon')
   })
 
-  it('replaces {{bbox}} template with Point2D format', async () => {
+  it('replaces {{bbox}} template with BboxField format', async () => {
     const op = new OverpassOp('/overpass')
 
     let capturedQuery = ''
@@ -4377,38 +4380,13 @@ describe('OverpassOp', () => {
 
     await op.execute({
       query: '[out:json];node["amenity"]({{bbox}});out;',
-      bbox: [
-        { lng: -74.05, lat: 40.68 },
-        { lng: -73.9, lat: 40.82 },
-      ],
-      endpoint: 'https://overpass-api.de/api/interpreter',
+      bbox: {
+        southwest: { lng: -74.05, lat: 40.68 },
+        northeast: { lng: -73.9, lat: 40.82 },
+      },
     })
 
     expect(capturedQuery).toBe('[out:json];node["amenity"](40.68,-74.05,40.82,-73.9);out;')
-  })
-
-  it('replaces {{bbox}} template with [lng, lat] tuple format', async () => {
-    const op = new OverpassOp('/overpass')
-
-    let capturedQuery = ''
-    global.fetch = vi.fn().mockImplementation(async (_url, options) => {
-      capturedQuery = options?.body as string
-      return {
-        ok: true,
-        json: async () => ({ elements: [] }),
-      }
-    })
-
-    await op.execute({
-      query: '[out:json];way["highway"]({{bbox}});out geom;',
-      bbox: [
-        [-74.05, 40.68],
-        [-73.9, 40.82],
-      ],
-      endpoint: 'https://overpass-api.de/api/interpreter',
-    })
-
-    expect(capturedQuery).toBe('[out:json];way["highway"](40.68,-74.05,40.82,-73.9);out geom;')
   })
 
   it('handles multiple {{bbox}} replacements in query', async () => {
@@ -4425,31 +4403,14 @@ describe('OverpassOp', () => {
 
     await op.execute({
       query: '[out:json];(node({{bbox}});way({{bbox}}););out geom;',
-      bbox: [
-        { lng: -74.0, lat: 40.7 },
-        { lng: -73.9, lat: 40.8 },
-      ],
-      endpoint: 'https://overpass-api.de/api/interpreter',
+      bbox: {
+        southwest: { lng: -74.0, lat: 40.7 },
+        northeast: { lng: -73.9, lat: 40.8 },
+      },
     })
 
     expect(capturedQuery).toContain('(40.7,-74,40.8,-73.9)')
     expect(capturedQuery.match(/40\.7,-74,40\.8,-73\.9/g)).toHaveLength(2)
-  })
-
-  it('throws error for invalid bbox format', async () => {
-    const op = new OverpassOp('/overpass')
-
-    global.fetch = vi.fn()
-
-    await expect(
-      op.execute({
-        query: '[out:json];node({{bbox}});out;',
-        bbox: [{ invalid: 'format' }, { bad: 'data' }] as any,
-        endpoint: 'https://overpass-api.de/api/interpreter',
-      })
-    ).rejects.toThrow('Invalid bbox format')
-
-    expect(global.fetch).not.toHaveBeenCalled()
   })
 
   it('throws error on Overpass API timeout', async () => {
@@ -4466,7 +4427,6 @@ describe('OverpassOp', () => {
       op.execute({
         query: '[out:json];node;out;',
         bbox: undefined,
-        endpoint: 'https://overpass-api.de/api/interpreter',
       })
     ).rejects.toThrow('Overpass query timeout')
   })
@@ -4484,7 +4444,6 @@ describe('OverpassOp', () => {
       op.execute({
         query: '[out:json];node;out;',
         bbox: undefined,
-        endpoint: 'https://overpass-api.de/api/interpreter',
       })
     ).rejects.toThrow('Overpass API error: 429 Too Many Requests')
   })
@@ -4500,7 +4459,6 @@ describe('OverpassOp', () => {
     const result = await op.execute({
       query: '[out:json];node["nonexistent"];out;',
       bbox: undefined,
-      endpoint: 'https://overpass-api.de/api/interpreter',
     })
 
     expect(result.data).toEqual({
@@ -4538,7 +4496,6 @@ describe('OverpassOp', () => {
     const result = await op.execute({
       query: '[out:json];way["highway"];out geom;',
       bbox: undefined,
-      endpoint: 'https://overpass-api.de/api/interpreter',
     })
 
     expect(result.data.features).toHaveLength(1)
@@ -4547,6 +4504,10 @@ describe('OverpassOp', () => {
 
   it('sends POST request with correct headers', async () => {
     const op = new OverpassOp('/overpass')
+
+    // Ensure endpoint is set correctly
+    const endpoint = getKeysStore().getKey('overpass')
+    expect(endpoint).toBe('https://overpass-api.de/api/interpreter')
 
     let capturedRequest: any = null
     global.fetch = vi.fn().mockImplementation(async (url, options) => {
@@ -4560,10 +4521,9 @@ describe('OverpassOp', () => {
     await op.execute({
       query: '[out:json];node;out;',
       bbox: undefined,
-      endpoint: 'https://test.example.com/api',
     })
 
-    expect(capturedRequest.url).toBe('https://test.example.com/api')
+    expect(capturedRequest.url).toBe('https://overpass-api.de/api/interpreter')
     expect(capturedRequest.options.method).toBe('POST')
     expect(capturedRequest.options.headers['Content-Type']).toBe(
       'application/x-www-form-urlencoded'
@@ -4603,7 +4563,6 @@ describe('OverpassOp', () => {
     const result = await op.execute({
       query: '[out:json];relation["leisure"="park"];out geom;',
       bbox: undefined,
-      endpoint: 'https://overpass-api.de/api/interpreter',
     })
 
     expect(result.data.features).toHaveLength(1)
@@ -4669,7 +4628,6 @@ describe('OverpassOp', () => {
     const result = await op.execute({
       query: '[out:json];relation["leisure"="park"];out geom;',
       bbox: undefined,
-      endpoint: 'https://overpass-api.de/api/interpreter',
     })
 
     expect(result.data.features).toHaveLength(1)
@@ -4723,7 +4681,6 @@ describe('OverpassOp', () => {
     const result = await op.execute({
       query: '[out:json];relation["leisure"="park"];out geom;',
       bbox: undefined,
-      endpoint: 'https://overpass-api.de/api/interpreter',
     })
 
     expect(result.data.features).toHaveLength(1)
@@ -4757,7 +4714,6 @@ describe('OverpassOp', () => {
     const result = await op.execute({
       query: '[out:json];relation["leisure"="park"];out;',
       bbox: undefined,
-      endpoint: 'https://overpass-api.de/api/interpreter',
     })
 
     expect(result.data.features).toHaveLength(0)

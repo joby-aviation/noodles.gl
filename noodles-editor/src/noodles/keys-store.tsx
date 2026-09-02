@@ -1,13 +1,14 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
-export type KeyType = 'mapbox' | 'googleMaps' | 'cesium' | 'anthropic'
+export type KeyType = 'mapbox' | 'googleMaps' | 'cesium' | 'anthropic' | 'overpass'
 
 export interface KeysConfig {
   mapbox?: string
   googleMaps?: string
   cesium?: string
   anthropic?: string
+  overpass?: string
 }
 
 // Separate state and actions for clarity
@@ -61,6 +62,7 @@ export const useKeysStore = create<KeysStore>()(
         if (keys.googleMaps?.trim()) cleaned.googleMaps = keys.googleMaps.trim()
         if (keys.cesium?.trim()) cleaned.cesium = keys.cesium.trim()
         if (keys.anthropic?.trim()) cleaned.anthropic = keys.anthropic.trim()
+        if (keys.overpass?.trim()) cleaned.overpass = keys.overpass.trim()
         set({ browserKeys: cleaned })
       },
 
@@ -131,5 +133,6 @@ export function getEnvKeys(): KeysConfig {
     googleMaps: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
     cesium: import.meta.env.VITE_CESIUM_ACCESS_TOKEN,
     anthropic: import.meta.env.VITE_CLAUDE_API_KEY,
+    overpass: import.meta.env.VITE_OVERPASS_ENDPOINT || 'https://overpass.kumi.systems/api/interpreter',
   }
 }

@@ -2829,15 +2829,13 @@ export class OverpassOp extends Operator<OverpassOp> {
           language: 'overpass-ql',
         }
       ),
-      // TODO: We should add a bbox type
-      bbox: new UnknownField(
-        [
-          { lng: -74.006, lat: 40.7128 },
-          { lng: -73.935, lat: 40.73061 },
-        ],
+      bbox: new BboxField(
+        {
+          southwest: { lng: -74.05, lat: 40.68 },
+          northeast: { lng: -73.9, lat: 40.82 },
+        },
         { optional: true }
       ),
-      endpoint: new StringField('https://overpass.kumi.systems/api/interpreter'),
       pulse: new NumberField(0, { min: 0, step: 1 }),
     }
   }
@@ -2849,35 +2847,23 @@ export class OverpassOp extends Operator<OverpassOp> {
   async execute({
     query,
     bbox,
-    endpoint,
   }: ExtractProps<typeof this.inputs>): Promise<ExtractProps<typeof this.outputs>> {
     try {
+      // Get endpoint from settings
+      const keysStore = getKeysStore()
+      const endpoint = keysStore.getKey('overpass')
+      if (!endpoint) {
+        throw new Error(
+          'Overpass API endpoint not configured. Please set it in Settings > API Keys.'
+        )
+      }
+
       // Replace {{bbox}} template with actual coordinates if bbox is provided and valid
       // Overpass format: (south,west,north,east)
       let processedQuery = query
-      if (bbox && Array.isArray(bbox) && bbox.length === 2 && /\{\{bbox\}\}/.test(query)) {
-        const [southwest, northeast] = bbox as [
-          { lng: number; lat: number } | [number, number],
-          { lng: number; lat: number } | [number, number],
-        ]
-        let west: number
-        let south: number
-        let east: number
-        let north: number
-        if ('lng' in southwest && typeof southwest.lng === 'number') {
-          west = southwest.lng
-          south = southwest.lat
-          east = ('lng' in northeast && northeast.lng) || 0
-          north = ('lat' in northeast && northeast.lat) || 0
-        } else if (Array.isArray(southwest)) {
-          west = southwest[0]
-          south = southwest[1]
-          east = northeast[0]
-          north = northeast[1]
-        } else {
-          throw new Error('Invalid bbox format - must be array of Point2D or [lng, lat] tuples')
-        }
-        const bboxString = `${south},${west},${north},${east}`
+      if (bbox && /\{\{bbox\}\}/.test(query)) {
+        const { southwest, northeast } = bbox
+        const bboxString = `${southwest.lat},${southwest.lng},${northeast.lat},${northeast.lng}`
         processedQuery = processedQuery.replace(/\{\{bbox\}\}/g, bboxString)
       }
 
