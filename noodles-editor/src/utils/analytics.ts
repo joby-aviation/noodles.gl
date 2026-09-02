@@ -95,9 +95,9 @@ export class AnalyticsManager {
       }
       window.gtag('js', new Date())
 
-      // Configure with consent
+      // Configure with consent - default to denied until explicit consent
       window.gtag('consent', 'default', {
-        analytics_storage: consent?.enabled === false ? 'denied' : 'granted',
+        analytics_storage: consent?.enabled === true ? 'granted' : 'denied',
       })
 
       window.gtag('config', GA_MEASUREMENT_ID, {
@@ -314,10 +314,12 @@ export class AnalyticsManager {
     // Google Analytics exception capture
     if (this.gaInitialized && window.gtag) {
       try {
+        // Filter sensitive data from exception properties
+        const safeProperties = this.filterSensitiveData(properties || {})
         window.gtag('event', 'exception', {
-          description: error.message,
+          description: error.name, // Use error.name instead of error.message to avoid leaking file paths
           fatal: false,
-          ...properties,
+          ...safeProperties,
         })
       } catch (err) {
         debugAnalytics('Google Analytics exception capture failed:', err)
