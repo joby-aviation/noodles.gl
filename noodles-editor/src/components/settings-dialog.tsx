@@ -277,8 +277,8 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
 
               <KeyGroup
                 label="Overpass API Endpoint"
-                description="Used by the Overpass operator to query OpenStreetMap data. Defaults to the official overpass-api.de endpoint."
-                placeholder="https://overpass-api.de/api/interpreter"
+                description="Used by the Overpass operator to query OpenStreetMap data. Defaults to overpass.openstreetmap.fr (France mirror with reliable CORS)."
+                placeholder="https://overpass.openstreetmap.fr/api/interpreter"
                 browserValue={browserKeys.overpass || ''}
                 projectValue={projectKeys.overpass}
                 envValue={envKeys.overpass}

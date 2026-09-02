@@ -415,8 +415,8 @@ export abstract class Operator<OP extends IOperator> {
   // Show a field (add to visible set)
   // Used for auto-showing fields when connections are established or values are set programmatically
   showField(name: string): void {
-    // Skip if field doesn't exist
-    if (!(name in this.inputs)) return
+    // Skip if inputs not initialized yet or field doesn't exist
+    if (!this.inputs || !(name in this.inputs)) return
     // Skip if already visible
     if (this.isFieldVisible(name)) return
 
@@ -436,8 +436,8 @@ export abstract class Operator<OP extends IOperator> {
 
   // Hide a field (remove from visible set)
   hideField(name: string): void {
-    // Skip if field doesn't exist
-    if (!(name in this.inputs)) return
+    // Skip if inputs not initialized yet or field doesn't exist
+    if (!this.inputs || !(name in this.inputs)) return
     // Skip if already hidden
     if (!this.isFieldVisible(name)) return
 
