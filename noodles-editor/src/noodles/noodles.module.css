@@ -73,7 +73,6 @@
   --z-index-background: -99;
   --z-index-underlay: 0;
   --z-index-docked: 1;
-  --z-index-workspace: 2;
   --z-index-node-tooltip: 101;
   --z-index-canvas: 999;
   --z-index-chrome: 1000;

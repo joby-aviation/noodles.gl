@@ -92,7 +92,8 @@ export default function TimelineEditor() {
   }, [])
 
   const noodles = getNoodles()
-  const { flowGraph, nodeSidebar, propertiesPanel, selectedNodeIds, ...visualization } = noodles
+  const { flowGraph, nodeSidebar, propertiesPanel, chatPanel, selectedNodeIds, ...visualization } =
+    noodles
 
   const setTimelineExpanded = useUIStore(state => state.setTimelineExpanded)
 
@@ -626,6 +627,7 @@ export default function TimelineEditor() {
               <ErrorBoundary title="Visualization Error">{renderContent()}</ErrorBoundary>
             )}
           </Layout>
+          {chatPanel}
         </ExportActionsProvider>
       </ReactFlowProvider>
     </>

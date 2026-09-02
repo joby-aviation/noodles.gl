@@ -1608,17 +1608,6 @@ export function getNoodles(): Visualization {
               <BlockLibrary ref={blockLibraryRef} reactFlowRef={reactFlowRef} />
               <CopyControls ref={copyControlsRef} graphRef={graphRef} />
               <UndoRedoHandler ref={undoRedoRef} graphRef={graphRef} />
-              <Suspense fallback={null}>
-                <ChatPanel
-                  project={{ nodes, edges }}
-                  onClose={() => {
-                    setShowChatPanel(false)
-                    setChatInitialMessage(undefined)
-                  }}
-                  isVisible={showChatPanel}
-                  initialMessage={chatInitialMessage}
-                />
-              </Suspense>
               {showDebugInfo && <NodeInfoOverlay />}
               {showDebugInfo && <ViewportInfoPanel />}
             </ReactFlow>
@@ -1850,6 +1839,20 @@ export function getNoodles(): Visualization {
     </ErrorBoundary>
   )
 
+  const chatPanel = (
+    <Suspense fallback={null}>
+      <ChatPanel
+        project={{ nodes, edges }}
+        onClose={() => {
+          setShowChatPanel(false)
+          setChatInitialMessage(undefined)
+        }}
+        isVisible={showChatPanel}
+        initialMessage={chatInitialMessage}
+      />
+    </Suspense>
+  )
+
   return {
     flowGraph,
     selectedNodeIds: nodes.filter(n => n.selected).map(n => n.id),
@@ -1874,6 +1877,7 @@ export function getNoodles(): Visualization {
       </ErrorBoundary>
     ),
     propertiesPanel,
+    chatPanel,
     showOverlay,
     onChangeShowOverlay: setShowOverlay,
     showDebugInfo,

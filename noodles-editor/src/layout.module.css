@@ -13,8 +13,6 @@
 .rootGroup {
   flex: 1;
   min-height: 0;
-  position: relative;
-  z-index: var(--z-index-workspace);
 }
 
 /* Panels */
