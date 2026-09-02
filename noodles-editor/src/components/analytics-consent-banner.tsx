@@ -17,7 +17,6 @@ export function AnalyticsConsentBanner() {
 
   const handleAccept = () => {
     analytics.setConsent(true)
-    analytics.track('analytics_consent_accepted')
     setShowBanner(false)
   }
 

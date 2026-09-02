@@ -1,10 +1,10 @@
 # Analytics Integration
 
-Privacy-preserving product analytics using PostHog to understand feature usage and improve the Noodles.gl editor.
+Privacy-preserving product analytics using PostHog and Google Analytics to understand feature usage and improve the Noodles.gl editor.
 
 ## Overview
 
-Noodles.gl uses PostHog for product analytics with a privacy-first approach:
+Noodles.gl uses both PostHog and Google Analytics for product analytics with a privacy-first approach:
 
 - **Opt-in by default**: Users must explicitly consent before data collection
 - **No sensitive data**: Never tracks project names, node data, code, queries, or API keys
@@ -22,13 +22,21 @@ Add to `.env.local` (see `.env.local.example`):
 ```env
 VITE_POSTHOG_API_KEY=phc_your_key_here
 VITE_POSTHOG_HOST=https://us.i.posthog.com  # Optional
+VITE_GA_MEASUREMENT_ID=G-XXXXXXXXXX
 ```
 
-### Getting a PostHog API Key
+### Getting Analytics Keys
 
+**PostHog:**
 1. Sign up at https://posthog.com (free tier: 1M events/month)
 2. Create a new project
 3. Copy Project API Key from Project Settings
+4. Add to `.env.local`
+
+**Google Analytics:**
+1. Sign in at https://analytics.google.com
+2. Create a new GA4 property
+3. Copy Measurement ID (format: G-XXXXXXXXXX)
 4. Add to `.env.local`
 
 ## Architecture
@@ -47,14 +55,13 @@ VITE_POSTHOG_HOST=https://us.i.posthog.com  # Optional
 
 1. **Consent Management** - localStorage-based user preference persistence
 2. **Data Filtering** - Automatic removal of sensitive properties
-3. **Error Handling** - Try-catch blocks around all PostHog calls
+3. **Error Handling** - Try-catch blocks around all analytics calls
 4. **Error Boundary** - Catches analytics component failures
-5. **Privacy Configuration**:
-   - `opt_out_capturing_by_default: true`
-   - `autocapture: false`
-   - `disable_session_recording: true`
-   - `capture_pageview: false`
-   - `capture_exceptions: true`
+5. **Dual Tracking** - Events sent to both PostHog and Google Analytics when enabled
+6. **Opt-out Tracking** - Tracks when users decline consent (to measure opt-out rates)
+7. **Privacy Configuration**:
+   - PostHog: `opt_out_capturing_by_default: true`, `autocapture: false`, `disable_session_recording: true`
+   - Google Analytics: `anonymize_ip: true`, consent mode API
 
 ## Currently Tracked Events
 
@@ -83,7 +90,8 @@ VITE_POSTHOG_HOST=https://us.i.posthog.com  # Optional
 
 | Event | Properties | Location |
 |-------|-----------|----------|
-| `analytics_consent_accepted` | - | analytics-consent-banner.tsx |
+| `analytics_consent_granted` | - | analytics.ts (setConsent) |
+| `analytics_consent_denied` | - | analytics.ts (setConsent) |
 | `analytics_enabled_in_settings` | - | settings-dialog.tsx |
 
 ### Performance
@@ -112,15 +120,17 @@ Error sources:
 ```typescript
 import { analytics } from '../utils/analytics'
 
-// Simple event
+// Simple event (sent to both PostHog and Google Analytics)
 analytics.track('feature_used')
 
-// Event with properties
+// Event with properties (sent to both PostHog and Google Analytics)
 analytics.track('render_started', {
   codec: 'h264',
   resolution: '1920x1080'
 })
 ```
+
+**Note:** All events are automatically sent to both PostHog and Google Analytics when users have consented. No need to call multiple tracking methods.
 
 ### Sensitive Data is Auto-Filtered
 
@@ -234,11 +244,14 @@ analytics.track('redo_performed')
 
 ### Development Mode
 
-1. Set environment variables in `.env.local`
+1. Set environment variables in `.env.local` (both PostHog and GA keys)
 2. Run `npm start`
 3. Accept analytics consent
 4. Perform actions
-5. View events in PostHog Live Events
+5. View events in:
+   - PostHog Live Events
+   - Google Analytics Realtime view
+   - Browser DevTools Console (if debug logging enabled)
 
 ### Debug Logging
 
@@ -249,6 +262,8 @@ if (import.meta.env.DEV) {
   posthog.debug(true)  // Change false to true
 }
 ```
+
+For Google Analytics, check the browser console for `gtag` calls or use the GA Debug Mode extension.
 
 ### Test Checklist
 
@@ -300,24 +315,36 @@ The implementation is GDPR-compliant:
 
 ### Analytics not initializing
 
-- Check `VITE_POSTHOG_API_KEY` is set
+- Check `VITE_POSTHOG_API_KEY` and `VITE_GA_MEASUREMENT_ID` are set
 - Check browser console for errors
-- Verify PostHog isn't blocked by ad blockers
+- Verify analytics providers aren't blocked by ad blockers
+- Both providers will gracefully fail if blocked without breaking the app
 
-### Events not showing in PostHog
+### Events not showing
 
+**PostHog:**
 - Ensure user has accepted consent
 - Check `analytics.isEnabled()` returns `true`
 - Verify API key is correct
 - Check PostHog Live Events view
 
-### App breaks when PostHog blocked
+**Google Analytics:**
+- Ensure user has accepted consent
+- Check browser console for `gtag` calls
+- Verify Measurement ID is correct
+- Check Google Analytics Realtime view
 
-This shouldn't happen! All PostHog calls are wrapped in try-catch blocks. If you see errors:
+### Measuring opt-out rates
 
-1. Check error boundary is working
+Both `analytics_consent_granted` and `analytics_consent_denied` events are tracked. The denied event is sent once before disabling tracking, allowing you to measure how many users opt out.
+
+### App breaks when analytics blocked
+
+This shouldn't happen! All analytics calls are wrapped in try-catch blocks. If you see errors:
+
+1. Check error boundaries are working
 2. Verify all `analytics.track()` calls are try-catch wrapped
-3. Check `analytics.initialize()` error handling
+3. Check `analytics.initialize()` error handling for both providers
 
 ## Related Documentation
 
