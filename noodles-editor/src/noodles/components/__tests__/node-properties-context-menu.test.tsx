@@ -1,5 +1,5 @@
 // Tests for context menu actions in NodeProperties
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import type { Edge } from '@xyflow/react'
 import { ReactFlowProvider } from '@xyflow/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -55,6 +55,14 @@ const openContextMenuOnField = (fieldName: string) => {
   const listItem = label.closest('[role="listitem"]')
   expect(listItem).toBeInTheDocument()
   fireEvent.contextMenu(listItem!)
+}
+
+// The property row also renders a "Hide field"/"Show field" icon button, so
+// context menu items must be queried within the menu itself to avoid ambiguity.
+const getContextMenu = () => {
+  const menu = document.querySelector('.contextMenu')
+  expect(menu).toBeInTheDocument()
+  return menu as HTMLElement
 }
 
 describe('Context menu copy actions', () => {
@@ -212,7 +220,7 @@ describe('Context menu Hide/Show field', () => {
     renderNodeProperties('/deck')
     openContextMenuOnField('layers')
 
-    expect(screen.getByRole('button', { name: 'Hide field' })).toBeInTheDocument()
+    expect(within(getContextMenu()).getByRole('button', { name: 'Hide field' })).toBeInTheDocument()
   })
 
   it('shows "Show field" for hidden fields', () => {
@@ -224,7 +232,7 @@ describe('Context menu Hide/Show field', () => {
     // 'effects' is hidden by default on DeckRendererOp
     openContextMenuOnField('effects')
 
-    expect(screen.getByRole('button', { name: 'Show field' })).toBeInTheDocument()
+    expect(within(getContextMenu()).getByRole('button', { name: 'Show field' })).toBeInTheDocument()
   })
 
   it('disables "Hide field" when field has an incoming connection', () => {
@@ -248,7 +256,7 @@ describe('Context menu Hide/Show field', () => {
     renderNodeProperties('/deck')
     openContextMenuOnField('layers')
 
-    expect(screen.getByRole('button', { name: 'Hide field' })).toBeDisabled()
+    expect(within(getContextMenu()).getByRole('button', { name: 'Hide field' })).toBeDisabled()
   })
 
   it('clicking "Show field" makes the field visible', () => {
@@ -262,7 +270,7 @@ describe('Context menu Hide/Show field', () => {
     expect(op.isFieldVisible('effects')).toBe(false)
 
     openContextMenuOnField('effects')
-    fireEvent.click(screen.getByRole('button', { name: 'Show field' }))
+    fireEvent.click(within(getContextMenu()).getByRole('button', { name: 'Show field' }))
 
     expect(op.isFieldVisible('effects')).toBe(true)
   })
@@ -285,7 +293,7 @@ describe('Context menu Hide/Show field', () => {
     expect(op.isFieldVisible('effects')).toBe(true)
 
     openContextMenuOnField('effects')
-    fireEvent.click(screen.getByRole('button', { name: 'Hide field' }))
+    fireEvent.click(within(getContextMenu()).getByRole('button', { name: 'Hide field' }))
 
     expect(op.isFieldVisible('effects')).toBe(false)
   })
@@ -318,15 +326,16 @@ describe('Context menu on output fields', () => {
     fireEvent.contextMenu(label!.closest('[role="listitem"]')!)
 
     // Input-only actions should not be present
-    expect(screen.queryByRole('button', { name: 'Hide field' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Show field' })).not.toBeInTheDocument()
-    expect(screen.queryByText('Sequence')).not.toBeInTheDocument()
-    expect(screen.queryByText('Reset to default')).not.toBeInTheDocument()
-    expect(screen.queryByText('Disconnect all inputs')).not.toBeInTheDocument()
+    const menu = within(getContextMenu())
+    expect(menu.queryByRole('button', { name: 'Hide field' })).not.toBeInTheDocument()
+    expect(menu.queryByRole('button', { name: 'Show field' })).not.toBeInTheDocument()
+    expect(menu.queryByText('Sequence')).not.toBeInTheDocument()
+    expect(menu.queryByText('Reset to default')).not.toBeInTheDocument()
+    expect(menu.queryByText('Disconnect all inputs')).not.toBeInTheDocument()
 
     // Copy actions should still be present
-    expect(screen.getByText('Copy value')).toBeInTheDocument()
-    expect(screen.getByText('Copy reference')).toBeInTheDocument()
+    expect(menu.getByText('Copy value')).toBeInTheDocument()
+    expect(menu.getByText('Copy reference')).toBeInTheDocument()
   })
 })
 
