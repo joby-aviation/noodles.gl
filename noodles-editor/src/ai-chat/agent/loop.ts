@@ -305,7 +305,7 @@ async function executeToolBatch(params: {
 }): Promise<ToolOutcome[]> {
   const { calls, resultBudget } = params
 
-  const allReadOnly = calls.every(call => isReadOnly(call.name))
+  const allReadOnly = calls.every(call => isReadOnly(call.name, params.router))
 
   if (allReadOnly && calls.length > 1) {
     return Promise.all(calls.map(call => runOne(call, params, resultBudget)))
@@ -318,9 +318,11 @@ async function executeToolBatch(params: {
   return outcomes
 }
 
-export function isReadOnly(toolName: string): boolean {
+export function isReadOnly(toolName: string, router?: ToolRouter): boolean {
   // find_tools only mutates the router's own disclosure state, never the graph
   if (toolName === FIND_TOOLS_NAME) return true
+  const harness = router?.getHarnessTool(toolName)
+  if (harness) return harness.readOnly
   return getToolDefinition(toolName)?.annotations.readOnlyHint === true
 }
 
@@ -378,6 +380,12 @@ async function executeTool(
   const { tools, router } = params
 
   if (name === FIND_TOOLS_NAME) return router.findTools(input)
+
+  const harness = router.getHarnessTool(name)
+  if (harness) {
+    if (!router.isCallable(name)) router.findTools({ query: name, limit: 1 })
+    return harness.execute(input)
+  }
 
   const definition = getToolDefinition(name)
   if (!definition) return { success: false, error: `Unknown tool: ${name}` }

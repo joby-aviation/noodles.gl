@@ -20,6 +20,7 @@ import type { ClaudeResponse, Message } from '../types'
 import { runAgent } from './loop'
 import { ToolRouter } from './tool-router'
 import type { AgentContent, AgentEvent, AgentMessage, AgentProvider } from './types'
+import { createWebSearchTool, type WebSearchConfig } from './web-search'
 
 // Turns beyond this are dropped before compaction even looks at the history
 const MAX_HISTORY_MESSAGES = 10
@@ -36,16 +37,24 @@ export interface SendParams {
   onEvent?: (event: AgentEvent) => void
 }
 
+export interface SessionOptions {
+  // Enables web_search when the provider supports it. Omitted, the tool is not
+  // offered at all, so the model never promises a search it cannot run.
+  webSearch?: WebSearchConfig | null
+}
+
 export class AgentSession {
   private provider: AgentProvider
   private tools: MCPTools
   // Lives as long as the session so tools unlocked on one turn stay available
   private router: ToolRouter
 
-  constructor(provider: AgentProvider, tools: MCPTools) {
+  constructor(provider: AgentProvider, tools: MCPTools, options: SessionOptions = {}) {
     this.provider = provider
     this.tools = tools
-    this.router = new ToolRouter(provider.contextWindow)
+
+    const webSearch = options.webSearch ? createWebSearchTool(options.webSearch) : null
+    this.router = new ToolRouter(provider.contextWindow, webSearch ? [webSearch] : [])
   }
 
   async send(params: SendParams): Promise<ClaudeResponse> {
@@ -89,6 +98,7 @@ export class AgentSession {
       message: result.text,
       projectModifications: result.modifications,
       toolCalls: result.toolCalls,
+      usage: result.usage,
     }
   }
 

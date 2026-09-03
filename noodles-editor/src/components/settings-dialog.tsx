@@ -626,6 +626,25 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
                     />
 
                     <KeyGroup
+                      label="OpenRouter API Key"
+                      description="Optional alternative to the Anthropic key. Lets the AI assistant run on Gemini, GPT, or any other model OpenRouter hosts, billed through OpenRouter."
+                      placeholder="sk-or-v1-..."
+                      browserValue={browserKeys.openrouter || ''}
+                      projectValue={projectKeys.openrouter}
+                      envValue={envKeys.openrouter}
+                      activeSource={getActiveSource('openrouter')}
+                      onBrowserChange={value => setBrowserKey('openrouter', value)}
+                      onBrowserClear={() => {
+                        setBrowserKey('openrouter', undefined)
+                        analytics.track('key_cleared', { key: 'openrouter' })
+                      }}
+                      onProjectRemove={() => {
+                        removeProjectKey('openrouter')
+                        analytics.track('project_key_removed', { key: 'openrouter' })
+                      }}
+                    />
+
+                    <KeyGroup
                       label="Overpass API Endpoint"
                       description="Used by the Overpass operator to query OpenStreetMap data. Defaults to overpass.openstreetmap.fr (France mirror with reliable CORS)."
                       placeholder="https://overpass.openstreetmap.fr/api/interpreter"

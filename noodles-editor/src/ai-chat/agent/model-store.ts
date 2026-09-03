@@ -12,17 +12,23 @@ import type { ProviderId } from './types'
 interface ModelState {
   // undefined means "whatever the provider defaults to"
   models: Partial<Record<ProviderId, string>>
+  // undefined lets the panel pick by which key is present
+  provider: ProviderId | undefined
 }
 
 interface ModelActions {
   setModel: (provider: ProviderId, model: string | undefined) => void
   getModel: (provider: ProviderId) => string | undefined
+  setProvider: (provider: ProviderId | undefined) => void
 }
 
 export const useAgentModelStore = create<ModelState & ModelActions>()(
   persist(
     (set, get) => ({
       models: {},
+      provider: undefined,
+
+      setProvider: provider => set({ provider }),
 
       setModel: (provider, model) => {
         const models = { ...get().models }

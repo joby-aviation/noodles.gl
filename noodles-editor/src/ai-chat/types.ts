@@ -257,6 +257,13 @@ export interface ClaudeResponse {
   message: string
   projectModifications?: ProjectModification[]
   toolCalls?: ToolCall[]
+  // What the turn cost. Absent when the provider does not report it.
+  usage?: {
+    inputTokens: number
+    outputTokens: number
+    cachedInputTokens?: number
+    costUsd?: number
+  }
 }
 
 export interface ToolCall {

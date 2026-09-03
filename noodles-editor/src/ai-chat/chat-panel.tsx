@@ -10,8 +10,11 @@ import { useKeysStore } from '../noodles/keys-store'
 import { useUIStore } from '../noodles/store'
 import { debugAiChat } from '../utils/debug'
 import { useAgentModelStore } from './agent/model-store'
-import { AnthropicProvider } from './agent/providers/anthropic'
+import { ANTHROPIC_MODELS, AnthropicProvider } from './agent/providers/anthropic'
+import { OPENROUTER_MODELS, OpenRouterProvider } from './agent/providers/openrouter'
 import { AgentSession } from './agent/session'
+import type { AgentProvider, AgentUsage, ProviderId } from './agent/types'
+import { webSearchConfigFor } from './agent/web-search'
 import styles from './chat-panel.module.css'
 import { loadConversation, saveConversation } from './conversation-history'
 import { ConversationHistoryPanel } from './conversation-history-panel'
@@ -46,11 +49,28 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null)
   const [showHistory, setShowHistory] = useState(false)
   const [contextProgress, setContextProgress] = useState<string>('')
+  // Text of the turn in flight, so the reply appears as it is generated rather
+  // than all at once when the whole multi-step run finishes
+  const [streamingText, setStreamingText] = useState('')
+  const [activeTools, setActiveTools] = useState<string[]>([])
+  const [lastUsage, setLastUsage] = useState<AgentUsage | null>(null)
+  const abortRef = useRef<AbortController | null>(null)
 
-  // Get API key directly from store (reactive)
+  // Get API keys directly from store (reactive)
   const apiKey = useKeysStore(state => state.getKey('anthropic'))
+  const openRouterKey = useKeysStore(state => state.getKey('openrouter'))
+
+  const storedProvider = useAgentModelStore(state => state.provider)
+  const setStoredProvider = useAgentModelStore(state => state.setProvider)
+  const setStoredModel = useAgentModelStore(state => state.setModel)
+
+  // Anthropic unless only the OpenRouter key is configured, or the user picked
+  // otherwise. Falls back when the chosen provider's key has since been cleared.
+  const providerId: ProviderId = resolveProviderId(storedProvider, apiKey, openRouterKey)
+  const providerKey = providerId === 'anthropic' ? apiKey : openRouterKey
   // undefined leaves the provider on its own default
-  const model = useAgentModelStore(state => state.getModel('anthropic'))
+  const model = useAgentModelStore(state => state.getModel(providerId))
+  const modelChoices = providerId === 'anthropic' ? ANTHROPIC_MODELS : OPENROUTER_MODELS
 
   // Get the function to open settings dialog
   const setSettingsDialogOpen = useUIStore(state => state.setSettingsDialogOpen)
@@ -70,9 +90,9 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
     return unsubscribe
   }, [])
 
-  // Initialize Claude client when API key is available
+  // Build the session whenever the provider, model, or key changes
   useEffect(() => {
-    if (!apiKey) {
+    if (!providerKey) {
       setContextLoading(false)
       return
     }
@@ -84,19 +104,31 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
         const loader = await globalContextManager.waitForReady()
 
         const tools = new MCPTools(loader)
-        const provider = new AnthropicProvider({ apiKey, model })
+        const provider: AgentProvider =
+          providerId === 'anthropic'
+            ? new AnthropicProvider({ apiKey: providerKey, model })
+            : new OpenRouterProvider({ apiKey: providerKey, model })
 
         setMcpTools(tools)
-        setSession(new AgentSession(provider, tools))
+        setSession(
+          new AgentSession(provider, tools, {
+            webSearch: webSearchConfigFor({
+              providerId,
+              model: provider.model,
+              anthropicKey: apiKey,
+              openRouterKey,
+            }),
+          })
+        )
       } catch (error) {
-        debugAiChat('Failed to initialize Claude:', error)
+        debugAiChat('Failed to initialize the assistant:', error)
       } finally {
         setContextLoading(false)
       }
     }
 
     init()
-  }, [apiKey, model])
+  }, [providerId, providerKey, model, apiKey, openRouterKey])
 
   // Update MCPTools with current project whenever it changes
   useEffect(() => {
@@ -128,16 +160,29 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
     setMessages(prev => [...prev, userMessage])
     setInput('')
     setLoading(true)
+    setStreamingText('')
+    setActiveTools([])
+
+    const controller = new AbortController()
+    abortRef.current = controller
 
     try {
       const response = await session.send({
         message: input,
         conversationHistory: messages,
+        signal: controller.signal,
+        onEvent: event => {
+          if (event.type === 'text_delta') setStreamingText(prev => prev + event.text)
+          if (event.type === 'tool_call') setActiveTools(prev => [...prev, event.name])
+          if (event.type === 'usage') setLastUsage(event.usage)
+        },
       })
 
+      // An aborted run still returns whatever it had produced, which is worth
+      // keeping — the user stopped it, they did not undo it
       const assistantMessage: Message = {
         role: 'assistant',
-        content: response.message,
+        content: response.message || '(stopped)',
       }
 
       setMessages(prev => [...prev, assistantMessage])
@@ -202,7 +247,14 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
       }
     } finally {
       setLoading(false)
+      setStreamingText('')
+      setActiveTools([])
+      abortRef.current = null
     }
+  }
+
+  const handleStop = () => {
+    abortRef.current?.abort()
   }
 
   const handleManualCapture = async () => {
@@ -234,6 +286,9 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
   }
 
   const handleClose = () => {
+    // Closing with a turn in flight should not leave it billing in the background
+    abortRef.current?.abort()
+
     // Auto-save current conversation if it has messages and hasn't been saved yet
     if (messages.length > 0 && !currentConversationId) {
       try {
@@ -270,14 +325,14 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
 
   if (!isVisible) return null
 
-  // Check if API key is missing
-  if (!apiKey && !contextLoading) {
+  // Check if a usable key is missing
+  if (!providerKey && !contextLoading) {
     return (
       <div className={styles.chatPanel}>
         <div className={styles.chatPanelLoading}>
-          <h3>Anthropic API Key Required</h3>
+          <h3>API Key Required</h3>
           <p>
-            To use the Noodles assistant, you need to configure your Claude API key in{' '}
+            To use the Noodles assistant, you need an Anthropic or OpenRouter API key in{' '}
             <button
               type="button"
               onClick={() => setSettingsDialogOpen(true)}
@@ -288,9 +343,13 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
             (top menu).
           </p>
           <p>
-            Get your API key from{' '}
+            Get one from the{' '}
             <a href="https://console.anthropic.com/" target="_blank" rel="noopener noreferrer">
               Anthropic Console
+            </a>{' '}
+            or{' '}
+            <a href="https://openrouter.ai/keys" target="_blank" rel="noopener noreferrer">
+              OpenRouter
             </a>
             , then add it in <strong>Settings → API Keys</strong>.
           </p>

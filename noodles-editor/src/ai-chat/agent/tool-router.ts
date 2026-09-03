@@ -68,13 +68,28 @@ export interface RoutedTool {
   inputSchema: ToolInputSchema
 }
 
+// A tool the harness owns rather than MCPTools: it needs something the tool
+// definitions have no access to, like the provider or an API key. web_search is
+// the first. Discoverable and unlockable exactly like the rest, so the model
+// cannot tell the difference.
+export interface HarnessTool extends RoutedTool {
+  readOnly: boolean
+  execute: (input: Record<string, unknown>) => Promise<ToolResult> | ToolResult
+}
+
 // Per-conversation tool selection state. One router instance lives as long as
 // the conversation, so tools unlocked on an earlier turn stay available.
 export class ToolRouter {
   // Insertion-ordered so eviction is FIFO
   private unlocked = new Set<string>()
+  private harnessTools: Map<string, HarnessTool>
 
-  constructor(private contextWindowTokens: number) {}
+  constructor(
+    private contextWindowTokens: number,
+    harnessTools: HarnessTool[] = []
+  ) {
+    this.harnessTools = new Map(harnessTools.map(tool => [tool.name, tool]))
+  }
 
   // The tool list to send with the next request
   getTools(): RoutedTool[] {
@@ -84,18 +99,23 @@ export class ToolRouter {
         tools.push(FIND_TOOLS_DEFINITION)
         continue
       }
-      const def = findDefinition(name)
-      if (def) tools.push(toRouted(def))
+      const tool = this.lookup(name)
+      if (tool) tools.push(tool)
     }
     for (const name of this.unlocked) {
-      const def = findDefinition(name)
-      if (def) tools.push(toRouted(def))
+      const tool = this.lookup(name)
+      if (tool) tools.push(tool)
     }
     return tools
   }
 
   isCallable(name: string): boolean {
     return name === FIND_TOOLS_NAME || TIER0_TOOL_NAMES.includes(name) || this.unlocked.has(name)
+  }
+
+  // The loop dispatches to this before consulting the tool definitions
+  getHarnessTool(name: string): HarnessTool | undefined {
+    return this.harnessTools.get(name)
   }
 
   getUnlocked(): string[] {
@@ -113,7 +133,7 @@ export class ToolRouter {
     const requested = typeof params.limit === 'number' ? params.limit : 3
     const limit = Math.max(1, Math.min(8, Math.floor(requested)))
 
-    const matches = scoreTools(query).slice(0, limit)
+    const matches = scoreTools(query, [...this.harnessTools.values()]).slice(0, limit)
     if (matches.length === 0) {
       return {
         success: true,
@@ -132,10 +152,17 @@ export class ToolRouter {
       data: {
         query,
         unlocked: matches.map(m => m.name),
-        tools: matches.map(m => toRouted(m.definition)),
+        tools: matches.map(m => m.tool),
         message: 'These tools are now callable.',
       },
     }
+  }
+
+  private lookup(name: string): RoutedTool | undefined {
+    const harness = this.harnessTools.get(name)
+    if (harness) return toRoutedHarness(harness)
+    const definition = findDefinition(name)
+    return definition ? toRouted(definition) : undefined
   }
 
   private unlock(name: string) {
@@ -155,24 +182,29 @@ export class ToolRouter {
 export interface ToolMatch {
   name: string
   score: number
-  definition: ToolDefinition
+  tool: RoutedTool
 }
 
 // Keyword scoring over tool names and descriptions. Deliberately not embeddings:
 // the surface is ~22 tools with descriptive names, and a lexical match keeps
 // this synchronous and dependency-free.
-export function scoreTools(query: string): ToolMatch[] {
+export function scoreTools(query: string, harnessTools: HarnessTool[] = []): ToolMatch[] {
   const terms = tokenize(query)
   if (terms.length === 0) return []
 
-  const matches: ToolMatch[] = []
-  for (const definition of toolDefinitions) {
-    // Tier 0 tools are already in the list; returning them wastes the response
-    if (TIER0_TOOL_NAMES.includes(definition.name)) continue
+  const candidates: RoutedTool[] = [
+    ...toolDefinitions.map(toRouted),
+    ...harnessTools.map(toRoutedHarness),
+  ]
 
-    const name = definition.name.toLowerCase()
-    const nameWords = new Set(tokenize(definition.name))
-    const description = definition.description.toLowerCase()
+  const matches: ToolMatch[] = []
+  for (const candidate of candidates) {
+    // Tier 0 tools are already in the list; returning them wastes the response
+    if (TIER0_TOOL_NAMES.includes(candidate.name)) continue
+
+    const name = candidate.name.toLowerCase()
+    const nameWords = new Set(tokenize(candidate.name))
+    const description = candidate.description.toLowerCase()
 
     let score = 0
     for (const term of terms) {
@@ -194,7 +226,7 @@ export function scoreTools(query: string): ToolMatch[] {
       }
     }
 
-    if (score > 0) matches.push({ name: definition.name, score, definition })
+    if (score > 0) matches.push({ name: candidate.name, score, tool: candidate })
   }
 
   // Stable tie-break by name so results are deterministic across runs
@@ -254,4 +286,9 @@ function toRouted(definition: ToolDefinition): RoutedTool {
     description: definition.description,
     inputSchema: definition.inputSchema,
   }
+}
+
+// Drops the executor so what goes over the wire is only ever the schema
+function toRoutedHarness(tool: HarnessTool): RoutedTool {
+  return { name: tool.name, description: tool.description, inputSchema: tool.inputSchema }
 }
