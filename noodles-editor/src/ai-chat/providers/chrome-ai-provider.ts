@@ -31,7 +31,7 @@ interface LanguageModelAvailability {
     topK?: number
     temperature?: number
     monitor?: (event: DownloadProgressEvent) => void
-    language?: string
+    expectedOutputs?: Array<{ type: 'text'; languages: string[] }>
   }): Promise<AILanguageModelSession>
 }
 
@@ -132,7 +132,7 @@ export class ChromeAIProvider implements AIProvider {
         systemPrompt: this.getSimplifiedSystemPrompt(),
         temperature: 0.7,
         topK: 40,
-        language: 'en',
+        expectedOutputs: [{ type: 'text', languages: ['en'] }],
         monitor: (m) => {
           m.addEventListener('downloadprogress', (e) => {
             const percent = Math.round(e.loaded * 100)
@@ -142,18 +142,25 @@ export class ChromeAIProvider implements AIProvider {
         },
       })
 
+      // Use longer timeout when downloading (10 minutes), shorter for initialization (60s)
+      const isDownloading = availability === 'downloadable' || availability === 'downloading'
+      const timeoutMs = isDownloading ? 600000 : 60000
+      const timeoutMessage = isDownloading
+        ? 'Chrome AI model download timed out after 10 minutes.\n\n' +
+          'The model is very large (~2GB). Try:\n' +
+          '1. Check your internet connection\n' +
+          '2. Check chrome://components/ for "Optimization Guide On Device Model" status\n' +
+          '3. Configure an external AI provider (Anthropic, OpenAI) in Settings → AI Provider'
+        : 'Chrome AI initialization timed out after 60 seconds.\n\n' +
+          'Try:\n' +
+          '1. Restart Chrome and try again\n' +
+          '2. Check chrome://components/ for "Optimization Guide On Device Model" status\n' +
+          '3. Configure an external AI provider (Anthropic, OpenAI) in Settings → AI Provider'
+
       this.session = await withTimeout(
         createSessionPromise,
-        60000, // 60 second timeout
-        'Chrome AI initialization timed out after 60 seconds.\n\n' +
-          'This can happen if:\n' +
-          '- The model is still downloading in the background\n' +
-          '- Chrome AI is initializing for the first time\n' +
-          '- Your system doesn\'t have enough resources\n\n' +
-          'Try:\n' +
-          '1. Wait a few more minutes and try again\n' +
-          '2. Check chrome://components/ for "Optimization Guide On Device Model" download status\n' +
-          '3. Configure an external AI provider (Anthropic, OpenAI) in Settings → AI Provider'
+        timeoutMs,
+        timeoutMessage
       )
 
       // Check context window usage

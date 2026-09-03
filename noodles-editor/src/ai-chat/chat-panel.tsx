@@ -306,6 +306,10 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
 
   // Show error if provider initialization failed
   if (providerError && !contextLoading) {
+    // Only show Chrome AI flag instructions if the error is specifically about it not being available
+    const showChromeAIInstructions =
+      providerError.includes('not available') && providerError.includes('Chrome Built-in AI')
+
     return (
       <div className={styles.chatPanel}>
         <div className={styles.chatPanelLoading}>
@@ -323,12 +327,14 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
               Configure API Keys (Anthropic, OpenAI, etc.)
             </button>
           </div>
-          <p style={{ fontSize: '12px', color: '#aaa', marginBottom: '0.5rem' }}>
-            Or enable Chrome Built-in AI at{' '}
-            <code style={{ background: '#333', padding: '2px 6px', borderRadius: '3px' }}>
-              chrome://flags/#prompt-api-for-gemini-nano
-            </code>
-          </p>
+          {showChromeAIInstructions && (
+            <p style={{ fontSize: '12px', color: '#aaa', marginBottom: '0.5rem' }}>
+              Or enable Chrome Built-in AI at{' '}
+              <code style={{ background: '#333', padding: '2px 6px', borderRadius: '3px' }}>
+                chrome://flags/#prompt-api-for-gemini-nano
+              </code>
+            </p>
+          )}
           <div
             style={{
               marginTop: '1.5rem',
