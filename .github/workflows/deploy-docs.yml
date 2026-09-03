@@ -43,11 +43,26 @@ jobs:
         run: npm run generate:context
         working-directory: ./noodles-editor
 
-      - name: Build all for GitHub Pages
-        run: npm run build:all
+      - name: Build app
+        run: npm run build:app
         env:
           VITE_POSTHOG_API_KEY: ${{ secrets.VITE_POSTHOG_API_KEY }}
           VITE_GA_MEASUREMENT_ID: ${{ secrets.VITE_GA_MEASUREMENT_ID }}
+
+      - name: Upload sourcemaps to R2
+        run: npm run upload-sourcemaps
+        working-directory: ./noodles-editor
+        env:
+          GIT_SHA: ${{ github.sha }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
+          SOURCEMAPS_PUBLIC_URL: ${{ vars.SOURCEMAPS_PUBLIC_URL }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+
+      - name: Build website and assemble for GitHub Pages
+        run: npm run build:website && mkdir -p website/build/app && cp -r noodles-editor/dist/* website/build/app/
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
