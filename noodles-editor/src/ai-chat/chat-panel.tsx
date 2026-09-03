@@ -46,14 +46,11 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null)
   const [showHistory, setShowHistory] = useState(false)
   const [contextProgress, setContextProgress] = useState<string>('')
+  const [providerProgress, setProviderProgress] = useState<string>('')
   const [providerError, setProviderError] = useState<string | null>(null)
   const [upgradeBannerDismissed, setUpgradeBannerDismissed] = useState(
     () => localStorage.getItem('noodles-upgrade-banner-dismissed') === 'true'
   )
-  const [downloadProgress, setDownloadProgress] = useState<{
-    loaded: number
-    total: number
-  } | null>(null)
 
   // Get API keys and config from store (reactive) - watch for changes to trigger provider refresh
   const anthropicKey = useKeysStore(state => state.getKey('anthropic'))
@@ -90,25 +87,23 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
     const init = async () => {
       setContextLoading(true)
       setProviderError(null)
+      setProviderProgress('Loading documentation...')
       try {
         // Wait for context to be ready (should be instant if already loaded)
         const loader = await globalContextManager.waitForReady()
+
+        setProviderProgress('Initializing AI provider...')
 
         const tools = new MCPTools(loader)
         const registry = getProviderRegistry()
         registry.setTools(tools)
         registry.setPreference(providerPreference)
 
-        // Set download progress callback for Chrome AI
-        registry.setChromeAIDownloadProgress((loaded, total) => {
-          setDownloadProgress({ loaded, total })
-        })
-
         // Get appropriate provider based on available keys and preference
-        const provider = await registry.getProvider()
-
-        // Clear download progress once provider is initialized
-        setDownloadProgress(null)
+        // Pass progress callback to track provider initialization
+        const provider = await registry.getProvider(msg => {
+          setProviderProgress(msg)
+        })
 
         setMcpTools(tools)
         setAiProvider(provider)
@@ -352,26 +347,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
       <div className={styles.chatPanel}>
         <div className={styles.chatPanelLoading}>
           <div className={styles.spinner} />
-          {downloadProgress ? (
-            <>
-              <p>Downloading AI model...</p>
-              <div className={styles.progressBar}>
-                <div
-                  className={styles.progressBarFill}
-                  style={{
-                    width: `${Math.round((downloadProgress.loaded / downloadProgress.total) * 100)}%`,
-                  }}
-                />
-              </div>
-              <p className={styles.progressText}>
-                {Math.round((downloadProgress.loaded / downloadProgress.total) * 100)}% (
-                {(downloadProgress.loaded / 1024 / 1024 / 1024).toFixed(1)} GB /{' '}
-                {(downloadProgress.total / 1024 / 1024 / 1024).toFixed(1)} GB)
-              </p>
-            </>
-          ) : (
-            <p>{contextProgress || 'Loading context...'}</p>
-          )}
+          <p>{providerProgress || contextProgress || 'Loading context...'}</p>
         </div>
       </div>
     )

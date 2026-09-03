@@ -13,7 +13,7 @@ export interface AIProvider {
   readonly supportsFunctionCalling: boolean
 
   // Lifecycle
-  initialize(): Promise<void>
+  initialize(onProgress?: (message: string) => void): Promise<void>
 
   // Core functionality
   sendMessage(params: MessageParams): Promise<AIResponse>

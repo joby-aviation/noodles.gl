@@ -14,7 +14,6 @@ export class ProviderRegistry {
   private currentProvider: AIProvider | null = null
   private tools: MCPTools | null = null
   private preference: ProviderPreference = 'automatic'
-  private onChromeAIDownloadProgress?: (loaded: number, total: number) => void
 
   private constructor() {}
 
@@ -40,13 +39,8 @@ export class ProviderRegistry {
     return this.preference
   }
 
-  // Set download progress callback for Chrome AI
-  setChromeAIDownloadProgress(callback?: (loaded: number, total: number) => void): void {
-    this.onChromeAIDownloadProgress = callback
-  }
-
   // Get or create the appropriate provider based on available API keys and user preference
-  async getProvider(): Promise<AIProvider> {
+  async getProvider(onProgress?: (message: string) => void): Promise<AIProvider> {
     if (!this.tools) {
       throw new ProviderError(
         'ProviderRegistry not initialized with MCPTools',
@@ -64,7 +58,7 @@ export class ProviderRegistry {
     const provider = await this.selectProvider()
 
     // Cache only providers that initialize successfully
-    await provider.initialize()
+    await provider.initialize(onProgress)
     this.currentProvider = provider
 
     debugAiChat(`Using provider: ${provider.displayName} (${provider.name})`)
@@ -109,9 +103,7 @@ export class ProviderRegistry {
         return new CustomEndpointProvider(this.tools, customEndpoint)
 
       case 'chrome-ai':
-        return new ChromeAIProvider(this.tools, {
-          onDownloadProgress: this.onChromeAIDownloadProgress
-        })
+        return new ChromeAIProvider(this.tools)
 
       case 'automatic':
       default:
@@ -133,9 +125,7 @@ export class ProviderRegistry {
         // Fall back to Chrome Built-in AI (truly free, local)
         try {
           debugAiChat('Automatic mode: No keys found, using Chrome Built-in AI (local, free)')
-          return new ChromeAIProvider(this.tools, {
-            onDownloadProgress: this.onChromeAIDownloadProgress
-          })
+          return new ChromeAIProvider(this.tools)
         } catch (error) {
           // Chrome AI not available - surface the specific error if it's a ProviderError
           if (error instanceof ProviderError) {

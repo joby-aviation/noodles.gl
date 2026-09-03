@@ -100,7 +100,9 @@ export class CustomEndpointProvider implements AIProvider {
     }
   }
 
-  async initialize(): Promise<void> {
+  async initialize(onProgress?: (message: string) => void): Promise<void> {
+    onProgress?.('Connecting to custom endpoint...')
+
     // Validate endpoint by making a test request
     try {
       const response = await fetch(`${this.baseUrl}/models`, {

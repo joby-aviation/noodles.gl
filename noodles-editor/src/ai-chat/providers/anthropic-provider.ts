@@ -84,8 +84,9 @@ export class AnthropicProvider implements AIProvider {
     this.tools = tools
   }
 
-  async initialize(): Promise<void> {
+  async initialize(onProgress?: (message: string) => void): Promise<void> {
     // No initialization needed for Anthropic
+    onProgress?.('Connecting to Anthropic...')
   }
 
   getRateLimit(): RateLimitInfo | null {

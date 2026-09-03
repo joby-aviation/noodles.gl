@@ -1,5 +1,6 @@
 import type { ProjectModification } from '../../noodles/hooks/use-project-modifications'
 import { debugAiChat } from '../../utils/debug'
+import { TimeoutError, withTimeout } from '../../utils/timeout'
 import type { MCPTools } from '../mcp-tools'
 import systemPromptTemplate from '../system-prompt.md?raw'
 import { getToolDefinition, toolDefinitions } from '../tool-definitions'
@@ -52,14 +53,14 @@ export class ChromeAIProvider implements AIProvider {
 
   private tools: MCPTools
   private session: AILanguageModelSession | null = null
-  private onDownloadProgress?: (loaded: number, total: number) => void
 
-  constructor(tools: MCPTools, options?: { onDownloadProgress?: (loaded: number, total: number) => void }) {
+  constructor(tools: MCPTools) {
     this.tools = tools
-    this.onDownloadProgress = options?.onDownloadProgress
   }
 
-  async initialize(): Promise<void> {
+  async initialize(onProgress?: (message: string) => void): Promise<void> {
+    onProgress?.('Checking Chrome AI availability...')
+
     // Check if Chrome Built-in AI is available
     if (typeof LanguageModel === 'undefined') {
       throw new ProviderError(
@@ -124,19 +125,60 @@ export class ChromeAIProvider implements AIProvider {
 
       // User activation is present, create session will trigger download
       debugAiChat('Triggering Chrome AI model download...')
+      onProgress?.('Downloading AI model...')
+    } else {
+      onProgress?.('Creating AI session...')
     }
 
-    // Create session with system prompt
+    // Create session with system prompt (with timeout and progress monitoring)
     try {
-      this.session = await LanguageModel.create({
+      const createSessionPromise = LanguageModel.create({
         systemPrompt: this.getSimplifiedSystemPrompt(),
         temperature: 0.7,
         topK: 40,
-        monitor: this.onDownloadProgress ? (event) => {
-          this.onDownloadProgress?.(event.loaded, event.total)
-        } : undefined,
+        monitor: (m) => {
+          m.addEventListener('downloadprogress', (e) => {
+            const percent = Math.round(e.loaded * 100)
+            onProgress?.(`Downloading AI model: ${percent}%`)
+            debugAiChat(`Chrome AI download progress: ${percent}%`)
+          })
+        },
       })
+
+      this.session = await withTimeout(
+        createSessionPromise,
+        60000, // 60 second timeout
+        'Chrome AI initialization timed out after 60 seconds.\n\n' +
+          'This can happen if:\n' +
+          '- The model is still downloading in the background\n' +
+          '- Chrome AI is initializing for the first time\n' +
+          '- Your system doesn\'t have enough resources\n\n' +
+          'Try:\n' +
+          '1. Wait a few more minutes and try again\n' +
+          '2. Check chrome://components/ for "Optimization Guide On Device Model" download status\n' +
+          '3. Configure an external AI provider (Anthropic, OpenAI) in Settings → AI Provider'
+      )
+
+      // Check context window usage
+      if ('contextWindow' in this.session && 'contextUsage' in this.session) {
+        const usage = (this.session as any).contextUsage
+        const window = (this.session as any).contextWindow
+        debugAiChat(`Chrome AI context usage: ${usage}/${window} tokens (${Math.round((usage / window) * 100)}%)`)
+
+        if (usage > window * 0.8) {
+          debugAiChat('WARNING: System prompt uses >80% of context window. May cause issues with longer conversations.')
+        }
+      }
+
+      onProgress?.('AI session ready')
     } catch (error) {
+      if (error instanceof TimeoutError) {
+        throw new ProviderError(
+          error.message,
+          'chrome-ai',
+          'TIMEOUT'
+        )
+      }
       throw new ProviderError(
         `Failed to create Chrome AI session: ${error instanceof Error ? error.message : 'Unknown error'}\n\n` +
           'The flag is enabled but session creation failed. Try restarting Chrome or configure an external AI provider.',
