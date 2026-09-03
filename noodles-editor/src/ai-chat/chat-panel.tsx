@@ -51,8 +51,8 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
   const [contextProgress, setContextProgress] = useState<string>('')
   // Text of the turn in flight, so the reply appears as it is generated rather
   // than all at once when the whole multi-step run finishes
-  const [streamingText, setStreamingText] = useState('')
-  const [activeTools, setActiveTools] = useState<string[]>([])
+  const [_streamingText, setStreamingText] = useState('')
+  const [_activeTools, setActiveTools] = useState<string[]>([])
   const [lastUsage, setLastUsage] = useState<AgentUsage | null>(null)
   const abortRef = useRef<AbortController | null>(null)
 
@@ -253,7 +253,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
     }
   }
 
-  const handleStop = () => {
+  const _handleStop = () => {
     abortRef.current?.abort()
   }
 
@@ -409,6 +409,34 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
       </div>
 
       <div className={styles.chatPanelOptions}>
+        <div className={styles.modelPicker}>
+          <select
+            value={providerId}
+            onChange={e => setStoredProvider(e.target.value as ProviderId)}
+            className={styles.modelSelect}
+            title="Which API the assistant talks to"
+          >
+            <option value="anthropic" disabled={!apiKey}>
+              Anthropic
+            </option>
+            <option value="openrouter" disabled={!openRouterKey}>
+              OpenRouter
+            </option>
+          </select>
+          <select
+            value={model ?? modelChoices[0].id}
+            onChange={e => setStoredModel(providerId, e.target.value)}
+            className={styles.modelSelect}
+            title="Model for this conversation"
+          >
+            {modelChoices.map(choice => (
+              <option key={choice.id} value={choice.id}>
+                {choice.label}
+              </option>
+            ))}
+          </select>
+          {lastUsage && <span className={styles.usageReadout}>{formatUsage(lastUsage)}</span>}
+        </div>
         <button
           type="button"
           onClick={handleManualCapture}
@@ -440,7 +468,9 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
             key={`msg-${idx}-${msg.role}`}
             className={`${styles.chatMessage} ${msg.role === 'user' ? styles.chatMessageUser : styles.chatMessageAssistant}`}
           >
-            <div className={styles.chatMessageRole}>{msg.role === 'user' ? 'You' : 'Claude'}</div>
+            <div className={styles.chatMessageRole}>
+              {msg.role === 'user' ? 'You' : 'Assistant'}
+            </div>
             <div className={styles.chatMessageContent}>
               <MessageContent
                 content={Array.isArray(msg.content) ? msg.content.join('\n') : msg.content}
@@ -451,13 +481,26 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
 
         {loading && (
           <div className={`${styles.chatMessage} ${styles.chatMessageAssistant}`}>
-            <div className={styles.chatMessageRole}>Claude</div>
+            <div className={styles.chatMessageRole}>Assistant</div>
             <div className={styles.chatMessageContent}>
-              <div className={styles.typingIndicator}>
-                <span />
-                <span />
-                <span />
-              </div>
+              {activeTools.length > 0 && (
+                <div className={styles.toolTrace}>
+                  {activeTools.map((name, idx) => (
+                    <span key={`${name}-${idx}`} className={styles.toolTraceRow}>
+                      {name}
+                    </span>
+                  ))}
+                </div>
+              )}
+              {streamingText ? (
+                <MessageContent content={streamingText} />
+              ) : (
+                <div className={styles.typingIndicator}>
+                  <span />
+                  <span />
+                  <span />
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -475,18 +518,24 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
               handleSend()
             }
           }}
-          placeholder="Ask Claude for help..."
+          placeholder="Ask for help..."
           disabled={loading}
           rows={3}
         />
-        <button
-          type="button"
-          onClick={handleSend}
-          disabled={loading || !input.trim()}
-          className={styles.chatSendBtn}
-        >
-          Send
-        </button>
+        {loading ? (
+          <button type="button" onClick={handleStop} className={styles.chatStopBtn}>
+            Stop
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={handleSend}
+            disabled={!input.trim()}
+            className={styles.chatSendBtn}
+          >
+            Send
+          </button>
+        )}
       </div>
 
       {showHistory && (
@@ -498,6 +547,31 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
       )}
     </div>
   )
+}
+
+// The stored choice wins, but only while its key is still configured — clearing a
+// key in Settings should not leave the chat pointed at a provider it cannot reach.
+function resolveProviderId(
+  stored: ProviderId | undefined,
+  anthropicKey: string | undefined,
+  openRouterKey: string | undefined
+): ProviderId {
+  if (stored === 'anthropic' && anthropicKey) return 'anthropic'
+  if (stored === 'openrouter' && openRouterKey) return 'openrouter'
+  if (anthropicKey) return 'anthropic'
+  if (openRouterKey) return 'openrouter'
+  return 'anthropic'
+}
+
+function formatUsage(usage: AgentUsage): string {
+  const tokens = `${formatTokens(usage.inputTokens)} in / ${formatTokens(usage.outputTokens)} out`
+  // Only OpenRouter reports a price; Anthropic leaves it to us to look up
+  if (usage.costUsd === undefined) return tokens
+  return `${tokens} · $${usage.costUsd.toFixed(4)}`
+}
+
+function formatTokens(count: number): string {
+  return count >= 1000 ? `${(count / 1000).toFixed(1)}k` : String(count)
 }
 
 // Render message content with basic markdown support

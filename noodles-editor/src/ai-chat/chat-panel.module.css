@@ -245,6 +245,69 @@
   user-select: none;
 }
 
+.modelPicker {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.modelSelect {
+  background: #1e1e1e;
+  border: 1px solid #444;
+  border-radius: 4px;
+  color: #e0e0e0;
+  font-size: 11px;
+  font-family: inherit;
+  padding: 4px 6px;
+  cursor: pointer;
+  max-width: 130px;
+}
+
+.modelSelect:focus {
+  outline: none;
+  border-color: #4a9eff;
+}
+
+.usageReadout {
+  font-size: 11px;
+  color: #777;
+  white-space: nowrap;
+}
+
+.toolTrace {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.toolTraceRow {
+  font-family: "Fira Code", "Consolas", "Monaco", monospace;
+  font-size: 11px;
+  color: #8ab4f8;
+  background: #1a1a1a;
+  border-radius: 3px;
+  padding: 2px 6px;
+}
+
+.chatStopBtn {
+  background: transparent;
+  color: #ff6b6b;
+  border: 1px solid #ff6b6b;
+  border-radius: 6px;
+  padding: 8px 20px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.chatStopBtn:hover {
+  background: #ff6b6b;
+  color: white;
+}
+
 .captureBtn {
   background: #333;
   border: 1px solid #444;
