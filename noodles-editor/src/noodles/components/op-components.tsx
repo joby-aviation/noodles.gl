@@ -58,12 +58,12 @@ import {
   getOp,
   hasOp,
   setHoveredOutputHandle,
-  updateOperatorId,
   useEdgeConnectionStore,
   useNestingStore,
   useOperatorStore,
   useUIStore,
 } from '../store'
+import { useProjectModificationActions } from '../contexts/project-modification-actions-context'
 import { inferSchema, type TableSchema } from '../table-schema'
 import type { NodeDataJSON } from '../transform-graph'
 import { canConnect } from '../utils/can-connect'
@@ -1310,7 +1310,7 @@ export function NodeHeader({
   const [editing, setEditing] = useState(false)
   const [inputValue, setInputValue] = useState('')
   const [hasConflict, setHasConflict] = useState(false)
-  const { setNodes, setEdges } = useReactFlow()
+  const { updateOperatorId } = useProjectModificationActions()
 
   const checkForConflict = useCallback(
     (newBaseName: string): boolean => {
@@ -1354,14 +1354,14 @@ export function NodeHeader({
         const isContainer = type === 'ContainerOp'
 
         // Call the store function to update the operator
-        updateOperatorId(id, trimmedName, isContainer, setNodes, setEdges)
+        updateOperatorId(id, trimmedName, isContainer)
       }
 
       setEditing(false)
       setHasConflict(false)
       setInputValue('')
     },
-    [id, type, baseName, setNodes, setEdges, checkForConflict]
+    [id, type, baseName, updateOperatorId, checkForConflict]
   )
 
   const onInputChange = useCallback(
