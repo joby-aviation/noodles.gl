@@ -1,4 +1,5 @@
 import type { ProjectModification } from '../../noodles/hooks/use-project-modifications'
+import { debugAiChat } from '../../utils/debug'
 import type { MCPTools } from '../mcp-tools'
 import systemPromptTemplate from '../system-prompt.md?raw'
 import { getToolDefinition, toolDefinitions } from '../tool-definitions'
@@ -126,7 +127,7 @@ export class ChromeAIProvider implements AIProvider {
       ? `${contextMessages}\n\nUser: ${message}\n\nAssistant:`
       : message
 
-    console.log('Sending to Chrome Built-in AI:', {
+    debugAiChat('Sending to Chrome Built-in AI:', {
       messageLength: message.length,
       historyLength: recentHistory.length,
     })
@@ -135,7 +136,7 @@ export class ChromeAIProvider implements AIProvider {
     try {
       response = await this.session.prompt(fullPrompt)
     } catch (error) {
-      console.error('Chrome AI error:', error)
+      debugAiChat('Chrome AI error:', error)
       throw new ProviderError(
         error instanceof Error ? error.message : 'Unknown error',
         'chrome-ai',

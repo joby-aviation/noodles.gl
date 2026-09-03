@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
 import type { ProjectModification } from '../../noodles/hooks/use-project-modifications'
+import { debugAiChat } from '../../utils/debug'
 import {
   compactConversation,
   estimateConversationTokens,
@@ -101,8 +102,8 @@ export class AnthropicProvider implements AIProvider {
 
     // Check if compaction is needed for long conversations
     if (shouldCompact(limitedHistory, AnthropicProvider.COMPACTION_THRESHOLD)) {
-      console.log(
-        '[Anthropic] Conversation history exceeds threshold, compacting...',
+      debugAiChat(
+        'Conversation history exceeds threshold, compacting...',
         `(~${estimateConversationTokens(limitedHistory)} tokens)`
       )
       try {
@@ -112,9 +113,9 @@ export class AnthropicProvider implements AIProvider {
           AnthropicProvider.MODEL,
           2 // Keep last 2 exchanges intact
         )
-        console.log('[Anthropic] Compaction complete, new history length:', limitedHistory.length)
+        debugAiChat('Compaction complete, new history length:', limitedHistory.length)
       } catch (error) {
-        console.error('[Anthropic] Compaction failed, using truncated history:', error)
+        debugAiChat('Compaction failed, using truncated history:', error)
         limitedHistory = conversationHistory.slice(-4)
       }
     }
@@ -154,7 +155,7 @@ export class AnthropicProvider implements AIProvider {
     // Define tools for Claude
     const tools = this.getTools()
 
-    console.log('Sending to Anthropic:', {
+    debugAiChat('Sending to Anthropic:', {
       messageCount: messages.length,
       systemPromptLength: systemPrompt.length,
       hasScreenshot: !!screenshot,
@@ -179,7 +180,7 @@ export class AnthropicProvider implements AIProvider {
         tools,
       })
     } catch (error) {
-      console.error('Anthropic API error:', error)
+      debugAiChat('Anthropic API error:', error)
       if (error instanceof Error) {
         if (
           error.message.includes('authentication') ||
@@ -249,7 +250,7 @@ export class AnthropicProvider implements AIProvider {
               collectedModifications.push(...result.data.modifications)
             }
           } catch (error) {
-            console.error('Error executing tool:', content.name, error)
+            debugAiChat('Error executing tool:', content.name, error)
             result = {
               success: false,
               error: error instanceof Error ? error.message : 'Unknown error executing tool',
@@ -335,7 +336,7 @@ export class AnthropicProvider implements AIProvider {
           tools,
         })
       } catch (error) {
-        console.error('Anthropic API error in tool use loop:', error)
+        debugAiChat('Anthropic API error in tool use loop:', error)
         throw new ProviderError(
           error instanceof Error ? error.message : 'Unknown error',
           'anthropic',

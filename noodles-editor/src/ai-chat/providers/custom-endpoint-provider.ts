@@ -1,4 +1,5 @@
 import type { ProjectModification } from '../../noodles/hooks/use-project-modifications'
+import { debugAiChat } from '../../utils/debug'
 import type { MCPTools } from '../mcp-tools'
 import systemPromptTemplate from '../system-prompt.md?raw'
 import { getToolDefinition, toolDefinitions } from '../tool-definitions'
@@ -113,7 +114,7 @@ export class CustomEndpointProvider implements AIProvider {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`)
       }
     } catch (error) {
-      console.warn('Could not validate custom endpoint (models endpoint may not exist):', error)
+      debugAiChat('Could not validate custom endpoint (models endpoint may not exist):', error)
       // Don't fail initialization - some endpoints don't have /models
     }
   }
@@ -150,7 +151,7 @@ export class CustomEndpointProvider implements AIProvider {
     // Convert tools to OpenAI format
     const tools = this.getToolsOpenAIFormat()
 
-    console.log(`Sending to custom endpoint (${this.baseUrl}):`, {
+    debugAiChat(`Sending to custom endpoint (${this.baseUrl}):`, {
       messageCount: messages.length,
       systemPromptLength: systemPrompt.length,
       conversationHistoryLength: limitedHistory.length,
@@ -190,7 +191,7 @@ export class CustomEndpointProvider implements AIProvider {
 
       response = await res.json()
     } catch (error) {
-      console.error('Custom endpoint API error:', error)
+      debugAiChat('Custom endpoint API error:', error)
       if (error instanceof ProviderError) {
         throw error
       }
@@ -246,7 +247,7 @@ export class CustomEndpointProvider implements AIProvider {
             collectedModifications.push(...mods)
           }
         } catch (error) {
-          console.error('Error executing tool:', toolName, error)
+          debugAiChat('Error executing tool:', toolName, error)
           result = {
             success: false,
             error: error instanceof Error ? error.message : 'Unknown error',
@@ -267,8 +268,8 @@ export class CustomEndpointProvider implements AIProvider {
           content: assistantMessage.content || '',
           tool_calls: assistantMessage.tool_calls,
         },
-        ...assistantMessage.tool_calls.map(toolCall => {
-          const matchingResult = toolCalls.find(tc => tc.name === toolCall.function.name)
+        ...assistantMessage.tool_calls.map((toolCall, idx) => {
+          const matchingResult = toolCalls[idx]
           return {
             role: 'tool' as const,
             tool_call_id: toolCall.id,
@@ -291,10 +292,24 @@ export class CustomEndpointProvider implements AIProvider {
         } as ChatCompletionRequest),
       })
 
+      if (!followUpRes.ok) {
+        const errorText = await followUpRes.text()
+        throw new ProviderError(
+          `Custom endpoint error (follow-up): ${followUpRes.status} ${errorText}`,
+          'custom',
+          'API_ERROR'
+        )
+      }
+
       const followUpResponse: ChatCompletionResponse = await followUpRes.json()
       const followUpChoice = followUpResponse.choices[0]
-      if (followUpChoice?.message.content) {
-        finalText = followUpChoice.message.content
+      if (followUpChoice?.message) {
+        if (followUpChoice.message.content) {
+          finalText = followUpChoice.message.content
+        }
+        // Note: We don't currently handle another round of tool calls in follow-up
+        // Most models complete after seeing tool results, but this could be extended
+        // with a while loop if needed for models that require multiple tool rounds
       }
     } else if (assistantMessage.content) {
       finalText = assistantMessage.content

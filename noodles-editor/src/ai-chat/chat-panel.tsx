@@ -50,6 +50,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
 
   // Get API keys and config from store (reactive) - watch for changes to trigger provider refresh
   const anthropicKey = useKeysStore(state => state.getKey('anthropic'))
+  const customEndpoint = useKeysStore(state => state.getCustomEndpoint())
   const providerPreference = useKeysStore(state => state.getProviderPreference())
 
   // Get the function to open settings dialog
@@ -71,6 +72,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
   }, [])
 
   // Initialize AI provider when keys or preference change
+  // biome-ignore lint/correctness/useExhaustiveDependencies: keys are used indirectly via provider registry
   useEffect(() => {
     const init = async () => {
       setContextLoading(true)
@@ -101,7 +103,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
     }
 
     init()
-  }, [providerPreference])
+  }, [providerPreference, anthropicKey, customEndpoint])
 
   // Update MCPTools with current project whenever it changes
   useEffect(() => {

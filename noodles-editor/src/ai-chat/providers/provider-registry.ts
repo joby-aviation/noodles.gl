@@ -1,5 +1,6 @@
 import type { ProviderPreference } from '../../noodles/keys-store'
 import { getKeysStore } from '../../noodles/keys-store'
+import { debugAiChat } from '../../utils/debug'
 import type { MCPTools } from '../mcp-tools'
 import type { AIProvider } from './ai-provider-interface'
 import { ProviderError } from './ai-provider-interface'
@@ -55,12 +56,12 @@ export class ProviderRegistry {
 
     // Select provider based on preference and available keys
     const provider = await this.selectProvider()
+
+    // Cache only providers that initialize successfully
+    await provider.initialize()
     this.currentProvider = provider
 
-    // Initialize provider
-    await provider.initialize()
-
-    console.log(`[ProviderRegistry] Using ${provider.displayName} (${provider.name})`)
+    debugAiChat(`Using provider: ${provider.displayName} (${provider.name})`)
 
     return provider
   }
@@ -112,18 +113,18 @@ export class ProviderRegistry {
         // 3. Chrome Built-in AI (if available) - truly free, no keys
 
         if (anthropicKey) {
-          console.log('[ProviderRegistry] Anthropic key found, using Claude')
+          debugAiChat('Automatic mode: Anthropic key found, using Claude')
           return new AnthropicProvider(anthropicKey, this.tools)
         }
 
         if (customEndpoint?.baseUrl && customEndpoint?.apiKey && customEndpoint?.model) {
-          console.log('[ProviderRegistry] Custom endpoint configured, using it')
+          debugAiChat('Automatic mode: Custom endpoint configured, using it')
           return new CustomEndpointProvider(this.tools, customEndpoint)
         }
 
         // Fall back to Chrome Built-in AI (truly free, local)
         try {
-          console.log('[ProviderRegistry] No keys found, using Chrome Built-in AI (local, free)')
+          debugAiChat('Automatic mode: No keys found, using Chrome Built-in AI (local, free)')
           return new ChromeAIProvider(this.tools)
         } catch (error) {
           // Chrome AI not available
