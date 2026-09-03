@@ -17,6 +17,7 @@
 // accept either spelling rather than pinning to one.
 
 import { debugAiChat } from '../../../utils/debug'
+import { withTimeout } from '../../../utils/timeout'
 import type {
   AgentEvent,
   AgentMessage,
@@ -83,10 +84,24 @@ export async function chromeAvailability(): Promise<ChromeAvailability> {
   }
 }
 
+// The first create() on a machine that has never run the model downloads ~2GB,
+// so it gets minutes; an ordinary create() that has not answered in a minute is
+// wedged rather than slow.
+const DOWNLOAD_TIMEOUT_MS = 10 * 60 * 1000
+const CREATE_TIMEOUT_MS = 60 * 1000
+
+export interface DownloadProgress {
+  loaded: number
+  total: number
+}
+
 // Creates a probe session purely to read the real window size, then throws it
 // away: this provider keeps no session between turns, so the transcript the loop
-// holds stays the only state.
-export async function createChromeProvider(): Promise<ChromeProvider> {
+// holds stays the only state. Since this is also the call that triggers the
+// model download, it is where progress is reported from.
+export async function createChromeProvider(
+  options: { onDownloadProgress?: (progress: DownloadProgress) => void } = {}
+): Promise<ChromeProvider> {
   const api = factory()
   if (!api) throw new Error('Chrome’s built-in model is not available in this browser')
 
@@ -95,13 +110,26 @@ export async function createChromeProvider(): Promise<ChromeProvider> {
     throw new Error('Chrome’s built-in model is unavailable on this device')
   }
 
-  const probe = await api.create({
+  const downloading = availability === 'downloadable' || availability === 'downloading'
+  const create = api.create({
     monitor: monitor => {
       monitor.addEventListener('downloadprogress', event => {
-        debugAiChat('[chrome] model download %o', (event as ProgressEvent).loaded)
+        // `loaded` is a 0..1 fraction in current Chrome and a byte count in
+        // earlier builds; either way total is what it is measured against
+        const { loaded, total = 1 } = event as ProgressEvent
+        debugAiChat('[chrome] model download %d/%d', loaded, total)
+        options.onDownloadProgress?.({ loaded, total })
       })
     },
   })
+
+  const probe = await withTimeout(
+    create,
+    downloading ? DOWNLOAD_TIMEOUT_MS : CREATE_TIMEOUT_MS,
+    downloading
+      ? 'Chrome’s model download timed out after 10 minutes. Check chrome://components for “Optimization Guide On Device Model”, or pick another provider in Settings → AI Provider.'
+      : 'Chrome’s built-in model did not start within 60 seconds. Restart Chrome, or pick another provider in Settings → AI Provider.'
+  )
 
   const contextWindow = readQuota(probe)
   probe.destroy()

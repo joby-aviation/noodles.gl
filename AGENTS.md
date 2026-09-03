@@ -687,10 +687,11 @@ Any field can be keyframed via the native timeline system. Changes in timeline p
 
 The chat panel in the editor (`noodles-editor/src/ai-chat/`) runs its own agent loop
 in `ai-chat/agent/`. It is provider-agnostic — the same loop and tool surface serve
-Anthropic, OpenRouter, and Chrome's built-in Gemini Nano — and it bounds context cost
-rather than sending everything it has.
+Anthropic, OpenRouter, any OpenAI-compatible endpoint you point it at, and Chrome's
+built-in Gemini Nano — and it bounds context cost rather than sending everything it
+has.
 
-Four things to know before changing it:
+Five things to know before changing it:
 
 1. **`tool-definitions.ts` + `mcp-tools.ts` stay the single source of truth** for the
    tool surface. WebMCP (`src/webmcp/`) registers all of them unconditionally; the
@@ -704,7 +705,12 @@ Four things to know before changing it:
    ids and previews rather than whole objects (see `listNodes`).
 4. **The provider interface is two flags plus a stream.** `supportsNativeTools` and
    `contextWindow` carry all the behavioural difference; adding a provider touches
-   nothing in the loop or router.
+   nothing in the loop or router. An OpenAI-compatible provider should reuse
+   `agent/providers/openai-format.ts` rather than re-implement SSE tool-call
+   fragment reassembly.
+5. **Which provider runs is `providerPreference` in `noodles/keys-store.tsx`**, not
+   the model store. `'automatic'` picks the first of anthropic → openrouter → custom
+   → chrome that has a credential.
 
 Full details, including the measured before/after context cost, are in
 [dev-docs/agent-harness.md](dev-docs/agent-harness.md).

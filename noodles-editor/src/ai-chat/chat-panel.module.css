@@ -36,142 +36,6 @@
   color: #e0e0e0;
 }
 
-.providerSelector {
-  position: relative;
-  display: inline-block;
-}
-
-.providerName {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 11px;
-  opacity: 0.7;
-  margin-top: 2px;
-  padding: 4px 8px;
-  border-radius: 4px;
-  transition: opacity 0.2s, background 0.2s;
-}
-
-.providerSelector:hover .providerName {
-  opacity: 1;
-  background: rgba(255, 255, 255, 0.05);
-}
-
-.dropdownIcon {
-  width: 12px;
-  height: 12px;
-  opacity: 0.5;
-  transition: opacity 0.2s;
-}
-
-.providerSelector:hover .dropdownIcon {
-  opacity: 1;
-}
-
-.settingsGear {
-  background: transparent;
-  border: none;
-  padding: 0;
-  margin: 0;
-  font-size: 12px;
-  cursor: pointer;
-  opacity: 0;
-  transition: opacity 0.2s;
-  line-height: 1;
-}
-
-.providerSelector:hover .settingsGear {
-  opacity: 0.6;
-}
-
-.settingsGear:hover {
-  opacity: 1 !important;
-}
-
-.providerDropdown {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  margin-top: 4px;
-  background: #2a2a2a;
-  border: 1px solid #404040;
-  border-radius: 8px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
-  min-width: 260px;
-  z-index: 1000;
-  padding: 4px;
-  animation: dropdownFadeIn 0.15s ease-out;
-}
-
-@keyframes dropdownFadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(-4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.providerOption {
-  display: block;
-  width: 100%;
-  background: transparent;
-  border: none;
-  color: #e0e0e0;
-  text-align: left;
-  padding: 8px 12px;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: background 0.15s;
-}
-
-.providerOption:hover:not(:disabled) {
-  background: rgba(74, 158, 255, 0.15);
-}
-
-.providerOptionActive {
-  background: rgba(74, 158, 255, 0.25);
-}
-
-.providerOptionDisabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-.providerOptionName {
-  font-size: 13px;
-  font-weight: 500;
-  margin-bottom: 2px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.activeCheckmark {
-  color: #4a9eff;
-  font-size: 14px;
-}
-
-.providerOptionDesc {
-  font-size: 11px;
-  opacity: 0.6;
-}
-
-.providerOptionWarning {
-  font-size: 10px;
-  color: #ff6b6b;
-  margin-top: 2px;
-}
-
-.providerDropdownDivider {
-  height: 1px;
-  background: #404040;
-  margin: 4px 0;
-}
-
 .chatPanelActions {
   display: flex;
   gap: 8px;
@@ -228,23 +92,6 @@
   gap: 12px;
 }
 
-.chatOption {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  color: #aaa;
-  cursor: pointer;
-}
-
-.chatOption input[type="checkbox"] {
-  cursor: pointer;
-}
-
-.chatOption span {
-  user-select: none;
-}
-
 .modelPicker {
   display: flex;
   align-items: center;
@@ -273,6 +120,18 @@
   font-size: 11px;
   color: #777;
   white-space: nowrap;
+}
+
+.downloadProgress {
+  width: 220px;
+  height: 6px;
+  accent-color: #3b82f6;
+}
+
+.downloadNote {
+  font-size: 11px;
+  color: #777;
+  max-width: 260px;
 }
 
 .toolTrace {
@@ -644,41 +503,4 @@
     opacity: 1;
     transform: translateY(0);
   }
-}
-
-/* Download progress bar */
-.progressBar {
-  width: 100%;
-  height: 8px;
-  background: #333;
-  border-radius: 4px;
-  overflow: hidden;
-  margin: 12px 0;
-}
-
-.progressBarFill {
-  height: 100%;
-  background: linear-gradient(90deg, #4a9eff, #6eb4ff);
-  transition: width 0.3s ease;
-  border-radius: 4px;
-}
-
-.progressText {
-  font-size: 12px;
-  color: #aaa;
-  margin: 0;
-}
-
-/* Context window indicator */
-.contextIndicator {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #e0e0e0;
-  cursor: help;
-  transition: opacity 0.2s;
-}
-
-.contextIndicator:hover {
-  opacity: 1;
 }

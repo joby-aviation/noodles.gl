@@ -7,7 +7,10 @@
 
 export type StopReason = 'end_turn' | 'tool_use' | 'max_tokens' | 'aborted' | 'error'
 
-export type ProviderId = 'anthropic' | 'openrouter' | 'chrome'
+// 'custom' is any OpenAI-compatible endpoint the user configures — Groq, OpenAI,
+// a local vLLM server — which is one provider from the loop's point of view no
+// matter how many different servers it points at over time.
+export type ProviderId = 'anthropic' | 'openrouter' | 'custom' | 'chrome'
 
 export type AgentContent =
   | { type: 'text'; text: string }

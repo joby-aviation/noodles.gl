@@ -25,7 +25,8 @@ every tool schema on every request, and serialized tool results with no size cap
 | `agent/result-budget.ts` | Caps every tool result against the provider's window |
 | `agent/subagent.ts` | The `delegate` tool and its toolsets |
 | `agent/web-search.ts` | The `web_search` tool, per provider |
-| `agent/providers/*.ts` | `anthropic`, `openrouter`, `chrome` |
+| `agent/providers/*.ts` | `anthropic`, `openrouter`, `custom`, `chrome` |
+| `agent/providers/openai-format.ts` | The OpenAI chat-completions wire format, shared by `openrouter` and `custom` |
 | `prompts/core.md` | The always-in-context system prompt |
 | `prompts/sections/*.md` | Workflow walkthroughs, retrieved on demand via `get_documentation` |
 
@@ -35,19 +36,38 @@ unconditionally and is unaffected by any of the routing below.
 
 ## Providers
 
-| | Anthropic | OpenRouter | Chrome |
-| --- | --- | --- | --- |
-| Default model | `claude-sonnet-5` | `google/gemini-2.5-flash` | `gemini-nano` |
-| Context window | 200k | per-model table, 128k fallback | discovered at runtime (~6k) |
-| Native tool calling | yes | yes | **no** — constrained JSON |
-| Images (screenshots) | yes | yes | no |
-| Web search | server-side `web_search_2026…`/`…20250305` | `plugins: [{id:'web'}]` | unavailable |
-| Prompt caching | `cache_control: ephemeral` on the system prompt | — | — |
-| API key | required | required | none |
+| | Anthropic | OpenRouter | Custom | Chrome |
+| --- | --- | --- | --- | --- |
+| Default model | `claude-sonnet-5` | `google/gemini-2.5-flash` | whatever you type | `gemini-nano` |
+| Context window | 200k | per-model table, 128k fallback | configurable, 32k default | discovered at runtime (~6k) |
+| Native tool calling | yes | yes | assumed, switchable off | **no** — constrained JSON |
+| Images (screenshots) | yes | yes | off by default | no |
+| Web search | server-side `web_search_2026…`/`…20250305` | `plugins: [{id:'web'}]` | unavailable | unavailable |
+| Prompt caching | `cache_control: ephemeral` on the system prompt | — | — | — |
+| API key | required | required | required | none |
 
-The provider and model are chosen in the chat panel header and persisted by
-`agent/model-store.ts`. Chrome is selectable but never the automatic fallback — it
-is the weakest of the three, so it has to be asked for.
+`custom` is one provider no matter how many servers it points at: any endpoint
+speaking OpenAI chat-completions — Groq, OpenAI itself, vLLM, LM Studio, Ollama's
+compat layer. It is configured in Settings → AI Provider (base URL, key, model,
+display name, optional context window), and the Save button first calls
+`validateCustomEndpoint`, which `GET`s `{base}/models` and refuses a server whose
+catalogue does not list the model you typed. Because these servers disagree about
+error shape, `describeFailure` tries `error.message`, then a bare `message`, then the
+status line, and a browser-level "Failed to fetch" is reported as "connection
+refused, or the server does not allow browser requests (CORS)" — which is what it
+almost always is for a self-hosted model.
+
+`openrouter` and `custom` differ only in what the same wire format asks for:
+`usage: {include: true}` versus `stream_options: {include_usage: true}`, plus
+attribution headers. Everything else — message translation, SSE decoding, tool-call
+fragment reassembly — lives once in `providers/openai-format.ts`.
+
+The provider is chosen in the chat panel header (or pinned in Settings) and stored as
+`providerPreference` in `noodles/keys-store.tsx`; the model is stored separately in
+`agent/model-store.ts`. `'automatic'` walks `anthropic → openrouter → custom → chrome`
+and takes the first one whose credential is present, so Chrome is never picked for you
+— it is the weakest of the four and has to be asked for. A pinned provider that has
+lost its credential falls back to the same walk rather than showing an error.
 
 Two provider flags carry all the behavioural difference: `supportsNativeTools`
 (false makes the Chrome provider emulate the tool round-trip with a
@@ -59,7 +79,8 @@ threshold).
 Adding a provider means implementing `AgentProvider.stream()` to yield
 `text_delta` / `tool_call` / `usage` / `stop` events, adding it to `ProviderId`, and
 adding a case to `createProvider` and `modelChoicesFor` in `chat-panel.tsx`. Nothing
-in the loop, router, or budget changes.
+in the loop, router, or budget changes. If it speaks OpenAI chat-completions, reach
+for `openai-format.ts` rather than a third copy of the fragment-reassembly logic.
 
 ## The loop
 
@@ -117,8 +138,8 @@ key), so they live in the harness and are discoverable and unlockable exactly li
 the rest:
 
 - **`web_search`** — server-side search on Anthropic, the `web` plugin on
-  OpenRouter, unavailable on Chrome (where the tool is not offered at all, so the
-  model never promises a search it cannot run).
+  OpenRouter, unavailable on Chrome and on custom endpoints (where the tool is not
+  offered at all, so the model never promises a search it cannot run).
 - **`delegate({task, toolset})`** — spawns `runAgent` at `depth + 1` with a fresh
   transcript and a narrowed toolset, and returns **only** the child's final report.
   Its tool results never enter the parent transcript, which is the largest single
@@ -192,8 +213,9 @@ cd noodles-editor && npx vitest run src/ai-chat src/webmcp
 ```
 
 `loop.test.ts` drives the loop with a fake provider yielding scripted events;
-`providers/*.test.ts` cover SSE fragment reassembly (OpenRouter) and constrained-JSON
-parsing (Chrome) against fakes. No test spends a real API request.
+`providers/*.test.ts` cover SSE fragment reassembly (`openai-format.test.ts`),
+request shaping and endpoint validation (`custom.test.ts`), and constrained-JSON
+parsing (`chrome.test.ts`) against fakes. No test spends a real API request.
 
 End-to-end checks that do need keys are listed in the PR description for this work:
 streaming and Stop on Anthropic, cost readout on OpenRouter, `find_tools` →

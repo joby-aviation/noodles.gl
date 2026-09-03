@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { AgentEvent } from '../types'
-import { mapOpenRouterEvents, parseSseData } from './openrouter'
+import { mapOpenAiEvents, parseSseData } from './openai-format'
 
 // Frames as OpenRouter sends them: one JSON object per `data:` line, keep-alive
 // comments interleaved, `[DONE]` last.
@@ -47,7 +47,7 @@ async function* chunked(body: string, size: number): AsyncIterable<string> {
 
 async function collect(body: string, chunkSize = body.length): Promise<AgentEvent[]> {
   const events: AgentEvent[] = []
-  for await (const event of mapOpenRouterEvents(chunked(body, chunkSize))) {
+  for await (const event of mapOpenAiEvents(chunked(body, chunkSize), 'openrouter')) {
     events.push(event)
   }
   return events
@@ -91,7 +91,7 @@ describe('parseSseData', () => {
   })
 })
 
-describe('mapOpenRouterEvents', () => {
+describe('mapOpenAiEvents', () => {
   it('streams text deltas through in order', async () => {
     const events = await collect(sse([textDelta('one '), textDelta('two')]))
 

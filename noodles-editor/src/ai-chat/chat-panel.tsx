@@ -6,12 +6,19 @@ import {
   type ProjectModification,
   useProjectModifications,
 } from '../noodles/hooks/use-project-modifications'
+import type { CustomEndpointConfig, ProviderPreference } from '../noodles/keys-store'
 import { useKeysStore } from '../noodles/keys-store'
 import { useUIStore } from '../noodles/store'
 import { debugAiChat } from '../utils/debug'
 import { useAgentModelStore } from './agent/model-store'
 import { ANTHROPIC_MODELS, AnthropicProvider } from './agent/providers/anthropic'
-import { CHROME_MODELS, chromeAvailability, createChromeProvider } from './agent/providers/chrome'
+import {
+  CHROME_MODELS,
+  chromeAvailability,
+  createChromeProvider,
+  type DownloadProgress,
+} from './agent/providers/chrome'
+import { CustomProvider } from './agent/providers/custom'
 import { OPENROUTER_MODELS, OpenRouterProvider } from './agent/providers/openrouter'
 import { AgentSession } from './agent/session'
 import type { AgentProvider, AgentUsage, ProviderId } from './agent/types'
@@ -58,33 +65,55 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
   // Whether this browser has a usable built-in model. Only knowable
   // asynchronously, so it starts false and the option stays disabled until then.
   const [chromeAvailable, setChromeAvailable] = useState(false)
+  // Only Chrome reports one, and only on the first run of a given machine
+  const [downloadProgress, setDownloadProgress] = useState<DownloadProgress | null>(null)
+  // A provider that would not start. Distinct from a failed message: nothing can
+  // be sent at all, so it replaces the panel rather than appearing in it.
+  const [providerError, setProviderError] = useState<string | null>(null)
   const abortRef = useRef<AbortController | null>(null)
 
   // Get API keys directly from store (reactive)
   const apiKey = useKeysStore(state => state.getKey('anthropic'))
   const openRouterKey = useKeysStore(state => state.getKey('openrouter'))
+  const customEndpoint = useKeysStore(state => state.getCustomEndpoint())
 
-  const storedProvider = useAgentModelStore(state => state.provider)
-  const setStoredProvider = useAgentModelStore(state => state.setProvider)
+  // Shared with the settings dialog, so the two cannot disagree about which
+  // provider is in use
+  const preference = useKeysStore(state => state.getProviderPreference())
+  const setPreference = useKeysStore(state => state.setProviderPreference)
   const setStoredModel = useAgentModelStore(state => state.setModel)
 
-  // Anthropic unless only the OpenRouter key is configured, or the user picked
+  // Anthropic unless only another credential is configured, or the user picked
   // otherwise. Falls back when the chosen provider's key has since been cleared.
-  const providerId: ProviderId = resolveProviderId(
-    storedProvider,
-    apiKey,
+  const providerId: ProviderId = resolveProviderId({
+    preference,
+    anthropicKey: apiKey,
     openRouterKey,
-    chromeAvailable
-  )
+    customEndpoint,
+    chromeAvailable,
+  })
   const providerKey = providerId === 'anthropic' ? apiKey : openRouterKey
-  // Chrome needs no key, so readiness is not the same question as "has a key"
-  const providerReady = providerId === 'chrome' ? chromeAvailable : Boolean(providerKey)
+  // Chrome needs no key and a custom endpoint carries its own, so readiness is
+  // not the same question as "has a key"
+  const providerReady = isProviderReady(providerId, {
+    anthropicKey: apiKey,
+    openRouterKey,
+    customEndpoint,
+    chromeAvailable,
+  })
   // undefined leaves the provider on its own default
   const model = useAgentModelStore(state => state.getModel(providerId))
-  const modelChoices = modelChoicesFor(providerId)
+  const modelChoices = modelChoicesFor(providerId, customEndpoint)
 
   // Get the function to open settings dialog
   const setSettingsDialogOpen = useUIStore(state => state.setSettingsDialogOpen)
+
+  // Deep-links into the tab that configures providers, rather than the one that
+  // happened to be open last
+  const openProviderSettings = () => {
+    window.location.hash = 'ai-provider'
+    setSettingsDialogOpen(true)
+  }
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
@@ -122,12 +151,19 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
 
     const init = async () => {
       setContextLoading(true)
+      setProviderError(null)
       try {
         // Wait for context to be ready (should be instant if already loaded)
         const loader = await globalContextManager.waitForReady()
 
         const tools = new MCPTools(loader)
-        const provider: AgentProvider = await createProvider(providerId, providerKey, model)
+        const provider: AgentProvider = await createProvider({
+          providerId,
+          apiKey: providerKey,
+          model,
+          customEndpoint,
+          onDownloadProgress: setDownloadProgress,
+        })
 
         setMcpTools(tools)
         setSession(
@@ -142,13 +178,16 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
         )
       } catch (error) {
         debugAiChat('Failed to initialize the assistant:', error)
+        setSession(null)
+        setProviderError(error instanceof Error ? error.message : String(error))
       } finally {
+        setDownloadProgress(null)
         setContextLoading(false)
       }
     }
 
     init()
-  }, [providerId, providerKey, providerReady, model, apiKey, openRouterKey])
+  }, [providerId, providerKey, providerReady, model, apiKey, openRouterKey, customEndpoint])
 
   // Update MCPTools with current project whenever it changes
   useEffect(() => {
@@ -357,20 +396,17 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
     return (
       <div className={styles.chatPanel}>
         <div className={styles.chatPanelLoading}>
-          <h3>API Key Required</h3>
+          <h3>Pick an AI provider</h3>
           <p>
-            To use the Noodles assistant, you need an Anthropic or OpenRouter API key in{' '}
-            <button
-              type="button"
-              onClick={() => setSettingsDialogOpen(true)}
-              className={styles.linkButton}
-            >
-              Settings
-            </button>{' '}
-            (top menu).
+            The Noodles assistant needs one of an Anthropic key, an OpenRouter key, an
+            OpenAI-compatible endpoint, or Chrome’s built-in model. Configure one in{' '}
+            <button type="button" onClick={openProviderSettings} className={styles.linkButton}>
+              Settings → AI Provider
+            </button>
+            .
           </p>
           <p>
-            Get one from the{' '}
+            Keys come from the{' '}
             <a href="https://console.anthropic.com/" target="_blank" rel="noopener noreferrer">
               Anthropic Console
             </a>{' '}
@@ -378,7 +414,8 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
             <a href="https://openrouter.ai/keys" target="_blank" rel="noopener noreferrer">
               OpenRouter
             </a>
-            , then add it in <strong>Settings → API Keys</strong>.
+            . Chrome’s built-in model is free and needs no key, but is the least capable of the
+            three.
           </p>
           <div
             style={{ marginTop: '1rem', display: 'flex', gap: '0.5rem', justifyContent: 'center' }}
@@ -392,12 +429,55 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
     )
   }
 
+  if (providerError) {
+    return (
+      <div className={styles.chatPanel}>
+        <div className={styles.chatPanelLoading}>
+          <h3>{PROVIDER_LABELS[providerId]} did not start</h3>
+          <p>{providerError}</p>
+          {providerId === 'chrome' && (
+            <p>
+              Chrome’s built-in model needs Chrome 127+ with the Prompt API enabled at{' '}
+              <code>chrome://flags/#prompt-api-for-gemini-nano</code>, and the model downloaded via{' '}
+              <code>chrome://components</code>.
+            </p>
+          )}
+          <div
+            style={{ marginTop: '1rem', display: 'flex', gap: '0.5rem', justifyContent: 'center' }}
+          >
+            <button type="button" onClick={openProviderSettings} className={styles.chatSendBtn}>
+              Provider settings
+            </button>
+            <button type="button" onClick={handleClose} className={styles.chatPanelActionBtn}>
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   if (contextLoading) {
     return (
       <div className={styles.chatPanel}>
         <div className={styles.chatPanelLoading}>
           <div className={styles.spinner} />
-          <p>{contextProgress || 'Loading context...'}</p>
+          <p>
+            {downloadProgress ? 'Downloading the model…' : contextProgress || 'Loading context…'}
+          </p>
+          {downloadProgress && (
+            <>
+              <progress
+                className={styles.downloadProgress}
+                value={downloadProgress.loaded}
+                max={downloadProgress.total}
+              />
+              <p className={styles.downloadNote}>
+                {formatPercent(downloadProgress)} — Chrome downloads about 2GB the first time, and
+                only once.
+              </p>
+            </>
+          )}
         </div>
       </div>
     )
@@ -439,7 +519,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
         <div className={styles.modelPicker}>
           <select
             value={providerId}
-            onChange={e => setStoredProvider(e.target.value as ProviderId)}
+            onChange={e => setPreference(e.target.value as ProviderPreference)}
             className={styles.modelSelect}
             title="Which API the assistant talks to"
           >
@@ -448,6 +528,9 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
             </option>
             <option value="openrouter" disabled={!openRouterKey}>
               OpenRouter
+            </option>
+            <option value="custom" disabled={!customEndpoint}>
+              {customEndpoint?.displayName ?? 'Custom endpoint'}
             </option>
             <option value="chrome" disabled={!chromeAvailable}>
               Chrome (local)
@@ -581,25 +664,51 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
   )
 }
 
-// The stored choice wins, but only while its key is still configured — clearing a
-// key in Settings should not leave the chat pointed at a provider it cannot reach.
-// Chrome is never the automatic fallback: it is the weakest of the three, so it
-// has to be asked for.
-function resolveProviderId(
-  stored: ProviderId | undefined,
-  anthropicKey: string | undefined,
-  openRouterKey: string | undefined,
-  chromeAvailable: boolean
-): ProviderId {
-  if (stored === 'anthropic' && anthropicKey) return 'anthropic'
-  if (stored === 'openrouter' && openRouterKey) return 'openrouter'
-  if (stored === 'chrome' && chromeAvailable) return 'chrome'
-  if (anthropicKey) return 'anthropic'
-  if (openRouterKey) return 'openrouter'
-  return 'anthropic'
+const PROVIDER_LABELS: Record<ProviderId, string> = {
+  anthropic: 'Anthropic',
+  openrouter: 'OpenRouter',
+  custom: 'The custom endpoint',
+  chrome: 'Chrome’s built-in model',
 }
 
-function modelChoicesFor(providerId: ProviderId): readonly { id: string; label: string }[] {
+interface Credentials {
+  anthropicKey: string | undefined
+  openRouterKey: string | undefined
+  customEndpoint: CustomEndpointConfig | undefined
+  chromeAvailable: boolean
+}
+
+// A provider is usable when whatever it needs is present: a key for the two
+// hosted ones, a saved config for a custom endpoint, a capable browser for Chrome.
+function isProviderReady(providerId: ProviderId, credentials: Credentials): boolean {
+  switch (providerId) {
+    case 'anthropic':
+      return Boolean(credentials.anthropicKey)
+    case 'openrouter':
+      return Boolean(credentials.openRouterKey)
+    case 'custom':
+      return Boolean(credentials.customEndpoint?.baseUrl && credentials.customEndpoint?.model)
+    case 'chrome':
+      return credentials.chromeAvailable
+  }
+}
+
+// An explicit preference wins, but only while it is usable — clearing a key in
+// Settings should not leave the chat pointed at a provider it cannot reach.
+// Chrome is last in the automatic order: it is the weakest of the four, so it
+// only gets picked when nothing else is configured.
+function resolveProviderId(options: Credentials & { preference: ProviderPreference }): ProviderId {
+  const { preference } = options
+  if (preference !== 'automatic' && isProviderReady(preference, options)) return preference
+
+  const order: ProviderId[] = ['anthropic', 'openrouter', 'custom', 'chrome']
+  return order.find(id => isProviderReady(id, options)) ?? 'anthropic'
+}
+
+function modelChoicesFor(
+  providerId: ProviderId,
+  customEndpoint: CustomEndpointConfig | undefined
+): readonly { id: string; label: string }[] {
   switch (providerId) {
     case 'anthropic':
       return ANTHROPIC_MODELS
@@ -607,24 +716,48 @@ function modelChoicesFor(providerId: ProviderId): readonly { id: string; label: 
       return OPENROUTER_MODELS
     case 'chrome':
       return CHROME_MODELS
+    // A custom endpoint's model is part of its saved config, so the picker shows
+    // it rather than offering a choice this app cannot enumerate
+    case 'custom':
+      return customEndpoint
+        ? [{ id: customEndpoint.model, label: customEndpoint.displayName ?? customEndpoint.model }]
+        : [{ id: '', label: 'Not configured' }]
   }
 }
 
-// Chrome is the only provider whose construction is async: it probes the browser
-// for the real context window before the router can be sized against it.
-async function createProvider(
-  providerId: ProviderId,
-  apiKey: string | undefined,
+interface CreateProviderOptions {
+  providerId: ProviderId
+  apiKey: string | undefined
   model: string | undefined
-): Promise<AgentProvider> {
+  customEndpoint: CustomEndpointConfig | undefined
+  onDownloadProgress: (progress: DownloadProgress) => void
+}
+
+// Chrome is the only provider whose construction is async: it probes the browser
+// for the real context window before the router can be sized against it, and that
+// probe is also what triggers the model download.
+async function createProvider(options: CreateProviderOptions): Promise<AgentProvider> {
+  const { providerId, apiKey, model, customEndpoint } = options
   switch (providerId) {
     case 'chrome':
-      return createChromeProvider()
+      return createChromeProvider({ onDownloadProgress: options.onDownloadProgress })
     case 'openrouter':
       return new OpenRouterProvider({ apiKey: apiKey ?? '', model })
     case 'anthropic':
       return new AnthropicProvider({ apiKey: apiKey ?? '', model })
+    case 'custom':
+      if (!customEndpoint) throw new Error('No custom endpoint is configured')
+      return new CustomProvider({
+        baseUrl: customEndpoint.baseUrl,
+        apiKey: customEndpoint.apiKey,
+        model: customEndpoint.model,
+      })
   }
+}
+
+function formatPercent(progress: DownloadProgress): string {
+  if (!progress.total) return ''
+  return `${Math.round((progress.loaded / progress.total) * 100)}%`
 }
 
 function formatUsage(usage: AgentUsage): string {

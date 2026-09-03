@@ -12,7 +12,20 @@ export interface KeysConfig {
   overpass?: string
 }
 
-export type ProviderPreference = 'automatic' | 'anthropic' | 'custom' | 'chrome-ai'
+// Which provider the AI assistant should use. 'automatic' resolves by which
+// credential is present; the rest name one of the agent loop's providers, so the
+// strings deliberately match ProviderId in ai-chat/agent/types.ts.
+export type ProviderPreference = 'automatic' | 'anthropic' | 'openrouter' | 'custom' | 'chrome'
+
+// 'chrome-ai' was the persisted spelling before the preference shared a
+// vocabulary with the agent loop. Read-side only, so a stored value keeps working
+// without a migration step.
+const LEGACY_PREFERENCES: Record<string, ProviderPreference> = { 'chrome-ai': 'chrome' }
+
+function normalizePreference(stored: string | undefined): ProviderPreference {
+  if (!stored) return 'automatic'
+  return LEGACY_PREFERENCES[stored] ?? (stored as ProviderPreference)
+}
 
 export interface CustomEndpointConfig {
   baseUrl: string
@@ -137,7 +150,7 @@ export const useKeysStore = create<KeysStore>()(
       },
 
       getProviderPreference: () => {
-        return get().providerPreference
+        return normalizePreference(get().providerPreference)
       },
 
       getCustomEndpoint: () => {
