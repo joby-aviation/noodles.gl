@@ -1,6 +1,6 @@
-// Canonical tool definitions shared by the in-app Claude chat (claude-client.ts)
-// and the WebMCP registration (src/webmcp/). Single source of truth so the
-// Anthropic input_schema and the navigator.modelContext inputSchema can't drift.
+// Canonical tool definitions shared by the in-app chat (agent/) and the WebMCP
+// registration (src/webmcp/). Single source of truth so the provider input_schema
+// and the navigator.modelContext inputSchema can't drift.
 
 import type { MCPTools } from './mcp-tools'
 import type { NoodlesProject, SearchCodeParams, ToolResult } from './types'
