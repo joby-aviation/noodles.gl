@@ -550,6 +550,14 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
               </option>
             ))}
           </select>
+          <button
+            type="button"
+            onClick={openProviderSettings}
+            className={styles.settingsGear}
+            title="Configure AI provider settings"
+          >
+            ⚙️
+          </button>
           {lastUsage && <span className={styles.usageReadout}>{formatUsage(lastUsage)}</span>}
         </div>
         <button

@@ -122,6 +122,24 @@
   white-space: nowrap;
 }
 
+.settingsGear {
+  background: transparent;
+  border: none;
+  color: #777;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 4px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  opacity: 0.6;
+  transition: opacity 0.2s;
+}
+
+.settingsGear:hover {
+  opacity: 1;
+}
+
 .downloadProgress {
   width: 220px;
   height: 6px;
