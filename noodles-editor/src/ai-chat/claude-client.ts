@@ -7,7 +7,9 @@ import {
   shouldCompact,
 } from './conversation-compaction'
 import type { MCPTools } from './mcp-tools'
-import systemPromptTemplate from './system-prompt.md?raw'
+// Only the core prompt is always in context. The workflow walkthroughs live in
+// prompts/sections/ and reach the model through get_documentation on demand.
+import systemPromptTemplate from './prompts/core.md?raw'
 import { getToolDefinition } from './tool-definitions'
 import type {
   ClaudeResponse,

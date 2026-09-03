@@ -176,8 +176,14 @@ export function scoreTools(query: string): ToolMatch[] {
 
     let score = 0
     for (const term of terms) {
-      if (nameWords.has(term)) score += 4
-      else if (name.includes(term)) score += 3
+      // Prefix matching, not equality, so "keyframes" still counts as a name hit
+      // on set_keyframe. Plurals and gerunds are how people phrase these queries,
+      // and treating them as near-misses buried the exact tool being asked for.
+      if (nameWords.has(term) || [...nameWords].some(word => sharePrefix(word, term))) {
+        score += 4
+      } else if (name.includes(term)) {
+        score += 3
+      }
       if (description.includes(term)) score += 1
       // Crude stem match so "documentation" hits "docs" and "searching" hits "search"
       if (
@@ -221,6 +227,15 @@ const STOP_WORDS = new Set([
   'tool',
   'tools',
 ])
+
+// True when one word is a prefix of the other and the shared prefix is long
+// enough to be meaningful, which covers singular/plural and verb-form pairs
+// without pulling in a stemmer.
+function sharePrefix(a: string, b: string): boolean {
+  const shorter = a.length <= b.length ? a : b
+  const longer = a.length <= b.length ? b : a
+  return shorter.length >= 4 && longer.startsWith(shorter)
+}
 
 function tokenize(text: string): string[] {
   return text

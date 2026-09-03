@@ -325,22 +325,34 @@ export const toolDefinitions: ToolDefinition[] = [
   {
     name: 'get_documentation',
     annotations: { readOnlyHint: true },
-    description: 'Search the Noodles.gl documentation',
+    // Deliberately does not enumerate the available topics: this description is
+    // what find_tools scores against, and a list of every subject would match
+    // almost any query and crowd out the specific tool the model actually needs.
+    // core.md carries the topic list instead.
+    description:
+      'Search the Noodles.gl documentation and step-by-step workflow guides. Searching returns excerpts with topic ids; pass an id to read that topic in full.',
     inputSchema: {
       type: 'object',
       properties: {
-        query: { type: 'string', description: 'Search query' },
+        query: { type: 'string', description: 'What you want to know about' },
+        id: {
+          type: 'string',
+          description: 'Id of a topic from a previous search, to read it in full',
+        },
         section: {
           type: 'string',
           enum: ['users', 'developers', 'ai-assistant', 'examples'],
           description: 'Limit search to a docs section',
         },
       },
-      required: ['query'],
     },
     execute: (tools, params) =>
       tools.getDocumentation(
-        params as { query: string; section?: 'users' | 'developers' | 'ai-assistant' | 'examples' }
+        params as {
+          query?: string
+          id?: string
+          section?: 'users' | 'developers' | 'ai-assistant' | 'examples'
+        }
       ),
   },
   {

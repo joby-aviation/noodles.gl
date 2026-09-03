@@ -194,4 +194,17 @@ describe('scoreTools', () => {
   it('ranks a direct name match first', () => {
     expect(scoreTools('search_code')[0]?.name).toBe('search_code')
   })
+
+  it('treats a plural as a name match, since that is how queries are phrased', () => {
+    // "keyframes" used to score as a near-miss against the keyframe tools, which
+    // let broader tools outrank the ones the model was actually asking for. The
+    // plural cannot pick between set_ and delete_, so both must lead.
+    expect(
+      scoreTools('keyframes')
+        .slice(0, 2)
+        .map(m => m.name)
+        .sort()
+    ).toEqual(['delete_keyframe', 'set_keyframe'])
+    expect(scoreTools('examples')[0]?.name).toMatch(/example/)
+  })
 })

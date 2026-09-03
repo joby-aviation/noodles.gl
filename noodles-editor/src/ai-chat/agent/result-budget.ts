@@ -38,7 +38,7 @@ const HINTS: Record<string, string> = {
   get_node_output: 'lower maxRows, or narrow the data upstream with DuckDbOp',
   search_code: 'narrow the pattern, pass path, or lower maxResults',
   get_source_code: 'request a smaller startLine/endLine range',
-  get_documentation: 'use a more specific query',
+  get_documentation: 'use a more specific query, or pass a single id to read one topic',
   get_example: 'inspect the example a few nodes at a time',
   list_examples: 'filter by category or tag',
   get_console_errors: 'lower maxResults or filter by level',
