@@ -3,7 +3,14 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { getExecutor } from './graph-executor'
 import type { Edge } from './noodles'
 import type { OpType } from './operators'
-import { ContainerOp, GraphInputOp, GraphOutputOp, type ViewerOp } from './operators'
+import {
+  type CodeOp,
+  ContainerOp,
+  GraphInputOp,
+  GraphOutputOp,
+  type PointOp,
+  type ViewerOp,
+} from './operators'
 import { clearOps, getOp } from './store'
 import { transformGraph } from './transform-graph'
 
@@ -252,6 +259,114 @@ describe('Container Integration with Transform Graph', () => {
     expect(output.outputs.propagatedValue.value).toBe(14)
     expect(container.outputs.out.value).toBe(14)
     expect(viewer.inputs.data.value).toBe(14)
+  })
+
+  it('pulls an upstream container input before executing the child graph on first load', async () => {
+    const nodes: NodeJSON<OpType>[] = [
+      {
+        id: '/point',
+        type: 'PointOp',
+        position: { x: 0, y: 0 },
+        data: { inputs: { coordinates: { lng: -117.94, lat: 34.25 } } },
+      },
+      {
+        id: '/analysis',
+        type: 'ContainerOp',
+        position: { x: 100, y: 0 },
+        data: { inputs: {} },
+      },
+      {
+        id: '/analysis/input',
+        type: 'GraphInputOp',
+        position: { x: 200, y: 0 },
+        data: { inputs: {} },
+      },
+      {
+        id: '/analysis/read-coordinates',
+        type: 'CodeOp',
+        position: { x: 300, y: 0 },
+        data: { inputs: { code: ['return d.geometry.coordinates'] } },
+      },
+      {
+        id: '/analysis/output',
+        type: 'GraphOutputOp',
+        position: { x: 400, y: 0 },
+        data: { inputs: {} },
+      },
+      {
+        id: '/viewer',
+        type: 'ViewerOp',
+        position: { x: 500, y: 0 },
+        data: { inputs: {} },
+      },
+    ]
+    const edges: Edge[] = [
+      {
+        id: '/point.out.feature->/analysis.par.in',
+        source: '/point',
+        target: '/analysis',
+        sourceHandle: 'out.feature',
+        targetHandle: 'par.in',
+      },
+      {
+        id: '/analysis/input.out.value->/analysis/read-coordinates.par.data',
+        source: '/analysis/input',
+        target: '/analysis/read-coordinates',
+        sourceHandle: 'out.value',
+        targetHandle: 'par.data',
+      },
+      {
+        id: '/analysis/read-coordinates.out.data->/analysis/output.par.value',
+        source: '/analysis/read-coordinates',
+        target: '/analysis/output',
+        sourceHandle: 'out.data',
+        targetHandle: 'par.value',
+      },
+      {
+        id: '/analysis.out.out->/viewer.par.data',
+        source: '/analysis',
+        target: '/viewer',
+        sourceHandle: 'out.out',
+        targetHandle: 'par.data',
+      },
+    ]
+
+    transformGraph({ nodes, edges })
+    const executor = getExecutor()!
+    executor.stop()
+
+    // Make the upstream value arrive after the child graph would otherwise
+    // read PointOp's empty FeatureCollection default. This deterministically
+    // reproduces the fresh-load race from the LA scale container.
+    const point = getOp('/point') as PointOp
+    const executePoint = point.execute.bind(point)
+    point.execute = (async inputs => {
+      await Promise.resolve()
+      await Promise.resolve()
+      return executePoint(inputs)
+    }) as typeof point.execute
+
+    await executor.executeFrame(performance.now())
+
+    const graphInput = getOp('/analysis/input') as GraphInputOp
+    const code = getOp('/analysis/read-coordinates') as CodeOp
+    const container = getOp('/analysis') as ContainerOp
+    const viewer = getOp('/viewer') as ViewerOp
+    expect(executor.getUpstream(graphInput.id)).toContain(point.id)
+    expect(code.executionState.value.status).toBe('success')
+    expect(container.outputs.out.value).toEqual([-117.94, 34.25])
+    expect(viewer.inputs.data.value).toEqual([-117.94, 34.25])
+
+    const edgesWithoutContainerInput = edges.filter(edge => edge.target !== '/analysis')
+    transformGraph({ nodes, edges: edgesWithoutContainerInput })
+
+    const operatorDependencies = (
+      getOp('/analysis/input') as unknown as {
+        _upstreamDependencies: Set<unknown>
+      }
+    )._upstreamDependencies
+    expect(executor.getUpstream(graphInput.id)).not.toContain(point.id)
+    expect(operatorDependencies.has(point)).toBe(false)
   })
 
   it('uses the same GraphOutput for scheduling and execution when a container has multiple', async () => {
