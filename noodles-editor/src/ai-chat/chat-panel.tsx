@@ -51,8 +51,8 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
   const [contextProgress, setContextProgress] = useState<string>('')
   // Text of the turn in flight, so the reply appears as it is generated rather
   // than all at once when the whole multi-step run finishes
-  const [_streamingText, setStreamingText] = useState('')
-  const [_activeTools, setActiveTools] = useState<string[]>([])
+  const [streamingText, setStreamingText] = useState('')
+  const [activeTools, setActiveTools] = useState<string[]>([])
   const [lastUsage, setLastUsage] = useState<AgentUsage | null>(null)
   const abortRef = useRef<AbortController | null>(null)
 
@@ -253,7 +253,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
     }
   }
 
-  const _handleStop = () => {
+  const handleStop = () => {
     abortRef.current?.abort()
   }
 

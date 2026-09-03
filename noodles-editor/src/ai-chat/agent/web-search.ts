@@ -135,7 +135,7 @@ async function searchViaAnthropic(
 
 // The 2026 search tool is not available on every model — Haiku 4.5 and older
 // still take the 2025 one, and sending the wrong version is a 400.
-function webSearchToolType(model: string): 'web_search_20260209' | 'web_search_20250305' {
+export function webSearchToolType(model: string): 'web_search_20260209' | 'web_search_20250305' {
   const modern = /claude-(opus-(5|4-8|4-7|4-6)|sonnet-(5|4-6))/
   return modern.test(model) ? 'web_search_20260209' : 'web_search_20250305'
 }
