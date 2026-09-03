@@ -3,6 +3,7 @@ import { ReactFlowProvider } from '@xyflow/react'
 import { Temporal } from 'temporal-polyfill'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
+  BezierCurveField,
   BooleanField,
   ColorField,
   CompoundPropsField,
@@ -20,6 +21,7 @@ import { StringOp } from '../operators'
 import { clearOps, setOp } from '../store'
 import { registerPropertyMutationCallback } from '../utils/property-history'
 import {
+  BezierCurveFieldComponent,
   BooleanFieldComponent,
   ColorFieldComponent,
   CompoundFieldComponent,
@@ -581,6 +583,14 @@ describe('VectorFieldComponent', () => {
       expect(screen.getByPlaceholderText('y')).toBeInTheDocument()
     })
 
+    it('keeps channel names visible when inputs have values', () => {
+      const field = new Vec2Field({ x: 10, y: 20 })
+      render(<VectorFieldComponent id="test-field" field={field} disabled={false} />)
+
+      expect(screen.getByText('x')).toBeInTheDocument()
+      expect(screen.getByText('y')).toBeInTheDocument()
+    })
+
     it('renders with correct initial values', () => {
       const field = new Vec2Field({ x: 5, y: 15 })
       render(<VectorFieldComponent id="test-field" field={field} disabled={false} />)
@@ -882,6 +892,33 @@ describe('CompoundFieldComponent', () => {
     inputs.forEach(input => {
       expect(input).toBeDisabled()
     })
+  })
+})
+
+describe('BezierCurveFieldComponent', () => {
+  afterEach(() => {
+    cleanup()
+    clearOps()
+    vi.restoreAllMocks()
+  })
+
+  it('keeps editing instructions behind an accessible help button', () => {
+    const field = new BezierCurveField()
+    render(<BezierCurveFieldComponent id="curve" field={field} disabled={false} />)
+
+    const helpButton = screen.getByRole('button', { name: 'Show Bézier curve help' })
+    expect(helpButton).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByText(/Click to add a point/)).not.toBeInTheDocument()
+
+    fireEvent.click(helpButton)
+
+    expect(screen.getByRole('button', { name: 'Hide Bézier curve help' })).toHaveAttribute(
+      'aria-expanded',
+      'true'
+    )
+    expect(screen.getByRole('note')).toHaveTextContent(
+      'Click to add a point. Click a point to select it. Double-click to remove it. Drag to move it.'
+    )
   })
 })
 

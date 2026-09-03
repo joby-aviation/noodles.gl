@@ -65,7 +65,7 @@ Access API key settings via the gear icon in the top menu bar.
 
 Keys are resolved in priority order:
 1. **Browser** - Stored in localStorage, persists across sessions
-2. **Project** - Saved in project file (if "Save in project" is enabled)
+2. **Project** - Loaded from and retained in the project file until explicitly removed
 3. **Environment** - Set via environment variables
 
 The first source with a valid key is used automatically.
@@ -80,7 +80,7 @@ The first source with a valid key is used automatically.
 
 ### Privacy
 
-API keys are stored locally and never sent to Noodles.gl servers. Browser keys are stored in localStorage; project keys are stored in the project's noodles.json file.
+API keys are stored locally and never sent to Noodles.gl servers. Browser keys are stored in localStorage. Enabling **Add browser keys to this project** copies them into `noodles.json`, where they are stored in plain text and travel with the project. Only share projects containing keys with trusted collaborators. Loaded project keys remain in subsequent saves until removed from App Settings.
 
 ### Environment Variables
 

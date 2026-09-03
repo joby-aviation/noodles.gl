@@ -127,6 +127,24 @@ describe('Keys Store', () => {
       setProjectKeys(undefined)
       expect(getKeysStore().projectKeys).toBeUndefined()
     })
+
+    it('should remove one project key without clearing the others', () => {
+      const { setProjectKeys, removeProjectKey } = getKeysStore()
+      setProjectKeys({ mapbox: 'mapbox-token', googleMaps: 'google-token' })
+
+      removeProjectKey('mapbox')
+
+      expect(getKeysStore().projectKeys).toEqual({ googleMaps: 'google-token' })
+    })
+
+    it('should clear project keys after removing the final key', () => {
+      const { setProjectKeys, removeProjectKey } = getKeysStore()
+      setProjectKeys({ mapbox: 'mapbox-token' })
+
+      removeProjectKey('mapbox')
+
+      expect(getKeysStore().projectKeys).toBeUndefined()
+    })
   })
 
   describe('setBrowserKey', () => {
@@ -354,11 +372,18 @@ describe('getKeysForProject', () => {
     })
   })
 
-  it('should return undefined when saveInProject is false', () => {
+  it('should omit browser keys when saveInProject is false', () => {
     const { setBrowserKey } = getKeysStore()
     setBrowserKey('mapbox', 'test-token')
 
     expect(getKeysForProject()).toBeUndefined()
+  })
+
+  it('should preserve loaded project keys when saveInProject is false', () => {
+    const { setProjectKeys } = getKeysStore()
+    setProjectKeys({ googleMaps: 'project-token' })
+
+    expect(getKeysForProject()).toEqual({ googleMaps: 'project-token' })
   })
 
   it('should return browserKeys when saveInProject is true', () => {
@@ -378,6 +403,18 @@ describe('getKeysForProject', () => {
     const { setSaveInProject } = getKeysStore()
     setSaveInProject(true)
 
-    expect(getKeysForProject()).toEqual({})
+    expect(getKeysForProject()).toBeUndefined()
+  })
+
+  it('should merge browser keys over loaded project keys when enabled', () => {
+    const { setProjectKeys, setBrowserKeys, setSaveInProject } = getKeysStore()
+    setProjectKeys({ mapbox: 'project-mapbox', googleMaps: 'project-google' })
+    setBrowserKeys({ mapbox: 'browser-mapbox' })
+    setSaveInProject(true)
+
+    expect(getKeysForProject()).toEqual({
+      mapbox: 'browser-mapbox',
+      googleMaps: 'project-google',
+    })
   })
 })

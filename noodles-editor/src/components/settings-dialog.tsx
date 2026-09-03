@@ -22,6 +22,7 @@ interface KeyGroupProps {
   activeSource: 'browser' | 'project' | 'env' | null
   onBrowserChange: (value: string) => void
   onBrowserClear: () => void
+  onProjectRemove?: () => void
 }
 
 const KeyGroup = ({
@@ -34,6 +35,7 @@ const KeyGroup = ({
   activeSource,
   onBrowserChange,
   onBrowserClear,
+  onProjectRemove,
 }: KeyGroupProps) => {
   const handleCopy = (value: string, source: 'project' | 'env') => {
     navigator.clipboard.writeText(value)
@@ -83,6 +85,11 @@ const KeyGroup = ({
             >
               Copy
             </button>
+            {onProjectRemove && (
+              <button type="button" onClick={onProjectRemove} className={s.clearButton}>
+                Remove
+              </button>
+            )}
           </div>
         )}
 
@@ -555,6 +562,10 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
                         setBrowserKey('mapbox', undefined)
                         analytics.track('key_cleared', { key: 'mapbox' })
                       }}
+                      onProjectRemove={() => {
+                        removeProjectKey('mapbox')
+                        analytics.track('project_key_removed', { key: 'mapbox' })
+                      }}
                     />
 
                     <KeyGroup
@@ -569,6 +580,10 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
                       onBrowserClear={() => {
                         setBrowserKey('googleMaps', undefined)
                         analytics.track('key_cleared', { key: 'googleMaps' })
+                      }}
+                      onProjectRemove={() => {
+                        removeProjectKey('googleMaps')
+                        analytics.track('project_key_removed', { key: 'googleMaps' })
                       }}
                     />
 
@@ -585,6 +600,10 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
                         setBrowserKey('cesium', undefined)
                         analytics.track('key_cleared', { key: 'cesium' })
                       }}
+                      onProjectRemove={() => {
+                        removeProjectKey('cesium')
+                        analytics.track('project_key_removed', { key: 'cesium' })
+                      }}
                     />
 
                     <KeyGroup
@@ -600,6 +619,10 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
                         setBrowserKey('anthropic', undefined)
                         analytics.track('key_cleared', { key: 'anthropic' })
                       }}
+                      onProjectRemove={() => {
+                        removeProjectKey('anthropic')
+                        analytics.track('project_key_removed', { key: 'anthropic' })
+                      }}
                     />
 
                     <KeyGroup
@@ -614,6 +637,10 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
                       onBrowserClear={() => {
                         setBrowserKey('overpass', undefined)
                         analytics.track('key_cleared', { key: 'overpass' })
+                      }}
+                      onProjectRemove={() => {
+                        removeProjectKey('overpass')
+                        analytics.track('project_key_removed', { key: 'overpass' })
                       }}
                     />
                   </div>

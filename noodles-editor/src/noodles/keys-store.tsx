@@ -37,6 +37,7 @@ interface KeysActions {
   setBrowserKey: (key: KeyType, value: string | undefined) => void
   setBrowserKeys: (keys: KeysConfig) => void
   clearBrowserKey: (key: KeyType) => void
+  removeProjectKey: (key: KeyType) => void
   setSaveInProject: (enabled: boolean) => void
   setProjectKeys: (keys: KeysConfig | undefined) => void
   setProviderPreference: (preference: ProviderPreference) => void
@@ -87,6 +88,12 @@ export const useKeysStore = create<KeysStore>()(
         const browserKeys = { ...get().browserKeys }
         delete browserKeys[key]
         set({ browserKeys })
+      },
+
+      removeProjectKey: key => {
+        const projectKeys = { ...get().projectKeys }
+        delete projectKeys[key]
+        set({ projectKeys: Object.keys(projectKeys).length > 0 ? projectKeys : undefined })
       },
 
       setSaveInProject: enabled => {
@@ -159,7 +166,11 @@ export const useProjectKeys = () => useKeysStore(state => state.projectKeys)
 // Utility functions (no state needed)
 export function getKeysForProject(): KeysConfig | undefined {
   const state = getKeysStore()
-  return state.saveInProject ? state.browserKeys : undefined
+  const keys = {
+    ...state.projectKeys,
+    ...(state.saveInProject ? state.browserKeys : {}),
+  }
+  return Object.keys(keys).length > 0 ? keys : undefined
 }
 
 export function getEnvKeys(): KeysConfig {

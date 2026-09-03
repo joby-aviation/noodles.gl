@@ -4,7 +4,14 @@ import { getFieldReferences, ListField } from './fields'
 import { type Edge as ExecutorEdge, updateGraph } from './graph-executor'
 import type { Edge } from './noodles'
 import type { IOperator, Operator, OpType } from './operators'
-import { ContainerOp, ForLoopEndOp, GraphInputOp, opTypes, type SpecialNodeType } from './operators'
+import {
+  ContainerOp,
+  ForLoopEndOp,
+  GraphInputOp,
+  GraphOutputOp,
+  opTypes,
+  type SpecialNodeType,
+} from './operators'
 import { getOpStore } from './store'
 import { validateConnection } from './utils/can-connect'
 import { edgeId } from './utils/id-utils'
@@ -195,6 +202,33 @@ export function transformGraph<
       _edges
     ) as unknown as E[]),
   ]
+  // A container's output boundary is structural, not a persisted React Flow edge.
+  // Include it in the executor graph so the container cannot race its child
+  // GraphOutputOp as an independent root during the first frame.
+  const containerOutputNodeIds = new Map<string, string>()
+  const implicitContainerOutputEdges: ExecutorEdge[] = nodes.flatMap(containerNode => {
+    if (containerNode.type !== 'ContainerOp') return []
+    const outputNode = nodes.find(
+      node => node.type === 'GraphOutputOp' && isDirectChild(node.id, containerNode.id)
+    )
+    if (outputNode) containerOutputNodeIds.set(containerNode.id, outputNode.id)
+    if (
+      !outputNode ||
+      edges.some(edge => edge.source === outputNode.id && edge.target === containerNode.id)
+    ) {
+      return []
+    }
+    return [
+      {
+        id: `${outputNode.id}.out.propagatedValue->${containerNode.id}.out.out`,
+        source: outputNode.id,
+        target: containerNode.id,
+        sourceHandle: 'out.propagatedValue',
+        targetHandle: 'out.out',
+      },
+    ]
+  })
+  const executionEdges = [...edges, ...implicitContainerOutputEdges]
   const store = getOpStore()
 
   // Error about unknown node types — nodes present in the project file that aren't registered
@@ -242,7 +276,7 @@ export function transformGraph<
     }
   }
 
-  const sortedNodes = topologicalSort(nodes, edges)
+  const sortedNodes = topologicalSort(nodes, executionEdges as unknown as E[])
   const created: Operator<IOperator>[] = []
   let instances: OP[] = []
 
@@ -311,7 +345,7 @@ export function transformGraph<
   })
 
   // Update dependency graph
-  updateGraph(_nodes, edges as unknown as ExecutorEdge[])
+  updateGraph(_nodes, executionEdges as unknown as ExecutorEdge[])
 
   // Remove any connections that are not in the edges array.
   // Also clear connection errors for removed edges.
@@ -467,6 +501,14 @@ export function transformGraph<
   for (const op of store.getAllOps()) {
     if (op instanceof ContainerOp) {
       const containerOp = op
+      const graphOutputId = containerOutputNodeIds.get(containerOp.id)
+      const selectedOutput = graphOutputId ? store.getOp(graphOutputId) : undefined
+      const graphOutput = selectedOutput instanceof GraphOutputOp ? selectedOutput : undefined
+      // The implicit executor edge above establishes scheduling order. Mirror
+      // it in Operator's pull graph so a downstream pull awaits the child
+      // output and future child updates dirty the container and its consumers.
+      containerOp.setGraphOutputOp(graphOutput)
+
       for (const childOp of store.getAllOps()) {
         if (childOp instanceof GraphInputOp && isDirectChild(childOp.id, containerOp.id)) {
           // Set up parent container relationship (triggers output rebuild)
