@@ -256,9 +256,7 @@ describe('serializeNodes', () => {
       targetHandle: 'par.center.lng',
     }
 
-    const result = serializeNodes(getOpStore(), nodes, [
-      { id: edgeId(connection), ...connection },
-    ])
+    const result = serializeNodes(getOpStore(), nodes, [{ id: edgeId(connection), ...connection }])
     const serializedMap = result.find(node => node.id === 'map')
 
     expect(serializedMap?.data.inputPortModes).toEqual({ center: 'channels' })
@@ -806,6 +804,23 @@ describe('Field visibility serialization (full set when differs from heuristic)'
   })
 
   describe('clipboard copy (forClipboard: true)', () => {
+    it('preserves vector input port modes and editable channel siblings', () => {
+      const map = new MapViewStateOp(
+        '/map',
+        { center: { lng: -73.9857, lat: 40.7484 } },
+        false,
+        undefined,
+        { center: 'channels' }
+      )
+      setOp('/map', map)
+
+      const nodes = [{ id: '/map', type: 'MapViewStateOp', data: {}, position: { x: 0, y: 0 } }]
+      const result = serializeNodes(getOpStore(), nodes, [], { forClipboard: true })
+
+      expect(result[0].data.inputPortModes).toEqual({ center: 'channels' })
+      expect(result[0].data.inputs.center).toEqual({ lng: -73.9857, lat: 40.7484 })
+    })
+
     it('always serializes visibleInputs for clipboard to preserve exact state', () => {
       const op = new GeoJsonLayerOp('/geojson-0')
       // Leave visibleFields as null (using defaults)
