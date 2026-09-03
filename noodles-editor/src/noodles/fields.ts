@@ -67,6 +67,7 @@ type CompoundPropsFieldOptions = BaseFieldOptions &
 type StringLiteralFieldOptions = BaseFieldOptions & {
   values: string[] | Record<string, unknown> | { value: unknown; label: string }[]
   freeform?: boolean
+  displayAs?: 'select' | 'typeahead' | 'color-scheme'
 }
 
 type CodeFieldOptions = BaseFieldOptions & {
@@ -605,6 +606,7 @@ export class StringLiteralField extends Field<
   static defaultValue = ''
   choices: StringLiteralOption[] = []
   freeform = false
+  displayAs?: 'select' | 'typeahead' | 'color-scheme'
   createSchema(options: Partial<StringLiteralFieldOptions>) {
     const values = (options.values || []) as StringLiteralOption[]
     const freeform = options.freeform ?? false
@@ -622,6 +624,7 @@ export class StringLiteralField extends Field<
     super(override, { ...(Array.isArray(opts) ? {} : opts), values: choices })
     this.choices = choices
     this.freeform = !Array.isArray(opts) && (opts?.freeform ?? false)
+    this.displayAs = !Array.isArray(opts) ? opts?.displayAs : undefined
   }
 
   updateChoices(opts: Partial<StringLiteralFieldOptions> | StringLiteralOption[] | string[]) {
