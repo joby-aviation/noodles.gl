@@ -23,7 +23,9 @@ interface DownloadProgressEvent {
 }
 
 interface LanguageModelAvailability {
-  availability(): Promise<'unavailable' | 'downloadable' | 'downloading' | 'available'>
+  availability(options?: {
+    expectedOutputs?: Array<{ type: 'text'; languages: string[] }>
+  }): Promise<'unavailable' | 'downloadable' | 'downloading' | 'available'>
   create(options?: {
     signal?: AbortSignal
     systemPrompt?: string
@@ -31,7 +33,7 @@ interface LanguageModelAvailability {
     topK?: number
     temperature?: number
     monitor?: (monitor: { addEventListener: (type: string, callback: (e: DownloadProgressEvent) => void) => void }) => void
-    outputLanguage?: string
+    expectedOutputs?: Array<{ type: 'text'; languages: string[] }>
   }): Promise<AILanguageModelSession>
 }
 
@@ -80,7 +82,11 @@ export class ChromeAIProvider implements AIProvider {
 
     let availability: string
     try {
-      availability = await LanguageModel.availability()
+      // Specify expected outputs when checking availability
+      availability = await (LanguageModel as any).availability({
+        expectedOutputs: [{ type: 'text', languages: ['en'] }]
+      })
+      debugAiChat('Chrome AI availability:', availability)
     } catch (error) {
       throw new ProviderError(
         'Chrome Built-in AI check failed. The flag may be enabled but the feature is not ready.\n\n' +
@@ -130,20 +136,24 @@ export class ChromeAIProvider implements AIProvider {
     try {
       debugAiChat('Creating Chrome AI session with options:', { availability, hasProgress: !!onProgress })
 
-      const createSessionPromise = LanguageModel.create({
+      // Create options with expectedOutputs to satisfy Chrome AI requirements
+      const createOptions = {
         systemPrompt: this.getSimplifiedSystemPrompt(),
         temperature: 0.7,
         topK: 40,
-        outputLanguage: 'en',
-        monitor: (m) => {
+        expectedOutputs: [{ type: 'text', languages: ['en'] }],
+        monitor: (m: any) => {
           debugAiChat('Monitor callback fired, setting up event listener')
-          m.addEventListener('downloadprogress', (e) => {
+          m.addEventListener('downloadprogress', (e: any) => {
             const percent = Math.round((e.loaded / e.total) * 100)
             debugAiChat(`Download progress: ${percent}% (${e.loaded}/${e.total})`)
             onProgress?.(`Downloading AI model: ${percent}%`)
           })
         },
-      })
+      }
+      debugAiChat('Calling LanguageModel.create() with:', Object.keys(createOptions))
+
+      const createSessionPromise = (LanguageModel as any).create(createOptions)
 
       // Use longer timeout when downloading (10 minutes), shorter for initialization (60s)
       const isDownloading = availability === 'downloadable' || availability === 'downloading'
