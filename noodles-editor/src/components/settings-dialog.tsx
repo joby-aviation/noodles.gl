@@ -369,134 +369,87 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
                 </div>
 
                 {/* Preset buttons */}
-                <div style={{ marginTop: '12px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                <div className={s.presetButtonContainer}>
                   <button
                     type="button"
                     onClick={() => applyPreset('groq')}
-                    style={{
-                      padding: '6px 12px',
-                      fontSize: '13px',
-                      border: '1px solid #444',
-                      borderRadius: '4px',
-                      background: '#2a2a2a',
-                      color: '#fff',
-                      cursor: 'pointer',
-                    }}
+                    className={s.presetButton}
                   >
                     Groq (Free)
                   </button>
                   <button
                     type="button"
                     onClick={() => applyPreset('openrouter')}
-                    style={{
-                      padding: '6px 12px',
-                      fontSize: '13px',
-                      border: '1px solid #444',
-                      borderRadius: '4px',
-                      background: '#2a2a2a',
-                      color: '#fff',
-                      cursor: 'pointer',
-                    }}
+                    className={s.presetButton}
                   >
                     OpenRouter
                   </button>
                   <button
                     type="button"
                     onClick={() => applyPreset('openai')}
-                    style={{
-                      padding: '6px 12px',
-                      fontSize: '13px',
-                      border: '1px solid #444',
-                      borderRadius: '4px',
-                      background: '#2a2a2a',
-                      color: '#fff',
-                      cursor: 'pointer',
-                    }}
+                    className={s.presetButton}
                   >
                     OpenAI
                   </button>
                 </div>
 
                 {/* Form fields */}
-                <div
-                  style={{
-                    marginTop: '12px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '12px',
-                  }}
-                >
+                <div className={s.endpointFormFields}>
                   <div>
-                    <label style={{ display: 'block', fontSize: '13px' }}>
-                      <div style={{ marginBottom: '4px' }}>Base URL</div>
+                    <label className={s.formLabel}>
+                      <div className={s.formLabelText}>Base URL</div>
                       <input
                         type="text"
                         value={endpointBaseUrl}
                         onChange={e => setEndpointBaseUrl(e.target.value)}
                         placeholder="https://api.groq.com/openai/v1"
-                        className={s.input}
-                        style={{ width: '100%' }}
+                        className={`${s.input} ${s.fullWidthInput}`}
                       />
                     </label>
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: '13px' }}>
-                      <div style={{ marginBottom: '4px' }}>API Key</div>
+                    <label className={s.formLabel}>
+                      <div className={s.formLabelText}>API Key</div>
                       <input
                         type="password"
                         value={endpointApiKey}
                         onChange={e => setEndpointApiKey(e.target.value)}
                         placeholder="Your API key"
-                        className={s.input}
-                        style={{ width: '100%' }}
+                        className={`${s.input} ${s.fullWidthInput}`}
                       />
                     </label>
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: '13px' }}>
-                      <div style={{ marginBottom: '4px' }}>Model</div>
+                    <label className={s.formLabel}>
+                      <div className={s.formLabelText}>Model</div>
                       <input
                         type="text"
                         value={endpointModel}
                         onChange={e => setEndpointModel(e.target.value)}
                         placeholder="llama-3.1-70b-versatile"
-                        className={s.input}
-                        style={{ width: '100%' }}
+                        className={`${s.input} ${s.fullWidthInput}`}
                       />
                     </label>
                   </div>
                   <div>
-                    <label style={{ display: 'block', fontSize: '13px' }}>
-                      <div style={{ marginBottom: '4px' }}>Display Name (optional)</div>
+                    <label className={s.formLabel}>
+                      <div className={s.formLabelText}>Display Name (optional)</div>
                       <input
                         type="text"
                         value={endpointDisplayName}
                         onChange={e => setEndpointDisplayName(e.target.value)}
                         placeholder="My Custom AI"
-                        className={s.input}
-                        style={{ width: '100%' }}
+                        className={`${s.input} ${s.fullWidthInput}`}
                       />
                     </label>
                   </div>
 
-                  <div style={{ display: 'flex', gap: '8px' }}>
+                  <div className={s.actionButtonContainer}>
                     <button
                       type="button"
                       onClick={handleSaveCustomEndpoint}
                       disabled={!endpointBaseUrl || !endpointApiKey || !endpointModel}
-                      style={{
-                        padding: '8px 16px',
-                        fontSize: '13px',
-                        border: 'none',
-                        borderRadius: '4px',
-                        background: '#3b82f6',
-                        color: 'white',
-                        cursor:
-                          !endpointBaseUrl || !endpointApiKey || !endpointModel
-                            ? 'not-allowed'
-                            : 'pointer',
-                        opacity: !endpointBaseUrl || !endpointApiKey || !endpointModel ? 0.5 : 1,
-                      }}
+                      className={s.primaryButton}
                     >
                       Save Endpoint
                     </button>
@@ -504,14 +457,7 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
                       <button
                         type="button"
                         onClick={handleClearCustomEndpoint}
-                        style={{
-                          padding: '8px 16px',
-                          fontSize: '13px',
-                          border: '1px solid #444',
-                          borderRadius: '4px',
-                          background: 'transparent',
-                          cursor: 'pointer',
-                        }}
+                        className={s.secondaryButton}
                       >
                         Clear
                       </button>

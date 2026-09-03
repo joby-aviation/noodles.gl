@@ -332,7 +332,6 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
           <h3>Noodles Assistant</h3>
           {aiProvider && (
             <div style={{ fontSize: '11px', opacity: 0.7, marginTop: '2px' }}>
-              {aiProvider.tier === 'free' ? '🆓 ' : '⭐ '}
               {aiProvider.displayName}
               {rateLimit && (
                 <span
