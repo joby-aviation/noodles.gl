@@ -64,9 +64,9 @@ export class ErrorBoundary extends Component<Props, State> {
       debugUI(
         `Maximum reset attempts (${maxResets}) reached. Please refresh the page or check for underlying issues.`
       )
+      // Only track that max resets was hit - error details may contain PII
       analytics.track('error_boundary_max_resets', {
         resetCount,
-        errorMessage: error?.message || 'Unknown error',
       })
       return
     }

@@ -68,6 +68,7 @@ export function useFileImport({ getBasePosition, onImported }: UseFileImportOpti
   const importFile = useCallback(
     async (file: File, basePosition: { x: number; y: number }, source: string) => {
       const fileType = extensionOf(file.name) || 'unknown'
+      let analyticsTracked = false
 
       try {
         const { currentProjectName, activeStorageType } = useFileSystemStore.getState()
@@ -79,6 +80,7 @@ export function useFileImport({ getBasePosition, onImported }: UseFileImportOpti
             source,
             fileSize: file.size,
           })
+          analyticsTracked = true
           throw new Error('No project loaded. Please save or load a project first.')
         }
 
@@ -96,6 +98,7 @@ export function useFileImport({ getBasePosition, onImported }: UseFileImportOpti
             source,
             fileSize: file.size,
           })
+          analyticsTracked = true
           throw new Error(result.error?.message || `Failed to write file: ${file.name}`)
         }
 
@@ -118,12 +121,8 @@ export function useFileImport({ getBasePosition, onImported }: UseFileImportOpti
         onImported?.(format)
         return format
       } catch (error) {
-        // If analytics wasn't already tracked in specific error cases above, track generic failure
-        if (
-          error instanceof Error &&
-          !error.message.includes('No project loaded') &&
-          !error.message.includes('Failed to write file')
-        ) {
+        // Only track unknown failures if we haven't already tracked this error
+        if (!analyticsTracked) {
           analytics.track('file_import_failed', {
             fileType,
             attemptedFormat: detectFormat(file.name),
@@ -140,14 +139,9 @@ export function useFileImport({ getBasePosition, onImported }: UseFileImportOpti
 
   const importUrl = useCallback(
     (url: string, source: string, format = detectFormatFromUrl(url)) => {
-      const fileType = extensionOf(url) || 'unknown'
       addPipeline(url, format, getBasePosition())
-      analytics.track('file_imported', {
-        fileType,
-        fileFormat: format,
-        source,
-        fileSize: undefined, // URLs don't have size until loaded
-      })
+      // Don't track success here - FileOp will load the URL asynchronously and may fail
+      // We can't know if the import succeeded until FileOp actually fetches and parses the data
       analytics.track('data_imported', { source, format })
       onImported?.(format)
       return format

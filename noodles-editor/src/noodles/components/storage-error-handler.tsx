@@ -34,9 +34,9 @@ export function StorageErrorHandler() {
 
   useEffect(() => {
     if (error) {
+      // Don't send error.details or error.message - they may contain project names or file paths
       analytics.track('storage_error_encountered', {
         errorType: errorTypeMap[error.type],
-        operation: error.details || 'unknown',
       })
     }
   }, [error])
