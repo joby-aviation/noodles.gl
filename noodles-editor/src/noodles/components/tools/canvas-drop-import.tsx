@@ -1,8 +1,9 @@
 import { useReactFlow } from '@xyflow/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { analytics } from '../../../utils/analytics'
 import { useFileImport } from '../../hooks/use-file-import'
 import s from './canvas-drop-import.module.css'
-import { IMPORTABLE_EXTENSIONS, isImportable } from './import-pipelines'
+import { extensionOf, IMPORTABLE_EXTENSIONS, isImportable } from './import-pipelines'
 
 // Drop a data file anywhere on the graph canvas to build its pipeline, without
 // opening the Import Data dialog first. The pipeline lands where the file was
@@ -63,6 +64,15 @@ export function CanvasDropImport() {
 
       const supported = files.filter(file => isImportable(file.name))
       if (supported.length === 0) {
+        const unsupportedFile = files[0]
+        const fileType = extensionOf(unsupportedFile.name) || 'unknown'
+        analytics.track('file_import_failed', {
+          fileType,
+          attemptedFormat: 'unknown',
+          reason: 'unsupported_type',
+          source: 'canvas_drop',
+          fileSize: unsupportedFile.size,
+        })
         setState('idle')
         setError(`Can't import ${files[0].name}. Supported: ${IMPORTABLE_EXTENSIONS.join(', ')}`)
         return
@@ -81,7 +91,21 @@ export function CanvasDropImport() {
           )
         }
         const skipped = files.length - supported.length
-        if (skipped > 0) setError(`Skipped ${skipped} unsupported file${skipped > 1 ? 's' : ''}`)
+        if (skipped > 0) {
+          // Track each skipped file
+          const unsupportedFiles = files.filter(file => !isImportable(file.name))
+          for (const file of unsupportedFiles) {
+            const fileType = extensionOf(file.name) || 'unknown'
+            analytics.track('file_import_failed', {
+              fileType,
+              attemptedFormat: 'unknown',
+              reason: 'unsupported_type',
+              source: 'canvas_drop',
+              fileSize: file.size,
+            })
+          }
+          setError(`Skipped ${skipped} unsupported file${skipped > 1 ? 's' : ''}`)
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to import file')
       } finally {
