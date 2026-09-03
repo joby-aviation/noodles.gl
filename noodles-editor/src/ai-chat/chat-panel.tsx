@@ -293,24 +293,34 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
       <div className={styles.chatPanel}>
         <div className={styles.chatPanelLoading}>
           <h3>AI Provider Required</h3>
-          <p style={{ color: '#ff6b6b', marginBottom: '1rem', whiteSpace: 'pre-wrap' }}>
+          <p style={{ color: '#ff6b6b', marginBottom: '1.5rem', whiteSpace: 'pre-wrap' }}>
             {providerError}
           </p>
-          <p style={{ marginBottom: '0.5rem' }}>
-            Add an{' '}
+          <div style={{ marginBottom: '1rem' }}>
             <button
               type="button"
               onClick={() => setSettingsDialogOpen(true)}
-              className={styles.linkButton}
+              className={styles.chatSendBtn}
+              style={{ fontSize: '14px', padding: '10px 20px' }}
             >
-              Anthropic or OpenAI API key
+              Configure API Keys (Anthropic, OpenAI, etc.)
             </button>
-            , or enable Chrome Built-in AI at chrome://flags/#prompt-api-for-gemini-nano
+          </div>
+          <p style={{ fontSize: '12px', color: '#aaa', marginBottom: '0.5rem' }}>
+            Or enable Chrome Built-in AI at{' '}
+            <code style={{ background: '#333', padding: '2px 6px', borderRadius: '3px' }}>
+              chrome://flags/#prompt-api-for-gemini-nano
+            </code>
           </p>
           <div
-            style={{ marginTop: '1rem', display: 'flex', gap: '0.5rem', justifyContent: 'center' }}
+            style={{
+              marginTop: '1.5rem',
+              display: 'flex',
+              gap: '0.5rem',
+              justifyContent: 'center',
+            }}
           >
-            <button type="button" onClick={handleClose} className={styles.chatSendBtn}>
+            <button type="button" onClick={handleClose} className={styles.linkButton}>
               Close
             </button>
           </div>

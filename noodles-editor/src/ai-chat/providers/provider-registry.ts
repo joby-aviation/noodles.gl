@@ -127,12 +127,14 @@ export class ProviderRegistry {
           debugAiChat('Automatic mode: No keys found, using Chrome Built-in AI (local, free)')
           return new ChromeAIProvider(this.tools)
         } catch (error) {
-          // Chrome AI not available
+          // Chrome AI not available - surface the specific error if it's a ProviderError
+          if (error instanceof ProviderError) {
+            throw error
+          }
+          // Generic fallback if Chrome AI fails for unknown reason
           throw new ProviderError(
-            'No AI provider available. Options:\n' +
-              '1. Use Chrome 127+ and enable Built-in AI (chrome://flags/#prompt-api-for-gemini-nano)\n' +
-              '2. Add an Anthropic API key (premium quality)\n' +
-              '3. Configure a custom endpoint (Groq, OpenRouter, self-hosted, etc.)',
+            'No AI provider configured.\n\n' +
+              'Add an API key for Anthropic, OpenAI, or another provider to use the Assistant.',
             'registry',
             'NO_PROVIDER_AVAILABLE'
           )

@@ -59,18 +59,38 @@ export class ChromeAIProvider implements AIProvider {
     // Check if Chrome Built-in AI is available
     if (!window.ai) {
       throw new ProviderError(
-        'Chrome Built-in AI is not available. Please use Chrome 127+ and enable the Prompt API. ' +
-          'Visit chrome://flags/#prompt-api-for-gemini-nano to enable.',
+        'Chrome Built-in AI is not available.\n\n' +
+          '1. Use Chrome 127+ (you have: ' +
+          navigator.userAgent.match(/Chrome\/(\d+)/)?.[1] +
+          ')\n' +
+          '2. Enable flag at chrome://flags/#prompt-api-for-gemini-nano\n' +
+          '3. Restart Chrome\n\n' +
+          'Or configure an external AI provider instead.',
         'chrome-ai',
         'NOT_AVAILABLE'
       )
     }
 
-    const availability = await window.ai.canCreateTextSession()
+    let availability: string
+    try {
+      availability = await window.ai.canCreateTextSession()
+    } catch (error) {
+      throw new ProviderError(
+        'Chrome Built-in AI check failed. The flag may be enabled but the feature is not ready.\n\n' +
+          'Try:\n' +
+          '1. Restart Chrome completely\n' +
+          '2. Wait a few minutes for the model to download\n' +
+          '3. Or configure an external AI provider',
+        'chrome-ai',
+        'CHECK_FAILED'
+      )
+    }
 
     if (availability === 'no') {
       throw new ProviderError(
-        'Chrome Built-in AI is not available on this device. Try adding a Groq or Anthropic API key instead.',
+        'Chrome Built-in AI is not available on this device.\n\n' +
+          'This feature requires specific hardware support. ' +
+          'Try configuring an external AI provider (Anthropic, OpenAI, etc.) instead.',
         'chrome-ai',
         'NOT_AVAILABLE'
       )
@@ -78,7 +98,9 @@ export class ChromeAIProvider implements AIProvider {
 
     if (availability === 'after-download') {
       throw new ProviderError(
-        'Chrome Built-in AI model is downloading. This may take a few minutes. Please try again later.',
+        'Chrome Built-in AI model is downloading.\n\n' +
+          'This can take 5-10 minutes. The model is ~2GB.\n' +
+          'Try again later, or configure an external AI provider while you wait.',
         'chrome-ai',
         'DOWNLOADING'
       )
@@ -93,7 +115,8 @@ export class ChromeAIProvider implements AIProvider {
       })
     } catch (error) {
       throw new ProviderError(
-        `Failed to create Chrome AI session: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        `Failed to create Chrome AI session: ${error instanceof Error ? error.message : 'Unknown error'}\n\n` +
+          'The flag is enabled but session creation failed. Try restarting Chrome or configure an external AI provider.',
         'chrome-ai',
         'INITIALIZATION_FAILED'
       )
