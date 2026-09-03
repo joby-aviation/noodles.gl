@@ -55,7 +55,6 @@ export class AnalyticsManager {
         api_host: POSTHOG_HOST,
         opt_out_capturing_by_default: consent?.enabled === false, // only opt out if explicitly declined
         autocapture: false, // Privacy: manual events only
-        disable_session_recording: true, // Privacy: no session recording
         capture_pageview: true, // Captures initial page load; route changes tracked manually
         capture_pageleave: true,
         capture_exceptions: true, // Capture unhandled exceptions
