@@ -28,8 +28,6 @@ export interface ToolDefinition {
   description: string
   annotations: ToolAnnotations
   inputSchema: ToolInputSchema
-  // false = executable but not offered to the in-app chat (keeps chat token budget unchanged)
-  exposeToChat?: boolean
   // getProject supplies the live project for tools that need it injected (analyze_project)
   execute: (
     tools: MCPTools,
@@ -260,8 +258,8 @@ export const toolDefinitions: ToolDefinition[] = [
     execute: (tools, params) =>
       tools.setPlaybackPosition(params as { position: number; play?: boolean }),
   },
-  // Context tools (code search, docs, examples) — executable by the chat's tool
-  // loop and WebMCP, but not offered in the chat's tool list to save tokens
+  // Context tools (code search, docs, examples). The chat reaches these through
+  // find_tools rather than paying for their schemas up front — see agent/tool-router.ts
   {
     name: 'search_code',
     annotations: { readOnlyHint: true },
@@ -280,7 +278,6 @@ export const toolDefinitions: ToolDefinition[] = [
       },
       required: ['pattern'],
     },
-    exposeToChat: false,
     execute: (tools, params) => tools.searchCode(params as unknown as SearchCodeParams),
   },
   {
@@ -296,7 +293,6 @@ export const toolDefinitions: ToolDefinition[] = [
       },
       required: ['file'],
     },
-    exposeToChat: false,
     execute: (tools, params) =>
       tools.getSourceCode(params as { file: string; startLine?: number; endLine?: number }),
   },
@@ -312,7 +308,6 @@ export const toolDefinitions: ToolDefinition[] = [
       },
       required: ['type'],
     },
-    exposeToChat: false,
     execute: (tools, params) => tools.getOperatorSchema(params as { type: string }),
   },
   {
@@ -325,7 +320,6 @@ export const toolDefinitions: ToolDefinition[] = [
         category: { type: 'string', description: 'Filter by operator category' },
       },
     },
-    exposeToChat: false,
     execute: (tools, params) => tools.listOperators(params as { category?: string }),
   },
   {
@@ -344,7 +338,6 @@ export const toolDefinitions: ToolDefinition[] = [
       },
       required: ['query'],
     },
-    exposeToChat: false,
     execute: (tools, params) =>
       tools.getDocumentation(
         params as { query: string; section?: 'users' | 'developers' | 'ai-assistant' | 'examples' }
@@ -361,7 +354,6 @@ export const toolDefinitions: ToolDefinition[] = [
       },
       required: ['id'],
     },
-    exposeToChat: false,
     execute: (tools, params) => tools.getExample(params as { id: string }),
   },
   {
@@ -375,7 +367,6 @@ export const toolDefinitions: ToolDefinition[] = [
         tag: { type: 'string', description: 'Filter by tag' },
       },
     },
-    exposeToChat: false,
     execute: (tools, params) => tools.listExamples(params as { category?: string; tag?: string }),
   },
   {
@@ -389,7 +380,6 @@ export const toolDefinitions: ToolDefinition[] = [
       },
       required: ['name'],
     },
-    exposeToChat: false,
     execute: (tools, params) => tools.findSymbol(params as { name: string }),
   },
   {
@@ -407,7 +397,6 @@ export const toolDefinitions: ToolDefinition[] = [
       },
       required: ['analysisType'],
     },
-    exposeToChat: false,
     execute: (tools, params, getProject) => {
       const project = getProject()
       if (!project) {

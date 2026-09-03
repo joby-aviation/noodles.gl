@@ -1,4 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
+import { capToolResult, resultBudgetChars } from './agent/result-budget'
+import { FIND_TOOLS_NAME, ToolRouter } from './agent/tool-router'
 import {
   compactConversation,
   estimateConversationTokens,
@@ -6,7 +8,7 @@ import {
 } from './conversation-compaction'
 import type { MCPTools } from './mcp-tools'
 import systemPromptTemplate from './system-prompt.md?raw'
-import { getToolDefinition, toolDefinitions } from './tool-definitions'
+import { getToolDefinition } from './tool-definitions'
 import type {
   ClaudeResponse,
   Message,
@@ -61,9 +63,13 @@ export class ClaudeClient {
   private static readonly MAX_CONVERSATION_HISTORY = 10
   // Token threshold for triggering compaction (~50k tokens leaves room for response)
   private static readonly COMPACTION_THRESHOLD = 50000
+  private static readonly CONTEXT_WINDOW = 200_000
 
   private client: Anthropic
   private tools: MCPTools
+  // Lives as long as the client so tools unlocked on one turn stay available
+  private router = new ToolRouter(ClaudeClient.CONTEXT_WINDOW)
+  private resultBudget = resultBudgetChars(ClaudeClient.CONTEXT_WINDOW)
 
   constructor(apiKey: string, tools: MCPTools) {
     this.client = new Anthropic({ apiKey, dangerouslyAllowBrowser: true })
@@ -292,11 +298,19 @@ export class ClaudeClient {
             }
           }
 
+          // Bound the result so one call can't swallow the context window
+          const capped = capToolResult(content.name, sanitizedResult, this.resultBudget)
+          if (capped.truncated) {
+            console.log(
+              `[Claude] Truncated ${content.name} result to ${capped.chars} chars (budget ${this.resultBudget})`
+            )
+          }
+
           if (Array.isArray(toolResults.content)) {
             toolResults.content.push({
               type: 'tool_result',
               tool_use_id: content.id,
-              content: JSON.stringify(sanitizedResult),
+              content: JSON.stringify(capped.result),
             })
           }
         } else if (content.type === 'text') {
@@ -381,28 +395,38 @@ export class ClaudeClient {
     }
   }
 
+  // The always-on tier plus whatever find_tools has unlocked so far, rather
+  // than every definition on every request — see agent/tool-router.ts
   private getTools(): Anthropic.Tool[] {
-    // Essential tools for visualization, debugging, and project state manipulation;
-    // definitions with exposeToChat: false stay executable but aren't offered here
-    return toolDefinitions
-      .filter(def => def.exposeToChat !== false)
-      .map(def => ({
-        name: def.name,
-        description: def.description,
-        input_schema: def.inputSchema as Anthropic.Tool['input_schema'],
-      }))
+    return this.router.getTools().map(tool => ({
+      name: tool.name,
+      description: tool.description,
+      input_schema: tool.inputSchema as Anthropic.Tool['input_schema'],
+    }))
   }
 
   private async executeTool(name: string, params: unknown): Promise<ToolResult> {
+    const input = (params ?? {}) as Record<string, unknown>
+
+    // Router-owned discovery tool; unlocks definitions for subsequent turns
+    if (name === FIND_TOOLS_NAME) {
+      return this.router.findTools(input)
+    }
+
     const definition = getToolDefinition(name)
     if (!definition) {
       return { success: false, error: `Unknown tool: ${name}` }
     }
 
+    // A model can name a tool it was never offered. Execute it anyway (the
+    // definition is real and the call is well-formed) but unlock it so the
+    // schema shows up on the next request instead of it guessing again.
+    if (!this.router.isCallable(name)) {
+      this.router.findTools({ query: name, limit: 1 })
+    }
+
     // params comes from Claude's tool_use with validated schema
-    return definition.execute(this.tools, (params ?? {}) as Record<string, unknown>, () =>
-      this.tools.getProject()
-    )
+    return definition.execute(this.tools, input, () => this.tools.getProject())
   }
 
   private extractProjectModifications(text: string): ProjectModification[] {

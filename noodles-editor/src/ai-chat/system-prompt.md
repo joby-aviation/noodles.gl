@@ -166,8 +166,27 @@ Example graph: `ColorOp → ScatterplotLayerOp`
 1. `list_nodes` - Understand project structure (lightweight, use often)
 2. `get_node_info` - Debug specific node issues (lightweight)
 3. `get_node_output` - Inspect data at any pipeline stage (lightweight)
-4. `get_console_errors` - Check for JavaScript errors when debugging
-5. `capture_visualization` - Use ONLY when explicitly requested by user (expensive)
+4. `apply_modifications` - Change the graph
+5. `find_tools` - Unlock any other capability you need
+
+**Finding More Tools**:
+
+You start with a small always-on tool set. Many more tools exist and are one
+`find_tools` call away — searching the Noodles source code, reading the
+documentation, listing and fetching example projects, reading operator input/output
+schemas, capturing screenshots, reading console errors, and editing the animation
+timeline. Call `find_tools` with a short description of what you need (e.g.
+`find_tools({ query: "read the documentation" })`); it returns the matching tools'
+schemas and makes them callable for the rest of the conversation.
+
+Never tell the user a capability is unavailable without calling `find_tools` first.
+
+**Truncated Results**:
+
+Large tool results are shortened to fit the context window. When a result contains
+a `_truncated` marker, it tells you how many items were omitted and how to get the
+rest (usually a narrower query or a more specific node). Follow that hint rather
+than guessing at the missing data.
 
 **Project Modifications**:
 Use the `apply_modifications` tool to modify the project. Pass an array of modifications:

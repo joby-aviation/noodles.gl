@@ -20,6 +20,31 @@ import type {
   ToolResult,
 } from './types'
 
+// Longest string input value list_nodes reports in full. CodeOp.code and
+// DuckDbOp.sql are routinely kilobytes each, which dominated the payload when
+// every node in the project reported every input verbatim.
+const INPUT_PREVIEW_CHARS = 200
+
+// Clips long string inputs for the project-wide listing. get_node_info still
+// returns inputs verbatim, so the full value is always one call away.
+function previewInputs(inputs: unknown): Record<string, unknown> {
+  if (typeof inputs !== 'object' || inputs === null) return {}
+
+  const out: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(inputs as Record<string, unknown>)) {
+    if (typeof value === 'string' && value.length > INPUT_PREVIEW_CHARS) {
+      out[key] = {
+        preview: value.slice(0, INPUT_PREVIEW_CHARS),
+        length: value.length,
+        hint: 'clipped — call get_node_info for the full value',
+      }
+    } else {
+      out[key] = value
+    }
+  }
+  return out
+}
+
 export class MCPTools {
   private consoleErrors: ConsoleError[] = []
   private project: NoodlesProject | null = null
@@ -773,11 +798,12 @@ export class MCPTools {
         // biome-ignore lint/suspicious/noExplicitAny: accessing dynamic operator state
         const executionState = operator ? (operator as any).executionState?.value : null
 
+        // Position is omitted deliberately: it is layout-only noise for the
+        // model, and get_node_info still reports it when actually needed
         return {
           id: node.id,
           type: node.type,
-          position: node.position,
-          inputs: node.data?.inputs || {},
+          inputs: previewInputs(node.data?.inputs),
           locked: node.data?.locked || false,
           executionState: executionState
             ? {
@@ -796,15 +822,21 @@ export class MCPTools {
         byType[n.type] = (byType[n.type] || 0) + 1
       })
 
+      // Role groupings carry ids only. They used to re-serialize the whole node
+      // objects, duplicating the bulk of the payload for no extra information.
       return {
         success: true,
         data: {
           nodes,
           totalCount: nodes.length,
           byType,
-          dataNodes: nodes.filter(n => ['FileOp', 'JSONOp', 'DuckDbOp', 'CSVOp'].includes(n.type)),
-          layerNodes: nodes.filter(n => n.type.includes('Layer')),
-          rendererNodes: nodes.filter(n => ['DeckRendererOp', 'OutOp'].includes(n.type)),
+          dataNodeIds: nodes
+            .filter(n => ['FileOp', 'JSONOp', 'DuckDbOp', 'CSVOp'].includes(n.type))
+            .map(n => n.id),
+          layerNodeIds: nodes.filter(n => n.type.includes('Layer')).map(n => n.id),
+          rendererNodeIds: nodes
+            .filter(n => ['DeckRendererOp', 'OutOp'].includes(n.type))
+            .map(n => n.id),
         },
       }
     } catch (error) {
