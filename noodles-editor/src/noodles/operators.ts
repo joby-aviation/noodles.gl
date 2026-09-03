@@ -2750,13 +2750,26 @@ export class GeocoderOp extends Operator<GeocoderOp> {
 
 export class DirectionsOp extends Operator<DirectionsOp> {
   static displayName = 'Directions'
-  static description = 'Get driving or transit directions between two points'
+  static description = 'Get driving, traffic-aware driving, or transit directions between points'
   asDownload = () => this.outputData
   createInputs() {
     return {
       origin: new Point2DField(),
       destination: new Point2DField(),
-      mode: new StringLiteralField('transit', { values: ['driving', 'transit'] }),
+      mode: new StringLiteralField('transit', {
+        values: [
+          { value: 'driving', label: 'Driving' },
+          { value: 'driving-traffic', label: 'Driving (traffic)' },
+          { value: 'transit', label: 'Transit' },
+        ],
+      }),
+      departureMode: new StringLiteralField('now', {
+        values: [
+          { value: 'now', label: 'Depart now' },
+          { value: 'scheduled', label: 'Schedule departure' },
+        ],
+      }),
+      departureTime: new DateField(),
     }
   }
   createOutputs() {
@@ -2773,16 +2786,28 @@ export class DirectionsOp extends Operator<DirectionsOp> {
       ),
     }
   }
+  override isFieldVisible(name: string): boolean {
+    if (name === 'departureMode') return this.inputs.mode.value === 'driving-traffic'
+    if (name === 'departureTime') {
+      return (
+        this.inputs.mode.value === 'driving-traffic' &&
+        this.inputs.departureMode.value === 'scheduled'
+      )
+    }
+    return super.isFieldVisible(name)
+  }
   async execute({
     origin,
     destination,
     mode,
+    departureMode,
+    departureTime,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     // Guard on default values
     if (
       (origin.lng === 0 && origin.lat === 0) ||
       (destination.lng === 0 && destination.lat === 0) ||
-      !(mode === 'driving' || mode === 'transit')
+      !(mode === 'driving' || mode === 'driving-traffic' || mode === 'transit')
     ) {
       console.debug('Invalid origin, destination or mode', origin, destination, mode)
       return { route: { timestamps: [], path: [] } }
@@ -2792,6 +2817,8 @@ export class DirectionsOp extends Operator<DirectionsOp> {
       origin,
       destination,
       mode,
+      departureTime:
+        mode === 'driving-traffic' && departureMode === 'scheduled' ? departureTime : undefined,
     })
 
     return { route }
