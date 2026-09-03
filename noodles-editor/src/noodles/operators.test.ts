@@ -5,6 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { NumberField, StringField } from './fields'
 import { getKeysStore } from './keys-store'
 import {
+  A5LayerOp,
+  ArcLayerOp,
   AccessorOp,
   BitmapOverlayWidgetOp,
   BoundingBoxOp,
@@ -18,27 +20,38 @@ import {
   DirectionsOp,
   DuckDbOp,
   ExpressionOp,
+  FillStyleExtensionOp,
   FileOp,
   FilterOp,
   FpsWidgetOp,
   FullscreenWidgetOp,
+  GeohashLayerOp,
   GeocoderOp,
   GeoJsonLayerOp,
   GeoJsonTransformOp,
+  GreatCircleLayerOp,
+  H3ClusterLayerOp,
   JSONOp,
   KmlToGeoJsonOp,
   LayerPropsOp,
+  LineLayerOp,
   MaplibreBasemapOp,
   MapViewOp,
   MathOp,
   MergeOp,
+  MVTLayerOp,
   NetworkOp,
   NumberOp,
   Operator,
   OverpassOp,
   PointOp,
+  PointCloudLayerOp,
   PointViewStateOp,
+  PolygonLayerOp,
   ProjectOp,
+  PathLayerOp,
+  PathStyleExtensionOp,
+  QuadkeyLayerOp,
   RampOp,
   RectangleOp,
   RerouteOp,
@@ -47,10 +60,12 @@ import {
   ScatterplotLayerOp,
   ScreenshotWidgetOp,
   SelectOp,
+  S2LayerOp,
   SmoothOp,
   SwitchOp,
   Tile3DLayerOp,
   TimeSeriesOp,
+  TripsLayerOp,
   ZoomWidgetOp,
 } from './operators'
 import { deleteOp, getOpStore, setOp } from './store'
@@ -1036,6 +1051,113 @@ describe('ScatterplotLayerOp', () => {
     })
     expect(layer.updateTriggers).toEqual({ getPosition: ['test'] })
     expect(layer.otherProp).toEqual(1)
+  })
+})
+
+describe('deck.gl 9.4 properties', () => {
+  it('configures path dashes by units and across the whole path', () => {
+    const operator = new PathStyleExtensionOp('/path-style-0')
+    const { extension } = operator.execute({
+      dash: true,
+      highPrecisionDash: false,
+      offset: true,
+      dashMode: 'path',
+      dashUnits: 'pixels',
+      dashJustified: true,
+      getDashArray: [8, 4],
+      getOffset: 2,
+      dashGapPickable: true,
+    })
+
+    expect(extension).toEqual({
+      extension: {
+        type: 'PathStyleExtension',
+        dash: true,
+        dashMode: 'path',
+        offset: true,
+      },
+      props: {
+        dashUnits: 'pixels',
+        dashJustified: true,
+        getDashArray: [8, 4],
+        getOffset: 2,
+        dashGapPickable: true,
+      },
+    })
+  })
+
+  it('maps the deprecated highPrecisionDash option to whole-path dash mode', () => {
+    const operator = new PathStyleExtensionOp('/path-style-0')
+    const { extension } = operator.execute({
+      dash: true,
+      highPrecisionDash: true,
+      offset: false,
+      dashMode: 'segment',
+    })
+
+    expect(extension.extension.dashMode).toBe('path')
+  })
+
+  it.each([
+    ['PathLayer', PathLayerOp, 'antialiasing'],
+    ['TripsLayer', TripsLayerOp, 'antialiasing'],
+    ['ArcLayer', ArcLayerOp, 'antialiasing'],
+    ['LineLayer', LineLayerOp, 'antialiasing'],
+    ['PointCloudLayer', PointCloudLayerOp, 'antialiasing'],
+    ['PolygonLayer', PolygonLayerOp, 'lineAntialiasing'],
+    ['GeoJsonLayer', GeoJsonLayerOp, 'lineAntialiasing'],
+    ['A5Layer', A5LayerOp, 'lineAntialiasing'],
+    ['GreatCircleLayer', GreatCircleLayerOp, 'antialiasing'],
+    ['H3ClusterLayer', H3ClusterLayerOp, 'lineAntialiasing'],
+    ['GeohashLayer', GeohashLayerOp, 'lineAntialiasing'],
+    ['S2Layer', S2LayerOp, 'lineAntialiasing'],
+    ['QuadkeyLayer', QuadkeyLayerOp, 'lineAntialiasing'],
+    ['MVTLayer', MVTLayerOp, 'lineAntialiasing'],
+  ])('forwards %s shader antialiasing', (_name, OperatorType, propName) => {
+    const operator = new OperatorType('/layer-0')
+    const { layer } = operator.execute({ [propName]: true })
+
+    expect(layer[propName]).toBe(true)
+  })
+
+  it('forwards ScatterplotLayer pixel offsets', () => {
+    const operator = new ScatterplotLayerOp('/scatterplot-0')
+    const { layer } = operator.execute({ getPixelOffset: [12, -8] })
+
+    expect(layer.getPixelOffset).toEqual([12, -8])
+    expect(layer.updateTriggers).toEqual({ getPixelOffset: [[12, -8]] })
+  })
+
+  it('configures procedural fill patterns and their new layer properties', () => {
+    const operator = new FillStyleExtensionOp('/fill-style-0')
+    const { extension } = operator.execute({
+      fillPatternEnabled: true,
+      proceduralPattern: true,
+      fillPatternSizeUnits: 'pixels',
+      getFillPatternBackgroundColor: [12, 34, 56, 128],
+    })
+
+    expect(extension.extension).toEqual({
+      type: 'FillStyleExtension',
+      pattern: true,
+      proceduralPattern: true,
+    })
+    expect(extension.props.fillPatternSizeUnits).toBe('pixels')
+    expect(extension.props.getFillPatternBackgroundColor).toEqual([12, 34, 56, 128])
+  })
+
+  it('forwards per-view render parameters', () => {
+    const operator = new MapViewOp('/map-0')
+    const { view } = operator.execute({ parameters: { depthTest: false } })
+
+    expect(view.props.parameters).toEqual({ depthTest: false })
+  })
+
+  it('configures the zoom widget step', () => {
+    const operator = new ZoomWidgetOp('/zoom-0')
+    const { widget } = operator.execute({ placement: 'top-right', zoomStep: 0.5, viewId: '' })
+
+    expect(widget.zoomStep).toBe(0.5)
   })
 })
 
