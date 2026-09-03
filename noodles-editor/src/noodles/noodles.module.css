@@ -71,6 +71,8 @@
 
 :root {
   --z-index-background: -99;
+  --z-index-underlay: 0;
+  --z-index-docked: 1;
   --z-index-node-tooltip: 101;
   --z-index-canvas: 999;
   --z-index-chrome: 1000;
@@ -849,7 +851,7 @@
 }
 
 .stringLiteralSuggestions {
-  z-index: 99999;
+  z-index: var(--z-index-modal);
   margin: 2px 0 0;
   padding: 4px 0;
   list-style: none;
@@ -1139,7 +1141,7 @@
   max-width: 300px;
   font-size: 11px;
   color: #fca5a5;
-  z-index: 1000;
+  z-index: var(--z-index-chrome);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
   line-height: 1.5;
   word-break: break-word;

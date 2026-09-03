@@ -12,7 +12,7 @@
   background: rgba(0, 0, 0, 0.7);
   position: fixed;
   inset: 0;
-  z-index: 9999;
+  z-index: var(--z-index-backdrop);
   animation: overlayShow 150ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -37,7 +37,7 @@
   max-width: 700px;
   max-height: 85vh;
   padding: 24px;
-  z-index: 10000;
+  z-index: var(--z-index-modal);
   display: flex;
   flex-direction: column;
   gap: 16px;
