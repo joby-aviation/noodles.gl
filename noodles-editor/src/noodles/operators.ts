@@ -4292,7 +4292,7 @@ function createBaseViewFields() {
     }),
     clear: new BooleanField(false, { showByDefault: false }),
     clearColor: new ColorField('#00000000', { transform: hexToColor, showByDefault: false }),
-    parameters: new UnknownField({}, { showByDefault: false }),
+    parameters: new CompoundPropsField({}, { showByDefault: false }),
   }
 }
 

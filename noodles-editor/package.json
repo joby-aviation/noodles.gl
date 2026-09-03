@@ -11,7 +11,7 @@
     "@loaders.gl/obj": "^4.3.4",
     "@loaders.gl/ply": "^4.3.4",
     "@loaders.gl/tiles": "^4.3.4",
-    "@luma.gl/effects": "^9.3.6",
+    "@luma.gl/effects": "^9.4.0-beta.6",
     "@mapbox/mapbox-gl-geocoder": "^5.1.2",
     "@mapbox/polyline": "^1.2.1",
     "@math.gl/web-mercator": "^4.1.0",
