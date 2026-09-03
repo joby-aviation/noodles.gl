@@ -4,6 +4,7 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { ReactFlowProvider } from '@xyflow/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { NumberOp } from '../../operators'
+import { referenceDependencyModel } from '../../reference-dependencies'
 import { clearOps, setOp } from '../../store'
 import { FieldComponent } from '../field-components'
 
@@ -45,6 +46,7 @@ describe('per-field expression mode UI', () => {
 
   afterEach(() => {
     cleanup()
+    referenceDependencyModel.reset()
     clearOps()
   })
 
@@ -156,12 +158,30 @@ describe('per-field expression mode UI', () => {
     expect(op.inputs.val.value).toEqual(5)
   })
 
-  it('syncs reference edges for cross-op expressions', () => {
+  it('projects cross-op expression edges from the graph model', () => {
     const source = new NumberOp('/source')
-    source.outputs.val.setValue(1)
+    source.inputs.val.setValue(1)
     setOp('/source', source)
     const op = new NumberOp('/num')
     setOp('/num', op)
+    referenceDependencyModel.configure({
+      nodes: [
+        {
+          id: '/source',
+          type: 'NumberOp',
+          position: { x: 0, y: 0 },
+          data: { inputs: { val: 1 } },
+        },
+        {
+          id: '/num',
+          type: 'NumberOp',
+          position: { x: 100, y: 0 },
+          data: { inputs: { val: 0 } },
+        },
+      ],
+      executionEdges: [],
+      operators: [source, op],
+    })
     renderField(op)
 
     fireEvent.contextMenu(screen.getByText('val'))
@@ -170,18 +190,15 @@ describe('per-field expression mode UI', () => {
     fireEvent.change(input, { target: { value: "op('/source').out.val + 1" } })
     fireEvent.blur(input)
 
-    // The reference-edge sync effect should have been asked to update edges
-    expect(setEdgesSpy).toHaveBeenCalled()
-    const updater = setEdgesSpy.mock.calls.at(-1)?.[0]
-    const newEdges = updater([])
-    expect(newEdges).toHaveLength(1)
-    expect(newEdges[0]).toMatchObject({
+    expect(referenceDependencyModel.getSnapshot()).toHaveLength(1)
+    expect(referenceDependencyModel.getSnapshot()[0]).toMatchObject({
       type: 'ReferenceEdge',
       source: '/source',
       target: '/num',
       sourceHandle: 'out.val',
       targetHandle: 'par.val',
     })
+    expect(setEdgesSpy).not.toHaveBeenCalled()
   })
 
   it('does not offer expression mode for expression-type fields', async () => {
