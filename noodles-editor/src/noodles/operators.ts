@@ -4243,6 +4243,7 @@ export class GraphInputOp extends Operator<GraphInputOp> {
   static displayName = 'GraphInput'
   static description = 'Receives input from the parent Container.'
   private _containerSub: Subscription | null = null
+  private _containerInputDependencies = new Set<Operator<IOperator>>()
 
   createInputs() {
     return { parentValue: new UnknownField(null, { optional: true }) }
@@ -4261,6 +4262,34 @@ export class GraphInputOp extends Operator<GraphInputOp> {
       }
     }
     return result as ExtractProps<typeof this.outputs>
+  }
+
+  /**
+   * Mirror the operators feeding the parent container as direct pull
+   * dependencies. The value still flows through the container fields, but
+   * this relationship guarantees those fields are populated before the child
+   * graph reads them on its first pull.
+   */
+  setContainerInputDependencies(dependencies: Iterable<Operator<IOperator>>) {
+    const nextDependencies = new Set(dependencies)
+    let changed = false
+
+    for (const dependency of this._containerInputDependencies) {
+      if (nextDependencies.has(dependency)) continue
+      dependency.removeDownstreamDependent(this)
+      this.removeUpstreamDependency(dependency)
+      changed = true
+    }
+
+    for (const dependency of nextDependencies) {
+      if (this._containerInputDependencies.has(dependency)) continue
+      dependency.addDownstreamDependent(this)
+      this.addUpstreamDependency(dependency)
+      changed = true
+    }
+
+    this._containerInputDependencies = nextDependencies
+    if (changed) this.markDirty()
   }
 
   /**
@@ -4366,6 +4395,7 @@ export class GraphInputOp extends Operator<GraphInputOp> {
   }
 
   dispose() {
+    this.setContainerInputDependencies([])
     if (this._containerSub) {
       this._containerSub.unsubscribe()
     }
