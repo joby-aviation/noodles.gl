@@ -80,6 +80,7 @@ import { SidebarTabs } from './components/sidebar-tabs'
 import { StorageErrorHandler } from './components/storage-error-handler'
 import { CanvasDropImport } from './components/tools/canvas-drop-import'
 import { UndoRedoHandler, type UndoRedoHandlerRef } from './components/UndoRedoHandler'
+import { ProjectModificationActionsProvider } from './contexts/project-modification-actions-context'
 import { useActiveStorageType, useFileSystemStore } from './filesystem-store'
 import { findEdgeAtPosition, useConnectionDropOnEdge } from './hooks/use-connection-drop-on-edge'
 import { useKeyboardShortcut } from './hooks/use-keyboard-shortcut'
@@ -1607,41 +1608,43 @@ export function getNoodles(): Visualization {
       >
         <PrimeReactProvider>
           <TimelineProvider>
-            <ReactFlow
-              ref={reactFlowRef}
-              nodes={displayedNodes}
-              edges={activeEdges}
-              onNodesChange={onNodesChange}
-              onEdgesChange={onEdgesChange}
-              onConnect={onConnect}
-              onConnectStart={onConnectStart}
-              onConnectEnd={onConnectEnd}
-              onReconnect={onReconnect}
-              onReconnectEnd={onReconnectEnd}
-              onNodeContextMenu={onNodeContextMenu}
-              onNodesDelete={onNodesDelete}
-              onNodeDrag={onNodeDrag}
-              onNodeDragStop={onNodeDragStop}
-              onPaneContextMenu={onPaneContextMenu}
-              onPaneClick={onPaneClick}
-              minZoom={0.2}
-              fitViewOptions={fitViewOptions}
-              defaultEdgeOptions={defaultEdgeOptions}
-              defaultViewport={defaultViewport}
-              nodeTypes={nodeComponents}
-              edgeTypes={edgeComponents}
-            >
-              <ReactFlowInstanceCapture />
-              <EdgeConnectionSynchronizer />
-              <CanvasDropImport />
-              <Background />
-              <Controls position="bottom-right" />
-              <BlockLibrary ref={blockLibraryRef} reactFlowRef={reactFlowRef} />
-              <CopyControls ref={copyControlsRef} graphRef={graphRef} />
-              <UndoRedoHandler ref={undoRedoRef} graphRef={graphRef} />
-              {showDebugInfo && <NodeInfoOverlay />}
-              {showDebugInfo && <ViewportInfoPanel />}
-            </ReactFlow>
+            <ProjectModificationActionsProvider updateOperatorId={updateOperatorId}>
+              <ReactFlow
+                ref={reactFlowRef}
+                nodes={displayedNodes}
+                edges={activeEdges}
+                onNodesChange={onNodesChange}
+                onEdgesChange={onEdgesChange}
+                onConnect={onConnect}
+                onConnectStart={onConnectStart}
+                onConnectEnd={onConnectEnd}
+                onReconnect={onReconnect}
+                onReconnectEnd={onReconnectEnd}
+                onNodeContextMenu={onNodeContextMenu}
+                onNodesDelete={onNodesDelete}
+                onNodeDrag={onNodeDrag}
+                onNodeDragStop={onNodeDragStop}
+                onPaneContextMenu={onPaneContextMenu}
+                onPaneClick={onPaneClick}
+                minZoom={0.2}
+                fitViewOptions={fitViewOptions}
+                defaultEdgeOptions={defaultEdgeOptions}
+                defaultViewport={defaultViewport}
+                nodeTypes={nodeComponents}
+                edgeTypes={edgeComponents}
+              >
+                <ReactFlowInstanceCapture />
+                <EdgeConnectionSynchronizer />
+                <CanvasDropImport />
+                <Background />
+                <Controls position="bottom-right" />
+                <BlockLibrary ref={blockLibraryRef} reactFlowRef={reactFlowRef} />
+                <CopyControls ref={copyControlsRef} graphRef={graphRef} />
+                <UndoRedoHandler ref={undoRedoRef} graphRef={graphRef} />
+                {showDebugInfo && <NodeInfoOverlay />}
+                {showDebugInfo && <ViewportInfoPanel />}
+              </ReactFlow>
+            </ProjectModificationActionsProvider>
           </TimelineProvider>
         </PrimeReactProvider>
         {parameterEditorState.operatorId && (
