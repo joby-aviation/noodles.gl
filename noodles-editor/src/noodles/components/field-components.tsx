@@ -597,8 +597,8 @@ function formatEvaluatedValue(value: unknown): string {
   }
 }
 
-// Canvas variant of the expression input: also syncs dashed ReferenceEdges to referenced
-// operators and derives autocomplete context from the live graph. Requires ReactFlow context.
+// Canvas variant of the expression input: derives autocomplete context from the live graph.
+// The graph-owned reference dependency model projects dashed edges for visualization.
 export function ExpressionDrivenInput({
   id,
   field,
@@ -608,13 +608,9 @@ export function ExpressionDrivenInput({
   field: Field
   disabled: boolean
 }) {
-  const expression = useObservable(field.expression$, field.expression) ?? ''
   // Outside a node (e.g. the Properties Panel) useNodeId is null; the field knows its op
   const nodeId = useNodeId() ?? field.op?.id ?? ''
   const edges = useEdges()
-
-  // Dashed dependency edges to referenced operators
-  useReferenceEdgeSync(field, expression)
 
   const graphEdges = useMemo(
     () =>

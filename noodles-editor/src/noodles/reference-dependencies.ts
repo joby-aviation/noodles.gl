@@ -1,5 +1,5 @@
 import type { Subscription } from 'rxjs'
-import { type Field, getFieldReferences } from './fields'
+import { type Field, getFieldReferences, isSerializedExpression } from './fields'
 import { type Edge as ExecutorEdge, updateGraph } from './graph-executor'
 import type { IOperator, Operator } from './operators'
 import type { GraphNode } from './utils/for-loop-group-utils'
@@ -35,12 +35,17 @@ type ConfigureOptions = {
 }
 
 function serializedValueToReferenceText(value: unknown): string | null {
+  if (isSerializedExpression(value)) return value.$expr
   if (typeof value === 'string') return value
   if (Array.isArray(value)) {
     const strings = value.filter((item): item is string => typeof item === 'string')
     return strings.length > 0 ? strings.join('\n') : null
   }
   return null
+}
+
+function fieldReferenceText(field: Field): string | null {
+  return field.expression ?? serializedValueToReferenceText(field.value)
 }
 
 function connectionKey(
@@ -176,7 +181,7 @@ class ReferenceDependencyModel {
       if (!op) continue
 
       for (const [fieldName, field] of Object.entries(op.inputs)) {
-        const text = typeof field.value === 'string' ? field.value : null
+        const text = fieldReferenceText(field)
         if (!text || !(text.includes('op(') || text.includes('{{'))) continue
 
         for (const ref of getFieldReferences(text, node.id)) {
@@ -209,22 +214,17 @@ class ReferenceDependencyModel {
   private watchInputFields(): void {
     for (const op of this.operators.values()) {
       for (const field of Object.values(op.inputs)) {
-        if (typeof field.value !== 'string') continue
-        this.fieldTexts.set(field, field.value)
-        let initialEmission = true
-        const subscription = field.subscribe(() => {
-          if (initialEmission) {
-            initialEmission = false
-            return
-          }
+        this.fieldTexts.set(field, fieldReferenceText(field))
+        const refreshIfSourceChanged = () => {
           if (this.refreshing) return
 
-          const text = typeof field.value === 'string' ? field.value : null
+          const text = fieldReferenceText(field)
           if (text === this.fieldTexts.get(field)) return
           this.fieldTexts.set(field, text)
           this.refresh()
-        })
-        this.fieldWatchers.push(subscription)
+        }
+        this.fieldWatchers.push(field.subscribe(refreshIfSourceChanged))
+        this.fieldWatchers.push(field.expression$.subscribe(refreshIfSourceChanged))
       }
     }
   }
