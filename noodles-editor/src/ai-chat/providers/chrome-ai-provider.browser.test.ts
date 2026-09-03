@@ -1,5 +1,4 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { page } from 'vitest/browser'
 import type { MCPTools } from '../mcp-tools'
 import type { NoodlesProject } from '../types'
 import { ChromeAIProvider } from './chrome-ai-provider'
@@ -7,9 +6,9 @@ import { ProviderError } from './ai-provider-interface'
 
 // Browser-based E2E tests for Chrome AI provider
 // These tests run in a real Chromium instance via Playwright
+// In Vitest 4 browser mode, tests run directly in the browser context
 
-// TODO: Update to Vitest 4 browser API - currently uses deprecated @vitest/browser/context
-describe.skip('ChromeAIProvider E2E (Browser)', () => {
+describe('ChromeAIProvider E2E (Browser)', () => {
   const mockTools = {
     captureVisualization: vi.fn(),
     getConsoleErrors: vi.fn(),
@@ -17,6 +16,7 @@ describe.skip('ChromeAIProvider E2E (Browser)', () => {
     inspectLayer: vi.fn(),
     applyModifications: vi.fn(),
     getCurrentProject: vi.fn(),
+    getProject: vi.fn(() => mockProject),
     listNodes: vi.fn(),
     getNodeInfo: vi.fn(),
     getNodeOutput: vi.fn(),
@@ -37,21 +37,16 @@ describe.skip('ChromeAIProvider E2E (Browser)', () => {
 
   beforeAll(async () => {
     // Check if Chrome AI is available in the test browser
-    chromeAIAvailable = await page.evaluate(() => {
-      return typeof (window as any).LanguageModel !== 'undefined'
-    })
+    chromeAIAvailable = typeof (window as any).LanguageModel !== 'undefined'
 
     if (chromeAIAvailable) {
-      chromeAIState = await page.evaluate(async () => {
-        try {
-          const availability = await (window as any).LanguageModel.availability({
-            expectedOutputs: [{ type: 'text', languages: ['en'] }],
-          })
-          return availability
-        } catch {
-          return 'unavailable'
-        }
-      })
+      try {
+        chromeAIState = await (window as any).LanguageModel.availability({
+          expectedOutputs: [{ type: 'text', languages: ['en'] }],
+        })
+      } catch {
+        chromeAIState = 'unavailable'
+      }
     } else {
       chromeAIState = 'unavailable'
     }
@@ -63,39 +58,27 @@ describe.skip('ChromeAIProvider E2E (Browser)', () => {
       'initializes and creates a session with real Chrome AI',
       { skip: !chromeAIAvailable || chromeAIState === 'unavailable' },
       async () => {
-        // Create provider in browser context
-        const provider = await page.evaluate(() => {
-          const tools = {} as any
-          const provider = new (window as any).ChromeAIProvider(tools)
-          return { name: provider.name, displayName: provider.displayName }
-        })
+        // Create provider directly in browser context
+        const provider = new ChromeAIProvider(mockTools)
 
         expect(provider.name).toBe('chrome-ai')
         expect(provider.displayName).toBe('Built-in AI (Chrome)')
 
         // Try to initialize
-        const initResult = await page.evaluate(async () => {
-          try {
-            const tools = {} as any
-            const provider = new (window as any).ChromeAIProvider(tools)
-            const messages: string[] = []
-            await provider.initialize((msg: string) => messages.push(msg))
-            return { success: true, messages, error: null }
-          } catch (error: any) {
-            return {
-              success: false,
-              messages: [],
-              error: error.message,
-            }
-          }
-        })
+        try {
+          const messages: string[] = []
+          await provider.initialize((msg: string) => messages.push(msg))
 
-        if (chromeAIState === 'available') {
-          expect(initResult.success).toBe(true)
-          expect(initResult.messages).toContain('AI session ready')
-        } else {
+          if (chromeAIState === 'available') {
+            expect(messages).toContain('AI session ready')
+          }
+        } catch (error: any) {
           // May require download or fail
-          expect(initResult.error).toBeDefined()
+          if (chromeAIState !== 'available') {
+            expect(error.message).toBeDefined()
+          } else {
+            throw error
+          }
         }
       },
       { timeout: 15000 }
@@ -105,36 +88,19 @@ describe.skip('ChromeAIProvider E2E (Browser)', () => {
       'sends a real message and receives response',
       { skip: !chromeAIAvailable || chromeAIState !== 'available' },
       async () => {
-        const result = await page.evaluate(async () => {
-          try {
-            const tools = {} as any
-            const provider = new (window as any).ChromeAIProvider(tools)
-            await provider.initialize()
+        const provider = new ChromeAIProvider(mockTools)
+        await provider.initialize()
 
-            const response = await provider.sendMessage({
-              message: 'Say "test successful" in your response',
-              project: { nodes: [], edges: [], viewport: { x: 0, y: 0, zoom: 1 } },
-            })
-
-            return {
-              success: true,
-              message: response.message,
-              hasModifications: response.projectModifications.length > 0,
-              hasToolCalls: response.toolCalls.length > 0,
-            }
-          } catch (error: any) {
-            return {
-              success: false,
-              error: error.message,
-            }
-          }
+        const response = await provider.sendMessage({
+          message: 'Say "test successful" in your response',
+          project: mockProject,
         })
 
-        expect(result.success).toBe(true)
-        expect(result.message).toBeDefined()
-        expect(result.message.length).toBeGreaterThan(0)
+        expect(response.message).toBeDefined()
+        expect(response.message.length).toBeGreaterThan(0)
+        expect(response.projectModifications.length).toBeGreaterThanOrEqual(0)
         // Chrome AI doesn't support tool calling
-        expect(result.hasToolCalls).toBe(false)
+        expect(response.toolCalls.length).toBe(0)
       },
       { timeout: 30000 }
     )
@@ -143,34 +109,17 @@ describe.skip('ChromeAIProvider E2E (Browser)', () => {
       'extracts project modifications from response',
       { skip: !chromeAIAvailable || chromeAIState !== 'available' },
       async () => {
-        const result = await page.evaluate(async () => {
-          try {
-            const tools = {} as any
-            const provider = new (window as any).ChromeAIProvider(tools)
-            await provider.initialize()
+        const provider = new ChromeAIProvider(mockTools)
+        await provider.initialize()
 
-            const response = await provider.sendMessage({
-              message:
-                'Create a JSON code block with: [{"type":"add_node","data":{"id":"/test","type":"NumberOp","position":{"x":100,"y":100}}}]',
-              project: { nodes: [], edges: [], viewport: { x: 0, y: 0, zoom: 1 } },
-            })
-
-            return {
-              success: true,
-              message: response.message,
-              modifications: response.projectModifications,
-            }
-          } catch (error: any) {
-            return {
-              success: false,
-              error: error.message,
-            }
-          }
+        const response = await provider.sendMessage({
+          message:
+            'Create a JSON code block with: [{"type":"add_node","data":{"id":"/test","type":"NumberOp","position":{"x":100,"y":100}}}]',
+          project: mockProject,
         })
 
-        expect(result.success).toBe(true)
         // The AI should include the JSON in its response
-        expect(result.message).toContain('add_node')
+        expect(response.message).toContain('add_node')
       },
       { timeout: 30000 }
     )
@@ -179,46 +128,29 @@ describe.skip('ChromeAIProvider E2E (Browser)', () => {
       'handles conversation history correctly',
       { skip: !chromeAIAvailable || chromeAIState !== 'available' },
       async () => {
-        const result = await page.evaluate(async () => {
-          try {
-            const tools = {} as any
-            const provider = new (window as any).ChromeAIProvider(tools)
-            await provider.initialize()
+        const provider = new ChromeAIProvider(mockTools)
+        await provider.initialize()
 
-            // First message
-            const response1 = await provider.sendMessage({
-              message: 'Remember that my favorite color is blue',
-              project: { nodes: [], edges: [], viewport: { x: 0, y: 0, zoom: 1 } },
-              conversationHistory: [],
-            })
-
-            // Second message with history
-            const response2 = await provider.sendMessage({
-              message: 'What is my favorite color?',
-              project: { nodes: [], edges: [], viewport: { x: 0, y: 0, zoom: 1 } },
-              conversationHistory: [
-                { role: 'user', content: 'Remember that my favorite color is blue' },
-                { role: 'assistant', content: response1.message },
-              ],
-            })
-
-            return {
-              success: true,
-              firstResponse: response1.message,
-              secondResponse: response2.message,
-            }
-          } catch (error: any) {
-            return {
-              success: false,
-              error: error.message,
-            }
-          }
+        // First message
+        const response1 = await provider.sendMessage({
+          message: 'Remember that my favorite color is blue',
+          project: mockProject,
+          conversationHistory: [],
         })
 
-        expect(result.success).toBe(true)
+        // Second message with history
+        const response2 = await provider.sendMessage({
+          message: 'What is my favorite color?',
+          project: mockProject,
+          conversationHistory: [
+            { role: 'user', content: 'Remember that my favorite color is blue' },
+            { role: 'assistant', content: response1.message },
+          ],
+        })
+
         // The second response should reference the color from history
         // (This is probabilistic but Chrome AI should understand context)
-        expect(result.secondResponse.toLowerCase()).toContain('blue')
+        expect(response2.message.toLowerCase()).toContain('blue')
       },
       { timeout: 60000 }
     )
@@ -227,46 +159,28 @@ describe.skip('ChromeAIProvider E2E (Browser)', () => {
       'exposes context window information',
       { skip: !chromeAIAvailable || chromeAIState !== 'available' },
       async () => {
-        const result = await page.evaluate(async () => {
-          try {
-            const tools = {} as any
-            const provider = new (window as any).ChromeAIProvider(tools)
-            await provider.initialize()
+        const provider = new ChromeAIProvider(mockTools)
+        await provider.initialize()
 
-            const contextBefore = provider.getContextWindow()
+        const contextBefore = provider.getContextWindow()
 
-            await provider.sendMessage({
-              message: 'Tell me about geospatial visualization',
-              project: { nodes: [], edges: [], viewport: { x: 0, y: 0, zoom: 1 } },
-            })
-
-            const contextAfter = provider.getContextWindow()
-
-            return {
-              success: true,
-              contextBefore,
-              contextAfter,
-            }
-          } catch (error: any) {
-            return {
-              success: false,
-              error: error.message,
-            }
-          }
+        await provider.sendMessage({
+          message: 'Tell me about geospatial visualization',
+          project: mockProject,
         })
 
-        expect(result.success).toBe(true)
+        const contextAfter = provider.getContextWindow()
 
-        if (result.contextBefore) {
-          expect(result.contextBefore.used).toBeGreaterThan(0)
-          expect(result.contextBefore.total).toBeGreaterThan(0)
-          expect(result.contextBefore.percentage).toBeGreaterThanOrEqual(0)
-          expect(result.contextBefore.percentage).toBeLessThanOrEqual(100)
+        if (contextBefore) {
+          expect(contextBefore.used).toBeGreaterThan(0)
+          expect(contextBefore.total).toBeGreaterThan(0)
+          expect(contextBefore.percentage).toBeGreaterThanOrEqual(0)
+          expect(contextBefore.percentage).toBeLessThanOrEqual(100)
         }
 
-        if (result.contextAfter) {
+        if (contextAfter) {
           // Context usage should increase after sending a message
-          expect(result.contextAfter.used).toBeGreaterThanOrEqual(result.contextBefore?.used || 0)
+          expect(contextAfter.used).toBeGreaterThanOrEqual(contextBefore?.used || 0)
         }
       },
       { timeout: 30000 }
@@ -276,248 +190,177 @@ describe.skip('ChromeAIProvider E2E (Browser)', () => {
       'cleans up session on destroy',
       { skip: !chromeAIAvailable || chromeAIState !== 'available' },
       async () => {
-        const result = await page.evaluate(async () => {
-          try {
-            const tools = {} as any
-            const provider = new (window as any).ChromeAIProvider(tools)
-            await provider.initialize()
+        const provider = new ChromeAIProvider(mockTools)
+        await provider.initialize()
 
-            // Session should work before destroy
-            const responseBefore = await provider.sendMessage({
-              message: 'Test',
-              project: { nodes: [], edges: [], viewport: { x: 0, y: 0, zoom: 1 } },
-            })
-
-            // Destroy the session
-            provider.destroy()
-
-            // Try to use after destroy
-            let errorAfter = null
-            try {
-              await provider.sendMessage({
-                message: 'Test',
-                project: { nodes: [], edges: [], viewport: { x: 0, y: 0, zoom: 1 } },
-              })
-            } catch (error: any) {
-              errorAfter = error.message
-            }
-
-            return {
-              success: true,
-              beforeMessage: responseBefore.message,
-              errorAfter,
-            }
-          } catch (error: any) {
-            return {
-              success: false,
-              error: error.message,
-            }
-          }
+        // Session should work before destroy
+        const responseBefore = await provider.sendMessage({
+          message: 'Test',
+          project: mockProject,
         })
 
-        expect(result.success).toBe(true)
-        expect(result.beforeMessage).toBeDefined()
-        expect(result.errorAfter).toContain('not initialized')
+        expect(responseBefore.message).toBeDefined()
+
+        // Destroy the session
+        provider.destroy()
+
+        // Try to use after destroy
+        await expect(
+          provider.sendMessage({
+            message: 'Test',
+            project: mockProject,
+          })
+        ).rejects.toThrow('not initialized')
       },
       { timeout: 30000 }
     )
   })
 
   describe('Polyfilled Chrome AI (Mock Mode)', () => {
-    beforeEach(async () => {
+    beforeEach(() => {
       // Install a polyfill/mock in the browser for testing when real API unavailable
-      await page.evaluate(() => {
-        if (typeof (window as any).LanguageModel !== 'undefined') {
-          return // Real API already available
-        }
+      if (typeof (window as any).LanguageModel !== 'undefined') {
+        return // Real API already available
+      }
 
-        // Create a simple mock implementation
-        const mockSession = {
-          prompt: async (input: string) => {
-            // Simple echo with prefix
-            return `Mock AI response to: ${input.slice(0, 50)}...`
-          },
-          promptStreaming: (input: string) => {
-            const encoder = new TextEncoderStream()
-            const writer = encoder.writable.getWriter()
-            writer.write('Mock streaming response')
-            writer.close()
-            return encoder.readable
-          },
-          destroy: () => {},
-          clone: () => mockSession,
-          contextWindow: 4096,
-          contextUsage: 500,
-        }
+      // Create a simple mock implementation
+      const mockSession = {
+        prompt: async (input: string) => {
+          // Simple echo with prefix
+          return `Mock AI response to: ${input.slice(0, 50)}...`
+        },
+        promptStreaming: (input: string) => {
+          const encoder = new TextEncoderStream()
+          const writer = encoder.writable.getWriter()
+          writer.write('Mock streaming response')
+          writer.close()
+          return encoder.readable
+        },
+        destroy: () => {},
+        clone: () => mockSession,
+        contextWindow: 4096,
+        contextUsage: 500,
+      }
 
-        ;(window as any).LanguageModel = {
-          availability: async () => 'available',
-          create: async () => mockSession,
-        }
-      })
+      ;(window as any).LanguageModel = {
+        availability: async () => 'available',
+        create: async () => mockSession,
+      }
     })
 
     it('works with polyfilled Chrome AI API', async () => {
-      const result = await page.evaluate(async () => {
-        try {
-          const tools = {} as any
-          const provider = new (window as any).ChromeAIProvider(tools)
-          const messages: string[] = []
-          await provider.initialize((msg: string) => messages.push(msg))
+      const provider = new ChromeAIProvider(mockTools)
+      const messages: string[] = []
+      await provider.initialize((msg: string) => messages.push(msg))
 
-          const response = await provider.sendMessage({
-            message: 'Test message',
-            project: { nodes: [], edges: [], viewport: { x: 0, y: 0, zoom: 1 } },
-          })
-
-          return {
-            success: true,
-            initMessages: messages,
-            response: response.message,
-          }
-        } catch (error: any) {
-          return {
-            success: false,
-            error: error.message,
-          }
-        }
+      const response = await provider.sendMessage({
+        message: 'Test message',
+        project: mockProject,
       })
 
-      expect(result.success).toBe(true)
-      expect(result.initMessages).toContain('AI session ready')
-      expect(result.response).toContain('Mock AI response')
+      expect(messages).toContain('AI session ready')
+      expect(response.message).toContain('Mock AI response')
     })
 
     it('handles errors in polyfilled API', async () => {
       // Override with error-throwing mock
-      await page.evaluate(() => {
-        ;(window as any).LanguageModel = {
-          availability: async () => 'unavailable',
-          create: async () => {
-            throw new Error('Mock creation failed')
-          },
-        }
-      })
+      ;(window as any).LanguageModel = {
+        availability: async () => 'unavailable',
+        create: async () => {
+          throw new Error('Mock creation failed')
+        },
+      }
 
-      const result = await page.evaluate(async () => {
-        try {
-          const tools = {} as any
-          const provider = new (window as any).ChromeAIProvider(tools)
-          await provider.initialize()
-          return { success: true }
-        } catch (error: any) {
-          return {
-            success: false,
-            error: error.message,
-          }
-        }
-      })
+      const provider = new ChromeAIProvider(mockTools)
 
-      expect(result.success).toBe(false)
-      expect(result.error).toContain('not available')
+      await expect(provider.initialize()).rejects.toThrow('not available')
     })
   })
 
   describe('Error Handling in Browser Context', () => {
     it('provides helpful error when API not available', async () => {
       // Temporarily remove LanguageModel
-      const result = await page.evaluate(async () => {
-        const originalLM = (window as any).LanguageModel
-        delete (window as any).LanguageModel
+      const originalLM = (window as any).LanguageModel
+      delete (window as any).LanguageModel
 
-        try {
-          const tools = {} as any
-          const provider = new (window as any).ChromeAIProvider(tools)
-          await provider.initialize()
-          return { success: true, error: null }
-        } catch (error: any) {
-          return {
-            success: false,
-            error: error.message,
-            includesChrome: error.message.includes('Chrome'),
-            includesFlag: error.message.includes('flag'),
-          }
-        } finally {
-          ;(window as any).LanguageModel = originalLM
-        }
-      })
-
-      expect(result.success).toBe(false)
-      expect(result.includesChrome).toBe(true)
-      expect(result.includesFlag).toBe(true)
+      try {
+        const provider = new ChromeAIProvider(mockTools)
+        await expect(provider.initialize()).rejects.toThrow(/Chrome/)
+        await expect(provider.initialize()).rejects.toThrow(/flag/)
+      } finally {
+        ;(window as any).LanguageModel = originalLM
+      }
     })
 
-    it('detects Chrome version in error messages', async () => {
-      const result = await page.evaluate(async () => {
-        const chromeVersion = navigator.userAgent.match(/Chrome\/(\d+)/)?.[1]
-        return chromeVersion
-      })
+    it('detects Chrome version in error messages', () => {
+      const chromeVersion = navigator.userAgent.match(/Chrome\/(\d+)/)?.[1]
 
-      expect(result).toBeDefined()
+      expect(chromeVersion).toBeDefined()
       // Modern test browsers should be Chrome 100+
-      expect(Number.parseInt(result || '0')).toBeGreaterThan(100)
+      expect(Number.parseInt(chromeVersion || '0')).toBeGreaterThan(100)
     })
   })
 
   describe('Progress Tracking', () => {
-    beforeEach(async () => {
-      // Install mock with download progress
-      await page.evaluate(() => {
-        const createMockSession = () => ({
-          prompt: async (input: string) => `Response to: ${input}`,
-          promptStreaming: () => new ReadableStream(),
-          destroy: () => {},
-          clone: () => createMockSession(),
-          contextWindow: 4096,
-          contextUsage: 500,
-        })
-
-        ;(window as any).LanguageModel = {
-          availability: async () => 'downloadable',
-          create: async (options: any) => {
-            // Simulate download progress
-            if (options.monitor) {
-              const mockMonitor = {
-                addEventListener: (event: string, callback: (e: any) => void) => {
-                  if (event === 'downloadprogress') {
-                    // Simulate progress events
-                    setTimeout(() => callback({ loaded: 250, total: 1000 }), 10)
-                    setTimeout(() => callback({ loaded: 500, total: 1000 }), 20)
-                    setTimeout(() => callback({ loaded: 750, total: 1000 }), 30)
-                    setTimeout(() => callback({ loaded: 1000, total: 1000 }), 40)
-                  }
-                },
-              }
-              options.monitor(mockMonitor)
-            }
-
-            // Wait for progress events
-            await new Promise(resolve => setTimeout(resolve, 50))
-            return createMockSession()
-          },
-        }
+    beforeEach(() => {
+      // Mock user activation (required for downloadable state)
+      Object.defineProperty(navigator, 'userActivation', {
+        value: { isActive: true, hasBeenActive: true },
+        writable: true,
+        configurable: true,
       })
+
+      // Install mock with download progress
+      const createMockSession = () => ({
+        prompt: async (input: string) => `Response to: ${input}`,
+        promptStreaming: () => new ReadableStream(),
+        destroy: () => {},
+        clone: () => createMockSession(),
+        contextWindow: 4096,
+        contextUsage: 500,
+      })
+
+      ;(window as any).LanguageModel = {
+        availability: async () => 'downloadable',
+        create: async (options: any) => {
+          // Simulate download progress - fire synchronously to avoid timing issues
+          if (options.monitor) {
+            const mockMonitor = {
+              addEventListener: (event: string, callback: (e: any) => void) => {
+                if (event === 'downloadprogress') {
+                  // Fire progress events immediately
+                  callback({ loaded: 250, total: 1000 })
+                  callback({ loaded: 500, total: 1000 })
+                  callback({ loaded: 750, total: 1000 })
+                  callback({ loaded: 1000, total: 1000 })
+                }
+              },
+            }
+            options.monitor(mockMonitor)
+          }
+
+          return createMockSession()
+        },
+      }
     })
 
-    it('tracks download progress', async () => {
-      const result = await page.evaluate(async () => {
-        const tools = {} as any
-        const provider = new (window as any).ChromeAIProvider(tools)
+    it(
+      'tracks download progress',
+      { timeout: 10000 },
+      async () => {
+        const provider = new ChromeAIProvider(mockTools)
         const messages: string[] = []
 
         await provider.initialize((msg: string) => {
           messages.push(msg)
         })
 
-        return { success: true, messages }
-      })
-
-      expect(result.success).toBe(true)
-      expect(result.messages).toContain('Triggering AI model download...')
-      expect(result.messages).toContain('Downloading AI model: 25%')
-      expect(result.messages).toContain('Downloading AI model: 50%')
-      expect(result.messages).toContain('Downloading AI model: 100%')
-      expect(result.messages).toContain('AI session ready')
-    }, 10000)
+        expect(messages).toContain('Triggering AI model download...')
+        expect(messages).toContain('Downloading AI model: 25%')
+        expect(messages).toContain('Downloading AI model: 50%')
+        expect(messages).toContain('Downloading AI model: 100%')
+        expect(messages).toContain('AI session ready')
+      }
+    )
   })
 })
