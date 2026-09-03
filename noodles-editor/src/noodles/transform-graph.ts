@@ -163,7 +163,73 @@ export function transformGraph<
       },
     ]
   })
-  const executorEdges = [...(edges as unknown as ExecutorEdge[]), ...implicitContainerOutputEdges]
+
+  // A container input is a field-level bridge: source -> Container.par -> GraphInput.par.
+  // The enclosing Container cannot be a pull dependency of its GraphInput because the
+  // output boundary points back from GraphOutput -> Container, which would form a cycle.
+  // Bridge external output dependencies directly to each GraphInput so the child graph
+  // waits for its parent inputs to be populated on the first pull.
+  const nodeById = new Map(nodes.map(node => [node.id, node]))
+  const graphInputNodeIdsByContainer = new Map<string, string[]>()
+  for (const node of nodes) {
+    if (node.type !== 'GraphInputOp') continue
+    const containerId = getParentPath(node.id)
+    if (!containerId || nodeById.get(containerId)?.type !== 'ContainerOp') continue
+    const inputNodeIds = graphInputNodeIdsByContainer.get(containerId) ?? []
+    inputNodeIds.push(node.id)
+    graphInputNodeIdsByContainer.set(containerId, inputNodeIds)
+  }
+
+  const containerInputSourceIdsByGraphInput = new Map<string, Set<string>>()
+  const existingPullRelations = new Set(
+    edges
+      .filter(edge => parseHandleId(String(edge.sourceHandle))?.namespace === 'out')
+      .map(edge => `${edge.source}->${edge.target}`)
+  )
+  const bridgeRelations = new Set<string>()
+  const implicitContainerInputEdges: ExecutorEdge[] = []
+  for (const edge of edges) {
+    const containerNode = nodeById.get(edge.target)
+    const sourceHandle = parseHandleId(String(edge.sourceHandle))
+    const targetHandle = parseHandleId(String(edge.targetHandle))
+    if (
+      containerNode?.type !== 'ContainerOp' ||
+      sourceHandle?.namespace !== 'out' ||
+      targetHandle?.namespace !== 'par' ||
+      edge.source === containerNode.id ||
+      edge.source.startsWith(`${containerNode.id}/`)
+    ) {
+      continue
+    }
+
+    const graphInputNodeIds = graphInputNodeIdsByContainer.get(containerNode.id) ?? []
+    if (graphInputNodeIds.length === 0) continue
+
+    for (const graphInputNodeId of graphInputNodeIds) {
+      const relation = `${edge.source}->${graphInputNodeId}`
+      if (existingPullRelations.has(relation) || bridgeRelations.has(relation)) continue
+      bridgeRelations.add(relation)
+
+      const sourceIds =
+        containerInputSourceIdsByGraphInput.get(graphInputNodeId) ?? new Set<string>()
+      sourceIds.add(edge.source)
+      containerInputSourceIdsByGraphInput.set(graphInputNodeId, sourceIds)
+
+      implicitContainerInputEdges.push({
+        id: `${edge.id}->${graphInputNodeId}.par.parentValue`,
+        source: edge.source,
+        target: graphInputNodeId,
+        sourceHandle: edge.sourceHandle,
+        targetHandle: 'par.parentValue',
+      })
+    }
+  }
+
+  const executorEdges = [
+    ...(edges as unknown as ExecutorEdge[]),
+    ...implicitContainerOutputEdges,
+    ...implicitContainerInputEdges,
+  ]
   const store = getOpStore()
 
   // Error about unknown node types — nodes present in the project file that aren't registered
@@ -441,6 +507,13 @@ export function transformGraph<
 
       for (const childOp of store.getAllOps()) {
         if (childOp instanceof GraphInputOp && isDirectChild(childOp.id, containerOp.id)) {
+          const inputDependencies = Array.from(
+            containerInputSourceIdsByGraphInput.get(childOp.id) ?? []
+          )
+            .map(sourceId => store.getOp(sourceId))
+            .filter((sourceOp): sourceOp is Operator<IOperator> => sourceOp !== undefined)
+          childOp.setContainerInputDependencies(inputDependencies)
+
           // Set up parent container relationship (triggers output rebuild)
           childOp.setParentContainer(containerOp)
 
