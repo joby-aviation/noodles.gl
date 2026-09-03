@@ -30,24 +30,24 @@ const PROVIDER_OPTIONS: ProviderOption[] = [
   {
     value: 'automatic',
     displayName: 'Automatic',
-    description: 'Use best available provider'
+    description: 'Use best available provider',
   },
   {
     value: 'anthropic',
     displayName: 'Claude',
     description: 'Anthropic Claude API',
-    requiresKey: true
+    requiresKey: true,
   },
   {
     value: 'custom',
     displayName: 'Custom Endpoint',
-    description: 'OpenAI, Groq, or custom'
+    description: 'OpenAI, Groq, or custom',
   },
   {
     value: 'chrome-ai',
     displayName: 'Chrome Built-in AI',
-    description: 'Free, runs locally'
-  }
+    description: 'Free, runs locally',
+  },
 ]
 
 interface ChatPanelProps {
@@ -114,7 +114,10 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
   // Handle click outside to close provider dropdown
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (providerDropdownRef.current && !providerDropdownRef.current.contains(event.target as Node)) {
+      if (
+        providerDropdownRef.current &&
+        !providerDropdownRef.current.contains(event.target as Node)
+      ) {
         setShowProviderDropdown(false)
       }
     }
@@ -458,39 +461,43 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
         <div>
           <h3>Noodles Assistant</h3>
           {aiProvider && (
-            <div
-              ref={providerDropdownRef}
-              className={styles.providerSelector}
-            >
-              <div
+            <div ref={providerDropdownRef} className={styles.providerSelector}>
+              <button
+                type="button"
                 className={styles.providerName}
                 onClick={() => setShowProviderDropdown(!showProviderDropdown)}
-                style={{ cursor: 'pointer' }}
               >
                 {aiProvider.displayName}
-                <svg className={styles.dropdownIcon} width="12" height="12" viewBox="0 0 12 12">
+                <svg
+                  className={styles.dropdownIcon}
+                  width="12"
+                  height="12"
+                  viewBox="0 0 12 12"
+                  aria-label="Dropdown arrow"
+                >
+                  <title>Dropdown arrow</title>
                   <path d="M2 4l4 4 4-4" stroke="currentColor" fill="none" strokeWidth="1.5" />
                 </svg>
-                <button
-                  type="button"
-                  className={styles.settingsGear}
-                  onClick={openAIProviderSettings}
-                  title="AI Settings"
+              </button>
+              <button
+                type="button"
+                className={styles.settingsGear}
+                onClick={openAIProviderSettings}
+                title="AI Settings"
+              >
+                ⚙️
+              </button>
+              {rateLimit && (
+                <span
+                  style={{
+                    marginLeft: '8px',
+                    color: rateLimitWarning ? '#ff6b6b' : 'inherit',
+                  }}
                 >
-                  ⚙️
-                </button>
-                {rateLimit && (
-                  <span
-                    style={{
-                      marginLeft: '8px',
-                      color: rateLimitWarning ? '#ff6b6b' : 'inherit',
-                    }}
-                  >
-                    ({rateLimit.remaining.toLocaleString()}/{rateLimit.limit.toLocaleString()}{' '}
-                    {rateLimit.windowDescription})
-                  </span>
-                )}
-              </div>
+                  ({rateLimit.remaining.toLocaleString()}/{rateLimit.limit.toLocaleString()}{' '}
+                  {rateLimit.windowDescription})
+                </span>
+              )}
 
               {showProviderDropdown && (
                 <div className={styles.providerDropdown}>
