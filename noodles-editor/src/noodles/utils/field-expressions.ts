@@ -3,9 +3,9 @@
 // its value is computed from a JavaScript expression referencing other operators.
 //
 // Reactivity model:
-// - Cross-op refs (`op('/x').out.val`, `{{/x.out.val}}`) become ReferenceEdges (synced by the
-//   UI, like CodeField), which transform-graph wires as 'reference' connections. When the
-//   referenced field emits, Field.addConnection calls evaluateExpression on the driven field.
+// - Cross-op refs (`op('/x').out.val`, `{{/x.out.val}}`) become graph-model-owned
+//   ReferenceEdges, which are wired as 'reference' connections. When the referenced field
+//   emits, Field.addConnection calls evaluateExpression on the driven field.
 // - Bare sibling refs (`par.foo`) are subscribed to directly here — siblings share the owning
 //   operator's lifecycle, so these subscriptions can't go stale across renames/deletes.
 // - Timeline refs (`sequenceTime`, `frame`, ...) subscribe to the timeline store.
