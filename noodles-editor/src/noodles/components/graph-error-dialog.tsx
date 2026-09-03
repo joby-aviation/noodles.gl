@@ -1,6 +1,8 @@
 import * as Dialog from '@radix-ui/react-dialog'
 import { Cross2Icon } from '@radix-ui/react-icons'
 import cx from 'classnames'
+import { useEffect } from 'react'
+import { analytics } from '../../utils/analytics'
 import s from './menu.module.css'
 
 export interface GraphError {
@@ -25,6 +27,29 @@ export const GraphErrorDialog = ({
   const unknownOperators = errors.filter(e => e.type === 'unknown-operator')
   const staleEdges = errors.filter(e => e.type === 'stale-edge')
   const executionErrors = errors.filter(e => e.type === 'operator-execution')
+
+  useEffect(() => {
+    if (open) {
+      if (unknownOperators.length > 0) {
+        analytics.track('project_load_error', {
+          errorType: 'unknown_operators',
+          count: unknownOperators.length,
+        })
+      }
+      if (staleEdges.length > 0) {
+        analytics.track('project_load_error', {
+          errorType: 'broken_connections',
+          count: staleEdges.length,
+        })
+      }
+      if (executionErrors.length > 0) {
+        analytics.track('project_load_error', {
+          errorType: 'execution_errors',
+          count: executionErrors.length,
+        })
+      }
+    }
+  }, [open, unknownOperators.length, staleEdges.length, executionErrors.length])
 
   return (
     <Dialog.Root open={open} onOpenChange={open => !open && onClose()}>
@@ -120,8 +145,8 @@ export const GraphErrorDialog = ({
           </div>
           {validOperatorCount > 0 && (
             <p style={{ marginTop: '0.75rem', fontSize: '0.9em', color: 'var(--gray-11)' }}>
-              The valid operators have been loaded and the graph is functional. Skipped operators and
-              broken connections will not be available.
+              The valid operators have been loaded and the graph is functional. Skipped operators
+              and broken connections will not be available.
             </p>
           )}
           <Dialog.Close asChild>

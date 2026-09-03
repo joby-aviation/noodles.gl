@@ -1505,3 +1505,68 @@
   background-color: transparent !important;
   border: none !important;
 }
+
+/* Color scheme dropdown styles */
+.fieldInputColorRampButton {
+  width: 100%;
+  cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  padding: 2px;
+  background: rgba(255, 255, 255, 0.05);
+  transition: all 0.2s;
+}
+
+.fieldInputColorRampButton:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.fieldInputColorRampButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.colorSchemeDropdownContent {
+  background: #1a1a1a;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 4px;
+  max-height: 400px;
+  overflow-y: auto;
+  z-index: 1000;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+
+.colorSchemeDropdownItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background 0.15s;
+  outline: none;
+}
+
+.colorSchemeDropdownItem:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.colorSchemeDropdownItem[data-highlighted] {
+  background: rgba(59, 130, 246, 0.2);
+}
+
+.colorSchemePreviewCanvas {
+  width: 100px;
+  height: 16px;
+  border-radius: 3px;
+  image-rendering: auto;
+  flex-shrink: 0;
+}
+
+.colorSchemeName {
+  flex: 1;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.9);
+}

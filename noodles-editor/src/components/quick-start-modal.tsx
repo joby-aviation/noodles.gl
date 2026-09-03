@@ -3,6 +3,7 @@ import { Cross2Icon } from '@radix-ui/react-icons'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useLocation } from 'wouter'
 import logoSvg from '/noodles-favicon.svg'
+import { extensionOf } from '../noodles/components/tools/import-pipelines'
 import { analytics } from '../utils/analytics'
 import { CURATED_EXAMPLES, ExamplesView } from './examples-view'
 import { ProjectsView, useRecentProjects } from './projects-view'
@@ -117,6 +118,15 @@ export function QuickStartModal({
         const file = files[0]
         const validationError = validateFile(file)
         if (validationError) {
+          const fileType = extensionOf(file.name) || 'unknown'
+          const reason = file.size > MAX_FILE_SIZE ? 'size_limit' : 'unsupported_type'
+          analytics.track('file_import_failed', {
+            fileType,
+            attemptedFormat: 'unknown',
+            reason,
+            source: 'quickstart',
+            fileSize: file.size,
+          })
           setError(validationError)
           return
         }
@@ -135,6 +145,15 @@ export function QuickStartModal({
         const file = files[0]
         const validationError = validateFile(file)
         if (validationError) {
+          const fileType = extensionOf(file.name) || 'unknown'
+          const reason = file.size > MAX_FILE_SIZE ? 'size_limit' : 'unsupported_type'
+          analytics.track('file_import_failed', {
+            fileType,
+            attemptedFormat: 'unknown',
+            reason,
+            source: 'quickstart',
+            fileSize: file.size,
+          })
           setError(validationError)
           return
         }

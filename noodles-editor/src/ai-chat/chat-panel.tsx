@@ -10,12 +10,45 @@ import { useKeysStore } from '../noodles/keys-store'
 import { useUIStore } from '../noodles/store'
 import { debugAiChat } from '../utils/debug'
 import styles from './chat-panel.module.css'
-import { ClaudeClient } from './claude-client'
 import { loadConversation, saveConversation } from './conversation-history'
 import { ConversationHistoryPanel } from './conversation-history-panel'
 import { globalContextManager } from './global-context-manager'
 import { MCPTools } from './mcp-tools'
+import type { AIProvider } from './providers/ai-provider-interface'
+import { getProviderRegistry } from './providers/provider-registry'
 import type { Message, NoodlesProject } from './types'
+import type { ProviderPreference } from '../noodles/keys-store'
+
+interface ProviderOption {
+  value: ProviderPreference
+  displayName: string
+  description: string
+  requiresKey?: boolean
+}
+
+const PROVIDER_OPTIONS: ProviderOption[] = [
+  {
+    value: 'automatic',
+    displayName: 'Automatic',
+    description: 'Use best available provider',
+  },
+  {
+    value: 'anthropic',
+    displayName: 'Claude',
+    description: 'Anthropic Claude API',
+    requiresKey: true,
+  },
+  {
+    value: 'custom',
+    displayName: 'Custom Endpoint',
+    description: 'OpenAI, Groq, or custom',
+  },
+  {
+    value: 'chrome-ai',
+    displayName: 'Chrome Built-in AI',
+    description: 'Free, runs locally',
+  },
+]
 
 interface ChatPanelProps {
   project: NoodlesProject
@@ -39,20 +72,61 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [contextLoading, setContextLoading] = useState(true)
-  const [claudeClient, setClaudeClient] = useState<ClaudeClient | null>(null)
+  const [aiProvider, setAiProvider] = useState<AIProvider | null>(null)
   const [mcpTools, setMcpTools] = useState<MCPTools | null>(null)
   const [autoCapture, setAutoCapture] = useState(true)
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null)
   const [showHistory, setShowHistory] = useState(false)
   const [contextProgress, setContextProgress] = useState<string>('')
+  const [providerProgress, setProviderProgress] = useState<string>('')
+  const [providerError, setProviderError] = useState<string | null>(null)
+  const [, setContextUpdateTrigger] = useState(0)
+  const [downloadProgress, setDownloadProgress] = useState<{
+    loaded: number
+    total: number
+  } | null>(null)
+  const [showProviderDropdown, setShowProviderDropdown] = useState(false)
 
-  // Get API key directly from store (reactive)
-  const apiKey = useKeysStore(state => state.getKey('anthropic'))
+  // Get API keys and config from store (reactive) - watch for changes to trigger provider refresh
+  const anthropicKey = useKeysStore(state => state.getKey('anthropic'))
+  const customEndpoint = useKeysStore(state => state.getCustomEndpoint())
+  const providerPreference = useKeysStore(state => state.getProviderPreference())
 
   // Get the function to open settings dialog
   const setSettingsDialogOpen = useUIStore(state => state.setSettingsDialogOpen)
 
+  // Open settings and navigate to AI Provider tab
+  const openAIProviderSettings = () => {
+    window.location.hash = 'ai-provider'
+    setSettingsDialogOpen(true)
+  }
+
+  // Handle provider change from dropdown
+  const handleProviderChange = (preference: ProviderPreference) => {
+    useKeysStore.getState().setProviderPreference(preference)
+    // Provider re-initialization happens automatically via useEffect (line 139)
+    setShowProviderDropdown(false)
+  }
+
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const providerDropdownRef = useRef<HTMLDivElement>(null)
+
+  // Handle click outside to close provider dropdown
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        providerDropdownRef.current &&
+        !providerDropdownRef.current.contains(event.target as Node)
+      ) {
+        setShowProviderDropdown(false)
+      }
+    }
+
+    if (showProviderDropdown) {
+      document.addEventListener('mousedown', handleClickOutside)
+      return () => document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [showProviderDropdown])
 
   // Subscribe to context loading progress
   useEffect(() => {
@@ -67,33 +141,57 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
     return unsubscribe
   }, [])
 
-  // Initialize Claude client when API key is available
+  // Initialize AI provider when keys or preference change
+  // biome-ignore lint/correctness/useExhaustiveDependencies: keys are used indirectly via provider registry
   useEffect(() => {
-    if (!apiKey) {
-      setContextLoading(false)
-      return
-    }
-
     const init = async () => {
       setContextLoading(true)
+      setProviderError(null)
+      setProviderProgress('Loading documentation...')
       try {
         // Wait for context to be ready (should be instant if already loaded)
         const loader = await globalContextManager.waitForReady()
 
+        setProviderProgress('Initializing AI provider...')
+
         const tools = new MCPTools(loader)
-        const client = new ClaudeClient(apiKey, tools)
+        const registry = getProviderRegistry()
+        registry.setTools(tools)
+        registry.setPreference(providerPreference)
+
+        // Get appropriate provider based on available keys and preference
+        // Pass progress callback to track provider initialization
+        const provider = await registry.getProvider(msg => {
+          setProviderProgress(msg)
+
+          // Parse download progress from Chrome AI messages
+          const downloadMatch = msg.match(/Downloading AI model: (\d+)%/)
+          if (downloadMatch) {
+            const percentage = Number.parseInt(downloadMatch[1], 10)
+            // Estimate total size as ~2GB (rough Chrome AI model size)
+            const estimatedTotal = 2 * 1024 * 1024 * 1024
+            const loaded = Math.round((percentage / 100) * estimatedTotal)
+            setDownloadProgress({ loaded, total: estimatedTotal })
+          } else {
+            setDownloadProgress(null)
+          }
+        })
 
         setMcpTools(tools)
-        setClaudeClient(client)
+        setAiProvider(provider)
+        debugAiChat(`Initialized ${provider.displayName} (${provider.tier})`)
       } catch (error) {
-        debugAiChat('Failed to initialize Claude:', error)
+        debugAiChat('Failed to initialize AI provider:', error)
+        setProviderError(
+          error instanceof Error ? error.message : 'Failed to initialize AI provider'
+        )
       } finally {
         setContextLoading(false)
       }
     }
 
     init()
-  }, [apiKey])
+  }, [providerPreference, anthropicKey, customEndpoint])
 
   // Update MCPTools with current project whenever it changes
   useEffect(() => {
@@ -115,7 +213,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
   }, [])
 
   const handleSend = async () => {
-    if (!input.trim() || !claudeClient || !project) return
+    if (!input.trim() || !aiProvider || !project) return
 
     const userMessage: Message = {
       role: 'user',
@@ -127,7 +225,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
     setLoading(true)
 
     try {
-      const response = await claudeClient.sendMessage({
+      const response = await aiProvider.sendMessage({
         message: input,
         project,
         autoCapture,
@@ -140,6 +238,9 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
       }
 
       setMessages(prev => [...prev, assistantMessage])
+
+      // Trigger context window update
+      setContextUpdateTrigger(prev => prev + 1)
 
       // Apply project modifications if any
       if (response.projectModifications && response.projectModifications.length > 0) {
@@ -269,34 +370,46 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
 
   if (!isVisible) return null
 
-  // Check if API key is missing
-  if (!apiKey && !contextLoading) {
+  // Show error if provider initialization failed
+  if (providerError && !contextLoading) {
+    // Only show Chrome AI flag instructions if the error is specifically about it not being available
+    const showChromeAIInstructions =
+      providerError.includes('not available') && providerError.includes('Chrome Built-in AI')
+
     return (
       <div className={styles.chatPanel}>
         <div className={styles.chatPanelLoading}>
-          <h3>Anthropic API Key Required</h3>
-          <p>
-            To use the Noodles assistant, you need to configure your Claude API key in{' '}
+          <h3>AI Provider Required</h3>
+          <p style={{ color: '#ff6b6b', marginBottom: '1.5rem', whiteSpace: 'pre-wrap' }}>
+            {providerError}
+          </p>
+          <div style={{ marginBottom: '1rem' }}>
             <button
               type="button"
-              onClick={() => setSettingsDialogOpen(true)}
-              className={styles.linkButton}
+              onClick={openAIProviderSettings}
+              className={styles.chatSendBtn}
+              style={{ fontSize: '14px', padding: '10px 20px' }}
             >
-              Settings
-            </button>{' '}
-            (top menu).
-          </p>
-          <p>
-            Get your API key from{' '}
-            <a href="https://console.anthropic.com/" target="_blank" rel="noopener noreferrer">
-              Anthropic Console
-            </a>
-            , then add it in <strong>Settings → API Keys</strong>.
-          </p>
+              Configure API Keys (Anthropic, OpenAI, etc.)
+            </button>
+          </div>
+          {showChromeAIInstructions && (
+            <p style={{ fontSize: '12px', color: '#aaa', marginBottom: '0.5rem' }}>
+              Or enable Chrome Built-in AI at{' '}
+              <code style={{ background: '#333', padding: '2px 6px', borderRadius: '3px' }}>
+                chrome://flags/#prompt-api-for-gemini-nano
+              </code>
+            </p>
+          )}
           <div
-            style={{ marginTop: '1rem', display: 'flex', gap: '0.5rem', justifyContent: 'center' }}
+            style={{
+              marginTop: '1.5rem',
+              display: 'flex',
+              gap: '0.5rem',
+              justifyContent: 'center',
+            }}
           >
-            <button type="button" onClick={handleClose} className={styles.chatSendBtn}>
+            <button type="button" onClick={handleClose} className={styles.linkButton}>
               Close
             </button>
           </div>
@@ -310,17 +423,160 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
       <div className={styles.chatPanel}>
         <div className={styles.chatPanelLoading}>
           <div className={styles.spinner} />
-          <p>{contextProgress || 'Loading context...'}</p>
+          {downloadProgress ? (
+            <>
+              <p>Downloading AI model...</p>
+              <div className={styles.progressBar}>
+                <div
+                  className={styles.progressBarFill}
+                  style={{
+                    width: `${Math.round((downloadProgress.loaded / downloadProgress.total) * 100)}%`,
+                  }}
+                />
+              </div>
+              <p className={styles.progressText}>
+                {Math.round((downloadProgress.loaded / downloadProgress.total) * 100)}% (
+                {(downloadProgress.loaded / 1024 / 1024 / 1024).toFixed(1)} GB /{' '}
+                {(downloadProgress.total / 1024 / 1024 / 1024).toFixed(1)} GB)
+              </p>
+            </>
+          ) : (
+            <p>{providerProgress || contextProgress || 'Loading context...'}</p>
+          )}
         </div>
       </div>
     )
   }
 
+  // Get rate limit info if available
+  const rateLimit = aiProvider?.getRateLimit()
+  const rateLimitWarning = rateLimit && rateLimit.remaining < rateLimit.limit * 0.2
+
+  // Get context window info if available
+  const contextWindow = aiProvider?.getContextWindow()
+
   return (
     <div className={styles.chatPanel}>
       <div className={styles.chatPanelHeader}>
-        <h3>Noodles Assistant</h3>
+        <div>
+          <h3>Noodles Assistant</h3>
+          {aiProvider && (
+            <div ref={providerDropdownRef} className={styles.providerSelector}>
+              <button
+                type="button"
+                className={styles.providerName}
+                onClick={() => setShowProviderDropdown(!showProviderDropdown)}
+              >
+                {aiProvider.displayName}
+                <svg
+                  className={styles.dropdownIcon}
+                  width="12"
+                  height="12"
+                  viewBox="0 0 12 12"
+                  aria-label="Dropdown arrow"
+                >
+                  <title>Dropdown arrow</title>
+                  <path d="M2 4l4 4 4-4" stroke="currentColor" fill="none" strokeWidth="1.5" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                className={styles.settingsGear}
+                onClick={openAIProviderSettings}
+                title="AI Settings"
+              >
+                ⚙️
+              </button>
+              {rateLimit && (
+                <span
+                  style={{
+                    marginLeft: '8px',
+                    color: rateLimitWarning ? '#ff6b6b' : 'inherit',
+                  }}
+                >
+                  ({rateLimit.remaining.toLocaleString()}/{rateLimit.limit.toLocaleString()}{' '}
+                  {rateLimit.windowDescription})
+                </span>
+              )}
+
+              {showProviderDropdown && (
+                <div className={styles.providerDropdown}>
+                  {PROVIDER_OPTIONS.map(option => {
+                    const isActive = providerPreference === option.value
+                    const isDisabled = option.requiresKey && !anthropicKey
+
+                    return (
+                      <button
+                        key={option.value}
+                        type="button"
+                        className={`${styles.providerOption} ${isActive ? styles.providerOptionActive : ''} ${isDisabled ? styles.providerOptionDisabled : ''}`}
+                        onClick={() => !isDisabled && handleProviderChange(option.value)}
+                        disabled={isDisabled}
+                      >
+                        <div className={styles.providerOptionName}>
+                          {option.displayName}
+                          {isActive && <span className={styles.activeCheckmark}>✓</span>}
+                        </div>
+                        <div className={styles.providerOptionDesc}>{option.description}</div>
+                        {isDisabled && (
+                          <div className={styles.providerOptionWarning}>Requires API key</div>
+                        )}
+                      </button>
+                    )
+                  })}
+                  <div className={styles.providerDropdownDivider} />
+                  <button
+                    type="button"
+                    className={styles.providerOption}
+                    onClick={openAIProviderSettings}
+                  >
+                    <div className={styles.providerOptionName}>More Settings...</div>
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
         <div className={styles.chatPanelActions}>
+          {contextWindow && (
+            <div
+              className={styles.contextIndicator}
+              title={`Context: ${contextWindow.used.toLocaleString()} / ${contextWindow.total.toLocaleString()} tokens`}
+            >
+              <svg width="24" height="24" viewBox="0 0 24 24" role="img">
+                <title>Context Window Usage</title>
+                <circle
+                  cx="12"
+                  cy="12"
+                  r="9"
+                  fill="none"
+                  stroke="rgba(255, 255, 255, 0.1)"
+                  strokeWidth="2"
+                />
+                <circle
+                  cx="12"
+                  cy="12"
+                  r="9"
+                  fill="none"
+                  stroke={contextWindow.percentage > 80 ? '#ff6b6b' : '#4a9eff'}
+                  strokeWidth="2"
+                  strokeDasharray={`${(contextWindow.percentage / 100) * 56.5} 56.5`}
+                  strokeLinecap="round"
+                  transform="rotate(-90 12 12)"
+                />
+                <text
+                  x="12"
+                  y="12"
+                  textAnchor="middle"
+                  dominantBaseline="central"
+                  fontSize="7"
+                  fill="currentColor"
+                >
+                  {contextWindow.percentage}%
+                </text>
+              </svg>
+            </div>
+          )}
           <button
             type="button"
             className={styles.chatPanelActionBtn}
@@ -388,7 +644,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
             key={`msg-${idx}-${msg.role}`}
             className={`${styles.chatMessage} ${msg.role === 'user' ? styles.chatMessageUser : styles.chatMessageAssistant}`}
           >
-            <div className={styles.chatMessageRole}>{msg.role === 'user' ? 'You' : 'Claude'}</div>
+            <div className={styles.chatMessageRole}>{msg.role === 'user' ? 'You' : 'Agent'}</div>
             <div className={styles.chatMessageContent}>
               <MessageContent
                 content={Array.isArray(msg.content) ? msg.content.join('\n') : msg.content}

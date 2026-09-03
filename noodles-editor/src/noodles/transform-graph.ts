@@ -1,6 +1,7 @@
 import { getIncomers, type Node as ReactFlowNode } from '@xyflow/react'
+import { analytics } from '../utils/analytics'
 import { debugExecutor } from '../utils/debug'
-import { ListField } from './fields'
+import { type Field, ListField } from './fields'
 import type { Edge as ExecutorEdge } from './graph-executor'
 import type { Edge } from './noodles'
 import type { IOperator, Operator, OpType } from './operators'
@@ -408,6 +409,18 @@ export function transformGraph<
       const validation = validateConnection(sourceField, targetField)
       if (!validation.valid && validation.error && sourceField.value !== undefined) {
         targetOp.addConnectionError(edge.id, validation.error)
+        // Only track if this edge hasn't been reported yet to avoid duplicates on graph rebuilds
+        const errorMap = targetOp.connectionErrors.value
+        const isNewError = !errorMap.has(edge.id)
+        if (isNewError) {
+          // Don't send constraint details - may contain user values
+          analytics.track('connection_failed', {
+            failureType:
+              validation.severity === 'warning' ? 'constraint_violation' : 'type_mismatch',
+            sourceType: (sourceField.constructor as typeof Field).type,
+            targetType: (targetField.constructor as typeof Field).type,
+          })
+        }
       } else {
         // Clear any existing error for this edge if it's now valid (or not yet computed)
         targetOp.removeConnectionError(edge.id)

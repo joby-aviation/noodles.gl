@@ -4,6 +4,7 @@ import { Cross2Icon, QuestionMarkCircledIcon } from '@radix-ui/react-icons'
 import { Handle, Position, useEdges, useNodeId, useReactFlow } from '@xyflow/react'
 import cx from 'classnames'
 import type { ScaleLinear, ScaleOrdinal } from 'd3'
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { Button } from 'primereact/button'
 import { InputText } from 'primereact/inputtext'
 import {
@@ -26,6 +27,7 @@ const CodeiumEditor = lazy(() =>
 )
 
 import { Temporal } from 'temporal-polyfill'
+import { analytics } from '../../utils/analytics'
 import { VectorKeyframeIndicator } from '../../timeline/components/KeyframeIndicator'
 import { getFieldPath } from '../../timeline/field-bindings'
 import { useTimelineStore } from '../../timeline/timeline-store'
@@ -58,6 +60,7 @@ import { useObservable } from '../hooks/use-observable'
 import s from '../noodles.module.css'
 import { getFriendlyErrorMessage } from '../operators'
 import { checkAssetExists, getAssetFileHandle, writeAsset } from '../storage'
+import { extensionOf } from './tools/import-pipelines'
 import { getOp, useEdgeConnectionStore } from '../store'
 import { type ExpressionContext, getExpressionContext } from '../utils/expression-context'
 import { projectScheme } from '../utils/filesystem'
@@ -68,11 +71,7 @@ import {
   firePropertyMutation,
   usePropertyHistory,
 } from '../utils/property-history'
-import {
-  formatReference,
-  parseReference,
-  type ReferenceFormat,
-} from '../utils/reference-utils'
+import { formatReference, parseReference, type ReferenceFormat } from '../utils/reference-utils'
 import { ColorSwatch } from './color-swatch'
 import { ExpressionEditorOverlay } from './ExpressionEditorOverlay'
 import { GeocodingDialog } from './geocoding-dialog'
@@ -80,6 +79,12 @@ import menuStyles from './menu.module.css'
 import contextMenuStyles from './node-properties.module.css'
 import { handleClass, useHandleDimmed } from './op-components'
 import { MultiInputHandle } from './multi-input-handle'
+import {
+  categoricalSchemesFixed,
+  categoricalSchemesStepped,
+  continuousInterpolators,
+  renderColorScheme,
+} from '../color-schemes'
 
 type InputComponent = React.ComponentType<{
   id: OpId
@@ -302,7 +307,27 @@ export function TextFieldComponent({
   if (field instanceof StringLiteralField) {
     const useTypeahead = field.choices.length > 0 && field.freeform
 
-    if (useTypeahead) {
+    if (field.displayAs === 'color-scheme') {
+      // Get step count for categorical ramps
+      const stepCount =
+        field.op && 'steps' in field.op.inputs
+          ? (field.op.inputs.steps?.value as number | undefined)
+          : undefined
+
+      input = (
+        <ColorSchemeDropdown
+          choices={field.choices}
+          value={value}
+          onChange={newValue => {
+            captureStart()
+            field.setValue(newValue)
+            commitChange('Change color scheme')
+          }}
+          disabled={disabled}
+          stepCount={stepCount}
+        />
+      )
+    } else if (useTypeahead) {
       input = (
         <StringLiteralTypeaheadInput
           id={id}
@@ -1118,6 +1143,7 @@ export function FileUrlFieldComponent({
 
   const doUpload = async () => {
     const { currentProjectName, activeStorageType } = useFileSystemStore.getState()
+
     if (!currentProjectName) {
       throw new Error('No project loaded. Please save or load a project first.')
     }
@@ -1132,6 +1158,8 @@ export function FileUrlFieldComponent({
 
     const [fileHandle] = await window.showOpenFilePicker(pickerOpts)
     const file = await fileHandle.getFile()
+    const fileType = extensionOf(file.name) || 'unknown'
+
     // Read as ArrayBuffer so binary files (e.g. .glb) are preserved
     const buffer = await file.arrayBuffer()
     const contents = new Blob([buffer], { type: file.type })
@@ -1149,6 +1177,12 @@ export function FileUrlFieldComponent({
         field.setValue(projectScheme + file.name)
         setValue(projectScheme + file.name)
         commitChange('Change file')
+        analytics.track('file_imported', {
+          fileType,
+          fileFormat: fileType,
+          source: 'field',
+          fileSize: file.size,
+        })
         return
       }
       captureStart()
@@ -1159,6 +1193,13 @@ export function FileUrlFieldComponent({
 
     const result = await writeAsset(activeStorageType, currentProjectName, file.name, contents)
     if (!result.success) {
+      analytics.track('file_import_failed', {
+        fileType,
+        attemptedFormat: fileType,
+        reason: 'write_failed',
+        source: 'field',
+        fileSize: file.size,
+      })
       throw new Error(result.error?.message || `Failed to write file: ${file.name}`)
     }
 
@@ -1166,6 +1207,12 @@ export function FileUrlFieldComponent({
     field.setValue(projectScheme + file.name)
     setValue(projectScheme + file.name)
     commitChange('Change file')
+    analytics.track('file_imported', {
+      fileType,
+      fileFormat: fileType,
+      source: 'field',
+      fileSize: file.size,
+    })
   }
 
   const onConfirmReplace = async () => {
@@ -1174,6 +1221,7 @@ export function FileUrlFieldComponent({
     const { currentProjectName, activeStorageType } = useFileSystemStore.getState()
     if (!currentProjectName) return
 
+    const fileType = extensionOf(pendingFile.name) || 'unknown'
     const result = await writeAsset(
       activeStorageType,
       currentProjectName,
@@ -1181,6 +1229,13 @@ export function FileUrlFieldComponent({
       pendingFile.contents
     )
     if (!result.success) {
+      analytics.track('file_import_failed', {
+        fileType,
+        attemptedFormat: fileType,
+        reason: 'write_failed',
+        source: 'field',
+        fileSize: pendingFile.contents.size,
+      })
       throw new Error(result.error?.message || `Failed to write file: ${pendingFile.name}`)
     }
 
@@ -1189,6 +1244,12 @@ export function FileUrlFieldComponent({
     commitChange('Change file')
     setReplaceDialogOpen(false)
     setPendingFile(null)
+    analytics.track('file_imported', {
+      fileType,
+      fileFormat: fileType,
+      source: 'field',
+      fileSize: pendingFile.contents.size,
+    })
   }
 
   const onCancelReplace = () => {
@@ -2102,6 +2163,75 @@ export function ColorFieldComponent({
   )
 }
 
+function ColorSchemePreview({
+  schemeName,
+  stepCount = 8,
+}: {
+  schemeName: string
+  stepCount?: number
+}) {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    renderColorScheme(ctx, schemeName, 100, 16, stepCount)
+  }, [schemeName, stepCount])
+
+  return <canvas ref={canvasRef} className={s.colorSchemePreviewCanvas} width={100} height={16} />
+}
+
+function ColorSchemeDropdown({
+  choices,
+  value,
+  onChange,
+  disabled,
+  triggerElement,
+  stepCount,
+}: {
+  choices: { value: string; label: string }[]
+  value: string
+  onChange: (value: string) => void
+  disabled: boolean
+  triggerElement?: React.ReactNode
+  stepCount?: number
+}) {
+  const defaultTrigger = (
+    <button type="button" className={cx(s.fieldInput, s.fieldInputSelect)} disabled={disabled}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <ColorSchemePreview schemeName={value} stepCount={stepCount} />
+        <span>{choices.find(c => c.value === value)?.label || value}</span>
+      </div>
+    </button>
+  )
+
+  return (
+    <DropdownMenu.Root>
+      <DropdownMenu.Trigger asChild disabled={disabled}>
+        {triggerElement || defaultTrigger}
+      </DropdownMenu.Trigger>
+      <DropdownMenu.Portal>
+        <DropdownMenu.Content className={s.colorSchemeDropdownContent} sideOffset={4}>
+          {choices.map(choice => (
+            <DropdownMenu.Item
+              key={choice.value}
+              className={s.colorSchemeDropdownItem}
+              onSelect={() => onChange(choice.value)}
+            >
+              <ColorSchemePreview schemeName={choice.value} stepCount={stepCount} />
+              <span className={s.colorSchemeName}>{choice.label}</span>
+            </DropdownMenu.Item>
+          ))}
+        </DropdownMenu.Content>
+      </DropdownMenu.Portal>
+    </DropdownMenu.Root>
+  )
+}
+
 export function ColorRampComponent({
   id,
   field,
@@ -2114,7 +2244,13 @@ export function ColorRampComponent({
   const [interpolate, setInterpolate] = useState<
     ScaleOrdinal<string, string> | ScaleLinear<number, string>
   >(() => field.value)
-  const steps = field instanceof CategoricalColorRampField ? field.count : 512
+
+  // For categorical ramps, get count from the scale's domain length
+  // For continuous ramps, use a fixed pixel width
+  const steps =
+    field instanceof CategoricalColorRampField && 'domain' in interpolate
+      ? (interpolate as ScaleOrdinal<string, string>).domain().length
+      : 512
 
   useEffect(() => {
     const sub = field.subscribe(newVal => {
@@ -2122,11 +2258,6 @@ export function ColorRampComponent({
     })
     return () => sub.unsubscribe()
   }, [field])
-
-  const _onChange = e => {
-    if (disabled) return
-    field.setValue(e.currentTarget.value)
-  }
 
   const canvasRef = useRef<HTMLCanvasElement>(null)
   useEffect(() => {
@@ -2136,14 +2267,6 @@ export function ColorRampComponent({
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
-    // const gradient = ctx.createLinearGradient(0, 0, 200, 0)
-    // gradient.addColorStop(0, 'red')
-    // gradient.addColorStop(0.5, 'green')
-    // gradient.addColorStop(1, 'blue')
-
-    // ctx.fillStyle = gradient
-    // ctx.fillRect(0, 0, 200, 100)
-
     for (let i = 0; i < steps; ++i) {
       const val = field instanceof CategoricalColorRampField ? `${id}-${i}` : i / (steps - 1)
       ctx.fillStyle = interpolate(val)
@@ -2151,6 +2274,57 @@ export function ColorRampComponent({
     }
   }, [interpolate, field, id, steps])
 
+  // Check for sibling colorScheme field
+  const colorSchemeField = useMemo(() => {
+    const op = field.op
+    if (!op) return null
+    const csField = op.inputs.colorScheme
+    return csField instanceof StringLiteralField && csField.displayAs === 'color-scheme'
+      ? csField
+      : null
+  }, [field.op])
+
+  // Get step count for categorical ramps
+  const stepCount = useMemo(() => {
+    const op = field.op
+    if (!op || !('steps' in op.inputs)) return undefined
+    return op.inputs.steps?.value as number | undefined
+  }, [field.op])
+
+  const { captureStart, commitChange } = usePropertyHistory()
+
+  if (colorSchemeField) {
+    // Render clickable canvas with dropdown
+    const triggerElement = (
+      <button
+        type="button"
+        className={s.fieldInputColorRampButton}
+        disabled={disabled}
+        title="Click to change color scheme"
+      >
+        <canvas ref={canvasRef} className={s.fieldInputColorRamp} width={steps} height={1} />
+      </button>
+    )
+
+    return (
+      <div className={cx(s.fieldWrapper, 'nokey')}>
+        <ColorSchemeDropdown
+          choices={colorSchemeField.choices}
+          value={colorSchemeField.value}
+          onChange={newValue => {
+            captureStart()
+            colorSchemeField.setValue(newValue)
+            commitChange('Change color scheme')
+          }}
+          disabled={disabled}
+          triggerElement={triggerElement}
+          stepCount={stepCount}
+        />
+      </div>
+    )
+  }
+
+  // Fallback: read-only canvas (existing behavior)
   return (
     <div className={cx(s.fieldWrapper, 'nokey')}>
       <label className={s.fieldLabel} htmlFor={id}>
@@ -3249,9 +3423,7 @@ export function BboxFieldComponent({
         {id}
       </label>
       <div id={id} className={s.fieldCompoundWrapper}>
-        <div className={s.fieldGroupLabel}>
-          Southwest
-        </div>
+        <div className={s.fieldGroupLabel}>Southwest</div>
         <div className={cx(s.fieldInputWrapper, s.fieldInputWrapperVector)}>
           <VectorNumberInput
             keyName="lng"
@@ -3287,9 +3459,7 @@ export function BboxFieldComponent({
           />
         </div>
 
-        <div className={cx(s.fieldGroupLabel, s.fieldGroupLabelSpaced)}>
-          Northeast
-        </div>
+        <div className={cx(s.fieldGroupLabel, s.fieldGroupLabelSpaced)}>Northeast</div>
         <div className={cx(s.fieldInputWrapper, s.fieldInputWrapperVector)}>
           <VectorNumberInput
             keyName="lng"

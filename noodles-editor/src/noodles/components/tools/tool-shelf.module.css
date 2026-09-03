@@ -6,8 +6,10 @@
      sections around, so it takes the space between them and no more. */
   flex: 1 1 auto;
   min-width: 0;
-  justify-content: flex-start;
-  padding-left: 16px;
+  justify-content: center;
+  /* Safety net: nothing should overflow once the shelf hides itself, but if it does it
+     must not paint over the breadcrumb or the right-hand buttons */
+  overflow: hidden;
 }
 
 .button,
