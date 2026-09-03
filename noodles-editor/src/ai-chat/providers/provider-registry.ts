@@ -14,6 +14,7 @@ export class ProviderRegistry {
   private currentProvider: AIProvider | null = null
   private tools: MCPTools | null = null
   private preference: ProviderPreference = 'automatic'
+  private onChromeAIDownloadProgress?: (loaded: number, total: number) => void
 
   private constructor() {}
 
@@ -37,6 +38,11 @@ export class ProviderRegistry {
 
   getPreference(): ProviderPreference {
     return this.preference
+  }
+
+  // Set download progress callback for Chrome AI
+  setChromeAIDownloadProgress(callback?: (loaded: number, total: number) => void): void {
+    this.onChromeAIDownloadProgress = callback
   }
 
   // Get or create the appropriate provider based on available API keys and user preference
@@ -103,7 +109,9 @@ export class ProviderRegistry {
         return new CustomEndpointProvider(this.tools, customEndpoint)
 
       case 'chrome-ai':
-        return new ChromeAIProvider(this.tools)
+        return new ChromeAIProvider(this.tools, {
+          onDownloadProgress: this.onChromeAIDownloadProgress
+        })
 
       case 'automatic':
       default:
@@ -125,7 +133,9 @@ export class ProviderRegistry {
         // Fall back to Chrome Built-in AI (truly free, local)
         try {
           debugAiChat('Automatic mode: No keys found, using Chrome Built-in AI (local, free)')
-          return new ChromeAIProvider(this.tools)
+          return new ChromeAIProvider(this.tools, {
+            onDownloadProgress: this.onChromeAIDownloadProgress
+          })
         } catch (error) {
           // Chrome AI not available - surface the specific error if it's a ProviderError
           if (error instanceof ProviderError) {

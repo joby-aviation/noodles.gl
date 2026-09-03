@@ -50,6 +50,10 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
   const [upgradeBannerDismissed, setUpgradeBannerDismissed] = useState(
     () => localStorage.getItem('noodles-upgrade-banner-dismissed') === 'true'
   )
+  const [downloadProgress, setDownloadProgress] = useState<{
+    loaded: number
+    total: number
+  } | null>(null)
 
   // Get API keys and config from store (reactive) - watch for changes to trigger provider refresh
   const anthropicKey = useKeysStore(state => state.getKey('anthropic'))
@@ -95,8 +99,16 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
         registry.setTools(tools)
         registry.setPreference(providerPreference)
 
+        // Set download progress callback for Chrome AI
+        registry.setChromeAIDownloadProgress((loaded, total) => {
+          setDownloadProgress({ loaded, total })
+        })
+
         // Get appropriate provider based on available keys and preference
         const provider = await registry.getProvider()
+
+        // Clear download progress once provider is initialized
+        setDownloadProgress(null)
 
         setMcpTools(tools)
         setAiProvider(provider)
@@ -340,7 +352,26 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
       <div className={styles.chatPanel}>
         <div className={styles.chatPanelLoading}>
           <div className={styles.spinner} />
-          <p>{contextProgress || 'Loading context...'}</p>
+          {downloadProgress ? (
+            <>
+              <p>Downloading AI model...</p>
+              <div className={styles.progressBar}>
+                <div
+                  className={styles.progressBarFill}
+                  style={{
+                    width: `${Math.round((downloadProgress.loaded / downloadProgress.total) * 100)}%`,
+                  }}
+                />
+              </div>
+              <p className={styles.progressText}>
+                {Math.round((downloadProgress.loaded / downloadProgress.total) * 100)}% (
+                {(downloadProgress.loaded / 1024 / 1024 / 1024).toFixed(1)} GB /{' '}
+                {(downloadProgress.total / 1024 / 1024 / 1024).toFixed(1)} GB)
+              </p>
+            </>
+          ) : (
+            <p>{contextProgress || 'Loading context...'}</p>
+          )}
         </div>
       </div>
     )

@@ -15,6 +15,11 @@ import { ProviderError } from './ai-provider-interface'
 
 // Chrome Built-in AI (Gemini Nano) - Prompt API
 // https://developer.chrome.com/docs/ai/prompt-api
+interface DownloadProgressEvent {
+  loaded: number
+  total: number
+}
+
 interface LanguageModelAvailability {
   availability(): Promise<'unavailable' | 'downloadable' | 'downloading' | 'available'>
   create(options?: {
@@ -23,6 +28,7 @@ interface LanguageModelAvailability {
     initialPrompts?: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>
     topK?: number
     temperature?: number
+    monitor?: (event: DownloadProgressEvent) => void
   }): Promise<AILanguageModelSession>
 }
 
@@ -46,9 +52,11 @@ export class ChromeAIProvider implements AIProvider {
 
   private tools: MCPTools
   private session: AILanguageModelSession | null = null
+  private onDownloadProgress?: (loaded: number, total: number) => void
 
-  constructor(tools: MCPTools) {
+  constructor(tools: MCPTools, options?: { onDownloadProgress?: (loaded: number, total: number) => void }) {
     this.tools = tools
+    this.onDownloadProgress = options?.onDownloadProgress
   }
 
   async initialize(): Promise<void> {
@@ -124,6 +132,9 @@ export class ChromeAIProvider implements AIProvider {
         systemPrompt: this.getSimplifiedSystemPrompt(),
         temperature: 0.7,
         topK: 40,
+        monitor: this.onDownloadProgress ? (event) => {
+          this.onDownloadProgress?.(event.loaded, event.total)
+        } : undefined,
       })
     } catch (error) {
       throw new ProviderError(
