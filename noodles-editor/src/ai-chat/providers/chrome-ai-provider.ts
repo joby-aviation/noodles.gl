@@ -30,6 +30,7 @@ interface LanguageModelAvailability {
     topK?: number
     temperature?: number
     monitor?: (event: DownloadProgressEvent) => void
+    language?: string
   }): Promise<AILanguageModelSession>
 }
 
@@ -101,16 +102,6 @@ export class ChromeAIProvider implements AIProvider {
       )
     }
 
-    if (availability === 'downloading') {
-      throw new ProviderError(
-        'Chrome Built-in AI model is downloading.\n\n' +
-          'This is happening in the background. Try again in a few minutes.\n' +
-          'Or configure an external AI provider while you wait.',
-        'chrome-ai',
-        'DOWNLOADING'
-      )
-    }
-
     if (availability === 'downloadable') {
       // Need user activation to trigger download
       if (!navigator.userActivation.isActive) {
@@ -126,6 +117,10 @@ export class ChromeAIProvider implements AIProvider {
       // User activation is present, create session will trigger download
       debugAiChat('Triggering Chrome AI model download...')
       onProgress?.('Downloading AI model...')
+    } else if (availability === 'downloading') {
+      // Model is already downloading in background, attach to it
+      debugAiChat('Attaching to existing Chrome AI download...')
+      onProgress?.('Downloading AI model...')
     } else {
       onProgress?.('Creating AI session...')
     }
@@ -136,6 +131,7 @@ export class ChromeAIProvider implements AIProvider {
         systemPrompt: this.getSimplifiedSystemPrompt(),
         temperature: 0.7,
         topK: 40,
+        language: 'en',
         monitor: (m) => {
           m.addEventListener('downloadprogress', (e) => {
             const percent = Math.round(e.loaded * 100)
