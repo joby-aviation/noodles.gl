@@ -70,54 +70,8 @@ import {
   color as d3Color,
   hsl,
   interpolate,
-  interpolateBlues,
-  interpolateBuGn,
-  interpolateBuPu,
-  interpolateCividis,
-  interpolateCool,
-  interpolateCubehelixDefault,
-  interpolateGnBu,
-  interpolateGreens,
-  interpolateGreys,
-  interpolateInferno,
-  interpolateMagma,
-  interpolateOranges,
-  interpolateOrRd,
-  interpolatePiYG,
-  interpolatePlasma,
-  interpolatePuOr,
-  interpolatePurples,
-  interpolateRainbow,
-  interpolateRdBu,
-  interpolateRdGy,
-  interpolateRdYlBu,
-  interpolateReds,
-  interpolateSinebow,
-  interpolateSpectral,
-  interpolateTurbo,
-  interpolateViridis,
-  interpolateWarm,
   scaleLinear,
   scaleOrdinal,
-  schemeAccent,
-  schemeBrBG,
-  schemeCategory10,
-  schemeDark2,
-  schemeGreys,
-  schemePaired,
-  schemePiYG,
-  schemePRGn,
-  schemePuBu,
-  schemeRdBu,
-  schemeRdGy,
-  schemeRdYlBu,
-  schemeRdYlGn,
-  schemeSet1,
-  schemeSet2,
-  schemeSet3,
-  schemeSpectral,
-  schemeTableau10,
-  schemeYlGn,
   tsv,
   tsvParse,
 } from 'd3'
@@ -145,6 +99,11 @@ import {
 import { CARTO_DARK, MAP_STYLES } from '../utils/map-styles'
 import { mulberry32 } from '../utils/random'
 import { sqlIdentifier, sqlLiteral } from '../utils/sql'
+import {
+  categoricalSchemesFixed,
+  categoricalSchemesStepped,
+  continuousInterpolators,
+} from './color-schemes'
 import { FilterColorExtension } from './extensions/filter-color-extension'
 import { Mask3DExtension } from './extensions/mask-3d-extension'
 import {
@@ -1734,68 +1693,19 @@ export class HSLOp extends Operator<HSLOp> {
   }
 }
 
-const JOBY_COLORS = [
-  '#FFB300', // Joby Yellow
-  '#EB6110', // Joby Orange
-  '#E64839', // Joby Red
-  '#00994C', // Joby Green
-  '#883DF2', // Joby Purple
-  '#7CC3FF', // Joby Light Blue
-  '#3EC26A', // Joby Light Green
-  '#FF9058', // Joby Light Orange
-  '#FFCC54', // Joby Light Yellow
-  '#B580FF', // Joby Light Purple
-]
-
 export class ColorRampOp extends Operator<ColorRampOp> {
   static displayName = 'ColorRamp'
   static description = 'Interpolate a color from a color ramp, value range 0-1'
   createInputs() {
     const colorRamp = new ColorRampField()
 
-    const interpolators = {
-      viridis: interpolateViridis,
-      inferno: interpolateInferno,
-      plasma: interpolatePlasma,
-      magma: interpolateMagma,
-      turbo: interpolateTurbo,
-      cividis: interpolateCividis,
-
-      warm: interpolateWarm,
-      cool: interpolateCool,
-      cubehelix: interpolateCubehelixDefault,
-      spectral: interpolateSpectral,
-
-      rainbow: interpolateRainbow,
-      sinebow: interpolateSinebow,
-
-      blues: interpolateBlues,
-      greens: interpolateGreens,
-      greys: interpolateGreys,
-      reds: interpolateReds,
-      oranges: interpolateOranges,
-      purples: interpolatePurples,
-
-      joby: d3.interpolateRgbBasis(JOBY_COLORS),
-
-      PinkYellowGreen: interpolatePiYG,
-      PurpleOrange: interpolatePuOr,
-      RedBlue: interpolateRdBu,
-      RedGrey: interpolateRdGy,
-      RedYellowBlue: interpolateRdYlBu,
-      BlueGreen: interpolateBuGn,
-      BluePurple: interpolateBuPu,
-      GreenBlue: interpolateGnBu,
-      OrangeRed: interpolateOrRd,
-    }
-
     const colorScheme = new StringLiteralField('viridis', {
-      values: Object.keys(interpolators),
+      values: Object.keys(continuousInterpolators),
       displayAs: 'color-scheme',
     })
 
     colorScheme.subscribe(val => {
-      const interpolate = interpolators[val as keyof typeof interpolators]
+      const interpolate = continuousInterpolators[val as keyof typeof continuousInterpolators]
       colorRamp.setValue(interpolate)
     })
 
@@ -1838,33 +1748,10 @@ export class CategoricalColorRampOp extends Operator<CategoricalColorRampOp> {
   createInputs() {
     const colorRamp = new CategoricalColorRampField()
 
-    const fixedSchemes = {
-      accent: schemeAccent,
-      category10: schemeCategory10,
-      dark: schemeDark2,
-      paired: schemePaired,
-      set1: schemeSet1,
-      set2: schemeSet2,
-      set3: schemeSet3,
-      tableau10: schemeTableau10,
-      joby: JOBY_COLORS,
-    }
-
-    const steppedSchemes = {
-      greyscale: schemeGreys,
-      BrownGreen: schemeBrBG,
-      PurpleGreen: schemePRGn,
-      PurpleBlue: schemePuBu,
-      PinkYellowGreen: schemePiYG,
-      RedBlue: schemeRdBu,
-      RedGrey: schemeRdGy,
-      RedYellowBlue: schemeRdYlBu,
-      RedYellowGreen: schemeRdYlGn,
-      YellowGreen: schemeYlGn,
-      spectral: schemeSpectral,
-    }
-
-    const allSchemeNames = [...Object.keys(fixedSchemes), ...Object.keys(steppedSchemes)]
+    const allSchemeNames = [
+      ...Object.keys(categoricalSchemesFixed),
+      ...Object.keys(categoricalSchemesStepped),
+    ]
 
     const colorScheme = new StringLiteralField('accent', {
       values: allSchemeNames,
@@ -1876,11 +1763,12 @@ export class CategoricalColorRampOp extends Operator<CategoricalColorRampOp> {
       const schemeName = colorScheme.value
       const n = Math.max(Math.round(steps.value), 3)
       let scheme: readonly string[]
-      if (schemeName in fixedSchemes) {
-        const full = fixedSchemes[schemeName as keyof typeof fixedSchemes]
+      if (schemeName in categoricalSchemesFixed) {
+        const full = categoricalSchemesFixed[schemeName as keyof typeof categoricalSchemesFixed]
         scheme = full.slice(0, Math.min(n, full.length))
       } else {
-        const steppedScheme = steppedSchemes[schemeName as keyof typeof steppedSchemes]
+        const steppedScheme =
+          categoricalSchemesStepped[schemeName as keyof typeof categoricalSchemesStepped]
         const clamped = Math.min(n, steppedScheme.length - 1)
         scheme = steppedScheme[clamped] as readonly string[]
       }
