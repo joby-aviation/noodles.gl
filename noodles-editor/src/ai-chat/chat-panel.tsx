@@ -52,6 +52,10 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
     () => localStorage.getItem('noodles-upgrade-banner-dismissed') === 'true'
   )
   const [, setContextUpdateTrigger] = useState(0)
+  const [downloadProgress, setDownloadProgress] = useState<{
+    loaded: number
+    total: number
+  } | null>(null)
 
   // Get API keys and config from store (reactive) - watch for changes to trigger provider refresh
   const anthropicKey = useKeysStore(state => state.getKey('anthropic'))
@@ -104,6 +108,18 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
         // Pass progress callback to track provider initialization
         const provider = await registry.getProvider(msg => {
           setProviderProgress(msg)
+
+          // Parse download progress from Chrome AI messages
+          const downloadMatch = msg.match(/Downloading AI model: (\d+)%/)
+          if (downloadMatch) {
+            const percentage = Number.parseInt(downloadMatch[1], 10)
+            // Estimate total size as ~2GB (rough Chrome AI model size)
+            const estimatedTotal = 2 * 1024 * 1024 * 1024
+            const loaded = Math.round((percentage / 100) * estimatedTotal)
+            setDownloadProgress({ loaded, total: estimatedTotal })
+          } else {
+            setDownloadProgress(null)
+          }
         })
 
         setMcpTools(tools)
@@ -357,7 +373,26 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
       <div className={styles.chatPanel}>
         <div className={styles.chatPanelLoading}>
           <div className={styles.spinner} />
-          <p>{providerProgress || contextProgress || 'Loading context...'}</p>
+          {downloadProgress ? (
+            <>
+              <p>Downloading AI model...</p>
+              <div className={styles.progressBar}>
+                <div
+                  className={styles.progressBarFill}
+                  style={{
+                    width: `${Math.round((downloadProgress.loaded / downloadProgress.total) * 100)}%`,
+                  }}
+                />
+              </div>
+              <p className={styles.progressText}>
+                {Math.round((downloadProgress.loaded / downloadProgress.total) * 100)}% (
+                {(downloadProgress.loaded / 1024 / 1024 / 1024).toFixed(1)} GB /{' '}
+                {(downloadProgress.total / 1024 / 1024 / 1024).toFixed(1)} GB)
+              </p>
+            </>
+          ) : (
+            <p>{providerProgress || contextProgress || 'Loading context...'}</p>
+          )}
         </div>
       </div>
     )
