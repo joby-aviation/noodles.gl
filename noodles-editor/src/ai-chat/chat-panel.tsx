@@ -109,6 +109,21 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
   }
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const providerDropdownRef = useRef<HTMLDivElement>(null)
+
+  // Handle click outside to close provider dropdown
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (providerDropdownRef.current && !providerDropdownRef.current.contains(event.target as Node)) {
+        setShowProviderDropdown(false)
+      }
+    }
+
+    if (showProviderDropdown) {
+      document.addEventListener('mousedown', handleClickOutside)
+      return () => document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [showProviderDropdown])
 
   // Subscribe to context loading progress
   useEffect(() => {
@@ -444,11 +459,14 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
           <h3>Noodles Assistant</h3>
           {aiProvider && (
             <div
+              ref={providerDropdownRef}
               className={styles.providerSelector}
-              onMouseEnter={() => setShowProviderDropdown(true)}
-              onMouseLeave={() => setShowProviderDropdown(false)}
             >
-              <div className={styles.providerName}>
+              <div
+                className={styles.providerName}
+                onClick={() => setShowProviderDropdown(!showProviderDropdown)}
+                style={{ cursor: 'pointer' }}
+              >
                 {aiProvider.displayName}
                 <svg className={styles.dropdownIcon} width="12" height="12" viewBox="0 0 12 12">
                   <path d="M2 4l4 4 4-4" stroke="currentColor" fill="none" strokeWidth="1.5" />
