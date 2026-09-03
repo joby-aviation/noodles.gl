@@ -1386,6 +1386,52 @@ describe('derived reference edges (unmounted nodes)', () => {
     })
   })
 
+  it('derives and watches dependencies from non-string field expression source', () => {
+    const nodes = [
+      { id: '/a', type: 'NumberOp', data: { inputs: { val: 1 } }, position: { x: 0, y: 0 } },
+      { id: '/b', type: 'NumberOp', data: { inputs: { val: 2 } }, position: { x: 0, y: 50 } },
+      {
+        id: '/target',
+        type: 'NumberOp',
+        data: { inputs: { val: { $expr: "op('/a').par.val * 2" } } },
+        position: { x: 100, y: 0 },
+      },
+    ]
+
+    expect(deriveReferenceEdges(nodes, [])).toMatchObject([
+      {
+        id: '/a.par.val->/target.par.val',
+        source: '/a',
+        sourceHandle: 'par.val',
+        target: '/target',
+        targetHandle: 'par.val',
+      },
+    ])
+
+    transformGraph({ nodes, edges: [] })
+
+    const target = getOpStore().getOp('/target') as NumberOp
+    const b = getOpStore().getOp('/b') as NumberOp
+    expect(target.inputs.val.expression).toBe("op('/a').par.val * 2")
+    expect(target.inputs.val.value).toBe(2)
+    expect(getExecutor()!.getUpstream('/target')).toEqual(new Set(['/a']))
+
+    target.inputs.val.setExpression("op('/b').par.val * 3")
+
+    expect(referenceDependencyModel.getSnapshot().map(edge => edge.id)).toEqual([
+      '/b.par.val->/target.par.val',
+    ])
+    expect(getExecutor()!.getUpstream('/target')).toEqual(new Set(['/b']))
+    expect(target.inputs.val.value).toBe(6)
+
+    b.inputs.val.setValue(4)
+    expect(target.inputs.val.value).toBe(12)
+
+    target.inputs.val.clearExpression()
+    expect(referenceDependencyModel.getSnapshot()).toEqual([])
+    expect(getExecutor()!.getUpstream('/target')).toEqual(new Set())
+  })
+
   it('does not duplicate an existing equivalent edge', () => {
     const nodes = [
       { id: '/a', type: 'NumberOp', data: { inputs: { val: 1 } }, position: { x: 0, y: 0 } },

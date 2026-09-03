@@ -4,11 +4,11 @@ import type { Node as ReactFlowNode } from '@xyflow/react'
 import { ReactFlowProvider } from '@xyflow/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { CodeField } from '../../fields'
-import type { CodeOp } from '../../operators'
+import type { CodeOp, NumberOp } from '../../operators'
 import { referenceDependencyModel } from '../../reference-dependencies'
 import { clearOps, getOp } from '../../store'
 import { transformGraph } from '../../transform-graph'
-import { CodeFieldComponent } from '../field-components'
+import { CodeFieldComponent, ExpressionDrivenInput } from '../field-components'
 
 const setEdgesSpy = vi.fn()
 const getNodeSpy = vi.fn()
@@ -108,6 +108,46 @@ describe('CodeFieldComponent reference ownership', () => {
         </div>
       </ReactFlowProvider>
     )
+
+    expect(referenceDependencyModel.getSnapshot()[0].source).toBe('/source2')
+    expect(setEdgesSpy).not.toHaveBeenCalled()
+  })
+
+  it('leaves expression-driven field dependencies in the graph model', () => {
+    const nodes: ReactFlowNode<{ inputs: Record<string, unknown> }>[] = [
+      {
+        id: '/source1',
+        type: 'NumberOp',
+        position: { x: 0, y: 0 },
+        data: { inputs: { val: 5 } },
+      },
+      {
+        id: '/source2',
+        type: 'NumberOp',
+        position: { x: 0, y: 100 },
+        data: { inputs: { val: 10 } },
+      },
+      {
+        id: '/target',
+        type: 'NumberOp',
+        position: { x: 200, y: 0 },
+        data: { inputs: { val: { $expr: "op('/source1').par.val * 2" } } },
+      },
+    ]
+
+    transformGraph({ nodes: nodes as never, edges: [] })
+    const target = getOp('/target') as NumberOp
+
+    render(
+      <ReactFlowProvider>
+        <ExpressionDrivenInput id="val" field={target.inputs.val} disabled={false} />
+      </ReactFlowProvider>
+    )
+
+    expect(referenceDependencyModel.getSnapshot()[0].source).toBe('/source1')
+    expect(setEdgesSpy).not.toHaveBeenCalled()
+
+    target.inputs.val.setExpression("op('/source2').par.val * 3")
 
     expect(referenceDependencyModel.getSnapshot()[0].source).toBe('/source2')
     expect(setEdgesSpy).not.toHaveBeenCalled()
