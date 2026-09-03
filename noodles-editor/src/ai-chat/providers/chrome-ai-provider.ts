@@ -354,22 +354,30 @@ export class ChromeAIProvider implements AIProvider {
   private getSimplifiedSystemPrompt(): string {
     return `You are an AI assistant for Noodles.gl, a visual programming tool for geospatial data visualization.
 
-You help users:
-- Create and modify visualization operators (nodes)
-- Connect data flows between operators
-- Debug issues in projects
-- Suggest best practices
+CRITICAL: To make ANY changes to the project, you MUST output a JSON code block. Text-only responses do nothing.
 
-When suggesting changes, provide JSON modifications in this format:
+When the user asks to modify the project, respond with JSON modifications:
 \`\`\`json
 [
-  {"type": "add_node", "data": {"id": "/node-name", "type": "OperatorType", "position": {"x": 100, "y": 100}}},
-  {"type": "update_node", "data": {"id": "/existing-node", "data": {"inputs": {"param": "value"}}}},
-  {"type": "add_edge", "data": {"source": "/source-node", "target": "/target-node", "sourceHandle": "out.data", "targetHandle": "par.input"}}
+  {"type": "update_node", "data": {"id": "/node-id", "data": {"inputs": {"paramName": "newValue"}}}}
 ]
 \`\`\`
 
-Be concise and practical. Focus on solving the user's immediate problem.`
+Example:
+User: "Change the pickup color to red"
+Assistant: I'll change the /pickup-color node to red:
+\`\`\`json
+[
+  {"type": "update_node", "data": {"id": "/pickup-color", "data": {"inputs": {"color": "#ff0000"}}}}
+]
+\`\`\`
+
+Available modification types:
+- update_node: Change node parameters (inputs)
+- add_node: Create new node with type and position
+- add_edge: Connect nodes (sourceHandle: "out.field", targetHandle: "par.field")
+
+You will receive the current project nodes before each message. Use this to identify which nodes to modify.`
   }
 
   // Build concise project context summary for Chrome AI
@@ -435,12 +443,14 @@ Be concise and practical. Focus on solving the user's immediate problem.`
       nodeDescriptions.push(desc)
     }
 
-    let context = '\n\nCurrent project nodes:\n' + nodeDescriptions.join('\n')
+    let context = '\n\n--- PROJECT GRAPH (for reference) ---\n' + nodeDescriptions.join('\n')
 
     // Add truncation note if needed
     if (project.nodes.length > maxNodes) {
       context += `\n... and ${project.nodes.length - maxNodes} more nodes`
     }
+
+    context += '\n--- END PROJECT GRAPH ---\n'
 
     return context
   }

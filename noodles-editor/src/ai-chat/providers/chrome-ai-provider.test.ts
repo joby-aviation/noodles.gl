@@ -652,8 +652,8 @@ Valid modifications:
       })
 
       const promptCall = mockSession.prompt.mock.calls[0][0]
-      // Should contain node information
-      expect(promptCall).toContain('Current project nodes:')
+      // Should contain node information with clear separators
+      expect(promptCall).toContain('PROJECT GRAPH')
       expect(promptCall).toContain('/data (FileOp)')
       expect(promptCall).toContain('/layer (ScatterplotLayerOp)')
     })
@@ -679,7 +679,7 @@ Valid modifications:
 
       const promptCall = mockSession.prompt.mock.calls[0][0]
       // Should not inject context for empty project
-      expect(promptCall).not.toContain('Current project nodes:')
+      expect(promptCall).not.toContain('PROJECT GRAPH')
       expect(promptCall).toContain('Hello')
     })
 
@@ -700,7 +700,7 @@ Valid modifications:
       })
 
       const promptCall = mockSession.prompt.mock.calls[0][0]
-      expect(promptCall).not.toContain('Current project nodes:')
+      expect(promptCall).not.toContain('PROJECT GRAPH')
     })
 
     it('truncates large projects to avoid context overflow', async () => {
