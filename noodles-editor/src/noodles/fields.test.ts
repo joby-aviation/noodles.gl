@@ -123,6 +123,47 @@ describe('basic Fields', () => {
   })
 })
 
+describe('vector channel fields', () => {
+  it.each([
+    [new Point2DField({ lng: 1, lat: 2 }), 'lng', 12, { lng: 12, lat: 2 }],
+    [new Point3DField({ lng: 1, lat: 2, alt: 3 }), 'alt', 30, { lng: 1, lat: 2, alt: 30 }],
+    [new Vec2Field({ x: 1, y: 2 }), 'x', 10, { x: 10, y: 2 }],
+    [new Vec3Field({ x: 1, y: 2, z: 3 }), 'y', 20, { x: 1, y: 20, z: 3 }],
+  ])('updates a parent vector from its %s channel', (field, channel, value, expected) => {
+    field.channelFields[channel].setValue(value)
+    expect(field.value).toEqual(expected)
+  })
+
+  it('updates tuple channels when the parent changes', () => {
+    const field = new Vec3Field([1, 2, 3], { returnType: 'tuple' })
+    field.setValue([4, 5, 6])
+
+    expect(field.channelFields.x.value).toBe(4)
+    expect(field.channelFields.y.value).toBe(5)
+    expect(field.channelFields.z.value).toBe(6)
+  })
+
+  it.each([
+    [new Point2DField([1, 2], { returnType: 'tuple' }), 'lat', 8, [1, 8]],
+    [new Point3DField([1, 2, 3], { returnType: 'tuple' }), 'lng', 9, [9, 2, 3]],
+    [new Vec2Field([1, 2], { returnType: 'tuple' }), 'y', 8, [1, 8]],
+    [new Vec3Field([1, 2, 3], { returnType: 'tuple' }), 'z', 9, [1, 2, 9]],
+  ])('composes each tuple vector from an individual channel', (field, channel, value, expected) => {
+    field.channelFields[channel].setValue(value)
+    expect(field.value).toEqual(expected)
+  })
+
+  it('composes accessor channels into a vector accessor', () => {
+    const field = new Vec2Field([0, 2], { returnType: 'tuple', accessor: true })
+    field.channelFields.x.setValue(((d: { value: number }) => d.value) as never)
+
+    expect(typeof field.value).toBe('function')
+    expect((field.value as unknown as (d: { value: number }) => number[])({ value: 7 })).toEqual([
+      7, 2,
+    ])
+  })
+})
+
 describe('optional Fields', () => {
   it('supports optional fields', () => {
     const field = new NumberField(undefined, { optional: true })

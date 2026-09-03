@@ -1,7 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { hexToColor } from '../../utils/color'
 import { CodeField, ColorField, NumberField } from '../fields'
-import { GeoJsonLayerOp, NumberOp, ScenegraphLayerOp, TableEditorOp } from '../operators'
+import {
+  GeoJsonLayerOp,
+  MapViewStateOp,
+  NumberOp,
+  ScenegraphLayerOp,
+  TableEditorOp,
+} from '../operators'
 import { clearOps, getOpStore, setOp } from '../store'
 import { edgeId } from './id-utils'
 import {
@@ -231,6 +237,32 @@ describe('serializeNodes', () => {
     const nodes = [{ id: 'model', type: 'ScenegraphLayerOp', data: {}, position: { x: 0, y: 0 } }]
     const result = serializeNodes(getOpStore(), nodes, [])
     expect(result[0].data.inputs).not.toHaveProperty('getScale')
+  })
+
+  it('persists channel mode and the editable vector fallback beside a channel edge', () => {
+    const map = new MapViewStateOp('map', { center: { lng: 1, lat: 5 } }, false, undefined, {
+      center: 'channels',
+    })
+    setOp('map', map)
+    setOp('number', new NumberOp('number', { val: 25 }, false))
+    const nodes = [
+      { id: 'number', type: 'NumberOp', data: {}, position: { x: 0, y: 0 } },
+      { id: 'map', type: 'MapViewStateOp', data: {}, position: { x: 100, y: 0 } },
+    ]
+    const connection = {
+      source: 'number',
+      target: 'map',
+      sourceHandle: 'out.val',
+      targetHandle: 'par.center.lng',
+    }
+
+    const result = serializeNodes(getOpStore(), nodes, [
+      { id: edgeId(connection), ...connection },
+    ])
+    const serializedMap = result.find(node => node.id === 'map')
+
+    expect(serializedMap?.data.inputPortModes).toEqual({ center: 'channels' })
+    expect(serializedMap?.data.inputs.center).toEqual({ lng: 1, lat: 5 })
   })
 
   it('serializes multiple nodes with edges correctly', () => {

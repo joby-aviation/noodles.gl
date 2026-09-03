@@ -596,6 +596,48 @@
   gap: 3px;
 }
 
+.fieldWrapperVectorChannels {
+  align-items: flex-start;
+}
+
+.fieldInputWrapperVectorChannels {
+  flex: 1;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.vectorChannelRow {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-height: 25px;
+  gap: 3px;
+}
+
+.vectorPortModeButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 3px;
+  color: var(--node-field-hint-color);
+  background: transparent;
+  cursor: pointer;
+}
+
+.vectorPortModeButton:hover:not(:disabled) {
+  background: rgb(255 255 255 / 8%);
+}
+
+.vectorPortModeButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
 .fieldInputWrapperVector .fieldInputNumber {
   margin-right: 0;
 }

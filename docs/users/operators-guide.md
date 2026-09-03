@@ -26,8 +26,7 @@ Operators are the core processing units in the Noodles.gl system. They take inpu
 
 ### Views
 - **MaplibreBasemapOp**: Customize the Maplibre basemap
-- **MapViewStateOp**: Create a react-map-gl [ViewState](https://visgl.github.io/react-map-gl/docs/api-reference/maplibre/types#viewstate) for controlling the camera
-- **PointViewStateOp**: Create a view state centered on a geographic or GeoJSON Point while keeping zoom, pitch, and bearing editable
+- **MapViewStateOp**: Create a react-map-gl [ViewState](https://visgl.github.io/react-map-gl/docs/api-reference/maplibre/types#viewstate) from a geographic or GeoJSON Point; its center can switch between a whole-value port and longitude/latitude ports
 - **Deck.gl Views**: Create any [deck.gl view](https://deck.gl/docs/developer-guide/views#types-of-views), such as `FirstPersonViewOp`
 
 ### Output

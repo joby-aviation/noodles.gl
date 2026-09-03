@@ -7,6 +7,7 @@ import { analytics } from '../../utils/analytics'
 import type { IOperator, Operator } from '../operators'
 import { getOp, useUIStore } from '../store'
 import { canConnect } from '../utils/can-connect'
+import { resolveOperatorField } from '../utils/field-resolution'
 import { getNodeCenter, pointToLineDistance } from '../utils/edge-geometry'
 import { edgeId } from '../utils/id-utils'
 import { normalizeMultiInputEdges } from '../utils/multi-input-utils'
@@ -70,8 +71,16 @@ function canInsertNode(
     return { canInsert: false, sourceToDropped: null, droppedToTarget: null }
   }
 
-  const originalSourceField = sourceOp.outputs[sourceHandleInfo.fieldName]
-  const originalTargetField = targetOp.inputs[targetHandleInfo.fieldName]
+  const originalSourceField = resolveOperatorField(
+    sourceOp,
+    sourceHandleInfo.namespace,
+    sourceHandleInfo.fieldName
+  )?.field
+  const originalTargetField = resolveOperatorField(
+    targetOp,
+    targetHandleInfo.namespace,
+    targetHandleInfo.fieldName
+  )?.field
 
   if (!originalSourceField || !originalTargetField) {
     return { canInsert: false, sourceToDropped: null, droppedToTarget: null }

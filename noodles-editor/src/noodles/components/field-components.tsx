@@ -1,7 +1,14 @@
 import type { OnMount } from '@monaco-editor/react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { Cross2Icon } from '@radix-ui/react-icons'
-import { Handle, Position, useEdges, useNodeId, useReactFlow } from '@xyflow/react'
+import {
+  Handle,
+  Position,
+  useEdges,
+  useNodeId,
+  useReactFlow,
+  useUpdateNodeInternals,
+} from '@xyflow/react'
 import cx from 'classnames'
 import type { ScaleLinear, ScaleOrdinal } from 'd3'
 import { Button } from 'primereact/button'
@@ -9,6 +16,7 @@ import { InputText } from 'primereact/inputtext'
 import {
   Fragment,
   Suspense,
+  type ReactNode,
   lazy,
   useCallback,
   useEffect,
@@ -41,6 +49,7 @@ import {
   type Field,
   type FileUrlField,
   getFieldReferences,
+  hasChannelFields,
   type IField,
   ListField,
   type MapStyleField,
@@ -48,8 +57,8 @@ import {
   Point2DField,
   Point3DField,
   StringLiteralField,
-  type Vec2Field,
-  type Vec3Field,
+  Vec2Field,
+  Vec3Field,
 } from '../fields'
 import { useFileSystemStore } from '../filesystem-store'
 import type { Edge as GraphEdge } from '../graph-executor'
@@ -61,7 +70,11 @@ import { useEdgeConnectionStore } from '../store'
 import { getExpressionContext } from '../utils/expression-context'
 import { projectScheme } from '../utils/filesystem'
 import { edgeId, type OpId } from '../utils/id-utils'
-import { usePropertyHistory } from '../utils/property-history'
+import {
+  captureOperatorInputs,
+  firePropertyMutation,
+  usePropertyHistory,
+} from '../utils/property-history'
 import { ColorSwatch } from './color-swatch'
 import { ExpressionEditorOverlay } from './ExpressionEditorOverlay'
 import { GeocodingDialog } from './geocoding-dialog'
@@ -548,6 +561,7 @@ function VectorNumberInput({
   onChange,
   onCommit,
   onInteractionStart,
+  hideLabel = false,
 }: {
   keyName: string
   value: number
@@ -556,6 +570,7 @@ function VectorNumberInput({
   onChange: (key: string | number, val: number) => void
   onCommit: () => void
   onInteractionStart?: () => void
+  hideLabel?: boolean
 }) {
   const handleChange = useCallback(
     (val: number) => {
@@ -566,7 +581,7 @@ function VectorNumberInput({
 
   return (
     <Fragment>
-      <div className={cx(s.fieldLabel, s.fieldLabelVector)}>{keyName}</div>
+      {!hideLabel && <div className={cx(s.fieldLabel, s.fieldLabelVector)}>{keyName}</div>}
       <DraggableNumberInput
         value={value}
         disabled={disabled}
@@ -588,6 +603,8 @@ export function VectorFieldComponent({
   opId,
   fieldName,
   expandTimeline,
+  channelHandles = false,
+  portModeControl,
 }: {
   id: OpId
   field: Vec2Field | Vec3Field | Point2DField | Point3DField
@@ -595,6 +612,8 @@ export function VectorFieldComponent({
   opId?: string
   fieldName?: string
   expandTimeline?: () => void
+  channelHandles?: boolean
+  portModeControl?: ReactNode
 }) {
   const [value, setValue] = useState<
     { [key: string]: number } | [number, number] | [number, number, number]
@@ -606,6 +625,20 @@ export function VectorFieldComponent({
   const isPoint3D = field instanceof Point3DField
 
   const keys = (field.constructor as typeof Vec2Field).channelKeys ?? Object.keys(value)
+  const connectedChannelKeyString = useEdgeConnectionStore(
+    useCallback(
+      state => {
+        if (!channelHandles || !opId || !fieldName) return ''
+        return keys
+          .filter(key => state.connectionMap.has(`${opId}::par.${fieldName}.${key}`))
+          .join(',')
+      },
+      [channelHandles, fieldName, keys, opId]
+    )
+  )
+  const connectedChannelKeys = connectedChannelKeyString
+    ? connectedChannelKeyString.split(',')
+    : []
 
   // Track the latest value in a ref for onCommit
   const latestValueRef = useRef(value)
@@ -680,13 +713,35 @@ export function VectorFieldComponent({
   )
 
   return (
-    <div className={s.fieldWrapper}>
+    <div className={cx(s.fieldWrapper, { [s.fieldWrapperVectorChannels]: channelHandles })}>
       <label className={s.fieldLabel} htmlFor={id}>
         {id}
       </label>
-      <div id={id} className={cx(s.fieldInputWrapper, s.fieldInputWrapperVector)}>
+      <div
+        id={id}
+        className={cx(s.fieldInputWrapper, s.fieldInputWrapperVector, {
+          [s.fieldInputWrapperVectorChannels]: channelHandles,
+        })}
+      >
         {keys.map((key, i) => {
           const objectKey = field.returnType === 'tuple' ? i : key
+          if (channelHandles && opId && fieldName && hasChannelFields(field)) {
+            return (
+              <VectorChannelInput
+                key={key}
+                nodeId={opId}
+                handleId={`par.${fieldName}.${key}`}
+                keyName={key}
+                value={value[objectKey]}
+                objectKey={objectKey}
+                field={field.channelFields[key]}
+                disabled={disabled}
+                onChange={onChange}
+                onCommit={onCommit}
+                onInteractionStart={captureStart}
+              />
+            )
+          }
           return (
             <VectorNumberInput
               key={key}
@@ -700,7 +755,7 @@ export function VectorFieldComponent({
             />
           )
         })}
-        {isPointField && (
+        {isPointField && !channelHandles && (
           <Button
             icon="pi pi-map-marker"
             className={s.fieldLookupButton}
@@ -723,18 +778,72 @@ export function VectorFieldComponent({
             value={value as Record<string | number, number>}
             returnType={field.returnType}
             disabled={disabled}
+            disabledKeys={connectedChannelKeys}
             onKeyframeAdded={expandTimeline}
           />
         )}
+        {portModeControl}
       </div>
 
-      {isPointField && (
+      {isPointField && !channelHandles && (
         <GeocodingDialog
           open={geocodingOpen}
           onOpenChange={setGeocodingOpen}
           mode="update-field"
           initialValue={getCurrentCoordinates()}
           onLocationSelected={handleLocationSelected}
+        />
+      )}
+    </div>
+  )
+}
+
+function VectorChannelInput({
+  nodeId,
+  handleId,
+  keyName,
+  value,
+  objectKey,
+  field,
+  disabled,
+  onChange,
+  onCommit,
+  onInteractionStart,
+}: {
+  nodeId: string
+  handleId: string
+  keyName: string
+  value: number
+  objectKey: string | number
+  field: NumberField
+  disabled: boolean
+  onChange: (key: string | number, val: number) => void
+  onCommit: () => void
+  onInteractionStart?: () => void
+}) {
+  const isHandleDimmed = useHandleDimmed(nodeId, handleId)
+  const hasIncomingConnection = useHasIncomingConnection(nodeId, handleId)
+
+  return (
+    <div className={s.vectorChannelRow}>
+      <Handle
+        id={handleId}
+        className={cx(handleClass(field), { [s.handleDimmed]: isHandleDimmed })}
+        style={{ transform: 'translate(-17px, -50%)' }}
+        type="target"
+        position={Position.Left}
+      />
+      <div className={cx(s.fieldLabel, s.fieldLabelVector)}>{keyName}</div>
+      {!hasIncomingConnection && (
+        <VectorNumberInput
+          keyName=""
+          value={value}
+          objectKey={objectKey}
+          disabled={disabled}
+          onChange={onChange}
+          onCommit={onCommit}
+          onInteractionStart={onInteractionStart}
+          hideLabel
         />
       )}
     </div>
@@ -2650,12 +2759,67 @@ export function FieldComponent({
   renderInput?: boolean
 }) {
   const nid = useNodeId()
+  const updateNodeInternals = useUpdateNodeInternals()
   const qualifiedFieldId = handle ? `${handle.namespace}.${fieldId}` : `par.${fieldId}`
   const isHandleDimmed = useHandleDimmed(nid ?? '', qualifiedFieldId)
   const hasIncomingConnection = useHasIncomingConnection(nid, qualifiedFieldId)
 
   const { type } = field.constructor as typeof Field
   const InputComp = inputComponents[type]
+  const supportsChannelPorts = Boolean(
+    handle?.namespace === 'par' && renderInput && hasChannelFields(field) && field.op
+  )
+  const [portMode, setPortMode] = useState<'whole' | 'channels'>(() =>
+    supportsChannelPorts ? field.op.getInputPortMode(fieldId) : 'whole'
+  )
+  useEffect(() => {
+    if (!supportsChannelPorts) return
+    const sub = field.op.inputPortModes.subscribe(modes => {
+      setPortMode(modes[fieldId] ?? 'whole')
+    })
+    return () => sub.unsubscribe()
+  }, [field, fieldId, supportsChannelPorts])
+
+  const hasRelatedConnection = useEdgeConnectionStore(
+    useCallback(
+      state => {
+        if (!nid) return false
+        const prefix = `${nid}::par.${fieldId}`
+        for (const key of state.connectionMap.keys()) {
+          if (key === prefix || key.startsWith(`${prefix}.`)) return true
+        }
+        return false
+      },
+      [nid, fieldId]
+    )
+  )
+
+  const togglePortMode = useCallback(() => {
+    if (!supportsChannelPorts || disabled || hasRelatedConnection) return
+    const before = captureOperatorInputs()
+    field.op.setInputPortMode(fieldId, portMode === 'whole' ? 'channels' : 'whole')
+    firePropertyMutation('Change vector port layout', before)
+    if (nid) requestAnimationFrame(() => updateNodeInternals(nid))
+  }, [disabled, field, fieldId, hasRelatedConnection, nid, portMode, supportsChannelPorts, updateNodeInternals])
+
+  const portModeControl = supportsChannelPorts ? (
+    <button
+      type="button"
+      className={s.vectorPortModeButton}
+      disabled={disabled || hasRelatedConnection}
+      onClick={togglePortMode}
+      aria-label={portMode === 'whole' ? 'Use component ports' : 'Use whole-value port'}
+      title={
+        hasRelatedConnection
+          ? 'Disconnect this input before changing its port layout'
+          : portMode === 'whole'
+            ? 'Use component ports'
+            : 'Use whole-value port'
+      }
+    >
+      <i className={portMode === 'whole' ? 'pi pi-list' : 'pi pi-stop'} />
+    </button>
+  ) : undefined
 
   const hasKeyframes = useTimelineStore(state => {
     if (!nid || !renderInput) return false
@@ -2676,7 +2840,7 @@ export function FieldComponent({
 
   return (
     <div style={{ position: 'relative' }}>
-      {handle && (
+      {handle && (!supportsChannelPorts || portMode === 'whole') && (
         field instanceof ListField ? (
           <MultiInputHandle
             id={qualifiedFieldId}
@@ -2695,7 +2859,30 @@ export function FieldComponent({
         )
       )}
       {renderInput &&
-        (hasIncomingConnection ? (
+        (supportsChannelPorts && hasChannelFields(field) ? (
+          portMode === 'channels' ? (
+            <VectorFieldComponent
+              id={fieldId}
+              field={field as Vec2Field | Vec3Field | Point2DField | Point3DField}
+              disabled={disabled}
+              opId={nid ?? undefined}
+              fieldName={fieldId}
+              channelHandles
+              portModeControl={portModeControl}
+            />
+          ) : hasIncomingConnection ? (
+            <EmptyFieldComponent id={fieldId} field={field} />
+          ) : (
+            <VectorFieldComponent
+              id={fieldId}
+              field={field as Vec2Field | Vec3Field | Point2DField | Point3DField}
+              disabled={disabled}
+              opId={nid ?? undefined}
+              fieldName={fieldId}
+              portModeControl={portModeControl}
+            />
+          )
+        ) : hasIncomingConnection ? (
           <EmptyFieldComponent id={fieldId} field={field} />
         ) : hasKeyframes ? (
           <div className={s.keyframedFieldInput}>
@@ -2704,6 +2891,7 @@ export function FieldComponent({
         ) : (
           <InputComp id={fieldId} field={field} disabled={disabled} />
         ))}
+      {supportsChannelPorts && portMode === 'whole' && hasIncomingConnection && portModeControl}
     </div>
   )
 }

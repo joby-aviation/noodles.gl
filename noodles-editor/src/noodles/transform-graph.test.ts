@@ -146,6 +146,82 @@ describe('transform-graph topological sort with missing upstream nodes', () => {
   })
 })
 
+describe('vector channel handles', () => {
+  afterEach(() => clearOps())
+
+  it('connects an individual channel and preserves the editable sibling', () => {
+    const nodes = [
+      {
+        id: '/number',
+        type: 'NumberOp',
+        data: { inputs: {} },
+        position: { x: 0, y: 0 },
+      },
+      {
+        id: '/map',
+        type: 'MapViewStateOp',
+        data: {
+          inputs: { center: { lng: 1, lat: 5 } },
+          inputPortModes: { center: 'channels' },
+        },
+        position: { x: 100, y: 0 },
+      },
+    ]
+    const edges = [
+      {
+        id: '/number.out.val->/map.par.center.lng',
+        source: '/number',
+        target: '/map',
+        sourceHandle: 'out.val',
+        targetHandle: 'par.center.lng',
+      },
+    ]
+
+    transformGraph({ nodes, edges })
+    const number = getOpStore().getOp('/number')!
+    const map = getOpStore().getOp('/map')!
+    number.outputs.val.next(25)
+
+    expect(map.inputs.center.value).toEqual({ lng: 25, lat: 5 })
+    expect(map.getInputPortMode('center')).toBe('channels')
+  })
+
+  it('does not attach a whole-value edge while channel ports are active', () => {
+    const nodes = [
+      {
+        id: '/point',
+        type: 'PointOp',
+        data: { inputs: { coordinates: { lng: 20, lat: 30 } } },
+        position: { x: 0, y: 0 },
+      },
+      {
+        id: '/map',
+        type: 'MapViewStateOp',
+        data: {
+          inputs: { center: { lng: 1, lat: 5 } },
+          inputPortModes: { center: 'channels' },
+        },
+        position: { x: 100, y: 0 },
+      },
+    ]
+    const edges = [
+      {
+        id: '/point.out.feature->/map.par.center',
+        source: '/point',
+        target: '/map',
+        sourceHandle: 'out.feature',
+        targetHandle: 'par.center',
+      },
+    ]
+
+    transformGraph({ nodes, edges })
+    const map = getOpStore().getOp('/map')!
+
+    expect(map.inputs.center.value).toEqual({ lng: 1, lat: 5 })
+    expect(map.connectionErrors.value.get(edges[0].id)).toContain('Inactive center port')
+  })
+})
+
 describe('transform-graph stale edge and unknown type warnings', () => {
   let errorSpy: ReturnType<typeof vi.spyOn>
 
