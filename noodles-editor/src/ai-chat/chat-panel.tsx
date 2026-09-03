@@ -183,6 +183,13 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
       const assistantMessage: Message = {
         role: 'assistant',
         content: response.message || '(stopped)',
+        // Kept so the next turn can answer "why did you do that?" — see
+        // MessageToolUse for why the results themselves are not kept
+        toolUses: response.toolCalls?.map(call => ({
+          name: call.name,
+          params: call.params,
+          ok: call.result.success,
+        })),
       }
 
       setMessages(prev => [...prev, assistantMessage])

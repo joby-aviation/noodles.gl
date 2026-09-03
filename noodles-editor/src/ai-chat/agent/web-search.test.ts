@@ -84,7 +84,7 @@ describe('createWebSearchTool', () => {
   it('rejects an empty query without spending a request', async () => {
     const tool = createWebSearchTool({ provider: 'openrouter', apiKey: 'k', model: 'm' })
 
-    await expect(tool?.execute({ query: '   ' })).resolves.toEqual({
+    await expect(tool?.execute({ query: '   ' }, { depth: 0 })).resolves.toEqual({
       success: false,
       error: 'web_search requires a non-empty query',
     })

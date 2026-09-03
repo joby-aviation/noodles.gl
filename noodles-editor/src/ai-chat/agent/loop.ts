@@ -283,6 +283,15 @@ async function streamTurn(params: {
   return turn
 }
 
+// What a single tool call needs: the executors, plus the depth and signal that
+// harness tools like delegate pass down to their own nested run
+interface ToolCallParams {
+  tools: MCPTools
+  router: ToolRouter
+  depth: number
+  signal?: AbortSignal
+}
+
 interface ToolOutcome {
   id: string
   name: string
@@ -295,14 +304,12 @@ interface ToolOutcome {
 // the rest of the batch to run in order after it. Two apply_modifications calls
 // racing on the same graph would interleave unpredictably, and a read scheduled
 // alongside a write could observe either side of it.
-async function executeToolBatch(params: {
-  calls: Array<{ id: string; name: string; input: Record<string, unknown> }>
-  tools: MCPTools
-  router: ToolRouter
-  resultBudget: number
-  depth: number
-  signal?: AbortSignal
-}): Promise<ToolOutcome[]> {
+async function executeToolBatch(
+  params: ToolCallParams & {
+    calls: Array<{ id: string; name: string; input: Record<string, unknown> }>
+    resultBudget: number
+  }
+): Promise<ToolOutcome[]> {
   const { calls, resultBudget } = params
 
   const allReadOnly = calls.every(call => isReadOnly(call.name, params.router))
@@ -328,7 +335,7 @@ export function isReadOnly(toolName: string, router?: ToolRouter): boolean {
 
 async function runOne(
   call: { id: string; name: string; input: Record<string, unknown> },
-  params: { tools: MCPTools; router: ToolRouter; depth: number },
+  params: ToolCallParams,
   resultBudget: number
 ): Promise<ToolOutcome> {
   let result: ToolResult
@@ -375,16 +382,22 @@ function omitScreenshot(data: ScreenshotData): Record<string, unknown> {
 async function executeTool(
   name: string,
   input: Record<string, unknown>,
-  params: { tools: MCPTools; router: ToolRouter }
+  params: ToolCallParams
 ): Promise<ToolResult> {
-  const { tools, router } = params
+  const { tools, router, depth, signal } = params
 
   if (name === FIND_TOOLS_NAME) return router.findTools(input)
+
+  // A narrowed router (a sub-agent's) has to refuse here as well as omit from the
+  // tool list, because a model can name a tool it was never offered
+  if (!router.isAllowed(name)) {
+    return { success: false, error: `${name} is not available to this agent` }
+  }
 
   const harness = router.getHarnessTool(name)
   if (harness) {
     if (!router.isCallable(name)) router.findTools({ query: name, limit: 1 })
-    return harness.execute(input)
+    return harness.execute(input, { depth, signal })
   }
 
   const definition = getToolDefinition(name)

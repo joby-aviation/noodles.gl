@@ -40,7 +40,7 @@ export const FIND_TOOLS_DEFINITION: {
 } = {
   name: FIND_TOOLS_NAME,
   description:
-    'Look up additional tools by capability and unlock them for use. Returns full input schemas for the best matches. Use this before saying a capability is unavailable — tools exist for searching source code, reading documentation, listing and fetching example projects, reading operator schemas, capturing screenshots, reading console errors, and editing the animation timeline.',
+    'Look up additional tools by capability and unlock them for use. Returns full input schemas for the best matches. Use this before saying a capability is unavailable — tools exist for searching source code, reading documentation, listing and fetching example projects, reading operator schemas, capturing screenshots, reading console errors, editing the animation timeline, searching the web, and delegating a self-contained sub-task to another agent.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -68,13 +68,31 @@ export interface RoutedTool {
   inputSchema: ToolInputSchema
 }
 
+// What the loop knows about the call that a harness tool might need. delegate
+// reads both: depth to refuse a sub-agent spawning its own, signal so an aborted
+// parent turn takes the child down with it.
+export interface HarnessToolContext {
+  depth: number
+  signal?: AbortSignal
+}
+
 // A tool the harness owns rather than MCPTools: it needs something the tool
-// definitions have no access to, like the provider or an API key. web_search is
-// the first. Discoverable and unlockable exactly like the rest, so the model
-// cannot tell the difference.
+// definitions have no access to, like the provider or an API key. web_search and
+// delegate are the two. Discoverable and unlockable exactly like the rest, so
+// the model cannot tell the difference.
 export interface HarnessTool extends RoutedTool {
   readOnly: boolean
-  execute: (input: Record<string, unknown>) => Promise<ToolResult> | ToolResult
+  execute: (
+    input: Record<string, unknown>,
+    context: HarnessToolContext
+  ) => Promise<ToolResult> | ToolResult
+}
+
+export interface ToolRouterOptions {
+  // Restricts the router to these tools. Used for sub-agents, which get a
+  // narrowed surface: a research agent has no business calling
+  // apply_modifications even though it is tier 0 for the main conversation.
+  allow?: readonly string[]
 }
 
 // Per-conversation tool selection state. One router instance lives as long as
@@ -83,18 +101,25 @@ export class ToolRouter {
   // Insertion-ordered so eviction is FIFO
   private unlocked = new Set<string>()
   private harnessTools: Map<string, HarnessTool>
+  // undefined means every tool is in scope
+  private allow: Set<string> | undefined
 
   constructor(
     private contextWindowTokens: number,
-    harnessTools: HarnessTool[] = []
+    harnessTools: HarnessTool[] = [],
+    options: ToolRouterOptions = {}
   ) {
     this.harnessTools = new Map(harnessTools.map(tool => [tool.name, tool]))
+    // find_tools stays in scope regardless, so a narrowed agent can still
+    // discover what it does have
+    this.allow = options.allow ? new Set([...options.allow, FIND_TOOLS_NAME]) : undefined
   }
 
   // The tool list to send with the next request
   getTools(): RoutedTool[] {
     const tools: RoutedTool[] = []
     for (const name of TIER0_TOOL_NAMES) {
+      if (!this.isAllowed(name)) continue
       if (name === FIND_TOOLS_NAME) {
         tools.push(FIND_TOOLS_DEFINITION)
         continue
@@ -109,7 +134,14 @@ export class ToolRouter {
     return tools
   }
 
+  // Whether the tool is in this router's scope at all. The loop checks it before
+  // dispatch, because a model can name a tool it was never offered.
+  isAllowed(name: string): boolean {
+    return !this.allow || this.allow.has(name)
+  }
+
   isCallable(name: string): boolean {
+    if (!this.isAllowed(name)) return false
     return name === FIND_TOOLS_NAME || TIER0_TOOL_NAMES.includes(name) || this.unlocked.has(name)
   }
 
@@ -133,7 +165,9 @@ export class ToolRouter {
     const requested = typeof params.limit === 'number' ? params.limit : 3
     const limit = Math.max(1, Math.min(8, Math.floor(requested)))
 
-    const matches = scoreTools(query, [...this.harnessTools.values()]).slice(0, limit)
+    const matches = scoreTools(query, [...this.harnessTools.values()])
+      .filter(match => this.isAllowed(match.name))
+      .slice(0, limit)
     if (matches.length === 0) {
       return {
         success: true,

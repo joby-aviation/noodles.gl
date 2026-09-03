@@ -18,6 +18,7 @@ import type { MCPTools } from '../mcp-tools'
 import systemPromptTemplate from '../prompts/core.md?raw'
 import type { ClaudeResponse, Message } from '../types'
 import { runAgent } from './loop'
+import { createDelegateTool } from './subagent'
 import { ToolRouter } from './tool-router'
 import type { AgentContent, AgentEvent, AgentMessage, AgentProvider } from './types'
 import { createWebSearchTool, type WebSearchConfig } from './web-search'
@@ -54,7 +55,12 @@ export class AgentSession {
     this.tools = tools
 
     const webSearch = options.webSearch ? createWebSearchTool(options.webSearch) : null
-    this.router = new ToolRouter(provider.contextWindow, webSearch ? [webSearch] : [])
+    const childTools = webSearch ? [webSearch] : []
+    // The sub-agent runs on the same provider by default; pointing it at a
+    // cheaper one is a change here and nowhere else.
+    const delegate = createDelegateTool({ provider, tools, harnessTools: childTools })
+
+    this.router = new ToolRouter(provider.contextWindow, [...childTools, delegate])
   }
 
   async send(params: SendParams): Promise<ClaudeResponse> {
@@ -123,11 +129,38 @@ export class AgentSession {
   }
 }
 
-// History is persisted as plain text, so images and tool plumbing from earlier
-// turns never come back — which is the point: re-sending a screenshot every turn
-// was the single largest avoidable cost in the old client.
+// History replays as plain text, so images and tool plumbing from earlier turns
+// never come back — which is the point: re-sending a screenshot every turn was
+// the single largest avoidable cost in the old client. What the assistant did
+// comes back as a one-line note per call instead of the real blocks, which costs
+// tens of tokens rather than the kilobytes the results themselves would.
 function toAgentMessage(message: Message): AgentMessage {
-  return { role: message.role, content: [{ type: 'text', text: flattenContent(message.content) }] }
+  const text = [flattenContent(message.content), describeToolUses(message.toolUses)]
+    .filter(Boolean)
+    .join('\n')
+
+  return { role: message.role, content: [{ type: 'text', text }] }
+}
+
+const MAX_PARAM_CHARS = 60
+
+export function describeToolUses(toolUses: Message['toolUses']): string {
+  if (!toolUses || toolUses.length === 0) return ''
+  const calls = toolUses.map(
+    use => `${use.name}(${describeParams(use.params)})${use.ok ? '' : ' — failed'}`
+  )
+  return `[tools used: ${calls.join(', ')}]`
+}
+
+function describeParams(params: Record<string, unknown> | undefined): string {
+  if (!params) return ''
+  return Object.entries(params)
+    .map(([key, value]) => `${key}=${clip(JSON.stringify(value) ?? String(value))}`)
+    .join(', ')
+}
+
+function clip(value: string): string {
+  return value.length > MAX_PARAM_CHARS ? `${value.slice(0, MAX_PARAM_CHARS)}…` : value
 }
 
 function flattenContent(content: Message['content']): string {

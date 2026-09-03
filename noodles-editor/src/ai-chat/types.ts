@@ -164,9 +164,24 @@ export interface SearchCodeResult {
   symbol?: string
 }
 
+// What the assistant did on a turn, kept alongside its reply so a follow-up like
+// "why did you pick that layer?" has something to answer from.
+//
+// Deliberately not the full tool_use / tool_result blocks: replaying those would
+// put every past tool result back into context on every later turn — the exact
+// cost the result budget exists to bound — and Anthropic requires each tool_use
+// to be paired with its result. The name, the arguments, and whether it worked
+// are what a follow-up actually needs.
+export interface MessageToolUse {
+  name: string
+  params?: Record<string, unknown>
+  ok: boolean
+}
+
 export interface Message {
   role: 'user' | 'assistant'
   content: string | Array<{ type: string; text?: string; [key: string]: unknown }>
+  toolUses?: MessageToolUse[]
 }
 
 // Zod schemas for project modification validation
