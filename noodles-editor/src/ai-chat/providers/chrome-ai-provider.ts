@@ -147,18 +147,42 @@ export class ChromeAIProvider implements AIProvider {
         topK: 40,
         expectedOutputs: [{ type: 'text', languages: ['en'] }],
         monitor: (m: any) => {
-          debugAiChat('Monitor callback fired, setting up event listener')
-          m.addEventListener('downloadprogress', (e: any) => {
-            const percent = Math.round((e.loaded / e.total) * 100)
-            debugAiChat(`Download progress: ${percent}% (${e.loaded}/${e.total})`)
-            onProgress?.(`Downloading AI model: ${percent}%`)
-          })
+          debugAiChat('Monitor callback fired, monitor object:', m)
+          debugAiChat('Monitor addEventListener type:', typeof m.addEventListener)
+
+          if (m && typeof m.addEventListener === 'function') {
+            debugAiChat('Setting up downloadprogress event listener')
+            m.addEventListener('downloadprogress', (e: any) => {
+              const percent = Math.round((e.loaded / e.total) * 100)
+              debugAiChat(`Download progress event: ${percent}% (${e.loaded}/${e.total})`)
+              onProgress?.(`Downloading AI model: ${percent}%`)
+            })
+            debugAiChat('Event listener registered')
+          } else {
+            debugAiChat('WARNING: Monitor does not have addEventListener method!')
+          }
         },
       }
       debugAiChat('Calling LanguageModel.create() with:', Object.keys(createOptions))
       onProgress?.('Creating Chrome AI session...')
 
+      // Log the actual call to create
+      debugAiChat('About to call LanguageModel.create()...')
+      const startTime = Date.now()
       const createSessionPromise = (LanguageModel as any).create(createOptions)
+      debugAiChat('LanguageModel.create() returned a promise')
+
+      // Check if the promise resolves or rejects quickly
+      createSessionPromise.then(
+        (session: any) => {
+          const elapsed = Date.now() - startTime
+          debugAiChat(`Promise resolved after ${elapsed}ms`)
+        },
+        (error: any) => {
+          const elapsed = Date.now() - startTime
+          debugAiChat(`Promise rejected after ${elapsed}ms:`, error)
+        }
+      )
 
       // Use longer timeout when downloading (10 minutes), shorter for initialization (60s)
       const isDownloading = availability === 'downloadable' || availability === 'downloading'
@@ -176,12 +200,25 @@ export class ChromeAIProvider implements AIProvider {
           '3. Configure an external AI provider (Anthropic, OpenAI) in Settings → AI Provider'
 
       debugAiChat(`Waiting for session creation with ${timeoutMs}ms timeout...`)
-      this.session = await withTimeout(
-        createSessionPromise,
-        timeoutMs,
-        timeoutMessage
-      )
-      debugAiChat('Session created successfully!')
+
+      // Add a heartbeat to detect if we're actually stuck
+      const heartbeat = setInterval(() => {
+        debugAiChat('Still waiting for session... (heartbeat)')
+      }, 5000)
+
+      try {
+        this.session = await withTimeout(
+          createSessionPromise,
+          timeoutMs,
+          timeoutMessage
+        )
+        clearInterval(heartbeat)
+        debugAiChat('Session created successfully!')
+      } catch (error) {
+        clearInterval(heartbeat)
+        debugAiChat('Session creation failed or timed out:', error)
+        throw error
+      }
 
       // Check context window usage
       if ('contextWindow' in this.session && 'contextUsage' in this.session) {
