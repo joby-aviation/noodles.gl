@@ -8,7 +8,21 @@ import { ProviderError } from './ai-provider-interface'
 // Browser-based E2E tests for Chrome AI provider
 // These tests run in a real Chromium instance via Playwright
 
-// TODO: Update to Vitest 4 browser API - currently uses deprecated @vitest/browser/context
+// TODO: Fix for Vitest 4 browser API migration
+//
+// Problem: Vitest 4 changed browser testing API:
+//   Old (v3): import { page } from '@vitest/browser/context'  // Raw Playwright page
+//   New (v4): import { page } from 'vitest/browser'           // Simplified API (no page.evaluate)
+//
+// These tests use page.evaluate() to run code in browser context, which no longer works.
+//
+// Solution options:
+//   1. Find correct import for Playwright page in Vitest 4.1.2 + @vitest/browser-playwright
+//      Try: import { page } from '@vitest/browser-playwright/context'
+//   2. Rewrite using Vitest browser commands (complex, may not work for Chrome LanguageModel API)
+//   3. Move to standalone Playwright E2E tests
+//
+// These tests are valuable (11 tests covering real Chrome AI integration) - worth fixing!
 describe.skip('ChromeAIProvider E2E (Browser)', () => {
   const mockTools = {
     captureVisualization: vi.fn(),
