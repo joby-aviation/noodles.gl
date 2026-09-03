@@ -123,12 +123,16 @@ export class ChromeAIProvider implements AIProvider {
 
       // User activation is present, create session will trigger download
       debugAiChat('Triggering Chrome AI model download...')
-      onProgress?.('Downloading AI model...')
+      onProgress?.('Triggering AI model download...')
     } else if (availability === 'downloading') {
-      // Model is already downloading in background, attach to it
-      debugAiChat('Attaching to existing Chrome AI download...')
-      onProgress?.('Downloading AI model...')
+      // Model is already downloading in background
+      debugAiChat('Model is downloading, this should complete soon or timeout after 10 minutes')
+      onProgress?.('Waiting for AI model download to complete...')
+    } else if (availability === 'available') {
+      debugAiChat('Model is already available, creating session immediately')
+      onProgress?.('Initializing AI session...')
     } else {
+      debugAiChat('Unknown availability state:', availability)
       onProgress?.('Creating AI session...')
     }
 
@@ -152,6 +156,7 @@ export class ChromeAIProvider implements AIProvider {
         },
       }
       debugAiChat('Calling LanguageModel.create() with:', Object.keys(createOptions))
+      onProgress?.('Creating Chrome AI session...')
 
       const createSessionPromise = (LanguageModel as any).create(createOptions)
 
@@ -170,11 +175,13 @@ export class ChromeAIProvider implements AIProvider {
           '2. Check chrome://components/ for "Optimization Guide On Device Model" status\n' +
           '3. Configure an external AI provider (Anthropic, OpenAI) in Settings → AI Provider'
 
+      debugAiChat(`Waiting for session creation with ${timeoutMs}ms timeout...`)
       this.session = await withTimeout(
         createSessionPromise,
         timeoutMs,
         timeoutMessage
       )
+      debugAiChat('Session created successfully!')
 
       // Check context window usage
       if ('contextWindow' in this.session && 'contextUsage' in this.session) {
