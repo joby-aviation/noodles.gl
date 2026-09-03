@@ -658,6 +658,104 @@ Valid modifications:
       expect(promptCall).toContain('/layer (ScatterplotLayerOp)')
     })
 
+    it('generates JSON modifications instead of echoing context format', async () => {
+      // Setup project with ColorOp
+      mockOpStore.set('/pickup-color', {
+        inputs: { color: { value: '#00ff00' } },
+      })
+
+      const projectWithColor: NoodlesProject = {
+        nodes: [
+          { id: '/pickup-color', type: 'ColorOp' },
+        ],
+        edges: [],
+      }
+
+      const mockToolsWithColor = {
+        ...mockTools,
+        getProject: () => projectWithColor,
+      } as unknown as MCPTools
+
+      // Simulate proper JSON response (not echoing context format)
+      const properResponse = `I'll change the color to red:
+\`\`\`json
+[
+  {
+    "type": "update_node",
+    "data": {
+      "id": "/pickup-color",
+      "data": {
+        "inputs": {
+          "color": "#ff0000"
+        }
+      }
+    }
+  }
+]
+\`\`\`
+
+This will update the pickup color to red.`
+
+      mockSession.prompt.mockResolvedValue(properResponse)
+
+      const provider = new ChromeAIProvider(mockToolsWithColor)
+      await provider.initialize()
+
+      const response = await provider.sendMessage({
+        message: 'Make the pickup color red',
+        project: projectWithColor,
+      })
+
+      // Should extract JSON modifications
+      expect(response.projectModifications).toHaveLength(1)
+      expect(response.projectModifications[0]).toEqual({
+        type: 'update_node',
+        data: {
+          id: '/pickup-color',
+          data: {
+            inputs: {
+              color: '#ff0000',
+            },
+          },
+        },
+      })
+    })
+
+    it('returns no modifications when AI only echoes text without JSON', async () => {
+      // Setup project with ColorOp
+      mockOpStore.set('/pickup-color', {
+        inputs: { color: { value: '#00ff00' } },
+      })
+
+      const projectWithColor: NoodlesProject = {
+        nodes: [
+          { id: '/pickup-color', type: 'ColorOp' },
+        ],
+        edges: [],
+      }
+
+      const mockToolsWithColor = {
+        ...mockTools,
+        getProject: () => projectWithColor,
+      } as unknown as MCPTools
+
+      // Simulate bad response that just echoes back context format
+      const badResponse = '/pickup-color (ColorOp) - color: #ff0000'
+
+      mockSession.prompt.mockResolvedValue(badResponse)
+
+      const provider = new ChromeAIProvider(mockToolsWithColor)
+      await provider.initialize()
+
+      const response = await provider.sendMessage({
+        message: 'Make the pickup color red',
+        project: projectWithColor,
+      })
+
+      // Should NOT extract modifications from plain text
+      expect(response.projectModifications).toHaveLength(0)
+    })
+
     it('handles empty project gracefully', async () => {
       const emptyProject: NoodlesProject = {
         nodes: [],
