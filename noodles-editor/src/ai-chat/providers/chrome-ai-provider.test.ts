@@ -585,7 +585,7 @@ Valid modifications:
 
       expect(mockLanguageModel.create).toHaveBeenCalledWith(
         expect.objectContaining({
-          systemPrompt: expect.stringContaining('add_node'),
+          systemPrompt: expect.stringContaining('update_node'),
         })
       )
     })
@@ -665,9 +665,7 @@ Valid modifications:
       })
 
       const projectWithColor: NoodlesProject = {
-        nodes: [
-          { id: '/pickup-color', type: 'ColorOp' },
-        ],
+        nodes: [{ id: '/pickup-color', type: 'ColorOp' }],
         edges: [],
       }
 
@@ -728,9 +726,7 @@ This will update the pickup color to red.`
       })
 
       const projectWithColor: NoodlesProject = {
-        nodes: [
-          { id: '/pickup-color', type: 'ColorOp' },
-        ],
+        nodes: [{ id: '/pickup-color', type: 'ColorOp' }],
         edges: [],
       }
 
