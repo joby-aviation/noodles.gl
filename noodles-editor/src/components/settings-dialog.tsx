@@ -108,9 +108,12 @@ const KeyGroup = ({
   )
 }
 
+type TabName = 'general' | 'ai-provider' | 'api-keys'
+
 export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
   const [analyticsEnabled, setAnalyticsEnabled] = useState(false)
   const [errorCaptureEnabled, setErrorCaptureEnabled] = useState(true)
+  const [activeTab, setActiveTab] = useState<TabName>('general')
 
   // Store subscriptions
   const browserKeys = useKeysStore(state => state.browserKeys)
@@ -146,8 +149,21 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
       setEndpointApiKey(endpoint?.apiKey || '')
       setEndpointModel(endpoint?.model || '')
       setEndpointDisplayName(endpoint?.displayName || '')
+
+      // Check for deep link in URL hash
+      const hash = window.location.hash.slice(1)
+      if (hash === 'ai-provider' || hash === 'api-keys') {
+        setActiveTab(hash as TabName)
+      }
     }
   }, [open, customEndpoint])
+
+  // Clear hash when dialog closes
+  useEffect(() => {
+    if (!open && window.location.hash) {
+      window.history.replaceState(null, '', window.location.pathname + window.location.search)
+    }
+  }, [open])
 
   const handleAnalyticsToggle = (enabled: boolean) => {
     setAnalyticsEnabled(enabled)
@@ -228,350 +244,402 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
       <Dialog.Portal>
         <Dialog.Overlay className={s.overlay} />
         <Dialog.Content className={`${s.content} nokey`}>
-          <Dialog.Title className={s.title}>App Settings</Dialog.Title>
+          <div className={s.header}>
+            <Dialog.Title className={s.title}>App Settings</Dialog.Title>
 
-          {/* Privacy & Analytics Section */}
-          <div className={s.section}>
-            <h3 className={s.sectionTitle}>Privacy & Analytics</h3>
-
-            <div className={s.settingItem}>
-              <label className={s.settingLabel}>
-                <input
-                  type="checkbox"
-                  checked={analyticsEnabled}
-                  onChange={e => handleAnalyticsToggle(e.target.checked)}
-                  className={s.checkbox}
-                />
-                <div className={s.settingContent}>
-                  <div className={s.settingName}>Share anonymous usage data</div>
-                  <div className={s.settingDescription}>
-                    Help improve Noodles.gl by sharing anonymous feature usage data. We never
-                    collect your project data, node content, API keys, or personal information.
-                  </div>
-                </div>
-              </label>
-            </div>
-
-            <div className={s.settingItem}>
-              <label className={s.settingLabel}>
-                <input
-                  type="checkbox"
-                  checked={errorCaptureEnabled}
-                  onChange={e => handleErrorCaptureToggle(e.target.checked)}
-                  className={s.checkbox}
-                />
-                <div className={s.settingContent}>
-                  <div className={s.settingName}>Send error reports (recommended)</div>
-                  <div className={s.settingDescription}>
-                    Automatically send error reports when something goes wrong. This helps us
-                    identify and fix bugs. No personal data is included in error reports.
-                  </div>
-                </div>
-              </label>
+            {/* Tab Navigation */}
+            <div className={s.tabs}>
+              <button
+                type="button"
+                className={`${s.tab} ${activeTab === 'general' ? s.tabActive : ''}`}
+                onClick={() => setActiveTab('general')}
+              >
+                General
+              </button>
+              <button
+                type="button"
+                className={`${s.tab} ${activeTab === 'ai-provider' ? s.tabActive : ''}`}
+                onClick={() => setActiveTab('ai-provider')}
+              >
+                AI Provider
+              </button>
+              <button
+                type="button"
+                className={`${s.tab} ${activeTab === 'api-keys' ? s.tabActive : ''}`}
+                onClick={() => setActiveTab('api-keys')}
+              >
+                API Keys
+              </button>
             </div>
           </div>
 
-          {/* AI Provider Section */}
-          <div className={s.section}>
-            <h3 className={s.sectionTitle}>AI Provider</h3>
+          <div className={s.scrollContent}>
+            {/* General Tab */}
+            {activeTab === 'general' && (
+              <>
+                {/* Privacy & Analytics Section */}
+                <div className={s.section}>
+                  <h3 className={s.sectionTitle}>Privacy & Analytics</h3>
 
-            <div className={s.settingItem}>
-              <div className={s.settingContent} style={{ width: '100%' }}>
-                <div className={s.settingName}>Choose AI Provider</div>
-                <div className={s.settingDescription}>
-                  Select which AI service powers the Noodles Assistant.
-                </div>
-                <div
-                  style={{
-                    marginTop: '12px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '8px',
-                  }}
-                >
-                  <label
-                    style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
-                  >
-                    <input
-                      type="radio"
-                      name="providerPreference"
-                      value="automatic"
-                      checked={providerPreference === 'automatic'}
-                      onChange={e =>
-                        handleProviderPreferenceChange(e.target.value as ProviderPreference)
-                      }
-                    />
-                    <div>
-                      <strong>Automatic (recommended)</strong> — Uses Claude if you have a key,
-                      otherwise falls back to custom endpoint or Chrome Built-in AI
-                    </div>
-                  </label>
-                  <label
-                    style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
-                  >
-                    <input
-                      type="radio"
-                      name="providerPreference"
-                      value="anthropic"
-                      checked={providerPreference === 'anthropic'}
-                      onChange={e =>
-                        handleProviderPreferenceChange(e.target.value as ProviderPreference)
-                      }
-                    />
-                    <div>
-                      <strong>Always use Claude</strong> — Premium quality (requires API key below)
-                    </div>
-                  </label>
-                  <label
-                    style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
-                  >
-                    <input
-                      type="radio"
-                      name="providerPreference"
-                      value="custom"
-                      checked={providerPreference === 'custom'}
-                      onChange={e =>
-                        handleProviderPreferenceChange(e.target.value as ProviderPreference)
-                      }
-                    />
-                    <div>
-                      <strong>Custom endpoint</strong> — Use Groq, OpenRouter, OpenAI, or
-                      self-hosted (configure below)
-                    </div>
-                  </label>
-                  <label
-                    style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
-                  >
-                    <input
-                      type="radio"
-                      name="providerPreference"
-                      value="chrome-ai"
-                      checked={providerPreference === 'chrome-ai'}
-                      onChange={e =>
-                        handleProviderPreferenceChange(e.target.value as ProviderPreference)
-                      }
-                    />
-                    <div>
-                      <strong>Chrome Built-in AI</strong> — Free, local, no API key (Chrome 127+
-                      required)
-                    </div>
-                  </label>
-                </div>
-              </div>
-            </div>
-
-            {/* Custom Endpoint Configuration */}
-            <div className={s.settingItem} style={{ marginTop: '16px' }}>
-              <div className={s.settingContent} style={{ width: '100%' }}>
-                <div className={s.settingName}>Custom Endpoint Configuration</div>
-                <div className={s.settingDescription}>
-                  Configure an OpenAI-compatible API endpoint. Use presets for popular providers.
-                </div>
-
-                {/* Preset buttons */}
-                <div className={s.presetButtonContainer}>
-                  <button
-                    type="button"
-                    onClick={() => applyPreset('groq')}
-                    className={s.presetButton}
-                  >
-                    Groq (Free)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => applyPreset('openrouter')}
-                    className={s.presetButton}
-                  >
-                    OpenRouter
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => applyPreset('openai')}
-                    className={s.presetButton}
-                  >
-                    OpenAI
-                  </button>
-                </div>
-
-                {/* Form fields */}
-                <div className={s.endpointFormFields}>
-                  <div>
-                    <label className={s.formLabel}>
-                      <div className={s.formLabelText}>Base URL</div>
+                  <div className={s.settingItem}>
+                    <label className={s.settingLabel}>
                       <input
-                        type="text"
-                        value={endpointBaseUrl}
-                        onChange={e => setEndpointBaseUrl(e.target.value)}
-                        placeholder="https://api.groq.com/openai/v1"
-                        className={`${s.input} ${s.fullWidthInput}`}
+                        type="checkbox"
+                        checked={analyticsEnabled}
+                        onChange={e => handleAnalyticsToggle(e.target.checked)}
+                        className={s.checkbox}
                       />
-                    </label>
-                  </div>
-                  <div>
-                    <label className={s.formLabel}>
-                      <div className={s.formLabelText}>API Key</div>
-                      <input
-                        type="password"
-                        value={endpointApiKey}
-                        onChange={e => setEndpointApiKey(e.target.value)}
-                        placeholder="Your API key"
-                        className={`${s.input} ${s.fullWidthInput}`}
-                      />
-                    </label>
-                  </div>
-                  <div>
-                    <label className={s.formLabel}>
-                      <div className={s.formLabelText}>Model</div>
-                      <input
-                        type="text"
-                        value={endpointModel}
-                        onChange={e => setEndpointModel(e.target.value)}
-                        placeholder="llama-3.1-70b-versatile"
-                        className={`${s.input} ${s.fullWidthInput}`}
-                      />
-                    </label>
-                  </div>
-                  <div>
-                    <label className={s.formLabel}>
-                      <div className={s.formLabelText}>Display Name (optional)</div>
-                      <input
-                        type="text"
-                        value={endpointDisplayName}
-                        onChange={e => setEndpointDisplayName(e.target.value)}
-                        placeholder="My Custom AI"
-                        className={`${s.input} ${s.fullWidthInput}`}
-                      />
+                      <div className={s.settingContent}>
+                        <div className={s.settingName}>Share anonymous usage data</div>
+                        <div className={s.settingDescription}>
+                          Help improve Noodles.gl by sharing anonymous feature usage data. We never
+                          collect your project data, node content, API keys, or personal
+                          information.
+                        </div>
+                      </div>
                     </label>
                   </div>
 
-                  <div className={s.actionButtonContainer}>
-                    <button
-                      type="button"
-                      onClick={handleSaveCustomEndpoint}
-                      disabled={!endpointBaseUrl || !endpointApiKey || !endpointModel}
-                      className={s.primaryButton}
+                  <div className={s.settingItem}>
+                    <label className={s.settingLabel}>
+                      <input
+                        type="checkbox"
+                        checked={errorCaptureEnabled}
+                        onChange={e => handleErrorCaptureToggle(e.target.checked)}
+                        className={s.checkbox}
+                      />
+                      <div className={s.settingContent}>
+                        <div className={s.settingName}>Send error reports (recommended)</div>
+                        <div className={s.settingDescription}>
+                          Automatically send error reports when something goes wrong. This helps us
+                          identify and fix bugs. No personal data is included in error reports.
+                        </div>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* AI Provider Tab */}
+            {activeTab === 'ai-provider' && (
+              <>
+                {/* AI Provider Section */}
+                <div className={s.section}>
+                  <h3 className={s.sectionTitle}>Choose AI Provider</h3>
+                  <div className={s.settingDescription} style={{ marginBottom: '16px' }}>
+                    Select which AI service powers the Noodles Assistant.
+                  </div>
+
+                  <div className={s.providerOptions}>
+                    <label
+                      className={`${s.providerOption} ${providerPreference === 'automatic' ? s.providerOptionSelected : ''}`}
                     >
-                      Save Endpoint
-                    </button>
-                    {customEndpoint && (
+                      <input
+                        type="radio"
+                        name="providerPreference"
+                        value="automatic"
+                        checked={providerPreference === 'automatic'}
+                        onChange={e =>
+                          handleProviderPreferenceChange(e.target.value as ProviderPreference)
+                        }
+                        className={s.providerRadio}
+                      />
+                      <div className={s.providerOptionContent}>
+                        <div className={s.providerOptionTitle}>Automatic (recommended)</div>
+                        <div className={s.providerOptionDescription}>
+                          Uses Claude if you have a key, otherwise falls back to custom endpoint or
+                          Chrome Built-in AI
+                        </div>
+                      </div>
+                    </label>
+
+                    <label
+                      className={`${s.providerOption} ${providerPreference === 'anthropic' ? s.providerOptionSelected : ''}`}
+                    >
+                      <input
+                        type="radio"
+                        name="providerPreference"
+                        value="anthropic"
+                        checked={providerPreference === 'anthropic'}
+                        onChange={e =>
+                          handleProviderPreferenceChange(e.target.value as ProviderPreference)
+                        }
+                        className={s.providerRadio}
+                      />
+                      <div className={s.providerOptionContent}>
+                        <div className={s.providerOptionTitle}>Always use Claude</div>
+                        <div className={s.providerOptionDescription}>
+                          Premium quality (requires Anthropic API key below)
+                        </div>
+                      </div>
+                    </label>
+
+                    <label
+                      className={`${s.providerOption} ${providerPreference === 'custom' ? s.providerOptionSelected : ''}`}
+                    >
+                      <input
+                        type="radio"
+                        name="providerPreference"
+                        value="custom"
+                        checked={providerPreference === 'custom'}
+                        onChange={e =>
+                          handleProviderPreferenceChange(e.target.value as ProviderPreference)
+                        }
+                        className={s.providerRadio}
+                      />
+                      <div className={s.providerOptionContent}>
+                        <div className={s.providerOptionTitle}>Custom endpoint</div>
+                        <div className={s.providerOptionDescription}>
+                          Use Groq, OpenRouter, OpenAI, or self-hosted (configure below)
+                        </div>
+                      </div>
+                    </label>
+
+                    <label
+                      className={`${s.providerOption} ${providerPreference === 'chrome-ai' ? s.providerOptionSelected : ''}`}
+                    >
+                      <input
+                        type="radio"
+                        name="providerPreference"
+                        value="chrome-ai"
+                        checked={providerPreference === 'chrome-ai'}
+                        onChange={e =>
+                          handleProviderPreferenceChange(e.target.value as ProviderPreference)
+                        }
+                        className={s.providerRadio}
+                      />
+                      <div className={s.providerOptionContent}>
+                        <div className={s.providerOptionTitle}>Chrome Built-in AI</div>
+                        <div className={s.providerOptionDescription}>
+                          Free, runs locally, no API key (Chrome 127+ required)
+                        </div>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+
+                {/* Custom Endpoint Configuration */}
+                <div className={s.settingItem} style={{ marginTop: '16px' }}>
+                  <div className={s.settingContent} style={{ width: '100%' }}>
+                    <div className={s.settingName}>Custom Endpoint Configuration</div>
+                    <div className={s.settingDescription}>
+                      Configure an OpenAI-compatible API endpoint. Use presets for popular
+                      providers.
+                    </div>
+
+                    {/* Preset buttons */}
+                    <div className={s.presetButtonContainer}>
                       <button
                         type="button"
-                        onClick={handleClearCustomEndpoint}
-                        className={s.secondaryButton}
+                        onClick={() => applyPreset('groq')}
+                        className={s.presetButton}
                       >
-                        Clear
+                        Groq (Free)
                       </button>
-                    )}
+                      <button
+                        type="button"
+                        onClick={() => applyPreset('openrouter')}
+                        className={s.presetButton}
+                      >
+                        OpenRouter
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => applyPreset('openai')}
+                        className={s.presetButton}
+                      >
+                        OpenAI
+                      </button>
+                    </div>
+
+                    {/* Form fields */}
+                    <div className={s.endpointFormFields}>
+                      <div>
+                        <label className={s.formLabel}>
+                          <div className={s.formLabelText}>Base URL</div>
+                          <input
+                            type="text"
+                            value={endpointBaseUrl}
+                            onChange={e => setEndpointBaseUrl(e.target.value)}
+                            placeholder="https://api.groq.com/openai/v1"
+                            className={`${s.input} ${s.fullWidthInput}`}
+                          />
+                        </label>
+                      </div>
+                      <div>
+                        <label className={s.formLabel}>
+                          <div className={s.formLabelText}>API Key</div>
+                          <input
+                            type="password"
+                            value={endpointApiKey}
+                            onChange={e => setEndpointApiKey(e.target.value)}
+                            placeholder="Your API key"
+                            className={`${s.input} ${s.fullWidthInput}`}
+                          />
+                        </label>
+                      </div>
+                      <div>
+                        <label className={s.formLabel}>
+                          <div className={s.formLabelText}>Model</div>
+                          <input
+                            type="text"
+                            value={endpointModel}
+                            onChange={e => setEndpointModel(e.target.value)}
+                            placeholder="llama-3.1-70b-versatile"
+                            className={`${s.input} ${s.fullWidthInput}`}
+                          />
+                        </label>
+                      </div>
+                      <div>
+                        <label className={s.formLabel}>
+                          <div className={s.formLabelText}>Display Name (optional)</div>
+                          <input
+                            type="text"
+                            value={endpointDisplayName}
+                            onChange={e => setEndpointDisplayName(e.target.value)}
+                            placeholder="My Custom AI"
+                            className={`${s.input} ${s.fullWidthInput}`}
+                          />
+                        </label>
+                      </div>
+
+                      <div className={s.actionButtonContainer}>
+                        <button
+                          type="button"
+                          onClick={handleSaveCustomEndpoint}
+                          disabled={!endpointBaseUrl || !endpointApiKey || !endpointModel}
+                          className={s.primaryButton}
+                        >
+                          Save Endpoint
+                        </button>
+                        {customEndpoint && (
+                          <button
+                            type="button"
+                            onClick={handleClearCustomEndpoint}
+                            className={s.secondaryButton}
+                          >
+                            Clear
+                          </button>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </div>
-            </div>
-          </div>
+              </>
+            )}
 
-          {/* API Keys Section */}
-          <div className={s.section}>
-            <h3 className={s.sectionTitle}>API Keys</h3>
+            {/* API Keys Tab */}
+            {activeTab === 'api-keys' && (
+              <>
+                {/* API Keys Section */}
+                <div className={s.section}>
+                  <h3 className={s.sectionTitle}>API Keys</h3>
 
-            <div className={s.privacyNote}>
-              Your API keys are never sent to Noodles.gl servers. Keys can be stored in your browser
-              or in project files.
-            </div>
+                  <div className={s.privacyNote}>
+                    Your API keys are never sent to Noodles.gl servers. Keys can be stored in your
+                    browser or in project files.
+                  </div>
 
-            <div className={s.keysGroup}>
-              <KeyGroup
-                label="Mapbox Access Token"
-                description="Enables Mapbox basemaps and high-quality driving directions. Without it, directions fall back to OSRM (free, OpenStreetMap-based) and place search falls back to Photon."
-                placeholder="pk.eyJ1..."
-                browserValue={browserKeys.mapbox || ''}
-                projectValue={projectKeys.mapbox}
-                envValue={envKeys.mapbox}
-                activeSource={getActiveSource('mapbox')}
-                onBrowserChange={value => setBrowserKey('mapbox', value)}
-                onBrowserClear={() => {
-                  setBrowserKey('mapbox', undefined)
-                  analytics.track('key_cleared', { key: 'mapbox' })
-                }}
-              />
+                  <div className={s.keysGroup}>
+                    <KeyGroup
+                      label="Mapbox Access Token"
+                      description="Enables Mapbox basemaps and high-quality driving directions. Without it, directions fall back to OSRM (free, OpenStreetMap-based) and place search falls back to Photon."
+                      placeholder="pk.eyJ1..."
+                      browserValue={browserKeys.mapbox || ''}
+                      projectValue={projectKeys.mapbox}
+                      envValue={envKeys.mapbox}
+                      activeSource={getActiveSource('mapbox')}
+                      onBrowserChange={value => setBrowserKey('mapbox', value)}
+                      onBrowserClear={() => {
+                        setBrowserKey('mapbox', undefined)
+                        analytics.track('key_cleared', { key: 'mapbox' })
+                      }}
+                    />
 
-              <KeyGroup
-                label="Google Maps API Key"
-                description="Enables transit directions and higher-quality place search. Optional — place search works without it via Photon (OpenStreetMap)."
-                placeholder="AIza..."
-                browserValue={browserKeys.googleMaps || ''}
-                projectValue={projectKeys.googleMaps}
-                envValue={envKeys.googleMaps}
-                activeSource={getActiveSource('googleMaps')}
-                onBrowserChange={value => setBrowserKey('googleMaps', value)}
-                onBrowserClear={() => {
-                  setBrowserKey('googleMaps', undefined)
-                  analytics.track('key_cleared', { key: 'googleMaps' })
-                }}
-              />
+                    <KeyGroup
+                      label="Google Maps API Key"
+                      description="Enables transit directions and higher-quality place search. Optional — place search works without it via Photon (OpenStreetMap)."
+                      placeholder="AIza..."
+                      browserValue={browserKeys.googleMaps || ''}
+                      projectValue={projectKeys.googleMaps}
+                      envValue={envKeys.googleMaps}
+                      activeSource={getActiveSource('googleMaps')}
+                      onBrowserChange={value => setBrowserKey('googleMaps', value)}
+                      onBrowserClear={() => {
+                        setBrowserKey('googleMaps', undefined)
+                        analytics.track('key_cleared', { key: 'googleMaps' })
+                      }}
+                    />
 
-              <KeyGroup
-                label="Cesium Ion Access Token"
-                description="Required for Cesium Ion 3D tile datasets. Not needed if you use custom 3D tile URLs directly."
-                placeholder="eyJhb..."
-                browserValue={browserKeys.cesium || ''}
-                projectValue={projectKeys.cesium}
-                envValue={envKeys.cesium}
-                activeSource={getActiveSource('cesium')}
-                onBrowserChange={value => setBrowserKey('cesium', value)}
-                onBrowserClear={() => {
-                  setBrowserKey('cesium', undefined)
-                  analytics.track('key_cleared', { key: 'cesium' })
-                }}
-              />
+                    <KeyGroup
+                      label="Cesium Ion Access Token"
+                      description="Required for Cesium Ion 3D tile datasets. Not needed if you use custom 3D tile URLs directly."
+                      placeholder="eyJhb..."
+                      browserValue={browserKeys.cesium || ''}
+                      projectValue={projectKeys.cesium}
+                      envValue={envKeys.cesium}
+                      activeSource={getActiveSource('cesium')}
+                      onBrowserChange={value => setBrowserKey('cesium', value)}
+                      onBrowserClear={() => {
+                        setBrowserKey('cesium', undefined)
+                        analytics.track('key_cleared', { key: 'cesium' })
+                      }}
+                    />
 
-              <KeyGroup
-                label="Anthropic API Key (Claude)"
-                description="Premium AI provider with best quality. Optional — the assistant works without it using custom endpoint or Chrome Built-in AI. Get your key from console.anthropic.com"
-                placeholder="sk-ant-..."
-                browserValue={browserKeys.anthropic || ''}
-                projectValue={projectKeys.anthropic}
-                envValue={envKeys.anthropic}
-                activeSource={getActiveSource('anthropic')}
-                onBrowserChange={value => setBrowserKey('anthropic', value)}
-                onBrowserClear={() => {
-                  setBrowserKey('anthropic', undefined)
-                  analytics.track('key_cleared', { key: 'anthropic' })
-                }}
-              />
+                    <KeyGroup
+                      label="Anthropic API Key (Claude)"
+                      description="Premium AI provider with best quality. Optional — the assistant works without it using custom endpoint or Chrome Built-in AI. Get your key from console.anthropic.com"
+                      placeholder="sk-ant-..."
+                      browserValue={browserKeys.anthropic || ''}
+                      projectValue={projectKeys.anthropic}
+                      envValue={envKeys.anthropic}
+                      activeSource={getActiveSource('anthropic')}
+                      onBrowserChange={value => setBrowserKey('anthropic', value)}
+                      onBrowserClear={() => {
+                        setBrowserKey('anthropic', undefined)
+                        analytics.track('key_cleared', { key: 'anthropic' })
+                      }}
+                    />
 
-              <KeyGroup
-                label="Overpass API Endpoint"
-                description="Used by the Overpass operator to query OpenStreetMap data. Defaults to overpass.openstreetmap.fr (France mirror with reliable CORS)."
-                placeholder="https://overpass.openstreetmap.fr/api/interpreter"
-                browserValue={browserKeys.overpass || ''}
-                projectValue={projectKeys.overpass}
-                envValue={envKeys.overpass}
-                activeSource={getActiveSource('overpass')}
-                onBrowserChange={value => setBrowserKey('overpass', value)}
-                onBrowserClear={() => {
-                  setBrowserKey('overpass', undefined)
-                  analytics.track('key_cleared', { key: 'overpass' })
-                }}
-              />
-            </div>
+                    <KeyGroup
+                      label="Overpass API Endpoint"
+                      description="Used by the Overpass operator to query OpenStreetMap data. Defaults to overpass.openstreetmap.fr (France mirror with reliable CORS)."
+                      placeholder="https://overpass.openstreetmap.fr/api/interpreter"
+                      browserValue={browserKeys.overpass || ''}
+                      projectValue={projectKeys.overpass}
+                      envValue={envKeys.overpass}
+                      activeSource={getActiveSource('overpass')}
+                      onBrowserChange={value => setBrowserKey('overpass', value)}
+                      onBrowserClear={() => {
+                        setBrowserKey('overpass', undefined)
+                        analytics.track('key_cleared', { key: 'overpass' })
+                      }}
+                    />
+                  </div>
 
-            {/* Save in project checkbox */}
-            <div className={s.settingItem}>
-              <label className={s.settingLabel}>
-                <input
-                  type="checkbox"
-                  checked={saveInProject}
-                  onChange={e => handleSaveInProjectToggle(e.target.checked)}
-                  className={s.checkbox}
-                />
-                <div className={s.settingContent}>
-                  <div className={s.settingName}>Save browser keys in project file</div>
-                  <div className={s.settingDescription}>
-                    Include your browser keys in the project file when saving. Only enable this if
-                    you want to share your keys with collaborators. Keys are stored in plain text.
+                  {/* Save in project checkbox */}
+                  <div className={s.settingItem}>
+                    <label className={s.settingLabel}>
+                      <input
+                        type="checkbox"
+                        checked={saveInProject}
+                        onChange={e => handleSaveInProjectToggle(e.target.checked)}
+                        className={s.checkbox}
+                      />
+                      <div className={s.settingContent}>
+                        <div className={s.settingName}>Save browser keys in project file</div>
+                        <div className={s.settingDescription}>
+                          Include your browser keys in the project file when saving. Only enable
+                          this if you want to share your keys with collaborators. Keys are stored in
+                          plain text.
+                        </div>
+                      </div>
+                    </label>
                   </div>
                 </div>
-              </label>
-            </div>
+              </>
+            )}
           </div>
 
           <div className={s.footer}>

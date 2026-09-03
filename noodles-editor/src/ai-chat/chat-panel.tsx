@@ -59,6 +59,12 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
   // Get the function to open settings dialog
   const setSettingsDialogOpen = useUIStore(state => state.setSettingsDialogOpen)
 
+  // Open settings and navigate to AI Provider tab
+  const openAIProviderSettings = () => {
+    window.location.hash = 'ai-provider'
+    setSettingsDialogOpen(true)
+  }
+
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   // Subscribe to context loading progress
@@ -299,7 +305,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
           <div style={{ marginBottom: '1rem' }}>
             <button
               type="button"
-              onClick={() => setSettingsDialogOpen(true)}
+              onClick={openAIProviderSettings}
               className={styles.chatSendBtn}
               style={{ fontSize: '14px', padding: '10px 20px' }}
             >
@@ -366,7 +372,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
               {!anthropicKey && aiProvider.tier === 'free' && (
                 <button
                   type="button"
-                  onClick={() => setSettingsDialogOpen(true)}
+                  onClick={openAIProviderSettings}
                   className={styles.linkButton}
                   style={{ marginLeft: '8px', fontSize: '11px' }}
                   title="Add Anthropic API key for premium quality"
@@ -415,7 +421,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
               For better results,{' '}
               <button
                 type="button"
-                onClick={() => setSettingsDialogOpen(true)}
+                onClick={openAIProviderSettings}
                 className={styles.upgradeBannerLink}
               >
                 add an Anthropic or OpenAI API key
