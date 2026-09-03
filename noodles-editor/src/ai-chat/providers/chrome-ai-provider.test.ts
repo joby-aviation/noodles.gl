@@ -4,6 +4,14 @@ import type { NoodlesProject } from '../types'
 import { ChromeAIProvider } from './chrome-ai-provider'
 import { ProviderError } from './ai-provider-interface'
 
+// Mock the operator store
+const mockOpStore = new Map()
+vi.mock('../../noodles/store', () => ({
+  getOpStore: () => ({
+    get: (id: string) => mockOpStore.get(id),
+  }),
+}))
+
 // Mock the Chrome AI global API
 interface MockLanguageModelSession {
   prompt: ReturnType<typeof vi.fn>
@@ -23,6 +31,12 @@ let mockLanguageModel: MockLanguageModel
 let mockSession: MockLanguageModelSession
 
 describe('ChromeAIProvider', () => {
+  const mockProject: NoodlesProject = {
+    nodes: [],
+    edges: [],
+    viewport: { x: 0, y: 0, zoom: 1 },
+  }
+
   const mockTools = {
     captureVisualization: vi.fn(),
     getConsoleErrors: vi.fn(),
@@ -37,13 +51,9 @@ describe('ChromeAIProvider', () => {
     setKeyframe: vi.fn(),
     deleteKeyframe: vi.fn(),
     setPlaybackPosition: vi.fn(),
+    getProject: () => mockProject,
+    setProject: vi.fn(),
   } as unknown as MCPTools
-
-  const mockProject: NoodlesProject = {
-    nodes: [],
-    edges: [],
-    viewport: { x: 0, y: 0, zoom: 1 },
-  }
 
   beforeEach(() => {
     // Create fresh mocks for each test
@@ -276,7 +286,8 @@ describe('ChromeAIProvider', () => {
         project: mockProject,
       })
 
-      expect(mockSession.prompt).toHaveBeenCalledWith('Hello AI')
+      // Prompt should include the message formatted with User/Assistant prefix
+      expect(mockSession.prompt).toHaveBeenCalledWith(expect.stringContaining('Hello AI'))
       expect(response.message).toBe('Here is my response')
       expect(response.toolCalls).toEqual([])
       expect(response.projectModifications).toEqual([])
@@ -589,6 +600,142 @@ Valid modifications:
       const systemPrompt = mockLanguageModel.create.mock.calls[0][0].systemPrompt
       // Should be under 1000 characters (much smaller than full system prompt)
       expect(systemPrompt.length).toBeLessThan(1000)
+    })
+  })
+
+  describe('Project context injection', () => {
+    beforeEach(async () => {
+      mockLanguageModel.availability.mockResolvedValue('available')
+      mockLanguageModel.create.mockResolvedValue(mockSession)
+      mockSession.prompt.mockResolvedValue('Response')
+
+      // Clear mock op store before each test
+      mockOpStore.clear()
+    })
+
+    it('injects project node context into prompts', async () => {
+      // Setup test operators in mock store
+      mockOpStore.set('/data', {
+        inputs: { url: { value: 'test-data.csv' } },
+      })
+      mockOpStore.set('/layer', {
+        inputs: {},
+      })
+
+      const projectWithNodes: NoodlesProject = {
+        nodes: [
+          { id: '/data', type: 'FileOp' },
+          { id: '/layer', type: 'ScatterplotLayerOp' },
+        ],
+        edges: [
+          {
+            id: 'edge1',
+            source: '/data',
+            target: '/layer',
+            sourceHandle: 'out.data',
+            targetHandle: 'par.data',
+          },
+        ],
+      }
+
+      const mockToolsWithProject = {
+        ...mockTools,
+        getProject: () => projectWithNodes,
+      } as unknown as MCPTools
+
+      const provider = new ChromeAIProvider(mockToolsWithProject)
+      await provider.initialize()
+
+      await provider.sendMessage({
+        message: 'Change the color',
+        project: projectWithNodes,
+      })
+
+      const promptCall = mockSession.prompt.mock.calls[0][0]
+      // Should contain node information
+      expect(promptCall).toContain('Current project nodes:')
+      expect(promptCall).toContain('/data (FileOp)')
+      expect(promptCall).toContain('/layer (ScatterplotLayerOp)')
+    })
+
+    it('handles empty project gracefully', async () => {
+      const emptyProject: NoodlesProject = {
+        nodes: [],
+        edges: [],
+      }
+
+      const mockToolsWithEmpty = {
+        ...mockTools,
+        getProject: () => emptyProject,
+      } as unknown as MCPTools
+
+      const provider = new ChromeAIProvider(mockToolsWithEmpty)
+      await provider.initialize()
+
+      await provider.sendMessage({
+        message: 'Hello',
+        project: emptyProject,
+      })
+
+      const promptCall = mockSession.prompt.mock.calls[0][0]
+      // Should not inject context for empty project
+      expect(promptCall).not.toContain('Current project nodes:')
+      expect(promptCall).toContain('Hello')
+    })
+
+    it('handles project with no nodes array', async () => {
+      const projectWithoutNodes: NoodlesProject = {}
+
+      const mockToolsWithNoNodes = {
+        ...mockTools,
+        getProject: () => projectWithoutNodes,
+      } as unknown as MCPTools
+
+      const provider = new ChromeAIProvider(mockToolsWithNoNodes)
+      await provider.initialize()
+
+      await provider.sendMessage({
+        message: 'Test',
+        project: projectWithoutNodes,
+      })
+
+      const promptCall = mockSession.prompt.mock.calls[0][0]
+      expect(promptCall).not.toContain('Current project nodes:')
+    })
+
+    it('truncates large projects to avoid context overflow', async () => {
+      // Create 50 nodes (exceeds 30 node limit)
+      const manyNodes = Array.from({ length: 50 }, (_, i) => ({
+        id: `/node-${i}`,
+        type: 'NumberOp',
+      }))
+
+      const largeProject: NoodlesProject = {
+        nodes: manyNodes,
+        edges: [],
+      }
+
+      // Setup 50 nodes in mock store
+      for (let i = 0; i < 50; i++) {
+        mockOpStore.set(`/node-${i}`, { inputs: {} })
+      }
+
+      const mockToolsWithLarge = {
+        ...mockTools,
+        getProject: () => largeProject,
+      } as unknown as MCPTools
+
+      const provider = new ChromeAIProvider(mockToolsWithLarge)
+      await provider.initialize()
+
+      await provider.sendMessage({
+        message: 'Test',
+        project: largeProject,
+      })
+
+      const promptCall = mockSession.prompt.mock.calls[0][0]
+      // Should include truncation note
+      expect(promptCall).toContain('and 20 more nodes')
     })
   })
 })

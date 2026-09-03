@@ -1,4 +1,5 @@
 import type { ProjectModification } from '../../noodles/hooks/use-project-modifications'
+import { getOpStore } from '../../noodles/store'
 import { debugAiChat } from '../../utils/debug'
 import { TimeoutError, withTimeout } from '../../utils/timeout'
 import type { MCPTools } from '../mcp-tools'
@@ -298,13 +299,17 @@ export class ChromeAIProvider implements AIProvider {
       .map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${this.stripImages(m.content)}`)
       .join('\n\n')
 
+    // Inject current project context (Chrome AI can't call tools to discover this)
+    const projectContext = this.buildProjectContext()
+
     const fullPrompt = contextMessages
-      ? `${contextMessages}\n\nUser: ${message}\n\nAssistant:`
-      : message
+      ? `${contextMessages}${projectContext}\n\nUser: ${message}\n\nAssistant:`
+      : `${projectContext}\n\nUser: ${message}\n\nAssistant:`
 
     debugAiChat('Sending to Chrome Built-in AI:', {
       messageLength: message.length,
       historyLength: recentHistory.length,
+      projectContextLength: projectContext.length,
     })
 
     let response: string
@@ -365,6 +370,79 @@ When suggesting changes, provide JSON modifications in this format:
 \`\`\`
 
 Be concise and practical. Focus on solving the user's immediate problem.`
+  }
+
+  // Build concise project context summary for Chrome AI
+  private buildProjectContext(): string {
+    const project = this.tools.getProject()
+    if (!project || !project.nodes || project.nodes.length === 0) {
+      return ''
+    }
+
+    const opStore = getOpStore()
+    const nodeDescriptions: string[] = []
+
+    // Limit to 30 nodes to avoid context overflow
+    const maxNodes = 30
+    const nodes = project.nodes.slice(0, maxNodes)
+
+    for (const node of nodes) {
+      const op = opStore.get(node.id)
+      if (!op) continue
+
+      // Basic node info
+      let desc = `- ${node.id} (${node.type})`
+
+      // Add brief description based on type
+      if (node.type === 'FileOp') {
+        const url = op.inputs.url?.value
+        if (url) {
+          const filename = typeof url === 'string' ? url.split('/').pop() : url
+          desc += ` - loads ${filename}`
+        }
+      } else if (node.type.includes('LayerOp')) {
+        desc += ' - visualization layer'
+      } else if (node.type === 'DeckRendererOp') {
+        desc += ' - main output'
+      } else if (node.type === 'MaplibreBasemapOp') {
+        desc += ' - base map'
+      } else if (node.type === 'ColorOp') {
+        const color = op.inputs.color?.value
+        if (color) desc += ` - color: ${color}`
+      } else if (node.type === 'AccessorOp') {
+        desc += ' - data accessor'
+      } else if (node.type === 'CodeOp') {
+        desc += ' - custom code'
+      } else if (node.type === 'DuckDbOp') {
+        desc += ' - SQL query'
+      }
+
+      // Add incoming connections for layers (most important for context)
+      if (node.type.includes('LayerOp')) {
+        const edges = project.edges?.filter(e => e.target === node.id)
+        if (edges && edges.length > 0) {
+          const connections = edges
+            .slice(0, 5) // Limit connections shown
+            .map(e => {
+              const fieldName = e.targetHandle?.replace('par.', '') || 'input'
+              return `${fieldName} from ${e.source}`
+            })
+            .join(', ')
+          desc += `, connected: ${connections}`
+        }
+      }
+
+      nodeDescriptions.push(desc)
+    }
+
+    let context = '\n\nCurrent project nodes:\n' + nodeDescriptions.join('\n')
+
+    // Add truncation note if needed
+    if (project.nodes.length > maxNodes) {
+      context += `\n... and ${project.nodes.length - maxNodes} more nodes`
+    }
+
+    return context
   }
 
   private extractProjectModifications(text: string): ProjectModification[] {
