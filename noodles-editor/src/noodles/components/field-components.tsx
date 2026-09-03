@@ -4,6 +4,62 @@ import { Cross2Icon } from '@radix-ui/react-icons'
 import { Handle, Position, useEdges, useNodeId, useReactFlow } from '@xyflow/react'
 import cx from 'classnames'
 import type { ScaleLinear, ScaleOrdinal } from 'd3'
+import * as d3 from 'd3'
+import {
+  interpolateBlues,
+  interpolateBrBG,
+  interpolateBuGn,
+  interpolateBuPu,
+  interpolateCividis,
+  interpolateCool,
+  interpolateCubehelixDefault,
+  interpolateGnBu,
+  interpolateGreens,
+  interpolateGreys,
+  interpolateInferno,
+  interpolateMagma,
+  interpolateOranges,
+  interpolateOrRd,
+  interpolatePiYG,
+  interpolatePlasma,
+  interpolatePRGn,
+  interpolatePuBu,
+  interpolatePuOr,
+  interpolatePurples,
+  interpolateRainbow,
+  interpolateRdBu,
+  interpolateRdGy,
+  interpolateRdYlBu,
+  interpolateRdYlGn,
+  interpolateReds,
+  interpolateSinebow,
+  interpolateSpectral,
+  interpolateTurbo,
+  interpolateViridis,
+  interpolateWarm,
+  interpolateYlGn,
+  schemeAccent,
+  schemeBrBG,
+  schemeCategory10,
+  schemeDark2,
+  schemeGreys,
+  schemePaired,
+  schemePiYG,
+  schemePRGn,
+  schemePuBu,
+  schemeRdBu,
+  schemeRdGy,
+  schemeRdYlBu,
+  schemeRdYlGn,
+  schemeSet1,
+  schemeSet2,
+  schemeSet3,
+  schemeSpectral,
+  schemeTableau10,
+  schemeYlGn,
+} from 'd3-scale-chromatic'
+import { scaleOrdinal } from 'd3-scale'
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { Button } from 'primereact/button'
 import { InputText } from 'primereact/inputtext'
 import {
@@ -82,6 +138,76 @@ import menuStyles from './menu.module.css'
 import contextMenuStyles from './node-properties.module.css'
 import { handleClass, useHandleDimmed } from './op-components'
 import { MultiInputHandle } from './multi-input-handle'
+
+const JOBY_COLORS = [
+  '#FFB300',
+  '#EB6110',
+  '#E64839',
+  '#00994C',
+  '#883DF2',
+  '#7CC3FF',
+  '#3EC26A',
+  '#FF9058',
+  '#FFCC54',
+  '#B580FF',
+]
+
+const continuousInterpolators = {
+  viridis: interpolateViridis,
+  inferno: interpolateInferno,
+  plasma: interpolatePlasma,
+  magma: interpolateMagma,
+  turbo: interpolateTurbo,
+  cividis: interpolateCividis,
+  warm: interpolateWarm,
+  cool: interpolateCool,
+  cubehelix: interpolateCubehelixDefault,
+  spectral: interpolateSpectral,
+  rainbow: interpolateRainbow,
+  sinebow: interpolateSinebow,
+  blues: interpolateBlues,
+  greens: interpolateGreens,
+  greys: interpolateGreys,
+  reds: interpolateReds,
+  oranges: interpolateOranges,
+  purples: interpolatePurples,
+  joby: d3.interpolateRgbBasis(JOBY_COLORS),
+  PinkYellowGreen: interpolatePiYG,
+  PurpleOrange: interpolatePuOr,
+  RedBlue: interpolateRdBu,
+  RedGrey: interpolateRdGy,
+  RedYellowBlue: interpolateRdYlBu,
+  BlueGreen: interpolateBuGn,
+  BluePurple: interpolateBuPu,
+  GreenBlue: interpolateGnBu,
+  OrangeRed: interpolateOrRd,
+}
+
+const categoricalSchemesFixed = {
+  accent: schemeAccent,
+  category10: schemeCategory10,
+  dark: schemeDark2,
+  paired: schemePaired,
+  set1: schemeSet1,
+  set2: schemeSet2,
+  set3: schemeSet3,
+  tableau10: schemeTableau10,
+  joby: JOBY_COLORS,
+}
+
+const categoricalSchemesStepped = {
+  greyscale: schemeGreys,
+  BrownGreen: schemeBrBG,
+  PurpleGreen: schemePRGn,
+  PurpleBlue: schemePuBu,
+  PinkYellowGreen: schemePiYG,
+  RedBlue: schemeRdBu,
+  RedGrey: schemeRdGy,
+  RedYellowBlue: schemeRdYlBu,
+  RedYellowGreen: schemeRdYlGn,
+  YellowGreen: schemeYlGn,
+  spectral: schemeSpectral,
+}
 
 type InputComponent = React.ComponentType<{
   id: OpId
@@ -304,7 +430,20 @@ export function TextFieldComponent({
   if (field instanceof StringLiteralField) {
     const useTypeahead = field.choices.length > 0 && field.freeform
 
-    if (useTypeahead) {
+    if (field.displayAs === 'color-scheme') {
+      input = (
+        <ColorSchemeDropdown
+          choices={field.choices}
+          value={value}
+          onChange={newValue => {
+            captureStart()
+            field.setValue(newValue)
+            commitChange('Change color scheme')
+          }}
+          disabled={disabled}
+        />
+      )
+    } else if (useTypeahead) {
       input = (
         <StringLiteralTypeaheadInput
           id={id}
@@ -2186,6 +2325,92 @@ export function ColorFieldComponent({
   )
 }
 
+function ColorSchemePreview({ schemeName }: { schemeName: string }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    const width = 100
+    const height = 16
+
+    if (schemeName in continuousInterpolators) {
+      const interpolator = continuousInterpolators[schemeName as keyof typeof continuousInterpolators]
+      for (let i = 0; i < width; i++) {
+        const t = i / (width - 1)
+        ctx.fillStyle = interpolator(t)
+        ctx.fillRect(i, 0, 1, height)
+      }
+    } else if (schemeName in categoricalSchemesFixed) {
+      const scheme = categoricalSchemesFixed[schemeName as keyof typeof categoricalSchemesFixed]
+      const blockWidth = width / scheme.length
+      scheme.forEach((color, i) => {
+        ctx.fillStyle = color
+        ctx.fillRect(i * blockWidth, 0, blockWidth, height)
+      })
+    } else if (schemeName in categoricalSchemesStepped) {
+      const schemes = categoricalSchemesStepped[schemeName as keyof typeof categoricalSchemesStepped]
+      const scheme = schemes[Math.min(8, schemes.length - 1)] as readonly string[]
+      const blockWidth = width / scheme.length
+      scheme.forEach((color, i) => {
+        ctx.fillStyle = color
+        ctx.fillRect(i * blockWidth, 0, blockWidth, height)
+      })
+    }
+  }, [schemeName])
+
+  return <canvas ref={canvasRef} className={s.colorSchemePreviewCanvas} width={100} height={16} />
+}
+
+function ColorSchemeDropdown({
+  choices,
+  value,
+  onChange,
+  disabled,
+  triggerElement,
+}: {
+  choices: { value: string; label: string }[]
+  value: string
+  onChange: (value: string) => void
+  disabled: boolean
+  triggerElement?: React.ReactNode
+}) {
+  const defaultTrigger = (
+    <button type="button" className={cx(s.fieldInput, s.fieldInputSelect)} disabled={disabled}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <ColorSchemePreview schemeName={value} />
+        <span>{choices.find(c => c.value === value)?.label || value}</span>
+      </div>
+    </button>
+  )
+
+  return (
+    <DropdownMenu.Root>
+      <DropdownMenu.Trigger asChild disabled={disabled}>
+        {triggerElement || defaultTrigger}
+      </DropdownMenu.Trigger>
+      <DropdownMenu.Portal>
+        <DropdownMenu.Content className={s.colorSchemeDropdownContent} sideOffset={4}>
+          {choices.map(choice => (
+            <DropdownMenu.Item
+              key={choice.value}
+              className={s.colorSchemeDropdownItem}
+              onSelect={() => onChange(choice.value)}
+            >
+              <ColorSchemePreview schemeName={choice.value} />
+              <span className={s.colorSchemeName}>{choice.label}</span>
+            </DropdownMenu.Item>
+          ))}
+        </DropdownMenu.Content>
+      </DropdownMenu.Portal>
+    </DropdownMenu.Root>
+  )
+}
+
 export function ColorRampComponent({
   id,
   field,
@@ -2207,11 +2432,6 @@ export function ColorRampComponent({
     return () => sub.unsubscribe()
   }, [field])
 
-  const _onChange = e => {
-    if (disabled) return
-    field.setValue(e.currentTarget.value)
-  }
-
   const canvasRef = useRef<HTMLCanvasElement>(null)
   useEffect(() => {
     const canvas = canvasRef.current
@@ -2220,14 +2440,6 @@ export function ColorRampComponent({
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
-    // const gradient = ctx.createLinearGradient(0, 0, 200, 0)
-    // gradient.addColorStop(0, 'red')
-    // gradient.addColorStop(0.5, 'green')
-    // gradient.addColorStop(1, 'blue')
-
-    // ctx.fillStyle = gradient
-    // ctx.fillRect(0, 0, 200, 100)
-
     for (let i = 0; i < steps; ++i) {
       const val = field instanceof CategoricalColorRampField ? `${id}-${i}` : i / (steps - 1)
       ctx.fillStyle = interpolate(val)
@@ -2235,6 +2447,49 @@ export function ColorRampComponent({
     }
   }, [interpolate, field, id, steps])
 
+  // Check for sibling colorScheme field
+  const colorSchemeField = useMemo(() => {
+    const op = field.op
+    if (!op) return null
+    const csField = op.inputs.colorScheme
+    return csField instanceof StringLiteralField && csField.displayAs === 'color-scheme'
+      ? csField
+      : null
+  }, [field.op])
+
+  const { captureStart, commitChange } = usePropertyHistory()
+
+  if (colorSchemeField) {
+    // Render clickable canvas with dropdown
+    const triggerElement = (
+      <button
+        type="button"
+        className={s.fieldInputColorRampButton}
+        disabled={disabled}
+        title="Click to change color scheme"
+      >
+        <canvas ref={canvasRef} className={s.fieldInputColorRamp} width={steps} height={1} />
+      </button>
+    )
+
+    return (
+      <div className={cx(s.fieldWrapper, 'nokey')}>
+        <ColorSchemeDropdown
+          choices={colorSchemeField.choices}
+          value={colorSchemeField.value}
+          onChange={newValue => {
+            captureStart()
+            colorSchemeField.setValue(newValue)
+            commitChange('Change color scheme')
+          }}
+          disabled={disabled}
+          triggerElement={triggerElement}
+        />
+      </div>
+    )
+  }
+
+  // Fallback: read-only canvas (existing behavior)
   return (
     <div className={cx(s.fieldWrapper, 'nokey')}>
       <canvas className={s.fieldInputColorRamp} ref={canvasRef} width={steps} height={1} />

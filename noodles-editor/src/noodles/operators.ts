@@ -1789,7 +1789,10 @@ export class ColorRampOp extends Operator<ColorRampOp> {
       OrangeRed: interpolateOrRd,
     }
 
-    const colorScheme = new StringLiteralField('viridis', Object.keys(interpolators))
+    const colorScheme = new StringLiteralField('viridis', {
+      values: Object.keys(interpolators),
+      displayAs: 'color-scheme',
+    })
 
     colorScheme.subscribe(val => {
       const interpolate = interpolators[val as keyof typeof interpolators]
@@ -1863,7 +1866,10 @@ export class CategoricalColorRampOp extends Operator<CategoricalColorRampOp> {
 
     const allSchemeNames = [...Object.keys(fixedSchemes), ...Object.keys(steppedSchemes)]
 
-    const colorScheme = new StringLiteralField('accent', allSchemeNames)
+    const colorScheme = new StringLiteralField('accent', {
+      values: allSchemeNames,
+      displayAs: 'color-scheme',
+    })
     const steps = new NumberField(8, { min: 3, max: 11, step: 1 })
 
     const updateRamp = () => {
