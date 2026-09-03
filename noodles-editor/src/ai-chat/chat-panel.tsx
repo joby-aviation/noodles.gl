@@ -11,6 +11,7 @@ import { useUIStore } from '../noodles/store'
 import { debugAiChat } from '../utils/debug'
 import { useAgentModelStore } from './agent/model-store'
 import { ANTHROPIC_MODELS, AnthropicProvider } from './agent/providers/anthropic'
+import { CHROME_MODELS, chromeAvailability, createChromeProvider } from './agent/providers/chrome'
 import { OPENROUTER_MODELS, OpenRouterProvider } from './agent/providers/openrouter'
 import { AgentSession } from './agent/session'
 import type { AgentProvider, AgentUsage, ProviderId } from './agent/types'
@@ -54,6 +55,9 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
   const [streamingText, setStreamingText] = useState('')
   const [activeTools, setActiveTools] = useState<string[]>([])
   const [lastUsage, setLastUsage] = useState<AgentUsage | null>(null)
+  // Whether this browser has a usable built-in model. Only knowable
+  // asynchronously, so it starts false and the option stays disabled until then.
+  const [chromeAvailable, setChromeAvailable] = useState(false)
   const abortRef = useRef<AbortController | null>(null)
 
   // Get API keys directly from store (reactive)
@@ -66,11 +70,18 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
 
   // Anthropic unless only the OpenRouter key is configured, or the user picked
   // otherwise. Falls back when the chosen provider's key has since been cleared.
-  const providerId: ProviderId = resolveProviderId(storedProvider, apiKey, openRouterKey)
+  const providerId: ProviderId = resolveProviderId(
+    storedProvider,
+    apiKey,
+    openRouterKey,
+    chromeAvailable
+  )
   const providerKey = providerId === 'anthropic' ? apiKey : openRouterKey
+  // Chrome needs no key, so readiness is not the same question as "has a key"
+  const providerReady = providerId === 'chrome' ? chromeAvailable : Boolean(providerKey)
   // undefined leaves the provider on its own default
   const model = useAgentModelStore(state => state.getModel(providerId))
-  const modelChoices = providerId === 'anthropic' ? ANTHROPIC_MODELS : OPENROUTER_MODELS
+  const modelChoices = modelChoicesFor(providerId)
 
   // Get the function to open settings dialog
   const setSettingsDialogOpen = useUIStore(state => state.setSettingsDialogOpen)
@@ -90,9 +101,21 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
     return unsubscribe
   }, [])
 
+  // Ask once whether this browser can run a model locally. 'downloadable' counts:
+  // create() then downloads it, which is a wait rather than a failure.
+  useEffect(() => {
+    let current = true
+    chromeAvailability().then(availability => {
+      if (current) setChromeAvailable(availability !== 'unavailable')
+    })
+    return () => {
+      current = false
+    }
+  }, [])
+
   // Build the session whenever the provider, model, or key changes
   useEffect(() => {
-    if (!providerKey) {
+    if (!providerReady) {
       setContextLoading(false)
       return
     }
@@ -104,10 +127,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
         const loader = await globalContextManager.waitForReady()
 
         const tools = new MCPTools(loader)
-        const provider: AgentProvider =
-          providerId === 'anthropic'
-            ? new AnthropicProvider({ apiKey: providerKey, model })
-            : new OpenRouterProvider({ apiKey: providerKey, model })
+        const provider: AgentProvider = await createProvider(providerId, providerKey, model)
 
         setMcpTools(tools)
         setSession(
@@ -128,7 +148,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
     }
 
     init()
-  }, [providerId, providerKey, model, apiKey, openRouterKey])
+  }, [providerId, providerKey, providerReady, model, apiKey, openRouterKey])
 
   // Update MCPTools with current project whenever it changes
   useEffect(() => {
@@ -333,7 +353,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
   if (!isVisible) return null
 
   // Check if a usable key is missing
-  if (!providerKey && !contextLoading) {
+  if (!providerReady && !contextLoading) {
     return (
       <div className={styles.chatPanel}>
         <div className={styles.chatPanelLoading}>
@@ -429,11 +449,16 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
             <option value="openrouter" disabled={!openRouterKey}>
               OpenRouter
             </option>
+            <option value="chrome" disabled={!chromeAvailable}>
+              Chrome (local)
+            </option>
           </select>
           <select
             value={model ?? modelChoices[0].id}
             onChange={e => setStoredModel(providerId, e.target.value)}
             className={styles.modelSelect}
+            // Chrome exposes one model, so there is nothing to choose between
+            disabled={modelChoices.length < 2}
             title="Model for this conversation"
           >
             {modelChoices.map(choice => (
@@ -558,16 +583,48 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
 
 // The stored choice wins, but only while its key is still configured — clearing a
 // key in Settings should not leave the chat pointed at a provider it cannot reach.
+// Chrome is never the automatic fallback: it is the weakest of the three, so it
+// has to be asked for.
 function resolveProviderId(
   stored: ProviderId | undefined,
   anthropicKey: string | undefined,
-  openRouterKey: string | undefined
+  openRouterKey: string | undefined,
+  chromeAvailable: boolean
 ): ProviderId {
   if (stored === 'anthropic' && anthropicKey) return 'anthropic'
   if (stored === 'openrouter' && openRouterKey) return 'openrouter'
+  if (stored === 'chrome' && chromeAvailable) return 'chrome'
   if (anthropicKey) return 'anthropic'
   if (openRouterKey) return 'openrouter'
   return 'anthropic'
+}
+
+function modelChoicesFor(providerId: ProviderId): readonly { id: string; label: string }[] {
+  switch (providerId) {
+    case 'anthropic':
+      return ANTHROPIC_MODELS
+    case 'openrouter':
+      return OPENROUTER_MODELS
+    case 'chrome':
+      return CHROME_MODELS
+  }
+}
+
+// Chrome is the only provider whose construction is async: it probes the browser
+// for the real context window before the router can be sized against it.
+async function createProvider(
+  providerId: ProviderId,
+  apiKey: string | undefined,
+  model: string | undefined
+): Promise<AgentProvider> {
+  switch (providerId) {
+    case 'chrome':
+      return createChromeProvider()
+    case 'openrouter':
+      return new OpenRouterProvider({ apiKey: apiKey ?? '', model })
+    case 'anthropic':
+      return new AnthropicProvider({ apiKey: apiKey ?? '', model })
+  }
 }
 
 function formatUsage(usage: AgentUsage): string {
