@@ -349,31 +349,36 @@ export class ChromeAIProvider implements AIProvider {
 
   // Simplified system prompt for Chrome AI (smaller context window)
   private getSimplifiedSystemPrompt(): string {
-    return `You are an AI assistant for Noodles.gl, a geospatial visualization tool.
+    return `You are an AI assistant for Noodles.gl. When asked to change the project, COPY this format EXACTLY:
 
-To modify the project, use this EXACT JSON array format:
+TEMPLATE (copy this):
 \`\`\`json
-[{"type": "update_node", "data": {"id": "/node-id", "data": {"inputs": {"param": "value"}}}}]
+[{"type":"update_node","data":{"id":"/node-name","data":{"inputs":{"paramName":"value"}}}}]
 \`\`\`
 
-EXAMPLE:
-User: "Change pickup color to red"
-Assistant: Updating /pickup-color to red:
+Field names you MUST use: "type", "data", "id", "inputs"
+Never use: "Op", "Name", "Color", "operation", "node", "property"
+
+EXAMPLE 1:
+Request: Change color to red
+Response: Changing color:
 \`\`\`json
-[{"type": "update_node", "data": {"id": "/pickup-color", "data": {"inputs": {"color": "#ff0000"}}}}]
+[{"type":"update_node","data":{"id":"/pickup-color","data":{"inputs":{"color":"#ff0000"}}}}]
 \`\`\`
 
-CRITICAL:
-- JSON must be ARRAY (starts with [)
-- Include "type" and "data" fields
-- Add prose before/after JSON
-
-WRONG:
+EXAMPLE 2:
+Request: Set radius to 50
+Response: Setting radius:
 \`\`\`json
-{"operation": "modify", "node": "/pickup", "value": "#ff0000"}
+[{"type":"update_node","data":{"id":"/layer","data":{"inputs":{"radius":50}}}}]
 \`\`\`
 
-Types: update_node (change params), add_node (create), add_edge (connect)`
+WRONG - DO NOT USE:
+\`\`\`json
+[{"Op":"ColorOp","Name":"/pickup","Color":"#ff0000"}]
+\`\`\`
+
+Always include text before the JSON block.`
   }
 
   // Build concise project context summary for Chrome AI
