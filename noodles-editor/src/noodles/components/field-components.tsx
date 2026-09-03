@@ -27,6 +27,7 @@ const CodeiumEditor = lazy(() =>
 )
 
 import { Temporal } from 'temporal-polyfill'
+import { analytics } from '../../utils/analytics'
 import { VectorKeyframeIndicator } from '../../timeline/components/KeyframeIndicator'
 import { getFieldPath } from '../../timeline/field-bindings'
 import { useTimelineStore } from '../../timeline/timeline-store'
@@ -61,6 +62,7 @@ import type { Edge } from '../noodles'
 import s from '../noodles.module.css'
 import { getFriendlyErrorMessage, type IOperator, type Operator } from '../operators'
 import { checkAssetExists, getAssetFileHandle, writeAsset } from '../storage'
+import { extensionOf } from './tools/import-pipelines'
 import { getOp, useEdgeConnectionStore } from '../store'
 import { type ExpressionContext, getExpressionContext } from '../utils/expression-context'
 import { projectScheme } from '../utils/filesystem'
@@ -71,11 +73,7 @@ import {
   firePropertyMutation,
   usePropertyHistory,
 } from '../utils/property-history'
-import {
-  formatReference,
-  parseReference,
-  type ReferenceFormat,
-} from '../utils/reference-utils'
+import { formatReference, parseReference, type ReferenceFormat } from '../utils/reference-utils'
 import { ColorSwatch } from './color-swatch'
 import { ExpressionEditorOverlay } from './ExpressionEditorOverlay'
 import { GeocodingDialog } from './geocoding-dialog'
@@ -1232,6 +1230,7 @@ export function FileUrlFieldComponent({
 
   const doUpload = async () => {
     const { currentProjectName, activeStorageType } = useFileSystemStore.getState()
+
     if (!currentProjectName) {
       throw new Error('No project loaded. Please save or load a project first.')
     }
@@ -1246,6 +1245,8 @@ export function FileUrlFieldComponent({
 
     const [fileHandle] = await window.showOpenFilePicker(pickerOpts)
     const file = await fileHandle.getFile()
+    const fileType = extensionOf(file.name) || 'unknown'
+
     // Read as ArrayBuffer so binary files (e.g. .glb) are preserved
     const buffer = await file.arrayBuffer()
     const contents = new Blob([buffer], { type: file.type })
@@ -1263,6 +1264,12 @@ export function FileUrlFieldComponent({
         field.setValue(projectScheme + file.name)
         setValue(projectScheme + file.name)
         commitChange('Change file')
+        analytics.track('file_imported', {
+          fileType,
+          fileFormat: fileType,
+          source: 'field',
+          fileSize: file.size,
+        })
         return
       }
       captureStart()
@@ -1273,6 +1280,13 @@ export function FileUrlFieldComponent({
 
     const result = await writeAsset(activeStorageType, currentProjectName, file.name, contents)
     if (!result.success) {
+      analytics.track('file_import_failed', {
+        fileType,
+        attemptedFormat: fileType,
+        reason: 'write_failed',
+        source: 'field',
+        fileSize: file.size,
+      })
       throw new Error(result.error?.message || `Failed to write file: ${file.name}`)
     }
 
@@ -1280,6 +1294,12 @@ export function FileUrlFieldComponent({
     field.setValue(projectScheme + file.name)
     setValue(projectScheme + file.name)
     commitChange('Change file')
+    analytics.track('file_imported', {
+      fileType,
+      fileFormat: fileType,
+      source: 'field',
+      fileSize: file.size,
+    })
   }
 
   const onConfirmReplace = async () => {
@@ -1288,6 +1308,7 @@ export function FileUrlFieldComponent({
     const { currentProjectName, activeStorageType } = useFileSystemStore.getState()
     if (!currentProjectName) return
 
+    const fileType = extensionOf(pendingFile.name) || 'unknown'
     const result = await writeAsset(
       activeStorageType,
       currentProjectName,
@@ -1295,6 +1316,13 @@ export function FileUrlFieldComponent({
       pendingFile.contents
     )
     if (!result.success) {
+      analytics.track('file_import_failed', {
+        fileType,
+        attemptedFormat: fileType,
+        reason: 'write_failed',
+        source: 'field',
+        fileSize: pendingFile.contents.size,
+      })
       throw new Error(result.error?.message || `Failed to write file: ${pendingFile.name}`)
     }
 
@@ -1303,6 +1331,12 @@ export function FileUrlFieldComponent({
     commitChange('Change file')
     setReplaceDialogOpen(false)
     setPendingFile(null)
+    analytics.track('file_imported', {
+      fileType,
+      fileFormat: fileType,
+      source: 'field',
+      fileSize: pendingFile.contents.size,
+    })
   }
 
   const onCancelReplace = () => {
@@ -3476,9 +3510,7 @@ export function BboxFieldComponent({
         {id}
       </label>
       <div id={id} className={s.fieldCompoundWrapper}>
-        <div className={s.fieldGroupLabel}>
-          Southwest
-        </div>
+        <div className={s.fieldGroupLabel}>Southwest</div>
         <div className={cx(s.fieldInputWrapper, s.fieldInputWrapperVector)}>
           <VectorNumberInput
             keyName="lng"
@@ -3514,9 +3546,7 @@ export function BboxFieldComponent({
           />
         </div>
 
-        <div className={cx(s.fieldGroupLabel, s.fieldGroupLabelSpaced)}>
-          Northeast
-        </div>
+        <div className={cx(s.fieldGroupLabel, s.fieldGroupLabelSpaced)}>Northeast</div>
         <div className={cx(s.fieldInputWrapper, s.fieldInputWrapperVector)}>
           <VectorNumberInput
             keyName="lng"

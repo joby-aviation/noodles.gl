@@ -7,6 +7,7 @@ import {
   type DetectedFormat,
   detectFormat,
   detectFormatFromUrl,
+  extensionOf,
   isBinaryFormat,
 } from '../components/tools/import-pipelines'
 import { useFileSystemStore } from '../filesystem-store'
@@ -66,40 +67,87 @@ export function useFileImport({ getBasePosition, onImported }: UseFileImportOpti
   // Copy a dropped or picked file into the project's data directory, then build its pipeline
   const importFile = useCallback(
     async (file: File, basePosition: { x: number; y: number }, source: string) => {
-      const { currentProjectName, activeStorageType } = useFileSystemStore.getState()
-      if (!currentProjectName) {
-        throw new Error('No project loaded. Please save or load a project first.')
+      const fileType = extensionOf(file.name) || 'unknown'
+
+      try {
+        const { currentProjectName, activeStorageType } = useFileSystemStore.getState()
+        if (!currentProjectName) {
+          analytics.track('file_import_failed', {
+            fileType,
+            attemptedFormat: detectFormat(file.name),
+            reason: 'no_project',
+            source,
+            fileSize: file.size,
+          })
+          throw new Error('No project loaded. Please save or load a project first.')
+        }
+
+        // Binary formats have to round-trip as a Blob; reading them as text corrupts them
+        const probableFormat = detectFormat(file.name)
+        const binary = isBinaryFormat(probableFormat)
+        const contents = binary ? file : await file.text()
+
+        const result = await writeAsset(activeStorageType, currentProjectName, file.name, contents)
+        if (!result.success) {
+          analytics.track('file_import_failed', {
+            fileType,
+            attemptedFormat: probableFormat,
+            reason: 'write_failed',
+            source,
+            fileSize: file.size,
+          })
+          throw new Error(result.error?.message || `Failed to write file: ${file.name}`)
+        }
+
+        debugUI('File imported: %s', file.name)
+        const format = binary ? probableFormat : detectFormat(file.name, contents as string)
+        addPipeline(
+          projectScheme + file.name,
+          format,
+          basePosition,
+          binary ? undefined : (contents as string)
+        )
+
+        analytics.track('file_imported', {
+          fileType,
+          fileFormat: format,
+          source,
+          fileSize: file.size,
+        })
+        analytics.track('data_imported', { source, format })
+        onImported?.(format)
+        return format
+      } catch (error) {
+        // If analytics wasn't already tracked in specific error cases above, track generic failure
+        if (
+          error instanceof Error &&
+          !error.message.includes('No project loaded') &&
+          !error.message.includes('Failed to write file')
+        ) {
+          analytics.track('file_import_failed', {
+            fileType,
+            attemptedFormat: detectFormat(file.name),
+            reason: 'unknown',
+            source,
+            fileSize: file.size,
+          })
+        }
+        throw error
       }
-
-      // Binary formats have to round-trip as a Blob; reading them as text corrupts them
-      const probableFormat = detectFormat(file.name)
-      const binary = isBinaryFormat(probableFormat)
-      const contents = binary ? file : await file.text()
-
-      const result = await writeAsset(activeStorageType, currentProjectName, file.name, contents)
-      if (!result.success) {
-        throw new Error(result.error?.message || `Failed to write file: ${file.name}`)
-      }
-
-      debugUI('File imported: %s', file.name)
-      const format = binary ? probableFormat : detectFormat(file.name, contents as string)
-      addPipeline(
-        projectScheme + file.name,
-        format,
-        basePosition,
-        binary ? undefined : (contents as string)
-      )
-
-      analytics.track('data_imported', { source, format })
-      onImported?.(format)
-      return format
     },
     [addPipeline, onImported]
   )
 
   const importUrl = useCallback(
     (url: string, source: string, format = detectFormatFromUrl(url)) => {
+      const fileType = extensionOf(url) || 'unknown'
       addPipeline(url, format, getBasePosition())
+      analytics.track('file_imported', {
+        fileType,
+        fileFormat: format,
+        source,
+        fileSize: undefined, // URLs don't have size until loaded
+      })
       analytics.track('data_imported', { source, format })
       onImported?.(format)
       return format
