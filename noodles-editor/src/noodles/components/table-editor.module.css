@@ -220,7 +220,7 @@
   top: 100%;
   left: 0;
   right: 0;
-  z-index: 10000;
+  z-index: var(--z-index-modal);
   margin: 2px 0 0;
   padding: 4px 0;
   list-style: none;

@@ -190,11 +190,11 @@ export function KeyframeIndicator({
 export interface VectorKeyframeIndicatorProps {
   opId: string
   fieldName: string
-  keys: string[]
+  keys: readonly string[]
   value: Record<string | number, number>
   returnType: string
   disabled?: boolean
-  disabledKeys?: string[]
+  disabledKeys?: readonly string[]
   onKeyframeAdded?: () => void
 }
 

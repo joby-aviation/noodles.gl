@@ -2,7 +2,7 @@
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.6);
-  z-index: 1000;
+  z-index: var(--z-index-backdrop);
 }
 
 .content {
@@ -17,7 +17,7 @@
   height: 600px;
   display: flex;
   flex-direction: column;
-  z-index: 1001;
+  z-index: var(--z-index-modal);
   overflow: hidden;
 }
 

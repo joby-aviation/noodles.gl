@@ -22,6 +22,7 @@ const sidebars: SidebarsConfig = {
         'users/getting-started',
         'users/workflows-intro',
         'users/properties-panel',
+        'users/expressions',
         'users/operators-guide',
         'users/deckgl-maplibre-guide',
         'users/data-guide',

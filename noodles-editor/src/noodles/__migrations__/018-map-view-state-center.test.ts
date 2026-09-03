@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import type { NoodlesProjectJSON } from '../utils/serialization'
-import { down, up } from './017-map-view-state-center'
+import { down, up } from './018-map-view-state-center'
 
 function makeProject(): NoodlesProjectJSON {
   return {
-    version: 16,
+    version: 17,
     nodes: [
       {
         id: '/map',
@@ -73,7 +73,23 @@ function makeProject(): NoodlesProjectJSON {
   } as NoodlesProjectJSON
 }
 
-describe('017-map-view-state-center', () => {
+describe('018-map-view-state-center', () => {
+  it.each([
+    [{}, { lng: -74.006, lat: 40.7128 }],
+    [{ longitude: 12 }, { lng: 12, lat: 40.7128 }],
+    [{ latitude: -8 }, { lng: -74.006, lat: -8 }],
+    [{ longitude: 12, latitude: -8 }, { lng: 12, lat: -8 }],
+  ])('fills omitted coordinates while preserving custom values', async (coordinates, center) => {
+    const project = makeProject()
+    const map = project.nodes.find(node => node.id === '/map')!
+    map.data.inputs = { ...coordinates, zoom: 4 }
+
+    const migrated = await up(project)
+    const migratedMap = migrated.nodes.find(node => node.id === '/map')!
+
+    expect(migratedMap.data.inputs.center).toEqual(center)
+  })
+
   it('migrates values, handles, visibility, and port mode', async () => {
     const migrated = await up(makeProject())
     const node = migrated.nodes.find(candidate => candidate.id === '/map')!
@@ -89,6 +105,26 @@ describe('017-map-view-state-center', () => {
     expect(migrated.edges[0]).toMatchObject({
       id: '/lng.out.val->/map.par.center.lng',
       targetHandle: 'par.center.lng',
+    })
+  })
+
+  it('rewrites legacy parameter source handles used by reactive references', async () => {
+    const project = makeProject()
+    project.edges[0] = {
+      ...project.edges[0],
+      id: '/map.par.latitude->/lng.par.val',
+      source: '/map',
+      sourceHandle: 'par.latitude',
+      target: '/lng',
+      targetHandle: 'par.val',
+      type: 'ReferenceEdge',
+    }
+
+    const migrated = await up(project)
+
+    expect(migrated.edges[0]).toMatchObject({
+      id: '/map.par.center.lat->/lng.par.val',
+      sourceHandle: 'par.center.lat',
     })
   })
 

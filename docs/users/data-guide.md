@@ -4,6 +4,8 @@ Learn how to load, process, and transform data in Noodles.gl for your visualizat
 
 ## Data Sources
 
+### Local and Remote Files
+
 Use a `FileOp` to read a file from a URL or text. Supported formats:
 
 | Format | Output Type | Use Case |
@@ -54,36 +56,15 @@ SFO,LAX,150,"[-122.4194, 37.7749]"
 }
 ```
 
-### Text Format
+### Text and Binary Formats
 
-Use `text` format to load raw file contents as a string, useful for custom parsing:
+Use `text` format for custom parsing or `binary` for non-text files (images, etc.).
 
-```javascript
-// FileOp with format: 'text'
-// Output is the raw file contents as a string
+### Geospatial Data
 
-// Then in a CodeOp, parse however you need:
-const lines = data.split('\n')
-const parsed = lines.map(line => {
-  const [name, value] = line.split(':')
-  return { name: name.trim(), value: parseFloat(value) }
-})
-return parsed
-```
+**Overture Maps** - Global datasets (places, buildings, roads) via `DuckDbOp`. Best for large-scale analytics. Query Parquet files on S3 with SQL. See [docs.overturemaps.org](https://docs.overturemaps.org/).
 
-### Binary Format
-
-Use `binary` format for non-text files like images or custom binary data:
-
-```javascript
-// FileOp with format: 'binary'
-// Output is ArrayBuffer (from URL) or Uint8Array (from text input)
-
-// Example: Process binary data in a CodeOp
-const buffer = data  // ArrayBuffer from FileOp
-const view = new DataView(buffer)
-const header = view.getUint32(0, true)  // Read 4-byte header
-```
+**Overpass API** - Real-time OpenStreetMap via `OverpassOp`. Best for current data and city-scale queries. Uses Overpass QL syntax with `{{bbox}}` template replacement. See [Overpass QL docs](https://wiki.openstreetmap.org/wiki/Overpass_API/Overpass_QL).
 
 ## Data Processing
 

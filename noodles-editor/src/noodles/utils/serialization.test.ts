@@ -849,3 +849,30 @@ describe('Field visibility serialization (full set when differs from heuristic)'
     })
   })
 })
+
+describe('serializeNodes with expression-driven fields', () => {
+  afterEach(() => {
+    clearOps()
+  })
+
+  it('serializes the expression payload instead of the evaluated value', () => {
+    const op = new NumberOp('node1')
+    op.inputs.val.setExpression('20 + 22')
+    setOp('node1', op)
+
+    const node = { id: 'node1', type: 'NumberOp', data: {}, position: { x: 0, y: 0 } }
+    const result = serializeNodes(getOpStore(), [node], [])
+    expect(result[0].data.inputs).toEqual({ val: { $expr: '20 + 22' } })
+  })
+
+  it('serializes a driven field even when its evaluated value equals the default', () => {
+    const op = new NumberOp('node1')
+    // Evaluates to 0, which is the field default — the expression must still persist
+    op.inputs.val.setExpression('0')
+    setOp('node1', op)
+
+    const node = { id: 'node1', type: 'NumberOp', data: {}, position: { x: 0, y: 0 } }
+    const result = serializeNodes(getOpStore(), [node], [])
+    expect(result[0].data.inputs).toEqual({ val: { $expr: '0' } })
+  })
+})

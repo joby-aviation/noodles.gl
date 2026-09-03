@@ -288,11 +288,20 @@ export class GraphExecutor {
     this.downstream.clear()
 
     for (const edge of edges) {
-      // Skip self-referencing parameter edges (not true cycles - output depends on input value)
-      const isSelfParameterReference =
-        edge.source === edge.target && edge.sourceHandle?.startsWith('par.')
+      // Skip parameter-sourced edges that stay inside the operator they read:
+      // self-references, and a container child reading an enclosing
+      // container's promoted param (op('/parent').par.x — synced by the
+      // CodeField editor or derived for unmounted children). Reading an input
+      // value never requires executing its owner, and the owner's execution
+      // already encompasses the child, so as a dependency edge it forms a
+      // false cycle (parent → child → GraphOutput → parent) that pull()
+      // recurses on forever. The reference edge still exists at the field
+      // layer, so param changes keep re-executing the reader.
+      const isEnclosedParameterReference =
+        edge.sourceHandle?.startsWith('par.') &&
+        (edge.source === edge.target || edge.target.startsWith(`${edge.source}/`))
 
-      if (isSelfParameterReference) {
+      if (isEnclosedParameterReference) {
         continue
       }
 

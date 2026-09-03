@@ -4,9 +4,12 @@ import type { IOperator, Operator } from '../operators'
 
 export type FieldNamespace = 'par' | 'out'
 
+// biome-ignore lint/suspicious/noExplicitAny: concrete fields are invariant in their Zod output
+type AnyField = Field<any, any>
+
 export interface ResolvedOperatorField {
-  field: Field
-  rootField: Field
+  field: AnyField
+  rootField: AnyField
   rootFieldName: string
   channelName?: string
   resolvedPath: string
@@ -19,10 +22,13 @@ export function resolveOperatorField(
   namespace: FieldNamespace,
   fieldPath: string
 ): ResolvedOperatorField | undefined {
-  const aliasedPath = namespace === 'par' ? (op.inputAliases[fieldPath] ?? fieldPath) : fieldPath
+  const aliasedPath =
+    namespace === 'par' && Object.hasOwn(op.inputAliases, fieldPath)
+      ? op.inputAliases[fieldPath]
+      : fieldPath
   const [rootFieldName, ...subPath] = aliasedPath.split('.')
   const fields = namespace === 'par' ? op.inputs : op.outputs
-  const rootField = fields[rootFieldName] as Field | undefined
+  const rootField = fields[rootFieldName] as AnyField | undefined
   if (!rootField) return undefined
 
   if (subPath.length === 0) {

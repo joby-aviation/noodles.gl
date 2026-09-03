@@ -1,0 +1,246 @@
+{
+  "edges": [
+    {
+      "id": "/duckdb-query.out.data->/extract-geojson.par.data",
+      "source": "/duckdb-query",
+      "target": "/extract-geojson",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/extract-geojson.out.data->/geojson-layer.par.data",
+      "source": "/extract-geojson",
+      "target": "/geojson-layer",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/geojson-layer.out.layer->/deck.par.layers",
+      "source": "/geojson-layer",
+      "target": "/deck",
+      "sourceHandle": "out.layer",
+      "targetHandle": "par.layers"
+    },
+    {
+      "id": "/deck.out.vis->/out.par.vis",
+      "source": "/deck",
+      "target": "/out",
+      "sourceHandle": "out.vis",
+      "targetHandle": "par.vis"
+    },
+    {
+      "source": "/maplibre-basemap",
+      "sourceHandle": "out.maplibre",
+      "target": "/deck",
+      "targetHandle": "par.basemap",
+      "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap"
+    },
+    {
+      "id": "/bounds.out.bounds->/duckdb-query.par.query",
+      "type": "ReferenceEdge",
+      "selectable": false,
+      "deletable": false,
+      "focusable": false,
+      "reconnectable": false,
+      "source": "/bounds",
+      "target": "/duckdb-query",
+      "sourceHandle": null,
+      "targetHandle": "par.query"
+    }
+  ],
+  "viewport": {
+    "x": 485.32201531005217,
+    "y": 329.36769008427984,
+    "zoom": 0.4400549765402036
+  },
+  "version": 18,
+  "editorSettings": {
+    "showOverlay": true
+  },
+  "nodes": [
+    {
+      "id": "/bounds",
+      "type": "BoundsOp",
+      "data": {
+        "inputs": {
+          "point1": {
+            "lng": -74.05,
+            "lat": 40.68
+          },
+          "point2": {
+            "lng": -73.9,
+            "lat": 40.82
+          }
+        },
+        "locked": false
+      },
+      "position": {
+        "x": -1045.3309075342468,
+        "y": -42.831050228310495
+      }
+    },
+    {
+      "id": "/duckdb-query",
+      "type": "DuckDbOp",
+      "data": {
+        "inputs": {
+          "query": [
+            "SELECT JSON({",
+            "  'type': 'FeatureCollection',",
+            "  'features': LIST(",
+            "    JSON({",
+            "      'type': 'Feature',",
+            "      'geometry': JSON(ST_AsGeoJSON(geometry)),",
+            "      'properties': JSON({",
+            "        'id': id,",
+            "        'name': COALESCE(names.primary, 'Unnamed Park'),",
+            "        'category': categories.primary",
+            "      })",
+            "    })",
+            "  )",
+            "}) as geojson",
+            "FROM read_parquet([",
+            "  's3://overturemaps-us-west-2/release/2025-10-22.0/theme=places/type=place/part-00000-2286d3de-b89f-44be-91c6-3e57d0b74722-c000.zstd.parquet',",
+            "  's3://overturemaps-us-west-2/release/2025-10-22.0/theme=places/type=place/part-00001-2286d3de-b89f-44be-91c6-3e57d0b74722-c000.zstd.parquet',",
+            "  's3://overturemaps-us-west-2/release/2025-10-22.0/theme=places/type=place/part-00002-2286d3de-b89f-44be-91c6-3e57d0b74722-c000.zstd.parquet',",
+            "  's3://overturemaps-us-west-2/release/2025-10-22.0/theme=places/type=place/part-00003-2286d3de-b89f-44be-91c6-3e57d0b74722-c000.zstd.parquet',",
+            "  's3://overturemaps-us-west-2/release/2025-10-22.0/theme=places/type=place/part-00004-2286d3de-b89f-44be-91c6-3e57d0b74722-c000.zstd.parquet',",
+            "  's3://overturemaps-us-west-2/release/2025-10-22.0/theme=places/type=place/part-00005-2286d3de-b89f-44be-91c6-3e57d0b74722-c000.zstd.parquet',",
+            "  's3://overturemaps-us-west-2/release/2025-10-22.0/theme=places/type=place/part-00006-2286d3de-b89f-44be-91c6-3e57d0b74722-c000.zstd.parquet'",
+            "],",
+            "  filename=true,",
+            "  hive_partitioning=1",
+            ")",
+            "WHERE",
+            "  bbox.xmin >= {{./bounds.out.bounds.0.0}}",
+            "  AND bbox.xmax <= {{./bounds.out.bounds.1.0}}",
+            "  AND bbox.ymin >= {{./bounds.out.bounds.0.1}}",
+            "  AND bbox.ymax <= {{./bounds.out.bounds.1.1}}",
+            "  AND categories.primary = 'park'",
+            "LIMIT 1000;"
+          ]
+        },
+        "locked": false
+      },
+      "position": {
+        "x": -773.2762557077626,
+        "y": -101.76940639269407
+      },
+      "measured": {
+        "width": 432,
+        "height": 254
+      }
+    },
+    {
+      "id": "/extract-geojson",
+      "type": "CodeOp",
+      "data": {
+        "inputs": {
+          "code": [
+            "// Extract GeoJSON from DuckDB result",
+            "if (!d || d.length === 0) {",
+            "  return { type: 'FeatureCollection', features: [] }",
+            "}",
+            "return d[0].geojson"
+          ]
+        },
+        "locked": false
+      },
+      "position": {
+        "x": -290.56735159817356,
+        "y": -133.20319634703196
+      },
+      "measured": {
+        "width": 432,
+        "height": 279
+      }
+    },
+    {
+      "id": "/geojson-layer",
+      "type": "GeoJsonLayerOp",
+      "data": {
+        "inputs": {
+          "opacity": 0.6,
+          "getFillColor": "#22c55eff",
+          "getLineColor": "#16a34aff",
+          "getLineWidth": 2
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 200,
+        "y": -200
+      }
+    },
+    {
+      "id": "/deck",
+      "type": "DeckRendererOp",
+      "data": {
+        "inputs": {},
+        "locked": false
+      },
+      "position": {
+        "x": 566.796803652968,
+        "y": -200
+      }
+    },
+    {
+      "id": "/out",
+      "type": "OutOp",
+      "data": {
+        "inputs": {
+          "display": "fixed",
+          "width": 1920,
+          "height": 1080,
+          "lod": 2,
+          "waitForData": true,
+          "codec": "avc",
+          "bitrateMbps": 10,
+          "bitrateMode": "constant",
+          "scaleControl": 0.3,
+          "framerate": 30,
+          "captureDelay": 50
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 872.6906392694063,
+        "y": -127.30936073059361
+      }
+    },
+    {
+      "type": "MaplibreBasemapOp",
+      "id": "/maplibre-basemap",
+      "position": {
+        "x": 119.45091324200911,
+        "y": -416.93849885844753
+      },
+      "data": {
+        "inputs": {
+          "mapStyle": "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",
+          "viewState": {
+            "latitude": 40.75,
+            "longitude": -73.97,
+            "zoom": 11,
+            "pitch": 0,
+            "bearing": 0
+          }
+        },
+        "locked": false
+      }
+    }
+  ],
+  "timeline": {
+    "sheetsById": {
+      "Noodles": {
+        "staticOverrides": {
+          "byObject": {}
+        }
+      }
+    },
+    "definitionVersion": "0.4.0",
+    "revisionHistory": [
+      "05HP5KUPC8hGmM0r"
+    ]
+  }
+}

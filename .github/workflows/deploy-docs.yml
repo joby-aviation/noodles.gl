@@ -47,6 +47,7 @@ jobs:
         run: npm run build:all
         env:
           VITE_POSTHOG_API_KEY: ${{ secrets.VITE_POSTHOG_API_KEY }}
+          VITE_GA_MEASUREMENT_ID: ${{ secrets.VITE_GA_MEASUREMENT_ID }}
 
       - name: Setup Pages
         uses: actions/configure-pages@v4

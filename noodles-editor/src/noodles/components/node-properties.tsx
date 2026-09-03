@@ -1,5 +1,5 @@
 import * as Dialog from '@radix-ui/react-dialog'
-import { Cross2Icon } from '@radix-ui/react-icons'
+import { Cross2Icon, EyeNoneIcon, EyeOpenIcon, Link2Icon } from '@radix-ui/react-icons'
 import type { Edge } from '@xyflow/react'
 import { useReactFlow, useStore } from '@xyflow/react'
 import cx from 'classnames'
@@ -15,7 +15,9 @@ import {
 } from '../../timeline/timeline-store'
 import type { KeyframeValue } from '../../timeline/types'
 import {
+  CodeField,
   CompoundPropsField,
+  ExpressionField,
   type Field,
   type IField,
   IN_NS,
@@ -23,28 +25,43 @@ import {
   OUT_NS,
   type Vec2Field,
 } from '../fields'
-import type { IOperator, Operator } from '../operators'
+import { useObservable } from '../hooks/use-observable'
+import type { IOperator, OpType, Operator } from '../operators'
 import { OutOp } from '../operators'
-import { getOpStore, useUIStore } from '../store'
+import { getOp, getOpStore, useNestingStore, useUIStore } from '../store'
+import type { ConnectionPlan } from '../utils/auto-connect'
+import { edgeId } from '../utils/id-utils'
 import {
   moveEdgeWithinGroup,
   normalizeMultiInputEdges,
   orderedEdgeIdsForHandle,
 } from '../utils/multi-input-utils'
-import { getBaseName, parseHandleId } from '../utils/path-utils'
+import { type NodeType, createNodesForType } from '../utils/node-creation-utils'
+import { computeRelativePath, getBaseName, parseHandleId } from '../utils/path-utils'
+import { captureOperatorInputs, firePropertyMutation } from '../utils/property-history'
+import {
+  formatReference,
+  parseReference,
+  type ReferenceFormat,
+} from '../utils/reference-utils'
 import { ErrorBoundary } from './error-boundary'
 import {
   BooleanFieldComponent,
   ColorFieldComponent,
+  canFieldBeDriven,
   DateFieldComponent,
+  ExpressionDrivenInput,
+  isValueField,
   NumberFieldComponent,
   TextFieldComponent,
+  toggleFieldExpression,
   VectorFieldComponent,
 } from './field-components'
 import menuStyles from './menu.module.css'
 import s from './node-properties.module.css'
 import { handleClass, headerClass, typeCategory } from './op-components'
 import { RenderSettingsPanel } from './render-settings-panel'
+import { SuggestedNodesSection } from './SuggestedNodes'
 
 // === Field Visibility Helper Functions ===
 
@@ -174,6 +191,69 @@ function copy(text: string) {
   navigator.clipboard.writeText(text)
 }
 
+// Determine the preferred reference format for a field type
+function getPreferredReferenceFormat(field: Field): ReferenceFormat {
+  // SQL code fields use mustache syntax
+  if (field instanceof CodeField && field.language === 'sql') {
+    return 'mustache'
+  }
+  // JavaScript code and expression fields use code syntax
+  if (field instanceof CodeField || field instanceof ExpressionField) {
+    return 'code'
+  }
+  // Default to code format for other fields
+  return 'code'
+}
+
+async function pasteReference(
+  field: Field,
+  operatorId: string,
+  useRelativePath: boolean
+): Promise<boolean> {
+  try {
+    const text = await navigator.clipboard.readText()
+    const parsed = parseReference(text)
+    if (!parsed) {
+      return false
+    }
+
+    // Validate reference points to valid field
+    const { opPath, namespace, fieldName } = parsed
+    const targetOp = getOp(opPath, operatorId)
+    if (!targetOp) {
+      console.warn(`Paste reference: operator not found: ${opPath}`)
+      return false
+    }
+
+    const targetField = namespace === 'par' ? targetOp.inputs[fieldName] : targetOp.outputs[fieldName]
+    if (!targetField) {
+      console.warn(`Paste reference: field not found: ${fieldName}`)
+      return false
+    }
+
+    // Convert to relative path if requested
+    let finalPath = opPath
+    if (useRelativePath) {
+      finalPath = computeRelativePath(targetOp.id, operatorId)
+    }
+
+    // Determine format based on field type
+    const preferredFormat = getPreferredReferenceFormat(field)
+    const ref = { opPath: finalPath, namespace, fieldName }
+    const formattedRef = formatReference(ref, preferredFormat)
+
+    // Set expression on field
+    const before = captureOperatorInputs()
+    field.setExpression(formattedRef.trim())
+    firePropertyMutation('Paste reference', before)
+
+    return true
+  } catch (err) {
+    console.error('Failed to paste reference:', err)
+    return false
+  }
+}
+
 function Tooltip({
   text,
   position = 'top',
@@ -206,8 +286,9 @@ function AddRemoveButton({
       className={cx(s.addRemoveBtn, type === 'add' ? s.addBtn : s.removeBtn)}
       onClick={onClick}
       disabled={disabled}
+      aria-label={type === 'add' ? 'Show field' : 'Hide field'}
     >
-      {type === 'add' ? '+' : '−'}
+      {type === 'add' ? <EyeOpenIcon /> : <EyeNoneIcon />}
     </button>
   )
 }
@@ -263,6 +344,16 @@ function EditableFieldInput({
 }) {
   const { type } = field.constructor as typeof Field
 
+  // Expression-driven fields show the expression editor regardless of type.
+  // The canvas variant is safe here: the whole Layout — this panel included — renders
+  // inside timeline-editor's ReactFlowProvider (this file already relies on that via
+  // useReactFlow/useStore above), and it keeps reference edges synced when expressions
+  // are edited from the panel. Use ExpressionInputBase instead if that ever changes.
+  const expression = useObservable(field.expression$, field.expression)
+  if (expression !== null) {
+    return <ExpressionDrivenInput id={fieldName} field={field} disabled={disabled} />
+  }
+
   switch (type) {
     case 'number':
       // biome-ignore lint/suspicious/noExplicitAny: Type checked at runtime
@@ -305,23 +396,6 @@ function EditableFieldInput({
         </div>
       )
   }
-}
-
-// Returns true for scalar/value field types that can show an editable input
-function isValueField(field: Field): boolean {
-  const { type } = field.constructor as typeof Field
-  return [
-    'number',
-    'boolean',
-    'color',
-    'string',
-    'string-literal',
-    'date',
-    'vec2',
-    'vec3',
-    'geopoint-2d',
-    'geopoint-3d',
-  ].includes(type)
 }
 
 // Renders compound field sub-fields inline with labels, inputs, and keyframe indicators
@@ -376,7 +450,7 @@ function CompoundSubFields({
 
 // Exported for testing
 export function NodeProperties({ nodeId }: { nodeId: string }) {
-  const { setEdges, getEdges } = useReactFlow()
+  const { setEdges, addNodes, addEdges, getEdges } = useReactFlow()
   const onEdgesChange = useStore(s => s.onEdgesChange)
   // Only re-renders when this node's incoming edges change (not on position updates)
   const edges = useStore(
@@ -385,6 +459,12 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
   )
   // Only re-renders when node type changes (stable during drag)
   const nodeType = useStore(s => s.nodes.find(n => n.id === nodeId)?.type ?? '')
+  // Only re-renders when this node's position changes
+  const nodePosition = useStore(s => {
+    const n = s.nodes.find(n => n.id === nodeId)
+    return n ? { x: n.position.x, y: n.position.y } : { x: 0, y: 0 }
+  })
+  const currentContainerId = useNestingStore(state => state.currentContainerId)
   const expandTimeline = useCallback(() => {
     useUIStore.getState().setTimelineExpanded(true)
   }, [])
@@ -397,7 +477,6 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
     x: number
     y: number
     codeRef: string
-    mustacheRef: string
     fieldName: string
     fieldValue?: string
     fieldPath?: string
@@ -406,6 +485,8 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
     listFieldInputName?: string // field name when it's a ListField with connections
     isVisible?: boolean // whether the field is currently shown
     hasConnection?: boolean // whether the field has an incoming edge
+    expressionField?: Field // field instance when expression mode can be toggled
+    clipboardReference?: string // parsed reference from clipboard if valid
   } | null>(null)
   const descriptionRef = useRef<HTMLDivElement>(null)
   const draggingRef = useRef<HTMLElement | null>(null)
@@ -447,6 +528,46 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
       setIsTruncated(isTruncated)
     }
   }, [description])
+
+  // Handler to add a suggested node and connect it
+  const handleAddNode = useCallback(
+    (opType: OpType, connection: ConnectionPlan) => {
+      // Calculate position to the right of current node
+      const newPosition = {
+        x: nodePosition.x + 300,
+        y: nodePosition.y,
+      }
+
+      // Create new node
+      const { nodes: newNodes, edges: newEdges } = createNodesForType(
+        opType as NodeType,
+        newPosition,
+        currentContainerId
+      )
+
+      if (newNodes.length === 0) return
+
+      const newNodeId = newNodes[0].id
+
+      // Create connection edge
+      const connectionEdge = {
+        id: edgeId({
+          source: nodeId,
+          sourceHandle: `out.${connection.sourceOutput}`,
+          target: newNodeId,
+          targetHandle: `par.${connection.targetInput}`,
+        }),
+        source: nodeId,
+        target: newNodeId,
+        sourceHandle: `out.${connection.sourceOutput}`,
+        targetHandle: `par.${connection.targetInput}`,
+      }
+
+      addNodes(newNodes)
+      addEdges([...newEdges, connectionEdge])
+    },
+    [nodeId, nodePosition.x, nodePosition.y, currentContainerId, addNodes, addEdges]
+  )
 
   // Early return after all hooks
   if (!op) return null
@@ -506,10 +627,25 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
         /* ignore */
       }
     }
+    // Check clipboard for valid reference async
+    navigator.clipboard
+      .readText()
+      .then(text => {
+        const parsed = parseReference(text)
+        if (parsed) {
+          // Update context menu with clipboard reference
+          setContextMenu(prev =>
+            prev ? { ...prev, clipboardReference: text } : prev
+          )
+        }
+      })
+      .catch(() => {
+        // Clipboard read failed, ignore
+      })
+
     setContextMenu({
       ...position,
       codeRef: input.codeRef,
-      mustacheRef: input.mustacheRef,
       fieldName: input.name,
       fieldValue,
       fieldPath: isAnimatable ? getFieldPath(op.id, input.name) : undefined,
@@ -524,6 +660,12 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
         input.field instanceof ListField && incomers.length > 0 ? input.name : undefined,
       isVisible: op.isFieldVisible(input.name),
       hasConnection: incomers.length > 0,
+      // Expression mode: drivable when the type allows it and nothing is wired in;
+      // always removable while driven
+      expressionField:
+        (canFieldBeDriven(input.field) && incomers.length === 0) || input.field.expression !== null
+          ? input.field
+          : undefined,
     })
   }
 
@@ -751,7 +893,16 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
                         </Tooltip>
                       )}
                       <div className={cx(s.port, input.handleClass)} />
-                      <span className={s.propertyLabel}>{input.name}</span>
+                      <span className={s.propertyLabel}>
+                        <span className={s.propertyLabelText}>{input.name}</span>
+                        {incomers.length > 0 && (
+                          <Tooltip text="Field is connected" position="right">
+                            <span className={s.connectedIcon}>
+                              <Link2Icon />
+                            </span>
+                          </Tooltip>
+                        )}
+                      </span>
                       {/* Value type, not connected: editable input + keyframe indicator */}
                       {isValueField(input.field) && incomers.length === 0 && (
                         <>
@@ -853,6 +1004,7 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
           ))}
         </div>
       </div>
+      <SuggestedNodesSection operator={op} nodeId={nodeId} onAddNode={handleAddNode} />
 
       {/* Reset to defaults confirmation dialog */}
       <Dialog.Root open={isResetDialogOpen} onOpenChange={setIsResetDialogOpen}>
@@ -1001,32 +1153,42 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
               type="button"
               className={s.contextMenuItem}
               onClick={() => {
-                copy(contextMenu.fieldName)
-                setContextMenu(null)
-              }}
-            >
-              Copy field name
-            </button>
-            <button
-              type="button"
-              className={s.contextMenuItem}
-              onClick={() => {
                 copy(contextMenu.codeRef)
                 setContextMenu(null)
               }}
             >
-              Copy code reference
+              Copy reference
             </button>
-            <button
-              type="button"
-              className={s.contextMenuItem}
-              onClick={() => {
-                copy(contextMenu.mustacheRef)
-                setContextMenu(null)
-              }}
-            >
-              Copy mustache reference
-            </button>
+            {contextMenu.clipboardReference && contextMenu.expressionField && (
+              <>
+                <button
+                  type="button"
+                  className={s.contextMenuItem}
+                  onClick={async () => {
+                    if (!contextMenu.expressionField) return
+                    const success = await pasteReference(contextMenu.expressionField, nodeId, false)
+                    if (success) {
+                      setContextMenu(null)
+                    }
+                  }}
+                >
+                  Paste as absolute reference
+                </button>
+                <button
+                  type="button"
+                  className={s.contextMenuItem}
+                  onClick={async () => {
+                    if (!contextMenu.expressionField) return
+                    const success = await pasteReference(contextMenu.expressionField, nodeId, true)
+                    if (success) {
+                      setContextMenu(null)
+                    }
+                  }}
+                >
+                  Paste as relative reference
+                </button>
+              </>
+            )}
             {contextMenu.isVisible !== undefined && (
               <>
                 <div className={s.contextMenuSeparator} />
@@ -1087,6 +1249,20 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
                   }}
                 >
                   Reset to default
+                </button>
+                <button
+                  type="button"
+                  className={s.contextMenuItem}
+                  disabled={!contextMenu.expressionField}
+                  onClick={() => {
+                    if (!contextMenu.expressionField) return
+                    toggleFieldExpression(contextMenu.expressionField)
+                    setContextMenu(null)
+                  }}
+                >
+                  {contextMenu.expressionField?.expression != null
+                    ? 'Remove expression'
+                    : 'Edit expression'}
                 </button>
                 <button
                   type="button"

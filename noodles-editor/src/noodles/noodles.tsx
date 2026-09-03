@@ -24,7 +24,16 @@ import type { LayerExtension } from 'deck.gl'
 import * as deck from 'deck.gl'
 import type { JSZipObject } from 'jszip'
 import { PrimeReactProvider } from 'primereact/api'
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react'
 import { useLocation, useParams } from 'wouter'
 import { globalContextManager } from '../ai-chat/global-context-manager'
 import type { NoodlesProject } from '../ai-chat/types'
@@ -58,6 +67,7 @@ import { CopyControls, type CopyControlsRef } from './components/copy-controls'
 import { NodeInfoOverlay, ViewportInfoPanel } from './components/devtools'
 import { ErrorBoundary } from './components/error-boundary'
 import { ExampleNotFoundDialog } from './components/example-not-found-dialog'
+import { type GraphError, GraphErrorDialog } from './components/graph-error-dialog'
 import { LayerPanel } from './components/layer-panel'
 import { PropertyPanel } from './components/node-properties'
 import { NodeTreeSidebar } from './components/node-tree-sidebar'
@@ -78,6 +88,7 @@ import { useNodeDropOnEdge } from './hooks/use-node-drop-on-edge'
 import { useProjectModifications } from './hooks/use-project-modifications'
 import type { DeckRendererOp, IOperator, Operator, OutOp } from './operators'
 import { extensionMap } from './operators'
+import { referenceDependencyModel } from './reference-dependencies'
 import {
   copyDataDirectory,
   copyExampleAssetsToMemory,
@@ -108,6 +119,7 @@ import {
 } from './utils/filesystem'
 import { reconcileForLoopGroups } from './utils/for-loop-group-utils'
 import { edgeId, nodeId } from './utils/id-utils'
+import { shouldBlockKeyboardShortcut } from './utils/input-detection'
 import { generateDraftId, memoryProjectStore } from './utils/memory-project-store'
 import { migrateProject } from './utils/migrate-schema'
 import { normalizeMultiInputEdges } from './utils/multi-input-utils'
@@ -201,6 +213,7 @@ export function getNoodles(): Visualization {
     hasDataFiles: boolean
   } | null>(null)
   const [showExampleNotFoundDialog, setShowExampleNotFoundDialog] = useState(false)
+  const [graphErrors, setGraphErrors] = useState<GraphError[]>([])
   const storageType = useActiveStorageType()
   const { currentDirectory, setCurrentDirectory, setActiveStorageType, setError } =
     useFileSystemStore()
@@ -211,7 +224,18 @@ export function getNoodles(): Visualization {
 
   const [nodes, setNodes, onNodesChangeBase] = useNodesState<AnyNodeJSON>([])
   const [edges, setEdges, onEdgesChangeBase] = useEdgesState<ReactFlowEdge<unknown>>([])
+  const referenceEdges = useSyncExternalStore(
+    referenceDependencyModel.subscribe,
+    referenceDependencyModel.getSnapshot,
+    referenceDependencyModel.getSnapshot
+  )
+  const modelEdges = useMemo<ReactFlowEdge[]>(
+    () => [...(edges as ReactFlowEdge[]), ...referenceEdges],
+    [edges, referenceEdges]
+  )
   const [defaultViewport, setDefaultViewport] = useState({ x: 0, y: 0, zoom: 1 })
+
+  useEffect(() => () => referenceDependencyModel.reset(), [])
 
   // Single ref providing synchronous access to the full graph state.
   // Used by CopyControls, UndoRedoHandler, and hooks that need all nodes/edges
@@ -229,10 +253,10 @@ export function getNoodles(): Visualization {
     }
 
     // Rebuild index if nodes/edges changed
-    if (spatialIndexRef.current.needsRebuild(nodes, edges)) {
-      spatialIndexRef.current.build(nodes, edges)
+    if (spatialIndexRef.current.needsRebuild(nodes, modelEdges)) {
+      spatialIndexRef.current.build(nodes, modelEdges)
     }
-  }, [nodes, edges])
+  }, [nodes, modelEdges])
   const [showChatPanel, setShowChatPanel] = useState(false)
   const [chatInitialMessage, setChatInitialMessage] = useState<string | undefined>(undefined)
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
@@ -344,18 +368,18 @@ export function getNoodles(): Visualization {
       )
       .sort()
       .join(',')
-    const connectivity = edges
+    const connectivity = modelEdges
       .map(edge => `${edge.source}->${edge.target}`)
       .sort()
       .join(',')
     return `${nodeState}|${connectivity}`
-  }, [nodes, edges])
+  }, [nodes, modelEdges])
 
   // nodes/edges are represented by forLoopLayoutKey; position-only updates intentionally
   // do not trigger this effect because drag-stop performs the fit once per gesture.
   // biome-ignore lint/correctness/useExhaustiveDependencies: intentional key-based reconciliation
   useEffect(() => {
-    setNodes(currentNodes => reconcileForLoopGroups(currentNodes, edges))
+    setNodes(currentNodes => reconcileForLoopGroups(currentNodes, modelEdges))
   }, [forLoopLayoutKey, setNodes])
 
   // `transformGraph` needs all nodes to build the opMap and resolve connections
@@ -369,13 +393,22 @@ export function getNoodles(): Visualization {
   useEffect(() => {
     // loadProjectFile already called transformGraph directly, so skip this triggered re-run
     if (isProjectLoadRef.current) return
-    const ops = transformGraph({ nodes, edges })
-    setOperators(ops)
+    const result = transformGraph({ nodes, edges })
+    setOperators(result.operators)
+    // Show error dialog if there are graph errors
+    if (result.errors.length > 0) {
+      setGraphErrors(
+        result.errors.map(e => ({
+          type: e.type,
+          message: e.message,
+        }))
+      )
+    }
     // Catch-all for multi-input slot caches: re-derive orderIndex/groupSize now that the
     // operators exist in the store (covers undo/redo restores, keyboard deletes, and AI/paste
     // paths that added edges before their operators were instantiated). Returns the same
     // array reference when nothing changed, so this doesn't loop.
-    setEdges(eds => normalizeMultiInputEdges(eds))
+    setEdges(eds => normalizeMultiInputEdges(eds.filter(edge => edge.type !== 'ReferenceEdge')))
   }, [graphStructureKey])
 
   // Reset isProjectLoadRef after every render so the flag never gets stuck when
@@ -615,7 +648,12 @@ export function getNoodles(): Visualization {
   const onNodeDragStop = useCallback(
     (event: React.MouseEvent, node: ReactFlowNode) => {
       const result = onNodeDragStopBase(event, node)
-      setNodes(currentNodes => reconcileForLoopGroups(currentNodes, graphRef.current.edges))
+      setNodes(currentNodes =>
+        reconcileForLoopGroups(currentNodes, [
+          ...graphRef.current.edges,
+          ...referenceDependencyModel.getSnapshot(),
+        ])
+      )
       // Mark as unsaved if a node was inserted into an edge
       if (result) {
         setHasUnsavedChanges(true)
@@ -799,6 +837,11 @@ export function getNoodles(): Visualization {
 
       currentProjectRef.current = project
 
+      // Install embedded keys before constructing operators. Key-dependent operators
+      // may inspect credentials while their fields and listeners are initialized.
+      const keysStore = getKeysStore()
+      keysStore.setProjectKeys(apiKeys)
+
       // Dispose all old operators cleanly (executionState.complete() + unsubscribeListeners)
       const store = getOpStore()
       for (const op of store.getAllOps()) {
@@ -809,6 +852,7 @@ export function getNoodles(): Visualization {
       // Load timeline state before transformGraph so field bindings see the right keyframe data
       clearAllBindings()
       const hasTimeline = timeline && Object.keys(timeline).length > 0
+      const timelineErrors: GraphError[] = []
       if (hasTimeline) {
         try {
           // Timeline data uses a timeline JSON format.
@@ -817,31 +861,47 @@ export function getNoodles(): Visualization {
           )
         } catch (error) {
           console.error('Failed to load timeline:', error)
+          timelineErrors.push({
+            type: 'operator-execution',
+            message: 'Failed to load timeline data',
+            details: error instanceof Error ? error.stack : String(error),
+          })
         }
       } else {
         timelineStore.reset()
       }
 
       // Build the operator graph synchronously — operators are ready before any re-render
-      const ops = transformGraph({ nodes, edges })
-      setOperators(ops)
+      const result = transformGraph({ nodes, edges })
+      setOperators(result.operators)
+      // Show error dialog if there are graph or timeline errors
+      const allErrors = [
+        ...timelineErrors,
+        ...result.errors.map(e => ({
+          type: e.type,
+          message: e.message,
+        })),
+      ]
+      if (allErrors.length > 0) {
+        setGraphErrors(allErrors)
+      }
 
       // Update React Flow state (for rendering; graph is already set up above).
       // Normalizing here (after transformGraph, so operators exist for the ListField
       // lookup) derives multi-input slot rendering caches from the file's edge order —
       // project files never store them.
       setNodes(nodes)
-      setEdges(normalizeMultiInputEdges(edges as ReactFlowEdge[]))
+      setEdges(
+        normalizeMultiInputEdges(
+          (edges as ReactFlowEdge[]).filter(edge => edge.type !== 'ReferenceEdge')
+        )
+      )
 
       // Load editor settings from project with defaults
       setShowOverlay(editorSettings?.showOverlay ?? true)
       setShowDebugInfo(editorSettings?.showDebugInfo ?? false)
 
       // Render settings are now stored as OutOp inputs (migration 012 handles conversion)
-
-      // Load API keys from project file if present
-      const keysStore = getKeysStore()
-      keysStore.setProjectKeys(apiKeys)
 
       // Restore viewport unless we're in an undo/redo restore
       if (viewport && name && !undoRedoRef.current?.isRestoring()) {
@@ -1020,13 +1080,13 @@ export function getNoodles(): Visualization {
   }, [displayedNodes])
 
   const activeEdges = useMemo(() => {
-    return edges
+    return modelEdges
       .filter(edge => visibleNodeIds.has(edge.source) && visibleNodeIds.has(edge.target))
       .map(edge => ({
         ...edge,
         sourceHandle: edge.type === 'ReferenceEdge' ? null : edge.sourceHandle,
       }))
-  }, [edges, visibleNodeIds])
+  }, [modelEdges, visibleNodeIds])
 
   // File menu callbacks
   const getNoodlesProjectJson = useCallback((): NoodlesProjectJSON => {
@@ -1293,6 +1353,8 @@ export function getNoodles(): Visualization {
   // Handle mod+shift+s for Save As and mod+shift+a for Rename Project
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (shouldBlockKeyboardShortcut(e)) return
+
       const key = e.key.toLowerCase()
       const isMod = e.metaKey || e.ctrlKey
       const isShift = e.shiftKey
@@ -1593,17 +1655,6 @@ export function getNoodles(): Visualization {
               <BlockLibrary ref={blockLibraryRef} reactFlowRef={reactFlowRef} />
               <CopyControls ref={copyControlsRef} graphRef={graphRef} />
               <UndoRedoHandler ref={undoRedoRef} graphRef={graphRef} />
-              <Suspense fallback={null}>
-                <ChatPanel
-                  project={{ nodes, edges }}
-                  onClose={() => {
-                    setShowChatPanel(false)
-                    setChatInitialMessage(undefined)
-                  }}
-                  isVisible={showChatPanel}
-                  initialMessage={chatInitialMessage}
-                />
-              </Suspense>
               {showDebugInfo && <NodeInfoOverlay />}
               {showDebugInfo && <ViewportInfoPanel />}
             </ReactFlow>
@@ -1674,6 +1725,12 @@ export function getNoodles(): Visualization {
           onBrowseExamples={onBrowseExamples}
           onCheckMyProjects={onCheckMyProjects}
           onClose={() => setShowExampleNotFoundDialog(false)}
+        />
+        <GraphErrorDialog
+          open={graphErrors.length > 0}
+          errors={graphErrors}
+          onClose={() => setGraphErrors([])}
+          validOperatorCount={operators.length}
         />
         <StorageErrorHandler />
       </div>
@@ -1829,6 +1886,20 @@ export function getNoodles(): Visualization {
     </ErrorBoundary>
   )
 
+  const chatPanel = (
+    <Suspense fallback={null}>
+      <ChatPanel
+        project={{ nodes, edges }}
+        onClose={() => {
+          setShowChatPanel(false)
+          setChatInitialMessage(undefined)
+        }}
+        isVisible={showChatPanel}
+        initialMessage={chatInitialMessage}
+      />
+    </Suspense>
+  )
+
   return {
     flowGraph,
     selectedNodeIds: nodes.filter(n => n.selected).map(n => n.id),
@@ -1853,6 +1924,7 @@ export function getNoodles(): Visualization {
       </ErrorBoundary>
     ),
     propertiesPanel,
+    chatPanel,
     showOverlay,
     onChangeShowOverlay: setShowOverlay,
     showDebugInfo,
