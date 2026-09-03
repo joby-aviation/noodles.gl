@@ -387,7 +387,7 @@ Be concise and practical. Focus on solving the user's immediate problem.`
     const nodes = project.nodes.slice(0, maxNodes)
 
     for (const node of nodes) {
-      const op = opStore.get(node.id)
+      const op = opStore.getOp(node.id)
       if (!op) continue
 
       // Basic node info

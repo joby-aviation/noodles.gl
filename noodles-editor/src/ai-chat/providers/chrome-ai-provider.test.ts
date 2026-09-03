@@ -8,7 +8,7 @@ import { ProviderError } from './ai-provider-interface'
 const mockOpStore = new Map()
 vi.mock('../../noodles/store', () => ({
   getOpStore: () => ({
-    get: (id: string) => mockOpStore.get(id),
+    getOp: (id: string) => mockOpStore.get(id),
   }),
 }))
 
