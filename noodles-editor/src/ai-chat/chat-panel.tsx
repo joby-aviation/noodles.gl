@@ -9,6 +9,7 @@ import {
 import { useKeysStore } from '../noodles/keys-store'
 import { useUIStore } from '../noodles/store'
 import { debugAiChat } from '../utils/debug'
+import { useAgentModelStore } from './agent/model-store'
 import { AnthropicProvider } from './agent/providers/anthropic'
 import { AgentSession } from './agent/session'
 import styles from './chat-panel.module.css'
@@ -48,6 +49,8 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
 
   // Get API key directly from store (reactive)
   const apiKey = useKeysStore(state => state.getKey('anthropic'))
+  // undefined leaves the provider on its own default
+  const model = useAgentModelStore(state => state.getModel('anthropic'))
 
   // Get the function to open settings dialog
   const setSettingsDialogOpen = useUIStore(state => state.setSettingsDialogOpen)
@@ -81,7 +84,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
         const loader = await globalContextManager.waitForReady()
 
         const tools = new MCPTools(loader)
-        const provider = new AnthropicProvider({ apiKey })
+        const provider = new AnthropicProvider({ apiKey, model })
 
         setMcpTools(tools)
         setSession(new AgentSession(provider, tools))
@@ -93,7 +96,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
     }
 
     init()
-  }, [apiKey])
+  }, [apiKey, model])
 
   // Update MCPTools with current project whenever it changes
   useEffect(() => {

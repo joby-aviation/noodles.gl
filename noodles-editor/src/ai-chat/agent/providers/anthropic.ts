@@ -8,7 +8,18 @@
 import Anthropic from '@anthropic-ai/sdk'
 import type { AgentContent, AgentEvent, AgentProvider, AgentRequest, StopReason } from '../types'
 
-export const DEFAULT_ANTHROPIC_MODEL = 'claude-opus-5'
+// Sonnet is the default: this chat's turns are graph edits and data inspection,
+// which Sonnet handles at a fraction of Opus's input price. Reach for Opus per
+// conversation via the model option when a task actually needs it.
+export const DEFAULT_ANTHROPIC_MODEL = 'claude-sonnet-5'
+
+// Offered by the model picker. Not exhaustive — any model id the account can
+// reach works, this is just the shortlist worth naming.
+export const ANTHROPIC_MODELS = [
+  { id: 'claude-sonnet-5', label: 'Sonnet 5' },
+  { id: 'claude-opus-5', label: 'Opus 5' },
+  { id: 'claude-haiku-4-5-20251001', label: 'Haiku 4.5' },
+] as const
 
 // Opus 5 and Sonnet 5 both accept 1M tokens, but pricing steps up past 200k and
 // the router's disclosure budget should not plan around a window this chat will
