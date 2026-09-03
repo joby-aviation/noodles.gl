@@ -47,6 +47,9 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
   const [showHistory, setShowHistory] = useState(false)
   const [contextProgress, setContextProgress] = useState<string>('')
   const [providerError, setProviderError] = useState<string | null>(null)
+  const [upgradeBannerDismissed, setUpgradeBannerDismissed] = useState(
+    () => localStorage.getItem('noodles-upgrade-banner-dismissed') === 'true'
+  )
 
   // Get API keys and config from store (reactive) - watch for changes to trigger provider refresh
   const anthropicKey = useKeysStore(state => state.getKey('anthropic'))
@@ -225,6 +228,11 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
     }
   }
 
+  const dismissUpgradeBanner = () => {
+    setUpgradeBannerDismissed(true)
+    localStorage.setItem('noodles-upgrade-banner-dismissed', 'true')
+  }
+
   const startNewConversation = () => {
     // Auto-save current conversation if it has messages
     if (messages.length > 0 && !currentConversationId) {
@@ -284,19 +292,20 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
     return (
       <div className={styles.chatPanel}>
         <div className={styles.chatPanelLoading}>
-          <h3>AI Provider Error</h3>
+          <h3>AI Provider Required</h3>
           <p style={{ color: '#ff6b6b', marginBottom: '1rem', whiteSpace: 'pre-wrap' }}>
             {providerError}
           </p>
-          <p>
-            Configure an AI provider in{' '}
+          <p style={{ marginBottom: '0.5rem' }}>
+            Add an{' '}
             <button
               type="button"
               onClick={() => setSettingsDialogOpen(true)}
               className={styles.linkButton}
             >
-              Settings → AI Provider
+              Anthropic or OpenAI API key
             </button>
+            , or enable Chrome Built-in AI at chrome://flags/#prompt-api-for-gemini-nano
           </p>
           <div
             style={{ marginTop: '1rem', display: 'flex', gap: '0.5rem', justifyContent: 'center' }}
@@ -385,6 +394,34 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
           </button>
         </div>
       </div>
+
+      {/* Chrome AI upgrade banner */}
+      {aiProvider?.name === 'chrome-ai' && !upgradeBannerDismissed && (
+        <div className={styles.upgradeBanner}>
+          <div className={styles.upgradeBannerIcon}>💡</div>
+          <div className={styles.upgradeBannerContent}>
+            <div className={styles.upgradeBannerTitle}>Using Chrome Built-in AI (Free)</div>
+            <div className={styles.upgradeBannerText}>
+              For better results,{' '}
+              <button
+                type="button"
+                onClick={() => setSettingsDialogOpen(true)}
+                className={styles.upgradeBannerLink}
+              >
+                add an Anthropic or OpenAI API key
+              </button>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={dismissUpgradeBanner}
+            className={styles.upgradeBannerClose}
+            title="Dismiss"
+          >
+            ×
+          </button>
+        </div>
+      )}
 
       <div className={styles.chatPanelOptions}>
         <label className={styles.chatOption}>
