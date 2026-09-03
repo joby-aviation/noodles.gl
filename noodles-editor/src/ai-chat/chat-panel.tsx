@@ -51,6 +51,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
   const [upgradeBannerDismissed, setUpgradeBannerDismissed] = useState(
     () => localStorage.getItem('noodles-upgrade-banner-dismissed') === 'true'
   )
+  const [, setContextUpdateTrigger] = useState(0)
 
   // Get API keys and config from store (reactive) - watch for changes to trigger provider refresh
   const anthropicKey = useKeysStore(state => state.getKey('anthropic'))
@@ -166,6 +167,9 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
       }
 
       setMessages(prev => [...prev, assistantMessage])
+
+      // Trigger context window update
+      setContextUpdateTrigger(prev => prev + 1)
 
       // Apply project modifications if any
       if (response.projectModifications && response.projectModifications.length > 0) {
@@ -357,6 +361,9 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
   const rateLimit = aiProvider?.getRateLimit()
   const rateLimitWarning = rateLimit && rateLimit.remaining < rateLimit.limit * 0.2
 
+  // Get context window info if available
+  const contextWindow = aiProvider?.getContextWindow()
+
   return (
     <div className={styles.chatPanel}>
       <div className={styles.chatPanelHeader}>
@@ -391,6 +398,45 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
           )}
         </div>
         <div className={styles.chatPanelActions}>
+          {contextWindow && (
+            <div
+              className={styles.contextIndicator}
+              title={`Context: ${contextWindow.used.toLocaleString()} / ${contextWindow.total.toLocaleString()} tokens`}
+            >
+              <svg width="24" height="24" viewBox="0 0 24 24" role="img">
+                <title>Context Window Usage</title>
+                <circle
+                  cx="12"
+                  cy="12"
+                  r="9"
+                  fill="none"
+                  stroke="rgba(255, 255, 255, 0.1)"
+                  strokeWidth="2"
+                />
+                <circle
+                  cx="12"
+                  cy="12"
+                  r="9"
+                  fill="none"
+                  stroke={contextWindow.percentage > 80 ? '#ff6b6b' : '#4a9eff'}
+                  strokeWidth="2"
+                  strokeDasharray={`${(contextWindow.percentage / 100) * 56.5} 56.5`}
+                  strokeLinecap="round"
+                  transform="rotate(-90 12 12)"
+                />
+                <text
+                  x="12"
+                  y="12"
+                  textAnchor="middle"
+                  dominantBaseline="central"
+                  fontSize="7"
+                  fill="currentColor"
+                >
+                  {contextWindow.percentage}%
+                </text>
+              </svg>
+            </div>
+          )}
           <button
             type="button"
             className={styles.chatPanelActionBtn}

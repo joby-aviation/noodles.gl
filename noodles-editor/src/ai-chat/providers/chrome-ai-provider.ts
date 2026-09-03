@@ -9,6 +9,7 @@ import { parseModifications } from '../types'
 import type {
   AIProvider,
   AIResponse,
+  ContextWindowInfo,
   MessageParams,
   RateLimitInfo,
 } from './ai-provider-interface'
@@ -186,6 +187,21 @@ export class ChromeAIProvider implements AIProvider {
 
   getRateLimit(): RateLimitInfo | null {
     // Chrome Built-in AI has no explicit rate limits (runs locally)
+    return null
+  }
+
+  getContextWindow(): ContextWindowInfo | null {
+    if (!this.session) return null
+
+    // Chrome AI exposes contextWindow and contextUsage properties
+    if ('contextWindow' in this.session && 'contextUsage' in this.session) {
+      const used = (this.session as any).contextUsage as number
+      const total = (this.session as any).contextWindow as number
+      const percentage = Math.round((used / total) * 100)
+
+      return { used, total, percentage }
+    }
+
     return null
   }
 

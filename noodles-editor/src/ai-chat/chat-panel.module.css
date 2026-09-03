@@ -538,3 +538,17 @@
   color: #aaa;
   margin: 0;
 }
+
+/* Context window indicator */
+.contextIndicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #e0e0e0;
+  cursor: help;
+  transition: opacity 0.2s;
+}
+
+.contextIndicator:hover {
+  opacity: 1;
+}

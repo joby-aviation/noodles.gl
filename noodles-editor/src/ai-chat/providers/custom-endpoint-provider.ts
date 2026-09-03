@@ -9,6 +9,7 @@ import type {
   AIProvider,
   AIResponse,
   AuthenticationError,
+  ContextWindowInfo,
   MessageParams,
   RateLimitInfo,
 } from './ai-provider-interface'
@@ -75,6 +76,8 @@ export class CustomEndpointProvider implements AIProvider {
   private tools: MCPTools
   private readonly MAX_TOKENS = 8192
   private readonly MAX_CONVERSATION_HISTORY = 10
+  private lastUsage: { prompt_tokens: number; completion_tokens: number; total_tokens: number } | null = null
+  private modelContextSize: number = 128000 // Default to 128K, common for most models
 
   constructor(
     tools: MCPTools,
@@ -124,6 +127,15 @@ export class CustomEndpointProvider implements AIProvider {
   getRateLimit(): RateLimitInfo | null {
     // Custom endpoints don't report rate limits in a standard way
     return null
+  }
+
+  getContextWindow(): ContextWindowInfo | null {
+    if (!this.lastUsage) return null
+
+    const used = this.lastUsage.prompt_tokens + this.lastUsage.completion_tokens
+    const percentage = Math.round((used / this.modelContextSize) * 100)
+
+    return { used, total: this.modelContextSize, percentage }
   }
 
   async sendMessage(params: MessageParams): Promise<AIResponse> {
@@ -192,6 +204,11 @@ export class CustomEndpointProvider implements AIProvider {
       }
 
       response = await res.json()
+
+      // Store usage info for context window tracking
+      if (response.usage) {
+        this.lastUsage = response.usage
+      }
     } catch (error) {
       debugAiChat('Custom endpoint API error:', error)
       if (error instanceof ProviderError) {

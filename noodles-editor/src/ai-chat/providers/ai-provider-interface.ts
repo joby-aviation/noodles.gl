@@ -20,6 +20,9 @@ export interface AIProvider {
 
   // Rate limiting (optional, null if not applicable)
   getRateLimit(): RateLimitInfo | null
+
+  // Context window usage (optional, null if not available)
+  getContextWindow(): ContextWindowInfo | null
 }
 
 // Parameters for sending a message
@@ -45,6 +48,13 @@ export interface RateLimitInfo {
   limit: number
   resetAt?: Date
   windowDescription?: string // e.g., "per day", "per hour"
+}
+
+// Context window information
+export interface ContextWindowInfo {
+  used: number // Tokens used
+  total: number // Total context window size
+  percentage: number // 0-100
 }
 
 // Error types

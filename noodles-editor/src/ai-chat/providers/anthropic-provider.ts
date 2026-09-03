@@ -15,6 +15,7 @@ import type {
   AIProvider,
   AIResponse,
   AuthenticationError,
+  ContextWindowInfo,
   MessageParams,
   RateLimitInfo,
 } from './ai-provider-interface'
@@ -71,6 +72,7 @@ export class AnthropicProvider implements AIProvider {
 
   private client: Anthropic
   private tools: MCPTools
+  private lastUsage: { input_tokens: number; output_tokens: number } | null = null
 
   constructor(apiKey: string, tools: MCPTools) {
     if (!apiKey) {
@@ -93,6 +95,17 @@ export class AnthropicProvider implements AIProvider {
     // Anthropic doesn't expose rate limits in the same way
     // Rate limits depend on tier and are enforced server-side
     return null
+  }
+
+  getContextWindow(): ContextWindowInfo | null {
+    if (!this.lastUsage) return null
+
+    // Claude Sonnet 4.5 has 200K token context window
+    const CONTEXT_WINDOW = 200000
+    const used = this.lastUsage.input_tokens + this.lastUsage.output_tokens
+    const percentage = Math.round((used / CONTEXT_WINDOW) * 100)
+
+    return { used, total: CONTEXT_WINDOW, percentage }
   }
 
   async sendMessage(params: MessageParams): Promise<AIResponse> {
@@ -180,6 +193,11 @@ export class AnthropicProvider implements AIProvider {
         messages,
         tools,
       })
+
+      // Store usage info for context window tracking
+      if (response.usage) {
+        this.lastUsage = response.usage
+      }
     } catch (error) {
       debugAiChat('Anthropic API error:', error)
       if (error instanceof Error) {
@@ -336,6 +354,11 @@ export class AnthropicProvider implements AIProvider {
           messages,
           tools,
         })
+
+        // Store usage info for context window tracking
+        if (response.usage) {
+          this.lastUsage = response.usage
+        }
       } catch (error) {
         debugAiChat('Anthropic API error in tool use loop:', error)
         throw new ProviderError(
