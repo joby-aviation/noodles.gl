@@ -637,7 +637,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
             key={`msg-${idx}-${msg.role}`}
             className={`${styles.chatMessage} ${msg.role === 'user' ? styles.chatMessageUser : styles.chatMessageAssistant}`}
           >
-            <div className={styles.chatMessageRole}>{msg.role === 'user' ? 'You' : 'Claude'}</div>
+            <div className={styles.chatMessageRole}>{msg.role === 'user' ? 'You' : 'Agent'}</div>
             <div className={styles.chatMessageContent}>
               <MessageContent
                 content={Array.isArray(msg.content) ? msg.content.join('\n') : msg.content}
