@@ -715,32 +715,32 @@ function initializeChannelFields(
   })
   field.subscriptions.set('__parentToChannels', parentToChannels)
 
-  const channelsToParent = combineLatest(channelKeys.map(key => field.channelFields[key])).subscribe(
-    channelValues => {
-      if (syncingFromParent) return
+  const channelsToParent = combineLatest(
+    channelKeys.map(key => field.channelFields[key])
+  ).subscribe(channelValues => {
+    if (syncingFromParent) return
 
-      const createValue = (values: unknown[]) =>
-        field.returnType === 'tuple'
-          ? values
-          : Object.fromEntries(channelKeys.map((key, index) => [key, values[index]]))
+    const createValue = (values: unknown[]) =>
+      field.returnType === 'tuple'
+        ? values
+        : Object.fromEntries(channelKeys.map((key, index) => [key, values[index]]))
 
-      const hasAccessor = channelValues.some(value => typeof value === 'function')
-      const nextValue = hasAccessor
-        ? (...args: unknown[]) =>
-            createValue(
-              channelValues.map(value =>
-                typeof value === 'function'
-                  ? (value as (...args: unknown[]) => unknown)(...args)
-                  : value
-              )
+    const hasAccessor = channelValues.some(value => typeof value === 'function')
+    const nextValue = hasAccessor
+      ? (...args: unknown[]) =>
+          createValue(
+            channelValues.map(value =>
+              typeof value === 'function'
+                ? (value as (...args: unknown[]) => unknown)(...args)
+                : value
             )
-        : createValue(channelValues)
+          )
+      : createValue(channelValues)
 
-      // Vector schemas accept this value shape (or an accessor when enabled), but the
-      // concrete tuple/object union varies by vector class.
-      field.setValue(nextValue as never)
-    }
-  )
+    // Vector schemas accept this value shape (or an accessor when enabled), but the
+    // concrete tuple/object union varies by vector class.
+    field.setValue(nextValue as never)
+  })
   field.subscriptions.set('__channelsToParent', channelsToParent)
 }
 

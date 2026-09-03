@@ -302,12 +302,7 @@ export function transformGraph<
         const ctor = opTypes[type]
         const containerId = getParentPath(id)
         // Create operator with fully qualified path as id and store containerId
-        op = new ctor(
-          id,
-          data?.inputs,
-          data?.locked,
-          containerId
-        ) as unknown as OP
+        op = new ctor(id, data?.inputs, data?.locked, containerId) as unknown as OP
         // Some operators define narrower constructors and do not forward extra
         // arguments to Operator, so restore presentation state explicitly.
         op.inputPortModes.next({ ...(data?.inputPortModes ?? {}) })
@@ -424,8 +419,16 @@ export function transformGraph<
       const targetNamespace = targetHandleInfo.namespace
 
       // In normal data flow, source is always an output and target is always an input
-      const sourceResolved = resolveOperatorField(sourceOp, sourceNamespace, sourceHandleInfo.fieldName)
-      const targetResolved = resolveOperatorField(targetOp, targetNamespace, targetHandleInfo.fieldName)
+      const sourceResolved = resolveOperatorField(
+        sourceOp,
+        sourceNamespace,
+        sourceHandleInfo.fieldName
+      )
+      const targetResolved = resolveOperatorField(
+        targetOp,
+        targetNamespace,
+        targetHandleInfo.fieldName
+      )
       if (!sourceResolved || !targetResolved) {
         debugExecutor('Invalid connection')
         continue
