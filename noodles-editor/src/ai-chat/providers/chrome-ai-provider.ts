@@ -13,32 +13,28 @@ import type {
 } from './ai-provider-interface'
 import { ProviderError } from './ai-provider-interface'
 
-// Chrome Built-in AI (Gemini Nano) - window.ai API
-// https://github.com/explainers-by-googlers/prompt-api
-interface WindowAI {
-  canCreateTextSession: () => Promise<'readily' | 'after-download' | 'no'>
-  createTextSession: (options?: {
+// Chrome Built-in AI (Gemini Nano) - Prompt API
+// https://developer.chrome.com/docs/ai/prompt-api
+interface LanguageModelAvailability {
+  availability(): Promise<'unavailable' | 'downloadable' | 'downloading' | 'available'>
+  create(options?: {
+    signal?: AbortSignal
     systemPrompt?: string
-    temperature?: number
+    initialPrompts?: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>
     topK?: number
-  }) => Promise<AITextSession>
-  defaultTextSessionOptions: () => Promise<{
-    temperature: number
-    topK: number
-  }>
+    temperature?: number
+  }): Promise<AILanguageModelSession>
 }
 
-interface AITextSession {
-  prompt: (input: string) => Promise<string>
-  promptStreaming: (input: string) => ReadableStream<string>
-  destroy: () => void
-  clone: () => AITextSession
+interface AILanguageModelSession {
+  prompt(input: string, options?: { signal?: AbortSignal }): Promise<string>
+  promptStreaming(input: string, options?: { signal?: AbortSignal }): ReadableStream<string>
+  destroy(): void
+  clone(): AILanguageModelSession
 }
 
 declare global {
-  interface Window {
-    ai?: WindowAI
-  }
+  const LanguageModel: LanguageModelAvailability
 }
 
 export class ChromeAIProvider implements AIProvider {
@@ -49,7 +45,7 @@ export class ChromeAIProvider implements AIProvider {
   readonly supportsFunctionCalling = false // Chrome AI doesn't support function calling yet
 
   private tools: MCPTools
-  private session: AITextSession | null = null
+  private session: AILanguageModelSession | null = null
 
   constructor(tools: MCPTools) {
     this.tools = tools
@@ -57,7 +53,7 @@ export class ChromeAIProvider implements AIProvider {
 
   async initialize(): Promise<void> {
     // Check if Chrome Built-in AI is available
-    if (!window.ai) {
+    if (typeof LanguageModel === 'undefined') {
       throw new ProviderError(
         'Chrome Built-in AI is not available.\n\n' +
           '1. Use Chrome 127+ (you have: ' +
@@ -73,7 +69,7 @@ export class ChromeAIProvider implements AIProvider {
 
     let availability: string
     try {
-      availability = await window.ai.canCreateTextSession()
+      availability = await LanguageModel.availability()
     } catch (error) {
       throw new ProviderError(
         'Chrome Built-in AI check failed. The flag may be enabled but the feature is not ready.\n\n' +
@@ -86,7 +82,7 @@ export class ChromeAIProvider implements AIProvider {
       )
     }
 
-    if (availability === 'no') {
+    if (availability === 'unavailable') {
       throw new ProviderError(
         'Chrome Built-in AI is not available on this device.\n\n' +
           'This feature requires specific hardware support. ' +
@@ -96,19 +92,35 @@ export class ChromeAIProvider implements AIProvider {
       )
     }
 
-    if (availability === 'after-download') {
+    if (availability === 'downloading') {
       throw new ProviderError(
         'Chrome Built-in AI model is downloading.\n\n' +
-          'This can take 5-10 minutes. The model is ~2GB.\n' +
-          'Try again later, or configure an external AI provider while you wait.',
+          'This is happening in the background. Try again in a few minutes.\n' +
+          'Or configure an external AI provider while you wait.',
         'chrome-ai',
         'DOWNLOADING'
       )
     }
 
+    if (availability === 'downloadable') {
+      // Need user activation to trigger download
+      if (!navigator.userActivation.isActive) {
+        throw new ProviderError(
+          'Chrome Built-in AI model needs to download (~2GB).\n\n' +
+            'Close this dialog and click the Assistant button again to trigger the download.\n' +
+            'Or configure an external AI provider instead.',
+          'chrome-ai',
+          'NEEDS_ACTIVATION'
+        )
+      }
+
+      // User activation is present, create session will trigger download
+      debugAiChat('Triggering Chrome AI model download...')
+    }
+
     // Create session with system prompt
     try {
-      this.session = await window.ai.createTextSession({
+      this.session = await LanguageModel.create({
         systemPrompt: this.getSimplifiedSystemPrompt(),
         temperature: 0.7,
         topK: 40,
