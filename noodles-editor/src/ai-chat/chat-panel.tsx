@@ -80,9 +80,6 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
   const [contextProgress, setContextProgress] = useState<string>('')
   const [providerProgress, setProviderProgress] = useState<string>('')
   const [providerError, setProviderError] = useState<string | null>(null)
-  const [upgradeBannerDismissed, setUpgradeBannerDismissed] = useState(
-    () => localStorage.getItem('noodles-upgrade-banner-dismissed') === 'true'
-  )
   const [, setContextUpdateTrigger] = useState(0)
   const [downloadProgress, setDownloadProgress] = useState<{
     loaded: number
@@ -301,11 +298,6 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
     }
   }
 
-  const dismissUpgradeBanner = () => {
-    setUpgradeBannerDismissed(true)
-    localStorage.setItem('noodles-upgrade-banner-dismissed', 'true')
-  }
-
   const startNewConversation = () => {
     // Auto-save current conversation if it has messages
     if (messages.length > 0 && !currentConversationId) {
@@ -480,17 +472,6 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
                     {rateLimit.windowDescription})
                   </span>
                 )}
-                {!anthropicKey && aiProvider.tier === 'free' && (
-                  <button
-                    type="button"
-                    onClick={openAIProviderSettings}
-                    className={styles.linkButton}
-                    style={{ marginLeft: '8px', fontSize: '11px' }}
-                    title="Add Anthropic API key for premium quality"
-                  >
-                    Upgrade to Premium
-                  </button>
-                )}
               </div>
 
               {showProviderDropdown && (
@@ -597,34 +578,6 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
           </button>
         </div>
       </div>
-
-      {/* Chrome AI upgrade banner */}
-      {aiProvider?.name === 'chrome-ai' && !upgradeBannerDismissed && (
-        <div className={styles.upgradeBanner}>
-          <div className={styles.upgradeBannerIcon}>💡</div>
-          <div className={styles.upgradeBannerContent}>
-            <div className={styles.upgradeBannerTitle}>Using Chrome Built-in AI (Free)</div>
-            <div className={styles.upgradeBannerText}>
-              For better results,{' '}
-              <button
-                type="button"
-                onClick={openAIProviderSettings}
-                className={styles.upgradeBannerLink}
-              >
-                add an Anthropic or OpenAI API key
-              </button>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={dismissUpgradeBanner}
-            className={styles.upgradeBannerClose}
-            title="Dismiss"
-          >
-            ×
-          </button>
-        </div>
-      )}
 
       <div className={styles.chatPanelOptions}>
         <label className={styles.chatOption}>
