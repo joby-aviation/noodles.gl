@@ -231,6 +231,41 @@ describe('vector channel handles', () => {
     expect(map.inputs.center.value).toEqual(disconnectedValue)
   })
 
+  it('cleans up channel subscriptions when the owning operator is removed', () => {
+    const numberNode = {
+      id: '/number',
+      type: 'NumberOp',
+      data: { inputs: {} },
+      position: { x: 0, y: 0 },
+    }
+    const mapNode = {
+      id: '/map',
+      type: 'MapViewStateOp',
+      data: {
+        inputs: { center: { lng: 1, lat: 5 } },
+        inputPortModes: { center: 'channels' },
+      },
+      position: { x: 100, y: 0 },
+    }
+    const edge = {
+      id: '/number.out.val->/map.par.center.lng',
+      source: '/number',
+      target: '/map',
+      sourceHandle: 'out.val',
+      targetHandle: 'par.center.lng',
+    }
+
+    transformGraph({ nodes: [numberNode, mapNode], edges: [edge] })
+    const map = getOpStore().getOp('/map')!
+    const center = map.inputs.center
+
+    transformGraph({ nodes: [numberNode], edges: [] })
+
+    expect(center.subscriptions.size).toBe(0)
+    expect(center.channelFields.lng.subscriptions.size).toBe(0)
+    expect(center.channelFields.lat.subscriptions.size).toBe(0)
+  })
+
   it('does not attach a whole-value edge while channel ports are active', () => {
     const nodes = [
       {

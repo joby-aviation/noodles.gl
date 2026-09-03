@@ -1107,9 +1107,22 @@ export abstract class Operator<OP extends IOperator> {
     this.customFieldsChanged.complete()
     this.inputPortModes.complete()
 
-    // Cleanup expression-mode subscriptions (sibling/timeline reactivity)
-    for (const field of Object.values(this.inputs)) {
+    // Cleanup input subscriptions, including vector channel connections and the
+    // internal subscriptions that keep their whole value in sync.
+    const disposeInputField = (field: Field) => {
       field.expressionCleanup?.()
+      for (const subscription of field.subscriptions.values()) {
+        subscription.unsubscribe()
+      }
+      field.subscriptions.clear()
+      if ('channelFields' in field) {
+        for (const channelField of Object.values(field.channelFields as Record<string, Field>)) {
+          disposeInputField(channelField)
+        }
+      }
+    }
+    for (const field of Object.values(this.inputs)) {
+      disposeInputField(field)
     }
 
     // Cleanup timeline subscriptions
