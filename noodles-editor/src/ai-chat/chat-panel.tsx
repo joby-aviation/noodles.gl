@@ -17,6 +17,38 @@ import { MCPTools } from './mcp-tools'
 import type { AIProvider } from './providers/ai-provider-interface'
 import { getProviderRegistry } from './providers/provider-registry'
 import type { Message, NoodlesProject } from './types'
+import type { ProviderPreference } from '../noodles/keys-store'
+
+interface ProviderOption {
+  value: ProviderPreference
+  displayName: string
+  description: string
+  requiresKey?: boolean
+}
+
+const PROVIDER_OPTIONS: ProviderOption[] = [
+  {
+    value: 'automatic',
+    displayName: 'Automatic',
+    description: 'Use best available provider'
+  },
+  {
+    value: 'anthropic',
+    displayName: 'Claude',
+    description: 'Anthropic Claude API',
+    requiresKey: true
+  },
+  {
+    value: 'custom',
+    displayName: 'Custom Endpoint',
+    description: 'OpenAI, Groq, or custom'
+  },
+  {
+    value: 'chrome-ai',
+    displayName: 'Chrome Built-in AI',
+    description: 'Free, runs locally'
+  }
+]
 
 interface ChatPanelProps {
   project: NoodlesProject
@@ -56,6 +88,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
     loaded: number
     total: number
   } | null>(null)
+  const [showProviderDropdown, setShowProviderDropdown] = useState(false)
 
   // Get API keys and config from store (reactive) - watch for changes to trigger provider refresh
   const anthropicKey = useKeysStore(state => state.getKey('anthropic'))
@@ -69,6 +102,13 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
   const openAIProviderSettings = () => {
     window.location.hash = 'ai-provider'
     setSettingsDialogOpen(true)
+  }
+
+  // Handle provider change from dropdown
+  const handleProviderChange = (preference: ProviderPreference) => {
+    useKeysStore.getState().setProviderPreference(preference)
+    // Provider re-initialization happens automatically via useEffect (line 139)
+    setShowProviderDropdown(false)
   }
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -411,29 +451,82 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
         <div>
           <h3>Noodles Assistant</h3>
           {aiProvider && (
-            <div style={{ fontSize: '11px', opacity: 0.7, marginTop: '2px' }}>
-              {aiProvider.displayName}
-              {rateLimit && (
-                <span
-                  style={{
-                    marginLeft: '8px',
-                    color: rateLimitWarning ? '#ff6b6b' : 'inherit',
-                  }}
-                >
-                  ({rateLimit.remaining.toLocaleString()}/{rateLimit.limit.toLocaleString()}{' '}
-                  {rateLimit.windowDescription})
-                </span>
-              )}
-              {!anthropicKey && aiProvider.tier === 'free' && (
+            <div
+              className={styles.providerSelector}
+              onMouseEnter={() => setShowProviderDropdown(true)}
+              onMouseLeave={() => setShowProviderDropdown(false)}
+            >
+              <div className={styles.providerName}>
+                {aiProvider.displayName}
+                <svg className={styles.dropdownIcon} width="12" height="12" viewBox="0 0 12 12">
+                  <path d="M2 4l4 4 4-4" stroke="currentColor" fill="none" strokeWidth="1.5" />
+                </svg>
                 <button
                   type="button"
+                  className={styles.settingsGear}
                   onClick={openAIProviderSettings}
-                  className={styles.linkButton}
-                  style={{ marginLeft: '8px', fontSize: '11px' }}
-                  title="Add Anthropic API key for premium quality"
+                  title="AI Settings"
                 >
-                  Upgrade to Premium
+                  ⚙️
                 </button>
+                {rateLimit && (
+                  <span
+                    style={{
+                      marginLeft: '8px',
+                      color: rateLimitWarning ? '#ff6b6b' : 'inherit',
+                    }}
+                  >
+                    ({rateLimit.remaining.toLocaleString()}/{rateLimit.limit.toLocaleString()}{' '}
+                    {rateLimit.windowDescription})
+                  </span>
+                )}
+                {!anthropicKey && aiProvider.tier === 'free' && (
+                  <button
+                    type="button"
+                    onClick={openAIProviderSettings}
+                    className={styles.linkButton}
+                    style={{ marginLeft: '8px', fontSize: '11px' }}
+                    title="Add Anthropic API key for premium quality"
+                  >
+                    Upgrade to Premium
+                  </button>
+                )}
+              </div>
+
+              {showProviderDropdown && (
+                <div className={styles.providerDropdown}>
+                  {PROVIDER_OPTIONS.map(option => {
+                    const isActive = providerPreference === option.value
+                    const isDisabled = option.requiresKey && !anthropicKey
+
+                    return (
+                      <button
+                        key={option.value}
+                        type="button"
+                        className={`${styles.providerOption} ${isActive ? styles.providerOptionActive : ''} ${isDisabled ? styles.providerOptionDisabled : ''}`}
+                        onClick={() => !isDisabled && handleProviderChange(option.value)}
+                        disabled={isDisabled}
+                      >
+                        <div className={styles.providerOptionName}>
+                          {option.displayName}
+                          {isActive && <span className={styles.activeCheckmark}>✓</span>}
+                        </div>
+                        <div className={styles.providerOptionDesc}>{option.description}</div>
+                        {isDisabled && (
+                          <div className={styles.providerOptionWarning}>Requires API key</div>
+                        )}
+                      </button>
+                    )
+                  })}
+                  <div className={styles.providerDropdownDivider} />
+                  <button
+                    type="button"
+                    className={styles.providerOption}
+                    onClick={openAIProviderSettings}
+                  >
+                    <div className={styles.providerOptionName}>More Settings...</div>
+                  </button>
+                </div>
               )}
             </div>
           )}
