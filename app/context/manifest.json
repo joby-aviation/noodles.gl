@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
-  "generated": "2026-09-03T14:45:38.026Z",
-  "commit": "81dfe3c",
+  "generated": "2026-09-03T15:10:59.940Z",
+  "commit": "3251bb1",
   "bundles": {
     "operatorRegistry": {
       "file": "operator-registry.d7493dc8ba.json",
@@ -19,9 +19,9 @@
       "hash": "a33bf66b2b"
     },
     "codeIndex": {
-      "file": "code-index.0d26273d54.json",
+      "file": "code-index.4d1505131b.json",
       "size": 1090255,
-      "hash": "0d26273d54"
+      "hash": "4d1505131b"
     }
   }
 }
