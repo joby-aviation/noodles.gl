@@ -33,7 +33,9 @@ interface LanguageModelAvailability {
     initialPrompts?: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>
     topK?: number
     temperature?: number
-    monitor?: (monitor: { addEventListener: (type: string, callback: (e: DownloadProgressEvent) => void) => void }) => void
+    monitor?: (monitor: {
+      addEventListener: (type: string, callback: (e: DownloadProgressEvent) => void) => void
+    }) => void
     expectedOutputs?: Array<{ type: 'text'; languages: string[] }>
   }): Promise<AILanguageModelSession>
 }
@@ -85,7 +87,7 @@ export class ChromeAIProvider implements AIProvider {
     try {
       // Specify expected outputs when checking availability
       availability = await (LanguageModel as any).availability({
-        expectedOutputs: [{ type: 'text', languages: ['en'] }]
+        expectedOutputs: [{ type: 'text', languages: ['en'] }],
       })
       debugAiChat('Chrome AI availability:', availability)
     } catch (error) {
@@ -139,7 +141,10 @@ export class ChromeAIProvider implements AIProvider {
 
     // Create session with system prompt (with timeout and progress monitoring)
     try {
-      debugAiChat('Creating Chrome AI session with options:', { availability, hasProgress: !!onProgress })
+      debugAiChat('Creating Chrome AI session with options:', {
+        availability,
+        hasProgress: !!onProgress,
+      })
 
       // Create options with expectedOutputs to satisfy Chrome AI requirements
       const createOptions = {
@@ -208,11 +213,7 @@ export class ChromeAIProvider implements AIProvider {
       }, 5000)
 
       try {
-        this.session = await withTimeout(
-          createSessionPromise,
-          timeoutMs,
-          timeoutMessage
-        )
+        this.session = await withTimeout(createSessionPromise, timeoutMs, timeoutMessage)
         clearInterval(heartbeat)
         debugAiChat('Session created successfully!')
       } catch (error) {
@@ -225,10 +226,14 @@ export class ChromeAIProvider implements AIProvider {
       if ('contextWindow' in this.session && 'contextUsage' in this.session) {
         const usage = (this.session as any).contextUsage
         const window = (this.session as any).contextWindow
-        debugAiChat(`Chrome AI context usage: ${usage}/${window} tokens (${Math.round((usage / window) * 100)}%)`)
+        debugAiChat(
+          `Chrome AI context usage: ${usage}/${window} tokens (${Math.round((usage / window) * 100)}%)`
+        )
 
         if (usage > window * 0.8) {
-          debugAiChat('WARNING: System prompt uses >80% of context window. May cause issues with longer conversations.')
+          debugAiChat(
+            'WARNING: System prompt uses >80% of context window. May cause issues with longer conversations.'
+          )
         }
       }
 
@@ -238,11 +243,7 @@ export class ChromeAIProvider implements AIProvider {
       debugAiChat('Chrome AI initialization error:', error)
 
       if (error instanceof TimeoutError) {
-        throw new ProviderError(
-          error.message,
-          'chrome-ai',
-          'TIMEOUT'
-        )
+        throw new ProviderError(error.message, 'chrome-ai', 'TIMEOUT')
       }
 
       // Extract detailed error message
@@ -285,11 +286,7 @@ export class ChromeAIProvider implements AIProvider {
     const { message, conversationHistory = [] } = params
 
     if (!this.session) {
-      throw new ProviderError(
-        'Chrome AI session not initialized',
-        'chrome-ai',
-        'NOT_INITIALIZED'
-      )
+      throw new ProviderError('Chrome AI session not initialized', 'chrome-ai', 'NOT_INITIALIZED')
     }
 
     // Build conversation context (Chrome AI doesn't maintain history)
@@ -352,32 +349,31 @@ export class ChromeAIProvider implements AIProvider {
 
   // Simplified system prompt for Chrome AI (smaller context window)
   private getSimplifiedSystemPrompt(): string {
-    return `You are an AI assistant for Noodles.gl, a visual programming tool for geospatial data visualization.
+    return `You are an AI assistant for Noodles.gl, a geospatial visualization tool.
 
-CRITICAL: To make ANY changes to the project, you MUST output a JSON code block. Text-only responses do nothing.
-
-When the user asks to modify the project, respond with JSON modifications:
+To modify the project, use this EXACT JSON array format:
 \`\`\`json
-[
-  {"type": "update_node", "data": {"id": "/node-id", "data": {"inputs": {"paramName": "newValue"}}}}
-]
+[{"type": "update_node", "data": {"id": "/node-id", "data": {"inputs": {"param": "value"}}}}]
 \`\`\`
 
-Example:
-User: "Change the pickup color to red"
-Assistant: I'll change the /pickup-color node to red:
+EXAMPLE:
+User: "Change pickup color to red"
+Assistant: Updating /pickup-color to red:
 \`\`\`json
-[
-  {"type": "update_node", "data": {"id": "/pickup-color", "data": {"inputs": {"color": "#ff0000"}}}}
-]
+[{"type": "update_node", "data": {"id": "/pickup-color", "data": {"inputs": {"color": "#ff0000"}}}}]
 \`\`\`
 
-Available modification types:
-- update_node: Change node parameters (inputs)
-- add_node: Create new node with type and position
-- add_edge: Connect nodes (sourceHandle: "out.field", targetHandle: "par.field")
+CRITICAL:
+- JSON must be ARRAY (starts with [)
+- Include "type" and "data" fields
+- Add prose before/after JSON
 
-You will receive the current project nodes before each message. Use this to identify which nodes to modify.`
+WRONG:
+\`\`\`json
+{"operation": "modify", "node": "/pickup", "value": "#ff0000"}
+\`\`\`
+
+Types: update_node (change params), add_node (create), add_edge (connect)`
   }
 
   // Build concise project context summary for Chrome AI
@@ -462,13 +458,24 @@ You will receive the current project nodes before each message. Use this to iden
     for (const match of matches) {
       try {
         const json = JSON.parse(match[1])
+        debugAiChat('Chrome AI JSON parsed:', json)
         const modifications = parseModifications(json)
         if (modifications && modifications.length > 0) {
+          debugAiChat('Chrome AI extracted modifications:', modifications)
           return modifications as ProjectModification[]
+        } else {
+          debugAiChat(
+            'Chrome AI: parseModifications returned no valid modifications. JSON may be in wrong format:',
+            json
+          )
         }
       } catch (e) {
-        // Ignore parse errors
+        debugAiChat('Chrome AI: Failed to parse JSON from code block:', match[1], e)
       }
+    }
+
+    if (matches.length === 0) {
+      debugAiChat('Chrome AI: No JSON code blocks found in response')
     }
 
     return []
