@@ -6,7 +6,8 @@
      sections around, so it takes the space between them and no more. */
   flex: 1 1 auto;
   min-width: 0;
-  justify-content: center;
+  justify-content: flex-start;
+  padding-left: 16px;
 }
 
 .button,

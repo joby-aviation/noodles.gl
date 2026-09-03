@@ -110,6 +110,7 @@
   color: var(--color-text-primary);
   transition: all 0.15s;
   white-space: nowrap;
+  min-width: 95px;
 }
 
 .assistantButton:hover {
