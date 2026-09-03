@@ -30,8 +30,8 @@ interface LanguageModelAvailability {
     initialPrompts?: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>
     topK?: number
     temperature?: number
-    monitor?: (event: DownloadProgressEvent) => void
-    expectedOutputs?: Array<{ type: 'text'; languages: string[] }>
+    monitor?: (monitor: { addEventListener: (type: string, callback: (e: DownloadProgressEvent) => void) => void }) => void
+    outputLanguage?: string
   }): Promise<AILanguageModelSession>
 }
 
@@ -128,16 +128,19 @@ export class ChromeAIProvider implements AIProvider {
 
     // Create session with system prompt (with timeout and progress monitoring)
     try {
+      debugAiChat('Creating Chrome AI session with options:', { availability, hasProgress: !!onProgress })
+
       const createSessionPromise = LanguageModel.create({
         systemPrompt: this.getSimplifiedSystemPrompt(),
         temperature: 0.7,
         topK: 40,
-        expectedOutputs: [{ type: 'text', languages: ['en'] }],
+        outputLanguage: 'en',
         monitor: (m) => {
+          debugAiChat('Monitor callback fired, setting up event listener')
           m.addEventListener('downloadprogress', (e) => {
-            const percent = Math.round(e.loaded * 100)
+            const percent = Math.round((e.loaded / e.total) * 100)
+            debugAiChat(`Download progress: ${percent}% (${e.loaded}/${e.total})`)
             onProgress?.(`Downloading AI model: ${percent}%`)
-            debugAiChat(`Chrome AI download progress: ${percent}%`)
           })
         },
       })
@@ -174,8 +177,11 @@ export class ChromeAIProvider implements AIProvider {
         }
       }
 
+      debugAiChat('Chrome AI session created successfully')
       onProgress?.('AI session ready')
     } catch (error) {
+      debugAiChat('Chrome AI initialization error:', error)
+
       if (error instanceof TimeoutError) {
         throw new ProviderError(
           error.message,
@@ -183,9 +189,17 @@ export class ChromeAIProvider implements AIProvider {
           'TIMEOUT'
         )
       }
+
+      // Extract detailed error message
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      debugAiChat('Chrome AI error message:', errorMessage)
+
       throw new ProviderError(
-        `Failed to create Chrome AI session: ${error instanceof Error ? error.message : 'Unknown error'}\n\n` +
-          'The flag is enabled but session creation failed. Try restarting Chrome or configure an external AI provider.',
+        `Failed to create Chrome AI session: ${errorMessage}\n\n` +
+          'The flag is enabled but session creation failed. Try:\n' +
+          '1. Restart Chrome completely\n' +
+          '2. Check chrome://components/ for "Optimization Guide On Device Model" status\n' +
+          '3. Configure an external AI provider (Anthropic, OpenAI) in Settings → AI Provider',
         'chrome-ai',
         'INITIALIZATION_FAILED'
       )
