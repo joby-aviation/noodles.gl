@@ -37,8 +37,6 @@ const SOURCE_RECIPES = GEO_RECIPES.filter(recipe => recipe.group === 'source')
 // Space kept clear for the always-visible items (Import, Point, Draw, Measure, Add Op)
 const RESERVED_WIDTH = 330
 const GAP = 4
-// Left padding on the shelf container (must match tool-shelf.module.css)
-const SHELF_PADDING_LEFT = 16
 
 export function ToolShelf({
   onOpenAddNode,
@@ -70,7 +68,7 @@ export function ToolShelf({
     const measurer = measureRef.current
     if (!row || !measurer) return
     const widths = Array.from(measurer.children).map(child => child.getBoundingClientRect().width)
-    const available = row.getBoundingClientRect().width - RESERVED_WIDTH - SHELF_PADDING_LEFT
+    const available = row.getBoundingClientRect().width - RESERVED_WIDTH
     const moreWidth = moreMeasureRef.current?.getBoundingClientRect().width ?? 0
     setLayout(computeShelfLayout(widths, available, GAP, moreWidth))
   }, [])
