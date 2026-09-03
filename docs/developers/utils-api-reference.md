@@ -266,7 +266,8 @@ Async function to get routing directions between two points using Mapbox or Goog
 **Parameters:**
 - `origin: { lat, lng }` - Starting point coordinates
 - `destination: { lat, lng }` - Ending point coordinates
-- `mode?: 'driving' | 'transit'` - Transportation mode (default: `'driving'`)
+- `mode?: 'driving' | 'driving-traffic' | 'transit'` - Transportation mode (default: `'driving'`)
+- `departureTime?: Temporal.PlainDateTime` - Optional origin-local future departure for `driving-traffic`; omit to depart now
 
 **Returns:** `Promise<AnimatedDirections>` - Object containing:
   - `distance: number` - Total distance in meters
@@ -277,6 +278,7 @@ Async function to get routing directions between two points using Mapbox or Goog
 
 **Constants:**
 - `DRIVING` - Constant for driving mode
+- `DRIVING_TRAFFIC` - Constant for Google traffic-aware driving mode
 - `TRANSIT` - Constant for transit mode
 
 **Example:**

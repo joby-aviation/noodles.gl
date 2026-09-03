@@ -242,7 +242,7 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
 
               <KeyGroup
                 label="Google Maps API Key"
-                description="Enables transit directions and higher-quality place search. Optional — place search works without it via Photon (OpenStreetMap)."
+                description="Enables traffic-aware driving, transit directions, and higher-quality place search. Enable the Maps JavaScript API, Routes API, and Places API in Google Cloud."
                 placeholder="AIza..."
                 browserValue={browserKeys.googleMaps || ''}
                 projectValue={projectKeys.googleMaps}
