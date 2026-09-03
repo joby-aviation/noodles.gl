@@ -392,3 +392,161 @@ export function validateTableData(data: unknown[], schema: TableSchema): unknown
     return validatedRow
   })
 }
+
+// Map ColumnType to Field constructor for keyframeable fields
+export function columnTypeToFieldConstructor(
+  colSchema: ColumnSchema
+): (value?: unknown) => import('./fields').Field<unknown> {
+  const {
+    NumberField,
+    StringField,
+    BooleanField,
+    ColorField,
+    Point2DField,
+    Vec2Field,
+    Vec3Field,
+    DateField,
+    StringLiteralField,
+    UnknownField,
+  } = require('./fields')
+
+  switch (colSchema.type) {
+    case 'number':
+      return (value = 0) =>
+        new NumberField(value as number, {
+          min: colSchema.options?.min,
+          max: colSchema.options?.max,
+          step: colSchema.options?.step,
+          softMin: colSchema.options?.softMin,
+          softMax: colSchema.options?.softMax,
+        })
+    case 'string':
+      return (value = '') => new StringField(value as string)
+    case 'boolean':
+      return (value = false) => new BooleanField(value as boolean)
+    case 'color':
+      return (value = '#000000') => new ColorField(value as string)
+    case 'point2d':
+      return (value = [0, 0]) =>
+        new Point2DField(value as [number, number], {
+          geocoder: colSchema.options?.geocoder,
+        })
+    case 'point3d':
+      return (value = [0, 0, 0]) => new Vec3Field(value as [number, number, number])
+    case 'vec2':
+      return (value = [0, 0]) => new Vec2Field(value as [number, number])
+    case 'vec3':
+      return (value = [0, 0, 0]) => new Vec3Field(value as [number, number, number])
+    case 'date':
+      return (value = new Date().toISOString().split('T')[0]) => new DateField(value as string)
+    case 'dateTime':
+      // DateTime cells store DateTimeValue objects, use UnknownField
+      return (value = getDefaultValue(colSchema)) => new UnknownField(value)
+    case 'stringLiteral':
+      return (value = colSchema.options?.values?.[0] ?? '') =>
+        new StringLiteralField(value as string, {
+          values: colSchema.options?.values ?? [],
+        })
+    default:
+      return (value = null) => new UnknownField(value)
+  }
+}
+
+// Create CompoundPropsField structure from array data and schema
+// Returns nested field with structure: { row_<uuid>: { colName: Field, ... }, ... }
+export function createTableCompoundField(
+  data: unknown[],
+  schema: TableSchema
+): import('./fields').CompoundPropsField {
+  const { CompoundPropsField } = require('./fields')
+
+  const rowsSubschema: Record<string, import('./fields').Field<unknown>> = {}
+
+  for (let i = 0; i < data.length; i++) {
+    const row = data[i]
+    if (typeof row !== 'object' || row === null || Array.isArray(row)) {
+      continue
+    }
+
+    const rowData = row as Record<string, unknown>
+
+    // Generate or use existing row ID
+    let rowId = rowData._rowId as string | undefined
+    if (!rowId) {
+      rowId = `row_${crypto.randomUUID()}`
+    }
+
+    // Create CompoundPropsField for this row
+    const cellSubschema: Record<string, import('./fields').Field<unknown>> = {}
+
+    for (const col of schema.columns) {
+      const fieldConstructor = columnTypeToFieldConstructor(col)
+      const cellValue = rowData[col.name] ?? getDefaultValue(col)
+      cellSubschema[col.name] = fieldConstructor(cellValue)
+    }
+
+    rowsSubschema[rowId] = new CompoundPropsField({ subschema: cellSubschema })
+  }
+
+  return new CompoundPropsField({ subschema: rowsSubschema })
+}
+
+// Flatten CompoundPropsField back to array format
+// Extracts row data from nested structure for output compatibility
+export function flattenTableField(
+  field: import('./fields').CompoundPropsField,
+  schema: TableSchema
+): unknown[] {
+  const rows: unknown[] = []
+
+  // Iterate over row fields (row_<uuid>)
+  for (const [rowId, rowField] of Object.entries(field.subschema)) {
+    if (!(rowField instanceof require('./fields').CompoundPropsField)) {
+      continue
+    }
+
+    const rowData: Record<string, unknown> = {
+      _rowId: rowId, // Preserve row ID
+    }
+
+    // Extract cell values
+    for (const col of schema.columns) {
+      const cellField = rowField.subschema[col.name]
+      if (cellField) {
+        rowData[col.name] = cellField.value
+      }
+    }
+
+    rows.push(rowData)
+  }
+
+  return rows
+}
+
+// Migrate old DataField array format to new CompoundPropsField format
+export function migrateTableData(
+  oldData: unknown[],
+  schema: TableSchema
+): import('./fields').CompoundPropsField {
+  // Validate and normalize the data first
+  const validatedData = validateTableData(oldData, schema)
+
+  // Add row IDs if missing
+  const dataWithRowIds = validatedData.map((row, _i) => {
+    if (typeof row !== 'object' || row === null || Array.isArray(row)) {
+      return row
+    }
+
+    const rowData = row as Record<string, unknown>
+
+    // Generate row ID if missing
+    if (!rowData._rowId) {
+      rowData._rowId = `row_${crypto.randomUUID()}`
+    }
+
+    return rowData
+  })
+
+  // Create CompoundPropsField structure
+  return createTableCompoundField(dataWithRowIds, schema)
+}
