@@ -2294,7 +2294,13 @@ export function ColorRampComponent({
   const [interpolate, setInterpolate] = useState<
     ScaleOrdinal<string, string> | ScaleLinear<number, string>
   >(() => field.value)
-  const steps = field instanceof CategoricalColorRampField ? field.count : 512
+
+  // For categorical ramps, get count from the scale's domain length
+  // For continuous ramps, use a fixed pixel width
+  const steps =
+    field instanceof CategoricalColorRampField && 'domain' in interpolate
+      ? (interpolate as ScaleOrdinal<string, string>).domain().length
+      : 512
 
   useEffect(() => {
     const sub = field.subscribe(newVal => {

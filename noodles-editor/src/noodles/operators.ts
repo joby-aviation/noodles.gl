@@ -1697,22 +1697,14 @@ export class ColorRampOp extends Operator<ColorRampOp> {
   static displayName = 'ColorRamp'
   static description = 'Interpolate a color from a color ramp, value range 0-1'
   createInputs() {
-    const colorRamp = new ColorRampField()
-
     const colorScheme = new StringLiteralField('viridis', {
       values: Object.keys(continuousInterpolators),
       displayAs: 'color-scheme',
     })
 
-    colorScheme.subscribe(val => {
-      const interpolate = continuousInterpolators[val as keyof typeof continuousInterpolators]
-      colorRamp.setValue(interpolate)
-    })
-
     const value = new NumberField(0, { min: 0, max: 1, step: 0.01, accessor: true })
 
     return {
-      colorRamp,
       colorScheme,
       value,
     }
@@ -1724,14 +1716,16 @@ export class ColorRampOp extends Operator<ColorRampOp> {
     }
   }
   execute({
-    colorRamp,
-    colorScheme: _,
+    colorScheme,
     value,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    // Get the interpolator for the selected scheme
+    const interpolate = continuousInterpolators[colorScheme as keyof typeof continuousInterpolators]
+
     // Normalize all color formats to hex for consistency
     // TODO: VIS-813: Make all colors d3 Colors?
     const normalizedRamp = (val: number) => {
-      const c = colorRamp(val)
+      const c = interpolate(val)
       return d3Color(c)?.formatHex() ?? c
     }
 
@@ -1746,8 +1740,6 @@ export class CategoricalColorRampOp extends Operator<CategoricalColorRampOp> {
   static displayName = 'CategoricalColorRamp'
   static description = 'Map a string category to a color'
   createInputs() {
-    const colorRamp = new CategoricalColorRampField()
-
     const allSchemeNames = [
       ...Object.keys(categoricalSchemesFixed),
       ...Object.keys(categoricalSchemesStepped),
@@ -1759,31 +1751,9 @@ export class CategoricalColorRampOp extends Operator<CategoricalColorRampOp> {
     })
     const steps = new NumberField(8, { min: 3, max: 11, step: 1 })
 
-    const updateRamp = () => {
-      const schemeName = colorScheme.value
-      const n = Math.max(Math.round(steps.value), 3)
-      let scheme: readonly string[]
-      if (schemeName in categoricalSchemesFixed) {
-        const full = categoricalSchemesFixed[schemeName as keyof typeof categoricalSchemesFixed]
-        scheme = full.slice(0, Math.min(n, full.length))
-      } else {
-        const steppedScheme =
-          categoricalSchemesStepped[schemeName as keyof typeof categoricalSchemesStepped]
-        const clamped = Math.min(n, steppedScheme.length - 1)
-        scheme = steppedScheme[clamped] as readonly string[]
-      }
-      const interpolate = scaleOrdinal(scheme)
-      colorRamp.count = scheme.length
-      colorRamp.setValue(interpolate)
-    }
-
-    colorScheme.subscribe(updateRamp)
-    steps.subscribe(updateRamp)
-
     const value = new StringField('', { accessor: true })
 
     return {
-      colorRamp,
       colorScheme,
       steps,
       value,
@@ -1792,12 +1762,29 @@ export class CategoricalColorRampOp extends Operator<CategoricalColorRampOp> {
   createOutputs() {
     return {
       color: new ColorField(),
+      colorRamp: new CategoricalColorRampField(),
     }
   }
   execute({
-    colorRamp,
+    colorScheme,
+    steps,
     value,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    // Derive the color scheme from colorScheme and steps
+    const schemeName = colorScheme
+    const n = Math.max(Math.round(steps), 3)
+    let scheme: readonly string[]
+    if (schemeName in categoricalSchemesFixed) {
+      const full = categoricalSchemesFixed[schemeName as keyof typeof categoricalSchemesFixed]
+      scheme = full.slice(0, Math.min(n, full.length))
+    } else {
+      const steppedScheme =
+        categoricalSchemesStepped[schemeName as keyof typeof categoricalSchemesStepped]
+      const clamped = Math.min(n, steppedScheme.length - 1)
+      scheme = steppedScheme[clamped] as readonly string[]
+    }
+    const colorRamp = scaleOrdinal(scheme)
+
     const scale = (val: string) => {
       const color = colorRamp(val)
 
@@ -1809,7 +1796,7 @@ export class CategoricalColorRampOp extends Operator<CategoricalColorRampOp> {
     // Use composeAccessor helper to handle both static values and accessor functions
     const color = composeAccessor(value, scale)
 
-    return { color }
+    return { color, colorRamp }
   }
 }
 
