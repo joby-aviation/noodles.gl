@@ -42,7 +42,6 @@ import {
   type ExpressionField,
   type Field,
   type FileUrlField,
-  getFieldReferences,
   type IField,
   ListField,
   type MapStyleField,
@@ -56,14 +55,13 @@ import {
 import { useFileSystemStore } from '../filesystem-store'
 import type { Edge as GraphEdge } from '../graph-executor'
 import { useObservable } from '../hooks/use-observable'
-import type { Edge } from '../noodles'
 import s from '../noodles.module.css'
-import { getFriendlyErrorMessage, type IOperator, type Operator } from '../operators'
+import { getFriendlyErrorMessage } from '../operators'
 import { checkAssetExists, getAssetFileHandle, writeAsset } from '../storage'
 import { getOp, useEdgeConnectionStore } from '../store'
 import { type ExpressionContext, getExpressionContext } from '../utils/expression-context'
 import { projectScheme } from '../utils/filesystem'
-import { edgeId, type OpId } from '../utils/id-utils'
+import type { OpId } from '../utils/id-utils'
 import { computeRelativePath } from '../utils/path-utils'
 import {
   captureOperatorInputs,
@@ -574,8 +572,8 @@ function formatEvaluatedValue(value: unknown): string {
   }
 }
 
-// Canvas variant of the expression input: also syncs dashed ReferenceEdges to referenced
-// operators and derives autocomplete context from the live graph. Requires ReactFlow context.
+// Canvas variant of the expression input: derives autocomplete context from the live graph.
+// The graph-owned reference dependency model projects dashed edges for visualization.
 export function ExpressionDrivenInput({
   id,
   field,
@@ -585,13 +583,9 @@ export function ExpressionDrivenInput({
   field: Field
   disabled: boolean
 }) {
-  const expression = useObservable(field.expression$, field.expression) ?? ''
   // Outside a node (e.g. the Properties Panel) useNodeId is null; the field knows its op
   const nodeId = useNodeId() ?? field.op?.id ?? ''
   const edges = useEdges()
-
-  // Dashed dependency edges to referenced operators
-  useReferenceEdgeSync(field, expression)
 
   const graphEdges = useMemo(
     () =>
@@ -934,82 +928,6 @@ export function VectorFieldComponent({
   )
 }
 
-// Sync ReferenceEdges for a field whose text contains operator references
-// ({{/path.out.val}} or op('/path').out.val). transform-graph wires these edges as
-// 'reference' connections, which is what makes referencing fields reactive.
-// Used by CodeFieldComponent and expression-driven fields.
-function useReferenceEdgeSync(field: Field, text: string) {
-  const { setEdges } = useReactFlow()
-
-  // We assume the field name is the last in the pathToProps, but that may not hold true for nested fields.
-  // We don't use any nested CodeFields at the moment so this is fine
-  const fieldName = field.pathToProps[field.pathToProps.length - 1]
-  const thisFieldId = `par.${fieldName}`
-  const thisOpId = field.op.id
-
-  // This effect should NOT depend on edges to avoid infinite loops
-  const fieldReferences = useMemo(() => getFieldReferences(text, thisOpId), [text, thisOpId])
-
-  useEffect(() => {
-    setEdges(oldEdges => {
-      // Find existing ReferenceEdges targeting this field
-      const existingReferenceEdges = oldEdges.filter(
-        e => e.target === thisOpId && e.targetHandle === thisFieldId && e.type === 'ReferenceEdge'
-      )
-
-      // Determine which edges to add and remove
-      const existingHandleIds = new Set(existingReferenceEdges.map(e => e.sourceHandle))
-      const referencedHandleIds = new Set(fieldReferences.map(ref => ref.handleId))
-
-      const toAdd = fieldReferences.filter(ref => !existingHandleIds.has(ref.handleId))
-      const idsToRemove = new Set(
-        existingReferenceEdges
-          .filter(e => !referencedHandleIds.has(e.sourceHandle || ''))
-          .map(e => e.id)
-      )
-
-      if (toAdd.length === 0 && idsToRemove.size === 0) {
-        return oldEdges // No changes needed
-      }
-
-      let newEdges = oldEdges
-
-      // Remove edges that are no longer referenced
-      if (idsToRemove.size > 0) {
-        newEdges = newEdges.filter(e => !idsToRemove.has(e.id))
-      }
-
-      // Add new reference edges
-      if (toAdd.length > 0) {
-        const newReferenceEdges = toAdd.map(({ opId, handleId }) => {
-          const connection = {
-            source: opId,
-            sourceHandle: handleId,
-            target: thisOpId,
-            targetHandle: thisFieldId,
-          }
-          return {
-            id: edgeId(connection),
-            type: 'ReferenceEdge',
-            selectable: false,
-            deletable: false,
-            focusable: false,
-            reconnectable: false,
-            source: opId,
-            target: thisOpId,
-            sourceHandle: handleId,
-            targetHandle: thisFieldId,
-          } as Edge<Operator<IOperator>, Operator<IOperator>>
-        })
-
-        newEdges = [...newEdges, ...newReferenceEdges]
-      }
-
-      return newEdges
-    })
-  }, [fieldReferences, thisOpId, thisFieldId, setEdges])
-}
-
 export function CodeFieldComponent({
   field,
   disabled,
@@ -1027,7 +945,6 @@ export function CodeFieldComponent({
   const nodeId = useNodeId() as string
   const node = getNode(nodeId)
   const nodeHeight = node?.height || 300
-
   const handleEditorChange = useCallback(
     (value: string | undefined, _event) => {
       if (disabled || value === undefined) return
@@ -1057,7 +974,6 @@ export function CodeFieldComponent({
     },
     [field.language]
   )
-
   // Force layout update on load and when node height changes
   useLayoutEffect(() => {
     if (editorRef.current) {
@@ -1071,9 +987,6 @@ export function CodeFieldComponent({
     })
     return () => sub.unsubscribe()
   }, [field])
-
-  // Sync reference edges when field value changes
-  useReferenceEdgeSync(field, value)
 
   return (
     <div className={cx(s.fieldWrapper, s.fieldWrapperCode)} ref={containerRef}>

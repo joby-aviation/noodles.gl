@@ -24,7 +24,16 @@ import type { LayerExtension } from 'deck.gl'
 import * as deck from 'deck.gl'
 import type { JSZipObject } from 'jszip'
 import { PrimeReactProvider } from 'primereact/api'
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react'
 import { useLocation, useParams } from 'wouter'
 import { globalContextManager } from '../ai-chat/global-context-manager'
 import type { NoodlesProject } from '../ai-chat/types'
@@ -78,6 +87,7 @@ import { useNodeDropOnEdge } from './hooks/use-node-drop-on-edge'
 import { useProjectModifications } from './hooks/use-project-modifications'
 import type { DeckRendererOp, IOperator, Operator, OutOp } from './operators'
 import { extensionMap } from './operators'
+import { referenceDependencyModel } from './reference-dependencies'
 import {
   copyDataDirectory,
   copyExampleAssetsToMemory,
@@ -212,7 +222,18 @@ export function getNoodles(): Visualization {
 
   const [nodes, setNodes, onNodesChangeBase] = useNodesState<AnyNodeJSON>([])
   const [edges, setEdges, onEdgesChangeBase] = useEdgesState<ReactFlowEdge<unknown>>([])
+  const referenceEdges = useSyncExternalStore(
+    referenceDependencyModel.subscribe,
+    referenceDependencyModel.getSnapshot,
+    referenceDependencyModel.getSnapshot
+  )
+  const modelEdges = useMemo<ReactFlowEdge[]>(
+    () => [...(edges as ReactFlowEdge[]), ...referenceEdges],
+    [edges, referenceEdges]
+  )
   const [defaultViewport, setDefaultViewport] = useState({ x: 0, y: 0, zoom: 1 })
+
+  useEffect(() => () => referenceDependencyModel.reset(), [])
 
   // Single ref providing synchronous access to the full graph state.
   // Used by CopyControls, UndoRedoHandler, and hooks that need all nodes/edges
@@ -230,10 +251,10 @@ export function getNoodles(): Visualization {
     }
 
     // Rebuild index if nodes/edges changed
-    if (spatialIndexRef.current.needsRebuild(nodes, edges)) {
-      spatialIndexRef.current.build(nodes, edges)
+    if (spatialIndexRef.current.needsRebuild(nodes, modelEdges)) {
+      spatialIndexRef.current.build(nodes, modelEdges)
     }
-  }, [nodes, edges])
+  }, [nodes, modelEdges])
   const [showChatPanel, setShowChatPanel] = useState(false)
   const [chatInitialMessage, setChatInitialMessage] = useState<string | undefined>(undefined)
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
@@ -345,18 +366,18 @@ export function getNoodles(): Visualization {
       )
       .sort()
       .join(',')
-    const connectivity = edges
+    const connectivity = modelEdges
       .map(edge => `${edge.source}->${edge.target}`)
       .sort()
       .join(',')
     return `${nodeState}|${connectivity}`
-  }, [nodes, edges])
+  }, [nodes, modelEdges])
 
   // nodes/edges are represented by forLoopLayoutKey; position-only updates intentionally
   // do not trigger this effect because drag-stop performs the fit once per gesture.
   // biome-ignore lint/correctness/useExhaustiveDependencies: intentional key-based reconciliation
   useEffect(() => {
-    setNodes(currentNodes => reconcileForLoopGroups(currentNodes, edges))
+    setNodes(currentNodes => reconcileForLoopGroups(currentNodes, modelEdges))
   }, [forLoopLayoutKey, setNodes])
 
   // `transformGraph` needs all nodes to build the opMap and resolve connections
@@ -385,7 +406,7 @@ export function getNoodles(): Visualization {
     // operators exist in the store (covers undo/redo restores, keyboard deletes, and AI/paste
     // paths that added edges before their operators were instantiated). Returns the same
     // array reference when nothing changed, so this doesn't loop.
-    setEdges(eds => normalizeMultiInputEdges(eds))
+    setEdges(eds => normalizeMultiInputEdges(eds.filter(edge => edge.type !== 'ReferenceEdge')))
   }, [graphStructureKey])
 
   // Reset isProjectLoadRef after every render so the flag never gets stuck when
@@ -611,7 +632,12 @@ export function getNoodles(): Visualization {
   const onNodeDragStop = useCallback(
     (event: React.MouseEvent, node: ReactFlowNode) => {
       const result = onNodeDragStopBase(event, node)
-      setNodes(currentNodes => reconcileForLoopGroups(currentNodes, graphRef.current.edges))
+      setNodes(currentNodes =>
+        reconcileForLoopGroups(currentNodes, [
+          ...graphRef.current.edges,
+          ...referenceDependencyModel.getSnapshot(),
+        ])
+      )
       // Mark as unsaved if a node was inserted into an edge
       if (result) {
         setHasUnsavedChanges(true)
@@ -849,7 +875,11 @@ export function getNoodles(): Visualization {
       // lookup) derives multi-input slot rendering caches from the file's edge order —
       // project files never store them.
       setNodes(nodes)
-      setEdges(normalizeMultiInputEdges(edges as ReactFlowEdge[]))
+      setEdges(
+        normalizeMultiInputEdges(
+          (edges as ReactFlowEdge[]).filter(edge => edge.type !== 'ReferenceEdge')
+        )
+      )
 
       // Load editor settings from project with defaults
       setShowOverlay(editorSettings?.showOverlay ?? true)
@@ -1034,13 +1064,13 @@ export function getNoodles(): Visualization {
   }, [displayedNodes])
 
   const activeEdges = useMemo(() => {
-    return edges
+    return modelEdges
       .filter(edge => visibleNodeIds.has(edge.source) && visibleNodeIds.has(edge.target))
       .map(edge => ({
         ...edge,
         sourceHandle: edge.type === 'ReferenceEdge' ? null : edge.sourceHandle,
       }))
-  }, [edges, visibleNodeIds])
+  }, [modelEdges, visibleNodeIds])
 
   // File menu callbacks
   const getNoodlesProjectJson = useCallback((): NoodlesProjectJSON => {

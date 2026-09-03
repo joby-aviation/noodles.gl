@@ -136,6 +136,19 @@ The executor maintains a topologically sorted execution order:
 - Parallel execution levels allow independent operators to run concurrently
 - Changes only re-execute affected downstream operators
 
+### Reference Dependencies
+
+The graph model in `reference-dependencies.ts` owns dependencies declared with `op()` or mustache
+syntax. For literal code fields it reads the field value; for expression-driven fields it reads and
+watches `field.expression`, while `field.value` remains the evaluated result. The model derives
+ephemeral reference edges, maintains field subscriptions and operator dependencies, and updates the
+executor when source text changes. This works independently of whether an editor component is mounted,
+including for children of collapsed containers.
+
+React Flow state contains only persisted value edges. Reference edges are exposed to the editor as a
+read-only visual projection and must not be created or synchronized by field components. The field
+source text is the source of truth.
+
 ### Operator Dirty Tracking
 
 Operators track their execution status:
