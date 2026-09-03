@@ -4236,7 +4236,7 @@ export class DeckRendererOp extends Operator<DeckRendererOp> {
     validateViewState(viewState)
 
     // Extract geo fields from basemap so standalone DeckGL gets the correct position
-    // when basemapEnabled=false (empty mapStyle). MapboxOverlay ignores viewState, so
+    // when basemapEnabled=false (empty mapStyle). MapLibreOverlay ignores viewState, so
     // this doesn't affect the interleaved basemap rendering path.
     const basemapViewState = basemap
       ? pick(basemap, ['longitude', 'latitude', 'zoom', 'pitch', 'bearing'])
@@ -4292,6 +4292,7 @@ function createBaseViewFields() {
     }),
     clear: new BooleanField(false, { showByDefault: false }),
     clearColor: new ColorField('#00000000', { transform: hexToColor, showByDefault: false }),
+    parameters: new UnknownField({}, { showByDefault: false }),
   }
 }
 
@@ -4611,6 +4612,7 @@ export class ZoomWidgetOp extends Operator<ZoomWidgetOp> {
       placement: new StringLiteralField('top-right', {
         values: ['top-left', 'top-right', 'bottom-left', 'bottom-right'],
       }),
+      zoomStep: new NumberField(1, { min: 0, softMax: 10, showByDefault: false }),
       viewId: new StringField('', { optional: true }),
     }
   }
@@ -4623,12 +4625,14 @@ export class ZoomWidgetOp extends Operator<ZoomWidgetOp> {
 
   execute({
     placement,
+    zoomStep,
     viewId,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     const widget = {
       id: this.id,
       type: 'ZoomWidget',
       placement,
+      zoomStep,
       ...(viewId && viewId !== '' ? { viewId } : {}),
     }
     return { widget }
@@ -5241,6 +5245,7 @@ export class PathLayerOp extends Operator<PathLayerOp> {
       billboard: new BooleanField(true, { showByDefault: false }),
       capRounded: new BooleanField(true, { showByDefault: false }),
       jointRounded: new BooleanField(false, { showByDefault: false }),
+      antialiasing: new BooleanField(false, { showByDefault: false }),
       getPath: new UnknownField((d: unknown) => d?.path || [], { accessor: true }),
       // getPath: new ArrayField(new Point3DField([0, 0, 0], { returnType: 'tuple' }), { accessor: true }),
       getColor: new ColorField('#006ac6', { accessor: true, transform: hexToColor }),
@@ -5288,7 +5293,13 @@ export class ScatterplotLayerOp extends Operator<ScatterplotLayerOp> {
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
       stroked: new BooleanField(true, { showByDefault: false }),
       billboard: new BooleanField(false, { showByDefault: false }),
+      antialiasing: new BooleanField(true, { showByDefault: false }),
       getPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true }),
+      getPixelOffset: new Vec2Field([0, 0], {
+        returnType: 'tuple',
+        accessor: true,
+        showByDefault: false,
+      }),
       getFillColor: new ColorField('#fff', { accessor: true, transform: hexToColor }),
       getLineColor: new ColorField('#fff', {
         accessor: true,
@@ -5350,6 +5361,7 @@ export class TripsLayerOp extends Operator<TripsLayerOp> {
       billboard: new BooleanField(false, { showByDefault: false }),
       capRounded: new BooleanField(true, { showByDefault: false }),
       jointRounded: new BooleanField(true, { showByDefault: false }),
+      antialiasing: new BooleanField(false, { showByDefault: false }),
       currentTime: new NumberField(0, { min: 0 }),
       fadeTrail: new BooleanField(false),
       trailLength: new NumberField(120, { min: 0 }),
@@ -5950,6 +5962,7 @@ export class A5LayerOp extends Operator<A5LayerOp> {
       getElevation: new NumberField(1000, { min: 0, softMax: 100000, accessor: true }),
       elevationScale: new NumberField(1, { min: 0, softMax: 100, showByDefault: false }),
       extruded: new BooleanField(false),
+      lineAntialiasing: new BooleanField(false, { showByDefault: false }),
       pickable: new BooleanField(true, { showByDefault: false }),
       parameters: new CompoundPropsField(
         {
@@ -6112,6 +6125,7 @@ export class GeoJsonLayerOp extends Operator<GeoJsonLayerOp> {
       lineJointRounded: new BooleanField(false, { showByDefault: false }),
       lineMiterLimit: new NumberField(4, { min: 0, softMax: 10, showByDefault: false }),
       lineBillboard: new BooleanField(false, { showByDefault: false }),
+      lineAntialiasing: new BooleanField(false, { showByDefault: false }),
 
       // 3d (hidden by default)
       extruded: new BooleanField(false, { showByDefault: false }),
@@ -6168,6 +6182,7 @@ export class ArcLayerOp extends Operator<ArcLayerOp> {
         values: ['pixels', 'meters', 'common'],
         showByDefault: false,
       }),
+      antialiasing: new BooleanField(false, { showByDefault: false }),
       getWidth: new NumberField(1, { min: 0, softMax: 100, accessor: true }),
       getHeight: new NumberField(1, { min: 0, softMax: 10, accessor: true, showByDefault: false }),
       getTilt: new NumberField(0, { min: -90, max: 90, accessor: true, showByDefault: false }),
@@ -6538,9 +6553,11 @@ export class PathStyleExtensionOp extends Operator<PathStyleExtensionOp> {
   createInputs() {
     return {
       dash: new BooleanField(true),
-      highPrecisionDash: new BooleanField(false),
+      highPrecisionDash: new BooleanField(false, { showByDefault: false }),
       offset: new BooleanField(false),
+      dashMode: new StringLiteralField('segment', ['segment', 'path']),
       dashJustified: new BooleanField(false),
+      dashUnits: new StringLiteralField('widths', ['widths', 'pixels', 'meters', 'common']),
       getDashArray: new Vec2Field([4, 4], { returnType: 'tuple', accessor: true }),
       getOffset: new NumberField(0, { softMin: -10_000, softMax: 10_000, accessor: true }),
       dashGapPickable: new BooleanField(false),
@@ -6555,10 +6572,16 @@ export class PathStyleExtensionOp extends Operator<PathStyleExtensionOp> {
     dash,
     highPrecisionDash,
     offset,
+    dashMode,
     ...props
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     const extension = {
-      extension: { type: 'PathStyleExtension', dash, highPrecisionDash, offset },
+      extension: {
+        type: 'PathStyleExtension',
+        dash,
+        dashMode: highPrecisionDash ? 'path' : dashMode,
+        offset,
+      },
       props,
     }
     return { extension }
@@ -8965,6 +8988,7 @@ export class LineLayerOp extends Operator<LineLayerOp> {
       widthScale: new NumberField(1, { min: 0, softMax: 100, showByDefault: false }),
       widthMinPixels: new NumberField(0, { min: 0, softMax: 100, showByDefault: false }),
       widthMaxPixels: new NumberField(100, { min: 0, softMax: 1000, showByDefault: false }),
+      antialiasing: new BooleanField(false, { showByDefault: false }),
       getSourcePosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true }),
       getTargetPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true }),
       getColor: new ColorField('#000000', { accessor: true, transform: hexToColor }),
@@ -9007,6 +9031,7 @@ export class PointCloudLayerOp extends Operator<PointCloudLayerOp> {
         showByDefault: false,
       }),
       pointSize: new NumberField(10, { min: 0, max: 100 }),
+      antialiasing: new BooleanField(false, { showByDefault: false }),
       getPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true }),
       getNormal: new Vec3Field([0, 0, 1], {
         returnType: 'tuple',
@@ -9061,6 +9086,7 @@ export class PolygonLayerOp extends Operator<PolygonLayerOp> {
       lineWidthMaxPixels: new NumberField(100, { min: 0, softMax: 1000, showByDefault: false }),
       lineJointRounded: new BooleanField(false, { showByDefault: false }),
       lineMiterLimit: new NumberField(4, { min: 0, softMax: 10, showByDefault: false }),
+      lineAntialiasing: new BooleanField(false, { showByDefault: false }),
       getPolygon: new UnknownField((d: unknown) => d?.polygon || [], { accessor: true }),
       getFillColor: new ColorField('#000000', { accessor: true, transform: hexToColor }),
       getLineColor: new ColorField('#000000', { accessor: true, transform: hexToColor }),
@@ -9195,6 +9221,7 @@ export class GreatCircleLayerOp extends Operator<GreatCircleLayerOp> {
       widthScale: new NumberField(1, { min: 0, softMax: 100, showByDefault: false }),
       widthMinPixels: new NumberField(0, { min: 0, softMax: 100, showByDefault: false }),
       widthMaxPixels: new NumberField(100, { min: 0, softMax: 1000, showByDefault: false }),
+      antialiasing: new BooleanField(false, { showByDefault: false }),
       getSourcePosition: new Point2DField([0, 0], { returnType: 'tuple', accessor: true }),
       getTargetPosition: new Point2DField([0, 0], { returnType: 'tuple', accessor: true }),
       getSourceColor: new ColorField('#000000', { accessor: true, transform: hexToColor }),
@@ -9237,6 +9264,7 @@ export class H3ClusterLayerOp extends Operator<H3ClusterLayerOp> {
       getLineWidth: new NumberField(1, { min: 0, accessor: true }),
       getFillColor: new ColorField('#000000', { accessor: true, transform: hexToColor }),
       getElevation: new NumberField(1000, { accessor: true }),
+      lineAntialiasing: new BooleanField(false, { showByDefault: false }),
       parameters: new CompoundPropsField(
         {
           depthTest: new BooleanField(true),
@@ -9279,6 +9307,7 @@ export class GeohashLayerOp extends Operator<GeohashLayerOp> {
       filled: new BooleanField(true),
       stroked: new BooleanField(false),
       extruded: new BooleanField(false),
+      lineAntialiasing: new BooleanField(false, { showByDefault: false }),
       parameters: new CompoundPropsField(
         {
           depthTest: new BooleanField(true),
@@ -9321,6 +9350,7 @@ export class S2LayerOp extends Operator<S2LayerOp> {
       filled: new BooleanField(true),
       stroked: new BooleanField(false),
       extruded: new BooleanField(false),
+      lineAntialiasing: new BooleanField(false, { showByDefault: false }),
       parameters: new CompoundPropsField(
         {
           depthTest: new BooleanField(true),
@@ -9363,6 +9393,7 @@ export class QuadkeyLayerOp extends Operator<QuadkeyLayerOp> {
       filled: new BooleanField(true),
       stroked: new BooleanField(false),
       extruded: new BooleanField(false),
+      lineAntialiasing: new BooleanField(false, { showByDefault: false }),
       parameters: new CompoundPropsField(
         {
           depthTest: new BooleanField(true),
@@ -9400,6 +9431,7 @@ export class MVTLayerOp extends Operator<MVTLayerOp> {
       maxZoom: new NumberField(24, { min: 0, max: 24 }),
       filled: new BooleanField(true),
       stroked: new BooleanField(false),
+      lineAntialiasing: new BooleanField(false, { showByDefault: false }),
       lineWidthMinPixels: new NumberField(1, { min: 0, showByDefault: false }),
       getFillColor: new ColorField('#000000', { accessor: true, transform: hexToColor }),
       getLineColor: new ColorField('#000000', { accessor: true, transform: hexToColor }),
@@ -9622,12 +9654,19 @@ export class FillStyleExtensionOp extends Operator<FillStyleExtensionOp> {
   createInputs() {
     return {
       fillPatternEnabled: new BooleanField(true),
+      proceduralPattern: new BooleanField(false, { showByDefault: false }),
       fillPatternMask: new BooleanField(true),
+      fillPatternSizeUnits: new StringLiteralField('meters', ['pixels', 'meters', 'common']),
       fillPatternAtlas: new StringField('', { optional: true }),
       fillPatternMapping: new UnknownField(null, { optional: true }),
       getFillPattern: new UnknownField(null, { accessor: true }),
       getFillPatternScale: new NumberField(1, { accessor: true }),
       getFillPatternOffset: new Vec2Field([0, 0], { returnType: 'tuple', accessor: true }),
+      getFillPatternBackgroundColor: new ColorField('#00000000', {
+        accessor: true,
+        transform: hexToColor,
+        showByDefault: false,
+      }),
     }
   }
   createOutputs() {
@@ -9637,10 +9676,15 @@ export class FillStyleExtensionOp extends Operator<FillStyleExtensionOp> {
   }
   execute({
     fillPatternEnabled,
+    proceduralPattern,
     ...props
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     const extension = {
-      extension: { type: 'FillStyleExtension', pattern: fillPatternEnabled },
+      extension: {
+        type: 'FillStyleExtension',
+        pattern: fillPatternEnabled,
+        proceduralPattern,
+      },
       props,
     }
     return { extension }
