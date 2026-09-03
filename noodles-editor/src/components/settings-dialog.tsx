@@ -21,6 +21,7 @@ interface KeyGroupProps {
   activeSource: 'browser' | 'project' | 'env' | null
   onBrowserChange: (value: string) => void
   onBrowserClear: () => void
+  onProjectRemove: () => void
 }
 
 const KeyGroup = ({
@@ -33,6 +34,7 @@ const KeyGroup = ({
   activeSource,
   onBrowserChange,
   onBrowserClear,
+  onProjectRemove,
 }: KeyGroupProps) => {
   const handleCopy = (value: string, source: 'project' | 'env') => {
     navigator.clipboard.writeText(value)
@@ -82,6 +84,9 @@ const KeyGroup = ({
             >
               Copy
             </button>
+            <button type="button" onClick={onProjectRemove} className={s.clearButton}>
+              Remove
+            </button>
           </div>
         )}
 
@@ -116,6 +121,7 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
   const saveInProject = useKeysStore(state => state.saveInProject)
   const projectKeys = useKeysStore(state => state.projectKeys || {})
   const setBrowserKey = useKeysStore(state => state.setBrowserKey)
+  const removeProjectKey = useKeysStore(state => state.removeProjectKey)
   const setSaveInProjectAction = useKeysStore(state => state.setSaveInProject)
   const getActiveSource = useKeysStore(state => state.getActiveSource)
 
@@ -228,6 +234,10 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
                   setBrowserKey('mapbox', undefined)
                   analytics.track('key_cleared', { key: 'mapbox' })
                 }}
+                onProjectRemove={() => {
+                  removeProjectKey('mapbox')
+                  analytics.track('project_key_removed', { key: 'mapbox' })
+                }}
               />
 
               <KeyGroup
@@ -242,6 +252,10 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
                 onBrowserClear={() => {
                   setBrowserKey('googleMaps', undefined)
                   analytics.track('key_cleared', { key: 'googleMaps' })
+                }}
+                onProjectRemove={() => {
+                  removeProjectKey('googleMaps')
+                  analytics.track('project_key_removed', { key: 'googleMaps' })
                 }}
               />
 
@@ -258,6 +272,10 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
                   setBrowserKey('cesium', undefined)
                   analytics.track('key_cleared', { key: 'cesium' })
                 }}
+                onProjectRemove={() => {
+                  removeProjectKey('cesium')
+                  analytics.track('project_key_removed', { key: 'cesium' })
+                }}
               />
 
               <KeyGroup
@@ -272,6 +290,10 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
                 onBrowserClear={() => {
                   setBrowserKey('anthropic', undefined)
                   analytics.track('key_cleared', { key: 'anthropic' })
+                }}
+                onProjectRemove={() => {
+                  removeProjectKey('anthropic')
+                  analytics.track('project_key_removed', { key: 'anthropic' })
                 }}
               />
 
@@ -301,10 +323,11 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
                   className={s.checkbox}
                 />
                 <div className={s.settingContent}>
-                  <div className={s.settingName}>Save browser keys in project file</div>
+                  <div className={s.settingName}>Add browser keys to this project</div>
                   <div className={s.settingDescription}>
-                    Include your browser keys in the project file when saving. Only enable this if
-                    you want to share your keys with collaborators. Keys are stored in plain text.
+                    Include browser keys when saving. Keys already loaded from this project remain
+                    until you remove them above. Only share with trusted collaborators: project keys
+                    are stored in plain text.
                   </div>
                 </div>
               </label>

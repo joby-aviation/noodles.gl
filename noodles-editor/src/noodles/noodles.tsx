@@ -795,6 +795,11 @@ export function getNoodles(): Visualization {
 
       currentProjectRef.current = project
 
+      // Install embedded keys before constructing operators. Key-dependent operators
+      // may inspect credentials while their fields and listeners are initialized.
+      const keysStore = getKeysStore()
+      keysStore.setProjectKeys(apiKeys)
+
       // Dispose all old operators cleanly (executionState.complete() + unsubscribeListeners)
       const store = getOpStore()
       for (const op of store.getAllOps()) {
@@ -851,10 +856,6 @@ export function getNoodles(): Visualization {
       setShowDebugInfo(editorSettings?.showDebugInfo ?? false)
 
       // Render settings are now stored as OutOp inputs (migration 012 handles conversion)
-
-      // Load API keys from project file if present
-      const keysStore = getKeysStore()
-      keysStore.setProjectKeys(apiKeys)
 
       // Restore viewport unless we're in an undo/redo restore
       if (viewport && name && !undoRedoRef.current?.isRestoring()) {
