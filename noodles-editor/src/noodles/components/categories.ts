@@ -152,6 +152,7 @@ export const categories = {
     'OrbitView',
     'OrthographicView',
     'PMTiles',
+    'PointViewState',
     'SplitMapViewState',
     'XYZTile',
   ],

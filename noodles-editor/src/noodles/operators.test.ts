@@ -37,6 +37,7 @@ import {
   Operator,
   OverpassOp,
   PointOp,
+  PointViewStateOp,
   ProjectOp,
   RampOp,
   RectangleOp,
@@ -54,12 +55,73 @@ import {
 } from './operators'
 import { deleteOp, getOpStore, setOp } from './store'
 import { isAccessor } from './utils/accessor-helpers'
+import { canConnect } from './utils/can-connect'
 
 describe('basic Operators', () => {
   it('creates an Operator', () => {
     const operator = new NumberOp('/num-0')
     expect(operator.data.val).toEqual(0)
     expect(operator.outputData.val).toEqual(0)
+  })
+})
+
+describe('PointViewStateOp', () => {
+  it('accepts Geocoder and Point outputs', () => {
+    const geocoder = new GeocoderOp('/geocoder')
+    const point = new PointOp('/point')
+    const operator = new PointViewStateOp('/point-view-state')
+
+    expect(canConnect(geocoder.outputs.location, operator.inputs.point)).toBe(true)
+    expect(canConnect(point.outputs.feature, operator.inputs.point)).toBe(true)
+  })
+
+  it('creates a view state centered on a geographic point', () => {
+    const operator = new PointViewStateOp('/point-view-state')
+
+    expect(
+      operator.execute({
+        point: { lng: -118.2437, lat: 34.0522 },
+        zoom: 10,
+        pitch: 35,
+        bearing: -15,
+      })
+    ).toEqual({
+      viewState: {
+        longitude: -118.2437,
+        latitude: 34.0522,
+        zoom: 10,
+        pitch: 35,
+        bearing: -15,
+      },
+    })
+  })
+
+  it('normalizes a GeoJSON Point feature before creating the view state', () => {
+    const point = new PointOp('/point')
+    const operator = new PointViewStateOp('/point-view-state')
+    const { feature } = point.execute({
+      coordinates: { lng: -73.9857, lat: 40.7484 },
+      properties: {},
+    })
+
+    operator.inputs.point.setValue(feature)
+
+    expect(
+      operator.execute({
+        point: operator.inputs.point.value,
+        zoom: 14,
+        pitch: 0,
+        bearing: 0,
+      })
+    ).toEqual({
+      viewState: {
+        longitude: -73.9857,
+        latitude: 40.7484,
+        zoom: 14,
+        pitch: 0,
+        bearing: 0,
+      },
+    })
   })
 })
 
