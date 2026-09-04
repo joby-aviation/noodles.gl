@@ -1909,7 +1909,7 @@ export class FileOp extends Operator<FileOp> {
       url: new FileUrlField(),
       text: new StringField(),
       autoType: new BooleanField(true), // TODO: Make this only available for csv
-      pulse: new NumberField(0, { min: 0, step: 1 }),
+      pulse: new NumberField(0, { min: 0, step: 1, showByDefault: false }),
     }
   }
 
