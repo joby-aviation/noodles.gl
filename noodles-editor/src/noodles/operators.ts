@@ -4894,6 +4894,7 @@ export class OutOp extends Operator<OutOp> {
       width: new NumberField(1920, { min: 1, max: 8192, step: 1 }),
       height: new NumberField(1080, { min: 1, max: 8192, step: 1 }),
       lod: new NumberField(2, { min: 0.1, max: 4, step: 0.1 }),
+      scaleMode: new StringLiteralField('fit', ['fit', 'manual']),
       waitForData: new BooleanField(true),
       codec: new StringLiteralField('avc', ['avc', 'hevc', 'vp9', 'av1']),
       bitrateMbps: new NumberField(10, { min: 1, max: 100, step: 1 }),
