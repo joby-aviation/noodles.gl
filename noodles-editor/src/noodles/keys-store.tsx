@@ -1,17 +1,31 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
-export type KeyType = 'mapbox' | 'googleMaps' | 'cesium' | 'anthropic' | 'overpass'
+export type KeyType = 'mapbox' | 'googleMaps' | 'cesium' | 'anthropic' | 'openrouter' | 'overpass'
 
 export interface KeysConfig {
   mapbox?: string
   googleMaps?: string
   cesium?: string
   anthropic?: string
+  openrouter?: string
   overpass?: string
 }
 
-export type ProviderPreference = 'automatic' | 'anthropic' | 'custom' | 'chrome-ai'
+// Which provider the AI assistant should use. 'automatic' resolves by which
+// credential is present; the rest name one of the agent loop's providers, so the
+// strings deliberately match ProviderId in ai-chat/agent/types.ts.
+export type ProviderPreference = 'automatic' | 'anthropic' | 'openrouter' | 'custom' | 'chrome'
+
+// 'chrome-ai' was the persisted spelling before the preference shared a
+// vocabulary with the agent loop. Read-side only, so a stored value keeps working
+// without a migration step.
+const LEGACY_PREFERENCES: Record<string, ProviderPreference> = { 'chrome-ai': 'chrome' }
+
+function normalizePreference(stored: string | undefined): ProviderPreference {
+  if (!stored) return 'automatic'
+  return LEGACY_PREFERENCES[stored] ?? (stored as ProviderPreference)
+}
 
 export interface CustomEndpointConfig {
   baseUrl: string
@@ -80,6 +94,7 @@ export const useKeysStore = create<KeysStore>()(
         if (keys.googleMaps?.trim()) cleaned.googleMaps = keys.googleMaps.trim()
         if (keys.cesium?.trim()) cleaned.cesium = keys.cesium.trim()
         if (keys.anthropic?.trim()) cleaned.anthropic = keys.anthropic.trim()
+        if (keys.openrouter?.trim()) cleaned.openrouter = keys.openrouter.trim()
         if (keys.overpass?.trim()) cleaned.overpass = keys.overpass.trim()
         set({ browserKeys: cleaned })
       },
@@ -135,7 +150,7 @@ export const useKeysStore = create<KeysStore>()(
       },
 
       getProviderPreference: () => {
-        return get().providerPreference
+        return normalizePreference(get().providerPreference)
       },
 
       getCustomEndpoint: () => {
@@ -179,6 +194,7 @@ export function getEnvKeys(): KeysConfig {
     googleMaps: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
     cesium: import.meta.env.VITE_CESIUM_ACCESS_TOKEN,
     anthropic: import.meta.env.VITE_CLAUDE_API_KEY,
+    openrouter: import.meta.env.VITE_OPENROUTER_API_KEY,
     overpass:
       import.meta.env.VITE_OVERPASS_ENDPOINT || 'https://overpass.openstreetmap.fr/api/interpreter',
   }

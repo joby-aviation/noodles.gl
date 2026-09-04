@@ -1,6 +1,6 @@
-// Canonical tool definitions shared by the in-app Claude chat (claude-client.ts)
-// and the WebMCP registration (src/webmcp/). Single source of truth so the
-// Anthropic input_schema and the navigator.modelContext inputSchema can't drift.
+// Canonical tool definitions shared by the in-app chat (agent/) and the WebMCP
+// registration (src/webmcp/). Single source of truth so the provider input_schema
+// and the navigator.modelContext inputSchema can't drift.
 
 import type { MCPTools } from './mcp-tools'
 import type { NoodlesProject, SearchCodeParams, ToolResult } from './types'
@@ -28,8 +28,6 @@ export interface ToolDefinition {
   description: string
   annotations: ToolAnnotations
   inputSchema: ToolInputSchema
-  // false = executable but not offered to the in-app chat (keeps chat token budget unchanged)
-  exposeToChat?: boolean
   // getProject supplies the live project for tools that need it injected (analyze_project)
   execute: (
     tools: MCPTools,
@@ -260,8 +258,8 @@ export const toolDefinitions: ToolDefinition[] = [
     execute: (tools, params) =>
       tools.setPlaybackPosition(params as { position: number; play?: boolean }),
   },
-  // Context tools (code search, docs, examples) — executable by the chat's tool
-  // loop and WebMCP, but not offered in the chat's tool list to save tokens
+  // Context tools (code search, docs, examples). The chat reaches these through
+  // find_tools rather than paying for their schemas up front — see agent/tool-router.ts
   {
     name: 'search_code',
     annotations: { readOnlyHint: true },
@@ -280,7 +278,6 @@ export const toolDefinitions: ToolDefinition[] = [
       },
       required: ['pattern'],
     },
-    exposeToChat: false,
     execute: (tools, params) => tools.searchCode(params as unknown as SearchCodeParams),
   },
   {
@@ -296,7 +293,6 @@ export const toolDefinitions: ToolDefinition[] = [
       },
       required: ['file'],
     },
-    exposeToChat: false,
     execute: (tools, params) =>
       tools.getSourceCode(params as { file: string; startLine?: number; endLine?: number }),
   },
@@ -312,7 +308,6 @@ export const toolDefinitions: ToolDefinition[] = [
       },
       required: ['type'],
     },
-    exposeToChat: false,
     execute: (tools, params) => tools.getOperatorSchema(params as { type: string }),
   },
   {
@@ -325,29 +320,39 @@ export const toolDefinitions: ToolDefinition[] = [
         category: { type: 'string', description: 'Filter by operator category' },
       },
     },
-    exposeToChat: false,
     execute: (tools, params) => tools.listOperators(params as { category?: string }),
   },
   {
     name: 'get_documentation',
     annotations: { readOnlyHint: true },
-    description: 'Search the Noodles.gl documentation',
+    // Deliberately does not enumerate the available topics: this description is
+    // what find_tools scores against, and a list of every subject would match
+    // almost any query and crowd out the specific tool the model actually needs.
+    // core.md carries the topic list instead.
+    description:
+      'Search the Noodles.gl documentation and step-by-step workflow guides. Searching returns excerpts with topic ids; pass an id to read that topic in full.',
     inputSchema: {
       type: 'object',
       properties: {
-        query: { type: 'string', description: 'Search query' },
+        query: { type: 'string', description: 'What you want to know about' },
+        id: {
+          type: 'string',
+          description: 'Id of a topic from a previous search, to read it in full',
+        },
         section: {
           type: 'string',
           enum: ['users', 'developers', 'ai-assistant', 'examples'],
           description: 'Limit search to a docs section',
         },
       },
-      required: ['query'],
     },
-    exposeToChat: false,
     execute: (tools, params) =>
       tools.getDocumentation(
-        params as { query: string; section?: 'users' | 'developers' | 'ai-assistant' | 'examples' }
+        params as {
+          query?: string
+          id?: string
+          section?: 'users' | 'developers' | 'ai-assistant' | 'examples'
+        }
       ),
   },
   {
@@ -361,7 +366,6 @@ export const toolDefinitions: ToolDefinition[] = [
       },
       required: ['id'],
     },
-    exposeToChat: false,
     execute: (tools, params) => tools.getExample(params as { id: string }),
   },
   {
@@ -375,7 +379,6 @@ export const toolDefinitions: ToolDefinition[] = [
         tag: { type: 'string', description: 'Filter by tag' },
       },
     },
-    exposeToChat: false,
     execute: (tools, params) => tools.listExamples(params as { category?: string; tag?: string }),
   },
   {
@@ -389,7 +392,6 @@ export const toolDefinitions: ToolDefinition[] = [
       },
       required: ['name'],
     },
-    exposeToChat: false,
     execute: (tools, params) => tools.findSymbol(params as { name: string }),
   },
   {
@@ -407,7 +409,6 @@ export const toolDefinitions: ToolDefinition[] = [
       },
       required: ['analysisType'],
     },
-    exposeToChat: false,
     execute: (tools, params, getProject) => {
       const project = getProject()
       if (!project) {

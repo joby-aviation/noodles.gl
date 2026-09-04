@@ -27,6 +27,7 @@ This document provides essential context for Large Language Models (LLMs) workin
 - **[Testing Guide](dev-docs/testing-guide.md)** - Testing strategy, critical components, and runbook guidelines
 - **[PR Guidelines](dev-docs/pr-guidelines.md)** - Creating focused PRs with tests and documentation
 - **[Analytics](dev-docs/analytics.md)** - Privacy-preserving analytics guidelines
+- **[Agent Harness](dev-docs/agent-harness.md)** - The in-app AI chat: providers, tool routing, context budgets
 - **[Tech Stack](dev-docs/tech-stack.md)** - Complete technology listing
 
 ## Architecture
@@ -90,7 +91,8 @@ noodles-gl-public/
 │   │   │   │   ├── serialization.ts       # Save/load
 │   │   │   │   └── ...
 │   │   │   └── hooks/        # React hooks
-│   │   ├── ai-chat/          # Claude AI integration
+│   │   ├── ai-chat/          # In-app AI assistant
+│   │   │   └── agent/        # Provider-agnostic agent loop, tool routing
 │   │   ├── utils/            # General utilities
 │   │   ├── timeline-editor.tsx  # Timeline interface
 │   │   ├── noodles.tsx       # Main viz component
@@ -681,9 +683,41 @@ Any field can be keyframed via the native timeline system. Changes in timeline p
 9. **Document edge cases** - Users may not expect implementation-specific behavior
 10. **Keep PRs focused** - Split large changes into reviewable chunks when possible
 
+## The In-App AI Assistant
+
+The chat panel in the editor (`noodles-editor/src/ai-chat/`) runs its own agent loop
+in `ai-chat/agent/`. It is provider-agnostic — the same loop and tool surface serve
+Anthropic, OpenRouter, any OpenAI-compatible endpoint you point it at, and Chrome's
+built-in Gemini Nano — and it bounds context cost rather than sending everything it
+has.
+
+Five things to know before changing it:
+
+1. **`tool-definitions.ts` + `mcp-tools.ts` stay the single source of truth** for the
+   tool surface. WebMCP (`src/webmcp/`) registers all of them unconditionally; the
+   chat reaches them through routing.
+2. **Only 5 tools are sent by default.** `list_nodes`, `get_node_info`,
+   `get_node_output`, `apply_modifications`, `find_tools`. The model calls
+   `find_tools({query})` to unlock the rest, so a new tool needs a good description —
+   that description is how it gets found.
+3. **Every tool result is capped** by `agent/result-budget.ts` against the provider's
+   context window. A tool that returns unbounded data will be truncated, so return
+   ids and previews rather than whole objects (see `listNodes`).
+4. **The provider interface is two flags plus a stream.** `supportsNativeTools` and
+   `contextWindow` carry all the behavioural difference; adding a provider touches
+   nothing in the loop or router. An OpenAI-compatible provider should reuse
+   `agent/providers/openai-format.ts` rather than re-implement SSE tool-call
+   fragment reassembly.
+5. **Which provider runs is `providerPreference` in `noodles/keys-store.tsx`**, not
+   the model store. `'automatic'` picks the first of anthropic → openrouter → custom
+   → chrome that has a credential.
+
+Full details, including the measured before/after context cost, are in
+[dev-docs/agent-harness.md](dev-docs/agent-harness.md).
+
 ## Using Claude Code with Noodles.gl
 
-This section covers using Claude Code (the CLI tool) to work directly with projects, as opposed to the in-app Claude chat panel.
+This section covers using Claude Code (the CLI tool) to work directly with projects, as opposed to the in-app chat panel.
 
 ### Setup
 

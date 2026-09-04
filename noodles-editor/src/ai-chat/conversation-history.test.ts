@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  CONVERSATION_VERSION,
   clearAllHistory,
   deleteConversation,
   loadConversation,
@@ -113,6 +114,59 @@ describe('conversation-history', () => {
     it('returns null for non-existent conversation', () => {
       const loaded = loadConversation('non-existent-id')
       expect(loaded).toBeNull()
+    })
+
+    it('stamps the current version on save', () => {
+      const id = saveConversation([{ role: 'user', content: 'Hello' }])
+
+      expect(loadConversation(id)?.version).toBe(CONVERSATION_VERSION)
+    })
+
+    it('loads a record written before versioning as version 1', () => {
+      // What the old code wrote: no version, no toolUses
+      localStorageMock.setItem(
+        'noodles-chat-history-legacy',
+        JSON.stringify({
+          id: 'legacy',
+          timestamp: 1,
+          messages: [
+            { role: 'user', content: 'Why that layer?' },
+            { role: 'assistant', content: 'Because it is a point dataset.' },
+          ],
+        })
+      )
+
+      const loaded = loadConversation('legacy')
+
+      expect(loaded?.version).toBe(1)
+      expect(loaded?.messages).toHaveLength(2)
+    })
+
+    it('round-trips the tool uses recorded on an assistant turn', () => {
+      const messages: Message[] = [
+        { role: 'user', content: 'Fix the scatterplot' },
+        {
+          role: 'assistant',
+          content: 'Widened the radius.',
+          toolUses: [
+            { name: 'get_node_info', params: { nodeId: '/scatterplot' }, ok: true },
+            { name: 'apply_modifications', ok: false },
+          ],
+        },
+      ]
+
+      const id = saveConversation(messages)
+
+      expect(loadConversation(id)?.messages).toEqual(messages)
+    })
+
+    it('rejects a record whose messages did not survive', () => {
+      localStorageMock.setItem(
+        'noodles-chat-history-broken',
+        JSON.stringify({ id: 'broken', timestamp: 1 })
+      )
+
+      expect(loadConversation('broken')).toBeNull()
     })
   })
 

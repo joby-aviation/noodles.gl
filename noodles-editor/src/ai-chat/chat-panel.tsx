@@ -6,49 +6,29 @@ import {
   type ProjectModification,
   useProjectModifications,
 } from '../noodles/hooks/use-project-modifications'
+import type { CustomEndpointConfig, ProviderPreference } from '../noodles/keys-store'
 import { useKeysStore } from '../noodles/keys-store'
 import { useUIStore } from '../noodles/store'
 import { debugAiChat } from '../utils/debug'
+import { useAgentModelStore } from './agent/model-store'
+import { ANTHROPIC_MODELS, AnthropicProvider } from './agent/providers/anthropic'
+import {
+  CHROME_MODELS,
+  chromeAvailability,
+  createChromeProvider,
+  type DownloadProgress,
+} from './agent/providers/chrome'
+import { CustomProvider } from './agent/providers/custom'
+import { OPENROUTER_MODELS, OpenRouterProvider } from './agent/providers/openrouter'
+import { AgentSession } from './agent/session'
+import type { AgentProvider, AgentUsage, ProviderId } from './agent/types'
+import { webSearchConfigFor } from './agent/web-search'
 import styles from './chat-panel.module.css'
 import { loadConversation, saveConversation } from './conversation-history'
 import { ConversationHistoryPanel } from './conversation-history-panel'
 import { globalContextManager } from './global-context-manager'
 import { MCPTools } from './mcp-tools'
-import type { AIProvider } from './providers/ai-provider-interface'
-import { getProviderRegistry } from './providers/provider-registry'
 import type { Message, NoodlesProject } from './types'
-import type { ProviderPreference } from '../noodles/keys-store'
-
-interface ProviderOption {
-  value: ProviderPreference
-  displayName: string
-  description: string
-  requiresKey?: boolean
-}
-
-const PROVIDER_OPTIONS: ProviderOption[] = [
-  {
-    value: 'automatic',
-    displayName: 'Automatic',
-    description: 'Use best available provider',
-  },
-  {
-    value: 'anthropic',
-    displayName: 'Claude',
-    description: 'Anthropic Claude API',
-    requiresKey: true,
-  },
-  {
-    value: 'custom',
-    displayName: 'Custom Endpoint',
-    description: 'OpenAI, Groq, or custom',
-  },
-  {
-    value: 'chrome-ai',
-    displayName: 'Chrome Built-in AI',
-    description: 'Free, runs locally',
-  },
-]
 
 interface ChatPanelProps {
   project: NoodlesProject
@@ -72,61 +52,70 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [contextLoading, setContextLoading] = useState(true)
-  const [aiProvider, setAiProvider] = useState<AIProvider | null>(null)
+  const [session, setSession] = useState<AgentSession | null>(null)
   const [mcpTools, setMcpTools] = useState<MCPTools | null>(null)
-  const [autoCapture, setAutoCapture] = useState(true)
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null)
   const [showHistory, setShowHistory] = useState(false)
   const [contextProgress, setContextProgress] = useState<string>('')
-  const [providerProgress, setProviderProgress] = useState<string>('')
+  // Text of the turn in flight, so the reply appears as it is generated rather
+  // than all at once when the whole multi-step run finishes
+  const [streamingText, setStreamingText] = useState('')
+  const [activeTools, setActiveTools] = useState<string[]>([])
+  const [lastUsage, setLastUsage] = useState<AgentUsage | null>(null)
+  // Whether this browser has a usable built-in model. Only knowable
+  // asynchronously, so it starts false and the option stays disabled until then.
+  const [chromeAvailable, setChromeAvailable] = useState(false)
+  // Only Chrome reports one, and only on the first run of a given machine
+  const [downloadProgress, setDownloadProgress] = useState<DownloadProgress | null>(null)
+  // A provider that would not start. Distinct from a failed message: nothing can
+  // be sent at all, so it replaces the panel rather than appearing in it.
   const [providerError, setProviderError] = useState<string | null>(null)
-  const [, setContextUpdateTrigger] = useState(0)
-  const [downloadProgress, setDownloadProgress] = useState<{
-    loaded: number
-    total: number
-  } | null>(null)
-  const [showProviderDropdown, setShowProviderDropdown] = useState(false)
+  const abortRef = useRef<AbortController | null>(null)
 
-  // Get API keys and config from store (reactive) - watch for changes to trigger provider refresh
-  const anthropicKey = useKeysStore(state => state.getKey('anthropic'))
+  // Get API keys directly from store (reactive)
+  const apiKey = useKeysStore(state => state.getKey('anthropic'))
+  const openRouterKey = useKeysStore(state => state.getKey('openrouter'))
   const customEndpoint = useKeysStore(state => state.getCustomEndpoint())
-  const providerPreference = useKeysStore(state => state.getProviderPreference())
+
+  // Shared with the settings dialog, so the two cannot disagree about which
+  // provider is in use
+  const preference = useKeysStore(state => state.getProviderPreference())
+  const setPreference = useKeysStore(state => state.setProviderPreference)
+  const setStoredModel = useAgentModelStore(state => state.setModel)
+
+  // Anthropic unless only another credential is configured, or the user picked
+  // otherwise. Falls back when the chosen provider's key has since been cleared.
+  const providerId: ProviderId = resolveProviderId({
+    preference,
+    anthropicKey: apiKey,
+    openRouterKey,
+    customEndpoint,
+    chromeAvailable,
+  })
+  const providerKey = providerId === 'anthropic' ? apiKey : openRouterKey
+  // Chrome needs no key and a custom endpoint carries its own, so readiness is
+  // not the same question as "has a key"
+  const providerReady = isProviderReady(providerId, {
+    anthropicKey: apiKey,
+    openRouterKey,
+    customEndpoint,
+    chromeAvailable,
+  })
+  // undefined leaves the provider on its own default
+  const model = useAgentModelStore(state => state.getModel(providerId))
+  const modelChoices = modelChoicesFor(providerId, customEndpoint)
 
   // Get the function to open settings dialog
   const setSettingsDialogOpen = useUIStore(state => state.setSettingsDialogOpen)
 
-  // Open settings and navigate to AI Provider tab
-  const openAIProviderSettings = () => {
+  // Deep-links into the tab that configures providers, rather than the one that
+  // happened to be open last
+  const openProviderSettings = () => {
     window.location.hash = 'ai-provider'
     setSettingsDialogOpen(true)
   }
 
-  // Handle provider change from dropdown
-  const handleProviderChange = (preference: ProviderPreference) => {
-    useKeysStore.getState().setProviderPreference(preference)
-    // Provider re-initialization happens automatically via useEffect (line 139)
-    setShowProviderDropdown(false)
-  }
-
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const providerDropdownRef = useRef<HTMLDivElement>(null)
-
-  // Handle click outside to close provider dropdown
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (
-        providerDropdownRef.current &&
-        !providerDropdownRef.current.contains(event.target as Node)
-      ) {
-        setShowProviderDropdown(false)
-      }
-    }
-
-    if (showProviderDropdown) {
-      document.addEventListener('mousedown', handleClickOutside)
-      return () => document.removeEventListener('mousedown', handleClickOutside)
-    }
-  }, [showProviderDropdown])
 
   // Subscribe to context loading progress
   useEffect(() => {
@@ -141,57 +130,64 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
     return unsubscribe
   }, [])
 
-  // Initialize AI provider when keys or preference change
-  // biome-ignore lint/correctness/useExhaustiveDependencies: keys are used indirectly via provider registry
+  // Ask once whether this browser can run a model locally. 'downloadable' counts:
+  // create() then downloads it, which is a wait rather than a failure.
   useEffect(() => {
+    let current = true
+    chromeAvailability().then(availability => {
+      if (current) setChromeAvailable(availability !== 'unavailable')
+    })
+    return () => {
+      current = false
+    }
+  }, [])
+
+  // Build the session whenever the provider, model, or key changes
+  useEffect(() => {
+    if (!providerReady) {
+      setContextLoading(false)
+      return
+    }
+
     const init = async () => {
       setContextLoading(true)
       setProviderError(null)
-      setProviderProgress('Loading documentation...')
       try {
         // Wait for context to be ready (should be instant if already loaded)
         const loader = await globalContextManager.waitForReady()
 
-        setProviderProgress('Initializing AI provider...')
-
         const tools = new MCPTools(loader)
-        const registry = getProviderRegistry()
-        registry.setTools(tools)
-        registry.setPreference(providerPreference)
-
-        // Get appropriate provider based on available keys and preference
-        // Pass progress callback to track provider initialization
-        const provider = await registry.getProvider(msg => {
-          setProviderProgress(msg)
-
-          // Parse download progress from Chrome AI messages
-          const downloadMatch = msg.match(/Downloading AI model: (\d+)%/)
-          if (downloadMatch) {
-            const percentage = Number.parseInt(downloadMatch[1], 10)
-            // Estimate total size as ~2GB (rough Chrome AI model size)
-            const estimatedTotal = 2 * 1024 * 1024 * 1024
-            const loaded = Math.round((percentage / 100) * estimatedTotal)
-            setDownloadProgress({ loaded, total: estimatedTotal })
-          } else {
-            setDownloadProgress(null)
-          }
+        const provider: AgentProvider = await createProvider({
+          providerId,
+          apiKey: providerKey,
+          model,
+          customEndpoint,
+          onDownloadProgress: setDownloadProgress,
         })
 
         setMcpTools(tools)
-        setAiProvider(provider)
-        debugAiChat(`Initialized ${provider.displayName} (${provider.tier})`)
-      } catch (error) {
-        debugAiChat('Failed to initialize AI provider:', error)
-        setProviderError(
-          error instanceof Error ? error.message : 'Failed to initialize AI provider'
+        setSession(
+          new AgentSession(provider, tools, {
+            webSearch: webSearchConfigFor({
+              providerId,
+              model: provider.model,
+              anthropicKey: apiKey,
+              openRouterKey,
+            }),
+          })
         )
+      } catch (error) {
+        debugAiChat('Failed to initialize the assistant:', error)
+        setSession(null)
+        setProviderError(error instanceof Error ? error.message : String(error))
       } finally {
+        setDownloadProgress(null)
         setContextLoading(false)
       }
     }
 
     init()
-  }, [providerPreference, anthropicKey, customEndpoint])
+  }, [providerId, providerKey, providerReady, model, apiKey, openRouterKey, customEndpoint])
 
   // Update MCPTools with current project whenever it changes
   useEffect(() => {
@@ -213,7 +209,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
   }, [])
 
   const handleSend = async () => {
-    if (!input.trim() || !aiProvider || !project) return
+    if (!input.trim() || !session || !project) return
 
     const userMessage: Message = {
       role: 'user',
@@ -223,24 +219,39 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
     setMessages(prev => [...prev, userMessage])
     setInput('')
     setLoading(true)
+    setStreamingText('')
+    setActiveTools([])
+
+    const controller = new AbortController()
+    abortRef.current = controller
 
     try {
-      const response = await aiProvider.sendMessage({
+      const response = await session.send({
         message: input,
-        project,
-        autoCapture,
         conversationHistory: messages,
+        signal: controller.signal,
+        onEvent: event => {
+          if (event.type === 'text_delta') setStreamingText(prev => prev + event.text)
+          if (event.type === 'tool_call') setActiveTools(prev => [...prev, event.name])
+          if (event.type === 'usage') setLastUsage(event.usage)
+        },
       })
 
+      // An aborted run still returns whatever it had produced, which is worth
+      // keeping — the user stopped it, they did not undo it
       const assistantMessage: Message = {
         role: 'assistant',
-        content: response.message,
+        content: response.message || '(stopped)',
+        // Kept so the next turn can answer "why did you do that?" — see
+        // MessageToolUse for why the results themselves are not kept
+        toolUses: response.toolCalls?.map(call => ({
+          name: call.name,
+          params: call.params,
+          ok: call.result.success,
+        })),
       }
 
       setMessages(prev => [...prev, assistantMessage])
-
-      // Trigger context window update
-      setContextUpdateTrigger(prev => prev + 1)
 
       // Apply project modifications if any
       if (response.projectModifications && response.projectModifications.length > 0) {
@@ -302,7 +313,14 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
       }
     } finally {
       setLoading(false)
+      setStreamingText('')
+      setActiveTools([])
+      abortRef.current = null
     }
+  }
+
+  const handleStop = () => {
+    abortRef.current?.abort()
   }
 
   const handleManualCapture = async () => {
@@ -334,6 +352,9 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
   }
 
   const handleClose = () => {
+    // Closing with a turn in flight should not leave it billing in the background
+    abortRef.current?.abort()
+
     // Auto-save current conversation if it has messages and hasn't been saved yet
     if (messages.length > 0 && !currentConversationId) {
       try {
@@ -370,46 +391,64 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
 
   if (!isVisible) return null
 
-  // Show error if provider initialization failed
-  if (providerError && !contextLoading) {
-    // Only show Chrome AI flag instructions if the error is specifically about it not being available
-    const showChromeAIInstructions =
-      providerError.includes('not available') && providerError.includes('Chrome Built-in AI')
-
+  // Check if a usable key is missing
+  if (!providerReady && !contextLoading) {
     return (
       <div className={styles.chatPanel}>
         <div className={styles.chatPanelLoading}>
-          <h3>AI Provider Required</h3>
-          <p style={{ color: '#ff6b6b', marginBottom: '1.5rem', whiteSpace: 'pre-wrap' }}>
-            {providerError}
+          <h3>Pick an AI provider</h3>
+          <p>
+            The Noodles assistant needs one of an Anthropic key, an OpenRouter key, an
+            OpenAI-compatible endpoint, or Chrome’s built-in model. Configure one in{' '}
+            <button type="button" onClick={openProviderSettings} className={styles.linkButton}>
+              Settings → AI Provider
+            </button>
+            .
           </p>
-          <div style={{ marginBottom: '1rem' }}>
-            <button
-              type="button"
-              onClick={openAIProviderSettings}
-              className={styles.chatSendBtn}
-              style={{ fontSize: '14px', padding: '10px 20px' }}
-            >
-              Configure API Keys (Anthropic, OpenAI, etc.)
+          <p>
+            Keys come from the{' '}
+            <a href="https://console.anthropic.com/" target="_blank" rel="noopener noreferrer">
+              Anthropic Console
+            </a>{' '}
+            or{' '}
+            <a href="https://openrouter.ai/keys" target="_blank" rel="noopener noreferrer">
+              OpenRouter
+            </a>
+            . Chrome’s built-in model is free and needs no key, but is the least capable of the
+            three.
+          </p>
+          <div
+            style={{ marginTop: '1rem', display: 'flex', gap: '0.5rem', justifyContent: 'center' }}
+          >
+            <button type="button" onClick={handleClose} className={styles.chatSendBtn}>
+              Close
             </button>
           </div>
-          {showChromeAIInstructions && (
-            <p style={{ fontSize: '12px', color: '#aaa', marginBottom: '0.5rem' }}>
-              Or enable Chrome Built-in AI at{' '}
-              <code style={{ background: '#333', padding: '2px 6px', borderRadius: '3px' }}>
-                chrome://flags/#prompt-api-for-gemini-nano
-              </code>
+        </div>
+      </div>
+    )
+  }
+
+  if (providerError) {
+    return (
+      <div className={styles.chatPanel}>
+        <div className={styles.chatPanelLoading}>
+          <h3>{PROVIDER_LABELS[providerId]} did not start</h3>
+          <p>{providerError}</p>
+          {providerId === 'chrome' && (
+            <p>
+              Chrome’s built-in model needs Chrome 127+ with the Prompt API enabled at{' '}
+              <code>chrome://flags/#prompt-api-for-gemini-nano</code>, and the model downloaded via{' '}
+              <code>chrome://components</code>.
             </p>
           )}
           <div
-            style={{
-              marginTop: '1.5rem',
-              display: 'flex',
-              gap: '0.5rem',
-              justifyContent: 'center',
-            }}
+            style={{ marginTop: '1rem', display: 'flex', gap: '0.5rem', justifyContent: 'center' }}
           >
-            <button type="button" onClick={handleClose} className={styles.linkButton}>
+            <button type="button" onClick={openProviderSettings} className={styles.chatSendBtn}>
+              Provider settings
+            </button>
+            <button type="button" onClick={handleClose} className={styles.chatPanelActionBtn}>
               Close
             </button>
           </div>
@@ -423,160 +462,32 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
       <div className={styles.chatPanel}>
         <div className={styles.chatPanelLoading}>
           <div className={styles.spinner} />
-          {downloadProgress ? (
+          <p>
+            {downloadProgress ? 'Downloading the model…' : contextProgress || 'Loading context…'}
+          </p>
+          {downloadProgress && (
             <>
-              <p>Downloading AI model...</p>
-              <div className={styles.progressBar}>
-                <div
-                  className={styles.progressBarFill}
-                  style={{
-                    width: `${Math.round((downloadProgress.loaded / downloadProgress.total) * 100)}%`,
-                  }}
-                />
-              </div>
-              <p className={styles.progressText}>
-                {Math.round((downloadProgress.loaded / downloadProgress.total) * 100)}% (
-                {(downloadProgress.loaded / 1024 / 1024 / 1024).toFixed(1)} GB /{' '}
-                {(downloadProgress.total / 1024 / 1024 / 1024).toFixed(1)} GB)
+              <progress
+                className={styles.downloadProgress}
+                value={downloadProgress.loaded}
+                max={downloadProgress.total}
+              />
+              <p className={styles.downloadNote}>
+                {formatPercent(downloadProgress)} — Chrome downloads about 2GB the first time, and
+                only once.
               </p>
             </>
-          ) : (
-            <p>{providerProgress || contextProgress || 'Loading context...'}</p>
           )}
         </div>
       </div>
     )
   }
 
-  // Get rate limit info if available
-  const rateLimit = aiProvider?.getRateLimit()
-  const rateLimitWarning = rateLimit && rateLimit.remaining < rateLimit.limit * 0.2
-
-  // Get context window info if available
-  const contextWindow = aiProvider?.getContextWindow()
-
   return (
     <div className={styles.chatPanel}>
       <div className={styles.chatPanelHeader}>
-        <div>
-          <h3>Noodles Assistant</h3>
-          {aiProvider && (
-            <div ref={providerDropdownRef} className={styles.providerSelector}>
-              <button
-                type="button"
-                className={styles.providerName}
-                onClick={() => setShowProviderDropdown(!showProviderDropdown)}
-              >
-                {aiProvider.displayName}
-                <svg
-                  className={styles.dropdownIcon}
-                  width="12"
-                  height="12"
-                  viewBox="0 0 12 12"
-                  aria-label="Dropdown arrow"
-                >
-                  <title>Dropdown arrow</title>
-                  <path d="M2 4l4 4 4-4" stroke="currentColor" fill="none" strokeWidth="1.5" />
-                </svg>
-              </button>
-              <button
-                type="button"
-                className={styles.settingsGear}
-                onClick={openAIProviderSettings}
-                title="AI Settings"
-              >
-                ⚙️
-              </button>
-              {rateLimit && (
-                <span
-                  style={{
-                    marginLeft: '8px',
-                    color: rateLimitWarning ? '#ff6b6b' : 'inherit',
-                  }}
-                >
-                  ({rateLimit.remaining.toLocaleString()}/{rateLimit.limit.toLocaleString()}{' '}
-                  {rateLimit.windowDescription})
-                </span>
-              )}
-
-              {showProviderDropdown && (
-                <div className={styles.providerDropdown}>
-                  {PROVIDER_OPTIONS.map(option => {
-                    const isActive = providerPreference === option.value
-                    const isDisabled = option.requiresKey && !anthropicKey
-
-                    return (
-                      <button
-                        key={option.value}
-                        type="button"
-                        className={`${styles.providerOption} ${isActive ? styles.providerOptionActive : ''} ${isDisabled ? styles.providerOptionDisabled : ''}`}
-                        onClick={() => !isDisabled && handleProviderChange(option.value)}
-                        disabled={isDisabled}
-                      >
-                        <div className={styles.providerOptionName}>
-                          {option.displayName}
-                          {isActive && <span className={styles.activeCheckmark}>✓</span>}
-                        </div>
-                        <div className={styles.providerOptionDesc}>{option.description}</div>
-                        {isDisabled && (
-                          <div className={styles.providerOptionWarning}>Requires API key</div>
-                        )}
-                      </button>
-                    )
-                  })}
-                  <div className={styles.providerDropdownDivider} />
-                  <button
-                    type="button"
-                    className={styles.providerOption}
-                    onClick={openAIProviderSettings}
-                  >
-                    <div className={styles.providerOptionName}>More Settings...</div>
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
+        <h3>Noodles Assistant</h3>
         <div className={styles.chatPanelActions}>
-          {contextWindow && (
-            <div
-              className={styles.contextIndicator}
-              title={`Context: ${contextWindow.used.toLocaleString()} / ${contextWindow.total.toLocaleString()} tokens`}
-            >
-              <svg width="24" height="24" viewBox="0 0 24 24" role="img">
-                <title>Context Window Usage</title>
-                <circle
-                  cx="12"
-                  cy="12"
-                  r="9"
-                  fill="none"
-                  stroke="rgba(255, 255, 255, 0.1)"
-                  strokeWidth="2"
-                />
-                <circle
-                  cx="12"
-                  cy="12"
-                  r="9"
-                  fill="none"
-                  stroke={contextWindow.percentage > 80 ? '#ff6b6b' : '#4a9eff'}
-                  strokeWidth="2"
-                  strokeDasharray={`${(contextWindow.percentage / 100) * 56.5} 56.5`}
-                  strokeLinecap="round"
-                  transform="rotate(-90 12 12)"
-                />
-                <text
-                  x="12"
-                  y="12"
-                  textAnchor="middle"
-                  dominantBaseline="central"
-                  fontSize="7"
-                  fill="currentColor"
-                >
-                  {contextWindow.percentage}%
-                </text>
-              </svg>
-            </div>
-          )}
           <button
             type="button"
             className={styles.chatPanelActionBtn}
@@ -605,14 +516,50 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
       </div>
 
       <div className={styles.chatPanelOptions}>
-        <label className={styles.chatOption}>
-          <input
-            type="checkbox"
-            checked={autoCapture}
-            onChange={e => setAutoCapture(e.target.checked)}
-          />
-          <span>Auto-capture screenshots</span>
-        </label>
+        <div className={styles.modelPicker}>
+          <select
+            value={providerId}
+            onChange={e => setPreference(e.target.value as ProviderPreference)}
+            className={styles.modelSelect}
+            title="Which API the assistant talks to"
+          >
+            <option value="anthropic" disabled={!apiKey}>
+              Anthropic
+            </option>
+            <option value="openrouter" disabled={!openRouterKey}>
+              OpenRouter
+            </option>
+            <option value="custom" disabled={!customEndpoint}>
+              {customEndpoint?.displayName ?? 'Custom endpoint'}
+            </option>
+            <option value="chrome" disabled={!chromeAvailable}>
+              Chrome (local)
+            </option>
+          </select>
+          <select
+            value={model ?? modelChoices[0].id}
+            onChange={e => setStoredModel(providerId, e.target.value)}
+            className={styles.modelSelect}
+            // Chrome exposes one model, so there is nothing to choose between
+            disabled={modelChoices.length < 2}
+            title="Model for this conversation"
+          >
+            {modelChoices.map(choice => (
+              <option key={choice.id} value={choice.id}>
+                {choice.label}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            onClick={openProviderSettings}
+            className={styles.settingsGear}
+            title="Configure AI provider settings"
+          >
+            ⚙️
+          </button>
+          {lastUsage && <span className={styles.usageReadout}>{formatUsage(lastUsage)}</span>}
+        </div>
         <button
           type="button"
           onClick={handleManualCapture}
@@ -644,7 +591,9 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
             key={`msg-${idx}-${msg.role}`}
             className={`${styles.chatMessage} ${msg.role === 'user' ? styles.chatMessageUser : styles.chatMessageAssistant}`}
           >
-            <div className={styles.chatMessageRole}>{msg.role === 'user' ? 'You' : 'Agent'}</div>
+            <div className={styles.chatMessageRole}>
+              {msg.role === 'user' ? 'You' : 'Assistant'}
+            </div>
             <div className={styles.chatMessageContent}>
               <MessageContent
                 content={Array.isArray(msg.content) ? msg.content.join('\n') : msg.content}
@@ -655,13 +604,26 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
 
         {loading && (
           <div className={`${styles.chatMessage} ${styles.chatMessageAssistant}`}>
-            <div className={styles.chatMessageRole}>Claude</div>
+            <div className={styles.chatMessageRole}>Assistant</div>
             <div className={styles.chatMessageContent}>
-              <div className={styles.typingIndicator}>
-                <span />
-                <span />
-                <span />
-              </div>
+              {activeTools.length > 0 && (
+                <div className={styles.toolTrace}>
+                  {activeTools.map((name, idx) => (
+                    <span key={`${name}-${idx}`} className={styles.toolTraceRow}>
+                      {name}
+                    </span>
+                  ))}
+                </div>
+              )}
+              {streamingText ? (
+                <MessageContent content={streamingText} />
+              ) : (
+                <div className={styles.typingIndicator}>
+                  <span />
+                  <span />
+                  <span />
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -679,18 +641,24 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
               handleSend()
             }
           }}
-          placeholder="Ask Claude for help..."
+          placeholder="Ask for help..."
           disabled={loading}
           rows={3}
         />
-        <button
-          type="button"
-          onClick={handleSend}
-          disabled={loading || !input.trim()}
-          className={styles.chatSendBtn}
-        >
-          Send
-        </button>
+        {loading ? (
+          <button type="button" onClick={handleStop} className={styles.chatStopBtn}>
+            Stop
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={handleSend}
+            disabled={!input.trim()}
+            className={styles.chatSendBtn}
+          >
+            Send
+          </button>
+        )}
       </div>
 
       {showHistory && (
@@ -702,6 +670,113 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
       )}
     </div>
   )
+}
+
+const PROVIDER_LABELS: Record<ProviderId, string> = {
+  anthropic: 'Anthropic',
+  openrouter: 'OpenRouter',
+  custom: 'The custom endpoint',
+  chrome: 'Chrome’s built-in model',
+}
+
+interface Credentials {
+  anthropicKey: string | undefined
+  openRouterKey: string | undefined
+  customEndpoint: CustomEndpointConfig | undefined
+  chromeAvailable: boolean
+}
+
+// A provider is usable when whatever it needs is present: a key for the two
+// hosted ones, a saved config for a custom endpoint, a capable browser for Chrome.
+function isProviderReady(providerId: ProviderId, credentials: Credentials): boolean {
+  switch (providerId) {
+    case 'anthropic':
+      return Boolean(credentials.anthropicKey)
+    case 'openrouter':
+      return Boolean(credentials.openRouterKey)
+    case 'custom':
+      return Boolean(credentials.customEndpoint?.baseUrl && credentials.customEndpoint?.model)
+    case 'chrome':
+      return credentials.chromeAvailable
+  }
+}
+
+// An explicit preference wins, but only while it is usable — clearing a key in
+// Settings should not leave the chat pointed at a provider it cannot reach.
+// Chrome is last in the automatic order: it is the weakest of the four, so it
+// only gets picked when nothing else is configured.
+function resolveProviderId(options: Credentials & { preference: ProviderPreference }): ProviderId {
+  const { preference } = options
+  if (preference !== 'automatic' && isProviderReady(preference, options)) return preference
+
+  const order: ProviderId[] = ['anthropic', 'openrouter', 'custom', 'chrome']
+  return order.find(id => isProviderReady(id, options)) ?? 'anthropic'
+}
+
+function modelChoicesFor(
+  providerId: ProviderId,
+  customEndpoint: CustomEndpointConfig | undefined
+): readonly { id: string; label: string }[] {
+  switch (providerId) {
+    case 'anthropic':
+      return ANTHROPIC_MODELS
+    case 'openrouter':
+      return OPENROUTER_MODELS
+    case 'chrome':
+      return CHROME_MODELS
+    // A custom endpoint's model is part of its saved config, so the picker shows
+    // it rather than offering a choice this app cannot enumerate
+    case 'custom':
+      return customEndpoint
+        ? [{ id: customEndpoint.model, label: customEndpoint.displayName ?? customEndpoint.model }]
+        : [{ id: '', label: 'Not configured' }]
+  }
+}
+
+interface CreateProviderOptions {
+  providerId: ProviderId
+  apiKey: string | undefined
+  model: string | undefined
+  customEndpoint: CustomEndpointConfig | undefined
+  onDownloadProgress: (progress: DownloadProgress) => void
+}
+
+// Chrome is the only provider whose construction is async: it probes the browser
+// for the real context window before the router can be sized against it, and that
+// probe is also what triggers the model download.
+async function createProvider(options: CreateProviderOptions): Promise<AgentProvider> {
+  const { providerId, apiKey, model, customEndpoint } = options
+  switch (providerId) {
+    case 'chrome':
+      return createChromeProvider({ onDownloadProgress: options.onDownloadProgress })
+    case 'openrouter':
+      return new OpenRouterProvider({ apiKey: apiKey ?? '', model })
+    case 'anthropic':
+      return new AnthropicProvider({ apiKey: apiKey ?? '', model })
+    case 'custom':
+      if (!customEndpoint) throw new Error('No custom endpoint is configured')
+      return new CustomProvider({
+        baseUrl: customEndpoint.baseUrl,
+        apiKey: customEndpoint.apiKey,
+        model: customEndpoint.model,
+      })
+  }
+}
+
+function formatPercent(progress: DownloadProgress): string {
+  if (!progress.total) return ''
+  return `${Math.round((progress.loaded / progress.total) * 100)}%`
+}
+
+function formatUsage(usage: AgentUsage): string {
+  const tokens = `${formatTokens(usage.inputTokens)} in / ${formatTokens(usage.outputTokens)} out`
+  // Only OpenRouter reports a price; Anthropic leaves it to us to look up
+  if (usage.costUsd === undefined) return tokens
+  return `${tokens} · $${usage.costUsd.toFixed(4)}`
+}
+
+function formatTokens(count: number): string {
+  return count >= 1000 ? `${(count / 1000).toFixed(1)}k` : String(count)
 }
 
 // Render message content with basic markdown support
