@@ -844,9 +844,7 @@ export function VectorFieldComponent({
       [channelHandles, fieldName, keys, opId]
     )
   )
-  const connectedChannelKeys = connectedChannelKeyString
-    ? connectedChannelKeyString.split(',')
-    : []
+  const connectedChannelKeys = connectedChannelKeyString ? connectedChannelKeyString.split(',') : []
 
   // Track the latest value in a ref for onCommit
   const latestValueRef = useRef(value)
@@ -921,20 +919,11 @@ export function VectorFieldComponent({
   )
 
   return (
-    <div
-      className={cx(s.fieldWrapper, 'nokey', {
-        [s.fieldWrapperVectorChannels]: channelHandles,
-      })}
-    >
+    <div className={cx(s.fieldWrapper, 'nokey')}>
       <label className={s.fieldLabel} htmlFor={id}>
         {id}
       </label>
-      <div
-        id={id}
-        className={cx(s.fieldInputWrapper, s.fieldInputWrapperVector, {
-          [s.fieldInputWrapperVectorChannels]: channelHandles,
-        })}
-      >
+      <div id={id} className={cx(s.fieldInputWrapper, s.fieldInputWrapperVector)}>
         {keys.map((key, i) => {
           const objectKey = field.returnType === 'tuple' ? i : key
           const channelValue = Array.isArray(value) ? value[i] : value[key]
@@ -947,7 +936,6 @@ export function VectorFieldComponent({
                 keyName={key}
                 value={channelValue}
                 objectKey={objectKey}
-                field={field.channelFields[key]}
                 disabled={disabled}
                 onChange={onChange}
                 onCommit={onCommit}
@@ -1017,7 +1005,6 @@ function VectorChannelInput({
   keyName,
   value,
   objectKey,
-  field,
   disabled,
   onChange,
   onCommit,
@@ -1028,26 +1015,19 @@ function VectorChannelInput({
   keyName: string
   value: number
   objectKey: string | number
-  field: NumberField
   disabled: boolean
   onChange: (key: string | number, val: number) => void
   onCommit: () => void
   onInteractionStart?: () => void
 }) {
-  const isHandleDimmed = useHandleDimmed(nodeId, handleId)
   const hasIncomingConnection = useHasIncomingConnection(nodeId, handleId)
 
   return (
     <div className={s.vectorChannelRow}>
-      <Handle
-        id={handleId}
-        className={cx(handleClass(field), { [s.handleDimmed]: isHandleDimmed })}
-        style={{ transform: 'translate(-17px, -50%)' }}
-        type="target"
-        position={Position.Left}
-      />
       <div className={cx(s.fieldLabel, s.fieldLabelVector)}>{keyName}</div>
-      {!hasIncomingConnection && (
+      {hasIncomingConnection ? (
+        <div className={s.vectorChannelConnectedSpacer} aria-hidden="true" />
+      ) : (
         <VectorNumberInput
           keyName=""
           value={value}
@@ -1060,6 +1040,35 @@ function VectorChannelInput({
         />
       )}
     </div>
+  )
+}
+
+function VectorChannelHandle({
+  nodeId,
+  handleId,
+  field,
+  index,
+  count,
+}: {
+  nodeId: string
+  handleId: string
+  field: NumberField
+  index: number
+  count: number
+}) {
+  const isHandleDimmed = useHandleDimmed(nodeId, handleId)
+
+  return (
+    <Handle
+      id={handleId}
+      className={cx(handleClass(field), { [s.handleDimmed]: isHandleDimmed })}
+      style={{
+        top: `${((index + 1) / (count + 1)) * 100}%`,
+        transform: 'translate(-17px, -50%)',
+      }}
+      type="target"
+      position={Position.Left}
+    />
   )
 }
 
@@ -3388,7 +3397,16 @@ export function FieldComponent({
     field.op.setInputPortMode(fieldId, portMode === 'whole' ? 'channels' : 'whole')
     firePropertyMutation('Change vector port layout', before)
     if (nid) requestAnimationFrame(() => updateNodeInternals(nid))
-  }, [disabled, field, fieldId, hasRelatedConnection, nid, portMode, supportsChannelPorts, updateNodeInternals])
+  }, [
+    disabled,
+    field,
+    fieldId,
+    hasRelatedConnection,
+    nid,
+    portMode,
+    supportsChannelPorts,
+    updateNodeInternals,
+  ])
 
   const portModeControl = supportsChannelPorts ? (
     <button
@@ -3454,6 +3472,20 @@ export function FieldComponent({
       style={{ position: 'relative' }}
       onContextMenu={canDrive || isDriven ? onContextMenu : undefined}
     >
+      {supportsChannelPorts &&
+        portMode === 'channels' &&
+        nid &&
+        hasChannelFields(field) &&
+        Object.entries(field.channelFields).map(([channelName, channelField], index, channels) => (
+          <VectorChannelHandle
+            key={channelName}
+            nodeId={nid}
+            handleId={`par.${fieldId}.${channelName}`}
+            field={channelField}
+            index={index}
+            count={channels.length}
+          />
+        ))}
       {handle &&
         (!supportsChannelPorts || portMode === 'whole') &&
         (field instanceof ListField ? (

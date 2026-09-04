@@ -663,6 +663,26 @@ describe('VectorFieldComponent', () => {
       expect(lookupButton).toBeInTheDocument()
     })
 
+    it('keeps channel mode in the same compact horizontal layout', () => {
+      const field = new Point2DField({ lng: -122.4, lat: 37.8 })
+      const { container } = render(
+        <VectorFieldComponent
+          id="center"
+          field={field}
+          disabled={false}
+          opId="/map"
+          fieldName="center"
+          channelHandles
+        />
+      )
+
+      const inputRow = container.querySelector('#center')
+      expect(inputRow).not.toBeNull()
+      expect(getComputedStyle(inputRow!).display).toBe('flex')
+      expect(getComputedStyle(inputRow!).flexDirection).toBe('row')
+      expect(within(inputRow as HTMLElement).getAllByRole('spinbutton')).toHaveLength(2)
+    })
+
     it('disables lookup button when disabled', () => {
       const field = new Point2DField({ lng: -122.4, lat: 37.8 })
       render(<VectorFieldComponent id="test-field" field={field} disabled={true} />)

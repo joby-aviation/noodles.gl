@@ -694,23 +694,18 @@
   gap: 6px;
 }
 
-.fieldWrapperVectorChannels {
-  align-items: flex-start;
-}
-
-.fieldInputWrapperVectorChannels {
-  flex: 1;
-  flex-direction: column;
-  align-items: stretch;
-}
-
 .vectorChannelRow {
-  position: relative;
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  min-height: 25px;
+  min-height: 24px;
   gap: 3px;
+}
+
+.vectorChannelConnectedSpacer {
+  flex: 0 0 5rem;
+  width: 5rem;
+  height: 24px;
 }
 
 .vectorPortModeButton {
