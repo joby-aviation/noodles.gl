@@ -2718,6 +2718,7 @@ describe('FileOp', () => {
         format: 'json',
         url: '',
         text: JSON.stringify(testData),
+        autoType: true,
         pulse: 0,
       })
       expect(result.data).toEqual(testData)
@@ -2734,6 +2735,7 @@ describe('FileOp', () => {
         format: 'json',
         url: 'https://example.com/data.json',
         text: '',
+        autoType: true,
         pulse: 0,
       })
       expect(result.data).toEqual(testData)
@@ -2747,6 +2749,7 @@ describe('FileOp', () => {
           format: 'json',
           url: '',
           text: 'invalid json',
+          autoType: true,
           pulse: 0,
         })
       ).rejects.toThrow()
@@ -2754,11 +2757,15 @@ describe('FileOp', () => {
   })
 
   describe('CSV format', () => {
-    it('should create autoType input when type set to csv', () => {
-      const operator = new FileOp('/file-csv-autotype')
-      expect(operator.inputs).not.toHaveKey('autoType')
+    it('should only show autoType input when format is csv or tsv', () => {
+      const operator = new FileOp('/file-format-autotype-visibility')
+      expect(operator.isFieldVisible('autoType')).toBe(false)
       operator.inputs.format.setValue('csv')
-      expect(operator.inputs).toHaveKey('autoType')
+      expect(operator.isFieldVisible('autoType')).toBe(true)
+      operator.inputs.format.setValue('tsv')
+      expect(operator.isFieldVisible('autoType')).toBe(true)
+      operator.inputs.format.setValue('json')
+      expect(operator.isFieldVisible('autoType')).toBe(false)
     })
 
     it('should parse CSV from text input', async () => {
@@ -2778,7 +2785,7 @@ describe('FileOp', () => {
     })
 
     it('should parse CSV without autoType as strings', async () => {
-      const operator = new FileOp('/file-csv-autotype')
+      const operator = new FileOp('/file-csv-no-autotype')
       const csvText = 'name,value\nJohn,30\nJane,25'
       const result = await operator.execute({
         format: 'csv',

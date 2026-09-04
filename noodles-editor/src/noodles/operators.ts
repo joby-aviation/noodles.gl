@@ -1903,27 +1903,21 @@ export class FileOp extends Operator<FileOp> {
     'Fetch a file from a URL or text. Supports csv, tsv, json, text, and binary formats'
   asDownload = () => this.outputData
 
-  createInputs() {
-    const fileFormat = new StringLiteralField('json', { values: ['json', 'csv', 'tsv', 'text', 'binary'] })
+  constructor(id: OpId, inputs?: unknown, locked?: boolean) {
+    super(id, inputs, locked)
 
-    fileFormat.subscribe((val) => {
-      if (val === 'csv' || val === 'tsv') {
-        this.addCustomInput({
-          id: crypto.randomUUID(),
-          name: 'autoType',
-          type: 'boolean',
-          order: 4,
-          defaultValue: true,
-        })
-      } else {
-        this.removeCustomInput('autoType')
-      }
+    const sub = this.inputs.format.subscribe(format => {
+      this.setFieldVisibility('autoType', format === 'csv' || format === 'tsv')
     })
+    this.subs.push(sub)
+  }
 
+  createInputs() {
     return {
-      format: fileFormat,
+      format: new StringLiteralField('json', { values: ['json', 'csv', 'tsv', 'text', 'binary'] }),
       url: new FileUrlField(),
       text: new StringField(), // TODO: make this mutually exclusive with `url`
+      autoType: new BooleanField(true, { showByDefault: false }),
       pulse: new NumberField(0, { min: 0, step: 1, showByDefault: false }),
     }
   }
