@@ -4,8 +4,15 @@
 import { act, renderHook } from '@testing-library/react'
 import type { Edge as ReactFlowEdge, Node as ReactFlowNode } from '@xyflow/react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { ConcatOp, DeckRendererOp, MapViewStateOp, NumberOp, PointOp } from '../../operators'
-import { clearOps, setOp, setPendingInsertionIndex } from '../../store'
+import {
+  ConcatOp,
+  ContainerOp,
+  DeckRendererOp,
+  MapViewStateOp,
+  NumberOp,
+  PointOp,
+} from '../../operators'
+import { clearOps, getOp, hasOp, setOp, setPendingInsertionIndex } from '../../store'
 import { MULTI_INPUT_EDGE_TYPE } from '../../utils/multi-input-utils'
 import { type ProjectModification, useProjectModifications } from '../use-project-modifications'
 
@@ -189,6 +196,72 @@ describe('useProjectModifications', () => {
       expect(op.isFieldVisible('effects')).toBe(true)
       expect(op.visibleFields.value).toBeInstanceOf(Set)
       expect(op.visibleFields.value?.has('effects')).toBe(true)
+    })
+  })
+
+  describe('updateOperatorId', () => {
+    it('renames a container across the complete node and edge graph', async () => {
+      const container = new ContainerOp('/container')
+      const child = new NumberOp('/container/group/child', { val: 42 }, false, '/container/group')
+      setOp(container.id, container)
+      setOp(child.id, child)
+      nodes = [
+        {
+          id: '/container',
+          type: 'ContainerOp',
+          position: { x: 0, y: 0 },
+          data: { inputs: {} },
+        },
+        {
+          id: '/container/group',
+          type: 'group',
+          position: { x: 50, y: 50 },
+          data: {},
+        },
+        {
+          id: '/container/group/child',
+          type: 'NumberOp',
+          parentId: '/container/group',
+          position: { x: 20, y: 20 },
+          data: { inputs: { val: 42 } },
+        },
+      ]
+      edges = [
+        {
+          id: '/container/group/child.out.val->/container.par.in',
+          source: '/container/group/child',
+          sourceHandle: 'out.val',
+          target: '/container',
+          targetHandle: 'par.in',
+        },
+      ]
+      const { result } = renderHook(() =>
+        useProjectModifications({ getNodes, getEdges, setNodes, setEdges })
+      )
+
+      await act(async () => {
+        result.current.updateOperatorId('/container', 'scale-container', true)
+        await Promise.resolve()
+      })
+
+      expect(nodes.map(node => node.id)).toEqual([
+        '/scale-container',
+        '/scale-container/group',
+        '/scale-container/group/child',
+      ])
+      expect(nodes[2].parentId).toBe('/scale-container/group')
+      expect(edges).toEqual([
+        expect.objectContaining({
+          id: '/scale-container/group/child.out.val->/scale-container.par.in',
+          source: '/scale-container/group/child',
+          target: '/scale-container',
+        }),
+      ])
+      expect(hasOp('/container')).toBe(false)
+      expect(hasOp('/container/group/child')).toBe(false)
+      expect(getOp('/scale-container')).toBe(container)
+      expect(getOp('/scale-container/group/child')).toBe(child)
+      expect(child.containerId).toBe('/scale-container/group')
     })
   })
 

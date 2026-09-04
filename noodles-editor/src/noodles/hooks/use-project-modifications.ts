@@ -26,7 +26,7 @@ import {
   normalizeMultiInputEdges,
   orderedEdgeIdsForHandle,
 } from '../utils/multi-input-utils'
-import { generateQualifiedPath, parseHandleId } from '../utils/path-utils'
+import { generateQualifiedPath, getParentPath, parseHandleId } from '../utils/path-utils'
 
 // Using ReactFlowNode instead of AnyNodeJSON for compatibility
 export type ProjectModification =
@@ -1081,6 +1081,7 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
           const newChildId = newQualifiedId + oldChildId.slice(nodeId.length)
           setOp(newChildId, childOp)
           childOp.id = newChildId
+          childOp.containerId = getParentPath(newChildId)
 
           // Rename timeline tracks for child operator
           getTimelineStore().renameTracksForOperator(oldChildId, newChildId)
@@ -1109,7 +1110,12 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
           }
           // Update children if this is a container
           if (isContainer && n.id.startsWith(`${nodeId}/`)) {
-            return { ...n, id: newQualifiedId + n.id.slice(nodeId.length) }
+            const parentId = n.parentId?.startsWith(`${nodeId}/`)
+              ? newQualifiedId + n.parentId.slice(nodeId.length)
+              : n.parentId === nodeId
+                ? newQualifiedId
+                : n.parentId
+            return { ...n, id: newQualifiedId + n.id.slice(nodeId.length), parentId }
           }
           return n
         })
