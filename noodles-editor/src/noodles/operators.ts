@@ -1904,11 +1904,26 @@ export class FileOp extends Operator<FileOp> {
   asDownload = () => this.outputData
 
   createInputs() {
+    const fileFormat = new StringLiteralField('json', { values: ['json', 'csv', 'tsv', 'text', 'binary'] })
+
+    fileFormat.subscribe((val) => {
+      if (val === 'csv' || val === 'tsv') {
+        this.addCustomInput({
+          id: crypto.randomUUID(),
+          name: 'autoType',
+          type: 'boolean',
+          order: 4,
+          defaultValue: true,
+        })
+      } else {
+        this.removeCustomInput('autoType')
+      }
+    })
+
     return {
-      format: new StringLiteralField('json', { values: ['json', 'csv', 'tsv', 'text', 'binary'] }),
+      format: fileFormat,
       url: new FileUrlField(),
-      text: new StringField(),
-      autoType: new BooleanField(true), // TODO: Make this only available for csv
+      text: new StringField(), // TODO: make this mutually exclusive with `url`
       pulse: new NumberField(0, { min: 0, step: 1, showByDefault: false }),
     }
   }

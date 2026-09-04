@@ -2712,20 +2712,19 @@ describe('FileOp', () => {
 
   describe('JSON format', () => {
     it('should parse JSON from text input', async () => {
-      const operator = new FileOp('/file-0')
+      const operator = new FileOp('/file-json-text')
       const testData = { test: 'data', value: 123 }
       const result = await operator.execute({
         format: 'json',
         url: '',
         text: JSON.stringify(testData),
-        autoType: true,
         pulse: 0,
       })
       expect(result.data).toEqual(testData)
     })
 
     it('should fetch and parse JSON from URL', async () => {
-      const operator = new FileOp('/file-1')
+      const operator = new FileOp('/file-json-url')
       const testData = { test: 'remote', value: 456 }
       global.fetch = vi.fn().mockResolvedValue({
         json: () => Promise.resolve(testData),
@@ -2735,7 +2734,6 @@ describe('FileOp', () => {
         format: 'json',
         url: 'https://example.com/data.json',
         text: '',
-        autoType: true,
         pulse: 0,
       })
       expect(result.data).toEqual(testData)
@@ -2743,13 +2741,12 @@ describe('FileOp', () => {
     })
 
     it('should throw error for invalid JSON', async () => {
-      const operator = new FileOp('/file-2')
+      const operator = new FileOp('/file-invalid-json')
       await expect(
         operator.execute({
           format: 'json',
           url: '',
           text: 'invalid json',
-          autoType: true,
           pulse: 0,
         })
       ).rejects.toThrow()
@@ -2757,8 +2754,15 @@ describe('FileOp', () => {
   })
 
   describe('CSV format', () => {
+    it('should create autoType input when type set to csv', () => {
+      const operator = new FileOp('/file-csv-autotype')
+      expect(operator.inputs).not.toHaveKey('autoType')
+      operator.inputs.format.setValue('csv')
+      expect(operator.inputs).toHaveKey('autoType')
+    })
+
     it('should parse CSV from text input', async () => {
-      const operator = new FileOp('/file-3')
+      const operator = new FileOp('/file-csv-text')
       const csvText = 'name,value\nJohn,30\nJane,25'
       const result = await operator.execute({
         format: 'csv',
@@ -2773,8 +2777,8 @@ describe('FileOp', () => {
       expect(result.data[1]).toEqual({ name: 'Jane', value: 25 })
     })
 
-    it('should parse CSV without autoType', async () => {
-      const operator = new FileOp('/file-4')
+    it('should parse CSV without autoType as strings', async () => {
+      const operator = new FileOp('/file-csv-autotype')
       const csvText = 'name,value\nJohn,30\nJane,25'
       const result = await operator.execute({
         format: 'csv',
@@ -2792,7 +2796,7 @@ describe('FileOp', () => {
 
   describe('TSV format', () => {
     it('should parse TSV from text input', async () => {
-      const operator = new FileOp('/file-tsv-0')
+      const operator = new FileOp('/file-tsv-text')
       const tsvText = 'name\tvalue\nJohn\t30\nJane\t25'
       const result = await operator.execute({
         format: 'tsv',
@@ -2806,8 +2810,8 @@ describe('FileOp', () => {
       expect(result.data[1]).toEqual({ name: 'Jane', value: 25 })
     })
 
-    it('should parse TSV without autoType', async () => {
-      const operator = new FileOp('/file-tsv-1')
+    it('should parse TSV without autoType as strings', async () => {
+      const operator = new FileOp('/file-tsv-no-autotype')
       const tsvText = 'name\tvalue\nJohn\t30\nJane\t25'
       const result = await operator.execute({
         format: 'tsv',
@@ -2824,7 +2828,7 @@ describe('FileOp', () => {
 
   describe('Text format', () => {
     it('should return text from text input', async () => {
-      const operator = new FileOp('/file-5')
+      const operator = new FileOp('/file-text')
       const textContent = 'This is plain text content\nwith multiple lines'
       const result = await operator.execute({
         format: 'text',
@@ -2837,7 +2841,7 @@ describe('FileOp', () => {
     })
 
     it('should fetch text from URL', async () => {
-      const operator = new FileOp('/file-6')
+      const operator = new FileOp('/file-text-url')
       const textContent = 'Remote text content'
       global.fetch = vi.fn().mockResolvedValue({
         text: () => Promise.resolve(textContent),
@@ -2855,7 +2859,7 @@ describe('FileOp', () => {
     })
 
     it('should return empty string when no input provided', async () => {
-      const operator = new FileOp('/file-7')
+      const operator = new FileOp('/file-text-empty')
       const result = await operator.execute({
         format: 'text',
         url: '',
@@ -2869,7 +2873,7 @@ describe('FileOp', () => {
 
   describe('Binary format', () => {
     it('should convert text input to Uint8Array', async () => {
-      const operator = new FileOp('/file-8')
+      const operator = new FileOp('/file-binary-uint8')
       const textContent = 'Binary data as text'
       const result = await operator.execute({
         format: 'binary',
@@ -2888,7 +2892,7 @@ describe('FileOp', () => {
     })
 
     it('should fetch binary data from URL', async () => {
-      const operator = new FileOp('/file-9')
+      const operator = new FileOp('/file-binary-url')
       const binaryData = new ArrayBuffer(8)
       const view = new Uint8Array(binaryData)
       view.set([1, 2, 3, 4, 5, 6, 7, 8])
@@ -2910,7 +2914,7 @@ describe('FileOp', () => {
     })
 
     it('should return empty Uint8Array when no input provided', async () => {
-      const operator = new FileOp('/file-10')
+      const operator = new FileOp('/file-uint8-empty')
       const result = await operator.execute({
         format: 'binary',
         url: '',
@@ -2924,7 +2928,7 @@ describe('FileOp', () => {
     })
 
     it('should handle UTF-8 encoded text in binary format', async () => {
-      const operator = new FileOp('/file-11')
+      const operator = new FileOp('/file-utf8-binary')
       const textWithEmoji = 'Hello 👋 World'
       const result = await operator.execute({
         format: 'binary',
@@ -2944,7 +2948,7 @@ describe('FileOp', () => {
 
   describe('Error handling', () => {
     it('should throw error with descriptive message on fetch failure', async () => {
-      const operator = new FileOp('/file-12')
+      const operator = new FileOp('/file-fetch-error')
       global.fetch = vi.fn().mockRejectedValue(new Error('Network error'))
 
       await expect(
@@ -2959,7 +2963,7 @@ describe('FileOp', () => {
     })
 
     it('should throw error for unsupported format', async () => {
-      const operator = new FileOp('/file-13')
+      const operator = new FileOp('/file-unsupported-error')
       await expect(
         operator.execute({
           format: 'unsupported' as any,
