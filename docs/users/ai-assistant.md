@@ -201,6 +201,7 @@ Your conversation history is preserved when switching.
 - Get an API key from [console.anthropic.com](https://console.anthropic.com/)
 - Check "Remember key" to save it across sessions (stored in your browser)
 - Click "Get API key" for help signing up
+- For general API key management (Mapbox, Google Maps, etc.), see [API Keys Configuration](./api-keys.md)
 
 ### Conversation Settings
 
