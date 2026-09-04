@@ -831,20 +831,7 @@ export function VectorFieldComponent({
   const isPointField = field instanceof Point2DField || field instanceof Point3DField
   const isPoint3D = field instanceof Point3DField
 
-  const keys: readonly string[] =
-    (field.constructor as typeof Vec2Field).channelKeys ?? Object.keys(value)
-  const connectedChannelKeyString = useEdgeConnectionStore(
-    useCallback(
-      state => {
-        if (!channelHandles || !opId || !fieldName) return ''
-        return keys
-          .filter(key => state.connectionMap.has(`${opId}::par.${fieldName}.${key}`))
-          .join(',')
-      },
-      [channelHandles, fieldName, keys, opId]
-    )
-  )
-  const connectedChannelKeys = connectedChannelKeyString ? connectedChannelKeyString.split(',') : []
+  const keys = [...((field.constructor as typeof Vec2Field).channelKeys ?? Object.keys(value))]
 
   // Track the latest value in a ref for onCommit
   const latestValueRef = useRef(value)
@@ -956,7 +943,7 @@ export function VectorFieldComponent({
             />
           )
         })}
-        {isPointField && !channelHandles && (
+        {isPointField && (
           <Button
             icon="pi pi-map-marker"
             className={s.fieldLookupButton}
@@ -971,7 +958,7 @@ export function VectorFieldComponent({
             text
           />
         )}
-        {opId && fieldName && (
+        {opId && fieldName && !channelHandles && (
           <VectorKeyframeIndicator
             opId={opId}
             fieldName={fieldName}
@@ -979,14 +966,13 @@ export function VectorFieldComponent({
             value={value as Record<string | number, number>}
             returnType={field.returnType}
             disabled={disabled}
-            disabledKeys={connectedChannelKeys}
             onKeyframeAdded={expandTimeline}
           />
         )}
         {portModeControl}
       </div>
 
-      {isPointField && !channelHandles && (
+      {isPointField && (
         <GeocodingDialog
           open={geocodingOpen}
           onOpenChange={setGeocodingOpen}
@@ -1048,13 +1034,11 @@ function VectorChannelHandle({
   handleId,
   field,
   index,
-  count,
 }: {
   nodeId: string
   handleId: string
   field: NumberField
   index: number
-  count: number
 }) {
   const isHandleDimmed = useHandleDimmed(nodeId, handleId)
 
@@ -1063,7 +1047,8 @@ function VectorChannelHandle({
       id={handleId}
       className={cx(handleClass(field), { [s.handleDimmed]: isHandleDimmed })}
       style={{
-        top: `${((index + 1) / (count + 1)) * 100}%`,
+        // Match the 28px field row plus the 2px gap used by the node content.
+        top: `${12.5 + index * 30}px`,
         transform: 'translate(-17px, -50%)',
       }}
       type="target"
@@ -2503,10 +2488,18 @@ export function CompoundFieldComponent({
   )
 }
 
-export function EmptyFieldComponent({ id }: { id: OpId; field: Field<IField> }) {
+export function EmptyFieldComponent({
+  id,
+  trailingControl,
+}: {
+  id: OpId
+  field: Field<IField>
+  trailingControl?: ReactNode
+}) {
   return (
     <div className={cx(s.fieldWrapper, 'nokey')}>
       <div className={s.fieldLabel}>{id}</div>
+      {trailingControl}
     </div>
   )
 }
@@ -3465,25 +3458,37 @@ export function FieldComponent({
   const handleStyle = renderInput
     ? { top: '12.5px', transform: `translateX(${translateX})` }
     : { top: '15px', transform: `translateX(${translateX})` }
+  const channelCount =
+    supportsChannelPorts && portMode === 'channels' && hasChannelFields(field)
+      ? Object.keys(field.channelFields).length
+      : 0
+  const channelFieldStyle = {
+    position: 'relative' as const,
+    ...(channelCount > 0
+      ? {
+          display: 'flex',
+          alignItems: 'center',
+          // Treat each channel as a standard 28px field row separated by the
+          // node content's normal 2px gap.
+          minHeight: `${channelCount * 28 + (channelCount - 1) * 2}px`,
+        }
+      : {}),
+  }
 
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions: right-click menu is a shortcut; the same actions are reachable via the Properties Panel context menu
-    <div
-      style={{ position: 'relative' }}
-      onContextMenu={canDrive || isDriven ? onContextMenu : undefined}
-    >
+    <div style={channelFieldStyle} onContextMenu={canDrive || isDriven ? onContextMenu : undefined}>
       {supportsChannelPorts &&
         portMode === 'channels' &&
         nid &&
         hasChannelFields(field) &&
-        Object.entries(field.channelFields).map(([channelName, channelField], index, channels) => (
+        Object.entries(field.channelFields).map(([channelName, channelField], index) => (
           <VectorChannelHandle
             key={channelName}
             nodeId={nid}
             handleId={`par.${fieldId}.${channelName}`}
             field={channelField}
             index={index}
-            count={channels.length}
           />
         ))}
       {handle &&
@@ -3517,7 +3522,7 @@ export function FieldComponent({
               portModeControl={portModeControl}
             />
           ) : hasIncomingConnection ? (
-            <EmptyFieldComponent id={fieldId} field={field} />
+            <EmptyFieldComponent id={fieldId} field={field} trailingControl={portModeControl} />
           ) : (
             <VectorFieldComponent
               id={fieldId}
@@ -3539,7 +3544,6 @@ export function FieldComponent({
         ) : (
           <InputComp id={fieldId} field={field} disabled={disabled} />
         ))}
-      {supportsChannelPorts && portMode === 'whole' && hasIncomingConnection && portModeControl}
       {contextMenuPos && nid && (
         <FieldContextMenu
           field={field}

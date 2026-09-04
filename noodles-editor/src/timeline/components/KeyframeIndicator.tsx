@@ -190,11 +190,10 @@ export function KeyframeIndicator({
 export interface VectorKeyframeIndicatorProps {
   opId: string
   fieldName: string
-  keys: readonly string[]
+  keys: string[]
   value: Record<string | number, number>
   returnType: string
   disabled?: boolean
-  disabledKeys?: readonly string[]
   onKeyframeAdded?: () => void
 }
 
@@ -205,13 +204,9 @@ export function VectorKeyframeIndicator({
   value,
   returnType,
   disabled = false,
-  disabledKeys = [],
   onKeyframeAdded,
 }: VectorKeyframeIndicatorProps) {
-  const activeChannels = keys
-    .map((key, index) => ({ key, index, path: getFieldPath(opId, fieldName, [key]) }))
-    .filter(channel => !disabledKeys.includes(channel.key))
-  const fieldPaths = activeChannels.map(channel => channel.path)
+  const fieldPaths = keys.map(key => getFieldPath(opId, fieldName, [key]))
 
   // "at keyframe" only when ALL channels have a keyframe at the current position
   const isAtKeyframe = useTimelineStore(state => {
@@ -235,7 +230,7 @@ export function VectorKeyframeIndicator({
     (e: React.MouseEvent) => {
       e.stopPropagation()
       e.preventDefault()
-      if (disabled || activeChannels.length === 0) return
+      if (disabled) return
       const store = getTimelineStore()
       const position = store.position
       const epsilon = 0.001
@@ -249,10 +244,10 @@ export function VectorKeyframeIndicator({
         }
       } else {
         let added = false
-        for (const channel of activeChannels) {
-          const objectKey = returnType === 'tuple' ? channel.index : channel.key
+        for (let i = 0; i < keys.length; i++) {
+          const objectKey = returnType === 'tuple' ? i : keys[i]
           const channelValue = value[objectKey]
-          const path = channel.path
+          const path = fieldPaths[i]
           store.getOrCreateTrack(path, channelValue)
           const track = store.getTrack(path)
           if (!track) continue
@@ -265,7 +260,7 @@ export function VectorKeyframeIndicator({
         if (added) onKeyframeAdded?.()
       }
     },
-    [activeChannels, fieldPaths, value, returnType, isAtKeyframe, disabled, onKeyframeAdded]
+    [fieldPaths, keys, value, returnType, isAtKeyframe, disabled, onKeyframeAdded]
   )
 
   const isAnimated = hasKeyframes && !isAtKeyframe
@@ -290,7 +285,7 @@ export function VectorKeyframeIndicator({
       type="button"
       className={className}
       onClick={handleClick}
-      disabled={disabled || activeChannels.length === 0}
+      disabled={disabled}
       title={title}
       aria-label={title}
     >
