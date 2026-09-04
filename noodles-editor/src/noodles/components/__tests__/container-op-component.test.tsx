@@ -1,8 +1,9 @@
 // Test for ContainerOpComponent children count reactivity
-import { cleanup, render } from '@testing-library/react'
+import { cleanup, fireEvent, render } from '@testing-library/react'
 import type { Node as ReactFlowNode } from '@xyflow/react'
 import { ReactFlowProvider } from '@xyflow/react'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { ProjectModificationActionsProvider } from '../../contexts/project-modification-actions-context'
 import type { ContainerOp } from '../../operators'
 import { clearOps, deleteOp, getOp } from '../../store'
 import { transformGraph } from '../../transform-graph'
@@ -24,26 +25,57 @@ describe('ContainerOpComponent children count reactivity', () => {
   }
 
   // Helper to render ContainerOpComponent within the required contexts
-  const renderContainerOpComponent = (containerId: string) => {
+  const renderContainerOpComponent = (
+    containerId: string,
+    updateOperatorId = vi.fn()
+  ) => {
     const containerOp = getOp(containerId) as ContainerOp
     expect(containerOp).toBeDefined()
 
     const ContainerComponent = nodeComponents.ContainerOp
 
     return render(
-      <ReactFlowProvider>
-        <ContainerComponent
-          id={containerId}
-          type="ContainerOp"
-          selected={false}
-          data={{ inputs: {} }}
-          isConnectable={true}
-          zIndex={0}
-          dragging={false}
-        />
-      </ReactFlowProvider>
+      <ProjectModificationActionsProvider updateOperatorId={updateOperatorId}>
+        <ReactFlowProvider>
+          <ContainerComponent
+            id={containerId}
+            type="ContainerOp"
+            selected={false}
+            data={{ inputs: {} }}
+            isConnectable={true}
+            zIndex={0}
+            dragging={false}
+          />
+        </ReactFlowProvider>
+      </ProjectModificationActionsProvider>
     )
   }
+
+  it('routes header renames through the canonical project mutation action', () => {
+    setupGraph([
+      {
+        id: '/my-container',
+        type: 'ContainerOp',
+        position: { x: 0, y: 0 },
+        data: { inputs: {} },
+      },
+      {
+        id: '/my-container/child',
+        type: 'NumberOp',
+        position: { x: 100, y: 100 },
+        data: { inputs: { val: 42 } },
+      },
+    ])
+    const updateOperatorId = vi.fn()
+    const view = renderContainerOpComponent('/my-container', updateOperatorId)
+
+    fireEvent.doubleClick(view.getByRole('button', { name: 'my-container' }))
+    const input = view.getByDisplayValue('my-container')
+    fireEvent.change(input, { target: { value: 'scale-container' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+
+    expect(updateOperatorId).toHaveBeenCalledWith('/my-container', 'scale-container', true)
+  })
 
   it('displays initial children count of 0 for empty container', () => {
     const nodes = [
