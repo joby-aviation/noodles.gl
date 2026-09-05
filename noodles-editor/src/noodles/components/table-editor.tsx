@@ -814,9 +814,6 @@ function EditableCell({ getValue, row, column, table }: EditableCellProps) {
     activeEdit?.set(handleComplete)
   }
 
-  // Keep the rendered value in the layout while the editor is overlaid on top.
-  // Replacing table-cell content with a form control changes the browser's
-  // intrinsic column sizing, which can wrap adjacent cells and move the table.
   const renderedValue =
     colSchema.type === 'dateTime'
       ? (renderer as (value: unknown, column: ColumnSchema) => React.ReactNode)(
