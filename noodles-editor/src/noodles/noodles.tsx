@@ -109,6 +109,7 @@ import {
 } from './store'
 import { transformGraph } from './transform-graph'
 import { canConnectCached } from './utils/can-connect'
+import { instantiateDeckView } from './utils/deck-view'
 import { directoryHandleCache } from './utils/directory-handle-cache'
 import {
   fileExists,
@@ -1773,7 +1774,7 @@ export function getNoodles(): Visualization {
         deckRendererOp ? 'DeckRendererOp.outputs.vis' : 'OutOp.inputs.vis'
       )
       const visSub = field.subscribe(
-        ({ deckProps: { layers, widgets, ...deckProps }, mapProps }) => {
+        ({ deckProps: { layers, widgets, views, ...deckProps }, mapProps }) => {
           // Map layers from POJOs to deck.gl instances
           const instantiatedLayers =
             layers?.map(({ type, extensions, ...layer }) => {
@@ -1834,6 +1835,8 @@ export function getNoodles(): Visualization {
             instantiatedLayers.push(overlayLayer)
           }
 
+          const instantiatedViews = views?.map(instantiateDeckView)
+
           debugVis(
             'vis subscription fired: %d layers types=%O hasMapProps=%s',
             instantiatedLayers.length,
@@ -1853,6 +1856,7 @@ export function getNoodles(): Visualization {
                 // biome-ignore lint/performance/noDynamicNamespaceImportAccess: We intentionally support all deck.gl widget types dynamically
                 return new deckWidgets[type](widget)
               }),
+              ...(instantiatedViews?.length ? { views: instantiatedViews } : {}),
             },
             mapProps,
           })

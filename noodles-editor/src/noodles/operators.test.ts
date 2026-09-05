@@ -23,12 +23,14 @@ import {
   FillStyleExtensionOp,
   FileOp,
   FilterOp,
+  FirstPersonViewOp,
   FpsWidgetOp,
   FullscreenWidgetOp,
   GeohashLayerOp,
   GeocoderOp,
   GeoJsonLayerOp,
   GeoJsonTransformOp,
+  GlobeViewOp,
   GreatCircleLayerOp,
   H3ClusterLayerOp,
   JSONOp,
@@ -43,6 +45,8 @@ import {
   NetworkOp,
   NumberOp,
   Operator,
+  OrbitViewOp,
+  OrthographicViewOp,
   OverpassOp,
   PointOp,
   PointCloudLayerOp,
@@ -1088,7 +1092,7 @@ describe('deck.gl 9.4 properties', () => {
     const operator = new MapViewOp('/map-0')
     const { view } = operator.execute({ parameters: { depthTest: false } })
 
-    expect(view.props.parameters).toEqual({ depthTest: false })
+    expect(view.parameters).toEqual({ depthTest: false })
   })
 
   it('configures the zoom widget step', () => {
@@ -1102,6 +1106,10 @@ describe('deck.gl 9.4 properties', () => {
 describe('DeckRendererOp', () => {
   it('returns views if provided', () => {
     const operator = new DeckRendererOp('/deck-0')
+    const viewDescriptors = [
+      { type: 'MapView' as const, id: 'map-view' },
+      { type: 'OrbitView' as const, id: 'orbit-view' },
+    ]
     const {
       vis: {
         deckProps: { views },
@@ -1109,14 +1117,33 @@ describe('DeckRendererOp', () => {
     } = operator.execute({
       layers: [],
       effects: [],
-      views: ['view1', 'view2'],
+      views: viewDescriptors,
       layerFilter: () => true,
     })
-    expect(views).toEqual(['view1', 'view2'])
+    expect(views).toEqual(viewDescriptors)
     const {
       vis: { deckProps },
     } = operator.execute({})
     expect(deckProps.views).not.toBeDefined()
+  })
+
+  it('accepts connected view operator descriptors', async () => {
+    const viewOperator = new MapViewOp('/map-view')
+    const renderer = new DeckRendererOp('/deck-0')
+    renderer.inputs.views.addConnection('view-edge', viewOperator.outputs.view)
+
+    await viewOperator.pull()
+
+    expect(renderer.inputs.views.value).toEqual([
+      expect.objectContaining({ type: 'MapView', id: '/map-view' }),
+    ])
+    await expect(renderer.pull()).resolves.toMatchObject({
+      vis: {
+        deckProps: {
+          views: [expect.objectContaining({ type: 'MapView', id: '/map-view' })],
+        },
+      },
+    })
   })
 
   it('returns undefined mapProps when basemap is null', () => {
@@ -1344,7 +1371,21 @@ describe('MapViewOp', () => {
     const { view } = operator.execute({
       clearColor: [127.5, 0, 127.5, 255],
     })
-    expect(view.props.clearColor).toEqual([127.5, 0, 127.5, 255])
+    expect(view.clearColor).toEqual([127.5, 0, 127.5, 255])
+  })
+
+  it.each([
+    [MapViewOp, 'MapView'],
+    [GlobeViewOp, 'GlobeView'],
+    [FirstPersonViewOp, 'FirstPersonView'],
+    [OrbitViewOp, 'OrbitView'],
+    [OrthographicViewOp, 'OrthographicView'],
+  ] as const)('%s returns a serializable %s descriptor', (ViewOperator, type) => {
+    const operator = new ViewOperator('/view-0')
+    const { view } = operator.execute({})
+
+    expect(view).toMatchObject({ type, id: '/view-0' })
+    expect(JSON.parse(JSON.stringify(view))).toEqual(view)
   })
 })
 
