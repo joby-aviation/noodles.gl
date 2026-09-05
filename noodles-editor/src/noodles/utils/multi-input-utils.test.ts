@@ -1,13 +1,14 @@
-import type { Edge as ReactFlowEdge } from '@xyflow/react'
+import { applyEdgeChanges, type Edge as ReactFlowEdge } from '@xyflow/react'
 import { describe, expect, it } from 'vitest'
 import {
-  MULTI_INPUT_EDGE_TYPE,
-  SLOT_SPACING,
+  canonicalizeEdges,
   insertEdgeAtGroupIndex,
   insertionIndexFromPointerY,
+  MULTI_INPUT_EDGE_TYPE,
   moveEdgeWithinGroup,
   normalizeMultiInputEdges,
   orderedEdgeIdsForHandle,
+  SLOT_SPACING,
   slotOffsetY,
 } from './multi-input-utils'
 
@@ -30,6 +31,47 @@ const edge = (
 })
 
 describe('normalizeMultiInputEdges', () => {
+  it('removes duplicate IDs before deriving multi-input slot metadata', () => {
+    const first = edge('a')
+    const duplicate = { ...first, selected: true }
+    const result = normalizeMultiInputEdges([first, edge('b'), duplicate], isMulti)
+
+    expect(result.map(e => e.id)).toEqual(['a', 'b'])
+    expect(result[0].selected).toBeUndefined()
+    expect(result.map(e => e.data?.orderIndex)).toEqual([0, 1])
+    expect(result.map(e => e.data?.groupSize)).toEqual([2, 2])
+  })
+
+  it('repairs replayed edges from a Viewer-to-TableEditor-to-Switch workflow', () => {
+    const sourceToSwitch = edge('source-to-switch')
+    const sourceToViewer = edge('source-to-viewer', '/viewer', 'par.data')
+    const viewerToSwitch = edge('viewer-to-switch')
+
+    const result = normalizeMultiInputEdges(
+      [sourceToSwitch, { ...sourceToSwitch }, sourceToViewer, viewerToSwitch],
+      isMulti
+    )
+
+    expect(result.map(e => e.id)).toEqual([
+      'source-to-switch',
+      'source-to-viewer',
+      'viewer-to-switch',
+    ])
+    expect(orderedEdgeIdsForHandle(result, '/deck', 'par.layers')).toEqual([
+      'source-to-switch',
+      'viewer-to-switch',
+    ])
+  })
+
+  it('allows a repaired duplicate edge to be deleted without a ghost record', () => {
+    const duplicate = edge('source-to-switch')
+    const loaded = normalizeMultiInputEdges([duplicate, { ...duplicate }], isMulti)
+    const deleted = applyEdgeChanges([{ type: 'remove', id: duplicate.id }], loaded)
+
+    expect(loaded).toHaveLength(1)
+    expect(deleted).toEqual([])
+  })
+
   it('assigns orderIndex and groupSize in array order', () => {
     const edges = [edge('a'), edge('b'), edge('c')]
     const result = normalizeMultiInputEdges(edges, isMulti)
@@ -98,6 +140,39 @@ describe('normalizeMultiInputEdges', () => {
 
     expect(result.map(e => e.id)).toEqual(['c', 'a', 'b'])
     expect(result.map(e => e.data?.orderIndex)).toEqual([0, 1, 2])
+  })
+})
+
+describe('canonicalizeEdges', () => {
+  it('returns the original array when IDs are already unique', () => {
+    const edges = [edge('a'), edge('b')]
+    expect(canonicalizeEdges(edges)).toBe(edges)
+  })
+
+  it('removes repeated connections when IDs collide', () => {
+    const first = edge('a')
+    expect(canonicalizeEdges([first, { ...first }])).toEqual([first])
+  })
+
+  it('removes repeated connections whose stored IDs differ', () => {
+    const first = edge('a')
+    expect(canonicalizeEdges([first, { ...first, id: 'stale-id' }])).toEqual([first])
+  })
+
+  it('repairs an ID collision without discarding either connection', () => {
+    const stale = edge('shared-id', '/missing')
+    const valid = edge('shared-id', '/deck')
+    const result = canonicalizeEdges([stale, valid])
+
+    expect(result).toHaveLength(2)
+    expect(result[0]).toMatchObject({
+      id: '/src-shared-id.out.result->/missing.par.layers',
+      target: '/missing',
+    })
+    expect(result[1]).toMatchObject({
+      id: '/src-shared-id.out.result->/deck.par.layers',
+      target: '/deck',
+    })
   })
 })
 

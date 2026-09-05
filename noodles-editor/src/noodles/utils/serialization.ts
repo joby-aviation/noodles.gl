@@ -10,7 +10,7 @@ import type { useOperatorStore } from '../store'
 import { deepEqual } from './deep-equal'
 import type { ExtractProps } from './extract-props'
 import type { StorageType } from './filesystem'
-import { MULTI_INPUT_EDGE_TYPE } from './multi-input-utils'
+import { canonicalizeEdges, MULTI_INPUT_EDGE_TYPE } from './multi-input-utils'
 import { parseHandleId } from './path-utils'
 
 export { NOODLES_VERSION } from './migrate-schema'
@@ -243,7 +243,7 @@ export function serializeEdges(
   // Create a set of valid node IDs to filter out orphaned edges
   const validNodeIds = new Set(nodes.map(node => node.id))
 
-  return edges
+  return canonicalizeEdges(edges)
     .filter(edge => {
       // Skip edges that reference non-existent nodes
       if (!validNodeIds.has(edge.source) || !validNodeIds.has(edge.target)) {

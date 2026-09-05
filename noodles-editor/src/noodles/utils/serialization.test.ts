@@ -451,6 +451,44 @@ describe('serializeNodes', () => {
 })
 
 describe('serializeEdges', () => {
+  it('serializes only the first edge when IDs are duplicated', () => {
+    const nodes = [
+      { id: 'node-0', type: 'NumberOp', data: {}, position: { x: 0, y: 0 } },
+      { id: 'node-1', type: 'NumberOp', data: {}, position: { x: 0, y: 0 } },
+    ]
+    const first = {
+      id: 'edge-0',
+      source: 'node-0',
+      target: 'node-1',
+      sourceHandle: 'out.val',
+      targetHandle: 'par.val',
+    }
+
+    expect(serializeEdges(getOpStore(), nodes, [first, { ...first, selected: true }])).toEqual([
+      first,
+    ])
+  })
+
+  it('keeps a valid edge when an orphaned edge has the same stored ID', () => {
+    const nodes = [
+      { id: 'node-0', type: 'NumberOp', data: {}, position: { x: 0, y: 0 } },
+      { id: 'node-1', type: 'NumberOp', data: {}, position: { x: 0, y: 0 } },
+    ]
+    const orphaned = {
+      id: 'node-0.out.val->node-1.par.val',
+      source: 'missing',
+      target: 'node-1',
+      sourceHandle: 'out.val',
+      targetHandle: 'par.val',
+    }
+    const valid = {
+      ...orphaned,
+      source: 'node-0',
+    }
+
+    expect(serializeEdges(getOpStore(), nodes, [orphaned, valid])).toEqual([valid])
+  })
+
   it('serializes edges', () => {
     const nodes = [
       { id: 'node-0', type: 'NumberOp', data: {}, position: { x: 0, y: 0 } },

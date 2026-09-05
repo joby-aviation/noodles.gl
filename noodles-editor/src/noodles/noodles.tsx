@@ -124,7 +124,7 @@ import { edgeId, nodeId } from './utils/id-utils'
 import { shouldBlockKeyboardShortcut } from './utils/input-detection'
 import { generateDraftId, memoryProjectStore } from './utils/memory-project-store'
 import { migrateProject } from './utils/migrate-schema'
-import { normalizeMultiInputEdges } from './utils/multi-input-utils'
+import { canonicalizeEdges, normalizeMultiInputEdges } from './utils/multi-input-utils'
 import { getParentPath, parseHandleId } from './utils/path-utils'
 import { applyOperatorInputs, getLastCommittedBeforeState } from './utils/property-history'
 import {
@@ -403,7 +403,8 @@ export function getNoodles(): Visualization {
   useEffect(() => {
     // loadProjectFile already called transformGraph directly, so skip this triggered re-run
     if (isProjectLoadRef.current) return
-    const result = transformGraph({ nodes, edges })
+    const uniqueEdges = canonicalizeEdges(edges)
+    const result = transformGraph({ nodes, edges: uniqueEdges })
     setOperators(result.operators)
     // Show error dialog if there are graph errors
     if (result.errors.length > 0) {
@@ -418,7 +419,9 @@ export function getNoodles(): Visualization {
     // operators exist in the store (covers undo/redo restores, keyboard deletes, and AI/paste
     // paths that added edges before their operators were instantiated). Returns the same
     // array reference when nothing changed, so this doesn't loop.
-    setEdges(eds => normalizeMultiInputEdges(eds.filter(edge => edge.type !== 'ReferenceEdge')))
+    setEdges(currentEdges =>
+      normalizeMultiInputEdges(currentEdges.filter(edge => edge.type !== 'ReferenceEdge'))
+    )
   }, [graphStructureKey])
 
   // Reset isProjectLoadRef after every render so the flag never gets stuck when
@@ -742,95 +745,58 @@ export function getNoodles(): Visualization {
 
   // Handle 'v' keyup to create ViewerOp (momentary button behavior)
   useKeyboardShortcut('v', () => {
+    const currentNodes = graphRef.current.nodes
+    const hoveredHandle = getUIStore().hoveredOutputHandle
+    let sourceNode: ReactFlowNode | undefined
+    let sourceHandle: string | null = null
+
+    // Priority 1: If hovering over ANY output handle, use that
+    if (hoveredHandle?.handleId.startsWith('out.')) {
+      sourceNode = currentNodes.find(node => node.id === hoveredHandle.nodeId)
+      sourceHandle = sourceNode ? hoveredHandle.handleId : null
+    }
+
+    // Priority 2: If nodes are selected, use rightmost selected node
+    if (!sourceNode) {
+      const selectedNodes = currentNodes.filter(node => node.selected)
+      if (selectedNodes.length === 0) return
+
+      sourceNode = selectedNodes.reduce((rightmost, node) =>
+        node.position.x > rightmost.position.x ? node : rightmost
+      )
+      const sourceOp = getOpStore().getOp(sourceNode.id)
+      const firstOutputKey = sourceOp && Object.keys(sourceOp.outputs)[0]
+      sourceHandle = firstOutputKey ? `out.${firstOutputKey}` : null
+    }
+
+    const viewerId = nodeId('viewer', currentContainerId)
+    const viewerNode: AnyNodeJSON = {
+      id: viewerId,
+      type: 'ViewerOp',
+      position: calculateViewerPosition(sourceNode, currentNodes),
+      data: undefined,
+    }
+
+    setNodes(nodes => (nodes.some(node => node.id === viewerId) ? nodes : [...nodes, viewerNode]))
+
+    if (sourceHandle) {
+      const targetHandle = 'par.data'
+      const newEdge: ReactFlowEdge = {
+        id: edgeId({
+          source: sourceNode.id,
+          sourceHandle,
+          target: viewerId,
+          targetHandle,
+        }),
+        source: sourceNode.id,
+        sourceHandle,
+        target: viewerId,
+        targetHandle,
+      }
+      setEdges(edges => normalizeMultiInputEdges([...edges, newEdge]))
+    }
+
     analytics.track('viewer_created', { method: 'keyboard' })
-
-    setNodes(currentNodes => {
-      const selectedNodes = currentNodes.filter(n => n.selected)
-      const opStore = getOpStore()
-      const uiStore = getUIStore()
-      const hoveredHandle = uiStore.hoveredOutputHandle
-
-      // Priority 1: If hovering over ANY output handle, use that
-      if (hoveredHandle?.handleId.startsWith('out.')) {
-        const hoveredNode = currentNodes.find(n => n.id === hoveredHandle.nodeId)
-        if (hoveredNode) {
-          const newViewerPosition = calculateViewerPosition(hoveredNode, currentNodes)
-          const viewerId = nodeId('viewer', currentContainerId)
-
-          const viewerNode: AnyNodeJSON = {
-            id: viewerId,
-            type: 'ViewerOp',
-            position: newViewerPosition,
-            data: undefined,
-          }
-
-          const sourceHandle = hoveredHandle.handleId
-          const targetHandle = 'par.data'
-          const newEdge = {
-            id: edgeId({
-              source: hoveredHandle.nodeId,
-              sourceHandle,
-              target: viewerId,
-              targetHandle,
-            }),
-            source: hoveredHandle.nodeId,
-            sourceHandle,
-            target: viewerId,
-            targetHandle,
-          }
-
-          setEdges(currentEdges => [...currentEdges, newEdge])
-          return [...currentNodes, viewerNode]
-        }
-      }
-
-      // Priority 2: If nodes are selected, use rightmost selected node
-      if (selectedNodes.length > 0) {
-        const rightmostNode = selectedNodes.reduce((rightmost, node) => {
-          return node.position.x > rightmost.position.x ? node : rightmost
-        }, selectedNodes[0])
-
-        const sourceOp = opStore.getOp(rightmostNode.id)
-        let sourceHandle: string | null = null
-        if (sourceOp) {
-          const firstOutputKey = Object.keys(sourceOp.outputs)[0]
-          if (firstOutputKey) {
-            sourceHandle = `out.${firstOutputKey}`
-          }
-        }
-
-        const newViewerPosition = calculateViewerPosition(rightmostNode, currentNodes)
-        const viewerId = nodeId('viewer', currentContainerId)
-
-        const viewerNode: AnyNodeJSON = {
-          id: viewerId,
-          type: 'ViewerOp',
-          position: newViewerPosition,
-          data: undefined,
-        }
-
-        if (sourceHandle) {
-          const targetHandle = 'par.data'
-          const newEdge = {
-            id: edgeId({
-              source: rightmostNode.id,
-              sourceHandle,
-              target: viewerId,
-              targetHandle,
-            }),
-            source: rightmostNode.id,
-            sourceHandle,
-            target: viewerId,
-            targetHandle,
-          }
-          setEdges(currentEdges => [...currentEdges, newEdge])
-        }
-
-        return [...currentNodes, viewerNode]
-      }
-
-      return currentNodes
-    })
   }, [setNodes, setEdges, currentContainerId])
 
   // Handle 'a' keyup to open Block Library (momentary button behavior)
@@ -898,7 +864,8 @@ export function getNoodles(): Visualization {
       }
 
       // Build the operator graph synchronously — operators are ready before any re-render
-      const result = transformGraph({ nodes, edges })
+      const uniqueEdges = canonicalizeEdges(edges as ReactFlowEdge[])
+      const result = transformGraph({ nodes, edges: uniqueEdges })
       setOperators(result.operators)
       // Show error dialog if there are graph or timeline errors
       const allErrors = [
@@ -917,11 +884,7 @@ export function getNoodles(): Visualization {
       // lookup) derives multi-input slot rendering caches from the file's edge order —
       // project files never store them.
       setNodes(nodes)
-      setEdges(
-        normalizeMultiInputEdges(
-          (edges as ReactFlowEdge[]).filter(edge => edge.type !== 'ReferenceEdge')
-        )
-      )
+      setEdges(normalizeMultiInputEdges(uniqueEdges.filter(edge => edge.type !== 'ReferenceEdge')))
 
       // Load editor settings from project with defaults
       setShowOverlay(editorSettings?.showOverlay ?? true)

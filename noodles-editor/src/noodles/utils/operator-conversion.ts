@@ -1,7 +1,8 @@
-import type { ReactFlowEdge, ReactFlowNode } from '../types'
 import { TableEditorOp, ViewerOp } from '../operators'
 import { deleteOp, getOp, setOp } from '../store'
 import { inferSchema } from '../table-schema'
+import type { ReactFlowEdge, ReactFlowNode } from '../types'
+import { normalizeMultiInputEdges } from './multi-input-utils'
 
 // Converts a ViewerOp to a TableEditorOp, preserving connections and position.
 // Returns true if successful, false if the operator cannot be converted.
@@ -77,8 +78,12 @@ export function convertViewerToTableEditor(
   // 1. The node ID stays the same
   // 2. ViewerOp has a 'data' input, TableEditorOp also has a 'data' input
   // 3. The edge target handle 'par.data' is valid for both operators
-  // However, we still call setEdges to ensure React Flow is notified
-  setEdges(edges => [...edges])
+  // However, we still normalize the edge array so React Flow is notified and any replayed
+  // edge IDs are repaired at this workflow boundary.
+  setEdges(edges => {
+    const normalized = normalizeMultiInputEdges(edges)
+    return normalized === edges ? [...edges] : normalized
+  })
 
   return true
 }
