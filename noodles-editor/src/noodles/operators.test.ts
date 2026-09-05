@@ -39,6 +39,7 @@ import {
   LineLayerOp,
   MaplibreBasemapOp,
   MapViewOp,
+  MapViewStateOp,
   MathOp,
   MergeOp,
   MVTLayerOp,
@@ -50,7 +51,6 @@ import {
   OverpassOp,
   PointOp,
   PointCloudLayerOp,
-  PointViewStateOp,
   PolygonLayerOp,
   ProjectOp,
   PathLayerOp,
@@ -85,22 +85,22 @@ describe('basic Operators', () => {
   })
 })
 
-describe('PointViewStateOp', () => {
+describe('MapViewStateOp center', () => {
   it('accepts Geocoder and Point outputs', () => {
     const geocoder = new GeocoderOp('/geocoder')
     const point = new PointOp('/point')
-    const operator = new PointViewStateOp('/point-view-state')
+    const operator = new MapViewStateOp('/map-view-state')
 
-    expect(canConnect(geocoder.outputs.location, operator.inputs.point)).toBe(true)
-    expect(canConnect(point.outputs.feature, operator.inputs.point)).toBe(true)
+    expect(canConnect(geocoder.outputs.location, operator.inputs.center)).toBe(true)
+    expect(canConnect(point.outputs.feature, operator.inputs.center)).toBe(true)
   })
 
   it('creates a view state centered on a geographic point', () => {
-    const operator = new PointViewStateOp('/point-view-state')
+    const operator = new MapViewStateOp('/map-view-state')
 
     expect(
       operator.execute({
-        point: { lng: -118.2437, lat: 34.0522 },
+        center: { lng: -118.2437, lat: 34.0522 },
         zoom: 10,
         pitch: 35,
         bearing: -15,
@@ -118,17 +118,17 @@ describe('PointViewStateOp', () => {
 
   it('normalizes a GeoJSON Point feature before creating the view state', () => {
     const point = new PointOp('/point')
-    const operator = new PointViewStateOp('/point-view-state')
+    const operator = new MapViewStateOp('/map-view-state')
     const { feature } = point.execute({
       coordinates: { lng: -73.9857, lat: 40.7484 },
       properties: {},
     })
 
-    operator.inputs.point.setValue(feature)
+    operator.inputs.center.setValue(feature)
 
     expect(
       operator.execute({
-        point: operator.inputs.point.value,
+        center: operator.inputs.center.value,
         zoom: 14,
         pitch: 0,
         bearing: 0,
@@ -143,7 +143,16 @@ describe('PointViewStateOp', () => {
       },
     })
   })
+  it('keeps legacy longitude and latitude parameter aliases reactive', () => {
+    const operator = new MapViewStateOp('/map-view-state')
+    operator.inputs.center.setValue({ lng: 12.5, lat: -7.25 })
+
+    const legacyParameters = operator.par as unknown as Record<string, unknown>
+    expect(legacyParameters.longitude).toBe(12.5)
+    expect(legacyParameters.latitude).toBe(-7.25)
+  })
 })
+
 describe('TableEditorOp', () => {
   it('materializes declared schema defaults in output data', () => {
     const operator = new TableEditorOp('/table')

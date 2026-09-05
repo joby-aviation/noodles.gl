@@ -65,7 +65,7 @@ describe('op-components utilities', () => {
     it('should return correct category for view operators', () => {
       expect(typeCategory('MapViewOp')).toBe('View')
       expect(typeCategory('GlobeViewOp')).toBe('View')
-      expect(typeCategory('PointViewStateOp')).toBe('View')
+      expect(typeCategory('MapViewStateOp')).toBe('View')
     })
 
     it('should return correct category for color operators', () => {
@@ -139,7 +139,7 @@ describe('op-components utilities', () => {
     it('should return correct class for view category', () => {
       expect(headerClass('MapViewOp')).toContain('headerView')
       expect(headerClass('GlobeViewOp')).toContain('headerView')
-      expect(headerClass('PointViewStateOp')).toContain('headerView')
+      expect(headerClass('MapViewStateOp')).toContain('headerView')
     })
 
     it('should return correct class for color category', () => {

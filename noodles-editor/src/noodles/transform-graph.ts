@@ -1,7 +1,7 @@
 import { getIncomers, type Node as ReactFlowNode } from '@xyflow/react'
 import { analytics } from '../utils/analytics'
 import { debugExecutor } from '../utils/debug'
-import { type Field, ListField } from './fields'
+import { type Field, hasChannelFields, ListField } from './fields'
 import type { Edge as ExecutorEdge } from './graph-executor'
 import type { Edge } from './noodles'
 import type { IOperator, Operator, OpType } from './operators'
@@ -16,6 +16,7 @@ import {
 import { deriveReferenceEdges, referenceDependencyModel } from './reference-dependencies'
 import { getOpStore } from './store'
 import { validateConnection } from './utils/can-connect'
+import { resolveOperatorField } from './utils/field-resolution'
 import { getParentPath, isDirectChild, parseHandleId } from './utils/path-utils'
 import { computeVisibilityHeuristic } from './utils/visibility-heuristic'
 
@@ -39,6 +40,7 @@ export {
 export type NodeDataJSON<_T extends Operator<IOperator> = Operator<IOperator>> = {
   inputs?: Record<string, unknown>
   locked?: boolean
+  inputPortModes?: Record<string, 'whole' | 'channels'>
   customInputs?: Array<{
     id: string
     name: string
@@ -301,6 +303,9 @@ export function transformGraph<
         const containerId = getParentPath(id)
         // Create operator with fully qualified path as id and store containerId
         op = new ctor(id, data?.inputs, data?.locked, containerId) as unknown as OP
+        // Some operators define narrower constructors and do not forward extra
+        // arguments to Operator, so restore presentation state explicitly.
+        op.inputPortModes.next({ ...(data?.inputPortModes ?? {}) })
 
         // Restore custom field definitions if present
         if (data?.customInputs && Array.isArray(data.customInputs)) {
@@ -311,6 +316,21 @@ export function transformGraph<
         created.push(op)
         // Store operator in store using fully qualified path
         store.setOp(id, op)
+
+        // Child handles imply channel mode for programmatically-created graphs that
+        // predate or omit explicit inputPortModes metadata.
+        for (const edge of edges) {
+          if (edge.target !== id || !edge.targetHandle) continue
+          const handleInfo = parseHandleId(String(edge.targetHandle))
+          if (!handleInfo || handleInfo.namespace !== 'par') continue
+          const resolved = resolveOperatorField(op, 'par', handleInfo.fieldName)
+          if (
+            resolved?.channelName &&
+            data?.inputPortModes?.[resolved.rootFieldName] === undefined
+          ) {
+            op.setInputPortMode(resolved.rootFieldName, 'channels')
+          }
+        }
 
         // Restore field visibility from saved data or derive from heuristic
         const visibleInputs = (data as { visibleInputs?: string[] })?.visibleInputs
@@ -326,7 +346,7 @@ export function transformGraph<
           const connectedFields = new Set(
             dataEdges
               .filter(edge => edge.target === id)
-              .map(edge => parseHandleId(String(edge.targetHandle))?.fieldName)
+              .map(edge => parseHandleId(String(edge.targetHandle))?.fieldName.split('.')[0])
               .filter((name): name is string => name !== undefined)
           )
 
@@ -351,9 +371,21 @@ export function transformGraph<
   for (const op of instances) {
     for (const [_key, field] of Object.entries(op.inputs)) {
       for (const [id] of field.subscriptions) {
+        if (id.startsWith('__')) continue
         if (!currentEdgeIds.has(id)) {
           field.removeConnection(id, 'reference')
           op.removeConnectionError(id)
+        }
+      }
+      if (hasChannelFields(field)) {
+        for (const channelField of Object.values(field.channelFields)) {
+          for (const [id] of channelField.subscriptions) {
+            if (id.startsWith('__')) continue
+            if (!currentEdgeIds.has(id)) {
+              channelField.removeConnection(id, 'reference')
+              op.removeConnectionError(id)
+            }
+          }
         }
       }
     }
@@ -383,26 +415,47 @@ export function transformGraph<
         )
       }
 
-      const sourceFieldName = sourceHandleInfo.fieldName
-      const targetFieldName = targetHandleInfo.fieldName
-
       const sourceNamespace = sourceHandleInfo.namespace
       const targetNamespace = targetHandleInfo.namespace
 
       // In normal data flow, source is always an output and target is always an input
-      const sourceField =
-        sourceOp[sourceNamespace === 'par' ? 'inputs' : 'outputs'][sourceFieldName]
-      const targetField =
-        targetOp[targetNamespace === 'par' ? 'inputs' : 'outputs'][targetFieldName]
-      if (!sourceField || !targetField) {
+      const sourceResolved = resolveOperatorField(
+        sourceOp,
+        sourceNamespace,
+        sourceHandleInfo.fieldName
+      )
+      const targetResolved = resolveOperatorField(
+        targetOp,
+        targetNamespace,
+        targetHandleInfo.fieldName
+      )
+      if (!sourceResolved || !targetResolved) {
         debugExecutor('Invalid connection')
         continue
+      }
+      const sourceField = sourceResolved.field
+      const targetField = targetResolved.field
+
+      // A vector input exposes either its parent port or its channel ports. Ignore
+      // stale/malformed edges aimed at the inactive layout instead of allowing two
+      // competing writers for the same value.
+      if (hasChannelFields(targetResolved.rootField)) {
+        const mode = targetOp.getInputPortMode(targetResolved.rootFieldName)
+        const active =
+          mode === 'channels' ? Boolean(targetResolved.channelName) : !targetResolved.channelName
+        if (!active) {
+          targetOp.addConnectionError(
+            edge.id,
+            `Inactive ${targetResolved.rootFieldName} port. Disconnect it or change the input port layout.`
+          )
+          continue
+        }
       }
 
       targetField.addConnection(edge.id, sourceField, 'value')
 
       // Auto-show fields when they receive data connections (for programmatic/AI connections)
-      targetOp.showField(targetFieldName)
+      targetOp.showField(targetResolved.rootFieldName)
 
       // Only validate when the source field has produced a value; skip if the operator hasn't
       // executed yet (value === undefined) to avoid false "type mismatch" errors on initial load

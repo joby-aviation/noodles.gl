@@ -557,6 +557,21 @@ describe('EmptyFieldComponent', () => {
     const label = screen.getByText('customDataField')
     expect(label).toBeInTheDocument()
   })
+
+  it('keeps a trailing control inline with the field label', () => {
+    const field = new DataField()
+    render(
+      <EmptyFieldComponent
+        id="data"
+        field={field}
+        trailingControl={<button type="button">Layout</button>}
+      />
+    )
+
+    const label = screen.getByText('data')
+    const control = screen.getByRole('button', { name: 'Layout' })
+    expect(label.parentElement).toContainElement(control)
+  })
 })
 
 describe('VectorFieldComponent', () => {
@@ -661,6 +676,58 @@ describe('VectorFieldComponent', () => {
 
       const lookupButton = screen.getByTitle('Lookup Location')
       expect(lookupButton).toBeInTheDocument()
+    })
+
+    it('keeps channel mode in the same compact horizontal layout', () => {
+      const field = new Point2DField({ lng: -122.4, lat: 37.8 })
+      const { container } = render(
+        <VectorFieldComponent
+          id="center"
+          field={field}
+          disabled={false}
+          opId="/map"
+          fieldName="center"
+          channelHandles
+        />
+      )
+
+      const inputRow = container.querySelector('#center')
+      expect(inputRow).not.toBeNull()
+      expect(getComputedStyle(inputRow!).display).toBe('flex')
+      expect(getComputedStyle(inputRow!).flexDirection).toBe('row')
+      expect(within(inputRow as HTMLElement).getAllByRole('spinbutton')).toHaveLength(2)
+    })
+
+    it('does not add the aggregate keyframe control in channel mode', () => {
+      const field = new Point2DField({ lng: -122.4, lat: 37.8 })
+      render(
+        <VectorFieldComponent
+          id="center"
+          field={field}
+          disabled={false}
+          opId="/map"
+          fieldName="center"
+          channelHandles
+        />
+      )
+
+      expect(screen.queryByRole('button', { name: 'Add keyframes' })).not.toBeInTheDocument()
+    })
+
+    it('keeps location lookup available in channel mode', () => {
+      const field = new Point2DField({ lng: -122.4, lat: 37.8 })
+      render(
+        <VectorFieldComponent
+          id="center"
+          field={field}
+          disabled={false}
+          opId="/map"
+          fieldName="center"
+          channelHandles
+        />
+      )
+
+      expect(screen.getByTitle('Lookup Location')).toBeInTheDocument()
     })
 
     it('disables lookup button when disabled', () => {
