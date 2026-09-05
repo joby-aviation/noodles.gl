@@ -91,7 +91,7 @@ function applyResult(field: Field, result: unknown): void {
   // (e.g. `par.radius + 1` driving another sibling) converge instead of looping
   if (deepEqual(field.value, parsed.data)) return
   field.next(parsed.data)
-  field.op?.markDirty()
+  field.op?.markDirty(field)
 }
 
 export function evaluateFieldExpression(field: Field): void {

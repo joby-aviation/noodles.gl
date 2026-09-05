@@ -78,7 +78,7 @@ import { subscribeToPosition } from '../timeline/timeline-store'
 import * as utils from '../utils'
 import { getArc } from '../utils/arc-geometry'
 import { colorToHex, hexToColor } from '../utils/color'
-import { debugDirty, debugExecute, debugParams, debugPull } from '../utils/debug'
+import { debugDirty, debugDirtyTrace, debugExecute, debugParams, debugPull } from '../utils/debug'
 import { getDirections } from '../utils/directions'
 import { geocodeWithMapbox } from '../utils/geocoding'
 import {
@@ -714,7 +714,27 @@ export abstract class Operator<OP extends IOperator> {
   // leaving DIRTY anywhere disables pruning until the next wave re-stamps);
   // correctness first — the hot path (repeated marks between two frame pulls,
   // e.g. timeline scrubbing keyframed ops) stays O(1) per repeated mark.
-  markDirty(): void {
+  markDirty(cause?: Field | string): void {
+    // Stack capture is intentionally gated behind a separate namespace so
+    // ordinary `noodles:*` logging cannot add work to this hot path.
+    if (debugDirtyTrace.enabled) {
+      const source =
+        typeof cause === 'string'
+          ? cause
+          : cause?.pathToProps.length
+            ? cause.pathToProps.join('.')
+            : 'direct call'
+      const stack = new Error().stack?.split('\n').slice(2).join('\n') ?? 'stack unavailable'
+      debugDirtyTrace(
+        '%s: %s -> dirty; source=%s; downstream=%d\n%s',
+        this.id,
+        this._pullExecutionStatus,
+        source,
+        this._downstreamDependents.size,
+        stack
+      )
+    }
+
     const epoch = Operator._dirtyEpoch
     const visited = new Set<Operator<IOperator>>()
     const stack: Operator<IOperator>[] = [this as Operator<IOperator>]
