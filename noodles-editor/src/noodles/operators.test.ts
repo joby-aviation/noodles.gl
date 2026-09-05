@@ -144,7 +144,6 @@ describe('PointViewStateOp', () => {
     })
   })
 })
-
 describe('TableEditorOp', () => {
   it('materializes declared schema defaults in output data', () => {
     const operator = new TableEditorOp('/table')
