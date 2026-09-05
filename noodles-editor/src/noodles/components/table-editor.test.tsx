@@ -215,6 +215,42 @@ describe('TableEditor', () => {
     // Actual schema editing is tested in schema-editor-dialog.test.tsx
   })
 
+  it('should copy column values when a duplicated column is renamed', () => {
+    const onDataChange = vi.fn()
+    const onSchemaChange = vi.fn()
+
+    const { container, getByRole, getAllByPlaceholderText, getByText } = render(
+      <TableEditor
+        op={mockOp}
+        data={simpleData}
+        schema={simpleSchema}
+        onDataChange={onDataChange}
+        onSchemaChange={onSchemaChange}
+      />
+    )
+
+    fireEvent.click(container.querySelector('.pi-cog') as Element)
+    fireEvent.click(getByRole('button', { name: 'Duplicate column name' }))
+
+    const nameInputs = getAllByPlaceholderText('Column name')
+    fireEvent.change(nameInputs[1], { target: { value: 'display_name' } })
+    fireEvent.click(getByText('Save'))
+
+    expect(onSchemaChange).toHaveBeenCalledWith(
+      {
+        columns: [
+          { name: 'name', type: 'string', defaultValue: '' },
+          { name: 'display_name', type: 'string', defaultValue: '' },
+          { name: 'count', type: 'number', defaultValue: 0 },
+        ],
+      },
+      [
+        { name: 'Alice', display_name: 'Alice', count: 10 },
+        { name: 'Bob', display_name: 'Bob', count: 20 },
+      ]
+    )
+  })
+
   it('should update tableData when data prop changes', () => {
     const onDataChange = vi.fn()
     const onSchemaChange = vi.fn()

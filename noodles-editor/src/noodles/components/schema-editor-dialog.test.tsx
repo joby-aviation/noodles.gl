@@ -58,6 +58,32 @@ describe('SchemaEditorDialog', () => {
     expect(nameInputs[2]).toHaveValue('column_3')
   })
 
+  it('should duplicate a column with a unique editable name and source metadata', () => {
+    const onChange = vi.fn()
+    render(<SchemaEditorDialog schema={mockSchema} onChange={onChange} />)
+
+    fireEvent.click(screen.getByRole('button'))
+    fireEvent.click(screen.getByRole('button', { name: 'Duplicate column name' }))
+
+    const nameInputs = screen.getAllByPlaceholderText('Column name')
+    expect(nameInputs).toHaveLength(3)
+    expect(nameInputs[1]).toHaveValue('name copy')
+
+    fireEvent.change(nameInputs[1], { target: { value: 'display_name' } })
+    fireEvent.click(screen.getByText('Save'))
+
+    expect(onChange).toHaveBeenCalledWith(
+      {
+        columns: [
+          { name: 'name', type: 'string', defaultValue: '' },
+          { name: 'display_name', type: 'string', defaultValue: '' },
+          { name: 'age', type: 'number', defaultValue: 0 },
+        ],
+      },
+      { sourceColumnNames: ['name', 'name', 'age'] }
+    )
+  })
+
   it('should add Position XYZ quick template with Number type', () => {
     const onChange = vi.fn()
     render(<SchemaEditorDialog schema={mockSchema} onChange={onChange} />)

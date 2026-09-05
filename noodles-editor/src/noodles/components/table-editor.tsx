@@ -18,7 +18,7 @@ import type { ColumnSchema, ColumnType, DateTimeValue, TableSchema } from '../ta
 import { convertValue, getDefaultValue, temporalToString } from '../table-schema'
 import { getTimezoneOptions } from '../utils/timezone-utils'
 import { ColorSwatch } from './color-swatch'
-import { SchemaEditorDialog } from './schema-editor-dialog'
+import { SchemaEditorDialog, type SchemaChangeMetadata } from './schema-editor-dialog'
 import s from './table-editor.module.css'
 
 // Cell editor components for each column type
@@ -890,13 +890,14 @@ export function TableEditor({ data, schema, onDataChange, onSchemaChange }: Tabl
     commitData([...tableDataRef.current, newRow], 'Add table row')
   }
 
-  const handleSchemaChange = (newSchema: TableSchema) => {
+  const handleSchemaChange = (newSchema: TableSchema, metadata?: SchemaChangeMetadata) => {
     activeEdit.flush()
     // Update data to match new schema
     const newData = tableDataRef.current.map(row => {
       const newRow: Record<string, unknown> = {}
-      for (const col of newSchema.columns) {
-        const existingValue = row[col.name]
+      for (const [columnIndex, col] of newSchema.columns.entries()) {
+        const sourceColumnName = metadata?.sourceColumnNames[columnIndex] ?? col.name
+        const existingValue = row[sourceColumnName]
         // Convert existing value to new type, or use default if missing
         if (existingValue !== undefined) {
           newRow[col.name] = convertValue(existingValue, col.type)
