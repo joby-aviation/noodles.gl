@@ -22,7 +22,7 @@ import { useUIStore } from '../store'
 import s from './geocoding-dialog.module.css'
 
 const DEFAULT_LOCATION = { longitude: -74.006, latitude: 40.7128, zoom: 12 } // NYC
-const CARTO_DARK = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json'
+export const CARTO_VOYAGER = 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json'
 
 interface GeocodingDialogProps {
   open: boolean
@@ -135,9 +135,9 @@ export function GeocodingDialog({
   initialValue,
   mode,
 }: GeocodingDialogProps) {
-  const [mapCoordinates, setMapCoordinates] = useState<MapCoordinates>(
-    initialValue || DEFAULT_LOCATION
-  )
+  const initialLocation = initialValue || DEFAULT_LOCATION
+  const [selectedLocation, setSelectedLocation] = useState(initialLocation)
+  const [viewState, setViewState] = useState<MapCoordinates>(initialLocation)
   const [inputValue, setInputValue] = useState('')
   const [suggestions, setSuggestions] = useState<GeocodingSuggestion[]>([])
   const [showDropdown, setShowDropdown] = useState(false)
@@ -153,10 +153,11 @@ export function GeocodingDialog({
   // Access the map instance for flyTo animations
   const { [MAP_ID]: mapInstance } = useMap()
 
-  // Reset map coordinates when dialog opens with new initial value
+  // Reset both the pin and camera when editing a different value.
   useEffect(() => {
     if (open && initialValue) {
-      setMapCoordinates(initialValue)
+      setSelectedLocation(initialValue)
+      setViewState({ ...initialValue, zoom: 12 })
     }
   }, [open, initialValue])
 
@@ -180,7 +181,8 @@ export function GeocodingDialog({
           essential: true,
         })
       }
-      setMapCoordinates({ ...coordinates, zoom })
+      setSelectedLocation(coordinates)
+      setViewState({ ...coordinates, zoom })
     },
     [mapInstance]
   )
@@ -285,32 +287,30 @@ export function GeocodingDialog({
     [flyToLocation]
   )
 
-  // Handle map click (preserve zoom level)
+  // A click chooses a point. Camera movement alone never changes the selection.
   const handleMapClick = useCallback((event: MapLayerMouseEvent) => {
-    setMapCoordinates(prev => ({
-      ...prev,
+    setSelectedLocation({
       longitude: event.lngLat.lng,
       latitude: event.lngLat.lat,
-    }))
+    })
     analytics.track('geocoding_map_clicked')
   }, [])
 
   // Handle map movement (zoom/pan)
   const handleMove = useCallback((event: ViewStateChangeEvent) => {
-    setMapCoordinates(prev => ({
-      ...prev,
+    setViewState({
       longitude: event.viewState.longitude,
       latitude: event.viewState.latitude,
       zoom: event.viewState.zoom,
-    }))
+    })
   }, [])
 
   // Handle location confirmation
   const handleConfirm = useCallback(() => {
-    onLocationSelected(mapCoordinates)
+    onLocationSelected(selectedLocation)
     analytics.track('geocoding_confirmed', { mode })
     onOpenChange(false)
-  }, [mapCoordinates, onLocationSelected, mode, onOpenChange])
+  }, [selectedLocation, onLocationSelected, mode, onOpenChange])
 
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
@@ -362,7 +362,16 @@ export function GeocodingDialog({
 
           {/* Provider indicator — shown after a place search */}
           {lastSearchProvider && (
-            <div className={s.providerBadge}>
+            <div
+              className={s.providerBadge}
+              aria-label={`Geocoding provider: ${
+                lastSearchProvider === 'google_places'
+                  ? 'Google Places'
+                  : lastSearchProvider === 'mapbox'
+                    ? 'Mapbox'
+                    : 'Photon'
+              }`}
+            >
               {lastSearchProvider === 'photon' ? (
                 <>
                   Using Photon (free, OpenStreetMap).{' '}
@@ -384,22 +393,22 @@ export function GeocodingDialog({
           )}
 
           {/* Map */}
-          {mapCoordinates.longitude != null && mapCoordinates.latitude != null && (
+          {selectedLocation.longitude != null && selectedLocation.latitude != null && (
             <div className={s.mapContainer}>
               <MapLibre
                 id={MAP_ID}
-                mapStyle={CARTO_DARK}
-                style={{ width: '100%', height: '400px' }}
-                longitude={mapCoordinates.longitude}
-                latitude={mapCoordinates.latitude}
-                zoom={mapCoordinates.zoom || 12}
+                mapStyle={CARTO_VOYAGER}
+                style={{ width: '100%', height: '100%' }}
+                longitude={viewState.longitude}
+                latitude={viewState.latitude}
+                zoom={viewState.zoom || 12}
                 onMove={handleMove}
                 onClick={handleMapClick}
               >
                 <NavigationControl position="top-right" showCompass={false} />
                 <Marker
-                  longitude={mapCoordinates.longitude}
-                  latitude={mapCoordinates.latitude}
+                  longitude={selectedLocation.longitude}
+                  latitude={selectedLocation.latitude}
                   anchor="center"
                 />
               </MapLibre>
@@ -409,8 +418,8 @@ export function GeocodingDialog({
           {/* Footer */}
           <div className={s.dialogFooter}>
             <div className={s.coordinateDisplay}>
-              {mapCoordinates.longitude != null && mapCoordinates.latitude != null
-                ? `${mapCoordinates.latitude.toFixed(5)}, ${mapCoordinates.longitude.toFixed(5)}`
+              {selectedLocation.longitude != null && selectedLocation.latitude != null
+                ? `${selectedLocation.latitude.toFixed(5)}, ${selectedLocation.longitude.toFixed(5)}`
                 : 'Loading...'}
             </div>
             <button type="button" className={s.confirmButton} onClick={handleConfirm}>
