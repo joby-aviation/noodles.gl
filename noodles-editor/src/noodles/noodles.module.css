@@ -1105,8 +1105,13 @@
 .referenceEdge {
   stroke-dasharray: 5 5;
   stroke-width: 1.5;
-  pointer-events: none;
+  pointer-events: stroke;
   stroke: #888;
+}
+
+.inspectedReferenceEdge {
+  stroke: var(--node-selected-color);
+  stroke-width: 3;
 }
 
 .targetedEdge {
