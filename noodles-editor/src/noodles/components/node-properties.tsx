@@ -26,8 +26,8 @@ import {
   type Vec2Field,
 } from '../fields'
 import { useObservable } from '../hooks/use-observable'
-import type { IOperator, OpType, Operator } from '../operators'
-import { OutOp } from '../operators'
+import type { IOperator, OpType } from '../operators'
+import { Operator, OutOp } from '../operators'
 import { getOp, getOpStore, useNestingStore, useUIStore } from '../store'
 import type { ConnectionPlan } from '../utils/auto-connect'
 import { edgeId } from '../utils/id-utils'
@@ -1330,21 +1330,93 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
 
 const EDGE_PREVIEW_ITEM_LIMIT = 25
 
+function limitEdgePreviewValue(value: unknown, ancestors: WeakSet<object>): unknown {
+  if (value instanceof Operator) {
+    return formatEdgePreviewValueInternal(value, ancestors)
+  }
+  if (value === null || typeof value !== 'object') return value
+  if (value instanceof Date) return value
+
+  const prototype = Object.getPrototypeOf(value)
+  if (
+    !Array.isArray(value) &&
+    !(value instanceof Set) &&
+    prototype !== Object.prototype &&
+    prototype !== null
+  ) {
+    return value
+  }
+
+  if (ancestors.has(value)) return '[Circular]'
+  ancestors.add(value)
+
+  if (Array.isArray(value)) {
+    const items = value
+      .slice(0, EDGE_PREVIEW_ITEM_LIMIT)
+      .map(item => limitEdgePreviewValue(item, ancestors))
+    ancestors.delete(value)
+    if (value.length <= EDGE_PREVIEW_ITEM_LIMIT) return items
+    return {
+      summary: `Showing first ${EDGE_PREVIEW_ITEM_LIMIT} of ${value.length} items`,
+      items,
+    }
+  }
+
+  if (value instanceof Set) {
+    const items = Array.from(value)
+      .slice(0, EDGE_PREVIEW_ITEM_LIMIT)
+      .map(item => limitEdgePreviewValue(item, ancestors))
+    ancestors.delete(value)
+    if (value.size <= EDGE_PREVIEW_ITEM_LIMIT) return new Set(items)
+    return {
+      summary: `Showing first ${EDGE_PREVIEW_ITEM_LIMIT} of ${value.size} items`,
+      items,
+    }
+  }
+
+  const entries = Object.entries(value)
+  const properties = Object.fromEntries(
+    entries
+      .slice(0, EDGE_PREVIEW_ITEM_LIMIT)
+      .map(([key, item]) => [key, limitEdgePreviewValue(item, ancestors)])
+  )
+  ancestors.delete(value)
+  if (entries.length <= EDGE_PREVIEW_ITEM_LIMIT) return properties
+  return {
+    summary: `Showing first ${EDGE_PREVIEW_ITEM_LIMIT} of ${entries.length} properties`,
+    properties,
+  }
+}
+
+function formatEdgePreviewValueInternal(value: unknown, ancestors: WeakSet<object>): unknown {
+  if (value instanceof Operator) {
+    if (ancestors.has(value)) return '[Circular]'
+    ancestors.add(value)
+    const { displayName } = value.constructor as typeof Operator
+    const formatted = {
+      id: value.id,
+      type: displayName,
+      inputs: Object.fromEntries(
+        Object.entries(value.inputs).map(([key, field]) => [
+          key,
+          formatEdgePreviewValueInternal(field.value, ancestors),
+        ])
+      ),
+      outputs: Object.fromEntries(
+        Object.entries(value.outputs).map(([key, field]) => [
+          key,
+          formatEdgePreviewValueInternal(field.value, ancestors),
+        ])
+      ),
+    }
+    ancestors.delete(value)
+    return formatted
+  }
+  return limitEdgePreviewValue(formatViewerValue(value), ancestors)
+}
+
 export function formatEdgePreviewValue(value: unknown): unknown {
-  const formatted = formatViewerValue(value)
-  if (Array.isArray(formatted) && formatted.length > EDGE_PREVIEW_ITEM_LIMIT) {
-    return {
-      summary: `Showing first ${EDGE_PREVIEW_ITEM_LIMIT} of ${formatted.length} items`,
-      items: formatted.slice(0, EDGE_PREVIEW_ITEM_LIMIT),
-    }
-  }
-  if (formatted instanceof Set && formatted.size > EDGE_PREVIEW_ITEM_LIMIT) {
-    return {
-      summary: `Showing first ${EDGE_PREVIEW_ITEM_LIMIT} of ${formatted.size} items`,
-      items: Array.from(formatted).slice(0, EDGE_PREVIEW_ITEM_LIMIT),
-    }
-  }
-  return formatted
+  return formatEdgePreviewValueInternal(value, new WeakSet())
 }
 
 function EdgeFieldValue({ field, fieldName }: { field: Field; fieldName: string }) {

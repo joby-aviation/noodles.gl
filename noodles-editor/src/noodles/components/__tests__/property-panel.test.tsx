@@ -186,6 +186,25 @@ describe('PropertyPanel', () => {
       items: value.slice(0, 25),
     })
   })
+
+  it('bounds large values nested inside operator previews', () => {
+    transformGraph({
+      nodes: [{ id: '/viewer', type: 'ViewerOp', position: { x: 0, y: 0 }, data: {} }],
+      edges: [],
+    })
+    const viewer = getOpStore().getOp('/viewer')!
+    const value = Array.from({ length: 30 }, (_, index) => index)
+    viewer.inputs.data.next(value)
+
+    expect(formatEdgePreviewValue(viewer)).toMatchObject({
+      inputs: {
+        data: {
+          summary: 'Showing first 25 of 30 items',
+          items: value.slice(0, 25),
+        },
+      },
+    })
+  })
 })
 
 describe('NodeProperties', () => {
