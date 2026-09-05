@@ -59,7 +59,13 @@ import {
 } from './field-components'
 import menuStyles from './menu.module.css'
 import s from './node-properties.module.css'
-import { handleClass, headerClass, typeCategory } from './op-components'
+import {
+  formatViewerValue,
+  HandlePreviewContent,
+  handleClass,
+  headerClass,
+  typeCategory,
+} from './op-components'
 import { RenderSettingsPanel } from './render-settings-panel'
 import { SuggestedNodesSection } from './SuggestedNodes'
 
@@ -1322,39 +1328,141 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
   )
 }
 
+const EDGE_PREVIEW_ITEM_LIMIT = 25
+
+export function formatEdgePreviewValue(value: unknown): unknown {
+  const formatted = formatViewerValue(value)
+  if (Array.isArray(formatted) && formatted.length > EDGE_PREVIEW_ITEM_LIMIT) {
+    return {
+      summary: `Showing first ${EDGE_PREVIEW_ITEM_LIMIT} of ${formatted.length} items`,
+      items: formatted.slice(0, EDGE_PREVIEW_ITEM_LIMIT),
+    }
+  }
+  if (formatted instanceof Set && formatted.size > EDGE_PREVIEW_ITEM_LIMIT) {
+    return {
+      summary: `Showing first ${EDGE_PREVIEW_ITEM_LIMIT} of ${formatted.size} items`,
+      items: Array.from(formatted).slice(0, EDGE_PREVIEW_ITEM_LIMIT),
+    }
+  }
+  return formatted
+}
+
+function EdgeFieldValue({ field, fieldName }: { field: Field; fieldName: string }) {
+  const value = useObservable(field, field.value)
+  const { type } = field.constructor as typeof Field
+
+  return (
+    <div className={s.edgeValuePreview} data-testid="edge-value-preview">
+      <HandlePreviewContent
+        data={formatEdgePreviewValue(value)}
+        name={fieldName}
+        type={type}
+        collapsed={1}
+      />
+    </div>
+  )
+}
+
+// Exported for testing
+export function EdgeProperties({ edge }: { edge: Edge }) {
+  const sourceOp = getOp(edge.source)
+  const sourceHandle = parseHandleId(edge.sourceHandle ?? '')
+  const sourceField = sourceHandle
+    ? sourceHandle.namespace === IN_NS
+      ? sourceOp?.inputs[sourceHandle.fieldName]
+      : sourceOp?.outputs[sourceHandle.fieldName]
+    : undefined
+
+  return (
+    <>
+      <div className={s.header}>
+        <div className={s.title}>
+          Edge
+          {edge.type === 'ReferenceEdge' && <div className={s.edgeTypeBadge}>Reference</div>}
+        </div>
+      </div>
+      <div className={s.edgeEndpoints}>
+        <div className={s.edgeEndpoint}>
+          <span className={s.edgeEndpointLabel}>From</span>
+          <code title={`${edge.source}.${edge.sourceHandle ?? ''}`}>
+            {getBaseName(edge.source)}.{edge.sourceHandle ?? 'unknown'}
+          </code>
+        </div>
+        <div className={s.edgeEndpointArrow} aria-hidden="true">
+          ↓
+        </div>
+        <div className={s.edgeEndpoint}>
+          <span className={s.edgeEndpointLabel}>To</span>
+          <code title={`${edge.target}.${edge.targetHandle ?? ''}`}>
+            {getBaseName(edge.target)}.{edge.targetHandle ?? 'unknown'}
+          </code>
+        </div>
+      </div>
+      <div className={s.section}>
+        <div className={s.sectionTitle}>Data</div>
+        {sourceField && sourceHandle ? (
+          <EdgeFieldValue field={sourceField} fieldName={sourceHandle.fieldName} />
+        ) : (
+          <div className={s.edgeValueUnavailable}>Source field is unavailable</div>
+        )}
+      </div>
+    </>
+  )
+}
+
 export function PropertyPanel() {
   // Only re-renders when selection changes, not on position updates during drag
-  const { selectedNodeId, selectedNodeCount, selectedEdgeCount } = useStore(
+  const { selectedNodeId, selectedNodeCount, selectedEdge, selectedEdgeCount } = useStore(
     s => {
       const selectedNodes = s.nodes.filter(n => n.selected)
+      const selectedEdges = s.edges.filter(e => e.selected)
       return {
         selectedNodeId: selectedNodes.length === 1 ? selectedNodes[0].id : null,
         selectedNodeCount: selectedNodes.length,
-        selectedEdgeCount: s.edges.filter(e => e.selected).length,
+        selectedEdge: selectedEdges.length === 1 ? selectedEdges[0] : null,
+        selectedEdgeCount: selectedEdges.length,
       }
     },
     (a, b) =>
       a.selectedNodeId === b.selectedNodeId &&
       a.selectedNodeCount === b.selectedNodeCount &&
+      a.selectedEdge?.id === b.selectedEdge?.id &&
       a.selectedEdgeCount === b.selectedEdgeCount
   )
+  const inspectedReferenceEdge = useUIStore(state => state.inspectedReferenceEdge)
+  const inspectedEdge =
+    selectedNodeCount === 0
+      ? selectedEdgeCount === 0
+        ? inspectedReferenceEdge
+        : selectedEdge
+      : null
 
   return (
     <div className={s.panel}>
       {selectedNodeId != null ? (
         <NodeProperties nodeId={selectedNodeId} />
+      ) : inspectedEdge != null ? (
+        <EdgeProperties edge={inspectedEdge} />
       ) : (
         <>
           <div className={s.header}>
             <div className={s.title}>Page</div>
           </div>
-          {selectedNodeCount > 1 ? (
+          {selectedNodeCount > 1 || selectedEdgeCount > 1 ? (
             <div className={s.opMeta}>
-              <div>{selectedNodeCount} nodes selected</div>
-              <div>{selectedEdgeCount} edges selected</div>
+              {selectedNodeCount > 0 && (
+                <div>
+                  {selectedNodeCount} {selectedNodeCount === 1 ? 'node' : 'nodes'} selected
+                </div>
+              )}
+              {selectedEdgeCount > 0 && (
+                <div>
+                  {selectedEdgeCount} {selectedEdgeCount === 1 ? 'edge' : 'edges'} selected
+                </div>
+              )}
             </div>
           ) : (
-            <div className={s.opMeta}>Select a node to see properties</div>
+            <div className={s.opMeta}>Select a node or edge to inspect it</div>
           )}
         </>
       )}

@@ -1,12 +1,12 @@
 // Tests for PropertyPanel selection rendering and NodeProperties nodeId interface
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, render, screen } from '@testing-library/react'
 import type { Edge, Node as ReactFlowNode } from '@xyflow/react'
 import { ReactFlowProvider } from '@xyflow/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SheetContext } from '../../../utils/sheet-context'
-import { clearOps } from '../../store'
+import { clearOps, getOpStore, useUIStore } from '../../store'
 import { transformGraph } from '../../transform-graph'
-import { NodeProperties, PropertyPanel } from '../node-properties'
+import { formatEdgePreviewValue, NodeProperties, PropertyPanel } from '../node-properties'
 
 // Mock store state — controlled per test
 let mockNodes: ReactFlowNode[] = []
@@ -32,6 +32,10 @@ vi.mock('../../theatre-bindings', () => ({
   rebindOperatorToTheatre: vi.fn(),
 }))
 
+vi.mock('@microlink/react-json-view', () => ({
+  default: ({ src }: { src: unknown }) => <pre>{JSON.stringify(src)}</pre>,
+}))
+
 vi.mock('../node-properties.module.css', () => ({
   default: new Proxy({}, { get: (_, prop) => prop }),
 }))
@@ -52,6 +56,7 @@ describe('PropertyPanel', () => {
     clearOps()
     mockNodes = []
     mockEdges = []
+    useUIStore.getState().setInspectedReferenceEdge(null)
   })
 
   afterEach(() => {
@@ -62,7 +67,7 @@ describe('PropertyPanel', () => {
   it('shows "Select a node" prompt when nothing is selected', () => {
     mockNodes = []
     wrapWithProviders(<PropertyPanel />)
-    expect(screen.getByText('Select a node to see properties')).toBeInTheDocument()
+    expect(screen.getByText('Select a node or edge to inspect it')).toBeInTheDocument()
   })
 
   it('shows multi-select node count when multiple nodes are selected', () => {
@@ -92,13 +97,94 @@ describe('PropertyPanel', () => {
     ]
     wrapWithProviders(<PropertyPanel />)
     expect(screen.getByText('2 nodes selected')).toBeInTheDocument()
-    expect(screen.getByText('1 edges selected')).toBeInTheDocument()
+    expect(screen.getByText('1 edge selected')).toBeInTheDocument()
   })
 
   it('shows Page header when nothing is selected', () => {
     mockNodes = []
     wrapWithProviders(<PropertyPanel />)
     expect(screen.getByText('Page')).toBeInTheDocument()
+  })
+
+  it('shows the live source value for one selected edge', () => {
+    transformGraph({
+      nodes: [
+        { id: '/source', type: 'NumberOp', position: { x: 0, y: 0 }, data: {} },
+        { id: '/target', type: 'NumberOp', position: { x: 100, y: 0 }, data: {} },
+      ],
+      edges: [],
+    })
+    mockEdges = [
+      {
+        id: '/source.out.val->/target.par.val',
+        source: '/source',
+        target: '/target',
+        sourceHandle: 'out.val',
+        targetHandle: 'par.val',
+        selected: true,
+      },
+    ]
+    const source = getOpStore().getOp('/source')!
+    source.outputs.val.next(42)
+
+    wrapWithProviders(<PropertyPanel />)
+
+    expect(screen.getByText('Edge')).toBeInTheDocument()
+    expect(screen.getByTitle('/source.out.val')).toHaveTextContent('source.out.val')
+    expect(screen.getByTitle('/target.par.val')).toHaveTextContent('target.par.val')
+    expect(screen.getByText('{"value":42}')).toBeInTheDocument()
+
+    act(() => source.outputs.val.next(84))
+    expect(screen.getByText('{"value":84}')).toBeInTheDocument()
+  })
+
+  it('inspects source inputs used by reference edges', () => {
+    transformGraph({
+      nodes: [
+        {
+          id: '/source',
+          type: 'NumberOp',
+          position: { x: 0, y: 0 },
+          data: { inputs: { val: 7 } },
+        },
+        { id: '/target', type: 'CodeOp', position: { x: 100, y: 0 }, data: {} },
+      ],
+      edges: [],
+    })
+    useUIStore.getState().setInspectedReferenceEdge({
+      id: '/source.par.val->/target.par.code',
+      source: '/source',
+      target: '/target',
+      sourceHandle: 'par.val',
+      targetHandle: 'par.code',
+      type: 'ReferenceEdge',
+    })
+
+    wrapWithProviders(<PropertyPanel />)
+
+    expect(screen.getByText('Reference')).toBeInTheDocument()
+    expect(screen.getByText('{"value":7}')).toBeInTheDocument()
+  })
+
+  it('shows a summary instead of a value when multiple edges are selected', () => {
+    mockEdges = [
+      { id: 'e1', source: '/a', target: '/b', selected: true },
+      { id: 'e2', source: '/b', target: '/c', selected: true },
+    ]
+
+    wrapWithProviders(<PropertyPanel />)
+
+    expect(screen.getByText('2 edges selected')).toBeInTheDocument()
+    expect(screen.queryByText('Source field is unavailable')).not.toBeInTheDocument()
+  })
+
+  it('bounds large edge previews', () => {
+    const value = Array.from({ length: 30 }, (_, index) => index)
+
+    expect(formatEdgePreviewValue(value)).toEqual({
+      summary: 'Showing first 25 of 30 items',
+      items: value.slice(0, 25),
+    })
   })
 })
 
@@ -107,6 +193,7 @@ describe('NodeProperties', () => {
     clearOps()
     mockNodes = []
     mockEdges = []
+    useUIStore.getState().setInspectedReferenceEdge(null)
   })
 
   afterEach(() => {
