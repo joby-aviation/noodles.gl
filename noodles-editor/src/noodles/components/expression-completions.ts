@@ -2,6 +2,7 @@
 // Provides autocomplete suggestions for data keys, globals, and operator paths
 
 import type {
+  DataKeyDefinition,
   ExpressionContext,
   GlobalDefinition,
   TargetFieldInfo,
@@ -32,9 +33,8 @@ const SAFE_DOT_PROPERTY = /^[$A-Z_a-z][$\w]*$/
 
 // Build a property-access suffix that is valid JavaScript. Data keys may include
 // spaces or punctuation, so dot notation is only safe for identifier segments.
-function dataPropertyAccess(key: string): string {
-  return key
-    .split('.')
+function dataPropertyAccess(key: DataKeyDefinition): string {
+  return key.path
     .map(segment =>
       SAFE_DOT_PROPERTY.test(segment) ? `.${segment}` : `[${JSON.stringify(segment)}]`
     )
@@ -42,7 +42,7 @@ function dataPropertyAccess(key: string): string {
 }
 
 function dataPropertyCompletion(
-  key: string,
+  key: DataKeyDefinition,
   range: CompletionRange,
   CompletionItemKind: MonacoInstance,
   detail: string,
@@ -52,7 +52,7 @@ function dataPropertyCompletion(
   const usesDotNotation = access.startsWith('.')
 
   return {
-    label: key,
+    label: key.label,
     kind: CompletionItemKind.Property,
     detail,
     insertText: usesDotNotation ? access.slice(1) : access,
@@ -68,7 +68,7 @@ function dataPropertyCompletion(
   }
 }
 
-function dataPropertyExpression(key: string): string {
+function dataPropertyExpression(key: DataKeyDefinition): string {
   return `d${dataPropertyAccess(key)}`
 }
 
@@ -124,9 +124,9 @@ const COLOR_KEY_PATTERNS = ['color', 'fill', 'stroke', 'rgb', 'rgba']
 
 // Prioritize data keys based on target field type
 function prioritizeDataKeys(
-  dataKeys: string[],
+  dataKeys: DataKeyDefinition[],
   targetField?: TargetFieldInfo
-): { prioritized: string[]; other: string[] } {
+): { prioritized: DataKeyDefinition[]; other: DataKeyDefinition[] } {
   if (!targetField) return { prioritized: [], other: dataKeys }
 
   let priorityPatterns: string[] = []
@@ -142,7 +142,7 @@ function prioritizeDataKeys(
   if (priorityPatterns.length === 0) return { prioritized: [], other: dataKeys }
 
   const prioritized = dataKeys.filter(key => {
-    const baseKey = key.split('.').pop() || key
+    const baseKey = key.path.at(-1) ?? key.label
     return priorityPatterns.some(pattern => baseKey.toLowerCase().includes(pattern.toLowerCase()))
   })
   const other = dataKeys.filter(key => !prioritized.includes(key))
@@ -153,7 +153,7 @@ function prioritizeDataKeys(
 // Create template completions based on target field type
 function createTemplateCompletions(
   targetField: TargetFieldInfo | undefined,
-  dataKeys: string[],
+  dataKeys: DataKeyDefinition[],
   range: CompletionRange,
   CompletionItemKind: MonacoInstance
 ): CompletionItem[] {
@@ -166,11 +166,13 @@ function createTemplateCompletions(
     // Find lng/lat-like keys for position template
     const lngKey = prioritized.find(k =>
       ['lng', 'longitude', 'lon', 'x', 'start_lng', 'source_lng'].some(p =>
-        k.toLowerCase().endsWith(p)
+        (k.path.at(-1) ?? k.label).toLowerCase().endsWith(p)
       )
     )
     const latKey = prioritized.find(k =>
-      ['lat', 'latitude', 'y', 'start_lat', 'source_lat'].some(p => k.toLowerCase().endsWith(p))
+      ['lat', 'latitude', 'y', 'start_lat', 'source_lat'].some(p =>
+        (k.path.at(-1) ?? k.label).toLowerCase().endsWith(p)
+      )
     )
 
     // Suggest a concrete template if we found coordinate keys
@@ -286,7 +288,7 @@ function createBracketCompletions(
 
 // Create completion items for data keys (d.lat, d.lng, etc.)
 function createDataKeyCompletions(
-  dataKeys: string[],
+  dataKeys: DataKeyDefinition[],
   range: CompletionRange,
   CompletionItemKind: MonacoInstance
 ): CompletionItem[] {
@@ -452,7 +454,7 @@ export function createExpressionCompletionProvider(
               range,
               monaco.languages.CompletionItemKind,
               'Data property',
-              `1${key}` // Sort after prioritized
+              `1${key.label}` // Sort after prioritized
             )
           )
         }
