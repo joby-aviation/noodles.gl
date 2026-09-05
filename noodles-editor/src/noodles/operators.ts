@@ -2389,8 +2389,7 @@ export class TableEditorOp extends Operator<TableEditorOp> {
 
   getEditableData(): unknown[] {
     const override = this.inputs.dataOverride.value
-    const source = this.inputs.data.value
-    return Array.isArray(override) ? override : Array.isArray(source) ? source : []
+    return Array.isArray(override) ? override : this.inputs.data.value
   }
 
   setEditableData(data: unknown[]): void {
