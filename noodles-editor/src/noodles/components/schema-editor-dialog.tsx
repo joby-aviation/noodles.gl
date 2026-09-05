@@ -68,13 +68,13 @@ function createColumnDrafts(schema: TableSchema): ColumnDraft[] {
 
 function getDuplicateColumnName(name: string, columns: ColumnSchema[]): string {
   const existingNames = new Set(columns.map(column => column.name))
-  const baseName = `${name || 'column'} copy`
-  let duplicateName = baseName
-  let suffix = 2
+  const baseName = (name || 'column').replace(/-\d+$/, '')
+  let suffix = 1
+  let duplicateName = `${baseName}-${suffix}`
 
   while (existingNames.has(duplicateName)) {
-    duplicateName = `${baseName} ${suffix}`
     suffix += 1
+    duplicateName = `${baseName}-${suffix}`
   }
 
   return duplicateName
@@ -309,6 +309,7 @@ function ColumnEditor({
             className="p-button-text p-button-sm"
             onClick={onDuplicate}
             tooltip="Duplicate column"
+            tooltipOptions={{ autoZIndex: false, className: s.dialogTooltip }}
             aria-label={`Duplicate column ${column.name}`}
           />
           <Button
