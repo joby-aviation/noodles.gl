@@ -896,8 +896,8 @@ export function TableEditor({ data, schema, onDataChange, onSchemaChange }: Tabl
     const newData = tableDataRef.current.map(row => {
       const newRow: Record<string, unknown> = {}
       for (const [columnIndex, col] of newSchema.columns.entries()) {
-        const sourceColumnName = metadata?.sourceColumnNames[columnIndex] ?? col.name
-        const existingValue = row[sourceColumnName]
+        const sourceColumnName = metadata ? metadata.sourceColumnNames[columnIndex] : col.name
+        const existingValue = sourceColumnName === undefined ? undefined : row[sourceColumnName]
         // Convert existing value to new type, or use default if missing
         if (existingValue !== undefined) {
           newRow[col.name] = convertValue(existingValue, col.type)

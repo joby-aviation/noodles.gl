@@ -5,6 +5,7 @@ import { InputNumber } from 'primereact/inputnumber'
 import { InputSwitch } from 'primereact/inputswitch'
 import { InputText } from 'primereact/inputtext'
 import { useEffect, useState } from 'react'
+import { analytics } from '../../utils/analytics'
 import type { ColumnSchema, ColumnType, DateTimeValue, TableSchema } from '../table-schema'
 import { getDefaultValue, validateValue } from '../table-schema'
 import { getTimezoneOptions } from '../utils/timezone-utils'
@@ -469,6 +470,7 @@ export function SchemaEditorDialog({ schema, onChange, onClose }: SchemaEditorDi
 
   const duplicateColumn = (index: number) => {
     const source = columnDrafts[index]
+    analytics.track('table_column_duplicated')
     const duplicate: ColumnSchema = {
       ...source.column,
       name: getDuplicateColumnName(

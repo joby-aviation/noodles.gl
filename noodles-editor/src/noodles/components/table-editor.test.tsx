@@ -251,6 +251,41 @@ describe('TableEditor', () => {
     )
   })
 
+  it('should use the default for a fresh column that reuses a renamed column name', () => {
+    const onSchemaChange = vi.fn()
+
+    const { container, getAllByPlaceholderText, getByRole, getByText } = render(
+      <TableEditor
+        op={mockOp}
+        data={simpleData}
+        schema={simpleSchema}
+        onDataChange={vi.fn()}
+        onSchemaChange={onSchemaChange}
+      />
+    )
+
+    fireEvent.click(container.querySelector('.pi-cog') as Element)
+    const nameInputs = getAllByPlaceholderText('Column name')
+    fireEvent.change(nameInputs[0], { target: { value: 'display_name' } })
+    fireEvent.click(getByRole('button', { name: 'Add Column' }))
+    fireEvent.change(getAllByPlaceholderText('Column name')[2], { target: { value: 'name' } })
+    fireEvent.click(getByText('Save'))
+
+    expect(onSchemaChange).toHaveBeenCalledWith(
+      {
+        columns: [
+          { name: 'display_name', type: 'string', defaultValue: '' },
+          { name: 'count', type: 'number', defaultValue: 0 },
+          { name: 'name', type: 'string', defaultValue: '' },
+        ],
+      },
+      [
+        { display_name: 'Alice', count: 10, name: '' },
+        { display_name: 'Bob', count: 20, name: '' },
+      ]
+    )
+  })
+
   it('should update tableData when data prop changes', () => {
     const onDataChange = vi.fn()
     const onSchemaChange = vi.fn()

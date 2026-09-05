@@ -1,7 +1,12 @@
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { analytics } from '../../utils/analytics'
 import type { TableSchema } from '../table-schema'
 import { SchemaEditorDialog } from './schema-editor-dialog'
+
+vi.mock('../../utils/analytics', () => ({
+  analytics: { track: vi.fn() },
+}))
 
 afterEach(() => {
   cleanup()
@@ -64,6 +69,8 @@ describe('SchemaEditorDialog', () => {
 
     fireEvent.click(screen.getByRole('button'))
     fireEvent.click(screen.getByRole('button', { name: 'Duplicate column name' }))
+
+    expect(analytics.track).toHaveBeenCalledWith('table_column_duplicated')
 
     const nameInputs = screen.getAllByPlaceholderText('Column name')
     expect(nameInputs).toHaveLength(3)
