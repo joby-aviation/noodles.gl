@@ -67,6 +67,28 @@ The project uses:
 - **Vitest** for unit testing
 - **Playwright** for end-to-end testing
 
+### Tracing Dirty Operators
+
+To diagnose a graph that keeps executing, enable pull logs together with the causal dirty trace
+in the browser console, then reload:
+
+```javascript
+localStorage.debug = 'noodles:executor:pull,noodles-trace:dirty'
+location.reload()
+```
+
+`noodles-trace:dirty` records the operator's prior state, the field or subsystem that started the
+dirty wave, its downstream count, and the caller stack. It is intentionally excluded from
+`noodles:*` because collecting stacks is expensive. When the namespace is disabled, no stacks are
+captured and no trace state is retained.
+
+Disable it after investigating:
+
+```javascript
+localStorage.debug = ''
+location.reload()
+```
+
 ## Code Style Guidelines
 
 - **TypeScript**: Use strict typing with detailed interfaces/types
