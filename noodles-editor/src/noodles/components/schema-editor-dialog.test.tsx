@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { analytics } from '../../utils/analytics'
 import type { TableSchema } from '../table-schema'
 import { SchemaEditorDialog } from './schema-editor-dialog'
+import s from './schema-editor-dialog.module.css'
 
 vi.mock('../../utils/analytics', () => ({
   analytics: { track: vi.fn() },
@@ -10,6 +11,8 @@ vi.mock('../../utils/analytics', () => ({
 
 afterEach(() => {
   cleanup()
+  document.documentElement.style.removeProperty('--z-index-modal')
+  document.documentElement.style.removeProperty('--z-index-top')
 })
 
 describe('SchemaEditorDialog', () => {
@@ -74,7 +77,7 @@ describe('SchemaEditorDialog', () => {
 
     const nameInputs = screen.getAllByPlaceholderText('Column name')
     expect(nameInputs).toHaveLength(3)
-    expect(nameInputs[1]).toHaveValue('name copy')
+    expect(nameInputs[1]).toHaveValue('name-1')
 
     fireEvent.change(nameInputs[1], { target: { value: 'display_name' } })
     fireEvent.click(screen.getByText('Save'))
@@ -89,6 +92,37 @@ describe('SchemaEditorDialog', () => {
       },
       { sourceColumnNames: ['name', 'name', 'age'] }
     )
+  })
+
+  it('should increment a duplicate column numeric suffix', () => {
+    render(<SchemaEditorDialog schema={mockSchema} onChange={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('button'))
+    fireEvent.click(screen.getByRole('button', { name: 'Duplicate column name' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Duplicate column name-1' }))
+
+    const nameInputs = screen.getAllByPlaceholderText('Column name')
+    expect(nameInputs.map(input => (input as HTMLInputElement).value)).toEqual([
+      'name',
+      'name-1',
+      'name-2',
+      'age',
+    ])
+  })
+
+  it('should place dialog tooltips above modal content', () => {
+    document.documentElement.style.setProperty('--z-index-modal', '10000')
+    document.documentElement.style.setProperty('--z-index-top', '10001')
+    render(
+      <>
+        <div className={s.content} data-testid="dialog-layer" />
+        <div className={s.dialogTooltip} data-testid="tooltip-layer" />
+      </>
+    )
+
+    const dialogZIndex = Number(getComputedStyle(screen.getByTestId('dialog-layer')).zIndex)
+    const tooltipZIndex = Number(getComputedStyle(screen.getByTestId('tooltip-layer')).zIndex)
+    expect(tooltipZIndex).toBeGreaterThan(dialogZIndex)
   })
 
   it('should add Position XYZ quick template with Number type', () => {
