@@ -2372,10 +2372,6 @@ export class TableEditorOp extends Operator<TableEditorOp> {
   createInputs() {
     return {
       data: new DataField(),
-      // A connected data input remains the live source until the user edits the table.
-      // Edits then become a local snapshot so they can be serialized without changing
-      // the general rule that connected input values are owned by their upstream op.
-      dataOverride: new UnknownField(null, { showByDefault: false }),
       schema: new UnknownField(null), // TableSchema | null - optional schema override
     }
   }
@@ -2387,31 +2383,8 @@ export class TableEditorOp extends Operator<TableEditorOp> {
     }
   }
 
-  getEditableData(): unknown[] {
-    const override = this.inputs.dataOverride.value
-    return Array.isArray(override) ? override : this.inputs.data.value
-  }
-
-  setEditableData(data: unknown[]): void {
-    const hasConnectedSource = Array.from(this.inputs.data.subscriptions.keys()).some(
-      id => !id.startsWith('__')
-    )
-    if (hasConnectedSource || Array.isArray(this.inputs.dataOverride.value)) {
-      this.inputs.dataOverride.setValue(data)
-    } else {
-      this.inputs.data.setValue(data)
-    }
-  }
-
-  execute({
-    data,
-    dataOverride,
-    schema,
-  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const editableData = Array.isArray(dataOverride) ? dataOverride : data
-    const validatedData = schema
-      ? validateTableData(editableData, schema as TableSchema)
-      : editableData
+  execute({ data, schema }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const validatedData = schema ? validateTableData(data, schema as TableSchema) : data
     // Convert dateTime strings to Temporal.ZonedDateTime for output
     // This happens at the operator boundary: internal storage = strings, output = Temporal
     const outputData = schema

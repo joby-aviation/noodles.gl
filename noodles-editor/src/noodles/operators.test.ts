@@ -207,32 +207,6 @@ describe('TableEditorOp', () => {
     )
     expect(chainedValue.timeZoneId).toBe(storedValue.timezone)
   })
-
-  it('uses a persisted edit override instead of connected source data', () => {
-    const sourceData = [{ name: 'Original' }]
-    const editedData = [{ name: 'Edited' }]
-    const operator = new TableEditorOp('/table', { dataOverride: editedData })
-
-    expect(operator.getEditableData()).toEqual(editedData)
-    expect(
-      operator.execute({ data: sourceData, dataOverride: editedData, schema: null }).data
-    ).toEqual(editedData)
-  })
-
-  it('stores edits as an override when data is connected', () => {
-    const source = new TableEditorOp('/source')
-    const operator = new TableEditorOp('/table')
-    const edgeId = '/source.out.data->/table.par.data'
-    source.outputs.data.next([{ name: 'Original' }])
-    operator.inputs.data.addConnection(edgeId, source.outputs.data)
-
-    const editedData = [{ name: 'Edited' }]
-    operator.setEditableData(editedData)
-
-    expect(operator.inputs.data.value).toEqual([{ name: 'Original' }])
-    expect(operator.inputs.dataOverride.value).toEqual(editedData)
-    expect(operator.getEditableData()).toEqual(editedData)
-  })
 })
 
 describe('Operator par and out', () => {
