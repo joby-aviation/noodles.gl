@@ -15,6 +15,8 @@ export const debugExecute = createDebug('noodles:executor:execute') // operator 
 // Field update pipeline namespaces
 export const debugSetValue = createDebug('noodles:field:setValue') // field value updates
 export const debugDirty = createDebug('noodles:field:dirty') // field dirty tracking
+// Intentionally outside `noodles:*`: this captures stacks and should only be enabled explicitly.
+export const debugDirtyTrace = createDebug('noodles-trace:dirty') // origin of each dirty wave
 
 // Render namespaces for video/image capture
 export const debugRender = createDebug('noodles:render') // video/image rendering setup
