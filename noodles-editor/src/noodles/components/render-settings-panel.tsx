@@ -43,6 +43,7 @@ export function RenderSettingsPanel({ op }: RenderSettingsPanelProps) {
   const [captureDelay, setCaptureDelay] = useState(op.inputs.captureDelay.value)
   const [fileName, setFileName] = useState(op.inputs.fileName.value)
   const [fileNameExpression, setFileNameExpression] = useState(op.inputs.fileName.expression)
+  const [imageFormat, setImageFormat] = useState(op.inputs.imageFormat.value)
   const [rendersDirectory, setRendersDirectory] = useState(op.inputs.rendersDirectory.value)
 
   useEffect(() => {
@@ -61,6 +62,7 @@ export function RenderSettingsPanel({ op }: RenderSettingsPanelProps) {
       op.inputs.captureDelay.subscribe(v => setCaptureDelay(v)),
       op.inputs.fileName.subscribe(v => setFileName(v)),
       op.inputs.fileName.expression$.subscribe(v => setFileNameExpression(v)),
+      op.inputs.imageFormat.subscribe(v => setImageFormat(v)),
       op.inputs.rendersDirectory.subscribe(v => setRendersDirectory(v)),
     ]
     return () => {
@@ -92,6 +94,7 @@ export function RenderSettingsPanel({ op }: RenderSettingsPanelProps) {
     op.inputs.captureDelay.setValue(DEFAULT_RENDER_SETTINGS.captureDelay)
     op.inputs.fileName.clearExpression()
     op.inputs.fileName.setValue(DEFAULT_RENDER_SETTINGS.fileName)
+    op.inputs.imageFormat.setValue(DEFAULT_RENDER_SETTINGS.imageFormat)
     op.inputs.rendersDirectory.setValue(DEFAULT_RENDER_SETTINGS.rendersDirectory)
   }, [op])
 
@@ -325,6 +328,21 @@ export function RenderSettingsPanel({ op }: RenderSettingsPanelProps) {
               fx
             </span>
           )}
+        </div>
+
+        <div className={s.settingRow}>
+          <label htmlFor="render-image-format" className={s.label}>
+            Photo Format
+          </label>
+          <select
+            id="render-image-format"
+            className={s.select}
+            value={imageFormat}
+            onChange={e => op.inputs.imageFormat.setValue(e.target.value as 'png' | 'jpeg')}
+          >
+            <option value="png">PNG</option>
+            <option value="jpeg">JPEG</option>
+          </select>
         </div>
 
         <div className={s.settingRow}>

@@ -74,4 +74,17 @@ describe('useRenderer', () => {
     expect(write).toHaveBeenCalledOnce()
     expect(close).toHaveBeenCalledOnce()
   })
+
+  it('preserves JPEG export for directory-backed screenshots', async () => {
+    const { directoryHandle, getFileHandle } = mockRenderDirectory()
+    const canvas = document.createElement('canvas')
+    const toBlob = vi.spyOn(canvas, 'toBlob').mockImplementation(callback => {
+      callback(new Blob(['image'], { type: 'image/jpeg' }))
+    })
+
+    await captureScreenshot('photo', () => canvas, 1, directoryHandle, 'jpeg')
+
+    expect(getFileHandle).toHaveBeenCalledWith('photo-v1.jpeg', { create: true })
+    expect(toBlob).toHaveBeenCalledWith(expect.any(Function), 'image/jpeg', 1)
+  })
 })

@@ -11,7 +11,11 @@ import { SpreadsheetPane } from './noodles/components/spreadsheet-pane/spreadshe
 import { MapToolLayer } from './noodles/components/tools/map-tool-layer'
 import { TopMenuBar } from './noodles/components/top-menu-bar'
 import { ExportActionsProvider } from './noodles/contexts/export-actions-context'
-import { useActiveStorageType, useCurrentDirectory } from './noodles/filesystem-store'
+import {
+  useActiveStorageType,
+  useCurrentDirectory,
+  useFileSystemStore,
+} from './noodles/filesystem-store'
 import { useActiveOutOp } from './noodles/hooks/use-active-outop'
 import { useRenderSettings } from './noodles/hooks/use-render-settings'
 import { getNoodles } from './noodles/noodles'
@@ -78,6 +82,7 @@ export default function TimelineEditor() {
   const isRenderingRef = useRef(false)
   // Session-only handle set by selectRendersDirectory; takes priority over project subdir
   const rendersDirectoryHandleRef = useRef<FileSystemDirectoryHandle | null>(null)
+  const rendersDirectoryContextRef = useRef<string | null>(null)
   const customLayersRef = useRef<Set<string>>(new Set())
   // Track style version to trigger layer re-addition after style changes
   const [styleVersion, setStyleVersion] = useState(0)
@@ -103,9 +108,11 @@ export default function TimelineEditor() {
   const renderSettings = useRenderSettings()
   // Active OutOp for updating rendersDirectory when user picks a directory
   const activeOutOp = useActiveOutOp()
+  const rendersDirectoryContext = `${noodles.projectName ?? ''}:${activeOutOp?.id ?? ''}`
   // File system state for resolving the renders directory
   const currentDirectory = useCurrentDirectory()
   const activeStorageType = useActiveStorageType()
+  const setFileSystemError = useFileSystemStore(state => state.setError)
 
   const sequenceLength = useSequenceLength()
   const inPoint = useTimelineStore(state => state.sequence.inPoint)
@@ -121,8 +128,29 @@ export default function TimelineEditor() {
     waitForData,
     captureDelay,
     fileName,
+    imageFormat,
     rendersDirectory,
   } = renderSettings
+
+  const reportExportError = useCallback(
+    (error: unknown) => {
+      const errorName = error instanceof DOMException ? error.name : ''
+      const type =
+        errorName === 'NotAllowedError'
+          ? 'permission-denied'
+          : errorName === 'NotFoundError'
+            ? 'not-found'
+            : 'unknown'
+      debugRender('Render export failed: %o', error)
+      setFileSystemError({
+        type,
+        message: 'Failed to export the render.',
+        details: 'Check that the output folder still exists and that Noodles has write access.',
+        originalError: error,
+      })
+    },
+    [setFileSystemError]
+  )
 
   const { startCapture, startSequenceCapture, captureFrame, currentFrame, isRendering } =
     useRenderer({
@@ -386,7 +414,14 @@ export default function TimelineEditor() {
   })
 
   const resolveRendersDirectory = useCallback(async () => {
-    if (rendersDirectoryHandleRef.current) return rendersDirectoryHandleRef.current
+    if (
+      rendersDirectoryHandleRef.current &&
+      rendersDirectoryContextRef.current === rendersDirectoryContext
+    ) {
+      return rendersDirectoryHandleRef.current
+    }
+    rendersDirectoryHandleRef.current = null
+    rendersDirectoryContextRef.current = null
 
     if (activeStorageType !== 'publicFolder' && currentDirectory) {
       try {
@@ -401,50 +436,55 @@ export default function TimelineEditor() {
     try {
       const handle = await window.showDirectoryPicker({ mode: 'readwrite' })
       rendersDirectoryHandleRef.current = handle
+      rendersDirectoryContextRef.current = rendersDirectoryContext
       return handle
     } catch (error) {
       if ((error as DOMException).name === 'AbortError') return null
       throw error
     }
-  }, [activeStorageType, currentDirectory, rendersDirectory])
+  }, [activeStorageType, currentDirectory, rendersDirectory, rendersDirectoryContext])
 
   const startRender = useCallback(async () => {
-    let canvas: HTMLCanvasElement | null = null
+    try {
+      let canvas: HTMLCanvasElement | null = null
 
-    if (basemapEnabled) {
-      if (!mapRef.current) {
-        debugRender('Start Render: maplibre is not defined (when basemapEnabled is true)')
+      if (basemapEnabled) {
+        if (!mapRef.current) {
+          debugRender('Start Render: maplibre is not defined (when basemapEnabled is true)')
+          return
+        }
+        canvas = mapRef.current.getCanvas()
+      } else {
+        // Pure Deck.gl mode
+        if (!deckRef.current) {
+          debugRender('Start Render: deckRef is not defined (when basemapEnabled is false)')
+          return
+        }
+        // @ts-expect-error canvas is protected but accessible
+        canvas = deckRef.current.canvas
+      }
+
+      if (!canvas) {
+        debugRender('Start Render: Failed to get canvas element')
         return
       }
-      canvas = mapRef.current.getCanvas()
-    } else {
-      // Pure Deck.gl mode
-      if (!deckRef.current) {
-        debugRender('Start Render: deckRef is not defined (when basemapEnabled is false)')
-        return
-      }
-      // @ts-expect-error canvas is protected but accessible
-      canvas = deckRef.current.canvas
+
+      const directoryHandle = await resolveRendersDirectory()
+      if (!directoryHandle) return
+
+      await startCapture({
+        canvas,
+        codec,
+        directoryHandle,
+        fileName: fileName || noodles.projectName || 'render',
+        // This always scales the video to the specified value, regardless of `canvas` size
+        ...resolution,
+        startFrame: Math.floor((inPoint ?? 0) * framerate),
+        endFrame: Math.floor((outPoint ?? sequenceLength) * framerate),
+      })
+    } catch (error) {
+      reportExportError(error)
     }
-
-    if (!canvas) {
-      debugRender('Start Render: Failed to get canvas element')
-      return
-    }
-
-    const directoryHandle = await resolveRendersDirectory()
-    if (!directoryHandle) return
-
-    await startCapture({
-      canvas,
-      codec,
-      directoryHandle,
-      fileName: fileName || noodles.projectName || 'render',
-      // This always scales the video to the specified value, regardless of `canvas` size
-      ...resolution,
-      startFrame: Math.floor((inPoint ?? 0) * framerate),
-      endFrame: Math.floor((outPoint ?? sequenceLength) * framerate),
-    })
   }, [
     startCapture,
     codec,
@@ -457,80 +497,99 @@ export default function TimelineEditor() {
     resolveRendersDirectory,
     fileName,
     noodles.projectName,
+    reportExportError,
   ])
 
   const takeScreenshot = useCallback(async () => {
-    if (!deckRef.current) {
-      debugRender('Take Screenshot: deck is not defined')
-      return
-    }
-    if (basemapEnabled && !mapRef.current) {
-      debugRender('Take Screenshot: maplibre is not defined')
-      return
-    }
+    try {
+      if (!deckRef.current) {
+        debugRender('Take Screenshot: deck is not defined')
+        return
+      }
+      if (basemapEnabled && !mapRef.current) {
+        debugRender('Take Screenshot: maplibre is not defined')
+        return
+      }
 
-    const directoryHandle = await resolveRendersDirectory()
-    if (!directoryHandle) return
+      const directoryHandle = await resolveRendersDirectory()
+      if (!directoryHandle) return
 
-    const suggestedName = fileName || noodles.projectName || 'screenshot'
-    await captureScreenshot(
-      suggestedName,
-      () => {
-        redraw()
-        // @ts-expect-error canvas is protected
-        return deckRef.current.canvas!
-      },
-      1,
-      directoryHandle
-    )
-  }, [noodles.projectName, redraw, basemapEnabled, resolveRendersDirectory, fileName])
+      const suggestedName = fileName || noodles.projectName || 'screenshot'
+      await captureScreenshot(
+        suggestedName,
+        () => {
+          redraw()
+          // @ts-expect-error canvas is protected
+          return deckRef.current.canvas!
+        },
+        1,
+        directoryHandle,
+        imageFormat
+      )
+    } catch (error) {
+      reportExportError(error)
+    }
+  }, [
+    noodles.projectName,
+    redraw,
+    basemapEnabled,
+    resolveRendersDirectory,
+    fileName,
+    imageFormat,
+    reportExportError,
+  ])
 
   const selectRendersDirectory = useCallback(async () => {
     try {
       const handle = await window.showDirectoryPicker({ mode: 'readwrite' })
       rendersDirectoryHandleRef.current = handle
+      rendersDirectoryContextRef.current = rendersDirectoryContext
       // Persist the folder name to the OutOp so it survives project reloads
       activeOutOp?.inputs.rendersDirectory.setValue(handle.name)
     } catch (e) {
-      if ((e as DOMException).name !== 'AbortError') throw e
+      if ((e as DOMException).name !== 'AbortError') reportExportError(e)
     }
-  }, [activeOutOp])
+  }, [activeOutOp, rendersDirectoryContext, reportExportError])
 
   const exportSequence = useCallback(async () => {
-    if (!deckRef.current) {
-      debugRender('Export Sequence: deck is not defined')
-      return
-    }
-    if (basemapEnabled && !mapRef.current) {
-      debugRender('Export Sequence: maplibre is not defined')
-      return
-    }
+    try {
+      if (!deckRef.current) {
+        debugRender('Export Sequence: deck is not defined')
+        return
+      }
+      if (basemapEnabled && !mapRef.current) {
+        debugRender('Export Sequence: maplibre is not defined')
+        return
+      }
 
-    const rendersDir = await resolveRendersDirectory()
-    if (!rendersDir) return
+      const rendersDir = await resolveRendersDirectory()
+      if (!rendersDir) return
 
-    let canvas: HTMLCanvasElement
-    if (basemapEnabled) {
-      canvas = mapRef.current!.getCanvas()
-    } else {
-      // @ts-expect-error canvas is protected
-      canvas = deckRef.current.canvas!
+      let canvas: HTMLCanvasElement
+      if (basemapEnabled) {
+        canvas = mapRef.current!.getCanvas()
+      } else {
+        // @ts-expect-error canvas is protected
+        canvas = deckRef.current.canvas!
+      }
+
+      await startSequenceCapture({
+        canvas,
+        // Basemap scenes use mapProps.onIdle for frame readiness; pure-deck scenes need
+        // onAfterRender wired up inside startSequenceCapture via getDeck.
+        getDeck: basemapEnabled ? undefined : () => deckRef.current,
+        directoryHandle: rendersDir,
+        fileName: fileName || noodles.projectName || 'render',
+        captureDelay,
+        waitForData,
+        startFrame: Math.floor((inPoint ?? 0) * framerate),
+        endFrame: Math.floor((outPoint ?? sequenceLength) * framerate),
+        onFrameStart: (frame, total) => debugRender('Exporting frame %d/%d', frame + 1, total),
+        onFrameComplete: (frame, total) => debugRender('Completed frame %d/%d', frame, total),
+      })
+    } catch (error) {
+      reportExportError(error)
     }
-
-    await startSequenceCapture({
-      canvas,
-      // Basemap scenes use mapProps.onIdle for frame readiness; pure-deck scenes need
-      // onAfterRender wired up inside startSequenceCapture via getDeck.
-      getDeck: basemapEnabled ? undefined : () => deckRef.current,
-      directoryHandle: rendersDir,
-      fileName: fileName || noodles.projectName || 'render',
-      captureDelay,
-      waitForData,
-      startFrame: Math.floor((inPoint ?? 0) * framerate),
-      endFrame: Math.floor((outPoint ?? sequenceLength) * framerate),
-      onFrameStart: (frame, total) => debugRender('Exporting frame %d/%d', frame + 1, total),
-      onFrameComplete: (frame, total) => debugRender('Completed frame %d/%d', frame, total),
-    })
   }, [
     startSequenceCapture,
     sequenceLength,
@@ -543,6 +602,7 @@ export default function TimelineEditor() {
     resolveRendersDirectory,
     fileName,
     noodles.projectName,
+    reportExportError,
   ])
 
   // Increase the render target resolution to increase map tile detail.

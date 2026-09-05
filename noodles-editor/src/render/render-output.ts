@@ -1,5 +1,6 @@
 const RENDER_EXTENSION_RE = /\.(?:jpe?g|png|mp4)$/i
 const INVALID_FILENAME_CHARS_RE = /[\\/:*?"<>|]+/g
+let allocationLock = Promise.resolve()
 
 function stripControlCharacters(value: string): string {
   return Array.from(value)
@@ -49,17 +50,53 @@ export async function getNextRenderVersion(
   return { baseName, version: highestVersion + 1 }
 }
 
+async function withAllocationLock<T>(allocate: () => Promise<T>): Promise<T> {
+  const previous = allocationLock
+  let release = () => {}
+  const current = new Promise<void>(resolve => {
+    release = resolve
+  })
+  allocationLock = current
+
+  await previous.catch(() => {})
+  try {
+    return await allocate()
+  } finally {
+    release()
+    if (allocationLock === current) {
+      allocationLock = Promise.resolve()
+    }
+  }
+}
+
+export async function reserveNextRenderVersion(
+  directoryHandle: FileSystemDirectoryHandle,
+  requestedBaseName: string,
+  reservationSuffix: string,
+  fallback = 'render'
+): Promise<{ baseName: string; version: number }> {
+  return withAllocationLock(async () => {
+    const allocation = await getNextRenderVersion(directoryHandle, requestedBaseName, fallback)
+    await directoryHandle.getFileHandle(
+      `${allocation.baseName}-v${allocation.version}${reservationSuffix}`,
+      { create: true }
+    )
+    return allocation
+  })
+}
+
 export async function getVersionedRenderFileName(
   directoryHandle: FileSystemDirectoryHandle,
   requestedBaseName: string,
   extension: string,
   fallback = 'render'
 ): Promise<string> {
-  const { baseName, version } = await getNextRenderVersion(
+  const normalizedExtension = extension.replace(/^\./, '')
+  const { baseName, version } = await reserveNextRenderVersion(
     directoryHandle,
     requestedBaseName,
+    `.${normalizedExtension}`,
     fallback
   )
-  const normalizedExtension = extension.replace(/^\./, '')
   return `${baseName}-v${version}.${normalizedExtension}`
 }
