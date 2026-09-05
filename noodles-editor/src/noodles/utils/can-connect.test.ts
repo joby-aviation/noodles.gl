@@ -323,6 +323,20 @@ describe('schemasAreCompatible', () => {
     expect(schemasAreCompatible(target, source)).toBe(false)
   })
 
+  it('allows optional target properties to be absent from the source', () => {
+    const source = z.object({ a: z.number() })
+    const target = z.object({ a: z.number(), b: z.string().optional() })
+
+    expect(schemasAreCompatible(source, target)).toBe(true)
+  })
+
+  it('still validates optional target properties when they exist in the source', () => {
+    const source = z.object({ a: z.number(), b: z.number() })
+    const target = z.object({ a: z.number(), b: z.string().optional() })
+
+    expect(schemasAreCompatible(source, target)).toBe(false)
+  })
+
   it('objects with incompatible property types are incompatible', () => {
     const source = z.object({ a: z.string() })
     const target = z.object({ a: z.number() })
