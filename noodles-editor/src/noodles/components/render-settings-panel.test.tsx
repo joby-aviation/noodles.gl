@@ -24,4 +24,27 @@ describe('RenderSettingsPanel preview scale', () => {
     fireEvent.change(previewMode, { target: { value: 'manual' } })
     expect(screen.getByLabelText('Scale')).toHaveValue('0.65')
   })
+
+  it('shows the resolved filename and protects expression-driven values', () => {
+    const op = new OutOp('/out')
+    op.inputs.fileName.setValue('LA-vertistop')
+    op.inputs.fileName.setExpression("'FL-' + 'routes'")
+    const { container } = render(<RenderSettingsPanel op={op} />)
+
+    const fileName = container.querySelector<HTMLInputElement>('#render-file-name')!
+    expect(fileName).toHaveValue('FL-routes')
+    expect(fileName).toBeDisabled()
+    expect(container.textContent).toContain('fx')
+    expect(op.inputs.fileName.serialize()).toEqual({ $expr: "'FL-' + 'routes'" })
+  })
+
+  it('updates a literal filename from the output settings', () => {
+    const op = new OutOp('/out')
+    const { container } = render(<RenderSettingsPanel op={op} />)
+    const fileName = container.querySelector<HTMLInputElement>('#render-file-name')!
+
+    fireEvent.change(fileName, { target: { value: 'LA-vertistop' } })
+
+    expect(op.inputs.fileName.value).toBe('LA-vertistop')
+  })
 })

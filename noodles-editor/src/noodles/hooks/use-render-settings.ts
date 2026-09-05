@@ -36,6 +36,7 @@ export function useRenderSettings(): RenderSettings {
       outOp.inputs.scaleControl.subscribe(() => updateSettings()),
       outOp.inputs.framerate.subscribe(() => updateSettings()),
       outOp.inputs.captureDelay.subscribe(() => updateSettings()),
+      outOp.inputs.fileName.subscribe(() => updateSettings()),
       outOp.inputs.rendersDirectory.subscribe(() => updateSettings()),
     ]
 
@@ -74,6 +75,7 @@ export function getRenderSettingsFromOutOp(outOp: OutOp): RenderSettings {
     scaleControl: outOp.inputs.scaleControl.value,
     framerate: outOp.inputs.framerate.value,
     captureDelay: outOp.inputs.captureDelay.value,
+    fileName: outOp.inputs.fileName.value,
     rendersDirectory: outOp.inputs.rendersDirectory.value,
   }
 }
@@ -114,6 +116,9 @@ export function setRenderSettingsOnOutOp(outOp: OutOp, settings: Partial<RenderS
   }
   if (settings.captureDelay !== undefined) {
     outOp.inputs.captureDelay.setValue(settings.captureDelay)
+  }
+  if (settings.fileName !== undefined) {
+    outOp.inputs.fileName.setValue(settings.fileName)
   }
   if (settings.rendersDirectory !== undefined) {
     outOp.inputs.rendersDirectory.setValue(settings.rendersDirectory)
