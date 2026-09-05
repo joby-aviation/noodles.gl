@@ -62,6 +62,7 @@ import {
   S2LayerOp,
   SmoothOp,
   SwitchOp,
+  TableEditorOp,
   Tile3DLayerOp,
   TimeSeriesOp,
   TripsLayerOp,
@@ -75,6 +76,28 @@ describe('basic Operators', () => {
     const operator = new NumberOp('/num-0')
     expect(operator.data.val).toEqual(0)
     expect(operator.outputData.val).toEqual(0)
+  })
+})
+
+describe('TableEditorOp', () => {
+  it('materializes declared schema defaults in output data', () => {
+    const operator = new TableEditorOp('/table')
+    const schema = {
+      columns: [
+        {
+          name: 'anchor',
+          type: 'stringLiteral' as const,
+          defaultValue: 'start',
+          options: { values: ['start', 'end', 'middle'] },
+        },
+        { name: 'offset2d', type: 'vec2' as const, defaultValue: [64, 0] },
+        { name: 'offset3d', type: 'vec3' as const, defaultValue: [64, 0, 10] },
+      ],
+    }
+
+    const result = operator.execute({ data: [{}], schema })
+
+    expect(result.data).toEqual([{ anchor: 'start', offset2d: [64, 0], offset3d: [64, 0, 10] }])
   })
 })
 

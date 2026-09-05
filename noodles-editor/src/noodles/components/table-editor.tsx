@@ -10,14 +10,13 @@ import { AutoComplete } from 'primereact/autocomplete'
 import { Button } from 'primereact/button'
 import { InputSwitch } from 'primereact/inputswitch'
 import { InputText } from 'primereact/inputtext'
-import { GeocodingDialog } from './geocoding-dialog'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { Temporal } from 'temporal-polyfill'
 import type { TableEditorOp } from '../operators'
 import type { ColumnSchema, ColumnType, DateTimeValue, TableSchema } from '../table-schema'
-import { convertValue, getDefaultValue, temporalToString } from '../table-schema'
+import { getDefaultValue, validateTableData } from '../table-schema'
 import { getTimezoneOptions } from '../utils/timezone-utils'
 import { ColorSwatch } from './color-swatch'
+import { GeocodingDialog } from './geocoding-dialog'
 import { SchemaEditorDialog } from './schema-editor-dialog'
 import s from './table-editor.module.css'
 
@@ -863,7 +862,7 @@ interface TableEditorProps {
 }
 
 export function TableEditor({ data, schema, onDataChange, onSchemaChange }: TableEditorProps) {
-  const [tableData, setTableData] = useState(data)
+  const [tableData, setTableData] = useState(() => validateTableData(data, schema))
   const activeEdit = useActiveEdit()
 
   // Mirrors tableData so a flushed cell edit and the row mutation that triggered
@@ -878,8 +877,8 @@ export function TableEditor({ data, schema, onDataChange, onSchemaChange }: Tabl
   }
 
   useEffect(() => {
-    setTableData(data)
-  }, [data])
+    setTableData(validateTableData(data, schema))
+  }, [data, schema])
 
   const addRow = () => {
     activeEdit.flush()
@@ -892,20 +891,10 @@ export function TableEditor({ data, schema, onDataChange, onSchemaChange }: Tabl
 
   const handleSchemaChange = (newSchema: TableSchema) => {
     activeEdit.flush()
-    // Update data to match new schema
-    const newData = tableDataRef.current.map(row => {
-      const newRow: Record<string, unknown> = {}
-      for (const col of newSchema.columns) {
-        const existingValue = row[col.name]
-        // Convert existing value to new type, or use default if missing
-        if (existingValue !== undefined) {
-          newRow[col.name] = convertValue(existingValue, col.type)
-        } else {
-          newRow[col.name] = col.defaultValue ?? getDefaultValue(col)
-        }
-      }
-      return newRow
-    })
+    // Preserve valid cells and materialize the new schema's declared defaults for
+    // missing or invalid cells. This is the same path used when a schema arrives
+    // through a connection, so custom vector and string-literal defaults agree.
+    const newData = validateTableData(tableDataRef.current, newSchema)
 
     onSchemaChange(newSchema, newData)
     tableDataRef.current = newData
