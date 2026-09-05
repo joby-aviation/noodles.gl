@@ -1,4 +1,20 @@
-import type { ReactNode } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
+
+const FIT_PADDING_PX = 16
+
+export function calculateFitScale(
+  panelWidth: number,
+  panelHeight: number,
+  surfaceWidth: number,
+  surfaceHeight: number
+): number {
+  return Math.min(
+    (panelWidth - FIT_PADDING_PX) / surfaceWidth,
+    (panelHeight - FIT_PADDING_PX) / surfaceHeight,
+    1
+  )
+}
 
 // Get CSS scale of an element, e.g. CSS transform: "scale(2)" returns { x: 2, y: 2 }
 export function getTransformScaleFactor(target: Element): { x: number; y: number } {
@@ -21,16 +37,72 @@ export function getTransformScaleFactor(target: Element): { x: number; y: number
   return { x: scaleX, y: scaleY }
 }
 
-export function TransformScale({ scale, children }: { scale: number; children: ReactNode }) {
+export function TransformScale({
+  scale,
+  scaleMode = 'manual',
+  children,
+}: {
+  scale: number
+  scaleMode?: 'fit' | 'manual'
+  children: ReactNode
+}) {
+  const stageRef = useRef<HTMLDivElement>(null)
+  const surfaceRef = useRef<HTMLDivElement>(null)
+  const [fitScale, setFitScale] = useState(1)
+  const isFit = scaleMode === 'fit'
+
+  useLayoutEffect(() => {
+    if (!isFit) return
+
+    const stage = stageRef.current
+    const surface = surfaceRef.current
+    if (!stage || !surface) return
+
+    const updateScale = () => {
+      // client/offset dimensions are CSS layout boxes and exclude CSS transforms.
+      const panelWidth = stage.clientWidth
+      const panelHeight = stage.clientHeight
+      const surfaceWidth = surface.offsetWidth
+      const surfaceHeight = surface.offsetHeight
+      if (panelWidth <= FIT_PADDING_PX || panelHeight <= FIT_PADDING_PX) return
+      if (surfaceWidth <= 0 || surfaceHeight <= 0) return
+      setFitScale(calculateFitScale(panelWidth, panelHeight, surfaceWidth, surfaceHeight))
+    }
+
+    updateScale()
+    const observer = new ResizeObserver(updateScale)
+    observer.observe(stage)
+    observer.observe(surface)
+    return () => observer.disconnect()
+  }, [isFit])
+
+  const stageStyle: CSSProperties = {
+    position: 'absolute',
+    inset: 0,
+    overflow: 'hidden',
+    ...(isFit ? { display: 'flex', alignItems: 'center', justifyContent: 'center' } : undefined),
+  }
+
   return (
     <div
-      className="transform-scale"
-      style={{
-        transform: `scale(${scale})`,
-        transformOrigin: 'top left',
-      }}
+      className="transform-scale-stage"
+      data-scale-mode={scaleMode}
+      ref={stageRef}
+      style={stageStyle}
     >
-      {children}
+      <div
+        ref={surfaceRef}
+        className="transform-scale"
+        style={{
+          flex: '0 0 auto',
+          width: 'max-content',
+          height: 'max-content',
+          transform: `scale(${isFit ? fitScale : scale})`,
+          transformOrigin: isFit ? 'center center' : 'top left',
+        }}
+      >
+        {children}
+      </div>
     </div>
   )
 }

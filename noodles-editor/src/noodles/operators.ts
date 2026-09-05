@@ -152,7 +152,7 @@ import {
 import { DEFAULT_LATITUDE, DEFAULT_LONGITUDE, safeMode } from './globals'
 import { getKeysStore } from './keys-store'
 import { getAllOps, getOp } from './store'
-import { prepareTableDataForOutput, type TableSchema } from './table-schema'
+import { prepareTableDataForOutput, type TableSchema, validateTableData } from './table-schema'
 import type { ExtensionConstructorArgs, LayerPropsValue } from './types'
 import { composeAccessor, isAccessor } from './utils/accessor-helpers'
 import { deepEqual } from './utils/deep-equal'
@@ -1956,7 +1956,7 @@ export class FileOp extends Operator<FileOp> {
       url: new FileUrlField(),
       text: new StringField(),
       autoType: new BooleanField(true), // TODO: Make this only available for csv
-      pulse: new NumberField(0, { min: 0, step: 1 }),
+      pulse: new NumberField(0, { min: 0, step: 1, showByDefault: false }),
     }
   }
 
@@ -2373,9 +2373,12 @@ export class TableEditorOp extends Operator<TableEditorOp> {
   }
 
   execute({ data, schema }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const validatedData = schema ? validateTableData(data, schema as TableSchema) : data
     // Convert dateTime strings to Temporal.ZonedDateTime for output
     // This happens at the operator boundary: internal storage = strings, output = Temporal
-    const outputData = schema ? prepareTableDataForOutput(data, schema as TableSchema) : data
+    const outputData = schema
+      ? prepareTableDataForOutput(validatedData, schema as TableSchema)
+      : validatedData
 
     return {
       data: outputData,
@@ -4949,6 +4952,7 @@ export class OutOp extends Operator<OutOp> {
       width: new NumberField(1920, { min: 1, max: 8192, step: 1 }),
       height: new NumberField(1080, { min: 1, max: 8192, step: 1 }),
       lod: new NumberField(2, { min: 0.1, max: 4, step: 0.1 }),
+      scaleMode: new StringLiteralField('fit', ['fit', 'manual']),
       waitForData: new BooleanField(true),
       codec: new StringLiteralField('avc', ['avc', 'hevc', 'vp9', 'av1']),
       bitrateMbps: new NumberField(10, { min: 1, max: 100, step: 1 }),
