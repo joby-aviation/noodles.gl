@@ -27,6 +27,34 @@ function formatZodIssue(issue: z.core.$ZodIssue): string {
   }
 }
 
+function formatTypeMismatch(from: Field, to: Field, toSchema: z.ZodType): string {
+  if (from.value !== undefined) {
+    const result = toSchema.safeParse(from.value)
+    if (!result.success) {
+      const issue = result.error.issues[0]
+      const targetFieldName = to.pathToProps.at(-1)
+      const issuePath = issue.path.map(String).join('.')
+      const path = [targetFieldName, issuePath].filter(Boolean).join('.')
+      const detail = issue.message.replace(/^Invalid input: /, '')
+
+      return path ? `Type mismatch at ${path}: ${detail}` : `Type mismatch: ${detail}`
+    }
+  }
+
+  const fromFieldType = (from.constructor as typeof Field).type
+  const toFieldType = (to.constructor as typeof Field).type
+  const fromFieldName = from.pathToProps.at(-1)
+  const toFieldName = to.pathToProps.at(-1)
+
+  if (fromFieldName || toFieldName) {
+    return `Type mismatch: source ${fromFieldName || fromFieldType} schema is incompatible with target ${toFieldName || toFieldType} schema`
+  }
+  if (fromFieldType === toFieldType) {
+    return `Type mismatch: ${fromFieldType} field schemas are structurally incompatible`
+  }
+  return `Type mismatch: ${fromFieldType} cannot connect to ${toFieldType}`
+}
+
 type ZodDef = {
   type: string
   innerType?: z.ZodType
@@ -314,7 +342,7 @@ export function validateConnection(from: Field, to: Field): ConnectionValidation
     return {
       valid: false,
       severity: 'error',
-      error: `Type mismatch: ${fromFieldType} cannot connect to ${toFieldType}`,
+      error: formatTypeMismatch(from, to, toSchema),
     }
   }
   if (debugConnect.enabled) {

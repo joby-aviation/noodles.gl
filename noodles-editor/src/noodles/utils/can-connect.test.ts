@@ -186,6 +186,19 @@ describe('ValidateConnection', () => {
     expect(result.error).toContain('number')
   })
 
+  it('identifies the incompatible property in compound fields', () => {
+    const source = new CompoundPropsField({ latitude: new StringField('north') })
+    const target = new CompoundPropsField({ latitude: new NumberField() })
+    target.pathToProps = ['/target', 'par', 'viewState']
+
+    const result = validateConnection(source, target)
+
+    expect(result.valid).toBe(false)
+    expect(result.error).toBe(
+      'Type mismatch at viewState.latitude: expected number, received string'
+    )
+  })
+
   it('returns valid for UnknownField connecting to any field', () => {
     const unknownField = new UnknownField()
     const numberField = new NumberField(10)
