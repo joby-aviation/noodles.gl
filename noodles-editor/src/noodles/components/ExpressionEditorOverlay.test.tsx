@@ -45,7 +45,11 @@ describe('ExpressionEditorOverlay', () => {
         value="d."
         onChange={onChange}
         onClose={onClose}
-        context={{ dataKeys: ['value'], globals: [], operatorPaths: [] }}
+        context={{
+          dataKeys: [{ label: 'value', path: ['value'] }],
+          globals: [],
+          operatorPaths: [],
+        }}
         anchorRect={null}
       />
     )
@@ -71,7 +75,11 @@ describe('ExpressionEditorOverlay', () => {
         value="d."
         onChange={vi.fn()}
         onClose={onClose}
-        context={{ dataKeys: ['value'], globals: [], operatorPaths: [] }}
+        context={{
+          dataKeys: [{ label: 'value', path: ['value'] }],
+          globals: [],
+          operatorPaths: [],
+        }}
         anchorRect={null}
       />
     )

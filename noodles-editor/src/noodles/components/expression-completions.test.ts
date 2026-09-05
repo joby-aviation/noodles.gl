@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { ExpressionContext } from '../utils/expression-context'
+import type { DataKeyDefinition, ExpressionContext } from '../utils/expression-context'
 import { createExpressionCompletionProvider } from './expression-completions'
 
 const monaco = {
@@ -28,7 +28,7 @@ interface TestCompletionItem {
   }
 }
 
-function complete(text: string, dataKeys: string[]) {
+function complete(text: string, dataKeys: DataKeyDefinition[]) {
   const context: ExpressionContext = {
     dataKeys,
     globals: [],
@@ -50,7 +50,7 @@ function complete(text: string, dataKeys: string[]) {
 
 describe('expression data-property completions', () => {
   it('replaces dot notation with bracket notation for keys containing spaces', () => {
-    const suggestion = complete('d.Dis', ['Display Name']).find(
+    const suggestion = complete('d.Dis', [{ label: 'Display Name', path: ['Display Name'] }]).find(
       item => item.label === 'Display Name'
     )
 
@@ -66,7 +66,9 @@ describe('expression data-property completions', () => {
   })
 
   it('keeps dot notation for valid JavaScript property identifiers', () => {
-    const suggestion = complete('d.Dis', ['DisplayName']).find(item => item.label === 'DisplayName')
+    const suggestion = complete('d.Dis', [{ label: 'DisplayName', path: ['DisplayName'] }]).find(
+      item => item.label === 'DisplayName'
+    )
 
     expect(suggestion).toMatchObject({
       insertText: 'DisplayName',
@@ -78,12 +80,32 @@ describe('expression data-property completions', () => {
   })
 
   it('uses bracket notation in top-level data-property shortcuts', () => {
-    const suggestion = complete('', ['Display Name']).find(
+    const suggestion = complete('', [{ label: 'Display Name', path: ['Display Name'] }]).find(
       item => item.label === 'd["Display Name"]'
     )
 
     expect(suggestion).toMatchObject({
       insertText: 'd["Display Name"]',
+    })
+  })
+
+  it('preserves periods in literal property names', () => {
+    const suggestion = complete('d.Dis', [{ label: 'Display.Name', path: ['Display.Name'] }]).find(
+      item => item.label === 'Display.Name'
+    )
+
+    expect(suggestion).toMatchObject({
+      insertText: '["Display.Name"]',
+    })
+  })
+
+  it('keeps nested object paths distinct from literal dotted properties', () => {
+    const suggestion = complete('d.pro', [
+      { label: 'profile.Display Name', path: ['profile', 'Display Name'] },
+    ]).find(item => item.label === 'profile.Display Name')
+
+    expect(suggestion).toMatchObject({
+      insertText: 'profile["Display Name"]',
     })
   })
 })
