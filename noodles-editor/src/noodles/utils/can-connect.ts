@@ -191,6 +191,15 @@ export function schemasAreCompatible(from: z.ZodType, to: z.ZodType, depth = 0):
       for (const [key, toSchema] of Object.entries(toDef.shape)) {
         const fromSchema = fromDef.shape?.[key]
         if (!fromSchema) {
+          // Object properties whose schemas accept undefined are optional and do not
+          // need to be present in the source shape.
+          if (toSchema.safeParse(undefined).success) {
+            if (debugConnect.enabled) {
+              const indent = '  '.repeat(depth)
+              debugConnect(`${indent}✓ Optional property '${key}' may be omitted from source`)
+            }
+            continue
+          }
           if (debugConnect.enabled) {
             const indent = '  '.repeat(depth)
             debugConnect(`${indent}✗ Missing property '${key}' in source`)
