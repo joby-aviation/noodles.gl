@@ -1,10 +1,17 @@
 import * as Dialog from '@radix-ui/react-dialog'
 import { Cross2Icon } from '@radix-ui/react-icons'
 import { useEffect, useState } from 'react'
+import { validateCustomEndpoint } from '../ai-chat/agent/providers/custom'
 import type { ProviderPreference } from '../noodles/keys-store'
 import { getEnvKeys, useKeysStore } from '../noodles/keys-store'
 import { analytics } from '../utils/analytics'
 import s from './settings-dialog.module.css'
+
+type EndpointStatus =
+  | { state: 'idle' }
+  | { state: 'checking' }
+  | { state: 'saved' }
+  | { state: 'failed'; message: string }
 
 interface SettingsDialogProps {
   open: boolean
@@ -133,12 +140,14 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
   const setProviderPreference = useKeysStore(state => state.setProviderPreference)
   const setCustomEndpoint = useKeysStore(state => state.setCustomEndpoint)
   const getActiveSource = useKeysStore(state => state.getActiveSource)
+  const removeProjectKey = useKeysStore(state => state.removeProjectKey)
 
   // Custom endpoint state (local form state)
   const [endpointBaseUrl, setEndpointBaseUrl] = useState(customEndpoint?.baseUrl || '')
   const [endpointApiKey, setEndpointApiKey] = useState(customEndpoint?.apiKey || '')
   const [endpointModel, setEndpointModel] = useState(customEndpoint?.model || '')
   const [endpointDisplayName, setEndpointDisplayName] = useState(customEndpoint?.displayName || '')
+  const [endpointStatus, setEndpointStatus] = useState<EndpointStatus>({ state: 'idle' })
 
   // Environment keys (static)
   const envKeys = getEnvKeys()
@@ -203,16 +212,43 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
     analytics.track('ai_provider_preference_changed', { preference })
   }
 
-  const handleSaveCustomEndpoint = () => {
-    if (endpointBaseUrl && endpointApiKey && endpointModel) {
-      setCustomEndpoint({
-        baseUrl: endpointBaseUrl,
-        apiKey: endpointApiKey,
-        model: endpointModel,
-        displayName: endpointDisplayName || undefined,
+  // Checks the endpoint before saving it. A typo'd base URL is the commonest
+  // mistake here and it would otherwise only surface as a failed chat message,
+  // which is a much worse place to learn about it.
+  const handleSaveCustomEndpoint = async () => {
+    if (!endpointBaseUrl || !endpointApiKey || !endpointModel) return
+
+    setEndpointStatus({ state: 'checking' })
+    const result = await validateCustomEndpoint(endpointBaseUrl, endpointApiKey)
+
+    if (!result.ok) {
+      setEndpointStatus({
+        state: 'failed',
+        message: result.error ?? 'The endpoint did not respond',
       })
-      analytics.track('custom_endpoint_saved')
+      analytics.track('custom_endpoint_validation_failed')
+      return
     }
+
+    // The server answered but does not serve the model that was typed. Saving
+    // anyway would be worse than saying so: nothing would work.
+    if (result.models && !result.models.includes(endpointModel)) {
+      setEndpointStatus({
+        state: 'failed',
+        message: `The endpoint works, but does not list “${endpointModel}”. Available: ${result.models.slice(0, 8).join(', ')}`,
+      })
+      analytics.track('custom_endpoint_validation_failed')
+      return
+    }
+
+    setCustomEndpoint({
+      baseUrl: endpointBaseUrl,
+      apiKey: endpointApiKey,
+      model: endpointModel,
+      displayName: endpointDisplayName || undefined,
+    })
+    setEndpointStatus({ state: 'saved' })
+    analytics.track('custom_endpoint_saved')
   }
 
   const handleClearCustomEndpoint = () => {
@@ -383,6 +419,28 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
                     </label>
 
                     <label
+                      className={`${s.providerOption} ${providerPreference === 'openrouter' ? s.providerOptionSelected : ''}`}
+                    >
+                      <input
+                        type="radio"
+                        name="providerPreference"
+                        value="openrouter"
+                        checked={providerPreference === 'openrouter'}
+                        onChange={e =>
+                          handleProviderPreferenceChange(e.target.value as ProviderPreference)
+                        }
+                        className={s.providerRadio}
+                      />
+                      <div className={s.providerOptionContent}>
+                        <div className={s.providerOptionTitle}>Always use OpenRouter</div>
+                        <div className={s.providerOptionDescription}>
+                          Gemini, GPT, Claude and others behind one key, billed by OpenRouter
+                          (requires OpenRouter API key below)
+                        </div>
+                      </div>
+                    </label>
+
+                    <label
                       className={`${s.providerOption} ${providerPreference === 'custom' ? s.providerOptionSelected : ''}`}
                     >
                       <input
@@ -404,13 +462,13 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
                     </label>
 
                     <label
-                      className={`${s.providerOption} ${providerPreference === 'chrome-ai' ? s.providerOptionSelected : ''}`}
+                      className={`${s.providerOption} ${providerPreference === 'chrome' ? s.providerOptionSelected : ''}`}
                     >
                       <input
                         type="radio"
                         name="providerPreference"
-                        value="chrome-ai"
-                        checked={providerPreference === 'chrome-ai'}
+                        value="chrome"
+                        checked={providerPreference === 'chrome'}
                         onChange={e =>
                           handleProviderPreferenceChange(e.target.value as ProviderPreference)
                         }
@@ -511,14 +569,26 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
                         </label>
                       </div>
 
+                      {endpointStatus.state === 'failed' && (
+                        <div className={s.endpointError}>{endpointStatus.message}</div>
+                      )}
+                      {endpointStatus.state === 'saved' && (
+                        <div className={s.endpointOk}>Endpoint reachable and saved.</div>
+                      )}
+
                       <div className={s.actionButtonContainer}>
                         <button
                           type="button"
                           onClick={handleSaveCustomEndpoint}
-                          disabled={!endpointBaseUrl || !endpointApiKey || !endpointModel}
+                          disabled={
+                            !endpointBaseUrl ||
+                            !endpointApiKey ||
+                            !endpointModel ||
+                            endpointStatus.state === 'checking'
+                          }
                           className={s.primaryButton}
                         >
-                          Save Endpoint
+                          {endpointStatus.state === 'checking' ? 'Checking…' : 'Test and Save'}
                         </button>
                         {customEndpoint && (
                           <button
@@ -622,6 +692,25 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
                       onProjectRemove={() => {
                         removeProjectKey('anthropic')
                         analytics.track('project_key_removed', { key: 'anthropic' })
+                      }}
+                    />
+
+                    <KeyGroup
+                      label="OpenRouter API Key"
+                      description="Optional alternative to the Anthropic key. Lets the AI assistant run on Gemini, GPT, or any other model OpenRouter hosts, billed through OpenRouter."
+                      placeholder="sk-or-v1-..."
+                      browserValue={browserKeys.openrouter || ''}
+                      projectValue={projectKeys.openrouter}
+                      envValue={envKeys.openrouter}
+                      activeSource={getActiveSource('openrouter')}
+                      onBrowserChange={value => setBrowserKey('openrouter', value)}
+                      onBrowserClear={() => {
+                        setBrowserKey('openrouter', undefined)
+                        analytics.track('key_cleared', { key: 'openrouter' })
+                      }}
+                      onProjectRemove={() => {
+                        removeProjectKey('openrouter')
+                        analytics.track('project_key_removed', { key: 'openrouter' })
                       }}
                     />
 

@@ -20,6 +20,145 @@ import type {
   ToolResult,
 } from './types'
 
+// Longest string input value list_nodes reports in full. CodeOp.code and
+// DuckDbOp.sql are routinely kilobytes each, which dominated the payload when
+// every node in the project reported every input verbatim.
+const INPUT_PREVIEW_CHARS = 200
+
+// Clips long string inputs for the project-wide listing. get_node_info still
+// returns inputs verbatim, so the full value is always one call away.
+function previewInputs(inputs: unknown): Record<string, unknown> {
+  if (typeof inputs !== 'object' || inputs === null) return {}
+
+  const out: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(inputs as Record<string, unknown>)) {
+    if (typeof value === 'string' && value.length > INPUT_PREVIEW_CHARS) {
+      out[key] = {
+        preview: value.slice(0, INPUT_PREVIEW_CHARS),
+        length: value.length,
+        hint: 'clipped — call get_node_info for the full value',
+      }
+    } else {
+      out[key] = value
+    }
+  }
+  return out
+}
+
+const MAX_DOC_RESULTS = 5
+const DOC_EXCERPT_CHARS = 600
+
+// Words too common in a docs query to discriminate between topics
+const DOC_STOP_WORDS = new Set([
+  'a',
+  'an',
+  'the',
+  'to',
+  'of',
+  'for',
+  'in',
+  'on',
+  'and',
+  'or',
+  'is',
+  'it',
+  'how',
+  'do',
+  'does',
+  'can',
+  'my',
+  'me',
+  'with',
+  'what',
+  'when',
+  'why',
+  'use',
+  'using',
+  'noodles',
+  'should',
+  'would',
+  'could',
+  'want',
+  'need',
+  'get',
+  'set',
+  'make',
+  'best',
+  'any',
+  'some',
+  'this',
+  'that',
+])
+
+function docTerms(query: string): string[] {
+  return query
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter(term => term.length > 1 && !DOC_STOP_WORDS.has(term))
+}
+
+// Per-term scoring, rather than matching the whole query as one substring: a
+// natural question like "how do I animate opacity over time" shares no literal
+// substring with any page, so whole-query matching found nothing. matchIndex is
+// where to centre the excerpt.
+function scoreTopic(
+  topic: { title: string; content: string; headings: Array<{ text: string }> },
+  query: string
+): { score: number; matchIndex: number } {
+  const terms = docTerms(query)
+  if (terms.length === 0) return { score: 0, matchIndex: 0 }
+
+  const title = topic.title.toLowerCase()
+  const content = topic.content.toLowerCase()
+  const headings = topic.headings.map(h => h.text.toLowerCase())
+
+  let score = 0
+  let matchIndex = -1
+
+  for (const term of terms) {
+    if (title.includes(term)) score += 8
+    if (headings.some(heading => heading.includes(term))) score += 3
+
+    // Presence only, not occurrence count. Counting repeats let the longest
+    // pages (the changelog above all) outrank the topic actually about the
+    // subject, purely by mentioning every word somewhere.
+    const found = content.indexOf(term)
+    if (found !== -1) {
+      score += 1
+      if (matchIndex === -1 || found < matchIndex) matchIndex = found
+    }
+  }
+
+  // Every term present is a much stronger signal than the same score spread
+  // across a subset of them
+  const allTermsPresent = terms.every(
+    term => title.includes(term) || content.includes(term) || headings.some(h => h.includes(term))
+  )
+  if (allTermsPresent && terms.length > 1) score += 4
+
+  return { score, matchIndex: Math.max(0, matchIndex) }
+}
+
+// A window of content centred on the match, snapped outward to line boundaries
+// so the excerpt does not start or end mid-word
+function excerptAround(content: string, matchIndex: number): string {
+  if (content.length <= DOC_EXCERPT_CHARS) return content
+
+  const half = Math.floor(DOC_EXCERPT_CHARS / 2)
+  let start = Math.max(0, matchIndex - half)
+  let end = Math.min(content.length, start + DOC_EXCERPT_CHARS)
+
+  const lineStart = content.lastIndexOf('\n', start)
+  if (lineStart !== -1 && start - lineStart < 120) start = lineStart + 1
+
+  const lineEnd = content.indexOf('\n', end)
+  if (lineEnd !== -1 && lineEnd - end < 120) end = lineEnd
+
+  const prefix = start > 0 ? '…' : ''
+  const suffix = end < content.length ? '…' : ''
+  return `${prefix}${content.slice(start, end)}${suffix}`
+}
+
 export class MCPTools {
   private consoleErrors: ConsoleError[] = []
   private project: NoodlesProject | null = null
@@ -219,9 +358,10 @@ export class MCPTools {
     }
   }
 
-  // Search documentation
+  // Search documentation, or fetch one topic in full by id
   async getDocumentation(params: {
-    query: string
+    query?: string
+    id?: string
     section?: 'users' | 'developers' | 'ai-assistant' | 'examples'
   }): Promise<ToolResult> {
     try {
@@ -231,18 +371,61 @@ export class MCPTools {
         return { success: false, error: 'Docs index not loaded' }
       }
 
-      // Simple text search across all topics
-      const query = params.query.toLowerCase()
-      const results = Object.values(docsIndex.topics)
-        .filter(topic => {
-          if (params.section && topic.section !== params.section) return false
-          return (
-            topic.title.toLowerCase().includes(query) || topic.content.toLowerCase().includes(query)
-          )
-        })
-        .slice(0, 5) // Limit results
+      // An id is an exact fetch: the caller already knows which topic it wants
+      // and needs the whole thing rather than an excerpt.
+      if (params.id) {
+        const topic = docsIndex.topics[params.id]
+        if (!topic) {
+          return {
+            success: false,
+            error: `No documentation topic with id "${params.id}". Search by query to find valid ids.`,
+          }
+        }
+        return { success: true, data: topic }
+      }
 
-      return { success: true, data: results }
+      const query = params.query?.trim()
+      if (!query) {
+        return { success: false, error: 'get_documentation requires either a query or an id' }
+      }
+
+      const scored = Object.values(docsIndex.topics)
+        .filter(topic => !params.section || topic.section === params.section)
+        .map(topic => ({ topic, ...scoreTopic(topic, query) }))
+        .filter(match => match.score > 0)
+        .sort((a, b) => b.score - a.score || a.topic.id.localeCompare(b.topic.id))
+        .slice(0, MAX_DOC_RESULTS)
+
+      if (scored.length === 0) {
+        return {
+          success: true,
+          data: {
+            query,
+            results: [],
+            message: 'No documentation matched. Try fewer or more general terms.',
+          },
+        }
+      }
+
+      // Excerpts rather than whole pages: a docs page runs to tens of thousands
+      // of characters, so returning five in full would overrun the result budget
+      // and be clipped at an arbitrary point. The id pulls one in full.
+      return {
+        success: true,
+        data: {
+          query,
+          results: scored.map(({ topic, matchIndex }) => ({
+            id: topic.id,
+            title: topic.title,
+            section: topic.section,
+            file: topic.file,
+            headings: topic.headings.map(h => h.text),
+            excerpt: excerptAround(topic.content, matchIndex),
+            fullLength: topic.content.length,
+          })),
+          hint: 'Call get_documentation with an id to read that topic in full.',
+        },
+      }
     } catch (error) {
       return {
         success: false,
@@ -773,11 +956,12 @@ export class MCPTools {
         // biome-ignore lint/suspicious/noExplicitAny: accessing dynamic operator state
         const executionState = operator ? (operator as any).executionState?.value : null
 
+        // Position is omitted deliberately: it is layout-only noise for the
+        // model, and get_node_info still reports it when actually needed
         return {
           id: node.id,
           type: node.type,
-          position: node.position,
-          inputs: node.data?.inputs || {},
+          inputs: previewInputs(node.data?.inputs),
           locked: node.data?.locked || false,
           executionState: executionState
             ? {
@@ -796,15 +980,21 @@ export class MCPTools {
         byType[n.type] = (byType[n.type] || 0) + 1
       })
 
+      // Role groupings carry ids only. They used to re-serialize the whole node
+      // objects, duplicating the bulk of the payload for no extra information.
       return {
         success: true,
         data: {
           nodes,
           totalCount: nodes.length,
           byType,
-          dataNodes: nodes.filter(n => ['FileOp', 'JSONOp', 'DuckDbOp', 'CSVOp'].includes(n.type)),
-          layerNodes: nodes.filter(n => n.type.includes('Layer')),
-          rendererNodes: nodes.filter(n => ['DeckRendererOp', 'OutOp'].includes(n.type)),
+          dataNodeIds: nodes
+            .filter(n => ['FileOp', 'JSONOp', 'DuckDbOp', 'CSVOp'].includes(n.type))
+            .map(n => n.id),
+          layerNodeIds: nodes.filter(n => n.type.includes('Layer')).map(n => n.id),
+          rendererNodeIds: nodes
+            .filter(n => ['DeckRendererOp', 'OutOp'].includes(n.type))
+            .map(n => n.id),
         },
       }
     } catch (error) {

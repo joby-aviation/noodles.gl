@@ -473,6 +473,28 @@
   border-color: #555;
 }
 
+/* Result of testing a custom endpoint before saving it */
+.endpointError,
+.endpointOk {
+  margin-top: 12px;
+  padding: 8px 10px;
+  font-size: 12px;
+  border-radius: 4px;
+  line-height: 1.4;
+}
+
+.endpointError {
+  background: #3a1f1f;
+  border: 1px solid #7f2d2d;
+  color: #f5b5b5;
+}
+
+.endpointOk {
+  background: #1f2f22;
+  border: 1px solid #2d7f45;
+  color: #b5f5c6;
+}
+
 /* Custom endpoint form container */
 .endpointFormFields {
   margin-top: 12px;

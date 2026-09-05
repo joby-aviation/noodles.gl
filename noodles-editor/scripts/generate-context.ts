@@ -256,9 +256,21 @@ function generateDocsIndex(): DocsIndex {
     const basename = path.basename(file)
     if (basename === 'README.md') continue
 
-    const content = fs.readFileSync(file, 'utf-8')
     const relativePath = path.relative(AI_CHAT_DIR, file)
-    const id = `ai-chat-${relativePath.replace(/\.md$/, '').replace(/\//g, '-')}`
+
+    // core.md is the always-in-context system prompt, so indexing it would only
+    // let the assistant retrieve its own instructions at the cost of a tool call
+    if (relativePath === path.join('prompts', 'core.md')) continue
+
+    const content = fs.readFileSync(file, 'utf-8')
+
+    // Prompt sections get a short workflow-* id: they are the split-out halves
+    // of the old monolithic system prompt and the assistant asks for them by
+    // topic ("debugging", "timeline animation"), not by file path
+    const sectionsPrefix = `${path.join('prompts', 'sections')}${path.sep}`
+    const id = relativePath.startsWith(sectionsPrefix)
+      ? `workflow-${path.basename(file, '.md')}`
+      : `ai-chat-${relativePath.replace(/\.md$/, '').replace(/\//g, '-')}`
 
     // Extract title from first heading
     const titleMatch = content.match(/^#\s+(.+)$/m)
