@@ -708,8 +708,14 @@ function initializeChannelFields(
     syncingFromParent = true
     for (const [index, key] of channelKeys.entries()) {
       const channelValue = getChannelValue(value, key, index)
-      if (typeof channelValue === 'number') {
-        field.channelFields[key].setValue(channelValue)
+      const channelField = field.channelFields[key]
+      if (typeof channelValue === 'number' && channelField.value !== channelValue) {
+        // This is an internal mirror of an already-applied parent value. Using
+        // setValue() here would mark the owning operator dirty. That is fatal
+        // for output vectors: publishing an output would immediately dirty the
+        // operator that just produced it, causing it to execute again forever.
+        // User edits and channel connections still go through setValue().
+        channelField.next(channelValue)
       }
     }
     syncingFromParent = false

@@ -71,6 +71,7 @@ import {
   Tile3DLayerOp,
   TimeSeriesOp,
   TripsLayerOp,
+  UnprojectOp,
   ZoomWidgetOp,
 } from './operators'
 import { deleteOp, getOpStore, setOp } from './store'
@@ -82,6 +83,17 @@ describe('basic Operators', () => {
     const operator = new NumberOp('/num-0')
     expect(operator.data.val).toEqual(0)
     expect(operator.outputData.val).toEqual(0)
+  })
+
+  it('keeps Unproject clean after publishing its point output channels', async () => {
+    const operator = new UnprojectOp('/unproject')
+    const execute = vi.spyOn(operator, 'execute')
+
+    await operator.pull()
+    expect(operator.dirty).toBe(false)
+
+    await operator.pull()
+    expect(execute).toHaveBeenCalledTimes(1)
   })
 })
 
