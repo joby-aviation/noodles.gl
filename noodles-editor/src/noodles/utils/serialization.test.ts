@@ -375,6 +375,33 @@ describe('serializeNodes', () => {
     expect(project.nodes[1].data.inputs.schema).toEqual(schema)
   })
 
+  it('serializes TableEditor edits made over a connected data source', () => {
+    const source = new TableEditorOp('/source')
+    const target = new TableEditorOp('/target')
+    const dataEdge = {
+      id: '/source.out.data->/target.par.data',
+      source: '/source',
+      sourceHandle: 'out.data',
+      target: '/target',
+      targetHandle: 'par.data',
+    }
+    source.outputs.data.next([{ name: 'Original' }])
+    target.inputs.data.addConnection(dataEdge.id, source.outputs.data)
+    target.setEditableData([{ name: 'Edited' }])
+    setOp('/source', source)
+    setOp('/target', target)
+
+    const nodes = [
+      { id: '/source', type: 'TableEditorOp', data: {}, position: { x: 0, y: 0 } },
+      { id: '/target', type: 'TableEditorOp', data: {}, position: { x: 100, y: 0 } },
+    ]
+    const serializedNodes = serializeNodes(getOpStore(), nodes, [dataEdge])
+    const serializedTarget = serializedNodes.find(node => node.id === '/target')
+
+    expect(serializedTarget?.data.inputs.data).toBeUndefined()
+    expect(serializedTarget?.data.inputs.dataOverride).toEqual([{ name: 'Edited' }])
+  })
+
   it('excludes ReferenceEdge connections when determining connected inputs', () => {
     setOp('node1', makeOp({ x: 123 }, false))
     setOp('node0', makeOp({ foo: 42 }, false))
