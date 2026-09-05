@@ -133,6 +133,16 @@ describe('normalizeMultiInputEdges', () => {
     expect(twice).toBe(once)
   })
 
+  it('preserves parallel edge identities and stabilizes after normalization', () => {
+    const first = edge('a')
+    const second = { ...first, id: 'separate-id' }
+    const once = normalizeMultiInputEdges([first, second], isMulti)
+    const twice = normalizeMultiInputEdges(once, isMulti)
+
+    expect(once.map(item => item.id)).toEqual(['a', 'separate-id'])
+    expect(twice).toBe(once)
+  })
+
   it('repairs stale orderIndex after the array is reordered', () => {
     const normalized = normalizeMultiInputEdges([edge('a'), edge('b'), edge('c')], isMulti)
     const reordered = [normalized[2], normalized[0], normalized[1]]
