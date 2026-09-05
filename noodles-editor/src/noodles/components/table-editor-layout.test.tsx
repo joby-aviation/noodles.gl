@@ -50,4 +50,30 @@ describe('TableEditor layout', () => {
       Array.from(row?.cells ?? [], tableCell => tableCell.getBoundingClientRect().width)
     ).toEqual(columnWidths)
   })
+
+  it('keeps compound editors within narrow cell bounds', () => {
+    const schema: TableSchema = {
+      columns: [{ name: 'vector', type: 'vec3', defaultValue: [0, 0, 0] }],
+    }
+
+    const { container, getByText } = render(
+      <div style={{ width: 160 }}>
+        <TableEditor
+          op={new TableEditorOp('/test-table')}
+          data={[{ vector: [1, 2, 3] }]}
+          schema={schema}
+          onDataChange={vi.fn()}
+          onSchemaChange={vi.fn()}
+        />
+      </div>
+    )
+
+    fireEvent.click(getByText('[1.00, 2.00, 3.00]'))
+
+    const inputs = container.querySelectorAll('input.p-inputtext')
+    expect(inputs).toHaveLength(3)
+    const compoundEditor = inputs[0].parentElement
+    expect(compoundEditor).not.toBeNull()
+    expect(compoundEditor?.scrollWidth).toBeLessThanOrEqual(compoundEditor?.clientWidth ?? 0)
+  })
 })

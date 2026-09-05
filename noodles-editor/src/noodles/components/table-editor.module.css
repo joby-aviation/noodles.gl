@@ -122,7 +122,8 @@
 .coordInput,
 .vecInput {
   flex: 1;
-  min-width: 60px;
+  min-width: 0;
+  padding-inline: 4px;
 }
 
 .geocoderButton {
