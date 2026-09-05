@@ -123,6 +123,8 @@
 .vecInput {
   flex: 1;
   min-width: 0;
+  height: 100%;
+  box-sizing: border-box;
   padding-inline: 4px;
 }
 
