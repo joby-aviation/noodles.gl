@@ -28,6 +28,50 @@ interface CompletionItem {
   insertTextRules?: number
 }
 
+const SAFE_DOT_PROPERTY = /^[$A-Z_a-z][$\w]*$/
+
+// Build a property-access suffix that is valid JavaScript. Data keys may include
+// spaces or punctuation, so dot notation is only safe for identifier segments.
+function dataPropertyAccess(key: string): string {
+  return key
+    .split('.')
+    .map(segment =>
+      SAFE_DOT_PROPERTY.test(segment) ? `.${segment}` : `[${JSON.stringify(segment)}]`
+    )
+    .join('')
+}
+
+function dataPropertyCompletion(
+  key: string,
+  range: CompletionRange,
+  CompletionItemKind: MonacoInstance,
+  detail: string,
+  sortText?: string
+): CompletionItem {
+  const access = dataPropertyAccess(key)
+  const usesDotNotation = access.startsWith('.')
+
+  return {
+    label: key,
+    kind: CompletionItemKind.Property,
+    detail,
+    insertText: usesDotNotation ? access.slice(1) : access,
+    // When switching to bracket notation, replace the dot before the partially
+    // typed word as well (d.Dis -> d["Display Name"]).
+    range: usesDotNotation
+      ? range
+      : {
+          ...range,
+          startColumn: Math.max(1, range.startColumn - 1),
+        },
+    sortText,
+  }
+}
+
+function dataPropertyExpression(key: string): string {
+  return `d${dataPropertyAccess(key)}`
+}
+
 // Field types that expect position/coordinate arrays
 const POSITION_FIELD_TYPES = ['geopoint-3d', 'geopoint-2d', 'vec2', 'vec3']
 // Field types that expect colors
@@ -131,11 +175,13 @@ function createTemplateCompletions(
 
     // Suggest a concrete template if we found coordinate keys
     if (lngKey && latKey) {
+      const lngExpression = dataPropertyExpression(lngKey)
+      const latExpression = dataPropertyExpression(latKey)
       templates.push({
-        label: `[d.${lngKey}, d.${latKey}]`,
+        label: `[${lngExpression}, ${latExpression}]`,
         kind: CompletionItemKind.Snippet,
         detail: 'Position array [lng, lat]',
-        insertText: `[d.${lngKey}, d.${latKey}]`,
+        insertText: `[${lngExpression}, ${latExpression}]`,
         range,
         sortText: '!0000', // Sort to top
       })
@@ -170,11 +216,12 @@ function createTemplateCompletions(
 
   if (SCALAR_FIELD_TYPES.includes(targetField.fieldType) && prioritized.length > 0) {
     // Scalar expression template
+    const dataExpression = dataPropertyExpression(prioritized[0])
     templates.push({
-      label: `d.${prioritized[0]} * 10`,
+      label: `${dataExpression} * 10`,
       kind: CompletionItemKind.Snippet,
       detail: 'Scaled value expression',
-      insertText: `d.${prioritized[0]} * \${1:10}`,
+      insertText: `${dataExpression} * \${1:10}`,
       insertTextRules: 4,
       range,
       sortText: '!0000',
@@ -243,13 +290,9 @@ function createDataKeyCompletions(
   range: CompletionRange,
   CompletionItemKind: MonacoInstance
 ): CompletionItem[] {
-  return dataKeys.map(key => ({
-    label: key,
-    kind: CompletionItemKind.Property,
-    detail: 'Data property',
-    insertText: key,
-    range,
-  }))
+  return dataKeys.map(key =>
+    dataPropertyCompletion(key, range, CompletionItemKind, 'Data property')
+  )
 }
 
 // Create completion items for global variables and libraries
@@ -390,26 +433,28 @@ export function createExpressionCompletionProvider(
 
         // Add prioritized keys first with sort order to appear at top
         for (let i = 0; i < prioritized.length; i++) {
-          suggestions.push({
-            label: prioritized[i],
-            kind: monaco.languages.CompletionItemKind.Property,
-            detail: 'Data property (suggested)',
-            insertText: prioritized[i],
-            range,
-            sortText: `0${String(i).padStart(4, '0')}`, // Sort to top
-          })
+          suggestions.push(
+            dataPropertyCompletion(
+              prioritized[i],
+              range,
+              monaco.languages.CompletionItemKind,
+              'Data property (suggested)',
+              `0${String(i).padStart(4, '0')}` // Sort to top
+            )
+          )
         }
 
         // Add other keys with lower priority
         for (const key of other) {
-          suggestions.push({
-            label: key,
-            kind: monaco.languages.CompletionItemKind.Property,
-            detail: 'Data property',
-            insertText: key,
-            range,
-            sortText: `1${key}`, // Sort after prioritized
-          })
+          suggestions.push(
+            dataPropertyCompletion(
+              key,
+              range,
+              monaco.languages.CompletionItemKind,
+              'Data property',
+              `1${key}` // Sort after prioritized
+            )
+          )
         }
 
         return { suggestions }
@@ -475,13 +520,14 @@ export function createExpressionCompletionProvider(
         const keysToShow = [...prioritized, ...other].slice(0, 10) // Limit to prevent overwhelming
 
         for (const key of keysToShow) {
+          const expression = dataPropertyExpression(key)
           suggestions.push({
-            label: `d.${key}`,
+            label: expression,
             kind: monaco.languages.CompletionItemKind.Property,
             detail: prioritized.includes(key)
               ? 'Data property (suggested)'
               : 'Data property shortcut',
-            insertText: `d.${key}`,
+            insertText: expression,
             range,
           })
         }
