@@ -1782,7 +1782,7 @@ export function TableEditorOpComponent({
   const locked = useLocked(op)
   useFieldVisibility(op)
 
-  const [data, setData] = useState((op?.inputs.data.value ?? []) as unknown[])
+  const [data, setData] = useState(() => op?.getEditableData() ?? [])
   const [schema, setSchema] = useState<TableSchema>(() => {
     // Get schema from output or infer from data
     const outputSchema = op?.outputs.schema.value
@@ -1795,9 +1795,9 @@ export function TableEditorOpComponent({
   // Subscribe to data and schema changes
   useEffect(() => {
     if (!op) return
-    const dataSub = op.inputs.data.subscribe(newData => {
-      setData(newData as unknown[])
-    })
+    const syncEditableData = () => setData(op.getEditableData())
+    const dataSub = op.inputs.data.subscribe(syncEditableData)
+    const dataOverrideSub = op.inputs.dataOverride.subscribe(syncEditableData)
     const schemaSub = op.outputs.schema.subscribe(newSchema => {
       if (newSchema && typeof newSchema === 'object' && 'columns' in newSchema) {
         setSchema(newSchema as TableSchema)
@@ -1805,6 +1805,7 @@ export function TableEditorOpComponent({
     })
     return () => {
       dataSub.unsubscribe()
+      dataOverrideSub.unsubscribe()
       schemaSub.unsubscribe()
     }
   }, [op])
@@ -1813,8 +1814,8 @@ export function TableEditorOpComponent({
 
   const handleDataChange = (newData: unknown[], description = 'Edit table data') => {
     const before = captureOperatorInputs()
-    op.inputs.data.setValue(newData)
-    op.outputs.data.setValue(newData)
+    op.setEditableData(newData)
+    op.outputs.data.next(newData)
     firePropertyMutation(description, before)
   }
 
@@ -1824,8 +1825,8 @@ export function TableEditorOpComponent({
     op.outputs.schema.setValue(newSchema)
     setSchema(newSchema)
     if (newData) {
-      op.inputs.data.setValue(newData)
-      op.outputs.data.setValue(newData)
+      op.setEditableData(newData)
+      op.outputs.data.next(newData)
     }
     firePropertyMutation('Edit table schema', before)
   }
@@ -1836,7 +1837,9 @@ export function TableEditorOpComponent({
       <NodeResizer isVisible={selected} minWidth={500} minHeight={300} />
       <div className={s.content}>
         {Object.entries(op.inputs)
-          .filter(([key]) => op.isFieldVisible(key) && key !== 'data')
+          .filter(
+            ([key]) => op.isFieldVisible(key) && key !== 'data' && key !== 'dataOverride'
+          )
           .map(([key, field]) => (
             <FieldComponent
               key={key}
