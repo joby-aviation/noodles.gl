@@ -6,11 +6,16 @@ import {
 } from './render-output'
 
 function mockDirectory(names: string[]): FileSystemDirectoryHandle {
+  const files = new Set(names)
   return {
     async *entries() {
-      for (const name of names) {
+      for (const name of files) {
         yield [name, { kind: 'file', name }] as [string, FileSystemFileHandle]
       }
+    },
+    async getFileHandle(name: string) {
+      files.add(name)
+      return { kind: 'file', name } as FileSystemFileHandle
     },
   } as FileSystemDirectoryHandle
 }
@@ -42,5 +47,16 @@ describe('render output names', () => {
     await expect(getVersionedRenderFileName(mockDirectory([]), 'new-render', 'mp4')).resolves.toBe(
       'new-render-v1.mp4'
     )
+  })
+
+  it('reserves distinct versions for concurrent exports', async () => {
+    const directory = mockDirectory([])
+
+    await expect(
+      Promise.all([
+        getVersionedRenderFileName(directory, 'shared-render', 'png'),
+        getVersionedRenderFileName(directory, 'shared-render', 'mp4'),
+      ])
+    ).resolves.toEqual(['shared-render-v1.png', 'shared-render-v2.mp4'])
   })
 })

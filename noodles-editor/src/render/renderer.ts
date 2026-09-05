@@ -3,8 +3,8 @@ import { useCallback, useRef, useState } from 'react'
 import { getTimelineStore, useTimelineStore } from '../timeline/timeline-store'
 import { debugRender, debugRenderFrame } from '../utils/debug'
 import {
-  getNextRenderVersion,
   getVersionedRenderFileName,
+  reserveNextRenderVersion,
   sanitizeRenderBaseName,
 } from './render-output'
 
@@ -209,7 +209,7 @@ export const useRenderer = ({
       const mapContainer = await getContainer(fileName).catch(error => {
         setIsRendering(false)
         debugRender('Failed to prepare render output: %o', error)
-        return null
+        throw error
       })
       if (!mapContainer) {
         setIsRendering(false)
@@ -370,9 +370,11 @@ export const useRenderer = ({
 
       const totalFrames = endFrame - startFrame + 1
       const padLength = Math.max(4, String(endFrame).length)
-      const { baseName, version } = await getNextRenderVersion(
+      const firstFrameNumber = String(startFrame).padStart(padLength, '0')
+      const { baseName, version } = await reserveNextRenderVersion(
         directoryHandle,
         fileName,
+        `_${firstFrameNumber}.png`,
         projectName
       )
       const versionedBaseName = `${baseName}-v${version}`
@@ -544,15 +546,20 @@ export const captureScreenshot = async (
   suggestedName: string,
   getBufferedCanvas: () => HTMLCanvasElement,
   quality = 1,
-  directoryHandle?: FileSystemDirectoryHandle
+  directoryHandle?: FileSystemDirectoryHandle,
+  imageFormat: 'png' | 'jpeg' = 'png'
 ) => {
   const baseName = sanitizeRenderBaseName(suggestedName, 'screenshot')
+  const imageExtension = imageFormat === 'jpeg' ? 'jpeg' : 'png'
   const imageHandle = directoryHandle
-    ? await getVersionedRenderFileName(directoryHandle, baseName, 'png', 'screenshot').then(
-        versionedName => directoryHandle.getFileHandle(versionedName, { create: true })
-      )
+    ? await getVersionedRenderFileName(
+        directoryHandle,
+        baseName,
+        imageExtension,
+        'screenshot'
+      ).then(versionedName => directoryHandle.getFileHandle(versionedName, { create: true }))
     : await window.showSaveFilePicker({
-        suggestedName: `${baseName}-v1.png`,
+        suggestedName: `${baseName}-v1.${imageExtension}`,
         types: [
           {
             description: 'PNG',
@@ -565,7 +572,11 @@ export const captureScreenshot = async (
         ],
       })
 
-  const imageType = directoryHandle ? 'image/png' : (await imageHandle.getFile()).type
+  const imageType = directoryHandle
+    ? imageFormat === 'jpeg'
+      ? 'image/jpeg'
+      : 'image/png'
+    : (await imageHandle.getFile()).type
 
   const blob = await new Promise<Blob>((resolve, reject) => {
     // canvas needs to redrawn immediately before capture or else buffer will be empty.

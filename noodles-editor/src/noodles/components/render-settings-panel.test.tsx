@@ -47,4 +47,14 @@ describe('RenderSettingsPanel preview scale', () => {
 
     expect(op.inputs.fileName.value).toBe('LA-vertistop')
   })
+
+  it('configures the photo format for direct exports', () => {
+    const op = new OutOp('/out')
+    const { container } = render(<RenderSettingsPanel op={op} />)
+    const format = container.querySelector<HTMLSelectElement>('#render-image-format')!
+
+    fireEvent.change(format, { target: { value: 'jpeg' } })
+
+    expect(op.inputs.imageFormat.value).toBe('jpeg')
+  })
 })

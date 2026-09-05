@@ -14,6 +14,7 @@ export type RenderSettings = {
   framerate: number
   captureDelay: number
   fileName: string
+  imageFormat: 'png' | 'jpeg'
   rendersDirectory: string
 }
 
@@ -30,5 +31,6 @@ export const DEFAULT_RENDER_SETTINGS: RenderSettings = {
   framerate: 30,
   captureDelay: 50,
   fileName: '',
+  imageFormat: 'png',
   rendersDirectory: 'renders',
 }
