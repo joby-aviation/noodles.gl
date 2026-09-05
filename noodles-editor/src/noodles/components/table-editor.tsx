@@ -814,20 +814,9 @@ function EditableCell({ getValue, row, column, table }: EditableCellProps) {
     activeEdit?.set(handleComplete)
   }
 
-  if (isEditing) {
-    return (
-      <div className={cx(s.cell, s.editing)}>
-        <EditorComponent
-          value={value}
-          onChange={handleChange}
-          onComplete={handleComplete}
-          column={colSchema}
-        />
-      </div>
-    )
-  }
-
-  // Render cell - dateTime renderer needs column schema for timezone
+  // Keep the rendered value in the layout while the editor is overlaid on top.
+  // Replacing table-cell content with a form control changes the browser's
+  // intrinsic column sizing, which can wrap adjacent cells and move the table.
   const renderedValue =
     colSchema.type === 'dateTime'
       ? (renderer as (value: unknown, column: ColumnSchema) => React.ReactNode)(
@@ -835,6 +824,24 @@ function EditableCell({ getValue, row, column, table }: EditableCellProps) {
           colSchema
         )
       : (renderer as (value: unknown) => React.ReactNode)(currentValue)
+
+  if (isEditing) {
+    return (
+      <div className={cx(s.cell, s.editing)}>
+        <span className={s.editingPlaceholder} aria-hidden="true">
+          {renderedValue}
+        </span>
+        <div className={s.editorOverlay}>
+          <EditorComponent
+            value={value}
+            onChange={handleChange}
+            onComplete={handleComplete}
+            column={colSchema}
+          />
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div
