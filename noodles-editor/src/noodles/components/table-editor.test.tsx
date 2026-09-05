@@ -325,6 +325,49 @@ describe('TableEditor', () => {
     expect(onSchemaChange).toHaveBeenCalledWith(schema, data)
   })
 
+  it('flushes an active edit before applying an inherited schema update', () => {
+    const onDataChange = vi.fn()
+    const initialSchema: TableSchema = {
+      columns: [{ name: 'name', type: 'string', defaultValue: '' }],
+    }
+    const inheritedSchema: TableSchema = {
+      columns: [
+        { name: 'name', type: 'string', defaultValue: '' },
+        { name: 'offset', type: 'vec2', defaultValue: [64, 0] },
+      ],
+    }
+    const data = [{ name: 'Downtown Skyport' }]
+
+    const { container, getByText, rerender } = render(
+      <TableEditor
+        op={mockOp}
+        data={data}
+        schema={initialSchema}
+        onDataChange={onDataChange}
+        onSchemaChange={vi.fn()}
+      />
+    )
+
+    fireEvent.click(getByText('Downtown Skyport'))
+    fireEvent.change(container.querySelector('input.p-inputtext') as HTMLInputElement, {
+      target: { value: 'Edited Skyport' },
+    })
+
+    rerender(
+      <TableEditor
+        op={mockOp}
+        data={data}
+        schema={inheritedSchema}
+        onDataChange={onDataChange}
+        onSchemaChange={vi.fn()}
+      />
+    )
+
+    expect(onDataChange).toHaveBeenCalledWith([{ name: 'Edited Skyport' }], 'Edit cell name')
+    expect(getByText('Edited Skyport')).toBeDefined()
+    expect(getByText('[64.0000, 0.0000]')).toBeDefined()
+  })
+
   it('should add default values for all column types when adding row', () => {
     const complexSchema: TableSchema = {
       columns: [

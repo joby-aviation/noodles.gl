@@ -864,6 +864,8 @@ interface TableEditorProps {
 export function TableEditor({ data, schema, onDataChange, onSchemaChange }: TableEditorProps) {
   const [tableData, setTableData] = useState(() => validateTableData(data, schema))
   const activeEdit = useActiveEdit()
+  const previousDataRef = useRef(data)
+  const previousSchemaRef = useRef(schema)
 
   // Mirrors tableData so a flushed cell edit and the row mutation that triggered
   // it can both run in one tick without the second reading stale state
@@ -877,8 +879,20 @@ export function TableEditor({ data, schema, onDataChange, onSchemaChange }: Tabl
   }
 
   useEffect(() => {
-    setTableData(validateTableData(data, schema))
-  }, [data, schema])
+    const dataChanged = previousDataRef.current !== data
+    const schemaChanged = previousSchemaRef.current !== schema
+
+    // Commit and clear any active cell editor before external props replace the
+    // table state. For a schema-only update, normalize the just-committed local
+    // rows so compatible edits survive the schema transition.
+    activeEdit.flush()
+    const sourceData = schemaChanged && !dataChanged ? tableDataRef.current : data
+    const newTableData = validateTableData(sourceData, schema)
+    tableDataRef.current = newTableData
+    setTableData(newTableData)
+    previousDataRef.current = data
+    previousSchemaRef.current = schema
+  }, [activeEdit, data, schema])
 
   const addRow = () => {
     activeEdit.flush()

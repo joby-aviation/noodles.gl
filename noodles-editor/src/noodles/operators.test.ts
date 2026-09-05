@@ -99,6 +99,28 @@ describe('TableEditorOp', () => {
 
     expect(result.data).toEqual([{ anchor: 'start', offset2d: [64, 0], offset3d: [64, 0, 10] }])
   })
+
+  it('preserves date-time values when TableEditors are chained', () => {
+    const first = new TableEditorOp('/first')
+    const second = new TableEditorOp('/second')
+    const schema = {
+      columns: [{ name: 'time', type: 'dateTime' as const }],
+    }
+    const storedValue = {
+      datetime: '2026-09-05T12:30:00.000',
+      timezone: 'America/Los_Angeles',
+    }
+
+    const firstResult = first.execute({ data: [{ time: storedValue }], schema })
+    const secondResult = second.execute({ data: firstResult.data, schema })
+    const chainedValue = secondResult.data[0].time as Temporal.ZonedDateTime
+
+    expect(chainedValue).toBeInstanceOf(Temporal.ZonedDateTime)
+    expect(chainedValue.toPlainDateTime().toString({ smallestUnit: 'millisecond' })).toBe(
+      storedValue.datetime
+    )
+    expect(chainedValue.timeZoneId).toBe(storedValue.timezone)
+  })
 })
 
 describe('Operator par and out', () => {
