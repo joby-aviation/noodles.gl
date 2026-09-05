@@ -1,7 +1,12 @@
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { analytics } from '../../utils/analytics'
 import type { TableSchema } from '../table-schema'
 import { SchemaEditorDialog } from './schema-editor-dialog'
+
+vi.mock('../../utils/analytics', () => ({
+  analytics: { track: vi.fn() },
+}))
 
 afterEach(() => {
   cleanup()
@@ -56,6 +61,34 @@ describe('SchemaEditorDialog', () => {
     const nameInputs = screen.getAllByPlaceholderText('Column name')
     expect(nameInputs.length).toBe(3)
     expect(nameInputs[2]).toHaveValue('column_3')
+  })
+
+  it('should duplicate a column with a unique editable name and source metadata', () => {
+    const onChange = vi.fn()
+    render(<SchemaEditorDialog schema={mockSchema} onChange={onChange} />)
+
+    fireEvent.click(screen.getByRole('button'))
+    fireEvent.click(screen.getByRole('button', { name: 'Duplicate column name' }))
+
+    expect(analytics.track).toHaveBeenCalledWith('table_column_duplicated')
+
+    const nameInputs = screen.getAllByPlaceholderText('Column name')
+    expect(nameInputs).toHaveLength(3)
+    expect(nameInputs[1]).toHaveValue('name copy')
+
+    fireEvent.change(nameInputs[1], { target: { value: 'display_name' } })
+    fireEvent.click(screen.getByText('Save'))
+
+    expect(onChange).toHaveBeenCalledWith(
+      {
+        columns: [
+          { name: 'name', type: 'string', defaultValue: '' },
+          { name: 'display_name', type: 'string', defaultValue: '' },
+          { name: 'age', type: 'number', defaultValue: 0 },
+        ],
+      },
+      { sourceColumnNames: ['name', 'name', 'age'] }
+    )
   })
 
   it('should add Position XYZ quick template with Number type', () => {
