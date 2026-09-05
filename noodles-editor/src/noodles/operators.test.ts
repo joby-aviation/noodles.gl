@@ -95,7 +95,7 @@ describe('TableEditorOp', () => {
       ],
     }
 
-    const result = operator.execute({ data: [{}], schema })
+    const result = operator.execute({ data: [{}], dataOverride: null, schema })
 
     expect(result.data).toEqual([{ anchor: 'start', offset2d: [64, 0], offset3d: [64, 0, 10] }])
   })
@@ -111,8 +111,8 @@ describe('TableEditorOp', () => {
       timezone: 'America/Los_Angeles',
     }
 
-    const firstResult = first.execute({ data: [{ time: storedValue }], schema })
-    const secondResult = second.execute({ data: firstResult.data, schema })
+    const firstResult = first.execute({ data: [{ time: storedValue }], dataOverride: null, schema })
+    const secondResult = second.execute({ data: firstResult.data, dataOverride: null, schema })
     const chainedValue = secondResult.data[0].time as Temporal.ZonedDateTime
 
     expect(chainedValue).toBeInstanceOf(Temporal.ZonedDateTime)

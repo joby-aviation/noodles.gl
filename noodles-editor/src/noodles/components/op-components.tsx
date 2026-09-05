@@ -1776,7 +1776,7 @@ export function TableEditorOpComponent({
   type,
   selected,
 }: ReactFlowNodeProps<NodeDataJSON<TableEditorOp>> & { type: 'TableEditorOp' }) {
-  const op = getOp(id as string)
+  const op = getOp(id as string) as TableEditorOp | undefined
 
   const isDimmed = useNodeDimmed(id)
   const locked = useLocked(op)
