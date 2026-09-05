@@ -1,13 +1,8 @@
+import { type Field, hasChannelFields } from '../fields'
 import { MapViewStateOp } from '../operators'
 import { getOp } from '../store'
 
-export const CAMERA_INPUT_NAMES = [
-  'longitude',
-  'latitude',
-  'zoom',
-  'pitch',
-  'bearing',
-] as const
+export const CAMERA_INPUT_NAMES = ['center', 'zoom', 'pitch', 'bearing'] as const
 
 export interface CameraViewState {
   longitude: number
@@ -21,6 +16,30 @@ export interface CameraControlState {
   op: MapViewStateOp | null
   enabled: boolean
   reason: string | null
+}
+
+function hasExternalConnection(field: Field): boolean {
+  return Array.from(field.subscriptions.keys()).some(id => !id.startsWith('__'))
+}
+
+function getConnectedCameraInputs(op: MapViewStateOp): string[] {
+  const connectedInputs: string[] = []
+  const center = op.inputs.center
+
+  if (hasExternalConnection(center)) connectedInputs.push('center')
+  if (hasChannelFields(center)) {
+    for (const channelName of ['lng', 'lat']) {
+      const channel = center.channelFields[channelName]
+      if (channel && hasExternalConnection(channel)) {
+        connectedInputs.push(`center.${channelName}`)
+      }
+    }
+  }
+
+  for (const name of ['zoom', 'pitch', 'bearing'] as const) {
+    if (hasExternalConnection(op.inputs[name])) connectedInputs.push(name)
+  }
+  return connectedInputs
 }
 
 export function createCameraGestureHistory(
@@ -66,9 +85,7 @@ export function getCameraControlState(
     return { op: selectedOp, enabled: false, reason: 'Unlock the MapViewState node to edit it.' }
   }
 
-  const connectedFields = CAMERA_INPUT_NAMES.filter(
-    name => selectedOp.inputs[name].subscriptions.size > 0
-  )
+  const connectedFields = getConnectedCameraInputs(selectedOp)
   if (connectedFields.length > 0) {
     return {
       op: selectedOp,
@@ -101,10 +118,9 @@ export function extractCameraViewState(value: unknown): CameraViewState | null {
 export function updateCameraInputs(op: MapViewStateOp, value: unknown): boolean {
   const viewState = extractCameraViewState(value)
   if (!viewState || op.locked.value) return false
-  if (CAMERA_INPUT_NAMES.some(name => op.inputs[name].subscriptions.size > 0)) return false
+  if (getConnectedCameraInputs(op).length > 0) return false
 
-  op.inputs.longitude.setValue(viewState.longitude)
-  op.inputs.latitude.setValue(viewState.latitude)
+  op.inputs.center.setValue({ lng: viewState.longitude, lat: viewState.latitude })
   op.inputs.zoom.setValue(viewState.zoom)
   op.inputs.pitch.setValue(viewState.pitch ?? op.inputs.pitch.value)
   op.inputs.bearing.setValue(viewState.bearing ?? op.inputs.bearing.value)

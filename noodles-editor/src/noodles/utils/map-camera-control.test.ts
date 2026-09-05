@@ -45,8 +45,11 @@ describe('selected map camera control', () => {
 
     expect(getCameraControlState(['/camera'], true).reason).toMatch(/exporting/)
 
-    camera.inputs.longitude.addConnection('edge', new NumberOp('/source').outputs.val)
-    expect(getCameraControlState(['/camera'], false).reason).toMatch(/longitude/)
+    camera.inputs.center.channelFields.lng.addConnection(
+      'edge',
+      new NumberOp('/source').outputs.val
+    )
+    expect(getCameraControlState(['/camera'], false).reason).toMatch(/center\.lng/)
   })
 
   it('extracts camera state from direct and keyed Deck view states', () => {
@@ -61,7 +64,12 @@ describe('selected map camera control', () => {
     const state = { longitude: 1, latitude: 2, zoom: 3, pitch: 4, bearing: 5 }
 
     expect(updateCameraInputs(camera, state)).toBe(true)
-    expect(camera.data).toMatchObject(state)
+    expect(camera.data).toMatchObject({
+      center: { lng: 1, lat: 2 },
+      zoom: 3,
+      pitch: 4,
+      bearing: 5,
+    })
 
     camera.inputs.zoom.addConnection('edge', new NumberOp('/source').outputs.val)
     expect(updateCameraInputs(camera, { ...state, zoom: 10 })).toBe(false)
