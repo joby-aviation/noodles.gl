@@ -16,14 +16,14 @@ import { useActiveOutOp } from './noodles/hooks/use-active-outop'
 import { useRenderSettings } from './noodles/hooks/use-render-settings'
 import { getNoodles } from './noodles/noodles'
 import { fnWithSource } from './noodles/operators'
+import { useUIStore } from './noodles/store'
 import type { RenderSettings } from './noodles/utils/serialization'
 import { useDeckDrawLoop } from './render/draw-loop'
 import { captureScreenshot, useRenderer } from './render/renderer'
 import { deckRenderingDefaults, mapRenderingDefaults } from './render/rendering-defaults'
 import { TransformScale } from './render/transform-scale'
-import { useUIStore } from './noodles/store'
 import { TimelinePanel } from './timeline/components/TimelinePanel'
-import { getTimelineStore, useTimelineStore } from './timeline/timeline-store'
+import { useTimelineStore } from './timeline/timeline-store'
 import s from './timeline-editor.module.css'
 import { debugRender } from './utils/debug'
 import setRef from './utils/set-ref'
@@ -120,6 +120,7 @@ export default function TimelineEditor() {
     lod,
     waitForData,
     captureDelay,
+    fileName,
     rendersDirectory,
   } = renderSettings
 
@@ -384,6 +385,29 @@ export default function TimelineEditor() {
     props: deckProps,
   })
 
+  const resolveRendersDirectory = useCallback(async () => {
+    if (rendersDirectoryHandleRef.current) return rendersDirectoryHandleRef.current
+
+    if (activeStorageType !== 'publicFolder' && currentDirectory) {
+      try {
+        return await currentDirectory.getDirectoryHandle(rendersDirectory || 'renders', {
+          create: true,
+        })
+      } catch (error) {
+        debugRender('Failed to create renders directory: %o, falling back to picker', error)
+      }
+    }
+
+    try {
+      const handle = await window.showDirectoryPicker({ mode: 'readwrite' })
+      rendersDirectoryHandleRef.current = handle
+      return handle
+    } catch (error) {
+      if ((error as DOMException).name === 'AbortError') return null
+      throw error
+    }
+  }, [activeStorageType, currentDirectory, rendersDirectory])
+
   const startRender = useCallback(async () => {
     let canvas: HTMLCanvasElement | null = null
 
@@ -408,9 +432,14 @@ export default function TimelineEditor() {
       return
     }
 
+    const directoryHandle = await resolveRendersDirectory()
+    if (!directoryHandle) return
+
     await startCapture({
       canvas,
       codec,
+      directoryHandle,
+      fileName: fileName || noodles.projectName || 'render',
       // This always scales the video to the specified value, regardless of `canvas` size
       ...resolution,
       startFrame: Math.floor((inPoint ?? 0) * framerate),
@@ -425,6 +454,9 @@ export default function TimelineEditor() {
     inPoint,
     outPoint,
     sequenceLength,
+    resolveRendersDirectory,
+    fileName,
+    noodles.projectName,
   ])
 
   const takeScreenshot = useCallback(async () => {
@@ -437,13 +469,21 @@ export default function TimelineEditor() {
       return
     }
 
-    const suggestedName = noodles.projectName ?? 'screenshot'
-    await captureScreenshot(suggestedName, () => {
-      redraw()
-      // @ts-expect-error canvas is protected
-      return deckRef.current.canvas!
-    })
-  }, [noodles.projectName, redraw, basemapEnabled])
+    const directoryHandle = await resolveRendersDirectory()
+    if (!directoryHandle) return
+
+    const suggestedName = fileName || noodles.projectName || 'screenshot'
+    await captureScreenshot(
+      suggestedName,
+      () => {
+        redraw()
+        // @ts-expect-error canvas is protected
+        return deckRef.current.canvas!
+      },
+      1,
+      directoryHandle
+    )
+  }, [noodles.projectName, redraw, basemapEnabled, resolveRendersDirectory, fileName])
 
   const selectRendersDirectory = useCallback(async () => {
     try {
@@ -466,32 +506,8 @@ export default function TimelineEditor() {
       return
     }
 
-    // Resolve the target directory: session-picked handle > project subdir > user picker
-    let rendersDir: FileSystemDirectoryHandle
-    if (rendersDirectoryHandleRef.current) {
-      rendersDir = rendersDirectoryHandleRef.current
-    } else if (activeStorageType !== 'publicFolder' && currentDirectory) {
-      try {
-        rendersDir = await currentDirectory.getDirectoryHandle(rendersDirectory || 'renders', {
-          create: true,
-        })
-      } catch (e) {
-        debugRender('Failed to create renders directory: %o, falling back to picker', e)
-        try {
-          rendersDir = await window.showDirectoryPicker({ mode: 'readwrite' })
-        } catch (err) {
-          if ((err as DOMException).name === 'AbortError') return
-          throw err
-        }
-      }
-    } else {
-      try {
-        rendersDir = await window.showDirectoryPicker({ mode: 'readwrite' })
-      } catch (e) {
-        if ((e as DOMException).name === 'AbortError') return
-        throw e
-      }
-    }
+    const rendersDir = await resolveRendersDirectory()
+    if (!rendersDir) return
 
     let canvas: HTMLCanvasElement
     if (basemapEnabled) {
@@ -507,6 +523,7 @@ export default function TimelineEditor() {
       // onAfterRender wired up inside startSequenceCapture via getDeck.
       getDeck: basemapEnabled ? undefined : () => deckRef.current,
       directoryHandle: rendersDir,
+      fileName: fileName || noodles.projectName || 'render',
       captureDelay,
       waitForData,
       startFrame: Math.floor((inPoint ?? 0) * framerate),
@@ -522,10 +539,10 @@ export default function TimelineEditor() {
     framerate,
     captureDelay,
     waitForData,
-    rendersDirectory,
     basemapEnabled,
-    currentDirectory,
-    activeStorageType,
+    resolveRendersDirectory,
+    fileName,
+    noodles.projectName,
   ])
 
   // Increase the render target resolution to increase map tile detail.
