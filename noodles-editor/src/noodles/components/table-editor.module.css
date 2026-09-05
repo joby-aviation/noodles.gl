@@ -48,8 +48,10 @@
 }
 
 .cell {
+  position: relative;
   padding: 8px 12px;
   min-height: 36px;
+  box-sizing: border-box;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -66,22 +68,32 @@
 
 .editing {
   background: var(--surface-section);
-  padding: 0;
+}
+
+.editingPlaceholder {
+  display: contents;
+  visibility: hidden;
+}
+
+.editorOverlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  min-width: 0;
 }
 
 .cellEditor {
   width: 100%;
-}
-
-/* Override PrimeReact input padding to match cell padding */
-.cellEditor :global(.p-inputtext) {
+  min-width: 0;
+  height: 100%;
+  box-sizing: border-box;
   padding: 8px 12px;
   border: none;
+  border-radius: 0;
   background: transparent;
-}
-
-.cellEditor :global(.p-inputswitch) {
-  margin: 8px 12px;
+  color: inherit;
+  font: inherit;
 }
 
 .colorDisplay {
@@ -102,12 +114,16 @@
   display: flex;
   gap: 4px;
   align-items: center;
+  width: 100%;
+  min-width: 0;
+  height: 100%;
 }
 
 .coordInput,
 .vecInput {
   flex: 1;
-  min-width: 60px;
+  min-width: 0;
+  padding-inline: 4px;
 }
 
 .geocoderButton {
@@ -128,6 +144,8 @@
   align-items: center;
   gap: 6px;
   width: 100%;
+  min-width: 0;
+  height: 100%;
 }
 
 .timezoneIndicator {
