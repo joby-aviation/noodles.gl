@@ -9,6 +9,7 @@ import { debugSetValue } from '../utils/debug'
 import type { BetterDeckProps, BetterMapProps } from '../visualizations'
 import type { inputComponents } from './components/field-components'
 import type { IOperator, Operator } from './operators'
+import type { DeckViewDescriptor, DeckViewValue } from './types'
 import { deepEqual } from './utils/deep-equal'
 import type { ExtractProps } from './utils/extract-props'
 import { resolvePath } from './utils/path-utils'
@@ -1549,14 +1550,26 @@ export class ExtensionField extends Field<z.ZodTypeAny> {
   }
 }
 
-export class ViewField extends Field<
-  z.ZodType<InstanceType<View>, z.ZodTypeDef, InstanceType<View>>
-> {
+const deckViewDescriptorSchema = z.looseObject({
+  type: z.enum(['MapView', 'GlobeView', 'FirstPersonView', 'OrbitView', 'OrthographicView']),
+}) as z.ZodType<DeckViewDescriptor>
+
+const deckViewSchema = z.union([
+  deckViewDescriptorSchema,
+  z.instanceof(View),
+]) as z.ZodType<DeckViewValue>
+
+export class ViewField extends Field<z.ZodType<DeckViewValue>> {
   static type = 'view'
   static defaultValue = undefined
   createSchema() {
-    return z.instanceof(View)
+    return deckViewSchema
   }
+}
+
+export type VisualizationDeckProps = Omit<BetterDeckProps, 'layers' | 'views'> & {
+  layers?: (LayerProps & { type: string })[]
+  views?: DeckViewValue[]
 }
 
 export class MapLibreLayerField extends Field<
@@ -1586,7 +1599,7 @@ export class MapLibreLayerField extends Field<
 
 export class VisualizationField extends Field<
   z.ZodType<{
-    deckProps: { layers: (LayerProps & { type: string })[] } & BetterDeckProps
+    deckProps: VisualizationDeckProps
     mapProps?: BetterMapProps
     maplibreLayers?: Array<{
       id: string
@@ -1610,6 +1623,7 @@ export class VisualizationField extends Field<
             })
           )
           .optional(),
+        views: z.array(deckViewSchema).optional(),
       }),
       mapProps: z
         .looseObject({
