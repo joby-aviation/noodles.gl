@@ -49,9 +49,10 @@ function connectionId(edge: ReactFlowEdge): string {
   })
 }
 
-// React Flow treats edge IDs as unique identities. Remove repeated connections even when
-// their stored IDs differ, and repair ID collisions between different connections. Colliding
-// groups use their canonical connection IDs so a stale first record cannot hide a valid edge.
+// React Flow treats edge IDs as unique identities. Remove repeated records within an ID group,
+// and repair ID collisions between different connections. Colliding groups use their canonical
+// connection IDs so a stale first record cannot hide a valid edge. Separately identified edges
+// are left alone even when their endpoints match.
 export function canonicalizeEdges<E extends ReactFlowEdge>(edges: E[]): E[] {
   const connectionsByStoredId = new Map<string, Set<string>>()
   for (const edge of edges) {
@@ -60,18 +61,20 @@ export function canonicalizeEdges<E extends ReactFlowEdge>(edges: E[]): E[] {
     connectionsByStoredId.set(edge.id, connections)
   }
 
-  const seenConnections = new Set<string>()
+  const seenConnectionsByStoredId = new Map<string, Set<string>>()
   const usedIds = new Set<string>()
   let changed = false
   const uniqueEdges: E[] = []
 
   for (const edge of edges) {
     const canonicalId = connectionId(edge)
+    const seenConnections = seenConnectionsByStoredId.get(edge.id) ?? new Set<string>()
     if (seenConnections.has(canonicalId)) {
       changed = true
       continue
     }
     seenConnections.add(canonicalId)
+    seenConnectionsByStoredId.set(edge.id, seenConnections)
 
     const storedIdHasConflictingConnections = (connectionsByStoredId.get(edge.id)?.size ?? 0) > 1
     let repairedId = storedIdHasConflictingConnections ? canonicalId : edge.id

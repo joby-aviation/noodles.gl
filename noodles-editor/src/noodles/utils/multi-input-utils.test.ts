@@ -154,9 +154,10 @@ describe('canonicalizeEdges', () => {
     expect(canonicalizeEdges([first, { ...first }])).toEqual([first])
   })
 
-  it('removes repeated connections whose stored IDs differ', () => {
+  it('preserves separately identified edges whose endpoints match', () => {
     const first = edge('a')
-    expect(canonicalizeEdges([first, { ...first, id: 'stale-id' }])).toEqual([first])
+    const second = { ...first, id: 'separate-id' }
+    expect(canonicalizeEdges([first, second])).toEqual([first, second])
   })
 
   it('repairs an ID collision without discarding either connection', () => {
