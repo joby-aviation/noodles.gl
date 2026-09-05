@@ -152,7 +152,7 @@ import {
 import { DEFAULT_LATITUDE, DEFAULT_LONGITUDE, safeMode } from './globals'
 import { getKeysStore } from './keys-store'
 import { getAllOps, getOp } from './store'
-import { prepareTableDataForOutput, type TableSchema } from './table-schema'
+import { prepareTableDataForOutput, type TableSchema, validateTableData } from './table-schema'
 import type { ExtensionConstructorArgs, LayerPropsValue } from './types'
 import { composeAccessor, isAccessor } from './utils/accessor-helpers'
 import { deepEqual } from './utils/deep-equal'
@@ -2326,9 +2326,12 @@ export class TableEditorOp extends Operator<TableEditorOp> {
   }
 
   execute({ data, schema }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const validatedData = schema ? validateTableData(data, schema as TableSchema) : data
     // Convert dateTime strings to Temporal.ZonedDateTime for output
     // This happens at the operator boundary: internal storage = strings, output = Temporal
-    const outputData = schema ? prepareTableDataForOutput(data, schema as TableSchema) : data
+    const outputData = schema
+      ? prepareTableDataForOutput(validatedData, schema as TableSchema)
+      : validatedData
 
     return {
       data: outputData,

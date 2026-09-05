@@ -62,6 +62,7 @@ import {
   S2LayerOp,
   SmoothOp,
   SwitchOp,
+  TableEditorOp,
   Tile3DLayerOp,
   TimeSeriesOp,
   TripsLayerOp,
@@ -75,6 +76,50 @@ describe('basic Operators', () => {
     const operator = new NumberOp('/num-0')
     expect(operator.data.val).toEqual(0)
     expect(operator.outputData.val).toEqual(0)
+  })
+})
+
+describe('TableEditorOp', () => {
+  it('materializes declared schema defaults in output data', () => {
+    const operator = new TableEditorOp('/table')
+    const schema = {
+      columns: [
+        {
+          name: 'anchor',
+          type: 'stringLiteral' as const,
+          defaultValue: 'start',
+          options: { values: ['start', 'end', 'middle'] },
+        },
+        { name: 'offset2d', type: 'vec2' as const, defaultValue: [64, 0] },
+        { name: 'offset3d', type: 'vec3' as const, defaultValue: [64, 0, 10] },
+      ],
+    }
+
+    const result = operator.execute({ data: [{}], schema })
+
+    expect(result.data).toEqual([{ anchor: 'start', offset2d: [64, 0], offset3d: [64, 0, 10] }])
+  })
+
+  it('preserves date-time values when TableEditors are chained', () => {
+    const first = new TableEditorOp('/first')
+    const second = new TableEditorOp('/second')
+    const schema = {
+      columns: [{ name: 'time', type: 'dateTime' as const }],
+    }
+    const storedValue = {
+      datetime: '2026-09-05T12:30:00.000',
+      timezone: 'America/Los_Angeles',
+    }
+
+    const firstResult = first.execute({ data: [{ time: storedValue }], schema })
+    const secondResult = second.execute({ data: firstResult.data, schema })
+    const chainedValue = secondResult.data[0].time as Temporal.ZonedDateTime
+
+    expect(chainedValue).toBeInstanceOf(Temporal.ZonedDateTime)
+    expect(chainedValue.toPlainDateTime().toString({ smallestUnit: 'millisecond' })).toBe(
+      storedValue.datetime
+    )
+    expect(chainedValue.timeZoneId).toBe(storedValue.timezone)
   })
 })
 
