@@ -96,17 +96,21 @@ export function ExpressionEditorOverlay({
         editor.setSelection(fullRange)
       }
 
-      // Handle Enter key (without modifier) to confirm
-      editor.addCommand(monaco.KeyCode.Enter, () => {
-        const currentValue = editor.getValue()
-        onChange(currentValue)
-        onClose()
-      })
+      // Confirm with Enter only when autocomplete is closed. When suggestions
+      // are visible, Monaco's built-in Enter command accepts the selected item.
+      editor.addCommand(
+        monaco.KeyCode.Enter,
+        () => {
+          const currentValue = editor.getValue()
+          onChange(currentValue)
+          onClose()
+        },
+        '!suggestWidgetVisible'
+      )
 
-      // Handle Escape to cancel
-      editor.addCommand(monaco.KeyCode.Escape, () => {
-        onClose()
-      })
+      // Cancel only when autocomplete is closed. When suggestions are visible,
+      // Monaco's built-in Escape command dismisses the suggestion widget first.
+      editor.addCommand(monaco.KeyCode.Escape, () => onClose(), '!suggestWidgetVisible')
 
       // Note: Tab key is NOT overridden here to allow Monaco's autocomplete to work
       // Users can accept autocomplete suggestions with Tab (standard IDE behavior)
@@ -188,7 +192,7 @@ export function ExpressionEditorOverlay({
       </div>
       {validationError && <div className={s.expressionEditorError}>{validationError}</div>}
       <div className={s.expressionEditorHint}>
-        Enter to confirm • Escape to cancel • Tab to accept suggestion
+        Enter accepts or confirms • Tab accepts • Escape cancels
       </div>
     </div>,
     document.body
