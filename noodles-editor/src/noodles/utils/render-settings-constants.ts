@@ -13,6 +13,8 @@ export type RenderSettings = {
   scaleControl: number
   framerate: number
   captureDelay: number
+  fileName: string
+  imageFormat: 'png' | 'jpeg'
   rendersDirectory: string
 }
 
@@ -28,5 +30,7 @@ export const DEFAULT_RENDER_SETTINGS: RenderSettings = {
   scaleControl: 0.3,
   framerate: 30,
   captureDelay: 50,
+  fileName: '',
+  imageFormat: 'png',
   rendersDirectory: 'renders',
 }

@@ -2,6 +2,11 @@ import { assert, type Deck } from '@deck.gl/core'
 import { useCallback, useRef, useState } from 'react'
 import { getTimelineStore, useTimelineStore } from '../timeline/timeline-store'
 import { debugRender, debugRenderFrame } from '../utils/debug'
+import {
+  getVersionedRenderFileName,
+  reserveNextRenderVersion,
+  sanitizeRenderBaseName,
+} from './render-output'
 
 export const rafDriver = {
   tick: (_timestamp: number) => {},
@@ -49,6 +54,8 @@ export const useRenderer = ({
       width,
       height,
       codec,
+      directoryHandle,
+      fileName = projectName,
       startFrame = 0,
       endFrame = Math.floor(sequenceLength * fps),
     }: {
@@ -56,6 +63,8 @@ export const useRenderer = ({
       width: number
       height: number
       codec: 'hevc' | 'avc' | 'vp9' | 'av1'
+      directoryHandle?: FileSystemDirectoryHandle
+      fileName?: string
       startFrame?: number
       endFrame?: number
     }) => {
@@ -66,24 +75,29 @@ export const useRenderer = ({
       setIsRendering(true)
 
       const getContainer = async (name: string) => {
-        const fileHandle = await window
-          .showSaveFilePicker({
-            suggestedName: `${name}.mp4`,
-            types: [
-              {
-                description: 'Video File',
-                accept: { 'video/mp4': ['.mp4'] },
-              },
-            ],
-          })
-          .catch(error => {
-            if (error.name === 'AbortError') {
-              debugRender('File picker cancelled by user for: %s', name)
-            } else {
-              debugRender('Error in showSaveFilePicker for', name, ':', error)
-            }
-            return null // Signal cancellation/failure
-          })
+        const baseName = sanitizeRenderBaseName(name, projectName)
+        const fileHandle = directoryHandle
+          ? await getVersionedRenderFileName(directoryHandle, baseName, 'mp4', projectName).then(
+              versionedName => directoryHandle.getFileHandle(versionedName, { create: true })
+            )
+          : await window
+              .showSaveFilePicker({
+                suggestedName: `${baseName}-v1.mp4`,
+                types: [
+                  {
+                    description: 'Video File',
+                    accept: { 'video/mp4': ['.mp4'] },
+                  },
+                ],
+              })
+              .catch(error => {
+                if (error.name === 'AbortError') {
+                  debugRender('File picker cancelled by user for: %s', name)
+                } else {
+                  debugRender('Error in showSaveFilePicker for', name, ':', error)
+                }
+                return null // Signal cancellation/failure
+              })
 
         if (!fileHandle) {
           return null
@@ -192,7 +206,11 @@ export const useRenderer = ({
         return { track, reader }
       }
 
-      const mapContainer = await getContainer(`${projectName}-map`)
+      const mapContainer = await getContainer(fileName).catch(error => {
+        setIsRendering(false)
+        debugRender('Failed to prepare render output: %o', error)
+        throw error
+      })
       if (!mapContainer) {
         setIsRendering(false)
         debugRender('Render setup cancelled by user (map container)')
@@ -328,6 +346,7 @@ export const useRenderer = ({
       canvas,
       getDeck,
       directoryHandle,
+      fileName = projectName,
       captureDelay = 200,
       waitForData = true,
       startFrame = 0,
@@ -338,6 +357,7 @@ export const useRenderer = ({
       canvas: HTMLCanvasElement
       getDeck?: () => Deck | null
       directoryHandle: FileSystemDirectoryHandle
+      fileName?: string
       captureDelay?: number
       waitForData?: boolean
       startFrame?: number
@@ -348,10 +368,18 @@ export const useRenderer = ({
       assert(canvas, 'canvas is required')
       assert(directoryHandle, 'directoryHandle is required')
 
-      setIsRendering(true)
-
       const totalFrames = endFrame - startFrame + 1
       const padLength = Math.max(4, String(endFrame).length)
+      const firstFrameNumber = String(startFrame).padStart(padLength, '0')
+      const { baseName, version } = await reserveNextRenderVersion(
+        directoryHandle,
+        fileName,
+        `_${firstFrameNumber}.png`,
+        projectName
+      )
+      const versionedBaseName = `${baseName}-v${version}`
+
+      setIsRendering(true)
 
       // For pure-deck scenes (no basemap), install a temporary onAfterRender that fires captureFrame().
       // Basemap scenes already drive frame readiness via mapProps.onIdle.
@@ -420,7 +448,7 @@ export const useRenderer = ({
           totalWaitTime += waitEnd - waitStart
 
           const frameNumber = String(i).padStart(padLength, '0')
-          const filename = `${projectName}_${frameNumber}.png`
+          const filename = `${versionedBaseName}_${frameNumber}.png`
 
           // Drain oldest write if the queue is full before capturing the next frame
           if (pendingWrites.length >= MAX_CONCURRENT_WRITES) {
@@ -517,29 +545,44 @@ export default useRenderer
 export const captureScreenshot = async (
   suggestedName: string,
   getBufferedCanvas: () => HTMLCanvasElement,
-  quality = 1
+  quality = 1,
+  directoryHandle?: FileSystemDirectoryHandle,
+  imageFormat: 'png' | 'jpeg' = 'png'
 ) => {
-  const imageHandle = await window.showSaveFilePicker({
-    suggestedName,
-    types: [
-      {
-        description: 'PNG',
-        accept: { 'image/png': ['.png'] },
-      },
-      {
-        description: 'JPEG',
-        accept: { 'image/jpeg': ['.jpeg'] },
-      },
-    ],
-  })
+  const baseName = sanitizeRenderBaseName(suggestedName, 'screenshot')
+  const imageExtension = imageFormat === 'jpeg' ? 'jpeg' : 'png'
+  const imageHandle = directoryHandle
+    ? await getVersionedRenderFileName(
+        directoryHandle,
+        baseName,
+        imageExtension,
+        'screenshot'
+      ).then(versionedName => directoryHandle.getFileHandle(versionedName, { create: true }))
+    : await window.showSaveFilePicker({
+        suggestedName: `${baseName}-v1.${imageExtension}`,
+        types: [
+          {
+            description: 'PNG',
+            accept: { 'image/png': ['.png'] },
+          },
+          {
+            description: 'JPEG',
+            accept: { 'image/jpeg': ['.jpeg'] },
+          },
+        ],
+      })
 
-  const file = await imageHandle.getFile()
+  const imageType = directoryHandle
+    ? imageFormat === 'jpeg'
+      ? 'image/jpeg'
+      : 'image/png'
+    : (await imageHandle.getFile()).type
 
   const blob = await new Promise<Blob>((resolve, reject) => {
     // canvas needs to redrawn immediately before capture or else buffer will be empty.
     getBufferedCanvas().toBlob(
       blob => (blob ? resolve(blob) : reject('canvas is empty')),
-      file.type,
+      imageType,
       quality
     )
   })

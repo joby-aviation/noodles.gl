@@ -4896,6 +4896,8 @@ export class OutOp extends Operator<OutOp> {
       scaleControl: new NumberField(0.3, { min: 0.1, max: 1, step: 0.05 }),
       framerate: new NumberField(30, { min: 1, max: 120, step: 1 }),
       captureDelay: new NumberField(50, { min: 0, max: 10000, step: 10 }),
+      fileName: new StringField(''),
+      imageFormat: new StringLiteralField('png', ['png', 'jpeg']),
       rendersDirectory: new StringField('renders'),
     }
   }
