@@ -810,6 +810,7 @@ export function VectorFieldComponent({
   opId,
   fieldName,
   expandTimeline,
+  showKeyframeIndicator = false,
   channelHandles = false,
   portModeControl,
 }: {
@@ -819,6 +820,7 @@ export function VectorFieldComponent({
   opId?: string
   fieldName?: string
   expandTimeline?: () => void
+  showKeyframeIndicator?: boolean
   channelHandles?: boolean
   portModeControl?: ReactNode
 }) {
@@ -958,7 +960,7 @@ export function VectorFieldComponent({
             text
           />
         )}
-        {opId && fieldName && !channelHandles && (
+        {showKeyframeIndicator && opId && fieldName && (
           <VectorKeyframeIndicator
             opId={opId}
             fieldName={fieldName}
