@@ -148,6 +148,7 @@ import type { ExtensionConstructorArgs, LayerPropsValue } from './types'
 import { composeAccessor, isAccessor } from './utils/accessor-helpers'
 import { deepEqual } from './utils/deep-equal'
 import type { ExtractProps } from './utils/extract-props'
+import { resolveOperatorField } from './utils/field-resolution'
 import { projectScheme } from './utils/filesystem'
 import type { OpId } from './utils/id-utils'
 import { isDirectChild } from './utils/path-utils'
@@ -175,6 +176,8 @@ export interface CustomFieldDefinition {
   defaultValue?: unknown // Default value
   enableExpression?: string // JavaScript expression for conditional visibility (e.g., "par.mode === 'advanced'")
 }
+
+export type InputPortMode = 'whole' | 'channels'
 
 // Pull-based execution status
 export enum PullExecutionStatus {
@@ -237,6 +240,12 @@ export abstract class Operator<OP extends IOperator> {
   // Per-instance visible fields (null = use defaults from field.showByDefault)
   visibleFields = new BehaviorSubject<Set<string> | null>(null)
 
+  // Per-instance presentation for vector inputs. Missing entries use the whole-value port.
+  inputPortModes = new BehaviorSubject<Record<string, InputPortMode>>({})
+
+  // Deprecated input paths may resolve to canonical fields without being rendered as ports.
+  inputAliases: Record<string, string> = {}
+
   // === Pull-based execution additions ===
   // Global dirty epoch for markDirty wave pruning. Incremented whenever ANY
   // operator's status transitions away from DIRTY (see
@@ -261,7 +270,8 @@ export abstract class Operator<OP extends IOperator> {
     public id: OpId,
     data?: Partial<ExtractProps<ReturnType<OP['createInputs']>>>,
     locked = false,
-    public containerId?: string
+    public containerId?: string,
+    inputPortModes: Record<string, InputPortMode> = {}
   ) {
     this.inputs = this.createInputs()
     this.outputs = this.createOutputs()
@@ -277,6 +287,11 @@ export abstract class Operator<OP extends IOperator> {
       }
       if (field instanceof CompoundPropsField) {
         for (const [k, f] of Object.entries(field.fields)) {
+          assignPathToProps(f, k, currentPath)
+        }
+      }
+      if ('channelFields' in field) {
+        for (const [k, f] of Object.entries(field.channelFields as Record<string, Field>)) {
           assignPathToProps(f, k, currentPath)
         }
       }
@@ -302,6 +317,19 @@ export abstract class Operator<OP extends IOperator> {
     if (locked) {
       this.locked.next(true)
     }
+    this.inputPortModes.next({ ...inputPortModes })
+  }
+
+  getInputPortMode(fieldName: string): InputPortMode {
+    return this.inputPortModes.value[fieldName] ?? 'whole'
+  }
+
+  setInputPortMode(fieldName: string, mode: InputPortMode): void {
+    if (!(fieldName in this.inputs)) return
+    const next = { ...this.inputPortModes.value }
+    if (mode === 'whole') delete next[fieldName]
+    else next[fieldName] = mode
+    this.inputPortModes.next(next)
   }
 
   get data() {
@@ -1046,6 +1074,11 @@ export abstract class Operator<OP extends IOperator> {
           assignPathToProps(f, k, currentPath)
         }
       }
+      if ('channelFields' in field) {
+        for (const [k, f] of Object.entries(field.channelFields as Record<string, Field>)) {
+          assignPathToProps(f, k, currentPath)
+        }
+      }
     }
 
     for (const [key, field] of Object.entries(this.inputs)) {
@@ -1063,10 +1096,24 @@ export abstract class Operator<OP extends IOperator> {
     this.unsubscribeListeners()
     this.executionState.complete()
     this.customFieldsChanged.complete()
+    this.inputPortModes.complete()
 
-    // Cleanup expression-mode subscriptions (sibling/timeline reactivity)
-    for (const field of Object.values(this.inputs)) {
+    // Cleanup input subscriptions, including vector channel connections and the
+    // internal subscriptions that keep their whole value in sync.
+    const disposeInputField = (field: Field) => {
       field.expressionCleanup?.()
+      for (const subscription of field.subscriptions.values()) {
+        subscription.unsubscribe()
+      }
+      field.subscriptions.clear()
+      if ('channelFields' in field) {
+        for (const channelField of Object.values(field.channelFields as Record<string, Field>)) {
+          disposeInputField(channelField)
+        }
+      }
+    }
+    for (const field of Object.values(this.inputs)) {
+      disposeInputField(field)
     }
 
     // Cleanup timeline subscriptions
@@ -3804,10 +3851,13 @@ export class UnprojectOp extends Operator<UnprojectOp> {
 export class MapViewStateOp extends Operator<MapViewStateOp> {
   static displayName = 'MapViewState'
   static description = 'Create a react-map-gl MapViewState for controlling the camera.'
+  inputAliases = {
+    longitude: 'center.lng',
+    latitude: 'center.lat',
+  }
   createInputs() {
     return {
-      longitude: new NumberField(DEFAULT_LONGITUDE, { min: -180, max: 180, step: 0.001 }),
-      latitude: new NumberField(DEFAULT_LATITUDE, { min: -90, max: 90, step: 0.001 }),
+      center: new Point2DField([DEFAULT_LONGITUDE, DEFAULT_LATITUDE], { returnType: 'object' }),
       zoom: new NumberField(12, { min: 0, max: 24, step: 0.1 }),
       pitch: new NumberField(0, { min: 0, max: 85, optional: true }),
       bearing: new NumberField(0, { optional: true }),
@@ -3825,13 +3875,18 @@ export class MapViewStateOp extends Operator<MapViewStateOp> {
     }
   }
   execute({
-    longitude,
-    latitude,
+    center,
     zoom,
     pitch,
     bearing,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const viewState = { longitude, latitude, zoom, pitch, bearing }
+    const viewState = {
+      longitude: center.lng,
+      latitude: center.lat,
+      zoom,
+      pitch,
+      bearing,
+    }
     validateViewState(viewState)
     return { viewState }
   }
@@ -10008,8 +10063,8 @@ function proxyFields(op: Operator<IOperator>, fields: 'inputs' | 'outputs') {
         return undefined
       }
 
-      const field = target[fields][prop]
-      return field?.value
+      const namespace = fields === 'inputs' ? 'par' : 'out'
+      return resolveOperatorField(target, namespace, prop)?.field.value
     },
     set(_target, _prop: string | symbol, _value) {
       throw new Error('Cannot set value on par or out')

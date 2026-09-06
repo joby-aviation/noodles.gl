@@ -3,6 +3,7 @@ import { type Field, getFieldReferences, isSerializedExpression } from './fields
 import { type Edge as ExecutorEdge, updateGraph } from './graph-executor'
 import type { IOperator, Operator } from './operators'
 import type { GraphNode } from './utils/for-loop-group-utils'
+import { resolveOperatorField } from './utils/field-resolution'
 import { edgeId } from './utils/id-utils'
 import { parseHandleId } from './utils/path-utils'
 
@@ -275,10 +276,16 @@ class ReferenceDependencyModel {
       const targetHandle = parseHandleId(edge.targetHandle)
       if (!sourceOp || !targetOp || !sourceHandle || !targetHandle) continue
 
-      const sourceField =
-        sourceOp[sourceHandle.namespace === 'par' ? 'inputs' : 'outputs'][sourceHandle.fieldName]
-      const targetField =
-        targetOp[targetHandle.namespace === 'par' ? 'inputs' : 'outputs'][targetHandle.fieldName]
+      const sourceField = resolveOperatorField(
+        sourceOp,
+        sourceHandle.namespace,
+        sourceHandle.fieldName
+      )?.field
+      const targetField = resolveOperatorField(
+        targetOp,
+        targetHandle.namespace,
+        targetHandle.fieldName
+      )?.field
       if (!sourceField || !targetField) continue
 
       // A field already invalidates its own operator; subscribing it to itself

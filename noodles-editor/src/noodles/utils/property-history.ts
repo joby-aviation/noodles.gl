@@ -29,11 +29,17 @@ export function captureOperatorInputs(): string | null {
       if (
         !isDriven &&
         'subscriptions' in field &&
-        (field as { subscriptions: Map<unknown, unknown> }).subscriptions.size > 0
+        Array.from(
+          (field as { subscriptions: Map<string, unknown> }).subscriptions.keys()
+        ).some(id => !id.startsWith('__'))
       )
         continue
       inputs[name] = field.serialize()
     }
+    // Older test doubles and non-Operator implementations may not expose port
+    // modes. Real operators always include the empty object so redo can clear a
+    // previously selected channel layout back to the default whole layout.
+    if (op.inputPortModes) inputs.__inputPortModes = op.inputPortModes.value
     state[op.id] = inputs
   }
   debugHistorySnapshot('Captured operator inputs for %d ops', ops.length)
@@ -62,6 +68,10 @@ export function applyOperatorInputs(snapshot: string): void {
     if (!op) continue
     const opInputs = op.inputs as Record<string, IField>
     for (const [name, value] of Object.entries(inputs)) {
+      if (name === '__inputPortModes') {
+        op.inputPortModes?.next(value as Record<string, 'whole' | 'channels'>)
+        continue
+      }
       const field = opInputs[name]
       if (field) {
         // Routes { $expr } payloads to setExpression, plain values to setValue
