@@ -813,20 +813,6 @@ function EditableCell({ getValue, row, column, table }: EditableCellProps) {
     activeEdit?.set(handleComplete)
   }
 
-  if (isEditing) {
-    return (
-      <div className={cx(s.cell, s.editing)}>
-        <EditorComponent
-          value={value}
-          onChange={handleChange}
-          onComplete={handleComplete}
-          column={colSchema}
-        />
-      </div>
-    )
-  }
-
-  // Render cell - dateTime renderer needs column schema for timezone
   const renderedValue =
     colSchema.type === 'dateTime'
       ? (renderer as (value: unknown, column: ColumnSchema) => React.ReactNode)(
@@ -834,6 +820,24 @@ function EditableCell({ getValue, row, column, table }: EditableCellProps) {
           colSchema
         )
       : (renderer as (value: unknown) => React.ReactNode)(currentValue)
+
+  if (isEditing) {
+    return (
+      <div className={cx(s.cell, s.editing)}>
+        <span className={s.editingPlaceholder} aria-hidden="true">
+          {renderedValue}
+        </span>
+        <div className={s.editorOverlay}>
+          <EditorComponent
+            value={value}
+            onChange={handleChange}
+            onComplete={handleComplete}
+            column={colSchema}
+          />
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div
