@@ -42,3 +42,7 @@ venv.bak/
 .claude
 .spec-workflow/
 !.spec-workflow/specs
+evals/calibration/materials/
+# run evidence lives in R2 (evals/README.md "Storage & retention");
+# git keeps only index.json, scorecard.md, registry.json, manifest.json
+evals/results/*/runs/
