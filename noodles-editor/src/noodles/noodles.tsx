@@ -98,6 +98,7 @@ import {
   load,
   save,
 } from './storage'
+import { getGitSettings } from './utils/git-service'
 import {
   clearPendingInsertionIndex,
   getOp,
@@ -342,6 +343,21 @@ export function getNoodles(): Visualization {
     window.addEventListener('beforeunload', handleBeforeUnload)
     return () => window.removeEventListener('beforeunload', handleBeforeUnload)
   }, [hasUnsavedChanges, projectName, storageType, isExamplesRoute])
+
+  // Autosave with debouncing
+  useEffect(() => {
+    // Don't autosave for examples (read-only) or if no unsaved changes
+    if (isExamplesRoute || !hasUnsavedChanges) return
+
+    const gitSettings = getGitSettings()
+    if (!gitSettings.autoCommit) return
+
+    const timeoutId = setTimeout(() => {
+      onMenuSave()
+    }, gitSettings.autoCommitDelay)
+
+    return () => clearTimeout(timeoutId)
+  }, [hasUnsavedChanges, isExamplesRoute, onMenuSave])
 
   // Only changes when graph structure changes (nodes added/removed/type changed, edges reconnected)
   // Intentionally excludes node position so dragging does NOT re-run transformGraph
