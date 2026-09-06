@@ -11,17 +11,15 @@ Use the layout button at the right of a vector field to switch between:
 - **Whole value** — one port for the complete point or vector. Use this to connect a Geocoder location, a GeoJSON Point, or another compatible vector directly.
 - **Components** — one port per numeric component, such as `lng` and `lat` or `x`, `y`, and `z`. Use this when coordinates come from different nodes.
 
-Both layouts represent the same input. They are never active at the same time, so there is no connection-priority rule to remember.
+Both layouts represent the same input. They are never active at the same time, so there is no connection-priority rule to remember. The example below connects a Geocoder Point in whole-value mode and a Number to `lng` in component mode.
 
-![Whole-value and component layouts for a MapViewState center](/img/map-view-state-port-modes.png)
+![A Geocoder Point connected to a whole-value MapViewState center and a Number connected to its longitude component](/img/map-view-state-port-modes.png)
 
 ## Connections and Editing
 
 Disconnect the whole input and all of its components before changing layouts. While a connection exists, the layout button is disabled and its tooltip explains what to disconnect.
 
 In component mode, connected components are driven by their edges while unconnected components remain editable. Point Lookup remains available in either layout.
-
-![A connected longitude with latitude still editable](/img/map-view-state-channel-connection.png)
 
 Keyframe diamonds appear in the Properties Panel sidebar, not on graph nodes. An unconnected component can still be edited and animated from the sidebar when another component is connected.
 
