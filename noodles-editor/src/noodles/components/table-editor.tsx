@@ -17,7 +17,7 @@ import { getDefaultValue, validateTableData } from '../table-schema'
 import { getTimezoneOptions } from '../utils/timezone-utils'
 import { ColorSwatch } from './color-swatch'
 import { GeocodingDialog } from './geocoding-dialog'
-import { SchemaEditorDialog } from './schema-editor-dialog'
+import { SchemaEditorDialog, type SchemaChangeMetadata } from './schema-editor-dialog'
 import s from './table-editor.module.css'
 
 // Cell editor components for each column type
@@ -903,12 +903,23 @@ export function TableEditor({ data, schema, onDataChange, onSchemaChange }: Tabl
     commitData([...tableDataRef.current, newRow], 'Add table row')
   }
 
-  const handleSchemaChange = (newSchema: TableSchema) => {
+  const handleSchemaChange = (newSchema: TableSchema, metadata?: SchemaChangeMetadata) => {
     activeEdit.flush()
+    const sourceData = metadata
+      ? tableDataRef.current.map(row =>
+          Object.fromEntries(
+            newSchema.columns.flatMap((column, columnIndex) => {
+              const sourceColumnName = metadata.sourceColumnNames[columnIndex]
+              return sourceColumnName === undefined ? [] : [[column.name, row[sourceColumnName]]]
+            })
+          )
+        )
+      : tableDataRef.current
+
     // Preserve valid cells and materialize the new schema's declared defaults for
-    // missing or invalid cells. This is the same path used when a schema arrives
-    // through a connection, so custom vector and string-literal defaults agree.
-    const newData = validateTableData(tableDataRef.current, newSchema)
+    // missing or invalid cells. Metadata remaps renamed and duplicated columns
+    // before validation while leaving new columns absent so their defaults apply.
+    const newData = validateTableData(sourceData, newSchema)
 
     onSchemaChange(newSchema, newData)
     tableDataRef.current = newData
