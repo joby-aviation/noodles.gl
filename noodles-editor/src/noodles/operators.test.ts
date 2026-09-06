@@ -74,6 +74,7 @@ import {
 } from './operators'
 import { deleteOp, getOpStore, setOp } from './store'
 import { isAccessor } from './utils/accessor-helpers'
+import { canConnect, validateConnection } from './utils/can-connect'
 
 describe('basic Operators', () => {
   it('creates an Operator', () => {
@@ -759,6 +760,22 @@ describe('AccessorOp op() error handling', () => {
 })
 
 describe('BoundingBoxOp', () => {
+  it('connects its viewState output to a MaplibreBasemap viewState input', () => {
+    const boundingBox = new BoundingBoxOp('/bbox-0')
+    const basemap = new MaplibreBasemapOp('/maplibre-0')
+
+    expect(canConnect(boundingBox.outputs.viewState, basemap.inputs.viewState)).toBe(true)
+  })
+
+  it('identifies an incompatible MaplibreBasemap compound property', () => {
+    const boundingBox = new BoundingBoxOp('/bbox-0')
+    const basemap = new MaplibreBasemapOp('/maplibre-0')
+
+    expect(validateConnection(boundingBox.outputs.viewState, basemap.inputs.sky).error).toBe(
+      'Type mismatch at sky.enabled: expected boolean, received undefined'
+    )
+  })
+
   it('finds the bounding box of a list of points', () => {
     const operator = new BoundingBoxOp('/bbox-0')
     const val = operator.execute({

@@ -186,6 +186,19 @@ describe('ValidateConnection', () => {
     expect(result.error).toContain('number')
   })
 
+  it('identifies the incompatible property in compound fields', () => {
+    const source = new CompoundPropsField({ latitude: new StringField('north') })
+    const target = new CompoundPropsField({ latitude: new NumberField() })
+    target.pathToProps = ['/target', 'par', 'viewState']
+
+    const result = validateConnection(source, target)
+
+    expect(result.valid).toBe(false)
+    expect(result.error).toBe(
+      'Type mismatch at viewState.latitude: expected number, received string'
+    )
+  })
+
   it('returns valid for UnknownField connecting to any field', () => {
     const unknownField = new UnknownField()
     const numberField = new NumberField(10)
@@ -321,6 +334,20 @@ describe('schemasAreCompatible', () => {
 
     // Missing required property
     expect(schemasAreCompatible(target, source)).toBe(false)
+  })
+
+  it('allows optional target properties to be absent from the source', () => {
+    const source = z.object({ a: z.number() })
+    const target = z.object({ a: z.number(), b: z.string().optional() })
+
+    expect(schemasAreCompatible(source, target)).toBe(true)
+  })
+
+  it('still validates optional target properties when they exist in the source', () => {
+    const source = z.object({ a: z.number(), b: z.number() })
+    const target = z.object({ a: z.number(), b: z.string().optional() })
+
+    expect(schemasAreCompatible(source, target)).toBe(false)
   })
 
   it('objects with incompatible property types are incompatible', () => {
