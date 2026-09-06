@@ -1,8 +1,8 @@
-import { describe, it, expect, beforeEach } from 'vitest'
-import { ViewerOp, TableEditorOp } from '../../operators'
+import { beforeEach, describe, expect, it } from 'vitest'
+import { TableEditorOp, ViewerOp } from '../../operators'
 import { getOpStore, setOp } from '../../store'
-import { convertViewerToTableEditor } from '../operator-conversion'
 import type { ReactFlowEdge, ReactFlowNode } from '../../types'
+import { convertViewerToTableEditor } from '../operator-conversion'
 
 describe('convertViewerToTableEditor', () => {
   let mockSetNodes: (updater: (nodes: ReactFlowNode[]) => ReactFlowNode[]) => void
@@ -16,7 +16,7 @@ describe('convertViewerToTableEditor', () => {
     capturedEdges = null
 
     // Mock setNodes/setEdges to capture the updater function results
-    mockSetNodes = (updater) => {
+    mockSetNodes = updater => {
       const dummyNodes: ReactFlowNode[] = [
         {
           id: '/test-viewer',
@@ -28,7 +28,7 @@ describe('convertViewerToTableEditor', () => {
       capturedNodes = updater(dummyNodes)
     }
 
-    mockSetEdges = (updater) => {
+    mockSetEdges = updater => {
       const dummyEdges: ReactFlowEdge[] = []
       capturedEdges = updater(dummyEdges)
     }
@@ -145,5 +145,25 @@ describe('convertViewerToTableEditor', () => {
     const store = getOpStore()
     const convertedOp = store.getOp('/test-viewer')
     expect(convertedOp!.locked.value).toBe(true)
+  })
+
+  it('removes duplicate edge IDs while converting', () => {
+    const viewerOp = new ViewerOp('/test-viewer')
+    viewerOp.inputs.data.setValue([{ name: 'Alice' }])
+    setOp('/test-viewer', viewerOp)
+    const edge = {
+      id: '/source.out.data->/test-viewer.par.data',
+      source: '/source',
+      target: '/test-viewer',
+      sourceHandle: 'out.data',
+      targetHandle: 'par.data',
+    }
+    mockSetEdges = updater => {
+      capturedEdges = updater([edge, { ...edge }])
+    }
+
+    convertViewerToTableEditor('/test-viewer', mockSetNodes, mockSetEdges)
+
+    expect(capturedEdges).toEqual([edge])
   })
 })
