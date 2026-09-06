@@ -63,7 +63,7 @@ describe('TransformScale', () => {
         { style: { position: 'relative', width: 1000, height: 600 } },
         createElement(
           TransformScale,
-          { scale: 0.3, scaleMode: 'fit' },
+          { scale: 0.3, scaleMode: 'fit', width: 1920, height: 1080 },
           createElement('div', { style: { width: 1920, height: 1080 } })
         )
       )
@@ -88,6 +88,28 @@ describe('TransformScale', () => {
     expect(Number(surface.style.transform.match(/scale\(([^)]+)\)/)?.[1])).toBeCloseTo(484 / 1920)
     expect(stage.dataset.scaleMode).toBe('fit')
     expect(surface.style.transformOrigin).toBe('center center')
+  })
+
+  it('sizes the surface for absolutely positioned render content', () => {
+    class ResizeObserverMock {
+      observe() {}
+      disconnect() {}
+    }
+    vi.stubGlobal('ResizeObserver', ResizeObserverMock)
+
+    const { container } = render(
+      createElement(
+        TransformScale,
+        { scale: 0.3, scaleMode: 'fit', width: 1920, height: 1080 },
+        createElement('div', {
+          style: { position: 'absolute', width: 1920, height: 1080 },
+        })
+      )
+    )
+
+    const surface = container.querySelector<HTMLElement>('.transform-scale')!
+    expect(surface.style.width).toBe('1920px')
+    expect(surface.style.height).toBe('1080px')
   })
 
   it('uses the saved manual scale without fitting', () => {
