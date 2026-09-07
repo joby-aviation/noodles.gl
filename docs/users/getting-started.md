@@ -57,20 +57,22 @@ Drag-and-drop or browse for CSV/JSON files. The importer automatically creates a
 4. **Animate**: [Add timeline keyframes](./animation-and-rendering.md) to create smooth animations
 5. **Export**: Generate images, videos, or interactive applications
 
-## API Keys Configuration
+## Try the NYC Taxis Example
 
-Access API key settings via the gear icon in the top menu bar.
+See Noodles.gl in action with a real-world dataset:
 
-### Key Sources
+[**Open NYC Taxis Example →**](https://noodles.gl/examples/nyc-taxis)
 
-Keys are resolved in priority order:
-1. **Browser** - Stored in localStorage, persists across sessions
-2. **Project** - Loaded from and retained in the project file until explicitly removed
-3. **Environment** - Set via environment variables
+This example visualizes millions of NYC taxi trips using:
+- Arc layers connecting pickup and dropoff locations
+- Brushing interaction to filter trips
+- Timeline animation showing temporal patterns
 
-The first source with a valid key is used automatically.
+If running locally: `http://localhost:5173/examples/nyc-taxis`
 
-### Supported Keys
+## Need API Keys?
+
+Some features require API keys for external services. See [API Keys Configuration](./api-keys.md) for complete setup instructions.
 
 | Key | Purpose | Required For |
 |-----|---------|--------------|
