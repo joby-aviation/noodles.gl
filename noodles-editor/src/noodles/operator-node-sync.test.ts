@@ -28,26 +28,30 @@ describe('Operator-Node Synchronization', () => {
           id: '/test',
           type: 'NumberOp',
           position: { x: 0, y: 0 },
-          data: { inputs: { value: 42 } },
+          data: { inputs: { val: 42 } },
         },
       ])
 
       // Build operators from nodes (manual since subscribers disabled)
       buildOperators()
 
+      // Get fresh store state after building operators
+      const storeAfter = useGraphStore.getState()
+
       // Currently: state is duplicated
-      const node = store.nodes.find(n => n.id === '/test')
-      const operator = store.getOp('/test')
+      const node = storeAfter.nodes.find(n => n.id === '/test')
+      const operator = storeAfter.getOp('/test')
 
       expect(node).toBeDefined()
-      expect(node?.data?.inputs?.value).toBe(42)
-      expect(operator?.inputs.value.value).toBe(42)
+      expect(node?.data?.inputs?.val).toBe(42)
+      expect(operator?.inputs.val.value).toBe(42)
 
       // They're separate - changing one doesn't update the other
-      operator!.inputs.value.setValue(100)
-      const nodeAfter = store.nodes.find(n => n.id === '/test')
-      expect(nodeAfter?.data?.inputs?.value).toBe(42) // Still old value!
-      expect(operator!.inputs.value.value).toBe(100)
+      operator!.inputs.val.setValue(100)
+      const storeAfterSet = useGraphStore.getState()
+      const nodeAfterSet = storeAfterSet.nodes.find(n => n.id === '/test')
+      expect(nodeAfterSet?.data?.inputs?.val).toBe(42) // Still old value!
+      expect(operator!.inputs.val.value).toBe(100)
     })
 
     it('should handle node position updates', () => {
@@ -67,7 +71,9 @@ describe('Operator-Node Synchronization', () => {
         position: { x: 300, y: 400 },
       })
 
-      const node = store.nodes.find(n => n.id === '/test')
+      // Get fresh state after update
+      const storeAfter = useGraphStore.getState()
+      const node = storeAfter.nodes.find(n => n.id === '/test')
       expect(node?.position).toEqual({ x: 300, y: 400 })
     })
 
@@ -79,17 +85,19 @@ describe('Operator-Node Synchronization', () => {
           id: '/test',
           type: 'NumberOp',
           position: { x: 0, y: 0 },
-          data: { inputs: { value: 10 } },
+          data: { inputs: { val: 10 } },
         },
       ])
 
       // Update value
       store.updateNode('/test', {
-        data: { inputs: { value: 20 } },
+        data: { inputs: { val: 20 } },
       })
 
-      const node = store.nodes.find(n => n.id === '/test')
-      expect(node?.data.inputs.value).toBe(20)
+      // Get fresh state after update
+      const storeAfter = useGraphStore.getState()
+      const node = storeAfter.nodes.find(n => n.id === '/test')
+      expect(node?.data.inputs.val).toBe(20)
     })
 
     it('should handle operator field setValue', () => {
@@ -101,17 +109,18 @@ describe('Operator-Node Synchronization', () => {
           id: '/test',
           type: 'NumberOp',
           position: { x: 0, y: 0 },
-          data: { inputs: { value: 10 } },
+          data: { inputs: { val: 10 } },
         },
       ])
 
       buildOperators()
-      const op = store.getOp('/test')!
+      const storeAfter = useGraphStore.getState()
+      const op = storeAfter.getOp('/test')!
 
       // Set value directly on operator
-      op.inputs.value.setValue(50)
+      op.inputs.val.setValue(50)
 
-      expect(op.inputs.value.value).toBe(50)
+      expect(op.inputs.val.value).toBe(50)
       expect(op.dirty).toBe(true) // markDirty was called
     })
 
@@ -119,14 +128,15 @@ describe('Operator-Node Synchronization', () => {
       const store = useGraphStore.getState()
 
       store.addNodes([
-        { id: '/op1', type: 'NumberOp', position: { x: 0, y: 0 }, data: { inputs: { value: 10 } } },
-        { id: '/op2', type: 'NumberOp', position: { x: 0, y: 0 }, data: { inputs: { value: 20 } } },
+        { id: '/op1', type: 'NumberOp', position: { x: 0, y: 0 }, data: { inputs: { val: 10 } } },
+        { id: '/op2', type: 'NumberOp', position: { x: 0, y: 0 }, data: { inputs: { val: 20 } } },
       ])
 
       buildOperators()
+      const storeAfter = useGraphStore.getState()
 
-      expect(store.getOp('/op1')?.inputs.value.value).toBe(10)
-      expect(store.getOp('/op2')?.inputs.value.value).toBe(20)
+      expect(storeAfter.getOp('/op1')?.inputs.val.value).toBe(10)
+      expect(storeAfter.getOp('/op2')?.inputs.val.value).toBe(20)
     })
 
     it('should handle node deletion', () => {
@@ -139,8 +149,10 @@ describe('Operator-Node Synchronization', () => {
 
       store.deleteNodes(['/test1'])
 
-      expect(store.nodes.length).toBe(1)
-      expect(store.nodes[0].id).toBe('/test2')
+      // Get fresh state after deletion
+      const storeAfter = useGraphStore.getState()
+      expect(storeAfter.nodes.length).toBe(1)
+      expect(storeAfter.nodes[0].id).toBe('/test2')
     })
 
     it('should handle edge operations', () => {
@@ -151,16 +163,21 @@ describe('Operator-Node Synchronization', () => {
           id: 'e1',
           source: '/op1',
           target: '/op2',
-          sourceHandle: 'out.value',
-          targetHandle: 'par.value',
+          sourceHandle: 'out.val',
+          targetHandle: 'par.val',
         },
       ])
 
-      expect(store.edges.length).toBe(1)
-      expect(store.edges[0].source).toBe('/op1')
+      // Get fresh state after adding edges
+      const storeAfterAdd = useGraphStore.getState()
+      expect(storeAfterAdd.edges.length).toBe(1)
+      expect(storeAfterAdd.edges[0].source).toBe('/op1')
 
-      store.deleteEdges(['e1'])
-      expect(store.edges.length).toBe(0)
+      storeAfterAdd.deleteEdges(['e1'])
+
+      // Get fresh state after deleting edges
+      const storeAfterDelete = useGraphStore.getState()
+      expect(storeAfterDelete.edges.length).toBe(0)
     })
   })
 
@@ -180,22 +197,24 @@ describe('Operator-Node Synchronization', () => {
 
       // Build operator from node
       buildOperators()
-      const op = store.getOp('/test')!
+      const storeAfter = useGraphStore.getState()
+      const op = storeAfter.getOp('/test')!
 
       // Set initial value
-      op.inputs.value.setValue(42)
+      op.inputs.val.setValue(42)
 
       // Change operator value
-      op.inputs.value.setValue(100)
+      op.inputs.val.setValue(100)
 
       // Manually sync (in real code, this would be automatic)
-      store.syncNodeFromOperator('/test')
+      storeAfter.syncNodeFromOperator('/test')
 
       // Operator has the new value
-      expect(op.inputs.value.value).toBe(100)
+      expect(op.inputs.val.value).toBe(100)
 
       // Node still exists (visual state preserved)
-      const node = store.nodes.find(n => n.id === '/test')
+      const storeAfterSync = useGraphStore.getState()
+      const node = storeAfterSync.nodes.find(n => n.id === '/test')
       expect(node).toBeDefined()
       expect(node?.id).toBe('/test')
     })
@@ -214,14 +233,16 @@ describe('Operator-Node Synchronization', () => {
       ])
 
       buildOperators()
-      const op = store.getOp('/test')!
+      const storeAfter = useGraphStore.getState()
+      const op = storeAfter.getOp('/test')!
 
       // Change operator
-      op.inputs.value.setValue(50)
-      store.syncNodeFromOperator('/test')
+      op.inputs.val.setValue(50)
+      storeAfter.syncNodeFromOperator('/test')
 
       // Visual state preserved
-      const node = store.nodes.find(n => n.id === '/test')
+      const storeAfterSync = useGraphStore.getState()
+      const node = storeAfterSync.nodes.find(n => n.id === '/test')
       expect(node?.position).toEqual({ x: 100, y: 200 })
       expect(node?.selected).toBe(true)
     })
@@ -234,55 +255,59 @@ describe('Operator-Node Synchronization', () => {
           id: '/test1',
           type: 'NumberOp',
           position: { x: 0, y: 0 },
-          data: { inputs: { value: 1 } },
+          data: { inputs: { val: 1 } },
         },
         {
           id: '/test2',
           type: 'NumberOp',
           position: { x: 0, y: 0 },
-          data: { inputs: { value: 2 } },
+          data: { inputs: { val: 2 } },
         },
       ])
 
       buildOperators()
 
-      const oldNodesRef = store.nodes
+      const storeAfter = useGraphStore.getState()
+      const oldNodesRef = storeAfter.nodes
 
       // Sync one node
-      store.syncNodeFromOperator('/test1')
+      storeAfter.syncNodeFromOperator('/test1')
 
       // Should create new array (immutable)
-      expect(store.nodes).not.toBe(oldNodesRef)
+      const storeAfterSync = useGraphStore.getState()
+      expect(storeAfterSync.nodes).not.toBe(oldNodesRef)
       // But still have same nodes
-      expect(store.nodes.length).toBe(2)
+      expect(storeAfterSync.nodes.length).toBe(2)
     })
 
     it('should work with multiple operators changing', () => {
       const store = useGraphStore.getState()
 
       store.addNodes([
-        { id: '/op1', type: 'NumberOp', position: { x: 0, y: 0 }, data: { inputs: { value: 0 } } },
-        { id: '/op2', type: 'NumberOp', position: { x: 0, y: 0 }, data: { inputs: { value: 0 } } },
+        { id: '/op1', type: 'NumberOp', position: { x: 0, y: 0 }, data: { inputs: { val: 0 } } },
+        { id: '/op2', type: 'NumberOp', position: { x: 0, y: 0 }, data: { inputs: { val: 0 } } },
       ])
 
       buildOperators()
 
-      const op1 = store.getOp('/op1')!
-      const op2 = store.getOp('/op2')!
+      const storeAfter = useGraphStore.getState()
+      const op1 = storeAfter.getOp('/op1')!
+      const op2 = storeAfter.getOp('/op2')!
 
       // Change both
-      op1.inputs.value.setValue(10)
-      op2.inputs.value.setValue(20)
+      op1.inputs.val.setValue(10)
+      op2.inputs.val.setValue(20)
 
-      store.syncNodeFromOperator('/op1')
-      store.syncNodeFromOperator('/op2')
+      storeAfter.syncNodeFromOperator('/op1')
+      storeAfter.syncNodeFromOperator('/op2')
 
       // Operators have correct values
-      expect(store.getOp('/op1')?.inputs.value.value).toBe(10)
-      expect(store.getOp('/op2')?.inputs.value.value).toBe(20)
+      const storeAfterSync = useGraphStore.getState()
+      expect(storeAfterSync.getOp('/op1')?.inputs.val.value).toBe(10)
+      expect(storeAfterSync.getOp('/op2')?.inputs.val.value).toBe(20)
 
       // Nodes still exist
-      expect(store.nodes.length).toBe(2)
+      expect(storeAfterSync.nodes.length).toBe(2)
     })
 
     it('should handle serialization from operators', () => {
@@ -293,15 +318,16 @@ describe('Operator-Node Synchronization', () => {
           id: '/test',
           type: 'NumberOp',
           position: { x: 100, y: 200 },
-          data: { inputs: { value: 42 } },
+          data: { inputs: { val: 42 } },
         },
       ])
 
       buildOperators()
 
       // When serializing, extract from operator (not from node.data)
-      const node = store.nodes.find(n => n.id === '/test')!
-      const operator = store.getOp(node.id)
+      const storeAfter = useGraphStore.getState()
+      const node = storeAfter.nodes.find(n => n.id === '/test')!
+      const operator = storeAfter.getOp(node.id)
 
       const serialized = {
         id: node.id,
@@ -309,12 +335,12 @@ describe('Operator-Node Synchronization', () => {
         position: node.position,
         data: {
           inputs: {
-            value: operator?.inputs.value.value,
+            val: operator?.inputs.val.value,
           },
         },
       }
 
-      expect(serialized.data.inputs.value).toBe(42)
+      expect(serialized.data.inputs.val).toBe(42)
       expect(serialized.position).toEqual({ x: 100, y: 200 })
     })
 
@@ -327,7 +353,7 @@ describe('Operator-Node Synchronization', () => {
             id: '/test',
             type: 'NumberOp',
             position: { x: 50, y: 50 },
-            data: { inputs: { value: 99 } },
+            data: { inputs: { val: 99 } },
           },
         ],
         edges: [],
@@ -335,7 +361,7 @@ describe('Operator-Node Synchronization', () => {
 
       // Load: create operator from JSON
       const op = new NumberOp(projectJSON.nodes[0].id)
-      op.inputs.value.setValue(projectJSON.nodes[0].data.inputs.value)
+      op.inputs.val.setValue(projectJSON.nodes[0].data.inputs.val)
       store.setOp(op.id, op)
 
       // Create node (without duplicating data)
@@ -348,10 +374,12 @@ describe('Operator-Node Synchronization', () => {
         },
       ])
 
+      // Get fresh state
+      const storeAfter = useGraphStore.getState()
       // Operator has the data
-      expect(store.getOp('/test')?.inputs.value.value).toBe(99)
+      expect(storeAfter.getOp('/test')?.inputs.val.value).toBe(99)
       // Node has position
-      expect(store.nodes[0].position).toEqual({ x: 50, y: 50 })
+      expect(storeAfter.nodes[0].position).toEqual({ x: 50, y: 50 })
     })
   })
 
@@ -373,22 +401,23 @@ describe('Operator-Node Synchronization', () => {
           id: '/test',
           type: 'NumberOp',
           position: { x: 0, y: 0 },
-          data: { inputs: { value: 0 } },
+          data: { inputs: { val: 0 } },
         },
       ])
 
       buildOperators()
-      const op = store.getOp('/test')!
+      const storeAfter = useGraphStore.getState()
+      const op = storeAfter.getOp('/test')!
 
       // Multiple rapid updates
-      op.inputs.value.setValue(1)
-      store.syncNodeFromOperator('/test')
-      op.inputs.value.setValue(2)
-      store.syncNodeFromOperator('/test')
-      op.inputs.value.setValue(3)
-      store.syncNodeFromOperator('/test')
+      op.inputs.val.setValue(1)
+      storeAfter.syncNodeFromOperator('/test')
+      op.inputs.val.setValue(2)
+      storeAfter.syncNodeFromOperator('/test')
+      op.inputs.val.setValue(3)
+      storeAfter.syncNodeFromOperator('/test')
 
-      expect(op.inputs.value.value).toBe(3)
+      expect(op.inputs.val.value).toBe(3)
     })
 
     it('should preserve array immutability across operations', () => {
@@ -398,13 +427,16 @@ describe('Operator-Node Synchronization', () => {
       buildOperators() // Need operator to exist for syncNodeFromOperator
 
       const refs: unknown[] = []
-      refs.push(store.nodes)
+      const store1 = useGraphStore.getState()
+      refs.push(store1.nodes)
 
-      store.syncNodeFromOperator('/test')
-      refs.push(store.nodes)
+      store1.syncNodeFromOperator('/test')
+      const store2 = useGraphStore.getState()
+      refs.push(store2.nodes)
 
-      store.updateNode('/test', { position: { x: 10, y: 10 } })
-      refs.push(store.nodes)
+      store2.updateNode('/test', { position: { x: 10, y: 10 } })
+      const store3 = useGraphStore.getState()
+      refs.push(store3.nodes)
 
       // All different references (immutable)
       expect(refs[0]).not.toBe(refs[1])
