@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { validateCustomEndpoint } from '../ai-chat/agent/providers/custom'
 import type { ProviderPreference } from '../noodles/keys-store'
 import { getEnvKeys, useKeysStore } from '../noodles/keys-store'
+import { getGitSettings, saveGitSettings } from '../noodles/utils/git-service'
 import { analytics } from '../utils/analytics'
 import s from './settings-dialog.module.css'
 
@@ -122,7 +123,7 @@ const KeyGroup = ({
   )
 }
 
-type TabName = 'general' | 'ai-provider' | 'api-keys'
+type TabName = 'general' | 'ai-provider' | 'api-keys' | 'version-control'
 
 export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
   const [analyticsEnabled, setAnalyticsEnabled] = useState(false)
@@ -149,6 +150,13 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
   const [endpointDisplayName, setEndpointDisplayName] = useState(customEndpoint?.displayName || '')
   const [endpointStatus, setEndpointStatus] = useState<EndpointStatus>({ state: 'idle' })
 
+  // Git settings state
+  const [gitEnabled, setGitEnabled] = useState(true)
+  const [gitAutoCommit, setGitAutoCommit] = useState(true)
+  const [gitAutoCommitDelay, setGitAutoCommitDelay] = useState(30000)
+  const [gitAuthorName, setGitAuthorName] = useState('Noodles User')
+  const [gitAuthorEmail, setGitAuthorEmail] = useState('user@noodles.local')
+
   // Environment keys (static)
   const envKeys = getEnvKeys()
 
@@ -166,9 +174,17 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
       setEndpointModel(endpoint?.model || '')
       setEndpointDisplayName(endpoint?.displayName || '')
 
+      // Sync git settings from localStorage
+      const gitSettings = getGitSettings()
+      setGitEnabled(gitSettings.enabled)
+      setGitAutoCommit(gitSettings.autoCommit)
+      setGitAutoCommitDelay(gitSettings.autoCommitDelay)
+      setGitAuthorName(gitSettings.author.name)
+      setGitAuthorEmail(gitSettings.author.email)
+
       // Check for deep link in URL hash
       const hash = window.location.hash.slice(1)
-      if (hash === 'ai-provider' || hash === 'api-keys') {
+      if (hash === 'ai-provider' || hash === 'api-keys' || hash === 'version-control') {
         setActiveTab(hash as TabName)
       }
     }
@@ -280,6 +296,30 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
         break
     }
     analytics.track('custom_endpoint_preset_applied', { preset })
+  }
+
+  // Git settings handlers
+  const handleGitEnabledToggle = (enabled: boolean) => {
+    setGitEnabled(enabled)
+    saveGitSettings({ enabled })
+    analytics.track(enabled ? 'git_versioning_enabled' : 'git_versioning_disabled')
+  }
+
+  const handleGitAutoCommitToggle = (enabled: boolean) => {
+    setGitAutoCommit(enabled)
+    saveGitSettings({ autoCommit: enabled })
+  }
+
+  const handleGitAutoCommitDelayChange = (delay: number) => {
+    setGitAutoCommitDelay(delay)
+    saveGitSettings({ autoCommitDelay: delay })
+  }
+
+  const handleGitAuthorSave = () => {
+    saveGitSettings({
+      author: { name: gitAuthorName, email: gitAuthorEmail },
+    })
+    analytics.track('git_author_changed')
   }
 
   return (
