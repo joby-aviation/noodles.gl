@@ -36,15 +36,17 @@ describe('Operator-Node Synchronization', () => {
       buildOperators()
 
       // Currently: state is duplicated
-      const nodes = store.nodes
+      const node = store.nodes.find(n => n.id === '/test')
       const operator = store.getOp('/test')
 
-      expect(nodes[0].data?.inputs?.value).toBe(42)
+      expect(node).toBeDefined()
+      expect(node?.data?.inputs?.value).toBe(42)
       expect(operator?.inputs.value.value).toBe(42)
 
       // They're separate - changing one doesn't update the other
       operator!.inputs.value.setValue(100)
-      expect(nodes[0].data?.inputs?.value).toBe(42) // Still old value!
+      const nodeAfter = store.nodes.find(n => n.id === '/test')
+      expect(nodeAfter?.data?.inputs?.value).toBe(42) // Still old value!
       expect(operator!.inputs.value.value).toBe(100)
     })
 
