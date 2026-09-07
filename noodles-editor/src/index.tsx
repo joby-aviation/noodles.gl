@@ -13,8 +13,10 @@ analytics.initialize()
 
 // Log uncaught errors and unhandled promise rejections to the console
 window.addEventListener('error', e => {
-  // Ignore benign ResizeObserver errors - these are harmless browser warnings
-  // that occur when ResizeObserver callbacks trigger layout changes
+  // Filter benign ResizeObserver errors - these are harmless browser optimization warnings
+  // that occur when ResizeObserver callbacks trigger layout changes. They don't indicate
+  // actual problems. We filter them here at the window level and also in analytics.captureException()
+  // to ensure they don't reach PostHog or clutter console output.
   const message = e.error?.message || e.message || ''
   if (message.includes('ResizeObserver loop')) {
     e.preventDefault()

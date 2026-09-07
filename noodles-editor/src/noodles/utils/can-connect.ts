@@ -77,26 +77,70 @@ const WRAPPER_TYPES = new Set([
 ])
 
 // Unwrap wrapper types to get the underlying schema
-function unwrapSchema(schema: z.ZodType): z.ZodType {
+function unwrapSchema(schema: z.ZodType): z.ZodType | null {
+  // Guard against undefined or non-object schemas
+  if (!schema || typeof schema !== 'object') {
+    if (debugConnect.enabled) {
+      debugConnect('⚠️ unwrapSchema received invalid schema:', schema)
+    }
+    return null
+  }
+
   let current = schema
   // biome-ignore lint/suspicious/noExplicitAny: Zod internal API access
-  let def = (current as any)._zod.def as ZodDef
+  const zodInternal = (current as any)._zod
+  if (!zodInternal || !zodInternal.def) {
+    if (debugConnect.enabled) {
+      debugConnect('⚠️ Schema missing _zod internal structure')
+    }
+    return null
+  }
+
+  // biome-ignore lint/suspicious/noExplicitAny: Zod internal API access
+  let def = zodInternal.def as ZodDef
   while (WRAPPER_TYPES.has(def.type)) {
     const inner = def.innerType ?? def.schema ?? def.in
     if (!inner) break
     current = inner
     // biome-ignore lint/suspicious/noExplicitAny: Zod internal API access
-    def = (current as any)._zod.def as ZodDef
+    const innerZod = (current as any)?._zod
+    if (!innerZod || !innerZod.def) break
+    def = innerZod.def as ZodDef
   }
   return current
 }
 
 // Check if source schema is structurally compatible with target schema
 export function schemasAreCompatible(from: z.ZodType, to: z.ZodType, depth = 0): boolean {
+  const unwrappedFrom = unwrapSchema(from)
+  const unwrappedTo = unwrapSchema(to)
+
+  // If either schema is invalid, fail safely
+  if (!unwrappedFrom || !unwrappedTo) {
+    if (debugConnect.enabled) {
+      const indent = '  '.repeat(depth)
+      debugConnect(
+        `${indent}✗ Schema unwrapping failed - from: ${!!unwrappedFrom}, to: ${!!unwrappedTo}`
+      )
+    }
+    return false
+  }
+
   // biome-ignore lint/suspicious/noExplicitAny: Zod internal API access
-  const fromDef = (unwrapSchema(from) as any)._zod.def as ZodDef
+  const fromZod = (unwrappedFrom as any)._zod
   // biome-ignore lint/suspicious/noExplicitAny: Zod internal API access
-  const toDef = (unwrapSchema(to) as any)._zod.def as ZodDef
+  const toZod = (unwrappedTo as any)._zod
+
+  if (!fromZod?.def || !toZod?.def) {
+    if (debugConnect.enabled) {
+      const indent = '  '.repeat(depth)
+      debugConnect(`${indent}✗ Missing _zod.def - from: ${!!fromZod?.def}, to: ${!!toZod?.def}`)
+    }
+    return false
+  }
+
+  const fromDef = fromZod.def as ZodDef
+  const toDef = toZod.def as ZodDef
 
   if (debugConnect.enabled) {
     const indent = '  '.repeat(depth)
@@ -328,12 +372,10 @@ export function validateConnection(from: Field, to: Field): ConnectionValidation
   const fromSchema = from.schema
   const toSchema = to instanceof ListField ? to.schema.unwrap() : to.schema
 
-  // biome-ignore lint/suspicious/noExplicitAny: Zod internal API access
-  const fromType = (unwrapSchema(fromSchema) as any)._zod.def.type
-
   if (debugConnect.enabled) {
     debugConnect(`Schema comparison starting...`)
   }
+
   // Structural type check
   if (!schemasAreCompatible(fromSchema, toSchema)) {
     if (debugConnect.enabled) {
@@ -348,6 +390,28 @@ export function validateConnection(from: Field, to: Field): ConnectionValidation
   if (debugConnect.enabled) {
     debugConnect(`✓ Schema compatible`)
   }
+
+  // Get fromType for constraint validation check
+  const unwrappedFrom = unwrapSchema(fromSchema)
+  if (!unwrappedFrom) {
+    // Schema is invalid but passed schemasAreCompatible (shouldn't happen)
+    // Allow connection but skip value validation
+    if (debugConnect.enabled) {
+      debugConnect('⚠️ fromSchema unwrap failed, skipping value validation')
+    }
+    return { valid: true }
+  }
+
+  // biome-ignore lint/suspicious/noExplicitAny: Zod internal API access
+  const fromZod = (unwrappedFrom as any)._zod
+  if (!fromZod?.def) {
+    if (debugConnect.enabled) {
+      debugConnect('⚠️ fromSchema missing _zod.def, skipping value validation')
+    }
+    return { valid: true }
+  }
+
+  const fromType = fromZod.def.type
 
   // Skip constraint validation for unknown schemas — they're optimistically compatible
   // with anything, so value-level checking doesn't make sense
