@@ -391,6 +391,7 @@ function EditableFieldInput({
           opId={opId}
           fieldName={fieldName}
           expandTimeline={expandTimeline}
+          showKeyframeIndicator
         />
       )
     }

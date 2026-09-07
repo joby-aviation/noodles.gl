@@ -698,7 +698,7 @@ describe('VectorFieldComponent', () => {
       expect(within(inputRow as HTMLElement).getAllByRole('spinbutton')).toHaveLength(2)
     })
 
-    it('does not add the aggregate keyframe control in channel mode', () => {
+    it('does not render the sidebar keyframe control on a node field', () => {
       const field = new Point2DField({ lng: -122.4, lat: 37.8 })
       render(
         <VectorFieldComponent
@@ -707,11 +707,26 @@ describe('VectorFieldComponent', () => {
           disabled={false}
           opId="/map"
           fieldName="center"
-          channelHandles
         />
       )
 
       expect(screen.queryByRole('button', { name: 'Add keyframes' })).not.toBeInTheDocument()
+    })
+
+    it('renders the aggregate keyframe control when requested by the sidebar', () => {
+      const field = new Point2DField({ lng: -122.4, lat: 37.8 })
+      render(
+        <VectorFieldComponent
+          id="center"
+          field={field}
+          disabled={false}
+          opId="/map"
+          fieldName="center"
+          showKeyframeIndicator
+        />
+      )
+
+      expect(screen.getByRole('button', { name: 'Add keyframes' })).toBeInTheDocument()
     })
 
     it('keeps location lookup available in channel mode', () => {
