@@ -85,7 +85,7 @@ interface GraphStore {
   // Write API - programmatic modifications
   addNodes: (newNodes: ReactFlowNode[]) => void
   updateNode: (id: OpId, updates: Partial<ReactFlowNode>) => void
-  syncNodeFromOperator: (id: OpId) => void  // Update node when operator changes
+  syncNodeFromOperator: (id: OpId) => void // Update node when operator changes
   deleteNodes: (ids: OpId[]) => void
   addEdges: (newEdges: ReactFlowEdge[]) => void
   deleteEdges: (ids: string[]) => void
@@ -478,81 +478,85 @@ export const useGraphStore = create<GraphStore>()(
 // Auto-Reconciliation Subscribers
 // ============================================================================
 
-// 1. ForLoop group reconciliation
-// Runs after nodes or edges change to maintain visual grouping
-useGraphStore.subscribe(
-  state => [state.nodes, state.edges, state._batching, state._reconciling] as const,
-  ([nodes, edges, batching, reconciling]) => {
-    if (batching || reconciling) return
+// TODO: Re-enable subscribers after fixing infinite loop issues
+// For now, reconciliation must be called manually
 
-    const reconciled = reconcileForLoopGroups(nodes, edges)
-    if (reconciled !== nodes) {
-      useGraphStore.setState({ _reconciling: true })
-      useGraphStore.setState({ nodes: reconciled, _reconciling: false })
-    }
-  },
-  { equalityFn: shallow }
-)
+// // 1. ForLoop group reconciliation
+// // Runs after nodes or edges change to maintain visual grouping
+// useGraphStore.subscribe(
+//   state => [state.nodes, state.edges, state._batching, state._reconciling] as const,
+//   ([nodes, edges, batching, reconciling]) => {
+//     if (batching || reconciling) return
 
-// 2. Multi-input edge normalization
-// Runs after edges change to maintain orderIndex and groupSize metadata
-useGraphStore.subscribe(
-  state => [state.edges, state._batching, state._reconciling] as const,
-  ([edges, batching, reconciling]) => {
-    if (batching || reconciling) return
+//     const reconciled = reconcileForLoopGroups(nodes, edges)
+//     if (reconciled !== nodes) {
+//       useGraphStore.setState({ _reconciling: true })
+//       useGraphStore.setState({ nodes: reconciled, _reconciling: false })
+//     }
+//   },
+//   { equalityFn: shallow }
+// )
 
-    // normalizeMultiInputEdges is already called in addEdges/deleteEdges
-    // This subscriber is a safety net for edge changes from ReactFlow
-    const normalized = normalizeMultiInputEdges(edges)
-    if (normalized !== edges) {
-      useGraphStore.setState({ _reconciling: true })
-      useGraphStore.setState({ edges: normalized, _reconciling: false })
-    }
-  },
-  { equalityFn: shallow }
-)
+// // 2. Multi-input edge normalization
+// // Runs after edges change to maintain orderIndex and groupSize metadata
+// useGraphStore.subscribe(
+//   state => [state.edges, state._batching, state._reconciling] as const,
+//   ([edges, batching, reconciling]) => {
+//     if (batching || reconciling) return
 
-// 3. Operator synchronization (from transformGraph)
-// Runs after nodes or edges change to rebuild operator instances
-useGraphStore.subscribe(
-  state => [state.nodes, state.edges, state._batching, state._reconciling] as const,
-  ([nodes, edges, batching, reconciling]) => {
-    if (batching || reconciling) return
+//     // normalizeMultiInputEdges is already called in addEdges/deleteEdges
+//     // This subscriber is a safety net for edge changes from ReactFlow
+//     const normalized = normalizeMultiInputEdges(edges)
+//     if (normalized !== edges) {
+//       useGraphStore.setState({ _reconciling: true })
+//       useGraphStore.setState({ edges: normalized, _reconciling: false })
+//     }
+//   },
+//   { equalityFn: shallow }
+// )
 
-    transformGraph(nodes, edges)
-    // Note: transformGraph updates the operator store directly via setOp/deleteOp
-    // We don't need to set state here
-  },
-  { equalityFn: shallow }
-)
+// // 3. Operator synchronization (from transformGraph)
+// // Runs after nodes or edges change to rebuild operator instances
+// useGraphStore.subscribe(
+//   state => [state.nodes, state.edges, state._batching, state._reconciling] as const,
+//   ([nodes, edges, batching, reconciling]) => {
+//     if (batching || reconciling) return
+//     if (!nodes || !edges) return // Guard against undefined during initialization
 
-// 4. Timeline binding
-// Runs after operators change to sync timeline tracks
-useGraphStore.subscribe(
-  state => [state.operators, state._batching, state._reconciling] as const,
-  ([operators, batching, reconciling]) => {
-    if (batching || reconciling) return
+//     transformGraph({ nodes, edges })
+//     // Note: transformGraph updates the operator store directly via setOp/deleteOp
+//     // We don't need to set state here
+//   },
+//   { equalityFn: shallow }
+// )
 
-    const timeline = getTimelineStore()
-    const operatorIds = new Set(operators.keys())
+// // 4. Timeline binding
+// // Runs after operators change to sync timeline tracks
+// useGraphStore.subscribe(
+//   state => [state.operators, state._batching, state._reconciling] as const,
+//   ([operators, batching, reconciling]) => {
+//     if (batching || reconciling) return
 
-    // Bind new operators to timeline
-    for (const [id, op] of operators.entries()) {
-      // bindOperatorToTimeline is called in transformGraph
-      // This subscriber is mainly for cleanup
-    }
+//     const timeline = getTimelineStore()
+//     const operatorIds = new Set(operators.keys())
 
-    // Cleanup removed operators from timeline
-    const timelineTracks = timeline.tracks
-    for (const fieldPath of Object.keys(timelineTracks)) {
-      const opId = fieldPath.split('.')[0]
-      if (!operatorIds.has(opId)) {
-        timeline.deleteTrack(fieldPath)
-      }
-    }
-  },
-  { equalityFn: shallow }
-)
+//     // Bind new operators to timeline
+//     for (const [id, op] of operators.entries()) {
+//       // bindOperatorToTimeline is called in transformGraph
+//       // This subscriber is mainly for cleanup
+//     }
+
+//     // Cleanup removed operators from timeline
+//     const timelineTracks = timeline.tracks
+//     for (const fieldPath of Object.keys(timelineTracks)) {
+//       const opId = fieldPath.split('.')[0]
+//       if (!operatorIds.has(opId)) {
+//         timeline.deleteTrack(fieldPath)
+//       }
+//     }
+//   },
+//   { equalityFn: shallow }
+// )
 
 // ============================================================================
 // Helper functions for non-React contexts
