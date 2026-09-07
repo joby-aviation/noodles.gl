@@ -1,5 +1,13 @@
-// Unified graph store - single source of truth for nodes, edges, and operators
-// Replaces the dual ReactFlow/Zustand state system with automatic reconciliation
+// Unified graph store - operators as source of truth, nodes as cached views
+//
+// ARCHITECTURE:
+// - Operators (Map<OpId, Operator>) are the authoritative source for all logic state
+// - Nodes (ReactFlowNode[]) are a maintained cache for ReactFlow rendering
+// - When operator changes, syncNodeFromOperator() creates new nodes array (immutable)
+// - Node components read operator state directly (not from node.data)
+// - Serialization extracts state from operators
+//
+// This eliminates the dual-state problem: operators and nodes no longer duplicate data
 
 import {
   type Connection,
@@ -77,6 +85,7 @@ interface GraphStore {
   // Write API - programmatic modifications
   addNodes: (newNodes: ReactFlowNode[]) => void
   updateNode: (id: OpId, updates: Partial<ReactFlowNode>) => void
+  syncNodeFromOperator: (id: OpId) => void  // Update node when operator changes
   deleteNodes: (ids: OpId[]) => void
   addEdges: (newEdges: ReactFlowEdge[]) => void
   deleteEdges: (ids: string[]) => void
@@ -139,11 +148,14 @@ export const useGraphStore = create<GraphStore>()(
 
     updateNode: (id, updates) => {
       set(state => ({
+        // Immutable update - create new array with one node changed
         nodes: state.nodes.map(n =>
           n.id === id
             ? {
                 ...n,
                 ...updates,
+                // Note: We're moving away from storing inputs in node.data
+                // Node components will read directly from operators
                 data: updates.data
                   ? {
                       ...(n.data || {}),
@@ -154,6 +166,27 @@ export const useGraphStore = create<GraphStore>()(
                       },
                     }
                   : n.data,
+              }
+            : n
+        ),
+      }))
+    },
+
+    // Sync a single node from its operator (immutable update)
+    // Used when operator state changes to update the ReactFlow view
+    syncNodeFromOperator: (id: OpId) => {
+      const op = get().operators.get(id)
+      if (!op) return
+
+      set(state => ({
+        // Immutable: create new array with one node updated
+        nodes: state.nodes.map(n =>
+          n.id === id
+            ? {
+                ...n,
+                // Visual state (position, selection) stays in node
+                // Data is read from operator by node components
+                // We can store minimal rendering hints here if needed
               }
             : n
         ),
