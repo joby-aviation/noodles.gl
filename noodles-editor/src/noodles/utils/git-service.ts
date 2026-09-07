@@ -30,7 +30,7 @@ const DEFAULT_SETTINGS: GitSettings = {
 class FileSystemHandleFS {
   constructor(private rootHandle: FileSystemDirectoryHandle) {}
 
-  async readFile(filepath: string): Promise<Uint8Array> {
+  async readFile(filepath: string, options?: { encoding?: string }): Promise<Uint8Array | string> {
     const parts = filepath.split('/').filter(Boolean)
     let currentHandle: FileSystemDirectoryHandle | FileSystemFileHandle = this.rootHandle
 
@@ -44,6 +44,12 @@ class FileSystemHandleFS {
     if ('getFileHandle' in currentHandle) {
       const fileHandle = await currentHandle.getFileHandle(parts[parts.length - 1])
       const file = await fileHandle.getFile()
+
+      // Return string if utf8 encoding requested, otherwise Uint8Array
+      if (options?.encoding === 'utf8') {
+        return await file.text()
+      }
+
       const buffer = await file.arrayBuffer()
       return new Uint8Array(buffer)
     }
@@ -286,7 +292,7 @@ export class GitService {
 
     return commits.map(commit => ({
       oid: commit.oid,
-      message: commit.commit.message,
+      message: commit.commit.message.trim(),
       author: {
         name: commit.commit.author.name,
         email: commit.commit.author.email,

@@ -138,6 +138,9 @@ import { EdgeSpatialIndex } from './utils/spatial-index'
 import { calculateViewerPosition } from './utils/viewer-position'
 
 const ChatPanel = lazy(() => import('../ai-chat/chat-panel').then(m => ({ default: m.ChatPanel })))
+const GitHistoryPanel = lazy(() =>
+  import('./components/git-history-panel').then(m => ({ default: m.GitHistoryPanel }))
+)
 
 /*
  * CSS Architecture:
@@ -259,6 +262,7 @@ export function getNoodles(): Visualization {
   }, [nodes, modelEdges])
   const [showChatPanel, setShowChatPanel] = useState(false)
   const [chatInitialMessage, setChatInitialMessage] = useState<string | undefined>(undefined)
+  const [showGitHistoryPanel, setShowGitHistoryPanel] = useState(false)
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const [parameterEditorState, setParameterEditorState] = useState<{
     open: boolean
@@ -1372,6 +1376,13 @@ export function getNoodles(): Visualization {
           setShowRenameDialog(true)
         }
       }
+      // mod+shift+h for Git History
+      if (isMod && isShift && key === 'h') {
+        e.preventDefault()
+        if (storageType !== 'memory') {
+          setShowGitHistoryPanel(prev => !prev)
+        }
+      }
     }
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
@@ -1903,6 +1914,15 @@ export function getNoodles(): Visualization {
     </Suspense>
   )
 
+  const gitHistoryPanel = showGitHistoryPanel && (
+    <Suspense fallback={null}>
+      <GitHistoryPanel
+        projectDirectory={currentDirectory}
+        onClose={() => setShowGitHistoryPanel(false)}
+      />
+    </Suspense>
+  )
+
   return {
     flowGraph,
     selectedNodeIds: nodes.filter(n => n.selected).map(n => n.id),
@@ -1928,6 +1948,7 @@ export function getNoodles(): Visualization {
     ),
     propertiesPanel,
     chatPanel,
+    gitHistoryPanel,
     showOverlay,
     onChangeShowOverlay: setShowOverlay,
     showDebugInfo,

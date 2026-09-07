@@ -94,8 +94,15 @@ export default function TimelineEditor() {
   }, [])
 
   const noodles = getNoodles()
-  const { flowGraph, nodeSidebar, propertiesPanel, chatPanel, selectedNodeIds, ...visualization } =
-    noodles
+  const {
+    flowGraph,
+    nodeSidebar,
+    propertiesPanel,
+    chatPanel,
+    gitHistoryPanel,
+    selectedNodeIds,
+    ...visualization
+  } = noodles
 
   const setTimelineExpanded = useUIStore(state => state.setTimelineExpanded)
 
@@ -633,6 +640,7 @@ export default function TimelineEditor() {
             )}
           </Layout>
           {chatPanel}
+          {gitHistoryPanel}
         </ExportActionsProvider>
       </ReactFlowProvider>
     </>
