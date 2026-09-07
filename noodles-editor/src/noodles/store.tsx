@@ -4,9 +4,10 @@ import type { IOperator, Operator } from './operators'
 // only import types from noodles to avoid circular dependencies
 import type { OpId } from './utils/id-utils'
 import { isAbsolutePath, resolvePath } from './utils/path-utils'
+import { useGraphStore } from './graph-store'
 
 // ============================================================================
-// Operator Store (Zustand) - Separate slice for operators and sheet objects
+// Operator Store (Zustand) - Now delegates to graph-store
 // ============================================================================
 
 interface OperatorStoreState {
@@ -42,68 +43,39 @@ export interface PendingInsertionIndex {
   index: number
 }
 
-export const useOperatorStore = create<OperatorStoreState>((set, get) => ({
-  operators: new Map(),
-  sheetObjects: new Map(),
-  _batching: false,
+// Compatibility wrapper - delegates to graph store
+export const useOperatorStore = create<OperatorStoreState>((set, get) => {
+  const graphStore = useGraphStore.getState()
+  return {
+    get operators() {
+      return useGraphStore.getState().operators
+    },
+    get sheetObjects() {
+      return useGraphStore.getState().sheetObjects
+    },
+    get _batching() {
+      return useGraphStore.getState()._batching
+    },
 
-  // Operator actions
-  getOp: id => get().operators.get(id),
+    // Operator actions - delegate to graph store
+    getOp: (id: OpId) => graphStore.getOp(id),
+    setOp: (id: OpId, op: Operator<IOperator>) => graphStore.setOp(id, op),
+    deleteOp: (id: OpId) => graphStore.deleteOp(id),
+    hasOp: (id: OpId) => graphStore.hasOp(id),
+    clearOps: () => graphStore.clearOps(),
+    getAllOps: () => graphStore.getAllOps(),
+    getOpEntries: () => graphStore.getOpEntries(),
 
-  setOp: (id, op) => {
-    const operators = new Map(get().operators)
-    operators.set(id, op)
-    set({ operators })
-  },
+    // Sheet object actions - delegate to graph store
+    getSheetObject: (id: OpId) => graphStore.getSheetObject(id),
+    setSheetObject: (id: OpId, sheetObj: unknown) => graphStore.setSheetObject(id, sheetObj),
+    deleteSheetObject: (id: OpId) => graphStore.deleteSheetObject(id),
+    hasSheetObject: (id: OpId) => graphStore.hasSheetObject(id),
 
-  deleteOp: id => {
-    const operators = new Map(get().operators)
-    const op = operators.get(id)
-    operators.delete(id)
-    // Dispose only if this op instance is no longer referenced at any id.
-    // During renames, setOp(newId, op) runs before deleteOp(oldId), so the
-    // same instance is still in the map and should NOT be disposed.
-    const isStillReferenced = op && Array.from(operators.values()).some(o => o === op)
-    set({ operators })
-    if (op && !isStillReferenced) {
-      op.dispose?.()
-    }
-  },
-
-  hasOp: id => get().operators.has(id),
-
-  clearOps: () => {
-    set({ operators: new Map(), sheetObjects: new Map() })
-  },
-
-  getAllOps: () => Array.from(get().operators.values()),
-
-  getOpEntries: () => Array.from(get().operators.entries()),
-
-  // Sheet object actions
-  getSheetObject: id => get().sheetObjects.get(id),
-
-  setSheetObject: (id, sheetObj) => {
-    const sheetObjects = new Map(get().sheetObjects)
-    sheetObjects.set(id, sheetObj)
-    set({ sheetObjects })
-  },
-
-  deleteSheetObject: id => {
-    const sheetObjects = new Map(get().sheetObjects)
-    sheetObjects.delete(id)
-    set({ sheetObjects })
-  },
-
-  hasSheetObject: id => get().sheetObjects.has(id),
-
-  // Batching - prevents multiple Zustand updates during batch operations
-  batch: fn => {
-    set({ _batching: true })
-    fn()
-    set({ _batching: false })
-  },
-}))
+    // Batching - delegate to graph store
+    batch: (fn: () => void) => graphStore.batch(fn),
+  }
+})
 
 // ============================================================================
 // UI Store (Zustand) - Separate slice for UI state
@@ -218,52 +190,27 @@ export const getActiveOutOpStore = () => useActiveOutOpStore.getState()
 // Helper functions for non-React contexts
 // ============================================================================
 
-// Get the operator store instance for use outside React components
-export const getOpStore = () => useOperatorStore.getState()
+// Get the operator store instance for use outside React components (now delegates to graph store)
+export const getOpStore = () => useGraphStore.getState()
 
 // Get the UI store instance for use outside React components
 export const getUIStore = () => useUIStore.getState()
 
-// `path` can be absolute or relative to `contextOperatorId`
-export const getOp = (
-  path: string,
-  contextOperatorId?: string
-): Operator<IOperator> | undefined => {
-  if (!path) {
-    return undefined
-  }
-
-  const store = useOperatorStore.getState()
-
-  // If path is absolute or no context provided, use direct lookup
-  if (isAbsolutePath(path) || !contextOperatorId) {
-    return store.getOp(path)
-  }
-
-  // Resolve relative path using context
-  const resolvedPath = resolvePath(path, contextOperatorId)
-  if (!resolvedPath) {
-    return undefined
-  }
-
-  return store.getOp(resolvedPath)
-}
-
-// Convenience helpers for common store operations
-export const setOp = (id: OpId, op: Operator<IOperator>) => getOpStore().setOp(id, op)
-export const deleteOp = (id: OpId) => getOpStore().deleteOp(id)
-export const hasOp = (id: OpId) => getOpStore().hasOp(id)
-export const clearOps = () => getOpStore().clearOps()
-export const getAllOps = () => getOpStore().getAllOps()
-export const getOpEntries = () => getOpStore().getOpEntries()
-
-// Sheet object helpers
-export const getSheetObject = (id: OpId) => getOpStore().getSheetObject(id)
-export const setSheetObject = (id: OpId, sheetObj: unknown) =>
-  getOpStore().setSheetObject(id, sheetObj)
-export const deleteSheetObject = (id: OpId) => getOpStore().deleteSheetObject(id)
-export const hasSheetObject = (id: OpId) => getOpStore().hasSheetObject(id)
-export const getAllSheetObjectIds = () => Array.from(getOpStore().sheetObjects.keys())
+// Re-export convenience helpers from graph-store
+export {
+  getOp,
+  setOp,
+  deleteOp,
+  hasOp,
+  clearOps,
+  getAllOps,
+  getOpEntries,
+  getSheetObject,
+  setSheetObject,
+  deleteSheetObject,
+  hasSheetObject,
+  getAllSheetObjectIds,
+} from './graph-store'
 
 // Hovered output handle helpers
 export const setHoveredOutputHandle = (handle: { nodeId: string; handleId: string } | null) =>
