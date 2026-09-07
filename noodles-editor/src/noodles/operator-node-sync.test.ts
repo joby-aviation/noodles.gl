@@ -118,14 +118,12 @@ describe('Operator-Node Synchronization', () => {
     it('should handle multiple operators independently', () => {
       const store = useGraphStore.getState()
 
-      const op1 = new NumberOp('/op1')
-      const op2 = new NumberOp('/op2')
+      store.addNodes([
+        { id: '/op1', type: 'NumberOp', position: { x: 0, y: 0 }, data: { inputs: { value: 10 } } },
+        { id: '/op2', type: 'NumberOp', position: { x: 0, y: 0 }, data: { inputs: { value: 20 } } },
+      ])
 
-      op1.inputs.value.setValue(10)
-      op2.inputs.value.setValue(20)
-
-      store.setOp('/op1', op1)
-      store.setOp('/op2', op2)
+      buildOperators()
 
       expect(store.getOp('/op1')?.inputs.value.value).toBe(10)
       expect(store.getOp('/op2')?.inputs.value.value).toBe(20)
@@ -232,9 +230,21 @@ describe('Operator-Node Synchronization', () => {
       const store = useGraphStore.getState()
 
       store.addNodes([
-        { id: '/test1', type: 'NumberOp', position: { x: 0, y: 0 }, data: undefined },
-        { id: '/test2', type: 'NumberOp', position: { x: 0, y: 0 }, data: undefined },
+        {
+          id: '/test1',
+          type: 'NumberOp',
+          position: { x: 0, y: 0 },
+          data: { inputs: { value: 1 } },
+        },
+        {
+          id: '/test2',
+          type: 'NumberOp',
+          position: { x: 0, y: 0 },
+          data: { inputs: { value: 2 } },
+        },
       ])
+
+      buildOperators()
 
       const oldNodesRef = store.nodes
 
@@ -250,16 +260,15 @@ describe('Operator-Node Synchronization', () => {
     it('should work with multiple operators changing', () => {
       const store = useGraphStore.getState()
 
-      const op1 = new NumberOp('/op1')
-      const op2 = new NumberOp('/op2')
-
-      store.setOp('/op1', op1)
-      store.setOp('/op2', op2)
-
       store.addNodes([
-        { id: '/op1', type: 'NumberOp', position: { x: 0, y: 0 }, data: undefined },
-        { id: '/op2', type: 'NumberOp', position: { x: 0, y: 0 }, data: undefined },
+        { id: '/op1', type: 'NumberOp', position: { x: 0, y: 0 }, data: { inputs: { value: 0 } } },
+        { id: '/op2', type: 'NumberOp', position: { x: 0, y: 0 }, data: { inputs: { value: 0 } } },
       ])
+
+      buildOperators()
+
+      const op1 = store.getOp('/op1')!
+      const op2 = store.getOp('/op2')!
 
       // Change both
       op1.inputs.value.setValue(10)
@@ -279,21 +288,19 @@ describe('Operator-Node Synchronization', () => {
     it('should handle serialization from operators', () => {
       const store = useGraphStore.getState()
 
-      const op = new NumberOp('/test')
-      op.inputs.value.setValue(42)
-      store.setOp('/test', op)
-
       store.addNodes([
         {
           id: '/test',
           type: 'NumberOp',
           position: { x: 100, y: 200 },
-          data: undefined,
+          data: { inputs: { value: 42 } },
         },
       ])
 
-      // When serializing, extract from operator
-      const node = store.nodes[0]
+      buildOperators()
+
+      // When serializing, extract from operator (not from node.data)
+      const node = store.nodes.find(n => n.id === '/test')!
       const operator = store.getOp(node.id)
 
       const serialized = {
