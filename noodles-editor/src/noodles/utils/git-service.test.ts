@@ -118,6 +118,14 @@ describe('git-service', () => {
     localStorage.clear()
   })
 
+  // Helper to create noodles.json (required for isGitRepo check)
+  async function createNoodlesJson(handle: MockFileSystemDirectoryHandle) {
+    const fileHandle = await handle.getFileHandle('noodles.json', { create: true })
+    const writable = await fileHandle.createWritable()
+    await writable.write('{}')
+    await writable.close()
+  }
+
   describe('GitService', () => {
     it('should detect when directory is not a git repo', async () => {
       const gitService = await createGitService(mockHandle)
@@ -127,6 +135,7 @@ describe('git-service', () => {
 
     it('should initialize a git repo', async () => {
       const gitService = await createGitService(mockHandle)
+      await createNoodlesJson(mockHandle)
       await gitService.initRepo()
 
       const isRepo = await gitService.isGitRepo()
@@ -135,6 +144,7 @@ describe('git-service', () => {
 
     it('should create a commit', async () => {
       const gitService = await createGitService(mockHandle)
+      await createNoodlesJson(mockHandle)
       await gitService.initRepo()
 
       // Add a test file
@@ -150,6 +160,7 @@ describe('git-service', () => {
 
     it('should retrieve commit log', async () => {
       const gitService = await createGitService(mockHandle)
+      await createNoodlesJson(mockHandle)
       await gitService.initRepo()
 
       // Create first commit

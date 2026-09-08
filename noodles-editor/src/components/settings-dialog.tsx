@@ -825,8 +825,8 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
                     <div className={s.settingContent}>
                       <div className={s.settingName}>Enable version control</div>
                       <div className={s.settingDescription}>
-                        Track changes and create git commits automatically. Disable this to turn off
-                        version control for this project.
+                        Track changes and create git commits automatically. This setting applies to all
+                        projects.
                       </div>
                     </div>
                   </label>

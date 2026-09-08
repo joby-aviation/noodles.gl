@@ -1162,7 +1162,7 @@ export function getNoodles(): Visualization {
     if (isExamplesRoute || !hasUnsavedChanges) return
 
     const gitSettings = getGitSettings()
-    if (!gitSettings.autoCommit) return
+    if (!gitSettings.enabled || !gitSettings.autoCommit) return
 
     const timeoutId = setTimeout(() => {
       onMenuSave()

@@ -226,11 +226,22 @@ export class GitService {
     this.fs = new FileSystemHandleFS(directoryHandle)
   }
 
-  // Check if directory contains a git repository
+  // Check if directory contains a git repository created for this Noodles project
   async isGitRepo(): Promise<boolean> {
     try {
       await this.directoryHandle.getDirectoryHandle('.git')
-      return true
+      // Verify this is a Noodles project directory by checking for noodles.json
+      // This prevents adopting a parent directory's git repo
+      try {
+        await this.directoryHandle.getFileHandle('noodles.json')
+        return true
+      } catch {
+        // .git exists but no noodles.json - not a Noodles git repo
+        console.warn(
+          'Directory has .git but no noodles.json - not initializing git to avoid adopting external repository'
+        )
+        return false
+      }
     } catch {
       return false
     }
@@ -244,17 +255,40 @@ export class GitService {
       defaultBranch: 'main',
     })
 
-    // Create initial .gitignore
-    await this.fs.writeFile('.gitignore', 'node_modules/\n.DS_Store\n')
+    // Create initial .gitignore only if it doesn't exist
+    try {
+      await this.fs.stat('.gitignore')
+      // File exists, don't overwrite
+    } catch {
+      // File doesn't exist, create it
+      await this.fs.writeFile('.gitignore', 'node_modules/\n.DS_Store\n')
+    }
   }
 
   // Commit all changes with a message
   async commit(message: string, author?: { name: string; email: string }): Promise<string> {
     const commitAuthor = author || DEFAULT_AUTHOR
 
-    // Stage all files
-    const files = await this.listFiles('/')
-    for (const file of files) {
+    // Get list of currently tracked files from git
+    let trackedFiles: Set<string>
+    try {
+      const statusMatrix = await git.statusMatrix({
+        fs: this.fs as any,
+        dir: '/',
+      })
+      // statusMatrix entries: [filepath, HEADStatus, WorkdirStatus, StageStatus]
+      // HEADStatus !== 0 means file is tracked
+      trackedFiles = new Set(statusMatrix.filter(([, head]) => head !== 0).map(([file]) => file))
+    } catch {
+      // No commits yet, no tracked files
+      trackedFiles = new Set()
+    }
+
+    // Get current files in working directory
+    const currentFiles = new Set(await this.listFiles('/'))
+
+    // Stage all existing files
+    for (const file of currentFiles) {
       if (!file.startsWith('.git/')) {
         try {
           await git.add({
@@ -264,6 +298,21 @@ export class GitService {
           })
         } catch (error) {
           console.warn(`Failed to stage file ${file}:`, error)
+        }
+      }
+    }
+
+    // Remove deleted files (tracked but no longer in working directory)
+    for (const trackedFile of trackedFiles) {
+      if (!currentFiles.has(trackedFile)) {
+        try {
+          await git.remove({
+            fs: this.fs as any,
+            dir: '/',
+            filepath: trackedFile,
+          })
+        } catch (error) {
+          console.warn(`Failed to remove file ${trackedFile}:`, error)
         }
       }
     }
@@ -315,13 +364,41 @@ export class GitService {
 
   // Restore project to a specific commit
   async restore(commitOid: string): Promise<void> {
-    // Checkout the commit (updates HEAD and working directory)
-    await git.checkout({
+    // Instead of detaching HEAD with checkout, we:
+    // 1. Read all files from the target commit
+    // 2. Write them to working directory
+    // 3. Commit as "Restore to <oid>"
+    // This keeps history linear and reversible
+
+    // Get the commit object
+    const { commit: targetCommit } = await git.readCommit({
       fs: this.fs as any,
       dir: '/',
-      ref: commitOid,
-      force: true, // Overwrite working directory changes
+      oid: commitOid,
     })
+
+    // Read the tree from that commit
+    const { tree } = await git.readTree({
+      fs: this.fs as any,
+      dir: '/',
+      oid: targetCommit.tree,
+    })
+
+    // Write each file from the tree to working directory
+    for (const entry of tree) {
+      if (entry.type === 'blob') {
+        const { blob } = await git.readBlob({
+          fs: this.fs as any,
+          dir: '/',
+          oid: entry.oid,
+        })
+        await this.fs.writeFile(entry.path, blob)
+      }
+    }
+
+    // Commit the restored state
+    const shortOid = commitOid.substring(0, 7)
+    await this.commit(`Restore to ${shortOid}`)
   }
 
   // Helper: recursively list all files in a directory
