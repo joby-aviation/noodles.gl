@@ -806,126 +806,124 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
 
             {/* Version Control Tab */}
             {activeTab === 'version-control' && (
-              <>
-                <div className={s.section}>
-                  <h3 className={s.sectionTitle}>Git Version Control</h3>
-                  <p className={s.sectionDescription}>
-                    Automatically track project history with git. Each save creates a commit, allowing
-                    you to restore to previous versions.
-                  </p>
+              <div className={s.section}>
+                <h3 className={s.sectionTitle}>Git Version Control</h3>
+                <p className={s.sectionDescription}>
+                  Automatically track project history with git. Each save creates a commit, allowing
+                  you to restore to previous versions.
+                </p>
 
-                  {/* Enable Git */}
-                  <div className={s.settingItem}>
-                    <label className={s.settingLabel}>
-                      <input
-                        type="checkbox"
-                        checked={gitEnabled}
-                        onChange={e => handleGitEnabledToggle(e.target.checked)}
-                        className={s.checkbox}
-                      />
-                      <div className={s.settingContent}>
-                        <div className={s.settingName}>Enable version control</div>
-                        <div className={s.settingDescription}>
-                          Track changes and create git commits automatically. Disable this to turn off
-                          version control for this project.
-                        </div>
-                      </div>
-                    </label>
-                  </div>
-
-                  {/* Autosave */}
-                  <div className={s.settingItem}>
-                    <label className={s.settingLabel}>
-                      <input
-                        type="checkbox"
-                        checked={gitAutoCommit}
-                        onChange={e => handleGitAutoCommitToggle(e.target.checked)}
-                        className={s.checkbox}
-                        disabled={!gitEnabled}
-                      />
-                      <div className={s.settingContent}>
-                        <div className={s.settingName}>Autosave</div>
-                        <div className={s.settingDescription}>
-                          Automatically save and commit changes after a period of inactivity. Manual saves
-                          (Cmd+S) always create commits immediately.
-                        </div>
-                      </div>
-                    </label>
-                  </div>
-
-                  {/* Autosave Delay */}
-                  {gitEnabled && gitAutoCommit && (
-                    <div className={s.settingItem}>
-                      <div className={s.settingContent}>
-                        <div className={s.settingName}>Autosave delay</div>
-                        <div className={s.settingDescription}>
-                          Time to wait after last change before automatically saving
-                        </div>
-                        <div className={s.delayOptions}>
-                          {[15000, 30000, 60000].map(delay => (
-                            <label key={delay} className={s.radioLabel}>
-                              <input
-                                type="radio"
-                                name="autoCommitDelay"
-                                checked={gitAutoCommitDelay === delay}
-                                onChange={() => handleGitAutoCommitDelayChange(delay)}
-                                className={s.radio}
-                              />
-                              <span>{delay / 1000}s</span>
-                            </label>
-                          ))}
-                        </div>
+                {/* Enable Git */}
+                <div className={s.settingItem}>
+                  <label className={s.settingLabel}>
+                    <input
+                      type="checkbox"
+                      checked={gitEnabled}
+                      onChange={e => handleGitEnabledToggle(e.target.checked)}
+                      className={s.checkbox}
+                    />
+                    <div className={s.settingContent}>
+                      <div className={s.settingName}>Enable version control</div>
+                      <div className={s.settingDescription}>
+                        Track changes and create git commits automatically. Disable this to turn off
+                        version control for this project.
                       </div>
                     </div>
-                  )}
+                  </label>
+                </div>
 
-                  {/* Author Settings */}
-                  {gitEnabled && (
-                    <div className={s.settingItem}>
-                      <div className={s.settingContent}>
-                        <div className={s.settingName}>Commit author</div>
-                        <div className={s.settingDescription}>
-                          Your name and email for git commits
-                        </div>
-                        <div className={s.authorFields}>
-                          <input
-                            type="text"
-                            value={gitAuthorName}
-                            onChange={e => setGitAuthorName(e.target.value)}
-                            placeholder="Your name"
-                            className={s.input}
-                          />
-                          <input
-                            type="email"
-                            value={gitAuthorEmail}
-                            onChange={e => setGitAuthorEmail(e.target.value)}
-                            placeholder="your.email@example.com"
-                            className={s.input}
-                          />
-                          <button
-                            type="button"
-                            onClick={handleGitAuthorSave}
-                            className={s.saveAuthorButton}
-                          >
-                            Save Author
-                          </button>
-                        </div>
+                {/* Autosave */}
+                <div className={s.settingItem}>
+                  <label className={s.settingLabel}>
+                    <input
+                      type="checkbox"
+                      checked={gitAutoCommit}
+                      onChange={e => handleGitAutoCommitToggle(e.target.checked)}
+                      className={s.checkbox}
+                      disabled={!gitEnabled}
+                    />
+                    <div className={s.settingContent}>
+                      <div className={s.settingName}>Autosave</div>
+                      <div className={s.settingDescription}>
+                        Automatically save and commit changes after a period of inactivity. Manual
+                        saves (Cmd+S) always create commits immediately.
                       </div>
                     </div>
-                  )}
+                  </label>
+                </div>
 
-                  {/* Keyboard Shortcut Info */}
+                {/* Autosave Delay */}
+                {gitEnabled && gitAutoCommit && (
                   <div className={s.settingItem}>
                     <div className={s.settingContent}>
-                      <div className={s.settingName}>View history</div>
+                      <div className={s.settingName}>Autosave delay</div>
                       <div className={s.settingDescription}>
-                        Press <kbd className={s.kbd}>Cmd+Shift+H</kbd> to open the version history panel
-                        and restore to previous commits.
+                        Time to wait after last change before automatically saving
                       </div>
+                      <div className={s.delayOptions}>
+                        {[15000, 30000, 60000].map(delay => (
+                          <label key={delay} className={s.radioLabel}>
+                            <input
+                              type="radio"
+                              name="autoCommitDelay"
+                              checked={gitAutoCommitDelay === delay}
+                              onChange={() => handleGitAutoCommitDelayChange(delay)}
+                              className={s.radio}
+                            />
+                            <span>{delay / 1000}s</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Author Settings */}
+                {gitEnabled && (
+                  <div className={s.settingItem}>
+                    <div className={s.settingContent}>
+                      <div className={s.settingName}>Commit author</div>
+                      <div className={s.settingDescription}>
+                        Your name and email for git commits
+                      </div>
+                      <div className={s.authorFields}>
+                        <input
+                          type="text"
+                          value={gitAuthorName}
+                          onChange={e => setGitAuthorName(e.target.value)}
+                          placeholder="Your name"
+                          className={s.input}
+                        />
+                        <input
+                          type="email"
+                          value={gitAuthorEmail}
+                          onChange={e => setGitAuthorEmail(e.target.value)}
+                          placeholder="your.email@example.com"
+                          className={s.input}
+                        />
+                        <button
+                          type="button"
+                          onClick={handleGitAuthorSave}
+                          className={s.saveAuthorButton}
+                        >
+                          Save Author
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Keyboard Shortcut Info */}
+                <div className={s.settingItem}>
+                  <div className={s.settingContent}>
+                    <div className={s.settingName}>View history</div>
+                    <div className={s.settingDescription}>
+                      Press <kbd className={s.kbd}>Cmd+Shift+H</kbd> to open the version history
+                      panel and restore to previous commits.
                     </div>
                   </div>
                 </div>
-              </>
+              </div>
             )}
           </div>
 
