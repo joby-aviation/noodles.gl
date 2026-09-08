@@ -136,6 +136,11 @@ The assistant has access to powerful tools to help you:
 - Delete nodes and connections
 - Create complete visualizations from scratch
 
+**Data & Computation:**
+- Run JavaScript against your live graph to compute a result
+- List, read, and search your project's data files
+- Write a derived dataset to `@/.agent/` and load it with a FileOp
+
 **Documentation & Examples:**
 - Search the Noodles.gl documentation
 - Find relevant code examples

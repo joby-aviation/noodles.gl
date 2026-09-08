@@ -14,8 +14,15 @@ import type { NoodlesProject } from '../types'
 import { capToolResult, resultBudgetChars } from './result-budget'
 import { ToolRouter } from './tool-router'
 
-// The 9 tools the old client filtered out with exposeToChat: false
+// The 9 tools the old client filtered out with exposeToChat: false, plus tools that
+// did not exist then — counting a new capability against the old baseline would
+// flatter the comparison rather than measure it.
 const OLD_HIDDEN = new Set([
+  'run_code',
+  'list_files',
+  'read_file',
+  'write_file',
+  'grep_files',
   'search_code',
   'get_source_code',
   'get_operator_schema',
