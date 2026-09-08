@@ -146,4 +146,55 @@ describe('convertViewerToTableEditor', () => {
     const convertedOp = store.getOp('/test-viewer')
     expect(convertedOp!.locked.value).toBe(true)
   })
+
+  it('removes incoming data edges when converting', () => {
+    // Create a ViewerOp with tabular data
+    const viewerOp = new ViewerOp('/test-viewer')
+    const testData = [
+      { name: 'Alice', age: 30 },
+      { name: 'Bob', age: 25 },
+    ]
+    viewerOp.inputs.data.setValue(testData)
+    setOp('/test-viewer', viewerOp)
+
+    // Create mock edges including one connecting to the viewer's data input
+    const initialEdges: ReactFlowEdge[] = [
+      {
+        id: '/data-source.out.result->/test-viewer.par.data',
+        source: '/data-source',
+        target: '/test-viewer',
+        sourceHandle: 'out.result',
+        targetHandle: 'par.data',
+      },
+      {
+        id: '/other-edge',
+        source: '/other-source',
+        target: '/other-target',
+        sourceHandle: 'out.value',
+        targetHandle: 'par.input',
+      },
+    ]
+
+    // Update mockSetEdges to use the initial edges
+    mockSetEdges = (updater) => {
+      capturedEdges = updater(initialEdges)
+    }
+
+    // Perform conversion
+    const result = convertViewerToTableEditor('/test-viewer', mockSetNodes, mockSetEdges)
+
+    // Verify conversion succeeded
+    expect(result).toBe(true)
+
+    // Verify the edge targeting par.data was removed
+    expect(capturedEdges).not.toBeNull()
+    expect(capturedEdges!.length).toBe(1)
+    expect(capturedEdges![0].id).toBe('/other-edge')
+
+    // Verify the edge to the converted node's data input is not present
+    const hasDataEdge = capturedEdges!.some(
+      edge => edge.target === '/test-viewer' && edge.targetHandle === 'par.data'
+    )
+    expect(hasDataEdge).toBe(false)
+  })
 })
