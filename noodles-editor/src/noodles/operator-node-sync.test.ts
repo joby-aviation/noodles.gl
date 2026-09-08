@@ -3,7 +3,7 @@
 // all existing flows continue to work correctly.
 
 import { beforeEach, describe, expect, it } from 'vitest'
-import { useGraphStore } from './graph-store'
+import { useGraphStore } from './store'
 import { NumberOp } from './operators'
 import { transformGraph } from './transform-graph'
 

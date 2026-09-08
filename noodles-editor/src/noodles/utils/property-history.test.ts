@@ -7,8 +7,8 @@ import {
   registerPropertyMutationCallback,
 } from './property-history'
 
-// Mock the graph-store module
-vi.mock('../graph-store', () => ({
+// Mock the store module
+vi.mock('../store', () => ({
   getAllOps: vi.fn(),
   getGraphStore: vi.fn(),
   useGraphStore: {
@@ -16,7 +16,7 @@ vi.mock('../graph-store', () => ({
   },
 }))
 
-import { getAllOps, getGraphStore } from '../graph-store'
+import { getAllOps, getGraphStore } from '../store'
 
 // Helper to create a mock field with serialize/setValue
 function mockField(serializedValue: unknown) {

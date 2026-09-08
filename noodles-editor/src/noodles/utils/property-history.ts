@@ -1,7 +1,7 @@
 import { useCallback, useRef } from 'react'
 import { debugHistory, debugHistorySnapshot } from '../../utils/debug'
 import { applySerializedFieldValue, type Field, type IField } from '../fields'
-import { getAllOps, getGraphStore } from '../graph-store'
+import { getAllOps, getGraphStore } from '../store'
 import type { OpId } from './id-utils'
 
 type PropertyMutationCallback = (description: string, before: string, after: string) => void

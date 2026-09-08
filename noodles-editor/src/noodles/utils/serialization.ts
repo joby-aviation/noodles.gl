@@ -6,7 +6,7 @@ import type {
 } from '@xyflow/react'
 import { debugSerialize } from '../../utils/debug'
 import { resizeableNodes } from '../components/op-components'
-import type { useGraphStore } from '../graph-store'
+import type { useGraphStore } from '../store'
 import { deepEqual } from './deep-equal'
 import type { ExtractProps } from './extract-props'
 import type { StorageType } from './filesystem'

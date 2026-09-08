@@ -201,6 +201,7 @@ export {
   deleteSheetObject,
   getAllOps,
   getAllSheetObjectIds,
+  getGraphStore,
   getOp,
   getOpEntries,
   getSheetObject,
@@ -208,6 +209,7 @@ export {
   hasSheetObject,
   setOp,
   setSheetObject,
+  useGraphStore,
 } from './graph-store'
 
 // Hovered output handle helpers
