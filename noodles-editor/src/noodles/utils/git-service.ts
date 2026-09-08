@@ -306,12 +306,22 @@ export class GitService {
   async diff(options?: { ref1?: string; ref2?: string }): Promise<string> {
     // For now, return a placeholder
     // Full diff implementation requires walking the tree and comparing
-    // This would be implemented in Phase 2 with a proper diff viewer
     const ref1 = options?.ref1 || 'HEAD'
     const ref2 = options?.ref2 || 'workdir'
 
     console.log(`Diff between ${ref1} and ${ref2} not yet implemented`)
     return 'Diff viewer coming in Phase 2'
+  }
+
+  // Restore project to a specific commit
+  async restore(commitOid: string): Promise<void> {
+    // Checkout the commit (updates HEAD and working directory)
+    await git.checkout({
+      fs: this.fs as any,
+      dir: '/',
+      ref: commitOid,
+      force: true, // Overwrite working directory changes
+    })
   }
 
   // Helper: recursively list all files in a directory

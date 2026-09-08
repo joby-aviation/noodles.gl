@@ -14,6 +14,8 @@ export function GitHistoryPanel({ projectDirectory, onClose }: GitHistoryPanelPr
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selectedCommit, setSelectedCommit] = useState<Commit | null>(null)
+  const [showRestoreConfirm, setShowRestoreConfirm] = useState(false)
+  const [restoring, setRestoring] = useState(false)
 
   const loadHistory = useCallback(async () => {
     if (!projectDirectory) {
@@ -69,6 +71,31 @@ export function GitHistoryPanel({ projectDirectory, onClose }: GitHistoryPanelPr
 
   const copyCommitHash = (oid: string) => {
     navigator.clipboard.writeText(oid)
+  }
+
+  const handleRestoreClick = () => {
+    setShowRestoreConfirm(true)
+  }
+
+  const handleRestoreConfirm = async () => {
+    if (!projectDirectory || !selectedCommit) return
+
+    try {
+      setRestoring(true)
+      const gitService = await createGitService(projectDirectory)
+      await gitService.restore(selectedCommit.oid)
+
+      // Reload the page to reflect the restored state
+      window.location.reload()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to restore commit')
+      setRestoring(false)
+      setShowRestoreConfirm(false)
+    }
+  }
+
+  const handleRestoreCancel = () => {
+    setShowRestoreConfirm(false)
   }
 
   return (
@@ -171,10 +198,36 @@ export function GitHistoryPanel({ projectDirectory, onClose }: GitHistoryPanelPr
                 )}
               </div>
               <div className={styles.detailsFooter}>
-                <p className={styles.footerNote}>Diff viewer coming in Phase 2</p>
+                <button className={styles.restoreButton} onClick={handleRestoreClick} disabled={restoring}>
+                  {restoring ? 'Restoring...' : 'Restore to this commit'}
+                </button>
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Restore confirmation dialog */}
+      {showRestoreConfirm && selectedCommit && (
+        <div className={styles.confirmOverlay}>
+          <div className={styles.confirmDialog}>
+            <h3 className={styles.confirmTitle}>Restore to this commit?</h3>
+            <p className={styles.confirmMessage}>
+              This will restore your project to commit <code>{selectedCommit.oid.substring(0, 7)}</code>.
+            </p>
+            <p className={styles.confirmWarning}>
+              <strong>Warning:</strong> Any unsaved changes will be lost. The page will reload after
+              restoration.
+            </p>
+            <div className={styles.confirmActions}>
+              <button className={styles.confirmCancel} onClick={handleRestoreCancel} disabled={restoring}>
+                Cancel
+              </button>
+              <button className={styles.confirmRestore} onClick={handleRestoreConfirm} disabled={restoring}>
+                {restoring ? 'Restoring...' : 'Restore'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
