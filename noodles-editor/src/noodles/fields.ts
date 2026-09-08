@@ -8,12 +8,12 @@ import { colorToHex } from '../utils/color'
 import { debugSetValue } from '../utils/debug'
 import type { BetterDeckProps, BetterMapProps } from '../visualizations'
 import type { inputComponents } from './components/field-components'
+import { useGraphStore } from './graph-store'
 import type { IOperator, Operator } from './operators'
 import type { DeckViewDescriptor, DeckViewValue } from './types'
 import { deepEqual } from './utils/deep-equal'
 import type { ExtractProps } from './utils/extract-props'
 import { resolvePath } from './utils/path-utils'
-import { useGraphStore } from './graph-store'
 
 export interface IField<
   S extends z.ZodType = z.ZodType,

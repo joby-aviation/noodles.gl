@@ -80,6 +80,7 @@ import { CanvasDropImport } from './components/tools/canvas-drop-import'
 import { UndoRedoHandler, type UndoRedoHandlerRef } from './components/UndoRedoHandler'
 import { ProjectModificationActionsProvider } from './contexts/project-modification-actions-context'
 import { useActiveStorageType, useFileSystemStore } from './filesystem-store'
+import { useGraphStore } from './graph-store'
 import { findEdgeAtPosition, useConnectionDropOnEdge } from './hooks/use-connection-drop-on-edge'
 import { useKeyboardShortcut } from './hooks/use-keyboard-shortcut'
 import { useNodeDropOnEdge } from './hooks/use-node-drop-on-edge'
@@ -105,7 +106,6 @@ import {
   useNestingStore,
   useUIStore,
 } from './store'
-import { useGraphStore } from './graph-store'
 import { transformGraph } from './transform-graph'
 import { canConnectCached } from './utils/can-connect'
 import { instantiateDeckView } from './utils/deck-view'
@@ -116,7 +116,6 @@ import {
   selectDirectory,
   writeFileToDirectory,
 } from './utils/filesystem'
-import { reconcileForLoopGroups } from './utils/for-loop-group-utils'
 import { edgeId, nodeId } from './utils/id-utils'
 import { shouldBlockKeyboardShortcut } from './utils/input-detection'
 import { generateDraftId, memoryProjectStore } from './utils/memory-project-store'
@@ -361,7 +360,7 @@ export function getNoodles(): Visualization {
 
   // Visual ForLoop groups are derived from the directed Begin-to-End subgraph. Re-run
   // when connectivity, membership, or measured dimensions change, but not during a drag.
-  const forLoopLayoutKey = useMemo(() => {
+  const _forLoopLayoutKey = useMemo(() => {
     const nodeState = nodes
       .map(
         node =>
@@ -431,11 +430,11 @@ export function getNoodles(): Visualization {
 
   // Use shared hook for project modifications
   // Provides wrapper functions for setNodes/setEdges from graph store
-  const addNodesStore = useGraphStore(state => state.addNodes)
-  const updateNodeStore = useGraphStore(state => state.updateNode)
-  const deleteNodesStore = useGraphStore(state => state.deleteNodes)
-  const addEdgesStore = useGraphStore(state => state.addEdges)
-  const deleteEdgesStore = useGraphStore(state => state.deleteEdges)
+  const _addNodesStore = useGraphStore(state => state.addNodes)
+  const _updateNodeStore = useGraphStore(state => state.updateNode)
+  const _deleteNodesStore = useGraphStore(state => state.deleteNodes)
+  const _addEdgesStore = useGraphStore(state => state.addEdges)
+  const _deleteEdgesStore = useGraphStore(state => state.deleteEdges)
 
   const {
     applyModifications,

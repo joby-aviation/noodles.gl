@@ -1,5 +1,5 @@
+import type { Edge as ReactFlowEdge, Node as ReactFlowNode } from '@xyflow/react'
 import { beforeEach, describe, expect, it } from 'vitest'
-import { type Edge as ReactFlowEdge, type Node as ReactFlowNode } from '@xyflow/react'
 import { clearOps, getOpStore } from './store'
 
 // Performance baseline tests for graph operations

@@ -10,43 +10,23 @@
 // This eliminates the dual-state problem: operators and nodes no longer duplicate data
 
 import {
-  type Connection,
-  type Edge as ReactFlowEdge,
-  type EdgeChange,
-  type Node as ReactFlowNode,
-  type NodeChange,
   applyEdgeChanges as applyReactFlowEdgeChanges,
   applyNodeChanges as applyReactFlowNodeChanges,
-  getConnectedEdges,
-  getIncomers,
-  getOutgoers,
+  type EdgeChange,
+  type NodeChange,
+  type Edge as ReactFlowEdge,
+  type Node as ReactFlowNode,
 } from '@xyflow/react'
-import { shallow } from 'zustand/shallow'
 import { create } from 'zustand'
 import { subscribeWithSelector } from 'zustand/middleware'
-import { getTimelineStore } from '../timeline/timeline-store'
 import { analytics } from '../utils/analytics'
-import { debugUI } from '../utils/debug'
+import type { Field } from './fields'
 import type { IOperator, Operator } from './operators'
-import { canConnect, validateConnection } from './utils/can-connect'
+import { canConnect } from './utils/can-connect'
 import { expandDeleteSet } from './utils/copy-paste-utils'
-import { reconcileForLoopGroups } from './utils/for-loop-group-utils'
-import { edgeId } from './utils/id-utils'
-import {
-  insertEdgeAtGroupIndex,
-  normalizeMultiInputEdges,
-  orderedEdgeIdsForHandle,
-} from './utils/multi-input-utils'
-import {
-  generateQualifiedPath,
-  getParentPath,
-  isAbsolutePath,
-  parseHandleId,
-  resolvePath,
-} from './utils/path-utils'
-import { transformGraph } from './transform-graph'
 import type { OpId } from './utils/id-utils'
-import { type Field } from './fields'
+import { normalizeMultiInputEdges } from './utils/multi-input-utils'
+import { isAbsolutePath, parseHandleId, resolvePath } from './utils/path-utils'
 
 // ============================================================================
 // Types

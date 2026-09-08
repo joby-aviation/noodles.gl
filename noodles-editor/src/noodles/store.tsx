@@ -1,10 +1,9 @@
 import type { Edge as ReactFlowEdge } from '@xyflow/react'
 import { create } from 'zustand'
+import { useGraphStore } from './graph-store'
 import type { IOperator, Operator } from './operators'
 // only import types from noodles to avoid circular dependencies
 import type { OpId } from './utils/id-utils'
-import { isAbsolutePath, resolvePath } from './utils/path-utils'
-import { useGraphStore } from './graph-store'
 
 // ============================================================================
 // Operator Store (Zustand) - Now delegates to graph-store
@@ -45,7 +44,7 @@ export interface PendingInsertionIndex {
 
 // Compatibility wrapper - delegates to graph store
 // Access graphStore lazily to avoid circular dependency
-export const useOperatorStore = create<OperatorStoreState>((set, get) => ({
+export const useOperatorStore = create<OperatorStoreState>((_set, _get) => ({
   get operators() {
     return useGraphStore.getState().operators
   },
@@ -197,18 +196,18 @@ export const getUIStore = () => useUIStore.getState()
 
 // Re-export convenience helpers from graph-store
 export {
-  getOp,
-  setOp,
-  deleteOp,
-  hasOp,
   clearOps,
+  deleteOp,
+  deleteSheetObject,
   getAllOps,
+  getAllSheetObjectIds,
+  getOp,
   getOpEntries,
   getSheetObject,
-  setSheetObject,
-  deleteSheetObject,
+  hasOp,
   hasSheetObject,
-  getAllSheetObjectIds,
+  setOp,
+  setSheetObject,
 } from './graph-store'
 
 // Hovered output handle helpers
