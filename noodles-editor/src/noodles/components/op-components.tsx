@@ -1860,7 +1860,7 @@ export function TableEditorOpComponent({
       <NodeResizer isVisible={selected} minWidth={500} minHeight={300} />
       <div className={s.content}>
         {Object.entries(op.inputs)
-          .filter(([key]) => op.isFieldVisible(key))
+          .filter(([key]) => op.isFieldVisible(key) && key !== 'data')
           .map(([key, field]) => (
             <FieldComponent
               key={key}
