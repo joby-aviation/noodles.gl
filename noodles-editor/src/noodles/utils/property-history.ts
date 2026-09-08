@@ -1,7 +1,7 @@
 import { useCallback, useRef } from 'react'
 import { debugHistory, debugHistorySnapshot } from '../../utils/debug'
 import { applySerializedFieldValue, type Field, type IField } from '../fields'
-import { getAllOps, getOpStore } from '../store'
+import { getAllOps, getGraphStore } from '../graph-store'
 import type { OpId } from './id-utils'
 
 type PropertyMutationCallback = (description: string, before: string, after: string) => void
@@ -56,7 +56,7 @@ export function applyOperatorInputs(snapshot: string): void {
     debugHistory('Failed to parse operator inputs snapshot')
     return
   }
-  const store = getOpStore()
+  const store = getGraphStore()
   for (const [id, inputs] of Object.entries(data)) {
     const op = store.getOp(id as OpId)
     if (!op) continue

@@ -13,6 +13,7 @@ import type { DeckViewDescriptor, DeckViewValue } from './types'
 import { deepEqual } from './utils/deep-equal'
 import type { ExtractProps } from './utils/extract-props'
 import { resolvePath } from './utils/path-utils'
+import { useGraphStore } from './graph-store'
 
 export interface IField<
   S extends z.ZodType = z.ZodType,
@@ -264,6 +265,11 @@ export abstract class Field<
 
       // Mark the owning operator as dirty
       this.op?.markDirty()
+
+      // Sync node to reflect operator change
+      if (this.op) {
+        useGraphStore.getState().syncNodeFromOperator(this.op.id)
+      }
     } else {
       debugSetValue('%s: %O -> %O [PARSE FAILED]', path, oldValue, value)
       debugSetValue('Parse error', parsed.error.issues)

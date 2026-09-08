@@ -7,13 +7,16 @@ import {
   registerPropertyMutationCallback,
 } from './property-history'
 
-// Mock the store module
-vi.mock('../store', () => ({
+// Mock the graph-store module
+vi.mock('../graph-store', () => ({
   getAllOps: vi.fn(),
-  getOpStore: vi.fn(),
+  getGraphStore: vi.fn(),
+  useGraphStore: {
+    getState: vi.fn(),
+  },
 }))
 
-import { getAllOps, getOpStore } from '../store'
+import { getAllOps, getGraphStore } from '../graph-store'
 
 // Helper to create a mock field with serialize/setValue
 function mockField(serializedValue: unknown) {
@@ -29,7 +32,7 @@ function mockOp(id: string, fields: Record<string, ReturnType<typeof mockField>>
 }
 
 const mockedGetAllOps = vi.mocked(getAllOps)
-const mockedGetOpStore = vi.mocked(getOpStore)
+const mockedGetGraphStore = vi.mocked(getGraphStore)
 
 describe('captureOperatorInputs', () => {
   it('serializes all operator field values using serialize()', () => {
@@ -82,7 +85,7 @@ describe('applyOperatorInputs', () => {
     const store = {
       getOp: vi.fn(),
     }
-    mockedGetOpStore.mockReturnValue(store as never)
+    mockedGetGraphStore.mockReturnValue(store as never)
   })
 
   it('restores field values by calling setValue for each field', () => {
@@ -90,7 +93,7 @@ describe('applyOperatorInputs', () => {
     const op = mockOp('/my-op', { value: field })
 
     const store = { getOp: vi.fn((id: string) => (id === '/my-op' ? op : undefined)) }
-    mockedGetOpStore.mockReturnValue(store as never)
+    mockedGetGraphStore.mockReturnValue(store as never)
 
     const snapshot = JSON.stringify({ '/my-op': { value: 99 } })
     applyOperatorInputs(snapshot)
@@ -100,7 +103,7 @@ describe('applyOperatorInputs', () => {
 
   it('skips operators that no longer exist in the store', () => {
     const store = { getOp: vi.fn(() => undefined) }
-    mockedGetOpStore.mockReturnValue(store as never)
+    mockedGetGraphStore.mockReturnValue(store as never)
 
     // Should not throw even though the op doesn't exist
     expect(() => {
@@ -112,7 +115,7 @@ describe('applyOperatorInputs', () => {
     const field = mockField(0)
     const op = mockOp('/op', { existingField: field })
     const store = { getOp: vi.fn(() => op) }
-    mockedGetOpStore.mockReturnValue(store as never)
+    mockedGetGraphStore.mockReturnValue(store as never)
 
     // Snapshot has a field that doesn't exist on the op
     applyOperatorInputs(JSON.stringify({ '/op': { existingField: 5, ghostField: 99 } }))
@@ -123,7 +126,7 @@ describe('applyOperatorInputs', () => {
 
   it('handles invalid JSON gracefully', () => {
     const store = { getOp: vi.fn() }
-    mockedGetOpStore.mockReturnValue(store as never)
+    mockedGetGraphStore.mockReturnValue(store as never)
 
     expect(() => {
       applyOperatorInputs('not valid json {{{')
@@ -144,7 +147,7 @@ describe('applyOperatorInputs', () => {
         return undefined
       }),
     }
-    mockedGetOpStore.mockReturnValue(store as never)
+    mockedGetGraphStore.mockReturnValue(store as never)
 
     applyOperatorInputs(JSON.stringify({ '/op1': { x: 42 }, '/op2': { text: 'hello' } }))
 
@@ -440,7 +443,7 @@ describe('captureOperatorInputs + applyOperatorInputs round-trip', () => {
 
     // Restore from snapshot
     const store = { getOp: vi.fn(() => op) }
-    mockedGetOpStore.mockReturnValue(store as never)
+    mockedGetGraphStore.mockReturnValue(store as never)
     applyOperatorInputs(snapshot)
 
     // setValue should be called with the original value (42)
