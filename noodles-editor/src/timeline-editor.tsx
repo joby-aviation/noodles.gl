@@ -625,6 +625,8 @@ export default function TimelineEditor() {
               <TransformScale
                 scale={renderSettings.scaleControl}
                 scaleMode={renderSettings.scaleMode}
+                width={lodResolution.width}
+                height={lodResolution.height}
               >
                 <ErrorBoundary title="Visualization Error">{renderContent()}</ErrorBoundary>
               </TransformScale>
