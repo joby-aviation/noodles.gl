@@ -4,7 +4,7 @@ import { inferSchema } from '../table-schema'
 import type { ReactFlowEdge, ReactFlowNode } from '../types'
 import { normalizeMultiInputEdges } from './multi-input-utils'
 
-// Converts a ViewerOp to a TableEditorOp, preserving connections and position.
+// Converts a ViewerOp to a TableEditorOp, removing data connections and preserving position.
 // Returns true if successful, false if the operator cannot be converted.
 // Undo/redo is handled automatically by the React Flow node change tracking system.
 export function convertViewerToTableEditor(
@@ -74,16 +74,18 @@ export function convertViewerToTableEditor(
   tableEditorOp.inputs.schema.setValue(schema)
   setOp(operatorId, tableEditorOp)
 
-  // Edges don't need updating because:
-  // 1. The node ID stays the same
-  // 2. ViewerOp has a 'data' input, TableEditorOp also has a 'data' input
-  // 3. The edge target handle 'par.data' is valid for both operators
-  // However, we still normalize the edge array so React Flow is notified and any replayed
-  // edge IDs are repaired at this workflow boundary.
-  setEdges(edges => {
-    const normalized = normalizeMultiInputEdges(edges)
-    return normalized === edges ? [...edges] : normalized
-  })
+  // Remove any incoming edges to the data input.
+  // The TableEditorOp should start with an empty table that can be edited manually.
+  // Note: This creates a separate undo history entry from the node type change above,
+  // so reverting the conversion requires two undo operations. React Flow's setEdges
+  // automatically triggers onEdgesChange, which is intercepted by the undo system.
+  // Normalize the remaining edges so replayed duplicate IDs are still repaired at this
+  // workflow boundary.
+  setEdges(edges =>
+    normalizeMultiInputEdges(
+      edges.filter(edge => !(edge.target === operatorId && edge.targetHandle === 'par.data'))
+    )
+  )
 
   return true
 }
