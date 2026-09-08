@@ -6,7 +6,7 @@ import type {
 } from '@xyflow/react'
 import { debugSerialize } from '../../utils/debug'
 import { resizeableNodes } from '../components/op-components'
-import type { useOperatorStore } from '../store'
+import type { useGraphStore } from '../graph-store'
 import { deepEqual } from './deep-equal'
 import type { ExtractProps } from './extract-props'
 import type { StorageType } from './filesystem'
@@ -96,7 +96,7 @@ function setsEqual(a: Set<string>, b: Set<string>): boolean {
 }
 
 export function serializeNodes(
-  store: ReturnType<typeof useOperatorStore.getState>,
+  store: ReturnType<typeof useGraphStore.getState>,
   nodes: ReactFlowNode<Record<string, unknown>>[],
   edges: ReactFlowEdge[],
   options?: SerializeNodesOptions
@@ -225,7 +225,7 @@ export function serializeNodes(
 }
 
 export function serializeEdges(
-  _store: ReturnType<typeof useOperatorStore.getState>,
+  _store: ReturnType<typeof useGraphStore.getState>,
   nodes: ReactFlowNode<Record<string, unknown>>[],
   edges: ReactFlowEdge[]
 ) {
