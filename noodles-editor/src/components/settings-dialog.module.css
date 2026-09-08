@@ -654,3 +654,57 @@
   color: #aaa;
   line-height: 1.4;
 }
+
+.delayOptions {
+  display: flex;
+  gap: 16px;
+  margin-top: 12px;
+}
+
+.radioLabel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.radio {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.authorFields {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.saveAuthorButton {
+  padding: 8px 16px;
+  background: #3b82f6;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: background-color 0.2s;
+}
+
+.saveAuthorButton:hover {
+  background: #2563eb;
+}
+
+.kbd {
+  display: inline-block;
+  padding: 2px 6px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+  font-family: monospace;
+  font-size: 12px;
+  font-weight: 600;
+}
