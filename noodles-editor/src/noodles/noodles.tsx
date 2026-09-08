@@ -80,7 +80,6 @@ import { CanvasDropImport } from './components/tools/canvas-drop-import'
 import { UndoRedoHandler, type UndoRedoHandlerRef } from './components/UndoRedoHandler'
 import { ProjectModificationActionsProvider } from './contexts/project-modification-actions-context'
 import { useActiveStorageType, useFileSystemStore } from './filesystem-store'
-import { useGraphStore } from './store'
 import { findEdgeAtPosition, useConnectionDropOnEdge } from './hooks/use-connection-drop-on-edge'
 import { useKeyboardShortcut } from './hooks/use-keyboard-shortcut'
 import { useNodeDropOnEdge } from './hooks/use-node-drop-on-edge'
@@ -103,6 +102,7 @@ import {
   getOpStore,
   getUIStore,
   useEdgeConnectionStore,
+  useGraphStore,
   useNestingStore,
   useUIStore,
 } from './store'
@@ -375,11 +375,12 @@ export function getNoodles(): Visualization {
     return `${nodeState}|${connectivity}`
   }, [nodes, modelEdges])
 
-  // ForLoop reconciliation now handled by graph-store subscriber
-  // No manual reconciliation needed
+  // ForLoop reconciliation: disabled in graph-store due to infinite loop issues
+  // Must be called manually when needed (currently not re-enabled)
 
-  // Get operators from store (transformGraph subscriber updates the store)
-  const operators = useGraphStore(state => state.getAllOps())
+  // Get operators from store - memoize to prevent rerenders on node position/selection changes
+  const operatorsMap = useGraphStore(state => state.operators)
+  const operators = useMemo(() => Array.from(operatorsMap.values()), [operatorsMap])
   // Set to true in loadProjectFile so effects skip redundant re-runs
   const isProjectLoadRef = useRef(false)
 
@@ -448,24 +449,28 @@ export function getNoodles(): Visualization {
     setNodes: useCallback(
       (updater: ReactFlowNode[] | ((nodes: ReactFlowNode[]) => ReactFlowNode[])) => {
         if (typeof updater === 'function') {
-          const updated = updater(nodes)
+          // Read from store to get latest state (prevents consecutive update race)
+          const currentNodes = useGraphStore.getState().nodes
+          const updated = updater(currentNodes)
           useGraphStore.setState({ nodes: updated })
         } else {
           useGraphStore.setState({ nodes: updater })
         }
       },
-      [nodes]
+      []
     ),
     setEdges: useCallback(
       (updater: ReactFlowEdge[] | ((edges: ReactFlowEdge[]) => ReactFlowEdge[])) => {
         if (typeof updater === 'function') {
-          const updated = updater(edges)
+          // Read from store to get latest state (prevents consecutive update race)
+          const currentEdges = useGraphStore.getState().edges
+          const updated = updater(currentEdges)
           useGraphStore.setState({ edges: updated })
         } else {
           useGraphStore.setState({ edges: updater })
         }
       },
-      [edges]
+      []
     ),
   })
 

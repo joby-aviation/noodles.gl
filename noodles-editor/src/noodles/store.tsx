@@ -43,37 +43,44 @@ export interface PendingInsertionIndex {
 }
 
 // Compatibility wrapper - delegates to graph store
-// Access graphStore lazily to avoid circular dependency
-export const useOperatorStore = create<OperatorStoreState>((_set, _get) => ({
-  get operators() {
-    return useGraphStore.getState().operators
-  },
-  get sheetObjects() {
-    return useGraphStore.getState().sheetObjects
-  },
-  get _batching() {
-    return useGraphStore.getState()._batching
-  },
+// Syncs state from graph store to ensure React subscribers get notified
+export const useOperatorStore = create<OperatorStoreState>((set, _get) => {
+  // Subscribe to graph store and sync relevant state
+  useGraphStore.subscribe(
+    state => ({
+      operators: state.operators,
+      sheetObjects: state.sheetObjects,
+      _batching: state._batching,
+    }),
+    synced => set(synced)
+  )
 
-  // Operator actions - delegate to graph store (lazy access)
-  getOp: (id: OpId) => useGraphStore.getState().getOp(id),
-  setOp: (id: OpId, op: Operator<IOperator>) => useGraphStore.getState().setOp(id, op),
-  deleteOp: (id: OpId) => useGraphStore.getState().deleteOp(id),
-  hasOp: (id: OpId) => useGraphStore.getState().hasOp(id),
-  clearOps: () => useGraphStore.getState().clearOps(),
-  getAllOps: () => useGraphStore.getState().getAllOps(),
-  getOpEntries: () => useGraphStore.getState().getOpEntries(),
+  return {
+    // Initial state from graph store
+    operators: useGraphStore.getState().operators,
+    sheetObjects: useGraphStore.getState().sheetObjects,
+    _batching: useGraphStore.getState()._batching,
 
-  // Sheet object actions - delegate to graph store
-  getSheetObject: (id: OpId) => useGraphStore.getState().getSheetObject(id),
-  setSheetObject: (id: OpId, sheetObj: unknown) =>
-    useGraphStore.getState().setSheetObject(id, sheetObj),
-  deleteSheetObject: (id: OpId) => useGraphStore.getState().deleteSheetObject(id),
-  hasSheetObject: (id: OpId) => useGraphStore.getState().hasSheetObject(id),
+    // Operator actions - delegate to graph store
+    getOp: (id: OpId) => useGraphStore.getState().getOp(id),
+    setOp: (id: OpId, op: Operator<IOperator>) => useGraphStore.getState().setOp(id, op),
+    deleteOp: (id: OpId) => useGraphStore.getState().deleteOp(id),
+    hasOp: (id: OpId) => useGraphStore.getState().hasOp(id),
+    clearOps: () => useGraphStore.getState().clearOps(),
+    getAllOps: () => useGraphStore.getState().getAllOps(),
+    getOpEntries: () => useGraphStore.getState().getOpEntries(),
 
-  // Batching - delegate to graph store
-  batch: (fn: () => void) => useGraphStore.getState().batch(fn),
-}))
+    // Sheet object actions - delegate to graph store
+    getSheetObject: (id: OpId) => useGraphStore.getState().getSheetObject(id),
+    setSheetObject: (id: OpId, sheetObj: unknown) =>
+      useGraphStore.getState().setSheetObject(id, sheetObj),
+    deleteSheetObject: (id: OpId) => useGraphStore.getState().deleteSheetObject(id),
+    hasSheetObject: (id: OpId) => useGraphStore.getState().hasSheetObject(id),
+
+    // Batching - delegate to graph store
+    batch: (fn: () => void) => useGraphStore.getState().batch(fn),
+  }
+})
 
 // ============================================================================
 // UI Store (Zustand) - Separate slice for UI state

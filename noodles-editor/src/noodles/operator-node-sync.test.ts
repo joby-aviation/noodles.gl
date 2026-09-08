@@ -3,8 +3,8 @@
 // all existing flows continue to work correctly.
 
 import { beforeEach, describe, expect, it } from 'vitest'
-import { useGraphStore } from './store'
 import { NumberOp } from './operators'
+import { useGraphStore } from './store'
 import { transformGraph } from './transform-graph'
 
 describe('Operator-Node Synchronization', () => {
