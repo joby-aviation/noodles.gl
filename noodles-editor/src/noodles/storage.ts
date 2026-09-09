@@ -11,6 +11,7 @@ import {
   selectDirectory,
   writeFileToDirectory,
 } from './utils/filesystem'
+import { createGitService, getGitSettings } from './utils/git-service'
 import { memoryProjectStore } from './utils/memory-project-store'
 import { EMPTY_PROJECT, type NoodlesProjectJSON, safeStringify } from './utils/serialization'
 
@@ -228,7 +229,8 @@ export async function getProjectDirectoryHandle(
 export async function save(
   type: StorageType,
   projectName: string,
-  projectData: NoodlesProjectJSON
+  projectData: NoodlesProjectJSON,
+  options?: { skipGitCommit?: boolean; commitMessage?: string }
 ): Promise<FileSystemResult<FileSystemProject>> {
   if (type === 'memory') {
     memoryProjectStore.setProjectJson(projectName, projectData)
@@ -257,8 +259,8 @@ export async function save(
 
     const projectFileHandle = await projectDirectory.getFileHandle(PROJECT_FILE_NAME)
 
-    return {
-      success: true,
+    const saveResult = {
+      success: true as const,
       data: {
         directoryHandle: projectDirectory,
         projectFileHandle,
@@ -266,6 +268,30 @@ export async function save(
         projectData,
       },
     }
+
+    // Git commit after successful save
+    if (!options?.skipGitCommit) {
+      try {
+        const gitSettings = getGitSettings()
+        if (gitSettings.enabled) {
+          const gitService = await createGitService(projectDirectory)
+
+          // Initialize repo if it doesn't exist
+          if (!(await gitService.isGitRepo())) {
+            await gitService.initRepo()
+          }
+
+          // Create commit
+          const message = options?.commitMessage || `Save ${new Date().toISOString()}`
+          await gitService.commit(message, gitSettings.author)
+        }
+      } catch (error) {
+        // Log error but don't fail the save operation
+        console.warn('Git commit failed:', error)
+      }
+    }
+
+    return saveResult
   } catch (error) {
     return {
       success: false,
@@ -342,6 +368,23 @@ export async function load(
     // This ensures the handle is available on refresh and save operations
     if (type === 'fileSystemAccess' && typeof fromProject !== 'string') {
       await directoryHandleCache.cacheHandle(projectName, projectDirectory, projectDirectory.name)
+    }
+
+    // Initialize git repo if it doesn't exist (automatic upgrade for existing projects)
+    if (type !== 'memory') {
+      try {
+        const gitSettings = getGitSettings()
+        if (gitSettings.enabled) {
+          const gitService = await createGitService(projectDirectory)
+          if (!(await gitService.isGitRepo())) {
+            await gitService.initRepo()
+            await gitService.commit('Initialize git repository', gitSettings.author)
+          }
+        }
+      } catch (error) {
+        // Log error but don't fail the load operation
+        console.warn('Git initialization failed:', error)
+      }
     }
 
     return {

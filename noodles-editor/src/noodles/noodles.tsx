@@ -118,6 +118,7 @@ import {
   writeFileToDirectory,
 } from './utils/filesystem'
 import { reconcileForLoopGroups } from './utils/for-loop-group-utils'
+import { getGitSettings } from './utils/git-service'
 import { edgeId, nodeId } from './utils/id-utils'
 import { shouldBlockKeyboardShortcut } from './utils/input-detection'
 import { generateDraftId, memoryProjectStore } from './utils/memory-project-store'
@@ -138,6 +139,9 @@ import { EdgeSpatialIndex } from './utils/spatial-index'
 import { calculateViewerPosition } from './utils/viewer-position'
 
 const ChatPanel = lazy(() => import('../ai-chat/chat-panel').then(m => ({ default: m.ChatPanel })))
+const GitHistoryPanel = lazy(() =>
+  import('./components/git-history-panel').then(m => ({ default: m.GitHistoryPanel }))
+)
 
 /*
  * CSS Architecture:
@@ -259,6 +263,7 @@ export function getNoodles(): Visualization {
   }, [nodes, modelEdges])
   const [showChatPanel, setShowChatPanel] = useState(false)
   const [chatInitialMessage, setChatInitialMessage] = useState<string | undefined>(undefined)
+  const [showGitHistoryPanel, setShowGitHistoryPanel] = useState(false)
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const [parameterEditorState, setParameterEditorState] = useState<{
     open: boolean
@@ -1152,6 +1157,21 @@ export function getNoodles(): Visualization {
     navigate,
   ])
 
+  // Autosave with debouncing
+  useEffect(() => {
+    // Don't autosave for examples (read-only) or if no unsaved changes
+    if (isExamplesRoute || !hasUnsavedChanges) return
+
+    const gitSettings = getGitSettings()
+    if (!gitSettings.enabled || !gitSettings.autoCommit) return
+
+    const timeoutId = setTimeout(() => {
+      onMenuSave()
+    }, gitSettings.autoCommitDelay)
+
+    return () => clearTimeout(timeoutId)
+  }, [hasUnsavedChanges, isExamplesRoute, onMenuSave])
+
   // Step 1 of Save As: Select directory and check conditions
   const onSaveAs = useCallback(async () => {
     try {
@@ -1355,6 +1375,13 @@ export function getNoodles(): Visualization {
         e.preventDefault()
         if (projectName && storageType !== 'publicFolder' && storageType !== 'memory') {
           setShowRenameDialog(true)
+        }
+      }
+      // mod+shift+h for Git History
+      if (isMod && isShift && key === 'h') {
+        e.preventDefault()
+        if (storageType !== 'memory') {
+          setShowGitHistoryPanel(prev => !prev)
         }
       }
     }
@@ -1891,6 +1918,15 @@ export function getNoodles(): Visualization {
     </Suspense>
   )
 
+  const gitHistoryPanel = showGitHistoryPanel && (
+    <Suspense fallback={null}>
+      <GitHistoryPanel
+        projectDirectory={currentDirectory}
+        onClose={() => setShowGitHistoryPanel(false)}
+      />
+    </Suspense>
+  )
+
   return {
     flowGraph,
     selectedNodeIds: nodes.filter(n => n.selected).map(n => n.id),
@@ -1916,6 +1952,7 @@ export function getNoodles(): Visualization {
     ),
     propertiesPanel,
     chatPanel,
+    gitHistoryPanel,
     showOverlay,
     onChangeShowOverlay: setShowOverlay,
     showDebugInfo,
