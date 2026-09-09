@@ -9,6 +9,7 @@ import { debugSetValue } from '../utils/debug'
 import type { BetterDeckProps, BetterMapProps } from '../visualizations'
 import type { inputComponents } from './components/field-components'
 import type { IOperator, Operator } from './operators'
+import { useGraphStore } from './store'
 import type { DeckViewDescriptor, DeckViewValue } from './types'
 import { deepEqual } from './utils/deep-equal'
 import type { ExtractProps } from './utils/extract-props'
@@ -264,6 +265,11 @@ export abstract class Field<
 
       // Mark the owning operator as dirty
       this.op?.markDirty()
+
+      // Sync node to reflect operator change
+      if (this.op) {
+        useGraphStore.getState().syncNodeFromOperator(this.op.id)
+      }
     } else {
       debugSetValue('%s: %O -> %O [PARSE FAILED]', path, oldValue, value)
       debugSetValue('Parse error', parsed.error.issues)
