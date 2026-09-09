@@ -25,7 +25,7 @@ export const useTimelineDependencyStore = create<TimelineDependencyState>((set, 
       state => ({ position: state.position, fps: state.sequence.fps }),
       () => {
         debugDirty('%s marked dirty by timeline position/fps change', op.id)
-        op.markDirty()
+        op.markDirty('timeline position/fps change')
       },
       { equalityFn: (a, b) => a.position === b.position && a.fps === b.fps }
     )
@@ -36,7 +36,7 @@ export const useTimelineDependencyStore = create<TimelineDependencyState>((set, 
       state => state.sequence,
       () => {
         debugDirty('%s marked dirty by timeline sequence change', op.id)
-        op.markDirty()
+        op.markDirty('timeline sequence change')
       },
       { equalityFn: (a, b) => a.length === b.length && a.fps === b.fps }
     )

@@ -263,7 +263,7 @@ export abstract class Field<
       this.next(parsed.data)
 
       // Mark the owning operator as dirty
-      this.op?.markDirty()
+      this.op?.markDirty(this)
     } else {
       debugSetValue('%s: %O -> %O [PARSE FAILED]', path, oldValue, value)
       debugSetValue('Parse error', parsed.error.issues)
@@ -318,7 +318,7 @@ export abstract class Field<
       } else {
         this.next(this.value)
         // For reference connections, also mark dirty
-        this.op?.markDirty()
+        this.op?.markDirty(this)
       }
     })
     this.subscriptions.set(id, subscription)
