@@ -63,6 +63,12 @@ export class AgentSession {
     this.router = new ToolRouter(provider.contextWindow, [...childTools, delegate])
   }
 
+  // Called when the panel replaces this session. The Chrome provider holds an
+  // on-device session carrying the transcript; nothing reclaims it otherwise.
+  dispose() {
+    this.provider.dispose?.()
+  }
+
   async send(params: SendParams): Promise<ClaudeResponse> {
     const history = await this.prepareHistory(params.conversationHistory ?? [])
 
