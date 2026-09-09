@@ -9,16 +9,16 @@
 
 .dialogContent {
   position: fixed;
-  top: 10vh;
+  top: 5vh;
   left: 50%;
   transform: translateX(-50%);
   background-color: #1a1a1a;
   color: var(--color-text-primary);
   border-radius: 12px;
   padding: 1.5rem;
-  max-width: 650px;
+  max-width: 900px;
   width: 90vw;
-  max-height: 85vh;
+  max-height: 90vh;
   overflow-y: auto;
   z-index: var(--z-index-modal);
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
@@ -152,10 +152,16 @@
 
 /* Provider indicator shown after a place search */
 .providerBadge {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
   font-size: 0.8rem;
   color: var(--color-text-secondary);
   margin-bottom: 0.75rem;
-  opacity: 0.8;
+  padding: 0.35rem 0.6rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
 }
 
 .providerSettingsLink {
@@ -176,6 +182,7 @@
 
 /* Map Section */
 .mapContainer {
+  height: clamp(420px, 55vh, 600px);
   margin-bottom: 1rem;
   border-radius: 8px;
   overflow: hidden;
