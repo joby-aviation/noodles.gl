@@ -78,6 +78,7 @@ import { subscribeToPosition } from '../timeline/timeline-store'
 import * as utils from '../utils'
 import { getArc } from '../utils/arc-geometry'
 import { colorToHex, hexToColor } from '../utils/color'
+import { analytics } from '../utils/analytics'
 import { debugDirty, debugExecute, debugParams, debugPull } from '../utils/debug'
 import { getDirections } from '../utils/directions'
 import { geocodeWithMapbox } from '../utils/geocoding'
@@ -2241,13 +2242,34 @@ export class DuckDbOp extends Operator<DuckDbOp> {
       await conn.close()
       return { data }
     } catch (e) {
+      const error = e instanceof Error ? e : new Error(String(e))
+      const errorMsg = error.message || ''
+
       debugExecute('Error executing query', e)
+
+      // Log error to console for debugging
+      // Note: "Object Not Found" and syntax errors often occur during typing,
+      // so we don't capture those to PostHog to avoid noise from incomplete queries
+      if (errorMsg.includes('Object Not Found')) {
+        console.error(
+          '[DuckDbOp] Object not found - table or view may not be registered.',
+          'This often happens when typing an incomplete query.',
+          error
+        )
+      } else if (errorMsg.includes('syntax error') || errorMsg.includes('Parser Error')) {
+        console.error('[DuckDbOp] SQL syntax error (likely incomplete query):', error)
+      } else {
+        // Only capture non-typing-related errors to analytics
+        console.error('[DuckDbOp] Query execution failed:', error)
+        analytics.captureException(error, {
+          source: 'duckdb_op',
+          errorType: 'execution_error',
+        })
+      }
+
       await conn.close()
       await db.reset()
-      if (e instanceof Error) {
-        throw e
-      }
-      return null
+      throw error
     }
   }
 }
@@ -2403,31 +2425,53 @@ export class ChartOp extends Operator<ChartOp> {
       return { chart: null }
     }
 
-    // Build marks based on chart type
-    let marks: Plot.Markish[]
-    switch (chartType) {
-      case 'bar':
-        marks = [Plot.barY(data, { x: xField, y: yField, fill: color })]
-        break
-      case 'histogram':
-        marks = [Plot.rectY(data, Plot.binX({ y: 'count' }, { x: xField, fill: color }))]
-        break
-      case 'scatter':
-        marks = [Plot.dot(data, { x: xField, y: yField, fill: color })]
-        break
+    // Validate that fields are populated (not empty strings)
+    // This prevents Observable Plot from receiving undefined field names
+    if (!xField || (chartType !== 'histogram' && !yField)) {
+      console.warn(
+        `[ChartOp] Field validation failed - xField: "${xField}", yField: "${yField}", chartType: "${chartType}"`
+      )
+      return { chart: null }
     }
 
-    // Generate and return plot
-    const chart = Plot.plot({
-      width,
-      height,
-      title,
-      marks,
-      x: { label: xLabel || xField },
-      y: { label: yLabel || yField },
-    })
+    try {
+      // Build marks based on chart type
+      let marks: Plot.Markish[]
+      switch (chartType) {
+        case 'bar':
+          marks = [Plot.barY(data, { x: xField, y: yField, fill: color })]
+          break
+        case 'histogram':
+          marks = [Plot.rectY(data, Plot.binX({ y: 'count' }, { x: xField, fill: color }))]
+          break
+        case 'scatter':
+          marks = [Plot.dot(data, { x: xField, y: yField, fill: color })]
+          break
+      }
 
-    return { chart }
+      // Generate and return plot
+      const chart = Plot.plot({
+        width,
+        height,
+        title,
+        marks,
+        x: { label: xLabel || xField },
+        y: { label: yLabel || yField },
+      })
+
+      return { chart }
+    } catch (error) {
+      console.error('[ChartOp] Plot generation failed:', error)
+      analytics.captureException(error as Error, {
+        source: 'chart_op',
+        chartType,
+        hasData: data?.length > 0,
+        hasXField: !!xField,
+        hasYField: !!yField,
+        dataLength: data?.length,
+      })
+      return { chart: null }
+    }
   }
 }
 
