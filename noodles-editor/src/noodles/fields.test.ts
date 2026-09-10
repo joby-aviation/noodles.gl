@@ -1,3 +1,4 @@
+import { MapView } from '@deck.gl/core'
 import { Temporal } from 'temporal-polyfill'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import z from 'zod/v4'
@@ -26,6 +27,7 @@ import {
   UnknownField,
   Vec2Field,
   Vec3Field,
+  ViewField,
 } from './fields'
 import { NumberOp } from './operators'
 import { clearOps, setOp } from './store'
@@ -1137,6 +1139,30 @@ describe('LayerField', () => {
     const field = new LayerField()
     field.setValue({ type: 'TestLayer', id: 'layer-1' })
     expect(field.value).toEqual({ type: 'TestLayer', id: 'layer-1' })
+  })
+})
+
+describe('ViewField', () => {
+  it('accepts supported view descriptors', () => {
+    const field = new ViewField()
+    field.setValue({ type: 'MapView', id: 'map-view', width: '50%' })
+
+    expect(field.value).toEqual({ type: 'MapView', id: 'map-view', width: '50%' })
+  })
+
+  it('rejects unknown view types', () => {
+    const field = new ViewField()
+    field.setValue({ type: 'UnknownView' } as never)
+
+    expect(field.value).toBeUndefined()
+  })
+
+  it('accepts existing View instances from custom operators', () => {
+    const field = new ViewField()
+    const view = new MapView({ id: 'custom-map-view' })
+    field.setValue(view)
+
+    expect(field.value).toBe(view)
   })
 })
 

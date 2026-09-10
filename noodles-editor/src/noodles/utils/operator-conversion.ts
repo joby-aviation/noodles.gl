@@ -4,7 +4,7 @@ import { inferSchema } from '../table-schema'
 import type { ReactFlowEdge, ReactFlowNode } from '../types'
 import { normalizeMultiInputEdges } from './multi-input-utils'
 
-// Converts a ViewerOp to a TableEditorOp, preserving connections and position.
+// Converts a ViewerOp to a TableEditorOp, removing data connections and preserving position.
 // Returns true if successful, false if the operator cannot be converted.
 // Undo/redo is handled automatically by the React Flow node change tracking system.
 export function convertViewerToTableEditor(
@@ -38,10 +38,10 @@ export function convertViewerToTableEditor(
   // Infer schema from the data
   const schema = inferSchema(data)
 
-  // Update the React Flow node type and save the inferred schema to node data
+  // Update the React Flow node type and save the inferred schema and data to node data
   // When transformGraph runs (triggered by node type change), it will:
   // 1. Delete the old ViewerOp operator
-  // 2. Create a new TableEditorOp with the saved schema
+  // 2. Create a new TableEditorOp with the saved schema and data
   // 3. Undo will reverse this by changing type back to ViewerOp
   setNodes(nodes => {
     return nodes.map(node => {
@@ -54,6 +54,7 @@ export function convertViewerToTableEditor(
             inputs: {
               ...(node.data?.inputs || {}),
               schema,
+              data,
             },
             locked: op.locked.value,
           },
@@ -66,24 +67,26 @@ export function convertViewerToTableEditor(
   // Delete the old operator from the store so transformGraph will recreate it
   deleteOp(operatorId)
 
-  // Create the new TableEditorOp with the inferred schema
+  // Create the new TableEditorOp with the inferred schema and data
   // transformGraph will be triggered by the node type change
   const tableEditorOp = new TableEditorOp(operatorId)
   tableEditorOp.containerId = op.containerId
   tableEditorOp.locked.next(op.locked.value)
   tableEditorOp.inputs.schema.setValue(schema)
+  tableEditorOp.inputs.data.setValue(data)
   setOp(operatorId, tableEditorOp)
 
-  // Edges don't need updating because:
-  // 1. The node ID stays the same
-  // 2. ViewerOp has a 'data' input, TableEditorOp also has a 'data' input
-  // 3. The edge target handle 'par.data' is valid for both operators
-  // However, we still normalize the edge array so React Flow is notified and any replayed
-  // edge IDs are repaired at this workflow boundary.
-  setEdges(edges => {
-    const normalized = normalizeMultiInputEdges(edges)
-    return normalized === edges ? [...edges] : normalized
-  })
+  // Remove any incoming edges to the data input.
+  // The data has been copied into the TableEditorOp above, so it can be edited manually.
+  // Normalize the remaining graph at this workflow boundary so replayed edge IDs are repaired.
+  // Note: This creates a separate undo history entry from the node type change above,
+  // so reverting the conversion requires two undo operations. React Flow's setEdges
+  // automatically triggers onEdgesChange, which is intercepted by the undo system.
+  setEdges(edges =>
+    normalizeMultiInputEdges(
+      edges.filter(edge => !(edge.target === operatorId && edge.targetHandle === 'par.data'))
+    )
+  )
 
   return true
 }

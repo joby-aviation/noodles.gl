@@ -9,7 +9,7 @@
 import type { InputSchema } from '@mcp-b/webmcp-types'
 import { globalContextManager } from '../ai-chat/global-context-manager'
 import { MCPTools } from '../ai-chat/mcp-tools'
-import { type ToolDefinition, toolDefinitions } from '../ai-chat/tool-definitions'
+import { availableToolDefinitions, type ToolDefinition } from '../ai-chat/tool-definitions'
 import type { ProjectModification, ToolResult } from '../ai-chat/types'
 import type { ProjectModification as ReactFlowModification } from '../noodles/hooks/use-project-modifications'
 import { safeStringify } from '../noodles/utils/serialization'
@@ -64,7 +64,11 @@ export async function initWebMCP(signal: AbortSignal): Promise<void> {
     const unsubscribe = onProjectChange(p => tools.setProject(p))
     signal.addEventListener('abort', unsubscribe)
 
-    for (const definition of toolDefinitions) {
+    // Skips tools this session does not offer — run_code is absent in safe mode,
+    // which external clients have to respect for the same reason the chat does
+    const definitions = availableToolDefinitions()
+
+    for (const definition of definitions) {
       navigator.modelContext.registerTool(
         {
           name: definition.name,
@@ -78,7 +82,7 @@ export async function initWebMCP(signal: AbortSignal): Promise<void> {
       )
     }
 
-    debugWebMCP('registered %d tools on navigator.modelContext', toolDefinitions.length)
+    debugWebMCP('registered %d tools on navigator.modelContext', definitions.length)
   } catch (error) {
     active = false
     throw error
