@@ -1,0 +1,665 @@
+# Developer journal — eval harness phase 0 (07 steps 1–4)
+
+Implementation journal for the CUJ eval harness, per `../07-cuj-evals.md`. Dated entries record
+intent before the work and deviations as they're discovered. This directory is part of
+`dev-docs/specs/agent-ready-docs/`, which the eval workspace builder strips — greenfield sessions
+never see it.
+
+## 2026-07-06 — intent, scope, and locked decisions
+
+Implementing spec steps 1–4 on `claude/eval-harness-phase0-c8wgcm` (based on the spec branch,
+stacks on #507): scaffold `evals/`, runner + mechanical graders + judge orchestration for
+`author-scatterplot` and `contextualize-operator`, then the T0 baseline, committed.
+
+**Provider (decided at plan review): AWS Bedrock, region `us-east-1`.**
+- Sessions under test run via the `claude` CLI with `CLAUDE_CODE_USE_BEDROCK=1`;
+  `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`/`AWS_REGION` must be present — the harness fails
+  fast listing missing vars and never falls back to the Anthropic API.
+- The T0 baseline runs under **three pinned session models** — `anthropic.claude-sonnet-4-6`,
+  `anthropic.claude-sonnet-5`, `anthropic.claude-opus-4-8` — 3 sessions per task per model
+  (18 sessions). Cross-tier claims will only ever compare within one session model; the spec's
+  model-benchmarking non-goal stands.
+- Judge: `anthropic.claude-opus-4-8` via `@anthropic-ai/bedrock-sdk`, 3 samples per run, median.
+  `ANTHROPIC_SMALL_FAST_MODEL=anthropic.claude-haiku-4-5` for sessions.
+- Pre-flight smoke-calls every pinned model before any real run; unavailable model ⇒ stop and
+  report, no substitution.
+
+**Spec amendments this PR makes (deviation → update spec + call out):**
+1. D6 row schema gains `sessionModel`, `provider`, `region` (Requirement 4 already demanded the
+   model id; the written schema only carried `judgeModel`).
+2. Interim validator note: until 04's `validateProject()` exists, Layer 1 uses an inline
+   schema + handle-lint stamped `validatorVersion: "interim-1"` (already sanctioned by step 2).
+3. D2 gains a containers/references authoring task (CodeOp transform + `op()` reference +
+   ContainerOp grouping) slated for step 5 — coverage gap flagged at plan review: no task touched
+   containers, none required writing reactive references.
+
+**Isolation design (07 D7 first bullet):** workspaces are `git archive origin/main` extractions
+(no `.git`, so no path to the spec branch), with `evals/`, `dev-docs/specs/agent-ready-docs/`,
+`skills/`, `.claude/skills`, and AGENTS.md skill-pointer lines stripped defensively (none exist
+on main today; the strip list is 04's eval-isolation note in action). A fresh `git init` commit
+makes git usable inside the workspace. Post-run, an isolation audit scans the transcript for any
+tool call touching the harness checkout, `evals/`, or the spec dir; the result is recorded per run.
+
+**Budgets (D5):** author-scatterplot 40 turns / 25 min; contextualize-operator 30 turns / 20 min.
+Enforced by `--max-turns` + process timeout; a timeout grades as-is (low score, not a hung run).
+
+**Fixtures:** `author-scatterplot` gets a ~2k-row subsample of the california-earthquakes CSV,
+dropped at `noodles-editor/src/examples/quake-magnitude-viz/data.csv` in the workspace. The
+existing `california-earthquakes` example stays — it's a legitimate T0 resource (repo-as-is).
+`contextualize-operator` gets 25–30 questions across the four spec kinds; the format-invariants
+set includes reference-syntax and container-path questions to partially cover the gap above.
+
+**Grading split (D5 regrade semantics):** `run.ts` performs Layer 1 (mechanical) at run time and
+freezes the results with the validator version; `grade.ts` consumes stored artifacts only and can
+be re-run without spawning sessions or the app.
+
+Deferred to step 5 (and said so in the PR): judge calibration (Verification item 2) and the
+regrade-after-rubric-bump round-trip (item 5b).
+
+## 2026-07-06 — pre-flight result: Bedrock unavailable in this container (blocker for the baseline)
+
+The pre-flight failed before any real run, exactly as designed. Evidence:
+- `claude -p --model anthropic.claude-*` with `CLAUDE_CODE_USE_BEDROCK=1` + `AWS_REGION=us-east-1`
+  → authentication error for all three session models.
+- Direct SigV4 calls (bypassing the CLI) to `bedrock-runtime.us-east-1.amazonaws.com`
+  `/model/anthropic.claude-haiku-4-5/converse` and to STS `GetCallerIdentity`
+  → HTTP 403 `InvalidClientTokenId` from AWS itself.
+- Root cause: the container's `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` are 14-char proxy
+  placeholders (`prox…`), not real credentials, and the egress proxy does not re-sign AWS
+  requests. `AWS_REGION` and `AWS_SESSION_TOKEN` are unset.
+
+Per the provider directive (fail fast, list what's missing, no fallback to the Anthropic API,
+no silent substitution): the T0 baseline run is **blocked on real AWS credentials** (key id,
+secret, region — plus session token if temporary). Harness construction continues — nothing
+below requires a model call until the dry-run session — and the provider config is centralized
+in one module (`harness/lib/config.ts`) so a provider decision only touches one place.
+
+One directive detail confirmed rather than deviated: `AnthropicBedrockMantle` does exist as a
+named export of `@anthropic-ai/bedrock-sdk@0.32.0` — the judge client uses it as specified.
+
+## 2026-07-06 — interim-validator softenings found by self-testing against committed examples
+
+Running `validateProject()` (interim-1) over every example project on main surfaced two places
+where the rule set as written in 03/04 flunks real, working data. Both are deliberate,
+documented softenings of interim-1 (listed in `evals/README.md`; 04's composite validator owns
+re-escalating them):
+
+1. **Canonical edge-id formula → warning.** `custom-maplibre-layer-test` carries edge ids
+   without handle prefixes (`/a.maplibre->/b.basemap`) and the app loads it fine — the app only
+   needs ids unique. Failing Layer 1 on a formatting nit the app tolerates would mis-measure
+   "does it validate/load".
+2. **Spread-built field sets get no field-level lint.** Operators like OrbitViewOp build
+   `createInputs()` with `...createBaseViewFields()`; the TS-compiler-API parser
+   (`scripts/parse-operators.ts`) drops spreads silently, so those schemas are marked "open"
+   in the harness registry and unknown-input/unknown-field checks are skipped for that side —
+   otherwise the validator flags real inputs (`clear`, `clearColor`) as unknown. The type-level
+   check still applies. (Upstream fix belongs to 01/03's generator work, which will resolve
+   spreads properly.)
+
+Also noted for 04: the spec'd `kf_*`/`tm_*` id prefixes don't match real data — keyframe ids in
+committed projects are random base62 (`xHJJWLB41a`); interim-1 checks uniqueness + sort order,
+not prefix shape.
+
+## 2026-07-06 — credentials arrived; pre-flight green after two model-routing discoveries
+
+The maintainer supplied temporary STS credentials (region **us-west-2**, superseding the earlier
+us-east-1 choice; expiry 17:00Z). Pre-flight results, in order:
+
+1. **Model ids must be `us.`-prefixed inference-profile ids.** Raw ids
+   (`anthropic.claude-opus-4-8`) appear in ListFoundationModels but 404 on invocation;
+   ListInferenceProfiles shows the ACTIVE profiles. Pins are now
+   `us.anthropic.claude-sonnet-4-6` / `us.anthropic.claude-sonnet-5` /
+   `us.anthropic.claude-opus-4-8` (sessions), `us.anthropic.claude-opus-4-8` (judge), and
+   `us.anthropic.claude-haiku-4-5-20251001-v1:0` (small-fast — the haiku profile only exists in
+   dated form). Recorded verbatim in results rows, as the amended D6 requires.
+2. **`AnthropicBedrockMantle` cannot serve the pinned models here** — its endpoint
+   (`bedrock-mantle.us-west-2.api.aws/anthropic`) returns 404 "model does not exist" for every
+   naming form of the pins (raw, `us.`-prefixed, bare), and a persistent 500 for
+   `anthropic.claude-haiku-4-5`. The classic `AnthropicBedrock` client (bedrock-runtime
+   InvokeModel) serves all four pinned models. **Deviation from the provider directive**: judge
+   calls use `AnthropicBedrock` instead of `AnthropicBedrockMantle` — same `messages.create`
+   surface, same SigV4 credentials, verified working; reported to the maintainer rather than
+   substituted silently.
+3. The claude CLI on Bedrock (`CLAUDE_CODE_USE_BEDROCK=1`) answers with all three session-model
+   profiles. The parent container's Claude Code env vars (`CLAUDE_CODE_PROVIDER_MANAGED_BY_HOST`,
+   `ANTHROPIC_BASE_URL`) must not leak into sessions — `sessionEnv()` already strips all
+   `CLAUDE_*`/`ANTHROPIC_*` vars, which the pre-flight confirmed is required, not just hygiene.
+
+Pipeline smoke (no agent) also passed: template + workspace build, vite + Playwright load of
+`california-earthquakes`, non-blank screenshot (pixel stddev 31). It surfaced that the egress
+policy blocks more than basemap tiles (duckdb WASM extension host), so the console-error filter
+is now URL-aware: an error is environment noise iff every URL it mentions is non-localhost — a
+failing localhost fetch (missing data.csv) still counts against the project.
+
+## 2026-07-06 — baseline observations (instrument notes, not score commentary)
+
+- The dry-run session hit `--dangerously-skip-permissions cannot be used with root` — the eval
+  container runs as root, so `sessionEnv()` sets `IS_SANDBOX=1`. Two grader false-positive
+  classes were fixed and self-tested before the baseline: the isolation audit flagged the
+  session's own workspace (`/tmp/noodles-evals/...` matches an `evals/` pattern — workspace
+  paths are masked before matching), and egress-blocked console errors carry either no URL or
+  localhost stack frames (filter now strips frames, checks `msg.location()`, and treats
+  tunnel/proxy errors as environment noise).
+- **`screenshotNonBlank` is a weak check as implemented**: the capture is the whole app page,
+  and the node-editor UI alone provides pixel variance, so a broken viz can still pass it. In
+  the first baseline lane the console-error check did the real detection (FileOp left at
+  `format: json` for a CSV → runtime error; also one hallucinated `radiusMinPixels` input
+  caught by the schema lint). Tightening the capture to the deck canvas element is queued for
+  the next validatorVersion — not changed mid-series.
+- **Budget-capped sessions are real T0 signal, kept as scored**: two of three
+  `contextualize-operator` sessions on sonnet-5 ended `error_max_turns` at the pinned 30-turn
+  budget without writing `answers.json` (mechanical 0, capped) — the model spent its budget
+  verifying thoroughly rather than answering. sonnet-4-6 (22–34 turns) and opus-4-8 (25–29)
+  fit. D5 pins budgets precisely so this registers as a low score, and lighter lookups at
+  higher tiers are expected to move exactly this number. Also noted: the CLI's reported
+  `num_turns` can exceed `--max-turns` by one (31 vs 30) — counting nuance, recorded as-is.
+
+## 2026-07-06 — T0 findings: where the headroom is, and what the ceilings mean
+
+Steps 1–4 are complete with this entry (scaffold → mechanical graders → judge orchestration →
+committed T0 baseline for the two phase-0 tasks). Step 5 — the remaining five tasks, the full
+T0 baseline across them, and judge calibration — is the next unit of work, and it must finish
+**before the first cross-tier claim is published** (D4 makes calibration a precondition; the
+practical deadline is the first tier-unlock milestone run, i.e. before 01's landing gets a T1
+comparison).
+
+Reading the baseline (scorecard in `evals/results/2026-07-06.t0.83ff1c128a7a/scorecard.md`):
+
+1. **Score headroom lives in the failing cells, and both failures are the program's target
+   failure classes.** sonnet-4-6 authoring (1.60): all three sessions left FileOp's `format`
+   at its `json` default for a CSV — a guessed default instead of a checked one — and one
+   hallucinated `radiusMinPixels` from deck.gl memory (caught by the handle-lint). sonnet-5
+   knowledge (1.23): two of three sessions spent the 30-turn budget verifying in an 8k-line
+   `operators.ts` and never wrote `answers.json`. Reference pages (01), the machine-readable
+   surface (02), and MCP lookups (03) are hypothesized to move exactly these two numbers.
+
+2. **Saturated cells (opus at 4.00 on both tasks) still carry measurable improvement — on the
+   efficiency axis, not the score axis.** A 4.00 at T0 costs opus ~26 turns / ~22 lookups /
+   ~$1.12 per authoring session, most of it grepping `operators.ts` for field schemas. If a
+   tier landing keeps the score at 4.00 but halves turns/lookups/cost, that is a real,
+   reportable gain — so the scorecard now carries per-cell medians for turns, lookups, and
+   session cost alongside the scores (report.ts change, same rubric/validator, no regrade
+   needed — these are Layer-3/meta facts already frozen per run). The spec's open question on
+   cost-normalized quality (score per dollar) becomes answerable the moment there are two
+   tiers to compare.
+
+3. **The efficiency columns also explain the failures.** sonnet-4-6's failed authoring runs
+   took 9 turns / 7 lookups — fast, cheap, and wrong — against opus's 26/22 slow-and-right.
+   The lookup deficit *is* the tool-use-discipline story the rubric and Layer 3 exist to
+   catch; at higher tiers the bet is that being right stops requiring being slow.
+
+4. **"Too easy?" — split verdict, revisit at step 5.** author-scatterplot is easy *for opus*
+   but flunked a current mid-tier model on a real schema gap; the step-5 tasks
+   (debug-blank-viz, sql-h3-pipeline, animate-camera, code-refs-containers) are structurally
+   harder and should pull opus off the ceiling. contextualize-operator's high scores are
+   working-as-intended (the questions are deliberately lookup-verifiable; the pressure is the
+   budget), and its judge 4.00s are provisional until calibration — anchored judges are known
+   to be generous at the top, and a calibration-driven anchor sharpening would regrade the
+   whole series forward (D5). If opus still pins 4.00 across all seven tasks after step 5,
+   *that* is the "tasks too easy" verdict, answered with harder task versions (explicit
+   taskVersion bumps, new comparison series per D7).
+
+## 2026-07-06 — step-5 harness half complete: full 7-task T0 baseline
+
+The five remaining tasks landed (with custom Layer-1 checks, seeded/golden fixtures, and
+polarity self-tests) and the 45-session baseline ran and graded clean — 63 total T0 runs in the
+series, ~$53 of session cost, every isolation audit passing. Scorecard:
+`evals/results/2026-07-06.t0.83ff1c128a7a/scorecard.md`. What the new tasks measured:
+
+- **The difficulty gradient the phase-0 pair lacked now exists.** Ceilings: `animate-camera`
+  (4.00 everywhere — every model found cesium-hubble and imitated its tracks; keyframe
+  authoring is not a T0 gap) and `modify-arcs` (3.85–4.00 — every model dodged the shared-
+  ColorOp trap). Mid: `author-scatterplot`, `debug-blank-viz`, `contextualize-operator`
+  (model-separating). Floors: `sql-h3-pipeline` (0.30–0.47, all models) and
+  `code-refs-containers` (1.10–1.60 median, one lone 4.00).
+- **Research-until-death is the dominant T0 failure mode on unverifiable tasks.** All nine
+  sql-h3 sessions — opus included — exhausted their budgets (turn cap, or for opus on
+  code-refs the 25-minute wall clock) without writing ANY artifact: no model falls back to
+  best-effort authoring when it can't verify. The mechanical checks only require coherent
+  wiring, so the task is completable by an agent that knows the pattern — docs/MCP teaching
+  the pattern is precisely the intervention these cells measure.
+- **Opus inverted on code-refs-containers** (all three sessions failed at ~$2.2 each, while a
+  sonnet-4-6 session that "winged it" scored the only 4.00) — thoroughness becomes a liability
+  when the resources can't answer the question being researched.
+- `debug-blank-viz`'s two-defect design worked: weaker sessions consistently found the accessor
+  bug and shipped without noticing the disconnected renderer; opus found both, 3/3.
+- One transient judge-output parse failure across 190+ judge samples; the retry graded clean.
+
+Calibration: worksheets now cover all 63 runs (`c01`–`c63`); the shared 12-sheet sample
+(stratified across rubric families, tasks, models, and pass/fail outcomes) is published in
+`evals/calibration/README.md` — codes only, so the outcome stratification doesn't leak run
+identities. Remaining step-5 work is the human half: both maintainers grade the shared sample,
+then `calibrate.ts --agreement` decides which dimensions are trusted (and item 5b's
+regrade-after-bump follows if any anchor gets sharpened).
+
+## 2026-07-06 — storage decisions: in-repo for the open season, Release-archived at close
+
+The maintainer raised the two storage questions the results-in-git design owes answers to:
+volume and pollution. Measured: the 63-run T0 series is ~43MB checkout / ~20-25MB packed,
+~95% of it transcripts + screenshots. Pollution was already structurally closed (archive-time
+exclusion now added on top of the strip list; isolation audit; series/rubricVersion/taskVersion
+separation) — the decisions below bound the volume:
+
+1. **Artifacts stay in-repo while a season is open** — regrades are the load-bearing reason;
+   `grade.ts` must be re-runnable from stored artifacts at any time (D5).
+2. **Season 1 closes when the curve is complete**: T1–T5 milestone runs + ablations graded,
+   calibration settled, and any rubric-bump regrades applied — or earlier only on a forced
+   re-pin (judge model unavailable; task rewrite breaking the series), whichever comes first.
+   At close, `archive-season` moves heavy evidence to a GitHub Release asset (sha256-stamped
+   `ARCHIVED.md` left behind); grading rows, frozen mechanical results, final artifacts, and
+   scorecards remain in-tree. Archived seasons are closed instruments — `grade.ts` refuses
+   them until the tarball is restored.
+3. **Milestones after T0 run one primary session model** (picked after calibration — the
+   sonnets are the discriminating ones; opus sits at ceiling on 5 of 7 tasks), with a single
+   three-model sensitivity re-run at season end. Restores the spec's single-pin intent and
+   bounds a milestone at ~13MB.
+
+## 2026-07-07 — author-hiking-time (public demo task) + code-refs-containers v2 (promoted parameters)
+
+Two suite changes from maintainer review, both grounded in verified app facts:
+
+1. **`author-hiking-time` added** from maintainer-contributed materials — the public,
+   non-proprietary analog of the flight-time-estimate pattern (Naismith's Rule). Coverage it
+   adds, none of which existed: SwitchOp (computed-vs-manual toggling), a ViewerOp-terminal
+   calculator graph (every other authoring task ends in a map renderer), and reference-document
+   →graph fidelity (all other prompts are two sentences; this one ships a formula document with
+   worked examples the judge can check exactly). Designated the D6 smoke-lane task: cheapest in
+   the suite (no data files, no basemap, no egress). Corrections to the contributed materials:
+   golden `version: 6 → 14` + standard timeline/editorSettings; artifact path moved under
+   `noodles-editor/src/examples/` so the Playwright load check applies; checks ported to
+   harness types.
+2. **`code-refs-containers` bumped to taskVersion 2**: the prompt now requires promoting the
+   minimum-magnitude cutoff as a parameter on the container itself (`data.customInputs` —
+   serialization.ts:199), replacing v1's standalone NumberOp. Promoted parameters had zero
+   coverage anywhere in the suite. Per D7 this breaks the v1 comparison series — the v1 rows
+   (including the opus-inversion finding) remain as their own historical line, and the reporter
+   now keys series by (taskId, taskVersion). Validator bumped to **interim-3**: the
+   unknown-input check accepts input keys declared in `data.customInputs`.
+
+Empirical gate verdicts (both goldens through Playwright in a real workspace):
+
+- **Promoted-parameter route confirmed**: a container declaring
+  `customInputs: [{name: 'minMagnitude', type: 'number', ...}]` with a child reading
+  `op('/processing').par.minMagnitude` loads and executes with zero console errors.
+- **CodeOp `par.data` fan-in confirmed**: the hiking golden's two-edges-into-one-`par.data`
+  pattern (`d` + `data[1]` indexing) executes without operator errors — previously had no
+  committed precedent.
+- **New environment-noise class found and filtered**: Monaco (the in-app code editor) fails
+  worker initialization in the headless container on any project with visible top-level
+  CodeOps — committed-good `world-flights` triggers it identically to the new goldens, so it
+  says nothing about an artifact. The console filter now drops `Monaco initialization: error`
+  and the accompanying bare-`Event` rejections (message-carrying rejections still count).
+  Earlier gates missed it because none of the gated projects had top-level CodeOps
+  (code-refs' CodeOp lives inside a container and isn't rendered).
+
+Re-baseline required: hiking-time 3×3 (new) + code-refs@2 3×3 (series break) = 18 sessions +
+54 judge samples, pending fresh AWS credentials.
+
+## 2026-07-08 — golden verification pass + native-2K captures
+
+Before spending the 18-session re-baseline, we verified every golden and expected-result
+artifact is *correct*, not merely loadable ("better to find problems now than later").
+
+**New committed tool: `npm run verify-goldens`** (`harness/verify-goldens.ts`). Three layers
+per golden: static (interim validator + custom-check polarity, reusing `CUSTOM_CHECKS`),
+semantic (independent recomputation of the values the task grades on), visual (2K load in a
+greenfield workspace). Human-in-the-loop by design: `--task X --candidate <file>` verifies a
+maintainer-edited project in place of the committed golden (structural diff printed first),
+`--promote` lands it once green. Because the semantic layer reads constants/endpoints from the
+project itself, tweaked candidates verify without code changes.
+
+Semantic-layer highlights:
+
+- **hiking-time**: the golden's CodeOp sources are executed in Node against a stubbed `op()`
+  fed from the project's own NumberOps; `turf.distance` is cross-checked against an
+  independent haversine (agree to <0.01 km on the 39.68 km Boulder→Estes Park leg); the full
+  formula agrees with an independent Naismith+Langmuir implementation (568.81 min) and
+  reproduces all three worked examples in `naismith-reference.md` (232.8 / 81 / 289.2 min);
+  the terrain heuristic matches the reference table at 8 probe points including boundaries.
+  The rendered ViewerOp's `totalTime` is read back from the DOM (new `grabBodyText` option on
+  the load check) and compared against the independent number.
+- **debug-blank-viz**: the fixture still carries BOTH seeded defects (inverse polarity — an
+  accidentally-fixed fixture would trivialize the task), and the golden differs from the
+  fixture by exactly the two repairs, nothing else.
+- **modify-arcs**: the checks' doubling target (160) re-derived as 2× the base project's
+  actual width; the hardcoded trap colors re-verified against the base ColorOps.
+- **answer key**: all 29 contextualize answers mechanically re-checked against the sources
+  they cite (operator defaults, migration semantics, version 14, edge shape in a committed
+  example).
+
+**Result: zero golden defects.** The initial run surfaced 3 findings; all were verifier bugs
+(sql-h3's accessors are edge-fed AccessorOps my column check didn't follow; MathOp's `sqrt`
+sat past a 400-char extraction window), fixed in the verifier.
+
+**Capture resolution changed to native 2K** (2560×1440 @ 1x, was 1920×1080 @ 2x): canvas ops
+were too small to read at some zoom levels; a larger layout area fixes that without retina
+doubling — half the pixels of the old setting, so smaller committed screenshots. Applies to
+future runs only; frozen run/calibration screenshots are never regenerated (D5).
+
+### Addendum: two real findings from the eyeball + probe pass
+
+The zero-defect verdict above was premature — the 2K captures surfaced what the mechanical
+gates could not:
+
+1. **code-refs golden rendered no points at all.** Two stacked causes, both fixed:
+   - Radii were 2.5–70 *meters* at zoom 5.5 (~2,800 m/px) — sub-pixel. Now `radiusUnits:
+     pixels` (same cbrt(energy) sizing, 2.5–70 px).
+   - **Reference-only data paths inside containers go stale on fresh load.** Browser probes
+     (ViewerOps attached to the live pipeline) showed the FileOp had 2,035 rows and the
+     promoted param read 4 — yet the container child's output was an empty array. Root cause:
+     reference edges are synced into the executor by the CodeField editor component
+     (`field-components.tsx`, getFieldReferences → setEdges), which never renders for
+     collapsed container children. The child executed once before the CSV arrived and was
+     never re-executed. The golden now feeds the child via a real `par.data` edge and keeps
+     the `op()` reference for the static promoted cutoff. Product/docs implication journaled
+     in the task file: sessions authoring the reference-only pattern silently render a blank
+     viz — a docs-worthy footgun and a candidate for a future mechanical check
+     (this is exactly the failure mode the load-gate's pixel check can't see, since node
+     cards alone pass non-blankness).
+2. **The "loads clean" gate is weaker than it looks.** Both defects coexisted with
+   loaded=true, zero real console errors, and a non-blank screenshot. Golden acceptance now
+   includes the verifier's semantic layer plus a human eyeball of the 2K captures.
+
+The DOM cross-check itself needed two fixes to read the ViewerOp (textContent vs innerText;
+react-json-view's `float` type tag between key and value) — after which the rendered
+`totalTime` (568.8062846500267) matched the independent computation exactly.
+
+### Round 2 (user review feedback): basemaps, overlapping nodes, and fixing the app bug itself
+
+1. **The reference-staleness footgun is now fixed in the app** (transform-graph.ts):
+   `transformGraph` derives reference edges from `op()`/mustache text for every node on each
+   rebuild, using the CodeField component's exact id/handle shape so the two sync paths
+   dedupe. Verified by unit tests and in-browser (reference-only container pattern now yields
+   89 rows where it silently produced 0). The graded assumption "the app is functional"
+   holds again. Note: greenfield workspaces build from origin/main, so eval sessions won't
+   see the fix until it merges — the golden keeps its explicit data edge (valid under both
+   behaviors); revisit the task note once the fix ships.
+2. **Why goldens never show a basemap**: Chromium doesn't read HTTPS_PROXY, and this
+   container's egress policy 403-blocks basemaps.cartocdn.com / tiles.basemaps.cartocdn.com
+   outright (checked at the proxy; policy denials are reported, not routed around). The load
+   check now intercepts external requests and fulfills them via Node's proxy-aware fetch
+   (NODE_USE_ENV_PROXY) — allowed hosts now load (uk-commute's remote CSV renders real red
+   arcs in the modify-arcs capture), carto stays blocked until the environment's network
+   policy allowlists it. Browser-level proxying was tried first and abandoned: Chromium's
+   bypass list never exempted the localhost vite server.
+3. **Software-rasterizer ceiling found**: the full 29 MB / ~120k-row uk-commute CSV wedges
+   headless SwiftShader at 2K — no frame in 180 s. The interception layer caps textual
+   payloads at 2 MB (line-boundary cut, ~8k rows): representative frames, no wedge; the
+   non-blank gate never measured completeness.
+4. **Node overlap in review captures**: authored goldens re-laid-out with generous spacing
+   (code-refs, sql-h3, hiking-time, animate-camera). camera-tour.noodles.json was reverted
+   after being touched — it is a session INPUT fixture of a baselined task, and even a
+   cosmetic fixture change breaks strict D7 comparability; the golden (never shown to
+   sessions) diverges in positions only.
+
+### Round 3: isolated app-fix PR, full egress, timeline-open captures
+
+- **Reference-edge fix moved to its own PR (#514)** off latest origin/main and dropped from
+  this branch's history (rebase) — the eval-harness PR stays app-neutral, and the fix can
+  merge on its own track. The code-refs golden keeps its explicit data edge (valid under both
+  behaviors) until #514 ships to main and workspaces pick it up.
+- **The environment now has full egress** (user opened the network policy):
+  basemaps.cartocdn.com returns 200 where it previously 403'd, so goldens capture with real
+  basemap imagery via the proxy-aware fetch interception. This also retests the Monaco
+  worker-init noise class under open egress.
+- **Animation evidence: timeline panel now opened before capture** for animation tasks
+  (`load.openTimeline: true` in animate-camera's frontmatter, wired through run.ts and
+  verify-goldens; camera-tour-base captures with the empty panel as contrast). Keyframes are
+  the graded artifact — a shut panel hid them from both the judge's screenshot and human
+  review. Capture-environment change like the 2K move, not a task-semantics change.
+- animate-camera golden re-spaced (basemap/deck were still adjacent).
+
+### Round 3 addendum: what it actually took to render basemaps headless
+
+Three independent obstacles, each empirically isolated:
+
+1. **Chromium can't use the egress proxy directly**: pointing the browser at it
+   (raw `--proxy-server` + semicolon bypass list keeps localhost working — Playwright's
+   `proxy.bypass` option does not) gets its TLS ClientHello reset by the enforcer
+   (netlog: `SSL_HANDSHAKE_ERROR os_error 104`) while curl/openssl/Node pass. PQ/ECH
+   feature flags don't help. Dead end, documented.
+2. **`NODE_USE_ENV_PROXY` only works at process start.** Setting it at runtime silently
+   fetches direct, and direct egress 403s most hosts even with the "full egress" policy
+   (the network still requires the explicit proxy; gtm and duckdb-extensions 403 either
+   way). The npm scripts (`run`, `verify-goldens`) now set it; playwright-check warns if
+   it's missing. A probe chain led here the long way — including one round where the
+   probed routes didn't exist in the rebuilt workspace ("Example Not Found" renders an
+   empty project with no basemap and no error).
+3. **`page.route` never sees worker requests**, and MapLibre fetches tiles/glyphs/sprites
+   from workers. The load check now runs a localhost fetch relay; style/TileJSON bodies
+   passing through interception get their resource URLs rewritten to relay form
+   (template placeholders survive as path text). Workers fetch localhost — no proxy needed.
+
+Result: goldens capture with real basemap imagery (voyager tiles under the camera-tour
+keyframes; stddev 21.8 → 84.2). App-side nothing was wrong: probes showed
+MaplibreBasemapOp/DeckRendererOp execute correctly and react-map-gl constructs the map the
+moment the style fetch stops 403ing.
+
+### Round 4 (maintainer review): code-refs golden restructured to the container idiom
+
+The maintainer flagged that the golden's cross-boundary data edge (hidden child →
+top-level layer) is not a supported pattern — the executor runs it, but no wire is drawn
+while the container is collapsed, and it reads as "layer has no data input." The supported
+idiom is the GraphInputOp/GraphOutputOp pair with the container's own ports. Golden now
+models exactly that: quake-data → /processing.par.in → GraphInput → energy CodeOp →
+GraphOutput → /processing.out.out → layer, with both app-shaped bridge edges serialized
+(the interim-2 validator exemption covers them). The promoted-cutoff read stays an
+op('/processing').par.minMagnitude reference — references across the boundary are the
+sanctioned way to consume promoted parameters; edges are not. Task notes updated to state
+the supported route explicitly (a session authoring the cross-boundary-edge shape passes
+today's mechanical checks — tightening that is a candidate taskVersion 3 check).
+
+### Round 4 addendum: the container idiom is broken end-to-end by three separate app bugs
+
+Restructuring the golden to the sanctioned shape (file → container.par.in → GraphInput →
+CodeOp → GraphOutput → container.out.out → layer) and probing each hop headless found, in
+order:
+
+1. **PR #514** — reference edges never materialize for unmounted container children
+   (CodeField editor component is the only sync point).
+2. **PR #515** — `GraphInputOp.rebuildFromContainer` recreated the base `parentValue`/`value`
+   field objects, orphaning the container→child connection transformGraph wires; late-arriving
+   data (async FileOp) then never entered the container. Fixed by preserving the base fields;
+   regression test fails on main, passes with the fix.
+3. **Executor dirty-propagation unsoundness (unfixed, needs maintainer)** — with #515 applied,
+   `parentValue` receives the rows but `GraphInputOp` never re-executes. Traces show the dirty
+   cascade stopping at the already-dirty ContainerOp (`markDirty` early-returns without
+   propagating, assuming downstream is already dirty), while the sink chain above was pulled
+   clean in an earlier frame. `pull()` returns cache for clean ops without recursing, so the
+   dirty island under the clean sink is never re-executed — the container's children stay
+   frozen on their initial empty values with zero console errors. A naive always-propagate
+   change would recurse forever on the container's node-level cycle (matching the
+   "Maximum call stack size exceeded" seen when both app-shaped bridge edges are present in a
+   project file: processing → input → energy → output → processing).
+
+Consequences for the harness:
+- The code-refs golden keeps the sanctioned idiom (maintainer direction) — it is structurally
+  correct and validator/check-green, but renders an empty layer until bug 3 is fixed on main.
+- **The code-refs@2 baseline is ON HOLD**: any session that builds the idiom faithfully
+  renders a blank viz through no fault of its own, corrupting judge scores. hiking-time
+  (no containers) is unaffected and can baseline independently.
+- The one-bridge-edge variant (GraphOutput→container only) loads clean but hits bug 3; the
+  two-bridge variant stack-overflows; the crossing-edge variant (previous golden) renders but
+  is not a supported pattern. There is currently NO authorable container-with-async-data
+  project that renders on fresh load.
+
+### Round 5: repro projects on the PRs; executor bug fixed and verified (PR #516)
+
+- Self-contained repro projects (noodles.json + 200-row CSV + how-to-repro README) committed
+  to each fix branch under `dev-docs/repros/`: `container-reference-edges/` (#514),
+  `graph-input-rebuild-orphan/` (#515), `executor-dirty-propagation/` (#516). PR bodies carry
+  Reproduction sections pointing at them.
+- **Bug 3 fixed (PR #516, sub-agent implementation, browser-verified here).** Two composing
+  defects: markDirty's already-dirty early return (fixed with a cycle-safe visited-set wave —
+  the container bridge cycle forbids naive unconditional recursion), and _pullExecution
+  unconditionally setting CLEAN on completion, clobbering marks that arrive after the input
+  snapshot (the CSV resolving inside the same frame's pull walk — the wave fix alone verified
+  insufficient in-browser, trace showed `pull /viewer clean x847` after the mid-frame marks).
+  Completion now keeps DIRTY when marked-after-snapshot or any upstream ended the frame DIRTY;
+  pre-snapshot marks are absorbed to preserve single-frame convergence; pull()'s in-flight
+  guard keys on the computing promise so a mid-compute DIRTY can't double-execute. Three
+  regression tests, each proven red without its fix.
+- **End-to-end confirmation** on a worktree with #515 + #516: the sanctioned container idiom
+  flows on fresh load — container.in 200 → GraphInput 200 → child 12 (magnitude ≥ 4 filter)
+  → GraphOutput 12 → container.out 12 → viewer. The code-refs@2 baseline unblocks when #515
+  and #516 merge to main (workspaces build from origin/main); #514 additionally fixes the
+  reference-only variant sessions may author.
+
+### Round 5 addendum: #516 epoch-pruned waves after scale review
+
+The maintainer challenged the "downstream sets are small" perf note with a real 265-node /
+250-edge / 22-container production project. Measured downstream closures there: median 3,
+p90 25, max 58 — fine at that scale, but the unconditional wave made repeated marks
+O(closure) where the old (unsound) code was O(1). #516 now prunes waves with a global dirty
+epoch, bumped whenever any op's status leaves DIRTY (single write-point helper) or a
+dependency edge is added: repeated marks between frame pulls are O(1) again, and the
+soundness argument is the mirror of the original bug — cleaning broke the old invariant, so
+cleaning is what disables the prune. Red-proof: removing the epoch bump fails both the new
+prune-invalidation test and the original dirty-island regression. Suite 96/96; E2E repro
+re-verified in-browser on the pruned build (200 → 200 → 200 → 12 → 12 → 12).
+
+## Round 6 (2026-07-10): run evidence moves to R2
+
+PR #509 review (maintainer): the committed results are repo noise — "We have R2 access
+where we can store this stuff. It doesn't need to live in the repo." Agreed split: series
+metadata stays in git, blobs go to blob storage. This supersedes the phase-0 season-archival
+design (GitHub Release tarball at season close): evidence now leaves the tree continuously,
+not just at close.
+
+- **What git keeps per series**: `index.json` rows (unchanged), `scorecard.md`,
+  `registry.json`, and a new `manifest.json` — R2 key, sha256, byte size for every object
+  under `runs/`. The 63-run T0 series drops from 434 tracked files / 43MB to 4 summary files.
+- **`sync-results`** (`--push` / `--verify [--all]` / `--pull [--run]`): R2 keys mirror the
+  local tree (`<series>/runs/<runId>/<file>`). Push is idempotent and rewrites the manifest
+  from local truth; verify HEADs every key and hash-checks a deterministic sample (`--all`
+  for everything); pull refuses any download whose sha256 disagrees with the manifest.
+  Implementation detail that matters here: requests are SigV4-signed over `fetch` via
+  aws4fetch instead of `@aws-sdk/client-s3`, because the SDK's node-http-handler ignores
+  `NODE_USE_ENV_PROXY`/`HTTPS_PROXY` while undici fetch honors the egress proxy exactly like
+  the Bedrock SDK already does. Credentials: `EVALS_R2_*` env vars, never committed.
+- **Consumers fail actionably**: `grade`, `calibrate`, `export-metrics`, `evidence-pack`
+  call `requireRunFiles` and turn a missing local file into the exact pull command,
+  distinguishing "in the manifest, pull it" from "never recorded". `report` stays graceful
+  (sparse turns column) — a series summary shouldn't demand a 43MB download.
+- **`archive-season` is now only the closed-instrument marker**: it verifies the manifest
+  covers all local evidence (a season must never be sealed while bytes exist only on one
+  ephemeral disk), then writes `ARCHIVED.md`; no tarball, no deletions. grade.ts keeps
+  refusing regrades on archived seasons, with the pull command as the restore path.
+- **Selftest**: the tarball round-trip tests are replaced by offline `FsObjectStore` tests —
+  push→manifest→wipe→pull byte-identical round-trip, idempotent second push, tamper
+  detection in both verify and pull — plus archive-marker coverage rules and the
+  requireRunFiles hints. The selftest runner now awaits async tests (previously async
+  failures only surfaced as unhandled rejections).
+- **Sequencing** (agreed): tooling lands first; the 43MB stays tracked until the R2
+  credentials arrive and `--push` + `--verify --all` come back clean; only then does
+  `git rm -r --cached` slim the branch. No history rewrite — a squash merge keeps the blobs
+  out of main entirely.
+
+## Round 7 (2026-08-18): the stack assembles — and composition finds bug 4
+
+The three fix PRs, the docs program, and this harness are now one native GitHub stack
+(**stack #551**, created via the new Stacks REST API — public preview since 2026-07-30):
+`main ← #514 ← #515 ← #516 ← #507 ← #509`. Each branch merges the one below it, every PR
+diff is exactly its own commits, and the harness can finally measure the fixes before they
+land: `EVALS_WORKSPACE_REF` builds eval workspaces from a chosen ref instead of
+`origin/main` (default unchanged; workspaces stay `.git`-less archive extractions).
+
+- **Main moved under us** (39 commits): project schema 14 → 16, vitest now runs in browser
+  mode, and #523 landed in the executor. The #516 merge with #523 was the feared conflict;
+  147 executor/transform-graph tests green after resolution. All 8 fixture projects
+  migrated with the app's own `migrate-projects` script; the modify-arcs golden's
+  `editorSettings` re-synced with the migrated uk-commute base (main added `layoutMode`);
+  answer-key q23 updated to v16.
+
+- **Validation earned its keep — composing the three fixes exposed a fourth bug.** With
+  #514's derived reference edges finally materializing headlessly, the sanctioned idiom's
+  `op('/parent').par.minMagnitude` (child reading its container's promoted param) became a
+  parent → child dependency edge; with the child → GraphOutput → parent bridge edge that's a
+  cycle, and `pull()` recursed to `RangeError` on load — the code-refs golden and both
+  container repros died instantly on the assembled stack, each PR having been verified green
+  in isolation. Round-5's end-to-end confirmation ran #515+#516 *without* #514, so the
+  derived edge that closes the loop never existed. The fix is the same exemption the
+  executor already applied to self-references, generalized: a `par.*`-sourced edge whose
+  target is *enclosed by* its source is a value subscription, not an execution dependency —
+  reading an input never requires executing its owner, and the owner's execution already
+  encompasses the child. Applied at both layers that maintain dependency structure
+  (`transformGraph`'s `_upstreamDependencies` sets on #514; `buildFromEdges` on #516), with
+  regression tests on each. Field-layer subscriptions are untouched, so param edits still
+  re-execute readers.
+
+- **Post-fix validation, workspace built from the stack tip**: all three repro projects render
+  their READMEs' expected values (200 rows; 12 filtered rows twice) with zero console
+  errors; verify-goldens ALL PASS including the code-refs container golden that has never
+  rendered on any measured surface before. The code-refs@2 baseline is now runnable
+  pre-merge via `EVALS_WORKSPACE_REF=origin/claude/fix-executor-dirty-propagation` — the
+  topmost app branch, so the measured surface is exactly "main + the three fixes" and the
+  sha-keyed template ignores harness commits. (This round's validation used `=HEAD`;
+  equivalent, since above #516 the stack adds only archive-excluded paths and
+  `.gitignore`.)
+
+- Also this round: CodeQL high on #509 (CLI arg interpolated into a RegExp in
+  evidence-pack) escaped, and verify-goldens' q23 check de-rotted — it now asserts the
+  answer key's expected regex against the live migration version instead of hardcoding 14
+  in the verifier too.
+
+## Round 8 (2026-08-18): season 2 — two providers, seven models, fresh baseline
+
+Season 1 (2026-07-06.t0.83ff1c128a7a) is force-closed (ARCHIVED.md; a deliberate re-pin:
+tasks and the app changed too much under it — schema v16, the four container fixes, golden
+restructure). Season 2 pins in config:
+
+- **CURRENT_SERIES `2026-08-18.t0.cc1dbe58da32`**, where the sha names the new
+  **MEASURED_REF `origin/claude/fix-executor-dirty-propagation`** — the topmost app branch
+  of stack #551. `mainSha()`/workspaces now default to the config pin
+  (`EVALS_WORKSPACE_REF` still overrides ad hoc).
+- **Roster grows 3 → 7**: sonnet-4-6, sonnet-5, opus-4-8, **fable-5** (Bedrock), and
+  OpenAI's GPT-5.6 family **sol / terra / luna** (released 2026-07-09). Judge stays
+  opus-4-8 — season-1 continuity, and Fable must not grade itself.
+- **Second session backend**: `providerFor(model)` dispatches `us.anthropic.*` to the
+  claude CLI (Bedrock, unchanged) and `gpt-*` to the pinned `@openai/codex` CLI
+  (`codex exec --json --skip-git-repo-check --dangerously-bypass-approvals-and-sandbox
+  --ephemeral --ignore-user-config`). Flags verified against the pinned binary
+  (codex-cli 0.147.0), event/field names verified in its strings (`turn.completed` carries
+  `last_agent_message` + `TokenUsage`). Raw codex JSONL is the frozen transcript;
+  `renderTranscript` renders both formats with the same labels the judge already cites.
+  Codex reports tokens not dollars — cost comes from the pinned GPT-5.6 price table
+  (cached input billed at full input rate until the cache discount is pinned). No turn
+  cap in codex exec, so that budget is wall-clock-only there (turns still recorded).
+  `OPENAI_API_KEY` is the user-facing env var (mapped to `CODEX_API_KEY`); fail-fast
+  verified end-to-end while the key is not yet provisioned.
+- Selftest grows 5 tests: provider mapping, per-provider env assertions, codex
+  parse/usage/cost, dual-format rendering, turn.failed handling. All offline.
+
+### Round 8 addendum: smoke blocked on credentials, fail-fast hardened
+
+The Fable smoke (modify-arcs, 1 session) exercised the full season-2 pipeline — measured-ref
+template build, spawn, mechanical checks, isolation audit all ran — but the session itself
+died in 4s: this container's temporary AWS credentials expired 2026-07-06 (they are the
+season-1 creds). `assertProviderEnv` now checks `AWS_CREDENTIAL_EXPIRATION` and refuses with
+the refresh instruction instead of letting sessions die on the SDK's opaque "Could not load
+credentials from any providers"; the dead run was deleted (credential noise, not model
+evidence). Season 2 runs are blocked on: fresh AWS session credentials (Bedrock) and
+`OPENAI_API_KEY` (codex). Everything else is in place.
+
+### Round 8 addendum 2: local models (openclaw) + handoff runbook
+
+Third provider: `local/<name>` model ids route through the same codex backend with a
+`model_providers` override pointing at `OPENCLAW_BASE_URL` (openclaw's OpenAI-compatible
+server); the server sees the bare name, `costUsd` records 0 (local compute), and — fixed
+while wiring this — a session run now asserts only ITS provider's env, so local benchmarking
+needs no AWS credentials (grading still does; the expired-creds check applies only when
+bedrock is in the required set). README gains a season-2 local runbook: clone → install →
+creds → per-provider smoke → full 7-model matrix loop → grade/report → R2 push+verify. The
+session moves to the user's machine from here; comparator note recorded (codex scaffolding
+confound for non-claude rows, sliced honestly via the per-row provider field).
+
+### Round 8 addendum 3: #514–#516 merged — season re-pins to origin/main
+
+The three app fixes squash-merged to main (cfb45ef, 7a85027, c62c28c) and GitHub's stack
+auto-rebased the remaining layers: #507 re-targeted to main, both surviving branches
+force-updated onto it (local work reconciled by resetting to the rebased remotes — content
+identical, hashes new). Season 2 re-pins before any runs exist: **MEASURED_REF =
+`origin/main`**, **CURRENT_SERIES = `2026-08-18.t0.c62c28c99a5d`** (main at pin time). The
+pre-pin series dir (registry snapshot only, zero runs) is deleted, not archived — it never
+became an instrument. Full verify-goldens re-run against pure main is the proof the merged
+fixes carry the container idiom without the stack.

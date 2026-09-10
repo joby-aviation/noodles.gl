@@ -1,0 +1,2095 @@
+{
+ "commit": "83ff1c128a7a589ac95336db37b4f8d56a7dcf77",
+ "types": [
+  "NumberOp",
+  "MapRangeOp",
+  "ExtentOp",
+  "SelectOp",
+  "MathOp",
+  "StringOp",
+  "BooleanOp",
+  "DateTimeOp",
+  "CombineXYOp",
+  "CombineXYZOp",
+  "SplitXYOp",
+  "SplitXYZOp",
+  "CombineRGBAOp",
+  "SplitRGBAOp",
+  "ColorOp",
+  "HSLOp",
+  "ColorRampOp",
+  "CategoricalColorRampOp",
+  "TimeOp",
+  "BezierCurveOp",
+  "FileOp",
+  "DuckDbOp",
+  "JSONOp",
+  "ViewerOp",
+  "TableEditorOp",
+  "ChartOp",
+  "ScatterOp",
+  "BoundsOp",
+  "BoundingBoxOp",
+  "GeocoderOp",
+  "DirectionsOp",
+  "ArcOp",
+  "NetworkOp",
+  "SwitchOp",
+  "ForLoopBeginOp",
+  "ForLoopEndOp",
+  "ForLoopMetaOp",
+  "FilterOp",
+  "SliceOp",
+  "SortOp",
+  "RandomizeAttributeOp",
+  "ConcatOp",
+  "CrossOp",
+  "MergeOp",
+  "MouseOp",
+  "ProjectOp",
+  "UnprojectOp",
+  "MapViewStateOp",
+  "SplitMapViewStateOp",
+  "MaplibreBasemapOp",
+  "CustomMapLibreLayerOp",
+  "MapStyleConfiguratorOp",
+  "DeckRendererOp",
+  "MapViewOp",
+  "GraphInputOp",
+  "GraphOutputOp",
+  "GlobeViewOp",
+  "FpsWidgetOp",
+  "FullscreenWidgetOp",
+  "ZoomWidgetOp",
+  "CompassWidgetOp",
+  "ScreenshotWidgetOp",
+  "LegendWidgetOp",
+  "BitmapOverlayWidgetOp",
+  "FirstPersonViewOp",
+  "OrbitViewOp",
+  "OrthographicViewOp",
+  "OutOp",
+  "ConsoleOp",
+  "RerouteOp",
+  "LayerPropsOp",
+  "BlendingOp",
+  "PathLayerOp",
+  "ScatterplotLayerOp",
+  "TripsLayerOp",
+  "SolidPolygonLayerOp",
+  "TextLayerOp",
+  "IconLayerOp",
+  "ScenegraphLayerOp",
+  "SimpleMeshLayerOp",
+  "H3HexagonLayerOp",
+  "A5LayerOp",
+  "HeatmapLayerOp",
+  "GeoJsonLayerOp",
+  "ArcLayerOp",
+  "GridLayerOp",
+  "HexagonLayerOp",
+  "Tile3DLayerOp",
+  "Mask3DExtensionOp",
+  "BrushingExtensionOp",
+  "PathStyleExtensionOp",
+  "TerrainExtensionOp",
+  "RasterTileLayerOp",
+  "BrightnessContrastExtensionOp",
+  "HueSaturationExtensionOp",
+  "VibranceExtensionOp",
+  "AccessorOp",
+  "CodeOp",
+  "ContainerOp",
+  "ExpressionOp",
+  "RampOp",
+  "RectangleOp",
+  "PointOp",
+  "GeoJsonOp",
+  "KmlToGeoJsonOp",
+  "GeoJsonTransformOp",
+  "SimplifyOp",
+  "SmoothOp",
+  "BitmapLayerOp",
+  "ColumnLayerOp",
+  "GridCellLayerOp",
+  "LineLayerOp",
+  "PointCloudLayerOp",
+  "PolygonLayerOp",
+  "ContourLayerOp",
+  "ScreenGridLayerOp",
+  "GreatCircleLayerOp",
+  "H3ClusterLayerOp",
+  "GeohashLayerOp",
+  "S2LayerOp",
+  "QuadkeyLayerOp",
+  "MVTLayerOp",
+  "TerrainLayerOp",
+  "TileLayerOp",
+  "ClipExtensionOp",
+  "CollisionFilterExtensionOp",
+  "DataFilterExtensionOp",
+  "FillStyleExtensionOp",
+  "MaskExtensionOp",
+  "TimeSeriesOp"
+ ],
+ "schemas": {
+  "NumberOp": {
+   "inputs": [
+    "val"
+   ],
+   "outputs": [
+    "val"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "MapRangeOp": {
+   "inputs": [
+    "val",
+    "inMin",
+    "inMax",
+    "outMin",
+    "outMax"
+   ],
+   "outputs": [
+    "scaled"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "ExtentOp": {
+   "inputs": [
+    "data",
+    "accessor"
+   ],
+   "outputs": [
+    "min",
+    "max",
+    "extent"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "SelectOp": {
+   "inputs": [
+    "data",
+    "index",
+    "wrap"
+   ],
+   "outputs": [
+    "value"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "MathOp": {
+   "inputs": [
+    "operator",
+    "a",
+    "b"
+   ],
+   "outputs": [
+    "result"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "StringOp": {
+   "inputs": [
+    "val"
+   ],
+   "outputs": [
+    "val"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "BooleanOp": {
+   "inputs": [
+    "val"
+   ],
+   "outputs": [
+    "val"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "DateTimeOp": {
+   "inputs": [
+    "date"
+   ],
+   "outputs": [
+    "date"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "CombineXYOp": {
+   "inputs": [
+    "x",
+    "y"
+   ],
+   "outputs": [
+    "xy"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "CombineXYZOp": {
+   "inputs": [
+    "x",
+    "y",
+    "z"
+   ],
+   "outputs": [
+    "xyz"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "SplitXYOp": {
+   "inputs": [
+    "vec"
+   ],
+   "outputs": [
+    "x",
+    "y"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "SplitXYZOp": {
+   "inputs": [
+    "vec"
+   ],
+   "outputs": [
+    "x",
+    "y",
+    "z"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "CombineRGBAOp": {
+   "inputs": [
+    "r",
+    "g",
+    "b",
+    "a"
+   ],
+   "outputs": [
+    "color"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "SplitRGBAOp": {
+   "inputs": [
+    "color"
+   ],
+   "outputs": [
+    "r",
+    "g",
+    "b",
+    "a"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "ColorOp": {
+   "inputs": [
+    "color"
+   ],
+   "outputs": [
+    "color"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "HSLOp": {
+   "inputs": [
+    "h",
+    "s",
+    "l"
+   ],
+   "outputs": [
+    "color"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "ColorRampOp": {
+   "inputs": [],
+   "outputs": [
+    "color",
+    "colorRamp"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "CategoricalColorRampOp": {
+   "inputs": [],
+   "outputs": [
+    "color"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "TimeOp": {
+   "inputs": [],
+   "outputs": [
+    "now",
+    "sequenceTime",
+    "tick"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "BezierCurveOp": {
+   "inputs": [
+    "factor",
+    "curve"
+   ],
+   "outputs": [
+    "value"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "FileOp": {
+   "inputs": [
+    "format",
+    "url",
+    "text",
+    "autoType",
+    "pulse"
+   ],
+   "outputs": [
+    "data"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "DuckDbOp": {
+   "inputs": [
+    "query"
+   ],
+   "outputs": [
+    "data"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "JSONOp": {
+   "inputs": [
+    "text"
+   ],
+   "outputs": [
+    "data"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "ViewerOp": {
+   "inputs": [
+    "data"
+   ],
+   "outputs": [],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "TableEditorOp": {
+   "inputs": [
+    "data",
+    "schema"
+   ],
+   "outputs": [
+    "data",
+    "schema"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "ChartOp": {
+   "inputs": [
+    "width",
+    "height",
+    "color",
+    "title",
+    "xLabel",
+    "yLabel"
+   ],
+   "outputs": [
+    "chart"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "ScatterOp": {
+   "inputs": [
+    "bounds",
+    "count",
+    "seed"
+   ],
+   "outputs": [
+    "points"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "BoundsOp": {
+   "inputs": [
+    "point1",
+    "point2"
+   ],
+   "outputs": [
+    "bounds"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "BoundingBoxOp": {
+   "inputs": [
+    "data",
+    "padding"
+   ],
+   "outputs": [
+    "bounds",
+    "longitude",
+    "latitude",
+    "zoom",
+    "viewState"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "GeocoderOp": {
+   "inputs": [
+    "query"
+   ],
+   "outputs": [
+    "location"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "DirectionsOp": {
+   "inputs": [
+    "origin",
+    "destination",
+    "mode"
+   ],
+   "outputs": [
+    "route"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "ArcOp": {
+   "inputs": [
+    "source",
+    "target",
+    "altitudeMultiplier",
+    "apexAlt",
+    "smoothHeight",
+    "smoothPosition",
+    "segmentCount",
+    "tilt"
+   ],
+   "outputs": [
+    "path"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "NetworkOp": {
+   "inputs": [
+    "skyports",
+    "hub"
+   ],
+   "outputs": [
+    "routes"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "SwitchOp": {
+   "inputs": [
+    "values",
+    "index",
+    "blend"
+   ],
+   "outputs": [
+    "value"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "ForLoopBeginOp": {
+   "inputs": [
+    "data"
+   ],
+   "outputs": [
+    "item",
+    "index",
+    "total"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "ForLoopEndOp": {
+   "inputs": [
+    "item"
+   ],
+   "outputs": [
+    "data"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "ForLoopMetaOp": {
+   "inputs": [
+    "initialValue",
+    "currentValue"
+   ],
+   "outputs": [
+    "accumulator",
+    "index",
+    "total",
+    "isFirst",
+    "isLast"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "FilterOp": {
+   "inputs": [
+    "condition",
+    "value"
+   ],
+   "outputs": [
+    "data"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "SliceOp": {
+   "inputs": [
+    "data",
+    "start",
+    "end"
+   ],
+   "outputs": [
+    "data"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "SortOp": {
+   "inputs": [
+    "data",
+    "key",
+    "order"
+   ],
+   "outputs": [
+    "data"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "RandomizeAttributeOp": {
+   "inputs": [
+    "data",
+    "key",
+    "min",
+    "max"
+   ],
+   "outputs": [
+    "data"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "ConcatOp": {
+   "inputs": [
+    "values",
+    "depth"
+   ],
+   "outputs": [
+    "data"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "CrossOp": {
+   "inputs": [
+    "data"
+   ],
+   "outputs": [
+    "pairs"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "MergeOp": {
+   "inputs": [
+    "objects"
+   ],
+   "outputs": [
+    "object"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "MouseOp": {
+   "inputs": [],
+   "outputs": [
+    "position"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "ProjectOp": {
+   "inputs": [
+    "position",
+    "width",
+    "height",
+    "viewState"
+   ],
+   "outputs": [
+    "screenPosition"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "UnprojectOp": {
+   "inputs": [
+    "screenPosition",
+    "width",
+    "height",
+    "viewState"
+   ],
+   "outputs": [
+    "point"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "MapViewStateOp": {
+   "inputs": [
+    "longitude",
+    "latitude",
+    "zoom",
+    "pitch",
+    "bearing"
+   ],
+   "outputs": [
+    "viewState"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "SplitMapViewStateOp": {
+   "inputs": [
+    "viewState"
+   ],
+   "outputs": [
+    "longitude",
+    "latitude",
+    "zoom",
+    "pitch",
+    "bearing"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "MaplibreBasemapOp": {
+   "inputs": [
+    "mapStyle",
+    "projection",
+    "viewState",
+    "sky",
+    "light"
+   ],
+   "outputs": [
+    "maplibre"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "CustomMapLibreLayerOp": {
+   "inputs": [
+    "id",
+    "code",
+    "renderingMode",
+    "beforeId",
+    "params"
+   ],
+   "outputs": [
+    "layer"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "MapStyleConfiguratorOp": {
+   "inputs": [
+    "baseStyle",
+    "overrides"
+   ],
+   "outputs": [
+    "mapStyle"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "DeckRendererOp": {
+   "inputs": [
+    "layers",
+    "effects",
+    "views",
+    "widgets",
+    "layerFilter",
+    "basemap",
+    "viewState",
+    "maplibreLayers"
+   ],
+   "outputs": [
+    "vis"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "MapViewOp": {
+   "inputs": [
+    "orthographic",
+    "fovy",
+    "repeat",
+    "viewState"
+   ],
+   "outputs": [
+    "view"
+   ],
+   "inputsOpen": true,
+   "outputsOpen": false
+  },
+  "GraphInputOp": {
+   "inputs": [
+    "parentValue"
+   ],
+   "outputs": [
+    "value"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "GraphOutputOp": {
+   "inputs": [
+    "value"
+   ],
+   "outputs": [
+    "propagatedValue"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "GlobeViewOp": {
+   "inputs": [
+    "viewState"
+   ],
+   "outputs": [
+    "view"
+   ],
+   "inputsOpen": true,
+   "outputsOpen": false
+  },
+  "FpsWidgetOp": {
+   "inputs": [
+    "placement",
+    "viewId"
+   ],
+   "outputs": [
+    "widget"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "FullscreenWidgetOp": {
+   "inputs": [
+    "placement",
+    "viewId"
+   ],
+   "outputs": [
+    "widget"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "ZoomWidgetOp": {
+   "inputs": [
+    "placement",
+    "viewId"
+   ],
+   "outputs": [
+    "widget"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "CompassWidgetOp": {
+   "inputs": [
+    "placement",
+    "viewId"
+   ],
+   "outputs": [
+    "widget"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "ScreenshotWidgetOp": {
+   "inputs": [
+    "placement",
+    "viewId"
+   ],
+   "outputs": [
+    "widget"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "LegendWidgetOp": {
+   "inputs": [
+    "colorRamp",
+    "label",
+    "minValue",
+    "maxValue",
+    "placement",
+    "steps",
+    "scale"
+   ],
+   "outputs": [
+    "widget"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "BitmapOverlayWidgetOp": {
+   "inputs": [
+    "image",
+    "placement",
+    "width",
+    "height",
+    "opacity",
+    "scale",
+    "offsetX",
+    "offsetY",
+    "viewId"
+   ],
+   "outputs": [
+    "widget"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "FirstPersonViewOp": {
+   "inputs": [
+    "orthographic",
+    "fovy",
+    "viewState"
+   ],
+   "outputs": [
+    "view"
+   ],
+   "inputsOpen": true,
+   "outputsOpen": false
+  },
+  "OrbitViewOp": {
+   "inputs": [
+    "orthographic",
+    "orbitAxis",
+    "fovy",
+    "viewState"
+   ],
+   "outputs": [
+    "view"
+   ],
+   "inputsOpen": true,
+   "outputsOpen": false
+  },
+  "OrthographicViewOp": {
+   "inputs": [
+    "flipY",
+    "viewState"
+   ],
+   "outputs": [
+    "view"
+   ],
+   "inputsOpen": true,
+   "outputsOpen": false
+  },
+  "OutOp": {
+   "inputs": [
+    "vis",
+    "display",
+    "width",
+    "height",
+    "lod",
+    "waitForData",
+    "codec",
+    "bitrateMbps",
+    "bitrateMode",
+    "scaleControl",
+    "framerate",
+    "captureDelay",
+    "rendersDirectory"
+   ],
+   "outputs": [],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "ConsoleOp": {
+   "inputs": [
+    "data"
+   ],
+   "outputs": [],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "RerouteOp": {
+   "inputs": [
+    "value"
+   ],
+   "outputs": [
+    "value"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "LayerPropsOp": {
+   "inputs": [
+    "layer",
+    "operation",
+    "beforeId",
+    "additionalProps"
+   ],
+   "outputs": [
+    "layer"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "BlendingOp": {
+   "inputs": [
+    "mode",
+    "blendColorSrcFactor",
+    "blendColorDstFactor"
+   ],
+   "outputs": [
+    "parameters"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "PathLayerOp": {
+   "inputs": [
+    "data",
+    "visible",
+    "opacity",
+    "billboard",
+    "capRounded",
+    "jointRounded",
+    "getPath",
+    "getColor",
+    "getWidth",
+    "widthUnits",
+    "widthScale",
+    "widthMinPixels",
+    "parameters",
+    "extensions",
+    "wrapLongitude"
+   ],
+   "outputs": [
+    "layer"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "ScatterplotLayerOp": {
+   "inputs": [
+    "data",
+    "visible",
+    "opacity",
+    "stroked",
+    "billboard",
+    "getPosition",
+    "getFillColor",
+    "getLineColor",
+    "getRadius",
+    "getLineWidth",
+    "radiusScale",
+    "radiusUnits",
+    "parameters",
+    "extensions"
+   ],
+   "outputs": [
+    "layer"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "TripsLayerOp": {
+   "inputs": [
+    "data",
+    "visible",
+    "opacity",
+    "getPath",
+    "getTimestamps",
+    "getColor",
+    "getWidth",
+    "billboard",
+    "capRounded",
+    "jointRounded",
+    "currentTime",
+    "fadeTrail",
+    "trailLength",
+    "widthUnits",
+    "widthMinPixels",
+    "widthScale",
+    "parameters",
+    "extensions"
+   ],
+   "outputs": [
+    "layer"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "SolidPolygonLayerOp": {
+   "inputs": [
+    "data",
+    "visible",
+    "opacity",
+    "getPolygon",
+    "getFillColor",
+    "getLineColor",
+    "getLineWidth",
+    "parameters",
+    "extensions"
+   ],
+   "outputs": [
+    "layer"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "TextLayerOp": {
+   "inputs": [
+    "data",
+    "visible",
+    "opacity",
+    "getPosition",
+    "getText",
+    "billboard",
+    "fontFamily",
+    "fontWeight",
+    "sizeUnits",
+    "getSize",
+    "getColor",
+    "getAngle",
+    "getTextAnchor",
+    "getPixelOffset",
+    "getAlignmentBaseline",
+    "fontSettings",
+    "parameters",
+    "backgroundBorderRadius",
+    "extensions"
+   ],
+   "outputs": [
+    "layer"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "IconLayerOp": {
+   "inputs": [
+    "data",
+    "visible",
+    "opacity",
+    "getPosition",
+    "iconAtlas",
+    "iconMapping",
+    "billboard",
+    "getIcon",
+    "getSize",
+    "sizeUnits",
+    "sizeScale",
+    "sizeMinPixels",
+    "sizeMaxPixels",
+    "getPixelOffset",
+    "getColor",
+    "getAngle",
+    "sizeBasis",
+    "parameters",
+    "extensions"
+   ],
+   "outputs": [
+    "layer"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "ScenegraphLayerOp": {
+   "inputs": [
+    "data",
+    "visible",
+    "opacity",
+    "scenegraph",
+    "getPosition",
+    "getOrientation",
+    "getScale",
+    "sizeScale",
+    "sizeMinPixels",
+    "sizeMaxPixels",
+    "getColor",
+    "getTranslation",
+    "parameters",
+    "extensions"
+   ],
+   "outputs": [
+    "layer"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "SimpleMeshLayerOp": {
+   "inputs": [
+    "data",
+    "visible",
+    "opacity",
+    "mesh",
+    "wireframe",
+    "texture",
+    "textureParameters",
+    "getPosition",
+    "getColor",
+    "getOrientation",
+    "getScale",
+    "sizeScale",
+    "getTranslation",
+    "parameters",
+    "extensions"
+   ],
+   "outputs": [
+    "layer"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "H3HexagonLayerOp": {
+   "inputs": [
+    "data",
+    "visible",
+    "opacity",
+    "getHexagon",
+    "getFillColor",
+    "getRadius",
+    "getLineWidth",
+    "parameters",
+    "extensions"
+   ],
+   "outputs": [
+    "layer"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "A5LayerOp": {
+   "inputs": [
+    "data",
+    "visible",
+    "opacity",
+    "getPentagon",
+    "getFillColor",
+    "getElevation",
+    "elevationScale",
+    "extruded",
+    "pickable",
+    "parameters",
+    "extensions"
+   ],
+   "outputs": [
+    "layer"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "HeatmapLayerOp": {
+   "inputs": [
+    "data",
+    "visible",
+    "opacity",
+    "getPosition",
+    "getWeight",
+    "aggregation",
+    "radiusPixels",
+    "intensity",
+    "threshold",
+    "parameters",
+    "extensions"
+   ],
+   "outputs": [
+    "layer"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "GeoJsonLayerOp": {
+   "inputs": [
+    "data",
+    "visible",
+    "opacity",
+    "pointType",
+    "getPointRadius",
+    "pointRadiusUnits",
+    "pointRadiusScale",
+    "pointRadiusMinPixels",
+    "pointRadiusMaxPixels",
+    "pointRadiusBillboard",
+    "getText",
+    "getTextSize",
+    "getTextColor",
+    "getTextAngle",
+    "getTextAnchor",
+    "getTextAlignmentBaseline",
+    "getTextPixelOffset",
+    "textSizeUnits",
+    "textSizeScale",
+    "textSizeMinPixels",
+    "textSizeMaxPixels",
+    "textBillboard",
+    "textFontFamily",
+    "textFontWeight",
+    "filled",
+    "getFillColor",
+    "stroked",
+    "getLineColor",
+    "getLineWidth",
+    "lineWidthUnits",
+    "lineWidthScale",
+    "lineWidthMinPixels",
+    "lineWidthMaxPixels",
+    "lineCapRounded",
+    "lineJointRounded",
+    "lineMiterLimit",
+    "lineBillboard",
+    "extruded",
+    "wireframe",
+    "getElevation",
+    "elevationScale",
+    "_full3d",
+    "parameters",
+    "extensions"
+   ],
+   "outputs": [
+    "layer"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "ArcLayerOp": {
+   "inputs": [
+    "data",
+    "visible",
+    "opacity",
+    "getSourcePosition",
+    "getTargetPosition",
+    "getSourceColor",
+    "getTargetColor",
+    "widthUnits",
+    "getWidth",
+    "getHeight",
+    "getTilt",
+    "parameters",
+    "extensions"
+   ],
+   "outputs": [
+    "layer"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "GridLayerOp": {
+   "inputs": [
+    "data",
+    "visible",
+    "opacity",
+    "getPosition",
+    "cellSize",
+    "getColorWeight",
+    "colorAggregation",
+    "colorScaleType",
+    "colorRange",
+    "colorDomain",
+    "upperPercentile",
+    "lowerPercentile",
+    "extruded",
+    "getElevationWeight",
+    "elevationAggregation",
+    "elevationScaleType",
+    "elevationScale",
+    "elevationRange",
+    "elevationDomain",
+    "elevationUpperPercentile",
+    "elevationLowerPercentile",
+    "coverage",
+    "gpuAggregation",
+    "parameters",
+    "extensions"
+   ],
+   "outputs": [
+    "layer"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "HexagonLayerOp": {
+   "inputs": [
+    "data",
+    "visible",
+    "opacity",
+    "getPosition",
+    "radius",
+    "getColorWeight",
+    "colorAggregation",
+    "colorScaleType",
+    "colorRange",
+    "colorDomain",
+    "upperPercentile",
+    "lowerPercentile",
+    "extruded",
+    "getElevationWeight",
+    "elevationAggregation",
+    "elevationScaleType",
+    "elevationScale",
+    "elevationRange",
+    "elevationDomain",
+    "elevationUpperPercentile",
+    "elevationLowerPercentile",
+    "coverage",
+    "gpuAggregation",
+    "parameters",
+    "extensions"
+   ],
+   "outputs": [
+    "layer"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "Tile3DLayerOp": {
+   "inputs": [
+    "visible",
+    "provider",
+    "tilesetUrl",
+    "opacity",
+    "operation",
+    "wireframe",
+    "flatLighting",
+    "throttleRequests",
+    "pointSize",
+    "maxLodMetricValue",
+    "maxScreenSpaceError",
+    "maxMemoryUsage",
+    "parameters",
+    "extensions"
+   ],
+   "outputs": [
+    "layer"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "Mask3DExtensionOp": {
+   "inputs": [
+    "targetPosition",
+    "innerRadius",
+    "fadeRange"
+   ],
+   "outputs": [
+    "extension"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "BrushingExtensionOp": {
+   "inputs": [
+    "brushingRadius",
+    "brushingEnabled",
+    "brushingTarget",
+    "getBrushingTarget"
+   ],
+   "outputs": [
+    "extension"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "PathStyleExtensionOp": {
+   "inputs": [
+    "dash",
+    "highPrecisionDash",
+    "offset",
+    "dashJustified",
+    "getDashArray",
+    "getOffset",
+    "dashGapPickable"
+   ],
+   "outputs": [
+    "extension"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "TerrainExtensionOp": {
+   "inputs": [
+    "terrainDrawMode"
+   ],
+   "outputs": [
+    "extension"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "RasterTileLayerOp": {
+   "inputs": [
+    "visible",
+    "opacity",
+    "data",
+    "minZoom",
+    "maxZoom",
+    "tileSize",
+    "parameters",
+    "extensions"
+   ],
+   "outputs": [
+    "layer"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "BrightnessContrastExtensionOp": {
+   "inputs": [
+    "brightness",
+    "contrast"
+   ],
+   "outputs": [
+    "extension"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "HueSaturationExtensionOp": {
+   "inputs": [
+    "hue",
+    "saturation"
+   ],
+   "outputs": [
+    "extension"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "VibranceExtensionOp": {
+   "inputs": [
+    "amount"
+   ],
+   "outputs": [
+    "extension"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "AccessorOp": {
+   "inputs": [
+    "expression"
+   ],
+   "outputs": [
+    "accessor"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "CodeOp": {
+   "inputs": [
+    "data",
+    "code"
+   ],
+   "outputs": [
+    "data"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "ContainerOp": {
+   "inputs": [
+    "in"
+   ],
+   "outputs": [
+    "out"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "ExpressionOp": {
+   "inputs": [
+    "data",
+    "expression"
+   ],
+   "outputs": [
+    "data"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "RampOp": {
+   "inputs": [
+    "position",
+    "stops"
+   ],
+   "outputs": [
+    "value"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "RectangleOp": {
+   "inputs": [
+    "center",
+    "altitude",
+    "width",
+    "height",
+    "properties"
+   ],
+   "outputs": [
+    "feature"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "PointOp": {
+   "inputs": [
+    "coordinates",
+    "properties"
+   ],
+   "outputs": [
+    "feature"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "GeoJsonOp": {
+   "inputs": [
+    "features"
+   ],
+   "outputs": [
+    "featureCollection"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "KmlToGeoJsonOp": {
+   "inputs": [
+    "kml"
+   ],
+   "outputs": [
+    "geojson"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "GeoJsonTransformOp": {
+   "inputs": [
+    "feature",
+    "scale",
+    "translateX",
+    "translateY",
+    "rotate"
+   ],
+   "outputs": [
+    "feature"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "SimplifyOp": {
+   "inputs": [
+    "feature",
+    "tolerance",
+    "highQuality"
+   ],
+   "outputs": [
+    "feature"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "SmoothOp": {
+   "inputs": [
+    "feature",
+    "windowSize",
+    "method"
+   ],
+   "outputs": [
+    "feature"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "BitmapLayerOp": {
+   "inputs": [
+    "visible",
+    "opacity",
+    "image",
+    "bounds",
+    "desaturate",
+    "transparentColor",
+    "tintColor",
+    "parameters",
+    "extensions"
+   ],
+   "outputs": [
+    "layer"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "ColumnLayerOp": {
+   "inputs": [
+    "data",
+    "visible",
+    "opacity",
+    "diskResolution",
+    "vertices",
+    "offset",
+    "coverage",
+    "elevationScale",
+    "filled",
+    "stroked",
+    "extruded",
+    "wireframe",
+    "flatShading",
+    "radiusUnits",
+    "lineWidthUnits",
+    "getPosition",
+    "getFillColor",
+    "getLineColor",
+    "getElevation",
+    "getLineWidth",
+    "parameters",
+    "extensions"
+   ],
+   "outputs": [
+    "layer"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "GridCellLayerOp": {
+   "inputs": [
+    "data",
+    "visible",
+    "opacity",
+    "cellSize",
+    "coverage",
+    "elevationScale",
+    "extruded",
+    "filled",
+    "stroked",
+    "wireframe",
+    "flatShading",
+    "getPosition",
+    "getColor",
+    "getElevation",
+    "parameters",
+    "extensions"
+   ],
+   "outputs": [
+    "layer"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "LineLayerOp": {
+   "inputs": [
+    "data",
+    "visible",
+    "opacity",
+    "widthUnits",
+    "widthScale",
+    "widthMinPixels",
+    "widthMaxPixels",
+    "getSourcePosition",
+    "getTargetPosition",
+    "getColor",
+    "getWidth",
+    "parameters",
+    "extensions"
+   ],
+   "outputs": [
+    "layer"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "PointCloudLayerOp": {
+   "inputs": [
+    "data",
+    "visible",
+    "opacity",
+    "sizeUnits",
+    "pointSize",
+    "getPosition",
+    "getNormal",
+    "getColor",
+    "parameters",
+    "extensions"
+   ],
+   "outputs": [
+    "layer"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "PolygonLayerOp": {
+   "inputs": [
+    "data",
+    "visible",
+    "opacity",
+    "filled",
+    "stroked",
+    "extruded",
+    "wireframe",
+    "elevationScale",
+    "lineWidthUnits",
+    "lineWidthScale",
+    "lineWidthMinPixels",
+    "lineWidthMaxPixels",
+    "lineJointRounded",
+    "lineMiterLimit",
+    "getPolygon",
+    "getFillColor",
+    "getLineColor",
+    "getLineWidth",
+    "getElevation",
+    "parameters",
+    "extensions"
+   ],
+   "outputs": [
+    "layer"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "ContourLayerOp": {
+   "inputs": [
+    "data",
+    "visible",
+    "opacity",
+    "cellSize",
+    "gpuAggregation",
+    "aggregation",
+    "contours",
+    "zOffset",
+    "getPosition",
+    "getWeight",
+    "parameters",
+    "extensions"
+   ],
+   "outputs": [
+    "layer"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "ScreenGridLayerOp": {
+   "inputs": [
+    "data",
+    "visible",
+    "opacity",
+    "cellSizePixels",
+    "cellMarginPixels",
+    "colorRange",
+    "colorDomain",
+    "aggregation",
+    "getPosition",
+    "getWeight",
+    "parameters",
+    "extensions"
+   ],
+   "outputs": [
+    "layer"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "GreatCircleLayerOp": {
+   "inputs": [
+    "data",
+    "visible",
+    "opacity",
+    "numSegments",
+    "widthUnits",
+    "widthScale",
+    "widthMinPixels",
+    "widthMaxPixels",
+    "getSourcePosition",
+    "getTargetPosition",
+    "getSourceColor",
+    "getTargetColor",
+    "getWidth",
+    "parameters",
+    "extensions"
+   ],
+   "outputs": [
+    "layer"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "H3ClusterLayerOp": {
+   "inputs": [
+    "data",
+    "visible",
+    "opacity",
+    "getHexagons",
+    "getLineWidth",
+    "getFillColor",
+    "getElevation",
+    "parameters",
+    "extensions"
+   ],
+   "outputs": [
+    "layer"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "GeohashLayerOp": {
+   "inputs": [
+    "data",
+    "visible",
+    "opacity",
+    "getGeohash",
+    "getFillColor",
+    "getLineColor",
+    "getElevation",
+    "getLineWidth",
+    "elevationScale",
+    "filled",
+    "stroked",
+    "extruded",
+    "parameters",
+    "extensions"
+   ],
+   "outputs": [
+    "layer"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "S2LayerOp": {
+   "inputs": [
+    "data",
+    "visible",
+    "opacity",
+    "getS2Token",
+    "getFillColor",
+    "getLineColor",
+    "getElevation",
+    "getLineWidth",
+    "elevationScale",
+    "filled",
+    "stroked",
+    "extruded",
+    "parameters",
+    "extensions"
+   ],
+   "outputs": [
+    "layer"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "QuadkeyLayerOp": {
+   "inputs": [
+    "data",
+    "visible",
+    "opacity",
+    "getQuadkey",
+    "getFillColor",
+    "getLineColor",
+    "getElevation",
+    "getLineWidth",
+    "elevationScale",
+    "filled",
+    "stroked",
+    "extruded",
+    "parameters",
+    "extensions"
+   ],
+   "outputs": [
+    "layer"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "MVTLayerOp": {
+   "inputs": [
+    "data",
+    "visible",
+    "opacity",
+    "minZoom",
+    "maxZoom",
+    "filled",
+    "stroked",
+    "lineWidthMinPixels",
+    "getFillColor",
+    "getLineColor",
+    "getLineWidth",
+    "getPointRadius",
+    "pointRadiusUnits",
+    "autoLabels",
+    "parameters",
+    "extensions"
+   ],
+   "outputs": [
+    "layer"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "TerrainLayerOp": {
+   "inputs": [
+    "elevationData",
+    "texture",
+    "visible",
+    "opacity",
+    "meshMaxError",
+    "elevationDecoder",
+    "bounds",
+    "color",
+    "wireframe",
+    "parameters",
+    "extensions"
+   ],
+   "outputs": [
+    "layer"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "TileLayerOp": {
+   "inputs": [
+    "data",
+    "visible",
+    "opacity",
+    "minZoom",
+    "maxZoom",
+    "tileSize",
+    "maxCacheSize",
+    "maxCacheByteSize",
+    "refinementStrategy",
+    "zRange",
+    "extent",
+    "renderSubLayers",
+    "parameters",
+    "extensions"
+   ],
+   "outputs": [
+    "layer"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "ClipExtensionOp": {
+   "inputs": [
+    "clipByInstance",
+    "clipBounds"
+   ],
+   "outputs": [
+    "extension"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "CollisionFilterExtensionOp": {
+   "inputs": [
+    "collisionEnabled",
+    "collisionGroup",
+    "getCollisionPriority"
+   ],
+   "outputs": [
+    "extension"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "DataFilterExtensionOp": {
+   "inputs": [
+    "filterSize",
+    "filterEnabled",
+    "filterRange",
+    "filterSoftRange",
+    "filterTransformSize",
+    "filterTransformColor",
+    "getFilterValue"
+   ],
+   "outputs": [
+    "extension"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "FillStyleExtensionOp": {
+   "inputs": [
+    "fillPatternEnabled",
+    "fillPatternMask",
+    "fillPatternAtlas",
+    "fillPatternMapping",
+    "getFillPattern",
+    "getFillPatternScale",
+    "getFillPatternOffset"
+   ],
+   "outputs": [
+    "extension"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "MaskExtensionOp": {
+   "inputs": [
+    "maskId",
+    "maskByInstance"
+   ],
+   "outputs": [
+    "extension"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  },
+  "TimeSeriesOp": {
+   "inputs": [
+    "data",
+    "currentTime",
+    "getTimestamps",
+    "getValues",
+    "getProperties"
+   ],
+   "outputs": [
+    "data"
+   ],
+   "inputsOpen": false,
+   "outputsOpen": false
+  }
+ }
+}
