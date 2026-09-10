@@ -69,6 +69,21 @@ new Vec2Field([0, 0], {
 })
 ```
 
+### Switchable Vector Input Ports
+
+Point2D, Point3D, Vec2, and Vec3 inputs automatically support two mutually exclusive presentations:
+
+- `whole` exposes the parent handle, such as `par.center`.
+- `channels` exposes numeric child handles, such as `par.center.lng` and `par.center.lat`.
+
+The default is `whole`. The selected non-default mode is serialized per operator instance in `data.inputPortModes[fieldName]` and is available at runtime through `operator.getInputPortMode()` and `operator.setInputPortMode()`.
+
+Each supported field owns synchronized `channelFields`. Parent values update those numeric fields, and channel values compose back into the field's configured object or tuple shape. Accessor-capable vectors also compose mixed constant and accessor-valued channels into one accessor.
+
+Graph code should resolve handles with `resolveOperatorField()` rather than splitting handle strings itself. Validation and execution accept only the parent or child handles active for the selected mode, preventing multiple writers and precedence ambiguity. Outputs, Vec4, colors, and arbitrary compound fields do not use this mechanism.
+
+See [Vector Input Ports](../users/vector-input-ports.md) for the user-facing behavior.
+
 ### Data Fields
 
 #### DataField

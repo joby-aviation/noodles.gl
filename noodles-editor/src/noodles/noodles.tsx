@@ -81,6 +81,7 @@ import { StorageErrorHandler } from './components/storage-error-handler'
 import { CanvasDropImport } from './components/tools/canvas-drop-import'
 import { UndoRedoHandler, type UndoRedoHandlerRef } from './components/UndoRedoHandler'
 import { ProjectModificationActionsProvider } from './contexts/project-modification-actions-context'
+import { hasChannelFields } from './fields'
 import { useActiveStorageType, useFileSystemStore } from './filesystem-store'
 import { findEdgeAtPosition, useConnectionDropOnEdge } from './hooks/use-connection-drop-on-edge'
 import { useKeyboardShortcut } from './hooks/use-keyboard-shortcut'
@@ -111,6 +112,7 @@ import { transformGraph } from './transform-graph'
 import { canConnectCached } from './utils/can-connect'
 import { instantiateDeckView } from './utils/deck-view'
 import { directoryHandleCache } from './utils/directory-handle-cache'
+import { resolveOperatorField } from './utils/field-resolution'
 import {
   fileExists,
   requestPermission,
@@ -514,12 +516,16 @@ export function getNoodles(): Visualization {
       if (!sourceOp) return
 
       // Parse handle ID to get namespace and field name (e.g., "out.data" -> ["out", "data"])
-      const [namespace, fieldName] = params.handleId.split('.')
-      if (!namespace || !fieldName) return
+      const handleInfo = parseHandleId(params.handleId)
+      if (!handleInfo) return
 
       // Determine the source field based on handle type
       const isOutput = params.handleType === 'source'
-      const sourceField = isOutput ? sourceOp.outputs[fieldName] : sourceOp.inputs[fieldName]
+      const sourceField = resolveOperatorField(
+        sourceOp,
+        handleInfo.namespace,
+        handleInfo.fieldName
+      )?.field
       if (!sourceField) return
 
       // Calculate which nodes have compatible handles
@@ -530,8 +536,14 @@ export function getNoodles(): Visualization {
         if (nodeId === params.nodeId) continue
 
         // Check target handles (inputs if dragging from output, outputs if dragging from input)
-        const targetFields = isOutput ? op.inputs : op.outputs
-        for (const targetField of Object.values(targetFields)) {
+        const targetFields = isOutput
+          ? Object.entries(op.inputs).flatMap(([name, field]) =>
+              op.getInputPortMode(name) === 'channels' && hasChannelFields(field)
+                ? Object.values(field.channelFields)
+                : [field]
+            )
+          : Object.values(op.outputs)
+        for (const targetField of targetFields) {
           const compatible = isOutput
             ? canConnectCached(sourceField, targetField)
             : canConnectCached(targetField, sourceField)
@@ -552,7 +564,11 @@ export function getNoodles(): Visualization {
         if (!targetHandleInfo) continue
         const targetOp = getOp(edge.target)
         if (!targetOp) continue
-        const targetField = targetOp.inputs[targetHandleInfo.fieldName]
+        const targetField = resolveOperatorField(
+          targetOp,
+          targetHandleInfo.namespace,
+          targetHandleInfo.fieldName
+        )?.field
         if (!targetField) continue
         const compatible = isOutput
           ? canConnectCached(sourceField, targetField)
