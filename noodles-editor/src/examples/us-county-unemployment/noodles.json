@@ -83,7 +83,7 @@
     "y": 206.86749887589406,
     "zoom": 0.6158038261288714
   },
-  "version": 17,
+  "version": 14,
   "name": "US County Unemployment",
   "editorSettings": {
     "layoutMode": "noodles-on-top",
@@ -98,7 +98,7 @@
         "locked": false
       },
       "position": {
-        "x": 1200,
+        "x": 1800,
         "y": 100
       }
     },
@@ -122,7 +122,7 @@
         "locked": false
       },
       "position": {
-        "x": 1500,
+        "x": 2200,
         "y": 100
       }
     },
@@ -136,8 +136,8 @@
         "locked": false
       },
       "position": {
-        "x": -756.432131690169,
-        "y": 37.4393188464732
+        "x": 200,
+        "y": 100
       }
     },
     {
@@ -152,8 +152,8 @@
         "locked": false
       },
       "position": {
-        "x": 833.4203552164684,
-        "y": 8.119468876040457
+        "x": 1400,
+        "y": 100
       }
     },
     {
@@ -164,8 +164,8 @@
         "locked": false
       },
       "position": {
-        "x": 374.2787652460753,
-        "y": 349.1371616697396
+        "x": 1000,
+        "y": 340
       }
     },
     {
@@ -178,16 +178,16 @@
         "locked": false
       },
       "position": {
-        "x": -600.2260484943222,
-        "y": 514.1452437371968
+        "x": 1000,
+        "y": 460
       }
     },
     {
       "type": "MaplibreBasemapOp",
       "id": "/maplibre-basemap",
       "position": {
-        "x": 758.7212415568961,
-        "y": -220.5884877788956
+        "x": 1800,
+        "y": 340
       },
       "data": {
         "inputs": {
@@ -207,8 +207,8 @@
       "type": "MapRangeOp",
       "id": "/map-range",
       "position": {
-        "x": 83.47101216576985,
-        "y": 336.0787505954455
+        "x": 1000,
+        "y": 580
       },
       "data": {
         "inputs": {
@@ -221,8 +221,8 @@
       "type": "ExtentOp",
       "id": "/extent",
       "position": {
-        "x": -136.64819796918258,
-        "y": 286.1172519601011
+        "x": 1000,
+        "y": 700
       },
       "data": {
         "inputs": {},
@@ -233,8 +233,8 @@
       "type": "ExpressionOp",
       "id": "/expression",
       "position": {
-        "x": -471.74358724252534,
-        "y": 278.93357739586463
+        "x": 600,
+        "y": 100
       },
       "data": {
         "inputs": {

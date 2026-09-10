@@ -4,7 +4,7 @@
     "y": 562.2542727922879,
     "zoom": 0.5709600637849074
   },
-  "version": 17,
+  "version": 14,
   "name": "EV Chargers with Live API Data",
   "edges": [
     {
@@ -120,16 +120,16 @@
         "locked": false
       },
       "position": {
-        "x": 621.0648631276329,
-        "y": -15.15716566510391
+        "x": 1800,
+        "y": 280
       }
     },
     {
       "id": "/charger-query",
       "type": "DuckDbOp",
       "position": {
-        "x": -1264.3775772798185,
-        "y": -102.49235227489045
+        "x": 600,
+        "y": 280
       },
       "resizing": false,
       "data": {
@@ -154,8 +154,8 @@
       "id": "/centroid",
       "type": "GeocoderOp",
       "position": {
-        "x": -1628.0833659498644,
-        "y": -92.14066297377941
+        "x": 1000,
+        "y": 700
       },
       "data": {
         "inputs": {
@@ -182,8 +182,8 @@
       "id": "/charger-points",
       "type": "ScatterplotLayerOp",
       "position": {
-        "x": -443.51651196326486,
-        "y": 42.81912717553373
+        "x": 1400,
+        "y": 100
       },
       "data": {
         "inputs": {
@@ -198,8 +198,8 @@
       "id": "/charger-position",
       "type": "AccessorOp",
       "position": {
-        "x": -987.3019403521371,
-        "y": 455.41361700547714
+        "x": 1000,
+        "y": 820
       },
       "data": {
         "inputs": {
@@ -238,8 +238,8 @@
       "id": "/charger-heatmap",
       "type": "HeatmapLayerOp",
       "position": {
-        "x": -440.1008136696714,
-        "y": 476.821166774823
+        "x": 1400,
+        "y": 460
       },
       "data": {
         "inputs": {
@@ -253,8 +253,8 @@
       "id": "/basemap",
       "type": "MaplibreBasemapOp",
       "position": {
-        "x": 621.0648631276329,
-        "y": 214.84283433489608
+        "x": 1400,
+        "y": 580
       },
       "data": {
         "inputs": {},
@@ -265,8 +265,8 @@
       "id": "/out",
       "type": "OutOp",
       "position": {
-        "x": 871.0648631276329,
-        "y": -15.15716566510391
+        "x": 2200,
+        "y": 280
       },
       "data": {
         "inputs": {

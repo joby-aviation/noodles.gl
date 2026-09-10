@@ -223,7 +223,6 @@ export abstract class Field<
     useDeepEquality,
     maxDepth,
   }: Partial<O>) {
->>>>>>> origin/main
     let schema = this.schema
 
     // Set showByDefault (defaults to true if not specified)

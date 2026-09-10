@@ -55,7 +55,7 @@
     "y": 48.131400370141876,
     "zoom": 0.42504626773596543
   },
-  "version": 17,
+  "version": 14,
   "name": "San Francisco Elevation Contours",
   "editorSettings": {
     "layoutMode": "noodles-on-top",
@@ -70,7 +70,7 @@
         "locked": false
       },
       "position": {
-        "x": 1200,
+        "x": 1400,
         "y": 100
       }
     },
@@ -94,7 +94,7 @@
         "locked": false
       },
       "position": {
-        "x": 1500,
+        "x": 1800,
         "y": 100
       }
     },
@@ -108,8 +108,8 @@
         "locked": false
       },
       "position": {
-        "x": 0,
-        "y": 50
+        "x": 200,
+        "y": 100
       }
     },
     {
@@ -124,8 +124,8 @@
         "locked": false
       },
       "position": {
-        "x": 900,
-        "y": 0
+        "x": 1000,
+        "y": 100
       }
     },
     {
@@ -136,8 +136,8 @@
         "locked": false
       },
       "position": {
-        "x": 418.8432510885341,
-        "y": 308.2017416545719
+        "x": 600,
+        "y": 340
       }
     },
     {
@@ -150,16 +150,16 @@
         "locked": false
       },
       "position": {
-        "x": 22.383164005805497,
-        "y": 357.60812772133534
+        "x": 600,
+        "y": 460
       }
     },
     {
       "type": "MaplibreBasemapOp",
       "id": "/maplibre-basemap",
       "position": {
-        "x": 1224.6705370101597,
-        "y": 352.92452830188677
+        "x": 1400,
+        "y": 340
       },
       "data": {
         "inputs": {

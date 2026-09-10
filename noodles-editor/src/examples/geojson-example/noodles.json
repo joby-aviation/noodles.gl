@@ -55,7 +55,7 @@
     "y": 46.884631018890104,
     "zoom": 0.5895523675768745
   },
-  "version": 17,
+  "version": 14,
   "name": "GeoJSON BART Stations",
   "editorSettings": {
     "layoutMode": "noodles-on-top",
@@ -70,8 +70,8 @@
         "locked": false
       },
       "position": {
-        "x": 400,
-        "y": 0
+        "x": 1400,
+        "y": 100
       }
     },
     {
@@ -94,8 +94,8 @@
         "locked": false
       },
       "position": {
-        "x": 696,
-        "y": 0
+        "x": 1800,
+        "y": 100
       }
     },
     {
@@ -108,8 +108,8 @@
         "locked": false
       },
       "position": {
-        "x": -395.9478357380689,
-        "y": -300.04661487236405
+        "x": 200,
+        "y": 100
       }
     },
     {
@@ -128,8 +128,8 @@
         "locked": false
       },
       "position": {
-        "x": 0,
-        "y": -300
+        "x": 1000,
+        "y": 100
       }
     },
     {
@@ -142,8 +142,8 @@
         "locked": false
       },
       "position": {
-        "x": -400,
-        "y": 17.466148723640398
+        "x": 600,
+        "y": 340
       }
     },
     {
@@ -156,8 +156,8 @@
         "locked": false
       },
       "position": {
-        "x": -400,
-        "y": 122.86903440621529
+        "x": 600,
+        "y": 460
       }
     },
     {
@@ -170,16 +170,16 @@
         "locked": false
       },
       "position": {
-        "x": -397.2985571587125,
-        "y": -85.09544950055495
+        "x": 600,
+        "y": 580
       }
     },
     {
       "type": "MaplibreBasemapOp",
       "id": "/maplibre-basemap",
       "position": {
-        "x": -1.3507214206437084,
-        "y": 546.3063263041065
+        "x": 1400,
+        "y": 340
       },
       "data": {
         "inputs": {
