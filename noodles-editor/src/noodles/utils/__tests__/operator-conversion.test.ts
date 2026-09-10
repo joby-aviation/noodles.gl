@@ -1,8 +1,8 @@
-import { describe, it, expect, beforeEach } from 'vitest'
-import { ViewerOp, TableEditorOp } from '../../operators'
+import { beforeEach, describe, expect, it } from 'vitest'
+import { TableEditorOp, ViewerOp } from '../../operators'
 import { getOpStore, setOp } from '../../store'
-import { convertViewerToTableEditor } from '../operator-conversion'
 import type { ReactFlowEdge, ReactFlowNode } from '../../types'
+import { convertViewerToTableEditor } from '../operator-conversion'
 
 describe('convertViewerToTableEditor', () => {
   let mockSetNodes: (updater: (nodes: ReactFlowNode[]) => ReactFlowNode[]) => void
@@ -16,7 +16,7 @@ describe('convertViewerToTableEditor', () => {
     capturedEdges = null
 
     // Mock setNodes/setEdges to capture the updater function results
-    mockSetNodes = (updater) => {
+    mockSetNodes = updater => {
       const dummyNodes: ReactFlowNode[] = [
         {
           id: '/test-viewer',
@@ -28,7 +28,7 @@ describe('convertViewerToTableEditor', () => {
       capturedNodes = updater(dummyNodes)
     }
 
-    mockSetEdges = (updater) => {
+    mockSetEdges = updater => {
       const dummyEdges: ReactFlowEdge[] = []
       capturedEdges = updater(dummyEdges)
     }
@@ -174,7 +174,7 @@ describe('convertViewerToTableEditor', () => {
     ]
 
     // Update mockSetEdges to use the initial edges
-    mockSetEdges = (updater) => {
+    mockSetEdges = updater => {
       capturedEdges = updater(initialEdges)
     }
 
@@ -218,7 +218,7 @@ describe('convertViewerToTableEditor', () => {
       },
     ]
 
-    mockSetEdges = (updater) => {
+    mockSetEdges = updater => {
       capturedEdges = updater(initialEdges)
     }
 
@@ -238,9 +238,38 @@ describe('convertViewerToTableEditor', () => {
     expect(convertedOp.inputs.data.value).toEqual(testData)
 
     // Verify the schema was correctly inferred
-    const schema = convertedOp.inputs.schema.value as { columns: Array<{ name: string; type: string }> }
+    const schema = convertedOp.inputs.schema.value as {
+      columns: Array<{ name: string; type: string }>
+    }
     expect(schema.columns).toHaveLength(3)
     expect(schema.columns.map(c => c.name)).toEqual(['name', 'age', 'city'])
     expect(schema.columns.map(c => c.type)).toEqual(['string', 'number', 'string'])
+  })
+
+  it('removes duplicate edge IDs elsewhere in the graph while converting', () => {
+    const viewerOp = new ViewerOp('/test-viewer')
+    viewerOp.inputs.data.setValue([{ name: 'Alice' }])
+    setOp('/test-viewer', viewerOp)
+    const incomingEdge: ReactFlowEdge = {
+      id: '/source.out.data->/test-viewer.par.data',
+      source: '/source',
+      target: '/test-viewer',
+      sourceHandle: 'out.data',
+      targetHandle: 'par.data',
+    }
+    const duplicateEdge: ReactFlowEdge = {
+      id: '/source.out.data->/switch.par.values',
+      source: '/source',
+      target: '/switch',
+      sourceHandle: 'out.data',
+      targetHandle: 'par.values',
+    }
+    mockSetEdges = updater => {
+      capturedEdges = updater([incomingEdge, duplicateEdge, { ...duplicateEdge }])
+    }
+
+    convertViewerToTableEditor('/test-viewer', mockSetNodes, mockSetEdges)
+
+    expect(capturedEdges).toEqual([duplicateEdge])
   })
 })
