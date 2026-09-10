@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { TableSchema } from '../table-schema'
 import { SchemaEditorDialog } from './schema-editor-dialog'
@@ -160,6 +160,93 @@ describe('SchemaEditorDialog', () => {
     // StringLiteral type shows values input
     expect(screen.queryByText('Values (comma-separated):')).toBeDefined()
     expect(screen.queryByDisplayValue('active, inactive')).toBeDefined()
+  })
+
+  it('should render a default value editor for every column type', () => {
+    const allTypesSchema: TableSchema = {
+      columns: [
+        { name: 'number', type: 'number', defaultValue: 1 },
+        { name: 'string', type: 'string', defaultValue: 'text' },
+        { name: 'boolean', type: 'boolean', defaultValue: true },
+        { name: 'color', type: 'color', defaultValue: '#ff0000' },
+        { name: 'point2d', type: 'point2d', defaultValue: [1, 2] },
+        { name: 'point3d', type: 'point3d', defaultValue: [1, 2, 3] },
+        { name: 'vec2', type: 'vec2', defaultValue: [1, 2] },
+        { name: 'vec3', type: 'vec3', defaultValue: [1, 2, 3] },
+        { name: 'date', type: 'date', defaultValue: '2026-08-07' },
+        {
+          name: 'dateTime',
+          type: 'dateTime',
+          defaultValue: { datetime: '2026-08-07T12:00:00.000', timezone: 'UTC' },
+        },
+        {
+          name: 'literal',
+          type: 'stringLiteral',
+          defaultValue: 'start',
+          options: { values: ['start', 'end'] },
+        },
+      ],
+    }
+
+    render(<SchemaEditorDialog schema={allTypesSchema} onChange={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button'))
+
+    for (const column of allTypesSchema.columns) {
+      expect(
+        screen.getByRole('group', { name: `Default value for ${column.name}` })
+      ).toBeDefined()
+    }
+  })
+
+  it('should save an edited column default value', () => {
+    const onChange = vi.fn()
+    render(<SchemaEditorDialog schema={mockSchema} onChange={onChange} />)
+    fireEvent.click(screen.getByRole('button'))
+
+    const defaultEditor = screen.getByRole('group', { name: 'Default value for name' })
+    fireEvent.change(within(defaultEditor).getByRole('textbox'), {
+      target: { value: 'Unknown' },
+    })
+    fireEvent.click(screen.getByText('Save'))
+
+    expect(onChange).toHaveBeenCalledWith({
+      columns: [
+        { name: 'name', type: 'string', defaultValue: 'Unknown' },
+        { name: 'age', type: 'number', defaultValue: 0 },
+      ],
+    })
+  })
+
+  it('should replace an invalid StringLiteral default with its first option', () => {
+    const onChange = vi.fn()
+    const schema: TableSchema = {
+      columns: [
+        {
+          name: 'anchor',
+          type: 'stringLiteral',
+          defaultValue: '',
+          options: { values: ['start', 'end', 'middle'] },
+        },
+      ],
+    }
+
+    render(<SchemaEditorDialog schema={schema} onChange={onChange} />)
+    fireEvent.click(screen.getByRole('button'))
+
+    const defaultEditor = screen.getByRole('group', { name: 'Default value for anchor' })
+    expect(defaultEditor).toHaveTextContent('start')
+
+    fireEvent.click(screen.getByText('Save'))
+    expect(onChange).toHaveBeenCalledWith({
+      columns: [
+        {
+          name: 'anchor',
+          type: 'stringLiteral',
+          defaultValue: 'start',
+          options: { values: ['start', 'end', 'middle'] },
+        },
+      ],
+    })
   })
 
   it('should call onChange with updated schema when Save is clicked', () => {

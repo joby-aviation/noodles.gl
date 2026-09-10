@@ -54,9 +54,13 @@ export function createNodesForType(
 
   if (type === 'ForLoop') {
     // ForLoop scope: group node containing ForLoopBeginOp, ForLoopEndOp, and ForLoopMetaOp
-    const bodyId = nodeId('for-loop-body', currentContainerId)
+    const beginId = makeOpId('ForLoopBeginOp', currentContainerId)
+    // Group nodes are React Flow-only nodes, so nodeId() cannot see them in the
+    // operator store. Derive the visual group's suffix from the unique begin operator
+    // instead. This gives every loop its own group while keeping it in the same container.
+    const bodyId = beginId.replace(/for-loop-begin(-\d+)?$/, 'for-loop-body$1')
     const beginNode = {
-      id: makeOpId('ForLoopBeginOp', currentContainerId),
+      id: beginId,
       type: 'ForLoopBeginOp',
       data: undefined,
       parentId: bodyId,

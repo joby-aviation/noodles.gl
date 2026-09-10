@@ -589,10 +589,10 @@ describe('Edge Cases: Executor', () => {
     )
     const rows = result.toArray()
     // Charlie has NULL department but has city 'SF'
-    const charlie = rows.find((r: any) => r.name === 'Charlie')
+    const charlie = rows.find((r: Record<string, unknown>) => r.name === 'Charlie')
     expect(charlie!.location).toBe('SF')
     // Alice has NULL city but has department 'Eng'
-    const alice = rows.find((r: any) => r.name === 'Alice')
+    const alice = rows.find((r: Record<string, unknown>) => r.name === 'Alice')
     expect(alice!.location).toBe('Eng')
   })
 
@@ -654,7 +654,7 @@ describe('Edge Cases: Executor', () => {
     )
     const rows = result.toArray()
     // Should include NULL department as its own group
-    const nullGroup = rows.find((r: any) => r.department === null)
+    const nullGroup = rows.find((r: Record<string, unknown>) => r.department === null)
     expect(nullGroup).toBeDefined()
   })
 

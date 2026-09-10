@@ -1,0 +1,84 @@
+{
+  "version": 15,
+  "nodes": [
+    {
+      "id": "/data",
+      "type": "TableEditorOp",
+      "position": { "x": 100, "y": 100 },
+      "data": {
+        "inputs": {
+          "data": [
+            { "id": 1, "name": "Point A", "x": -122.4, "y": 37.8, "value": 10, "category": "type1" },
+            { "id": 2, "name": "Point B", "x": -122.5, "y": 37.9, "value": 20, "category": "type2" },
+            { "id": 3, "name": "Point C", "x": -122.6, "y": 38.0, "value": 30, "category": "type1" },
+            { "id": 4, "name": "Point D", "x": -122.7, "y": 38.1, "value": 40, "category": "type3" },
+            { "id": 5, "name": "Point E", "x": -122.8, "y": 38.2, "value": 50, "category": "type2" },
+            { "id": 6, "name": "Point F", "x": -122.9, "y": 38.3, "value": 60, "category": "type1" },
+            { "id": 7, "name": "Point G", "x": -123.0, "y": 38.4, "value": 70, "category": "type3" },
+            { "id": 8, "name": "Point H", "x": -123.1, "y": 38.5, "value": 80, "category": "type2" }
+          ]
+        }
+      }
+    },
+    {
+      "id": "/create-position",
+      "type": "CreateAttributeOp",
+      "position": { "x": 400, "y": 100 },
+      "data": {
+        "inputs": {
+          "name": "position",
+          "expression": "[d.x, d.y, 0]",
+          "outputType": "number",
+          "type": "float",
+          "size": 3
+        }
+      }
+    },
+    {
+      "id": "/create-color",
+      "type": "CreateAttributeOp",
+      "position": { "x": 700, "y": 100 },
+      "data": {
+        "inputs": {
+          "name": "fillColor",
+          "expression": "[255, d.value * 5, 0, 255]",
+          "outputType": "number",
+          "type": "uint8",
+          "size": 4
+        }
+      }
+    },
+    {
+      "id": "/viewer",
+      "type": "ViewerOp",
+      "position": { "x": 1000, "y": 100 },
+      "data": {
+        "inputs": {}
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "/data.out.data->/create-position.par.data",
+      "source": "/data",
+      "target": "/create-position",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/create-position.out.data->/create-color.par.data",
+      "source": "/create-position",
+      "target": "/create-color",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/create-color.out.data->/viewer.par.data",
+      "source": "/create-color",
+      "target": "/viewer",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.data"
+    }
+  ],
+  "viewport": { "x": 0, "y": 0, "zoom": 1 }
+}

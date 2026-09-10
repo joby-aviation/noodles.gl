@@ -92,21 +92,97 @@
   gap: 12px;
 }
 
-.chatOption {
+.modelPicker {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  color: #aaa;
-  cursor: pointer;
+  gap: 6px;
+  min-width: 0;
 }
 
-.chatOption input[type="checkbox"] {
+.modelSelect {
+  background: #1e1e1e;
+  border: 1px solid #444;
+  border-radius: 4px;
+  color: #e0e0e0;
+  font-size: 11px;
+  font-family: inherit;
+  padding: 4px 6px;
   cursor: pointer;
+  max-width: 130px;
 }
 
-.chatOption span {
-  user-select: none;
+.modelSelect:focus {
+  outline: none;
+  border-color: #4a9eff;
+}
+
+.usageReadout {
+  font-size: 11px;
+  color: #777;
+  white-space: nowrap;
+}
+
+.settingsGear {
+  background: transparent;
+  border: none;
+  color: #777;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 4px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  opacity: 0.6;
+  transition: opacity 0.2s;
+}
+
+.settingsGear:hover {
+  opacity: 1;
+}
+
+.downloadProgress {
+  width: 220px;
+  height: 6px;
+  accent-color: #3b82f6;
+}
+
+.downloadNote {
+  font-size: 11px;
+  color: #777;
+  max-width: 260px;
+}
+
+.toolTrace {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.toolTraceRow {
+  font-family: "Fira Code", "Consolas", "Monaco", monospace;
+  font-size: 11px;
+  color: #8ab4f8;
+  background: #1a1a1a;
+  border-radius: 3px;
+  padding: 2px 6px;
+}
+
+.chatStopBtn {
+  background: transparent;
+  color: #ff6b6b;
+  border: 1px solid #ff6b6b;
+  border-radius: 6px;
+  padding: 8px 20px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.chatStopBtn:hover {
+  background: #ff6b6b;
+  color: white;
 }
 
 .captureBtn {

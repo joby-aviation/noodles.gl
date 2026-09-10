@@ -2,6 +2,8 @@ import type { DynamicTemplate, GeneratedSQL, OperatorTemplate, StaticTemplate } 
 import { templateRegistry } from './templates'
 import type { CompilationContext, CompiledQuery } from './types'
 import { escapeIdentifier, operatorIdToAlias } from './utils'
+import { addOperatorComment } from './error-attribution'
+import { computeFingerprint } from './fingerprint'
 
 // Minimal operator interface the compiler needs
 export interface CompilableNode {
@@ -43,7 +45,8 @@ export function compile(nodes: CompilableNode[]): CompiledQuery {
     if (!template) throw new Error(`No SQL template for operator type: ${node.type}`)
 
     const sql = resolveTemplate(template, node, ctx)
-    ctes.push(`${alias} AS (${sql})`)
+    const sqlWithComments = addOperatorComment(node.id, node.type, sql)
+    ctes.push(`${alias} AS (\n${sqlWithComments}\n)`)
   }
 
   const lastAlias = ctx.aliases.get(nodes[nodes.length - 1].id)!
@@ -52,10 +55,14 @@ export function compile(nodes: CompilableNode[]): CompiledQuery {
       ? `WITH ${ctes[0]} SELECT * FROM ${lastAlias}`
       : `WITH\n  ${ctes.join(',\n  ')}\nSELECT * FROM ${lastAlias}`
 
+  // Compute topology fingerprint for cache invalidation
+  const fingerprint = computeFingerprint(nodes)
+
   return {
     sql: fullSql,
     paramSlots: ctx.paramSlots,
     operatorAliases,
+    fingerprint: fingerprint.hash,
   }
 }
 

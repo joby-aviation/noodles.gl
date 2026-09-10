@@ -57,6 +57,21 @@ describe('classifyRef', () => {
     expect(classifyRef('/source')).toBe('data')
     expect(classifyRef('./sibling')).toBe('data')
   })
+
+  it('classifies explicit cte: prefix as data', () => {
+    expect(classifyRef('cte:/source')).toBe('data')
+    expect(classifyRef('data:/upstream')).toBe('data')
+  })
+
+  it('classifies explicit param: prefix as param', () => {
+    expect(classifyRef('param:/op.par.value')).toBe('param')
+    expect(classifyRef('param:/threshold')).toBe('param')
+  })
+
+  it('classifies explicit ident: prefix as identifier', () => {
+    expect(classifyRef('ident:column_name')).toBe('identifier')
+    expect(classifyRef('ident:my_field')).toBe('identifier')
+  })
 })
 
 describe('extractOperatorId', () => {
@@ -74,6 +89,12 @@ describe('extractOperatorId', () => {
 
   it('handles relative paths', () => {
     expect(extractOperatorId('./sibling.par.x')).toBe('./sibling')
+  })
+
+  it('strips explicit prefix before extraction', () => {
+    expect(extractOperatorId('param:/op.par.value')).toBe('/op')
+    expect(extractOperatorId('cte:/source')).toBe('/source')
+    expect(extractOperatorId('data:/upstream.out.data')).toBe('/upstream')
   })
 })
 

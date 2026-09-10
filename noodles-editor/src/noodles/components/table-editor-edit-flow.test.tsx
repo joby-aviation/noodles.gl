@@ -1,5 +1,6 @@
-import { cleanup, fireEvent, render } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { userEvent } from 'vitest/browser'
 import { TableEditorOp } from '../operators'
 import type { TableSchema } from '../table-schema'
 import { TableEditor } from './table-editor'
@@ -54,10 +55,13 @@ describe('TableEditor - Edit Flow', () => {
       fireEvent.blur(input)
 
       // Should call onDataChange with new value
-      expect(onDataChange).toHaveBeenCalledWith([
-        { name: 'Charlie', count: 10 },
-        { name: 'Bob', count: 20 },
-      ])
+      expect(onDataChange).toHaveBeenCalledWith(
+        [
+          { name: 'Charlie', count: 10 },
+          { name: 'Bob', count: 20 },
+        ],
+        'Edit cell name'
+      )
     })
 
     it('should allow number cell to be clicked and edited', () => {
@@ -88,10 +92,76 @@ describe('TableEditor - Edit Flow', () => {
       fireEvent.blur(input)
 
       // Should commit on first blur
-      expect(onDataChange).toHaveBeenCalledWith([
-        { name: 'Alice', count: 20 },
-        { name: 'Bob', count: 20 },
+      expect(onDataChange).toHaveBeenCalledWith(
+        [
+          { name: 'Alice', count: 20 },
+          { name: 'Bob', count: 20 },
+        ],
+        'Edit cell count'
+      )
+    })
+
+    it('should render string literals as a dropdown and commit the selection immediately', () => {
+      const onDataChange = vi.fn()
+      const literalSchema: TableSchema = {
+        columns: [
+          {
+            name: 'anchor',
+            type: 'stringLiteral',
+            defaultValue: 'start',
+            options: { values: ['start', 'middle', 'end'] },
+          },
+        ],
+      }
+
+      const { getByText, getByRole } = render(
+        <TableEditor
+          op={mockOp}
+          data={[{ anchor: 'start' }]}
+          schema={literalSchema}
+          onDataChange={onDataChange}
+          onSchemaChange={vi.fn()}
+        />
+      )
+
+      fireEvent.click(getByText('start'))
+
+      const dropdown = getByRole('combobox') as HTMLSelectElement
+      expect(Array.from(dropdown.options, option => option.value)).toEqual([
+        'start',
+        'middle',
+        'end',
       ])
+
+      fireEvent.change(dropdown, { target: { value: 'end' } })
+
+      expect(onDataChange).toHaveBeenCalledWith([{ anchor: 'end' }], 'Edit cell anchor')
+    })
+
+    it('should allow free text editing when a string literal has no configured choices', () => {
+      const onDataChange = vi.fn()
+      const literalSchema: TableSchema = {
+        columns: [{ name: 'anchor', type: 'stringLiteral', defaultValue: '' }],
+      }
+
+      const { getByText, getByRole, queryByRole } = render(
+        <TableEditor
+          op={mockOp}
+          data={[{ anchor: 'custom' }]}
+          schema={literalSchema}
+          onDataChange={onDataChange}
+          onSchemaChange={vi.fn()}
+        />
+      )
+
+      fireEvent.click(getByText('custom'))
+
+      expect(queryByRole('combobox')).toBeNull()
+      const input = getByRole('textbox') as HTMLInputElement
+      fireEvent.change(input, { target: { value: 'updated' } })
+      fireEvent.blur(input)
+
+      expect(onDataChange).toHaveBeenCalledWith([{ anchor: 'updated' }], 'Edit cell anchor')
     })
   })
 
@@ -118,10 +188,13 @@ describe('TableEditor - Edit Flow', () => {
       fireEvent.change(input, { target: { value: 'Charlie' } })
       fireEvent.blur(input)
 
-      expect(onDataChange).toHaveBeenCalledWith([
-        { name: 'Charlie', count: 10 },
-        { name: 'Bob', count: 20 },
-      ])
+      expect(onDataChange).toHaveBeenCalledWith(
+        [
+          { name: 'Charlie', count: 10 },
+          { name: 'Bob', count: 20 },
+        ],
+        'Edit cell name'
+      )
 
       // Simulate parent updating with new data
       const updatedData = [
@@ -148,10 +221,138 @@ describe('TableEditor - Edit Flow', () => {
       fireEvent.change(input, { target: { value: 'David' } })
       fireEvent.blur(input)
 
-      expect(onDataChange).toHaveBeenCalledWith([
-        { name: 'David', count: 10 },
-        { name: 'Bob', count: 20 },
-      ])
+      expect(onDataChange).toHaveBeenCalledWith(
+        [
+          { name: 'David', count: 10 },
+          { name: 'Bob', count: 20 },
+        ],
+        'Edit cell name'
+      )
+    })
+  })
+
+  describe('Committing the active cell when another target is clicked', () => {
+    // Real pointer input is required here: the bug was a mousedown/blur/mouseup
+    // ordering problem that synthetic fireEvent.click() cannot reproduce.
+    const renderTable = (onDataChange: (data: unknown[], description?: string) => void) =>
+      render(
+        <TableEditor
+          op={mockOp}
+          data={data}
+          schema={schema}
+          onDataChange={onDataChange}
+          onSchemaChange={vi.fn()}
+        />
+      )
+
+    const startEdit = async (container: HTMLElement, text: string, newValue: string) => {
+      await userEvent.click(screen.getByText(text))
+      const input = container.querySelector('input.p-inputtext') as HTMLInputElement
+      await userEvent.fill(input, newValue)
+      return input
+    }
+
+    it('commits a pending edit when another cell is clicked', async () => {
+      const onDataChange = vi.fn()
+      const { container } = renderTable(onDataChange)
+
+      await startEdit(container, 'Alice', 'Charlie')
+      await userEvent.click(screen.getByText('Bob'))
+
+      expect(onDataChange).toHaveBeenCalledWith(
+        [
+          { name: 'Charlie', count: 10 },
+          { name: 'Bob', count: 20 },
+        ],
+        'Edit cell name'
+      )
+    })
+
+    it('commits a pending edit before adding a row, and still adds the row', async () => {
+      const onDataChange = vi.fn()
+      const { container } = renderTable(onDataChange)
+
+      await startEdit(container, 'Alice', 'Charlie')
+      await userEvent.click(screen.getByRole('button', { name: /add row/i }))
+
+      const descriptions = onDataChange.mock.calls.map(call => call[1])
+      expect(descriptions).toEqual(['Edit cell name', 'Add table row'])
+
+      const finalData = onDataChange.mock.calls.at(-1)?.[0]
+      expect(finalData).toHaveLength(3)
+      expect(finalData[0]).toEqual({ name: 'Charlie', count: 10 })
+    })
+
+    it('commits a pending edit before deleting a row, and still deletes the row', async () => {
+      const onDataChange = vi.fn()
+      const { container } = renderTable(onDataChange)
+
+      await startEdit(container, 'Alice', 'Charlie')
+
+      const deleteButtons = screen.getAllByRole('button', { name: /delete row/i })
+      await userEvent.click(deleteButtons[1])
+
+      const descriptions = onDataChange.mock.calls.map(call => call[1])
+      expect(descriptions).toEqual(['Edit cell name', 'Delete table row'])
+
+      // The committed edit must survive the delete
+      expect(onDataChange.mock.calls.at(-1)?.[0]).toEqual([{ name: 'Charlie', count: 10 }])
+    })
+
+    it('commits the pending edit only once', async () => {
+      const onDataChange = vi.fn()
+      const { container } = renderTable(onDataChange)
+
+      await startEdit(container, 'Alice', 'Charlie')
+      await userEvent.click(screen.getByText('Bob'))
+
+      const editCalls = onDataChange.mock.calls.filter(call => call[1] === 'Edit cell name')
+      expect(editCalls).toHaveLength(1)
+    })
+
+    it('keeps at most one cell in edit mode at a time', async () => {
+      const onDataChange = vi.fn()
+      const { container } = renderTable(onDataChange)
+      const activeEditors = () => container.querySelectorAll('input.p-inputtext').length
+
+      await userEvent.click(screen.getByText('Alice'))
+      expect(activeEditors()).toBe(1)
+
+      // A different column in a different row
+      await userEvent.click(screen.getByText('20'))
+      expect(activeEditors()).toBe(1)
+
+      // A different column in the same row
+      await userEvent.click(screen.getByText('Bob'))
+      expect(activeEditors()).toBe(1)
+    })
+
+    it('leaves no cell in edit mode after a row mutation', async () => {
+      const onDataChange = vi.fn()
+      const { container } = renderTable(onDataChange)
+      const activeEditors = () => container.querySelectorAll('input.p-inputtext').length
+
+      await userEvent.click(screen.getByText('Alice'))
+      expect(activeEditors()).toBe(1)
+
+      await userEvent.click(screen.getByRole('button', { name: /add row/i }))
+      expect(activeEditors()).toBe(0)
+
+      await userEvent.click(screen.getByText('Bob'))
+      expect(activeEditors()).toBe(1)
+
+      await userEvent.click(screen.getAllByRole('button', { name: /delete row/i })[0])
+      expect(activeEditors()).toBe(0)
+    })
+
+    it('deletes a row normally when no cell is being edited', async () => {
+      const onDataChange = vi.fn()
+      renderTable(onDataChange)
+
+      const deleteButtons = screen.getAllByRole('button', { name: /delete row/i })
+      await userEvent.click(deleteButtons[1])
+
+      expect(onDataChange).toHaveBeenCalledWith([{ name: 'Alice', count: 10 }], 'Delete table row')
     })
   })
 
@@ -196,10 +397,13 @@ describe('TableEditor - Edit Flow', () => {
       fireEvent.blur(input)
 
       // Now it should commit
-      expect(onDataChange).toHaveBeenCalledWith([
-        { name: 'Alicia', count: 10 },
-        { name: 'Bob', count: 20 },
-      ])
+      expect(onDataChange).toHaveBeenCalledWith(
+        [
+          { name: 'Alicia', count: 10 },
+          { name: 'Bob', count: 20 },
+        ],
+        'Edit cell name'
+      )
     })
   })
 
@@ -318,7 +522,8 @@ describe('TableEditor - Edit Flow', () => {
 
       // Should parse to 400
       expect(onDataChange).toHaveBeenCalledWith(
-        expect.arrayContaining([{ amount: 400 }])
+        expect.arrayContaining([{ amount: 400 }]),
+        'Edit cell amount'
       )
     })
 
@@ -354,7 +559,7 @@ describe('TableEditor - Edit Flow', () => {
       let input = container.querySelector('input.p-inputtext') as HTMLInputElement
       fireEvent.change(input, { target: { value: 'abc' } })
       fireEvent.blur(input)
-      expect(onDataChange).toHaveBeenCalledWith([{ score: 0 }])
+      expect(onDataChange).toHaveBeenCalledWith([{ score: 0 }], 'Edit cell score')
 
       onDataChange.mockClear()
 
@@ -363,7 +568,7 @@ describe('TableEditor - Edit Flow', () => {
       input = container.querySelector('input.p-inputtext') as HTMLInputElement
       fireEvent.change(input, { target: { value: '150' } })
       fireEvent.blur(input)
-      expect(onDataChange).toHaveBeenCalledWith([{ score: 100 }])
+      expect(onDataChange).toHaveBeenCalledWith([{ score: 100 }], 'Edit cell score')
 
       onDataChange.mockClear()
 
@@ -372,7 +577,7 @@ describe('TableEditor - Edit Flow', () => {
       input = container.querySelector('input.p-inputtext') as HTMLInputElement
       fireEvent.change(input, { target: { value: '-10' } })
       fireEvent.blur(input)
-      expect(onDataChange).toHaveBeenCalledWith([{ score: 0 }])
+      expect(onDataChange).toHaveBeenCalledWith([{ score: 0 }], 'Edit cell score')
     })
 
     it('should handle escape key to cancel number edit', () => {

@@ -1,127 +1,4 @@
 {
-  "nodes": [
-    {
-      "id": "/deck",
-      "type": "DeckRendererOp",
-      "data": {
-        "inputs": {},
-        "locked": false
-      },
-      "position": {
-        "x": 400,
-        "y": 0
-      }
-    },
-    {
-      "id": "/out",
-      "type": "OutOp",
-      "data": {
-        "inputs": {},
-        "locked": false
-      },
-      "position": {
-        "x": 696,
-        "y": 0
-      }
-    },
-    {
-      "id": "/data-source",
-      "type": "FileOp",
-      "data": {
-        "inputs": {
-          "url": "https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/bart.geo.json"
-        },
-        "locked": false
-      },
-      "position": {
-        "x": -395.9478357380689,
-        "y": -300.04661487236405
-      }
-    },
-    {
-      "id": "/geojson-layer",
-      "type": "GeoJsonLayerOp",
-      "data": {
-        "inputs": {
-          "pointType": "circle+text",
-          "getPointRadius": 4,
-          "stroked": false,
-          "getLineWidth": 100,
-          "lineWidthMinPixels": 4,
-          "extruded": true,
-          "getElevation": 30
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 0,
-        "y": -300
-      }
-    },
-    {
-      "id": "/fill-color",
-      "type": "ColorOp",
-      "data": {
-        "inputs": {
-          "color": "#01017e"
-        },
-        "locked": false
-      },
-      "position": {
-        "x": -400,
-        "y": 17.466148723640398
-      }
-    },
-    {
-      "id": "/line-color-accessor",
-      "type": "AccessorOp",
-      "data": {
-        "inputs": {
-          "expression": "d.properties.color || '#000'"
-        },
-        "locked": false
-      },
-      "position": {
-        "x": -400,
-        "y": 122.86903440621529
-      }
-    },
-    {
-      "id": "/text-accessor",
-      "type": "AccessorOp",
-      "data": {
-        "inputs": {
-          "expression": "d.properties.name"
-        },
-        "locked": false
-      },
-      "position": {
-        "x": -397.2985571587125,
-        "y": -85.09544950055495
-      }
-    },
-    {
-      "type": "MaplibreBasemapOp",
-      "id": "/maplibre-basemap",
-      "position": {
-        "x": -1.3507214206437084,
-        "y": 546.3063263041065
-      },
-      "data": {
-        "inputs": {
-          "mapStyle": "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",
-          "viewState": {
-            "latitude": 37.74,
-            "longitude": -122.169,
-            "zoom": 11,
-            "pitch": 34,
-            "bearing": 0
-          }
-        },
-        "locked": false
-      }
-    }
-  ],
   "edges": [
     {
       "id": "/deck.out.vis->/out.par.vis",
@@ -178,6 +55,147 @@
     "y": 46.884631018890104,
     "zoom": 0.5895523675768745
   },
+  "version": 14,
+  "name": "GeoJSON BART Stations",
+  "editorSettings": {
+    "layoutMode": "noodles-on-top",
+    "showOverlay": true
+  },
+  "nodes": [
+    {
+      "id": "/deck",
+      "type": "DeckRendererOp",
+      "data": {
+        "inputs": {},
+        "locked": false
+      },
+      "position": {
+        "x": 1400,
+        "y": 100
+      }
+    },
+    {
+      "id": "/out",
+      "type": "OutOp",
+      "data": {
+        "inputs": {
+          "display": "fixed",
+          "width": 1920,
+          "height": 1080,
+          "lod": 2,
+          "waitForData": true,
+          "codec": "avc",
+          "bitrateMbps": 10,
+          "bitrateMode": "constant",
+          "scaleControl": 0.3,
+          "framerate": 30,
+          "captureDelay": 50
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 1800,
+        "y": 100
+      }
+    },
+    {
+      "id": "/data-source",
+      "type": "FileOp",
+      "data": {
+        "inputs": {
+          "url": "https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/bart.geo.json"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 200,
+        "y": 100
+      }
+    },
+    {
+      "id": "/geojson-layer",
+      "type": "GeoJsonLayerOp",
+      "data": {
+        "inputs": {
+          "pointType": "circle+text",
+          "getPointRadius": 4,
+          "stroked": false,
+          "getLineWidth": 100,
+          "lineWidthMinPixels": 4,
+          "extruded": true,
+          "getElevation": 30
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 1000,
+        "y": 100
+      }
+    },
+    {
+      "id": "/fill-color",
+      "type": "ColorOp",
+      "data": {
+        "inputs": {
+          "color": "#01017e"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 600,
+        "y": 340
+      }
+    },
+    {
+      "id": "/line-color-accessor",
+      "type": "AccessorOp",
+      "data": {
+        "inputs": {
+          "expression": "d.properties.color || '#000'"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 600,
+        "y": 460
+      }
+    },
+    {
+      "id": "/text-accessor",
+      "type": "AccessorOp",
+      "data": {
+        "inputs": {
+          "expression": "d.properties.name"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 600,
+        "y": 580
+      }
+    },
+    {
+      "type": "MaplibreBasemapOp",
+      "id": "/maplibre-basemap",
+      "position": {
+        "x": 1400,
+        "y": 340
+      },
+      "data": {
+        "inputs": {
+          "mapStyle": "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",
+          "viewState": {
+            "latitude": 37.74,
+            "longitude": -122.169,
+            "zoom": 11,
+            "pitch": 34,
+            "bearing": 0
+          }
+        },
+        "locked": false
+      }
+    }
+  ],
   "timeline": {
     "sheetsById": {
       "Noodles": {
@@ -195,7 +213,5 @@
       "-AcuXX9WdPaXNlc4",
       "hPcEOr80dLTuA80M"
     ]
-  },
-  "version": 6,
-  "name": "GeoJSON BART Stations"
+  }
 }

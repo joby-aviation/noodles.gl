@@ -1,4 +1,5 @@
 {
+  "version": 17,
   "nodes": [
     {
       "id": "/deck",
@@ -8,8 +9,8 @@
         "locked": false
       },
       "position": {
-        "x": 1200,
-        "y": 200
+        "x": 1877.1386533811965,
+        "y": 484.966557444365
       }
     },
     {
@@ -20,8 +21,8 @@
         "locked": false
       },
       "position": {
-        "x": 1500,
-        "y": 200
+        "x": 2168.9502377889485,
+        "y": 498.83686713567886
       }
     },
     {
@@ -32,11 +33,17 @@
           "format": "csv",
           "url": "@/data.csv"
         },
-        "locked": false
+        "locked": false,
+        "visibleInputs": [
+          "format",
+          "url",
+          "text",
+          "autoType"
+        ]
       },
       "position": {
-        "x": 0,
-        "y": 200
+        "x": -1110.2485887443504,
+        "y": 426.5874676822935
       }
     },
     {
@@ -44,13 +51,19 @@
       "type": "ArcLayerOp",
       "data": {
         "inputs": {
-          "getWidth": 4
+          "getWidth": 4,
+          "getSourcePosition": {
+            "attributeName": "sourcePosition"
+          },
+          "getTargetPosition": {
+            "attributeName": "targetPosition"
+          }
         },
         "locked": false
       },
       "position": {
-        "x": 897.6842857142857,
-        "y": -143.5742857142857
+        "x": 1000,
+        "y": 100
       }
     },
     {
@@ -59,14 +72,26 @@
       "data": {
         "inputs": {
           "opacity": 0.8,
-          "getLineColor": "#ffffffff",
-          "getRadius": 10
+          "getRadius": 10,
+          "getPosition": {
+            "attributeName": "position"
+          }
         },
-        "locked": false
+        "locked": false,
+        "visibleInputs": [
+          "data",
+          "visible",
+          "opacity",
+          "getPosition",
+          "getFillColor",
+          "getLineColor",
+          "getRadius",
+          "parameters"
+        ]
       },
       "position": {
-        "x": 837.4757142857144,
-        "y": 195.36857142857144
+        "x": 1000,
+        "y": 460
       }
     },
     {
@@ -75,50 +100,34 @@
       "data": {
         "inputs": {
           "opacity": 0.8,
-          "getLineColor": "#ffffffff",
-          "getRadius": 10
+          "getRadius": 10,
+          "getPosition": {
+            "attributeName": "position"
+          }
         },
-        "locked": false
+        "locked": false,
+        "visibleInputs": [
+          "data",
+          "visible",
+          "opacity",
+          "getPosition",
+          "getFillColor",
+          "getLineColor",
+          "getRadius",
+          "parameters"
+        ]
       },
       "position": {
-        "x": 851.3700000000001,
-        "y": 589.8885714285714
-      }
-    },
-    {
-      "id": "/pickup-position",
-      "type": "AccessorOp",
-      "data": {
-        "inputs": {
-          "expression": "[d.pickup_longitude, d.pickup_latitude]"
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 352.2185714285714,
-        "y": 157.89285714285714
-      }
-    },
-    {
-      "id": "/dropoff-position",
-      "type": "AccessorOp",
-      "data": {
-        "inputs": {
-          "expression": "[d.dropoff_longitude, d.dropoff_latitude]"
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 352.2185714285714,
-        "y": 274.52714285714285
+        "x": 1000,
+        "y": 820
       }
     },
     {
       "type": "MaplibreBasemapOp",
       "id": "/maplibre-basemap",
       "position": {
-        "x": 1184.8328571428572,
-        "y": 484.2142857142857
+        "x": 1777.2724236037366,
+        "y": 805.4143536539852
       },
       "data": {
         "inputs": {
@@ -138,12 +147,12 @@
       "type": "ColorOp",
       "id": "/pickup",
       "position": {
-        "x": 471.3628571428572,
-        "y": 62.52428571428571
+        "x": 445.082649550772,
+        "y": 257.0742657257326
       },
       "data": {
         "inputs": {
-          "color": "#8d12af"
+          "color": "#8d12afff"
         },
         "locked": false
       }
@@ -152,12 +161,12 @@
       "type": "ColorOp",
       "id": "/dropoff",
       "position": {
-        "x": 443.5742857142857,
-        "y": 420.8414285714286
+        "x": 454.52215437266744,
+        "y": 460.09413512973737
       },
       "data": {
         "inputs": {
-          "color": "#105b89"
+          "color": "#105b89ff"
         },
         "locked": false
       }
@@ -166,12 +175,76 @@
       "type": "BlendingOp",
       "id": "/blending",
       "position": {
-        "x": 272.8555514364492,
-        "y": 705.7558236067697
+        "x": 478.2792246470351,
+        "y": 596.6639910145219
       },
       "data": {
         "inputs": {
           "mode": "additive"
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/pickup-position-sourcePosition",
+      "type": "CreateAttributeOp",
+      "position": {
+        "x": -764.90300917032,
+        "y": 417.04102987723445
+      },
+      "data": {
+        "inputs": {
+          "name": "sourcePosition",
+          "expression": "[d.pickup_longitude, d.pickup_latitude]",
+          "size": 2
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/pickup-position-position",
+      "type": "CreateAttributeOp",
+      "position": {
+        "x": -214.3917624119166,
+        "y": 240.47330329584048
+      },
+      "data": {
+        "inputs": {
+          "expression": "[d.pickup_longitude, d.pickup_latitude]",
+          "size": 2,
+          "name": "position"
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/dropoff-position-targetPosition",
+      "type": "CreateAttributeOp",
+      "position": {
+        "x": -247.8042947296231,
+        "y": 658.8841209387297
+      },
+      "data": {
+        "inputs": {
+          "name": "targetPosition",
+          "expression": "[d.dropoff_longitude, d.dropoff_latitude]",
+          "size": 2
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/dropoff-position-position",
+      "type": "CreateAttributeOp",
+      "position": {
+        "x": 350.4391410540754,
+        "y": 754.7876400433952
+      },
+      "data": {
+        "inputs": {
+          "expression": "[d.dropoff_longitude, d.dropoff_latitude]",
+          "size": 2,
+          "name": "position"
         },
         "locked": false
       }
@@ -186,53 +259,25 @@
       "targetHandle": "par.vis"
     },
     {
-      "id": "/data-source.out.data->/arc-layer.par.data",
-      "source": "/data-source",
+      "id": "/dropoff-position-targetPosition.out.data->/arc-layer.par.data",
+      "source": "/dropoff-position-targetPosition",
       "target": "/arc-layer",
       "sourceHandle": "out.data",
       "targetHandle": "par.data"
     },
     {
-      "id": "/data-source.out.data->/pickup-layer.par.data",
-      "source": "/data-source",
+      "id": "/pickup-position-position.out.data->/pickup-layer.par.data",
+      "source": "/pickup-position-position",
       "target": "/pickup-layer",
       "sourceHandle": "out.data",
       "targetHandle": "par.data"
     },
     {
-      "id": "/data-source.out.data->/dropoff-layer.par.data",
-      "source": "/data-source",
+      "id": "/dropoff-position-position.out.data->/dropoff-layer.par.data",
+      "source": "/dropoff-position-position",
       "target": "/dropoff-layer",
       "sourceHandle": "out.data",
       "targetHandle": "par.data"
-    },
-    {
-      "id": "/pickup-position.out.accessor->/arc-layer.par.getSourcePosition",
-      "source": "/pickup-position",
-      "target": "/arc-layer",
-      "sourceHandle": "out.accessor",
-      "targetHandle": "par.getSourcePosition"
-    },
-    {
-      "id": "/dropoff-position.out.accessor->/arc-layer.par.getTargetPosition",
-      "source": "/dropoff-position",
-      "target": "/arc-layer",
-      "sourceHandle": "out.accessor",
-      "targetHandle": "par.getTargetPosition"
-    },
-    {
-      "id": "/pickup-position.out.accessor->/pickup-layer.par.getPosition",
-      "source": "/pickup-position",
-      "target": "/pickup-layer",
-      "sourceHandle": "out.accessor",
-      "targetHandle": "par.getPosition"
-    },
-    {
-      "id": "/dropoff-position.out.accessor->/dropoff-layer.par.getPosition",
-      "source": "/dropoff-position",
-      "target": "/dropoff-layer",
-      "sourceHandle": "out.accessor",
-      "targetHandle": "par.getPosition"
     },
     {
       "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap",
@@ -310,28 +355,59 @@
       "target": "/dropoff-layer",
       "targetHandle": "par.parameters",
       "id": "/blending.out.parameters->/dropoff-layer.par.parameters"
+    },
+    {
+      "id": "/data-source.out.data->/pickup-position-sourcePosition.par.data",
+      "source": "/data-source",
+      "target": "/pickup-position-sourcePosition",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/pickup-position-sourcePosition.out.data->/pickup-position-position.par.data",
+      "source": "/pickup-position-sourcePosition",
+      "target": "/pickup-position-position",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/pickup-position-sourcePosition.out.data->/dropoff-position-targetPosition.par.data",
+      "source": "/pickup-position-sourcePosition",
+      "target": "/dropoff-position-targetPosition",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/dropoff-position-targetPosition.out.data->/dropoff-position-position.par.data",
+      "source": "/dropoff-position-targetPosition",
+      "target": "/dropoff-position-position",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.data"
     }
   ],
   "viewport": {
-    "x": 172.53317127277438,
-    "y": 204.01752158305402,
-    "zoom": 0.467987771000214
+    "x": 12.436492898405163,
+    "y": 42.41307772493465,
+    "zoom": 0.5358867312681479
   },
   "timeline": {
     "sheetsById": {
       "Noodles": {
+        "sequence": {
+          "length": 10,
+          "subUnitsPerUnit": 30,
+          "tracksByObject": {}
+        },
         "staticOverrides": {
-          "byObject": {
-            "editor": {
-              "layoutMode": "noodles-on-top"
-            }
-          }
+          "byObject": {}
         }
       }
     },
     "definitionVersion": "0.4.0",
     "revisionHistory": []
   },
-  "version": 6,
-  "name": "NYC Taxis"
+  "editorSettings": {
+    "showOverlay": true,
+    "showDebugInfo": false
+  }
 }

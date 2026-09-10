@@ -2,11 +2,13 @@
 
 This module enables external AI tools and scripts to control the Noodles application programmatically through a WebSocket-based API.
 
+> **Note**: For MCP clients (Claude Code, Claude Desktop, Cursor), the recommended path is now **WebMCP** (`src/webmcp/`), which registers the full in-app AI tool surface on `navigator.modelContext` under the same `?externalControl=true` flag — no proxy process required. See "Connecting Claude Code to a Running Browser Instance" in the root `AGENTS.md`. The WebSocket bridge below remains available as a legacy path and for custom non-MCP tooling.
+
 ## Architecture
 
 The external control system supports two connection methods:
 
-### Option 1: MCP Protocol (Recommended for Claude Desktop)
+### Option 1: MCP Protocol (Legacy — prefer WebMCP)
 
 Use the MCP proxy to connect Claude Desktop directly to Noodles:
 

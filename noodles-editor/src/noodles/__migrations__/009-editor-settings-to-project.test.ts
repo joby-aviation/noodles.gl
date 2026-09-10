@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { NoodlesProjectJSON } from '../utils/serialization'
-import { down, up } from './009-editor-settings-to-project'
+import { down, type EditorSettingsV9, up } from './009-editor-settings-to-project'
 
 describe('009-editor-settings-to-project', () => {
   it('should migrate editor settings from Theatre.js to project-level', async () => {
@@ -89,7 +89,7 @@ describe('009-editor-settings-to-project', () => {
   })
 
   it('should migrate back down correctly', async () => {
-    const projectWithSettings: NoodlesProjectJSON = {
+    const projectWithSettings: NoodlesProjectJSON & { editorSettings?: EditorSettingsV9 } = {
       version: 9,
       nodes: [],
       edges: [],

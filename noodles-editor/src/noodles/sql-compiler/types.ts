@@ -43,6 +43,8 @@ export interface CompiledQuery {
   paramSlots: ParamSlot[]
   // Maps operator ID → CTE alias for error attribution
   operatorAliases: Map<string, string>
+  // Topology fingerprint for cache invalidation (optional for backward compat)
+  fingerprint?: string
 }
 
 // Result of executing a compiled query

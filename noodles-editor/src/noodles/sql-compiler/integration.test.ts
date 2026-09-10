@@ -87,7 +87,7 @@ describe('SQL Compiler Integration (DuckDB)', () => {
     const result = await execute(compiled, [30])
     const rows = result.toArray()
     expect(rows).toHaveLength(2) // Charlie (35) and Eve (32)
-    expect(rows.every((r: any) => r.age > 30)).toBe(true)
+    expect(rows.every((r: Record<string, unknown>) => r.age > 30)).toBe(true)
   })
 
   it('executes sort', async () => {
@@ -113,7 +113,7 @@ describe('SQL Compiler Integration (DuckDB)', () => {
     const result = await execute(compiled, [])
     const rows = result.toArray()
     expect(rows).toHaveLength(2)
-    const eng = rows.find((r: any) => r.department === 'Engineering')
+    const eng = rows.find((r: Record<string, unknown>) => r.department === 'Engineering')
     expect(eng).toBeDefined()
     expect(Number(eng!.n)).toBe(3)
   })
@@ -150,7 +150,7 @@ describe('SQL Compiler Integration (DuckDB)', () => {
     const result = await execute(compiled, [])
     const rows = result.toArray()
     expect(rows).toHaveLength(5)
-    const charlie = rows.find((r: any) => r.name === 'Charlie')
+    const charlie = rows.find((r: Record<string, unknown>) => r.name === 'Charlie')
     expect(Number(charlie!.rank)).toBe(1) // Highest salary in Engineering
   })
 

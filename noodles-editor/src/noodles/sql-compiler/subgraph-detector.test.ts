@@ -9,7 +9,7 @@ import {
 } from './subgraph-detector'
 
 // Create a mock operator with a unique constructor per type so displayName works
-function makeMockOp(id: string, type: string, inputs: Record<string, unknown>): any {
+function makeMockOp(id: string, type: string, inputs: Record<string, unknown>): unknown {
   const inputFields: Record<string, { value: unknown }> = {}
   for (const [key, val] of Object.entries(inputs)) {
     inputFields[key] = { value: val }
@@ -52,7 +52,7 @@ describe('adaptOperator', () => {
 })
 
 describe('detectCompilableSubgraphs', () => {
-  const operators = new Map<string, any>()
+  const operators = new Map<string, unknown>()
   const upstreamMap = new Map<string, string[]>()
 
   beforeAll(() => {
@@ -92,7 +92,7 @@ describe('detectCompilableSubgraphs', () => {
   })
 
   it('does not compile non-compilable operator chains', () => {
-    const ops = new Map<string, any>([
+    const ops = new Map<string, unknown>([
       ['/code1', makeMockOp('/code1', 'CodeOp', { code: 'return []' })],
       ['/code2', makeMockOp('/code2', 'CodeOp', { code: 'return data' })],
     ])
@@ -108,7 +108,7 @@ describe('detectCompilableSubgraphs', () => {
   it('handles mixed compilable/non-compilable chains', () => {
     // /file → /code → /filter → /sort
     // Only /filter → /sort is compilable (code breaks the chain)
-    const ops = new Map<string, any>([
+    const ops = new Map<string, unknown>([
       ['/file', makeMockOp('/file', 'File', { url: 'x.csv', format: 'csv' })],
       ['/code', makeMockOp('/code', 'CodeOp', { code: 'return data' })],
       [
@@ -136,7 +136,7 @@ describe('detectCompilableSubgraphs', () => {
 
 describe('resolveParamValues', () => {
   it('resolves field values from operators', () => {
-    const ops = new Map<string, any>([
+    const ops = new Map<string, unknown>([
       ['/file', makeMockOp('/file', 'File', { url: 'data.csv', format: 'csv' })],
       [
         '/filter',
@@ -166,7 +166,7 @@ describe('resolveParamValues', () => {
   })
 
   it('handles missing fields gracefully', () => {
-    const ops = new Map<string, any>([
+    const ops = new Map<string, unknown>([
       ['/op', makeMockOp('/op', 'FilterOp', { columnName: 'x', condition: 'eq', value: '1' })],
     ])
     const compiled = {

@@ -4,10 +4,13 @@
   display: flex;
   align-items: center;
   font-size: 14px;
-  position: absolute;
+  position: relative;
+  min-width: 0;
   z-index: var(--z-index-chrome);
 }
 
+/* Segments ellipsize rather than wrapping: the bar is only 40px tall, and a wrapped
+   second line would just be clipped */
 .segment {
   background: none;
   border: none;
@@ -16,6 +19,9 @@
   padding: 4px 6px;
   border-radius: 4px;
   font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .segment:hover {
@@ -31,6 +37,7 @@
   margin: 0 4px;
   color: var(--color-text-secondary);
   cursor: pointer;
+  flex: 0 0 auto;
 }
 
 .unsavedIndicator {

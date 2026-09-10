@@ -41,9 +41,27 @@ export function parseMustacheRefs(sql: string): MustacheRef[] {
 }
 
 // Determine if a path references an operator's data output or a parameter value.
-// Convention: paths ending in .out.* or with no field suffix reference data (→ CTE alias)
-// Paths containing .par. or .inputs. reference parameter values (→ $N)
-export function classifyRef(path: string): 'data' | 'param' {
+// Supports explicit prefixes for clarity:
+//   {{cte:/op}} or {{data:/op}}    → CTE alias (upstream data)
+//   {{param:/op.par.value}}         → parameter value
+//   {{ident:column_name}}           → identifier (backward compat, treated as param)
+//
+// Legacy convention (no prefix):
+//   Paths ending in .out.* or with no field suffix → data (CTE alias)
+//   Paths containing .par. or .inputs. → param
+export function classifyRef(path: string): 'data' | 'param' | 'identifier' {
+  // Check for explicit prefixes
+  if (path.startsWith('cte:') || path.startsWith('data:')) {
+    return 'data'
+  }
+  if (path.startsWith('param:')) {
+    return 'param'
+  }
+  if (path.startsWith('ident:')) {
+    return 'identifier'
+  }
+
+  // Legacy heuristic-based classification
   if (path.includes('.par.') || path.includes('.inputs.')) return 'param'
   if (path.includes('.out.')) return 'data'
   // Strip leading ./ or / prefix before checking for dots
@@ -54,16 +72,23 @@ export function classifyRef(path: string): 'data' | 'param' {
 
 // Extract the operator ID from a path reference
 export function extractOperatorId(path: string): string {
+  // Strip explicit prefix if present
+  let actualPath = path
+  if (path.includes(':')) {
+    const colonIdx = path.indexOf(':')
+    actualPath = path.substring(colonIdx + 1)
+  }
+
   // /some-op.par.value → /some-op
   // /some-op.out.data → /some-op
   // /some-op → /some-op
   // ./relative.par.x → ./relative
   let searchStart = 0
-  if (path.startsWith('./')) searchStart = 2
-  else if (path.startsWith('/')) searchStart = 1
-  const dotIndex = path.indexOf('.', searchStart)
-  if (dotIndex === -1) return path
-  return path.substring(0, dotIndex)
+  if (actualPath.startsWith('./')) searchStart = 2
+  else if (actualPath.startsWith('/')) searchStart = 1
+  const dotIndex = actualPath.indexOf('.', searchStart)
+  if (dotIndex === -1) return actualPath
+  return actualPath.substring(0, dotIndex)
 }
 
 export function parseDuckDbSQL(
@@ -90,10 +115,14 @@ export function parseDuckDbSQL(
         result = result.substring(0, ref.start) + alias + result.substring(ref.end)
         if (!upstreamRefs.includes(opId)) upstreamRefs.push(opId)
       }
-    } else {
+    } else if (classification === 'param') {
       const idx = paramIndex++
       params.push({ index: idx, path: ref.path })
       result = `${result.substring(0, ref.start)}$${idx}${result.substring(ref.end)}`
+    } else if (classification === 'identifier') {
+      // Identifiers are handled separately (not replaced here)
+      // This is for backward compatibility with {{ident:column}} syntax
+      // which is typically processed by the template system, not mustache parser
     }
   }
 

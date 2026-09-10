@@ -1,0 +1,165 @@
+{
+  "version": 6,
+  "nodes": [
+    {
+      "id": "/spatial-points",
+      "type": "DuckDbOp",
+      "position": { "x": 100, "y": 100 },
+      "data": {
+        "inputs": {
+          "query": "-- DuckDB Spatial Extension Demo: WKB Point Geometries\n-- ST_AsWKB automatically converts to Well-Known Binary format\n-- DuckDbOp detects and promotes WKB Points to native GeoArrow for zero-copy rendering\n\nSELECT \n  id,\n  name,\n  category,\n  ST_AsWKB(ST_Point(lng, lat)) as geometry,\n  value\nFROM (\n  VALUES\n    (1, 'San Francisco', 'city', -122.4194, 37.7749, 874961),\n    (2, 'Los Angeles', 'city', -118.2437, 34.0522, 3979576),\n    (3, 'San Diego', 'city', -117.1611, 32.7157, 1423851),\n    (4, 'Sacramento', 'city', -121.4944, 38.5816, 513624),\n    (5, 'San Jose', 'city', -121.8863, 37.3382, 1030119)\n) AS points(id, name, category, lng, lat, value)"
+        }
+      }
+    },
+    {
+      "id": "/point-layer",
+      "type": "ScatterplotLayerOp",
+      "position": { "x": 400, "y": 100 },
+      "data": {
+        "inputs": {
+          "radiusScale": 6,
+          "radiusMinPixels": 5,
+          "radiusMaxPixels": 30,
+          "getFillColor": [255, 140, 0, 200]
+        }
+      }
+    },
+    {
+      "id": "/spatial-buffer",
+      "type": "DuckDbOp",
+      "position": { "x": 100, "y": 300 },
+      "data": {
+        "inputs": {
+          "query": "-- Create 50km buffer around points using ST_Buffer\n-- Returns Polygon geometries as WKB\n\nSELECT \n  id,\n  name,\n  ST_AsWKB(\n    ST_Buffer(\n      ST_Point(lng, lat), \n      50000  -- 50km buffer in meters\n    )\n  ) as geometry\nFROM (\n  VALUES\n    (1, 'SF Buffer', -122.4194, 37.7749),\n    (2, 'LA Buffer', -118.2437, 34.0522)\n) AS points(id, name, lng, lat)"
+        }
+      }
+    },
+    {
+      "id": "/buffer-layer",
+      "type": "SolidPolygonLayerOp",
+      "position": { "x": 400, "y": 300 },
+      "data": {
+        "inputs": {
+          "filled": true,
+          "getFillColor": [0, 255, 255, 50],
+          "getLineColor": [0, 200, 200, 200],
+          "getLineWidth": 2
+        }
+      }
+    },
+    {
+      "id": "/spatial-distance",
+      "type": "DuckDbOp",
+      "position": { "x": 100, "y": 500 },
+      "data": {
+        "inputs": {
+          "query": "-- Calculate distances and filter by proximity\n-- ST_Distance returns distance in meters\n\nWITH cities AS (\n  SELECT \n    name,\n    ST_Point(lng, lat) as geom,\n    lng,\n    lat\n  FROM (\n    VALUES\n      ('San Francisco', -122.4194, 37.7749),\n      ('Oakland', -122.2711, 37.8044),\n      ('Berkeley', -122.2728, 37.8715),\n      ('San Jose', -121.8863, 37.3382)\n  ) AS t(name, lng, lat)\n),\ncentroid AS (\n  SELECT ST_Point(-122.4194, 37.7749) as center_point\n)\nSELECT \n  c.name,\n  ST_AsWKB(c.geom) as geometry,\n  ROUND(ST_Distance(c.geom, ct.center_point) / 1000, 2) as distance_km\nFROM cities c, centroid ct\nWHERE ST_Distance(c.geom, ct.center_point) < 50000  -- Within 50km\nORDER BY distance_km"
+        }
+      }
+    },
+    {
+      "id": "/nearby-layer",
+      "type": "ScatterplotLayerOp",
+      "position": { "x": 400, "y": 500 },
+      "data": {
+        "inputs": {
+          "radiusScale": 8,
+          "radiusMinPixels": 8,
+          "getFillColor": [255, 0, 255, 180]
+        }
+      }
+    },
+    {
+      "id": "/text-labels",
+      "type": "TextLayerOp",
+      "position": { "x": 700, "y": 100 },
+      "data": {
+        "inputs": {
+          "getSize": 16,
+          "getColor": [255, 255, 255, 255],
+          "getTextAnchor": "middle",
+          "getAlignmentBaseline": "bottom",
+          "getText": "d.name"
+        }
+      }
+    },
+    {
+      "id": "/deck",
+      "type": "DeckRendererOp",
+      "position": { "x": 1000, "y": 300 },
+      "data": {
+        "inputs": {
+          "basemap": {
+            "mapStyle": "https://basemaps.cartocdn.com/gl/dark-matter-nolabels-gl-style/style.json",
+            "latitude": 37.5,
+            "longitude": -121.5,
+            "zoom": 6.5
+          }
+        }
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "/spatial-points.out.table->/point-layer.par.data",
+      "source": "/spatial-points",
+      "target": "/point-layer",
+      "sourceHandle": "out.table",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/spatial-points.out.table->/text-labels.par.data",
+      "source": "/spatial-points",
+      "target": "/text-labels",
+      "sourceHandle": "out.table",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/spatial-buffer.out.table->/buffer-layer.par.data",
+      "source": "/spatial-buffer",
+      "target": "/buffer-layer",
+      "sourceHandle": "out.table",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/spatial-distance.out.table->/nearby-layer.par.data",
+      "source": "/spatial-distance",
+      "target": "/nearby-layer",
+      "sourceHandle": "out.table",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/point-layer.out.layer->/deck.par.layers",
+      "source": "/point-layer",
+      "target": "/deck",
+      "sourceHandle": "out.layer",
+      "targetHandle": "par.layers"
+    },
+    {
+      "id": "/text-labels.out.layer->/deck.par.layers",
+      "source": "/text-labels",
+      "target": "/deck",
+      "sourceHandle": "out.layer",
+      "targetHandle": "par.layers"
+    },
+    {
+      "id": "/buffer-layer.out.layer->/deck.par.layers",
+      "source": "/buffer-layer",
+      "target": "/deck",
+      "sourceHandle": "out.layer",
+      "targetHandle": "par.layers"
+    },
+    {
+      "id": "/nearby-layer.out.layer->/deck.par.layers",
+      "source": "/nearby-layer",
+      "target": "/deck",
+      "sourceHandle": "out.layer",
+      "targetHandle": "par.layers"
+    }
+  ],
+  "viewport": {
+    "x": 0,
+    "y": 0,
+    "zoom": 0.8
+  }
+}

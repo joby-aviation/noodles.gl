@@ -10,10 +10,10 @@ type ConnectionMinimal = {
 
 const mockEdgeId = vi.hoisted(() => (connection: ConnectionMinimal) => {
   const { source, sourceHandle, target, targetHandle } = connection
-  return `${source}:${sourceHandle}->${target}:${targetHandle}`
+  return `${source}.${sourceHandle}->${target}.${targetHandle}`
 })
 
-vi.mock('../utils/id-utils', () => ({
+vi.mock('../utils/migration-utils', () => ({
   edgeId: mockEdgeId,
 }))
 
@@ -38,7 +38,7 @@ describe('migrations 001', () => {
     ],
     edges: [
       {
-        id: '1:bbox->2:viewState',
+        id: '1.bbox->2.viewState',
         source: '1',
         target: '2',
         sourceHandle: 'bbox',
@@ -53,11 +53,11 @@ describe('migrations 001', () => {
     const migrated = await up(project)
 
     expect(migrated.edges[0].sourceHandle).toEqual('viewState')
-    expect(migrated.edges[0].id).toEqual('1:viewState->2:viewState')
+    expect(migrated.edges[0].id).toEqual('1.viewState->2.viewState')
 
     const reverted = await down(migrated)
     expect(reverted.edges[0].sourceHandle).toEqual('bbox')
-    expect(reverted.edges[0].id).toEqual('1:bbox->2:viewState')
+    expect(reverted.edges[0].id).toEqual('1.bbox->2.viewState')
     expect(reverted).toEqual(project)
   })
 })

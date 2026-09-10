@@ -1,6 +1,31 @@
 export type { CompilableNode } from './compiler'
 
 export { collectSubgraph, compile, isCompilable } from './compiler'
+
+export {
+  acceptsArrowTables,
+  getCapabilities,
+  isCompilableByCapability,
+  producesArrowTables,
+  registerCapabilities,
+  registerSQLCompilableOperators,
+  type SQLCapabilities,
+} from './capabilities'
+
+export {
+  addOperatorComment,
+  attributeError,
+  enrichErrorContext,
+  extractLineNumber,
+  findOperatorAtLine,
+  OperatorError,
+} from './error-attribution'
+
+export {
+  computeFingerprint,
+  fingerprintsMatch,
+  type TopologyFingerprint,
+} from './fingerprint'
 export {
   collectParamValues,
   execute,

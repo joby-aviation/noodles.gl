@@ -24,7 +24,7 @@ describe('Bug Fixes', () => {
         pattern: '[',
         replacement: '',
         outputColumn: 'result',
-      } as any)
+      } as unknown)
 
       expect(result.data).toEqual([
         { text: 'hello world', result: null },
@@ -44,7 +44,7 @@ describe('Bug Fixes', () => {
         pattern: '(?<',
         replacement: 'X',
         outputColumn: 'result',
-      } as any)
+      } as unknown)
 
       expect(result.data).toEqual([
         { text: 'hello world', result: 'hello world' },
@@ -70,7 +70,7 @@ describe('Bug Fixes', () => {
         order: 'desc',
         windowSize: 0,
         outputColumn: 'rank',
-      } as any)
+      } as unknown)
 
       expect(result.data.map(r => r.rank)).toEqual([1, 2, 2, 4])
     })
@@ -91,7 +91,7 @@ describe('Bug Fixes', () => {
         order: 'desc',
         windowSize: 0,
         outputColumn: 'dense_rank',
-      } as any)
+      } as unknown)
 
       expect(result.data.map(r => r.dense_rank)).toEqual([1, 2, 2, 3])
     })
@@ -115,7 +115,7 @@ describe('Bug Fixes', () => {
         order: 'desc',
         windowSize: 0,
         outputColumn: 'result',
-      } as any)
+      } as unknown)
 
       const denseOp = new WindowOp('/dense')
       const denseResult = denseOp.execute({
@@ -127,7 +127,7 @@ describe('Bug Fixes', () => {
         order: 'desc',
         windowSize: 0,
         outputColumn: 'result',
-      } as any)
+      } as unknown)
 
       expect(rankResult.data.map(r => r.result)).toEqual([1, 2, 2, 2, 5])
       expect(denseResult.data.map(r => r.result)).toEqual([1, 2, 2, 2, 3])
@@ -149,7 +149,7 @@ describe('Bug Fixes', () => {
         leftKey: 'id',
         rightKey: 'id',
         joinType: 'inner',
-      } as any)
+      } as unknown)
 
       expect(result.data).toEqual([
         { id: 1, name: 'Alice', value: 100, name_right: 'Product A', value_right: 50 },
@@ -169,7 +169,7 @@ describe('Bug Fixes', () => {
         leftKey: 'id',
         rightKey: 'id',
         joinType: 'inner',
-      } as any)
+      } as unknown)
 
       expect(result.data[0].id).toBe(1)
       expect(result.data[0].category).toBe('A')
@@ -189,7 +189,7 @@ describe('Bug Fixes', () => {
         column: 'date',
         targetType: 'DATE',
         outputColumn: 'parsed',
-      } as any)
+      } as unknown)
 
       expect(result.data[0].parsed).toBeNull()
       expect(result.data[1].parsed).toBeNull()
@@ -206,7 +206,7 @@ describe('Bug Fixes', () => {
         column: 'ts',
         targetType: 'TIMESTAMP',
         outputColumn: 'parsed',
-      } as any)
+      } as unknown)
 
       expect(result.data[0].parsed).toBeNull()
       expect(result.data[1].parsed).toBeNull()
@@ -224,7 +224,7 @@ describe('Bug Fixes', () => {
           ],
           groupByColumns: 'nonexistent_column',
           aggregations: 'COUNT(*) as count',
-        } as any)
+        } as unknown)
       ).toThrow("GroupBy column 'nonexistent_column' does not exist in data")
     })
 
@@ -235,7 +235,7 @@ describe('Bug Fixes', () => {
           data: [{ name: 'Alice', age: 30 }],
           groupByColumns: 'category,department',
           aggregations: 'COUNT(*) as count',
-        } as any)
+        } as unknown)
       ).toThrow("GroupBy column 'category' does not exist in data")
     })
   })
@@ -254,7 +254,7 @@ describe('Bug Fixes', () => {
         valueColumn: 'sales',
         indexColumn: 'product',
         aggregation: 'sum',
-      } as any)
+      } as unknown)
 
       expect(result.data.length).toBe(2)
       expect(result.data[0]).toMatchObject({ product: 'A', East: 100, West: 150 })
@@ -273,7 +273,7 @@ describe('Bug Fixes', () => {
         valueColumn: 'value',
         indexColumn: 'id',
         aggregation: 'avg',
-      } as any)
+      } as unknown)
 
       expect(result.data[0]).toMatchObject({ id: 1, X: 15, Y: 30 })
     })
@@ -286,7 +286,7 @@ describe('Bug Fixes', () => {
         valueColumn: 'value',
         indexColumn: 'id',
         aggregation: 'sum',
-      } as any)
+      } as unknown)
 
       expect(result.data).toEqual([])
     })
@@ -303,7 +303,7 @@ describe('Bug Fixes', () => {
         valueColumns: 'Q1,Q2,Q3',
         variableName: 'quarter',
         valueName: 'sales',
-      } as any)
+      } as unknown)
 
       expect(result.data.length).toBe(6)
       expect(result.data[0]).toMatchObject({ product: 'A', quarter: 'Q1', sales: 100 })
@@ -318,7 +318,7 @@ describe('Bug Fixes', () => {
         valueColumns: 'value1,value2',
         variableName: 'metric',
         valueName: 'amount',
-      } as any)
+      } as unknown)
 
       expect(result.data.length).toBe(2)
       expect(result.data[0]).toMatchObject({ id: 1, name: 'Test', metric: 'value1', amount: 10 })
@@ -332,7 +332,7 @@ describe('Bug Fixes', () => {
         valueColumns: '',
         variableName: 'var',
         valueName: 'val',
-      } as any)
+      } as unknown)
 
       expect(result.data).toEqual([])
     })

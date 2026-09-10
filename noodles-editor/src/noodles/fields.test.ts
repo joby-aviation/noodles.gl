@@ -1,9 +1,12 @@
+import { MapView } from '@deck.gl/core'
 import { Temporal } from 'temporal-polyfill'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import z from 'zod/v4'
 import { hexToColor } from '../utils/color'
 import {
   ArrayField,
+  ArrowDataField,
+  BboxField,
   ColorField,
   CompoundPropsField,
   DataField,
@@ -23,6 +26,9 @@ import {
   StringField,
   StringLiteralField,
   UnknownField,
+  Vec2Field,
+  Vec3Field,
+  ViewField,
 } from './fields'
 import { NumberOp } from './operators'
 import { clearOps, setOp } from './store'
@@ -173,7 +179,7 @@ describe('ListField', () => {
     expect(listField.value).toEqual([10, 2])
   })
 
-  it('reorders inputs with reorderInputs', () => {
+  it('reorders connections with setConnectionOrder', () => {
     const field1 = new NumberField(1)
     const field2 = new NumberField(2)
     const field3 = new NumberField(3)
@@ -185,17 +191,14 @@ describe('ListField', () => {
 
     expect(listField.value).toEqual([1, 2, 3])
 
-    listField.reorderInputs(0, 2)
+    listField.setConnectionOrder(['field-2', 'field-3', 'field-1'])
     expect(listField.value).toEqual([2, 3, 1])
 
-    listField.reorderInputs(2, 0)
+    listField.setConnectionOrder(['field-1', 'field-2', 'field-3'])
     expect(listField.value).toEqual([1, 2, 3])
-
-    listField.reorderInputs(1, 2)
-    expect(listField.value).toEqual([1, 3, 2])
   })
 
-  it('reorderInputs does nothing when fromIndex equals toIndex', () => {
+  it('setConnectionOrder emits a single value per reorder', () => {
     const field1 = new NumberField(1)
     const field2 = new NumberField(2)
     const listField = new ListField(new NumberField())
@@ -203,18 +206,43 @@ describe('ListField', () => {
     listField.addConnection('field-1', field1, 'value')
     listField.addConnection('field-2', field2, 'value')
 
-    listField.reorderInputs(0, 0)
-    expect(listField.value).toEqual([1, 2])
+    const listener = vi.fn()
+    listField.subscribe(listener)
+    listener.mockClear()
+
+    listField.setConnectionOrder(['field-2', 'field-1'])
+    expect(listField.value).toEqual([2, 1])
+    expect(listener).toHaveBeenCalledTimes(1)
   })
 
-  it('reorderInputs throws for out-of-bounds indices', () => {
+  it('setConnectionOrder is a no-op when order is unchanged', () => {
     const field1 = new NumberField(1)
+    const field2 = new NumberField(2)
     const listField = new ListField(new NumberField())
 
     listField.addConnection('field-1', field1, 'value')
+    listField.addConnection('field-2', field2, 'value')
 
-    expect(() => listField.reorderInputs(-1, 0)).toThrow()
-    expect(() => listField.reorderInputs(0, 5)).toThrow()
+    const listener = vi.fn()
+    listField.subscribe(listener)
+    listener.mockClear()
+
+    listField.setConnectionOrder(['field-1', 'field-2'])
+    expect(listener).not.toHaveBeenCalled()
+  })
+
+  it('setConnectionOrder ignores unknown ids and keeps unlisted connections at the end', () => {
+    const field1 = new NumberField(1)
+    const field2 = new NumberField(2)
+    const field3 = new NumberField(3)
+    const listField = new ListField(new NumberField())
+
+    listField.addConnection('field-1', field1, 'value')
+    listField.addConnection('field-2', field2, 'value')
+    listField.addConnection('field-3', field3, 'value')
+
+    listField.setConnectionOrder(['missing', 'field-3', 'also-missing', 'field-2'])
+    expect(listField.value).toEqual([3, 2, 1])
   })
 })
 
@@ -329,6 +357,93 @@ describe('MapStyleField', () => {
   it('defaults to empty array for suggestions', () => {
     const field = new MapStyleField()
     expect(field.suggestions).toEqual([])
+  })
+
+  it('skips setValue when object content is deeply equal', () => {
+    const field = new MapStyleField()
+    const style1 = {
+      version: 8,
+      sources: { osm: { type: 'raster', tiles: ['https://tile.example.com/{z}/{x}/{y}.png'] } },
+      layers: [{ id: 'osm', type: 'raster', source: 'osm' }],
+    }
+    const style2 = {
+      version: 8,
+      sources: { osm: { type: 'raster', tiles: ['https://tile.example.com/{z}/{x}/{y}.png'] } },
+      layers: [{ id: 'osm', type: 'raster', source: 'osm' }],
+    }
+
+    field.setValue(style1)
+    expect(field.value).toEqual(style1)
+
+    const spy = vi.fn()
+    field.subscribe(spy)
+    spy.mockClear()
+
+    field.setValue(style2)
+    // Should not emit because content is identical
+    expect(spy).not.toHaveBeenCalled()
+  })
+
+  it('updates when object content actually differs', () => {
+    const field = new MapStyleField()
+    const style1 = { version: 8, sources: {}, layers: [] }
+    const style2 = { version: 8, sources: {}, layers: [{ id: 'new' }] }
+
+    field.setValue(style1)
+    const spy = vi.fn()
+    field.subscribe(spy)
+    spy.mockClear()
+
+    field.setValue(style2)
+    expect(spy).toHaveBeenCalled()
+    expect(field.value).toEqual(style2)
+  })
+
+  it('always updates for string values (no deep equal needed)', () => {
+    const field = new MapStyleField('https://example.com/style1.json')
+    const spy = vi.fn()
+    field.subscribe(spy)
+    spy.mockClear()
+
+    field.setValue('https://example.com/style2.json')
+    expect(spy).toHaveBeenCalled()
+    expect(field.value).toEqual('https://example.com/style2.json')
+  })
+
+  it('handles transition from string to object', () => {
+    const field = new MapStyleField('https://example.com/style.json')
+    const styleObj = { version: 8, sources: {}, layers: [] }
+
+    field.setValue(styleObj)
+    expect(field.value).toEqual(styleObj)
+  })
+
+  it('handles transition from object to string', () => {
+    const field = new MapStyleField()
+    field.setValue({ version: 8, sources: {}, layers: [] })
+
+    field.setValue('https://example.com/style.json')
+    expect(field.value).toEqual('https://example.com/style.json')
+  })
+
+  it('does not markDirty when object content is identical', () => {
+    const field = new MapStyleField()
+    const style = {
+      version: 8,
+      sources: {},
+      layers: [{ id: 'bg', type: 'background', paint: { 'background-color': '#000' } }],
+    }
+
+    field.setValue(style)
+
+    const nextSpy = vi.spyOn(field, 'next')
+
+    // Set identical content with new reference
+    field.setValue({ ...style, layers: [...style.layers] })
+
+    // next() should not be called because setValue returns early
+    expect(nextSpy).not.toHaveBeenCalled()
+    nextSpy.mockRestore()
   })
 
   it('serializes and deserializes string values correctly', () => {
@@ -1028,7 +1143,37 @@ describe('LayerField', () => {
   })
 })
 
+describe('ViewField', () => {
+  it('accepts supported view descriptors', () => {
+    const field = new ViewField()
+    field.setValue({ type: 'MapView', id: 'map-view', width: '50%' })
+
+    expect(field.value).toEqual({ type: 'MapView', id: 'map-view', width: '50%' })
+  })
+
+  it('rejects unknown view types', () => {
+    const field = new ViewField()
+    field.setValue({ type: 'UnknownView' } as never)
+
+    expect(field.value).toBeUndefined()
+  })
+
+  it('accepts existing View instances from custom operators', () => {
+    const field = new ViewField()
+    const view = new MapView({ id: 'custom-map-view' })
+    field.setValue(view)
+
+    expect(field.value).toBe(view)
+  })
+})
+
 describe('Point2DField', () => {
+  it('transforms tuple to object by default (no options)', () => {
+    const field = new Point2DField()
+    field.setValue([1, 2])
+    expect(field.value).toEqual({ lng: 1, lat: 2 })
+  })
+
   it('parses object to object', () => {
     const field = new Point2DField(undefined, { returnType: 'object' })
     field.setValue({ lng: 1, lat: 2 })
@@ -1168,9 +1313,39 @@ describe('Point2DField', () => {
     field.setValue(geoJsonFeature)
     expect(field.value).toEqual([-118.4182302, 34.0576856])
   })
+
+  it('extracts coordinates from bare GeoJSON Point geometry', () => {
+    const field = new Point2DField()
+    field.setValue({ type: 'Point', coordinates: [-73.78, 40.64] })
+    expect(field.value).toEqual({ lng: -73.78, lat: 40.64 })
+  })
+
+  it('extracts coordinates from geometry column with [lng, lat] tuple', () => {
+    const field = new Point2DField()
+    field.setValue({ id: 1, geometry: [-73.78, 40.64] })
+    expect(field.value).toEqual({ lng: -73.78, lat: 40.64 })
+  })
+
+  it('extracts coordinates from geometry column with GeoJSON Point', () => {
+    const field = new Point2DField()
+    field.setValue({ id: 1, geometry: { type: 'Point', coordinates: [-73.78, 40.64] } })
+    expect(field.value).toEqual({ lng: -73.78, lat: 40.64 })
+  })
+
+  it('extracts coordinates from geometry column to tuple', () => {
+    const field = new Point2DField(undefined, { returnType: 'tuple' })
+    field.setValue({ id: 1, geometry: [-73.78, 40.64] })
+    expect(field.value).toEqual([-73.78, 40.64])
+  })
 })
 
 describe('Point3DField', () => {
+  it('transforms tuple to object by default (no options)', () => {
+    const field = new Point3DField()
+    field.setValue([1, 2, 3])
+    expect(field.value).toEqual({ lng: 1, lat: 2, alt: 3 })
+  })
+
   it('parses object to object', () => {
     const field = new Point3DField(undefined, { returnType: 'object' })
     field.setValue({ lng: 1, lat: 2, alt: 3 })
@@ -1307,6 +1482,122 @@ describe('Point3DField', () => {
     }
     field.setValue(geoJsonFeature)
     expect(field.value).toEqual([-118.4182302, 34.0576856, 0])
+  })
+
+  it('extracts coordinates from bare GeoJSON Point geometry', () => {
+    const field = new Point3DField()
+    field.setValue({ type: 'Point', coordinates: [-73.78, 40.64, 100] })
+    expect(field.value).toEqual({ lng: -73.78, lat: 40.64, alt: 100 })
+  })
+
+  it('extracts 2D coordinates from bare GeoJSON Point geometry with alt=0', () => {
+    const field = new Point3DField()
+    field.setValue({ type: 'Point', coordinates: [-73.78, 40.64] })
+    expect(field.value).toEqual({ lng: -73.78, lat: 40.64, alt: 0 })
+  })
+
+  it('extracts coordinates from geometry column with [lng, lat] tuple', () => {
+    const field = new Point3DField()
+    field.setValue({ id: 1, geometry: [-73.78, 40.64] })
+    expect(field.value).toEqual({ lng: -73.78, lat: 40.64, alt: 0 })
+  })
+
+  it('extracts coordinates from geometry column with [lng, lat, alt] tuple', () => {
+    const field = new Point3DField()
+    field.setValue({ id: 1, geometry: [-73.78, 40.64, 100] })
+    expect(field.value).toEqual({ lng: -73.78, lat: 40.64, alt: 100 })
+  })
+
+  it('extracts coordinates from geometry column with GeoJSON Point', () => {
+    const field = new Point3DField()
+    field.setValue({ id: 1, geometry: { type: 'Point', coordinates: [-73.78, 40.64, 100] } })
+    expect(field.value).toEqual({ lng: -73.78, lat: 40.64, alt: 100 })
+  })
+
+  it('extracts coordinates from geometry column to tuple', () => {
+    const field = new Point3DField(undefined, { returnType: 'tuple' })
+    field.setValue({ id: 1, geometry: [-73.78, 40.64, 100] })
+    expect(field.value).toEqual([-73.78, 40.64, 100])
+  })
+
+  it('ignores geometry column with non-point data', () => {
+    const field = new Point3DField()
+    field.setValue({
+      id: 1,
+      geometry: {
+        type: 'LineString',
+        coordinates: [
+          [0, 0],
+          [1, 1],
+        ],
+      },
+    })
+    // Should fall back to default since no valid point data
+    expect(field.value).toEqual({ lng: 0, lat: 0, alt: 0 })
+  })
+})
+
+describe('Vec2Field', () => {
+  it('transforms tuple to object by default (no options)', () => {
+    const field = new Vec2Field()
+    field.setValue([3, 7])
+    expect(field.value).toEqual({ x: 3, y: 7 })
+  })
+
+  it('transforms tuple to object with explicit option', () => {
+    const field = new Vec2Field(undefined, { returnType: 'object' })
+    field.setValue([3, 7])
+    expect(field.value).toEqual({ x: 3, y: 7 })
+  })
+
+  it('parses object to object', () => {
+    const field = new Vec2Field(undefined, { returnType: 'object' })
+    field.setValue({ x: 5, y: 9 })
+    expect(field.value).toEqual({ x: 5, y: 9 })
+  })
+
+  it('transforms object to tuple', () => {
+    const field = new Vec2Field(undefined, { returnType: 'tuple' })
+    field.setValue({ x: 5, y: 9 })
+    expect(field.value).toEqual([5, 9])
+  })
+
+  it('parses tuple to tuple', () => {
+    const field = new Vec2Field(undefined, { returnType: 'tuple' })
+    field.setValue([3, 7])
+    expect(field.value).toEqual([3, 7])
+  })
+})
+
+describe('Vec3Field', () => {
+  it('transforms tuple to object by default (no options)', () => {
+    const field = new Vec3Field()
+    field.setValue([1, 2, 3])
+    expect(field.value).toEqual({ x: 1, y: 2, z: 3 })
+  })
+
+  it('transforms tuple to object with explicit option', () => {
+    const field = new Vec3Field(undefined, { returnType: 'object' })
+    field.setValue([1, 2, 3])
+    expect(field.value).toEqual({ x: 1, y: 2, z: 3 })
+  })
+
+  it('parses object to object', () => {
+    const field = new Vec3Field(undefined, { returnType: 'object' })
+    field.setValue({ x: 4, y: 5, z: 6 })
+    expect(field.value).toEqual({ x: 4, y: 5, z: 6 })
+  })
+
+  it('transforms object to tuple', () => {
+    const field = new Vec3Field(undefined, { returnType: 'tuple' })
+    field.setValue({ x: 4, y: 5, z: 6 })
+    expect(field.value).toEqual([4, 5, 6])
+  })
+
+  it('parses tuple to tuple', () => {
+    const field = new Vec3Field(undefined, { returnType: 'tuple' })
+    field.setValue([1, 2, 3])
+    expect(field.value).toEqual([1, 2, 3])
   })
 })
 
@@ -1497,5 +1788,107 @@ describe('GeoJsonField', () => {
     }
     field.setValue(featureCollection)
     expect(field.value).toEqual(featureCollection)
+  })
+})
+
+describe('ArrowDataField', () => {
+  it('has null as default value', () => {
+    const field = new ArrowDataField()
+    expect(field.value).toBeNull()
+  })
+
+  it('has type arrow-data', () => {
+    expect(ArrowDataField.type).toBe('arrow-data')
+  })
+
+  it('accepts any value via setValue', () => {
+    const field = new ArrowDataField()
+    const fakeTable = { numRows: 3, numCols: 2, schema: {}, batches: [] }
+    field.setValue(fakeTable)
+    expect(field.value).toEqual(fakeTable)
+  })
+
+  it('can connect to UnknownField', () => {
+    const arrowField = new ArrowDataField()
+    const unknownField = new UnknownField()
+    expect(canConnect(arrowField, unknownField)).toBe(true)
+  })
+
+  it('can connect to DataField', () => {
+    const arrowField = new ArrowDataField()
+    const dataField = new DataField()
+    expect(canConnect(arrowField, dataField)).toBe(true)
+  })
+})
+
+describe('BboxField', () => {
+  it('should normalize object input to object format by default', () => {
+    const field = new BboxField()
+    const bbox = {
+      southwest: { lng: -74.05, lat: 40.68 },
+      northeast: { lng: -73.9, lat: 40.82 },
+    }
+    field.setValue(bbox)
+    expect(field.value).toEqual(bbox)
+  })
+
+  it('should normalize tuple input to object format by default', () => {
+    const field = new BboxField()
+    field.setValue([
+      [-74.05, 40.68],
+      [-73.9, 40.82],
+    ] as any)
+    expect(field.value).toEqual({
+      southwest: { lng: -74.05, lat: 40.68 },
+      northeast: { lng: -73.9, lat: 40.82 },
+    })
+  })
+
+  it('should normalize object input to tuple format with returnType: tuple', () => {
+    const field = new BboxField(undefined, { returnType: 'tuple' })
+    field.setValue({
+      southwest: { lng: -74.05, lat: 40.68 },
+      northeast: { lng: -73.9, lat: 40.82 },
+    } as any)
+    expect(field.value).toEqual([
+      [-74.05, 40.68],
+      [-73.9, 40.82],
+    ])
+  })
+
+  it('should normalize tuple input to tuple format with returnType: tuple', () => {
+    const field = new BboxField(undefined, { returnType: 'tuple' })
+    field.setValue([
+      [-74.05, 40.68],
+      [-73.9, 40.82],
+    ] as any)
+    expect(field.value).toEqual([
+      [-74.05, 40.68],
+      [-73.9, 40.82],
+    ])
+  })
+
+  it('should normalize mixed object/array points to tuple format', () => {
+    const field = new BboxField(undefined, { returnType: 'tuple' })
+    field.setValue({
+      southwest: [-74.05, 40.68],
+      northeast: { lng: -73.9, lat: 40.82 },
+    } as any)
+    expect(field.value).toEqual([
+      [-74.05, 40.68],
+      [-73.9, 40.82],
+    ])
+  })
+
+  it('should normalize tuple of objects to object format', () => {
+    const field = new BboxField()
+    field.setValue([
+      { lng: -74.05, lat: 40.68 },
+      { lng: -73.9, lat: 40.82 },
+    ] as any)
+    expect(field.value).toEqual({
+      southwest: { lng: -74.05, lat: 40.68 },
+      northeast: { lng: -73.9, lat: 40.82 },
+    })
   })
 })

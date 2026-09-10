@@ -113,19 +113,17 @@ export class MCPTools {
 }
 ```
 
-Tools are then registered in ClaudeClient and become available to Claude:
+Tools are then declared in `tool-definitions.ts` and reach the model through the
+tool router (`agent/tool-router.ts`):
 
 ```typescript
-// claude-client.ts
-private getTools(): Anthropic.Tool[] {
-  return [
-    {
-      name: 'generate_project',
-      description: 'Generate a complete project...',
-      input_schema: { /* ... */ }
-    },
-    // ...
-  ]
+// tool-definitions.ts
+{
+  name: 'generate_project',
+  description: 'Generate a complete project...',
+  annotations: { readOnlyHint: true },
+  inputSchema: { type: 'object', properties: { /* ... */ } },
+  execute: (tools, params) => tools.generateProject(params),
 }
 ```
 
@@ -179,22 +177,16 @@ async newAgentMethod(params: Params): Promise<ToolResult> {
 }
 ```
 
-3. **Register tool** in ClaudeClient ([`../claude-client.ts`](../claude-client.ts)):
+3. **Add a definition** to [`../tool-definitions.ts`](../tool-definitions.ts). One entry
+   covers both the in-app chat and WebMCP; `find_tools` will surface it by keyword,
+   so no registration step in the loop is needed:
 ```typescript
-private getTools(): Anthropic.Tool[] {
-  return [
-    {
-      name: 'new_agent_tool',
-      description: 'What this tool does...',
-      input_schema: { /* Anthropic tool schema */ }
-    },
-  ]
-}
-
-private async executeTool(name: string, params: any) {
-  const methodMap = {
-    new_agent_tool: p => this.tools.newAgentMethod(p),
-  }
+{
+  name: 'new_agent_tool',
+  description: 'What this tool does...',
+  annotations: { readOnlyHint: true },
+  inputSchema: { type: 'object', properties: { /* ... */ } },
+  execute: (tools, params) => tools.newAgentMethod(params),
 }
 ```
 

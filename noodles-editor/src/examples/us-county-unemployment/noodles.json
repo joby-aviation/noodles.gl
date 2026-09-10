@@ -1,147 +1,4 @@
 {
-  "nodes": [
-    {
-      "id": "/deck",
-      "type": "DeckRendererOp",
-      "data": {
-        "inputs": {},
-        "locked": false
-      },
-      "position": {
-        "x": 1200,
-        "y": 100
-      }
-    },
-    {
-      "id": "/out",
-      "type": "OutOp",
-      "data": {
-        "inputs": {},
-        "locked": false
-      },
-      "position": {
-        "x": 1500,
-        "y": 100
-      }
-    },
-    {
-      "id": "/data-source",
-      "type": "FileOp",
-      "data": {
-        "inputs": {
-          "url": "@/data.geojson"
-        },
-        "locked": false
-      },
-      "position": {
-        "x": -756.432131690169,
-        "y": 37.4393188464732
-      }
-    },
-    {
-      "id": "/geojson-layer",
-      "type": "GeoJsonLayerOp",
-      "data": {
-        "inputs": {
-          "opacity": 0.8,
-          "stroked": false,
-          "getLineColor": "#000000ff"
-        },
-        "locked": false
-      },
-      "position": {
-        "x": 833.4203552164684,
-        "y": 8.119468876040457
-      }
-    },
-    {
-      "id": "/unemployment-color",
-      "type": "ColorRampOp",
-      "data": {
-        "inputs": {},
-        "locked": false
-      },
-      "position": {
-        "x": 374.2787652460753,
-        "y": 349.1371616697396
-      }
-    },
-    {
-      "id": "/unemployment-accessor",
-      "type": "AccessorOp",
-      "data": {
-        "inputs": {
-          "expression": "d.properties.unemployment_rate ?? 0"
-        },
-        "locked": false
-      },
-      "position": {
-        "x": -600.2260484943222,
-        "y": 514.1452437371968
-      }
-    },
-    {
-      "type": "MaplibreBasemapOp",
-      "id": "/maplibre-basemap",
-      "position": {
-        "x": 758.7212415568961,
-        "y": -220.5884877788956
-      },
-      "data": {
-        "inputs": {
-          "mapStyle": "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json",
-          "viewState": {
-            "latitude": 40.017,
-            "longitude": -94.347,
-            "zoom": 5.45,
-            "pitch": 0,
-            "bearing": 0
-          }
-        },
-        "locked": false
-      }
-    },
-    {
-      "type": "MapRangeOp",
-      "id": "/map-range",
-      "position": {
-        "x": 83.47101216576985,
-        "y": 336.0787505954455
-      },
-      "data": {
-        "inputs": {
-          "inMin": 0.1
-        },
-        "locked": false
-      }
-    },
-    {
-      "type": "ExtentOp",
-      "id": "/extent",
-      "position": {
-        "x": -136.64819796918258,
-        "y": 286.1172519601011
-      },
-      "data": {
-        "inputs": {},
-        "locked": false
-      }
-    },
-    {
-      "type": "ExpressionOp",
-      "id": "/expression",
-      "position": {
-        "x": -471.74358724252534,
-        "y": 278.93357739586463
-      },
-      "data": {
-        "inputs": {
-          "expression": "d.features"
-        },
-        "locked": false
-      }
-    }
-  ],
   "edges": [
     {
       "id": "/deck.out.vis->/out.par.vis",
@@ -226,6 +83,167 @@
     "y": 206.86749887589406,
     "zoom": 0.6158038261288714
   },
+  "version": 14,
+  "name": "US County Unemployment",
+  "editorSettings": {
+    "layoutMode": "noodles-on-top",
+    "showOverlay": true
+  },
+  "nodes": [
+    {
+      "id": "/deck",
+      "type": "DeckRendererOp",
+      "data": {
+        "inputs": {},
+        "locked": false
+      },
+      "position": {
+        "x": 1800,
+        "y": 100
+      }
+    },
+    {
+      "id": "/out",
+      "type": "OutOp",
+      "data": {
+        "inputs": {
+          "display": "fixed",
+          "width": 1920,
+          "height": 1080,
+          "lod": 2,
+          "waitForData": true,
+          "codec": "avc",
+          "bitrateMbps": 10,
+          "bitrateMode": "constant",
+          "scaleControl": 0.3,
+          "framerate": 30,
+          "captureDelay": 50
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 2200,
+        "y": 100
+      }
+    },
+    {
+      "id": "/data-source",
+      "type": "FileOp",
+      "data": {
+        "inputs": {
+          "url": "@/data.geojson"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 200,
+        "y": 100
+      }
+    },
+    {
+      "id": "/geojson-layer",
+      "type": "GeoJsonLayerOp",
+      "data": {
+        "inputs": {
+          "opacity": 0.8,
+          "stroked": false,
+          "getLineColor": "#000000ff"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 1400,
+        "y": 100
+      }
+    },
+    {
+      "id": "/unemployment-color",
+      "type": "ColorRampOp",
+      "data": {
+        "inputs": {},
+        "locked": false
+      },
+      "position": {
+        "x": 1000,
+        "y": 340
+      }
+    },
+    {
+      "id": "/unemployment-accessor",
+      "type": "AccessorOp",
+      "data": {
+        "inputs": {
+          "expression": "d.properties.unemployment_rate ?? 0"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 1000,
+        "y": 460
+      }
+    },
+    {
+      "type": "MaplibreBasemapOp",
+      "id": "/maplibre-basemap",
+      "position": {
+        "x": 1800,
+        "y": 340
+      },
+      "data": {
+        "inputs": {
+          "mapStyle": "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json",
+          "viewState": {
+            "latitude": 40.017,
+            "longitude": -94.347,
+            "zoom": 5.45,
+            "pitch": 0,
+            "bearing": 0
+          }
+        },
+        "locked": false
+      }
+    },
+    {
+      "type": "MapRangeOp",
+      "id": "/map-range",
+      "position": {
+        "x": 1000,
+        "y": 580
+      },
+      "data": {
+        "inputs": {
+          "inMin": 0.1
+        },
+        "locked": false
+      }
+    },
+    {
+      "type": "ExtentOp",
+      "id": "/extent",
+      "position": {
+        "x": 1000,
+        "y": 700
+      },
+      "data": {
+        "inputs": {},
+        "locked": false
+      }
+    },
+    {
+      "type": "ExpressionOp",
+      "id": "/expression",
+      "position": {
+        "x": 600,
+        "y": 100
+      },
+      "data": {
+        "inputs": {
+          "expression": "d.features"
+        },
+        "locked": false
+      }
+    }
+  ],
   "timeline": {
     "sheetsById": {
       "Noodles": {
@@ -236,7 +254,5 @@
     },
     "definitionVersion": "0.4.0",
     "revisionHistory": []
-  },
-  "version": 7,
-  "name": "US County Unemployment"
+  }
 }

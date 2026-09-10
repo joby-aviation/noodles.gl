@@ -27,6 +27,7 @@ This document provides essential context for Large Language Models (LLMs) workin
 - **[Testing Guide](dev-docs/testing-guide.md)** - Testing strategy, critical components, and runbook guidelines
 - **[PR Guidelines](dev-docs/pr-guidelines.md)** - Creating focused PRs with tests and documentation
 - **[Analytics](dev-docs/analytics.md)** - Privacy-preserving analytics guidelines
+- **[Agent Harness](dev-docs/agent-harness.md)** - The in-app AI chat: providers, tool routing, context budgets
 - **[Tech Stack](dev-docs/tech-stack.md)** - Complete technology listing
 
 ## Architecture
@@ -90,7 +91,8 @@ noodles-gl-public/
 │   │   │   │   ├── serialization.ts       # Save/load
 │   │   │   │   └── ...
 │   │   │   └── hooks/        # React hooks
-│   │   ├── ai-chat/          # Claude AI integration
+│   │   ├── ai-chat/          # In-app AI assistant
+│   │   │   └── agent/        # Provider-agnostic agent loop, tool routing
 │   │   ├── utils/            # General utilities
 │   │   ├── timeline-editor.tsx  # Timeline interface
 │   │   ├── noodles.tsx       # Main viz component
@@ -242,12 +244,12 @@ Projects are stored as JSON files with this structure:
 - **GroupByOp**: Group and aggregate data
 - **JoinOp**: Combine multiple datasets
 - **SliceOp**: Slice arrays
+- **CreateAttributeOp**: Create binary attributes from data columns for GPU rendering
 
 ### Math & Logic
 - **NumberOp**: Numeric constants
 - **ExpressionOp**: Single-line JavaScript expressions
 - **CodeOp**: Multi-line custom JavaScript code
-- **AccessorOp**: Data accessor functions for Deck.gl
 
 ### GeoJSON Operations
 - **GeoJsonOp**: Create GeoJSON from data
@@ -296,20 +298,38 @@ return distances
 - `utils` - Collection of utility functions (arc geometry, color conversion, geospatial operations, interpolation, etc.)
 - All Operator classes for instantiation
 
-### AccessorOp
-Per-item accessor functions for Deck.gl layers:
+### CreateAttributeOp
+Creates binary GPU attributes from data columns or expressions.
+
+**Expression-only mode** - Evaluates JavaScript expressions per row to generate attributes:
 
 ```javascript
-// Example: Get position
-[d.longitude, d.latitude]
+// Example: Create position attribute from lat/lng columns
+expression: '[d.lng, d.lat, 0]'
 
-// Example: Conditional color
-d.value > 100 ? [255, 0, 0] : [0, 255, 0]
+// Example: Create color attribute based on value
+expression: 'd.value > 100 ? [255, 0, 0, 255] : [0, 255, 0, 255]'
+
+// Example: Simple column reference
+expression: 'd.radius'
 ```
 
-**Context:**
+**Inputs:**
+- `data` - Array or Arrow table input
+- `name` - Attribute name (e.g., 'position', 'fillColor')
+- `expression` - JavaScript expression (access row data via `d`)
+- `size` - Components per item (1 for scalar, 3 for position, 4 for RGBA)
+- `type` - Output type ('float32', 'uint8', 'int32')
+
+**Output:**
+- `data` - Attribute-enhanced data with `{ data, attributes }` structure
+
+**Context in expressions:**
 - `d` - Current data item
-- `data` - Full dataset array
+- Access columns via `d.columnName`
+- Use array syntax for multi-component attributes `[d.x, d.y, d.z]`
+
+**Auto-detection:** When data connects to layer operators, fields with `defaultAttribute` are automatically populated based on data schema (GeoJSON, lat/lng pairs, Houdini conventions like `Cd` for color)
 
 ### ExpressionOp
 Single-line calculations:
@@ -361,10 +381,10 @@ const altToIntensity = utils.interpolate([0, 10000], [0, 255])
 All operator classes are available as globals in CodeOp for programmatic instantiation:
 
 **Data Sources & Processing:**
-`FileOp`, `DuckDbOp`, `NetworkOp`, `GeocoderOp`, `DirectionsOp`, `FilterOp`, `MapRangeOp`, `MergeOp`, `ConcatOp`, `SliceOp`, `SortOp`, `SelectOp`, `SwitchOp`, `TableEditorOp`
+`FileOp`, `DuckDbOp`, `NetworkOp`, `GeocoderOp`, `DirectionsOp`, `FilterOp`, `MapRangeOp`, `MergeOp`, `ConcatOp`, `SliceOp`, `SortOp`, `SelectOp`, `SwitchOp`, `TableEditorOp`, `CreateAttributeOp`
 
 **Math & Logic:**
-`NumberOp`, `BooleanOp`, `StringOp`, `DateOp`, `TimeOp`, `MathOp`, `ExpressionOp`, `CodeOp`, `AccessorOp`, `JSONOp`, `HSLOp`, `ColorOp`
+`NumberOp`, `BooleanOp`, `StringOp`, `DateOp`, `TimeOp`, `MathOp`, `ExpressionOp`, `CodeOp`, `JSONOp`, `HSLOp`, `ColorOp`
 
 **Geometry & Transforms:**
 `PointOp`, `BoundsOp`, `RectangleOp`, `ArcOp`, `BezierCurveOp`, `BoundingBoxOp`, `ExtentOp`, `ProjectOp`, `UnprojectOp`, `GeoJsonOp`, `GeoJsonTransformOp`, `ScatterOp`
@@ -492,17 +512,71 @@ export class CustomOperator extends Operator<CustomOperator> {
 }
 ```
 
+### Registration (Critical!)
+
+After creating the operator class, you must register it in two places:
+
+**1. Add to `opTypes` object in `operators.ts`** (alphabetically):
+
+```typescript
+export const opTypes = {
+  // ... other operators ...
+  CustomOperator,  // Add your operator here
+  // ... more operators ...
+} as const
+```
+
+**2. Add to appropriate category in `components/categories.ts`**:
+
+```typescript
+export const categories = {
+  data: [
+    'FileOp',
+    'DuckDbOp',
+    'CustomOperator',  // Add here if it's a data source
+    // ...
+  ],
+  // Or in another category:
+  layer: [
+    'GeoJsonLayerOp',
+    // ...
+  ],
+  code: [
+    'CodeOp',
+    // ...
+  ],
+  // ... other categories
+} as const
+```
+
+**Available categories:**
+
+- `code` - Code execution and expressions
+- `data` - Data sources and transformations
+- `color` - Color manipulation
+- `geojson` - GeoJSON utilities
+- `layer` - Visualization layers
+- `extension` - Deck.gl extensions
+- `number` - Numeric operations
+- `string` - String operations
+- `utility` - General utilities
+- `vector` - Vector math
+- `view` - Camera and viewport
+- `widget` - UI widgets
+- `grouping` - Container/loop operators
+
 ### Key Principles
 
 1. **Pure Functions**: Operators should be deterministic
 2. **Typed Inputs/Outputs**: Use Field types with Zod schemas
 3. **Reactive**: Changes propagate automatically
 4. **Memoized**: Results cached based on input values
-5. **Register**: Add to operator registry in `operators.ts`
+5. **Register**: Add to `opTypes` object in `operators.ts` AND to a category in `components/categories.ts`
 
 ## Common Field Types
 
 - **DataField**: Generic data arrays
+- **ArrowDataField**: Apache Arrow columnar tables (zero-copy, high performance)
 - **NumberField**: Numeric values with min/max/step
 - **StringField**: Text values
 - **BooleanField**: Boolean flags
@@ -512,6 +586,16 @@ export class CustomOperator extends Operator<CustomOperator> {
 - **CompoundPropsField**: Object with multiple properties
 - **PointField**: Geographic coordinates [lng, lat]
 - **Vec2Field**: 2D vectors
+
+### Accessor Fields with Attribute Toggle
+
+Layer operator accessor fields (e.g., `getPosition`, `getFillColor`, `getRadius`) support three modes via a toggle UI:
+
+1. **Uniform mode** - Single static value for all items (e.g., `[0, 0, 0]` for position)
+2. **Attribute mode** - Read from named column in data (e.g., `'position'` attribute)
+3. **Expression mode** - Per-item JavaScript expression (e.g., `'[d.lng, d.lat, 0]'`)
+
+Fields with `defaultAttribute` option enable the toggle and support auto-detection when data is connected.
 
 ## State Management
 
@@ -576,11 +660,13 @@ Any field can be keyframed via the native timeline system. Changes in timeline p
 2. Define inputs with `createInputs()` method
 3. Define outputs with `createOutputs()` method
 4. Implement `execute()` method with pure function logic
-5. Register operator in operator registry
-6. Add to category in `components/categories.ts` using display name without "Op" suffix (e.g., `'File'` not `'FileOp'`)
+5. **Register operator in `opTypes` object** in `operators.ts` (alphabetically)
+6. **Add to appropriate category** in `components/categories.ts` using display name without "Op" suffix (e.g., `'File'` not `'FileOp'`)
 7. **Write unit tests** (required for all operators)
 8. Document behavior and limitations if complex
 9. Test in UI with example projects
+
+**Important:** Steps 5 and 6 are critical - the operator will not appear in the Add Node menu without these registrations!
 
 ### Modifying Existing Operator
 1. Locate operator in `operators.ts`
@@ -626,7 +712,159 @@ Any field can be keyframed via the native timeline system. Changes in timeline p
 9. **Document edge cases** - Users may not expect implementation-specific behavior
 10. **Keep PRs focused** - Split large changes into reviewable chunks when possible
 
+## The In-App AI Assistant
+
+The chat panel in the editor (`noodles-editor/src/ai-chat/`) runs its own agent loop
+in `ai-chat/agent/`. It is provider-agnostic — the same loop and tool surface serve
+Anthropic, OpenRouter, any OpenAI-compatible endpoint you point it at, and Chrome's
+built-in Gemini Nano — and it bounds context cost rather than sending everything it
+has.
+
+Five things to know before changing it:
+
+1. **`tool-definitions.ts` + `mcp-tools.ts` stay the single source of truth** for the
+   tool surface. WebMCP (`src/webmcp/`) registers every one it is offered; the chat
+   reaches them through routing. Read the surface through
+   `availableToolDefinitions()` / `getToolDefinition()`, never off the raw
+   `toolDefinitions` array — `run_code` is gated on `safeMode` via `available?()` and
+   has to vanish from discovery *and* dispatch together.
+2. **Only 5 tools are sent by default.** `list_nodes`, `get_node_info`,
+   `get_node_output`, `apply_modifications`, `find_tools`. The model calls
+   `find_tools({query})` to unlock the rest, so a new tool needs a good description —
+   that description is how it gets found.
+3. **Every tool result is capped** by `agent/result-budget.ts` against the provider's
+   context window. A tool that returns unbounded data will be truncated, so return
+   ids and previews rather than whole objects (see `listNodes`).
+4. **The provider interface is two flags plus a stream.** `supportsNativeTools` and
+   `contextWindow` carry all the behavioural difference; adding a provider touches
+   nothing in the loop or router. An OpenAI-compatible provider should reuse
+   `agent/providers/openai-format.ts` rather than re-implement SSE tool-call
+   fragment reassembly.
+5. **Which provider runs is `providerPreference` in `noodles/keys-store.tsx`**, not
+   the model store. `'automatic'` picks the first of anthropic → openrouter → custom
+   → chrome that has a credential.
+
+One security boundary lives in this code: `resolvePath()` in `ai-chat/agent-files.ts`.
+The assistant reads anywhere under the project's `data/` directory but writes only
+inside `data/.agent/`, and the check runs on the *resolved* path segments so a `../`
+cannot escape. Any new filesystem tool must go through it rather than calling
+`writeAsset` directly.
+
+Full details, including the measured before/after context cost, are in
+[dev-docs/agent-harness.md](dev-docs/agent-harness.md).
+
+## Using Claude Code with Noodles.gl
+
+This section covers using Claude Code (the CLI tool) to work directly with projects, as opposed to the in-app chat panel.
+
+### Setup
+
+```bash
+# Start the dev server
+cd noodles-editor && npm start
+
+# Projects are in noodles-editor/public/examples/
+# Each project directory contains a noodles.json and optional data files
+ls noodles-editor/public/examples/
+```
+
+### Editing Project Files Directly
+
+Project files (`noodles.json`) are plain JSON and can be read and written by Claude Code. See the **Project Files** section above for the full schema. Key points:
+
+- Node IDs are Unix-style paths: `/my-node`, `/container/child`
+- Edge handles: `out.fieldName` (source) → `par.fieldName` (target)
+- Only non-default input values need to be serialized
+- Version 6 is current; do not change the version field
+
+### Validating Changes
+
+After editing a project file, run the project's tests to catch schema issues:
+
+```bash
+cd noodles-editor && npm test src/noodles/storage.test.ts
+```
+
+Load it in the browser at `http://localhost:5173/examples/<project-name>` to visually verify.
+
+### Connecting Claude Code to a Running Browser Instance
+
+#### WebMCP (recommended)
+
+With `?externalControl=true`, the app registers its full AI tool surface (~27 tools) on `navigator.modelContext` (the W3C WebMCP API, polyfilled via `@mcp-b/global`). External MCP clients reach those tools through the `@mcp-b/webmcp-local-relay` stdio bridge — no proxy code to run:
+
+```bash
+# 1. Start the app with external control enabled
+# Open: http://localhost:5173/examples/nyc-taxis?externalControl=true
+
+# 2. Register the relay with Claude Code (once)
+claude mcp add webmcp -- npx -y @mcp-b/webmcp-local-relay@4
+
+# For Claude Desktop / Cursor, use the equivalent config:
+{
+  "mcpServers": {
+    "webmcp": {
+      "command": "npx",
+      "args": ["-y", "@mcp-b/webmcp-local-relay@4"]
+    }
+  }
+}
+```
+
+Tool names match the in-app chat (snake_case): `get_current_project`, `list_nodes`, `get_node_info`, `get_node_output`, `apply_modifications`, `run_code`, `list_files`, `read_file`, `write_file`, `grep_files`, `capture_visualization`, `get_timeline`, `set_keyframe`, `get_operator_schema`, `search_code`, and more. `apply_modifications` mutates the live editor graph, so changes appear immediately in the browser.
+
+Notes:
+
+- The relay embed script is only injected on localhost. Alternatives that need no relay: the WebMCP browser extension, or native Chrome WebMCP (origin trial).
+- If multiple Noodles tabs are open, the relay suffixes tool names with a tab ID.
+- Code search/docs tools download their context bundles on page load when external control is enabled.
+
+#### Legacy WebSocket proxy
+
+The older MCP proxy bridges Claude Code to the browser over a WebSocket. It exposes a smaller camelCase tool surface (`getCurrentProject`, `listNodes`, `createNode`, `connectNodes`, `captureVisualization`, …):
+
+```bash
+# 1. Start the app with external control enabled
+# Open: http://localhost:5173/examples/nyc-taxis?externalControl=true
+
+# 2. Start the MCP proxy (in a separate terminal)
+node noodles-editor/examples/external-control/mcp-proxy.js
+
+# 3. Add to Claude Desktop config:
+#    macOS:   ~/Library/Application Support/Claude/claude_desktop_config.json
+#    Windows: %APPDATA%\Claude\claude_desktop_config.json
+{
+  "mcpServers": {
+    "noodles": {
+      "command": "node",
+      "args": ["/path/to/noodles-editor/examples/external-control/mcp-proxy.js"]
+    }
+  }
+}
+```
+
+### Graph Design Guidelines for Claude Code
+
+When generating or modifying `noodles.json` programmatically:
+
+- **Keep graphs simple** — aim for 5–8 nodes. A human must be able to read and modify the result.
+- **Prefer CodeOp for data transformation** over chaining FilterOp → MapOp → SortOp. One CodeOp node with a few lines of JavaScript is more reliable and easier to inspect:
+  ```json
+  {
+    "id": "/transform",
+    "type": "CodeOp",
+    "data": { "inputs": { "code": "return data.filter(d => d.value > 0).sort((a,b) => b.value - a.value)" } }
+  }
+  ```
+- **Standard pipeline**: FileOp/DuckDbOp → CodeOp (transform) → AccessorOp (position) → LayerOp → DeckRendererOp
+- **Always include MaplibreBasemapOp** for geographic visualizations
+- **Verify handle names** using `get_operator_schema` or the operator registry before writing edges
+
+### Timeline / Animation
+
+The timeline is serialized inside `noodles.json` under the `"timeline"` key. The structure is complex — prefer using the in-app chat's `set_keyframe` / `get_timeline` tools rather than editing the timeline JSON directly.
+
 ---
 
-**Last Updated**: 2025-12-01
+**Last Updated**: 2026-07-04
 **Version**: Based on project version 6 schema

@@ -48,8 +48,10 @@
 }
 
 .cell {
+  position: relative;
   padding: 8px 12px;
   min-height: 36px;
+  box-sizing: border-box;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -66,28 +68,32 @@
 
 .editing {
   background: var(--surface-section);
-  padding: 0;
+}
+
+.editingPlaceholder {
+  display: contents;
+  visibility: hidden;
+}
+
+.editorOverlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  min-width: 0;
 }
 
 .cellEditor {
   width: 100%;
-}
-
-/* Override PrimeReact input padding to match cell padding */
-.cellEditor :global(.p-inputtext) {
+  min-width: 0;
+  height: 100%;
+  box-sizing: border-box;
   padding: 8px 12px;
   border: none;
+  border-radius: 0;
   background: transparent;
-}
-
-.cellEditor :global(.p-inputnumber-input) {
-  padding: 8px 12px;
-  border: none;
-  background: transparent;
-}
-
-.cellEditor :global(.p-inputswitch) {
-  margin: 8px 12px;
+  color: inherit;
+  font: inherit;
 }
 
 .colorDisplay {
@@ -108,12 +114,18 @@
   display: flex;
   gap: 4px;
   align-items: center;
+  width: 100%;
+  min-width: 0;
+  height: 100%;
 }
 
 .coordInput,
 .vecInput {
   flex: 1;
-  min-width: 60px;
+  min-width: 0;
+  height: 100%;
+  box-sizing: border-box;
+  padding-inline: 4px;
 }
 
 .geocoderButton {
@@ -134,6 +146,8 @@
   align-items: center;
   gap: 6px;
   width: 100%;
+  min-width: 0;
+  height: 100%;
 }
 
 .timezoneIndicator {
@@ -219,4 +233,31 @@
 
 .addRowButton {
   color: var(--text-color-secondary) !important;
+}
+
+.cellSuggestions {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: var(--z-index-modal);
+  margin: 2px 0 0;
+  padding: 4px 0;
+  list-style: none;
+  background: var(--surface-card);
+  border: 1px solid var(--surface-border);
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  max-height: 150px;
+  overflow-y: auto;
+}
+
+.cellSuggestion {
+  padding: 6px 10px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.cellSuggestion:hover {
+  background: var(--surface-hover);
 }
