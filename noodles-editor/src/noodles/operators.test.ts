@@ -6,8 +6,8 @@ import { NumberField, StringField } from './fields'
 import { getKeysStore } from './keys-store'
 import {
   A5LayerOp,
-  ArcLayerOp,
   AccessorOp,
+  ArcLayerOp,
   BitmapOverlayWidgetOp,
   BoundingBoxOp,
   CategoricalColorRampOp,
@@ -20,15 +20,17 @@ import {
   DirectionsOp,
   DuckDbOp,
   ExpressionOp,
-  FillStyleExtensionOp,
   FileOp,
+  FillStyleExtensionOp,
   FilterOp,
+  FirstPersonViewOp,
   FpsWidgetOp,
   FullscreenWidgetOp,
-  GeohashLayerOp,
   GeocoderOp,
+  GeohashLayerOp,
   GeoJsonLayerOp,
   GeoJsonTransformOp,
+  GlobeViewOp,
   GreatCircleLayerOp,
   H3ClusterLayerOp,
   JSONOp,
@@ -44,23 +46,25 @@ import {
   NetworkOp,
   NumberOp,
   Operator,
+  OrbitViewOp,
+  OrthographicViewOp,
   OverpassOp,
-  PointOp,
-  PointCloudLayerOp,
-  PolygonLayerOp,
-  ProjectOp,
   PathLayerOp,
   PathStyleExtensionOp,
+  PointCloudLayerOp,
+  PointOp,
+  PolygonLayerOp,
+  ProjectOp,
   QuadkeyLayerOp,
   RampOp,
   RectangleOp,
   RerouteOp,
+  S2LayerOp,
   ScaleWidgetOp,
   ScatterOp,
   ScatterplotLayerOp,
   ScreenshotWidgetOp,
   SelectOp,
-  S2LayerOp,
   SmoothOp,
   SwitchOp,
   TableEditorOp,
@@ -72,7 +76,7 @@ import {
 } from './operators'
 import { deleteOp, getOpStore, setOp } from './store'
 import { isAccessor } from './utils/accessor-helpers'
-import { canConnect } from './utils/can-connect'
+import { canConnect, validateConnection } from './utils/can-connect'
 
 describe('basic Operators', () => {
   it('creates an Operator', () => {
@@ -838,6 +842,22 @@ describe('AccessorOp op() error handling', () => {
 })
 
 describe('BoundingBoxOp', () => {
+  it('connects its viewState output to a MaplibreBasemap viewState input', () => {
+    const boundingBox = new BoundingBoxOp('/bbox-0')
+    const basemap = new MaplibreBasemapOp('/maplibre-0')
+
+    expect(canConnect(boundingBox.outputs.viewState, basemap.inputs.viewState)).toBe(true)
+  })
+
+  it('identifies an incompatible MaplibreBasemap compound property', () => {
+    const boundingBox = new BoundingBoxOp('/bbox-0')
+    const basemap = new MaplibreBasemapOp('/maplibre-0')
+
+    expect(validateConnection(boundingBox.outputs.viewState, basemap.inputs.sky).error).toBe(
+      'Type mismatch at sky.enabled: expected boolean, received undefined'
+    )
+  })
+
   it('finds the bounding box of a list of points', () => {
     const operator = new BoundingBoxOp('/bbox-0')
     const val = operator.execute({
@@ -1216,7 +1236,7 @@ describe('deck.gl 9.4 properties', () => {
     const operator = new MapViewOp('/map-0')
     const { view } = operator.execute({ parameters: { depthTest: false } })
 
-    expect(view.props.parameters).toEqual({ depthTest: false })
+    expect(view.parameters).toEqual({ depthTest: false })
   })
 
   it('configures the zoom widget step', () => {
@@ -1230,6 +1250,10 @@ describe('deck.gl 9.4 properties', () => {
 describe('DeckRendererOp', () => {
   it('returns views if provided', () => {
     const operator = new DeckRendererOp('/deck-0')
+    const viewDescriptors = [
+      { type: 'MapView' as const, id: 'map-view' },
+      { type: 'OrbitView' as const, id: 'orbit-view' },
+    ]
     const {
       vis: {
         deckProps: { views },
@@ -1237,14 +1261,33 @@ describe('DeckRendererOp', () => {
     } = operator.execute({
       layers: [],
       effects: [],
-      views: ['view1', 'view2'],
+      views: viewDescriptors,
       layerFilter: () => true,
     })
-    expect(views).toEqual(['view1', 'view2'])
+    expect(views).toEqual(viewDescriptors)
     const {
       vis: { deckProps },
     } = operator.execute({})
     expect(deckProps.views).not.toBeDefined()
+  })
+
+  it('accepts connected view operator descriptors', async () => {
+    const viewOperator = new MapViewOp('/map-view')
+    const renderer = new DeckRendererOp('/deck-0')
+    renderer.inputs.views.addConnection('view-edge', viewOperator.outputs.view)
+
+    await viewOperator.pull()
+
+    expect(renderer.inputs.views.value).toEqual([
+      expect.objectContaining({ type: 'MapView', id: '/map-view' }),
+    ])
+    await expect(renderer.pull()).resolves.toMatchObject({
+      vis: {
+        deckProps: {
+          views: [expect.objectContaining({ type: 'MapView', id: '/map-view' })],
+        },
+      },
+    })
   })
 
   it('returns undefined mapProps when basemap is null', () => {
@@ -1472,7 +1515,21 @@ describe('MapViewOp', () => {
     const { view } = operator.execute({
       clearColor: [127.5, 0, 127.5, 255],
     })
-    expect(view.props.clearColor).toEqual([127.5, 0, 127.5, 255])
+    expect(view.clearColor).toEqual([127.5, 0, 127.5, 255])
+  })
+
+  it.each([
+    [MapViewOp, 'MapView'],
+    [GlobeViewOp, 'GlobeView'],
+    [FirstPersonViewOp, 'FirstPersonView'],
+    [OrbitViewOp, 'OrbitView'],
+    [OrthographicViewOp, 'OrthographicView'],
+  ] as const)('%s returns a serializable %s descriptor', (ViewOperator, type) => {
+    const operator = new ViewOperator('/view-0')
+    const { view } = operator.execute({})
+
+    expect(view).toMatchObject({ type, id: '/view-0' })
+    expect(JSON.parse(JSON.stringify(view))).toEqual(view)
   })
 })
 
@@ -2840,7 +2897,7 @@ describe('FileOp', () => {
 
   describe('JSON format', () => {
     it('should parse JSON from text input', async () => {
-      const operator = new FileOp('/file-0')
+      const operator = new FileOp('/file-json-text')
       const testData = { test: 'data', value: 123 }
       const result = await operator.execute({
         format: 'json',
@@ -2853,7 +2910,7 @@ describe('FileOp', () => {
     })
 
     it('should fetch and parse JSON from URL', async () => {
-      const operator = new FileOp('/file-1')
+      const operator = new FileOp('/file-json-url')
       const testData = { test: 'remote', value: 456 }
       global.fetch = vi.fn().mockResolvedValue({
         json: () => Promise.resolve(testData),
@@ -2871,7 +2928,7 @@ describe('FileOp', () => {
     })
 
     it('should throw error for invalid JSON', async () => {
-      const operator = new FileOp('/file-2')
+      const operator = new FileOp('/file-invalid-json')
       await expect(
         operator.execute({
           format: 'json',
@@ -2885,8 +2942,19 @@ describe('FileOp', () => {
   })
 
   describe('CSV format', () => {
+    it('should only show autoType input when format is csv or tsv', () => {
+      const operator = new FileOp('/file-format-autotype-visibility')
+      expect(operator.isFieldVisible('autoType')).toBe(false)
+      operator.inputs.format.setValue('csv')
+      expect(operator.isFieldVisible('autoType')).toBe(true)
+      operator.inputs.format.setValue('tsv')
+      expect(operator.isFieldVisible('autoType')).toBe(true)
+      operator.inputs.format.setValue('json')
+      expect(operator.isFieldVisible('autoType')).toBe(false)
+    })
+
     it('should parse CSV from text input', async () => {
-      const operator = new FileOp('/file-3')
+      const operator = new FileOp('/file-csv-text')
       const csvText = 'name,value\nJohn,30\nJane,25'
       const result = await operator.execute({
         format: 'csv',
@@ -2901,8 +2969,8 @@ describe('FileOp', () => {
       expect(result.data[1]).toEqual({ name: 'Jane', value: 25 })
     })
 
-    it('should parse CSV without autoType', async () => {
-      const operator = new FileOp('/file-4')
+    it('should parse CSV without autoType as strings', async () => {
+      const operator = new FileOp('/file-csv-no-autotype')
       const csvText = 'name,value\nJohn,30\nJane,25'
       const result = await operator.execute({
         format: 'csv',
@@ -2920,7 +2988,7 @@ describe('FileOp', () => {
 
   describe('TSV format', () => {
     it('should parse TSV from text input', async () => {
-      const operator = new FileOp('/file-tsv-0')
+      const operator = new FileOp('/file-tsv-text')
       const tsvText = 'name\tvalue\nJohn\t30\nJane\t25'
       const result = await operator.execute({
         format: 'tsv',
@@ -2934,8 +3002,8 @@ describe('FileOp', () => {
       expect(result.data[1]).toEqual({ name: 'Jane', value: 25 })
     })
 
-    it('should parse TSV without autoType', async () => {
-      const operator = new FileOp('/file-tsv-1')
+    it('should parse TSV without autoType as strings', async () => {
+      const operator = new FileOp('/file-tsv-no-autotype')
       const tsvText = 'name\tvalue\nJohn\t30\nJane\t25'
       const result = await operator.execute({
         format: 'tsv',
@@ -2952,7 +3020,7 @@ describe('FileOp', () => {
 
   describe('Text format', () => {
     it('should return text from text input', async () => {
-      const operator = new FileOp('/file-5')
+      const operator = new FileOp('/file-text')
       const textContent = 'This is plain text content\nwith multiple lines'
       const result = await operator.execute({
         format: 'text',
@@ -2965,7 +3033,7 @@ describe('FileOp', () => {
     })
 
     it('should fetch text from URL', async () => {
-      const operator = new FileOp('/file-6')
+      const operator = new FileOp('/file-text-url')
       const textContent = 'Remote text content'
       global.fetch = vi.fn().mockResolvedValue({
         text: () => Promise.resolve(textContent),
@@ -2983,7 +3051,7 @@ describe('FileOp', () => {
     })
 
     it('should return empty string when no input provided', async () => {
-      const operator = new FileOp('/file-7')
+      const operator = new FileOp('/file-text-empty')
       const result = await operator.execute({
         format: 'text',
         url: '',
@@ -2997,7 +3065,7 @@ describe('FileOp', () => {
 
   describe('Binary format', () => {
     it('should convert text input to Uint8Array', async () => {
-      const operator = new FileOp('/file-8')
+      const operator = new FileOp('/file-binary-uint8')
       const textContent = 'Binary data as text'
       const result = await operator.execute({
         format: 'binary',
@@ -3016,7 +3084,7 @@ describe('FileOp', () => {
     })
 
     it('should fetch binary data from URL', async () => {
-      const operator = new FileOp('/file-9')
+      const operator = new FileOp('/file-binary-url')
       const binaryData = new ArrayBuffer(8)
       const view = new Uint8Array(binaryData)
       view.set([1, 2, 3, 4, 5, 6, 7, 8])
@@ -3038,7 +3106,7 @@ describe('FileOp', () => {
     })
 
     it('should return empty Uint8Array when no input provided', async () => {
-      const operator = new FileOp('/file-10')
+      const operator = new FileOp('/file-uint8-empty')
       const result = await operator.execute({
         format: 'binary',
         url: '',
@@ -3052,7 +3120,7 @@ describe('FileOp', () => {
     })
 
     it('should handle UTF-8 encoded text in binary format', async () => {
-      const operator = new FileOp('/file-11')
+      const operator = new FileOp('/file-utf8-binary')
       const textWithEmoji = 'Hello 👋 World'
       const result = await operator.execute({
         format: 'binary',
@@ -3072,7 +3140,7 @@ describe('FileOp', () => {
 
   describe('Error handling', () => {
     it('should throw error with descriptive message on fetch failure', async () => {
-      const operator = new FileOp('/file-12')
+      const operator = new FileOp('/file-fetch-error')
       global.fetch = vi.fn().mockRejectedValue(new Error('Network error'))
 
       await expect(
@@ -3087,7 +3155,7 @@ describe('FileOp', () => {
     })
 
     it('should throw error for unsupported format', async () => {
-      const operator = new FileOp('/file-13')
+      const operator = new FileOp('/file-unsupported-error')
       await expect(
         operator.execute({
           format: 'unsupported' as any,
