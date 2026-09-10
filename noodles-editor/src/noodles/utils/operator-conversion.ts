@@ -38,10 +38,10 @@ export function convertViewerToTableEditor(
   // Infer schema from the data
   const schema = inferSchema(data)
 
-  // Update the React Flow node type and save the inferred schema to node data
+  // Update the React Flow node type and save the inferred schema and data to node data
   // When transformGraph runs (triggered by node type change), it will:
   // 1. Delete the old ViewerOp operator
-  // 2. Create a new TableEditorOp with the saved schema
+  // 2. Create a new TableEditorOp with the saved schema and data
   // 3. Undo will reverse this by changing type back to ViewerOp
   setNodes(nodes => {
     return nodes.map(node => {
@@ -54,6 +54,7 @@ export function convertViewerToTableEditor(
             inputs: {
               ...(node.data?.inputs || {}),
               schema,
+              data,
             },
             locked: op.locked.value,
           },
@@ -66,16 +67,17 @@ export function convertViewerToTableEditor(
   // Delete the old operator from the store so transformGraph will recreate it
   deleteOp(operatorId)
 
-  // Create the new TableEditorOp with the inferred schema
+  // Create the new TableEditorOp with the inferred schema and data
   // transformGraph will be triggered by the node type change
   const tableEditorOp = new TableEditorOp(operatorId)
   tableEditorOp.containerId = op.containerId
   tableEditorOp.locked.next(op.locked.value)
   tableEditorOp.inputs.schema.setValue(schema)
+  tableEditorOp.inputs.data.setValue(data)
   setOp(operatorId, tableEditorOp)
 
   // Remove any incoming edges to the data input.
-  // The TableEditorOp should start with an empty table that can be edited manually.
+  // The data has been copied into the TableEditorOp above, so it can be edited manually.
   // Note: This creates a separate undo history entry from the node type change above,
   // so reverting the conversion requires two undo operations. React Flow's setEdges
   // automatically triggers onEdgesChange, which is intercepted by the undo system.
