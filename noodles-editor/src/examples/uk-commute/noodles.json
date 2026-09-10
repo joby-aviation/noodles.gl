@@ -57,17 +57,17 @@
       "targetHandle": "par.parameters"
     },
     {
-      "id": "/home-position.out.data->/arc-layer.par.data",
-      "source": "/home-position",
+      "id": "/data-source.out.data->/home-position.par.data",
+      "source": "/data-source",
       "sourceHandle": "out.data",
-      "target": "/arc-layer",
+      "target": "/home-position",
       "targetHandle": "par.data"
     },
     {
-      "id": "/home-position.out.data->/residence-layer.par.data",
+      "id": "/home-position.out.data->/work-position.par.data",
       "source": "/home-position",
       "sourceHandle": "out.data",
-      "target": "/residence-layer",
+      "target": "/work-position",
       "targetHandle": "par.data"
     },
     {
@@ -78,6 +78,13 @@
       "targetHandle": "par.data"
     },
     {
+      "id": "/work-position.out.data->/residence-layer.par.data",
+      "source": "/work-position",
+      "sourceHandle": "out.data",
+      "target": "/residence-layer",
+      "targetHandle": "par.data"
+    },
+    {
       "id": "/work-position.out.data->/workplace-layer.par.data",
       "source": "/work-position",
       "sourceHandle": "out.data",
@@ -85,18 +92,32 @@
       "targetHandle": "par.data"
     },
     {
-      "id": "/data-source.out.data->/home-position.par.data",
-      "source": "/data-source",
-      "sourceHandle": "out.data",
-      "target": "/home-position",
-      "targetHandle": "par.data"
+      "id": "/source-color.out.color->/arc-layer.par.getSourceColor",
+      "source": "/source-color",
+      "sourceHandle": "out.color",
+      "target": "/arc-layer",
+      "targetHandle": "par.getSourceColor"
     },
     {
-      "id": "/data-source.out.data->/work-position.par.data",
-      "source": "/data-source",
-      "sourceHandle": "out.data",
-      "target": "/work-position",
-      "targetHandle": "par.data"
+      "id": "/source-color.out.color->/residence-layer.par.getFillColor",
+      "source": "/source-color",
+      "sourceHandle": "out.color",
+      "target": "/residence-layer",
+      "targetHandle": "par.getFillColor"
+    },
+    {
+      "id": "/target-color.out.color->/arc-layer.par.getTargetColor",
+      "source": "/target-color",
+      "sourceHandle": "out.color",
+      "target": "/arc-layer",
+      "targetHandle": "par.getTargetColor"
+    },
+    {
+      "id": "/target-color.out.color->/workplace-layer.par.getFillColor",
+      "source": "/target-color",
+      "sourceHandle": "out.color",
+      "target": "/workplace-layer",
+      "targetHandle": "par.getFillColor"
     }
   ],
   "viewport": {
@@ -136,8 +157,8 @@
         "locked": false
       },
       "position": {
-        "x": 200,
-        "y": 220
+        "x": 1000,
+        "y": 700
       }
     },
     {
@@ -150,8 +171,8 @@
         "locked": false
       },
       "position": {
-        "x": 200,
-        "y": 340
+        "x": 1000,
+        "y": 820
       }
     },
     {
@@ -194,12 +215,12 @@
       "type": "CreateAttributeOp",
       "position": {
         "x": 600,
-        "y": 400
+        "y": 460
       },
       "data": {
         "inputs": {
-          "name": "position",
-          "expression": "[d.residence_lng, d.residence_lat]",
+          "name": "homePosition",
+          "expression": "[d.residence_lng, d.residence_lat, 0]",
           "size": 3,
           "type": "float"
         },
@@ -210,13 +231,13 @@
       "id": "/work-position",
       "type": "CreateAttributeOp",
       "position": {
-        "x": 600,
-        "y": 520
+        "x": 1000,
+        "y": 460
       },
       "data": {
         "inputs": {
-          "name": "position",
-          "expression": "[d.workplace_lng, d.workplace_lat]",
+          "name": "workPosition",
+          "expression": "[d.workplace_lng, d.workplace_lat, 0]",
           "size": 3,
           "type": "float"
         },
@@ -231,8 +252,12 @@
           "opacity": 0.3,
           "getWidth": 80,
           "getHeight": 0.7,
-          "getSourceColor": "#f69a00",
-          "getTargetColor": "#950c69"
+          "getSourcePosition": {
+            "attributeName": "homePosition"
+          },
+          "getTargetPosition": {
+            "attributeName": "workPosition"
+          }
         },
         "locked": false
       },
@@ -249,7 +274,9 @@
           "opacity": 0.4,
           "getLineColor": "#ffffffff",
           "getRadius": 3,
-          "getFillColor": "#f69a00"
+          "getPosition": {
+            "attributeName": "homePosition"
+          }
         },
         "locked": false
       },
@@ -266,7 +293,9 @@
           "opacity": 0.3,
           "getLineColor": "#ffffffff",
           "getRadius": 3,
-          "getFillColor": "#950c69"
+          "getPosition": {
+            "attributeName": "workPosition"
+          }
         },
         "locked": false
       },

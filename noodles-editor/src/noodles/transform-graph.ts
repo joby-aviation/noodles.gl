@@ -227,6 +227,9 @@ export function transformGraph<
     }
   }
 
+  // Track target fields to detect multiple connections to single-input fields
+  const targetFieldConnections = new Map<string, string[]>()
+
   for (const edge of edges) {
     const sourceOp = instances.find(n => n.id === edge.source)
     const targetOp = instances.find(n => n.id === edge.target)
@@ -259,6 +262,12 @@ export function transformGraph<
         debugExecutor('Invalid connection')
         continue
       }
+
+      // Track connections to detect multiple connections to single-input fields
+      const targetKey = `${targetOp.id}.${targetFieldName}`
+      const existingConnections = targetFieldConnections.get(targetKey) || []
+      existingConnections.push(edge.id)
+      targetFieldConnections.set(targetKey, existingConnections)
 
       // Check if edge has type property and if it's a ReferenceEdge
       const connectionType =
@@ -297,6 +306,25 @@ export function transformGraph<
         edge.id,
         `Broken connection: source node "${edge.source}" no longer exists. This may be caused by a failed node rename.`
       )
+    }
+  }
+
+  // Validate that single-input fields don't have multiple connections
+  for (const [targetKey, connections] of targetFieldConnections.entries()) {
+    if (connections.length > 1) {
+      const [opId, fieldName] = targetKey.split('.').slice(0, 2)
+      const targetOp = store.getOp(opId)
+      if (!targetOp) continue
+
+      const targetField = targetOp.inputs[fieldName] || targetOp.outputs[fieldName]
+      if (!targetField) continue
+
+      // ListField can accept multiple connections, but other field types cannot
+      const isListField = targetField.constructor.name === 'ListField'
+      if (!isListField) {
+        const errorMsg = `Multiple connections to non-list field "${fieldName}" on ${opId}. Only ListField inputs can accept multiple connections. Connected edges: ${connections.join(', ')}`
+        throw new Error(errorMsg)
+      }
     }
   }
 
