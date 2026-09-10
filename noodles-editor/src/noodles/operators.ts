@@ -146,6 +146,12 @@ import { getKeysStore } from './keys-store'
 import { getAllOps, getOp } from './store'
 import { prepareTableDataForOutput, type TableSchema, validateTableData } from './table-schema'
 import type { ExtensionConstructorArgs, LayerPropsValue } from './types'
+import {
+  arrowGetColumnAsTypedArray,
+  arrowToRows,
+  hasColumn,
+  isArrowTable,
+} from './utils/arrow-utils'
 import { composeAccessor, isAccessor } from './utils/accessor-helpers'
 import { deepEqual } from './utils/deep-equal'
 import type { ExtractProps } from './utils/extract-props'
@@ -3622,6 +3628,321 @@ export class RandomizeAttributeOp extends Operator<RandomizeAttributeOp> {
     return { data: randomized }
   }
 }
+export class CreateAttributeOp extends Operator<CreateAttributeOp> {
+  static displayName = 'Create Attribute'
+  static description =
+    'Create a named attribute from data. Supports numeric (GPU-ready binary) and string attributes. Use JavaScript expressions to compute values (e.g., d.name for strings, [d.lng, d.lat, 0] for positions).'
+
+  createInputs() {
+    return {
+      data: new DataField(),
+      name: new StringField('position'),
+      expression: new ExpressionField('d.value'),
+      outputType: new StringLiteralField('number', {
+        values: ['number', 'string', 'boolean'],
+      }),
+      type: new StringLiteralField('float', {
+        values: ['float', 'uint8', 'int32'],
+      }),
+      size: new NumberField(1, { min: 1, max: 4, step: 1 }),
+    }
+  }
+
+  createOutputs() {
+    return {
+      data: new DataField(),
+    }
+  }
+
+  execute({
+    data,
+    name,
+    expression,
+    outputType,
+    type,
+    size,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    if (!data || !name) {
+      return { data }
+    }
+
+    // Handle string/boolean attributes (skip binary optimization paths)
+    if (outputType === 'string' || outputType === 'boolean') {
+      return this.executeNonNumeric(data, name, expression, outputType)
+    }
+
+    // Ultra-fast path: Check if SQL already computed this attribute
+    if (isArrowTable(data)) {
+      const existingAttributes =
+        (data as unknown as { attributes?: Record<string, unknown> }).attributes || {}
+
+      // Check for __attr_{name}_* columns from SQL
+      const attrColumnPrefix = `__attr_${name}_`
+      const attrColumns: Float32Array[] = []
+
+      try {
+        // Try to find all attribute columns for this name
+        for (let i = 0; i < size; i++) {
+          const columnName = `${attrColumnPrefix}${i}`
+          if (hasColumn(data, columnName)) {
+            const column = arrowGetColumnAsTypedArray(data, columnName)
+            attrColumns.push(column as Float32Array)
+          } else {
+            break // No more columns
+          }
+        }
+
+        // If we found all expected columns, use them directly (SQL-computed)
+        if (attrColumns.length === size) {
+          // Interleave columns into single typed array
+          const numRows = data.numRows
+          const TypedArrayClass = type === 'uint8' ? Uint8Array : Float32Array
+          const interleaved = new TypedArrayClass(numRows * size)
+
+          for (let row = 0; row < numRows; row++) {
+            for (let col = 0; col < size; col++) {
+              interleaved[row * size + col] = attrColumns[col][row]
+            }
+          }
+
+          return {
+            data: {
+              data,
+              attributes: {
+                ...existingAttributes,
+                [name]: { values: interleaved, size },
+              },
+            },
+          }
+        }
+      } catch (_e) {
+        // Column not found or error, fall through to regular computation
+      }
+    }
+
+    // Fast path: Arrow table with simple column access pattern
+    if (isArrowTable(data)) {
+      const existingAttributes =
+        (data as unknown as { attributes?: Record<string, unknown> }).attributes || {}
+
+      // Pattern 1: "d.columnName" - single column access
+      const singleColumnMatch = /^d\.(\w+)$/.exec(expression.trim())
+      if (singleColumnMatch) {
+        const columnName = singleColumnMatch[1]
+        try {
+          const typedArray = arrowGetColumnAsTypedArray(data, columnName)
+          return {
+            data: {
+              data,
+              attributes: {
+                ...existingAttributes,
+                [name]: { values: typedArray, size: 1 },
+              },
+            },
+          }
+        } catch (_e) {
+          // Column not found, fall through to slow path
+        }
+      }
+
+      // Pattern 2: "[d.col1, d.col2]" or "[d.col1, d.col2, d.col3]" - multi-column
+      const multiColumnMatch = /^\[d\.(\w+),\s*d\.(\w+)(?:,\s*d\.(\w+))?(?:,\s*d\.(\w+))?\]$/.exec(
+        expression.trim()
+      )
+      if (multiColumnMatch) {
+        const columnNames = multiColumnMatch.slice(1).filter(Boolean)
+        if (columnNames.length === size) {
+          try {
+            const columns = columnNames.map(col => arrowGetColumnAsTypedArray(data, col))
+            // Interleave columns: [x1, y1, z1, x2, y2, z2, ...]
+            const numRows = data.numRows
+            const TypedArrayClass = type === 'uint8' ? Uint8Array : Float32Array
+            const interleaved = new TypedArrayClass(numRows * size)
+            for (let i = 0; i < numRows; i++) {
+              for (let j = 0; j < size; j++) {
+                interleaved[i * size + j] = columns[j][i]
+              }
+            }
+            return {
+              data: {
+                data,
+                attributes: {
+                  ...existingAttributes,
+                  [name]: { values: interleaved, size },
+                },
+              },
+            }
+          } catch (_e) {
+            // Column not found, fall through to slow path
+          }
+        }
+      }
+
+      // Pattern 3: "[d.col1, d.col2, constant]" - mixed columns and constants
+      const mixedMatch = /^\[([^\]]+)\]$/.exec(expression.trim())
+      if (mixedMatch) {
+        const parts = mixedMatch[1].split(',').map(s => s.trim())
+        if (parts.length === size) {
+          try {
+            const extractors: Array<(i: number) => number> = []
+            for (const part of parts) {
+              const colMatch = /^d\.(\w+)$/.exec(part)
+              if (colMatch) {
+                const column = arrowGetColumnAsTypedArray(data, colMatch[1])
+                extractors.push((i: number) => column[i])
+              } else {
+                const constant = Number(part)
+                if (!Number.isNaN(constant)) {
+                  extractors.push(() => constant)
+                } else {
+                  throw new Error('Not a constant')
+                }
+              }
+            }
+
+            const numRows = data.numRows
+            const TypedArrayClass = type === 'uint8' ? Uint8Array : Float32Array
+            const interleaved = new TypedArrayClass(numRows * size)
+            for (let i = 0; i < numRows; i++) {
+              for (let j = 0; j < size; j++) {
+                interleaved[i * size + j] = extractors[j](i)
+              }
+            }
+            return {
+              data: {
+                data,
+                attributes: {
+                  ...existingAttributes,
+                  [name]: { values: interleaved, size },
+                },
+              },
+            }
+          } catch (_e) {
+            // Fall through to slow path
+          }
+        }
+      }
+    }
+
+    // Slow path: materialize and evaluate JS expression
+    let dataArray: unknown[]
+    let existingData: unknown
+    let existingAttributes: Record<string, unknown> = {}
+
+    if (isArrowTable(data)) {
+      dataArray = arrowToRows(data)
+      existingData = data // Keep Arrow table as data
+      existingAttributes =
+        (data as unknown as { attributes?: Record<string, unknown> }).attributes || {}
+    } else if (Array.isArray(data)) {
+      dataArray = data
+      existingData = data
+    } else {
+      dataArray = (data as { data: unknown[] }).data || []
+      existingData = (data as { data?: unknown[] }).data || data
+      existingAttributes = (data as { attributes?: Record<string, unknown> }).attributes || {}
+    }
+
+    const attributeValues: number[] = []
+    const fn = fnWithSource(
+      ['d', 'i', 'data', ...Object.keys(freeExports)],
+      `return ${expression}`,
+      this.id
+    )
+
+    for (let i = 0; i < dataArray.length; i++) {
+      const result = fn(dataArray[i], i, dataArray, ...Object.values(freeExports))
+      if (typeof result === 'number') {
+        attributeValues.push(result)
+      } else if (Array.isArray(result)) {
+        attributeValues.push(...result.slice(0, size))
+      } else {
+        for (let j = 0; j < size; j++) {
+          attributeValues.push(0)
+        }
+      }
+    }
+
+    const TypedArrayClass =
+      type === 'uint8' ? Uint8Array : type === 'int32' ? Int32Array : Float32Array
+    const typedArray = new TypedArrayClass(attributeValues)
+
+    return {
+      data: {
+        data: existingData,
+        attributes: {
+          ...existingAttributes,
+          [name]: { values: typedArray, size },
+        },
+      },
+    }
+  }
+
+  /**
+   * Execute for string/boolean attributes (Houdini-style)
+   */
+  private executeNonNumeric(
+    data: unknown,
+    name: string,
+    expression: string,
+    outputType: 'string' | 'boolean'
+  ): ExtractProps<typeof this.outputs> {
+    let dataArray: unknown[]
+    let existingData: unknown
+    let existingAttributes: Record<string, unknown> = {}
+
+    // Extract data array
+    if (isArrowTable(data)) {
+      dataArray = arrowToRows(data)
+      existingData = data
+      existingAttributes =
+        (data as unknown as { attributes?: Record<string, unknown> }).attributes || {}
+    } else if (Array.isArray(data)) {
+      dataArray = data
+      existingData = data
+    } else {
+      dataArray = (data as { data: unknown[] }).data || []
+      existingData = (data as { data?: unknown[] }).data || data
+      existingAttributes = (data as { attributes?: Record<string, unknown> }).attributes || {}
+    }
+
+    // Evaluate expression for each row
+    const fn = fnWithSource(
+      ['d', 'i', 'data', ...Object.keys(freeExports)],
+      `return ${expression}`,
+      this.id
+    )
+    const attributeValues: (string | boolean)[] = []
+
+    for (let i = 0; i < dataArray.length; i++) {
+      const result = fn(dataArray[i], i, dataArray, ...Object.values(freeExports))
+
+      if (outputType === 'string') {
+        // Convert result to string
+        attributeValues.push(result == null ? '' : String(result))
+      } else {
+        // Convert result to boolean
+        attributeValues.push(Boolean(result))
+      }
+    }
+
+    return {
+      data: {
+        data: existingData,
+        attributes: {
+          ...existingAttributes,
+          [name]: {
+            values: attributeValues,
+            type: outputType,
+            size: 1,
+          },
+        },
+      },
+    }
+  }
+}
+
+
 
 export class ConcatOp extends Operator<ConcatOp> {
   static displayName = 'Concat'
@@ -9887,9 +10208,10 @@ export const opTypes = {
   CombineRGBAOp,
   CombineXYOp,
   ConcatOp,
-  CustomMapLibreLayerOp,
   ConsoleOp,
   ContainerOp,
+  CreateAttributeOp,
+  CustomMapLibreLayerOp,
   ContourLayerOp,
   ConvexHullOp,
   CrossOp,
