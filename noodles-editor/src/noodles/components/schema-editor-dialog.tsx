@@ -4,9 +4,11 @@ import { Dropdown } from 'primereact/dropdown'
 import { InputNumber } from 'primereact/inputnumber'
 import { InputSwitch } from 'primereact/inputswitch'
 import { InputText } from 'primereact/inputtext'
-import { useState } from 'react'
-import type { ColumnSchema, ColumnType, TableSchema } from '../table-schema'
-import { getDefaultValue } from '../table-schema'
+import { useEffect, useState } from 'react'
+import type { ColumnSchema, ColumnType, DateTimeValue, TableSchema } from '../table-schema'
+import { getDefaultValue, validateValue } from '../table-schema'
+import { getTimezoneOptions } from '../utils/timezone-utils'
+import { ColorSwatch } from './color-swatch'
 import s from './schema-editor-dialog.module.css'
 
 interface SchemaEditorDialogProps {
@@ -35,6 +37,191 @@ interface ColumnEditorProps {
   onDelete: () => void
   onMoveUp?: () => void
   onMoveDown?: () => void
+}
+
+function normalizeColumnDefault(column: ColumnSchema): ColumnSchema {
+  if (column.defaultValue !== undefined && validateValue(column.defaultValue, column)) {
+    return column
+  }
+
+  return { ...column, defaultValue: getDefaultValue(column) }
+}
+
+function normalizeSchemaDefaults(schema: TableSchema): TableSchema {
+  return { columns: schema.columns.map(normalizeColumnDefault) }
+}
+
+function StringLiteralValuesInput({
+  values,
+  onChange,
+}: {
+  values: string[] | undefined
+  onChange: (values: string[]) => void
+}) {
+  const [inputValue, setInputValue] = useState('')
+
+  useEffect(() => {
+    setInputValue(values?.join(', ') ?? '')
+  }, [values])
+
+  const handleBlur = () => {
+    const parsed = inputValue
+      .split(',')
+      .map((v) => v.trim())
+      .filter(Boolean)
+    onChange(parsed)
+  }
+
+  return (
+    <InputText
+      value={inputValue}
+      onChange={(e) => setInputValue(e.target.value)}
+      onBlur={handleBlur}
+      placeholder="option1, option2, option3"
+      className={s.fullWidthInput}
+    />
+  )
+}
+
+function VectorDefaultEditor({
+  column,
+  dimensions,
+  onChange,
+}: {
+  column: ColumnSchema
+  dimensions: 2 | 3
+  onChange: (defaultValue: number[]) => void
+}) {
+  const fallback = getDefaultValue(column) as number[]
+  const value =
+    Array.isArray(column.defaultValue) && column.defaultValue.length === dimensions
+      ? column.defaultValue
+      : fallback
+  const axes = dimensions === 2 ? ['x', 'y'] : ['x', 'y', 'z']
+
+  return (
+    <div className={s.vectorDefaultInputs}>
+      {axes.map((axis, index) => (
+        <label key={axis}>
+          {axis.toUpperCase()}:
+          <InputNumber
+            value={value[index] as number}
+            onValueChange={event => {
+              const nextValue = [...value]
+              nextValue[index] = event.value ?? 0
+              onChange(nextValue)
+            }}
+            aria-label={`Default ${axis} for ${column.name}`}
+            className={s.optionInput}
+          />
+        </label>
+      ))}
+    </div>
+  )
+}
+
+function DefaultValueEditor({
+  column,
+  onChange,
+}: {
+  column: ColumnSchema
+  onChange: (defaultValue: unknown) => void
+}) {
+  const defaultValue = column.defaultValue ?? getDefaultValue(column)
+
+  switch (column.type) {
+    case 'number':
+      return (
+        <InputNumber
+          value={defaultValue as number}
+          min={column.options?.min}
+          max={column.options?.max}
+          step={column.options?.step ?? 1}
+          onValueChange={event => onChange(event.value ?? getDefaultValue(column))}
+          aria-label={`Default value for ${column.name}`}
+          className={s.defaultInput}
+        />
+      )
+    case 'string':
+      return (
+        <InputText
+          value={defaultValue as string}
+          onChange={event => onChange(event.target.value)}
+          aria-label={`Default value for ${column.name}`}
+          className={s.defaultInput}
+        />
+      )
+    case 'stringLiteral': {
+      const values = column.options?.values ?? []
+      return values.length > 0 && !column.options?.freeform ? (
+        <Dropdown
+          value={defaultValue as string}
+          options={values}
+          onChange={event => onChange(event.value)}
+          appendTo="self"
+          aria-label={`Default value for ${column.name}`}
+          className={s.defaultInput}
+        />
+      ) : (
+        <InputText
+          value={defaultValue as string}
+          onChange={event => onChange(event.target.value)}
+          aria-label={`Default value for ${column.name}`}
+          className={s.defaultInput}
+        />
+      )
+    }
+    case 'boolean':
+      return (
+        <InputSwitch
+          checked={defaultValue as boolean}
+          onChange={event => onChange(event.value)}
+          aria-label={`Default value for ${column.name}`}
+        />
+      )
+    case 'color':
+      return <ColorSwatch value={defaultValue as string} onChange={onChange} />
+    case 'point2d':
+    case 'vec2':
+      return <VectorDefaultEditor column={column} dimensions={2} onChange={onChange} />
+    case 'point3d':
+    case 'vec3':
+      return <VectorDefaultEditor column={column} dimensions={3} onChange={onChange} />
+    case 'date':
+      return (
+        <InputText
+          type="date"
+          value={defaultValue as string}
+          onChange={event => onChange(event.target.value)}
+          aria-label={`Default value for ${column.name}`}
+          className={s.defaultInput}
+        />
+      )
+    case 'dateTime': {
+      const dateTimeValue = defaultValue as DateTimeValue
+      return (
+        <div className={s.dateTimeDefaultInputs}>
+          <InputText
+            type="datetime-local"
+            step={0.001}
+            value={dateTimeValue.datetime}
+            onChange={event => onChange({ ...dateTimeValue, datetime: event.target.value })}
+            aria-label={`Default date and time for ${column.name}`}
+            className={s.defaultInput}
+          />
+          <Dropdown
+            value={dateTimeValue.timezone}
+            options={getTimezoneOptions()}
+            onChange={event => onChange({ ...dateTimeValue, timezone: event.value })}
+            filter
+            appendTo="self"
+            aria-label={`Default timezone for ${column.name}`}
+            className={s.timezoneDropdown}
+          />
+        </div>
+      )
+    }
+  }
 }
 
 function ColumnEditor({ column, onChange, onDelete, onMoveUp, onMoveDown }: ColumnEditorProps) {
@@ -87,6 +274,18 @@ function ColumnEditor({ column, onChange, onDelete, onMoveUp, onMoveDown }: Colu
             onClick={onDelete}
           />
         </div>
+      </div>
+
+      <div
+        className={s.defaultValueRow}
+        role="group"
+        aria-label={`Default value for ${column.name}`}
+      >
+        <span className={s.optionLabel}>Default:</span>
+        <DefaultValueEditor
+          column={column}
+          onChange={defaultValue => onChange({ ...column, defaultValue })}
+        />
       </div>
 
       {column.type === 'number' && (
@@ -157,22 +356,27 @@ function ColumnEditor({ column, onChange, onDelete, onMoveUp, onMoveDown }: Colu
         <div className={s.typeOptions}>
           <label>
             Values (comma-separated):
-            <InputText
-              value={column.options?.values?.join(', ') ?? ''}
+            <StringLiteralValuesInput
+              values={column.options?.values}
+              onChange={values =>
+                onChange({
+                  ...column,
+                  options: { ...column.options, values },
+                })
+              }
+            />
+          </label>
+
+          <label className={s.switchLabel}>
+            <span>Freeform input:</span>
+            <InputSwitch
+              checked={column.options?.freeform ?? false}
               onChange={e =>
                 onChange({
                   ...column,
-                  options: {
-                    ...column.options,
-                    values: e.target.value
-                      .split(',')
-                      .map(v => v.trim())
-                      .filter(Boolean),
-                  },
+                  options: { ...column.options, freeform: e.value },
                 })
               }
-              placeholder="option1, option2, option3"
-              className={s.fullWidthInput}
             />
           </label>
         </div>
@@ -183,10 +387,12 @@ function ColumnEditor({ column, onChange, onDelete, onMoveUp, onMoveDown }: Colu
 
 export function SchemaEditorDialog({ schema, onChange, onClose }: SchemaEditorDialogProps) {
   const [open, setOpen] = useState(false)
-  const [localSchema, setLocalSchema] = useState<TableSchema>(schema)
+  const [localSchema, setLocalSchema] = useState<TableSchema>(() =>
+    normalizeSchemaDefaults(schema)
+  )
 
   const handleOpen = () => {
-    setLocalSchema(schema) // Reset to current schema
+    setLocalSchema(normalizeSchemaDefaults(schema)) // Reset to current schema
     setOpen(true)
   }
 
@@ -209,7 +415,7 @@ export function SchemaEditorDialog({ schema, onChange, onClose }: SchemaEditorDi
 
   const updateColumn = (index: number, updates: ColumnSchema) => {
     const newColumns = [...localSchema.columns]
-    newColumns[index] = updates
+    newColumns[index] = normalizeColumnDefault(updates)
     setLocalSchema({ columns: newColumns })
   }
 

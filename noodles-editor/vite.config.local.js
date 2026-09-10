@@ -44,7 +44,7 @@ export default defineConfig(({ mode }) => {
     )
     localAliases['@deck.gl/mesh-layers'] = path.resolve(deckglDir, 'modules/mesh-layers/src')
     localAliases['@deck.gl/extensions'] = path.resolve(deckglDir, 'modules/extensions/src')
-    localAliases['@deck.gl/mapbox'] = path.resolve(deckglDir, 'modules/mapbox/src')
+    localAliases['@deck.gl/maplibre'] = path.resolve(deckglDir, 'modules/maplibre/src')
     localAliases['@deck.gl/react'] = path.resolve(deckglDir, 'modules/react/src')
     // Note: @deck.gl/widgets uses npm package (CSS loading issues with local source)
     // localAliases['@deck.gl/widgets'] = path.resolve(deckglDir, 'modules/widgets/src')

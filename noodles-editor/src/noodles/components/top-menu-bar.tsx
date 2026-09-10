@@ -9,13 +9,17 @@ import { ExternalControlButton } from '../../external-control/components/externa
 import { analytics } from '../../utils/analytics'
 import { debugUI } from '../../utils/debug'
 import { ContainerOp } from '../operators'
-import { getOpStore, useNestingStore, useUIStore } from '../store'
+import { getOpStore, type MapMode, useNestingStore, useUIStore } from '../store'
 import { directoryHandleCache } from '../utils/directory-handle-cache'
+import { shouldBlockKeyboardShortcut } from '../utils/input-detection'
 import { getParentPath, splitPath } from '../utils/path-utils'
 import { Breadcrumbs } from './breadcrumbs'
 import type { CopyControlsRef } from './copy-controls'
 import { DataImporterTool } from './tools/data-importer-tool'
+import type { GeoRecipe } from './tools/geo-recipes'
+import { GeoToolWizard } from './tools/geo-tool-wizard'
 import { PointWizardTool } from './tools/point-wizard-tool'
+import { ToolShelf } from './tools/tool-shelf'
 import s from './top-menu-bar.module.css'
 import type { UndoRedoHandlerRef } from './UndoRedoHandler'
 
@@ -42,8 +46,8 @@ interface TopMenuBarProps {
   onChangeShowOverlay?: (show: boolean) => void
   showDebugInfo?: boolean
   onChangeShowDebugInfo?: (show: boolean) => void
-  layoutMode?: 'split' | 'noodles-on-top' | 'output-on-top'
-  onChangeLayoutMode?: (mode: 'split' | 'noodles-on-top' | 'output-on-top') => void
+  spreadsheetVisible?: boolean
+  onChangeSpreadsheetVisible?: (show: boolean) => void
   reactFlowRef?: RefObject<HTMLDivElement>
 }
 
@@ -69,18 +73,20 @@ export function TopMenuBar({
   onChangeShowOverlay,
   showDebugInfo,
   onChangeShowDebugInfo,
-  layoutMode,
-  onChangeLayoutMode,
+  spreadsheetVisible,
+  onChangeSpreadsheetVisible,
   reactFlowRef,
 }: TopMenuBarProps) {
   const settingsDialogOpen = useUIStore(state => state.settingsDialogOpen)
   const setSettingsDialogOpen = useUIStore(state => state.setSettingsDialogOpen)
-  const setSidebarVisible = useUIStore(state => state.setSidebarVisible)
+  const mapMode = useUIStore(state => state.mapMode)
+  const setMapMode = useUIStore(state => state.setMapMode)
   const triggerSidebarSearch = useUIStore(state => state.triggerSidebarSearch)
   const [, navigate] = useLocation()
   const [recentProjects, setRecentProjects] = useState<string[]>([])
   const [showPointWizard, setShowPointWizard] = useState(false)
   const [showDataImporter, setShowDataImporter] = useState(false)
+  const [activeRecipe, setActiveRecipe] = useState<GeoRecipe | null>(null)
   const currentContainerId = useNestingStore(state => state.currentContainerId)
   const setCurrentContainerId = useNestingStore(state => state.setCurrentContainerId)
   const reactFlow = useReactFlow()
@@ -96,6 +102,8 @@ export function TopMenuBar({
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (shouldBlockKeyboardShortcut(e)) return
+
       const isMod = e.metaKey || e.ctrlKey
 
       if (isMod && e.key === 's') {
@@ -116,7 +124,6 @@ export function TopMenuBar({
         analytics.track('keyboard_shortcut_used', { action: 'import' })
       } else if (isMod && e.key === 'f') {
         e.preventDefault()
-        setSidebarVisible(true)
         triggerSidebarSearch()
         analytics.track('keyboard_shortcut_used', { action: 'find' })
       }
@@ -124,7 +131,7 @@ export function TopMenuBar({
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [onSaveProject, onNewProject, onOpen, onImport, setSidebarVisible, triggerSidebarSearch])
+  }, [onSaveProject, onNewProject, onOpen, onImport, triggerSidebarSearch])
 
   // Detect platform for keyboard shortcuts
   const isMac = useMemo(() => navigator.platform.toUpperCase().indexOf('MAC') >= 0, [])
@@ -365,7 +372,6 @@ export function TopMenuBar({
                       <DropdownMenu.Item
                         className={s.dropdownItem}
                         onSelect={() => {
-                          setSidebarVisible(true)
                           triggerSidebarSearch()
                           analytics.track('keyboard_shortcut_used', { action: 'find' })
                         }}
@@ -437,12 +443,21 @@ export function TopMenuBar({
                         </DropdownMenu.ItemIndicator>
                         Show editor debug info
                       </DropdownMenu.CheckboxItem>
-
+                      <DropdownMenu.CheckboxItem
+                        className={s.dropdownItem}
+                        checked={spreadsheetVisible}
+                        onCheckedChange={onChangeSpreadsheetVisible}
+                      >
+                        <DropdownMenu.ItemIndicator className={s.itemIndicator}>
+                          <i className="pi pi-check" style={{ fontSize: '12px' }} />
+                        </DropdownMenu.ItemIndicator>
+                        Show spreadsheet
+                      </DropdownMenu.CheckboxItem>
                       <DropdownMenu.Separator className={s.dropdownSeparator} />
 
                       <DropdownMenu.Sub>
                         <DropdownMenu.SubTrigger className={s.dropdownItem}>
-                          Layout
+                          Map
                           <i
                             className="pi pi-chevron-right"
                             style={{ marginLeft: 'auto', fontSize: '10px' }}
@@ -451,36 +466,26 @@ export function TopMenuBar({
                         <DropdownMenu.Portal>
                           <DropdownMenu.SubContent className={s.dropdownContent} sideOffset={2}>
                             <DropdownMenu.RadioGroup
-                              value={layoutMode}
-                              onValueChange={value =>
-                                onChangeLayoutMode?.(
-                                  value as 'split' | 'noodles-on-top' | 'output-on-top'
-                                )
-                              }
+                              value={mapMode}
+                              onValueChange={value => setMapMode(value as MapMode)}
                             >
-                              <DropdownMenu.RadioItem className={s.dropdownItem} value="split">
+                              <DropdownMenu.RadioItem className={s.dropdownItem} value="docked">
                                 <DropdownMenu.ItemIndicator className={s.itemIndicator}>
                                   <i className="pi pi-check" style={{ fontSize: '12px' }} />
                                 </DropdownMenu.ItemIndicator>
-                                Split
+                                Docked panel
                               </DropdownMenu.RadioItem>
-                              <DropdownMenu.RadioItem
-                                className={s.dropdownItem}
-                                value="noodles-on-top"
-                              >
+                              <DropdownMenu.RadioItem className={s.dropdownItem} value="floating">
                                 <DropdownMenu.ItemIndicator className={s.itemIndicator}>
                                   <i className="pi pi-check" style={{ fontSize: '12px' }} />
                                 </DropdownMenu.ItemIndicator>
-                                Noodles on Top
+                                Floating window
                               </DropdownMenu.RadioItem>
-                              <DropdownMenu.RadioItem
-                                className={s.dropdownItem}
-                                value="output-on-top"
-                              >
+                              <DropdownMenu.RadioItem className={s.dropdownItem} value="underlay">
                                 <DropdownMenu.ItemIndicator className={s.itemIndicator}>
                                   <i className="pi pi-check" style={{ fontSize: '12px' }} />
                                 </DropdownMenu.ItemIndicator>
-                                Output on Top
+                                Behind node graph
                               </DropdownMenu.RadioItem>
                             </DropdownMenu.RadioGroup>
                           </DropdownMenu.SubContent>
@@ -558,39 +563,14 @@ export function TopMenuBar({
           </div>
         </div>
 
-        <div className={s.centerSection}>
-          {reactFlowRef && (
-            <>
-              <button
-                type="button"
-                className={s.toolButton}
-                onClick={onOpenAddNode}
-                disabled={!onOpenAddNode}
-              >
-                <i className="pi pi-plus-circle" />
-                <span className={s.toolLabel}>Add Op</span>
-              </button>
-
-              <button
-                type="button"
-                className={s.toolButton}
-                onClick={() => setShowPointWizard(true)}
-              >
-                <i className="pi pi-map-marker" />
-                <span className={s.toolLabel}>Create Point</span>
-              </button>
-
-              <button
-                type="button"
-                className={s.toolButton}
-                onClick={() => setShowDataImporter(true)}
-              >
-                <i className="pi pi-file-import" />
-                <span className={s.toolLabel}>Import Data</span>
-              </button>
-            </>
-          )}
-        </div>
+        {reactFlowRef && (
+          <ToolShelf
+            onOpenAddNode={onOpenAddNode}
+            onCreatePoint={() => setShowPointWizard(true)}
+            onImportFile={() => setShowDataImporter(true)}
+            onRunRecipe={setActiveRecipe}
+          />
+        )}
 
         <div className={s.rightSection}>
           <ExternalControlButton />
@@ -619,6 +599,14 @@ export function TopMenuBar({
           <DataImporterTool
             open={showDataImporter}
             onOpenChange={setShowDataImporter}
+            reactFlowRef={reactFlowRef}
+          />
+
+          <GeoToolWizard
+            recipe={activeRecipe}
+            onOpenChange={open => {
+              if (!open) setActiveRecipe(null)
+            }}
             reactFlowRef={reactFlowRef}
           />
         </>

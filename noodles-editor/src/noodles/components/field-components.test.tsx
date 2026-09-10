@@ -1,8 +1,9 @@
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { ReactFlowProvider } from '@xyflow/react'
 import { Temporal } from 'temporal-polyfill'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
+  BezierCurveField,
   BooleanField,
   ColorField,
   CompoundPropsField,
@@ -16,8 +17,11 @@ import {
   Vec2Field,
   Vec3Field,
 } from '../fields'
-import { clearOps } from '../store'
+import { StringOp } from '../operators'
+import { clearOps, setOp } from '../store'
+import { registerPropertyMutationCallback } from '../utils/property-history'
 import {
+  BezierCurveFieldComponent,
   BooleanFieldComponent,
   ColorFieldComponent,
   CompoundFieldComponent,
@@ -207,6 +211,7 @@ describe('TextFieldComponent', () => {
   afterEach(() => {
     cleanup()
     clearOps()
+    registerPropertyMutationCallback(undefined)
     vi.restoreAllMocks()
   })
 
@@ -319,6 +324,34 @@ describe('TextFieldComponent', () => {
 
     const select = screen.getByRole('combobox')
     expect(select).toBeDisabled()
+  })
+
+  it('commits a typeahead suggestion once without blurring the input', () => {
+    const field = new StringLiteralField('option1', {
+      values: ['option1', 'option2'],
+      freeform: true,
+    })
+    const op = new StringOp('/string')
+    ;(op.inputs as unknown as { val: StringLiteralField }).val = field
+    setOp(op.id, op)
+    const onMutation = vi.fn()
+    registerPropertyMutationCallback(onMutation)
+
+    render(<TextFieldComponent id="test-field" field={field} disabled={false} />)
+
+    const input = screen.getByRole('combobox')
+    input.focus()
+    fireEvent.change(input, { target: { value: '' } })
+    const listbox = screen.getByRole('listbox')
+    fireEvent.mouseDown(within(listbox).getByRole('option', { name: 'option2' }))
+
+    expect(field.value).toBe('option2')
+    expect(onMutation).toHaveBeenCalledTimes(1)
+    expect(document.activeElement).toBe(input)
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+
+    fireEvent.blur(input)
+    expect(onMutation).toHaveBeenCalledTimes(1)
   })
 
   it('handles special characters in string values', () => {
@@ -542,7 +575,15 @@ describe('VectorFieldComponent', () => {
       expect(inputs).toHaveLength(2)
     })
 
-    it('displays x and y labels', () => {
+    it('displays x and y placeholders', () => {
+      const field = new Vec2Field({ x: 10, y: 20 })
+      render(<VectorFieldComponent id="test-field" field={field} disabled={false} />)
+
+      expect(screen.getByPlaceholderText('x')).toBeInTheDocument()
+      expect(screen.getByPlaceholderText('y')).toBeInTheDocument()
+    })
+
+    it('keeps channel names visible when inputs have values', () => {
       const field = new Vec2Field({ x: 10, y: 20 })
       render(<VectorFieldComponent id="test-field" field={field} disabled={false} />)
 
@@ -577,13 +618,13 @@ describe('VectorFieldComponent', () => {
       expect(inputs).toHaveLength(3)
     })
 
-    it('displays x, y, and z labels', () => {
+    it('displays x, y, and z placeholders', () => {
       const field = new Vec3Field({ x: 1, y: 2, z: 3 })
       render(<VectorFieldComponent id="test-field" field={field} disabled={false} />)
 
-      expect(screen.getByText('x')).toBeInTheDocument()
-      expect(screen.getByText('y')).toBeInTheDocument()
-      expect(screen.getByText('z')).toBeInTheDocument()
+      expect(screen.getByPlaceholderText('x')).toBeInTheDocument()
+      expect(screen.getByPlaceholderText('y')).toBeInTheDocument()
+      expect(screen.getByPlaceholderText('z')).toBeInTheDocument()
     })
 
     it('renders with correct initial values', () => {
@@ -606,12 +647,12 @@ describe('VectorFieldComponent', () => {
       expect(inputs).toHaveLength(2)
     })
 
-    it('displays lng and lat labels', () => {
+    it('displays lng and lat placeholders', () => {
       const field = new Point2DField({ lng: -122.4, lat: 37.8 })
       render(<VectorFieldComponent id="test-field" field={field} disabled={false} />)
 
-      expect(screen.getByText('lng')).toBeInTheDocument()
-      expect(screen.getByText('lat')).toBeInTheDocument()
+      expect(screen.getByPlaceholderText('lng')).toBeInTheDocument()
+      expect(screen.getByPlaceholderText('lat')).toBeInTheDocument()
     })
 
     it('renders lookup button for Point2DField', () => {
@@ -640,13 +681,13 @@ describe('VectorFieldComponent', () => {
       expect(inputs).toHaveLength(3)
     })
 
-    it('displays lng, lat, and alt labels', () => {
+    it('displays lng, lat, and alt placeholders', () => {
       const field = new Point3DField({ lng: -122.4, lat: 37.8, alt: 100 })
       render(<VectorFieldComponent id="test-field" field={field} disabled={false} />)
 
-      expect(screen.getByText('lng')).toBeInTheDocument()
-      expect(screen.getByText('lat')).toBeInTheDocument()
-      expect(screen.getByText('alt')).toBeInTheDocument()
+      expect(screen.getByPlaceholderText('lng')).toBeInTheDocument()
+      expect(screen.getByPlaceholderText('lat')).toBeInTheDocument()
+      expect(screen.getByPlaceholderText('alt')).toBeInTheDocument()
     })
 
     it('renders lookup button for Point3DField', () => {
@@ -851,6 +892,33 @@ describe('CompoundFieldComponent', () => {
     inputs.forEach(input => {
       expect(input).toBeDisabled()
     })
+  })
+})
+
+describe('BezierCurveFieldComponent', () => {
+  afterEach(() => {
+    cleanup()
+    clearOps()
+    vi.restoreAllMocks()
+  })
+
+  it('keeps editing instructions behind an accessible help button', () => {
+    const field = new BezierCurveField()
+    render(<BezierCurveFieldComponent id="curve" field={field} disabled={false} />)
+
+    const helpButton = screen.getByRole('button', { name: 'Show Bézier curve help' })
+    expect(helpButton).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByText(/Click to add a point/)).not.toBeInTheDocument()
+
+    fireEvent.click(helpButton)
+
+    expect(screen.getByRole('button', { name: 'Hide Bézier curve help' })).toHaveAttribute(
+      'aria-expanded',
+      'true'
+    )
+    expect(screen.getByRole('note')).toHaveTextContent(
+      'Click to add a point. Click a point to select it. Double-click to remove it. Drag to move it.'
+    )
   })
 })
 

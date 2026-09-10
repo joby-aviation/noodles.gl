@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { migrateProject } from '../src/noodles/utils/migrate-schema.js'
 
 const EXAMPLES_DIR = './src/examples'
+const PUBLIC_DIR = './public/noodles'
 
 async function getAllFiles(dir: string, extension = '.json'): Promise<string[]> {
   const entries = await readdir(dir, { withFileTypes: true })
@@ -21,7 +22,9 @@ async function getAllFiles(dir: string, extension = '.json'): Promise<string[]> 
 
 async function migrateFiles() {
   try {
-    const files = await getAllFiles(EXAMPLES_DIR)
+    const exampleFiles = await getAllFiles(EXAMPLES_DIR)
+    const publicFiles = await getAllFiles(PUBLIC_DIR)
+    const files = [...exampleFiles, ...publicFiles]
     let migratedCount = 0
     let skippedCount = 0
 

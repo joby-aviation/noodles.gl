@@ -142,6 +142,30 @@ describe('validateValue', () => {
     expect(validateValue(42, schema)).toBe(false)
   })
 
+  it('should validate StringLiteral choices without treating an empty choice list as restrictive', () => {
+    expect(
+      validateValue('start', {
+        name: 'anchor',
+        type: 'stringLiteral',
+        options: { values: ['start', 'end'] },
+      })
+    ).toBe(true)
+    expect(
+      validateValue('', {
+        name: 'anchor',
+        type: 'stringLiteral',
+        options: { values: ['start', 'end'] },
+      })
+    ).toBe(false)
+    expect(
+      validateValue('custom', {
+        name: 'anchor',
+        type: 'stringLiteral',
+        options: { values: [] },
+      })
+    ).toBe(true)
+  })
+
   it('should validate boolean values', () => {
     const schema = { name: 'test', type: 'boolean' as const }
     expect(validateValue(true, schema)).toBe(true)

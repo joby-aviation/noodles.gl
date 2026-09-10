@@ -1179,4 +1179,159 @@ describe('TimelineStore', () => {
       expect(state.tracks.size).toBe(0)
     })
   })
+
+  describe('copy/paste keyframes', () => {
+    beforeEach(() => {
+      useTimelineStore.getState().getOrCreateTrack('test / value', 0)
+    })
+
+    it('copySelectedKeyframes does nothing when nothing is selected', () => {
+      useTimelineStore.getState().addKeyframe('test / value', {
+        position: 1,
+        value: 10,
+        interpolation: 'linear',
+      })
+      useTimelineStore.getState().copySelectedKeyframes()
+      expect(useTimelineStore.getState().copiedKeyframes).toHaveLength(0)
+    })
+
+    it('copySelectedKeyframes stores selected keyframes', () => {
+      const id = useTimelineStore.getState().addKeyframe('test / value', {
+        position: 1,
+        value: 10,
+        interpolation: 'linear',
+      })
+      useTimelineStore.getState().selectKeyframe(id)
+      useTimelineStore.getState().copySelectedKeyframes()
+
+      const { copiedKeyframes } = useTimelineStore.getState()
+      expect(copiedKeyframes).toHaveLength(1)
+      expect(copiedKeyframes[0].trackId).toBe('test / value')
+      expect(copiedKeyframes[0].keyframe.value).toBe(10)
+      expect(copiedKeyframes[0].keyframe.position).toBe(1)
+    })
+
+    it('copySelectedKeyframes copies multiple keyframes from multiple tracks', () => {
+      useTimelineStore.getState().getOrCreateTrack('test / other', 0)
+      const id1 = useTimelineStore.getState().addKeyframe('test / value', {
+        position: 1,
+        value: 10,
+        interpolation: 'linear',
+      })
+      const id2 = useTimelineStore.getState().addKeyframe('test / other', {
+        position: 2,
+        value: 20,
+        interpolation: 'linear',
+      })
+      useTimelineStore.getState().selectKeyframe(id1)
+      useTimelineStore.getState().selectKeyframe(id2, true)
+      useTimelineStore.getState().copySelectedKeyframes()
+
+      expect(useTimelineStore.getState().copiedKeyframes).toHaveLength(2)
+    })
+
+    it('pasteKeyframes does nothing when clipboard is empty', () => {
+      useTimelineStore.getState().setPosition(3)
+      useTimelineStore.getState().pasteKeyframes()
+      const track = useTimelineStore.getState().getTrack('test / value')
+      expect(track?.keyframes).toHaveLength(0)
+    })
+
+    it('pasteKeyframes inserts keyframe at playhead position', () => {
+      const id = useTimelineStore.getState().addKeyframe('test / value', {
+        position: 1,
+        value: 42,
+        interpolation: 'linear',
+      })
+      useTimelineStore.getState().selectKeyframe(id)
+      useTimelineStore.getState().copySelectedKeyframes()
+
+      // Move playhead and paste
+      useTimelineStore.getState().setPosition(5)
+      useTimelineStore.getState().pasteKeyframes()
+
+      const track = useTimelineStore.getState().getTrack('test / value')
+      expect(track?.keyframes).toHaveLength(2)
+      const pasted = track?.keyframes.find(kf => kf.id !== id)
+      expect(pasted?.position).toBe(5)
+      expect(pasted?.value).toBe(42)
+    })
+
+    it('pasteKeyframes preserves relative offsets between multiple keyframes', () => {
+      const id1 = useTimelineStore.getState().addKeyframe('test / value', {
+        position: 1,
+        value: 10,
+        interpolation: 'linear',
+      })
+      const id2 = useTimelineStore.getState().addKeyframe('test / value', {
+        position: 3,
+        value: 30,
+        interpolation: 'linear',
+      })
+      useTimelineStore.getState().selectKeyframe(id1)
+      useTimelineStore.getState().selectKeyframe(id2, true)
+      useTimelineStore.getState().copySelectedKeyframes()
+
+      // Paste at position 2 — anchor (min=1) maps to 2, so offset is +1
+      useTimelineStore.getState().setPosition(2)
+      useTimelineStore.getState().pasteKeyframes()
+
+      const track = useTimelineStore.getState().getTrack('test / value')
+      // Original 2 + pasted 2 = 4 keyframes
+      expect(track?.keyframes).toHaveLength(4)
+      const positions = track!.keyframes.map(kf => kf.position).sort((a, b) => a - b)
+      expect(positions).toEqual([1, 2, 3, 4])
+    })
+
+    it('pasteKeyframes selects newly pasted keyframes', () => {
+      const id = useTimelineStore.getState().addKeyframe('test / value', {
+        position: 1,
+        value: 10,
+        interpolation: 'linear',
+      })
+      useTimelineStore.getState().selectKeyframe(id)
+      useTimelineStore.getState().copySelectedKeyframes()
+
+      useTimelineStore.getState().setPosition(5)
+      useTimelineStore.getState().pasteKeyframes()
+
+      const { selectedKeyframeIds, tracks } = useTimelineStore.getState()
+      expect(selectedKeyframeIds.size).toBe(1)
+      // The selected ID should be the new pasted one (not the original)
+      const track = tracks.get('test / value')
+      const pastedKf = track?.keyframes.find(kf => selectedKeyframeIds.has(kf.id))
+      expect(pastedKf?.position).toBe(5)
+    })
+
+    it('pasteKeyframes assigns new IDs to pasted keyframes', () => {
+      const id = useTimelineStore.getState().addKeyframe('test / value', {
+        position: 1,
+        value: 10,
+        interpolation: 'linear',
+      })
+      useTimelineStore.getState().selectKeyframe(id)
+      useTimelineStore.getState().copySelectedKeyframes()
+
+      useTimelineStore.getState().setPosition(5)
+      useTimelineStore.getState().pasteKeyframes()
+
+      const track = useTimelineStore.getState().getTrack('test / value')
+      const ids = track?.keyframes.map(kf => kf.id)
+      expect(new Set(ids).size).toBe(2) // All IDs are unique
+    })
+
+    it('reset clears the clipboard', () => {
+      const id = useTimelineStore.getState().addKeyframe('test / value', {
+        position: 1,
+        value: 10,
+        interpolation: 'linear',
+      })
+      useTimelineStore.getState().selectKeyframe(id)
+      useTimelineStore.getState().copySelectedKeyframes()
+      expect(useTimelineStore.getState().copiedKeyframes).toHaveLength(1)
+
+      useTimelineStore.getState().reset()
+      expect(useTimelineStore.getState().copiedKeyframes).toHaveLength(0)
+    })
+  })
 })

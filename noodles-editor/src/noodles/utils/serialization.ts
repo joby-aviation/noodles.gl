@@ -7,14 +7,15 @@ import type {
 import { debugSerialize } from '../../utils/debug'
 import { resizeableNodes } from '../components/op-components'
 import type { useOperatorStore } from '../store'
+import { deepEqual } from './deep-equal'
 import type { ExtractProps } from './extract-props'
 import type { StorageType } from './filesystem'
+import { MULTI_INPUT_EDGE_TYPE } from './multi-input-utils'
 import { parseHandleId } from './path-utils'
 
 export { NOODLES_VERSION } from './migrate-schema'
 
 export type EditorSettings = {
-  layoutMode?: 'split' | 'noodles-on-top' | 'output-on-top'
   showOverlay?: boolean
   showDebugInfo?: boolean
 }
@@ -46,17 +47,27 @@ export const EMPTY_PROJECT: NoodlesProjectJSON = {
   editorSettings: {},
 }
 
-// Replace functions and circular references
+// Replace functions and circular references while preserving repeated references.
+// A connected field can share the exact same object value with its source. Once the
+// field is disconnected, that value becomes local state and must serialize in full.
 function getJsonSanitizer() {
-  const seen = new Set()
-  return (_key: string, value: unknown) => {
+  const ancestors: unknown[] = []
+  return function (this: unknown, _key: string, value: unknown) {
+    if (typeof value === 'function') {
+      return undefined
+    }
+
     if (typeof value === 'object' && value !== null) {
-      if (seen.has(value)) {
+      // JSON.stringify calls the replacer with the containing object as `this`.
+      // Objects no longer in that containing object's ancestry are safe to visit
+      // again; only a value already in the current ancestry is truly circular.
+      while (ancestors.length > 0 && ancestors[ancestors.length - 1] !== this) {
+        ancestors.pop()
+      }
+      if (ancestors.includes(value)) {
         return undefined
       }
-      seen.add(value)
-    } else if (typeof value === 'function') {
-      return undefined
+      ancestors.push(value)
     }
     return value
   }
@@ -73,16 +84,6 @@ export type SerializeNodesOptions = {
   // even if visibility matches heuristic. This handles fields visible due to connections
   // that won't exist after paste.
   forClipboard?: boolean
-}
-
-function deepEqual(a: unknown, b: unknown): boolean {
-  if (a === b) return true
-  if (a === null || b === null || typeof a !== 'object' || typeof b !== 'object') return false
-  if (Array.isArray(a) !== Array.isArray(b)) return false
-  const keysA = Object.keys(a as object)
-  const keysB = Object.keys(b as object)
-  if (keysA.length !== keysB.length) return false
-  return keysA.every(k => deepEqual((a as any)[k], (b as any)[k]))
 }
 
 // Check if two sets have the same elements
@@ -112,8 +113,22 @@ export function serializeNodes(
   const preparedNodes: NodeJSON<unknown>[] = []
   for (const node of nodes) {
     if (node.type === 'group') {
-      // Include visual aid nodes (e.g. for loops) as-is
-      preparedNodes.push(node)
+      // React Flow's runtime dimensions override style dimensions when a project
+      // is loaded. Persist the fitted size in style, not the transient measurement
+      // cache, so a stale measurement cannot resurrect old group bounds.
+      const { measured, width, height, ...cleanedGroup } = node
+      const fittedWidth = node.style?.width ?? measured?.width ?? width
+      const fittedHeight = node.style?.height ?? measured?.height ?? height
+      preparedNodes.push({
+        ...cleanedGroup,
+        ...((fittedWidth !== undefined || fittedHeight !== undefined) && {
+          style: {
+            ...node.style,
+            ...(fittedWidth !== undefined && { width: fittedWidth }),
+            ...(fittedHeight !== undefined && { height: fittedHeight }),
+          },
+        }),
+      })
       continue
     }
     const op = store.getOp(node.id)
@@ -141,8 +156,11 @@ export function serializeNodes(
       } catch {
         // If parsing fails, use the raw default value
       }
+      // Expression-driven fields always serialize — the expression must persist even
+      // when its current evaluated value happens to equal the default
       const hasNonDefaultValue =
-        serialized !== undefined && !deepEqual(field.value, normalizedDefault)
+        serialized !== undefined &&
+        (field.expression !== null || !deepEqual(field.value, normalizedDefault))
       if (hasNonDefaultValue && !incomers.has(name)) {
         inputs[name] = serialized
       }
@@ -228,11 +246,29 @@ export function serializeEdges(
       }
       return true
     })
-    .map(edge =>
-      Object.fromEntries(
+    .map(edge => {
+      const serialized = Object.fromEntries(
         Object.entries(edge).filter(([key]) => !['selected', 'animated'].includes(key))
       )
-    )
+
+      // Multi-input slot state (edge type + orderIndex/groupSize) is derived from edge
+      // array order at load time — keep files canonical by not persisting it
+      if (serialized.type === MULTI_INPUT_EDGE_TYPE) {
+        delete serialized.type
+        const {
+          orderIndex: _orderIndex,
+          groupSize: _groupSize,
+          ...data
+        } = (serialized.data ?? {}) as Record<string, unknown>
+        if (Object.keys(data).length > 0) {
+          serialized.data = data
+        } else {
+          delete serialized.data
+        }
+      }
+
+      return serialized
+    })
 }
 
 // Pre-load all example asset URLs for download functionality

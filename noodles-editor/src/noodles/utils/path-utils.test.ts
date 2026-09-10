@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  computeRelativePath,
   generateQualifiedPath,
   getBaseName,
   getParentPath,
@@ -230,6 +231,101 @@ describe('parseHandleId', () => {
     expect(parseHandleId('invalid')).toBeUndefined()
     expect(parseHandleId('operator.invalid.field')).toBeUndefined() // Invalid namespace
     expect(parseHandleId('random.text')).toBeUndefined() // Not valid format
+  })
+})
+
+describe('computeRelativePath', () => {
+  describe('same container', () => {
+    it('returns ./ prefixed path for siblings', () => {
+      expect(computeRelativePath('/container/target', '/container/source')).toBe('./target')
+      expect(computeRelativePath('/container/operator-a', '/container/operator-b')).toBe(
+        './operator-a'
+      )
+    })
+
+    it('handles nested targets in same container', () => {
+      expect(computeRelativePath('/container/sub/target', '/container/source')).toBe('./sub/target')
+    })
+  })
+
+  describe('parent/ancestor references', () => {
+    it('returns ../ for parent container', () => {
+      expect(computeRelativePath('/target', '/container/source')).toBe('../target')
+    })
+
+    it('returns multiple ../ for grandparent', () => {
+      expect(computeRelativePath('/target', '/container/sub/source')).toBe('../../target')
+    })
+
+    it('navigates to different branch through common ancestor', () => {
+      expect(computeRelativePath('/container/sub/target', '/other/source')).toBe(
+        '../container/sub/target'
+      )
+      expect(computeRelativePath('/analysis/output', '/preprocessing/input')).toBe(
+        '../analysis/output'
+      )
+    })
+  })
+
+  describe('root level operators', () => {
+    it('handles both at root level', () => {
+      expect(computeRelativePath('/target', '/source')).toBe('./target')
+    })
+
+    it('handles target at root, context nested', () => {
+      expect(computeRelativePath('/target', '/container/operator')).toBe('../target')
+    })
+
+    it('handles context at root, target nested', () => {
+      expect(computeRelativePath('/container/target', '/source')).toBe('./container/target')
+    })
+  })
+
+  describe('edge cases', () => {
+    it('returns . for same path', () => {
+      expect(computeRelativePath('/operator', '/operator')).toBe('.')
+      expect(computeRelativePath('/container/operator', '/container/operator')).toBe('.')
+    })
+
+    it('handles empty paths', () => {
+      expect(computeRelativePath('', '/context')).toBe('')
+      expect(computeRelativePath('/target', '')).toBe('/target')
+    })
+
+    it('handles complex nested scenarios', () => {
+      const context = '/analysis/preprocessing/filter'
+      expect(computeRelativePath('/analysis/preprocessing/transform', context)).toBe('./transform')
+      expect(computeRelativePath('/analysis/postprocessing/aggregate', context)).toBe(
+        '../postprocessing/aggregate'
+      )
+      expect(computeRelativePath('/visualization/chart', context)).toBe('../../visualization/chart')
+    })
+  })
+
+  describe('inverse of resolvePath', () => {
+    it('computes relative path that resolves back to target', () => {
+      const target = '/container/target'
+      const context = '/other/source'
+      const relative = computeRelativePath(target, context)
+      const resolved = resolvePath(relative, context)
+      expect(resolved).toBe(target)
+    })
+
+    it('works for same container', () => {
+      const target = '/container/target'
+      const context = '/container/source'
+      const relative = computeRelativePath(target, context)
+      const resolved = resolvePath(relative, context)
+      expect(resolved).toBe(target)
+    })
+
+    it('works for nested paths', () => {
+      const target = '/analysis/preprocessing/filter'
+      const context = '/visualization/output/chart'
+      const relative = computeRelativePath(target, context)
+      const resolved = resolvePath(relative, context)
+      expect(resolved).toBe(target)
+    })
   })
 })
 

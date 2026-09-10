@@ -1,6 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { FileUrlField } from './fields'
-import { IconLayerOp } from './operators'
+import { FileUrlField, MapStyleField } from './fields'
+import { useFileSystemStore } from './filesystem-store'
+import { FileOp, IconLayerOp } from './operators'
+import { canConnect } from './utils/can-connect'
+import { memoryProjectStore } from './utils/memory-project-store'
 
 describe('IconLayerOp Upload Support', () => {
   describe('Field Configuration', () => {
@@ -23,6 +26,29 @@ describe('IconLayerOp Upload Support', () => {
       expect(op.inputs.iconAtlas.value).toBe(
         'https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/icon-atlas.png'
       )
+    })
+
+    it('iconMapping should accept JSON URLs and parsed objects', () => {
+      const op = new IconLayerOp('/test-icon-layer')
+      const mapping = { marker: { x: 0, y: 0, width: 32, height: 32 } }
+
+      expect(op.inputs.iconMapping).toBeInstanceOf(MapStyleField)
+      expect(op.inputs.iconMapping.accept).toBe('.json')
+
+      op.inputs.iconMapping.setValue(mapping)
+      expect(op.inputs.iconMapping.value).toEqual(mapping)
+    })
+
+    it('iconMapping should accept parsed JSON from a File operator connection', () => {
+      const fileOp = new FileOp('/mapping-file')
+      const iconOp = new IconLayerOp('/test-icon-layer')
+      const mapping = { marker: { x: 0, y: 0, width: 32, height: 32 } }
+
+      fileOp.outputs.data.setValue(mapping)
+      expect(canConnect(fileOp.outputs.data, iconOp.inputs.iconMapping)).toBe(true)
+
+      iconOp.inputs.iconMapping.addConnection('mapping-edge', fileOp.outputs.data, 'value')
+      expect(iconOp.inputs.iconMapping.value).toEqual(mapping)
     })
 
     it('getIcon should be a FileUrlField', () => {
@@ -132,6 +158,74 @@ describe('IconLayerOp Upload Support', () => {
       })
 
       expect(result.layer.iconAtlas).toBe('https://example.com/icons.png')
+    })
+
+    it('should pass through external icon mapping URLs', async () => {
+      const op = new IconLayerOp('/test-icon-layer')
+
+      const result = await op.execute({
+        data: [],
+        visible: true,
+        opacity: 1,
+        getPosition: [0, 0],
+        iconAtlas: 'https://example.com/icons.png',
+        iconMapping: 'https://example.com/icons.json',
+        billboard: true,
+        getIcon: '',
+        getSize: 1,
+        sizeUnits: 'pixels',
+        sizeScale: 1,
+        sizeMinPixels: 0,
+        sizeMaxPixels: 256,
+        getPixelOffset: [0, 0],
+        getColor: [255, 255, 255, 255],
+        getAngle: 0,
+        sizeBasis: 'pixels',
+        parameters: { depthTest: true },
+        extensions: [],
+      })
+
+      expect(result.layer.iconMapping).toBe('https://example.com/icons.json')
+    })
+
+    it('should parse a project-relative icon mapping file', async () => {
+      const op = new IconLayerOp('/test-icon-layer')
+      const mapping = { marker: { x: 0, y: 0, width: 32, height: 32 } }
+      const previousState = useFileSystemStore.getState()
+      useFileSystemStore.setState({
+        currentProjectName: 'test-project',
+        activeStorageType: 'memory',
+      })
+      memoryProjectStore.writeAsset('test-project', 'icons.json', JSON.stringify(mapping))
+
+      try {
+        const result = await op.execute({
+          data: [],
+          visible: true,
+          opacity: 1,
+          getPosition: [0, 0],
+          iconAtlas: 'https://example.com/icons.png',
+          iconMapping: '@/icons.json',
+          billboard: true,
+          getIcon: '',
+          getSize: 1,
+          sizeUnits: 'pixels',
+          sizeScale: 1,
+          sizeMinPixels: 0,
+          sizeMaxPixels: 256,
+          getPixelOffset: [0, 0],
+          getColor: [255, 255, 255, 255],
+          getAngle: 0,
+          sizeBasis: 'pixels',
+          parameters: { depthTest: true },
+          extensions: [],
+        })
+
+        expect(result.layer.iconMapping).toEqual(mapping)
+      } finally {
+        memoryProjectStore.deleteProject('test-project')
+        useFileSystemStore.setState(previousState)
+      }
     })
 
     it('should reject project-relative iconAtlas URL when no project loaded', async () => {
@@ -325,9 +419,9 @@ describe('IconLayerOp Upload Support', () => {
       })
 
       const iconData = (result.layer.getIcon as () => any)()
-      // Should normalize to 512px max (sizeMaxPixels * 2, capped at 512)
+      // sizeMaxPixels=256 → 512px texture (256 * 2), image is 4003x2155
+      // 4003 > 512, so normalize: width=512, height=512/(4003/2155)≈276
       expect(iconData.width).toBe(512)
-      // Height should maintain aspect ratio: 512 / (4003/2155) ≈ 276
       expect(iconData.height).toBe(276)
       expect(iconData.id).toBe('https://example.com/large-aircraft.png')
     })

@@ -1,6 +1,8 @@
 // Adapted from React Flow's keyboard handling approach
 // https://github.com/xyflow/xyflow/blob/main/packages/system/src/utils/dom.ts
 
+import { shouldBlockKeyboardShortcut } from './input-detection'
+
 type ShortcutHandler = (e: KeyboardEvent) => undefined | boolean
 
 interface ShortcutRegistration {
@@ -9,22 +11,12 @@ interface ShortcutRegistration {
   id: symbol
 }
 
-const inputTags = ['INPUT', 'SELECT', 'TEXTAREA']
-
 class KeyboardManager {
   private registrations: ShortcutRegistration[] = []
   private initialized = false
 
-  private isInputDOMNode(event: KeyboardEvent): boolean {
-    const target = (event.composedPath?.()?.[0] || event.target) as Element | null
-    if (target?.nodeType !== 1) return false
-
-    const isInput = inputTags.includes(target.nodeName) || target.hasAttribute('contenteditable')
-    return isInput || !!target.closest('.nokey')
-  }
-
   private handleKeyUp = (e: KeyboardEvent) => {
-    if (this.isInputDOMNode(e)) return
+    if (shouldBlockKeyboardShortcut(e)) return
 
     const key = e.key.toLowerCase()
 

@@ -1,4 +1,5 @@
 import React, { Component, type ReactNode } from 'react'
+import { analytics } from '../../utils/analytics'
 import { debugUI } from '../../utils/debug'
 import s from './error-boundary.module.css'
 
@@ -56,13 +57,17 @@ export class ErrorBoundary extends Component<Props, State> {
 
   handleReset = () => {
     const now = Date.now()
-    const { resetCount } = this.state
+    const { resetCount, error } = this.state
     const maxResets = this.props.maxResets ?? DEFAULT_MAX_RESETS
 
     if (resetCount >= maxResets) {
       debugUI(
         `Maximum reset attempts (${maxResets}) reached. Please refresh the page or check for underlying issues.`
       )
+      // Only track that max resets was hit - error details may contain PII
+      analytics.track('error_boundary_max_resets', {
+        resetCount,
+      })
       return
     }
 

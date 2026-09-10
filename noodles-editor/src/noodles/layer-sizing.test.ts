@@ -135,6 +135,7 @@ describe('Layer Sizing and Width Units', () => {
       const result = await arcLayer.execute(getInputProps(arcLayer))
 
       expect(result.layer.widthUnits).toBe('meters')
+      // Note: ArcLayerOp doesn't have widthScale/widthMinPixels/widthMaxPixels
     })
   })
 

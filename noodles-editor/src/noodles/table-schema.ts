@@ -34,6 +34,7 @@ export interface ColumnSchema {
 
     // StringLiteralField options
     values?: string[]
+    freeform?: boolean
 
     // Point2D options
     geocoder?: boolean
@@ -271,7 +272,10 @@ export function validateValue(value: unknown, schema: ColumnSchema): boolean {
       if (typeof value !== 'string') {
         return false
       }
-      if (schema.options?.values) {
+      if (schema.options?.freeform) {
+        return true
+      }
+      if (schema.options?.values && schema.options.values.length > 0) {
         return schema.options.values.includes(value)
       }
       return true
@@ -368,6 +372,17 @@ export function validateTableData(data: unknown[], schema: TableSchema): unknown
       // Use default if missing
       if (value === undefined) {
         validatedRow[col.name] = col.defaultValue ?? getDefaultValue(col)
+        continue
+      }
+
+      // A chained TableEditor receives the upstream editor's output representation.
+      // Convert Temporal values back to the editable storage representation before
+      // validating so a valid date-time is not replaced with the column default.
+      if (col.type === 'dateTime' && value instanceof Temporal.ZonedDateTime) {
+        validatedRow[col.name] = {
+          datetime: temporalToString(value),
+          timezone: value.timeZoneId,
+        } satisfies DateTimeValue
         continue
       }
 

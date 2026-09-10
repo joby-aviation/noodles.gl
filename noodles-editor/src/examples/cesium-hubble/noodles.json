@@ -1,5 +1,5 @@
 {
-  "version": 15,
+  "version": 17,
   "edges": [
     {
       "id": "/basemap.out.maplibre->/renderer.par.basemap",
@@ -31,9 +31,9 @@
     }
   ],
   "viewport": {
-    "x": 0,
-    "y": 0,
-    "zoom": 0.8
+    "x": 200,
+    "y": 200,
+    "zoom": 0.75
   },
   "name": "Cesium + Hubble Video Spheres",
   "editorSettings": {
@@ -45,8 +45,8 @@
       "id": "/basemap",
       "type": "MaplibreBasemapOp",
       "position": {
-        "x": 1000,
-        "y": 340
+        "x": 300,
+        "y": 300
       },
       "data": {
         "inputs": {
@@ -66,8 +66,8 @@
       "id": "/point-cloud",
       "type": "Tile3DLayerOp",
       "position": {
-        "x": 600,
-        "y": 100
+        "x": -50,
+        "y": -180
       },
       "data": {
         "inputs": {
@@ -81,8 +81,8 @@
       "id": "/video-spheres",
       "type": "CodeOp",
       "position": {
-        "x": 200,
-        "y": 340
+        "x": -400,
+        "y": 60
       },
       "width": 900,
       "height": 680,
@@ -172,8 +172,8 @@
       "id": "/renderer",
       "type": "DeckRendererOp",
       "position": {
-        "x": 1000,
-        "y": 100
+        "x": 800,
+        "y": 60
       },
       "data": {
         "inputs": {},
@@ -184,8 +184,8 @@
       "id": "/out",
       "type": "OutOp",
       "position": {
-        "x": 1400,
-        "y": 100
+        "x": 1100,
+        "y": 60
       },
       "data": {
         "inputs": {
