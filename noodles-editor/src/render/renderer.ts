@@ -2,6 +2,7 @@ import { assert, type Deck } from '@deck.gl/core'
 import { useCallback, useRef, useState } from 'react'
 import { getTimelineStore, useTimelineStore } from '../timeline/timeline-store'
 import { debugRender, debugRenderFrame } from '../utils/debug'
+import { captureCanvasFrame } from './capture-canvas-frame'
 
 export const rafDriver = {
   tick: (_timestamp: number) => {},
@@ -259,9 +260,7 @@ export const useRenderer = ({
           container: Awaited<ReturnType<typeof getContainer>>
         ) => {
           captureStart = performance.now()
-          // @ts-expect-error - typescript types not updated yet
-          recorder.track.requestFrame()
-          const result = await recorder.reader.read()
+          const result = await captureCanvasFrame(recorder.track, recorder.reader, redraw)
           captureEnd = performance.now()
           totalCaptureTime += captureEnd - captureStart
 
@@ -430,9 +429,7 @@ export const useRenderer = ({
           // Capture via compositor: requestFrame reads from the display buffer, not the
           // GL buffer (which may already be cleared). Draw into OffscreenCanvas for PNG.
           const captureStart = performance.now()
-          // @ts-expect-error - typescript types not updated yet
-          track.requestFrame()
-          const { value: frame } = await reader.read()
+          const { value: frame } = await captureCanvasFrame(track, reader, redraw)
           const captureEnd = performance.now()
           totalCaptureTime += captureEnd - captureStart
 

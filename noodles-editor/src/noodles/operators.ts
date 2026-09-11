@@ -6,7 +6,7 @@ import type {
   HexagonLayerProps,
   ScreenGridLayerProps,
 } from '@deck.gl/aggregation-layers'
-import { type LayerExtension, type LayerProps, WebMercatorViewport } from '@deck.gl/core'
+import type { LayerExtension, LayerProps } from '@deck.gl/core'
 import {
   BrushingExtension,
   ClipExtension,
@@ -76,9 +76,9 @@ import * as duckdb from '@duckdb/duckdb-wasm'
 import { getTransformScaleFactor } from '../render/transform-scale'
 import { subscribeToPosition } from '../timeline/timeline-store'
 import * as utils from '../utils'
+import { analytics } from '../utils/analytics'
 import { getArc } from '../utils/arc-geometry'
 import { colorToHex, hexToColor } from '../utils/color'
-import { analytics } from '../utils/analytics'
 import { debugDirty, debugExecute, debugParams, debugPull } from '../utils/debug'
 import { getDirections } from '../utils/directions'
 import { geocodeWithMapbox } from '../utils/geocoding'
@@ -158,6 +158,7 @@ import { subscribeOpToTimeline, unsubscribeOpFromTimeline } from './utils/timeli
 // Side-effect import: registers the field expression evaluator so { $expr } payloads
 // applied in the Operator constructor evaluate immediately
 import './utils/field-expressions'
+import { createRollViewport } from './utils/roll-map-view'
 import { validateViewState } from './utils/viewstate-helpers'
 
 // https://stackoverflow.com/questions/66044717/typescript-infer-type-of-abstract-methods-implementation
@@ -3789,6 +3790,7 @@ export class ProjectOp extends Operator<ProjectOp> {
         zoom: new NumberField(12, { min: 0, max: 24, step: 0.1 }),
         pitch: new NumberField(0),
         bearing: new NumberField(0),
+        roll: new NumberField(0, { optional: true }),
       }),
     }
   }
@@ -3804,7 +3806,7 @@ export class ProjectOp extends Operator<ProjectOp> {
     width,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     validateViewState(viewState)
-    const viewport = new WebMercatorViewport({
+    const viewport = createRollViewport({
       ...viewState,
       height,
       width,
@@ -3829,6 +3831,7 @@ export class UnprojectOp extends Operator<UnprojectOp> {
         zoom: new NumberField(12, { min: 0, max: 24, step: 0.1 }),
         pitch: new NumberField(0),
         bearing: new NumberField(0),
+        roll: new NumberField(0, { optional: true }),
       }),
     }
   }
@@ -3844,7 +3847,7 @@ export class UnprojectOp extends Operator<UnprojectOp> {
     width,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     validateViewState(viewState)
-    const viewport = new WebMercatorViewport({
+    const viewport = createRollViewport({
       ...viewState,
       height,
       width,
@@ -3856,7 +3859,8 @@ export class UnprojectOp extends Operator<UnprojectOp> {
 
 export class MapViewStateOp extends Operator<MapViewStateOp> {
   static displayName = 'MapViewState'
-  static description = 'Create a react-map-gl MapViewState for controlling the camera.'
+  static description =
+    'Control the map camera, including roll (bank angle in degrees) for mercator views.'
   createInputs() {
     return {
       longitude: new NumberField(DEFAULT_LONGITUDE, { min: -180, max: 180, step: 0.001 }),
@@ -3864,6 +3868,7 @@ export class MapViewStateOp extends Operator<MapViewStateOp> {
       zoom: new NumberField(12, { min: 0, max: 24, step: 0.1 }),
       pitch: new NumberField(0, { min: 0, max: 85, optional: true }),
       bearing: new NumberField(0, { optional: true }),
+      roll: new NumberField(0, { optional: true }),
     }
   }
   createOutputs() {
@@ -3874,6 +3879,7 @@ export class MapViewStateOp extends Operator<MapViewStateOp> {
         zoom: new NumberField(),
         pitch: new NumberField(),
         bearing: new NumberField(),
+        roll: new NumberField(),
       }),
     }
   }
@@ -3883,8 +3889,9 @@ export class MapViewStateOp extends Operator<MapViewStateOp> {
     zoom,
     pitch,
     bearing,
+    roll = 0,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const viewState = { longitude, latitude, zoom, pitch, bearing }
+    const viewState = { longitude, latitude, zoom, pitch, bearing, roll }
     validateViewState(viewState)
     return { viewState }
   }
@@ -3901,6 +3908,7 @@ export class SplitMapViewStateOp extends Operator<SplitMapViewStateOp> {
         zoom: new NumberField(12, { min: 0, max: 24, step: 0.1 }),
         pitch: new NumberField(0, { min: 0, max: 85, optional: true }),
         bearing: new NumberField(0, { optional: true }),
+        roll: new NumberField(0, { optional: true }),
       }),
     }
   }
@@ -3911,11 +3919,12 @@ export class SplitMapViewStateOp extends Operator<SplitMapViewStateOp> {
       zoom: new NumberField(),
       pitch: new NumberField(),
       bearing: new NumberField(),
+      roll: new NumberField(),
     }
   }
   execute({ viewState }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     validateViewState(viewState)
-    return { ...viewState }
+    return { ...viewState, roll: viewState.roll ?? 0 }
   }
 }
 
@@ -3940,6 +3949,7 @@ export class MaplibreBasemapOp extends Operator<MaplibreBasemapOp> {
         zoom: new NumberField(12, { min: 0, max: 24, step: 0.1 }),
         pitch: new NumberField(0, { min: 0, max: 85, optional: true }),
         bearing: new NumberField(0, { optional: true }),
+        roll: new NumberField(0, { optional: true }),
       }),
       sky: new CompoundPropsField(
         {
@@ -3973,6 +3983,7 @@ export class MaplibreBasemapOp extends Operator<MaplibreBasemapOp> {
           zoom: new NumberField(),
           pitch: new NumberField(),
           bearing: new NumberField(),
+          roll: new NumberField(),
           light: new UnknownField(),
           sky: new UnknownField(),
         },
@@ -4115,7 +4126,7 @@ export class DeckRendererOp extends Operator<DeckRendererOp> {
     return {
       layers: new ListField(new LayerField()), // TODO: extend LayerField schema to support the beforeId prop.
       effects: new ListField(new EffectField(), { showByDefault: false }),
-      // Additional views on top of the map. A MapView({id: 'mapbox'}) will be inserted at the bottom of the stack.
+      // Additional views on top of the map. A MapView({id: 'maplibre'}) will be inserted at the bottom of the stack.
       views: new ListField(new ViewField()),
       widgets: new ListField(new WidgetField(), { showByDefault: false }),
       layerFilter: new FunctionField(() => true, { showByDefault: false }),
@@ -4167,7 +4178,7 @@ export class DeckRendererOp extends Operator<DeckRendererOp> {
     // when basemapEnabled=false (empty mapStyle). MapLibreOverlay ignores viewState, so
     // this doesn't affect the interleaved basemap rendering path.
     const basemapViewState = basemap
-      ? pick(basemap, ['longitude', 'latitude', 'zoom', 'pitch', 'bearing'])
+      ? pick(basemap, ['longitude', 'latitude', 'zoom', 'pitch', 'bearing', 'roll'])
       : {}
     if (basemap) validateViewState(basemapViewState)
 
@@ -4186,7 +4197,7 @@ export class DeckRendererOp extends Operator<DeckRendererOp> {
       basemap !== null
         ? {
             ...basemap,
-            ...pick(viewState, ['longitude', 'latitude', 'zoom', 'pitch', 'bearing']),
+            ...pick(viewState, ['longitude', 'latitude', 'zoom', 'pitch', 'bearing', 'roll']),
           }
         : undefined
 
@@ -4264,6 +4275,7 @@ export class MapViewOp extends Operator<MapViewOp> {
         ...createGeoViewStateFields(),
         zoom: new NumberField(12, { min: 0, max: 24, step: 0.1 }),
         bearing: new NumberField(0, { optional: true }),
+        roll: new NumberField(0, { optional: true }),
         pitch: new NumberField(0, { min: 0, max: 90, optional: true }),
         position: new Vec3Field([0, 0, 0], { returnType: 'tuple', optional: true }),
       }),
