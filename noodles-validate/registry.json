@@ -3847,7 +3847,8 @@
             "longitude": -74.006,
             "zoom": 12,
             "pitch": 0,
-            "bearing": 0
+            "bearing": 0,
+            "roll": 0
           }
         },
         "sky": {
@@ -4006,6 +4007,7 @@
             "longitude": -74.006,
             "zoom": 12,
             "bearing": 0,
+            "roll": 0,
             "pitch": 0,
             "position": [
               0,
@@ -4025,7 +4027,7 @@
       "name": "MapViewState",
       "type": "MapViewStateOp",
       "category": "view",
-      "description": "Create a react-map-gl MapViewState for controlling the camera.",
+      "description": "Control the map camera, including roll (bank angle in degrees) for mercator views.",
       "inputs": {
         "longitude": {
           "type": "NumberField",
@@ -4044,6 +4046,10 @@
           "default": 0
         },
         "bearing": {
+          "type": "NumberField",
+          "default": 0
+        },
+        "roll": {
           "type": "NumberField",
           "default": 0
         }
@@ -5044,7 +5050,8 @@
             "longitude": -74.006,
             "zoom": 12,
             "pitch": 0,
-            "bearing": 0
+            "bearing": 0,
+            "roll": 0
           }
         }
       },
@@ -6069,7 +6076,8 @@
             "latitude": 40.7128,
             "zoom": 12,
             "pitch": 0,
-            "bearing": 0
+            "bearing": 0,
+            "roll": 0
           }
         }
       },
@@ -6087,6 +6095,9 @@
           "type": "NumberField"
         },
         "bearing": {
+          "type": "NumberField"
+        },
+        "roll": {
           "type": "NumberField"
         }
       }
@@ -6966,7 +6977,8 @@
             "longitude": -74.006,
             "zoom": 12,
             "pitch": 0,
-            "bearing": 0
+            "bearing": 0,
+            "roll": 0
           }
         }
       },
