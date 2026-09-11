@@ -1,0 +1,352 @@
+{
+  "version": 17,
+  "name": "Plane Roll \u2014 Zurich",
+  "nodes": [
+    {
+      "id": "/flight",
+      "type": "CodeOp",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "inputs": {
+          "code": [
+            "// A fictional sightseeing flight along Lake Zurich, compressed into 22 seconds.",
+            "const t = Math.max(0, Math.min(22, sequenceTime))",
+            "const positionAt = s => [8.55 + 0.011 * s + 0.018 * Math.sin(s * Math.PI / 11), 47.34 - 0.006 * s]",
+            "const position = positionAt(t)",
+            "const ahead = positionAt(t + 0.05)",
+            "const heading = turf.bearing(turf.point(position), turf.point(ahead))",
+            "return { position, heading, route: Array.from({length: 221}, (_,i) => [...positionAt(i / 10), 240]), trail: Array.from({length: Math.max(2,Math.ceil(t * 10)+1)}, (_,i) => [...positionAt(Math.min(t, i / 10)), 240]) }"
+          ]
+        }
+      }
+    },
+    {
+      "id": "/camera",
+      "type": "MapViewStateOp",
+      "position": {
+        "x": 340,
+        "y": 0
+      },
+      "data": {
+        "inputs": {
+          "longitude": {
+            "$expr": "op('/flight').out.data.position[0]"
+          },
+          "latitude": {
+            "$expr": "op('/flight').out.data.position[1]"
+          },
+          "bearing": {
+            "$expr": "op('/flight').out.data.heading"
+          },
+          "zoom": 12.1,
+          "pitch": 62,
+          "roll": 0
+        }
+      }
+    },
+    {
+      "id": "/basemap",
+      "type": "MaplibreBasemapOp",
+      "position": {
+        "x": 680,
+        "y": 0
+      },
+      "data": {
+        "inputs": {
+          "mapStyle": "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
+          "sky": {
+            "enabled": true,
+            "skyColor": "#17374D",
+            "horizonColor": "#B9D0DB",
+            "skyHorizonBlend": 0.8,
+            "atmosphereBlend": 0.5
+          }
+        }
+      }
+    },
+    {
+      "id": "/aircraft",
+      "type": "ScenegraphLayerOp",
+      "position": {
+        "x": 340,
+        "y": 460
+      },
+      "data": {
+        "inputs": {
+          "scenegraph": "../plane-roll.glb",
+          "data": [
+            {}
+          ],
+          "getPosition": {
+            "$expr": "[...op('/flight').out.data.position, 240]"
+          },
+          "getOrientation": {
+            "$expr": "[op('/camera').par.roll, -op('/flight').out.data.heading, 90]"
+          },
+          "sizeScale": 18,
+          "sizeMaxPixels": 1000,
+          "sizeMinPixels": 0,
+          "getColor": "#FFFFFF"
+        }
+      }
+    },
+    {
+      "id": "/scene",
+      "type": "CodeOp",
+      "position": {
+        "x": 680,
+        "y": 460
+      },
+      "data": {
+        "inputs": {
+          "code": [
+            "// Map layers and a fixed instrument overlay are filtered into separate views.",
+            "const flight = op('/flight').out.data",
+            "const roll = op('/camera').par.roll",
+            "const t = Math.min(22, sequenceTime)",
+            "const white = [240, 247, 250, 255]",
+            "const cyan = [65, 228, 222, 255]",
+            "const labels = [",
+            "  {position: [-582, 264], text: Math.abs(roll) < 2 ? 'WINGS LEVEL' : roll < 0 ? 'LEFT BANK' : 'RIGHT BANK', size: 14, color: cyan},",
+            "  {position: [-582, 305], text: `${roll >= 0 ? '+' : ''}${roll.toFixed(1)}\u00b0`, size: 36, color: white},",
+            "  {position: [-320, 268], text: 'HEADING', size: 12, color: [174,194,202,255]},",
+            "  {position: [-320, 304], text: `${Math.round(flight.heading).toString().padStart(3, '0')}\u00b0`, size: 26, color: white},",
+            "  {position: [-115, 268], text: 'ALTITUDE', size: 12, color: [174,194,202,255]},",
+            "  {position: [-115, 304], text: '240 m', size: 26, color: white},",
+            "  {position: [310, 268], text: 'CAMERA ROLL', size: 12, color: [174,194,202,255]},",
+            "  {position: [310, 302], text: 'deck.gl 9.4 + MapLibre 6.9', size: 16, color: white},",
+            "  {position: [140, 326], text: '\u00a9 OpenStreetMap contributors  \u00a9 CARTO', size: 11, color: [174,194,202,255]}",
+            "]",
+            "return [",
+            "  {type: 'PathLayer', id: 'route', data: [{path:flight.route}], getPath: d => d.path, getColor: [130,160,175,100], getWidth: 2, widthUnits: 'pixels', antialiasing: true},",
+            "  {type: 'PathLayer', id: 'trail', data: [{path:flight.trail}], getPath: d => d.path, getColor: cyan, getWidth: 4, widthUnits: 'pixels', antialiasing: true},",
+            "  {type: 'PolygonLayer', id: 'hud-panels', data: [",
+            "    [[-640,236],[640,236],[640,360],[-640,360]]",
+            "  ], getPolygon: d => d, getFillColor: [7,17,28,232], stroked: false, coordinateSystem: 'cartesian', parameters: {depthCompare: 'always'}},",
+            "  {type: 'TextLayer', id: 'hud-text', data: labels, getPosition: d => d.position, getText: d => d.text, getSize: d => d.size, getColor: d => d.color, getTextAnchor: 'start', getAlignmentBaseline: 'center', characterSet: 'auto', fontFamily: 'Arial', fontWeight: 500, coordinateSystem: 'cartesian', parameters: {depthCompare: 'always'}},",
+            "  {type: 'PathLayer', id: 'hud-progress', data: [{path:[[-582,342],[-582+1164*t/22,342]]}], getPath: d=>d.path, getColor: cyan, getWidth: 3, widthUnits: 'pixels', coordinateSystem: 'cartesian', parameters: {depthCompare: 'always'}}",
+            "]"
+          ]
+        }
+      }
+    },
+    {
+      "id": "/hud",
+      "type": "OrthographicViewOp",
+      "position": {
+        "x": 680,
+        "y": 850
+      },
+      "data": {
+        "inputs": {
+          "flipY": true,
+          "viewState": {
+            "target": [
+              0,
+              0,
+              0
+            ],
+            "zoom": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "/deck",
+      "type": "DeckRendererOp",
+      "position": {
+        "x": 1050,
+        "y": 0
+      },
+      "data": {
+        "inputs": {
+          "layerFilter": {
+            "$expr": "({layer, viewport} = {}) => !layer || layer.id.startsWith('hud-') === (viewport.id === '/hud')"
+          },
+          "layers": {
+            "$expr": "[...op('/scene').out.data, op('/aircraft').out.layer]"
+          }
+        }
+      }
+    },
+    {
+      "id": "/out",
+      "type": "OutOp",
+      "position": {
+        "x": 1400,
+        "y": 0
+      },
+      "data": {
+        "inputs": {
+          "width": 1280,
+          "height": 720,
+          "lod": 1,
+          "framerate": 30,
+          "captureDelay": 40,
+          "bitrateMbps": 12
+        }
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "/camera.out.viewState->/basemap.par.viewState",
+      "source": "/camera",
+      "sourceHandle": "out.viewState",
+      "target": "/basemap",
+      "targetHandle": "par.viewState"
+    },
+    {
+      "id": "/basemap.out.maplibre->/deck.par.basemap",
+      "source": "/basemap",
+      "sourceHandle": "out.maplibre",
+      "target": "/deck",
+      "targetHandle": "par.basemap"
+    },
+    {
+      "id": "/hud.out.view->/deck.par.views",
+      "source": "/hud",
+      "sourceHandle": "out.view",
+      "target": "/deck",
+      "targetHandle": "par.views"
+    },
+    {
+      "id": "/deck.out.vis->/out.par.vis",
+      "source": "/deck",
+      "sourceHandle": "out.vis",
+      "target": "/out",
+      "targetHandle": "par.vis"
+    }
+  ],
+  "viewport": {
+    "x": 50,
+    "y": 50,
+    "zoom": 0.6
+  },
+  "timeline": {
+    "sheetsById": {
+      "Noodles": {
+        "sequence": {
+          "length": 22,
+          "subUnitsPerUnit": 30,
+          "tracksByObject": {
+            "camera": {
+              "trackIdByPropPath": {
+                "roll": "camera-roll"
+              },
+              "trackData": {
+                "camera-roll": {
+                  "type": "number",
+                  "keyframes": [
+                    {
+                      "id": "bank-0",
+                      "position": 0,
+                      "connectedRight": true,
+                      "handles": [
+                        0.42,
+                        0,
+                        0.58,
+                        1
+                      ],
+                      "type": "bezier",
+                      "value": 0
+                    },
+                    {
+                      "id": "bank-1",
+                      "position": 2,
+                      "connectedRight": true,
+                      "handles": [
+                        0.42,
+                        0,
+                        0.58,
+                        1
+                      ],
+                      "type": "bezier",
+                      "value": 0
+                    },
+                    {
+                      "id": "bank-2",
+                      "position": 6,
+                      "connectedRight": true,
+                      "handles": [
+                        0.42,
+                        0,
+                        0.58,
+                        1
+                      ],
+                      "type": "bezier",
+                      "value": 28
+                    },
+                    {
+                      "id": "bank-3",
+                      "position": 10,
+                      "connectedRight": true,
+                      "handles": [
+                        0.42,
+                        0,
+                        0.58,
+                        1
+                      ],
+                      "type": "bezier",
+                      "value": 0
+                    },
+                    {
+                      "id": "bank-4",
+                      "position": 14,
+                      "connectedRight": true,
+                      "handles": [
+                        0.42,
+                        0,
+                        0.58,
+                        1
+                      ],
+                      "type": "bezier",
+                      "value": -32
+                    },
+                    {
+                      "id": "bank-5",
+                      "position": 18,
+                      "connectedRight": true,
+                      "handles": [
+                        0.42,
+                        0,
+                        0.58,
+                        1
+                      ],
+                      "type": "bezier",
+                      "value": 0
+                    },
+                    {
+                      "id": "bank-6",
+                      "position": 22,
+                      "connectedRight": true,
+                      "handles": [
+                        0.42,
+                        0,
+                        0.58,
+                        1
+                      ],
+                      "type": "bezier",
+                      "value": 0
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "staticOverrides": {
+          "byObject": {}
+        }
+      }
+    },
+    "definitionVersion": "0.4.0",
+    "revisionHistory": []
+  },
+  "editorSettings": {
+    "showOverlay": false
+  }
+}

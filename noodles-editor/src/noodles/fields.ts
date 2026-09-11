@@ -1447,8 +1447,12 @@ export class ListField<F extends Field> extends Field<
   }
 
   // Overrides the default setValue to handle a list of fields
-  // TODO: Do we need to handle reference connections?
-  addConnection(id: string, field: F, _connectionType: 'reference' | 'value' = 'value') {
+  addConnection(id: string, field: F, connectionType: 'reference' | 'value' = 'value') {
+    // Expressions may assemble a list from several upstream values. A reference
+    // triggers evaluation; only value connections contribute items to the list.
+    if (connectionType === 'reference') {
+      return super.addConnection(id, field, connectionType)
+    }
     if (this.subscriptions.has(id)) {
       return
     }
@@ -1464,8 +1468,9 @@ export class ListField<F extends Field> extends Field<
 
   removeConnection(id: string, connectionType: 'reference' | 'value' = 'value'): void {
     super.removeConnection(id, connectionType)
-    this.fields.delete(id)
-    this.setValue(Array.from(this.fields.values()).map(f => f.value) as F[])
+    if (this.fields.delete(id)) {
+      this.setValue(Array.from(this.fields.values()).map(f => f.value) as F[])
+    }
   }
 
   // Idempotently reorder connections to match orderedIds (typically the edge array order).

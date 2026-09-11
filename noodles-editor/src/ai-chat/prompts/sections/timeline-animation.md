@@ -27,6 +27,6 @@ with `bezier` interpolation, on track `"my-layer / opacity"`.
 ## Practical notes
 
 - Animating a value that drives a `DuckDbOp` mustache reference re-runs the query every frame. Correct, but expensive on a large table — prefer animating presentation properties (`opacity`, radius, color, camera) over query parameters.
-- Animating a camera means keyframing the view state operator's fields (longitude, latitude, zoom, pitch, bearing), not the layer.
+- Animating a camera means keyframing the view state operator's fields (longitude, latitude, zoom, pitch, bearing, roll), not the layer.
 - Keyframes past the sequence length never play. If a requested time exceeds it, extend the sequence or place the keyframe inside the existing range and say so.
 - A field with exactly one keyframe is pinned to that value for the whole sequence rather than animated. Two keyframes are the minimum for motion.
