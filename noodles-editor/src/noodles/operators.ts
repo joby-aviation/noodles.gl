@@ -76,9 +76,9 @@ import * as duckdb from '@duckdb/duckdb-wasm'
 import { getTransformScaleFactor } from '../render/transform-scale'
 import { subscribeToPosition } from '../timeline/timeline-store'
 import * as utils from '../utils'
+import { analytics } from '../utils/analytics'
 import { getArc } from '../utils/arc-geometry'
 import { colorToHex, hexToColor } from '../utils/color'
-import { analytics } from '../utils/analytics'
 import { debugDirty, debugExecute, debugParams, debugPull } from '../utils/debug'
 import { getDirections } from '../utils/directions'
 import { geocodeWithMapbox } from '../utils/geocoding'
@@ -8683,6 +8683,62 @@ export class SimplifyOp extends Operator<SimplifyOp> {
   }
 }
 
+export class LineInterpolationOp extends Operator<LineInterpolationOp> {
+  static displayName = 'Line Interpolation'
+  static description =
+    'Interpolate GeoJSON lines with D3 curves or round corners with a physical turn radius'
+  asDownload = () => this.outputData
+
+  createInputs() {
+    return {
+      feature: new GeoJsonField(),
+      method: new StringLiteralField('catmull-rom', {
+        values: [
+          { value: 'linear', label: 'Linear' },
+          { value: 'catmull-rom', label: 'Catmull–Rom' },
+          { value: 'cardinal', label: 'Cardinal' },
+          { value: 'basis', label: 'Basis' },
+          { value: 'natural', label: 'Natural' },
+          { value: 'monotone-x', label: 'Monotone X' },
+          { value: 'monotone-y', label: 'Monotone Y' },
+          { value: 'turn-radius', label: 'Turn radius' },
+        ],
+      }),
+      samplesPerSegment: new NumberField(12, { min: 1, max: 64, step: 1 }),
+      alpha: new NumberField(0.5, { min: 0, max: 1, step: 0.05, showByDefault: false }),
+      tension: new NumberField(0, { min: 0, max: 1, step: 0.05, showByDefault: false }),
+      turnRadiusMeters: new NumberField(250, {
+        min: 0,
+        softMax: 10_000,
+        step: 10,
+      }),
+    }
+  }
+
+  createOutputs() {
+    return { feature: new GeoJsonField() }
+  }
+
+  execute({
+    feature,
+    method,
+    samplesPerSegment,
+    alpha,
+    tension,
+    turnRadiusMeters,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    return {
+      feature: utils.interpolateGeoJsonLines(feature, {
+        method: method as utils.LineInterpolationMethod,
+        samplesPerSegment,
+        alpha,
+        tension,
+        turnRadiusMeters,
+      }),
+    }
+  }
+}
+
 export class SmoothOp extends Operator<SmoothOp> {
   static displayName = 'Smooth'
   static description = 'Apply smoothing to LineString coordinates using Gaussian or boxcar kernel'
@@ -9943,6 +9999,7 @@ export const opTypes = {
   LayerPropsOp,
   LegendWidgetOp,
   LengthOp,
+  LineInterpolationOp,
   LineLayerOp,
   LineSliceOp,
   LineToPolygonOp,
