@@ -784,11 +784,12 @@ describe('BoundingBoxOp', () => {
         { lng: 3, lat: 4 },
       ],
       padding: 0,
+      viewportSize: { x: 3840, y: 2160 },
     })
     expect(val.viewState).toEqual({
       latitude: 3.000457402301878,
       longitude: 2.0000000000000027,
-      zoom: 7.185340053829005,
+      zoom: 9.566616522774169,
     })
   })
 })
