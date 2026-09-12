@@ -254,9 +254,15 @@ function Point2DCellEditor({ value, onChange, onComplete, column }: CellEditorPr
     onChange(newVal)
   }
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  const handleKeyDown = (
+    e: React.KeyboardEvent<HTMLInputElement>,
+    updateValue: (value: number) => void
+  ) => {
     e.stopPropagation()
-    if (e.key === 'Enter') onComplete()
+    if (e.key === 'Enter') {
+      if (e.currentTarget.value === '') updateValue(0)
+      onComplete()
+    }
     if (e.key === 'Escape') {
       onChange(initialValueRef.current)
       requestAnimationFrame(() => onComplete())
@@ -290,7 +296,7 @@ function Point2DCellEditor({ value, onChange, onComplete, column }: CellEditorPr
           if (event.currentTarget.value === '') updateLng(0)
         }}
         onDragEnd={onComplete}
-        onKeyDown={handleKeyDown}
+        onKeyDown={event => handleKeyDown(event, updateLng)}
         step={column.options?.step ?? (column.type === 'point2d' ? 0.0001 : 0.1)}
         autoFocus
         className={cx('p-inputtext', s.coordInput)}
@@ -305,7 +311,7 @@ function Point2DCellEditor({ value, onChange, onComplete, column }: CellEditorPr
           if (event.currentTarget.value === '') updateLat(0)
         }}
         onDragEnd={onComplete}
-        onKeyDown={handleKeyDown}
+        onKeyDown={event => handleKeyDown(event, updateLat)}
         step={column.options?.step ?? (column.type === 'point2d' ? 0.0001 : 0.1)}
         className={cx('p-inputtext', s.coordInput)}
         wrapperClassName={s.vectorInputWrapper}
@@ -362,9 +368,15 @@ function Vec3CellEditor({ value, onChange, onComplete, column }: CellEditorProps
     onChange(newVal)
   }
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  const handleKeyDown = (
+    e: React.KeyboardEvent<HTMLInputElement>,
+    updateValue: (value: number) => void
+  ) => {
     e.stopPropagation()
-    if (e.key === 'Enter') onComplete()
+    if (e.key === 'Enter') {
+      if (e.currentTarget.value === '') updateValue(0)
+      onComplete()
+    }
     if (e.key === 'Escape') {
       onChange(initialValueRef.current)
       requestAnimationFrame(() => onComplete())
@@ -393,7 +405,7 @@ function Vec3CellEditor({ value, onChange, onComplete, column }: CellEditorProps
           if (event.currentTarget.value === '') updateX(0)
         }}
         onDragEnd={onComplete}
-        onKeyDown={handleKeyDown}
+        onKeyDown={event => handleKeyDown(event, updateX)}
         step={stepForChannel(0)}
         autoFocus
         className={cx('p-inputtext', s.vecInput)}
@@ -408,7 +420,7 @@ function Vec3CellEditor({ value, onChange, onComplete, column }: CellEditorProps
           if (event.currentTarget.value === '') updateY(0)
         }}
         onDragEnd={onComplete}
-        onKeyDown={handleKeyDown}
+        onKeyDown={event => handleKeyDown(event, updateY)}
         step={stepForChannel(1)}
         className={cx('p-inputtext', s.vecInput)}
         wrapperClassName={s.vectorInputWrapper}
@@ -422,7 +434,7 @@ function Vec3CellEditor({ value, onChange, onComplete, column }: CellEditorProps
           if (event.currentTarget.value === '') updateZ(0)
         }}
         onDragEnd={onComplete}
-        onKeyDown={handleKeyDown}
+        onKeyDown={event => handleKeyDown(event, updateZ)}
         step={stepForChannel(2)}
         className={cx('p-inputtext', s.vecInput)}
         wrapperClassName={s.vectorInputWrapper}
