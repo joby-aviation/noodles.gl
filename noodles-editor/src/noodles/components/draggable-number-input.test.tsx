@@ -107,4 +107,88 @@ describe('DraggableNumberInput', () => {
     expect(onChange).not.toHaveBeenCalled()
     expect(onDragEnd).not.toHaveBeenCalled()
   })
+
+  it('ends and cleans up a drag when a touch gesture is cancelled', () => {
+    const onChange = vi.fn()
+    const onDragEnd = vi.fn()
+    const { container } = render(
+      <DraggableNumberInput
+        value={5}
+        onChange={onChange}
+        onDragEnd={onDragEnd}
+        aria-label="Value"
+      />
+    )
+
+    const wrapper = container.querySelector('[role="group"]') as HTMLElement
+    const touchAt = (clientX: number) =>
+      new Touch({ identifier: 1, target: wrapper, clientX, clientY: 100 })
+    fireEvent.touchStart(wrapper, { touches: [touchAt(100)] })
+    fireEvent.touchMove(document, { touches: [touchAt(120)] })
+    fireEvent.touchCancel(document)
+
+    expect(onDragEnd).toHaveBeenCalledOnce()
+    expect(onChange).toHaveBeenCalledOnce()
+
+    fireEvent.touchMove(document, { touches: [touchAt(140)] })
+    expect(onChange).toHaveBeenCalledOnce()
+  })
+
+  it('ends and cleans up a drag when the window loses focus', () => {
+    const onChange = vi.fn()
+    const onDragEnd = vi.fn()
+    const { container } = render(
+      <DraggableNumberInput
+        value={5}
+        onChange={onChange}
+        onDragEnd={onDragEnd}
+        aria-label="Value"
+      />
+    )
+
+    const wrapper = container.querySelector('[role="group"]') as HTMLElement
+    fireEvent.mouseDown(wrapper, { clientX: 100, clientY: 100 })
+    fireEvent.mouseMove(document, { clientX: 120, clientY: 100 })
+    fireEvent(window, new Event('blur'))
+
+    expect(onDragEnd).toHaveBeenCalledOnce()
+    expect(onChange).toHaveBeenCalledOnce()
+
+    fireEvent.mouseMove(document, { clientX: 140, clientY: 100 })
+    expect(onChange).toHaveBeenCalledOnce()
+  })
+
+  it.each([0, -1])('uses a safe fallback when step is %s', invalidStep => {
+    vi.useFakeTimers()
+    const onChange = vi.fn()
+    const { container } = render(
+      <DraggableNumberInput value={5} step={invalidStep} onChange={onChange} aria-label="Value" />
+    )
+
+    const input = screen.getByRole('spinbutton', { name: 'Value' })
+    const wrapper = container.querySelector('[role="group"]') as HTMLElement
+    expect(input).toHaveAttribute('step', '1')
+
+    fireEvent.mouseDown(wrapper, { clientX: 100, clientY: 100 })
+    act(() => vi.advanceTimersByTime(400))
+    expect(screen.getByText('0.01')).toBeInTheDocument()
+
+    fireEvent.mouseMove(document, { clientX: 120, clientY: 100 })
+    expect(onChange).toHaveBeenLastCalledWith(25)
+    fireEvent.mouseUp(document)
+  })
+
+  it('supports very small steps without crashing the precision ladder', () => {
+    vi.useFakeTimers()
+    const { container } = render(
+      <DraggableNumberInput value={0} step={1e-100} onChange={vi.fn()} aria-label="Value" />
+    )
+
+    const wrapper = container.querySelector('[role="group"]') as HTMLElement
+    fireEvent.mouseDown(wrapper, { clientX: 100, clientY: 100 })
+    act(() => vi.advanceTimersByTime(400))
+
+    expect(screen.getByText('1e-100')).toBeInTheDocument()
+    fireEvent.mouseUp(document)
+  })
 })

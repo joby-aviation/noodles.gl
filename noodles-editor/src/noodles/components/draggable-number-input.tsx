@@ -23,11 +23,12 @@ export type UseDragOptions = {
   disabled?: boolean
   onDragStart?: (event: MouseEvent | TouchEvent) => boolean
   onDrag?: (deltaX: number, deltaY: number, event: MouseEvent | TouchEvent) => void
-  onDragEnd?: (event: MouseEvent | TouchEvent) => void
+  onDragEnd?: (event: Event) => void
+  onInteractionEnd?: (event: Event) => void
 }
 
 export function useDrag(options: UseDragOptions) {
-  const { disabled, onDragStart, onDrag, onDragEnd } = options
+  const { disabled, onDragStart, onDrag, onDragEnd, onInteractionEnd } = options
   const [isDragging, setIsDragging] = useState(false)
   const dragStateRef = useRef<DragState | null>(null)
   const removeListenersRef = useRef<(() => void) | null>(null)
@@ -37,6 +38,17 @@ export function useDrag(options: UseDragOptions) {
     removeListenersRef.current = null
     dragStateRef.current = null
   }, [])
+
+  const finishDrag = useCallback(
+    (event: Event) => {
+      const detected = dragStateRef.current?.detected ?? false
+      clearDrag()
+      if (detected) setIsDragging(false)
+      onInteractionEnd?.(event)
+      if (detected) onDragEnd?.(event)
+    },
+    [clearDrag, onDragEnd, onInteractionEnd]
+  )
 
   useEffect(() => clearDrag, [clearDrag])
 
@@ -65,13 +77,8 @@ export function useDrag(options: UseDragOptions) {
         }
       }
 
-      const handleMouseUp = (upEvent: MouseEvent) => {
-        if (dragStateRef.current?.detected) {
-          setIsDragging(false)
-          onDragEnd?.(upEvent)
-        }
-        clearDrag()
-      }
+      const handleMouseUp = (upEvent: MouseEvent) => finishDrag(upEvent)
+      const handleWindowBlur = (blurEvent: Event) => finishDrag(blurEvent)
 
       clearDrag()
       dragStateRef.current = {
@@ -82,12 +89,14 @@ export function useDrag(options: UseDragOptions) {
       }
       document.addEventListener('mousemove', handleMouseMove)
       document.addEventListener('mouseup', handleMouseUp)
+      window.addEventListener('blur', handleWindowBlur)
       removeListenersRef.current = () => {
         document.removeEventListener('mousemove', handleMouseMove)
         document.removeEventListener('mouseup', handleMouseUp)
+        window.removeEventListener('blur', handleWindowBlur)
       }
     },
-    [clearDrag, disabled, onDragStart, onDrag, onDragEnd]
+    [clearDrag, disabled, finishDrag, onDragStart, onDrag]
   )
 
   const handleTouchStart = useCallback(
@@ -115,13 +124,9 @@ export function useDrag(options: UseDragOptions) {
         }
       }
 
-      const handleTouchEnd = (endEvent: TouchEvent) => {
-        if (dragStateRef.current?.detected) {
-          setIsDragging(false)
-          onDragEnd?.(endEvent)
-        }
-        clearDrag()
-      }
+      const handleTouchEnd = (endEvent: TouchEvent) => finishDrag(endEvent)
+      const handleTouchCancel = (cancelEvent: TouchEvent) => finishDrag(cancelEvent)
+      const handleWindowBlur = (blurEvent: Event) => finishDrag(blurEvent)
 
       clearDrag()
       dragStateRef.current = {
@@ -132,12 +137,16 @@ export function useDrag(options: UseDragOptions) {
       }
       document.addEventListener('touchmove', handleTouchMove)
       document.addEventListener('touchend', handleTouchEnd)
+      document.addEventListener('touchcancel', handleTouchCancel)
+      window.addEventListener('blur', handleWindowBlur)
       removeListenersRef.current = () => {
         document.removeEventListener('touchmove', handleTouchMove)
         document.removeEventListener('touchend', handleTouchEnd)
+        document.removeEventListener('touchcancel', handleTouchCancel)
+        window.removeEventListener('blur', handleWindowBlur)
       }
     },
-    [clearDrag, disabled, onDragStart, onDrag, onDragEnd]
+    [clearDrag, disabled, finishDrag, onDragStart, onDrag]
   )
 
   return {
@@ -168,10 +177,7 @@ export function StepLadder({
       multiplier,
       stepSize,
       isActive,
-      label:
-        stepSize >= 1
-          ? stepSize.toString()
-          : stepSize.toFixed(Math.max(0, -Math.floor(Math.log10(stepSize)))),
+      label: Number.parseFloat(stepSize.toPrecision(12)).toString(),
     })
   }
 
@@ -266,33 +272,30 @@ export function DraggableNumberInput({
   const isHorizontalLockedRef = useRef(false)
   const lockedStepMultiplierRef = useRef(1)
   const ladderTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const effectiveStep = Number.isFinite(step) && step > 0 ? step : 1
 
   useEffect(() => {
     setDisplayValue(value?.toString() ?? '0')
   }, [value])
 
-  useEffect(() => {
-    const cleanup = () => {
-      if (isDragStarted) {
-        setIsDragStarted(false)
-        setShowLadder(false)
-        isHorizontalLockedRef.current = false
-        setCurrentStepMultiplier(1)
-        lockedStepMultiplierRef.current = 1
-        if (ladderTimerRef.current) {
-          clearTimeout(ladderTimerRef.current)
-          ladderTimerRef.current = null
-        }
-      }
-    }
+  useEffect(
+    () => () => {
+      if (ladderTimerRef.current) clearTimeout(ladderTimerRef.current)
+    },
+    []
+  )
 
-    document.addEventListener('mouseup', cleanup)
-    window.addEventListener('blur', cleanup)
-    return () => {
-      document.removeEventListener('mouseup', cleanup)
-      window.removeEventListener('blur', cleanup)
+  const resetDragUi = useCallback(() => {
+    setIsDragStarted(false)
+    setShowLadder(false)
+    isHorizontalLockedRef.current = false
+    setCurrentStepMultiplier(1)
+    lockedStepMultiplierRef.current = 1
+    if (ladderTimerRef.current) {
+      clearTimeout(ladderTimerRef.current)
+      ladderTimerRef.current = null
     }
-  }, [isDragStarted])
+  }, [])
 
   const handleInputChange = useCallback(
     (event: FormEvent<HTMLInputElement>) => {
@@ -361,27 +364,24 @@ export function DraggableNumberInput({
         const activeStepMultiplier = isHorizontalLockedRef.current
           ? lockedStepMultiplierRef.current
           : snappedStepMultiplier
-        const stepSize = activeStepMultiplier * step
+        const stepSize = activeStepMultiplier * effectiveStep
         const valueChange = Math.round(deltaX) * stepSize
         const newValue = startValueRef.current + valueChange
         const minClampedValue = min === undefined ? newValue : Math.max(newValue, min)
         const clampedValue = max === undefined ? minClampedValue : Math.min(minClampedValue, max)
-        const fixedValue = Number.parseFloat(clampedValue.toFixed(7))
+        const stepExponent = Math.floor(Math.log10(stepSize))
+        const precision = Math.max(0, Math.min(100, -stepExponent + 2))
+        const fixedValue =
+          Number.isFinite(stepExponent) && stepExponent >= -100
+            ? Number.parseFloat(clampedValue.toFixed(precision))
+            : clampedValue
 
         setDisplayValue(fixedValue.toString())
         onChange(fixedValue)
       }
     },
+    onInteractionEnd: resetDragUi,
     onDragEnd: () => {
-      setCurrentStepMultiplier(1)
-      isHorizontalLockedRef.current = false
-      lockedStepMultiplierRef.current = 1
-      setIsDragStarted(false)
-      setShowLadder(false)
-      if (ladderTimerRef.current) {
-        clearTimeout(ladderTimerRef.current)
-        ladderTimerRef.current = null
-      }
       onCommit?.()
       onDragEnd?.()
     },
@@ -429,14 +429,14 @@ export function DraggableNumberInput({
         disabled={disabled}
         min={Number.isFinite(softMin ?? -Infinity) ? softMin : min}
         max={Number.isFinite(softMax ?? Infinity) ? softMax : max}
-        step={step}
+        step={effectiveStep}
         // biome-ignore lint/a11y/noAutofocus: Cell editors must focus the control that replaced the display cell.
         autoFocus={autoFocus}
         aria-label={ariaLabel}
       />
       {shouldShowLadder && (
         <StepLadder
-          baseStep={step}
+          baseStep={effectiveStep}
           currentStepMultiplier={currentStepMultiplier}
           mousePos={initialMousePos}
           containerRect={containerRect}
