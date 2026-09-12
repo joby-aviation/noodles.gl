@@ -361,6 +361,14 @@ export function validateConnection(from: Field, to: Field): ConnectionValidation
     debugConnect(`To: ${to.constructor.name} (type=${toFieldType})`)
   }
 
+  if (to.runtimeOnly) {
+    return {
+      valid: false,
+      severity: 'error',
+      error: 'Runtime-only inputs cannot be connected',
+    }
+  }
+
   // UnknownField can connect to anything
   if (from instanceof UnknownField) {
     if (debugConnect.enabled) {
@@ -447,6 +455,7 @@ export function canConnect(from: Field, to: Field): boolean {
 const canConnectCache = new Map<string, boolean>()
 
 export function canConnectCached(from: Field, to: Field): boolean {
+  if (to.runtimeOnly) return false
   const key = `${from.constructor.name}:${to.constructor.name}`
   const cached = canConnectCache.get(key)
   if (cached !== undefined) return cached

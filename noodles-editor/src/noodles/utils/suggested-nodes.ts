@@ -86,6 +86,7 @@ function buildTypeIndex(): Map<string, Set<OpType>> {
       // Create temporary instance to inspect inputs
       const tempOp = new OpClass('/temp')
       for (const input of Object.values(tempOp.inputs)) {
+        if (input.runtimeOnly) continue
         const fieldType = (input.constructor as typeof Field).type
         if (fieldType) {
           if (!index.has(fieldType)) {

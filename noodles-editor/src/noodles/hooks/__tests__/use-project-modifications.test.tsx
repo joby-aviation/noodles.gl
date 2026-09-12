@@ -4,7 +4,7 @@
 import { act, renderHook } from '@testing-library/react'
 import type { Edge as ReactFlowEdge, Node as ReactFlowNode } from '@xyflow/react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { ConcatOp, ContainerOp, DeckRendererOp, NumberOp } from '../../operators'
+import { BoundingBoxOp, ConcatOp, ContainerOp, DeckRendererOp, NumberOp } from '../../operators'
 import { clearOps, getOp, hasOp, setOp, setPendingInsertionIndex } from '../../store'
 import { MULTI_INPUT_EDGE_TYPE } from '../../utils/multi-input-utils'
 import { type ProjectModification, useProjectModifications } from '../use-project-modifications'
@@ -189,6 +189,31 @@ describe('useProjectModifications', () => {
       expect(op.isFieldVisible('effects')).toBe(true)
       expect(op.visibleFields.value).toBeInstanceOf(Set)
       expect(op.visibleFields.value?.has('effects')).toBe(true)
+    })
+
+    it('does not capture programmatic updates to runtime-only inputs', () => {
+      const op = new BoundingBoxOp('/bbox')
+      setOp('/bbox', op as never)
+      nodes = [
+        {
+          id: '/bbox',
+          type: 'BoundingBoxOp',
+          position: { x: 0, y: 0 },
+          data: { inputs: {} },
+        },
+      ]
+      const { result } = renderHook(() =>
+        useProjectModifications({ getNodes, getEdges, setNodes, setEdges })
+      )
+
+      act(() => {
+        result.current.updateNode('/bbox', {
+          data: { inputs: { viewportSize: { x: 1, y: 1 } } },
+        })
+      })
+
+      expect(op.inputs.viewportSize.value).toEqual({ x: 3840, y: 2160 })
+      expect((nodes[0].data.inputs as Record<string, unknown>).viewportSize).toBeUndefined()
     })
   })
 

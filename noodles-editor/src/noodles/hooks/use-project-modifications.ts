@@ -56,6 +56,16 @@ interface UseProjectModificationsOptions {
   setEdges: (edges: ReactFlowEdge[] | ((edges: ReactFlowEdge[]) => ReactFlowEdge[])) => void
 }
 
+function omitRuntimeOnlyInputs(
+  operator: Operator<IOperator> | undefined,
+  inputs: Record<string, unknown>
+): Record<string, unknown> {
+  if (!operator) return inputs
+  return Object.fromEntries(
+    Object.entries(inputs).filter(([name]) => !operator.inputs[name]?.runtimeOnly)
+  )
+}
+
 export function useProjectModifications(options: UseProjectModificationsOptions) {
   const { getNodes, getEdges, setNodes, setEdges } = options
 
@@ -353,16 +363,19 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
 
       // Get the operator instance from store
       const operator = getOp(nodeId)
+      const requestedInputs = updates.data?.inputs
+      const editableInputs = requestedInputs
+        ? omitRuntimeOnlyInputs(operator, requestedInputs)
+        : undefined
 
-      if (operator && updates.data?.inputs) {
+      if (operator && editableInputs) {
         // Update operator inputs using setValue
-        const inputs = updates.data.inputs
-        Object.entries(inputs).forEach(([key, value]: [string, unknown]) => {
+        Object.entries(editableInputs).forEach(([key, value]: [string, unknown]) => {
           const operatorInputs = (operator as unknown as Record<string, unknown>).inputs as
-            | Record<string, { setValue?: (value: unknown) => void }>
+            | Record<string, { runtimeOnly?: boolean; setValue?: (value: unknown) => void }>
             | undefined
           const input = operatorInputs?.[key]
-          if (input && typeof input.setValue === 'function') {
+          if (input && !input.runtimeOnly && typeof input.setValue === 'function') {
             input.setValue(value)
             // Auto-show field when value is set programmatically (AI tools)
             operator.showField(key)
@@ -379,17 +392,14 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
             const nodeData = (n.data || {}) as Record<string, unknown>
             const updatesData = (updates.data || {}) as Record<string, unknown>
             const nodeInputs = (nodeData.inputs || {}) as Record<string, unknown>
-            const updateInputs = (updatesData.inputs || {}) as Record<string, unknown>
+            const updateInputs = editableInputs ?? {}
             return {
               ...n,
               ...updates,
               data: {
                 ...nodeData,
                 ...updatesData,
-                inputs: {
-                  ...nodeInputs,
-                  ...updateInputs,
-                },
+                inputs: omitRuntimeOnlyInputs(operator, { ...nodeInputs, ...updateInputs }),
               },
             }
           }
@@ -517,17 +527,17 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
             const nodeData = (n.data || {}) as Record<string, unknown>
             const updatesData = (update.updates.data || {}) as Record<string, unknown>
             const nodeInputs = (nodeData.inputs || {}) as Record<string, unknown>
-            const updateInputs = (updatesData.inputs || {}) as Record<string, unknown>
+            const updateInputs = omitRuntimeOnlyInputs(
+              getOp(n.id),
+              (updatesData.inputs || {}) as Record<string, unknown>
+            )
             return {
               ...n,
               ...update.updates,
               data: {
                 ...nodeData,
                 ...updatesData,
-                inputs: {
-                  ...nodeInputs,
-                  ...updateInputs,
-                },
+                inputs: omitRuntimeOnlyInputs(getOp(n.id), { ...nodeInputs, ...updateInputs }),
               },
             }
           }
@@ -552,17 +562,17 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
               const nodeData = (n.data || {}) as Record<string, unknown>
               const updatesData = (update.updates.data || {}) as Record<string, unknown>
               const nodeInputs = (nodeData.inputs || {}) as Record<string, unknown>
-              const updateInputs = (updatesData.inputs || {}) as Record<string, unknown>
+              const updateInputs = omitRuntimeOnlyInputs(
+                getOp(n.id),
+                (updatesData.inputs || {}) as Record<string, unknown>
+              )
               return {
                 ...n,
                 ...update.updates,
                 data: {
                   ...nodeData,
                   ...updatesData,
-                  inputs: {
-                    ...nodeInputs,
-                    ...updateInputs,
-                  },
+                  inputs: omitRuntimeOnlyInputs(getOp(n.id), { ...nodeInputs, ...updateInputs }),
                 },
               }
             }
@@ -580,10 +590,10 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
           const inputs = updates.data.inputs as Record<string, unknown>
           for (const [key, value] of Object.entries(inputs)) {
             const operatorInputs = (operator as unknown as Record<string, unknown>).inputs as
-              | Record<string, { setValue?: (value: unknown) => void }>
+              | Record<string, { runtimeOnly?: boolean; setValue?: (value: unknown) => void }>
               | undefined
             const input = operatorInputs?.[key]
-            if (input && typeof input.setValue === 'function') {
+            if (input && !input.runtimeOnly && typeof input.setValue === 'function') {
               input.setValue(value)
               // Auto-show field when value is set programmatically (AI tools)
               operator.showField(key)

@@ -21,6 +21,7 @@ export function computeVisibilityHeuristic(
   let differsFromDefaults = false
 
   for (const [name, field] of Object.entries(op.inputs)) {
+    if (field.runtimeOnly) continue
     const hasCustomValue = name in customValues
     const hasConnection = connectedFields.has(name)
     const shouldShow = field.showByDefault || hasCustomValue || hasConnection
