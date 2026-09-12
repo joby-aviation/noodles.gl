@@ -1,7 +1,7 @@
 import { getIncomers, type Node as ReactFlowNode } from '@xyflow/react'
 import { analytics } from '../utils/analytics'
 import { debugExecutor } from '../utils/debug'
-import { type Field, ListField } from './fields'
+import { applyNodeUIMetadata, type Field, ListField, type NodeUIMetadata } from './fields'
 import type { Edge as ExecutorEdge } from './graph-executor'
 import type { Edge } from './noodles'
 import type { IOperator, Operator, OpType } from './operators'
@@ -39,6 +39,8 @@ export {
 export type NodeDataJSON<_T extends Operator<IOperator> = Operator<IOperator>> = {
   inputs?: Record<string, unknown>
   locked?: boolean
+  ui?: NodeUIMetadata
+  visibleInputs?: string[]
   customInputs?: Array<{
     id: string
     name: string
@@ -308,12 +310,14 @@ export function transformGraph<
           op.rebuildInputs()
         }
 
+        applyNodeUIMetadata(op.inputs, data?.ui)
+
         created.push(op)
         // Store operator in store using fully qualified path
         store.setOp(id, op)
 
         // Restore field visibility from saved data or derive from heuristic
-        const visibleInputs = (data as { visibleInputs?: string[] })?.visibleInputs
+        const visibleInputs = data?.visibleInputs
 
         if (visibleInputs && Array.isArray(visibleInputs)) {
           // Explicit visibility saved - use it directly as the full set

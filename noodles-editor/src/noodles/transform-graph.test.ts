@@ -1,5 +1,6 @@
 import type { Node as ReactFlowNode } from '@xyflow/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { NumberField } from './fields'
 import { getExecutor } from './graph-executor'
 import type { Edge } from './noodles'
 import {
@@ -19,6 +20,60 @@ import { edgeId } from './utils/id-utils'
 
 afterEach(() => {
   referenceDependencyModel.reset()
+})
+
+describe('Number field UI metadata restoration', () => {
+  afterEach(() => {
+    clearOps()
+  })
+
+  it('restores a custom number step after custom inputs have been rebuilt', () => {
+    const nodes = [
+      {
+        id: '/code',
+        type: 'CodeOp',
+        data: {
+          inputs: {},
+          customInputs: [
+            {
+              id: 'custom-number',
+              name: 'amount',
+              type: 'number',
+              order: 0,
+              defaultValue: 0.25,
+            },
+          ],
+          ui: { numberSteps: { amount: 0.001 } },
+        },
+        position: { x: 0, y: 0 },
+      },
+    ]
+
+    transformGraph({ nodes, edges: [] })
+
+    const op = getOpStore().getOp('/code') as CodeOp
+    expect((op.inputs.amount as NumberField).stepOverride).toBe(0.001)
+  })
+
+  it('ignores invalid and unknown saved number steps', () => {
+    const nodes = [
+      {
+        id: '/number',
+        type: 'NumberOp',
+        data: {
+          inputs: { val: 0.25 },
+          ui: { numberSteps: { val: -1, missing: 0.01 } },
+        },
+        position: { x: 0, y: 0 },
+      },
+    ]
+
+    transformGraph({ nodes, edges: [] })
+
+    const op = getOpStore().getOp('/number') as NumberOp
+    expect(op.inputs.val.stepOverride).toBeUndefined()
+    expect(op.inputs.val.getEffectiveStep()).toBe(0.01)
+  })
 })
 
 describe('transform-graph topological sort with missing upstream nodes', () => {

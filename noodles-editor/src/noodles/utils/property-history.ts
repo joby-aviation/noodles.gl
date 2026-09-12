@@ -1,6 +1,13 @@
 import { useCallback, useRef } from 'react'
 import { debugHistory, debugHistorySnapshot } from '../../utils/debug'
-import { applySerializedFieldValue, type Field, type IField } from '../fields'
+import {
+  applyNodeUIMetadata,
+  applySerializedFieldValue,
+  captureNodeUIMetadata,
+  type Field,
+  type IField,
+  type NodeUIMetadata,
+} from '../fields'
 import { getAllOps, getOpStore } from '../store'
 import type { OpId } from './id-utils'
 
@@ -8,6 +15,7 @@ type PropertyMutationCallback = (description: string, before: string, after: str
 
 let _propertyMutationCallback: PropertyMutationCallback | undefined
 let _lastCommittedBeforeState: string | null = null
+const UI_STATE_KEY = '$ui'
 
 export function registerPropertyMutationCallback(cb: PropertyMutationCallback | undefined) {
   _propertyMutationCallback = cb
@@ -19,6 +27,7 @@ export function registerPropertyMutationCallback(cb: PropertyMutationCallback | 
 export function captureOperatorInputs(): string | null {
   const ops = getAllOps()
   const state: Record<string, Record<string, unknown>> = {}
+  const uiState: Record<string, NodeUIMetadata> = {}
   for (const op of ops) {
     const inputs: Record<string, unknown> = {}
     for (const [name, field] of Object.entries(op.inputs as Record<string, IField>)) {
@@ -35,7 +44,10 @@ export function captureOperatorInputs(): string | null {
       inputs[name] = field.serialize()
     }
     state[op.id] = inputs
+    const ui = captureNodeUIMetadata(op.inputs)
+    if (ui) uiState[op.id] = ui
   }
+  if (Object.keys(uiState).length > 0) state[UI_STATE_KEY] = uiState
   debugHistorySnapshot('Captured operator inputs for %d ops', ops.length)
   try {
     return JSON.stringify(state)
@@ -57,7 +69,9 @@ export function applyOperatorInputs(snapshot: string): void {
     return
   }
   const store = getOpStore()
+  const uiState = data[UI_STATE_KEY] as Record<string, NodeUIMetadata> | undefined
   for (const [id, inputs] of Object.entries(data)) {
+    if (id === UI_STATE_KEY) continue
     const op = store.getOp(id as OpId)
     if (!op) continue
     const opInputs = op.inputs as Record<string, IField>
@@ -68,6 +82,7 @@ export function applyOperatorInputs(snapshot: string): void {
         applySerializedFieldValue(field as Field, value)
       }
     }
+    applyNodeUIMetadata(op.inputs, uiState?.[id])
   }
 }
 

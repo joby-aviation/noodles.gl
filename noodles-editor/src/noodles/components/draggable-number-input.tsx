@@ -11,6 +11,7 @@ import {
   useState,
 } from 'react'
 import s from '../noodles.module.css'
+import { addDecimalSteps } from '../utils/number-precision'
 
 type DragState = {
   startX: number
@@ -156,6 +157,14 @@ export function useDrag(options: UseDragOptions) {
   }
 }
 
+// The ladder only scales by powers of ten. Adjusting the exponent directly avoids
+// persisting artifacts such as 0.1 * 0.1 === 0.010000000000000002.
+function scaleStep(baseStep: number, multiplier: number): number {
+  const multiplierExponent = Math.round(Math.log10(multiplier))
+  const [coefficient, exponent = '0'] = baseStep.toExponential().split('e')
+  return Number(`${coefficient}e${Number(exponent) + multiplierExponent}`)
+}
+
 export function StepLadder({
   baseStep,
   currentStepMultiplier,
@@ -170,7 +179,7 @@ export function StepLadder({
   const steps = []
   for (let i = 2; i >= -2; i--) {
     const multiplier = 10 ** i
-    const stepSize = baseStep * multiplier
+    const stepSize = scaleStep(baseStep, multiplier)
     const isActive = Math.abs(currentStepMultiplier - multiplier) < 0.01
 
     steps.push({
@@ -222,6 +231,7 @@ export interface DraggableNumberInputProps {
   onCommit?: () => void
   onDragEnd?: () => void
   onInteractionStart?: () => void
+  onStepChange?: (step: number) => void
   onBlur?: FocusEventHandler<HTMLInputElement>
   onKeyDown?: KeyboardEventHandler<HTMLInputElement>
   min?: number
@@ -246,6 +256,7 @@ export function DraggableNumberInput({
   onCommit,
   onDragEnd,
   onInteractionStart,
+  onStepChange,
   onBlur,
   onKeyDown,
   min,
@@ -261,18 +272,23 @@ export function DraggableNumberInput({
   placeholder,
   'aria-label': ariaLabel,
 }: DraggableNumberInputProps) {
+  const validStep = Number.isFinite(step) && step > 0 ? step : 1
   const [displayValue, setDisplayValue] = useState(value?.toString() ?? '0')
   const [isActive, setIsActive] = useState(false)
   const [currentStepMultiplier, setCurrentStepMultiplier] = useState(1)
   const [isDragStarted, setIsDragStarted] = useState(false)
   const [showLadder, setShowLadder] = useState(false)
   const [initialMousePos, setInitialMousePos] = useState({ x: 0, y: 0 })
+  const [interactionStep, setInteractionStep] = useState<number | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const startValueRef = useRef(0)
+  const interactionStepRef = useRef(validStep)
+  const interactionActiveRef = useRef(false)
+  const inputFocusedRef = useRef(false)
   const isHorizontalLockedRef = useRef(false)
   const lockedStepMultiplierRef = useRef(1)
+  const selectedStepRef = useRef<number | null>(null)
   const ladderTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const effectiveStep = Number.isFinite(step) && step > 0 ? step : 1
 
   useEffect(() => {
     setDisplayValue(value?.toString() ?? '0')
@@ -295,6 +311,18 @@ export function DraggableNumberInput({
       clearTimeout(ladderTimerRef.current)
       ladderTimerRef.current = null
     }
+  }, [])
+
+  const beginStepInteraction = useCallback(() => {
+    if (interactionActiveRef.current) return
+    interactionActiveRef.current = true
+    interactionStepRef.current = validStep
+    setInteractionStep(validStep)
+  }, [validStep])
+
+  const endStepInteraction = useCallback(() => {
+    interactionActiveRef.current = false
+    setInteractionStep(null)
   }, [])
 
   const handleInputChange = useCallback(
@@ -322,6 +350,7 @@ export function DraggableNumberInput({
       }
 
       onInteractionStart?.()
+      beginStepInteraction()
       startValueRef.current = value
       setInitialMousePos({
         x: 'clientX' in event ? event.clientX : touchEvent.touches[0].clientX,
@@ -331,6 +360,7 @@ export function DraggableNumberInput({
       isHorizontalLockedRef.current = false
       setIsDragStarted(true)
       lockedStepMultiplierRef.current = 1
+      selectedStepRef.current = null
 
       ladderTimerRef.current = setTimeout(() => {
         window.getSelection()?.removeAllRanges()
@@ -357,6 +387,9 @@ export function DraggableNumberInput({
         } else {
           lockedStepMultiplierRef.current = snappedStepMultiplier
           isHorizontalLockedRef.current = true
+          const selectedStep = scaleStep(interactionStepRef.current, snappedStepMultiplier)
+          selectedStepRef.current = selectedStep
+          onStepChange?.(selectedStep)
         }
       }
 
@@ -364,23 +397,28 @@ export function DraggableNumberInput({
         const activeStepMultiplier = isHorizontalLockedRef.current
           ? lockedStepMultiplierRef.current
           : snappedStepMultiplier
-        const stepSize = activeStepMultiplier * effectiveStep
-        const valueChange = Math.round(deltaX) * stepSize
-        const newValue = startValueRef.current + valueChange
+        const stepSize = scaleStep(interactionStepRef.current, activeStepMultiplier)
+        const newValue = addDecimalSteps(startValueRef.current, stepSize, deltaX)
         const minClampedValue = min === undefined ? newValue : Math.max(newValue, min)
         const clampedValue = max === undefined ? minClampedValue : Math.min(minClampedValue, max)
-        const stepExponent = Math.floor(Math.log10(stepSize))
-        const precision = Math.max(0, Math.min(100, -stepExponent + 2))
-        const fixedValue =
-          Number.isFinite(stepExponent) && stepExponent >= -100
-            ? Number.parseFloat(clampedValue.toFixed(precision))
-            : clampedValue
-
-        setDisplayValue(fixedValue.toString())
-        onChange(fixedValue)
+        setDisplayValue(clampedValue.toString())
+        onChange(clampedValue)
       }
     },
-    onInteractionEnd: resetDragUi,
+    onInteractionEnd: event => {
+      const selectedStep = selectedStepRef.current
+      selectedStepRef.current = null
+      resetDragUi()
+      if (event.type === 'blur' || event.type === 'touchcancel') {
+        inputFocusedRef.current = false
+        endStepInteraction()
+      } else if (inputFocusedRef.current && selectedStep !== null) {
+        interactionStepRef.current = selectedStep
+        setInteractionStep(selectedStep)
+      } else if (!inputFocusedRef.current) {
+        endStepInteraction()
+      }
+    },
     onDragEnd: () => {
       onCommit?.()
       onDragEnd?.()
@@ -389,11 +427,8 @@ export function DraggableNumberInput({
 
   const shouldShowLadder = showLadder && isDragStarted && !isHorizontalLockedRef.current
   const containerRect = containerRef.current?.getBoundingClientRect()
-  const formatted =
-    displayValue === ''
-      ? ''
-      : (formatDisplayValue?.(+displayValue) ??
-        Math.round((+displayValue + Number.EPSILON) * 100) / 100)
+  const formatted = displayValue === '' ? '' : (formatDisplayValue?.(+displayValue) ?? displayValue)
+  const effectiveStep = interactionStep ?? validStep
 
   return (
     // biome-ignore lint/a11y/useSemanticElements: Number input wrapper with drag interaction requires div with role
@@ -410,10 +445,14 @@ export function DraggableNumberInput({
         id={id}
         type="number"
         onFocus={() => {
+          inputFocusedRef.current = true
+          beginStepInteraction()
           setIsActive(true)
           onInteractionStart?.()
         }}
         onBlur={event => {
+          inputFocusedRef.current = false
+          endStepInteraction()
           setIsActive(false)
           onCommit?.()
           onBlur?.(event)
