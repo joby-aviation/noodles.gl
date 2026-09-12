@@ -1566,14 +1566,19 @@ export function NumberFieldComponent({
   disabled: boolean
 }) {
   const [value, setValue] = useState<number>(guardAccessorFallback(field.value))
+  const [stepOverride, setStepOverride] = useState(field.stepOverride)
   const { captureStart, commitChange } = usePropertyHistory()
 
   useEffect(() => {
-    const sub = field.subscribe(newVal => {
+    const valueSub = field.subscribe(newVal => {
       if (typeof newVal === 'function') return
       setValue(newVal)
     })
-    return () => sub.unsubscribe()
+    const stepSub = field.stepOverride$.subscribe(setStepOverride)
+    return () => {
+      valueSub.unsubscribe()
+      stepSub.unsubscribe()
+    }
   }, [field])
 
   const handleChange = useCallback(
@@ -1596,11 +1601,12 @@ export function NumberFieldComponent({
         onChange={handleChange}
         onCommit={() => commitChange('Change value')}
         onInteractionStart={captureStart}
+        onStepChange={step => field.setStepOverride(step)}
         min={field.min}
         max={field.max}
         softMin={field.softMin}
         softMax={field.softMax}
-        step={field.step}
+        step={stepOverride ?? field.getEffectiveStep(value)}
         className={cx(s.fieldInput, s.fieldInputNumber)}
         title={value.toString()}
       />
