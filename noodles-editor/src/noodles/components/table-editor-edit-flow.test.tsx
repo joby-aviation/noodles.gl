@@ -610,4 +610,125 @@ describe('TableEditor - Edit Flow', () => {
       expect(onDataChange).not.toHaveBeenCalled()
     })
   })
+
+  describe('Number and vector scrubbing', () => {
+    it('scrubs a number cell with its configured step and commits on mouseup', () => {
+      const onDataChange = vi.fn()
+      const scrubSchema: TableSchema = {
+        columns: [{ name: 'amount', type: 'number', defaultValue: 0, options: { step: 0.25 } }],
+      }
+      const { getByText } = render(
+        <TableEditor
+          op={mockOp}
+          data={[{ amount: 10 }]}
+          schema={scrubSchema}
+          onDataChange={onDataChange}
+          onSchemaChange={vi.fn()}
+        />
+      )
+
+      fireEvent.click(getByText('10'))
+      const input = screen.getByRole('spinbutton', { name: 'Edit amount' })
+      const wrapper = input.parentElement as HTMLElement
+
+      fireEvent.mouseDown(wrapper, { clientX: 100, clientY: 100 })
+      fireEvent.mouseMove(document, { clientX: 120, clientY: 100 })
+      fireEvent.mouseUp(document, { clientX: 120, clientY: 100 })
+
+      expect(onDataChange).toHaveBeenCalledWith([{ amount: 15 }], 'Edit cell amount')
+    })
+
+    it('uses vector steps for vec2 scrubbing and preserves the other channel', () => {
+      const onDataChange = vi.fn()
+      const scrubSchema: TableSchema = {
+        columns: [{ name: 'offset', type: 'vec2', defaultValue: [0, 0] }],
+      }
+      const { getByText } = render(
+        <TableEditor
+          op={mockOp}
+          data={[{ offset: [1, 2] }]}
+          schema={scrubSchema}
+          onDataChange={onDataChange}
+          onSchemaChange={vi.fn()}
+        />
+      )
+
+      fireEvent.click(getByText('[1.0000, 2.0000]'))
+      const xInput = screen.getByRole('spinbutton', { name: 'X' })
+
+      fireEvent.mouseDown(xInput.parentElement as HTMLElement, { clientX: 100, clientY: 100 })
+      fireEvent.mouseMove(document, { clientX: 120, clientY: 100 })
+      fireEvent.mouseUp(document, { clientX: 120, clientY: 100 })
+
+      expect(onDataChange).toHaveBeenCalledWith([{ offset: [3, 2] }], 'Edit cell offset')
+    })
+
+    it('keeps a vector edit open while focus moves between channels', () => {
+      const onDataChange = vi.fn()
+      const scrubSchema: TableSchema = {
+        columns: [{ name: 'vector', type: 'vec3', defaultValue: [0, 0, 0] }],
+      }
+      const { getByText } = render(
+        <TableEditor
+          op={mockOp}
+          data={[{ vector: [1, 2.3456, 3] }]}
+          schema={scrubSchema}
+          onDataChange={onDataChange}
+          onSchemaChange={vi.fn()}
+        />
+      )
+
+      fireEvent.click(getByText('[1.00, 2.35, 3.00]'))
+      const xInput = screen.getByRole('spinbutton', { name: 'X' })
+      const yInput = screen.getByRole('spinbutton', { name: 'Y' })
+      expect(yInput).toHaveValue(2.3456)
+
+      fireEvent.blur(xInput, { relatedTarget: yInput })
+      fireEvent.focus(yInput, { relatedTarget: xInput })
+      expect(onDataChange).not.toHaveBeenCalled()
+
+      fireEvent.change(yInput, { target: { value: '4' } })
+      fireEvent.blur(yInput)
+
+      expect(onDataChange).toHaveBeenCalledWith([{ vector: [1, 4, 3] }], 'Edit cell vector')
+    })
+
+    it.each([
+      {
+        type: 'vec2' as const,
+        value: [1, 2],
+        renderedValue: '[1.0000, 2.0000]',
+        channel: 'X',
+        expected: [0, 2],
+      },
+      {
+        type: 'vec3' as const,
+        value: [1, 2, 3],
+        renderedValue: '[1.00, 2.00, 3.00]',
+        channel: 'Y',
+        expected: [1, 0, 3],
+      },
+    ])('commits an empty $type channel as zero when Enter is pressed', testCase => {
+      const onDataChange = vi.fn()
+      const scrubSchema: TableSchema = {
+        columns: [{ name: 'vector', type: testCase.type, defaultValue: testCase.value }],
+      }
+      const { getByText } = render(
+        <TableEditor
+          op={mockOp}
+          data={[{ vector: testCase.value }]}
+          schema={scrubSchema}
+          onDataChange={onDataChange}
+          onSchemaChange={vi.fn()}
+        />
+      )
+
+      fireEvent.click(getByText(testCase.renderedValue))
+      const input = screen.getByRole('spinbutton', { name: testCase.channel })
+      fireEvent.change(input, { target: { value: '' } })
+      fireEvent.keyDown(input, { key: 'Enter' })
+
+      expect(onDataChange).toHaveBeenCalledWith([{ vector: testCase.expected }], 'Edit cell vector')
+    })
+  })
 })
