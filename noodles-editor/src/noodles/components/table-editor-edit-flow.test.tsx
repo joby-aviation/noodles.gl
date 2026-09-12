@@ -692,5 +692,43 @@ describe('TableEditor - Edit Flow', () => {
 
       expect(onDataChange).toHaveBeenCalledWith([{ vector: [1, 4, 3] }], 'Edit cell vector')
     })
+
+    it.each([
+      {
+        type: 'vec2' as const,
+        value: [1, 2],
+        renderedValue: '[1.0000, 2.0000]',
+        channel: 'X',
+        expected: [0, 2],
+      },
+      {
+        type: 'vec3' as const,
+        value: [1, 2, 3],
+        renderedValue: '[1.00, 2.00, 3.00]',
+        channel: 'Y',
+        expected: [1, 0, 3],
+      },
+    ])('commits an empty $type channel as zero when Enter is pressed', testCase => {
+      const onDataChange = vi.fn()
+      const scrubSchema: TableSchema = {
+        columns: [{ name: 'vector', type: testCase.type, defaultValue: testCase.value }],
+      }
+      const { getByText } = render(
+        <TableEditor
+          op={mockOp}
+          data={[{ vector: testCase.value }]}
+          schema={scrubSchema}
+          onDataChange={onDataChange}
+          onSchemaChange={vi.fn()}
+        />
+      )
+
+      fireEvent.click(getByText(testCase.renderedValue))
+      const input = screen.getByRole('spinbutton', { name: testCase.channel })
+      fireEvent.change(input, { target: { value: '' } })
+      fireEvent.keyDown(input, { key: 'Enter' })
+
+      expect(onDataChange).toHaveBeenCalledWith([{ vector: testCase.expected }], 'Edit cell vector')
+    })
   })
 })
