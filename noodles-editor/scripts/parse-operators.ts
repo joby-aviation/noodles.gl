@@ -155,6 +155,10 @@ function parseFieldsFromReturnExpression(
       }
     }
 
+    // Host-injected runtime inputs are implementation details, not user-facing
+    // operator parameters, so leave them out of the generated AI/tool registry.
+    if (options.runtimeOnly === true) continue
+
     fields.push({
       name: fieldName,
       fieldType,

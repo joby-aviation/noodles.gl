@@ -671,6 +671,22 @@ describe('bindOperatorToTimeline - Vec2Field per-channel handling', () => {
     cleanup()
   })
 
+  it('does not expose runtime-only Vec2 fields as timeline tracks', () => {
+    const viewportField = new Vec2Field(
+      { x: 3840, y: 2160 },
+      { runtimeOnly: true, returnType: 'object' }
+    )
+    const op = makeOpWithField('/bbox', 'viewportSize', viewportField)
+    const store = getTimelineStore()
+
+    const cleanup = bindOperatorToTimeline(op)
+
+    expect(store.getTrack('bbox / viewportSize / x')).toBeUndefined()
+    expect(store.getTrack('bbox / viewportSize / y')).toBeUndefined()
+
+    cleanup()
+  })
+
   it('scrubbing updates only the x channel when only x has keyframes', () => {
     const posField = new Vec2Field({ x: 0, y: 5 })
     const op = makeOpWithField('/scatter', 'position', posField)

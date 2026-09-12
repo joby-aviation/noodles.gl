@@ -22,6 +22,7 @@ export function captureOperatorInputs(): string | null {
   for (const op of ops) {
     const inputs: Record<string, unknown> = {}
     for (const [name, field] of Object.entries(op.inputs as Record<string, IField>)) {
+      if (field.runtimeOnly) continue
       // Expression-driven fields serialize their (small) expression source, so include
       // them even when reference connections have populated `subscriptions`
       const isDriven =
@@ -63,7 +64,7 @@ export function applyOperatorInputs(snapshot: string): void {
     const opInputs = op.inputs as Record<string, IField>
     for (const [name, value] of Object.entries(inputs)) {
       const field = opInputs[name]
-      if (field) {
+      if (field && !field.runtimeOnly) {
         // Routes { $expr } payloads to setExpression, plain values to setValue
         applySerializedFieldValue(field as Field, value)
       }
