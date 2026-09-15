@@ -1,6 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import * as Plot from '@observablehq/plot'
 import { analytics } from '../utils/analytics'
 import { ChartOp } from './operators'
+
+vi.mock('@observablehq/plot', async importOriginal => {
+  const actual = await importOriginal<typeof import('@observablehq/plot')>()
+  return {
+    ...actual,
+    plot: vi.fn(actual.plot),
+  }
+})
 
 // Mock analytics
 vi.mock('../utils/analytics', () => ({
@@ -118,12 +127,15 @@ describe('ChartOp error handling', () => {
   it('should capture exception if Observable Plot throws', () => {
     const op = new ChartOp('/test')
 
-    // Create data that will cause Plot to fail
-    // (malformed data structure that Plot can't handle)
+    const plotError = new Error('Plot failed')
+    vi.mocked(Plot.plot).mockImplementationOnce(() => {
+      throw plotError
+    })
+
     const result = op.execute({
       data: [
-        { x: null, y: undefined },
-        { x: NaN, y: Infinity },
+        { x: 1, y: 2 },
+        { x: 3, y: 4 },
       ],
       chartType: 'scatter',
       xField: 'x',
@@ -141,7 +153,7 @@ describe('ChartOp error handling', () => {
 
     // Should capture the exception with context
     expect(analytics.captureException).toHaveBeenCalledWith(
-      expect.any(Error),
+      plotError,
       expect.objectContaining({
         source: 'chart_op',
         chartType: 'scatter',

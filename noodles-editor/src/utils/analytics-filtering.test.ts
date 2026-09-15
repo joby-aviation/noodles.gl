@@ -13,6 +13,11 @@ vi.mock('posthog-js', () => ({
   },
 }))
 
+// Analytics only initializes PostHog when a key is configured. Give this test
+// environment an explicit key so forwarding assertions exercise an initialized
+// provider instead of silently taking the production "provider unavailable" path.
+vi.stubEnv('VITE_POSTHOG_API_KEY', 'test-posthog-key')
+
 describe('Analytics error filtering', () => {
   let analytics: any
   let mockPosthog: typeof posthog
