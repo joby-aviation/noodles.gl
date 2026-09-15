@@ -120,6 +120,7 @@ export interface Example {
   name: string
   description: string
   category: string
+  readme: string
   project: unknown // NoodlesProject - keeping as unknown since it's serialized JSON
   annotations: Record<string, NodeAnnotation>
   tags: string[]
