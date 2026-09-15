@@ -20,9 +20,7 @@ function generateOperatorReference(): string {
     lines.push(`**${category}**: ${operators.join(', ')}`)
   }
 
-  lines.push(
-    '\nUse `get_operator_schema({ type: "OperatorName" })` for full input/output schemas.'
-  )
+  lines.push('\nUse `get_operator_schema({ type: "OperatorName" })` for full input/output schemas.')
 
   return lines.join('\n')
 }

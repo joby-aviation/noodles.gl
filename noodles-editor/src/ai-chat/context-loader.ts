@@ -5,13 +5,7 @@ import { getCodeIndex } from './runtime-code-index'
 import { getDocsIndex } from './runtime-docs-loader'
 import { getExamplesIndex } from './runtime-examples-loader'
 import { getOperatorRegistry } from './runtime-operator-registry'
-import type {
-  CodeIndex,
-  DocsIndex,
-  ExamplesIndex,
-  LoadProgress,
-  OperatorRegistry,
-} from './types'
+import type { CodeIndex, DocsIndex, ExamplesIndex, LoadProgress, OperatorRegistry } from './types'
 
 export class ContextLoader {
   private codeIndex: CodeIndex | null = null
