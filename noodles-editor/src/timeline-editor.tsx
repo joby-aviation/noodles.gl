@@ -1,9 +1,9 @@
-import type { Deck, DeckProps } from '@deck.gl/core'
+import { type Deck, type DeckProps, _GlobeView as GlobeView, type View } from '@deck.gl/core'
 import { MapLibreOverlay, type MapLibreOverlayProps } from '@deck.gl/maplibre'
 import { DeckGL } from '@deck.gl/react'
 import { ReactFlowProvider } from '@xyflow/react'
 import type { CustomLayerInterface, Map as MapLibre } from 'maplibre-gl'
-import { forwardRef, useCallback, useEffect, useRef, useState } from 'react'
+import { forwardRef, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import ReactMapGL, { type MapProps, useControl } from 'react-map-gl/maplibre'
 import { Layout } from './layout'
 import { ErrorBoundary } from './noodles/components/error-boundary'
@@ -16,12 +16,13 @@ import { useActiveOutOp } from './noodles/hooks/use-active-outop'
 import { useRenderSettings } from './noodles/hooks/use-render-settings'
 import { getNoodles } from './noodles/noodles'
 import { fnWithSource } from './noodles/operators'
+import { useUIStore } from './noodles/store'
+import { RollMapView } from './noodles/utils/roll-map-view'
 import type { RenderSettings } from './noodles/utils/serialization'
 import { useDeckDrawLoop } from './render/draw-loop'
 import { captureScreenshot, useRenderer } from './render/renderer'
 import { deckRenderingDefaults, mapRenderingDefaults } from './render/rendering-defaults'
 import { TransformScale } from './render/transform-scale'
-import { useUIStore } from './noodles/store'
 import { TimelinePanel } from './timeline/components/TimelinePanel'
 import { getTimelineStore, useTimelineStore } from './timeline/timeline-store'
 import s from './timeline-editor.module.css'
@@ -35,11 +36,31 @@ function useSequenceLength() {
 
 const DeckGLOverlay = forwardRef<
   Deck,
-  MapLibreOverlayProps & {
+  Omit<MapLibreOverlayProps, 'views'> & {
+    views?: View | View[] | null
     renderer: RenderSettings
     isRendering: boolean
+    roll: number
+    projection?: string
   }
->(({ renderer, isRendering, ...props }, ref) => {
+>(({ renderer, isRendering, roll, projection, ...deckProps }, ref) => {
+  const views = deckProps.views
+    ? Array.isArray(deckProps.views)
+      ? deckProps.views
+      : [deckProps.views]
+    : []
+  const mapViewProps = views.find(view => view.id === 'maplibre')?.props
+  // MapLibreOverlay supports custom views, but its 9.4 declaration uses the
+  // default DeckProps generic, which incorrectly narrows `views` to null.
+  const props = {
+    ...deckProps,
+    views: [
+      projection === 'globe'
+        ? new GlobeView({ ...mapViewProps, id: 'maplibre' })
+        : new RollMapView({ ...mapViewProps, id: 'maplibre', roll }),
+      ...views.filter(view => view.id !== 'maplibre'),
+    ],
+  } as unknown as MapLibreOverlayProps
   // MapLibreOverlay handles a variety of props differently than the Deck class.
   // https://deck.gl/docs/api-reference/maplibre/overview
   const deck = useControl<MapLibreOverlay>(
@@ -175,12 +196,21 @@ export default function TimelineEditor() {
   }
 
   // Destructure light and sky since they're applied imperatively via setLight/setSky
-  const { light, sky, ...basemapProps } = visualization.mapProps ?? {}
+  const { light, sky, roll = 0, ...basemapProps } = visualization.mapProps ?? {}
+  // GlobeView does not support roll yet; keep its basemap aligned at zero.
+  const mapRoll = visualization.mapProps?.projection === 'globe' ? 0 : roll
+
+  // react-map-gl 8 controls pitch and bearing, but does not update roll after
+  // construction. Apply it before paint, including during frame-by-frame export.
+  useLayoutEffect(() => {
+    mapRef.current?.setRoll(mapRoll)
+  }, [mapRoll])
   const mapProps: MapProps = {
     ...mapRenderingDefaults,
     onLoad: ({ target: map }) => {
       // Redraw react to ensure hooks check for map ref changes
       mapRef.current = map
+      map.setRoll(mapRoll)
       redraw()
     },
     ...basemapProps,
@@ -548,6 +578,8 @@ export default function TimelineEditor() {
             renderer={renderSettings}
             isRendering={isRendering}
             {...deckProps}
+            roll={mapRoll}
+            projection={visualization.mapProps?.projection as string | undefined}
           />
           {/* Interactive Draw and Measure tools, armed from the top shelf */}
           <MapToolLayer mapRef={mapRef} basemapEnabled isRendering={isRendering} />
@@ -558,6 +590,7 @@ export default function TimelineEditor() {
       <DeckGL
         ref={ref => setRef(deckRef, ref?.deck)}
         {...deckProps}
+        views={deckProps.views ?? new RollMapView()}
         {...(displayResolution || {})}
       />
     )

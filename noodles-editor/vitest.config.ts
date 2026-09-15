@@ -9,7 +9,12 @@ export default defineConfig({
   test: {
     setupFiles: ['src/setupTests.ts'],
     browser: {
-      provider: playwright(),
+      provider: playwright({
+        launchOptions: {
+          // Exercise MapLibre's WebGL camera projection in headless Chromium.
+          args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'],
+        },
+      }),
       enabled: true,
       headless: true,
       screenshotFailures: false,

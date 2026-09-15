@@ -113,7 +113,30 @@ In Noodles.gl, you can use `AccessorOp` with simple expression strings like `[d.
 The `MaplibreBasemapOp` controls your base map and camera position:
 
 - **mapStyle**: A Maplibre style specification (JSON object or URL)
-- **viewState**: Camera position (latitude, longitude, zoom, pitch, bearing)
+- **viewState**: Camera position (latitude, longitude, zoom, pitch, bearing, roll)
+
+### Camera Roll
+
+Use `MapViewStateOp.roll` to bank a Mercator camera in degrees. Connect its
+`viewState` output to `MaplibreBasemapOp.viewState`, then connect the basemap to
+`DeckRendererOp`. Roll rotates the basemap and deck.gl layers together and can be
+keyframed like pitch or bearing. Existing projects default to zero roll.
+
+Roll is also available on `MapViewOp.viewState`, `SplitMapViewStateOp`, and the
+`ProjectOp`/`UnprojectOp` coordinate converters. It works with standalone
+Mercator MapViews as well as interleaved MapLibre maps. Globe views do not support
+roll in Noodles yet.
+
+The integration uses deck.gl 9.4's `MapLibreOverlay` and MapLibre GL JS 6.9.
+Noodles adds a local viewport adapter to keep projection, picking, and rendering
+aligned while rolling; upstream MapView/MapLibreOverlay roll support is still
+absent in deck.gl 9.4. MapLibre 6's separate worker is configured by the app.
+The adapter can be removed after the
+[upstream roll support](https://github.com/visgl/deck.gl/pull/10697) is released.
+
+Open the **plane-roll** example for a complete animated camera, aircraft, fixed
+instrument overlay, and video export setup. Its roll track banks both ways over
+a 22-second fictional flight over Lake Zurich.
 
 ### Importing and Editing Hosted Styles
 

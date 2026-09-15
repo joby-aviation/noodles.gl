@@ -3,7 +3,6 @@ import {
   type FirstPersonViewProps,
   _GlobeView as GlobeView,
   type GlobeViewProps,
-  MapView,
   type MapViewProps,
   OrbitView,
   type OrbitViewProps,
@@ -12,6 +11,7 @@ import {
   View,
 } from '@deck.gl/core'
 import type { DeckViewValue } from '../types'
+import { RollMapView } from './roll-map-view'
 
 export function instantiateDeckView(view: DeckViewValue): View {
   if (view instanceof View) return view
@@ -19,7 +19,7 @@ export function instantiateDeckView(view: DeckViewValue): View {
   const { type, ...props } = view
   switch (type) {
     case 'MapView':
-      return new MapView(props as MapViewProps)
+      return new RollMapView(props as MapViewProps)
     case 'GlobeView':
       return new GlobeView(props as GlobeViewProps)
     case 'FirstPersonView':

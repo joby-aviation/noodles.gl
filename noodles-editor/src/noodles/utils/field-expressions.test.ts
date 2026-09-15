@@ -5,6 +5,7 @@ import {
   applySerializedFieldValue,
   ColorField,
   isSerializedExpression,
+  ListField,
   NumberField,
   StringField,
 } from '../fields'
@@ -60,6 +61,21 @@ describe('field expression mode', () => {
   })
 
   describe('cross-operator references', () => {
+    it('re-evaluates list expressions without adding reference values as list items', () => {
+      const source = new NumberOp('/source')
+      setOp('/source', source)
+      const field = new ListField(new NumberField())
+      field.setExpression("[op('/source').out.val * 2, 99]")
+      field.addConnection('list-ref', source.outputs.val, 'reference')
+      source.outputs.val.setValue(12)
+      expect(field.value).toEqual([24, 99])
+      expect(field.fields.size).toBe(0)
+      field.removeConnection('list-ref', 'reference')
+      expect(field.value).toEqual([24, 99])
+      source.outputs.val.setValue(30)
+      expect(field.value).toEqual([24, 99])
+    })
+
     it('references another operator output with op()', () => {
       const source = new NumberOp('/source')
       source.outputs.val.setValue(21)

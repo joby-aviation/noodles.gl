@@ -11,7 +11,7 @@ export type ViewState =
   | FirstPersonViewState
   | { [viewId: string]: MapViewState | FirstPersonViewState }
 
-export type BetterMapProps = MapProps & MapViewState
+export type BetterMapProps = MapProps & MapViewState & { roll?: number }
 export type BetterDeckProps = Partial<DeckProps & { viewState: ViewState }>
 
 export interface MapLibreLayerConfig {
