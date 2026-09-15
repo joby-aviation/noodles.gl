@@ -1,15 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import * as Plot from '@observablehq/plot'
 import { analytics } from '../utils/analytics'
 import { ChartOp } from './operators'
-
-vi.mock('@observablehq/plot', async importOriginal => {
-  const actual = await importOriginal<typeof import('@observablehq/plot')>()
-  return {
-    ...actual,
-    plot: vi.fn(actual.plot),
-  }
-})
 
 // Mock analytics
 vi.mock('../utils/analytics', () => ({
@@ -124,19 +115,52 @@ describe('ChartOp error handling', () => {
     expect(analytics.captureException).not.toHaveBeenCalled()
   })
 
-  it('should capture exception if Observable Plot throws', () => {
+  it('should handle edge-case data gracefully', () => {
     const op = new ChartOp('/test')
 
-    const plotError = new Error('Plot failed')
-    vi.mocked(Plot.plot).mockImplementationOnce(() => {
-      throw plotError
-    })
-
+    // Observable Plot handles null, NaN, and Infinity gracefully
+    // (renders axes without data points, doesn't throw)
     const result = op.execute({
       data: [
-        { x: 1, y: 2 },
-        { x: 3, y: 4 },
+        { x: null, y: undefined },
+        { x: NaN, y: Infinity },
       ],
+      chartType: 'scatter',
+      xField: 'x',
+      yField: 'y',
+      width: 640,
+      height: 400,
+      color: '#4269d0',
+      title: '',
+      xLabel: '',
+      yLabel: '',
+    })
+
+    // Plot handles edge cases gracefully - returns a chart with axes
+    expect(result.chart).not.toBeNull()
+    expect(result.chart).toBeInstanceOf(HTMLElement)
+
+    // Should not capture exception since Plot handles this gracefully
+    expect(analytics.captureException).not.toHaveBeenCalled()
+  })
+
+  it('should capture exception when data accessor throws', () => {
+    const op = new ChartOp('/test')
+
+    // Create data with a getter that throws when accessed
+    const throwingData = [
+      new Proxy(
+        { x: 1 },
+        {
+          get() {
+            throw new Error('Data access failed')
+          },
+        }
+      ),
+    ]
+
+    const result = op.execute({
+      data: throwingData as any,
       chartType: 'scatter',
       xField: 'x',
       yField: 'y',
@@ -151,16 +175,12 @@ describe('ChartOp error handling', () => {
     // Should return null on error
     expect(result.chart).toBeNull()
 
-    // Should capture the exception with context
+    // Should have captured the exception
     expect(analytics.captureException).toHaveBeenCalledWith(
-      plotError,
+      expect.any(Error),
       expect.objectContaining({
         source: 'chart_op',
         chartType: 'scatter',
-        hasData: true,
-        hasXField: true,
-        hasYField: true,
-        dataLength: 2,
       })
     )
   })

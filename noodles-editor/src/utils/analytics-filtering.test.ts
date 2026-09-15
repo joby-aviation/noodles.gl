@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type posthog from 'posthog-js'
 
+// Mock environment variables
+vi.stubEnv('VITE_POSTHOG_API_KEY', 'test-api-key')
+
 // Mock posthog before importing analytics
 vi.mock('posthog-js', () => ({
   default: {
@@ -12,11 +15,6 @@ vi.mock('posthog-js', () => ({
     has_opted_out_capturing: vi.fn(() => false),
   },
 }))
-
-// Analytics only initializes PostHog when a key is configured. Give this test
-// environment an explicit key so forwarding assertions exercise an initialized
-// provider instead of silently taking the production "provider unavailable" path.
-vi.stubEnv('VITE_POSTHOG_API_KEY', 'test-posthog-key')
 
 describe('Analytics error filtering', () => {
   let analytics: any
