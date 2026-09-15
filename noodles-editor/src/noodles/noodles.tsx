@@ -14,8 +14,6 @@ import {
   Controls,
   ReactFlow,
   type ReactFlowInstance,
-  useEdgesState,
-  useNodesState,
   useReactFlow,
   useStoreApi,
 } from '@xyflow/react'
@@ -104,6 +102,7 @@ import {
   getOpStore,
   getUIStore,
   useEdgeConnectionStore,
+  useGraphStore,
   useNestingStore,
   useUIStore,
 } from './store'
@@ -117,7 +116,6 @@ import {
   selectDirectory,
   writeFileToDirectory,
 } from './utils/filesystem'
-import { reconcileForLoopGroups } from './utils/for-loop-group-utils'
 import { edgeId, nodeId } from './utils/id-utils'
 import { shouldBlockKeyboardShortcut } from './utils/input-detection'
 import { generateDraftId, memoryProjectStore } from './utils/memory-project-store'
@@ -222,8 +220,12 @@ export function getNoodles(): Visualization {
     return timelineStore.toTimelineJSON() as unknown as Record<string, unknown>
   }, [timelineStore.toTimelineJSON])
 
-  const [nodes, setNodes, onNodesChangeBase] = useNodesState<AnyNodeJSON>([])
-  const [edges, setEdges, onEdgesChangeBase] = useEdgesState<ReactFlowEdge<unknown>>([])
+  // Graph state from unified store
+  const nodes = useGraphStore(state => state.nodes)
+  const edges = useGraphStore(state => state.edges)
+  const applyNodeChangesStore = useGraphStore(state => state.applyNodeChanges)
+  const applyEdgeChangesStore = useGraphStore(state => state.applyEdgeChanges)
+
   const referenceEdges = useSyncExternalStore(
     referenceDependencyModel.subscribe,
     referenceDependencyModel.getSnapshot,
@@ -237,9 +239,7 @@ export function getNoodles(): Visualization {
 
   useEffect(() => () => referenceDependencyModel.reset(), [])
 
-  // Single ref providing synchronous access to the full graph state.
-  // Used by CopyControls, UndoRedoHandler, and hooks that need all nodes/edges
-  // without triggering re-renders or being limited to the displayed scope.
+  // graphRef replaced by store - store provides synchronous access via getGraphStore()
   const graphRef = useRef({ nodes, edges })
   graphRef.current = { nodes, edges }
 
@@ -268,9 +268,9 @@ export function getNoodles(): Visualization {
   // Throw during render so the ErrorBoundary catches it with a descriptive message
   if (paramEditorError) throw paramEditorError
 
-  // Wrap onNodesChange to track node selection and mark unsaved changes
+  // Handle ReactFlow node changes (position, selection, etc.)
   const onNodesChange = useCallback(
-    (changes: Parameters<typeof onNodesChangeBase>[0]) => {
+    (changes: Parameters<typeof applyNodeChangesStore>[0]) => {
       // Track selection changes
       const selectedChanges = changes.filter(change => change.type === 'select' && change.selected)
       if (selectedChanges.length > 0) {
@@ -286,23 +286,23 @@ export function getNoodles(): Visualization {
         setHasUnsavedChanges(true)
       }
 
-      onNodesChangeBase(changes)
+      applyNodeChangesStore(changes)
     },
-    [onNodesChangeBase]
+    [applyNodeChangesStore]
   )
 
-  // Wrap onEdgesChange to mark unsaved changes
+  // Handle ReactFlow edge changes (selection, etc.)
   const onEdgesChange = useCallback(
-    (changes: Parameters<typeof onEdgesChangeBase>[0]) => {
+    (changes: Parameters<typeof applyEdgeChangesStore>[0]) => {
       // Mark as unsaved if there are non-selection changes
       const hasNonSelectionChanges = changes.some(change => change.type !== 'select')
       if (hasNonSelectionChanges) {
         setHasUnsavedChanges(true)
       }
 
-      onEdgesChangeBase(changes)
+      applyEdgeChangesStore(changes)
     },
-    [onEdgesChangeBase]
+    [applyEdgeChangesStore]
   )
 
   const contextLoadStarted = useRef(false)
@@ -360,7 +360,7 @@ export function getNoodles(): Visualization {
 
   // Visual ForLoop groups are derived from the directed Begin-to-End subgraph. Re-run
   // when connectivity, membership, or measured dimensions change, but not during a drag.
-  const forLoopLayoutKey = useMemo(() => {
+  const _forLoopLayoutKey = useMemo(() => {
     const nodeState = nodes
       .map(
         node =>
@@ -375,26 +375,21 @@ export function getNoodles(): Visualization {
     return `${nodeState}|${connectivity}`
   }, [nodes, modelEdges])
 
-  // nodes/edges are represented by forLoopLayoutKey; position-only updates intentionally
-  // do not trigger this effect because drag-stop performs the fit once per gesture.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional key-based reconciliation
-  useEffect(() => {
-    setNodes(currentNodes => reconcileForLoopGroups(currentNodes, modelEdges))
-  }, [forLoopLayoutKey, setNodes])
+  // ForLoop reconciliation: disabled in graph-store due to infinite loop issues
+  // Must be called manually when needed (currently not re-enabled)
 
-  // `transformGraph` needs all nodes to build the opMap and resolve connections
-  // Use useEffect instead of useMemo to avoid setState during render
-  const [operators, setOperators] = useState<Operator<IOperator>[]>([])
-  // Set to true in loadProjectFile so the effect below skips the redundant re-run triggered
-  // by setNodes/setEdges — the graph was already built synchronously during load
+  // Get operators from store - memoize to prevent rerenders on node position/selection changes
+  const operatorsMap = useGraphStore(state => state.operators)
+  const operators = useMemo(() => Array.from(operatorsMap.values()), [operatorsMap])
+  // Set to true in loadProjectFile so effects skip redundant re-runs
   const isProjectLoadRef = useRef(false)
-  // nodes/edges omitted from deps intentionally — only re-run on structural changes, not position updates during drag
+
+  // Handle graph errors from transformGraph
+  // transformGraph is called by the graph-store subscriber, but we need to capture errors here
   // biome-ignore lint/correctness/useExhaustiveDependencies: intentional - graphStructureKey gates this
   useEffect(() => {
-    // loadProjectFile already called transformGraph directly, so skip this triggered re-run
     if (isProjectLoadRef.current) return
     const result = transformGraph({ nodes, edges })
-    setOperators(result.operators)
     // Show error dialog if there are graph errors
     if (result.errors.length > 0) {
       setGraphErrors(
@@ -404,11 +399,6 @@ export function getNoodles(): Visualization {
         }))
       )
     }
-    // Catch-all for multi-input slot caches: re-derive orderIndex/groupSize now that the
-    // operators exist in the store (covers undo/redo restores, keyboard deletes, and AI/paste
-    // paths that added edges before their operators were instantiated). Returns the same
-    // array reference when nothing changed, so this doesn't loop.
-    setEdges(eds => normalizeMultiInputEdges(eds.filter(edge => edge.type !== 'ReferenceEdge')))
   }, [graphStructureKey])
 
   // Reset isProjectLoadRef after every render so the flag never gets stuck when
@@ -440,6 +430,13 @@ export function getNoodles(): Visualization {
   }, [operators])
 
   // Use shared hook for project modifications
+  // Provides wrapper functions for setNodes/setEdges from graph store
+  const _addNodesStore = useGraphStore(state => state.addNodes)
+  const _updateNodeStore = useGraphStore(state => state.updateNode)
+  const _deleteNodesStore = useGraphStore(state => state.deleteNodes)
+  const _addEdgesStore = useGraphStore(state => state.addEdges)
+  const _deleteEdgesStore = useGraphStore(state => state.deleteEdges)
+
   const {
     applyModifications,
     onConnect: onConnectBase,
@@ -449,8 +446,32 @@ export function getNoodles(): Visualization {
   } = useProjectModifications({
     getNodes: useCallback(() => nodes, [nodes]),
     getEdges: useCallback(() => edges, [edges]),
-    setNodes,
-    setEdges,
+    setNodes: useCallback(
+      (updater: ReactFlowNode[] | ((nodes: ReactFlowNode[]) => ReactFlowNode[])) => {
+        if (typeof updater === 'function') {
+          // Read from store to get latest state (prevents consecutive update race)
+          const currentNodes = useGraphStore.getState().nodes
+          const updated = updater(currentNodes)
+          useGraphStore.setState({ nodes: updated })
+        } else {
+          useGraphStore.setState({ nodes: updater })
+        }
+      },
+      []
+    ),
+    setEdges: useCallback(
+      (updater: ReactFlowEdge[] | ((edges: ReactFlowEdge[]) => ReactFlowEdge[])) => {
+        if (typeof updater === 'function') {
+          // Read from store to get latest state (prevents consecutive update race)
+          const currentEdges = useGraphStore.getState().edges
+          const updated = updater(currentEdges)
+          useGraphStore.setState({ edges: updated })
+        } else {
+          useGraphStore.setState({ edges: updater })
+        }
+      },
+      []
+    ),
   })
 
   // Keep the WebMCP tool surface in sync with editor state when external
@@ -616,10 +637,21 @@ export function getNoodles(): Visualization {
   )
 
   // Hook for dropping nodes onto edges to insert them
+  const setEdgesFromStore = useCallback(
+    (updater: ReactFlowEdge[] | ((edges: ReactFlowEdge[]) => ReactFlowEdge[])) => {
+      if (typeof updater === 'function') {
+        const updated = updater(edges)
+        useGraphStore.setState({ edges: updated })
+      } else {
+        useGraphStore.setState({ edges: updater })
+      }
+    },
+    [edges]
+  )
   const { onNodeDrag: onNodeDragBase, onNodeDragStop: onNodeDragStopBase } = useNodeDropOnEdge({
     getNodes: useCallback(() => graphRef.current.nodes, []),
     getEdges: useCallback(() => graphRef.current.edges, []),
-    setEdges,
+    setEdges: setEdgesFromStore,
   })
 
   // Track node drag for visual feedback
@@ -634,18 +666,13 @@ export function getNoodles(): Visualization {
   const onNodeDragStop = useCallback(
     (event: React.MouseEvent, node: ReactFlowNode) => {
       const result = onNodeDragStopBase(event, node)
-      setNodes(currentNodes =>
-        reconcileForLoopGroups(currentNodes, [
-          ...graphRef.current.edges,
-          ...referenceDependencyModel.getSnapshot(),
-        ])
-      )
+      // ForLoop reconciliation now handled by graph-store subscriber
       // Mark as unsaved if a node was inserted into an edge
       if (result) {
         setHasUnsavedChanges(true)
       }
     },
-    [onNodeDragStopBase, setNodes]
+    [onNodeDragStopBase]
   )
 
   const onNodeContextMenu = useCallback(
@@ -682,9 +709,11 @@ export function getNoodles(): Visualization {
   }
 
   const onDeselectAll = useCallback(() => {
-    setNodes(nodes => nodes.map(node => ({ ...node, selected: false })))
-    setEdges(edges => edges.map(edge => ({ ...edge, selected: false })))
-  }, [setNodes, setEdges])
+    useGraphStore.setState({
+      nodes: nodes.map(node => ({ ...node, selected: false })),
+      edges: edges.map(edge => ({ ...edge, selected: false })),
+    })
+  }, [nodes, edges])
 
   const onPaneClick = useCallback(() => {
     blockLibraryRef.current?.closeModal()
@@ -704,62 +733,18 @@ export function getNoodles(): Visualization {
   useKeyboardShortcut('v', () => {
     analytics.track('viewer_created', { method: 'keyboard' })
 
-    setNodes(currentNodes => {
-      const selectedNodes = currentNodes.filter(n => n.selected)
-      const opStore = getOpStore()
-      const uiStore = getUIStore()
-      const hoveredHandle = uiStore.hoveredOutputHandle
+    const currentNodes = nodes
+    const currentEdges = edges
+    const selectedNodes = currentNodes.filter(n => n.selected)
+    const opStore = getOpStore()
+    const uiStore = getUIStore()
+    const hoveredHandle = uiStore.hoveredOutputHandle
 
-      // Priority 1: If hovering over ANY output handle, use that
-      if (hoveredHandle?.handleId.startsWith('out.')) {
-        const hoveredNode = currentNodes.find(n => n.id === hoveredHandle.nodeId)
-        if (hoveredNode) {
-          const newViewerPosition = calculateViewerPosition(hoveredNode, currentNodes)
-          const viewerId = nodeId('viewer', currentContainerId)
-
-          const viewerNode: AnyNodeJSON = {
-            id: viewerId,
-            type: 'ViewerOp',
-            position: newViewerPosition,
-            data: undefined,
-          }
-
-          const sourceHandle = hoveredHandle.handleId
-          const targetHandle = 'par.data'
-          const newEdge = {
-            id: edgeId({
-              source: hoveredHandle.nodeId,
-              sourceHandle,
-              target: viewerId,
-              targetHandle,
-            }),
-            source: hoveredHandle.nodeId,
-            sourceHandle,
-            target: viewerId,
-            targetHandle,
-          }
-
-          setEdges(currentEdges => [...currentEdges, newEdge])
-          return [...currentNodes, viewerNode]
-        }
-      }
-
-      // Priority 2: If nodes are selected, use rightmost selected node
-      if (selectedNodes.length > 0) {
-        const rightmostNode = selectedNodes.reduce((rightmost, node) => {
-          return node.position.x > rightmost.position.x ? node : rightmost
-        }, selectedNodes[0])
-
-        const sourceOp = opStore.getOp(rightmostNode.id)
-        let sourceHandle: string | null = null
-        if (sourceOp) {
-          const firstOutputKey = Object.keys(sourceOp.outputs)[0]
-          if (firstOutputKey) {
-            sourceHandle = `out.${firstOutputKey}`
-          }
-        }
-
-        const newViewerPosition = calculateViewerPosition(rightmostNode, currentNodes)
+    // Priority 1: If hovering over ANY output handle, use that
+    if (hoveredHandle?.handleId.startsWith('out.')) {
+      const hoveredNode = currentNodes.find(n => n.id === hoveredHandle.nodeId)
+      if (hoveredNode) {
+        const newViewerPosition = calculateViewerPosition(hoveredNode, currentNodes)
         const viewerId = nodeId('viewer', currentContainerId)
 
         const viewerNode: AnyNodeJSON = {
@@ -769,29 +754,79 @@ export function getNoodles(): Visualization {
           data: undefined,
         }
 
-        if (sourceHandle) {
-          const targetHandle = 'par.data'
-          const newEdge = {
-            id: edgeId({
-              source: rightmostNode.id,
-              sourceHandle,
-              target: viewerId,
-              targetHandle,
-            }),
+        const sourceHandle = hoveredHandle.handleId
+        const targetHandle = 'par.data'
+        const newEdge = {
+          id: edgeId({
+            source: hoveredHandle.nodeId,
+            sourceHandle,
+            target: viewerId,
+            targetHandle,
+          }),
+          source: hoveredHandle.nodeId,
+          sourceHandle,
+          target: viewerId,
+          targetHandle,
+        }
+
+        useGraphStore.setState({
+          nodes: [...currentNodes, viewerNode],
+          edges: [...currentEdges, newEdge],
+        })
+        return
+      }
+    }
+
+    // Priority 2: If nodes are selected, use rightmost selected node
+    if (selectedNodes.length > 0) {
+      const rightmostNode = selectedNodes.reduce((rightmost, node) => {
+        return node.position.x > rightmost.position.x ? node : rightmost
+      }, selectedNodes[0])
+
+      const sourceOp = opStore.getOp(rightmostNode.id)
+      let sourceHandle: string | null = null
+      if (sourceOp) {
+        const firstOutputKey = Object.keys(sourceOp.outputs)[0]
+        if (firstOutputKey) {
+          sourceHandle = `out.${firstOutputKey}`
+        }
+      }
+
+      const newViewerPosition = calculateViewerPosition(rightmostNode, currentNodes)
+      const viewerId = nodeId('viewer', currentContainerId)
+
+      const viewerNode: AnyNodeJSON = {
+        id: viewerId,
+        type: 'ViewerOp',
+        position: newViewerPosition,
+        data: undefined,
+      }
+
+      if (sourceHandle) {
+        const targetHandle = 'par.data'
+        const newEdge = {
+          id: edgeId({
             source: rightmostNode.id,
             sourceHandle,
             target: viewerId,
             targetHandle,
-          }
-          setEdges(currentEdges => [...currentEdges, newEdge])
+          }),
+          source: rightmostNode.id,
+          sourceHandle,
+          target: viewerId,
+          targetHandle,
         }
-
-        return [...currentNodes, viewerNode]
+        useGraphStore.setState({
+          nodes: [...currentNodes, viewerNode],
+          edges: [...currentEdges, newEdge],
+        })
+      } else {
+        useGraphStore.setState({
+          nodes: [...currentNodes, viewerNode],
+        })
       }
-
-      return currentNodes
-    })
-  }, [setNodes, setEdges, currentContainerId])
+    }
+  })
 
   // Handle 'a' keyup to open Block Library (momentary button behavior)
   useKeyboardShortcut('a', () => {
@@ -859,7 +894,6 @@ export function getNoodles(): Visualization {
 
       // Build the operator graph synchronously — operators are ready before any re-render
       const result = transformGraph({ nodes, edges })
-      setOperators(result.operators)
       // Show error dialog if there are graph or timeline errors
       const allErrors = [
         ...timelineErrors,
@@ -872,16 +906,18 @@ export function getNoodles(): Visualization {
         setGraphErrors(allErrors)
       }
 
-      // Update React Flow state (for rendering; graph is already set up above).
+      // Load project into graph store (operators already created by transformGraph above)
       // Normalizing here (after transformGraph, so operators exist for the ListField
       // lookup) derives multi-input slot rendering caches from the file's edge order —
       // project files never store them.
-      setNodes(nodes)
-      setEdges(
-        normalizeMultiInputEdges(
-          (edges as ReactFlowEdge[]).filter(edge => edge.type !== 'ReferenceEdge')
+      useGraphStore
+        .getState()
+        .loadProject(
+          nodes,
+          normalizeMultiInputEdges(
+            (edges as ReactFlowEdge[]).filter(edge => edge.type !== 'ReferenceEdge')
+          )
         )
-      )
 
       // Load editor settings from project with defaults
       setShowOverlay(editorSettings?.showOverlay ?? true)
@@ -900,7 +936,7 @@ export function getNoodles(): Visualization {
 
       setHasUnsavedChanges(false)
     },
-    [setNodes, setEdges, navigate, routePrefix, timelineStore.fromTimelineJSON, timelineStore.reset]
+    [navigate, routePrefix, timelineStore.fromTimelineJSON, timelineStore.reset]
   )
 
   // Assign to ref for undo/redo system
@@ -1669,7 +1705,8 @@ export function getNoodles(): Visualization {
                   debugParams('calling rebuildInputs on %s', op.id)
                   op.rebuildInputs()
                   debugParams('rebuildInputs complete, forcing re-render')
-                  setNodes(nodes => [...nodes]) // Force re-render
+                  // Force re-render by triggering state update
+                  useGraphStore.setState({ nodes: [...nodes] })
                 } catch (err) {
                   debugParams('rebuildInputs threw: %O', err)
                   setParamEditorError(err instanceof Error ? err : new Error(String(err)))
