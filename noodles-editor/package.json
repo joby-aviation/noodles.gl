@@ -42,6 +42,7 @@
     "gl-matrix": "^3.4.4",
     "h3-js": "^4.4.0",
     "haversine-distance": "^1.2.4",
+    "isomorphic-git": "^1.41.9",
     "jszip": "^3.10.1",
     "lodash": "^4.17.23",
     "maplibre-gl": "^5.21.1",
