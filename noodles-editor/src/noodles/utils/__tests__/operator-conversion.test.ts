@@ -246,7 +246,7 @@ describe('convertViewerToTableEditor', () => {
     expect(schema.columns.map(c => c.type)).toEqual(['string', 'number', 'string'])
   })
 
-  it('removes duplicate edge IDs elsewhere in the graph while converting', () => {
+  it('does not repair unrelated graph state while converting', () => {
     const viewerOp = new ViewerOp('/test-viewer')
     viewerOp.inputs.data.setValue([{ name: 'Alice' }])
     setOp('/test-viewer', viewerOp)
@@ -270,6 +270,6 @@ describe('convertViewerToTableEditor', () => {
 
     convertViewerToTableEditor('/test-viewer', mockSetNodes, mockSetEdges)
 
-    expect(capturedEdges).toEqual([duplicateEdge])
+    expect(capturedEdges).toEqual([duplicateEdge, { ...duplicateEdge }])
   })
 })

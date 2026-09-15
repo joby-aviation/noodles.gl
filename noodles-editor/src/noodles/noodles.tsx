@@ -118,11 +118,12 @@ import {
   writeFileToDirectory,
 } from './utils/filesystem'
 import { reconcileForLoopGroups } from './utils/for-loop-group-utils'
+import { assertUniqueEdges, insertUniqueEdge } from './utils/edge-integrity'
 import { edgeId, nodeId } from './utils/id-utils'
 import { shouldBlockKeyboardShortcut } from './utils/input-detection'
 import { generateDraftId, memoryProjectStore } from './utils/memory-project-store'
 import { migrateProject } from './utils/migrate-schema'
-import { canonicalizeEdges, normalizeMultiInputEdges } from './utils/multi-input-utils'
+import { normalizeMultiInputEdges } from './utils/multi-input-utils'
 import { getParentPath, parseHandleId } from './utils/path-utils'
 import { applyOperatorInputs, getLastCommittedBeforeState } from './utils/property-history'
 import {
@@ -393,8 +394,8 @@ export function getNoodles(): Visualization {
   useEffect(() => {
     // loadProjectFile already called transformGraph directly, so skip this triggered re-run
     if (isProjectLoadRef.current) return
-    const uniqueEdges = canonicalizeEdges(edges)
-    const result = transformGraph({ nodes, edges: uniqueEdges })
+    assertUniqueEdges(edges, 'Graph')
+    const result = transformGraph({ nodes, edges })
     setOperators(result.operators)
     // Show error dialog if there are graph errors
     if (result.errors.length > 0) {
@@ -753,7 +754,7 @@ export function getNoodles(): Visualization {
         target: viewerId,
         targetHandle,
       }
-      setEdges(edges => normalizeMultiInputEdges([...edges, newEdge]))
+      setEdges(edges => normalizeMultiInputEdges(insertUniqueEdge(edges, newEdge)))
     }
 
     analytics.track('viewer_created', { method: 'keyboard' })
@@ -781,6 +782,7 @@ export function getNoodles(): Visualization {
   const loadProjectFile = useCallback(
     (project: NoodlesProjectJSON, name?: string, targetRoutePrefix?: string) => {
       const { nodes, edges, viewport, timeline, editorSettings, apiKeys } = project
+      assertUniqueEdges(edges as ReactFlowEdge[], `Project v${project.version}`)
 
       // Prevent the storage-loading useEffect from reloading when the URL changes below
       isProgrammaticLoadRef.current = true
@@ -824,8 +826,7 @@ export function getNoodles(): Visualization {
       }
 
       // Build the operator graph synchronously — operators are ready before any re-render
-      const uniqueEdges = canonicalizeEdges(edges as ReactFlowEdge[])
-      const result = transformGraph({ nodes, edges: uniqueEdges })
+      const result = transformGraph({ nodes, edges })
       setOperators(result.operators)
       // Show error dialog if there are graph or timeline errors
       const allErrors = [
@@ -844,7 +845,11 @@ export function getNoodles(): Visualization {
       // lookup) derives multi-input slot rendering caches from the file's edge order —
       // project files never store them.
       setNodes(nodes)
-      setEdges(normalizeMultiInputEdges(uniqueEdges.filter(edge => edge.type !== 'ReferenceEdge')))
+      setEdges(
+        normalizeMultiInputEdges(
+          (edges as ReactFlowEdge[]).filter(edge => edge.type !== 'ReferenceEdge')
+        )
+      )
 
       // Load editor settings from project with defaults
       setShowOverlay(editorSettings?.showOverlay ?? true)

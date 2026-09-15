@@ -8,9 +8,10 @@ import { debugSerialize } from '../../utils/debug'
 import { resizeableNodes } from '../components/op-components'
 import type { useOperatorStore } from '../store'
 import { deepEqual } from './deep-equal'
+import { assertUniqueEdges } from './edge-integrity'
 import type { ExtractProps } from './extract-props'
 import type { StorageType } from './filesystem'
-import { canonicalizeEdges, MULTI_INPUT_EDGE_TYPE } from './multi-input-utils'
+import { MULTI_INPUT_EDGE_TYPE } from './multi-input-utils'
 import { parseHandleId } from './path-utils'
 
 export { NOODLES_VERSION } from './migrate-schema'
@@ -232,16 +233,14 @@ export function serializeEdges(
   debugSerialize('serializeEdges: %d nodes, %d edges', nodes.length, edges.length)
   // Create a set of valid node IDs to filter out orphaned edges
   const validNodeIds = new Set(nodes.map(node => node.id))
+  const persistentEdges = edges.filter(edge => edge.type !== 'ReferenceEdge')
+  assertUniqueEdges(persistentEdges, 'Cannot serialize graph')
 
-  return canonicalizeEdges(edges)
+  return persistentEdges
     .filter(edge => {
       // Skip edges that reference non-existent nodes
       if (!validNodeIds.has(edge.source) || !validNodeIds.has(edge.target)) {
         debugSerialize('Skipping orphaned edge: %s (%s -> %s)', edge.id, edge.source, edge.target)
-        return false
-      }
-      // Skip ReferenceEdge types - they should not be persisted in save files
-      if (edge.type === 'ReferenceEdge') {
         return false
       }
       return true

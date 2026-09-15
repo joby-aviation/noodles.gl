@@ -6,7 +6,6 @@
 import type { Edge as ReactFlowEdge } from '@xyflow/react'
 import { ListField } from '../fields'
 import { getOp } from '../store'
-import { edgeId } from './id-utils'
 import { parseHandleId } from './path-utils'
 
 export const MULTI_INPUT_EDGE_TYPE = 'MultiInputEdge'
@@ -35,62 +34,6 @@ export function isListFieldTarget(edge: EdgeTargetRef): boolean {
 
 const groupKey = (edge: EdgeTargetRef) => `${edge.target}::${edge.targetHandle}`
 
-function connectionId(edge: ReactFlowEdge): string {
-  return edgeId({
-    source: edge.source,
-    sourceHandle: edge.sourceHandle,
-    target: edge.target,
-    targetHandle: edge.targetHandle,
-  })
-}
-
-// React Flow treats edge IDs as unique identities. Remove repeated records within an ID group,
-// and repair ID collisions between different connections. Colliding groups use their canonical
-// connection IDs so a stale first record cannot hide a valid edge. Separately identified edges
-// are left alone even when their endpoints match.
-export function canonicalizeEdges<E extends ReactFlowEdge>(edges: E[]): E[] {
-  const connectionsByStoredId = new Map<string, Set<string>>()
-  for (const edge of edges) {
-    const connections = connectionsByStoredId.get(edge.id) ?? new Set<string>()
-    connections.add(connectionId(edge))
-    connectionsByStoredId.set(edge.id, connections)
-  }
-
-  const seenConnectionsByStoredId = new Map<string, Set<string>>()
-  const usedIds = new Set<string>()
-  let changed = false
-  const uniqueEdges: E[] = []
-
-  for (const edge of edges) {
-    const canonicalId = connectionId(edge)
-    const seenConnections = seenConnectionsByStoredId.get(edge.id) ?? new Set<string>()
-    if (seenConnections.has(canonicalId)) {
-      changed = true
-      continue
-    }
-    seenConnections.add(canonicalId)
-    seenConnectionsByStoredId.set(edge.id, seenConnections)
-
-    const storedIdHasConflictingConnections = (connectionsByStoredId.get(edge.id)?.size ?? 0) > 1
-    let repairedId = storedIdHasConflictingConnections ? canonicalId : edge.id
-    let suffix = 2
-    while (usedIds.has(repairedId)) {
-      repairedId = `${canonicalId}#${suffix}`
-      suffix += 1
-    }
-    usedIds.add(repairedId)
-
-    if (repairedId !== edge.id) {
-      changed = true
-      uniqueEdges.push({ ...edge, id: repairedId })
-    } else {
-      uniqueEdges.push(edge)
-    }
-  }
-
-  return changed ? uniqueEdges : edges
-}
-
 // Rewrites derived multi-input state from edge array order: every edge targeting a
 // multi-input handle gets type MULTI_INPUT_EDGE_TYPE and data.{orderIndex, groupSize};
 // edges that no longer target one get the stale type/data stripped. Returns the same
@@ -99,9 +42,8 @@ export function normalizeMultiInputEdges<E extends ReactFlowEdge>(
   edges: E[],
   isMultiInputTarget: IsMultiInputTarget = isListFieldTarget
 ): E[] {
-  const uniqueEdges = canonicalizeEdges(edges)
   const groupSizes = new Map<string, number>()
-  for (const edge of uniqueEdges) {
+  for (const edge of edges) {
     if (isMultiInputTarget(edge)) {
       const key = groupKey(edge)
       groupSizes.set(key, (groupSizes.get(key) ?? 0) + 1)
@@ -109,8 +51,8 @@ export function normalizeMultiInputEdges<E extends ReactFlowEdge>(
   }
 
   const nextIndex = new Map<string, number>()
-  let changed = uniqueEdges !== edges
-  const next = uniqueEdges.map(edge => {
+  let changed = false
+  const next = edges.map(edge => {
     const groupSize = groupSizes.get(groupKey(edge))
 
     if (groupSize === undefined) {

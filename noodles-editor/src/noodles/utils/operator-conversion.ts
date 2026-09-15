@@ -2,7 +2,6 @@ import { TableEditorOp, ViewerOp } from '../operators'
 import { deleteOp, getOp, setOp } from '../store'
 import { inferSchema } from '../table-schema'
 import type { ReactFlowEdge, ReactFlowNode } from '../types'
-import { normalizeMultiInputEdges } from './multi-input-utils'
 
 // Converts a ViewerOp to a TableEditorOp, removing data connections and preserving position.
 // Returns true if successful, false if the operator cannot be converted.
@@ -78,14 +77,11 @@ export function convertViewerToTableEditor(
 
   // Remove any incoming edges to the data input.
   // The data has been copied into the TableEditorOp above, so it can be edited manually.
-  // Normalize the remaining graph at this workflow boundary so replayed edge IDs are repaired.
   // Note: This creates a separate undo history entry from the node type change above,
   // so reverting the conversion requires two undo operations. React Flow's setEdges
   // automatically triggers onEdgesChange, which is intercepted by the undo system.
   setEdges(edges =>
-    normalizeMultiInputEdges(
-      edges.filter(edge => !(edge.target === operatorId && edge.targetHandle === 'par.data'))
-    )
+    edges.filter(edge => !(edge.target === operatorId && edge.targetHandle === 'par.data'))
   )
 
   return true

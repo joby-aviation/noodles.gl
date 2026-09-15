@@ -421,7 +421,7 @@ describe('serializeNodes', () => {
 })
 
 describe('serializeEdges', () => {
-  it('serializes only the first edge when IDs are duplicated', () => {
+  it('rejects duplicate logical connections instead of repairing them', () => {
     const nodes = [
       { id: 'node-0', type: 'NumberOp', data: {}, position: { x: 0, y: 0 } },
       { id: 'node-1', type: 'NumberOp', data: {}, position: { x: 0, y: 0 } },
@@ -434,12 +434,12 @@ describe('serializeEdges', () => {
       targetHandle: 'par.val',
     }
 
-    expect(serializeEdges(getOpStore(), nodes, [first, { ...first, selected: true }])).toEqual([
-      first,
-    ])
+    expect(() =>
+      serializeEdges(getOpStore(), nodes, [first, { ...first, selected: true }])
+    ).toThrow('describe the same connection')
   })
 
-  it('keeps a valid edge when an orphaned edge has the same stored ID', () => {
+  it('rejects ID collisions instead of hiding them by filtering orphaned edges', () => {
     const nodes = [
       { id: 'node-0', type: 'NumberOp', data: {}, position: { x: 0, y: 0 } },
       { id: 'node-1', type: 'NumberOp', data: {}, position: { x: 0, y: 0 } },
@@ -456,7 +456,9 @@ describe('serializeEdges', () => {
       source: 'node-0',
     }
 
-    expect(serializeEdges(getOpStore(), nodes, [orphaned, valid])).toEqual([valid])
+    expect(() => serializeEdges(getOpStore(), nodes, [orphaned, valid])).toThrow(
+      'share the ID'
+    )
   })
 
   it('serializes edges', () => {

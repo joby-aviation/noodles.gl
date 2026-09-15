@@ -278,7 +278,7 @@ describe('Performance Benchmarks', () => {
       // Create edges
       for (let i = 0; i < edgeCount; i++) {
         const source = `/node-${i % nodeCount}`
-        const target = `/node-${(i + 1) % nodeCount}`
+        const target = `/node-${(i + 1 + Math.floor(i / nodeCount)) % nodeCount}`
         edges.push({
           id: `edge-${i}`,
           source,
@@ -477,7 +477,7 @@ describe('Performance Benchmarks', () => {
         edges.push({
           id: `edge-${i}`,
           source: `/node-${i % nodeCount}`,
-          target: `/node-${(i + 1) % nodeCount}`,
+          target: `/node-${(i + 1 + Math.floor(i / nodeCount)) % nodeCount}`,
           sourceHandle: 'out.val',
           targetHandle: 'par.val',
         })

@@ -1,6 +1,7 @@
 import { basename } from 'node:path'
 import type { InOut } from '../fields'
 import type { OpType } from '../operators'
+import { assertUniqueEdges } from './edge-integrity'
 import { edgeId } from './migration-utils'
 import { parseHandleId } from './path-utils'
 import type { NoodlesProjectJSON } from './serialization'
@@ -27,6 +28,9 @@ export async function migrateProject(
   { to = NOODLES_VERSION }: { to?: number } = {}
 ): Promise<NoodlesProjectJSON> {
   if (project.version === to) {
+    if (to === NOODLES_VERSION) {
+      assertUniqueEdges(project.edges, `Project v${to}`)
+    }
     return project
   }
 
@@ -61,6 +65,10 @@ export async function migrateProject(
         }
       }
     }
+  }
+
+  if (migrated.version === NOODLES_VERSION) {
+    assertUniqueEdges(migrated.edges, `Project v${NOODLES_VERSION}`)
   }
 
   return migrated
