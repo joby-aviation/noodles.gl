@@ -448,12 +448,10 @@ export class MCPTools {
   // Get an example project by ID
   async getExample(params: { id: string }): Promise<ToolResult> {
     try {
-      const examples = this.contextLoader?.getExamples()
-      if (!examples) {
-        return { success: false, error: 'Examples not loaded' }
-      }
+      // Use runtime loader to lazily load the full example
+      const { getExample } = await import('./runtime-examples-loader')
+      const example = await getExample(params.id)
 
-      const example = examples.examples[params.id]
       if (!example) {
         return { success: false, error: `Example not found: ${params.id}` }
       }

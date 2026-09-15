@@ -42,3 +42,6 @@ venv.bak/
 .claude
 .spec-workflow/
 !.spec-workflow/specs
+
+# AI context bundles (no longer generated at build time)
+noodles-editor/public/context/
