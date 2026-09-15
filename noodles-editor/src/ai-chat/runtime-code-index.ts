@@ -92,9 +92,7 @@ function extractImports(content: string) {
     const line = lines[i]
     const importMatch = line.match(/import\s+(?:{([^}]+)}|(\w+))\s+from\s+['"]([^'"]+)['"]/)
     if (importMatch) {
-      const namedImports = importMatch[1]
-        ? importMatch[1].split(',').map(s => s.trim())
-        : []
+      const namedImports = importMatch[1] ? importMatch[1].split(',').map(s => s.trim()) : []
       const defaultImport = importMatch[2] ? [importMatch[2]] : []
       const module = importMatch[3]
 
@@ -116,9 +114,7 @@ function extractExports(content: string) {
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]
-    const exportMatch = line.match(
-      /export\s+(?:(class|function|const|type|interface)\s+)?(\w+)/
-    )
+    const exportMatch = line.match(/export\s+(?:(class|function|const|type|interface)\s+)?(\w+)/)
     if (exportMatch) {
       exports.push({
         name: exportMatch[2],

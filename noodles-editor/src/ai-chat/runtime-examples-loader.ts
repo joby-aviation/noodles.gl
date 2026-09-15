@@ -52,9 +52,7 @@ function getExampleMetadata() {
   > = {}
 
   // Get list of available examples from the project loaders
-  const availableIds = new Set(
-    Object.keys(exampleProjects).map(path => getExampleId(path))
-  )
+  const availableIds = new Set(Object.keys(exampleProjects).map(path => getExampleId(path)))
 
   // Build metadata from READMEs
   for (const [modulePath, content] of Object.entries(exampleReadmes)) {

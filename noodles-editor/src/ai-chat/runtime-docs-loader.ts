@@ -23,9 +23,7 @@ const exampleReadmes = import.meta.glob('../examples/*/README.md', {
 })
 
 // Extract headings from markdown content
-function extractHeadings(
-  content: string
-): Array<{ level: number; text: string; anchor: string }> {
+function extractHeadings(content: string): Array<{ level: number; text: string; anchor: string }> {
   const headings: Array<{ level: number; text: string; anchor: string }> = []
   const lines = content.split('\n')
 
