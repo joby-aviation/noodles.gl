@@ -83,7 +83,9 @@
     "migrate-projects": "npm run build:migrate-script && node dist/migrate-project-files.js",
     "generate:context": "tsx scripts/generate-context.ts",
     "generate:migration": "tsx scripts/generate-migration.ts",
-    "benchmark:export": "tsx scripts/benchmark-export.ts"
+    "benchmark:export": "tsx scripts/benchmark-export.ts",
+    "storybook": "storybook dev -p 6006",
+    "build-storybook": "storybook build"
   },
   "browserslist": {
     "production": [
@@ -100,6 +102,10 @@
   "devDependencies": {
     "@biomejs/biome": "^2.4.9",
     "@mcp-b/webmcp-types": "^3.0.0",
+    "@storybook/addon-essentials": "^8.6.14",
+    "@storybook/addon-interactions": "^8.6.14",
+    "@storybook/react-vite": "^8.6.18",
+    "@storybook/test": "^8.6.15",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
@@ -119,6 +125,7 @@
     "@vitest/browser": "^4.1.2",
     "@vitest/browser-playwright": "^4.1.2",
     "playwright": "^1.58.2",
+    "storybook": "^8.6.18",
     "tsx": "^4.21.0",
     "type-fest": "^5.5.0",
     "typescript": "^6.0.2",
