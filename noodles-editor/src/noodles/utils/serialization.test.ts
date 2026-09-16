@@ -379,7 +379,7 @@ describe('serializeNodes', () => {
     const schema = {
       columns: [
         {
-          id: 'legacy:Location',
+          id: 'Location',
           name: 'Display Location',
           type: 'string' as const,
           defaultValue: '',

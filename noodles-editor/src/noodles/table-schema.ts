@@ -53,12 +53,12 @@ export interface TableSchemaTransitionResult {
   renamedColumns: Array<{ from: string; to: string }>
 }
 
-export function getLegacyColumnId(name: string): string {
-  return `legacy:${name}`
+export function getInitialColumnId(name: string): string {
+  return name
 }
 
 function getColumnId(column: ColumnSchema): string {
-  return column.id ?? getLegacyColumnId(column.name)
+  return column.id ?? getInitialColumnId(column.name)
 }
 
 /**
@@ -88,7 +88,7 @@ export function transitionTableData(
       (column, index) => !usedPreviousColumns.has(index) && getColumnId(column) === nextId
     )
 
-    if (previousIndex === -1) {
+    if (previousIndex === -1 && nextColumn.id === undefined) {
       previousIndex = previousSchema.columns.findIndex(
         (column, index) => !usedPreviousColumns.has(index) && column.name === nextColumn.name
       )

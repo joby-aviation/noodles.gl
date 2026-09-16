@@ -21,7 +21,7 @@ describe('transitionTableData', () => {
     const firstRename = {
       columns: [
         {
-          id: 'legacy:name',
+          id: 'name',
           name: 'display_name',
           type: 'string' as const,
           defaultValue: '',
@@ -29,7 +29,7 @@ describe('transitionTableData', () => {
       ],
     }
     const secondRename = {
-      columns: [{ id: 'legacy:name', name: 'label', type: 'string' as const, defaultValue: '' }],
+      columns: [{ id: 'name', name: 'label', type: 'string' as const, defaultValue: '' }],
     }
 
     const child = transitionTableData([{ name: 'Child value' }], original, firstRename)
@@ -56,6 +56,21 @@ describe('transitionTableData', () => {
     expect(
       transitionTableData([{ value: 'not a number', removed: 42 }], previous, next).data
     ).toEqual([{ value: 5, new: 'new' }])
+  })
+
+  it('does not reuse values when a new ID reuses a deleted column name', () => {
+    const previous = {
+      columns: [{ id: 'name', name: 'name', type: 'string' as const, defaultValue: '' }],
+    }
+    const next = {
+      columns: [
+        { id: 'new-column-id', name: 'name', type: 'string' as const, defaultValue: 'new' },
+      ],
+    }
+
+    expect(transitionTableData([{ name: 'Old value' }], previous, next).data).toEqual([
+      { name: 'new' },
+    ])
   })
 })
 
