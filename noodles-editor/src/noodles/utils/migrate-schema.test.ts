@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import type { OpType } from '../operators'
-import { changeDefaultValue, migrateProject, renameHandle } from './migrate-schema'
+import { changeDefaultValue, migrateProject, NOODLES_VERSION, renameHandle } from './migrate-schema'
 import type { NoodlesProjectJSON } from './serialization'
 
 describe('migrateProject', () => {
@@ -95,6 +95,37 @@ describe('migrateProject', () => {
     expect(migrated.edges[0].target).toEqual('/viewer1')
     expect(migrated.edges[0].sourceHandle).toEqual('out.result')
     expect(migrated.edges[0].targetHandle).toEqual('par.data')
+  })
+
+  it('runs camera and duplicate-edge migrations through version 19', async () => {
+    const duplicate = {
+      id: '/source.out.data->/switch.par.values',
+      source: '/source',
+      target: '/switch',
+      sourceHandle: 'out.data',
+      targetHandle: 'par.values',
+    }
+    const project: NoodlesProjectJSON = {
+      version: 17,
+      nodes: [
+        {
+          id: '/map',
+          type: 'MapViewStateOp',
+          position: { x: 0, y: 0 },
+          data: { inputs: { longitude: 10, latitude: 20 } },
+        },
+      ],
+      edges: [duplicate, { ...duplicate }],
+      viewport: { x: 0, y: 0, zoom: 1 },
+      timeline: {},
+    }
+
+    const migrated = await migrateProject(project)
+
+    expect(NOODLES_VERSION).toBe(19)
+    expect(migrated.version).toBe(19)
+    expect(migrated.nodes[0].data.inputs).toEqual({ center: { lng: 10, lat: 20 } })
+    expect(migrated.edges).toEqual([duplicate])
   })
 })
 

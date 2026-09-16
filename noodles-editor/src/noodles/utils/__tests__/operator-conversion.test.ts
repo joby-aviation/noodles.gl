@@ -145,33 +145,6 @@ describe('convertViewerToTableEditor', () => {
     expect(convertedOp!.locked.value).toBe(true)
   })
 
-  it('removes duplicate edge IDs from the remaining edges while converting', () => {
-    const viewerOp = new ViewerOp('/test-viewer')
-    viewerOp.inputs.data.setValue([{ name: 'Alice' }])
-    setOp('/test-viewer', viewerOp)
-    const dataEdge = {
-      id: '/source.out.data->/test-viewer.par.data',
-      source: '/source',
-      target: '/test-viewer',
-      sourceHandle: 'out.data',
-      targetHandle: 'par.data',
-    }
-    const remainingEdge = {
-      id: '/other-source.out.value->/other-target.par.input',
-      source: '/other-source',
-      target: '/other-target',
-      sourceHandle: 'out.value',
-      targetHandle: 'par.input',
-    }
-    mockSetEdges = updater => {
-      capturedEdges = updater([dataEdge, remainingEdge, { ...remainingEdge }])
-    }
-
-    convertViewerToTableEditor('/test-viewer', mockSetNodes, mockSetEdges)
-
-    expect(capturedEdges).toEqual([remainingEdge])
-  })
-
   it('removes incoming data edges when converting', () => {
     // Create a ViewerOp with tabular data
     const viewerOp = new ViewerOp('/test-viewer')
@@ -270,5 +243,32 @@ describe('convertViewerToTableEditor', () => {
     expect(schema.columns).toHaveLength(3)
     expect(schema.columns.map(c => c.name)).toEqual(['name', 'age', 'city'])
     expect(schema.columns.map(c => c.type)).toEqual(['string', 'number', 'string'])
+  })
+
+  it('does not repair unrelated graph state while converting', () => {
+    const viewerOp = new ViewerOp('/test-viewer')
+    viewerOp.inputs.data.setValue([{ name: 'Alice' }])
+    setOp('/test-viewer', viewerOp)
+    const incomingEdge: ReactFlowEdge = {
+      id: '/source.out.data->/test-viewer.par.data',
+      source: '/source',
+      target: '/test-viewer',
+      sourceHandle: 'out.data',
+      targetHandle: 'par.data',
+    }
+    const duplicateEdge: ReactFlowEdge = {
+      id: '/source.out.data->/switch.par.values',
+      source: '/source',
+      target: '/switch',
+      sourceHandle: 'out.data',
+      targetHandle: 'par.values',
+    }
+    mockSetEdges = updater => {
+      capturedEdges = updater([incomingEdge, duplicateEdge, { ...duplicateEdge }])
+    }
+
+    convertViewerToTableEditor('/test-viewer', mockSetNodes, mockSetEdges)
+
+    expect(capturedEdges).toEqual([duplicateEdge, { ...duplicateEdge }])
   })
 })
