@@ -265,6 +265,7 @@ function DefaultEdgeComponent({
 }
 
 function ReferenceEdgeComponent({
+  id,
   sourceX,
   sourceY,
   targetX,
@@ -272,6 +273,7 @@ function ReferenceEdgeComponent({
   style = {},
   markerEnd,
 }: EdgeProps) {
+  const isInspected = useUIStore(s => s.inspectedReferenceEdge?.id === id)
   const [edgePath] = getStraightPath({
     sourceX,
     sourceY,
@@ -280,7 +282,12 @@ function ReferenceEdgeComponent({
   })
 
   return (
-    <BaseEdge path={edgePath} markerEnd={markerEnd} className={s.referenceEdge} style={style} />
+    <BaseEdge
+      path={edgePath}
+      markerEnd={markerEnd}
+      className={cx(s.referenceEdge, { [s.inspectedReferenceEdge]: isInspected })}
+      style={style}
+    />
   )
 }
 
@@ -513,7 +520,17 @@ export function useFieldVisibility(op: Operator<IOperator> | undefined) {
   }, [op])
 }
 
-function HandlePreviewContent({ data, name, type }: { data: unknown; name: string; type: string }) {
+export function HandlePreviewContent({
+  data,
+  name,
+  type,
+  collapsed,
+}: {
+  data: unknown
+  name: string
+  type: string
+  collapsed?: boolean | number
+}) {
   return (
     <>
       <div className={previewStyles.handlePreviewHeader}>
@@ -526,7 +543,7 @@ function HandlePreviewContent({ data, name, type }: { data: unknown; name: strin
         ) : data instanceof Element ? (
           <ViewerDOMContent content={data} />
         ) : data instanceof Set ? (
-          <ReactJson src={Array.from(data)} theme="twilight" collapsed={1} />
+          <ReactJson src={Array.from(data)} theme="twilight" collapsed={collapsed ?? 1} />
         ) : Array.isArray(data) &&
           data.length > 0 &&
           data.length < 10 &&
@@ -571,11 +588,11 @@ function HandlePreviewContent({ data, name, type }: { data: unknown; name: strin
             )
           })()
         ) : data instanceof Operator ? (
-          <ReactJson src={data} theme="twilight" />
+          <ReactJson src={data} theme="twilight" collapsed={collapsed} />
         ) : data instanceof Promise ? (
           <div className={previewStyles.handlePreviewEmpty}>Loading...</div>
         ) : (
-          <ReactJson src={data} theme="twilight" />
+          <ReactJson src={data} theme="twilight" collapsed={collapsed} />
         )}
       </div>
     </>
@@ -606,7 +623,7 @@ export function OutputHandle({ id, field }: { id: string; field: Field<IField> }
         // Get the handle's position in the viewport
         const rect = currentTarget.getBoundingClientRect()
         setPreviewPosition({ x: rect.right, y: rect.top })
-        setPreviewData(viewerFormatter(field.value))
+        setPreviewData(formatViewerValue(field.value))
       }, 1000)
     },
     [field, nid, qualifiedFieldId]
@@ -1862,7 +1879,7 @@ export function TableEditorOpComponent({
 }
 
 // Helper for ViewerOp to format Layer and Operator instances
-const viewerFormatter = (value: unknown) => {
+export const formatViewerValue = (value: unknown): unknown => {
   if (value instanceof Layer) {
     // Guard against ReactJson crash since layer.props has no `hasOwnProperty` method
     const { lifecycle, count, isLoaded, props } = value
@@ -1874,10 +1891,10 @@ const viewerFormatter = (value: unknown) => {
       id: value.id,
       type: displayName,
       inputs: Object.fromEntries(
-        Object.entries(value.inputs).map(([key, field]) => [key, viewerFormatter(field.value)])
+        Object.entries(value.inputs).map(([key, field]) => [key, formatViewerValue(field.value)])
       ),
       outputs: Object.fromEntries(
-        Object.entries(value.outputs).map(([key, field]) => [key, viewerFormatter(field.value)])
+        Object.entries(value.outputs).map(([key, field]) => [key, formatViewerValue(field.value)])
       ),
     }
   }
@@ -1921,13 +1938,13 @@ function ViewerOpComponent({
 
   // TODO: use react-flow helpers
   const [viewerData, setViewerData] = useState(() =>
-    op ? viewerFormatter(op.inputs.data.value) : null
+    op ? formatViewerValue(op.inputs.data.value) : null
   )
 
   useEffect(() => {
     if (!op) return
     const sub = op.inputs.data.subscribe(newVal => {
-      setViewerData(viewerFormatter(newVal))
+      setViewerData(formatViewerValue(newVal))
     })
     return () => sub.unsubscribe()
   }, [op])
@@ -1991,7 +2008,7 @@ function ViewerOpComponent({
       </table>
     )
   } else if (viewerData instanceof Operator) {
-    content = <ReactJson src={viewerFormatter(viewerData)} theme="twilight" />
+    content = <ReactJson src={formatViewerValue(viewerData)} theme="twilight" />
   } else if (viewerData instanceof Promise) {
     content = 'Loading...'
   } else {

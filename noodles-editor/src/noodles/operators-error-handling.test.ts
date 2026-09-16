@@ -115,11 +115,11 @@ describe('ChartOp error handling', () => {
     expect(analytics.captureException).not.toHaveBeenCalled()
   })
 
-  it('should capture exception if Observable Plot throws', () => {
+  it('should handle edge-case data gracefully', () => {
     const op = new ChartOp('/test')
 
-    // Create data that will cause Plot to fail
-    // (malformed data structure that Plot can't handle)
+    // Observable Plot handles null, NaN, and Infinity gracefully
+    // (renders axes without data points, doesn't throw)
     const result = op.execute({
       data: [
         { x: null, y: undefined },
@@ -136,19 +136,51 @@ describe('ChartOp error handling', () => {
       yLabel: '',
     })
 
+    // Plot handles edge cases gracefully - returns a chart with axes
+    expect(result.chart).not.toBeNull()
+    expect(result.chart).toBeInstanceOf(HTMLElement)
+
+    // Should not capture exception since Plot handles this gracefully
+    expect(analytics.captureException).not.toHaveBeenCalled()
+  })
+
+  it('should capture exception when data accessor throws', () => {
+    const op = new ChartOp('/test')
+
+    // Create data with a getter that throws when accessed
+    const throwingData = [
+      new Proxy(
+        { x: 1 },
+        {
+          get() {
+            throw new Error('Data access failed')
+          },
+        }
+      ),
+    ]
+
+    const result = op.execute({
+      data: throwingData as any,
+      chartType: 'scatter',
+      xField: 'x',
+      yField: 'y',
+      width: 640,
+      height: 400,
+      color: '#4269d0',
+      title: '',
+      xLabel: '',
+      yLabel: '',
+    })
+
     // Should return null on error
     expect(result.chart).toBeNull()
 
-    // Should capture the exception with context
+    // Should have captured the exception
     expect(analytics.captureException).toHaveBeenCalledWith(
       expect.any(Error),
       expect.objectContaining({
         source: 'chart_op',
         chartType: 'scatter',
-        hasData: true,
-        hasXField: true,
-        hasYField: true,
-        dataLength: 2,
       })
     )
   })

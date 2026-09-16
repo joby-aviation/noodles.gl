@@ -113,6 +113,10 @@
   margin-left: auto;
 }
 
+.dialogTooltip {
+  z-index: var(--z-index-top);
+}
+
 .typeOptions {
   display: flex;
   gap: 12px;

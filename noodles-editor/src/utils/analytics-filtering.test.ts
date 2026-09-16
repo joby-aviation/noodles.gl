@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type posthog from 'posthog-js'
 
+// Mock environment variables
+vi.stubEnv('VITE_POSTHOG_API_KEY', 'test-api-key')
+
 // Mock posthog before importing analytics
 vi.mock('posthog-js', () => ({
   default: {
