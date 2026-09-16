@@ -12,7 +12,10 @@ import type { IOperator, Operator } from './operators'
 import type { DeckViewDescriptor, DeckViewValue } from './types'
 import { deepEqual } from './utils/deep-equal'
 import type { ExtractProps } from './utils/extract-props'
+import { deriveDecimalStep } from './utils/number-precision'
 import { resolvePath } from './utils/path-utils'
+
+export { deriveDecimalStep } from './utils/number-precision'
 
 export interface IField<
   S extends z.ZodType = z.ZodType,
@@ -57,6 +60,9 @@ type NumberFieldOptions = BaseFieldOptions & {
   softMin: number
   softMax: number
   step: number
+  // Generic Number operators can infer their editing step from the current value.
+  // Semantic fields (opacity, latitude, width, etc.) keep their declared step.
+  deriveStepFromValue: boolean
 }
 
 type CompoundPropsFieldOptions = BaseFieldOptions &
@@ -647,6 +653,11 @@ export class NumberField extends Field<z.ZodNumber, NumberFieldOptions> {
   softMin: number
   softMax: number
   step: number
+  deriveStepFromValue: boolean
+
+  // A user-selected step is UI state rather than graph data. Keeping it observable
+  // lets an undo/redo restore update an already-mounted number control.
+  readonly stepOverride$ = new BehaviorSubject<number | undefined>(undefined)
 
   createSchema(options: NumberFieldOptions) {
     const schema = z.number().min(options.min).max(options.max)
@@ -662,6 +673,7 @@ export class NumberField extends Field<z.ZodNumber, NumberFieldOptions> {
       softMin: -Infinity,
       softMax: Infinity,
       step: 0.1,
+      deriveStepFromValue: false,
       ...options,
     }
     super(override, opts)
@@ -670,6 +682,23 @@ export class NumberField extends Field<z.ZodNumber, NumberFieldOptions> {
     this.softMin = opts.softMin
     this.softMax = opts.softMax
     this.step = opts.step
+    this.deriveStepFromValue = opts.deriveStepFromValue
+  }
+
+  get stepOverride(): number | undefined {
+    return this.stepOverride$.value
+  }
+
+  setStepOverride(step: number | undefined): void {
+    if (step !== undefined && (!Number.isFinite(step) || step <= 0)) return
+    if (Object.is(this.stepOverride$.value, step)) return
+    this.stepOverride$.next(step)
+  }
+
+  getEffectiveStep(value: number = this.value): number {
+    if (this.stepOverride !== undefined) return this.stepOverride
+    if (this.deriveStepFromValue) return deriveDecimalStep(value, this.step)
+    return this.step
   }
 }
 
@@ -1422,6 +1451,61 @@ export class CompoundPropsField extends Field<
     this.subscriptions.set(id, subscription)
     return subscription
   }
+}
+
+export type NumberStepOverrides = Record<string, number>
+
+export type NodeUIMetadata = {
+  numberSteps?: NumberStepOverrides
+}
+
+function visitNumberFields(
+  fields: Record<string, unknown>,
+  visitor: (path: string, field: NumberField) => void,
+  parentPath = ''
+): void {
+  for (const [name, field] of Object.entries(fields)) {
+    const path = parentPath ? `${parentPath}.${name}` : name
+    if (field instanceof NumberField) {
+      visitor(path, field)
+    } else if (field instanceof CompoundPropsField) {
+      visitNumberFields(field.fields, visitor, path)
+    }
+  }
+}
+
+export function captureNumberStepOverrides(fields: Record<string, unknown>): NumberStepOverrides {
+  const overrides: NumberStepOverrides = {}
+  visitNumberFields(fields, (path, field) => {
+    if (field.stepOverride !== undefined) overrides[path] = field.stepOverride
+  })
+  return overrides
+}
+
+// Applying an absent map deliberately clears overrides. Property-history snapshots
+// need to undo a precision-only change even when the numeric input value is unchanged.
+export function applyNumberStepOverrides(
+  fields: Record<string, unknown>,
+  overrides?: NumberStepOverrides
+): void {
+  visitNumberFields(fields, (path, field) => {
+    const step = overrides?.[path]
+    field.setStepOverride(
+      typeof step === 'number' && Number.isFinite(step) && step > 0 ? step : undefined
+    )
+  })
+}
+
+export function captureNodeUIMetadata(fields: Record<string, unknown>): NodeUIMetadata | undefined {
+  const numberSteps = captureNumberStepOverrides(fields)
+  return Object.keys(numberSteps).length > 0 ? { numberSteps } : undefined
+}
+
+export function applyNodeUIMetadata(
+  fields: Record<string, unknown>,
+  metadata?: NodeUIMetadata
+): void {
+  applyNumberStepOverrides(fields, metadata?.numberSteps)
 }
 
 // TODO: Should this be flag like `multiple`? Or should it be a separate class?

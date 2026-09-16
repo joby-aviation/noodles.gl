@@ -3221,6 +3221,30 @@ describe('Custom Fields', () => {
     expect(operator.inputs.myNumber.value).toBe(999)
   })
 
+  it('preserves a custom number field step override when rebuilding inputs', () => {
+    const operator = new CodeOp('/code-custom')
+
+    operator.addCustomInput({
+      id: 'id-1',
+      name: 'myNumber',
+      type: 'number',
+      order: 0,
+      defaultValue: 0,
+    })
+    const numberField = operator.inputs.myNumber as NumberField
+    numberField.setStepOverride(0.001)
+
+    operator.addCustomInput({
+      id: 'id-2',
+      name: 'myString',
+      type: 'string',
+      order: 1,
+      defaultValue: '',
+    })
+
+    expect((operator.inputs.myNumber as NumberField).stepOverride).toBe(0.001)
+  })
+
   it('getAllInputs returns built-in and custom inputs', () => {
     const operator = new CodeOp('/code-custom')
 

@@ -99,6 +99,7 @@ import { FilterColorExtension } from './extensions/filter-color-extension'
 import { Mask3DExtension } from './extensions/mask-3d-extension'
 import {
   ArrayField,
+  applyNodeUIMetadata,
   applySerializedFieldValue,
   BboxField,
   BezierCurveField,
@@ -108,6 +109,7 @@ import {
   ColorField,
   ColorRampField,
   CompoundPropsField,
+  captureNodeUIMetadata,
   DataField,
   DateField,
   EffectField,
@@ -1014,6 +1016,7 @@ export abstract class Operator<OP extends IOperator> {
     )
     // Preserve existing field values and connections
     const oldValues = new Map<string, unknown>()
+    const oldUIMetadata = captureNodeUIMetadata(this.inputs)
     const oldConnections = new Map<
       string,
       Array<{ id: string; field: Field; connectionType: 'reference' | 'value' }>
@@ -1073,6 +1076,8 @@ export abstract class Operator<OP extends IOperator> {
       assignPathToProps(field, key, [this.id, IN_NS])
     }
 
+    applyNodeUIMetadata(this.inputs, oldUIMetadata)
+
     // Note: Connections will be restored by transform-graph.ts when edges are re-applied
 
     // Notify listeners that custom fields have changed
@@ -1100,7 +1105,7 @@ export class NumberOp extends Operator<NumberOp> {
   static description = 'A number'
   public createInputs() {
     return {
-      val: new NumberField(0, { step: 1 }),
+      val: new NumberField(0, { step: 1, deriveStepFromValue: true }),
     }
   }
   public createOutputs() {
