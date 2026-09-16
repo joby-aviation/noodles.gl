@@ -40,6 +40,7 @@ export const categories = {
     'GeoJson',
     'GeoJsonTransform',
     'KmlToGeoJson',
+    'Line Interpolation',
     'LineToPolygon',
     'Point',
     'PolygonToLine',
