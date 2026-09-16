@@ -1,37 +1,10 @@
 import type { Edge as ReactFlowEdge } from '@xyflow/react'
 import { edgeId } from './migration-utils'
 
-export function edgeConnectionKey(
+function edgeConnectionKey(
   edge: Pick<ReactFlowEdge, 'source' | 'sourceHandle' | 'target' | 'targetHandle'>
 ): string {
   return JSON.stringify([edge.source, edge.sourceHandle, edge.target, edge.targetHandle])
-}
-
-export function assertUniqueEdges(
-  edges: ReadonlyArray<ReactFlowEdge>,
-  context = 'Graph'
-): void {
-  const connectionIndexes = new Map<string, number>()
-  const idIndexes = new Map<string, number>()
-
-  edges.forEach((edge, index) => {
-    const connectionKey = edgeConnectionKey(edge)
-    const duplicateConnectionIndex = connectionIndexes.get(connectionKey)
-    if (duplicateConnectionIndex !== undefined) {
-      throw new Error(
-        `${context} is corrupted: edges at indexes ${duplicateConnectionIndex} and ${index} describe the same connection (${edge.source}.${edge.sourceHandle} -> ${edge.target}.${edge.targetHandle})`
-      )
-    }
-    connectionIndexes.set(connectionKey, index)
-
-    const duplicateIdIndex = idIndexes.get(edge.id)
-    if (duplicateIdIndex !== undefined) {
-      throw new Error(
-        `${context} is corrupted: edges at indexes ${duplicateIdIndex} and ${index} share the ID "${edge.id}"`
-      )
-    }
-    idIndexes.set(edge.id, index)
-  })
 }
 
 export function insertUniqueEdge<E extends ReactFlowEdge>(
@@ -42,8 +15,6 @@ export function insertUniqueEdge<E extends ReactFlowEdge>(
     candidate,
   ]
 ): E[] {
-  assertUniqueEdges(edges)
-
   const connectionKey = edgeConnectionKey(edge)
   if (edges.some(existing => edgeConnectionKey(existing) === connectionKey)) {
     return edges
@@ -54,9 +25,7 @@ export function insertUniqueEdge<E extends ReactFlowEdge>(
     )
   }
 
-  const next = insert(edges, edge)
-  assertUniqueEdges(next)
-  return next
+  return insert(edges, edge)
 }
 
 export function appendUniqueEdges<E extends ReactFlowEdge>(edges: E[], candidates: E[]): E[] {

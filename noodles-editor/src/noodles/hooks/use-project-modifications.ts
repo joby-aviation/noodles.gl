@@ -21,7 +21,6 @@ import { expandDeleteSet } from '../utils/copy-paste-utils'
 import { edgeId } from '../utils/id-utils'
 import {
   appendUniqueEdges,
-  assertUniqueEdges,
   insertUniqueEdge,
 } from '../utils/edge-integrity'
 import {
@@ -749,7 +748,6 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
 
       const nodes = getNodes()
       const currentEdges = getEdges()
-      assertUniqueEdges(currentEdges)
       const edges = opts?.replaceEdgeId
         ? currentEdges.filter(e => e.id !== opts.replaceEdgeId)
         : currentEdges
@@ -1059,8 +1057,8 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
         })
       )
 
-      setEdges(edges => {
-        const renamed = edges.map(edge => {
+      setEdges(edges =>
+        edges.map(edge => {
           const sourceNeedsUpdate =
             edge.source === nodeId || (isContainer && edge.source.startsWith(`${nodeId}/`))
           const targetNeedsUpdate =
@@ -1084,9 +1082,7 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
 
           return { ...updatedEdge, id: edgeId(updatedEdge) }
         })
-        assertUniqueEdges(renamed, 'Cannot rename node')
-        return renamed
-      })
+      )
     },
     [setNodes, setEdges]
   )

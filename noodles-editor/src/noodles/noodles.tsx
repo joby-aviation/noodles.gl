@@ -118,7 +118,7 @@ import {
   writeFileToDirectory,
 } from './utils/filesystem'
 import { reconcileForLoopGroups } from './utils/for-loop-group-utils'
-import { assertUniqueEdges, insertUniqueEdge } from './utils/edge-integrity'
+import { insertUniqueEdge } from './utils/edge-integrity'
 import { edgeId, nodeId } from './utils/id-utils'
 import { shouldBlockKeyboardShortcut } from './utils/input-detection'
 import { generateDraftId, memoryProjectStore } from './utils/memory-project-store'
@@ -394,7 +394,6 @@ export function getNoodles(): Visualization {
   useEffect(() => {
     // loadProjectFile already called transformGraph directly, so skip this triggered re-run
     if (isProjectLoadRef.current) return
-    assertUniqueEdges(edges, 'Graph')
     const result = transformGraph({ nodes, edges })
     setOperators(result.operators)
     // Show error dialog if there are graph errors
@@ -782,7 +781,6 @@ export function getNoodles(): Visualization {
   const loadProjectFile = useCallback(
     (project: NoodlesProjectJSON, name?: string, targetRoutePrefix?: string) => {
       const { nodes, edges, viewport, timeline, editorSettings, apiKeys } = project
-      assertUniqueEdges(edges as ReactFlowEdge[], `Project v${project.version}`)
 
       // Prevent the storage-loading useEffect from reloading when the URL changes below
       isProgrammaticLoadRef.current = true

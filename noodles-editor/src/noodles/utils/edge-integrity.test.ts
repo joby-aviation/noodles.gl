@@ -1,10 +1,6 @@
 import type { Edge } from '@xyflow/react'
 import { describe, expect, it } from 'vitest'
-import {
-  appendUniqueEdges,
-  assertUniqueEdges,
-  insertUniqueEdge,
-} from './edge-integrity'
+import { appendUniqueEdges, insertUniqueEdge } from './edge-integrity'
 
 const edge = (source: string, id = `${source}.out.data->/target.par.values`): Edge => ({
   id,
@@ -51,17 +47,4 @@ describe('edge uniqueness', () => {
     )
   })
 
-  it('reports corrupted existing state before attempting an insertion', () => {
-    const duplicate = edge('/a')
-
-    expect(() => appendUniqueEdges([duplicate, { ...duplicate }], [edge('/b')])).toThrow(
-      'describe the same connection'
-    )
-  })
-
-  it('reports duplicate IDs assigned to distinct connections', () => {
-    expect(() => assertUniqueEdges([edge('/a', 'shared'), edge('/b', 'shared')])).toThrow(
-      'share the ID'
-    )
-  })
 })

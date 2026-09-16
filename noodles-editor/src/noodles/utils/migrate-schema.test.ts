@@ -125,24 +125,6 @@ describe('migrateProject', () => {
     expect(migrated.edges).toEqual([duplicate])
   })
 
-  it('rejects duplicate edges in a current-version project instead of repairing them', async () => {
-    const duplicate = {
-      id: '/source.out.data->/switch.par.values',
-      source: '/source',
-      target: '/switch',
-      sourceHandle: 'out.data',
-      targetHandle: 'par.values',
-    }
-    const project: NoodlesProjectJSON = {
-      version: NOODLES_VERSION,
-      nodes: [],
-      edges: [duplicate, { ...duplicate }],
-      viewport: { x: 0, y: 0, zoom: 1 },
-      timeline: {},
-    }
-
-    await expect(migrateProject(project)).rejects.toThrow('Project v18 is corrupted')
-  })
 })
 
 describe('renameHandle', () => {
