@@ -15,6 +15,20 @@ export type ColumnType =
   | 'dateTime'
   | 'stringLiteral'
 
+const columnTypes: ReadonlySet<string> = new Set<ColumnType>([
+  'number',
+  'string',
+  'boolean',
+  'color',
+  'point2d',
+  'point3d',
+  'vec2',
+  'vec3',
+  'date',
+  'dateTime',
+  'stringLiteral',
+])
+
 // DateTime cell value format
 export interface DateTimeValue {
   datetime: string // ISO 8601 datetime string (YYYY-MM-DDTHH:mm:ss.SSS)
@@ -53,12 +67,153 @@ export interface TableSchemaTransitionResult {
   renamedColumns: Array<{ from: string; to: string }>
 }
 
+export interface TableSchemaMergeResult {
+  schema: TableSchema
+  data: unknown[]
+  warnings: string[]
+}
+
 export function getInitialColumnId(name: string): string {
   return name
 }
 
-function getColumnId(column: ColumnSchema): string {
+export function getColumnId(column: ColumnSchema): string {
   return column.id ?? getInitialColumnId(column.name)
+}
+
+export function isTableSchema(value: unknown): value is TableSchema {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'columns' in value &&
+    Array.isArray(value.columns) &&
+    value.columns.every(
+      column =>
+        typeof column === 'object' &&
+        column !== null &&
+        (!('id' in column) || column.id === undefined || typeof column.id === 'string') &&
+        'name' in column &&
+        typeof column.name === 'string' &&
+        'type' in column &&
+        typeof column.type === 'string' &&
+        columnTypes.has(column.type)
+    )
+  )
+}
+
+function columnAcceptsValue(value: unknown, column: ColumnSchema): boolean {
+  return (
+    value === undefined ||
+    (column.type === 'dateTime' && value instanceof Temporal.ZonedDateTime) ||
+    validateValue(value, column)
+  )
+}
+
+/**
+ * Overlays an incoming schema without removing target-owned columns or invalidating existing
+ * values. Each unsafe column update is skipped independently so the remainder can still merge.
+ */
+export function mergeTableSchemas(
+  currentSchema: TableSchema,
+  incomingSchema: TableSchema,
+  data: unknown[]
+): TableSchemaMergeResult {
+  const usedIncomingColumns = new Set<number>()
+  const mergedColumns: ColumnSchema[] = []
+  const sourceColumnNames: Array<string | undefined> = []
+  const skippedRenameSources: Array<{ from: string; to: string }> = []
+  const warnings: string[] = []
+
+  for (let currentIndex = 0; currentIndex < currentSchema.columns.length; currentIndex += 1) {
+    const currentColumn = currentSchema.columns[currentIndex]
+    const currentId = getColumnId(currentColumn)
+    let incomingIndex = incomingSchema.columns.findIndex(
+      (column, index) => !usedIncomingColumns.has(index) && getColumnId(column) === currentId
+    )
+
+    if (incomingIndex === -1) {
+      incomingIndex = incomingSchema.columns.findIndex(
+        (column, index) =>
+          !usedIncomingColumns.has(index) &&
+          (currentColumn.id === undefined || column.id === undefined) &&
+          column.name === currentColumn.name
+      )
+    }
+
+    if (incomingIndex === -1) {
+      mergedColumns.push(currentColumn)
+      sourceColumnNames.push(currentColumn.name)
+      continue
+    }
+
+    usedIncomingColumns.add(incomingIndex)
+    const incomingColumn = incomingSchema.columns[incomingIndex]
+    const nameCollision = currentSchema.columns.some(
+      (column, index) => index !== currentIndex && column.name === incomingColumn.name
+    )
+    const invalidValueCount = data.reduce((count, row) => {
+      if (typeof row !== 'object' || row === null || Array.isArray(row)) return count
+      const record = row as Record<string, unknown>
+      const value = Object.hasOwn(record, incomingColumn.name)
+        ? record[incomingColumn.name]
+        : record[currentColumn.name]
+      return columnAcceptsValue(value, incomingColumn) ? count : count + 1
+    }, 0)
+
+    if (nameCollision || invalidValueCount > 0) {
+      mergedColumns.push(currentColumn)
+      sourceColumnNames.push(currentColumn.name)
+      if (!nameCollision && currentColumn.name !== incomingColumn.name) {
+        skippedRenameSources.push({ from: incomingColumn.name, to: currentColumn.name })
+      }
+      warnings.push(
+        nameCollision
+          ? `Schema update for column "${currentColumn.name}" was skipped because the incoming name "${incomingColumn.name}" is already in use.`
+          : `Schema update for column "${currentColumn.name}" was skipped because it would invalidate ${invalidValueCount} existing value${invalidValueCount === 1 ? '' : 's'}.`
+      )
+      continue
+    }
+
+    mergedColumns.push(incomingColumn)
+    sourceColumnNames.push(currentColumn.name)
+  }
+
+  for (let incomingIndex = 0; incomingIndex < incomingSchema.columns.length; incomingIndex += 1) {
+    if (usedIncomingColumns.has(incomingIndex)) continue
+    const incomingColumn = incomingSchema.columns[incomingIndex]
+    if (mergedColumns.some(column => column.name === incomingColumn.name)) {
+      warnings.push(
+        `Incoming column "${incomingColumn.name}" was skipped because that name is already in use.`
+      )
+      continue
+    }
+    mergedColumns.push(incomingColumn)
+    sourceColumnNames.push(undefined)
+  }
+
+  const schema = { columns: mergedColumns }
+  const transitionData = data.map(row => {
+    if (typeof row !== 'object' || row === null || Array.isArray(row)) return row
+    const record = row as Record<string, unknown>
+    let normalizedRecord = record
+    for (const { from, to } of skippedRenameSources) {
+      if (!Object.hasOwn(record, to) && Object.hasOwn(record, from)) {
+        if (normalizedRecord === record) normalizedRecord = { ...record }
+        normalizedRecord[to] = record[from]
+      }
+    }
+    return normalizedRecord
+  })
+  return {
+    schema,
+    data: transitionTableData(transitionData, currentSchema, schema, {
+      sourceColumnNames,
+      // Data and schema outputs propagate independently. If connected data arrived first,
+      // it already uses the incoming name and should not be replaced with a default.
+      preferNextColumnNames: true,
+    }).data,
+    warnings,
+  }
 }
 
 /**

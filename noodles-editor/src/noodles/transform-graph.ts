@@ -474,7 +474,7 @@ export function transformGraph<
             targetType: (targetField.constructor as typeof Field).type,
           })
         }
-      } else {
+      } else if (!targetOp.hasPersistentConnectionError(edge.id)) {
         // Clear any existing error for this edge if it's now valid (or not yet computed)
         targetOp.removeConnectionError(edge.id)
       }

@@ -953,7 +953,7 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
       // Track connection error if validation failed, or clear error if valid
       if (!validation.valid && validation.error) {
         targetOp.addConnectionError(newEdge.id, validation.error)
-      } else {
+      } else if (!targetOp.hasPersistentConnectionError(newEdge.id)) {
         // Clear any existing error for this edge if connection is now valid
         targetOp.removeConnectionError(newEdge.id)
       }
@@ -971,7 +971,9 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
             value = []
           }
         } else {
-          value = sourceField.value
+          // Most fields mirror the source value. Overlay fields may retain or merge local
+          // state, so the node snapshot must use the accepted target value instead.
+          value = targetField.value
         }
 
         const targetData = target.data as Record<string, unknown> | undefined
