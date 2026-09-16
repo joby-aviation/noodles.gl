@@ -136,6 +136,8 @@ interface UIStoreState {
   setTargetedEdge: (edge: { id: string; compatible: boolean } | null) => void
   nodeDragState: NodeDragState | null
   setNodeDragState: (state: NodeDragState | null) => void
+  inspectedReferenceEdge: ReactFlowEdge | null
+  setInspectedReferenceEdge: (edge: ReactFlowEdge | null) => void
   sidebarSearchFocusTrigger: number
   triggerSidebarSearch: () => void
   settingsDialogOpen: boolean
@@ -175,6 +177,8 @@ export const useUIStore = create<UIStoreState>(set => ({
   setTargetedEdge: edge => set({ targetedEdge: edge }),
   nodeDragState: null,
   setNodeDragState: state => set({ nodeDragState: state }),
+  inspectedReferenceEdge: null,
+  setInspectedReferenceEdge: edge => set({ inspectedReferenceEdge: edge }),
   sidebarSearchFocusTrigger: 0,
   triggerSidebarSearch: () =>
     set(state => ({ sidebarSearchFocusTrigger: state.sidebarSearchFocusTrigger + 1 })),

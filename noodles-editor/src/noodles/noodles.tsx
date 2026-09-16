@@ -237,6 +237,13 @@ export function getNoodles(): Visualization {
 
   useEffect(() => () => referenceDependencyModel.reset(), [])
 
+  useEffect(() => {
+    const inspectedEdge = getUIStore().inspectedReferenceEdge
+    if (inspectedEdge && !referenceEdges.some(edge => edge.id === inspectedEdge.id)) {
+      getUIStore().setInspectedReferenceEdge(null)
+    }
+  }, [referenceEdges])
+
   // Single ref providing synchronous access to the full graph state.
   // Used by CopyControls, UndoRedoHandler, and hooks that need all nodes/edges
   // without triggering re-renders or being limited to the displayed scope.
@@ -274,6 +281,7 @@ export function getNoodles(): Visualization {
       // Track selection changes
       const selectedChanges = changes.filter(change => change.type === 'select' && change.selected)
       if (selectedChanges.length > 0) {
+        getUIStore().setInspectedReferenceEdge(null)
         analytics.track('node_selected', { count: selectedChanges.length })
       }
 
@@ -684,7 +692,23 @@ export function getNoodles(): Visualization {
   const onDeselectAll = useCallback(() => {
     setNodes(nodes => nodes.map(node => ({ ...node, selected: false })))
     setEdges(edges => edges.map(edge => ({ ...edge, selected: false })))
+    getUIStore().setInspectedReferenceEdge(null)
   }, [setNodes, setEdges])
+
+  const onEdgeClick = useCallback(
+    (_event: React.MouseEvent, edge: ReactFlowEdge) => {
+      analytics.track('edge_selected', { type: edge.type ?? 'default' })
+      if (edge.type === 'ReferenceEdge') {
+        onDeselectAll()
+        getUIStore().setInspectedReferenceEdge(
+          referenceEdges.find(referenceEdge => referenceEdge.id === edge.id) ?? edge
+        )
+      } else {
+        getUIStore().setInspectedReferenceEdge(null)
+      }
+    },
+    [onDeselectAll, referenceEdges]
+  )
 
   const onPaneClick = useCallback(() => {
     blockLibraryRef.current?.closeModal()
@@ -1622,6 +1646,7 @@ export function getNoodles(): Visualization {
                 onReconnect={onReconnect}
                 onReconnectEnd={onReconnectEnd}
                 onNodeContextMenu={onNodeContextMenu}
+                onEdgeClick={onEdgeClick}
                 onNodesDelete={onNodesDelete}
                 onNodeDrag={onNodeDrag}
                 onNodeDragStop={onNodeDragStop}

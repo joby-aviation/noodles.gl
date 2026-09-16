@@ -9,6 +9,7 @@
   gap: 0;
   flex: 1;
   min-height: 0;
+  overflow-y: auto;
 }
 
 /* Header */
@@ -95,6 +96,72 @@
 .opMeta {
   margin-bottom: 4px;
   padding: 0 6px;
+}
+
+/* Edge inspector */
+.edgeTypeBadge {
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: rgba(139, 92, 246, 0.18);
+  color: #c4b5fd;
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.edgeEndpoints {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0 6px 8px;
+  padding: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.edgeEndpoint {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
+}
+
+.edgeEndpointLabel {
+  color: var(--color-text-secondary);
+  font-size: 10px;
+  text-transform: uppercase;
+}
+
+.edgeEndpoint code {
+  overflow: hidden;
+  color: var(--color-text-primary);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.edgeEndpointArrow {
+  margin-left: 11px;
+  color: var(--color-text-secondary);
+  line-height: 10px;
+}
+
+.edgeValuePreview {
+  min-width: 0;
+  margin: 8px 6px 0;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.edgeValueUnavailable {
+  margin: 8px 6px 0;
+  padding: 10px;
+  color: var(--color-text-secondary);
+  font-size: 11px;
 }
 
 .opDisplayName {
