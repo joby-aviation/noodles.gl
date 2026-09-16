@@ -21,7 +21,7 @@ describe('transitionTableData', () => {
     const firstRename = {
       columns: [
         {
-          id: 'legacy:name',
+          id: 'name',
           name: 'display_name',
           type: 'string' as const,
           defaultValue: '',
@@ -29,7 +29,7 @@ describe('transitionTableData', () => {
       ],
     }
     const secondRename = {
-      columns: [{ id: 'legacy:name', name: 'label', type: 'string' as const, defaultValue: '' }],
+      columns: [{ id: 'name', name: 'label', type: 'string' as const, defaultValue: '' }],
     }
 
     const child = transitionTableData([{ name: 'Child value' }], original, firstRename)
