@@ -33,7 +33,7 @@ Powers the in-app AI assistant. See the [AI Assistant guide](./ai-assistant.md) 
 
 ## Privacy and Security
 
-API keys are stored locally and never sent to Noodles.gl servers. Browser keys are stored in localStorage. 
+API keys are stored locally and never sent to Noodles.gl servers. Browser keys are stored in localStorage.
 
 ### Sharing Projects with Keys
 

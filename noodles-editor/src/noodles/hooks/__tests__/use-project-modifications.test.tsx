@@ -4,7 +4,14 @@
 import { act, renderHook } from '@testing-library/react'
 import type { Edge as ReactFlowEdge, Node as ReactFlowNode } from '@xyflow/react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { ConcatOp, ContainerOp, DeckRendererOp, NumberOp } from '../../operators'
+import {
+  ConcatOp,
+  ContainerOp,
+  DeckRendererOp,
+  MapViewStateOp,
+  NumberOp,
+  PointOp,
+} from '../../operators'
 import { clearOps, getOp, hasOp, setOp, setPendingInsertionIndex } from '../../store'
 import { MULTI_INPUT_EDGE_TYPE } from '../../utils/multi-input-utils'
 import { type ProjectModification, useProjectModifications } from '../use-project-modifications'
@@ -458,6 +465,85 @@ describe('useProjectModifications', () => {
       })
 
       expect(edges).toHaveLength(0)
+    })
+
+    it('switches a vector input to channel mode for a programmatic channel edge', () => {
+      const map = new MapViewStateOp('/target')
+      setOp('/target', map)
+      nodes[1] = {
+        id: '/target',
+        type: 'MapViewStateOp',
+        position: { x: 100, y: 0 },
+        data: {},
+      }
+      const { result } = renderHook(() =>
+        useProjectModifications({ getNodes, getEdges, setNodes, setEdges })
+      )
+
+      act(() => {
+        const addResult = result.current.addEdge({
+          id: 'channel-edge',
+          source: '/source',
+          target: '/target',
+          sourceHandle: 'out.val',
+          targetHandle: 'par.center.lng',
+        })
+        expect(addResult.success).toBe(true)
+      })
+
+      expect(map.getInputPortMode('center')).toBe('channels')
+      expect(edges).toHaveLength(1)
+    })
+
+    it('rejects a whole vector edge while a channel edge is connected', () => {
+      const map = new MapViewStateOp('/target', undefined, false, undefined, {
+        center: 'channels',
+      })
+      const point = new PointOp('/point')
+      setOp('/target', map)
+      setOp('/point', point)
+      nodes = [
+        nodes[0],
+        {
+          id: '/point',
+          type: 'PointOp',
+          position: { x: 0, y: 100 },
+          data: {},
+        },
+        {
+          id: '/target',
+          type: 'MapViewStateOp',
+          position: { x: 100, y: 0 },
+          data: {},
+        },
+      ]
+      edges = [
+        {
+          id: 'channel-edge',
+          source: '/source',
+          target: '/target',
+          sourceHandle: 'out.val',
+          targetHandle: 'par.center.lng',
+        },
+      ]
+      const { result } = renderHook(() =>
+        useProjectModifications({ getNodes, getEdges, setNodes, setEdges })
+      )
+      let addResult: { success: boolean; error?: string } = { success: false }
+
+      act(() => {
+        addResult = result.current.addEdge({
+          id: 'whole-edge',
+          source: '/point',
+          target: '/target',
+          sourceHandle: 'out.feature',
+          targetHandle: 'par.center',
+        })
+      })
+
+      expect(addResult.success).toBe(false)
+      expect(addResult.error).toContain('Disconnect center')
+      expect(edges).toHaveLength(1)
     })
   })
 

@@ -71,6 +71,7 @@ import {
   evaluateEnableExpression,
   getEnableExpressionDependencies,
 } from '../utils/enable-expression-evaluator'
+import { resolveOperatorField } from '../utils/field-resolution'
 import { type MultiInputEdgeData, slotOffsetY } from '../utils/multi-input-utils'
 import type { NodeType } from '../utils/node-creation-utils'
 import { convertViewerToTableEditor } from '../utils/operator-conversion'
@@ -167,11 +168,8 @@ export function useHandleDimmed(nodeId: string, handleId: string): boolean {
   const targetOp = getOp(nodeId)
   if (!sourceOp || !targetOp) return true
 
-  const sourceField =
-    sourceNamespace === 'out' ? sourceOp.outputs[sourceFieldName] : sourceOp.inputs[sourceFieldName]
-
-  const targetField =
-    targetNamespace === 'out' ? targetOp.outputs[targetFieldName] : targetOp.inputs[targetFieldName]
+  const sourceField = resolveOperatorField(sourceOp, sourceNamespace, sourceFieldName)?.field
+  const targetField = resolveOperatorField(targetOp, targetNamespace, targetFieldName)?.field
 
   if (!sourceField || !targetField) return true
 

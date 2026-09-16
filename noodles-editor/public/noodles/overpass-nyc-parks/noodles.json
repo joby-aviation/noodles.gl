@@ -1,12 +1,64 @@
 {
+  "edges": [
+    {
+      "id": "/bounds.out.bounds->/overpass-query.par.bbox",
+      "source": "/bounds",
+      "target": "/overpass-query",
+      "sourceHandle": "out.bounds",
+      "targetHandle": "par.bbox"
+    },
+    {
+      "id": "/overpass-query.out.data->/geojson-layer.par.data",
+      "source": "/overpass-query",
+      "target": "/geojson-layer",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/geojson-layer.out.layer->/deck.par.layers",
+      "source": "/geojson-layer",
+      "target": "/deck",
+      "sourceHandle": "out.layer",
+      "targetHandle": "par.layers"
+    },
+    {
+      "id": "/deck.out.vis->/out.par.vis",
+      "source": "/deck",
+      "target": "/out",
+      "sourceHandle": "out.vis",
+      "targetHandle": "par.vis"
+    },
+    {
+      "source": "/maplibre-basemap",
+      "sourceHandle": "out.maplibre",
+      "target": "/deck",
+      "targetHandle": "par.basemap",
+      "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap"
+    }
+  ],
+  "viewport": {
+    "x": 600,
+    "y": 400,
+    "zoom": 0.8
+  },
+  "version": 18,
+  "editorSettings": {
+    "showOverlay": true
+  },
   "nodes": [
     {
       "id": "/bounds",
       "type": "BoundsOp",
       "data": {
         "inputs": {
-          "point1": [-74.05, 40.68],
-          "point2": [-73.9, 40.82]
+          "point1": [
+            -74.05,
+            40.68
+          ],
+          "point2": [
+            -73.9,
+            40.82
+          ]
         },
         "locked": false
       },
@@ -72,7 +124,19 @@
       "id": "/out",
       "type": "OutOp",
       "data": {
-        "inputs": {},
+        "inputs": {
+          "display": "fixed",
+          "width": 1920,
+          "height": 1080,
+          "lod": 2,
+          "waitForData": true,
+          "codec": "avc",
+          "bitrateMbps": 10,
+          "bitrateMode": "constant",
+          "scaleControl": 0.3,
+          "framerate": 30,
+          "captureDelay": 50
+        },
         "locked": false
       },
       "position": {
@@ -102,48 +166,6 @@
       }
     }
   ],
-  "edges": [
-    {
-      "id": "/bounds.out.bounds->/overpass-query.par.bbox",
-      "source": "/bounds",
-      "target": "/overpass-query",
-      "sourceHandle": "out.bounds",
-      "targetHandle": "par.bbox"
-    },
-    {
-      "id": "/overpass-query.out.data->/geojson-layer.par.data",
-      "source": "/overpass-query",
-      "target": "/geojson-layer",
-      "sourceHandle": "out.data",
-      "targetHandle": "par.data"
-    },
-    {
-      "id": "/geojson-layer.out.layer->/deck.par.layers",
-      "source": "/geojson-layer",
-      "target": "/deck",
-      "sourceHandle": "out.layer",
-      "targetHandle": "par.layers"
-    },
-    {
-      "id": "/deck.out.vis->/out.par.vis",
-      "source": "/deck",
-      "target": "/out",
-      "sourceHandle": "out.vis",
-      "targetHandle": "par.vis"
-    },
-    {
-      "source": "/maplibre-basemap",
-      "sourceHandle": "out.maplibre",
-      "target": "/deck",
-      "targetHandle": "par.basemap",
-      "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap"
-    }
-  ],
-  "viewport": {
-    "x": 600,
-    "y": 400,
-    "zoom": 0.8
-  },
   "timeline": {
     "sheetsById": {
       "Noodles": {
@@ -154,6 +176,5 @@
     },
     "definitionVersion": "0.4.0",
     "revisionHistory": []
-  },
-  "version": 6
+  }
 }
