@@ -44,11 +44,31 @@ export async function selectDirectory(): Promise<FileSystemDirectoryHandle> {
   })
 }
 
+// Resolves a '/'-separated path to the handle of its containing directory plus the
+// bare file name. getFileHandle rejects any name containing a separator, so without
+// this a nested path is unaddressable — which is what listDataFiles returns for a
+// project with subdirectories, and where the assistant's scratch files live.
+async function resolveParent(
+  directoryHandle: FileSystemDirectoryHandle,
+  path: string,
+  create: boolean
+): Promise<{ directory: FileSystemDirectoryHandle; name: string }> {
+  const segments = path.split('/').filter(segment => segment !== '')
+  if (segments.length === 0) throw new TypeError(`Not a file path: '${path}'`)
+
+  let directory = directoryHandle
+  for (const segment of segments.slice(0, -1)) {
+    directory = await directory.getDirectoryHandle(segment, { create })
+  }
+  return { directory, name: segments[segments.length - 1] }
+}
+
 export async function readFileFromDirectory(
   directoryHandle: FileSystemDirectoryHandle,
   fileName: string
 ): Promise<string> {
-  const fileHandle = await directoryHandle.getFileHandle(fileName)
+  const { directory, name } = await resolveParent(directoryHandle, fileName, false)
+  const fileHandle = await directory.getFileHandle(name)
   const file = await fileHandle.getFile()
   return await file.text()
 }
@@ -57,7 +77,8 @@ export async function readFileFromDirectoryBinary(
   directoryHandle: FileSystemDirectoryHandle,
   fileName: string
 ): Promise<ArrayBuffer> {
-  const fileHandle = await directoryHandle.getFileHandle(fileName)
+  const { directory, name } = await resolveParent(directoryHandle, fileName, false)
+  const fileHandle = await directory.getFileHandle(name)
   const file = await fileHandle.getFile()
   return await file.arrayBuffer()
 }
@@ -67,7 +88,9 @@ export async function writeFileToDirectory(
   fileName: string,
   contents: FileSystemWriteChunkType
 ): Promise<void> {
-  const fileHandle = await directoryHandle.getFileHandle(fileName, {
+  // Intermediate directories are created on write, but never on read
+  const { directory, name } = await resolveParent(directoryHandle, fileName, true)
+  const fileHandle = await directory.getFileHandle(name, {
     create: true,
   })
 
@@ -81,7 +104,8 @@ export async function fileExists(
   fileName: string
 ): Promise<boolean> {
   try {
-    await directoryHandle.getFileHandle(fileName)
+    const { directory, name } = await resolveParent(directoryHandle, fileName, false)
+    await directory.getFileHandle(name)
     return true
   } catch (_error) {
     return false

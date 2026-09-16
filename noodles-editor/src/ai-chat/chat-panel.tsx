@@ -149,6 +149,13 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
       return
     }
 
+    // Providers can own resources that outlive a turn — Chrome's holds an
+    // on-device session carrying the transcript — so a session this effect built
+    // has to be disposed whether it was ever handed to the UI or was superseded
+    // while still being built
+    let built: AgentSession | null = null
+    let cancelled = false
+
     const init = async () => {
       setContextLoading(true)
       setProviderError(null)
@@ -165,17 +172,22 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
           onDownloadProgress: setDownloadProgress,
         })
 
+        built = new AgentSession(provider, tools, {
+          webSearch: webSearchConfigFor({
+            providerId,
+            model: provider.model,
+            anthropicKey: apiKey,
+            openRouterKey,
+          }),
+        })
+
+        if (cancelled) {
+          built.dispose()
+          return
+        }
+
         setMcpTools(tools)
-        setSession(
-          new AgentSession(provider, tools, {
-            webSearch: webSearchConfigFor({
-              providerId,
-              model: provider.model,
-              anthropicKey: apiKey,
-              openRouterKey,
-            }),
-          })
-        )
+        setSession(built)
       } catch (error) {
         debugAiChat('Failed to initialize the assistant:', error)
         setSession(null)
@@ -187,6 +199,11 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
     }
 
     init()
+
+    return () => {
+      cancelled = true
+      built?.dispose()
+    }
   }, [providerId, providerKey, providerReady, model, apiKey, openRouterKey, customEndpoint])
 
   // Update MCPTools with current project whenever it changes
@@ -414,8 +431,9 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
             <a href="https://openrouter.ai/keys" target="_blank" rel="noopener noreferrer">
               OpenRouter
             </a>
-            . Chrome’s built-in model is free and needs no key, but is the least capable of the
-            three.
+            . Chrome’s built-in model is free, private, and needs no key, but it runs on your device
+            and is small: expect it to answer questions about the graph and make single-step edits,
+            not to build a visualization for you.
           </p>
           <div
             style={{ marginTop: '1rem', display: 'flex', gap: '0.5rem', justifyContent: 'center' }}
@@ -437,9 +455,11 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
           <p>{providerError}</p>
           {providerId === 'chrome' && (
             <p>
-              Chrome’s built-in model needs Chrome 127+ with the Prompt API enabled at{' '}
-              <code>chrome://flags/#prompt-api-for-gemini-nano</code>, and the model downloaded via{' '}
-              <code>chrome://components</code>.
+              The Prompt API ships in Chrome 148; on an earlier build enable it at{' '}
+              <code>chrome://flags/#prompt-api-for-gemini-nano</code>. Either way the model itself
+              is a separate ~2GB download — check its status at{' '}
+              <code>chrome://on-device-internals</code>. It also needs about 22GB free and either
+              4GB of VRAM or 16GB of RAM.
             </p>
           )}
           <div
@@ -532,8 +552,14 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
             <option value="custom" disabled={!customEndpoint}>
               {customEndpoint?.displayName ?? 'Custom endpoint'}
             </option>
-            <option value="chrome" disabled={!chromeAvailable}>
-              Chrome (local)
+            <option
+              value="chrome"
+              disabled={!chromeAvailable}
+              // A ~3B on-device model. Saying what it is good for is more use than
+              // implying it is a smaller version of the others.
+              title="Free, private, no key. Good for single-step edits and questions about the graph; too small to build one."
+            >
+              Chrome (on-device)
             </option>
           </select>
           <select

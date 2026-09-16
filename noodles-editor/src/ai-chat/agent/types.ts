@@ -70,6 +70,11 @@ export interface AgentProvider {
   readonly contextWindow: number
 
   stream(request: AgentRequest, signal?: AbortSignal): AsyncIterable<AgentEvent>
+
+  // Releases anything the provider holds between turns. Only the Chrome provider
+  // has any: an on-device session that owns the transcript, which the browser will
+  // not reclaim on its own.
+  dispose?(): void
 }
 
 // Convenience for the non-streaming callers (compaction's summarizer): drain a

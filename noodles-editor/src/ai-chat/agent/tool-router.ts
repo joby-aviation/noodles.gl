@@ -10,7 +10,11 @@
 // defined here and not in tool-definitions.ts — external MCP clients do their
 // own tool discovery and keep seeing the full surface via src/webmcp.
 
-import { type ToolDefinition, type ToolInputSchema, toolDefinitions } from '../tool-definitions'
+import {
+  availableToolDefinitions,
+  getToolDefinition,
+  type ToolInputSchema,
+} from '../tool-definitions'
 import type { ToolResult } from '../types'
 
 export const FIND_TOOLS_NAME = 'find_tools'
@@ -40,7 +44,7 @@ export const FIND_TOOLS_DEFINITION: {
 } = {
   name: FIND_TOOLS_NAME,
   description:
-    'Look up additional tools by capability and unlock them for use. Returns full input schemas for the best matches. Use this before saying a capability is unavailable — tools exist for searching source code, reading documentation, listing and fetching example projects, reading operator schemas, capturing screenshots, reading console errors, editing the animation timeline, searching the web, and delegating a self-contained sub-task to another agent.',
+    "Look up additional tools by capability and unlock them for use. Returns full input schemas for the best matches. Use this before saying a capability is unavailable — tools exist for running JavaScript against the live graph, reading, writing, listing and searching the project's data files, searching source code, reading documentation, listing and fetching example projects, reading operator schemas, capturing screenshots, reading console errors, editing the animation timeline, searching the web, and delegating a self-contained sub-task to another agent.",
   inputSchema: {
     type: 'object',
     properties: {
@@ -195,7 +199,7 @@ export class ToolRouter {
   private lookup(name: string): RoutedTool | undefined {
     const harness = this.harnessTools.get(name)
     if (harness) return toRoutedHarness(harness)
-    const definition = findDefinition(name)
+    const definition = getToolDefinition(name)
     return definition ? toRouted(definition) : undefined
   }
 
@@ -227,7 +231,7 @@ export function scoreTools(query: string, harnessTools: HarnessTool[] = []): Too
   if (terms.length === 0) return []
 
   const candidates: RoutedTool[] = [
-    ...toolDefinitions.map(toRouted),
+    ...availableToolDefinitions().map(toRouted),
     ...harnessTools.map(toRoutedHarness),
   ]
 
@@ -310,11 +314,11 @@ function tokenize(text: string): string[] {
     .filter(term => term.length > 1 && !STOP_WORDS.has(term))
 }
 
-function findDefinition(name: string): ToolDefinition | undefined {
-  return toolDefinitions.find(d => d.name === name)
-}
-
-function toRouted(definition: ToolDefinition): RoutedTool {
+function toRouted(definition: {
+  name: string
+  description: string
+  inputSchema: ToolInputSchema
+}): RoutedTool {
   return {
     name: definition.name,
     description: definition.description,

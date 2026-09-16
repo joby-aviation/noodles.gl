@@ -1,6 +1,6 @@
 # Agent harness (in-app AI chat)
 
-**Last updated:** 2026-09-03
+**Last updated:** 2026-09-08
 
 The in-app assistant runs on a hand-rolled agent loop in `noodles-editor/src/ai-chat/agent/`.
 It is provider-agnostic: the same loop, tool surface, and context budgets serve a
@@ -39,7 +39,7 @@ unconditionally and is unaffected by any of the routing below.
 | | Anthropic | OpenRouter | Custom | Chrome |
 | --- | --- | --- | --- | --- |
 | Default model | `claude-sonnet-5` | `google/gemini-2.5-flash` | whatever you type | `gemini-nano` |
-| Context window | 200k | per-model table, 128k fallback | configurable, 32k default | discovered at runtime (~6k) |
+| Context window | 200k | per-model table, 128k fallback | configurable, 32k default | discovered at runtime (~6k), and measured per turn |
 | Native tool calling | yes | yes | assumed, switchable off | **no** — constrained JSON |
 | Images (screenshots) | yes | yes | off by default | no |
 | Web search | server-side `web_search_2026…`/`…20250305` | `plugins: [{id:'web'}]` | unavailable | unavailable |
@@ -75,6 +75,68 @@ Two provider flags carry all the behavioural difference: `supportsNativeTools`
 same `tool_call` event the others emit) and `contextWindow` (which sizes the
 disclosure limits, the per-result budget, the step limit, and the compaction
 threshold).
+
+`AgentProvider.dispose()` is optional and only Chrome implements it: an HTTP
+provider holds nothing between turns, an on-device session holds the transcript.
+`AgentSession.dispose()` forwards to it, and `chat-panel.tsx` calls that from its
+init effect's cleanup — including for a session that was superseded while still
+being built.
+
+### The Chrome provider's session
+
+Unlike an HTTP provider, which is handed the whole history on every request, a
+Prompt API session *accumulates* it. So the provider keeps one session across turns
+and sends only the messages that session has not seen, which makes two things true:
+
+- The system prompt and the tool schemas live in `initialPrompts`, which the API
+  documents as never evicted. They are paid for once per conversation instead of
+  once per turn, and they survive a conversation that overflows the window.
+- Reuse is only valid while the transcript is being *extended*. Each turn's
+  messages are serialized to one line apiece and diffed against what was sent; a
+  changed prefix (compaction, the loop's own trimming, a cleared conversation) or a
+  changed tool set (`find_tools` unlocking one rewrites the schemas) rebuilds the
+  session, because a session cannot forget and `initialPrompts` cannot be amended.
+
+Overflow is handled before the API throws: `measureContextUsage()` is checked
+against `contextWindow - contextUsage`, and a turn that will not fit rebuilds on a
+trimmed transcript. `QuotaExceededError` remains caught as a backstop, since the
+measurement is optional and can undercount.
+
+### Native tool calling on the Prompt API: not yet
+
+MDN documents a `tools: [{name, description, inputSchema, execute}]` option on
+`LanguageModel.create()`, which would replace the emulation above with
+grammar-constrained tool calls. It is spec, not implementation. Measured against
+Chrome 152 (2026-09-07):
+
+| Probe | Result | Reading |
+| --- | --- | --- |
+| `create({initialPrompts: 42})` | `TypeError: … cannot be converted to a sequence` | declared member |
+| `create({tools: 42})` | `NotSupportedError` | **ignored** |
+| `create({totallyMadeUpOption: 42})` | `NotSupportedError` | control |
+| `availability({expectedOutputs: [{type: 'tool-call'}]})` | `'unavailable'` | `tool-call` is in the shipped enum |
+| `availability({expectedOutputs: [{type: 'not-a-real-type'}]})` | `TypeError: … not a valid enum value` | control |
+
+WebIDL converts arguments in the binding layer before the method body runs, so those
+readings hold on a machine where the model itself is absent. Chrome's own tracker
+agrees: *Function Calling capability in Prompt API* is `Proposed` — no milestone, no
+dev trial, no flag.
+
+The trap is in rows 4 and 5: the `tool-call` message type shipped **ahead** of the
+`tools` option, so a probe that passed a well-formed tool plus
+`expectedOutputs: [{type: 'tool-call'}]` and watched for a rejection would report
+support that is not there. `nativeToolSupport()` therefore reads IDL conversion
+instead — it hands `tools` a non-sequence and treats a `TypeError` as the signal,
+with a control call so an engine that rejects every `create()` cannot pass.
+
+It is reported but not yet wired, and wiring it is not a swap: those tools take an
+`execute` callback the browser invokes itself, awaiting all of them before the model
+replies, whereas `AgentProvider.stream()` yields tool calls out for the loop to
+schedule — and the loop is what serializes anything mutating. Adopting it means
+holding a `prompt()` promise open across `stream()` calls and resolving it from the
+next request's tool result. MDN also notes `execute`'s arguments are "specific to the
+model being used", which is not something to write a provider against until there is
+a real implementation to read.
 
 Adding a provider means implementing `AgentProvider.stream()` to yield
 `text_delta` / `tool_call` / `usage` / `stop` events, adding it to `ProviderId`, and
@@ -131,6 +193,129 @@ marked on strings, so the payload is always valid JSON.
 The budget is 10% of the window in chars, clamped to 600–24,000 — so the same
 `list_nodes` call fits a 200k model and a 6k one.
 
+## `run_code`
+
+`run_code({code, timeoutMs})` evaluates JavaScript against the live graph and returns
+the value. It is CodeOp's sandbox without a node: `fnWithSource` compiles the body,
+`op('/id').out.data` / `.par.field` read any operator, and `d3`, `turf`, `deck`,
+`Plot`, `Temporal`, `utils` and every operator class are in scope, plus
+`sequenceTime` / `frame` / `totalFrames` / `sequence`. `await` is allowed. The
+implementation is `src/ai-chat/run-code.ts`; `MCPTools.runCode` is a one-line
+forwarder so the tool definitions and WebMCP still reach everything through one
+surface.
+
+This is the largest single capability jump in the harness and it benefits every
+provider at once — a model that could previously only *describe* a transform can now
+check whether it works.
+
+Four things about it are deliberate:
+
+- **Results are summarized in `describe()` before `capToolResult` ever sees them.**
+  The budget caps what reaches the model, but it serializes the whole value first, so
+  returning a million-row array would build hundreds of megabytes of string just to
+  throw it away. Arrays over 20 items come back as `{length, sample, note}`; typed
+  arrays, `Map`/`Set` and operators get their own summaries; `NaN` and `Infinity`
+  render as `[NaN]` / `[Infinity]`, because `JSON.stringify` turns them into `null`
+  and "no value" is the wrong thing for a model to read when the arithmetic went
+  wrong.
+- **Field-value changes land in one undo entry**, via the non-React
+  `captureOperatorInputs` / `firePropertyMutation` pair. Pure computation creates no
+  entry at all, and a call that did change something reports `changedFieldValues`.
+  This only covers field values — adding or deleting operators goes through
+  `apply_modifications`, which the UI applies with its own history — so the tool
+  description points structural edits there.
+- **`timeoutMs` bounds the await, not the code.** A synchronous infinite loop hangs
+  the tab and no amount of racing changes that; the only real fix is a worker, and a
+  worker cannot see the graph, which is the point of the tool. What the timeout does
+  catch is the realistic hang: an `await` on a fetch that never resolves, which would
+  otherwise wedge the loop with no step limit to save it. The timeout message says so
+  rather than implying the code was cancelled.
+- **`readOnlyHint: false`**, so the loop serializes it instead of batching it with
+  reads.
+
+`ToolDefinition` gained an optional `available?: () => boolean` for this tool and,
+for now, only this tool. Safe mode (`?safeMode=true`) exists to stop the app
+executing arbitrary code, so `run_code` has to *disappear* rather than be offered and
+then refuse — a tool the model can see but that always fails wastes turns. The gate
+is read through `getToolDefinition` and `availableToolDefinitions()`, never off the
+raw `toolDefinitions` array, which covers three surfaces at once: `find_tools`
+scoring, `webmcp/register.ts`, and dispatch. Dispatch matters as much as discovery,
+because `executeTool` looks tools up by name and a model can name one it was never
+offered; an undefined lookup becomes "Unknown tool" and makes `isReadOnly` fall back
+to treating the call as mutating.
+
+`run_code` is not tier 0, so it costs nothing per turn — the model reaches it through
+`find_tools`, whose description now leads with "running JavaScript against the live
+graph". That is why the measured always-sent schema payload below is unchanged by
+adding it.
+
+## The agent filesystem
+
+`list_files`, `read_file`, `write_file` and `grep_files` give the assistant the
+project's own data directory. The implementation is `src/ai-chat/agent-files.ts`, a
+thin layer over the same `readAsset` / `writeAsset` / `listDataFiles` in
+`noodles/storage.ts` that a `FileOp` uses — which is the whole point. A file written to
+`@/.agent/joined.csv` is loadable by setting a `FileOp`'s `url` to that path, with no
+import step, so the model can compute a derived dataset in `run_code`, persist it, wire
+it into the graph, and confirm the result with `get_node_output`.
+
+**Reads and writes are deliberately asymmetric.** Reads resolve anywhere under `data/`,
+because that is data the project already exposes to the assistant through its nodes.
+Writes are rejected unless the resolved path is inside `data/.agent/`, so a mistaken
+path cannot clobber the dataset the project is built on.
+
+`resolvePath()` is the security boundary and is tested directly and exhaustively
+(`agent-files.test.ts`). Three things about it:
+
+- **Resolve, then check.** Segments are walked onto a stack that refuses to pop past
+  the root, and the write check runs on the resolved segments. A blocklist of `..`
+  spellings would be whack-a-mole; a stack cannot be talked out of it.
+  `.agent/../trips.csv` is rejected and `.agent/../.agent/out.csv` is allowed, which is
+  exactly the distinction a string check gets wrong.
+- **`@/` and `data/` prefixes are both accepted**, because both are spellings the model
+  has already seen — the first in a `FileOp` url, the second in project JSON. An
+  interior `..` resolves rather than being refused; refusing a legal path teaches the
+  model to distrust the tool.
+- **Absolute paths, backslashes and NUL bytes are refused by name.** A backslash is a
+  legal POSIX filename character, so treating it as a separator would be wrong — but a
+  Windows-shaped path is a mistake worth reporting rather than silently honouring as a
+  file called `..\secrets`.
+
+Two deviations from the plan, both deliberate:
+
+- **Writes are not in the undo stack.** `UndoRedoManager` snapshots
+  `projectState: NodesProjectJSON` and keeps 50 entries; putting file contents there
+  would make undo a memory problem. Instead, replacing a scratch file copies the
+  previous contents to `@/.agent/.previous/<path>`, which is hidden from `list_files`
+  and `grep_files` and is itself not writable. Combined with the write sandbox — which
+  by construction contains no user data — a bad write is recoverable without a prompt,
+  which is what the no-prompts decision was actually for.
+- **`read_file` summarizes before `result-budget` sees it**, same reasoning as
+  `run_code`: a file up to 200 lines and 20,000 chars comes back whole, anything larger
+  comes back as a line count plus 30 head lines and 10 tail lines, and
+  `startLine`/`endLine` page through it. A 50,000-line CSV yields under 4,000 chars.
+  Non-text files (detected by a NUL byte) are refused with a pointer at `FileOp` and
+  `run_code` rather than being mangled into the transcript.
+
+Storage type matters for writes: examples load into `memory` storage (`noodles.tsx`
+copies their assets there), so writes work in `/examples/*`. `publicFolder` is
+read-only and `writeAsset`'s refusal is surfaced verbatim.
+
+`grep_files` is plain JS `RegExp` over the files — no wasm toolchain for something that
+is a loop. It caps matches (40), per-file size (50M chars) and total scanned (100M
+chars), and reports every file it skipped, because a grep that silently misses a file
+is worse than a slow one. The per-file cap started at 4M and was raised after it
+skipped `nyc-taxis`' only data file: it bounds scan time, not memory, since `readAsset`
+has already materialized the whole string either way. Measured, a match on that 12M-char
+CSV takes ~11ms.
+
+One supporting fix was needed underneath: `getFileHandle` rejects any name containing
+`/`, so a nested path was unaddressable on `fileSystemAccess` and `opfs`. That was
+already a latent bug — `listDataFiles` emits nested paths like `raw/notes.txt` that
+`readAsset` could not then read — and `resolveParent()` in
+`noodles/utils/filesystem.ts` now walks the segments at that choke point, creating
+intermediate directories on write and never on read.
+
 ## Harness tools
 
 Two tools need something the tool definitions have no access to (a provider, an API
@@ -185,10 +370,10 @@ the old `listNodes` shape copied verbatim.
 | Per-turn component | Before | After | Change |
 | --- | --- | --- | --- |
 | System prompt | 9,278 chars (~2,300 tok) | 2,910 chars (~730 tok) | −69% |
-| Tool schemas | 4,291 chars, 13 tools (~1,070 tok) | 2,183 chars, 5 tools (~550 tok) | −49% |
+| Tool schemas | 4,291 chars, 13 tools (~1,070 tok) | 2,292 chars, 5 tools (~570 tok) | −47% |
 | One `list_nodes` result (200k window) | 18,447 chars (~4,600 tok) | 11,462 chars (~2,870 tok) | −38% |
 | One `list_nodes` result (6k window) | 18,447 chars (~4,600 tok) | 1,637 chars (~410 tok) | −91% |
-| **First turn, all three** | ~32,000 chars (~8,000 tok) | ~16,600 chars (~4,150 tok) | **−48%** |
+| **First turn, all three** | ~32,000 chars (~8,000 tok) | ~16,700 chars (~4,175 tok) | **−48%** |
 
 The `list_nodes` saving is the slimming alone (role groupings carry ids instead of
 re-serialized node objects; `position` dropped; long string inputs clipped to a
@@ -215,7 +400,10 @@ cd noodles-editor && npx vitest run src/ai-chat src/webmcp
 `loop.test.ts` drives the loop with a fake provider yielding scripted events;
 `providers/*.test.ts` cover SSE fragment reassembly (`openai-format.test.ts`),
 request shaping and endpoint validation (`custom.test.ts`), and constrained-JSON
-parsing (`chrome.test.ts`) against fakes. No test spends a real API request.
+parsing, session reuse and invalidation, and measure-before-overflow trimming
+(`chrome.test.ts`) against fakes. `chrome.test.ts`'s fake mints one session per
+`create()` call, which is what lets a test tell reuse from a rebuild. No test spends
+a real API request.
 
 End-to-end checks that do need keys are listed in the PR description for this work:
 streaming and Stop on Anthropic, cost readout on OpenRouter, `find_tools` →

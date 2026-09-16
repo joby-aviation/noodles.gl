@@ -10,7 +10,18 @@ import {
   useTimelineStore,
 } from '../timeline/timeline-store'
 import type { Keyframe, KeyframeValue, Track } from '../timeline/types'
+import {
+  type GrepFilesParams,
+  grepFiles,
+  type ListFilesParams,
+  listFiles,
+  type ReadFileParams,
+  readFile,
+  type WriteFileParams,
+  writeFile,
+} from './agent-files'
 import type { ContextLoader } from './context-loader'
+import { type RunCodeParams, runCode } from './run-code'
 import type {
   ConsoleError,
   FileIndex,
@@ -437,12 +448,10 @@ export class MCPTools {
   // Get an example project by ID
   async getExample(params: { id: string }): Promise<ToolResult> {
     try {
-      const examples = this.contextLoader?.getExamples()
-      if (!examples) {
-        return { success: false, error: 'Examples not loaded' }
-      }
+      // Use runtime loader to lazily load the full example
+      const { getExample } = await import('./runtime-examples-loader')
+      const example = await getExample(params.id)
 
-      const example = examples.examples[params.id]
       if (!example) {
         return { success: false, error: `Example not found: ${params.id}` }
       }
@@ -816,6 +825,32 @@ export class MCPTools {
         error: error instanceof Error ? error.message : 'Failed to validate modifications',
       }
     }
+  }
+
+  // Evaluate JavaScript in CodeOp's sandbox. The implementation lives in run-code.ts
+  // because it needs nothing from this class — it is here so the tool definitions and
+  // WebMCP keep reaching every tool through one surface.
+  async runCode(params: RunCodeParams): Promise<ToolResult> {
+    return runCode(params)
+  }
+
+  // The project data directory. Same arrangement as runCode: the path guard and the
+  // storage calls live in agent-files.ts, these are forwarders so every tool is
+  // reachable through one surface.
+  async listFiles(params: ListFilesParams): Promise<ToolResult> {
+    return listFiles(params)
+  }
+
+  async readFile(params: ReadFileParams): Promise<ToolResult> {
+    return readFile(params)
+  }
+
+  async writeFile(params: WriteFileParams): Promise<ToolResult> {
+    return writeFile(params)
+  }
+
+  async grepFiles(params: GrepFilesParams): Promise<ToolResult> {
+    return grepFiles(params)
   }
 
   // Get current project state (nodes and edges)

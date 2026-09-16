@@ -13,9 +13,7 @@ import {
   shouldCompact,
 } from '../conversation-compaction'
 import type { MCPTools } from '../mcp-tools'
-// Only the core prompt is always in context. The workflow walkthroughs live in
-// prompts/sections/ and reach the model through get_documentation on demand.
-import systemPromptTemplate from '../prompts/core.md?raw'
+import { getSystemPrompt } from '../system-prompt'
 import type { ClaudeResponse, Message } from '../types'
 import { runAgent } from './loop'
 import { createDelegateTool } from './subagent'
@@ -63,6 +61,12 @@ export class AgentSession {
     this.router = new ToolRouter(provider.contextWindow, [...childTools, delegate])
   }
 
+  // Called when the panel replaces this session. The Chrome provider holds an
+  // on-device session carrying the transcript; nothing reclaims it otherwise.
+  dispose() {
+    this.provider.dispose?.()
+  }
+
   async send(params: SendParams): Promise<ClaudeResponse> {
     const history = await this.prepareHistory(params.conversationHistory ?? [])
 
@@ -84,7 +88,7 @@ export class AgentSession {
       provider: this.provider,
       tools: this.tools,
       router: this.router,
-      systemPrompt: systemPromptTemplate,
+      systemPrompt: getSystemPrompt(),
       messages,
       maxTokens: MAX_TOKENS,
       signal: params.signal,

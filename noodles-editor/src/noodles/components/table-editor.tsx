@@ -10,15 +10,14 @@ import { AutoComplete } from 'primereact/autocomplete'
 import { Button } from 'primereact/button'
 import { InputSwitch } from 'primereact/inputswitch'
 import { InputText } from 'primereact/inputtext'
-import { GeocodingDialog } from './geocoding-dialog'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { Temporal } from 'temporal-polyfill'
 import type { TableEditorOp } from '../operators'
 import type { ColumnSchema, ColumnType, DateTimeValue, TableSchema } from '../table-schema'
-import { convertValue, getDefaultValue, temporalToString } from '../table-schema'
+import { getDefaultValue, validateTableData } from '../table-schema'
 import { getTimezoneOptions } from '../utils/timezone-utils'
 import { ColorSwatch } from './color-swatch'
-import { SchemaEditorDialog } from './schema-editor-dialog'
+import { GeocodingDialog } from './geocoding-dialog'
+import { SchemaEditorDialog, type SchemaChangeMetadata } from './schema-editor-dialog'
 import s from './table-editor.module.css'
 
 // Cell editor components for each column type
@@ -814,20 +813,6 @@ function EditableCell({ getValue, row, column, table }: EditableCellProps) {
     activeEdit?.set(handleComplete)
   }
 
-  if (isEditing) {
-    return (
-      <div className={cx(s.cell, s.editing)}>
-        <EditorComponent
-          value={value}
-          onChange={handleChange}
-          onComplete={handleComplete}
-          column={colSchema}
-        />
-      </div>
-    )
-  }
-
-  // Render cell - dateTime renderer needs column schema for timezone
   const renderedValue =
     colSchema.type === 'dateTime'
       ? (renderer as (value: unknown, column: ColumnSchema) => React.ReactNode)(
@@ -835,6 +820,24 @@ function EditableCell({ getValue, row, column, table }: EditableCellProps) {
           colSchema
         )
       : (renderer as (value: unknown) => React.ReactNode)(currentValue)
+
+  if (isEditing) {
+    return (
+      <div className={cx(s.cell, s.editing)}>
+        <span className={s.editingPlaceholder} aria-hidden="true">
+          {renderedValue}
+        </span>
+        <div className={s.editorOverlay}>
+          <EditorComponent
+            value={value}
+            onChange={handleChange}
+            onComplete={handleComplete}
+            column={colSchema}
+          />
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div
@@ -863,8 +866,10 @@ interface TableEditorProps {
 }
 
 export function TableEditor({ data, schema, onDataChange, onSchemaChange }: TableEditorProps) {
-  const [tableData, setTableData] = useState(data)
+  const [tableData, setTableData] = useState(() => validateTableData(data, schema))
   const activeEdit = useActiveEdit()
+  const previousDataRef = useRef(data)
+  const previousSchemaRef = useRef(schema)
 
   // Mirrors tableData so a flushed cell edit and the row mutation that triggered
   // it can both run in one tick without the second reading stale state
@@ -878,8 +883,20 @@ export function TableEditor({ data, schema, onDataChange, onSchemaChange }: Tabl
   }
 
   useEffect(() => {
-    setTableData(data)
-  }, [data])
+    const dataChanged = previousDataRef.current !== data
+    const schemaChanged = previousSchemaRef.current !== schema
+
+    // Commit and clear any active cell editor before external props replace the
+    // table state. For a schema-only update, normalize the just-committed local
+    // rows so compatible edits survive the schema transition.
+    activeEdit.flush()
+    const sourceData = schemaChanged && !dataChanged ? tableDataRef.current : data
+    const newTableData = validateTableData(sourceData, schema)
+    tableDataRef.current = newTableData
+    setTableData(newTableData)
+    previousDataRef.current = data
+    previousSchemaRef.current = schema
+  }, [activeEdit, data, schema])
 
   const addRow = () => {
     activeEdit.flush()
@@ -890,22 +907,23 @@ export function TableEditor({ data, schema, onDataChange, onSchemaChange }: Tabl
     commitData([...tableDataRef.current, newRow], 'Add table row')
   }
 
-  const handleSchemaChange = (newSchema: TableSchema) => {
+  const handleSchemaChange = (newSchema: TableSchema, metadata?: SchemaChangeMetadata) => {
     activeEdit.flush()
-    // Update data to match new schema
-    const newData = tableDataRef.current.map(row => {
-      const newRow: Record<string, unknown> = {}
-      for (const col of newSchema.columns) {
-        const existingValue = row[col.name]
-        // Convert existing value to new type, or use default if missing
-        if (existingValue !== undefined) {
-          newRow[col.name] = convertValue(existingValue, col.type)
-        } else {
-          newRow[col.name] = col.defaultValue ?? getDefaultValue(col)
-        }
-      }
-      return newRow
-    })
+    const sourceData = metadata
+      ? tableDataRef.current.map(row =>
+          Object.fromEntries(
+            newSchema.columns.flatMap((column, columnIndex) => {
+              const sourceColumnName = metadata.sourceColumnNames[columnIndex]
+              return sourceColumnName === undefined ? [] : [[column.name, row[sourceColumnName]]]
+            })
+          )
+        )
+      : tableDataRef.current
+
+    // Preserve valid cells and materialize the new schema's declared defaults for
+    // missing or invalid cells. Metadata remaps renamed and duplicated columns
+    // before validation while leaving new columns absent so their defaults apply.
+    const newData = validateTableData(sourceData, newSchema)
 
     onSchemaChange(newSchema, newData)
     tableDataRef.current = newData

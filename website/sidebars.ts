@@ -20,6 +20,7 @@ const sidebars: SidebarsConfig = {
       collapsed: false,
       items: [
         'users/getting-started',
+        'users/api-keys',
         'users/workflows-intro',
         'users/properties-panel',
         'users/expressions',

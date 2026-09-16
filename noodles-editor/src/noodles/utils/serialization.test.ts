@@ -54,6 +54,16 @@ describe('safeStringify', () => {
     expect(result).toContain('"arr": [\n    null\n  ]')
   })
 
+  it('preserves repeated non-circular references', () => {
+    const shared = { name: 'shared' }
+    const result = safeStringify({ first: shared, second: shared })
+
+    expect(JSON.parse(result)).toEqual({
+      first: { name: 'shared' },
+      second: { name: 'shared' },
+    })
+  })
+
   it('preserves optional name field in project JSON', () => {
     const projectWithName: NoodlesProjectJSON = {
       version: NOODLES_VERSION,
@@ -305,6 +315,34 @@ describe('serializeNodes', () => {
     const [result] = serializeNodes(getOpStore(), [node], [])
     expect(result.width).toEqual(100)
     expect(result.height).toEqual(200)
+  })
+
+  it('serializes an inherited TableEditor schema after the schema edge is disconnected', () => {
+    const schema = {
+      columns: [
+        { name: 'Location', type: 'string' as const, defaultValue: '' },
+        { name: 'Phase', type: 'number' as const, defaultValue: 0 },
+      ],
+    }
+    const source = new TableEditorOp('/source', { schema }, false)
+    const target = new TableEditorOp('/target', {}, false)
+    const schemaEdgeId = '/source.out.schema->/target.par.schema'
+
+    source.outputs.schema.setValue(schema)
+    target.inputs.schema.addConnection(schemaEdgeId, source.outputs.schema)
+    target.inputs.schema.removeConnection(schemaEdgeId, 'reference')
+    setOp('/source', source)
+    setOp('/target', target)
+
+    const nodes = [
+      { id: '/source', type: 'TableEditorOp', data: {}, position: { x: 0, y: 0 } },
+      { id: '/target', type: 'TableEditorOp', data: {}, position: { x: 100, y: 0 } },
+    ]
+    const serializedNodes = serializeNodes(getOpStore(), nodes, [])
+    const project = JSON.parse(safeStringify({ nodes: serializedNodes }))
+
+    expect(project.nodes[0].data.inputs.schema).toEqual(schema)
+    expect(project.nodes[1].data.inputs.schema).toEqual(schema)
   })
 
   it('excludes ReferenceEdge connections when determining connected inputs', () => {

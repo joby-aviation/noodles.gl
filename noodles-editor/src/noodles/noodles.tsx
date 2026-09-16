@@ -109,6 +109,7 @@ import {
 } from './store'
 import { transformGraph } from './transform-graph'
 import { canConnectCached } from './utils/can-connect'
+import { instantiateDeckView } from './utils/deck-view'
 import { directoryHandleCache } from './utils/directory-handle-cache'
 import {
   fileExists,
@@ -236,6 +237,13 @@ export function getNoodles(): Visualization {
 
   useEffect(() => () => referenceDependencyModel.reset(), [])
 
+  useEffect(() => {
+    const inspectedEdge = getUIStore().inspectedReferenceEdge
+    if (inspectedEdge && !referenceEdges.some(edge => edge.id === inspectedEdge.id)) {
+      getUIStore().setInspectedReferenceEdge(null)
+    }
+  }, [referenceEdges])
+
   // Single ref providing synchronous access to the full graph state.
   // Used by CopyControls, UndoRedoHandler, and hooks that need all nodes/edges
   // without triggering re-renders or being limited to the displayed scope.
@@ -273,6 +281,7 @@ export function getNoodles(): Visualization {
       // Track selection changes
       const selectedChanges = changes.filter(change => change.type === 'select' && change.selected)
       if (selectedChanges.length > 0) {
+        getUIStore().setInspectedReferenceEdge(null)
         analytics.track('node_selected', { count: selectedChanges.length })
       }
 
@@ -683,7 +692,23 @@ export function getNoodles(): Visualization {
   const onDeselectAll = useCallback(() => {
     setNodes(nodes => nodes.map(node => ({ ...node, selected: false })))
     setEdges(edges => edges.map(edge => ({ ...edge, selected: false })))
+    getUIStore().setInspectedReferenceEdge(null)
   }, [setNodes, setEdges])
+
+  const onEdgeClick = useCallback(
+    (_event: React.MouseEvent, edge: ReactFlowEdge) => {
+      analytics.track('edge_selected', { type: edge.type ?? 'default' })
+      if (edge.type === 'ReferenceEdge') {
+        onDeselectAll()
+        getUIStore().setInspectedReferenceEdge(
+          referenceEdges.find(referenceEdge => referenceEdge.id === edge.id) ?? edge
+        )
+      } else {
+        getUIStore().setInspectedReferenceEdge(null)
+      }
+    },
+    [onDeselectAll, referenceEdges]
+  )
 
   const onPaneClick = useCallback(() => {
     blockLibraryRef.current?.closeModal()
@@ -1621,6 +1646,7 @@ export function getNoodles(): Visualization {
                 onReconnect={onReconnect}
                 onReconnectEnd={onReconnectEnd}
                 onNodeContextMenu={onNodeContextMenu}
+                onEdgeClick={onEdgeClick}
                 onNodesDelete={onNodesDelete}
                 onNodeDrag={onNodeDrag}
                 onNodeDragStop={onNodeDragStop}
@@ -1773,7 +1799,7 @@ export function getNoodles(): Visualization {
         deckRendererOp ? 'DeckRendererOp.outputs.vis' : 'OutOp.inputs.vis'
       )
       const visSub = field.subscribe(
-        ({ deckProps: { layers, widgets, ...deckProps }, mapProps }) => {
+        ({ deckProps: { layers, widgets, views, ...deckProps }, mapProps }) => {
           // Map layers from POJOs to deck.gl instances
           const instantiatedLayers =
             layers?.map(({ type, extensions, ...layer }) => {
@@ -1834,6 +1860,8 @@ export function getNoodles(): Visualization {
             instantiatedLayers.push(overlayLayer)
           }
 
+          const instantiatedViews = views?.map(instantiateDeckView)
+
           debugVis(
             'vis subscription fired: %d layers types=%O hasMapProps=%s',
             instantiatedLayers.length,
@@ -1853,6 +1881,7 @@ export function getNoodles(): Visualization {
                 // biome-ignore lint/performance/noDynamicNamespaceImportAccess: We intentionally support all deck.gl widget types dynamically
                 return new deckWidgets[type](widget)
               }),
+              ...(instantiatedViews?.length ? { views: instantiatedViews } : {}),
             },
             mapProps,
           })

@@ -57,34 +57,19 @@ Drag-and-drop or browse for CSV/JSON files. The importer automatically creates a
 4. **Animate**: [Add timeline keyframes](./animation-and-rendering.md) to create smooth animations
 5. **Export**: Generate images, videos, or interactive applications
 
-## API Keys Configuration
+## Try the NYC Taxis Example
 
-Access API key settings via the gear icon in the top menu bar.
+See Noodles.gl in action with a real-world dataset:
 
-### Key Sources
+[**Open NYC Taxis Example →**](https://noodles.gl/examples/nyc-taxis)
 
-Keys are resolved in priority order:
-1. **Browser** - Stored in localStorage, persists across sessions
-2. **Project** - Loaded from and retained in the project file until explicitly removed
-3. **Environment** - Set via environment variables
+This example visualizes millions of NYC taxi trips using:
+- Arc layers connecting pickup and dropoff locations
+- Brushing interaction to filter trips
+- Timeline animation showing temporal patterns
 
-The first source with a valid key is used automatically.
+If running locally: `http://localhost:5173/examples/nyc-taxis`
 
-### Supported Keys
+## Need API Keys?
 
-| Key | Purpose | Required For |
-|-----|---------|--------------|
-| Mapbox Access Token | Basemaps, directions | MaplibreBasemapOp with Mapbox styles |
-| Google Maps API Key | Places geocoding | Create Point wizard, DirectionsOp |
-| Anthropic API Key | Claude AI assistant | AI chat features |
-
-### Privacy
-
-API keys are stored locally and never sent to Noodles.gl servers. Browser keys are stored in localStorage. Enabling **Add browser keys to this project** copies them into `noodles.json`, where they are stored in plain text and travel with the project. Only share projects containing keys with trusted collaborators. Loaded project keys remain in subsequent saves until removed from App Settings.
-
-### Environment Variables
-
-For development or CI/CD, set keys via environment variables:
-- `VITE_MAPBOX_ACCESS_TOKEN`
-- `VITE_GOOGLE_MAPS_API_KEY`
-- `VITE_CLAUDE_API_KEY`
+Some features require API keys for external services. See [API Keys Configuration](./api-keys.md) for setup instructions.

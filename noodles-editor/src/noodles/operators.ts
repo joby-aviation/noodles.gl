@@ -6,17 +6,7 @@ import type {
   HexagonLayerProps,
   ScreenGridLayerProps,
 } from '@deck.gl/aggregation-layers'
-import {
-  type DeckProps,
-  FirstPersonView,
-  _GlobeView as GlobeView,
-  type LayerExtension,
-  type LayerProps,
-  MapView,
-  OrbitView,
-  OrthographicView,
-  WebMercatorViewport,
-} from '@deck.gl/core'
+import { type LayerExtension, type LayerProps, WebMercatorViewport } from '@deck.gl/core'
 import {
   BrushingExtension,
   ClipExtension,
@@ -86,9 +76,10 @@ import * as duckdb from '@duckdb/duckdb-wasm'
 import { getTransformScaleFactor } from '../render/transform-scale'
 import { subscribeToPosition } from '../timeline/timeline-store'
 import * as utils from '../utils'
+import { analytics } from '../utils/analytics'
 import { getArc } from '../utils/arc-geometry'
 import { colorToHex, hexToColor } from '../utils/color'
-import { debugDirty, debugExecute, debugParams, debugPull } from '../utils/debug'
+import { debugDirty, debugDirtyTrace, debugExecute, debugParams, debugPull } from '../utils/debug'
 import { getDirections } from '../utils/directions'
 import { geocodeWithMapbox } from '../utils/geocoding'
 import {
@@ -146,13 +137,14 @@ import {
   Vec2Field,
   Vec3Field,
   ViewField,
+  type VisualizationDeckProps,
   VisualizationField,
   WidgetField,
 } from './fields'
 import { DEFAULT_LATITUDE, DEFAULT_LONGITUDE, safeMode } from './globals'
 import { getKeysStore } from './keys-store'
 import { getAllOps, getOp } from './store'
-import { prepareTableDataForOutput, type TableSchema } from './table-schema'
+import { prepareTableDataForOutput, type TableSchema, validateTableData } from './table-schema'
 import type { ExtensionConstructorArgs, LayerPropsValue } from './types'
 import { composeAccessor, isAccessor } from './utils/accessor-helpers'
 import { deepEqual } from './utils/deep-equal'
@@ -695,7 +687,27 @@ export abstract class Operator<OP extends IOperator> {
   // leaving DIRTY anywhere disables pruning until the next wave re-stamps);
   // correctness first — the hot path (repeated marks between two frame pulls,
   // e.g. timeline scrubbing keyframed ops) stays O(1) per repeated mark.
-  markDirty(): void {
+  markDirty(cause?: Field | string): void {
+    // Stack capture is intentionally gated behind a separate namespace so
+    // ordinary `noodles:*` logging cannot add work to this hot path.
+    if (debugDirtyTrace.enabled) {
+      const source =
+        typeof cause === 'string'
+          ? cause
+          : cause?.pathToProps.length
+            ? cause.pathToProps.join('.')
+            : 'direct call'
+      const stack = new Error().stack?.split('\n').slice(2).join('\n') ?? 'stack unavailable'
+      debugDirtyTrace(
+        '%s: %s -> dirty; source=%s; downstream=%d\n%s',
+        this.id,
+        this._pullExecutionStatus,
+        source,
+        this._downstreamDependents.size,
+        stack
+      )
+    }
+
     const epoch = Operator._dirtyEpoch
     const visited = new Set<Operator<IOperator>>()
     const stack: Operator<IOperator>[] = [this as Operator<IOperator>]
@@ -1903,12 +1915,21 @@ export class FileOp extends Operator<FileOp> {
     'Fetch a file from a URL or text. Supports csv, tsv, json, text, and binary formats'
   asDownload = () => this.outputData
 
+  constructor(id: OpId, inputs?: unknown, locked?: boolean) {
+    super(id, inputs, locked)
+
+    const sub = this.inputs.format.subscribe(format => {
+      this.setFieldVisibility('autoType', format === 'csv' || format === 'tsv')
+    })
+    this.subs.push(sub)
+  }
+
   createInputs() {
     return {
       format: new StringLiteralField('json', { values: ['json', 'csv', 'tsv', 'text', 'binary'] }),
       url: new FileUrlField(),
-      text: new StringField(),
-      autoType: new BooleanField(true), // TODO: Make this only available for csv
+      text: new StringField(), // TODO: make this mutually exclusive with `url`
+      autoType: new BooleanField(true, { showByDefault: false }),
       pulse: new NumberField(0, { min: 0, step: 1, showByDefault: false }),
     }
   }
@@ -2241,13 +2262,34 @@ export class DuckDbOp extends Operator<DuckDbOp> {
       await conn.close()
       return { data }
     } catch (e) {
+      const error = e instanceof Error ? e : new Error(String(e))
+      const errorMsg = error.message || ''
+
       debugExecute('Error executing query', e)
+
+      // Log error to console for debugging
+      // Note: "Object Not Found" and syntax errors often occur during typing,
+      // so we don't capture those to PostHog to avoid noise from incomplete queries
+      if (errorMsg.includes('Object Not Found')) {
+        console.error(
+          '[DuckDbOp] Object not found - table or view may not be registered.',
+          'This often happens when typing an incomplete query.',
+          error
+        )
+      } else if (errorMsg.includes('syntax error') || errorMsg.includes('Parser Error')) {
+        console.error('[DuckDbOp] SQL syntax error (likely incomplete query):', error)
+      } else {
+        // Only capture non-typing-related errors to analytics
+        console.error('[DuckDbOp] Query execution failed:', error)
+        analytics.captureException(error, {
+          source: 'duckdb_op',
+          errorType: 'execution_error',
+        })
+      }
+
       await conn.close()
       await db.reset()
-      if (e instanceof Error) {
-        throw e
-      }
-      return null
+      throw error
     }
   }
 }
@@ -2326,9 +2368,12 @@ export class TableEditorOp extends Operator<TableEditorOp> {
   }
 
   execute({ data, schema }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const validatedData = schema ? validateTableData(data, schema as TableSchema) : data
     // Convert dateTime strings to Temporal.ZonedDateTime for output
     // This happens at the operator boundary: internal storage = strings, output = Temporal
-    const outputData = schema ? prepareTableDataForOutput(data, schema as TableSchema) : data
+    const outputData = schema
+      ? prepareTableDataForOutput(validatedData, schema as TableSchema)
+      : validatedData
 
     return {
       data: outputData,
@@ -2400,31 +2445,53 @@ export class ChartOp extends Operator<ChartOp> {
       return { chart: null }
     }
 
-    // Build marks based on chart type
-    let marks: Plot.Markish[]
-    switch (chartType) {
-      case 'bar':
-        marks = [Plot.barY(data, { x: xField, y: yField, fill: color })]
-        break
-      case 'histogram':
-        marks = [Plot.rectY(data, Plot.binX({ y: 'count' }, { x: xField, fill: color }))]
-        break
-      case 'scatter':
-        marks = [Plot.dot(data, { x: xField, y: yField, fill: color })]
-        break
+    // Validate that fields are populated (not empty strings)
+    // This prevents Observable Plot from receiving undefined field names
+    if (!xField || (chartType !== 'histogram' && !yField)) {
+      console.warn(
+        `[ChartOp] Field validation failed - xField: "${xField}", yField: "${yField}", chartType: "${chartType}"`
+      )
+      return { chart: null }
     }
 
-    // Generate and return plot
-    const chart = Plot.plot({
-      width,
-      height,
-      title,
-      marks,
-      x: { label: xLabel || xField },
-      y: { label: yLabel || yField },
-    })
+    try {
+      // Build marks based on chart type
+      let marks: Plot.Markish[]
+      switch (chartType) {
+        case 'bar':
+          marks = [Plot.barY(data, { x: xField, y: yField, fill: color })]
+          break
+        case 'histogram':
+          marks = [Plot.rectY(data, Plot.binX({ y: 'count' }, { x: xField, fill: color }))]
+          break
+        case 'scatter':
+          marks = [Plot.dot(data, { x: xField, y: yField, fill: color })]
+          break
+      }
 
-    return { chart }
+      // Generate and return plot
+      const chart = Plot.plot({
+        width,
+        height,
+        title,
+        marks,
+        x: { label: xLabel || xField },
+        y: { label: yLabel || yField },
+      })
+
+      return { chart }
+    } catch (error) {
+      console.error('[ChartOp] Plot generation failed:', error)
+      analytics.captureException(error as Error, {
+        source: 'chart_op',
+        chartType,
+        hasData: data?.length > 0,
+        hasXField: !!xField,
+        hasYField: !!yField,
+        dataLength: data?.length,
+      })
+      return { chart: null }
+    }
   }
 }
 
@@ -4124,7 +4191,7 @@ export class DeckRendererOp extends Operator<DeckRendererOp> {
       : {}
     if (basemap) validateViewState(basemapViewState)
 
-    const deckProps: DeckProps & { layers: (LayerProps & { type: string })[] } = {
+    const deckProps: VisualizationDeckProps = {
       layers,
       effects,
       ...(views?.length > 0 ? { views } : {}),
@@ -4235,7 +4302,7 @@ export class MapViewOp extends Operator<MapViewOp> {
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     validateViewState(viewState)
     return {
-      view: new MapView({ id: this.id, ...props, viewState: { ...viewState, maxPitch: 90 } }),
+      view: { type: 'MapView', id: this.id, ...props, viewState: { ...viewState, maxPitch: 90 } },
     }
   }
 }
@@ -4444,7 +4511,7 @@ export class GlobeViewOp extends Operator<GlobeViewOp> {
 
   execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     validateViewState(props.viewState)
-    return { view: new GlobeView({ id: this.id, ...props }) }
+    return { view: { type: 'GlobeView', id: this.id, ...props } }
   }
 }
 
@@ -4816,7 +4883,7 @@ export class FirstPersonViewOp extends Operator<FirstPersonViewOp> {
 
   execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     validateViewState(props.viewState)
-    return { view: new FirstPersonView({ id: this.id, ...props }) }
+    return { view: { type: 'FirstPersonView', id: this.id, ...props } }
   }
 }
 
@@ -4851,7 +4918,7 @@ export class OrbitViewOp extends Operator<OrbitViewOp> {
 
   execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     validateViewState(props.viewState)
-    return { view: new OrbitView({ id: this.id, ...props }) }
+    return { view: { type: 'OrbitView', id: this.id, ...props } }
   }
 }
 
@@ -4879,7 +4946,7 @@ export class OrthographicViewOp extends Operator<OrthographicViewOp> {
 
   execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     validateViewState(props.viewState)
-    return { view: new OrthographicView({ id: this.id, ...props }) }
+    return { view: { type: 'OrthographicView', id: this.id, ...props } }
   }
 }
 

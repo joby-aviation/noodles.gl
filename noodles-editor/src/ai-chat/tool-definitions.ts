@@ -2,7 +2,15 @@
 // registration (src/webmcp/). Single source of truth so the provider input_schema
 // and the navigator.modelContext inputSchema can't drift.
 
+import { safeMode } from '../noodles/globals'
+import type {
+  GrepFilesParams,
+  ListFilesParams,
+  ReadFileParams,
+  WriteFileParams,
+} from './agent-files'
 import type { MCPTools } from './mcp-tools'
+import type { RunCodeParams } from './run-code'
 import type { NoodlesProject, SearchCodeParams, ToolResult } from './types'
 
 // JSON Schema subset accepted by both Anthropic tools and WebMCP registerTool
@@ -28,6 +36,11 @@ export interface ToolDefinition {
   description: string
   annotations: ToolAnnotations
   inputSchema: ToolInputSchema
+  // Omitted means always available. Only run_code sets it: safe mode exists to stop
+  // the app executing arbitrary code, so the tool has to disappear rather than be
+  // offered and then refuse. Read through getToolDefinition and
+  // availableToolDefinitions, never off the raw array.
+  available?: () => boolean
   // getProject supplies the live project for tools that need it injected (analyze_project)
   execute: (
     tools: MCPTools,
@@ -128,6 +141,101 @@ export const toolDefinitions: ToolDefinition[] = [
     },
     // biome-ignore lint/suspicious/noExplicitAny: dynamic modification structure from Claude
     execute: (tools, params) => tools.applyModifications(params as { modifications: any[] }),
+  },
+  {
+    name: 'run_code',
+    annotations: { readOnlyHint: false, destructiveHint: true },
+    // This description is what find_tools scores against, so it names the libraries
+    // by the identifiers they are bound to — that is how a query like "compute a
+    // distance" or "check the shape of the data" reaches it.
+    description:
+      "Run JavaScript against the live graph and get the value back. The same sandbox CodeOp uses: op('/node-id').out.data and .par.field read any operator's output or input, and d3, turf, deck, Plot, Temporal, utils and every operator class are in scope, plus sequenceTime, frame, totalFrames and sequence. Use it to compute a statistic, inspect the shape of a dataset, test a transform before committing it to a CodeOp, or check what an accessor would return. Return a value to see it; console.log is captured too. Large results come back as a sample with a length. Runs on the main thread, so no unbounded loops. Use apply_modifications to add or remove nodes — this tool is for computing and reading.",
+    inputSchema: {
+      type: 'object',
+      properties: {
+        code: {
+          type: 'string',
+          description: 'JavaScript function body. Use return to produce a value; await is allowed.',
+        },
+        timeoutMs: {
+          type: 'number',
+          description: 'How long to wait on an async result (default 10000, max 60000)',
+        },
+      },
+      required: ['code'],
+    },
+    available: () => !safeMode,
+    execute: (tools, params) => tools.runCode(params as unknown as RunCodeParams),
+  },
+  // Project data directory. Reads reach the whole directory; writes only @/.agent/
+  {
+    name: 'list_files',
+    annotations: { readOnlyHint: true },
+    description:
+      "List the data files in the project's data directory — the CSV, JSON and GeoJSON files its FileOp and DuckDbOp nodes load, referenced as @/name.csv. Use it to find out what data a project actually has before assuming a file name. Pass path to list one subdirectory.",
+    inputSchema: {
+      type: 'object',
+      properties: {
+        path: {
+          type: 'string',
+          description: 'Subdirectory to list, relative to the data directory. Omit for all files.',
+        },
+        maxResults: { type: 'number', description: 'Default 200' },
+      },
+    },
+    execute: (tools, params) => tools.listFiles(params as ListFilesParams),
+  },
+  {
+    name: 'read_file',
+    annotations: { readOnlyHint: true },
+    description:
+      'Read a text file from the project data directory: a CSV header and rows, a GeoJSON, a config. Accepts @/name.csv or name.csv. Small files come back whole; a large one comes back as a line count plus head and tail, and startLine/endLine page through it. For computing over a whole large file, use run_code instead of reading it into the conversation.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        path: { type: 'string', description: 'File path, e.g. @/trips.csv or .agent/joined.csv' },
+        startLine: { type: 'number', description: '1-based, inclusive' },
+        endLine: { type: 'number', description: '1-based, inclusive' },
+      },
+      required: ['path'],
+    },
+    execute: (tools, params) => tools.readFile(params as unknown as ReadFileParams),
+  },
+  {
+    name: 'write_file',
+    annotations: { readOnlyHint: false, destructiveHint: false },
+    description:
+      "Write a text file into the project's scratch directory, @/.agent/. Use it to save a derived dataset — a joined or aggregated CSV, a GeoJSON you generated in run_code — then point a FileOp's url at the returned @/.agent/… path to bring it into the graph. Writes are only allowed inside @/.agent/; the project's own input data is read-only, so this can never overwrite a source dataset. Replacing a scratch file keeps the old contents at @/.agent/.previous/.",
+    inputSchema: {
+      type: 'object',
+      properties: {
+        path: {
+          type: 'string',
+          description: 'Path inside the scratch directory, e.g. .agent/joined.csv',
+        },
+        content: { type: 'string', description: 'Full file contents' },
+      },
+      required: ['path', 'content'],
+    },
+    execute: (tools, params) => tools.writeFile(params as unknown as WriteFileParams),
+  },
+  {
+    name: 'grep_files',
+    annotations: { readOnlyHint: true },
+    description:
+      'Search the project data files for a JavaScript regular expression and get back matching lines with file and line number. Use it to find which file holds a column or a value, or to check whether a dataset contains something, without reading whole files into the conversation. Binary and very large files are skipped and reported.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        pattern: { type: 'string', description: 'JavaScript regular expression source' },
+        path: { type: 'string', description: 'Limit to a subdirectory of the data directory' },
+        contextLines: { type: 'number', description: 'Lines of context each side, 0-5' },
+        maxResults: { type: 'number', description: 'Default 20, max 40' },
+        ignoreCase: { type: 'boolean' },
+      },
+      required: ['pattern'],
+    },
+    execute: (tools, params) => tools.grepFiles(params as unknown as GrepFilesParams),
   },
   {
     name: 'get_current_project',
@@ -424,6 +532,18 @@ export const toolDefinitions: ToolDefinition[] = [
 
 const definitionsByName = new Map(toolDefinitions.map(d => [d.name, d]))
 
+// The gate has to sit here rather than only on discovery: the agent loop dispatches
+// by name and runs a tool the model was never offered, on the reasoning that the
+// definition is real and the call is well-formed. Returning undefined turns that
+// into "Unknown tool", and makes isReadOnly fall back to treating it as mutating.
 export function getToolDefinition(name: string): ToolDefinition | undefined {
-  return definitionsByName.get(name)
+  const definition = definitionsByName.get(name)
+  if (!definition || definition.available?.() === false) return undefined
+  return definition
+}
+
+// Every tool currently on offer. Use this for listing and scoring; the raw
+// toolDefinitions array includes tools that are unavailable in this session.
+export function availableToolDefinitions(): ToolDefinition[] {
+  return toolDefinitions.filter(d => d.available?.() !== false)
 }

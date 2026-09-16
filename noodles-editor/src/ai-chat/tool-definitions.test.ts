@@ -11,6 +11,11 @@ const ALL_TOOL_NAMES = [
   'get_render_stats',
   'inspect_layer',
   'apply_modifications',
+  'run_code',
+  'list_files',
+  'read_file',
+  'write_file',
+  'grep_files',
   'get_current_project',
   'list_nodes',
   'get_node_info',
@@ -64,9 +69,18 @@ describe('toolDefinitions', () => {
     expect(writeTools.sort()).toEqual([
       'apply_modifications',
       'delete_keyframe',
+      'run_code',
       'set_keyframe',
       'set_playback_position',
+      'write_file',
     ])
+  })
+
+  it('gates only run_code on availability', () => {
+    // Everything else must be unconditionally available, or WebMCP and the router
+    // would quietly disagree about the surface depending on how they were reached
+    const gated = toolDefinitions.filter(d => d.available).map(d => d.name)
+    expect(gated).toEqual(['run_code'])
   })
 
   it('declares annotations on every definition', () => {

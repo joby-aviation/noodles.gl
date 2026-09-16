@@ -47,17 +47,27 @@ export const EMPTY_PROJECT: NoodlesProjectJSON = {
   editorSettings: {},
 }
 
-// Replace functions and circular references
+// Replace functions and circular references while preserving repeated references.
+// A connected field can share the exact same object value with its source. Once the
+// field is disconnected, that value becomes local state and must serialize in full.
 function getJsonSanitizer() {
-  const seen = new Set()
-  return (_key: string, value: unknown) => {
+  const ancestors: unknown[] = []
+  return function (this: unknown, _key: string, value: unknown) {
+    if (typeof value === 'function') {
+      return undefined
+    }
+
     if (typeof value === 'object' && value !== null) {
-      if (seen.has(value)) {
+      // JSON.stringify calls the replacer with the containing object as `this`.
+      // Objects no longer in that containing object's ancestry are safe to visit
+      // again; only a value already in the current ancestry is truly circular.
+      while (ancestors.length > 0 && ancestors[ancestors.length - 1] !== this) {
+        ancestors.pop()
+      }
+      if (ancestors.includes(value)) {
         return undefined
       }
-      seen.add(value)
-    } else if (typeof value === 'function') {
-      return undefined
+      ancestors.push(value)
     }
     return value
   }

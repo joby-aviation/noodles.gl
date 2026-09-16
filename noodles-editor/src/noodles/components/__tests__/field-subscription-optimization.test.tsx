@@ -73,20 +73,26 @@ describe('field subscription optimization', () => {
       // Add custom field definitions with enable expressions
       op.customInputDefinitions = [
         {
+          id: crypto.randomUUID(),
           name: 'conditionalField',
           type: 'number',
-          default: 0,
+          defaultValue: 0,
+          order: 1,
           enableExpression: "par.mode === 'advanced'",
         },
         {
+          id: crypto.randomUUID(),
           name: 'mode',
           type: 'string',
-          default: 'simple',
+          order: 2,
+          defaultValue: 'simple',
         },
         {
+          id: crypto.randomUUID(),
           name: 'unused',
           type: 'number',
-          default: 0,
+          order: 3,
+          defaultValue: 0,
         },
       ]
 
@@ -135,37 +141,49 @@ describe('field subscription optimization', () => {
 
       op.customInputDefinitions = [
         {
+          id: crypto.randomUUID(),
           name: 'field1',
           type: 'number',
-          default: 0,
+          defaultValue: 0,
+          order: 1,
           enableExpression: 'par.enabled',
         },
         {
+          id: crypto.randomUUID(),
           name: 'field2',
           type: 'number',
-          default: 0,
+          defaultValue: 0,
+          order: 2,
           enableExpression: 'par.mode === "advanced"',
         },
         {
+          id: crypto.randomUUID(),
           name: 'field3',
           type: 'number',
-          default: 0,
+          defaultValue: 0,
+          order: 3,
           enableExpression: 'par.enabled && par.value > 10',
         },
         {
+          id: crypto.randomUUID(),
           name: 'enabled',
           type: 'boolean',
-          default: false,
+          order: 4,
+          defaultValue: false,
         },
         {
+          id: crypto.randomUUID(),
           name: 'mode',
           type: 'string',
-          default: 'simple',
+          order: 5,
+          defaultValue: 'simple',
         },
         {
+          id: crypto.randomUUID(),
           name: 'value',
           type: 'number',
-          default: 0,
+          order: 6,
+          defaultValue: 0,
         },
       ]
 
@@ -208,26 +226,32 @@ describe('field subscription optimization', () => {
       // Add fields with enable expressions (only 2)
       for (let i = 0; i < expressionFieldCount; i++) {
         op.customInputDefinitions.push({
+          id: crypto.randomUUID(),
           name: `conditionalField${i}`,
           type: 'number',
-          default: 0,
+          defaultValue: 0,
+          order: i,
           enableExpression: 'par.masterEnabled',
         })
       }
 
       // Add control field
       op.customInputDefinitions.push({
+        id: crypto.randomUUID(),
         name: 'masterEnabled',
         type: 'boolean',
-        default: false,
+        order: expressionFieldCount,
+        defaultValue: false,
       })
 
       // Add many fields without enable expressions
       for (let i = expressionFieldCount; i < fieldCount; i++) {
         op.customInputDefinitions.push({
+          id: crypto.randomUUID(),
           name: `field${i}`,
           type: 'number',
-          default: 0,
+          order: i,
+          defaultValue: 0,
         })
       }
 

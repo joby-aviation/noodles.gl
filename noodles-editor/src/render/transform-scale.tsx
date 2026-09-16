@@ -40,11 +40,15 @@ export function getTransformScaleFactor(target: Element): { x: number; y: number
 export function TransformScale({
   scale,
   scaleMode = 'manual',
+  width,
+  height,
   children,
 }: {
   scale: number
   scaleMode?: 'fit' | 'manual'
-  children: ReactNode
+  width?: number
+  height?: number
+  children?: ReactNode
 }) {
   const stageRef = useRef<HTMLDivElement>(null)
   const surfaceRef = useRef<HTMLDivElement>(null)
@@ -95,8 +99,11 @@ export function TransformScale({
         className="transform-scale"
         style={{
           flex: '0 0 auto',
-          width: 'max-content',
-          height: 'max-content',
+          // DeckGL's root is absolutely positioned, so it does not contribute to
+          // max-content sizing. Use the fixed render size when available so the
+          // surface can be measured and centered around the entire canvas.
+          width: width ?? 'max-content',
+          height: height ?? 'max-content',
           transform: `scale(${isFit ? fitScale : scale})`,
           transformOrigin: isFit ? 'center center' : 'top left',
         }}

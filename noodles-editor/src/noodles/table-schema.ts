@@ -375,6 +375,17 @@ export function validateTableData(data: unknown[], schema: TableSchema): unknown
         continue
       }
 
+      // A chained TableEditor receives the upstream editor's output representation.
+      // Convert Temporal values back to the editable storage representation before
+      // validating so a valid date-time is not replaced with the column default.
+      if (col.type === 'dateTime' && value instanceof Temporal.ZonedDateTime) {
+        validatedRow[col.name] = {
+          datetime: temporalToString(value),
+          timezone: value.timeZoneId,
+        } satisfies DateTimeValue
+        continue
+      }
+
       // Validate value
       if (!validateValue(value, col)) {
         console.warn(
