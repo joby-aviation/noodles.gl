@@ -53,12 +53,12 @@ export interface TableSchemaTransitionResult {
   renamedColumns: Array<{ from: string; to: string }>
 }
 
-export function getLegacyColumnId(name: string): string {
-  return `legacy:${name}`
+export function getInitialColumnId(name: string): string {
+  return name
 }
 
 function getColumnId(column: ColumnSchema): string {
-  return column.id ?? getLegacyColumnId(column.name)
+  return column.id ?? getInitialColumnId(column.name)
 }
 
 /**

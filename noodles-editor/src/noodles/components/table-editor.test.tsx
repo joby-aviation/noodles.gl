@@ -280,7 +280,7 @@ describe('TableEditor', () => {
       {
         columns: [
           {
-            id: 'legacy:name',
+            id: 'name',
             name: 'display_name',
             type: 'string',
             defaultValue: '',
@@ -318,7 +318,7 @@ describe('TableEditor', () => {
       {
         columns: [
           {
-            id: 'legacy:name',
+            id: 'name',
             name: 'display_name',
             type: 'string',
             defaultValue: '',
@@ -338,7 +338,7 @@ describe('TableEditor', () => {
     const renamedSchema: TableSchema = {
       columns: [
         {
-          id: 'legacy:name',
+          id: 'name',
           name: 'display_name',
           type: 'string',
           defaultValue: '',
