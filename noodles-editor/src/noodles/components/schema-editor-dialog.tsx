@@ -7,7 +7,7 @@ import { InputText } from 'primereact/inputtext'
 import { useEffect, useState } from 'react'
 import { analytics } from '../../utils/analytics'
 import type { ColumnSchema, ColumnType, DateTimeValue, TableSchema } from '../table-schema'
-import { getDefaultValue, getLegacyColumnId, validateValue } from '../table-schema'
+import { getDefaultValue, getInitialColumnId, validateValue } from '../table-schema'
 import { getTimezoneOptions } from '../utils/timezone-utils'
 import { ColorSwatch } from './color-swatch'
 import s from './schema-editor-dialog.module.css'
@@ -470,7 +470,7 @@ export function SchemaEditorDialog({ schema, onChange, onClose }: SchemaEditorDi
     const id =
       updates.id ??
       (updates.name !== currentDraft.column.name
-        ? getLegacyColumnId(currentDraft.sourceName ?? currentDraft.column.name)
+        ? getInitialColumnId(currentDraft.sourceName ?? currentDraft.column.name)
         : undefined)
     newDrafts[index] = {
       ...currentDraft,
