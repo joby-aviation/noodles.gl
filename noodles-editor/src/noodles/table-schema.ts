@@ -88,7 +88,7 @@ export function transitionTableData(
       (column, index) => !usedPreviousColumns.has(index) && getColumnId(column) === nextId
     )
 
-    if (previousIndex === -1) {
+    if (previousIndex === -1 && nextColumn.id === undefined) {
       previousIndex = previousSchema.columns.findIndex(
         (column, index) => !usedPreviousColumns.has(index) && column.name === nextColumn.name
       )
