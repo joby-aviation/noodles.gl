@@ -61,7 +61,10 @@ export function normalizeMultiInputEdges<E extends ReactFlowEdge>(
       // Omit the keys entirely (not `type: undefined`) so the shape matches a freshly
       // created edge for both `edge.type` and `'type' in edge` style guards
       const { type: _type, data: oldData, ...rest } = edge
-      const { orderIndex: _o, groupSize: _g, ...data } = (oldData ?? {}) as Record<string, unknown>
+      const { orderIndex: _o, groupSize: _g, ...data } = (oldData ?? {}) as Record<
+        string,
+        unknown
+      >
       return (Object.keys(data).length > 0 ? { ...rest, data } : rest) as unknown as E
     }
 
@@ -93,7 +96,9 @@ export function orderedEdgeIdsForHandle(
   target: string,
   targetHandle: string | null | undefined
 ): string[] {
-  return edges.filter(e => e.target === target && e.targetHandle === targetHandle).map(e => e.id)
+  return edges
+    .filter(e => e.target === target && e.targetHandle === targetHandle)
+    .map(e => e.id)
 }
 
 // Insert `edge` so it becomes the index-th member of its (target, targetHandle) group.

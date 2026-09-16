@@ -1,13 +1,13 @@
 import type { Edge as ReactFlowEdge } from '@xyflow/react'
 import { describe, expect, it } from 'vitest'
 import {
+  MULTI_INPUT_EDGE_TYPE,
+  SLOT_SPACING,
   insertEdgeAtGroupIndex,
   insertionIndexFromPointerY,
-  MULTI_INPUT_EDGE_TYPE,
   moveEdgeWithinGroup,
   normalizeMultiInputEdges,
   orderedEdgeIdsForHandle,
-  SLOT_SPACING,
   slotOffsetY,
 } from './multi-input-utils'
 
