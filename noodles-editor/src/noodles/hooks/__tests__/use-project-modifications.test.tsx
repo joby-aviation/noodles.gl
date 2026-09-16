@@ -4,7 +4,7 @@
 import { act, renderHook } from '@testing-library/react'
 import type { Edge as ReactFlowEdge, Node as ReactFlowNode } from '@xyflow/react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { ConcatOp, ContainerOp, DeckRendererOp, NumberOp } from '../../operators'
+import { ConcatOp, ContainerOp, DeckRendererOp, NumberOp, TableEditorOp } from '../../operators'
 import { clearOps, getOp, hasOp, setOp, setPendingInsertionIndex } from '../../store'
 import { MULTI_INPUT_EDGE_TYPE } from '../../utils/multi-input-utils'
 import { type ProjectModification, useProjectModifications } from '../use-project-modifications'
@@ -458,6 +458,56 @@ describe('useProjectModifications', () => {
       })
 
       expect(edges).toHaveLength(0)
+    })
+  })
+
+  describe('onConnect TableEditor schema overlays', () => {
+    it('keeps the accepted effective schema and persistent warning in UI state', () => {
+      const sourceSchema = {
+        columns: [
+          { id: 'value', name: 'value', type: 'number' as const, defaultValue: 0 },
+          { id: 'added', name: 'added', type: 'boolean' as const, defaultValue: true },
+        ],
+      }
+      const targetSchema = {
+        columns: [
+          { id: 'value', name: 'value', type: 'string' as const, defaultValue: '' },
+          { id: 'local', name: 'local', type: 'string' as const, defaultValue: '' },
+        ],
+      }
+      const source = new TableEditorOp('/source', { schema: sourceSchema })
+      const target = new TableEditorOp('/target', {
+        schema: targetSchema,
+        data: [{ value: 'keep', local: 'child' }],
+      })
+      source.outputs.schema.setValue(sourceSchema)
+      setOp('/source', source)
+      setOp('/target', target)
+      nodes = [
+        { id: '/source', type: 'TableEditorOp', position: { x: 0, y: 0 }, data: {} },
+        { id: '/target', type: 'TableEditorOp', position: { x: 100, y: 0 }, data: {} },
+      ]
+      const { result } = renderHook(() =>
+        useProjectModifications({ getNodes, getEdges, setNodes, setEdges })
+      )
+
+      act(() => {
+        result.current.onConnect({
+          source: '/source',
+          target: '/target',
+          sourceHandle: 'out.schema',
+          targetHandle: 'par.schema',
+        })
+      })
+
+      const effectiveSchema = {
+        columns: [...targetSchema.columns, sourceSchema.columns[1]],
+      }
+      expect(target.inputs.schema.value).toEqual(effectiveSchema)
+      expect((nodes[1].data.inputs as Record<string, unknown>).schema).toEqual(effectiveSchema)
+      expect(target.connectionErrors.value.values().next().value).toContain(
+        'invalidate 1 existing value'
+      )
     })
   })
 

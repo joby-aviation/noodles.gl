@@ -161,7 +161,7 @@ export function serializeNodes(
       const hasNonDefaultValue =
         serialized !== undefined &&
         (field.expression !== null || !deepEqual(field.value, normalizedDefault))
-      if (hasNonDefaultValue && !incomers.has(name)) {
+      if (hasNonDefaultValue && (!incomers.has(name) || field.serializeWhenConnected)) {
         inputs[name] = serialized
       }
     }
