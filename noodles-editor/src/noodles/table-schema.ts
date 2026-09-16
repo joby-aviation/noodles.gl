@@ -22,6 +22,8 @@ export interface DateTimeValue {
 }
 
 export interface ColumnSchema {
+  /** Stable identity used to distinguish a rename from a new column. */
+  id?: string
   name: string
   type: ColumnType
   options?: {
@@ -44,6 +46,87 @@ export interface ColumnSchema {
 
 export interface TableSchema {
   columns: ColumnSchema[]
+}
+
+export interface TableSchemaTransitionResult {
+  data: unknown[]
+  renamedColumns: Array<{ from: string; to: string }>
+}
+
+export function getLegacyColumnId(name: string): string {
+  return `legacy:${name}`
+}
+
+function getColumnId(column: ColumnSchema): string {
+  return column.id ?? getLegacyColumnId(column.name)
+}
+
+/**
+ * Applies an authoritative schema change while retaining values for columns whose stable
+ * identity survived the transition. Name matching keeps schemas written before column IDs
+ * were introduced backwards compatible.
+ */
+export function transitionTableData(
+  data: unknown[],
+  previousSchema: TableSchema,
+  nextSchema: TableSchema,
+  options?: {
+    sourceColumnNames?: Array<string | undefined>
+    preferNextColumnNames?: boolean
+  }
+): TableSchemaTransitionResult {
+  const usedPreviousColumns = new Set<number>()
+  const sourceColumns = nextSchema.columns.map((nextColumn, nextIndex) => {
+    if (options?.sourceColumnNames !== undefined) {
+      const explicitSourceName = options.sourceColumnNames[nextIndex]
+      if (explicitSourceName === undefined) return undefined
+      return previousSchema.columns.find(column => column.name === explicitSourceName)
+    }
+
+    const nextId = getColumnId(nextColumn)
+    let previousIndex = previousSchema.columns.findIndex(
+      (column, index) => !usedPreviousColumns.has(index) && getColumnId(column) === nextId
+    )
+
+    if (previousIndex === -1) {
+      previousIndex = previousSchema.columns.findIndex(
+        (column, index) => !usedPreviousColumns.has(index) && column.name === nextColumn.name
+      )
+    }
+
+    if (previousIndex === -1) return undefined
+    usedPreviousColumns.add(previousIndex)
+    return previousSchema.columns[previousIndex]
+  })
+
+  const renamedColumns = nextSchema.columns.flatMap((nextColumn, index) => {
+    const previousColumn = sourceColumns[index]
+    return previousColumn && previousColumn.name !== nextColumn.name
+      ? [{ from: previousColumn.name, to: nextColumn.name }]
+      : []
+  })
+
+  const remappedData = data.map(row => {
+    if (typeof row !== 'object' || row === null || Array.isArray(row)) return row
+    const record = row as Record<string, unknown>
+
+    return Object.fromEntries(
+      nextSchema.columns.flatMap((nextColumn, index) => {
+        const previousColumn = sourceColumns[index]
+        if (!previousColumn) return []
+
+        const shouldUseNextName =
+          options?.preferNextColumnNames && Object.hasOwn(record, nextColumn.name)
+        const sourceName = shouldUseNextName ? nextColumn.name : previousColumn.name
+        return Object.hasOwn(record, sourceName) ? [[nextColumn.name, record[sourceName]]] : []
+      })
+    )
+  })
+
+  return {
+    data: validateTableData(remappedData, nextSchema),
+    renamedColumns,
+  }
 }
 
 // Infer column type from a sample value

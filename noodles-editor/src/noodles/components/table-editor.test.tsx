@@ -240,7 +240,12 @@ describe('TableEditor', () => {
       {
         columns: [
           { name: 'name', type: 'string', defaultValue: '' },
-          { name: 'display_name', type: 'string', defaultValue: '' },
+          {
+            id: expect.any(String),
+            name: 'display_name',
+            type: 'string',
+            defaultValue: '',
+          },
           { name: 'count', type: 'number', defaultValue: 0 },
         ],
       },
@@ -274,15 +279,100 @@ describe('TableEditor', () => {
     expect(onSchemaChange).toHaveBeenCalledWith(
       {
         columns: [
-          { name: 'display_name', type: 'string', defaultValue: '' },
+          {
+            id: 'legacy:name',
+            name: 'display_name',
+            type: 'string',
+            defaultValue: '',
+          },
           { name: 'count', type: 'number', defaultValue: 0 },
-          { name: 'name', type: 'string', defaultValue: '' },
+          { id: expect.any(String), name: 'name', type: 'string', defaultValue: '' },
         ],
       },
       [
         { display_name: 'Alice', count: 10, name: '' },
         { display_name: 'Bob', count: 20, name: '' },
       ]
+    )
+  })
+
+  it('preserves values when an existing column is renamed', () => {
+    const onSchemaChange = vi.fn()
+    const { container, getAllByPlaceholderText, getByText } = render(
+      <TableEditor
+        op={mockOp}
+        data={simpleData}
+        schema={simpleSchema}
+        onDataChange={vi.fn()}
+        onSchemaChange={onSchemaChange}
+      />
+    )
+
+    fireEvent.click(container.querySelector('.pi-cog') as Element)
+    fireEvent.change(getAllByPlaceholderText('Column name')[0], {
+      target: { value: 'display_name' },
+    })
+    fireEvent.click(getByText('Save'))
+
+    expect(onSchemaChange).toHaveBeenCalledWith(
+      {
+        columns: [
+          {
+            id: 'legacy:name',
+            name: 'display_name',
+            type: 'string',
+            defaultValue: '',
+          },
+          { name: 'count', type: 'number', defaultValue: 0 },
+        ],
+      },
+      [
+        { display_name: 'Alice', count: 10 },
+        { display_name: 'Bob', count: 20 },
+      ]
+    )
+  })
+
+  it('persists values when a connected schema renames a column', () => {
+    const onDataChange = vi.fn()
+    const renamedSchema: TableSchema = {
+      columns: [
+        {
+          id: 'legacy:name',
+          name: 'display_name',
+          type: 'string',
+          defaultValue: '',
+        },
+        { name: 'count', type: 'number', defaultValue: 0 },
+      ],
+    }
+    const { rerender, getByText } = render(
+      <TableEditor
+        op={mockOp}
+        data={simpleData}
+        schema={simpleSchema}
+        onDataChange={onDataChange}
+        onSchemaChange={vi.fn()}
+      />
+    )
+
+    rerender(
+      <TableEditor
+        op={mockOp}
+        data={simpleData}
+        schema={renamedSchema}
+        onDataChange={onDataChange}
+        onSchemaChange={vi.fn()}
+      />
+    )
+
+    expect(getByText('Alice')).toBeDefined()
+    expect(onDataChange).toHaveBeenCalledWith(
+      [
+        { display_name: 'Alice', count: 10 },
+        { display_name: 'Bob', count: 20 },
+      ],
+      'Apply connected table schema rename'
     )
   })
 

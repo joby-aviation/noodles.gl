@@ -375,6 +375,28 @@ describe('serializeNodes', () => {
     expect(project.nodes[1].data.inputs.schema).toEqual(schema)
   })
 
+  it('serializes stable TableEditor column IDs', () => {
+    const schema = {
+      columns: [
+        {
+          id: 'legacy:Location',
+          name: 'Display Location',
+          type: 'string' as const,
+          defaultValue: '',
+        },
+      ],
+    }
+    setOp('/table', new TableEditorOp('/table', { schema }, false))
+
+    const [serialized] = serializeNodes(
+      getOpStore(),
+      [{ id: '/table', type: 'TableEditorOp', data: {}, position: { x: 0, y: 0 } }],
+      []
+    )
+
+    expect(serialized.data.inputs.schema).toEqual(schema)
+  })
+
   it('excludes ReferenceEdge connections when determining connected inputs', () => {
     setOp('node1', makeOp({ x: 123 }, false))
     setOp('node0', makeOp({ foo: 42 }, false))

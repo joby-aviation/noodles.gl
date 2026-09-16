@@ -13,7 +13,7 @@ import { InputText } from 'primereact/inputtext'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { TableEditorOp } from '../operators'
 import type { ColumnSchema, ColumnType, DateTimeValue, TableSchema } from '../table-schema'
-import { getDefaultValue, validateTableData } from '../table-schema'
+import { getDefaultValue, transitionTableData, validateTableData } from '../table-schema'
 import { getTimezoneOptions } from '../utils/timezone-utils'
 import { ColorSwatch } from './color-swatch'
 import { GeocodingDialog } from './geocoding-dialog'
@@ -891,9 +891,18 @@ export function TableEditor({ data, schema, onDataChange, onSchemaChange }: Tabl
     // rows so compatible edits survive the schema transition.
     activeEdit.flush()
     const sourceData = schemaChanged && !dataChanged ? tableDataRef.current : data
-    const newTableData = validateTableData(sourceData, schema)
+    const transition = schemaChanged
+      ? transitionTableData(sourceData, previousSchemaRef.current, schema, {
+          preferNextColumnNames: dataChanged,
+        })
+      : { data: validateTableData(sourceData, schema), renamedColumns: [] }
+    const newTableData = transition.data
     tableDataRef.current = newTableData
     setTableData(newTableData)
+
+    if (schemaChanged && !dataChanged && transition.renamedColumns.length > 0) {
+      onDataChange(newTableData, 'Apply connected table schema rename')
+    }
     previousDataRef.current = data
     previousSchemaRef.current = schema
   }, [activeEdit, data, schema])
@@ -909,21 +918,9 @@ export function TableEditor({ data, schema, onDataChange, onSchemaChange }: Tabl
 
   const handleSchemaChange = (newSchema: TableSchema, metadata?: SchemaChangeMetadata) => {
     activeEdit.flush()
-    const sourceData = metadata
-      ? tableDataRef.current.map(row =>
-          Object.fromEntries(
-            newSchema.columns.flatMap((column, columnIndex) => {
-              const sourceColumnName = metadata.sourceColumnNames[columnIndex]
-              return sourceColumnName === undefined ? [] : [[column.name, row[sourceColumnName]]]
-            })
-          )
-        )
-      : tableDataRef.current
-
-    // Preserve valid cells and materialize the new schema's declared defaults for
-    // missing or invalid cells. Metadata remaps renamed and duplicated columns
-    // before validation while leaving new columns absent so their defaults apply.
-    const newData = validateTableData(sourceData, newSchema)
+    const newData = transitionTableData(tableDataRef.current, schema, newSchema, {
+      sourceColumnNames: metadata?.sourceColumnNames,
+    }).data
 
     onSchemaChange(newSchema, newData)
     tableDataRef.current = newData
