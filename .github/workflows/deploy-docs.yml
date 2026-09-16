@@ -39,10 +39,6 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Generate AI context bundles
-        run: npm run generate:context
-        working-directory: ./noodles-editor
-
       - name: Build all for GitHub Pages
         run: npm run build:all
         env:
