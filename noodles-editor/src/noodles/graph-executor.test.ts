@@ -1,5 +1,6 @@
 // Test file for GraphExecutor implementation
 import { describe, expect, it, vi } from 'vitest'
+import { debugDirtyTrace } from '../utils/debug'
 import { NumberField } from './fields'
 import { GraphExecutor, GraphScope, topologicalSort } from './graph-executor'
 import type { IOperator } from './operators'
@@ -840,6 +841,35 @@ describe('Operator dirty flag', () => {
     // Now markDirty should set dirty to true
     op.markDirty()
     expect(op.dirty).toBe(true)
+  })
+
+  it('traces the originating field only when causal tracing is enabled', async () => {
+    const op = new NumberOp('/number-1')
+    await op.pull()
+
+    const log = vi.fn()
+    const originalLog = debugDirtyTrace.log
+    const originalEnabled = debugDirtyTrace.enabled
+
+    try {
+      debugDirtyTrace.log = log
+      debugDirtyTrace.enabled = false
+      op.inputs.val.setValue(1)
+      expect(log).not.toHaveBeenCalled()
+
+      await op.pull()
+      debugDirtyTrace.enabled = true
+      op.inputs.val.setValue(2)
+
+      expect(log).toHaveBeenCalledTimes(1)
+      const trace = log.mock.calls[0].map(String).join(' ')
+      expect(trace).toContain('/number-1')
+      expect(trace).toContain(PullExecutionStatus.CLEAN)
+      expect(trace).toContain('/number-1.par.val')
+    } finally {
+      debugDirtyTrace.log = originalLog
+      debugDirtyTrace.enabled = originalEnabled
+    }
   })
 })
 
