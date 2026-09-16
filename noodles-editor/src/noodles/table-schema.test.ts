@@ -57,6 +57,21 @@ describe('transitionTableData', () => {
       transitionTableData([{ value: 'not a number', removed: 42 }], previous, next).data
     ).toEqual([{ value: 5, new: 'new' }])
   })
+
+  it('does not reuse values when a new ID reuses a deleted column name', () => {
+    const previous = {
+      columns: [{ id: 'name', name: 'name', type: 'string' as const, defaultValue: '' }],
+    }
+    const next = {
+      columns: [
+        { id: 'new-column-id', name: 'name', type: 'string' as const, defaultValue: 'new' },
+      ],
+    }
+
+    expect(transitionTableData([{ name: 'Old value' }], previous, next).data).toEqual([
+      { name: 'new' },
+    ])
+  })
 })
 
 describe('inferSchema', () => {
