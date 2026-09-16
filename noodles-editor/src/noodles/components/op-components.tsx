@@ -82,6 +82,7 @@ import {
 } from '../utils/property-history'
 import { categories as baseCategories, nodeTypeToDisplayName } from './categories'
 import { FieldComponent, type inputComponents } from './field-components'
+import { BrushableHistogramOpComponent } from './brushable-histogram-op'
 import { GeoEditorOpComponent } from './geo-editor-op'
 import previewStyles from './handle-preview.module.css'
 import { MapStyleConfiguratorOpComponent } from './map-style-configurator-op'
@@ -207,6 +208,7 @@ for (const key of Object.keys(opTypes)) {
 
 export const nodeComponents = {
   ...defaultNodeComponents,
+  BrushableHistogramOp: memo(BrushableHistogramOpComponent, nodePropsAreEqual),
   GeocoderOp: memo(GeocoderOpComponent, nodePropsAreEqual),
   GeoEditorOp: memo(GeoEditorOpComponent, nodePropsAreEqual),
   MapStyleConfiguratorOp: memo(MapStyleConfiguratorOpComponent, nodePropsAreEqual),
