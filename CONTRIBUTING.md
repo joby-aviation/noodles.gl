@@ -55,6 +55,10 @@ For detailed information about the codebase structure and architecture, see:
 npm ci              # Install exact versions from lockfile
 ```
 
+#### Lockfile Format
+
+This project uses **npm 7+**, which formats `package-lock.json` with **tabs instead of spaces**. If you see formatting changes in the lockfile after running npm commands, this is expected behavior. The tab-based format is the standard for npm 7+ and helps reduce merge conflicts.
+
 ### Available Commands
 
 For complete development commands and code style guidelines, see [Development Guide](https://github.com/joby-aviation/noodles.gl/blob/main/dev-docs/developing.md).
