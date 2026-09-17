@@ -1,6 +1,6 @@
 import type z from 'zod/v4'
-import { type Field, ListField, UnknownField } from '../fields'
 import { debugConnect } from '../../utils/debug'
+import { type Field, ListField, UnknownField } from '../fields'
 
 export type ConnectionValidationResult = {
   valid: boolean
@@ -355,8 +355,16 @@ export function validateConnection(from: Field, to: Field): ConnectionValidation
   const fromFieldType = (from.constructor as typeof Field).type
   const toFieldType = (to.constructor as typeof Field).type
 
+  if (!from.connectable || !to.connectable) {
+    return {
+      valid: false,
+      severity: 'error',
+      error: 'Internal fields cannot be connected',
+    }
+  }
+
   if (debugConnect.enabled) {
-    debugConnect(`\n=== validateConnection ===`)
+    debugConnect('\n=== validateConnection ===')
     debugConnect(`From: ${from.constructor.name} (type=${fromFieldType})`)
     debugConnect(`To: ${to.constructor.name} (type=${toFieldType})`)
   }
@@ -373,13 +381,13 @@ export function validateConnection(from: Field, to: Field): ConnectionValidation
   const toSchema = to instanceof ListField ? to.schema.unwrap() : to.schema
 
   if (debugConnect.enabled) {
-    debugConnect(`Schema comparison starting...`)
+    debugConnect('Schema comparison starting...')
   }
 
   // Structural type check
   if (!schemasAreCompatible(fromSchema, toSchema)) {
     if (debugConnect.enabled) {
-      debugConnect(`✗ Schema compatibility failed`)
+      debugConnect('✗ Schema compatibility failed')
     }
     return {
       valid: false,
@@ -388,7 +396,7 @@ export function validateConnection(from: Field, to: Field): ConnectionValidation
     }
   }
   if (debugConnect.enabled) {
-    debugConnect(`✓ Schema compatible`)
+    debugConnect('✓ Schema compatible')
   }
 
   // Get fromType for constraint validation check
@@ -447,6 +455,7 @@ export function canConnect(from: Field, to: Field): boolean {
 const canConnectCache = new Map<string, boolean>()
 
 export function canConnectCached(from: Field, to: Field): boolean {
+  if (!from.connectable || !to.connectable) return false
   const key = `${from.constructor.name}:${to.constructor.name}`
   const cached = canConnectCache.get(key)
   if (cached !== undefined) return cached
