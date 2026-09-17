@@ -5,19 +5,41 @@ import {
   getCoreRowModel,
   useReactTable,
 } from '@tanstack/react-table'
+import * as ContextMenu from '@radix-ui/react-context-menu'
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import cx from 'classnames'
 import { AutoComplete } from 'primereact/autocomplete'
 import { Button } from 'primereact/button'
 import { InputSwitch } from 'primereact/inputswitch'
 import { InputText } from 'primereact/inputtext'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { analytics } from '../../utils/analytics'
 import type { TableEditorOp } from '../operators'
 import type { ColumnSchema, ColumnType, DateTimeValue, TableSchema } from '../table-schema'
-import { getDefaultValue, transitionTableData, validateTableData } from '../table-schema'
+import {
+  getDefaultValue,
+  isTableSchema,
+  transitionTableData,
+  validateTableData,
+} from '../table-schema'
+import {
+  applySchemaOverlayPreview,
+  createSchemaOverlayPreview,
+  type ParsedSchemaClipboard,
+  parseSchemaClipboard,
+  serializeColumnClipboard,
+  serializeSchemaClipboard,
+  type SchemaOverlayPreview,
+} from '../table-schema-clipboard'
 import { getTimezoneOptions } from '../utils/timezone-utils'
 import { ColorSwatch } from './color-swatch'
 import { DraggableNumberInput } from './draggable-number-input'
 import { GeocodingDialog } from './geocoding-dialog'
+import {
+  ClipboardPasteDialog,
+  SchemaOverlayDialog,
+  type SchemaOverlayDecisions,
+} from './schema-overlay-dialog'
 import { SchemaEditorDialog, type SchemaChangeMetadata } from './schema-editor-dialog'
 import s from './table-editor.module.css'
 
@@ -827,6 +849,132 @@ function EditableCell({ getValue, row, column, table }: EditableCellProps) {
   )
 }
 
+interface SchemaAction {
+  label: string
+  icon: string
+  onSelect: () => void
+  danger?: boolean
+}
+
+function SchemaDropdownMenu({
+  label,
+  actions,
+  compact = false,
+}: {
+  label: string
+  actions: SchemaAction[]
+  compact?: boolean
+}) {
+  const [open, setOpen] = useState(false)
+
+  return (
+    <DropdownMenu.Root open={open} onOpenChange={setOpen} modal={false}>
+      <DropdownMenu.Trigger asChild>
+        <button
+          type="button"
+          className={cx(s.menuTrigger, compact && s.compactMenuTrigger)}
+          aria-label={label}
+          title={label}
+        >
+          <i className="pi pi-ellipsis-v" aria-hidden="true" />
+        </button>
+      </DropdownMenu.Trigger>
+      <DropdownMenu.Portal>
+        <DropdownMenu.Content className={s.actionMenu} sideOffset={4} align="end">
+          {actions.map(action => (
+            <DropdownMenu.Item
+              key={action.label}
+              className={cx(s.actionMenuItem, action.danger && s.dangerAction)}
+              onSelect={event => {
+                event.preventDefault()
+                setOpen(false)
+                action.onSelect()
+              }}
+            >
+              <i className={`pi ${action.icon}`} aria-hidden="true" />
+              {action.label}
+            </DropdownMenu.Item>
+          ))}
+        </DropdownMenu.Content>
+      </DropdownMenu.Portal>
+    </DropdownMenu.Root>
+  )
+}
+
+function SchemaContextMenu({
+  children,
+  actions,
+}: {
+  children: React.ReactNode
+  actions: SchemaAction[]
+}) {
+  return (
+    <ContextMenu.Root>
+      <ContextMenu.Trigger asChild>{children}</ContextMenu.Trigger>
+      <ContextMenu.Portal>
+        <ContextMenu.Content className={s.actionMenu}>
+          {actions.map(action => (
+            <ContextMenu.Item
+              key={action.label}
+              className={cx(s.actionMenuItem, action.danger && s.dangerAction)}
+              onSelect={action.onSelect}
+            >
+              <i className={`pi ${action.icon}`} aria-hidden="true" />
+              {action.label}
+            </ContextMenu.Item>
+          ))}
+        </ContextMenu.Content>
+      </ContextMenu.Portal>
+    </ContextMenu.Root>
+  )
+}
+
+function ColumnHeader({ name, actions }: { name: string; actions: SchemaAction[] }) {
+  return (
+    <SchemaContextMenu actions={actions}>
+      <div className={s.columnHeader}>
+        <span>{name}</span>
+        <SchemaDropdownMenu label={`Column actions for ${name}`} actions={actions} compact />
+      </div>
+    </SchemaContextMenu>
+  )
+}
+
+interface ClipboardTextApi {
+  readText: () => Promise<string>
+  writeText: (text: string) => Promise<void>
+}
+
+type SchemaActionSource = 'table_menu' | 'column_menu' | 'schema_editor'
+
+async function writeClipboardText(
+  text: string,
+  clipboard: Pick<ClipboardTextApi, 'writeText'> | undefined
+): Promise<void> {
+  if (clipboard?.writeText) {
+    await clipboard.writeText(text)
+    return
+  }
+
+  const textArea = document.createElement('textarea')
+  textArea.value = text
+  textArea.style.position = 'fixed'
+  textArea.style.opacity = '0'
+  document.body.appendChild(textArea)
+  textArea.select()
+  const copied = document.execCommand?.('copy')
+  textArea.remove()
+  if (!copied) throw new Error('Clipboard access is unavailable')
+}
+
+function getDuplicateColumnName(name: string, columns: ColumnSchema[]): string {
+  const existingNames = new Set(columns.map(column => column.name))
+  const baseName = (name || 'column').replace(/-\d+$/, '')
+  let suffix = 1
+  while (existingNames.has(`${baseName}-${suffix}`)) suffix += 1
+  return `${baseName}-${suffix}`
+}
+
 // Main table component
 
 interface TableEditorProps {
@@ -835,10 +983,26 @@ interface TableEditorProps {
   schema: TableSchema
   onDataChange: (data: unknown[], description?: string) => void
   onSchemaChange: (schema: TableSchema, data?: unknown[]) => void
+  /** Injectable for deterministic tests and non-browser hosts. */
+  clipboard?: ClipboardTextApi
 }
 
-export function TableEditor({ data, schema, onDataChange, onSchemaChange }: TableEditorProps) {
+export function TableEditor({
+  data,
+  schema,
+  onDataChange,
+  onSchemaChange,
+  clipboard: clipboardOverride,
+}: TableEditorProps) {
   const [tableData, setTableData] = useState(() => validateTableData(data, schema))
+  const [schemaEditorOpen, setSchemaEditorOpen] = useState(false)
+  const [overlayOpen, setOverlayOpen] = useState(false)
+  const [overlayPayload, setOverlayPayload] = useState<ParsedSchemaClipboard>()
+  const [overlayPreview, setOverlayPreview] = useState<SchemaOverlayPreview>()
+  const [overlayError, setOverlayError] = useState<string>()
+  const [pasteCatcherOpen, setPasteCatcherOpen] = useState(false)
+  const [clipboardMessage, setClipboardMessage] = useState('')
+  const overlaySourceRef = useRef<SchemaActionSource>('table_menu')
   const activeEdit = useActiveEdit()
   const previousDataRef = useRef(data)
   const previousSchemaRef = useRef(schema)
@@ -863,11 +1027,17 @@ export function TableEditor({ data, schema, onDataChange, onSchemaChange }: Tabl
     // rows so compatible edits survive the schema transition.
     activeEdit.flush()
     const sourceData = schemaChanged && !dataChanged ? tableDataRef.current : data
-    const transition = schemaChanged
-      ? transitionTableData(sourceData, previousSchemaRef.current, schema, {
-          preferNextColumnNames: dataChanged,
-        })
-      : { data: validateTableData(sourceData, schema), renamedColumns: [] }
+    // A combined schema+data update (schema paste, undo/redo, or load) has already
+    // remapped its row keys atomically. Re-running identity matching against the
+    // previous schema would reject an exact-name lineage adoption by design and
+    // reset the correctly remapped values. Schema-only updates still need the
+    // authoritative transition helper used by direct edits.
+    const transition =
+      schemaChanged && dataChanged
+        ? { data: validateTableData(sourceData, schema), renamedColumns: [] }
+        : schemaChanged
+          ? transitionTableData(sourceData, previousSchemaRef.current, schema)
+          : { data: validateTableData(sourceData, schema), renamedColumns: [] }
     const newTableData = transition.data
     tableDataRef.current = newTableData
     setTableData(newTableData)
@@ -888,16 +1058,284 @@ export function TableEditor({ data, schema, onDataChange, onSchemaChange }: Tabl
     commitData([...tableDataRef.current, newRow], 'Add table row')
   }
 
-  const handleSchemaChange = (newSchema: TableSchema, metadata?: SchemaChangeMetadata) => {
-    activeEdit.flush()
-    const newData = transitionTableData(tableDataRef.current, schema, newSchema, {
-      sourceColumnNames: metadata?.sourceColumnNames,
-    }).data
+  const handleSchemaChange = useCallback(
+    (newSchema: TableSchema, metadata?: SchemaChangeMetadata) => {
+      if (!isTableSchema(newSchema)) {
+        setClipboardMessage('The table schema is invalid and was not saved')
+        return
+      }
+      activeEdit.flush()
+      const newData = transitionTableData(tableDataRef.current, schema, newSchema, {
+        sourceColumnNames: metadata?.sourceColumnNames,
+      }).data
 
-    onSchemaChange(newSchema, newData)
-    tableDataRef.current = newData
-    setTableData(newData)
-  }
+      onSchemaChange(newSchema, newData)
+      tableDataRef.current = newData
+      setTableData(newData)
+    },
+    [activeEdit, onSchemaChange, schema]
+  )
+
+  const showOverlayPreview = useCallback(
+    (text: string) => {
+      const parsed = parseSchemaClipboard(text)
+      setOverlayOpen(true)
+      if (!parsed.success) {
+        analytics.track('table_schema_pasted', {
+          actionSource: overlaySourceRef.current,
+          format: 'unknown',
+          columnCount: 0,
+          success: false,
+        })
+        setOverlayPayload(undefined)
+        setOverlayPreview(undefined)
+        setOverlayError(parsed.error)
+        return
+      }
+
+      const columnCount =
+        parsed.payload.kind === 'table-schema' ? parsed.payload.schema.columns.length : 1
+      analytics.track('table_schema_pasted', {
+        actionSource: overlaySourceRef.current,
+        format: parsed.payload.kind,
+        columnCount,
+        success: true,
+      })
+      setOverlayError(undefined)
+      setOverlayPayload(parsed.payload)
+      setOverlayPreview(createSchemaOverlayPreview(schema, tableDataRef.current, parsed.payload))
+    },
+    [schema]
+  )
+
+  const pasteSchemaOverlay = useCallback(async (source: SchemaActionSource = 'table_menu') => {
+    activeEdit.flush()
+    overlaySourceRef.current = source
+    try {
+      const clipboard = clipboardOverride ?? globalThis.navigator?.clipboard
+      if (!clipboard?.readText) throw new Error('Clipboard read is unavailable')
+      const text = await clipboard.readText()
+      showOverlayPreview(text)
+    } catch {
+      analytics.track('table_schema_pasted', {
+        actionSource: source,
+        format: 'unavailable',
+        columnCount: 0,
+        success: false,
+      })
+      setPasteCatcherOpen(true)
+    }
+  }, [activeEdit, clipboardOverride, showOverlayPreview])
+
+  const copySchema = useCallback(
+    (schemaToCopy: TableSchema = schema, source: SchemaActionSource = 'table_menu') => {
+      try {
+        const clipboard = clipboardOverride ?? globalThis.navigator?.clipboard
+        const text = serializeSchemaClipboard(schemaToCopy)
+        void writeClipboardText(text, clipboard)
+          .then(() => {
+            analytics.track('table_schema_copied', {
+              actionSource: source,
+              format: 'table-schema',
+              columnCount: schemaToCopy.columns.length,
+              success: true,
+            })
+            setClipboardMessage('Table schema copied')
+          })
+          .catch(() => {
+            analytics.track('table_schema_copied', {
+              actionSource: source,
+              format: 'table-schema',
+              columnCount: schemaToCopy.columns.length,
+              success: false,
+            })
+            setClipboardMessage('Could not copy the table schema')
+          })
+      } catch {
+        analytics.track('table_schema_copied', {
+          actionSource: source,
+          format: 'table-schema',
+          columnCount: schemaToCopy.columns.length,
+          success: false,
+        })
+        setClipboardMessage('Could not copy the table schema')
+      }
+    },
+    [clipboardOverride, schema]
+  )
+
+  const copyColumn = useCallback(
+    (column: ColumnSchema, source: SchemaActionSource = 'column_menu') => {
+      try {
+        const clipboard = clipboardOverride ?? globalThis.navigator?.clipboard
+        const text = serializeColumnClipboard(column)
+        void writeClipboardText(text, clipboard)
+          .then(() => {
+            analytics.track('table_schema_copied', {
+              actionSource: source,
+              format: 'column-schema',
+              columnCount: 1,
+              success: true,
+            })
+            setClipboardMessage(`Column schema ${column.name} copied`)
+          })
+          .catch(() => {
+            analytics.track('table_schema_copied', {
+              actionSource: source,
+              format: 'column-schema',
+              columnCount: 1,
+              success: false,
+            })
+            setClipboardMessage(`Could not copy column schema ${column.name}`)
+          })
+      } catch {
+        analytics.track('table_schema_copied', {
+          actionSource: source,
+          format: 'column-schema',
+          columnCount: 1,
+          success: false,
+        })
+        setClipboardMessage(`Could not copy column schema ${column.name}`)
+      }
+    },
+    [clipboardOverride]
+  )
+
+  const renameOverlayColumn = useCallback(
+    (incomingIndex: number, name: string) => {
+      if (!overlayPayload) return
+      const payload: ParsedSchemaClipboard =
+        overlayPayload.kind === 'table-schema'
+          ? {
+              ...overlayPayload,
+              schema: {
+                columns: overlayPayload.schema.columns.map((column, index) =>
+                  index === incomingIndex ? { ...column, name } : column
+                ),
+              },
+            }
+          : {
+              ...overlayPayload,
+              column:
+                incomingIndex === 0 ? { ...overlayPayload.column, name } : overlayPayload.column,
+            }
+      setOverlayPayload(payload)
+      setOverlayPreview(createSchemaOverlayPreview(schema, tableDataRef.current, payload))
+    },
+    [overlayPayload, schema]
+  )
+
+  const applyOverlay = useCallback(
+    (decisions: SchemaOverlayDecisions) => {
+      if (!overlayPreview) return
+      activeEdit.flush()
+      const appliedColumns = overlayPreview.columns.filter(
+        column => (decisions[column.incomingIndex] ?? column.defaultDecision) === 'apply'
+      )
+      const counts = appliedColumns.reduce(
+        (total, column) => ({
+          preserved: total.preserved + column.counts.preserved,
+          coerced: total.coerced + column.counts.coerced,
+          reset: total.reset + column.counts.reset,
+        }),
+        { preserved: 0, coerced: 0, reset: 0 }
+      )
+      try {
+        const result = applySchemaOverlayPreview(overlayPreview, decisions)
+        tableDataRef.current = result.data
+        setTableData(result.data)
+        onSchemaChange(result.schema, result.data)
+        analytics.track('table_schema_overlay_applied', {
+          actionSource: overlaySourceRef.current,
+          format: overlayPayload?.kind ?? 'unknown',
+          columnCount: appliedColumns.length,
+          preservedCount: counts.preserved,
+          coercedCount: counts.coerced,
+          resetCount: counts.reset,
+          success: true,
+        })
+        setOverlayOpen(false)
+      } catch {
+        analytics.track('table_schema_overlay_applied', {
+          actionSource: overlaySourceRef.current,
+          format: overlayPayload?.kind ?? 'unknown',
+          columnCount: appliedColumns.length,
+          preservedCount: counts.preserved,
+          coercedCount: counts.coerced,
+          resetCount: counts.reset,
+          success: false,
+        })
+        setOverlayError('The selected schema changes could not be applied.')
+      }
+    },
+    [activeEdit, onSchemaChange, overlayPayload, overlayPreview]
+  )
+
+  const openSchemaEditor = useCallback(() => {
+    activeEdit.flush()
+    setSchemaEditorOpen(true)
+  }, [activeEdit])
+
+  const getColumnActions = useCallback(
+    (column: ColumnSchema, index: number): SchemaAction[] => [
+      { label: 'Edit Column', icon: 'pi-pencil', onSelect: openSchemaEditor },
+      {
+        label: 'Copy Column Schema',
+        icon: 'pi-copy',
+        onSelect: () => copyColumn(column, 'column_menu'),
+      },
+      {
+        label: 'Paste Column Schema Overlay',
+        icon: 'pi-download',
+        onSelect: () => void pasteSchemaOverlay('column_menu'),
+      },
+      {
+        label: 'Duplicate Column',
+        icon: 'pi-clone',
+        onSelect: () => {
+          const duplicate: ColumnSchema = {
+            ...column,
+            id: crypto.randomUUID(),
+            name: getDuplicateColumnName(column.name, schema.columns),
+            ...(column.options && { options: { ...column.options } }),
+            defaultValue: Array.isArray(column.defaultValue)
+              ? [...column.defaultValue]
+              : column.defaultValue,
+          }
+          const columns = [...schema.columns]
+          columns.splice(index + 1, 0, duplicate)
+          const sourceColumnNames = schema.columns.map(item => item.name)
+          sourceColumnNames.splice(index + 1, 0, column.name)
+          handleSchemaChange({ columns }, { sourceColumnNames })
+        },
+      },
+      {
+        label: 'Delete Column',
+        icon: 'pi-trash',
+        danger: true,
+        onSelect: () =>
+          handleSchemaChange({ columns: schema.columns.filter((_, itemIndex) => itemIndex !== index) }),
+      },
+    ],
+    [copyColumn, handleSchemaChange, openSchemaEditor, pasteSchemaOverlay, schema]
+  )
+
+  const tableSchemaActions = useMemo<SchemaAction[]>(
+    () => [
+      { label: 'Edit Schema', icon: 'pi-pencil', onSelect: openSchemaEditor },
+      {
+        label: 'Copy Schema',
+        icon: 'pi-copy',
+        onSelect: () => copySchema(schema, 'table_menu'),
+      },
+      {
+        label: 'Paste Schema Overlay',
+        icon: 'pi-download',
+        onSelect: () => void pasteSchemaOverlay('table_menu'),
+      },
+    ],
+    [copySchema, openSchemaEditor, pasteSchemaOverlay, schema]
+  )
 
   const columnHelper = createColumnHelper<Record<string, unknown>>()
 
@@ -911,13 +1349,20 @@ export function TableEditor({ data, schema, onDataChange, onSchemaChange }: Tabl
     }),
     ...schema.columns.map(colSchema =>
       columnHelper.accessor(colSchema.name, {
-        header: colSchema.name,
+        header: () => (
+          <ColumnHeader
+            name={colSchema.name}
+            actions={getColumnActions(colSchema, schema.columns.indexOf(colSchema))}
+          />
+        ),
         cell: EditableCell,
       })
     ),
     columnHelper.display({
       id: '_actions',
-      header: () => <SchemaEditorDialog schema={schema} onChange={handleSchemaChange} />,
+      header: () => (
+        <SchemaDropdownMenu label="Table schema actions" actions={tableSchemaActions} />
+      ),
       cell: props => (
         <Button
           icon="pi pi-trash"
@@ -963,59 +1408,110 @@ export function TableEditor({ data, schema, onDataChange, onSchemaChange }: Tabl
     },
   })
 
+  const schemaDialogs = (
+    <>
+      <SchemaEditorDialog
+        schema={schema}
+        onChange={handleSchemaChange}
+        trigger={null}
+        open={schemaEditorOpen}
+        onOpenChange={setSchemaEditorOpen}
+        onCopySchema={schemaToCopy => copySchema(schemaToCopy, 'schema_editor')}
+        onPasteSchema={() => void pasteSchemaOverlay('schema_editor')}
+        onCopyColumn={column => copyColumn(column, 'schema_editor')}
+        onPasteColumn={() => void pasteSchemaOverlay('schema_editor')}
+      />
+      <SchemaOverlayDialog
+        open={overlayOpen}
+        preview={overlayPreview}
+        error={overlayError}
+        onOpenChange={setOverlayOpen}
+        onRenameIncoming={renameOverlayColumn}
+        onApply={applyOverlay}
+      />
+      <ClipboardPasteDialog
+        open={pasteCatcherOpen}
+        onOpenChange={setPasteCatcherOpen}
+        onPasteText={showOverlayPreview}
+      />
+      <span className={s.visuallyHidden} role="status" aria-live="polite">
+        {clipboardMessage}
+      </span>
+    </>
+  )
+
   if (!tableData || tableData.length === 0) {
     return (
-      <div className={s.emptyState}>
-        <p>No data. Add rows to get started.</p>
-        <Button label="Add Row" icon="pi pi-plus" onClick={addRow} />
-        <SchemaEditorDialog schema={schema} onChange={handleSchemaChange} />
-      </div>
+      <>
+        <SchemaContextMenu actions={tableSchemaActions}>
+          <div className={s.emptyState}>
+            <p>No data. Add rows to get started.</p>
+            <div className={s.emptyActions}>
+              <Button label="Add Row" icon="pi pi-plus" onClick={addRow} />
+              <Button
+                label="Edit Schema"
+                icon="pi pi-pencil"
+                className="p-button-text"
+                onClick={openSchemaEditor}
+              />
+              <SchemaDropdownMenu label="Table schema actions" actions={tableSchemaActions} />
+            </div>
+          </div>
+        </SchemaContextMenu>
+        {schemaDialogs}
+      </>
     )
   }
 
   return (
-    <div className={s.tableContainer}>
-      <div className={s.tableWrapper}>
-        <table className={s.table}>
-          <thead>
-            {table.getHeaderGroups().map(headerGroup => (
-              <tr key={headerGroup.id}>
-                {headerGroup.headers.map(header => (
-                  <th key={header.id} className={s.header}>
-                    {header.isPlaceholder
-                      ? null
-                      : flexRender(header.column.columnDef.header, header.getContext())}
-                  </th>
+    <>
+      <SchemaContextMenu actions={tableSchemaActions}>
+        <div className={s.tableContainer}>
+          <div className={s.tableWrapper}>
+            <table className={s.table}>
+              <thead>
+                {table.getHeaderGroups().map(headerGroup => (
+                  <tr key={headerGroup.id}>
+                    {headerGroup.headers.map(header => (
+                      <th key={header.id} className={s.header}>
+                        {header.isPlaceholder
+                          ? null
+                          : flexRender(header.column.columnDef.header, header.getContext())}
+                      </th>
+                    ))}
+                  </tr>
                 ))}
-              </tr>
-            ))}
-          </thead>
-          <tbody>
-            {table.getRowModel().rows.map(row => (
-              <tr key={row.id} className={s.row}>
-                {row.getVisibleCells().map(cell => (
-                  <td key={cell.id} className={s.cellContainer}>
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                  </td>
+              </thead>
+              <tbody>
+                {table.getRowModel().rows.map(row => (
+                  <tr key={row.id} className={s.row}>
+                    {row.getVisibleCells().map(cell => (
+                      <td key={cell.id} className={s.cellContainer}>
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </td>
+                    ))}
+                  </tr>
                 ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <div className={s.toolbar}>
-        <Button
-          label="Add Row"
-          icon="pi pi-plus"
-          onMouseDown={e => e.preventDefault()}
-          onClick={addRow}
-          className={`p-button-sm p-button-text ${s.addRowButton}`}
-        />
-        <div className={s.stats}>
-          {tableData.length} row{tableData.length !== 1 ? 's' : ''} × {schema.columns.length} column
-          {schema.columns.length !== 1 ? 's' : ''}
+              </tbody>
+            </table>
+          </div>
+          <div className={s.toolbar}>
+            <Button
+              label="Add Row"
+              icon="pi pi-plus"
+              onMouseDown={e => e.preventDefault()}
+              onClick={addRow}
+              className={`p-button-sm p-button-text ${s.addRowButton}`}
+            />
+            <div className={s.stats}>
+              {tableData.length} row{tableData.length !== 1 ? 's' : ''} × {schema.columns.length}{' '}
+              column
+              {schema.columns.length !== 1 ? 's' : ''}
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
+      </SchemaContextMenu>
+      {schemaDialogs}
+    </>
   )
 }

@@ -2,11 +2,9 @@ import { describe, expect, it } from 'vitest'
 import { computeVisibilityHeuristic } from './visibility-heuristic'
 
 // Mock operator with configurable fields
-function mockOp(fields: Record<string, { showByDefault: boolean }>) {
+function mockOp(fields: Record<string, { showByDefault: boolean; internal?: boolean }>) {
   return {
-    inputs: Object.fromEntries(
-      Object.entries(fields).map(([name, { showByDefault }]) => [name, { showByDefault }])
-    ),
+    inputs: Object.fromEntries(Object.entries(fields).map(([name, field]) => [name, field])),
   } as any
 }
 
@@ -70,6 +68,18 @@ describe('computeVisibilityHeuristic', () => {
     const op = mockOp({ a: { showByDefault: true }, b: { showByDefault: true } })
     const { differsFromDefaults } = computeVisibilityHeuristic(op, {}, new Set())
 
+    expect(differsFromDefaults).toBe(false)
+  })
+
+  it('never exposes internal fields through values or connections', () => {
+    const op = mockOp({ schema: { showByDefault: true, internal: true } })
+    const { visibleFields, differsFromDefaults } = computeVisibilityHeuristic(
+      op,
+      { schema: { columns: [] } },
+      new Set(['schema'])
+    )
+
+    expect(visibleFields).toEqual(new Set())
     expect(differsFromDefaults).toBe(false)
   })
 })
