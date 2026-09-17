@@ -1,4 +1,4 @@
-import type { SidebarsConfig } from '@docusaurus/plugin-content-docs'
+import type { SidebarsConfig } from "@docusaurus/plugin-content-docs";
 
 // This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
 
@@ -11,42 +11,81 @@ import type { SidebarsConfig } from '@docusaurus/plugin-content-docs'
 //
 // Create as many sidebars as you want.
 const sidebars: SidebarsConfig = {
-  // Organized sidebar structure
-  docs: [
-    'intro',
-    {
-      type: 'category',
-      label: 'Application Users',
-      collapsed: false,
-      items: [
-        'users/getting-started',
-        'users/api-keys',
-        'users/workflows-intro',
-        'users/properties-panel',
-        'users/expressions',
-        'users/operators-guide',
-        'users/deckgl-maplibre-guide',
-        'users/data-guide',
-        'users/animation-and-rendering',
-        'users/comparison',
-      ],
-    },
-    {
-      type: 'category',
-      label: 'Framework Developers',
-      collapsed: false,
-      items: [
-        'developers/overview',
-        'developers/creating-operators',
-        'developers/field-system',
-        'developers/data-flow',
-        'developers/node-based-tools',
-        'developers/paths-containers',
-        'developers/framework-extension',
-      ],
-    },
-    'changelog',
-  ],
-}
+	// Organized sidebar structure
+	docs: [
+		"intro",
+		{
+			type: "category",
+			label: "Getting Started",
+			collapsed: false,
+			items: [
+				"users/getting-started",
+				"users/workflows-intro",
+				"users/properties-panel",
+				"users/operators-guide",
+			],
+		},
+		{
+			type: "category",
+			label: "Working with Data",
+			collapsed: true,
+			items: ["users/data-guide", "users/expressions"],
+		},
+		{
+			type: "category",
+			label: "Visualization & Animation",
+			collapsed: true,
+			items: ["users/deckgl-maplibre-guide", "users/animation-and-rendering"],
+		},
+		{
+			type: "category",
+			label: "AI Assistant",
+			collapsed: true,
+			items: ["users/ai-assistant"],
+		},
+		{
+			type: "category",
+			label: "Reference",
+			collapsed: true,
+			items: ["users/api-keys", "users/comparison"],
+		},
+		{
+			type: "category",
+			label: "Framework Developers",
+			collapsed: false,
+			items: [
+				{
+					type: "category",
+					label: "Getting Started",
+					collapsed: false,
+					items: ["developers/overview", "developers/contributing"],
+				},
+				{
+					type: "category",
+					label: "Core Concepts",
+					collapsed: true,
+					items: [
+						"developers/creating-operators",
+						"developers/field-system",
+						"developers/data-flow",
+						"developers/paths-containers",
+					],
+				},
+				{
+					type: "category",
+					label: "Advanced Topics",
+					collapsed: true,
+					items: [
+						"developers/node-based-tools",
+						"developers/framework-extension",
+						"developers/external-control-guide",
+						"developers/utils-api-reference",
+					],
+				},
+			],
+		},
+		"changelog",
+	],
+};
 
-export default sidebars
+export default sidebars;
