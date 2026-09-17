@@ -266,7 +266,7 @@ manually; source strings are not rewritten during migration.
 
 1. **Hybrid schema approach**: Best of both worlds - works with existing data, enables new capabilities
 2. **Validation on execute**: Data validated on every operator execution, not just on edit
-3. **Schema as output**: Downstream operators can inspect column types
+3. **Local schema snapshots**: Schema reuse is explicit through copy/paste, never a live graph dependency
 4. **Default values**: Missing data gets sensible defaults based on type
 5. **No stale closures**: TanStack's reactive system eliminates synchronization issues
 

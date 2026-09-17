@@ -576,7 +576,7 @@ describe('TableEditor', () => {
         { display_name: 'Alice', count: 10 },
         { display_name: 'Bob', count: 20 },
       ],
-      'Apply connected table schema rename'
+      'Apply table schema rename'
     )
   })
 
