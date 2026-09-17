@@ -26,16 +26,10 @@
 }
 
 .cardsContainer {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
   margin-bottom: 24px;
-}
-
-@media (max-width: 600px) {
-  .cardsContainer {
-    grid-template-columns: 1fr;
-  }
 }
 
 .card {
@@ -64,37 +58,11 @@
   color: #e0e0e0;
 }
 
-.benefitsList {
-  list-style: none;
-  padding: 0;
+.cardDescription {
   margin: 0 0 16px 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.benefitsList li {
   font-size: 13px;
   color: #aaa;
-  line-height: 1.5;
-  padding-left: 20px;
-  position: relative;
-}
-
-.benefitsList li::before {
-  content: '✓';
-  position: absolute;
-  left: 0;
-  color: #4a9eff;
-  font-weight: 600;
-}
-
-.cardNote {
-  margin: 0 0 16px 0;
-  font-size: 12px;
-  color: #888;
-  line-height: 1.5;
-  flex: 1;
+  line-height: 1.6;
 }
 
 .primaryButton {

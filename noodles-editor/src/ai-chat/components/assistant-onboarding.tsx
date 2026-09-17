@@ -25,24 +25,19 @@ export function AssistantOnboarding({
   return (
     <div className={styles.container}>
       <div className={styles.header}>
-        <h3 className={styles.title}>Get started with the Assistant</h3>
-        <p className={styles.subtitle}>Choose how you'd like to connect</p>
+        <h3 className={styles.title}>Connect an AI provider</h3>
+        <p className={styles.subtitle}>The assistant needs an LLM to answer questions</p>
       </div>
 
       <div className={styles.cardsContainer}>
         {/* OpenRouter Card - Primary Option */}
         <div className={styles.card}>
           <div className={styles.cardHeader}>
-            <h4 className={styles.cardTitle}>Free cloud AI</h4>
+            <h4 className={styles.cardTitle}>OpenRouter</h4>
           </div>
-          <ul className={styles.benefitsList}>
-            <li>50 free messages daily</li>
-            <li>No credit card required</li>
-            <li>Works immediately</li>
-          </ul>
-          <p className={styles.cardNote}>
-            Starts on free model ({freeModelName}). Adding credit later lifts limits without
-            changing anything here.
+          <p className={styles.cardDescription}>
+            Cloud service with free tier. 50 messages/day on {freeModelName}, no credit card
+            needed. Sign in with GitHub, Google, or email.
           </p>
           <button
             type="button"
@@ -50,7 +45,7 @@ export function AssistantOnboarding({
             className={styles.primaryButton}
             disabled={connect.status === 'connecting'}
           >
-            {connect.status === 'connecting' ? 'Connecting...' : 'Connect OpenRouter'}
+            {connect.status === 'connecting' ? 'Connecting...' : 'Connect with OpenRouter'}
           </button>
           {connect.blockedUrl && (
             <p className={styles.errorText}>
@@ -67,14 +62,12 @@ export function AssistantOnboarding({
         {webgpuReady && (
           <div className={styles.card}>
             <div className={styles.cardHeader}>
-              <h4 className={styles.cardTitle}>Private local AI</h4>
+              <h4 className={styles.cardTitle}>Local model</h4>
             </div>
-            <ul className={styles.benefitsList}>
-              <li>100% private</li>
-              <li>Runs offline</li>
-              <li>Never leaves your browser</li>
-            </ul>
-            <p className={styles.cardNote}>One-time download: 0.9–5.6 GB depending on model</p>
+            <p className={styles.cardDescription}>
+              Runs entirely on your device. Requires a one-time download (0.9–5.6 GB) and a GPU.
+              Nothing sent to any server.
+            </p>
             <button
               type="button"
               onClick={openProviderSettings}
@@ -89,9 +82,9 @@ export function AssistantOnboarding({
       {/* Footer Option - Bring Your Own Key */}
       <div className={styles.footer}>
         <p className={styles.footerText}>
-          Already have Anthropic or OpenAI?{' '}
+          Have an API key?{' '}
           <button type="button" onClick={openProviderSettings} className={styles.linkButton}>
-            Configure API key →
+            Configure Anthropic or OpenAI
           </button>
         </p>
       </div>
