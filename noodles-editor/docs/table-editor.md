@@ -26,10 +26,23 @@ Each column has a specific type with validation and specialized editors:
 
 ### Schema System
 
-**Hybrid Approach:**
-- **Infers schema from data** when schema input is not provided
-- **Allows explicit schema definition** for empty tables or type overrides
-- **Validates data** against schema on every execution
+Each TableEditor owns its schema as serialized local state. The schema has no graph handle: it
+cannot be connected to another node and is not exposed as an output. When a table has no saved
+schema, one is inferred from its data. Once edited or pasted, the explicit schema is saved with
+the table and used to validate its rows.
+
+Schemas can be transferred explicitly from the table actions menu:
+
+- **Copy Schema** writes readable, versioned JSON to the clipboard.
+- **Paste Schema Overlay** previews a non-destructive merge. Existing target-only columns remain,
+  matching columns update in place, and new columns append in source order.
+- Column menus provide the same copy/paste workflow for one column.
+- Unsafe type or constraint changes default to **Keep existing**. Choosing **Apply and reset**
+  shows and then resets only values that cannot be converted.
+
+Copied stable column identities let a later paste recognize an intentional source rename and
+remap each target table's own values. A schema paste never creates a live relationship between
+tables.
 
 **Schema Structure:**
 ```typescript
@@ -96,21 +109,22 @@ Each column has a specific type with validation and specialized editors:
 
 ### Data Flow
 
-**Inputs:**
+**Public input:**
 - `data`: Array of objects (rows)
-- `schema`: Optional schema override (TableSchema | null)
 
-**Outputs:**
+The serialized `inputs.schema` property is internal TableEditor state. It is intentionally absent
+from connection discovery and generic field controls.
+
+**Public output:**
 - `data`: Validated data array
-- `schema`: Computed schema (inferred or explicit)
 
 **Execution:**
-1. If schema input provided and valid → use it
+1. If a local schema is saved → use it
 2. Otherwise → infer schema from data
 3. Validate data against schema
 4. Apply defaults for missing values
 5. Warn about invalid values (console)
-6. Return validated data + schema
+6. Return validated data
 
 ## Usage Examples
 
@@ -227,16 +241,16 @@ WHERE population > 1000000
 ORDER BY population DESC
 ```
 
-## Migration from Old TableEditorOp
+## Migration from Schema Connections
 
-**Backward Compatibility:**
-- Old projects automatically infer schema on load
-- No manual migration required
-- Data structure unchanged (still array of objects)
-- New schema input/output added (optional)
+Projects made with schema ports are migrated automatically. The loader materializes the final
+effective schema into each affected table, then removes the old schema edges and visibility
+entries. Existing table data and unrelated edges are preserved. When a legacy schema cannot be
+resolved, the table falls back to schema inference and the project-load diagnostics explain the
+problem.
 
-**Breaking Changes:**
-- None - fully backward compatible
+`op('/table').out.schema` is intentionally removed. Code that referenced it must be updated
+manually; source strings are not rewritten during migration.
 
 ## Architecture
 

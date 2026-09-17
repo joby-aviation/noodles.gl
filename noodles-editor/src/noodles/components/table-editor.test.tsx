@@ -1,8 +1,27 @@
-import { cleanup, fireEvent, render } from '@testing-library/react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { TableEditorOp } from '../operators'
 import type { TableSchema } from '../table-schema'
 import { TableEditor } from './table-editor'
+
+const clipboard = {
+  writeText: vi.fn<(text: string) => Promise<void>>(),
+  readText: vi.fn<() => Promise<string>>(),
+}
+
+vi.stubGlobal('navigator', { ...navigator, clipboard })
+
+function openTableSchemaActions() {
+  fireEvent.pointerDown(screen.getByRole('button', { name: 'Table schema actions' }), {
+    button: 0,
+    ctrlKey: false,
+  })
+}
+
+function openSchemaEditor() {
+  openTableSchemaActions()
+  fireEvent.click(screen.getByText('Edit Schema'))
+}
 
 describe('TableEditor', () => {
   const mockOp = new TableEditorOp('/test-table')
@@ -10,6 +29,11 @@ describe('TableEditor', () => {
   // Clean up after each test to prevent DOM pollution
   afterEach(() => {
     cleanup()
+  })
+
+  beforeEach(() => {
+    clipboard.writeText.mockReset().mockResolvedValue(undefined)
+    clipboard.readText.mockReset()
   })
 
   const simpleSchema: TableSchema = {
@@ -152,11 +176,11 @@ describe('TableEditor', () => {
     expect(getByText('#ff5733')).toBeDefined()
   })
 
-  it('should render schema editor button', () => {
+  it('should render table schema actions', () => {
     const onDataChange = vi.fn()
     const onSchemaChange = vi.fn()
 
-    const { container } = render(
+    render(
       <TableEditor
         op={mockOp}
         data={simpleData}
@@ -166,9 +190,192 @@ describe('TableEditor', () => {
       />
     )
 
-    // Schema editor is now a gear icon in the actions column header
-    const schemaButton = container.querySelector('.pi-cog')
-    expect(schemaButton).toBeDefined()
+    expect(screen.getByRole('button', { name: 'Table schema actions' })).toBeDefined()
+  })
+
+  it('copies a readable versioned table schema envelope', async () => {
+    render(
+      <TableEditor
+        op={mockOp}
+        data={simpleData}
+        schema={simpleSchema}
+        onDataChange={vi.fn()}
+        onSchemaChange={vi.fn()}
+        clipboard={clipboard}
+      />
+    )
+
+    openTableSchemaActions()
+    fireEvent.click(screen.getByText('Copy Schema'))
+
+    await vi.waitFor(() => expect(clipboard.writeText).toHaveBeenCalledOnce())
+    expect(JSON.parse(clipboard.writeText.mock.calls[0][0])).toEqual({
+      $noodles: 'table-schema',
+      version: 1,
+      schema: simpleSchema,
+    })
+  })
+
+  it('previews and atomically applies a pasted schema overlay', async () => {
+    const onSchemaChange = vi.fn()
+    clipboard.readText.mockResolvedValue(
+      JSON.stringify({
+        $noodles: 'column-schema',
+        version: 1,
+        column: {
+          name: 'anchor',
+          type: 'stringLiteral',
+          defaultValue: 'start',
+          options: { values: ['start', 'end'] },
+        },
+      })
+    )
+    render(
+      <TableEditor
+        op={mockOp}
+        data={simpleData}
+        schema={simpleSchema}
+        onDataChange={vi.fn()}
+        onSchemaChange={onSchemaChange}
+        clipboard={clipboard}
+      />
+    )
+
+    openTableSchemaActions()
+    await act(async () => {
+      fireEvent.click(screen.getByText('Paste Schema Overlay'))
+      await Promise.resolve()
+    })
+
+    expect(clipboard.readText).toHaveBeenCalledOnce()
+    expect(screen.getByText('Paste Schema Overlay', { selector: 'h2' })).toBeDefined()
+    expect(screen.getByText('add')).toBeDefined()
+    fireEvent.click(screen.getByRole('button', { name: 'Apply Overlay' }))
+
+    expect(onSchemaChange).toHaveBeenCalledWith(
+      {
+        columns: [
+          ...simpleSchema.columns,
+          {
+            id: 'anchor',
+            name: 'anchor',
+            type: 'stringLiteral',
+            defaultValue: 'start',
+            options: { values: ['start', 'end'] },
+          },
+        ],
+      },
+      [
+        { name: 'Alice', count: 10, anchor: 'start' },
+        { name: 'Bob', count: 20, anchor: 'start' },
+      ]
+    )
+  })
+
+  it('keeps an unsafe pasted definition by default', async () => {
+    const onSchemaChange = vi.fn()
+    clipboard.readText.mockResolvedValue(
+      JSON.stringify({
+        $noodles: 'column-schema',
+        version: 1,
+        column: { name: 'count', type: 'boolean', defaultValue: false },
+      })
+    )
+    render(
+      <TableEditor
+        op={mockOp}
+        data={simpleData}
+        schema={simpleSchema}
+        onDataChange={vi.fn()}
+        onSchemaChange={onSchemaChange}
+        clipboard={clipboard}
+      />
+    )
+
+    openTableSchemaActions()
+    await act(async () => {
+      fireEvent.click(screen.getByText('Paste Schema Overlay'))
+      await Promise.resolve()
+    })
+
+    expect(clipboard.readText).toHaveBeenCalledOnce()
+    expect(screen.getByText('2 values preserved')).toBeDefined()
+    expect(screen.getByText('0 values would reset')).toBeDefined()
+    expect(screen.getByRole('combobox', { name: 'Decision for count' })).toHaveValue('keep')
+    fireEvent.click(screen.getByRole('button', { name: 'Apply Overlay' }))
+    expect(onSchemaChange).toHaveBeenCalledWith(simpleSchema, simpleData)
+  })
+
+  it('keeps values after an exact-name overlay adopts a different source identity', async () => {
+    const onSchemaChange = vi.fn()
+    const targetSchema: TableSchema = {
+      columns: [
+        { id: 'local-lineage', name: 'name', type: 'string', defaultValue: '' },
+        simpleSchema.columns[1],
+      ],
+    }
+    clipboard.readText.mockResolvedValue(
+      JSON.stringify({
+        $noodles: 'column-schema',
+        version: 1,
+        column: {
+          id: 'shared-lineage',
+          name: 'name',
+          type: 'string',
+          defaultValue: '',
+        },
+      })
+    )
+    const props = {
+      op: mockOp,
+      onDataChange: vi.fn(),
+      onSchemaChange,
+      clipboard,
+    }
+    const view = render(<TableEditor {...props} data={simpleData} schema={targetSchema} />)
+
+    openTableSchemaActions()
+    await act(async () => {
+      fireEvent.click(screen.getByText('Paste Schema Overlay'))
+      await Promise.resolve()
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Apply Overlay' }))
+
+    const [appliedSchema, appliedData] = onSchemaChange.mock.calls[0] as [
+      TableSchema,
+      unknown[],
+    ]
+    expect(appliedSchema.columns[0]).toMatchObject({ id: 'shared-lineage', name: 'name' })
+    expect(appliedData).toEqual(simpleData)
+
+    view.rerender(<TableEditor {...props} data={appliedData} schema={appliedSchema} />)
+    expect(screen.getByText('Alice')).toBeDefined()
+    expect(screen.getByText('Bob')).toBeDefined()
+  })
+
+  it('offers a focused paste catcher when clipboard permission is denied', async () => {
+    clipboard.readText.mockRejectedValue(new DOMException('Denied', 'NotAllowedError'))
+    render(
+      <TableEditor
+        op={mockOp}
+        data={simpleData}
+        schema={simpleSchema}
+        onDataChange={vi.fn()}
+        onSchemaChange={vi.fn()}
+        clipboard={clipboard}
+      />
+    )
+
+    openTableSchemaActions()
+    await act(async () => {
+      fireEvent.click(screen.getByText('Paste Schema Overlay'))
+      await Promise.resolve()
+    })
+
+    expect(clipboard.readText).toHaveBeenCalledOnce()
+    const pasteTarget = screen.getByRole('textbox', { name: 'Paste schema JSON' })
+    act(() => vi.runOnlyPendingTimers())
+    expect(pasteTarget).toHaveFocus()
   })
 
   it('should call onDataChange when deleting row', () => {
@@ -196,7 +403,7 @@ describe('TableEditor', () => {
     const onDataChange = vi.fn()
     const onSchemaChange = vi.fn()
 
-    const { container } = render(
+    render(
       <TableEditor
         op={mockOp}
         data={simpleData}
@@ -206,10 +413,7 @@ describe('TableEditor', () => {
       />
     )
 
-    // Find and click the schema editor button
-    const schemaButton = container.querySelector('.pi-cog')
-    expect(schemaButton).toBeDefined()
-    fireEvent.click(schemaButton)
+    openSchemaEditor()
 
     // The dialog should open (we're testing that the callback is wired up)
     // Actual schema editing is tested in schema-editor-dialog.test.tsx
@@ -219,7 +423,7 @@ describe('TableEditor', () => {
     const onDataChange = vi.fn()
     const onSchemaChange = vi.fn()
 
-    const { container, getByRole, getAllByPlaceholderText, getByText } = render(
+    const { getByRole, getAllByPlaceholderText, getByText } = render(
       <TableEditor
         op={mockOp}
         data={simpleData}
@@ -229,7 +433,7 @@ describe('TableEditor', () => {
       />
     )
 
-    fireEvent.click(container.querySelector('.pi-cog') as Element)
+    openSchemaEditor()
     fireEvent.click(getByRole('button', { name: 'Duplicate column name' }))
 
     const nameInputs = getAllByPlaceholderText('Column name')
@@ -259,7 +463,7 @@ describe('TableEditor', () => {
   it('should use the default for a fresh column that reuses a renamed column name', () => {
     const onSchemaChange = vi.fn()
 
-    const { container, getAllByPlaceholderText, getByRole, getByText } = render(
+    const { getAllByPlaceholderText, getByRole, getByText } = render(
       <TableEditor
         op={mockOp}
         data={simpleData}
@@ -269,7 +473,7 @@ describe('TableEditor', () => {
       />
     )
 
-    fireEvent.click(container.querySelector('.pi-cog') as Element)
+    openSchemaEditor()
     const nameInputs = getAllByPlaceholderText('Column name')
     fireEvent.change(nameInputs[0], { target: { value: 'display_name' } })
     fireEvent.click(getByRole('button', { name: 'Add Column' }))
@@ -298,7 +502,7 @@ describe('TableEditor', () => {
 
   it('preserves values when an existing column is renamed', () => {
     const onSchemaChange = vi.fn()
-    const { container, getAllByPlaceholderText, getByText } = render(
+    const { getAllByPlaceholderText, getByText } = render(
       <TableEditor
         op={mockOp}
         data={simpleData}
@@ -308,7 +512,7 @@ describe('TableEditor', () => {
       />
     )
 
-    fireEvent.click(container.querySelector('.pi-cog') as Element)
+    openSchemaEditor()
     fireEvent.change(getAllByPlaceholderText('Column name')[0], {
       target: { value: 'display_name' },
     })
@@ -470,7 +674,7 @@ describe('TableEditor', () => {
       { anchor: 'middle', offset: [12, 24] },
     ]
 
-    const { container, getByRole } = render(
+    const { getByRole } = render(
       <TableEditor
         op={mockOp}
         data={data}
@@ -480,7 +684,7 @@ describe('TableEditor', () => {
       />
     )
 
-    fireEvent.click(container.querySelector('.pi-cog') as Element)
+    openSchemaEditor()
     fireEvent.click(getByRole('button', { name: /save/i }))
 
     expect(onSchemaChange).toHaveBeenCalledWith(schema, data)
@@ -590,7 +794,7 @@ describe('TableEditor', () => {
       columns: [{ name: 'value', type: 'string', defaultValue: '' }],
     }
 
-    const { container } = render(
+    render(
       <TableEditor
         op={mockOp}
         data={stringData}
@@ -601,9 +805,7 @@ describe('TableEditor', () => {
     )
 
     // Open schema editor and change type to color
-    const schemaButton = container.querySelector('.pi-cog')
-    expect(schemaButton).toBeDefined()
-    fireEvent.click(schemaButton)
+    openSchemaEditor()
 
     // When schema changes, the component should convert invalid values to defaults
     // This prevents the "t is not iterable" error when color picker tries to render a string
