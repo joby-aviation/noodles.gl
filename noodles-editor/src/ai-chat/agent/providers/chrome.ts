@@ -257,9 +257,12 @@ export class ChromeProvider implements AgentProvider {
     const api = factory()
     if (!api) throw new Error("Chrome's built-in model is not available in this browser")
 
+    // Reset retry flag at the start of each stream so failed turns don't consume
+    // the retry budget for subsequent independent requests
+    this.hasRetried = false
+
     try {
       const raw = await this.promptTurn(api, request, signal)
-      this.hasRetried = false
       yield* this.eventsFor(raw, request.tools)
     } catch (error) {
       // The session's history is only worth keeping if the turn that would have

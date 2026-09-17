@@ -315,8 +315,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
       const isChromeError =
         errorName.startsWith('k') ||
         errorStr.includes('kError') ||
-        errorStr.includes('Chrome') ||
-        providerId === 'chrome'
+        errorStr.includes('Chrome')
 
       if (isAuthError) {
         setMessages(prev => [
