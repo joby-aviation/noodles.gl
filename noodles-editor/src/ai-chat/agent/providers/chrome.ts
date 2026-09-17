@@ -37,6 +37,11 @@ import type {
 // Nano's window as shipped. Only a fallback: a real session reports its own.
 const FALLBACK_CONTEXT_WINDOW = 6144
 
+// Reserve space for the model's output. Chrome throws kErrorUnknown if the output
+// pushes the session over the context limit during generation, even when the input
+// fit. Reserve ~15-20% of the window for the response.
+const OUTPUT_HEADROOM_TOKENS = 1000
+
 // There is exactly one built-in model, but the picker takes a list from every
 // provider, so give it one rather than special-casing the UI.
 export const CHROME_MODELS = [{ id: 'gemini-nano', label: 'Gemini Nano (on-device)' }] as const
@@ -434,8 +439,14 @@ export class ChromeProvider implements AgentProvider {
         responseConstraint: options.responseConstraint,
         omitResponseConstraintInput: options.omitResponseConstraintInput,
       })
-      const room = readWindow(session) - readUsage(session)
-      debugAiChat('[chrome] turn needs %d tokens, %d left in the window', needed, room)
+      // Reserve headroom for the output to prevent mid-generation kErrorUnknown
+      const room = readWindow(session) - readUsage(session) - OUTPUT_HEADROOM_TOKENS
+      debugAiChat(
+        '[chrome] turn needs %d tokens, %d left (reserving %d for output)',
+        needed,
+        room,
+        OUTPUT_HEADROOM_TOKENS
+      )
       return needed <= room
     } catch {
       return true
