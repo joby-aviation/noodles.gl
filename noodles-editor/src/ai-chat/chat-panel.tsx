@@ -2,6 +2,8 @@
 
 import { useReactFlow } from '@xyflow/react'
 import { type FC, useEffect, useRef, useState } from 'react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import {
   type ProjectModification,
   useProjectModifications,
@@ -805,24 +807,56 @@ function formatTokens(count: number): string {
   return count >= 1000 ? `${(count / 1000).toFixed(1)}k` : String(count)
 }
 
-// Render message content with basic markdown support
+// Render message content with full markdown support
 const MessageContent: FC<{ content: string }> = ({ content }) => {
-  const renderContent = () => {
-    const parts = content.split(/(```[\s\S]*?```)/g)
-    return parts.map((part, idx) => {
-      // Use combination of index and content snippet for stable key
-      const key = `${idx}-${part.substring(0, 20)}`
-      if (part.startsWith('```')) {
-        const code = part.replace(/```(\w+)?\n?/, '').replace(/```$/, '')
-        return (
-          <pre key={key}>
-            <code>{code}</code>
-          </pre>
-        )
-      }
-      return <p key={key}>{part}</p>
-    })
-  }
-
-  return <div>{renderContent()}</div>
+  return (
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm]}
+      components={{
+        code: props => {
+          const { children, className, ...rest } = props
+          // className is undefined for inline code, defined (even if empty) for code blocks
+          const isInline = className === undefined
+          return isInline ? (
+            <code className={styles.inlineCode} {...rest}>
+              {children}
+            </code>
+          ) : (
+            <code className={styles.codeBlock} {...rest}>
+              {children}
+            </code>
+          )
+        },
+        pre: ({ children }) => <pre className={styles.pre}>{children}</pre>,
+        a: ({ href, children }) => (
+          <a href={href} target="_blank" rel="noopener noreferrer" className={styles.link}>
+            {children}
+          </a>
+        ),
+        // Disable images to prevent tracking via remote image requests
+        img: () => null,
+        table: ({ children }) => (
+          <div className={styles.tableWrapper}>
+            <table className={styles.table}>{children}</table>
+          </div>
+        ),
+        thead: ({ children }) => <thead className={styles.thead}>{children}</thead>,
+        tbody: ({ children }) => <tbody className={styles.tbody}>{children}</tbody>,
+        tr: ({ children }) => <tr className={styles.tr}>{children}</tr>,
+        th: ({ children }) => <th className={styles.th}>{children}</th>,
+        td: ({ children }) => <td className={styles.td}>{children}</td>,
+        ul: ({ children }) => <ul className={styles.list}>{children}</ul>,
+        ol: ({ children }) => <ol className={styles.orderedList}>{children}</ol>,
+        li: ({ children }) => <li className={styles.listItem}>{children}</li>,
+        h1: ({ children }) => <h1 className={styles.h1}>{children}</h1>,
+        h2: ({ children }) => <h2 className={styles.h2}>{children}</h2>,
+        h3: ({ children }) => <h3 className={styles.h3}>{children}</h3>,
+        p: ({ children }) => <p className={styles.paragraph}>{children}</p>,
+        strong: ({ children }) => <strong className={styles.bold}>{children}</strong>,
+        em: ({ children }) => <em className={styles.italic}>{children}</em>,
+      }}
+    >
+      {content}
+    </ReactMarkdown>
+  )
 }
