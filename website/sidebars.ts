@@ -35,7 +35,7 @@ const sidebars: SidebarsConfig = {
       type: 'category',
       label: 'Visualization & Animation',
       collapsed: true,
-      items: ['users/deckgl-maplibre-guide', 'users/animation-and-rendering'],
+      items: ['users/animation-and-rendering'],
     },
     {
       type: 'category',
@@ -47,7 +47,7 @@ const sidebars: SidebarsConfig = {
       type: 'category',
       label: 'Reference',
       collapsed: true,
-      items: ['users/api-keys', 'users/comparison'],
+      items: ['users/api-keys', 'users/deckgl-maplibre-guide', 'users/comparison'],
     },
     {
       type: 'category',
