@@ -1,4 +1,4 @@
-// Chrome's built-in model (Gemini Nano) via the Prompt API.
+// Chrome"s built-in model (Gemini Nano) via the Prompt API.
 //
 // Three things make this provider unlike the other two:
 //
@@ -36,6 +36,11 @@ import type {
 
 // Nano's window as shipped. Only a fallback: a real session reports its own.
 const FALLBACK_CONTEXT_WINDOW = 6144
+
+// Reserve space for the model's output. Chrome throws kErrorUnknown if the output
+// pushes the session over the context limit during generation, even when the input
+// fit. Reserve ~15-20% of the window for the response.
+const OUTPUT_HEADROOM_TOKENS = 1000
 
 // There is exactly one built-in model, but the picker takes a list from every
 // provider, so give it one rather than special-casing the UI.
@@ -183,11 +188,11 @@ export async function createChromeProvider(
   options: { onDownloadProgress?: (progress: DownloadProgress) => void } = {}
 ): Promise<ChromeProvider> {
   const api = factory()
-  if (!api) throw new Error('Chrome’s built-in model is not available in this browser')
+  if (!api) throw new Error("Chrome's built-in model is not available in this browser")
 
   const availability = await api.availability()
   if (availability === 'unavailable') {
-    throw new Error('Chrome’s built-in model is unavailable on this device')
+    throw new Error("Chrome's built-in model is unavailable on this device")
   }
 
   const downloading = availability === 'downloadable' || availability === 'downloading'
@@ -207,8 +212,8 @@ export async function createChromeProvider(
     create,
     downloading ? DOWNLOAD_TIMEOUT_MS : CREATE_TIMEOUT_MS,
     downloading
-      ? 'Chrome’s model download timed out after 10 minutes. Check chrome://components for “Optimization Guide On Device Model”, or pick another provider in Settings → AI Provider.'
-      : 'Chrome’s built-in model did not start within 60 seconds. Restart Chrome, or pick another provider in Settings → AI Provider.'
+      ? 'Chrome\'s model download timed out after 10 minutes. Check chrome://components for "Optimization Guide On Device Model", or pick another provider in Settings → AI Provider.'
+      : "Chrome's built-in model did not start within 60 seconds. Restart Chrome, or pick another provider in Settings → AI Provider."
   )
 
   const contextWindow = readWindow(probe)
@@ -234,6 +239,7 @@ export class ChromeProvider implements AgentProvider {
   readonly contextWindow: number
 
   private callCounter = 0
+  private hasRetried = false
 
   // The live session, plus what it has already been told. `sent` is one entry per
   // AgentMessage in the order the session received them, so the next request's
@@ -254,7 +260,11 @@ export class ChromeProvider implements AgentProvider {
 
   async *stream(request: AgentRequest, signal?: AbortSignal): AsyncIterable<AgentEvent> {
     const api = factory()
-    if (!api) throw new Error('Chrome’s built-in model is not available in this browser')
+    if (!api) throw new Error("Chrome's built-in model is not available in this browser")
+
+    // Reset retry flag at the start of each stream so failed turns don't consume
+    // the retry budget for subsequent independent requests
+    this.hasRetried = false
 
     try {
       const raw = await this.promptTurn(api, request, signal)
@@ -263,6 +273,14 @@ export class ChromeProvider implements AgentProvider {
       // The session's history is only worth keeping if the turn that would have
       // extended it succeeded
       this.discard()
+
+      // Log full error details for debugging unknown Chrome API errors
+      if (error instanceof Error) {
+        debugAiChat('[chrome] prompt failed -', error.name, error.message, error)
+      } else {
+        debugAiChat('[chrome] prompt failed with non-Error', error)
+      }
+
       if (isAbort(error)) {
         yield { type: 'stop', reason: 'aborted' }
         return
@@ -297,12 +315,21 @@ export class ChromeProvider implements AgentProvider {
     try {
       return await this.send(session, input, options, lines)
     } catch (error) {
-      if (!isQuotaExceeded(error)) throw error
+      if (isQuotaExceeded(error)) {
+        // measureContextUsage is optional, and its estimate can be short of what the
+        // session actually charges, so catch-and-retry stays as a backstop
+        debugAiChat('[chrome] over quota, rebuilding on a trimmed transcript')
+        return this.retrimmed(api, request, options, signal)
+      }
 
-      // measureContextUsage is optional, and its estimate can be short of what the
-      // session actually charges, so catch-and-retry stays as a backstop
-      debugAiChat('[chrome] over quota, rebuilding on a trimmed transcript')
-      return this.retrimmed(api, request, options, signal)
+      // Attempt one retry for unknown Chrome API errors by rebuilding the session
+      if (isChromeApiError(error) && !this.hasRetried) {
+        debugAiChat('[chrome] unknown API error, attempting session rebuild: %s', error)
+        this.hasRetried = true
+        return this.retrimmed(api, request, options, signal)
+      }
+
+      throw error
     }
   }
 
@@ -412,8 +439,14 @@ export class ChromeProvider implements AgentProvider {
         responseConstraint: options.responseConstraint,
         omitResponseConstraintInput: options.omitResponseConstraintInput,
       })
-      const room = readWindow(session) - readUsage(session)
-      debugAiChat('[chrome] turn needs %d tokens, %d left in the window', needed, room)
+      // Reserve headroom for the output to prevent mid-generation kErrorUnknown
+      const room = readWindow(session) - readUsage(session) - OUTPUT_HEADROOM_TOKENS
+      debugAiChat(
+        '[chrome] turn needs %d tokens, %d left (reserving %d for output)',
+        needed,
+        room,
+        OUTPUT_HEADROOM_TOKENS
+      )
       return needed <= room
     } catch {
       return true
@@ -592,4 +625,20 @@ function isAbort(error: unknown): boolean {
 
 function isQuotaExceeded(error: unknown): boolean {
   return error instanceof Error && error.name === 'QuotaExceededError'
+}
+
+// Detects Chrome-specific API errors by name pattern. Chrome internal errors
+// typically start with 'k' (like kErrorUnknown) or contain specific keywords.
+function isChromeApiError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false
+  const name = error.name || ''
+  const message = error.message || ''
+  // Chrome error codes start with 'k', or contain Chrome-specific keywords
+  return (
+    name.startsWith('k') ||
+    name.includes('Chrome') ||
+    message.includes('Chrome') ||
+    name.includes('Prompt') ||
+    name.includes('Language')
+  )
 }

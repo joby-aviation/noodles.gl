@@ -304,13 +304,18 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
     } catch (error) {
       debugAiChat('Error sending message:', error)
 
-      // Check if this is an authentication error
+      // Check error type and provide helpful messages
       const errorStr = error instanceof Error ? error.message : String(error)
+      const errorName = error instanceof Error ? error.name : ''
+
       const isAuthError =
         errorStr.includes('authentication') ||
         errorStr.includes('401') ||
         errorStr.includes('invalid_api_key') ||
         errorStr.includes('api_key')
+
+      const isChromeError =
+        errorName.startsWith('k') || errorStr.includes('kError') || errorStr.includes('Chrome')
 
       if (isAuthError) {
         setMessages(prev => [
@@ -319,6 +324,20 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
             role: 'assistant',
             content:
               'Authentication Error: Your API key is invalid. Please check your API key in Settings > API Keys.',
+          },
+        ])
+      } else if (isChromeError) {
+        setMessages(prev => [
+          ...prev,
+          {
+            role: 'assistant',
+            content:
+              '⚠️ Chrome AI encountered an error. Try these steps:\n\n' +
+              '1. Check chrome://components for "Optimization Guide On Device Model" - ensure it\'s up to date\n' +
+              "2. Verify you're on Chrome 127+ with the Prompt API enabled\n" +
+              '3. Restart Chrome and try again\n' +
+              '4. Switch to Anthropic or OpenRouter in Settings → AI Provider\n\n' +
+              `Technical details: ${errorName ? `${errorName}: ` : ''}${errorStr}`,
           },
         ])
       } else {
