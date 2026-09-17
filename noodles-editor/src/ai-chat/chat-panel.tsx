@@ -815,7 +815,8 @@ const MessageContent: FC<{ content: string }> = ({ content }) => {
       components={{
         code: props => {
           const { children, className, ...rest } = props
-          const isInline = !className?.includes('language-')
+          // className is undefined for inline code, defined (even if empty) for code blocks
+          const isInline = className === undefined
           return isInline ? (
             <code className={styles.inlineCode} {...rest}>
               {children}
@@ -832,6 +833,18 @@ const MessageContent: FC<{ content: string }> = ({ content }) => {
             {children}
           </a>
         ),
+        // Disable images to prevent tracking via remote image requests
+        img: () => null,
+        table: ({ children }) => (
+          <div className={styles.tableWrapper}>
+            <table className={styles.table}>{children}</table>
+          </div>
+        ),
+        thead: ({ children }) => <thead className={styles.thead}>{children}</thead>,
+        tbody: ({ children }) => <tbody className={styles.tbody}>{children}</tbody>,
+        tr: ({ children }) => <tr className={styles.tr}>{children}</tr>,
+        th: ({ children }) => <th className={styles.th}>{children}</th>,
+        td: ({ children }) => <td className={styles.td}>{children}</td>,
         ul: ({ children }) => <ul className={styles.list}>{children}</ul>,
         ol: ({ children }) => <ol className={styles.orderedList}>{children}</ol>,
         li: ({ children }) => <li className={styles.listItem}>{children}</li>,

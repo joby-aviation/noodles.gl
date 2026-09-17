@@ -370,6 +370,56 @@
   color: #d0d0d0;
 }
 
+.chatMessageContent .tableWrapper {
+  overflow-x: auto;
+  margin: 8px 0;
+  border-radius: 4px;
+  border: 1px solid #333;
+}
+
+.chatMessageContent .table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.chatMessageContent .thead {
+  background: #2a2a2a;
+}
+
+.chatMessageContent .tbody {
+  background: #1e1e1e;
+}
+
+.chatMessageContent .tr {
+  border-bottom: 1px solid #333;
+}
+
+.chatMessageContent .tr:last-child {
+  border-bottom: none;
+}
+
+.chatMessageContent .th,
+.chatMessageContent .td {
+  padding: 8px 12px;
+  text-align: left;
+  border-right: 1px solid #333;
+}
+
+.chatMessageContent .th:last-child,
+.chatMessageContent .td:last-child {
+  border-right: none;
+}
+
+.chatMessageContent .th {
+  font-weight: 600;
+  color: #e8e8e8;
+}
+
+.chatMessageContent .td {
+  color: #d0d0d0;
+}
+
 .typingIndicator {
   display: flex;
   gap: 4px;

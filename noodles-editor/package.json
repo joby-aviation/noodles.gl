@@ -58,7 +58,6 @@
     "react-map-gl": "^8.1.0",
     "react-markdown": "^10.1.0",
     "react-resizable-panels": "^4.11.0",
-    "rehype-raw": "^7.0.0",
     "remark-gfm": "^4.0.1",
     "rxjs": "^7.8.2",
     "shapefile": "^0.6.6",
