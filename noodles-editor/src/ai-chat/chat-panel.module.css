@@ -152,6 +152,27 @@
   max-width: 260px;
 }
 
+.connectActions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin: 8px 0;
+}
+
+.connectNote {
+  font-size: 12px;
+  color: #888;
+  max-width: 380px;
+  line-height: 1.5;
+}
+
+.connectError {
+  font-size: 12px;
+  color: #f87171;
+  max-width: 380px;
+  line-height: 1.5;
+}
+
 .toolTrace {
   display: flex;
   flex-wrap: wrap;

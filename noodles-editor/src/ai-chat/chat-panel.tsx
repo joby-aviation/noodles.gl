@@ -11,19 +11,24 @@ import {
 import type { CustomEndpointConfig, ProviderPreference } from '../noodles/keys-store'
 import { useKeysStore } from '../noodles/keys-store'
 import { useUIStore } from '../noodles/store'
+import { useOpenRouterConnect } from '../noodles/use-openrouter-connect'
 import { debugAiChat } from '../utils/debug'
 import { useAgentModelStore } from './agent/model-store'
+import { type Credentials, isProviderReady, resolveProviderId } from './agent/provider-selection'
 import { ANTHROPIC_MODELS, AnthropicProvider } from './agent/providers/anthropic'
-import {
-  CHROME_MODELS,
-  chromeAvailability,
-  createChromeProvider,
-  type DownloadProgress,
-} from './agent/providers/chrome'
+import { CHROME_MODELS, chromeAvailability, createChromeProvider } from './agent/providers/chrome'
 import { CustomProvider } from './agent/providers/custom'
-import { OPENROUTER_MODELS, OpenRouterProvider } from './agent/providers/openrouter'
+import {
+  cachedOpenRouterFreeModels,
+  defaultFreeModel,
+  fetchOpenRouterFreeModels,
+  OPENROUTER_MODELS,
+  type OpenRouterModel,
+  OpenRouterProvider,
+} from './agent/providers/openrouter'
+import { createWebLLMProvider, WEBLLM_MODELS, webgpuAvailable } from './agent/providers/webllm'
 import { AgentSession } from './agent/session'
-import type { AgentProvider, AgentUsage, ProviderId } from './agent/types'
+import type { AgentProvider, AgentUsage, DownloadProgress, ProviderId } from './agent/types'
 import { webSearchConfigFor } from './agent/web-search'
 import styles from './chat-panel.module.css'
 import { loadConversation, saveConversation } from './conversation-history'
@@ -67,7 +72,11 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
   // Whether this browser has a usable built-in model. Only knowable
   // asynchronously, so it starts false and the option stays disabled until then.
   const [chromeAvailable, setChromeAvailable] = useState(false)
-  // Only Chrome reports one, and only on the first run of a given machine
+  // Whether a local model could run here at all. Same shape as chromeAvailable:
+  // asking for a WebGPU adapter is async, so the answer arrives after first paint.
+  const [webgpuReady, setWebgpuReady] = useState(false)
+  // Only the two on-device providers report one, and only on the first run of a
+  // given machine
   const [downloadProgress, setDownloadProgress] = useState<DownloadProgress | null>(null)
   // A provider that would not start. Distinct from a failed message: nothing can
   // be sent at all, so it replaces the panel rather than appearing in it.
@@ -84,28 +93,36 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
   const preference = useKeysStore(state => state.getProviderPreference())
   const setPreference = useKeysStore(state => state.setProviderPreference)
   const setStoredModel = useAgentModelStore(state => state.setModel)
+  const storedOpenRouterModel = useAgentModelStore(state => state.models.openrouter)
+  // WebLLM is the one provider whose readiness depends on a model having been
+  // chosen, which is what keeps 'automatic' from starting a multi-gigabyte download
+  const storedWebLLMModel = useAgentModelStore(state => state.models.webllm)
+
+  const credentials: Credentials = {
+    anthropicKey: apiKey,
+    openRouterKey,
+    customEndpoint,
+    webllmModel: storedWebLLMModel,
+    webgpuReady,
+    chromeAvailable,
+  }
 
   // Anthropic unless only another credential is configured, or the user picked
   // otherwise. Falls back when the chosen provider's key has since been cleared.
-  const providerId: ProviderId = resolveProviderId({
-    preference,
-    anthropicKey: apiKey,
-    openRouterKey,
-    customEndpoint,
-    chromeAvailable,
-  })
+  const providerId: ProviderId = resolveProviderId({ ...credentials, preference })
   const providerKey = providerId === 'anthropic' ? apiKey : openRouterKey
-  // Chrome needs no key and a custom endpoint carries its own, so readiness is
-  // not the same question as "has a key"
-  const providerReady = isProviderReady(providerId, {
-    anthropicKey: apiKey,
-    openRouterKey,
-    customEndpoint,
-    chromeAvailable,
-  })
+  // The on-device providers need no key and a custom endpoint carries its own, so
+  // readiness is not the same question as "has a key"
+  const providerReady = isProviderReady(providerId, credentials)
+  // Free tool-calling models, read from OpenRouter's catalogue rather than a
+  // hard-coded list, since which models are free changes month to month
+  const [freeModels, setFreeModels] = useState<OpenRouterModel[]>(cachedOpenRouterFreeModels)
+  const connect = useOpenRouterConnect()
+
   // undefined leaves the provider on its own default
   const model = useAgentModelStore(state => state.getModel(providerId))
-  const modelChoices = modelChoicesFor(providerId, customEndpoint)
+  const modelGroups = modelGroupsFor(providerId, customEndpoint, freeModels)
+  const modelChoices = modelGroups.flatMap(group => group.models)
 
   // Get the function to open settings dialog
   const setSettingsDialogOpen = useUIStore(state => state.setSettingsDialogOpen)
@@ -132,17 +149,44 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
     return unsubscribe
   }, [])
 
-  // Ask once whether this browser can run a model locally. 'downloadable' counts:
-  // create() then downloads it, which is a wait rather than a failure.
+  // Ask once whether this browser can run a model locally, either way it can.
+  // 'downloadable' counts for Chrome: create() then downloads it, which is a wait
+  // rather than a failure.
   useEffect(() => {
     let current = true
     chromeAvailability().then(availability => {
       if (current) setChromeAvailable(availability !== 'unavailable')
     })
+    webgpuAvailable().then(available => {
+      if (current) setWebgpuReady(available)
+    })
     return () => {
       current = false
     }
   }, [])
+
+  // Load the free-model list when it could matter: either OpenRouter is in use, or
+  // nothing is configured yet and the empty state is about to offer it. Cached for
+  // the session, so this is one request at most.
+  const needFreeModels = providerId === 'openrouter' || !providerReady
+  useEffect(() => {
+    if (!needFreeModels) return
+    let current = true
+    fetchOpenRouterFreeModels().then(models => {
+      if (current && models.length > 0) setFreeModels(models)
+    })
+    return () => {
+      current = false
+    }
+  }, [needFreeModels])
+
+  // A just-connected account has no credit, so leaving the model on the paid
+  // default would greet the user with a billing error. Only fills a gap: a model
+  // the user picked before is left alone.
+  useEffect(() => {
+    if (connect.status !== 'connected' || storedOpenRouterModel) return
+    setStoredModel('openrouter', defaultFreeModel(freeModels))
+  }, [connect.status, storedOpenRouterModel, freeModels, setStoredModel])
 
   // Build the session whenever the provider, model, or key changes
   useEffect(() => {
@@ -434,35 +478,58 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
     return (
       <div className={styles.chatPanel}>
         <div className={styles.chatPanelLoading}>
-          <h3>Pick an AI provider</h3>
+          <h3>Connect the assistant</h3>
           <p>
-            The Noodles assistant needs one of an Anthropic key, an OpenRouter key, an
-            OpenAI-compatible endpoint, or Chrome’s built-in model. Configure one in{' '}
+            Sign in with OpenRouter and the assistant works straight away — nothing to copy, no
+            credit card. It starts on a free model
+            {freeModels.length > 0 && ` (${freeModels[0].label})`}; the free tier is limited to
+            roughly 50 messages a day, and adding credit later lifts that without changing anything
+            here.
+          </p>
+          <div className={styles.connectActions}>
+            <button
+              type="button"
+              onClick={connect.connect}
+              className={styles.chatSendBtn}
+              disabled={connect.status === 'connecting'}
+            >
+              {connect.status === 'connecting' ? 'Waiting for OpenRouter…' : 'Connect OpenRouter'}
+            </button>
+            {/* Second, not hidden: it needs no account at all, and it is the only
+                option for someone who will not send their data anywhere. Goes to
+                Settings rather than starting here, because which model — and so how
+                large a download — is a choice worth making deliberately. */}
+            {webgpuReady && (
+              <button
+                type="button"
+                onClick={openProviderSettings}
+                className={styles.chatPanelActionBtn}
+              >
+                Run a model locally
+              </button>
+            )}
+            <button type="button" onClick={handleClose} className={styles.chatPanelActionBtn}>
+              Close
+            </button>
+          </div>
+          {connect.blockedUrl && (
+            <p className={styles.connectNote}>
+              Your browser blocked the sign-in window.{' '}
+              <a href={connect.blockedUrl} target="_blank" rel="noopener noreferrer">
+                Open it in a new tab
+              </a>{' '}
+              instead.
+            </p>
+          )}
+          {connect.error && <p className={styles.connectError}>{connect.error}</p>}
+          <p className={styles.connectNote}>
+            Already have a key? Anthropic, an OpenAI-compatible endpoint and on-device models are
+            all in{' '}
             <button type="button" onClick={openProviderSettings} className={styles.linkButton}>
               Settings → AI Provider
             </button>
             .
           </p>
-          <p>
-            Keys come from the{' '}
-            <a href="https://console.anthropic.com/" target="_blank" rel="noopener noreferrer">
-              Anthropic Console
-            </a>{' '}
-            or{' '}
-            <a href="https://openrouter.ai/keys" target="_blank" rel="noopener noreferrer">
-              OpenRouter
-            </a>
-            . Chrome’s built-in model is free, private, and needs no key, but it runs on your device
-            and is small: expect it to answer questions about the graph and make single-step edits,
-            not to build a visualization for you.
-          </p>
-          <div
-            style={{ marginTop: '1rem', display: 'flex', gap: '0.5rem', justifyContent: 'center' }}
-          >
-            <button type="button" onClick={handleClose} className={styles.chatSendBtn}>
-              Close
-            </button>
-          </div>
         </div>
       </div>
     )
@@ -514,8 +581,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
                 max={downloadProgress.total}
               />
               <p className={styles.downloadNote}>
-                {formatPercent(downloadProgress)} — Chrome downloads about 2GB the first time, and
-                only once.
+                {formatPercent(downloadProgress)} — {downloadNoteFor(providerId, model)}
               </p>
             </>
           )}
@@ -574,6 +640,16 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
               {customEndpoint?.displayName ?? 'Custom endpoint'}
             </option>
             <option
+              value="webllm"
+              // Enabled once WebGPU is there, even with no model chosen yet: picking
+              // it here is how the user says they want one, and the panel then sends
+              // them to Settings rather than starting a download on its own
+              disabled={!webgpuReady}
+              title="Free, private, no key. Runs on this machine's GPU after a one-time download of a gigabyte or more."
+            >
+              Local model (on-device)
+            </option>
+            <option
               value="chrome"
               disabled={!chromeAvailable}
               // A ~3B on-device model. Saying what it is good for is more use than
@@ -591,11 +667,23 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
             disabled={modelChoices.length < 2}
             title="Model for this conversation"
           >
-            {modelChoices.map(choice => (
-              <option key={choice.id} value={choice.id}>
-                {choice.label}
-              </option>
-            ))}
+            {modelGroups.map(group =>
+              group.label ? (
+                <optgroup key={group.label} label={group.label}>
+                  {group.models.map(choice => (
+                    <option key={choice.id} value={choice.id}>
+                      {choice.label}
+                    </option>
+                  ))}
+                </optgroup>
+              ) : (
+                group.models.map(choice => (
+                  <option key={choice.id} value={choice.id}>
+                    {choice.label}
+                  </option>
+                ))
+              )
+            )}
           </select>
           <button
             type="button"
@@ -723,60 +811,55 @@ const PROVIDER_LABELS: Record<ProviderId, string> = {
   anthropic: 'Anthropic',
   openrouter: 'OpenRouter',
   custom: 'The custom endpoint',
+  webllm: 'The local model',
   chrome: 'Chrome’s built-in model',
 }
 
-interface Credentials {
-  anthropicKey: string | undefined
-  openRouterKey: string | undefined
-  customEndpoint: CustomEndpointConfig | undefined
-  chromeAvailable: boolean
+interface ModelGroup {
+  // Omitted for a provider whose models need no grouping, which renders the
+  // options bare rather than inside a one-group optgroup
+  label?: string
+  models: readonly { id: string; label: string }[]
 }
 
-// A provider is usable when whatever it needs is present: a key for the two
-// hosted ones, a saved config for a custom endpoint, a capable browser for Chrome.
-function isProviderReady(providerId: ProviderId, credentials: Credentials): boolean {
-  switch (providerId) {
-    case 'anthropic':
-      return Boolean(credentials.anthropicKey)
-    case 'openrouter':
-      return Boolean(credentials.openRouterKey)
-    case 'custom':
-      return Boolean(credentials.customEndpoint?.baseUrl && credentials.customEndpoint?.model)
-    case 'chrome':
-      return credentials.chromeAvailable
-  }
-}
-
-// An explicit preference wins, but only while it is usable — clearing a key in
-// Settings should not leave the chat pointed at a provider it cannot reach.
-// Chrome is last in the automatic order: it is the weakest of the four, so it
-// only gets picked when nothing else is configured.
-function resolveProviderId(options: Credentials & { preference: ProviderPreference }): ProviderId {
-  const { preference } = options
-  if (preference !== 'automatic' && isProviderReady(preference, options)) return preference
-
-  const order: ProviderId[] = ['anthropic', 'openrouter', 'custom', 'chrome']
-  return order.find(id => isProviderReady(id, options)) ?? 'anthropic'
-}
-
-function modelChoicesFor(
+// OpenRouter is the only provider with two kinds of model worth separating: the
+// free tier a newly connected account can actually use, and the paid shortlist.
+// Free comes first because that is what a fresh connection lands on.
+function modelGroupsFor(
   providerId: ProviderId,
-  customEndpoint: CustomEndpointConfig | undefined
-): readonly { id: string; label: string }[] {
+  customEndpoint: CustomEndpointConfig | undefined,
+  freeModels: readonly OpenRouterModel[]
+): ModelGroup[] {
   switch (providerId) {
     case 'anthropic':
-      return ANTHROPIC_MODELS
+      return [{ models: ANTHROPIC_MODELS }]
     case 'openrouter':
-      return OPENROUTER_MODELS
+      if (freeModels.length === 0) return [{ models: OPENROUTER_MODELS }]
+      return [
+        { label: 'Free', models: freeModels.map(({ id, label }) => ({ id, label })) },
+        { label: 'Paid', models: OPENROUTER_MODELS },
+      ]
     case 'chrome':
-      return CHROME_MODELS
+      return [{ models: CHROME_MODELS }]
+    // Labelled with their download size, since that is the decision the user is
+    // actually making
+    case 'webllm':
+      return [{ models: WEBLLM_MODELS.map(({ id, label }) => ({ id, label })) }]
     // A custom endpoint's model is part of its saved config, so the picker shows
     // it rather than offering a choice this app cannot enumerate
     case 'custom':
-      return customEndpoint
-        ? [{ id: customEndpoint.model, label: customEndpoint.displayName ?? customEndpoint.model }]
-        : [{ id: '', label: 'Not configured' }]
+      return [
+        {
+          models: customEndpoint
+            ? [
+                {
+                  id: customEndpoint.model,
+                  label: customEndpoint.displayName ?? customEndpoint.model,
+                },
+              ]
+            : [{ id: '', label: 'Not configured' }],
+        },
+      ]
   }
 }
 
@@ -788,14 +871,16 @@ interface CreateProviderOptions {
   onDownloadProgress: (progress: DownloadProgress) => void
 }
 
-// Chrome is the only provider whose construction is async: it probes the browser
-// for the real context window before the router can be sized against it, and that
-// probe is also what triggers the model download.
+// The on-device providers are the ones whose construction is async: the model has
+// to be resident before the first request, and that is also where the download
+// happens, so both report progress while they build.
 async function createProvider(options: CreateProviderOptions): Promise<AgentProvider> {
   const { providerId, apiKey, model, customEndpoint } = options
   switch (providerId) {
     case 'chrome':
       return createChromeProvider({ onDownloadProgress: options.onDownloadProgress })
+    case 'webllm':
+      return createWebLLMProvider({ model, onDownloadProgress: options.onDownloadProgress })
     case 'openrouter':
       return new OpenRouterProvider({ apiKey: apiKey ?? '', model })
     case 'anthropic':
@@ -808,6 +893,17 @@ async function createProvider(options: CreateProviderOptions): Promise<AgentProv
         model: customEndpoint.model,
       })
   }
+}
+
+// Both on-device providers download once per machine, but they differ by an order
+// of magnitude in size, and a WebLLM model's size is known exactly.
+function downloadNoteFor(providerId: ProviderId, model: string | undefined): string {
+  if (providerId !== 'webllm') {
+    return 'Chrome downloads about 2GB the first time, and only once.'
+  }
+  const sizeMb = WEBLLM_MODELS.find(option => option.id === model)?.sizeMb
+  const size = sizeMb ? `${(sizeMb / 1024).toFixed(1)}GB` : 'a few gigabytes'
+  return `${size} the first time, then it is cached and starts instantly.`
 }
 
 function formatPercent(progress: DownloadProgress): string {
