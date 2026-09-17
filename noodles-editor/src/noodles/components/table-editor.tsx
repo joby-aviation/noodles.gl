@@ -1043,7 +1043,7 @@ export function TableEditor({
     setTableData(newTableData)
 
     if (schemaChanged && !dataChanged && transition.renamedColumns.length > 0) {
-      onDataChange(newTableData, 'Apply connected table schema rename')
+      onDataChange(newTableData, 'Apply table schema rename')
     }
     previousDataRef.current = data
     previousSchemaRef.current = schema
