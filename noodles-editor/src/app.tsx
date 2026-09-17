@@ -148,8 +148,14 @@ function QuickStartModalRoute({ initialView = 'home' }: { initialView?: ModalVie
   }, [setQuickStartModalOpen, redirectPath])
 
   if (redirectPath) {
-    debugApp('QuickStartModalRoute: Redirecting to:', redirectPath)
-    return <Redirect to={redirectPath} />
+    // Preserve other query parameters (e.g., OAuth code) when redirecting
+    const otherParams = new URLSearchParams(searchParams)
+    otherParams.delete('redirect')
+    const queryString = otherParams.toString()
+    const fullPath = queryString ? `${redirectPath}?${queryString}` : redirectPath
+
+    debugApp('QuickStartModalRoute: Redirecting to:', fullPath)
+    return <Redirect to={fullPath} />
   }
 
   return (
@@ -183,8 +189,15 @@ function FallbackRoute() {
     if (redirect.startsWith('/') && !redirect.startsWith('//')) {
       // Valid redirect - process it
       const path = redirect.replace(/^\/app\//, '/') // Remove /app/ base if present
-      debugApp('Redirecting to:', path)
-      return <Redirect to={path} />
+
+      // Preserve other query parameters (e.g., OAuth code) when redirecting
+      const otherParams = new URLSearchParams(searchParams)
+      otherParams.delete('redirect')
+      const queryString = otherParams.toString()
+      const fullPath = queryString ? `${path}?${queryString}` : path
+
+      debugApp('Redirecting to:', fullPath)
+      return <Redirect to={fullPath} />
     }
     // Invalid redirect - log warning and fall through to default navigation
     debugApp('Ignoring invalid redirect URL:', redirect)

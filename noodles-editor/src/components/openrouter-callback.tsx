@@ -11,9 +11,10 @@
 
 import { type FC, useEffect, useState } from 'react'
 import {
-  adoptOpenRouterKey,
   AUTH_MESSAGE_TYPE,
   type AuthMessage,
+  adoptOpenRouterKey,
+  callbackUrl,
   completeOpenRouterAuth,
   takeReturnPath,
 } from '../noodles/openrouter-oauth'
@@ -33,6 +34,16 @@ export const OpenRouterCallback: FC = () => {
     const run = async () => {
       const params = new URLSearchParams(window.location.search)
       const code = params.get('code')
+      const error = params.get('error')
+      const allParams = Object.fromEntries(params.entries())
+
+      // Log everything for debugging - use console.log since debug may not be enabled
+      console.log('[openrouter-callback] Callback invoked')
+      console.log('[openrouter-callback] Full URL:', window.location.href)
+      console.log('[openrouter-callback] Code present:', !!code)
+      console.log('[openrouter-callback] Error param:', error)
+      console.log('[openrouter-callback] All URL params:', allParams)
+
       // Clear the code before doing anything with it: a reload of this URL would
       // otherwise retry an exchange whose verifier is already spent.
       window.history.replaceState({}, '', window.location.pathname)
@@ -41,8 +52,22 @@ export const OpenRouterCallback: FC = () => {
         ? await completeOpenRouterAuth(code)
         : ({
             ok: false,
-            error: params.get('error') ?? 'OpenRouter did not return an authorization code.',
+            error:
+              error ??
+              'OpenRouter did not return an authorization code. Check the browser console for details.',
           } as const)
+
+      console.log('[openrouter-callback] Result:', result)
+
+      if (!result.ok && !code && !error) {
+        console.error(
+          '[openrouter-callback] Neither code nor error received. This suggests OpenRouter did not redirect here, or the URL params were lost.'
+        )
+        console.error('[openrouter-callback] Expected callback from OpenRouter to:', callbackUrl())
+        console.error(
+          '[openrouter-callback] Debug: Enable localStorage.debug = "noodles:ai-chat" before starting OAuth flow for more details'
+        )
+      }
 
       if (cancelled) return
 

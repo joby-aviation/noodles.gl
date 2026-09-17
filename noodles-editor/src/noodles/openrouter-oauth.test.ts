@@ -79,6 +79,7 @@ describe('beginOpenRouterAuth', () => {
 
     const url = new URL(attempt.url)
     expect(url.origin + url.pathname).toBe('https://openrouter.ai/auth')
+    expect(url.searchParams.get('response_type')).toBe('code')
     expect(url.searchParams.get('code_challenge_method')).toBe('S256')
     expect(url.searchParams.get('callback_url')).toBe(callbackUrl())
     expect(url.searchParams.get('code_challenge')).toBe(await expectedChallenge(verifier as string))
