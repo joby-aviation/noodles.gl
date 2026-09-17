@@ -134,6 +134,26 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
     setSettingsDialogOpen(true)
   }
 
+  // Opens settings dialog to the specific configuration screen for a provider
+  const openProviderConfiguration = (providerId: ProviderId) => {
+    switch (providerId) {
+      case 'anthropic':
+        window.location.hash = 'api-keys:anthropic'
+        break
+      case 'openrouter':
+        window.location.hash = 'api-keys:openrouter'
+        break
+      case 'custom':
+        window.location.hash = 'ai-provider'
+        break
+      case 'chrome':
+        // Chrome requires no config, just set it
+        setPreference('chrome')
+        return
+    }
+    setSettingsDialogOpen(true)
+  }
+
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   // Subscribe to context loading progress
@@ -626,18 +646,30 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
         <div className={styles.modelPicker}>
           <select
             value={providerId}
-            onChange={e => setPreference(e.target.value as ProviderPreference)}
+            onChange={e => {
+              const newProvider = e.target.value as ProviderPreference
+              const credentials = {
+                anthropicKey: apiKey,
+                openRouterKey,
+                customEndpoint,
+                chromeAvailable,
+              }
+
+              // If provider isn't ready, open config flow instead of switching
+              if (newProvider !== 'automatic' && !isProviderReady(newProvider, credentials)) {
+                openProviderConfiguration(newProvider)
+              } else {
+                setPreference(newProvider)
+              }
+            }}
             className={styles.modelSelect}
             title="Which API the assistant talks to"
           >
-            <option value="anthropic" disabled={!apiKey}>
-              Anthropic
-            </option>
-            <option value="openrouter" disabled={!openRouterKey}>
-              OpenRouter
-            </option>
-            <option value="custom" disabled={!customEndpoint}>
+            <option value="anthropic">Anthropic{!apiKey && ' (configure key)'}</option>
+            <option value="openrouter">OpenRouter{!openRouterKey && ' (configure key)'}</option>
+            <option value="custom">
               {customEndpoint?.displayName ?? 'Custom endpoint'}
+              {!customEndpoint && ' (configure)'}
             </option>
             <option
               value="webllm"
@@ -651,12 +683,11 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
             </option>
             <option
               value="chrome"
-              disabled={!chromeAvailable}
               // A ~3B on-device model. Saying what it is good for is more use than
               // implying it is a smaller version of the others.
               title="Free, private, no key. Good for single-step edits and questions about the graph; too small to build one."
             >
-              Chrome (on-device)
+              Chrome (on-device){!chromeAvailable && ' (unavailable)'}
             </option>
           </select>
           <select
