@@ -31,6 +31,7 @@ import { AgentSession } from './agent/session'
 import type { AgentProvider, AgentUsage, DownloadProgress, ProviderId } from './agent/types'
 import { webSearchConfigFor } from './agent/web-search'
 import styles from './chat-panel.module.css'
+import { AssistantOnboarding } from './components/assistant-onboarding'
 import { loadConversation, saveConversation } from './conversation-history'
 import { ConversationHistoryPanel } from './conversation-history-panel'
 import { globalContextManager } from './global-context-manager'
@@ -477,60 +478,13 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
   if (!providerReady && !contextLoading) {
     return (
       <div className={styles.chatPanel}>
-        <div className={styles.chatPanelLoading}>
-          <h3>Connect the assistant</h3>
-          <p>
-            Sign in with OpenRouter and the assistant works straight away — nothing to copy, no
-            credit card. It starts on a free model
-            {freeModels.length > 0 && ` (${freeModels[0].label})`}; the free tier is limited to
-            roughly 50 messages a day, and adding credit later lifts that without changing anything
-            here.
-          </p>
-          <div className={styles.connectActions}>
-            <button
-              type="button"
-              onClick={connect.connect}
-              className={styles.chatSendBtn}
-              disabled={connect.status === 'connecting'}
-            >
-              {connect.status === 'connecting' ? 'Waiting for OpenRouter…' : 'Connect OpenRouter'}
-            </button>
-            {/* Second, not hidden: it needs no account at all, and it is the only
-                option for someone who will not send their data anywhere. Goes to
-                Settings rather than starting here, because which model — and so how
-                large a download — is a choice worth making deliberately. */}
-            {webgpuReady && (
-              <button
-                type="button"
-                onClick={openProviderSettings}
-                className={styles.chatPanelActionBtn}
-              >
-                Run a model locally
-              </button>
-            )}
-            <button type="button" onClick={handleClose} className={styles.chatPanelActionBtn}>
-              Close
-            </button>
-          </div>
-          {connect.blockedUrl && (
-            <p className={styles.connectNote}>
-              Your browser blocked the sign-in window.{' '}
-              <a href={connect.blockedUrl} target="_blank" rel="noopener noreferrer">
-                Open it in a new tab
-              </a>{' '}
-              instead.
-            </p>
-          )}
-          {connect.error && <p className={styles.connectError}>{connect.error}</p>}
-          <p className={styles.connectNote}>
-            Already have a key? Anthropic, an OpenAI-compatible endpoint and on-device models are
-            all in{' '}
-            <button type="button" onClick={openProviderSettings} className={styles.linkButton}>
-              Settings → AI Provider
-            </button>
-            .
-          </p>
-        </div>
+        <AssistantOnboarding
+          connect={connect}
+          webgpuReady={webgpuReady}
+          openProviderSettings={openProviderSettings}
+          onClose={handleClose}
+          freeModels={freeModels}
+        />
       </div>
     )
   }
