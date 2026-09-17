@@ -244,7 +244,11 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
         }
         setFocusedField(null)
       }, 100)
-      return () => clearTimeout(timeoutId)
+      return () => {
+        clearTimeout(timeoutId)
+        // Clear stale focus target if dialog closes during delay
+        setFocusedField(null)
+      }
     }
   }, [focusedField, open])
 

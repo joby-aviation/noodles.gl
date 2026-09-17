@@ -136,6 +136,9 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
 
   // Opens settings dialog to the specific configuration screen for a provider
   const openProviderConfiguration = (providerId: ProviderId) => {
+    // Save the preference first so provider switches automatically after config
+    setPreference(providerId)
+
     switch (providerId) {
       case 'anthropic':
         window.location.hash = 'api-keys:anthropic'
@@ -146,9 +149,11 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
       case 'custom':
         window.location.hash = 'ai-provider'
         break
+      case 'webllm':
+        window.location.hash = 'ai-provider'
+        break
       case 'chrome':
-        // Chrome requires no config, just set it
-        setPreference('chrome')
+        // Chrome requires no config and preference is already set above
         return
     }
     setSettingsDialogOpen(true)
@@ -665,21 +670,20 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
             className={styles.modelSelect}
             title="Which API the assistant talks to"
           >
-            <option value="anthropic">Anthropic{!apiKey && ' (configure key)'}</option>
-            <option value="openrouter">OpenRouter{!openRouterKey && ' (configure key)'}</option>
+            <option value="anthropic">Anthropic{!apiKey && ' - configure key'}</option>
+            <option value="openrouter">OpenRouter{!openRouterKey && ' - configure key'}</option>
             <option value="custom">
               {customEndpoint?.displayName ?? 'Custom endpoint'}
-              {!customEndpoint && ' (configure)'}
+              {!customEndpoint && ' - configure'}
             </option>
             <option
               value="webllm"
-              // Enabled once WebGPU is there, even with no model chosen yet: picking
-              // it here is how the user says they want one, and the panel then sends
-              // them to Settings rather than starting a download on its own
-              disabled={!webgpuReady}
+              // Picking it opens Settings to the model picker, so the panel doesn't
+              // start a multi-gigabyte download on its own
               title="Free, private, no key. Runs on this machine's GPU after a one-time download of a gigabyte or more."
             >
               Local model (on-device)
+              {!webgpuReady ? ' - unavailable' : !storedWebLLMModel && ' - choose model'}
             </option>
             <option
               value="chrome"
@@ -687,7 +691,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
               // implying it is a smaller version of the others.
               title="Free, private, no key. Good for single-step edits and questions about the graph; too small to build one."
             >
-              Chrome (on-device){!chromeAvailable && ' (unavailable)'}
+              Chrome (on-device){!chromeAvailable && ' - unavailable'}
             </option>
           </select>
           <select
