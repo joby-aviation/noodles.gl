@@ -28,7 +28,9 @@
 .content {
   background: var(--surface-card);
   border-radius: 8px;
-  box-shadow: 0 10px 38px -10px rgba(0, 0, 0, 0.35), 0 10px 20px -15px rgba(0, 0, 0, 0.2);
+  box-shadow:
+    0 10px 38px -10px rgba(0, 0, 0, 0.35),
+    0 10px 20px -15px rgba(0, 0, 0, 0.2);
   position: fixed;
   top: 50%;
   left: 50%;
@@ -66,6 +68,34 @@
   margin: 0;
   font-size: 0.875rem;
   color: var(--text-color-secondary);
+}
+
+.validationError,
+.clipboardStatus {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 4px;
+  font-size: 0.8125rem;
+}
+
+.validationError {
+  color: var(--red-200);
+  background: color-mix(in srgb, var(--red-500) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--red-500) 40%, transparent);
+}
+
+.clipboardStatus {
+  color: var(--text-color-secondary);
+  background: var(--surface-ground);
+  border: 1px solid var(--surface-border);
+}
+
+.schemaActions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--surface-border);
 }
 
 .body {
