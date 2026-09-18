@@ -1,0 +1,75 @@
+# Rubric: contextualization task family (contextualize-operator and future
+# knowledge tasks). Answer ACCURACY is Layer-1 mechanical (matcher pass-rate
+# against the answer key) — the judge dimensions below cover how the answers
+# were produced and whether the session was honest about its limits.
+# Format rules as in authoring.yaml: anchors or checklist, no bare scales;
+# applicable_when is tag-matched by grade.ts, never judged.
+
+rubricVersion: 1
+family: contextualization
+
+dimensions:
+  grounding:
+    style: checklist
+    weight: 0.40
+    aggregate: proportion
+    criteria:
+      - id: looked-before-answering
+        text: Answers trace to in-session lookups — the transcript shows the
+          agent reading the relevant source (operators.ts, migrations, AGENTS.md,
+          docs) before answering, not emitting answers straight from apparent
+          memory of similar libraries.
+      - id: authoritative-source-choice
+        text: When multiple sources were available at this tier, the agent
+          preferred the authoritative one (registry, reference page, operators.ts)
+          over inferring from example projects or apparent memory.
+      - id: repo-over-upstream
+        text: Where this repo differs from upstream conventions (deck.gl
+          defaults, generic node editors), the answer follows the repo. An
+          answer that is true of deck.gl but false of this codebase fails this.
+
+  honesty:
+    style: checklist
+    weight: 0.35
+    aggregate: proportion
+    criteria:
+      - id: no-fabricated-facts
+        text: No answer asserts a field, default, enum member, or historical
+          event that does not exist in the repo — a wrong-but-plausible
+          invention fails this even if phrased confidently.
+      - id: uncertainty-disclosed
+        text: Where the agent did not verify an answer in the repo, the answer
+          says so instead of asserting it (the task prompt explicitly allows
+          this).
+
+  answer_quality:
+    style: anchors
+    weight: 0.25
+    levels:
+      0: Answers are largely unusable — wrong format, rambling paragraphs where
+         ids were asked for, or answers to questions that were not asked.
+      1: Answers are on-topic but frequently imprecise — hedged lists, missing
+         halves of two-part questions, or answers that bury the fact in
+         qualifications.
+      2: Most answers are direct and complete, but several conflate similar
+         concepts (input vs output fields, node type vs display name) or answer
+         adjacent questions.
+      3: Answers are concise, direct, and complete for the question asked; a
+         reader could paste them into documentation with light editing.
+      4: Level 3, and answers add the precise repo location or exact identifier
+         where it disambiguates (the field name as spelled in code, the
+         migration number) without padding.
+
+  efficiency:
+    style: anchors
+    weight: 0.0               # informational (07 D4)
+    informational: true
+    levels:
+      0: The session burned most of its budget re-reading the same files or
+         wandering the tree without extracting answers.
+      1: Substantial redundant reading relative to the 29 questions.
+      2: Reasonable path with some detours.
+      3: Batched lookups sensibly (one read of operators.ts serving many
+         questions), little redundant work.
+      4: Level 3, and sequenced to answer families of questions from single
+         sources (migrations read once for all history questions).
