@@ -687,9 +687,9 @@ Any field can be keyframed via the native timeline system. Changes in timeline p
 
 The chat panel in the editor (`noodles-editor/src/ai-chat/`) runs its own agent loop
 in `ai-chat/agent/`. It is provider-agnostic — the same loop and tool surface serve
-Anthropic, OpenRouter, any OpenAI-compatible endpoint you point it at, and Chrome's
-built-in Gemini Nano — and it bounds context cost rather than sending everything it
-has.
+Anthropic, OpenRouter, any OpenAI-compatible endpoint you point it at, a local model
+on the user's own GPU via WebLLM, and Chrome's built-in Gemini Nano — and it bounds
+context cost rather than sending everything it has.
 
 Five things to know before changing it:
 
@@ -712,8 +712,12 @@ Five things to know before changing it:
    `agent/providers/openai-format.ts` rather than re-implement SSE tool-call
    fragment reassembly.
 5. **Which provider runs is `providerPreference` in `noodles/keys-store.tsx`**, not
-   the model store. `'automatic'` picks the first of anthropic → openrouter → custom
-   → chrome that has a credential.
+   the model store, and the rules are in `agent/provider-selection.ts`. `'automatic'`
+   picks the first of anthropic → openrouter → custom → webllm → chrome that is
+   *ready*. Ready is not the same as "has a key": a custom endpoint needs a base URL
+   and a model but no key, and `webllm` needs WebGPU **and** a model the user chose —
+   selecting one starts a multi-gigabyte download, so it can never be a consequence
+   of no key being configured.
 
 One security boundary lives in this code: `resolvePath()` in `ai-chat/agent-files.ts`.
 The assistant reads anywhere under the project's `data/` directory but writes only

@@ -17,6 +17,7 @@
     "@math.gl/web-mercator": "^4.1.0",
     "@mcp-b/global": "^3.0.0",
     "@microlink/react-json-view": "^1.31.15",
+    "@mlc-ai/web-llm": "^0.2.85",
     "@observablehq/plot": "^0.6.17",
     "@radix-ui/colors": "^3.0.0",
     "@radix-ui/react-context-menu": "^2.2.16",

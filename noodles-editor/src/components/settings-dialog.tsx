@@ -1,9 +1,13 @@
 import * as Dialog from '@radix-ui/react-dialog'
 import { Cross2Icon } from '@radix-ui/react-icons'
 import { useEffect, useState } from 'react'
+import { useAgentModelStore } from '../ai-chat/agent/model-store'
 import { validateCustomEndpoint } from '../ai-chat/agent/providers/custom'
+import { ENDPOINT_PRESETS, type EndpointPreset } from '../ai-chat/agent/providers/endpoint-presets'
+import { WEBLLM_MODELS, webgpuAvailable } from '../ai-chat/agent/providers/webllm'
 import type { ProviderPreference } from '../noodles/keys-store'
 import { getEnvKeys, useKeysStore } from '../noodles/keys-store'
+import { useOpenRouterConnect } from '../noodles/use-openrouter-connect'
 import { analytics } from '../utils/analytics'
 import s from './settings-dialog.module.css'
 
@@ -141,6 +145,19 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
   const setCustomEndpoint = useKeysStore(state => state.setCustomEndpoint)
   const getActiveSource = useKeysStore(state => state.getActiveSource)
   const removeProjectKey = useKeysStore(state => state.removeProjectKey)
+  const clearBrowserKey = useKeysStore(state => state.clearBrowserKey)
+
+  // OpenRouter sign-in. A key the OAuth flow minted is stored as a browser key,
+  // so that source is also what tells us there is something to disconnect.
+  const openRouterConnect = useOpenRouterConnect()
+  const openRouterConnected = getActiveSource('openrouter') === 'browser'
+
+  // The local-model option. Picking a model is what arms it: until then the chat
+  // treats WebLLM as unconfigured, so 'automatic' cannot start a download nobody
+  // asked for.
+  const webllmModel = useAgentModelStore(state => state.models.webllm)
+  const setModel = useAgentModelStore(state => state.setModel)
+  const [webgpuReady, setWebgpuReady] = useState<boolean | null>(null)
 
   // Custom endpoint state (local form state)
   const [endpointBaseUrl, setEndpointBaseUrl] = useState(customEndpoint?.baseUrl || '')
@@ -148,6 +165,13 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
   const [endpointModel, setEndpointModel] = useState(customEndpoint?.model || '')
   const [endpointDisplayName, setEndpointDisplayName] = useState(customEndpoint?.displayName || '')
   const [endpointStatus, setEndpointStatus] = useState<EndpointStatus>({ state: 'idle' })
+  // Model ids the endpoint reported, so a mistyped model becomes a pick from a list
+  const [endpointModels, setEndpointModels] = useState<string[]>([])
+  // Which preset the form currently matches, so the "get a key" link points at the
+  // console the typed base URL actually belongs to
+  const activePreset = ENDPOINT_PRESETS.find(
+    preset => preset.baseUrl === endpointBaseUrl.trim().replace(/\/+$/, '')
+  )
 
   // Environment keys (static)
   const envKeys = getEnvKeys()
@@ -173,6 +197,19 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
       }
     }
   }, [open, customEndpoint])
+
+  // Asked once the dialog is open rather than on mount: requesting a GPU adapter
+  // is not free, and nothing outside this tab needs the answer.
+  useEffect(() => {
+    if (!open || webgpuReady !== null) return
+    let current = true
+    webgpuAvailable().then(available => {
+      if (current) setWebgpuReady(available)
+    })
+    return () => {
+      current = false
+    }
+  }, [open, webgpuReady])
 
   // Clear hash when dialog closes
   useEffect(() => {
@@ -207,19 +244,35 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
     }
   }
 
+  const handleDisconnectOpenRouter = () => {
+    clearBrowserKey('openrouter')
+    openRouterConnect.reset()
+    analytics.track('openrouter_disconnected')
+  }
+
   const handleProviderPreferenceChange = (preference: ProviderPreference) => {
     setProviderPreference(preference)
     analytics.track('ai_provider_preference_changed', { preference })
+  }
+
+  // The model id is one of a handful of public WebLLM slugs, so it is a feature
+  // choice rather than anything about the user
+  const handleWebLLMModelChange = (model: string) => {
+    setModel('webllm', model || undefined)
+    if (model) analytics.track('webllm_model_selected', { model })
   }
 
   // Checks the endpoint before saving it. A typo'd base URL is the commonest
   // mistake here and it would otherwise only surface as a failed chat message,
   // which is a much worse place to learn about it.
   const handleSaveCustomEndpoint = async () => {
-    if (!endpointBaseUrl || !endpointApiKey || !endpointModel) return
+    // The key is optional: a llama.cpp or LM Studio server on the LAN issues none
+    // and wants no Authorization header at all
+    if (!endpointBaseUrl || !endpointModel) return
 
     setEndpointStatus({ state: 'checking' })
     const result = await validateCustomEndpoint(endpointBaseUrl, endpointApiKey)
+    setEndpointModels(result.models ?? [])
 
     if (!result.ok) {
       setEndpointStatus({
@@ -235,7 +288,7 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
     if (result.models && !result.models.includes(endpointModel)) {
       setEndpointStatus({
         state: 'failed',
-        message: `The endpoint works, but does not list “${endpointModel}”. Available: ${result.models.slice(0, 8).join(', ')}`,
+        message: `The endpoint works, but does not list “${endpointModel}”. Pick one of: ${result.models.slice(0, 8).join(', ')}`,
       })
       analytics.track('custom_endpoint_validation_failed')
       return
@@ -257,29 +310,24 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
     setEndpointApiKey('')
     setEndpointModel('')
     setEndpointDisplayName('')
+    setEndpointModels([])
+    setEndpointStatus({ state: 'idle' })
     analytics.track('custom_endpoint_cleared')
   }
 
-  // Preset configurations for popular providers
-  const applyPreset = (preset: 'groq' | 'openrouter' | 'openai') => {
-    switch (preset) {
-      case 'groq':
-        setEndpointBaseUrl('https://api.groq.com/openai/v1')
-        setEndpointModel('llama-3.1-70b-versatile')
-        setEndpointDisplayName('Groq (Llama 3.1 70B)')
-        break
-      case 'openrouter':
-        setEndpointBaseUrl('https://openrouter.ai/api/v1')
-        setEndpointModel('meta-llama/llama-3.1-70b-instruct')
-        setEndpointDisplayName('OpenRouter (Llama 3.1 70B)')
-        break
-      case 'openai':
-        setEndpointBaseUrl('https://api.openai.com/v1')
-        setEndpointModel('gpt-4o')
-        setEndpointDisplayName('OpenAI (GPT-4o)')
-        break
-    }
-    analytics.track('custom_endpoint_preset_applied', { preset })
+  // Fills the form; the user still presses Test and Save, so a preset can never
+  // save a configuration that does not work. The preset id is a public provider
+  // name, which is a feature choice rather than anything about the user.
+  const applyPreset = (preset: EndpointPreset) => {
+    setEndpointBaseUrl(preset.baseUrl)
+    setEndpointModel(preset.model)
+    setEndpointDisplayName(preset.displayName)
+    setEndpointModels([])
+    setEndpointStatus({ state: 'idle' })
+    // A key from a previous preset is worse than none: it would be sent to a host
+    // that never issued it
+    setEndpointApiKey('')
+    analytics.track('custom_endpoint_preset_applied', { preset: preset.id })
   }
 
   return (
@@ -432,11 +480,50 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
                         className={s.providerRadio}
                       />
                       <div className={s.providerOptionContent}>
-                        <div className={s.providerOptionTitle}>Always use OpenRouter</div>
-                        <div className={s.providerOptionDescription}>
-                          Gemini, GPT, Claude and others behind one key, billed by OpenRouter
-                          (requires OpenRouter API key below)
+                        <div className={s.providerOptionTitle}>
+                          Always use OpenRouter
+                          {openRouterConnected && <span className={s.activeBadge}>Connected</span>}
                         </div>
+                        <div className={s.providerOptionDescription}>
+                          Gemini, GPT, Claude and others behind one key. Sign in and OpenRouter
+                          issues the key for you — free models included, no copy-paste.
+                        </div>
+                        {/* Buttons are interactive content, so clicking one does not
+                            also activate the surrounding label's radio. */}
+                        <div className={s.connectRow}>
+                          {openRouterConnected ? (
+                            <button
+                              type="button"
+                              onClick={handleDisconnectOpenRouter}
+                              className={s.secondaryButton}
+                            >
+                              Disconnect
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={openRouterConnect.connect}
+                              disabled={openRouterConnect.status === 'connecting'}
+                              className={s.primaryButton}
+                            >
+                              {openRouterConnect.status === 'connecting'
+                                ? 'Waiting for OpenRouter…'
+                                : 'Connect OpenRouter'}
+                            </button>
+                          )}
+                        </div>
+                        {openRouterConnect.blockedUrl && (
+                          <div className={s.providerOptionDescription}>
+                            Your browser blocked the sign-in window.{' '}
+                            <a href={openRouterConnect.blockedUrl} target="_blank" rel="noreferrer">
+                              Open it in a new tab
+                            </a>
+                            .
+                          </div>
+                        )}
+                        {openRouterConnect.error && (
+                          <div className={s.endpointError}>{openRouterConnect.error}</div>
+                        )}
                       </div>
                     </label>
 
@@ -458,6 +545,57 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
                         <div className={s.providerOptionDescription}>
                           Use Groq, OpenRouter, OpenAI, or self-hosted (configure below)
                         </div>
+                      </div>
+                    </label>
+
+                    <label
+                      className={`${s.providerOption} ${providerPreference === 'webllm' ? s.providerOptionSelected : ''}`}
+                    >
+                      <input
+                        type="radio"
+                        name="providerPreference"
+                        value="webllm"
+                        checked={providerPreference === 'webllm'}
+                        disabled={webgpuReady === false}
+                        onChange={e =>
+                          handleProviderPreferenceChange(e.target.value as ProviderPreference)
+                        }
+                        className={s.providerRadio}
+                      />
+                      <div className={s.providerOptionContent}>
+                        <div className={s.providerOptionTitle}>Local model (on-device)</div>
+                        <div className={s.providerOptionDescription}>
+                          Runs on this machine's GPU. No account, no key, and no prompt ever leaves
+                          the browser — in exchange for a one-time download of a gigabyte or more.
+                        </div>
+                        {webgpuReady === false ? (
+                          <div className={s.providerOptionDescription}>
+                            Unavailable: this browser does not offer WebGPU. Chrome and Edge do.
+                          </div>
+                        ) : (
+                          <>
+                            {/* Choosing a model is what arms this provider, and the size in
+                                each label is the decision actually being made. Nothing
+                                downloads until the chat next opens a session. */}
+                            <select
+                              className={s.select}
+                              value={webllmModel ?? ''}
+                              onChange={e => handleWebLLMModelChange(e.target.value)}
+                            >
+                              <option value="">Choose a model…</option>
+                              {WEBLLM_MODELS.map(option => (
+                                <option key={option.id} value={option.id}>
+                                  {option.label}
+                                </option>
+                              ))}
+                            </select>
+                            {providerPreference === 'webllm' && !webllmModel && (
+                              <div className={s.providerOptionDescription}>
+                                Pick a model above to start — nothing downloads until you do.
+                              </div>
+                            )}
+                          </>
+                        )}
                       </div>
                     </label>
 
@@ -493,30 +631,30 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
                       providers.
                     </div>
 
-                    {/* Preset buttons */}
+                    {/* Preset buttons. Each fills the form; nothing is saved until
+                        Test and Save checks the endpoint actually serves the model. */}
                     <div className={s.presetButtonContainer}>
-                      <button
-                        type="button"
-                        onClick={() => applyPreset('groq')}
-                        className={s.presetButton}
-                      >
-                        Groq (Free)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => applyPreset('openrouter')}
-                        className={s.presetButton}
-                      >
-                        OpenRouter
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => applyPreset('openai')}
-                        className={s.presetButton}
-                      >
-                        OpenAI
-                      </button>
+                      {ENDPOINT_PRESETS.map(preset => (
+                        <button
+                          key={preset.id}
+                          type="button"
+                          onClick={() => applyPreset(preset)}
+                          className={s.presetButton}
+                          title={preset.note}
+                        >
+                          {preset.label}
+                        </button>
+                      ))}
                     </div>
+
+                    {activePreset?.signupUrl && (
+                      <div className={s.presetHint}>
+                        {activePreset.note}{' '}
+                        <a href={activePreset.signupUrl} target="_blank" rel="noreferrer">
+                          Get a key →
+                        </a>
+                      </div>
+                    )}
 
                     {/* Form fields */}
                     <div className={s.endpointFormFields}>
@@ -535,11 +673,14 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
                       <div>
                         <label className={s.formLabel}>
                           <div className={s.formLabelText}>API Key</div>
+                          {/* Optional, because a server on the LAN (LM Studio,
+                              llama.cpp, Ollama) issues no key and rejects an empty
+                              Bearer header */}
                           <input
                             type="password"
                             value={endpointApiKey}
                             onChange={e => setEndpointApiKey(e.target.value)}
-                            placeholder="Your API key"
+                            placeholder="Your API key (blank for a local server)"
                             className={`${s.input} ${s.fullWidthInput}`}
                           />
                         </label>
@@ -547,13 +688,22 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
                       <div>
                         <label className={s.formLabel}>
                           <div className={s.formLabelText}>Model</div>
+                          {/* A list rather than a free-text field once the endpoint has
+                              told us what it serves: a mistyped model is the commonest
+                              way a working endpoint still fails */}
                           <input
                             type="text"
+                            list="custom-endpoint-models"
                             value={endpointModel}
                             onChange={e => setEndpointModel(e.target.value)}
-                            placeholder="llama-3.1-70b-versatile"
+                            placeholder="llama-3.3-70b-versatile"
                             className={`${s.input} ${s.fullWidthInput}`}
                           />
+                          <datalist id="custom-endpoint-models">
+                            {endpointModels.map(model => (
+                              <option key={model} value={model} />
+                            ))}
+                          </datalist>
                         </label>
                       </div>
                       <div>
@@ -582,7 +732,6 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
                           onClick={handleSaveCustomEndpoint}
                           disabled={
                             !endpointBaseUrl ||
-                            !endpointApiKey ||
                             !endpointModel ||
                             endpointStatus.state === 'checking'
                           }
