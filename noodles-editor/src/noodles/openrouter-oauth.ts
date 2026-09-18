@@ -65,11 +65,21 @@ export async function beginOpenRouterAuth(): Promise<AuthAttempt> {
   sessionStorage.setItem(RETURN_KEY, location.pathname + location.search)
 
   const url = new URL(AUTH_URL)
-  url.searchParams.set('callback_url', callbackUrl())
+  const callbackUrlValue = callbackUrl()
+
+  url.searchParams.set('response_type', 'code')
+  url.searchParams.set('callback_url', callbackUrlValue)
   url.searchParams.set('code_challenge', challenge)
   url.searchParams.set('code_challenge_method', 'S256')
 
-  debugAiChat('[openrouter-oauth] starting flow, callback %s', callbackUrl())
+  debugAiChat('[openrouter-oauth] starting flow')
+  debugAiChat('[openrouter-oauth] callback URL: %s', callbackUrlValue)
+  debugAiChat('[openrouter-oauth] full auth URL: %s', url.toString())
+  debugAiChat(
+    '[openrouter-oauth] verifier length: %d, challenge length: %d',
+    verifier.length,
+    challenge.length
+  )
 
   const left = Math.max(0, Math.round(window.screenX + (window.outerWidth - POPUP_WIDTH) / 2))
   const top = Math.max(0, Math.round(window.screenY + (window.outerHeight - POPUP_HEIGHT) / 3))
