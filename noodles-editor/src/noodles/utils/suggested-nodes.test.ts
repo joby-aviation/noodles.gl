@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  CombineXYOp,
   FileOp,
   FilterOp,
   GeoJsonLayerOp,
@@ -76,6 +77,13 @@ describe('getSuggestedNodes', () => {
 
     const opTypes = suggestions.map(s => s.opType)
     expect(opTypes).not.toContain('NumberOp')
+  })
+
+  it('does not suggest operators based on runtime-only inputs', () => {
+    const op = new CombineXYOp('/vector-1')
+    const suggestions = getSuggestedNodes(op, 100)
+
+    expect(suggestions.map(suggestion => suggestion.opType)).not.toContain('BoundingBoxOp')
   })
 
   it('includes same-category operators when curated and compatible are exhausted', () => {

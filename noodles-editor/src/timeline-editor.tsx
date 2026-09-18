@@ -3,7 +3,7 @@ import { MapLibreOverlay, type MapLibreOverlayProps } from '@deck.gl/maplibre'
 import { DeckGL } from '@deck.gl/react'
 import { ReactFlowProvider } from '@xyflow/react'
 import type { CustomLayerInterface, Map as MapLibre } from 'maplibre-gl'
-import { forwardRef, useCallback, useEffect, useRef, useState } from 'react'
+import { forwardRef, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import ReactMapGL, { type MapProps, useControl } from 'react-map-gl/maplibre'
 import { Layout } from './layout'
 import { ErrorBoundary } from './noodles/components/error-boundary'
@@ -16,12 +16,17 @@ import { useActiveOutOp } from './noodles/hooks/use-active-outop'
 import { useRenderSettings } from './noodles/hooks/use-render-settings'
 import { getNoodles } from './noodles/noodles'
 import { fnWithSource } from './noodles/operators'
+import { useOperatorStore, useUIStore } from './noodles/store'
 import type { RenderSettings } from './noodles/utils/serialization'
 import { useDeckDrawLoop } from './render/draw-loop'
+import {
+  calculateRenderSurfaceSize,
+  observeRenderSurface,
+  syncBoundingBoxViewportSize,
+} from './render/render-surface-size'
 import { captureScreenshot, useRenderer } from './render/renderer'
 import { deckRenderingDefaults, mapRenderingDefaults } from './render/rendering-defaults'
 import { TransformScale } from './render/transform-scale'
-import { useUIStore } from './noodles/store'
 import { TimelinePanel } from './timeline/components/TimelinePanel'
 import { getTimelineStore, useTimelineStore } from './timeline/timeline-store'
 import s from './timeline-editor.module.css'
@@ -75,6 +80,8 @@ const isMapReady = (map: MapLibre | null) => !map || (map.isStyleLoaded() && map
 export default function TimelineEditor() {
   const mapRef = useRef<MapLibre | null>(null)
   const deckRef = useRef<Deck>(null)
+  const renderSurfaceRef = useRef<HTMLDivElement>(null)
+  const operators = useOperatorStore(state => state.operators)
   const isRenderingRef = useRef(false)
   // Session-only handle set by selectRendersDirectory; takes priority over project subdir
   const rendersDirectoryHandleRef = useRef<FileSystemDirectoryHandle | null>(null)
@@ -530,36 +537,51 @@ export default function TimelineEditor() {
 
   // Increase the render target resolution to increase map tile detail.
   // To convert viewport bounds back to their original size, add about 1 to the zoom value.
-  const lodResolution = {
-    width: Math.round(resolution.width * lod),
-    height: Math.round(resolution.height * lod),
-  }
+  const lodResolution = calculateRenderSurfaceSize(resolution, lod)
 
   // Use fixed resolution for 'fixed' display mode, undefined for 'responsive' mode to use natural dimensions
   const isFixedMode = renderSettings.display === 'fixed'
   const displayResolution = isFixedMode ? lodResolution : undefined
+  const renderWidth = lodResolution.width
+  const renderHeight = lodResolution.height
+
+  useLayoutEffect(() => {
+    const syncViewportSize = (size: { width: number; height: number }) =>
+      syncBoundingBoxViewportSize(operators.values(), size)
+
+    if (isFixedMode) {
+      syncViewportSize({ width: renderWidth, height: renderHeight })
+      return
+    }
+
+    const surface = renderSurfaceRef.current
+    if (!surface) return
+    return observeRenderSurface(surface, syncViewportSize)
+  }, [isFixedMode, operators, renderWidth, renderHeight])
 
   const renderContent = () => {
-    if (basemapEnabled) {
-      return (
-        <ReactMapGL style={displayResolution} {...mapProps}>
-          <DeckGLOverlay
-            ref={deckRef}
-            renderer={renderSettings}
-            isRendering={isRendering}
-            {...deckProps}
-          />
-          {/* Interactive Draw and Measure tools, armed from the top shelf */}
-          <MapToolLayer mapRef={mapRef} basemapEnabled isRendering={isRendering} />
-        </ReactMapGL>
-      )
-    }
-    return (
+    const content = basemapEnabled ? (
+      <ReactMapGL style={displayResolution} {...mapProps}>
+        <DeckGLOverlay
+          ref={deckRef}
+          renderer={renderSettings}
+          isRendering={isRendering}
+          {...deckProps}
+        />
+        {/* Interactive Draw and Measure tools, armed from the top shelf */}
+        <MapToolLayer mapRef={mapRef} basemapEnabled isRendering={isRendering} />
+      </ReactMapGL>
+    ) : (
       <DeckGL
         ref={ref => setRef(deckRef, ref?.deck)}
         {...deckProps}
         {...(displayResolution || {})}
       />
+    )
+    return (
+      <div ref={renderSurfaceRef} style={{ position: 'relative', width: '100%', height: '100%' }}>
+        {content}
+      </div>
     )
   }
 

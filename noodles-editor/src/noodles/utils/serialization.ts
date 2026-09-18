@@ -144,6 +144,7 @@ export function serializeNodes(
     // Serialize fields
     const inputs: ExtractProps<ReturnType<typeof op.createInputs>> = {}
     for (const [name, field] of Object.entries(op.inputs)) {
+      if (field.runtimeOnly) continue
       const serialized = field.serialize()
       // Compare transformed values to properly detect non-default values
       // This handles fields where serialize() returns a different format than stored value
@@ -225,7 +226,7 @@ export function serializeNodes(
 }
 
 export function serializeEdges(
-  _store: ReturnType<typeof useOperatorStore.getState>,
+  store: ReturnType<typeof useOperatorStore.getState>,
   nodes: ReactFlowNode<Record<string, unknown>>[],
   edges: ReactFlowEdge[]
 ) {
@@ -242,6 +243,9 @@ export function serializeEdges(
       }
       // Skip ReferenceEdge types - they should not be persisted in save files
       if (edge.type === 'ReferenceEdge') {
+        return false
+      }
+      if (isRuntimeOnlyInputEdge(store, edge)) {
         return false
       }
       return true
@@ -269,6 +273,15 @@ export function serializeEdges(
 
       return serialized
     })
+}
+
+export function isRuntimeOnlyInputEdge(
+  store: ReturnType<typeof useOperatorStore.getState>,
+  edge: ReactFlowEdge
+): boolean {
+  const targetHandle = parseHandleId(String(edge.targetHandle))
+  if (targetHandle?.namespace !== 'par') return false
+  return store.getOp(edge.target)?.inputs[targetHandle.fieldName]?.runtimeOnly === true
 }
 
 // Pre-load all example asset URLs for download functionality

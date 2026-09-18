@@ -722,6 +722,7 @@ export function bindOperatorToTimeline(op: Operator<IOperator>, store?: Timeline
   const cleanupFns: Array<() => void> = []
 
   for (const [fieldName, field] of Object.entries(op.inputs)) {
+    if (field.runtimeOnly) continue
     // Skip non-animatable fields
     if (typeof field.value === 'function') continue
     if (!isAnimatableField(field as AnyField)) continue

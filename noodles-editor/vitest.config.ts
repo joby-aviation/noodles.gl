@@ -9,7 +9,16 @@ export default defineConfig({
   test: {
     setupFiles: ['src/setupTests.ts'],
     browser: {
-      provider: playwright(),
+      provider: playwright({
+        launchOptions: {
+          // Permit Chromium's software WebGL fallback for real-renderer tests; this does not force it.
+          args: ['--enable-unsafe-swiftshader'],
+        },
+        contextOptions: {
+          // MapLibre sizes its canvas from DPR, so pin browser raster dimensions in CI.
+          deviceScaleFactor: 1,
+        },
+      }),
       enabled: true,
       headless: true,
       screenshotFailures: false,

@@ -28,6 +28,7 @@ export interface IField<
   addConnection<F extends Field>(id: string, field: F): void
   removeConnection(id: string, connectionType: 'reference' | 'value'): void
   serialize(): z.infer<S>
+  runtimeOnly?: boolean
 }
 
 type BaseFieldOptions = {
@@ -37,6 +38,7 @@ type BaseFieldOptions = {
   showByDefault?: boolean // Defaults to true. Set to false to hide field by default in UI.
   useDeepEquality?: boolean // Use deep equality when comparing values to prevent unnecessary updates
   maxDepth?: number // Maximum depth for deep equality checks (Infinity = unlimited)
+  runtimeOnly?: boolean // Runtime-injected input; excluded from project serialization and history
 }
 
 type PointFieldOptions = BaseFieldOptions & {
@@ -136,6 +138,10 @@ export abstract class Field<
   // Infinity = unlimited depth, 0 = reference equality only, 1 = shallow, 2+ = limited depth
   maxDepth = Infinity
 
+  // Runtime-only fields participate in operator execution like normal inputs, but
+  // their environment-derived values are never persisted with the project.
+  runtimeOnly = false
+
   // Hold a reference to the operator that owns this field. Only used for debugging at the moment.
   op!: Operator<IOperator>
 
@@ -199,6 +205,7 @@ export abstract class Field<
     showByDefault,
     useDeepEquality,
     maxDepth,
+    runtimeOnly,
   }: Partial<O>) {
     let schema = this.schema
 
@@ -215,6 +222,10 @@ export abstract class Field<
     // Set maxDepth if specified
     if (maxDepth !== undefined) {
       this.maxDepth = maxDepth
+    }
+
+    if (runtimeOnly !== undefined) {
+      this.runtimeOnly = runtimeOnly
     }
 
     if (accessor) {
@@ -305,6 +316,7 @@ export abstract class Field<
     field: F,
     connectionType: 'reference' | 'value' = 'value'
   ) {
+    if (this.runtimeOnly) return
     if (this.subscriptions.has(id)) {
       return
     }
@@ -1408,6 +1420,7 @@ export class CompoundPropsField extends Field<
     field: F,
     connectionType: 'reference' | 'value' = 'value'
   ): Subscription | undefined {
+    if (this.runtimeOnly) return
     if (this.subscriptions.has(id)) {
       return
     }
@@ -1449,6 +1462,7 @@ export class ListField<F extends Field> extends Field<
   // Overrides the default setValue to handle a list of fields
   // TODO: Do we need to handle reference connections?
   addConnection(id: string, field: F, _connectionType: 'reference' | 'value' = 'value') {
+    if (this.runtimeOnly) return
     if (this.subscriptions.has(id)) {
       return
     }
