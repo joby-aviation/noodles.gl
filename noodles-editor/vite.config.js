@@ -13,6 +13,153 @@ const ENV_VARIABLES_WITH_INSTRUCTIONS = {
   VITE_CLAUDE_API_KEY: 'Get token at https://console.anthropic.com/ (Optional - can be set in UI)',
 }
 
+const DOCS_SEARCH_ID = 'virtual:noodles-docs-search'
+const RESOLVED_DOCS_SEARCH_ID = `\0${DOCS_SEARCH_ID}`
+const DOC_CHUNK_CHARS = 1200
+const DOC_STOP_WORDS = new Set([
+  'a',
+  'an',
+  'the',
+  'to',
+  'of',
+  'for',
+  'in',
+  'on',
+  'and',
+  'or',
+  'is',
+  'it',
+  'how',
+  'do',
+  'does',
+  'can',
+  'my',
+  'me',
+  'with',
+  'what',
+  'when',
+  'why',
+  'use',
+  'using',
+  'noodles',
+  'should',
+  'would',
+  'could',
+  'want',
+  'need',
+  'get',
+  'set',
+  'make',
+  'this',
+  'that',
+])
+
+function docsSearchPlugin() {
+  return {
+    name: 'noodles-docs-search',
+    resolveId(id) {
+      return id === DOCS_SEARCH_ID ? RESOLVED_DOCS_SEARCH_ID : null
+    },
+    load(id) {
+      if (id !== RESOLVED_DOCS_SEARCH_ID) return null
+      return `export default ${JSON.stringify(buildDocsSearchIndex(process.cwd()))}`
+    },
+  }
+}
+
+function buildDocsSearchIndex(root) {
+  const sources = [
+    ...markdownFiles(path.resolve(root, '../docs')).map(file => ({ file, kind: 'docs' })),
+    ...markdownFiles(path.resolve(root, 'src/ai-chat')).map(file => ({ file, kind: 'ai' })),
+    ...markdownFiles(path.resolve(root, 'src/examples'))
+      .filter(file => path.basename(file) === 'README.md')
+      .map(file => ({ file, kind: 'example' })),
+  ]
+  const chunks = []
+  for (const source of sources) {
+    if (
+      source.file.endsWith('/prompts/core.md') ||
+      source.file.endsWith('/ai-chat/agents/README.md')
+    )
+      continue
+    const content = fs.readFileSync(source.file, 'utf8')
+    const topicId = docsTopicId(root, source.file, source.kind)
+    const title = content.match(/^#\s+(.+)$/m)?.[1] ?? 'Untitled'
+    let sectionCursor = 0
+    for (const section of content.split(/(?=^#{1,6}\s+)/m)) {
+      const sectionStart = content.indexOf(section, sectionCursor)
+      sectionCursor = sectionStart + section.length
+      const heading = section.match(/^#{1,6}\s+(.+)$/m)?.[1]
+      const anchor = heading
+        ?.toLowerCase()
+        .replace(/[^\w\s-]/g, '')
+        .replace(/\s+/g, '-')
+      for (let start = 0; start < section.length; start += DOC_CHUNK_CHARS) {
+        const raw = section.slice(start, start + DOC_CHUNK_CHARS)
+        const leadingWhitespace = raw.length - raw.trimStart().length
+        const text = raw.trim()
+        if (!text) continue
+        const tokens = docsTokens(
+          `${title} ${title} ${title} ${heading ?? ''} ${heading ?? ''} ${text}`
+        )
+        const terms = new Map()
+        for (const token of tokens) terms.set(token, (terms.get(token) ?? 0) + 1)
+        const absoluteStart = sectionStart + start + leadingWhitespace
+        chunks.push({
+          topicId,
+          heading,
+          anchor,
+          start: absoluteStart,
+          end: absoluteStart + text.length,
+          terms: [...terms],
+          length: tokens.length,
+        })
+      }
+    }
+  }
+  const frequencies = new Map()
+  for (const chunk of chunks) {
+    for (const [term] of chunk.terms) frequencies.set(term, (frequencies.get(term) ?? 0) + 1)
+  }
+  return {
+    chunks,
+    documentFrequency: [...frequencies],
+    averageLength:
+      chunks.reduce((sum, chunk) => sum + chunk.length, 0) / Math.max(1, chunks.length),
+  }
+}
+
+function docsTopicId(root, file, kind) {
+  if (kind === 'docs') {
+    return path
+      .relative(path.resolve(root, '../docs'), file)
+      .replace(/\.md$/, '')
+      .split(path.sep)
+      .join('-')
+  }
+  if (kind === 'example') return `example-${path.basename(path.dirname(file))}`
+  const relative = path.relative(path.resolve(root, 'src/ai-chat'), file).split(path.sep).join('/')
+  if (relative.startsWith('prompts/sections/')) {
+    return `workflow-${path.basename(relative, '.md')}`
+  }
+  return `ai-chat-${relative.replace(/\.md$/, '').replace(/\//g, '-')}`
+}
+
+function markdownFiles(directory) {
+  if (!fs.existsSync(directory)) return []
+  return fs.readdirSync(directory, { withFileTypes: true }).flatMap(entry => {
+    const file = path.join(directory, entry.name)
+    return entry.isDirectory() ? markdownFiles(file) : entry.name.endsWith('.md') ? [file] : []
+  })
+}
+
+function docsTokens(value) {
+  return value
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter(term => term.length > 1 && !DOC_STOP_WORDS.has(term))
+}
+
 export default defineConfig(({ mode }) => {
   // Load env file based on `mode` in the current working directory.
   // Set the third parameter to '' to load all env regardless of the `VITE_` prefix.
@@ -46,6 +193,7 @@ export default defineConfig(({ mode }) => {
       format: 'es',
     },
     plugins: [
+      docsSearchPlugin(),
       react(),
       nodePolyfills({
         protocolImports: true,

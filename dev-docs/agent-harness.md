@@ -45,10 +45,10 @@ unconditionally and is unaffected by any of the routing below.
 
 | | Anthropic | OpenRouter | Custom | WebLLM | Chrome |
 | --- | --- | --- | --- | --- | --- |
-| Default model | `claude-sonnet-5` | best free tool-capable model in the catalogue | whatever you type | `Qwen3-4B-q4f16_1-MLC` | `gemini-nano` |
+| Default model | `claude-sonnet-5` | best free tool-capable model in the catalogue | whatever you type | `Qwen3.5-4B-q4f16_1-MLC` | `gemini-nano` |
 | Context window | 200k | from `/models`, per-model table as fallback | configurable, 32k default | 4k, pinned by every prebuilt config | discovered at runtime (~6k), and measured per turn |
 | Native tool calling | yes | yes (filtered on `supported_parameters`) | assumed, switchable off | **no** — constrained JSON | **no** — constrained JSON |
-| Images (screenshots) | yes | yes | off by default | no | no |
+| Images (screenshots) | yes | only when the catalogue reports `text` + `image` input | off by default | no | no |
 | Web search | server-side `web_search_2026…`/`…20250305` | `plugins: [{id:'web'}]` | unavailable | unavailable | unavailable |
 | Prompt caching | `cache_control: ephemeral` on the system prompt | — | — | — | — |
 | API key | required | one click, no paste | required, unless the server is your own | none | none |
@@ -73,9 +73,9 @@ The provider is chosen in the chat panel header (or pinned in Settings) and stor
 `providerPreference` in `noodles/keys-store.tsx`; the model is stored separately in
 `agent/model-store.ts`. The rules live in `agent/provider-selection.ts` rather than in
 the panel, so they can be tested without mounting the editor. `'automatic'` walks
-`anthropic → openrouter → custom → webllm → chrome` and takes the first one that is
-*ready*, so neither on-device provider is picked for you — they are the weakest of the
-five and have to be asked for. A pinned provider that is not ready falls back to the
+`anthropic → openrouter → custom → webllm` and takes the first one that is
+*ready*. Chrome is experimental and is never selected automatically. WebLLM also
+requires an explicitly selected model, so no local download starts implicitly. A pinned provider that is not ready falls back to the
 same walk rather than showing an error.
 
 "Ready" is not the same question as "has a key":
@@ -154,10 +154,12 @@ Four facts shape `providers/webllm.ts`:
    largest dependency in the app and users who never pick a local model pay nothing
    for it. It is also in `optimizeDeps.exclude`.
 
-`WEBLLM_MODELS` carries five ids checked against `prebuiltAppConfig.model_list`, each
-with the download size from the config's own `vram_required_MB`, because "3.4GB the
-first time" is the number that makes the choice an informed one. The download reports
-progress through the same `DownloadProgress` UI Chrome uses.
+`WEBLLM_MODELS` recommends Qwen3.5 4B (2.39GB download, 3.87GB runtime GPU memory)
+and Qwen3.5 2B (1.08GB download, 2.25GB runtime GPU memory). Older saved model ids
+remain available under Advanced compatibility. Download size and runtime memory are
+separate metadata, and every local artifact remains text-only until browser Qwen3.5
+vision support is stable. The download reports progress through the same
+`DownloadProgress` UI Chrome uses.
 
 ### Why there is no keyless preset
 

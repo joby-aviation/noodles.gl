@@ -484,6 +484,37 @@
   background: #252525;
 }
 
+.proposalCard {
+  margin: 12px 0;
+  padding: 14px;
+  border: 1px solid #4a9eff;
+  border-radius: 8px;
+  background: rgba(74, 158, 255, 0.08);
+  color: #e0e0e0;
+}
+
+.proposalCard p {
+  margin: 6px 0 10px;
+  color: #b8c7d9;
+  font-size: 12px;
+}
+
+.proposalTitle {
+  font-weight: 700;
+}
+
+.proposalDiff {
+  margin: 0 0 12px;
+  padding-left: 20px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.proposalActions {
+  display: flex;
+  gap: 8px;
+}
+
 .chatPanelInput textarea {
   flex: 1;
   background: #1e1e1e;

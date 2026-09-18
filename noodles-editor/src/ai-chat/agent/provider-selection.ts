@@ -52,6 +52,8 @@ export function resolveProviderId(
   const { preference } = options
   if (preference !== 'automatic' && isProviderReady(preference, options)) return preference
 
-  const order: ProviderId[] = ['anthropic', 'openrouter', 'custom', 'webllm', 'chrome']
+  // Chrome remains available when explicitly selected, but its instruction and
+  // tool-use reliability are not strong enough for automatic selection.
+  const order: ProviderId[] = ['anthropic', 'openrouter', 'custom', 'webllm']
   return order.find(id => isProviderReady(id, options)) ?? 'anthropic'
 }

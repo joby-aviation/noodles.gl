@@ -29,6 +29,17 @@ export default defineConfig({
     ],
   },
   plugins: [
+    {
+      name: 'test-docs-search-index',
+      resolveId(id) {
+        return id === 'virtual:noodles-docs-search' ? '\0virtual:noodles-docs-search' : null
+      },
+      load(id) {
+        return id === '\0virtual:noodles-docs-search'
+          ? 'export default { chunks: [], documentFrequency: [], averageLength: 0 }'
+          : null
+      },
+    },
     nodePolyfills({
       protocolImports: true,
     }),

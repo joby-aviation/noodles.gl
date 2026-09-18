@@ -48,6 +48,16 @@ describe('ToolRouter.getTools', () => {
   })
 })
 
+describe('ToolRouter.prime', () => {
+  it('unlocks at most two matching non-default tools for a small model', () => {
+    const router = new ToolRouter(NANO_WINDOW)
+    const primed = router.prime('Read the documentation about file paths')
+
+    expect(primed).toContain('get_documentation')
+    expect(router.getUnlocked().length).toBeLessThanOrEqual(2)
+  })
+})
+
 describe('ToolRouter.findTools', () => {
   it('unlocks get_documentation for a docs query', () => {
     const router = new ToolRouter(CLAUDE_WINDOW)

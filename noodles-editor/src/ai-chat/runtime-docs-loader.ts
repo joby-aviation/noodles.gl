@@ -1,5 +1,6 @@
 // Runtime documentation loader - uses Vite's import.meta.glob for on-demand loading
 
+import searchIndex from 'virtual:noodles-docs-search'
 import { buildDocUrl } from './doc-url-builder'
 import type { DocsIndex, DocTopic } from './types'
 
@@ -143,6 +144,7 @@ export function getDocsIndex(): DocsIndex {
   docsCache = {
     version: '1.0.0',
     topics,
+    searchIndex,
   }
 
   return docsCache

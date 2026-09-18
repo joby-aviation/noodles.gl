@@ -4,14 +4,14 @@ import { useReactFlow } from '@xyflow/react'
 import { type FC, useEffect, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import {
-  type ProjectModification,
-  useProjectModifications,
-} from '../noodles/hooks/use-project-modifications'
+import { applySerializedFieldValue, type Field } from '../noodles/fields'
 import type { CustomEndpointConfig, ProviderPreference } from '../noodles/keys-store'
 import { useKeysStore } from '../noodles/keys-store'
-import { useUIStore } from '../noodles/store'
+import { getOp, useUIStore } from '../noodles/store'
 import { useOpenRouterConnect } from '../noodles/use-openrouter-connect'
+import { fireGraphMutation } from '../noodles/utils/graph-history'
+import { captureOperatorInputs } from '../noodles/utils/property-history'
+import { analytics } from '../utils/analytics'
 import { debugAiChat } from '../utils/debug'
 import { useAgentModelStore } from './agent/model-store'
 import { type Credentials, isProviderReady, resolveProviderId } from './agent/provider-selection'
@@ -35,6 +35,7 @@ import { loadConversation, saveConversation } from './conversation-history'
 import { ConversationHistoryPanel } from './conversation-history-panel'
 import { globalContextManager } from './global-context-manager'
 import { MCPTools } from './mcp-tools'
+import { type ModificationProposal, validateProjectModifications } from './modification-proposal'
 import type { Message, NoodlesProject } from './types'
 
 interface ChatPanelProps {
@@ -48,13 +49,6 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
   // Get ReactFlow state for the modification hook
   const { getNodes, getEdges, setNodes, setEdges } = useReactFlow()
 
-  // Use project modifications hook with ReactFlow state
-  const { applyModifications } = useProjectModifications({
-    getNodes,
-    getEdges,
-    setNodes,
-    setEdges,
-  })
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
@@ -81,6 +75,12 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
   // A provider that would not start. Distinct from a failed message: nothing can
   // be sent at all, so it replaces the panel rather than appearing in it.
   const [providerError, setProviderError] = useState<string | null>(null)
+  const [providerSupportsImages, setProviderSupportsImages] = useState(false)
+  const [pendingScreenshot, setPendingScreenshot] = useState<{
+    data: string
+    format: 'png' | 'jpeg'
+  } | null>(null)
+  const [pendingProposal, setPendingProposal] = useState<ModificationProposal | null>(null)
   const abortRef = useRef<AbortController | null>(null)
 
   // Get API keys directly from store (reactive)
@@ -217,6 +217,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
   useEffect(() => {
     if (!providerReady) {
       setContextLoading(false)
+      setProviderSupportsImages(false)
       return
     }
 
@@ -259,10 +260,22 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
 
         setMcpTools(tools)
         setSession(built)
+        setProviderSupportsImages(provider.supportsImages)
+        analytics.track('ai_provider_load', {
+          provider: providerId,
+          model: provider.model,
+          outcome: 'success',
+        })
       } catch (error) {
         debugAiChat('Failed to initialize the assistant:', error)
         setSession(null)
+        setProviderSupportsImages(false)
         setProviderError(error instanceof Error ? error.message : String(error))
+        analytics.track('ai_provider_load', {
+          provider: providerId,
+          model: model ?? 'default',
+          outcome: 'failed',
+        })
       } finally {
         setDownloadProgress(null)
         setContextLoading(false)
@@ -312,10 +325,13 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
 
     const controller = new AbortController()
     abortRef.current = controller
+    const startedAt = performance.now()
 
     try {
       const response = await session.send({
         message: input,
+        screenshot: pendingScreenshot?.data,
+        screenshotFormat: pendingScreenshot?.format,
         conversationHistory: messages,
         signal: controller.signal,
         onEvent: event => {
@@ -324,6 +340,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
           if (event.type === 'usage') setLastUsage(event.usage)
         },
       })
+      setPendingScreenshot(null)
 
       // An aborted run still returns whatever it had produced, which is worth
       // keeping — the user stopped it, they did not undo it
@@ -340,15 +357,27 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
       }
 
       setMessages(prev => [...prev, assistantMessage])
+      analytics.track('ai_completion', {
+        provider: providerId,
+        model: model ?? 'default',
+        latencyMs: Math.round(performance.now() - startedAt),
+        outcome: 'success',
+      })
 
-      // Apply project modifications if any
+      // Graph edits are proposals until the user accepts the normalized diff.
       if (response.projectModifications && response.projectModifications.length > 0) {
-        debugAiChat('Applying project modifications:', response.projectModifications)
-        const result = applyModifications(response.projectModifications as ProjectModification[])
-
-        if (!result.success) {
-          // Surface validation errors back to the user and AI
-          const errorMessage = `Failed to apply modifications: ${result.error}`
+        const registry = globalContextManager.getLoader()?.getOperatorRegistry()
+        const validation = registry
+          ? validateProjectModifications(
+              { nodes: getNodes(), edges: getEdges() },
+              response.projectModifications,
+              registry
+            )
+          : null
+        if (!validation?.success) {
+          const detail =
+            validation && !validation.success ? validation.errors.join('; ') : 'context unavailable'
+          const errorMessage = `The proposed graph update could not be validated: ${detail}`
           debugAiChat(errorMessage)
           setMessages(prev => [
             ...prev,
@@ -357,21 +386,24 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
               content: errorMessage,
             },
           ])
-        } else if (result.warnings && result.warnings.length > 0) {
-          // Show warnings in console and chat
-          debugAiChat('Modification warnings:', result.warnings)
-          const warningMessage = `⚠️ Modifications applied with warnings:\n${result.warnings.map(w => `• ${w}`).join('\n')}`
-          setMessages(prev => [
-            ...prev,
-            {
-              role: 'assistant',
-              content: warningMessage,
-            },
-          ])
+        } else {
+          setPendingProposal(validation.proposal)
+          analytics.track('ai_modification_proposed', {
+            provider: providerId,
+            model: model ?? 'default',
+            modificationCount: validation.proposal.modifications.length,
+            validationOutcome: 'valid',
+          })
         }
       }
     } catch (error) {
       debugAiChat('Error sending message:', error)
+      analytics.track('ai_completion', {
+        provider: providerId,
+        model: model ?? 'default',
+        latencyMs: Math.round(performance.now() - startedAt),
+        outcome: 'failed',
+      })
 
       // Check error type and provide helpful messages
       const errorStr = error instanceof Error ? error.message : String(error)
@@ -430,12 +462,85 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
     abortRef.current?.abort()
   }
 
+  const acceptProposal = () => {
+    if (!pendingProposal) return
+    const registry = globalContextManager.getLoader()?.getOperatorRegistry()
+    const validation = registry
+      ? validateProjectModifications(
+          { nodes: getNodes(), edges: getEdges() },
+          pendingProposal.modifications,
+          registry
+        )
+      : null
+    if (!validation?.success) {
+      const detail =
+        validation && !validation.success ? validation.errors.join('; ') : 'context unavailable'
+      setMessages(prev => [
+        ...prev,
+        { role: 'assistant', content: `That proposal is stale and was not applied: ${detail}` },
+      ])
+      setPendingProposal(null)
+      return
+    }
+
+    const before = {
+      nodes: structuredClone(getNodes()),
+      edges: structuredClone(getEdges()),
+      operatorState: captureOperatorInputs() ?? undefined,
+    }
+    for (const modification of validation.proposal.modifications) {
+      if (modification.type !== 'update_node') continue
+      const op = getOp(modification.data.id)
+      const inputs = modification.data.data?.inputs
+      if (!op || typeof inputs !== 'object' || inputs === null || Array.isArray(inputs)) continue
+      for (const [name, value] of Object.entries(inputs)) {
+        const field = (op.inputs as unknown as Record<string, Field>)[name]
+        if (!field) continue
+        applySerializedFieldValue(field, value)
+        op.showField(name)
+      }
+    }
+    setNodes(validation.proposal.nextSnapshot.nodes)
+    setEdges(validation.proposal.nextSnapshot.edges)
+    fireGraphMutation('Apply assistant proposal', before, {
+      nodes: structuredClone(validation.proposal.nextSnapshot.nodes),
+      edges: structuredClone(validation.proposal.nextSnapshot.edges),
+      operatorState: captureOperatorInputs() ?? undefined,
+    })
+    analytics.track('ai_modification_proposal_resolved', {
+      provider: providerId,
+      model: model ?? 'default',
+      outcome: 'accepted',
+      modificationCount: validation.proposal.modifications.length,
+    })
+    setPendingProposal(null)
+  }
+
+  const rejectProposal = () => {
+    if (!pendingProposal) return
+    analytics.track('ai_modification_proposal_resolved', {
+      provider: providerId,
+      model: model ?? 'default',
+      outcome: 'rejected',
+      modificationCount: pendingProposal.modifications.length,
+    })
+    setPendingProposal(null)
+  }
+
   const handleManualCapture = async () => {
     if (!mcpTools) return
 
     const result = await mcpTools.captureVisualization({})
     if (result.success) {
-      alert('Screenshot captured! It will be included with your next message.')
+      const data = result.data as { screenshot?: unknown; format?: unknown }
+      if (typeof data.screenshot !== 'string') {
+        alert('Failed to capture screenshot: no image data was returned.')
+        return
+      }
+      setPendingScreenshot({
+        data: data.screenshot,
+        format: data.format === 'png' ? 'png' : 'jpeg',
+      })
     } else {
       alert(`Failed to capture screenshot: ${result.error}`)
     }
@@ -454,6 +559,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
 
     // Start fresh
     setMessages([])
+    setPendingProposal(null)
     setCurrentConversationId(null)
     setShowHistory(false)
   }
@@ -581,6 +687,24 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
             <button type="button" onClick={openProviderSettings} className={styles.chatSendBtn}>
               Provider settings
             </button>
+            {providerId === 'webllm' && model === 'Qwen3.5-4B-q4f16_1-MLC' && (
+              <button
+                type="button"
+                onClick={() => setStoredModel('webllm', 'Qwen3.5-2B-q4f16_1-MLC')}
+                className={styles.chatPanelActionBtn}
+              >
+                Try Local Fast (1.08GB)
+              </button>
+            )}
+            {providerId === 'webllm' && (
+              <button
+                type="button"
+                onClick={() => (openRouterKey ? setPreference('openrouter') : connect.connect())}
+                className={styles.chatPanelActionBtn}
+              >
+                {openRouterKey ? 'Use OpenRouter' : 'Connect OpenRouter'}
+              </button>
+            )}
             <button type="button" onClick={handleClose} className={styles.chatPanelActionBtn}>
               Close
             </button>
@@ -730,14 +854,16 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
           </button>
           {lastUsage && <span className={styles.usageReadout}>{formatUsage(lastUsage)}</span>}
         </div>
-        <button
-          type="button"
-          onClick={handleManualCapture}
-          className={styles.captureBtn}
-          title="Capture current visualization"
-        >
-          📸 Capture
-        </button>
+        {providerSupportsImages && (
+          <button
+            type="button"
+            onClick={handleManualCapture}
+            className={styles.captureBtn}
+            title="Capture current visualization"
+          >
+            {pendingScreenshot ? '📸 Attached' : '📸 Capture'}
+          </button>
+        )}
       </div>
 
       <div className={styles.chatPanelMessages}>
@@ -794,6 +920,26 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
                   <span />
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {pendingProposal && (
+          <div className={styles.proposalCard} data-testid="modification-proposal">
+            <div className={styles.proposalTitle}>Review graph update</div>
+            <p>No graph changes have been made yet.</p>
+            <ul className={styles.proposalDiff}>
+              {proposalLines(pendingProposal).map(line => (
+                <li key={line}>{line}</li>
+              ))}
+            </ul>
+            <div className={styles.proposalActions}>
+              <button type="button" className={styles.chatSendBtn} onClick={acceptProposal}>
+                Accept
+              </button>
+              <button type="button" className={styles.chatPanelActionBtn} onClick={rejectProposal}>
+                Reject
+              </button>
             </div>
           </div>
         )}
@@ -879,7 +1025,20 @@ function modelGroupsFor(
     // Labelled with their download size, since that is the decision the user is
     // actually making
     case 'webllm':
-      return [{ models: WEBLLM_MODELS.map(({ id, label }) => ({ id, label })) }]
+      return [
+        {
+          label: 'Recommended',
+          models: WEBLLM_MODELS.filter(model => model.tier !== 'compatibility').map(
+            ({ id, label }) => ({ id, label })
+          ),
+        },
+        {
+          label: 'Advanced compatibility',
+          models: WEBLLM_MODELS.filter(model => model.tier === 'compatibility').map(
+            ({ id, label }) => ({ id, label })
+          ),
+        },
+      ]
     // A custom endpoint's model is part of its saved config, so the picker shows
     // it rather than offering a choice this app cannot enumerate
     case 'custom':
@@ -936,9 +1095,36 @@ function downloadNoteFor(providerId: ProviderId, model: string | undefined): str
   if (providerId !== 'webllm') {
     return 'Chrome downloads about 2GB the first time, and only once.'
   }
-  const sizeMb = WEBLLM_MODELS.find(option => option.id === model)?.sizeMb
-  const size = sizeMb ? `${(sizeMb / 1024).toFixed(1)}GB` : 'a few gigabytes'
-  return `${size} the first time, then it is cached and starts instantly.`
+  const metadata = WEBLLM_MODELS.find(option => option.id === model)
+  const size = metadata ? `${(metadata.downloadMb / 1000).toFixed(2)}GB` : 'a few gigabytes'
+  const memory = metadata ? `${(metadata.vramMb / 1000).toFixed(2)}GB GPU memory` : 'GPU memory'
+  return `${size} once, cached afterward; requires about ${memory}.`
+}
+
+function proposalLines(proposal: ModificationProposal): string[] {
+  const lines: string[] = []
+  for (const modification of proposal.modifications) {
+    switch (modification.type) {
+      case 'add_node':
+        lines.push(`Add ${modification.data.type} ${modification.data.id}`)
+        break
+      case 'update_node':
+        lines.push(`Update ${modification.data.id}`)
+        break
+      case 'delete_node':
+        lines.push(`Delete node ${modification.data.id}`)
+        break
+      case 'add_edge':
+        lines.push(
+          `Connect ${modification.data.source}.${modification.data.sourceHandle} → ${modification.data.target}.${modification.data.targetHandle}`
+        )
+        break
+      case 'delete_edge':
+        lines.push(`Delete connection ${modification.data.id}`)
+        break
+    }
+  }
+  return lines
 }
 
 function formatPercent(progress: DownloadProgress): string {

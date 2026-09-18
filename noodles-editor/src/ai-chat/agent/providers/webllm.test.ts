@@ -100,11 +100,28 @@ describe('WEBLLM_MODELS', () => {
     expect(WEBLLM_MODELS.map(model => model.id)).toContain(DEFAULT_WEBLLM_MODEL)
   })
 
-  it('labels every model with a size', () => {
+  it('provides explicit download, runtime memory, tier and image metadata', () => {
     for (const model of WEBLLM_MODELS) {
-      expect(model.sizeMb).toBeGreaterThan(0)
-      expect(model.label).toMatch(/GB\)$/)
+      expect(model.downloadMb).toBeGreaterThan(0)
+      expect(model.vramMb).toBeGreaterThan(0)
+      expect(['quality', 'fast', 'compatibility']).toContain(model.tier)
+      expect(model.supportsImages).toBe(false)
     }
+  })
+
+  it('recommends Qwen3.5 4B and keeps 2B as the fast fallback', () => {
+    expect(WEBLLM_MODELS[0]).toMatchObject({
+      id: 'Qwen3.5-4B-q4f16_1-MLC',
+      downloadMb: 2390,
+      vramMb: 3868,
+      tier: 'quality',
+    })
+    expect(WEBLLM_MODELS[1]).toMatchObject({
+      id: 'Qwen3.5-2B-q4f16_1-MLC',
+      downloadMb: 1080,
+      vramMb: 2245,
+      tier: 'fast',
+    })
   })
 })
 
@@ -221,11 +238,13 @@ describe('WebLLMProvider', () => {
 
     const constrained = stub.requests[0].response_format as { type: string; schema: string }
     expect(constrained.type).toBe('json_object')
-    expect(JSON.parse(constrained.schema).properties.tool.enum).toEqual([
-      'none',
-      'list_nodes',
-      'get_node_info',
-    ])
+    const schema = JSON.parse(constrained.schema)
+    expect(
+      schema.oneOf.map(
+        (branch: { properties: { tool: { const: string } } }) => branch.properties.tool.const
+      )
+    ).toEqual(['none', 'list_nodes', 'get_node_info'])
+    expect(schema.oneOf[2].properties.input.properties).toEqual({ nodeId: { type: 'string' } })
     expect(stub.requests[1].response_format).toBeUndefined()
   })
 

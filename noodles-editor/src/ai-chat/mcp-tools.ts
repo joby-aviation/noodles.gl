@@ -21,6 +21,8 @@ import {
   writeFile,
 } from './agent-files'
 import type { ContextLoader } from './context-loader'
+import { searchDocumentation } from './docs-search'
+import { validateProjectModifications } from './modification-proposal'
 import { type RunCodeParams, runCode } from './run-code'
 import type {
   ConsoleError,
@@ -54,120 +56,6 @@ function previewInputs(inputs: unknown): Record<string, unknown> {
     }
   }
   return out
-}
-
-const MAX_DOC_RESULTS = 5
-const DOC_EXCERPT_CHARS = 600
-
-// Words too common in a docs query to discriminate between topics
-const DOC_STOP_WORDS = new Set([
-  'a',
-  'an',
-  'the',
-  'to',
-  'of',
-  'for',
-  'in',
-  'on',
-  'and',
-  'or',
-  'is',
-  'it',
-  'how',
-  'do',
-  'does',
-  'can',
-  'my',
-  'me',
-  'with',
-  'what',
-  'when',
-  'why',
-  'use',
-  'using',
-  'noodles',
-  'should',
-  'would',
-  'could',
-  'want',
-  'need',
-  'get',
-  'set',
-  'make',
-  'best',
-  'any',
-  'some',
-  'this',
-  'that',
-])
-
-function docTerms(query: string): string[] {
-  return query
-    .toLowerCase()
-    .split(/[^a-z0-9]+/)
-    .filter(term => term.length > 1 && !DOC_STOP_WORDS.has(term))
-}
-
-// Per-term scoring, rather than matching the whole query as one substring: a
-// natural question like "how do I animate opacity over time" shares no literal
-// substring with any page, so whole-query matching found nothing. matchIndex is
-// where to centre the excerpt.
-function scoreTopic(
-  topic: { title: string; content: string; headings: Array<{ text: string }> },
-  query: string
-): { score: number; matchIndex: number } {
-  const terms = docTerms(query)
-  if (terms.length === 0) return { score: 0, matchIndex: 0 }
-
-  const title = topic.title.toLowerCase()
-  const content = topic.content.toLowerCase()
-  const headings = topic.headings.map(h => h.text.toLowerCase())
-
-  let score = 0
-  let matchIndex = -1
-
-  for (const term of terms) {
-    if (title.includes(term)) score += 8
-    if (headings.some(heading => heading.includes(term))) score += 3
-
-    // Presence only, not occurrence count. Counting repeats let the longest
-    // pages (the changelog above all) outrank the topic actually about the
-    // subject, purely by mentioning every word somewhere.
-    const found = content.indexOf(term)
-    if (found !== -1) {
-      score += 1
-      if (matchIndex === -1 || found < matchIndex) matchIndex = found
-    }
-  }
-
-  // Every term present is a much stronger signal than the same score spread
-  // across a subset of them
-  const allTermsPresent = terms.every(
-    term => title.includes(term) || content.includes(term) || headings.some(h => h.includes(term))
-  )
-  if (allTermsPresent && terms.length > 1) score += 4
-
-  return { score, matchIndex: Math.max(0, matchIndex) }
-}
-
-// A window of content centred on the match, snapped outward to line boundaries
-// so the excerpt does not start or end mid-word
-function excerptAround(content: string, matchIndex: number): string {
-  if (content.length <= DOC_EXCERPT_CHARS) return content
-
-  const half = Math.floor(DOC_EXCERPT_CHARS / 2)
-  let start = Math.max(0, matchIndex - half)
-  let end = Math.min(content.length, start + DOC_EXCERPT_CHARS)
-
-  const lineStart = content.lastIndexOf('\n', start)
-  if (lineStart !== -1 && start - lineStart < 120) start = lineStart + 1
-
-  const lineEnd = content.indexOf('\n', end)
-  if (lineEnd !== -1 && lineEnd - end < 120) end = lineEnd
-
-  const prefix = start > 0 ? '…' : ''
-  const suffix = end < content.length ? '…' : ''
-  return `${prefix}${content.slice(start, end)}${suffix}`
 }
 
 export class MCPTools {
@@ -400,12 +288,7 @@ export class MCPTools {
         return { success: false, error: 'get_documentation requires either a query or an id' }
       }
 
-      const scored = Object.values(docsIndex.topics)
-        .filter(topic => !params.section || topic.section === params.section)
-        .map(topic => ({ topic, ...scoreTopic(topic, query) }))
-        .filter(match => match.score > 0)
-        .sort((a, b) => b.score - a.score || a.topic.id.localeCompare(b.topic.id))
-        .slice(0, MAX_DOC_RESULTS)
+      const scored = searchDocumentation(docsIndex, query, params.section)
 
       if (scored.length === 0) {
         return {
@@ -425,16 +308,7 @@ export class MCPTools {
         success: true,
         data: {
           query,
-          results: scored.map(({ topic, matchIndex }) => ({
-            id: topic.id,
-            title: topic.title,
-            section: topic.section,
-            file: topic.file,
-            url: topic.url,
-            headings: topic.headings.map(h => h.text),
-            excerpt: excerptAround(topic.content, matchIndex),
-            fullLength: topic.content.length,
-          })),
+          results: scored,
           hint: 'Call get_documentation with an id to read that topic in full.',
         },
       }
@@ -783,41 +657,34 @@ export class MCPTools {
   // Project state manipulation tools
 
   // Apply modifications to the project
-  // biome-ignore lint/suspicious/noExplicitAny: dynamic modification structure from Claude
-  async applyModifications(params: { modifications: any[] }): Promise<ToolResult> {
+  async applyModifications(params: { modifications: unknown[] }): Promise<ToolResult> {
     try {
-      const modifications = params.modifications
-      if (!Array.isArray(modifications) || modifications.length === 0) {
+      if (!this.project) return { success: false, error: 'No project loaded' }
+      const registry = this.contextLoader?.getOperatorRegistry()
+      if (!registry) return { success: false, error: 'Operator registry not loaded' }
+      const validation = validateProjectModifications(
+        {
+          nodes: (this.project.nodes ?? []) as never[],
+          edges: (this.project.edges ?? []) as never[],
+        },
+        params.modifications,
+        registry
+      )
+      if (!validation.success) {
         return {
           success: false,
-          error: 'modifications must be a non-empty array',
+          error: `Proposal validation failed: ${validation.errors.join('; ')}`,
         }
       }
 
-      // Validate each modification
-      for (const mod of modifications) {
-        if (!mod.type || !mod.data) {
-          return {
-            success: false,
-            error: 'Each modification must have "type" and "data" fields',
-          }
-        }
-        const validTypes = ['add_node', 'update_node', 'delete_node', 'add_edge', 'delete_edge']
-        if (!validTypes.includes(mod.type)) {
-          return {
-            success: false,
-            error: `Invalid modification type: ${mod.type}. Must be one of: ${validTypes.join(', ')}`,
-          }
-        }
-      }
-
-      // Return the modifications - they will be applied by the tool result handler
       return {
         success: true,
         data: {
-          modificationsCount: modifications.length,
-          modifications,
-          message: `${modifications.length} modification(s) will be applied to the project`,
+          modificationsCount: validation.proposal.modifications.length,
+          modifications: validation.proposal.modifications,
+          proposalId: validation.proposal.id,
+          summary: validation.proposal.summary,
+          message: `${validation.proposal.modifications.length} modification(s) are ready for user review`,
         },
       }
     } catch (error) {
