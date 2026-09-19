@@ -1,7 +1,7 @@
 // Runtime documentation loader - uses Vite's import.meta.glob for on-demand loading
 
-import type { DocsIndex, DocTopic } from './types'
 import { buildDocUrl } from './doc-url-builder'
+import type { DocsIndex, DocTopic } from './types'
 
 // Eagerly load all markdown files at startup
 // Vite will bundle these, but they're just raw text strings
