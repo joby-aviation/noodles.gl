@@ -925,11 +925,19 @@ function EditableCell({ getValue, row, column, table }: EditableCellProps) {
     // the incoming props.
     if (isEditingRef.current) return
 
-    const seededValue =
-      meta?.editingSeed !== undefined &&
-      (colSchema.type === 'string' || colSchema.type === 'stringLiteral')
-        ? meta.editingSeed
-        : currentValue
+    let seededValue = currentValue
+    if (meta?.editingSeed !== undefined) {
+      if (colSchema.type === 'string' || colSchema.type === 'stringLiteral') {
+        seededValue = meta.editingSeed
+      } else if (colSchema.type === 'number') {
+        const parsedSeed = Number(meta.editingSeed)
+        if (Number.isFinite(parsedSeed)) {
+          const minimum = colSchema.options?.min ?? Number.NEGATIVE_INFINITY
+          const maximum = colSchema.options?.max ?? Number.POSITIVE_INFINITY
+          seededValue = Math.min(maximum, Math.max(minimum, parsedSeed))
+        }
+      }
+    }
     valueRef.current = seededValue
     setValue(seededValue)
     isEditingRef.current = true
