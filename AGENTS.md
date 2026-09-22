@@ -14,12 +14,6 @@ This document provides essential context for Large Language Models (LLMs) workin
 - Enable rapid prototyping and development of complex visualizations
 - Export to video, images, or interactive web presentations
 
-### Key Users
-- Visualization experts creating presentation-ready graphics
-- Developers doing rapid visualization prototyping
-- Data scientists exploring and analyzing data
-- Research teams publishing geospatial analysis
-
 ## Quick Reference Links
 
 - **[Architecture](dev-docs/architecture.md)** - System architecture, state management, and error handling
@@ -29,6 +23,8 @@ This document provides essential context for Large Language Models (LLMs) workin
 - **[Analytics](dev-docs/analytics.md)** - Privacy-preserving analytics guidelines
 - **[Agent Harness](dev-docs/agent-harness.md)** - The in-app AI chat: providers, tool routing, context budgets
 - **[Tech Stack](dev-docs/tech-stack.md)** - Complete technology listing
+- **[Adding Operators](dev-docs/adding-operators.md)** - Operator class template, registration checklist, custom field types
+- **[Claude Code Workflow](dev-docs/claude-code-workflow.md)** - Editing noodles.json directly, WebMCP connection, graph design guidelines
 
 ## Architecture
 
@@ -52,72 +48,6 @@ This document provides essential context for Large Language Models (LLMs) workin
 - Topological sorting determines execution order
 - Parallel execution for independent branches
 - GraphExecutor manages the execution loop with RAF-based timing
-
-### Technology Stack
-
-**Core:** React 18, TypeScript, Vite, Yarn
-
-**Animation:** Native timeline system (bezier interpolation, keyframeable parameters)
-
-**Visualization:** Deck.gl (WebGL data visualization), MapLibre GL (mapping), luma.gl (rendering), D3.js (data)
-
-**Geospatial:** @turf/turf (analysis), H3-js (indexing), DuckDB-WASM (SQL), Apache Arrow (columnar data)
-
-**UI:** @xyflow/react (node editor), Radix UI, PrimeReact
-
-**State:** Zustand (global state, timeline state), RxJS (reactive data flow)
-
-**Dev Tools:** Biome (linting/formatting), TypeScript, Vitest, Playwright
-
-See [tech-stack.md](dev-docs/tech-stack.md) for complete details.
-
-## Project Structure
-
-```
-noodles-gl-public/
-├── noodles-editor/           # Main application
-│   ├── src/
-│   │   ├── noodles/          # Core node system
-│   │   │   ├── operators.ts  # Operator registry
-│   │   │   ├── fields.ts     # Field system
-│   │   │   ├── components/   # React components
-│   │   │   │   ├── op-components.tsx      # Operator node renderers
-│   │   │   │   ├── field-components.tsx   # Field input renderers
-│   │   │   │   ├── menu.tsx               # Operator menu
-│   │   │   │   └── categories.ts          # Operator categorization
-│   │   │   ├── utils/        # Utilities
-│   │   │   │   ├── path-utils.ts          # Path resolution
-│   │   │   │   ├── memoize.ts             # Caching
-│   │   │   │   ├── serialization.ts       # Save/load
-│   │   │   │   └── ...
-│   │   │   └── hooks/        # React hooks
-│   │   ├── ai-chat/          # In-app AI assistant
-│   │   │   └── agent/        # Provider-agnostic agent loop, tool routing
-│   │   ├── utils/            # General utilities
-│   │   ├── timeline-editor.tsx  # Timeline interface
-│   │   ├── noodles.tsx       # Main viz component
-│   │   └── index.tsx         # App entry point
-│   ├── public/
-│   │   └── noodles/          # Example projects
-│   ├── scripts/              # Build scripts
-│   ├── package.json
-│   ├── vite.config.js
-│   └── tsconfig.json
-├── website/                  # Documentation website
-├── docs/                     # Documentation source
-│   ├── developers/           # Developer guides
-│   └── users/                # User guides
-├── dev-docs/                 # Internal dev docs
-│   ├── architecture.md
-│   ├── developing.md
-│   ├── testing-guide.md
-│   ├── pr-guidelines.md
-│   ├── analytics.md
-│   ├── tech-stack.md
-│   └── specs/                # Design specs
-├── README.md
-└── CONTRIBUTING.md
-```
 
 ## Key Files and Their Purposes
 
@@ -230,50 +160,6 @@ Projects are stored as JSON files with this structure:
 - Absolute paths work as-is
 - URLs can reference remote resources
 
-## Operator Categories
-
-### Data Sources
-- **FileOp**: Load JSON, CSV, GeoJSON files
-- **DuckDbOp**: SQL queries with reactive references
-- **GeocoderOp**: Convert addresses to coordinates
-- **H3IndexOp**: Generate H3 cell indices
-
-### Data Processing
-- **FilterOp**: Filter data based on conditions
-- **MapOp**: Transform data arrays
-- **GroupByOp**: Group and aggregate data
-- **JoinOp**: Combine multiple datasets
-- **SliceOp**: Slice arrays
-
-### Math & Logic
-- **NumberOp**: Numeric constants
-- **ExpressionOp**: Single-line JavaScript expressions
-- **CodeOp**: Multi-line custom JavaScript code
-- **AccessorOp**: Data accessor functions for Deck.gl
-
-### GeoJSON Operations
-- **GeoJsonOp**: Create GeoJSON from data
-- **BoundingBoxOp**: Calculate bounding boxes
-- **GeoJsonCircleOp**: Generate circles on the map
-
-### Deck.gl Layers (Visualization)
-- **ScatterplotLayerOp**: Point visualizations
-- **PathLayerOp**: Line and route visualizations
-- **ArcLayerOp**: Arc connections between points
-- **H3HexagonLayerOp**: Hexagonal grid visualizations
-- **HeatmapLayerOp**: Density visualizations
-- **GeoJsonLayerOp**: Render GeoJSON features
-- **ColumnLayerOp**: 3D columns
-- **IconLayerOp**: Icon markers
-- **TextLayerOp**: Text labels
-- **PolygonLayerOp**: Polygon rendering
-- **TripsLayerOp**: Animated paths
-
-### View & Rendering
-- **DeckViewOp**: Configure Deck.gl views (MapView, OrbitView, FirstPersonView, GlobeView)
-- **MapboxOp**: Configure map style and properties
-- **DeckRendererOp**: Main rendering node
-
 ## Code Operators and Available Globals
 
 ### CodeOp
@@ -324,18 +210,6 @@ Math.PI * Math.pow(d.radius, 2)
 
 The `utils` object is available globally in CodeOp, AccessorOp, and ExpressionOp. It provides commonly-used functions:
 
-**Key utilities include:**
-
-- **Arc Geometry**: `getArc()` - Generate 3D arc paths between two points
-- **Color Conversion**: `hexToColor()`, `colorToHex()`, `rgbaToColor()` - Convert between color formats
-- **Geospatial**: `getDirections()` - Get routing directions between points
-- **Interpolation**: `interpolate()` - Create mapping functions between ranges
-- **Array Operations**: `cross()` - Generate all unique pairs from an array
-- **Search**: `binarySearchClosest()` - Find closest value in sorted array
-- **Distance Constants**: `FEET_TO_METERS`, `MILES_TO_METERS`, etc.
-- **Map Styles**: `CARTO_DARK`, `MAP_STYLES` - Predefined basemap URLs
-- **Random**: `mulberry32(seed)` - Deterministic pseudo-random number generator
-
 **Example usage:**
 ```javascript
 // Create a 3D arc between two cities
@@ -362,33 +236,6 @@ const altToIntensity = utils.interpolate([0, 10000], [0, 255])
 
 All operator classes are available as globals in CodeOp for programmatic instantiation:
 
-**Data Sources & Processing:**
-`FileOp`, `DuckDbOp`, `NetworkOp`, `GeocoderOp`, `DirectionsOp`, `FilterOp`, `MapRangeOp`, `MergeOp`, `ConcatOp`, `SliceOp`, `SortOp`, `SelectOp`, `SwitchOp`, `TableEditorOp`
-
-**Math & Logic:**
-`NumberOp`, `BooleanOp`, `StringOp`, `DateOp`, `TimeOp`, `MathOp`, `ExpressionOp`, `CodeOp`, `AccessorOp`, `JSONOp`, `HSLOp`, `ColorOp`
-
-**Geometry & Transforms:**
-`PointOp`, `BoundsOp`, `RectangleOp`, `ArcOp`, `BezierCurveOp`, `BoundingBoxOp`, `ExtentOp`, `ProjectOp`, `UnprojectOp`, `GeoJsonOp`, `GeoJsonTransformOp`, `ScatterOp`
-
-**Combinators:**
-`CombineRGBAOp`, `CombineXYOp`, `CombineXYZOp`, `SplitRGBAOp`, `SplitXYOp`, `SplitXYZOp`, `SplitMapViewStateOp`
-
-**Deck.gl Layers:**
-`ScatterplotLayerOp`, `PathLayerOp`, `ArcLayerOp`, `LineLayerOp`, `IconLayerOp`, `TextLayerOp`, `PolygonLayerOp`, `SolidPolygonLayerOp`, `GeoJsonLayerOp`, `ColumnLayerOp`, `GridLayerOp`, `GridCellLayerOp`, `HexagonLayerOp`, `ContourLayerOp`, `ScreenGridLayerOp`, `HeatmapLayerOp`, `H3HexagonLayerOp`, `H3ClusterLayerOp`, `GreatCircleLayerOp`, `TripsLayerOp`, `BitmapLayerOp`, `TileLayerOp`, `MVTLayerOp`, `TerrainLayerOp`, `Tile3DLayerOp`, `PointCloudLayerOp`, `ScenegraphLayerOp`, `SimpleMeshLayerOp`, `GeohashLayerOp`, `S2LayerOp`, `QuadkeyLayerOp`, `A5LayerOp`, `RasterTileLayerOp`
-
-**Deck.gl Extensions:**
-`BrushingExtensionOp`, `DataFilterExtensionOp`, `ClipExtensionOp`, `MaskExtensionOp`, `Mask3DExtensionOp`, `PathStyleExtensionOp`, `FillStyleExtensionOp`, `CollisionFilterExtensionOp`, `TerrainExtensionOp`, `BrightnessContrastExtensionOp`, `HueSaturationExtensionOp`, `VibranceExtensionOp`
-
-**Views & Rendering:**
-`MapViewOp`, `GlobeViewOp`, `OrbitViewOp`, `FirstPersonViewOp`, `MapViewStateOp`, `DeckRendererOp`, `MaplibreBasemapOp`, `MapStyleOp`, `ViewerOp`
-
-**Color & Styling:**
-`ColorRampOp`, `CategoricalColorRampOp`, `LayerPropsOp`, `RandomizeAttributeOp`
-
-**Control Flow & Organization:**
-`ContainerOp`, `ForLoopBeginOp`, `ForLoopEndOp`, `GraphInputOp`, `GraphOutputOp`, `OutOp`, `ConsoleOp`, `FpsWidgetOp`, `MouseOp`
-
 ```javascript
 // Example: Instantiate operators programmatically
 const numberOps = data.map((value, i) => {
@@ -402,31 +249,7 @@ const numberOps = data.map((value, i) => {
 
 ### Quick Start Commands
 
-```bash
-# Install dependencies
-npm run install:all
-
-# Start development server
-cd noodles-editor && npm start
-
-# Run tests
-cd noodles-editor && npm test
-
-# Lint and format
-cd noodles-editor && npm run lint
-cd noodles-editor && npm run fix-lint
-
-# Build for production
-npm run build:all
-```
-
-**Node.js and Package Manager Requirements:**
-- Node.js version pinned in `.nvmrc`
-- npm is bundled with Node.js — no additional setup needed
-- If you encounter Node.js compatibility errors, ensure you're using the correct version from `.nvmrc`
-- **Recommended**: Use [fnm](https://github.com/Schniz/fnm) for fast Node.js version management
-  - fnm automatically uses the correct Node version from `.nvmrc`
-  - Alternative: Use [nvm](https://github.com/nvm-sh/nvm) or any Node version manager
+npm workspaces (root `package.json`): run `npm install` at the root, then run app commands (`npm start`, `npm test`, `npm run lint`, `npm run fix-lint`) from `noodles-editor/`. `npm run build:all` at the root builds app and website. Node version is pinned in `.nvmrc`.
 
 ### Development URLs
 
@@ -463,110 +286,9 @@ debugHistory('Message with %s formatting', value)
 
 ## Creating New Operators
 
-### Basic Structure
+See [dev-docs/adding-operators.md](dev-docs/adding-operators.md) for the class template, registration checklist, and custom field types.
 
-```typescript
-export class CustomOperator extends Operator<CustomOperator> {
-  static displayName = 'Custom Processor'
-  static description = 'Processes data with custom logic'
-
-  createInputs() {
-    return {
-      data: new DataField(),
-      threshold: new NumberField(50, { min: 0, max: 100 }),
-    }
-  }
-
-  createOutputs() {
-    return {
-      result: new DataField(),
-    }
-  }
-
-  execute({
-    data,
-    threshold,
-  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    return {
-      result: data.filter(item => item.value > threshold)
-    }
-  }
-}
-```
-
-### Registration (Critical!)
-
-After creating the operator class, you must register it in two places:
-
-**1. Add to `opTypes` object in `operators.ts`** (alphabetically):
-
-```typescript
-export const opTypes = {
-  // ... other operators ...
-  CustomOperator,  // Add your operator here
-  // ... more operators ...
-} as const
-```
-
-**2. Add to appropriate category in `components/categories.ts`**:
-
-```typescript
-export const categories = {
-  data: [
-    'FileOp',
-    'DuckDbOp',
-    'CustomOperator',  // Add here if it's a data source
-    // ...
-  ],
-  // Or in another category:
-  layer: [
-    'GeoJsonLayerOp',
-    // ...
-  ],
-  code: [
-    'CodeOp',
-    // ...
-  ],
-  // ... other categories
-} as const
-```
-
-**Available categories:**
-
-- `code` - Code execution and expressions
-- `data` - Data sources and transformations
-- `color` - Color manipulation
-- `geojson` - GeoJSON utilities
-- `layer` - Visualization layers
-- `extension` - Deck.gl extensions
-- `number` - Numeric operations
-- `string` - String operations
-- `utility` - General utilities
-- `vector` - Vector math
-- `view` - Camera and viewport
-- `widget` - UI widgets
-- `grouping` - Container/loop operators
-
-### Key Principles
-
-1. **Pure Functions**: Operators should be deterministic
-2. **Typed Inputs/Outputs**: Use Field types with Zod schemas
-3. **Reactive**: Changes propagate automatically
-4. **Memoized**: Results cached based on input values
-5. **Register**: Add to `opTypes` object in `operators.ts` AND to a category in `components/categories.ts`
-
-## Common Field Types
-
-- **DataField**: Generic data arrays
-- **NumberField**: Numeric values with min/max/step
-- **StringField**: Text values
-- **BooleanField**: Boolean flags
-- **ColorField**: Color values (hex or RGB)
-- **CodeField**: Code expressions (JavaScript, SQL, JSON)
-- **ArrayField**: Array of sub-fields
-- **CompoundPropsField**: Object with multiple properties
-- **PointField**: Geographic coordinates [lng, lat]
-- **Vec2Field**: 2D vectors
+**Critical:** a new operator must be registered in the `opTypes` object in `operators.ts` AND added to a category in `components/categories.ts` (display name without the "Op" suffix), or it never appears in the Add Node menu. Operators are pure, typed with Zod-backed fields, memoized by the framework, and require unit tests.
 
 ## State Management
 
@@ -624,44 +346,6 @@ return {
 
 Any field can be keyframed via the native timeline system. Changes in timeline propagate through the reactive system with smooth bezier interpolation between keyframes.
 
-## Common Tasks for LLMs
-
-### Adding a New Operator
-1. Create operator class in `operators.ts` or separate file
-2. Define inputs with `createInputs()` method
-3. Define outputs with `createOutputs()` method
-4. Implement `execute()` method with pure function logic
-5. **Register operator in `opTypes` object** in `operators.ts` (alphabetically)
-6. **Add to appropriate category** in `components/categories.ts` using display name without "Op" suffix (e.g., `'File'` not `'FileOp'`)
-7. **Write unit tests** (required for all operators)
-8. Document behavior and limitations if complex
-9. Test in UI with example projects
-
-**Important:** Steps 5 and 6 are critical - the operator will not appear in the Add Node menu without these registrations!
-
-### Modifying Existing Operator
-1. Locate operator in `operators.ts`
-2. Modify inputs, outputs, or execute logic
-3. Consider migration if schema changes
-4. **Update tests** to cover new behavior
-5. Add tests for bug fixes to prevent regressions
-6. Update documentation if behavior changes
-7. Test in UI with example projects
-
-### Debugging Data Flow
-1. Check operator paths are correct (use absolute paths from root)
-2. Verify edge connections in project JSON
-3. Inspect field values with console logging
-4. Check Zod schema validation errors
-5. Use execution tracing for performance issues
-
-### Creating Custom Field Type
-1. Extend `Field` class in `fields.ts`
-2. Implement `createSchema()` method with Zod schema
-3. Set default value and options
-4. Add custom UI component in `field-components.tsx` if needed
-5. Register in field registry
-
 ## Testing and Pull Requests
 
 **Testing:** Add tests for new operators, bug fixes, and changes to critical components. See [testing-guide.md](dev-docs/testing-guide.md) for strategy and best practices.
@@ -685,161 +369,13 @@ Any field can be keyframed via the native timeline system. Changes in timeline p
 
 ## The In-App AI Assistant
 
-The chat panel in the editor (`noodles-editor/src/ai-chat/`) runs its own agent loop
-in `ai-chat/agent/`. It is provider-agnostic — the same loop and tool surface serve
-Anthropic, OpenRouter, any OpenAI-compatible endpoint you point it at, a local model
-on the user's own GPU via WebLLM, and Chrome's built-in Gemini Nano — and it bounds
-context cost rather than sending everything it has.
-
-Five things to know before changing it:
-
-1. **`tool-definitions.ts` + `mcp-tools.ts` stay the single source of truth** for the
-   tool surface. WebMCP (`src/webmcp/`) registers every one it is offered; the chat
-   reaches them through routing. Read the surface through
-   `availableToolDefinitions()` / `getToolDefinition()`, never off the raw
-   `toolDefinitions` array — `run_code` is gated on `safeMode` via `available?()` and
-   has to vanish from discovery *and* dispatch together.
-2. **Only 5 tools are sent by default.** `list_nodes`, `get_node_info`,
-   `get_node_output`, `apply_modifications`, `find_tools`. The model calls
-   `find_tools({query})` to unlock the rest, so a new tool needs a good description —
-   that description is how it gets found.
-3. **Every tool result is capped** by `agent/result-budget.ts` against the provider's
-   context window. A tool that returns unbounded data will be truncated, so return
-   ids and previews rather than whole objects (see `listNodes`).
-4. **The provider interface is two flags plus a stream.** `supportsNativeTools` and
-   `contextWindow` carry all the behavioural difference; adding a provider touches
-   nothing in the loop or router. An OpenAI-compatible provider should reuse
-   `agent/providers/openai-format.ts` rather than re-implement SSE tool-call
-   fragment reassembly.
-5. **Which provider runs is `providerPreference` in `noodles/keys-store.tsx`**, not
-   the model store, and the rules are in `agent/provider-selection.ts`. `'automatic'`
-   picks the first of anthropic → openrouter → custom → webllm → chrome that is
-   *ready*. Ready is not the same as "has a key": a custom endpoint needs a base URL
-   and a model but no key, and `webllm` needs WebGPU **and** a model the user chose —
-   selecting one starts a multi-gigabyte download, so it can never be a consequence
-   of no key being configured.
-
-One security boundary lives in this code: `resolvePath()` in `ai-chat/agent-files.ts`.
-The assistant reads anywhere under the project's `data/` directory but writes only
-inside `data/.agent/`, and the check runs on the *resolved* path segments so a `../`
-cannot escape. Any new filesystem tool must go through it rather than calling
-`writeAsset` directly.
-
-Full details, including the measured before/after context cost, are in
-[dev-docs/agent-harness.md](dev-docs/agent-harness.md).
+The chat panel (`noodles-editor/src/ai-chat/`) has its own agent loop, tool surface, and one security boundary. Guidance lives in `noodles-editor/src/ai-chat/AGENTS.md` (loaded automatically when working there) and [dev-docs/agent-harness.md](dev-docs/agent-harness.md).
 
 ## Using Claude Code with Noodles.gl
 
-This section covers using Claude Code (the CLI tool) to work directly with projects, as opposed to the in-app chat panel.
-
-### Setup
-
-```bash
-# Start the dev server
-cd noodles-editor && npm start
-
-# Projects are in noodles-editor/public/examples/
-# Each project directory contains a noodles.json and optional data files
-ls noodles-editor/public/examples/
-```
-
-### Editing Project Files Directly
-
-Project files (`noodles.json`) are plain JSON and can be read and written by Claude Code. See the **Project Files** section above for the full schema. Key points:
-
-- Node IDs are Unix-style paths: `/my-node`, `/container/child`
-- Edge handles: `out.fieldName` (source) → `par.fieldName` (target)
-- Only non-default input values need to be serialized
-- Version 6 is current; do not change the version field
-
-### Validating Changes
-
-After editing a project file, run the project's tests to catch schema issues:
-
-```bash
-cd noodles-editor && npm test src/noodles/storage.test.ts
-```
-
-Load it in the browser at `http://localhost:5173/examples/<project-name>` to visually verify.
-
-### Connecting Claude Code to a Running Browser Instance
-
-#### WebMCP (recommended)
-
-With `?externalControl=true`, the app registers its full AI tool surface (~27 tools) on `navigator.modelContext` (the W3C WebMCP API, polyfilled via `@mcp-b/global`). External MCP clients reach those tools through the `@mcp-b/webmcp-local-relay` stdio bridge — no proxy code to run:
-
-```bash
-# 1. Start the app with external control enabled
-# Open: http://localhost:5173/examples/nyc-taxis?externalControl=true
-
-# 2. Register the relay with Claude Code (once)
-claude mcp add webmcp -- npx -y @mcp-b/webmcp-local-relay@4
-
-# For Claude Desktop / Cursor, use the equivalent config:
-{
-  "mcpServers": {
-    "webmcp": {
-      "command": "npx",
-      "args": ["-y", "@mcp-b/webmcp-local-relay@4"]
-    }
-  }
-}
-```
-
-Tool names match the in-app chat (snake_case): `get_current_project`, `list_nodes`, `get_node_info`, `get_node_output`, `apply_modifications`, `run_code`, `list_files`, `read_file`, `write_file`, `grep_files`, `capture_visualization`, `get_timeline`, `set_keyframe`, `get_operator_schema`, `search_code`, and more. `apply_modifications` mutates the live editor graph, so changes appear immediately in the browser.
-
-Notes:
-
-- The relay embed script is only injected on localhost. Alternatives that need no relay: the WebMCP browser extension, or native Chrome WebMCP (origin trial).
-- If multiple Noodles tabs are open, the relay suffixes tool names with a tab ID.
-- Code search/docs tools download their context bundles on page load when external control is enabled.
-
-#### Legacy WebSocket proxy
-
-The older MCP proxy bridges Claude Code to the browser over a WebSocket. It exposes a smaller camelCase tool surface (`getCurrentProject`, `listNodes`, `createNode`, `connectNodes`, `captureVisualization`, …):
-
-```bash
-# 1. Start the app with external control enabled
-# Open: http://localhost:5173/examples/nyc-taxis?externalControl=true
-
-# 2. Start the MCP proxy (in a separate terminal)
-node noodles-editor/examples/external-control/mcp-proxy.js
-
-# 3. Add to Claude Desktop config:
-#    macOS:   ~/Library/Application Support/Claude/claude_desktop_config.json
-#    Windows: %APPDATA%\Claude\claude_desktop_config.json
-{
-  "mcpServers": {
-    "noodles": {
-      "command": "node",
-      "args": ["/path/to/noodles-editor/examples/external-control/mcp-proxy.js"]
-    }
-  }
-}
-```
-
-### Graph Design Guidelines for Claude Code
-
-When generating or modifying `noodles.json` programmatically:
-
-- **Keep graphs simple** — aim for 5–8 nodes. A human must be able to read and modify the result.
-- **Prefer CodeOp for data transformation** over chaining FilterOp → MapOp → SortOp. One CodeOp node with a few lines of JavaScript is more reliable and easier to inspect:
-  ```json
-  {
-    "id": "/transform",
-    "type": "CodeOp",
-    "data": { "inputs": { "code": "return data.filter(d => d.value > 0).sort((a,b) => b.value - a.value)" } }
-  }
-  ```
-- **Standard pipeline**: FileOp/DuckDbOp → CodeOp (transform) → AccessorOp (position) → LayerOp → DeckRendererOp
-- **Always include MaplibreBasemapOp** for geographic visualizations
-- **Verify handle names** using `get_operator_schema` or the operator registry before writing edges
-
-### Timeline / Animation
-
-The timeline is serialized inside `noodles.json` under the `"timeline"` key. The structure is complex — prefer using the in-app chat's `set_keyframe` / `get_timeline` tools rather than editing the timeline JSON directly.
+See [dev-docs/claude-code-workflow.md](dev-docs/claude-code-workflow.md) for editing `noodles.json` directly, validating changes, graph design guidelines, and connecting to a running browser via WebMCP or the MCP proxy.
 
 ---
 
-**Last Updated**: 2026-07-04
+**Last Updated**: 2026-09-21
 **Version**: Based on project version 6 schema
