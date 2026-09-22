@@ -15,7 +15,15 @@ import { AutoComplete } from 'primereact/autocomplete'
 import { Button } from 'primereact/button'
 import { InputSwitch } from 'primereact/inputswitch'
 import { InputText } from 'primereact/inputtext'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  type PointerEvent as ReactPointerEvent,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { analytics } from '../../utils/analytics'
 import type { TableEditorOp } from '../operators'
 import {
@@ -46,7 +54,7 @@ import {
 } from '../table-schema-clipboard'
 import { getTimezoneOptions } from '../utils/timezone-utils'
 import { ColorSwatch } from './color-swatch'
-import { DraggableNumberInput } from './draggable-number-input'
+import { DraggableNumberInput, type InitialNumberDrag } from './draggable-number-input'
 import { GeocodingDialog } from './geocoding-dialog'
 import { type SchemaChangeMetadata, SchemaEditorDialog } from './schema-editor-dialog'
 import {
@@ -70,6 +78,7 @@ declare module '@tanstack/react-table' {
     columnIndexById?: ReadonlyMap<string, number>
     editingCell?: TableCellCoordinate | null
     editingSeed?: string
+    initialNumberDrag?: InitialNumberDrag
     finishEditing?: (coordinate: TableCellCoordinate, advance?: EditAdvance) => void
     cancelEditing?: (coordinate: TableCellCoordinate) => void
   }
@@ -85,9 +94,17 @@ interface CellEditorProps {
   onComplete: (advance?: EditAdvance) => void
   onCancel: () => void
   column: ColumnSchema
+  initialNumberDrag?: InitialNumberDrag
 }
 
-function NumberCellEditor({ value, onChange, onComplete, onCancel, column }: CellEditorProps) {
+function NumberCellEditor({
+  value,
+  onChange,
+  onComplete,
+  onCancel,
+  column,
+  initialNumberDrag,
+}: CellEditorProps) {
   const defaultValue = typeof column.defaultValue === 'number' ? column.defaultValue : 0
 
   const applyConstraints = (newValue: number) => {
@@ -136,6 +153,7 @@ function NumberCellEditor({ value, onChange, onComplete, onCancel, column }: Cel
       className={cx('p-inputtext', s.cellEditor)}
       wrapperClassName={s.numberInputWrapper}
       formatDisplayValue={String}
+      initialDrag={initialNumberDrag}
       aria-label={`Edit ${column.name}`}
     />
   )
@@ -895,7 +913,7 @@ function EditableCell({ getValue, row, column, table }: EditableCellProps) {
     meta?.activeEdit?.clear()
     if (coordinate) meta?.cancelEditing?.(coordinate)
   }
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!isEditing || !colSchema) {
       isEditingRef.current = false
       return
@@ -953,6 +971,7 @@ function EditableCell({ getValue, row, column, table }: EditableCellProps) {
             onComplete={handleComplete}
             onCancel={handleCancel}
             column={colSchema}
+            initialNumberDrag={meta?.initialNumberDrag}
           />
         </div>
       </div>
@@ -1254,6 +1273,7 @@ export function TableEditor({
   )
   const [editingCell, setEditingCell] = useState<TableCellCoordinate | null>(null)
   const [editingSeed, setEditingSeed] = useState<string>()
+  const [initialNumberDrag, setInitialNumberDrag] = useState<InitialNumberDrag>()
   const overlaySourceRef = useRef<SchemaActionSource>('table_menu')
   const dataPasteAnalyticsRef = useRef<
     | {
@@ -1266,6 +1286,8 @@ export function TableEditor({
   >(undefined)
   const tableWrapperRef = useRef<HTMLDivElement>(null)
   const pointerSelectingRef = useRef(false)
+  const pendingNumberDragCleanupRef = useRef<(() => void) | null>(null)
+  const numberDragTokenRef = useRef(0)
   const activeEdit = useActiveEdit()
   const previousDataRef = useRef(data)
   const previousSchemaRef = useRef(schema)
@@ -1325,6 +1347,7 @@ export function TableEditor({
       setSelection(null)
       setEditingCell(null)
       setEditingSeed(undefined)
+      setInitialNumberDrag(undefined)
       return
     }
 
@@ -1350,6 +1373,7 @@ export function TableEditor({
     return () => {
       document.removeEventListener('pointerup', endPointerSelection)
       document.removeEventListener('pointercancel', endPointerSelection)
+      pendingNumberDragCleanupRef.current?.()
     }
   }, [])
 
@@ -1600,6 +1624,7 @@ export function TableEditor({
       activeEdit.flush()
       setEditingCell(null)
       setEditingSeed(undefined)
+      setInitialNumberDrag(undefined)
       setActiveCell(focus)
       setSelection({ anchor, focus })
     },
@@ -1607,20 +1632,66 @@ export function TableEditor({
   )
 
   const beginEditing = useCallback(
-    (coordinate: TableCellCoordinate, seed?: string) => {
+    (coordinate: TableCellCoordinate, seed?: string, numberDrag?: InitialNumberDrag) => {
       activeEdit.flush()
       setActiveCell(coordinate)
       setSelection({ anchor: coordinate, focus: coordinate })
       setEditingSeed(seed)
+      setInitialNumberDrag(numberDrag)
       setEditingCell(coordinate)
     },
     [activeEdit]
+  )
+
+  const startNumberDrag = useCallback(
+    (event: ReactPointerEvent<HTMLElement>, coordinate: TableCellCoordinate) => {
+      if (event.button !== 0 || event.shiftKey) return false
+
+      pendingNumberDragCleanupRef.current?.()
+      pointerSelectingRef.current = false
+      selectCell(coordinate)
+
+      const { clientX: startX, clientY: startY, pointerId } = event
+      let cleanup: () => void
+      const finishPendingDrag = () => cleanup()
+      const handlePointerMove = (moveEvent: PointerEvent) => {
+        if (moveEvent.pointerId !== pointerId) return
+        const distance = Math.abs(moveEvent.clientX - startX) + Math.abs(moveEvent.clientY - startY)
+        if (distance <= 5) return
+
+        cleanup()
+        numberDragTokenRef.current += 1
+        beginEditing(coordinate, undefined, {
+          token: numberDragTokenRef.current,
+          startX,
+          startY,
+          currentX: moveEvent.clientX,
+          currentY: moveEvent.clientY,
+        })
+      }
+
+      cleanup = () => {
+        document.removeEventListener('pointermove', handlePointerMove)
+        document.removeEventListener('pointerup', finishPendingDrag)
+        document.removeEventListener('pointercancel', finishPendingDrag)
+        if (pendingNumberDragCleanupRef.current === cleanup) {
+          pendingNumberDragCleanupRef.current = null
+        }
+      }
+      document.addEventListener('pointermove', handlePointerMove)
+      document.addEventListener('pointerup', finishPendingDrag)
+      document.addEventListener('pointercancel', finishPendingDrag)
+      pendingNumberDragCleanupRef.current = cleanup
+      return true
+    },
+    [beginEditing, selectCell]
   )
 
   const finishEditing = useCallback(
     (coordinate: TableCellCoordinate, advance?: EditAdvance) => {
       setEditingCell(null)
       setEditingSeed(undefined)
+      setInitialNumberDrag(undefined)
       if (!advance) return
 
       const rowCount = tableDataRef.current.length
@@ -1643,6 +1714,7 @@ export function TableEditor({
   const cancelEditing = useCallback((coordinate: TableCellCoordinate) => {
     setEditingCell(null)
     setEditingSeed(undefined)
+    setInitialNumberDrag(undefined)
     setActiveCell(coordinate)
     setSelection({ anchor: coordinate, focus: coordinate })
   }, [])
@@ -2234,6 +2306,7 @@ export function TableEditor({
       columnIndexById,
       editingCell,
       editingSeed,
+      initialNumberDrag,
       finishEditing,
       cancelEditing,
     },
@@ -2597,6 +2670,12 @@ export function TableEditor({
                               }}
                               onPointerDown={event => {
                                 if (event.button !== 0) return
+                                if (
+                                  schema.columns[columnIndex]?.type === 'number' &&
+                                  startNumberDrag(event, coordinate)
+                                ) {
+                                  return
+                                }
                                 pointerSelectingRef.current = true
                                 selectCell(coordinate, event.shiftKey)
                               }}
