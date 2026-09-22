@@ -10,6 +10,7 @@ import {
   useRef,
   useState,
 } from 'react'
+import { createPortal } from 'react-dom'
 import s from '../noodles.module.css'
 
 type DragState = {
@@ -183,20 +184,21 @@ export function StepLadder({
 
   const defaultStepIndex = steps.findIndex(step => step.multiplier === 1)
   const stepItemHeight = 28
-  let topPosition = 0
+  const ladderHeight = steps.length * stepItemHeight + 8
+  if (!containerRect || typeof document === 'undefined') return null
 
-  if (containerRect) {
-    const relativeMouseY = mousePos.y - containerRect.top
-    topPosition = relativeMouseY - (defaultStepIndex * stepItemHeight + stepItemHeight / 2)
-  }
+  const unclampedTop = mousePos.y - (defaultStepIndex * stepItemHeight + stepItemHeight / 2)
+  const topPosition = Math.max(4, Math.min(unclampedTop, window.innerHeight - ladderHeight - 4))
+  const placeOnLeft = containerRect.left >= 72
 
-  return (
+  return createPortal(
     <div
       className={s.stepLadder}
       style={{
-        right: 'calc(100% + 4px)',
+        position: 'fixed',
+        left: `${placeOnLeft ? containerRect.left - 4 : containerRect.right + 4}px`,
         top: `${topPosition}px`,
-        transform: 'none',
+        transform: placeOnLeft ? 'translateX(-100%)' : 'none',
       }}
     >
       {steps.map(({ multiplier, stepSize, isActive, label }) => (
@@ -210,7 +212,8 @@ export function StepLadder({
           <span className={s.stepLadderLabel}>{label}</span>
         </div>
       ))}
-    </div>
+    </div>,
+    document.body
   )
 }
 

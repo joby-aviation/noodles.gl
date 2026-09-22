@@ -24,11 +24,25 @@ describe('DraggableNumberInput', () => {
 
     const input = screen.getByRole('spinbutton', { name: 'Value' })
     const wrapper = container.querySelector('[role="group"]') as HTMLElement
+    vi.spyOn(wrapper, 'getBoundingClientRect').mockReturnValue({
+      left: 120,
+      right: 220,
+      top: 80,
+      bottom: 104,
+      width: 100,
+      height: 24,
+      x: 120,
+      y: 80,
+      toJSON: () => ({}),
+    })
 
     fireEvent.mouseDown(wrapper, { clientX: 100, clientY: 100 })
     act(() => vi.advanceTimersByTime(400))
 
-    expect(screen.getByText('0.01')).toBeInTheDocument()
+    const ladder = screen.getByText('0.01').parentElement?.parentElement
+    expect(ladder).toBeInTheDocument()
+    expect(ladder?.parentElement).toBe(document.body)
+    expect(ladder).toHaveStyle({ position: 'fixed', left: '116px', top: '30px' })
 
     // Move down one rung to select 0.1x, then right to lock and apply it.
     fireEvent.mouseMove(document, { clientX: 100, clientY: 120 })
