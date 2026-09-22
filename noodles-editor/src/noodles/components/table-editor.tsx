@@ -1000,12 +1000,18 @@ function SchemaDropdownMenu({
   label,
   actions,
   compact = false,
+  open: controlledOpen,
+  onOpenChange,
 }: {
   label: string
   actions: SchemaAction[]
   compact?: boolean
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
 }) {
-  const [open, setOpen] = useState(false)
+  const [internalOpen, setInternalOpen] = useState(false)
+  const open = controlledOpen ?? internalOpen
+  const setOpen = onOpenChange ?? setInternalOpen
 
   return (
     <DropdownMenu.Root open={open} onOpenChange={setOpen} modal={false}>
@@ -1069,12 +1075,28 @@ function SchemaContextMenu({
   )
 }
 
-function ColumnHeader({ name, actions }: { name: string; actions: SchemaAction[] }) {
+function ColumnHeader({
+  name,
+  actions,
+  menuOpen,
+  onMenuOpenChange,
+}: {
+  name: string
+  actions: SchemaAction[]
+  menuOpen: boolean
+  onMenuOpenChange: (open: boolean) => void
+}) {
   return (
     <SchemaContextMenu actions={actions}>
       <div className={s.columnHeader}>
         <span>{name}</span>
-        <SchemaDropdownMenu label={`Column actions for ${name}`} actions={actions} compact />
+        <SchemaDropdownMenu
+          label={`Column actions for ${name}`}
+          actions={actions}
+          compact
+          open={menuOpen}
+          onOpenChange={onMenuOpenChange}
+        />
       </div>
     </SchemaContextMenu>
   )
@@ -1269,6 +1291,7 @@ export function TableEditor({
   const [pasteCatcherOpen, setPasteCatcherOpen] = useState(false)
   const [dataPasteCatcherOpen, setDataPasteCatcherOpen] = useState(false)
   const [clipboardMessage, setClipboardMessage] = useState('')
+  const [openActionMenu, setOpenActionMenu] = useState<string | null>(null)
   const [dataImportOpen, setDataImportOpen] = useState(false)
   const [dataImportRequest, setDataImportRequest] = useState<TableImportRequest>()
   const [activeCell, setActiveCell] = useState<TableCellCoordinate | null>(() =>
@@ -1299,6 +1322,10 @@ export function TableEditor({
   const activeEdit = useActiveEdit()
   const previousDataRef = useRef(data)
   const previousSchemaRef = useRef(schema)
+
+  const setActionMenuOpen = useCallback((label: string, open: boolean) => {
+    setOpenActionMenu(current => (open ? label : current === label ? null : current))
+  }, [])
 
   // Mirrors tableData so a flushed cell edit and the row mutation that triggered
   // it can both run in one tick without the second reading stale state
@@ -2259,6 +2286,10 @@ export function TableEditor({
           <ColumnHeader
             name={colSchema.name}
             actions={getColumnActions(colSchema, schema.columns.indexOf(colSchema))}
+            menuOpen={openActionMenu === `Column actions for ${colSchema.name}`}
+            onMenuOpenChange={open =>
+              setActionMenuOpen(`Column actions for ${colSchema.name}`, open)
+            }
           />
         ),
         cell: EditableCell,
@@ -2266,7 +2297,14 @@ export function TableEditor({
     ),
     columnHelper.display({
       id: ROW_ACTIONS_COLUMN_ID,
-      header: () => <SchemaDropdownMenu label="Table actions" actions={tableSchemaActions} />,
+      header: () => (
+        <SchemaDropdownMenu
+          label="Table actions"
+          actions={tableSchemaActions}
+          open={openActionMenu === 'Table actions'}
+          onOpenChange={open => setActionMenuOpen('Table actions', open)}
+        />
+      ),
       cell: props => (
         <Button
           icon="pi pi-trash"
@@ -2530,7 +2568,12 @@ export function TableEditor({
                 className="p-button-text"
                 onClick={openSchemaEditor}
               />
-              <SchemaDropdownMenu label="Table actions" actions={tableSchemaActions} />
+              <SchemaDropdownMenu
+                label="Table actions"
+                actions={tableSchemaActions}
+                open={openActionMenu === 'Table actions'}
+                onOpenChange={open => setActionMenuOpen('Table actions', open)}
+              />
             </div>
           </div>
         </SchemaContextMenu>

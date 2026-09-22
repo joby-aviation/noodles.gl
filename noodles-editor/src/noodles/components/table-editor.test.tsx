@@ -987,6 +987,27 @@ describe('TableEditor', () => {
     )
   })
 
+  it('keeps action menus open when selecting the operator rerenders the table', () => {
+    const props = {
+      op: mockOp,
+      data: simpleData,
+      schema: simpleSchema,
+      onDataChange: vi.fn(),
+      onSchemaChange: vi.fn(),
+    }
+    const { rerender } = render(<TableEditor {...props} />)
+
+    fireEvent.pointerDown(screen.getByRole('button', { name: 'Table actions' }), {
+      button: 0,
+      ctrlKey: false,
+    })
+    expect(screen.getByText('Copy All Data')).toBeDefined()
+
+    rerender(<TableEditor {...props} onDataChange={vi.fn()} />)
+
+    expect(screen.getByText('Copy All Data')).toBeDefined()
+  })
+
   it('keeps user column names separate from internal table columns', () => {
     const collisionSchema: TableSchema = {
       columns: [
