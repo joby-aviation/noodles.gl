@@ -30,14 +30,12 @@ Each column has a specific type with validation and specialized editors:
 - **Infers schema from data** when schema input is not provided
 - **Allows explicit schema definition** for empty tables or type overrides
 - **Validates data** against schema on every execution
-- **Safely overlays connected schemas** without deleting child-owned columns or values
 
 **Schema Structure:**
 ```typescript
 {
   columns: [
     {
-      id: 'city-column',
       name: 'city',
       type: 'string',
       defaultValue: ''
@@ -63,23 +61,6 @@ Each column has a specific type with validation and specialized editors:
   ]
 }
 ```
-
-The editor adds a column ID only when identity is needed, such as for a rename, new column, or
-duplicate. IDs remain stable across later renames. Schemas without IDs are matched by name.
-
-### Connected Schema Overlays
-
-The `schema` input is non-destructive when connected to another table:
-
-- Matching columns receive safe name, type, option, and default updates.
-- New parent columns are appended after the child's existing columns.
-- Columns that exist only in the child remain in its effective schema.
-- Parent renames propagate by stable column ID and preserve each child's values.
-- An update that would invalidate child values or collide with another name is skipped for that
-  column and shown as a connection warning on the child node.
-
-Editing a table's own schema remains authoritative, so an explicit local delete or type change can
-still remove or replace values.
 
 ### Schema Editor Dialog
 
@@ -117,14 +98,14 @@ still remove or replace values.
 
 **Inputs:**
 - `data`: Array of objects (rows)
-- `schema`: Optional local schema or non-destructive connected schema overlay (TableSchema | null)
+- `schema`: Optional schema override (TableSchema | null)
 
 **Outputs:**
 - `data`: Validated data array
 - `schema`: Computed schema (inferred or explicit)
 
 **Execution:**
-1. If a schema is connected → safely merge it with the last effective local schema
+1. If schema input provided and valid → use it
 2. Otherwise → infer schema from data
 3. Validate data against schema
 4. Apply defaults for missing values

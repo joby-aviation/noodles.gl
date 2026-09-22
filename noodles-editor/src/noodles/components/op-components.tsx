@@ -1808,10 +1808,10 @@ export function TableEditorOpComponent({
 
   const [data, setData] = useState((op?.inputs.data.value ?? []) as unknown[])
   const [schema, setSchema] = useState<TableSchema>(() => {
-    // Prefer the effective input snapshot so connected overlays survive reload before execution.
-    const effectiveSchema = op?.inputs.schema.value ?? op?.outputs.schema.value
-    if (effectiveSchema && typeof effectiveSchema === 'object' && 'columns' in effectiveSchema) {
-      return effectiveSchema as TableSchema
+    // Get schema from output or infer from data
+    const outputSchema = op?.outputs.schema.value
+    if (outputSchema && typeof outputSchema === 'object' && 'columns' in outputSchema) {
+      return outputSchema as TableSchema
     }
     return inferSchema((op?.inputs.data.value ?? []) as unknown[])
   })
@@ -1822,7 +1822,7 @@ export function TableEditorOpComponent({
     const dataSub = op.inputs.data.subscribe(newData => {
       setData(newData as unknown[])
     })
-    const schemaSub = op.inputs.schema.subscribe(newSchema => {
+    const schemaSub = op.outputs.schema.subscribe(newSchema => {
       if (newSchema && typeof newSchema === 'object' && 'columns' in newSchema) {
         setSchema(newSchema as TableSchema)
       }

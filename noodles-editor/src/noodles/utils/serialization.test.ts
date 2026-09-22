@@ -397,41 +397,6 @@ describe('serializeNodes', () => {
     expect(serialized.data.inputs.schema).toEqual(schema)
   })
 
-  it('serializes the effective TableEditor schema while it is connected', () => {
-    const sourceSchema = {
-      columns: [{ id: 'shared', name: 'shared', type: 'string' as const, defaultValue: '' }],
-    }
-    const targetSchema = {
-      columns: [{ id: 'local', name: 'local', type: 'number' as const, defaultValue: 0 }],
-    }
-    const source = new TableEditorOp('/source', { schema: sourceSchema }, false)
-    const target = new TableEditorOp('/target', { schema: targetSchema }, false)
-    const edge = {
-      id: '/source.out.schema->/target.par.schema',
-      source: '/source',
-      target: '/target',
-      sourceHandle: 'out.schema',
-      targetHandle: 'par.schema',
-    }
-    source.outputs.schema.setValue(sourceSchema)
-    target.inputs.schema.addConnection(edge.id, source.outputs.schema)
-    setOp('/source', source)
-    setOp('/target', target)
-
-    const serialized = serializeNodes(
-      getOpStore(),
-      [
-        { id: '/source', type: 'TableEditorOp', data: {}, position: { x: 0, y: 0 } },
-        { id: '/target', type: 'TableEditorOp', data: {}, position: { x: 100, y: 0 } },
-      ],
-      [edge]
-    )
-
-    expect(serialized[1].data.inputs.schema).toEqual({
-      columns: [...targetSchema.columns, ...sourceSchema.columns],
-    })
-  })
-
   it('excludes ReferenceEdge connections when determining connected inputs', () => {
     setOp('node1', makeOp({ x: 123 }, false))
     setOp('node0', makeOp({ foo: 42 }, false))

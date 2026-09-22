@@ -136,9 +136,6 @@ export abstract class Field<
   // Infinity = unlimited depth, 0 = reference equality only, 1 = shallow, 2+ = limited depth
   maxDepth = Infinity
 
-  // Some connected fields retain meaningful local state that must survive save/load.
-  serializeWhenConnected = false
-
   // Hold a reference to the operator that owns this field. Only used for debugging at the moment.
   op!: Operator<IOperator>
 

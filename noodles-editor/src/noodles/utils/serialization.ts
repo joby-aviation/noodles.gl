@@ -170,7 +170,7 @@ export function serializeNodes(
       // A whole-value connection owns the entire field. Channel connections only own
       // their respective components, so retain the vector value as the fallback for
       // unconnected siblings.
-      if (hasNonDefaultValue && (!incomingPaths.has(name) || field.serializeWhenConnected)) {
+      if (hasNonDefaultValue && !incomingPaths.has(name)) {
         inputs[name] = serialized
       }
     }

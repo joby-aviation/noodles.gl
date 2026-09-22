@@ -11,7 +11,6 @@ import {
   MathOp,
   NumberOp,
   type Operator,
-  type TableEditorOp,
 } from './operators'
 import { referenceDependencyModel } from './reference-dependencies'
 import { clearOps, getOpStore, hasOp } from './store'
@@ -20,60 +19,6 @@ import { edgeId } from './utils/id-utils'
 
 afterEach(() => {
   referenceDependencyModel.reset()
-})
-
-describe('TableEditor schema connections', () => {
-  afterEach(() => clearOps())
-
-  it('reconstructs a connected schema as a non-destructive overlay', async () => {
-    const nodes = [
-      {
-        id: '/source',
-        type: 'TableEditorOp',
-        data: {
-          inputs: {
-            schema: {
-              columns: [{ id: 'shared', name: 'shared', type: 'string', defaultValue: '' }],
-            },
-            data: [{ shared: 'source' }],
-          },
-        },
-        position: { x: 0, y: 0 },
-      },
-      {
-        id: '/target',
-        type: 'TableEditorOp',
-        data: {
-          inputs: {
-            schema: {
-              columns: [{ id: 'local', name: 'local', type: 'number', defaultValue: 0 }],
-            },
-            data: [{ local: 42 }],
-          },
-        },
-        position: { x: 100, y: 0 },
-      },
-    ]
-    const edges = [
-      {
-        id: '/source.out.schema->/target.par.schema',
-        source: '/source',
-        target: '/target',
-        sourceHandle: 'out.schema',
-        targetHandle: 'par.schema',
-      },
-    ]
-
-    const result = transformGraph({ nodes, edges })
-    const target = result.operators.find(op => op.id === '/target') as TableEditorOp
-    await target.pull()
-
-    expect((target.inputs.schema.value as { columns: Array<{ name: string }> }).columns).toEqual([
-      expect.objectContaining({ name: 'local' }),
-      expect.objectContaining({ name: 'shared' }),
-    ])
-    expect(target.inputs.data.value).toEqual([{ local: 42, shared: '' }])
-  })
 })
 
 describe('transform-graph topological sort with missing upstream nodes', () => {

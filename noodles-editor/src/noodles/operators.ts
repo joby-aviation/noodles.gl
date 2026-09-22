@@ -145,7 +145,6 @@ import { DEFAULT_LATITUDE, DEFAULT_LONGITUDE, safeMode } from './globals'
 import { getKeysStore } from './keys-store'
 import { getAllOps, getOp } from './store'
 import { prepareTableDataForOutput, type TableSchema, validateTableData } from './table-schema'
-import { TableSchemaField } from './table-schema-field'
 import type { ExtensionConstructorArgs, LayerPropsValue } from './types'
 import { composeAccessor, isAccessor } from './utils/accessor-helpers'
 import { deepEqual } from './utils/deep-equal'
@@ -234,10 +233,6 @@ export abstract class Operator<OP extends IOperator> {
   // Connection errors - tracks errors from incompatible connections
   // Map of edgeId -> error message
   connectionErrors = new BehaviorSubject<Map<string, string>>(new Map())
-
-  // Persistent connection errors are owned by live field-level validation and must not be
-  // cleared merely because the operator executed successfully.
-  private persistentConnectionErrorIds = new Set<string>()
 
   // Dirty flag for GraphExecutor
   dirty = true
@@ -360,24 +355,18 @@ export abstract class Operator<OP extends IOperator> {
   // === Connection error methods ===
 
   // Add a connection error for a specific edge
-  addConnectionError(edgeId: string, error: string, persistent = false) {
+  addConnectionError(edgeId: string, error: string) {
     const errors = new Map(this.connectionErrors.value)
     errors.set(edgeId, error)
     this.connectionErrors.next(errors)
-    if (persistent) this.persistentConnectionErrorIds.add(edgeId)
   }
 
   // Remove a connection error for a specific edge
   removeConnectionError(edgeId: string) {
-    this.persistentConnectionErrorIds.delete(edgeId)
     const errors = new Map(this.connectionErrors.value)
     if (errors.delete(edgeId)) {
       this.connectionErrors.next(errors)
     }
-  }
-
-  hasPersistentConnectionError(edgeId: string): boolean {
-    return this.persistentConnectionErrorIds.has(edgeId)
   }
 
   // Check if the operator has any connection errors
@@ -581,12 +570,7 @@ export abstract class Operator<OP extends IOperator> {
       // Clear any stale connection errors on successful execution
       // This handles cases where validation errors were added during transient failures
       if (this.connectionErrors.value.size > 0) {
-        const persistentErrors = new Map(
-          Array.from(this.connectionErrors.value).filter(([edgeId]) =>
-            this.persistentConnectionErrorIds.has(edgeId)
-          )
-        )
-        this.connectionErrors.next(persistentErrors)
+        this.connectionErrors.next(new Map())
       }
 
       // Update output fields for UI/debugging purposes only
@@ -2419,7 +2403,7 @@ export class TableEditorOp extends Operator<TableEditorOp> {
   createInputs() {
     return {
       data: new DataField(),
-      schema: new TableSchemaField(null), // TableSchema | null - optional schema overlay
+      schema: new UnknownField(null), // TableSchema | null - optional schema override
     }
   }
 
