@@ -638,6 +638,65 @@ describe('TableEditor - Edit Flow', () => {
       expect(onDataChange).toHaveBeenCalledWith([{ amount: 15 }], 'Edit cell amount')
     })
 
+    it('selects an inactive number cell and starts scrubbing in the same drag', () => {
+      const onDataChange = vi.fn()
+      const scrubSchema: TableSchema = {
+        columns: [
+          { name: 'label', type: 'string', defaultValue: '' },
+          { name: 'amount', type: 'number', defaultValue: 0, options: { step: 0.25 } },
+        ],
+      }
+      const { getByText } = render(
+        <TableEditor
+          op={mockOp}
+          data={[{ label: 'Alpha', amount: 10 }]}
+          schema={scrubSchema}
+          onDataChange={onDataChange}
+          onSchemaChange={vi.fn()}
+        />
+      )
+
+      const cell = getByText('10').closest('td') as HTMLTableCellElement
+      expect(cell).not.toHaveAttribute('aria-selected', 'true')
+
+      fireEvent.pointerDown(cell, { button: 0, pointerId: 1, clientX: 100, clientY: 100 })
+      expect(cell).toHaveAttribute('aria-selected', 'true')
+      fireEvent.pointerMove(document, { pointerId: 1, clientX: 120, clientY: 100 })
+
+      expect(screen.getByRole('spinbutton', { name: 'Edit amount' })).toHaveValue(15)
+      fireEvent.mouseUp(document, { clientX: 120, clientY: 100 })
+
+      expect(onDataChange).toHaveBeenCalledWith(
+        [{ label: 'Alpha', amount: 15 }],
+        'Edit cell amount'
+      )
+    })
+
+    it('keeps a number cell in selection mode when the pointer does not drag', () => {
+      const { getByText } = render(
+        <TableEditor
+          op={mockOp}
+          data={[{ label: 'Alpha', amount: 10 }]}
+          schema={{
+            columns: [
+              { name: 'label', type: 'string', defaultValue: '' },
+              { name: 'amount', type: 'number', defaultValue: 0 },
+            ],
+          }}
+          onDataChange={vi.fn()}
+          onSchemaChange={vi.fn()}
+        />
+      )
+
+      const cell = getByText('10').closest('td') as HTMLTableCellElement
+      fireEvent.pointerDown(cell, { button: 0, pointerId: 1, clientX: 100, clientY: 100 })
+      fireEvent.pointerUp(document, { button: 0, pointerId: 1, clientX: 100, clientY: 100 })
+      fireEvent.click(cell)
+
+      expect(cell).toHaveAttribute('aria-selected', 'true')
+      expect(screen.queryByRole('spinbutton', { name: 'Edit amount' })).not.toBeInTheDocument()
+    })
+
     it('uses vector steps for vec2 scrubbing and preserves the other channel', () => {
       const onDataChange = vi.fn()
       const scrubSchema: TableSchema = {

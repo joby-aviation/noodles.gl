@@ -57,6 +57,31 @@ describe('DraggableNumberInput', () => {
     expect(screen.queryByText('0.01')).not.toBeInTheDocument()
   })
 
+  it('continues a drag that began before the input mounted', () => {
+    const onChange = vi.fn()
+    const onDragEnd = vi.fn()
+    render(
+      <DraggableNumberInput
+        value={10}
+        step={0.25}
+        onChange={onChange}
+        onDragEnd={onDragEnd}
+        initialDrag={{
+          token: 1,
+          startX: 100,
+          startY: 100,
+          currentX: 120,
+          currentY: 100,
+        }}
+        aria-label="Value"
+      />
+    )
+
+    expect(onChange).toHaveBeenLastCalledWith(15)
+    fireEvent.mouseUp(document, { clientX: 120, clientY: 100 })
+    expect(onDragEnd).toHaveBeenCalledOnce()
+  })
+
   it('clamps dragged values when only a minimum is configured', () => {
     const onChange = vi.fn()
     const { container } = render(
