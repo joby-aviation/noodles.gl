@@ -1,8 +1,9 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { TableEditorOp } from '../operators'
-import { TABLE_RANGE_CLIPBOARD_MIME } from '../table-data-clipboard'
+import { serializeTableRangeClipboard, TABLE_RANGE_CLIPBOARD_MIME } from '../table-data-clipboard'
 import type { TableSchema } from '../table-schema'
+import { keyboardManager } from '../utils/keyboard-manager'
 import { TableEditor } from './table-editor'
 
 const schema: TableSchema = {
@@ -76,7 +77,10 @@ describe('TableEditor spreadsheet clipboard', () => {
     clipboard.writeText.mockReset().mockResolvedValue(undefined)
   })
 
-  afterEach(cleanup)
+  afterEach(() => {
+    cleanup()
+    keyboardManager.cleanup()
+  })
 
   it('owns copy for a selected range and writes TSV, HTML, and typed data', () => {
     const graphCopy = vi.fn()
@@ -147,6 +151,21 @@ describe('TableEditor spreadsheet clipboard', () => {
     expect(graphPaste).not.toHaveBeenCalled()
     expect(transfer.setData).not.toHaveBeenCalled()
     expect(pasteEvent.defaultPrevented).toBe(false)
+  })
+
+  it('blocks graph shortcuts while a table range owns paste', () => {
+    const viewerShortcut = vi.fn()
+    keyboardManager.init()
+    keyboardManager.register('v', viewerShortcut)
+    renderTable()
+
+    const alice = screen.getByText('Alice').closest('[role="gridcell"]') as HTMLElement
+    fireEvent.click(alice)
+    dispatchClipboardEvent(alice, 'paste', dataTransfer({ 'text/plain': 'Carol' }))
+    // Releasing Command before V produces an unmodified keyup in browsers.
+    fireEvent.keyUp(alice, { key: 'v' })
+
+    expect(viewerShortcut).not.toHaveBeenCalled()
   })
 
   it('retries rich copy without the custom MIME before using plain text', async () => {
@@ -230,6 +249,41 @@ describe('TableEditor spreadsheet clipboard', () => {
         { name: 'Carol', count: 30 },
         { name: 'Dora', count: 40 },
         { name: 'Eve', count: 50 },
+      ],
+      'Paste table data'
+    )
+  })
+
+  it('anchors a paste at the top-left of an equal-sized selection', () => {
+    const rows = Array.from({ length: 16 }, (_, index) => ({ value: `Original ${index + 1}` }))
+    const { onDataChange } = renderTable({
+      data: rows,
+      schema: { columns: [{ name: 'value', type: 'string', defaultValue: '' }] },
+    })
+    const first = screen.getByText('Original 1').closest('[role="gridcell"]') as HTMLElement
+    const eighth = screen.getByText('Original 8').closest('[role="gridcell"]') as HTMLElement
+
+    fireEvent.pointerDown(first, { button: 0, pointerId: 1 })
+    fireEvent.pointerEnter(eighth, { pointerId: 1 })
+    fireEvent.pointerUp(document, { button: 0, pointerId: 1 })
+    const pastedValues = Array.from({ length: 8 }, (_, index) => [`Pasted ${index + 1}`])
+    const serialized = serializeTableRangeClipboard(
+      [{ name: 'value', type: 'string', defaultValue: '' }],
+      pastedValues
+    )
+    dispatchClipboardEvent(
+      eighth,
+      'paste',
+      dataTransfer({
+        'text/plain': serialized.plainText,
+        [TABLE_RANGE_CLIPBOARD_MIME]: serialized.richText,
+      })
+    )
+
+    expect(onDataChange).toHaveBeenCalledWith(
+      [
+        ...Array.from({ length: 8 }, (_, index) => ({ value: `Pasted ${index + 1}` })),
+        ...rows.slice(8),
       ],
       'Paste table data'
     )
