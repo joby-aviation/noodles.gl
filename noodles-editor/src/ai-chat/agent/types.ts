@@ -10,7 +10,9 @@ export type StopReason = 'end_turn' | 'tool_use' | 'max_tokens' | 'aborted' | 'e
 // 'custom' is any OpenAI-compatible endpoint the user configures — Groq, OpenAI,
 // a local vLLM server — which is one provider from the loop's point of view no
 // matter how many different servers it points at over time.
-export type ProviderId = 'anthropic' | 'openrouter' | 'custom' | 'chrome'
+// 'webllm' runs the model in this tab via WebGPU, so it needs no account at all —
+// at the price of a multi-gigabyte download the user has to ask for.
+export type ProviderId = 'anthropic' | 'openrouter' | 'custom' | 'webllm' | 'chrome'
 
 export type AgentContent =
   | { type: 'text'; text: string }
@@ -58,11 +60,20 @@ export type AgentEvent =
   | { type: 'usage'; usage: AgentUsage }
   | { type: 'stop'; reason: StopReason }
 
+// Progress of an on-device model's first load. `loaded` is a 0..1 fraction for
+// both providers that report one, but a byte count in older Chrome builds, so it
+// is always read against `total` rather than assumed to be a percentage.
+export interface DownloadProgress {
+  loaded: number
+  total: number
+}
+
 export interface AgentProvider {
   readonly id: ProviderId
   readonly model: string
-  // False for Chrome's Prompt API, which has no tool calling and needs the loop
-  // to fall back to JSON-constrained action selection
+  // False for the two on-device providers, Chrome's Prompt API and WebLLM, which
+  // have no usable tool calling and fall back to JSON-constrained action
+  // selection (providers/json-tools.ts)
   readonly supportsNativeTools: boolean
   readonly supportsImages: boolean
   // Drives both the tool router's disclosure budget and the per-result char cap,
@@ -71,9 +82,9 @@ export interface AgentProvider {
 
   stream(request: AgentRequest, signal?: AbortSignal): AsyncIterable<AgentEvent>
 
-  // Releases anything the provider holds between turns. Only the Chrome provider
-  // has any: an on-device session that owns the transcript, which the browser will
-  // not reclaim on its own.
+  // Releases anything the provider holds between turns. Only the on-device
+  // providers have any — a Prompt API session that owns the transcript, a WebLLM
+  // engine holding a model in VRAM — and the browser will not reclaim either.
   dispose?(): void
 }
 

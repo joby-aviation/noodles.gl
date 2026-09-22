@@ -70,10 +70,7 @@ export class CustomProvider implements AgentProvider {
       response = await fetch(this.endpoint, {
         method: 'POST',
         signal,
-        headers: {
-          Authorization: `Bearer ${this.apiKey}`,
-          'Content-Type': 'application/json',
-        },
+        headers: this.headers(),
         body: JSON.stringify(this.buildBody(request)),
       })
     } catch (error) {
@@ -99,6 +96,15 @@ export class CustomProvider implements AgentProvider {
       }
       throw error
     }
+  }
+
+  // `Bearer ` with nothing after it is worse than no header: a keyless endpoint
+  // may reject it as a malformed credential, and LM Studio and llama.cpp on the
+  // LAN want no header at all.
+  private headers(): Record<string, string> {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    if (this.apiKey) headers.Authorization = `Bearer ${this.apiKey}`
+    return headers
   }
 
   private buildBody(request: AgentRequest): Record<string, unknown> {
