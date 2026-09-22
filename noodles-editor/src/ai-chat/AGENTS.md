@@ -41,4 +41,4 @@ cannot escape. Any new filesystem tool must go through it rather than calling
 `writeAsset` directly.
 
 Full details, including the measured before/after context cost, are in
-[dev-docs/agent-harness.md](dev-docs/agent-harness.md).
+[dev-docs/agent-harness.md](../../../dev-docs/agent-harness.md).

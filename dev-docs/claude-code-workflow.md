@@ -15,7 +15,7 @@ ls noodles-editor/public/examples/
 
 ### Editing Project Files Directly
 
-Project files (`noodles.json`) are plain JSON and can be read and written by Claude Code. See the **Project Files** section above for the full schema. Key points:
+Project files (`noodles.json`) are plain JSON and can be read and written by Claude Code. See the [Project Files section](../AGENTS.md#project-files-noodlesjson) for the full schema. Key points:
 
 - Node IDs are Unix-style paths: `/my-node`, `/container/child`
 - Edge handles: `out.fieldName` (source) → `par.fieldName` (target)
