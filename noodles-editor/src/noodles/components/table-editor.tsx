@@ -2062,6 +2062,7 @@ export function TableEditor({
       if (!activeCell) return
       event.preventDefault()
       event.stopPropagation()
+      const rect = getSelectionRect(selection)
       routeTableClipboard(
         {
           plainText: event.clipboardData.getData('text/plain'),
@@ -2069,10 +2070,10 @@ export function TableEditor({
           richText: event.clipboardData.getData(TABLE_RANGE_CLIPBOARD_MIME),
         },
         'keyboard',
-        activeCell
+        rect ? { row: rect.firstRow, column: rect.firstColumn } : activeCell
       )
     },
-    [activeCell, routeTableClipboard]
+    [activeCell, routeTableClipboard, selection]
   )
 
   const getCellActions = useCallback(
@@ -2543,7 +2544,7 @@ export function TableEditor({
           >
             <table
               {...getGridAccessibilityProps(tableData.length + 1, schema.columns.length + 2)}
-              className={s.table}
+              className={cx(s.table, 'nokey')}
               data-table-editor-grid="true"
               onCopy={handleGridCopy}
               onPaste={handleGridPaste}
