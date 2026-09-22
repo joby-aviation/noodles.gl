@@ -101,7 +101,7 @@ describe('TableEditor - Edit Flow', () => {
       )
     })
 
-    it('should render string literals as a dropdown and commit the selection immediately', () => {
+    it('renders configured string literals as one-click dropdowns with selectable cell padding', () => {
       const onDataChange = vi.fn()
       const literalSchema: TableSchema = {
         columns: [
@@ -114,7 +114,7 @@ describe('TableEditor - Edit Flow', () => {
         ],
       }
 
-      const { getByText, getByRole } = render(
+      const { getByRole } = render(
         <TableEditor
           op={mockOp}
           data={[{ anchor: 'start' }]}
@@ -124,14 +124,18 @@ describe('TableEditor - Edit Flow', () => {
         />
       )
 
-      fireEvent.doubleClick(getByText('start'))
-
-      const dropdown = getByRole('combobox') as HTMLSelectElement
+      const dropdown = getByRole('combobox', { name: 'Choose anchor' }) as HTMLSelectElement
       expect(Array.from(dropdown.options, option => option.value)).toEqual([
         'start',
         'middle',
         'end',
       ])
+
+      const cell = dropdown.closest('[role="gridcell"]') as HTMLElement
+      fireEvent.click(dropdown.parentElement as HTMLElement)
+      expect(cell).toHaveAttribute('aria-selected', 'true')
+      expect(dropdown).toHaveValue('start')
+      expect(onDataChange).not.toHaveBeenCalled()
 
       fireEvent.change(dropdown, { target: { value: 'end' } })
 

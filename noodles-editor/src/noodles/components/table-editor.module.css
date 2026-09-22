@@ -162,6 +162,33 @@
   outline-offset: -2px;
 }
 
+.stringLiteralCell {
+  padding: 4px 8px;
+}
+
+.stringLiteralSelect {
+  width: 100%;
+  min-width: 0;
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--surface-border);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--surface-ground) 80%, transparent);
+  color: var(--text-color);
+  cursor: pointer;
+  font: inherit;
+}
+
+.stringLiteralSelect:hover {
+  border-color: color-mix(in srgb, var(--primary-color) 55%, var(--surface-border));
+  background: var(--surface-hover);
+}
+
+.stringLiteralSelect:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 1px;
+}
+
 .editing {
   background: var(--surface-section);
 }
