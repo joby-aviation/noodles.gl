@@ -747,6 +747,40 @@ function renderStringCell(value: unknown): string {
   return String(value ?? '')
 }
 
+function StringLiteralCell({
+  value,
+  column,
+  onChange,
+}: {
+  value: unknown
+  column: ColumnSchema
+  onChange: (value: string) => void
+}) {
+  const currentValue = String(value ?? '')
+  const configuredValues = column.options?.values ?? []
+  const values = configuredValues.includes(currentValue)
+    ? configuredValues
+    : [currentValue, ...configuredValues]
+
+  return (
+    <div className={cx(s.cell, s.stringLiteralCell)}>
+      <select
+        value={currentValue}
+        onChange={event => onChange(event.currentTarget.value)}
+        onKeyDown={event => event.stopPropagation()}
+        className={cx('nodrag', s.stringLiteralSelect)}
+        aria-label={`Choose ${column.name}`}
+      >
+        {values.map(option => (
+          <option key={option} value={option}>
+            {option}
+          </option>
+        ))}
+      </select>
+    </div>
+  )
+}
+
 // Get cell renderer for column type
 function getCellRenderer(type: ColumnType) {
   switch (type) {
@@ -983,6 +1017,18 @@ function EditableCell({ getValue, row, column, table }: EditableCellProps) {
           />
         </div>
       </div>
+    )
+  }
+
+  if (colSchema.type === 'stringLiteral' && (colSchema.options?.values?.length ?? 0) > 0) {
+    return (
+      <StringLiteralCell
+        value={currentValue}
+        column={colSchema}
+        onChange={newValue => {
+          if (columnIndex !== undefined) meta?.updateData?.(row.index, columnIndex, newValue)
+        }}
+      />
     )
   }
 
