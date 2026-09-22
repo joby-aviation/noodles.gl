@@ -48,6 +48,176 @@ export interface TableSchema {
   columns: ColumnSchema[]
 }
 
+const columnTypes = new Set<ColumnType>([
+  'number',
+  'string',
+  'boolean',
+  'color',
+  'point2d',
+  'point3d',
+  'vec2',
+  'vec3',
+  'date',
+  'dateTime',
+  'stringLiteral',
+])
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+const numberOptionKeys = ['min', 'max', 'step', 'softMin', 'softMax'] as const
+
+function columnOptionsValidationError(
+  column: Record<string, unknown>,
+  type: ColumnType,
+  label: string
+): string | undefined {
+  const options = column.options
+  if (options === undefined) return undefined
+  if (!isRecord(options)) return `${label} options must be an object.`
+
+  const allowedKeys = new Set<string>(
+    type === 'number'
+      ? numberOptionKeys
+      : type === 'stringLiteral'
+        ? ['values', 'freeform']
+        : type === 'point2d'
+          ? ['geocoder']
+          : []
+  )
+  const unexpectedKey = Object.keys(options).find(key => !allowedKeys.has(key))
+  if (unexpectedKey) {
+    return `${label} option "${unexpectedKey}" is not valid for type ${type}.`
+  }
+
+  if (type === 'number') {
+    for (const key of numberOptionKeys) {
+      const option = options[key]
+      if (option !== undefined && (typeof option !== 'number' || !Number.isFinite(option))) {
+        return `${label} option "${key}" must be a finite number.`
+      }
+    }
+
+    if (typeof options.step === 'number' && options.step <= 0) {
+      return `${label} step must be greater than zero.`
+    }
+    if (
+      typeof options.min === 'number' &&
+      typeof options.max === 'number' &&
+      options.min > options.max
+    ) {
+      return `${label} minimum cannot exceed its maximum.`
+    }
+    if (
+      typeof options.softMin === 'number' &&
+      typeof options.softMax === 'number' &&
+      options.softMin > options.softMax
+    ) {
+      return `${label} soft minimum cannot exceed its soft maximum.`
+    }
+    return undefined
+  }
+
+  if (type === 'stringLiteral') {
+    if (
+      options.values !== undefined &&
+      (!Array.isArray(options.values) || options.values.some(option => typeof option !== 'string'))
+    ) {
+      return `${label} literal values must be strings.`
+    }
+    if (Array.isArray(options.values) && new Set(options.values).size !== options.values.length) {
+      return `${label} literal values must be unique.`
+    }
+    if (options.freeform !== undefined && typeof options.freeform !== 'boolean') {
+      return `${label} freeform option must be a boolean.`
+    }
+    return undefined
+  }
+
+  if (
+    type === 'point2d' &&
+    options.geocoder !== undefined &&
+    typeof options.geocoder !== 'boolean'
+  ) {
+    return `${label} geocoder option must be a boolean.`
+  }
+
+  return undefined
+}
+
+function hasValidColumnDefault(column: ColumnSchema): boolean {
+  if (column.defaultValue === undefined) return true
+  if (!validateValue(column.defaultValue, column)) return false
+
+  switch (column.type) {
+    case 'number':
+      return Number.isFinite(column.defaultValue)
+    case 'point2d':
+    case 'vec2':
+    case 'point3d':
+    case 'vec3':
+      return (column.defaultValue as number[]).every(Number.isFinite)
+    case 'date':
+      if (column.defaultValue instanceof Date) return !Number.isNaN(column.defaultValue.getTime())
+      try {
+        Temporal.PlainDate.from(column.defaultValue as string)
+        return true
+      } catch {
+        return false
+      }
+    default:
+      return true
+  }
+}
+
+/** Returns a user-facing reason when a value is not a valid table schema. */
+export function getTableSchemaValidationError(value: unknown): string | undefined {
+  if (!isRecord(value) || !Array.isArray(value.columns)) {
+    return 'Expected a table schema with a columns array.'
+  }
+
+  const names = new Set<string>()
+  const identities = new Set<string>()
+  for (const [index, candidate] of value.columns.entries()) {
+    const label = `Column ${index + 1}`
+    if (!isRecord(candidate)) return `${label} must be an object.`
+    if (typeof candidate.name !== 'string' || candidate.name.trim().length === 0) {
+      return `${label} name cannot be empty.`
+    }
+    if (typeof candidate.type !== 'string' || !columnTypes.has(candidate.type as ColumnType)) {
+      return `${label} has an unsupported type.`
+    }
+    if (
+      candidate.id !== undefined &&
+      (typeof candidate.id !== 'string' || candidate.id.trim().length === 0)
+    ) {
+      return `${label} identity cannot be empty.`
+    }
+
+    const type = candidate.type as ColumnType
+    const optionsError = columnOptionsValidationError(candidate, type, label)
+    if (optionsError) return optionsError
+
+    const column = candidate as unknown as ColumnSchema
+    if (!hasValidColumnDefault(column)) {
+      return `${label} default value is invalid for type ${type} and its constraints.`
+    }
+
+    const identity = typeof candidate.id === 'string' ? candidate.id : candidate.name
+    if (names.has(candidate.name)) return `Column name "${candidate.name}" is duplicated.`
+    if (identities.has(identity)) return `Column identity "${identity}" is duplicated.`
+    names.add(candidate.name)
+    identities.add(identity)
+  }
+
+  return undefined
+}
+
+/** Runtime guard shared by project loading and schema clipboard parsing. */
+export function isTableSchema(value: unknown): value is TableSchema {
+  return getTableSchemaValidationError(value) === undefined
+}
 export interface TableSchemaTransitionResult {
   data: unknown[]
   renamedColumns: Array<{ from: string; to: string }>

@@ -26,10 +26,23 @@ Each column has a specific type with validation and specialized editors:
 
 ### Schema System
 
-**Hybrid Approach:**
-- **Infers schema from data** when schema input is not provided
-- **Allows explicit schema definition** for empty tables or type overrides
-- **Validates data** against schema on every execution
+Each TableEditor owns its schema as serialized local state. The schema has no graph handle: it
+cannot be connected to another node and is not exposed as an output. When a table has no saved
+schema, one is inferred from its data. Once edited or pasted, the explicit schema is saved with
+the table and used to validate its rows.
+
+Schemas can be transferred explicitly from the table actions menu:
+
+- **Copy Schema** writes readable, versioned JSON to the clipboard.
+- **Paste Schema Overlay** previews a non-destructive merge. Existing target-only columns remain,
+  matching columns update in place, and new columns append in source order.
+- Column menus provide the same copy/paste workflow for one column.
+- Unsafe type or constraint changes default to **Keep existing**. Choosing **Apply and reset**
+  shows and then resets only values that cannot be converted.
+
+Copied stable column identities let a later paste recognize an intentional source rename and
+remap each target table's own values. A schema paste never creates a live relationship between
+tables.
 
 **Schema Structure:**
 ```typescript
@@ -87,30 +100,49 @@ Each column has a specific type with validation and specialized editors:
 
 ### UI Features
 
-- **Inline editing**: Click cell to edit
+- **Spreadsheet selection**: Click selects a cell; Shift-click or Shift-arrow extends a range
+- **Inline editing**: Double-click, Enter, F2, or typing edits the active cell
+- **Clipboard data transfer**: Copy ranges to Google Sheets and paste Sheets ranges back
 - **Add/delete rows**: Add button in toolbar, delete button per row
 - **Schema management**: Edit Schema dialog for column configuration
 - **Row numbers**: Visual index for each row
 - **Stats display**: Shows row × column count
-- **Keyboard navigation**: Enter to confirm, Escape to cancel
+- **Keyboard navigation**: Arrows move, Enter/Tab confirm and advance, Escape cancels
+
+### Spreadsheet Clipboard
+
+Copying a table selection writes quoted TSV and an HTML table for interoperability with Google
+Sheets, plus a best-effort typed Noodles range payload. Use **Copy with Column Names** when the
+destination should receive a header row. Vectors and other structured cells use JSON text in the
+universal TSV/HTML formats; the typed payload preserves their native values between TableEditors.
+
+Pasting into an existing schema starts at the active cell. Lossless in-bounds data applies
+immediately, and rows are added when the range extends downward. Conversion failures or columns
+that extend past the right edge open a preview instead of truncating data. Pasting into an empty
+TableEditor always opens the preview with header detection enabled.
+
+Pasting a clearly tabular Sheets, TSV, CSV, or JSON selection on empty canvas opens the same
+preview. Confirming creates one populated TableEditor at the pointer; plain text, schema-only
+clipboard data, and malformed JSON do not create nodes.
 
 ### Data Flow
 
-**Inputs:**
+**Public input:**
 - `data`: Array of objects (rows)
-- `schema`: Optional schema override (TableSchema | null)
 
-**Outputs:**
+The serialized `inputs.schema` property is internal TableEditor state. It is intentionally absent
+from connection discovery and generic field controls.
+
+**Public output:**
 - `data`: Validated data array
-- `schema`: Computed schema (inferred or explicit)
 
 **Execution:**
-1. If schema input provided and valid → use it
+1. If a local schema is saved → use it
 2. Otherwise → infer schema from data
 3. Validate data against schema
 4. Apply defaults for missing values
 5. Warn about invalid values (console)
-6. Return validated data + schema
+6. Return validated data
 
 ## Usage Examples
 
@@ -227,16 +259,16 @@ WHERE population > 1000000
 ORDER BY population DESC
 ```
 
-## Migration from Old TableEditorOp
+## Migration from Schema Connections
 
-**Backward Compatibility:**
-- Old projects automatically infer schema on load
-- No manual migration required
-- Data structure unchanged (still array of objects)
-- New schema input/output added (optional)
+Projects made with schema ports are migrated automatically. The loader materializes the final
+effective schema into each affected table, then removes the old schema edges and visibility
+entries. Existing table data and unrelated edges are preserved. When a legacy schema cannot be
+resolved, the table falls back to schema inference and the project-load diagnostics explain the
+problem.
 
-**Breaking Changes:**
-- None - fully backward compatible
+`op('/table').out.schema` is intentionally removed. Code that referenced it must be updated
+manually; source strings are not rewritten during migration.
 
 ## Architecture
 
@@ -252,7 +284,7 @@ ORDER BY population DESC
 
 1. **Hybrid schema approach**: Best of both worlds - works with existing data, enables new capabilities
 2. **Validation on execute**: Data validated on every operator execution, not just on edit
-3. **Schema as output**: Downstream operators can inspect column types
+3. **Local schema snapshots**: Schema reuse is explicit through copy/paste, never a live graph dependency
 4. **Default values**: Missing data gets sensible defaults based on type
 5. **No stale closures**: TanStack's reactive system eliminates synchronization issues
 
@@ -261,7 +293,7 @@ ORDER BY population DESC
 ### Planned Features
 
 - **Geocoder integration**: Address → coordinates for Point2D columns
-- **Import/Export CSV**: Direct CSV import with type inference
+- **File import/export**: Dedicated CSV files in addition to clipboard-based CSV/TSV import
 - **Row reordering**: Drag-and-drop row reorder
 - **Column reordering**: Drag-and-drop column reorder
 - **Bulk operations**: Select multiple rows, bulk delete/edit
@@ -294,11 +326,15 @@ npm test table-schema.test.ts
 
 **Manual Testing:**
 1. Load example: `http://localhost:5173/noodles/table-editor-demo`
-2. Test inline editing for all column types
-3. Test schema editor (add/edit/delete columns)
-4. Test row operations (add/delete)
-5. Test data flow to visualizations
-6. Test validation (try invalid values)
+2. In Chrome and Safari, copy a real Google Sheets range containing blank cells, quotes, tabs, and
+   multiline text into an empty TableEditor; verify headers/types in the preview and the final cell.
+3. Copy a rectangular Noodles selection back to Sheets with and without column names.
+4. Test single-click selection, double-click/Enter editing, Shift range extension, and number/vector
+   scrubbing.
+5. Paste a 1,000 × 10 range, navigate to the final row, and confirm scrolling stays responsive.
+6. Paste the same range on empty canvas, cancel once, then confirm and undo the created node.
+7. Verify copied graph nodes still paste normally and malformed/plain clipboard text does nothing.
+8. Test schema editor, schema overlays, row operations, and data flow to visualizations.
 
 ## Troubleshooting
 

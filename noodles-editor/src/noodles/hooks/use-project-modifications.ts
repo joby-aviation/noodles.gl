@@ -891,6 +891,11 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
         return
       }
 
+      if (!sourceField.connectable || !targetField.connectable) {
+        console.error('Cannot connect internal fields', connection)
+        return
+      }
+
       const portModeError = prepareInputPortMode(targetOp, targetHandleInfo.fieldName, edges)
       if (portModeError) {
         console.error(portModeError)

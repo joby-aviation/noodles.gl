@@ -187,6 +187,14 @@ class ReferenceDependencyModel {
 
         for (const ref of getFieldReferences(text, node.id)) {
           if (!nodeIds.has(ref.opId)) continue
+          const sourceOp = this.operators.get(ref.opId)
+          const sourceHandle = parseHandleId(ref.handleId)
+          const sourceField = sourceHandle
+            ? sourceOp?.[sourceHandle.namespace === 'par' ? 'inputs' : 'outputs'][
+                sourceHandle.fieldName
+              ]
+            : undefined
+          if (!field.connectable || !sourceField?.connectable) continue
           const connection = {
             source: ref.opId,
             sourceHandle: ref.handleId,
@@ -287,6 +295,7 @@ class ReferenceDependencyModel {
         targetHandle.fieldName
       )?.field
       if (!sourceField || !targetField) continue
+      if (!sourceField.connectable || !targetField.connectable) continue
 
       // A field already invalidates its own operator; subscribing it to itself
       // would recursively emit forever.

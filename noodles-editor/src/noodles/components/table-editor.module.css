@@ -28,10 +28,90 @@
   position: sticky;
   top: 0;
   z-index: 1;
+  user-select: none;
+}
+
+.selectedHeader {
+  background: color-mix(in srgb, var(--primary-color) 18%, var(--surface-ground));
+}
+
+.columnHeader {
+  display: flex;
+  min-width: 110px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.menuTrigger {
+  display: inline-flex;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-color-secondary);
+  cursor: pointer;
+}
+
+.compactMenuTrigger {
+  width: 24px;
+  height: 24px;
+  opacity: 0.45;
+}
+
+.columnHeader:hover .compactMenuTrigger,
+.compactMenuTrigger:focus-visible,
+.menuTrigger:hover,
+.menuTrigger:focus-visible {
+  opacity: 1;
+  background: var(--surface-hover);
+  color: var(--text-color);
+}
+
+.menuTrigger:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 1px;
+}
+
+.actionMenu {
+  z-index: var(--z-index-top);
+  min-width: 210px;
+  padding: 4px;
+  border: 1px solid var(--surface-border);
+  border-radius: 6px;
+  background: var(--surface-overlay, var(--surface-card));
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+.actionMenuItem {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 9px;
+  border-radius: 4px;
+  color: var(--text-color);
+  cursor: default;
+  font-size: 0.8125rem;
+  outline: none;
+  user-select: none;
+}
+
+.actionMenuItem[data-highlighted] {
+  background: var(--surface-hover);
+}
+
+.dangerAction {
+  color: var(--red-400, #f87171);
 }
 
 .row {
   border-bottom: 1px solid var(--surface-border);
+  height: 36px;
 }
 
 .row:hover {
@@ -41,10 +121,26 @@
 .cellContainer {
   padding: 0;
   border-right: 1px solid var(--surface-border);
+  position: relative;
+  outline: none;
 }
 
 .cellContainer:last-child {
   border-right: none;
+}
+
+.selectedCell {
+  background: color-mix(in srgb, var(--primary-color) 12%, transparent);
+}
+
+.activeCell {
+  box-shadow: inset 0 0 0 2px var(--primary-color);
+  z-index: 1;
+}
+
+.rowHeader {
+  cursor: pointer;
+  user-select: none;
 }
 
 .cell {
@@ -96,6 +192,31 @@
   font: inherit;
 }
 
+.cellEditorGroup {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.numberInputWrapper,
+.vectorInputWrapper {
+  flex: 1 1 0;
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+}
+
+.numberInputWrapper input:not(:disabled),
+.vectorInputWrapper input:not(:disabled) {
+  cursor: ew-resize;
+}
+
+.numberInputWrapper input:focus,
+.vectorInputWrapper input:focus {
+  cursor: text;
+}
+
 .colorDisplay {
   display: flex;
   align-items: center;
@@ -112,6 +233,9 @@
 .point2dEditor,
 .vec3Editor {
   display: flex;
+  margin: 0;
+  padding: 0;
+  border: 0;
   gap: 4px;
   align-items: center;
   width: 100%;
@@ -122,6 +246,7 @@
 .coordInput,
 .vecInput {
   flex: 1;
+  width: 100%;
   min-width: 0;
   height: 100%;
   box-sizing: border-box;
@@ -148,6 +273,9 @@
   width: 100%;
   min-width: 0;
   height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
 }
 
 .timezoneIndicator {
@@ -221,6 +349,12 @@
   font-size: 1rem;
 }
 
+.emptyActions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .deleteButton {
   color: var(--text-color-secondary) !important;
   opacity: 0.6;
@@ -260,4 +394,16 @@
 
 .cellSuggestion:hover {
   background: var(--surface-hover);
+}
+
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }

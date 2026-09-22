@@ -20,6 +20,11 @@ export type EditorSettings = {
   showDebugInfo?: boolean
 }
 
+export type ProjectMigrationDiagnostic = {
+  type: 'stale-edge'
+  message: string
+}
+
 export type { RenderSettings } from './render-settings-constants'
 export { DEFAULT_RENDER_SETTINGS } from './render-settings-constants'
 
@@ -35,6 +40,8 @@ export type NoodlesProjectJSON = ReactFlowJsonObject & {
     cesium?: string
     anthropic?: string
   }
+  /** Transient load warnings. safeStringify deliberately omits these from project JSON. */
+  migrationDiagnostics?: ProjectMigrationDiagnostic[]
 }
 export type CopiedNodesJSON = Omit<ReactFlowJsonObject, 'viewport'>
 
@@ -50,9 +57,10 @@ export const EMPTY_PROJECT: NoodlesProjectJSON = {
 // Replace functions and circular references while preserving repeated references.
 // A connected field can share the exact same object value with its source. Once the
 // field is disconnected, that value becomes local state and must serialize in full.
-function getJsonSanitizer() {
+function getJsonSanitizer(root: unknown) {
   const ancestors: unknown[] = []
-  return function (this: unknown, _key: string, value: unknown) {
+  return function (this: unknown, key: string, value: unknown) {
+    if (this === root && key === 'migrationDiagnostics') return undefined
     if (typeof value === 'function') {
       return undefined
     }
@@ -74,7 +82,7 @@ function getJsonSanitizer() {
 }
 
 export function safeStringify(obj: Record<string, unknown>) {
-  return `${JSON.stringify(obj, getJsonSanitizer(), 2)}\n`
+  return `${JSON.stringify(obj, getJsonSanitizer(obj), 2)}\n`
 }
 
 import { computeVisibilityHeuristic } from './visibility-heuristic'
@@ -169,8 +177,9 @@ export function serializeNodes(
         (field.expression !== null || !deepEqual(field.value, normalizedDefault))
       // A whole-value connection owns the entire field. Channel connections only own
       // their respective components, so retain the vector value as the fallback for
-      // unconnected siblings.
-      if (hasNonDefaultValue && !incomingPaths.has(name)) {
+      // unconnected siblings. Internal state is never legitimately connection-driven,
+      // so always persist it even if a malformed/stale edge happens to name the field.
+      if (hasNonDefaultValue && (field.internal || !incomingPaths.has(name))) {
         inputs[name] = serialized
       }
     }

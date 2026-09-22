@@ -166,6 +166,15 @@ describe('MapViewStateOp center', () => {
 })
 
 describe('TableEditorOp', () => {
+  it('keeps its schema as typed internal state rather than a graph port', () => {
+    const operator = new TableEditorOp('/table')
+
+    expect(operator.inputs.schema.internal).toBe(true)
+    expect(operator.inputs.schema.connectable).toBe(false)
+    expect(operator.isFieldVisible('schema')).toBe(false)
+    expect(Object.keys(operator.outputs)).toEqual(['data'])
+  })
+
   it('materializes declared schema defaults in output data', () => {
     const operator = new TableEditorOp('/table')
     const schema = {

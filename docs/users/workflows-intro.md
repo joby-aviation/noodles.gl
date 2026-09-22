@@ -244,7 +244,7 @@ All [deck.gl layers](https://deck.gl/docs/api-reference/layers) are available, i
 ### Utilities
 
 - **Viewer**: Inspect data at any stage
-- **TableEditor**: View and edit tabular data
+- **TableEditor**: View and edit tabular data. Its typed schema is local table state rather than a connectable graph port.
 - **Container**: Organize related operators
 - **Switch**: Route data based on index
 - **Color**: Create and manipulate colors
