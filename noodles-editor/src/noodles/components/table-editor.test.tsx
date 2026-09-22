@@ -937,6 +937,7 @@ describe('TableEditor', () => {
     )
 
     const alice = screen.getByText('Alice').closest('[role="gridcell"]') as HTMLElement
+    fireEvent.click(alice)
     fireEvent.keyDown(alice, { key: 'Z' })
     const editor = screen.getByRole('textbox')
     expect(editor).toHaveValue('Z')
@@ -956,6 +957,34 @@ describe('TableEditor', () => {
       'Edit cell name'
     )
     expect(screen.getByText('Bob').closest('[role="gridcell"]')).toHaveAttribute('tabindex', '0')
+  })
+
+  it('replaces a selected number cell from the first typed digit', () => {
+    const onDataChange = vi.fn()
+    render(
+      <TableEditor
+        op={mockOp}
+        data={simpleData}
+        schema={simpleSchema}
+        onDataChange={onDataChange}
+        onSchemaChange={vi.fn()}
+      />
+    )
+
+    const count = screen.getByText('10').closest('[role="gridcell"]') as HTMLElement
+    fireEvent.click(count)
+    fireEvent.keyDown(count, { key: '7' })
+
+    const editor = screen.getByRole('spinbutton', { name: 'Edit count' })
+    expect(editor).toHaveValue(7)
+    fireEvent.keyDown(editor, { key: 'Enter' })
+    expect(onDataChange).toHaveBeenCalledWith(
+      [
+        { name: 'Alice', count: 7 },
+        { name: 'Bob', count: 20 },
+      ],
+      'Edit cell count'
+    )
   })
 
   it('keeps user column names separate from internal table columns', () => {
