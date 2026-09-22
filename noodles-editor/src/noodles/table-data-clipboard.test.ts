@@ -62,13 +62,53 @@ describe('table data clipboard', () => {
   it('preserves multiline cells from Sheets HTML', () => {
     const parsed = parseTableClipboard({
       plainText: 'wrong plain-text fallback',
-      html: '<table><tbody><tr><td>one<br>two</td><td><div>alpha</div><div>beta</div></td></tr></tbody></table>',
+      html: '<table><tbody><tr><td>one<br>two</td><td data-sheets-value="ignored" style="color:red"><div>alpha</div><div><span>beta</span><br>gamma</div></td></tr></tbody></table>',
     })
 
     expect(parsed).toMatchObject({
       kind: 'table',
       format: 'html',
-      rows: [['one\ntwo', 'alpha\nbeta']],
+      rows: [['one\ntwo', 'alpha\nbeta\ngamma']],
+    })
+  })
+
+  it('sanitizes untrusted HTML before reading table cells', () => {
+    const marker = '__noodlesTableClipboardXss'
+    Reflect.set(globalThis, marker, false)
+
+    try {
+      const parsed = parseTableClipboard({
+        plainText: 'wrong plain-text fallback',
+        html: `<table onclick="globalThis.${marker}=true"><tbody><tr><td data-value="ignored" style="color:red">safe <a href="javascript:globalThis.${marker}=true">link</a><script>globalThis.${marker}=true</script><style>body{display:none}</style><img src="x" onerror="globalThis.${marker}=true"><iframe srcdoc="&lt;script&gt;globalThis.${marker}=true&lt;/script&gt;"></iframe></td></tr></tbody></table>`,
+      })
+
+      expect(parsed).toMatchObject({
+        kind: 'table',
+        format: 'html',
+        rows: [['safe link']],
+      })
+      expect(Reflect.get(globalThis, marker)).toBe(false)
+    } finally {
+      Reflect.deleteProperty(globalThis, marker)
+    }
+  })
+
+  it('escapes markup when serializing HTML clipboard cells', () => {
+    const serialized = serializeTableRangeClipboard(
+      [{ name: '<img src=x onerror=alert(1)>', type: 'string', defaultValue: '' }],
+      [['<script>alert(1)</script>']],
+      { includeColumnNames: true }
+    )
+
+    expect(serialized.html).not.toContain('<img')
+    expect(serialized.html).not.toContain('<script>')
+    expect(serialized.html).toContain('&lt;img src=x onerror=alert(1)&gt;')
+    expect(serialized.html).toContain('&lt;script&gt;alert(1)&lt;/script&gt;')
+    expect(parseTableClipboard({ html: serialized.html, plainText: '' })).toMatchObject({
+      kind: 'table',
+      format: 'html',
+      columnNames: ['<img src=x onerror=alert(1)>'],
+      rows: [['<script>alert(1)</script>']],
     })
   })
 

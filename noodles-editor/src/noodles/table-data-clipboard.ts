@@ -1,4 +1,5 @@
 import { csvParseRows, tsvFormatRows, tsvParseRows } from 'd3'
+import DOMPurify from 'dompurify'
 import { Temporal } from 'temporal-polyfill'
 import { type ColumnSchema, getDefaultValue, isTableSchema, type TableSchema } from './table-schema'
 import { coerceSchemaValue, parseSchemaClipboard } from './table-schema-clipboard'
@@ -250,6 +251,18 @@ const HTML_BLOCK_ELEMENTS = new Set([
   'UL',
 ])
 
+const TABLE_CLIPBOARD_HTML_TAGS = [
+  'table',
+  'thead',
+  'tbody',
+  'tfoot',
+  'tr',
+  'th',
+  'td',
+  'br',
+  ...Array.from(HTML_BLOCK_ELEMENTS, tag => tag.toLowerCase()),
+]
+
 function hasMeaningfulHtmlContent(node: Node): boolean {
   if (node.nodeType === Node.TEXT_NODE) return /\S/.test(node.nodeValue ?? '')
   if (!(node instanceof Element)) return false
@@ -288,10 +301,16 @@ function htmlElementText(element: Element): string {
 }
 
 function parseHtmlTable(html: string): ParsedTableDataClipboard | undefined {
-  if (!html || typeof DOMParser === 'undefined') return undefined
+  if (!html || typeof document === 'undefined') return undefined
   try {
-    const document = new DOMParser().parseFromString(html, 'text/html')
-    const table = document.querySelector('table')
+    const fragment = DOMPurify.sanitize(html, {
+      ALLOWED_TAGS: TABLE_CLIPBOARD_HTML_TAGS,
+      ALLOWED_ATTR: [],
+      ALLOW_ARIA_ATTR: false,
+      ALLOW_DATA_ATTR: false,
+      RETURN_DOM_FRAGMENT: true,
+    })
+    const table = fragment.querySelector('table')
     if (!table) return undefined
     const tableRows = Array.from(table.querySelectorAll('tr'))
     if (tableRows.length === 0) return undefined
