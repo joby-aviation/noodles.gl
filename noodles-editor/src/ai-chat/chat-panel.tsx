@@ -310,7 +310,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
   }, [])
 
   const handleSend = async () => {
-    if (!input.trim() || !session || !project) return
+    if (!input.trim() || !session || !project || pendingProposal) return
 
     const userMessage: Message = {
       role: 'user',
@@ -595,6 +595,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
     const conversation = loadConversation(id)
     if (conversation) {
       setMessages(conversation.messages)
+      setPendingProposal(null)
       setCurrentConversationId(id)
       setShowHistory(false)
     } else {
@@ -957,8 +958,10 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
               handleSend()
             }
           }}
-          placeholder="Ask for help..."
-          disabled={loading}
+          placeholder={
+            pendingProposal ? 'Accept or reject the graph update to continue' : 'Ask for help...'
+          }
+          disabled={loading || Boolean(pendingProposal)}
           rows={3}
         />
         {loading ? (
@@ -969,7 +972,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
           <button
             type="button"
             onClick={handleSend}
-            disabled={!input.trim()}
+            disabled={!input.trim() || Boolean(pendingProposal)}
             className={styles.chatSendBtn}
           >
             Send

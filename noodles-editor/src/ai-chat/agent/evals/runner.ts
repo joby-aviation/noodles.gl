@@ -11,6 +11,7 @@ export interface AgentEvalResult {
   syntaxValid: boolean
   toolMatch: boolean
   proposalMatch: boolean
+  clarificationMatch: boolean
   outcomeCorrect: boolean
   noPreApprovalMutation: boolean
   latencyMs: number
@@ -33,6 +34,10 @@ export async function evaluateAgentProvider(options: {
   cases: readonly AgentEvalCase[]
   createTools: (testCase: AgentEvalCase) => MCPTools
   gradeOutcome: (testCase: AgentEvalCase, response: ClaudeResponse) => boolean | Promise<boolean>
+  gradeClarification?: (
+    testCase: AgentEvalCase,
+    response: ClaudeResponse
+  ) => boolean | Promise<boolean>
 }): Promise<AgentEvalReport> {
   const results: AgentEvalResult[] = []
   for (const testCase of options.cases) {
@@ -47,16 +52,27 @@ export async function evaluateAgentProvider(options: {
       const hasProposal = (response.projectModifications?.length ?? 0) > 0
       const proposalMatch = hasProposal === testCase.expectsProposal
       const syntaxValid = response.toolCalls?.every(call => call.result.success) ?? true
+      const clarificationMatch = await matchesClarificationExpectation(
+        testCase,
+        response,
+        options.gradeClarification
+      )
       const outcomeCorrect = await options.gradeOutcome(testCase, response)
       const noPreApprovalMutation = JSON.stringify(tools.getProject()) === projectBefore
       results.push({
         id: testCase.id,
         category: testCase.category,
         passed:
-          syntaxValid && toolMatch && proposalMatch && outcomeCorrect && noPreApprovalMutation,
+          syntaxValid &&
+          toolMatch &&
+          proposalMatch &&
+          clarificationMatch &&
+          outcomeCorrect &&
+          noPreApprovalMutation,
         syntaxValid,
         toolMatch,
         proposalMatch,
+        clarificationMatch,
         outcomeCorrect,
         noPreApprovalMutation,
         latencyMs: performance.now() - started,
@@ -69,6 +85,7 @@ export async function evaluateAgentProvider(options: {
         syntaxValid: false,
         toolMatch: false,
         proposalMatch: false,
+        clarificationMatch: false,
         outcomeCorrect: false,
         noPreApprovalMutation: JSON.stringify(tools.getProject()) === projectBefore,
         latencyMs: performance.now() - started,
@@ -79,6 +96,28 @@ export async function evaluateAgentProvider(options: {
   const report = summarize(options.provider, results)
   options.provider.dispose?.()
   return report
+}
+
+export async function matchesClarificationExpectation(
+  testCase: AgentEvalCase,
+  response: ClaudeResponse,
+  gradeClarification?: (
+    testCase: AgentEvalCase,
+    response: ClaudeResponse
+  ) => boolean | Promise<boolean>
+): Promise<boolean> {
+  if (testCase.expectsClarification === undefined) return true
+  const asksForClarification = gradeClarification
+    ? await gradeClarification(testCase, response)
+    : defaultClarificationGrade(response)
+  return asksForClarification === testCase.expectsClarification
+}
+
+function defaultClarificationGrade(response: ClaudeResponse): boolean {
+  if (response.projectModifications?.length) return false
+  return /\b(?:clarify|which|what|where|who|when|do you mean|could you|can you|would you|please (?:identify|specify|choose))\b[^?]*\?/i.test(
+    response.message
+  )
 }
 
 export function summarize(provider: AgentProvider, results: AgentEvalResult[]): AgentEvalReport {

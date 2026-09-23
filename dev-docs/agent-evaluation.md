@@ -20,6 +20,10 @@ hosted teacher with the same fixtures and grader. Record provider, model, load r
 latency, validation outcome, and proposal decision only. Never record prompts,
 datasets, screenshots, API keys, or generated code.
 
+The benchmark host should provide `gradeClarification` for semantic scoring. When it
+does not, the runner uses a conservative question-pattern fallback, and either result
+is compared with each case's explicit `expectsClarification` value before the case can pass.
+
 Before release, run browser smoke checks on the Apple-silicon reference machine and a
 Windows integrated-GPU machine. Cover cold download, cached reload, abort, GPU OOM or
 device loss, and the explicit fallback choices. Local vision remains disabled until a
