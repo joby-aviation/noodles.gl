@@ -1,6 +1,6 @@
 import * as Dialog from '@radix-ui/react-dialog'
 import { Cross2Icon } from '@radix-ui/react-icons'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useAgentModelStore } from '../ai-chat/agent/model-store'
 import { validateCustomEndpoint } from '../ai-chat/agent/providers/custom'
 import { ENDPOINT_PRESETS, type EndpointPreset } from '../ai-chat/agent/providers/endpoint-presets'
@@ -34,6 +34,7 @@ interface KeyGroupProps {
   onBrowserChange: (value: string) => void
   onBrowserClear: () => void
   onProjectRemove?: () => void
+  inputRef?: React.RefObject<HTMLInputElement>
 }
 
 const KeyGroup = ({
@@ -47,6 +48,7 @@ const KeyGroup = ({
   onBrowserChange,
   onBrowserClear,
   onProjectRemove,
+  inputRef,
 }: KeyGroupProps) => {
   const handleCopy = (value: string, source: 'project' | 'env') => {
     navigator.clipboard.writeText(value)
@@ -68,6 +70,7 @@ const KeyGroup = ({
             {activeSource === 'browser' && <span className={s.activeBadge}>Active</span>}
           </div>
           <input
+            ref={inputRef}
             type="text"
             value={browserValue}
             onChange={e => onBrowserChange(e.target.value)}
@@ -173,6 +176,11 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
     preset => preset.baseUrl === endpointBaseUrl.trim().replace(/\/+$/, '')
   )
 
+  // Refs for input focusing from deep links
+  const anthropicInputRef = useRef<HTMLInputElement>(null)
+  const openRouterInputRef = useRef<HTMLInputElement>(null)
+  const [focusedField, setFocusedField] = useState<string | null>(null)
+
   // Environment keys (static)
   const envKeys = getEnvKeys()
 
@@ -190,10 +198,14 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
       setEndpointModel(endpoint?.model || '')
       setEndpointDisplayName(endpoint?.displayName || '')
 
-      // Check for deep link in URL hash
+      // Check for deep link in URL hash (supports "api-keys:anthropic" format)
       const hash = window.location.hash.slice(1)
-      if (hash === 'ai-provider' || hash === 'api-keys') {
-        setActiveTab(hash as TabName)
+      const [tabName, targetField] = hash.split(':')
+      if (tabName === 'ai-provider' || tabName === 'api-keys') {
+        setActiveTab(tabName as TabName)
+        if (targetField) {
+          setFocusedField(targetField)
+        }
       }
     }
   }, [open, customEndpoint])
@@ -217,6 +229,28 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
       window.history.replaceState(null, '', window.location.pathname + window.location.search)
     }
   }, [open])
+
+  // Focus input when targeted by deep link
+  useEffect(() => {
+    if (focusedField && open) {
+      // Small delay to ensure the tab has switched and DOM is ready
+      const timeoutId = setTimeout(() => {
+        if (focusedField === 'anthropic' && anthropicInputRef.current) {
+          anthropicInputRef.current.focus()
+          anthropicInputRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        } else if (focusedField === 'openrouter' && openRouterInputRef.current) {
+          openRouterInputRef.current.focus()
+          openRouterInputRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        }
+        setFocusedField(null)
+      }, 100)
+      return () => {
+        clearTimeout(timeoutId)
+        // Clear stale focus target if dialog closes during delay
+        setFocusedField(null)
+      }
+    }
+  }, [focusedField, open])
 
   const handleAnalyticsToggle = (enabled: boolean) => {
     setAnalyticsEnabled(enabled)
@@ -827,7 +861,7 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
 
                     <KeyGroup
                       label="Anthropic API Key (Claude)"
-                      description="Premium AI provider with best quality. Optional — the assistant works without it using custom endpoint or Chrome Built-in AI. Get your key from console.anthropic.com"
+                      description="Claude models directly from Anthropic. Get your API key at console.anthropic.com/settings/keys"
                       placeholder="sk-ant-..."
                       browserValue={browserKeys.anthropic || ''}
                       projectValue={projectKeys.anthropic}
@@ -842,11 +876,12 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
                         removeProjectKey('anthropic')
                         analytics.track('project_key_removed', { key: 'anthropic' })
                       }}
+                      inputRef={anthropicInputRef}
                     />
 
                     <KeyGroup
                       label="OpenRouter API Key"
-                      description="Optional alternative to the Anthropic key. Lets the AI assistant run on Gemini, GPT, or any other model OpenRouter hosts, billed through OpenRouter."
+                      description="Access to multiple AI providers with unified billing. Get your API key at openrouter.ai/keys"
                       placeholder="sk-or-v1-..."
                       browserValue={browserKeys.openrouter || ''}
                       projectValue={projectKeys.openrouter}
@@ -861,6 +896,7 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
                         removeProjectKey('openrouter')
                         analytics.track('project_key_removed', { key: 'openrouter' })
                       }}
+                      inputRef={openRouterInputRef}
                     />
 
                     <KeyGroup
