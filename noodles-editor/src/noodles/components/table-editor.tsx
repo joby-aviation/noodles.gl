@@ -767,6 +767,9 @@ function StringLiteralCell({
       <select
         value={currentValue}
         onChange={event => onChange(event.currentTarget.value)}
+        onPointerDown={event => event.stopPropagation()}
+        onClick={event => event.stopPropagation()}
+        onDoubleClick={event => event.stopPropagation()}
         onKeyDown={event => event.stopPropagation()}
         className={cx('nodrag', s.stringLiteralSelect)}
         aria-label={`Choose ${column.name}`}

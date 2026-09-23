@@ -114,17 +114,19 @@ describe('TableEditor - Edit Flow', () => {
         ],
       }
 
-      const { getByRole } = render(
+      const { getAllByRole } = render(
         <TableEditor
           op={mockOp}
-          data={[{ anchor: 'start' }]}
+          data={[{ anchor: 'start' }, { anchor: 'middle' }]}
           schema={literalSchema}
           onDataChange={onDataChange}
           onSchemaChange={vi.fn()}
         />
       )
 
-      const dropdown = getByRole('combobox', { name: 'Choose anchor' }) as HTMLSelectElement
+      const dropdown = getAllByRole('combobox', {
+        name: 'Choose anchor',
+      })[1] as HTMLSelectElement
       expect(Array.from(dropdown.options, option => option.value)).toEqual([
         'start',
         'middle',
@@ -132,14 +134,21 @@ describe('TableEditor - Edit Flow', () => {
       ])
 
       const cell = dropdown.closest('[role="gridcell"]') as HTMLElement
+      fireEvent.pointerDown(dropdown, { button: 0, pointerId: 1 })
+      fireEvent.click(dropdown)
+      expect(cell).not.toHaveAttribute('aria-selected', 'true')
+
       fireEvent.click(dropdown.parentElement as HTMLElement)
       expect(cell).toHaveAttribute('aria-selected', 'true')
-      expect(dropdown).toHaveValue('start')
+      expect(dropdown).toHaveValue('middle')
       expect(onDataChange).not.toHaveBeenCalled()
 
       fireEvent.change(dropdown, { target: { value: 'end' } })
 
-      expect(onDataChange).toHaveBeenCalledWith([{ anchor: 'end' }], 'Edit cell anchor')
+      expect(onDataChange).toHaveBeenCalledWith(
+        [{ anchor: 'start' }, { anchor: 'end' }],
+        'Edit cell anchor'
+      )
     })
 
     it('should allow free text editing when a string literal has no configured choices', () => {
