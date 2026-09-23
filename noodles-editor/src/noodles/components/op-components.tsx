@@ -210,6 +210,12 @@ function UnknownOperatorComponent({
   selected,
 }: ReactFlowNodeProps<NodeDataJSON<Operator<IOperator>>> & { type: OpType }) {
   const op = getOp(id as string) as import('../operators').UnknownOperator | null
+  const { deleteElements } = useReactFlow()
+
+  const handleDelete = useCallback(() => {
+    deleteElements({ nodes: [{ id: id as string }] })
+  }, [id, deleteElements])
+
   if (!op) return null
 
   return (
@@ -230,7 +236,7 @@ function UnknownOperatorComponent({
       </ContextMenu.Trigger>
       <ContextMenu.Portal>
         <ContextMenu.Content className={s.contextMenu} sideOffset={5}>
-          <ContextMenu.Item className={s.contextMenuItem}>
+          <ContextMenu.Item className={s.contextMenuItem} onSelect={handleDelete}>
             Delete Node
           </ContextMenu.Item>
         </ContextMenu.Content>

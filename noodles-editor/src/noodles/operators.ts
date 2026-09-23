@@ -1095,21 +1095,31 @@ export abstract class Operator<OP extends IOperator> {
   }
 }
 
+// UnknownOperator is a special system operator that serves as a fallback when loading
+// projects with removed or unavailable operator types. It is intentionally NOT included
+// in categories.ts because it should never be user-creatable - it's only instantiated
+// automatically during project deserialization for backward compatibility.
 export class UnknownOperator extends Operator<UnknownOperator> {
   static displayName = 'Unknown Operator'
   static description = 'Placeholder for an operator type that could not be found'
 
   originalType: string
-  originalData: unknown
+  // Store original inputs to preserve them through save/load cycles
+  originalInputs: Record<string, unknown>
 
-  constructor(id: OpId, originalType: string, data?: unknown) {
+  constructor(id: OpId, data?: Record<string, unknown>) {
+    const originalType = (data?.originalType as string) || 'Unknown'
+    const originalInputs = (data?.inputs as Record<string, unknown>) || {}
     super(id, {}, false)
     this.originalType = originalType
-    this.originalData = data
+    this.originalInputs = originalInputs
   }
 
   createInputs() {
-    return {}
+    // Create an UnknownField to store original inputs for serialization
+    return {
+      __originalInputs: new UnknownField(this.originalInputs),
+    }
   }
 
   createOutputs() {
