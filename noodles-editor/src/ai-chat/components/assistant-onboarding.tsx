@@ -50,7 +50,7 @@ export function AssistantOnboarding({
           {connect.blockedUrl && (
             <p className={styles.errorText}>
               Browser blocked the sign-in window.{' '}
-              <a href={connect.blockedUrl} target="_blank" rel="noopener noreferrer">
+              <a href={connect.blockedUrl} target="_blank" rel="noreferrer">
                 Open in new tab
               </a>
             </p>
