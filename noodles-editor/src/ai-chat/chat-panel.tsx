@@ -499,8 +499,15 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
 
   if (!isVisible) return null
 
-  // Check if a usable key is missing
-  if (!providerReady && !contextLoading) {
+  // Show onboarding when no provider is ready, or when Chrome is the only ready
+  // provider and the user hasn't explicitly chosen it. Chrome auto-detects in
+  // capable browsers, but it's the weakest option, so we should prompt the user
+  // to configure a better provider unless they specifically want Chrome.
+  const shouldShowOnboarding =
+    !contextLoading &&
+    (!providerReady || (providerId === 'chrome' && preference !== 'chrome'))
+
+  if (shouldShowOnboarding) {
     return (
       <div className={styles.chatPanel}>
         <AssistantOnboarding
