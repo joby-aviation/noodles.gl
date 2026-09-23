@@ -127,7 +127,8 @@ export function transformGraph<
   errors: GraphLoadError[]
 } {
   const errors: GraphLoadError[] = []
-  const nodes = _nodes.filter(n => opTypes[n.type as T] !== undefined) as NodeJSON<OpType>[]
+  // Don't filter out unknown operators - they'll be handled during instantiation
+  const nodes = _nodes as NodeJSON<OpType>[]
   const dataEdges = _edges.filter(edge => (edge as E & { type?: string }).type !== 'ReferenceEdge')
   // Reference dependencies are model-owned and derived for every node, mounted or not.
   const edges = [
@@ -299,13 +300,20 @@ export function transformGraph<
       if (!op) {
         const ctor = opTypes[type]
         const containerId = getParentPath(id)
-        // Create operator with fully qualified path as id and store containerId
-        op = new ctor(id, data?.inputs, data?.locked, containerId) as unknown as OP
 
-        // Restore custom field definitions if present
-        if (data?.customInputs && Array.isArray(data.customInputs)) {
-          op.customInputDefinitions = data.customInputs
-          op.rebuildInputs()
+        if (!ctor) {
+          // Unknown operator type - create placeholder
+          console.warn(`[noodles] Unknown operator type "${type}" for node "${id}". Creating placeholder.`)
+          op = new opTypes.UnknownOperator(id, type as string, data) as unknown as OP
+        } else {
+          // Create operator with fully qualified path as id and store containerId
+          op = new ctor(id, data?.inputs, data?.locked, containerId) as unknown as OP
+
+          // Restore custom field definitions if present
+          if (data?.customInputs && Array.isArray(data.customInputs)) {
+            op.customInputDefinitions = data.customInputs
+            op.rebuildInputs()
+          }
         }
 
         created.push(op)

@@ -1095,6 +1095,32 @@ export abstract class Operator<OP extends IOperator> {
   }
 }
 
+export class UnknownOperator extends Operator<UnknownOperator> {
+  static displayName = 'Unknown Operator'
+  static description = 'Placeholder for an operator type that could not be found'
+
+  originalType: string
+  originalData: unknown
+
+  constructor(id: OpId, originalType: string, data?: unknown) {
+    super(id, {}, false)
+    this.originalType = originalType
+    this.originalData = data
+  }
+
+  createInputs() {
+    return {}
+  }
+
+  createOutputs() {
+    return {}
+  }
+
+  execute() {
+    return {}
+  }
+}
+
 export class NumberOp extends Operator<NumberOp> {
   static displayName = 'Number'
   static description = 'A number'
@@ -10038,6 +10064,7 @@ export const opTypes = {
   TransformTranslateOp,
   TripsLayerOp,
   UnionOp,
+  UnknownOperator,
   UnprojectOp,
   VibranceExtensionOp,
   ViewerOp,
