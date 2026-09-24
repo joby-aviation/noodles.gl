@@ -6,6 +6,8 @@ import { analytics } from '../../../utils/analytics'
 import type { Operator, OpType } from '../../operators'
 import { useNestingStore, useOperatorStore } from '../../store'
 import type { NodeJSON } from '../../transform-graph'
+import { appendUniqueEdges } from '../../utils/edge-integrity'
+import { normalizeMultiInputEdges } from '../../utils/multi-input-utils'
 import { resolveNodeOverlaps } from '../../utils/node-layout'
 import { getBaseName } from '../../utils/path-utils'
 import {
@@ -121,7 +123,11 @@ export function GeoToolWizard({ recipe, onOpenChange, reactFlowRef }: GeoToolWiz
       const nodes = resolveNodeOverlaps(built.nodes, reactFlow.getNodes())
 
       reactFlow.addNodes(nodes as NodeJSON<OpType>[])
-      if (edges.length > 0) reactFlow.addEdges(edges)
+      if (edges.length > 0) {
+        reactFlow.setEdges(current =>
+          normalizeMultiInputEdges(appendUniqueEdges(current, edges))
+        )
+      }
 
       // Select and frame the parameter node so it is obvious where to make changes
       reactFlow.setNodes(ns => ns.map(n => ({ ...n, selected: n.id === primaryNodeId })))
