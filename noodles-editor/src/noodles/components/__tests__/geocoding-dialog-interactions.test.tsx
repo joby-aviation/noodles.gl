@@ -17,20 +17,15 @@ vi.mock('../../../utils/geocoding', () => ({
 }))
 
 vi.mock('react-map-gl/maplibre', () => ({
-  Map: ({ children, mapStyle, onClick, onMove }: any) => (
-    <div data-testid="geocoder-map" data-map-style={mapStyle}>
+  Map: ({ children, mapStyle, onClick, onMove, zoom }: any) => (
+    <div data-testid="geocoder-map" data-map-style={mapStyle} data-zoom={zoom}>
       <button
         type="button"
-        onClick={() =>
-          onMove({ viewState: { longitude: 10, latitude: 20, zoom: 8 } })
-        }
+        onClick={() => onMove({ viewState: { longitude: 10, latitude: 20, zoom: 8 } })}
       >
         Pan map
       </button>
-      <button
-        type="button"
-        onClick={() => onClick({ lngLat: { lng: -122.4194, lat: 37.7749 } })}
-      >
+      <button type="button" onClick={() => onClick({ lngLat: { lng: -122.4194, lat: 37.7749 } })}>
         Click map
       </button>
       {children}
@@ -53,7 +48,8 @@ describe('GeocodingDialog interactions', () => {
       browserKeys: {},
       projectKeys: undefined,
       saveInProject: false,
-      getKey: () => undefined,
+      // Ignore env keys so tests control which providers are configured
+      getKey: key => useKeysStore.getState().browserKeys[key],
     })
     mocks.geocodeWithPhoton.mockResolvedValue([])
   })
@@ -77,6 +73,27 @@ describe('GeocodingDialog interactions', () => {
     )
     return onLocationSelected
   }
+
+  function search(value: string) {
+    fireEvent.change(screen.getByPlaceholderText('Search places or paste coordinates...'), {
+      target: { value },
+    })
+    return act(async () => {
+      await vi.advanceTimersByTimeAsync(300)
+    })
+  }
+
+  const bordeaux = {
+    place_name: 'Bordeaux',
+    coordinates: { longitude: -0.5792, latitude: 44.8378 },
+    context: 'France',
+  }
+
+  it('opens at country-level zoom', () => {
+    renderDialog()
+
+    expect(screen.getByTestId('geocoder-map')).toHaveAttribute('data-zoom', '4')
+  })
 
   it('uses the Voyager street style', () => {
     renderDialog()
@@ -105,24 +122,17 @@ describe('GeocodingDialog interactions', () => {
     })
   })
 
-  it('shows the fallback provider and selects a search result', async () => {
+  it('badges Photon results and prompts for a key when none is configured', async () => {
     const onLocationSelected = renderDialog()
-    mocks.geocodeWithPhoton.mockResolvedValue([
-      {
-        place_name: 'Bordeaux',
-        coordinates: { longitude: -0.5792, latitude: 44.8378 },
-        context: 'France',
-      },
-    ])
+    mocks.geocodeWithPhoton.mockResolvedValue([bordeaux])
 
-    fireEvent.change(screen.getByPlaceholderText('Search places or paste coordinates...'), {
-      target: { value: 'Bordeaux' },
-    })
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(300)
-    })
+    await search('Bordeaux')
 
-    expect(screen.getByLabelText('Geocoding provider: Photon')).toBeInTheDocument()
+    const result = screen.getByRole('button', { name: /Bordeaux/ })
+    expect(result).toHaveTextContent('Photon')
+    expect(
+      screen.getByRole('button', { name: 'Add a Mapbox or Google Maps key' })
+    ).toBeInTheDocument()
     fireEvent.mouseDown(screen.getByRole('button', { name: /Bordeaux/ }))
     fireEvent.click(screen.getByRole('button', { name: 'Update Field' }))
 
@@ -130,5 +140,56 @@ describe('GeocodingDialog interactions', () => {
       expect.objectContaining({ center: [-0.5792, 44.8378] })
     )
     expect(onLocationSelected).toHaveBeenCalledWith({ longitude: -0.5792, latitude: 44.8378 })
+  })
+
+  it('uses keys added after the dialog mounted', async () => {
+    renderDialog()
+    act(() => {
+      useKeysStore.setState({ browserKeys: { mapbox: 'pk.test' } })
+    })
+    mocks.geocodeWithMapbox.mockResolvedValue([bordeaux])
+
+    await search('Bordeaux')
+
+    expect(mocks.geocodeWithMapbox).toHaveBeenCalledWith('Bordeaux', 'pk.test')
+    expect(mocks.geocodeWithPhoton).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: /Bordeaux/ })).toHaveTextContent('Mapbox')
+  })
+
+  it('explains a provider failure instead of prompting for a key that is already set', async () => {
+    useKeysStore.setState({ browserKeys: { googleMaps: 'g-test', mapbox: 'pk.test' } })
+    renderDialog()
+    mocks.geocodeWithGooglePlaces.mockRejectedValue(
+      new Error('Google Places failed: Requests from referer http://localhost:5173/ are blocked.')
+    )
+    mocks.geocodeWithMapbox.mockRejectedValue(
+      new Error('Mapbox geocoding failed: 422 Query too long - 21/20 tokens')
+    )
+    mocks.geocodeWithPhoton.mockResolvedValue([bordeaux])
+
+    await search('Bordeaux')
+
+    expect(screen.getByRole('button', { name: /Bordeaux/ })).toHaveTextContent('Photon')
+    const notice = screen.getByRole('status')
+    expect(notice).toHaveTextContent(
+      'Google Places failed: Requests from referer http://localhost:5173/ are blocked.'
+    )
+    expect(notice).toHaveTextContent('Mapbox geocoding failed: 422 Query too long - 21/20 tokens')
+    expect(notice).toHaveTextContent('Showing Photon results.')
+    expect(
+      screen.queryByRole('button', { name: 'Add a Mapbox or Google Maps key' })
+    ).not.toBeInTheDocument()
+  })
+
+  it('badges Google results without any notice', async () => {
+    useKeysStore.setState({ browserKeys: { googleMaps: 'g-test' } })
+    renderDialog()
+    mocks.geocodeWithGooglePlaces.mockResolvedValue([bordeaux])
+
+    await search('Bordeaux')
+
+    expect(screen.getByRole('button', { name: /Bordeaux/ })).toHaveTextContent('Google')
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    expect(mocks.geocodeWithMapbox).not.toHaveBeenCalled()
   })
 })

@@ -126,10 +126,41 @@
   transition: background-color 0.15s;
   display: flex;
   align-items: center;
+  gap: 0.75rem;
   border: none;
   background: none;
   text-align: left;
   font-family: inherit;
+}
+
+.suggestionLabel {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.suggestionProvider {
+  flex-shrink: 0;
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  color: var(--color-text-secondary);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.suggestionProvider[data-provider="google_places"] {
+  color: #93c5fd;
+  border-color: rgba(147, 197, 253, 0.35);
+}
+
+.suggestionProvider[data-provider="mapbox"] {
+  color: #c4b5fd;
+  border-color: rgba(196, 181, 253, 0.35);
 }
 
 .suggestionItem:hover {
@@ -150,18 +181,16 @@
   background-color: rgba(251, 191, 36, 0.1);
 }
 
-/* Provider indicator shown after a place search */
-.providerBadge {
-  display: inline-flex;
-  align-items: center;
-  max-width: 100%;
+/* Shown when a configured provider failed, or when no provider key is configured */
+.providerNotice {
   font-size: 0.8rem;
+  line-height: 1.4;
   color: var(--color-text-secondary);
   margin-bottom: 0.75rem;
-  padding: 0.35rem 0.6rem;
+  padding: 0.4rem 0.6rem;
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 999px;
+  border-radius: 6px;
 }
 
 .providerSettingsLink {
