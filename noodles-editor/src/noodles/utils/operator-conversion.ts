@@ -1,7 +1,7 @@
-import type { ReactFlowEdge, ReactFlowNode } from '../types'
 import { TableEditorOp, ViewerOp } from '../operators'
 import { deleteOp, getOp, setOp } from '../store'
 import { inferSchema } from '../table-schema'
+import type { ReactFlowEdge, ReactFlowNode } from '../types'
 
 // Converts a ViewerOp to a TableEditorOp, removing data connections and preserving position.
 // Returns true if successful, false if the operator cannot be converted.
@@ -80,9 +80,9 @@ export function convertViewerToTableEditor(
   // Note: This creates a separate undo history entry from the node type change above,
   // so reverting the conversion requires two undo operations. React Flow's setEdges
   // automatically triggers onEdgesChange, which is intercepted by the undo system.
-  setEdges(edges => edges.filter(edge =>
-    !(edge.target === operatorId && edge.targetHandle === 'par.data')
-  ))
+  setEdges(edges =>
+    edges.filter(edge => !(edge.target === operatorId && edge.targetHandle === 'par.data'))
+  )
 
   return true
 }

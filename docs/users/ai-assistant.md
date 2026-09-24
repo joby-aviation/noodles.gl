@@ -18,81 +18,46 @@ The AI Assistant is an interactive chat interface that:
 
 Click the **AI Assistant** button in the main menu, or use the keyboard shortcut `Cmd+K` (Mac) or `Ctrl+K` (Windows/Linux).
 
-### First-Time Setup
+### The fastest way in
 
-When you open the chat for the first time, you'll see a welcome message explaining the two ways to use the AI:
+Open the chat and click **Connect OpenRouter**. A small window opens, you approve, it closes, and you can ask a question. There is no key to copy and nothing to paste — the editor gets its own key and remembers it, so this happens once per browser.
 
-1. **Local (in your browser)** - Free, private, works offline
-2. **Remote (Anthropic API)** - Faster, higher quality, requires API key
+OpenRouter's free tier runs to roughly 50 requests a day without adding credit, which is enough to try the assistant properly. Free models that support tool calling are listed first in the model picker; the assistant needs tools to read and change your graph, so the picker only offers models that have them.
 
-The assistant will automatically select **local mode** and begin downloading the AI model to your computer. This is a one-time download that takes 3-4 minutes on a typical internet connection.
+Nothing downloads and nothing is charged.
 
-### Model Download
+### Other ways to connect
 
-While the model downloads, you'll see a progress bar showing:
-- Download percentage
-- Data transferred (e.g., 1.2 GB / 2.3 GB)
-- Estimated time remaining
+| Option | What it costs | Good for |
+| --- | --- | --- |
+| **Connect OpenRouter** | Free, one click | Getting started. Start here. |
+| **Run a model locally** | A one-time download of 0.9–5.6 GB | Privacy, offline work, no account at all |
+| **A free key from Groq, Google AI Studio or Cerebras** | Free, one signup, no card | An alternative if OpenRouter's daily cap is in the way |
+| **Your own API key** | Whatever the provider charges | Best answers, hardest tasks |
 
-Once complete, the model is stored in your browser and loads instantly on future visits.
+All of these live in Settings → **AI Provider** (the gear icon in the chat header). Leave the provider on **Automatic** and the editor uses whichever you have set up, preferring the strongest one.
 
-## Local vs Remote Models
+### Running a model locally
 
-### Local Model (WebLLM)
+Settings → AI Provider → **Local model (on-device)**, then pick a model. Nothing downloads until you pick one — sizes are shown next to each name, from 0.9 GB for Llama 3.2 1B up to 5.6 GB for Qwen3 8B. Qwen3 4B (3.4 GB) is a good default.
 
-**How it works:** The AI runs entirely in your browser using WebGPU technology. After the initial download, no internet connection is required.
+The download happens once and shows a progress bar. After that the model is cached in your browser and starts immediately, and no prompt ever leaves your machine.
 
-**Pros:**
-- ✅ **Free** - No API costs
-- ✅ **Private** - Your data never leaves your device
-- ✅ **Offline** - Works without internet (after initial download)
-- ✅ **No API key needed**
+This needs a browser with WebGPU — Chrome or Edge 113+, or Safari 17+. If the option is greyed out, your browser does not offer it.
 
-**Cons:**
-- ❌ **Slower** - Responses take 3-5 seconds vs sub-second for remote
-- ❌ **Large download** - Requires ~2.3 GB disk space
-- ❌ **Requires powerful device** - Needs modern laptop/desktop with WebGPU support
-- ❌ **Lower quality** - May struggle with very complex tasks
+Local models are small. Expect them to answer questions about your graph and make single-step edits; they are not going to build a visualization from a sentence.
 
-**Requirements:**
-- Modern browser with WebGPU support:
-  - Chrome 113+ or Edge 113+
-  - Safari 17+ (macOS Sonoma or later)
-  - Firefox (WebGPU coming soon)
-- At least 4 GB of available RAM
-- ~3 GB of disk space for the model
+### Using your own API key
 
-**Recommended for:**
-- Users who want privacy and don't mind waiting a few seconds
-- Working offline or with limited internet
-- Students and learners who want to explore without API costs
-- Projects with sensitive data
+Settings → **API Keys**, or Settings → AI Provider for the endpoint options:
 
-### Remote Model (Anthropic API)
+- **Anthropic** — a key from [console.anthropic.com](https://console.anthropic.com/), starting `sk-ant-`. The best answers available in the editor.
+- **OpenRouter** — Connect handles this for you, but you can also paste a key.
+- **Custom endpoint** — anything speaking the OpenAI chat-completions format. Presets fill in Groq, Google AI Studio, Cerebras and OpenAI; the first three hand out a free key with no card, and each preset links to the page that issues one. A server on your own machine (LM Studio, llama.cpp, Ollama) needs no key at all — just the address and the model name.
 
-**How it works:** The AI runs on Anthropic's servers using their Claude Sonnet model. Your messages are sent over the internet and responses stream back.
+**Test and Save** checks the endpoint before storing it, so a mistyped address or model name is caught there rather than in the middle of a conversation.
 
-**Pros:**
-- ✅ **Fast** - Sub-second responses
-- ✅ **High quality** - State-of-the-art AI model
-- ✅ **No download** - Works immediately
-- ✅ **Works on any device** - No special hardware requirements
-
-**Cons:**
-- ❌ **Costs money** - You pay per message (typically $0.01-0.05 per conversation)
-- ❌ **Requires API key** - Must sign up for Anthropic account
-- ❌ **Internet required** - Doesn't work offline
-- ❌ **Less private** - Data is sent to Anthropic (see their [privacy policy](https://www.anthropic.com/legal/privacy))
-
-**Requirements:**
-- Anthropic API key ([get one here](https://console.anthropic.com/))
-- Internet connection
-
-**Recommended for:**
-- Users who need fast, high-quality responses
-- Complex projects with many steps
-- Professional work where time is valuable
-- Devices that don't support WebGPU
+Keys are stored in your browser and never sent to Noodles.gl. See [API Keys Configuration](./api-keys.md).
 
 ## Using the Assistant
 
@@ -183,42 +148,34 @@ The assistant has access to powerful tools to help you:
 
 ## Settings
 
-Click the gear icon (⚙️) in the chat panel header to open settings.
+Click the gear icon (⚙️) in the chat panel header, or open Settings → **AI Provider**.
 
-### Switching Between Local and Remote
+### Switching provider
 
-You can switch between local and remote models at any time:
+The two dropdowns in the chat header are the quickest way: the first picks the provider, the second the model. Anything you have not set up is greyed out, and the gear beside them opens the full settings.
 
-1. Open Settings
-2. Select **Local (WebLLM)** or **Remote (Anthropic)**
-3. If switching to Remote, enter your API key
-4. Click **Save Changes**
+**Automatic** — the default — uses whichever provider you have configured, preferring the strongest: Anthropic, then OpenRouter, then a custom endpoint, then a local model, then Chrome's built-in one. A local model is only ever used if you picked one yourself, so nothing large is ever downloaded on your behalf. Pinning a provider that later loses its key falls back to the same order rather than breaking.
 
 Your conversation history is preserved when switching.
 
-### Model Selection
+### Model selection
 
-**Local Model:** Choose which model to use:
-- **Phi-3 Mini (Recommended)** - Best balance of speed and quality (~2.3 GB)
-- **Custom model URL** - Advanced users can specify their own WebLLM-compatible model
+The second dropdown lists what the current provider offers:
 
-**Remote API:** Enter your Anthropic API key:
-- Get an API key from [console.anthropic.com](https://console.anthropic.com/)
-- Check "Remember key" to save it across sessions (stored in your browser)
-- Click "Get API key" for help signing up
-- For general API key management (Mapbox, Google Maps, etc.), see [API Keys Configuration](./api-keys.md)
+- **Anthropic** — Claude models.
+- **OpenRouter** — free tool-capable models first, then paid ones. The list comes from OpenRouter, so it reflects what is actually free today.
+- **Local model** — the five WebLLM models, with download sizes.
+- **Custom endpoint** — the model you configured. After a successful test, the field suggests the models that endpoint reported.
+- **Chrome built-in** — one model, so there is nothing to choose.
 
-### Conversation Settings
+### Auto-capture screenshots
 
-**History length:** How many messages to remember (default: 7 messages)
-- **Shorter (3-5)** - Faster, uses less memory, but AI forgets context quickly
-- **Longer (10-20)** - Better context retention, but slower and uses more memory
-- Tip: Use shorter history for quick questions, longer for complex multi-step tasks
+Sends a screenshot of your visualization with each message.
 
-**Auto-capture screenshots:** Automatically capture visualization screenshots with each message
 - Helpful for visual debugging
-- Increases response time and message size
-- Can be triggered manually with the camera button
+- Slower, and uses more of the model's context
+- Can be triggered manually with the camera button instead
+
 
 ## Tips for Better Results
 
@@ -243,9 +200,9 @@ For large projects, work step-by-step:
 
 If something looks wrong visually, click the camera button to share a screenshot. The AI can see your visualization and provide better help.
 
-### Switch to Remote for Complex Tasks
+### Match the Model to the Task
 
-If the local model is struggling with a complex task (taking too long, giving unclear answers), try switching to the remote API for better results.
+A local or built-in model is fine for questions about your graph and single-step edits. If one is taking too long or answering vaguely, switch to OpenRouter or Anthropic for the harder task rather than rephrasing at it.
 
 ## Troubleshooting
 
@@ -255,7 +212,7 @@ If the local model is struggling with a complex task (taking too long, giving un
 
 **Solutions:**
 - Update your browser to the latest version (Chrome 113+, Edge 113+, Safari 17+)
-- Use the remote API instead (requires API key)
+- Click **Connect OpenRouter** instead — free, no download, and no key to paste
 - Use a different device with a modern browser
 
 ### "Model download failed"
@@ -264,9 +221,10 @@ If the local model is struggling with a complex task (taking too long, giving un
 
 **Solutions:**
 - Check your internet connection
-- Click "Retry Download"
+- Pick the model again in Settings → AI Provider to restart the download; finished parts are cached, so a retry resumes rather than starting over
 - Clear your browser cache and try again
-- If problems persist, use the remote API
+- Try a smaller model — Llama 3.2 1B is 0.9 GB
+- If problems persist, click **Connect OpenRouter** instead
 
 ### Responses are very slow
 
@@ -275,12 +233,12 @@ If the local model is struggling with a complex task (taking too long, giving un
 **Causes:**
 - Your device may not have enough GPU power
 - Other tabs or applications are using GPU resources
-- Too much conversation history (try reducing history length in settings)
+- A long conversation: the whole transcript is re-read on every turn, and a local model has only a 4,096-token window to fit it in
 
 **Solutions:**
 - Close other tabs and applications
-- Reduce history length in settings (Settings → History length → 3-5 messages)
-- Switch to remote API for faster responses
+- Start a new conversation (➕ in the chat header) — a long transcript is slower on a small model
+- Try a smaller local model, or switch to OpenRouter for faster responses
 - Restart your browser
 
 ### "Out of memory" error
@@ -290,72 +248,62 @@ If the local model is struggling with a complex task (taking too long, giving un
 **Solutions:**
 - Close other tabs and applications
 - Restart your browser
-- Reduce history length in settings
-- Use the remote API (doesn't use your device's memory)
+- Pick a smaller local model — Llama 3.2 1B needs about a quarter of the memory Qwen3 8B does
+- Use OpenRouter or Anthropic instead; neither uses your device's memory
 
 ### AI gives incorrect or unhelpful answers
 
 **Problem:** The response isn't helpful or contains mistakes.
 
-**For local model:**
-- Try rephrasing your question more specifically
-- Break down complex tasks into smaller steps
-- Switch to remote API for better quality
-- Check if the model is still downloading (progress bar at top)
+**On a local or built-in model:**
+- Break the task into smaller steps; these models handle one change at a time
+- Ask about your graph rather than asking it to design one
+- Switch to OpenRouter or Anthropic for anything multi-step
 
-**For remote model:**
+**On a hosted model:**
 - Provide more context in your question
 - Use screenshots to show visual issues
 - Report persistent issues on [GitHub](https://github.com/joby-aviation/noodles.gl/issues)
 
 ### API key isn't working
 
-**Problem:** Remote API fails with "Invalid API key" error.
+**Problem:** The provider rejects the key.
 
 **Solutions:**
-- Double-check your API key from [console.anthropic.com](https://console.anthropic.com/)
-- Make sure you copied the entire key (starts with `sk-ant-`)
-- Check that your Anthropic account has credits
+- Check the key is complete — an Anthropic key starts `sk-ant-`, an OpenRouter key `sk-or-`
+- Check the account has credit. A free OpenRouter tier also has a daily request cap of roughly 50; past that, requests fail until the next day or you add credit
+- For a custom endpoint, press **Test and Save** — it will say whether the address, the key, or the model name is the problem
 - Try removing and re-entering the key
 
 ## Privacy & Security
 
-### Local Model
+### On-device models (local model, Chrome built-in)
 
-When using the local model:
-- All computation happens in your browser
-- No data is sent to any servers
+- All computation happens in your browser; no prompt is sent anywhere
+- Model files are stored in your browser (IndexedDB), and clearing browser data deletes them
 - Conversation history is stored only in your browser's localStorage
-- Model files are stored in IndexedDB (browser storage)
-- Clearing your browser data will delete the model and conversation history
 
-### Remote API
+### Hosted providers (Anthropic, OpenRouter, custom endpoint)
 
-When using the remote API:
-- Your messages are sent to Anthropic's servers for processing
+- Your messages, and whatever graph context the assistant reads to answer them, are sent to that provider
+- Each provider's own policy applies — Anthropic's is [here](https://www.anthropic.com/legal/privacy)
 - Conversation history is still stored locally in your browser
-- Anthropic may store messages according to their [privacy policy](https://www.anthropic.com/legal/privacy)
-- API keys are stored in your browser's localStorage (not sent to Noodles.gl servers)
+- Keys are stored in your browser's localStorage and are never sent to Noodles.gl
 
 ### Recommendations
 
-- Use **local model** for sensitive or private data
-- Use **remote API** for public projects where speed matters
+- Use a **local model** or Chrome's built-in one for sensitive or private data
+- Use a **hosted provider** for public projects where quality and speed matter
 - Don't store API keys in git repositories or share them publicly
 - Clear conversation history regularly if working with sensitive data (delete conversations in history panel)
 
 ## Advanced Features
 
-### Custom Models
+### A model on your own machine
 
-Advanced users can use custom WebLLM-compatible models:
+If you run LM Studio, llama.cpp or Ollama locally, point the editor at it: Settings → AI Provider → Custom Endpoint, base URL `http://localhost:1234/v1` (whatever your server uses), model name as the server reports it, and no API key. **Test and Save** will confirm the server is reachable and serves that model.
 
-1. Open Settings
-2. Select "Custom model URL" under Local Model
-3. Enter the model URL (must be WebLLM-compatible)
-4. Save and restart chat
-
-**Note:** Custom models must follow the [WebLLM model format](https://github.com/mlc-ai/web-llm). Only use models from trusted sources.
+This is a different thing from the built-in local model: your server, your choice of weights, and no download inside the browser.
 
 ### Conversation History
 
