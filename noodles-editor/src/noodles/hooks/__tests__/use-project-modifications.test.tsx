@@ -423,6 +423,26 @@ describe('useProjectModifications', () => {
       expect(edges[0]).toEqual(edge)
     })
 
+    it('should not add the same logical connection under a different ID', () => {
+      const { result } = renderHook(() =>
+        useProjectModifications({ getNodes, getEdges, setNodes, setEdges })
+      )
+      const connection: ReactFlowEdge = {
+        id: 'first-id',
+        source: '/source',
+        target: '/target',
+        sourceHandle: 'out.val',
+        targetHandle: 'par.val',
+      }
+
+      act(() => {
+        result.current.addEdge(connection)
+        result.current.addEdge({ ...connection, id: 'alternate-id' })
+      })
+
+      expect(edges).toEqual([connection])
+    })
+
     it('should reject edge with non-existent source node', () => {
       const { result } = renderHook(() =>
         useProjectModifications({ getNodes, getEdges, setNodes, setEdges })
@@ -661,6 +681,37 @@ describe('useProjectModifications', () => {
       expect(edges).toHaveLength(1)
       expect(edges[0].source).toBe('/node-1')
       expect(edges[0].target).toBe('/node-2')
+    })
+
+    it('should deduplicate logical connections within a batch', () => {
+      setOp('/node-1', new NumberOp('/node-1', { val: 1 }))
+      setOp('/node-2', new NumberOp('/node-2', { val: 2 }))
+      const { result } = renderHook(() =>
+        useProjectModifications({ getNodes, getEdges, setNodes, setEdges })
+      )
+      const connection = {
+        source: '/node-1',
+        target: '/node-2',
+        sourceHandle: 'out.val',
+        targetHandle: 'par.val',
+      }
+
+      act(() => {
+        result.current.applyModifications([
+          {
+            type: 'add_node',
+            data: { id: '/node-1', type: 'NumberOp', position: { x: 0, y: 0 }, data: {} },
+          },
+          {
+            type: 'add_node',
+            data: { id: '/node-2', type: 'NumberOp', position: { x: 100, y: 0 }, data: {} },
+          },
+          { type: 'add_edge', data: { id: 'first-id', ...connection } },
+          { type: 'add_edge', data: { id: 'alternate-id', ...connection } },
+        ])
+      })
+
+      expect(edges).toEqual([{ id: 'first-id', ...connection }])
     })
 
     it('should handle mixed operations (add, update, delete)', () => {

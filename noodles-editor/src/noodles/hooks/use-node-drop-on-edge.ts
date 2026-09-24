@@ -10,6 +10,7 @@ import { canConnect } from '../utils/can-connect'
 import { resolveOperatorField } from '../utils/field-resolution'
 import { getNodeCenter, pointToLineDistance } from '../utils/edge-geometry'
 import { edgeId } from '../utils/id-utils'
+import { insertUniqueEdge } from '../utils/edge-integrity'
 import { normalizeMultiInputEdges } from '../utils/multi-input-utils'
 import { parseHandleId } from '../utils/path-utils'
 
@@ -238,10 +239,13 @@ export function useNodeDropOnEdge(options: UseNodeDropOnEdgeOptions) {
       // position so inserting a node on a multi-input edge keeps its slot order.
       setEdges(currentEdges => {
         const replacedIndex = currentEdges.findIndex(e => e.id === edge.id)
-        const nextEdges = currentEdges.filter(e => e.id !== edge.id)
-        nextEdges.splice(replacedIndex === -1 ? nextEdges.length : replacedIndex, 0, newEdge2)
-        nextEdges.push(newEdge1)
-        return normalizeMultiInputEdges(nextEdges)
+        const withoutReplaced = currentEdges.filter(e => e.id !== edge.id)
+        const withTargetEdge = insertUniqueEdge(withoutReplaced, newEdge2, (edges, candidate) => {
+          const inserted = [...edges]
+          inserted.splice(replacedIndex === -1 ? inserted.length : replacedIndex, 0, candidate)
+          return inserted
+        })
+        return normalizeMultiInputEdges(insertUniqueEdge(withTargetEdge, newEdge1))
       })
 
       // Track this action for analytics

@@ -8,6 +8,7 @@ function topic(partial: Partial<DocTopic> & { id: string; content: string }): Do
     title: partial.id,
     section: 'ai-assistant',
     file: `${partial.id}.md`,
+    url: null,
     headings: [],
     codeExamples: [],
     relatedTopics: [],
@@ -119,6 +120,36 @@ describe('getDocumentation search', () => {
     ).data as { results: unknown[] }
     expect(data.results).toEqual([])
   })
+
+  it('includes URLs for publicly hosted docs', async () => {
+    const topics = [
+      topic({
+        id: 'users-intro',
+        title: 'Introduction guide',
+        section: 'users',
+        file: 'users/intro.md',
+        url: 'https://noodles.gl/users/intro',
+        content: '# Introduction\n\nUser guide intro.',
+      }),
+      topic({
+        id: 'workflow-timeline',
+        title: 'Timeline workflow guide',
+        section: 'ai-assistant',
+        file: 'ai-chat/workflow-timeline.md',
+        url: null,
+        content: '# Timeline workflow\n\nInternal AI docs guide.',
+      }),
+    ]
+    const data = (await toolsWithDocs(topics).getDocumentation({ query: 'guide' })).data as {
+      results: Array<{ id: string; url: string | null }>
+    }
+
+    const userDoc = data.results.find(r => r.id === 'users-intro')
+    expect(userDoc?.url).toBe('https://noodles.gl/users/intro')
+
+    const workflowDoc = data.results.find(r => r.id === 'workflow-timeline')
+    expect(workflowDoc?.url).toBe(null)
+  })
 })
 
 describe('getDocumentation by id', () => {
@@ -135,6 +166,24 @@ describe('getDocumentation by id', () => {
     const result = await toolsWithDocs(WORKFLOW_TOPICS).getDocumentation({ id: 'nope' })
     expect(result.success).toBe(false)
     expect(result.error).toContain('Search by query')
+  })
+
+  it('includes URL in full topic retrieval', async () => {
+    const topics = [
+      topic({
+        id: 'users-intro',
+        title: 'Introduction',
+        section: 'users',
+        file: 'users/intro.md',
+        url: 'https://noodles.gl/users/intro',
+        content: '# Introduction\n\nFull user guide.',
+      }),
+    ]
+    const result = await toolsWithDocs(topics).getDocumentation({ id: 'users-intro' })
+
+    expect(result.success).toBe(true)
+    const data = result.data as DocTopic
+    expect(data.url).toBe('https://noodles.gl/users/intro')
   })
 })
 
