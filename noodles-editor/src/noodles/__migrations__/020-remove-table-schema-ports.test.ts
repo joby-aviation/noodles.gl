@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { NoodlesProjectJSON } from '../utils/serialization'
-import { down, up } from './018-remove-table-schema-ports'
+import { down, up } from './020-remove-table-schema-ports'
 
 const parentSchema = {
   columns: [
@@ -30,14 +30,14 @@ function nodeInputs(node: NoodlesProjectJSON['nodes'][number] | undefined) {
 }
 
 const baseProject: NoodlesProjectJSON = {
-  version: 17,
+  version: 19,
   timeline: {},
   nodes: [],
   edges: [],
   viewport: { x: 0, y: 0, zoom: 1 },
 }
 
-describe('018-remove-table-schema-ports', () => {
+describe('020-remove-table-schema-ports', () => {
   it('materializes schemas for standalone legacy tables', async () => {
     const project: NoodlesProjectJSON = {
       ...baseProject,
@@ -323,7 +323,7 @@ describe('018-remove-table-schema-ports', () => {
   it('keeps materialized schemas when migrating down', async () => {
     const project = {
       ...baseProject,
-      version: 18,
+      version: 20,
       nodes: [tableNode('/table', { schema: parentSchema })],
     }
 
