@@ -8839,7 +8839,7 @@ export class BitmapLayerOp extends Operator<BitmapLayerOp> {
   }
 
   execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const { bounds, image, ...restProps } = props
+    const { bounds, image, transparentColor, tintColor, ...restProps } = props
     let deckBounds: BitmapBoundingBox
     if (
       Array.isArray(bounds) &&
@@ -8867,7 +8867,14 @@ export class BitmapLayerOp extends Operator<BitmapLayerOp> {
     }
 
     const layer = {
-      ...parseLayerProps<BitmapLayerProps>({ ...restProps, image }),
+      ...parseLayerProps<BitmapLayerProps>({
+        ...restProps,
+        image,
+        // Let Deck.gl apply its array-valued defaults. Passing null overrides those defaults
+        // and crashes BitmapLayer.draw when it calls .map()/.slice() on the colors.
+        ...(transparentColor ? { transparentColor } : {}),
+        ...(tintColor ? { tintColor } : {}),
+      }),
       bounds: deckBounds,
       type: 'BitmapLayer' as const,
       id: this.id,

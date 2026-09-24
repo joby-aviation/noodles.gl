@@ -95,6 +95,31 @@ describe('BitmapLayerOp', () => {
     )
   })
 
+  it('lets Deck.gl apply defaults for unset optional colors', () => {
+    const op = new BitmapLayerOp('/bitmap')
+
+    const result = op.execute(bitmapProps())
+    const layer = result.layer as unknown as Record<string, unknown>
+
+    expect(layer).not.toHaveProperty('transparentColor')
+    expect(layer).not.toHaveProperty('tintColor')
+  })
+
+  it('preserves explicitly configured optional colors', () => {
+    const op = new BitmapLayerOp('/bitmap')
+
+    const result = op.execute(
+      bitmapProps({
+        transparentColor: [0, 0, 0, 0],
+        tintColor: [255, 128, 64],
+      })
+    )
+    const layer = result.layer as unknown as Record<string, unknown>
+
+    expect(layer.transparentColor).toEqual([0, 0, 0, 0])
+    expect(layer.tintColor).toEqual([255, 128, 64])
+  })
+
   it('flattens BboxField southwest and northeast points for Deck.gl', () => {
     const op = new BitmapLayerOp('/bitmap')
 
