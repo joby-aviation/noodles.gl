@@ -8,7 +8,7 @@ function edgeConnectionKey(
   return JSON.stringify([edge.source, edge.sourceHandle, edge.target, edge.targetHandle])
 }
 
-// Repair historical corruption during migration while preserving the first occurrence of each logical
+// Repair historical corruption while preserving the first occurrence of each logical
 // connection. Non-conflicting stored IDs are intentionally left untouched.
 function repairDuplicateEdges<E extends ReactFlowEdge>(edges: E[]): E[] {
   const seenConnections = new Set<string>()

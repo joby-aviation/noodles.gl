@@ -203,6 +203,46 @@ for (const key of Object.keys(opTypes)) {
   defaultNodeComponents[key] = MemoNodeComponent
 }
 
+function UnknownOperatorComponent({
+  id,
+  selected,
+}: ReactFlowNodeProps<NodeDataJSON<Operator<IOperator>>> & { type: OpType }) {
+  const op = getOp(id as string) as import('../operators').UnknownOperator | null
+  const { deleteElements } = useReactFlow()
+
+  const handleDelete = useCallback(() => {
+    deleteElements({ nodes: [{ id: id as string }] })
+  }, [id, deleteElements])
+
+  if (!op) return null
+
+  return (
+    <ContextMenu.Root>
+      <ContextMenu.Trigger asChild>
+        <div className={cx(s.wrapper, s.unknownOperatorWrapper)}>
+          <div className={s.unknownOperatorHeader}>
+            <div className={s.errorIcon}>⚠️</div>
+            <div className={s.unknownOperatorTitle}>Unknown Operator</div>
+          </div>
+          <div className={s.unknownOperatorContent}>
+            <div className={s.unknownOperatorType}>{op.originalType}</div>
+            <div className={s.unknownOperatorHelp}>
+              This operator type is no longer available
+            </div>
+          </div>
+        </div>
+      </ContextMenu.Trigger>
+      <ContextMenu.Portal>
+        <ContextMenu.Content className={s.contextMenu} sideOffset={5}>
+          <ContextMenu.Item className={s.contextMenuItem} onSelect={handleDelete}>
+            Delete Node
+          </ContextMenu.Item>
+        </ContextMenu.Content>
+      </ContextMenu.Portal>
+    </ContextMenu.Root>
+  )
+}
+
 export const nodeComponents = {
   ...defaultNodeComponents,
   GeocoderOp: memo(GeocoderOpComponent, nodePropsAreEqual),
@@ -215,6 +255,7 @@ export const nodeComponents = {
   RerouteOp: memo(RerouteOpComponent, nodePropsAreEqual),
   TableEditorOp: memo(TableEditorOpComponent, nodePropsAreEqual),
   TimeOp: memo(TimeOpComponent, nodePropsAreEqual),
+  UnknownOperator: memo(UnknownOperatorComponent, nodePropsAreEqual),
   ViewerOp: memo(ViewerOpComponent, nodePropsAreEqual),
   ContainerOp: memo(ContainerOpComponent, nodePropsAreEqual),
 } as const as ReactFlowNodeTypes

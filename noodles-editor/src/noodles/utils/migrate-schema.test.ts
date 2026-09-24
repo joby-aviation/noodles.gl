@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
 import type { OpType } from '../operators'
-import { changeDefaultValue, migrateProject, NOODLES_VERSION, renameHandle } from './migrate-schema'
+import {
+  changeDefaultValue,
+  migrateProject,
+  NOODLES_VERSION,
+  renameHandle,
+} from './migrate-schema'
 import type { NoodlesProjectJSON } from './serialization'
 
 describe('migrateProject', () => {
@@ -97,7 +102,7 @@ describe('migrateProject', () => {
     expect(migrated.edges[0].targetHandle).toEqual('par.data')
   })
 
-  it('runs camera and duplicate-edge migrations through version 19', async () => {
+  it('runs duplicate-edge and camera migrations through version 19', async () => {
     const duplicate = {
       id: '/source.out.data->/switch.par.values',
       source: '/source',
@@ -120,9 +125,9 @@ describe('migrateProject', () => {
       timeline: {},
     }
 
-    const migrated = await migrateProject(project)
+    const migrated = await migrateProject(project, { to: 19 })
 
-    expect(NOODLES_VERSION).toBe(19)
+    expect(NOODLES_VERSION).toBe(20)
     expect(migrated.version).toBe(19)
     expect(migrated.nodes[0].data.inputs).toEqual({ center: { lng: 10, lat: 20 } })
     expect(migrated.edges).toEqual([duplicate])

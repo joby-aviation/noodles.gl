@@ -1,7 +1,7 @@
 import type { Edge } from '@xyflow/react'
 import { describe, expect, it } from 'vitest'
 import type { NoodlesProjectJSON } from '../utils/serialization'
-import { down, up } from './019-repair-duplicate-edges'
+import { down, up } from './018-repair-duplicate-edges'
 
 const edge = (
   source: string,
@@ -17,14 +17,14 @@ const edge = (
 })
 
 const project = (edges: Edge[]): NoodlesProjectJSON => ({
-  version: 18,
+  version: 17,
   timeline: {},
   nodes: [],
   edges,
   viewport: { x: 0, y: 0, zoom: 1 },
 })
 
-describe('019-repair-duplicate-edges', () => {
+describe('018-repair-duplicate-edges', () => {
   it('keeps the first occurrence of duplicate logical connections in array order', async () => {
     const first = { ...edge('/a', '/switch', 'first'), data: { marker: 'first' } }
     const second = { ...edge('/b', '/switch', 'second'), data: { marker: 'second' } }
@@ -40,14 +40,21 @@ describe('019-repair-duplicate-edges', () => {
       project([edge('/a', '/target-a', 'collision'), edge('/b', '/target-b', 'collision')])
     )
 
-    expect(migrated.edges).toEqual([edge('/a', '/target-a'), edge('/b', '/target-b')])
+    expect(migrated.edges).toEqual([
+      edge('/a', '/target-a'),
+      edge('/b', '/target-b'),
+    ])
   })
 
   it('does not let a repaired ID rename a non-conflicting legacy edge', async () => {
     const reservedId = '/a.out.data->/target-a.par.data'
     const legacy = edge('/legacy', '/target-legacy', reservedId)
     const migrated = await up(
-      project([edge('/a', '/target-a', 'collision'), edge('/b', '/target-b', 'collision'), legacy])
+      project([
+        edge('/a', '/target-a', 'collision'),
+        edge('/b', '/target-b', 'collision'),
+        legacy,
+      ])
     )
 
     expect(migrated.edges[0].id).toBe(`${reservedId}#2`)
@@ -63,7 +70,7 @@ describe('019-repair-duplicate-edges', () => {
   })
 
   it('does not attempt to reconstruct removed duplicates when migrating down', async () => {
-    const original = { ...project([edge('/a', '/target')]), version: 19 }
+    const original = { ...project([edge('/a', '/target')]), version: 18 }
 
     await expect(down(original)).resolves.toBe(original)
   })
