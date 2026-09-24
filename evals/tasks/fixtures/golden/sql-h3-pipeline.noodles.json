@@ -1,0 +1,171 @@
+{
+  "version": 16,
+  "name": "Quake Hexbins",
+  "nodes": [
+    {
+      "id": "/hex-aggregate",
+      "type": "DuckDbOp",
+      "position": {
+        "x": -650,
+        "y": -50
+      },
+      "data": {
+        "inputs": {
+          "query": "INSTALL h3 FROM community; LOAD h3; SELECT h3_h3_to_string(h3_latlng_to_cell(Latitude, Longitude, 5)) AS hex, COUNT(*) AS cnt FROM read_csv_auto('data.csv') GROUP BY hex;"
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/count-color",
+      "type": "AccessorOp",
+      "position": {
+        "x": -650,
+        "y": 450
+      },
+      "data": {
+        "inputs": {
+          "expression": "[255, Math.max(0, 255 - d.cnt * 8), 60, 180]"
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/hex-layer",
+      "type": "H3HexagonLayerOp",
+      "position": {
+        "x": -100,
+        "y": 0
+      },
+      "data": {
+        "inputs": {
+          "getHexagon": "",
+          "opacity": 0.8
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/hexagon-accessor",
+      "type": "AccessorOp",
+      "position": {
+        "x": -650,
+        "y": 320
+      },
+      "data": {
+        "inputs": {
+          "expression": "d.hex"
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/basemap",
+      "type": "MaplibreBasemapOp",
+      "position": {
+        "x": -100,
+        "y": 320
+      },
+      "data": {
+        "inputs": {
+          "mapStyle": "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
+          "viewState": {
+            "longitude": -119.96,
+            "latitude": 37.06,
+            "zoom": 5.5,
+            "pitch": 0,
+            "bearing": 0
+          }
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/deck",
+      "type": "DeckRendererOp",
+      "position": {
+        "x": 400,
+        "y": 100
+      },
+      "data": {
+        "inputs": {},
+        "locked": false
+      }
+    },
+    {
+      "id": "/out",
+      "type": "OutOp",
+      "position": {
+        "x": 750,
+        "y": 100
+      },
+      "data": {
+        "inputs": {},
+        "locked": false
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "/hex-aggregate.out.data->/hex-layer.par.data",
+      "source": "/hex-aggregate",
+      "target": "/hex-layer",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/hexagon-accessor.out.accessor->/hex-layer.par.getHexagon",
+      "source": "/hexagon-accessor",
+      "target": "/hex-layer",
+      "sourceHandle": "out.accessor",
+      "targetHandle": "par.getHexagon"
+    },
+    {
+      "id": "/count-color.out.accessor->/hex-layer.par.getFillColor",
+      "source": "/count-color",
+      "target": "/hex-layer",
+      "sourceHandle": "out.accessor",
+      "targetHandle": "par.getFillColor"
+    },
+    {
+      "id": "/hex-layer.out.layer->/deck.par.layers",
+      "source": "/hex-layer",
+      "target": "/deck",
+      "sourceHandle": "out.layer",
+      "targetHandle": "par.layers"
+    },
+    {
+      "id": "/basemap.out.maplibre->/deck.par.basemap",
+      "source": "/basemap",
+      "target": "/deck",
+      "sourceHandle": "out.maplibre",
+      "targetHandle": "par.basemap"
+    },
+    {
+      "id": "/deck.out.vis->/out.par.vis",
+      "source": "/deck",
+      "target": "/out",
+      "sourceHandle": "out.vis",
+      "targetHandle": "par.vis"
+    }
+  ],
+  "viewport": {
+    "x": 750,
+    "y": 150,
+    "zoom": 1
+  },
+  "editorSettings": {
+    "showOverlay": true
+  },
+  "timeline": {
+    "sheetsById": {
+      "Noodles": {
+        "staticOverrides": {
+          "byObject": {}
+        }
+      }
+    },
+    "definitionVersion": "0.4.0",
+    "revisionHistory": []
+  }
+}
