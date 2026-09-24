@@ -111,10 +111,18 @@
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 6px;
   margin-top: 0.25rem;
-  max-height: 200px;
-  overflow-y: auto;
+  max-height: 280px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
   z-index: var(--z-index-chrome);
+}
+
+.suggestionsList {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .suggestionItem {
@@ -181,16 +189,15 @@
   background-color: rgba(251, 191, 36, 0.1);
 }
 
-/* Shown when a configured provider failed, or when no provider key is configured */
+/* Pinned below the results: a configured provider failed, or no provider key is configured */
 .providerNotice {
+  flex-shrink: 0;
   font-size: 0.8rem;
   line-height: 1.4;
   color: var(--color-text-secondary);
-  margin-bottom: 0.75rem;
-  padding: 0.4rem 0.6rem;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+  background: #222;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .providerSettingsLink {
