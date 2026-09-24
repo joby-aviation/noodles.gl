@@ -4027,6 +4027,26 @@ describe('GeocoderOp', () => {
       'Mapbox geocoding failed: 429 Too Many Requests'
     )
   })
+
+  it('includes the reason Mapbox gives for rejecting a query', async () => {
+    vi.spyOn(getKeysStore(), 'getKey').mockReturnValue('test-token')
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 422,
+        statusText: 'Unprocessable Entity',
+        json: () => Promise.resolve({ message: 'Query too long - 21/20 tokens' }),
+      })
+    )
+
+    const geocoderOp = new GeocoderOp('/geocoder')
+    geocoderOp.inputs.query.addConnection('query-connection', new StringField('Long Beach'))
+
+    await expect(geocoderOp.execute({ query: 'Long Beach' })).rejects.toThrow(
+      'Mapbox geocoding failed: 422 Query too long - 21/20 tokens'
+    )
+  })
 })
 
 describe('NetworkOp with geometry column', () => {

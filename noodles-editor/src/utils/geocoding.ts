@@ -156,7 +156,8 @@ export async function geocodeWithGooglePlaces(query: string): Promise<GeocodingR
     return results
   } catch (error) {
     debugGeocode('Google Places API error:', error)
-    throw error
+    const reason = error instanceof Error ? error.message : String(error)
+    throw new Error(`Google Places failed: ${reason}`, { cause: error })
   }
 }
 
@@ -165,7 +166,10 @@ export async function geocodeWithMapbox(query: string, apiKey: string): Promise<
   const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${apiKey}&limit=5`
   const response = await fetch(url)
   if (!response.ok) {
-    throw new Error(`Mapbox geocoding failed: ${response.status} ${response.statusText}`)
+    // Mapbox explains rejections in the body, e.g. "Query too long - 21/20 tokens"
+    const body: { message?: string } | undefined = await response.json?.().catch(() => undefined)
+    const reason = body?.message || response.statusText
+    throw new Error(`Mapbox geocoding failed: ${response.status} ${reason}`)
   }
 
   const data: MapboxGeocodingResponse = await response.json()
