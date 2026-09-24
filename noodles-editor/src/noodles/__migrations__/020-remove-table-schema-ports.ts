@@ -36,7 +36,7 @@ function isTableSchemaHandle(handle: string | null | undefined) {
 export async function up(project: NoodlesProjectJSON): Promise<NoodlesProjectJSON> {
   const migrationDiagnostics: ProjectMigrationDiagnostic[] = []
   const report = (message: string) => {
-    console.warn(`[migration 018] ${message}`)
+    console.warn(`[migration 020] ${message}`)
     migrationDiagnostics.push({ type: 'stale-edge', message })
   }
   const nodesById = new Map(project.nodes.map(node => [node.id, node]))
@@ -194,7 +194,7 @@ export async function up(project: NoodlesProjectJSON): Promise<NoodlesProjectJSO
   }
 }
 
-// Removed live relationships cannot be reconstructed safely. Materialized values remain valid in v17.
+// Removed live relationships cannot be reconstructed safely. Materialized values remain valid in v19.
 export async function down(project: NoodlesProjectJSON): Promise<NoodlesProjectJSON> {
   return project
 }
