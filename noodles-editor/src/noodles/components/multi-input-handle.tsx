@@ -52,9 +52,7 @@ export function MultiInputHandle({ id, field, className, style }: MultiInputHand
   // center once the hover is valid), and connection.toHandle.y is the handle's center in
   // flow coordinates
   const hover = useConnection(connection =>
-    connection.inProgress &&
-    connection.toHandle?.nodeId === nid &&
-    connection.toHandle?.id === id
+    connection.inProgress && connection.toHandle?.nodeId === nid && connection.toHandle?.id === id
       ? { pointerY: connection.pointer.y, centerY: connection.toHandle.y }
       : null
   )
@@ -111,18 +109,26 @@ export function MultiInputHandle({ id, field, className, style }: MultiInputHand
       ? connectionCount * SLOT_HEIGHT + (connectionCount - 1) * SLOT_GAP
       : undefined
 
-  const dynamicStyle = handleHeight
-    ? { ...style, height: `${handleHeight}px`, borderRadius: '4px', width: '8px' }
-    : style
+  // Split positioning (top, transform) from appearance (height, width, borderRadius)
+  // Positioning goes on the container (now absolutely positioned)
+  // Appearance goes on the inner Handle
+  const containerStyle = {
+    top: style?.top,
+    transform: style?.transform,
+  }
+
+  const handleStyle = handleHeight
+    ? { height: `${handleHeight}px`, borderRadius: '4px', width: '8px' }
+    : {}
 
   return (
-    <div className={s.handleContainer}>
+    <div className={s.handleContainer} style={containerStyle}>
       <Handle
         id={id}
         className={cx(className, {
           [s.multiInputHandle]: isListField && connectionCount > 1,
         })}
-        style={dynamicStyle}
+        style={handleStyle}
         type="target"
         position={Position.Left}
         title={title}

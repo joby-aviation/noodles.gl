@@ -2,7 +2,7 @@
 // Supports Unix-style absolute and relative path resolution
 import path from 'node:path'
 
-const { basename, dirname, isAbsolute, join, normalize, resolve } = path.posix
+const { basename, dirname, isAbsolute, join, normalize, relative, resolve } = path.posix
 
 export function isAbsolutePath(pathStr: string): boolean {
   if (!pathStr) return false
@@ -203,4 +203,35 @@ export function isWithinContainer(operatorId: string, containerOperatorId: strin
 
   // The operator is within the container if its path starts with the container's path followed by '/'
   return operatorId.startsWith(`${containerOperatorId}/`)
+}
+
+// Compute a relative path from contextPath to targetPath
+// The relative path is computed from the context operator's CONTAINER (parent directory)
+// This matches how operator references work: op('./sibling') means "in my parent container"
+// Examples:
+//   computeRelativePath('/container/target', '/container/source') → './target'
+//   computeRelativePath('/container/sub/target', '/other/source') → '../../container/sub/target'
+//   computeRelativePath('/target', '/container/source') → '../../target'
+export function computeRelativePath(targetPath: string, contextPath: string): string {
+  if (!targetPath || !contextPath) {
+    return targetPath
+  }
+
+  // Same path returns '.'
+  if (targetPath === contextPath) {
+    return '.'
+  }
+
+  // Get the container of the context operator (its parent path)
+  // Relative paths are resolved from the operator's container, not the operator itself
+  const contextContainer = getParentPath(contextPath)
+  if (!contextContainer) {
+    return targetPath
+  }
+
+  // Use Node's path.relative for the heavy lifting
+  const relativePath = relative(contextContainer, targetPath) || '.'
+
+  // Add './' prefix for same-container paths (paths that don't start with '..')
+  return relativePath.startsWith('..') ? relativePath : `./${relativePath}`
 }

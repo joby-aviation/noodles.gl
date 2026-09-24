@@ -20,6 +20,7 @@ export const categories = {
     'Merge',
     'Network',
     'Out',
+    'Overpass',
     'RandomizeAttribute',
     'Scatter',
     'Select',

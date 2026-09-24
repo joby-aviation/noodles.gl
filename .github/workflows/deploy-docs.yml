@@ -39,14 +39,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Generate AI context bundles
-        run: npm run generate:context
-        working-directory: ./noodles-editor
-
       - name: Build all for GitHub Pages
         run: npm run build:all
         env:
           VITE_POSTHOG_API_KEY: ${{ secrets.VITE_POSTHOG_API_KEY }}
+          VITE_GA_MEASUREMENT_ID: ${{ secrets.VITE_GA_MEASUREMENT_ID }}
 
       - name: Setup Pages
         uses: actions/configure-pages@v4

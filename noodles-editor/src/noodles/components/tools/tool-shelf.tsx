@@ -18,6 +18,10 @@ import s from './tool-shelf.module.css'
 // lists the categories that were pushed out of the row. Widths are measured from a
 // hidden copy of the row rendered at natural size, so the visible count reflects real
 // button widths rather than an estimate.
+//
+// Once even the always-visible tools no longer fit, the shelf hides them entirely rather
+// than clipping them. Adding an operator is still reachable from the logo menu (shortcut
+// A) and files can still be dropped onto the canvas.
 
 interface ToolShelfProps {
   onOpenAddNode?: () => void
@@ -50,7 +54,11 @@ export function ToolShelf({
   const rowRef = useRef<HTMLDivElement>(null)
   const measureRef = useRef<HTMLDivElement>(null)
   const moreMeasureRef = useRef<HTMLButtonElement>(null)
-  const [layout, setLayout] = useState({ visibleCount: SHELF_GROUPS.length, showMore: false })
+  const [layout, setLayout] = useState({
+    visibleCount: SHELF_GROUPS.length,
+    showMore: false,
+    hidden: false,
+  })
 
   const groups = useMemo(
     () =>
@@ -70,7 +78,13 @@ export function ToolShelf({
     const widths = Array.from(measurer.children).map(child => child.getBoundingClientRect().width)
     const available = row.getBoundingClientRect().width - RESERVED_WIDTH
     const moreWidth = moreMeasureRef.current?.getBoundingClientRect().width ?? 0
-    setLayout(computeShelfLayout(widths, available, GAP, moreWidth))
+    const next = computeShelfLayout(widths, available, GAP, moreWidth)
+    // What the row would actually render. Below the reserved width there is no room for a
+    // shelf at all, and rather than clip the tools mid-button the shelf hides them.
+    const needed =
+      widths.slice(0, next.visibleCount).reduce((sum, width) => sum + width + GAP, 0) +
+      (next.showMore ? moreWidth + GAP : 0)
+    setLayout({ ...next, hidden: available < needed })
   }, [])
 
   useEffect(() => {
@@ -92,119 +106,130 @@ export function ToolShelf({
   )
 
   return (
+    // The container stays mounted even when the tools are hidden, so its width keeps
+    // reporting the space available and the shelf can come back when the window widens
     <div className={s.shelf} ref={rowRef}>
-      {/* Import is a split button: click imports a file, the caret picks a source format */}
-      <div className={s.splitButton}>
-        <button type="button" className={s.splitMain} onClick={onImportFile} title="Import data">
-          <i className="pi pi-file-import" />
-          <span className={s.label}>Import Data</span>
-        </button>
-        <DropdownMenu.Root>
-          <DropdownMenu.Trigger asChild>
-            <button type="button" className={s.splitCaret} aria-label="Choose a data source">
-              <i className="pi pi-angle-down" />
+      {!layout.hidden && (
+        <>
+          {/* Import is a split button: click imports a file, the caret picks a source format */}
+          <div className={s.splitButton}>
+            <button
+              type="button"
+              className={s.splitMain}
+              onClick={onImportFile}
+              title="Import data"
+            >
+              <i className="pi pi-file-import" />
+              <span className={s.label}>Import Data</span>
             </button>
-          </DropdownMenu.Trigger>
-          <DropdownMenu.Portal>
-            <DropdownMenu.Content className={s.menu} align="start" sideOffset={4}>
-              <div className={s.menuLabel}>From file</div>
-              <DropdownMenu.Item className={s.item} onSelect={onImportFile}>
-                <i className={`pi pi-upload ${s.itemIcon}`} />
-                <span className={s.itemText}>
-                  <span className={s.itemName}>Browse or paste a URL</span>
-                  <span className={s.itemSummary}>
-                    CSV, JSON, GeoJSON, Shapefile, GeoParquet, PMTiles
-                  </span>
-                </span>
-              </DropdownMenu.Item>
-              <div className={s.menuLabel}>Add a source node</div>
-              {SOURCE_RECIPES.map(recipe => (
-                <DropdownMenu.Item
-                  key={recipe.id}
-                  className={s.item}
-                  onSelect={() => runRecipe(recipe, 'import_split_button')}
-                >
-                  <i className={`${recipe.icon} ${s.itemIcon}`} />
-                  <span className={s.itemText}>
-                    <span className={s.itemName}>{recipe.name}</span>
-                    <span className={s.itemSummary}>{recipe.summary}</span>
-                  </span>
-                </DropdownMenu.Item>
-              ))}
-            </DropdownMenu.Content>
-          </DropdownMenu.Portal>
-        </DropdownMenu.Root>
-      </div>
+            <DropdownMenu.Root>
+              <DropdownMenu.Trigger asChild>
+                <button type="button" className={s.splitCaret} aria-label="Choose a data source">
+                  <i className="pi pi-angle-down" />
+                </button>
+              </DropdownMenu.Trigger>
+              <DropdownMenu.Portal>
+                <DropdownMenu.Content className={s.menu} align="start" sideOffset={4}>
+                  <div className={s.menuLabel}>From file</div>
+                  <DropdownMenu.Item className={s.item} onSelect={onImportFile}>
+                    <i className={`pi pi-upload ${s.itemIcon}`} />
+                    <span className={s.itemText}>
+                      <span className={s.itemName}>Browse or paste a URL</span>
+                      <span className={s.itemSummary}>
+                        CSV, JSON, GeoJSON, Shapefile, GeoParquet, PMTiles
+                      </span>
+                    </span>
+                  </DropdownMenu.Item>
+                  <div className={s.menuLabel}>Add a source node</div>
+                  {SOURCE_RECIPES.map(recipe => (
+                    <DropdownMenu.Item
+                      key={recipe.id}
+                      className={s.item}
+                      onSelect={() => runRecipe(recipe, 'import_split_button')}
+                    >
+                      <i className={`${recipe.icon} ${s.itemIcon}`} />
+                      <span className={s.itemText}>
+                        <span className={s.itemName}>{recipe.name}</span>
+                        <span className={s.itemSummary}>{recipe.summary}</span>
+                      </span>
+                    </DropdownMenu.Item>
+                  ))}
+                </DropdownMenu.Content>
+              </DropdownMenu.Portal>
+            </DropdownMenu.Root>
+          </div>
 
-      <button type="button" className={s.button} onClick={onCreatePoint} title="Create a point">
-        <i className="pi pi-map-marker" />
-        <span className={s.label}>Point</span>
-      </button>
+          <button type="button" className={s.button} onClick={onCreatePoint} title="Create a point">
+            <i className="pi pi-map-marker" />
+            <span className={s.label}>Point</span>
+          </button>
 
-      <div className={s.divider} />
+          <div className={s.divider} />
 
-      {/* Draw and Measure arm an on-map tool rather than opening a dialog */}
-      <button
-        type="button"
-        className={activeTool === 'draw' ? s.buttonActive : s.button}
-        onClick={() => {
-          toggleTool('draw')
-          analytics.track('map_tool_toggled', { tool: 'draw' })
-        }}
-        title="Draw geometry on the map"
-        aria-pressed={activeTool === 'draw'}
-      >
-        <i className="pi pi-pencil" />
-        <span className={s.label}>Draw</span>
-      </button>
+          {/* Draw and Measure arm an on-map tool rather than opening a dialog */}
+          <button
+            type="button"
+            className={activeTool === 'draw' ? s.buttonActive : s.button}
+            onClick={() => {
+              toggleTool('draw')
+              analytics.track('map_tool_toggled', { tool: 'draw' })
+            }}
+            title="Draw geometry on the map"
+            aria-pressed={activeTool === 'draw'}
+          >
+            <i className="pi pi-pencil" />
+            <span className={s.label}>Draw</span>
+          </button>
 
-      <button
-        type="button"
-        className={activeTool === 'measure' ? s.buttonActive : s.button}
-        onClick={() => {
-          toggleTool('measure')
-          analytics.track('map_tool_toggled', { tool: 'measure' })
-        }}
-        title="Measure distance or area on the map"
-        aria-pressed={activeTool === 'measure'}
-      >
-        <i className="pi pi-arrows-h" />
-        <span className={s.label}>Measure</span>
-      </button>
+          <button
+            type="button"
+            className={activeTool === 'measure' ? s.buttonActive : s.button}
+            onClick={() => {
+              toggleTool('measure')
+              analytics.track('map_tool_toggled', { tool: 'measure' })
+            }}
+            title="Measure distance or area on the map"
+            aria-pressed={activeTool === 'measure'}
+          >
+            <i className="pi pi-arrows-h" />
+            <span className={s.label}>Measure</span>
+          </button>
 
-      <div className={s.divider} />
+          <div className={s.divider} />
 
-      {visibleGroups.map(({ group, recipes }) => (
-        <GroupMenu
-          key={group}
-          group={group}
-          recipes={recipes}
-          onSelect={recipe => runRecipe(recipe, `shelf_${group}`)}
-        />
-      ))}
+          {visibleGroups.map(({ group, recipes }) => (
+            <GroupMenu
+              key={group}
+              group={group}
+              recipes={recipes}
+              onSelect={recipe => runRecipe(recipe, `shelf_${group}`)}
+            />
+          ))}
 
-      {/* More holds only what did not fit, so it disappears when the row has room
+          {/* More holds only what did not fit, so it disappears when the row has room
           for every category */}
-      {layout.showMore && overflowGroups.length > 0 && (
-        <MoreMenu
-          overflowGroups={overflowGroups}
-          onSelect={recipe => runRecipe(recipe, 'shelf_more')}
-        />
+          {layout.showMore && overflowGroups.length > 0 && (
+            <MoreMenu
+              overflowGroups={overflowGroups}
+              onSelect={recipe => runRecipe(recipe, 'shelf_more')}
+            />
+          )}
+
+          <div className={s.divider} />
+
+          {/* Last: adding a raw operator is the escape hatch, not the first thing to reach for */}
+          <button
+            type="button"
+            className={s.button}
+            onClick={onOpenAddNode}
+            disabled={!onOpenAddNode}
+            title="Add any operator"
+          >
+            <i className="pi pi-plus-circle" />
+            <span className={s.label}>Add Op</span>
+          </button>
+        </>
       )}
-
-      <div className={s.divider} />
-
-      {/* Last: adding a raw operator is the escape hatch, not the first thing to reach for */}
-      <button
-        type="button"
-        className={s.button}
-        onClick={onOpenAddNode}
-        disabled={!onOpenAddNode}
-        title="Add any operator"
-      >
-        <i className="pi pi-plus-circle" />
-        <span className={s.label}>Add Op</span>
-      </button>
 
       {/* Hidden measurement row: every group at natural width, never shown to the user.
           The More button is measured separately since it is not part of the fit. */}

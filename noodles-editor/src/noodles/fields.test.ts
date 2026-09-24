@@ -1,9 +1,11 @@
+import { MapView } from '@deck.gl/core'
 import { Temporal } from 'temporal-polyfill'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import z from 'zod/v4'
 import { hexToColor } from '../utils/color'
 import {
   ArrayField,
+  BboxField,
   ColorField,
   CompoundPropsField,
   DataField,
@@ -25,6 +27,7 @@ import {
   UnknownField,
   Vec2Field,
   Vec3Field,
+  ViewField,
 } from './fields'
 import { NumberOp } from './operators'
 import { clearOps, setOp } from './store'
@@ -1139,6 +1142,30 @@ describe('LayerField', () => {
   })
 })
 
+describe('ViewField', () => {
+  it('accepts supported view descriptors', () => {
+    const field = new ViewField()
+    field.setValue({ type: 'MapView', id: 'map-view', width: '50%' })
+
+    expect(field.value).toEqual({ type: 'MapView', id: 'map-view', width: '50%' })
+  })
+
+  it('rejects unknown view types', () => {
+    const field = new ViewField()
+    field.setValue({ type: 'UnknownView' } as never)
+
+    expect(field.value).toBeUndefined()
+  })
+
+  it('accepts existing View instances from custom operators', () => {
+    const field = new ViewField()
+    const view = new MapView({ id: 'custom-map-view' })
+    field.setValue(view)
+
+    expect(field.value).toBe(view)
+  })
+})
+
 describe('Point2DField', () => {
   it('transforms tuple to object by default (no options)', () => {
     const field = new Point2DField()
@@ -1760,5 +1787,77 @@ describe('GeoJsonField', () => {
     }
     field.setValue(featureCollection)
     expect(field.value).toEqual(featureCollection)
+  })
+})
+
+describe('BboxField', () => {
+  it('should normalize object input to object format by default', () => {
+    const field = new BboxField()
+    const bbox = {
+      southwest: { lng: -74.05, lat: 40.68 },
+      northeast: { lng: -73.9, lat: 40.82 },
+    }
+    field.setValue(bbox)
+    expect(field.value).toEqual(bbox)
+  })
+
+  it('should normalize tuple input to object format by default', () => {
+    const field = new BboxField()
+    field.setValue([
+      [-74.05, 40.68],
+      [-73.9, 40.82],
+    ] as any)
+    expect(field.value).toEqual({
+      southwest: { lng: -74.05, lat: 40.68 },
+      northeast: { lng: -73.9, lat: 40.82 },
+    })
+  })
+
+  it('should normalize object input to tuple format with returnType: tuple', () => {
+    const field = new BboxField(undefined, { returnType: 'tuple' })
+    field.setValue({
+      southwest: { lng: -74.05, lat: 40.68 },
+      northeast: { lng: -73.9, lat: 40.82 },
+    } as any)
+    expect(field.value).toEqual([
+      [-74.05, 40.68],
+      [-73.9, 40.82],
+    ])
+  })
+
+  it('should normalize tuple input to tuple format with returnType: tuple', () => {
+    const field = new BboxField(undefined, { returnType: 'tuple' })
+    field.setValue([
+      [-74.05, 40.68],
+      [-73.9, 40.82],
+    ] as any)
+    expect(field.value).toEqual([
+      [-74.05, 40.68],
+      [-73.9, 40.82],
+    ])
+  })
+
+  it('should normalize mixed object/array points to tuple format', () => {
+    const field = new BboxField(undefined, { returnType: 'tuple' })
+    field.setValue({
+      southwest: [-74.05, 40.68],
+      northeast: { lng: -73.9, lat: 40.82 },
+    } as any)
+    expect(field.value).toEqual([
+      [-74.05, 40.68],
+      [-73.9, 40.82],
+    ])
+  })
+
+  it('should normalize tuple of objects to object format', () => {
+    const field = new BboxField()
+    field.setValue([
+      { lng: -74.05, lat: 40.68 },
+      { lng: -73.9, lat: 40.82 },
+    ] as any)
+    expect(field.value).toEqual({
+      southwest: { lng: -74.05, lat: 40.68 },
+      northeast: { lng: -73.9, lat: 40.82 },
+    })
   })
 })

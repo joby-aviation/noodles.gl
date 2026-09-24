@@ -3,6 +3,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useExportActions } from '../../noodles/contexts/export-actions-context'
+import { shouldBlockKeyboardShortcut } from '../../noodles/utils/input-detection'
 import {
   captureTimelineState,
   fireTimelineMutation,
@@ -345,9 +346,7 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       if (e.key !== 'Delete' && e.key !== 'Backspace') return
-      const target = e.target as HTMLElement
-      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)
-        return
+      if (shouldBlockKeyboardShortcut(e)) return
 
       if (selectedMarkerId) {
         e.preventDefault()
@@ -418,15 +417,7 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
   // Handle spacebar for play/pause and arrow keys for frame stepping globally
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement
-      // Don't intercept keys in input elements
-      if (
-        target.tagName === 'INPUT' ||
-        target.tagName === 'TEXTAREA' ||
-        target.contentEditable === 'true'
-      ) {
-        return
-      }
+      if (shouldBlockKeyboardShortcut(e)) return
 
       const store = getTimelineStore()
       if (e.code === 'Space') {

@@ -53,8 +53,8 @@
 
 /* Floating control panel, anchored top-left of the map the way GIS tools usually are */
 .panel {
-  position: absolute;
-  top: 12px;
+  position: fixed;
+  top: 42px;
   left: 12px;
   width: 220px;
   display: flex;

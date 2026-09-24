@@ -1,5 +1,5 @@
 import type { Deck, DeckProps } from '@deck.gl/core'
-import { MapboxOverlay, type MapboxOverlayProps } from '@deck.gl/mapbox'
+import { MapLibreOverlay, type MapLibreOverlayProps } from '@deck.gl/maplibre'
 import { DeckGL } from '@deck.gl/react'
 import { ReactFlowProvider } from '@xyflow/react'
 import type { CustomLayerInterface, Map as MapLibre } from 'maplibre-gl'
@@ -35,14 +35,16 @@ function useSequenceLength() {
 
 const DeckGLOverlay = forwardRef<
   Deck,
-  MapboxOverlayProps & {
+  MapLibreOverlayProps & {
     renderer: RenderSettings
     isRendering: boolean
   }
 >(({ renderer, isRendering, ...props }, ref) => {
-  // MapboxOverlay handles a variety of props differently than the Deck class.
-  // https://deck.gl/docs/api-reference/mapbox/mapbox-overlay#constructor
-  const deck = useControl<MapboxOverlay>(() => new MapboxOverlay({ ...props, interleaved: true }))
+  // MapLibreOverlay handles a variety of props differently than the Deck class.
+  // https://deck.gl/docs/api-reference/maplibre/overview
+  const deck = useControl<MapLibreOverlay>(
+    () => new MapLibreOverlay({ ...props, interleaved: true })
+  )
 
   if (!isRendering) {
     deck.setProps({
@@ -92,7 +94,8 @@ export default function TimelineEditor() {
   }, [])
 
   const noodles = getNoodles()
-  const { flowGraph, nodeSidebar, propertiesPanel, selectedNodeIds, ...visualization } = noodles
+  const { flowGraph, nodeSidebar, propertiesPanel, chatPanel, selectedNodeIds, ...visualization } =
+    noodles
 
   const setTimelineExpanded = useUIStore(state => state.setTimelineExpanded)
 
@@ -619,13 +622,19 @@ export default function TimelineEditor() {
             spreadsheet={<SpreadsheetPane selectedNodeIds={selectedNodeIds ?? []} />}
           >
             {isFixedMode ? (
-              <TransformScale scale={renderSettings.scaleControl}>
+              <TransformScale
+                scale={renderSettings.scaleControl}
+                scaleMode={renderSettings.scaleMode}
+                width={lodResolution.width}
+                height={lodResolution.height}
+              >
                 <ErrorBoundary title="Visualization Error">{renderContent()}</ErrorBoundary>
               </TransformScale>
             ) : (
               <ErrorBoundary title="Visualization Error">{renderContent()}</ErrorBoundary>
             )}
           </Layout>
+          {chatPanel}
         </ExportActionsProvider>
       </ReactFlowProvider>
     </>

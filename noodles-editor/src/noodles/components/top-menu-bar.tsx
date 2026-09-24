@@ -11,6 +11,7 @@ import { debugUI } from '../../utils/debug'
 import { ContainerOp } from '../operators'
 import { getOpStore, type MapMode, useNestingStore, useUIStore } from '../store'
 import { directoryHandleCache } from '../utils/directory-handle-cache'
+import { shouldBlockKeyboardShortcut } from '../utils/input-detection'
 import { getParentPath, splitPath } from '../utils/path-utils'
 import { Breadcrumbs } from './breadcrumbs'
 import type { CopyControlsRef } from './copy-controls'
@@ -101,6 +102,8 @@ export function TopMenuBar({
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (shouldBlockKeyboardShortcut(e)) return
+
       const isMod = e.metaKey || e.ctrlKey
 
       if (isMod && e.key === 's') {

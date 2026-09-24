@@ -341,21 +341,33 @@ describe('Reproject Operator', () => {
 describe('Grid Operators', () => {
   it('PointGrid generates points', () => {
     const op = new PointGridOp('/pgrid')
-    const result = op.execute({ bbox: [0, 0, 1, 1], cellSize: 50, units: 'kilometers' })
+    const result = op.execute({
+      bbox: { southwest: { lng: 0, lat: 0 }, northeast: { lng: 1, lat: 1 } },
+      cellSize: 50,
+      units: 'kilometers',
+    })
     expect(result.featureCollection.features.length).toBeGreaterThan(0)
     expect(result.featureCollection.features[0].geometry.type).toBe('Point')
   })
 
   it('HexGrid generates hexagons', () => {
     const op = new HexGridOp('/hgrid')
-    const result = op.execute({ bbox: [0, 0, 1, 1], cellSize: 50, units: 'kilometers' })
+    const result = op.execute({
+      bbox: { southwest: { lng: 0, lat: 0 }, northeast: { lng: 1, lat: 1 } },
+      cellSize: 50,
+      units: 'kilometers',
+    })
     expect(result.featureCollection.features.length).toBeGreaterThan(0)
     expect(result.featureCollection.features[0].geometry.type).toBe('Polygon')
   })
 
   it('SquareGrid generates squares', () => {
     const op = new SquareGridOp('/sgrid')
-    const result = op.execute({ bbox: [0, 0, 1, 1], cellSize: 50, units: 'kilometers' })
+    const result = op.execute({
+      bbox: { southwest: { lng: 0, lat: 0 }, northeast: { lng: 1, lat: 1 } },
+      cellSize: 50,
+      units: 'kilometers',
+    })
     expect(result.featureCollection.features.length).toBeGreaterThan(0)
     expect(result.featureCollection.features[0].geometry.type).toBe('Polygon')
   })

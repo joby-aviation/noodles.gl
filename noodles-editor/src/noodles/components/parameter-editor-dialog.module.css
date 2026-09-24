@@ -3,7 +3,7 @@
   background: rgba(0, 0, 0, 0.7);
   position: fixed;
   inset: 0;
-  z-index: 1000;
+  z-index: var(--z-index-backdrop);
   animation: fadeIn 150ms ease-out;
 }
 
@@ -20,7 +20,7 @@
   max-width: 700px;
   max-height: 85vh;
   padding: 24px;
-  z-index: 1001;
+  z-index: var(--z-index-modal);
   display: flex;
   flex-direction: column;
   gap: 16px;

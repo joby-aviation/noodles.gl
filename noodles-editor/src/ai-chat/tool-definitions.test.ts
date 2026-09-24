@@ -2,14 +2,20 @@ import { describe, expect, it, vi } from 'vitest'
 import type { MCPTools } from './mcp-tools'
 import { getToolDefinition, toolDefinitions } from './tool-definitions'
 
-// The tool surface the in-app chat offered before definitions were shared —
-// guards against accidentally changing the chat's token budget or tool names
-const CHAT_TOOL_NAMES = [
+// The full Noodles capability surface. Every definition is callable by both the
+// chat (via agent/tool-router.ts) and WebMCP — this list guards against a tool
+// being renamed or dropped by accident.
+const ALL_TOOL_NAMES = [
   'capture_visualization',
   'get_console_errors',
   'get_render_stats',
   'inspect_layer',
   'apply_modifications',
+  'run_code',
+  'list_files',
+  'read_file',
+  'write_file',
+  'grep_files',
   'get_current_project',
   'list_nodes',
   'get_node_info',
@@ -18,9 +24,6 @@ const CHAT_TOOL_NAMES = [
   'set_keyframe',
   'delete_keyframe',
   'set_playback_position',
-]
-
-const CONTEXT_TOOL_NAMES = [
   'search_code',
   'get_source_code',
   'get_operator_schema',
@@ -33,14 +36,14 @@ const CONTEXT_TOOL_NAMES = [
 ]
 
 describe('toolDefinitions', () => {
-  it('exposes exactly the original chat tools to the chat', () => {
-    const chatExposed = toolDefinitions.filter(d => d.exposeToChat !== false).map(d => d.name)
-    expect(chatExposed.sort()).toEqual([...CHAT_TOOL_NAMES].sort())
+  it('defines the whole capability surface', () => {
+    expect(toolDefinitions.map(d => d.name).sort()).toEqual([...ALL_TOOL_NAMES].sort())
   })
 
-  it('includes the context tools as non-chat definitions', () => {
-    const hidden = toolDefinitions.filter(d => d.exposeToChat === false).map(d => d.name)
-    expect(hidden.sort()).toEqual([...CONTEXT_TOOL_NAMES].sort())
+  it('does not reserve the router-owned find_tools name', () => {
+    // find_tools is harness machinery in agent/tool-router.ts, not a Noodles
+    // capability, so it must not appear here or WebMCP would advertise it
+    expect(toolDefinitions.some(d => d.name === 'find_tools')).toBe(false)
   })
 
   it('has unique snake_case names', () => {
@@ -66,9 +69,18 @@ describe('toolDefinitions', () => {
     expect(writeTools.sort()).toEqual([
       'apply_modifications',
       'delete_keyframe',
+      'run_code',
       'set_keyframe',
       'set_playback_position',
+      'write_file',
     ])
+  })
+
+  it('gates only run_code on availability', () => {
+    // Everything else must be unconditionally available, or WebMCP and the router
+    // would quietly disagree about the surface depending on how they were reached
+    const gated = toolDefinitions.filter(d => d.available).map(d => d.name)
+    expect(gated).toEqual(['run_code'])
   })
 
   it('declares annotations on every definition', () => {

@@ -1,5 +1,6 @@
 .handleContainer {
-  position: relative;
+  position: absolute;
+  left: -3px;
   display: flex;
   align-items: center;
 }

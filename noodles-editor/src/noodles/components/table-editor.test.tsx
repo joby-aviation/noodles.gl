@@ -215,6 +215,77 @@ describe('TableEditor', () => {
     // Actual schema editing is tested in schema-editor-dialog.test.tsx
   })
 
+  it('should copy column values when a duplicated column is renamed', () => {
+    const onDataChange = vi.fn()
+    const onSchemaChange = vi.fn()
+
+    const { container, getByRole, getAllByPlaceholderText, getByText } = render(
+      <TableEditor
+        op={mockOp}
+        data={simpleData}
+        schema={simpleSchema}
+        onDataChange={onDataChange}
+        onSchemaChange={onSchemaChange}
+      />
+    )
+
+    fireEvent.click(container.querySelector('.pi-cog') as Element)
+    fireEvent.click(getByRole('button', { name: 'Duplicate column name' }))
+
+    const nameInputs = getAllByPlaceholderText('Column name')
+    fireEvent.change(nameInputs[1], { target: { value: 'display_name' } })
+    fireEvent.click(getByText('Save'))
+
+    expect(onSchemaChange).toHaveBeenCalledWith(
+      {
+        columns: [
+          { name: 'name', type: 'string', defaultValue: '' },
+          { name: 'display_name', type: 'string', defaultValue: '' },
+          { name: 'count', type: 'number', defaultValue: 0 },
+        ],
+      },
+      [
+        { name: 'Alice', display_name: 'Alice', count: 10 },
+        { name: 'Bob', display_name: 'Bob', count: 20 },
+      ]
+    )
+  })
+
+  it('should use the default for a fresh column that reuses a renamed column name', () => {
+    const onSchemaChange = vi.fn()
+
+    const { container, getAllByPlaceholderText, getByRole, getByText } = render(
+      <TableEditor
+        op={mockOp}
+        data={simpleData}
+        schema={simpleSchema}
+        onDataChange={vi.fn()}
+        onSchemaChange={onSchemaChange}
+      />
+    )
+
+    fireEvent.click(container.querySelector('.pi-cog') as Element)
+    const nameInputs = getAllByPlaceholderText('Column name')
+    fireEvent.change(nameInputs[0], { target: { value: 'display_name' } })
+    fireEvent.click(getByRole('button', { name: 'Add Column' }))
+    fireEvent.change(getAllByPlaceholderText('Column name')[2], { target: { value: 'name' } })
+    fireEvent.click(getByText('Save'))
+
+    expect(onSchemaChange).toHaveBeenCalledWith(
+      {
+        columns: [
+          { name: 'display_name', type: 'string', defaultValue: '' },
+          { name: 'count', type: 'number', defaultValue: 0 },
+          { name: 'name', type: 'string', defaultValue: '' },
+        ],
+      },
+      [
+        { display_name: 'Alice', count: 10, name: '' },
+        { display_name: 'Bob', count: 20, name: '' },
+      ]
+    )
+  })
+
   it('should update tableData when data prop changes', () => {
     const onDataChange = vi.fn()
     const onSchemaChange = vi.fn()
@@ -245,6 +316,127 @@ describe('TableEditor', () => {
 
     expect(getByText('Charlie')).toBeDefined()
     expect(getByText(/1 row × 2 columns/i)).toBeDefined()
+  })
+
+  it('applies declared defaults when an inherited schema adds columns', () => {
+    const onDataChange = vi.fn()
+    const onSchemaChange = vi.fn()
+    const initialSchema: TableSchema = {
+      columns: [{ name: 'name', type: 'string', defaultValue: '' }],
+    }
+    const inheritedSchema: TableSchema = {
+      columns: [
+        { name: 'name', type: 'string', defaultValue: '' },
+        {
+          name: 'anchor',
+          type: 'stringLiteral',
+          defaultValue: 'start',
+          options: { values: ['start', 'end', 'middle'] },
+        },
+        { name: 'offset', type: 'vec2', defaultValue: [64, 0] },
+      ],
+    }
+    const data = [{ name: 'Downtown Skyport' }]
+
+    const { getByText, rerender } = render(
+      <TableEditor
+        op={mockOp}
+        data={data}
+        schema={initialSchema}
+        onDataChange={onDataChange}
+        onSchemaChange={onSchemaChange}
+      />
+    )
+
+    rerender(
+      <TableEditor
+        op={mockOp}
+        data={data}
+        schema={inheritedSchema}
+        onDataChange={onDataChange}
+        onSchemaChange={onSchemaChange}
+      />
+    )
+
+    expect(getByText('start')).toBeDefined()
+    expect(getByText('[64.0000, 0.0000]')).toBeDefined()
+  })
+
+  it('preserves compatible custom values when an unchanged schema is saved', () => {
+    const onSchemaChange = vi.fn()
+    const schema: TableSchema = {
+      columns: [
+        {
+          name: 'anchor',
+          type: 'stringLiteral',
+          defaultValue: 'start',
+          options: { values: ['start', 'end', 'middle'] },
+        },
+        { name: 'offset', type: 'vec2', defaultValue: [64, 0] },
+      ],
+    }
+    const data = [
+      { anchor: 'end', offset: [-64, 0] },
+      { anchor: 'middle', offset: [12, 24] },
+    ]
+
+    const { container, getByRole } = render(
+      <TableEditor
+        op={mockOp}
+        data={data}
+        schema={schema}
+        onDataChange={vi.fn()}
+        onSchemaChange={onSchemaChange}
+      />
+    )
+
+    fireEvent.click(container.querySelector('.pi-cog') as Element)
+    fireEvent.click(getByRole('button', { name: /save/i }))
+
+    expect(onSchemaChange).toHaveBeenCalledWith(schema, data)
+  })
+
+  it('flushes an active edit before applying an inherited schema update', () => {
+    const onDataChange = vi.fn()
+    const initialSchema: TableSchema = {
+      columns: [{ name: 'name', type: 'string', defaultValue: '' }],
+    }
+    const inheritedSchema: TableSchema = {
+      columns: [
+        { name: 'name', type: 'string', defaultValue: '' },
+        { name: 'offset', type: 'vec2', defaultValue: [64, 0] },
+      ],
+    }
+    const data = [{ name: 'Downtown Skyport' }]
+
+    const { container, getByText, rerender } = render(
+      <TableEditor
+        op={mockOp}
+        data={data}
+        schema={initialSchema}
+        onDataChange={onDataChange}
+        onSchemaChange={vi.fn()}
+      />
+    )
+
+    fireEvent.click(getByText('Downtown Skyport'))
+    fireEvent.change(container.querySelector('input.p-inputtext') as HTMLInputElement, {
+      target: { value: 'Edited Skyport' },
+    })
+
+    rerender(
+      <TableEditor
+        op={mockOp}
+        data={data}
+        schema={inheritedSchema}
+        onDataChange={onDataChange}
+        onSchemaChange={vi.fn()}
+      />
+    )
+
+    expect(onDataChange).toHaveBeenCalledWith([{ name: 'Edited Skyport' }], 'Edit cell name')
+    expect(getByText('Edited Skyport')).toBeDefined()
+    expect(getByText('[64.0000, 0.0000]')).toBeDefined()
   })
 
   it('should add default values for all column types when adding row', () => {

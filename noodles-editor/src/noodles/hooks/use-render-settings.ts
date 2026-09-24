@@ -28,6 +28,7 @@ export function useRenderSettings(): RenderSettings {
       outOp.inputs.width.subscribe(() => updateSettings()),
       outOp.inputs.height.subscribe(() => updateSettings()),
       outOp.inputs.lod.subscribe(() => updateSettings()),
+      outOp.inputs.scaleMode.subscribe(() => updateSettings()),
       outOp.inputs.waitForData.subscribe(() => updateSettings()),
       outOp.inputs.codec.subscribe(() => updateSettings()),
       outOp.inputs.bitrateMbps.subscribe(() => updateSettings()),
@@ -65,6 +66,7 @@ export function getRenderSettingsFromOutOp(outOp: OutOp): RenderSettings {
       height: outOp.inputs.height.value,
     },
     lod: outOp.inputs.lod.value,
+    scaleMode: outOp.inputs.scaleMode.value as RenderSettings['scaleMode'],
     waitForData: outOp.inputs.waitForData.value,
     codec: outOp.inputs.codec.value as RenderSettings['codec'],
     bitrateMbps: outOp.inputs.bitrateMbps.value,
@@ -88,6 +90,9 @@ export function setRenderSettingsOnOutOp(outOp: OutOp, settings: Partial<RenderS
   }
   if (settings.lod !== undefined) {
     outOp.inputs.lod.setValue(settings.lod)
+  }
+  if (settings.scaleMode !== undefined) {
+    outOp.inputs.scaleMode.setValue(settings.scaleMode)
   }
   if (settings.waitForData !== undefined) {
     outOp.inputs.waitForData.setValue(settings.waitForData)
