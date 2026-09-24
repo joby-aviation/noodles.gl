@@ -8,7 +8,9 @@ import * as utils from '../../utils'
 import type { Edge } from '../graph-executor'
 import type { IOperator, Operator } from '../operators'
 import { getAllOps, getOp } from '../store'
+import { resolveOperatorField } from './field-resolution'
 import type { OpId } from './id-utils'
+import { parseHandleId } from './path-utils'
 
 // Helper to get function/property names from an object, filtering out internals
 function getLibraryProperties(obj: object): string[] {
@@ -186,17 +188,20 @@ function findDownstreamTarget(
     if (!targetOp) continue
 
     // Parse targetHandle to get field name: "par.getPosition" -> "getPosition"
-    const handleParts = edge.targetHandle?.split('.') || []
+    const handleInfo = parseHandleId(edge.targetHandle || '')
     let currentFieldInfo = firstHopField
 
     // On first hop, capture the target field info
-    if (!firstHopField && handleParts.length >= 2 && handleParts[0] === 'par') {
-      const fieldName = handleParts[1]
-      const targetInput = targetOp.inputs[fieldName]
+    if (!firstHopField && handleInfo?.namespace === 'par') {
+      const targetInput = resolveOperatorField(
+        targetOp,
+        handleInfo.namespace,
+        handleInfo.fieldName
+      )?.field
 
       if (targetInput) {
         const { fieldType, returnType } = getFieldTypeInfo(targetInput)
-        currentFieldInfo = { name: fieldName, fieldType, returnType }
+        currentFieldInfo = { name: handleInfo.fieldName, fieldType, returnType }
       }
     }
 

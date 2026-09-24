@@ -6,6 +6,7 @@
 import type { Edge as ReactFlowEdge } from '@xyflow/react'
 import { ListField } from '../fields'
 import { getOp } from '../store'
+import { resolveOperatorField } from './field-resolution'
 import { parseHandleId } from './path-utils'
 
 export const MULTI_INPUT_EDGE_TYPE = 'MultiInputEdge'
@@ -29,7 +30,11 @@ export type IsMultiInputTarget = (edge: EdgeTargetRef) => boolean
 export function isListFieldTarget(edge: EdgeTargetRef): boolean {
   const handleInfo = parseHandleId(edge.targetHandle || '')
   if (!handleInfo || handleInfo.namespace !== 'par') return false
-  return getOp(edge.target)?.inputs[handleInfo.fieldName] instanceof ListField
+  const op = getOp(edge.target)
+  return Boolean(
+    op &&
+      resolveOperatorField(op, handleInfo.namespace, handleInfo.fieldName)?.field instanceof ListField
+  )
 }
 
 const groupKey = (edge: EdgeTargetRef) => `${edge.target}::${edge.targetHandle}`

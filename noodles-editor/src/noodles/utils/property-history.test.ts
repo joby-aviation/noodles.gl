@@ -446,4 +446,19 @@ describe('captureOperatorInputs + applyOperatorInputs round-trip', () => {
     // setValue should be called with the original value (42)
     expect(field.setValue).toHaveBeenCalledWith(42)
   })
+
+  it('restores vector input port modes, including the default whole layout', () => {
+    const portModes = { value: {}, next: vi.fn() }
+    const op = { ...mockOp('/op', { value: mockField(42) }), inputPortModes: portModes }
+    mockedGetAllOps.mockReturnValue([op as never])
+
+    const wholeSnapshot = captureOperatorInputs()
+    portModes.value = { center: 'channels' }
+
+    const store = { getOp: vi.fn(() => op) }
+    mockedGetOpStore.mockReturnValue(store as never)
+    applyOperatorInputs(wholeSnapshot)
+
+    expect(portModes.next).toHaveBeenCalledWith({})
+  })
 })
