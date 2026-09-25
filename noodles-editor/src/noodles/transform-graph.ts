@@ -419,6 +419,11 @@ export function transformGraph<
         continue
       }
 
+      if (!sourceField.connectable || !targetField.connectable) {
+        debugExecutor('Ignored connection to internal field: %s', edge.id)
+        continue
+      }
+
       targetField.addConnection(edge.id, sourceField, 'value')
 
       // Auto-show fields when they receive data connections (for programmatic/AI connections)

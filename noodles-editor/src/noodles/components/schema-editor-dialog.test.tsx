@@ -264,9 +264,7 @@ describe('SchemaEditorDialog', () => {
     fireEvent.click(screen.getByRole('button'))
 
     for (const column of allTypesSchema.columns) {
-      expect(
-        screen.getByRole('group', { name: `Default value for ${column.name}` })
-      ).toBeDefined()
+      expect(screen.getByRole('group', { name: `Default value for ${column.name}` })).toBeDefined()
     }
   })
 
@@ -359,6 +357,109 @@ describe('SchemaEditorDialog', () => {
     fireEvent.click(cancelButton)
 
     expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('exposes schema and column clipboard actions when provided', () => {
+    const onCopySchema = vi.fn()
+    const onCopyColumn = vi.fn()
+    const onPasteSchema = vi.fn()
+    const onPasteColumn = vi.fn()
+    render(
+      <SchemaEditorDialog
+        schema={mockSchema}
+        onChange={vi.fn()}
+        onCopySchema={onCopySchema}
+        onCopyColumn={onCopyColumn}
+        onPasteSchema={onPasteSchema}
+        onPasteColumn={onPasteColumn}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit schema' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Copy Schema' }))
+    expect(onCopySchema).toHaveBeenCalledWith(mockSchema)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Copy column schema name' }))
+    expect(onCopyColumn).toHaveBeenCalledWith(mockSchema.columns[0])
+
+    fireEvent.click(screen.getByRole('button', { name: 'Paste column schema overlay near name' }))
+    expect(onPasteColumn).toHaveBeenCalled()
+  })
+
+  it('disables clipboard actions while valid schema edits are unsaved', () => {
+    const onCopySchema = vi.fn()
+    const onPasteSchema = vi.fn()
+    render(
+      <SchemaEditorDialog
+        schema={mockSchema}
+        onChange={vi.fn()}
+        onCopySchema={onCopySchema}
+        onPasteSchema={onPasteSchema}
+        onCopyColumn={vi.fn()}
+        onPasteColumn={vi.fn()}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit schema' }))
+    fireEvent.change(screen.getAllByPlaceholderText('Column name')[0], {
+      target: { value: 'display_name' },
+    })
+
+    const status = screen.getByRole('status')
+    expect(status).toHaveTextContent('Save or cancel your schema changes')
+    expect(screen.getByRole('button', { name: 'Copy Schema' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Paste Overlay' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Copy column schema display_name' })).toBeDisabled()
+    expect(
+      screen.getByRole('button', { name: 'Paste column schema overlay near display_name' })
+    ).toBeDisabled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Copy Schema' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Paste Overlay' }))
+    expect(onCopySchema).not.toHaveBeenCalled()
+    expect(onPasteSchema).not.toHaveBeenCalled()
+  })
+
+  it('blocks an invalid direct schema save before invoking onChange', () => {
+    const onChange = vi.fn()
+    render(
+      <SchemaEditorDialog
+        schema={mockSchema}
+        onChange={onChange}
+        onCopySchema={vi.fn()}
+        onPasteSchema={vi.fn()}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit schema' }))
+    fireEvent.change(screen.getAllByPlaceholderText('Column name')[0], {
+      target: { value: 'age' },
+    })
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Column name "age" is duplicated')
+    const save = screen.getByRole('button', { name: 'Save' })
+    expect(save).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Copy Schema' })).toBeDisabled()
+    fireEvent.click(save)
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('supports a controlled dialog without rendering its own trigger', () => {
+    const onOpenChange = vi.fn()
+    render(
+      <SchemaEditorDialog
+        schema={mockSchema}
+        onChange={vi.fn()}
+        trigger={null}
+        open
+        onOpenChange={onOpenChange}
+      />
+    )
+
+    expect(screen.getByText('Table Schema Editor')).toBeDefined()
+    expect(screen.queryByRole('button', { name: 'Edit schema' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 
   it('should verify appendTo prop is set to fix dropdown z-index issue', () => {

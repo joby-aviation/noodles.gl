@@ -64,7 +64,7 @@ import {
   useUIStore,
 } from '../store'
 import { useProjectModificationActions } from '../contexts/project-modification-actions-context'
-import { inferSchema, type TableSchema } from '../table-schema'
+import { inferSchema, isTableSchema, type TableSchema } from '../table-schema'
 import type { NodeDataJSON } from '../transform-graph'
 import { canConnect } from '../utils/can-connect'
 import {
@@ -1842,10 +1842,9 @@ export function TableEditorOpComponent({
 
   const [data, setData] = useState((op?.inputs.data.value ?? []) as unknown[])
   const [schema, setSchema] = useState<TableSchema>(() => {
-    // Get schema from output or infer from data
-    const outputSchema = op?.outputs.schema.value
-    if (outputSchema && typeof outputSchema === 'object' && 'columns' in outputSchema) {
-      return outputSchema as TableSchema
+    const localSchema = op?.inputs.schema.value
+    if (isTableSchema(localSchema)) {
+      return localSchema
     }
     return inferSchema((op?.inputs.data.value ?? []) as unknown[])
   })
@@ -1854,11 +1853,15 @@ export function TableEditorOpComponent({
   useEffect(() => {
     if (!op) return
     const dataSub = op.inputs.data.subscribe(newData => {
-      setData(newData as unknown[])
+      const nextData = newData as unknown[]
+      setData(nextData)
+      if (!isTableSchema(op.inputs.schema.value)) {
+        setSchema(inferSchema(nextData))
+      }
     })
-    const schemaSub = op.outputs.schema.subscribe(newSchema => {
-      if (newSchema && typeof newSchema === 'object' && 'columns' in newSchema) {
-        setSchema(newSchema as TableSchema)
+    const schemaSub = op.inputs.schema.subscribe(newSchema => {
+      if (isTableSchema(newSchema)) {
+        setSchema(newSchema)
       }
     })
     return () => {
@@ -1877,11 +1880,14 @@ export function TableEditorOpComponent({
   }
 
   const handleSchemaChange = (newSchema: TableSchema, newData?: unknown[]) => {
+    // Keep the schema/data mutation atomic. The editor normally prevents invalid
+    // drafts from reaching here, but this boundary also protects programmatic callers.
+    if (!isTableSchema(newSchema)) return
+
     const before = captureOperatorInputs()
     op.inputs.schema.setValue(newSchema)
-    op.outputs.schema.setValue(newSchema)
     setSchema(newSchema)
-    if (newData) {
+    if (newData !== undefined) {
       op.inputs.data.setValue(newData)
       op.outputs.data.setValue(newData)
     }
@@ -1894,7 +1900,7 @@ export function TableEditorOpComponent({
       <NodeResizer isVisible={selected} minWidth={500} minHeight={300} />
       <div className={s.content}>
         {Object.entries(op.inputs)
-          .filter(([key]) => op.isFieldVisible(key) && key !== 'data')
+          .filter(([key]) => op.isFieldVisible(key) && key !== 'data' && key !== 'schema')
           .map(([key, field]) => (
             <FieldComponent
               key={key}
