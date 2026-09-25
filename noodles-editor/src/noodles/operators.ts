@@ -74,6 +74,7 @@ import type z from 'zod/v4'
 
 import './utils/bigint-fix' // BigInt JSON polyfill for DuckDB
 import * as duckdb from '@duckdb/duckdb-wasm'
+import { getRenderSurfaceSize, subscribeToRenderSurfaceSize } from '../render/render-surface-size'
 import { getTransformScaleFactor } from '../render/transform-scale'
 import { subscribeToPosition } from '../timeline/timeline-store'
 import * as utils from '../utils'
@@ -2615,6 +2616,18 @@ export class BoundingBoxOp extends Operator<BoundingBoxOp> {
   static description =
     'Calculate the geographic bounds of your points (with lat/lng keys) and get a camera position (center, zoom) that fits them all in view.'
   asDownload = () => this.outputData
+
+  constructor(
+    id: OpId,
+    data?: Partial<ExtractProps<ReturnType<BoundingBoxOp['createInputs']>>>,
+    locked = false,
+    containerId?: string
+  ) {
+    super(id, data, locked, containerId)
+    // The fit depends on the render surface, not just inputs; refit when it resizes
+    this.subs.push(subscribeToRenderSurfaceSize(() => this.markDirty('render surface resize')))
+  }
+
   createInputs() {
     return {
       data: new ArrayField(new Point2DField()),
@@ -2661,13 +2674,7 @@ export class BoundingBoxOp extends Operator<BoundingBoxOp> {
       [east, north],
     ] as [[number, number], [number, number]]
 
-    // const { resolution: { width, height } } = useSlice(store => store.renderer)
-    // TODO: get the state values. Currently broken due to tests
-    // Different containers for interleaved and pure deck.gl mode
-    const container =
-      document.querySelector('.deckgl-container') || document.querySelector('.maplibregl-map')
-    const width = container?.clientWidth || window.innerWidth
-    const height = container?.clientHeight || window.innerHeight
+    const { width, height } = getRenderSurfaceSize()
 
     const { longitude, latitude, zoom } = fitBounds({
       bounds,
