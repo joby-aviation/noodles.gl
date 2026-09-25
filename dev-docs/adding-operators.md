@@ -84,6 +84,25 @@ export const categories = {
 - `widget` - UI widgets
 - `grouping` - Container/loop operators
 
+### Reading Host State (Environment)
+
+If `execute()` needs state from the editor rather than from an input (timeline position, render
+surface size, clock, or pointer), declare it and read it from the second argument:
+
+```typescript
+export class BoundingBoxOp extends Operator<BoundingBoxOp> {
+  static environment = ['renderSurface'] as const
+
+  execute({ data, padding }, { renderSurface }: Environment = this.env) {
+    // ...
+  }
+}
+```
+
+The operator re-executes when a declared key changes. Don't subscribe to stores, start RAF loops,
+or add DOM listeners inside an operator. See
+[architecture.md](architecture.md#environment-state) for the available keys and where they come from.
+
 ### Key Principles
 
 1. **Pure Functions**: Operators should be deterministic
