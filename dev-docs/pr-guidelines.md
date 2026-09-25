@@ -69,32 +69,65 @@ Provide clear instructions for manually testing changes in the UI.
 
 See [Testing Guide - Test Runbooks](testing-guide.md#test-runbooks-for-prs) for detailed runbook guidelines.
 
+### Screenshots (Required for UI Changes)
+
+Most reviewers can't judge a UI change from the diff alone. Any PR that changes what the user sees must include a screenshot, GIF or screen recording. This covers the node editor, properties panel, timeline, menus and dialogs, and the rendered map or visualization.
+
+- **Show before and after**, labeled, side by side or one after the other
+- **Use a GIF or recording for interactions** such as dragging, scrubbing, hover states, animations and timeline playback
+- **Crop to the relevant area**, keeping enough surrounding UI to show where it is in the app
+- **Add a one-line caption** on what to look for, e.g. "The edge now highlights on hover."
+- **Don't commit screenshots** to the repo unless they are documentation assets. Attach them to the PR instead
+
+Attach by dragging files into the PR description on GitHub, or from the CLI with `--attach` (on `gh pr create`, `gh pr edit` and `gh pr comment`). References in the body such as `![Before](./before.png)` are rewritten to the uploaded asset:
+
+```bash
+gh pr create --body-file body.md \
+  --attach './before.png#Values cleared after rename' \
+  --attach './after.png#Values kept after rename'
+```
+
+See the [Screenshot Guide](screenshot-guide.md) for capturing consistent screenshots, including with Chrome DevTools MCP.
+
 ## PR Description Template
 
-Use this template for your PR descriptions:
+GitHub fills in [`.github/pull_request_template.md`](../.github/pull_request_template.md) when you open a PR. Keep its headings and remove the optional ones that don't apply:
 
 ```markdown
-## Summary
-[Brief description of what this PR does]
+Closes #123
 
-## Changes
-- [List of specific changes made]
-- [Another change]
+#### Background
+[Optional: 1-3 sentences on what is wrong or missing today and how this PR addresses it]
 
-## Testing
-### Unit Tests
-- [Describe unit tests added/modified]
+#### Change List
+- [One bullet per operator, component, API or artifact changed]
+- Unit tests
 
-### Manual Testing
-[Provide test runbook - see guidelines below]
+#### Screenshots
+![Before](./before.png)
+![After](./after.png)
+[One-line caption on what to look for]
 
-## Documentation
-- [List documentation updates]
-- [Or state "No documentation changes needed"]
+<details>
+<summary>Test runbook</summary>
 
-## Related Issues
-Fixes #[issue number]
+[Optional: runbook and noodles.json, see below]
+
+</details>
 ```
+
+### Description Tips
+
+Adapted from the [deck.gl PR description guidelines](https://github.com/visgl/deck.gl/blob/master/dev-docs/pr-description-guidelines.md), which have many more examples. Reviewers read the description before the diff, and after merge it is the main record of _why_ a change was made.
+
+- **Keep it short.** Most good descriptions are 300 to 900 characters, not counting a collapsed runbook. Length should follow how much reasoning is new to the reviewer, not the size of the diff
+- **Link, don't repeat.** Use `Closes #123`, `For #123` (partial) or `Follow up of #123`. Remove the line if there is no issue, and name the PR that introduced a regression, e.g. `Introduced by #512`
+- **Background: current behavior first, then the problem.** Stay concrete and quote the error, operator or line of code involved. Don't describe how good the solution is ("comprehensive", "robust", "clean")
+- **Change List: one bullet per change, ten words or less.** Start with a verb or the name of the thing changed, e.g. `` `TableEditorOp`: preserve values on column rename``. Identifiers in backticks, no trailing periods, no file lists
+- **Call out what a reviewer might question**: project migrations and version bumps, removed workarounds, deleted or skipped tests, breaking changes (with reasoning and impact as sub-bullets)
+- **Say how it was verified in one line**, listing what was actually run, e.g. "Verified in the nyc-taxis example on Chrome and Safari." Don't leave checkboxes for the reviewer
+- **State the scope.** Say what is left out on purpose under `#### TODO`, number multi-part PRs in the title (`Timeline markers (1/3)`), and ask open design questions under `#### Questions`
+- **Leave out** restated titles, `Summary` / `Test plan` / `Validation` sections, tables of files, emoji, footers and links to tool sessions
 
 ## Manual Testing Runbook Guidelines
 
@@ -183,6 +216,7 @@ Before requesting review, ensure:
 - [ ] Type checker passes (`npm run typecheck`)
 - [ ] Manual testing completed (if applicable)
 - [ ] Documentation updated (if applicable)
+- [ ] Screenshot, GIF or recording attached (for UI changes)
 - [ ] Test runbook provided (for user-facing changes)
 - [ ] Commit messages are clear and descriptive
 - [ ] PR description follows template
@@ -262,4 +296,4 @@ docs: update operator API reference
 
 ---
 
-**Last Updated**: 2025-12-01
+**Last Updated**: 2026-09-24
