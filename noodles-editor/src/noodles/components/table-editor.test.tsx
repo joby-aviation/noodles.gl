@@ -12,7 +12,7 @@ const clipboard = {
 vi.stubGlobal('navigator', { ...navigator, clipboard })
 
 function openTableSchemaActions() {
-  fireEvent.pointerDown(screen.getByRole('button', { name: 'Table schema actions' }), {
+  fireEvent.pointerDown(screen.getByRole('button', { name: 'Table actions' }), {
     button: 0,
     ctrlKey: false,
   })
@@ -82,6 +82,14 @@ describe('TableEditor', () => {
 
     expect(getByText('Alice')).toBeDefined()
     expect(getByText('Bob')).toBeDefined()
+    expect(screen.getByRole('grid')).toHaveAttribute('aria-colcount', '4')
+    expect(screen.getByText('Alice').closest('[role="gridcell"]')).toHaveAttribute(
+      'aria-colindex',
+      '2'
+    )
+    expect(
+      screen.getAllByRole('button', { name: 'Delete row' })[0]?.closest('[role="gridcell"]')
+    ).toHaveAttribute('aria-colindex', '4')
   })
 
   it('should show stats in toolbar', () => {
@@ -190,7 +198,7 @@ describe('TableEditor', () => {
       />
     )
 
-    expect(screen.getByRole('button', { name: 'Table schema actions' })).toBeDefined()
+    expect(screen.getByRole('button', { name: 'Table actions' })).toBeDefined()
   })
 
   it('copies a readable versioned table schema envelope', async () => {
@@ -341,10 +349,7 @@ describe('TableEditor', () => {
     })
     fireEvent.click(screen.getByRole('button', { name: 'Apply Overlay' }))
 
-    const [appliedSchema, appliedData] = onSchemaChange.mock.calls[0] as [
-      TableSchema,
-      unknown[],
-    ]
+    const [appliedSchema, appliedData] = onSchemaChange.mock.calls[0] as [TableSchema, unknown[]]
     expect(appliedSchema.columns[0]).toMatchObject({ id: 'shared-lineage', name: 'name' })
     expect(appliedData).toEqual(simpleData)
 
@@ -537,7 +542,7 @@ describe('TableEditor', () => {
     )
   })
 
-  it('persists values when a connected schema renames a column', () => {
+  it('persists values when an external schema update renames a column', () => {
     const onDataChange = vi.fn()
     const renamedSchema: TableSchema = {
       columns: [
@@ -612,7 +617,7 @@ describe('TableEditor', () => {
     expect(getByText(/1 row × 2 columns/i)).toBeDefined()
   })
 
-  it('applies declared defaults when an inherited schema adds columns', () => {
+  it('applies declared defaults when an external schema update adds columns', () => {
     const onDataChange = vi.fn()
     const onSchemaChange = vi.fn()
     const initialSchema: TableSchema = {
@@ -690,7 +695,7 @@ describe('TableEditor', () => {
     expect(onSchemaChange).toHaveBeenCalledWith(schema, data)
   })
 
-  it('flushes an active edit before applying an inherited schema update', () => {
+  it('flushes an active edit before applying an external schema update', () => {
     const onDataChange = vi.fn()
     const initialSchema: TableSchema = {
       columns: [{ name: 'name', type: 'string', defaultValue: '' }],
@@ -713,7 +718,7 @@ describe('TableEditor', () => {
       />
     )
 
-    fireEvent.click(getByText('Downtown Skyport'))
+    fireEvent.doubleClick(getByText('Downtown Skyport'))
     fireEvent.change(container.querySelector('input.p-inputtext') as HTMLInputElement, {
       target: { value: 'Edited Skyport' },
     })
@@ -809,5 +814,220 @@ describe('TableEditor', () => {
 
     // When schema changes, the component should convert invalid values to defaults
     // This prevents the "t is not iterable" error when color picker tries to render a string
+  })
+
+  it('uses spreadsheet selection before entering edit mode', () => {
+    render(
+      <TableEditor
+        op={mockOp}
+        data={simpleData}
+        schema={simpleSchema}
+        onDataChange={vi.fn()}
+        onSchemaChange={vi.fn()}
+      />
+    )
+
+    const value = screen.getByText('Alice')
+    const cell = value.closest('[role="gridcell"]') as HTMLElement
+    fireEvent.click(value)
+    expect(cell).toHaveAttribute('aria-selected', 'true')
+    expect(screen.queryByRole('textbox')).toBeNull()
+
+    fireEvent.doubleClick(value)
+    expect(screen.getByRole('textbox')).toHaveValue('Alice')
+  })
+
+  it('navigates and extends a rectangular selection with the keyboard', () => {
+    render(
+      <TableEditor
+        op={mockOp}
+        data={simpleData}
+        schema={simpleSchema}
+        onDataChange={vi.fn()}
+        onSchemaChange={vi.fn()}
+      />
+    )
+
+    const alice = screen.getByText('Alice').closest('[role="gridcell"]') as HTMLElement
+    const ten = screen.getByText('10').closest('[role="gridcell"]') as HTMLElement
+    const twenty = screen.getByText('20').closest('[role="gridcell"]') as HTMLElement
+    fireEvent.click(alice)
+    fireEvent.keyDown(alice, { key: 'ArrowRight', shiftKey: true })
+    expect(alice).toHaveAttribute('aria-selected', 'true')
+    expect(ten).toHaveAttribute('aria-selected', 'true')
+    expect(ten).toHaveAttribute('tabindex', '0')
+
+    fireEvent.keyDown(ten, { key: 'ArrowDown', shiftKey: true })
+    expect(twenty).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByText('Bob').closest('[role="gridcell"]')).toHaveAttribute(
+      'aria-selected',
+      'true'
+    )
+  })
+
+  it('extends a rectangular selection with pointer drag', () => {
+    render(
+      <TableEditor
+        op={mockOp}
+        data={simpleData}
+        schema={simpleSchema}
+        onDataChange={vi.fn()}
+        onSchemaChange={vi.fn()}
+      />
+    )
+
+    const alice = screen.getByText('Alice').closest('[role="gridcell"]') as HTMLElement
+    const twenty = screen.getByText('20').closest('[role="gridcell"]') as HTMLElement
+    fireEvent.pointerDown(alice, { button: 0 })
+    fireEvent.pointerEnter(twenty)
+    fireEvent.pointerUp(document)
+
+    for (const cell of screen.getAllByRole('gridcell').filter(cell => cell.dataset.gridRow)) {
+      expect(cell).toHaveAttribute('aria-selected', 'true')
+    }
+  })
+
+  it('selects complete rows, columns, and the whole grid from headers', () => {
+    render(
+      <TableEditor
+        op={mockOp}
+        data={simpleData}
+        schema={simpleSchema}
+        onDataChange={vi.fn()}
+        onSchemaChange={vi.fn()}
+      />
+    )
+
+    fireEvent.click(screen.getAllByRole('rowheader')[1])
+    expect(screen.getByText('Bob').closest('[role="gridcell"]')).toHaveAttribute(
+      'aria-selected',
+      'true'
+    )
+    expect(screen.getByText('20').closest('[role="gridcell"]')).toHaveAttribute(
+      'aria-selected',
+      'true'
+    )
+
+    fireEvent.click(screen.getByRole('columnheader', { name: /name/i }))
+    expect(screen.getByText('Alice').closest('[role="gridcell"]')).toHaveAttribute(
+      'aria-selected',
+      'true'
+    )
+    expect(screen.getByText('Bob').closest('[role="gridcell"]')).toHaveAttribute(
+      'aria-selected',
+      'true'
+    )
+
+    fireEvent.click(screen.getByRole('columnheader', { name: '#' }))
+    for (const cell of screen.getAllByRole('gridcell').filter(cell => cell.dataset.gridRow)) {
+      expect(cell).toHaveAttribute('aria-selected', 'true')
+    }
+  })
+
+  it('starts editing from printable typing, cancels with Escape, and advances with Enter', () => {
+    const onDataChange = vi.fn()
+    render(
+      <TableEditor
+        op={mockOp}
+        data={simpleData}
+        schema={simpleSchema}
+        onDataChange={onDataChange}
+        onSchemaChange={vi.fn()}
+      />
+    )
+
+    const alice = screen.getByText('Alice').closest('[role="gridcell"]') as HTMLElement
+    fireEvent.click(alice)
+    fireEvent.keyDown(alice, { key: 'Z' })
+    const editor = screen.getByRole('textbox')
+    expect(editor).toHaveValue('Z')
+    fireEvent.keyDown(editor, { key: 'Escape' })
+    expect(onDataChange).not.toHaveBeenCalled()
+    expect(screen.getByText('Alice')).toBeDefined()
+
+    fireEvent.keyDown(alice, { key: 'Enter' })
+    const secondEditor = screen.getByRole('textbox')
+    fireEvent.change(secondEditor, { target: { value: 'Alicia' } })
+    fireEvent.keyDown(secondEditor, { key: 'Enter' })
+    expect(onDataChange).toHaveBeenCalledWith(
+      [
+        { name: 'Alicia', count: 10 },
+        { name: 'Bob', count: 20 },
+      ],
+      'Edit cell name'
+    )
+    expect(screen.getByText('Bob').closest('[role="gridcell"]')).toHaveAttribute('tabindex', '0')
+  })
+
+  it('replaces a selected number cell from the first typed digit', () => {
+    const onDataChange = vi.fn()
+    render(
+      <TableEditor
+        op={mockOp}
+        data={simpleData}
+        schema={simpleSchema}
+        onDataChange={onDataChange}
+        onSchemaChange={vi.fn()}
+      />
+    )
+
+    const count = screen.getByText('10').closest('[role="gridcell"]') as HTMLElement
+    fireEvent.click(count)
+    fireEvent.keyDown(count, { key: '7' })
+
+    const editor = screen.getByRole('spinbutton', { name: 'Edit count' })
+    expect(editor).toHaveValue(7)
+    fireEvent.keyDown(editor, { key: 'Enter' })
+    expect(onDataChange).toHaveBeenCalledWith(
+      [
+        { name: 'Alice', count: 7 },
+        { name: 'Bob', count: 20 },
+      ],
+      'Edit cell count'
+    )
+  })
+
+  it('keeps action menus open when selecting the operator rerenders the table', () => {
+    const props = {
+      op: mockOp,
+      data: simpleData,
+      schema: simpleSchema,
+      onDataChange: vi.fn(),
+      onSchemaChange: vi.fn(),
+    }
+    const { rerender } = render(<TableEditor {...props} />)
+
+    fireEvent.pointerDown(screen.getByRole('button', { name: 'Table actions' }), {
+      button: 0,
+      ctrlKey: false,
+    })
+    expect(screen.getByText('Copy All Data')).toBeDefined()
+
+    rerender(<TableEditor {...props} onDataChange={vi.fn()} />)
+
+    expect(screen.getByText('Copy All Data')).toBeDefined()
+  })
+
+  it('keeps user column names separate from internal table columns', () => {
+    const collisionSchema: TableSchema = {
+      columns: [
+        { name: '_rowNumber', type: 'string', defaultValue: '' },
+        { name: '_actions', type: 'string', defaultValue: '' },
+      ],
+    }
+    render(
+      <TableEditor
+        op={mockOp}
+        data={[{ _rowNumber: 'user row', _actions: 'user actions' }]}
+        schema={collisionSchema}
+        onDataChange={vi.fn()}
+        onSchemaChange={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText('user row')).toBeDefined()
+    expect(screen.getByText('user actions')).toBeDefined()
+    expect(screen.getAllByRole('gridcell')).toHaveLength(3)
+    expect(document.querySelectorAll('[data-grid-row]')).toHaveLength(2)
   })
 })

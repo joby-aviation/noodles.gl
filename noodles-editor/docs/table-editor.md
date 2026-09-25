@@ -100,12 +100,30 @@ tables.
 
 ### UI Features
 
-- **Inline editing**: Click cell to edit
+- **Spreadsheet selection**: Click selects a cell; Shift-click or Shift-arrow extends a range
+- **Inline editing**: Double-click, Enter, F2, or typing edits the active cell
+- **Clipboard data transfer**: Copy ranges to Google Sheets and paste Sheets ranges back
 - **Add/delete rows**: Add button in toolbar, delete button per row
 - **Schema management**: Edit Schema dialog for column configuration
 - **Row numbers**: Visual index for each row
 - **Stats display**: Shows row × column count
-- **Keyboard navigation**: Enter to confirm, Escape to cancel
+- **Keyboard navigation**: Arrows move, Enter/Tab confirm and advance, Escape cancels
+
+### Spreadsheet Clipboard
+
+Copying a table selection writes quoted TSV and an HTML table for interoperability with Google
+Sheets, plus a best-effort typed Noodles range payload. Use **Copy with Column Names** when the
+destination should receive a header row. Vectors and other structured cells use JSON text in the
+universal TSV/HTML formats; the typed payload preserves their native values between TableEditors.
+
+Pasting into an existing schema starts at the active cell. Lossless in-bounds data applies
+immediately, and rows are added when the range extends downward. Conversion failures or columns
+that extend past the right edge open a preview instead of truncating data. Pasting into an empty
+TableEditor always opens the preview with header detection enabled.
+
+Pasting a clearly tabular Sheets, TSV, CSV, or JSON selection on empty canvas opens the same
+preview. Confirming creates one populated TableEditor at the pointer; plain text, schema-only
+clipboard data, and malformed JSON do not create nodes.
 
 ### Data Flow
 
@@ -275,7 +293,7 @@ manually; source strings are not rewritten during migration.
 ### Planned Features
 
 - **Geocoder integration**: Address → coordinates for Point2D columns
-- **Import/Export CSV**: Direct CSV import with type inference
+- **File import/export**: Dedicated CSV files in addition to clipboard-based CSV/TSV import
 - **Row reordering**: Drag-and-drop row reorder
 - **Column reordering**: Drag-and-drop column reorder
 - **Bulk operations**: Select multiple rows, bulk delete/edit
@@ -308,11 +326,15 @@ npm test table-schema.test.ts
 
 **Manual Testing:**
 1. Load example: `http://localhost:5173/noodles/table-editor-demo`
-2. Test inline editing for all column types
-3. Test schema editor (add/edit/delete columns)
-4. Test row operations (add/delete)
-5. Test data flow to visualizations
-6. Test validation (try invalid values)
+2. In Chrome and Safari, copy a real Google Sheets range containing blank cells, quotes, tabs, and
+   multiline text into an empty TableEditor; verify headers/types in the preview and the final cell.
+3. Copy a rectangular Noodles selection back to Sheets with and without column names.
+4. Test single-click selection, double-click/Enter editing, Shift range extension, and number/vector
+   scrubbing.
+5. Paste a 1,000 × 10 range, navigate to the final row, and confirm scrolling stays responsive.
+6. Paste the same range on empty canvas, cancel once, then confirm and undo the created node.
+7. Verify copied graph nodes still paste normally and malformed/plain clipboard text does nothing.
+8. Test schema editor, schema overlays, row operations, and data flow to visualizations.
 
 ## Troubleshooting
 

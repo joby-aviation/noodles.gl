@@ -28,6 +28,11 @@
   position: sticky;
   top: 0;
   z-index: 1;
+  user-select: none;
+}
+
+.selectedHeader {
+  background: color-mix(in srgb, var(--primary-color) 18%, var(--surface-ground));
 }
 
 .columnHeader {
@@ -106,6 +111,7 @@
 
 .row {
   border-bottom: 1px solid var(--surface-border);
+  height: 36px;
 }
 
 .row:hover {
@@ -115,10 +121,26 @@
 .cellContainer {
   padding: 0;
   border-right: 1px solid var(--surface-border);
+  position: relative;
+  outline: none;
 }
 
 .cellContainer:last-child {
   border-right: none;
+}
+
+.selectedCell {
+  background: color-mix(in srgb, var(--primary-color) 12%, transparent);
+}
+
+.activeCell {
+  box-shadow: inset 0 0 0 2px var(--primary-color);
+  z-index: 1;
+}
+
+.rowHeader {
+  cursor: pointer;
+  user-select: none;
 }
 
 .cell {
@@ -138,6 +160,33 @@
 .cell:focus {
   outline: 2px solid var(--primary-color);
   outline-offset: -2px;
+}
+
+.stringLiteralCell {
+  padding: 4px 8px;
+}
+
+.stringLiteralSelect {
+  width: 100%;
+  min-width: 0;
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--surface-border);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--surface-ground) 80%, transparent);
+  color: var(--text-color);
+  cursor: pointer;
+  font: inherit;
+}
+
+.stringLiteralSelect:hover {
+  border-color: color-mix(in srgb, var(--primary-color) 55%, var(--surface-border));
+  background: var(--surface-hover);
+}
+
+.stringLiteralSelect:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 1px;
 }
 
 .editing {
@@ -168,6 +217,13 @@
   background: transparent;
   color: inherit;
   font: inherit;
+}
+
+.cellEditorGroup {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
 }
 
 .numberInputWrapper,
@@ -244,6 +300,9 @@
   width: 100%;
   min-width: 0;
   height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
 }
 
 .timezoneIndicator {
