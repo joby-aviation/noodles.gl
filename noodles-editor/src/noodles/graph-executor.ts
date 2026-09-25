@@ -3,6 +3,7 @@
 
 import { debugExecutor, debugExecutorFrame } from '../utils/debug'
 import { visibilityAdaptiveLoop } from '../utils/worker-timer'
+import { publishEnvironment, readEnvironment } from './environment'
 import type { Field } from './fields'
 import type { ForLoopBeginOp, ForLoopEndOp, ForLoopMetaOp, IOperator, Operator } from './operators'
 import { getAllOps } from './store'
@@ -218,6 +219,10 @@ export class GraphExecutor {
     // Guard against the interval firing more frequently than expected
     if (deltaTime >= this.frameInterval) {
       this.lastFrameTime = currentTime - (deltaTime % this.frameInterval)
+
+      // Advance the clock even while a slow frame is still pulling, so clock-driven
+      // operators don't freeze behind a long-running async operator
+      publishEnvironment('clock', { now: Date.now(), tick: readEnvironment('clock').tick + 1 })
 
       if (!this.isPulling) {
         this.isPulling = true
@@ -992,7 +997,7 @@ export class GraphScope {
         }
 
         // Execute the operator
-        const outputs = await node.execute(inputs)
+        const outputs = await node.execute(inputs, node.env)
         lastResult = { value: outputs, changed: true }
 
         // Store intermediate results in context

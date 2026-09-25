@@ -33,6 +33,7 @@ import { createPortal } from 'react-dom'
 import { Temporal } from 'temporal-polyfill'
 
 import { analytics } from '../../utils/analytics'
+import { useProjectModificationActions } from '../contexts/project-modification-actions-context'
 import { ArrayField, type Field, type IField, ListField } from '../fields'
 import { useKeysStore } from '../keys-store'
 import s from '../noodles.module.css'
@@ -63,7 +64,6 @@ import {
   useOperatorStore,
   useUIStore,
 } from '../store'
-import { useProjectModificationActions } from '../contexts/project-modification-actions-context'
 import { inferSchema, type TableSchema } from '../table-schema'
 import type { NodeDataJSON } from '../transform-graph'
 import { canConnect } from '../utils/can-connect'
@@ -1745,15 +1745,6 @@ function MouseOpComponent({
 
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 })
   const isDimmed = useNodeDimmed(id)
-
-  // Inject the container element into the operator
-  useEffect(() => {
-    if (!op) return
-    const container = document.querySelector('.transform-scale')
-    if (container) {
-      op.setContainer(container)
-    }
-  }, [op])
 
   // Subscribe to output for display
   useEffect(() => {

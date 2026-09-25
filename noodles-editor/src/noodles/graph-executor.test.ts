@@ -1,6 +1,7 @@
 // Test file for GraphExecutor implementation
 import { describe, expect, it, vi } from 'vitest'
 import { debugDirtyTrace } from '../utils/debug'
+import { readEnvironment } from './environment'
 import { NumberField } from './fields'
 import { GraphExecutor, GraphScope, topologicalSort } from './graph-executor'
 import type { IOperator } from './operators'
@@ -3036,5 +3037,22 @@ describe('GraphExecutor - ForLoopMetaOp accumulator and iteration metadata', () 
 
     expect(lastIsFirst).toBe(true)
     expect(lastIsLast).toBe(true)
+  })
+})
+
+describe('GraphExecutor clock environment', () => {
+  it('advances the clock every loop tick, even while a frame is still pulling', () => {
+    const executor = new GraphExecutor({ targetFPS: 60 })
+    // A frame that never settles, like one blocked on a slow network operator
+    const executeFrame = vi.spyOn(executor, 'executeFrame').mockReturnValue(new Promise(() => {}))
+    const loop = (executor as unknown as { loop: (time: number) => void }).loop
+    const startTick = readEnvironment('clock').tick
+
+    loop(1000)
+    loop(1100)
+    loop(1200)
+
+    expect(executeFrame).toHaveBeenCalledOnce()
+    expect(readEnvironment('clock').tick).toBe(startTick + 3)
   })
 })

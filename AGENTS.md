@@ -682,6 +682,7 @@ Any field can be keyframed via the native timeline system. Changes in timeline p
 8. **Testing is expected** - Add tests for new features and changes to critical components
 9. **Document edge cases** - Users may not expect implementation-specific behavior
 10. **Keep PRs focused** - Split large changes into reviewable chunks when possible
+11. **Host state goes through `static environment`** - Timeline, render surface, clock, and pointer are read from `execute(props, env)` after declaring them; never subscribe to stores or the DOM from an operator (see [architecture.md](dev-docs/architecture.md#environment-state))
 
 ## The In-App AI Assistant
 

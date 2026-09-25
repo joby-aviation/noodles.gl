@@ -11,6 +11,7 @@ import { SpreadsheetPane } from './noodles/components/spreadsheet-pane/spreadshe
 import { MapToolLayer } from './noodles/components/tools/map-tool-layer'
 import { TopMenuBar } from './noodles/components/top-menu-bar'
 import { ExportActionsProvider } from './noodles/contexts/export-actions-context'
+import { publishEnvironment } from './noodles/environment'
 import { useActiveStorageType, useCurrentDirectory } from './noodles/filesystem-store'
 import { useActiveOutOp } from './noodles/hooks/use-active-outop'
 import { useRenderSettings } from './noodles/hooks/use-render-settings'
@@ -22,8 +23,8 @@ import { useDeckDrawLoop } from './render/draw-loop'
 import {
   calculateRenderSurfaceSize,
   observeRenderSurface,
-  setRenderSurfaceSize,
-} from './render/render-surface-size'
+  observeRenderSurfacePointer,
+} from './render/render-surface'
 import { captureScreenshot, useRenderer } from './render/renderer'
 import { deckRenderingDefaults, mapRenderingDefaults } from './render/rendering-defaults'
 import { TransformScale } from './render/transform-scale'
@@ -548,14 +549,24 @@ export default function TimelineEditor() {
   // (e.g. BoundingBoxOp) match what is rendered, in both fixed and responsive modes
   useLayoutEffect(() => {
     if (isFixedMode) {
-      setRenderSurfaceSize({ width: renderWidth, height: renderHeight })
+      publishEnvironment('renderSurface', { width: renderWidth, height: renderHeight })
       return
     }
 
     const surface = renderSurfaceRef.current
     if (!surface) return
-    return observeRenderSurface(surface, setRenderSurfaceSize)
+    return observeRenderSurface(surface, size => publishEnvironment('renderSurface', size))
   }, [isFixedMode, renderWidth, renderHeight])
+
+  // Publish the pointer in render-surface pixels for MouseOp
+  useEffect(
+    () =>
+      observeRenderSurfacePointer(
+        () => renderSurfaceRef.current,
+        point => publishEnvironment('pointer', point)
+      ),
+    []
+  )
 
   const renderContent = () => {
     const content = basemapEnabled ? (
