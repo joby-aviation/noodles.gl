@@ -12,12 +12,7 @@ import {
   identifyContainerChildren,
   remapPastedIds,
 } from '../utils/copy-paste-utils'
-import {
-  type CopiedNodesJSON,
-  isRuntimeOnlyInputEdge,
-  safeStringify,
-  serializeNodes,
-} from '../utils/serialization'
+import { type CopiedNodesJSON, safeStringify, serializeNodes } from '../utils/serialization'
 
 export interface CopyControlsProps {
   graphRef: GraphRef
@@ -92,8 +87,7 @@ export const CopyControls = forwardRef<CopyControlsRef, CopyControlsProps>(({ gr
     const serializedNodes = serializeNodes(store, nodesToCopy, edgesToCopy, {
       forClipboard: true,
     })
-    const serializedEdges = edgesToCopy.filter(edge => !isRuntimeOnlyInputEdge(store, edge))
-    const data = safeStringify({ nodes: serializedNodes, edges: serializedEdges })
+    const data = safeStringify({ nodes: serializedNodes, edges: edgesToCopy })
 
     clipboardDataRef.current = data
     copy(data)

@@ -728,7 +728,6 @@ export function bindOperatorToTimeline(op: Operator<IOperator>, store?: Timeline
   const cleanupFns: Array<() => void> = []
 
   for (const [fieldName, field] of Object.entries(op.inputs)) {
-    if (field.runtimeOnly) continue
     // Table data: individual cells can be keyframed ("table / data / 0 / value")
     if (field instanceof DataField) {
       const cleanup = bindTableCellsToTimeline(op, getFieldPath(op.id, fieldName), field, store)
