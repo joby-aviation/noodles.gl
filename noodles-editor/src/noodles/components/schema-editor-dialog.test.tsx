@@ -86,7 +86,12 @@ describe('SchemaEditorDialog', () => {
       {
         columns: [
           { name: 'name', type: 'string', defaultValue: '' },
-          { name: 'display_name', type: 'string', defaultValue: '' },
+          {
+            id: expect.any(String),
+            name: 'display_name',
+            type: 'string',
+            defaultValue: '',
+          },
           { name: 'age', type: 'number', defaultValue: 0 },
         ],
       },
@@ -334,7 +339,7 @@ describe('SchemaEditorDialog', () => {
       columns: [
         { name: 'name', type: 'string', defaultValue: '' },
         { name: 'age', type: 'number', defaultValue: 0 },
-        { name: 'column_3', type: 'string', defaultValue: '' },
+        { id: expect.any(String), name: 'column_3', type: 'string', defaultValue: '' },
       ],
     })
   })
