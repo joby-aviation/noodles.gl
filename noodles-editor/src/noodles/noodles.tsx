@@ -109,6 +109,7 @@ import {
 } from './store'
 import { transformGraph } from './transform-graph'
 import { canConnectCached } from './utils/can-connect'
+import { DeckProjectAssetResolver } from './utils/deck-project-asset-resolver'
 import { instantiateDeckView } from './utils/deck-view'
 import { directoryHandleCache } from './utils/directory-handle-cache'
 import {
@@ -118,6 +119,7 @@ import {
   writeFileToDirectory,
 } from './utils/filesystem'
 import { reconcileForLoopGroups } from './utils/for-loop-group-utils'
+import { insertUniqueEdge } from './utils/edge-integrity'
 import { edgeId, nodeId } from './utils/id-utils'
 import { shouldBlockKeyboardShortcut } from './utils/input-detection'
 import { generateDraftId, memoryProjectStore } from './utils/memory-project-store'
@@ -215,8 +217,13 @@ export function getNoodles(): Visualization {
   const [showExampleNotFoundDialog, setShowExampleNotFoundDialog] = useState(false)
   const [graphErrors, setGraphErrors] = useState<GraphError[]>([])
   const storageType = useActiveStorageType()
-  const { currentDirectory, setCurrentDirectory, setActiveStorageType, setError } =
-    useFileSystemStore()
+  const {
+    currentDirectory,
+    currentProjectName: storedProjectName,
+    setCurrentDirectory,
+    setActiveStorageType,
+    setError,
+  } = useFileSystemStore()
   const timelineStore = getTimelineStore()
   const getTimelineJson = useCallback((): Record<string, unknown> => {
     return timelineStore.toTimelineJSON() as unknown as Record<string, unknown>
@@ -416,7 +423,9 @@ export function getNoodles(): Visualization {
     // operators exist in the store (covers undo/redo restores, keyboard deletes, and AI/paste
     // paths that added edges before their operators were instantiated). Returns the same
     // array reference when nothing changed, so this doesn't loop.
-    setEdges(eds => normalizeMultiInputEdges(eds.filter(edge => edge.type !== 'ReferenceEdge')))
+    setEdges(currentEdges =>
+      normalizeMultiInputEdges(currentEdges.filter(edge => edge.type !== 'ReferenceEdge'))
+    )
   }, [graphStructureKey])
 
   // Reset isProjectLoadRef after every render so the flag never gets stuck when
@@ -726,95 +735,58 @@ export function getNoodles(): Visualization {
 
   // Handle 'v' keyup to create ViewerOp (momentary button behavior)
   useKeyboardShortcut('v', () => {
+    const currentNodes = graphRef.current.nodes
+    const hoveredHandle = getUIStore().hoveredOutputHandle
+    let sourceNode: ReactFlowNode | undefined
+    let sourceHandle: string | null = null
+
+    // Priority 1: If hovering over ANY output handle, use that
+    if (hoveredHandle?.handleId.startsWith('out.')) {
+      sourceNode = currentNodes.find(node => node.id === hoveredHandle.nodeId)
+      sourceHandle = sourceNode ? hoveredHandle.handleId : null
+    }
+
+    // Priority 2: If nodes are selected, use rightmost selected node
+    if (!sourceNode) {
+      const selectedNodes = currentNodes.filter(node => node.selected)
+      if (selectedNodes.length === 0) return
+
+      sourceNode = selectedNodes.reduce((rightmost, node) =>
+        node.position.x > rightmost.position.x ? node : rightmost
+      )
+      const sourceOp = getOpStore().getOp(sourceNode.id)
+      const firstOutputKey = sourceOp && Object.keys(sourceOp.outputs)[0]
+      sourceHandle = firstOutputKey ? `out.${firstOutputKey}` : null
+    }
+
+    const viewerId = nodeId('viewer', currentContainerId)
+    const viewerNode: AnyNodeJSON = {
+      id: viewerId,
+      type: 'ViewerOp',
+      position: calculateViewerPosition(sourceNode, currentNodes),
+      data: undefined,
+    }
+
+    setNodes(nodes => (nodes.some(node => node.id === viewerId) ? nodes : [...nodes, viewerNode]))
+
+    if (sourceHandle) {
+      const targetHandle = 'par.data'
+      const newEdge: ReactFlowEdge = {
+        id: edgeId({
+          source: sourceNode.id,
+          sourceHandle,
+          target: viewerId,
+          targetHandle,
+        }),
+        source: sourceNode.id,
+        sourceHandle,
+        target: viewerId,
+        targetHandle,
+      }
+      setEdges(edges => normalizeMultiInputEdges(insertUniqueEdge(edges, newEdge)))
+    }
+
     analytics.track('viewer_created', { method: 'keyboard' })
-
-    setNodes(currentNodes => {
-      const selectedNodes = currentNodes.filter(n => n.selected)
-      const opStore = getOpStore()
-      const uiStore = getUIStore()
-      const hoveredHandle = uiStore.hoveredOutputHandle
-
-      // Priority 1: If hovering over ANY output handle, use that
-      if (hoveredHandle?.handleId.startsWith('out.')) {
-        const hoveredNode = currentNodes.find(n => n.id === hoveredHandle.nodeId)
-        if (hoveredNode) {
-          const newViewerPosition = calculateViewerPosition(hoveredNode, currentNodes)
-          const viewerId = nodeId('viewer', currentContainerId)
-
-          const viewerNode: AnyNodeJSON = {
-            id: viewerId,
-            type: 'ViewerOp',
-            position: newViewerPosition,
-            data: undefined,
-          }
-
-          const sourceHandle = hoveredHandle.handleId
-          const targetHandle = 'par.data'
-          const newEdge = {
-            id: edgeId({
-              source: hoveredHandle.nodeId,
-              sourceHandle,
-              target: viewerId,
-              targetHandle,
-            }),
-            source: hoveredHandle.nodeId,
-            sourceHandle,
-            target: viewerId,
-            targetHandle,
-          }
-
-          setEdges(currentEdges => [...currentEdges, newEdge])
-          return [...currentNodes, viewerNode]
-        }
-      }
-
-      // Priority 2: If nodes are selected, use rightmost selected node
-      if (selectedNodes.length > 0) {
-        const rightmostNode = selectedNodes.reduce((rightmost, node) => {
-          return node.position.x > rightmost.position.x ? node : rightmost
-        }, selectedNodes[0])
-
-        const sourceOp = opStore.getOp(rightmostNode.id)
-        let sourceHandle: string | null = null
-        if (sourceOp) {
-          const firstOutputKey = Object.keys(sourceOp.outputs)[0]
-          if (firstOutputKey) {
-            sourceHandle = `out.${firstOutputKey}`
-          }
-        }
-
-        const newViewerPosition = calculateViewerPosition(rightmostNode, currentNodes)
-        const viewerId = nodeId('viewer', currentContainerId)
-
-        const viewerNode: AnyNodeJSON = {
-          id: viewerId,
-          type: 'ViewerOp',
-          position: newViewerPosition,
-          data: undefined,
-        }
-
-        if (sourceHandle) {
-          const targetHandle = 'par.data'
-          const newEdge = {
-            id: edgeId({
-              source: rightmostNode.id,
-              sourceHandle,
-              target: viewerId,
-              targetHandle,
-            }),
-            source: rightmostNode.id,
-            sourceHandle,
-            target: viewerId,
-            targetHandle,
-          }
-          setEdges(currentEdges => [...currentEdges, newEdge])
-        }
-
-        return [...currentNodes, viewerNode]
-      }
-
-      return currentNodes
-    })
   }, [setNodes, setEdges, currentContainerId])
 
   // Handle 'a' keyup to open Block Library (momentary button behavior)
@@ -1767,6 +1739,20 @@ export function getNoodles(): Visualization {
   const [visProps, setVisProps] = useState(
     deckRendererOp?.outputs.vis.value || outOp?.inputs.vis.value || {}
   )
+  const deckProjectAssetResolver = useMemo(() => new DeckProjectAssetResolver(), [])
+  const [committedAssetGeneration, setCommittedAssetGeneration] = useState(0)
+
+  useEffect(
+    () => () => {
+      deckProjectAssetResolver.dispose()
+    },
+    [deckProjectAssetResolver]
+  )
+
+  useEffect(() => {
+    // Deck.gl has received the replacement props by the time this effect runs.
+    deckProjectAssetResolver.releaseRetiredUrlsThrough(committedAssetGeneration)
+  }, [committedAssetGeneration, deckProjectAssetResolver])
 
   // Create overlay layer for selected GeoJSON-producing operators
   const selectedGeoJsonFeatures = useMemo(() => {
@@ -1798,101 +1784,144 @@ export function getNoodles(): Visualization {
         'Creating vis subscription from %s',
         deckRendererOp ? 'DeckRendererOp.outputs.vis' : 'OutOp.inputs.vis'
       )
+      let cancelled = false
+      const reportMaterializationError = (error: unknown) => {
+        if (cancelled) return
+        console.error('[Noodles] Failed to materialize Deck.gl layer assets:', error)
+        debugVis('Failed to materialize Deck.gl layer assets: %o', error)
+      }
       const visSub = field.subscribe(
         ({ deckProps: { layers, widgets, views, ...deckProps }, mapProps }) => {
-          // Map layers from POJOs to deck.gl instances
-          const instantiatedLayers =
-            layers?.map(({ type, extensions, ...layer }) => {
-              // Instantiate extensions from POJOs if present
-              let instantiatedExtensions: LayerExtension[] | undefined
-              if (extensions && Array.isArray(extensions)) {
-                instantiatedExtensions = extensions
-                  .map((ext: { type: string; [key: string]: unknown }) => {
-                    const { type: extType, ...constructorArgs } = ext
-                    const extensionDef = extensionMap[extType]
-                    if (!extensionDef) {
-                      debugApp(`Unknown extension type: ${extType}`)
-                      return null
-                    }
-
-                    // Check if it's a wrapped extension (with ExtensionClass and args)
-                    if (typeof extensionDef === 'object' && 'ExtensionClass' in extensionDef) {
-                      return new extensionDef.ExtensionClass(extensionDef.args)
-                    }
-
-                    // It's a direct class constructor
-                    const ExtensionClass = extensionDef as new (
-                      ...args: unknown[]
-                    ) => LayerExtension
-                    return Object.keys(constructorArgs).length > 0
-                      ? new ExtensionClass(constructorArgs)
-                      : new ExtensionClass()
-                  })
-                  .filter((e): e is LayerExtension => e !== null)
+          void deckProjectAssetResolver
+            .resolveLayers(layers ?? [], {
+              activeStorageType: storageType,
+              currentProjectName: storedProjectName,
+            })
+            .then(assetResolution => {
+              if (!assetResolution || cancelled) {
+                if (assetResolution) deckProjectAssetResolver.discard(assetResolution)
+                return
               }
 
-              // biome-ignore lint/performance/noDynamicNamespaceImportAccess: We intentionally support all deck.gl layer types dynamically
-              return new deck[type]({
-                ...layer,
-                ...(instantiatedExtensions ? { extensions: instantiatedExtensions } : {}),
-                // Prevent deck.gl layer errors from crashing the GPU process
-                onError: (e: Error) => {
-                  console.error(`[Noodles] Layer error in ${layer.id} (${type}):`, e)
-                  debugVis('Layer error in %s (id=%s): %o', type, layer.id, e)
-                },
-              })
-            }) || []
+              try {
+                // Map layers from POJOs to deck.gl instances
+                const instantiatedLayers = assetResolution.layers.map(
+                  ({ type, extensions, ...layer }) => {
+                    // Instantiate extensions from POJOs if present
+                    let instantiatedExtensions: LayerExtension[] | undefined
+                    if (extensions && Array.isArray(extensions)) {
+                      instantiatedExtensions = extensions
+                        .map((ext: { type: string; [key: string]: unknown }) => {
+                          const { type: extType, ...constructorArgs } = ext
+                          const extensionDef = extensionMap[extType]
+                          if (!extensionDef) {
+                            debugApp(`Unknown extension type: ${extType}`)
+                            return null
+                          }
 
-          // Add overlay layer for selected GeoJSON features
-          if (selectedGeoJsonFeatures.length > 0) {
-            const overlayLayer = new deck.GeoJsonLayer({
-              id: 'selected-geojson-overlay',
-              data: selectedGeoJsonFeatures,
-              filled: true,
-              stroked: true,
-              getFillColor: [255, 0, 0, 100], // Red with transparency
-              getLineColor: [255, 0, 0, 255], // Red outline
-              getLineWidth: 2,
-              lineWidthMinPixels: 2,
-              getPointRadius: 10,
-              pointRadiusMinPixels: 10,
+                          // Check if it's a wrapped extension (with ExtensionClass and args)
+                          if (
+                            typeof extensionDef === 'object' &&
+                            'ExtensionClass' in extensionDef
+                          ) {
+                            return new extensionDef.ExtensionClass(extensionDef.args)
+                          }
+
+                          // It's a direct class constructor
+                          const ExtensionClass = extensionDef as new (
+                            ...args: unknown[]
+                          ) => LayerExtension
+                          return Object.keys(constructorArgs).length > 0
+                            ? new ExtensionClass(constructorArgs)
+                            : new ExtensionClass()
+                        })
+                        .filter((e): e is LayerExtension => e !== null)
+                    }
+
+                    // biome-ignore lint/performance/noDynamicNamespaceImportAccess: We intentionally support all deck.gl layer types dynamically
+                    return new deck[type]({
+                      ...layer,
+                      ...(instantiatedExtensions ? { extensions: instantiatedExtensions } : {}),
+                      // Prevent deck.gl layer errors from crashing the GPU process
+                      onError: (e: Error) => {
+                        console.error(`[Noodles] Layer error in ${layer.id} (${type}):`, e)
+                        debugVis('Layer error in %s (id=%s): %o', type, layer.id, e)
+                      },
+                    })
+                  }
+                )
+
+                // Add overlay layer for selected GeoJSON features
+                if (selectedGeoJsonFeatures.length > 0) {
+                  const overlayLayer = new deck.GeoJsonLayer({
+                    id: 'selected-geojson-overlay',
+                    data: selectedGeoJsonFeatures,
+                    filled: true,
+                    stroked: true,
+                    getFillColor: [255, 0, 0, 100], // Red with transparency
+                    getLineColor: [255, 0, 0, 255], // Red outline
+                    getLineWidth: 2,
+                    lineWidthMinPixels: 2,
+                    getPointRadius: 10,
+                    pointRadiusMinPixels: 10,
+                  })
+                  instantiatedLayers.push(overlayLayer)
+                }
+
+                const instantiatedViews = views?.map(instantiateDeckView)
+
+                debugVis(
+                  'vis subscription fired: %d layers types=%O hasMapProps=%s',
+                  instantiatedLayers.length,
+                  assetResolution.layers.map(l => l.type),
+                  !!mapProps
+                )
+
+                const nextVisProps = {
+                  deckProps: {
+                    ...deckProps,
+                    layers: instantiatedLayers,
+                    widgets: widgets?.map(({ type, ...widget }) => {
+                      if (type === 'LegendWidget')
+                        return new LegendWidget(widget as unknown as LegendWidgetProps)
+                      if (type === 'BitmapOverlay')
+                        return new BitmapOverlayWidget(
+                          widget as unknown as BitmapOverlayWidgetProps
+                        )
+                      // biome-ignore lint/performance/noDynamicNamespaceImportAccess: We intentionally support all deck.gl widget types dynamically
+                      return new deckWidgets[type](widget)
+                    }),
+                    ...(instantiatedViews?.length ? { views: instantiatedViews } : {}),
+                  },
+                  mapProps,
+                }
+
+                if (!deckProjectAssetResolver.commit(assetResolution)) return
+                setCommittedAssetGeneration(assetResolution.generation)
+                setVisProps(nextVisProps)
+              } catch (error) {
+                deckProjectAssetResolver.discard(assetResolution)
+                reportMaterializationError(error)
+              }
             })
-            instantiatedLayers.push(overlayLayer)
-          }
-
-          const instantiatedViews = views?.map(instantiateDeckView)
-
-          debugVis(
-            'vis subscription fired: %d layers types=%O hasMapProps=%s',
-            instantiatedLayers.length,
-            layers?.map(l => l.type) || [],
-            !!mapProps
-          )
-
-          setVisProps({
-            deckProps: {
-              ...deckProps,
-              layers: instantiatedLayers,
-              widgets: widgets?.map(({ type, ...widget }) => {
-                if (type === 'LegendWidget')
-                  return new LegendWidget(widget as unknown as LegendWidgetProps)
-                if (type === 'BitmapOverlay')
-                  return new BitmapOverlayWidget(widget as unknown as BitmapOverlayWidgetProps)
-                // biome-ignore lint/performance/noDynamicNamespaceImportAccess: We intentionally support all deck.gl widget types dynamically
-                return new deckWidgets[type](widget)
-              }),
-              ...(instantiatedViews?.length ? { views: instantiatedViews } : {}),
-            },
-            mapProps,
-          })
+            .catch(reportMaterializationError)
         }
       )
       return () => {
         debugVis('Cleaning up vis subscription')
+        cancelled = true
         visSub.unsubscribe()
+        deckProjectAssetResolver.cancelPending()
       }
     }
-  }, [deckRendererOp, outOp, selectedGeoJsonFeatures])
+  }, [
+    deckProjectAssetResolver,
+    deckRendererOp,
+    outOp,
+    selectedGeoJsonFeatures,
+    storageType,
+    storedProjectName,
+  ])
 
   const propertiesPanel = (
     <ErrorBoundary title="Property Panel Error">

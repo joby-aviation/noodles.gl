@@ -430,6 +430,7 @@ export class MCPTools {
             title: topic.title,
             section: topic.section,
             file: topic.file,
+            url: topic.url,
             headings: topic.headings.map(h => h.text),
             excerpt: excerptAround(topic.content, matchIndex),
             fullLength: topic.content.length,

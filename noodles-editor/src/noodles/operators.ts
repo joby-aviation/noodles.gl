@@ -33,6 +33,7 @@ import type {
 } from '@deck.gl/geo-layers'
 import type {
   ArcLayerProps,
+  BitmapBoundingBox,
   BitmapLayerProps,
   ColumnLayerProps,
   GeoJsonLayerProps,
@@ -1108,6 +1109,42 @@ export abstract class Operator<OP extends IOperator> {
     }
 
     this.unsubscribeEnvironment()
+  }
+}
+
+// UnknownOperator is a special system operator that serves as a fallback when loading
+// projects with removed or unavailable operator types. It is intentionally NOT included
+// in categories.ts because it should never be user-creatable - it's only instantiated
+// automatically during project deserialization for backward compatibility.
+export class UnknownOperator extends Operator<UnknownOperator> {
+  static displayName = 'Unknown Operator'
+  static description = 'Placeholder for an operator type that could not be found'
+
+  originalType: string
+  // Store original inputs to preserve them through save/load cycles
+  originalInputs: Record<string, unknown>
+
+  constructor(id: OpId, data?: Record<string, unknown>) {
+    const originalType = (data?.originalType as string) || 'Unknown'
+    const originalInputs = (data?.inputs as Record<string, unknown>) || {}
+    super(id, {}, false)
+    this.originalType = originalType
+    this.originalInputs = originalInputs
+  }
+
+  createInputs() {
+    // Create an UnknownField to store original inputs for serialization
+    return {
+      __originalInputs: new UnknownField(this.originalInputs),
+    }
+  }
+
+  createOutputs() {
+    return {}
+  }
+
+  execute() {
+    return {}
   }
 }
 
@@ -8716,11 +8753,14 @@ export class SmoothOp extends Operator<SmoothOp> {
 export class BitmapLayerOp extends Operator<BitmapLayerOp> {
   static displayName = 'BitmapLayer'
   static description = 'Render a raster image at specified boundaries'
+
   createInputs() {
     return {
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
-      image: new StringField(''),
+      image: new FileUrlField('', {
+        accept: '.png,.jpg,.jpeg,.gif,.webp,.svg',
+      }),
       bounds: new BboxField(
         { southwest: { lng: -122.5, lat: 37.7 }, northeast: { lng: -122.3, lat: 37.9 } },
         { returnType: 'tuple' }
@@ -8750,32 +8790,45 @@ export class BitmapLayerOp extends Operator<BitmapLayerOp> {
       layer: new LayerField<BitmapLayerProps>(),
     }
   }
+
   execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const { bounds, ...restProps } = props
-    let boundsArray: number[][]
-    if (Array.isArray(bounds) && bounds.length === 4) {
-      // Vec4Field format: [minLng, minLat, maxLng, maxLat]
-      boundsArray = [
-        [bounds[0], bounds[1]],
-        [bounds[2], bounds[3]],
-      ]
+    const { bounds, image, transparentColor, tintColor, ...restProps } = props
+    let deckBounds: BitmapBoundingBox
+    if (
+      Array.isArray(bounds) &&
+      bounds.length === 4 &&
+      bounds.every((coordinate: unknown) => typeof coordinate === 'number')
+    ) {
+      // Preserve the flat format accepted by Deck.gl and older direct callers.
+      deckBounds = [...bounds] as BitmapBoundingBox
     } else if (
       Array.isArray(bounds) &&
       bounds.length === 2 &&
       Array.isArray(bounds[0]) &&
-      Array.isArray(bounds[1])
+      Array.isArray(bounds[1]) &&
+      typeof bounds[0][0] === 'number' &&
+      typeof bounds[0][1] === 'number' &&
+      typeof bounds[1][0] === 'number' &&
+      typeof bounds[1][1] === 'number'
     ) {
-      // Legacy nested array format from old projects
-      boundsArray = bounds as number[][]
+      // BboxField returns [southwest, northeast], while Deck.gl requires a flat bbox.
+      deckBounds = [bounds[0][0], bounds[0][1], bounds[1][0], bounds[1][1]]
     } else {
-      // Unexpected format - throw error
       throw new Error(
         `[BitmapLayerOp] Invalid bounds format. Expected [minLng, minLat, maxLng, maxLat] or [[minLng, minLat], [maxLng, maxLat]], got: ${JSON.stringify(bounds)}`
       )
     }
+
     const layer = {
-      ...parseLayerProps<BitmapLayerProps>(restProps as Omit<typeof props, 'bounds'>),
-      bounds: boundsArray,
+      ...parseLayerProps<BitmapLayerProps>({
+        ...restProps,
+        image,
+        // Let Deck.gl apply its array-valued defaults. Passing null overrides those defaults
+        // and crashes BitmapLayer.draw when it calls .map()/.slice() on the colors.
+        ...(transparentColor ? { transparentColor } : {}),
+        ...(tintColor ? { tintColor } : {}),
+      }),
+      bounds: deckBounds,
       type: 'BitmapLayer' as const,
       id: this.id,
       updateTriggers: gatherTriggers(this.inputs, props),
@@ -9955,6 +10008,7 @@ export const opTypes = {
   TransformTranslateOp,
   TripsLayerOp,
   UnionOp,
+  UnknownOperator,
   UnprojectOp,
   VibranceExtensionOp,
   ViewerOp,
