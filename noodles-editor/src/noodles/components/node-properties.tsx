@@ -75,7 +75,7 @@ import { SuggestedNodesSection } from './SuggestedNodes'
 function getDefaultVisibleFields(op: Operator<IOperator>): Set<string> {
   return new Set(
     Object.entries(op.inputs)
-      .filter(([_, field]) => field.showByDefault && !field.runtimeOnly)
+      .filter(([_, field]) => field.showByDefault)
       .map(([name]) => name)
   )
 }
@@ -578,19 +578,17 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
   // Early return after all hooks
   if (!op) return null
 
-  const inputs = Object.entries(op.inputs)
-    .filter(([_, input]) => !input.runtimeOnly)
-    .map(([name, input]) => {
-      const { type } = input.constructor as typeof Field
-      return {
-        name,
-        type,
-        codeRef: `op('${op.id}').${IN_NS}.${name}`,
-        mustacheRef: `{{${op.id}.${IN_NS}.${name}}}`,
-        handleClass: handleClass(input),
-        field: input,
-      }
-    })
+  const inputs = Object.entries(op.inputs).map(([name, input]) => {
+    const { type } = input.constructor as typeof Field
+    return {
+      name,
+      type,
+      codeRef: `op('${op.id}').${IN_NS}.${name}`,
+      mustacheRef: `{{${op.id}.${IN_NS}.${name}}}`,
+      handleClass: handleClass(input),
+      field: input,
+    }
+  })
 
   const outputs = Object.entries(op.outputs).map(([name, output]) => {
     const { type } = output.constructor as typeof Field
@@ -800,7 +798,7 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
       <div className={s.section}>
         <div className={s.sectionHeader}>
           <div className={s.sectionTitle}>Inputs</div>
-          {inputs.length > 0 &&
+          {Object.keys(op.inputs).length > 0 &&
             op.visibleFields.value !== null &&
             (() => {
               const { toHide, toShow } = getVisibilityChanges(op, edges)

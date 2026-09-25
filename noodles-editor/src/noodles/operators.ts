@@ -73,6 +73,7 @@ import type z from 'zod/v4'
 
 import './utils/bigint-fix' // BigInt JSON polyfill for DuckDB
 import * as duckdb from '@duckdb/duckdb-wasm'
+import { getRenderSurfaceSize, subscribeToRenderSurfaceSize } from '../render/render-surface-size'
 import { getTransformScaleFactor } from '../render/transform-scale'
 import { subscribeToPosition } from '../timeline/timeline-store'
 import * as utils from '../utils'
@@ -153,7 +154,6 @@ import { projectScheme } from './utils/filesystem'
 import type { OpId } from './utils/id-utils'
 import { isDirectChild } from './utils/path-utils'
 import { pick } from './utils/pick'
-import { DEFAULT_RENDER_SETTINGS } from './utils/render-settings-constants'
 import { getTimelineContext } from './utils/timeline-context'
 import { subscribeOpToTimeline, unsubscribeOpFromTimeline } from './utils/timeline-dependencies'
 // Side-effect import: registers the field expression evaluator so { $expr } payloads
@@ -294,7 +294,7 @@ export abstract class Operator<OP extends IOperator> {
 
     if (data) {
       for (const [key, value] of Object.entries(data)) {
-        if (key in this.inputs && !this.inputs[key].runtimeOnly) {
+        if (key in this.inputs) {
           // Routes { $expr } payloads to setExpression, plain values to setValue
           applySerializedFieldValue(this.inputs[key], value)
         }
@@ -356,7 +356,6 @@ export abstract class Operator<OP extends IOperator> {
 
   // Check if a field is visible (for UI rendering)
   isFieldVisible(name: string): boolean {
-    if (this.inputs[name]?.runtimeOnly) return false
     const visible = this.visibleFields.value
     if (visible === null) {
       // Use defaults: showByDefault defaults to true
@@ -370,8 +369,6 @@ export abstract class Operator<OP extends IOperator> {
   showField(name: string): void {
     // Skip if inputs not initialized yet or field doesn't exist
     if (!this.inputs || !(name in this.inputs)) return
-    // Runtime inputs are supplied by the host environment, not edited by users.
-    if (this.inputs[name].runtimeOnly) return
     // Skip if already visible
     if (this.isFieldVisible(name)) return
 
@@ -380,7 +377,7 @@ export abstract class Operator<OP extends IOperator> {
       this.visibleFields.value ??
       new Set(
         Object.entries(this.inputs)
-          .filter(([_, field]) => field.showByDefault && !field.runtimeOnly)
+          .filter(([_, field]) => field.showByDefault)
           .map(([fieldName]) => fieldName)
       )
 
@@ -401,7 +398,7 @@ export abstract class Operator<OP extends IOperator> {
       this.visibleFields.value ??
       new Set(
         Object.entries(this.inputs)
-          .filter(([_, field]) => field.showByDefault && !field.runtimeOnly)
+          .filter(([_, field]) => field.showByDefault)
           .map(([fieldName]) => fieldName)
       )
 
@@ -2577,27 +2574,28 @@ export class BoundsOp extends Operator<BoundsOp> {
   }
 }
 
-const DEFAULT_BOUNDING_BOX_VIEWPORT_SIZE = {
-  x: Math.round(DEFAULT_RENDER_SETTINGS.resolution.width * DEFAULT_RENDER_SETTINGS.lod),
-  y: Math.round(DEFAULT_RENDER_SETTINGS.resolution.height * DEFAULT_RENDER_SETTINGS.lod),
-}
-
 export class BoundingBoxOp extends Operator<BoundingBoxOp> {
   static displayName = 'BoundingBox'
   static description =
     'Calculate the geographic bounds of your points (with lat/lng keys) and get a camera position (center, zoom) that fits them all in view.'
   asDownload = () => this.outputData
 
+  constructor(
+    id: OpId,
+    data?: Partial<ExtractProps<ReturnType<BoundingBoxOp['createInputs']>>>,
+    locked = false,
+    containerId?: string
+  ) {
+    super(id, data, locked, containerId)
+    // The fit depends on the render surface, not just inputs; refit when it resizes
+    this.subs.push(subscribeToRenderSurfaceSize(() => this.markDirty('render surface resize')))
+  }
+
   createInputs() {
     return {
       data: new ArrayField(new Point2DField()),
       // TODO: could be a union, either a number or object with top, right, bottom, left
       padding: new NumberField(0, { softMin: -1_000, softMax: 1_000 }),
-      viewportSize: new Vec2Field(DEFAULT_BOUNDING_BOX_VIEWPORT_SIZE, {
-        returnType: 'object',
-        runtimeOnly: true,
-        showByDefault: false,
-      }),
     }
   }
   createOutputs() {
@@ -2613,11 +2611,7 @@ export class BoundingBoxOp extends Operator<BoundingBoxOp> {
       }),
     }
   }
-  execute({
-    data,
-    padding,
-    viewportSize = DEFAULT_BOUNDING_BOX_VIEWPORT_SIZE,
-  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+  execute({ data, padding }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     let east = -180
     let west = 180
     let north = -90
@@ -2643,13 +2637,7 @@ export class BoundingBoxOp extends Operator<BoundingBoxOp> {
       [east, north],
     ] as [[number, number], [number, number]]
 
-    if (
-      !viewportSize ||
-      ![viewportSize.x, viewportSize.y].every(value => Number.isFinite(value) && value > 0)
-    ) {
-      throw new Error('BoundingBox viewportSize must contain positive, finite x and y values')
-    }
-    const { x: width, y: height } = viewportSize
+    const { width, height } = getRenderSurfaceSize()
 
     const { longitude, latitude, zoom } = fitBounds({
       bounds,

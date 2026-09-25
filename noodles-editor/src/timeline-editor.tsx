@@ -16,13 +16,13 @@ import { useActiveOutOp } from './noodles/hooks/use-active-outop'
 import { useRenderSettings } from './noodles/hooks/use-render-settings'
 import { getNoodles } from './noodles/noodles'
 import { fnWithSource } from './noodles/operators'
-import { useOperatorStore, useUIStore } from './noodles/store'
+import { useUIStore } from './noodles/store'
 import type { RenderSettings } from './noodles/utils/serialization'
 import { useDeckDrawLoop } from './render/draw-loop'
 import {
   calculateRenderSurfaceSize,
   observeRenderSurface,
-  syncBoundingBoxViewportSize,
+  setRenderSurfaceSize,
 } from './render/render-surface-size'
 import { captureScreenshot, useRenderer } from './render/renderer'
 import { deckRenderingDefaults, mapRenderingDefaults } from './render/rendering-defaults'
@@ -81,7 +81,6 @@ export default function TimelineEditor() {
   const mapRef = useRef<MapLibre | null>(null)
   const deckRef = useRef<Deck>(null)
   const renderSurfaceRef = useRef<HTMLDivElement>(null)
-  const operators = useOperatorStore(state => state.operators)
   const isRenderingRef = useRef(false)
   // Session-only handle set by selectRendersDirectory; takes priority over project subdir
   const rendersDirectoryHandleRef = useRef<FileSystemDirectoryHandle | null>(null)
@@ -545,19 +544,18 @@ export default function TimelineEditor() {
   const renderWidth = lodResolution.width
   const renderHeight = lodResolution.height
 
+  // Publish the render surface size so operators that fit content to the output
+  // (e.g. BoundingBoxOp) match what is rendered, in both fixed and responsive modes
   useLayoutEffect(() => {
-    const syncViewportSize = (size: { width: number; height: number }) =>
-      syncBoundingBoxViewportSize(operators.values(), size)
-
     if (isFixedMode) {
-      syncViewportSize({ width: renderWidth, height: renderHeight })
+      setRenderSurfaceSize({ width: renderWidth, height: renderHeight })
       return
     }
 
     const surface = renderSurfaceRef.current
     if (!surface) return
-    return observeRenderSurface(surface, syncViewportSize)
-  }, [isFixedMode, operators, renderWidth, renderHeight])
+    return observeRenderSurface(surface, setRenderSurfaceSize)
+  }, [isFixedMode, renderWidth, renderHeight])
 
   const renderContent = () => {
     const content = basemapEnabled ? (

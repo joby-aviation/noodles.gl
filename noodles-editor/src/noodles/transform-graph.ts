@@ -317,8 +317,7 @@ export function transformGraph<
 
         if (visibleInputs && Array.isArray(visibleInputs)) {
           // Explicit visibility saved - use it directly as the full set
-          const inputs = op.inputs
-          op.visibleFields.next(new Set(visibleInputs.filter(name => !inputs[name]?.runtimeOnly)))
+          op.visibleFields.next(new Set(visibleInputs))
         } else {
           // No saved visibility - derive from heuristic
           const customValues = data?.inputs ?? {}
@@ -397,11 +396,6 @@ export function transformGraph<
         targetOp[targetNamespace === 'par' ? 'inputs' : 'outputs'][targetFieldName]
       if (!sourceField || !targetField) {
         debugExecutor('Invalid connection')
-        continue
-      }
-
-      if (targetField.runtimeOnly) {
-        targetOp.addConnectionError(edge.id, 'Runtime-only inputs cannot be connected')
         continue
       }
 

@@ -1,29 +1,44 @@
 import { fitBounds } from '@math.gl/web-mercator'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { Vec2Field } from '../noodles/fields'
-import { BoundingBoxOp, CombineXYOp, NumberOp } from '../noodles/operators'
-import { clearOps, getOpStore, setOp } from '../noodles/store'
-import { transformGraph } from '../noodles/transform-graph'
-import { canConnect, canConnectCached } from '../noodles/utils/can-connect'
-import { applyOperatorInputs, captureOperatorInputs } from '../noodles/utils/property-history'
+import { BoundingBoxOp } from '../noodles/operators'
 import { DEFAULT_RENDER_SETTINGS } from '../noodles/utils/render-settings-constants'
 import {
-  isRuntimeOnlyInputEdge,
-  serializeEdges,
-  serializeNodes,
-} from '../noodles/utils/serialization'
-import {
   calculateRenderSurfaceSize,
+  getRenderSurfaceSize,
   observeRenderSurface,
-  syncBoundingBoxViewportSize,
+  resetRenderSurfaceSize,
+  setRenderSurfaceSize,
+  subscribeToRenderSurfaceSize,
 } from './render-surface-size'
 
-afterEach(() => {
-  clearOps()
+beforeEach(() => {
+  resetRenderSurfaceSize()
 })
 
 describe('render surface size', () => {
+  it('defaults to the fixed render resolution including LOD', () => {
+    expect(getRenderSurfaceSize()).toEqual(
+      calculateRenderSurfaceSize(DEFAULT_RENDER_SETTINGS.resolution, DEFAULT_RENDER_SETTINGS.lod)
+    )
+  })
+
+  it('notifies subscribers of changes only, deduplicating identical and invalid sizes', () => {
+    const listener = vi.fn()
+    const subscription = subscribeToRenderSurfaceSize(listener)
+    expect(listener).not.toHaveBeenCalled()
+
+    setRenderSurfaceSize(getRenderSurfaceSize())
+    setRenderSurfaceSize({ width: Number.NaN, height: 500 })
+    setRenderSurfaceSize({ width: 1000, height: 0 })
+    expect(listener).not.toHaveBeenCalled()
+
+    setRenderSurfaceSize({ width: 1920, height: 1080 })
+    expect(listener).toHaveBeenCalledOnce()
+    expect(getRenderSurfaceSize()).toEqual({ width: 1920, height: 1080 })
+    subscription.unsubscribe()
+  })
+
   it.each([
     { resolution: { width: 1920, height: 1080 }, lod: 1, expected: { width: 1920, height: 1080 } },
     { resolution: { width: 1920, height: 1080 }, lod: 2, expected: { width: 3840, height: 2160 } },
@@ -77,131 +92,46 @@ describe('render surface size', () => {
   })
 })
 
-describe('BoundingBoxOp viewport integration', () => {
+describe('BoundingBoxOp render size reactivity', () => {
   const data = [
     { lng: -97.3159, lat: 32.9917 },
     { lng: -96.8629, lat: 32.8517 },
   ]
+  const bounds: [[number, number], [number, number]] = [
+    [-97.3159, 32.8517],
+    [-96.8629, 32.9917],
+  ]
 
-  it('is deterministic from its declared inputs', () => {
+  it('fits to the published render size rather than the browser viewport', () => {
+    setRenderSurfaceSize({ width: 1000, height: 500 })
     const operator = new BoundingBoxOp('/bbox')
-    const props = {
-      data,
-      padding: 180,
-      viewportSize: { x: 1000, y: 500 },
-    }
-    const first = operator.execute(props)
+    const result = operator.execute({ data, padding: 180 })
+    const expected = fitBounds({ bounds, width: 1000, height: 500, padding: 180 })
 
-    const second = operator.execute(props)
-    const expected = fitBounds({
-      bounds: [
-        [-97.3159, 32.8517],
-        [-96.8629, 32.9917],
-      ],
-      width: 1000,
-      height: 500,
-      padding: 180,
-    })
-
-    expect(second).toEqual(first)
-    expect(second.viewState).toEqual({
+    expect(result.viewState).toEqual({
       longitude: expected.longitude,
       latitude: expected.latitude,
       zoom: expected.zoom,
     })
+    operator.dispose()
   })
 
-  it('uses the render-settings default when direct callers omit viewportSize', () => {
+  it('invalidates a cached result when the render size changes', async () => {
+    setRenderSurfaceSize({ width: 1000, height: 500 })
     const operator = new BoundingBoxOp('/bbox')
-    const expectedSize = calculateRenderSurfaceSize(
-      DEFAULT_RENDER_SETTINGS.resolution,
-      DEFAULT_RENDER_SETTINGS.lod
-    )
-    const result = operator.execute({ data, padding: 0 } as never)
-    const expected = fitBounds({
-      bounds: [
-        [-97.3159, 32.8517],
-        [-96.8629, 32.9917],
-      ],
-      width: expectedSize.width,
-      height: expectedSize.height,
-      padding: 0,
-    })
-
-    expect(operator.inputs.viewportSize.value).toEqual({
-      x: expectedSize.width,
-      y: expectedSize.height,
-    })
-    expect(result.viewState.zoom).toBe(expected.zoom)
-  })
-
-  it('rejects invalid viewport dimensions with a clear error', () => {
-    const operator = new BoundingBoxOp('/bbox')
-
-    expect(() =>
-      operator.execute({ data, padding: 0, viewportSize: { x: Number.NaN, y: 500 } })
-    ).toThrow('BoundingBox viewportSize must contain positive, finite x and y values')
-    expect(() => operator.execute({ data, padding: 0, viewportSize: { x: 1000, y: 0 } })).toThrow(
-      'BoundingBox viewportSize must contain positive, finite x and y values'
-    )
-    expect(() => operator.execute({ data, padding: 0, viewportSize: null } as never)).toThrow(
-      'BoundingBox viewportSize must contain positive, finite x and y values'
-    )
-  })
-
-  it('syncs fixed resolution and LOD through the runtime input', async () => {
-    const operator = new BoundingBoxOp('/bbox')
-    const unrelated = new NumberOp('/number')
     operator.inputs.data.setValue(data)
     operator.inputs.padding.setValue(100)
     await operator.pull()
     expect(operator.dirty).toBe(false)
 
-    const renderSize = calculateRenderSurfaceSize({ width: 1000, height: 500 }, 2)
-    syncBoundingBoxViewportSize([unrelated, operator], renderSize)
-
-    expect(operator.inputs.viewportSize.value).toEqual({ x: 2000, y: 1000 })
+    setRenderSurfaceSize(calculateRenderSurfaceSize({ width: 1000, height: 500 }, 2))
     expect(operator.dirty).toBe(true)
     const resized = await operator.pull()
-    const expected = fitBounds({
-      bounds: [
-        [-97.3159, 32.8517],
-        [-96.8629, 32.9917],
-      ],
-      width: 2000,
-      height: 1000,
-      padding: 100,
-    })
+    const expected = fitBounds({ bounds, width: 2000, height: 1000, padding: 100 })
+
     expect(resized.viewState.zoom).toBe(expected.zoom)
-  })
-
-  it('syncs responsive ResizeObserver measurements through the runtime input', () => {
-    let resize: ResizeObserverCallback | undefined
-    const createObserver = (callback: ResizeObserverCallback) => {
-      resize = callback
-      return { observe: vi.fn(), disconnect: vi.fn() }
-    }
-
-    let width = 800
-    let height = 600
-    const element = document.createElement('div')
-    Object.defineProperties(element, {
-      clientWidth: { configurable: true, get: () => width },
-      clientHeight: { configurable: true, get: () => height },
-    })
-    const operator = new BoundingBoxOp('/bbox')
-    const stop = observeRenderSurface(
-      element,
-      size => syncBoundingBoxViewportSize([operator], size),
-      createObserver
-    )
-    expect(operator.inputs.viewportSize.value).toEqual({ x: 800, y: 600 })
-
-    width = 1280
-    height = 720
-    resize?.([], {} as ResizeObserver)
-    expect(operator.inputs.viewportSize.value).toEqual({ x: 1280, y: 720 })
-    stop()
+    expect(operator.inputs.padding.value).toBe(100)
+    operator.dispose()
   })
 
   it('does not dirty a settled operator when the size is unchanged', async () => {
@@ -209,132 +139,23 @@ describe('BoundingBoxOp viewport integration', () => {
     await operator.pull()
     expect(operator.dirty).toBe(false)
 
-    syncBoundingBoxViewportSize([operator], { width: 3840, height: 2160 })
+    setRenderSurfaceSize(getRenderSurfaceSize())
+    expect(operator.dirty).toBe(false)
+    operator.dispose()
+  })
+
+  it('unsubscribes from render-size changes when disposed', async () => {
+    const operator = new BoundingBoxOp('/bbox')
+    await operator.pull()
+    operator.dispose()
+
+    setRenderSurfaceSize({ width: 1000, height: 500 })
     expect(operator.dirty).toBe(false)
   })
 
-  it('ignores invalid runtime measurements', () => {
+  it('does not expose the render size as an input', () => {
     const operator = new BoundingBoxOp('/bbox')
-
-    syncBoundingBoxViewportSize([operator], { width: Number.NaN, height: 500 })
-    syncBoundingBoxViewportSize([operator], { width: 1000, height: Number.POSITIVE_INFINITY })
-
-    expect(operator.inputs.viewportSize.value).toEqual({ x: 3840, y: 2160 })
-  })
-
-  it('does not persist the runtime viewport size in projects or undo snapshots', () => {
-    const operator = new BoundingBoxOp('/bbox')
-    operator.inputs.viewportSize.setValue({ x: 1234, y: 567 })
-    setOp(operator.id, operator as never)
-
-    const nodes = [{ id: operator.id, type: 'BoundingBoxOp', data: {}, position: { x: 0, y: 0 } }]
-    const runtimeEdge = {
-      id: '/vec.out.xy->/bbox.par.viewportSize',
-      source: '/vec',
-      sourceHandle: 'out.xy',
-      target: operator.id,
-      targetHandle: 'par.viewportSize',
-    }
-    const serialized = serializeNodes(getOpStore(), nodes, [])
-    const clipboard = serializeNodes(getOpStore(), nodes, [], { forClipboard: true })
-    const history = JSON.parse(captureOperatorInputs() ?? '{}')
-    applyOperatorInputs(JSON.stringify({ [operator.id]: { viewportSize: { x: 10, y: 10 } } }))
-
-    expect(serialized[0].data.inputs).not.toHaveProperty('viewportSize')
-    expect(clipboard[0].data.inputs).not.toHaveProperty('viewportSize')
-    expect(clipboard[0].data.visibleInputs).not.toContain('viewportSize')
-    expect(history[operator.id]).not.toHaveProperty('viewportSize')
-    expect(operator.inputs.viewportSize.value).toEqual({ x: 1234, y: 567 })
-    expect(
-      serializeEdges(getOpStore(), [...nodes, { ...nodes[0], id: '/vec' }], [runtimeEdge])
-    ).toEqual([])
-    expect(isRuntimeOnlyInputEdge(getOpStore(), runtimeEdge)).toBe(true)
-  })
-
-  it('keeps the runtime input out of editable visibility and graph connections', () => {
-    const operator = new BoundingBoxOp('/bbox')
-    const source = new CombineXYOp('/vec')
-    const editableTarget = new Vec2Field()
-
-    operator.showField('viewportSize')
-
-    expect(operator.isFieldVisible('viewportSize')).toBe(false)
-    expect(operator.visibleFields.value?.has('viewportSize')).not.toBe(true)
-    expect(canConnect(source.outputs.xy as never, operator.inputs.viewportSize as never)).toBe(
-      false
-    )
-    expect(
-      canConnectCached(source.outputs.xy as never, operator.inputs.viewportSize as never)
-    ).toBe(false)
-    operator.inputs.viewportSize.addConnection('crafted-edge', source.outputs.xy)
-    expect(operator.inputs.viewportSize.subscriptions.size).toBe(0)
-    expect(canConnectCached(source.outputs.xy as never, editableTarget as never)).toBe(true)
-  })
-
-  it('rejects crafted project edges targeting the runtime input', () => {
-    const edgeId = '/vec.out.xy->/bbox.par.viewportSize'
-    const { operators } = transformGraph({
-      nodes: [
-        {
-          id: '/vec',
-          type: 'CombineXYOp',
-          position: { x: 0, y: 0 },
-          data: { inputs: { x: 1, y: 1 } },
-        },
-        {
-          id: '/bbox',
-          type: 'BoundingBoxOp',
-          position: { x: 200, y: 0 },
-          data: { inputs: {} },
-        },
-      ] as never,
-      edges: [
-        {
-          id: edgeId,
-          source: '/vec',
-          sourceHandle: 'out.xy',
-          target: '/bbox',
-          targetHandle: 'par.viewportSize',
-        },
-      ] as never,
-    })
-    const boundingBox = operators.find(
-      operator => operator.id === '/bbox'
-    ) as unknown as BoundingBoxOp
-
-    expect(boundingBox.inputs.viewportSize.value).toEqual({ x: 3840, y: 2160 })
-    expect(boundingBox.inputs.viewportSize.subscriptions.size).toBe(0)
-    expect(boundingBox.connectionErrors.value.get(edgeId)).toBe(
-      'Runtime-only inputs cannot be connected'
-    )
-  })
-
-  it('ignores serialized runtime values and visibility when loading a project', () => {
-    const { operators } = transformGraph({
-      nodes: [
-        {
-          id: '/bbox',
-          type: 'BoundingBoxOp',
-          position: { x: 0, y: 0 },
-          data: {
-            inputs: { viewportSize: { x: 1, y: 1 } },
-            visibleInputs: ['padding', 'viewportSize'],
-          },
-        },
-      ] as never,
-      edges: [],
-    })
-    const [operator] = operators
-    const expected = calculateRenderSurfaceSize(
-      DEFAULT_RENDER_SETTINGS.resolution,
-      DEFAULT_RENDER_SETTINGS.lod
-    )
-
-    const boundingBox = operator as unknown as BoundingBoxOp
-    expect(boundingBox.inputs.viewportSize.value).toEqual({
-      x: expected.width,
-      y: expected.height,
-    })
-    expect(boundingBox.visibleFields.value).toEqual(new Set(['padding']))
+    expect(Object.keys(operator.inputs)).toEqual(['data', 'padding'])
+    operator.dispose()
   })
 })

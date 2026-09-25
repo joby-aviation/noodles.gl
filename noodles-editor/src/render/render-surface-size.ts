@@ -1,4 +1,6 @@
-import { BoundingBoxOp } from '../noodles/operators'
+import { BehaviorSubject, type Subscription } from 'rxjs'
+
+import { DEFAULT_RENDER_SETTINGS } from '../noodles/utils/render-settings-constants'
 
 export interface RenderSurfaceSize {
   width: number
@@ -23,19 +25,42 @@ export function calculateRenderSurfaceSize(
   }
 }
 
-export function syncBoundingBoxViewportSize(
-  operators: Iterable<unknown>,
-  size: RenderSurfaceSize
-): void {
+const DEFAULT_RENDER_SURFACE_SIZE = calculateRenderSurfaceSize(
+  DEFAULT_RENDER_SETTINGS.resolution,
+  DEFAULT_RENDER_SETTINGS.lod
+)
+
+// Ambient render-surface size, published by the editor and read by operators that
+// fit content to the output (see BoundingBoxOp). Mirrors the timeline context pattern:
+// operators read the current value during execute() and subscribe to be marked dirty.
+const sizeSubject = new BehaviorSubject<RenderSurfaceSize>(DEFAULT_RENDER_SURFACE_SIZE)
+
+export function getRenderSurfaceSize(): RenderSurfaceSize {
+  return sizeSubject.value
+}
+
+export function setRenderSurfaceSize(size: RenderSurfaceSize): void {
   if (!isValidRenderSurfaceSize(size)) return
+  const current = sizeSubject.value
+  if (current.width === size.width && current.height === size.height) return
+  sizeSubject.next(size)
+}
 
-  for (const operator of operators) {
-    if (!(operator instanceof BoundingBoxOp)) continue
+export function resetRenderSurfaceSize(): void {
+  setRenderSurfaceSize(DEFAULT_RENDER_SURFACE_SIZE)
+}
 
-    const current = operator.inputs.viewportSize.value
-    if (current.x === size.width && current.y === size.height) continue
-    operator.inputs.viewportSize.setValue({ x: size.width, y: size.height })
-  }
+// Calls `listener` on every change after subscription; the current value is read
+// directly during execution, so only later changes need to invalidate cached output.
+export function subscribeToRenderSurfaceSize(listener: () => void): Subscription {
+  let initial = true
+  return sizeSubject.subscribe(() => {
+    if (initial) {
+      initial = false
+      return
+    }
+    listener()
+  })
 }
 
 export function observeRenderSurface(
