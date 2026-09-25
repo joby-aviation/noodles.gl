@@ -438,7 +438,7 @@ export const toolDefinitions: ToolDefinition[] = [
     // almost any query and crowd out the specific tool the model actually needs.
     // core.md carries the topic list instead.
     description:
-      'Search the Noodles.gl documentation and step-by-step workflow guides. Searching returns excerpts with topic ids; pass an id to read that topic in full.',
+      'Search the Noodles.gl documentation and step-by-step workflow guides. Searching returns excerpts with topic ids and noodles.gl URLs for linking; pass an id to read that topic in full.',
     inputSchema: {
       type: 'object',
       properties: {

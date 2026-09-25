@@ -15,7 +15,13 @@ export interface KeysConfig {
 // Which provider the AI assistant should use. 'automatic' resolves by which
 // credential is present; the rest name one of the agent loop's providers, so the
 // strings deliberately match ProviderId in ai-chat/agent/types.ts.
-export type ProviderPreference = 'automatic' | 'anthropic' | 'openrouter' | 'custom' | 'chrome'
+export type ProviderPreference =
+  | 'automatic'
+  | 'anthropic'
+  | 'openrouter'
+  | 'custom'
+  | 'webllm'
+  | 'chrome'
 
 // 'chrome-ai' was the persisted spelling before the preference shared a
 // vocabulary with the agent loop. Read-side only, so a stored value keeps working

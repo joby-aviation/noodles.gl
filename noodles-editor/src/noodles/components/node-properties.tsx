@@ -31,6 +31,7 @@ import { Operator, OutOp } from '../operators'
 import { getOp, getOpStore, useNestingStore, useUIStore } from '../store'
 import type { ConnectionPlan } from '../utils/auto-connect'
 import { edgeId } from '../utils/id-utils'
+import { appendUniqueEdges } from '../utils/edge-integrity'
 import {
   moveEdgeWithinGroup,
   normalizeMultiInputEdges,
@@ -456,7 +457,7 @@ function CompoundSubFields({
 
 // Exported for testing
 export function NodeProperties({ nodeId }: { nodeId: string }) {
-  const { setEdges, addNodes, addEdges, getEdges } = useReactFlow()
+  const { setEdges, addNodes, getEdges } = useReactFlow()
   const onEdgesChange = useStore(s => s.onEdgesChange)
   // Only re-renders when this node's incoming edges change (not on position updates)
   const edges = useStore(
@@ -570,9 +571,11 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
       }
 
       addNodes(newNodes)
-      addEdges([...newEdges, connectionEdge])
+      setEdges(current =>
+        normalizeMultiInputEdges(appendUniqueEdges(current, [...newEdges, connectionEdge]))
+      )
     },
-    [nodeId, nodePosition.x, nodePosition.y, currentContainerId, addNodes, addEdges]
+    [nodeId, nodePosition.x, nodePosition.y, currentContainerId, addNodes, setEdges]
   )
 
   // Early return after all hooks
