@@ -1,44 +1,30 @@
 import { fitBounds } from '@math.gl/web-mercator'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { publishEnvironment, readEnvironment, resetEnvironment } from '../noodles/environment'
 import { BoundingBoxOp } from '../noodles/operators'
-import { DEFAULT_RENDER_SETTINGS } from '../noodles/utils/render-settings-constants'
 import {
   calculateRenderSurfaceSize,
-  getRenderSurfaceSize,
   observeRenderSurface,
-  resetRenderSurfaceSize,
-  setRenderSurfaceSize,
-  subscribeToRenderSurfaceSize,
-} from './render-surface-size'
+  observeRenderSurfacePointer,
+  toRenderSurfacePoint,
+} from './render-surface'
 
 beforeEach(() => {
-  resetRenderSurfaceSize()
+  resetEnvironment()
 })
 
+function createSurface(rect: { left: number; top: number; width: number; height: number }) {
+  const element = document.createElement('div')
+  Object.defineProperties(element, {
+    offsetWidth: { configurable: true, get: () => 1000 },
+    offsetHeight: { configurable: true, get: () => 500 },
+  })
+  element.getBoundingClientRect = () => ({ ...rect, x: rect.left, y: rect.top }) as DOMRect
+  return element
+}
+
 describe('render surface size', () => {
-  it('defaults to the fixed render resolution including LOD', () => {
-    expect(getRenderSurfaceSize()).toEqual(
-      calculateRenderSurfaceSize(DEFAULT_RENDER_SETTINGS.resolution, DEFAULT_RENDER_SETTINGS.lod)
-    )
-  })
-
-  it('notifies subscribers of changes only, deduplicating identical and invalid sizes', () => {
-    const listener = vi.fn()
-    const subscription = subscribeToRenderSurfaceSize(listener)
-    expect(listener).not.toHaveBeenCalled()
-
-    setRenderSurfaceSize(getRenderSurfaceSize())
-    setRenderSurfaceSize({ width: Number.NaN, height: 500 })
-    setRenderSurfaceSize({ width: 1000, height: 0 })
-    expect(listener).not.toHaveBeenCalled()
-
-    setRenderSurfaceSize({ width: 1920, height: 1080 })
-    expect(listener).toHaveBeenCalledOnce()
-    expect(getRenderSurfaceSize()).toEqual({ width: 1920, height: 1080 })
-    subscription.unsubscribe()
-  })
-
   it.each([
     { resolution: { width: 1920, height: 1080 }, lod: 1, expected: { width: 1920, height: 1080 } },
     { resolution: { width: 1920, height: 1080 }, lod: 2, expected: { width: 3840, height: 2160 } },
@@ -92,6 +78,42 @@ describe('render surface size', () => {
   })
 })
 
+describe('render surface pointer', () => {
+  it('converts client coordinates to surface pixels', () => {
+    const element = createSurface({ left: 100, top: 50, width: 1000, height: 500 })
+    expect(toRenderSurfacePoint(element, 350, 150)).toEqual({ x: 250, y: 100 })
+  })
+
+  it('removes the TransformScale factor in fixed mode', () => {
+    // A 1000x500 surface scaled down to half size on screen
+    const element = createSurface({ left: 100, top: 50, width: 500, height: 250 })
+    expect(toRenderSurfacePoint(element, 350, 150)).toEqual({ x: 500, y: 200 })
+  })
+
+  it('reports window mouse moves until stopped', () => {
+    const element = createSurface({ left: 0, top: 0, width: 1000, height: 500 })
+    const target = new EventTarget() as Window
+    const listener = vi.fn()
+    const stop = observeRenderSurfacePointer(() => element, listener, target)
+
+    target.dispatchEvent(new MouseEvent('mousemove', { clientX: 10, clientY: 20 }))
+    expect(listener).toHaveBeenLastCalledWith({ x: 10, y: 20 })
+
+    stop()
+    target.dispatchEvent(new MouseEvent('mousemove', { clientX: 30, clientY: 40 }))
+    expect(listener).toHaveBeenCalledOnce()
+  })
+
+  it('ignores moves before the surface mounts', () => {
+    const target = new EventTarget() as Window
+    const listener = vi.fn()
+    const stop = observeRenderSurfacePointer(() => null, listener, target)
+    target.dispatchEvent(new MouseEvent('mousemove', { clientX: 10, clientY: 20 }))
+    expect(listener).not.toHaveBeenCalled()
+    stop()
+  })
+})
+
 describe('BoundingBoxOp render size reactivity', () => {
   const data = [
     { lng: -97.3159, lat: 32.9917 },
@@ -103,7 +125,7 @@ describe('BoundingBoxOp render size reactivity', () => {
   ]
 
   it('fits to the published render size rather than the browser viewport', () => {
-    setRenderSurfaceSize({ width: 1000, height: 500 })
+    publishEnvironment('renderSurface', { width: 1000, height: 500 })
     const operator = new BoundingBoxOp('/bbox')
     const result = operator.execute({ data, padding: 180 })
     const expected = fitBounds({ bounds, width: 1000, height: 500, padding: 180 })
@@ -117,14 +139,14 @@ describe('BoundingBoxOp render size reactivity', () => {
   })
 
   it('invalidates a cached result when the render size changes', async () => {
-    setRenderSurfaceSize({ width: 1000, height: 500 })
+    publishEnvironment('renderSurface', { width: 1000, height: 500 })
     const operator = new BoundingBoxOp('/bbox')
     operator.inputs.data.setValue(data)
     operator.inputs.padding.setValue(100)
     await operator.pull()
     expect(operator.dirty).toBe(false)
 
-    setRenderSurfaceSize(calculateRenderSurfaceSize({ width: 1000, height: 500 }, 2))
+    publishEnvironment('renderSurface', calculateRenderSurfaceSize({ width: 1000, height: 500 }, 2))
     expect(operator.dirty).toBe(true)
     const resized = await operator.pull()
     const expected = fitBounds({ bounds, width: 2000, height: 1000, padding: 100 })
@@ -139,7 +161,7 @@ describe('BoundingBoxOp render size reactivity', () => {
     await operator.pull()
     expect(operator.dirty).toBe(false)
 
-    setRenderSurfaceSize(getRenderSurfaceSize())
+    publishEnvironment('renderSurface', { ...readEnvironment('renderSurface') })
     expect(operator.dirty).toBe(false)
     operator.dispose()
   })
@@ -149,13 +171,14 @@ describe('BoundingBoxOp render size reactivity', () => {
     await operator.pull()
     operator.dispose()
 
-    setRenderSurfaceSize({ width: 1000, height: 500 })
+    publishEnvironment('renderSurface', { width: 1000, height: 500 })
     expect(operator.dirty).toBe(false)
   })
 
   it('does not expose the render size as an input', () => {
     const operator = new BoundingBoxOp('/bbox')
     expect(Object.keys(operator.inputs)).toEqual(['data', 'padding'])
+    expect(BoundingBoxOp.environment).toEqual(['renderSurface'])
     operator.dispose()
   })
 })

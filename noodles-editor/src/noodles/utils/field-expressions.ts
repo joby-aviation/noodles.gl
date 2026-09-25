@@ -8,13 +8,13 @@
 //   emits, Field.addConnection calls evaluateExpression on the driven field.
 // - Bare sibling refs (`par.foo`) are subscribed to directly here — siblings share the owning
 //   operator's lifecycle, so these subscriptions can't go stale across renames/deletes.
-// - Timeline refs (`sequenceTime`, `frame`, ...) subscribe to the timeline store.
+// - Timeline refs (`sequenceTime`, `frame`, ...) subscribe to the timeline environment.
 //
 // Registered into fields.ts via registerFieldExpressionEvaluator to avoid an import cycle.
 
 import { skip } from 'rxjs/operators'
-import { useTimelineStore } from '../../timeline/timeline-store'
 import { debugSetValue } from '../../utils/debug'
+import { readEnvironment, subscribeToEnvironment } from '../environment'
 import {
   type Field,
   mustacheRe,
@@ -25,7 +25,6 @@ import { safeMode } from '../globals'
 import { fnWithSource, freeExports } from '../operators'
 import { getOp } from '../store'
 import { getEnableExpressionDependencies } from './enable-expression-evaluator'
-import { getTimelineContext } from './timeline-context'
 
 const TIMELINE_IDENTIFIER_RE = /\b(?:sequenceTime|frame|totalFrames|sequence)\b/
 
@@ -149,7 +148,7 @@ function evaluateGuarded(field: Field, expr: string): void {
       }
       return target
     }
-    const timeline = getTimelineContext()
+    const timeline = readEnvironment('timeline')
     const result = fn(
       safeOp,
       op?.par,
@@ -226,20 +225,11 @@ function ensureReactiveSubscriptions(field: Field, expr: string): void {
   }
 
   if (TIMELINE_IDENTIFIER_RE.test(processed)) {
-    const unsub = useTimelineStore.subscribe(
-      state => ({
-        position: state.position,
-        fps: state.sequence.fps,
-        length: state.sequence.length,
-      }),
-      () => {
+    cleanups.push(
+      subscribeToEnvironment(['timeline'], () => {
         if (field.expression !== null) evaluateFieldExpression(field)
-      },
-      {
-        equalityFn: (a, b) => a.position === b.position && a.fps === b.fps && a.length === b.length,
-      }
+      })
     )
-    cleanups.push(unsub)
   }
 }
 

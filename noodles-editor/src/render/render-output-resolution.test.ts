@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { calculateRenderSurfaceSize } from './render-surface-size'
+import { calculateRenderSurfaceSize } from './render-surface'
 import { captureScreenshot } from './renderer'
 
 describe('render output resolution', () => {

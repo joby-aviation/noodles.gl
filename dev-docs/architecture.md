@@ -166,6 +166,44 @@ if (operator.pullExecutionStatus === PullExecutionStatus.CLEAN) {
 }
 ```
 
+### Environment State
+
+Some operators depend on host state that isn't a graph input: the timeline position, the render
+surface size, the executor clock, or the pointer. Operators declare these in `static environment`
+and read them from the second argument to `execute()`:
+
+```typescript
+export class BoundingBoxOp extends Operator<BoundingBoxOp> {
+  static environment = ['renderSurface'] as const
+
+  execute({ data, padding }, { renderSurface }: Environment = this.env) {
+    const { width, height } = renderSurface
+    // ...
+  }
+}
+```
+
+The base `Operator` subscribes to the declared keys at construction, marks the operator dirty when one
+changes, and unsubscribes in `dispose()`. `execute()` stays a function of `(inputs, env)`: operators
+must not subscribe to stores, run their own RAF loops, or listen to DOM events. Reading an undeclared
+key throws. `env` values are read on access, so closures an operator returns (deck.gl accessors) see
+current values.
+
+| Key | Source |
+| --- | --- |
+| `timeline` | Derived from the timeline store (`sequenceTime`, `frame`, `totalFrames`, `sequence`) |
+| `renderSurface` | Published by `TimelineEditor` (fixed resolution × LOD, or the measured responsive size) |
+| `clock` | Published by the `GraphExecutor` loop once per frame (`now`, `tick`) |
+| `pointer` | Published by `TimelineEditor` in unscaled render-surface pixels |
+
+Field expressions and the AI `run_code` tool read the same sources through `readEnvironment` and
+`subscribeToEnvironment` in `src/noodles/environment.ts`. To add a key, add a source there and publish
+it from the host that owns it.
+
+Credentials (`getKeysStore`) and the project asset location (`useFileSystemStore`) are intentionally
+not environment keys: editing an API key should not re-run network operators, and operators are
+rebuilt when the project changes.
+
 ### Performance Benefits
 
 - **Selective execution**: Only execute operators needed for current frame

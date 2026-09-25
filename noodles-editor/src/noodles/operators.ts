@@ -74,9 +74,6 @@ import type z from 'zod/v4'
 
 import './utils/bigint-fix' // BigInt JSON polyfill for DuckDB
 import * as duckdb from '@duckdb/duckdb-wasm'
-import { getRenderSurfaceSize, subscribeToRenderSurfaceSize } from '../render/render-surface-size'
-import { getTransformScaleFactor } from '../render/transform-scale'
-import { subscribeToPosition } from '../timeline/timeline-store'
 import * as utils from '../utils'
 import { analytics } from '../utils/analytics'
 import { getArc } from '../utils/arc-geometry'
@@ -97,6 +94,12 @@ import {
   categoricalSchemesStepped,
   continuousInterpolators,
 } from './color-schemes'
+import {
+  createEnvironmentView,
+  type Environment,
+  type EnvironmentKey,
+  subscribeToEnvironment,
+} from './environment'
 import { FilterColorExtension } from './extensions/filter-color-extension'
 import { Mask3DExtension } from './extensions/mask-3d-extension'
 import {
@@ -155,8 +158,6 @@ import { projectScheme } from './utils/filesystem'
 import type { OpId } from './utils/id-utils'
 import { isDirectChild } from './utils/path-utils'
 import { pick } from './utils/pick'
-import { getTimelineContext } from './utils/timeline-context'
-import { subscribeOpToTimeline, unsubscribeOpFromTimeline } from './utils/timeline-dependencies'
 // Side-effect import: registers the field expression evaluator so { $expr } payloads
 // applied in the Operator constructor evaluate immediately
 import './utils/field-expressions'
@@ -196,6 +197,10 @@ export abstract class Operator<OP extends IOperator> {
   // Opt-in flag for operators that support custom fields
   static supportsCustomFields = false
 
+  // Environment state execute() reads (timeline, render surface, clock, pointer). Declared
+  // keys are passed to execute() as `env`, and the operator is marked dirty when they change.
+  static environment: readonly EnvironmentKey[] = []
+
   inputs: ReturnType<OP['createInputs']>
   outputs: ReturnType<OP['createOutputs']>
 
@@ -216,8 +221,13 @@ export abstract class Operator<OP extends IOperator> {
   abstract createInputs(): ReturnType<OP['createInputs']>
   abstract createOutputs(): ReturnType<OP['createOutputs']>
   abstract execute(
-    props: ExtractProps<(typeof this)['inputs']>
+    props: ExtractProps<(typeof this)['inputs']>,
+    env: Environment
   ): ExtractProps<(typeof this)['outputs']> | Promise<ExtractProps<(typeof this)['outputs']>> | null
+
+  // View of the declared environment keys; passed to execute() by the engine
+  readonly env: Environment
+  private unsubscribeEnvironment: () => void
 
   subs: Subscription[] = []
 
@@ -305,6 +315,12 @@ export abstract class Operator<OP extends IOperator> {
     if (locked) {
       this.locked.next(true)
     }
+
+    const { environment, displayName } = this.constructor as typeof Operator
+    this.env = createEnvironmentView(environment, `${displayName} (${id})`)
+    this.unsubscribeEnvironment = subscribeToEnvironment(environment, key =>
+      this.markDirty(`environment: ${key}`)
+    )
   }
 
   get data() {
@@ -499,7 +515,7 @@ export abstract class Operator<OP extends IOperator> {
 
       // Execute the operator - measure only own execution time
       startTime = performance.now()
-      const result = this.execute(inputValues)
+      const result = this.execute(inputValues, this.env)
       const finalResult = result instanceof Promise ? await result : result
       executionTime = performance.now() - startTime
 
@@ -824,7 +840,7 @@ export abstract class Operator<OP extends IOperator> {
               debugger
             }
 
-            const result = this.execute(inputValues)
+            const result = this.execute(inputValues, this.env)
             const finalResult = result instanceof Promise ? await result : result
 
             // Set success state
@@ -1092,8 +1108,7 @@ export abstract class Operator<OP extends IOperator> {
       field.expressionCleanup?.()
     }
 
-    // Cleanup timeline subscriptions
-    unsubscribeOpFromTimeline(this.id)
+    this.unsubscribeEnvironment()
   }
 }
 
@@ -1853,16 +1868,7 @@ export class CategoricalColorRampOp extends Operator<CategoricalColorRampOp> {
 export class TimeOp extends Operator<TimeOp> {
   static displayName = 'Time'
   static description = 'Get the current clock, timeline, and session time'
-
-  private timeState$ = new BehaviorSubject({ now: Date.now(), tick: 0, sequenceTime: 0 })
-  private rafId?: number
-  private positionUnsub?: () => void
-
-  constructor(id: OpId, inputs?: unknown, locked?: boolean) {
-    super(id, inputs, locked)
-    // Initialize time updates after outputs are created
-    this.initializeTimeUpdates()
-  }
+  static environment = ['clock', 'timeline'] as const
 
   createInputs() {
     return {}
@@ -1876,49 +1882,11 @@ export class TimeOp extends Operator<TimeOp> {
     }
   }
 
-  private initializeTimeUpdates() {
-    // Set up subscription from timeState$ to outputs
-    const sub = this.timeState$.subscribe(state => {
-      this.outputs.now.next(state.now)
-      this.outputs.tick.next(state.tick)
-      this.outputs.sequenceTime.next(state.sequenceTime)
-    })
-    this.subs.push(sub)
-
-    this.positionUnsub = subscribeToPosition((pos: number) => {
-      const current = this.timeState$.value
-      this.timeState$.next({ ...current, sequenceTime: pos })
-    })
-
-    // Start RAF loop after outputs are fully initialized
-    this.startRAF()
-  }
-
-  private startRAF() {
-    const update = () => {
-      const current = this.timeState$.value
-      this.timeState$.next({
-        ...current,
-        now: Date.now(),
-        tick: current.tick + 1,
-      })
-      this.rafId = requestAnimationFrame(update)
-    }
-    update()
-  }
-
-  dispose() {
-    if (this.rafId !== undefined) {
-      cancelAnimationFrame(this.rafId)
-    }
-    this.positionUnsub?.()
-    this.timeState$.complete()
-    super.dispose()
-  }
-
-  execute(_: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    // Outputs are driven by the BehaviorSubject, not by execute()
-    return null
+  execute(
+    _: ExtractProps<typeof this.inputs>,
+    { clock, timeline }: Environment = this.env
+  ): ExtractProps<typeof this.outputs> {
+    return { now: clock.now, sequenceTime: timeline.sequenceTime, tick: clock.tick }
   }
 }
 
@@ -2615,18 +2583,8 @@ export class BoundingBoxOp extends Operator<BoundingBoxOp> {
   static displayName = 'BoundingBox'
   static description =
     'Calculate the geographic bounds of your points (with lat/lng keys) and get a camera position (center, zoom) that fits them all in view.'
+  static environment = ['renderSurface'] as const
   asDownload = () => this.outputData
-
-  constructor(
-    id: OpId,
-    data?: Partial<ExtractProps<ReturnType<BoundingBoxOp['createInputs']>>>,
-    locked = false,
-    containerId?: string
-  ) {
-    super(id, data, locked, containerId)
-    // The fit depends on the render surface, not just inputs; refit when it resizes
-    this.subs.push(subscribeToRenderSurfaceSize(() => this.markDirty('render surface resize')))
-  }
 
   createInputs() {
     return {
@@ -2648,7 +2606,10 @@ export class BoundingBoxOp extends Operator<BoundingBoxOp> {
       }),
     }
   }
-  execute({ data, padding }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+  execute(
+    { data, padding }: ExtractProps<typeof this.inputs>,
+    { renderSurface }: Environment = this.env
+  ): ExtractProps<typeof this.outputs> {
     let east = -180
     let west = 180
     let north = -90
@@ -2674,7 +2635,8 @@ export class BoundingBoxOp extends Operator<BoundingBoxOp> {
       [east, north],
     ] as [[number, number], [number, number]]
 
-    const { width, height } = getRenderSurfaceSize()
+    // Fit to the rendered output, not the browser window
+    const { width, height } = renderSurface
 
     const { longitude, latitude, zoom } = fitBounds({
       bounds,
@@ -3774,16 +3736,7 @@ export class MergeOp extends Operator<MergeOp> {
 export class MouseOp extends Operator<MouseOp> {
   static displayName = 'Mouse'
   static description = 'Get the current mouse position on the screen'
-
-  private mousePosition$ = new BehaviorSubject({ x: 0, y: 0 })
-  private mouseListener?: (e: MouseEvent) => void
-  private containerElement?: Element
-
-  constructor(id: OpId, inputs?: unknown, locked?: boolean) {
-    super(id, inputs, locked)
-    // Initialize mouse position updates after outputs are created
-    this.initializeMouseUpdates()
-  }
+  static environment = ['pointer'] as const
 
   createInputs() {
     return {}
@@ -3795,46 +3748,11 @@ export class MouseOp extends Operator<MouseOp> {
     }
   }
 
-  private initializeMouseUpdates() {
-    // Subscribe output to the behavior subject
-    const sub = this.mousePosition$.subscribe(pos => {
-      this.outputs.position.next(pos)
-    })
-    this.subs.push(sub)
-  }
-
-  // Called by the component to inject the container element
-  setContainer(container: Element) {
-    // Clean up old listener if any
-    if (this.mouseListener && this.containerElement) {
-      window.removeEventListener('mousemove', this.mouseListener, false)
-    }
-
-    this.containerElement = container
-
-    this.mouseListener = (e: MouseEvent) => {
-      const rect = container.getBoundingClientRect()
-      const scale = getTransformScaleFactor(container)
-      this.mousePosition$.next({
-        x: (e.clientX - rect.left) / scale.x,
-        y: (e.clientY - rect.top) / scale.y,
-      })
-    }
-
-    window.addEventListener('mousemove', this.mouseListener, false)
-  }
-
-  dispose() {
-    if (this.mouseListener) {
-      window.removeEventListener('mousemove', this.mouseListener, false)
-    }
-    this.mousePosition$.complete()
-    super.dispose()
-  }
-
-  execute(_: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    // Output is driven by the BehaviorSubject, not by execute()
-    return null
+  execute(
+    _: ExtractProps<typeof this.inputs>,
+    { pointer }: Environment = this.env
+  ): ExtractProps<typeof this.outputs> {
+    return { position: { x: pointer.x, y: pointer.y } }
   }
 }
 
@@ -6888,6 +6806,7 @@ export class AccessorOp extends Operator<AccessorOp> {
   static displayName = 'Accessor'
   static description =
     'A function called for each row of your data and passed to Deck.gl layer properties. The current row is passed as the `d` variable (e.g., `d.population`, `d.properties.color`). Available variables: `d` (current row), `i` (index), `data` (all rows), `op()` (access operators), `sequenceTime` (timeline position), `frame` (current frame), `totalFrames`, `sequence` (timeline metadata). Includes d3, turf, and other utilities.'
+  static environment = ['timeline'] as const
   createInputs() {
     return {
       expression: new ExpressionField(),
@@ -6898,7 +6817,10 @@ export class AccessorOp extends Operator<AccessorOp> {
       accessor: new FunctionField(),
     }
   }
-  execute({ expression }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+  execute(
+    { expression }: ExtractProps<typeof this.inputs>,
+    env: Environment = this.env
+  ): ExtractProps<typeof this.outputs> {
     const fn = fnWithSource(
       [
         'd',
@@ -6915,24 +6837,21 @@ export class AccessorOp extends Operator<AccessorOp> {
       this.id
     )
 
-    // Subscribe to timeline changes - accessor will get fresh values on each call
-    subscribeOpToTimeline(this)
-
     // https://deck.gl/docs/developer-guide/using-layers#accessors
     const accessor = (d: unknown, dInfo: { index: number; data: unknown; target: number[] }) => {
       const contextualGetOp = safeOpGetter(this.id)
-      // Get fresh timeline values for each accessor call
-      const timelineContext = getTimelineContext()
+      // env reads are live, so each accessor call sees the current timeline
+      const { timeline } = env
       try {
         return fn(
           d,
           dInfo.index,
           dInfo.data,
           contextualGetOp,
-          timelineContext.sequenceTime,
-          timelineContext.frame,
-          timelineContext.totalFrames,
-          timelineContext.sequence,
+          timeline.sequenceTime,
+          timeline.frame,
+          timeline.totalFrames,
+          timeline.sequence,
           ...Object.values(freeExports)
         )
       } catch (_e) {
@@ -6951,6 +6870,7 @@ export class CodeOp extends Operator<CodeOp> {
   static description =
     'Run custom JavaScript code to transform your data. Available variables: `data` (all input data), `d` (first element), `op()` (access other operators), `sequenceTime` (timeline position), `frame` (current frame), `totalFrames`, `sequence` (timeline metadata). Includes d3, turf, and other utilities. Use `this` to store state between executions.'
   static supportsCustomFields = true
+  static environment = ['timeline'] as const
   asDownload = () => this.outputs.data.value
   createInputs() {
     return {
@@ -6963,10 +6883,10 @@ export class CodeOp extends Operator<CodeOp> {
       data: new DataField(),
     }
   }
-  async execute({
-    data,
-    code: codeString,
-  }: ExtractProps<typeof this.inputs>): Promise<ExtractProps<typeof this.outputs>> {
+  async execute(
+    { data, code: codeString }: ExtractProps<typeof this.inputs>,
+    { timeline }: Environment = this.env
+  ): Promise<ExtractProps<typeof this.outputs>> {
     // Replace self-parameter shorthand {{par.field}} with op() calls referencing this operator
     let processedCode = codeString
       .trim()
@@ -6978,12 +6898,6 @@ export class CodeOp extends Operator<CodeOp> {
     processedCode = processedCode.replace(mustacheRe, (_match, opId, inOut, fieldPath) => {
       return `op('${opId}').${inOut}.${fieldPath}`
     })
-
-    // Get current timeline values
-    const timelineContext = getTimelineContext()
-
-    // Subscribe to timeline changes for reactive updates
-    subscribeOpToTimeline(this)
 
     // Create a context-aware getOp function for the code execution
     const contextualGetOp = safeOpGetter(this.id)
@@ -7006,10 +6920,10 @@ export class CodeOp extends Operator<CodeOp> {
       data,
       data[0],
       contextualGetOp,
-      timelineContext.sequenceTime,
-      timelineContext.frame,
-      timelineContext.totalFrames,
-      timelineContext.sequence,
+      timeline.sequenceTime,
+      timeline.frame,
+      timeline.totalFrames,
+      timeline.sequence,
       ...Object.values(freeExports)
     )
 
@@ -7068,6 +6982,7 @@ export class ExpressionOp extends Operator<ExpressionOp> {
   static displayName = 'Expression'
   static description =
     'Evaluate a JavaScript expression to compute a single value. Available variables: `data` (all input data), `d` (first element), `op()` (access other operators), `sequenceTime` (timeline position), `frame` (current frame), `totalFrames`, `sequence` (timeline metadata). Includes d3, turf, and other utilities.'
+  static environment = ['timeline'] as const
   createInputs() {
     return {
       data: new ListField(new DataField()),
@@ -7079,16 +6994,10 @@ export class ExpressionOp extends Operator<ExpressionOp> {
       data: new DataField(),
     }
   }
-  execute({
-    data,
-    expression,
-  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    // Get current timeline values
-    const timelineContext = getTimelineContext()
-
-    // Subscribe to timeline changes for reactive updates
-    subscribeOpToTimeline(this)
-
+  execute(
+    { data, expression }: ExtractProps<typeof this.inputs>,
+    env: Environment = this.env
+  ): ExtractProps<typeof this.outputs> {
     const fn = fnWithSource(
       [
         'data',
@@ -7113,16 +7022,16 @@ export class ExpressionOp extends Operator<ExpressionOp> {
       // Return an accessor function that evaluates all data items and applies the expression
       const result = (...args: unknown[]) => {
         const evaluatedData = data.map(item => (isAccessor(item) ? item(...args) : item))
-        // Get fresh timeline values for each accessor call
-        const freshTimeline = getTimelineContext()
+        // env reads are live, so each accessor call sees the current timeline
+        const { timeline } = env
         return fn(
           evaluatedData,
           evaluatedData[0],
           contextualGetOp,
-          freshTimeline.sequenceTime,
-          freshTimeline.frame,
-          freshTimeline.totalFrames,
-          freshTimeline.sequence,
+          timeline.sequenceTime,
+          timeline.frame,
+          timeline.totalFrames,
+          timeline.sequence,
           ...Object.values(freeExports)
         )
       }
@@ -7131,14 +7040,15 @@ export class ExpressionOp extends Operator<ExpressionOp> {
     }
 
     // Static evaluation
+    const { timeline } = env
     const result = fn(
       data,
       data[0],
       contextualGetOp,
-      timelineContext.sequenceTime,
-      timelineContext.frame,
-      timelineContext.totalFrames,
-      timelineContext.sequence,
+      timeline.sequenceTime,
+      timeline.frame,
+      timeline.totalFrames,
+      timeline.sequence,
       ...Object.values(freeExports)
     )
 
