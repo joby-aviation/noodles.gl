@@ -303,7 +303,7 @@ export function GeocodingDialog({
         // Drop responses from searches superseded by a newer keystroke
         if (searchId !== searchIdRef.current) return
         setSuggestions(suggestions)
-        if (status) setSearchStatus(status)
+        setSearchStatus(status)
         setIsLoading(false)
       }, 300)
     },
@@ -375,54 +375,63 @@ export function GeocodingDialog({
             {/* Autocomplete Dropdown */}
             {showDropdown && (suggestions.length > 0 || isLoading) && (
               <div className={s.suggestionsDropdown}>
-                {isLoading ? (
-                  <div className={s.suggestionItem}>
-                    <i className="pi pi-spin pi-spinner" style={{ marginRight: '8px' }} />
-                    Searching...
+                <div className={s.suggestionsList}>
+                  {isLoading ? (
+                    <div className={s.suggestionItem}>
+                      <i className="pi pi-spin pi-spinner" style={{ marginRight: '8px' }} />
+                      Searching...
+                    </div>
+                  ) : (
+                    suggestions.map((suggestion, index) => (
+                      <button
+                        type="button"
+                        key={`${suggestion.label}-${index}`}
+                        className={s.suggestionItem}
+                        onMouseDown={() => handleSuggestionSelect(suggestion)}
+                      >
+                        <span className={s.suggestionLabel}>{suggestion.label}</span>
+                        {suggestion.provider && (
+                          <span
+                            className={s.suggestionProvider}
+                            data-provider={suggestion.provider}
+                          >
+                            {PROVIDER_LABELS[suggestion.provider]}
+                          </span>
+                        )}
+                      </button>
+                    ))
+                  )}
+                </div>
+
+                {/* Provider notice pinned below the results — only when a configured key
+                    failed, or no key is configured */}
+                {!isLoading && searchStatus && searchStatus.failures.length > 0 && (
+                  <div className={s.providerNotice} role="status">
+                    {searchStatus.failures.map(failure => (
+                      <div key={failure}>{failure}</div>
+                    ))}
+                    <div>Showing {PROVIDER_LABELS[searchStatus.provider]} results.</div>
                   </div>
-                ) : (
-                  suggestions.map((suggestion, index) => (
-                    <button
-                      type="button"
-                      key={`${suggestion.label}-${index}`}
-                      className={s.suggestionItem}
-                      onMouseDown={() => handleSuggestionSelect(suggestion)}
-                    >
-                      <span className={s.suggestionLabel}>{suggestion.label}</span>
-                      {suggestion.provider && (
-                        <span className={s.suggestionProvider} data-provider={suggestion.provider}>
-                          {PROVIDER_LABELS[suggestion.provider]}
-                        </span>
-                      )}
-                    </button>
-                  ))
                 )}
+                {!isLoading &&
+                  searchStatus?.provider === 'photon' &&
+                  !googleMapsKey &&
+                  !mapboxKey && (
+                    <div className={s.providerNotice}>
+                      Using Photon (free, OpenStreetMap).{' '}
+                      <button
+                        type="button"
+                        className={s.providerSettingsLink}
+                        onClick={() => setSettingsDialogOpen(true)}
+                      >
+                        Add a Mapbox or Google Maps key
+                      </button>{' '}
+                      in Settings for better results.
+                    </div>
+                  )}
               </div>
             )}
           </div>
-
-          {/* Provider notice — only when a configured key failed, or no key is configured */}
-          {searchStatus && searchStatus.failures.length > 0 && (
-            <div className={s.providerNotice} role="status">
-              {searchStatus.failures.map(failure => (
-                <div key={failure}>{failure}</div>
-              ))}
-              <div>Showing {PROVIDER_LABELS[searchStatus.provider]} results.</div>
-            </div>
-          )}
-          {searchStatus?.provider === 'photon' && !googleMapsKey && !mapboxKey && (
-            <div className={s.providerNotice}>
-              Using Photon (free, OpenStreetMap).{' '}
-              <button
-                type="button"
-                className={s.providerSettingsLink}
-                onClick={() => setSettingsDialogOpen(true)}
-              >
-                Add a Mapbox or Google Maps key
-              </button>{' '}
-              in Settings for better results.
-            </div>
-          )}
 
           {/* Map */}
           {selectedLocation.longitude != null && selectedLocation.latitude != null && (

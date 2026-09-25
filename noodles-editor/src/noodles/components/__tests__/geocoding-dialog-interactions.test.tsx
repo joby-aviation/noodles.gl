@@ -176,6 +176,8 @@ describe('GeocodingDialog interactions', () => {
     )
     expect(notice).toHaveTextContent('Mapbox geocoding failed: 422 Query too long - 21/20 tokens')
     expect(notice).toHaveTextContent('Showing Photon results.')
+    // Pinned to the results dropdown so it is visible alongside the results
+    expect(notice.parentElement).toContainElement(screen.getByRole('button', { name: /Bordeaux/ }))
     expect(
       screen.queryByRole('button', { name: 'Add a Mapbox or Google Maps key' })
     ).not.toBeInTheDocument()

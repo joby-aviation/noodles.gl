@@ -1,0 +1,123 @@
+{
+  "version": 20,
+  "name": "BitmapLayer — San Francisco Districts",
+  "edges": [
+    {
+      "id": "/bitmap-layer.out.layer->/deck.par.layers",
+      "source": "/bitmap-layer",
+      "target": "/deck",
+      "sourceHandle": "out.layer",
+      "targetHandle": "par.layers"
+    },
+    {
+      "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap",
+      "source": "/maplibre-basemap",
+      "target": "/deck",
+      "sourceHandle": "out.maplibre",
+      "targetHandle": "par.basemap"
+    },
+    {
+      "id": "/deck.out.vis->/out.par.vis",
+      "source": "/deck",
+      "target": "/out",
+      "sourceHandle": "out.vis",
+      "targetHandle": "par.vis"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "/bitmap-layer",
+      "type": "BitmapLayerOp",
+      "position": {
+        "x": -460,
+        "y": -140
+      },
+      "data": {
+        "inputs": {
+          "image": "@/sf-districts.png",
+          "bounds": {
+            "southwest": {
+              "lng": -122.519,
+              "lat": 37.7045
+            },
+            "northeast": {
+              "lng": -122.355,
+              "lat": 37.829
+            }
+          }
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/maplibre-basemap",
+      "type": "MaplibreBasemapOp",
+      "position": {
+        "x": -460,
+        "y": 180
+      },
+      "data": {
+        "inputs": {
+          "mapStyle": "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json",
+          "viewState": {
+            "latitude": 37.74,
+            "longitude": -122.4,
+            "zoom": 11,
+            "pitch": 0,
+            "bearing": 0
+          }
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/deck",
+      "type": "DeckRendererOp",
+      "position": {
+        "x": -60,
+        "y": 0
+      },
+      "data": {
+        "inputs": {},
+        "locked": false
+      }
+    },
+    {
+      "id": "/out",
+      "type": "OutOp",
+      "position": {
+        "x": 320,
+        "y": 0
+      },
+      "data": {
+        "inputs": {
+          "display": "fixed",
+          "width": 1280,
+          "height": 720,
+          "lod": 1,
+          "waitForData": true,
+          "scaleControl": 0.6
+        },
+        "locked": false
+      }
+    }
+  ],
+  "viewport": {
+    "x": 620,
+    "y": 360,
+    "zoom": 0.8
+  },
+  "editorSettings": {
+    "layoutMode": "noodles-on-top",
+    "showOverlay": true
+  },
+  "timeline": {
+    "sheetsById": {
+      "Noodles": {
+        "staticOverrides": {
+          "byObject": {}
+        }
+      }
+    }
+  }
+}
