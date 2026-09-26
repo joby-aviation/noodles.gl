@@ -7,6 +7,7 @@ export const categories = {
     'Arc',
     'BoundingBox',
     'Bounds',
+    'BrushableHistogram',
     'Chart',
     'Concat',
     'Cross',

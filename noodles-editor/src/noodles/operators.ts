@@ -2532,6 +2532,108 @@ export class ChartOp extends Operator<ChartOp> {
   }
 }
 
+export class BrushableHistogramOp extends Operator<BrushableHistogramOp> {
+  static displayName = 'BrushableHistogram'
+  static description =
+    'Interactive histogram with brushable range selection for data filtering. Drag handles to select a range, keyframe brush positions for animation.'
+
+  createInputs() {
+    const data = new DataField()
+    const field = new StringLiteralField('', [])
+
+    // Dynamically populate field choices from numeric data keys
+    data.subscribe((newData: unknown[]) => {
+      if (Array.isArray(newData) && newData.length > 0 && typeof newData[0] === 'object') {
+        const sample = newData[0] as Record<string, unknown>
+        const numericKeys = Object.keys(sample).filter(
+          k => typeof sample[k] === 'number' && !Number.isNaN(sample[k])
+        )
+        field.updateChoices(numericKeys)
+      }
+    })
+
+    return {
+      data,
+      field,
+      binCount: new NumberField(20, { min: 5, max: 100, step: 1 }),
+      brushMin: new NumberField(0),
+      brushMax: new NumberField(100),
+      brushMode: new StringLiteralField('handles', { values: ['handles', 'offset'] }),
+    }
+  }
+
+  createOutputs() {
+    return {
+      filteredData: new DataField(),
+      binData: new DataField(),
+      extent: new UnknownField(),
+    }
+  }
+
+  execute({
+    data,
+    field,
+    binCount,
+    brushMin,
+    brushMax,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    // Validate inputs
+    if (!Array.isArray(data) || data.length === 0 || !field) {
+      return {
+        filteredData: [],
+        binData: [],
+        extent: [0, 0],
+      }
+    }
+
+    // Get d3 from global context
+    const d3 = (globalThis as unknown as Record<string, unknown>).d3 as typeof import('d3')
+
+    // Extract accessor function
+    const accessor = (d: unknown) => {
+      if (typeof d === 'object' && d !== null && field in d) {
+        return (d as Record<string, unknown>)[field] as number
+      }
+      return null
+    }
+
+    // Calculate extent
+    const extent = d3.extent(data, accessor) as [number, number]
+    if (extent[0] === undefined || extent[1] === undefined) {
+      return {
+        filteredData: [],
+        binData: [],
+        extent: [0, 0],
+      }
+    }
+
+    // Create histogram bins
+    const binner = d3.bin<unknown, number>().domain(extent).thresholds(binCount).value(accessor)
+
+    const bins = binner(data)
+
+    // Format bin data for output
+    const binData = bins.map(bin => ({
+      x0: bin.x0,
+      x1: bin.x1,
+      count: bin.length,
+      values: bin,
+    }))
+
+    // Filter data based on brush range
+    const filtered = data.filter(d => {
+      const val = accessor(d)
+      return val !== null && val >= brushMin && val <= brushMax
+    })
+
+    return {
+      filteredData: filtered,
+      binData,
+      extent,
+    }
+  }
+}
+
 export class ScatterOp extends Operator<ScatterOp> {
   static displayName = 'Scatter'
   static description = 'Scatter points randomly within a bounding box'
@@ -9945,6 +10047,7 @@ export const opTypes = {
   BufferOp,
   BoundsOp,
   BrightnessContrastExtensionOp,
+  BrushableHistogramOp,
   BrushingExtensionOp,
   CategoricalColorRampOp,
   CentroidOp,

@@ -1,0 +1,255 @@
+.content {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 800px;
+  max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 64px);
+  background-color: #1a1a1a;
+  color: var(--color-text-primary);
+  border-radius: 12px;
+  padding: 1.5rem;
+  z-index: var(--z-index-modal);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  animation: contentShow 150ms cubic-bezier(0.16, 1, 0.3, 1);
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.content:focus {
+  outline: none;
+}
+
+.title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  padding-right: 2rem;
+}
+
+.closeButton {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  width: 32px;
+  height: 32px;
+  border-radius: 4px;
+  border: none;
+  background-color: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.closeButton:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.closeButton:focus {
+  outline: none;
+}
+
+.emptyState {
+  padding: 3rem 1.5rem;
+  text-align: center;
+  color: var(--color-text-secondary);
+  font-size: 0.875rem;
+}
+
+/* Controls */
+.controls {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  background-color: rgba(255, 255, 255, 0.03);
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.controlRow {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.label {
+  flex: 0 0 60px;
+  font-size: 0.8rem;
+  color: var(--color-text-secondary);
+}
+
+.select,
+.input {
+  flex: 1;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.8rem;
+  color: var(--color-text-primary);
+  background-color: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  font-family: inherit;
+  transition: border-color 0.15s;
+}
+
+.select:focus,
+.input:focus {
+  outline: none;
+  border-color: #3b82f6;
+}
+
+.slider {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.1);
+  outline: none;
+  -webkit-appearance: none;
+}
+
+.slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #3b82f6;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.slider::-webkit-slider-thumb:hover {
+  background: #60a5fa;
+  transform: scale(1.1);
+}
+
+.slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #3b82f6;
+  cursor: pointer;
+  border: none;
+  transition: all 0.15s;
+}
+
+.slider::-moz-range-thumb:hover {
+  background: #60a5fa;
+  transform: scale(1.1);
+}
+
+.value {
+  flex: 0 0 70px;
+  font-size: 0.8rem;
+  color: var(--color-text-secondary);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Chart */
+.chartContainer {
+  display: flex;
+  justify-content: center;
+  padding: 1rem 0;
+  background-color: rgba(0, 0, 0, 0.2);
+  border-radius: 6px;
+}
+
+.svg {
+  user-select: none;
+}
+
+.bar {
+  fill: rgba(59, 130, 246, 0.3);
+  stroke: rgba(59, 130, 246, 0.6);
+  stroke-width: 1;
+  transition: fill 0.15s;
+}
+
+.bar:hover {
+  fill: rgba(59, 130, 246, 0.4);
+}
+
+.brushOverlay {
+  fill: rgba(59, 130, 246, 0.15);
+  pointer-events: none;
+}
+
+.brushHandle {
+  cursor: ew-resize;
+  transition: opacity 0.15s;
+}
+
+.brushHandle:hover {
+  opacity: 1;
+}
+
+.dragging {
+  opacity: 1;
+}
+
+.handleLine {
+  stroke: #3b82f6;
+  stroke-width: 2;
+  pointer-events: none;
+}
+
+.handleCircle {
+  fill: #3b82f6;
+  stroke: #1a1a1a;
+  stroke-width: 2;
+  pointer-events: all;
+  cursor: ew-resize;
+  transition: all 0.15s;
+}
+
+.handleCircle:hover {
+  fill: #60a5fa;
+  r: 7;
+}
+
+.axis {
+  stroke: rgba(255, 255, 255, 0.2);
+  stroke-width: 1;
+}
+
+.axisLabel {
+  fill: var(--color-text-secondary);
+  font-size: 0.7rem;
+  font-family: inherit;
+}
+
+/* Info */
+.info {
+  font-size: 0.8rem;
+  color: var(--color-text-secondary);
+  text-align: center;
+  padding: 0.5rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+@keyframes contentShow {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -48%) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+@media (max-width: 900px) {
+  .content {
+    width: calc(100vw - 32px);
+  }
+
+  .chartContainer svg {
+    width: 100%;
+    height: auto;
+  }
+}
