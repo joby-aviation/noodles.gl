@@ -29,6 +29,22 @@ function useTestHookWithGraphRef(fullNodes: ReactFlowNode[], fullEdges: ReactFlo
   return { undoRedo, storeApi, graphRef }
 }
 
+describe('useUndoRedo — assistant proposals', () => {
+  it('records a whole accepted proposal as one undo entry', () => {
+    const { result } = renderHook(() => useTestHook(), { wrapper })
+    const before = { nodes: [], edges: [] }
+    const after = {
+      nodes: [{ id: '/n', type: 'NumberOp', position: { x: 0, y: 0 }, data: {} }],
+      edges: [],
+    }
+
+    act(() => result.current.undoRedo.recordGraphChange('Apply assistant proposal', before, after))
+
+    expect(result.current.undoRedo.history).toHaveLength(1)
+    expect(result.current.undoRedo.history[0].description).toBe('Apply assistant proposal')
+  })
+})
+
 // Renders the hook and injects a real onNodesChange into the RF store so the
 // useUndoRedo interceptor has something to wrap.
 async function setupHook() {

@@ -44,7 +44,7 @@ export const FIND_TOOLS_DEFINITION: {
 } = {
   name: FIND_TOOLS_NAME,
   description:
-    "Look up additional tools by capability and unlock them for use. Returns full input schemas for the best matches. Use this before saying a capability is unavailable — tools exist for running JavaScript against the live graph, reading, writing, listing and searching the project's data files, searching source code, reading documentation, listing and fetching example projects, reading operator schemas, capturing screenshots, reading console errors, editing the animation timeline, searching the web, and delegating a self-contained sub-task to another agent.",
+    'Find and unlock additional tools by capability. Use before saying a capability is unavailable. Search terms include docs, files, datasets, code, examples, operator schemas, screenshots, errors, timeline, web and delegation.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -156,6 +156,18 @@ export class ToolRouter {
 
   getUnlocked(): string[] {
     return [...this.unlocked]
+  }
+
+  // Prime the smallest useful extension to tier zero from the user's wording.
+  // This saves local models a discovery turn while retaining the same bounded
+  // schema budget and eviction behavior as find_tools.
+  prime(query: string, limit = 2): string[] {
+    const matches = scoreTools(query, [...this.harnessTools.values()])
+      .filter(match => this.isAllowed(match.name) && !TIER0_TOOL_NAMES.includes(match.name))
+      .slice(0, Math.max(0, Math.min(limit, maxUnlockedTools(this.contextWindowTokens))))
+
+    for (const match of matches) this.unlock(match.name)
+    return matches.map(match => match.name)
   }
 
   // Handles a find_tools call: scores the full surface, unlocks the winners,

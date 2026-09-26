@@ -16,6 +16,7 @@ import {
   debugHistoryUndo,
 } from '../../utils/debug'
 import type { GraphRef } from '../types'
+import type { GraphHistorySnapshot } from './graph-history'
 import { applyOperatorInputs } from './property-history'
 
 interface HistoryEntry {
@@ -610,6 +611,34 @@ export function useUndoRedo(options?: UseUndoRedoOptions) {
     [getSnapshot]
   )
 
+  const recordGraphChange = useCallback(
+    (description: string, before: GraphHistorySnapshot, after: GraphHistorySnapshot) => {
+      if (isRestoringRef.current) return
+      const timelineState = captureTimelineState()
+      const entry: HistoryEntry = {
+        id: crypto.randomUUID(),
+        timestamp: Date.now(),
+        description,
+        nodeChanges: [],
+        edgeChanges: [],
+        nodesBefore: before.nodes,
+        edgesBefore: before.edges,
+        nodesAfter: after.nodes,
+        edgesAfter: after.edges,
+        timelineStateBefore: timelineState,
+        timelineStateAfter: timelineState,
+        operatorStateBefore: before.operatorState,
+        operatorStateAfter: after.operatorState,
+      }
+      setUndoRedoState(prev => {
+        const history = [...prev.history.slice(0, prev.currentIndex + 1), entry]
+        const finalHistory = history.slice(-maxHistorySize)
+        return { history: finalHistory, currentIndex: finalHistory.length - 1 }
+      })
+    },
+    []
+  )
+
   return {
     undo,
     redo,
@@ -619,6 +648,7 @@ export function useUndoRedo(options?: UseUndoRedoOptions) {
     isRestoring: () => isRestoringRef.current,
     recordTimelineChange,
     recordPropertyChange,
+    recordGraphChange,
     history,
     clear: () => {
       setUndoRedoState({

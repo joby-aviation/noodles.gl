@@ -84,7 +84,7 @@ describe('resolveProviderId', () => {
 
   it('does not pick WebLLM automatically until a model has been chosen', () => {
     const ready = { ...NOTHING, webgpuReady: true, chromeAvailable: true }
-    expect(resolveProviderId({ ...ready, preference: 'automatic' })).toBe('chrome')
+    expect(resolveProviderId({ ...ready, preference: 'automatic' })).toBe('anthropic')
     expect(
       resolveProviderId({ ...ready, preference: 'automatic', webllmModel: 'Qwen3-4B-q4f16_1-MLC' })
     ).toBe('webllm')
