@@ -35,6 +35,12 @@ const SMALL_CONTEXT_TOKENS = 32_000
 
 const DEFAULT_MAX_TOKENS = 8192
 
+// Small models loop: the same lookup after it failed, the same edit queued six
+// times. An identical call gets the earlier outcome back as an error instead of
+// running again, and the call that reaches this count ends the run.
+const REPEAT_LIMIT = 3
+const REPEAT_PREVIEW_CHARS = 200
+
 interface ScreenshotData {
   screenshot: string
   format?: 'png' | 'jpeg'
@@ -116,6 +122,9 @@ export async function runAgent(params: RunAgentParams): Promise<AgentRunResult> 
   let stopReason: StopReason = 'end_turn'
   let steps = 0
 
+  const seen = new Map<string, SeenCall>()
+  let looping = false
+
   while (steps < maxSteps) {
     if (signal?.aborted)
       return { text, toolCalls, modifications, messages, usage, stopReason: 'aborted', steps }
@@ -152,14 +161,54 @@ export async function runAgent(params: RunAgentParams): Promise<AgentRunResult> 
 
     if (turn.toolCalls.length === 0) break
 
-    const executed = await executeToolBatch({
-      calls: turn.toolCalls,
+    const fresh: StreamedTurn['toolCalls'] = []
+    const refused = new Map<string, ToolOutcome>()
+    for (const call of turn.toolCalls) {
+      const prior = seen.get(callSignature(call))
+      if (!prior) {
+        fresh.push(call)
+        continue
+      }
+      prior.count++
+      if (prior.count >= REPEAT_LIMIT) looping = true
+      onEvent?.({
+        type: 'diagnostic',
+        kind: 'repeated_tool_call',
+        detail: `${call.name} ×${prior.count}`,
+      })
+      const result: ToolResult = {
+        success: false,
+        error: `You already called ${call.name} with these arguments and got ${prior.outcome}. Calling it again returns the same thing — try a different tool or different arguments, or answer with what you know.`,
+      }
+      refused.set(call.id, { ...call, result, capped: result })
+    }
+
+    const ran = await executeToolBatch({
+      calls: fresh,
       tools,
       router,
       resultBudget,
       depth,
       signal,
     })
+
+    for (const outcome of ran) {
+      const readOnly = isReadOnly(outcome.name, router)
+      // A successful write can change what a read returns, so reads may run again
+      if (!readOnly && outcome.result.success) {
+        for (const [signature, entry] of seen) if (entry.readOnly) seen.delete(signature)
+      }
+      seen.set(callSignature(outcome), {
+        count: 1,
+        outcome: describeOutcome(outcome.capped),
+        readOnly,
+      })
+    }
+
+    const ranById = new Map(ran.map(outcome => [outcome.id, outcome]))
+    const executed = turn.toolCalls.map(
+      call => (ranById.get(call.id) ?? refused.get(call.id)) as ToolOutcome
+    )
 
     const resultContent: AgentContent[] = []
     let pendingScreenshot: { data: string; mediaType: string } | null = null
@@ -202,6 +251,11 @@ export async function runAgent(params: RunAgentParams): Promise<AgentRunResult> 
     }
 
     messages.push({ role: 'user', content: resultContent })
+
+    if (looping) {
+      debugAiChat('[agent] stopping: the model repeated a tool call %d times', REPEAT_LIMIT)
+      break
+    }
   }
 
   if (steps >= maxSteps && stopReason === 'tool_use') {
@@ -214,6 +268,23 @@ export async function runAgent(params: RunAgentParams): Promise<AgentRunResult> 
   modifications.push(...extractProsedModifications(text))
 
   return { text, toolCalls, modifications, messages, usage, stopReason, steps }
+}
+
+interface SeenCall {
+  count: number
+  outcome: string
+  readOnly: boolean
+}
+
+function callSignature(call: { name: string; input: Record<string, unknown> }): string {
+  return `${call.name}:${JSON.stringify(call.input)}`
+}
+
+function describeOutcome(result: ToolResult): string {
+  const text = result.success
+    ? `success: ${JSON.stringify(result.data ?? null)}`
+    : `error: ${result.error ?? 'failed'}`
+  return text.length > REPEAT_PREVIEW_CHARS ? `${text.slice(0, REPEAT_PREVIEW_CHARS)}…` : text
 }
 
 const JSON_BLOCK = /```json\s*([\s\S]*?)\s*```/g

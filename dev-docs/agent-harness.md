@@ -94,7 +94,10 @@ same walk rather than showing an error.
 Two provider flags carry all the behavioural difference: `supportsNativeTools`
 (false routes the provider through `providers/json-tools.ts`, which emulates the tool
 round-trip with a JSON schema the runtime enforces and translates the model's
-one-object reply into the same `tool_call` event the others emit) and `contextWindow`
+one-object reply into the same `tool_call` event the others emit — `input` is the
+last property, because a grammar that requires `reply` after it leaves a model that
+wants to close the object nothing to emit but whitespace until `max_tokens`, and an
+object cut off anyway is closed and flagged `json_repaired`) and `contextWindow`
 (which sizes the disclosure limits, the per-result budget, the step limit, and the
 compaction threshold).
 
@@ -250,6 +253,21 @@ when the window is under 32k. Each step is one model turn plus its tool batch.
   read-only (`ToolAnnotations.readOnlyHint`, or `HarnessTool.readOnly`); the first
   mutating call forces the rest to run in order after it, so two
   `apply_modifications` calls can never race.
+- **Repeated calls.** A call identical to an earlier one (same name, same input)
+  is not run again; the model gets the earlier outcome back as an error telling it
+  to try something else, and the third identical call ends the run. Small models
+  otherwise loop — the same failed lookup six times, or the same edit queued six
+  times. A successful mutating call clears the memory of read-only calls, since a
+  read may now return something new. Each refusal emits a `repeated_tool_call`
+  diagnostic.
+- **Validated edits.** `apply_modifications` validates the whole batch against
+  `ProjectModificationSchema` and the project before anything is queued: ids must
+  name existing nodes (or nodes added earlier in the batch or the run), `add_node`
+  must not collide, and an `update_node` must change something. Every problem is
+  reported at once, with the ids that do exist. Bare ids (`pickup-layer`,
+  `map-range` for `/analysis/map-range`) are resolved when they name exactly one
+  node, here and in `get_node_info` / `get_node_output`. Handle names are not
+  checked yet.
 - **Screenshots.** Base64 is stripped from the tool result and reattached as an
   image block on the follow-up message — only when `provider.supportsImages`.
 - **Opaque provider blocks.** Anything a provider needs echoed back verbatim
@@ -466,11 +484,11 @@ the old `listNodes` shape copied verbatim.
 
 | Per-turn component | Before | After | Change |
 | --- | --- | --- | --- |
-| System prompt | 9,278 chars (~2,300 tok) | 2,910 chars (~730 tok) | −69% |
+| System prompt | 9,278 chars (~2,300 tok) | ~9,000 chars (~2,250 tok) | −3% |
 | Tool schemas | 4,291 chars, 13 tools (~1,070 tok) | 2,292 chars, 5 tools (~570 tok) | −47% |
 | One `list_nodes` result (200k window) | 18,447 chars (~4,600 tok) | 11,462 chars (~2,870 tok) | −38% |
 | One `list_nodes` result (6k window) | 18,447 chars (~4,600 tok) | 1,637 chars (~410 tok) | −91% |
-| **First turn, all three** | ~32,000 chars (~8,000 tok) | ~16,700 chars (~4,175 tok) | **−48%** |
+| **First turn, all three** | ~32,000 chars (~8,000 tok) | ~22,750 chars (~5,700 tok) | **−29%** |
 
 The `list_nodes` saving is the slimming alone (role groupings carry ids instead of
 re-serialized node objects; `position` dropped; long string inputs clipped to a
@@ -480,7 +498,27 @@ all: 18k chars would exceed the entire context.
 
 The remaining six prompt sections (16,914 chars total) are no longer sent at all;
 they reach the model through `get_documentation` when a workflow actually calls for
-one.
+one. The system prompt barely shrank anyway: `core.md` is 2,910 chars, but
+`generateContextReference()` appends ~6,000 more (every operator name, doc topic
+titles, example summaries), and that reference is sent on every turn.
+
+### Headroom per window
+
+`src/ai-chat/agent/context-budget.test.ts` subtracts the fixed first-turn cost
+(system prompt, tool schemas, the provider's output reserve) and one capped
+`list_nodes` result from each provider's window. Rounded to 50 tokens:
+
+| Target | Fixed cost | Left before any tool result | Left after one `list_nodes` |
+| --- | --- | --- | --- |
+| WebLLM, 4k window (today) | ~3,570 tok | ~550 tok | ~300 tok |
+| Chrome Nano, 6k fallback | ~3,800 tok | ~2,350 tok | ~1,950 tok |
+| WebLLM, 16k window | ~3,570 tok | ~12,800 tok | ~11,700 tok |
+| Anthropic, 200k | ~11,000 tok | ~189,000 tok | ~186,150 tok |
+
+At 4k the model has room for one small tool result and nothing else, which is why
+on-device sessions run out of context almost immediately. The test snapshots these
+numbers, so growth in the prompt or tier-0 schemas shows up in the PR diff, and it
+fails if a window of 16k or more leaves less than 1,500 tokens after an inspect.
 
 **Not yet measured:** live per-turn `inputTokens` from a real provider. The figures
 above are payload sizes computed offline, which is why they are reproducible without
@@ -509,3 +547,13 @@ End-to-end checks that do need keys are listed in the PR description for this wo
 streaming and Stop on Anthropic, cost readout on OpenRouter, `find_tools` →
 `get_documentation` on a docs question, `delegate` on an examples question, and a
 `list_nodes` turn on Chrome Canary with the Prompt API enabled.
+
+## Live benchmark
+
+`noodles-editor/bench/agent/` runs this harness against scripted tasks with a real
+model in a real browser — WebLLM and Gemini Nano on the machine's own GPU, or a
+cloud provider as the ceiling — and grades the resulting project deterministically.
+`npm run bench:agent` from `noodles-editor/`; see its
+[README](../noodles-editor/bench/agent/README.md). It is how a change to the prompt,
+the tool surface or the context budget should be judged: run the matrix before and
+after, then `bench:agent:report --compare`.

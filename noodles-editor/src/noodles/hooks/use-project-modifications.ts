@@ -458,6 +458,14 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
         }
       }
 
+      // An update aimed at no node would otherwise vanish while the result says success
+      if (nodesToUpdate.length > 0) {
+        const present = new Set([...getNodes().map(n => n.id), ...nodesToAdd.map(n => n.id)])
+        for (const { id } of nodesToUpdate) {
+          if (!present.has(id)) allWarnings.push(`update_node: no node ${id ?? '(missing id)'}`)
+        }
+      }
+
       // Apply node deletions first
       if (nodesToDelete.length > 0) {
         // Get the actual node objects before deletion

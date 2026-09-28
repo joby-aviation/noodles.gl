@@ -733,6 +733,19 @@ describe('useProjectModifications', () => {
       expect(nodes).toHaveLength(1)
       expect(edges).toHaveLength(0) // Edge should be skipped
     })
+
+    it('warns about an update aimed at no node instead of reporting a clean success', () => {
+      const { result } = renderHook(() =>
+        useProjectModifications({ getNodes, getEdges, setNodes, setEdges })
+      )
+
+      act(() => {
+        const applyResult = result.current.applyModifications([
+          { type: 'update_node', data: { id: '/missing', position: { x: 1, y: 1 } } },
+        ])
+        expect(applyResult.warnings).toEqual(['update_node: no node /missing'])
+      })
+    })
   })
 
   describe('ReactFlow callbacks', () => {

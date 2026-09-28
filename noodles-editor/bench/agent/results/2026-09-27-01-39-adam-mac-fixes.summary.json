@@ -1,0 +1,150 @@
+{
+  "runId": "2026-09-27-01-39-adam-mac-fixes",
+  "startedAt": "2026-09-27T01:39:17.017Z",
+  "environment": {
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+    "gpu": {
+      "vendor": "apple",
+      "architecture": "metal-3",
+      "device": "",
+      "description": ""
+    },
+    "deviceMemoryGb": 32,
+    "cpuCores": 16,
+    "gitSha": "6b2e0cc6",
+    "dirty": true,
+    "machine": "adam-mac-fixes"
+  },
+  "rows": [
+    {
+      "taskId": "t1-duckdb-reference",
+      "tier": "T1",
+      "provider": "webllm",
+      "model": "Qwen3-1.7B-q4f16_1-MLC",
+      "contextWindow": 4096,
+      "knobs": "",
+      "repeat": 0,
+      "score": 0,
+      "pass": false,
+      "mechanicalFailure": false,
+      "steps": 4,
+      "toolCalls": 4,
+      "inputTokens": 12228,
+      "outputTokens": 136,
+      "diagnostics": {
+        "repeated_tool_call": 2
+      },
+      "ms": 11636.5,
+      "loadMs": 21586.700000286102,
+      "timedOut": false
+    },
+    {
+      "taskId": "t1-explain-map-range",
+      "tier": "T1",
+      "provider": "webllm",
+      "model": "Qwen3-1.7B-q4f16_1-MLC",
+      "contextWindow": 4096,
+      "knobs": "",
+      "repeat": 0,
+      "score": 2,
+      "pass": false,
+      "mechanicalFailure": false,
+      "steps": 2,
+      "toolCalls": 1,
+      "inputTokens": 5890,
+      "outputTokens": 72,
+      "diagnostics": {},
+      "ms": 5920.599999904633,
+      "loadMs": 1218.3000001907349,
+      "timedOut": false
+    },
+    {
+      "taskId": "t1-pickup-color",
+      "tier": "T1",
+      "provider": "webllm",
+      "model": "Qwen3-1.7B-q4f16_1-MLC",
+      "contextWindow": 4096,
+      "knobs": "",
+      "repeat": 0,
+      "score": 2,
+      "pass": false,
+      "mechanicalFailure": false,
+      "steps": 4,
+      "toolCalls": 4,
+      "inputTokens": 11973,
+      "outputTokens": 135,
+      "diagnostics": {
+        "repeated_tool_call": 2
+      },
+      "ms": 12441.599999904633,
+      "loadMs": 1416.4000000953674,
+      "timedOut": false
+    },
+    {
+      "taskId": "t2-color-scheme",
+      "tier": "T2",
+      "provider": "webllm",
+      "model": "Qwen3-1.7B-q4f16_1-MLC",
+      "contextWindow": 4096,
+      "knobs": "",
+      "repeat": 0,
+      "score": 1.6,
+      "pass": false,
+      "mechanicalFailure": true,
+      "steps": 6,
+      "toolCalls": 6,
+      "inputTokens": 20362,
+      "outputTokens": 206,
+      "diagnostics": {
+        "repeated_tool_call": 2
+      },
+      "ms": 24917,
+      "loadMs": 1351.8000001907349,
+      "timedOut": false
+    },
+    {
+      "taskId": "t2-pickup-red",
+      "tier": "T2",
+      "provider": "webllm",
+      "model": "Qwen3-1.7B-q4f16_1-MLC",
+      "contextWindow": 4096,
+      "knobs": "",
+      "repeat": 0,
+      "score": 1.6,
+      "pass": false,
+      "mechanicalFailure": true,
+      "steps": 4,
+      "toolCalls": 4,
+      "inputTokens": 11770,
+      "outputTokens": 284,
+      "diagnostics": {
+        "repeated_tool_call": 2
+      },
+      "ms": 22437.699999809265,
+      "loadMs": 1328.7000002861023,
+      "timedOut": false
+    },
+    {
+      "taskId": "t2-point-radius",
+      "tier": "T2",
+      "provider": "webllm",
+      "model": "Qwen3-1.7B-q4f16_1-MLC",
+      "contextWindow": 4096,
+      "knobs": "",
+      "repeat": 0,
+      "score": 1.6,
+      "pass": false,
+      "mechanicalFailure": true,
+      "steps": 4,
+      "toolCalls": 4,
+      "inputTokens": 12661,
+      "outputTokens": 248,
+      "diagnostics": {
+        "repeated_tool_call": 2
+      },
+      "ms": 26745.599999904633,
+      "loadMs": 1761.1000003814697,
+      "timedOut": false
+    }
+  ]
+}

@@ -53,12 +53,29 @@ export interface AgentUsage {
   costUsd?: number
 }
 
+// Things that went quietly wrong inside a provider and were recovered from. The
+// chat panel ignores them; the agent benchmark counts them, because on a small
+// model they are where most of the failures hide.
+// - json_parse_fallback: constrained output did not parse, so it became the reply
+// - unknown_tool: the model named a tool it was not offered, so none ran
+// - context_trimmed: the transcript overflowed and was cut to the task plus the
+//   last exchange before retrying
+export type DiagnosticKind =
+  | 'json_parse_fallback'
+  // Output was cut off and closed by the parser; the tool call still ran
+  | 'json_repaired'
+  | 'unknown_tool'
+  | 'context_trimmed'
+  // The loop refused a call identical to an earlier one
+  | 'repeated_tool_call'
+
 export type AgentEvent =
   | { type: 'text_delta'; text: string }
   | { type: 'tool_call'; id: string; name: string; input: Record<string, unknown> }
   | { type: 'provider_block'; provider: ProviderId; block: unknown }
   | { type: 'usage'; usage: AgentUsage }
   | { type: 'stop'; reason: StopReason }
+  | { type: 'diagnostic'; kind: DiagnosticKind; detail?: string }
 
 // Progress of an on-device model's first load. `loaded` is a 0..1 fraction for
 // both providers that report one, but a byte count in older Chrome builds, so it

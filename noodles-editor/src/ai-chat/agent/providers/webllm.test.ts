@@ -161,6 +161,19 @@ describe('WebLLMProvider', () => {
     }
   })
 
+  it('keeps the prebuilt 4k window unless asked for more', () => {
+    const stub = stubEngine({ responses: [] })
+    expect(providerFor(stub).contextWindow).toBe(4096)
+    const larger = new WebLLMProvider({
+      engine: stub.engine,
+      model: DEFAULT_WEBLLM_MODEL,
+      contextWindow: 16_384,
+    })
+    // The router, result budget and step limit all read this, so it has to be
+    // the size the engine was actually loaded with
+    expect(larger.contextWindow).toBe(16_384)
+  })
+
   it('turns a JSON action into a tool call', async () => {
     const action = '{"tool":"get_node_info","input":{"nodeId":"/viewer"},"reply":"Checking."}'
     const stub = stubEngine({ responses: [chunksFor(action)] })
@@ -273,6 +286,7 @@ describe('WebLLMProvider', () => {
     const events = await collect(providerFor(stub).stream(request))
 
     expect(events).toEqual([
+      { type: 'diagnostic', kind: 'context_trimmed' },
       { type: 'text_delta', text: 'Trimmed.' },
       { type: 'stop', reason: 'end_turn' },
     ])

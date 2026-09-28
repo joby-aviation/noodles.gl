@@ -148,7 +148,9 @@ describe('runAgent', () => {
   it('stops at maxSteps when the model keeps asking for tools', async () => {
     // A provider that never runs out of tool requests
     const provider = fakeProvider(
-      Array.from({ length: 20 }, () => ({ tools: [{ name: 'list_nodes' }] }))
+      Array.from({ length: 20 }, (_, i) => ({
+        tools: [{ name: 'get_node_info', input: { nodeId: `/n${i}` } }],
+      }))
     )
 
     const result = await run({ provider, maxSteps: 3 })
@@ -210,6 +212,67 @@ describe('runAgent', () => {
     const assistantTurn = provider.requests[1].messages[1]
     expect(assistantTurn.content[0]).toMatchObject({ type: 'provider_block' })
     expect(assistantTurn.content[1]).toMatchObject({ type: 'text' })
+  })
+})
+
+describe('runAgent repeated calls', () => {
+  const lookup = { name: 'get_node_info', input: { nodeId: '/threshold' } }
+
+  it('answers an identical call with the earlier outcome instead of running it', async () => {
+    const getNodeInfo = vi.fn(async () => ({ success: false, error: 'Node not found: /threshold' }))
+    const events: AgentEvent[] = []
+    const provider = fakeProvider([{ tools: [lookup] }, { tools: [lookup] }, { text: 'gave up' }])
+
+    const result = await runAgent({
+      provider,
+      tools: fakeTools({ getNodeInfo }),
+      router: new ToolRouter(CLAUDE_WINDOW),
+      systemPrompt: 'test prompt',
+      messages: [{ role: 'user', content: [{ type: 'text', text: 'hello' }] }],
+      onEvent: event => events.push(event),
+    })
+
+    expect(getNodeInfo).toHaveBeenCalledTimes(1)
+    expect(result.toolCalls[1].result).toMatchObject({
+      success: false,
+      error: expect.stringMatching(/already called get_node_info.*Node not found/),
+    })
+    expect(events).toContainEqual(
+      expect.objectContaining({ type: 'diagnostic', kind: 'repeated_tool_call' })
+    )
+  })
+
+  it('ends the run on the third identical call', async () => {
+    const provider = fakeProvider(Array.from({ length: 10 }, () => ({ tools: [lookup] })))
+
+    const result = await run({ provider })
+
+    expect(result.steps).toBe(3)
+  })
+
+  it('does not queue the same modifications twice', async () => {
+    const edit = {
+      name: 'apply_modifications',
+      input: { modifications: [{ type: 'delete_node', data: { id: '/a' } }] },
+    }
+    const provider = fakeProvider([{ tools: [edit] }, { tools: [edit] }, { text: 'done' }])
+
+    const result = await run({ provider })
+
+    expect(result.modifications).toHaveLength(1)
+  })
+
+  it('lets a read run again after a successful write', async () => {
+    const getNodeInfo = vi.fn(async () => ({ success: true, data: { id: '/a' } }))
+    const edit = {
+      name: 'apply_modifications',
+      input: { modifications: [{ type: 'delete_node', data: { id: '/b' } }] },
+    }
+    const provider = fakeProvider([{ tools: [lookup] }, { tools: [edit] }, { tools: [lookup] }])
+
+    await run({ provider, tools: fakeTools({ getNodeInfo }) })
+
+    expect(getNodeInfo).toHaveBeenCalledTimes(2)
   })
 })
 
