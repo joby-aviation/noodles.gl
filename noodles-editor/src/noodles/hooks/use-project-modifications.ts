@@ -18,11 +18,8 @@ import type { IOperator, Operator } from '../operators'
 import { deleteOp, getAllOps, getOp, setOp, takePendingInsertionIndex } from '../store'
 import { canConnect, validateConnection } from '../utils/can-connect'
 import { expandDeleteSet } from '../utils/copy-paste-utils'
+import { appendUniqueEdges, insertUniqueEdge } from '../utils/edge-integrity'
 import { edgeId } from '../utils/id-utils'
-import {
-  appendUniqueEdges,
-  insertUniqueEdge,
-} from '../utils/edge-integrity'
 import {
   insertEdgeAtGroupIndex,
   moveEdgeWithinGroup,
@@ -30,6 +27,7 @@ import {
   orderedEdgeIdsForHandle,
 } from '../utils/multi-input-utils'
 import { generateQualifiedPath, getParentPath, parseHandleId } from '../utils/path-utils'
+import { hasPosition, placeNewNode } from '../utils/viewer-position'
 
 // Using ReactFlowNode instead of AnyNodeJSON for compatibility
 export type ProjectModification =
@@ -75,9 +73,7 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
 
   const addEdges = useCallback(
     (newEdges: ReactFlowEdge[]) => {
-      setEdges(currentEdges =>
-        normalizeMultiInputEdges(appendUniqueEdges(currentEdges, newEdges))
-      )
+      setEdges(currentEdges => normalizeMultiInputEdges(appendUniqueEdges(currentEdges, newEdges)))
       // Track edge addition
       if (newEdges.length > 0) {
         analytics.track('edge_added', { count: newEdges.length })
@@ -168,10 +164,7 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
       }
 
       // Cascade delete to path-based container children
-      const allDeletedIds = new Set([
-        ...nodesToDelete.map(n => n.id),
-        ...extraDeleted,
-      ])
+      const allDeletedIds = new Set([...nodesToDelete.map(n => n.id), ...extraDeleted])
       setNodes(currentNodes => {
         expandDeleteSet(allDeletedIds, currentNodes)
         return currentNodes.filter(n => !allDeletedIds.has(n.id))
@@ -238,9 +231,7 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
         )
 
         // Remove edges referencing any cascaded-deleted child
-        return reconnected.filter(
-          e => !allDeletedIds.has(e.source) && !allDeletedIds.has(e.target)
-        )
+        return reconnected.filter(e => !allDeletedIds.has(e.source) && !allDeletedIds.has(e.target))
       })
 
       return { success: true, warnings: warnings.length > 0 ? warnings : undefined }
@@ -458,6 +449,15 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
         }
       }
 
+      // A node without a position crashes the canvas on its first render (edge
+      // hit-testing reads position.x), and the whole batch is lost with it. The AI
+      // assistant often leaves it out.
+      for (const [index, node] of nodesToAdd.entries()) {
+        if (hasPosition(node)) continue
+        const placed = [...getNodes(), ...nodesToAdd.filter(hasPosition)]
+        nodesToAdd[index] = { ...node, position: placeNewNode(node.id, edgesToAdd, placed) }
+      }
+
       // An update aimed at no node would otherwise vanish while the result says success
       if (nodesToUpdate.length > 0) {
         const present = new Set([...getNodes().map(n => n.id), ...nodesToAdd.map(n => n.id)])
@@ -619,9 +619,7 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
             // Normalization here can miss edges into just-added nodes (their operators don't
             // exist in the store yet); the transformGraph effect re-normalizes right after
             setEdges(currentEdges =>
-              normalizeMultiInputEdges(
-                appendUniqueEdges(currentEdges, edgesToAddOptimistically)
-              )
+              normalizeMultiInputEdges(appendUniqueEdges(currentEdges, edgesToAddOptimistically))
             )
             debugUI(`✅ Added ${edgesToAddOptimistically.length} edge(s) optimistically`)
           }
