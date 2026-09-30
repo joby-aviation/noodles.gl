@@ -10,7 +10,7 @@
 import { debugAiChat } from '../../utils/debug'
 import type { MCPTools } from '../mcp-tools'
 import type { ToolResult } from '../types'
-import { runAgent } from './loop'
+import { isReadOnly, runAgent } from './loop'
 import { type HarnessTool, type HarnessToolContext, ToolRouter } from './tool-router'
 import type { AgentProvider } from './types'
 
@@ -19,6 +19,16 @@ export const DELEGATE_NAME = 'delegate'
 // A sub-agent may not spawn its own. One level buys the whole context win, and a
 // browser tab cannot afford recursive fan-out.
 export const MAX_DEPTH = 1
+
+// The report is all the parent sees, so delegating means trusting it. Benchmarked
+// on-device models under this window write reports for work they never did —
+// "fixed the edge", no tools used, invented node names — and the parent repeats
+// the claim to the user. They do not get the tool at all.
+export const DELEGATE_MIN_CONTEXT_TOKENS = 32_000
+
+export function delegateAvailable(provider: AgentProvider): boolean {
+  return provider.contextWindow >= DELEGATE_MIN_CONTEXT_TOKENS
+}
 
 const SUBAGENT_MAX_STEPS = 8
 const SUBAGENT_MAX_TOKENS = 4096
@@ -174,6 +184,16 @@ async function runDelegate(
     return { success: false, error: 'Sub-agent finished without an answer' }
   }
 
+  // A build sub-agent that reports success while its tools never landed a change
+  // is the one failure the parent cannot see past, so it comes back as an error
+  // with the claim quoted rather than as a result to relay.
+  if (toolset === 'build' && !changedAnything(result, router)) {
+    return {
+      success: false,
+      error: `The sub-agent changed nothing. It claimed: "${clip(report)}" — do not repeat that to the user. Verify the graph yourself with list_nodes or get_node_info and make the change with apply_modifications.`,
+    }
+  }
+
   return {
     success: true,
     data: {
@@ -187,6 +207,21 @@ async function runDelegate(
       ...(result.modifications.length > 0 ? { modifications: result.modifications } : {}),
     },
   }
+}
+
+// Queued modifications, or a keyframe tool that changed the project directly
+function changedAnything(
+  result: Awaited<ReturnType<typeof runAgent>>,
+  router: ToolRouter
+): boolean {
+  if (result.modifications.length > 0) return true
+  return result.toolCalls.some(call => call.result.success && !isReadOnly(call.name, router))
+}
+
+const REPORT_CLIP_CHARS = 200
+
+function clip(text: string): string {
+  return text.length > REPORT_CLIP_CHARS ? `${text.slice(0, REPORT_CLIP_CHARS)}…` : text
 }
 
 function parseToolset(value: unknown): Toolset | null {

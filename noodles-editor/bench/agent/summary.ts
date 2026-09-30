@@ -63,6 +63,8 @@ export interface ConfigTierStats {
   jsonFallbacks: number
   jsonRepairs: number
   repeats: number
+  // Replies that claimed an edit no tool call backs up
+  fakeEdits: number
   unknownTools: number
   timeouts: number
   errors: number
@@ -70,8 +72,15 @@ export interface ConfigTierStats {
   outputTokensPerSecond: number
 }
 
-export const configKey = (row: RunRow) =>
-  `${row.provider}/${row.model} ctx=${row.contextWindow}${row.knobs ? ` ${row.knobs}` : ''}`
+export const configKey = (row: RunRow) => {
+  // The ctx knob is the context window, so printing the knobs verbatim alongside
+  // it read as "ctx=16384 ctx=16384"
+  const rest = (row.knobs ?? '')
+    .split(',')
+    .filter(knob => knob && !knob.startsWith('ctx='))
+    .join(',')
+  return `${row.provider}/${row.model} ctx=${row.contextWindow}${rest ? ` ${rest}` : ''}`
+}
 
 const mean = (values: number[]) =>
   values.length ? values.reduce((a, b) => a + b, 0) / values.length : 0
@@ -100,6 +109,7 @@ function stats(config: string, tier: ConfigTierStats['tier'], rows: RunRow[]): C
     jsonFallbacks: count('json_parse_fallback'),
     jsonRepairs: count('json_repaired'),
     repeats: count('repeated_tool_call'),
+    fakeEdits: count('unverified_edit_claim'),
     unknownTools: count('unknown_tool'),
     timeouts: rows.filter(r => r.timedOut).length,
     errors: rows.filter(r => r.error).length,
@@ -138,8 +148,8 @@ export function renderMarkdown(summary: Summary): string {
       env.deviceMemoryGb ?? '?'
     } GB · ${env.gitSha}${env.dirty ? ' (dirty)' : ''}`,
     '',
-    '| Config | Tier | Runs | Pass | Score | Judge | Steps | In tok | Trimmed | JSON fallbacks | JSON repairs | Repeats | Unknown tools | Timeouts | Errors | p50 s | Out tok/s |',
-    '| --- | --- | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: |',
+    '| Config | Tier | Runs | Pass | Score | Judge | Steps | In tok | Trimmed | JSON fallbacks | JSON repairs | Repeats | Fake edits | Unknown tools | Timeouts | Errors | p50 s | Out tok/s |',
+    '| --- | --- | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: |',
   ]
   for (const s of aggregate(summary.rows)) {
     lines.push(
@@ -149,7 +159,7 @@ export function renderMarkdown(summary: Summary): string {
         s.meanJudgePct === null ? '–' : pct(s.meanJudgePct)
       } | ${fixed(s.meanSteps)} | ${Math.round(s.meanInputTokens)} | ${
         s.trimmed
-      } | ${s.jsonFallbacks} | ${s.jsonRepairs} | ${s.repeats} | ${s.unknownTools} | ${s.timeouts} | ${s.errors} | ${fixed(
+      } | ${s.jsonFallbacks} | ${s.jsonRepairs} | ${s.repeats} | ${s.fakeEdits} | ${s.unknownTools} | ${s.timeouts} | ${s.errors} | ${fixed(
         s.p50Seconds
       )} | ${fixed(s.outputTokensPerSecond)} |`
     )

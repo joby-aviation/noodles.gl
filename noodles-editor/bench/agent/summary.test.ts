@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { aggregate, compare, type RunRow, renderMarkdown, type Summary } from './summary'
+import { aggregate, compare, configKey, type RunRow, renderMarkdown, type Summary } from './summary'
 
 function row(overrides: Partial<RunRow> = {}): RunRow {
   return {
@@ -93,5 +93,31 @@ describe('compare', () => {
     const before = summary('a', [row({ taskId: 'x' })])
     const after = summary('b', [row({ taskId: 'z' })])
     expect(compare(before, after)).toEqual([])
+  })
+})
+
+describe('configKey', () => {
+  it('prints the window once, not again from the knob that set it', () => {
+    expect(configKey(row({ contextWindow: 16_384, knobs: 'ctx=16384' }))).toBe(
+      'webllm/Qwen3-4B ctx=16384'
+    )
+  })
+
+  it('keeps every other knob', () => {
+    expect(configKey(row({ contextWindow: 16_384, knobs: 'ctx=16384,prompt=slim' }))).toBe(
+      'webllm/Qwen3-4B ctx=16384 prompt=slim'
+    )
+  })
+})
+
+describe('fake edits', () => {
+  it('counts replies that claimed an edit nothing backs up', () => {
+    const rows = [
+      row({ diagnostics: { unverified_edit_claim: 1 } }),
+      row({ repeat: 1, diagnostics: {} }),
+    ]
+
+    expect(aggregate(rows).find(s => s.tier === 'all')?.fakeEdits).toBe(1)
+    expect(renderMarkdown(summary('r', rows))).toContain('Fake edits')
   })
 })

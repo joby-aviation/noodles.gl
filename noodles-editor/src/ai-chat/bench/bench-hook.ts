@@ -8,6 +8,7 @@ import type {
   ModificationResult,
   ProjectModification as ReactFlowModification,
 } from '../../noodles/hooks/use-project-modifications'
+import { getEnvKeys, getKeysStore } from '../../noodles/keys-store'
 import { getAllOps } from '../../noodles/store'
 import { getCurrentProject, getModificationApplier, onProjectChange } from '../../webmcp/bridge'
 import { createProvider } from '../agent/provider-factory'
@@ -31,6 +32,17 @@ export interface BenchTask {
   // Applied before the first turn, e.g. to break a project for a debug task
   setupModifications?: ProjectModification[]
   maxWallClockSeconds?: number
+}
+
+// A cloud reference run needs a key the Node runner may not have. The editor this
+// page is already running has one — from .env.local or the keys dialog — so fall
+// back to it rather than making the benchmark a second place to configure keys.
+function configuredKey(providerId: ProviderId): string | undefined {
+  if (providerId !== 'anthropic' && providerId !== 'openrouter') return undefined
+  const store = getKeysStore()
+  return (
+    store.browserKeys?.[providerId] || store.projectKeys?.[providerId] || getEnvKeys()[providerId]
+  )
 }
 
 export interface BenchProviderConfig {
@@ -134,7 +146,7 @@ async function runBenchTask(
   try {
     provider = await createProvider({
       providerId: config.providerId,
-      apiKey: config.apiKey,
+      apiKey: config.apiKey ?? configuredKey(config.providerId),
       model: config.model,
       customEndpoint: undefined,
       onDownloadProgress: () => {},

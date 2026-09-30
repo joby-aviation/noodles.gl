@@ -147,11 +147,23 @@ function startUrl(base: string, start: string) {
   return `${base}/${path}?agentBench=1`
 }
 
+// A page that never reports ready is usually a one-off — a dev-server reload, a
+// worker that lost a race — so it gets a second attempt before the run is written
+// off. The caller records the failure as a row rather than ending the matrix.
 async function openTask(page: Page, base: string, task: Task) {
-  await page.goto(startUrl(base, task.start))
-  await page.waitForFunction(() => window.__noodlesAgentBench?.ready() === true, null, {
-    timeout: READY_TIMEOUT_MS,
-  })
+  const url = startUrl(base, task.start)
+  for (let attempt = 1; ; attempt++) {
+    try {
+      await page.goto(url)
+      await page.waitForFunction(() => window.__noodlesAgentBench?.ready() === true, null, {
+        timeout: READY_TIMEOUT_MS,
+      })
+      return
+    } catch (error) {
+      if (attempt > 1) throw error
+      console.log(`  ${task.id}: page never became ready, reloading once`)
+    }
+  }
 }
 
 async function environment(page: Page, machine: string): Promise<Environment> {
@@ -261,8 +273,6 @@ async function runOne(
   config: BenchProviderConfig,
   knobs: BenchKnobs
 ): Promise<{ result: BenchResult; consoleErrors: string[] }> {
-  await openTask(page, base, task)
-
   const consoleErrors: string[] = []
   const onConsole = (msg: { type(): string; text(): string }) => {
     if (msg.type() === 'error') consoleErrors.push(msg.text().slice(0, 500))
@@ -272,6 +282,9 @@ async function runOne(
   page.on('pageerror', onPageError)
 
   try {
+    // Inside the try: a project that will not open is one bad row, not the end of
+    // a matrix that may have hours of model time behind it
+    await openTask(page, base, task)
     const run = page.evaluate(
       ({ task, config, knobs }) => window.__noodlesAgentBench?.run(task, config, knobs),
       { task: toBenchTask(task), config, knobs }

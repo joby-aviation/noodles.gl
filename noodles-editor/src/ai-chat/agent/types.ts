@@ -68,6 +68,8 @@ export type DiagnosticKind =
   | 'context_trimmed'
   // The loop refused a call identical to an earlier one
   | 'repeated_tool_call'
+  // The reply announced an edit that no tool call backs up
+  | 'unverified_edit_claim'
 
 export type AgentEvent =
   | { type: 'text_delta'; text: string }

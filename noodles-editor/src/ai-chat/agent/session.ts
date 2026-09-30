@@ -16,7 +16,7 @@ import type { MCPTools } from '../mcp-tools'
 import { getSystemPrompt } from '../system-prompt'
 import type { ClaudeResponse, Message } from '../types'
 import { runAgent } from './loop'
-import { createDelegateTool } from './subagent'
+import { createDelegateTool, delegateAvailable } from './subagent'
 import { ToolRouter } from './tool-router'
 import type { AgentContent, AgentEvent, AgentMessage, AgentProvider } from './types'
 import { createWebSearchTool, type WebSearchConfig } from './web-search'
@@ -55,10 +55,13 @@ export class AgentSession {
     const webSearch = options.webSearch ? createWebSearchTool(options.webSearch) : null
     const childTools = webSearch ? [webSearch] : []
     // The sub-agent runs on the same provider by default; pointing it at a
-    // cheaper one is a change here and nowhere else.
-    const delegate = createDelegateTool({ provider, tools, harnessTools: childTools })
+    // cheaper one is a change here and nowhere else. On-device windows are too
+    // small to spend on a second loop whose report the parent cannot check.
+    const delegate = delegateAvailable(provider)
+      ? [createDelegateTool({ provider, tools, harnessTools: childTools })]
+      : []
 
-    this.router = new ToolRouter(provider.contextWindow, [...childTools, delegate])
+    this.router = new ToolRouter(provider.contextWindow, [...childTools, ...delegate])
   }
 
   // Called when the panel replaces this session. The Chrome provider holds an

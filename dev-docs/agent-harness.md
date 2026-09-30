@@ -268,6 +268,13 @@ when the window is under 32k. Each step is one model turn plus its tool batch.
   `map-range` for `/analysis/map-range`) are resolved when they name exactly one
   node, here and in `get_node_info` / `get_node_output`. Handle names are not
   checked yet.
+- **Unverified edit claims.** A reply that announces a change in the past tense
+  ("the radius has been set to 10") when no mutating tool succeeded and no
+  modification was queued gets a one-line correction appended and emits an
+  `unverified_edit_claim` diagnostic. On-device models do this often — one step, no
+  tool call, a confident report — and unmarked it reads as done. Present-tense
+  descriptions ("is currently set to `#8d12af`"), instructions and refusals are left
+  alone; `claimsAnEdit` in `agent/loop.ts` holds the test.
 - **Screenshots.** Base64 is stripped from the tool result and reattached as an
   image block on the follow-up message — only when `provider.supportsImages`.
 - **Opaque provider blocks.** Anything a provider needs echoed back verbatim
@@ -453,7 +460,15 @@ the rest:
 | `build` | inspect plus `apply_modifications` and keyframes | yes |
 
 A `build` sub-agent's edits reach the graph because `delegate` returns them under
-`modifications`, which the parent loop already collects.
+`modifications`, which the parent loop already collects. A `build` child that
+reports success while nothing landed — no modifications, no keyframe call — comes
+back as an **error** with its claim quoted, because the report is all the parent
+can see and small models write reports for work they never did.
+
+`delegate` is only offered when `provider.contextWindow` is at least 32k
+(`DELEGATE_MIN_CONTEXT_TOKENS`). Below that the window cannot afford a second loop,
+and the benchmark showed on-device models spending their one delegation on a
+fabricated report they then relayed to the user.
 
 ## Transcript fidelity
 

@@ -59,6 +59,13 @@ function isScreenshotData(data: unknown): data is ScreenshotData {
   )
 }
 
+// delegate is marked mutating because its child may edit the graph, but a report
+// with no modifications behind it is a claim, not a change — the parent must not
+// take it as proof that work landed.
+function reportsWithoutEdits(data: unknown): boolean {
+  return typeof data === 'object' && data !== null && 'report' in data && !isModificationsData(data)
+}
+
 function isModificationsData(data: unknown): data is ModificationsData {
   return (
     typeof data === 'object' &&
@@ -124,6 +131,10 @@ export async function runAgent(params: RunAgentParams): Promise<AgentRunResult> 
 
   const seen = new Map<string, SeenCall>()
   let looping = false
+  // Whether any mutating tool actually succeeded. Keyframe tools change the
+  // project without going through the modifications list, so the list alone is
+  // not enough to tell whether the run did anything.
+  let mutated = false
 
   while (steps < maxSteps) {
     if (signal?.aborted)
@@ -196,6 +207,7 @@ export async function runAgent(params: RunAgentParams): Promise<AgentRunResult> 
       const readOnly = isReadOnly(outcome.name, router)
       // A successful write can change what a read returns, so reads may run again
       if (!readOnly && outcome.result.success) {
+        if (!reportsWithoutEdits(outcome.result.data)) mutated = true
         for (const [signature, entry] of seen) if (entry.readOnly) seen.delete(signature)
       }
       seen.set(callSignature(outcome), {
@@ -267,7 +279,36 @@ export async function runAgent(params: RunAgentParams): Promise<AgentRunResult> 
   // edit landing and the user seeing a wall of JSON.
   modifications.push(...extractProsedModifications(text))
 
+  // Small models announce edits they never made — "the radius is now 10", one
+  // step, no tool call. Passing that on unmarked reads as done, so the reply
+  // carries a correction and the run carries a diagnostic the bench can count.
+  if (!mutated && modifications.length === 0 && claimsAnEdit(text)) {
+    onEvent?.({ type: 'diagnostic', kind: 'unverified_edit_claim' })
+    debugAiChat('[agent] reply claims an edit but no tool changed the project')
+    text += `\n\n${UNVERIFIED_EDIT_NOTE}`
+  }
+
   return { text, toolCalls, modifications, messages, usage, stopReason, steps }
+}
+
+export const UNVERIFIED_EDIT_NOTE =
+  '_Nothing was applied: the project is unchanged. The step above describes what should happen, not what happened._'
+
+// Past-tense claims of a change that landed. Deliberately narrow: it only ever
+// runs when the project really is unchanged, so a stray match costs a redundant
+// note, while "I cannot change it" matching costs nothing worth avoiding.
+const EDIT_CLAIM =
+  /\b(?:added|created|updated|changed|set|connected|wired|removed|deleted|fixed|renamed|applied|enabled|disabled)\b(?![^.!?]*\?)/i
+// Past or perfect aspect only. "is currently set to #8d12af" describes the graph
+// and is the right answer to a question; "has been set to 10" claims a change.
+const CLAIM_SUBJECT =
+  /\b(?:i(?:'ve| have)?|we(?:'ve| have)?|has|have|had|was|were|been|now|successfully)\s+\w*\s*$/i
+
+export function claimsAnEdit(text: string): boolean {
+  const match = EDIT_CLAIM.exec(text)
+  if (!match) return false
+  // "I set the radius" is a claim; "set the radius yourself" is an instruction
+  return CLAIM_SUBJECT.test(text.slice(0, match.index))
 }
 
 interface SeenCall {
