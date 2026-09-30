@@ -22,11 +22,13 @@ import {
   writeFile,
 } from './agent-files'
 import type { ContextLoader } from './context-loader'
+import { checkFields, qualifyHandle, resolveOperatorType } from './modification-fields'
 import { type RunCodeParams, runCode } from './run-code'
 import {
   type ConsoleError,
   type FileIndex,
   type NoodlesProject,
+  type OperatorRegistry,
   type ProjectModification,
   ProjectModificationSchema,
   type SearchCodeParams,
@@ -239,12 +241,20 @@ function checkTarget(
   }
 }
 
+// Fields the live operator has, including user-defined custom inputs the class
+// does not declare. Empty for a node that exists only in this run's queue.
+function liveFieldNames(nodeId: string, side: 'inputs' | 'outputs'): string[] {
+  const op = getOpStore().getOp(nodeId)
+  return op ? Object.keys(op[side] ?? {}) : []
+}
+
 export class MCPTools {
   private consoleErrors: ConsoleError[] = []
   private project: NoodlesProject | null = null
   // Accepted by apply_modifications but not yet in the project. The chat applies
   // edits when the run ends, so a later call in the same run has to see them.
-  private queuedNodes = new Set<string>()
+  // Node id -> operator type, so edges and updates aimed at them can be checked
+  private queuedNodes = new Map<string, string>()
   private queuedEdges = new Set<string>()
 
   constructor(private contextLoader?: ContextLoader) {
@@ -872,7 +882,10 @@ export class MCPTools {
       }
     }
 
-    const existing = new Set([...(this.project?.nodes ?? []).map(n => n.id), ...this.queuedNodes])
+    const existing = new Set([
+      ...(this.project?.nodes ?? []).map(n => n.id),
+      ...this.queuedNodes.keys(),
+    ])
     const edgeIds = new Set([...(this.project?.edges ?? []).map(e => e.id), ...this.queuedEdges])
     // Nodes added anywhere in the batch count, since the editor adds nodes before edges
     const added = modifications
@@ -882,13 +895,20 @@ export class MCPTools {
       .filter((id): id is string => id !== null)
     const known = [...existing, ...added]
     const exampleId = known[0] ?? '/my-node'
+    const registry = this.contextLoader?.getOperatorRegistry() ?? null
+    const types = new Map<string, string>([
+      ...(this.project?.nodes ?? []).map(n => [n.id, n.type] as [string, string]),
+      ...this.queuedNodes,
+    ])
 
     const errors: string[] = []
-    const accepted: ProjectModification[] = []
+    const accepted: Array<{ label: string; mod: ProjectModification }> = []
     const addedSoFar = new Set<string>()
     for (const [index, raw] of modifications.entries()) {
       const label = `modifications[${index}]${isRecord(raw) && typeof raw.type === 'string' ? ` (${raw.type})` : ''}`
-      const parsed = ProjectModificationSchema.safeParse(this.resolveModificationIds(raw, known))
+      const parsed = ProjectModificationSchema.safeParse(
+        this.resolveModificationIds(raw, known, registry)
+      )
       if (!parsed.success) {
         const issues = parsed.error.issues.map(issue => describeIssue(issue, exampleId))
         errors.push(`${label}: ${issues.join('; ')}`)
@@ -902,8 +922,20 @@ export class MCPTools {
         errors.push(`${label}: ${problem}`)
         continue
       }
-      if (mod.type === 'add_node') addedSoFar.add(mod.data.id)
-      accepted.push(mod)
+      if (mod.type === 'add_node') {
+        addedSoFar.add(mod.data.id)
+        types.set(mod.data.id, mod.data.type)
+      }
+      accepted.push({ label, mod })
+    }
+
+    // Types and handles second, once every add_node in the batch has a type an
+    // edge can be checked against, wherever in the batch the edge sits
+    if (registry) {
+      const context = { registry, types, liveFields: liveFieldNames }
+      for (const { label, mod } of accepted) {
+        for (const problem of checkFields(mod, context)) errors.push(`${label}: ${problem}`)
+      }
     }
 
     if (errors.length > 0) {
@@ -913,8 +945,9 @@ export class MCPTools {
       }
     }
 
-    for (const mod of accepted) {
-      if (mod.type === 'add_node') this.queuedNodes.add(mod.data.id)
+    const mods = accepted.map(entry => entry.mod)
+    for (const mod of mods) {
+      if (mod.type === 'add_node') this.queuedNodes.set(mod.data.id, mod.data.type)
       if (mod.type === 'add_edge') this.queuedEdges.add(mod.data.id)
     }
 
@@ -922,9 +955,9 @@ export class MCPTools {
     return {
       success: true,
       data: {
-        modificationsCount: accepted.length,
-        modifications: accepted,
-        message: `${accepted.length} modification(s) will be applied to the project`,
+        modificationsCount: mods.length,
+        modifications: mods,
+        message: `${mods.length} modification(s) will be applied to the project`,
       },
     }
   }
@@ -954,7 +987,11 @@ export class MCPTools {
     return `Node not found: ${shown}. ${similar.length > 0 ? 'Did you mean' : 'Nodes in this project'}: ${list.join(', ')}${more > 0 ? ` (+${more} more)` : ''}. Node ids are absolute paths like ${ids[0]}.`
   }
 
-  private resolveModificationIds(raw: unknown, known: string[]): unknown {
+  private resolveModificationIds(
+    raw: unknown,
+    known: string[],
+    registry: OperatorRegistry | null
+  ): unknown {
     if (!isRecord(raw) || !isRecord(raw.data)) return raw
     const data = { ...raw.data }
     const resolve = (value: unknown) => this.resolveNodeId(value, known) ?? value
@@ -969,6 +1006,10 @@ export class MCPTools {
     switch (raw.type) {
       case 'add_node':
         data.id = absoluteId(data.id) ?? data.id
+        // "File" for FileOp: the display name get_operator_schema shows beside the type
+        if (registry && typeof data.type === 'string') {
+          data.type = resolveOperatorType(data.type, registry)
+        }
         break
       case 'update_node':
       case 'delete_node':
@@ -977,8 +1018,14 @@ export class MCPTools {
       case 'add_edge': {
         const source = resolve(data.source)
         const target = resolve(data.target)
-        const moved = source !== data.source || target !== data.target
-        Object.assign(data, { source, target })
+        const sourceHandle = qualifyHandle(data.sourceHandle, 'source')
+        const targetHandle = qualifyHandle(data.targetHandle, 'target')
+        const moved =
+          source !== data.source ||
+          target !== data.target ||
+          sourceHandle !== data.sourceHandle ||
+          targetHandle !== data.targetHandle
+        Object.assign(data, { source, target, sourceHandle, targetHandle })
         // The id is derived from the endpoints, so it follows them
         if (
           (moved || data.id === undefined) &&

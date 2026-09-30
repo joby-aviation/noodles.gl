@@ -266,8 +266,18 @@ when the window is under 32k. Each step is one model turn plus its tool batch.
   must not collide, and an `update_node` must change something. Every problem is
   reported at once, with the ids that do exist. Bare ids (`pickup-layer`,
   `map-range` for `/analysis/map-range`) are resolved when they name exactly one
-  node, here and in `get_node_info` / `get_node_output`. Handle names are not
-  checked yet.
+  node, here and in `get_node_info` / `get_node_output`.
+- **Validated fields.** When a context loader supplies the operator registry,
+  `modification-fields.ts` also checks operator types, input names and edge
+  handles. The editor would otherwise accept all three silently: an unknown type
+  becomes a dead node, a wrong handle becomes an edge that connects nothing. The
+  Haiku ceiling run lost two of its three T3 builds this way. A display name
+  (`File`) or a missing `Op` suffix resolves to the type when it names exactly one
+  operator, and a bare handle (`data`) gets its side (`out.data` / `par.data`).
+  Anything else is rejected with the names that do exist, e.g. "/heat
+  (HeatmapLayerOp) has no output vis. Outputs on /heat: out.layer". The known
+  names are the class's fields plus the live operator's, so user-defined custom
+  inputs pass.
 - **Unverified edit claims.** A reply that announces a change in the past tense
   ("the radius has been set to 10") when no mutating tool succeeded and no
   modification was queued gets a one-line correction appended and emits an

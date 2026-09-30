@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { ContextLoader } from './context-loader'
 import { MCPTools } from './mcp-tools'
+import { getOperatorRegistry } from './runtime-operator-registry'
 import type { DocsIndex, DocTopic, NoodlesProject, ProjectModification } from './types'
 
 function topic(partial: Partial<DocTopic> & { id: string; content: string }): DocTopic {
@@ -344,5 +345,107 @@ describe('applyModifications validation', () => {
       ],
     })
     expect(result.success).toBe(true)
+  })
+})
+
+describe('applyModifications field validation', () => {
+  // Field checks need the registry, which only a loader supplies
+  function tools() {
+    const loader = { getOperatorRegistry } as unknown as ContextLoader
+    const t = new MCPTools(loader)
+    t.setProject({
+      nodes: [{ id: '/deck', type: 'DeckRendererOp', position: { x: 0, y: 0 }, data: {} }],
+      edges: [],
+    } as unknown as NoodlesProject)
+    return t
+  }
+
+  const queued = (result: { data?: unknown }) =>
+    (result.data as { modifications: ProjectModification[] }).modifications
+
+  it('corrects a display name to the operator type', async () => {
+    const result = await tools().applyModifications({
+      modifications: [{ type: 'add_node', data: { id: '/quakes', type: 'File' } }],
+    })
+    expect(result.success).toBe(true)
+    expect(queued(result)[0].data).toMatchObject({ id: '/quakes', type: 'FileOp' })
+  })
+
+  it('rejects the build the benchmark ceiling reported as done, and says why', async () => {
+    const result = await tools().applyModifications({
+      modifications: [
+        { type: 'add_node', data: { id: '/quakes', type: 'FileOp' } },
+        { type: 'add_node', data: { id: '/heat', type: 'HeatmapLayerOp' } },
+        {
+          type: 'add_edge',
+          data: {
+            source: '/quakes',
+            target: '/heat',
+            sourceHandle: 'out.data',
+            targetHandle: 'par.data',
+          },
+        },
+        {
+          type: 'add_edge',
+          data: {
+            source: '/heat',
+            target: '/deck',
+            sourceHandle: 'out.vis',
+            targetHandle: 'par.layers',
+          },
+        },
+      ],
+    })
+    expect(result.success).toBe(false)
+    expect(result.error).toContain(
+      'modifications[3] (add_edge): /heat (HeatmapLayerOp) has no output vis'
+    )
+    expect(result.error).toContain('out.layer')
+  })
+
+  it('queues the same build once the handles are right', async () => {
+    const result = await tools().applyModifications({
+      modifications: [
+        { type: 'add_node', data: { id: '/quakes', type: 'File' } },
+        {
+          type: 'add_node',
+          data: { id: '/heat', type: 'HeatmapLayer', data: { inputs: { radiusPixels: 40 } } },
+        },
+        {
+          type: 'add_edge',
+          data: { source: '/quakes', target: '/heat', sourceHandle: 'data', targetHandle: 'data' },
+        },
+        {
+          type: 'add_edge',
+          data: {
+            source: '/heat',
+            target: '/deck',
+            sourceHandle: 'out.layer',
+            targetHandle: 'par.layers',
+          },
+        },
+      ],
+    })
+    expect(result.error).toBeUndefined()
+    const edges = queued(result).filter(mod => mod.type === 'add_edge')
+    expect(edges[0].data).toMatchObject({
+      id: '/quakes.out.data->/heat.par.data',
+      sourceHandle: 'out.data',
+      targetHandle: 'par.data',
+    })
+  })
+
+  it('checks an update against the type queued by an earlier call', async () => {
+    const t = tools()
+    await t.applyModifications({
+      modifications: [{ type: 'add_node', data: { id: '/points', type: 'ScatterplotLayerOp' } }],
+    })
+    const result = await t.applyModifications({
+      modifications: [
+        { type: 'update_node', data: { id: '/points', data: { inputs: { color: '#f00' } } } },
+      ],
+    })
+    expect(result.error).toContain('/points (ScatterplotLayerOp) has no input color')
+    expect(result.error).toContain('getFillColor')
   })
 })
