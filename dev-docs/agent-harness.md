@@ -50,7 +50,7 @@ unconditionally and is unaffected by any of the routing below.
 | Native tool calling | yes | yes (filtered on `supported_parameters`) | assumed, switchable off | **no** — constrained JSON | **no** — constrained JSON |
 | Images (screenshots) | yes | yes | off by default | no | no |
 | Web search | server-side `web_search_2026…`/`…20250305` | `plugins: [{id:'web'}]` | unavailable | unavailable | unavailable |
-| Prompt caching | `cache_control: ephemeral` on the system prompt | — | — | — | — |
+| Prompt caching | `cache_control: ephemeral` on the system prompt | — | — | KV cache reused across steps (byte-stable prefix) | session reused across turns |
 | API key | required | one click, no paste | required, unless the server is your own | none | none |
 
 `custom` is one provider no matter how many servers it points at: any endpoint
@@ -134,7 +134,7 @@ faster than releases. On any failure it falls back to the static `OPENROUTER_MOD
 
 ### WebLLM: the model runs in the tab
 
-Four facts shape `providers/webllm.ts`:
+Five facts shape `providers/webllm.ts`:
 
 1. **No native tool calling, for any model.** WebLLM does ship tool calls, but only
    for four Hermes builds, and its parser requires the *entire* completion to be a
@@ -156,6 +156,28 @@ Four facts shape `providers/webllm.ts`:
 4. **`@mlc-ai/web-llm` is only ever reached through `await import()`.** It is the
    largest dependency in the app and users who never pick a local model pay nothing
    for it. It is also in `optimizeDeps.exclude`.
+5. **Prefill is most of the wait, so the prefix stays byte-stable.** The engine
+   keeps its KV cache only when a request is the previous conversation plus one
+   message, compared string for string, system message included; anything else
+   resets it and prefills the whole prompt again. Two things used to break that on
+   every step. The preamble listed the current tools, which grow with each
+   `find_tools`, so `preambleFor` now keeps the first preamble per system prompt
+   while every tool it lists is still offered; later tools reach the model through
+   `find_tools`' own result and the grammar's enum, which is per request and not
+   part of the prefix. And assistant turns went back re-serialised ("Called X with
+   …") rather than as the JSON the engine had recorded, so the raw completion now
+   rides in a `provider_block` and `toWireTurns` replays it verbatim. Measured on
+   Qwen3-4B at 16k (M-series Mac, T2 tasks): later steps prefill 20–1,000 new tokens
+   in 0.1–2.3 s instead of ~4k in 14–23 s, and tasks take 6–22 s instead of 10–48 s.
+   Each step logs its prefill and decode timings under `noodles:ai-chat`, and the
+   bench prints the average per row.
+
+Both on-device providers are slower than a hosted one, and the panel says so
+rather than letting the user find out (`on-device-notice.tsx`): a dismissible
+banner above the conversation, and a line inside any reply still running after
+`SLOW_REPLY_MS`, each with one button. It switches straight to a hosted provider
+that is already set up (`readyCloudProvider`, same order as automatic selection)
+or opens Settings → AI Provider, where OpenRouter is one click.
 
 `WEBLLM_MODELS` carries five ids checked against `prebuiltAppConfig.model_list`, each
 with the download size from the config's own `vram_required_MB`, because "3.4GB the

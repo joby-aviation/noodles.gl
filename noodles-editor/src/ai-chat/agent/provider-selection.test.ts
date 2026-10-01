@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { type Credentials, isProviderReady, resolveProviderId } from './provider-selection'
+import {
+  type Credentials,
+  isOnDevice,
+  isProviderReady,
+  readyCloudProvider,
+  resolveProviderId,
+} from './provider-selection'
 
 const NOTHING: Credentials = {
   anthropicKey: undefined,
@@ -117,5 +123,34 @@ describe('resolveProviderId', () => {
   // provider id to label. Anthropic is the one it names.
   it('falls back to Anthropic when nothing is ready', () => {
     expect(resolveProviderId({ ...NOTHING, preference: 'automatic' })).toBe('anthropic')
+  })
+})
+
+describe('isOnDevice', () => {
+  it('is true only for the two providers that run in the browser', () => {
+    expect(isOnDevice('webllm')).toBe(true)
+    expect(isOnDevice('chrome')).toBe(true)
+    expect(isOnDevice('anthropic')).toBe(false)
+    expect(isOnDevice('openrouter')).toBe(false)
+    expect(isOnDevice('custom')).toBe(false)
+  })
+})
+
+describe('readyCloudProvider', () => {
+  it('is null when only on-device providers are ready', () => {
+    const credentials = {
+      ...NOTHING,
+      webgpuReady: true,
+      webllmModel: 'Qwen3-4B-q4f16_1-MLC',
+      chromeAvailable: true,
+    }
+    expect(readyCloudProvider(credentials)).toBeNull()
+  })
+
+  it('names the first hosted provider with a credential, in the automatic order', () => {
+    expect(readyCloudProvider({ ...NOTHING, openRouterKey: 'or-key' })).toBe('openrouter')
+    expect(
+      readyCloudProvider({ ...NOTHING, openRouterKey: 'or-key', anthropicKey: 'sk-ant' })
+    ).toBe('anthropic')
   })
 })

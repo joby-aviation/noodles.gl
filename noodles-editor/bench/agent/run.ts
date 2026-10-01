@@ -107,8 +107,24 @@ async function reachable(url: string) {
   }
 }
 
-// Always our own server on a free port: 5173 is often another checkout's
+// Always our own server, on a fixed port when it is free. Cache Storage is per
+// origin, so every new port is a fresh cache: WebLLM downloads the model again
+// and the profile keeps one copy per port until the disk fills. 5173 is often
+// another checkout's, hence a port of our own.
+const BENCH_PORT = 5188
+
+async function portFree(port: number): Promise<boolean> {
+  return new Promise(resolveFree => {
+    const probe = createServer()
+    probe.unref()
+    probe.once('error', () => resolveFree(false))
+    probe.listen(port, () => probe.close(() => resolveFree(true)))
+  })
+}
+
 async function freePort(): Promise<number> {
+  if (await portFree(BENCH_PORT)) return BENCH_PORT
+  console.log(`Port ${BENCH_PORT} is taken; on-device models will download again on this port`)
   return new Promise((resolvePort, reject) => {
     const probe = createServer()
     probe.unref()
@@ -272,10 +288,16 @@ async function runOne(
   task: Task,
   config: BenchProviderConfig,
   knobs: BenchKnobs
-): Promise<{ result: BenchResult; consoleErrors: string[] }> {
+): Promise<{ result: BenchResult; consoleErrors: string[]; providerLog: string[] }> {
   const consoleErrors: string[] = []
+  // The provider's own debug lines: for WebLLM, prefill and decode timings per step
+  const providerLog: string[] = []
   const onConsole = (msg: { type(): string; text(): string }) => {
     if (msg.type() === 'error') consoleErrors.push(msg.text().slice(0, 500))
+    const text = msg.text()
+    if (/\[(webllm|chrome)\] (prefill|over context)/.test(text)) {
+      providerLog.push(text.replace(/%c/g, '').trim().slice(0, 300))
+    }
   }
   const onPageError = (error: Error) => consoleErrors.push(error.message.slice(0, 500))
   page.on('console', onConsole)
@@ -295,10 +317,10 @@ async function runOne(
     const timeout = new Promise<never>((_, reject) =>
       setTimeout(() => reject(new Error('page did not return')), limit)
     )
-    return { result: await Promise.race([run, timeout]), consoleErrors }
+    return { result: await Promise.race([run, timeout]), consoleErrors, providerLog }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
-    return { result: crashed(task, config, knobs, message), consoleErrors }
+    return { result: crashed(task, config, knobs, message), consoleErrors, providerLog }
   } finally {
     page.off('console', onConsole)
     page.off('pageerror', onPageError)
@@ -308,11 +330,25 @@ async function runOne(
 async function launch(browserName: string, headless: boolean): Promise<BrowserContext> {
   const profile = join(here, '.profile', browserName)
   mkdirSync(profile, { recursive: true })
-  return chromium.launchPersistentContext(profile, {
+  const context = await chromium.launchPersistentContext(profile, {
     channel: browserName === 'chrome' ? 'chrome' : undefined,
     headless,
     viewport: { width: 1440, height: 900 },
   })
+  // Turns on the providers' debug lines, which is where step timings come from
+  await context.addInitScript(() => localStorage.setItem('debug', 'noodles:ai-chat'))
+  return context
+}
+
+// "· prefill 3.2s/412 tok avg": the per-step cost the KV cache is meant to cut
+function prefillNote(providerLog: string[]): string {
+  const steps = providerLog
+    .map(line => line.match(/prefill (\d+) tokens in ([\d.]+)s/))
+    .filter((match): match is RegExpMatchArray => match !== null)
+  if (steps.length === 0) return ''
+  const seconds = steps.reduce((sum, match) => sum + Number(match[2]), 0) / steps.length
+  const tokens = steps.reduce((sum, match) => sum + Number(match[1]), 0) / steps.length
+  return ` · prefill ${seconds.toFixed(1)}s/${Math.round(tokens)} tok avg`
 }
 
 async function main() {
@@ -350,7 +386,13 @@ async function main() {
         const config: BenchProviderConfig = { providerId, model, apiKey: apiKeyFor(providerId) }
         for (const task of tasks) {
           for (let repeat = 0; repeat < repeats; repeat++) {
-            const { result, consoleErrors } = await runOne(page, url, task, config, knobs)
+            const { result, consoleErrors, providerLog } = await runOne(
+              page,
+              url,
+              task,
+              config,
+              knobs
+            )
             const graded = grade(task.grader.checks, { result, consoleErrors })
             const r = row(task, result, knobSpec, repeat, graded)
             summary.rows.push(r)
@@ -361,12 +403,18 @@ async function main() {
             }__r${repeat}.json`
             writeFileSync(
               join(rawDir, file),
-              JSON.stringify({ task, knobs, result, consoleErrors, grade: graded, row: r }, null, 2)
+              JSON.stringify(
+                { task, knobs, result, consoleErrors, providerLog, grade: graded, row: r },
+                null,
+                2
+              )
             )
             console.log(
               `[${done}/${total}] ${configKey(r)} ${task.id} r${repeat}: ${r.pass ? 'PASS' : 'fail'} ${
                 r.score
-              }/4 · ${r.steps} steps · ${(r.ms / 1000).toFixed(1)}s${r.error ? ` · ${r.error}` : ''}`
+              }/4 · ${r.steps} steps · ${(r.ms / 1000).toFixed(1)}s${prefillNote(providerLog)}${
+                r.error ? ` · ${r.error}` : ''
+              }`
             )
             // Written after every run so an interrupted matrix keeps what it did
             writeFileSync(

@@ -181,6 +181,7 @@ describe('WebLLMProvider', () => {
     const events = await collect(providerFor(stub).stream(requestFor('what is /viewer')))
 
     expect(events).toEqual([
+      { type: 'provider_block', provider: 'webllm', block: action },
       { type: 'text_delta', text: 'Checking.' },
       { type: 'tool_call', id: 'webllm_1', name: 'get_node_info', input: { nodeId: '/viewer' } },
       { type: 'stop', reason: 'tool_use' },
@@ -188,13 +189,13 @@ describe('WebLLMProvider', () => {
   })
 
   it('ends the turn when the action names no tool', async () => {
-    const stub = stubEngine({
-      responses: [chunksFor('{"tool":"none","reply":"There are 4 nodes."}')],
-    })
+    const action = '{"tool":"none","reply":"There are 4 nodes."}'
+    const stub = stubEngine({ responses: [chunksFor(action)] })
 
     const events = await collect(providerFor(stub).stream(requestFor('how many nodes')))
 
     expect(events).toEqual([
+      { type: 'provider_block', provider: 'webllm', block: action },
       { type: 'text_delta', text: 'There are 4 nodes.' },
       { type: 'stop', reason: 'end_turn' },
     ])
@@ -264,6 +265,83 @@ describe('WebLLMProvider', () => {
     expect(messages[1]).toEqual({ role: 'user', content: 'hello' })
   })
 
+  // The engine reuses its KV cache only for a request that extends the last one
+  // exactly, so a system message that grew with each unlocked tool would mean
+  // prefilling the whole prompt again on every step
+  it('keeps the system message stable when find_tools unlocks more tools', async () => {
+    const stub = stubEngine({
+      responses: [
+        chunksFor('{"tool":"none","reply":"Hi."}'),
+        chunksFor('{"tool":"none","reply":"Hi."}'),
+      ],
+    })
+    const provider = providerFor(stub)
+    const unlocked: AgentTool = {
+      name: 'capture_visualization',
+      description: 'Take a screenshot',
+      inputSchema: { type: 'object', properties: {} },
+    }
+
+    await collect(provider.stream(requestFor('hello')))
+    await collect(provider.stream(requestFor('hello', [...TOOLS, unlocked])))
+
+    const system = (index: number) =>
+      (stub.requests[index].messages as Array<{ content: string }>)[0].content
+    expect(system(1)).toBe(system(0))
+    // Still callable: the grammar is per request and not part of the cached prefix
+    const schema = stub.requests[1].response_format as { schema: string }
+    expect(JSON.parse(schema.schema).properties.tool.enum).toContain('capture_visualization')
+  })
+
+  it('rebuilds the system message when a tool it lists is no longer offered', async () => {
+    const stub = stubEngine({
+      responses: [
+        chunksFor('{"tool":"none","reply":"Hi."}'),
+        chunksFor('{"tool":"none","reply":"Hi."}'),
+      ],
+    })
+    const provider = providerFor(stub)
+
+    await collect(provider.stream(requestFor('hello')))
+    await collect(provider.stream(requestFor('hello', TOOLS.slice(0, 1))))
+
+    const system = (stub.requests[1].messages as Array<{ content: string }>)[0].content
+    expect(system).not.toContain('get_node_info')
+  })
+
+  it('sends its own earlier completions back verbatim', async () => {
+    const raw = '<think>\n\n</think>\n\n{"tool":"list_nodes","reply":"Looking.","input":{}}'
+    const stub = stubEngine({
+      responses: [chunksFor(raw), chunksFor('{"tool":"none","reply":"4."}')],
+    })
+    const provider = providerFor(stub)
+
+    const first = await collect(provider.stream(requestFor('how many nodes')))
+    const block = first.find(event => event.type === 'provider_block')
+    if (block?.type !== 'provider_block') throw new Error('no provider block')
+
+    const request = requestFor('how many nodes')
+    request.messages.push(
+      {
+        role: 'assistant',
+        content: [
+          { type: 'provider_block', provider: block.provider, block: block.block },
+          { type: 'text', text: 'Looking.' },
+          { type: 'tool_use', id: 'webllm_1', name: 'list_nodes', input: {} },
+        ],
+      },
+      {
+        role: 'user',
+        content: [{ type: 'tool_result', toolUseId: 'webllm_1', content: '4 nodes' }],
+      }
+    )
+    await collect(provider.stream(request))
+
+    const messages = stub.requests[1].messages as Array<{ role: string; content: string }>
+    expect(messages[2]).toEqual({ role: 'assistant', content: raw })
+    expect(messages[3]).toEqual({ role: 'user', content: 'Result: 4 nodes' })
+  })
+
   // Errors cross the worker boundary as their toString(), so the class is gone by
   // the time this sees them and only the message prefix is left
   it('retries on a trimmed transcript when the context overflows', async () => {
@@ -287,6 +365,7 @@ describe('WebLLMProvider', () => {
 
     expect(events).toEqual([
       { type: 'diagnostic', kind: 'context_trimmed' },
+      { type: 'provider_block', provider: 'webllm', block: '{"tool":"none","reply":"Trimmed."}' },
       { type: 'text_delta', text: 'Trimmed.' },
       { type: 'stop', reason: 'end_turn' },
     ])

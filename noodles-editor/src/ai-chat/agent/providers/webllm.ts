@@ -2,7 +2,7 @@
 // request ever leaving the machine — paid for once, up front, as a download of
 // one to six gigabytes that the user has to ask for explicitly.
 //
-// Four things shape this provider:
+// Five things shape this provider:
 //
 // 1. No tool calling, for any model. WebLLM does ship native tool calls, but only
 //    for four Hermes builds, and its parser requires the *entire* completion to be
@@ -21,6 +21,10 @@
 //    length of the answer.
 // 4. The package is only ever reached through `await import()`. It is the largest
 //    dependency in the app, and users who never pick a local model pay nothing.
+// 5. Prefill is most of the wait. The engine skips it for everything it has seen
+//    before only when the next request extends the last one exactly, so the
+//    system message and every earlier turn are kept byte-stable (preambleFor,
+//    toWireTurns).
 
 import { debugAiChat } from '../../../utils/debug'
 import type {
@@ -132,7 +136,18 @@ interface WebLLMChunk {
     delta?: { content?: string | null }
     finish_reason?: string | null
   }>
-  usage?: { prompt_tokens?: number; completion_tokens?: number } | null
+  usage?: {
+    prompt_tokens?: number
+    completion_tokens?: number
+    // WebLLM's own timings, worth logging because prefill and decode fail
+    // differently: a slow prefill means the cache missed, a slow decode is the GPU
+    extra?: {
+      time_to_first_token_s?: number
+      prefill_tokens_per_s?: number
+      decode_tokens_per_s?: number
+      grammar_init_s?: number
+    }
+  } | null
 }
 
 // Loads the package, spins up the worker, and downloads the weights. Async for
@@ -199,6 +214,9 @@ export class WebLLMProvider implements AgentProvider {
   private readonly engine: WebLLMEngine
   private readonly worker: Worker | undefined
   private callCounter = 0
+  // The system message each system prompt was first sent with, and the tools it
+  // listed. See preambleFor.
+  private readonly preambles = new Map<string, { tools: string[]; text: string }>()
 
   constructor(options: {
     engine: WebLLMEngine
@@ -272,7 +290,7 @@ export class WebLLMProvider implements AgentProvider {
       messages: [
         // The tool schemas ride in the system message, as they do for every
         // provider without native tools
-        { role: 'system', content: preamble(request) },
+        { role: 'system', content: this.preambleFor(request) },
         ...toWireTurns(messages),
       ],
       max_tokens: Math.min(request.maxTokens, MAX_OUTPUT_TOKENS),
@@ -309,6 +327,7 @@ export class WebLLMProvider implements AgentProvider {
         if (choice?.delta?.content) content += choice.delta.content
         if (choice?.finish_reason) finishReason = choice.finish_reason
         if (chunk.usage) {
+          logTimings(chunk.usage)
           usage = {
             inputTokens: chunk.usage.prompt_tokens ?? 0,
             outputTokens: chunk.usage.completion_tokens ?? 0,
@@ -322,6 +341,28 @@ export class WebLLMProvider implements AgentProvider {
     return { content, usage, finishReason }
   }
 
+  // WebLLM keeps its KV cache only when a request is the previous conversation
+  // plus one message, byte for byte, system message included. Rebuilt per step,
+  // the preamble would grow with every tool find_tools unlocks and the engine
+  // would prefill the whole prompt again: about 4k tokens, 15 to 20 seconds on a
+  // laptop GPU, every step. So the first preamble for a system prompt is kept
+  // while every tool it lists is still offered. Tools unlocked later still reach
+  // the model, through find_tools' own result and the grammar's enum.
+  private preambleFor(request: AgentRequest): string {
+    const offered = new Set(request.tools.map(tool => tool.name))
+    const pinned = this.preambles.get(request.system)
+    const stillValid =
+      pinned &&
+      // A preamble written for no tools has nothing to say about them
+      (pinned.tools.length > 0 || offered.size === 0) &&
+      pinned.tools.every(name => offered.has(name))
+    if (stillValid) return pinned.text
+
+    const text = preamble(request)
+    this.preambles.set(request.system, { tools: [...offered], text })
+    return text
+  }
+
   private *eventsFor(completion: Completion, tools: AgentTool[]): Generator<AgentEvent> {
     const action = parseAction(completion.content, tools)
     const diagnostic = diagnosticFor(action)
@@ -329,6 +370,10 @@ export class WebLLMProvider implements AgentProvider {
 
     // Nothing incremental: the completion is one JSON object, and streaming a
     // half-written one to the panel would show the user braces
+    // The completion exactly as the engine recorded it, for toWireTurns to send
+    // back. Re-serialised from the tool call it would differ, and the engine
+    // would drop its cache.
+    yield { type: 'provider_block', provider: 'webllm', block: completion.content }
     if (action.reply) yield { type: 'text_delta', text: action.reply }
 
     if (action.tool) {
@@ -356,7 +401,8 @@ interface Completion {
   trimmed?: boolean
 }
 
-// The loop's tool results ride on user turns, which is where they belong here too
+// The loop's tool results ride on user turns, which is where they belong here too.
+// An assistant turn this provider produced goes back as the raw completion.
 function toWireTurns(messages: AgentMessage[]): {
   role: 'user' | 'assistant'
   content: string
@@ -364,9 +410,29 @@ function toWireTurns(messages: AgentMessage[]): {
   return messages
     .map(message => ({
       role: message.role,
-      content: serializeMessage(message),
+      content: rawCompletion(message) ?? serializeMessage(message),
     }))
     .filter(turn => turn.content.length > 0)
+}
+
+function rawCompletion(message: AgentMessage): string | undefined {
+  if (message.role !== 'assistant') return undefined
+  for (const part of message.content) {
+    if (part.type === 'provider_block' && part.provider === 'webllm') {
+      return typeof part.block === 'string' ? part.block : undefined
+    }
+  }
+  return undefined
+}
+
+function logTimings(usage: NonNullable<WebLLMChunk['usage']>) {
+  const extra = usage.extra
+  if (!extra) return
+  // Interpolated here rather than by debug's own %d, so the line reads the same
+  // wherever the console is captured (the bench parses it)
+  debugAiChat(
+    `[webllm] prefill ${usage.prompt_tokens ?? 0} tokens in ${extra.time_to_first_token_s?.toFixed(1)}s (${Math.round(extra.prefill_tokens_per_s ?? 0)} tok/s), decode ${usage.completion_tokens ?? 0} tokens at ${Math.round(extra.decode_tokens_per_s ?? 0)} tok/s, grammar ${extra.grammar_init_s?.toFixed(2)}s`
+  )
 }
 
 // A truncated action object will not parse, so `length` matters even though the
