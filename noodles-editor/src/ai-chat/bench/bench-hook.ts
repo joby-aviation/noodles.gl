@@ -55,6 +55,8 @@ export interface BenchProviderConfig {
 export interface BenchKnobs {
   // WebLLM KV-cache size in tokens
   ctx?: number
+  // Agent step limit; unset, the loop picks one from the window
+  steps?: number
 }
 
 export interface BenchToolCall {
@@ -178,7 +180,7 @@ async function runBenchTask(
   if (project) tools.setProject(project)
   const unsubscribe = onProjectChange(p => tools.setProject(p))
   // No web search: it would make runs depend on the network and on a second key
-  const session = new AgentSession(provider, tools)
+  const session = new AgentSession(provider, tools, { maxSteps: knobs.steps })
 
   const controller = new AbortController()
   let timedOut = false

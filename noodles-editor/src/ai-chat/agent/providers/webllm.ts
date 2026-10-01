@@ -57,9 +57,9 @@ export interface WebLLMModel {
 // throws at load time, and the whole point of this provider is that the first run
 // works. Sizes are the config's own vram_required_MB.
 //
-// All five are instruction-tuned and small enough to answer in seconds on an
-// integrated GPU. The Qwen3 models are reasoning models, but constrained decoding
-// leaves no room for a thinking block, so they behave as ordinary chat models here.
+// All six are instruction-tuned and small enough to run on an integrated GPU. The
+// Qwen models are reasoning models, but constrained decoding leaves no room for a
+// thinking block, so they behave as ordinary chat models here.
 export const WEBLLM_MODELS: readonly WebLLMModel[] = [
   {
     id: 'Llama-3.2-1B-Instruct-q4f16_1-MLC',
@@ -73,12 +73,15 @@ export const WEBLLM_MODELS: readonly WebLLMModel[] = [
     sizeMb: 2264,
   },
   { id: 'Qwen3-4B-q4f16_1-MLC', label: 'Qwen3 4B (3.4 GB)', sizeMb: 3432 },
+  { id: 'Qwen3.5-4B-q4f16_1-MLC', label: 'Qwen3.5 4B (3.9 GB)', sizeMb: 3868 },
   { id: 'Qwen3-8B-q4f16_1-MLC', label: 'Qwen3 8B (5.6 GB)', sizeMb: 5696 },
 ]
 
-// The largest model that still fits the "low resource" tier in WebLLM's own
-// config, so it is the biggest one likely to load on a laptop's integrated GPU.
-export const DEFAULT_WEBLLM_MODEL = 'Qwen3-4B-q4f16_1-MLC'
+// The only one that reliably makes an edit: 89% on the single-edit bench tasks,
+// against 11% for Qwen3-4B and 0% for Qwen3-8B (bench/agent/results/2026-10-01-*).
+// About twice as slow as Qwen3-4B and outside WebLLM's "low resource" tier, so
+// Qwen3-4B stays in the list for laptops that cannot hold it.
+export const DEFAULT_WEBLLM_MODEL = 'Qwen3.5-4B-q4f16_1-MLC'
 
 // Every prebuilt model overrides context_window_size to this. Not read from the
 // config at runtime because the value is needed to size the tool router before the

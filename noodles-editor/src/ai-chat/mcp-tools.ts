@@ -995,6 +995,12 @@ export class MCPTools {
     if (!isRecord(raw) || !isRecord(raw.data)) return raw
     const data = { ...raw.data }
     const resolve = (value: unknown) => this.resolveNodeId(value, known) ?? value
+    // get_node_info takes nodeId, and a small model carries the name over to
+    // the edit (Qwen3.5-4B did on every failed T2 run)
+    if (data.id === undefined && typeof data.nodeId === 'string') {
+      data.id = data.nodeId
+      delete data.nodeId
+    }
     // Small models put inputs one level up, beside the id. The schema would
     // strip them silently, so move them to where the editor reads them.
     if ((raw.type === 'add_node' || raw.type === 'update_node') && isRecord(data.inputs)) {

@@ -26,6 +26,10 @@ export const NO_TOOL = 'none'
 // required after it a model that has closed `input` and wants to write `}` is
 // only allowed `,` or whitespace — so it pads with whitespace until max_tokens.
 // Last, the next legal token after `input` is the `}` it was reaching for.
+//
+// `input` is required all the same. Optional, it let a model close the object
+// straight after `reply`, and Qwen3.5-4B did: get_node_info called with nothing,
+// three times running. A `{}` on a turn with no tool costs two tokens.
 export function responseSchema(tools: AgentTool[]): object {
   return {
     type: 'object',
@@ -37,7 +41,7 @@ export function responseSchema(tools: AgentTool[]): object {
       reply: { type: 'string' },
       input: { type: 'object' },
     },
-    required: ['tool', 'reply'],
+    required: ['tool', 'reply', 'input'],
   }
 }
 

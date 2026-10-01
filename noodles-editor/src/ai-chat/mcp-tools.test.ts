@@ -276,6 +276,17 @@ describe('applyModifications validation', () => {
     expect(update.data).toEqual({ id: '/pickup-layer', data: { inputs: { radius: 5 } } })
   })
 
+  // The argument name get_node_info takes, carried over to the edit
+  it('reads nodeId as the id', async () => {
+    const result = await tools().applyModifications({
+      modifications: [
+        { type: 'update_node', data: { nodeId: '/pickup-layer', inputs: { radius: 5 } } },
+      ],
+    })
+    const [update] = (result.data as { modifications: ProjectModification[] }).modifications
+    expect(update.data).toEqual({ id: '/pickup-layer', data: { inputs: { radius: 5 } } })
+  })
+
   it('rejects an update_node that changes nothing', async () => {
     const result = await tools().applyModifications({
       modifications: [{ type: 'update_node', data: { id: '/pickup-layer', color: 'red' } }],

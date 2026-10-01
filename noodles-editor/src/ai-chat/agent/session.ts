@@ -40,6 +40,8 @@ export interface SessionOptions {
   // Enables web_search when the provider supports it. Omitted, the tool is not
   // offered at all, so the model never promises a search it cannot run.
   webSearch?: WebSearchConfig | null
+  // Overrides the step limit the loop derives from the context window
+  maxSteps?: number
 }
 
 export class AgentSession {
@@ -47,10 +49,12 @@ export class AgentSession {
   private tools: MCPTools
   // Lives as long as the session so tools unlocked on one turn stay available
   private router: ToolRouter
+  private maxSteps: number | undefined
 
   constructor(provider: AgentProvider, tools: MCPTools, options: SessionOptions = {}) {
     this.provider = provider
     this.tools = tools
+    this.maxSteps = options.maxSteps
 
     const webSearch = options.webSearch ? createWebSearchTool(options.webSearch) : null
     const childTools = webSearch ? [webSearch] : []
@@ -94,6 +98,7 @@ export class AgentSession {
       systemPrompt: getSystemPrompt(),
       messages,
       maxTokens: MAX_TOKENS,
+      maxSteps: this.maxSteps,
       signal: params.signal,
       onEvent: params.onEvent,
     })

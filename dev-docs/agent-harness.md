@@ -45,7 +45,7 @@ unconditionally and is unaffected by any of the routing below.
 
 | | Anthropic | OpenRouter | Custom | WebLLM | Chrome |
 | --- | --- | --- | --- | --- | --- |
-| Default model | `claude-sonnet-5` | best free tool-capable model in the catalogue | whatever you type | `Qwen3-4B-q4f16_1-MLC` | `gemini-nano` |
+| Default model | `claude-sonnet-5` | best free tool-capable model in the catalogue | whatever you type | `Qwen3.5-4B-q4f16_1-MLC` | `gemini-nano` |
 | Context window | 200k | from `/models`, per-model table as fallback | configurable, 32k default | 4k, pinned by every prebuilt config | discovered at runtime (~6k), and measured per turn |
 | Native tool calling | yes | yes (filtered on `supported_parameters`) | assumed, switchable off | **no** — constrained JSON | **no** — constrained JSON |
 | Images (screenshots) | yes | yes | off by default | no | no |

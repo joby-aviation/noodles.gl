@@ -214,6 +214,10 @@ describe('responseSchema', () => {
       'input',
     ])
   })
+
+  it('requires input, so a tool is never called with no arguments', () => {
+    expect((responseSchema(TOOLS) as { required: string[] }).required).toContain('input')
+  })
 })
 
 describe('ChromeProvider.stream', () => {
