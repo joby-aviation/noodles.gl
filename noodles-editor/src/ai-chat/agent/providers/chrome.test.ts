@@ -389,7 +389,7 @@ describe('ChromeProvider.stream', () => {
   it('retries once on kErrorUnknown by rebuilding the session', async () => {
     const kError = new Error('An unknown error occurred')
     kError.name = 'kErrorUnknown'
-    const { prompts, sessions, create } = stubLanguageModel({
+    const { sessions, create } = stubLanguageModel({
       responses: [kError, '{"tool":"none","reply":"recovered"}'],
     })
 
