@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import type { NoodlesProjectJSON } from '../utils/serialization'
-import { down, up } from './019-map-view-state-center'
+import { down, up } from './020-map-view-state-center'
 
 function makeProject(): NoodlesProjectJSON {
   return {
-    version: 18,
+    version: 19,
     nodes: [
       {
         id: '/map',
@@ -73,7 +73,7 @@ function makeProject(): NoodlesProjectJSON {
   } as NoodlesProjectJSON
 }
 
-describe('019-map-view-state-center', () => {
+describe('020-map-view-state-center', () => {
   it.each([
     [{}, { lng: -74.006, lat: 40.7128 }],
     [{ longitude: 12 }, { lng: 12, lat: 40.7128 }],
