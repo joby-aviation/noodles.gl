@@ -39,7 +39,7 @@ export function isBinaryFormat(format: DetectedFormat): boolean {
   return BINARY_FORMATS.has(format)
 }
 
-function extensionOf(filename: string): string {
+export function extensionOf(filename: string): string {
   const withoutQuery = filename.split(/[?#]/)[0]
   const parts = withoutQuery.toLowerCase().split('.')
   return parts.length > 1 ? parts[parts.length - 1] : ''

@@ -21,8 +21,9 @@ import { useKeysStore } from '../keys-store'
 import { useUIStore } from '../store'
 import s from './geocoding-dialog.module.css'
 
-const DEFAULT_LOCATION = { longitude: -74.006, latitude: 40.7128, zoom: 12 } // NYC
-const CARTO_DARK = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json'
+const DEFAULT_ZOOM = 4 // Country level
+const DEFAULT_LOCATION = { longitude: -74.006, latitude: 40.7128, zoom: DEFAULT_ZOOM } // NYC
+export const CARTO_VOYAGER = 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json'
 
 interface GeocodingDialogProps {
   open: boolean
@@ -32,11 +33,25 @@ interface GeocodingDialogProps {
   mode: 'create-node' | 'update-field'
 }
 
+type GeocodingProvider = 'google_places' | 'mapbox' | 'photon'
+
+const PROVIDER_LABELS: Record<GeocodingProvider, string> = {
+  google_places: 'Google',
+  mapbox: 'Mapbox',
+  photon: 'Photon',
+}
+
 interface GeocodingSuggestion {
   type: 'coordinates' | 'place'
   label: string
   coordinates: { longitude: number; latitude: number }
   confidence?: number
+  provider?: GeocodingProvider
+}
+
+interface SearchStatus {
+  provider: GeocodingProvider
+  failures: string[]
 }
 
 interface MapCoordinates {
@@ -128,6 +143,10 @@ export function parseCoordinates(value: string): Array<{
 
 const MAP_ID = 'geocoding-map'
 
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
+
 export function GeocodingDialog({
   open,
   onOpenChange,
@@ -135,28 +154,31 @@ export function GeocodingDialog({
   initialValue,
   mode,
 }: GeocodingDialogProps) {
-  const [mapCoordinates, setMapCoordinates] = useState<MapCoordinates>(
-    initialValue || DEFAULT_LOCATION
-  )
+  const initialLocation = initialValue || DEFAULT_LOCATION
+  const [selectedLocation, setSelectedLocation] = useState(initialLocation)
+  const [viewState, setViewState] = useState<MapCoordinates>(initialLocation)
   const [inputValue, setInputValue] = useState('')
   const [suggestions, setSuggestions] = useState<GeocodingSuggestion[]>([])
   const [showDropdown, setShowDropdown] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
-  const [lastSearchProvider, setLastSearchProvider] = useState<string | null>(null)
+  const [searchStatus, setSearchStatus] = useState<SearchStatus | null>(null)
   const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const searchIdRef = useRef(0)
 
-  const getKey = useKeysStore(state => state.getKey)
-  const googleMapsKey = getKey('googleMaps')
-  const mapboxKey = getKey('mapbox')
+  // Subscribe to the key values (not the getter) so keys added in Settings or loaded
+  // from a project after this dialog mounts are picked up.
+  const googleMapsKey = useKeysStore(state => state.getKey('googleMaps'))
+  const mapboxKey = useKeysStore(state => state.getKey('mapbox'))
   const setSettingsDialogOpen = useUIStore(state => state.setSettingsDialogOpen)
 
   // Access the map instance for flyTo animations
   const { [MAP_ID]: mapInstance } = useMap()
 
-  // Reset map coordinates when dialog opens with new initial value
+  // Reset both the pin and camera when editing a different value.
   useEffect(() => {
     if (open && initialValue) {
-      setMapCoordinates(initialValue)
+      setSelectedLocation(initialValue)
+      setViewState({ ...initialValue, zoom: DEFAULT_ZOOM })
     }
   }, [open, initialValue])
 
@@ -180,32 +202,39 @@ export function GeocodingDialog({
           essential: true,
         })
       }
-      setMapCoordinates({ ...coordinates, zoom })
+      setSelectedLocation(coordinates)
+      setViewState({ ...coordinates, zoom })
     },
     [mapInstance]
   )
 
   // Parse input and generate suggestions
   const parseInput = useCallback(
-    async (value: string): Promise<GeocodingSuggestion[]> => {
-      if (!value.trim()) return []
+    async (
+      value: string
+    ): Promise<{ suggestions: GeocodingSuggestion[]; status: SearchStatus | null }> => {
+      if (!value.trim()) return { suggestions: [], status: null }
 
       // Priority 1: Check if coordinate pair
       const coordResults = parseCoordinates(value)
       if (coordResults.length > 0) {
         analytics.track('geocoding_parsed', { method: 'coordinates' })
-        return coordResults.map(result => ({
-          type: 'coordinates' as const,
-          label: `📍 ${result.label}`,
-          coordinates: result.coordinates,
-          confidence: result.confidence,
-        }))
+        return {
+          suggestions: coordResults.map(result => ({
+            type: 'coordinates' as const,
+            label: `📍 ${result.label}`,
+            coordinates: result.coordinates,
+            confidence: result.confidence,
+          })),
+          status: null,
+        }
       }
 
       // Priority 2: Treat as search query
       if (value.trim().length > 2) {
         let places: GeocodingResult[] = []
-        let method = 'photon' // Default fallback
+        let method: GeocodingProvider = 'photon' // Default fallback
+        const failures: string[] = []
 
         // Try Google Places first
         if (googleMapsKey) {
@@ -214,16 +243,18 @@ export function GeocodingDialog({
             method = 'google_places'
           } catch (error) {
             console.warn('Google Places failed, falling back to Mapbox/Photon:', error)
+            failures.push(errorMessage(error))
           }
         }
 
-        // Fall back to Mapbox if Google failed or no Google key
+        // Fall back to Mapbox if Google failed, found nothing, or no Google key
         if (places.length === 0 && mapboxKey) {
           try {
             places = await geocodeWithMapbox(value, mapboxKey)
             method = 'mapbox'
           } catch (error) {
             console.warn('Mapbox failed, falling back to Photon:', error)
+            failures.push(errorMessage(error))
           }
         }
 
@@ -234,18 +265,21 @@ export function GeocodingDialog({
         }
 
         analytics.track('geocoding_search', { method })
-        setLastSearchProvider(method)
 
-        return places.map(place => ({
-          type: 'place' as const,
-          label: place.context
-            ? `🔍 ${place.place_name} • ${place.context}`
-            : `🔍 ${place.place_name}`,
-          coordinates: place.coordinates,
-        }))
+        return {
+          suggestions: places.map(place => ({
+            type: 'place' as const,
+            label: place.context
+              ? `🔍 ${place.place_name} • ${place.context}`
+              : `🔍 ${place.place_name}`,
+            coordinates: place.coordinates,
+            provider: method,
+          })),
+          status: { provider: method, failures },
+        }
       }
 
-      return []
+      return { suggestions: [], status: null }
     },
     [googleMapsKey, mapboxKey]
   )
@@ -263,9 +297,13 @@ export function GeocodingDialog({
 
       // Debounce parsing
       debounceTimeoutRef.current = setTimeout(async () => {
+        const searchId = ++searchIdRef.current
         setIsLoading(true)
-        const results = await parseInput(value)
-        setSuggestions(results)
+        const { suggestions, status } = await parseInput(value)
+        // Drop responses from searches superseded by a newer keystroke
+        if (searchId !== searchIdRef.current) return
+        setSuggestions(suggestions)
+        setSearchStatus(status)
         setIsLoading(false)
       }, 300)
     },
@@ -285,32 +323,30 @@ export function GeocodingDialog({
     [flyToLocation]
   )
 
-  // Handle map click (preserve zoom level)
+  // A click chooses a point. Camera movement alone never changes the selection.
   const handleMapClick = useCallback((event: MapLayerMouseEvent) => {
-    setMapCoordinates(prev => ({
-      ...prev,
+    setSelectedLocation({
       longitude: event.lngLat.lng,
       latitude: event.lngLat.lat,
-    }))
+    })
     analytics.track('geocoding_map_clicked')
   }, [])
 
   // Handle map movement (zoom/pan)
   const handleMove = useCallback((event: ViewStateChangeEvent) => {
-    setMapCoordinates(prev => ({
-      ...prev,
+    setViewState({
       longitude: event.viewState.longitude,
       latitude: event.viewState.latitude,
       zoom: event.viewState.zoom,
-    }))
+    })
   }, [])
 
   // Handle location confirmation
   const handleConfirm = useCallback(() => {
-    onLocationSelected(mapCoordinates)
+    onLocationSelected(selectedLocation)
     analytics.track('geocoding_confirmed', { mode })
     onOpenChange(false)
-  }, [mapCoordinates, onLocationSelected, mode, onOpenChange])
+  }, [selectedLocation, onLocationSelected, mode, onOpenChange])
 
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
@@ -339,67 +375,81 @@ export function GeocodingDialog({
             {/* Autocomplete Dropdown */}
             {showDropdown && (suggestions.length > 0 || isLoading) && (
               <div className={s.suggestionsDropdown}>
-                {isLoading ? (
-                  <div className={s.suggestionItem}>
-                    <i className="pi pi-spin pi-spinner" style={{ marginRight: '8px' }} />
-                    Searching...
+                <div className={s.suggestionsList}>
+                  {isLoading ? (
+                    <div className={s.suggestionItem}>
+                      <i className="pi pi-spin pi-spinner" style={{ marginRight: '8px' }} />
+                      Searching...
+                    </div>
+                  ) : (
+                    suggestions.map((suggestion, index) => (
+                      <button
+                        type="button"
+                        key={`${suggestion.label}-${index}`}
+                        className={s.suggestionItem}
+                        onMouseDown={() => handleSuggestionSelect(suggestion)}
+                      >
+                        <span className={s.suggestionLabel}>{suggestion.label}</span>
+                        {suggestion.provider && (
+                          <span
+                            className={s.suggestionProvider}
+                            data-provider={suggestion.provider}
+                          >
+                            {PROVIDER_LABELS[suggestion.provider]}
+                          </span>
+                        )}
+                      </button>
+                    ))
+                  )}
+                </div>
+
+                {/* Provider notice pinned below the results — only when a configured key
+                    failed, or no key is configured */}
+                {!isLoading && searchStatus && searchStatus.failures.length > 0 && (
+                  <div className={s.providerNotice} role="status">
+                    {searchStatus.failures.map(failure => (
+                      <div key={failure}>{failure}</div>
+                    ))}
+                    <div>Showing {PROVIDER_LABELS[searchStatus.provider]} results.</div>
                   </div>
-                ) : (
-                  suggestions.map((suggestion, index) => (
-                    <button
-                      type="button"
-                      key={`${suggestion.label}-${index}`}
-                      className={s.suggestionItem}
-                      onMouseDown={() => handleSuggestionSelect(suggestion)}
-                    >
-                      {suggestion.label}
-                    </button>
-                  ))
                 )}
+                {!isLoading &&
+                  searchStatus?.provider === 'photon' &&
+                  !googleMapsKey &&
+                  !mapboxKey && (
+                    <div className={s.providerNotice}>
+                      Using Photon (free, OpenStreetMap).{' '}
+                      <button
+                        type="button"
+                        className={s.providerSettingsLink}
+                        onClick={() => setSettingsDialogOpen(true)}
+                      >
+                        Add a Mapbox or Google Maps key
+                      </button>{' '}
+                      in Settings for better results.
+                    </div>
+                  )}
               </div>
             )}
           </div>
 
-          {/* Provider indicator — shown after a place search */}
-          {lastSearchProvider && (
-            <div className={s.providerBadge}>
-              {lastSearchProvider === 'photon' ? (
-                <>
-                  Using Photon (free, OpenStreetMap).{' '}
-                  <button
-                    type="button"
-                    className={s.providerSettingsLink}
-                    onClick={() => setSettingsDialogOpen(true)}
-                  >
-                    Add a Mapbox or Google Maps key
-                  </button>{' '}
-                  in Settings for better results.
-                </>
-              ) : lastSearchProvider === 'mapbox' ? (
-                'Using Mapbox geocoding.'
-              ) : (
-                'Using Google Places.'
-              )}
-            </div>
-          )}
-
           {/* Map */}
-          {mapCoordinates.longitude != null && mapCoordinates.latitude != null && (
+          {selectedLocation.longitude != null && selectedLocation.latitude != null && (
             <div className={s.mapContainer}>
               <MapLibre
                 id={MAP_ID}
-                mapStyle={CARTO_DARK}
-                style={{ width: '100%', height: '400px' }}
-                longitude={mapCoordinates.longitude}
-                latitude={mapCoordinates.latitude}
-                zoom={mapCoordinates.zoom || 12}
+                mapStyle={CARTO_VOYAGER}
+                style={{ width: '100%', height: '100%' }}
+                longitude={viewState.longitude}
+                latitude={viewState.latitude}
+                zoom={viewState.zoom ?? DEFAULT_ZOOM}
                 onMove={handleMove}
                 onClick={handleMapClick}
               >
                 <NavigationControl position="top-right" showCompass={false} />
                 <Marker
-                  longitude={mapCoordinates.longitude}
-                  latitude={mapCoordinates.latitude}
+                  longitude={selectedLocation.longitude}
+                  latitude={selectedLocation.latitude}
                   anchor="center"
                 />
               </MapLibre>
@@ -409,8 +459,8 @@ export function GeocodingDialog({
           {/* Footer */}
           <div className={s.dialogFooter}>
             <div className={s.coordinateDisplay}>
-              {mapCoordinates.longitude != null && mapCoordinates.latitude != null
-                ? `${mapCoordinates.latitude.toFixed(5)}, ${mapCoordinates.longitude.toFixed(5)}`
+              {selectedLocation.longitude != null && selectedLocation.latitude != null
+                ? `${selectedLocation.latitude.toFixed(5)}, ${selectedLocation.longitude.toFixed(5)}`
                 : 'Loading...'}
             </div>
             <button type="button" className={s.confirmButton} onClick={handleConfirm}>

@@ -8,9 +8,71 @@ import {
   prepareTableDataForOutput,
   stringToTemporal,
   temporalToString,
+  transitionTableData,
   validateTableData,
   validateValue,
 } from './table-schema'
+
+describe('transitionTableData', () => {
+  it('preserves legacy values through chained ID-based renames', () => {
+    const original = {
+      columns: [{ name: 'name', type: 'string' as const, defaultValue: '' }],
+    }
+    const firstRename = {
+      columns: [
+        {
+          id: 'name',
+          name: 'display_name',
+          type: 'string' as const,
+          defaultValue: '',
+        },
+      ],
+    }
+    const secondRename = {
+      columns: [{ id: 'name', name: 'label', type: 'string' as const, defaultValue: '' }],
+    }
+
+    const child = transitionTableData([{ name: 'Child value' }], original, firstRename)
+    const grandchild = transitionTableData(child.data, firstRename, secondRename)
+
+    expect(child.data).toEqual([{ display_name: 'Child value' }])
+    expect(grandchild.data).toEqual([{ label: 'Child value' }])
+  })
+
+  it('keeps new and incompatible columns authoritative', () => {
+    const previous = {
+      columns: [
+        { id: 'value', name: 'value', type: 'string' as const, defaultValue: '' },
+        { id: 'removed', name: 'removed', type: 'number' as const, defaultValue: 0 },
+      ],
+    }
+    const next = {
+      columns: [
+        { id: 'value', name: 'value', type: 'number' as const, defaultValue: 5 },
+        { id: 'new', name: 'new', type: 'string' as const, defaultValue: 'new' },
+      ],
+    }
+
+    expect(
+      transitionTableData([{ value: 'not a number', removed: 42 }], previous, next).data
+    ).toEqual([{ value: 5, new: 'new' }])
+  })
+
+  it('does not reuse values when a new ID reuses a deleted column name', () => {
+    const previous = {
+      columns: [{ id: 'name', name: 'name', type: 'string' as const, defaultValue: '' }],
+    }
+    const next = {
+      columns: [
+        { id: 'new-column-id', name: 'name', type: 'string' as const, defaultValue: 'new' },
+      ],
+    }
+
+    expect(transitionTableData([{ name: 'Old value' }], previous, next).data).toEqual([
+      { name: 'new' },
+    ])
+  })
+})
 
 describe('inferSchema', () => {
   it('should infer number columns', () => {

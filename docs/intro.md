@@ -41,5 +41,5 @@ The timeline editor lets you keyframe any parameter at any point in time. Scrub,
 
 ## Get started
 
-- **[Application Users →](./users/getting-started)** — learn to load data, build graphs, animate, and export
+- **[Getting Started →](./users/getting-started)** — learn to load data, build graphs, animate, and export
 - **[Framework Developers →](./developers/overview)** — extend Noodles.gl with custom operators and field types

@@ -3,6 +3,7 @@ import { registerTimelineMutationCallback } from '../../timeline/timeline-store'
 import { analytics } from '../../utils/analytics'
 import { debugHistoryRedo, debugHistoryUndo } from '../../utils/debug'
 import type { GraphRef } from '../types'
+import { shouldBlockKeyboardShortcut } from '../utils/input-detection'
 import { registerPropertyMutationCallback } from '../utils/property-history'
 import { useUndoRedo } from '../utils/use-undo-redo'
 
@@ -64,6 +65,8 @@ export const UndoRedoHandler = forwardRef<UndoRedoHandlerRef, UndoRedoHandlerPro
   // Add keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (shouldBlockKeyboardShortcut(e)) return
+
       if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === 'z') {
         e.preventDefault()
         debugHistoryUndo('Undo triggered via keyboard')

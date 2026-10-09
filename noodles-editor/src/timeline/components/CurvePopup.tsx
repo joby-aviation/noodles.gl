@@ -26,7 +26,7 @@ export interface CurvePopupProps {
 }
 
 const POPUP_WIDTH = 420
-const POPUP_HEIGHT = 300
+const POPUP_HEIGHT = 360
 const CURVE_WIDTH = 240
 const CURVE_HEIGHT = 200
 

@@ -29,8 +29,13 @@ export interface TargetFieldInfo {
   returnType?: 'object' | 'tuple' // For point/vec fields
 }
 
+export interface DataKeyDefinition {
+  label: string
+  path: string[]
+}
+
 export interface ExpressionContext {
-  dataKeys: string[] // Keys from upstream data: ['lat', 'lng', 'count']
+  dataKeys: DataKeyDefinition[] // Keys from upstream data, preserving literal vs nested paths
   globals: GlobalDefinition[] // d, data, op, utils, d3, turf, etc.
   operatorPaths: string[] // Available operator paths for op() autocomplete
   targetField?: TargetFieldInfo // For AccessorOp: info about the field it connects to
@@ -104,7 +109,7 @@ const ACCESSOR_GLOBALS: GlobalDefinition[] = [
 ]
 
 // Extract keys from a data object/array
-function extractDataKeys(data: unknown): string[] {
+function extractDataKeys(data: unknown): DataKeyDefinition[] {
   if (!data) return []
 
   // If it's an array, look at the first item
@@ -113,13 +118,13 @@ function extractDataKeys(data: unknown): string[] {
   if (!item || typeof item !== 'object') return []
 
   // Get all keys, including nested ones (one level deep)
-  const keys: string[] = []
-  for (const [key, value] of Object.entries(item)) {
-    keys.push(key)
+  const keys: DataKeyDefinition[] = []
+  for (const [key, value] of Object.entries(item as Record<string, unknown>)) {
+    keys.push({ label: key, path: [key] })
     // Add nested keys for objects (not arrays)
     if (value && typeof value === 'object' && !Array.isArray(value)) {
       for (const nestedKey of Object.keys(value)) {
-        keys.push(`${key}.${nestedKey}`)
+        keys.push({ label: `${key}.${nestedKey}`, path: [key, nestedKey] })
       }
     }
   }
@@ -226,7 +231,7 @@ export function getExpressionContext(operatorId: OpId, edges: Edge[]): Expressio
   }
 
   const displayName = (op.constructor as { displayName?: string }).displayName || ''
-  let dataKeys: string[] = []
+  let dataKeys: DataKeyDefinition[] = []
   let globals = EXPRESSION_GLOBALS
 
   let targetField: TargetFieldInfo | undefined

@@ -12,9 +12,14 @@ import {
   NumberOp,
   type Operator,
 } from './operators'
+import { referenceDependencyModel } from './reference-dependencies'
 import { clearOps, getOpStore, hasOp } from './store'
 import { deriveReferenceEdges, transformGraph } from './transform-graph'
 import { edgeId } from './utils/id-utils'
+
+afterEach(() => {
+  referenceDependencyModel.reset()
+})
 
 describe('transform-graph topological sort with missing upstream nodes', () => {
   afterEach(() => {
@@ -44,10 +49,12 @@ describe('transform-graph topological sort with missing upstream nodes', () => {
       },
     ]
 
-    const instances = transformGraph({ nodes, edges })
+    const result = transformGraph({ nodes, edges })
 
-    expect(instances).toHaveLength(1)
-    expect(instances[0].id).toBe('/kml-to-geo-json')
+    expect(result.operators).toHaveLength(1)
+    expect(result.operators[0].id).toBe('/kml-to-geo-json')
+    expect(result.errors).toHaveLength(1)
+    expect(result.errors[0].type).toBe('stale-edge')
 
     const { getOp } = getOpStore()
     expect(getOp('/kml-to-geo-json')).toBeDefined()
@@ -76,9 +83,9 @@ describe('transform-graph topological sort with missing upstream nodes', () => {
       },
     ]
 
-    const instances = transformGraph({ nodes, edges })
+    const result = transformGraph({ nodes, edges })
 
-    expect(instances).toHaveLength(2)
+    expect(result.operators).toHaveLength(2)
     const { getOp } = getOpStore()
     expect(getOp('/a')).toBeDefined()
     expect(getOp('/b')).toBeDefined()
@@ -113,11 +120,11 @@ describe('transform-graph topological sort with missing upstream nodes', () => {
       },
     ]
 
-    const instances = transformGraph({ nodes, edges })
+    const result = transformGraph({ nodes, edges })
 
-    expect(instances).toHaveLength(3)
+    expect(result.operators).toHaveLength(3)
     // /source must come before /downstream in execution order
-    const ids = instances.map(op => op.id)
+    const ids = result.operators.map(op => op.id)
     expect(ids.indexOf('/source')).toBeLessThan(ids.indexOf('/downstream'))
     // /orphan must also be present
     expect(ids).toContain('/orphan')
@@ -138,10 +145,10 @@ describe('transform-graph topological sort with missing upstream nodes', () => {
       },
     ]
 
-    const instances = transformGraph({ nodes, edges })
+    const result = transformGraph({ nodes, edges })
 
-    expect(instances).toHaveLength(2)
-    const ids = instances.map(op => op.id)
+    expect(result.operators).toHaveLength(2)
+    const ids = result.operators.map(op => op.id)
     expect(ids.indexOf('/num')).toBeLessThan(ids.indexOf('/math'))
   })
 })
@@ -453,10 +460,10 @@ describe('transform-graph', () => {
       ],
     }
 
-    const instances = transformGraph(graph)
-    expect(instances).toHaveLength(2)
+    const result = transformGraph(graph)
+    expect(result.operators).toHaveLength(2)
 
-    const [num, add] = instances
+    const [num, add] = result.operators
     expect(num).toBeInstanceOf(NumberOp)
     expect(add).toBeInstanceOf(MathOp)
     expect(num.id).toBe('/num')
@@ -506,7 +513,7 @@ describe('transform-graph', () => {
     expect(id).toBe('/container/operator1.out.data->/container/operator2.par.input')
   })
 
-  it('handles ReferenceEdges with standard handles', () => {
+  it('ignores legacy ReferenceEdges that are not backed by a field reference', () => {
     const graph: {
       nodes: ReactFlowNode<Record<string, unknown>>[]
       edges: (Edge<Operator<IOperator>, Operator<IOperator>> & { type?: string })[]
@@ -533,16 +540,16 @@ describe('transform-graph', () => {
       ],
     }
 
-    const instances = transformGraph(graph)
-    expect(instances).toHaveLength(2)
+    const result = transformGraph(graph)
+    expect(result.operators).toHaveLength(2)
 
-    const [num, add] = instances
+    const num = result.operators.find(op => op.id === '/num')!
+    const add = result.operators.find(op => op.id === '/add') as MathOp
     expect(num).toBeInstanceOf(NumberOp)
     expect(add).toBeInstanceOf(MathOp)
 
-    // Verify that the reference connection was established
-    expect(add.inputs.a.subscriptions.size).toBe(1)
-    expect(add.inputs.a.subscriptions.has('/num.out.val->/add.par.a')).toBe(true)
+    // The field text is authoritative; ephemeral editor edges are not graph input.
+    expect(add.inputs.a.subscriptions.has('/num.out.val->/add.par.a')).toBe(false)
   })
 
   it('does not report type mismatch errors for ReferenceEdges', () => {
@@ -572,8 +579,8 @@ describe('transform-graph', () => {
       ],
     }
 
-    const instances = transformGraph(graph)
-    const code = instances.find(op => op.id === '/code') as CodeOp
+    const result = transformGraph(graph)
+    const code = result.operators.find(op => op.id === '/code') as CodeOp
     expect(code.hasConnectionErrors()).toBe(false)
   })
 
@@ -603,8 +610,8 @@ describe('transform-graph', () => {
       ],
     }
 
-    const instances = transformGraph(graph)
-    const code = instances.find(op => op.id === '/code') as CodeOp
+    const result = transformGraph(graph)
+    const code = result.operators.find(op => op.id === '/code') as CodeOp
     expect(code.hasConnectionErrors()).toBe(true)
     const errorMessage = code.connectionErrors.value.get('/num.out.val->/code.par.code')
     expect(errorMessage).toContain('Type mismatch')
@@ -641,8 +648,8 @@ describe('transform-graph', () => {
       ],
     }
 
-    const instances = transformGraph(graph)
-    const add = instances.find(op => op.id === '/add') as MathOp
+    const result = transformGraph(graph)
+    const add = result.operators.find(op => op.id === '/add') as MathOp
 
     // Connection should be established despite type mismatch
     expect(add.inputs.a.subscriptions.size).toBe(1)
@@ -719,8 +726,8 @@ describe('transform-graph', () => {
       ],
     }
 
-    const instances = transformGraph(graphWithValidConnection)
-    const add = instances.find(op => op.id === '/add') as MathOp
+    const result = transformGraph(graphWithValidConnection)
+    const add = result.operators.find(op => op.id === '/add') as MathOp
 
     // Valid connection should be established
     expect(add.inputs.a.subscriptions.size).toBe(1)
@@ -785,8 +792,8 @@ describe('transform-graph', () => {
       edges: [], // No edges
     }
 
-    const instances = transformGraph(graphWithoutConnection)
-    const add = instances.find(op => op.id === '/add') as MathOp
+    const result = transformGraph(graphWithoutConnection)
+    const add = result.operators.find(op => op.id === '/add') as MathOp
 
     // No subscriptions should exist
     expect(add.inputs.a.subscriptions.size).toBe(0)
@@ -1119,8 +1126,8 @@ describe('connection error suppression for undefined source fields', () => {
       },
     ]
 
-    const instances = transformGraph({ nodes, edges })
-    const deck = instances.find(op => op.id === '/deck') as DeckRendererOp
+    const result = transformGraph({ nodes, edges })
+    const deck = result.operators.find(op => op.id === '/deck') as DeckRendererOp
 
     expect(deck.hasConnectionErrors()).toBe(false)
   })
@@ -1153,8 +1160,8 @@ describe('connection error suppression for undefined source fields', () => {
       },
     ]
 
-    const instances = transformGraph({ nodes, edges })
-    const add = instances.find(op => op.id === '/add') as MathOp
+    const result = transformGraph({ nodes, edges })
+    const add = result.operators.find(op => op.id === '/add') as MathOp
 
     expect(add.hasConnectionErrors()).toBe(false)
   })
@@ -1187,8 +1194,8 @@ describe('connection error suppression for undefined source fields', () => {
       },
     ]
 
-    const instances = transformGraph({ nodes, edges })
-    const add = instances.find(op => op.id === '/add') as MathOp
+    const result = transformGraph({ nodes, edges })
+    const add = result.operators.find(op => op.id === '/add') as MathOp
 
     expect(add.hasConnectionErrors()).toBe(true)
     expect(add.connectionErrors.value.get('/str.out.val->/add.par.a')).toContain('Type mismatch')
@@ -1292,11 +1299,8 @@ describe('derived reference edges (unmounted nodes)', () => {
   })
 
   it('wires an op() reference in a container child that has no persisted edge', () => {
-    // Reference edges are synced by the CodeField editor component, which never
-    // mounts for collapsed container children. transformGraph must derive them
-    // from the code text so the child re-executes when the referenced operator
-    // produces data (previously it executed once against undefined and went
-    // permanently stale — an empty layer with zero console errors).
+    // The graph model derives dependencies without requiring a mounted editor,
+    // including for collapsed container children.
     const nodes = [
       { id: '/num', type: 'NumberOp', data: { inputs: { val: 7 } }, position: { x: 0, y: 0 } },
       { id: '/box', type: 'ContainerOp', data: { inputs: {} }, position: { x: 100, y: 0 } },
@@ -1314,6 +1318,46 @@ describe('derived reference edges (unmounted nodes)', () => {
     const child = getOp('/box/child')!
     const refEdgeId = '/num.out.val->/box/child.par.code'
     expect(child.inputs.code.subscriptions.has(refEdgeId)).toBe(true)
+  })
+
+  it('keeps an unmounted container child reactive through its derived reference', async () => {
+    const nodes = [
+      {
+        id: '/source',
+        type: 'NumberOp',
+        data: { inputs: { val: 200 } },
+        position: { x: 0, y: 0 },
+      },
+      { id: '/box', type: 'ContainerOp', data: { inputs: {} }, position: { x: 100, y: 0 } },
+      {
+        id: '/box/child',
+        type: 'CodeOp',
+        data: { inputs: { code: "return op('/source').out.val" } },
+        position: { x: 110, y: 0 },
+      },
+      { id: '/viewer', type: 'ViewerOp', data: { inputs: {} }, position: { x: 200, y: 0 } },
+    ]
+    const edges = [
+      {
+        id: '/box/child.out.data->/viewer.par.data',
+        source: '/box/child',
+        target: '/viewer',
+        sourceHandle: 'out.data',
+        targetHandle: 'par.data',
+      },
+    ]
+
+    transformGraph({ nodes, edges })
+    await getExecutor()!.executeFrame(performance.now())
+
+    const { getOp } = getOpStore()
+    const source = getOp('/source') as NumberOp
+    const viewer = getOp('/viewer')!
+    expect(viewer.inputs.data.value).toBe(200)
+
+    source.inputs.val.setValue(201)
+    await getExecutor()!.executeFrame(performance.now())
+    expect(viewer.inputs.data.value).toBe(201)
   })
 
   it('derives edges for array-form code and mustache references, skipping unresolvable ones', () => {
@@ -1342,7 +1386,53 @@ describe('derived reference edges (unmounted nodes)', () => {
     })
   })
 
-  it('does not duplicate a reference edge the component already synced', () => {
+  it('derives and watches dependencies from non-string field expression source', () => {
+    const nodes = [
+      { id: '/a', type: 'NumberOp', data: { inputs: { val: 1 } }, position: { x: 0, y: 0 } },
+      { id: '/b', type: 'NumberOp', data: { inputs: { val: 2 } }, position: { x: 0, y: 50 } },
+      {
+        id: '/target',
+        type: 'NumberOp',
+        data: { inputs: { val: { $expr: "op('/a').par.val * 2" } } },
+        position: { x: 100, y: 0 },
+      },
+    ]
+
+    expect(deriveReferenceEdges(nodes, [])).toMatchObject([
+      {
+        id: '/a.par.val->/target.par.val',
+        source: '/a',
+        sourceHandle: 'par.val',
+        target: '/target',
+        targetHandle: 'par.val',
+      },
+    ])
+
+    transformGraph({ nodes, edges: [] })
+
+    const target = getOpStore().getOp('/target') as NumberOp
+    const b = getOpStore().getOp('/b') as NumberOp
+    expect(target.inputs.val.expression).toBe("op('/a').par.val * 2")
+    expect(target.inputs.val.value).toBe(2)
+    expect(getExecutor()!.getUpstream('/target')).toEqual(new Set(['/a']))
+
+    target.inputs.val.setExpression("op('/b').par.val * 3")
+
+    expect(referenceDependencyModel.getSnapshot().map(edge => edge.id)).toEqual([
+      '/b.par.val->/target.par.val',
+    ])
+    expect(getExecutor()!.getUpstream('/target')).toEqual(new Set(['/b']))
+    expect(target.inputs.val.value).toBe(6)
+
+    b.inputs.val.setValue(4)
+    expect(target.inputs.val.value).toBe(12)
+
+    target.inputs.val.clearExpression()
+    expect(referenceDependencyModel.getSnapshot()).toEqual([])
+    expect(getExecutor()!.getUpstream('/target')).toEqual(new Set())
+  })
+
+  it('does not duplicate an existing equivalent edge', () => {
     const nodes = [
       { id: '/a', type: 'NumberOp', data: { inputs: { val: 1 } }, position: { x: 0, y: 0 } },
       {
@@ -1363,6 +1453,99 @@ describe('derived reference edges (unmounted nodes)', () => {
       },
     ]
     expect(deriveReferenceEdges(nodes, existing)).toHaveLength(0)
+  })
+
+  it('moves a live reference without a mounted CodeField component', () => {
+    const nodes = [
+      { id: '/a', type: 'NumberOp', data: { inputs: { val: 1 } }, position: { x: 0, y: 0 } },
+      { id: '/b', type: 'NumberOp', data: { inputs: { val: 2 } }, position: { x: 0, y: 0 } },
+      {
+        id: '/code',
+        type: 'CodeOp',
+        data: { inputs: { code: "return op('/a').out.val" } },
+        position: { x: 50, y: 0 },
+      },
+    ]
+
+    transformGraph({ nodes, edges: [] })
+
+    const code = getOpStore().getOp('/code') as CodeOp
+    const b = getOpStore().getOp('/b') as NumberOp
+    const executor = getExecutor()!
+    const onProjectionChange = vi.fn()
+    const unsubscribe = referenceDependencyModel.subscribe(onProjectionChange)
+    expect(code.inputs.code.subscriptions.has('/a.out.val->/code.par.code')).toBe(true)
+    expect(executor.getUpstream('/code')).toEqual(new Set(['/a']))
+    expect(referenceDependencyModel.getSnapshot().map(edge => edge.id)).toEqual([
+      '/a.out.val->/code.par.code',
+    ])
+
+    code.inputs.code.setValue("return op('/b').out.val")
+
+    expect(code.inputs.code.subscriptions.has('/a.out.val->/code.par.code')).toBe(false)
+    expect(code.inputs.code.subscriptions.has('/b.out.val->/code.par.code')).toBe(true)
+    expect(executor.getUpstream('/code')).toEqual(new Set(['/b']))
+    expect(referenceDependencyModel.getSnapshot().map(edge => edge.id)).toEqual([
+      '/b.out.val->/code.par.code',
+    ])
+    expect(onProjectionChange).toHaveBeenCalledOnce()
+
+    // Referenced values invalidate the target without rebuilding unchanged topology.
+    onProjectionChange.mockClear()
+    b.outputs.val.setValue(3)
+    expect(onProjectionChange).not.toHaveBeenCalled()
+    unsubscribe()
+  })
+
+  it('removes live reference subscriptions and executor dependencies', () => {
+    const nodes = [
+      { id: '/a', type: 'NumberOp', data: { inputs: { val: 1 } }, position: { x: 0, y: 0 } },
+      {
+        id: '/code',
+        type: 'CodeOp',
+        data: { inputs: { code: "return op('/a').out.val" } },
+        position: { x: 50, y: 0 },
+      },
+    ]
+
+    transformGraph({ nodes, edges: [] })
+    const code = getOpStore().getOp('/code') as CodeOp
+
+    code.inputs.code.setValue('return 0')
+
+    expect(code.inputs.code.subscriptions.has('/a.out.val->/code.par.code')).toBe(false)
+    expect(getExecutor()!.getUpstream('/code')).toEqual(new Set())
+    expect(referenceDependencyModel.getSnapshot()).toEqual([])
+  })
+
+  it('preserves non-reference executor edges when a live reference is removed', () => {
+    const nodes = [
+      { id: '/a', type: 'NumberOp', data: { inputs: { val: 1 } }, position: { x: 0, y: 0 } },
+      {
+        id: '/code',
+        type: 'CodeOp',
+        data: { inputs: { code: "return op('/a').out.val" } },
+        position: { x: 50, y: 0 },
+      },
+    ]
+    const edges = [
+      {
+        id: '/a.out.val->/code.par.data',
+        source: '/a',
+        sourceHandle: 'out.val',
+        target: '/code',
+        targetHandle: 'par.data',
+      },
+    ]
+
+    transformGraph({ nodes, edges })
+    const code = getOpStore().getOp('/code') as CodeOp
+    expect(getExecutor()!.getUpstream('/code')).toEqual(new Set(['/a']))
+
+    code.inputs.code.setValue('return 0')
+
+    expect(getExecutor()!.getUpstream('/code')).toEqual(new Set(['/a']))
+    expect(referenceDependencyModel.getSnapshot()).toEqual([])
   })
 
   it('does not make an enclosing-container param reference a pull dependency (false cycle)', () => {
