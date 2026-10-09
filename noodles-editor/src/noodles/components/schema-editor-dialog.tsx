@@ -5,16 +5,22 @@ import { InputNumber } from 'primereact/inputnumber'
 import { InputSwitch } from 'primereact/inputswitch'
 import { InputText } from 'primereact/inputtext'
 import { useEffect, useState } from 'react'
+import { analytics } from '../../utils/analytics'
 import type { ColumnSchema, ColumnType, DateTimeValue, TableSchema } from '../table-schema'
-import { getDefaultValue, validateValue } from '../table-schema'
+import { getDefaultValue, getInitialColumnId, validateValue } from '../table-schema'
 import { getTimezoneOptions } from '../utils/timezone-utils'
 import { ColorSwatch } from './color-swatch'
 import s from './schema-editor-dialog.module.css'
 
 interface SchemaEditorDialogProps {
   schema: TableSchema
-  onChange: (schema: TableSchema) => void
+  onChange: (schema: TableSchema, metadata?: SchemaChangeMetadata) => void
   onClose?: () => void
+}
+
+export interface SchemaChangeMetadata {
+  // Aligned with the new schema, so renamed and duplicated columns can retain source values.
+  sourceColumnNames: Array<string | undefined>
 }
 
 const COLUMN_TYPES: Array<{ label: string; value: ColumnType }> = [
@@ -34,9 +40,15 @@ const COLUMN_TYPES: Array<{ label: string; value: ColumnType }> = [
 interface ColumnEditorProps {
   column: ColumnSchema
   onChange: (column: ColumnSchema) => void
+  onDuplicate: () => void
   onDelete: () => void
   onMoveUp?: () => void
   onMoveDown?: () => void
+}
+
+interface ColumnDraft {
+  column: ColumnSchema
+  sourceName?: string
 }
 
 function normalizeColumnDefault(column: ColumnSchema): ColumnSchema {
@@ -47,8 +59,25 @@ function normalizeColumnDefault(column: ColumnSchema): ColumnSchema {
   return { ...column, defaultValue: getDefaultValue(column) }
 }
 
-function normalizeSchemaDefaults(schema: TableSchema): TableSchema {
-  return { columns: schema.columns.map(normalizeColumnDefault) }
+function createColumnDrafts(schema: TableSchema): ColumnDraft[] {
+  return schema.columns.map(column => ({
+    column: normalizeColumnDefault(column),
+    sourceName: column.name,
+  }))
+}
+
+function getDuplicateColumnName(name: string, columns: ColumnSchema[]): string {
+  const existingNames = new Set(columns.map(column => column.name))
+  const baseName = (name || 'column').replace(/-\d+$/, '')
+  let suffix = 1
+  let duplicateName = `${baseName}-${suffix}`
+
+  while (existingNames.has(duplicateName)) {
+    suffix += 1
+    duplicateName = `${baseName}-${suffix}`
+  }
+
+  return duplicateName
 }
 
 function StringLiteralValuesInput({
@@ -224,7 +253,14 @@ function DefaultValueEditor({
   }
 }
 
-function ColumnEditor({ column, onChange, onDelete, onMoveUp, onMoveDown }: ColumnEditorProps) {
+function ColumnEditor({
+  column,
+  onChange,
+  onDuplicate,
+  onDelete,
+  onMoveUp,
+  onMoveDown,
+}: ColumnEditorProps) {
   return (
     <div className={s.columnRow}>
       <div className={s.columnControls}>
@@ -268,6 +304,14 @@ function ColumnEditor({ column, onChange, onDelete, onMoveUp, onMoveDown }: Colu
               disabled={!onMoveDown}
             />
           )}
+          <Button
+            icon="pi pi-copy"
+            className="p-button-text p-button-sm"
+            onClick={onDuplicate}
+            tooltip="Duplicate column"
+            tooltipOptions={{ autoZIndex: false, className: s.dialogTooltip }}
+            aria-label={`Duplicate column ${column.name}`}
+          />
           <Button
             icon="pi pi-trash"
             className="p-button-text p-button-sm p-button-danger"
@@ -387,52 +431,89 @@ function ColumnEditor({ column, onChange, onDelete, onMoveUp, onMoveDown }: Colu
 
 export function SchemaEditorDialog({ schema, onChange, onClose }: SchemaEditorDialogProps) {
   const [open, setOpen] = useState(false)
-  const [localSchema, setLocalSchema] = useState<TableSchema>(() =>
-    normalizeSchemaDefaults(schema)
-  )
+  const [columnDrafts, setColumnDrafts] = useState<ColumnDraft[]>(() => createColumnDrafts(schema))
 
   const handleOpen = () => {
-    setLocalSchema(normalizeSchemaDefaults(schema)) // Reset to current schema
+    setColumnDrafts(createColumnDrafts(schema)) // Reset to current schema
     setOpen(true)
   }
 
   const handleSave = () => {
-    onChange(localSchema)
+    const newSchema = { columns: columnDrafts.map(draft => draft.column) }
+    const sourceColumnNames = columnDrafts.map(draft => draft.sourceName)
+    const hasRemappedColumns = columnDrafts.some(
+      ({ column, sourceName }) => sourceName !== undefined && sourceName !== column.name
+    )
+
+    if (hasRemappedColumns) {
+      onChange(newSchema, { sourceColumnNames })
+    } else {
+      onChange(newSchema)
+    }
     setOpen(false)
     onClose?.()
   }
 
   const addColumn = () => {
     const newColumn: ColumnSchema = {
-      name: `column_${localSchema.columns.length + 1}`,
+      id: crypto.randomUUID(),
+      name: `column_${columnDrafts.length + 1}`,
       type: 'string',
       defaultValue: '',
     }
-    setLocalSchema({
-      columns: [...localSchema.columns, newColumn],
-    })
+    setColumnDrafts([...columnDrafts, { column: newColumn }])
   }
 
   const updateColumn = (index: number, updates: ColumnSchema) => {
-    const newColumns = [...localSchema.columns]
-    newColumns[index] = normalizeColumnDefault(updates)
-    setLocalSchema({ columns: newColumns })
+    const newDrafts = [...columnDrafts]
+    const currentDraft = newDrafts[index]
+    const id =
+      updates.id ??
+      (updates.name !== currentDraft.column.name
+        ? getInitialColumnId(currentDraft.sourceName ?? currentDraft.column.name)
+        : undefined)
+    newDrafts[index] = {
+      ...currentDraft,
+      column: normalizeColumnDefault({ ...updates, ...(id && { id }) }),
+    }
+    setColumnDrafts(newDrafts)
+  }
+
+  const duplicateColumn = (index: number) => {
+    const source = columnDrafts[index]
+    analytics.track('table_column_duplicated')
+    const duplicate: ColumnSchema = {
+      ...source.column,
+      id: crypto.randomUUID(),
+      name: getDuplicateColumnName(
+        source.column.name,
+        columnDrafts.map(draft => draft.column)
+      ),
+      ...(source.column.options && { options: { ...source.column.options } }),
+      defaultValue: Array.isArray(source.column.defaultValue)
+        ? [...source.column.defaultValue]
+        : source.column.defaultValue,
+    }
+    const newDrafts = [...columnDrafts]
+    newDrafts.splice(index + 1, 0, {
+      column: duplicate,
+      sourceName: source.sourceName,
+    })
+    setColumnDrafts(newDrafts)
   }
 
   const deleteColumn = (index: number) => {
-    setLocalSchema({
-      columns: localSchema.columns.filter((_, i) => i !== index),
-    })
+    setColumnDrafts(columnDrafts.filter((_, i) => i !== index))
   }
 
   const moveColumn = (index: number, direction: 'up' | 'down') => {
-    const newColumns = [...localSchema.columns]
+    const newDrafts = [...columnDrafts]
     const targetIndex = direction === 'up' ? index - 1 : index + 1
-    if (targetIndex < 0 || targetIndex >= newColumns.length) return
+    if (targetIndex < 0 || targetIndex >= newDrafts.length) return
 
-    const [moved] = newColumns.splice(index, 1)
-    newColumns.splice(targetIndex, 0, moved)
-    setLocalSchema({ columns: newColumns })
+    const [moved] = newDrafts.splice(index, 1)
+    newDrafts.splice(targetIndex, 0, moved)
+    setColumnDrafts(newDrafts)
   }
 
   const addQuickTemplate = (template: 'position' | 'color' | 'latLng') => {
@@ -458,9 +539,10 @@ export function SchemaEditorDialog({ schema, onChange, onClose }: SchemaEditorDi
         break
     }
 
-    setLocalSchema({
-      columns: [...localSchema.columns, ...newColumns],
-    })
+    setColumnDrafts([
+      ...columnDrafts,
+      ...newColumns.map(column => ({ column: { ...column, id: crypto.randomUUID() } })),
+    ])
   }
 
   return (
@@ -482,23 +564,22 @@ export function SchemaEditorDialog({ schema, onChange, onClose }: SchemaEditorDi
           </Dialog.Description>
 
           <div className={s.body}>
-            {localSchema.columns.length === 0 ? (
+            {columnDrafts.length === 0 ? (
               <div className={s.emptyState}>
                 <p>No columns defined. Add columns to get started.</p>
               </div>
             ) : (
               <div className={s.columnList}>
-                {localSchema.columns.map((col, index) => (
+                {columnDrafts.map(({ column }, index) => (
                   <ColumnEditor
                     key={index}
-                    column={col}
+                    column={column}
                     onChange={updated => updateColumn(index, updated)}
+                    onDuplicate={() => duplicateColumn(index)}
                     onDelete={() => deleteColumn(index)}
                     onMoveUp={index > 0 ? () => moveColumn(index, 'up') : undefined}
                     onMoveDown={
-                      index < localSchema.columns.length - 1
-                        ? () => moveColumn(index, 'down')
-                        : undefined
+                      index < columnDrafts.length - 1 ? () => moveColumn(index, 'down') : undefined
                     }
                   />
                 ))}

@@ -2,15 +2,35 @@
 
 import { useReactFlow } from '@xyflow/react'
 import { type FC, useEffect, useRef, useState } from 'react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import {
   type ProjectModification,
   useProjectModifications,
 } from '../noodles/hooks/use-project-modifications'
+import type { CustomEndpointConfig, ProviderPreference } from '../noodles/keys-store'
 import { useKeysStore } from '../noodles/keys-store'
 import { useUIStore } from '../noodles/store'
+import { useOpenRouterConnect } from '../noodles/use-openrouter-connect'
 import { debugAiChat } from '../utils/debug'
+import { useAgentModelStore } from './agent/model-store'
+import { type Credentials, isProviderReady, resolveProviderId } from './agent/provider-selection'
+import { ANTHROPIC_MODELS, AnthropicProvider } from './agent/providers/anthropic'
+import { CHROME_MODELS, chromeAvailability, createChromeProvider } from './agent/providers/chrome'
+import { CustomProvider } from './agent/providers/custom'
+import {
+  cachedOpenRouterFreeModels,
+  defaultFreeModel,
+  fetchOpenRouterFreeModels,
+  OPENROUTER_MODELS,
+  type OpenRouterModel,
+  OpenRouterProvider,
+} from './agent/providers/openrouter'
+import { createWebLLMProvider, WEBLLM_MODELS, webgpuAvailable } from './agent/providers/webllm'
+import { AgentSession } from './agent/session'
+import type { AgentProvider, AgentUsage, DownloadProgress, ProviderId } from './agent/types'
+import { webSearchConfigFor } from './agent/web-search'
 import styles from './chat-panel.module.css'
-import { ClaudeClient } from './claude-client'
 import { loadConversation, saveConversation } from './conversation-history'
 import { ConversationHistoryPanel } from './conversation-history-panel'
 import { globalContextManager } from './global-context-manager'
@@ -39,18 +59,105 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [contextLoading, setContextLoading] = useState(true)
-  const [claudeClient, setClaudeClient] = useState<ClaudeClient | null>(null)
+  const [session, setSession] = useState<AgentSession | null>(null)
   const [mcpTools, setMcpTools] = useState<MCPTools | null>(null)
-  const [autoCapture, setAutoCapture] = useState(true)
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null)
   const [showHistory, setShowHistory] = useState(false)
   const [contextProgress, setContextProgress] = useState<string>('')
+  // Text of the turn in flight, so the reply appears as it is generated rather
+  // than all at once when the whole multi-step run finishes
+  const [streamingText, setStreamingText] = useState('')
+  const [activeTools, setActiveTools] = useState<string[]>([])
+  const [lastUsage, setLastUsage] = useState<AgentUsage | null>(null)
+  // Whether this browser has a usable built-in model. Only knowable
+  // asynchronously, so it starts false and the option stays disabled until then.
+  const [chromeAvailable, setChromeAvailable] = useState(false)
+  // Whether a local model could run here at all. Same shape as chromeAvailable:
+  // asking for a WebGPU adapter is async, so the answer arrives after first paint.
+  const [webgpuReady, setWebgpuReady] = useState(false)
+  // Only the two on-device providers report one, and only on the first run of a
+  // given machine
+  const [downloadProgress, setDownloadProgress] = useState<DownloadProgress | null>(null)
+  // A provider that would not start. Distinct from a failed message: nothing can
+  // be sent at all, so it replaces the panel rather than appearing in it.
+  const [providerError, setProviderError] = useState<string | null>(null)
+  const abortRef = useRef<AbortController | null>(null)
 
-  // Get API key directly from store (reactive)
+  // Get API keys directly from store (reactive)
   const apiKey = useKeysStore(state => state.getKey('anthropic'))
+  const openRouterKey = useKeysStore(state => state.getKey('openrouter'))
+  const customEndpoint = useKeysStore(state => state.getCustomEndpoint())
+
+  // Shared with the settings dialog, so the two cannot disagree about which
+  // provider is in use
+  const preference = useKeysStore(state => state.getProviderPreference())
+  const setPreference = useKeysStore(state => state.setProviderPreference)
+  const setStoredModel = useAgentModelStore(state => state.setModel)
+  const storedOpenRouterModel = useAgentModelStore(state => state.models.openrouter)
+  // WebLLM is the one provider whose readiness depends on a model having been
+  // chosen, which is what keeps 'automatic' from starting a multi-gigabyte download
+  const storedWebLLMModel = useAgentModelStore(state => state.models.webllm)
+
+  const credentials: Credentials = {
+    anthropicKey: apiKey,
+    openRouterKey,
+    customEndpoint,
+    webllmModel: storedWebLLMModel,
+    webgpuReady,
+    chromeAvailable,
+  }
+
+  // Anthropic unless only another credential is configured, or the user picked
+  // otherwise. Falls back when the chosen provider's key has since been cleared.
+  const providerId: ProviderId = resolveProviderId({ ...credentials, preference })
+  const providerKey = providerId === 'anthropic' ? apiKey : openRouterKey
+  // The on-device providers need no key and a custom endpoint carries its own, so
+  // readiness is not the same question as "has a key"
+  const providerReady = isProviderReady(providerId, credentials)
+  // Free tool-calling models, read from OpenRouter's catalogue rather than a
+  // hard-coded list, since which models are free changes month to month
+  const [freeModels, setFreeModels] = useState<OpenRouterModel[]>(cachedOpenRouterFreeModels)
+  const connect = useOpenRouterConnect()
+
+  // undefined leaves the provider on its own default
+  const model = useAgentModelStore(state => state.getModel(providerId))
+  const modelGroups = modelGroupsFor(providerId, customEndpoint, freeModels)
+  const modelChoices = modelGroups.flatMap(group => group.models)
 
   // Get the function to open settings dialog
   const setSettingsDialogOpen = useUIStore(state => state.setSettingsDialogOpen)
+
+  // Deep-links into the tab that configures providers, rather than the one that
+  // happened to be open last
+  const openProviderSettings = () => {
+    window.location.hash = 'ai-provider'
+    setSettingsDialogOpen(true)
+  }
+
+  // Opens settings dialog to the specific configuration screen for a provider
+  const openProviderConfiguration = (providerId: ProviderId) => {
+    // Save the preference first so provider switches automatically after config
+    setPreference(providerId)
+
+    switch (providerId) {
+      case 'anthropic':
+        window.location.hash = 'api-keys:anthropic'
+        break
+      case 'openrouter':
+        window.location.hash = 'api-keys:openrouter'
+        break
+      case 'custom':
+        window.location.hash = 'ai-provider'
+        break
+      case 'webllm':
+        window.location.hash = 'ai-provider'
+        break
+      case 'chrome':
+        // Chrome requires no config and preference is already set above
+        return
+    }
+    setSettingsDialogOpen(true)
+  }
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
@@ -67,33 +174,108 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
     return unsubscribe
   }, [])
 
-  // Initialize Claude client when API key is available
+  // Ask once whether this browser can run a model locally, either way it can.
+  // 'downloadable' counts for Chrome: create() then downloads it, which is a wait
+  // rather than a failure.
   useEffect(() => {
-    if (!apiKey) {
+    let current = true
+    chromeAvailability().then(availability => {
+      if (current) setChromeAvailable(availability !== 'unavailable')
+    })
+    webgpuAvailable().then(available => {
+      if (current) setWebgpuReady(available)
+    })
+    return () => {
+      current = false
+    }
+  }, [])
+
+  // Load the free-model list when it could matter: either OpenRouter is in use, or
+  // nothing is configured yet and the empty state is about to offer it. Cached for
+  // the session, so this is one request at most.
+  const needFreeModels = providerId === 'openrouter' || !providerReady
+  useEffect(() => {
+    if (!needFreeModels) return
+    let current = true
+    fetchOpenRouterFreeModels().then(models => {
+      if (current && models.length > 0) setFreeModels(models)
+    })
+    return () => {
+      current = false
+    }
+  }, [needFreeModels])
+
+  // A just-connected account has no credit, so leaving the model on the paid
+  // default would greet the user with a billing error. Only fills a gap: a model
+  // the user picked before is left alone.
+  useEffect(() => {
+    if (connect.status !== 'connected' || storedOpenRouterModel) return
+    setStoredModel('openrouter', defaultFreeModel(freeModels))
+  }, [connect.status, storedOpenRouterModel, freeModels, setStoredModel])
+
+  // Build the session whenever the provider, model, or key changes
+  useEffect(() => {
+    if (!providerReady) {
       setContextLoading(false)
       return
     }
 
+    // Providers can own resources that outlive a turn — Chrome's holds an
+    // on-device session carrying the transcript — so a session this effect built
+    // has to be disposed whether it was ever handed to the UI or was superseded
+    // while still being built
+    let built: AgentSession | null = null
+    let cancelled = false
+
     const init = async () => {
       setContextLoading(true)
+      setProviderError(null)
       try {
         // Wait for context to be ready (should be instant if already loaded)
         const loader = await globalContextManager.waitForReady()
 
         const tools = new MCPTools(loader)
-        const client = new ClaudeClient(apiKey, tools)
+        const provider: AgentProvider = await createProvider({
+          providerId,
+          apiKey: providerKey,
+          model,
+          customEndpoint,
+          onDownloadProgress: setDownloadProgress,
+        })
+
+        built = new AgentSession(provider, tools, {
+          webSearch: webSearchConfigFor({
+            providerId,
+            model: provider.model,
+            anthropicKey: apiKey,
+            openRouterKey,
+          }),
+        })
+
+        if (cancelled) {
+          built.dispose()
+          return
+        }
 
         setMcpTools(tools)
-        setClaudeClient(client)
+        setSession(built)
       } catch (error) {
-        debugAiChat('Failed to initialize Claude:', error)
+        debugAiChat('Failed to initialize the assistant:', error)
+        setSession(null)
+        setProviderError(error instanceof Error ? error.message : String(error))
       } finally {
+        setDownloadProgress(null)
         setContextLoading(false)
       }
     }
 
     init()
-  }, [apiKey])
+
+    return () => {
+      cancelled = true
+      built?.dispose()
+    }
+  }, [providerId, providerKey, providerReady, model, apiKey, openRouterKey, customEndpoint])
 
   // Update MCPTools with current project whenever it changes
   useEffect(() => {
@@ -115,7 +297,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
   }, [])
 
   const handleSend = async () => {
-    if (!input.trim() || !claudeClient || !project) return
+    if (!input.trim() || !session || !project) return
 
     const userMessage: Message = {
       role: 'user',
@@ -125,18 +307,36 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
     setMessages(prev => [...prev, userMessage])
     setInput('')
     setLoading(true)
+    setStreamingText('')
+    setActiveTools([])
+
+    const controller = new AbortController()
+    abortRef.current = controller
 
     try {
-      const response = await claudeClient.sendMessage({
+      const response = await session.send({
         message: input,
-        project,
-        autoCapture,
         conversationHistory: messages,
+        signal: controller.signal,
+        onEvent: event => {
+          if (event.type === 'text_delta') setStreamingText(prev => prev + event.text)
+          if (event.type === 'tool_call') setActiveTools(prev => [...prev, event.name])
+          if (event.type === 'usage') setLastUsage(event.usage)
+        },
       })
 
+      // An aborted run still returns whatever it had produced, which is worth
+      // keeping — the user stopped it, they did not undo it
       const assistantMessage: Message = {
         role: 'assistant',
-        content: response.message,
+        content: response.message || '(stopped)',
+        // Kept so the next turn can answer "why did you do that?" — see
+        // MessageToolUse for why the results themselves are not kept
+        toolUses: response.toolCalls?.map(call => ({
+          name: call.name,
+          params: call.params,
+          ok: call.result.success,
+        })),
       }
 
       setMessages(prev => [...prev, assistantMessage])
@@ -173,13 +373,18 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
     } catch (error) {
       debugAiChat('Error sending message:', error)
 
-      // Check if this is an authentication error
+      // Check error type and provide helpful messages
       const errorStr = error instanceof Error ? error.message : String(error)
+      const errorName = error instanceof Error ? error.name : ''
+
       const isAuthError =
         errorStr.includes('authentication') ||
         errorStr.includes('401') ||
         errorStr.includes('invalid_api_key') ||
         errorStr.includes('api_key')
+
+      const isChromeError =
+        errorName.startsWith('k') || errorStr.includes('kError') || errorStr.includes('Chrome')
 
       if (isAuthError) {
         setMessages(prev => [
@@ -188,6 +393,20 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
             role: 'assistant',
             content:
               'Authentication Error: Your API key is invalid. Please check your API key in Settings > API Keys.',
+          },
+        ])
+      } else if (isChromeError) {
+        setMessages(prev => [
+          ...prev,
+          {
+            role: 'assistant',
+            content:
+              '⚠️ Chrome AI encountered an error. Try these steps:\n\n' +
+              '1. Check chrome://components for "Optimization Guide On Device Model" - ensure it\'s up to date\n' +
+              "2. Verify you're on Chrome 127+ with the Prompt API enabled\n" +
+              '3. Restart Chrome and try again\n' +
+              '4. Switch to Anthropic or OpenRouter in Settings → AI Provider\n\n' +
+              `Technical details: ${errorName ? `${errorName}: ` : ''}${errorStr}`,
           },
         ])
       } else {
@@ -201,7 +420,14 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
       }
     } finally {
       setLoading(false)
+      setStreamingText('')
+      setActiveTools([])
+      abortRef.current = null
     }
+  }
+
+  const handleStop = () => {
+    abortRef.current?.abort()
   }
 
   const handleManualCapture = async () => {
@@ -233,6 +459,9 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
   }
 
   const handleClose = () => {
+    // Closing with a turn in flight should not leave it billing in the background
+    abortRef.current?.abort()
+
     // Auto-save current conversation if it has messages and hasn't been saved yet
     if (messages.length > 0 && !currentConversationId) {
       try {
@@ -269,34 +498,90 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
 
   if (!isVisible) return null
 
-  // Check if API key is missing
-  if (!apiKey && !contextLoading) {
+  // Check if a usable key is missing
+  if (!providerReady && !contextLoading) {
     return (
       <div className={styles.chatPanel}>
         <div className={styles.chatPanelLoading}>
-          <h3>Anthropic API Key Required</h3>
+          <h3>Connect the assistant</h3>
           <p>
-            To use the Noodles assistant, you need to configure your Claude API key in{' '}
+            Sign in with OpenRouter and the assistant works straight away — nothing to copy, no
+            credit card. It starts on a free model
+            {freeModels.length > 0 && ` (${freeModels[0].label})`}; the free tier is limited to
+            roughly 50 messages a day, and adding credit later lifts that without changing anything
+            here.
+          </p>
+          <div className={styles.connectActions}>
             <button
               type="button"
-              onClick={() => setSettingsDialogOpen(true)}
-              className={styles.linkButton}
+              onClick={connect.connect}
+              className={styles.chatSendBtn}
+              disabled={connect.status === 'connecting'}
             >
-              Settings
-            </button>{' '}
-            (top menu).
+              {connect.status === 'connecting' ? 'Waiting for OpenRouter…' : 'Connect OpenRouter'}
+            </button>
+            {/* Second, not hidden: it needs no account at all, and it is the only
+                option for someone who will not send their data anywhere. Goes to
+                Settings rather than starting here, because which model — and so how
+                large a download — is a choice worth making deliberately. */}
+            {webgpuReady && (
+              <button
+                type="button"
+                onClick={openProviderSettings}
+                className={styles.chatPanelActionBtn}
+              >
+                Run a model locally
+              </button>
+            )}
+            <button type="button" onClick={handleClose} className={styles.chatPanelActionBtn}>
+              Close
+            </button>
+          </div>
+          {connect.blockedUrl && (
+            <p className={styles.connectNote}>
+              Your browser blocked the sign-in window.{' '}
+              <a href={connect.blockedUrl} target="_blank" rel="noopener noreferrer">
+                Open it in a new tab
+              </a>{' '}
+              instead.
+            </p>
+          )}
+          {connect.error && <p className={styles.connectError}>{connect.error}</p>}
+          <p className={styles.connectNote}>
+            Already have a key? Anthropic, an OpenAI-compatible endpoint and on-device models are
+            all in{' '}
+            <button type="button" onClick={openProviderSettings} className={styles.linkButton}>
+              Settings → AI Provider
+            </button>
+            .
           </p>
-          <p>
-            Get your API key from{' '}
-            <a href="https://console.anthropic.com/" target="_blank" rel="noopener noreferrer">
-              Anthropic Console
-            </a>
-            , then add it in <strong>Settings → API Keys</strong>.
-          </p>
+        </div>
+      </div>
+    )
+  }
+
+  if (providerError) {
+    return (
+      <div className={styles.chatPanel}>
+        <div className={styles.chatPanelLoading}>
+          <h3>{PROVIDER_LABELS[providerId]} did not start</h3>
+          <p>{providerError}</p>
+          {providerId === 'chrome' && (
+            <p>
+              The Prompt API ships in Chrome 148; on an earlier build enable it at{' '}
+              <code>chrome://flags/#prompt-api-for-gemini-nano</code>. Either way the model itself
+              is a separate ~2GB download — check its status at{' '}
+              <code>chrome://on-device-internals</code>. It also needs about 22GB free and either
+              4GB of VRAM or 16GB of RAM.
+            </p>
+          )}
           <div
             style={{ marginTop: '1rem', display: 'flex', gap: '0.5rem', justifyContent: 'center' }}
           >
-            <button type="button" onClick={handleClose} className={styles.chatSendBtn}>
+            <button type="button" onClick={openProviderSettings} className={styles.chatSendBtn}>
+              Provider settings
+            </button>
+            <button type="button" onClick={handleClose} className={styles.chatPanelActionBtn}>
               Close
             </button>
           </div>
@@ -310,7 +595,21 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
       <div className={styles.chatPanel}>
         <div className={styles.chatPanelLoading}>
           <div className={styles.spinner} />
-          <p>{contextProgress || 'Loading context...'}</p>
+          <p>
+            {downloadProgress ? 'Downloading the model…' : contextProgress || 'Loading context…'}
+          </p>
+          {downloadProgress && (
+            <>
+              <progress
+                className={styles.downloadProgress}
+                value={downloadProgress.loaded}
+                max={downloadProgress.total}
+              />
+              <p className={styles.downloadNote}>
+                {formatPercent(downloadProgress)} — {downloadNoteFor(providerId, model)}
+              </p>
+            </>
+          )}
         </div>
       </div>
     )
@@ -349,14 +648,88 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
       </div>
 
       <div className={styles.chatPanelOptions}>
-        <label className={styles.chatOption}>
-          <input
-            type="checkbox"
-            checked={autoCapture}
-            onChange={e => setAutoCapture(e.target.checked)}
-          />
-          <span>Auto-capture screenshots</span>
-        </label>
+        <div className={styles.modelPicker}>
+          <select
+            value={providerId}
+            onChange={e => {
+              const newProvider = e.target.value as ProviderPreference
+              const credentials = {
+                anthropicKey: apiKey,
+                openRouterKey,
+                customEndpoint,
+                chromeAvailable,
+              }
+
+              // If provider isn't ready, open config flow instead of switching
+              if (newProvider !== 'automatic' && !isProviderReady(newProvider, credentials)) {
+                openProviderConfiguration(newProvider)
+              } else {
+                setPreference(newProvider)
+              }
+            }}
+            className={styles.modelSelect}
+            title="Which API the assistant talks to"
+          >
+            <option value="anthropic">Anthropic{!apiKey && ' - configure key'}</option>
+            <option value="openrouter">OpenRouter{!openRouterKey && ' - configure key'}</option>
+            <option value="custom">
+              {customEndpoint?.displayName ?? 'Custom endpoint'}
+              {!customEndpoint && ' - configure'}
+            </option>
+            <option
+              value="webllm"
+              // Picking it opens Settings to the model picker, so the panel doesn't
+              // start a multi-gigabyte download on its own
+              title="Free, private, no key. Runs on this machine's GPU after a one-time download of a gigabyte or more."
+            >
+              Local model (on-device)
+              {!webgpuReady ? ' - unavailable' : !storedWebLLMModel && ' - choose model'}
+            </option>
+            <option
+              value="chrome"
+              // A ~3B on-device model. Saying what it is good for is more use than
+              // implying it is a smaller version of the others.
+              title="Free, private, no key. Good for single-step edits and questions about the graph; too small to build one."
+            >
+              Chrome (on-device){!chromeAvailable && ' - unavailable'}
+            </option>
+          </select>
+          <select
+            value={model ?? modelChoices[0].id}
+            onChange={e => setStoredModel(providerId, e.target.value)}
+            className={styles.modelSelect}
+            // Chrome exposes one model, so there is nothing to choose between
+            disabled={modelChoices.length < 2}
+            title="Model for this conversation"
+          >
+            {modelGroups.map(group =>
+              group.label ? (
+                <optgroup key={group.label} label={group.label}>
+                  {group.models.map(choice => (
+                    <option key={choice.id} value={choice.id}>
+                      {choice.label}
+                    </option>
+                  ))}
+                </optgroup>
+              ) : (
+                group.models.map(choice => (
+                  <option key={choice.id} value={choice.id}>
+                    {choice.label}
+                  </option>
+                ))
+              )
+            )}
+          </select>
+          <button
+            type="button"
+            onClick={openProviderSettings}
+            className={styles.settingsGear}
+            title="Configure AI provider settings"
+          >
+            ⚙️
+          </button>
+          {lastUsage && <span className={styles.usageReadout}>{formatUsage(lastUsage)}</span>}
+        </div>
         <button
           type="button"
           onClick={handleManualCapture}
@@ -388,7 +761,9 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
             key={`msg-${idx}-${msg.role}`}
             className={`${styles.chatMessage} ${msg.role === 'user' ? styles.chatMessageUser : styles.chatMessageAssistant}`}
           >
-            <div className={styles.chatMessageRole}>{msg.role === 'user' ? 'You' : 'Claude'}</div>
+            <div className={styles.chatMessageRole}>
+              {msg.role === 'user' ? 'You' : 'Assistant'}
+            </div>
             <div className={styles.chatMessageContent}>
               <MessageContent
                 content={Array.isArray(msg.content) ? msg.content.join('\n') : msg.content}
@@ -399,13 +774,26 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
 
         {loading && (
           <div className={`${styles.chatMessage} ${styles.chatMessageAssistant}`}>
-            <div className={styles.chatMessageRole}>Claude</div>
+            <div className={styles.chatMessageRole}>Assistant</div>
             <div className={styles.chatMessageContent}>
-              <div className={styles.typingIndicator}>
-                <span />
-                <span />
-                <span />
-              </div>
+              {activeTools.length > 0 && (
+                <div className={styles.toolTrace}>
+                  {activeTools.map((name, idx) => (
+                    <span key={`${name}-${idx}`} className={styles.toolTraceRow}>
+                      {name}
+                    </span>
+                  ))}
+                </div>
+              )}
+              {streamingText ? (
+                <MessageContent content={streamingText} />
+              ) : (
+                <div className={styles.typingIndicator}>
+                  <span />
+                  <span />
+                  <span />
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -423,18 +811,24 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
               handleSend()
             }
           }}
-          placeholder="Ask Claude for help..."
+          placeholder="Ask for help..."
           disabled={loading}
           rows={3}
         />
-        <button
-          type="button"
-          onClick={handleSend}
-          disabled={loading || !input.trim()}
-          className={styles.chatSendBtn}
-        >
-          Send
-        </button>
+        {loading ? (
+          <button type="button" onClick={handleStop} className={styles.chatStopBtn}>
+            Stop
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={handleSend}
+            disabled={!input.trim()}
+            className={styles.chatSendBtn}
+          >
+            Send
+          </button>
+        )}
       </div>
 
       {showHistory && (
@@ -448,24 +842,171 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
   )
 }
 
-// Render message content with basic markdown support
-const MessageContent: FC<{ content: string }> = ({ content }) => {
-  const renderContent = () => {
-    const parts = content.split(/(```[\s\S]*?```)/g)
-    return parts.map((part, idx) => {
-      // Use combination of index and content snippet for stable key
-      const key = `${idx}-${part.substring(0, 20)}`
-      if (part.startsWith('```')) {
-        const code = part.replace(/```(\w+)?\n?/, '').replace(/```$/, '')
-        return (
-          <pre key={key}>
-            <code>{code}</code>
-          </pre>
-        )
-      }
-      return <p key={key}>{part}</p>
-    })
-  }
+const PROVIDER_LABELS: Record<ProviderId, string> = {
+  anthropic: 'Anthropic',
+  openrouter: 'OpenRouter',
+  custom: 'The custom endpoint',
+  webllm: 'The local model',
+  chrome: 'Chrome’s built-in model',
+}
 
-  return <div>{renderContent()}</div>
+interface ModelGroup {
+  // Omitted for a provider whose models need no grouping, which renders the
+  // options bare rather than inside a one-group optgroup
+  label?: string
+  models: readonly { id: string; label: string }[]
+}
+
+// OpenRouter is the only provider with two kinds of model worth separating: the
+// free tier a newly connected account can actually use, and the paid shortlist.
+// Free comes first because that is what a fresh connection lands on.
+function modelGroupsFor(
+  providerId: ProviderId,
+  customEndpoint: CustomEndpointConfig | undefined,
+  freeModels: readonly OpenRouterModel[]
+): ModelGroup[] {
+  switch (providerId) {
+    case 'anthropic':
+      return [{ models: ANTHROPIC_MODELS }]
+    case 'openrouter':
+      if (freeModels.length === 0) return [{ models: OPENROUTER_MODELS }]
+      return [
+        { label: 'Free', models: freeModels.map(({ id, label }) => ({ id, label })) },
+        { label: 'Paid', models: OPENROUTER_MODELS },
+      ]
+    case 'chrome':
+      return [{ models: CHROME_MODELS }]
+    // Labelled with their download size, since that is the decision the user is
+    // actually making
+    case 'webllm':
+      return [{ models: WEBLLM_MODELS.map(({ id, label }) => ({ id, label })) }]
+    // A custom endpoint's model is part of its saved config, so the picker shows
+    // it rather than offering a choice this app cannot enumerate
+    case 'custom':
+      return [
+        {
+          models: customEndpoint
+            ? [
+                {
+                  id: customEndpoint.model,
+                  label: customEndpoint.displayName ?? customEndpoint.model,
+                },
+              ]
+            : [{ id: '', label: 'Not configured' }],
+        },
+      ]
+  }
+}
+
+interface CreateProviderOptions {
+  providerId: ProviderId
+  apiKey: string | undefined
+  model: string | undefined
+  customEndpoint: CustomEndpointConfig | undefined
+  onDownloadProgress: (progress: DownloadProgress) => void
+}
+
+// The on-device providers are the ones whose construction is async: the model has
+// to be resident before the first request, and that is also where the download
+// happens, so both report progress while they build.
+async function createProvider(options: CreateProviderOptions): Promise<AgentProvider> {
+  const { providerId, apiKey, model, customEndpoint } = options
+  switch (providerId) {
+    case 'chrome':
+      return createChromeProvider({ onDownloadProgress: options.onDownloadProgress })
+    case 'webllm':
+      return createWebLLMProvider({ model, onDownloadProgress: options.onDownloadProgress })
+    case 'openrouter':
+      return new OpenRouterProvider({ apiKey: apiKey ?? '', model })
+    case 'anthropic':
+      return new AnthropicProvider({ apiKey: apiKey ?? '', model })
+    case 'custom':
+      if (!customEndpoint) throw new Error('No custom endpoint is configured')
+      return new CustomProvider({
+        baseUrl: customEndpoint.baseUrl,
+        apiKey: customEndpoint.apiKey,
+        model: customEndpoint.model,
+      })
+  }
+}
+
+// Both on-device providers download once per machine, but they differ by an order
+// of magnitude in size, and a WebLLM model's size is known exactly.
+function downloadNoteFor(providerId: ProviderId, model: string | undefined): string {
+  if (providerId !== 'webllm') {
+    return 'Chrome downloads about 2GB the first time, and only once.'
+  }
+  const sizeMb = WEBLLM_MODELS.find(option => option.id === model)?.sizeMb
+  const size = sizeMb ? `${(sizeMb / 1024).toFixed(1)}GB` : 'a few gigabytes'
+  return `${size} the first time, then it is cached and starts instantly.`
+}
+
+function formatPercent(progress: DownloadProgress): string {
+  if (!progress.total) return ''
+  return `${Math.round((progress.loaded / progress.total) * 100)}%`
+}
+
+function formatUsage(usage: AgentUsage): string {
+  const tokens = `${formatTokens(usage.inputTokens)} in / ${formatTokens(usage.outputTokens)} out`
+  // Only OpenRouter reports a price; Anthropic leaves it to us to look up
+  if (usage.costUsd === undefined) return tokens
+  return `${tokens} · $${usage.costUsd.toFixed(4)}`
+}
+
+function formatTokens(count: number): string {
+  return count >= 1000 ? `${(count / 1000).toFixed(1)}k` : String(count)
+}
+
+// Render message content with full markdown support
+const MessageContent: FC<{ content: string }> = ({ content }) => {
+  return (
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm]}
+      components={{
+        code: props => {
+          const { children, className, ...rest } = props
+          // className is undefined for inline code, defined (even if empty) for code blocks
+          const isInline = className === undefined
+          return isInline ? (
+            <code className={styles.inlineCode} {...rest}>
+              {children}
+            </code>
+          ) : (
+            <code className={styles.codeBlock} {...rest}>
+              {children}
+            </code>
+          )
+        },
+        pre: ({ children }) => <pre className={styles.pre}>{children}</pre>,
+        a: ({ href, children }) => (
+          <a href={href} target="_blank" rel="noopener noreferrer" className={styles.link}>
+            {children}
+          </a>
+        ),
+        // Disable images to prevent tracking via remote image requests
+        img: () => null,
+        table: ({ children }) => (
+          <div className={styles.tableWrapper}>
+            <table className={styles.table}>{children}</table>
+          </div>
+        ),
+        thead: ({ children }) => <thead className={styles.thead}>{children}</thead>,
+        tbody: ({ children }) => <tbody className={styles.tbody}>{children}</tbody>,
+        tr: ({ children }) => <tr className={styles.tr}>{children}</tr>,
+        th: ({ children }) => <th className={styles.th}>{children}</th>,
+        td: ({ children }) => <td className={styles.td}>{children}</td>,
+        ul: ({ children }) => <ul className={styles.list}>{children}</ul>,
+        ol: ({ children }) => <ol className={styles.orderedList}>{children}</ol>,
+        li: ({ children }) => <li className={styles.listItem}>{children}</li>,
+        h1: ({ children }) => <h1 className={styles.h1}>{children}</h1>,
+        h2: ({ children }) => <h2 className={styles.h2}>{children}</h2>,
+        h3: ({ children }) => <h3 className={styles.h3}>{children}</h3>,
+        p: ({ children }) => <p className={styles.paragraph}>{children}</p>,
+        strong: ({ children }) => <strong className={styles.bold}>{children}</strong>,
+        em: ({ children }) => <em className={styles.italic}>{children}</em>,
+      }}
+    >
+      {content}
+    </ReactMarkdown>
+  )
 }

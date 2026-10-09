@@ -10,12 +10,16 @@
 }
 
 /* The side sections take their natural width and the tool shelf claims what is left,
-   so the shelf can measure real available space and decide what overflows. */
+   so the shelf can measure real available space and decide what overflows. Neither side
+   shrinks: the shelf is the only thing that gives way when the window narrows. */
 .leftSection {
   display: flex;
   align-items: center;
-  flex: 0 1 auto;
+  flex: 0 0 auto;
   min-width: 0;
+  /* Only binds once the window is narrow enough that the shelf has already hidden itself,
+     so the breadcrumb gives way last rather than competing with the tools */
+  max-width: 60%;
   overflow: hidden;
 }
 
@@ -74,27 +78,15 @@
   flex-shrink: 0;
 }
 
+/* Capped so a deep container path can only push the centered tool shelf so far, and
+   so the breadcrumb never crowds the shelf out on its own. Longer paths ellipsize. */
 .breadcrumbContainer {
-  flex: 1;
+  flex: 0 1 auto;
   min-width: 0;
+  max-width: 480px;
   display: flex;
   align-items: center;
-  overflow-x: auto;
-  overflow-y: hidden;
-  scrollbar-width: thin;
-}
-
-.breadcrumbContainer::-webkit-scrollbar {
-  height: 4px;
-}
-
-.breadcrumbContainer::-webkit-scrollbar-thumb {
-  background: var(--color-border);
-  border-radius: 2px;
-}
-
-.breadcrumbContainer::-webkit-scrollbar-thumb:hover {
-  background: var(--color-text-secondary);
+  overflow: hidden;
 }
 
 .assistantButton {
@@ -110,6 +102,7 @@
   color: var(--color-text-primary);
   transition: all 0.15s;
   white-space: nowrap;
+  min-width: 95px;
 }
 
 .assistantButton:hover {

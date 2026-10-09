@@ -3,7 +3,7 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  z-index: 1;
+  z-index: var(--z-index-docked);
 }
 
 /* Behind the node graph (which gets z-index: 1 in layout.module.css) */
@@ -12,7 +12,7 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  z-index: 0;
+  z-index: var(--z-index-underlay);
 }
 
 .floating {
@@ -100,7 +100,7 @@
   position: absolute;
   top: 8px;
   right: 8px;
-  z-index: 1;
+  z-index: var(--z-index-docked);
   display: flex;
   gap: 4px;
   opacity: 0;

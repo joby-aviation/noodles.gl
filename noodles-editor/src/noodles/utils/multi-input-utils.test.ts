@@ -30,6 +30,17 @@ const edge = (
 })
 
 describe('normalizeMultiInputEdges', () => {
+  it('only derives metadata and does not repair duplicate edges', () => {
+    const first = edge('a')
+    const duplicate = { ...first, selected: true }
+    const result = normalizeMultiInputEdges([first, edge('b'), duplicate], isMulti)
+
+    expect(result.map(e => e.id)).toEqual(['a', 'b', 'a'])
+    expect(result[0].selected).toBeUndefined()
+    expect(result.map(e => e.data?.orderIndex)).toEqual([0, 1, 2])
+    expect(result.map(e => e.data?.groupSize)).toEqual([3, 3, 3])
+  })
+
   it('assigns orderIndex and groupSize in array order', () => {
     const edges = [edge('a'), edge('b'), edge('c')]
     const result = normalizeMultiInputEdges(edges, isMulti)

@@ -7,6 +7,8 @@ import type { Operator, OpType } from '../operators'
 import { useNestingStore, useOperatorStore } from '../store'
 import type { NodeJSON } from '../transform-graph'
 import { nodeId } from '../utils/id-utils'
+import { appendUniqueEdges } from '../utils/edge-integrity'
+import { normalizeMultiInputEdges } from '../utils/multi-input-utils'
 import { resolveNodeOverlaps } from '../utils/node-layout'
 
 // Commits geometry produced by the on-map tools into the graph. The maths and node
@@ -20,21 +22,23 @@ function findRendererId(): string | null {
 }
 
 export function useMapToolGraph() {
-  const { addNodes, addEdges, setNodes, fitView, getViewport, getNodes } = useReactFlow()
+  const { addNodes, setEdges, setNodes, fitView, getViewport, getNodes } = useReactFlow()
   const currentContainerId = useNestingStore(state => state.currentContainerId)
 
   const commit = useCallback(
     (built: ReturnType<typeof createDrawingGraph>) => {
       const nodes = resolveNodeOverlaps(built.nodes, getNodes())
       addNodes(nodes as NodeJSON<OpType>[])
-      if (built.edges.length > 0) addEdges(built.edges)
+      if (built.edges.length > 0) {
+        setEdges(current => normalizeMultiInputEdges(appendUniqueEdges(current, built.edges)))
+      }
       setNodes(ns => ns.map(n => ({ ...n, selected: n.id === built.primaryNodeId })))
       requestAnimationFrame(() => {
         fitView({ nodes: nodes.map(n => ({ id: n.id })), duration: 300, padding: 0.3 })
       })
       debugUI('Map tool wrote %d nodes to the graph', nodes.length)
     },
-    [addNodes, addEdges, setNodes, fitView, getNodes]
+    [addNodes, setEdges, setNodes, fitView, getNodes]
   )
 
   // Place new nodes at the centre of the current graph viewport so they land

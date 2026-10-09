@@ -33,7 +33,7 @@ describe('nodes', () => {
       ],
     }
 
-    const instances = transformGraph(graph)
+    const { operators: instances } = transformGraph(graph)
     assert.equal(instances.length, 2)
 
     const [num, add] = instances
@@ -69,7 +69,7 @@ describe('nodes', () => {
       ],
     }
 
-    const instances = transformGraph(graph)
+    const { operators: instances } = transformGraph(graph)
 
     assert.equal(instances.length, 2)
 
@@ -151,7 +151,7 @@ describe('nodes', () => {
       ],
     }
 
-    const instances = transformGraph(complexGraph)
+    const { operators: instances } = transformGraph(complexGraph)
     assert.equal(instances.length, 5)
 
     // Verify all instances have qualified IDs
@@ -223,7 +223,7 @@ describe('nodes', () => {
     // prevents them from running — but they must be in the store to avoid "operator not found"
     // render errors. TODO: surface a cycle warning to the user.
     expect(() => transformGraph(graph)).not.toThrowError()
-    expect(transformGraph(graph).length).toEqual(2)
+    expect(transformGraph(graph).operators.length).toEqual(2)
   })
 
   it('fails gracefully on missing fields', () => {
@@ -254,6 +254,6 @@ describe('nodes', () => {
     }
 
     expect(() => transformGraph(graph)).not.toThrowError()
-    expect(transformGraph(graph).length).toEqual(2)
+    expect(transformGraph(graph).operators.length).toEqual(2)
   })
 })
