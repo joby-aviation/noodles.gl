@@ -7,7 +7,7 @@ import { InputText } from 'primereact/inputtext'
 import { useEffect, useState } from 'react'
 import { analytics } from '../../utils/analytics'
 import type { ColumnSchema, ColumnType, DateTimeValue, TableSchema } from '../table-schema'
-import { getDefaultValue, validateValue } from '../table-schema'
+import { getDefaultValue, getInitialColumnId, validateValue } from '../table-schema'
 import { getTimezoneOptions } from '../utils/timezone-utils'
 import { ColorSwatch } from './color-swatch'
 import s from './schema-editor-dialog.module.css'
@@ -456,6 +456,7 @@ export function SchemaEditorDialog({ schema, onChange, onClose }: SchemaEditorDi
 
   const addColumn = () => {
     const newColumn: ColumnSchema = {
+      id: crypto.randomUUID(),
       name: `column_${columnDrafts.length + 1}`,
       type: 'string',
       defaultValue: '',
@@ -465,7 +466,16 @@ export function SchemaEditorDialog({ schema, onChange, onClose }: SchemaEditorDi
 
   const updateColumn = (index: number, updates: ColumnSchema) => {
     const newDrafts = [...columnDrafts]
-    newDrafts[index] = { ...newDrafts[index], column: normalizeColumnDefault(updates) }
+    const currentDraft = newDrafts[index]
+    const id =
+      updates.id ??
+      (updates.name !== currentDraft.column.name
+        ? getInitialColumnId(currentDraft.sourceName ?? currentDraft.column.name)
+        : undefined)
+    newDrafts[index] = {
+      ...currentDraft,
+      column: normalizeColumnDefault({ ...updates, ...(id && { id }) }),
+    }
     setColumnDrafts(newDrafts)
   }
 
@@ -474,11 +484,12 @@ export function SchemaEditorDialog({ schema, onChange, onClose }: SchemaEditorDi
     analytics.track('table_column_duplicated')
     const duplicate: ColumnSchema = {
       ...source.column,
+      id: crypto.randomUUID(),
       name: getDuplicateColumnName(
         source.column.name,
         columnDrafts.map(draft => draft.column)
       ),
-      options: source.column.options ? { ...source.column.options } : undefined,
+      ...(source.column.options && { options: { ...source.column.options } }),
       defaultValue: Array.isArray(source.column.defaultValue)
         ? [...source.column.defaultValue]
         : source.column.defaultValue,
@@ -528,7 +539,10 @@ export function SchemaEditorDialog({ schema, onChange, onClose }: SchemaEditorDi
         break
     }
 
-    setColumnDrafts([...columnDrafts, ...newColumns.map(column => ({ column }))])
+    setColumnDrafts([
+      ...columnDrafts,
+      ...newColumns.map(column => ({ column: { ...column, id: crypto.randomUUID() } })),
+    ])
   }
 
   return (
