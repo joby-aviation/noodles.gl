@@ -120,7 +120,7 @@ describe('migrateProject', () => {
 
     const migrated = await migrateProject(project, { to: 18 })
 
-    expect(NOODLES_VERSION).toBe(20)
+    expect(NOODLES_VERSION).toBe(19)
     expect(migrated.version).toBe(18)
     expect(migrated.edges).toEqual([duplicate])
   })
