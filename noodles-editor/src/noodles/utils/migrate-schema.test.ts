@@ -102,7 +102,7 @@ describe('migrateProject', () => {
     expect(migrated.edges[0].targetHandle).toEqual('par.data')
   })
 
-  it('runs duplicate-edge and camera migrations through version 19', async () => {
+  it('runs duplicate-edge, table schema, and camera migrations through version 20', async () => {
     const duplicate = {
       id: '/source.out.data->/switch.par.values',
       source: '/source',
@@ -125,10 +125,10 @@ describe('migrateProject', () => {
       timeline: {},
     }
 
-    const migrated = await migrateProject(project, { to: 19 })
+    const migrated = await migrateProject(project, { to: 20 })
 
     expect(NOODLES_VERSION).toBe(20)
-    expect(migrated.version).toBe(19)
+    expect(migrated.version).toBe(20)
     expect(migrated.nodes[0].data.inputs).toEqual({ center: { lng: 10, lat: 20 } })
     expect(migrated.edges).toEqual([duplicate])
   })
