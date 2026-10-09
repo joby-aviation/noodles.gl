@@ -1,4 +1,4 @@
-// Chrome's built-in model (Gemini Nano) via the Prompt API.
+// Chrome"s built-in model (Gemini Nano) via the Prompt API.
 //
 // Three things make this provider unlike the other two:
 //
@@ -6,7 +6,8 @@
 //    nothing else, so the loop's tool round-trip is emulated: every turn asks for
 //    one JSON object naming at most one tool, and this provider translates that
 //    into the same tool_call event a native provider would emit. The loop never
-//    learns the difference.
+//    learns the difference. That emulation lives in json-tools.ts, shared with
+//    the WebLLM provider, which has the same gap.
 // 2. A context window measured in single-digit thousands of tokens, discovered at
 //    runtime rather than known from the model id. Overflowing it throws
 //    QuotaExceededError instead of silently truncating, so the transcript is
@@ -31,19 +32,33 @@ import type {
   AgentProvider,
   AgentRequest,
   AgentTool,
+  DownloadProgress,
   StopReason,
 } from '../types'
+import {
+  parseAction,
+  preamble,
+  responseSchema,
+  serializeMessage,
+  trimTranscript,
+} from './json-tools'
+
+// Re-exported because this is where the emulation used to live, and because the
+// alternative is every caller learning which of the two JSON-constrained
+// providers happens to own it.
+export { parseAction }
 
 // Nano's window as shipped. Only a fallback: a real session reports its own.
 const FALLBACK_CONTEXT_WINDOW = 6144
 
+// Reserve space for the model's output. Chrome throws kErrorUnknown if the output
+// pushes the session over the context limit during generation, even when the input
+// fit. Reserve ~15-20% of the window for the response.
+const OUTPUT_HEADROOM_TOKENS = 1000
+
 // There is exactly one built-in model, but the picker takes a list from every
 // provider, so give it one rather than special-casing the UI.
 export const CHROME_MODELS = [{ id: 'gemini-nano', label: 'Gemini Nano (on-device)' }] as const
-
-// Sentinel for "no tool this turn". An enum of strings is the most widely
-// supported constraint shape there is; a nullable object property is not.
-const NO_TOOL = 'none'
 
 // Sent when a turn has nothing new in it, which the API would reject as an empty
 // prompt
@@ -170,11 +185,6 @@ const NOT_A_SEQUENCE = 42
 const DOWNLOAD_TIMEOUT_MS = 10 * 60 * 1000
 const CREATE_TIMEOUT_MS = 60 * 1000
 
-export interface DownloadProgress {
-  loaded: number
-  total: number
-}
-
 // Creates a probe session purely to read the real window size, then throws it
 // away: the streaming session carries the system prompt and tool schemas, which
 // are not known until the first request. Since this is also the call that
@@ -183,11 +193,11 @@ export async function createChromeProvider(
   options: { onDownloadProgress?: (progress: DownloadProgress) => void } = {}
 ): Promise<ChromeProvider> {
   const api = factory()
-  if (!api) throw new Error('Chrome’s built-in model is not available in this browser')
+  if (!api) throw new Error("Chrome's built-in model is not available in this browser")
 
   const availability = await api.availability()
   if (availability === 'unavailable') {
-    throw new Error('Chrome’s built-in model is unavailable on this device')
+    throw new Error("Chrome's built-in model is unavailable on this device")
   }
 
   const downloading = availability === 'downloadable' || availability === 'downloading'
@@ -207,8 +217,8 @@ export async function createChromeProvider(
     create,
     downloading ? DOWNLOAD_TIMEOUT_MS : CREATE_TIMEOUT_MS,
     downloading
-      ? 'Chrome’s model download timed out after 10 minutes. Check chrome://components for “Optimization Guide On Device Model”, or pick another provider in Settings → AI Provider.'
-      : 'Chrome’s built-in model did not start within 60 seconds. Restart Chrome, or pick another provider in Settings → AI Provider.'
+      ? 'Chrome\'s model download timed out after 10 minutes. Check chrome://components for "Optimization Guide On Device Model", or pick another provider in Settings → AI Provider.'
+      : "Chrome's built-in model did not start within 60 seconds. Restart Chrome, or pick another provider in Settings → AI Provider."
   )
 
   const contextWindow = readWindow(probe)
@@ -234,6 +244,7 @@ export class ChromeProvider implements AgentProvider {
   readonly contextWindow: number
 
   private callCounter = 0
+  private hasRetried = false
 
   // The live session, plus what it has already been told. `sent` is one entry per
   // AgentMessage in the order the session received them, so the next request's
@@ -254,7 +265,11 @@ export class ChromeProvider implements AgentProvider {
 
   async *stream(request: AgentRequest, signal?: AbortSignal): AsyncIterable<AgentEvent> {
     const api = factory()
-    if (!api) throw new Error('Chrome’s built-in model is not available in this browser')
+    if (!api) throw new Error("Chrome's built-in model is not available in this browser")
+
+    // Reset retry flag at the start of each stream so failed turns don't consume
+    // the retry budget for subsequent independent requests
+    this.hasRetried = false
 
     try {
       const raw = await this.promptTurn(api, request, signal)
@@ -263,6 +278,14 @@ export class ChromeProvider implements AgentProvider {
       // The session's history is only worth keeping if the turn that would have
       // extended it succeeded
       this.discard()
+
+      // Log full error details for debugging unknown Chrome API errors
+      if (error instanceof Error) {
+        debugAiChat('[chrome] prompt failed -', error.name, error.message, error)
+      } else {
+        debugAiChat('[chrome] prompt failed with non-Error', error)
+      }
+
       if (isAbort(error)) {
         yield { type: 'stop', reason: 'aborted' }
         return
@@ -284,7 +307,7 @@ export class ChromeProvider implements AgentProvider {
       omitResponseConstraintInput: true,
     }
 
-    const lines = request.messages.map(serialize)
+    const lines = request.messages.map(serializeMessage)
     const session = await this.sessionFor(api, request, lines, signal)
     const offset = this.sent.length
     const input = toPromptMessages(lines.slice(offset), request.messages, offset)
@@ -297,12 +320,21 @@ export class ChromeProvider implements AgentProvider {
     try {
       return await this.send(session, input, options, lines)
     } catch (error) {
-      if (!isQuotaExceeded(error)) throw error
+      if (isQuotaExceeded(error)) {
+        // measureContextUsage is optional, and its estimate can be short of what the
+        // session actually charges, so catch-and-retry stays as a backstop
+        debugAiChat('[chrome] over quota, rebuilding on a trimmed transcript')
+        return this.retrimmed(api, request, options, signal)
+      }
 
-      // measureContextUsage is optional, and its estimate can be short of what the
-      // session actually charges, so catch-and-retry stays as a backstop
-      debugAiChat('[chrome] over quota, rebuilding on a trimmed transcript')
-      return this.retrimmed(api, request, options, signal)
+      // Attempt one retry for unknown Chrome API errors by rebuilding the session
+      if (isChromeApiError(error) && !this.hasRetried) {
+        debugAiChat('[chrome] unknown API error, attempting session rebuild: %s', error)
+        this.hasRetried = true
+        return this.retrimmed(api, request, options, signal)
+      }
+
+      throw error
     }
   }
 
@@ -319,7 +351,7 @@ export class ChromeProvider implements AgentProvider {
     debugAiChat('[chrome] kept %d of %d messages', trimmed.length, request.messages.length)
 
     const session = await this.rebuild(api, request, signal)
-    const lines = trimmed.map(serialize)
+    const lines = trimmed.map(serializeMessage)
     return this.send(session, toPromptMessages(lines, trimmed, 0), options, lines)
   }
 
@@ -412,8 +444,14 @@ export class ChromeProvider implements AgentProvider {
         responseConstraint: options.responseConstraint,
         omitResponseConstraintInput: options.omitResponseConstraintInput,
       })
-      const room = readWindow(session) - readUsage(session)
-      debugAiChat('[chrome] turn needs %d tokens, %d left in the window', needed, room)
+      // Reserve headroom for the output to prevent mid-generation kErrorUnknown
+      const room = readWindow(session) - readUsage(session) - OUTPUT_HEADROOM_TOKENS
+      debugAiChat(
+        '[chrome] turn needs %d tokens, %d left (reserving %d for output)',
+        needed,
+        room,
+        OUTPUT_HEADROOM_TOKENS
+      )
       return needed <= room
     } catch {
       return true
@@ -450,125 +488,6 @@ function sessionKey(request: AgentRequest): string {
   return `${request.system}\u0000${request.tools.map(tool => tool.name).join(',')}`
 }
 
-// Keeps the first user turn (the task) and the most recent exchanges, dropping
-// the middle — the same shape as compaction, minus the summary, because
-// summarising costs another round-trip through the model that just ran out of room.
-function trimTranscript(messages: AgentMessage[]): AgentMessage[] {
-  if (messages.length <= 3) return messages.slice(-1)
-  return [messages[0], ...messages.slice(-2)]
-}
-
-// The constraint: one flat object. Nesting the tool input under the action would
-// be tidier, but a flat enum plus a free-form object is the shape small models
-// fill in correctly.
-function responseSchema(tools: AgentTool[]): object {
-  return {
-    type: 'object',
-    properties: {
-      tool: { type: 'string', enum: [NO_TOOL, ...tools.map(tool => tool.name)] },
-      input: { type: 'object' },
-      reply: { type: 'string' },
-    },
-    required: ['tool', 'reply'],
-  }
-}
-
-interface ParsedAction {
-  tool: string | null
-  input: Record<string, unknown>
-  reply: string
-}
-
-// Exported for tests: everything about this provider that can go wrong at runtime
-// goes wrong here.
-export function parseAction(raw: string, tools: AgentTool[]): ParsedAction {
-  const parsed = parseJson(raw)
-  if (!parsed) {
-    // Constraint ignored, which happens. The text is still an answer.
-    return { tool: null, input: {}, reply: raw.trim() }
-  }
-
-  const reply = typeof parsed.reply === 'string' ? parsed.reply : ''
-  const name = typeof parsed.tool === 'string' ? parsed.tool : NO_TOOL
-
-  // A name the model invented would come back from the loop as "Unknown tool",
-  // costing a whole round-trip of a window this small to learn nothing
-  const known = tools.some(tool => tool.name === name)
-  if (name === NO_TOOL || !known) return { tool: null, input: {}, reply }
-
-  return { tool: name, input: asRecord(parsed.input), reply }
-}
-
-function parseJson(raw: string): Record<string, unknown> | null {
-  const text = raw.trim()
-  // Some builds wrap constrained output in a fence anyway
-  const unfenced = text.replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '')
-  try {
-    const parsed = JSON.parse(unfenced)
-    return typeof parsed === 'object' && parsed !== null
-      ? (parsed as Record<string, unknown>)
-      : null
-  } catch {
-    return null
-  }
-}
-
-function asRecord(value: unknown): Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {}
-}
-
-// Everything the model needs that a native provider would get as structured
-// fields: the tool schemas, and how to answer. Goes into initialPrompts, which the
-// API never evicts, so it survives a conversation that overflows the window.
-function preamble(request: AgentRequest): string {
-  const tools = request.tools
-    .map(
-      tool =>
-        `- ${tool.name}: ${tool.description}\n  input: ${JSON.stringify(tool.inputSchema.properties)}`
-    )
-    .join('\n')
-
-  return `${request.system}
-
-You answer with a single JSON object and nothing else:
-{"tool": "<tool name or ${NO_TOOL}>", "input": {<arguments>}, "reply": "<what to say>"}
-
-Call one tool at a time. Set "tool" to "${NO_TOOL}" once you have what you need, and put the answer in "reply". When you do call a tool, "reply" should say briefly what you are checking.
-
-Tools:
-${tools}`
-}
-
-// One AgentMessage as the line the session will hold. Used both as the prompt
-// content and as the identity of that message when diffing the next request
-// against what the session already has, so it has to be a pure function of the
-// message.
-function serialize(message: AgentMessage): string {
-  const lines: string[] = []
-
-  for (const part of message.content) {
-    switch (part.type) {
-      case 'text':
-        lines.push(part.text)
-        break
-      case 'tool_use':
-        lines.push(`Called ${part.name} with ${JSON.stringify(part.input)}`)
-        break
-      case 'tool_result':
-        lines.push(`Result${part.isError ? ' (error)' : ''}: ${part.content}`)
-        break
-      // Images cannot be sent, and a provider_block from another provider is
-      // meaningless here
-      default:
-        break
-    }
-  }
-
-  return lines.join('\n')
-}
-
 // The Prompt API takes 'user' and 'assistant'; the loop's tool results ride on
 // user messages, which is where they belong here too.
 function toPromptMessages(
@@ -592,4 +511,20 @@ function isAbort(error: unknown): boolean {
 
 function isQuotaExceeded(error: unknown): boolean {
   return error instanceof Error && error.name === 'QuotaExceededError'
+}
+
+// Detects Chrome-specific API errors by name pattern. Chrome internal errors
+// typically start with 'k' (like kErrorUnknown) or contain specific keywords.
+function isChromeApiError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false
+  const name = error.name || ''
+  const message = error.message || ''
+  // Chrome error codes start with 'k', or contain Chrome-specific keywords
+  return (
+    name.startsWith('k') ||
+    name.includes('Chrome') ||
+    message.includes('Chrome') ||
+    name.includes('Prompt') ||
+    name.includes('Language')
+  )
 }

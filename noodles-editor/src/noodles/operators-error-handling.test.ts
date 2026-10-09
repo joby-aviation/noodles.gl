@@ -11,6 +11,9 @@ vi.mock('../utils/analytics', () => ({
   },
 }))
 
+// Get typed mock reference
+const mockAnalytics = vi.mocked(analytics)
+
 describe('ChartOp error handling', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -32,7 +35,7 @@ describe('ChartOp error handling', () => {
     })
 
     expect(result.chart).toBeNull()
-    expect(analytics.captureException).not.toHaveBeenCalled()
+    expect(mockAnalytics.captureException).not.toHaveBeenCalled()
   })
 
   it('should return null chart when xField is empty', () => {
@@ -51,7 +54,7 @@ describe('ChartOp error handling', () => {
     })
 
     expect(result.chart).toBeNull()
-    expect(analytics.captureException).not.toHaveBeenCalled()
+    expect(mockAnalytics.captureException).not.toHaveBeenCalled()
   })
 
   it('should return null chart when yField is empty for bar chart', () => {
@@ -70,7 +73,7 @@ describe('ChartOp error handling', () => {
     })
 
     expect(result.chart).toBeNull()
-    expect(analytics.captureException).not.toHaveBeenCalled()
+    expect(mockAnalytics.captureException).not.toHaveBeenCalled()
   })
 
   it('should allow empty yField for histogram', () => {
@@ -112,7 +115,7 @@ describe('ChartOp error handling', () => {
 
     expect(result.chart).not.toBeNull()
     expect(result.chart).toBeInstanceOf(HTMLElement)
-    expect(analytics.captureException).not.toHaveBeenCalled()
+    expect(mockAnalytics.captureException).not.toHaveBeenCalled()
   })
 
   it('should handle edge-case data gracefully', () => {
@@ -141,7 +144,7 @@ describe('ChartOp error handling', () => {
     expect(result.chart).toBeInstanceOf(HTMLElement)
 
     // Should not capture exception since Plot handles this gracefully
-    expect(analytics.captureException).not.toHaveBeenCalled()
+    expect(mockAnalytics.captureException).not.toHaveBeenCalled()
   })
 
   it('should capture exception when data accessor throws', () => {
@@ -176,7 +179,7 @@ describe('ChartOp error handling', () => {
     expect(result.chart).toBeNull()
 
     // Should have captured the exception
-    expect(analytics.captureException).toHaveBeenCalledWith(
+    expect(mockAnalytics.captureException).toHaveBeenCalledWith(
       expect.any(Error),
       expect.objectContaining({
         source: 'chart_op',
@@ -204,6 +207,6 @@ describe('ChartOp error handling', () => {
     })
 
     expect(result.chart).not.toBeNull()
-    expect(analytics.captureException).not.toHaveBeenCalled()
+    expect(mockAnalytics.captureException).not.toHaveBeenCalled()
   })
 })

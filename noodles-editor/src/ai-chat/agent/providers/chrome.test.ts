@@ -320,6 +320,77 @@ describe('ChromeProvider.stream', () => {
     expect(sessions[0].destroy).toHaveBeenCalled()
   })
 
+  it('retries once on kErrorUnknown by rebuilding the session', async () => {
+    const kError = new Error('An unknown error occurred')
+    kError.name = 'kErrorUnknown'
+    const { prompts, sessions, create } = stubLanguageModel({
+      responses: [kError, '{"tool":"none","reply":"recovered"}'],
+    })
+
+    const events = await collect(new ChromeProvider(), request())
+
+    // Should rebuild session and retry with trimmed transcript
+    expect(create).toHaveBeenCalledTimes(2)
+    expect(sessions[0].destroy).toHaveBeenCalled()
+    expect(events.at(-1)).toEqual({ type: 'stop', reason: 'end_turn' })
+  })
+
+  it('retries once on other Chrome API errors starting with k', async () => {
+    const kError = new Error('Something went wrong')
+    kError.name = 'kSomeOtherError'
+    const { create, sessions } = stubLanguageModel({
+      responses: [kError, '{"tool":"none","reply":"ok"}'],
+    })
+
+    const events = await collect(new ChromeProvider(), request())
+
+    expect(create).toHaveBeenCalledTimes(2)
+    expect(sessions[0].destroy).toHaveBeenCalled()
+    expect(events.at(-1)).toEqual({ type: 'stop', reason: 'end_turn' })
+  })
+
+  it('does not retry more than once to avoid infinite loops', async () => {
+    const kError = new Error('Persistent error')
+    kError.name = 'kErrorUnknown'
+    stubLanguageModel({
+      responses: [kError, kError, kError],
+    })
+
+    // Should fail after one retry attempt
+    await expect(collect(new ChromeProvider(), request())).rejects.toThrow('Persistent error')
+  })
+
+  it('resets retry flag on successful turn', async () => {
+    const kError = new Error('Temporary error')
+    kError.name = 'kErrorUnknown'
+    const { create } = stubLanguageModel({
+      responses: [
+        kError,
+        '{"tool":"none","reply":"first"}',
+        kError,
+        '{"tool":"none","reply":"second"}',
+      ],
+    })
+    const provider = new ChromeProvider()
+
+    // First request: error then retry succeeds
+    await collect(provider, request())
+    expect(create).toHaveBeenCalledTimes(2)
+
+    // Second request: error then retry succeeds again (retry flag was reset)
+    // Session is reused for first attempt, so only one new create for retry
+    await collect(provider, request())
+    expect(create).toHaveBeenCalledTimes(3)
+  })
+
+  it('does not retry non-Chrome errors', async () => {
+    const genericError = new Error('Generic error')
+    genericError.name = 'Error'
+    stubLanguageModel({ responses: [genericError] })
+
+    await expect(collect(new ChromeProvider())).rejects.toThrow('Generic error')
+  })
+
   it('explains itself when the API is absent', async () => {
     await expect(collect(new ChromeProvider())).rejects.toThrow(/not available in this browser/)
   })

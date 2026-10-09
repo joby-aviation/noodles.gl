@@ -96,6 +96,24 @@
   font: inherit;
 }
 
+.numberInputWrapper,
+.vectorInputWrapper {
+  flex: 1 1 0;
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+}
+
+.numberInputWrapper input:not(:disabled),
+.vectorInputWrapper input:not(:disabled) {
+  cursor: ew-resize;
+}
+
+.numberInputWrapper input:focus,
+.vectorInputWrapper input:focus {
+  cursor: text;
+}
+
 .colorDisplay {
   display: flex;
   align-items: center;
@@ -112,6 +130,9 @@
 .point2dEditor,
 .vec3Editor {
   display: flex;
+  margin: 0;
+  padding: 0;
+  border: 0;
   gap: 4px;
   align-items: center;
   width: 100%;
@@ -122,6 +143,7 @@
 .coordInput,
 .vecInput {
   flex: 1;
+  width: 100%;
   min-width: 0;
   height: 100%;
   box-sizing: border-box;

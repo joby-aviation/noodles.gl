@@ -1,5 +1,6 @@
 // Runtime documentation loader - uses Vite's import.meta.glob for on-demand loading
 
+import { buildDocUrl } from './doc-url-builder'
 import type { DocsIndex, DocTopic } from './types'
 
 // Eagerly load all markdown files at startup
@@ -54,7 +55,20 @@ function parseDocTopic(modulePath: string, content: string): DocTopic {
   let id: string
   let file: string
 
-  if (modulePath.includes('/docs/')) {
+  if (modulePath.startsWith('./')) {
+    // AI chat documentation (from aiChatDocs glob: ./**/*.md)
+    section = 'ai-assistant'
+    const relativePath = modulePath.slice(2) // Remove './'
+
+    // Prompt sections get workflow-* ids
+    if (relativePath.includes('prompts/sections/')) {
+      const filename = relativePath.split('/').pop()?.replace(/\.md$/, '') || 'unknown'
+      id = `workflow-${filename}`
+    } else {
+      id = `ai-chat-${relativePath.replace(/\.md$/, '').replace(/\//g, '-')}`
+    }
+    file = `ai-chat/${relativePath}`
+  } else if (modulePath.includes('/docs/')) {
     // Main documentation
     const relativePath = modulePath.split('/docs/')[1]
     if (relativePath.startsWith('users/')) {
@@ -66,19 +80,6 @@ function parseDocTopic(modulePath: string, content: string): DocTopic {
     }
     id = relativePath.replace(/\.md$/, '').replace(/\//g, '-')
     file = relativePath
-  } else if (modulePath.includes('/ai-chat/')) {
-    // AI chat documentation
-    section = 'ai-assistant'
-    const relativePath = modulePath.split('/ai-chat/')[1]
-
-    // Prompt sections get workflow-* ids
-    if (relativePath.includes('/prompts/sections/')) {
-      const filename = relativePath.split('/').pop()?.replace(/\.md$/, '') || 'unknown'
-      id = `workflow-${filename}`
-    } else {
-      id = `ai-chat-${relativePath.replace(/\.md$/, '').replace(/\//g, '-')}`
-    }
-    file = `ai-chat/${relativePath}`
   } else if (modulePath.includes('/examples/')) {
     // Example READMEs
     section = 'examples'
@@ -92,13 +93,17 @@ function parseDocTopic(modulePath: string, content: string): DocTopic {
     file = 'unknown'
   }
 
+  const headings = extractHeadings(content)
+  const url = buildDocUrl(file, section)
+
   return {
     id,
     title,
     section,
     file,
+    url,
     content,
-    headings: extractHeadings(content),
+    headings,
     codeExamples: [],
     relatedTopics: [],
   }

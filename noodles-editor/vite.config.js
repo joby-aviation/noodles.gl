@@ -32,9 +32,18 @@ export default defineConfig(({ mode }) => {
     server: {
       open: true,
     },
-    // duckdb-wasm bundles WASM + worker files that break Vite's dep optimization
+    // duckdb-wasm bundles WASM + worker files that break Vite's dep optimization.
+    // web-llm is excluded for the opposite reason: it is only ever reached through
+    // a dynamic import, and pre-bundling it would pull tens of megabytes into the
+    // dev server's dep cache for every user who never picks a local model.
     optimizeDeps: {
-      exclude: ['@duckdb/duckdb-wasm'],
+      exclude: ['@duckdb/duckdb-wasm', '@mlc-ai/web-llm'],
+    },
+    // Workers ship as ES modules rather than Vite's default IIFE. The WebLLM
+    // worker's dependency graph code-splits, which an IIFE build cannot express,
+    // and every worker this app creates is already declared `type: 'module'`.
+    worker: {
+      format: 'es',
     },
     plugins: [
       react(),

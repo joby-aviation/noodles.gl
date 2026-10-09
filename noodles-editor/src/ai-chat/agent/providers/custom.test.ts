@@ -82,6 +82,24 @@ describe('CustomProvider request', () => {
     expect((init.headers as Record<string, string>).Authorization).toBe('Bearer key')
   })
 
+  // `Bearer ` with nothing after it is a malformed credential, which a keyless
+  // endpoint may reject outright where no header at all would have been fine
+  it('sends no Authorization header when there is no key', async () => {
+    const fetchMock = stubFetch(sseResponse(['{"choices":[{"delta":{"content":"hi"}}]}']))
+    const provider = new CustomProvider({
+      baseUrl: 'https://text.pollinations.ai/openai',
+      apiKey: '',
+      model: 'openai-fast',
+    })
+
+    await drain(provider)
+
+    const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
+    const headers = init.headers as Record<string, string>
+    expect(headers.Authorization).toBeUndefined()
+    expect(headers['Content-Type']).toBe('application/json')
+  })
+
   it('asks for usage the OpenAI way, not the OpenRouter way', async () => {
     const fetchMock = stubFetch(sseResponse(['{"choices":[{"delta":{"content":"hi"}}]}']))
     const provider = new CustomProvider({

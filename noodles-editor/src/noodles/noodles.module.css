@@ -1362,6 +1362,50 @@
     filter 0.15s ease-out;
 }
 
+.unknownOperatorWrapper {
+  border: 2px solid var(--red-9);
+  background: var(--red-3);
+  min-width: 200px;
+}
+
+.unknownOperatorHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--red-4);
+  border-bottom: 1px solid var(--red-6);
+}
+
+.errorIcon {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.unknownOperatorTitle {
+  font-weight: 600;
+  color: var(--red-11);
+  font-size: 13px;
+}
+
+.unknownOperatorContent {
+  padding: 12px;
+}
+
+.unknownOperatorType {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--gray-12);
+  margin-bottom: 6px;
+  font-weight: 500;
+}
+
+.unknownOperatorHelp {
+  font-size: 11px;
+  color: var(--gray-11);
+  line-height: 1.4;
+}
+
 .handleDimmed {
   opacity: 0.25;
   filter: grayscale(0.8);

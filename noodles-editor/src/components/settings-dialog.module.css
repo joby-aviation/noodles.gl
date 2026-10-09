@@ -473,6 +473,29 @@
   border-color: #555;
 }
 
+.presetButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Where the free key for the selected preset comes from */
+.presetHint {
+  margin-top: 10px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #999;
+}
+
+.presetHint a {
+  color: #3b82f6;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.presetHint a:hover {
+  text-decoration: underline;
+}
+
 /* Result of testing a custom endpoint before saving it */
 .endpointError,
 .endpointOk {
@@ -643,10 +666,19 @@
 }
 
 .providerOptionTitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-weight: 600;
   font-size: 0.95rem;
   color: #e0e0e0;
   margin-bottom: 4px;
+}
+
+.connectRow {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
 }
 
 .providerOptionDescription {
