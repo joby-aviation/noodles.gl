@@ -254,6 +254,23 @@ describe('TableEditor spreadsheet clipboard', () => {
     )
   })
 
+  it('pastes unquoted multiline text as one column of rows', () => {
+    const { onDataChange } = renderTable()
+    const alice = screen.getByText('Alice').closest('[role="gridcell"]') as HTMLElement
+    fireEvent.click(alice)
+
+    dispatchClipboardEvent(alice, 'paste', dataTransfer({ 'text/plain': 'Carol\nDora\nEve' }))
+
+    expect(onDataChange).toHaveBeenCalledWith(
+      [
+        { name: 'Carol', count: 10 },
+        { name: 'Dora', count: 20 },
+        { name: 'Eve', count: 0 },
+      ],
+      'Paste table data'
+    )
+  })
+
   it('anchors a paste at the top-left of an equal-sized selection', () => {
     const rows = Array.from({ length: 16 }, (_, index) => ({ value: `Original ${index + 1}` }))
     const { onDataChange } = renderTable({

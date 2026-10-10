@@ -987,6 +987,130 @@ describe('TableEditor', () => {
     )
   })
 
+  it('starts a negative or fractional number edit from the first typed character', () => {
+    const onDataChange = vi.fn()
+    render(
+      <TableEditor
+        op={mockOp}
+        data={simpleData}
+        schema={simpleSchema}
+        onDataChange={onDataChange}
+        onSchemaChange={vi.fn()}
+      />
+    )
+
+    const count = screen.getByText('10').closest('[role="gridcell"]') as HTMLElement
+    fireEvent.click(count)
+    fireEvent.keyDown(count, { key: '-' })
+    const editor = screen.getByRole('spinbutton', { name: 'Edit count' })
+    expect(editor).toHaveValue(null)
+    fireEvent.change(editor, { target: { value: '5' } })
+    fireEvent.keyDown(editor, { key: 'Enter' })
+    expect(onDataChange).toHaveBeenCalledWith(
+      [
+        { name: 'Alice', count: -5 },
+        { name: 'Bob', count: 20 },
+      ],
+      'Edit cell count'
+    )
+
+    onDataChange.mockClear()
+    const twenty = screen.getByText('20').closest('[role="gridcell"]') as HTMLElement
+    fireEvent.click(twenty)
+    fireEvent.keyDown(twenty, { key: '.' })
+    const fractionEditor = screen.getByRole('spinbutton', { name: 'Edit count' })
+    fireEvent.change(fractionEditor, { target: { value: '5' } })
+    fireEvent.keyDown(fractionEditor, { key: 'Enter' })
+    expect(onDataChange).toHaveBeenCalledWith(
+      [
+        { name: 'Alice', count: -5 },
+        { name: 'Bob', count: 0.5 },
+      ],
+      'Edit cell count'
+    )
+  })
+
+  it('applies the column default when Tab commits a cleared number cell', () => {
+    const onDataChange = vi.fn()
+    render(
+      <TableEditor
+        op={mockOp}
+        data={simpleData}
+        schema={simpleSchema}
+        onDataChange={onDataChange}
+        onSchemaChange={vi.fn()}
+      />
+    )
+
+    const count = screen.getByText('10').closest('[role="gridcell"]') as HTMLElement
+    fireEvent.doubleClick(screen.getByText('10'))
+    const editor = screen.getByRole('spinbutton', { name: 'Edit count' })
+    fireEvent.change(editor, { target: { value: '' } })
+    fireEvent.keyDown(editor, { key: 'Tab' })
+
+    expect(onDataChange).toHaveBeenCalledWith(
+      [
+        { name: 'Alice', count: 0 },
+        { name: 'Bob', count: 20 },
+      ],
+      'Edit cell count'
+    )
+    // Tab still advances out of the edited cell
+    expect(count).toHaveAttribute('tabindex', '-1')
+  })
+
+  it('never pulls focus into the table on mount or on a blur commit', () => {
+    const onDataChange = vi.fn()
+    render(
+      <>
+        <input aria-label="outside field" />
+        <TableEditor
+          op={mockOp}
+          data={simpleData}
+          schema={simpleSchema}
+          onDataChange={onDataChange}
+          onSchemaChange={vi.fn()}
+        />
+      </>
+    )
+
+    const outside = screen.getByRole('textbox', { name: 'outside field' })
+    expect(screen.getByText('Alice').closest('[role="gridcell"]')).not.toHaveFocus()
+
+    outside.focus()
+    expect(outside).toHaveFocus()
+
+    fireEvent.doubleClick(screen.getByText('Alice'))
+    const editor = screen.getByDisplayValue('Alice')
+    fireEvent.change(editor, { target: { value: 'Alicia' } })
+    // Clicking another field blurs the editor, which commits the edit
+    outside.focus()
+
+    expect(onDataChange).toHaveBeenCalledWith(
+      [
+        { name: 'Alicia', count: 10 },
+        { name: 'Bob', count: 20 },
+      ],
+      'Edit cell name'
+    )
+    expect(outside).toHaveFocus()
+  })
+
+  it('keeps a long string cell clipped to one virtualizable row height', () => {
+    render(
+      <TableEditor
+        op={mockOp}
+        data={[{ name: 'word '.repeat(200).trim(), count: 1 }]}
+        schema={simpleSchema}
+        onDataChange={vi.fn()}
+        onSchemaChange={vi.fn()}
+      />
+    )
+
+    const row = screen.getByText(/^word word/).closest('tr') as HTMLElement
+    expect(row.getBoundingClientRect().height).toBeLessThanOrEqual(36)
+  })
+
   it('keeps action menus open when selecting the operator rerenders the table', () => {
     const props = {
       op: mockOp,

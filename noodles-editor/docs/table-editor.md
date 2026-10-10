@@ -121,9 +121,13 @@ immediately, and rows are added when the range extends downward. Conversion fail
 that extend past the right edge open a preview instead of truncating data. Pasting into an empty
 TableEditor always opens the preview with header detection enabled.
 
+Unquoted multiline text is a one-column range when pasted into a table, so `Alice\nBob` fills two
+rows. Quoted CSV (`"two\nlines"`), the typed payload, and HTML keep multiline values inside a single
+cell.
+
 Pasting a clearly tabular Sheets, TSV, CSV, or JSON selection on empty canvas opens the same
-preview. Confirming creates one populated TableEditor at the pointer; plain text, schema-only
-clipboard data, and malformed JSON do not create nodes.
+preview. Confirming creates one populated TableEditor at the pointer; plain text (including
+multiline text), schema-only clipboard data, and malformed JSON do not create nodes.
 
 ### Data Flow
 

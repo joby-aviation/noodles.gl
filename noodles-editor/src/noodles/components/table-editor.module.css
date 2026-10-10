@@ -146,11 +146,15 @@
 .cell {
   position: relative;
   padding: 8px 12px;
-  min-height: 36px;
+  /* Rows must stay exactly one virtualized row tall (estimateSize in table-editor.tsx),
+     so long values clip to a single line instead of growing the row */
+  height: 36px;
   box-sizing: border-box;
   cursor: pointer;
   display: flex;
   align-items: center;
+  overflow: hidden;
+  white-space: nowrap;
 }
 
 .cell:hover {
@@ -191,6 +195,8 @@
 
 .editing {
   background: var(--surface-section);
+  /* Editors own popups (suggestions, pickers) that may extend past the cell */
+  overflow: visible;
 }
 
 .editingPlaceholder {

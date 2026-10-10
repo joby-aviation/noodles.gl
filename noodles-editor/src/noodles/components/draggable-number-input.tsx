@@ -277,6 +277,8 @@ export interface DraggableNumberInputProps {
   title?: string
   placeholder?: string
   initialDrag?: InitialNumberDrag
+  /** Text to show instead of `value` when an edit starts from unparsed input. */
+  initialText?: string
   'aria-label'?: string
 }
 
@@ -302,10 +304,11 @@ export function DraggableNumberInput({
   title,
   placeholder,
   initialDrag,
+  initialText,
   'aria-label': ariaLabel,
 }: DraggableNumberInputProps) {
-  const [displayValue, setDisplayValue] = useState(value?.toString() ?? '0')
-  const [isActive, setIsActive] = useState(false)
+  const [displayValue, setDisplayValue] = useState(initialText ?? value?.toString() ?? '0')
+  const [isActive, setIsActive] = useState(initialText !== undefined)
   const [currentStepMultiplier, setCurrentStepMultiplier] = useState(1)
   const [isDragStarted, setIsDragStarted] = useState(false)
   const [showLadder, setShowLadder] = useState(false)
@@ -317,7 +320,12 @@ export function DraggableNumberInput({
   const ladderTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const effectiveStep = Number.isFinite(step) && step > 0 ? step : 1
 
+  // Seeded text is unparsed input the caller is still assembling, so it survives until
+  // `value` actually changes instead of being replaced by the current value on mount.
+  const syncedValueRef = useRef(initialText === undefined ? undefined : value)
   useEffect(() => {
+    if (syncedValueRef.current === value) return
+    syncedValueRef.current = value
     setDisplayValue(value?.toString() ?? '0')
   }, [value])
 
