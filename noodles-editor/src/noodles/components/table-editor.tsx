@@ -1491,6 +1491,13 @@ export function TableEditor({
     }
   }, [])
 
+  // A connection can replace the overlay target while the dialog is open. Rebuild the
+  // preview against the current rows so applying it cannot publish the stale snapshot.
+  useEffect(() => {
+    if (!overlayOpen || !overlayPayload) return
+    setOverlayPreview(createSchemaOverlayPreview(schema, tableData, overlayPayload))
+  }, [overlayOpen, overlayPayload, schema, tableData])
+
   const addRow = () => {
     activeEdit.flush()
     const newRow: Record<string, unknown> = {}
