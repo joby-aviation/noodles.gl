@@ -353,6 +353,76 @@ describe('TableEditor', () => {
     expect(screen.getByText('Bob')).toBeDefined()
   })
 
+  it('applies an overlay against rows that arrived while the dialog was open', async () => {
+    const onSchemaChange = vi.fn()
+    clipboard.readText.mockResolvedValue(
+      JSON.stringify({
+        $noodles: 'column-schema',
+        version: 1,
+        column: { name: 'anchor', type: 'string', defaultValue: '' },
+      })
+    )
+    const props = {
+      op: mockOp,
+      onDataChange: vi.fn(),
+      onSchemaChange,
+      clipboard,
+    }
+    const view = render(<TableEditor {...props} data={simpleData} schema={simpleSchema} />)
+
+    openTableSchemaActions()
+    await act(async () => {
+      fireEvent.click(screen.getByText('Paste Schema Overlay'))
+      await Promise.resolve()
+    })
+
+    // A connection replaces the overlay target while the dialog stays open
+    const connectedData = [{ name: 'Charlie', count: 30 }]
+    view.rerender(<TableEditor {...props} data={connectedData} schema={simpleSchema} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Apply Overlay' }))
+
+    expect(onSchemaChange).toHaveBeenCalledWith(
+      {
+        columns: [
+          ...simpleSchema.columns,
+          { id: 'anchor', name: 'anchor', type: 'string', defaultValue: '' },
+        ],
+      },
+      [{ name: 'Charlie', count: 30, anchor: '' }]
+    )
+  })
+
+  it('keeps rows that arrived while the dialog was open when every column is kept', async () => {
+    const onSchemaChange = vi.fn()
+    clipboard.readText.mockResolvedValue(
+      JSON.stringify({
+        $noodles: 'column-schema',
+        version: 1,
+        column: { name: 'count', type: 'boolean', defaultValue: false },
+      })
+    )
+    const props = {
+      op: mockOp,
+      onDataChange: vi.fn(),
+      onSchemaChange,
+      clipboard,
+    }
+    const view = render(<TableEditor {...props} data={simpleData} schema={simpleSchema} />)
+
+    openTableSchemaActions()
+    await act(async () => {
+      fireEvent.click(screen.getByText('Paste Schema Overlay'))
+      await Promise.resolve()
+    })
+
+    const connectedData = [{ name: 'Charlie', count: 30 }]
+    view.rerender(<TableEditor {...props} data={connectedData} schema={simpleSchema} />)
+    expect(screen.getByRole('combobox', { name: 'Decision for count' })).toHaveValue('keep')
+    fireEvent.click(screen.getByRole('button', { name: 'Apply Overlay' }))
+
+    expect(onSchemaChange).toHaveBeenCalledWith(simpleSchema, connectedData)
+  })
+
   it('offers a focused paste catcher when clipboard permission is denied', async () => {
     clipboard.readText.mockRejectedValue(new DOMException('Denied', 'NotAllowedError'))
     render(

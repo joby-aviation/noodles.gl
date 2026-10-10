@@ -98,16 +98,16 @@ export async function up(project: NoodlesProjectJSON): Promise<NoodlesProjectJSO
     }
 
     if (!schema) {
+      // Only saved rows can reconstruct the runtime snapshot. A table whose rows arrive
+      // from a connection has nothing to materialize, and saving an empty column list
+      // would validate every incoming row down to `{}`, so leave the schema unresolved.
       const data = inputs.data
-      if (Array.isArray(data)) {
-        schema = inferSchema(data)
-      } else {
-        schema = { columns: [] }
-      }
+      const inferred = Array.isArray(data) ? inferSchema(data) : undefined
+      if (inferred && inferred.columns.length > 0) schema = inferred
     }
 
     resolving.delete(nodeId)
-    resolved.set(nodeId, schema)
+    if (schema) resolved.set(nodeId, schema)
     return schema
   }
 
@@ -125,7 +125,14 @@ export async function up(project: NoodlesProjectJSON): Promise<NoodlesProjectJSO
   // erase an inferred schema after the runtime output port is removed.
   for (const node of project.nodes) {
     if (node.type !== 'TableEditorOp') continue
-    setInput(node.id, 'schema', resolveTableSchema(node.id) ?? { columns: [] })
+    const schema = resolveTableSchema(node.id)
+    if (schema) {
+      setInput(node.id, 'schema', schema)
+    } else if (inputsFor(node).schema !== undefined) {
+      // Columns were unresolvable, so any remaining value is malformed. Clearing it keeps
+      // the editor inferring columns from its input data, as the legacy runtime did.
+      setInput(node.id, 'schema', null)
+    }
   }
 
   // A non-TableEditor consumer also needs the former output value copied locally.
