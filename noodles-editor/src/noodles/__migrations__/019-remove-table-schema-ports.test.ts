@@ -50,7 +50,53 @@ describe('019-remove-table-schema-ports', () => {
     const migrated = await up(project)
 
     expect(nodeInputs(migrated.nodes[0]).schema).toEqual(parentSchema)
-    expect(nodeInputs(migrated.nodes[1]).schema).toEqual({ columns: [] })
+    // Rows arrive from a connection, so an empty explicit schema would erase every column
+    expect(nodeInputs(migrated.nodes[1]).schema).toBeUndefined()
+  })
+
+  it('leaves the schema unset when a connected table has no saved rows', async () => {
+    const project: NoodlesProjectJSON = {
+      ...baseProject,
+      nodes: [
+        {
+          id: '/source',
+          type: 'JSONOp',
+          position: { x: 0, y: 0 },
+          data: { inputs: { text: '[]' } },
+        },
+        tableNode('/connected', {}, ['data']),
+      ],
+      edges: [
+        {
+          id: '/source.out.data->/connected.par.data',
+          source: '/source',
+          sourceHandle: 'out.data',
+          target: '/connected',
+          targetHandle: 'par.data',
+        },
+      ],
+    }
+
+    const migrated = await up(project)
+    const connected = migrated.nodes.find(node => node.id === '/connected')
+
+    expect(nodeInputs(connected)).toEqual({})
+    expect(migrated.edges).toEqual(project.edges)
+    expect(migrated.migrationDiagnostics).toBeUndefined()
+  })
+
+  it('clears a malformed schema that cannot be reinferred', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const project: NoodlesProjectJSON = {
+      ...baseProject,
+      nodes: [tableNode('/broken', { schema: { columns: [{ name: 'broken' }] } })],
+    }
+
+    const migrated = await up(project)
+
+    expect(nodeInputs(migrated.nodes[0]).schema).toBeNull()
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('malformed persisted schema'))
+    warn.mockRestore()
   })
 
   it('materializes recursive TableEditor schema chains and removes only schema edges', async () => {

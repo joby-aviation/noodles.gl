@@ -300,12 +300,48 @@ function htmlElementText(element: Element): string {
   return text
 }
 
+/** Spans are clamped so a hostile clipboard cannot allocate an unbounded grid. */
+const MAX_HTML_CELL_SPAN = 1000
+
+function parseCellSpan(cell: Element, attribute: 'colspan' | 'rowspan'): number {
+  const parsed = Number.parseInt(cell.getAttribute(attribute) ?? '', 10)
+  if (!Number.isFinite(parsed) || parsed <= 1) return 1
+  return Math.min(parsed, MAX_HTML_CELL_SPAN)
+}
+
+/** Expand merged cells so every value keeps the column position it occupies. */
+function expandHtmlTableRows(tableRows: Element[]): string[][] {
+  const carriedRows: Array<number | undefined> = []
+  return tableRows.map(row => {
+    const output: Array<string | undefined> = []
+    for (const [index, remaining] of carriedRows.entries()) {
+      if (remaining === undefined) continue
+      output[index] = ''
+      carriedRows[index] = remaining > 1 ? remaining - 1 : undefined
+    }
+
+    let column = 0
+    for (const cell of row.querySelectorAll(':scope > th, :scope > td')) {
+      while (output[column] !== undefined) column += 1
+      const colspan = parseCellSpan(cell, 'colspan')
+      const rowspan = parseCellSpan(cell, 'rowspan')
+      const text = htmlElementText(cell)
+      for (let offset = 0; offset < colspan; offset += 1) {
+        output[column + offset] = offset === 0 ? text : ''
+        if (rowspan > 1) carriedRows[column + offset] = rowspan - 1
+      }
+      column += colspan
+    }
+    return Array.from(output, value => value ?? '')
+  })
+}
+
 function parseHtmlTable(html: string): ParsedTableDataClipboard | undefined {
   if (!html || typeof document === 'undefined') return undefined
   try {
     const fragment = DOMPurify.sanitize(html, {
       ALLOWED_TAGS: TABLE_CLIPBOARD_HTML_TAGS,
-      ALLOWED_ATTR: [],
+      ALLOWED_ATTR: ['colspan', 'rowspan'],
       ALLOW_ARIA_ATTR: false,
       ALLOW_DATA_ATTR: false,
       RETURN_DOM_FRAGMENT: true,
@@ -315,9 +351,7 @@ function parseHtmlTable(html: string): ParsedTableDataClipboard | undefined {
     const tableRows = Array.from(table.querySelectorAll('tr'))
     if (tableRows.length === 0) return undefined
 
-    const rows = tableRows.map(row =>
-      Array.from(row.querySelectorAll(':scope > th, :scope > td'), htmlElementText)
-    )
+    const rows = expandHtmlTableRows(tableRows)
     if (rows.every(row => row.length === 0)) return undefined
     const firstCells = Array.from(tableRows[0].querySelectorAll(':scope > th, :scope > td'))
     const semanticHeader = firstCells.length > 0 && firstCells.every(cell => cell.tagName === 'TH')
@@ -371,6 +405,10 @@ function parseJsonTable(value: unknown): ParsedTableDataClipboard | undefined {
 /**
  * Route clipboard content without throwing. Schema and graph payloads are identified
  * before universal tabular formats so the correct owner can handle them.
+ *
+ * `allowSingleColumnRows` reads unquoted multiline text as a one-column range, which is
+ * what an explicit table paste means. Canvas paste keeps the stricter rule so arbitrary
+ * multiline text never creates a table.
  */
 export function parseTableClipboard(
   {
@@ -378,7 +416,10 @@ export function parseTableClipboard(
     html = '',
     richText = '',
   }: { plainText?: string; html?: string; richText?: string },
-  { allowScalar = false }: { allowScalar?: boolean } = {}
+  {
+    allowScalar = false,
+    allowSingleColumnRows = false,
+  }: { allowScalar?: boolean; allowSingleColumnRows?: boolean } = {}
 ): ParsedTableClipboard {
   const rich = parseRichRange(richText)
   if (rich) return rich
@@ -404,6 +445,13 @@ export function parseTableClipboard(
   const htmlTable = parseHtmlTable(html)
   if (htmlTable) return htmlTable
 
+  // Pretty-printed JSON can be tab indented, so a payload that already parsed as a
+  // JSON table is claimed before the TSV fallback treats its punctuation as cells.
+  if (hasJsonValue) {
+    const jsonTable = parseJsonTable(jsonValue)
+    if (jsonTable) return jsonTable
+  }
+
   if (text.includes('\t')) {
     return {
       kind: 'table',
@@ -412,18 +460,13 @@ export function parseTableClipboard(
     }
   }
 
-  if (hasJsonValue) {
-    const jsonTable = parseJsonTable(jsonValue)
-    if (jsonTable) return jsonTable
-  }
-
   if (/\r|\n/.test(text)) {
     try {
       const rows = removeSyntheticTrailingRow(text, csvParseRows(text))
       const width = rows[0]?.length ?? 0
       if (
         rows.length >= 2 &&
-        (width > 1 || hasExplicitSingleColumnCsvSyntax(text)) &&
+        (width > 1 || allowSingleColumnRows || hasExplicitSingleColumnCsvSyntax(text)) &&
         rows.every(row => row.length === width)
       ) {
         return { kind: 'table', format: 'csv', rows }

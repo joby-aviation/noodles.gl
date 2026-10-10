@@ -228,6 +228,94 @@ describe('table data clipboard', () => {
     })
   })
 
+  it('splits single-column plain text into rows only for an explicit table paste', () => {
+    expect(
+      parseTableClipboard({ plainText: 'Alice\nBob' }, { allowSingleColumnRows: true })
+    ).toMatchObject({
+      kind: 'table',
+      format: 'csv',
+      rows: [['Alice'], ['Bob']],
+    })
+    expect(
+      parseTableClipboard(
+        { plainText: 'Alice\nBob' },
+        { allowScalar: true, allowSingleColumnRows: true }
+      )
+    ).toMatchObject({
+      kind: 'table',
+      format: 'csv',
+      rows: [['Alice'], ['Bob']],
+    })
+    // A single line still becomes one scalar cell, and canvas paste keeps the strict rule.
+    expect(
+      parseTableClipboard(
+        { plainText: 'Alice' },
+        { allowScalar: true, allowSingleColumnRows: true }
+      )
+    ).toMatchObject({ kind: 'table', format: 'scalar', rows: [['Alice']] })
+    expect(parseTableClipboard({ plainText: 'Alice\nBob' })).toEqual({ kind: 'unrecognized' })
+  })
+
+  it('claims tab-indented JSON tables before the TSV fallback', () => {
+    const records = JSON.stringify([{ name: 'Alice', count: 10 }], null, '\t')
+    expect(records).toContain('\t')
+    expect(parseTableClipboard({ plainText: records })).toMatchObject({
+      kind: 'table',
+      format: 'json-records',
+      columnNames: ['name', 'count'],
+      rows: [['Alice', 10]],
+    })
+    expect(
+      parseTableClipboard({
+        plainText: JSON.stringify(
+          [
+            [1, 2],
+            [3, 4],
+          ],
+          null,
+          '\t'
+        ),
+      })
+    ).toMatchObject({
+      kind: 'table',
+      format: 'json-arrays',
+      rows: [
+        [1, 2],
+        [3, 4],
+      ],
+    })
+  })
+
+  it('expands merged HTML cells into the positions they occupy', () => {
+    expect(
+      parseTableClipboard({
+        plainText: '',
+        html: '<table><tbody><tr><td colspan="2">A</td><td>C</td></tr><tr><td>a</td><td>b</td><td>c</td></tr></tbody></table>',
+      })
+    ).toMatchObject({
+      kind: 'table',
+      format: 'html',
+      rows: [
+        ['A', '', 'C'],
+        ['a', 'b', 'c'],
+      ],
+    })
+
+    expect(
+      parseTableClipboard({
+        plainText: '',
+        html: '<table><tbody><tr><td rowspan="2">A</td><td>B</td></tr><tr><td>C</td></tr></tbody></table>',
+      })
+    ).toMatchObject({
+      kind: 'table',
+      format: 'html',
+      rows: [
+        ['A', 'B'],
+        ['', 'C'],
+      ],
+    })
+  })
+
   it('normalizes blank and duplicate headers deterministically', () => {
     expect(normalizeTableColumnNames([' name ', '', 'name', '', 'name'], 5)).toEqual([
       'name',

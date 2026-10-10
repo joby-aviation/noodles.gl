@@ -1836,6 +1836,14 @@ function MouseOpComponent({
   )
 }
 
+/**
+ * Resolves the schema the table editor renders with. An unset or malformed local snapshot
+ * (a fresh table, or an undo past the first schema edit) falls back to inferred columns.
+ */
+export function resolveTableEditorSchema(schema: unknown, data: unknown[]): TableSchema {
+  return isTableSchema(schema) ? schema : inferSchema(data)
+}
+
 export function TableEditorOpComponent({
   id,
   type,
@@ -1848,13 +1856,9 @@ export function TableEditorOpComponent({
   useFieldVisibility(op)
 
   const [data, setData] = useState((op?.inputs.data.value ?? []) as unknown[])
-  const [schema, setSchema] = useState<TableSchema>(() => {
-    const localSchema = op?.inputs.schema.value
-    if (isTableSchema(localSchema)) {
-      return localSchema
-    }
-    return inferSchema((op?.inputs.data.value ?? []) as unknown[])
-  })
+  const [schema, setSchema] = useState<TableSchema>(() =>
+    resolveTableEditorSchema(op?.inputs.schema.value, (op?.inputs.data.value ?? []) as unknown[])
+  )
 
   // Subscribe to data and schema changes
   useEffect(() => {
@@ -1862,14 +1866,12 @@ export function TableEditorOpComponent({
     const dataSub = op.inputs.data.subscribe(newData => {
       const nextData = newData as unknown[]
       setData(nextData)
-      if (!isTableSchema(op.inputs.schema.value)) {
-        setSchema(inferSchema(nextData))
-      }
+      setSchema(resolveTableEditorSchema(op.inputs.schema.value, nextData))
     })
+    // Undo past the first schema edit clears the snapshot, so a cleared schema has to
+    // re-infer its columns instead of leaving the undone schema on screen.
     const schemaSub = op.inputs.schema.subscribe(newSchema => {
-      if (isTableSchema(newSchema)) {
-        setSchema(newSchema)
-      }
+      setSchema(resolveTableEditorSchema(newSchema, (op.inputs.data.value ?? []) as unknown[]))
     })
     return () => {
       dataSub.unsubscribe()

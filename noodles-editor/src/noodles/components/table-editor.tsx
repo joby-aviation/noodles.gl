@@ -95,7 +95,11 @@ interface CellEditorProps {
   onCancel: () => void
   column: ColumnSchema
   initialNumberDrag?: InitialNumberDrag
+  editingSeed?: string
 }
+
+/** `-`, `+`, and `.` start a number but cannot be parsed into one yet. */
+const PARTIAL_NUMBER_SEED = /^(?:[+-]\.?|\.)$/
 
 function NumberCellEditor({
   value,
@@ -104,8 +108,15 @@ function NumberCellEditor({
   onCancel,
   column,
   initialNumberDrag,
+  editingSeed,
 }: CellEditorProps) {
   const defaultValue = typeof column.defaultValue === 'number' ? column.defaultValue : 0
+  // Hold an unparseable first character until a digit completes it, so typing `-` or `.`
+  // to start an edit keeps the sign or decimal point instead of reusing the old value.
+  const seedPrefixRef = useRef(
+    editingSeed !== undefined && PARTIAL_NUMBER_SEED.test(editingSeed) ? editingSeed : undefined
+  )
+  const seededEmpty = seedPrefixRef.current !== undefined
 
   const applyConstraints = (newValue: number) => {
     let constrainedValue = newValue
@@ -120,11 +131,15 @@ function NumberCellEditor({
   }
 
   const handleNumberChange = (newValue: number) => {
-    onChange(applyConstraints(newValue))
+    const prefix = seedPrefixRef.current
+    seedPrefixRef.current = undefined
+    const prefixed = prefix === undefined ? newValue : Number(`${prefix}${newValue}`)
+    onChange(applyConstraints(Number.isFinite(prefixed) ? prefixed : newValue))
   }
 
   const parseAndCommit = (inputValue: string, advance?: EditAdvance) => {
-    const parsed = Number.parseFloat(inputValue)
+    const parsed = Number.parseFloat(`${seedPrefixRef.current ?? ''}${inputValue}`)
+    seedPrefixRef.current = undefined
     handleNumberChange(Number.isNaN(parsed) ? defaultValue : parsed)
     onComplete(advance)
   }
@@ -132,6 +147,7 @@ function NumberCellEditor({
   return (
     <DraggableNumberInput
       value={typeof value === 'number' ? value : defaultValue}
+      initialText={seededEmpty ? '' : undefined}
       onChange={handleNumberChange}
       onBlur={event => parseAndCommit(event.currentTarget.value)}
       onDragEnd={onComplete}
@@ -139,6 +155,12 @@ function NumberCellEditor({
         e.stopPropagation()
         if (e.key === 'Enter') {
           parseAndCommit(e.currentTarget.value, 'next-row')
+        }
+        // Parse the displayed text before advancing, so clearing the field and pressing
+        // Tab commits the column default instead of the value the editor opened with
+        if (e.key === 'Tab') {
+          e.preventDefault()
+          parseAndCommit(e.currentTarget.value, e.shiftKey ? 'previous-column' : 'next-column')
         }
         if (e.key === 'Escape') {
           onCancel()
@@ -990,6 +1012,9 @@ function EditableCell({ getValue, row, column, table }: EditableCellProps) {
 
   const renderedValue = (renderer as (value: unknown) => React.ReactNode)(currentValue)
 
+  // A number editor parses its own displayed text, so it must see Tab itself
+  const editorHandlesTab = colSchema.type === 'number'
+
   if (isEditing) {
     return (
       <div
@@ -999,7 +1024,7 @@ function EditableCell({ getValue, row, column, table }: EditableCellProps) {
             event.preventDefault()
             event.stopPropagation()
             handleCancel()
-          } else if (event.key === 'Tab') {
+          } else if (event.key === 'Tab' && !editorHandlesTab) {
             event.preventDefault()
             event.stopPropagation()
             handleComplete(event.shiftKey ? 'previous-column' : 'next-column')
@@ -1017,6 +1042,7 @@ function EditableCell({ getValue, row, column, table }: EditableCellProps) {
             onCancel={handleCancel}
             column={colSchema}
             initialNumberDrag={meta?.initialNumberDrag}
+            editingSeed={meta?.editingSeed}
           />
         </div>
       </div>
@@ -1366,6 +1392,10 @@ export function TableEditor({
   >(undefined)
   const tableWrapperRef = useRef<HTMLDivElement>(null)
   const pointerSelectingRef = useRef(false)
+  // Only a grid navigation action may move DOM focus into the table. Mounting a
+  // populated table, or a cell commit caused by clicking another control, must not
+  // pull focus away from wherever the user is typing.
+  const focusActiveCellRef = useRef(false)
   const pendingNumberDragCleanupRef = useRef<(() => void) | null>(null)
   const numberDragTokenRef = useRef(0)
   const activeEdit = useActiveEdit()
@@ -1460,6 +1490,13 @@ export function TableEditor({
       pendingNumberDragCleanupRef.current?.()
     }
   }, [])
+
+  // A connection can replace the overlay target while the dialog is open. Rebuild the
+  // preview against the current rows so applying it cannot publish the stale snapshot.
+  useEffect(() => {
+    if (!overlayOpen || !overlayPayload) return
+    setOverlayPreview(createSchemaOverlayPreview(schema, tableData, overlayPayload))
+  }, [overlayOpen, overlayPayload, schema, tableData])
 
   const addRow = () => {
     activeEdit.flush()
@@ -1706,6 +1743,7 @@ export function TableEditor({
   const selectRange = useCallback(
     (anchor: TableCellCoordinate, focus: TableCellCoordinate) => {
       activeEdit.flush()
+      focusActiveCellRef.current = true
       setEditingCell(null)
       setEditingSeed(undefined)
       setInitialNumberDrag(undefined)
@@ -1778,6 +1816,7 @@ export function TableEditor({
       setInitialNumberDrag(undefined)
       if (!advance) return
 
+      focusActiveCellRef.current = true
       const rowCount = tableDataRef.current.length
       const columnCount = schema.columns.length
       let next = coordinate
@@ -1796,6 +1835,7 @@ export function TableEditor({
   )
 
   const cancelEditing = useCallback((coordinate: TableCellCoordinate) => {
+    focusActiveCellRef.current = true
     setEditingCell(null)
     setEditingSeed(undefined)
     setInitialNumberDrag(undefined)
@@ -2088,6 +2128,8 @@ export function TableEditor({
     ) => {
       const parsed = parseTableClipboard(input, {
         allowScalar: schema.columns.length > 0 && tableDataRef.current.length > 0,
+        // An explicit table paste of unquoted multiline text means a one-column range
+        allowSingleColumnRows: true,
       })
       if (parsed.kind === 'table') {
         applyParsedTablePaste(parsed, anchor, actionSource)
@@ -2431,6 +2473,7 @@ export function TableEditor({
     (rowOffset: number, columnOffset: number, extend: boolean) => {
       if (tableDataRef.current.length === 0 || schema.columns.length === 0) return
       activeEdit.flush()
+      focusActiveCellRef.current = true
       setEditingCell(null)
       setEditingSeed(undefined)
       const current = activeCell ?? { row: 0, column: 0 }
@@ -2449,7 +2492,8 @@ export function TableEditor({
   )
 
   useEffect(() => {
-    if (!activeCell || editingCell) return
+    if (!activeCell || editingCell || !focusActiveCellRef.current) return
+    focusActiveCellRef.current = false
     const focusCell = () => {
       tableWrapperRef.current
         ?.querySelector<HTMLElement>(
