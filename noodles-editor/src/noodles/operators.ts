@@ -2755,6 +2755,14 @@ export class DirectionsOp extends Operator<DirectionsOp> {
         ],
       }),
       departureTime: new DateField(),
+      trafficModel: new StringLiteralField('best-guess', {
+        values: [
+          { value: 'best-guess', label: 'Best guess' },
+          { value: 'pessimistic', label: 'Pessimistic' },
+          { value: 'optimistic', label: 'Optimistic' },
+        ],
+      }),
+      avoidTolls: new BooleanField(false),
     }
   }
   createOutputs() {
@@ -2766,13 +2774,18 @@ export class DirectionsOp extends Operator<DirectionsOp> {
           durationFormatted: new StringField('', { optional: true }),
           timestamps: new ArrayField(new NumberField()),
           path: new ArrayField(new Point2DField([0, 0], { returnType: 'tuple' })),
+          hasTolls: new BooleanField(false, { optional: true }),
+          tollAmount: new NumberField(0, { min: 0, optional: true }),
+          tollCurrency: new StringField('', { optional: true }),
         },
         { passthrough: true }
       ),
     }
   }
   override isFieldVisible(name: string): boolean {
-    if (name === 'departureMode') return this.inputs.mode.value === 'driving-traffic'
+    if (name === 'departureMode' || name === 'trafficModel' || name === 'avoidTolls') {
+      return this.inputs.mode.value === 'driving-traffic'
+    }
     if (name === 'departureTime') {
       return (
         this.inputs.mode.value === 'driving-traffic' &&
@@ -2787,6 +2800,8 @@ export class DirectionsOp extends Operator<DirectionsOp> {
     mode,
     departureMode,
     departureTime,
+    trafficModel,
+    avoidTolls,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     // Guard on default values
     if (
@@ -2804,6 +2819,8 @@ export class DirectionsOp extends Operator<DirectionsOp> {
       mode,
       departureTime:
         mode === 'driving-traffic' && departureMode === 'scheduled' ? departureTime : undefined,
+      trafficModel,
+      avoidTolls,
     })
 
     return { route }

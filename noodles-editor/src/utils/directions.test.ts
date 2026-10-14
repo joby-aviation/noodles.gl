@@ -76,10 +76,15 @@ describe('Google traffic-aware directions', () => {
       ],
     })
     importLibrary.mockResolvedValue({
+      ComputeRoutesExtraComputation: { TOLLS: 'TOLLS' },
       PolylineQuality: { HIGH_QUALITY: 'HIGH_QUALITY' },
       Route: { computeRoutes },
       RoutingPreference: { TRAFFIC_AWARE_OPTIMAL: 'TRAFFIC_AWARE_OPTIMAL' },
-      TrafficModel: { BEST_GUESS: 'bestguess' },
+      TrafficModel: {
+        BEST_GUESS: 'bestguess',
+        OPTIMISTIC: 'optimistic',
+        PESSIMISTIC: 'pessimistic',
+      },
       TravelMode: { DRIVING: 'DRIVING' },
     })
     vi.stubGlobal('google', { maps: { importLibrary } })
@@ -106,8 +111,79 @@ describe('Google traffic-aware directions', () => {
         trafficModel: 'bestguess',
       })
     )
-    expect(result).toMatchObject({ distance: 1000, duration: 120 })
+    expect(result).toMatchObject({ distance: 1000, duration: 120, hasTolls: false })
+    expect(result.tollAmount).toBeUndefined()
     expect(result.timestamps).toHaveLength(2)
+  })
+
+  it('passes the traffic model and toll avoidance to Google', async () => {
+    await getDirections({
+      origin: NYC,
+      destination: { lat: 40.7228, lng: -73.996 },
+      mode: DRIVING_TRAFFIC,
+      trafficModel: 'pessimistic',
+      avoidTolls: true,
+    })
+
+    expect(computeRoutes).toHaveBeenCalledWith(
+      expect.objectContaining({
+        trafficModel: 'pessimistic',
+        routeModifiers: { avoidTolls: true },
+        extraComputations: ['TOLLS'],
+        fields: expect.arrayContaining(['travelAdvisory']),
+      })
+    )
+  })
+
+  it('reports the estimated toll', async () => {
+    computeRoutes.mockResolvedValue({
+      routes: [
+        {
+          distanceMeters: 1000,
+          durationMillis: 120_000,
+          path: [
+            { lng: -74.006, lat: 40.7128 },
+            { lng: -73.996, lat: 40.7228 },
+          ],
+          travelAdvisory: {
+            tollInfo: { estimatedPrices: [{ currencyCode: 'USD', units: 2, nanos: 540_000_000 }] },
+          },
+        },
+      ],
+    })
+
+    const result = await getDirections({
+      origin: NYC,
+      destination: { lat: 40.7228, lng: -73.996 },
+      mode: DRIVING_TRAFFIC,
+    })
+
+    expect(result).toMatchObject({ hasTolls: true, tollAmount: 2.54, tollCurrency: 'USD' })
+  })
+
+  it('flags tolls with an unknown price', async () => {
+    computeRoutes.mockResolvedValue({
+      routes: [
+        {
+          distanceMeters: 1000,
+          durationMillis: 120_000,
+          path: [
+            { lng: -74.006, lat: 40.7128 },
+            { lng: -73.996, lat: 40.7228 },
+          ],
+          travelAdvisory: { tollInfo: { estimatedPrices: [] } },
+        },
+      ],
+    })
+
+    const result = await getDirections({
+      origin: NYC,
+      destination: { lat: 40.7228, lng: -73.996 },
+      mode: DRIVING_TRAFFIC,
+    })
+
+    expect(result.hasTolls).toBe(true)
+    expect(result.tollAmount).toBeUndefined()
   })
 
   it('converts a scheduled origin-local departure before requesting a route', async () => {

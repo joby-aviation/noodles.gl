@@ -11,6 +11,11 @@ export type AnimatedDirections = {
   durationFormatted: string
   path: number[][]
   timestamps: number[]
+  // Only populated by traffic-aware driving. hasTolls without tollAmount means Google
+  // expects tolls but doesn't know the price.
+  hasTolls?: boolean
+  tollAmount?: number
+  tollCurrency?: string
 }
 
 // Mapbox Directions API response types
@@ -32,6 +37,9 @@ export const DRIVING_TRAFFIC = 'driving-traffic'
 export const TRANSIT = 'transit'
 
 export type DirectionsMode = typeof DRIVING | typeof DRIVING_TRAFFIC | typeof TRANSIT
+
+export const TRAFFIC_MODELS = ['best-guess', 'pessimistic', 'optimistic'] as const
+export type TrafficModel = (typeof TRAFFIC_MODELS)[number]
 
 export function resolveOriginDepartureTime({
   origin,
@@ -70,17 +78,27 @@ export async function getDirections({
   destination,
   mode = DRIVING,
   departureTime,
+  trafficModel,
+  avoidTolls,
 }: {
   origin: { lat: number; lng: number }
   destination: { lat: number; lng: number }
   mode?: DirectionsMode
   departureTime?: Temporal.PlainDateTime
+  trafficModel?: TrafficModel
+  avoidTolls?: boolean
 }): Promise<AnimatedDirections> {
   switch (mode) {
     case DRIVING:
       return getDrivingDirections({ origin, destination })
     case DRIVING_TRAFFIC:
-      return getTrafficAwareDrivingDirections({ origin, destination, departureTime })
+      return getTrafficAwareDrivingDirections({
+        origin,
+        destination,
+        departureTime,
+        trafficModel,
+        avoidTolls,
+      })
     case TRANSIT:
       return getTransitDirections({ origin, destination })
     default:
@@ -200,10 +218,14 @@ async function getTrafficAwareDrivingDirections({
   origin,
   destination,
   departureTime,
+  trafficModel = 'best-guess',
+  avoidTolls = false,
 }: {
   origin: { lat: number; lng: number }
   destination: { lat: number; lng: number }
   departureTime?: Temporal.PlainDateTime
+  trafficModel?: TrafficModel
+  avoidTolls?: boolean
 }): Promise<AnimatedDirections> {
   const apiKey = getKeysStore().getKey('googleMaps')
   if (!apiKey) {
@@ -213,8 +235,19 @@ async function getTrafficAwareDrivingDirections({
   }
 
   await loadGoogleMapsAPI(apiKey)
-  const { PolylineQuality, Route, RoutingPreference, TrafficModel, TravelMode } =
-    await google.maps.importLibrary('routes')
+  const {
+    ComputeRoutesExtraComputation,
+    PolylineQuality,
+    Route,
+    RoutingPreference,
+    TrafficModel,
+    TravelMode,
+  } = await google.maps.importLibrary('routes')
+  const googleTrafficModel = {
+    'best-guess': TrafficModel.BEST_GUESS,
+    pessimistic: TrafficModel.PESSIMISTIC,
+    optimistic: TrafficModel.OPTIMISTIC,
+  }[trafficModel]
 
   const scheduledDeparture = departureTime
     ? resolveOriginDepartureTime({ origin, localTime: departureTime })
@@ -226,9 +259,11 @@ async function getTrafficAwareDrivingDirections({
       destination,
       travelMode: TravelMode.DRIVING,
       routingPreference: RoutingPreference.TRAFFIC_AWARE_OPTIMAL,
-      trafficModel: TrafficModel.BEST_GUESS,
+      trafficModel: googleTrafficModel,
       polylineQuality: PolylineQuality.HIGH_QUALITY,
-      fields: ['path', 'distanceMeters', 'durationMillis'],
+      routeModifiers: { avoidTolls },
+      extraComputations: [ComputeRoutesExtraComputation.TOLLS],
+      fields: ['path', 'distanceMeters', 'durationMillis', 'travelAdvisory'],
       ...(scheduledDeparture ? { departureTime: scheduledDeparture } : {}),
     })
 
@@ -240,6 +275,10 @@ async function getTrafficAwareDrivingDirections({
       throw new Error('Google returned no complete route.')
     }
 
+    // No tollInfo means no tolls. Without a toll pass, Google estimates the cash price.
+    const tollInfo = route.travelAdvisory?.tollInfo
+    const [tollPrice] = tollInfo?.estimatedPrices ?? []
+
     const duration = durationMillis / 1000
     return {
       distance,
@@ -247,6 +286,9 @@ async function getTrafficAwareDrivingDirections({
       durationFormatted: formatDuration(duration),
       path,
       timestamps: createTimestamps(path, distance, duration),
+      hasTolls: Boolean(tollInfo),
+      tollAmount: tollPrice ? tollPrice.units + tollPrice.nanos / 1e9 : undefined,
+      tollCurrency: tollPrice?.currencyCode,
     }
   } catch (error) {
     throw new Error(
