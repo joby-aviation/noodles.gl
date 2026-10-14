@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { MCPTools } from '../mcp-tools'
-import { isReadOnly, maxStepsFor, runAgent } from './loop'
+import { claimsAnEdit, isReadOnly, maxStepsFor, runAgent, UNVERIFIED_EDIT_NOTE } from './loop'
 import { ToolRouter } from './tool-router'
 import type { AgentEvent, AgentProvider, AgentRequest, StopReason } from './types'
 
@@ -81,6 +81,7 @@ function run(params: {
   maxSteps?: number
   signal?: AbortSignal
   router?: ToolRouter
+  onEvent?: (event: AgentEvent) => void
 }) {
   return runAgent({
     provider: params.provider,
@@ -90,6 +91,7 @@ function run(params: {
     messages: [{ role: 'user', content: [{ type: 'text', text: 'hello' }] }],
     maxSteps: params.maxSteps,
     signal: params.signal,
+    onEvent: params.onEvent,
   })
 }
 
@@ -148,7 +150,9 @@ describe('runAgent', () => {
   it('stops at maxSteps when the model keeps asking for tools', async () => {
     // A provider that never runs out of tool requests
     const provider = fakeProvider(
-      Array.from({ length: 20 }, () => ({ tools: [{ name: 'list_nodes' }] }))
+      Array.from({ length: 20 }, (_, i) => ({
+        tools: [{ name: 'get_node_info', input: { nodeId: `/n${i}` } }],
+      }))
     )
 
     const result = await run({ provider, maxSteps: 3 })
@@ -210,6 +214,67 @@ describe('runAgent', () => {
     const assistantTurn = provider.requests[1].messages[1]
     expect(assistantTurn.content[0]).toMatchObject({ type: 'provider_block' })
     expect(assistantTurn.content[1]).toMatchObject({ type: 'text' })
+  })
+})
+
+describe('runAgent repeated calls', () => {
+  const lookup = { name: 'get_node_info', input: { nodeId: '/threshold' } }
+
+  it('answers an identical call with the earlier outcome instead of running it', async () => {
+    const getNodeInfo = vi.fn(async () => ({ success: false, error: 'Node not found: /threshold' }))
+    const events: AgentEvent[] = []
+    const provider = fakeProvider([{ tools: [lookup] }, { tools: [lookup] }, { text: 'gave up' }])
+
+    const result = await runAgent({
+      provider,
+      tools: fakeTools({ getNodeInfo }),
+      router: new ToolRouter(CLAUDE_WINDOW),
+      systemPrompt: 'test prompt',
+      messages: [{ role: 'user', content: [{ type: 'text', text: 'hello' }] }],
+      onEvent: event => events.push(event),
+    })
+
+    expect(getNodeInfo).toHaveBeenCalledTimes(1)
+    expect(result.toolCalls[1].result).toMatchObject({
+      success: false,
+      error: expect.stringMatching(/already called get_node_info.*Node not found/),
+    })
+    expect(events).toContainEqual(
+      expect.objectContaining({ type: 'diagnostic', kind: 'repeated_tool_call' })
+    )
+  })
+
+  it('ends the run on the third identical call', async () => {
+    const provider = fakeProvider(Array.from({ length: 10 }, () => ({ tools: [lookup] })))
+
+    const result = await run({ provider })
+
+    expect(result.steps).toBe(3)
+  })
+
+  it('does not queue the same modifications twice', async () => {
+    const edit = {
+      name: 'apply_modifications',
+      input: { modifications: [{ type: 'delete_node', data: { id: '/a' } }] },
+    }
+    const provider = fakeProvider([{ tools: [edit] }, { tools: [edit] }, { text: 'done' }])
+
+    const result = await run({ provider })
+
+    expect(result.modifications).toHaveLength(1)
+  })
+
+  it('lets a read run again after a successful write', async () => {
+    const getNodeInfo = vi.fn(async () => ({ success: true, data: { id: '/a' } }))
+    const edit = {
+      name: 'apply_modifications',
+      input: { modifications: [{ type: 'delete_node', data: { id: '/b' } }] },
+    }
+    const provider = fakeProvider([{ tools: [lookup] }, { tools: [edit] }, { tools: [lookup] }])
+
+    await run({ provider, tools: fakeTools({ getNodeInfo }) })
+
+    expect(getNodeInfo).toHaveBeenCalledTimes(2)
   })
 })
 
@@ -400,5 +465,92 @@ describe('runAgent tool disclosure', () => {
 
     expect(search).toHaveBeenCalled()
     expect(router.isCallable('search_code')).toBe(true)
+  })
+})
+
+describe('runAgent unverified edit claims', () => {
+  const diagnostics = (events: AgentEvent[]) =>
+    events.filter(e => e.type === 'diagnostic').map(e => e.kind)
+
+  it('flags a reply that announces an edit no tool made', async () => {
+    const events: AgentEvent[] = []
+    const provider = fakeProvider([{ text: 'The point radius has been set to 10.' }])
+
+    const result = await run({ provider, onEvent: e => events.push(e) })
+
+    expect(diagnostics(events)).toEqual(['unverified_edit_claim'])
+    expect(result.text).toContain(UNVERIFIED_EDIT_NOTE)
+    expect(result.modifications).toEqual([])
+  })
+
+  it('says nothing when the edit really was applied', async () => {
+    const events: AgentEvent[] = []
+    const provider = fakeProvider([
+      {
+        tools: [
+          {
+            name: 'apply_modifications',
+            input: { modifications: [{ type: 'delete_node', data: { id: '/stale' } }] },
+          },
+        ],
+      },
+      { text: 'I have deleted /stale.' },
+    ])
+
+    const result = await run({ provider, onEvent: e => events.push(e) })
+
+    expect(diagnostics(events)).toEqual([])
+    expect(result.text).not.toContain(UNVERIFIED_EDIT_NOTE)
+  })
+
+  it('still flags when the only mutating call failed', async () => {
+    const events: AgentEvent[] = []
+    const applyModifications = async () => ({ success: false, error: 'Node not found: /ghost' })
+    const provider = fakeProvider([
+      {
+        tools: [
+          {
+            name: 'apply_modifications',
+            input: { modifications: [{ type: 'delete_node', data: { id: '/ghost' } }] },
+          },
+        ],
+      },
+      { text: 'I have deleted /ghost.' },
+    ])
+
+    const result = await run({
+      provider,
+      tools: fakeTools({ applyModifications }),
+      onEvent: e => events.push(e),
+    })
+
+    expect(diagnostics(events)).toEqual(['unverified_edit_claim'])
+    expect(result.text).toContain(UNVERIFIED_EDIT_NOTE)
+  })
+
+  it('leaves an answer that only describes the graph alone', async () => {
+    const events: AgentEvent[] = []
+    const provider = fakeProvider([{ text: 'The /pickup ColorOp is currently set to `#8d12af`.' }])
+
+    const result = await run({ provider, onEvent: e => events.push(e) })
+
+    expect(diagnostics(events)).toEqual([])
+    expect(result.text).not.toContain(UNVERIFIED_EDIT_NOTE)
+  })
+})
+
+describe('claimsAnEdit', () => {
+  it('reads past and perfect aspect as a claim', () => {
+    expect(claimsAnEdit('The radius has been set to 10.')).toBe(true)
+    expect(claimsAnEdit("I've added a ScatterplotLayerOp and wired it to /deck.")).toBe(true)
+    expect(claimsAnEdit('The issue was fixed by connecting the data node.')).toBe(true)
+    expect(claimsAnEdit('The layer is now connected to /deck.')).toBe(true)
+  })
+
+  it('reads a description, an instruction or a refusal as no claim', () => {
+    expect(claimsAnEdit('The /pickup ColorOp is currently set to `#8d12af`.')).toBe(false)
+    expect(claimsAnEdit('Set the radius to 10 yourself in the inspector.')).toBe(false)
+    expect(claimsAnEdit('I cannot change the color scheme; tell me the node id.')).toBe(false)
+    expect(claimsAnEdit('Should I set the radius to 10?')).toBe(false)
   })
 })

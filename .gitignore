@@ -42,3 +42,7 @@ venv.bak/
 .claude
 .spec-workflow/
 !.spec-workflow/specs
+
+# Agent benchmark: browser profile (model weights) and per-run raw results
+noodles-editor/bench/agent/.profile/
+noodles-editor/bench/agent/results/raw/

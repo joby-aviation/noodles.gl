@@ -9,6 +9,10 @@ export const safeMode = queryParams.get('safeMode') === 'true'
 // legacy WebSocket bridge)
 export const externalControl = queryParams.get('externalControl') === 'true'
 
+// Exposes the agent benchmark hook (bench/agent/). Dev builds only, so a shared
+// link cannot turn it on in production.
+export const agentBench = import.meta.env.DEV && queryParams.get('agentBench') === '1'
+
 export const IS_PROD =
   typeof location !== 'undefined' ? location.hostname === import.meta.env.VITE_PROD_HOSTNAME : false
 

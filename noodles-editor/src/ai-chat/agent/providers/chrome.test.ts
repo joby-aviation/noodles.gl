@@ -7,6 +7,7 @@ import {
   nativeToolSupport,
   parseAction,
 } from './chrome'
+import { closeTruncated, responseSchema } from './json-tools'
 
 const TOOLS: AgentTool[] = [
   {
@@ -138,6 +139,8 @@ describe('parseAction', () => {
       tool: null,
       input: {},
       reply: 'ok',
+      fallback: 'unknown_tool',
+      requestedTool: 'delete_everything',
     })
   })
 
@@ -146,6 +149,7 @@ describe('parseAction', () => {
       tool: null,
       input: {},
       reply: 'There are 12 nodes.',
+      fallback: 'json_parse_fallback',
     })
   })
 
@@ -159,6 +163,60 @@ describe('parseAction', () => {
     const action = parseAction('{"tool":"list_nodes","input":"all of them","reply":"x"}', TOOLS)
 
     expect(action.input).toEqual({})
+  })
+
+  it('closes an object cut off by max_tokens and flags the repair', () => {
+    // What Qwen3-1.7B produced when the schema required reply after input
+    const action = parseAction(
+      `{"tool": "get_node_info", "input": {"nodeId": "/a"}${' '.repeat(40)}`,
+      TOOLS
+    )
+
+    expect(action).toEqual({
+      tool: 'get_node_info',
+      input: { nodeId: '/a' },
+      reply: '',
+      fallback: 'json_repaired',
+    })
+  })
+
+  it('closes a reply cut off mid-string', () => {
+    const action = parseAction('{"tool":"none","reply":"Use the par.da', TOOLS)
+
+    expect(action).toMatchObject({ tool: null, reply: 'Use the par.da', fallback: 'json_repaired' })
+  })
+})
+
+describe('closeTruncated', () => {
+  it('drops a key that never got its value', () => {
+    expect(closeTruncated('{"tool":"list_nodes","input":{"nodeId":')).toBe(
+      '{"tool":"list_nodes","input":{}}'
+    )
+    expect(closeTruncated('{"tool":"list_nodes","rep')).toBe('{"tool":"list_nodes"}')
+    expect(closeTruncated('{"a":[1,2,')).toBe('{"a":[1,2]}')
+  })
+
+  it('leaves complete or mismatched text alone', () => {
+    expect(closeTruncated('{"a":1}')).toBeNull()
+    expect(closeTruncated('{"a":[1}')).toBeNull()
+  })
+
+  it('does not count braces inside strings', () => {
+    expect(closeTruncated('{"reply":"a { b \\" c')).toBe('{"reply":"a { b \\" c"}')
+  })
+})
+
+describe('responseSchema', () => {
+  it('puts input last, so a model done with it may close the object', () => {
+    expect(Object.keys((responseSchema(TOOLS) as { properties: object }).properties)).toEqual([
+      'tool',
+      'reply',
+      'input',
+    ])
+  })
+
+  it('requires input, so a tool is never called with no arguments', () => {
+    expect((responseSchema(TOOLS) as { required: string[] }).required).toContain('input')
   })
 })
 
@@ -269,6 +327,8 @@ describe('ChromeProvider.stream', () => {
     // First turn kept as the task, middle dropped, tail kept
     expect(prompts[1]).toContain('first')
     expect(prompts[1]).not.toContain('second')
+    // Reported, so the agent benchmark can count turns that lost history
+    expect(events).toContainEqual({ type: 'diagnostic', kind: 'context_trimmed' })
     expect(events.at(-1)).toEqual({ type: 'stop', reason: 'end_turn' })
   })
 
@@ -287,6 +347,12 @@ describe('ChromeProvider.stream', () => {
     expect(create).toHaveBeenCalledTimes(2)
     expect(prompts).toHaveLength(1)
     expect(prompts[0]).not.toContain('second')
+  })
+
+  it('does not report a trim on a turn that fit', async () => {
+    stubLanguageModel({ responses: ['{"tool":"none","reply":"ok"}'] })
+    const events = await collect(new ChromeProvider(), request())
+    expect(events.some(event => event.type === 'diagnostic')).toBe(false)
   })
 
   it('sends the turn as-is when it fits', async () => {
@@ -323,7 +389,7 @@ describe('ChromeProvider.stream', () => {
   it('retries once on kErrorUnknown by rebuilding the session', async () => {
     const kError = new Error('An unknown error occurred')
     kError.name = 'kErrorUnknown'
-    const { prompts, sessions, create } = stubLanguageModel({
+    const { sessions, create } = stubLanguageModel({
       responses: [kError, '{"tool":"none","reply":"recovered"}'],
     })
 

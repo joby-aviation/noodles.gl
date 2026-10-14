@@ -12,21 +12,27 @@ import type { CustomEndpointConfig, ProviderPreference } from '../noodles/keys-s
 import { useKeysStore } from '../noodles/keys-store'
 import { useUIStore } from '../noodles/store'
 import { useOpenRouterConnect } from '../noodles/use-openrouter-connect'
+import { analytics } from '../utils/analytics'
 import { debugAiChat } from '../utils/debug'
 import { useAgentModelStore } from './agent/model-store'
-import { type Credentials, isProviderReady, resolveProviderId } from './agent/provider-selection'
-import { ANTHROPIC_MODELS, AnthropicProvider } from './agent/providers/anthropic'
-import { CHROME_MODELS, chromeAvailability, createChromeProvider } from './agent/providers/chrome'
-import { CustomProvider } from './agent/providers/custom'
+import { createProvider } from './agent/provider-factory'
+import {
+  type Credentials,
+  isOnDevice,
+  isProviderReady,
+  readyCloudProvider,
+  resolveProviderId,
+} from './agent/provider-selection'
+import { ANTHROPIC_MODELS } from './agent/providers/anthropic'
+import { CHROME_MODELS, chromeAvailability } from './agent/providers/chrome'
 import {
   cachedOpenRouterFreeModels,
   defaultFreeModel,
   fetchOpenRouterFreeModels,
   OPENROUTER_MODELS,
   type OpenRouterModel,
-  OpenRouterProvider,
 } from './agent/providers/openrouter'
-import { createWebLLMProvider, WEBLLM_MODELS, webgpuAvailable } from './agent/providers/webllm'
+import { WEBLLM_MODELS, webgpuAvailable } from './agent/providers/webllm'
 import { AgentSession } from './agent/session'
 import type { AgentProvider, AgentUsage, DownloadProgress, ProviderId } from './agent/types'
 import { webSearchConfigFor } from './agent/web-search'
@@ -35,6 +41,12 @@ import { loadConversation, saveConversation } from './conversation-history'
 import { ConversationHistoryPanel } from './conversation-history-panel'
 import { globalContextManager } from './global-context-manager'
 import { MCPTools } from './mcp-tools'
+import {
+  dismissOnDeviceNotice,
+  OnDeviceNotice,
+  onDeviceNoticeDismissed,
+  SLOW_REPLY_MS,
+} from './on-device-notice'
 import type { Message, NoodlesProject } from './types'
 
 interface ChatPanelProps {
@@ -114,6 +126,10 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
   // The on-device providers need no key and a custom endpoint carries its own, so
   // readiness is not the same question as "has a key"
   const providerReady = isProviderReady(providerId, credentials)
+  const onDevice = isOnDevice(providerId)
+  const cloudProvider = readyCloudProvider(credentials)
+  const [noticeDismissed, setNoticeDismissed] = useState(onDeviceNoticeDismissed)
+  const [slowReply, setSlowReply] = useState(false)
   // Free tool-calling models, read from OpenRouter's catalogue rather than a
   // hard-coded list, since which models are free changes month to month
   const [freeModels, setFreeModels] = useState<OpenRouterModel[]>(cachedOpenRouterFreeModels)
@@ -158,6 +174,32 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
     }
     setSettingsDialogOpen(true)
   }
+
+  // Switches straight to a hosted provider that is already set up; otherwise
+  // Settings, where OpenRouter is one click and free
+  const switchToCloud = () => {
+    analytics.track('ai_cloud_suggestion_clicked', {
+      from: providerId,
+      to: cloudProvider ?? 'settings',
+    })
+    if (cloudProvider) setPreference(cloudProvider)
+    else openProviderSettings()
+  }
+
+  const dismissNotice = () => {
+    dismissOnDeviceNotice()
+    setNoticeDismissed(true)
+  }
+
+  // Only on-device replies get the in-reply nudge, and only once one has run long
+  useEffect(() => {
+    if (!loading || !onDevice) return
+    const timer = setTimeout(() => setSlowReply(true), SLOW_REPLY_MS)
+    return () => {
+      clearTimeout(timer)
+      setSlowReply(false)
+    }
+  }, [loading, onDevice])
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
@@ -682,7 +724,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
               // start a multi-gigabyte download on its own
               title="Free, private, no key. Runs on this machine's GPU after a one-time download of a gigabyte or more."
             >
-              Local model (on-device)
+              Local model (on-device, slower)
               {!webgpuReady ? ' - unavailable' : !storedWebLLMModel && ' - choose model'}
             </option>
             <option
@@ -691,7 +733,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
               // implying it is a smaller version of the others.
               title="Free, private, no key. Good for single-step edits and questions about the graph; too small to build one."
             >
-              Chrome (on-device){!chromeAvailable && ' - unavailable'}
+              Chrome (on-device, slower){!chromeAvailable && ' - unavailable'}
             </option>
           </select>
           <select
@@ -739,6 +781,15 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
           📸 Capture
         </button>
       </div>
+
+      {onDevice && !noticeDismissed && (
+        <OnDeviceNotice
+          variant="banner"
+          cloudLabel={cloudLabelFor(cloudProvider, customEndpoint)}
+          onUseCloud={switchToCloud}
+          onDismiss={dismissNotice}
+        />
+      )}
 
       <div className={styles.chatPanelMessages}>
         {messages.length === 0 && (
@@ -793,6 +844,13 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
                   <span />
                   <span />
                 </div>
+              )}
+              {slowReply && (
+                <OnDeviceNotice
+                  variant="slow-reply"
+                  cloudLabel={cloudLabelFor(cloudProvider, customEndpoint)}
+                  onUseCloud={switchToCloud}
+                />
               )}
             </div>
           </div>
@@ -850,6 +908,22 @@ const PROVIDER_LABELS: Record<ProviderId, string> = {
   chrome: 'Chrome’s built-in model',
 }
 
+function cloudLabelFor(
+  providerId: ProviderId | null,
+  customEndpoint: CustomEndpointConfig | undefined
+): string | null {
+  switch (providerId) {
+    case 'anthropic':
+      return 'Anthropic'
+    case 'openrouter':
+      return 'OpenRouter'
+    case 'custom':
+      return customEndpoint?.displayName ?? 'your custom endpoint'
+    default:
+      return null
+  }
+}
+
 interface ModelGroup {
   // Omitted for a provider whose models need no grouping, which renders the
   // options bare rather than inside a one-group optgroup
@@ -895,38 +969,6 @@ function modelGroupsFor(
             : [{ id: '', label: 'Not configured' }],
         },
       ]
-  }
-}
-
-interface CreateProviderOptions {
-  providerId: ProviderId
-  apiKey: string | undefined
-  model: string | undefined
-  customEndpoint: CustomEndpointConfig | undefined
-  onDownloadProgress: (progress: DownloadProgress) => void
-}
-
-// The on-device providers are the ones whose construction is async: the model has
-// to be resident before the first request, and that is also where the download
-// happens, so both report progress while they build.
-async function createProvider(options: CreateProviderOptions): Promise<AgentProvider> {
-  const { providerId, apiKey, model, customEndpoint } = options
-  switch (providerId) {
-    case 'chrome':
-      return createChromeProvider({ onDownloadProgress: options.onDownloadProgress })
-    case 'webllm':
-      return createWebLLMProvider({ model, onDownloadProgress: options.onDownloadProgress })
-    case 'openrouter':
-      return new OpenRouterProvider({ apiKey: apiKey ?? '', model })
-    case 'anthropic':
-      return new AnthropicProvider({ apiKey: apiKey ?? '', model })
-    case 'custom':
-      if (!customEndpoint) throw new Error('No custom endpoint is configured')
-      return new CustomProvider({
-        baseUrl: customEndpoint.baseUrl,
-        apiKey: customEndpoint.apiKey,
-        model: customEndpoint.model,
-      })
   }
 }
 

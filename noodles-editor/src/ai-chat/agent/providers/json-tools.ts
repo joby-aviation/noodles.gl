@@ -12,7 +12,7 @@
 // apply. parseAction treats unparseable output as an ordinary reply rather than an
 // error, because a small model's plain-text answer is still an answer.
 
-import type { AgentMessage, AgentRequest, AgentTool } from '../types'
+import type { AgentEvent, AgentMessage, AgentRequest, AgentTool } from '../types'
 
 // Sentinel for "no tool this turn". An enum of strings is the most widely
 // supported constraint shape there is; a nullable object property is not.
@@ -21,6 +21,15 @@ export const NO_TOOL = 'none'
 // The constraint: one flat object. Nesting the tool input under the action would
 // be tidier, but a flat enum plus a free-form object is the shape small models
 // fill in correctly.
+//
+// `input` comes last. The grammar follows property order, and with `reply`
+// required after it a model that has closed `input` and wants to write `}` is
+// only allowed `,` or whitespace — so it pads with whitespace until max_tokens.
+// Last, the next legal token after `input` is the `}` it was reaching for.
+//
+// `input` is required all the same. Optional, it let a model close the object
+// straight after `reply`, and Qwen3.5-4B did: get_node_info called with nothing,
+// three times running. A `{}` on a turn with no tool costs two tokens.
 export function responseSchema(tools: AgentTool[]): object {
   return {
     type: 'object',
@@ -29,10 +38,10 @@ export function responseSchema(tools: AgentTool[]): object {
         type: 'string',
         enum: [NO_TOOL, ...tools.map(tool => tool.name)],
       },
-      input: { type: 'object' },
       reply: { type: 'string' },
+      input: { type: 'object' },
     },
-    required: ['tool', 'reply'],
+    required: ['tool', 'reply', 'input'],
   }
 }
 
@@ -40,48 +49,94 @@ export interface ParsedAction {
   tool: string | null
   input: Record<string, unknown>
   reply: string
+  // Set when the action is a recovery rather than what the model meant to send
+  fallback?: 'json_parse_fallback' | 'json_repaired' | 'unknown_tool'
+  // The name the model asked for, when it was not one it was offered
+  requestedTool?: string
 }
 
 // Exported for tests: everything about these providers that can go wrong at
 // runtime goes wrong here.
 export function parseAction(raw: string, tools: AgentTool[]): ParsedAction {
   const text = withoutThinking(raw)
-  const parsed = parseJson(text)
+  const unfenced = text.replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '')
+  let parsed = parseJson(unfenced)
+  let repaired = false
+  if (!parsed) {
+    // Output cut off by max_tokens: the tool and its input are usually complete
+    // and only the closing braces are missing
+    const closed = closeTruncated(unfenced)
+    parsed = closed ? parseJson(closed) : null
+    repaired = parsed !== null
+  }
   if (!parsed) {
     // Constraint ignored, which happens. The text is still an answer.
-    return { tool: null, input: {}, reply: text }
+    return { tool: null, input: {}, reply: text, fallback: 'json_parse_fallback' }
   }
 
   const reply = typeof parsed.reply === 'string' ? parsed.reply : ''
   const name = typeof parsed.tool === 'string' ? parsed.tool : NO_TOOL
+  const recovered = repaired ? { fallback: 'json_repaired' as const } : {}
 
   // A name the model invented would come back from the loop as "Unknown tool",
   // costing a whole round-trip of a window this small to learn nothing
+  if (name === NO_TOOL) return { tool: null, input: {}, reply, ...recovered }
   const known = tools.some(tool => tool.name === name)
-  if (name === NO_TOOL || !known) return { tool: null, input: {}, reply }
+  if (!known) return { tool: null, input: {}, reply, fallback: 'unknown_tool', requestedTool: name }
 
-  return { tool: name, input: asRecord(parsed.input), reply }
+  return { tool: name, input: asRecord(parsed.input), reply, ...recovered }
 }
 
 // A reasoning model reaches for a thinking block whether or not there is room for
 // one in the schema, and when the host applied no grammar there is nothing
 // stopping it. Stripped before parsing and before falling back to the raw text,
 // because a thought is not the answer either way.
+export function diagnosticFor(action: ParsedAction): AgentEvent | null {
+  if (!action.fallback) return null
+  return { type: 'diagnostic', kind: action.fallback, detail: action.requestedTool }
+}
+
 function withoutThinking(raw: string): string {
   return raw.replace(/^\s*<think>[\s\S]*?<\/think>/, '').trim()
 }
 
 function parseJson(text: string): Record<string, unknown> | null {
-  // Some builds wrap constrained output in a fence anyway
-  const unfenced = text.replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '')
   try {
-    const parsed = JSON.parse(unfenced)
+    const parsed = JSON.parse(text)
     return typeof parsed === 'object' && parsed !== null
       ? (parsed as Record<string, unknown>)
       : null
   } catch {
     return null
   }
+}
+
+// Closes the strings, objects and arrays a truncated object left open. Null when
+// nothing is open, because then the text is malformed some other way and closing
+// it would only invent structure.
+export function closeTruncated(text: string): string | null {
+  const closers: string[] = []
+  let inString = false
+  let escaped = false
+  for (const ch of text) {
+    if (inString) {
+      if (escaped) escaped = false
+      else if (ch === '\\') escaped = true
+      else if (ch === '"') inString = false
+    } else if (ch === '"') inString = true
+    else if (ch === '{') closers.push('}')
+    else if (ch === '[') closers.push(']')
+    else if (ch === '}' || ch === ']') {
+      if (closers.pop() !== ch) return null
+    }
+  }
+  if (closers.length === 0) return null
+
+  const closed = (inString ? `${text}"` : text.trimEnd())
+    // A key with no value yet: a string after { or , rather than after :
+    .replace(/([{,])\s*"(?:[^"\\]|\\.)*"\s*:?\s*$/, '$1')
+    .replace(/,\s*$/, '')
+  return closed + closers.reverse().join('')
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -103,7 +158,7 @@ export function preamble(request: AgentRequest): string {
   return `${request.system}
 
 You answer with a single JSON object and nothing else:
-{"tool": "<tool name or ${NO_TOOL}>", "input": {<arguments>}, "reply": "<what to say>"}
+{"tool": "<tool name or ${NO_TOOL}>", "reply": "<what to say>", "input": {<arguments>}}
 
 Call one tool at a time. Set "tool" to "${NO_TOOL}" once you have what you need, and put the answer in "reply". When you do call a tool, "reply" should say briefly what you are checking.
 

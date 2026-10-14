@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { MCPTools } from '../mcp-tools'
 import { runAgent } from './loop'
-import { createDelegateTool, DELEGATE_NAME, toolsetTools } from './subagent'
+import { createDelegateTool, DELEGATE_NAME, delegateAvailable, toolsetTools } from './subagent'
 import { ToolRouter } from './tool-router'
 import type { AgentEvent, AgentProvider, AgentRequest, StopReason } from './types'
 
@@ -166,6 +166,49 @@ describe('delegate', () => {
     const result = await runParent({ provider, tools: fakeTools() })
 
     expect(result.modifications).toEqual([modification])
+  })
+
+  it('refuses a build report when the child changed nothing', async () => {
+    const applyModifications = vi.fn()
+    const provider = fakeProvider([
+      { tools: [{ name: DELEGATE_NAME, input: { task: 'make pickup red', toolset: 'build' } }] },
+      // The observed on-device failure: a confident report, no tool calls
+      { text: "Modified the node 'pickup_point_color' to set the color to red." },
+      { text: 'I could not make the change.' },
+    ])
+
+    const result = await runParent({ provider, tools: fakeTools({ applyModifications }) })
+    const call = result.toolCalls.find(c => c.name === DELEGATE_NAME)
+
+    expect(call?.result.success).toBe(false)
+    expect(call?.result.error).toContain('The sub-agent changed nothing')
+    // The claim comes back quoted, so the parent can tell the model invented it
+    expect(call?.result.error).toContain("Modified the node 'pickup_point_color'")
+    expect(result.modifications).toEqual([])
+  })
+
+  it('accepts a build report backed by a keyframe, which queues no modifications', async () => {
+    const provider = fakeProvider([
+      { tools: [{ name: DELEGATE_NAME, input: { task: 'animate opacity', toolset: 'build' } }] },
+      {
+        tools: [
+          { name: 'set_keyframe', input: { trackId: 'fade / opacity', position: 0, value: 1 } },
+        ],
+      },
+      { text: 'Keyframed fade / opacity at 0s.' },
+    ])
+    const setKeyframe = async () => ({ success: true, data: { trackId: 'fade / opacity' } })
+
+    const result = await runParent({ provider, tools: fakeTools({ setKeyframe }) })
+
+    expect(result.toolCalls.find(c => c.name === DELEGATE_NAME)?.result.success).toBe(true)
+  })
+
+  it('is offered only where the window can afford a second loop', () => {
+    expect(delegateAvailable({ contextWindow: 4_096 } as AgentProvider)).toBe(false)
+    expect(delegateAvailable({ contextWindow: 16_384 } as AgentProvider)).toBe(false)
+    expect(delegateAvailable({ contextWindow: 32_768 } as AgentProvider)).toBe(true)
+    expect(delegateAvailable({ contextWindow: 200_000 } as AgentProvider)).toBe(true)
   })
 
   it('rejects a missing task or an unknown toolset before spawning anything', async () => {

@@ -1,0 +1,86 @@
+{
+  "runId": "2026-09-27-02-16-adam-mac-fixes2",
+  "startedAt": "2026-09-27T02:16:10.187Z",
+  "environment": {
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
+    "gpu": {
+      "vendor": "apple",
+      "architecture": "metal-3",
+      "device": "",
+      "description": ""
+    },
+    "deviceMemoryGb": 32,
+    "cpuCores": 16,
+    "gitSha": "6b2e0cc6",
+    "dirty": true,
+    "machine": "adam-mac-fixes2"
+  },
+  "rows": [
+    {
+      "taskId": "t2-color-scheme",
+      "tier": "T2",
+      "provider": "webllm",
+      "model": "Qwen3-1.7B-q4f16_1-MLC",
+      "contextWindow": 4096,
+      "knobs": "",
+      "repeat": 0,
+      "score": 1.6,
+      "pass": false,
+      "mechanicalFailure": true,
+      "steps": 4,
+      "toolCalls": 4,
+      "inputTokens": 12666,
+      "outputTokens": 146,
+      "diagnostics": {
+        "repeated_tool_call": 2
+      },
+      "ms": 12623.800000190735,
+      "loadMs": 15759.900000095367,
+      "timedOut": false
+    },
+    {
+      "taskId": "t2-pickup-red",
+      "tier": "T2",
+      "provider": "webllm",
+      "model": "Qwen3-1.7B-q4f16_1-MLC",
+      "contextWindow": 4096,
+      "knobs": "",
+      "repeat": 0,
+      "score": 1.6,
+      "pass": false,
+      "mechanicalFailure": true,
+      "steps": 4,
+      "toolCalls": 4,
+      "inputTokens": 11530,
+      "outputTokens": 219,
+      "diagnostics": {
+        "repeated_tool_call": 2
+      },
+      "ms": 14399.900000095367,
+      "loadMs": 1440.9000000953674,
+      "timedOut": false
+    },
+    {
+      "taskId": "t2-point-radius",
+      "tier": "T2",
+      "provider": "webllm",
+      "model": "Qwen3-1.7B-q4f16_1-MLC",
+      "contextWindow": 4096,
+      "knobs": "",
+      "repeat": 0,
+      "score": 1.6,
+      "pass": false,
+      "mechanicalFailure": true,
+      "steps": 4,
+      "toolCalls": 4,
+      "inputTokens": 12660,
+      "outputTokens": 246,
+      "diagnostics": {
+        "repeated_tool_call": 2
+      },
+      "ms": 17604.800000190735,
+      "loadMs": 1442.1999998092651,
+      "timedOut": false
+    }
+  ]
+}
