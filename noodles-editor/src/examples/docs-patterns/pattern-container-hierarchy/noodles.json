@@ -1,0 +1,125 @@
+{
+  "version": 6,
+  "nodes": [
+    {
+      "id": "/data-sources",
+      "type": "ContainerOp",
+      "position": {"x": 50, "y": 50},
+      "data": {
+        "label": "data-sources"
+      }
+    },
+    {
+      "id": "/data-sources/csv-loader",
+      "type": "FileOp",
+      "position": {"x": 100, "y": 120},
+      "data": {
+        "label": "csv-loader",
+        "inputs": {
+          "format": "csv"
+        }
+      }
+    },
+    {
+      "id": "/data-sources/json-loader",
+      "type": "FileOp",
+      "position": {"x": 100, "y": 220},
+      "data": {
+        "label": "json-loader",
+        "inputs": {
+          "format": "json"
+        }
+      }
+    },
+    {
+      "id": "/data-sources/api-client",
+      "type": "NetworkOp",
+      "position": {"x": 100, "y": 320},
+      "data": {
+        "label": "api-client"
+      }
+    },
+    {
+      "id": "/processing",
+      "type": "ContainerOp",
+      "position": {"x": 400, "y": 50},
+      "data": {
+        "label": "processing"
+      }
+    },
+    {
+      "id": "/processing/filter",
+      "type": "FilterOp",
+      "position": {"x": 450, "y": 120},
+      "data": {
+        "label": "filter"
+      }
+    },
+    {
+      "id": "/processing/aggregator",
+      "type": "CodeOp",
+      "position": {"x": 450, "y": 220},
+      "data": {
+        "label": "aggregator"
+      }
+    },
+    {
+      "id": "/processing/transformer",
+      "type": "MapOp",
+      "position": {"x": 450, "y": 320},
+      "data": {
+        "label": "transformer"
+      }
+    },
+    {
+      "id": "/visualization",
+      "type": "ContainerOp",
+      "position": {"x": 750, "y": 50},
+      "data": {
+        "label": "visualization"
+      }
+    },
+    {
+      "id": "/visualization/map-layer",
+      "type": "ScatterplotLayerOp",
+      "position": {"x": 800, "y": 120},
+      "data": {
+        "label": "map-layer"
+      }
+    },
+    {
+      "id": "/visualization/chart",
+      "type": "CodeOp",
+      "position": {"x": 800, "y": 220},
+      "data": {
+        "label": "chart"
+      }
+    },
+    {
+      "id": "/visualization/dashboard",
+      "type": "ContainerOp",
+      "position": {"x": 800, "y": 320},
+      "data": {
+        "label": "dashboard"
+      }
+    },
+    {
+      "id": "/visualization/dashboard/header",
+      "type": "TextLayerOp",
+      "position": {"x": 850, "y": 390},
+      "data": {
+        "label": "header"
+      }
+    },
+    {
+      "id": "/visualization/dashboard/controls",
+      "type": "CodeOp",
+      "position": {"x": 850, "y": 490},
+      "data": {
+        "label": "controls"
+      }
+    }
+  ],
+  "edges": [],
+  "viewport": {"x": 0, "y": 0, "zoom": 0.8}
+}

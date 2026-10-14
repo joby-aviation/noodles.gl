@@ -1,0 +1,85 @@
+{
+  "version": 6,
+  "nodes": [
+    {
+      "id": "/source-a",
+      "type": "NumberOp",
+      "position": {"x": 100, "y": 80},
+      "data": {
+        "label": "Source A",
+        "inputs": {
+          "value": 10
+        }
+      }
+    },
+    {
+      "id": "/source-b",
+      "type": "NumberOp",
+      "position": {"x": 100, "y": 200},
+      "data": {
+        "label": "Source B",
+        "inputs": {
+          "value": 20
+        }
+      }
+    },
+    {
+      "id": "/index",
+      "type": "NumberOp",
+      "position": {"x": 100, "y": 320},
+      "data": {
+        "label": "Index",
+        "inputs": {
+          "value": 0
+        }
+      }
+    },
+    {
+      "id": "/switch",
+      "type": "SwitchOp",
+      "position": {"x": 350, "y": 180},
+      "data": {
+        "label": "Switch"
+      }
+    },
+    {
+      "id": "/viewer",
+      "type": "ViewerOp",
+      "position": {"x": 600, "y": 180},
+      "data": {
+        "label": "Viewer"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "/source-a.out.value->/switch.par.inputs.0",
+      "source": "/source-a",
+      "target": "/switch",
+      "sourceHandle": "out.value",
+      "targetHandle": "par.inputs.0"
+    },
+    {
+      "id": "/source-b.out.value->/switch.par.inputs.1",
+      "source": "/source-b",
+      "target": "/switch",
+      "sourceHandle": "out.value",
+      "targetHandle": "par.inputs.1"
+    },
+    {
+      "id": "/index.out.value->/switch.par.index",
+      "source": "/index",
+      "target": "/switch",
+      "sourceHandle": "out.value",
+      "targetHandle": "par.index"
+    },
+    {
+      "id": "/switch.out.value->/viewer.par.data",
+      "source": "/switch",
+      "target": "/viewer",
+      "sourceHandle": "out.value",
+      "targetHandle": "par.data"
+    }
+  ],
+  "viewport": {"x": 0, "y": 0, "zoom": 1}
+}

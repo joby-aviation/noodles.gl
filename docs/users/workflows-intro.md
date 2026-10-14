@@ -169,39 +169,24 @@ Color-coded borders indicate operator categories (Data, Visualization, Transform
 
 The simplest pattern - data flows through a series of transformations:
 
-```
-[Source] → [Transform A] → [Transform B] → [Output]
-```
+![Linear Pipeline Pattern](/img/pattern-linear-pipeline.png)
 
 ### Split and Merge
 Process data in parallel paths, then combine:
 
-```
-              → [Transform A] →
-[Source] →                        → [Merge] → [Layer] → [DeckRenderer] → [Out]
-              → [Transform B] →
-```
+![Split and Merge Pattern](/img/pattern-split-merge.png)
 
 ### Multi-Output
 
 One source feeding multiple independent visualizations:
 
-```
-              → [Layer A] → [DeckRenderer A]
-[Source] →                                   → [Out]
-              → [Layer B] → [DeckRenderer B]
-```
+![Multi-Output Pattern](/img/pattern-multi-output.png)
 
 ### Switch
 
 Use a SwitchOp to route data based on an index or condition. You can dynamically change which path the data takes and even reuse the same index across multiple switches to create complex reusable workflows.
 
-```
-[Source A] →
-              [SwitchOp] → [Layer] → [DeckRenderer] → [Out]
-[Source B] →    ↑
-        (index input)
-```
+![Switch Pattern](/img/pattern-switch-operator.png)
 
 ## Common Operators
 

@@ -1,0 +1,80 @@
+{
+  "version": 6,
+  "nodes": [
+    {
+      "id": "/source",
+      "type": "FileOp",
+      "position": {"x": 50, "y": 180},
+      "data": {
+        "label": "Source",
+        "inputs": {
+          "format": "json",
+          "data": "[{\"value\": 10}, {\"value\": 20}, {\"value\": 30}]"
+        }
+      }
+    },
+    {
+      "id": "/layer-a",
+      "type": "ScatterplotLayerOp",
+      "position": {"x": 300, "y": 100},
+      "data": {
+        "label": "Layer A"
+      }
+    },
+    {
+      "id": "/layer-b",
+      "type": "PathLayerOp",
+      "position": {"x": 300, "y": 260},
+      "data": {
+        "label": "Layer B"
+      }
+    },
+    {
+      "id": "/viewer-a",
+      "type": "ViewerOp",
+      "position": {"x": 550, "y": 100},
+      "data": {
+        "label": "Viewer A"
+      }
+    },
+    {
+      "id": "/viewer-b",
+      "type": "ViewerOp",
+      "position": {"x": 550, "y": 260},
+      "data": {
+        "label": "Viewer B"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "/source.out.data->/layer-a.par.data",
+      "source": "/source",
+      "target": "/layer-a",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/source.out.data->/layer-b.par.data",
+      "source": "/source",
+      "target": "/layer-b",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/layer-a.out.layer->/viewer-a.par.data",
+      "source": "/layer-a",
+      "target": "/viewer-a",
+      "sourceHandle": "out.layer",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/layer-b.out.layer->/viewer-b.par.data",
+      "source": "/layer-b",
+      "target": "/viewer-b",
+      "sourceHandle": "out.layer",
+      "targetHandle": "par.data"
+    }
+  ],
+  "viewport": {"x": 0, "y": 0, "zoom": 1}
+}

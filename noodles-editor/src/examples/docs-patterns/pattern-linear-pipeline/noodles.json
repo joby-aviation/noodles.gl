@@ -1,0 +1,74 @@
+{
+  "version": 6,
+  "nodes": [
+    {
+      "id": "/source",
+      "type": "FileOp",
+      "position": {"x": 50, "y": 150},
+      "data": {
+        "label": "Source",
+        "inputs": {
+          "format": "json",
+          "data": "[{\"value\": 30}, {\"value\": 10}, {\"value\": 50}, {\"value\": 20}]"
+        }
+      }
+    },
+    {
+      "id": "/transform-a",
+      "type": "FilterOp",
+      "position": {"x": 280, "y": 150},
+      "data": {
+        "label": "Transform A",
+        "inputs": {
+          "columnName": "value",
+          "condition": "greater than",
+          "value": 15
+        }
+      }
+    },
+    {
+      "id": "/transform-b",
+      "type": "SortOp",
+      "position": {"x": 510, "y": 150},
+      "data": {
+        "label": "Transform B",
+        "inputs": {
+          "columnName": "value",
+          "order": "ascending"
+        }
+      }
+    },
+    {
+      "id": "/output",
+      "type": "ViewerOp",
+      "position": {"x": 740, "y": 150},
+      "data": {
+        "label": "Output"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "/source.out.data->/transform-a.par.data",
+      "source": "/source",
+      "target": "/transform-a",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/transform-a.out.data->/transform-b.par.data",
+      "source": "/transform-a",
+      "target": "/transform-b",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/transform-b.out.data->/output.par.data",
+      "source": "/transform-b",
+      "target": "/output",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.data"
+    }
+  ],
+  "viewport": {"x": 0, "y": 0, "zoom": 1}
+}

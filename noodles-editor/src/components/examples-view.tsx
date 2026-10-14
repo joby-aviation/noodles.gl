@@ -49,6 +49,11 @@ export function useAllExamples(): ExampleProject[] {
   return useMemo<ExampleProject[]>(() => {
     const list: ExampleProject[] = []
     for (const [path, projectJson] of Object.entries(exampleProjects)) {
+      // Skip docs-patterns examples - they're for documentation only, not shown in UI
+      if (path.includes('/docs-patterns/')) {
+        continue
+      }
+
       const projectId = basename(dirname(path))
       const readmePath = path.replace('noodles.json', 'README.md')
       const readme = exampleReadmes[readmePath] as string | undefined

@@ -277,17 +277,9 @@ ForLoop operators enable map-like iteration over arrays, where each iteration's 
 
 To double each number in an array `[1, 2, 3]`:
 
-```
-FileOp (data: [1, 2, 3])
-    ↓
-ForLoopBegin
-    ↓ item (outputs: 1, then 2, then 3)
-ExpressionOp (code: `item * 2`)
-    ↓
-ForLoopEnd (item input)
-    ↓ data
-Result: [2, 4, 6]
-```
+![ForLoop Pattern](/img/pattern-forloop.png)
+
+The loop iterates over each element, applies the expression `item * 2`, and collects the results into a new array `[2, 4, 6]`.
 
 ### When to Use ForLoop vs CodeOp
 

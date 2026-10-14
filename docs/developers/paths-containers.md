@@ -24,23 +24,11 @@ All operators are identified by Unix-style absolute paths starting with `/`:
 
 ### Organization Benefits
 
-```
-/                           # Project root
-├── data-sources/          # Data loading container
-│   ├── csv-loader
-│   ├── json-loader
-│   └── api-client
-├── processing/            # Data processing container
-│   ├── filter
-│   ├── aggregator
-│   └── transformer
-└── visualization/         # Output container
-    ├── map-layer
-    ├── chart
-    └── dashboard/         # Nested container
-        ├── header
-        └── controls
-```
+Containers organize operators into logical groups, similar to directories in a file system:
+
+![Container Hierarchy Example](/img/pattern-container-hierarchy.png)
+
+This example shows three main containers (`data-sources`, `processing`, `visualization`) with nested operators and a nested `dashboard` container inside `visualization`.
 
 ### Advantages
 

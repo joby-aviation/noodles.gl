@@ -1,0 +1,83 @@
+{
+  "version": 6,
+  "nodes": [
+    {
+      "id": "/data",
+      "type": "FileOp",
+      "position": {"x": 50, "y": 200},
+      "data": {
+        "label": "Data: [1, 2, 3]",
+        "inputs": {
+          "format": "json",
+          "data": "[1, 2, 3]"
+        }
+      }
+    },
+    {
+      "id": "/loop-begin",
+      "type": "ForLoopBeginOp",
+      "position": {"x": 280, "y": 200},
+      "data": {
+        "label": "ForLoopBegin"
+      }
+    },
+    {
+      "id": "/expression",
+      "type": "ExpressionOp",
+      "position": {"x": 510, "y": 200},
+      "data": {
+        "label": "Expression: item * 2",
+        "inputs": {
+          "code": "item * 2"
+        }
+      }
+    },
+    {
+      "id": "/loop-end",
+      "type": "ForLoopEndOp",
+      "position": {"x": 740, "y": 200},
+      "data": {
+        "label": "ForLoopEnd"
+      }
+    },
+    {
+      "id": "/result",
+      "type": "ViewerOp",
+      "position": {"x": 970, "y": 200},
+      "data": {
+        "label": "Result: [2, 4, 6]"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "/data.out.data->/loop-begin.par.data",
+      "source": "/data",
+      "target": "/loop-begin",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/loop-begin.out.item->/expression.par.item",
+      "source": "/loop-begin",
+      "target": "/expression",
+      "sourceHandle": "out.item",
+      "targetHandle": "par.item"
+    },
+    {
+      "id": "/expression.out.value->/loop-end.par.item",
+      "source": "/expression",
+      "target": "/loop-end",
+      "sourceHandle": "out.value",
+      "targetHandle": "par.item"
+    },
+    {
+      "id": "/loop-end.out.data->/result.par.data",
+      "source": "/loop-end",
+      "target": "/result",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.data"
+    }
+  ],
+  "viewport": {"x": 0, "y": 0, "zoom": 1}
+}

@@ -1,0 +1,97 @@
+{
+  "version": 6,
+  "nodes": [
+    {
+      "id": "/source",
+      "type": "FileOp",
+      "position": {"x": 50, "y": 180},
+      "data": {
+        "label": "Source",
+        "inputs": {
+          "format": "json",
+          "data": "[{\"value\": 10}, {\"value\": 50}, {\"value\": 100}, {\"value\": 150}]"
+        }
+      }
+    },
+    {
+      "id": "/transform-a",
+      "type": "FilterOp",
+      "position": {"x": 280, "y": 100},
+      "data": {
+        "label": "Transform A",
+        "inputs": {
+          "columnName": "value",
+          "condition": "greater than",
+          "value": 50
+        }
+      }
+    },
+    {
+      "id": "/transform-b",
+      "type": "FilterOp",
+      "position": {"x": 280, "y": 260},
+      "data": {
+        "label": "Transform B",
+        "inputs": {
+          "columnName": "value",
+          "condition": "less than or equal",
+          "value": 50
+        }
+      }
+    },
+    {
+      "id": "/merge",
+      "type": "MergeOp",
+      "position": {"x": 510, "y": 180},
+      "data": {
+        "label": "Merge"
+      }
+    },
+    {
+      "id": "/viewer",
+      "type": "ViewerOp",
+      "position": {"x": 740, "y": 180},
+      "data": {
+        "label": "Viewer"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "/source.out.data->/transform-a.par.data",
+      "source": "/source",
+      "target": "/transform-a",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/source.out.data->/transform-b.par.data",
+      "source": "/source",
+      "target": "/transform-b",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/transform-a.out.data->/merge.par.inputs.0",
+      "source": "/transform-a",
+      "target": "/merge",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.inputs.0"
+    },
+    {
+      "id": "/transform-b.out.data->/merge.par.inputs.1",
+      "source": "/transform-b",
+      "target": "/merge",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.inputs.1"
+    },
+    {
+      "id": "/merge.out.data->/viewer.par.data",
+      "source": "/merge",
+      "target": "/viewer",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.data"
+    }
+  ],
+  "viewport": {"x": 0, "y": 0, "zoom": 1}
+}
