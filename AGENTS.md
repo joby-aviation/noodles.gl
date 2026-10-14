@@ -19,7 +19,7 @@ This document provides essential context for Large Language Models (LLMs) workin
 - **[Architecture](dev-docs/architecture.md)** - System architecture, state management, and error handling
 - **[Development Guide](dev-docs/developing.md)** - Setup, commands, workflows, and best practices
 - **[Testing Guide](dev-docs/testing-guide.md)** - Testing strategy, critical components, and runbook guidelines
-- **[PR Guidelines](dev-docs/pr-guidelines.md)** - Creating focused PRs with tests and documentation
+- **[PR Guidelines](dev-docs/pr-guidelines.md)** - Focused PRs, PR description format, screenshots for UI changes
 - **[Analytics](dev-docs/analytics.md)** - Privacy-preserving analytics guidelines
 - **[Agent Harness](dev-docs/agent-harness.md)** - The in-app AI chat: providers, tool routing, context budgets
 - **[Tech Stack](dev-docs/tech-stack.md)** - Complete technology listing
@@ -351,6 +351,13 @@ Any field can be keyframed via the native timeline system. Changes in timeline p
 **Testing:** Add tests for new operators, bug fixes, and changes to critical components. See [testing-guide.md](dev-docs/testing-guide.md) for strategy and best practices.
 
 **Pull Requests:** Keep PRs focused, include tests and documentation, provide test runbooks for UI changes. See [pr-guidelines.md](dev-docs/pr-guidelines.md) for complete guidelines.
+
+**PR Descriptions:**
+- Use the headings from `.github/pull_request_template.md` as they are: an issue reference, an optional `#### Background`, a `#### Change List` and `#### Screenshots`. Do not add `Summary`, `Test plan` or `Validation` sections.
+- Keep it short. Most good descriptions are under 900 characters, not counting a collapsed test runbook.
+- Change List: one bullet per operator, component, API or artifact, ten words or less, identifiers in backticks, no trailing periods. End with `Unit tests` / `Browser tests` / `Documentation` / `Migration` as applicable, and one line on what was actually run to verify.
+- **UI changes need a before/after screenshot or GIF.** Capture them (see [screenshot-guide.md](dev-docs/screenshot-guide.md)) outside the repo or in a gitignored directory, and attach with `gh pr create --attach './before.png#Alt text'` (also on `gh pr edit` / `gh pr comment`). Don't commit them.
+- Do not add footers, emoji, links to tool sessions, `Co-Authored-By` lines, or tables of files. Do not make up an issue number; remove the line if there is none.
 
 **Analytics:** Add `analytics.track()` for user actions and feature usage. Never track sensitive data. See [analytics.md](dev-docs/analytics.md) for guidelines.
 
