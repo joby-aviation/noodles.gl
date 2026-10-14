@@ -13,11 +13,12 @@ import { useCallback } from 'react'
 import { getTimelineStore } from '../../timeline/timeline-store'
 import { analytics } from '../../utils/analytics'
 import { debugUI } from '../../utils/debug'
-import { type Field, ListField } from '../fields'
+import { hasChannelFields, type Field, ListField } from '../fields'
 import type { IOperator, Operator } from '../operators'
 import { deleteOp, getAllOps, getOp, setOp, takePendingInsertionIndex } from '../store'
 import { canConnect, validateConnection } from '../utils/can-connect'
 import { expandDeleteSet } from '../utils/copy-paste-utils'
+import { relatedInputHandle, resolveOperatorField } from '../utils/field-resolution'
 import { edgeId } from '../utils/id-utils'
 import {
   appendUniqueEdges,
@@ -56,6 +57,32 @@ interface UseProjectModificationsOptions {
         ) => ReactFlowNode<Record<string, unknown>>[])
   ) => void
   setEdges: (edges: ReactFlowEdge[] | ((edges: ReactFlowEdge[]) => ReactFlowEdge[])) => void
+}
+
+function prepareInputPortMode(
+  op: Operator<IOperator>,
+  targetFieldPath: string,
+  edges: ReactFlowEdge[]
+): string | undefined {
+  const resolved = resolveOperatorField(op, 'par', targetFieldPath)
+  if (!resolved || !hasChannelFields(resolved.rootField)) return undefined
+
+  const desiredMode = resolved.channelName ? 'channels' : 'whole'
+  const conflictingEdge = edges.find(edge => {
+    if (edge.target !== op.id || edge.type === 'ReferenceEdge' || !edge.targetHandle) return false
+    const info = parseHandleId(edge.targetHandle)
+    if (!info || !relatedInputHandle(resolved.rootFieldName, info.fieldName)) return false
+    return desiredMode === 'whole'
+      ? info.fieldName !== resolved.rootFieldName
+      : info.fieldName === resolved.rootFieldName
+  })
+
+  if (conflictingEdge) {
+    return `Disconnect ${resolved.rootFieldName} before changing its port layout`
+  }
+
+  op.setInputPortMode(resolved.rootFieldName, desiredMode)
+  return undefined
 }
 
 export function useProjectModifications(options: UseProjectModificationsOptions) {
@@ -206,8 +233,22 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
             const createdEdges = incomers.flatMap(({ id: source }) =>
               outgoers
                 .filter(({ id: target }) => {
-                  const sourceField = getOp(source)?.outputs[sourceHandleInfo.fieldName]
-                  const targetField = getOp(target)?.inputs[targetHandleInfo.fieldName]
+                  const sourceOp = getOp(source)
+                  const targetOp = getOp(target)
+                  const sourceField = sourceOp
+                    ? resolveOperatorField(
+                        sourceOp,
+                        sourceHandleInfo.namespace,
+                        sourceHandleInfo.fieldName
+                      )?.field
+                    : undefined
+                  const targetField = targetOp
+                    ? resolveOperatorField(
+                        targetOp,
+                        targetHandleInfo.namespace,
+                        targetHandleInfo.fieldName
+                      )?.field
+                    : undefined
                   if (!sourceField || !targetField) {
                     return false
                   }
@@ -318,8 +359,18 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
       }
 
       // Get fields
-      const sourceField = sourceOp.outputs[sourceHandleInfo.fieldName]
-      const targetField = targetOp.inputs[targetHandleInfo.fieldName]
+      const sourceResolved = resolveOperatorField(
+        sourceOp,
+        sourceHandleInfo.namespace,
+        sourceHandleInfo.fieldName
+      )
+      const targetResolved = resolveOperatorField(
+        targetOp,
+        targetHandleInfo.namespace,
+        targetHandleInfo.fieldName
+      )
+      const sourceField = sourceResolved?.field
+      const targetField = targetResolved?.field
 
       if (!sourceField || !targetField) {
         return {
@@ -339,12 +390,15 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
         }
       }
 
+      const portModeError = prepareInputPortMode(targetOp, targetHandleInfo.fieldName, getEdges())
+      if (portModeError) return { success: false, error: portModeError }
+
       // Add the edge
       addEdges([edge])
 
       return { success: true }
     },
-    [getNodes, addEdges]
+    [getNodes, getEdges, addEdges]
   )
 
   // Update a node's data/inputs
@@ -673,8 +727,16 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
               continue
             }
 
-            const sourceField = sourceOp.outputs[sourceHandleInfo.fieldName]
-            const targetField = targetOp.inputs[targetHandleInfo.fieldName]
+            const sourceField = resolveOperatorField(
+              sourceOp,
+              sourceHandleInfo.namespace,
+              sourceHandleInfo.fieldName
+            )?.field
+            const targetField = resolveOperatorField(
+              targetOp,
+              targetHandleInfo.namespace,
+              targetHandleInfo.fieldName
+            )?.field
 
             if (!sourceField || !targetField) {
               const error = `Edge ${edge.id}: field not found (${sourceHandleInfo.fieldName} -> ${targetHandleInfo.fieldName})`
@@ -688,6 +750,17 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
 
             if (!canConnect(sourceField, targetField)) {
               const error = `Edge ${edge.id}: incompatible types (${sourceFieldType} -> ${targetFieldType})`
+              debugUI(error)
+              edgeErrors.push(error)
+              continue
+            }
+
+            const portModeError = prepareInputPortMode(targetOp, targetHandleInfo.fieldName, [
+              ...getEdges(),
+              ...validEdges,
+            ])
+            if (portModeError) {
+              const error = `Edge ${edge.id}: ${portModeError}`
               debugUI(error)
               edgeErrors.push(error)
               continue
@@ -734,7 +807,7 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
         warnings: allWarnings.length > 0 ? allWarnings : undefined,
       }
     },
-    [getNodes, setNodes, setEdges, handleNodesDeleted, deleteElements]
+    [getNodes, getEdges, setNodes, setEdges, handleNodesDeleted, deleteElements]
   )
 
   // ReactFlow-compatible onConnect callback
@@ -801,10 +874,26 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
         return
       }
 
-      const sourceField = sourceOp.outputs[sourceHandleInfo.fieldName]
-      const targetField = targetOp.inputs[targetHandleInfo.fieldName]
-      if (!sourceField || !targetField) {
+      const sourceResolved = resolveOperatorField(
+        sourceOp,
+        sourceHandleInfo.namespace,
+        sourceHandleInfo.fieldName
+      )
+      const targetResolved = resolveOperatorField(
+        targetOp,
+        targetHandleInfo.namespace,
+        targetHandleInfo.fieldName
+      )
+      const sourceField = sourceResolved?.field
+      const targetField = targetResolved?.field
+      if (!sourceField || !targetField || !targetResolved) {
         console.error('Invalid connection', connection)
+        return
+      }
+
+      const portModeError = prepareInputPortMode(targetOp, targetHandleInfo.fieldName, edges)
+      if (portModeError) {
+        console.error(portModeError)
         return
       }
 
@@ -892,7 +981,7 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
             ...targetData,
             inputs: {
               ...(targetData?.inputs as Record<string, unknown>),
-              [targetHandleInfo.fieldName]: value,
+              [targetResolved.rootFieldName]: targetResolved.rootField.value,
             },
           },
         }
@@ -920,7 +1009,11 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
         // Pure reorder within one multi-input handle: same edge, new slot
         const pendingIndex = takePendingInsertionIndex(connection.target, connection.targetHandle)
         const handleInfo = parseHandleId(connection.targetHandle || '')
-        const targetField = handleInfo && getOp(connection.target)?.inputs[handleInfo.fieldName]
+        const targetOp = getOp(connection.target)
+        const targetField =
+          handleInfo && targetOp
+            ? resolveOperatorField(targetOp, handleInfo.namespace, handleInfo.fieldName)?.field
+            : undefined
         if (!(targetField instanceof ListField) || pendingIndex === null) return
 
         // The dragged edge is removed before re-insertion, so slots after it shift down one:
@@ -953,7 +1046,11 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
       const oldHandleInfo = parseHandleId(oldEdge.targetHandle || '')
       const oldTargetOp = getOp(oldEdge.target)
       if (oldHandleInfo && oldTargetOp) {
-        oldTargetOp.inputs[oldHandleInfo.fieldName]?.removeConnection(oldEdge.id)
+        resolveOperatorField(
+          oldTargetOp,
+          oldHandleInfo.namespace,
+          oldHandleInfo.fieldName
+        )?.field.removeConnection(oldEdge.id)
         oldTargetOp.removeConnectionError(oldEdge.id)
       }
 

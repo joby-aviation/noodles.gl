@@ -153,6 +153,185 @@ describe('transform-graph topological sort with missing upstream nodes', () => {
   })
 })
 
+describe('vector channel handles', () => {
+  afterEach(() => clearOps())
+
+  it('connects an individual channel and preserves the editable sibling', () => {
+    const nodes = [
+      {
+        id: '/number',
+        type: 'NumberOp',
+        data: { inputs: {} },
+        position: { x: 0, y: 0 },
+      },
+      {
+        id: '/map',
+        type: 'MapViewStateOp',
+        data: {
+          inputs: { center: { lng: 1, lat: 5 } },
+          inputPortModes: { center: 'channels' },
+        },
+        position: { x: 100, y: 0 },
+      },
+    ]
+    const edges = [
+      {
+        id: '/number.out.val->/map.par.center.lng',
+        source: '/number',
+        target: '/map',
+        sourceHandle: 'out.val',
+        targetHandle: 'par.center.lng',
+      },
+    ]
+
+    transformGraph({ nodes, edges })
+    const number = getOpStore().getOp('/number')!
+    const map = getOpStore().getOp('/map')!
+    number.outputs.val.next(25)
+
+    expect(map.inputs.center.value).toEqual({ lng: 25, lat: 5 })
+    expect(map.getInputPortMode('center')).toBe('channels')
+  })
+
+  it('cleans up removed channel connections', () => {
+    const nodes = [
+      {
+        id: '/number',
+        type: 'NumberOp',
+        data: { inputs: {} },
+        position: { x: 0, y: 0 },
+      },
+      {
+        id: '/map',
+        type: 'MapViewStateOp',
+        data: {
+          inputs: { center: { lng: 1, lat: 5 } },
+          inputPortModes: { center: 'channels' },
+        },
+        position: { x: 100, y: 0 },
+      },
+    ]
+    const edge = {
+      id: '/number.out.val->/map.par.center.lng',
+      source: '/number',
+      target: '/map',
+      sourceHandle: 'out.val',
+      targetHandle: 'par.center.lng',
+    }
+
+    transformGraph({ nodes, edges: [edge] })
+    const number = getOpStore().getOp('/number')!
+    const map = getOpStore().getOp('/map')!
+    transformGraph({ nodes, edges: [] })
+    const disconnectedValue = map.inputs.center.value
+
+    number.outputs.val.next(50)
+
+    expect(map.inputs.center.channelFields.lng.subscriptions.has(edge.id)).toBe(false)
+    expect(map.inputs.center.value).toEqual(disconnectedValue)
+  })
+
+  it('cleans up channel subscriptions when the owning operator is removed', () => {
+    const numberNode = {
+      id: '/number',
+      type: 'NumberOp',
+      data: { inputs: {} },
+      position: { x: 0, y: 0 },
+    }
+    const mapNode = {
+      id: '/map',
+      type: 'MapViewStateOp',
+      data: {
+        inputs: { center: { lng: 1, lat: 5 } },
+        inputPortModes: { center: 'channels' },
+      },
+      position: { x: 100, y: 0 },
+    }
+    const edge = {
+      id: '/number.out.val->/map.par.center.lng',
+      source: '/number',
+      target: '/map',
+      sourceHandle: 'out.val',
+      targetHandle: 'par.center.lng',
+    }
+
+    transformGraph({ nodes: [numberNode, mapNode], edges: [edge] })
+    const map = getOpStore().getOp('/map')!
+    const center = map.inputs.center
+
+    transformGraph({ nodes: [numberNode], edges: [] })
+
+    expect(center.subscriptions.size).toBe(0)
+    expect(center.channelFields.lng.subscriptions.size).toBe(0)
+    expect(center.channelFields.lat.subscriptions.size).toBe(0)
+  })
+
+  it('does not attach a whole-value edge while channel ports are active', () => {
+    const nodes = [
+      {
+        id: '/point',
+        type: 'PointOp',
+        data: { inputs: { coordinates: { lng: 20, lat: 30 } } },
+        position: { x: 0, y: 0 },
+      },
+      {
+        id: '/map',
+        type: 'MapViewStateOp',
+        data: {
+          inputs: { center: { lng: 1, lat: 5 } },
+          inputPortModes: { center: 'channels' },
+        },
+        position: { x: 100, y: 0 },
+      },
+    ]
+    const edges = [
+      {
+        id: '/point.out.feature->/map.par.center',
+        source: '/point',
+        target: '/map',
+        sourceHandle: 'out.feature',
+        targetHandle: 'par.center',
+      },
+    ]
+
+    transformGraph({ nodes, edges })
+    const map = getOpStore().getOp('/map')!
+
+    expect(map.inputs.center.value).toEqual({ lng: 1, lat: 5 })
+    expect(map.connectionErrors.value.get(edges[0].id)).toContain('Inactive center port')
+  })
+
+  it('keeps legacy MapViewState parameter references reactive', () => {
+    const nodes = [
+      {
+        id: '/map',
+        type: 'MapViewStateOp',
+        data: { inputs: { center: { lng: 1, lat: 5 } } },
+        position: { x: 0, y: 0 },
+      },
+      {
+        id: '/code',
+        type: 'CodeOp',
+        data: { inputs: { code: "return op('/map').par.longitude" } },
+        position: { x: 100, y: 0 },
+      },
+    ]
+
+    transformGraph({ nodes, edges: [] })
+    const map = getOpStore().getOp('/map')!
+    const code = getOpStore().getOp('/code') as CodeOp
+    let emissions = 0
+    const subscription = code.inputs.code.subscribe(() => emissions++)
+    const initialEmissions = emissions
+
+    map.inputs.center.setValue({ lng: 25, lat: 5 })
+
+    expect(referenceDependencyModel.getSnapshot()[0].sourceHandle).toBe('par.longitude')
+    expect(emissions).toBe(initialEmissions + 1)
+    subscription.unsubscribe()
+  })
+})
+
 describe('transform-graph stale edge and unknown type warnings', () => {
   let errorSpy: ReturnType<typeof vi.spyOn>
 

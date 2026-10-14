@@ -22,6 +22,7 @@ const sidebars: SidebarsConfig = {
         'users/getting-started',
         'users/workflows-intro',
         'users/properties-panel',
+        'users/vector-input-ports',
         'users/operators-guide',
       ],
     },

@@ -133,13 +133,19 @@ export function serializeNodes(
     }
     const op = store.getOp(node.id)
     if (!op) continue
+    const inputPortModes = op.inputPortModes?.value ?? {}
 
     // Don't set node data for connected inputs (saves space) except if upstream op is locked
-    const incomers = edges
+    const incomingPaths = edges
       .filter(edge => edge.target === node.id && edge.type !== 'ReferenceEdge')
       .filter(edge => store.getOp(edge.source)?.locked?.value === false)
       .map(edge => parseHandleId(edge.targetHandle)?.fieldName)
       .reduce((acc, fieldName) => acc.add(fieldName), new Set<string | undefined>())
+    const incomers = new Set(
+      Array.from(incomingPaths, fieldName => fieldName?.split('.')[0]).filter(
+        (fieldName): fieldName is string => fieldName !== undefined
+      )
+    )
 
     // Serialize fields
     const inputs: ExtractProps<ReturnType<typeof op.createInputs>> = {}
@@ -161,7 +167,10 @@ export function serializeNodes(
       const hasNonDefaultValue =
         serialized !== undefined &&
         (field.expression !== null || !deepEqual(field.value, normalizedDefault))
-      if (hasNonDefaultValue && !incomers.has(name)) {
+      // A whole-value connection owns the entire field. Channel connections only own
+      // their respective components, so retain the vector value as the fallback for
+      // unconnected siblings.
+      if (hasNonDefaultValue && !incomingPaths.has(name)) {
         inputs[name] = serialized
       }
     }
@@ -217,6 +226,7 @@ export function serializeNodes(
         ...(op.customInputDefinitions?.length > 0
           ? { customInputs: op.customInputDefinitions }
           : {}),
+        ...(Object.keys(inputPortModes).length > 0 ? { inputPortModes } : {}),
         ...visibilityData,
       },
     })

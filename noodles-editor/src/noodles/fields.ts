@@ -673,6 +673,92 @@ export class NumberField extends Field<z.ZodNumber, NumberFieldOptions> {
   }
 }
 
+export interface ChannelFieldOwner {
+  channelFields: Record<string, NumberField>
+  returnType: 'object' | 'tuple'
+}
+
+function initializeChannelFields(
+  // biome-ignore lint/suspicious/noExplicitAny: vector fields use different Zod tuple/object unions
+  field: Field<any, any> & ChannelFieldOwner,
+  channelKeys: readonly string[]
+): void {
+  const getChannelValue = (value: unknown, key: string, index: number): unknown => {
+    if (Array.isArray(value)) return value[index]
+    if (value && typeof value === 'object') return (value as Record<string, unknown>)[key]
+    return undefined
+  }
+
+  const initialValue = field.value
+  field.channelFields = Object.fromEntries(
+    channelKeys.map((key, index) => [
+      key,
+      new NumberField(
+        typeof getChannelValue(initialValue, key, index) === 'number'
+          ? (getChannelValue(initialValue, key, index) as number)
+          : 0,
+        { accessor: field.accessor }
+      ),
+    ])
+  )
+
+  let syncingFromParent = false
+  const parentToChannels = field.subscribe(value => {
+    if (typeof value === 'function') return
+    syncingFromParent = true
+    for (const [index, key] of channelKeys.entries()) {
+      const channelValue = getChannelValue(value, key, index)
+      const channelField = field.channelFields[key]
+      if (typeof channelValue === 'number' && channelField.value !== channelValue) {
+        // This is an internal mirror of an already-applied parent value. Using
+        // setValue() here would mark the owning operator dirty. That is fatal
+        // for output vectors: publishing an output would immediately dirty the
+        // operator that just produced it, causing it to execute again forever.
+        // User edits and channel connections still go through setValue().
+        channelField.next(channelValue)
+      }
+    }
+    syncingFromParent = false
+  })
+  field.subscriptions.set('__parentToChannels', parentToChannels)
+
+  const channelsToParent = combineLatest(
+    channelKeys.map(key => field.channelFields[key])
+  ).subscribe(channelValues => {
+    if (syncingFromParent) return
+
+    const createValue = (values: unknown[]) =>
+      field.returnType === 'tuple'
+        ? values
+        : Object.fromEntries(channelKeys.map((key, index) => [key, values[index]]))
+
+    const hasAccessor = channelValues.some(value => typeof value === 'function')
+    const nextValue = hasAccessor
+      ? (...args: unknown[]) =>
+          createValue(
+            channelValues.map(value =>
+              typeof value === 'function'
+                ? (value as (...args: unknown[]) => unknown)(...args)
+                : value
+            )
+          )
+      : createValue(channelValues)
+
+    // Vector schemas accept this value shape (or an accessor when enabled), but the
+    // concrete tuple/object union varies by vector class.
+    field.setValue(nextValue as never)
+  })
+  field.subscriptions.set('__channelsToParent', channelsToParent)
+}
+
+export function hasChannelFields(
+  // biome-ignore lint/suspicious/noExplicitAny: type guard applies across all concrete Field schemas
+  field: Field<any, any>
+  // biome-ignore lint/suspicious/noExplicitAny: preserve the concrete field schema after narrowing
+): field is Field<any, any> & ChannelFieldOwner {
+  return 'channelFields' in field && field.channelFields !== undefined
+}
+
 // TODO: decide on storage and serialization format
 // How to convert to and from hex, rgb, hsl, deck [r,g,b,a] etc.
 export class ColorField extends Field<z.ZodString> {
@@ -919,10 +1005,12 @@ export class Point3DField extends Field<
   static channelKeys = ['lng', 'lat', 'alt'] as const
 
   returnType: 'object' | 'tuple' = 'object'
+  channelFields: Record<string, NumberField> = {}
 
   constructor(override?: Point3DFieldValue, options?: PointFieldOptions) {
     super(override, options)
     this.returnType = options?.returnType || 'object'
+    initializeChannelFields(this, Point3DField.channelKeys)
   }
 
   createSchema({ returnType = 'object' }: PointFieldOptions = {}) {
@@ -1088,10 +1176,12 @@ export class Point2DField extends Field<
   static channelKeys = ['lng', 'lat'] as const
 
   returnType: 'object' | 'tuple' = 'object'
+  channelFields: Record<string, NumberField> = {}
 
   constructor(override?: Point2DFieldValue, options?: PointFieldOptions) {
     super(override, options)
     this.returnType = options?.returnType || 'object'
+    initializeChannelFields(this, Point2DField.channelKeys)
   }
 
   createSchema({ returnType = 'object' }: PointFieldOptions = {}) {
@@ -1255,9 +1345,11 @@ export class Vec2Field extends Field<
   static defaultValue = { x: 0, y: 0 }
   static channelKeys = ['x', 'y'] as const
   returnType: 'object' | 'tuple' = 'object'
+  channelFields: Record<string, NumberField> = {}
   constructor(override?: Vec2FieldOverride, options?: Vec2FieldOptions) {
     super(override, options)
     this.returnType = options?.returnType || 'object'
+    initializeChannelFields(this, Vec2Field.channelKeys)
   }
   createSchema({ returnType = 'object' }: Vec2FieldOptions = {}) {
     const noop = (val: unknown) => val
@@ -1291,9 +1383,11 @@ export class Vec3Field extends Field<
   static defaultValue = { x: 0, y: 0, z: 0 }
   static channelKeys = ['x', 'y', 'z'] as const
   returnType: 'object' | 'tuple' = 'object'
+  channelFields: Record<string, NumberField> = {}
   constructor(override?: Vec3FieldOverride, options?: Vec2FieldOptions) {
     super(override, options)
     this.returnType = options?.returnType || 'object'
+    initializeChannelFields(this, Vec3Field.channelKeys)
   }
   createSchema({ returnType = 'object' }: Vec2FieldOptions = {}) {
     const noop = (val: unknown) => val

@@ -1,5 +1,5 @@
 {
-  "version": 18,
+  "version": 20,
   "edges": [
     {
       "id": "/maplibre-basemap.maplibre->/deck-renderer.basemap",
