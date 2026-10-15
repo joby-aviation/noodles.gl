@@ -59,6 +59,10 @@ See [API Keys](./api-keys.md) for which Google APIs to enable.
 - **MathOp**: Perform a mathematical operation
 - **Debugging**: Use `ViewerOp` and `ConsoleOp` to inspect intermediate results
 
+## GeoJSON
+
+- **LineInterpolationOp**: Resample LineString and MultiLineString geometry with Catmull–Rom, cardinal, basis, natural, or monotone curves. Its turn-radius mode preserves straight legs and replaces corners with circular arcs measured in meters; short legs automatically limit the effective radius to prevent adjacent turns from overlapping.
+
 ## Organization
 
 - **ContainerOp**: Use containers to group related operators
