@@ -1747,6 +1747,7 @@ function DirectionsOpComponent({
   type,
 }: ReactFlowNodeProps<NodeDataJSON<DirectionsOp>> & { type: 'DirectionsOp' }) {
   const op = getOp(id as string)
+  const [, forceFieldVisibilityUpdate] = useState(0)
 
   // Reactive - automatically updates when keys change
   const hasMapboxKey = useKeysStore(state => state.hasKey('mapbox'))
@@ -1772,6 +1773,14 @@ function DirectionsOpComponent({
     prevHasMapboxKey.current = hasMapboxKey
     prevHasGoogleMapsKey.current = hasGoogleMapsKey
   }, [op, hasMapboxKey, hasGoogleMapsKey])
+
+  useEffect(() => {
+    if (!op) return
+    const subscriptions = [op.inputs.mode, op.inputs.departureMode].map(field =>
+      field.subscribe(() => forceFieldVisibilityUpdate(value => value + 1))
+    )
+    return () => subscriptions.forEach(subscription => subscription.unsubscribe())
+  }, [op])
 
   if (!op) return null
 

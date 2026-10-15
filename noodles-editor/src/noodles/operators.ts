@@ -2735,13 +2735,34 @@ export class GeocoderOp extends Operator<GeocoderOp> {
 
 export class DirectionsOp extends Operator<DirectionsOp> {
   static displayName = 'Directions'
-  static description = 'Get driving or transit directions between two points'
+  static description = 'Get driving, traffic-aware driving, or transit directions between points'
   asDownload = () => this.outputData
   createInputs() {
     return {
       origin: new Point2DField(),
       destination: new Point2DField(),
-      mode: new StringLiteralField('transit', { values: ['driving', 'transit'] }),
+      mode: new StringLiteralField('transit', {
+        values: [
+          { value: 'driving', label: 'Driving (Mapbox / OSRM)' },
+          { value: 'driving-traffic', label: 'Driving with traffic (Google)' },
+          { value: 'transit', label: 'Transit (Google)' },
+        ],
+      }),
+      departureMode: new StringLiteralField('now', {
+        values: [
+          { value: 'now', label: 'Depart now' },
+          { value: 'scheduled', label: 'Schedule departure' },
+        ],
+      }),
+      departureTime: new DateField(),
+      trafficModel: new StringLiteralField('best-guess', {
+        values: [
+          { value: 'best-guess', label: 'Best guess' },
+          { value: 'pessimistic', label: 'Pessimistic' },
+          { value: 'optimistic', label: 'Optimistic' },
+        ],
+      }),
+      avoidTolls: new BooleanField(false),
     }
   }
   createOutputs() {
@@ -2753,21 +2774,40 @@ export class DirectionsOp extends Operator<DirectionsOp> {
           durationFormatted: new StringField('', { optional: true }),
           timestamps: new ArrayField(new NumberField()),
           path: new ArrayField(new Point2DField([0, 0], { returnType: 'tuple' })),
+          hasTolls: new BooleanField(false, { optional: true }),
+          tollAmount: new NumberField(0, { min: 0, optional: true }),
+          tollCurrency: new StringField('', { optional: true }),
         },
         { passthrough: true }
       ),
     }
   }
+  override isFieldVisible(name: string): boolean {
+    if (name === 'departureMode' || name === 'trafficModel' || name === 'avoidTolls') {
+      return this.inputs.mode.value === 'driving-traffic'
+    }
+    if (name === 'departureTime') {
+      return (
+        this.inputs.mode.value === 'driving-traffic' &&
+        this.inputs.departureMode.value === 'scheduled'
+      )
+    }
+    return super.isFieldVisible(name)
+  }
   async execute({
     origin,
     destination,
     mode,
+    departureMode,
+    departureTime,
+    trafficModel,
+    avoidTolls,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     // Guard on default values
     if (
       (origin.lng === 0 && origin.lat === 0) ||
       (destination.lng === 0 && destination.lat === 0) ||
-      !(mode === 'driving' || mode === 'transit')
+      !(mode === 'driving' || mode === 'driving-traffic' || mode === 'transit')
     ) {
       console.debug('Invalid origin, destination or mode', origin, destination, mode)
       return { route: { timestamps: [], path: [] } }
@@ -2777,6 +2817,10 @@ export class DirectionsOp extends Operator<DirectionsOp> {
       origin,
       destination,
       mode,
+      departureTime:
+        mode === 'driving-traffic' && departureMode === 'scheduled' ? departureTime : undefined,
+      trafficModel,
+      avoidTolls,
     })
 
     return { route }

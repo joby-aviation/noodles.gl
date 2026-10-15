@@ -16,7 +16,7 @@ The first source with a valid key is used automatically.
 | Key | Purpose | Required For |
 |-----|---------|--------------|
 | Mapbox Access Token | Basemaps, directions | MaplibreBasemapOp with Mapbox styles |
-| Google Maps API Key | Places geocoding | Create Point wizard, DirectionsOp |
+| Google Maps API Key | Places and routing | Create Point wizard, traffic-aware driving, transit directions |
 | Anthropic API Key | Claude AI assistant | [AI chat features](./ai-assistant.md) |
 
 ### Mapbox Access Token
@@ -25,7 +25,7 @@ Used for Mapbox basemap styles and routing directions. Create a free account at 
 
 ### Google Maps API Key
 
-Required for the Create Point geocoding wizard and DirectionsOp. Enable the Places API in the [Google Cloud Console](https://console.cloud.google.com/).
+Required for the Create Point geocoding wizard, traffic-aware driving, and transit directions. Enable the Maps JavaScript API, Routes API, and Places API in the [Google Cloud Console](https://console.cloud.google.com/).
 
 ### Anthropic API Key
 
