@@ -1,16 +1,16 @@
 import { act, cleanup, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { AUTH_MESSAGE_TYPE } from '../noodles/openrouter-oauth'
 import { OpenRouterCallback } from './openrouter-callback'
 
 const KEY = 'sk-or-v1-secret-test-key'
 const CODE = 'secret-auth-code'
 
-vi.mock('../noodles/openrouter-oauth', () => ({
-  AUTH_MESSAGE_TYPE: 'noodles-openrouter-auth',
+// Partial mock so the message contract (AUTH_MESSAGE_TYPE) stays the real one
+vi.mock('../noodles/openrouter-oauth', async importOriginal => ({
+  ...(await importOriginal<typeof import('../noodles/openrouter-oauth')>()),
   adoptOpenRouterKey: vi.fn(),
-  callbackUrl: () => 'http://localhost/openrouter/callback',
   completeOpenRouterAuth: vi.fn(async () => ({ ok: true, key: KEY })),
-  takeReturnPath: () => '/',
 }))
 
 describe('OpenRouterCallback', () => {
@@ -43,7 +43,7 @@ describe('OpenRouterCallback', () => {
     expect(logged).not.toContain(KEY)
     expect(logged).not.toContain(CODE)
     expect(window.opener.postMessage).toHaveBeenCalledWith(
-      { type: 'noodles-openrouter-auth', key: KEY },
+      { type: AUTH_MESSAGE_TYPE, key: KEY },
       window.location.origin
     )
   })
