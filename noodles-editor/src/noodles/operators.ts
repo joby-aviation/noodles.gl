@@ -2743,9 +2743,9 @@ export class DirectionsOp extends Operator<DirectionsOp> {
       destination: new Point2DField(),
       mode: new StringLiteralField('transit', {
         values: [
-          { value: 'driving', label: 'Driving' },
-          { value: 'driving-traffic', label: 'Driving (traffic)' },
-          { value: 'transit', label: 'Transit' },
+          { value: 'driving', label: 'Driving (Mapbox / OSRM)' },
+          { value: 'driving-traffic', label: 'Driving with traffic (Google)' },
+          { value: 'transit', label: 'Transit (Google)' },
         ],
       }),
       departureMode: new StringLiteralField('now', {
