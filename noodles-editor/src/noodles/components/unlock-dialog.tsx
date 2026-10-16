@@ -14,7 +14,7 @@ export const UnlockDialog = ({ open, nodeName, onConfirm, onClose }: UnlockDialo
   <Dialog.Root open={open} onOpenChange={isOpen => !isOpen && onClose()}>
     <Dialog.Portal>
       <Dialog.Overlay className={s.dialogOverlay} />
-      <Dialog.Content className={s.dialogContent}>
+      <Dialog.Content className={cx(s.dialogContent, 'nokey')}>
         <Dialog.Title className={s.dialogTitle}>Unlock {nodeName}?</Dialog.Title>
         <Dialog.Description className={s.dialogDescription}>
           Unlocking runs this node again with its current inputs and replaces the result it kept.

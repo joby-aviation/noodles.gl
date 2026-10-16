@@ -323,6 +323,17 @@ export function useUndoRedo(options?: UseUndoRedoOptions) {
 
     debugHistoryUndo('Undoing: %s', entry.description)
 
+    // A lock change doesn't touch the graph. Restoring its graph snapshot would also revert
+    // edits that aren't in the history, such as renames.
+    if (entry.lockChange) {
+      undoLockChange(entry.lockChange)
+      setUndoRedoState(prev => ({ ...prev, currentIndex: prev.currentIndex - 1 }))
+      queueMicrotask(() => {
+        isRestoringRef.current = false
+      })
+      return
+    }
+
     // Calculate the changes needed to restore the state
     const { nodes: currentNodes, edges: currentEdges } = getSnapshot()
 
@@ -414,10 +425,6 @@ export function useUndoRedo(options?: UseUndoRedoOptions) {
       applyOperatorInputs(entry.operatorStateBefore)
     }
 
-    if (entry.lockChange) {
-      undoLockChange(entry.lockChange)
-    }
-
     setUndoRedoState(prev => ({
       ...prev,
       currentIndex: prev.currentIndex - 1,
@@ -436,6 +443,15 @@ export function useUndoRedo(options?: UseUndoRedoOptions) {
     isRestoringRef.current = true
 
     debugHistoryRedo('Redoing: %s', entry.description)
+
+    if (entry.lockChange) {
+      redoLockChange(entry.lockChange)
+      setUndoRedoState(prev => ({ ...prev, currentIndex: prev.currentIndex + 1 }))
+      queueMicrotask(() => {
+        isRestoringRef.current = false
+      })
+      return
+    }
 
     // Calculate the changes needed to restore the "after" state
     const { nodes: currentNodes, edges: currentEdges } = getSnapshot()
@@ -517,10 +533,6 @@ export function useUndoRedo(options?: UseUndoRedoOptions) {
     // Restore operator property values if the entry has a snapshot
     if (entry.operatorStateAfter) {
       applyOperatorInputs(entry.operatorStateAfter)
-    }
-
-    if (entry.lockChange) {
-      redoLockChange(entry.lockChange)
     }
 
     setUndoRedoState(prev => ({

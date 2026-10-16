@@ -5,6 +5,8 @@ import type { OpId } from './id-utils'
 import { getBaseName } from './path-utils'
 
 export interface LockChange {
+  // The operator, which keeps its object through renames, and its id when changed
+  op: Operator<IOperator>
   opId: OpId
   // Lock state after the change
   locked: boolean
@@ -31,14 +33,21 @@ export function setLockedWithHistory(op: Operator<IOperator>, locked: boolean) {
   const outputsBefore = !locked && op.hasOutput ? op.outputData : undefined
   op.locked.next(locked)
   _lockChangeCallback?.(`${locked ? 'Lock' : 'Unlock'} ${getBaseName(op.id)}`, {
+    op,
     opId: op.id,
     locked,
     outputsBefore,
   })
 }
 
+// Renames aren't in the undo history, so follow the operator rather than its old id.
+// If it was deleted and the delete undone, a new operator holds the old id.
+function findOp(change: LockChange) {
+  return getOp(change.op.id) === change.op ? change.op : getOp(change.opId)
+}
+
 export function undoLockChange(change: LockChange) {
-  const op = getOp(change.opId)
+  const op = findOp(change)
   if (!op) {
     debugHistory('Cannot undo lock change, %s not found', change.opId)
     return
@@ -63,7 +72,7 @@ export function undoLockChange(change: LockChange) {
 }
 
 export function redoLockChange(change: LockChange) {
-  const op = getOp(change.opId)
+  const op = findOp(change)
   if (!op) {
     debugHistory('Cannot redo lock change, %s not found', change.opId)
     return

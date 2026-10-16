@@ -7,7 +7,7 @@ import { createElement, useRef } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useTimelineStore } from '../../timeline/timeline-store'
 import { MathOp } from '../operators'
-import { clearOps, setOp } from '../store'
+import { clearOps, deleteOp, getOp, setOp } from '../store'
 import type { GraphRef } from '../types'
 import { registerLockChangeCallback, setLockedWithHistory } from './lock-history'
 import { useUndoRedo } from './use-undo-redo'
@@ -407,6 +407,34 @@ describe('useUndoRedo — lock changes', () => {
     expect(op.locked.value).toBe(false)
     await expect(op.pull()).resolves.toEqual({ result: 13 })
     expect(execute).toHaveBeenCalledTimes(1)
+  })
+
+  it('undo and redo follow a renamed operator and leave the graph alone', async () => {
+    const nodes = [{ id: '/foo', type: 'MathOp', position: { x: 0, y: 0 }, data: {} }]
+    const { result } = renderHook(() => useTestHookWithGraphRef(nodes, []), { wrapper })
+    const onNodesChange = vi.fn()
+    await act(async () => {
+      result.current.storeApi.setState({ onNodesChange })
+    })
+    registerLockChangeCallback((desc, change) =>
+      result.current.undoRedo.recordLockChange(desc, change)
+    )
+    const op = new MathOp('/foo', { operator: 'add', a: 2, b: 3 })
+    setOp(op.id, op)
+    act(() => setLockedWithHistory(op, true))
+
+    // Rename the way updateOperatorId does, which records no history
+    setOp('/bar', op)
+    op.id = '/bar'
+    deleteOp('/foo')
+    nodes[0] = { ...nodes[0], id: '/bar' }
+
+    act(() => result.current.undoRedo.undo())
+    expect(op.locked.value).toBe(false)
+    act(() => result.current.undoRedo.redo())
+    expect(op.locked.value).toBe(true)
+    expect(getOp('/bar')).toBe(op)
+    expect(onNodesChange).not.toHaveBeenCalled()
   })
 
   it('undo lock unlocks with current inputs and redo locks again', async () => {

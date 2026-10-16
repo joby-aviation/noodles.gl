@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { ReactFlowProvider } from '@xyflow/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { MathOp } from '../../operators'
+import { shouldBlockKeyboardShortcut } from '../../utils/input-detection'
 import { registerLockChangeCallback } from '../../utils/lock-history'
 import { NodeHeader } from '../op-components'
 
@@ -42,6 +43,19 @@ describe('NodeHeader unlock confirmation', () => {
       'Unlock drive-directions',
       expect.objectContaining({ locked: false, outputsBefore: { result: 5 } })
     )
+  })
+
+  it('keeps graph shortcuts out of the dialog', async () => {
+    const op = new MathOp('/drive-directions', { operator: 'add', a: 2, b: 3 })
+    await op.pull()
+    op.locked.next(true)
+    renderHeader(op)
+
+    fireEvent.click(lockButton())
+    const event = new KeyboardEvent('keydown', { key: 'v', bubbles: true })
+    screen.getByRole('button', { name: 'Unlock' }).dispatchEvent(event)
+
+    expect(shouldBlockKeyboardShortcut(event)).toBe(true)
   })
 
   it('keeps the node locked and records nothing on Cancel', async () => {
