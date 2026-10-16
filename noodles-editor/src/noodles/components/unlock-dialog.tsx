@@ -18,7 +18,6 @@ export const UnlockDialog = ({ open, nodeName, onConfirm, onClose }: UnlockDialo
         <Dialog.Title className={s.dialogTitle}>Unlock {nodeName}?</Dialog.Title>
         <Dialog.Description className={s.dialogDescription}>
           Unlocking runs this node again with its current inputs and replaces the result it kept.
-          Slow or paid calls, such as directions, run again.
         </Dialog.Description>
         <div className={s.dialogRightSlot}>
           <button type="button" className={cx(s.dialogButton, s.violet)} onClick={onClose}>
