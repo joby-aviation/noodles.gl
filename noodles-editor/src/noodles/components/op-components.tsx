@@ -270,8 +270,14 @@ export const edgeComponents = {
   MultiInputEdge: MultiInputEdgeComponent,
 } as const as ReactFlowEdgeTypes
 
+// A locked node ignores its inputs, so the edges into it fade until it's unlocked
+function useTargetLocked(target: string) {
+  return useLocked(getOp(target))
+}
+
 function DefaultEdgeComponent({
   id,
+  target,
   sourceX,
   sourceY,
   targetX,
@@ -283,6 +289,7 @@ function DefaultEdgeComponent({
 }: EdgeProps) {
   const targetedEdge = useUIStore(s => s.targetedEdge)
   const nodeDragState = useUIStore(s => s.nodeDragState)
+  const targetLocked = useTargetLocked(target)
   const [edgePath] = getBezierPath({
     sourceX,
     sourceY,
@@ -306,11 +313,19 @@ function DefaultEdgeComponent({
       : s.targetedEdgeIncompatible
   }
 
-  return <BaseEdge path={edgePath} markerEnd={markerEnd} style={style} className={edgeClassName} />
+  return (
+    <BaseEdge
+      path={edgePath}
+      markerEnd={markerEnd}
+      style={style}
+      className={edgeClassName ?? (targetLocked ? s.lockedEdge : undefined)}
+    />
+  )
 }
 
 function ReferenceEdgeComponent({
   id,
+  target,
   sourceX,
   sourceY,
   targetX,
@@ -319,6 +334,7 @@ function ReferenceEdgeComponent({
   markerEnd,
 }: EdgeProps) {
   const isInspected = useUIStore(s => s.inspectedReferenceEdge?.id === id)
+  const targetLocked = useTargetLocked(target)
   const [edgePath] = getStraightPath({
     sourceX,
     sourceY,
@@ -330,7 +346,10 @@ function ReferenceEdgeComponent({
     <BaseEdge
       path={edgePath}
       markerEnd={markerEnd}
-      className={cx(s.referenceEdge, { [s.inspectedReferenceEdge]: isInspected })}
+      className={cx(s.referenceEdge, {
+        [s.inspectedReferenceEdge]: isInspected,
+        [s.lockedEdge]: targetLocked && !isInspected,
+      })}
       style={style}
     />
   )
@@ -338,6 +357,7 @@ function ReferenceEdgeComponent({
 
 function MultiInputEdgeComponent({
   id,
+  target,
   sourceX,
   sourceY,
   targetX,
@@ -350,6 +370,7 @@ function MultiInputEdgeComponent({
 }: EdgeProps) {
   const targetedEdge = useUIStore(s => s.targetedEdge)
   const nodeDragState = useUIStore(s => s.nodeDragState)
+  const targetLocked = useTargetLocked(target)
 
   // Anchor the edge on its slot within the grown handle. React Flow reports targetY at the
   // handle's vertical center; slotOffsetY spreads the group symmetrically around it using
@@ -377,7 +398,14 @@ function MultiInputEdgeComponent({
       : s.targetedEdgeIncompatible
   }
 
-  return <BaseEdge path={edgePath} markerEnd={markerEnd} style={style} className={edgeClassName} />
+  return (
+    <BaseEdge
+      path={edgePath}
+      markerEnd={markerEnd}
+      style={style}
+      className={edgeClassName ?? (targetLocked ? s.lockedEdge : undefined)}
+    />
+  )
 }
 
 export const resizeableNodes = [

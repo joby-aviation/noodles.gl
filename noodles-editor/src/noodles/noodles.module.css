@@ -1114,6 +1114,10 @@
   stroke-width: 3;
 }
 
+.lockedEdge {
+  stroke-opacity: 0.3;
+}
+
 .targetedEdge {
   stroke: #3b82f6;
   stroke-width: 3;
