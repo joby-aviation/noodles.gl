@@ -956,8 +956,8 @@ export function getNoodles(): Visualization {
 
   // Register platform-specific shortcuts
   const isMac = useMemo(() => navigator.platform.toUpperCase().indexOf('MAC') >= 0, [])
-  useKeyboardShortcut(isMac ? 'cmd+a' : 'ctrl+a', selectAllNodes, [selectAllNodes, isMac])
-  useKeyboardShortcut(isMac ? 'cmd+l' : 'ctrl+l', applyManualLayout, [applyManualLayout, isMac])
+  useKeyboardShortcut(isMac ? 'cmd+a' : 'ctrl+a', selectAllNodes, [selectAllNodes])
+  useKeyboardShortcut(isMac ? 'cmd+l' : 'ctrl+l', applyManualLayout, [applyManualLayout])
 
   const [showOverlay, setShowOverlay] = useState(true)
   const [showDebugInfo, setShowDebugInfo] = useState(false)

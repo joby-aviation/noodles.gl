@@ -20,12 +20,7 @@ interface ShortcutRegistration {
   useKeyDown: boolean // true for modifier shortcuts, false for single keys
 }
 
-// Parse a shortcut string into a descriptor.
-// Supports formats like: "a", "cmd+a", "ctrl+a", "ctrl+shift+s", "meta+a"
-// - "cmd" and "meta" both map to metaKey (Cmd on Mac)
-// - "ctrl" maps to ctrlKey
-// - "shift" maps to shiftKey
-// - "alt" and "option" map to altKey
+// Parses shortcut strings like "cmd+a", "ctrl+shift+s". Cmd/meta map to metaKey, ctrl to ctrlKey.
 function parseShortcut(shortcut: string): ShortcutDescriptor {
   const parts = shortcut.toLowerCase().split('+')
   const descriptor: ShortcutDescriptor = {
