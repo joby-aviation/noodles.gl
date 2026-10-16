@@ -288,6 +288,17 @@ describe('Locked operators', () => {
 
     expect(upstreamPull).not.toHaveBeenCalled()
   })
+
+  it('serves outputs set with setOutputValues without executing', async () => {
+    const op = new MathOp('/math', { operator: 'add', a: 2, b: 3 }, true)
+    const execute = vi.spyOn(op, 'execute')
+
+    op.setOutputValues({ result: 42 })
+
+    expect(op.hasOutput).toBe(true)
+    await expect(op.pull()).resolves.toEqual({ result: 42 })
+    expect(execute).not.toHaveBeenCalled()
+  })
 })
 
 describe('Connection error tracking', () => {

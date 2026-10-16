@@ -336,6 +336,15 @@ export abstract class Operator<OP extends IOperator> {
     return this._hasOutput
   }
 
+  // Put known output values back without executing, e.g. when undo relocks an operator.
+  // A locked operator then serves them from pull(). Values are trusted, not schema-checked.
+  setOutputValues(values: Record<string, unknown>) {
+    for (const [key, field] of Object.entries(this.outputs)) {
+      if (key in values && field.value !== values[key]) field.next(values[key])
+    }
+    this._hasOutput = true
+  }
+
   // Left open for sub-classes to override
   onError(_err: Error) {}
 

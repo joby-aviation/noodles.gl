@@ -71,6 +71,7 @@ import {
   evaluateEnableExpression,
   getEnableExpressionDependencies,
 } from '../utils/enable-expression-evaluator'
+import { setLockedWithHistory, shouldConfirmUnlock } from '../utils/lock-history'
 import { type MultiInputEdgeData, slotOffsetY } from '../utils/multi-input-utils'
 import type { NodeType } from '../utils/node-creation-utils'
 import { convertViewerToTableEditor } from '../utils/operator-conversion'
@@ -87,6 +88,7 @@ import previewStyles from './handle-preview.module.css'
 import { MapStyleConfiguratorOpComponent } from './map-style-configurator-op'
 import RampEditor, { type RampStop } from './ramp-editor'
 import { TableEditor } from './table-editor'
+import { UnlockDialog } from './unlock-dialog'
 
 const isPlainObject = (v: unknown): v is Record<string, unknown> =>
   v !== null && typeof v === 'object' && Object.getPrototypeOf(v) === Object.prototype
@@ -1357,8 +1359,17 @@ export function NodeHeader({
   const exprPopoverOpen =
     exprErrorKey !== null && ((exprAutoShow && !exprDismissed) || headerHovered)
 
+  const [confirmingUnlock, setConfirmingUnlock] = useState(false)
   const toggleLock = () => {
-    op.locked.next(!op.locked.value)
+    if (shouldConfirmUnlock(op)) {
+      setConfirmingUnlock(true)
+      return
+    }
+    setLockedWithHistory(op, !op.locked.value)
+  }
+  const confirmUnlock = () => {
+    setConfirmingUnlock(false)
+    setLockedWithHistory(op, false)
   }
 
   useEffect(() => {
@@ -1594,6 +1605,12 @@ export function NodeHeader({
           text
         />
       </div>
+      <UnlockDialog
+        open={confirmingUnlock}
+        nodeName={baseName}
+        onConfirm={confirmUnlock}
+        onClose={() => setConfirmingUnlock(false)}
+      />
     </div>
   )
 }

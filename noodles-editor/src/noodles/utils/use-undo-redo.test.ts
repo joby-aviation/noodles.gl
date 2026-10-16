@@ -6,7 +6,10 @@ import { ReactFlowProvider, useStoreApi } from '@xyflow/react'
 import { createElement, useRef } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useTimelineStore } from '../../timeline/timeline-store'
+import { MathOp } from '../operators'
+import { clearOps, setOp } from '../store'
 import type { GraphRef } from '../types'
+import { registerLockChangeCallback, setLockedWithHistory } from './lock-history'
 import { useUndoRedo } from './use-undo-redo'
 
 // Wrapper providing the ReactFlow context required by useUndoRedo
@@ -313,5 +316,115 @@ describe('useUndoRedo — graphRef captures full state across scopes', () => {
     expect(wouldRestore).toContain('/container')
     expect(wouldRestore).toContain('/container/child1')
     expect(wouldRestore).toContain('/container/child2')
+  })
+})
+
+describe('useUndoRedo — lock changes', () => {
+  afterEach(() => {
+    registerLockChangeCallback(undefined)
+    clearOps()
+  })
+
+  async function setupLockedOp() {
+    const { result } = renderHook(() => useTestHook(), { wrapper })
+    registerLockChangeCallback((desc, change) =>
+      result.current.undoRedo.recordLockChange(desc, change)
+    )
+    const op = new MathOp('/drive-directions', { operator: 'add', a: 2, b: 3 })
+    setOp(op.id, op)
+    await op.pull()
+    op.locked.next(true)
+    op.inputs.a.setValue(10)
+    return { result, op }
+  }
+
+  it('records lock and unlock as separate entries', async () => {
+    const { result, op } = await setupLockedOp()
+
+    act(() => setLockedWithHistory(op, false))
+    act(() => setLockedWithHistory(op, true))
+
+    expect(result.current.undoRedo.history.map(e => e.description)).toEqual([
+      'Unlock drive-directions',
+      'Lock drive-directions',
+    ])
+  })
+
+  it('does not record a no-op lock change', async () => {
+    const { result, op } = await setupLockedOp()
+
+    act(() => setLockedWithHistory(op, true))
+
+    expect(result.current.undoRedo.history).toHaveLength(0)
+  })
+
+  it('undo unlock restores the previous output without executing', async () => {
+    const { result, op } = await setupLockedOp()
+
+    act(() => setLockedWithHistory(op, false))
+    await expect(op.pull()).resolves.toEqual({ result: 13 })
+
+    const execute = vi.spyOn(op, 'execute')
+    act(() => result.current.undoRedo.undo())
+
+    expect(op.locked.value).toBe(true)
+    expect(op.outputs.result.value).toBe(5)
+    await expect(op.pull()).resolves.toEqual({ result: 5 })
+    expect(execute).not.toHaveBeenCalled()
+  })
+
+  it('undo unlock keeps the previous output when the unlocked run lands afterwards', async () => {
+    const { result, op } = await setupLockedOp()
+    let finishRun: (value: { result: number }) => void = () => {}
+    const execute = vi
+      .spyOn(op, 'execute')
+      .mockImplementation(() => new Promise<{ result: number }>(resolve => (finishRun = resolve)))
+
+    act(() => setLockedWithHistory(op, false))
+    const run = op.pull()
+    await vi.waitFor(() => expect(execute).toHaveBeenCalled())
+    act(() => result.current.undoRedo.undo())
+    await act(async () => {
+      finishRun({ result: 13 })
+      await run
+    })
+
+    expect(op.outputs.result.value).toBe(5)
+    await expect(op.pull()).resolves.toEqual({ result: 5 })
+  })
+
+  it('redo unlock unlocks and executes again', async () => {
+    const { result, op } = await setupLockedOp()
+
+    act(() => setLockedWithHistory(op, false))
+    await op.pull()
+    act(() => result.current.undoRedo.undo())
+    await op.pull()
+
+    const execute = vi.spyOn(op, 'execute')
+    act(() => result.current.undoRedo.redo())
+
+    expect(op.locked.value).toBe(false)
+    await expect(op.pull()).resolves.toEqual({ result: 13 })
+    expect(execute).toHaveBeenCalledTimes(1)
+  })
+
+  it('undo lock unlocks with current inputs and redo locks again', async () => {
+    const { result, op } = await setupLockedOp()
+    act(() => op.locked.next(false))
+    await op.pull()
+
+    act(() => setLockedWithHistory(op, true))
+    op.inputs.a.setValue(20)
+    await expect(op.pull()).resolves.toEqual({ result: 13 })
+
+    act(() => result.current.undoRedo.undo())
+    expect(op.locked.value).toBe(false)
+    await expect(op.pull()).resolves.toEqual({ result: 23 })
+
+    act(() => result.current.undoRedo.redo())
+    expect(op.locked.value).toBe(true)
+    op.inputs.a.setValue(30)
+    await expect(op.pull()).resolves.toEqual({ result: 23 })
   })
 })
