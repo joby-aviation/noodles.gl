@@ -84,6 +84,32 @@ export function TopMenuBar({
 }: TopMenuBarProps) {
   const settingsDialogOpen = useUIStore(state => state.settingsDialogOpen)
   const setSettingsDialogOpen = useUIStore(state => state.setSettingsDialogOpen)
+
+  // Wrap auto-layout changes with analytics tracking
+  const handleAutoLayoutChange = useCallback(
+    (newSettings: AutoLayoutSettings) => {
+      const oldSettings = autoLayout
+      onChangeAutoLayout?.(newSettings)
+
+      // Track what changed
+      if (oldSettings?.enabled !== newSettings.enabled) {
+        analytics.track('auto_layout_toggled', { enabled: newSettings.enabled })
+      }
+      if (oldSettings?.algorithm !== newSettings.algorithm) {
+        analytics.track('auto_layout_algorithm_changed', {
+          from: oldSettings?.algorithm,
+          to: newSettings.algorithm,
+        })
+      }
+      if (oldSettings?.direction !== newSettings.direction) {
+        analytics.track('auto_layout_direction_changed', {
+          from: oldSettings?.direction,
+          to: newSettings.direction,
+        })
+      }
+    },
+    [autoLayout, onChangeAutoLayout]
+  )
   const mapMode = useUIStore(state => state.mapMode)
   const setMapMode = useUIStore(state => state.setMapMode)
   const triggerSidebarSearch = useUIStore(state => state.triggerSidebarSearch)
@@ -513,7 +539,7 @@ export function TopMenuBar({
                               className={s.dropdownItem}
                               checked={autoLayout?.enabled}
                               onCheckedChange={checked =>
-                                onChangeAutoLayout?.({ ...autoLayout!, enabled: checked })
+                                handleAutoLayoutChange({ ...autoLayout!, enabled: checked })
                               }
                               disabled={!autoLayout || !onChangeAutoLayout}
                             >
@@ -544,7 +570,7 @@ export function TopMenuBar({
                                   <DropdownMenu.RadioGroup
                                     value={autoLayout?.algorithm}
                                     onValueChange={value =>
-                                      onChangeAutoLayout?.({
+                                      handleAutoLayoutChange({
                                         ...autoLayout!,
                                         algorithm: value as 'dagre' | 'd3-force' | 'semantic',
                                       })
@@ -601,7 +627,7 @@ export function TopMenuBar({
                                   <DropdownMenu.RadioGroup
                                     value={autoLayout?.direction}
                                     onValueChange={value =>
-                                      onChangeAutoLayout?.({
+                                      handleAutoLayoutChange({
                                         ...autoLayout!,
                                         direction: value as 'LR' | 'TB',
                                       })

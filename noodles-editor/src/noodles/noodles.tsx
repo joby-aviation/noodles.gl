@@ -509,6 +509,16 @@ export function getNoodles(): Visualization {
     // Apply layout
     const layoutedNodes = layoutNodes(targetNodes, targetEdges, autoLayout)
 
+    // Track layout application
+    analytics.track('layout_applied', {
+      algorithm: autoLayout.algorithm,
+      direction: autoLayout.direction,
+      nodeCount: targetNodes.length,
+      edgeCount: targetEdges.length,
+      isManual: true,
+      scope: selectedNodes.length >= 2 ? 'selection' : 'container',
+    })
+
     // Update node positions
     setNodes(currentNodes =>
       currentNodes.map(node => {
@@ -552,6 +562,16 @@ export function getNoodles(): Visualization {
 
     // Apply layout
     const layoutedNodes = layoutNodes(containerNodes, containerEdges, autoLayout)
+
+    // Track automatic layout application
+    analytics.track('layout_applied', {
+      algorithm: autoLayout.algorithm,
+      direction: autoLayout.direction,
+      nodeCount: containerNodes.length,
+      edgeCount: containerEdges.length,
+      isManual: false,
+      scope: 'container',
+    })
 
     // Update node positions
     setNodes(currentNodes =>
