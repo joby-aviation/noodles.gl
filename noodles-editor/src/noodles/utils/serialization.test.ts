@@ -326,7 +326,7 @@ describe('serializeNodes', () => {
     expect(result.height).toEqual(200)
   })
 
-  it('serializes an inherited TableEditor schema after the schema edge is disconnected', () => {
+  it('serializes a TableEditor schema as local state without a schema edge', () => {
     const schema = {
       columns: [
         { name: 'Location', type: 'string' as const, defaultValue: '' },
@@ -334,12 +334,7 @@ describe('serializeNodes', () => {
       ],
     }
     const source = new TableEditorOp('/source', { schema }, false)
-    const target = new TableEditorOp('/target', {}, false)
-    const schemaEdgeId = '/source.out.schema->/target.par.schema'
-
-    source.outputs.schema.setValue(schema)
-    target.inputs.schema.addConnection(schemaEdgeId, source.outputs.schema)
-    target.inputs.schema.removeConnection(schemaEdgeId, 'reference')
+    const target = new TableEditorOp('/target', { schema }, false)
     setOp('/source', source)
     setOp('/target', target)
 
@@ -374,6 +369,19 @@ describe('serializeNodes', () => {
     )
 
     expect(serialized.data.inputs.schema).toEqual(schema)
+  })
+
+  it('does not persist transient migration diagnostics', () => {
+    const serialized = safeStringify({
+      version: 18,
+      migrationDiagnostics: [{ type: 'stale-edge', message: 'Removed a legacy edge' }],
+      data: { migrationDiagnostics: 'user column value' },
+    })
+
+    expect(JSON.parse(serialized)).toEqual({
+      version: 18,
+      data: { migrationDiagnostics: 'user column value' },
+    })
   })
 
   it('excludes ReferenceEdge connections when determining connected inputs', () => {

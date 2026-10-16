@@ -1320,6 +1320,27 @@ describe('derived reference edges (unmounted nodes)', () => {
     expect(child.inputs.code.subscriptions.has(refEdgeId)).toBe(true)
   })
 
+  it('rejects references to internal TableEditor schema state without crashing', () => {
+    const nodes = [
+      {
+        id: '/table',
+        type: 'TableEditorOp',
+        data: { inputs: { schema: { columns: [] }, data: [] } },
+        position: { x: 0, y: 0 },
+      },
+      {
+        id: '/code',
+        type: 'CodeOp',
+        data: { inputs: { code: "return op('/table').par.schema" } },
+        position: { x: 100, y: 0 },
+      },
+    ]
+
+    expect(() => transformGraph({ nodes, edges: [] })).not.toThrow()
+    expect(referenceDependencyModel.getSnapshot()).toEqual([])
+    expect(getExecutor()!.getUpstream('/code')).toEqual(new Set())
+  })
+
   it('keeps an unmounted container child reactive through its derived reference', async () => {
     const nodes = [
       {

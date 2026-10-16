@@ -154,6 +154,22 @@ describe('CanConnect', () => {
     )
   })
 
+  it('rejects internal non-connectable fields regardless of schema compatibility', () => {
+    const publicField = new UnknownField()
+    const internalField = new UnknownField(null, { internal: true, connectable: false })
+
+    expect(canConnect(publicField, internalField)).toBe(false)
+    expect(canConnect(internalField, publicField)).toBe(false)
+    expect(validateConnection(publicField, internalField)).toEqual({
+      valid: false,
+      severity: 'error',
+      error: 'Internal fields cannot be connected',
+    })
+    expect(() => internalField.addConnection('edge', publicField)).toThrow(
+      'Cannot connect an internal field'
+    )
+  })
+
   it('allows VisualizationField to connect to VisualizationField (DeckRendererOp → OutOp)', () => {
     // This is the exact connection that was failing in user projects
     const sourceVis = new VisualizationField()

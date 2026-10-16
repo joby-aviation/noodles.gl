@@ -808,6 +808,11 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
         return
       }
 
+      if (!sourceField.connectable || !targetField.connectable) {
+        console.error('Cannot connect internal fields', connection)
+        return
+      }
+
       // Validate connection - allow the connection even if types are incompatible
       // but track the error on the target operator
       const validation = validateConnection(sourceField, targetField)

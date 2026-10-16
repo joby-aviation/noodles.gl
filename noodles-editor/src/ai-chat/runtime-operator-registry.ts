@@ -49,20 +49,24 @@ export function buildOperatorRegistry(): OperatorRegistry {
 
     // Extract input schemas
     const inputs = Object.fromEntries(
-      Object.entries(instance.inputs).map(([name, field]) => [
-        name,
-        // biome-ignore lint/suspicious/noExplicitAny: Runtime reflection on field metadata
-        extractFieldSchema(name, field as Field<any, any>),
-      ])
+      Object.entries(instance.inputs)
+        .filter(([, field]) => !field.internal)
+        .map(([name, field]) => [
+          name,
+          // biome-ignore lint/suspicious/noExplicitAny: Runtime reflection on field metadata
+          extractFieldSchema(name, field as Field<any, any>),
+        ])
     )
 
     // Extract output schemas
     const outputs = Object.fromEntries(
-      Object.entries(instance.outputs).map(([name, field]) => [
-        name,
-        // biome-ignore lint/suspicious/noExplicitAny: Runtime reflection on field metadata
-        extractFieldSchema(name, field as Field<any, any>),
-      ])
+      Object.entries(instance.outputs)
+        .filter(([, field]) => !field.internal)
+        .map(([name, field]) => [
+          name,
+          // biome-ignore lint/suspicious/noExplicitAny: Runtime reflection on field metadata
+          extractFieldSchema(name, field as Field<any, any>),
+        ])
     )
 
     operators[typeName] = {

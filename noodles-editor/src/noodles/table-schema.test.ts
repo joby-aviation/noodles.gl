@@ -4,6 +4,7 @@ import {
   convertValue,
   getDefaultValue,
   inferSchema,
+  isTableSchema,
   isValidTimezone,
   prepareTableDataForOutput,
   stringToTemporal,
@@ -12,6 +13,94 @@ import {
   validateTableData,
   validateValue,
 } from './table-schema'
+
+describe('isTableSchema', () => {
+  it('accepts valid legacy and ID-bearing schemas', () => {
+    expect(
+      isTableSchema({
+        columns: [
+          { name: 'legacy', type: 'string' },
+          { id: 'stable-id', name: 'renamed', type: 'number', options: { min: 0 } },
+        ],
+      })
+    ).toBe(true)
+  })
+
+  it('rejects malformed, duplicate-name, and duplicate-identity schemas', () => {
+    expect(isTableSchema({ columns: [{ name: 'value', type: 'invalid' }] })).toBe(false)
+    expect(
+      isTableSchema({
+        columns: [
+          { name: 'value', type: 'string' },
+          { name: 'value', type: 'number' },
+        ],
+      })
+    ).toBe(false)
+    expect(
+      isTableSchema({
+        columns: [
+          { id: 'same', name: 'first', type: 'string' },
+          { id: 'same', name: 'second', type: 'string' },
+        ],
+      })
+    ).toBe(false)
+  })
+
+  it('rejects empty names and defaults that do not satisfy their column definition', () => {
+    expect(isTableSchema({ columns: [{ name: '   ', type: 'string' }] })).toBe(false)
+    expect(
+      isTableSchema({
+        columns: [{ name: 'count', type: 'number', defaultValue: 'not a number' }],
+      })
+    ).toBe(false)
+    expect(
+      isTableSchema({
+        columns: [
+          {
+            name: 'anchor',
+            type: 'stringLiteral',
+            options: { values: ['start', 'end'] },
+            defaultValue: 'middle',
+          },
+        ],
+      })
+    ).toBe(false)
+    expect(
+      isTableSchema({
+        columns: [{ name: 'day', type: 'date', defaultValue: '2026-02-29' }],
+      })
+    ).toBe(false)
+  })
+
+  it('rejects invalid or inconsistent options', () => {
+    expect(
+      isTableSchema({
+        columns: [{ name: 'count', type: 'number', options: { min: 10, max: 1 } }],
+      })
+    ).toBe(false)
+    expect(
+      isTableSchema({
+        columns: [{ name: 'count', type: 'number', options: { step: 0 } }],
+      })
+    ).toBe(false)
+    expect(
+      isTableSchema({
+        columns: [{ name: 'label', type: 'string', options: { min: 0 } }],
+      })
+    ).toBe(false)
+    expect(
+      isTableSchema({
+        columns: [
+          {
+            name: 'anchor',
+            type: 'stringLiteral',
+            options: { values: ['start', 'start'] },
+          },
+        ],
+      })
+    ).toBe(false)
+  })
+})
 
 describe('transitionTableData', () => {
   it('preserves legacy values through chained ID-based renames', () => {

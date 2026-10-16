@@ -9,6 +9,7 @@ import { debugSetValue } from '../utils/debug'
 import type { BetterDeckProps, BetterMapProps } from '../visualizations'
 import type { inputComponents } from './components/field-components'
 import type { IOperator, Operator } from './operators'
+import { isTableSchema, type TableSchema } from './table-schema'
 import type { DeckViewDescriptor, DeckViewValue } from './types'
 import { deepEqual } from './utils/deep-equal'
 import type { ExtractProps } from './utils/extract-props'
@@ -37,6 +38,8 @@ type BaseFieldOptions = {
   showByDefault?: boolean // Defaults to true. Set to false to hide field by default in UI.
   useDeepEquality?: boolean // Use deep equality when comparing values to prevent unnecessary updates
   maxDepth?: number // Maximum depth for deep equality checks (Infinity = unlimited)
+  internal?: boolean // Internal persisted state that is not shown as a public operator parameter.
+  connectable?: boolean // Defaults to true. Set to false for fields that cannot be graph ports.
 }
 
 type PointFieldOptions = BaseFieldOptions & {
@@ -127,6 +130,12 @@ export abstract class Field<
   // Should this field be shown by default in the UI? Defaults to true.
   showByDefault = true
 
+  // Internal fields are serialized but omitted from generic UI and operator discovery.
+  internal = false
+
+  // Whether this field may participate in graph connections.
+  connectable = true
+
   // Use deep equality when comparing values to prevent unnecessary updates
   // Only enable for fields with stable, value-typed data (plain objects, arrays, primitives)
   // Do not enable for fields containing class instances, Date, Map, Set with identity semantics
@@ -199,12 +208,22 @@ export abstract class Field<
     showByDefault,
     useDeepEquality,
     maxDepth,
+    internal,
+    connectable,
   }: Partial<O>) {
     let schema = this.schema
 
     // Set showByDefault (defaults to true if not specified)
     if (showByDefault !== undefined) {
       this.showByDefault = showByDefault
+    }
+
+    if (internal !== undefined) {
+      this.internal = internal
+    }
+
+    if (connectable !== undefined) {
+      this.connectable = connectable
     }
 
     // Set useDeepEquality if specified
@@ -305,6 +324,9 @@ export abstract class Field<
     field: F,
     connectionType: 'reference' | 'value' = 'value'
   ) {
+    if (!this.connectable || !field.connectable) {
+      throw new Error('Cannot connect an internal field')
+    }
     if (this.subscriptions.has(id)) {
       return
     }
@@ -1509,6 +1531,16 @@ export class UnknownField extends Field<z.ZodUnknown> {
   static defaultValue = null
   createSchema() {
     return z.unknown()
+  }
+}
+
+/** Typed, serialized TableEditor state. It is deliberately not a graph port. */
+export class TableSchemaField extends Field<z.ZodType<TableSchema | null>> {
+  static type = 'unknown'
+  static defaultValue = null
+
+  createSchema() {
+    return z.custom<TableSchema>(isTableSchema, 'Expected a valid table schema').nullable()
   }
 }
 

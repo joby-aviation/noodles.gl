@@ -4,10 +4,15 @@ import { Dropdown } from 'primereact/dropdown'
 import { InputNumber } from 'primereact/inputnumber'
 import { InputSwitch } from 'primereact/inputswitch'
 import { InputText } from 'primereact/inputtext'
-import { useEffect, useState } from 'react'
+import { type ReactNode, useEffect, useId, useRef, useState } from 'react'
 import { analytics } from '../../utils/analytics'
 import type { ColumnSchema, ColumnType, DateTimeValue, TableSchema } from '../table-schema'
-import { getDefaultValue, getInitialColumnId, validateValue } from '../table-schema'
+import {
+  getDefaultValue,
+  getInitialColumnId,
+  getTableSchemaValidationError,
+  validateValue,
+} from '../table-schema'
 import { getTimezoneOptions } from '../utils/timezone-utils'
 import { ColorSwatch } from './color-swatch'
 import s from './schema-editor-dialog.module.css'
@@ -16,6 +21,14 @@ interface SchemaEditorDialogProps {
   schema: TableSchema
   onChange: (schema: TableSchema, metadata?: SchemaChangeMetadata) => void
   onClose?: () => void
+  /** Custom trigger, or null when the dialog is controlled by a menu elsewhere. */
+  trigger?: ReactNode | null
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+  onCopySchema?: (schema: TableSchema) => void
+  onPasteSchema?: () => void
+  onCopyColumn?: (column: ColumnSchema) => void
+  onPasteColumn?: (column: ColumnSchema) => void
 }
 
 export interface SchemaChangeMetadata {
@@ -40,6 +53,10 @@ const COLUMN_TYPES: Array<{ label: string; value: ColumnType }> = [
 interface ColumnEditorProps {
   column: ColumnSchema
   onChange: (column: ColumnSchema) => void
+  onCopy?: () => void
+  onPaste?: () => void
+  clipboardDisabled?: boolean
+  clipboardStatusId?: string
   onDuplicate: () => void
   onDelete: () => void
   onMoveUp?: () => void
@@ -49,6 +66,35 @@ interface ColumnEditorProps {
 interface ColumnDraft {
   column: ColumnSchema
   sourceName?: string
+}
+
+function schemaValuesEqual(left: unknown, right: unknown): boolean {
+  if (Object.is(left, right)) return true
+  if (left instanceof Date || right instanceof Date) {
+    return left instanceof Date && right instanceof Date && left.getTime() === right.getTime()
+  }
+  if (Array.isArray(left) || Array.isArray(right)) {
+    return (
+      Array.isArray(left) &&
+      Array.isArray(right) &&
+      left.length === right.length &&
+      left.every((value, index) => schemaValuesEqual(value, right[index]))
+    )
+  }
+  if (typeof left !== 'object' || left === null || typeof right !== 'object' || right === null) {
+    return false
+  }
+
+  const leftRecord = left as Record<string, unknown>
+  const rightRecord = right as Record<string, unknown>
+  const leftKeys = Object.keys(leftRecord)
+  const rightKeys = Object.keys(rightRecord)
+  return (
+    leftKeys.length === rightKeys.length &&
+    leftKeys.every(
+      key => Object.hasOwn(rightRecord, key) && schemaValuesEqual(leftRecord[key], rightRecord[key])
+    )
+  )
 }
 
 function normalizeColumnDefault(column: ColumnSchema): ColumnSchema {
@@ -96,7 +142,7 @@ function StringLiteralValuesInput({
   const handleBlur = () => {
     const parsed = inputValue
       .split(',')
-      .map((v) => v.trim())
+      .map(v => v.trim())
       .filter(Boolean)
     onChange(parsed)
   }
@@ -104,7 +150,7 @@ function StringLiteralValuesInput({
   return (
     <InputText
       value={inputValue}
-      onChange={(e) => setInputValue(e.target.value)}
+      onChange={e => setInputValue(e.target.value)}
       onBlur={handleBlur}
       placeholder="option1, option2, option3"
       className={s.fullWidthInput}
@@ -256,6 +302,10 @@ function DefaultValueEditor({
 function ColumnEditor({
   column,
   onChange,
+  onCopy,
+  onPaste,
+  clipboardDisabled,
+  clipboardStatusId,
   onDuplicate,
   onDelete,
   onMoveUp,
@@ -302,6 +352,30 @@ function ColumnEditor({
               className="p-button-text p-button-sm"
               onClick={onMoveDown}
               disabled={!onMoveDown}
+            />
+          )}
+          {onCopy && (
+            <Button
+              icon="pi pi-clipboard"
+              className="p-button-text p-button-sm"
+              onClick={onCopy}
+              disabled={clipboardDisabled}
+              tooltip="Copy column schema"
+              tooltipOptions={{ autoZIndex: false, className: s.dialogTooltip }}
+              aria-label={`Copy column schema ${column.name}`}
+              aria-describedby={clipboardStatusId}
+            />
+          )}
+          {onPaste && (
+            <Button
+              icon="pi pi-download"
+              className="p-button-text p-button-sm"
+              onClick={onPaste}
+              disabled={clipboardDisabled}
+              tooltip="Paste column schema overlay"
+              tooltipOptions={{ autoZIndex: false, className: s.dialogTooltip }}
+              aria-label={`Paste column schema overlay near ${column.name}`}
+              aria-describedby={clipboardStatusId}
             />
           )}
           <Button
@@ -429,17 +503,71 @@ function ColumnEditor({
   )
 }
 
-export function SchemaEditorDialog({ schema, onChange, onClose }: SchemaEditorDialogProps) {
-  const [open, setOpen] = useState(false)
+export function SchemaEditorDialog({
+  schema,
+  onChange,
+  onClose,
+  trigger,
+  open: controlledOpen,
+  onOpenChange,
+  onCopySchema,
+  onPasteSchema,
+  onCopyColumn,
+  onPasteColumn,
+}: SchemaEditorDialogProps) {
+  const [internalOpen, setInternalOpen] = useState(false)
   const [columnDrafts, setColumnDrafts] = useState<ColumnDraft[]>(() => createColumnDrafts(schema))
+  const open = controlledOpen ?? internalOpen
+  const baselineSchemaRef = useRef<TableSchema>({
+    columns: columnDrafts.map(draft => draft.column),
+  })
+  const wasOpenRef = useRef(open)
+  const statusId = useId()
+
+  const draftSchema: TableSchema = { columns: columnDrafts.map(draft => draft.column) }
+  const schemaError = getTableSchemaValidationError(draftSchema)
+  const draftsDifferFromPersisted = !schemaValuesEqual(draftSchema, baselineSchemaRef.current)
+  const hasClipboardActions =
+    onCopySchema !== undefined ||
+    onPasteSchema !== undefined ||
+    onCopyColumn !== undefined ||
+    onPasteColumn !== undefined
+  const clipboardDisabled = schemaError !== undefined || draftsDifferFromPersisted
+  const validationErrorId = `${statusId}-validation-error`
+  const dirtyClipboardStatusId = `${statusId}-clipboard-status`
+  const clipboardStatusId = schemaError
+    ? validationErrorId
+    : draftsDifferFromPersisted
+      ? dirtyClipboardStatusId
+      : undefined
+
+  const resetColumnDrafts = () => {
+    const drafts = createColumnDrafts(schema)
+    baselineSchemaRef.current = { columns: drafts.map(draft => draft.column) }
+    setColumnDrafts(drafts)
+  }
+
+  // A menu controls the production dialog, so opening it does not pass through a
+  // Dialog.Trigger. Reset drafts on that controlled closed -> open transition too.
+  useEffect(() => {
+    if (open && !wasOpenRef.current) resetColumnDrafts()
+    wasOpenRef.current = open
+  }, [open, schema])
+
+  const setOpen = (nextOpen: boolean) => {
+    if (controlledOpen === undefined) setInternalOpen(nextOpen)
+    onOpenChange?.(nextOpen)
+    if (!nextOpen) onClose?.()
+  }
 
   const handleOpen = () => {
-    setColumnDrafts(createColumnDrafts(schema)) // Reset to current schema
+    resetColumnDrafts()
     setOpen(true)
   }
 
   const handleSave = () => {
-    const newSchema = { columns: columnDrafts.map(draft => draft.column) }
+    if (schemaError) return
+    const newSchema = draftSchema
     const sourceColumnNames = columnDrafts.map(draft => draft.sourceName)
     const hasRemappedColumns = columnDrafts.some(
       ({ column, sourceName }) => sourceName !== undefined && sourceName !== column.name
@@ -451,7 +579,6 @@ export function SchemaEditorDialog({ schema, onChange, onClose }: SchemaEditorDi
       onChange(newSchema)
     }
     setOpen(false)
-    onClose?.()
   }
 
   const addColumn = () => {
@@ -546,15 +673,26 @@ export function SchemaEditorDialog({ schema, onChange, onClose }: SchemaEditorDi
   }
 
   return (
-    <Dialog.Root open={open} onOpenChange={setOpen}>
-      <Dialog.Trigger asChild>
-        <Button
-          icon="pi pi-cog"
-          onClick={handleOpen}
-          className={`p-button-text p-button-sm ${s.trigger}`}
-          tooltip="Edit Schema"
-        />
-      </Dialog.Trigger>
+    <Dialog.Root
+      open={open}
+      onOpenChange={nextOpen => {
+        if (nextOpen) resetColumnDrafts()
+        setOpen(nextOpen)
+      }}
+    >
+      {trigger !== null && (
+        <Dialog.Trigger asChild>
+          {trigger ?? (
+            <Button
+              icon="pi pi-cog"
+              onClick={handleOpen}
+              className={`p-button-text p-button-sm ${s.trigger}`}
+              tooltip="Edit Schema"
+              aria-label="Edit schema"
+            />
+          )}
+        </Dialog.Trigger>
+      )}
       <Dialog.Portal>
         <Dialog.Overlay className={s.overlay} />
         <Dialog.Content className={s.content}>
@@ -562,6 +700,45 @@ export function SchemaEditorDialog({ schema, onChange, onClose }: SchemaEditorDi
           <Dialog.Description className={s.description}>
             Define column types and options for your table.
           </Dialog.Description>
+
+          {schemaError && (
+            <p id={validationErrorId} className={s.validationError} role="alert">
+              {schemaError}
+            </p>
+          )}
+          {!schemaError && draftsDifferFromPersisted && hasClipboardActions && (
+            <p id={dirtyClipboardStatusId} className={s.clipboardStatus} role="status">
+              Save or cancel your schema changes before using clipboard actions.
+            </p>
+          )}
+
+          {(onCopySchema || onPasteSchema) && (
+            <div className={s.schemaActions} aria-label="Schema clipboard actions">
+              {onCopySchema && (
+                <Button
+                  label="Copy Schema"
+                  icon="pi pi-copy"
+                  onClick={() => onCopySchema({ columns: columnDrafts.map(draft => draft.column) })}
+                  disabled={clipboardDisabled}
+                  aria-describedby={clipboardStatusId}
+                  className="p-button-text p-button-sm"
+                />
+              )}
+              {onPasteSchema && (
+                <Button
+                  label="Paste Overlay"
+                  icon="pi pi-download"
+                  onClick={() => {
+                    setOpen(false)
+                    onPasteSchema()
+                  }}
+                  disabled={clipboardDisabled}
+                  aria-describedby={clipboardStatusId}
+                  className="p-button-text p-button-sm"
+                />
+              )}
+            </div>
+          )}
 
           <div className={s.body}>
             {columnDrafts.length === 0 ? (
@@ -575,6 +752,17 @@ export function SchemaEditorDialog({ schema, onChange, onClose }: SchemaEditorDi
                     key={index}
                     column={column}
                     onChange={updated => updateColumn(index, updated)}
+                    onCopy={onCopyColumn ? () => onCopyColumn(column) : undefined}
+                    clipboardDisabled={clipboardDisabled}
+                    clipboardStatusId={clipboardStatusId}
+                    onPaste={
+                      onPasteColumn
+                        ? () => {
+                            setOpen(false)
+                            onPasteColumn(column)
+                          }
+                        : undefined
+                    }
                     onDuplicate={() => duplicateColumn(index)}
                     onDelete={() => deleteColumn(index)}
                     onMoveUp={index > 0 ? () => moveColumn(index, 'up') : undefined}
@@ -618,7 +806,13 @@ export function SchemaEditorDialog({ schema, onChange, onClose }: SchemaEditorDi
             <Dialog.Close asChild>
               <Button label="Cancel" className="p-button-text" />
             </Dialog.Close>
-            <Button label="Save" icon="pi pi-check" onClick={handleSave} />
+            <Button
+              label="Save"
+              icon="pi pi-check"
+              onClick={handleSave}
+              disabled={schemaError !== undefined}
+              aria-describedby={schemaError ? validationErrorId : undefined}
+            />
           </div>
         </Dialog.Content>
       </Dialog.Portal>
