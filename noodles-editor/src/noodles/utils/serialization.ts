@@ -11,6 +11,7 @@ import { deepEqual } from './deep-equal'
 import type { ExtractProps } from './extract-props'
 import type { StorageType } from './filesystem'
 import { MULTI_INPUT_EDGE_TYPE } from './multi-input-utils'
+import { CACHE_DIRECTORY_NAME, type OutputCacheFiles } from './output-cache'
 import { parseHandleId } from './path-utils'
 
 export { NOODLES_VERSION } from './migrate-schema'
@@ -134,10 +135,10 @@ export function serializeNodes(
     const op = store.getOp(node.id)
     if (!op) continue
 
-    // Don't set node data for connected inputs (saves space) except if upstream op is locked
+    // Don't set node data for connected inputs (saves space). A locked upstream op restores
+    // its own outputs from the cache folder, so its values aren't copied here either.
     const incomers = edges
       .filter(edge => edge.target === node.id && edge.type !== 'ReferenceEdge')
-      .filter(edge => store.getOp(edge.source)?.locked?.value === false)
       .map(edge => parseHandleId(edge.targetHandle)?.fieldName)
       .reduce((acc, fieldName) => acc.add(fieldName), new Set<string | undefined>())
 
@@ -278,11 +279,12 @@ const exampleAssetUrls: Record<string, string> = import.meta.glob('../../example
   query: '?url',
 })
 
-// Export a project as a downloadable zip file containing noodles.json and data files
+// Export a project as a downloadable zip file containing noodles.json, data and cache files
 export async function saveProjectLocally(
   projectName: string,
   projectJson: NoodlesProjectJSON,
-  storageType: StorageType
+  storageType: StorageType,
+  cacheFiles: OutputCacheFiles
 ) {
   debugSerialize('saveProjectLocally: %s (storage: %s)', projectName, storageType)
   const { default: JSZip } = await import('jszip')
@@ -303,6 +305,9 @@ export async function saveProjectLocally(
   // Add noodles.json to the project folder
   const contents = safeStringify(projectJson)
   projectFolder.file('noodles.json', contents)
+  for (const [fileName, cacheContents] of cacheFiles) {
+    projectFolder.file(`${CACHE_DIRECTORY_NAME}/${fileName}`, cacheContents)
+  }
 
   // Handle data files based on storage type
   if (storageType === 'memory') {
@@ -326,6 +331,8 @@ export async function saveProjectLocally(
       if (assetPath.startsWith(projectPrefix)) {
         // Extract the relative path within the project
         const relativePath = assetPath.substring(projectPrefix.length)
+        // The cache folder was written above from the current outputs
+        if (relativePath.startsWith(`${CACHE_DIRECTORY_NAME}/`)) continue
 
         try {
           const response = await fetch(assetUrl)

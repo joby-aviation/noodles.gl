@@ -254,7 +254,7 @@ export abstract class Operator<OP extends IOperator> {
   private _lastExecutionTime = 0
   private _computingPromise: Promise<ExtractProps<(typeof this)['outputs']>> | null = null
   private _lastLoggedError: string | null = null
-  // True once the output fields hold the result of an execution.
+  // True once the output fields hold a real result, from an execution or the project cache.
   // A locked operator serves that result instead of executing again.
   private _hasOutput = false
 
@@ -343,6 +343,23 @@ export abstract class Operator<OP extends IOperator> {
       if (key in values && field.value !== values[key]) field.next(values[key])
     }
     this._hasOutput = true
+  }
+
+  // Restore the outputs a locked operator was saved with, so it can serve them without
+  // executing. Returns false and changes nothing if a saved value no longer fits its field.
+  restoreOutputs(outputs: Record<string, unknown>): boolean {
+    const restored: Record<string, unknown> = {}
+    for (const [key, field] of Object.entries(this.outputs)) {
+      const ctor = field.constructor as typeof Field
+      const parsed = field.schema.safeParse(ctor.deserialize(outputs[key]))
+      if (!parsed.success) {
+        debugExecute('%s: saved output %s no longer fits, will execute', this.id, key)
+        return false
+      }
+      restored[key] = parsed.data
+    }
+    this.setOutputValues(restored)
+    return true
   }
 
   // Left open for sub-classes to override
@@ -444,7 +461,7 @@ export abstract class Operator<OP extends IOperator> {
   // Pull data from this operator, executing if needed (pull-based model)
   async pull(): Promise<ExtractProps<(typeof this)['outputs']>> {
     // A locked operator keeps its last result: no upstream pulls, no execute(). It still
-    // executes once if it has never produced output (e.g. right after a project loads).
+    // executes once if it has never produced output (e.g. its outputs couldn't be cached).
     if (this.locked.value && this._hasOutput && this._computingPromise === null) {
       debugPull('%s: locked -> last output', this.id)
       this._cachedOutput = this.outputData

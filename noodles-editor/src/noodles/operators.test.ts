@@ -299,6 +299,26 @@ describe('Locked operators', () => {
     await expect(op.pull()).resolves.toEqual({ result: 42 })
     expect(execute).not.toHaveBeenCalled()
   })
+
+  it('restores saved outputs and serves them without executing', async () => {
+    const op = new MathOp('/math', { operator: 'add', a: 2, b: 3 }, true)
+    const execute = vi.spyOn(op, 'execute')
+
+    expect(op.restoreOutputs({ result: 42 })).toBe(true)
+
+    expect(op.outputs.result.value).toBe(42)
+    await expect(op.pull()).resolves.toEqual({ result: 42 })
+    expect(execute).not.toHaveBeenCalled()
+  })
+
+  it('ignores saved outputs that no longer fit the output fields', async () => {
+    const op = new MathOp('/math', { operator: 'add', a: 2, b: 3 }, true)
+
+    expect(op.restoreOutputs({ result: 'not a number' })).toBe(false)
+
+    expect(op.hasOutput).toBe(false)
+    await expect(op.pull()).resolves.toEqual({ result: 5 })
+  })
 })
 
 describe('Connection error tracking', () => {

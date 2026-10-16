@@ -1,8 +1,11 @@
+import type { OutputCacheFiles } from './output-cache'
 import type { NoodlesProjectJSON } from './serialization'
 
 interface MemoryProject {
   projectJson: NoodlesProjectJSON | null
   assets: Map<string, Blob>
+  // Files of the project's cache folder, kept apart from the data assets
+  cacheFiles: OutputCacheFiles
   createdAt: number
   displayName?: string
 }
@@ -13,7 +16,12 @@ class MemoryProjectStore {
   getOrCreate(projectId: string): MemoryProject {
     let project = this.projects.get(projectId)
     if (!project) {
-      project = { projectJson: null, assets: new Map(), createdAt: Date.now() }
+      project = {
+        projectJson: null,
+        assets: new Map(),
+        cacheFiles: new Map(),
+        createdAt: Date.now(),
+      }
       this.projects.set(projectId, project)
     }
     return project
@@ -65,6 +73,18 @@ class MemoryProjectStore {
 
   getAllAssets(projectId: string): Map<string, Blob> {
     return this.projects.get(projectId)?.assets ?? new Map()
+  }
+
+  getCacheFile(projectId: string, fileName: string): string | null {
+    return this.projects.get(projectId)?.cacheFiles.get(fileName) ?? null
+  }
+
+  setCacheFile(projectId: string, fileName: string, contents: string): void {
+    this.getOrCreate(projectId).cacheFiles.set(fileName, contents)
+  }
+
+  setCacheFiles(projectId: string, files: OutputCacheFiles): void {
+    this.getOrCreate(projectId).cacheFiles = new Map(files)
   }
 
   deleteProject(projectId: string): void {

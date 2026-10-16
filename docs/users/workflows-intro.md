@@ -90,8 +90,11 @@ This makes experimentation fast and intuitive.
 Click the lock icon in a node's header to keep its result. Use it for slow or paid nodes, such as directions, while you work on the rest of the workflow.
 
 - A locked node keeps its result when its inputs change. The connections into it fade to show that changes there have no effect.
-- A locked node with no result yet runs once to get one, including when you reopen the project.
+- A locked node's result is saved with the project, so reopening the project doesn't run it again. Results that can't be saved, such as layers, run once when you reopen.
+- A locked node with no result yet runs once to get one.
 - Unlocking runs the node again with its current inputs. The editor asks first, and undo restores the previous result.
+
+Saved results go in a `cache` folder next to `noodles.json`. Commit it to share results with your collaborators, or add it to `.gitignore` to keep them on your machine.
 
 ## Building Your First Workflow
 
