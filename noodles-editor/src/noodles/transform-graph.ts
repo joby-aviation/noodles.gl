@@ -293,6 +293,8 @@ export function transformGraph<
 
   const sortedNodes = topologicalSort(nodes, executorEdges as unknown as E[])
   const created: Operator<IOperator>[] = []
+  // Locked operators' saved outputs, restored once every field exists
+  const savedOutputsByOp = new Map<Operator<IOperator>, Record<string, unknown>>()
   let instances: OP[] = []
 
   // Batch all store operations for performance
@@ -325,9 +327,7 @@ export function transformGraph<
           // Create operator with fully qualified path as id and store containerId
           op = new ctor(id, data?.inputs, data?.locked, containerId) as unknown as OP
           const savedOutputs = data?.locked ? outputCache?.get(id) : undefined
-          if (savedOutputs) {
-            op.restoreOutputs(savedOutputs)
-          }
+          if (savedOutputs) savedOutputsByOp.set(op, savedOutputs)
 
           // Restore custom field definitions if present
           if (data?.customInputs && Array.isArray(data.customInputs)) {
@@ -564,6 +564,11 @@ export function transformGraph<
         }
       }
     }
+  }
+
+  // After the container wiring above, since a GraphInput only gets its custom outputs there
+  for (const [op, savedOutputs] of savedOutputsByOp) {
+    op.restoreOutputs(savedOutputs)
   }
 
   referenceDependencyModel.configure({

@@ -186,6 +186,15 @@ export enum PullExecutionStatus {
   ERROR = 'error', // Execution failed
 }
 
+// Deserializers can throw on bad input, such as a date that isn't ISO
+function parseSavedOutput(field: Field, value: unknown) {
+  try {
+    return field.schema.safeParse((field.constructor as typeof Field).deserialize(value))
+  } catch {
+    return { success: false as const }
+  }
+}
+
 // An Operator is a collection of Fields, and a transform function responsible
 // for taking in a set of input fields and mapping them to the output.
 export abstract class Operator<OP extends IOperator> {
@@ -348,10 +357,14 @@ export abstract class Operator<OP extends IOperator> {
   // Restore the outputs a locked operator was saved with, so it can serve them without
   // executing. Returns false and changes nothing if a saved value no longer fits its field.
   restoreOutputs(outputs: Record<string, unknown>): boolean {
+    const unknownKey = Object.keys(outputs).find(key => !(key in this.outputs))
+    if (unknownKey) {
+      debugExecute('%s: saved output %s has no field, will execute', this.id, unknownKey)
+      return false
+    }
     const restored: Record<string, unknown> = {}
     for (const [key, field] of Object.entries(this.outputs)) {
-      const ctor = field.constructor as typeof Field
-      const parsed = field.schema.safeParse(ctor.deserialize(outputs[key]))
+      const parsed = parseSavedOutput(field, outputs[key])
       if (!parsed.success) {
         debugExecute('%s: saved output %s no longer fits, will execute', this.id, key)
         return false

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { AccessorOp, DirectionsOp, ViewerOp } from '../operators'
+import { AccessorOp, CodeOp, DirectionsOp, GraphInputOp, ViewerOp } from '../operators'
 import { clearOps, getOpStore, setOp } from '../store'
 import { transformGraph } from '../transform-graph'
 import {
@@ -168,6 +168,32 @@ describe('serializeOutputCache', () => {
     )
   })
 
+  it('skips arrays that JSON would change', async () => {
+    const sparse = [1]
+    sparse[2] = 3
+    for (const data of [[1, undefined], sparse]) {
+      const op = new CodeOp('/code')
+      op.setOutputValues({ data })
+      op.locked.next(true)
+      setOp('/code', op)
+
+      expect(serializeOutputCache(getOpStore(), [{ id: '/code', type: 'CodeOp' }]).size).toBe(0)
+    }
+  })
+
+  it('writes a route without a toll price', async () => {
+    const op = new DirectionsOp('/directions')
+    const noToll = { ...route, hasTolls: false, tollAmount: undefined, tollCurrency: undefined }
+    vi.spyOn(op, 'execute').mockResolvedValue({ route: noToll })
+    await op.pull()
+    op.locked.next(true)
+    setOp('/directions', op)
+
+    const files = serializeOutputCache(getOpStore(), [{ id: '/directions', type: 'DirectionsOp' }])
+
+    expect(JSON.parse(files.get('directions.json')!).outputs.route).toEqual(noToll)
+  })
+
   it('keeps outputs out of noodles.json', async () => {
     await lockedDirections('/directions')
     const node = { id: '/directions', type: 'DirectionsOp', data: {}, position }
@@ -214,6 +240,18 @@ describe('writeOutputCache', () => {
     await writeOutputCache(project, new Map([['a.json', changed]]))
 
     expect(await readCache('a.json')).toBe(changed)
+  })
+
+  it('removes a file it cannot rewrite, so the next load does not serve the old result', async () => {
+    await writeOutputCache(project, new Map([['a.json', cacheFile('/a')]]))
+    vi.spyOn(FileSystemFileHandle.prototype, 'createWritable').mockRejectedValue(
+      new DOMException('Disk full', 'QuotaExceededError')
+    )
+    const changed = cacheFile('/a', 'DirectionsOp', { route: { ...route, distance: 1 } })
+
+    await writeOutputCache(project, new Map([['a.json', changed]]))
+
+    expect(await listCache()).toEqual([])
   })
 
   it('removes the file of a renamed operator', async () => {
@@ -391,6 +429,41 @@ describe('locked operator save and reload through the cache folder', () => {
 
     expect(viewer.inputs.data.value).toEqual(route)
     await viewer.pull()
+    expect(execute).not.toHaveBeenCalled()
+  })
+
+  it('executes once when a saved date cannot be read', () => {
+    const nodes = [{ id: '/date', type: 'DateTimeOp', data: { locked: true }, position }]
+    const outputCache = new Map([['/date', { date: 'not a date' }]])
+
+    expect(() => transformGraph({ nodes, edges: [], outputCache })).not.toThrow()
+    expect(getOpStore().getOp('/date')?.hasOutput).toBe(false)
+  })
+
+  it('restores the custom outputs of a locked GraphInput', async () => {
+    const nodes = [
+      {
+        id: '/box',
+        type: 'ContainerOp',
+        data: {
+          inputs: {},
+          customInputs: [
+            { id: 'ci1', name: 'threshold', type: 'number', order: 0, defaultValue: 4 },
+          ],
+        },
+        position,
+      },
+      { id: '/box/input', type: 'GraphInputOp', data: { locked: true }, position },
+    ]
+    const outputCache = new Map([['/box/input', { value: [1, 2], threshold: 9 }]])
+
+    transformGraph({ nodes, edges: [], outputCache })
+    const input = getOpStore().getOp('/box/input') as unknown as GraphInputOp
+    const execute = vi.spyOn(input, 'execute')
+
+    // Custom outputs come from the container, so the field types don't list them
+    expect((input.outputs as Record<string, { value: unknown }>).threshold.value).toBe(9)
+    await expect(input.pull()).resolves.toEqual({ value: [1, 2], threshold: 9 })
     expect(execute).not.toHaveBeenCalled()
   })
 

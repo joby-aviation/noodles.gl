@@ -60,18 +60,24 @@ export function cacheFileNameToOpId(fileName: string): string | null {
 }
 
 // True when JSON round-trips the value unchanged: only primitives, arrays and plain objects.
-// Functions, class instances (layers, Dates, typed arrays) and cycles would be lost or altered.
+// Functions, class instances (layers, Dates, typed arrays) and cycles would be lost or altered,
+// and so would undefined or an empty slot in an array, which come back as null. An undefined
+// object property is dropped, which reads back the same, so routes without a toll price pass.
 function isJsonSafe(value: unknown, ancestors = new Set<unknown>()): boolean {
-  if (value === null || value === undefined) return true
+  if (value === null) return true
   const type = typeof value
   if (type === 'string' || type === 'boolean') return true
   if (type === 'number') return Number.isFinite(value)
   if (type !== 'object' || ancestors.has(value)) return false
+  const isArray = Array.isArray(value)
   const proto = Object.getPrototypeOf(value)
-  if (!Array.isArray(value) && proto !== Object.prototype && proto !== null) return false
+  if (!isArray && proto !== Object.prototype && proto !== null) return false
   ancestors.add(value)
-  const items = Array.isArray(value) ? value : Object.values(value as object)
-  const safe = items.every(item => isJsonSafe(item, ancestors))
+  const safe = isArray
+    ? Array.from(value.keys()).every(i => i in value && isJsonSafe(value[i], ancestors))
+    : Object.values(value as object).every(
+        item => item === undefined || isJsonSafe(item, ancestors)
+      )
   ancestors.delete(value)
   return safe
 }
@@ -82,7 +88,8 @@ function serializeLockedOutputs(op: Operator<IOperator>): Record<string, unknown
   const outputs: Record<string, unknown> = {}
   for (const [name, field] of Object.entries(op.outputs)) {
     const serialized = field.serialize()
-    if (!isJsonSafe(serialized)) return undefined
+    // An undefined output is left out of the file and restored as undefined
+    if (serialized !== undefined && !isJsonSafe(serialized)) return undefined
     outputs[name] = serialized
   }
   return outputs
@@ -130,7 +137,8 @@ async function hasContents(directory: FileSystemDirectoryHandle, name: string, c
 
 // Brings the cache folder in line with `files`: writes new and changed files, then removes
 // files no locked operator owns any more (unlocked, deleted or renamed). A cache failure never
-// fails the save; the affected operators execute once on the next load.
+// fails the save; the affected operators execute once on the next load. A file that can't be
+// written is removed, so the next load doesn't serve the result it held before.
 export async function writeOutputCache(
   projectDirectory: FileSystemDirectoryHandle,
   files: OutputCacheFiles
@@ -144,7 +152,12 @@ export async function writeOutputCache(
     })
     for (const [name, contents] of files) {
       if (await hasContents(cacheDirectory, name, contents)) continue
-      await writeFileToDirectory(cacheDirectory, name, contents)
+      try {
+        await writeFileToDirectory(cacheDirectory, name, contents)
+      } catch (error) {
+        debugSerialize('Could not write cache file %s, removing it: %O', name, error)
+        await cacheDirectory.removeEntry(name).catch(() => {})
+      }
     }
 
     const entries: FileSystemHandle[] = []
