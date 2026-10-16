@@ -32,7 +32,7 @@ describe('TableEditor layout', () => {
     const table = cell.closest('table')
     expect(row).not.toBeNull()
     expect(table).not.toBeNull()
-    const emptyCell = row?.cells[2].querySelector('[tabindex="0"]')
+    const emptyCell = row?.cells[2]
     expect(emptyCell).not.toBeNull()
 
     const rowRect = row?.getBoundingClientRect()
@@ -42,7 +42,7 @@ describe('TableEditor layout', () => {
       tableCell => tableCell.getBoundingClientRect().width
     )
 
-    fireEvent.click(emptyCell as HTMLElement)
+    fireEvent.doubleClick(emptyCell as HTMLElement)
 
     expect(row?.getBoundingClientRect().height).toBe(rowRect?.height)
     expect(table?.getBoundingClientRect().width).toBe(tableRect?.width)
@@ -73,7 +73,7 @@ describe('TableEditor layout', () => {
     expect(row).not.toBeNull()
     const rowHeight = row?.getBoundingClientRect().height
 
-    fireEvent.click(displayValue)
+    fireEvent.doubleClick(displayValue)
 
     const inputs = container.querySelectorAll('input.p-inputtext')
     expect(inputs).toHaveLength(3)
@@ -114,7 +114,7 @@ describe('TableEditor layout', () => {
     expect(row).not.toBeNull()
     const rowRect = row?.getBoundingClientRect()
 
-    fireEvent.click(displayValue)
+    fireEvent.doubleClick(displayValue)
 
     const input = container.querySelector('input.p-inputtext')
     expect(input).not.toBeNull()

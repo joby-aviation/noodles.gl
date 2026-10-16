@@ -20,8 +20,17 @@ type DragState = {
   detected: boolean
 }
 
+export interface InitialNumberDrag {
+  token: number
+  startX: number
+  startY: number
+  currentX: number
+  currentY: number
+}
+
 export type UseDragOptions = {
   disabled?: boolean
+  initialMouseDrag?: InitialNumberDrag
   onDragStart?: (event: MouseEvent | TouchEvent) => boolean
   onDrag?: (deltaX: number, deltaY: number, event: MouseEvent | TouchEvent) => void
   onDragEnd?: (event: Event) => void
@@ -29,10 +38,11 @@ export type UseDragOptions = {
 }
 
 export function useDrag(options: UseDragOptions) {
-  const { disabled, onDragStart, onDrag, onDragEnd, onInteractionEnd } = options
+  const { disabled, initialMouseDrag, onDragStart, onDrag, onDragEnd, onInteractionEnd } = options
   const [isDragging, setIsDragging] = useState(false)
   const dragStateRef = useRef<DragState | null>(null)
   const removeListenersRef = useRef<(() => void) | null>(null)
+  const consumedInitialDragTokenRef = useRef<number>()
 
   const clearDrag = useCallback(() => {
     removeListenersRef.current?.()
@@ -53,10 +63,10 @@ export function useDrag(options: UseDragOptions) {
 
   useEffect(() => clearDrag, [clearDrag])
 
-  const handleMouseDown = useCallback(
-    (event: ReactMouseEvent) => {
+  const startMouseDrag = useCallback(
+    (event: MouseEvent, initialMoveEvent?: MouseEvent) => {
       if (disabled) return
-      if (onDragStart && !onDragStart(event.nativeEvent)) return
+      if (onDragStart && !onDragStart(event)) return
 
       const handleMouseMove = (moveEvent: MouseEvent) => {
         if (!dragStateRef.current) return
@@ -96,9 +106,37 @@ export function useDrag(options: UseDragOptions) {
         document.removeEventListener('mouseup', handleMouseUp)
         window.removeEventListener('blur', handleWindowBlur)
       }
+
+      if (initialMoveEvent) handleMouseMove(initialMoveEvent)
     },
     [clearDrag, disabled, finishDrag, onDragStart, onDrag]
   )
+
+  const handleMouseDown = useCallback(
+    (event: ReactMouseEvent) => startMouseDrag(event.nativeEvent),
+    [startMouseDrag]
+  )
+
+  useEffect(() => {
+    if (!initialMouseDrag || consumedInitialDragTokenRef.current === initialMouseDrag.token) {
+      return
+    }
+
+    consumedInitialDragTokenRef.current = initialMouseDrag.token
+    startMouseDrag(
+      new MouseEvent('mousedown', {
+        button: 0,
+        buttons: 1,
+        clientX: initialMouseDrag.startX,
+        clientY: initialMouseDrag.startY,
+      }),
+      new MouseEvent('mousemove', {
+        buttons: 1,
+        clientX: initialMouseDrag.currentX,
+        clientY: initialMouseDrag.currentY,
+      })
+    )
+  }, [initialMouseDrag, startMouseDrag])
 
   const handleTouchStart = useCallback(
     (event: ReactTouchEvent) => {
@@ -238,6 +276,9 @@ export interface DraggableNumberInputProps {
   formatDisplayValue?: (value: number) => string | number
   title?: string
   placeholder?: string
+  initialDrag?: InitialNumberDrag
+  /** Text to show instead of `value` when an edit starts from unparsed input. */
+  initialText?: string
   'aria-label'?: string
 }
 
@@ -262,10 +303,12 @@ export function DraggableNumberInput({
   formatDisplayValue,
   title,
   placeholder,
+  initialDrag,
+  initialText,
   'aria-label': ariaLabel,
 }: DraggableNumberInputProps) {
-  const [displayValue, setDisplayValue] = useState(value?.toString() ?? '0')
-  const [isActive, setIsActive] = useState(false)
+  const [displayValue, setDisplayValue] = useState(initialText ?? value?.toString() ?? '0')
+  const [isActive, setIsActive] = useState(initialText !== undefined)
   const [currentStepMultiplier, setCurrentStepMultiplier] = useState(1)
   const [isDragStarted, setIsDragStarted] = useState(false)
   const [showLadder, setShowLadder] = useState(false)
@@ -277,7 +320,12 @@ export function DraggableNumberInput({
   const ladderTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const effectiveStep = Number.isFinite(step) && step > 0 ? step : 1
 
+  // Seeded text is unparsed input the caller is still assembling, so it survives until
+  // `value` actually changes instead of being replaced by the current value on mount.
+  const syncedValueRef = useRef(initialText === undefined ? undefined : value)
   useEffect(() => {
+    if (syncedValueRef.current === value) return
+    syncedValueRef.current = value
     setDisplayValue(value?.toString() ?? '0')
   }, [value])
 
@@ -313,11 +361,12 @@ export function DraggableNumberInput({
 
   const { isDragging, handleMouseDown, handleTouchStart } = useDrag({
     disabled,
+    initialMouseDrag: initialDrag,
     onDragStart: event => {
-      const target = event.target as HTMLInputElement
+      const target = event.target instanceof HTMLInputElement ? event.target : null
       const touchEvent = event as TouchEvent
       if (
-        target.type === 'number' &&
+        target?.type === 'number' &&
         ('offsetX' in event ? event.offsetX : touchEvent.touches[0].clientX - target.offsetLeft) >
           target.offsetWidth - 20
       ) {

@@ -63,7 +63,7 @@ import { getTimelineStore } from '../timeline/timeline-store'
 import type { Visualization } from '../visualizations'
 import { BlockLibrary, type BlockLibraryRef } from './components/block-library'
 import { categories, nodeTypeToDisplayName } from './components/categories'
-import { CopyControls, type CopyControlsRef } from './components/copy-controls'
+import { ConnectedCopyControls, type CopyControlsRef } from './components/copy-controls'
 import { NodeInfoOverlay, ViewportInfoPanel } from './components/devtools'
 import { ErrorBoundary } from './components/error-boundary'
 import { ExampleNotFoundDialog } from './components/example-not-found-dialog'
@@ -1639,7 +1639,7 @@ export function getNoodles(): Visualization {
                 <Background />
                 <Controls position="bottom-right" />
                 <BlockLibrary ref={blockLibraryRef} reactFlowRef={reactFlowRef} />
-                <CopyControls ref={copyControlsRef} graphRef={graphRef} />
+                <ConnectedCopyControls ref={copyControlsRef} graphRef={graphRef} />
                 <UndoRedoHandler ref={undoRedoRef} graphRef={graphRef} />
                 {showDebugInfo && <NodeInfoOverlay />}
                 {showDebugInfo && <ViewportInfoPanel />}
