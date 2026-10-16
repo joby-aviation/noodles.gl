@@ -48,8 +48,10 @@
 }
 
 .cell {
+  position: relative;
   padding: 8px 12px;
   min-height: 36px;
+  box-sizing: border-box;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -66,22 +68,50 @@
 
 .editing {
   background: var(--surface-section);
-  padding: 0;
+}
+
+.editingPlaceholder {
+  display: contents;
+  visibility: hidden;
+}
+
+.editorOverlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  min-width: 0;
 }
 
 .cellEditor {
   width: 100%;
-}
-
-/* Override PrimeReact input padding to match cell padding */
-.cellEditor :global(.p-inputtext) {
+  min-width: 0;
+  height: 100%;
+  box-sizing: border-box;
   padding: 8px 12px;
   border: none;
+  border-radius: 0;
   background: transparent;
+  color: inherit;
+  font: inherit;
 }
 
-.cellEditor :global(.p-inputswitch) {
-  margin: 8px 12px;
+.numberInputWrapper,
+.vectorInputWrapper {
+  flex: 1 1 0;
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+}
+
+.numberInputWrapper input:not(:disabled),
+.vectorInputWrapper input:not(:disabled) {
+  cursor: ew-resize;
+}
+
+.numberInputWrapper input:focus,
+.vectorInputWrapper input:focus {
+  cursor: text;
 }
 
 .colorDisplay {
@@ -100,14 +130,24 @@
 .point2dEditor,
 .vec3Editor {
   display: flex;
+  margin: 0;
+  padding: 0;
+  border: 0;
   gap: 4px;
   align-items: center;
+  width: 100%;
+  min-width: 0;
+  height: 100%;
 }
 
 .coordInput,
 .vecInput {
   flex: 1;
-  min-width: 60px;
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  box-sizing: border-box;
+  padding-inline: 4px;
 }
 
 .geocoderButton {
@@ -128,6 +168,8 @@
   align-items: center;
   gap: 6px;
   width: 100%;
+  min-width: 0;
+  height: 100%;
 }
 
 .timezoneIndicator {
@@ -220,7 +262,7 @@
   top: 100%;
   left: 0;
   right: 0;
-  z-index: 10000;
+  z-index: var(--z-index-modal);
   margin: 2px 0 0;
   padding: 4px 0;
   list-style: none;

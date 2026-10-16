@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
 import type { OpType } from '../operators'
-import { changeDefaultValue, migrateProject, renameHandle } from './migrate-schema'
+import {
+  changeDefaultValue,
+  migrateProject,
+  NOODLES_VERSION,
+  renameHandle,
+} from './migrate-schema'
 import type { NoodlesProjectJSON } from './serialization'
 
 describe('migrateProject', () => {
@@ -96,6 +101,30 @@ describe('migrateProject', () => {
     expect(migrated.edges[0].sourceHandle).toEqual('out.result')
     expect(migrated.edges[0].targetHandle).toEqual('par.data')
   })
+
+  it('repairs historical duplicate edges while migrating to version 18', async () => {
+    const duplicate = {
+      id: '/source.out.data->/switch.par.values',
+      source: '/source',
+      target: '/switch',
+      sourceHandle: 'out.data',
+      targetHandle: 'par.values',
+    }
+    const project: NoodlesProjectJSON = {
+      version: 17,
+      nodes: [],
+      edges: [duplicate, { ...duplicate }],
+      viewport: { x: 0, y: 0, zoom: 1 },
+      timeline: {},
+    }
+
+    const migrated = await migrateProject(project)
+
+    expect(NOODLES_VERSION).toBe(18)
+    expect(migrated.version).toBe(18)
+    expect(migrated.edges).toEqual([duplicate])
+  })
+
 })
 
 describe('renameHandle', () => {

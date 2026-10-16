@@ -11,6 +11,8 @@ import {
 } from 'react'
 import { createPortal } from 'react-dom'
 import { useNestingStore } from '../store'
+import { appendUniqueEdges } from '../utils/edge-integrity'
+import { normalizeMultiInputEdges } from '../utils/multi-input-utils'
 import { createNodesForType, getNodeTypeOptions, type NodeType } from '../utils/node-creation-utils'
 import s from './block-library.module.css'
 import { getPopularOperators, rankNodeTypes } from './block-library-ranking'
@@ -27,7 +29,7 @@ type BlockLibraryProps = {
 
 export const BlockLibrary = forwardRef<BlockLibraryRef, BlockLibraryProps>(
   ({ reactFlowRef }, ref) => {
-    const { addNodes, addEdges, screenToFlowPosition } = useReactFlow()
+    const { addNodes, setEdges, screenToFlowPosition } = useReactFlow()
     const [isOpen, setIsOpen] = useState(false)
     const currentContainerId = useNestingStore(state => state.currentContainerId)
     const [searchText, setSearchText] = useState('')
@@ -96,7 +98,7 @@ export const BlockLibrary = forwardRef<BlockLibraryRef, BlockLibraryProps>(
 
       const { nodes, edges } = createNodesForType(type, position, currentContainerId)
       addNodes(nodes)
-      addEdges(edges)
+      setEdges(current => normalizeMultiInputEdges(appendUniqueEdges(current, edges)))
       onCloseModal()
     }
 

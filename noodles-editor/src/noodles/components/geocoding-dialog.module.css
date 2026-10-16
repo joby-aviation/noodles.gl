@@ -9,16 +9,16 @@
 
 .dialogContent {
   position: fixed;
-  top: 10vh;
+  top: 5vh;
   left: 50%;
   transform: translateX(-50%);
   background-color: #1a1a1a;
   color: var(--color-text-primary);
   border-radius: 12px;
   padding: 1.5rem;
-  max-width: 650px;
+  max-width: 900px;
   width: 90vw;
-  max-height: 85vh;
+  max-height: 90vh;
   overflow-y: auto;
   z-index: var(--z-index-modal);
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
@@ -111,10 +111,18 @@
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 6px;
   margin-top: 0.25rem;
-  max-height: 200px;
-  overflow-y: auto;
+  max-height: 280px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
   z-index: var(--z-index-chrome);
+}
+
+.suggestionsList {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .suggestionItem {
@@ -126,10 +134,41 @@
   transition: background-color 0.15s;
   display: flex;
   align-items: center;
+  gap: 0.75rem;
   border: none;
   background: none;
   text-align: left;
   font-family: inherit;
+}
+
+.suggestionLabel {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.suggestionProvider {
+  flex-shrink: 0;
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  color: var(--color-text-secondary);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.suggestionProvider[data-provider="google_places"] {
+  color: #93c5fd;
+  border-color: rgba(147, 197, 253, 0.35);
+}
+
+.suggestionProvider[data-provider="mapbox"] {
+  color: #c4b5fd;
+  border-color: rgba(196, 181, 253, 0.35);
 }
 
 .suggestionItem:hover {
@@ -150,12 +189,15 @@
   background-color: rgba(251, 191, 36, 0.1);
 }
 
-/* Provider indicator shown after a place search */
-.providerBadge {
+/* Pinned below the results: a configured provider failed, or no provider key is configured */
+.providerNotice {
+  flex-shrink: 0;
   font-size: 0.8rem;
+  line-height: 1.4;
   color: var(--color-text-secondary);
-  margin-bottom: 0.75rem;
-  opacity: 0.8;
+  padding: 0.5rem 0.75rem;
+  background: #222;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .providerSettingsLink {
@@ -176,6 +218,7 @@
 
 /* Map Section */
 .mapContainer {
+  height: clamp(420px, 55vh, 600px);
   margin-bottom: 1rem;
   border-radius: 8px;
   overflow: hidden;

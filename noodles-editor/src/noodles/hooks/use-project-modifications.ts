@@ -20,12 +20,16 @@ import { canConnect, validateConnection } from '../utils/can-connect'
 import { expandDeleteSet } from '../utils/copy-paste-utils'
 import { edgeId } from '../utils/id-utils'
 import {
+  appendUniqueEdges,
+  insertUniqueEdge,
+} from '../utils/edge-integrity'
+import {
   insertEdgeAtGroupIndex,
   moveEdgeWithinGroup,
   normalizeMultiInputEdges,
   orderedEdgeIdsForHandle,
 } from '../utils/multi-input-utils'
-import { generateQualifiedPath, parseHandleId } from '../utils/path-utils'
+import { generateQualifiedPath, getParentPath, parseHandleId } from '../utils/path-utils'
 
 // Using ReactFlowNode instead of AnyNodeJSON for compatibility
 export type ProjectModification =
@@ -71,7 +75,9 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
 
   const addEdges = useCallback(
     (newEdges: ReactFlowEdge[]) => {
-      setEdges(currentEdges => normalizeMultiInputEdges([...currentEdges, ...newEdges]))
+      setEdges(currentEdges =>
+        normalizeMultiInputEdges(appendUniqueEdges(currentEdges, newEdges))
+      )
       // Track edge addition
       if (newEdges.length > 0) {
         analytics.track('edge_added', { count: newEdges.length })
@@ -227,7 +233,7 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
               )
             }
 
-            return [...remainingEdges, ...createdEdges]
+            return appendUniqueEdges(remainingEdges, createdEdges)
           }, currentEdges)
         )
 
@@ -605,7 +611,9 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
             // Normalization here can miss edges into just-added nodes (their operators don't
             // exist in the store yet); the transformGraph effect re-normalizes right after
             setEdges(currentEdges =>
-              normalizeMultiInputEdges([...currentEdges, ...edgesToAddOptimistically])
+              normalizeMultiInputEdges(
+                appendUniqueEdges(currentEdges, edgesToAddOptimistically)
+              )
             )
             debugUI(`✅ Added ${edgesToAddOptimistically.length} edge(s) optimistically`)
           }
@@ -692,7 +700,9 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
 
           // Add all valid edges atomically
           if (validEdges.length > 0) {
-            setEdges(currentEdges => normalizeMultiInputEdges([...currentEdges, ...validEdges]))
+            setEdges(currentEdges =>
+              normalizeMultiInputEdges(appendUniqueEdges(currentEdges, validEdges))
+            )
 
             // Update field connections for valid edges
             for (const { edge, sourceField, targetField } of edgeFieldConnections) {
@@ -737,9 +747,10 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
       if (connection.source === connection.target) return
 
       const nodes = getNodes()
+      const currentEdges = getEdges()
       const edges = opts?.replaceEdgeId
-        ? getEdges().filter(e => e.id !== opts.replaceEdgeId)
-        : getEdges()
+        ? currentEdges.filter(e => e.id !== opts.replaceEdgeId)
+        : currentEdges
 
       // Consume the slot index MultiInputHandle tracked during the drag; consuming also
       // clears it so a hover over one handle can't leak into a later gesture
@@ -754,8 +765,8 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
         targetHandle: connection.targetHandle || null,
       }
 
-      // Duplicate connection (same source, target, and handles): edge ids collide
-      if (edges.some(e => e.id === newEdge.id)) return
+      // A repeated gesture is a no-op even if a caller supplied a non-canonical edge ID.
+      if (insertUniqueEdge(edges, newEdge) === edges) return
 
       const source = nodes.find(n => n.id === connection.source)
       if (!source) {
@@ -809,8 +820,16 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
           opts?.insertionIndex ??
           pendingIndex ??
           orderedEdgeIdsForHandle(edges, newEdge.target, newEdge.targetHandle).length
-        const next = normalizeMultiInputEdges(insertEdgeAtGroupIndex(edges, newEdge, index))
-        setEdges(next)
+        const insertAtSlot = (current: ReactFlowEdge[], candidate: ReactFlowEdge) =>
+          insertEdgeAtGroupIndex(current, candidate, index)
+        const buildNext = (latest: ReactFlowEdge[]) => {
+          const base = opts?.replaceEdgeId
+            ? latest.filter(edge => edge.id !== opts.replaceEdgeId)
+            : latest
+          return normalizeMultiInputEdges(insertUniqueEdge(base, newEdge, insertAtSlot))
+        }
+        const next = buildNext(currentEdges)
+        setEdges(latest => buildNext(latest))
         targetField.addConnection(newEdge.id, sourceField)
         targetField.setConnectionOrder(
           orderedEdgeIdsForHandle(next, newEdge.target, newEdge.targetHandle)
@@ -824,7 +843,21 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
           targetOp.removeConnectionError(existing.id)
           targetField.removeConnection(existing.id)
         }
-        setEdges(normalizeMultiInputEdges(edges.filter(e => e.id !== existing?.id).concat(newEdge)))
+        const buildNext = (latest: ReactFlowEdge[]) => {
+          const base = opts?.replaceEdgeId
+            ? latest.filter(edge => edge.id !== opts.replaceEdgeId)
+            : latest
+          const replaced = base.find(
+            edge => edge.target === newEdge.target && edge.targetHandle === newEdge.targetHandle
+          )
+          return normalizeMultiInputEdges(
+            insertUniqueEdge(
+              base.filter(edge => edge.id !== replaced?.id),
+              newEdge
+            )
+          )
+        }
+        setEdges(latest => buildNext(latest))
         targetField.addConnection(newEdge.id, sourceField)
       }
 
@@ -984,6 +1017,7 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
           const newChildId = newQualifiedId + oldChildId.slice(nodeId.length)
           setOp(newChildId, childOp)
           childOp.id = newChildId
+          childOp.containerId = getParentPath(newChildId)
 
           // Rename timeline tracks for child operator
           getTimelineStore().renameTracksForOperator(oldChildId, newChildId)
@@ -1012,7 +1046,12 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
           }
           // Update children if this is a container
           if (isContainer && n.id.startsWith(`${nodeId}/`)) {
-            return { ...n, id: newQualifiedId + n.id.slice(nodeId.length) }
+            const parentId = n.parentId?.startsWith(`${nodeId}/`)
+              ? newQualifiedId + n.parentId.slice(nodeId.length)
+              : n.parentId === nodeId
+                ? newQualifiedId
+                : n.parentId
+            return { ...n, id: newQualifiedId + n.id.slice(nodeId.length), parentId }
           }
           return n
         })

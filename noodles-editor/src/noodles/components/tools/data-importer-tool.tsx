@@ -2,9 +2,10 @@ import * as Dialog from '@radix-ui/react-dialog'
 import { Cross2Icon } from '@radix-ui/react-icons'
 import { useReactFlow } from '@xyflow/react'
 import { useCallback, useRef, useState } from 'react'
+import { analytics } from '../../../utils/analytics'
 import { useFileImport } from '../../hooks/use-file-import'
 import s from './data-importer-tool.module.css'
-import { FILE_INPUT_ACCEPT, isImportable } from './import-pipelines'
+import { extensionOf, FILE_INPUT_ACCEPT, isImportable } from './import-pipelines'
 
 const SAMPLE_DATASETS = [
   {
@@ -74,6 +75,17 @@ export function DataImporterTool({ open, onOpenChange, reactFlowRef }: DataImpor
     (files: File[], source: string) => {
       const supported = files.filter(file => isImportable(file.name))
       if (supported.length === 0) {
+        const unsupportedFile = files[0]
+        if (unsupportedFile) {
+          const fileType = extensionOf(unsupportedFile.name) || 'unknown'
+          analytics.track('file_import_failed', {
+            fileType,
+            attemptedFormat: 'unknown',
+            reason: 'unsupported_type',
+            source,
+            fileSize: unsupportedFile.size,
+          })
+        }
         setError(`Can't import ${files[0]?.name ?? 'that file'}. Supported: ${FILE_INPUT_ACCEPT}`)
         return
       }

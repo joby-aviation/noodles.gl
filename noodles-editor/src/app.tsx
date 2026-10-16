@@ -1,6 +1,7 @@
 import { Component, lazy, type ReactNode, Suspense, useEffect, useRef } from 'react'
 import { Redirect, Route, Router, Switch, useLocation, useRoute, useSearchParams } from 'wouter'
 import { AnalyticsConsentBanner } from './components/analytics-consent-banner'
+import { OpenRouterCallback } from './components/openrouter-callback'
 import { type ModalView, QuickStartModal } from './components/quick-start-modal'
 import { externalControl } from './noodles/globals'
 import { useUIStore } from './noodles/store'
@@ -89,6 +90,12 @@ function App() {
         </Suspense>
       )}
       <Switch>
+        {/* OAuth landing page for the assistant's OpenRouter sign-in. Matched
+            before the project routes so it never loads the editor. */}
+        <Route path="/auth/openrouter">
+          <OpenRouterCallback />
+        </Route>
+
         {/* Project routes - /examples/:projectId, /projects/:projectId */}
         <Route path="/examples/:projectId">
           <TimelineEditor />
@@ -141,8 +148,14 @@ function QuickStartModalRoute({ initialView = 'home' }: { initialView?: ModalVie
   }, [setQuickStartModalOpen, redirectPath])
 
   if (redirectPath) {
-    debugApp('QuickStartModalRoute: Redirecting to:', redirectPath)
-    return <Redirect to={redirectPath} />
+    // Preserve other query parameters (e.g., OAuth code) when redirecting
+    const otherParams = new URLSearchParams(searchParams)
+    otherParams.delete('redirect')
+    const queryString = otherParams.toString()
+    const fullPath = queryString ? `${redirectPath}?${queryString}` : redirectPath
+
+    debugApp('QuickStartModalRoute: Redirecting to:', fullPath)
+    return <Redirect to={fullPath} />
   }
 
   return (
@@ -176,8 +189,15 @@ function FallbackRoute() {
     if (redirect.startsWith('/') && !redirect.startsWith('//')) {
       // Valid redirect - process it
       const path = redirect.replace(/^\/app\//, '/') // Remove /app/ base if present
-      debugApp('Redirecting to:', path)
-      return <Redirect to={path} />
+
+      // Preserve other query parameters (e.g., OAuth code) when redirecting
+      const otherParams = new URLSearchParams(searchParams)
+      otherParams.delete('redirect')
+      const queryString = otherParams.toString()
+      const fullPath = queryString ? `${path}?${queryString}` : path
+
+      debugApp('Redirecting to:', fullPath)
+      return <Redirect to={fullPath} />
     }
     // Invalid redirect - log warning and fall through to default navigation
     debugApp('Ignoring invalid redirect URL:', redirect)

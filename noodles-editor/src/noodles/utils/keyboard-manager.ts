@@ -1,6 +1,8 @@
 // Adapted from React Flow's keyboard handling approach
 // https://github.com/xyflow/xyflow/blob/main/packages/system/src/utils/dom.ts
 
+import { shouldBlockKeyboardShortcut } from './input-detection'
+
 type ShortcutHandler = (e: KeyboardEvent) => undefined | boolean
 
 interface ShortcutDescriptor {
@@ -17,8 +19,6 @@ interface ShortcutRegistration {
   id: symbol
   useKeyDown: boolean // true for modifier shortcuts, false for single keys
 }
-
-const inputTags = ['INPUT', 'SELECT', 'TEXTAREA']
 
 // Parse a shortcut string into a descriptor.
 // Supports formats like: "a", "cmd+a", "ctrl+a", "ctrl+shift+s", "meta+a"
@@ -92,16 +92,8 @@ class KeyboardManager {
   private registrations: ShortcutRegistration[] = []
   private initialized = false
 
-  private isInputDOMNode(event: KeyboardEvent): boolean {
-    const target = (event.composedPath?.()?.[0] || event.target) as Element | null
-    if (target?.nodeType !== 1) return false
-
-    const isInput = inputTags.includes(target.nodeName) || target.hasAttribute('contenteditable')
-    return isInput || !!target.closest('.nokey')
-  }
-
   private handleKeyUp = (e: KeyboardEvent) => {
-    if (this.isInputDOMNode(e)) return
+    if (shouldBlockKeyboardShortcut(e)) return
 
     for (const registration of this.registrations) {
       if (!registration.useKeyDown && matchesShortcut(e, registration.shortcut)) {
@@ -114,7 +106,7 @@ class KeyboardManager {
   }
 
   private handleKeyDown = (e: KeyboardEvent) => {
-    if (this.isInputDOMNode(e)) return
+    if (shouldBlockKeyboardShortcut(e)) return
 
     for (const registration of this.registrations) {
       if (registration.useKeyDown && matchesShortcut(e, registration.shortcut)) {

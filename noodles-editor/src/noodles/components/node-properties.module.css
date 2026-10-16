@@ -1,13 +1,15 @@
 /* Base panel */
 .panel {
-  width: var(--property-panel-width);
+  width: 100%;
   padding: 8px;
+  box-sizing: border-box;
   font-size: 11px;
   display: flex;
   flex-direction: column;
   gap: 0;
   flex: 1;
   min-height: 0;
+  overflow-y: auto;
 }
 
 /* Header */
@@ -96,6 +98,72 @@
   padding: 0 6px;
 }
 
+/* Edge inspector */
+.edgeTypeBadge {
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: rgba(139, 92, 246, 0.18);
+  color: #c4b5fd;
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.edgeEndpoints {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0 6px 8px;
+  padding: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.edgeEndpoint {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
+}
+
+.edgeEndpointLabel {
+  color: var(--color-text-secondary);
+  font-size: 10px;
+  text-transform: uppercase;
+}
+
+.edgeEndpoint code {
+  overflow: hidden;
+  color: var(--color-text-primary);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.edgeEndpointArrow {
+  margin-left: 11px;
+  color: var(--color-text-secondary);
+  line-height: 10px;
+}
+
+.edgeValuePreview {
+  min-width: 0;
+  margin: 8px 6px 0;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.edgeValueUnavailable {
+  margin: 8px 6px 0;
+  padding: 10px;
+  color: var(--color-text-secondary);
+  font-size: 11px;
+}
+
 .opDisplayName {
   font-size: 11px;
   font-weight: 600;
@@ -149,6 +217,11 @@
   line-height: 1;
   padding: 0;
   user-select: none;
+}
+
+.addRemoveBtn svg {
+  width: 14px;
+  height: 14px;
 }
 
 .addBtn {
@@ -354,9 +427,28 @@
 .propertyLabel {
   flex: 1;
   min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.propertyLabelText {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  min-width: 0;
+}
+
+.connectedIcon {
+  display: inline-flex;
+  align-items: center;
+  color: rgba(234, 179, 8, 0.8);
+  flex-shrink: 0;
+}
+
+.connectedIcon svg {
+  width: 12px;
+  height: 12px;
 }
 
 /* Port */
