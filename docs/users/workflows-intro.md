@@ -85,6 +85,14 @@ Workflows in Noodles.gl are **reactive**, meaning:
 
 This makes experimentation fast and intuitive.
 
+### Locking Nodes
+
+Click the lock icon in a node's header to keep its result. Use it for slow or paid nodes, such as directions, while you work on the rest of the workflow.
+
+- A locked node keeps its result when its inputs change.
+- A locked node with no result yet runs once to get one, including when you reopen the project.
+- Unlocking runs the node again with its current inputs. The editor asks first, and undo restores the previous result.
+
 ## Building Your First Workflow
 
 Let's build a simple workflow to visualize data on a map:
@@ -254,7 +262,7 @@ All [deck.gl layers](https://deck.gl/docs/api-reference/layers) are available, i
 
 1. **Use the Properties Panel**: Most operator configuration happens here
 2. **Inspect data**: Use Viewer nodes or the TableEditor to see your data
-3. **Lock nodes**: Click the lock icon to freeze a node's output. A locked node keeps its last result and stops re-running when its inputs change, so slow or paid calls like directions don't repeat. A locked node without a previous output still runs once, including after a project loads. Unlock it to run again with the current inputs; the editor asks first, and undo brings back the kept result
+3. **Lock slow nodes**: Keep a result while you work elsewhere. See [Locking Nodes](#locking-nodes)
 4. **Check connections**: Hover over handles to see data types or outputs
 5. **Experiment freely**: Changes are reactive and reversible
 
