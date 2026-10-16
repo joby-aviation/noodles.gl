@@ -1,6 +1,6 @@
 export function deepEqual(a: unknown, b: unknown, maxDepth = Infinity, currentDepth = 0): boolean {
-  // Fast path: same reference. NaN counts as equal to itself, like Object.is.
-  if (a === b || (Number.isNaN(a) && Number.isNaN(b))) return true
+  // Fast path: same reference. Object.is also counts NaN as equal to itself and tells 0 from -0.
+  if (Object.is(a, b)) return true
 
   // Primitives and null
   if (a === null || b === null || typeof a !== 'object' || typeof b !== 'object') return false
@@ -57,7 +57,7 @@ export function deepEqual(a: unknown, b: unknown, maxDepth = Infinity, currentDe
     const valB = (b as any)[k]
 
     // Fast path: same reference or primitive equality
-    if (valA === valB || (Number.isNaN(valA) && Number.isNaN(valB))) continue
+    if (Object.is(valA, valB)) continue
 
     // Different primitives or null
     if (typeof valA !== 'object' || valA === null || typeof valB !== 'object' || valB === null) {
