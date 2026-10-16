@@ -254,7 +254,7 @@ All [deck.gl layers](https://deck.gl/docs/api-reference/layers) are available, i
 
 1. **Use the Properties Panel**: Most operator configuration happens here
 2. **Inspect data**: Use Viewer nodes or the TableEditor to see your data
-3. **Lock nodes**: Click the lock icon to prevent accidental changes
+3. **Lock nodes**: Click the lock icon to freeze a node's output. A locked node keeps its last result and stops re-running when its inputs change, so slow or paid calls like directions don't repeat. Unlock it to run again with the current inputs
 4. **Check connections**: Hover over handles to see data types or outputs
 5. **Experiment freely**: Changes are reactive and reversible
 

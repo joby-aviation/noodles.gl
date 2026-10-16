@@ -239,6 +239,57 @@ describe('Error handling', () => {
   })
 })
 
+describe('Locked operators', () => {
+  it('serves the last output without executing while locked', async () => {
+    const op = new MathOp('/math', { operator: 'add', a: 2, b: 3 })
+    await op.pull()
+    op.locked.next(true)
+    const execute = vi.spyOn(op, 'execute')
+
+    op.inputs.a.setValue(10)
+
+    await expect(op.pull()).resolves.toEqual({ result: 5 })
+    expect(execute).not.toHaveBeenCalled()
+  })
+
+  it('executes once when locked without any output yet', async () => {
+    const op = new MathOp('/math', { operator: 'add', a: 2, b: 3 }, true)
+    const execute = vi.spyOn(op, 'execute')
+
+    await expect(op.pull()).resolves.toEqual({ result: 5 })
+    op.inputs.a.setValue(10)
+    await expect(op.pull()).resolves.toEqual({ result: 5 })
+    expect(execute).toHaveBeenCalledTimes(1)
+  })
+
+  it('catches up on input changes after unlocking', async () => {
+    const op = new MathOp('/math', { operator: 'add', a: 2, b: 3 })
+    await op.pull()
+    op.locked.next(true)
+    op.inputs.a.setValue(10)
+    await op.pull()
+
+    op.locked.next(false)
+
+    await expect(op.pull()).resolves.toEqual({ result: 13 })
+  })
+
+  it('does not pull upstream while locked', async () => {
+    const upstream = new NumberOp('/num', { val: 1 })
+    const op = new MathOp('/math', { operator: 'add', a: 2, b: 3 })
+    op.addUpstreamDependency(upstream)
+    upstream.addDownstreamDependent(op)
+    await op.pull()
+    op.locked.next(true)
+    const upstreamPull = vi.spyOn(upstream, 'pull')
+
+    upstream.inputs.val.setValue(2)
+    await op.pull()
+
+    expect(upstreamPull).not.toHaveBeenCalled()
+  })
+})
+
 describe('Connection error tracking', () => {
   it('tracks connection errors on operators', () => {
     const operator = new NumberOp('/num-0')
