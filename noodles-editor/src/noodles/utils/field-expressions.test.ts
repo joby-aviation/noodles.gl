@@ -59,6 +59,12 @@ describe('field expression mode', () => {
       expect(op.inputs.date.value.toString()).toEqual('2026-10-17T08:30:00')
     })
 
+    it('applies -0 over 0', () => {
+      const op = new NumberOp('/num')
+      op.inputs.val.setExpression('-0')
+      expect(Object.is(op.inputs.val.value, -0)).toBe(true)
+    })
+
     it('supports math utilities and Math global', () => {
       const op = new NumberOp('/num')
       op.inputs.val.setExpression('Math.max(1, 7) + d3.mean([1, 2, 3])')

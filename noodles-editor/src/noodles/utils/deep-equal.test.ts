@@ -530,6 +530,12 @@ describe('deepEqual', () => {
         expect(deepEqual({ v: Number.NaN }, { v: Number.NaN })).toBe(true)
       })
 
+      it('tells 0 from -0', () => {
+        expect(deepEqual(0, -0)).toBe(false)
+        expect(deepEqual({ v: 0 }, { v: -0 })).toBe(false)
+        expect(deepEqual([-0], [-0])).toBe(true)
+      })
+
       it.skip('compares Map objects up to maxDepth', () => {
         const map1 = new Map([['a', { x: 1 }]])
         const map2 = new Map([['a', { x: 1 }]])
