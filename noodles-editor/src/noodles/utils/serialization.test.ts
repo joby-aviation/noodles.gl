@@ -1,8 +1,17 @@
+import { Temporal } from 'temporal-polyfill'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { hexToColor } from '../../utils/color'
 import { CodeField, ColorField, NumberField } from '../fields'
-import { GeoJsonLayerOp, NumberOp, ScenegraphLayerOp, TableEditorOp } from '../operators'
+import {
+  DateTimeOp,
+  DirectionsOp,
+  GeoJsonLayerOp,
+  NumberOp,
+  ScenegraphLayerOp,
+  TableEditorOp,
+} from '../operators'
 import { clearOps, getOpStore, setOp } from '../store'
+import { transformGraph } from '../transform-graph'
 import { edgeId } from './id-utils'
 import {
   NOODLES_VERSION,
@@ -902,5 +911,48 @@ describe('serializeNodes with expression-driven fields', () => {
     const node = { id: 'node1', type: 'NumberOp', data: {}, position: { x: 0, y: 0 } }
     const result = serializeNodes(getOpStore(), [node], [])
     expect(result[0].data.inputs).toEqual({ val: { $expr: '0' } })
+  })
+})
+
+describe('date inputs save and reload', () => {
+  afterEach(() => {
+    clearOps()
+  })
+
+  // Save the way the editor does (JSON text) and load the result into fresh operators
+  function saveAndReload(id: string, type: string) {
+    const node = { id, type, data: {}, position: { x: 0, y: 0 } }
+    const [saved] = JSON.parse(safeStringify({ nodes: serializeNodes(getOpStore(), [node], []) }))
+      .nodes as ReturnType<typeof serializeNodes>
+    clearOps()
+    transformGraph({ nodes: [saved], edges: [] })
+    return { saved, reloaded: getOpStore().getOp(id) }
+  }
+
+  it('persists a DateTimeOp date', () => {
+    const op = new DateTimeOp('/date')
+    op.inputs.date.setValue(Temporal.PlainDateTime.from('2026-10-17T08:30'))
+    setOp('/date', op)
+
+    const { saved, reloaded } = saveAndReload('/date', 'DateTimeOp')
+
+    expect(saved.data.inputs.date).toBe('2026-10-17T08:30:00')
+    expect((reloaded as DateTimeOp).inputs.date.value.toString()).toBe('2026-10-17T08:30:00')
+  })
+
+  it('persists a scheduled departure time', () => {
+    const op = new DirectionsOp('/directions', {
+      mode: 'driving-traffic',
+      departureMode: 'scheduled',
+    })
+    op.inputs.departureTime.setValue(Temporal.PlainDateTime.from('2026-10-17T08:30'))
+    setOp('/directions', op)
+
+    const { saved, reloaded } = saveAndReload('/directions', 'DirectionsOp')
+
+    expect(saved.data.inputs.departureTime).toBe('2026-10-17T08:30:00')
+    expect((reloaded as DirectionsOp).inputs.departureTime.value.toString()).toBe(
+      '2026-10-17T08:30:00'
+    )
   })
 })
