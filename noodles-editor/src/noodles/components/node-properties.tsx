@@ -3,6 +3,7 @@ import { Cross2Icon, EyeNoneIcon, EyeOpenIcon, Link2Icon } from '@radix-ui/react
 import type { Edge } from '@xyflow/react'
 import { useReactFlow, useStore } from '@xyflow/react'
 import cx from 'classnames'
+import { LayoutGrid } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { KeyframeIndicator } from '../../timeline/components/KeyframeIndicator'
@@ -14,6 +15,7 @@ import {
   useTimelineStore,
 } from '../../timeline/timeline-store'
 import type { KeyframeValue } from '../../timeline/types'
+import { analytics } from '../../utils/analytics'
 import {
   CodeField,
   CompoundPropsField,
@@ -59,6 +61,7 @@ import {
   VectorFieldComponent,
 } from './field-components'
 import menuStyles from './menu.module.css'
+import type { AutoLayoutSettings } from '../utils/serialization'
 import s from './node-properties.module.css'
 import {
   formatViewerValue,
@@ -1485,7 +1488,12 @@ export function EdgeProperties({ edge }: { edge: Edge }) {
   )
 }
 
-export function PropertyPanel() {
+interface PropertyPanelProps {
+  onAutoLayout?: () => void
+  autoLayout?: AutoLayoutSettings
+}
+
+export function PropertyPanel({ onAutoLayout, autoLayout }: PropertyPanelProps) {
   // Only re-renders when selection changes, not on position updates during drag
   const { selectedNodeId, selectedNodeCount, selectedEdge, selectedEdgeCount } = useStore(
     s => {
@@ -1524,7 +1532,7 @@ export function PropertyPanel() {
             <div className={s.title}>Page</div>
           </div>
           {selectedNodeCount > 1 || selectedEdgeCount > 1 ? (
-            <div className={s.opMeta}>
+            <div className={s.selectionInfo}>
               {selectedNodeCount > 0 && (
                 <div>
                   {selectedNodeCount} {selectedNodeCount === 1 ? 'node' : 'nodes'} selected
@@ -1534,6 +1542,17 @@ export function PropertyPanel() {
                 <div>
                   {selectedEdgeCount} {selectedEdgeCount === 1 ? 'edge' : 'edges'} selected
                 </div>
+              )}
+              {selectedNodeCount >= 2 && onAutoLayout && (
+                <button
+                  type="button"
+                  className={s.layoutButton}
+                  onClick={onAutoLayout}
+                  title="Layout selected nodes (Cmd/Ctrl+L)"
+                >
+                  <LayoutGrid size={16} />
+                  <span>Layout</span>
+                </button>
               )}
             </div>
           ) : (
