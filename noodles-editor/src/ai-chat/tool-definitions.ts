@@ -114,33 +114,102 @@ export const toolDefinitions: ToolDefinition[] = [
     name: 'apply_modifications',
     annotations: { readOnlyHint: false, destructiveHint: true },
     description:
-      'Apply modifications to the project (add/update/delete nodes or edges). Use this instead of returning JSON in text.',
+      'Propose validated project modifications (add/update/delete nodes or edges) for user review. This never mutates the graph directly. Use it instead of returning JSON in text.',
     inputSchema: {
       type: 'object',
       properties: {
         modifications: {
           type: 'array',
-          description: 'Array of modifications to apply',
+          description: 'Atomic set of modifications to validate and propose',
           items: {
-            type: 'object',
-            properties: {
-              type: {
-                type: 'string',
-                enum: ['add_node', 'update_node', 'delete_node', 'add_edge', 'delete_edge'],
-              },
-              data: {
+            oneOf: [
+              {
                 type: 'object',
-                description: 'The node or edge data',
+                properties: {
+                  type: { const: 'add_node' },
+                  data: {
+                    type: 'object',
+                    properties: {
+                      id: { type: 'string' },
+                      type: { type: 'string' },
+                      position: {
+                        type: 'object',
+                        properties: { x: { type: 'number' }, y: { type: 'number' } },
+                        required: ['x', 'y'],
+                        additionalProperties: false,
+                      },
+                      data: { type: 'object' },
+                    },
+                    required: ['id', 'type'],
+                  },
+                },
+                required: ['type', 'data'],
+                additionalProperties: false,
               },
-            },
-            required: ['type', 'data'],
+              {
+                type: 'object',
+                properties: {
+                  type: { const: 'update_node' },
+                  data: {
+                    type: 'object',
+                    properties: {
+                      id: { type: 'string' },
+                      type: { type: 'string' },
+                      position: {
+                        type: 'object',
+                        properties: { x: { type: 'number' }, y: { type: 'number' } },
+                        required: ['x', 'y'],
+                        additionalProperties: false,
+                      },
+                      data: { type: 'object' },
+                    },
+                    required: ['id'],
+                  },
+                },
+                required: ['type', 'data'],
+                additionalProperties: false,
+              },
+              ...['delete_node', 'delete_edge'].map(type => ({
+                type: 'object',
+                properties: {
+                  type: { const: type },
+                  data: {
+                    type: 'object',
+                    properties: { id: { type: 'string' } },
+                    required: ['id'],
+                    additionalProperties: false,
+                  },
+                },
+                required: ['type', 'data'],
+                additionalProperties: false,
+              })),
+              {
+                type: 'object',
+                properties: {
+                  type: { const: 'add_edge' },
+                  data: {
+                    type: 'object',
+                    properties: {
+                      id: { type: 'string' },
+                      source: { type: 'string' },
+                      target: { type: 'string' },
+                      sourceHandle: { type: 'string' },
+                      targetHandle: { type: 'string' },
+                    },
+                    required: ['id', 'source', 'target', 'sourceHandle', 'targetHandle'],
+                    additionalProperties: false,
+                  },
+                },
+                required: ['type', 'data'],
+                additionalProperties: false,
+              },
+            ],
           },
         },
       },
       required: ['modifications'],
     },
-    // biome-ignore lint/suspicious/noExplicitAny: dynamic modification structure from Claude
-    execute: (tools, params) => tools.applyModifications(params as { modifications: any[] }),
+    execute: (tools, params) => tools.applyModifications(params as { modifications: unknown[] }),
   },
   {
     name: 'run_code',

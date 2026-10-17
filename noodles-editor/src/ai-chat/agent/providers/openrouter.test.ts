@@ -21,6 +21,7 @@ function entry(overrides: Record<string, unknown> = {}) {
     context_length: 64_000,
     pricing: { prompt: '0', completion: '0' },
     supported_parameters: ['tools', 'temperature'],
+    architecture: { input_modalities: ['text'] },
     ...overrides,
   }
 }
@@ -192,5 +193,36 @@ describe('OpenRouterProvider context window', () => {
     })
 
     expect(provider.contextWindow).toBe(4_096)
+  })
+})
+
+describe('OpenRouterProvider modalities', () => {
+  it('advertises images only when the tool-capable catalogue model accepts them', async () => {
+    stubCatalogue([
+      entry({ id: 'vendor/text', architecture: { input_modalities: ['text'] } }),
+      entry({ id: 'vendor/vision', architecture: { input_modalities: ['text', 'image'] } }),
+    ])
+    await fetchOpenRouterFreeModels()
+
+    expect(new OpenRouterProvider({ apiKey: 'test', model: 'vendor/text' }).supportsImages).toBe(
+      false
+    )
+    expect(new OpenRouterProvider({ apiKey: 'test', model: 'vendor/vision' }).supportsImages).toBe(
+      true
+    )
+  })
+
+  it('does not learn modalities from models without tool support', async () => {
+    stubCatalogue([
+      entry({
+        id: 'vendor/vision-no-tools',
+        supported_parameters: ['temperature'],
+        architecture: { input_modalities: ['text', 'image'] },
+      }),
+    ])
+    await fetchOpenRouterFreeModels()
+
+    const provider = new OpenRouterProvider({ apiKey: 'test', model: 'vendor/vision-no-tools' })
+    expect(provider.supportsImages).toBe(false)
   })
 })

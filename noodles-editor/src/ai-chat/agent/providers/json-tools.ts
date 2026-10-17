@@ -18,21 +18,32 @@ import type { AgentMessage, AgentRequest, AgentTool } from '../types'
 // supported constraint shape there is; a nullable object property is not.
 export const NO_TOOL = 'none'
 
-// The constraint: one flat object. Nesting the tool input under the action would
-// be tidier, but a flat enum plus a free-form object is the shape small models
-// fill in correctly.
+// Each branch binds one tool name to that tool's exact argument schema. This
+// prevents a constrained decoder from producing a syntactically valid action
+// whose arguments belong to a different tool.
 export function responseSchema(tools: AgentTool[]): object {
   return {
-    type: 'object',
-    properties: {
-      tool: {
-        type: 'string',
-        enum: [NO_TOOL, ...tools.map(tool => tool.name)],
+    oneOf: [
+      {
+        type: 'object',
+        properties: {
+          tool: { const: NO_TOOL },
+          reply: { type: 'string' },
+        },
+        required: ['tool', 'reply'],
+        additionalProperties: false,
       },
-      input: { type: 'object' },
-      reply: { type: 'string' },
-    },
-    required: ['tool', 'reply'],
+      ...tools.map(tool => ({
+        type: 'object',
+        properties: {
+          tool: { const: tool.name },
+          input: { ...tool.inputSchema, additionalProperties: false },
+          reply: { type: 'string' },
+        },
+        required: ['tool', 'input', 'reply'],
+        additionalProperties: false,
+      })),
+    ],
   }
 }
 

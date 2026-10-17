@@ -9,12 +9,7 @@
 import { debugAiChat } from '../../utils/debug'
 import type { MCPTools } from '../mcp-tools'
 import { getToolDefinition } from '../tool-definitions'
-import {
-  type ProjectModification,
-  parseModifications,
-  type ToolCall,
-  type ToolResult,
-} from '../types'
+import type { ProjectModification, ToolCall, ToolResult } from '../types'
 import { capToolResult, resultBudgetChars } from './result-budget'
 import { FIND_TOOLS_NAME, type ToolRouter } from './tool-router'
 import type {
@@ -208,26 +203,7 @@ export async function runAgent(params: RunAgentParams): Promise<AgentRunResult> 
     debugAiChat('[agent] hit the %d step limit with tools still pending', maxSteps)
   }
 
-  // Models sometimes write a modifications array into a fenced JSON block instead
-  // of calling apply_modifications. Honouring that is the difference between the
-  // edit landing and the user seeing a wall of JSON.
-  modifications.push(...extractProsedModifications(text))
-
   return { text, toolCalls, modifications, messages, usage, stopReason, steps }
-}
-
-const JSON_BLOCK = /```json\s*([\s\S]*?)\s*```/g
-
-function extractProsedModifications(text: string): ProjectModification[] {
-  for (const match of text.matchAll(JSON_BLOCK)) {
-    try {
-      const modifications = parseModifications(JSON.parse(match[1]))
-      if (modifications && modifications.length > 0) return modifications
-    } catch {
-      // Not a modifications block; the next fence may be
-    }
-  }
-  return []
 }
 
 interface StreamedTurn {

@@ -33,6 +33,13 @@ const CONTEXT_WINDOWS: Record<string, number> = {
   'openai/gpt-5': 400_000,
 }
 
+const INPUT_MODALITIES: Record<string, readonly string[]> = {
+  'google/gemini-2.5-flash': ['text', 'image'],
+  'google/gemini-2.5-pro': ['text', 'image'],
+  'anthropic/claude-sonnet-4.5': ['text', 'image'],
+  'openai/gpt-5': ['text', 'image'],
+}
+
 const FALLBACK_CONTEXT_WINDOW = 128_000
 
 // Offered by the model picker. Any OpenRouter slug works; these are the ones
@@ -57,6 +64,7 @@ export interface OpenRouterModel {
   label: string
   contextWindow: number
   free: boolean
+  inputModalities: readonly string[]
 }
 
 interface CatalogueEntry {
@@ -65,6 +73,7 @@ interface CatalogueEntry {
   context_length?: unknown
   pricing?: { prompt?: unknown; completion?: unknown }
   supported_parameters?: unknown
+  architecture?: { input_modalities?: unknown }
 }
 
 // Free models worth defaulting to, best first. Intersected with what the
@@ -87,6 +96,7 @@ let inFlight: Promise<OpenRouterModel[]> | null = null
 // free ones. Kept apart from CONTEXT_WINDOWS so the static floor stays intact and
 // a test can clear what was learned.
 const LEARNED_WINDOWS = new Map<string, number>()
+const LEARNED_MODALITIES = new Map<string, readonly string[]>()
 
 // Free, tool-calling models from the live catalogue. Cached for the session:
 // the list does not change often enough to re-fetch, and every caller wants the
@@ -137,6 +147,7 @@ async function loadCatalogue(signal?: AbortSignal): Promise<OpenRouterModel[]> {
     const model = toModel(entry)
     if (!model) continue
     LEARNED_WINDOWS.set(model.id, model.contextWindow)
+    LEARNED_MODALITIES.set(model.id, model.inputModalities)
     if (model.free) free.push(model)
   }
 
@@ -163,6 +174,11 @@ function toModel(entry: CatalogueEntry): OpenRouterModel | null {
     // Prices are decimal strings ('0', '0.0000012'), so compare numerically:
     // '0.0000012' is truthy and Number('') is 0, which both mislead.
     free: isZero(entry.pricing?.prompt) && isZero(entry.pricing?.completion),
+    inputModalities: Array.isArray(entry.architecture?.input_modalities)
+      ? entry.architecture.input_modalities.filter(
+          (modality): modality is string => typeof modality === 'string'
+        )
+      : ['text'],
   }
 }
 
@@ -188,12 +204,14 @@ export function resetOpenRouterCatalogue() {
   freeModels = null
   inFlight = null
   LEARNED_WINDOWS.clear()
+  LEARNED_MODALITIES.clear()
 }
 
 interface OpenRouterProviderOptions {
   apiKey: string
   model?: string
   contextWindow?: number
+  supportsImages?: boolean
   // Adds the `web` plugin to every request. Costs roughly a cent per call, so
   // the loop turns it on for a web_search tool call rather than for the chat.
   webSearch?: { maxResults?: number }
@@ -203,7 +221,7 @@ export class OpenRouterProvider implements AgentProvider {
   readonly id = 'openrouter' as const
   readonly model: string
   readonly supportsNativeTools = true
-  readonly supportsImages = true
+  readonly supportsImages: boolean
   readonly contextWindow: number
 
   private apiKey: string
@@ -213,6 +231,9 @@ export class OpenRouterProvider implements AgentProvider {
     this.model = options.model ?? DEFAULT_OPENROUTER_MODEL
     this.apiKey = options.apiKey
     this.webSearch = options.webSearch
+    const modalities = LEARNED_MODALITIES.get(this.model) ??
+      INPUT_MODALITIES[this.model] ?? ['text']
+    this.supportsImages = options.supportsImages ?? modalities.includes('image')
     this.contextWindow =
       options.contextWindow ??
       LEARNED_WINDOWS.get(this.model) ??

@@ -68,6 +68,7 @@ export class AgentSession {
   }
 
   async send(params: SendParams): Promise<ClaudeResponse> {
+    this.router.prime(params.message, 2)
     const history = await this.prepareHistory(params.conversationHistory ?? [])
 
     const userContent: AgentContent[] = [{ type: 'text', text: params.message }]

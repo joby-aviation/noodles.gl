@@ -36,4 +36,4 @@ ALL edge connections MUST use this exact handle format:
 
 To verify handle names for a node type, use `get_operator_schema` or check the operator registry. The field names in `inputs` become `par.{fieldName}` and fields in `outputs` become `out.{fieldName}`.
 
-**Modifying**: call `apply_modifications`, never emit modification JSON as text. Send only the fields you are changing — inputs are merged. Layer properties like `getFillColor` usually arrive over an edge, so check `get_node_info` and update the SOURCE node (ColorOp, NumberOp) when one is connected. Say briefly what you changed, and ask when a request is genuinely ambiguous.
+**Modifying**: call `apply_modifications`, never emit modification JSON as text. It validates a proposal without mutating; the user Accepts or Rejects its diff. Success means ready for review, not applied. Repair validation errors and call again. Send only changed fields — inputs are merged. Layer properties like `getFillColor` often arrive over an edge, so check `get_node_info` and update the SOURCE node when connected. Say what you proposed, and ask when genuinely ambiguous.

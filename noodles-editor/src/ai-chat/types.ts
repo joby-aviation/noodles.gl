@@ -85,6 +85,21 @@ export interface FieldSchema {
 export interface DocsIndex {
   version: string
   topics: Record<string, DocTopic>
+  searchIndex?: SerializedDocsSearchIndex
+}
+
+export interface SerializedDocsSearchIndex {
+  chunks: Array<{
+    topicId: string
+    heading?: string
+    anchor?: string
+    start: number
+    end: number
+    terms: Array<[string, number]>
+    length: number
+  }>
+  documentFrequency: Array<[string, number]>
+  averageLength: number
 }
 
 export interface DocTopic {

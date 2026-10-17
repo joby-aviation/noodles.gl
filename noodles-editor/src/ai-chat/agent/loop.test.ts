@@ -170,7 +170,7 @@ describe('runAgent', () => {
     expect(result.modifications).toEqual([modification])
   })
 
-  it('picks up modifications the model wrote as a fenced JSON block', async () => {
+  it('does not treat modifications written in prose as an executable proposal', async () => {
     const provider = fakeProvider([
       {
         text: [
@@ -184,9 +184,7 @@ describe('runAgent', () => {
 
     const result = await run({ provider })
 
-    expect(result.modifications).toEqual([
-      { type: 'add_node', data: { id: '/n', type: 'NumberOp' } },
-    ])
+    expect(result.modifications).toEqual([])
   })
 
   it('carries provider blocks back ahead of the text, as thinking replay requires', async () => {

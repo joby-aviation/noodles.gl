@@ -608,20 +608,32 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
                           </div>
                         ) : (
                           <>
-                            {/* Choosing a model is what arms this provider, and the size in
-                                each label is the decision actually being made. Nothing
-                                downloads until the chat next opens a session. */}
                             <select
                               className={s.select}
                               value={webllmModel ?? ''}
                               onChange={e => handleWebLLMModelChange(e.target.value)}
                             >
                               <option value="">Choose a model…</option>
-                              {WEBLLM_MODELS.map(option => (
-                                <option key={option.id} value={option.id}>
-                                  {option.label}
-                                </option>
-                              ))}
+                              <optgroup label="Recommended">
+                                {WEBLLM_MODELS.filter(
+                                  option => option.tier !== 'compatibility'
+                                ).map(option => (
+                                  <option key={option.id} value={option.id}>
+                                    {option.label} — {(option.downloadMb / 1000).toFixed(2)}GB
+                                    download, {(option.vramMb / 1000).toFixed(2)}GB GPU memory
+                                  </option>
+                                ))}
+                              </optgroup>
+                              <optgroup label="Advanced compatibility">
+                                {WEBLLM_MODELS.filter(
+                                  option => option.tier === 'compatibility'
+                                ).map(option => (
+                                  <option key={option.id} value={option.id}>
+                                    {option.label} — {(option.downloadMb / 1000).toFixed(2)}GB
+                                    download
+                                  </option>
+                                ))}
+                              </optgroup>
                             </select>
                             {providerPreference === 'webllm' && !webllmModel && (
                               <div className={s.providerOptionDescription}>
@@ -647,9 +659,12 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
                         className={s.providerRadio}
                       />
                       <div className={s.providerOptionContent}>
-                        <div className={s.providerOptionTitle}>Chrome Built-in AI</div>
+                        <div className={s.providerOptionTitle}>
+                          Chrome Built-in AI (experimental)
+                        </div>
                         <div className={s.providerOptionDescription}>
-                          Free, runs locally, no API key (Chrome 127+ required)
+                          Free and local, but not selected automatically because tool use and
+                          instruction following are unreliable.
                         </div>
                       </div>
                     </label>

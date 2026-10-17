@@ -9,7 +9,7 @@ The recurring mistake is editing the wrong node. A layer property can come from 
 3. If the property arrives over an edge, edit the **source** node. If it does not, edit the layer's input directly.
 4. `apply_modifications` with that node.
 
-Changes apply immediately; the visualization updates in real time.
+The tool validates the complete graph update and returns a proposal. The visualization changes only after the user accepts the diff. A validation error is actionable feedback: repair the full proposal and call `apply_modifications` again.
 
 ## Inputs versus edges
 

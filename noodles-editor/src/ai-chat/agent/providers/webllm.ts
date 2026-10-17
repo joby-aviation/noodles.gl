@@ -44,8 +44,10 @@ import {
 export interface WebLLMModel {
   id: string
   label: string
-  // Download size, which is also roughly the VRAM the model will hold
-  sizeMb: number
+  downloadMb: number
+  vramMb: number
+  tier: 'quality' | 'fast' | 'compatibility'
+  supportsImages: boolean
 }
 
 // Verified against prebuiltAppConfig.model_list — an id that is not in that list
@@ -57,23 +59,66 @@ export interface WebLLMModel {
 // leaves no room for a thinking block, so they behave as ordinary chat models here.
 export const WEBLLM_MODELS: readonly WebLLMModel[] = [
   {
-    id: 'Llama-3.2-1B-Instruct-q4f16_1-MLC',
-    label: 'Llama 3.2 1B (0.9 GB)',
-    sizeMb: 879,
+    id: 'Qwen3.5-4B-q4f16_1-MLC',
+    label: 'Local Quality — Qwen3.5 4B',
+    downloadMb: 2390,
+    vramMb: 3868,
+    tier: 'quality',
+    supportsImages: false,
   },
-  { id: 'Qwen3-1.7B-q4f16_1-MLC', label: 'Qwen3 1.7B (2.0 GB)', sizeMb: 2037 },
+  {
+    id: 'Qwen3.5-2B-q4f16_1-MLC',
+    label: 'Local Fast — Qwen3.5 2B',
+    downloadMb: 1080,
+    vramMb: 2245,
+    tier: 'fast',
+    supportsImages: false,
+  },
+  {
+    id: 'Llama-3.2-1B-Instruct-q4f16_1-MLC',
+    label: 'Llama 3.2 1B',
+    downloadMb: 879,
+    vramMb: 879,
+    tier: 'compatibility',
+    supportsImages: false,
+  },
+  {
+    id: 'Qwen3-1.7B-q4f16_1-MLC',
+    label: 'Qwen3 1.7B',
+    downloadMb: 1200,
+    vramMb: 2037,
+    tier: 'compatibility',
+    supportsImages: false,
+  },
   {
     id: 'Hermes-3-Llama-3.2-3B-q4f16_1-MLC',
-    label: 'Hermes 3 Llama 3.2 3B (2.2 GB)',
-    sizeMb: 2264,
+    label: 'Hermes 3 Llama 3.2 3B',
+    downloadMb: 1900,
+    vramMb: 2264,
+    tier: 'compatibility',
+    supportsImages: false,
   },
-  { id: 'Qwen3-4B-q4f16_1-MLC', label: 'Qwen3 4B (3.4 GB)', sizeMb: 3432 },
-  { id: 'Qwen3-8B-q4f16_1-MLC', label: 'Qwen3 8B (5.6 GB)', sizeMb: 5696 },
+  {
+    id: 'Qwen3-4B-q4f16_1-MLC',
+    label: 'Qwen3 4B',
+    downloadMb: 2390,
+    vramMb: 3432,
+    tier: 'compatibility',
+    supportsImages: false,
+  },
+  {
+    id: 'Qwen3-8B-q4f16_1-MLC',
+    label: 'Qwen3 8B',
+    downloadMb: 4700,
+    vramMb: 5696,
+    tier: 'compatibility',
+    supportsImages: false,
+  },
 ]
 
 // The largest model that still fits the "low resource" tier in WebLLM's own
 // config, so it is the biggest one likely to load on a laptop's integrated GPU.
-export const DEFAULT_WEBLLM_MODEL = 'Qwen3-4B-q4f16_1-MLC'
+export const DEFAULT_WEBLLM_MODEL = 'Qwen3.5-4B-q4f16_1-MLC'
 
 // Every prebuilt model overrides context_window_size to this. Not read from the
 // config at runtime because the value is needed to size the tool router before the
@@ -181,7 +226,7 @@ export class WebLLMProvider implements AgentProvider {
   readonly id = 'webllm' as const
   readonly model: string
   readonly supportsNativeTools = false
-  readonly supportsImages = false
+  readonly supportsImages: boolean
   readonly contextWindow = CONTEXT_WINDOW
 
   private readonly engine: WebLLMEngine
@@ -196,6 +241,8 @@ export class WebLLMProvider implements AgentProvider {
     this.engine = options.engine
     this.model = options.model
     this.worker = options.worker
+    this.supportsImages =
+      WEBLLM_MODELS.find(model => model.id === options.model)?.supportsImages ?? false
   }
 
   // A model left loaded holds gigabytes of VRAM that the browser will not reclaim
