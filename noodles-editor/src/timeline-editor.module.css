@@ -5,3 +5,18 @@
   display: flex;
   flex-direction: row;
 }
+
+.cameraControlStatus {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: var(--z-index-chrome);
+  max-width: min(360px, calc(100% - 16px));
+  padding: 6px 9px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 5px;
+  background: rgba(18, 24, 34, 0.88);
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  pointer-events: none;
+}

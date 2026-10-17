@@ -16,6 +16,15 @@ import { useActiveOutOp } from './noodles/hooks/use-active-outop'
 import { useRenderSettings } from './noodles/hooks/use-render-settings'
 import { getNoodles } from './noodles/noodles'
 import { fnWithSource } from './noodles/operators'
+import {
+  createCameraGestureHistory,
+  getCameraControlState,
+  updateCameraInputs,
+} from './noodles/utils/map-camera-control'
+import {
+  captureOperatorInputs,
+  firePropertyMutation,
+} from './noodles/utils/property-history'
 import type { RenderSettings } from './noodles/utils/serialization'
 import { useDeckDrawLoop } from './render/draw-loop'
 import { captureScreenshot, useRenderer } from './render/renderer'
@@ -133,6 +142,32 @@ export default function TimelineEditor() {
     })
   isRenderingRef.current = isRendering
 
+  const cameraControl = getCameraControlState(selectedNodeIds ?? [], isRendering)
+  const cameraHistoryRef = useRef(
+    createCameraGestureHistory(captureOperatorInputs, before =>
+      firePropertyMutation('Move map camera', before)
+    )
+  )
+  const deckCameraGestureActiveRef = useRef(false)
+
+  const beginCameraGesture = useCallback(() => {
+    if (!cameraControl.enabled) return
+    cameraHistoryRef.current.begin()
+  }, [cameraControl.enabled])
+
+  const updateSelectedCamera = useCallback(
+    (viewState: unknown) => {
+      if (!cameraControl.enabled || !cameraControl.op) return
+      beginCameraGesture()
+      updateCameraInputs(cameraControl.op, viewState)
+    },
+    [beginCameraGesture, cameraControl]
+  )
+
+  const finishCameraGesture = useCallback(() => {
+    cameraHistoryRef.current.finish()
+  }, [])
+
   // If the visualization doesn't supply mapProps (or has a blank mapStyle), disable basemap.
   // A blank mapStyle is treated as transparent — DeckGL renders without map tiles.
   // TODO: Detect if deck is in othorgraphic mode, and disable?
@@ -143,15 +178,35 @@ export default function TimelineEditor() {
   const lastFrameTimeRef = useRef(Date.now())
   const fpsRef = useRef(0)
 
+  const visualizationDeckProps = visualization.deckProps
   const deckProps: DeckProps = {
     ...deckRenderingDefaults,
-    ...visualization.deckProps,
+    ...visualizationDeckProps,
+    controller: !basemapEnabled && cameraControl.enabled,
+    onViewStateChange: params => {
+      const result = visualizationDeckProps?.onViewStateChange?.(params)
+      if (!basemapEnabled) updateSelectedCamera(result ?? params.viewState)
+      return result
+    },
+    onInteractionStateChange: interactionState => {
+      visualizationDeckProps?.onInteractionStateChange?.(interactionState)
+      if (basemapEnabled || !cameraControl.enabled) return
+      const active = Boolean(
+        interactionState.isDragging ||
+          interactionState.isPanning ||
+          interactionState.isRotating ||
+          interactionState.isZooming
+      )
+      if (active && !deckCameraGestureActiveRef.current) beginCameraGesture()
+      if (!active && deckCameraGestureActiveRef.current) finishCameraGesture()
+      deckCameraGestureActiveRef.current = active
+    },
     onDeviceInitialized: device => {
-      visualization.deckProps?.onDeviceInitialized?.(device)
+      visualizationDeckProps?.onDeviceInitialized?.(device)
       redraw()
     },
     onAfterRender: () => {
-      visualization.deckProps?.onAfterRender?.()
+      visualizationDeckProps?.onAfterRender?.()
 
       // Track FPS and stats for Claude AI debugging
       // Use deck.gl's built-in fps metric when available
@@ -175,7 +230,14 @@ export default function TimelineEditor() {
   }
 
   // Destructure light and sky since they're applied imperatively via setLight/setSky
-  const { light, sky, ...basemapProps } = visualization.mapProps ?? {}
+  const {
+    light,
+    sky,
+    onMove: visualizationOnMove,
+    onMoveStart: visualizationOnMoveStart,
+    onMoveEnd: visualizationOnMoveEnd,
+    ...basemapProps
+  } = visualization.mapProps ?? {}
   const mapProps: MapProps = {
     ...mapRenderingDefaults,
     onLoad: ({ target: map }) => {
@@ -185,6 +247,27 @@ export default function TimelineEditor() {
     },
     ...basemapProps,
     maxPitch: Math.min(basemapProps?.maxPitch ?? 85, 85),
+    interactive: cameraControl.enabled,
+    dragPan: cameraControl.enabled,
+    dragRotate: cameraControl.enabled,
+    scrollZoom: cameraControl.enabled,
+    boxZoom: cameraControl.enabled,
+    doubleClickZoom: cameraControl.enabled,
+    keyboard: cameraControl.enabled,
+    touchZoomRotate: cameraControl.enabled,
+    touchPitch: cameraControl.enabled,
+    onMoveStart: event => {
+      visualizationOnMoveStart?.(event)
+      beginCameraGesture()
+    },
+    onMove: event => {
+      visualizationOnMove?.(event)
+      updateSelectedCamera(event.viewState)
+    },
+    onMoveEnd: event => {
+      visualizationOnMoveEnd?.(event)
+      finishCameraGesture()
+    },
   }
 
   // Apply light and sky settings imperatively to avoid style reloading
@@ -621,6 +704,11 @@ export default function TimelineEditor() {
             flowGraph={flowGraph}
             spreadsheet={<SpreadsheetPane selectedNodeIds={selectedNodeIds ?? []} />}
           >
+            {cameraControl.reason && (
+              <div className={s.cameraControlStatus} role="status">
+                {cameraControl.reason}
+              </div>
+            )}
             {isFixedMode ? (
               <TransformScale
                 scale={renderSettings.scaleControl}
