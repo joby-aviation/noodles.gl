@@ -68,7 +68,7 @@ import {
 } from 'd3'
 import * as deck from 'deck.gl'
 import { BehaviorSubject, combineLatest, Subject, type Subscription } from 'rxjs'
-import { filter, mergeMap } from 'rxjs/operators'
+import { distinctUntilChanged, filter, mergeMap, skip } from 'rxjs/operators'
 import { Temporal } from 'temporal-polyfill'
 import type z from 'zod/v4'
 
@@ -254,6 +254,9 @@ export abstract class Operator<OP extends IOperator> {
   private _lastExecutionTime = 0
   private _computingPromise: Promise<ExtractProps<(typeof this)['outputs']>> | null = null
   private _lastLoggedError: string | null = null
+  // True once the output fields hold the result of an execution.
+  // A locked operator serves that result instead of executing again.
+  private _hasOutput = false
 
   // Dependency tracking for pull-based model
   private _upstreamDependencies: Set<Operator<IOperator>> = new Set()
@@ -304,6 +307,13 @@ export abstract class Operator<OP extends IOperator> {
     if (locked) {
       this.locked.next(true)
     }
+
+    // Unlocking catches up on any input changes that arrived while locked
+    this.subs.push(
+      this.locked.pipe(skip(1), distinctUntilChanged()).subscribe(isLocked => {
+        if (!isLocked) this.markDirty('unlocked')
+      })
+    )
   }
 
   get data() {
@@ -320,6 +330,19 @@ export abstract class Operator<OP extends IOperator> {
       outputData[key] = field.value
     }
     return outputData as ExtractProps<typeof this.outputs>
+  }
+
+  get hasOutput(): boolean {
+    return this._hasOutput
+  }
+
+  // Put known output values back without executing, e.g. when undo relocks an operator.
+  // A locked operator then serves them from pull(). Values are trusted, not schema-checked.
+  setOutputValues(values: Record<string, unknown>) {
+    for (const [key, field] of Object.entries(this.outputs)) {
+      if (key in values && field.value !== values[key]) field.next(values[key])
+    }
+    this._hasOutput = true
   }
 
   // Left open for sub-classes to override
@@ -420,6 +443,16 @@ export abstract class Operator<OP extends IOperator> {
 
   // Pull data from this operator, executing if needed (pull-based model)
   async pull(): Promise<ExtractProps<(typeof this)['outputs']>> {
+    // A locked operator keeps its last result: no upstream pulls, no execute(). It still
+    // executes once if it has never produced output (e.g. right after a project loads).
+    if (this.locked.value && this._hasOutput && this._computingPromise === null) {
+      debugPull('%s: locked -> last output', this.id)
+      this._cachedOutput = this.outputData
+      this._setPullExecutionStatus(PullExecutionStatus.CLEAN)
+      this.dirty = false
+      return this._cachedOutput
+    }
+
     // Return cached if clean
     if (this._pullExecutionStatus === PullExecutionStatus.CLEAN && this._cachedOutput !== null) {
       debugPull('%s: %s -> cached', this.id, PullExecutionStatus.CLEAN)
@@ -528,6 +561,7 @@ export abstract class Operator<OP extends IOperator> {
         this.dirty = false // Also clear the dirty flag for GraphExecutor
       }
       this._lastExecutionTime = executionTime
+      this._hasOutput = true
 
       debugExecute('%s: %dms %O', this.id, this._lastExecutionTime.toFixed(2), {
         outputs: finalResult,
