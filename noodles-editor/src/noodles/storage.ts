@@ -12,6 +12,14 @@ import {
   writeFileToDirectory,
 } from './utils/filesystem'
 import { memoryProjectStore } from './utils/memory-project-store'
+import {
+  CACHE_DIRECTORY_NAME,
+  type OutputCache,
+  type OutputCacheFiles,
+  readDirectoryOutputCache,
+  readOutputCache,
+  writeOutputCache,
+} from './utils/output-cache'
 import { EMPTY_PROJECT, type NoodlesProjectJSON, safeStringify } from './utils/serialization'
 
 // Pre-load all example asset URLs at build time using import.meta.glob
@@ -29,6 +37,7 @@ export interface FileSystemProject {
   name: string // Project name (directory name)
   projectData: NoodlesProjectJSON // The project data
   dataDirectoryHandle?: FileSystemDirectoryHandle // Optional data directory handle for assets
+  outputCache?: OutputCache // Saved outputs of locked operators, set on load
 }
 
 // Result type for file system operations
@@ -228,10 +237,12 @@ export async function getProjectDirectoryHandle(
 export async function save(
   type: StorageType,
   projectName: string,
-  projectData: NoodlesProjectJSON
+  projectData: NoodlesProjectJSON,
+  cacheFiles: OutputCacheFiles
 ): Promise<FileSystemResult<FileSystemProject>> {
   if (type === 'memory') {
     memoryProjectStore.setProjectJson(projectName, projectData)
+    memoryProjectStore.setCacheFiles(projectName, cacheFiles)
     return {
       success: true,
       data: {
@@ -254,6 +265,7 @@ export async function save(
     // Serialize and write noodles.json
     const projectJson = safeStringify(projectData)
     await writeFileToDirectory(projectDirectory, PROJECT_FILE_NAME, projectJson)
+    await writeOutputCache(projectDirectory, cacheFiles)
 
     const projectFileHandle = await projectDirectory.getFileHandle(PROJECT_FILE_NAME)
 
@@ -297,6 +309,7 @@ export async function load(
         projectFileHandle: null as unknown as FileSystemFileHandle,
         name: fromProject,
         projectData,
+        outputCache: await readMemoryOutputCache(fromProject, projectData.nodes),
       },
     }
   }
@@ -337,6 +350,7 @@ export async function load(
     } as NoodlesProjectJSON
 
     const projectFileHandle = await projectDirectory.getFileHandle(PROJECT_FILE_NAME)
+    const outputCache = await readDirectoryOutputCache(projectDirectory, projectData.nodes)
 
     // Cache the directory handle if loaded via File System Access API
     // This ensures the handle is available on refresh and save operations
@@ -351,6 +365,7 @@ export async function load(
         projectFileHandle,
         name: projectName,
         projectData,
+        outputCache,
       },
     }
   } catch (error) {
@@ -359,6 +374,17 @@ export async function load(
       error: handleError(error, 'load project'),
     }
   }
+}
+
+// Read the saved outputs of an in-memory project's locked nodes
+export function readMemoryOutputCache(
+  projectId: string,
+  nodes: NoodlesProjectJSON['nodes']
+): Promise<OutputCache> {
+  return readOutputCache(
+    async fileName => memoryProjectStore.getCacheFile(projectId, fileName),
+    nodes
+  )
 }
 
 // Read an asset file from a project's data directory or from public folder
@@ -904,7 +930,13 @@ export async function copyExampleAssetsToMemory(
         if (response.ok) {
           const blob = await response.blob()
           const relativePath = key.substring(prefix.length)
-          memoryProjectStore.writeAsset(memoryProjectId, relativePath, blob)
+          const cachePrefix = `${CACHE_DIRECTORY_NAME}/`
+          if (relativePath.startsWith(cachePrefix)) {
+            const fileName = relativePath.substring(cachePrefix.length)
+            memoryProjectStore.setCacheFile(memoryProjectId, fileName, await blob.text())
+          } else {
+            memoryProjectStore.writeAsset(memoryProjectId, relativePath, blob)
+          }
         }
       } catch {
         debugSerialize(`Failed to copy example asset: ${key}`)

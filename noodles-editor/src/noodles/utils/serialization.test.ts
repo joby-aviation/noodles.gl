@@ -214,7 +214,7 @@ describe('serializeNodes', () => {
     expect(result[0].data.inputs).toEqual({})
   })
 
-  it('does not overwrite input if incoming edge is from locked op', () => {
+  it('omits inputs for locked incomers', () => {
     setOp('node1', makeOp({ x: 123 }, false))
     setOp('node0', makeOp({ foo: 'ignored' }, true)) // locked = true
 
@@ -230,7 +230,7 @@ describe('serializeNodes', () => {
       ...connection,
     }
     const result = serializeNodes(getOpStore(), [node], [edge])
-    expect(result[0].data.inputs).toEqual({ x: 123 })
+    expect(result[0].data.inputs).toEqual({})
   })
 
   it('does not serialize default values', () => {
@@ -592,7 +592,7 @@ describe('saveProjectLocally', () => {
       timeline: {},
     }
 
-    await saveProjectLocally(projectName, projectJson, 'publicFolder')
+    await saveProjectLocally(projectName, projectJson, 'publicFolder', new Map())
 
     // Verify download was triggered
     expect(createElementSpy).toHaveBeenCalledWith('a')
@@ -614,7 +614,7 @@ describe('saveProjectLocally', () => {
       timeline: {},
     }
 
-    await saveProjectLocally(projectName, projectJson, 'publicFolder')
+    await saveProjectLocally(projectName, projectJson, 'publicFolder', new Map())
 
     expect(mockAnchorElement.download).toBe('my-awesome-viz.zip')
   })
@@ -629,7 +629,7 @@ describe('saveProjectLocally', () => {
       timeline: {},
     }
 
-    await saveProjectLocally(projectName, projectJson, 'opfs')
+    await saveProjectLocally(projectName, projectJson, 'opfs', new Map())
 
     // Should still create download
     expect(mockAnchorElement.download).toBe('opfs-project.zip')
@@ -646,7 +646,7 @@ describe('saveProjectLocally', () => {
       timeline: {},
     }
 
-    await saveProjectLocally(projectName, projectJson, 'fileSystemAccess')
+    await saveProjectLocally(projectName, projectJson, 'fileSystemAccess', new Map())
 
     // Should still create download
     expect(mockAnchorElement.download).toBe('fs-project.zip')
@@ -662,9 +662,32 @@ describe('saveProjectLocally', () => {
       timeline: {},
     }
 
-    await saveProjectLocally('test', projectJson, 'publicFolder')
+    await saveProjectLocally('test', projectJson, 'publicFolder', new Map())
 
     expect(revokeObjectURLSpy).toHaveBeenCalledWith('blob:mock-url')
+  })
+
+  it('adds the cache folder to the ZIP', async () => {
+    const projectJson = {
+      version: NOODLES_VERSION,
+      nodes: [],
+      edges: [],
+      viewport: { x: 0, y: 0, zoom: 1 },
+      timeline: {},
+    }
+    const cacheFile = '{"version":1,"id":"/directions","type":"DirectionsOp","outputs":{}}\n'
+
+    await saveProjectLocally(
+      'cached',
+      projectJson,
+      'memory',
+      new Map([['directions.json', cacheFile]])
+    )
+
+    const { default: JSZip } = await import('jszip')
+    const blob = vi.mocked(URL.createObjectURL).mock.calls[0][0] as Blob
+    const zip = await JSZip.loadAsync(blob)
+    await expect(zip.file('cached/cache/directions.json')?.async('text')).resolves.toBe(cacheFile)
   })
 })
 

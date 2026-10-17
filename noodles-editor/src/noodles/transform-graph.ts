@@ -16,6 +16,7 @@ import {
 import { deriveReferenceEdges, referenceDependencyModel } from './reference-dependencies'
 import { getOpStore } from './store'
 import { validateConnection } from './utils/can-connect'
+import type { OutputCache } from './utils/output-cache'
 import { getParentPath, isDirectChild, parseHandleId } from './utils/path-utils'
 import { computeVisibilityHeuristic } from './utils/visibility-heuristic'
 
@@ -119,9 +120,12 @@ export function transformGraph<
 >({
   nodes: _nodes,
   edges: _edges,
+  outputCache,
 }: {
   nodes: NodeJSON<unknown>[]
   edges: E[]
+  // Saved outputs of locked operators, restored before anything can pull them
+  outputCache?: OutputCache
 }): {
   operators: OP[]
   errors: GraphLoadError[]
@@ -289,6 +293,8 @@ export function transformGraph<
 
   const sortedNodes = topologicalSort(nodes, executorEdges as unknown as E[])
   const created: Operator<IOperator>[] = []
+  // Locked operators' saved outputs, restored once every field exists
+  const savedOutputsByOp = new Map<Operator<IOperator>, Record<string, unknown>>()
   let instances: OP[] = []
 
   // Batch all store operations for performance
@@ -320,6 +326,8 @@ export function transformGraph<
         } else {
           // Create operator with fully qualified path as id and store containerId
           op = new ctor(id, data?.inputs, data?.locked, containerId) as unknown as OP
+          const savedOutputs = data?.locked ? outputCache?.get(id) : undefined
+          if (savedOutputs) savedOutputsByOp.set(op, savedOutputs)
 
           // Restore custom field definitions if present
           if (data?.customInputs && Array.isArray(data.customInputs)) {
@@ -556,6 +564,11 @@ export function transformGraph<
         }
       }
     }
+  }
+
+  // After the container wiring above, since a GraphInput only gets its custom outputs there
+  for (const [op, savedOutputs] of savedOutputsByOp) {
+    op.restoreOutputs(savedOutputs)
   }
 
   referenceDependencyModel.configure({
