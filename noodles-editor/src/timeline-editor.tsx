@@ -23,6 +23,7 @@ import { captureScreenshot, useRenderer } from './render/renderer'
 import { deckRenderingDefaults, mapRenderingDefaults } from './render/rendering-defaults'
 import { TransformScale } from './render/transform-scale'
 import { resolveExportSettings, setVideoExporter, type VideoExporter } from './render/video-export'
+import { setVisualizationTarget } from './render/visualization-target'
 import { TimelinePanel } from './timeline/components/TimelinePanel'
 import { getTimelineStore, useTimelineStore } from './timeline/timeline-store'
 import s from './timeline-editor.module.css'
@@ -331,19 +332,22 @@ export default function TimelineEditor() {
     }
   }, [])
 
-  // Expose deck.gl canvas and instance for Claude AI visual debugging
+  // Expose the canvas and deck instance to the AI tools. The refs are read when a tool
+  // asks, since the basemap's deck overlay doesn't exist yet when this effect runs.
   useEffect(() => {
-    if (deckRef.current) {
-      // @ts-expect-error canvas is protected but accessible
-      const canvas = deckRef.current.canvas
-      if (canvas) {
-        // Store canvas globally for MCPTools to access
-        ;(window as Window & { __deckCanvas?: unknown }).__deckCanvas = canvas
-      }
-      // Store deck instance globally for layer inspection
-      ;(window as Window & { __deckInstance?: unknown }).__deckInstance = deckRef.current
-    }
-  }, [])
+    setVisualizationTarget({
+      getCanvas: () => {
+        // With a basemap, deck draws into the map's canvas, so capturing it gets both.
+        // mapRef is only set once the map loads; until then the interleaved deck's
+        // canvas is that same map canvas.
+        if (basemapEnabled && mapRef.current) return mapRef.current.getCanvas()
+        // @ts-expect-error canvas is protected but accessible
+        return deckRef.current?.canvas
+      },
+      getDeck: () => deckRef.current,
+    })
+    return () => setVisualizationTarget(null)
+  }, [basemapEnabled])
 
   // onIdle resolves when all data is loaded and drawing has settled.
   mapProps.onIdle = ({ target: map }) => {

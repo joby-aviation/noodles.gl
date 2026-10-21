@@ -3,6 +3,7 @@
 import type { Operator } from '../noodles/operators'
 import { getOpStore } from '../noodles/store'
 import { safeStringify } from '../noodles/utils/serialization'
+import { getVisualizationCanvas, getVisualizationDeck } from '../render/visualization-target'
 import {
   captureTimelineState,
   fireTimelineMutation,
@@ -234,12 +235,6 @@ export class MCPTools {
       this.contextLoader.getDocsIndex() !== null ||
       this.contextLoader.getExamples() !== null
     )
-  }
-
-  // Get deck.gl canvas from global reference
-  private getCanvas(): HTMLCanvasElement | null {
-    // biome-ignore lint/suspicious/noExplicitAny: accessing global window property
-    return (window as any).__deckCanvas || null
   }
 
   // Search source code using regex or text matching
@@ -620,7 +615,7 @@ export class MCPTools {
     quality?: number
   }): Promise<ToolResult> {
     try {
-      const canvas = this.getCanvas()
+      const canvas = getVisualizationCanvas()
       if (!canvas) {
         return {
           success: false,
@@ -743,8 +738,8 @@ export class MCPTools {
   // Inspect a specific layer in the visualization
   async inspectLayer(params: { layerId: string }): Promise<ToolResult> {
     try {
-      // biome-ignore lint/suspicious/noExplicitAny: accessing global window property
-      const deckInstance = (window as any).__deckInstance
+      // biome-ignore lint/suspicious/noExplicitAny: layerManager is protected on Deck
+      const deckInstance = getVisualizationDeck() as any
 
       if (!deckInstance) {
         return {

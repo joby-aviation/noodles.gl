@@ -1,4 +1,6 @@
-import { describe, expect, it } from 'vitest'
+import type { Deck } from '@deck.gl/core'
+import { afterEach, describe, expect, it } from 'vitest'
+import { setVisualizationTarget } from '../render/visualization-target'
 import type { ContextLoader } from './context-loader'
 import { MCPTools } from './mcp-tools'
 import type { DocsIndex, DocTopic } from './types'
@@ -198,5 +200,75 @@ describe('getDocumentation guards', () => {
     const result = await new MCPTools().getDocumentation({ query: 'anything' })
     expect(result.success).toBe(false)
     expect(result.error).toContain('Docs index not loaded')
+  })
+})
+
+// The editor registers getters rather than a canvas, because with a basemap the deck
+// overlay (and so the canvas) only exists once the map has loaded, after mount
+describe('visualization tools', () => {
+  afterEach(() => setVisualizationTarget(null))
+
+  function redCanvas(width: number, height: number): HTMLCanvasElement {
+    const canvas = document.createElement('canvas')
+    canvas.width = width
+    canvas.height = height
+    const ctx = canvas.getContext('2d')!
+    ctx.fillStyle = 'red'
+    ctx.fillRect(0, 0, width, height)
+    return canvas
+  }
+
+  function fakeDeck(): Deck {
+    class ScatterplotLayer {
+      static layerName = 'ScatterplotLayer'
+      id = 'points'
+      props = { visible: true, opacity: 0.8, pickable: false, data: [1, 2, 3] }
+    }
+    const layers = [new ScatterplotLayer()]
+    return { layerManager: { getLayers: () => layers } } as unknown as Deck
+  }
+
+  it('reports that the canvas is missing when the editor is not mounted', async () => {
+    const result = await new MCPTools().captureVisualization({})
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('Canvas not available')
+  })
+
+  it('captures a canvas that becomes available after the editor registers', async () => {
+    let canvas: HTMLCanvasElement | null = null
+    setVisualizationTarget({ getCanvas: () => canvas, getDeck: () => null })
+    const tools = new MCPTools()
+
+    expect((await tools.captureVisualization({})).success).toBe(false)
+
+    canvas = redCanvas(64, 32)
+    const result = await tools.captureVisualization({ format: 'png' })
+    expect(result.success).toBe(true)
+    const data = result.data as { screenshot: string; width: number; height: number }
+    expect(data.screenshot.length).toBeGreaterThan(0)
+    expect(data.width).toBe(64)
+    expect(data.height).toBe(32)
+  })
+
+  it('inspects a layer on a deck instance created after registration', async () => {
+    let deck: Deck | null = null
+    setVisualizationTarget({ getCanvas: () => null, getDeck: () => deck })
+    const tools = new MCPTools()
+
+    expect((await tools.inspectLayer({ layerId: 'points' })).error).toBe(
+      'Deck.gl instance not available'
+    )
+
+    deck = fakeDeck()
+    const result = await tools.inspectLayer({ layerId: 'points' })
+    expect(result.success).toBe(true)
+    expect(result.data).toEqual({
+      id: 'points',
+      type: 'ScatterplotLayer',
+      visible: true,
+      opacity: 0.8,
+      pickable: false,
+      dataLength: 3,
+    })
   })
 })
