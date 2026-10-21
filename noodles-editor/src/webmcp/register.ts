@@ -65,8 +65,9 @@ export async function initWebMCP(signal: AbortSignal): Promise<void> {
     signal.addEventListener('abort', unsubscribe)
 
     // Skips tools this session does not offer — run_code is absent in safe mode,
-    // which external clients have to respect for the same reason the chat does
-    const definitions = availableToolDefinitions()
+    // which external clients have to respect for the same reason the chat does.
+    // Includes the external-only tools (export_video) the chat never sees.
+    const definitions = availableToolDefinitions({ includeExternal: true })
 
     for (const definition of definitions) {
       navigator.modelContext.registerTool(

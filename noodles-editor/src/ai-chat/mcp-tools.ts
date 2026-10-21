@@ -21,6 +21,12 @@ import {
   writeFile,
 } from './agent-files'
 import type { ContextLoader } from './context-loader'
+import {
+  type ExportStatusParams,
+  type ExportVideoParams,
+  exportVideo,
+  getExportStatus,
+} from './export-video'
 import { type RunCodeParams, runCode } from './run-code'
 import type {
   ConsoleError,
@@ -833,6 +839,16 @@ export class MCPTools {
   // WebMCP keep reaching every tool through one surface.
   async runCode(params: RunCodeParams): Promise<ToolResult> {
     return runCode(params)
+  }
+
+  // Video export. The job and the file output live in export-video.ts; the renderer
+  // is reached through the exporter the editor registers in render/video-export.ts.
+  async exportVideo(params: ExportVideoParams): Promise<ToolResult> {
+    return exportVideo(params)
+  }
+
+  async getExportStatus(params: ExportStatusParams): Promise<ToolResult> {
+    return getExportStatus(params)
   }
 
   // The project data directory. Same arrangement as runCode: the path guard and the

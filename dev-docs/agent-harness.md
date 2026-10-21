@@ -38,8 +38,18 @@ every tool schema on every request, and serialized tool results with no size cap
 | `prompts/sections/*.md` | Workflow walkthroughs, retrieved on demand via `get_documentation` |
 
 `tool-definitions.ts` and `mcp-tools.ts` remain the single source of truth for the
-tool surface. WebMCP (`src/webmcp/register.ts`) still registers all of them
-unconditionally and is unaffected by any of the routing below.
+tool surface. WebMCP (`src/webmcp/register.ts`) registers all of them and is
+unaffected by any of the routing below.
+
+Two definitions set `audience: 'external'` and are registered on WebMCP only:
+`export_video` and `get_export_status`. `getToolDefinition` and
+`availableToolDefinitions` leave them out unless passed `{ includeExternal: true }`,
+which only `register.ts` does, so the chat can neither discover nor dispatch them.
+The reason is the user: in the chat they are one click from the Export button, and a
+render takes over the canvas and the playhead for minutes, which a model should not
+start on its own. An external agent has no button to click, because the save dialog
+only opens on a user gesture. The export writes its MP4 through `writeAgentBinary`
+in `agent-files.ts`, which goes through `resolvePath()` like `write_file`.
 
 ## Providers
 

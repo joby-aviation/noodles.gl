@@ -16,12 +16,13 @@ import { useActiveOutOp } from './noodles/hooks/use-active-outop'
 import { useRenderSettings } from './noodles/hooks/use-render-settings'
 import { getNoodles } from './noodles/noodles'
 import { fnWithSource } from './noodles/operators'
+import { useUIStore } from './noodles/store'
 import type { RenderSettings } from './noodles/utils/serialization'
 import { useDeckDrawLoop } from './render/draw-loop'
 import { captureScreenshot, useRenderer } from './render/renderer'
 import { deckRenderingDefaults, mapRenderingDefaults } from './render/rendering-defaults'
 import { TransformScale } from './render/transform-scale'
-import { useUIStore } from './noodles/store'
+import { resolveExportSettings, setVideoExporter, type VideoExporter } from './render/video-export'
 import { TimelinePanel } from './timeline/components/TimelinePanel'
 import { getTimelineStore, useTimelineStore } from './timeline/timeline-store'
 import s from './timeline-editor.module.css'
@@ -426,6 +427,65 @@ export default function TimelineEditor() {
     outPoint,
     sequenceLength,
   ])
+
+  // The export_video tool's way in. Same canvas and render settings as startRender, but
+  // the MP4 comes back as a buffer: the save dialog only opens on a click, which an
+  // agent driving the editor cannot make.
+  const exportVideoForAgent = useCallback<VideoExporter>(
+    (request, onFrameComplete) => {
+      if (isRenderingRef.current) {
+        return { status: 'refused', error: 'An export is already running in the editor' }
+      }
+
+      let canvas: HTMLCanvasElement | undefined
+      if (basemapEnabled) {
+        canvas = mapRef.current?.getCanvas()
+      } else {
+        // @ts-expect-error canvas is protected but accessible
+        canvas = deckRef.current?.canvas
+      }
+      if (!canvas) {
+        return {
+          status: 'refused',
+          error: 'The visualization canvas is not ready yet. Try again once the map has loaded.',
+        }
+      }
+
+      const { sequence } = getTimelineStore()
+      const resolved = resolveExportSettings(request, {
+        sequenceLength: sequence.length,
+        inPoint: sequence.inPoint,
+        outPoint: sequence.outPoint,
+        framerate,
+        resolution,
+        codec,
+      })
+      if (!resolved.ok) return { status: 'refused', error: resolved.error }
+
+      const { settings } = resolved
+      return {
+        status: 'started',
+        settings,
+        result: startCapture({
+          canvas,
+          codec: settings.codec,
+          width: settings.width,
+          height: settings.height,
+          fps: settings.fps,
+          startFrame: settings.startFrame,
+          endFrame: settings.endFrame,
+          target: 'buffer',
+          onFrameComplete,
+        }),
+      }
+    },
+    [startCapture, codec, resolution, basemapEnabled, framerate]
+  )
+
+  useEffect(() => {
+    setVideoExporter(exportVideoForAgent)
+    return () => setVideoExporter(null)
+  }, [exportVideoForAgent])
 
   const takeScreenshot = useCallback(async () => {
     if (!deckRef.current) {

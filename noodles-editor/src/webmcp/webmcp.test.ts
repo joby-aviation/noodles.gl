@@ -102,6 +102,12 @@ describe('initWebMCP', () => {
     }
   })
 
+  it('registers the external-only export tools the chat never sees', async () => {
+    await init()
+    expect(registered.has('export_video')).toBe(true)
+    expect(registered.has('get_export_status')).toBe(true)
+  })
+
   it('passes behavior annotations through to registerTool', async () => {
     await init()
     for (const def of toolDefinitions) {

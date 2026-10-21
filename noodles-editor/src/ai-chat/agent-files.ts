@@ -196,6 +196,26 @@ export async function writeFile(params: WriteFileParams): Promise<ToolResult> {
   }
 }
 
+// Binary output the app itself produces for the assistant, such as export_video's MP4.
+// Same path guard and storage as write_file, without the .previous backup: callers
+// pick a fresh name, and parking a copy of a video would double its size for nothing.
+export async function writeAgentBinary(
+  path: string,
+  contents: Blob
+): Promise<{ ok: true; path: string } | { ok: false; error: string }> {
+  const store = storageContext()
+  if (!store.ok) return store
+
+  const target = resolvePath(path, { forWrite: true })
+  if (!target.ok) return target
+
+  const written = await writeAsset(store.type, store.project, target.relative, contents)
+  if (!written.success) {
+    return { ok: false, error: `${written.error.message} (${target.relative})` }
+  }
+  return { ok: true, path: `${projectScheme}${target.relative}` }
+}
+
 export async function grepFiles(params: GrepFilesParams): Promise<ToolResult> {
   const store = storageContext()
   if (!store.ok) return { success: false, error: store.error }

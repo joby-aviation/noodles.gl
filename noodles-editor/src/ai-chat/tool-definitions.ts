@@ -9,6 +9,7 @@ import type {
   ReadFileParams,
   WriteFileParams,
 } from './agent-files'
+import type { ExportStatusParams, ExportVideoParams } from './export-video'
 import type { MCPTools } from './mcp-tools'
 import type { RunCodeParams } from './run-code'
 import type { NoodlesProject, SearchCodeParams, ToolResult } from './types'
@@ -41,6 +42,11 @@ export interface ToolDefinition {
   // offered and then refuse. Read through getToolDefinition and
   // availableToolDefinitions, never off the raw array.
   available?: () => boolean
+  // 'external' registers the tool on WebMCP only and keeps it out of the in-app chat.
+  // Omitted means both. Only export_video and get_export_status set it: the person
+  // in the chat is one click from the Export button, and a multi-minute render the
+  // model starts on its own would take over the canvas and playhead under them.
+  audience?: 'external'
   // getProject supplies the live project for tools that need it injected (analyze_project)
   execute: (
     tools: MCPTools,
@@ -366,6 +372,57 @@ export const toolDefinitions: ToolDefinition[] = [
     execute: (tools, params) =>
       tools.setPlaybackPosition(params as { position: number; play?: boolean }),
   },
+  // Export tools, external clients only (see audience)
+  {
+    name: 'export_video',
+    audience: 'external',
+    annotations: { readOnlyHint: false, destructiveHint: false },
+    description:
+      "Render the timeline to an MP4 video, the same as the Export button. Omitted settings come from the project's render settings, and the range defaults to the timeline in/out points, then its full length. The file is saved to @/.agent/renders/ in the project (confirm with list_files) and, with download: true, also downloaded by the browser. Rendering moves the playhead and takes over the canvas until it finishes. The call waits up to waitSeconds (max 20) and then returns progress if the render is still going; call get_export_status to keep waiting.",
+    inputSchema: {
+      type: 'object',
+      properties: {
+        startTime: { type: 'number', description: 'Start of the range in seconds' },
+        endTime: { type: 'number', description: 'End of the range in seconds' },
+        fps: { type: 'number', description: 'Frames per second, 1-120' },
+        width: { type: 'number', description: 'Output width in pixels, even' },
+        height: { type: 'number', description: 'Output height in pixels, even' },
+        codec: {
+          type: 'string',
+          enum: ['avc', 'hevc', 'vp9', 'av1'],
+          description: 'Video codec in the MP4 container. avc (H.264) plays everywhere.',
+        },
+        download: {
+          type: 'boolean',
+          description: "Also save the file to the browser's downloads folder (default false)",
+        },
+        waitSeconds: {
+          type: 'number',
+          description:
+            'How long to wait for the render before returning progress, 0-20 (default 20)',
+        },
+      },
+    },
+    execute: (tools, params) => tools.exportVideo(params as ExportVideoParams),
+  },
+  {
+    name: 'get_export_status',
+    audience: 'external',
+    annotations: { readOnlyHint: true },
+    description:
+      'Wait for the video export started by export_video and report its progress, or the finished file: name, project path, byte size, frame count and duration.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        waitSeconds: {
+          type: 'number',
+          description:
+            'How long to wait for the render to finish before returning progress, 0-20 (default 20)',
+        },
+      },
+    },
+    execute: (tools, params) => tools.getExportStatus(params as ExportStatusParams),
+  },
   // Context tools (code search, docs, examples). The chat reaches these through
   // find_tools rather than paying for their schemas up front — see agent/tool-router.ts
   {
@@ -532,18 +589,32 @@ export const toolDefinitions: ToolDefinition[] = [
 
 const definitionsByName = new Map(toolDefinitions.map(d => [d.name, d]))
 
+// Both lookups default to the chat's view, so code in agent/ cannot reach an
+// external-only tool by forgetting an option. WebMCP passes includeExternal.
+interface SurfaceOptions {
+  includeExternal?: boolean
+}
+
+function isOffered(definition: ToolDefinition, { includeExternal = false }: SurfaceOptions) {
+  if (definition.available?.() === false) return false
+  return includeExternal || definition.audience !== 'external'
+}
+
 // The gate has to sit here rather than only on discovery: the agent loop dispatches
 // by name and runs a tool the model was never offered, on the reasoning that the
 // definition is real and the call is well-formed. Returning undefined turns that
 // into "Unknown tool", and makes isReadOnly fall back to treating it as mutating.
-export function getToolDefinition(name: string): ToolDefinition | undefined {
+export function getToolDefinition(
+  name: string,
+  options: SurfaceOptions = {}
+): ToolDefinition | undefined {
   const definition = definitionsByName.get(name)
-  if (!definition || definition.available?.() === false) return undefined
+  if (!definition || !isOffered(definition, options)) return undefined
   return definition
 }
 
 // Every tool currently on offer. Use this for listing and scoring; the raw
 // toolDefinitions array includes tools that are unavailable in this session.
-export function availableToolDefinitions(): ToolDefinition[] {
-  return toolDefinitions.filter(d => d.available?.() !== false)
+export function availableToolDefinitions(options: SurfaceOptions = {}): ToolDefinition[] {
+  return toolDefinitions.filter(d => isOffered(d, options))
 }
