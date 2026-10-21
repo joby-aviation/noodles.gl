@@ -1,7 +1,9 @@
 import { assert, type Deck } from '@deck.gl/core'
 import { useCallback, useRef, useState } from 'react'
 import { getTimelineStore, useTimelineStore } from '../timeline/timeline-store'
+import { analytics } from '../utils/analytics'
 import { debugRender, debugRenderFrame } from '../utils/debug'
+import { type RenderErrorCategory, type RenderSource, trackRender } from './render-analytics'
 
 export const rafDriver = {
   tick: (_timestamp: number) => {},
@@ -96,6 +98,7 @@ export const useRenderer = ({
       startFrame = 0,
       endFrame = Math.floor(sequenceLength * captureFps),
       target = 'picker',
+      source = 'menu',
       onFrameComplete,
     }: {
       canvas: HTMLCanvasElement
@@ -106,12 +109,26 @@ export const useRenderer = ({
       startFrame?: number
       endFrame?: number
       target?: CaptureTarget
+      source?: RenderSource
       onFrameComplete?: (frame: number, total: number) => void
     }): Promise<CaptureResult> => {
       assert(canvas, 'canvas is required')
 
       let i = startFrame
       const fps = captureFps
+
+      const tracker = trackRender({
+        source,
+        format: 'mp4',
+        codec,
+        width,
+        height,
+        frameCount: endFrame - startFrame + 1,
+      })
+      const fail = (category: RenderErrorCategory, error: Error): CaptureResult => {
+        tracker.failed(category, error, i - startFrame)
+        return { status: 'error', error }
+      }
 
       setIsRendering(true)
 
@@ -251,19 +268,21 @@ export const useRenderer = ({
           ...codecMap[codec],
         })
         if (!config) {
-          return {
-            status: 'error',
-            error: new Error(
+          return fail(
+            'unsupported_codec',
+            new Error(
               `This browser cannot encode ${codec} at ${width}x${height}. Try another codec or a smaller resolution.`
-            ),
-          }
+            )
+          )
         }
 
         const mapContainer = await getContainer(`${projectName}-map`, config)
         if (!mapContainer) {
           debugRender('Render setup cancelled by user (map container)')
+          tracker.cancelled()
           return { status: 'cancelled' }
         }
+        tracker.restartClock()
 
         const mapRecorder = getCanvasRecorder(canvas)
 
@@ -284,7 +303,7 @@ export const useRenderer = ({
         if (warmupResult?.error) {
           debugRender('Error during render warmup:', warmupResult.error)
           mapRecorder.reader.releaseLock()
-          return { status: 'error', error: warmupResult.error }
+          return fail('frame', warmupResult.error)
         }
 
         const frameStartTime = performance.now()
@@ -310,7 +329,7 @@ export const useRenderer = ({
           if (canvasResult?.error) {
             debugRender('Error capturing canvas frame:', canvasResult.error)
             mapRecorder.reader.releaseLock()
-            return { status: 'error', error: canvasResult.error }
+            return fail('frame', canvasResult.error)
           }
 
           // Lift timing variables outside closure for per-frame logging
@@ -383,11 +402,12 @@ export const useRenderer = ({
           (totalEncodeTime / totalTime) * 100
         )
         const buffer = await finishEncoding()
-        if (encoderError) return { status: 'error', error: encoderError }
+        if (encoderError) return fail('encoder', encoderError)
+        tracker.completed()
         return { status: 'done', frameCount, fps, buffer }
       } catch (error) {
         debugRender('Render failed:', error)
-        return { status: 'error', error: error instanceof Error ? error : new Error(String(error)) }
+        return fail('exception', error instanceof Error ? error : new Error(String(error)))
       } finally {
         setIsRendering(false)
       }
@@ -468,6 +488,15 @@ export const useRenderer = ({
             await writable.close()
           })
 
+      // Frames are captured at the canvas's own size
+      const tracker = trackRender({
+        source: 'menu',
+        format: 'png_sequence',
+        width: canvas.width,
+        height: canvas.height,
+        frameCount: totalFrames,
+      })
+      let framesDone = 0
       try {
         const exportStartTime = performance.now()
         let totalWaitTime = 0
@@ -522,7 +551,8 @@ export const useRenderer = ({
 
           pendingWrites.push(writeFile(filename, blob))
 
-          onFrameComplete?.(i - startFrame + 1, totalFrames)
+          framesDone = i - startFrame + 1
+          onFrameComplete?.(framesDone, totalFrames)
 
           if (i % 10 === 0) {
             const frameIterationEnd = performance.now()
@@ -563,6 +593,14 @@ export const useRenderer = ({
           totalConvertTime.toFixed(0),
           (totalConvertTime / totalTime) * 100
         )
+        tracker.completed()
+      } catch (error) {
+        tracker.failed(
+          'exception',
+          error instanceof Error ? error : new Error(String(error)),
+          framesDone
+        )
+        throw error
       } finally {
         reader.releaseLock()
         if (deck) {
@@ -620,4 +658,5 @@ export const captureScreenshot = async (
   const fileWritableStream = await imageHandle.createWritable()
   await fileWritableStream.write(blob)
   await fileWritableStream.close()
+  analytics.track('screenshot_taken', { source: 'menu' })
 }
