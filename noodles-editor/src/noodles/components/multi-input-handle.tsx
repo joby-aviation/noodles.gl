@@ -92,6 +92,7 @@ export function MultiInputHandle({ id, field, className, style }: MultiInputHand
 
   // The handle grows with its connections — tell React Flow to re-measure so edge
   // anchors and hit areas follow (useUpdateNodeInternals is the public API for this)
+  // biome-ignore lint/correctness/useExhaustiveDependencies: connectionCount triggers the re-measure
   useEffect(() => {
     if (nid) {
       updateNodeInternals(nid)

@@ -848,6 +848,10 @@ export function TableEditor({ data, schema, onDataChange, onSchemaChange }: Tabl
   const tableDataRef = useRef(tableData)
   tableDataRef.current = tableData
 
+  // Latest callback for the prop-sync effect, which should only re-run when data or schema change
+  const onDataChangeRef = useRef(onDataChange)
+  onDataChangeRef.current = onDataChange
+
   const commitData = (newData: unknown[], description: string) => {
     tableDataRef.current = newData
     setTableData(newData)
@@ -873,7 +877,7 @@ export function TableEditor({ data, schema, onDataChange, onSchemaChange }: Tabl
     setTableData(newTableData)
 
     if (schemaChanged && !dataChanged && transition.renamedColumns.length > 0) {
-      onDataChange(newTableData, 'Apply connected table schema rename')
+      onDataChangeRef.current(newTableData, 'Apply connected table schema rename')
     }
     previousDataRef.current = data
     previousSchemaRef.current = schema
