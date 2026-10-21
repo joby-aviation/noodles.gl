@@ -131,25 +131,25 @@ describe('interpolateGeoJsonLines', () => {
     expect(result.geometries[1]).toEqual(geometryCollection.geometries[1])
   })
 
-  it.each<LineInterpolationMethod>([
-    'catmull-rom',
-    'turn-radius',
-  ])('takes the short path across the antimeridian in %s mode', method => {
-    const coordinates = [
-      [179.98, 10],
-      [-179.99, 10],
-      [-179.99, 10.03],
-    ]
-    const result = interpolateGeoJsonLines(turf.lineString(coordinates), {
-      method,
-      samplesPerSegment: 8,
-      turnRadiusMeters: 500,
-    })
+  it.each<LineInterpolationMethod>(['catmull-rom', 'turn-radius'])(
+    'takes the short path across the antimeridian in %s mode',
+    method => {
+      const coordinates = [
+        [179.98, 10],
+        [-179.99, 10],
+        [-179.99, 10.03],
+      ]
+      const result = interpolateGeoJsonLines(turf.lineString(coordinates), {
+        method,
+        samplesPerSegment: 8,
+        turnRadiusMeters: 500,
+      })
 
-    expect(result.geometry.coordinates[0]).toEqual(coordinates[0])
-    expect(result.geometry.coordinates.at(-1)).toEqual(coordinates.at(-1))
-    expect(result.geometry.coordinates.every(point => Math.abs(point[0]) > 170)).toBe(true)
-  })
+      expect(result.geometry.coordinates[0]).toEqual(coordinates[0])
+      expect(result.geometry.coordinates.at(-1)).toEqual(coordinates.at(-1))
+      expect(result.geometry.coordinates.every(point => Math.abs(point[0]) > 170)).toBe(true)
+    }
+  )
 
   it('bounds unsafe numeric options supplied through the exported utility', () => {
     const result = interpolateGeoJsonLines(turf.lineString(routeCoordinates), {

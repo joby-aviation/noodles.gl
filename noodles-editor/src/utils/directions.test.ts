@@ -22,18 +22,18 @@ describe('resolveOriginDepartureTime', () => {
     expect(result.toISOString()).toBe('2030-01-15T17:00:00.000Z')
   })
 
-  it.each([
-    '2030-03-10T02:30:00',
-    '2030-11-03T01:30:00',
-  ])('rejects DST times that do not identify one instant: %s', localTime => {
-    expect(() =>
-      resolveOriginDepartureTime({
-        origin: NYC,
-        localTime: Temporal.PlainDateTime.from(localTime),
-        now,
-      })
-    ).toThrow(/ambiguous or does not exist/)
-  })
+  it.each(['2030-03-10T02:30:00', '2030-11-03T01:30:00'])(
+    'rejects DST times that do not identify one instant: %s',
+    localTime => {
+      expect(() =>
+        resolveOriginDepartureTime({
+          origin: NYC,
+          localTime: Temporal.PlainDateTime.from(localTime),
+          now,
+        })
+      ).toThrow(/ambiguous or does not exist/)
+    }
+  )
 
   it('rejects departures in the past', () => {
     expect(() =>
