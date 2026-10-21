@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { getOp, useUIStore } from '../../store'
-import { SpreadsheetViewer } from './spreadsheet-viewer'
 import s from './spreadsheet-pane.module.css'
+import { SpreadsheetViewer } from './spreadsheet-viewer'
 
 // Rendered inside a resizable Panel in Layout, which also gates visibility
 // on the spreadsheetVisible UI store flag

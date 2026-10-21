@@ -1,10 +1,6 @@
 import { createContext, type ReactNode, useContext, useMemo } from 'react'
 
-export type UpdateOperatorId = (
-  nodeId: string,
-  newBaseName: string,
-  isContainer: boolean
-) => void
+export type UpdateOperatorId = (nodeId: string, newBaseName: string, isContainer: boolean) => void
 
 interface ProjectModificationActions {
   updateOperatorId: UpdateOperatorId

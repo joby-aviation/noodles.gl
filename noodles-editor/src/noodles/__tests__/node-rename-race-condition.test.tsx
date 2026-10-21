@@ -292,5 +292,4 @@ describe('Node Rename Race Condition', () => {
     deleteOp('/temp')
     expect(getOp('/temp')).toBeUndefined()
   })
-
 })

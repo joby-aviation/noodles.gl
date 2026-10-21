@@ -18,11 +18,8 @@ import type { IOperator, Operator } from '../operators'
 import { deleteOp, getAllOps, getOp, setOp, takePendingInsertionIndex } from '../store'
 import { canConnect, validateConnection } from '../utils/can-connect'
 import { expandDeleteSet } from '../utils/copy-paste-utils'
+import { appendUniqueEdges, insertUniqueEdge } from '../utils/edge-integrity'
 import { edgeId } from '../utils/id-utils'
-import {
-  appendUniqueEdges,
-  insertUniqueEdge,
-} from '../utils/edge-integrity'
 import {
   insertEdgeAtGroupIndex,
   moveEdgeWithinGroup,
@@ -75,9 +72,7 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
 
   const addEdges = useCallback(
     (newEdges: ReactFlowEdge[]) => {
-      setEdges(currentEdges =>
-        normalizeMultiInputEdges(appendUniqueEdges(currentEdges, newEdges))
-      )
+      setEdges(currentEdges => normalizeMultiInputEdges(appendUniqueEdges(currentEdges, newEdges)))
       // Track edge addition
       if (newEdges.length > 0) {
         analytics.track('edge_added', { count: newEdges.length })
@@ -168,10 +163,7 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
       }
 
       // Cascade delete to path-based container children
-      const allDeletedIds = new Set([
-        ...nodesToDelete.map(n => n.id),
-        ...extraDeleted,
-      ])
+      const allDeletedIds = new Set([...nodesToDelete.map(n => n.id), ...extraDeleted])
       setNodes(currentNodes => {
         expandDeleteSet(allDeletedIds, currentNodes)
         return currentNodes.filter(n => !allDeletedIds.has(n.id))
@@ -238,9 +230,7 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
         )
 
         // Remove edges referencing any cascaded-deleted child
-        return reconnected.filter(
-          e => !allDeletedIds.has(e.source) && !allDeletedIds.has(e.target)
-        )
+        return reconnected.filter(e => !allDeletedIds.has(e.source) && !allDeletedIds.has(e.target))
       })
 
       return { success: true, warnings: warnings.length > 0 ? warnings : undefined }
@@ -611,9 +601,7 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
             // Normalization here can miss edges into just-added nodes (their operators don't
             // exist in the store yet); the transformGraph effect re-normalizes right after
             setEdges(currentEdges =>
-              normalizeMultiInputEdges(
-                appendUniqueEdges(currentEdges, edgesToAddOptimistically)
-              )
+              normalizeMultiInputEdges(appendUniqueEdges(currentEdges, edgesToAddOptimistically))
             )
             debugUI(`✅ Added ${edgesToAddOptimistically.length} edge(s) optimistically`)
           }
@@ -872,7 +860,7 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
       // Update target node with new input value
       setNodes(nds => {
         const updated = [...nds]
-        let value
+        let value: unknown
         if (targetField instanceof ListField) {
           // Safely get values from ListField
           try {

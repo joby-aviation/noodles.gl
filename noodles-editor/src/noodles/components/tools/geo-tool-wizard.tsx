@@ -124,9 +124,7 @@ export function GeoToolWizard({ recipe, onOpenChange, reactFlowRef }: GeoToolWiz
 
       reactFlow.addNodes(nodes as NodeJSON<OpType>[])
       if (edges.length > 0) {
-        reactFlow.setEdges(current =>
-          normalizeMultiInputEdges(appendUniqueEdges(current, edges))
-        )
+        reactFlow.setEdges(current => normalizeMultiInputEdges(appendUniqueEdges(current, edges)))
       }
 
       // Select and frame the parameter node so it is obvious where to make changes

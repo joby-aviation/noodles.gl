@@ -30,21 +30,17 @@ import type { IOperator, OpType } from '../operators'
 import { Operator, OutOp } from '../operators'
 import { getOp, getOpStore, useNestingStore, useUIStore } from '../store'
 import type { ConnectionPlan } from '../utils/auto-connect'
-import { edgeId } from '../utils/id-utils'
 import { appendUniqueEdges } from '../utils/edge-integrity'
+import { edgeId } from '../utils/id-utils'
 import {
   moveEdgeWithinGroup,
   normalizeMultiInputEdges,
   orderedEdgeIdsForHandle,
 } from '../utils/multi-input-utils'
-import { type NodeType, createNodesForType } from '../utils/node-creation-utils'
+import { createNodesForType, type NodeType } from '../utils/node-creation-utils'
 import { computeRelativePath, getBaseName, parseHandleId } from '../utils/path-utils'
 import { captureOperatorInputs, firePropertyMutation } from '../utils/property-history'
-import {
-  formatReference,
-  parseReference,
-  type ReferenceFormat,
-} from '../utils/reference-utils'
+import { formatReference, parseReference, type ReferenceFormat } from '../utils/reference-utils'
 import { ErrorBoundary } from './error-boundary'
 import {
   BooleanFieldComponent,
@@ -232,7 +228,8 @@ async function pasteReference(
       return false
     }
 
-    const targetField = namespace === 'par' ? targetOp.inputs[fieldName] : targetOp.outputs[fieldName]
+    const targetField =
+      namespace === 'par' ? targetOp.inputs[fieldName] : targetOp.outputs[fieldName]
     if (!targetField) {
       console.warn(`Paste reference: field not found: ${fieldName}`)
       return false
@@ -643,9 +640,7 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
         const parsed = parseReference(text)
         if (parsed) {
           // Update context menu with clipboard reference
-          setContextMenu(prev =>
-            prev ? { ...prev, clipboardReference: text } : prev
-          )
+          setContextMenu(prev => (prev ? { ...prev, clipboardReference: text } : prev))
         }
       })
       .catch(() => {

@@ -33,6 +33,7 @@ import { createPortal } from 'react-dom'
 import { Temporal } from 'temporal-polyfill'
 
 import { analytics } from '../../utils/analytics'
+import { useProjectModificationActions } from '../contexts/project-modification-actions-context'
 import { ArrayField, type Field, type IField, ListField } from '../fields'
 import { useKeysStore } from '../keys-store'
 import s from '../noodles.module.css'
@@ -63,7 +64,6 @@ import {
   useOperatorStore,
   useUIStore,
 } from '../store'
-import { useProjectModificationActions } from '../contexts/project-modification-actions-context'
 import { inferSchema, type TableSchema } from '../table-schema'
 import type { NodeDataJSON } from '../transform-graph'
 import { canConnect } from '../utils/can-connect'
@@ -230,9 +230,7 @@ function UnknownOperatorComponent({
           </div>
           <div className={s.unknownOperatorContent}>
             <div className={s.unknownOperatorType}>{op.originalType}</div>
-            <div className={s.unknownOperatorHelp}>
-              This operator type is no longer available
-            </div>
+            <div className={s.unknownOperatorHelp}>This operator type is no longer available</div>
           </div>
         </div>
       </ContextMenu.Trigger>
@@ -790,7 +788,9 @@ function useFieldValueChanges(op: Operator<IOperator> | undefined) {
       .filter(Boolean)
       .map(field => field.subscribe(() => forceUpdate(n => n + 1)))
 
-    return () => subscriptions.forEach(sub => sub.unsubscribe())
+    return () => {
+      for (const sub of subscriptions) sub.unsubscribe()
+    }
   }, [op])
 }
 
@@ -1824,7 +1824,9 @@ function DirectionsOpComponent({
     const subscriptions = [op.inputs.mode, op.inputs.departureMode].map(field =>
       field.subscribe(() => forceFieldVisibilityUpdate(value => value + 1))
     )
-    return () => subscriptions.forEach(subscription => subscription.unsubscribe())
+    return () => {
+      for (const subscription of subscriptions) subscription.unsubscribe()
+    }
   }, [op])
 
   if (!op) return null

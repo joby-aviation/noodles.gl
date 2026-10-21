@@ -264,9 +264,7 @@ describe('SchemaEditorDialog', () => {
     fireEvent.click(screen.getByRole('button'))
 
     for (const column of allTypesSchema.columns) {
-      expect(
-        screen.getByRole('group', { name: `Default value for ${column.name}` })
-      ).toBeDefined()
+      expect(screen.getByRole('group', { name: `Default value for ${column.name}` })).toBeDefined()
     }
   })
 

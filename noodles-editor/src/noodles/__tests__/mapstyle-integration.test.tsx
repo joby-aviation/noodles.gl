@@ -2,7 +2,7 @@
 // Tests the exact user scenario: JSONOp -> MaplibreBasemapOp (simplified from FileOp -> CodeOp -> MaplibreBasemapOp)
 import type { Node as ReactFlowNode } from '@xyflow/react'
 import { afterEach, describe, expect, it } from 'vitest'
-import { JSONOp, MaplibreBasemapOp } from '../operators'
+import type { JSONOp, MaplibreBasemapOp } from '../operators'
 import { clearOps, getOp } from '../store'
 import { transformGraph } from '../transform-graph'
 

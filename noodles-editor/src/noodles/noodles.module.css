@@ -1154,7 +1154,9 @@
     transform: scale(1);
   }
   50% {
-    box-shadow: 0 0 0 5px rgba(59, 130, 246, 0.8), 0 0 20px rgba(59, 130, 246, 0.4);
+    box-shadow:
+      0 0 0 5px rgba(59, 130, 246, 0.8),
+      0 0 20px rgba(59, 130, 246, 0.4);
     transform: scale(1.02);
   }
 }

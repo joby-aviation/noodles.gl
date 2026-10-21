@@ -325,156 +325,157 @@ export function MapToolOverlay({ mapRef, onSaveDrawing, onSaveMeasurement }: Map
 
       {createPortal(
         <div className={s.panel}>
-        <div className={s.panelHeader}>
-          <i className={activeTool === 'measure' ? 'pi pi-arrows-h' : 'pi pi-pencil'} />
-          <span className={s.panelTitle}>{activeTool === 'measure' ? 'Measure' : 'Draw'}</span>
-          <button
-            type="button"
-            className={s.panelClose}
-            onClick={() => setActiveTool(null)}
-            aria-label="Close tool"
-          >
-            <i className="pi pi-times" />
-          </button>
-        </div>
+          <div className={s.panelHeader}>
+            <i className={activeTool === 'measure' ? 'pi pi-arrows-h' : 'pi pi-pencil'} />
+            <span className={s.panelTitle}>{activeTool === 'measure' ? 'Measure' : 'Draw'}</span>
+            <button
+              type="button"
+              className={s.panelClose}
+              onClick={() => setActiveTool(null)}
+              aria-label="Close tool"
+            >
+              <i className="pi pi-times" />
+            </button>
+          </div>
 
-        {activeTool === 'measure' ? (
-          <>
-            <div className={s.segmented}>
-              <button
-                type="button"
-                className={measureMode === 'distance' ? s.segmentActive : s.segment}
-                onClick={() => setMeasureMode('distance')}
-              >
-                <i className="pi pi-arrows-h" /> Distance
-              </button>
-              <button
-                type="button"
-                className={measureMode === 'area' ? s.segmentActive : s.segment}
-                onClick={() => setMeasureMode('area')}
-              >
-                <i className="pi pi-stop" /> Area
-              </button>
-            </div>
+          {activeTool === 'measure' ? (
+            <>
+              <div className={s.segmented}>
+                <button
+                  type="button"
+                  className={measureMode === 'distance' ? s.segmentActive : s.segment}
+                  onClick={() => setMeasureMode('distance')}
+                >
+                  <i className="pi pi-arrows-h" /> Distance
+                </button>
+                <button
+                  type="button"
+                  className={measureMode === 'area' ? s.segmentActive : s.segment}
+                  onClick={() => setMeasureMode('area')}
+                >
+                  <i className="pi pi-stop" /> Area
+                </button>
+              </div>
 
-            {measureMode === 'distance' && (
-              <select
-                className={s.select}
-                value={distanceUnit}
-                onChange={event => setDistanceUnit(event.target.value as DistanceUnit)}
-              >
-                <option value="kilometers">Kilometers</option>
-                <option value="miles">Miles</option>
-                <option value="meters">Meters</option>
-                <option value="nauticalmiles">Nautical miles</option>
-              </select>
+              {measureMode === 'distance' && (
+                <select
+                  className={s.select}
+                  value={distanceUnit}
+                  onChange={event => setDistanceUnit(event.target.value as DistanceUnit)}
+                >
+                  <option value="kilometers">Kilometers</option>
+                  <option value="miles">Miles</option>
+                  <option value="meters">Meters</option>
+                  <option value="nauticalmiles">Nautical miles</option>
+                </select>
+              )}
+
+              <div className={s.readout}>
+                {enoughToMeasure ? (
+                  <span className={s.readoutValue}>{readout}</span>
+                ) : (
+                  <span className={s.readoutHint}>
+                    Click the map to place {measureMode === 'area' ? '3 or more' : '2 or more'}{' '}
+                    points
+                  </span>
+                )}
+              </div>
+            </>
+          ) : (
+            <>
+              <div className={s.segmented}>
+                <button
+                  type="button"
+                  className={drawMode === 'point' ? s.segmentActive : s.segment}
+                  onClick={() => setDrawMode('point')}
+                  title="Point"
+                >
+                  <i className="pi pi-map-marker" />
+                </button>
+                <button
+                  type="button"
+                  className={drawMode === 'line' ? s.segmentActive : s.segment}
+                  onClick={() => setDrawMode('line')}
+                  title="Line"
+                >
+                  <i className="pi pi-minus" />
+                </button>
+                <button
+                  type="button"
+                  className={drawMode === 'polygon' ? s.segmentActive : s.segment}
+                  onClick={() => setDrawMode('polygon')}
+                  title="Polygon"
+                >
+                  <i className="pi pi-stop" />
+                </button>
+              </div>
+
+              <div className={s.readout}>
+                <span className={s.readoutValue}>
+                  {shapes.length} shape{shapes.length === 1 ? '' : 's'}
+                </span>
+                {points.length > 0 && (
+                  <span className={s.readoutHint}>
+                    {points.length} point{points.length === 1 ? '' : 's'}
+                    {points.length < MIN_POINTS[drawMode]
+                      ? ` (need ${MIN_POINTS[drawMode]})`
+                      : ' - click again to finish'}
+                  </span>
+                )}
+              </div>
+            </>
+          )}
+
+          <div className={s.actions}>
+            {points.length > 0 && (
+              <button type="button" className={s.action} onClick={undoPoint}>
+                <i className="pi pi-undo" /> Undo
+              </button>
             )}
-
-            <div className={s.readout}>
-              {enoughToMeasure ? (
-                <span className={s.readoutValue}>{readout}</span>
-              ) : (
-                <span className={s.readoutHint}>
-                  Click the map to place {measureMode === 'area' ? '3 or more' : '2 or more'} points
-                </span>
-              )}
-            </div>
-          </>
-        ) : (
-          <>
-            <div className={s.segmented}>
+            {activeTool === 'draw' && points.length >= MIN_POINTS[drawMode] && (
+              <button type="button" className={s.action} onClick={() => finishDrawnShape(points)}>
+                <i className="pi pi-check" /> Finish
+              </button>
+            )}
+            {(points.length > 0 || shapes.length > 0) && (
               <button
                 type="button"
-                className={drawMode === 'point' ? s.segmentActive : s.segment}
-                onClick={() => setDrawMode('point')}
-                title="Point"
+                className={s.action}
+                onClick={() => {
+                  reset()
+                  setShapes([])
+                }}
               >
-                <i className="pi pi-map-marker" />
+                <i className="pi pi-trash" /> Clear
               </button>
+            )}
+            {activeTool === 'measure' && enoughToMeasure && (
               <button
                 type="button"
-                className={drawMode === 'line' ? s.segmentActive : s.segment}
-                onClick={() => setDrawMode('line')}
-                title="Line"
+                className={s.primaryAction}
+                onClick={() => {
+                  onSaveMeasurement(points, measureMode === 'area')
+                  analytics.track('measure_saved_to_graph', { mode: measureMode })
+                  setActiveTool(null)
+                }}
               >
-                <i className="pi pi-minus" />
+                Add to graph
               </button>
+            )}
+            {activeTool === 'draw' && shapes.length > 0 && (
               <button
                 type="button"
-                className={drawMode === 'polygon' ? s.segmentActive : s.segment}
-                onClick={() => setDrawMode('polygon')}
-                title="Polygon"
+                className={s.primaryAction}
+                onClick={() => {
+                  onSaveDrawing(shapes.map(shape => shape.feature))
+                  analytics.track('draw_saved_to_graph', { count: shapes.length })
+                  setActiveTool(null)
+                }}
               >
-                <i className="pi pi-stop" />
+                Add to graph
               </button>
-            </div>
-
-            <div className={s.readout}>
-              <span className={s.readoutValue}>
-                {shapes.length} shape{shapes.length === 1 ? '' : 's'}
-              </span>
-              {points.length > 0 && (
-                <span className={s.readoutHint}>
-                  {points.length} point{points.length === 1 ? '' : 's'}
-                  {points.length < MIN_POINTS[drawMode]
-                    ? ` (need ${MIN_POINTS[drawMode]})`
-                    : ' - click again to finish'}
-                </span>
-              )}
-            </div>
-          </>
-        )}
-
-        <div className={s.actions}>
-          {points.length > 0 && (
-            <button type="button" className={s.action} onClick={undoPoint}>
-              <i className="pi pi-undo" /> Undo
-            </button>
-          )}
-          {activeTool === 'draw' && points.length >= MIN_POINTS[drawMode] && (
-            <button type="button" className={s.action} onClick={() => finishDrawnShape(points)}>
-              <i className="pi pi-check" /> Finish
-            </button>
-          )}
-          {(points.length > 0 || shapes.length > 0) && (
-            <button
-              type="button"
-              className={s.action}
-              onClick={() => {
-                reset()
-                setShapes([])
-              }}
-            >
-              <i className="pi pi-trash" /> Clear
-            </button>
-          )}
-          {activeTool === 'measure' && enoughToMeasure && (
-            <button
-              type="button"
-              className={s.primaryAction}
-              onClick={() => {
-                onSaveMeasurement(points, measureMode === 'area')
-                analytics.track('measure_saved_to_graph', { mode: measureMode })
-                setActiveTool(null)
-              }}
-            >
-              Add to graph
-            </button>
-          )}
-          {activeTool === 'draw' && shapes.length > 0 && (
-            <button
-              type="button"
-              className={s.primaryAction}
-              onClick={() => {
-                onSaveDrawing(shapes.map(shape => shape.feature))
-                analytics.track('draw_saved_to_graph', { count: shapes.length })
-                setActiveTool(null)
-              }}
-            >
-              Add to graph
-            </button>
-          )}
-        </div>
+            )}
+          </div>
         </div>,
         document.body
       )}
