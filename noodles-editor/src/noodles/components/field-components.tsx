@@ -1283,9 +1283,10 @@ export function FileUrlFieldComponent({
           {field.suggestions.length > 0 && suggestionsOpen && filteredSuggestions.length > 0 && (
             <ul className={s.fileUrlSuggestions}>
               {filteredSuggestions.map(({ value: val, label }) => (
-                // biome-ignore lint/a11y/useSemanticElements: custom combobox option
+                // biome-ignore lint/a11y/useFocusableInteractive: mouse-only suggestions; typing a URL is the keyboard path
                 <li
                   key={val}
+                  // biome-ignore lint/a11y/noNoninteractiveElementToInteractiveRole: mouse-only suggestions; typing a URL is the keyboard path
                   role="option"
                   aria-selected={val === value}
                   className={cx(s.fileUrlSuggestion, {

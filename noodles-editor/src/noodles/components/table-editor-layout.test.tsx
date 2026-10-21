@@ -32,7 +32,7 @@ describe('TableEditor layout', () => {
     const table = cell.closest('table')
     expect(row).not.toBeNull()
     expect(table).not.toBeNull()
-    const emptyCell = row?.cells[2].querySelector('[tabindex="0"]')
+    const emptyCell = row?.cells[2].querySelector('button')
     expect(emptyCell).not.toBeNull()
 
     const rowRect = row?.getBoundingClientRect()

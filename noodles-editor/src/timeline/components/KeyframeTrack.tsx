@@ -207,6 +207,7 @@ function KeyframeTrackLabel({
       </div>
       {contextMenu &&
         createPortal(
+          // biome-ignore lint/a11y/noStaticElementInteractions: keeps a click in the menu from closing it
           <div
             ref={trackMenuRef}
             className={s.handleTypeMenu}
@@ -888,6 +889,7 @@ function KeyframeDiamond({
       </div>
       {contextMenu &&
         createPortal(
+          // biome-ignore lint/a11y/noStaticElementInteractions: keeps a click in the menu from closing it
           <div
             ref={menuRef}
             className={s.handleTypeMenu}

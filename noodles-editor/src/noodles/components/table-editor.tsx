@@ -223,6 +223,7 @@ function BooleanCellEditor({ value, onChange, onComplete }: CellEditorProps) {
 
 function ColorCellEditor({ value, onChange, onComplete }: CellEditorProps) {
   return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: catches blur and key events bubbling from the color picker
     <div
       onBlur={onComplete}
       onKeyDown={e => {
@@ -525,6 +526,7 @@ function DateTimeCellEditor({ value, onChange, onComplete, column }: CellEditorP
   }
 
   return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: catches blur bubbling from the date and timezone inputs
     <div ref={containerRef} className={s.dateTimeCellEditor} onBlur={handleBlur}>
       <InputText
         type="datetime-local"
@@ -569,6 +571,7 @@ function DateTimeCellEditor({ value, onChange, onComplete, column }: CellEditorP
         className={s.timezoneDropdown}
         panelClassName={s.timezonePanel}
         itemTemplate={item => (
+          // biome-ignore lint/a11y/noStaticElementInteractions: records a mouse pick before blur; onSelect handles the keyboard
           <div
             onMouseDown={() => {
               setPendingTimezone(item)
@@ -625,10 +628,10 @@ function renderBooleanCell(value: unknown): string {
 function renderColorCell(value: unknown): React.ReactNode {
   const color = typeof value === 'string' ? value : '#000000'
   return (
-    <div className={s.colorDisplay}>
-      <div className={s.colorSwatch} style={{ backgroundColor: color }} />
+    <span className={s.colorDisplay}>
+      <span className={s.colorSwatch} style={{ backgroundColor: color }} />
       <span>{color}</span>
-    </div>
+    </span>
   )
 }
 
@@ -812,18 +815,9 @@ function EditableCell({ getValue, row, column, table }: EditableCellProps) {
   }
 
   return (
-    <div
-      className={s.cell}
-      onClick={startEditing}
-      onKeyDown={e => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          startEditing()
-        }
-      }}
-      tabIndex={0}
-    >
+    <button type="button" className={cx(s.cell, s.cellButton)} onClick={startEditing}>
       {renderedValue}
-    </div>
+    </button>
   )
 }
 

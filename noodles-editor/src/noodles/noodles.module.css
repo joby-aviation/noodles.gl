@@ -1311,6 +1311,17 @@
   align-items: center;
 }
 
+.errorPopoverTrigger {
+  display: inline-flex;
+  align-items: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
 .errorPopover {
   position: absolute;
   top: calc(100% + 6px);
