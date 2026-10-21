@@ -91,6 +91,40 @@ describe('ExportButton', () => {
     expect(analytics.track).toHaveBeenCalledWith('render_started', { source: 'toolbar' })
   })
 
+  it('disables the open menu when another export starts', async () => {
+    const takeScreenshot = vi.fn().mockResolvedValue(undefined)
+    const startRender = vi.fn().mockResolvedValue(undefined)
+    const { rerender } = render(
+      <ExportButton
+        activeOutOpId="/out"
+        isRendering={false}
+        takeScreenshot={takeScreenshot}
+        startRender={startRender}
+      />
+    )
+    openMenu()
+
+    // An export_video run starts while the menu is still open
+    rerender(
+      <ExportButton
+        activeOutOpId="/out"
+        isRendering
+        takeScreenshot={takeScreenshot}
+        startRender={startRender}
+      />
+    )
+    const image = screen.getByRole('menuitem', { name: /image \(png\)/i })
+    const video = screen.getByRole('menuitem', { name: /video \(mp4\)/i })
+    expect(image).toHaveAttribute('data-disabled')
+    expect(video).toHaveAttribute('data-disabled')
+
+    fireEvent.click(image)
+    fireEvent.click(video)
+    await flush()
+    expect(takeScreenshot).not.toHaveBeenCalled()
+    expect(startRender).not.toHaveBeenCalled()
+  })
+
   it('is disabled with a reason when the project has no Out node', () => {
     render(
       <ExportButton

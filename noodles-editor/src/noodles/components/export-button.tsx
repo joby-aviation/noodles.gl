@@ -22,17 +22,19 @@ export function ExportButton({
 }: ExportButtonProps) {
   const percent = useRenderProgressStore(state => state.percent)
 
+  // The menu can be open when another export starts (the export_video tool), so the
+  // items and handlers check isRendering too, not just the trigger
   const handleTakeScreenshot = useCallback(async () => {
-    if (!takeScreenshot) return
+    if (!takeScreenshot || isRendering) return
     await takeScreenshot()
     analytics.track('screenshot_taken', { source: 'toolbar' })
-  }, [takeScreenshot])
+  }, [takeScreenshot, isRendering])
 
   const handleStartRender = useCallback(async () => {
-    if (!startRender) return
+    if (!startRender || isRendering) return
     await startRender()
     analytics.track('render_started', { source: 'toolbar' })
-  }, [startRender])
+  }, [startRender, isRendering])
 
   const disabledReason = isRendering
     ? 'An export is running'
@@ -84,7 +86,7 @@ export function ExportButton({
           <DropdownMenu.Item
             className={s.item}
             onSelect={handleTakeScreenshot}
-            disabled={!takeScreenshot}
+            disabled={!takeScreenshot || isRendering}
           >
             <i className={`pi pi-image ${s.itemIcon}`} />
             <span className={s.itemText}>
@@ -95,7 +97,7 @@ export function ExportButton({
           <DropdownMenu.Item
             className={s.item}
             onSelect={handleStartRender}
-            disabled={!startRender}
+            disabled={!startRender || isRendering}
           >
             <i className={`pi pi-video ${s.itemIcon}`} />
             <span className={s.itemText}>

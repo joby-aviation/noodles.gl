@@ -385,6 +385,12 @@ export default function TimelineEditor() {
   })
 
   const startRender = useCallback(async () => {
+    // Two captures would share one frame-ready callback and the timeline position
+    if (isRenderingRef.current) {
+      debugRender('Start Render: an export is already running')
+      return
+    }
+
     let canvas: HTMLCanvasElement | null = null
 
     if (basemapEnabled) {
