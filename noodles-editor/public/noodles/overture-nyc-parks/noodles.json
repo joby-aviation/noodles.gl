@@ -1,4 +1,62 @@
 {
+  "edges": [
+    {
+      "id": "/duckdb-query.out.data->/extract-geojson.par.data",
+      "source": "/duckdb-query",
+      "target": "/extract-geojson",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/extract-geojson.out.data->/geojson-layer.par.data",
+      "source": "/extract-geojson",
+      "target": "/geojson-layer",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/geojson-layer.out.layer->/deck.par.layers",
+      "source": "/geojson-layer",
+      "target": "/deck",
+      "sourceHandle": "out.layer",
+      "targetHandle": "par.layers"
+    },
+    {
+      "id": "/deck.out.vis->/out.par.vis",
+      "source": "/deck",
+      "target": "/out",
+      "sourceHandle": "out.vis",
+      "targetHandle": "par.vis"
+    },
+    {
+      "source": "/maplibre-basemap",
+      "sourceHandle": "out.maplibre",
+      "target": "/deck",
+      "targetHandle": "par.basemap",
+      "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap"
+    },
+    {
+      "id": "/bounds.out.bounds->/duckdb-query.par.query",
+      "type": "ReferenceEdge",
+      "selectable": false,
+      "deletable": false,
+      "focusable": false,
+      "reconnectable": false,
+      "source": "/bounds",
+      "target": "/duckdb-query",
+      "sourceHandle": null,
+      "targetHandle": "par.query"
+    }
+  ],
+  "viewport": {
+    "x": 485.32201531005217,
+    "y": 329.36769008427984,
+    "zoom": 0.4400549765402036
+  },
+  "version": 18,
+  "editorSettings": {
+    "showOverlay": true
+  },
   "nodes": [
     {
       "id": "/bounds",
@@ -130,7 +188,19 @@
       "id": "/out",
       "type": "OutOp",
       "data": {
-        "inputs": {},
+        "inputs": {
+          "display": "fixed",
+          "width": 1920,
+          "height": 1080,
+          "lod": 2,
+          "waitForData": true,
+          "codec": "avc",
+          "bitrateMbps": 10,
+          "bitrateMode": "constant",
+          "scaleControl": 0.3,
+          "framerate": 30,
+          "captureDelay": 50
+        },
         "locked": false
       },
       "position": {
@@ -160,60 +230,6 @@
       }
     }
   ],
-  "edges": [
-    {
-      "id": "/duckdb-query.out.data->/extract-geojson.par.data",
-      "source": "/duckdb-query",
-      "target": "/extract-geojson",
-      "sourceHandle": "out.data",
-      "targetHandle": "par.data"
-    },
-    {
-      "id": "/extract-geojson.out.data->/geojson-layer.par.data",
-      "source": "/extract-geojson",
-      "target": "/geojson-layer",
-      "sourceHandle": "out.data",
-      "targetHandle": "par.data"
-    },
-    {
-      "id": "/geojson-layer.out.layer->/deck.par.layers",
-      "source": "/geojson-layer",
-      "target": "/deck",
-      "sourceHandle": "out.layer",
-      "targetHandle": "par.layers"
-    },
-    {
-      "id": "/deck.out.vis->/out.par.vis",
-      "source": "/deck",
-      "target": "/out",
-      "sourceHandle": "out.vis",
-      "targetHandle": "par.vis"
-    },
-    {
-      "source": "/maplibre-basemap",
-      "sourceHandle": "out.maplibre",
-      "target": "/deck",
-      "targetHandle": "par.basemap",
-      "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap"
-    },
-    {
-      "id": "/bounds.out.bounds->/duckdb-query.par.query",
-      "type": "ReferenceEdge",
-      "selectable": false,
-      "deletable": false,
-      "focusable": false,
-      "reconnectable": false,
-      "source": "/bounds",
-      "target": "/duckdb-query",
-      "sourceHandle": null,
-      "targetHandle": "par.query"
-    }
-  ],
-  "viewport": {
-    "x": 485.32201531005217,
-    "y": 329.36769008427984,
-    "zoom": 0.4400549765402036
-  },
   "timeline": {
     "sheetsById": {
       "Noodles": {
@@ -226,6 +242,5 @@
     "revisionHistory": [
       "05HP5KUPC8hGmM0r"
     ]
-  },
-  "version": 7
+  }
 }
