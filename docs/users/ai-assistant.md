@@ -57,7 +57,7 @@ Settings → **API Keys**, or Settings → AI Provider for the endpoint options:
 
 **Test and Save** checks the endpoint before storing it, so a mistyped address or model name is caught there rather than in the middle of a conversation.
 
-Keys are stored in your browser and never sent to Noodles.gl. See [API Keys Configuration](./api-keys.md).
+Keys are stored in your browser and never sent to Noodles.gl. They are never saved in a project file, and a key inside a project file someone else made is ignored. See [API Keys Configuration](./api-keys.md).
 
 ## Using the Assistant
 

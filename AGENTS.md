@@ -380,7 +380,7 @@ The chat panel (`noodles-editor/src/ai-chat/`) has its own agent loop, tool surf
 
 ## Using Claude Code with Noodles.gl
 
-See [dev-docs/claude-code-workflow.md](dev-docs/claude-code-workflow.md) for editing `noodles.json` directly, validating changes, graph design guidelines, and connecting to a running browser via WebMCP or the MCP proxy.
+See [dev-docs/claude-code-workflow.md](dev-docs/claude-code-workflow.md) for editing `noodles.json` directly, validating changes, graph design guidelines, and connecting to a running browser via WebMCP.
 
 ---
 
