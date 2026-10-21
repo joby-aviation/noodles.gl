@@ -14,6 +14,8 @@
 //   --url        an already-running dev server. Default: starts one.
 //   --browser    chrome (default, system Chrome) | chromium (bundled, no Gemini Nano)
 //   --headless   no window. Fine for cloud providers; WebGPU may fall back or vanish.
+//   --judge      run the Claude judge (judge-run.ts) on T3/T4 afterwards. Needs AWS
+//                credentials for Bedrock.
 //
 // System Chrome runs headed with a persistent profile (bench/agent/.profile) so
 // WebLLM weights and Gemini Nano survive between runs, and so WebGPU is the real
@@ -58,6 +60,7 @@ const { values: args } = parseArgs({
     url: { type: 'string' },
     browser: { type: 'string', default: 'chrome' },
     headless: { type: 'boolean', default: false },
+    judge: { type: 'boolean', default: false },
   },
 })
 
@@ -434,6 +437,15 @@ async function main() {
   }
 
   const summaryPath = join(here, 'results', `${runId}.summary.json`)
+  if (args.judge) {
+    const { DEFAULT_JUDGE_MODEL, judgeDirectory, parseTiers } = await import('./judge-run')
+    await judgeDirectory(rawDir, {
+      tiers: parseTiers('T3,T4'),
+      samples: 3,
+      model: DEFAULT_JUDGE_MODEL,
+      force: false,
+    })
+  }
   const summary = JSON.parse(readFileSync(summaryPath, 'utf8')) as Summary
   console.log(`\n${renderMarkdown(summary)}\n`)
   console.log(`Summary: bench/agent/results/${runId}.summary.json`)
