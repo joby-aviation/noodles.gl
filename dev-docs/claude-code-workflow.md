@@ -75,7 +75,7 @@ The older MCP proxy bridges Claude Code to the browser over a WebSocket. It expo
 # Open: http://localhost:5173/examples/nyc-taxis?externalControl=true
 
 # 2. Start the MCP proxy (in a separate terminal)
-node noodles-editor/examples/external-control/mcp-proxy.js
+node examples/external-control/mcp-proxy.js
 
 # 3. Add to Claude Desktop config:
 #    macOS:   ~/Library/Application Support/Claude/claude_desktop_config.json
@@ -84,7 +84,7 @@ node noodles-editor/examples/external-control/mcp-proxy.js
   "mcpServers": {
     "noodles": {
       "command": "node",
-      "args": ["/path/to/noodles-editor/examples/external-control/mcp-proxy.js"]
+      "args": ["/path/to/noodles.gl/examples/external-control/mcp-proxy.js"]
     }
   }
 }
