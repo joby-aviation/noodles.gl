@@ -62,6 +62,8 @@ Tool names match the in-app chat (snake_case): `get_current_project`, `list_node
 
 Two tools exist only over WebMCP, not in the in-app chat: `export_video` and `get_export_status`. `export_video` renders the timeline to an MP4, the same as the Export button. Every parameter is optional (`startTime`, `endTime`, `fps`, `width`, `height`, `codec`, `download`, `waitSeconds`); omitted ones come from the project's render settings and the timeline in/out points. The file goes to `@/.agent/renders/<project>-<timestamp>.mp4` in the project, where `list_files` shows it, and also to the browser's downloads folder with `download: true` (or when the project is read-only). The relay fails any tool call that runs past 25 s, so a call waits at most 20 s and then returns progress (`framesDone`, `totalFrames`); call `get_export_status` until `status` is `done`. The finished result has the file name, path, byte size, frame count and duration. Needs WebCodecs (`VideoEncoder`), so Chrome or Edge. An example project lives in memory, so pass `download: true` there to keep the file after a reload.
 
+The [`noodles-live`](../.claude/skills/noodles-live/SKILL.md) skill teaches Claude Code this loop end to end: read the graph, make one edit, check it with a screenshot, change keyframes, and export. Claude Code loads it automatically in this repo.
+
 Notes:
 
 - The relay embed script is only injected on localhost. Alternatives that need no relay: the WebMCP browser extension, or native Chrome WebMCP (origin trial).
