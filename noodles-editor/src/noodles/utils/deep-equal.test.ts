@@ -186,7 +186,9 @@ describe('deepEqual', () => {
     it('handles mapStyle as an object (inline style spec)', () => {
       const style = {
         version: 8,
-        sources: { osm: { type: 'raster', tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'] } },
+        sources: {
+          osm: { type: 'raster', tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'] },
+        },
         layers: [{ id: 'osm', type: 'raster', source: 'osm' }],
       }
       const a = { ...style }
@@ -380,7 +382,10 @@ describe('deepEqual', () => {
       })
 
       it.skip('compares data arrays by reference at depth 3', () => {
-        const data = [{ x: 1, y: 2 }, { x: 3, y: 4 }]
+        const data = [
+          { x: 1, y: 2 },
+          { x: 3, y: 4 },
+        ]
         const layer = { id: 'layer1', type: 'ScatterplotLayer', data }
 
         const a = { deckProps: { layers: [layer] } }

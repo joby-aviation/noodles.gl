@@ -878,7 +878,7 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
       // Update target node with new input value
       setNodes(nds => {
         const updated = [...nds]
-        let value
+        let value: unknown
         if (targetField instanceof ListField) {
           // Safely get values from ListField
           try {

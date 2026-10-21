@@ -5,8 +5,10 @@ import { type RefObject, useCallback, useEffect, useMemo, useState } from 'react
 import { useLocation } from 'wouter'
 import logoSvg from '/noodles-favicon.svg'
 import { SettingsDialog } from '../../components/settings-dialog'
+import type { RenderSource } from '../../render/render-analytics'
 import { analytics } from '../../utils/analytics'
 import { debugUI } from '../../utils/debug'
+import { useActiveOutOp } from '../hooks/use-active-outop'
 import { ContainerOp } from '../operators'
 import { getOpStore, type MapMode, useNestingStore, useUIStore } from '../store'
 import { directoryHandleCache } from '../utils/directory-handle-cache'
@@ -14,6 +16,7 @@ import { shouldBlockKeyboardShortcut } from '../utils/input-detection'
 import { getParentPath, splitPath } from '../utils/path-utils'
 import { Breadcrumbs } from './breadcrumbs'
 import type { CopyControlsRef } from './copy-controls'
+import { ExportButton } from './export-button'
 import { DataImporterTool } from './tools/data-importer-tool'
 import type { GeoRecipe } from './tools/geo-recipes'
 import { GeoToolWizard } from './tools/geo-tool-wizard'
@@ -37,8 +40,8 @@ interface TopMenuBarProps {
   undoRedoRef: RefObject<UndoRedoHandlerRef | null>
   copyControlsRef: RefObject<CopyControlsRef | null>
   // Export functions always use the active OutOp's settings
-  startRender?: () => Promise<void>
-  takeScreenshot?: () => Promise<void>
+  startRender?: (source?: RenderSource) => Promise<void>
+  takeScreenshot?: (source?: RenderSource) => Promise<void>
   isRendering?: boolean
   hasUnsavedChanges?: boolean
   showOverlay?: boolean
@@ -89,6 +92,7 @@ export function TopMenuBar({
   const currentContainerId = useNestingStore(state => state.currentContainerId)
   const setCurrentContainerId = useNestingStore(state => state.setCurrentContainerId)
   const reactFlow = useReactFlow()
+  const activeOutOp = useActiveOutOp()
 
   // Load recent projects on mount
   useEffect(() => {
@@ -156,17 +160,16 @@ export function TopMenuBar({
 
   const canGoInto = selectedContainer !== null
 
-  // Simplified export handlers - always use active OutOp's settings
+  // Simplified export handlers - always use active OutOp's settings. The renderer
+  // tracks render and screenshot analytics, so every button that exports is counted.
   const handleStartRender = useCallback(async () => {
     if (!startRender) return
     await startRender()
-    analytics.track('render_started', { source: 'menu' })
   }, [startRender])
 
   const handleTakeScreenshot = useCallback(async () => {
     if (!takeScreenshot) return
     await takeScreenshot()
-    analytics.track('screenshot_taken', { source: 'menu' })
   }, [takeScreenshot])
 
   const goUp = useCallback(() => {
@@ -572,6 +575,12 @@ export function TopMenuBar({
         )}
 
         <div className={s.rightSection}>
+          <ExportButton
+            activeOutOpId={activeOutOp?.id ?? null}
+            isRendering={Boolean(isRendering)}
+            takeScreenshot={takeScreenshot}
+            startRender={startRender}
+          />
           {onChangeShowChatPanel && (
             <button
               type="button"

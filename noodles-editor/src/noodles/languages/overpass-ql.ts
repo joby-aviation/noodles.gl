@@ -123,7 +123,10 @@ export const overpassQL: languages.IMonarchLanguage = {
       [/\{\{[^}]+\}\}/, 'variable.template'],
 
       // Element types with tag filters
-      [/(node|way|relation|area|nwr|rel)(\s*)(\[)/, ['keyword', 'white', { token: 'delimiter.bracket', next: '@tagFilter' }]],
+      [
+        /(node|way|relation|area|nwr|rel)(\s*)(\[)/,
+        ['keyword', 'white', { token: 'delimiter.bracket', next: '@tagFilter' }],
+      ],
 
       // Keywords
       [/\b(out|union|difference|intersection|foreach|if|for|complete|retro|compare)\b/, 'keyword'],
@@ -238,8 +241,8 @@ export const overpassQLConfig: languages.LanguageConfiguration = {
   ],
   folding: {
     markers: {
-      start: new RegExp('^\\s*//\\s*#?region\\b'),
-      end: new RegExp('^\\s*//\\s*#?endregion\\b'),
+      start: /^\s*\/\/\s*#?region\b/,
+      end: /^\s*\/\/\s*#?endregion\b/,
     },
   },
 }

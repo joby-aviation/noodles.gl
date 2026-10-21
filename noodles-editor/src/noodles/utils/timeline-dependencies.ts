@@ -1,7 +1,7 @@
 import { create } from 'zustand'
-import { debugDirty } from '../../utils/debug'
 import { useTimelineStore } from '../../timeline/timeline-store'
-import type { Operator, IOperator } from '../operators'
+import { debugDirty } from '../../utils/debug'
+import type { IOperator, Operator } from '../operators'
 
 interface TimelineDependencyState {
   subscriptions: Map<string, (() => void)[]>
@@ -51,7 +51,7 @@ export const useTimelineDependencyStore = create<TimelineDependencyState>((set, 
     const { subscriptions } = get()
     const cleanupFns = subscriptions.get(opId)
     if (cleanupFns) {
-      cleanupFns.forEach(fn => fn())
+      for (const fn of cleanupFns) fn()
       const newSubscriptions = new Map(subscriptions)
       newSubscriptions.delete(opId)
       set({ subscriptions: newSubscriptions })

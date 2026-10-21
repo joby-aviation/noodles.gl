@@ -18,7 +18,7 @@ import { getTimezoneOptions } from '../utils/timezone-utils'
 import { ColorSwatch } from './color-swatch'
 import { DraggableNumberInput } from './draggable-number-input'
 import { GeocodingDialog } from './geocoding-dialog'
-import { SchemaEditorDialog, type SchemaChangeMetadata } from './schema-editor-dialog'
+import { type SchemaChangeMetadata, SchemaEditorDialog } from './schema-editor-dialog'
 import s from './table-editor.module.css'
 
 // Cell editor components for each column type

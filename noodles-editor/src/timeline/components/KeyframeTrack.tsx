@@ -579,7 +579,10 @@ function KeyframeShape({
 
       case 'hold':
         // Square with rounded corners
-        return { filled: 'M 2.5 2 L 7.5 2 Q 8 2 8 2.5 L 8 7.5 Q 8 8 7.5 8 L 2.5 8 Q 2 8 2 7.5 L 2 2.5 Q 2 2 2.5 2 Z' }
+        return {
+          filled:
+            'M 2.5 2 L 7.5 2 Q 8 2 8 2.5 L 8 7.5 Q 8 8 7.5 8 L 2.5 8 Q 2 8 2 7.5 L 2 2.5 Q 2 2 2.5 2 Z',
+        }
 
       case 'hold-ease-out':
         // Square with right curved notch (ease out) - prominent square left side

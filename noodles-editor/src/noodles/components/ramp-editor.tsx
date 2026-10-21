@@ -1,8 +1,8 @@
 import { scaleLinear } from 'd3'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { monotoneSlopes } from '../operators'
 import type { RampInterpType } from '../operators'
+import { monotoneSlopes } from '../operators'
 
 export interface RampStop {
   id: string

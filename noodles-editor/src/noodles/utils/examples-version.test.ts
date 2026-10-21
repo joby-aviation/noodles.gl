@@ -26,9 +26,7 @@ describe('Example projects version', () => {
 
     for (const [path, project] of Object.entries(allProjects)) {
       if (project.version !== NOODLES_VERSION) {
-        outdatedProjects.push(
-          `${path}: version ${project.version} (expected ${NOODLES_VERSION})`
-        )
+        outdatedProjects.push(`${path}: version ${project.version} (expected ${NOODLES_VERSION})`)
       }
     }
 
@@ -41,18 +39,9 @@ describe('Example projects version', () => {
 
   it('all example projects should have a valid version number', () => {
     for (const [path, project] of Object.entries(allProjects)) {
-      expect(
-        project.version,
-        `${path} should have a version field`
-      ).toBeDefined()
-      expect(
-        typeof project.version,
-        `${path} version should be a number`
-      ).toBe('number')
-      expect(
-        project.version,
-        `${path} version should be positive`
-      ).toBeGreaterThanOrEqual(0)
+      expect(project.version, `${path} should have a version field`).toBeDefined()
+      expect(typeof project.version, `${path} version should be a number`).toBe('number')
+      expect(project.version, `${path} version should be positive`).toBeGreaterThanOrEqual(0)
     }
   })
 })

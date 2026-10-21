@@ -1,10 +1,10 @@
 import type { OnMount } from '@monaco-editor/react'
 import * as Dialog from '@radix-ui/react-dialog'
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { Cross2Icon, QuestionMarkCircledIcon } from '@radix-ui/react-icons'
 import { Handle, Position, useEdges, useNodeId, useReactFlow } from '@xyflow/react'
 import cx from 'classnames'
 import type { ScaleLinear, ScaleOrdinal } from 'd3'
-import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { Button } from 'primereact/button'
 import { InputText } from 'primereact/inputtext'
 import {
@@ -27,10 +27,16 @@ const CodeiumEditor = lazy(() =>
 )
 
 import { Temporal } from 'temporal-polyfill'
-import { analytics } from '../../utils/analytics'
 import { VectorKeyframeIndicator } from '../../timeline/components/KeyframeIndicator'
 import { getFieldPath } from '../../timeline/field-bindings'
 import { useTimelineStore } from '../../timeline/timeline-store'
+import { analytics } from '../../utils/analytics'
+import {
+  categoricalSchemesFixed,
+  categoricalSchemesStepped,
+  continuousInterpolators,
+  renderColorScheme,
+} from '../color-schemes'
 import {
   type BboxField,
   type BezierCurveField,
@@ -60,7 +66,6 @@ import { useObservable } from '../hooks/use-observable'
 import s from '../noodles.module.css'
 import { getFriendlyErrorMessage } from '../operators'
 import { checkAssetExists, getAssetFileHandle, writeAsset } from '../storage'
-import { extensionOf } from './tools/import-pipelines'
 import { getOp, useEdgeConnectionStore } from '../store'
 import { type ExpressionContext, getExpressionContext } from '../utils/expression-context'
 import { projectScheme } from '../utils/filesystem'
@@ -77,15 +82,10 @@ import { DraggableNumberInput } from './draggable-number-input'
 import { ExpressionEditorOverlay } from './ExpressionEditorOverlay'
 import { GeocodingDialog } from './geocoding-dialog'
 import menuStyles from './menu.module.css'
+import { MultiInputHandle } from './multi-input-handle'
 import contextMenuStyles from './node-properties.module.css'
 import { handleClass, useHandleDimmed } from './op-components'
-import { MultiInputHandle } from './multi-input-handle'
-import {
-  categoricalSchemesFixed,
-  categoricalSchemesStepped,
-  continuousInterpolators,
-  renderColorScheme,
-} from '../color-schemes'
+import { extensionOf } from './tools/import-pipelines'
 
 type InputComponent = React.ComponentType<{
   id: OpId

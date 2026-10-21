@@ -384,6 +384,28 @@ describe('WebLLMProvider', () => {
     expect(stub.requests).toHaveLength(1)
   })
 
+  // After the first tool call there is no middle to drop, and a retry on the tool
+  // result alone would answer without the task or the call it came from
+  it('does not retry an overflow when there is nothing to trim', async () => {
+    const overflow = new Error('ContextWindowSizeExceededError: prompt tokens exceed 4096')
+    const stub = stubEngine({ responses: [overflow] })
+
+    const request = requestFor('add a layer')
+    request.messages = [
+      { role: 'user', content: [{ type: 'text', text: 'add a layer' }] },
+      {
+        role: 'assistant',
+        content: [{ type: 'tool_use', id: 'a', name: 'list_nodes', input: {} }],
+      },
+      { role: 'user', content: [{ type: 'tool_result', toolUseId: 'a', content: '[...]' }] },
+    ]
+
+    await expect(collect(providerFor(stub).stream(request))).rejects.toThrow(
+      'ContextWindowSizeExceededError'
+    )
+    expect(stub.requests).toHaveLength(1)
+  })
+
   it('stops generating on abort rather than abandoning the iterator', async () => {
     const controller = new AbortController()
     const stub = stubEngine({

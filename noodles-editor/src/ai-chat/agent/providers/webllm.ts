@@ -270,9 +270,11 @@ export class WebLLMProvider implements AgentProvider {
     } catch (error) {
       // measuring the prompt against a 4k window before sending would mean
       // tokenizing it here, so the engine's own count is what we go on
-      if (!isContextOverflow(error) || messages.length <= 1) throw error
+      if (!isContextOverflow(error)) throw error
 
+      // Nothing to drop means the retry would overflow the same way
       const trimmed = trimTranscript(messages)
+      if (trimmed.length === messages.length) throw error
       debugAiChat(
         '[webllm] over context, retrying with %d of %d messages',
         trimmed.length,

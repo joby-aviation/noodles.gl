@@ -3,12 +3,12 @@
 
 import { act, render, renderHook } from '@testing-library/react'
 import { ReactFlowProvider } from '@xyflow/react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import React, { useState } from 'react'
 import { BehaviorSubject } from 'rxjs'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { useObservable } from '../hooks/use-observable'
 import { NumberOp } from '../operators'
 import { clearOps, setOp } from '../store'
-import { useObservable } from '../hooks/use-observable'
 
 describe('React Render Performance', () => {
   beforeEach(() => {
@@ -216,7 +216,9 @@ describe('React Render Performance', () => {
       render(<GraphComponent nodes={ops} />)
 
       // Reset counts
-      renderCounts.forEach((_, key) => renderCounts.set(key, 0))
+      renderCounts.forEach((_, key) => {
+        renderCounts.set(key, 0)
+      })
 
       // Update 5 operators
       act(() => {
@@ -400,7 +402,7 @@ describe('React Render Performance', () => {
 
       // Should only re-render the 5 affected nodes, not all 100
       expect(rerenderedCount).toBe(5)
-      expect(rerenderedCount / nodeCount * 100).toBeLessThan(10) // <10% of graph re-rendered
+      expect((rerenderedCount / nodeCount) * 100).toBeLessThan(10) // <10% of graph re-rendered
     })
   })
 

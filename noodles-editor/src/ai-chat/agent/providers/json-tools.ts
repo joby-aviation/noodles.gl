@@ -194,10 +194,22 @@ export function serializeMessage(message: AgentMessage): string {
   return lines.join('\n')
 }
 
-// Keeps the first user turn (the task) and the most recent exchanges, dropping
-// the middle — the same shape as compaction, minus the summary, because
-// summarising costs another round-trip through the model that just ran out of room.
+// Keeps the first user turn, the latest request, and the last exchange (a tool
+// call and its result), dropping the middle — the same shape as compaction, minus
+// the summary, because summarising costs another round-trip through the model that
+// just ran out of room. A transcript with nothing in the middle comes back whole:
+// a tool result without the call and the task it answers is not worth a retry.
 export function trimTranscript(messages: AgentMessage[]): AgentMessage[] {
-  if (messages.length <= 3) return messages.slice(-1)
-  return [messages[0], ...messages.slice(-2)]
+  const request = messages.findLastIndex(isRequest)
+  const keep = new Set([0, request, messages.length - 2, messages.length - 1])
+  return messages.filter((_, index) => keep.has(index))
+}
+
+// A user turn the person typed, as opposed to one carrying tool results
+function isRequest(message: AgentMessage): boolean {
+  return (
+    message.role === 'user' &&
+    message.content.some(part => part.type === 'text') &&
+    !message.content.some(part => part.type === 'tool_result')
+  )
 }

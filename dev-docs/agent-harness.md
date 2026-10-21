@@ -159,7 +159,11 @@ Five facts shape `providers/webllm.ts`:
 2. **4,096 tokens, prompt and completion together** — every prebuilt config pins
    `context_window_size` to it, whatever the model's nominal window. Overflow *throws*
    rather than truncating, so `MAX_OUTPUT_TOKENS` is 768 (the loop asks for 8192) and
-   an overflow retries once on a trimmed transcript. The error crosses the worker's
+   an overflow retries once on a trimmed transcript: `trimTranscript()` in
+   `json-tools.ts` keeps the first turn, the current request and the last tool call
+   with its result, and drops the middle. A transcript with no middle to drop (the
+   task, one call, one result) is not retried, because the same prompt would overflow
+   the same way. The error crosses the worker's
    `postMessage` as its `toString()`, so the class is gone by the time the provider
    sees it and only the `ContextWindowSizeExceededError` prefix in the message is left.
 3. **Inference runs in a worker** (`webllm-worker.ts`). On the main thread the GPU
@@ -235,7 +239,10 @@ and sends only the messages that session has not seen, which makes two things tr
 Overflow is handled before the API throws: `measureContextUsage()` is checked
 against `contextWindow - contextUsage`, and a turn that will not fit rebuilds on a
 trimmed transcript. `QuotaExceededError` remains caught as a backstop, since the
-measurement is optional and can undercount.
+measurement is optional and can undercount. Both paths use the same
+`trimTranscript()` as WebLLM, and both skip the rebuild when it would keep every
+message: the turn is sent as-is and the API's own `QuotaExceededError` reaches the
+user. The separate one-time rebuild for unknown Chrome API errors still runs.
 
 ### Native tool calling on the Prompt API: not yet
 

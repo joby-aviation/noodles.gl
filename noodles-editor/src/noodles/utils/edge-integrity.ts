@@ -9,10 +9,7 @@ function edgeConnectionKey(
 export function insertUniqueEdge<E extends ReactFlowEdge>(
   edges: E[],
   edge: E,
-  insert: (current: E[], candidate: E) => E[] = (current, candidate) => [
-    ...current,
-    candidate,
-  ]
+  insert: (current: E[], candidate: E) => E[] = (current, candidate) => [...current, candidate]
 ): E[] {
   const connectionKey = edgeConnectionKey(edge)
   if (edges.some(existing => edgeConnectionKey(existing) === connectionKey)) {
