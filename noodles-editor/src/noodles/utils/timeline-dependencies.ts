@@ -1,7 +1,7 @@
 import { create } from 'zustand'
-import { debugDirty } from '../../utils/debug'
 import { useTimelineStore } from '../../timeline/timeline-store'
-import type { Operator, IOperator } from '../operators'
+import { debugDirty } from '../../utils/debug'
+import type { IOperator, Operator } from '../operators'
 
 interface TimelineDependencyState {
   subscriptions: Map<string, (() => void)[]>

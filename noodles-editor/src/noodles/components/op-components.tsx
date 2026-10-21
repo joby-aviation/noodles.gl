@@ -33,6 +33,7 @@ import { createPortal } from 'react-dom'
 import { Temporal } from 'temporal-polyfill'
 
 import { analytics } from '../../utils/analytics'
+import { useProjectModificationActions } from '../contexts/project-modification-actions-context'
 import { ArrayField, type Field, type IField, ListField } from '../fields'
 import { useKeysStore } from '../keys-store'
 import s from '../noodles.module.css'
@@ -63,7 +64,6 @@ import {
   useOperatorStore,
   useUIStore,
 } from '../store'
-import { useProjectModificationActions } from '../contexts/project-modification-actions-context'
 import { inferSchema, type TableSchema } from '../table-schema'
 import type { NodeDataJSON } from '../transform-graph'
 import { canConnect } from '../utils/can-connect'

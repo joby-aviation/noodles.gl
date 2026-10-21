@@ -4,9 +4,9 @@
 import { renderHook } from '@testing-library/react'
 import type { Edge as ReactFlowEdge, Node as ReactFlowNode } from '@xyflow/react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { useProjectModifications } from '../hooks/use-project-modifications'
 import { NumberOp } from '../operators'
 import { clearOps, getOp, setOp } from '../store'
-import { useProjectModifications } from '../hooks/use-project-modifications'
 import { getEnableExpressionDependencies } from '../utils/enable-expression-evaluator'
 
 describe('Performance Benchmarks', () => {

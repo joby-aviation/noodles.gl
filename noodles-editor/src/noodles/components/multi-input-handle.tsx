@@ -12,10 +12,10 @@ import type { Field } from '../fields'
 import { ListField } from '../fields'
 import { clearPendingInsertionIndex, getUIStore, setPendingInsertionIndex } from '../store'
 import {
+  insertionIndexFromPointerY,
   SLOT_GAP,
   SLOT_HEIGHT,
   SLOT_SPACING,
-  insertionIndexFromPointerY,
 } from '../utils/multi-input-utils'
 import { getBaseName } from '../utils/path-utils'
 import s from './multi-input-handle.module.css'

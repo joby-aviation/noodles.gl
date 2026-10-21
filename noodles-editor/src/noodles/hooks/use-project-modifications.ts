@@ -18,8 +18,8 @@ import type { IOperator, Operator } from '../operators'
 import { deleteOp, getAllOps, getOp, setOp, takePendingInsertionIndex } from '../store'
 import { canConnect, validateConnection } from '../utils/can-connect'
 import { expandDeleteSet } from '../utils/copy-paste-utils'
-import { edgeId } from '../utils/id-utils'
 import { appendUniqueEdges, insertUniqueEdge } from '../utils/edge-integrity'
+import { edgeId } from '../utils/id-utils'
 import {
   insertEdgeAtGroupIndex,
   moveEdgeWithinGroup,

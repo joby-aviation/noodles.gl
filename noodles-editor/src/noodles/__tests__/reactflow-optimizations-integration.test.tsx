@@ -2,7 +2,7 @@
 // Verifies that all optimizations work together without regressions
 
 import { render, screen, waitFor } from '@testing-library/react'
-import { ReactFlow, ReactFlowProvider, type Edge, type Node } from '@xyflow/react'
+import { type Edge, type Node, ReactFlow, ReactFlowProvider } from '@xyflow/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { NumberOp } from '../operators'
 import { clearOps, getOp, setOp } from '../store'

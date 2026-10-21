@@ -3,12 +3,12 @@
 
 import { act, render, renderHook } from '@testing-library/react'
 import { ReactFlowProvider } from '@xyflow/react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import React, { useState } from 'react'
 import { BehaviorSubject } from 'rxjs'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { useObservable } from '../hooks/use-observable'
 import { NumberOp } from '../operators'
 import { clearOps, setOp } from '../store'
-import { useObservable } from '../hooks/use-observable'
 
 describe('React Render Performance', () => {
   beforeEach(() => {

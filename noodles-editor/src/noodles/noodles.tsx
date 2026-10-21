@@ -113,6 +113,7 @@ import { canConnectCached } from './utils/can-connect'
 import { DeckProjectAssetResolver } from './utils/deck-project-asset-resolver'
 import { instantiateDeckView } from './utils/deck-view'
 import { directoryHandleCache } from './utils/directory-handle-cache'
+import { insertUniqueEdge } from './utils/edge-integrity'
 import {
   fileExists,
   requestPermission,
@@ -120,7 +121,6 @@ import {
   writeFileToDirectory,
 } from './utils/filesystem'
 import { reconcileForLoopGroups } from './utils/for-loop-group-utils'
-import { insertUniqueEdge } from './utils/edge-integrity'
 import { edgeId, nodeId } from './utils/id-utils'
 import { shouldBlockKeyboardShortcut } from './utils/input-detection'
 import { generateDraftId, memoryProjectStore } from './utils/memory-project-store'
