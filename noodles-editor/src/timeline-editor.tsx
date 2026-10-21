@@ -478,6 +478,7 @@ export default function TimelineEditor() {
           startFrame: settings.startFrame,
           endFrame: settings.endFrame,
           target: 'buffer',
+          source: 'agent',
           onFrameComplete,
         }),
       }

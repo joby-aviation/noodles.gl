@@ -156,17 +156,16 @@ export function TopMenuBar({
 
   const canGoInto = selectedContainer !== null
 
-  // Simplified export handlers - always use active OutOp's settings
+  // Simplified export handlers - always use active OutOp's settings. The renderer
+  // tracks render and screenshot analytics, so every button that exports is counted.
   const handleStartRender = useCallback(async () => {
     if (!startRender) return
     await startRender()
-    analytics.track('render_started', { source: 'menu' })
   }, [startRender])
 
   const handleTakeScreenshot = useCallback(async () => {
     if (!takeScreenshot) return
     await takeScreenshot()
-    analytics.track('screenshot_taken', { source: 'menu' })
   }, [takeScreenshot])
 
   const goUp = useCallback(() => {
