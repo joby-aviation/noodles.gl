@@ -21,9 +21,24 @@ const codecMap = {
     codec: 'vp09.00.10.08',
   },
   av1: {
-    codec: 'v01.0.08M.10.0.110.09',
+    codec: 'av01.0.08M.08',
   },
 } as const
+
+// Hardware first, because it is faster. Software second, because some machines have
+// no hardware encoder for a codec at all (VP9 on a Mac), and asking for hardware then
+// fails the check even though the software encoder would work.
+export async function resolveEncoderConfig(
+  base: Omit<VideoEncoderConfig, 'hardwareAcceleration'>
+): Promise<VideoEncoderConfig | null> {
+  for (const hardwareAcceleration of ['prefer-hardware', 'no-preference'] as const) {
+    const config = { ...base, hardwareAcceleration }
+    const { supported } = await VideoEncoder.isConfigSupported(config)
+    if (supported) return config
+    debugRender('Unsupported codec configuration', config)
+  }
+  return null
+}
 
 // 'picker' asks the user where to save (the Export button). 'buffer' keeps the MP4
 // in memory and returns it, for callers that cannot show a picker: the browser only
@@ -131,7 +146,7 @@ export const useRenderer = ({
         return fileHandle.createWritable()
       }
 
-      const getContainer = async (name: string) => {
+      const getContainer = async (name: string, config: VideoEncoderConfig) => {
         // The picker comes first: it needs the click that started the export, and the
         // browser only honors that click for a few seconds
         const fileWritableStream = target === 'picker' ? await pickFileStream(name) : null
@@ -189,29 +204,6 @@ export const useRenderer = ({
           },
         })
 
-        const config = {
-          width,
-          height,
-          bitrate,
-          bitrateMode,
-          hardwareAcceleration: 'prefer-hardware',
-          framerate: fps,
-          ...codecMap[codec],
-        } as const
-
-        const { supported } = await VideoEncoder.isConfigSupported(config)
-
-        if (!supported) {
-          debugRender('Unsupported codec configuration', config)
-          if (target === 'buffer') {
-            videoEncoder.close()
-            throw new Error(
-              `This browser cannot encode ${codec} at ${width}x${height}. Try another codec or a smaller resolution.`
-            )
-          }
-          debugger
-        }
-
         videoEncoder.configure(config)
 
         async function encodeFrame(data: VideoFrame) {
@@ -247,7 +239,27 @@ export const useRenderer = ({
       }
 
       try {
-        const mapContainer = await getContainer(`${projectName}-map`)
+        // Checked before the save dialog, so a codec the browser refuses does not leave
+        // an empty file behind. The check takes milliseconds, well inside the few
+        // seconds the click that opens the dialog stays valid.
+        const config = await resolveEncoderConfig({
+          width,
+          height,
+          bitrate,
+          bitrateMode,
+          framerate: fps,
+          ...codecMap[codec],
+        })
+        if (!config) {
+          return {
+            status: 'error',
+            error: new Error(
+              `This browser cannot encode ${codec} at ${width}x${height}. Try another codec or a smaller resolution.`
+            ),
+          }
+        }
+
+        const mapContainer = await getContainer(`${projectName}-map`, config)
         if (!mapContainer) {
           debugRender('Render setup cancelled by user (map container)')
           return { status: 'cancelled' }
