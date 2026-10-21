@@ -7,7 +7,9 @@
       "!**/node_modules",
       "!**/public",
       "!**/website/build",
-      "!**/src/examples/nyc-census/data.json"
+      "!**/src/examples/nyc-census/data.json",
+      "!**/bench/agent/.profile",
+      "!**/bench/agent/results"
     ]
   },
   "assist": { "actions": { "source": { "organizeImports": "on" } } },
