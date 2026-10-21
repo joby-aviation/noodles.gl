@@ -270,6 +270,25 @@ when the window is under 32k. Each step is one model turn plus its tool batch.
   read-only (`ToolAnnotations.readOnlyHint`, or `HarnessTool.readOnly`); the first
   mutating call forces the rest to run in order after it, so two
   `apply_modifications` calls can never race.
+- **Validated edits.** `apply_modifications` validates the whole batch against
+  `ProjectModificationSchema` and the project before anything is queued: ids must
+  name existing nodes (or nodes added earlier in the batch or the run), `add_node`
+  must not collide, and an `update_node` must change something. Every problem is
+  reported at once, with the ids that do exist. Bare ids (`pickup-layer`,
+  `map-range` for `/analysis/map-range`) are resolved when they name exactly one
+  node, here and in `get_node_info` / `get_node_output`. What a run queued is
+  forgotten when the next run starts, so a failed run cannot block its retry.
+- **Validated fields.** When a context loader supplies the operator registry,
+  `modification-fields.ts` also checks operator types, input names and edge
+  handles. The editor would otherwise accept all three silently: an unknown type
+  becomes a dead node, a wrong handle becomes an edge that connects nothing. A
+  display name (`File`) or a missing `Op` suffix resolves to the type when it names
+  exactly one operator, and a bare handle (`data`) gets its side (`out.data` /
+  `par.data`). Anything else is rejected with the names that do exist, e.g. "/heat
+  (HeatmapLayerOp) has no output vis. Outputs on /heat: out.layer". The known
+  names are the class's fields plus the live operator's, plus custom inputs an
+  `add_node` in the run declares. A handle is checked by its whole name, since the
+  graph looks up `par.viewState.zoom` as a field named `viewState.zoom`.
 - **Screenshots.** Base64 is stripped from the tool result and reattached as an
   image block on the follow-up message — only when `provider.supportsImages`.
 - **Opaque provider blocks.** Anything a provider needs echoed back verbatim

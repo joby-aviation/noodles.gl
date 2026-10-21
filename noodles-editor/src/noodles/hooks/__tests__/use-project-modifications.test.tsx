@@ -733,6 +733,45 @@ describe('useProjectModifications', () => {
       expect(nodes).toHaveLength(1)
       expect(edges).toHaveLength(0) // Edge should be skipped
     })
+
+    it('warns about an update aimed at no node instead of reporting a clean success', () => {
+      const { result } = renderHook(() =>
+        useProjectModifications({ getNodes, getEdges, setNodes, setEdges })
+      )
+
+      act(() => {
+        const applyResult = result.current.applyModifications([
+          { type: 'update_node', data: { id: '/missing', position: { x: 1, y: 1 } } },
+        ])
+        expect(applyResult.warnings).toEqual(['update_node: no node /missing'])
+      })
+    })
+
+    // Unplaced, the node crashed the canvas and the benchmark lost the whole batch
+    it('places a node sent without a position beside the node feeding it', () => {
+      nodes = [{ id: '/data', type: 'NumberOp', position: { x: 0, y: 0 }, data: {} }]
+      const { result } = renderHook(() =>
+        useProjectModifications({ getNodes, getEdges, setNodes, setEdges })
+      )
+
+      act(() => {
+        result.current.applyModifications([
+          { type: 'add_node', data: { id: '/heat', type: 'NumberOp', data: {} } as ReactFlowNode },
+          {
+            type: 'add_edge',
+            data: {
+              id: '/data.out.val->/heat.par.val',
+              source: '/data',
+              target: '/heat',
+              sourceHandle: 'out.val',
+              targetHandle: 'par.val',
+            },
+          },
+        ])
+      })
+
+      expect(nodes.find(n => n.id === '/heat')?.position).toEqual({ x: 250, y: 0 })
+    })
   })
 
   describe('ReactFlow callbacks', () => {

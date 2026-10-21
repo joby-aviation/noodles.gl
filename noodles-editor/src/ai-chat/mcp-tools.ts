@@ -1,5 +1,6 @@
 // MCPTools - Client-side tool implementations for Claude AI
 
+import type { z } from 'zod'
 import type { Operator } from '../noodles/operators'
 import { getOpStore } from '../noodles/store'
 import { safeStringify } from '../noodles/utils/serialization'
@@ -27,14 +28,23 @@ import {
   exportVideo,
   getExportStatus,
 } from './export-video'
+import {
+  checkFields,
+  customInputNames,
+  qualifyHandle,
+  resolveOperatorType,
+} from './modification-fields'
 import { type RunCodeParams, runCode } from './run-code'
-import type {
-  ConsoleError,
-  FileIndex,
-  NoodlesProject,
-  SearchCodeParams,
-  SearchCodeResult,
-  ToolResult,
+import {
+  type ConsoleError,
+  type FileIndex,
+  type NoodlesProject,
+  type OperatorRegistry,
+  type ProjectModification,
+  ProjectModificationSchema,
+  type SearchCodeParams,
+  type SearchCodeResult,
+  type ToolResult,
 } from './types'
 
 // Longest string input value list_nodes reports in full. CodeOp.code and
@@ -176,9 +186,92 @@ function excerptAround(content: string, matchIndex: number): string {
   return `${prefix}${content.slice(start, end)}${suffix}`
 }
 
+// How many ids a "node not found" error lists
+const NOT_FOUND_SUGGESTIONS = 15
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function absoluteId(id: unknown): string | null {
+  if (typeof id !== 'string' || !id.trim()) return null
+  const trimmed = id.trim().replace(/^\.\//, '')
+  return trimmed.startsWith('/') ? trimmed : `/${trimmed}`
+}
+
+// Zod's messages name the schema, not the fix. The common small-model mistakes get
+// a sentence saying what to send instead.
+function describeIssue(issue: z.core.$ZodIssue, exampleId: string): string {
+  const path = issue.path.join('.')
+  if (path === 'data.id') {
+    return `data.id is required — the id of the node or edge, e.g. ${exampleId}`
+  }
+  if (path === 'type') {
+    return 'type must be one of add_node, update_node, delete_node, add_edge, delete_edge'
+  }
+  if (path === 'data') return 'data is required and must be an object'
+  return `${path || 'modification'}: ${issue.message}`
+}
+
+type TargetCheck = {
+  existing: Set<string>
+  known: string[]
+  edgeIds: Set<string>
+  addedSoFar: Set<string>
+}
+
+// null when the modification can apply, otherwise the reason it cannot
+function checkTarget(
+  mod: ProjectModification,
+  ids: TargetCheck,
+  notFound: (id: string) => string
+): string | null {
+  const missing = (id: string) => (ids.known.includes(id) ? null : notFound(id))
+  switch (mod.type) {
+    case 'add_node':
+      // Even when the batch deletes it first: the editor's delete settles after
+      // its add, and takes a replacement with the same id down with it
+      if (ids.existing.has(mod.data.id) || ids.addedSoFar.has(mod.data.id)) {
+        return `${mod.data.id} already exists; use update_node to change it or pick a new id`
+      }
+      return null
+    case 'update_node': {
+      if (!ids.known.includes(mod.data.id)) return notFound(mod.data.id)
+      const { id: _id, ...changes } = mod.data
+      if (Object.keys(changes).length === 0) {
+        return `update_node for ${mod.data.id} changes nothing. Input values go under data.data.inputs: {"type":"update_node","data":{"id":"${mod.data.id}","data":{"inputs":{"<input name>":<value>}}}}`
+      }
+      return null
+    }
+    case 'delete_node':
+      return missing(mod.data.id)
+    case 'add_edge':
+      return missing(mod.data.source) ?? missing(mod.data.target)
+    case 'delete_edge':
+      return ids.edgeIds.has(mod.data.id)
+        ? null
+        : `Edge not found: ${mod.data.id}. Edge ids look like /source.out.data->/target.par.data; list_nodes shows each node's connections`
+  }
+}
+
+// Fields the live operator has, including user-defined custom inputs the class
+// does not declare. Empty for a node that exists only in this run's queue.
+function liveFieldNames(nodeId: string, side: 'inputs' | 'outputs'): string[] {
+  const op = getOpStore().getOp(nodeId)
+  return op ? Object.keys(op[side] ?? {}) : []
+}
+
 export class MCPTools {
   private consoleErrors: ConsoleError[] = []
   private project: NoodlesProject | null = null
+  // Accepted by apply_modifications but not yet in the project. The chat applies
+  // edits when the run ends, so a later call in the same run has to see them.
+  // Node id -> operator type, so edges and updates aimed at them can be checked
+  private queuedNodes = new Map<string, string>()
+  private queuedEdges = new Set<string>()
+  // Custom inputs a queued add_node declared, which an edge may target before
+  // the node exists
+  private queuedCustomInputs = new Map<string, string[]>()
 
   constructor(private contextLoader?: ContextLoader) {
     this.setupConsoleTracking()
@@ -187,6 +280,22 @@ export class MCPTools {
   // Set current project for MCP tools to access
   setProject(project: NoodlesProject) {
     this.project = project
+    // The project can change mid-run for unrelated reasons, so only what has
+    // landed stops being queued
+    for (const node of project.nodes ?? []) {
+      this.queuedNodes.delete(node.id)
+      this.queuedCustomInputs.delete(node.id)
+    }
+    for (const edge of project.edges ?? []) this.queuedEdges.delete(edge.id)
+  }
+
+  // Called when a run starts. Whatever the last run queued has landed or never
+  // will (the request failed, or the editor rejected the batch), and an id left
+  // here would block the retry as "already exists".
+  clearQueuedModifications() {
+    this.queuedNodes.clear()
+    this.queuedEdges.clear()
+    this.queuedCustomInputs.clear()
   }
 
   getProject(): NoodlesProject | null {
@@ -788,50 +897,192 @@ export class MCPTools {
 
   // Project state manipulation tools
 
-  // Apply modifications to the project
-  // biome-ignore lint/suspicious/noExplicitAny: dynamic modification structure from Claude
-  async applyModifications(params: { modifications: any[] }): Promise<ToolResult> {
-    try {
-      const modifications = params.modifications
-      if (!Array.isArray(modifications) || modifications.length === 0) {
-        return {
-          success: false,
-          error: 'modifications must be a non-empty array',
-        }
-      }
-
-      // Validate each modification
-      for (const mod of modifications) {
-        if (!mod.type || !mod.data) {
-          return {
-            success: false,
-            error: 'Each modification must have "type" and "data" fields',
-          }
-        }
-        const validTypes = ['add_node', 'update_node', 'delete_node', 'add_edge', 'delete_edge']
-        if (!validTypes.includes(mod.type)) {
-          return {
-            success: false,
-            error: `Invalid modification type: ${mod.type}. Must be one of: ${validTypes.join(', ')}`,
-          }
-        }
-      }
-
-      // Return the modifications - they will be applied by the tool result handler
-      return {
-        success: true,
-        data: {
-          modificationsCount: modifications.length,
-          modifications,
-          message: `${modifications.length} modification(s) will be applied to the project`,
-        },
-      }
-    } catch (error) {
+  // Validate modifications against the project before the editor sees them. The
+  // editor applies them only after the run, so this result is the model's only
+  // chance to learn an edit was malformed or aimed at a node that does not exist.
+  // Every problem in the batch is reported at once and nothing is queued.
+  async applyModifications(params: { modifications: unknown[] }): Promise<ToolResult> {
+    const modifications = params.modifications
+    if (!Array.isArray(modifications) || modifications.length === 0) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Failed to validate modifications',
+        error: 'modifications must be a non-empty array',
       }
     }
+
+    const existing = new Set([
+      ...(this.project?.nodes ?? []).map(n => n.id),
+      ...this.queuedNodes.keys(),
+    ])
+    const edgeIds = new Set([...(this.project?.edges ?? []).map(e => e.id), ...this.queuedEdges])
+    // Nodes added anywhere in the batch count, since the editor adds nodes before edges
+    const added = modifications
+      .filter(isRecord)
+      .filter(mod => mod.type === 'add_node' && isRecord(mod.data))
+      .map(mod => absoluteId((mod.data as Record<string, unknown>).id))
+      .filter((id): id is string => id !== null)
+    const known = [...existing, ...added]
+    const exampleId = known[0] ?? '/my-node'
+    const registry = this.contextLoader?.getOperatorRegistry() ?? null
+    const types = new Map<string, string>([
+      ...(this.project?.nodes ?? []).map(n => [n.id, n.type] as [string, string]),
+      ...this.queuedNodes,
+    ])
+
+    const errors: string[] = []
+    const accepted: Array<{ label: string; mod: ProjectModification }> = []
+    const addedSoFar = new Set<string>()
+    for (const [index, raw] of modifications.entries()) {
+      const label = `modifications[${index}]${isRecord(raw) && typeof raw.type === 'string' ? ` (${raw.type})` : ''}`
+      const parsed = ProjectModificationSchema.safeParse(
+        this.resolveModificationIds(raw, known, registry)
+      )
+      if (!parsed.success) {
+        const issues = parsed.error.issues.map(issue => describeIssue(issue, exampleId))
+        errors.push(`${label}: ${issues.join('; ')}`)
+        continue
+      }
+      const mod = parsed.data
+      const problem = this.project
+        ? checkTarget(mod, { existing, known, edgeIds, addedSoFar }, id => this.nodeNotFound(id))
+        : null
+      if (problem) {
+        errors.push(`${label}: ${problem}`)
+        continue
+      }
+      if (mod.type === 'add_node') {
+        addedSoFar.add(mod.data.id)
+        types.set(mod.data.id, mod.data.type)
+      }
+      accepted.push({ label, mod })
+    }
+
+    // Types and handles second, once every add_node in the batch has a type an
+    // edge can be checked against, wherever in the batch the edge sits
+    if (registry) {
+      const declared = new Map(this.queuedCustomInputs)
+      for (const { mod } of accepted) {
+        if (mod.type === 'add_node') declared.set(mod.data.id, customInputNames(mod.data.data))
+      }
+      const liveFields = (nodeId: string, side: 'inputs' | 'outputs') => [
+        ...liveFieldNames(nodeId, side),
+        ...(side === 'inputs' ? (declared.get(nodeId) ?? []) : []),
+      ]
+      const context = { registry, types, liveFields }
+      for (const { label, mod } of accepted) {
+        for (const problem of checkFields(mod, context)) errors.push(`${label}: ${problem}`)
+      }
+    }
+
+    if (errors.length > 0) {
+      return {
+        success: false,
+        error: `Nothing was applied. Fix these and send the whole batch again:\n${errors.join('\n')}`,
+      }
+    }
+
+    const mods = accepted.map(entry => entry.mod)
+    for (const mod of mods) {
+      if (mod.type === 'add_node') {
+        this.queuedNodes.set(mod.data.id, mod.data.type)
+        this.queuedCustomInputs.set(mod.data.id, customInputNames(mod.data.data))
+      }
+      if (mod.type === 'add_edge') this.queuedEdges.add(mod.data.id)
+    }
+
+    // Returned rather than applied: the editor applies them when the run ends
+    return {
+      success: true,
+      data: {
+        modificationsCount: mods.length,
+        modifications: mods,
+        message: `${mods.length} modification(s) will be applied to the project`,
+      },
+    }
+  }
+
+  // Small models drop the leading slash or the container path ("map-range" for
+  // "/map-range"). Resolves an id that names exactly one node; null otherwise.
+  private resolveNodeId(raw: unknown, candidates?: string[]): string | null {
+    if (typeof raw !== 'string' || !raw.trim()) return null
+    const ids = candidates ?? (this.project?.nodes ?? []).map(n => n.id)
+    const id = raw.trim()
+    if (ids.includes(id)) return id
+    const bare = id.replace(/^\.?\//, '')
+    if (ids.includes(`/${bare}`)) return `/${bare}`
+    const byName = ids.filter(candidate => candidate.split('/').pop() === bare)
+    return byName.length === 1 ? byName[0] : null
+  }
+
+  // Names the ids that do exist, so the next call can be right rather than a guess
+  private nodeNotFound(raw: unknown): string {
+    const ids = (this.project?.nodes ?? []).map(n => n.id)
+    const shown = String(raw)
+    if (ids.length === 0) return `Node not found: ${shown}. The project has no nodes yet.`
+    const token = shown.replace(/^\.?\//, '').toLowerCase()
+    const similar = token ? ids.filter(id => id.toLowerCase().includes(token)) : []
+    const list = (similar.length > 0 ? similar : ids).slice(0, NOT_FOUND_SUGGESTIONS)
+    const more = (similar.length > 0 ? similar : ids).length - list.length
+    return `Node not found: ${shown}. ${similar.length > 0 ? 'Did you mean' : 'Nodes in this project'}: ${list.join(', ')}${more > 0 ? ` (+${more} more)` : ''}. Node ids are absolute paths like ${ids[0]}.`
+  }
+
+  private resolveModificationIds(
+    raw: unknown,
+    known: string[],
+    registry: OperatorRegistry | null
+  ): unknown {
+    if (!isRecord(raw) || !isRecord(raw.data)) return raw
+    const data = { ...raw.data }
+    const resolve = (value: unknown) => this.resolveNodeId(value, known) ?? value
+    // get_node_info takes nodeId, and a small model carries the name over to
+    // the edit (Qwen3.5-4B did on every failed T2 run)
+    if (data.id === undefined && typeof data.nodeId === 'string') {
+      data.id = data.nodeId
+      delete data.nodeId
+    }
+    // Small models put inputs one level up, beside the id. The schema would
+    // strip them silently, so move them to where the editor reads them.
+    if ((raw.type === 'add_node' || raw.type === 'update_node') && isRecord(data.inputs)) {
+      const nodeData = isRecord(data.data) ? data.data : {}
+      const inputs = isRecord(nodeData.inputs) ? nodeData.inputs : {}
+      data.data = { ...nodeData, inputs: { ...data.inputs, ...inputs } }
+      delete data.inputs
+    }
+    switch (raw.type) {
+      case 'add_node':
+        data.id = absoluteId(data.id) ?? data.id
+        // "File" for FileOp: the display name get_operator_schema shows beside the type
+        if (registry && typeof data.type === 'string') {
+          data.type = resolveOperatorType(data.type, registry)
+        }
+        break
+      case 'update_node':
+      case 'delete_node':
+        data.id = resolve(data.id)
+        break
+      case 'add_edge': {
+        const source = resolve(data.source)
+        const target = resolve(data.target)
+        const sourceHandle = qualifyHandle(data.sourceHandle, 'source')
+        const targetHandle = qualifyHandle(data.targetHandle, 'target')
+        const moved =
+          source !== data.source ||
+          target !== data.target ||
+          sourceHandle !== data.sourceHandle ||
+          targetHandle !== data.targetHandle
+        Object.assign(data, { source, target, sourceHandle, targetHandle })
+        // The id is derived from the endpoints, so it follows them
+        if (
+          (moved || data.id === undefined) &&
+          typeof data.sourceHandle === 'string' &&
+          typeof data.targetHandle === 'string'
+        ) {
+          data.id = `${source}.${data.sourceHandle}->${target}.${data.targetHandle}`
+        }
+        break
+      }
+    }
+    return { ...raw, data }
   }
 
   // Evaluate JavaScript in CodeOp's sandbox. The implementation lives in run-code.ts
@@ -911,12 +1162,15 @@ export class MCPTools {
   // Read operator output data
   async getNodeOutput(params: { nodeId: string; maxRows?: number }): Promise<ToolResult> {
     try {
-      const operator = getOpStore().getOp(params.nodeId)
+      const nodeId = this.resolveNodeId(params.nodeId) ?? params.nodeId
+      const operator = getOpStore().getOp(nodeId)
 
       if (!operator) {
         return {
           success: false,
-          error: `Operator not found: ${params.nodeId}. Make sure the node exists and has been executed.`,
+          error: this.project
+            ? this.nodeNotFound(params.nodeId)
+            : `Operator not found: ${params.nodeId}. Make sure the node exists and has been executed.`,
         }
       }
 
@@ -959,7 +1213,7 @@ export class MCPTools {
         return {
           success: true,
           data: {
-            nodeId: params.nodeId,
+            nodeId,
             operatorType: displayName,
             outputs: Object.keys(outputs),
             dataSample: sample,
@@ -975,7 +1229,7 @@ export class MCPTools {
       return {
         success: true,
         data: {
-          nodeId: params.nodeId,
+          nodeId,
           operatorType: displayName,
           outputs: Object.keys(outputs),
           outputData,
@@ -1067,20 +1321,21 @@ export class MCPTools {
         }
       }
 
-      const node = (this.project.nodes || []).find(n => n.id === params.nodeId)
+      const nodeId = this.resolveNodeId(params.nodeId)
+      const node = (this.project.nodes || []).find(n => n.id === nodeId)
       if (!node) {
         return {
           success: false,
-          error: `Node not found: ${params.nodeId}`,
+          error: this.nodeNotFound(params.nodeId),
         }
       }
 
-      const operator = getOpStore().getOp(params.nodeId)
+      const operator = getOpStore().getOp(node.id)
       const edges = this.project.edges || []
 
       // Find incoming and outgoing edges
-      const incomingEdges = edges.filter(e => e.target === params.nodeId)
-      const outgoingEdges = edges.filter(e => e.source === params.nodeId)
+      const incomingEdges = edges.filter(e => e.target === node.id)
+      const outgoingEdges = edges.filter(e => e.source === node.id)
 
       // Get execution state
       // biome-ignore lint/suspicious/noExplicitAny: executionState is a dynamic operator property not in type definitions
