@@ -634,7 +634,7 @@ export default useRenderer
 export const captureScreenshot = async (
   suggestedName: string,
   getBufferedCanvas: () => HTMLCanvasElement,
-  quality = 1
+  { quality = 1, source = 'menu' }: { quality?: number; source?: RenderSource } = {}
 ) => {
   const imageHandle = await window.showSaveFilePicker({
     suggestedName,
@@ -664,5 +664,5 @@ export const captureScreenshot = async (
   const fileWritableStream = await imageHandle.createWritable()
   await fileWritableStream.write(blob)
   await fileWritableStream.close()
-  analytics.track('screenshot_taken', { source: 'menu' })
+  analytics.track('screenshot_taken', { source })
 }

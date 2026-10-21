@@ -98,7 +98,7 @@ Tracked in the renderer, not the buttons, so the Export button, the render setti
 | `render_cancelled` | started properties + `durationMs` | render-analytics.ts |
 | `screenshot_taken` | `source` | renderer.ts (captureScreenshot) |
 
-- `source`: `menu` (the editor's buttons) or `agent` (the `export_video` tool)
+- `source`: `menu` (the logo menu and the Out node's panel), `toolbar` (the top bar's Export button) or `agent` (the `export_video` tool)
 - `format`: `mp4` or `png_sequence`; `codec` (`avc`, `hevc`, `vp9`, `av1`) is sent for `mp4` only
 - `resolution`: a bucket by the short side (`under_720p`, `720p`, `1080p`, `1440p`, `4k`, `8k`), not exact dimensions
 - `durationMs`: wall time from the end of the save dialog to the end of the render

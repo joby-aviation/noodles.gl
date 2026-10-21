@@ -1,7 +1,12 @@
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { analytics } from '../utils/analytics'
-import { type CaptureResult, resolveEncoderConfig, useRenderer } from './renderer'
+import {
+  type CaptureResult,
+  captureScreenshot,
+  resolveEncoderConfig,
+  useRenderer,
+} from './renderer'
 import { VIDEO_CODECS } from './video-export'
 
 vi.mock('../utils/analytics', () => ({
@@ -307,6 +312,30 @@ describe('useRenderer analytics on failure', () => {
       canvas.remove()
       vi.useFakeTimers()
     }
+  })
+})
+
+describe('captureScreenshot', () => {
+  beforeEach(() => {
+    track.mockClear()
+  })
+
+  it('tracks the source that took the screenshot', async () => {
+    const write = vi.fn()
+    vi.spyOn(globalThis, 'showSaveFilePicker').mockResolvedValue({
+      getFile: async () => new File([], 'shot.png', { type: 'image/png' }),
+      createWritable: async () => ({ write, close: vi.fn() }),
+    } as unknown as FileSystemFileHandle)
+    const canvas = document.createElement('canvas')
+    canvas.width = 4
+    canvas.height = 4
+
+    await captureScreenshot('shot', () => canvas)
+    expect(track).toHaveBeenLastCalledWith('screenshot_taken', { source: 'menu' })
+
+    await captureScreenshot('shot', () => canvas, { source: 'toolbar' })
+    expect(track).toHaveBeenLastCalledWith('screenshot_taken', { source: 'toolbar' })
+    expect(write).toHaveBeenCalledTimes(2)
   })
 })
 
