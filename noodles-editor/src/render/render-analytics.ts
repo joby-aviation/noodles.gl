@@ -5,7 +5,8 @@
 
 import { analytics } from '../utils/analytics'
 
-export type RenderSource = 'menu' | 'agent'
+// menu: the logo menu and the Out node's panel; toolbar: the top bar's Export button
+export type RenderSource = 'menu' | 'toolbar' | 'agent'
 
 export type RenderErrorCategory =
   | 'unsupported_codec' // the browser has no encoder for this codec and size
