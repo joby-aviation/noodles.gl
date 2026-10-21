@@ -302,6 +302,7 @@ async function runOne(
   const onPageError = (error: Error) => consoleErrors.push(error.message.slice(0, 500))
   page.on('console', onConsole)
   page.on('pageerror', onPageError)
+  let timer: ReturnType<typeof setTimeout> | undefined
 
   try {
     // Inside the try: a project that will not open is one bad row, not the end of
@@ -314,14 +315,16 @@ async function runOne(
     // The hook enforces the task's own wall clock once the model is loaded; this
     // only catches a page that hangs outright
     const limit = LOAD_TIMEOUT_MS + task.budget.maxWallClockSeconds * 1000
-    const timeout = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error('page did not return')), limit)
-    )
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error('page did not return')), limit)
+    })
     return { result: await Promise.race([run, timeout]), consoleErrors, providerLog }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     return { result: crashed(task, config, knobs, message), consoleErrors, providerLog }
   } finally {
+    // A pending timer would keep Node alive for the rest of the limit
+    clearTimeout(timer)
     page.off('console', onConsole)
     page.off('pageerror', onPageError)
   }

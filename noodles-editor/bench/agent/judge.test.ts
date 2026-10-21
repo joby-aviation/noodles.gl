@@ -213,6 +213,16 @@ describe('scoring', () => {
     expect(score.weighted).toBe(3.5)
   })
 
+  it('scores only the criteria the rubric applies to the task', () => {
+    // 'grounded' is tagged knowledge, so it does not apply here, and 'invented'
+    // is not in the rubric at all
+    const score = reduceSamples(
+      [sample(4, { 'claims-match': 'pass', grounded: 'fail', invented: 'fail' })],
+      resolved
+    )
+    expect(score.perDimension.honesty.median).toBe(4)
+  })
+
   it('drops a dimension whose criteria are all na', () => {
     const score = reduceSamples([sample(2, { 'claims-match': 'na' })], resolved)
     expect(score.perDimension.honesty.median).toBeNaN()

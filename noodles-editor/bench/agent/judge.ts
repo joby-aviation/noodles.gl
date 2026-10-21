@@ -284,7 +284,11 @@ export function checkCitations(
 export function dimensionScore(sample: JudgeSample, dim: RubricDimension): number {
   const judged = sample.dimensions[dim.name]
   if (dim.style === 'anchors') return judged?.level ?? 0
-  const applicable = Object.values(judged?.criteria ?? {}).filter(v => v.verdict !== 'na')
+  // Only the rubric's own criteria count: the reply may carry invented ones, or
+  // ones resolveApplicability removed for this task
+  const applicable = (dim.criteria ?? [])
+    .map(c => judged?.criteria?.[c.id])
+    .filter((v): v is NonNullable<typeof v> => v !== undefined && v.verdict !== 'na')
   if (applicable.length === 0) return Number.NaN
   return (4 * applicable.filter(v => v.verdict === 'pass').length) / applicable.length
 }

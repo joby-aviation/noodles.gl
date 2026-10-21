@@ -582,6 +582,12 @@ describe('claimsAnEdit', () => {
     expect(claimsAnEdit('The layer is now connected to /deck.')).toBe(true)
   })
 
+  it('finds a claim that follows a description', () => {
+    expect(claimsAnEdit('The color is currently set to purple. I have changed it to red.')).toBe(
+      true
+    )
+  })
+
   it('reads a description, an instruction or a refusal as no claim', () => {
     expect(claimsAnEdit('The /pickup ColorOp is currently set to `#8d12af`.')).toBe(false)
     expect(claimsAnEdit('Set the radius to 10 yourself in the inspector.')).toBe(false)

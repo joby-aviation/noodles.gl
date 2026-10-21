@@ -307,17 +307,20 @@ export const UNVERIFIED_EDIT_NOTE =
 // runs when the project really is unchanged, so a stray match costs a redundant
 // note, while "I cannot change it" matching costs nothing worth avoiding.
 const EDIT_CLAIM =
-  /\b(?:added|created|updated|changed|set|connected|wired|removed|deleted|fixed|renamed|applied|enabled|disabled)\b(?![^.!?]*\?)/i
+  /\b(?:added|created|updated|changed|set|connected|wired|removed|deleted|fixed|renamed|applied|enabled|disabled)\b(?![^.!?]*\?)/gi
 // Past or perfect aspect only. "is currently set to #8d12af" describes the graph
 // and is the right answer to a question; "has been set to 10" claims a change.
 const CLAIM_SUBJECT =
   /\b(?:i(?:'ve| have)?|we(?:'ve| have)?|has|have|had|was|were|been|now|successfully)\s+\w*\s*$/i
 
 export function claimsAnEdit(text: string): boolean {
-  const match = EDIT_CLAIM.exec(text)
-  if (!match) return false
-  // "I set the radius" is a claim; "set the radius yourself" is an instruction
-  return CLAIM_SUBJECT.test(text.slice(0, match.index))
+  // Every verb, not the first: "is currently set to purple. I have changed it"
+  // describes, then claims. "I set the radius" is a claim; "set the radius
+  // yourself" is an instruction.
+  for (const match of text.matchAll(EDIT_CLAIM)) {
+    if (CLAIM_SUBJECT.test(text.slice(0, match.index))) return true
+  }
+  return false
 }
 
 interface SeenCall {
