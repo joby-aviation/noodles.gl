@@ -15,7 +15,7 @@ npm run start:app         # or cd noodles-editor && npm start
 ### Development URLs
 
 - **Local**: `http://localhost:5173/examples/nyc-taxis`
-- **Specific Project**: Replace `nyc-taxis` with project name from `noodles-editor/public/examples/`
+- **Specific Project**: Replace `nyc-taxis` with project name from `noodles-editor/src/examples/`
 - **Safe Mode**: Add `?safeMode=true` to disable code execution
 
 ### Build & Test

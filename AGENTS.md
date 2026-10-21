@@ -127,7 +127,7 @@ Projects are stored as JSON files with this structure:
 
 ```json
 {
-  "version": 6,
+  "version": 18,
   "nodes": [
     {
       "id": "/data-loader",
@@ -254,7 +254,7 @@ npm workspaces (root `package.json`): run `npm install` at the root, then run ap
 ### Development URLs
 
 - **Local**: `http://localhost:5173/examples/nyc-taxis`
-- **Specific Project**: Replace `nyc-taxis` with project name from `noodles-editor/public/examples/`
+- **Specific Project**: Replace `nyc-taxis` with project name from `noodles-editor/src/examples/`
 - **Safe Mode**: Add `?safeMode=true` to disable code execution
 
 ### Testing
@@ -384,5 +384,5 @@ See [dev-docs/claude-code-workflow.md](dev-docs/claude-code-workflow.md) for edi
 
 ---
 
-**Last Updated**: 2026-09-21
-**Version**: Based on project version 6 schema
+**Last Updated**: 2026-10-21
+**Version**: Based on project version 18 schema
