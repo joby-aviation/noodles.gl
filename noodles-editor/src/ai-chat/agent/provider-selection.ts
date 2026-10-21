@@ -55,3 +55,17 @@ export function resolveProviderId(
   const order: ProviderId[] = ['anthropic', 'openrouter', 'custom', 'webllm', 'chrome']
   return order.find(id => isProviderReady(id, options)) ?? 'anthropic'
 }
+
+const ON_DEVICE: readonly ProviderId[] = ['webllm', 'chrome']
+
+export function isOnDevice(providerId: ProviderId): boolean {
+  return ON_DEVICE.includes(providerId)
+}
+
+// The hosted provider an on-device user could switch to without setting anything
+// up, in the same order resolveProviderId tries them. null when none is ready,
+// which is when the panel offers setup instead of a switch.
+export function readyCloudProvider(credentials: Credentials): ProviderId | null {
+  const order: ProviderId[] = ['anthropic', 'openrouter', 'custom']
+  return order.find(id => isProviderReady(id, credentials)) ?? null
+}

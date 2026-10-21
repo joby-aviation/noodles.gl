@@ -188,6 +188,15 @@ Five facts shape `providers/webllm.ts`:
    in 0.1–2.3 s instead of ~4k in 14–23 s, and tasks take 6–22 s instead of 10–48 s.
    Each step logs its prefill and decode timings under `noodles:ai-chat`.
 
+Both on-device providers are slower than a hosted one, and the panel says so
+rather than letting the user find out (`on-device-notice.tsx`): a dismissible
+banner above the conversation, and a line inside any reply still running after
+`SLOW_REPLY_MS`, each with one button. It switches straight to a hosted provider
+that is already set up (`readyCloudProvider`, same order as automatic selection)
+or opens Settings → AI Provider, where OpenRouter is one click. Switching stops the
+running reply, and `AgentSession.dispose` waits for it to settle before disposing
+the provider.
+
 `WEBLLM_MODELS` carries six ids checked against `prebuiltAppConfig.model_list`, each
 with the download size from the config's own `vram_required_MB`, because "3.4GB the
 first time" is the number that makes the choice an informed one. The download reports
