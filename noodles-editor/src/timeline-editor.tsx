@@ -438,13 +438,11 @@ export default function TimelineEditor() {
         return { status: 'refused', error: 'An export is already running in the editor' }
       }
 
-      let canvas: HTMLCanvasElement | undefined
-      if (basemapEnabled) {
-        canvas = mapRef.current?.getCanvas()
-      } else {
-        // @ts-expect-error canvas is protected but accessible
-        canvas = deckRef.current?.canvas
-      }
+      const canvas = pickVisualizationCanvas({
+        basemapEnabled,
+        map: mapRef.current,
+        deck: deckRef.current,
+      })
       if (!canvas) {
         return {
           status: 'refused',
