@@ -66,7 +66,7 @@ If `capture_visualization` returns "Canvas not available", the map pane may be h
 ## 5. Change timing and animation
 
 1. `get_timeline` returns the sequence length and fps, and every animatable track. Only tracks with keyframes are animated.
-2. Track ids are `<node id without the slash> / <field>`, with nested fields joined the same way: `time / val`, `maplibre-basemap / viewState / zoom`.
+2. Copy track ids from `get_timeline`. They are the node path without the leading slash, then the field, with every `/` written as ` / `: `time / val`, `maplibre-basemap / viewState / zoom`, and `opacity` on `/group/layer` is `group / layer / opacity`. A wrong id still succeeds but creates a new, unused track.
 3. `set_keyframe` takes `trackId`, `position` in seconds, and `value`. A keyframe within one frame of `position` is updated in place. `delete_keyframe` takes the id from `get_timeline`.
 4. Keep positions inside the sequence length. `set_keyframe` accepts a later position but does not make the timeline longer. To change the length, ask the user to change it in the timeline panel.
 5. A camera track overrides the `viewState` input for that field. Edit its keyframes, not the input.
@@ -77,7 +77,7 @@ If `capture_visualization` returns "Canvas not available", the map pane may be h
 1. Call `export_video`. Every argument is optional (`startTime`, `endTime`, `fps`, `width`, `height`, `codec`, `download`). Missing ones come from the project's render settings and the timeline in and out points. For a quick check, use `width: 640, height: 360`.
 2. The call returns after at most 20 s. While `status` is `running`, call `get_export_status` until it is `done`.
 3. Don't edit or scrub while it renders. The export moves the playhead and takes over the canvas.
-4. Report the file name, its path (`@/.agent/renders/<project>-<timestamp>.mp4`), size, frame count, and duration. `list_files` with `path: ".agent/renders"` confirms it.
+4. Report the file name, where `savedTo` says it went, size, frame count, and duration. `savedTo.project` is a path like `@/.agent/renders/<project>-<timestamp>.mp4`; confirm it with `list_files` and `path: ".agent/renders"`. If only `savedTo.download` is set, the project could not be written and the file is in the browser's downloads folder.
 
 Example projects live in memory, so their saved copy is gone after a reload. Pass `download: true` there to also save it to the browser's downloads folder. Export needs WebCodecs, so use Chrome or Edge. A hidden or background tab renders much slower.
 
