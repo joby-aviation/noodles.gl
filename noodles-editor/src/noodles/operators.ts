@@ -68,7 +68,7 @@ import {
 } from 'd3'
 import * as deck from 'deck.gl'
 import { BehaviorSubject, combineLatest, Subject, type Subscription } from 'rxjs'
-import { filter, mergeMap } from 'rxjs/operators'
+import { distinctUntilChanged, filter, mergeMap, skip } from 'rxjs/operators'
 import { Temporal } from 'temporal-polyfill'
 import type z from 'zod/v4'
 
@@ -186,6 +186,15 @@ export enum PullExecutionStatus {
   ERROR = 'error', // Execution failed
 }
 
+// Deserializers can throw on bad input, such as a date that isn't ISO
+function parseSavedOutput(field: Field, value: unknown) {
+  try {
+    return field.schema.safeParse((field.constructor as typeof Field).deserialize(value))
+  } catch {
+    return { success: false as const }
+  }
+}
+
 // An Operator is a collection of Fields, and a transform function responsible
 // for taking in a set of input fields and mapping them to the output.
 export abstract class Operator<OP extends IOperator> {
@@ -254,6 +263,9 @@ export abstract class Operator<OP extends IOperator> {
   private _lastExecutionTime = 0
   private _computingPromise: Promise<ExtractProps<(typeof this)['outputs']>> | null = null
   private _lastLoggedError: string | null = null
+  // True once the output fields hold a real result, from an execution or the project cache.
+  // A locked operator serves that result instead of executing again.
+  private _hasOutput = false
 
   // Dependency tracking for pull-based model
   private _upstreamDependencies: Set<Operator<IOperator>> = new Set()
@@ -304,6 +316,13 @@ export abstract class Operator<OP extends IOperator> {
     if (locked) {
       this.locked.next(true)
     }
+
+    // Unlocking catches up on any input changes that arrived while locked
+    this.subs.push(
+      this.locked.pipe(skip(1), distinctUntilChanged()).subscribe(isLocked => {
+        if (!isLocked) this.markDirty('unlocked')
+      })
+    )
   }
 
   get data() {
@@ -320,6 +339,40 @@ export abstract class Operator<OP extends IOperator> {
       outputData[key] = field.value
     }
     return outputData as ExtractProps<typeof this.outputs>
+  }
+
+  get hasOutput(): boolean {
+    return this._hasOutput
+  }
+
+  // Put known output values back without executing, e.g. when undo relocks an operator.
+  // A locked operator then serves them from pull(). Values are trusted, not schema-checked.
+  setOutputValues(values: Record<string, unknown>) {
+    for (const [key, field] of Object.entries(this.outputs)) {
+      if (key in values && field.value !== values[key]) field.next(values[key])
+    }
+    this._hasOutput = true
+  }
+
+  // Restore the outputs a locked operator was saved with, so it can serve them without
+  // executing. Returns false and changes nothing if a saved value no longer fits its field.
+  restoreOutputs(outputs: Record<string, unknown>): boolean {
+    const unknownKey = Object.keys(outputs).find(key => !(key in this.outputs))
+    if (unknownKey) {
+      debugExecute('%s: saved output %s has no field, will execute', this.id, unknownKey)
+      return false
+    }
+    const restored: Record<string, unknown> = {}
+    for (const [key, field] of Object.entries(this.outputs)) {
+      const parsed = parseSavedOutput(field, outputs[key])
+      if (!parsed.success) {
+        debugExecute('%s: saved output %s no longer fits, will execute', this.id, key)
+        return false
+      }
+      restored[key] = parsed.data
+    }
+    this.setOutputValues(restored)
+    return true
   }
 
   // Left open for sub-classes to override
@@ -420,6 +473,16 @@ export abstract class Operator<OP extends IOperator> {
 
   // Pull data from this operator, executing if needed (pull-based model)
   async pull(): Promise<ExtractProps<(typeof this)['outputs']>> {
+    // A locked operator keeps its last result: no upstream pulls, no execute(). It still
+    // executes once if it has never produced output (e.g. its outputs couldn't be cached).
+    if (this.locked.value && this._hasOutput && this._computingPromise === null) {
+      debugPull('%s: locked -> last output', this.id)
+      this._cachedOutput = this.outputData
+      this._setPullExecutionStatus(PullExecutionStatus.CLEAN)
+      this.dirty = false
+      return this._cachedOutput
+    }
+
     // Return cached if clean
     if (this._pullExecutionStatus === PullExecutionStatus.CLEAN && this._cachedOutput !== null) {
       debugPull('%s: %s -> cached', this.id, PullExecutionStatus.CLEAN)
@@ -528,6 +591,7 @@ export abstract class Operator<OP extends IOperator> {
         this.dirty = false // Also clear the dirty flag for GraphExecutor
       }
       this._lastExecutionTime = executionTime
+      this._hasOutput = true
 
       debugExecute('%s: %dms %O', this.id, this._lastExecutionTime.toFixed(2), {
         outputs: finalResult,
@@ -2735,13 +2799,34 @@ export class GeocoderOp extends Operator<GeocoderOp> {
 
 export class DirectionsOp extends Operator<DirectionsOp> {
   static displayName = 'Directions'
-  static description = 'Get driving or transit directions between two points'
+  static description = 'Get driving, traffic-aware driving, or transit directions between points'
   asDownload = () => this.outputData
   createInputs() {
     return {
       origin: new Point2DField(),
       destination: new Point2DField(),
-      mode: new StringLiteralField('transit', { values: ['driving', 'transit'] }),
+      mode: new StringLiteralField('transit', {
+        values: [
+          { value: 'driving', label: 'Driving (Mapbox / OSRM)' },
+          { value: 'driving-traffic', label: 'Driving with traffic (Google)' },
+          { value: 'transit', label: 'Transit (Google)' },
+        ],
+      }),
+      departureMode: new StringLiteralField('now', {
+        values: [
+          { value: 'now', label: 'Depart now' },
+          { value: 'scheduled', label: 'Schedule departure' },
+        ],
+      }),
+      departureTime: new DateField(),
+      trafficModel: new StringLiteralField('best-guess', {
+        values: [
+          { value: 'best-guess', label: 'Best guess' },
+          { value: 'pessimistic', label: 'Pessimistic' },
+          { value: 'optimistic', label: 'Optimistic' },
+        ],
+      }),
+      avoidTolls: new BooleanField(false),
     }
   }
   createOutputs() {
@@ -2753,21 +2838,40 @@ export class DirectionsOp extends Operator<DirectionsOp> {
           durationFormatted: new StringField('', { optional: true }),
           timestamps: new ArrayField(new NumberField()),
           path: new ArrayField(new Point2DField([0, 0], { returnType: 'tuple' })),
+          hasTolls: new BooleanField(false, { optional: true }),
+          tollAmount: new NumberField(0, { min: 0, optional: true }),
+          tollCurrency: new StringField('', { optional: true }),
         },
         { passthrough: true }
       ),
     }
   }
+  override isFieldVisible(name: string): boolean {
+    if (name === 'departureMode' || name === 'trafficModel' || name === 'avoidTolls') {
+      return this.inputs.mode.value === 'driving-traffic'
+    }
+    if (name === 'departureTime') {
+      return (
+        this.inputs.mode.value === 'driving-traffic' &&
+        this.inputs.departureMode.value === 'scheduled'
+      )
+    }
+    return super.isFieldVisible(name)
+  }
   async execute({
     origin,
     destination,
     mode,
+    departureMode,
+    departureTime,
+    trafficModel,
+    avoidTolls,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     // Guard on default values
     if (
       (origin.lng === 0 && origin.lat === 0) ||
       (destination.lng === 0 && destination.lat === 0) ||
-      !(mode === 'driving' || mode === 'transit')
+      !(mode === 'driving' || mode === 'driving-traffic' || mode === 'transit')
     ) {
       console.debug('Invalid origin, destination or mode', origin, destination, mode)
       return { route: { timestamps: [], path: [] } }
@@ -2777,6 +2881,10 @@ export class DirectionsOp extends Operator<DirectionsOp> {
       origin,
       destination,
       mode,
+      departureTime:
+        mode === 'driving-traffic' && departureMode === 'scheduled' ? departureTime : undefined,
+      trafficModel,
+      avoidTolls,
     })
 
     return { route }
@@ -8740,6 +8848,62 @@ export class SimplifyOp extends Operator<SimplifyOp> {
   }
 }
 
+export class LineInterpolationOp extends Operator<LineInterpolationOp> {
+  static displayName = 'Line Interpolation'
+  static description =
+    'Interpolate GeoJSON lines with D3 curves or round corners with a physical turn radius'
+  asDownload = () => this.outputData
+
+  createInputs() {
+    return {
+      feature: new GeoJsonField(),
+      method: new StringLiteralField('catmull-rom', {
+        values: [
+          { value: 'linear', label: 'Linear' },
+          { value: 'catmull-rom', label: 'Catmull–Rom' },
+          { value: 'cardinal', label: 'Cardinal' },
+          { value: 'basis', label: 'Basis' },
+          { value: 'natural', label: 'Natural' },
+          { value: 'monotone-x', label: 'Monotone X' },
+          { value: 'monotone-y', label: 'Monotone Y' },
+          { value: 'turn-radius', label: 'Turn radius' },
+        ],
+      }),
+      samplesPerSegment: new NumberField(12, { min: 1, max: 64, step: 1 }),
+      alpha: new NumberField(0.5, { min: 0, max: 1, step: 0.05, showByDefault: false }),
+      tension: new NumberField(0, { min: 0, max: 1, step: 0.05, showByDefault: false }),
+      turnRadiusMeters: new NumberField(250, {
+        min: 0,
+        softMax: 10_000,
+        step: 10,
+      }),
+    }
+  }
+
+  createOutputs() {
+    return { feature: new GeoJsonField() }
+  }
+
+  execute({
+    feature,
+    method,
+    samplesPerSegment,
+    alpha,
+    tension,
+    turnRadiusMeters,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    return {
+      feature: utils.interpolateGeoJsonLines(feature, {
+        method: method as utils.LineInterpolationMethod,
+        samplesPerSegment,
+        alpha,
+        tension,
+        turnRadiusMeters,
+      }),
+    }
+  }
+}
+
 export class SmoothOp extends Operator<SmoothOp> {
   static displayName = 'Smooth'
   static description = 'Apply smoothing to LineString coordinates using Gaussian or boxcar kernel'
@@ -10016,6 +10180,7 @@ export const opTypes = {
   LayerPropsOp,
   LegendWidgetOp,
   LengthOp,
+  LineInterpolationOp,
   LineLayerOp,
   LineSliceOp,
   LineToPolygonOp,

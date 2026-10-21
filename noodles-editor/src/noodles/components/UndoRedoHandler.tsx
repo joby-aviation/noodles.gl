@@ -4,6 +4,7 @@ import { analytics } from '../../utils/analytics'
 import { debugHistoryRedo, debugHistoryUndo } from '../../utils/debug'
 import type { GraphRef } from '../types'
 import { shouldBlockKeyboardShortcut } from '../utils/input-detection'
+import { registerLockChangeCallback } from '../utils/lock-history'
 import { registerPropertyMutationCallback } from '../utils/property-history'
 import { useUndoRedo } from '../utils/use-undo-redo'
 
@@ -41,6 +42,12 @@ export const UndoRedoHandler = forwardRef<UndoRedoHandlerRef, UndoRedoHandlerPro
     registerPropertyMutationCallback(undoRedo.recordPropertyChange)
     return () => registerPropertyMutationCallback(undefined)
   }, [undoRedo.recordPropertyChange])
+
+  // Register the lock change callback so locking and unlocking join the unified undo stack
+  useEffect(() => {
+    registerLockChangeCallback(undoRedo.recordLockChange)
+    return () => registerLockChangeCallback(undefined)
+  }, [undoRedo.recordLockChange])
 
   // Expose the undo/redo methods to parent component via ref
   useImperativeHandle(

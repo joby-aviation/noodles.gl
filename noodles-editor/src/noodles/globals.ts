@@ -5,8 +5,7 @@ const queryParams = new URLSearchParams(window?.location.search ?? '')
 // app has broken in an invalid state
 export const safeMode = queryParams.get('safeMode') === 'true'
 
-// Enables external control of the app (WebMCP tool registration and the
-// legacy WebSocket bridge)
+// Enables external control of the app (WebMCP tool registration)
 export const externalControl = queryParams.get('externalControl') === 'true'
 
 // Exposes the agent benchmark hook (bench/agent/). Dev builds only, so a shared

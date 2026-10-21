@@ -5,7 +5,6 @@ import { type RefObject, useCallback, useEffect, useMemo, useState } from 'react
 import { useLocation } from 'wouter'
 import logoSvg from '/noodles-favicon.svg'
 import { SettingsDialog } from '../../components/settings-dialog'
-import { ExternalControlButton } from '../../external-control/components/external-control-button'
 import { analytics } from '../../utils/analytics'
 import { debugUI } from '../../utils/debug'
 import { ContainerOp } from '../operators'
@@ -573,7 +572,6 @@ export function TopMenuBar({
         )}
 
         <div className={s.rightSection}>
-          <ExternalControlButton />
           {onChangeShowChatPanel && (
             <button
               type="button"

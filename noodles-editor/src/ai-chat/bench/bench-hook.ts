@@ -8,7 +8,7 @@ import type {
   ModificationResult,
   ProjectModification as ReactFlowModification,
 } from '../../noodles/hooks/use-project-modifications'
-import { getEnvKeys, getKeysStore } from '../../noodles/keys-store'
+import { getKeysStore } from '../../noodles/keys-store'
 import { getAllOps } from '../../noodles/store'
 import { getCurrentProject, getModificationApplier, onProjectChange } from '../../webmcp/bridge'
 import { createProvider } from '../agent/provider-factory'
@@ -39,10 +39,8 @@ export interface BenchTask {
 // back to it rather than making the benchmark a second place to configure keys.
 function configuredKey(providerId: ProviderId): string | undefined {
   if (providerId !== 'anthropic' && providerId !== 'openrouter') return undefined
-  const store = getKeysStore()
-  return (
-    store.browserKeys?.[providerId] || store.projectKeys?.[providerId] || getEnvKeys()[providerId]
-  )
+  // getKey never reads AI keys from the project file
+  return getKeysStore().getKey(providerId)
 }
 
 export interface BenchProviderConfig {

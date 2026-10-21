@@ -152,7 +152,7 @@ Provide a complete `noodles.json` file that can be saved in `noodles-editor/publ
 
 ```json
 {
-  "version": 6,
+  "version": 18,
   "nodes": [
     {
       "id": "/test-op",

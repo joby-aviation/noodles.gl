@@ -9,10 +9,6 @@ import TimelineEditor from './timeline-editor'
 import { analytics } from './utils/analytics'
 import { debugApp } from './utils/debug'
 
-const ExternalControlProvider = lazy(() =>
-  import('./external-control').then(m => ({ default: m.ExternalControlProvider }))
-)
-
 const WebMCPProvider = lazy(() => import('./webmcp').then(m => ({ default: m.WebMCPProvider })))
 
 // The DEV check is repeated inline so the production build drops the import
@@ -69,29 +65,14 @@ const baseUrl = import.meta.env.BASE_URL.replace(/\/+$/, '')
 function App() {
   debugApp('App rendering, baseUrl:', baseUrl, 'location:', window.location.pathname)
 
-  // Check if external control should be enabled based on URL params
-  const urlParams = new URLSearchParams(window.location.search)
-  const externalControlDebug = urlParams.get('externalControlDebug') === 'true'
-
   return (
     <Router base={baseUrl}>
       <PageviewTracker />
-      {/* External control providers - only enabled when requested via URL params.
-          WebMCPProvider registers tools on navigator.modelContext (primary path);
-          ExternalControlProvider is the legacy WebSocket bridge. */}
+      {/* WebMCPProvider registers tools on navigator.modelContext. Only enabled
+          when requested via ?externalControl=true. */}
       {externalControl && (
         <Suspense fallback={null}>
           <WebMCPProvider />
-          <ExternalControlProvider
-            autoConnect={false}
-            debug={externalControlDebug}
-            onStatusChange={connected => {
-              debugApp('[ExternalControl] Status:', connected ? 'Connected' : 'Disconnected')
-            }}
-            onError={error => {
-              debugApp('[ExternalControl] Error:', error)
-            }}
-          />
         </Suspense>
       )}
       <Switch>

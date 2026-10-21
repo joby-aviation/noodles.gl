@@ -1,3 +1,4 @@
+import { Temporal } from 'temporal-polyfill'
 import { describe, expect, it } from 'vitest'
 import { deepEqual } from './deep-equal'
 
@@ -486,6 +487,53 @@ describe('deepEqual', () => {
         expect(deepEqual(date1, date2, 0)).toBe(true)
         expect(deepEqual(date1, date3, 0)).toBe(false)
         expect(deepEqual({ d: date1 }, { d: date2 }, 1)).toBe(true)
+      })
+
+      it('compares Temporal values by value', () => {
+        const a = Temporal.PlainDateTime.from('2026-10-17T08:30')
+        const b = Temporal.PlainDateTime.from('2026-10-17T08:30')
+        const c = Temporal.PlainDateTime.from('2026-10-17T09:00')
+
+        expect(deepEqual(a, b)).toBe(true)
+        expect(deepEqual(a, c)).toBe(false)
+        expect(deepEqual({ d: a }, { d: c })).toBe(false)
+        expect(deepEqual(a, Temporal.PlainDate.from('2026-10-17'))).toBe(false)
+        expect(deepEqual(a, {})).toBe(false)
+      })
+
+      it('does not call different key-less class instances equal', () => {
+        const buffer = new ArrayBuffer(4)
+        const url = new URL('https://example.com/a')
+
+        expect(deepEqual(buffer, buffer)).toBe(true)
+        expect(deepEqual(buffer, new ArrayBuffer(4))).toBe(false)
+        expect(deepEqual(url, new URL('https://example.com/b'))).toBe(false)
+        expect(deepEqual({ data: buffer }, { data: new ArrayBuffer(8) })).toBe(false)
+        expect(deepEqual(new Error('a'), new Error('b'))).toBe(false)
+      })
+
+      it('only compares class instances key by key within the same class', () => {
+        class Point {
+          constructor(
+            public x: number,
+            public y: number
+          ) {}
+        }
+
+        expect(deepEqual(new Point(1, 2), new Point(1, 2))).toBe(true)
+        expect(deepEqual(new Point(1, 2), { x: 1, y: 2 })).toBe(false)
+        expect(deepEqual(Object.create(null), {})).toBe(true)
+      })
+
+      it('treats NaN as equal to itself', () => {
+        expect(deepEqual(Number.NaN, Number.NaN)).toBe(true)
+        expect(deepEqual({ v: Number.NaN }, { v: Number.NaN })).toBe(true)
+      })
+
+      it('tells 0 from -0', () => {
+        expect(deepEqual(0, -0)).toBe(false)
+        expect(deepEqual({ v: 0 }, { v: -0 })).toBe(false)
+        expect(deepEqual([-0], [-0])).toBe(true)
       })
 
       it.skip('compares Map objects up to maxDepth', () => {

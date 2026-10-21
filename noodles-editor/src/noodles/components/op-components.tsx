@@ -71,6 +71,7 @@ import {
   evaluateEnableExpression,
   getEnableExpressionDependencies,
 } from '../utils/enable-expression-evaluator'
+import { setLockedWithHistory, shouldConfirmUnlock } from '../utils/lock-history'
 import { type MultiInputEdgeData, slotOffsetY } from '../utils/multi-input-utils'
 import type { NodeType } from '../utils/node-creation-utils'
 import { convertViewerToTableEditor } from '../utils/operator-conversion'
@@ -87,6 +88,7 @@ import previewStyles from './handle-preview.module.css'
 import { MapStyleConfiguratorOpComponent } from './map-style-configurator-op'
 import RampEditor, { type RampStop } from './ramp-editor'
 import { TableEditor } from './table-editor'
+import { UnlockDialog } from './unlock-dialog'
 
 const isPlainObject = (v: unknown): v is Record<string, unknown> =>
   v !== null && typeof v === 'object' && Object.getPrototypeOf(v) === Object.prototype
@@ -268,8 +270,14 @@ export const edgeComponents = {
   MultiInputEdge: MultiInputEdgeComponent,
 } as const as ReactFlowEdgeTypes
 
+// A locked node ignores its inputs, so the edges into it fade until it's unlocked
+function useTargetLocked(target: string) {
+  return useLocked(getOp(target))
+}
+
 function DefaultEdgeComponent({
   id,
+  target,
   sourceX,
   sourceY,
   targetX,
@@ -281,6 +289,7 @@ function DefaultEdgeComponent({
 }: EdgeProps) {
   const targetedEdge = useUIStore(s => s.targetedEdge)
   const nodeDragState = useUIStore(s => s.nodeDragState)
+  const targetLocked = useTargetLocked(target)
   const [edgePath] = getBezierPath({
     sourceX,
     sourceY,
@@ -304,11 +313,19 @@ function DefaultEdgeComponent({
       : s.targetedEdgeIncompatible
   }
 
-  return <BaseEdge path={edgePath} markerEnd={markerEnd} style={style} className={edgeClassName} />
+  return (
+    <BaseEdge
+      path={edgePath}
+      markerEnd={markerEnd}
+      style={style}
+      className={edgeClassName ?? (targetLocked ? s.lockedEdge : undefined)}
+    />
+  )
 }
 
 function ReferenceEdgeComponent({
   id,
+  target,
   sourceX,
   sourceY,
   targetX,
@@ -317,6 +334,7 @@ function ReferenceEdgeComponent({
   markerEnd,
 }: EdgeProps) {
   const isInspected = useUIStore(s => s.inspectedReferenceEdge?.id === id)
+  const targetLocked = useTargetLocked(target)
   const [edgePath] = getStraightPath({
     sourceX,
     sourceY,
@@ -328,7 +346,10 @@ function ReferenceEdgeComponent({
     <BaseEdge
       path={edgePath}
       markerEnd={markerEnd}
-      className={cx(s.referenceEdge, { [s.inspectedReferenceEdge]: isInspected })}
+      className={cx(s.referenceEdge, {
+        [s.inspectedReferenceEdge]: isInspected,
+        [s.lockedEdge]: targetLocked && !isInspected,
+      })}
       style={style}
     />
   )
@@ -336,6 +357,7 @@ function ReferenceEdgeComponent({
 
 function MultiInputEdgeComponent({
   id,
+  target,
   sourceX,
   sourceY,
   targetX,
@@ -348,6 +370,7 @@ function MultiInputEdgeComponent({
 }: EdgeProps) {
   const targetedEdge = useUIStore(s => s.targetedEdge)
   const nodeDragState = useUIStore(s => s.nodeDragState)
+  const targetLocked = useTargetLocked(target)
 
   // Anchor the edge on its slot within the grown handle. React Flow reports targetY at the
   // handle's vertical center; slotOffsetY spreads the group symmetrically around it using
@@ -375,7 +398,14 @@ function MultiInputEdgeComponent({
       : s.targetedEdgeIncompatible
   }
 
-  return <BaseEdge path={edgePath} markerEnd={markerEnd} style={style} className={edgeClassName} />
+  return (
+    <BaseEdge
+      path={edgePath}
+      markerEnd={markerEnd}
+      style={style}
+      className={edgeClassName ?? (targetLocked ? s.lockedEdge : undefined)}
+    />
+  )
 }
 
 export const resizeableNodes = [
@@ -1357,8 +1387,17 @@ export function NodeHeader({
   const exprPopoverOpen =
     exprErrorKey !== null && ((exprAutoShow && !exprDismissed) || headerHovered)
 
+  const [confirmingUnlock, setConfirmingUnlock] = useState(false)
   const toggleLock = () => {
-    op.locked.next(!op.locked.value)
+    if (shouldConfirmUnlock(op)) {
+      setConfirmingUnlock(true)
+      return
+    }
+    setLockedWithHistory(op, !op.locked.value)
+  }
+  const confirmUnlock = () => {
+    setConfirmingUnlock(false)
+    setLockedWithHistory(op, false)
   }
 
   useEffect(() => {
@@ -1594,6 +1633,12 @@ export function NodeHeader({
           text
         />
       </div>
+      <UnlockDialog
+        open={confirmingUnlock}
+        nodeName={baseName}
+        onConfirm={confirmUnlock}
+        onClose={() => setConfirmingUnlock(false)}
+      />
     </div>
   )
 }
@@ -1747,6 +1792,7 @@ function DirectionsOpComponent({
   type,
 }: ReactFlowNodeProps<NodeDataJSON<DirectionsOp>> & { type: 'DirectionsOp' }) {
   const op = getOp(id as string)
+  const [, forceFieldVisibilityUpdate] = useState(0)
 
   // Reactive - automatically updates when keys change
   const hasMapboxKey = useKeysStore(state => state.hasKey('mapbox'))
@@ -1772,6 +1818,14 @@ function DirectionsOpComponent({
     prevHasMapboxKey.current = hasMapboxKey
     prevHasGoogleMapsKey.current = hasGoogleMapsKey
   }, [op, hasMapboxKey, hasGoogleMapsKey])
+
+  useEffect(() => {
+    if (!op) return
+    const subscriptions = [op.inputs.mode, op.inputs.departureMode].map(field =>
+      field.subscribe(() => forceFieldVisibilityUpdate(value => value + 1))
+    )
+    return () => subscriptions.forEach(subscription => subscription.unsubscribe())
+  }, [op])
 
   if (!op) return null
 
