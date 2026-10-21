@@ -33,7 +33,7 @@ The pre-commit hook will:
 
 ### Other Scripts
 
-- `generate-context.ts` - Generate AI context bundles for Claude integration
+These live in `noodles-editor/scripts/`:
+
 - `generate-migration.ts` - Generate migration scripts for project schema updates
 - `migrate-project-files.ts` - Apply migrations to project files
-- `parse-operators.ts` - Parse operator definitions for documentation
