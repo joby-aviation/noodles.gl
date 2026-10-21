@@ -20,7 +20,7 @@ import {
 } from '../render/video-export'
 import { getTimelineStore } from '../timeline/timeline-store'
 import { workerSetTimeout } from '../utils/worker-timer'
-import { AGENT_DIRECTORY, writeAgentBinary } from './agent-files'
+import { AGENT_DIRECTORY, type AgentStore, storageContext, writeAgentBinary } from './agent-files'
 import type { ToolResult } from './types'
 
 export const RENDERS_DIRECTORY = `${AGENT_DIRECTORY}/renders`
@@ -39,6 +39,9 @@ export interface ExportStatusParams {
 
 interface ExportJob {
   fileName: string
+  // The project open when the export started. The editor stays mounted across a
+  // switch between projects, so the one open at the end may be a different one.
+  store: AgentStore | null
   settings: VideoExportSettings
   download: boolean
   startedAt: number
@@ -92,8 +95,11 @@ export async function exportVideo(params: ExportVideoParams): Promise<ToolResult
   }
 
   const { settings } = started
+  const context = storageContext()
+  const store = context.ok ? { type: context.type, project: context.project } : null
   const newJob: ExportJob = {
-    fileName: `${fileStem()}-${timestamp()}.mp4`,
+    fileName: `${fileStem(store?.project)}-${timestamp()}.mp4`,
+    store,
     settings,
     download: params.download === true,
     startedAt: performance.now(),
@@ -173,13 +179,22 @@ async function finish(current: ExportJob, result: CaptureResult): Promise<void> 
   const blob = new Blob([result.buffer], { type: 'video/mp4' })
   const warnings: string[] = []
 
-  const written = await writeAgentBinary(`${RENDERS_DIRECTORY}/${current.fileName}`, blob)
+  const written = current.store
+    ? await writeAgentBinary(`${RENDERS_DIRECTORY}/${current.fileName}`, blob, current.store)
+    : ({ ok: false, error: 'no project was open' } as const)
   if (!written.ok) {
     warnings.push(`Could not save to the project (${written.error}), so it was downloaded instead.`)
-  } else if (useFileSystemStore.getState().activeStorageType === 'memory' && !current.download) {
-    warnings.push(
-      'This project lives in memory, so the saved copy is gone after a reload. Export again with download: true to keep one.'
-    )
+  } else {
+    if (current.store?.project !== useFileSystemStore.getState().currentProjectName) {
+      warnings.push(
+        `Saved to ${current.store?.project}, the project open when the export started, not the one open now.`
+      )
+    }
+    if (current.store?.type === 'memory' && !current.download) {
+      warnings.push(
+        'This project lives in memory, so the saved copy is gone after a reload. Export again with download: true to keep one.'
+      )
+    }
   }
 
   const downloaded = current.download || !written.ok
@@ -232,14 +247,15 @@ function elapsedSeconds(current: ExportJob): number {
   return Math.round((performance.now() - current.startedAt) / 100) / 10
 }
 
-function fileStem(): string {
-  const name = useFileSystemStore.getState().currentProjectName ?? 'render'
-  return name.replace(/[^\w.-]+/g, '-').replace(/^-+|-+$/g, '') || 'render'
+function fileStem(project = 'render'): string {
+  return project.replace(/[^\w.-]+/g, '-').replace(/^-+|-+$/g, '') || 'render'
 }
 
-// 2026-10-21T14-03-22, sortable and legal in every file system
+// 2026-10-21T14-03-22-123: sortable, legal in every file system, and to the millisecond
+// because two short exports can finish within one second. writeAgentBinary refuses to
+// replace a file in any case.
 function timestamp(): string {
-  return new Date().toISOString().slice(0, 19).replace(/:/g, '-')
+  return new Date().toISOString().slice(0, 23).replace(/[:.]/g, '-')
 }
 
 function messageOf(error: unknown): string {

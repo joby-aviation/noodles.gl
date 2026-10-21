@@ -57,6 +57,11 @@ describe('resolveExportSettings', () => {
     })
   })
 
+  it('accepts a fractional frame rate', () => {
+    const result = resolveExportSettings({}, { ...context, framerate: 29.97 })
+    expect(result.ok && result.settings).toMatchObject({ fps: 29.97, endFrame: 299 })
+  })
+
   it('refuses an empty timeline', () => {
     expect(errorOf(resolveExportSettings({}, { ...context, sequenceLength: 0 }))).toContain(
       'timeline is empty'
@@ -82,7 +87,8 @@ describe('resolveExportSettings', () => {
 
   it('refuses a bad fps or codec', () => {
     expect(errorOf(resolveExportSettings({ fps: 0 }, context))).toContain('fps')
-    expect(errorOf(resolveExportSettings({ fps: 29.97 }, context))).toContain('fps')
+    expect(errorOf(resolveExportSettings({ fps: 121 }, context))).toContain('fps')
+    expect(errorOf(resolveExportSettings({ fps: Number.NaN }, context))).toContain('fps')
     expect(
       errorOf(resolveExportSettings({ codec: 'prores' as unknown as 'avc' }, context))
     ).toContain('codec')

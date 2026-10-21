@@ -52,8 +52,9 @@ export function resolveExportSettings(
   }
 
   const fps = request.fps ?? context.framerate
-  if (!Number.isInteger(fps) || fps < 1 || fps > MAX_FPS) {
-    return { ok: false, error: `fps must be a whole number from 1 to ${MAX_FPS}, got ${fps}` }
+  // Fractional rates such as 29.97 are fine; the renderer times frames as i / fps
+  if (!Number.isFinite(fps) || fps < 1 || fps > MAX_FPS) {
+    return { ok: false, error: `fps must be a number from 1 to ${MAX_FPS}, got ${fps}` }
   }
 
   const width = request.width ?? context.resolution.width

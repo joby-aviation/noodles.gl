@@ -144,7 +144,7 @@ describe('export_video', () => {
       height: 360,
       codec: 'avc',
     })
-    expect(done.fileName).toMatch(/^export-video-test-\d{4}-\d\d-\d\dT\d\d-\d\d-\d\d\.mp4$/)
+    expect(done.fileName).toMatch(/^export-video-test-\d{4}-\d\d-\d\dT\d\d-\d\d-\d\d-\d{3}\.mp4$/)
     const path = `@/.agent/renders/${done.fileName}`
     expect(done.savedTo).toEqual({ project: path })
     // An example project lives in memory, which the result has to say
@@ -202,6 +202,22 @@ describe('export_video', () => {
     expect(result.success).toBe(false)
     expect(result.error).toBe('Export failed after 30 of 61 frames: EncodingError: codec reclaimed')
     expect((await getExportStatus()).error).toBe(result.error)
+  })
+
+  it('saves into the project that started the export after a switch', async () => {
+    const fake = fakeExporter()
+    setVideoExporter(fake.exporter)
+
+    const pending = exportVideo({})
+    // The editor stays mounted when the user opens another project mid-render
+    useFileSystemStore.setState({ currentProjectName: 'other-project' })
+    fake.finish({ status: 'done', frameCount: 61, fps: 30, buffer: MP4 })
+    const done = data(await pending)
+
+    expect(done.fileName).toMatch(/^export-video-test-/)
+    expect(memoryProjectStore.listDataFiles(PROJECT)).toEqual([`.agent/renders/${done.fileName}`])
+    expect(memoryProjectStore.listDataFiles('other-project')).toEqual([])
+    expect(String(done.warnings)).toContain('Saved to export-video-test')
   })
 
   it('downloads the file when asked', async () => {
