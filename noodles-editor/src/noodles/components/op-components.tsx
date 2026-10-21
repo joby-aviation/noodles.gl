@@ -25,6 +25,7 @@ import {
   type ReactNode,
   useCallback,
   useEffect,
+  useId,
   useLayoutEffect,
   useRef,
   useState,
@@ -973,9 +974,14 @@ function ErrorPopover({
 
   return (
     <div className={s.errorPopoverAnchor}>
-      <div onClick={handleTriggerClick} style={{ cursor: 'pointer' }} title="Click to copy error">
+      <button
+        type="button"
+        className={s.errorPopoverTrigger}
+        onClick={handleTriggerClick}
+        title="Click to copy error"
+      >
         {trigger}
-      </div>
+      </button>
       {open && (
         <div className={s.errorPopover}>
           <span className={s.errorPopoverMessage}>{error}</span>
@@ -1001,6 +1007,8 @@ function RampOpComponent({
 }: ReactFlowNodeProps<NodeDataJSON<RampOp>> & { type: 'RampOp' }) {
   const op = getOp(id as string) as RampOp | undefined
   const locked = useLocked(op)
+  const posInputId = useId()
+  const valInputId = useId()
   const executionState = useExecutionState(op)
   const connectionErrors = useConnectionErrors(op)
   const hasConnectionErrors = connectionErrors.size > 0
@@ -1189,18 +1197,20 @@ function RampOpComponent({
           )}
         </div>
         <div className={s.fieldWrapper}>
-          <label className={s.fieldLabel} style={{ whiteSpace: 'nowrap' }}>
+          <span className={s.fieldLabel} style={{ whiteSpace: 'nowrap' }}>
             {activeStop ? `stop ${stops.indexOf(activeStop) + 1}` : 'stop'}
-          </label>
+          </span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 4, flex: 2, minWidth: 0 }}>
             <label
               className={s.fieldLabelVector}
+              htmlFor={posInputId}
               title="position"
               style={{ cursor: 'default', flexShrink: 0 }}
             >
               p
             </label>
             <input
+              id={posInputId}
               type="number"
               className={s.fieldInput}
               value={activeStop?.pos.toFixed(3) ?? ''}
@@ -1213,12 +1223,14 @@ function RampOpComponent({
             />
             <label
               className={s.fieldLabelVector}
+              htmlFor={valInputId}
               title="value"
               style={{ cursor: 'default', flexShrink: 0 }}
             >
               v
             </label>
             <input
+              id={valInputId}
               type="number"
               className={s.fieldInput}
               value={activeStop?.val.toFixed(3) ?? ''}
@@ -1232,7 +1244,7 @@ function RampOpComponent({
           </div>
         </div>
         <div className={s.fieldWrapper}>
-          <label className={s.fieldLabel}>interp</label>
+          <span className={s.fieldLabel}>interp</span>
           <div
             style={{
               display: 'flex',
@@ -1281,27 +1293,27 @@ const ExecutionIndicator = ({ status, error, executionTime }: ExecutionState) =>
   switch (status) {
     case 'executing':
       return (
-        <div
+        <span
           className={cx(s.executionIndicator, s.executionIndicatorExecuting)}
           title="Executing..."
         >
           <i className="pi pi-spin pi-spinner" />
-        </div>
+        </span>
       )
     case 'error':
       return (
-        <div className={cx(s.executionIndicator, s.executionIndicatorError)}>
+        <span className={cx(s.executionIndicator, s.executionIndicatorError)}>
           <i className="pi pi-exclamation-triangle" />
-        </div>
+        </span>
       )
     case 'success':
       return executionTime && executionTime > SLOW_EXECUTION_THRESHOLD_MS ? (
-        <div
+        <span
           className={cx(s.executionIndicator, s.executionIndicatorSlow)}
           title={`Executed in ${executionTime.toFixed(1)}ms`}
         >
           <i className="pi pi-clock" />
-        </div>
+        </span>
       ) : null
     default:
       return null
@@ -1571,6 +1583,7 @@ export function NodeHeader({
   const handleMouseLeave = useCallback(() => setHeaderHovered(false), [])
 
   return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: hover only previews error popovers, which also open on their own
     <div
       className={cx(s.header, s.dragHandle, headerClass(type))}
       onMouseEnter={handleMouseEnter}
@@ -1595,9 +1608,9 @@ export function NodeHeader({
           open={connPopoverOpen}
           onDismiss={() => setConnDismissed(true)}
           trigger={
-            <div className={cx(s.executionIndicator, s.executionIndicatorError)}>
+            <span className={cx(s.executionIndicator, s.executionIndicatorError)}>
               <i className="pi pi-link" />
-            </div>
+            </span>
           }
         />
       )}
@@ -1607,9 +1620,9 @@ export function NodeHeader({
           open={exprPopoverOpen}
           onDismiss={() => setExprDismissed(true)}
           trigger={
-            <div className={cx(s.executionIndicator, s.executionIndicatorError)}>
+            <span className={cx(s.executionIndicator, s.executionIndicatorError)}>
               <i className="pi pi-eye-slash" />
-            </div>
+            </span>
           }
         />
       )}
