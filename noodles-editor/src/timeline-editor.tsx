@@ -19,13 +19,13 @@ import { fnWithSource } from './noodles/operators'
 import { useUIStore } from './noodles/store'
 import type { RenderSettings } from './noodles/utils/serialization'
 import { useDeckDrawLoop } from './render/draw-loop'
+import { resetRenderProgress, setRenderProgress } from './render/render-progress-store'
 import { captureScreenshot, useRenderer } from './render/renderer'
 import { deckRenderingDefaults, mapRenderingDefaults } from './render/rendering-defaults'
 import { TransformScale } from './render/transform-scale'
 import { resolveExportSettings, setVideoExporter, type VideoExporter } from './render/video-export'
 import { TimelinePanel } from './timeline/components/TimelinePanel'
 import { getTimelineStore, useTimelineStore } from './timeline/timeline-store'
-import s from './timeline-editor.module.css'
 import { debugRender } from './utils/debug'
 import setRef from './utils/set-ref'
 import { workerSetTimeout } from './utils/worker-timer'
@@ -124,14 +124,13 @@ export default function TimelineEditor() {
     rendersDirectory,
   } = renderSettings
 
-  const { startCapture, startSequenceCapture, captureFrame, currentFrame, isRendering } =
-    useRenderer({
-      projectName: noodles.projectName ?? 'render',
-      fps: framerate,
-      bitrate: bitrateMbps * 1_000_000,
-      bitrateMode,
-      redraw,
-    })
+  const { startCapture, startSequenceCapture, captureFrame, isRendering } = useRenderer({
+    projectName: noodles.projectName ?? 'render',
+    fps: framerate,
+    bitrate: bitrateMbps * 1_000_000,
+    bitrateMode,
+    redraw,
+  })
   isRenderingRef.current = isRendering
 
   // If the visualization doesn't supply mapProps (or has a blank mapStyle), disable basemap.
@@ -409,6 +408,7 @@ export default function TimelineEditor() {
       return
     }
 
+    resetRenderProgress()
     const result = await startCapture({
       canvas,
       codec,
@@ -416,6 +416,7 @@ export default function TimelineEditor() {
       ...resolution,
       startFrame: Math.floor((inPoint ?? 0) * framerate),
       endFrame: Math.floor((outPoint ?? sequenceLength) * framerate),
+      onFrameComplete: setRenderProgress,
     })
     if (result.status === 'error') {
       alert(`Export failed: ${result.error.message}`)
@@ -466,6 +467,7 @@ export default function TimelineEditor() {
       if (!resolved.ok) return { status: 'refused', error: resolved.error }
 
       const { settings } = resolved
+      resetRenderProgress()
       return {
         status: 'started',
         settings,
@@ -478,7 +480,10 @@ export default function TimelineEditor() {
           startFrame: settings.startFrame,
           endFrame: settings.endFrame,
           target: 'buffer',
-          onFrameComplete,
+          onFrameComplete: (frame, total) => {
+            setRenderProgress(frame, total)
+            onFrameComplete(frame, total)
+          },
         }),
       }
     },
@@ -564,6 +569,7 @@ export default function TimelineEditor() {
       canvas = deckRef.current.canvas!
     }
 
+    resetRenderProgress()
     await startSequenceCapture({
       canvas,
       // Basemap scenes use mapProps.onIdle for frame readiness; pure-deck scenes need
@@ -575,7 +581,10 @@ export default function TimelineEditor() {
       startFrame: Math.floor((inPoint ?? 0) * framerate),
       endFrame: Math.floor((outPoint ?? sequenceLength) * framerate),
       onFrameStart: (frame, total) => debugRender('Exporting frame %d/%d', frame + 1, total),
-      onFrameComplete: (frame, total) => debugRender('Completed frame %d/%d', frame, total),
+      onFrameComplete: (frame, total) => {
+        setRenderProgress(frame, total)
+        debugRender('Completed frame %d/%d', frame, total)
+      },
     })
   }, [
     startSequenceCapture,
@@ -656,50 +665,39 @@ export default function TimelineEditor() {
   )
 
   return (
-    <>
-      {isRendering && (
-        <div className={s.actionButtons}>
-          <progress
-            max={sequenceLength * renderSettings.framerate}
-            value={currentFrame}
-            title={`Rendered ${currentFrame} / ${sequenceLength * renderSettings.framerate}`}
-          />
-        </div>
-      )}
-      <ReactFlowProvider>
-        <ExportActionsProvider
-          startRender={startRender}
-          takeScreenshot={takeScreenshot}
-          exportSequence={exportSequence}
-          selectRendersDirectory={selectRendersDirectory}
-          isRendering={isRendering}
+    <ReactFlowProvider>
+      <ExportActionsProvider
+        startRender={startRender}
+        takeScreenshot={takeScreenshot}
+        exportSequence={exportSequence}
+        selectRendersDirectory={selectRendersDirectory}
+        isRendering={isRendering}
+      >
+        <Layout
+          top={topBar}
+          left={nodeSidebar}
+          right={propertiesPanel}
+          timeline={heightPx => (
+            <TimelinePanel height={heightPx} onCollapse={() => setTimelineExpanded(false)} />
+          )}
+          flowGraph={flowGraph}
+          spreadsheet={<SpreadsheetPane selectedNodeIds={selectedNodeIds ?? []} />}
         >
-          <Layout
-            top={topBar}
-            left={nodeSidebar}
-            right={propertiesPanel}
-            timeline={heightPx => (
-              <TimelinePanel height={heightPx} onCollapse={() => setTimelineExpanded(false)} />
-            )}
-            flowGraph={flowGraph}
-            spreadsheet={<SpreadsheetPane selectedNodeIds={selectedNodeIds ?? []} />}
-          >
-            {isFixedMode ? (
-              <TransformScale
-                scale={renderSettings.scaleControl}
-                scaleMode={renderSettings.scaleMode}
-                width={lodResolution.width}
-                height={lodResolution.height}
-              >
-                <ErrorBoundary title="Visualization Error">{renderContent()}</ErrorBoundary>
-              </TransformScale>
-            ) : (
+          {isFixedMode ? (
+            <TransformScale
+              scale={renderSettings.scaleControl}
+              scaleMode={renderSettings.scaleMode}
+              width={lodResolution.width}
+              height={lodResolution.height}
+            >
               <ErrorBoundary title="Visualization Error">{renderContent()}</ErrorBoundary>
-            )}
-          </Layout>
-          {chatPanel}
-        </ExportActionsProvider>
-      </ReactFlowProvider>
-    </>
+            </TransformScale>
+          ) : (
+            <ErrorBoundary title="Visualization Error">{renderContent()}</ErrorBoundary>
+          )}
+        </Layout>
+        {chatPanel}
+      </ExportActionsProvider>
+    </ReactFlowProvider>
   )
 }
