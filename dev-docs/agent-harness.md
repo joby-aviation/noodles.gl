@@ -55,12 +55,12 @@ in `agent-files.ts`, which goes through `resolvePath()` like `write_file`.
 
 | | Anthropic | OpenRouter | Custom | WebLLM | Chrome |
 | --- | --- | --- | --- | --- | --- |
-| Default model | `claude-sonnet-5` | best free tool-capable model in the catalogue | whatever you type | `Qwen3-4B-q4f16_1-MLC` | `gemini-nano` |
+| Default model | `claude-sonnet-5` | best free tool-capable model in the catalogue | whatever you type | `Qwen3.5-4B-q4f16_1-MLC` | `gemini-nano` |
 | Context window | 200k | from `/models`, per-model table as fallback | configurable, 32k default | 4k, pinned by every prebuilt config | discovered at runtime (~6k), and measured per turn |
 | Native tool calling | yes | yes (filtered on `supported_parameters`) | assumed, switchable off | **no** — constrained JSON | **no** — constrained JSON |
 | Images (screenshots) | yes | yes | off by default | no | no |
 | Web search | server-side `web_search_2026…`/`…20250305` | `plugins: [{id:'web'}]` | unavailable | unavailable | unavailable |
-| Prompt caching | `cache_control: ephemeral` on the system prompt | — | — | — | — |
+| Prompt caching | `cache_control: ephemeral` on the system prompt | — | — | KV cache reused across steps (byte-stable prefix) | session reused across turns |
 | API key | required | one click, no paste | required, unless the server is your own | none | none |
 
 `custom` is one provider no matter how many servers it points at: any endpoint
@@ -107,7 +107,10 @@ same walk rather than showing an error.
 Two provider flags carry all the behavioural difference: `supportsNativeTools`
 (false routes the provider through `providers/json-tools.ts`, which emulates the tool
 round-trip with a JSON schema the runtime enforces and translates the model's
-one-object reply into the same `tool_call` event the others emit) and `contextWindow`
+one-object reply into the same `tool_call` event the others emit — `input` is the
+last property, because a grammar that requires `reply` after it leaves a model that
+wants to close the object nothing to emit but whitespace until `max_tokens`, and an
+object cut off anyway is closed and flagged `json_repaired`) and `contextWindow`
 (which sizes the disclosure limits, the per-result budget, the step limit, and the
 compaction threshold).
 
@@ -144,7 +147,7 @@ faster than releases. On any failure it falls back to the static `OPENROUTER_MOD
 
 ### WebLLM: the model runs in the tab
 
-Four facts shape `providers/webllm.ts`:
+Five facts shape `providers/webllm.ts`:
 
 1. **No native tool calling, for any model.** WebLLM does ship tool calls, but only
    for four Hermes builds, and its parser requires the *entire* completion to be a
@@ -170,8 +173,22 @@ Four facts shape `providers/webllm.ts`:
 4. **`@mlc-ai/web-llm` is only ever reached through `await import()`.** It is the
    largest dependency in the app and users who never pick a local model pay nothing
    for it. It is also in `optimizeDeps.exclude`.
+5. **Prefill is most of the wait, so the prefix stays byte-stable.** The engine
+   keeps its KV cache only when a request is the previous conversation plus one
+   message, compared string for string, system message included; anything else
+   resets it and prefills the whole prompt again. Two things used to break that on
+   every step. The preamble listed the current tools, which grow with each
+   `find_tools`, so `preambleFor` now keeps the first preamble per system prompt
+   while every tool it lists is still offered; later tools reach the model through
+   `find_tools`' own result and the grammar's enum, which is per request and not
+   part of the prefix. And assistant turns went back re-serialised ("Called X with
+   …") rather than as the JSON the engine had recorded, so the raw completion now
+   rides in a `provider_block` and `toWireTurns` replays it verbatim. Measured on
+   Qwen3-4B at 16k (M-series Mac, T2 tasks): later steps prefill 20–1,000 new tokens
+   in 0.1–2.3 s instead of ~4k in 14–23 s, and tasks take 6–22 s instead of 10–48 s.
+   Each step logs its prefill and decode timings under `noodles:ai-chat`.
 
-`WEBLLM_MODELS` carries five ids checked against `prebuiltAppConfig.model_list`, each
+`WEBLLM_MODELS` carries six ids checked against `prebuiltAppConfig.model_list`, each
 with the download size from the config's own `vram_required_MB`, because "3.4GB the
 first time" is the number that makes the choice an informed one. The download reports
 progress through the same `DownloadProgress` UI Chrome uses.
