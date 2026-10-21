@@ -10,6 +10,11 @@ describe('useRenderer', () => {
       .mockImplementation(() =>
         Promise.reject(new DOMException('The user aborted a request.', 'AbortError'))
       )
+    // The codec check runs before the dialog; pass it so the test does not depend on
+    // which encoders this machine has
+    const mockSupport = vi
+      .spyOn(VideoEncoder, 'isConfigSupported')
+      .mockImplementation(async config => ({ supported: true, config }))
 
     // Setup useRenderer
     const mockRedraw = vi.fn()
@@ -44,6 +49,7 @@ describe('useRenderer', () => {
 
     // Clean up mocks
     mockShowSaveFilePicker.mockRestore()
+    mockSupport.mockRestore()
   })
 
   // A real encode per codec: the encoder and the MP4 muxer schedule work on the real
