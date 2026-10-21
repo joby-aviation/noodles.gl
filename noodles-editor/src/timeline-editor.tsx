@@ -23,7 +23,7 @@ import { captureScreenshot, useRenderer } from './render/renderer'
 import { deckRenderingDefaults, mapRenderingDefaults } from './render/rendering-defaults'
 import { TransformScale } from './render/transform-scale'
 import { resolveExportSettings, setVideoExporter, type VideoExporter } from './render/video-export'
-import { pickVisualizationCanvas, setVisualizationTarget } from './render/visualization-target'
+import { setVisualizationTarget } from './render/visualization-target'
 import { TimelinePanel } from './timeline/components/TimelinePanel'
 import { getTimelineStore, useTimelineStore } from './timeline/timeline-store'
 import s from './timeline-editor.module.css'
@@ -332,16 +332,12 @@ export default function TimelineEditor() {
     }
   }, [])
 
-  // Expose the canvas and deck instance to the AI tools. The refs are read when a tool
-  // asks, since the basemap's deck overlay doesn't exist yet when this effect runs.
+  // Expose the deck instance, and through it the canvas, to the AI tools. The ref is read
+  // when a tool asks, since the basemap's deck overlay doesn't exist yet when this runs.
   useEffect(() => {
-    setVisualizationTarget({
-      getCanvas: () =>
-        pickVisualizationCanvas({ basemapEnabled, map: mapRef.current, deck: deckRef.current }),
-      getDeck: () => deckRef.current,
-    })
+    setVisualizationTarget({ getDeck: () => deckRef.current })
     return () => setVisualizationTarget(null)
-  }, [basemapEnabled])
+  }, [])
 
   // onIdle resolves when all data is loaded and drawing has settled.
   mapProps.onIdle = ({ target: map }) => {
@@ -438,11 +434,10 @@ export default function TimelineEditor() {
         return { status: 'refused', error: 'An export is already running in the editor' }
       }
 
-      const canvas = pickVisualizationCanvas({
-        basemapEnabled,
-        map: mapRef.current,
-        deck: deckRef.current,
-      })
+      // With a basemap this is the map canvas: the interleaved deck draws into it. Unlike
+      // mapRef, it is there before the map's load event and never outlives the map.
+      // @ts-expect-error canvas is protected but accessible
+      const canvas: HTMLCanvasElement | null | undefined = deckRef.current?.canvas
       if (!canvas) {
         return {
           status: 'refused',
@@ -478,7 +473,7 @@ export default function TimelineEditor() {
         }),
       }
     },
-    [startCapture, codec, resolution, basemapEnabled, framerate]
+    [startCapture, codec, resolution, framerate]
   )
 
   useEffect(() => {

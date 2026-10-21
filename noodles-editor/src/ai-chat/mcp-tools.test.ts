@@ -203,8 +203,8 @@ describe('getDocumentation guards', () => {
   })
 })
 
-// The editor registers getters rather than a canvas, because with a basemap the deck
-// overlay (and so the canvas) only exists once the map has loaded, after mount
+// The editor registers a deck getter rather than a canvas, because with a basemap the
+// deck overlay (and so the canvas) only exists once the map does, after mount
 describe('visualization tools', () => {
   afterEach(() => setVisualizationTarget(null))
 
@@ -235,13 +235,13 @@ describe('visualization tools', () => {
   })
 
   it('captures a canvas that becomes available after the editor registers', async () => {
-    let canvas: HTMLCanvasElement | null = null
-    setVisualizationTarget({ getCanvas: () => canvas, getDeck: () => null })
+    let deck: Deck | null = null
+    setVisualizationTarget({ getDeck: () => deck })
     const tools = new MCPTools()
 
     expect((await tools.captureVisualization({})).success).toBe(false)
 
-    canvas = redCanvas(64, 32)
+    deck = { canvas: redCanvas(64, 32) } as unknown as Deck
     const result = await tools.captureVisualization({ format: 'png' })
     expect(result.success).toBe(true)
     const data = result.data as { screenshot: string; width: number; height: number }
@@ -252,7 +252,7 @@ describe('visualization tools', () => {
 
   it('inspects a layer on a deck instance created after registration', async () => {
     let deck: Deck | null = null
-    setVisualizationTarget({ getCanvas: () => null, getDeck: () => deck })
+    setVisualizationTarget({ getDeck: () => deck })
     const tools = new MCPTools()
 
     expect((await tools.inspectLayer({ layerId: 'points' })).error).toBe(

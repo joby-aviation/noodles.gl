@@ -1,27 +1,40 @@
 import type { Deck } from '@deck.gl/core'
-import { describe, expect, it } from 'vitest'
-import { pickVisualizationCanvas } from './visualization-target'
+import { afterEach, describe, expect, it } from 'vitest'
+import {
+  getVisualizationCanvas,
+  getVisualizationDeck,
+  setVisualizationTarget,
+} from './visualization-target'
 
-// The editor's choice of canvas for capture_visualization, given its map and deck refs
-describe('pickVisualizationCanvas', () => {
-  const mapCanvas = document.createElement('canvas')
-  const deckCanvas = document.createElement('canvas')
-  const map = { getCanvas: () => mapCanvas }
-  const deck = { canvas: deckCanvas } as unknown as Deck
+// With a basemap the deck is MapLibreOverlay's, built on the map's WebGL context, so its
+// canvas is the map canvas. Reading it through the deck means a removed and re-added
+// basemap never leaves a stale map behind.
+describe('visualization target', () => {
+  afterEach(() => setVisualizationTarget(null))
 
-  it('captures the map canvas with a basemap, so the screenshot includes it', () => {
-    expect(pickVisualizationCanvas({ basemapEnabled: true, map, deck })).toBe(mapCanvas)
+  it('has no deck or canvas while the editor is not mounted', () => {
+    expect(getVisualizationDeck()).toBeNull()
+    expect(getVisualizationCanvas()).toBeNull()
   })
 
-  it("falls back to the deck canvas before the map's load event sets the map ref", () => {
-    expect(pickVisualizationCanvas({ basemapEnabled: true, map: null, deck })).toBe(deckCanvas)
+  it("reads the deck's canvas when asked, not when registered", () => {
+    let deck: Deck | null = null
+    setVisualizationTarget({ getDeck: () => deck })
+    expect(getVisualizationCanvas()).toBeNull()
+
+    const first = document.createElement('canvas')
+    deck = { canvas: first } as unknown as Deck
+    expect(getVisualizationDeck()).toBe(deck)
+    expect(getVisualizationCanvas()).toBe(first)
+
+    // The basemap was removed and added back: a new overlay deck on a new map canvas
+    const second = document.createElement('canvas')
+    deck = { canvas: second } as unknown as Deck
+    expect(getVisualizationCanvas()).toBe(second)
   })
 
-  it('captures the deck canvas without a basemap', () => {
-    expect(pickVisualizationCanvas({ basemapEnabled: false, map, deck })).toBe(deckCanvas)
-  })
-
-  it('returns null while neither the map nor the deck exists', () => {
-    expect(pickVisualizationCanvas({ basemapEnabled: true, map: null, deck: null })).toBeNull()
+  it('returns null while the deck has no canvas yet', () => {
+    setVisualizationTarget({ getDeck: () => ({ canvas: null }) as unknown as Deck })
+    expect(getVisualizationCanvas()).toBeNull()
   })
 })
