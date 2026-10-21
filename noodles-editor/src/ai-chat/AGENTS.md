@@ -13,7 +13,9 @@ Five things to know before changing it:
    reaches them through routing. Read the surface through
    `availableToolDefinitions()` / `getToolDefinition()`, never off the raw
    `toolDefinitions` array — `run_code` is gated on `safeMode` via `available?()` and
-   has to vanish from discovery *and* dispatch together.
+   has to vanish from discovery *and* dispatch together. Tools with
+   `audience: 'external'` (`export_video`, `get_export_status`) are WebMCP-only:
+   the lookups hide them unless passed `{ includeExternal: true }`.
 2. **Only 5 tools are sent by default.** `list_nodes`, `get_node_info`,
    `get_node_output`, `apply_modifications`, `find_tools`. The model calls
    `find_tools({query})` to unlock the rest, so a new tool needs a good description —

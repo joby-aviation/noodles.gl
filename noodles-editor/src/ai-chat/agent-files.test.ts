@@ -4,7 +4,14 @@ import { readAsset } from '../noodles/storage'
 import { memoryProjectStore } from '../noodles/utils/memory-project-store'
 import { capToolResult } from './agent/result-budget'
 import { scoreTools } from './agent/tool-router'
-import { grepFiles, listFiles, readFile, resolvePath, writeFile } from './agent-files'
+import {
+  grepFiles,
+  listFiles,
+  readFile,
+  resolvePath,
+  writeAgentBinary,
+  writeFile,
+} from './agent-files'
 
 const PROJECT = 'agent-files-test'
 
@@ -289,6 +296,36 @@ describe('write_file', () => {
     const result = await writeFile({ path: '.agent/x.csv', content: 'x' })
     expect(result.success).toBe(false)
     expect(result.error).toMatch(/public folder/)
+  })
+})
+
+describe('writeAgentBinary', () => {
+  const store = { type: 'memory' as const, project: PROJECT }
+
+  it('writes inside the sandbox and nowhere else', async () => {
+    const blob = new Blob([new Uint8Array([1, 2, 3])])
+    expect(await writeAgentBinary('.agent/renders/a.mp4', blob, store)).toEqual({
+      ok: true,
+      path: '@/.agent/renders/a.mp4',
+    })
+    const outside = await writeAgentBinary('trips.csv', blob, store)
+    expect(outside.ok).toBe(false)
+  })
+
+  it('refuses to replace an existing file, since it keeps no backup', async () => {
+    const blob = new Blob([new Uint8Array([1, 2, 3])])
+    await writeAgentBinary('.agent/renders/a.mp4', blob, store)
+    const again = await writeAgentBinary('.agent/renders/a.mp4', new Blob(['x']), store)
+    expect(again).toEqual({ ok: false, error: '@/.agent/renders/a.mp4 already exists' })
+    expect(
+      (await memoryProjectStore.readAssetBinary(PROJECT, '.agent/renders/a.mp4'))?.byteLength
+    ).toBe(3)
+  })
+
+  it('writes to the project it is given, not the one open now', async () => {
+    useFileSystemStore.setState({ currentProjectName: 'someone-else' })
+    await writeAgentBinary('.agent/renders/b.mp4', new Blob(['x']), store)
+    expect(memoryProjectStore.checkAssetExists(PROJECT, '.agent/renders/b.mp4')).toBe(true)
   })
 })
 
