@@ -496,6 +496,20 @@
   text-decoration: underline;
 }
 
+/* An action that reads as a link, inside running text */
+.linkButton {
+  padding: 0;
+  border: none;
+  background: none;
+  color: #3b82f6;
+  font: inherit;
+  cursor: pointer;
+}
+
+.linkButton:hover {
+  text-decoration: underline;
+}
+
 /* Result of testing a custom endpoint before saving it */
 .endpointError,
 .endpointOk {
