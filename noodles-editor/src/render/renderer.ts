@@ -148,12 +148,11 @@ export const useRenderer = ({
             ],
           })
           .catch(error => {
-            if (error.name === 'AbortError') {
-              debugRender('File picker cancelled by user for: %s', name)
-            } else {
-              debugRender('Error in showSaveFilePicker for', name, ':', error)
-            }
-            return null // Signal cancellation/failure
+            // Only the user closing the dialog is a cancellation. Anything else, such as
+            // the browser refusing to open it, fails the export.
+            if (error.name !== 'AbortError') throw error
+            debugRender('File picker cancelled by user for: %s', name)
+            return null
           })
 
         if (!fileHandle) {
@@ -407,6 +406,9 @@ export const useRenderer = ({
         return { status: 'done', frameCount, fps, buffer }
       } catch (error) {
         debugRender('Render failed:', error)
+        // After an encoder error the encoder closes, so the next encode() or flush()
+        // throws. The encoder's own error says what went wrong.
+        if (encoderError) return fail('encoder', encoderError)
         return fail('exception', error instanceof Error ? error : new Error(String(error)))
       } finally {
         setIsRendering(false)
@@ -446,6 +448,16 @@ export const useRenderer = ({
       const totalFrames = endFrame - startFrame + 1
       const padLength = Math.max(4, String(endFrame).length)
 
+      // Frames are captured at the canvas's own size
+      const tracker = trackRender({
+        source: 'menu',
+        format: 'png_sequence',
+        width: canvas.width,
+        height: canvas.height,
+        frameCount: totalFrames,
+      })
+      let framesDone = 0
+
       // For pure-deck scenes (no basemap), install a temporary onAfterRender that fires captureFrame().
       // Basemap scenes already drive frame readiness via mapProps.onIdle.
       const deck = getDeck?.()
@@ -467,12 +479,7 @@ export const useRenderer = ({
         })
       }
 
-      // Use captureStream + requestFrame to read from the browser compositor rather than
-      // the raw GL framebuffer (which is cleared after the buffer swap when
-      // preserveDrawingBuffer is false).
-      const track = canvas.captureStream(0).getVideoTracks()[0]
-      const mediaProcessor = new MediaStreamTrackProcessor({ track })
-      const reader = mediaProcessor.readable.getReader()
+      let reader: ReadableStreamDefaultReader<VideoFrame> | undefined
 
       // Pipelined writes: up to MAX_CONCURRENT_WRITES file writes run concurrently with
       // the next frame's render to avoid ~750ms/frame disk flush stalls.
@@ -488,16 +495,15 @@ export const useRenderer = ({
             await writable.close()
           })
 
-      // Frames are captured at the canvas's own size
-      const tracker = trackRender({
-        source: 'menu',
-        format: 'png_sequence',
-        width: canvas.width,
-        height: canvas.height,
-        frameCount: totalFrames,
-      })
-      let framesDone = 0
       try {
+        // Use captureStream + requestFrame to read from the browser compositor rather than
+        // the raw GL framebuffer (which is cleared after the buffer swap when
+        // preserveDrawingBuffer is false). Inside the try: captureStream throws on a
+        // canvas with cross-origin content.
+        const track = canvas.captureStream(0).getVideoTracks()[0]
+        const mediaProcessor = new MediaStreamTrackProcessor({ track })
+        reader = mediaProcessor.readable.getReader()
+
         const exportStartTime = performance.now()
         let totalWaitTime = 0
         let totalCaptureTime = 0
@@ -602,7 +608,7 @@ export const useRenderer = ({
         )
         throw error
       } finally {
-        reader.releaseLock()
+        reader?.releaseLock()
         if (deck) {
           deck.setProps({ onAfterRender: originalOnAfterRender ?? (() => {}) })
         }

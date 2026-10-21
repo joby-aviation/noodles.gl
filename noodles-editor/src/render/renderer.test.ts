@@ -72,85 +72,84 @@ describe('useRenderer', () => {
   // A real encode per codec: the encoder and the MP4 muxer schedule work on the real
   // clock. A codec the browser cannot encode at all is skipped by name, not failed,
   // because that depends on the machine (a GPU-less CI runner may have few).
-  it.for(VIDEO_CODECS)(
-    'renders %s into a buffer without a save dialog',
-    async (codec, { skip }) => {
-      vi.useRealTimers()
-      const mockShowSaveFilePicker = vi.spyOn(globalThis, 'showSaveFilePicker')
-      const canvas = document.createElement('canvas')
-      canvas.width = 64
-      canvas.height = 64
-      document.body.appendChild(canvas)
-      const ctx = canvas.getContext('2d')!
+  it.for(VIDEO_CODECS)('renders %s into a buffer without a save dialog', async (codec, {
+    skip,
+  }) => {
+    vi.useRealTimers()
+    const mockShowSaveFilePicker = vi.spyOn(globalThis, 'showSaveFilePicker')
+    const canvas = document.createElement('canvas')
+    canvas.width = 64
+    canvas.height = 64
+    document.body.appendChild(canvas)
+    const ctx = canvas.getContext('2d')!
 
-      // Headless Chromium only hands over a captured frame once the canvas is painted
-      // after requestFrame, which a live map does on its own. Keep this one painting.
-      let frame = 0
-      const paint = setInterval(() => {
-        ctx.fillStyle = `rgb(${(frame++ * 40) % 255}, 0, 0)`
-        ctx.fillRect(0, 0, 64, 64)
-      }, 5)
+    // Headless Chromium only hands over a captured frame once the canvas is painted
+    // after requestFrame, which a live map does on its own. Keep this one painting.
+    let frame = 0
+    const paint = setInterval(() => {
+      ctx.fillStyle = `rgb(${(frame++ * 40) % 255}, 0, 0)`
+      ctx.fillRect(0, 0, 64, 64)
+    }, 5)
 
-      try {
-        // Stands in for the draw loop: report the frame ready once the renderer awaits it
-        const redraw = vi.fn(() => {
-          queueMicrotask(() => result.current.captureFrame())
-        })
-        const { result } = renderHook(() =>
-          useRenderer({ fps: 30, bitrate: 1_000_000, bitrateMode: 'constant', redraw })
-        )
+    try {
+      // Stands in for the draw loop: report the frame ready once the renderer awaits it
+      const redraw = vi.fn(() => {
+        queueMicrotask(() => result.current.captureFrame())
+      })
+      const { result } = renderHook(() =>
+        useRenderer({ fps: 30, bitrate: 1_000_000, bitrateMode: 'constant', redraw })
+      )
 
-        const onFrameComplete = vi.fn()
-        let capture: CaptureResult | undefined
-        await act(async () => {
-          capture = await result.current.startCapture({
-            canvas,
-            width: 64,
-            height: 64,
-            codec,
-            fps: 10,
-            startFrame: 0,
-            endFrame: 4,
-            target: 'buffer',
-            source: 'agent',
-            onFrameComplete,
-          })
-        })
-
-        expect(mockShowSaveFilePicker).not.toHaveBeenCalled()
-        expect(result.current.isRendering).toBe(false)
-        if (
-          capture?.status === 'error' &&
-          capture.error.message.startsWith('This browser cannot encode')
-        ) {
-          skip(`this browser has no ${codec} encoder, hardware or software`)
-        }
-        // The message, not just the status, so a CI failure says why
-        expect(capture?.status === 'error' ? capture.error.message : capture?.status).toBe('done')
-        if (capture?.status !== 'done') return
-        expect(capture.frameCount).toBe(5)
-        expect(capture.fps).toBe(10)
-        expect(onFrameComplete).toHaveBeenLastCalledWith(5, 5)
-        // An MP4 starts with an ftyp box
-        const header = new TextDecoder().decode(new Uint8Array(capture.buffer!, 4, 4))
-        expect(header).toBe('ftyp')
-        expect(trackedEvents()).toEqual(['render_started', 'render_completed'])
-        expect(track).toHaveBeenLastCalledWith('render_completed', {
-          source: 'agent',
-          format: 'mp4',
+      const onFrameComplete = vi.fn()
+      let capture: CaptureResult | undefined
+      await act(async () => {
+        capture = await result.current.startCapture({
+          canvas,
+          width: 64,
+          height: 64,
           codec,
-          resolution: 'under_720p',
-          frameCount: 5,
-          durationMs: expect.any(Number),
+          fps: 10,
+          startFrame: 0,
+          endFrame: 4,
+          target: 'buffer',
+          source: 'agent',
+          onFrameComplete,
         })
-      } finally {
-        clearInterval(paint)
-        canvas.remove()
-        mockShowSaveFilePicker.mockRestore()
-        vi.useFakeTimers()
+      })
+
+      expect(mockShowSaveFilePicker).not.toHaveBeenCalled()
+      expect(result.current.isRendering).toBe(false)
+      if (
+        capture?.status === 'error' &&
+        capture.error.message.startsWith('This browser cannot encode')
+      ) {
+        skip(`this browser has no ${codec} encoder, hardware or software`)
       }
+      // The message, not just the status, so a CI failure says why
+      expect(capture?.status === 'error' ? capture.error.message : capture?.status).toBe('done')
+      if (capture?.status !== 'done') return
+      expect(capture.frameCount).toBe(5)
+      expect(capture.fps).toBe(10)
+      expect(onFrameComplete).toHaveBeenLastCalledWith(5, 5)
+      // An MP4 starts with an ftyp box
+      const header = new TextDecoder().decode(new Uint8Array(capture.buffer!, 4, 4))
+      expect(header).toBe('ftyp')
+      expect(trackedEvents()).toEqual(['render_started', 'render_completed'])
+      expect(track).toHaveBeenLastCalledWith('render_completed', {
+        source: 'agent',
+        format: 'mp4',
+        codec,
+        resolution: 'under_720p',
+        frameCount: 5,
+        durationMs: expect.any(Number),
+      })
+    } finally {
+      clearInterval(paint)
+      canvas.remove()
+      mockShowSaveFilePicker.mockRestore()
+      vi.useFakeTimers()
     }
-  )
+  })
 })
 
 describe('useRenderer analytics on failure', () => {
@@ -191,6 +190,66 @@ describe('useRenderer analytics on failure', () => {
       durationMs: expect.any(Number),
       errorCategory: 'unsupported_codec',
       errorName: 'Error',
+      framesDone: 0,
+    })
+  })
+
+  it('tracks a save dialog the browser refuses as a failure, not a cancellation', async () => {
+    vi.spyOn(globalThis, 'showSaveFilePicker').mockRejectedValue(
+      new DOMException('Must be handling a user gesture', 'SecurityError')
+    )
+    vi.spyOn(VideoEncoder, 'isConfigSupported').mockImplementation(async config => ({
+      supported: true,
+      config,
+    }))
+    const { result } = renderHook(() =>
+      useRenderer({ fps: 30, bitrateMode: 'constant', redraw: vi.fn() })
+    )
+
+    let capture: CaptureResult | undefined
+    await act(async () => {
+      capture = await result.current.startCapture({
+        canvas: document.createElement('canvas'),
+        width: 100,
+        height: 100,
+        codec: 'avc',
+        endFrame: 10,
+      })
+    })
+
+    expect(capture?.status).toBe('error')
+    expect(trackedEvents()).toEqual(['render_started', 'render_failed'])
+    expect(track.mock.lastCall![1]).toMatchObject({
+      errorCategory: 'exception',
+      errorName: 'SecurityError',
+    })
+  })
+
+  it('tracks an image sequence that fails during setup', async () => {
+    const canvas = document.createElement('canvas')
+    vi.spyOn(canvas, 'captureStream').mockImplementation(() => {
+      throw new DOMException('Canvas is not origin-clean', 'SecurityError')
+    })
+    const { result } = renderHook(() =>
+      useRenderer({ fps: 30, bitrateMode: 'constant', redraw: vi.fn() })
+    )
+
+    await act(async () => {
+      await expect(
+        result.current.startSequenceCapture({
+          canvas,
+          directoryHandle: {} as FileSystemDirectoryHandle,
+          endFrame: 2,
+        })
+      ).rejects.toThrow('origin-clean')
+    })
+
+    expect(result.current.isRendering).toBe(false)
+    expect(trackedEvents()).toEqual(['render_started', 'render_failed'])
+    expect(track.mock.lastCall![1]).toMatchObject({
+      format: 'png_sequence',
+      errorCategory: 'exception',
+      errorName: 'SecurityError',
       framesDone: 0,
     })
   })
