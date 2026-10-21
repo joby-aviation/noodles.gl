@@ -90,7 +90,10 @@ same walk rather than showing an error.
 
 "Ready" is not the same question as "has a key":
 
-- `anthropic`, `openrouter` — a key, from any source.
+- `anthropic`, `openrouter` — a key from the browser or the environment. A project
+  file is never a source: `keys-store` strips `AI_KEY_TYPES` from it on load and
+  from `getKeysForProject()` on save, so a shared file cannot point the chat at its
+  author's account or carry the user's key away.
 - `custom` — a saved base URL *and* model. The key is optional: `CustomProvider` omits
   the `Authorization` header entirely when there is none, because `Bearer ` with
   nothing after it is a malformed credential that a keyless endpoint may reject where
