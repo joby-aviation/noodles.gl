@@ -9,7 +9,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { analytics } from '../utils/analytics'
 import { debugAiChat } from '../utils/debug'
-import { AUTH_MESSAGE_TYPE, adoptOpenRouterKey, beginOpenRouterAuth } from './openrouter-oauth'
+import {
+  AUTH_MESSAGE_TYPE,
+  adoptOpenRouterKey,
+  beginOpenRouterAuth,
+  openAuthPopup,
+} from './openrouter-oauth'
 
 const POPUP_POLL_MS = 500
 
@@ -18,10 +23,13 @@ export type ConnectStatus = 'idle' | 'connecting' | 'connected' | 'error'
 export interface OpenRouterConnect {
   status: ConnectStatus
   error: string | null
-  // Set when the browser blocked the popup, so the caller can offer a link the
+  // Set when the browser blocked the popup, so the caller can offer a button the
   // user clicks themselves
   blockedUrl: string | null
   connect: () => void
+  // Reopens the blocked popup. Call it straight from a click handler: the click
+  // is the user gesture that gets the popup past the blocker.
+  retryPopup: () => void
   reset: () => void
 }
 
@@ -103,5 +111,16 @@ export function useOpenRouterConnect(): OpenRouterConnect {
       })
   }, [])
 
-  return { status, error, blockedUrl, connect, reset }
+  // Same flow, same verifier: only the window failed to open. A plain link would
+  // not do, since a new tab opened from one has no opener to post the key to and
+  // no copy of the sessionStorage that holds the verifier.
+  const retryPopup = useCallback(() => {
+    if (!blockedUrl) return
+    const popup = openAuthPopup(blockedUrl)
+    if (!popup) return
+    popupRef.current = popup
+    setBlockedUrl(null)
+  }, [blockedUrl])
+
+  return { status, error, blockedUrl, connect, retryPopup, reset }
 }

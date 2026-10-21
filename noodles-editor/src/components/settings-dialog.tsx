@@ -559,9 +559,13 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
                         {openRouterConnect.blockedUrl && (
                           <div className={s.providerOptionDescription}>
                             Your browser blocked the sign-in window.{' '}
-                            <a href={openRouterConnect.blockedUrl} target="_blank" rel="noreferrer">
-                              Open it in a new tab
-                            </a>
+                            <button
+                              type="button"
+                              onClick={openRouterConnect.retryPopup}
+                              className={s.linkButton}
+                            >
+                              Open it again
+                            </button>
                             .
                           </div>
                         )}
