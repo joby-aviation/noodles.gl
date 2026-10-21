@@ -8,9 +8,9 @@ This section covers using Claude Code (the CLI tool) to work directly with proje
 # Start the dev server
 cd noodles-editor && npm start
 
-# Projects are in noodles-editor/public/examples/
+# Projects are in noodles-editor/src/examples/
 # Each project directory contains a noodles.json and optional data files
-ls noodles-editor/public/examples/
+ls src/examples/
 ```
 
 ### Editing Project Files Directly
@@ -20,15 +20,17 @@ Project files (`noodles.json`) are plain JSON and can be read and written by Cla
 - Node IDs are Unix-style paths: `/my-node`, `/container/child`
 - Edge handles: `out.fieldName` (source) → `par.fieldName` (target)
 - Only non-default input values need to be serialized
-- Version 6 is current; do not change the version field
+- Version 18 is current (the latest migration in `src/noodles/__migrations__/`). Write new files at the current version; older files are migrated when they load, so don't bump the version of an existing file by hand
 
 ### Validating Changes
 
-After editing a project file, run the project's tests to catch schema issues:
+After editing a project in `src/examples/`, check that the JSON parses and every edge points at an existing node (run from the repo root):
 
 ```bash
-cd noodles-editor && npm test src/noodles/storage.test.ts
+npm run validate:examples
 ```
+
+This is a structural check only; it does not check operator types or handle names.
 
 Load it in the browser at `http://localhost:5173/examples/<project-name>` to visually verify.
 

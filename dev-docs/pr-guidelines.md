@@ -174,7 +174,7 @@ Always include a `noodles.json` file that reviewers can save and load:
 
 ```json
 {
-  "version": 6,
+  "version": 18,
   "nodes": [
     {
       "id": "/test-data",
