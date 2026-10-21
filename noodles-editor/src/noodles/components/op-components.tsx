@@ -230,9 +230,7 @@ function UnknownOperatorComponent({
           </div>
           <div className={s.unknownOperatorContent}>
             <div className={s.unknownOperatorType}>{op.originalType}</div>
-            <div className={s.unknownOperatorHelp}>
-              This operator type is no longer available
-            </div>
+            <div className={s.unknownOperatorHelp}>This operator type is no longer available</div>
           </div>
         </div>
       </ContextMenu.Trigger>

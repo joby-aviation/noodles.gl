@@ -211,10 +211,7 @@ describe('ReactFlow optimizations integration', () => {
       expect(updateCount).toBe(1)
 
       // Add edge (new array)
-      const edges2 = [
-        ...edges1,
-        { id: 'e2', source: 's2', target: 't2' },
-      ] as Edge[]
+      const edges2 = [...edges1, { id: 'e2', source: 's2', target: 't2' }] as Edge[]
       simulateEdgeSyncCheck(edges2)
       expect(updateCount).toBe(2)
 
@@ -348,8 +345,7 @@ describe('ReactFlow optimizations integration', () => {
       expect(memoizedLookups).toBe(10) // 10 nodes × 1 lookup
 
       // Calculate reduction
-      const reductionPercentage =
-        ((unmemoizedLookups - memoizedLookups) / unmemoizedLookups) * 100
+      const reductionPercentage = ((unmemoizedLookups - memoizedLookups) / unmemoizedLookups) * 100
       expect(reductionPercentage).toBe(80) // 80% reduction (5x improvement)
     })
   })

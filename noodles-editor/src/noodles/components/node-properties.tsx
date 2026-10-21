@@ -40,11 +40,7 @@ import {
 import { type NodeType, createNodesForType } from '../utils/node-creation-utils'
 import { computeRelativePath, getBaseName, parseHandleId } from '../utils/path-utils'
 import { captureOperatorInputs, firePropertyMutation } from '../utils/property-history'
-import {
-  formatReference,
-  parseReference,
-  type ReferenceFormat,
-} from '../utils/reference-utils'
+import { formatReference, parseReference, type ReferenceFormat } from '../utils/reference-utils'
 import { ErrorBoundary } from './error-boundary'
 import {
   BooleanFieldComponent,
@@ -232,7 +228,8 @@ async function pasteReference(
       return false
     }
 
-    const targetField = namespace === 'par' ? targetOp.inputs[fieldName] : targetOp.outputs[fieldName]
+    const targetField =
+      namespace === 'par' ? targetOp.inputs[fieldName] : targetOp.outputs[fieldName]
     if (!targetField) {
       console.warn(`Paste reference: field not found: ${fieldName}`)
       return false
@@ -643,9 +640,7 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
         const parsed = parseReference(text)
         if (parsed) {
           // Update context menu with clipboard reference
-          setContextMenu(prev =>
-            prev ? { ...prev, clipboardReference: text } : prev
-          )
+          setContextMenu(prev => (prev ? { ...prev, clipboardReference: text } : prev))
         }
       })
       .catch(() => {

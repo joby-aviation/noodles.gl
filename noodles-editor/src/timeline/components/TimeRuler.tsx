@@ -339,19 +339,13 @@ export function TimeRuler({
   }, [])
 
   // In/Out point handlers
-  const handleInPointMove = useCallback(
-    (newPosition: number) => {
-      useTimelineStore.getState().setInPoint(newPosition)
-    },
-    []
-  )
+  const handleInPointMove = useCallback((newPosition: number) => {
+    useTimelineStore.getState().setInPoint(newPosition)
+  }, [])
 
-  const handleOutPointMove = useCallback(
-    (newPosition: number) => {
-      useTimelineStore.getState().setOutPoint(newPosition)
-    },
-    []
-  )
+  const handleOutPointMove = useCallback((newPosition: number) => {
+    useTimelineStore.getState().setOutPoint(newPosition)
+  }, [])
 
   const handleInPointMoveStart = useCallback(() => {
     beforeStateRef.current = captureTimelineState()
@@ -589,7 +583,18 @@ function InOutMarker({
       document.addEventListener('pointermove', handleMove)
       document.addEventListener('pointerup', handleUp)
     },
-    [position, pixelsPerSecond, fps, type, inPoint, outPoint, sequenceLength, onMove, onMoveStart, onMoveEnd]
+    [
+      position,
+      pixelsPerSecond,
+      fps,
+      type,
+      inPoint,
+      outPoint,
+      sequenceLength,
+      onMove,
+      onMoveStart,
+      onMoveEnd,
+    ]
   )
 
   return (

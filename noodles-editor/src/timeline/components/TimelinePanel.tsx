@@ -380,7 +380,11 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
       }
 
       // Cmd/Ctrl+C to copy selected keyframes
-      if ((e.key === 'c' || e.key === 'C') && (e.metaKey || e.ctrlKey) && selectedKeyframeIds.size > 0) {
+      if (
+        (e.key === 'c' || e.key === 'C') &&
+        (e.metaKey || e.ctrlKey) &&
+        selectedKeyframeIds.size > 0
+      ) {
         e.preventDefault()
         getTimelineStore().copySelectedKeyframes()
       }

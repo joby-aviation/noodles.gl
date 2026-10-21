@@ -400,7 +400,7 @@ describe('React Render Performance', () => {
 
       // Should only re-render the 5 affected nodes, not all 100
       expect(rerenderedCount).toBe(5)
-      expect(rerenderedCount / nodeCount * 100).toBeLessThan(10) // <10% of graph re-rendered
+      expect((rerenderedCount / nodeCount) * 100).toBeLessThan(10) // <10% of graph re-rendered
     })
   })
 

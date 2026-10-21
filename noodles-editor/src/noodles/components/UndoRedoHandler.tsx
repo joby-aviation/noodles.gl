@@ -31,69 +31,70 @@ export const UndoRedoHandler = forwardRef<UndoRedoHandlerRef, UndoRedoHandlerPro
   ({ graphRef }, ref) => {
     const undoRedo = useUndoRedo({ graphRef })
 
-  // Register the timeline mutation callback so timeline ops join the unified undo stack
-  useEffect(() => {
-    registerTimelineMutationCallback(undoRedo.recordTimelineChange)
-    return () => registerTimelineMutationCallback(undefined)
-  }, [undoRedo.recordTimelineChange])
+    // Register the timeline mutation callback so timeline ops join the unified undo stack
+    useEffect(() => {
+      registerTimelineMutationCallback(undoRedo.recordTimelineChange)
+      return () => registerTimelineMutationCallback(undefined)
+    }, [undoRedo.recordTimelineChange])
 
-  // Register the property mutation callback so field edits join the unified undo stack
-  useEffect(() => {
-    registerPropertyMutationCallback(undoRedo.recordPropertyChange)
-    return () => registerPropertyMutationCallback(undefined)
-  }, [undoRedo.recordPropertyChange])
+    // Register the property mutation callback so field edits join the unified undo stack
+    useEffect(() => {
+      registerPropertyMutationCallback(undoRedo.recordPropertyChange)
+      return () => registerPropertyMutationCallback(undefined)
+    }, [undoRedo.recordPropertyChange])
 
-  // Register the lock change callback so locking and unlocking join the unified undo stack
-  useEffect(() => {
-    registerLockChangeCallback(undoRedo.recordLockChange)
-    return () => registerLockChangeCallback(undefined)
-  }, [undoRedo.recordLockChange])
+    // Register the lock change callback so locking and unlocking join the unified undo stack
+    useEffect(() => {
+      registerLockChangeCallback(undoRedo.recordLockChange)
+      return () => registerLockChangeCallback(undefined)
+    }, [undoRedo.recordLockChange])
 
-  // Expose the undo/redo methods to parent component via ref
-  useImperativeHandle(
-    ref,
-    () => ({
-      undo: () => {
-        analytics.track('undo_performed')
-        undoRedo.undo()
-      },
-      redo: () => {
-        analytics.track('redo_performed')
-        undoRedo.redo()
-      },
-      canUndo: undoRedo.canUndo,
-      canRedo: undoRedo.canRedo,
-      getState: undoRedo.getState,
-      isRestoring: undoRedo.isRestoring,
-    }),
-    [undoRedo]
-  )
+    // Expose the undo/redo methods to parent component via ref
+    useImperativeHandle(
+      ref,
+      () => ({
+        undo: () => {
+          analytics.track('undo_performed')
+          undoRedo.undo()
+        },
+        redo: () => {
+          analytics.track('redo_performed')
+          undoRedo.redo()
+        },
+        canUndo: undoRedo.canUndo,
+        canRedo: undoRedo.canRedo,
+        getState: undoRedo.getState,
+        isRestoring: undoRedo.isRestoring,
+      }),
+      [undoRedo]
+    )
 
-  // Add keyboard shortcuts
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (shouldBlockKeyboardShortcut(e)) return
+    // Add keyboard shortcuts
+    useEffect(() => {
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (shouldBlockKeyboardShortcut(e)) return
 
-      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === 'z') {
-        e.preventDefault()
-        debugHistoryUndo('Undo triggered via keyboard')
-        analytics.track('undo_performed')
-        undoRedo.undo()
-      } else if (
-        ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'z') ||
-        ((e.ctrlKey || e.metaKey) && e.key === 'y')
-      ) {
-        e.preventDefault()
-        debugHistoryRedo('Redo triggered via keyboard')
-        analytics.track('redo_performed')
-        undoRedo.redo()
+        if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === 'z') {
+          e.preventDefault()
+          debugHistoryUndo('Undo triggered via keyboard')
+          analytics.track('undo_performed')
+          undoRedo.undo()
+        } else if (
+          ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'z') ||
+          ((e.ctrlKey || e.metaKey) && e.key === 'y')
+        ) {
+          e.preventDefault()
+          debugHistoryRedo('Redo triggered via keyboard')
+          analytics.track('redo_performed')
+          undoRedo.redo()
+        }
       }
-    }
 
-    document.addEventListener('keydown', handleKeyDown)
-    return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [undoRedo])
+      document.addEventListener('keydown', handleKeyDown)
+      return () => document.removeEventListener('keydown', handleKeyDown)
+    }, [undoRedo])
 
-  // This component doesn't render anything
-  return null
-})
+    // This component doesn't render anything
+    return null
+  }
+)

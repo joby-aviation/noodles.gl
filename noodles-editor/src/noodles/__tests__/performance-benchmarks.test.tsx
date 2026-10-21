@@ -374,9 +374,7 @@ describe('Performance Benchmarks', () => {
     it('should skip redundant updates on position-only changes', () => {
       let updateCount = 0
 
-      const edges = [
-        { id: 'e1', source: 's1', target: 't1' },
-      ] as ReactFlowEdge[]
+      const edges = [{ id: 'e1', source: 's1', target: 't1' }] as ReactFlowEdge[]
 
       let prevEdgesRef: ReactFlowEdge[] | null = null
 

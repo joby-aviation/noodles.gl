@@ -96,7 +96,7 @@ function StringLiteralValuesInput({
   const handleBlur = () => {
     const parsed = inputValue
       .split(',')
-      .map((v) => v.trim())
+      .map(v => v.trim())
       .filter(Boolean)
     onChange(parsed)
   }
@@ -104,7 +104,7 @@ function StringLiteralValuesInput({
   return (
     <InputText
       value={inputValue}
-      onChange={(e) => setInputValue(e.target.value)}
+      onChange={e => setInputValue(e.target.value)}
       onBlur={handleBlur}
       placeholder="option1, option2, option3"
       className={s.fullWidthInput}

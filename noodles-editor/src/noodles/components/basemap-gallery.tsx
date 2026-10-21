@@ -18,7 +18,12 @@ interface BasemapGalleryProps {
   currentValue?: string
 }
 
-export function BasemapGallery({ open, onOpenChange, onSelect, currentValue }: BasemapGalleryProps) {
+export function BasemapGallery({
+  open,
+  onOpenChange,
+  onSelect,
+  currentValue,
+}: BasemapGalleryProps) {
   const [search, setSearch] = useState('')
   const [providerFilter, setProviderFilter] = useState('all')
   const [categoryFilter, setCategoryFilter] = useState<'all' | BasemapCategory>('all')

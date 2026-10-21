@@ -46,5 +46,4 @@ describe('edge uniqueness', () => {
       'already belongs to a different connection'
     )
   })
-
 })
