@@ -208,9 +208,11 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
 
   // A just-connected account has no credit, so leaving the model on the paid
   // default would greet the user with a billing error. Only fills a gap: a model
-  // the user picked before is left alone.
+  // the user picked before is left alone. Waits for the catalogue: a pick made
+  // before it arrives can only be the paid default, and a stored model is never
+  // revisited.
   useEffect(() => {
-    if (connect.status !== 'connected' || storedOpenRouterModel) return
+    if (connect.status !== 'connected' || storedOpenRouterModel || !freeModels.length) return
     setStoredModel('openrouter', defaultFreeModel(freeModels))
   }, [connect.status, storedOpenRouterModel, freeModels, setStoredModel])
 
@@ -504,8 +506,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
   // capable browsers, but it's the weakest option, so we should prompt the user
   // to configure a better provider unless they specifically want Chrome.
   const shouldShowOnboarding =
-    !contextLoading &&
-    (!providerReady || (providerId === 'chrome' && preference !== 'chrome'))
+    !contextLoading && (!providerReady || (providerId === 'chrome' && preference !== 'chrome'))
 
   if (shouldShowOnboarding) {
     return (
@@ -645,16 +646,6 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
             >
               Local model (on-device)
               {!webgpuReady ? ' - unavailable' : !storedWebLLMModel && ' - choose model'}
-            </option>
-            <option
-              value="webllm"
-              // Enabled once WebGPU is there, even with no model chosen yet: picking
-              // it here is how the user says they want one, and the panel then sends
-              // them to Settings rather than starting a download on its own
-              disabled={!webgpuReady}
-              title="Free, private, no key. Runs on this machine's GPU after a one-time download of a gigabyte or more."
-            >
-              Local model (on-device)
             </option>
             <option
               value="chrome"

@@ -1,12 +1,8 @@
+import type { OpenRouterConnect } from '../../noodles/use-openrouter-connect'
 import styles from './assistant-onboarding.module.css'
 
 interface AssistantOnboardingProps {
-  connect: {
-    status: 'idle' | 'connecting' | 'connected' | 'error'
-    error: string | null
-    blockedUrl: string | null
-    connect: () => void
-  }
+  connect: Pick<OpenRouterConnect, 'status' | 'error' | 'blockedUrl' | 'connect' | 'retryPopup'>
   webgpuReady: boolean
   openProviderSettings: () => void
   onClose: () => void
@@ -20,7 +16,7 @@ export function AssistantOnboarding({
   onClose,
   freeModels,
 }: AssistantOnboardingProps) {
-  const freeModelName = freeModels.length > 0 ? freeModels[0].label : 'qwen2.5'
+  const freeModelName = freeModels[0]?.label ?? 'a free model'
 
   return (
     <div className={styles.container}>
@@ -36,8 +32,8 @@ export function AssistantOnboarding({
             <h4 className={styles.cardTitle}>OpenRouter</h4>
           </div>
           <p className={styles.cardDescription}>
-            Cloud service with free tier. 50 messages/day on {freeModelName}, no credit card
-            needed. Sign in with GitHub, Google, or email.
+            Cloud service with free tier. 50 messages/day on {freeModelName}, no credit card needed.
+            Sign in with GitHub, Google, or email.
           </p>
           <button
             type="button"
@@ -50,9 +46,11 @@ export function AssistantOnboarding({
           {connect.blockedUrl && (
             <p className={styles.errorText}>
               Browser blocked the sign-in window.{' '}
-              <a href={connect.blockedUrl} target="_blank" rel="noreferrer">
-                Open in new tab
-              </a>
+              {/* A button, not a link: a tab opened from a link has no opener to
+                  post the key back to and no copy of the verifier */}
+              <button type="button" onClick={connect.retryPopup} className={styles.linkButton}>
+                Open it again
+              </button>
             </p>
           )}
           {connect.error && <p className={styles.errorText}>{connect.error}</p>}
@@ -68,11 +66,7 @@ export function AssistantOnboarding({
               Runs entirely on your device. Requires a one-time download (0.9–5.6 GB) and a GPU.
               Nothing sent to any server.
             </p>
-            <button
-              type="button"
-              onClick={openProviderSettings}
-              className={styles.secondaryButton}
-            >
+            <button type="button" onClick={openProviderSettings} className={styles.secondaryButton}>
               Choose a model
             </button>
           </div>
