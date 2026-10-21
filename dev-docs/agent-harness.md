@@ -270,6 +270,13 @@ when the window is under 32k. Each step is one model turn plus its tool batch.
   read-only (`ToolAnnotations.readOnlyHint`, or `HarnessTool.readOnly`); the first
   mutating call forces the rest to run in order after it, so two
   `apply_modifications` calls can never race.
+- **Repeated calls.** A call identical to an earlier one (same name, same input)
+  is not run again; the model gets the earlier outcome back as an error telling it
+  to try something else, and the third identical call ends the run. Small models
+  otherwise loop — the same failed lookup six times, or the same edit queued six
+  times. A successful mutating call clears the memory of read-only calls, since a
+  read may now return something new, and a read that follows a write in the same
+  batch always runs. Each refusal emits a `repeated_tool_call` diagnostic.
 - **Validated edits.** `apply_modifications` validates the whole batch against
   `ProjectModificationSchema` and the project before anything is queued: ids must
   name existing nodes (or nodes added earlier in the batch or the run), `add_node`
@@ -289,6 +296,13 @@ when the window is under 32k. Each step is one model turn plus its tool batch.
   names are the class's fields plus the live operator's, plus custom inputs an
   `add_node` in the run declares. A handle is checked by its whole name, since the
   graph looks up `par.viewState.zoom` as a field named `viewState.zoom`.
+- **Unverified edit claims.** A reply that announces a change in the past tense
+  ("the radius has been set to 10") when no mutating tool succeeded and no
+  modification was queued gets a one-line correction appended and emits an
+  `unverified_edit_claim` diagnostic. On-device models do this often — one step, no
+  tool call, a confident report — and unmarked it reads as done. Present-tense
+  descriptions ("is currently set to `#8d12af`"), instructions and refusals are left
+  alone; `claimsAnEdit` in `agent/loop.ts` holds the test.
 - **Screenshots.** Base64 is stripped from the tool result and reattached as an
   image block on the follow-up message — only when `provider.supportsImages`.
 - **Opaque provider blocks.** Anything a provider needs echoed back verbatim
@@ -474,7 +488,17 @@ the rest:
 | `build` | inspect plus `apply_modifications` and keyframes | yes |
 
 A `build` sub-agent's edits reach the graph because `delegate` returns them under
-`modifications`, which the parent loop already collects.
+`modifications`, which the parent loop already collects. A `build` child that
+reports success while nothing landed — no modifications, no keyframe call — comes
+back as an **error** with its claim quoted, because the report is all the parent
+can see and small models write reports for work they never did. A keyframe-only
+build queues no modifications, so `delegate` also returns `changed: true` when the
+child's own tools changed the project.
+
+`delegate` is only offered when `provider.contextWindow` is at least 32k
+(`DELEGATE_MIN_CONTEXT_TOKENS`). Below that the window cannot afford a second loop,
+and on-device models spent their one delegation on a fabricated report they then
+relayed to the user.
 
 ## Transcript fidelity
 

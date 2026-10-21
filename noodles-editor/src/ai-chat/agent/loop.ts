@@ -35,6 +35,12 @@ const SMALL_CONTEXT_TOKENS = 32_000
 
 const DEFAULT_MAX_TOKENS = 8192
 
+// Small models loop: the same lookup after it failed, the same edit queued six
+// times. An identical call gets the earlier outcome back as an error instead of
+// running again, and the call that reaches this count ends the run.
+const REPEAT_LIMIT = 3
+const REPEAT_PREVIEW_CHARS = 200
+
 interface ScreenshotData {
   screenshot: string
   format?: 'png' | 'jpeg'
@@ -51,6 +57,29 @@ function isScreenshotData(data: unknown): data is ScreenshotData {
     'screenshot' in data &&
     typeof (data as ScreenshotData).screenshot === 'string'
   )
+}
+
+// delegate is marked mutating because its child may edit the graph, but a report
+// is a claim, not a change. Only changed: true, set when one of the child's own
+// tools changed the project, tells the parent work landed.
+function reportsWithoutEdits(data: unknown): boolean {
+  return (
+    typeof data === 'object' &&
+    data !== null &&
+    'report' in data &&
+    (data as { changed?: unknown }).changed !== true
+  )
+}
+
+// Whether a successful mutating call changed the project. run_code is marked
+// mutating because it can set field values, but most calls only read, and it
+// reports changedFieldValues when one did change.
+function changedProject(outcome: { name: string; result: ToolResult }): boolean {
+  if (outcome.name === 'run_code') {
+    const data = outcome.result.data as { changedFieldValues?: unknown } | undefined
+    return data?.changedFieldValues === true
+  }
+  return !reportsWithoutEdits(outcome.result.data)
 }
 
 function isModificationsData(data: unknown): data is ModificationsData {
@@ -116,6 +145,13 @@ export async function runAgent(params: RunAgentParams): Promise<AgentRunResult> 
   let stopReason: StopReason = 'end_turn'
   let steps = 0
 
+  const seen = new Map<string, SeenCall>()
+  let looping = false
+  // Whether any mutating tool actually succeeded. Keyframe tools change the
+  // project without going through the modifications list, so the list alone is
+  // not enough to tell whether the run did anything.
+  let mutated = false
+
   while (steps < maxSteps) {
     if (signal?.aborted)
       return { text, toolCalls, modifications, messages, usage, stopReason: 'aborted', steps }
@@ -152,14 +188,61 @@ export async function runAgent(params: RunAgentParams): Promise<AgentRunResult> 
 
     if (turn.toolCalls.length === 0) break
 
-    const executed = await executeToolBatch({
-      calls: turn.toolCalls,
+    const fresh: StreamedTurn['toolCalls'] = []
+    const refused = new Map<string, ToolOutcome>()
+    // The batch runs in order once it holds a write, so a read after one may see
+    // a different answer than last time and has to run
+    let writeAhead = false
+    for (const call of turn.toolCalls) {
+      const prior = seen.get(callSignature(call))
+      if (!prior || (writeAhead && prior.readOnly)) {
+        fresh.push(call)
+        if (!isReadOnly(call.name, router)) writeAhead = true
+        continue
+      }
+      prior.count++
+      if (prior.count >= REPEAT_LIMIT) looping = true
+      onEvent?.({
+        type: 'diagnostic',
+        kind: 'repeated_tool_call',
+        detail: `${call.name} ×${prior.count}`,
+      })
+      const result: ToolResult = {
+        success: false,
+        error: `You already called ${call.name} with these arguments and got ${prior.outcome}. Calling it again returns the same thing — try a different tool or different arguments, or answer with what you know.`,
+      }
+      refused.set(call.id, { ...call, result, capped: result })
+    }
+
+    const ran = await executeToolBatch({
+      calls: fresh,
       tools,
       router,
       resultBudget,
       depth,
       signal,
     })
+
+    for (const outcome of ran) {
+      const readOnly = isReadOnly(outcome.name, router)
+      // A successful write can change what any earlier call returns or does, so
+      // they may all run again: a read may see something new, and repeating an
+      // earlier write (a playhead back to 0 after 5) undoes this one
+      if (!readOnly && outcome.result.success) {
+        if (changedProject(outcome)) mutated = true
+        seen.clear()
+      }
+      seen.set(callSignature(outcome), {
+        count: 1,
+        outcome: describeOutcome(outcome.capped),
+        readOnly,
+      })
+    }
+
+    const ranById = new Map(ran.map(outcome => [outcome.id, outcome]))
+    const executed = turn.toolCalls.map(
+      call => (ranById.get(call.id) ?? refused.get(call.id)) as ToolOutcome
+    )
 
     const resultContent: AgentContent[] = []
     let pendingScreenshot: { data: string; mediaType: string } | null = null
@@ -202,6 +285,11 @@ export async function runAgent(params: RunAgentParams): Promise<AgentRunResult> 
     }
 
     messages.push({ role: 'user', content: resultContent })
+
+    if (looping) {
+      debugAiChat('[agent] stopping: the model repeated a tool call %d times', REPEAT_LIMIT)
+      break
+    }
   }
 
   if (steps >= maxSteps && stopReason === 'tool_use') {
@@ -213,7 +301,56 @@ export async function runAgent(params: RunAgentParams): Promise<AgentRunResult> 
   // edit landing and the user seeing a wall of JSON.
   modifications.push(...extractProsedModifications(text))
 
+  // Small models announce edits they never made — "the radius is now 10", one
+  // step, no tool call. Passing that on unmarked reads as done, so the reply
+  // carries a correction and the run carries a diagnostic the bench can count.
+  if (!mutated && modifications.length === 0 && claimsAnEdit(text)) {
+    onEvent?.({ type: 'diagnostic', kind: 'unverified_edit_claim' })
+    debugAiChat('[agent] reply claims an edit but no tool changed the project')
+    text += `\n\n${UNVERIFIED_EDIT_NOTE}`
+  }
+
   return { text, toolCalls, modifications, messages, usage, stopReason, steps }
+}
+
+export const UNVERIFIED_EDIT_NOTE =
+  '_Nothing was applied: the project is unchanged. The step above describes what should happen, not what happened._'
+
+// Past-tense claims of a change that landed. Deliberately narrow: it only ever
+// runs when the project really is unchanged, so a stray match costs a redundant
+// note, while "I cannot change it" matching costs nothing worth avoiding.
+const EDIT_CLAIM =
+  /\b(?:added|created|updated|changed|set|connected|wired|removed|deleted|fixed|renamed|applied|enabled|disabled)\b(?![^.!?]*\?)/gi
+// Past or perfect aspect only. "is currently set to #8d12af" describes the graph
+// and is the right answer to a question; "has been set to 10" claims a change.
+const CLAIM_SUBJECT =
+  /\b(?:i(?:'ve| have)?|we(?:'ve| have)?|has|have|had|was|were|been|now|successfully)\s+\w*\s*$/i
+
+export function claimsAnEdit(text: string): boolean {
+  // Every verb, not the first: "is currently set to purple. I have changed it"
+  // describes, then claims. "I set the radius" is a claim; "set the radius
+  // yourself" is an instruction.
+  for (const match of text.matchAll(EDIT_CLAIM)) {
+    if (CLAIM_SUBJECT.test(text.slice(0, match.index))) return true
+  }
+  return false
+}
+
+interface SeenCall {
+  count: number
+  outcome: string
+  readOnly: boolean
+}
+
+function callSignature(call: { name: string; input: Record<string, unknown> }): string {
+  return `${call.name}:${JSON.stringify(call.input)}`
+}
+
+function describeOutcome(result: ToolResult): string {
+  const text = result.success
+    ? `success: ${JSON.stringify(result.data ?? null)}`
+    : `error: ${result.error ?? 'failed'}`
+  return text.length > REPEAT_PREVIEW_CHARS ? `${text.slice(0, REPEAT_PREVIEW_CHARS)}…` : text
 }
 
 const JSON_BLOCK = /```json\s*([\s\S]*?)\s*```/g
