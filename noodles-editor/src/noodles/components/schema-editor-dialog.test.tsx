@@ -99,6 +99,32 @@ describe('SchemaEditorDialog', () => {
     )
   })
 
+  it('should keep focus on a column after moving it', () => {
+    const schema: TableSchema = {
+      columns: [
+        { name: 'first', type: 'string', defaultValue: '' },
+        { name: 'second', type: 'string', defaultValue: '' },
+        { name: 'third', type: 'string', defaultValue: '' },
+      ],
+    }
+    render(<SchemaEditorDialog schema={schema} onChange={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button'))
+
+    const firstRow = screen.getByDisplayValue('first').closest('[class*="columnRow"]')
+    const moveDown = firstRow?.querySelector('.pi-arrow-down')?.closest('button') as HTMLElement
+    moveDown.focus()
+    fireEvent.click(moveDown)
+
+    const nameInputs = screen.getAllByPlaceholderText('Column name')
+    expect(nameInputs.map(input => (input as HTMLInputElement).value)).toEqual([
+      'second',
+      'first',
+      'third',
+    ])
+    const focusedRow = document.activeElement?.closest('[class*="columnRow"]')
+    expect(focusedRow?.querySelector('input')).toHaveValue('first')
+  })
+
   it('should increment a duplicate column numeric suffix', () => {
     render(<SchemaEditorDialog schema={mockSchema} onChange={vi.fn()} />)
 
