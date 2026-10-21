@@ -51,7 +51,7 @@ export const useTimelineDependencyStore = create<TimelineDependencyState>((set, 
     const { subscriptions } = get()
     const cleanupFns = subscriptions.get(opId)
     if (cleanupFns) {
-      cleanupFns.forEach(fn => fn())
+      for (const fn of cleanupFns) fn()
       const newSubscriptions = new Map(subscriptions)
       newSubscriptions.delete(opId)
       set({ subscriptions: newSubscriptions })

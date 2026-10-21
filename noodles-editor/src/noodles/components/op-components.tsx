@@ -788,7 +788,9 @@ function useFieldValueChanges(op: Operator<IOperator> | undefined) {
       .filter(Boolean)
       .map(field => field.subscribe(() => forceUpdate(n => n + 1)))
 
-    return () => subscriptions.forEach(sub => sub.unsubscribe())
+    return () => {
+      for (const sub of subscriptions) sub.unsubscribe()
+    }
   }, [op])
 }
 
@@ -1822,7 +1824,9 @@ function DirectionsOpComponent({
     const subscriptions = [op.inputs.mode, op.inputs.departureMode].map(field =>
       field.subscribe(() => forceFieldVisibilityUpdate(value => value + 1))
     )
-    return () => subscriptions.forEach(subscription => subscription.unsubscribe())
+    return () => {
+      for (const subscription of subscriptions) subscription.unsubscribe()
+    }
   }, [op])
 
   if (!op) return null

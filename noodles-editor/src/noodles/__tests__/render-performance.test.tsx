@@ -216,7 +216,9 @@ describe('React Render Performance', () => {
       render(<GraphComponent nodes={ops} />)
 
       // Reset counts
-      renderCounts.forEach((_, key) => renderCounts.set(key, 0))
+      renderCounts.forEach((_, key) => {
+        renderCounts.set(key, 0)
+      })
 
       // Update 5 operators
       act(() => {
