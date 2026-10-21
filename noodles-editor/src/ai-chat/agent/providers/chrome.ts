@@ -312,7 +312,8 @@ export class ChromeProvider implements AgentProvider {
     const offset = this.sent.length
     const input = toPromptMessages(lines.slice(offset), request.messages, offset)
 
-    if (!(await this.fits(session, input, options))) {
+    // An untrimmable turn is sent as-is, so the API's own quota error reaches the user
+    if (canTrim(request.messages) && !(await this.fits(session, input, options))) {
       debugAiChat('[chrome] turn will not fit, rebuilding on a trimmed transcript')
       return this.retrimmed(api, request, options, signal)
     }
@@ -321,6 +322,8 @@ export class ChromeProvider implements AgentProvider {
       return await this.send(session, input, options, lines)
     } catch (error) {
       if (isQuotaExceeded(error)) {
+        // A rebuild on the same transcript would overflow the same way
+        if (!canTrim(request.messages)) throw error
         // measureContextUsage is optional, and its estimate can be short of what the
         // session actually charges, so catch-and-retry stays as a backstop
         debugAiChat('[chrome] over quota, rebuilding on a trimmed transcript')
@@ -507,6 +510,11 @@ function toPromptMessages(
 
 function isAbort(error: unknown): boolean {
   return error instanceof Error && (error.name === 'AbortError' || error.name === 'TimeoutError')
+}
+
+// False when trimTranscript would keep every message, so a retry would send the same turn
+function canTrim(messages: AgentMessage[]): boolean {
+  return trimTranscript(messages).length < messages.length
 }
 
 function isQuotaExceeded(error: unknown): boolean {

@@ -272,6 +272,27 @@ describe('ChromeProvider.stream', () => {
     expect(events.at(-1)).toEqual({ type: 'stop', reason: 'end_turn' })
   })
 
+  // After the first tool call there is no middle to drop, so a rebuild would send
+  // the same oversized turn again
+  it('does not rebuild an overflow when there is nothing to trim', async () => {
+    const quota = new Error('too big')
+    quota.name = 'QuotaExceededError'
+    const { prompts, create } = stubLanguageModel({ responses: [quota] })
+
+    const messages: AgentRequest['messages'] = [
+      { role: 'user', content: [{ type: 'text', text: 'add a layer' }] },
+      {
+        role: 'assistant',
+        content: [{ type: 'tool_use', id: 'a', name: 'list_nodes', input: {} }],
+      },
+      { role: 'user', content: [{ type: 'tool_result', toolUseId: 'a', content: '[...]' }] },
+    ]
+
+    await expect(collect(new ChromeProvider(), request({ messages }))).rejects.toThrow('too big')
+    expect(create).toHaveBeenCalledTimes(1)
+    expect(prompts).toHaveLength(1)
+  })
+
   it('trims before the API throws when the session can measure', async () => {
     const { prompts, create } = stubLanguageModel({
       responses: ['{"tool":"none","reply":"ok"}'],
