@@ -34,6 +34,7 @@ interface KeyGroupProps {
   onBrowserChange: (value: string) => void
   onBrowserClear: () => void
   onProjectRemove?: () => void
+  notice?: string
   inputRef?: React.RefObject<HTMLInputElement>
 }
 
@@ -48,6 +49,7 @@ const KeyGroup = ({
   onBrowserChange,
   onBrowserClear,
   onProjectRemove,
+  notice,
   inputRef,
 }: KeyGroupProps) => {
   const handleCopy = (value: string, source: 'project' | 'env') => {
@@ -124,10 +126,17 @@ const KeyGroup = ({
             </button>
           </div>
         )}
+
+        {notice && <div className={s.keyDescription}>{notice}</div>}
       </div>
     </div>
   )
 }
+
+// An AI key in a project file is dropped on load, so the user is told rather than
+// left wondering why the chat does not use it
+const ignoredProjectKeyNotice = (keyName: string) =>
+  `This project file included ${keyName} key. It isn't used, and saving removes it from the file.`
 
 type TabName = 'general' | 'ai-provider' | 'api-keys'
 
@@ -140,6 +149,7 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
   const browserKeys = useKeysStore(state => state.browserKeys)
   const saveInProject = useKeysStore(state => state.saveInProject)
   const projectKeys = useKeysStore(state => state.projectKeys || {})
+  const ignoredProjectKeys = useKeysStore(state => state.ignoredProjectKeys)
   const providerPreference = useKeysStore(state => state.getProviderPreference())
   const customEndpoint = useKeysStore(state => state.getCustomEndpoint())
   const setBrowserKey = useKeysStore(state => state.setBrowserKey)
@@ -798,7 +808,8 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
 
                   <div className={s.privacyNote}>
                     Your API keys are never sent to Noodles.gl servers. Keys can be stored in your
-                    browser or in project files.
+                    browser or in project files. AI provider keys are never read from or saved to
+                    project files.
                   </div>
 
                   <div className={s.keysGroup}>
@@ -864,7 +875,6 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
                       description="Claude models directly from Anthropic. Get your API key at console.anthropic.com/settings/keys"
                       placeholder="sk-ant-..."
                       browserValue={browserKeys.anthropic || ''}
-                      projectValue={projectKeys.anthropic}
                       envValue={envKeys.anthropic}
                       activeSource={getActiveSource('anthropic')}
                       onBrowserChange={value => setBrowserKey('anthropic', value)}
@@ -872,10 +882,11 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
                         setBrowserKey('anthropic', undefined)
                         analytics.track('key_cleared', { key: 'anthropic' })
                       }}
-                      onProjectRemove={() => {
-                        removeProjectKey('anthropic')
-                        analytics.track('project_key_removed', { key: 'anthropic' })
-                      }}
+                      notice={
+                        ignoredProjectKeys.includes('anthropic')
+                          ? ignoredProjectKeyNotice('an Anthropic')
+                          : undefined
+                      }
                       inputRef={anthropicInputRef}
                     />
 
@@ -884,7 +895,6 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
                       description="Access to multiple AI providers with unified billing. Get your API key at openrouter.ai/keys"
                       placeholder="sk-or-v1-..."
                       browserValue={browserKeys.openrouter || ''}
-                      projectValue={projectKeys.openrouter}
                       envValue={envKeys.openrouter}
                       activeSource={getActiveSource('openrouter')}
                       onBrowserChange={value => setBrowserKey('openrouter', value)}
@@ -892,10 +902,11 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
                         setBrowserKey('openrouter', undefined)
                         analytics.track('key_cleared', { key: 'openrouter' })
                       }}
-                      onProjectRemove={() => {
-                        removeProjectKey('openrouter')
-                        analytics.track('project_key_removed', { key: 'openrouter' })
-                      }}
+                      notice={
+                        ignoredProjectKeys.includes('openrouter')
+                          ? ignoredProjectKeyNotice('an OpenRouter')
+                          : undefined
+                      }
                       inputRef={openRouterInputRef}
                     />
 
@@ -931,9 +942,9 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
                       <div className={s.settingContent}>
                         <div className={s.settingName}>Save browser keys in project file</div>
                         <div className={s.settingDescription}>
-                          Include your browser keys in the project file when saving. Only enable
-                          this if you want to share your keys with collaborators. Keys are stored in
-                          plain text.
+                          Include your browser map and data keys in the project file when saving.
+                          Only enable this if you want to share them with collaborators. Keys are
+                          stored in plain text. AI provider keys are never saved in a project file.
                         </div>
                       </div>
                     </label>

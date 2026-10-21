@@ -34,6 +34,7 @@ export type NoodlesProjectJSON = ReactFlowJsonObject & {
     mapbox?: string
     googleMaps?: string
     cesium?: string
+    // Older files may carry AI keys. They are dropped on load and never written.
     anthropic?: string
   }
 }
