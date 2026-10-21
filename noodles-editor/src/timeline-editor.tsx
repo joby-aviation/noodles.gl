@@ -486,6 +486,7 @@ export default function TimelineEditor() {
           startFrame: settings.startFrame,
           endFrame: settings.endFrame,
           target: 'buffer',
+          source: 'agent',
           onFrameComplete: (frame, total) => {
             setRenderProgress(frame, total)
             onFrameComplete(frame, total)
