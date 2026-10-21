@@ -1283,9 +1283,10 @@ export function FileUrlFieldComponent({
           {field.suggestions.length > 0 && suggestionsOpen && filteredSuggestions.length > 0 && (
             <ul className={s.fileUrlSuggestions}>
               {filteredSuggestions.map(({ value: val, label }) => (
-                // biome-ignore lint/a11y/useSemanticElements: custom combobox option
+                // biome-ignore lint/a11y/useFocusableInteractive: mouse-only suggestions; typing a URL is the keyboard path
                 <li
                   key={val}
+                  // biome-ignore lint/a11y/noNoninteractiveElementToInteractiveRole: mouse-only suggestions; typing a URL is the keyboard path
                   role="option"
                   aria-selected={val === value}
                   className={cx(s.fileUrlSuggestion, {
@@ -1984,6 +1985,13 @@ export function EmptyFieldComponent({ id }: { id: OpId; field: Field<IField> }) 
   )
 }
 
+const BEZIER_SVG_SIZE = { width: 200, height: 150 }
+const BEZIER_PADDING = { top: 10, right: 10, bottom: 20, left: 20 }
+const BEZIER_GRAPH_AREA = {
+  width: BEZIER_SVG_SIZE.width - BEZIER_PADDING.left - BEZIER_PADDING.right,
+  height: BEZIER_SVG_SIZE.height - BEZIER_PADDING.top - BEZIER_PADDING.bottom,
+}
+
 export function BezierCurveFieldComponent({
   id,
   field,
@@ -2005,36 +2013,23 @@ export function BezierCurveFieldComponent({
     startY: number
   } | null>(null)
 
-  const svgSize = { width: 200, height: 150 }
-  const padding = { top: 10, right: 10, bottom: 20, left: 20 }
-  const graphArea = useMemo(
-    () => ({
-      width: svgSize.width - padding.left - padding.right,
-      height: svgSize.height - padding.top - padding.bottom,
-    }),
-    []
-  )
-
   // Convert SVG coordinates to curve coordinates (0-1, 0-1)
-  const svgToCurve = useCallback(
-    (x: number, y: number) => {
-      const curveX = (x - padding.left) / graphArea.width
-      const curveY = 1 - (y - padding.top) / graphArea.height // Flip Y axis
-      return {
-        x: Math.max(0, Math.min(1, curveX)),
-        y: Math.max(0, Math.min(1, curveY)),
-      }
-    },
-    [graphArea.width, graphArea.height]
-  )
+  const svgToCurve = useCallback((x: number, y: number) => {
+    const curveX = (x - BEZIER_PADDING.left) / BEZIER_GRAPH_AREA.width
+    const curveY = 1 - (y - BEZIER_PADDING.top) / BEZIER_GRAPH_AREA.height // Flip Y axis
+    return {
+      x: Math.max(0, Math.min(1, curveX)),
+      y: Math.max(0, Math.min(1, curveY)),
+    }
+  }, [])
 
   // Convert curve coordinates to SVG coordinates
   const curveToSvg = useCallback(
     (x: number, y: number) => ({
-      x: padding.left + x * graphArea.width,
-      y: padding.top + (1 - y) * graphArea.height, // Flip Y axis
+      x: BEZIER_PADDING.left + x * BEZIER_GRAPH_AREA.width,
+      y: BEZIER_PADDING.top + (1 - y) * BEZIER_GRAPH_AREA.height, // Flip Y axis
     }),
-    [graphArea.width, graphArea.height]
+    []
   )
 
   // Generate SVG path for the bezier curve
@@ -2073,14 +2068,14 @@ export function BezierCurveFieldComponent({
 
     // Vertical grid lines
     for (let i = 0; i <= 4; i++) {
-      const x = padding.left + (i / 4) * graphArea.width
+      const x = BEZIER_PADDING.left + (i / 4) * BEZIER_GRAPH_AREA.width
       lines.push(
         <line
           key={`v-${i}`}
           x1={x}
-          y1={padding.top}
+          y1={BEZIER_PADDING.top}
           x2={x}
-          y2={padding.top + graphArea.height}
+          y2={BEZIER_PADDING.top + BEZIER_GRAPH_AREA.height}
           stroke="#333"
           strokeWidth="1"
         />
@@ -2089,13 +2084,13 @@ export function BezierCurveFieldComponent({
 
     // Horizontal grid lines
     for (let i = 0; i <= 4; i++) {
-      const y = padding.top + (i / 4) * graphArea.height
+      const y = BEZIER_PADDING.top + (i / 4) * BEZIER_GRAPH_AREA.height
       lines.push(
         <line
           key={`h-${i}`}
-          x1={padding.left}
+          x1={BEZIER_PADDING.left}
           y1={y}
-          x2={padding.left + graphArea.width}
+          x2={BEZIER_PADDING.left + BEZIER_GRAPH_AREA.width}
           y2={y}
           stroke="#333"
           strokeWidth="1"
@@ -2104,7 +2099,7 @@ export function BezierCurveFieldComponent({
     }
 
     return lines
-  }, [graphArea])
+  }, [])
 
   // Find what the user is trying to interact with
   const getInteractionTarget = useCallback(
@@ -2290,9 +2285,9 @@ export function BezierCurveFieldComponent({
       <div className={s.bezierCurveEditor}>
         <svg
           ref={svgRef}
-          width={svgSize.width}
-          height={svgSize.height}
-          viewBox={`0 0 ${svgSize.width} ${svgSize.height}`}
+          width={BEZIER_SVG_SIZE.width}
+          height={BEZIER_SVG_SIZE.height}
+          viewBox={`0 0 ${BEZIER_SVG_SIZE.width} ${BEZIER_SVG_SIZE.height}`}
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
@@ -2311,17 +2306,17 @@ export function BezierCurveFieldComponent({
         >
           <title>Bezier curve editor</title>
           {/* Background */}
-          <rect width={svgSize.width} height={svgSize.height} fill="#1a1a1a" />
+          <rect width={BEZIER_SVG_SIZE.width} height={BEZIER_SVG_SIZE.height} fill="#1a1a1a" />
 
           {/* Grid */}
           {gridLines}
 
           {/* Border */}
           <rect
-            x={padding.left}
-            y={padding.top}
-            width={graphArea.width}
-            height={graphArea.height}
+            x={BEZIER_PADDING.left}
+            y={BEZIER_PADDING.top}
+            width={BEZIER_GRAPH_AREA.width}
+            height={BEZIER_GRAPH_AREA.height}
             fill="none"
             stroke="#555"
             strokeWidth="1"
@@ -2924,6 +2919,17 @@ export function FieldComponent({
   )
 }
 
+// Normalize bbox value to object format for internal use
+function normalizeBboxValue(val: any) {
+  if (Array.isArray(val)) {
+    // Tuple format: [[lng, lat], [lng, lat]] or [{lng, lat}, {lng, lat}]
+    const sw = Array.isArray(val[0]) ? { lng: val[0][0], lat: val[0][1] } : val[0]
+    const ne = Array.isArray(val[1]) ? { lng: val[1][0], lat: val[1][1] } : val[1]
+    return { southwest: sw, northeast: ne }
+  }
+  return val
+}
+
 export function BboxFieldComponent({
   id,
   field,
@@ -2939,21 +2945,10 @@ export function BboxFieldComponent({
   fieldName?: string
   expandTimeline?: () => void
 }) {
-  // Normalize bbox value to object format for internal use
-  const normalizeValue = (val: any) => {
-    if (Array.isArray(val)) {
-      // Tuple format: [[lng, lat], [lng, lat]] or [{lng, lat}, {lng, lat}]
-      const sw = Array.isArray(val[0]) ? { lng: val[0][0], lat: val[0][1] } : val[0]
-      const ne = Array.isArray(val[1]) ? { lng: val[1][0], lat: val[1][1] } : val[1]
-      return { southwest: sw, northeast: ne }
-    }
-    return val
-  }
-
   const [value, setValue] = useState<{
     southwest: { lng: number; lat: number }
     northeast: { lng: number; lat: number }
-  }>(normalizeValue(guardAccessorFallback(field.value)))
+  }>(normalizeBboxValue(guardAccessorFallback(field.value)))
   const [geocodingOpen, setGeocodingOpen] = useState(false)
   const [geocodingCorner, setGeocodingCorner] = useState<'southwest' | 'northeast'>('southwest')
   const { captureStart, commitChange } = usePropertyHistory()
@@ -2965,7 +2960,7 @@ export function BboxFieldComponent({
   useEffect(() => {
     const sub = field.subscribe(newVal => {
       if (typeof newVal === 'function') return
-      setValue(normalizeValue(newVal))
+      setValue(normalizeBboxValue(newVal))
     })
     return () => sub.unsubscribe()
   }, [field])

@@ -192,6 +192,7 @@ export function GeocodingDialog({
   }, [])
 
   // Fly to a location with smooth animation
+  // biome-ignore lint/correctness/useExhaustiveDependencies: mapInstance is undefined until the map mounts
   const flyToLocation = useCallback(
     (coordinates: { longitude: number; latitude: number }, zoom = 14) => {
       if (mapInstance) {

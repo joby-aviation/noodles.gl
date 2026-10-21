@@ -74,6 +74,27 @@ const DeckGLOverlay = forwardRef<
 
 const isMapReady = (map: MapLibre | null) => !map || (map.isStyleLoaded() && map.areTilesLoaded())
 
+// Helper function to evaluate MapLibre layer code using shared fnWithSource utility
+function evaluateMapLibreLayerCode(
+  code: string,
+  params: Record<string, unknown>,
+  layerId: string,
+  map: MapLibre
+): Partial<CustomLayerInterface> {
+  const fn = fnWithSource(['params', 'map'], code, layerId)
+  const result = fn(params, map)
+
+  if (typeof result !== 'object' || result === null) {
+    throw new Error('Layer code must return an object')
+  }
+
+  if (typeof result.render !== 'function') {
+    throw new Error('Layer code must define a render() method')
+  }
+
+  return result as Partial<CustomLayerInterface>
+}
+
 export default function TimelineEditor() {
   const mapRef = useRef<MapLibre | null>(null)
   const deckRef = useRef<Deck>(null)
@@ -216,28 +237,8 @@ export default function TimelineEditor() {
     }
   }, [light, sky])
 
-  // Helper function to evaluate MapLibre layer code using shared fnWithSource utility
-  const evaluateMapLibreLayerCode = (
-    code: string,
-    params: Record<string, unknown>,
-    layerId: string,
-    map: MapLibre
-  ): Partial<CustomLayerInterface> => {
-    const fn = fnWithSource(['params', 'map'], code, layerId)
-    const result = fn(params, map)
-
-    if (typeof result !== 'object' || result === null) {
-      throw new Error('Layer code must return an object')
-    }
-
-    if (typeof result.render !== 'function') {
-      throw new Error('Layer code must define a render() method')
-    }
-
-    return result as Partial<CustomLayerInterface>
-  }
-
   // Manage custom MapLibre layers
+  // biome-ignore lint/correctness/useExhaustiveDependencies: styleVersion re-adds the layers after a style reload
   useEffect(() => {
     const map = mapRef.current
     if (!map || !map.isStyleLoaded()) return

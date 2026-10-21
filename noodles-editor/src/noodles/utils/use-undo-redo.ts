@@ -207,7 +207,7 @@ export function useUndoRedo(options?: UseUndoRedoOptions) {
     }
 
     store.setState({ onNodesChange: onNodesChangeWithHistory })
-  }, [onNodesChange, store])
+  }, [onNodesChange, store, getSnapshot])
 
   // Intercept edges changes
   useEffect(() => {
@@ -303,7 +303,7 @@ export function useUndoRedo(options?: UseUndoRedoOptions) {
     }
 
     store.setState({ onEdgesChange: onEdgesChangeWithHistory })
-  }, [onEdgesChange, store])
+  }, [onEdgesChange, store, getSnapshot])
 
   const undo = useCallback(() => {
     debugHistoryUndo('Undo check: currentIndex=%d, history.length=%d', currentIndex, history.length)
@@ -434,7 +434,7 @@ export function useUndoRedo(options?: UseUndoRedoOptions) {
     queueMicrotask(() => {
       isRestoringRef.current = false
     })
-  }, [currentIndex, history, store, getSnapshot])
+  }, [currentIndex, history, getSnapshot])
 
   const redo = useCallback(() => {
     if (currentIndex >= history.length - 1) return
@@ -544,7 +544,7 @@ export function useUndoRedo(options?: UseUndoRedoOptions) {
     queueMicrotask(() => {
       isRestoringRef.current = false
     })
-  }, [currentIndex, history, store, getSnapshot])
+  }, [currentIndex, history, getSnapshot])
 
   const canUndo =
     currentIndex >= 0 && currentIndex < history.length && history[currentIndex] != null

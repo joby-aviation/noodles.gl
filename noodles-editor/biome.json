@@ -20,6 +20,12 @@
     "rules": {
       "preset": "recommended",
       "a11y": {
+        "noLabelWithoutControl": {
+          "level": "error",
+          "options": {
+            "inputComponents": ["InputNumber", "InputSwitch", "StringLiteralValuesInput"]
+          }
+        },
         "useKeyWithClickEvents": "off"
       },
       "complexity": {
@@ -104,36 +110,13 @@
     },
     {
       "includes": [
-        "src/app.tsx",
-        "src/noodles/components/basemap-gallery.tsx",
-        "src/noodles/components/field-components.tsx",
         "src/noodles/components/geocoding-dialog.tsx",
         "src/noodles/components/graph-error-dialog.tsx",
-        "src/noodles/components/multi-input-handle.tsx",
         "src/noodles/components/op-components.tsx",
-        "src/noodles/components/ramp-editor.tsx",
-        "src/noodles/components/schema-editor-dialog.tsx",
-        "src/noodles/components/spreadsheet-pane/spreadsheet-viewer.tsx",
-        "src/noodles/components/table-editor.tsx",
-        "src/noodles/utils/use-undo-redo.ts",
-        "src/timeline-editor.tsx",
-        "src/timeline/components/CurvePopup.tsx",
-        "src/timeline/components/KeyframeTrack.tsx"
+        "src/noodles/components/schema-editor-dialog.tsx"
       ],
       "linter": {
         "rules": {
-          "a11y": {
-            "noAutofocus": "warn",
-            "noLabelWithoutControl": "warn",
-            "noNoninteractiveElementToInteractiveRole": "warn",
-            "noNoninteractiveTabindex": "warn",
-            "noStaticElementInteractions": "warn",
-            "useFocusableInteractive": "warn",
-            "useSemanticElements": "warn"
-          },
-          "correctness": {
-            "useExhaustiveDependencies": "warn"
-          },
           "suspicious": {
             "noArrayIndexKey": "warn"
           }
