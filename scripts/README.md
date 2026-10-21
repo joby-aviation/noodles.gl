@@ -33,7 +33,6 @@ The pre-commit hook will:
 
 ### Other Scripts
 
-- `benchmark-export.ts` - Performance benchmarking for export functionality
 - `generate-context.ts` - Generate AI context bundles for Claude integration
 - `generate-migration.ts` - Generate migration scripts for project schema updates
 - `migrate-project-files.ts` - Apply migrations to project files
