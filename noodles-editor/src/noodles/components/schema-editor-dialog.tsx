@@ -320,17 +320,13 @@ function ColumnEditor({
         </div>
       </div>
 
-      <div
-        className={s.defaultValueRow}
-        role="group"
-        aria-label={`Default value for ${column.name}`}
-      >
+      <fieldset className={s.defaultValueRow} aria-label={`Default value for ${column.name}`}>
         <span className={s.optionLabel}>Default:</span>
         <DefaultValueEditor
           column={column}
           onChange={defaultValue => onChange({ ...column, defaultValue })}
         />
-      </div>
+      </fieldset>
 
       {column.type === 'number' && (
         <div className={s.typeOptions}>

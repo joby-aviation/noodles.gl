@@ -39,7 +39,8 @@ venv.bak/
 **/.yarn/
 
 # vibe coding
-.claude
+.claude/*
+!.claude/skills/
 .spec-workflow/
 !.spec-workflow/specs
 

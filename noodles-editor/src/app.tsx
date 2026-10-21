@@ -48,6 +48,7 @@ function PageviewTracker() {
   // Snapshot at mount: was PostHog already tracking when this component rendered?
   const hadConsentAtMount = useRef(analytics.isEnabled())
   const isFirstRender = useRef(true)
+  // biome-ignore lint/correctness/useExhaustiveDependencies: location triggers a pageview on each route change
   useEffect(() => {
     if (isFirstRender.current) {
       isFirstRender.current = false
