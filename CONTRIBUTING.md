@@ -112,11 +112,12 @@ Key concepts:
 
 ### Pull Request Process
 
-1. **Create descriptive PR title** and description
+1. **Create descriptive PR title** and fill in the [PR template](https://github.com/joby-aviation/noodles.gl/blob/main/.github/pull_request_template.md) following the [PR guidelines](https://github.com/joby-aviation/noodles.gl/blob/main/dev-docs/pr-guidelines.md)
 2. **Link related issues** in the PR description
-3. **Ensure CI passes** (linting, tests, build)
-4. **Request review** from maintainers
-5. **Address feedback** promptly
+3. **Attach screenshots for UI changes**: a before/after image, GIF or screen recording with a short caption
+4. **Ensure CI passes** (linting, tests, build)
+5. **Request review** from maintainers
+6. **Address feedback** promptly
 
 ### Commit Message Format
 
@@ -144,6 +145,7 @@ When reporting bugs or requesting features:
 - [Architecture Guide](https://github.com/joby-aviation/noodles.gl/blob/main/dev-docs/architecture.md) - Complete project structure and patterns
 - [Technology Stack](https://github.com/joby-aviation/noodles.gl/blob/main/dev-docs/tech-stack.md) - Full tech stack details
 - [Development Guide](https://github.com/joby-aviation/noodles.gl/blob/main/dev-docs/developing.md) - Development commands and code style
+- [PR Guidelines](https://github.com/joby-aviation/noodles.gl/blob/main/dev-docs/pr-guidelines.md) - PR descriptions, screenshots and test runbooks
 
 ## 🤝 Community
 

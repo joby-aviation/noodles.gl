@@ -239,6 +239,88 @@ describe('Error handling', () => {
   })
 })
 
+describe('Locked operators', () => {
+  it('serves the last output without executing while locked', async () => {
+    const op = new MathOp('/math', { operator: 'add', a: 2, b: 3 })
+    await op.pull()
+    op.locked.next(true)
+    const execute = vi.spyOn(op, 'execute')
+
+    op.inputs.a.setValue(10)
+
+    await expect(op.pull()).resolves.toEqual({ result: 5 })
+    expect(execute).not.toHaveBeenCalled()
+  })
+
+  it('executes once when locked without any output yet', async () => {
+    const op = new MathOp('/math', { operator: 'add', a: 2, b: 3 }, true)
+    const execute = vi.spyOn(op, 'execute')
+
+    await expect(op.pull()).resolves.toEqual({ result: 5 })
+    op.inputs.a.setValue(10)
+    await expect(op.pull()).resolves.toEqual({ result: 5 })
+    expect(execute).toHaveBeenCalledTimes(1)
+  })
+
+  it('catches up on input changes after unlocking', async () => {
+    const op = new MathOp('/math', { operator: 'add', a: 2, b: 3 })
+    await op.pull()
+    op.locked.next(true)
+    op.inputs.a.setValue(10)
+    await op.pull()
+
+    op.locked.next(false)
+
+    await expect(op.pull()).resolves.toEqual({ result: 13 })
+  })
+
+  it('does not pull upstream while locked', async () => {
+    const upstream = new NumberOp('/num', { val: 1 })
+    const op = new MathOp('/math', { operator: 'add', a: 2, b: 3 })
+    op.addUpstreamDependency(upstream)
+    upstream.addDownstreamDependent(op)
+    await op.pull()
+    op.locked.next(true)
+    const upstreamPull = vi.spyOn(upstream, 'pull')
+
+    upstream.inputs.val.setValue(2)
+    await op.pull()
+
+    expect(upstreamPull).not.toHaveBeenCalled()
+  })
+
+  it('serves outputs set with setOutputValues without executing', async () => {
+    const op = new MathOp('/math', { operator: 'add', a: 2, b: 3 }, true)
+    const execute = vi.spyOn(op, 'execute')
+
+    op.setOutputValues({ result: 42 })
+
+    expect(op.hasOutput).toBe(true)
+    await expect(op.pull()).resolves.toEqual({ result: 42 })
+    expect(execute).not.toHaveBeenCalled()
+  })
+
+  it('restores saved outputs and serves them without executing', async () => {
+    const op = new MathOp('/math', { operator: 'add', a: 2, b: 3 }, true)
+    const execute = vi.spyOn(op, 'execute')
+
+    expect(op.restoreOutputs({ result: 42 })).toBe(true)
+
+    expect(op.outputs.result.value).toBe(42)
+    await expect(op.pull()).resolves.toEqual({ result: 42 })
+    expect(execute).not.toHaveBeenCalled()
+  })
+
+  it('ignores saved outputs that no longer fit the output fields', async () => {
+    const op = new MathOp('/math', { operator: 'add', a: 2, b: 3 }, true)
+
+    expect(op.restoreOutputs({ result: 'not a number' })).toBe(false)
+
+    expect(op.hasOutput).toBe(false)
+    await expect(op.pull()).resolves.toEqual({ result: 5 })
+  })
+})
+
 describe('Connection error tracking', () => {
   it('tracks connection errors on operators', () => {
     const operator = new NumberOp('/num-0')
@@ -4063,6 +4145,30 @@ describe('CategoricalColorRampOp', () => {
 })
 
 describe('DirectionsOp', () => {
+  it('exposes traffic scheduling inputs with backward-compatible defaults', () => {
+    const directionsOp = new DirectionsOp('/directions')
+
+    expect(directionsOp.inputs.mode.value).toBe('transit')
+    expect(directionsOp.inputs.departureMode.value).toBe('now')
+    expect(directionsOp.inputs.departureTime.value).toBeInstanceOf(Temporal.PlainDateTime)
+    expect(directionsOp.inputs.trafficModel.value).toBe('best-guess')
+    expect(directionsOp.inputs.avoidTolls.value).toBe(false)
+    expect(directionsOp.isFieldVisible('departureMode')).toBe(false)
+    expect(directionsOp.isFieldVisible('departureTime')).toBe(false)
+    expect(directionsOp.isFieldVisible('trafficModel')).toBe(false)
+    expect(directionsOp.isFieldVisible('avoidTolls')).toBe(false)
+
+    directionsOp.inputs.mode.setValue('driving-traffic')
+    expect(directionsOp.isFieldVisible('departureMode')).toBe(true)
+    expect(directionsOp.isFieldVisible('trafficModel')).toBe(true)
+    expect(directionsOp.isFieldVisible('avoidTolls')).toBe(true)
+    expect(directionsOp.isFieldVisible('departureTime')).toBe(false)
+    directionsOp.inputs.departureMode.setValue('scheduled')
+    expect(directionsOp.inputs.mode.value).toBe('driving-traffic')
+    expect(directionsOp.inputs.departureMode.value).toBe('scheduled')
+    expect(directionsOp.isFieldVisible('departureTime')).toBe(true)
+  })
+
   it('accepts GeoJSON Point Features via Point2DField', () => {
     const directionsOp = new DirectionsOp('/directions')
     const feature = {
@@ -4261,6 +4367,27 @@ describe('GeocoderOp', () => {
 
     await expect(geocoderOp.execute({ query: 'Long Beach' })).rejects.toThrow(
       'Mapbox geocoding failed: 429 Too Many Requests'
+    )
+    getKeySpy.mockRestore()
+  })
+
+  it('includes the reason Mapbox gives for rejecting a query', async () => {
+    const getKeySpy = vi.spyOn(getKeysStore(), 'getKey').mockReturnValue('test-token')
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 422,
+        statusText: 'Unprocessable Entity',
+        json: () => Promise.resolve({ message: 'Query too long - 21/20 tokens' }),
+      })
+    )
+
+    const geocoderOp = new GeocoderOp('/geocoder')
+    geocoderOp.inputs.query.addConnection('query-connection', new StringField('Long Beach'))
+
+    await expect(geocoderOp.execute({ query: 'Long Beach' })).rejects.toThrow(
+      'Mapbox geocoding failed: 422 Query too long - 21/20 tokens'
     )
     getKeySpy.mockRestore()
   })

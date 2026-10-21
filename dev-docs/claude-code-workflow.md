@@ -34,7 +34,7 @@ Load it in the browser at `http://localhost:5173/examples/<project-name>` to vis
 
 ### Connecting Claude Code to a Running Browser Instance
 
-#### WebMCP (recommended)
+#### WebMCP
 
 With `?externalControl=true`, the app registers its full AI tool surface (~27 tools) on `navigator.modelContext` (the W3C WebMCP API, polyfilled via `@mcp-b/global`). External MCP clients reach those tools through the `@mcp-b/webmcp-local-relay` stdio bridge — no proxy code to run:
 
@@ -63,30 +63,6 @@ Notes:
 - The relay embed script is only injected on localhost. Alternatives that need no relay: the WebMCP browser extension, or native Chrome WebMCP (origin trial).
 - If multiple Noodles tabs are open, the relay suffixes tool names with a tab ID.
 - Code search/docs tools download their context bundles on page load when external control is enabled.
-
-#### Legacy WebSocket proxy
-
-The older MCP proxy bridges Claude Code to the browser over a WebSocket. It exposes a smaller camelCase tool surface (`getCurrentProject`, `listNodes`, `createNode`, `connectNodes`, `captureVisualization`, …):
-
-```bash
-# 1. Start the app with external control enabled
-# Open: http://localhost:5173/examples/nyc-taxis?externalControl=true
-
-# 2. Start the MCP proxy (in a separate terminal)
-node noodles-editor/examples/external-control/mcp-proxy.js
-
-# 3. Add to Claude Desktop config:
-#    macOS:   ~/Library/Application Support/Claude/claude_desktop_config.json
-#    Windows: %APPDATA%\Claude\claude_desktop_config.json
-{
-  "mcpServers": {
-    "noodles": {
-      "command": "node",
-      "args": ["/path/to/noodles-editor/examples/external-control/mcp-proxy.js"]
-    }
-  }
-}
-```
 
 ### Graph Design Guidelines for Claude Code
 
