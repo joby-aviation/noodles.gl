@@ -5,15 +5,9 @@ import {
   setRenderProgress,
   useRenderProgressStore,
 } from '../../render/render-progress-store'
-import { analytics } from '../../utils/analytics'
 import { ExportButton } from './export-button'
 
-vi.mock('../../utils/analytics', () => ({
-  analytics: { track: vi.fn() },
-}))
-
 beforeEach(() => {
-  vi.mocked(analytics.track).mockClear()
   resetRenderProgress()
 })
 
@@ -53,7 +47,7 @@ describe('ExportButton', () => {
     expect(screen.getByText("Uses /out's render settings")).toBeInTheDocument()
   })
 
-  it('takes a screenshot and tracks it as a toolbar export', async () => {
+  it('takes a screenshot with the toolbar as its analytics source', async () => {
     const takeScreenshot = vi.fn().mockResolvedValue(undefined)
     render(
       <ExportButton
@@ -68,11 +62,10 @@ describe('ExportButton', () => {
     fireEvent.click(screen.getByRole('menuitem', { name: /image \(png\)/i }))
     await flush()
 
-    expect(takeScreenshot).toHaveBeenCalledOnce()
-    expect(analytics.track).toHaveBeenCalledWith('screenshot_taken', { source: 'toolbar' })
+    expect(takeScreenshot).toHaveBeenCalledExactlyOnceWith('toolbar')
   })
 
-  it('starts a render and tracks it as a toolbar export', async () => {
+  it('starts a render with the toolbar as its analytics source', async () => {
     const startRender = vi.fn().mockResolvedValue(undefined)
     render(
       <ExportButton
@@ -87,8 +80,7 @@ describe('ExportButton', () => {
     fireEvent.click(screen.getByRole('menuitem', { name: /video \(mp4\)/i }))
     await flush()
 
-    expect(startRender).toHaveBeenCalledOnce()
-    expect(analytics.track).toHaveBeenCalledWith('render_started', { source: 'toolbar' })
+    expect(startRender).toHaveBeenCalledExactlyOnceWith('toolbar')
   })
 
   it('disables the open menu when another export starts', async () => {

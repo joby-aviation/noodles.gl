@@ -5,6 +5,7 @@ import { type RefObject, useCallback, useEffect, useMemo, useState } from 'react
 import { useLocation } from 'wouter'
 import logoSvg from '/noodles-favicon.svg'
 import { SettingsDialog } from '../../components/settings-dialog'
+import type { RenderSource } from '../../render/render-analytics'
 import { analytics } from '../../utils/analytics'
 import { debugUI } from '../../utils/debug'
 import { useActiveOutOp } from '../hooks/use-active-outop'
@@ -39,8 +40,8 @@ interface TopMenuBarProps {
   undoRedoRef: RefObject<UndoRedoHandlerRef | null>
   copyControlsRef: RefObject<CopyControlsRef | null>
   // Export functions always use the active OutOp's settings
-  startRender?: () => Promise<void>
-  takeScreenshot?: () => Promise<void>
+  startRender?: (source?: RenderSource) => Promise<void>
+  takeScreenshot?: (source?: RenderSource) => Promise<void>
   isRendering?: boolean
   hasUnsavedChanges?: boolean
   showOverlay?: boolean

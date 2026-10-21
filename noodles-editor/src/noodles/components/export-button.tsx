@@ -1,15 +1,16 @@
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { useCallback } from 'react'
+import type { RenderSource } from '../../render/render-analytics'
 import { useRenderProgressStore } from '../../render/render-progress-store'
-import { analytics } from '../../utils/analytics'
 import s from './export-button.module.css'
 
 interface ExportButtonProps {
   // The OutOp whose render settings the export uses; null when the project has none
   activeOutOpId: string | null
   isRendering: boolean
-  takeScreenshot?: () => Promise<void>
-  startRender?: () => Promise<void>
+  // Both take the analytics source; the renderer tracks the export
+  takeScreenshot?: (source?: RenderSource) => Promise<void>
+  startRender?: (source?: RenderSource) => Promise<void>
 }
 
 // The top bar's Export control, so exporting doesn't depend on knowing the logo menu
@@ -26,14 +27,12 @@ export function ExportButton({
   // items and handlers check isRendering too, not just the trigger
   const handleTakeScreenshot = useCallback(async () => {
     if (!takeScreenshot || isRendering) return
-    await takeScreenshot()
-    analytics.track('screenshot_taken', { source: 'toolbar' })
+    await takeScreenshot('toolbar')
   }, [takeScreenshot, isRendering])
 
   const handleStartRender = useCallback(async () => {
     if (!startRender || isRendering) return
-    await startRender()
-    analytics.track('render_started', { source: 'toolbar' })
+    await startRender('toolbar')
   }, [startRender, isRendering])
 
   const disabledReason = isRendering

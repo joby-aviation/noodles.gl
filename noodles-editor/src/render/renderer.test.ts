@@ -1,7 +1,12 @@
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { analytics } from '../utils/analytics'
-import { type CaptureResult, resolveEncoderConfig, useRenderer } from './renderer'
+import {
+  type CaptureResult,
+  captureScreenshot,
+  resolveEncoderConfig,
+  useRenderer,
+} from './renderer'
 import { VIDEO_CODECS } from './video-export'
 
 vi.mock('../utils/analytics', () => ({
@@ -72,84 +77,85 @@ describe('useRenderer', () => {
   // A real encode per codec: the encoder and the MP4 muxer schedule work on the real
   // clock. A codec the browser cannot encode at all is skipped by name, not failed,
   // because that depends on the machine (a GPU-less CI runner may have few).
-  it.for(VIDEO_CODECS)('renders %s into a buffer without a save dialog', async (codec, {
-    skip,
-  }) => {
-    vi.useRealTimers()
-    const mockShowSaveFilePicker = vi.spyOn(globalThis, 'showSaveFilePicker')
-    const canvas = document.createElement('canvas')
-    canvas.width = 64
-    canvas.height = 64
-    document.body.appendChild(canvas)
-    const ctx = canvas.getContext('2d')!
+  it.for(VIDEO_CODECS)(
+    'renders %s into a buffer without a save dialog',
+    async (codec, { skip }) => {
+      vi.useRealTimers()
+      const mockShowSaveFilePicker = vi.spyOn(globalThis, 'showSaveFilePicker')
+      const canvas = document.createElement('canvas')
+      canvas.width = 64
+      canvas.height = 64
+      document.body.appendChild(canvas)
+      const ctx = canvas.getContext('2d')!
 
-    // Headless Chromium only hands over a captured frame once the canvas is painted
-    // after requestFrame, which a live map does on its own. Keep this one painting.
-    let frame = 0
-    const paint = setInterval(() => {
-      ctx.fillStyle = `rgb(${(frame++ * 40) % 255}, 0, 0)`
-      ctx.fillRect(0, 0, 64, 64)
-    }, 5)
+      // Headless Chromium only hands over a captured frame once the canvas is painted
+      // after requestFrame, which a live map does on its own. Keep this one painting.
+      let frame = 0
+      const paint = setInterval(() => {
+        ctx.fillStyle = `rgb(${(frame++ * 40) % 255}, 0, 0)`
+        ctx.fillRect(0, 0, 64, 64)
+      }, 5)
 
-    try {
-      // Stands in for the draw loop: report the frame ready once the renderer awaits it
-      const redraw = vi.fn(() => {
-        queueMicrotask(() => result.current.captureFrame())
-      })
-      const { result } = renderHook(() =>
-        useRenderer({ fps: 30, bitrate: 1_000_000, bitrateMode: 'constant', redraw })
-      )
-
-      const onFrameComplete = vi.fn()
-      let capture: CaptureResult | undefined
-      await act(async () => {
-        capture = await result.current.startCapture({
-          canvas,
-          width: 64,
-          height: 64,
-          codec,
-          fps: 10,
-          startFrame: 0,
-          endFrame: 4,
-          target: 'buffer',
-          source: 'agent',
-          onFrameComplete,
+      try {
+        // Stands in for the draw loop: report the frame ready once the renderer awaits it
+        const redraw = vi.fn(() => {
+          queueMicrotask(() => result.current.captureFrame())
         })
-      })
+        const { result } = renderHook(() =>
+          useRenderer({ fps: 30, bitrate: 1_000_000, bitrateMode: 'constant', redraw })
+        )
 
-      expect(mockShowSaveFilePicker).not.toHaveBeenCalled()
-      expect(result.current.isRendering).toBe(false)
-      if (
-        capture?.status === 'error' &&
-        capture.error.message.startsWith('This browser cannot encode')
-      ) {
-        skip(`this browser has no ${codec} encoder, hardware or software`)
+        const onFrameComplete = vi.fn()
+        let capture: CaptureResult | undefined
+        await act(async () => {
+          capture = await result.current.startCapture({
+            canvas,
+            width: 64,
+            height: 64,
+            codec,
+            fps: 10,
+            startFrame: 0,
+            endFrame: 4,
+            target: 'buffer',
+            source: 'agent',
+            onFrameComplete,
+          })
+        })
+
+        expect(mockShowSaveFilePicker).not.toHaveBeenCalled()
+        expect(result.current.isRendering).toBe(false)
+        if (
+          capture?.status === 'error' &&
+          capture.error.message.startsWith('This browser cannot encode')
+        ) {
+          skip(`this browser has no ${codec} encoder, hardware or software`)
+        }
+        // The message, not just the status, so a CI failure says why
+        expect(capture?.status === 'error' ? capture.error.message : capture?.status).toBe('done')
+        if (capture?.status !== 'done') return
+        expect(capture.frameCount).toBe(5)
+        expect(capture.fps).toBe(10)
+        expect(onFrameComplete).toHaveBeenLastCalledWith(5, 5)
+        // An MP4 starts with an ftyp box
+        const header = new TextDecoder().decode(new Uint8Array(capture.buffer!, 4, 4))
+        expect(header).toBe('ftyp')
+        expect(trackedEvents()).toEqual(['render_started', 'render_completed'])
+        expect(track).toHaveBeenLastCalledWith('render_completed', {
+          source: 'agent',
+          format: 'mp4',
+          codec,
+          resolution: 'under_720p',
+          frameCount: 5,
+          durationMs: expect.any(Number),
+        })
+      } finally {
+        clearInterval(paint)
+        canvas.remove()
+        mockShowSaveFilePicker.mockRestore()
+        vi.useFakeTimers()
       }
-      // The message, not just the status, so a CI failure says why
-      expect(capture?.status === 'error' ? capture.error.message : capture?.status).toBe('done')
-      if (capture?.status !== 'done') return
-      expect(capture.frameCount).toBe(5)
-      expect(capture.fps).toBe(10)
-      expect(onFrameComplete).toHaveBeenLastCalledWith(5, 5)
-      // An MP4 starts with an ftyp box
-      const header = new TextDecoder().decode(new Uint8Array(capture.buffer!, 4, 4))
-      expect(header).toBe('ftyp')
-      expect(trackedEvents()).toEqual(['render_started', 'render_completed'])
-      expect(track).toHaveBeenLastCalledWith('render_completed', {
-        source: 'agent',
-        format: 'mp4',
-        codec,
-        resolution: 'under_720p',
-        frameCount: 5,
-        durationMs: expect.any(Number),
-      })
-    } finally {
-      clearInterval(paint)
-      canvas.remove()
-      mockShowSaveFilePicker.mockRestore()
-      vi.useFakeTimers()
     }
-  })
+  )
 })
 
 describe('useRenderer analytics on failure', () => {
@@ -307,6 +313,30 @@ describe('useRenderer analytics on failure', () => {
       canvas.remove()
       vi.useFakeTimers()
     }
+  })
+})
+
+describe('captureScreenshot', () => {
+  beforeEach(() => {
+    track.mockClear()
+  })
+
+  it('tracks the source that took the screenshot', async () => {
+    const write = vi.fn()
+    vi.spyOn(globalThis, 'showSaveFilePicker').mockResolvedValue({
+      getFile: async () => new File([], 'shot.png', { type: 'image/png' }),
+      createWritable: async () => ({ write, close: vi.fn() }),
+    } as unknown as FileSystemFileHandle)
+    const canvas = document.createElement('canvas')
+    canvas.width = 4
+    canvas.height = 4
+
+    await captureScreenshot('shot', () => canvas)
+    expect(track).toHaveBeenLastCalledWith('screenshot_taken', { source: 'menu' })
+
+    await captureScreenshot('shot', () => canvas, { source: 'toolbar' })
+    expect(track).toHaveBeenLastCalledWith('screenshot_taken', { source: 'toolbar' })
+    expect(write).toHaveBeenCalledTimes(2)
   })
 })
 
