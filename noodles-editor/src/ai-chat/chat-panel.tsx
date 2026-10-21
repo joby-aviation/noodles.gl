@@ -182,8 +182,11 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
       from: providerId,
       to: cloudProvider ?? 'settings',
     })
-    if (cloudProvider) setPreference(cloudProvider)
-    else openProviderSettings()
+    if (!cloudProvider) return openProviderSettings()
+    // Stop the slow reply rather than leave it running; the old session keeps
+    // its provider until the reply settles (AgentSession.dispose)
+    abortRef.current?.abort()
+    setPreference(cloudProvider)
   }
 
   const dismissNotice = () => {
