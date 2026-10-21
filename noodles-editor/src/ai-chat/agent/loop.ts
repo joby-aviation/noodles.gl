@@ -60,10 +60,15 @@ function isScreenshotData(data: unknown): data is ScreenshotData {
 }
 
 // delegate is marked mutating because its child may edit the graph, but a report
-// with no modifications behind it is a claim, not a change — the parent must not
-// take it as proof that work landed.
+// is a claim, not a change. Only changed: true, set when one of the child's own
+// tools changed the project, tells the parent work landed.
 function reportsWithoutEdits(data: unknown): boolean {
-  return typeof data === 'object' && data !== null && 'report' in data && !isModificationsData(data)
+  return (
+    typeof data === 'object' &&
+    data !== null &&
+    'report' in data &&
+    (data as { changed?: unknown }).changed !== true
+  )
 }
 
 function isModificationsData(data: unknown): data is ModificationsData {
@@ -174,10 +179,14 @@ export async function runAgent(params: RunAgentParams): Promise<AgentRunResult> 
 
     const fresh: StreamedTurn['toolCalls'] = []
     const refused = new Map<string, ToolOutcome>()
+    // The batch runs in order once it holds a write, so a read after one may see
+    // a different answer than last time and has to run
+    let writeAhead = false
     for (const call of turn.toolCalls) {
       const prior = seen.get(callSignature(call))
-      if (!prior) {
+      if (!prior || (writeAhead && prior.readOnly)) {
         fresh.push(call)
+        if (!isReadOnly(call.name, router)) writeAhead = true
         continue
       }
       prior.count++

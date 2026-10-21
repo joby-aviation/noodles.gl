@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { MCPTools } from '../mcp-tools'
-import { runAgent } from './loop'
+import { runAgent, UNVERIFIED_EDIT_NOTE } from './loop'
 import { createDelegateTool, DELEGATE_NAME, delegateAvailable, toolsetTools } from './subagent'
 import { ToolRouter } from './tool-router'
 import type { AgentEvent, AgentProvider, AgentRequest, StopReason } from './types'
@@ -125,6 +125,7 @@ describe('delegate', () => {
       toolset: 'research',
       report: 'found it',
       toolsUsed: ['search_code'],
+      changed: false,
     })
   })
 
@@ -196,12 +197,17 @@ describe('delegate', () => {
         ],
       },
       { text: 'Keyframed fade / opacity at 0s.' },
+      { text: 'I have added a keyframe for the fade opacity.' },
     ])
     const setKeyframe = async () => ({ success: true, data: { trackId: 'fade / opacity' } })
 
     const result = await runParent({ provider, tools: fakeTools({ setKeyframe }) })
 
-    expect(result.toolCalls.find(c => c.name === DELEGATE_NAME)?.result.success).toBe(true)
+    const call = result.toolCalls.find(c => c.name === DELEGATE_NAME)
+    expect(call?.result.success).toBe(true)
+    expect(call?.result.data).toMatchObject({ changed: true })
+    // The parent's claim is true, so it must not be marked as unapplied
+    expect(result.text).not.toContain(UNVERIFIED_EDIT_NOTE)
   })
 
   it('is offered only where the window can afford a second loop', () => {

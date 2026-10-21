@@ -276,6 +276,41 @@ describe('runAgent repeated calls', () => {
 
     expect(getNodeInfo).toHaveBeenCalledTimes(2)
   })
+
+  it('runs a read again when a write ahead of it in the same batch can change it', async () => {
+    const getTimeline = vi.fn(async () => ({ success: true, data: { keyframes: [] } }))
+    const setKeyframe = vi.fn(async () => ({ success: true, data: {} }))
+    const timeline = { name: 'get_timeline', input: {} }
+    const keyframe = { name: 'set_keyframe', input: { trackId: 'fade / opacity', value: 1 } }
+    const provider = fakeProvider([
+      { tools: [timeline] },
+      { tools: [keyframe, timeline] },
+      { text: 'done' },
+    ])
+
+    const result = await run({ provider, tools: fakeTools({ getTimeline, setKeyframe }) })
+
+    expect(getTimeline).toHaveBeenCalledTimes(2)
+    expect(result.toolCalls.at(-1)?.result.success).toBe(true)
+  })
+
+  it('still refuses a repeated read that comes before the write in its batch', async () => {
+    const getTimeline = vi.fn(async () => ({ success: true, data: { keyframes: [] } }))
+    const timeline = { name: 'get_timeline', input: {} }
+    const keyframe = { name: 'set_keyframe', input: { trackId: 'fade / opacity', value: 1 } }
+    const provider = fakeProvider([
+      { tools: [timeline] },
+      { tools: [timeline, keyframe] },
+      { text: 'done' },
+    ])
+
+    await run({
+      provider,
+      tools: fakeTools({ getTimeline, setKeyframe: async () => ({ success: true, data: {} }) }),
+    })
+
+    expect(getTimeline).toHaveBeenCalledTimes(1)
+  })
 })
 
 describe('runAgent tool scheduling', () => {

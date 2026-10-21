@@ -187,7 +187,8 @@ async function runDelegate(
   // A build sub-agent that reports success while its tools never landed a change
   // is the one failure the parent cannot see past, so it comes back as an error
   // with the claim quoted rather than as a result to relay.
-  if (toolset === 'build' && !changedAnything(result, router)) {
+  const changed = changedAnything(result, router)
+  if (toolset === 'build' && !changed) {
     return {
       success: false,
       error: `The sub-agent changed nothing. It claimed: "${clip(report)}" — do not repeat that to the user. Verify the graph yourself with list_nodes or get_node_info and make the change with apply_modifications.`,
@@ -202,6 +203,9 @@ async function runDelegate(
       // Names only. The results themselves are what the parent is paying not to
       // see, but knowing which tools ran tells it whether the answer is grounded.
       toolsUsed: result.toolCalls.map(call => call.name),
+      // A keyframe edit lands directly and leaves no modifications, so the parent
+      // needs this to know the child changed something
+      changed,
       // The parent loop collects these and the UI applies them, so a build
       // sub-agent's edits reach the graph exactly like a direct call's would
       ...(result.modifications.length > 0 ? { modifications: result.modifications } : {}),
