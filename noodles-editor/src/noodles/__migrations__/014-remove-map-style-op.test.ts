@@ -48,7 +48,9 @@ describe('014-remove-map-style-op', () => {
 
     expect(migrated.nodes).toHaveLength(1)
     expect(migrated.nodes[0].type).toBe('MaplibreBasemapOp')
-    expect((migrated.nodes[0].data?.inputs as Record<string, unknown>).mapStyle).toBe(CARTO_LIGHT)
+    expect((migrated.nodes[0].data?.inputs as Record<string, unknown> | undefined)?.mapStyle).toBe(
+      CARTO_LIGHT
+    )
     expect(migrated.edges).toHaveLength(0)
   })
 
@@ -80,7 +82,9 @@ describe('014-remove-map-style-op', () => {
     })
 
     const migrated = await up(project)
-    expect((migrated.nodes[0].data?.inputs as Record<string, unknown>).mapStyle).toBe(CARTO_DARK)
+    expect((migrated.nodes[0].data?.inputs as Record<string, unknown> | undefined)?.mapStyle).toBe(
+      CARTO_DARK
+    )
   })
 
   it('is a no-op when there are no MapStyleOp nodes', async () => {
@@ -150,11 +154,16 @@ describe('014-remove-map-style-op', () => {
     // MapStyleOp should be recreated with the correct value
     const mapStyleNode = reverted.nodes.find(n => n.type === 'MapStyleOp')
     expect(mapStyleNode).toBeDefined()
-    expect((mapStyleNode?.data?.inputs as Record<string, unknown>).mapStyle).toBe(CARTO_LIGHT)
+    expect((mapStyleNode?.data?.inputs as Record<string, unknown> | undefined)?.mapStyle).toBe(
+      CARTO_LIGHT
+    )
 
     // mapStyle should be removed from basemap inputs
     const basemapNode = reverted.nodes.find(n => n.type === 'MaplibreBasemapOp')
-    expect((basemapNode?.data?.inputs as Record<string, unknown>).mapStyle).toBeUndefined()
+    expect(basemapNode).toBeDefined()
+    expect(
+      (basemapNode?.data?.inputs as Record<string, unknown> | undefined)?.mapStyle
+    ).toBeUndefined()
 
     // Edge should be recreated
     expect(reverted.edges).toHaveLength(1)
