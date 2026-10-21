@@ -17,6 +17,23 @@ export function setVisualizationTarget(next: VisualizationTarget | null) {
   target = next
 }
 
+// The canvas that holds the whole frame. With a basemap, deck draws into the map's canvas,
+// so capturing it gets both. The map is only known once it loads; until then the
+// interleaved deck's canvas is that same map canvas.
+export function pickVisualizationCanvas({
+  basemapEnabled,
+  map,
+  deck,
+}: {
+  basemapEnabled: boolean
+  map: { getCanvas: () => HTMLCanvasElement } | null | undefined
+  deck: Deck | null | undefined
+}): HTMLCanvasElement | null {
+  if (basemapEnabled && map) return map.getCanvas()
+  // @ts-expect-error canvas is protected but accessible
+  return deck?.canvas ?? null
+}
+
 export function getVisualizationCanvas(): HTMLCanvasElement | null {
   return target?.getCanvas() ?? null
 }
