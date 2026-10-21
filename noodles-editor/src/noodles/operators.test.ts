@@ -239,6 +239,31 @@ describe('Error handling', () => {
   })
 })
 
+describe('Operator.isComputing', () => {
+  it('is true for the whole pull, before the executing status appears', async () => {
+    const op = new MathOp('/math', { operator: 'add', a: 2, b: 3 })
+    let finish = () => {}
+    const held = new Promise<void>(resolve => {
+      finish = resolve
+    })
+    const execute = op.execute.bind(op)
+    vi.spyOn(op, 'execute').mockImplementation(async inputs => {
+      await held
+      return execute(inputs)
+    })
+
+    expect(op.isComputing).toBe(false)
+    const pulled = op.pull()
+    expect(op.isComputing).toBe(true)
+    // The status waits 200ms, so a fast check sees idle while work is running
+    expect(op.executionState.value.status).not.toBe('executing')
+
+    finish()
+    await pulled
+    expect(op.isComputing).toBe(false)
+  })
+})
+
 describe('Locked operators', () => {
   it('serves the last output without executing while locked', async () => {
     const op = new MathOp('/math', { operator: 'add', a: 2, b: 3 })

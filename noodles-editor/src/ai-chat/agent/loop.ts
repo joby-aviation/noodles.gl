@@ -71,6 +71,17 @@ function reportsWithoutEdits(data: unknown): boolean {
   )
 }
 
+// Whether a successful mutating call changed the project. run_code is marked
+// mutating because it can set field values, but most calls only read, and it
+// reports changedFieldValues when one did change.
+function changedProject(outcome: { name: string; result: ToolResult }): boolean {
+  if (outcome.name === 'run_code') {
+    const data = outcome.result.data as { changedFieldValues?: unknown } | undefined
+    return data?.changedFieldValues === true
+  }
+  return !reportsWithoutEdits(outcome.result.data)
+}
+
 function isModificationsData(data: unknown): data is ModificationsData {
   return (
     typeof data === 'object' &&
@@ -214,10 +225,12 @@ export async function runAgent(params: RunAgentParams): Promise<AgentRunResult> 
 
     for (const outcome of ran) {
       const readOnly = isReadOnly(outcome.name, router)
-      // A successful write can change what a read returns, so reads may run again
+      // A successful write can change what any earlier call returns or does, so
+      // they may all run again: a read may see something new, and repeating an
+      // earlier write (a playhead back to 0 after 5) undoes this one
       if (!readOnly && outcome.result.success) {
-        if (!reportsWithoutEdits(outcome.result.data)) mutated = true
-        for (const [signature, entry] of seen) if (entry.readOnly) seen.delete(signature)
+        if (changedProject(outcome)) mutated = true
+        seen.clear()
       }
       seen.set(callSignature(outcome), {
         count: 1,

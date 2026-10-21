@@ -105,6 +105,8 @@ export interface BenchResult {
 
 const PREVIEW_CHARS = 400
 const SETTLE_TIMEOUT_MS = 5000
+// Consecutive idle frames before the graph counts as settled
+const SETTLED_FRAMES = 3
 
 declare global {
   interface Window {
@@ -296,15 +298,17 @@ async function applyAndSettle(modifications: ProjectModification[]): Promise<Mod
 }
 
 // Waits until no operator is mid-execution, so errors from the new graph show up
+// isComputing rather than executionState, which only says 'executing' after
+// 200ms. Idle has to hold for a few frames, because the executor starts a
+// downstream pull on a later frame than the upstream one that fed it.
 async function settleGraph() {
   const deadline = performance.now() + SETTLE_TIMEOUT_MS
-  await nextFrame()
-  while (performance.now() < deadline) {
-    const busy = getAllOps().some(op => op.executionState.value.status === 'executing')
-    if (!busy) break
+  let idleFrames = 0
+  while (idleFrames < SETTLED_FRAMES && performance.now() < deadline) {
     await nextFrame()
+    const busy = getAllOps().some(op => op.isComputing)
+    idleFrames = busy ? 0 : idleFrames + 1
   }
-  await nextFrame()
 }
 
 function operatorErrors() {

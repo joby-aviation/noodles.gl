@@ -277,6 +277,21 @@ describe('runAgent repeated calls', () => {
     expect(getNodeInfo).toHaveBeenCalledTimes(2)
   })
 
+  it('lets an earlier write run again once a different write has replaced it', async () => {
+    const setPlaybackPosition = vi.fn(async () => ({ success: true, data: {} }))
+    const seek = (position: number) => ({ name: 'set_playback_position', input: { position } })
+    const provider = fakeProvider([
+      { tools: [seek(0)] },
+      { tools: [seek(5)] },
+      { tools: [seek(0)] },
+      { text: 'back at the start' },
+    ])
+
+    await run({ provider, tools: fakeTools({ setPlaybackPosition }) })
+
+    expect(setPlaybackPosition).toHaveBeenCalledTimes(3)
+  })
+
   it('runs a read again when a write ahead of it in the same batch can change it', async () => {
     const getTimeline = vi.fn(async () => ({ success: true, data: { keyframes: [] } }))
     const setKeyframe = vi.fn(async () => ({ success: true, data: {} }))
@@ -556,6 +571,26 @@ describe('runAgent unverified edit claims', () => {
     const result = await run({
       provider,
       tools: fakeTools({ applyModifications }),
+      onEvent: e => events.push(e),
+    })
+
+    expect(diagnostics(events)).toEqual(['unverified_edit_claim'])
+    expect(result.text).toContain(UNVERIFIED_EDIT_NOTE)
+  })
+
+  it('flags a claim after run_code that only read a value', async () => {
+    const events: AgentEvent[] = []
+    // A calculation succeeds without changing anything; changedFieldValues is
+    // what says a field was set
+    const runCode = async () => ({ success: true, data: { value: 42 } })
+    const provider = fakeProvider([
+      { tools: [{ name: 'run_code', input: { code: 'return 42' } }] },
+      { text: 'I have set the radius to 42.' },
+    ])
+
+    const result = await run({
+      provider,
+      tools: fakeTools({ runCode }),
       onEvent: e => events.push(e),
     })
 

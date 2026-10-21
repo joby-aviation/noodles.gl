@@ -369,10 +369,13 @@ async function main() {
   mkdirSync(rawDir, { recursive: true })
 
   const { url, server } = await ensureServer(args.url)
-  const context = await launch(args.browser ?? 'chrome', args.headless ?? false)
-  const page = context.pages()[0] ?? (await context.newPage())
+  // Inside the try, so a browser that will not start (Chrome missing, the
+  // profile already open) still stops the dev server
+  let context: BrowserContext | undefined
 
   try {
+    context = await launch(args.browser ?? 'chrome', args.headless ?? false)
+    const page = context.pages()[0] ?? (await context.newPage())
     await openTask(page, url, tasks[0])
     const summary: Summary = {
       runId,
@@ -429,7 +432,7 @@ async function main() {
       }
     }
   } finally {
-    await context.close()
+    await context?.close()
     server?.kill()
   }
 
