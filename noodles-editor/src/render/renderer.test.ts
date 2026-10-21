@@ -1,6 +1,6 @@
 import { act, renderHook } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import { type CaptureResult, useRenderer } from './renderer'
+import { type CaptureResult, resolveEncoderConfig, useRenderer } from './renderer'
 import { VIDEO_CODECS } from './video-export'
 
 describe('useRenderer', () => {
@@ -10,6 +10,11 @@ describe('useRenderer', () => {
       .mockImplementation(() =>
         Promise.reject(new DOMException('The user aborted a request.', 'AbortError'))
       )
+    // The codec check runs before the dialog; pass it so the test does not depend on
+    // which encoders this machine has
+    const mockSupport = vi
+      .spyOn(VideoEncoder, 'isConfigSupported')
+      .mockImplementation(async config => ({ supported: true, config }))
 
     // Setup useRenderer
     const mockRedraw = vi.fn()
@@ -25,13 +30,16 @@ describe('useRenderer', () => {
 
     // Call startCapture
     const mockCanvas = document.createElement('canvas')
-    await result.current.startCapture({
-      canvas: mockCanvas,
-      width: 100,
-      height: 100,
-      codec: 'avc',
-      endFrame: 10,
-    })
+    // act flushes the isRendering updates on either side of the encoder check
+    await act(() =>
+      result.current.startCapture({
+        canvas: mockCanvas,
+        width: 100,
+        height: 100,
+        codec: 'avc',
+        endFrame: 10,
+      })
+    )
 
     // Assertions
     expect(result.current.isRendering).toBe(false)
@@ -41,10 +49,15 @@ describe('useRenderer', () => {
 
     // Clean up mocks
     mockShowSaveFilePicker.mockRestore()
+    mockSupport.mockRestore()
   })
 
-  it('renders into a buffer without a save dialog', async ({ skip }) => {
-    // A real encode: the encoder and the MP4 muxer schedule work on the real clock
+  // A real encode per codec: the encoder and the MP4 muxer schedule work on the real
+  // clock. A codec the browser cannot encode at all is skipped by name, not failed,
+  // because that depends on the machine (a GPU-less CI runner may have few).
+  it.for(VIDEO_CODECS)('renders %s into a buffer without a save dialog', async (codec, {
+    skip,
+  }) => {
     vi.useRealTimers()
     const mockShowSaveFilePicker = vi.spyOn(globalThis, 'showSaveFilePicker')
     const canvas = document.createElement('canvas')
@@ -70,29 +83,21 @@ describe('useRenderer', () => {
         useRenderer({ fps: 30, bitrate: 1_000_000, bitrateMode: 'constant', redraw })
       )
 
-      // Which codecs pass the renderer's prefer-hardware config depends on the machine
-      // (H.264 on a Mac, possibly none on a GPU-less CI runner), so use the first that does
       const onFrameComplete = vi.fn()
       let capture: CaptureResult | undefined
-      for (const codec of VIDEO_CODECS) {
-        await act(async () => {
-          capture = await result.current.startCapture({
-            canvas,
-            width: 64,
-            height: 64,
-            codec,
-            fps: 10,
-            startFrame: 0,
-            endFrame: 4,
-            target: 'buffer',
-            onFrameComplete,
-          })
+      await act(async () => {
+        capture = await result.current.startCapture({
+          canvas,
+          width: 64,
+          height: 64,
+          codec,
+          fps: 10,
+          startFrame: 0,
+          endFrame: 4,
+          target: 'buffer',
+          onFrameComplete,
         })
-        const unsupported =
-          capture?.status === 'error' &&
-          capture.error.message.startsWith('This browser cannot encode')
-        if (!unsupported) break
-      }
+      })
 
       expect(mockShowSaveFilePicker).not.toHaveBeenCalled()
       expect(result.current.isRendering).toBe(false)
@@ -100,7 +105,7 @@ describe('useRenderer', () => {
         capture?.status === 'error' &&
         capture.error.message.startsWith('This browser cannot encode')
       ) {
-        skip('this browser encodes none of the codecs with the renderer config')
+        skip(`this browser has no ${codec} encoder, hardware or software`)
       }
       // The message, not just the status, so a CI failure says why
       expect(capture?.status === 'error' ? capture.error.message : capture?.status).toBe('done')
@@ -117,5 +122,41 @@ describe('useRenderer', () => {
       mockShowSaveFilePicker.mockRestore()
       vi.useFakeTimers()
     }
+  })
+})
+
+describe('resolveEncoderConfig', () => {
+  const base = { codec: 'vp09.00.10.08', width: 64, height: 64, bitrate: 1_000_000 }
+
+  it('prefers the hardware encoder when there is one', async () => {
+    const check = vi
+      .spyOn(VideoEncoder, 'isConfigSupported')
+      .mockResolvedValue({ supported: true, config: {} as VideoEncoderConfig })
+    expect(await resolveEncoderConfig(base)).toEqual({
+      ...base,
+      hardwareAcceleration: 'prefer-hardware',
+    })
+    expect(check).toHaveBeenCalledTimes(1)
+    check.mockRestore()
+  })
+
+  it('falls back to the software encoder when hardware is refused', async () => {
+    const check = vi.spyOn(VideoEncoder, 'isConfigSupported').mockImplementation(async config => ({
+      supported: config.hardwareAcceleration !== 'prefer-hardware',
+      config,
+    }))
+    expect(await resolveEncoderConfig(base)).toEqual({
+      ...base,
+      hardwareAcceleration: 'no-preference',
+    })
+    check.mockRestore()
+  })
+
+  it('returns null when the browser cannot encode the codec at all', async () => {
+    const check = vi
+      .spyOn(VideoEncoder, 'isConfigSupported')
+      .mockImplementation(async config => ({ supported: false, config }))
+    expect(await resolveEncoderConfig(base)).toBeNull()
+    check.mockRestore()
   })
 })

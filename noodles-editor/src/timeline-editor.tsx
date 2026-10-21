@@ -409,7 +409,7 @@ export default function TimelineEditor() {
       return
     }
 
-    await startCapture({
+    const result = await startCapture({
       canvas,
       codec,
       // This always scales the video to the specified value, regardless of `canvas` size
@@ -417,6 +417,9 @@ export default function TimelineEditor() {
       startFrame: Math.floor((inPoint ?? 0) * framerate),
       endFrame: Math.floor((outPoint ?? sequenceLength) * framerate),
     })
+    if (result.status === 'error') {
+      alert(`Export failed: ${result.error.message}`)
+    }
   }, [
     startCapture,
     codec,
