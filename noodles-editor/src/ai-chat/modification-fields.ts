@@ -118,7 +118,7 @@ function handleProblem(
 
   const prefix = side === 'outputs' ? 'out' : 'par'
   const role = side === 'outputs' ? 'sourceHandle' : 'targetHandle'
-  const match = /^(par|out)\.([^.]+)/.exec(handle)
+  const match = /^(par|out)\.(.+)$/.exec(handle)
   const known = fieldNames(context, nodeId, type, side)
   if (!match) {
     return `${role} ${handle} is malformed: ${side === 'outputs' ? 'outputs' : 'inputs'} are "${prefix}.<name>". ${suggest('', known, side === 'outputs' ? 'Outputs' : 'Inputs', nodeId, prefix)}`
@@ -126,7 +126,8 @@ function handleProblem(
   if (match[1] !== prefix) {
     return `${role} ${handle} is on the wrong side: the ${side === 'outputs' ? 'source' : 'target'} of an edge is an ${side === 'outputs' ? 'output' : 'input'}, "${prefix}.<name>". ${suggest(match[2], known, side === 'outputs' ? 'Outputs' : 'Inputs', nodeId, prefix)}`
   }
-  // Compound fields ('par.viewState.zoom') connect to the top-level field
+  // The graph looks up everything after the prefix, so 'par.viewState.zoom' is a
+  // field named 'viewState.zoom', not the viewState field
   if (known.includes(match[2])) return null
   return `${nodeId} (${type}) has no ${side === 'outputs' ? 'output' : 'input'} ${match[2]}. ${suggest(match[2], known, side === 'outputs' ? 'Outputs' : 'Inputs', nodeId, prefix)}`
 }
@@ -170,7 +171,7 @@ function inputsOf(data: Record<string, unknown> | undefined): string[] {
 }
 
 // A node may declare its own inputs alongside the values for them
-function customInputNames(data: Record<string, unknown> | undefined): string[] {
+export function customInputNames(data: Record<string, unknown> | undefined): string[] {
   const custom = data?.customInputs
   if (!Array.isArray(custom)) return []
   return custom

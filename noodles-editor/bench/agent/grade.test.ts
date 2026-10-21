@@ -139,6 +139,20 @@ describe('grade', () => {
       expect(outcome.detail).toContain('DeckRendererOp has no input color')
     })
 
+    it('fails a nested handle, which the graph looks up whole and never connects', () => {
+      const r = result()
+      r.finalProject?.edges?.push({
+        id: 'nested',
+        source: '/layer',
+        target: '/deck',
+        sourceHandle: 'out.layer',
+        targetHandle: 'par.basemap.zoom',
+      } as never)
+      const outcome = check({ type: 'edgesValid' }, r)
+      expect(outcome.pass).toBe(false)
+      expect(outcome.detail).toContain('DeckRendererOp has no input basemap.zoom')
+    })
+
     it('fails an edge to a node that does not exist', () => {
       const r = result()
       r.finalProject?.edges?.push({

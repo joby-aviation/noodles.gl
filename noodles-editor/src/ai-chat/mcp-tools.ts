@@ -22,7 +22,12 @@ import {
   writeFile,
 } from './agent-files'
 import type { ContextLoader } from './context-loader'
-import { checkFields, qualifyHandle, resolveOperatorType } from './modification-fields'
+import {
+  checkFields,
+  customInputNames,
+  qualifyHandle,
+  resolveOperatorType,
+} from './modification-fields'
 import { type RunCodeParams, runCode } from './run-code'
 import {
   type ConsoleError,
@@ -218,6 +223,8 @@ function checkTarget(
   const missing = (id: string) => (ids.known.includes(id) ? null : notFound(id))
   switch (mod.type) {
     case 'add_node':
+      // Even when the batch deletes it first: the editor's delete settles after
+      // its add, and takes a replacement with the same id down with it
       if (ids.existing.has(mod.data.id) || ids.addedSoFar.has(mod.data.id)) {
         return `${mod.data.id} already exists; use update_node to change it or pick a new id`
       }
@@ -256,6 +263,9 @@ export class MCPTools {
   // Node id -> operator type, so edges and updates aimed at them can be checked
   private queuedNodes = new Map<string, string>()
   private queuedEdges = new Set<string>()
+  // Custom inputs a queued add_node declared, which an edge may target before
+  // the node exists
+  private queuedCustomInputs = new Map<string, string[]>()
 
   constructor(private contextLoader?: ContextLoader) {
     this.setupConsoleTracking()
@@ -266,8 +276,20 @@ export class MCPTools {
     this.project = project
     // The project can change mid-run for unrelated reasons, so only what has
     // landed stops being queued
-    for (const node of project.nodes ?? []) this.queuedNodes.delete(node.id)
+    for (const node of project.nodes ?? []) {
+      this.queuedNodes.delete(node.id)
+      this.queuedCustomInputs.delete(node.id)
+    }
     for (const edge of project.edges ?? []) this.queuedEdges.delete(edge.id)
+  }
+
+  // Called when a run starts. Whatever the last run queued has landed or never
+  // will (the request failed, or the editor rejected the batch), and an id left
+  // here would block the retry as "already exists".
+  clearQueuedModifications() {
+    this.queuedNodes.clear()
+    this.queuedEdges.clear()
+    this.queuedCustomInputs.clear()
   }
 
   getProject(): NoodlesProject | null {
@@ -932,7 +954,15 @@ export class MCPTools {
     // Types and handles second, once every add_node in the batch has a type an
     // edge can be checked against, wherever in the batch the edge sits
     if (registry) {
-      const context = { registry, types, liveFields: liveFieldNames }
+      const declared = new Map(this.queuedCustomInputs)
+      for (const { mod } of accepted) {
+        if (mod.type === 'add_node') declared.set(mod.data.id, customInputNames(mod.data.data))
+      }
+      const liveFields = (nodeId: string, side: 'inputs' | 'outputs') => [
+        ...liveFieldNames(nodeId, side),
+        ...(side === 'inputs' ? (declared.get(nodeId) ?? []) : []),
+      ]
+      const context = { registry, types, liveFields }
       for (const { label, mod } of accepted) {
         for (const problem of checkFields(mod, context)) errors.push(`${label}: ${problem}`)
       }
@@ -947,7 +977,10 @@ export class MCPTools {
 
     const mods = accepted.map(entry => entry.mod)
     for (const mod of mods) {
-      if (mod.type === 'add_node') this.queuedNodes.set(mod.data.id, mod.data.type)
+      if (mod.type === 'add_node') {
+        this.queuedNodes.set(mod.data.id, mod.data.type)
+        this.queuedCustomInputs.set(mod.data.id, customInputNames(mod.data.data))
+      }
       if (mod.type === 'add_edge') this.queuedEdges.add(mod.data.id)
     }
 

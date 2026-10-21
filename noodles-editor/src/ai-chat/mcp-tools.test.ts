@@ -338,6 +338,33 @@ describe('applyModifications validation', () => {
     expect(update.data.id).toBe('/pickup-layer')
   })
 
+  it('rejects re-adding a node the same batch deletes', async () => {
+    // The editor's delete settles after its add and removes both, so the id has
+    // to change or the node be updated in place
+    const result = await tools().applyModifications({
+      modifications: [
+        { type: 'delete_node', data: { id: '/pickup-layer' } },
+        { type: 'add_node', data: { id: '/pickup-layer', type: 'NumberOp' } },
+      ],
+    })
+    expect(result.error).toContain('/pickup-layer already exists')
+  })
+
+  it('forgets what a run queued once the next run starts', async () => {
+    // A run that failed never applied its add_node, so a retry must not be told
+    // the node already exists
+    const t = tools()
+    const add = { type: 'add_node', data: { id: '/color', type: 'ColorOp' } }
+    await t.applyModifications({ modifications: [add] })
+    expect((await t.applyModifications({ modifications: [add] })).error).toContain(
+      '/color already exists'
+    )
+
+    t.clearQueuedModifications()
+
+    expect((await t.applyModifications({ modifications: [add] })).success).toBe(true)
+  })
+
   it('lets a later call in the same run build on nodes an earlier call queued', async () => {
     const t = tools()
     await t.applyModifications({
@@ -444,6 +471,37 @@ describe('applyModifications field validation', () => {
       sourceHandle: 'out.data',
       targetHandle: 'par.data',
     })
+  })
+
+  it('wires an edge to a custom input a new node declares', async () => {
+    const t = tools()
+    const filter = {
+      type: 'add_node',
+      data: {
+        id: '/filter',
+        type: 'NumberOp',
+        data: { customInputs: [{ name: 'myThreshold', type: 'number' }] },
+      },
+    }
+    const wire = {
+      type: 'add_edge',
+      data: {
+        source: '/limit',
+        target: '/filter',
+        sourceHandle: 'out.val',
+        targetHandle: 'par.myThreshold',
+      },
+    }
+    const limit = { type: 'add_node', data: { id: '/limit', type: 'NumberOp' } }
+
+    // In the same batch
+    const together = await t.applyModifications({ modifications: [limit, filter, wire] })
+    expect(together.error).toBeUndefined()
+
+    // And from a later call in the same run
+    const later = tools()
+    await later.applyModifications({ modifications: [limit, filter] })
+    expect((await later.applyModifications({ modifications: [wire] })).error).toBeUndefined()
   })
 
   it('checks an update against the type queued by an earlier call', async () => {

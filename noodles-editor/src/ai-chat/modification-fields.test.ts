@@ -104,6 +104,14 @@ describe('checkFields', () => {
     expect(problems[0]).toContain('out.layer')
   })
 
+  it('checks the whole name after the prefix, since that is what the graph looks up', () => {
+    // 'par.data.features' names a field 'data.features', which ScatterplotLayerOp
+    // does not have; accepting it because 'data' exists queued an edge that
+    // connected nothing
+    const [problem] = checkFields(edge('out.data', 'par.data.features'), context(TYPES))
+    expect(problem).toContain('/points (ScatterplotLayerOp) has no input data.features')
+  })
+
   it('catches an edge wired backwards', () => {
     const [problem] = checkFields(edge('par.data', 'par.data'), context(TYPES))
     expect(problem).toContain('sourceHandle par.data is on the wrong side')

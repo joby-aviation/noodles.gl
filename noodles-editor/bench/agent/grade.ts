@@ -249,10 +249,11 @@ function edgeProblems(edge: Edge, result: BenchResult): string[] {
   return problems
 }
 
-// 'par.getFillColor' -> 'getFillColor'. Compound fields ('par.viewState.zoom')
-// connect to the top-level field.
+// 'par.getFillColor' -> 'getFillColor'. The graph looks up everything after the
+// prefix, so 'par.viewState.zoom' names a field 'viewState.zoom' and connects
+// nothing on an operator that has only viewState.
 function fieldName(handle: string | null | undefined): string | null {
-  const match = /^(par|out)\.([^.]+)/.exec(handle ?? '')
+  const match = /^(par|out)\.(.+)$/.exec(handle ?? '')
   return match ? match[2] : null
 }
 
