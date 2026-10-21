@@ -78,6 +78,7 @@ export function BasemapGallery({
               placeholder="Search basemaps..."
               value={search}
               onChange={e => setSearch(e.target.value)}
+              // biome-ignore lint/a11y/noAutofocus: the dialog moves focus on open; this picks the search field
               autoFocus
             />
             <select
