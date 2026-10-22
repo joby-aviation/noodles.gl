@@ -800,6 +800,114 @@
         }
       }
     },
+    "ChoroplethJoinOp": {
+      "name": "ChoroplethJoin",
+      "type": "ChoroplethJoinOp",
+      "category": "geojson",
+      "description": "Join tabular data onto geographic boundaries (US states, world countries, Canadian provinces) to produce a colored FeatureCollection",
+      "inputs": {
+        "data": {
+          "type": "DataField",
+          "default": []
+        },
+        "geography": {
+          "type": "StringLiteralField",
+          "default": "us-states"
+        },
+        "boundaries": {
+          "type": "GeoJsonField",
+          "default": {
+            "type": "FeatureCollection",
+            "features": []
+          }
+        },
+        "joinKey": {
+          "type": "StringLiteralField",
+          "default": ""
+        },
+        "geoKey": {
+          "type": "StringLiteralField",
+          "default": "auto"
+        },
+        "customSQL": {
+          "type": "CodeField",
+          "default": ""
+        }
+      },
+      "outputs": {
+        "features": {
+          "type": "GeoJsonField"
+        }
+      }
+    },
+    "ChoroplethLayerOp": {
+      "name": "ChoroplethLayer",
+      "type": "ChoroplethLayerOp",
+      "category": "geojson",
+      "description": "All-in-one choropleth: joins tabular data onto geographic boundaries and renders with a color scale",
+      "inputs": {
+        "data": {
+          "type": "DataField",
+          "default": []
+        },
+        "geography": {
+          "type": "StringLiteralField",
+          "default": "us-states"
+        },
+        "boundaries": {
+          "type": "GeoJsonField",
+          "default": {
+            "type": "FeatureCollection",
+            "features": []
+          }
+        },
+        "joinKey": {
+          "type": "StringLiteralField",
+          "default": ""
+        },
+        "geoKey": {
+          "type": "StringLiteralField",
+          "default": "auto"
+        },
+        "customSQL": {
+          "type": "CodeField",
+          "default": ""
+        },
+        "valueColumn": {
+          "type": "StringLiteralField",
+          "default": ""
+        },
+        "colorScheme": {
+          "type": "StringLiteralField",
+          "default": "viridis"
+        },
+        "opacity": {
+          "type": "NumberField",
+          "default": 0.85
+        },
+        "stroked": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "getLineColor": {
+          "type": "ColorField",
+          "default": "#000000"
+        },
+        "getLineWidth": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "visible": {
+          "type": "BooleanField",
+          "default": true
+        }
+      },
+      "outputs": {
+        "layer": {
+          "type": "LayerField"
+        }
+      }
+    },
     "ClipExtensionOp": {
       "name": "ClipExtension",
       "type": "ClipExtensionOp",

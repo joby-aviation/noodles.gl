@@ -8,6 +8,7 @@ import { WEBLLM_MODELS, webgpuAvailable } from '../ai-chat/agent/providers/webll
 import type { ProviderPreference } from '../noodles/keys-store'
 import { getEnvKeys, useKeysStore } from '../noodles/keys-store'
 import { useOpenRouterConnect } from '../noodles/use-openrouter-connect'
+import { getGitSettings, saveGitSettings, useGitSettings } from '../noodles/utils/git-settings'
 import { analytics } from '../utils/analytics'
 import s from './settings-dialog.module.css'
 
@@ -20,6 +21,8 @@ type EndpointStatus =
 interface SettingsDialogProps {
   open: boolean
   setOpen: (open: boolean) => void
+  // Saved project whose version control settings the dialog edits; null when there is none
+  projectName?: string | null
 }
 
 // Component that groups all sources (browser, project, env) for a single key type
@@ -138,9 +141,9 @@ const KeyGroup = ({
 const ignoredProjectKeyNotice = (keyName: string) =>
   `This project file included ${keyName} key. It isn't used, and saving removes it from the file.`
 
-type TabName = 'general' | 'ai-provider' | 'api-keys'
+type TabName = 'general' | 'ai-provider' | 'api-keys' | 'version-control'
 
-export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
+export function SettingsDialog({ open, setOpen, projectName = null }: SettingsDialogProps) {
   const [analyticsEnabled, setAnalyticsEnabled] = useState(false)
   const [errorCaptureEnabled, setErrorCaptureEnabled] = useState(true)
   const [activeTab, setActiveTab] = useState<TabName>('general')
@@ -191,6 +194,16 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
   const openRouterInputRef = useRef<HTMLInputElement>(null)
   const [focusedField, setFocusedField] = useState<string | null>(null)
 
+  // Version control settings belong to the open project; the author is shared
+  const {
+    enabled: gitEnabled,
+    autoCommit: gitAutoCommit,
+    autoCommitDelay: gitAutoCommitDelay,
+    useExistingRepo: gitUseExistingRepo,
+  } = useGitSettings(projectName)
+  const [gitAuthorName, setGitAuthorName] = useState('Noodles User')
+  const [gitAuthorEmail, setGitAuthorEmail] = useState('user@noodles.local')
+
   // Environment keys (static)
   const envKeys = getEnvKeys()
 
@@ -208,10 +221,14 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
       setEndpointModel(endpoint?.model || '')
       setEndpointDisplayName(endpoint?.displayName || '')
 
+      const { author } = getGitSettings()
+      setGitAuthorName(author.name)
+      setGitAuthorEmail(author.email)
+
       // Check for deep link in URL hash (supports "api-keys:anthropic" format)
       const hash = window.location.hash.slice(1)
       const [tabName, targetField] = hash.split(':')
-      if (tabName === 'ai-provider' || tabName === 'api-keys') {
+      if (tabName === 'ai-provider' || tabName === 'api-keys' || tabName === 'version-control') {
         setActiveTab(tabName as TabName)
         if (targetField) {
           setFocusedField(targetField)
@@ -374,6 +391,32 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
     analytics.track('custom_endpoint_preset_applied', { preset: preset.id })
   }
 
+  // Git settings handlers
+  const handleGitEnabledToggle = (enabled: boolean) => {
+    saveGitSettings({ enabled }, projectName)
+    analytics.track(enabled ? 'git_versioning_enabled' : 'git_versioning_disabled')
+  }
+
+  const handleGitAutoCommitToggle = (enabled: boolean) => {
+    saveGitSettings({ autoCommit: enabled }, projectName)
+  }
+
+  const handleGitAutoCommitDelayChange = (delay: number) => {
+    saveGitSettings({ autoCommitDelay: delay }, projectName)
+  }
+
+  const handleGitUseExistingRepoToggle = (useExistingRepo: boolean) => {
+    saveGitSettings({ useExistingRepo }, projectName)
+    analytics.track(useExistingRepo ? 'git_existing_repo_enabled' : 'git_existing_repo_disabled')
+  }
+
+  const handleGitAuthorSave = () => {
+    saveGitSettings({
+      author: { name: gitAuthorName, email: gitAuthorEmail },
+    })
+    analytics.track('git_author_changed')
+  }
+
   return (
     <Dialog.Root open={open} onOpenChange={setOpen}>
       <Dialog.Portal>
@@ -404,6 +447,13 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
                 onClick={() => setActiveTab('api-keys')}
               >
                 API Keys
+              </button>
+              <button
+                type="button"
+                className={`${s.tab} ${activeTab === 'version-control' ? s.tabActive : ''}`}
+                onClick={() => setActiveTab('version-control')}
+              >
+                Version Control
               </button>
             </div>
           </div>
@@ -962,6 +1012,154 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
                   </div>
                 </div>
               </>
+            )}
+
+            {/* Version Control Tab */}
+            {activeTab === 'version-control' && (
+              <div className={s.section}>
+                <h3 className={s.sectionTitle}>Git Version Control</h3>
+                <p className={s.sectionDescription}>
+                  Automatically track project history with git. Each save creates a commit, allowing
+                  you to restore to previous versions.
+                </p>
+                {!projectName && (
+                  <p className={s.sectionDescription}>
+                    Save the project to a folder to change its version control settings.
+                  </p>
+                )}
+
+                {/* Enable Git */}
+                <div className={s.settingItem}>
+                  <label className={s.settingLabel}>
+                    <input
+                      type="checkbox"
+                      checked={gitEnabled}
+                      onChange={e => handleGitEnabledToggle(e.target.checked)}
+                      className={s.checkbox}
+                      disabled={!projectName}
+                    />
+                    <div className={s.settingContent}>
+                      <div className={s.settingName}>Enable version control</div>
+                      <div className={s.settingDescription}>
+                        Track changes and create git commits automatically for this project.
+                      </div>
+                    </div>
+                  </label>
+                </div>
+
+                {/* Existing repository */}
+                <div className={s.settingItem}>
+                  <label className={s.settingLabel}>
+                    <input
+                      type="checkbox"
+                      checked={gitUseExistingRepo}
+                      onChange={e => handleGitUseExistingRepoToggle(e.target.checked)}
+                      className={s.checkbox}
+                      disabled={!projectName || !gitEnabled}
+                    />
+                    <div className={s.settingContent}>
+                      <div className={s.settingName}>Commit to an existing repository</div>
+                      <div className={s.settingDescription}>
+                        If the project folder already had a git repository, Noodles leaves it alone.
+                        Turn this on to commit every save into that repository, including any other
+                        files in the folder.
+                      </div>
+                    </div>
+                  </label>
+                </div>
+
+                {/* Autosave */}
+                <div className={s.settingItem}>
+                  <label className={s.settingLabel}>
+                    <input
+                      type="checkbox"
+                      checked={gitAutoCommit}
+                      onChange={e => handleGitAutoCommitToggle(e.target.checked)}
+                      className={s.checkbox}
+                      disabled={!projectName || !gitEnabled}
+                    />
+                    <div className={s.settingContent}>
+                      <div className={s.settingName}>Autosave</div>
+                      <div className={s.settingDescription}>
+                        Automatically save and commit changes after a period of inactivity. Manual
+                        saves (Cmd+S) always create commits immediately.
+                      </div>
+                    </div>
+                  </label>
+                </div>
+
+                {/* Autosave Delay */}
+                {projectName && gitEnabled && gitAutoCommit && (
+                  <div className={s.settingItem}>
+                    <div className={s.settingContent}>
+                      <div className={s.settingName}>Autosave delay</div>
+                      <div className={s.settingDescription}>
+                        Time to wait after last change before automatically saving
+                      </div>
+                      <div className={s.delayOptions}>
+                        {[15000, 30000, 60000].map(delay => (
+                          <label key={delay} className={s.radioLabel}>
+                            <input
+                              type="radio"
+                              name="autoCommitDelay"
+                              checked={gitAutoCommitDelay === delay}
+                              onChange={() => handleGitAutoCommitDelayChange(delay)}
+                              className={s.radio}
+                            />
+                            <span>{delay / 1000}s</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Author Settings */}
+                {gitEnabled && (
+                  <div className={s.settingItem}>
+                    <div className={s.settingContent}>
+                      <div className={s.settingName}>Commit author</div>
+                      <div className={s.settingDescription}>
+                        Your name and email for git commits, used in every project
+                      </div>
+                      <div className={s.authorFields}>
+                        <input
+                          type="text"
+                          value={gitAuthorName}
+                          onChange={e => setGitAuthorName(e.target.value)}
+                          placeholder="Your name"
+                          className={s.input}
+                        />
+                        <input
+                          type="email"
+                          value={gitAuthorEmail}
+                          onChange={e => setGitAuthorEmail(e.target.value)}
+                          placeholder="your.email@example.com"
+                          className={s.input}
+                        />
+                        <button
+                          type="button"
+                          onClick={handleGitAuthorSave}
+                          className={s.saveAuthorButton}
+                        >
+                          Save Author
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Keyboard Shortcut Info */}
+                <div className={s.settingItem}>
+                  <div className={s.settingContent}>
+                    <div className={s.settingName}>View history</div>
+                    <div className={s.settingDescription}>
+                      Press <kbd className={s.kbd}>Cmd+Shift+H</kbd> to open the version history
+                      panel and restore to previous commits.
+                    </div>
+                  </div>
+                </div>
+              </div>
             )}
           </div>
 

@@ -119,8 +119,15 @@ export default function TimelineEditor() {
   }, [])
 
   const noodles = getNoodles()
-  const { flowGraph, nodeSidebar, propertiesPanel, chatPanel, selectedNodeIds, ...visualization } =
-    noodles
+  const {
+    flowGraph,
+    nodeSidebar,
+    propertiesPanel,
+    chatPanel,
+    gitHistoryPanel,
+    selectedNodeIds,
+    ...visualization
+  } = noodles
 
   const setTimelineExpanded = useUIStore(state => state.setTimelineExpanded)
 
@@ -621,6 +628,7 @@ export default function TimelineEditor() {
   const topBar = (
     <TopMenuBar
       projectName={noodles.projectName}
+      versionedProjectName={noodles.versionedProjectName}
       onSaveProject={noodles.onSaveProject!}
       onSaveAs={noodles.onSaveAs}
       onRename={noodles.onRename}
@@ -682,6 +690,7 @@ export default function TimelineEditor() {
           )}
         </Layout>
         {chatPanel}
+        {gitHistoryPanel}
       </ExportActionsProvider>
     </ReactFlowProvider>
   )

@@ -35,6 +35,8 @@ export const categories = {
     'ViewState',
   ],
   geojson: [
+    'ChoroplethJoin',
+    'ChoroplethLayer',
     'Clip',
     'Explode',
     'GeoEditor',
