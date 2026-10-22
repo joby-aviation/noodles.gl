@@ -491,8 +491,12 @@ function hasCanonicalShape(id: string): boolean {
 }
 
 function isGenericName(id: string, registry: Registry): boolean {
-  const prefix = /([^/]+)-\d+$/.exec(id)?.[1]
-  if (!prefix) return false
+  // String slicing, not one regex: a pattern that has to find where the name
+  // part starts backtracks on long ids (CodeQL js/polynomial-redos)
+  const segment = id.slice(id.lastIndexOf('/') + 1)
+  const dash = segment.lastIndexOf('-')
+  const prefix = segment.slice(0, dash)
+  if (dash < 1 || !/^\d+$/.test(segment.slice(dash + 1))) return false
   return Object.values(registry.operators).some(op =>
     [op.name, op.type.replace(/Op$/, '')].some(
       name =>
@@ -503,7 +507,13 @@ function isGenericName(id: string, registry: Registry): boolean {
 }
 
 function isNodePath(id: string): boolean {
-  return /^(\/[^/\s]+)+$/.test(id)
+  return (
+    id.startsWith('/') &&
+    id
+      .slice(1)
+      .split('/')
+      .every(part => part !== '' && !/\s/.test(part))
+  )
 }
 
 function isDirectChild(childId: string, parentId: string): boolean {

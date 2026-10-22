@@ -8,6 +8,7 @@ import {
   BooleanField,
   ColorField,
   CompoundPropsField,
+  DataField,
   DateField,
   type Field,
   ListField,
@@ -23,6 +24,7 @@ import type { IOperator, Operator } from '../noodles/operators'
 import { getOp } from '../noodles/store'
 import { type RGBA as ColorRGBA, colorToRgba, hexToRgba, rgbaToHex } from '../utils/color'
 import { debugBinding, debugKeyframe, debugTimeline } from '../utils/debug'
+import { bindTableCellsToTimeline } from './table-cell-bindings'
 import type { TimelineStore } from './timeline-store'
 import { getTimelineStore, useTimelineStore } from './timeline-store'
 import type { KeyframeValue, Point2D, Point3D, RGBA, Vec2, Vec3 } from './types'
@@ -265,6 +267,10 @@ export function getFieldFromTrackPath(fieldPath: string): {
   // Navigate to the field
   let field: AnyField | undefined = operator.inputs[fieldName] as AnyField
   if (!field) return null
+
+  // Table cell tracks ("table / data / 0 / value") are applied by bindTableCellsToTimeline;
+  // returning the DataField here would let callers overwrite the whole table with one cell
+  if (subPath.length > 0 && field instanceof DataField) return null
 
   // For compound fields, navigate to sub-field
   if (subPath.length > 0 && field instanceof CompoundPropsField) {
@@ -722,6 +728,14 @@ export function bindOperatorToTimeline(op: Operator<IOperator>, store?: Timeline
   const cleanupFns: Array<() => void> = []
 
   for (const [fieldName, field] of Object.entries(op.inputs)) {
+    // Table data: individual cells can be keyframed ("table / data / 0 / value")
+    if (field instanceof DataField) {
+      const cleanup = bindTableCellsToTimeline(op, getFieldPath(op.id, fieldName), field, store)
+      cleanupFns.push(cleanup)
+      activeBindings.set(`${op.id}.${fieldName}`, cleanup)
+      continue
+    }
+
     // Skip non-animatable fields
     if (typeof field.value === 'function') continue
     if (!isAnimatableField(field as AnyField)) continue
