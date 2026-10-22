@@ -28,6 +28,8 @@ FAIL: 2 errors in 1 of 1 file. Fix the errors and run validate-projects again.
 
 `--json` prints `{valid, registry, files: [{file, valid, errors, warnings}]}` instead.
 
+The same check is the `validate_project` tool in [noodles-mcp](../noodles-mcp/README.md), which Claude Code sessions in this repo have through `.mcp.json`.
+
 Exit status: `0` when every file is valid (warnings allowed), `1` when any file has errors, `2` for bad arguments or when no project files are found.
 
 ## What it checks

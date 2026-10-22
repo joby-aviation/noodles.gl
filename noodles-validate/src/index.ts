@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import type { Registry } from './types.ts'
 
 export { handleProblem, resolveOperatorType, suggest, unknownInput, unknownType } from './fields.ts'
+export { validateFile } from './file.ts'
 export { lintProject, validateProject } from './lint.ts'
 export type * from './types.ts'
 

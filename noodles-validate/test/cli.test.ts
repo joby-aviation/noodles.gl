@@ -5,8 +5,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { EXIT_INVALID, EXIT_OK, EXIT_USAGE, run, validateFile } from '../src/cli.ts'
-import { loadRegistry } from '../src/index.ts'
+import { EXIT_INVALID, EXIT_OK, EXIT_USAGE, run } from '../src/cli.ts'
+import { loadRegistry, validateFile } from '../src/index.ts'
 import { currentFixtures } from './fixtures.ts'
 
 const PACKAGE = fileURLToPath(new URL('..', import.meta.url))
