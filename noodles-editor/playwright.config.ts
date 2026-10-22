@@ -11,8 +11,8 @@ export default defineConfig({
   timeout: 120_000,
   expect: {
     timeout: 15_000,
-    toHaveScreenshot: {
-      // Basemap labels and swiftshader antialiasing move a few pixels between runs
+    toMatchSnapshot: {
+      // Basemap labels and SwiftShader antialiasing move a few pixels between runs
       maxDiffPixelRatio: 0.01,
     },
   },

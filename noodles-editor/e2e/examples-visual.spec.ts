@@ -19,6 +19,12 @@ const MOUNT_ONLY: Record<string, string> = {
   'world-flights': 'too heavy for software WebGL',
 }
 
+// Deck text layers draw labels with a system font, which differs between macOS and Linux
+// (about 2% of pixels for geojson-example's station names)
+const MAX_DIFF_PIXEL_RATIO: Record<string, number> = {
+  'geojson-example': 0.03,
+}
+
 test.describe('examples', () => {
   for (const exampleName of EXAMPLES) {
     test(exampleName, async ({ page }) => {
@@ -30,7 +36,25 @@ test.describe('examples', () => {
       }
 
       await waitForScene(page)
-      await expect(page.locator('#map')).toHaveScreenshot(`${exampleName}.png`)
+      // One page screenshot clipped to the map pane. toHaveScreenshot first waits for two
+      // quick animation frames, which a CI runner drawing software WebGL may not produce.
+      const box = await page.locator('#map').boundingBox()
+      if (!box) throw new Error('#map pane has no layout box')
+      // Round outward to whole pixels, as an element screenshot does
+      const x = Math.floor(box.x)
+      const y = Math.floor(box.y)
+      const clip = {
+        x,
+        y,
+        width: Math.ceil(box.x + box.width) - x,
+        height: Math.ceil(box.y + box.height) - y,
+      }
+      const screenshot = await page.screenshot({ clip, animations: 'disabled', timeout: 60_000 })
+      const maxDiffPixelRatio = MAX_DIFF_PIXEL_RATIO[exampleName]
+      expect(screenshot).toMatchSnapshot(
+        `${exampleName}.png`,
+        maxDiffPixelRatio === undefined ? {} : { maxDiffPixelRatio }
+      )
     })
   }
 })
