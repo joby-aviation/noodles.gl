@@ -1175,22 +1175,19 @@ export class UnknownOperator extends Operator<UnknownOperator> {
   static description = 'Placeholder for an operator type that could not be found'
 
   originalType: string
-  // Store original inputs to preserve them through save/load cycles
-  originalInputs: Record<string, unknown>
+  // The node's saved data (inputs, locked, customInputs, ...), written back unchanged on save
+  // so the project still opens once the operator type is available again
+  originalData: Record<string, unknown>
 
   constructor(id: OpId, data?: Record<string, unknown>) {
-    const originalType = (data?.originalType as string) || 'Unknown'
-    const originalInputs = (data?.inputs as Record<string, unknown>) || {}
     super(id, {}, false)
-    this.originalType = originalType
-    this.originalInputs = originalInputs
+    const { originalType, ...originalData } = data ?? {}
+    this.originalType = (originalType as string) || 'Unknown'
+    this.originalData = originalData
   }
 
   createInputs() {
-    // Create an UnknownField to store original inputs for serialization
-    return {
-      __originalInputs: new UnknownField(this.originalInputs),
-    }
+    return {}
   }
 
   createOutputs() {

@@ -9,6 +9,7 @@ import {
   NumberOp,
   ScenegraphLayerOp,
   TableEditorOp,
+  UnknownOperator,
 } from '../operators'
 import { clearOps, getOpStore, setOp } from '../store'
 import { transformGraph } from '../transform-graph'
@@ -977,5 +978,35 @@ describe('date inputs save and reload', () => {
     expect((reloaded as DirectionsOp).inputs.departureTime.value.toString()).toBe(
       '2026-10-17T08:30:00'
     )
+  })
+})
+
+describe('unknown operator types save and reload', () => {
+  afterEach(() => {
+    clearOps()
+    vi.restoreAllMocks()
+  })
+
+  it('keeps the original type and data of a missing operator type', () => {
+    const node = {
+      id: '/missing',
+      type: 'RemovedOp',
+      data: {
+        inputs: { threshold: 5, label: 'kept' },
+        locked: true,
+        visibleInputs: ['threshold'],
+      },
+      position: { x: 10, y: 20 },
+    }
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    transformGraph({ nodes: [node], edges: [] })
+
+    const op = getOpStore().getOp('/missing')
+    expect(op).toBeInstanceOf(UnknownOperator)
+    expect((op as UnknownOperator).originalType).toBe('RemovedOp')
+
+    // The editor keeps the node's original type in React Flow state
+    const [saved] = serializeNodes(getOpStore(), [{ ...node, selected: true }], [])
+    expect(saved).toEqual(node)
   })
 })
