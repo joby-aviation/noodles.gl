@@ -549,3 +549,13 @@ End-to-end checks that do need keys are listed in the PR description for this wo
 streaming and Stop on Anthropic, cost readout on OpenRouter, `find_tools` →
 `get_documentation` on a docs question, `delegate` on an examples question, and a
 `list_nodes` turn on Chrome Canary with the Prompt API enabled.
+
+## Live benchmark
+
+`noodles-editor/bench/agent/` runs this harness against scripted tasks with a real
+model in a real browser — WebLLM and Gemini Nano on the machine's own GPU, or a
+cloud provider as the ceiling — and grades the resulting project deterministically.
+`npm run bench:agent` from `noodles-editor/`; see its
+[README](../noodles-editor/bench/agent/README.md). It is how a change to the prompt,
+the tool surface or the context budget should be judged: run the matrix before and
+after, then `bench:agent:report --compare`.

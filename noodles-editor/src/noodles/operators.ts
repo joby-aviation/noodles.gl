@@ -271,6 +271,12 @@ export abstract class Operator<OP extends IOperator> {
   private _upstreamDependencies: Set<Operator<IOperator>> = new Set()
   private _downstreamDependents: Set<Operator<IOperator>> = new Set()
 
+  // True from the moment a pull starts. executionState only reports 'executing'
+  // after 200ms, so it reads idle while a fetch is just getting going.
+  get isComputing(): boolean {
+    return this._computingPromise !== null
+  }
+
   constructor(
     public id: OpId,
     data?: Partial<ExtractProps<ReturnType<OP['createInputs']>>>,
