@@ -3,6 +3,7 @@ import { useCallback, useRef, useState } from 'react'
 import { getTimelineStore, useTimelineStore } from '../timeline/timeline-store'
 import { analytics } from '../utils/analytics'
 import { debugRender, debugRenderFrame } from '../utils/debug'
+import { encodeExrFrame, loadExrEncoder } from './exr-export'
 import { type RenderErrorCategory, type RenderSource, trackRender } from './render-analytics'
 
 export const rafDriver = {
@@ -10,6 +11,7 @@ export const rafDriver = {
 }
 
 export type VideoCodec = 'hevc' | 'avc' | 'vp9' | 'av1'
+export type SequenceFormat = 'png' | 'exr'
 
 const codecMap = {
   hevc: {
@@ -417,12 +419,13 @@ export const useRenderer = ({
     [projectName, sequenceLength, fps, bitrate, bitrateMode, canvasFrameReady, redraw, setPosition]
   )
 
-  // Image sequence export — same frame loop as video capture, writes individual PNGs.
+  // Image sequence export — same frame loop as video capture, writes one PNG or EXR per frame.
   const startSequenceCapture = useCallback(
     async ({
       canvas,
       getDeck,
       directoryHandle,
+      format = 'png',
       captureDelay = 200,
       waitForData = true,
       startFrame = 0,
@@ -433,6 +436,7 @@ export const useRenderer = ({
       canvas: HTMLCanvasElement
       getDeck?: () => Deck | null
       directoryHandle: FileSystemDirectoryHandle
+      format?: SequenceFormat
       captureDelay?: number
       waitForData?: boolean
       startFrame?: number
@@ -451,7 +455,7 @@ export const useRenderer = ({
       // Frames are captured at the canvas's own size
       const tracker = trackRender({
         source: 'menu',
-        format: 'png_sequence',
+        format: `${format}_sequence`,
         width: canvas.width,
         height: canvas.height,
         frameCount: totalFrames,
@@ -496,6 +500,9 @@ export const useRenderer = ({
           })
 
       try {
+        // Load the encoder before the first frame so a failed chunk load stops the export early
+        if (format === 'exr') await loadExrEncoder()
+
         // Use captureStream + requestFrame to read from the browser compositor rather than
         // the raw GL framebuffer (which is cleared after the buffer swap when
         // preserveDrawingBuffer is false). Inside the try: captureStream throws on a
@@ -528,7 +535,7 @@ export const useRenderer = ({
           totalWaitTime += waitEnd - waitStart
 
           const frameNumber = String(i).padStart(padLength, '0')
-          const filename = `${projectName}_${frameNumber}.png`
+          const filename = `${projectName}_${frameNumber}.${format}`
 
           // Drain oldest write if the queue is full before capturing the next frame
           if (pendingWrites.length >= MAX_CONCURRENT_WRITES) {
@@ -536,7 +543,7 @@ export const useRenderer = ({
           }
 
           // Capture via compositor: requestFrame reads from the display buffer, not the
-          // GL buffer (which may already be cleared). Draw into OffscreenCanvas for PNG.
+          // GL buffer (which may already be cleared). Draw into OffscreenCanvas to encode.
           const captureStart = performance.now()
           // @ts-expect-error - typescript types not updated yet
           track.requestFrame()
@@ -547,11 +554,15 @@ export const useRenderer = ({
           assert(frame, 'frame is required - might be a problem with the browser')
 
           const convertStart = performance.now()
-          const offscreen = new OffscreenCanvas(frame.displayWidth, frame.displayHeight)
-          const ctx = offscreen.getContext('2d')!
+          const { displayWidth: width, displayHeight: height } = frame
+          const offscreen = new OffscreenCanvas(width, height)
+          const ctx = offscreen.getContext('2d', { willReadFrequently: format === 'exr' })!
           ctx.drawImage(frame, 0, 0)
           frame.close()
-          const blob = await offscreen.convertToBlob({ type: 'image/png' })
+          const blob =
+            format === 'exr'
+              ? new Blob([await encodeExrFrame(ctx.getImageData(0, 0, width, height))])
+              : await offscreen.convertToBlob({ type: 'image/png' })
           const convertEnd = performance.now()
           totalConvertTime += convertEnd - convertStart
 

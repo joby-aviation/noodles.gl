@@ -17,7 +17,7 @@ exports[`context budget > reports first-turn headroom per provider window 1`] = 
     "tools": 550,
   },
   {
-    "headroom": 12850,
+    "headroom": 12800,
     "headroomAfterInspect": 11700,
     "system": 2250,
     "target": "webllm 16k",
