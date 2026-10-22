@@ -1,0 +1,303 @@
+{
+  "version": 18,
+  "nodes": [
+    {
+      "id": "/flights-export",
+      "type": "FileOp",
+      "data": {
+        "inputs": {
+          "format": "csv",
+          "url": "@/flights.csv"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": -500,
+        "y": 0
+      }
+    },
+    {
+      "id": "/flight-flt-1018",
+      "type": "CodeOp",
+      "data": {
+        "inputs": {
+          "code": [
+            "// FileOp's autoType turns ISO timestamps into Dates",
+            "const samples = d.filter(r => r.flight_id === 'FLT-1018')",
+            "const seconds = s => new Date(s.timestamp).getTime() / 1000",
+            "const t0 = seconds(samples[0])",
+            "return [{",
+            "  flight_id: 'FLT-1018',",
+            "  path: samples.map(s => [Number(s.lng), Number(s.lat), Number(s.alt_m)]),",
+            "  timestamps: samples.map(s => seconds(s) - t0)",
+            "}]"
+          ]
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "id": "/route-shadow",
+      "type": "PathLayerOp",
+      "data": {
+        "inputs": {
+          "widthUnits": "pixels",
+          "getWidth": 2,
+          "getColor": "#ffb00040"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 700,
+        "y": -550
+      }
+    },
+    {
+      "id": "/playhead",
+      "type": "NumberOp",
+      "data": {
+        "inputs": {
+          "val": 0
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 0,
+        "y": 700
+      }
+    },
+    {
+      "id": "/route-trips",
+      "type": "TripsLayerOp",
+      "data": {
+        "inputs": {
+          "widthUnits": "pixels",
+          "getWidth": 4,
+          "getColor": "#ffb000",
+          "trailLength": 600,
+          "fadeTrail": true
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 700,
+        "y": 0
+      }
+    },
+    {
+      "id": "/speed",
+      "type": "NumberOp",
+      "data": {
+        "inputs": {
+          "val": 60
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 0,
+        "y": 950
+      }
+    },
+    {
+      "id": "/scaled-time",
+      "type": "MathOp",
+      "data": {
+        "inputs": {
+          "operator": "multiply"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 350,
+        "y": 800
+      }
+    },
+    {
+      "id": "/basemap",
+      "type": "MaplibreBasemapOp",
+      "data": {
+        "inputs": {
+          "mapStyle": "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
+          "viewState": {
+            "longitude": -73.1,
+            "latitude": 40.85,
+            "zoom": 8.6,
+            "pitch": 0,
+            "bearing": 0
+          }
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 1150,
+        "y": -550
+      }
+    },
+    {
+      "id": "/deck",
+      "type": "DeckRendererOp",
+      "data": {
+        "inputs": {},
+        "locked": false
+      },
+      "position": {
+        "x": 1150,
+        "y": 0
+      }
+    },
+    {
+      "id": "/out",
+      "type": "OutOp",
+      "data": {
+        "inputs": {},
+        "locked": false
+      },
+      "position": {
+        "x": 1550,
+        "y": 0
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "/flights-export.out.data->/flight-flt-1018.par.data",
+      "source": "/flights-export",
+      "sourceHandle": "out.data",
+      "target": "/flight-flt-1018",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/flight-flt-1018.out.data->/route-shadow.par.data",
+      "source": "/flight-flt-1018",
+      "sourceHandle": "out.data",
+      "target": "/route-shadow",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/flight-flt-1018.out.data->/route-trips.par.data",
+      "source": "/flight-flt-1018",
+      "sourceHandle": "out.data",
+      "target": "/route-trips",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/playhead.out.val->/scaled-time.par.a",
+      "source": "/playhead",
+      "sourceHandle": "out.val",
+      "target": "/scaled-time",
+      "targetHandle": "par.a"
+    },
+    {
+      "id": "/speed.out.val->/scaled-time.par.b",
+      "source": "/speed",
+      "sourceHandle": "out.val",
+      "target": "/scaled-time",
+      "targetHandle": "par.b"
+    },
+    {
+      "id": "/scaled-time.out.result->/route-trips.par.currentTime",
+      "source": "/scaled-time",
+      "sourceHandle": "out.result",
+      "target": "/route-trips",
+      "targetHandle": "par.currentTime"
+    },
+    {
+      "id": "/route-shadow.out.layer->/deck.par.layers",
+      "source": "/route-shadow",
+      "sourceHandle": "out.layer",
+      "target": "/deck",
+      "targetHandle": "par.layers"
+    },
+    {
+      "id": "/route-trips.out.layer->/deck.par.layers",
+      "source": "/route-trips",
+      "sourceHandle": "out.layer",
+      "target": "/deck",
+      "targetHandle": "par.layers"
+    },
+    {
+      "id": "/basemap.out.maplibre->/deck.par.basemap",
+      "source": "/basemap",
+      "sourceHandle": "out.maplibre",
+      "target": "/deck",
+      "targetHandle": "par.basemap"
+    },
+    {
+      "id": "/deck.out.vis->/out.par.vis",
+      "source": "/deck",
+      "sourceHandle": "out.vis",
+      "target": "/out",
+      "targetHandle": "par.vis"
+    }
+  ],
+  "viewport": {
+    "x": 600,
+    "y": 350,
+    "zoom": 0.55
+  },
+  "editorSettings": {
+    "showOverlay": true
+  },
+  "timeline": {
+    "sheetsById": {
+      "Noodles": {
+        "staticOverrides": {
+          "byObject": {}
+        },
+        "sequence": {
+          "subUnitsPerUnit": 30,
+          "length": 40,
+          "type": "PositionalSequence",
+          "tracksByObject": {
+            "playhead": {
+              "trackData": {
+                "Pk7tRw2mQa": {
+                  "type": "BasicKeyframedTrack",
+                  "__debugName": "playhead:[\"val\"]",
+                  "keyframes": [
+                    {
+                      "id": "Hd3kQ9xLp2",
+                      "position": 0,
+                      "connectedRight": true,
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
+                      "type": "bezier",
+                      "value": 0
+                    },
+                    {
+                      "id": "Vb8nZ1cTr6",
+                      "position": 40,
+                      "connectedRight": true,
+                      "handles": [
+                        0.5,
+                        1,
+                        0.5,
+                        0
+                      ],
+                      "type": "bezier",
+                      "value": 40
+                    }
+                  ]
+                }
+              },
+              "trackIdByPropPath": {
+                "[\"val\"]": "Pk7tRw2mQa"
+              }
+            }
+          },
+          "markers": []
+        }
+      }
+    },
+    "definitionVersion": "0.4.0",
+    "revisionHistory": []
+  }
+}

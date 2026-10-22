@@ -13,6 +13,7 @@ import { REPO_ROOT, SESSION_MODELS, assertProviderEnv, providerFor } from './lib
 import { scoreAnswers } from './lib/matchers'
 import { codexArgs, parseCodexTranscript, renderTranscript } from './lib/session'
 import { loadRegistry, noodlesVersion } from './lib/registry'
+import { measuredSurfaceDir } from './lib/workspace'
 import { loadRubric, resolveApplicability } from './lib/rubric'
 import { MECHANICAL_FAILURE_CAP, type MechanicalResults, median, totalScore } from './lib/scoring'
 import { validateProject } from './lib/validate-project'
@@ -36,8 +37,10 @@ function test(name: string, fn: () => void | Promise<void>): void {
   }
 }
 
-const registry = loadRegistry(REPO_ROOT)
-const version = noodlesVersion(REPO_ROOT)
+// App-tree facts come from the measured ref (what sessions see), not this checkout.
+const SURFACE_ROOT = measuredSurfaceDir()
+const registry = loadRegistry(SURFACE_ROOT)
+const version = noodlesVersion(SURFACE_ROOT)
 
 test('registry parses a plausible operator surface', () => {
   assert.ok(registry.types.size >= 100, `only ${registry.types.size} types`)
@@ -46,7 +49,7 @@ test('registry parses a plausible operator surface', () => {
 })
 
 test('every committed example project passes the interim validator', () => {
-  const examplesDir = path.join(REPO_ROOT, 'noodles-editor', 'src', 'examples')
+  const examplesDir = path.join(SURFACE_ROOT, 'noodles-editor', 'src', 'examples')
   for (const name of fs.readdirSync(examplesDir)) {
     const file = path.join(examplesDir, name, 'noodles.json')
     if (!fs.existsSync(file)) continue
@@ -57,7 +60,7 @@ test('every committed example project passes the interim validator', () => {
 
 test('deliberately broken artifact (invalid handles) fails validation', () => {
   const broken = JSON.parse(
-    fs.readFileSync(path.join(REPO_ROOT, 'noodles-editor', 'src', 'examples', 'california-earthquakes', 'noodles.json'), 'utf-8')
+    fs.readFileSync(path.join(SURFACE_ROOT, 'noodles-editor', 'src', 'examples', 'california-earthquakes', 'noodles.json'), 'utf-8')
   )
   broken.edges[1].sourceHandle = 'out.dataz' // hallucinated field
   broken.edges[2].targetHandle = 'in.getPosition' // forbidden prefix
@@ -265,6 +268,8 @@ const someFail = (r: Record<string, { pass: boolean }>) => {
 test('every golden fixture passes the interim validator (incl. container bridges)', async () => {
   const { CUSTOM_CHECKS } = await import('./lib/task-checks')
   for (const id of Object.keys(CUSTOM_CHECKS)) {
+    // quick-start-screenshot authors no project, so it has no golden
+    if (!fs.existsSync(path.join(fixturesDir, 'golden', `${id}.noodles.json`))) continue
     const result = validateProject(JSON.stringify(golden(id)), registry, version)
     assert.ok(result.valid, `${id} golden: ${result.errors.slice(0, 3).join('; ')}`)
   }
@@ -278,7 +283,7 @@ test('every golden fixture passes the interim validator (incl. container bridges
 
 test('modify-arcs checks: golden passes, unmodified base fails', async () => {
   const { CUSTOM_CHECKS } = await import('./lib/task-checks')
-  const base = loadJson(path.join(REPO_ROOT, 'noodles-editor', 'src', 'examples', 'uk-commute', 'noodles.json'))
+  const base = loadJson(path.join(SURFACE_ROOT, 'noodles-editor', 'src', 'examples', 'uk-commute', 'noodles.json'))
   allPass(CUSTOM_CHECKS['modify-arcs']({ after: golden('modify-arcs'), before: base, resultText: null }))
   someFail(CUSTOM_CHECKS['modify-arcs']({ after: base, before: base, resultText: null }))
   // the trap: recoloring the shared ColorOps (dots turn red too) must fail
@@ -355,6 +360,122 @@ test('all five new task files load with custom checks wired', async () => {
     assert.ok(CUSTOM_CHECKS[id], `no custom checks registered for ${id}`)
     assert.ok(task.prompt.length > 50)
   }
+})
+
+// ---- made-up flights fixture tasks ----
+
+test('flights fixture: generator reproduces the committed CSV; expected sets are as documented', async () => {
+  const { generateRows } = await import('../tasks/fixtures/make-flights-fixture')
+  const committed = fs.readFileSync(path.join(fixturesDir, 'flights-fixture.csv'), 'utf-8')
+  assert.equal(`${generateRows().join('\n')}\n`, committed, 'flights-fixture.csv drifted from its generator')
+  const { expectedLastWeekNewYorkBlade, ROUTE_FLIGHT_ID, fixtureFlights } = await import(
+    './lib/task-checks/flight-fixture'
+  )
+  // independent of the rule in flight-fixture.ts: read off the schedule by hand
+  assert.deepEqual(
+    [...expectedLastWeekNewYorkBlade()].sort(),
+    ['1007', '1008', '1009', '1012', '1014', '1016', '1018', '1020', '1021', '1022', '1023', '1024'].map(n => `FLT-${n}`)
+  )
+  const route = fixtureFlights().get(ROUTE_FLIGHT_ID)
+  assert.equal(`${route?.origin}-${route?.destination}`, 'JRA-HTO')
+})
+
+// Synthetic probe results shaped like get_node_output on a layer node.
+async function probeFor(ids: string[], opts: { withIds?: boolean; timestamps?: boolean } = {}) {
+  const { fixtureFlights } = await import('./lib/task-checks/flight-fixture')
+  const flights = fixtureFlights()
+  return {
+    success: true,
+    data: {
+      layer: {
+        data: ids.map(id => ({
+          ...(opts.withIds === false ? {} : { flight_id: id }),
+          path: flights.get(id)?.samples ?? [],
+          ...(opts.timestamps ? { timestamps: (flights.get(id)?.samples ?? []).map((_, i) => i * 30) } : {}),
+        })),
+      },
+    },
+  }
+}
+
+test('map-flights-last-week checks: right flights pass; unfiltered, half-filtered, and unprobed fail', async () => {
+  const { CUSTOM_CHECKS } = await import('./lib/task-checks')
+  const { expectedLastWeekNewYorkBlade, fixtureFlights } = await import('./lib/task-checks/flight-fixture')
+  const check = CUSTOM_CHECKS['map-flights-last-week']
+  const after = golden('map-flights-last-week')
+  const expected = [...expectedLastWeekNewYorkBlade()]
+  const run = async (ids: string[], withIds = true) =>
+    check({ after, before: null, resultText: null, nodeOutputs: { '/route-layer': await probeFor(ids, { withIds }) } })
+  allPass(await run(expected))
+  allPass(await run(expected, false)) // ids dropped: coordinate fingerprints still identify the flights
+  someFail(await run([...fixtureFlights().keys()])) // no filter
+  someFail(await run([...fixtureFlights().keys()].filter(id => fixtureFlights().get(id)?.operator === 'Blade'))) // Blade, any week, any region
+  someFail(await run(expected.slice(0, 6)))
+  someFail(check({ after, before: null, resultText: null, nodeOutputs: null }))
+})
+
+test('animate-flight-route checks: golden passes; static, speedless, and multi-flight variants fail', async () => {
+  const { CUSTOM_CHECKS } = await import('./lib/task-checks')
+  const check = CUSTOM_CHECKS['animate-flight-route']
+  const after = golden('animate-flight-route')
+  const one = { '/route-trips': await probeFor(['FLT-1018'], { timestamps: true }) }
+  allPass(check({ after, before: null, resultText: null, nodeOutputs: one }))
+  // two flights in the layer
+  someFail(
+    check({ after, before: null, resultText: null, nodeOutputs: { '/route-trips': await probeFor(['FLT-1018', 'FLT-1004']) } })
+  )
+  // no speed control: currentTime fed straight from the keyframed playhead
+  const speedless = JSON.parse(JSON.stringify(after))
+  speedless.nodes = speedless.nodes.filter((n: { id: string }) => !['/speed', '/scaled-time'].includes(n.id))
+  speedless.edges = speedless.edges
+    .filter((e: { source: string; target: string }) => ![e.source, e.target].some(id => ['/speed', '/scaled-time'].includes(id)))
+    .concat([{ id: '/playhead.out.val->/route-trips.par.currentTime', source: '/playhead', sourceHandle: 'out.val', target: '/route-trips', targetHandle: 'par.currentTime' }])
+  const speedlessResult = check({ after: speedless, before: null, resultText: null, nodeOutputs: one })
+  assert.equal(speedlessResult['speed-control-feeds-current-time'].pass, false)
+  assert.equal(speedlessResult['current-time-animated'].pass, true)
+  // static: nothing drives currentTime
+  const fixed = JSON.parse(JSON.stringify(speedless))
+  fixed.edges = fixed.edges.filter((e: { targetHandle: string }) => e.targetHandle !== 'par.currentTime')
+  assert.equal(check({ after: fixed, before: null, resultText: null, nodeOutputs: one })['current-time-animated'].pass, false)
+})
+
+test('quick-start-screenshot checks: installed repo + named screenshot in time passes; slow or shotless fails', async () => {
+  const { CUSTOM_CHECKS } = await import('./lib/task-checks')
+  const check = CUSTOM_CHECKS['quick-start-screenshot']
+  const { WORK_ROOT } = await import('./lib/config')
+  const ws = path.join(WORK_ROOT, 'workspaces', '.selftest-quick-start')
+  fs.rmSync(ws, { recursive: true, force: true })
+  try {
+    fs.mkdirSync(path.join(ws, 'noodles.gl', 'noodles-editor', 'src'), { recursive: true })
+    fs.mkdirSync(path.join(ws, 'noodles.gl', 'node_modules'), { recursive: true })
+    fs.writeFileSync(path.join(ws, 'noodles.gl', 'noodles-editor', 'src', 'logo.png'), 'repo image, not the agent')
+    const resultText = 'Screenshot saved to noodles.gl/.quick-start/screenshot.jpg; the arcs are now red.'
+    someFail(check({ after: null, before: null, resultText, workspace: ws, sessionDurationMs: 200_000 }))
+    fs.mkdirSync(path.join(ws, 'noodles.gl', '.quick-start'), { recursive: true })
+    fs.writeFileSync(path.join(ws, 'noodles.gl', '.quick-start', 'screenshot.jpg'), 'jpeg bytes')
+    allPass(check({ after: null, before: null, resultText, workspace: ws, sessionDurationMs: 200_000 }))
+    someFail(check({ after: null, before: null, resultText, workspace: ws, sessionDurationMs: 400_000 }))
+    someFail(check({ after: null, before: null, resultText: 'Done.', workspace: ws, sessionDurationMs: 200_000 }))
+  } finally {
+    fs.rmSync(ws, { recursive: true, force: true })
+  }
+})
+
+test('the three new task files load with checks wired (quick-start prompt from its file)', async () => {
+  const { loadTask } = await import('./lib/task')
+  const { CUSTOM_CHECKS } = await import('./lib/task-checks')
+  for (const id of ['quick-start-screenshot', 'map-flights-last-week', 'animate-flight-route']) {
+    const task = loadTask(id)
+    assert.equal(task.grader.mechanical.custom, id)
+    assert.ok(CUSTOM_CHECKS[id], `no custom checks registered for ${id}`)
+    assert.ok(task.prompt.length > 50)
+  }
+  const quickStart = loadTask('quick-start-screenshot')
+  assert.equal(quickStart.workspace?.mode, 'empty')
+  assert.equal(
+    quickStart.prompt,
+    fs.readFileSync(path.join(fixturesDir, 'quick-start-prompt.txt'), 'utf-8').trim()
+  )
 })
 
 test('sync-results round-trip on a fake series (offline object store)', async () => {

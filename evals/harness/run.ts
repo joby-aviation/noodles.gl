@@ -7,16 +7,25 @@
 
 import * as fs from 'node:fs'
 import * as path from 'node:path'
-import { RESULTS_ROOT, TASKS_ROOT, TIER, VALIDATOR_VERSION, assertProviderEnv, providerFor } from './lib/config'
-import { loadAndScreenshot } from './lib/playwright-check'
+import { RESULTS_ROOT, TASKS_ROOT, TIER, VALIDATOR_VERSION, WORK_ROOT, assertProviderEnv, providerFor } from './lib/config'
+import { analyzeImageFile, loadAndScreenshot } from './lib/playwright-check'
 import { CUSTOM_CHECKS } from './lib/task-checks'
+import { findAgentScreenshot } from './lib/task-checks/quick-start-screenshot'
 import { type KeyEntry, scoreAnswers } from './lib/matchers'
 import { loadRegistry, noodlesVersion } from './lib/registry'
 import { renderTranscript, runSession } from './lib/session'
 import { type MechanicalResults } from './lib/scoring'
 import { loadTask } from './lib/task'
 import { validateProject } from './lib/validate-project'
-import { createWorkspace, destroyWorkspace, isolationAudit, mainCommit } from './lib/workspace'
+import {
+  createEmptyWorkspace,
+  createWorkspace,
+  destroyWorkspace,
+  ensureTemplate,
+  isolationAudit,
+  killWorkspaceProcesses,
+  mainCommit,
+} from './lib/workspace'
 
 interface Args {
   task: string
@@ -65,7 +74,20 @@ export async function runOne(args: {
 
   const commit = mainCommit()
   console.log(`[${runId}] creating workspace (commit ${commit.slice(0, 12)})`)
-  const ws = createWorkspace({ runId, fixtures: task.workspace?.fixtures, fixturesRoot: TASKS_ROOT })
+  const emptyWorkspace = task.workspace?.mode === 'empty'
+  const ws = emptyWorkspace
+    ? createEmptyWorkspace(runId)
+    : createWorkspace({ runId, fixtures: task.workspace?.fixtures, fixturesRoot: TASKS_ROOT })
+  // Every claude CLI session gets a fresh, per-run config dir. Without one the
+  // CLI loads the operator's ~/.claude (CLAUDE.md, hooks, skills, memory,
+  // settings env), which is not greenfield and, on a desktop machine, can
+  // point the session at an endpoint it cannot reach. MCP servers a prompt
+  // adds (claude mcp add) also stay inside the run.
+  const configDir = providerFor(args.model) === 'bedrock' ? path.join(WORK_ROOT, 'config', runId) : null
+  if (configDir) {
+    fs.rmSync(configDir, { recursive: true, force: true })
+    fs.mkdirSync(configDir, { recursive: true })
+  }
 
   // Base-project snapshot for modify tasks — read BEFORE the session runs.
   let baseRaw: string | null = null
@@ -75,7 +97,8 @@ export async function runOne(args: {
   }
 
   // Registry snapshot for this series (grading input; one copy per series).
-  const registry = loadRegistry(ws)
+  // An empty workspace has no source to parse; the template has the same commit.
+  const registry = loadRegistry(emptyWorkspace ? ensureTemplate() : ws)
   const registryPath = path.join(RESULTS_ROOT, args.series, 'registry.json')
   if (!fs.existsSync(registryPath)) {
     fs.mkdirSync(path.dirname(registryPath), { recursive: true })
@@ -108,7 +131,10 @@ export async function runOne(args: {
       maxTurns: task.budget.maxTurns,
       maxWallClockSeconds: task.budget.maxWallClockSeconds,
       transcriptPath,
+      env: configDir ? { CLAUDE_CONFIG_DIR: configDir } : undefined,
     })
+    // Background processes the session started (dev servers) die with it.
+    killWorkspaceProcesses(ws)
     fs.writeFileSync(path.join(runDir, 'transcript.txt'), renderTranscript(session.transcriptJsonl))
 
     // Collect final artifacts.
@@ -126,6 +152,7 @@ export async function runOne(args: {
 
     // ---- Layer 1 (frozen at run time) ----
     const checks: MechanicalResults['checks'] = {}
+    let nodeOutputs: Record<string, unknown> | null = null
     let answersDeterministic: MechanicalResults['answersDeterministic']
 
     if (task.grader.mechanical.validateProject) {
@@ -155,13 +182,27 @@ export async function runOne(args: {
 
     if (task.grader.mechanical.load) {
       console.log(`[${runId}] load check (vite + playwright) ...`)
+      let probeNodeIds: string[] | undefined
+      if (task.grader.mechanical.load.probeLayers) {
+        try {
+          const project = JSON.parse(artifactRaw ?? '{}') as { nodes?: Array<{ id?: string; type?: string }> }
+          probeNodeIds = (project.nodes ?? [])
+            .filter(n => typeof n.type === 'string' && /LayerOp$/.test(n.type) && n.id)
+            .map(n => n.id as string)
+        } catch {
+          probeNodeIds = []
+        }
+      }
       const load = await loadAndScreenshot({
         workspace: ws,
         route: task.grader.mechanical.load.route,
         screenshotPath: path.join(runDir, 'screenshot.png'),
         port: args.port,
         openTimeline: task.grader.mechanical.load.openTimeline,
+        probeNodeIds,
       })
+      nodeOutputs = load.nodeOutputs
+      if (nodeOutputs) fs.writeFileSync(path.join(runDir, 'node-outputs.json'), JSON.stringify(nodeOutputs, null, 1))
       checks.loadsWithoutConsoleErrors = {
         pass: load.loaded && load.consoleErrors.length === 0,
         detail: load.consoleErrors.slice(0, 5).join(' | ') || load.detail,
@@ -183,9 +224,31 @@ export async function runOne(args: {
           return null
         }
       }
-      const results = custom({ after: parse(artifactRaw), before: parse(baseRaw), resultText: session.resultText })
+      const results = custom({
+        after: parse(artifactRaw),
+        before: parse(baseRaw),
+        resultText: session.resultText,
+        nodeOutputs,
+        workspace: ws,
+        sessionDurationMs: session.durationMs,
+      })
       for (const [name, result] of Object.entries(results)) {
         checks[`custom:${name}`] = result
+      }
+    }
+
+    if (task.grader.mechanical.agentScreenshot) {
+      const shot = findAgentScreenshot(ws)
+      if (shot === null) {
+        checks.agentScreenshotNonBlank = { pass: false, detail: 'the session wrote no screenshot' }
+      } else {
+        // stored beside screenshot.png, not in artifacts/ (graders read artifacts as text)
+        fs.copyFileSync(shot, path.join(runDir, `agent-screenshot${path.extname(shot).toLowerCase()}`))
+        const stats = await analyzeImageFile(shot).catch(() => null)
+        checks.agentScreenshotNonBlank = {
+          pass: stats?.nonBlank === true,
+          detail: stats ? `pixel stddev ${stats.stddev.toFixed(2)}` : 'image could not be decoded',
+        }
       }
     }
 
@@ -254,7 +317,9 @@ export async function runOne(args: {
     )
     return runId
   } finally {
+    killWorkspaceProcesses(ws)
     if (!args.keepWorkspace) destroyWorkspace(ws)
+    if (configDir) fs.rmSync(configDir, { recursive: true, force: true })
   }
 }
 

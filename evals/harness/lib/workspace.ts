@@ -30,6 +30,28 @@ export function templateDir(): string {
   return path.join(WORK_ROOT, `template-${mainCommit().slice(0, 12)}`)
 }
 
+/** The measured ref's static app surface, extracted without installing:
+ * operators.ts (the registry source), the migrations (schema version),
+ * example project files, and AGENTS.md. Offline checks (selftest,
+ * verify-goldens' static and semantic layers) validate against this, so they
+ * judge goldens by the same registry and schema version sessions see,
+ * instead of whatever app tree the harness branch happens to carry. */
+export function measuredSurfaceDir(): string {
+  const dir = path.join(WORK_ROOT, `surface-${mainCommit().slice(0, 12)}`)
+  const stamp = path.join(dir, '.evals-surface-ready')
+  if (fs.existsSync(stamp)) return dir
+  fs.rmSync(dir, { recursive: true, force: true })
+  fs.mkdirSync(dir, { recursive: true })
+  execSync(
+    `git archive ${mainCommit()} -- AGENTS.md noodles-editor/src/noodles/operators.ts ` +
+      `noodles-editor/src/noodles/__migrations__ ':(glob)noodles-editor/src/examples/*/noodles.json' ` +
+      `| tar -x -C ${JSON.stringify(dir)}`,
+    { cwd: REPO_ROOT }
+  )
+  fs.writeFileSync(stamp, `${mainCommit()}\n`)
+  return dir
+}
+
 /** Build (or reuse) the installed template workspace for origin/main. */
 export function ensureTemplate(log: (msg: string) => void = console.log): string {
   const dir = templateDir()
@@ -111,6 +133,28 @@ export function createWorkspace(opts: WorkspaceOptions): string {
   )
 
   return ws
+}
+
+/** An empty workspace for tasks that start from nothing (workspace.mode:
+ * empty): no checkout, no template, no git history. Whatever the session
+ * needs, it fetches itself, the way a first-time user would. */
+export function createEmptyWorkspace(runId: string): string {
+  const ws = path.join(WORK_ROOT, 'workspaces', runId)
+  fs.rmSync(ws, { recursive: true, force: true })
+  fs.mkdirSync(ws, { recursive: true })
+  return ws
+}
+
+/** Stop anything a session left running from its workspace (a dev server it
+ * started in the background, a relay): matched by the workspace path on the
+ * command line, so only this run's processes qualify. */
+export function killWorkspaceProcesses(ws: string): void {
+  if (!ws.startsWith(path.join(WORK_ROOT, 'workspaces'))) return
+  try {
+    execFileSync('pkill', ['-f', ws], { stdio: 'ignore' })
+  } catch {
+    /* exit 1: nothing matched */
+  }
 }
 
 export function destroyWorkspace(ws: string): void {

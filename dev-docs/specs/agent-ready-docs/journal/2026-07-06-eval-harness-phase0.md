@@ -663,3 +663,84 @@ identical, hashes new). Season 2 re-pins before any runs exist: **MEASURED_REF =
 pre-pin series dir (registry snapshot only, zero runs) is deleted, not archived — it never
 became an instrument. Full verify-goldens re-run against pure main is the proof the merged
 fixes carry the container idiom without the stack.
+
+## 2026-10-21: flight-data and quick-start tasks; catching up with main
+
+Three tasks for user flows the suite had no coverage for, stacked on this branch:
+
+- **`map-flights-last-week`**: "Map of last week's New York Blade flights." The data comes from
+  a made-up fixture (`tasks/fixtures/flights-fixture.csv`, written by a seeded generator) standing
+  in for a flight-data tool's export: 24 flights, 12 of them the target set, with distractors for
+  each word of the ask (the week before, Blade outside New York, another operator inside New York).
+- **`animate-flight-route`**: one flight from the same fixture as a TripsLayer route that animates,
+  with a speed control.
+- **`quick-start-screenshot`**: the quick-start prompt, pasted into a session that starts in an
+  empty directory. The prompt is a placeholder copy of the unmerged draft; the task file says
+  to replace it verbatim and bump `taskVersion` when it is published.
+
+**Grading the filter at run time.** A filter can be SQL, a CodeOp, or an accessor, so reading
+the query text can't say whether the right flights reached the map. The load check now opens
+the route with `?externalControl=true` and calls the app's own `get_node_output` tool through
+`navigator.modelContextTesting` for every `*LayerOp`, freezing the results as
+`node-outputs.json` (`load.probeLayers`). Flights are identified by id, or by coordinate
+fingerprints when a session drops the id column (each route bows by a seeded amount). Two
+things found on the way: the tool's response wraps the payload as JSON text inside
+`content[].text` (unwrapped before checks see it), and probe mode starts the local-relay
+transport, which logs refused `ws://127.0.0.1:9333+` connections; those are filtered only in
+probe mode.
+
+**Empty-workspace tasks.** `workspace.mode: empty` skips the template, and the prompt's
+`claude mcp add` and nested `claude -p` run inside the session's per-run config dir (below). After every session the runner kills processes whose command line contains
+the workspace path (the dev server the prompt starts in the background). The task opens a real
+browser tab (`open -a "Google Chrome"` / `xdg-open`), so it needs a machine with Chrome; a
+headless container fails at that step by design of the prompt.
+
+**Main moved under the harness** (6d3fe28a; season 2 had zero runs):
+
+1. Schema 16 → 18 (017 renames BoundsOp fields, 018 repairs duplicate edges; both no-ops for
+   every fixture). The validator requires the current version, so the 8 fixture projects are
+   bumped and answer-key q23 follows, as in round 7.
+2. Offline checks validated against this branch's app tree (still v16), while sessions run on
+   `MEASURED_REF`. `selftest` and `verify-goldens` now read the registry, schema version, example
+   projects, and AGENTS.md from a `git archive` of the measured ref (`measuredSurfaceDir()`).
+3. `MEASURED_REF` floats with `origin/main`, but `CURRENT_SERIES` named main@c62c28c. Re-pinned to
+   `2026-10-21.t0.6d3fe28a8989`; re-pin again if main moves before the season's first run.
+4. `.claude/skills/noodles-live` (#674) is the first real dogfooding artifact on main; the strip
+   list already removes it at T0. `dev-docs/claude-code-workflow.md` still mentions the skill,
+   so T0 sessions can read about a skill they don't have; the AGENTS.md pointer strip doesn't
+   cover dev-docs. Harmless today, worth a look if more docs start pointing at skills.
+5. The legacy WebSocket proxy (#668) was never used by the harness; nothing to change.
+   `export_video` (#669) only matters for live-app (T5) tasks; at T0 "export" is graded as the
+   project file plus the harness render.
+6. Bedrock credentials may come from a named `AWS_PROFILE` (the `assertProviderEnv` selftest
+   failed on a profile-only machine).
+
+**Isolation leak on operator machines.** Sessions spawned by the claude CLI loaded the
+operator's `~/.claude`: on a maintainer's laptop the first baseline session ran the user's
+SessionStart hooks, would have read their CLAUDE.md, skills, and memory, and stalled in API
+retries because user settings pointed it at the desktop app's Bedrock endpoint. The eval
+container has no user config, so season 1 never saw it. Every claude session now gets a fresh
+per-run `CLAUDE_CONFIG_DIR` (deleted after the run); the isolation audit can't catch this class,
+since nothing in the transcript's tool calls touches the leaked files.
+
+**First baseline** (series `2026-10-21.t0.6d3fe28a8989`, one session per task on
+`us.anthropic.claude-sonnet-5`, judge opus-4-8 x3; directional, not a milestone, and not
+committed to `index.json` because the evidence is not in R2):
+
+| Task | Mechanical | Judge | Total | Notes |
+|---|---|---|---|---|
+| map-flights-last-week | 4.00 | 4.00 | 4.00 | exactly the 12 flights; 379 s, $1.21 |
+| animate-flight-route | 1.60 | 0.93 | 1.27 | 40-turn cap hit while reading executor source; no file written; $0.80 |
+| quick-start-screenshot | 0.80 | 1.40 | 1.10 | cloned and installed, never captured; 900 s cap; cost not reported |
+
+The route failure is the research-until-budget pattern from sql-h3. The quick-start session got
+stuck at the WebMCP connection (step 5 to 6) and then improvised outside the prompt on the
+operator's machine: AppleScript against the real Chrome, reading Chrome extension folders, and
+clicking Chrome's "Allow JavaScript from Apple Events" menu item. That makes the task unsafe on a
+personal machine; the task file now says to run it on a dedicated machine or VM. It also says
+something about the prompt: when the relay doesn't connect, it gives no fallback short of "stop
+after two failures", and this session did not stop.
+
+**App bug found:** `TimeOp.execute()` returns `null` and the pull executor throws on null, so a
+TimeOp wired by edge errors every frame. The route golden uses a keyframed playhead instead
+(the `world-flights` idiom). Fix belongs in its own app PR.

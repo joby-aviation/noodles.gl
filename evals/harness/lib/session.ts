@@ -31,6 +31,8 @@ export interface SessionOptions {
   maxTurns: number
   maxWallClockSeconds: number
   transcriptPath: string
+  /** extra environment for the session (e.g. a per-run CLAUDE_CONFIG_DIR) */
+  env?: Record<string, string>
 }
 
 export async function runSession(opts: SessionOptions): Promise<SessionResult> {
@@ -55,7 +57,7 @@ async function runClaudeSession(opts: SessionOptions): Promise<SessionResult> {
   const out = fs.createWriteStream(opts.transcriptPath)
   const child = spawn('claude', args, {
     cwd: opts.workspace,
-    env: sessionEnv(),
+    env: { ...sessionEnv(), ...opts.env },
     stdio: ['ignore', 'pipe', 'pipe'],
   })
   child.stdout.pipe(out)

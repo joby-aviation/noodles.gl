@@ -54,13 +54,17 @@ export const TIER = 'T0'
 // Season 1 closes when the curve is complete (T1-T5 milestones + ablations
 // graded, calibration settled, rubric-bump regrades applied) or on a forced
 // re-pin — see evals/README.md "Storage & retention".
-export const CURRENT_SERIES = '2026-08-18.t0.c62c28c99a5d'
+export const CURRENT_SERIES = '2026-10-21.t0.6d3fe28a8989'
 
 // The measured app surface for this season. #514/#515/#516 squash-merged to
 // main on 2026-08-18 (their branches are deleted), so the season measures
 // origin/main again — code-refs@2's required fixes are in it. The sha12 in
-// CURRENT_SERIES names this ref's commit at pin time (main@c62c28c).
-// EVALS_WORKSPACE_REF still overrides for ad-hoc runs.
+// CURRENT_SERIES names this ref's commit at pin time. Re-pinned 2026-10-21
+// from main@c62c28c (schema v16, zero season-2 runs recorded) to
+// main@6d3fe28a (schema v18; the legacy WebSocket proxy removed, export_video
+// and the noodles-live skill added). MEASURED_REF floats with origin/main, so
+// re-pin whenever main moves before a season's first run: a row's commit and
+// its series name must agree. EVALS_WORKSPACE_REF still overrides ad hoc.
 export const MEASURED_REF = 'origin/main'
 // interim-2 added the container-bridge exemption to the handle-prefix rules
 // (app-generated ContainerOp bridge edges). interim-3 makes the unknown-input
@@ -84,7 +88,15 @@ const REQUIRED_ENV: Record<Provider, readonly string[]> = {
 // judge's Bedrock env is required.
 export function assertProviderEnv(model?: string): void {
   const providers: Provider[] = model ? [providerFor(model)] : ['bedrock']
-  const missing = providers.flatMap(p => REQUIRED_ENV[p].filter(name => !process.env[name]))
+  const missing = providers.flatMap(p => {
+    // A named AWS profile (SSO or shared credentials file) stands in for the
+    // key pair: the claude CLI and the Bedrock SDK both resolve it through
+    // the default credential chain. Region is still required.
+    if (p === 'bedrock' && process.env.AWS_PROFILE) {
+      return ['AWS_REGION'].filter(name => !process.env[name])
+    }
+    return REQUIRED_ENV[p].filter(name => !process.env[name])
+  })
   if (missing.length > 0) {
     throw new Error(
       `Provider requires environment variables that are not set: ${missing.join(', ')}. ` +
