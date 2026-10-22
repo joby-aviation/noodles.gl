@@ -82,6 +82,14 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
   const [streamingText, setStreamingText] = useState('')
   const [activeTools, setActiveTools] = useState<string[]>([])
   const [lastUsage, setLastUsage] = useState<AgentUsage | null>(null)
+  // Whether the running model takes images. The Capture button is hidden when it
+  // does not, since the screenshot would be dropped before it was sent.
+  const [providerSupportsImages, setProviderSupportsImages] = useState(false)
+  // A manual capture, attached to the next message and then cleared
+  const [pendingScreenshot, setPendingScreenshot] = useState<{
+    data: string
+    format: 'png' | 'jpeg'
+  } | null>(null)
   // Whether this browser has a usable built-in model. Only knowable
   // asynchronously, so it starts false and the option stays disabled until then.
   const [chromeAvailable, setChromeAvailable] = useState(false)
@@ -265,6 +273,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
   useEffect(() => {
     if (!providerReady) {
       setContextLoading(false)
+      setProviderSupportsImages(false)
       return
     }
 
@@ -278,6 +287,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
     const init = async () => {
       setContextLoading(true)
       setProviderError(null)
+      setProviderSupportsImages(false)
       try {
         // Wait for context to be ready (should be instant if already loaded)
         const loader = await globalContextManager.waitForReady()
@@ -305,8 +315,18 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
           return
         }
 
+        setProviderSupportsImages(provider.supportsImages)
         setMcpTools(tools)
         setSession(built)
+
+        // OpenRouter learns which models take images from its catalogue, which
+        // may land after this session was built. Ask again once it has (the
+        // fetch is shared and cached, so this costs no extra request).
+        if (providerId === 'openrouter') {
+          fetchOpenRouterFreeModels().then(() => {
+            if (!cancelled) setProviderSupportsImages(provider.supportsImages)
+          })
+        }
       } catch (error) {
         debugAiChat('Failed to initialize the assistant:', error)
         setSession(null)
@@ -358,12 +378,19 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
     setStreamingText('')
     setActiveTools([])
 
+    // Consumed now rather than when the reply finishes, so a capture taken while
+    // it streams stays attached to the next message
+    const screenshot = pendingScreenshot
+    setPendingScreenshot(null)
+
     const controller = new AbortController()
     abortRef.current = controller
 
     try {
       const response = await session.send({
         message: input,
+        screenshot: screenshot?.data,
+        screenshotFormat: screenshot?.format,
         conversationHistory: messages,
         signal: controller.signal,
         onEvent: event => {
@@ -483,7 +510,15 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
 
     const result = await mcpTools.captureVisualization({})
     if (result.success) {
-      alert('Screenshot captured! It will be included with your next message.')
+      const data = result.data as { screenshot?: unknown; format?: unknown }
+      if (typeof data?.screenshot !== 'string') {
+        alert('Failed to capture screenshot: no image data was returned.')
+        return
+      }
+      setPendingScreenshot({
+        data: data.screenshot,
+        format: data.format === 'png' ? 'png' : 'jpeg',
+      })
     } else {
       alert(`Failed to capture screenshot: ${result.error}`)
     }
@@ -731,14 +766,20 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
           </button>
           {lastUsage && <span className={styles.usageReadout}>{formatUsage(lastUsage)}</span>}
         </div>
-        <button
-          type="button"
-          onClick={handleManualCapture}
-          className={styles.captureBtn}
-          title="Capture current visualization"
-        >
-          📸 Capture
-        </button>
+        {providerSupportsImages && (
+          <button
+            type="button"
+            onClick={handleManualCapture}
+            className={styles.captureBtn}
+            title={
+              pendingScreenshot
+                ? 'Screenshot attached to your next message'
+                : 'Capture current visualization'
+            }
+          >
+            {pendingScreenshot ? '📸 Attached' : '📸 Capture'}
+          </button>
+        )}
       </div>
 
       {onDevice && !noticeDismissed && (

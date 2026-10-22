@@ -58,7 +58,7 @@ in `agent-files.ts`, which goes through `resolvePath()` like `write_file`.
 | Default model | `claude-sonnet-5` | best free tool-capable model in the catalogue | whatever you type | `Qwen3.5-4B-q4f16_1-MLC` | `gemini-nano` |
 | Context window | 200k | from `/models`, per-model table as fallback | configurable, 32k default | 4k, pinned by every prebuilt config | discovered at runtime (~6k), and measured per turn |
 | Native tool calling | yes | yes (filtered on `supported_parameters`) | assumed, switchable off | **no** — constrained JSON | **no** — constrained JSON |
-| Images (screenshots) | yes | yes | off by default | no | no |
+| Images (screenshots) | yes | only when the catalogue lists `image` input | off by default | no | no |
 | Web search | server-side `web_search_2026…`/`…20250305` | `plugins: [{id:'web'}]` | unavailable | unavailable | unavailable |
 | Prompt caching | `cache_control: ephemeral` on the system prompt | — | — | KV cache reused across steps (byte-stable prefix) | session reused across turns |
 | API key | required | one click, no paste | required, unless the server is your own | none | none |
@@ -334,7 +334,10 @@ when the window is under 32k. Each step is one model turn plus its tool batch.
   descriptions ("is currently set to `#8d12af`"), instructions and refusals are left
   alone; `claimsAnEdit` in `agent/loop.ts` holds the test.
 - **Screenshots.** Base64 is stripped from the tool result and reattached as an
-  image block on the follow-up message — only when `provider.supportsImages`.
+  image block on the follow-up message — only when `provider.supportsImages`. The
+  panel's Capture button is hidden when it is false, and a capture rides on the
+  next message the user sends. OpenRouter reads `supportsImages` from the
+  catalogue's `architecture.input_modalities`, since many free models are text-only.
 - **Opaque provider blocks.** Anything a provider needs echoed back verbatim
   (Anthropic thinking blocks, for instance) rides through the transcript as a
   `provider_block` and is never inspected. Dropping them makes Anthropic reject the
