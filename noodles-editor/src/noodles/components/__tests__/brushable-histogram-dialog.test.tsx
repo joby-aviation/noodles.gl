@@ -95,6 +95,39 @@ describe('BrushableHistogramDialog', () => {
     expect(op.inputs.brushMin.value).toBe(0)
   })
 
+  it('keeps the brush width when the center moves to an edge', () => {
+    const op = createOp()
+    op.inputs.brushMode.setValue('offset')
+    render(<BrushableHistogramDialog op={op} open onOpenChange={() => {}} />)
+
+    fireEvent.change(screen.getByLabelText('Center'), { target: { value: '85' } })
+    expect([op.inputs.brushMin.value, op.inputs.brushMax.value]).toEqual([40, 100])
+
+    fireEvent.change(screen.getByLabelText('Center'), { target: { value: '50' } })
+    expect([op.inputs.brushMin.value, op.inputs.brushMax.value]).toEqual([20, 80])
+  })
+
+  it('maps a drag to the right value when the chart is scaled down', () => {
+    const op = createOp()
+    render(<BrushableHistogramDialog op={op} open onOpenChange={() => {}} />)
+
+    // Half the chart's 700-unit width, as on a narrow window
+    const title = screen.getByLabelText('Min').ownerDocument.querySelector('svg > title')
+    const svg = title?.parentElement as unknown as SVGSVGElement
+    svg.style.width = '350px'
+    svg.style.height = 'auto'
+    const rect = svg.getBoundingClientRect()
+    expect(rect.width).toBeLessThan(400)
+
+    const maxHandle = screen.getByRole('slider', { name: 'Brush maximum' })
+    fireEvent.mouseDown(maxHandle)
+    // 50 sits 365 of 700 viewBox units across (left margin plus half the plot)
+    fireEvent.mouseMove(document, { clientX: rect.left + (365 / 700) * rect.width })
+    fireEvent.mouseUp(document)
+
+    expect(op.inputs.brushMax.value).toBeCloseTo(50, 0)
+  })
+
   it('tracks opening when the parent sets open', () => {
     const op = createOp()
     const { rerender } = render(

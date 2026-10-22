@@ -1,7 +1,7 @@
 // @vitest-environment node
 import type { Edge, Node } from '@xyflow/react'
 import { describe, expect, it } from 'vitest'
-import { type LayoutOptions, layoutNodes, resolveOverlaps } from './auto-layout'
+import { layoutNodes, resolveOverlaps } from './auto-layout'
 
 const createNode = (id: string, x = 0, y = 0, width = 200, height = 100, type?: string): Node => ({
   id,
@@ -15,185 +15,6 @@ const createEdge = (source: string, target: string): Edge => ({
   id: `${source}->${target}`,
   source,
   target,
-})
-
-describe('layoutNodes', () => {
-  describe('with dagre algorithm', () => {
-    const dagreOptions: LayoutOptions = {
-      enabled: true,
-      algorithm: 'dagre',
-      direction: 'LR',
-    }
-
-    it('returns empty array for empty input', () => {
-      const result = layoutNodes([], [], dagreOptions)
-      expect(result).toEqual([])
-    })
-
-    it('returns single node with same position', () => {
-      const nodes = [createNode('a', 100, 100)]
-      const result = layoutNodes(nodes, [], dagreOptions)
-      expect(result).toHaveLength(1)
-      expect(result[0].id).toBe('a')
-    })
-
-    it('layouts connected nodes in a line for LR direction', () => {
-      const nodes = [createNode('a'), createNode('b'), createNode('c')]
-      const edges = [createEdge('a', 'b'), createEdge('b', 'c')]
-      const result = layoutNodes(nodes, edges, dagreOptions)
-
-      expect(result).toHaveLength(3)
-
-      const nodeA = result.find(n => n.id === 'a')!
-      const nodeB = result.find(n => n.id === 'b')!
-      const nodeC = result.find(n => n.id === 'c')!
-
-      // In LR layout, x positions should increase from a to b to c
-      expect(nodeA.position.x).toBeLessThan(nodeB.position.x)
-      expect(nodeB.position.x).toBeLessThan(nodeC.position.x)
-    })
-
-    it('layouts connected nodes vertically for TB direction', () => {
-      const nodes = [createNode('a'), createNode('b'), createNode('c')]
-      const edges = [createEdge('a', 'b'), createEdge('b', 'c')]
-      const result = layoutNodes(nodes, edges, { ...dagreOptions, direction: 'TB' })
-
-      const nodeA = result.find(n => n.id === 'a')!
-      const nodeB = result.find(n => n.id === 'b')!
-      const nodeC = result.find(n => n.id === 'c')!
-
-      // In TB layout, y positions should increase from a to b to c
-      expect(nodeA.position.y).toBeLessThan(nodeB.position.y)
-      expect(nodeB.position.y).toBeLessThan(nodeC.position.y)
-    })
-
-    it('handles branching graphs', () => {
-      const nodes = [createNode('a'), createNode('b'), createNode('c'), createNode('d')]
-      const edges = [
-        createEdge('a', 'b'),
-        createEdge('a', 'c'),
-        createEdge('b', 'd'),
-        createEdge('c', 'd'),
-      ]
-      const result = layoutNodes(nodes, edges, dagreOptions)
-
-      expect(result).toHaveLength(4)
-
-      const nodeA = result.find(n => n.id === 'a')!
-      const nodeD = result.find(n => n.id === 'd')!
-
-      // a should be leftmost, d should be rightmost
-      expect(nodeA.position.x).toBeLessThan(nodeD.position.x)
-    })
-
-    it('produces non-overlapping nodes', () => {
-      const nodes = [createNode('a'), createNode('b'), createNode('c')]
-      const edges = [createEdge('a', 'b'), createEdge('a', 'c')]
-      const result = layoutNodes(nodes, edges, dagreOptions)
-
-      // Check no nodes overlap
-      for (let i = 0; i < result.length; i++) {
-        for (let j = i + 1; j < result.length; j++) {
-          const n1 = result[i]
-          const n2 = result[j]
-          const w1 = n1.measured?.width ?? 200
-          const h1 = n1.measured?.height ?? 100
-          const w2 = n2.measured?.width ?? 200
-          const h2 = n2.measured?.height ?? 100
-
-          const xOverlap = n1.position.x < n2.position.x + w2 && n1.position.x + w1 > n2.position.x
-          const yOverlap = n1.position.y < n2.position.y + h2 && n1.position.y + h1 > n2.position.y
-
-          expect(xOverlap && yOverlap).toBe(false)
-        }
-      }
-    })
-  })
-
-  describe('with d3-force algorithm', () => {
-    const forceOptions: LayoutOptions = {
-      enabled: true,
-      algorithm: 'd3-force',
-      direction: 'LR',
-    }
-
-    it('returns empty array for empty input', () => {
-      const result = layoutNodes([], [], forceOptions)
-      expect(result).toEqual([])
-    })
-
-    it('returns single node', () => {
-      const nodes = [createNode('a', 100, 100)]
-      const result = layoutNodes(nodes, [], forceOptions)
-      expect(result).toHaveLength(1)
-    })
-
-    it('layouts connected nodes', () => {
-      const nodes = [createNode('a'), createNode('b'), createNode('c')]
-      const edges = [createEdge('a', 'b'), createEdge('b', 'c')]
-      const result = layoutNodes(nodes, edges, forceOptions)
-
-      expect(result).toHaveLength(3)
-      // Each node should have a position
-      for (const node of result) {
-        expect(typeof node.position.x).toBe('number')
-        expect(typeof node.position.y).toBe('number')
-        expect(Number.isFinite(node.position.x)).toBe(true)
-        expect(Number.isFinite(node.position.y)).toBe(true)
-      }
-    })
-
-    it('respects direction for topological ordering', () => {
-      const nodes = [createNode('a'), createNode('b'), createNode('c')]
-      const edges = [createEdge('a', 'b'), createEdge('b', 'c')]
-      const result = layoutNodes(nodes, edges, forceOptions)
-
-      const nodeA = result.find(n => n.id === 'a')!
-      const nodeC = result.find(n => n.id === 'c')!
-
-      // In LR layout, a should generally be left of c
-      expect(nodeA.position.x).toBeLessThan(nodeC.position.x)
-    })
-
-    it('produces finite positions for disconnected nodes', () => {
-      const nodes = [createNode('a'), createNode('b'), createNode('c')]
-      const result = layoutNodes(nodes, [], forceOptions)
-
-      for (const node of result) {
-        expect(Number.isFinite(node.position.x)).toBe(true)
-        expect(Number.isFinite(node.position.y)).toBe(true)
-      }
-    })
-
-    it('produces non-overlapping nodes', () => {
-      const nodes = [createNode('a'), createNode('b'), createNode('c')]
-      const edges = [createEdge('a', 'b'), createEdge('a', 'c')]
-      const result = layoutNodes(nodes, edges, forceOptions)
-      const margin = 50
-
-      for (let i = 0; i < result.length; i++) {
-        for (let j = i + 1; j < result.length; j++) {
-          const n1 = result[i]
-          const n2 = result[j]
-          const w1 = n1.measured?.width ?? 200
-          const h1 = n1.measured?.height ?? 100
-          const w2 = n2.measured?.width ?? 200
-          const h2 = n2.measured?.height ?? 100
-
-          const overlapX =
-            Math.min(n1.position.x + w1, n2.position.x + w2) -
-            Math.max(n1.position.x, n2.position.x) +
-            margin
-          const overlapY =
-            Math.min(n1.position.y + h1, n2.position.y + h2) -
-            Math.max(n1.position.y, n2.position.y) +
-            margin
-
-          expect(overlapX > 0 && overlapY > 0).toBe(false)
-        }
-      }
-    })
-  })
 })
 
 describe('resolveOverlaps', () => {
@@ -289,21 +110,15 @@ describe('resolveOverlaps', () => {
   })
 })
 
-describe('layoutNodes with semantic algorithm', () => {
-  const semanticOptions: LayoutOptions = {
-    enabled: true,
-    algorithm: 'semantic',
-    direction: 'LR',
-  }
-
+describe('layoutNodes', () => {
   it('returns empty array for empty input', () => {
-    const result = layoutNodes([], [], semanticOptions)
+    const result = layoutNodes([], [])
     expect(result).toEqual([])
   })
 
   it('returns single node with position', () => {
     const nodes = [createNode('layer1', 0, 0, 200, 100, 'ScatterplotLayerOp')]
-    const result = layoutNodes(nodes, [], semanticOptions)
+    const result = layoutNodes(nodes, [])
     expect(result).toHaveLength(1)
     expect(result[0].id).toBe('layer1')
     expect(typeof result[0].position.x).toBe('number')
@@ -316,7 +131,7 @@ describe('layoutNodes with semantic algorithm', () => {
       createNode('layer2', 100, 100, 200, 100, 'ArcLayerOp'),
       createNode('layer3', 200, 200, 200, 100, 'PathLayerOp'),
     ]
-    const result = layoutNodes(nodes, [], semanticOptions)
+    const result = layoutNodes(nodes, [])
 
     const layerX = result.find(n => n.id === 'layer1')!.position.x
     expect(result.find(n => n.id === 'layer2')!.position.x).toBe(layerX)
@@ -328,7 +143,7 @@ describe('layoutNodes with semantic algorithm', () => {
       createNode('layer1', 0, 0, 200, 100, 'ScatterplotLayerOp'),
       createNode('deck', 0, 0, 200, 100, 'DeckRendererOp'),
     ]
-    const result = layoutNodes(nodes, [], semanticOptions)
+    const result = layoutNodes(nodes, [])
 
     const layerX = result.find(n => n.id === 'layer1')!.position.x
     const deckX = result.find(n => n.id === 'deck')!.position.x
@@ -341,7 +156,7 @@ describe('layoutNodes with semantic algorithm', () => {
       createNode('deck', 0, 0, 200, 100, 'DeckRendererOp'),
       createNode('out', 0, 0, 200, 100, 'OutOp'),
     ]
-    const result = layoutNodes(nodes, [], semanticOptions)
+    const result = layoutNodes(nodes, [])
 
     const deckNode = result.find(n => n.id === 'deck')!
     const outNode = result.find(n => n.id === 'out')!
@@ -357,7 +172,7 @@ describe('layoutNodes with semantic algorithm', () => {
       createNode('layer3', 0, 0, 200, 100, 'PathLayerOp'),
       createNode('deck', 0, 0, 200, 100, 'DeckRendererOp'),
     ]
-    const result = layoutNodes(nodes, [], semanticOptions)
+    const result = layoutNodes(nodes, [])
 
     const layerNodes = result.filter(n => n.id.startsWith('layer'))
     const deckNode = result.find(n => n.id === 'deck')!
@@ -377,7 +192,7 @@ describe('layoutNodes with semantic algorithm', () => {
       createNode('layer2', 0, 0, 200, 100, 'ArcLayerOp'),
       createNode('basemap', 0, 0, 200, 100, 'MaplibreBasemapOp'),
     ]
-    const result = layoutNodes(nodes, [], semanticOptions)
+    const result = layoutNodes(nodes, [])
 
     const layerX = result.find(n => n.id === 'layer1')!.position.x
     const basemapNode = result.find(n => n.id === 'basemap')!
@@ -395,7 +210,7 @@ describe('layoutNodes with semantic algorithm', () => {
       createNode('layer', 0, 0, 200, 100, 'ScatterplotLayerOp'),
     ]
     const edges = [createEdge('file', 'layer')]
-    const result = layoutNodes(nodes, edges, semanticOptions)
+    const result = layoutNodes(nodes, edges)
 
     const fileX = result.find(n => n.id === 'file')!.position.x
     const layerX = result.find(n => n.id === 'layer')!.position.x
@@ -409,7 +224,7 @@ describe('layoutNodes with semantic algorithm', () => {
       createNode('layer2', 0, 0, 200, 100, 'ArcLayerOp'),
     ]
     const edges = [createEdge('file', 'layer1'), createEdge('file', 'layer2')]
-    const result = layoutNodes(nodes, edges, semanticOptions)
+    const result = layoutNodes(nodes, edges)
 
     const fileNode = result.find(n => n.id === 'file')!
     const layer1Node = result.find(n => n.id === 'layer1')!
@@ -430,7 +245,7 @@ describe('layoutNodes with semantic algorithm', () => {
       createNode('layer', 0, 0, 200, 100, 'ScatterplotLayerOp'),
     ]
     const edges = [createEdge('file', 'accessor'), createEdge('accessor', 'layer')]
-    const result = layoutNodes(nodes, edges, semanticOptions)
+    const result = layoutNodes(nodes, edges)
 
     const fileX = result.find(n => n.id === 'file')!.position.x
     const accessorX = result.find(n => n.id === 'accessor')!.position.x
@@ -452,7 +267,7 @@ describe('layoutNodes with semantic algorithm', () => {
       createEdge('accessor', 'layer2'),
       createEdge('accessor', 'layer3'),
     ]
-    const result = layoutNodes(nodes, edges, semanticOptions)
+    const result = layoutNodes(nodes, edges)
 
     const accessorNode = result.find(n => n.id === 'accessor')!
     const layerNodes = result.filter(n => n.id.startsWith('layer'))
@@ -486,7 +301,7 @@ describe('layoutNodes with semantic algorithm', () => {
       createEdge('layer2', 'deck'),
       createEdge('deck', 'out'),
     ]
-    const result = layoutNodes(nodes, edges, semanticOptions)
+    const result = layoutNodes(nodes, edges)
     const margin = 50
 
     for (let i = 0; i < result.length; i++) {
@@ -536,7 +351,7 @@ describe('layoutNodes with semantic algorithm', () => {
       createEdge('basemap', 'deck'),
       createEdge('deck', 'out'),
     ]
-    const result = layoutNodes(nodes, edges, semanticOptions)
+    const result = layoutNodes(nodes, edges)
 
     // Check tier ordering
     const fileX = result.find(n => n.id === 'file')!.position.x

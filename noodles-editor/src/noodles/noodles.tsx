@@ -534,12 +534,10 @@ export function getNoodles(): Visualization {
     )
 
     // Apply layout
-    const layoutedNodes = layoutNodes(targetNodes, targetEdges, autoLayout)
+    const layoutedNodes = layoutNodes(targetNodes, targetEdges)
 
     // Track layout application
     analytics.track('layout_applied', {
-      algorithm: autoLayout.algorithm,
-      direction: autoLayout.direction,
       nodeCount: targetNodes.length,
       edgeCount: targetEdges.length,
       isManual: true,
@@ -567,7 +565,7 @@ export function getNoodles(): Visualization {
         padding: 0.2,
       })
     }, 0)
-  }, [autoLayout, nodes, edges, currentContainerId, setNodes])
+  }, [nodes, edges, currentContainerId, setNodes])
 
   // Auto-layout function for current container (used by onConnect trigger)
   const applyAutoLayoutToContainer = useCallback(() => {
@@ -588,12 +586,10 @@ export function getNoodles(): Visualization {
     )
 
     // Apply layout
-    const layoutedNodes = layoutNodes(containerNodes, containerEdges, autoLayout)
+    const layoutedNodes = layoutNodes(containerNodes, containerEdges)
 
     // Track automatic layout application
     analytics.track('layout_applied', {
-      algorithm: autoLayout.algorithm,
-      direction: autoLayout.direction,
       nodeCount: containerNodes.length,
       edgeCount: containerEdges.length,
       isManual: false,
@@ -1081,8 +1077,7 @@ export function getNoodles(): Visualization {
       setShowOverlay(editorSettings?.showOverlay ?? true)
       setShowDebugInfo(editorSettings?.showDebugInfo ?? false)
       setAutoLayout({
-        ...DEFAULT_AUTO_LAYOUT,
-        ...editorSettings?.autoLayout,
+        enabled: editorSettings?.autoLayout?.enabled ?? DEFAULT_AUTO_LAYOUT.enabled,
       })
 
       // Render settings are now stored as OutOp inputs (migration 012 handles conversion)
@@ -1290,10 +1285,7 @@ export function getNoodles(): Visualization {
     // Render settings are now stored as OutOp inputs, serialized with the node
 
     // Only include autoLayout if different from defaults
-    const autoLayoutChanged =
-      autoLayout.enabled !== DEFAULT_AUTO_LAYOUT.enabled ||
-      autoLayout.algorithm !== DEFAULT_AUTO_LAYOUT.algorithm ||
-      autoLayout.direction !== DEFAULT_AUTO_LAYOUT.direction
+    const autoLayoutChanged = autoLayout.enabled !== DEFAULT_AUTO_LAYOUT.enabled
 
     return {
       version: NOODLES_VERSION,
@@ -1633,12 +1625,11 @@ export function getNoodles(): Visualization {
 
     analytics.track('auto_layout_applied', {
       nodeCount: selectedNodes.length,
-      algorithm: autoLayout.algorithm,
       trigger: 'manual_button',
     })
 
     applyManualLayout()
-  }, [nodes, autoLayout.algorithm, applyManualLayout])
+  }, [nodes, applyManualLayout])
 
   // Note: Auto-layout on node addition was removed based on PR feedback.
   // Users can still trigger layout manually via the Layout button in the property panel (3+ nodes selected).
@@ -2208,7 +2199,11 @@ export function getNoodles(): Visualization {
   const propertiesPanel = (
     <ErrorBoundary title="Property Panel Error">
       <div className={s.rightPanel}>
-        <PropertyPanel onAutoLayout={onAutoLayout} autoLayout={autoLayout} />
+        <PropertyPanel
+          onAutoLayout={onAutoLayout}
+          autoLayout={autoLayout}
+          onChangeAutoLayout={setAutoLayout}
+        />
       </div>
     </ErrorBoundary>
   )
@@ -2267,8 +2262,6 @@ export function getNoodles(): Visualization {
     onChangeShowOverlay: setShowOverlay,
     showDebugInfo,
     onChangeShowDebugInfo: setShowDebugInfo,
-    autoLayout,
-    onChangeAutoLayout: setAutoLayout,
     spreadsheetVisible,
     onChangeSpreadsheetVisible: setSpreadsheetVisible,
     // Render settings are now read from OutOp via useRenderSettings() hook
