@@ -156,3 +156,4 @@ export {
 export {
   evaluateStage, materialize, toUint8Color, type CpuAttributes,
 } from './cpu-stage.js';
+export { udfRegistrations, registerUdfs, type UdfSpec, type UdfParam, type UdfRegistration } from './udfs.js';

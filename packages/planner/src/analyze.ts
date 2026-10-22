@@ -11,6 +11,7 @@
 
 import {
   type Expr, parseExpr, columnsOf, enginesFor, isAggregate, simplifyExpr, widthOf,
+  FUNCTIONS,
 } from './expr.js';
 import {
   type Graph, type CoreNode, type RenderNode, type Bin2dNode, type StatsNode,
@@ -755,7 +756,11 @@ function coerceStrings(e: Expr, strings: ReadonlySet<string>, numeric = false): 
       }
       case 'call': {
         const text = TEXT_ARGUMENTS.has(n.fn);
-        return { ...n, args: n.args.map((a, i) => go(a, !text || (n.fn === 'hex_byte' && i === 1))) };
+        const textArgs = FUNCTIONS[n.fn]?.textArgs;
+        return {
+          ...n,
+          args: n.args.map((a, i) => go(a, textArgs ? !textArgs[i] : !text || (n.fn === 'hex_byte' && i === 1))),
+        };
       }
       case 'vec':
         return { ...n, components: n.components.map((c) => go(c, true)) };

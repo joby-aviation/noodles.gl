@@ -70,6 +70,8 @@ export interface FnSpec {
   width: 'broadcast' | number;
   /** True for SQL aggregates, which collapse rows and so can never be a GPU kernel. */
   aggregate?: boolean;
+  /** Per argument: whether it is text, which a numeric use must not cast (a UDF's text parameter). */
+  textArgs?: boolean[];
 }
 
 export const FUNCTIONS: Record<string, FnSpec> = {

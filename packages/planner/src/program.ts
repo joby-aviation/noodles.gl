@@ -445,7 +445,7 @@ export async function compileProgram(
         if (copy.inputs) copy.inputs = copy.inputs.map(redirect);
         subNodes.push(copy);
       }
-      const sub: Graph = { params, functions: graph.functions, nodes: subNodes, output: layerId };
+      const sub: Graph = { params, functions: graph.functions, udfs: graph.udfs, nodes: subNodes, output: layerId };
 
       const schema = new Map<string, number>();
       const columnTypes = new Map<string, ColumnType>();
@@ -456,7 +456,7 @@ export async function compileProgram(
       const policy: Policy = options.policy ?? (rel.stats ? 'cost' : 'auto');
       const hash = hashOf({
         nodes: subNodes.map((n) => ({ ...structural(n), id: n.id, inputs: inputsOf(n) })),
-        functions: graph.functions,
+        functions: graph.functions, udfs: graph.udfs,
         specs: Object.fromEntries(Object.entries(params).map(([k, s]) => [k, { kind: s.kind, changeRate: s.changeRate }])),
         rel: rel.hash, policy, caps: options.caps?.id,
       });

@@ -61,7 +61,7 @@ export interface ParamDef {
   /** Column pickers: the input port whose columns are listed. */
   of?: string;
   columnType?: 'num' | 'str' | 'any';
-  language?: 'sql' | 'vex' | 'expr' | 'geometry';
+  language?: 'sql' | 'vex' | 'expr' | 'geometry' | 'js';
   bind?: 'value' | 'prop' | 'structural';
   /** Expected changes per second while being dragged; the optimizer's amortization input. */
   changeRate?: number;
@@ -546,6 +546,19 @@ export const OPERATORS: OpDef[] = [
         outputs: { out: ctx.id },
       };
     },
+  },
+  {
+    type: 'js-function', label: 'JS Function', category: 'rows',
+    description: "A JavaScript function any expression can call by name, run by DuckDB per row. For logic the expression language has no words for; it returns a number, or an array of `width` numbers. Prefer an expression where one will do: DuckDB runs JS some 20 times slower than SQL.",
+    inputs: [], outputs: [],
+    params: [
+      { name: 'name', label: 'Name', kind: 'string', default: 'fn' },
+      { name: 'params', label: 'Parameters', kind: 'string', default: 'x', help: 'Comma-separated; `name: text` for a text parameter.' },
+      { name: 'width', label: 'Returns', kind: 'int', default: 1, min: 1, max: 4, step: 1, help: 'Numbers returned: 1, or the length of the array.' },
+      { name: 'body', label: 'Body', kind: 'code', language: 'js', default: 'return x' },
+    ],
+    // Declares a function for the graph (see lowerDocument), and draws nothing itself.
+    lower: () => ({ nodes: [], outputs: {} }),
   },
   {
     type: 'aggregate', label: 'Aggregate', category: 'table',

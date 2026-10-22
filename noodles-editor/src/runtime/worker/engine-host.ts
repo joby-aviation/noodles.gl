@@ -7,6 +7,7 @@ import type { LayerData } from '../execute'
 import { ProgramRuntime, type RuntimeOptions } from '../program-runtime'
 import type { BlockingSql } from './blocking-sql'
 import type { Envelope, LayerView, Message, ProgramView, RuntimeUpdate } from './protocol'
+import { UdfHost } from './udf-host'
 
 export interface Port {
   postMessage(message: Message, transfer?: Transferable[]): void
@@ -31,6 +32,7 @@ const programView = (p: ProgramPlan | undefined): ProgramView | undefined => {
 export class EngineHost {
   readonly runtime: ProgramRuntime
   private readonly sent = new Map<string, { data?: LayerData; props: unknown }>()
+  private readonly udfs: UdfHost
 
   constructor(
     private readonly sql: BlockingSql,
@@ -38,6 +40,7 @@ export class EngineHost {
     options: RuntimeOptions = {}
   ) {
     this.runtime = new ProgramRuntime(sql, options)
+    this.udfs = new UdfHost(sql)
     this.runtime.onUpdate(report => this.publish(report))
   }
 
@@ -57,6 +60,7 @@ export class EngineHost {
   private async answer(message: Envelope): Promise<unknown> {
     switch (message.type) {
       case 'setGraph': {
+        this.udfs.register(message.graph.udfs)
         const report = await this.runtime.setGraph(message.graph, message.values)
         this.publish()
         return report

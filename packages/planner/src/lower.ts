@@ -18,6 +18,7 @@
  * is what lets the optimizer price an animation like the slider it effectively is.
  */
 
+import type { UdfSpec } from './udfs.js';
 import { statParamName, type Graph, type GraphNode, type ParamSpec, type DeckNode, type LayerNode, type StatOp } from './types.js';
 import { parseExpr, type Expr } from './expr.js';
 import { toJs } from './backends/js.js';
@@ -471,6 +472,22 @@ export function lowerDocument(doc: EditorDoc, options: LowerOptions = {}): Lower
     lowerNode(n.id);
   }
 
+  // --- JS functions: declared by js-function nodes, called from any expression ------
+  const udfs: Record<string, UdfSpec> = {};
+  for (const n of nodes) {
+    if (n.op !== 'js-function' || n.flags?.bypass) continue;
+    const name = String(n.params.name ?? 'fn').trim();
+    if (udfs[name]) {
+      errors.push({ nodeId: n.id, message: `A JS function named '${name}' is already declared` });
+      continue;
+    }
+    const params = String(n.params.params ?? 'x').split(',').map((p) => p.trim()).filter(Boolean).map((p) => {
+      const [pname, type] = p.split(':').map((x) => x.trim());
+      return type === 'text' ? { name: pname, type: 'text' as const } : pname;
+    });
+    udfs[name] = { params, body: String(n.params.body ?? 'return x'), width: Number(n.params.width ?? 1) };
+  }
+
   // --- display flags: a preview layer on top of the deck --------------------
   const deck = irOut.find((n): n is DeckNode => n.type === 'deck');
   for (const n of nodes) {
@@ -495,7 +512,7 @@ export function lowerDocument(doc: EditorDoc, options: LowerOptions = {}): Lower
   }
 
   return {
-    graph: { name: doc.name, params: specs, nodes: irOut },
+    graph: { name: doc.name, params: specs, nodes: irOut, ...(Object.keys(udfs).length ? { udfs } : {}) },
     scalars,
     outputs,
     params,
