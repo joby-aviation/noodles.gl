@@ -184,6 +184,21 @@
   color: rgba(255, 255, 255, 0.7);
 }
 
+.checkbox:disabled {
+  cursor: not-allowed;
+}
+
+.checkboxLabel:has(.checkbox:disabled) {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.hint {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.4);
+  margin: -2px 0 6px 20px;
+}
+
 .resetButton {
   padding: 6px 10px;
   background-color: transparent;

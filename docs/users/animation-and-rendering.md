@@ -22,6 +22,10 @@ On the lefthand node tree, find the "render" sheet object under the current proj
 
 You can adjust parameters like framerate, codec and resolution before exporting. Clicking the `startRender` button will open a dialog asking where to save your video file. The app will progress through your timeline and render to the file as a video.
 
+### Transparent video
+
+To composite a visualization over other footage, pick the VP9 codec in the Out node's render settings and check **Transparent background**. The export is then a WebM file with an alpha channel instead of an MP4. Anything the scene doesn't draw, such as a transparent deck.gl clear color or the space around a globe, stays transparent; a basemap with a solid background stays opaque. Chrome and Edge play these files with their transparency, but many desktop players and editors ignore WebM alpha.
+
 ## Procedural animation
 All values are reactive and can be driven by any other property.
 
