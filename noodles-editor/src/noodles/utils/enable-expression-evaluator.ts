@@ -317,7 +317,7 @@ function tokenize(expr: string): Token[] {
     }
 
     // Parentheses and brackets
-    if ('()[]{}' .includes(char)) {
+    if ('()[]{}'.includes(char)) {
       tokens.push({ type: 'paren', value: char })
       i++
       continue

@@ -266,7 +266,10 @@ Async function to get routing directions between two points using Mapbox or Goog
 **Parameters:**
 - `origin: { lat, lng }` - Starting point coordinates
 - `destination: { lat, lng }` - Ending point coordinates
-- `mode?: 'driving' | 'transit'` - Transportation mode (default: `'driving'`)
+- `mode?: 'driving' | 'driving-traffic' | 'transit'` - Transportation mode (default: `'driving'`)
+- `departureTime?: Temporal.PlainDateTime` - Optional origin-local future departure for `driving-traffic`; omit to depart now
+- `trafficModel?: 'best-guess' | 'pessimistic' | 'optimistic'` - Traffic assumption for `driving-traffic` (default: `'best-guess'`)
+- `avoidTolls?: boolean` - Prefer toll-free routes for `driving-traffic` (default: `false`)
 
 **Returns:** `Promise<AnimatedDirections>` - Object containing:
   - `distance: number` - Total distance in meters
@@ -274,9 +277,12 @@ Async function to get routing directions between two points using Mapbox or Goog
   - `durationFormatted: string` - Human-readable duration
   - `path: number[][]` - Array of `[lng, lat]` coordinates
   - `timestamps: number[]` - Timestamp for each point (for driving mode)
+  - `hasTolls?: boolean` - `driving-traffic` only: whether Google expects tolls on the route
+  - `tollAmount?: number`, `tollCurrency?: string` - `driving-traffic` only: estimated cash toll, when Google knows the price
 
 **Constants:**
 - `DRIVING` - Constant for driving mode
+- `DRIVING_TRAFFIC` - Constant for Google traffic-aware driving mode
 - `TRANSIT` - Constant for transit mode
 
 **Example:**

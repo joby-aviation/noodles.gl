@@ -584,7 +584,7 @@ describe('storage.ts', () => {
 
     describe('save + load round-trip', () => {
       it('saves project JSON to memory and loads it back', async () => {
-        const saveResult = await save('memory', PROJECT_ID, STUB_PROJECT)
+        const saveResult = await save('memory', PROJECT_ID, STUB_PROJECT, new Map())
         expect(saveResult.success).toBe(true)
 
         const loadResult = await load('memory', PROJECT_ID)
@@ -592,6 +592,34 @@ describe('storage.ts', () => {
         if (loadResult.success) {
           expect(loadResult.data.projectData.version).toBe(14)
           expect(loadResult.data.name).toBe(PROJECT_ID)
+        }
+      })
+
+      it('keeps the cache folder and reads it back for locked nodes', async () => {
+        const project = {
+          ...STUB_PROJECT,
+          nodes: [
+            {
+              id: '/directions',
+              type: 'DirectionsOp',
+              position: { x: 0, y: 0 },
+              data: { inputs: {}, locked: true },
+            },
+          ],
+        }
+        const outputs = { route: { distance: 1 } }
+        const cacheFile = JSON.stringify({
+          version: 1,
+          id: '/directions',
+          type: 'DirectionsOp',
+          outputs,
+        })
+        await save('memory', PROJECT_ID, project, new Map([['directions.json', cacheFile]]))
+
+        const loadResult = await load('memory', PROJECT_ID)
+        expect(loadResult.success).toBe(true)
+        if (loadResult.success) {
+          expect(loadResult.data.outputCache?.get('/directions')).toEqual(outputs)
         }
       })
 

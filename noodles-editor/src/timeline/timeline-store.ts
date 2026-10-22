@@ -8,6 +8,7 @@ import { debugKeyframe, debugTimeline } from '../utils/debug'
 import { evaluateTrack } from './interpolation'
 import type {
   BezierHandles,
+  CopiedKeyframeEntry,
   InterpolationType,
   Keyframe,
   KeyframeValue,
@@ -36,6 +37,7 @@ export interface TimelineStore {
   position: number
   playing: boolean
   loop: boolean
+  loopInOut: boolean
   playbackSpeed: number
   selectedKeyframeIds: Set<string>
   selectedTrackIds: Set<string>
@@ -46,12 +48,18 @@ export interface TimelineStore {
   setLength: (length: number) => void
   setFps: (fps: number) => void
 
+  // === In/Out Point Actions ===
+  setInPoint: (time: number) => void
+  setOutPoint: (time: number) => void
+  clearInOutPoints: () => void
+
   // === Playback Actions ===
   setPosition: (position: number) => void
   play: () => void
   pause: () => void
   togglePlay: () => void
   toggleLoop: () => void
+  toggleLoopInOut: () => void
   setPlaybackSpeed: (speed: number) => void
   stepForward: (frames?: number) => void
   stepBackward: (frames?: number) => void
@@ -113,6 +121,15 @@ export interface TimelineStore {
     interpolation: InterpolationType,
     handles?: BezierHandles
   ) => void
+
+  // === Clipboard State (ephemeral) ===
+  copiedKeyframes: CopiedKeyframeEntry[]
+
+  // === Clipboard Actions ===
+  // Copy selected keyframes to the internal clipboard
+  copySelectedKeyframes: () => void
+  // Paste copied keyframes at the current playhead position
+  pasteKeyframes: () => void
 
   // === Evaluation ===
   evaluateTrack: (trackId: string, time?: number) => KeyframeValue | undefined
@@ -205,23 +222,64 @@ export const useTimelineStore = create<TimelineStore>()(
     position: 0,
     playing: false,
     loop: true,
+    loopInOut: false,
     playbackSpeed: 1,
     selectedKeyframeIds: new Set(),
     selectedTrackIds: new Set(),
     selectedMarkerId: null,
     connectingFromMarkerId: null,
+    copiedKeyframes: [],
 
     // === Sequence Actions ===
     setLength: length => {
-      set(state => ({
-        sequence: { ...state.sequence, length: Math.max(0.1, length) },
-        position: Math.min(state.position, length),
-      }))
+      set(state => {
+        const newLength = Math.max(0.1, length)
+        const { outPoint } = state.sequence
+
+        return {
+          sequence: {
+            ...state.sequence,
+            length: newLength,
+            // If outPoint is set, clamp it; otherwise leave undefined
+            outPoint: outPoint !== undefined ? Math.min(outPoint, newLength) : undefined,
+          },
+          position: Math.min(state.position, newLength),
+        }
+      })
     },
 
     setFps: fps => {
       set(state => ({
         sequence: { ...state.sequence, fps: Math.max(1, Math.round(fps)) },
+      }))
+    },
+
+    // === In/Out Point Actions ===
+    setInPoint: time => {
+      set(state => {
+        const { sequence } = state
+        const max = sequence.outPoint ?? sequence.length
+        const clamped = Math.max(0, Math.min(time, max))
+        return {
+          sequence: { ...sequence, inPoint: clamped },
+        }
+      })
+    },
+
+    setOutPoint: time => {
+      set(state => {
+        const { sequence } = state
+        const min = sequence.inPoint ?? 0
+        const clamped = Math.max(min, Math.min(time, sequence.length))
+        return {
+          sequence: { ...sequence, outPoint: clamped },
+        }
+      })
+    },
+
+    clearInOutPoints: () => {
+      set(state => ({
+        sequence: { ...state.sequence, inPoint: undefined, outPoint: undefined },
       }))
     },
 
@@ -235,6 +293,7 @@ export const useTimelineStore = create<TimelineStore>()(
     pause: () => set({ playing: false }),
     togglePlay: () => set(state => ({ playing: !state.playing })),
     toggleLoop: () => set(state => ({ loop: !state.loop })),
+    toggleLoopInOut: () => set(state => ({ loopInOut: !state.loopInOut })),
 
     setPlaybackSpeed: speed => {
       set({ playbackSpeed: Math.max(0.1, Math.min(10, speed)) })
@@ -723,6 +782,56 @@ export const useTimelineStore = create<TimelineStore>()(
       }
     },
 
+    // === Clipboard Actions ===
+    copySelectedKeyframes: () => {
+      const { tracks, selectedKeyframeIds } = get()
+      if (selectedKeyframeIds.size === 0) return
+
+      const entries: CopiedKeyframeEntry[] = []
+      for (const [trackId, track] of tracks) {
+        for (const kf of track.keyframes) {
+          if (selectedKeyframeIds.has(kf.id)) {
+            entries.push({ trackId, keyframe: kf })
+          }
+        }
+      }
+      set({ copiedKeyframes: entries })
+    },
+
+    pasteKeyframes: () => {
+      const { copiedKeyframes, position, tracks } = get()
+      if (copiedKeyframes.length === 0) return
+
+      // Find the earliest position among copied keyframes to use as the anchor
+      const minPosition = Math.min(...copiedKeyframes.map(e => e.keyframe.position))
+
+      const before = captureTimelineState()
+      const newTracks = new Map(tracks)
+      const newIds: string[] = []
+
+      for (const { trackId, keyframe } of copiedKeyframes) {
+        const track = newTracks.get(trackId)
+        if (!track) continue
+
+        const id = generateKeyframeId()
+        const pastedKeyframe: Keyframe = {
+          ...keyframe,
+          id,
+          position: position + (keyframe.position - minPosition),
+        }
+        newIds.push(id)
+
+        const updatedTrack = {
+          ...track,
+          keyframes: sortKeyframes([...track.keyframes, pastedKeyframe]),
+        }
+        newTracks.set(trackId, updatedTrack)
+      }
+
+      set({ tracks: newTracks, selectedKeyframeIds: new Set(newIds) })
+      fireTimelineMutation('Paste keyframes', before)
+    },
+
     // === Evaluation ===
     evaluateTrack: (trackId, time) => {
       const track = get().tracks.get(trackId)
@@ -806,6 +915,8 @@ export const useTimelineStore = create<TimelineStore>()(
               subUnitsPerUnit: sequence.fps,
               tracksByObject,
               markers: serializedMarkers.length > 0 ? serializedMarkers : undefined,
+              inPoint: sequence.inPoint,
+              outPoint: sequence.outPoint,
             },
             staticOverrides: { byObject: {} },
           },
@@ -888,16 +999,23 @@ export const useTimelineStore = create<TimelineStore>()(
         })),
       }))
 
+      const length =
+        typeof seq.length === 'number' && seq.length > 0
+          ? seq.length
+          : DEFAULT_SEQUENCE_STATE.length
+
+      const inPoint = typeof seq.inPoint === 'number' ? seq.inPoint : undefined
+      const outPoint = typeof seq.outPoint === 'number' ? Math.min(seq.outPoint, length) : undefined
+
       set({
         sequence: {
-          length:
-            typeof seq.length === 'number' && seq.length > 0
-              ? seq.length
-              : DEFAULT_SEQUENCE_STATE.length,
+          length,
           fps:
             typeof seq.subUnitsPerUnit === 'number' && seq.subUnitsPerUnit > 0
               ? Math.round(seq.subUnitsPerUnit)
               : DEFAULT_SEQUENCE_STATE.fps,
+          inPoint,
+          outPoint,
         },
         tracks: newTracks,
         markers,
@@ -923,6 +1041,7 @@ export const useTimelineStore = create<TimelineStore>()(
         selectedTrackIds: new Set(),
         selectedMarkerId: null,
         connectingFromMarkerId: null,
+        copiedKeyframes: [],
       })
     },
   }))

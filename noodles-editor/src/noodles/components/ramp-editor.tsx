@@ -1,8 +1,8 @@
 import { scaleLinear } from 'd3'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { monotoneSlopes } from '../operators'
 import type { RampInterpType } from '../operators'
+import { monotoneSlopes } from '../operators'
 
 export interface RampStop {
   id: string
@@ -79,12 +79,18 @@ export default function RampEditor({
   const stops = stopsProp.length > 0 ? stopsProp : []
 
   const xScale = useMemo(
-    () => scaleLinear().domain([0, 1]).range([PAD, width - PAD]),
+    () =>
+      scaleLinear()
+        .domain([0, 1])
+        .range([PAD, width - PAD]),
     [width]
   )
 
   const yScale = useMemo(
-    () => scaleLinear().domain([0, 1]).range([height - PAD, PAD]),
+    () =>
+      scaleLinear()
+        .domain([0, 1])
+        .range([height - PAD, PAD]),
     [height]
   )
 
@@ -150,11 +156,7 @@ export default function RampEditor({
         const rect = svgRef.current.getBoundingClientRect()
         const x = moveEvent.clientX - rect.left
         const y = moveEvent.clientY - rect.top
-        const newPos = isFirst
-          ? 0
-          : isLast
-            ? 1
-            : Math.max(0, Math.min(1, capturedXScale.invert(x)))
+        const newPos = isFirst ? 0 : isLast ? 1 : Math.max(0, Math.min(1, capturedXScale.invert(x)))
         const newVal = Math.max(0, Math.min(1, capturedYScale.invert(y)))
         const updated = stopsRef.current
           .map(s => (s.id === stopId ? { ...s, pos: newPos, val: newVal } : s))
@@ -175,14 +177,11 @@ export default function RampEditor({
     [disabled, xScale, yScale, onChange, onActivate, onDragStart, onDragEnd]
   )
 
-  const handleStopContextMenu = useCallback(
-    (e: React.MouseEvent, stopId: string) => {
-      e.preventDefault()
-      e.stopPropagation()
-      setContextMenu({ stopId, x: e.clientX, y: e.clientY })
-    },
-    []
-  )
+  const handleStopContextMenu = useCallback((e: React.MouseEvent, stopId: string) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setContextMenu({ stopId, x: e.clientX, y: e.clientY })
+  }, [])
 
   const handleContextMenuDelete = useCallback(() => {
     if (!contextMenu) return
@@ -223,6 +222,7 @@ export default function RampEditor({
         ref={svgRef}
         width={width}
         height={height}
+        // biome-ignore lint/a11y/noNoninteractiveTabindex: focusable so Delete removes the selected stop
         tabIndex={0}
         onKeyDown={handleKeyDown}
         style={{
@@ -235,6 +235,7 @@ export default function RampEditor({
         }}
       >
         {/* Clickable background to add stops */}
+        {/* biome-ignore lint/a11y/noStaticElementInteractions: pointer-only; the node's stop inputs are the keyboard path */}
         <rect
           x={0}
           y={0}
@@ -249,6 +250,7 @@ export default function RampEditor({
         {sortedStops.map(stop => (
           <g key={stop.id}>
             {/* Large transparent hit area */}
+            {/* biome-ignore lint/a11y/noStaticElementInteractions: drag target; the node's stop inputs are the keyboard path */}
             <circle
               cx={xScale(stop.pos)}
               cy={yScale(stop.val)}

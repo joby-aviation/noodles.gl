@@ -3,12 +3,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import {
-  Point2DField,
-  Point3DField,
-  Vec2Field,
-  Vec3Field,
-} from '../../noodles/fields'
+import { Point2DField, Point3DField, Vec2Field, Vec3Field } from '../../noodles/fields'
 import { getFieldFromTrackPath, keyframeValueToFieldValue } from '../field-bindings'
 import { captureTimelineState, fireTimelineMutation, useTimelineStore } from '../timeline-store'
 import type { Keyframe, KeyframeValue, Point2D, Point3D, RGBA, Vec2, Vec3 } from '../types'

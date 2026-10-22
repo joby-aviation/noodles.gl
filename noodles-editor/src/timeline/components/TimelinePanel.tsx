@@ -3,6 +3,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useExportActions } from '../../noodles/contexts/export-actions-context'
+import { shouldBlockKeyboardShortcut } from '../../noodles/utils/input-detection'
 import {
   captureTimelineState,
   fireTimelineMutation,
@@ -120,10 +121,7 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
 
       // Adjust scroll to keep playhead at same screen position
       const scrollDelta = playheadPxAfter - playheadPxBefore
-      scrollAreaRef.current.scrollLeft = Math.max(
-        0,
-        scrollAreaRef.current.scrollLeft + scrollDelta
-      )
+      scrollAreaRef.current.scrollLeft = Math.max(0, scrollAreaRef.current.scrollLeft + scrollDelta)
 
       setPixelsPerSecond(clampedZoom)
     },
@@ -348,9 +346,7 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       if (e.key !== 'Delete' && e.key !== 'Backspace') return
-      const target = e.target as HTMLElement
-      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)
-        return
+      if (shouldBlockKeyboardShortcut(e)) return
 
       if (selectedMarkerId) {
         e.preventDefault()
@@ -383,6 +379,22 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
         store.selectAllKeyframes()
       }
 
+      // Cmd/Ctrl+C to copy selected keyframes
+      if (
+        (e.key === 'c' || e.key === 'C') &&
+        (e.metaKey || e.ctrlKey) &&
+        selectedKeyframeIds.size > 0
+      ) {
+        e.preventDefault()
+        getTimelineStore().copySelectedKeyframes()
+      }
+
+      // Cmd/Ctrl+V to paste keyframes
+      if ((e.key === 'v' || e.key === 'V') && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault()
+        getTimelineStore().pasteKeyframes()
+      }
+
       // T to cycle handle type for selected keyframes
       if ((e.key === 't' || e.key === 'T') && selectedKeyframeIds.size > 0) {
         e.preventDefault()
@@ -409,15 +421,7 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
   // Handle spacebar for play/pause and arrow keys for frame stepping globally
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement
-      // Don't intercept keys in input elements
-      if (
-        target.tagName === 'INPUT' ||
-        target.tagName === 'TEXTAREA' ||
-        target.contentEditable === 'true'
-      ) {
-        return
-      }
+      if (shouldBlockKeyboardShortcut(e)) return
 
       const store = getTimelineStore()
       if (e.code === 'Space') {
@@ -593,6 +597,25 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
                 mousePosition={connectionMousePos}
               />
               {boxSelectOverlay && <div className={s.timelineBoxSelect} style={boxSelectOverlay} />}
+              {/* Dim regions outside in/out range */}
+              {sequence.inPoint > 0 && (
+                <div
+                  className={s.timelineDimOverlay}
+                  style={{
+                    left: 0,
+                    width: `${sequence.inPoint * pixelsPerSecond}px`,
+                  }}
+                />
+              )}
+              {sequence.outPoint < sequence.length && (
+                <div
+                  className={s.timelineDimOverlay}
+                  style={{
+                    left: `${sequence.outPoint * pixelsPerSecond}px`,
+                    width: `${(sequence.length - sequence.outPoint) * pixelsPerSecond}px`,
+                  }}
+                />
+              )}
             </div>
           ) : (
             <CurveEditorView

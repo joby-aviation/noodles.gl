@@ -1,5 +1,16 @@
 # WebLLM AI Integration
 
+> **Superseded — describes code that was never written.** This document and its spec
+> ([specs/webllm-ai-chat/webllm-ai-chat.md](specs/webllm-ai-chat/webllm-ai-chat.md))
+> proposed a LangChain.js + `@mlc-ai/web-llm` + `voy` architecture in PR #126. None of
+> it was implemented: `ai-controller`, `webllm-provider`, and `rag-service` do not
+> exist in the codebase. Local-model support instead arrived as a provider behind a
+> hand-rolled agent loop, using Chrome's built-in Prompt API rather than WebLLM.
+>
+> For how the in-app assistant actually works, read
+> [agent-harness.md](agent-harness.md). This file is kept only as a record of the
+> earlier proposal.
+
 **Last Updated:** 2025-11-10
 **Related Spec:** [/dev-docs/specs/webllm-ai-chat.md](specs/webllm-ai-chat.md)
 

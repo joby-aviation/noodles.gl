@@ -22,7 +22,7 @@ export function getTimezoneOptions(): string[] {
   const commonTimezones = Array.from(new Set(['UTC', localTimezone, ...COMMON_TIMEZONES_BASE]))
 
   return [
-    ...commonTimezones.filter((tz) => ALL_TIMEZONES.includes(tz)),
-    ...ALL_TIMEZONES.filter((tz) => !commonTimezones.includes(tz)).sort(),
+    ...commonTimezones.filter(tz => ALL_TIMEZONES.includes(tz)),
+    ...ALL_TIMEZONES.filter(tz => !commonTimezones.includes(tz)).sort(),
   ]
 }

@@ -1,5 +1,10 @@
 import type { EditorSettings, NoodlesProjectJSON } from '../utils/serialization'
 
+// EditorSettings as of schema v9, when layoutMode still existed (removed in migration 015)
+export type EditorSettingsV9 = EditorSettings & {
+  layoutMode?: 'split' | 'noodles-on-top' | 'output-on-top'
+}
+
 // Migration to move editor settings from Theatre.js staticOverrides to project-level settings
 //
 // This migration:
@@ -18,7 +23,7 @@ export async function up(project: NoodlesProjectJSON): Promise<NoodlesProjectJSO
   const editorOverrides = byObject.editor || {}
 
   // Create editor settings object with defaults
-  const editorSettings: EditorSettings = {
+  const editorSettings: EditorSettingsV9 = {
     layoutMode: editorOverrides.layoutMode || 'noodles-on-top',
     showOverlay: editorOverrides.showOverlay !== undefined ? editorOverrides.showOverlay : true,
   }
@@ -50,7 +55,9 @@ export async function up(project: NoodlesProjectJSON): Promise<NoodlesProjectJSO
 }
 
 export async function down(project: NoodlesProjectJSON): Promise<NoodlesProjectJSON> {
-  const { editorSettings, timeline, ...rest } = project
+  const { editorSettings, timeline, ...rest } = project as NoodlesProjectJSON & {
+    editorSettings?: EditorSettingsV9
+  }
 
   // Put editor settings back into Theatre.js staticOverrides
   const sheetsById = (timeline as any)?.sheetsById || {}

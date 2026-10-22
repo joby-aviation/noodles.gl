@@ -46,6 +46,104 @@ describe('TimelineStore', () => {
     })
   })
 
+  describe('in/out points', () => {
+    it('has default in/out points as undefined', () => {
+      const { sequence } = useTimelineStore.getState()
+      expect(sequence.inPoint).toBeUndefined()
+      expect(sequence.outPoint).toBeUndefined()
+    })
+
+    it('setInPoint updates in point', () => {
+      useTimelineStore.getState().setInPoint(2)
+      expect(useTimelineStore.getState().sequence.inPoint).toBe(2)
+    })
+
+    it('setOutPoint updates out point', () => {
+      useTimelineStore.getState().setOutPoint(8)
+      expect(useTimelineStore.getState().sequence.outPoint).toBe(8)
+    })
+
+    it('clearInOutPoints resets to undefined', () => {
+      useTimelineStore.getState().setLength(15)
+      useTimelineStore.getState().setInPoint(3)
+      useTimelineStore.getState().setOutPoint(12)
+      useTimelineStore.getState().clearInOutPoints()
+
+      const { sequence } = useTimelineStore.getState()
+      expect(sequence.inPoint).toBeUndefined()
+      expect(sequence.outPoint).toBeUndefined()
+    })
+
+    it('setLength does not affect undefined outPoint', () => {
+      // Initial state: outPoint is undefined
+      expect(useTimelineStore.getState().sequence.outPoint).toBeUndefined()
+
+      useTimelineStore.getState().setLength(20)
+
+      // outPoint should remain undefined
+      expect(useTimelineStore.getState().sequence.outPoint).toBeUndefined()
+    })
+
+    it('setLength preserves user-set outPoint when extending', () => {
+      useTimelineStore.getState().setOutPoint(8)
+      useTimelineStore.getState().setLength(20)
+
+      // outPoint should stay at user-set value
+      expect(useTimelineStore.getState().sequence.outPoint).toBe(8)
+    })
+
+    it('setLength clamps outPoint when shrinking below it', () => {
+      useTimelineStore.getState().setOutPoint(8)
+      useTimelineStore.getState().setLength(5)
+
+      // outPoint should be clamped to new length
+      expect(useTimelineStore.getState().sequence.outPoint).toBe(5)
+    })
+
+    it('setLength handles the sequence: extend with user points, clear, extend again', () => {
+      // Set user in/out points
+      useTimelineStore.getState().setInPoint(2)
+      useTimelineStore.getState().setOutPoint(8)
+
+      // Extend sequence - user points should be preserved
+      useTimelineStore.getState().setLength(20)
+      expect(useTimelineStore.getState().sequence.outPoint).toBe(8)
+
+      // Clear in/out points - resets to undefined
+      useTimelineStore.getState().clearInOutPoints()
+      expect(useTimelineStore.getState().sequence.inPoint).toBeUndefined()
+      expect(useTimelineStore.getState().sequence.outPoint).toBeUndefined()
+
+      // Extend again - outPoint should remain undefined
+      useTimelineStore.getState().setLength(30)
+      expect(useTimelineStore.getState().sequence.outPoint).toBeUndefined()
+    })
+
+    it('calculates correct frame range from in/out points for rendering', () => {
+      useTimelineStore.getState().setLength(10)
+      useTimelineStore.getState().setInPoint(2)
+      useTimelineStore.getState().setOutPoint(5)
+
+      const { inPoint, outPoint, length, fps } = useTimelineStore.getState().sequence
+      const startFrame = Math.floor((inPoint ?? 0) * fps)
+      const endFrame = Math.floor((outPoint ?? length) * fps)
+
+      expect(startFrame).toBe(60) // 2 seconds * 30 fps
+      expect(endFrame).toBe(150) // 5 seconds * 30 fps
+    })
+
+    it('calculates full sequence frame range when in/out points are undefined', () => {
+      useTimelineStore.getState().setLength(10)
+
+      const { inPoint, outPoint, length, fps } = useTimelineStore.getState().sequence
+      const startFrame = Math.floor((inPoint ?? 0) * fps)
+      const endFrame = Math.floor((outPoint ?? length) * fps)
+
+      expect(startFrame).toBe(0) // 0 seconds * 30 fps
+      expect(endFrame).toBe(300) // 10 seconds * 30 fps
+    })
+  })
+
   describe('playback', () => {
     it('has default playback state', () => {
       const state = useTimelineStore.getState()
@@ -416,7 +514,9 @@ describe('TimelineStore', () => {
 
       // Rename intermediate container - only renames container's own tracks
       // Pass child operator IDs to avoid renaming their tracks
-      store.renameTracksForOperator('/root/container-a', '/root/container-b', ['/root/container-a/op-1'])
+      store.renameTracksForOperator('/root/container-a', '/root/container-b', [
+        '/root/container-a/op-1',
+      ])
 
       // Child tracks not affected until they are renamed separately
       expect(store.getTrack('root / container-b / op-1 / value')).toBeUndefined()
@@ -1077,6 +1177,161 @@ describe('TimelineStore', () => {
       expect(state.position).toBe(0)
       expect(state.playing).toBe(false)
       expect(state.tracks.size).toBe(0)
+    })
+  })
+
+  describe('copy/paste keyframes', () => {
+    beforeEach(() => {
+      useTimelineStore.getState().getOrCreateTrack('test / value', 0)
+    })
+
+    it('copySelectedKeyframes does nothing when nothing is selected', () => {
+      useTimelineStore.getState().addKeyframe('test / value', {
+        position: 1,
+        value: 10,
+        interpolation: 'linear',
+      })
+      useTimelineStore.getState().copySelectedKeyframes()
+      expect(useTimelineStore.getState().copiedKeyframes).toHaveLength(0)
+    })
+
+    it('copySelectedKeyframes stores selected keyframes', () => {
+      const id = useTimelineStore.getState().addKeyframe('test / value', {
+        position: 1,
+        value: 10,
+        interpolation: 'linear',
+      })
+      useTimelineStore.getState().selectKeyframe(id)
+      useTimelineStore.getState().copySelectedKeyframes()
+
+      const { copiedKeyframes } = useTimelineStore.getState()
+      expect(copiedKeyframes).toHaveLength(1)
+      expect(copiedKeyframes[0].trackId).toBe('test / value')
+      expect(copiedKeyframes[0].keyframe.value).toBe(10)
+      expect(copiedKeyframes[0].keyframe.position).toBe(1)
+    })
+
+    it('copySelectedKeyframes copies multiple keyframes from multiple tracks', () => {
+      useTimelineStore.getState().getOrCreateTrack('test / other', 0)
+      const id1 = useTimelineStore.getState().addKeyframe('test / value', {
+        position: 1,
+        value: 10,
+        interpolation: 'linear',
+      })
+      const id2 = useTimelineStore.getState().addKeyframe('test / other', {
+        position: 2,
+        value: 20,
+        interpolation: 'linear',
+      })
+      useTimelineStore.getState().selectKeyframe(id1)
+      useTimelineStore.getState().selectKeyframe(id2, true)
+      useTimelineStore.getState().copySelectedKeyframes()
+
+      expect(useTimelineStore.getState().copiedKeyframes).toHaveLength(2)
+    })
+
+    it('pasteKeyframes does nothing when clipboard is empty', () => {
+      useTimelineStore.getState().setPosition(3)
+      useTimelineStore.getState().pasteKeyframes()
+      const track = useTimelineStore.getState().getTrack('test / value')
+      expect(track?.keyframes).toHaveLength(0)
+    })
+
+    it('pasteKeyframes inserts keyframe at playhead position', () => {
+      const id = useTimelineStore.getState().addKeyframe('test / value', {
+        position: 1,
+        value: 42,
+        interpolation: 'linear',
+      })
+      useTimelineStore.getState().selectKeyframe(id)
+      useTimelineStore.getState().copySelectedKeyframes()
+
+      // Move playhead and paste
+      useTimelineStore.getState().setPosition(5)
+      useTimelineStore.getState().pasteKeyframes()
+
+      const track = useTimelineStore.getState().getTrack('test / value')
+      expect(track?.keyframes).toHaveLength(2)
+      const pasted = track?.keyframes.find(kf => kf.id !== id)
+      expect(pasted?.position).toBe(5)
+      expect(pasted?.value).toBe(42)
+    })
+
+    it('pasteKeyframes preserves relative offsets between multiple keyframes', () => {
+      const id1 = useTimelineStore.getState().addKeyframe('test / value', {
+        position: 1,
+        value: 10,
+        interpolation: 'linear',
+      })
+      const id2 = useTimelineStore.getState().addKeyframe('test / value', {
+        position: 3,
+        value: 30,
+        interpolation: 'linear',
+      })
+      useTimelineStore.getState().selectKeyframe(id1)
+      useTimelineStore.getState().selectKeyframe(id2, true)
+      useTimelineStore.getState().copySelectedKeyframes()
+
+      // Paste at position 2 — anchor (min=1) maps to 2, so offset is +1
+      useTimelineStore.getState().setPosition(2)
+      useTimelineStore.getState().pasteKeyframes()
+
+      const track = useTimelineStore.getState().getTrack('test / value')
+      // Original 2 + pasted 2 = 4 keyframes
+      expect(track?.keyframes).toHaveLength(4)
+      const positions = track!.keyframes.map(kf => kf.position).sort((a, b) => a - b)
+      expect(positions).toEqual([1, 2, 3, 4])
+    })
+
+    it('pasteKeyframes selects newly pasted keyframes', () => {
+      const id = useTimelineStore.getState().addKeyframe('test / value', {
+        position: 1,
+        value: 10,
+        interpolation: 'linear',
+      })
+      useTimelineStore.getState().selectKeyframe(id)
+      useTimelineStore.getState().copySelectedKeyframes()
+
+      useTimelineStore.getState().setPosition(5)
+      useTimelineStore.getState().pasteKeyframes()
+
+      const { selectedKeyframeIds, tracks } = useTimelineStore.getState()
+      expect(selectedKeyframeIds.size).toBe(1)
+      // The selected ID should be the new pasted one (not the original)
+      const track = tracks.get('test / value')
+      const pastedKf = track?.keyframes.find(kf => selectedKeyframeIds.has(kf.id))
+      expect(pastedKf?.position).toBe(5)
+    })
+
+    it('pasteKeyframes assigns new IDs to pasted keyframes', () => {
+      const id = useTimelineStore.getState().addKeyframe('test / value', {
+        position: 1,
+        value: 10,
+        interpolation: 'linear',
+      })
+      useTimelineStore.getState().selectKeyframe(id)
+      useTimelineStore.getState().copySelectedKeyframes()
+
+      useTimelineStore.getState().setPosition(5)
+      useTimelineStore.getState().pasteKeyframes()
+
+      const track = useTimelineStore.getState().getTrack('test / value')
+      const ids = track?.keyframes.map(kf => kf.id)
+      expect(new Set(ids).size).toBe(2) // All IDs are unique
+    })
+
+    it('reset clears the clipboard', () => {
+      const id = useTimelineStore.getState().addKeyframe('test / value', {
+        position: 1,
+        value: 10,
+        interpolation: 'linear',
+      })
+      useTimelineStore.getState().selectKeyframe(id)
+      useTimelineStore.getState().copySelectedKeyframes()
+      expect(useTimelineStore.getState().copiedKeyframes).toHaveLength(1)
+
+      useTimelineStore.getState().reset()
+      expect(useTimelineStore.getState().copiedKeyframes).toHaveLength(0)
     })
   })
 })

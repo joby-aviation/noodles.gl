@@ -49,9 +49,7 @@ export async function up(project: NoodlesProjectJSON): Promise<NoodlesProjectJSO
       }
     })
 
-  const edges = project.edges.filter(
-    e => !mapStyleIds.has(e.source) && !mapStyleIds.has(e.target)
-  )
+  const edges = project.edges.filter(e => !mapStyleIds.has(e.source) && !mapStyleIds.has(e.target))
 
   return { ...project, nodes, edges }
 }
@@ -60,9 +58,7 @@ export async function down(project: NoodlesProjectJSON): Promise<NoodlesProjectJ
   // For each MaplibreBasemapOp with a mapStyle input value and no incoming edge
   // for par.mapStyle, recreate a MapStyleOp node and connecting edge
   const connectedTargets = new Set(
-    project.edges
-      .filter(e => e.targetHandle === 'par.mapStyle')
-      .map(e => e.target)
+    project.edges.filter(e => e.targetHandle === 'par.mapStyle').map(e => e.target)
   )
 
   const newNodes = [...project.nodes]
@@ -94,11 +90,7 @@ export async function down(project: NoodlesProjectJSON): Promise<NoodlesProjectJ
 
   // Remove mapStyle from MaplibreBasemapOp inputs where we just created a MapStyleOp
   const createdIds = new Set(newNodes.filter(n => n.type === 'MapStyleOp').map(n => n.id))
-  const targetIds = new Set(
-    newEdges
-      .filter(e => createdIds.has(e.source))
-      .map(e => e.target)
-  )
+  const targetIds = new Set(newEdges.filter(e => createdIds.has(e.source)).map(e => e.target))
 
   const nodes = newNodes.map(node => {
     if (!targetIds.has(node.id)) return node

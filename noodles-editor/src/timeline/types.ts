@@ -86,11 +86,15 @@ export interface Track {
 export interface SequenceState {
   length: number // Duration in seconds
   fps: number // Frames per second (default: 30)
+  inPoint?: number // Render start time in seconds (undefined = 0)
+  outPoint?: number // Render end time in seconds (undefined = length)
 }
 
 export const DEFAULT_SEQUENCE_STATE: SequenceState = {
   length: 10,
   fps: 30,
+  inPoint: undefined,
+  outPoint: undefined,
 }
 
 // ============================================================================
@@ -150,6 +154,16 @@ export interface SerializedTimeMarker {
 }
 
 // ============================================================================
+// Clipboard Types
+// ============================================================================
+
+// Represents a single keyframe entry stored in the clipboard for copy/paste
+export interface CopiedKeyframeEntry {
+  trackId: string
+  keyframe: Keyframe
+}
+
+// ============================================================================
 // Serialization Types
 // ============================================================================
 
@@ -181,6 +195,8 @@ export interface TimelineSequenceData {
     }
   >
   markers?: SerializedTimeMarker[]
+  inPoint?: number // Optional for backward compatibility
+  outPoint?: number // Optional for backward compatibility
 }
 
 // Top-level serialized timeline format

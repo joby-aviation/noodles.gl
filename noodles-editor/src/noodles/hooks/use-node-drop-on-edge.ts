@@ -8,7 +8,9 @@ import type { IOperator, Operator } from '../operators'
 import { getOp, useUIStore } from '../store'
 import { canConnect } from '../utils/can-connect'
 import { getNodeCenter, pointToLineDistance } from '../utils/edge-geometry'
+import { insertUniqueEdge } from '../utils/edge-integrity'
 import { edgeId } from '../utils/id-utils'
+import { normalizeMultiInputEdges } from '../utils/multi-input-utils'
 import { parseHandleId } from '../utils/path-utils'
 
 // Distance threshold in pixels for considering a node "on" an edge
@@ -224,10 +226,17 @@ export function useNodeDropOnEdge(options: UseNodeDropOnEdgeOptions) {
         targetHandle: droppedToTarget.targetHandle,
       }
 
-      // Remove the old edge and add the new ones
+      // Remove the old edge and add the new ones. newEdge2 takes the removed edge's array
+      // position so inserting a node on a multi-input edge keeps its slot order.
       setEdges(currentEdges => {
-        const filteredEdges = currentEdges.filter(e => e.id !== edge.id)
-        return [...filteredEdges, newEdge1, newEdge2]
+        const replacedIndex = currentEdges.findIndex(e => e.id === edge.id)
+        const withoutReplaced = currentEdges.filter(e => e.id !== edge.id)
+        const withTargetEdge = insertUniqueEdge(withoutReplaced, newEdge2, (edges, candidate) => {
+          const inserted = [...edges]
+          inserted.splice(replacedIndex === -1 ? inserted.length : replacedIndex, 0, candidate)
+          return inserted
+        })
+        return normalizeMultiInputEdges(insertUniqueEdge(withTargetEdge, newEdge1))
       })
 
       // Track this action for analytics
@@ -258,9 +267,7 @@ export function useNodeDropOnEdge(options: UseNodeDropOnEdgeOptions) {
 
       // Check if node has existing connections
       const edges = getEdges()
-      const hasExistingConnections = edges.some(
-        e => e.source === node.id || e.target === node.id
-      )
+      const hasExistingConnections = edges.some(e => e.source === node.id || e.target === node.id)
 
       // Check if we can insert this node
       const { canInsert } = canInsertNode(edge, node.id)
@@ -284,9 +291,7 @@ export function useNodeDropOnEdge(options: UseNodeDropOnEdgeOptions) {
 
       // Check if node has existing connections
       const edges = getEdges()
-      const hasExistingConnections = edges.some(
-        e => e.source === node.id || e.target === node.id
-      )
+      const hasExistingConnections = edges.some(e => e.source === node.id || e.target === node.id)
 
       // Require Shift key for nodes with existing connections to prevent accidental drops
       if (hasExistingConnections && !event.shiftKey) {

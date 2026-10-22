@@ -9,14 +9,14 @@ import {
 } from '@radix-ui/react-icons'
 import { useEdges } from '@xyflow/react'
 import { useCallback, useState } from 'react'
-import type { CustomFieldDefinition, IOperator, Operator } from '../operators'
+import { debugParams } from '../../utils/debug'
 import { fieldTypeToClass } from '../fields'
-import { findFieldReferences } from '../utils/field-references'
+import type { CustomFieldDefinition, IOperator, Operator } from '../operators'
 import {
   getEnableExpressionDependencies,
   validateEnableExpression,
 } from '../utils/enable-expression-evaluator'
-import { debugParams } from '../../utils/debug'
+import { findFieldReferences } from '../utils/field-references'
 import s from './parameter-editor-dialog.module.css'
 
 interface ParameterEditorDialogProps {
@@ -474,7 +474,9 @@ function FieldEditor({ definition, onUpdate, onValidate, error }: FieldEditorPro
               className={expressionError ? s.inputError : s.input}
               placeholder="par.showAdvanced === true"
             />
-            {expressionError && <span className={s.errorText}>Syntax error: {expressionError}</span>}
+            {expressionError && (
+              <span className={s.errorText}>Syntax error: {expressionError}</span>
+            )}
             <span className={s.hintText}>
               JavaScript expression to conditionally show this field
               <br />

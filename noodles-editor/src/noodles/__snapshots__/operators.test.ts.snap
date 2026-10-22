@@ -143,3 +143,35 @@ exports[`GeoJsonTransformOp > should translate a feature 1`] = `
   "type": "Feature",
 }
 `;
+
+exports[`SmoothOp > should apply boxcar smoothing to LineString 1`] = `
+{
+  "geometry": {
+    "coordinates": [
+      [
+        0.5,
+        0.5,
+      ],
+      [
+        1,
+        0.3333333333333333,
+      ],
+      [
+        2,
+        0.6666666666666666,
+      ],
+      [
+        3,
+        0.3333333333333333,
+      ],
+      [
+        3.5,
+        0.5,
+      ],
+    ],
+    "type": "LineString",
+  },
+  "properties": {},
+  "type": "Feature",
+}
+`;

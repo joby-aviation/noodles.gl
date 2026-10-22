@@ -1,8 +1,8 @@
 // R-tree spatial index for fast edge proximity queries
 // Uses rbush library for efficient 2D spatial indexing
 
-import RBush from 'rbush'
 import type { Edge as ReactFlowEdge, Node as ReactFlowNode } from '@xyflow/react'
+import RBush from 'rbush'
 import { getNodeCenter } from './edge-geometry'
 
 export interface EdgeBounds {

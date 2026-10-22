@@ -79,7 +79,7 @@ describe('Video Export Integration', () => {
           frameCount,
           totalTime,
           avgFrameTime,
-          fps: (frameCount / totalTime) * 1000
+          fps: (frameCount / totalTime) * 1000,
         }
       })
 
@@ -94,7 +94,9 @@ describe('Video Export Integration', () => {
       expect(result.avgFrameTime).toBeLessThan(66)
 
       // Log performance for tracking
-      console.log(`Frame capture performance: ${result.avgFrameTime.toFixed(1)}ms/frame, ${result.fps.toFixed(1)} FPS`)
+      console.log(
+        `Frame capture performance: ${result.avgFrameTime.toFixed(1)}ms/frame, ${result.fps.toFixed(1)} FPS`
+      )
     }, 30000)
 
     it('should handle projects with MapLibre basemap', async () => {
@@ -118,7 +120,7 @@ describe('Video Export Integration', () => {
         const deckCanvas = document.querySelector('canvas[id^="deckgl-"]')
         return {
           hasMap: !!mapCanvas,
-          hasDeck: !!deckCanvas
+          hasDeck: !!deckCanvas,
         }
       })
 
@@ -178,14 +180,14 @@ describe('Video Export Integration', () => {
         const calcIntervals = (times: number[]) => {
           const intervals: number[] = []
           for (let i = 1; i < times.length; i++) {
-            intervals.push(times[i] - times[i-1])
+            intervals.push(times[i] - times[i - 1])
           }
           return intervals.reduce((a, b) => a + b, 0) / intervals.length
         }
 
         return {
           renderAvg: calcIntervals(renderTimes),
-          idleAvg: calcIntervals(idleTimes)
+          idleAvg: calcIntervals(idleTimes),
         }
       })
 
@@ -239,7 +241,7 @@ describe('Video Export Integration', () => {
 
           const intervals: number[] = []
           for (let i = 1; i < frames.length; i++) {
-            intervals.push(frames[i] - frames[i-1])
+            intervals.push(frames[i] - frames[i - 1])
           }
           return intervals.reduce((a, b) => a + b, 0) / intervals.length
         }
@@ -257,7 +259,7 @@ describe('Video Export Integration', () => {
         return {
           beforeFade,
           afterFade,
-          improvement: beforeFade / afterFade
+          improvement: beforeFade / afterFade,
         }
       })
 

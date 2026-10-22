@@ -22,6 +22,8 @@ export interface DateTimeValue {
 }
 
 export interface ColumnSchema {
+  /** Stable identity used to distinguish a rename from a new column. */
+  id?: string
   name: string
   type: ColumnType
   options?: {
@@ -34,6 +36,7 @@ export interface ColumnSchema {
 
     // StringLiteralField options
     values?: string[]
+    freeform?: boolean
 
     // Point2D options
     geocoder?: boolean
@@ -43,6 +46,87 @@ export interface ColumnSchema {
 
 export interface TableSchema {
   columns: ColumnSchema[]
+}
+
+export interface TableSchemaTransitionResult {
+  data: unknown[]
+  renamedColumns: Array<{ from: string; to: string }>
+}
+
+export function getInitialColumnId(name: string): string {
+  return name
+}
+
+function getColumnId(column: ColumnSchema): string {
+  return column.id ?? getInitialColumnId(column.name)
+}
+
+/**
+ * Applies an authoritative schema change while retaining values for columns whose stable
+ * identity survived the transition. Name matching keeps schemas written before column IDs
+ * were introduced backwards compatible.
+ */
+export function transitionTableData(
+  data: unknown[],
+  previousSchema: TableSchema,
+  nextSchema: TableSchema,
+  options?: {
+    sourceColumnNames?: Array<string | undefined>
+    preferNextColumnNames?: boolean
+  }
+): TableSchemaTransitionResult {
+  const usedPreviousColumns = new Set<number>()
+  const sourceColumns = nextSchema.columns.map((nextColumn, nextIndex) => {
+    if (options?.sourceColumnNames !== undefined) {
+      const explicitSourceName = options.sourceColumnNames[nextIndex]
+      if (explicitSourceName === undefined) return undefined
+      return previousSchema.columns.find(column => column.name === explicitSourceName)
+    }
+
+    const nextId = getColumnId(nextColumn)
+    let previousIndex = previousSchema.columns.findIndex(
+      (column, index) => !usedPreviousColumns.has(index) && getColumnId(column) === nextId
+    )
+
+    if (previousIndex === -1 && nextColumn.id === undefined) {
+      previousIndex = previousSchema.columns.findIndex(
+        (column, index) => !usedPreviousColumns.has(index) && column.name === nextColumn.name
+      )
+    }
+
+    if (previousIndex === -1) return undefined
+    usedPreviousColumns.add(previousIndex)
+    return previousSchema.columns[previousIndex]
+  })
+
+  const renamedColumns = nextSchema.columns.flatMap((nextColumn, index) => {
+    const previousColumn = sourceColumns[index]
+    return previousColumn && previousColumn.name !== nextColumn.name
+      ? [{ from: previousColumn.name, to: nextColumn.name }]
+      : []
+  })
+
+  const remappedData = data.map(row => {
+    if (typeof row !== 'object' || row === null || Array.isArray(row)) return row
+    const record = row as Record<string, unknown>
+
+    return Object.fromEntries(
+      nextSchema.columns.flatMap((nextColumn, index) => {
+        const previousColumn = sourceColumns[index]
+        if (!previousColumn) return []
+
+        const shouldUseNextName =
+          options?.preferNextColumnNames && Object.hasOwn(record, nextColumn.name)
+        const sourceName = shouldUseNextName ? nextColumn.name : previousColumn.name
+        return Object.hasOwn(record, sourceName) ? [[nextColumn.name, record[sourceName]]] : []
+      })
+    )
+  })
+
+  return {
+    data: validateTableData(remappedData, nextSchema),
+    renamedColumns,
+  }
 }
 
 // Infer column type from a sample value
@@ -271,7 +355,10 @@ export function validateValue(value: unknown, schema: ColumnSchema): boolean {
       if (typeof value !== 'string') {
         return false
       }
-      if (schema.options?.values) {
+      if (schema.options?.freeform) {
+        return true
+      }
+      if (schema.options?.values && schema.options.values.length > 0) {
         return schema.options.values.includes(value)
       }
       return true
@@ -368,6 +455,17 @@ export function validateTableData(data: unknown[], schema: TableSchema): unknown
       // Use default if missing
       if (value === undefined) {
         validatedRow[col.name] = col.defaultValue ?? getDefaultValue(col)
+        continue
+      }
+
+      // A chained TableEditor receives the upstream editor's output representation.
+      // Convert Temporal values back to the editable storage representation before
+      // validating so a valid date-time is not replaced with the column default.
+      if (col.type === 'dateTime' && value instanceof Temporal.ZonedDateTime) {
+        validatedRow[col.name] = {
+          datetime: temporalToString(value),
+          timezone: value.timeZoneId,
+        } satisfies DateTimeValue
         continue
       }
 

@@ -3,7 +3,7 @@
   background: rgba(0, 0, 0, 0.7);
   position: fixed;
   inset: 0;
-  z-index: 1000;
+  z-index: var(--z-index-backdrop);
   animation: fadeIn 150ms ease-out;
 }
 
@@ -20,7 +20,7 @@
   max-width: 700px;
   max-height: 85vh;
   padding: 24px;
-  z-index: 1001;
+  z-index: var(--z-index-modal);
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -182,7 +182,7 @@
 }
 
 .fieldName {
-  font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+  font-family: "Monaco", "Menlo", "Courier New", monospace;
   font-size: 13px;
   font-weight: 500;
   color: var(--color-text, #e0e0e0);
@@ -265,7 +265,7 @@
   background: var(--color-surface-4, #3a3a3a);
   padding: 2px 4px;
   border-radius: 2px;
-  font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+  font-family: "Monaco", "Menlo", "Courier New", monospace;
   font-size: 10px;
   font-style: normal;
 }
@@ -330,7 +330,7 @@
   gap: 8px;
 }
 
-.typeOptions .label input[type='checkbox'] {
+.typeOptions .label input[type="checkbox"] {
   width: auto;
 }
 

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { useTimelineStore } from '../../timeline/timeline-store'
 import { getTimelineContext } from './timeline-context'
 
@@ -46,7 +46,6 @@ describe('timeline-context', () => {
       expect(context.totalFrames).toBe(450) // Math.floor(15 * 30)
     })
   })
-
 
   describe('edge cases', () => {
     it('handles zero position', () => {

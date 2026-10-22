@@ -63,7 +63,6 @@ export function ProjectsView({ onBack, onClose }: ProjectsViewProps) {
       if (fileSystemSupport.opfs) {
         try {
           const root = await getOPFSRoot()
-          // @ts-expect-error - TS doesn't include async iterator types for FileSystemDirectoryHandle
           for await (const entry of root.values()) {
             if (entry.kind === 'directory') {
               const alreadyListed = result.some(p => p.name === entry.name)

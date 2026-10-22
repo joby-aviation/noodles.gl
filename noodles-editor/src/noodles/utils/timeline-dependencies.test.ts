@@ -1,11 +1,11 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useTimelineStore } from '../../timeline/timeline-store'
+import { CodeOp } from '../operators'
 import {
   subscribeOpToTimeline,
   unsubscribeOpFromTimeline,
   useTimelineDependencyStore,
 } from './timeline-dependencies'
-import { CodeOp } from '../operators'
 
 describe('timeline-dependencies', () => {
   const createdOps: CodeOp[] = []

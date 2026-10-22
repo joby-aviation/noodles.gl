@@ -1,4 +1,5 @@
 import { getKeysStore } from '../noodles/keys-store'
+import { analytics } from './analytics'
 import { debugGeocode } from './debug'
 
 export interface GeocodingResult {
@@ -156,31 +157,52 @@ export async function geocodeWithGooglePlaces(query: string): Promise<GeocodingR
     return results
   } catch (error) {
     debugGeocode('Google Places API error:', error)
-    throw error
+    analytics.track('geocoding_failed', {
+      service: 'google',
+      statusCode: undefined,
+      reason:
+        error instanceof Error && error.message.includes('API key')
+          ? 'api_key_missing'
+          : 'network_error',
+    })
+    const message = error instanceof Error ? error.message : String(error)
+    throw new Error(`Google Places failed: ${message}`, { cause: error })
   }
 }
 
 // Geocode using Mapbox Geocoding API
 export async function geocodeWithMapbox(query: string, apiKey: string): Promise<GeocodingResult[]> {
-  try {
-    const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${apiKey}&limit=5`
-    const response = await fetch(url)
-    const data: MapboxGeocodingResponse = await response.json()
-
-    if (data.features) {
-      return data.features.map(feature => ({
-        place_name: feature.place_name,
-        coordinates: {
-          longitude: feature.center[0],
-          latitude: feature.center[1],
-        },
-      }))
-    }
-    return []
-  } catch (error) {
-    debugGeocode('Mapbox geocoding error:', error)
-    return []
+  const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${apiKey}&limit=5`
+  const response = await fetch(url)
+  if (!response.ok) {
+    const reason =
+      response.status === 429
+        ? 'rate_limit'
+        : response.status === 404
+          ? 'not_found'
+          : 'network_error'
+    analytics.track('geocoding_failed', {
+      service: 'mapbox',
+      statusCode: response.status,
+      reason,
+    })
+    // Mapbox explains rejections in the body, e.g. "Query too long - 21/20 tokens"
+    const body: { message?: string } | undefined = await response.json?.().catch(() => undefined)
+    throw new Error(
+      `Mapbox geocoding failed: ${response.status} ${body?.message || response.statusText}`
+    )
   }
+
+  const data: MapboxGeocodingResponse = await response.json()
+  const results = (data.features ?? []).map(feature => ({
+    place_name: feature.place_name,
+    coordinates: {
+      longitude: feature.center[0],
+      latitude: feature.center[1],
+    },
+  }))
+
+  return results
 }
 
 // Geocode using Photon API (free, OSM-based)
