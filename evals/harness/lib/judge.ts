@@ -53,18 +53,39 @@ export function buildJudgePrompt(slots: {
     .replace('{{TRANSCRIPT}}', truncateMiddle(slots.transcript, 400_000))
 }
 
+export interface JudgeImage {
+  mediaType: 'image/png' | 'image/jpeg' | 'image/webp'
+  /** base64 */
+  data: string
+}
+
 export async function judgeOnce(
   prompt: string,
   rubric: Rubric,
   transcriptLineCount: number,
-  resolveFileLines: (path: string) => number | undefined
+  resolveFileLines: (path: string) => number | undefined,
+  images: JudgeImage[] = []
 ): Promise<JudgeSample> {
   let lastError = ''
   for (let attempt = 0; attempt < 2; attempt++) {
+    const userText = attempt === 0 ? prompt : `${prompt}\n\nYour previous reply was invalid (${lastError}). Return ONLY the JSON object in the required format.`
     const message = await bedrock().messages.create({
       model: JUDGE_MODEL,
       max_tokens: 4000,
-      messages: [{ role: 'user', content: attempt === 0 ? prompt : `${prompt}\n\nYour previous reply was invalid (${lastError}). Return ONLY the JSON object in the required format.` }],
+      messages: [
+        {
+          role: 'user',
+          content: images.length
+            ? [
+                ...images.map(img => ({
+                  type: 'image' as const,
+                  source: { type: 'base64' as const, media_type: img.mediaType, data: img.data },
+                })),
+                { type: 'text' as const, text: userText },
+              ]
+            : userText,
+        },
+      ],
     })
     const text = message.content
       .filter(b => b.type === 'text')

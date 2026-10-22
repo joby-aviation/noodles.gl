@@ -10,7 +10,7 @@ import { execFileSync } from 'node:child_process'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { JUDGE_MODEL, JUDGE_SAMPLES, REPO_ROOT, RESULTS_ROOT, TASKS_ROOT, assertProviderEnv } from './lib/config'
-import { buildJudgePrompt, judgeOnce, type JudgeSample } from './lib/judge'
+import { buildJudgePrompt, judgeOnce, type JudgeImage, type JudgeSample } from './lib/judge'
 import { AnthropicBedrock } from '@anthropic-ai/bedrock-sdk'
 import { type KeyEntry } from './lib/matchers'
 import { computeProcessMetrics } from './lib/process-metrics'
@@ -215,10 +215,27 @@ export async function gradeRun(series: string, runId: string, samples: number, r
     transcript: run.transcriptTxt,
   })
 
+  // The screenshot the session itself took (agentScreenshot tasks) is what
+  // those rubrics ask about, so the judge sees it. The harness's own
+  // screenshot.png stays out: existing rubrics were calibrated for text-only
+  // judging, and adding it would change their instrument mid-season.
+  const images: JudgeImage[] = []
+  const agentShot = fs.readdirSync(run.runDir).find(f => /^agent-screenshot\.(png|jpe?g|webp)$/i.test(f))
+  if (agentShot) {
+    const ext = path.extname(agentShot).slice(1).toLowerCase()
+    images.push({
+      mediaType: ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg',
+      data: fs.readFileSync(path.join(run.runDir, agentShot)).toString('base64'),
+    })
+  }
+
   const judgeSamples: JudgeSample[] = []
   for (let i = 0; i < samples; i++) {
     console.log(`[${runId}] judge sample ${i + 1}/${samples}`)
-    judgeSamples.push(await judgeOnce(prompt, rubric, transcriptLineCount, resolveFileLines))
+    const judgeText = agentShot
+      ? `${prompt}\n\nThe attached image is the screenshot the session saved (stored as ${agentShot}).`
+      : prompt
+    judgeSamples.push(await judgeOnce(judgeText, rubric, transcriptLineCount, resolveFileLines, images))
   }
   const judgeScore = reduceJudgeSamples(judgeSamples, rubric)
   const mechanicalForTotal = { ...run.mechanical, score0to4: mechanicalScore }

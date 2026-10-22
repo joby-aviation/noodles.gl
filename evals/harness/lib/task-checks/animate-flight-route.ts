@@ -4,7 +4,7 @@
 // playbackSpeed is internal), so "adjustable speed" must be a parameter in
 // the graph that currentTime depends on.
 
-import { ROUTE_FLIGHT_ID, flightsSeen, keyframedNodeIds, upstreamClosure } from './flight-fixture'
+import { ROUTE_FLIGHT_ID, flightsSeen, keyframedProps, readsTimeline, upstreamClosure } from './flight-fixture'
 import { type CheckContext, type CheckResult, edgesInto, nodesByType } from './types'
 
 // Names a speed control plausibly carries. Duration-style controls count:
@@ -36,18 +36,28 @@ export function customChecks(ctx: CheckContext): Record<string, CheckResult> {
     detail: `${nodeOutputs ? '' : 'no runtime probe; '}getTimestamps edges in: ${timestampEdges}; literal: ${timestampLiteral}; timestamps in layer data: ${timestampsInData}`,
   }
 
-  // currentTime must move on its own: a TimeOp upstream, or keyframes on the
-  // layer or anything it reads currentTime from.
+  // currentTime must move on its own. Drivers: a TimeOp upstream, an
+  // upstream node with keyframes or whose code reads sequenceTime/frame, or
+  // keyframes on the layer's own currentTime (keyframes on its other props,
+  // like color, don't move the trail).
   const timeUpstream = upstreamClosure(after, tripsId, 'par.currentTime')
-  const keyframed = keyframedNodeIds(after)
-  const typeOf = (id: string) => (after.nodes ?? []).find(n => n.id === id)?.type
-  const drivers = [...timeUpstream].filter(id => typeOf(id) === 'TimeOp' || keyframed.has(id))
-  if (keyframed.has(tripsId)) drivers.push(tripsId)
+  const animated = keyframedProps(after)
+  const nodeOf = (id: string) => (after.nodes ?? []).find(n => n.id === id)
+  const typeOf = (id: string) => nodeOf(id)?.type
+  const drivers = [...timeUpstream].filter(
+    id =>
+      typeOf(id) === 'TimeOp' ||
+      animated.has(id) ||
+      Object.values(nodeOf(id)?.data?.inputs ?? {}).some(readsTimeline)
+  )
+  if (animated.get(tripsId)?.has('currentTime') || readsTimeline(trips.data?.inputs?.currentTime)) {
+    drivers.push(tripsId)
+  }
   checks['current-time-animated'] = {
     pass: drivers.length > 0,
     detail: drivers.length
       ? `driven by ${drivers.join(', ')}`
-      : `currentTime upstream: [${[...timeUpstream].join(', ')}]; no TimeOp or keyframed node`,
+      : `currentTime upstream: [${[...timeUpstream].join(', ')}]; no TimeOp, keyframes, or sequenceTime/frame expression`,
   }
 
   // The speed control: a named numeric parameter that currentTime depends on

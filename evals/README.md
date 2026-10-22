@@ -190,7 +190,7 @@ need more:
 |---|---|---|
 | `promptFile: fixtures/<file>` | Reads the verbatim prompt from a file instead of the body's blockquote, for prompts that are published artifacts. | `quick-start-screenshot` |
 | `workspace.mode: empty` | The session starts in an empty directory: no checkout, no template, no git. Whatever it needs, it fetches. | `quick-start-screenshot` |
-| `mechanical.agentScreenshot: true` | Copies the newest image the session wrote to `agent-screenshot.<ext>` and checks it is non-blank (PNG, JPEG, or WebP). | `quick-start-screenshot` |
+| `mechanical.agentScreenshot: true` | Copies the newest image the session wrote to `agent-screenshot.<ext>` and checks it is non-blank (PNG, JPEG, or WebP). The judge receives it as an image; no other task sends images to the judge. | `quick-start-screenshot` |
 | `mechanical.load.probeLayers: true` | Opens the route with `?externalControl=true` and reads every `*LayerOp`'s output through the app's own WebMCP `get_node_output` tool. Frozen as `node-outputs.json` and passed to the custom checks, so a filter is graded on the data the layer received. | `map-flights-last-week`, `animate-flight-route` |
 
 Every `claude` CLI session runs with a fresh per-run `CLAUDE_CONFIG_DIR`, so

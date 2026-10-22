@@ -208,37 +208,66 @@ export function upstreamClosure(
 function references(value: unknown, fromId: string, ids: Set<string>): string[] {
   const text = typeof value === 'string' ? value : Array.isArray(value) ? value.join('\n') : ''
   if (!text) return []
-  const container = fromId.split('/').slice(0, -1).join('/')
   const found: string[] = []
   for (const re of REF_RES) {
     for (const m of text.matchAll(re)) {
-      const raw = m[1]
-      const candidates = raw.startsWith('/')
-        ? [raw]
-        : [`${container}/${raw.replace(/^\.\//, '')}`, `/${raw.replace(/^\.\//, '')}`]
-      const hit = candidates.find(c => ids.has(c))
-      if (hit) found.push(hit)
+      const hit = resolveOpPath(m[1], fromId)
+      if (ids.has(hit)) found.push(hit)
     }
   }
   return found
 }
 
-/** Node ids carrying at least one timeline track with two or more keyframes. */
-export function keyframedNodeIds(project: ProjectJson): Set<string> {
-  const out = new Set<string>()
+/** The app's path rules (utils/path-utils.ts): absolute paths stand alone;
+ * './x', '../x', and bare 'x' resolve against the referencing node's
+ * container, with '.' and '..' segments collapsed. */
+export function resolveOpPath(raw: string, fromId: string): string {
+  const segments = raw.startsWith('/') ? [] : fromId.split('/').filter(Boolean).slice(0, -1)
+  for (const part of raw.split('/')) {
+    if (part === '' || part === '.') continue
+    if (part === '..') segments.pop()
+    else segments.push(part)
+  }
+  return `/${segments.join('/')}`
+}
+
+/** Does a node's code or expression read the timeline position? AccessorOp,
+ * CodeOp, and ExpressionOp all receive sequenceTime and frame. */
+export function readsTimeline(value: unknown): boolean {
+  const text = typeof value === 'string' ? value : Array.isArray(value) ? value.join('\n') : ''
+  return /\b(sequenceTime|frame)\b/.test(text)
+}
+
+/** Animated props per node: prop paths (dot form) whose timeline track has
+ * two or more keyframes. */
+export function keyframedProps(project: ProjectJson): Map<string, Set<string>> {
+  const out = new Map<string, Set<string>>()
   const sheets = (project.timeline as { sheetsById?: Record<string, unknown> })?.sheetsById ?? {}
   for (const sheet of Object.values(sheets)) {
     const tracksByObject = ((sheet as { sequence?: { tracksByObject?: Record<string, unknown> } })
       ?.sequence?.tracksByObject ?? {}) as Record<
       string,
-      { trackData?: Record<string, { keyframes?: unknown[] }> }
+      { trackData?: Record<string, { keyframes?: unknown[] }>; trackIdByPropPath?: Record<string, string> }
     >
     for (const [objectKey, entry] of Object.entries(tracksByObject)) {
-      const animated = Object.values(entry.trackData ?? {}).some(
-        t => (t.keyframes?.length ?? 0) >= 2
-      )
-      if (animated) out.add(`/${objectKey.split(' / ').join('/')}`)
+      const nodeId = `/${objectKey.split(' / ').join('/')}`
+      for (const [propPath, trackId] of Object.entries(entry.trackIdByPropPath ?? {})) {
+        if ((entry.trackData?.[trackId]?.keyframes?.length ?? 0) < 2) continue
+        const props = out.get(nodeId) ?? new Set<string>()
+        props.add(normalizePropPath(propPath))
+        out.set(nodeId, props)
+      }
     }
   }
   return out
+}
+
+function normalizePropPath(propPath: string): string {
+  try {
+    const parsed = JSON.parse(propPath)
+    if (Array.isArray(parsed)) return parsed.join('.')
+  } catch {
+    /* dot form */
+  }
+  return propPath
 }

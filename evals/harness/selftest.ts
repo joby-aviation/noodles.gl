@@ -439,6 +439,58 @@ test('animate-flight-route checks: golden passes; static, speedless, and multi-f
   assert.equal(check({ after: fixed, before: null, resultText: null, nodeOutputs: one })['current-time-animated'].pass, false)
 })
 
+test('animate-flight-route: sequenceTime expressions drive; color-only keyframes do not; parent ../speed resolves', async () => {
+  const { CUSTOM_CHECKS } = await import('./lib/task-checks')
+  const { resolveOpPath } = await import('./lib/task-checks/flight-fixture')
+  assert.equal(resolveOpPath('../speed', '/route/clock'), '/speed')
+  assert.equal(resolveOpPath('./speed', '/route/clock'), '/route/speed')
+  assert.equal(resolveOpPath('speed', '/route/clock'), '/route/speed')
+  assert.equal(resolveOpPath('/a/../b', '/x'), '/b')
+  const check = CUSTOM_CHECKS['animate-flight-route']
+  const one = { '/route/trips': await probeFor(['FLT-1018'], { timestamps: true }) }
+  const edge = (s: string, sh: string, t: string, th: string) => ({ id: `${s}.${sh}->${t}.${th}`, source: s, sourceHandle: sh, target: t, targetHandle: th })
+  const noTimeline = { sheetsById: { Noodles: { staticOverrides: { byObject: {} } } } }
+  // No keyframes anywhere: an ExpressionOp inside a container reads sequenceTime
+  // and the parent-level speed through op('../speed').
+  const expressionDriven = {
+    version: 18,
+    nodes: [
+      { id: '/speed', type: 'NumberOp', data: { inputs: { val: 60 } } },
+      { id: '/route', type: 'ContainerOp', data: { inputs: {} } },
+      { id: '/route/clock', type: 'ExpressionOp', data: { inputs: { expression: "sequenceTime * op('../speed').par.val" } } },
+      { id: '/route/trips', type: 'TripsLayerOp', data: { inputs: {} } },
+      { id: '/deck', type: 'DeckRendererOp', data: { inputs: {} } },
+    ],
+    edges: [edge('/route/clock', 'out.result', '/route/trips', 'par.currentTime'), edge('/route/trips', 'out.layer', '/deck', 'par.layers')],
+    timeline: noTimeline,
+  }
+  allPass(check({ after: expressionDriven, before: null, resultText: null, nodeOutputs: one }))
+  // Static currentTime with a constant speed, and only the layer's color keyframed.
+  const kf = (id: string, position: number, value: unknown) => ({ id, position, value })
+  const colorOnly = {
+    ...expressionDriven,
+    nodes: expressionDriven.nodes.map(n => (n.id === '/route/clock' ? { ...n, data: { inputs: { expression: "120 * op('../speed').par.val" } } } : n)),
+    timeline: {
+      sheetsById: {
+        Noodles: {
+          sequence: {
+            length: 10,
+            tracksByObject: {
+              'route / trips': {
+                trackData: { t1: { keyframes: [kf('a', 0, '#ff0000'), kf('b', 10, '#0000ff')] } },
+                trackIdByPropPath: { '["getColor"]': 't1' },
+              },
+            },
+          },
+        },
+      },
+    },
+  }
+  const staticResult = check({ after: colorOnly, before: null, resultText: null, nodeOutputs: one })
+  assert.equal(staticResult['current-time-animated'].pass, false, staticResult['current-time-animated'].detail ?? '')
+  assert.equal(staticResult['speed-control-feeds-current-time'].pass, true)
+})
+
 test('quick-start-screenshot checks: installed repo + named screenshot in time passes; slow or shotless fails', async () => {
   const { CUSTOM_CHECKS } = await import('./lib/task-checks')
   const check = CUSTOM_CHECKS['quick-start-screenshot']
