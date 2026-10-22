@@ -16,14 +16,14 @@ import { TASKS_ROOT } from '../config'
 import type { ProjectJson } from './types'
 
 export const FLIGHTS_FIXTURE = 'fixtures/flights-fixture.csv'
-export const NEW_YORK_SITES = new Set(['JRA', 'JRB', 'JFK', 'EWR', 'LGA', 'HPN', 'HTO'])
+export const NEW_YORK_SITES = new Set(['NYHP', 'JFK', 'EWR', 'LGA', 'HPN', 'EEND'])
 // The export is pulled Monday 2026-10-19; "last week" is Mon 10-12 to Sun 10-18.
 export const LAST_WEEK = { start: '2026-10-12', endExclusive: '2026-10-19' }
 export const ROUTE_FLIGHT_ID = 'FLT-1018'
 
 export interface FixtureFlight {
   id: string
-  operator: string
+  aircraft: string
   origin: string
   destination: string
   departure: string
@@ -45,7 +45,7 @@ export function fixtureFlights(): Map<string, FixtureFlight> {
     if (!flight) {
       flight = {
         id,
-        operator: cells[col('operator')],
+        aircraft: cells[col('aircraft')],
         origin: cells[col('origin')],
         destination: cells[col('destination')],
         departure: cells[col('timestamp')],
@@ -59,13 +59,13 @@ export function fixtureFlights(): Map<string, FixtureFlight> {
   return flights
 }
 
-export function expectedLastWeekNewYorkBlade(): Set<string> {
+export function expectedLastWeekNewYorkHelicopters(): Set<string> {
   const ids = new Set<string>()
   for (const f of fixtureFlights().values()) {
     const day = f.departure.slice(0, 10)
     const inWeek = day >= LAST_WEEK.start && day < LAST_WEEK.endExclusive
     const inNewYork = NEW_YORK_SITES.has(f.origin) || NEW_YORK_SITES.has(f.destination)
-    if (f.operator === 'Blade' && inWeek && inNewYork) ids.add(f.id)
+    if (f.aircraft === 'helicopter' && inWeek && inNewYork) ids.add(f.id)
   }
   return ids
 }

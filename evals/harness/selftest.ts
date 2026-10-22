@@ -368,16 +368,16 @@ test('flights fixture: generator reproduces the committed CSV; expected sets are
   const { generateRows } = await import('../tasks/fixtures/make-flights-fixture')
   const committed = fs.readFileSync(path.join(fixturesDir, 'flights-fixture.csv'), 'utf-8')
   assert.equal(`${generateRows().join('\n')}\n`, committed, 'flights-fixture.csv drifted from its generator')
-  const { expectedLastWeekNewYorkBlade, ROUTE_FLIGHT_ID, fixtureFlights } = await import(
+  const { expectedLastWeekNewYorkHelicopters, ROUTE_FLIGHT_ID, fixtureFlights } = await import(
     './lib/task-checks/flight-fixture'
   )
   // independent of the rule in flight-fixture.ts: read off the schedule by hand
   assert.deepEqual(
-    [...expectedLastWeekNewYorkBlade()].sort(),
+    [...expectedLastWeekNewYorkHelicopters()].sort(),
     ['1007', '1008', '1009', '1012', '1014', '1016', '1018', '1020', '1021', '1022', '1023', '1024'].map(n => `FLT-${n}`)
   )
   const route = fixtureFlights().get(ROUTE_FLIGHT_ID)
-  assert.equal(`${route?.origin}-${route?.destination}`, 'JRA-HTO')
+  assert.equal(`${route?.origin}-${route?.destination}`, 'NYHP-EEND')
 })
 
 test('referencedPaths: op() and mustache refs parse; adversarial input stays linear', async () => {
@@ -425,16 +425,16 @@ async function probeFor(ids: string[], opts: { withIds?: boolean; timestamps?: b
 
 test('map-flights-last-week checks: right flights pass; unfiltered, half-filtered, and unprobed fail', async () => {
   const { CUSTOM_CHECKS } = await import('./lib/task-checks')
-  const { expectedLastWeekNewYorkBlade, fixtureFlights } = await import('./lib/task-checks/flight-fixture')
+  const { expectedLastWeekNewYorkHelicopters, fixtureFlights } = await import('./lib/task-checks/flight-fixture')
   const check = CUSTOM_CHECKS['map-flights-last-week']
   const after = golden('map-flights-last-week')
-  const expected = [...expectedLastWeekNewYorkBlade()]
+  const expected = [...expectedLastWeekNewYorkHelicopters()]
   const run = async (ids: string[], withIds = true) =>
     check({ after, before: null, resultText: null, nodeOutputs: { '/route-layer': await probeFor(ids, { withIds }) } })
   allPass(await run(expected))
   allPass(await run(expected, false)) // ids dropped: coordinate fingerprints still identify the flights
   someFail(await run([...fixtureFlights().keys()])) // no filter
-  someFail(await run([...fixtureFlights().keys()].filter(id => fixtureFlights().get(id)?.operator === 'Blade'))) // Blade, any week, any region
+  someFail(await run([...fixtureFlights().keys()].filter(id => fixtureFlights().get(id)?.aircraft === 'helicopter'))) // helicopters, any week, any region
   someFail(await run(expected.slice(0, 6)))
   someFail(check({ after, before: null, resultText: null, nodeOutputs: null }))
 })
