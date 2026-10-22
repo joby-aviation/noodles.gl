@@ -5,6 +5,8 @@ import { describe, expect, it } from 'vitest'
 import {
   addNode,
   connect,
+  copyNodes,
+  pasteNodes,
   removeEdges,
   removeNodes,
   renameNode,
@@ -92,6 +94,23 @@ describe('document operations', () => {
     })
     expect(lowerDocument(d).errors).toEqual([])
     expect(renameNode(d, 'src', 'size')).toBe(false)
+  })
+})
+
+describe('copy and paste', () => {
+  it('pastes nodes with new ids and names, keeping the wires between them', () => {
+    const d = doc()
+    const clip = copyNodes(d, ['src', 'dots'])
+    expect(clip.edges.map(e => e.id)).toEqual(['e1'])
+    const ids = pasteNodes(d, clip, undefined)
+    const pasted = d.nodes.filter(n => ids.includes(n.id))
+    expect(pasted.map(n => n.op)).toEqual(['sql', 'scatter'])
+    expect(new Set(d.nodes.map(n => n.id)).size).toBe(d.nodes.length)
+    expect(d.edges.filter(e => ids.includes(e.source) && ids.includes(e.target))).toHaveLength(1)
+    // A pasted node named like its original gets a name of its own.
+    const k = pasteNodes(d, copyNodes(d, ['k']), undefined)
+    expect(d.nodes.find(n => n.id === k[0])?.name).toBe('k1')
+    expect(lowerDocument(d).errors).toEqual([])
   })
 })
 
