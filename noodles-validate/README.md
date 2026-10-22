@@ -30,7 +30,8 @@ Exit status: `0` when every file is valid (warnings allowed), `1` when any file 
 | `node-id` | error | A node id isn't an absolute path like `/earthquake-data` |
 | `duplicate-node-id` | error | Two nodes share an id |
 | `unknown-operator` | error | A node's `type` isn't a registered operator (`group` nodes are allowed) |
-| `unknown-input` | error | `data.inputs` names an input the operator doesn't have and `data.customInputs` doesn't declare |
+| `unknown-input` | error | `data.inputs` names an input the operator doesn't have and `data.customInputs` doesn't declare (a GraphInputOp also has its container's custom inputs) |
+| `custom-input` | error | A `data.customInputs` entry has no name, or a type the editor can't load (`number`, `string`, `color` and the rest of `customFieldTypes` in `registry.json`) |
 | `edge-shape` | error | An edge is missing `id`, `source`, `sourceHandle`, `target` or `targetHandle` |
 | `edge-unknown-node` | error | An edge's `source` or `target` isn't a node |
 | `edge-handle` | error | A handle isn't `out.<field>` on the source and `par.<field>` on the target, or names a field the operator doesn't have. Container boundary edges (`/c.par.in` to its GraphInputOp, its GraphOutputOp to `/c.out.out`) are allowed |

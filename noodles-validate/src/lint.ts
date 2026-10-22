@@ -3,6 +3,7 @@
 
 import {
   fieldNames,
+  getOperator,
   handleProblem,
   isTypo,
   type Side,
@@ -25,7 +26,13 @@ interface NodeRecord {
   type: string
   index: number
   customInputs: string[]
+  // Keys of data.inputs, checked once every node is known
+  inputs: string[]
 }
+
+// Mirrors its parent container's custom inputs as an input and an output each
+const GRAPH_INPUT_TYPE = 'GraphInputOp'
+const CONTAINER_TYPE = 'ContainerOp'
 
 export function validateProject(project: unknown, registry: Registry): ValidationResult {
   const diagnostics = lintProject(project, registry)
@@ -63,6 +70,7 @@ export function lintProject(project: unknown, registry: Registry): Diagnostic[] 
     project.nodes.forEach((node, index) => {
       checkNode(node, index, registry, nodes, report)
     })
+    checkInputNames(registry, nodes, report)
   }
 
   if (!Array.isArray(project.edges)) {
@@ -151,11 +159,12 @@ function checkNode(
   }
 
   const data = isObject(node.data) ? node.data : {}
-  const customInputs = customInputNames(data)
-  nodes.set(id, { id, type, index, customInputs })
+  const customInputs = checkCustomInputs(data, id, at, registry, report)
+  const inputs = isObject(data.inputs) ? Object.keys(data.inputs) : []
+  nodes.set(id, { id, type, index, customInputs, inputs })
 
   if (SPECIAL_NODE_TYPES.has(type)) return
-  if (!registry.operators[type]) {
+  if (!getOperator(registry, type)) {
     report('error', 'unknown-operator', at, `${id}: ${unknownType(type, registry)}`, id)
     return
   }
@@ -168,13 +177,6 @@ function checkNode(
       `${id} data.inputs is not an object of input names to values.`,
       id
     )
-  } else if (isObject(data.inputs)) {
-    const known = [...fieldNames(registry, type, 'inputs'), ...customInputs]
-    for (const name of Object.keys(data.inputs)) {
-      if (!known.includes(name)) {
-        report('error', 'unknown-input', at, unknownInput(id, type, name, known), id)
-      }
-    }
   }
 
   // Checked by the old scripts/validate-examples.js, and in the graph design guidelines
@@ -187,6 +189,36 @@ function checkNode(
       id
     )
   }
+}
+
+function checkInputNames(registry: Registry, nodes: Map<string, NodeRecord>, report: Report) {
+  for (const node of nodes.values()) {
+    if (!getOperator(registry, node.type)) continue
+    const known = [
+      ...fieldNames(registry, node.type, 'inputs'),
+      ...node.customInputs,
+      ...containerFields(node, nodes),
+    ]
+    for (const name of node.inputs) {
+      if (!known.includes(name)) {
+        report(
+          'error',
+          'unknown-input',
+          `nodes[${node.index}]`,
+          unknownInput(node.id, node.type, name, known),
+          node.id
+        )
+      }
+    }
+  }
+}
+
+// A GraphInputOp has an input and an output for each of its container's custom
+// inputs, as GraphInputOp.rebuildFromContainer builds them
+function containerFields(node: NodeRecord, nodes: Map<string, NodeRecord>): string[] {
+  if (node.type !== GRAPH_INPUT_TYPE) return []
+  const parent = nodes.get(node.id.slice(0, node.id.lastIndexOf('/')))
+  return parent?.type === CONTAINER_TYPE ? parent.customInputs : []
 }
 
 function checkEdges(
@@ -290,7 +322,8 @@ function checkEdges(
     const node = nodes.get(target)
     const field = handle.startsWith('par.') ? handle.slice(4) : null
     if (!node || !field) continue
-    if (registry.operators[node.type]?.inputs[field]?.type === MULTI_INPUT_FIELD_TYPE) continue
+    const inputs = getOperator(registry, node.type)?.inputs ?? {}
+    if (Object.hasOwn(inputs, field) && inputs[field].type === MULTI_INPUT_FIELD_TYPE) continue
     report(
       'error',
       'multiple-inputs',
@@ -327,7 +360,7 @@ function checkEndpoint(
     return false
   }
   // An unknown type is reported on the node itself
-  if (!registry.operators[node.type]) {
+  if (!getOperator(registry, node.type)) {
     if (SPECIAL_NODE_TYPES.has(node.type)) {
       report(
         'error',
@@ -348,6 +381,7 @@ function checkEndpoint(
   const known = [
     ...fieldNames(registry, node.type, side),
     ...(side === 'inputs' ? node.customInputs : []),
+    ...containerFields(node, nodes),
   ]
   const problem = handleProblem(nodeId, node.type, handle, side, known)
   if (problem) {
@@ -375,13 +409,54 @@ function isDirectChild(childId: string, parentId: string): boolean {
   return childId.startsWith(`${parentId}/`) && !childId.slice(parentId.length + 1).includes('/')
 }
 
-// A node may declare its own inputs alongside the values for them
-function customInputNames(data: Json): string[] {
+// A node may declare its own inputs alongside the values for them. The editor
+// throws while loading one whose type it doesn't know, so check each
+// definition; the names still count, so one bad type is one error
+function checkCustomInputs(
+  data: Json,
+  id: string,
+  at: string,
+  registry: Registry,
+  report: Report
+): string[] {
   const custom = data.customInputs
-  if (!Array.isArray(custom)) return []
-  return custom
-    .map(def => (isObject(def) ? def.name : null))
-    .filter((name): name is string => typeof name === 'string')
+  if (custom === undefined) return []
+  if (!Array.isArray(custom)) {
+    report(
+      'error',
+      'custom-input',
+      at,
+      `${id} data.customInputs is not an array of input definitions.`,
+      id
+    )
+    return []
+  }
+  const names: string[] = []
+  const types = registry.customFieldTypes
+  custom.forEach((def, i) => {
+    const where = `${id} data.customInputs[${i}]`
+    if (!isObject(def) || typeof def.name !== 'string' || !def.name) {
+      report(
+        'error',
+        'custom-input',
+        at,
+        `${where} has no name. A custom input looks like {"id": "<uuid>", "name": "threshold", "type": "number", "order": 0}.`,
+        id
+      )
+      return
+    }
+    names.push(def.name)
+    if (types && (typeof def.type !== 'string' || !types.includes(def.type))) {
+      report(
+        'error',
+        'custom-input',
+        at,
+        `${where} (${def.name}) has type ${JSON.stringify(def.type)}, which the editor can't load. Custom input types are: ${types.join(', ')}.`,
+        id
+      )
+    }
+  })
+  return names
 }
 
 function isObject(value: unknown): value is Json {

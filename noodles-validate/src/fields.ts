@@ -9,20 +9,26 @@
 // src/ai-chat/modification-fields.ts, so an agent sees the same error whether it
 // edits the file or the running app.
 
-import type { Registry } from './types.ts'
+import type { OperatorInfo, Registry } from './types.ts'
 
 // How many names a "has no input" error lists
 const FIELD_SUGGESTIONS = 15
 
 export type Side = 'inputs' | 'outputs'
 
+// Own properties only: a plain lookup finds "constructor" and "toString" on
+// every object, so a node of type "constructor" would pass as an operator
+export function getOperator(registry: Registry, type: string): OperatorInfo | undefined {
+  return Object.hasOwn(registry.operators, type) ? registry.operators[type] : undefined
+}
+
 // "File", "file", "FileOp" and "fileop" all name FileOp. Resolves a name that
 // matches exactly one operator by type or display name; returned unchanged
 // otherwise.
 export function resolveOperatorType(type: string, registry: Registry): string {
   const operators = registry.operators
-  if (operators[type]) return type
-  if (operators[`${type}Op`]) return `${type}Op`
+  if (getOperator(registry, type)) return type
+  if (getOperator(registry, `${type}Op`)) return `${type}Op`
   const wanted = type.trim().toLowerCase()
   const matches = Object.values(operators).filter(
     op =>
@@ -56,7 +62,7 @@ export function unknownType(type: string, registry: Registry): string {
 }
 
 export function fieldNames(registry: Registry, type: string, side: Side): string[] {
-  return Object.keys(registry.operators[type]?.[side] ?? {})
+  return Object.keys(getOperator(registry, type)?.[side] ?? {})
 }
 
 export function unknownInput(id: string, type: string, name: string, known: string[]): string {
