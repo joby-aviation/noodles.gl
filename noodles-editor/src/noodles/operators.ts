@@ -1563,6 +1563,217 @@ export class DateTimeOp extends Operator<DateTimeOp> {
   }
 }
 
+const DATE_MATH_OPERATORS = [
+  'add',
+  'subtract',
+  'difference',
+  'isBefore',
+  'isAfter',
+  'equals',
+  'interpolate',
+] as const
+const DATE_MATH_USES_DATE_B = new Set([
+  'difference',
+  'isBefore',
+  'isAfter',
+  'equals',
+  'interpolate',
+])
+const DURATION_UNITS = [
+  'years',
+  'months',
+  'weeks',
+  'days',
+  'hours',
+  'minutes',
+  'seconds',
+  'milliseconds',
+] as const
+
+// Date arithmetic and comparison. The output type depends on the operator:
+// add/subtract/interpolate return a date, difference returns a number in `unit`,
+// isBefore/isAfter/equals return a boolean. Accepts accessors for per-item math.
+export class DateMathOp extends Operator<DateMathOp> {
+  static displayName = 'DateMath'
+  static description = 'Add, subtract, compare, or interpolate dates'
+
+  constructor(id: OpId, inputs?: unknown, locked?: boolean) {
+    super(id, inputs, locked)
+
+    const sub = this.inputs.operator.subscribe((operator: string) => {
+      const visible = new Set<string>(['operator', 'date'])
+      if (DATE_MATH_USES_DATE_B.has(operator)) visible.add('dateB')
+      if (operator === 'add' || operator === 'subtract') visible.add('amount')
+      if (operator === 'add' || operator === 'subtract' || operator === 'difference') {
+        visible.add('unit')
+      }
+      if (operator === 'interpolate') visible.add('t')
+      this.visibleFields.next(visible)
+    })
+    this.subs.push(sub)
+  }
+
+  createInputs() {
+    return {
+      operator: new StringLiteralField('add', { values: [...DATE_MATH_OPERATORS] }),
+      date: new DateField(undefined, { accessor: true }),
+      dateB: new DateField(undefined, { accessor: true, showByDefault: false }),
+      amount: new NumberField(1, { step: 1, accessor: true }),
+      unit: new StringLiteralField('days', { values: [...DURATION_UNITS] }),
+      t: new NumberField(0, { min: 0, max: 1, step: 0.01, accessor: true, showByDefault: false }),
+    }
+  }
+  createOutputs() {
+    return {
+      result: new UnknownField(),
+    }
+  }
+  execute({
+    operator,
+    date,
+    dateB,
+    amount,
+    unit,
+    t,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    type Value<T> = T | ((...args: unknown[]) => T)
+    const transform = (
+      a: Temporal.PlainDateTime,
+      b: Temporal.PlainDateTime,
+      n: number,
+      tVal: number
+    ) => {
+      switch (operator) {
+        case 'add':
+          return a.add({ [unit]: n })
+        case 'subtract':
+          return a.subtract({ [unit]: n })
+        case 'difference':
+          // total() keeps the fraction: 12 hours in 'days' is 0.5, not 0
+          return a.until(b).total({ unit: unit as Temporal.DateTimeUnit, relativeTo: a })
+        case 'isBefore':
+          return Temporal.PlainDateTime.compare(a, b) < 0
+        case 'isAfter':
+          return Temporal.PlainDateTime.compare(a, b) > 0
+        case 'equals':
+          return Temporal.PlainDateTime.compare(a, b) === 0
+        case 'interpolate':
+          return interpolateTemporal(a, b, Math.max(0, Math.min(1, tVal)))
+        default:
+          throw new Error(`Unknown operator: ${operator}`)
+      }
+    }
+
+    // Only inputs the operator reads can turn the result into an accessor
+    const inputs: [
+      Value<Temporal.PlainDateTime>,
+      Value<Temporal.PlainDateTime>,
+      Value<number>,
+      Value<number>,
+    ] = [
+      date,
+      DATE_MATH_USES_DATE_B.has(operator) ? dateB : date,
+      operator === 'add' || operator === 'subtract' ? amount : 0,
+      operator === 'interpolate' ? t : 0,
+    ]
+    if (!inputs.some(isAccessor)) {
+      return {
+        result: transform(
+          ...(inputs as [Temporal.PlainDateTime, Temporal.PlainDateTime, number, number])
+        ),
+      }
+    }
+    const result = (...args: unknown[]) => {
+      const [a, b, n, tVal] = inputs.map(v => (isAccessor(v) ? v(...args) : v))
+      return transform(
+        a as Temporal.PlainDateTime,
+        b as Temporal.PlainDateTime,
+        n as number,
+        tVal as number
+      )
+    }
+    return { result }
+  }
+}
+
+// Split a date into numeric components, one output per part
+export class DatePartsOp extends Operator<DatePartsOp> {
+  static displayName = 'DateParts'
+  static description = 'Split a date into year, month, day, hour, and other components'
+  createInputs() {
+    return {
+      date: new DateField(undefined, { accessor: true }),
+    }
+  }
+  createOutputs() {
+    return {
+      year: new NumberField(),
+      month: new NumberField(),
+      day: new NumberField(),
+      hour: new NumberField(),
+      minute: new NumberField(),
+      second: new NumberField(),
+      millisecond: new NumberField(),
+      dayOfWeek: new NumberField(),
+      dayOfYear: new NumberField(),
+      weekOfYear: new NumberField(),
+    }
+  }
+  execute({ date }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const part = (key: keyof ReturnType<DatePartsOp['createOutputs']>) =>
+      composeAccessor(date, (d: Temporal.PlainDateTime) => d[key] as number)
+    return {
+      year: part('year'),
+      month: part('month'),
+      day: part('day'),
+      hour: part('hour'),
+      minute: part('minute'),
+      second: part('second'),
+      millisecond: part('millisecond'),
+      dayOfWeek: part('dayOfWeek'),
+      dayOfYear: part('dayOfYear'),
+      weekOfYear: part('weekOfYear'),
+    } as ExtractProps<typeof this.outputs>
+  }
+}
+
+const DATE_FORMAT_TOKENS = /YYYY|MM|DD|HH|mm|ss|SSS/g
+
+// Format a date with YYYY, MM, DD, HH, mm, ss, and SSS tokens. An empty pattern gives ISO 8601.
+export class DateFormatOp extends Operator<DateFormatOp> {
+  static displayName = 'DateFormat'
+  static description = 'Format a date as a string, e.g. YYYY-MM-DD HH:mm'
+  createInputs() {
+    return {
+      date: new DateField(undefined, { accessor: true }),
+      pattern: new StringField('YYYY-MM-DD HH:mm:ss'),
+    }
+  }
+  createOutputs() {
+    return {
+      text: new StringField(),
+    }
+  }
+  execute({ date, pattern }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const format = (d: Temporal.PlainDateTime) => {
+      if (!pattern) return d.toString()
+      const pad = (n: number, width = 2) => n.toString().padStart(width, '0')
+      const tokens: Record<string, string> = {
+        YYYY: pad(d.year, 4),
+        MM: pad(d.month),
+        DD: pad(d.day),
+        HH: pad(d.hour),
+        mm: pad(d.minute),
+        ss: pad(d.second),
+        SSS: pad(d.millisecond, 3),
+      }
+      // One pass, so text a token produces is never matched by a later token
+      return pattern.replace(DATE_FORMAT_TOKENS, token => tokens[token])
+    }
+    return { text: composeAccessor(date, format) } as ExtractProps<typeof this.outputs>
+  }
+}
+
 export class CombineXYOp extends Operator<CombineXYOp> {
   static displayName = 'CombineXY'
   static description = 'Combine x and y into a 2D vector'
@@ -10488,6 +10699,9 @@ export const opTypes = {
   ConvexHullOp,
   CrossOp,
   DataFilterExtensionOp,
+  DateFormatOp,
+  DateMathOp,
+  DatePartsOp,
   DateTimeOp,
   DBScanClusterOp,
   DeckRendererOp,

@@ -1492,6 +1492,104 @@
         }
       }
     },
+    "DateFormatOp": {
+      "name": "DateFormat",
+      "type": "DateFormatOp",
+      "category": "string",
+      "description": "Format a date as a string, e.g. YYYY-MM-DD HH:mm",
+      "inputs": {
+        "date": {
+          "type": "DateField"
+        },
+        "pattern": {
+          "type": "StringField",
+          "default": "YYYY-MM-DD HH:mm:ss"
+        }
+      },
+      "outputs": {
+        "text": {
+          "type": "StringField"
+        }
+      }
+    },
+    "DateMathOp": {
+      "name": "DateMath",
+      "type": "DateMathOp",
+      "category": "number",
+      "description": "Add, subtract, compare, or interpolate dates",
+      "inputs": {
+        "operator": {
+          "type": "StringLiteralField",
+          "default": "add"
+        },
+        "date": {
+          "type": "DateField"
+        },
+        "dateB": {
+          "type": "DateField"
+        },
+        "amount": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "unit": {
+          "type": "StringLiteralField",
+          "default": "days"
+        },
+        "t": {
+          "type": "NumberField",
+          "default": 0
+        }
+      },
+      "outputs": {
+        "result": {
+          "type": "UnknownField"
+        }
+      }
+    },
+    "DatePartsOp": {
+      "name": "DateParts",
+      "type": "DatePartsOp",
+      "category": "number",
+      "description": "Split a date into year, month, day, hour, and other components",
+      "inputs": {
+        "date": {
+          "type": "DateField"
+        }
+      },
+      "outputs": {
+        "year": {
+          "type": "NumberField"
+        },
+        "month": {
+          "type": "NumberField"
+        },
+        "day": {
+          "type": "NumberField"
+        },
+        "hour": {
+          "type": "NumberField"
+        },
+        "minute": {
+          "type": "NumberField"
+        },
+        "second": {
+          "type": "NumberField"
+        },
+        "millisecond": {
+          "type": "NumberField"
+        },
+        "dayOfWeek": {
+          "type": "NumberField"
+        },
+        "dayOfYear": {
+          "type": "NumberField"
+        },
+        "weekOfYear": {
+          "type": "NumberField"
+        }
+      }
+    },
     "DateTimeOp": {
       "name": "DateTime",
       "type": "DateTimeOp",
