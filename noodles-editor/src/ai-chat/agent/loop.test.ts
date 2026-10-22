@@ -292,6 +292,56 @@ describe('runAgent repeated calls', () => {
     expect(setPlaybackPosition).toHaveBeenCalledTimes(3)
   })
 
+  it('judges a batch against history as its calls run, not as it arrived', async () => {
+    const setPlaybackPosition = vi.fn(async () => ({ success: true, data: {} }))
+    const seek = (position: number) => ({ name: 'set_playback_position', input: { position } })
+    const provider = fakeProvider([{ tools: [seek(0)] }, { tools: [seek(5), seek(0)] }, {}])
+
+    await run({ provider, tools: fakeTools({ setPlaybackPosition }) })
+
+    // The 5 cleared the earlier 0, so the batch's own 0 runs and the playhead ends there
+    expect(setPlaybackPosition).toHaveBeenCalledTimes(3)
+  })
+
+  it('runs an edit once when a batch repeats it', async () => {
+    const edit = {
+      name: 'apply_modifications',
+      input: { modifications: [{ type: 'delete_node', data: { id: '/a' } }] },
+    }
+    const provider = fakeProvider([{ tools: [edit, edit] }, { text: 'done' }])
+
+    const result = await run({ provider })
+
+    expect(result.modifications).toHaveLength(1)
+    expect(result.toolCalls[1].result.error).toMatch(/already called apply_modifications/)
+  })
+
+  it('runs a read once when a parallel batch repeats it', async () => {
+    const listNodes = vi.fn(async () => ({ success: true, data: { nodes: [] } }))
+    const provider = fakeProvider([
+      { tools: [{ name: 'list_nodes' }, { name: 'list_nodes' }] },
+      { text: 'done' },
+    ])
+
+    const result = await run({ provider, tools: fakeTools({ listNodes }) })
+
+    expect(listNodes).toHaveBeenCalledTimes(1)
+    expect(result.toolCalls).toHaveLength(2)
+  })
+
+  it('treats arguments in a different key order as the same call', async () => {
+    const getNodeInfo = vi.fn(async () => ({ success: true, data: { id: '/a' } }))
+    const provider = fakeProvider([
+      { tools: [{ name: 'get_node_info', input: { nodeId: '/a', fields: ['x'] } }] },
+      { tools: [{ name: 'get_node_info', input: { fields: ['x'], nodeId: '/a' } }] },
+      { text: 'done' },
+    ])
+
+    await run({ provider, tools: fakeTools({ getNodeInfo }) })
+
+    expect(getNodeInfo).toHaveBeenCalledTimes(1)
+  })
+
   it('runs a read again when a write ahead of it in the same batch can change it', async () => {
     const getTimeline = vi.fn(async () => ({ success: true, data: { keyframes: [] } }))
     const setKeyframe = vi.fn(async () => ({ success: true, data: {} }))
