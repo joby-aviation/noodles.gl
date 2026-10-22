@@ -29,7 +29,7 @@ async function main() {
   const agent = new MigrationGeneratorAgent()
 
   // Get existing migrations
-  const migrationsDir = path.join(__dirname, '../src/noodles/__migrations__')
+  const migrationsDir = path.join(import.meta.dirname, '../src/noodles/__migrations__')
   const existingMigrations = fs
     .readdirSync(migrationsDir)
     .filter(f => f.endsWith('.ts') && !f.endsWith('.test.ts'))
@@ -150,7 +150,6 @@ async function main() {
     console.log('  1. Review the generated migration files')
     console.log('  2. Update the test assertions with actual test cases')
     console.log('  3. Run tests: npm test')
-    console.log(`  4. Update NOODLES_VERSION in migrate-schema.ts to ${nextVersion}`)
   } catch (error) {
     console.error('❌ Error generating migration:', error)
   }
