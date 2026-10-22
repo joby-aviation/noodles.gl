@@ -1,10 +1,10 @@
 // Visual regression for every example in src/examples/. Each test opens the example,
-// waits for the scene to settle and compares the map pane against a baseline.
+// waits for the scene to settle and compares the rendered map against a baseline.
 //
 // Update baselines: see e2e/README.md
 
 import { expect, test } from '@playwright/test'
-import { EXAMPLES, openExample, waitForScene } from './helpers'
+import { EXAMPLES, openExample, screenshotMap, waitForScene } from './helpers'
 
 // These only have to mount a canvas. Some load data that changes between runs, so a
 // baseline would fail on content rather than on a regression. Others draw enough geometry
@@ -36,20 +36,7 @@ test.describe('examples', () => {
       }
 
       await waitForScene(page)
-      // One page screenshot clipped to the map pane. toHaveScreenshot first waits for two
-      // quick animation frames, which a CI runner drawing software WebGL may not produce.
-      const box = await page.locator('#map').boundingBox()
-      if (!box) throw new Error('#map pane has no layout box')
-      // Round outward to whole pixels, as an element screenshot does
-      const x = Math.floor(box.x)
-      const y = Math.floor(box.y)
-      const clip = {
-        x,
-        y,
-        width: Math.ceil(box.x + box.width) - x,
-        height: Math.ceil(box.y + box.height) - y,
-      }
-      const screenshot = await page.screenshot({ clip, animations: 'disabled', timeout: 60_000 })
+      const screenshot = await screenshotMap(page)
       const maxDiffPixelRatio = MAX_DIFF_PIXEL_RATIO[exampleName]
       expect(screenshot).toMatchSnapshot(
         `${exampleName}.png`,

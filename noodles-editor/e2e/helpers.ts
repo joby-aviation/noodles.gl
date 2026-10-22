@@ -62,6 +62,26 @@ export async function openRenderSettings(page: Page) {
   await page.getByRole('button', { name: 'Export Photo' }).waitFor()
 }
 
+// The rendered map only: the output canvas is letterboxed inside the #map pane, and the
+// pane's edges hold editor UI such as the sidebar toggle. One page screenshot rather than
+// toHaveScreenshot, which first waits for two quick animation frames that a CI runner
+// drawing software WebGL may not produce.
+export async function screenshotMap(page: Page) {
+  const output = await page
+    .locator('.transform-scale', { has: page.locator('canvas') })
+    .first()
+    .boundingBox()
+  const pane = await page.locator('#map').boundingBox()
+  if (!output || !pane) throw new Error('The map output has no layout box')
+  // Intersect with the pane, then round inward so no pixel outside the map is included
+  const left = Math.ceil(Math.max(output.x, pane.x))
+  const top = Math.ceil(Math.max(output.y, pane.y))
+  const right = Math.floor(Math.min(output.x + output.width, pane.x + pane.width))
+  const bottom = Math.floor(Math.min(output.y + output.height, pane.y + pane.height))
+  const clip = { x: left, y: top, width: right - left, height: bottom - top }
+  return page.screenshot({ clip, animations: 'disabled', timeout: 60_000 })
+}
+
 // The export buttons save through showSaveFilePicker, a native dialog Playwright cannot
 // drive. This stand-in keeps everything the app writes and hands it back as a download,
 // so a test sees the same bytes a user would find on disk.

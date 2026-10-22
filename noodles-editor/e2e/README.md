@@ -4,7 +4,7 @@ Playwright tests that drive the editor in Chromium. Vitest ignores this folder; 
 and browser tests live next to the code in `src/`.
 
 - `examples-visual.spec.ts`: opens every example in `src/examples/`, waits for the scene to
-  settle and compares the map pane against a baseline in `__snapshots__/`.
+  settle and compares the rendered map (no editor UI) against a baseline in `__snapshots__/`.
 - `export.spec.ts`: CUJ A1. Opens an example, picks Image and Video from the top bar's
   Export menu, and checks that a PNG and an MP4 arrive. The video test
   skips when the browser has no encoder for any export codec.
