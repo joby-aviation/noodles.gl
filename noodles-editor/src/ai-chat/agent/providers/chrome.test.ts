@@ -180,6 +180,16 @@ describe('parseAction', () => {
     })
   })
 
+  it('runs nothing when the cut fell inside the arguments', () => {
+    // Closing it would hand write_file the first half of the file
+    const action = parseAction(
+      '{"tool":"get_node_info","reply":"Checking.","input":{"nodeId":"/ab',
+      TOOLS
+    )
+
+    expect(action).toEqual({ tool: null, input: {}, reply: 'Checking.', fallback: 'json_repaired' })
+  })
+
   it('closes a reply cut off mid-string', () => {
     const action = parseAction('{"tool":"none","reply":"Use the par.da', TOOLS)
 

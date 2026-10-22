@@ -181,7 +181,8 @@ Five facts shape `providers/webllm.ts`:
    `find_tools`, so `preambleFor` now keeps the first preamble per system prompt
    while every tool it lists is still offered; later tools reach the model through
    `find_tools`' own result and the grammar's enum, which is per request and not
-   part of the prefix. And assistant turns went back re-serialised ("Called X with
+   part of the prefix. Once that result has left the transcript (trimmed, or a new
+   turn), the preamble is rebuilt so the tool keeps its description. And assistant turns went back re-serialised ("Called X with
    …") rather than as the JSON the engine had recorded, so the raw completion now
    rides in a `provider_block` and `toWireTurns` replays it verbatim. Measured on
    Qwen3-4B at 16k (M-series Mac, T2 tasks): later steps prefill 20–1,000 new tokens
