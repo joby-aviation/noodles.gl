@@ -37,6 +37,7 @@ export type Visualization = {
   selectedNodeIds?: string[]
   // Noodles props for creating menu in timeline-editor
   projectName?: string
+  versionedProjectName?: string | null
   getTimelineJson?: () => Record<string, unknown>
   onSaveProject?: () => Promise<void>
   onSaveAs?: () => Promise<void>

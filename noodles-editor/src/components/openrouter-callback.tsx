@@ -35,14 +35,12 @@ export const OpenRouterCallback: FC = () => {
       const params = new URLSearchParams(window.location.search)
       const code = params.get('code')
       const error = params.get('error')
-      const allParams = Object.fromEntries(params.entries())
 
-      // Log everything for debugging - use console.log since debug may not be enabled
+      // console.log since debug may not be enabled. Never log the URL, the code,
+      // or the exchange result: the code redeems for a key, and the result holds it.
       console.log('[openrouter-callback] Callback invoked')
-      console.log('[openrouter-callback] Full URL:', window.location.href)
       console.log('[openrouter-callback] Code present:', !!code)
       console.log('[openrouter-callback] Error param:', error)
-      console.log('[openrouter-callback] All URL params:', allParams)
 
       // Clear the code before doing anything with it: a reload of this URL would
       // otherwise retry an exchange whose verifier is already spent.
@@ -57,7 +55,7 @@ export const OpenRouterCallback: FC = () => {
               'OpenRouter did not return an authorization code. Check the browser console for details.',
           } as const)
 
-      console.log('[openrouter-callback] Result:', result)
+      console.log('[openrouter-callback] Result:', result.ok ? 'ok' : result.error)
 
       if (!result.ok && !code && !error) {
         console.error(

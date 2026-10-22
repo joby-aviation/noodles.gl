@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { BooleanOp, type IOperator, NumberOp, type Operator, StringOp } from '../operators'
 import {
-  evaluateEnableExpression,
   type ExpressionDependency,
+  evaluateEnableExpression,
   getEnableExpressionDependencies,
   validateEnableExpression,
 } from './enable-expression-evaluator'

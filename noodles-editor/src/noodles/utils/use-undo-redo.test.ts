@@ -6,7 +6,10 @@ import { ReactFlowProvider, useStoreApi } from '@xyflow/react'
 import { createElement, useRef } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useTimelineStore } from '../../timeline/timeline-store'
+import { MathOp, NumberOp } from '../operators'
+import { clearOps, deleteOp, getOp, setOp } from '../store'
 import type { GraphRef } from '../types'
+import { registerLockChangeCallback, setLockedWithHistory } from './lock-history'
 import { useUndoRedo } from './use-undo-redo'
 
 // Wrapper providing the ReactFlow context required by useUndoRedo
@@ -313,5 +316,213 @@ describe('useUndoRedo — graphRef captures full state across scopes', () => {
     expect(wouldRestore).toContain('/container')
     expect(wouldRestore).toContain('/container/child1')
     expect(wouldRestore).toContain('/container/child2')
+  })
+})
+
+describe('useUndoRedo — lock changes', () => {
+  afterEach(() => {
+    registerLockChangeCallback(undefined)
+    clearOps()
+  })
+
+  async function setupLockedOp() {
+    const { result } = renderHook(() => useTestHook(), { wrapper })
+    registerLockChangeCallback((desc, change) =>
+      result.current.undoRedo.recordLockChange(desc, change)
+    )
+    const op = new MathOp('/drive-directions', { operator: 'add', a: 2, b: 3 })
+    setOp(op.id, op)
+    await op.pull()
+    op.locked.next(true)
+    op.inputs.a.setValue(10)
+    return { result, op }
+  }
+
+  it('records lock and unlock as separate entries', async () => {
+    const { result, op } = await setupLockedOp()
+
+    act(() => setLockedWithHistory(op, false))
+    act(() => setLockedWithHistory(op, true))
+
+    expect(result.current.undoRedo.history.map(e => e.description)).toEqual([
+      'Unlock drive-directions',
+      'Lock drive-directions',
+    ])
+  })
+
+  it('does not record a no-op lock change', async () => {
+    const { result, op } = await setupLockedOp()
+
+    act(() => setLockedWithHistory(op, true))
+
+    expect(result.current.undoRedo.history).toHaveLength(0)
+  })
+
+  it('undo unlock restores the previous output without executing', async () => {
+    const { result, op } = await setupLockedOp()
+
+    act(() => setLockedWithHistory(op, false))
+    await expect(op.pull()).resolves.toEqual({ result: 13 })
+
+    const execute = vi.spyOn(op, 'execute')
+    act(() => result.current.undoRedo.undo())
+
+    expect(op.locked.value).toBe(true)
+    expect(op.outputs.result.value).toBe(5)
+    await expect(op.pull()).resolves.toEqual({ result: 5 })
+    expect(execute).not.toHaveBeenCalled()
+  })
+
+  it('undo unlock keeps the previous output when the unlocked run lands afterwards', async () => {
+    const { result, op } = await setupLockedOp()
+    let finishRun: (value: { result: number }) => void = () => {}
+    const execute = vi
+      .spyOn(op, 'execute')
+      .mockImplementation(() => new Promise<{ result: number }>(resolve => (finishRun = resolve)))
+
+    act(() => setLockedWithHistory(op, false))
+    const run = op.pull()
+    await vi.waitFor(() => expect(execute).toHaveBeenCalled())
+    act(() => result.current.undoRedo.undo())
+    await act(async () => {
+      finishRun({ result: 13 })
+      await run
+    })
+
+    expect(op.outputs.result.value).toBe(5)
+    await expect(op.pull()).resolves.toEqual({ result: 5 })
+  })
+
+  it('redo unlock unlocks and executes again', async () => {
+    const { result, op } = await setupLockedOp()
+
+    act(() => setLockedWithHistory(op, false))
+    await op.pull()
+    act(() => result.current.undoRedo.undo())
+    await op.pull()
+
+    const execute = vi.spyOn(op, 'execute')
+    act(() => result.current.undoRedo.redo())
+
+    expect(op.locked.value).toBe(false)
+    await expect(op.pull()).resolves.toEqual({ result: 13 })
+    expect(execute).toHaveBeenCalledTimes(1)
+  })
+
+  it('undo and redo follow a renamed operator and leave the graph alone', async () => {
+    const nodes = [{ id: '/foo', type: 'MathOp', position: { x: 0, y: 0 }, data: {} }]
+    const { result } = renderHook(() => useTestHookWithGraphRef(nodes, []), { wrapper })
+    const onNodesChange = vi.fn()
+    await act(async () => {
+      result.current.storeApi.setState({ onNodesChange })
+    })
+    registerLockChangeCallback((desc, change) =>
+      result.current.undoRedo.recordLockChange(desc, change)
+    )
+    const op = new MathOp('/foo', { operator: 'add', a: 2, b: 3 })
+    setOp(op.id, op)
+    act(() => setLockedWithHistory(op, true))
+
+    // Rename the way updateOperatorId does, which records no history
+    setOp('/bar', op)
+    op.id = '/bar'
+    deleteOp('/foo')
+    nodes[0] = { ...nodes[0], id: '/bar' }
+
+    act(() => result.current.undoRedo.undo())
+    expect(op.locked.value).toBe(false)
+    act(() => result.current.undoRedo.redo())
+    expect(op.locked.value).toBe(true)
+    expect(getOp('/bar')).toBe(op)
+    expect(onNodesChange).not.toHaveBeenCalled()
+  })
+
+  it('undo lock unlocks with current inputs and redo locks again', async () => {
+    const { result, op } = await setupLockedOp()
+    act(() => op.locked.next(false))
+    await op.pull()
+
+    act(() => setLockedWithHistory(op, true))
+    op.inputs.a.setValue(20)
+    await expect(op.pull()).resolves.toEqual({ result: 13 })
+
+    act(() => result.current.undoRedo.undo())
+    expect(op.locked.value).toBe(false)
+    await expect(op.pull()).resolves.toEqual({ result: 23 })
+
+    act(() => result.current.undoRedo.redo())
+    expect(op.locked.value).toBe(true)
+    op.inputs.a.setValue(30)
+    await expect(op.pull()).resolves.toEqual({ result: 23 })
+  })
+})
+
+describe('useUndoRedo — graph mutations', () => {
+  beforeEach(() => vi.useFakeTimers())
+  afterEach(() => vi.useRealTimers())
+
+  it('records a batch as one entry and undoes it in one step', async () => {
+    const onNodesChange = vi.fn()
+    const { result } = renderHook(() => useTestHook(), { wrapper })
+    await act(async () => {
+      result.current.storeApi.setState({ onNodesChange })
+    })
+    const added = { id: '/n', type: 'NumberOp', position: { x: 0, y: 0 }, data: {} }
+
+    act(() =>
+      result.current.undoRedo.recordGraphMutation('Apply assistant proposal', () =>
+        result.current.storeApi.setState({ nodes: [added] })
+      )
+    )
+    await act(() => vi.advanceTimersByTimeAsync(0))
+    expect(result.current.undoRedo.history).toHaveLength(1)
+    expect(result.current.undoRedo.history[0].description).toBe('Apply assistant proposal')
+
+    act(() => result.current.undoRedo.undo())
+
+    expect(onNodesChange).toHaveBeenCalledWith([{ type: 'remove', id: '/n' }])
+  })
+
+  it('undoing a deletion brings the node back with its live field values', async () => {
+    const onNodesChange = vi.fn()
+    const node = {
+      id: '/n',
+      type: 'NumberOp',
+      position: { x: 0, y: 0 },
+      data: { inputs: { val: 1 } },
+    }
+    const { result } = renderHook(() => useTestHook(), { wrapper })
+    await act(async () => {
+      result.current.storeApi.setState({ onNodesChange, nodes: [node] })
+    })
+    const op = new NumberOp('/n', { val: 1 })
+    setOp(op.id, op)
+    // Edited through its field control, which leaves the node's data alone
+    op.inputs.val.setValue(5)
+
+    act(() =>
+      result.current.undoRedo.recordGraphMutation('Apply assistant proposal', () =>
+        result.current.storeApi.setState({ nodes: [] })
+      )
+    )
+    // transformGraph disposes the operator once the deletion settles
+    deleteOp('/n')
+    await act(() => vi.advanceTimersByTimeAsync(0))
+
+    act(() => result.current.undoRedo.undo())
+
+    expect(onNodesChange).toHaveBeenCalledOnce()
+    const [[change]] = onNodesChange.mock.calls[0]
+    expect(change.type).toBe('add')
+    expect(change.item.data.inputs.val).toBe(5)
+  })
+
+  it('records nothing when the batch changed nothing', async () => {
+    const { result } = renderHook(() => useTestHook(), { wrapper })
+
+    act(() => result.current.undoRedo.recordGraphMutation('Apply assistant proposal', () => {}))
+    await act(() => vi.advanceTimersByTimeAsync(0))
+
+    expect(result.current.undoRedo.history).toHaveLength(0)
   })
 })

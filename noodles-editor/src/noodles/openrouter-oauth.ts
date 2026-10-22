@@ -81,15 +81,23 @@ export async function beginOpenRouterAuth(): Promise<AuthAttempt> {
     challenge.length
   )
 
+  return { url: url.toString(), popup: openAuthPopup(url.toString()) }
+}
+
+// Opens the authorization URL in a popup. Also the retry after a blocked popup,
+// where it has to run inside the click handler to count as a user gesture.
+//
+// Never with noopener (and so never from an <a rel="noreferrer">): the popup
+// needs window.opener to post the key back, and only a window opened with an
+// opener gets a copy of this tab's sessionStorage, where the verifier is.
+export function openAuthPopup(url: string): Window | null {
   const left = Math.max(0, Math.round(window.screenX + (window.outerWidth - POPUP_WIDTH) / 2))
   const top = Math.max(0, Math.round(window.screenY + (window.outerHeight - POPUP_HEIGHT) / 3))
-  const popup = window.open(
-    url.toString(),
+  return window.open(
+    url,
     'openrouter-auth',
     `popup=1,width=${POPUP_WIDTH},height=${POPUP_HEIGHT},left=${left},top=${top}`
   )
-
-  return { url: url.toString(), popup }
 }
 
 export type ExchangeResult = { ok: true; key: string } | { ok: false; error: string }

@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { NumberField } from '../fields'
 import {
   applyOperatorInputs,
   captureOperatorInputs,
@@ -73,6 +74,20 @@ describe('captureOperatorInputs', () => {
     const result = captureOperatorInputs()
     const parsed = JSON.parse(result)
     expect(parsed['/op'].compound).toEqual({ nested: [1, 2, 3] })
+  })
+
+  it('captures explicit number steps separately from graph inputs', () => {
+    const field = new NumberField(0.25, { step: 1, deriveStepFromValue: true })
+    field.setStepOverride(0.001)
+    const op = { id: '/number', inputs: { val: field } }
+    mockedGetAllOps.mockReturnValue([op as never])
+
+    const parsed = JSON.parse(captureOperatorInputs() as string)
+
+    expect(parsed['/number']).toEqual({ val: 0.25 })
+    expect(parsed.$ui).toEqual({
+      '/number': { numberSteps: { val: 0.001 } },
+    })
   })
 })
 
@@ -151,6 +166,37 @@ describe('applyOperatorInputs', () => {
     expect(field1.setValue).toHaveBeenCalledWith(42)
     expect(field2.setValue).toHaveBeenCalledWith('hello')
   })
+
+  it('restores an explicit number step and notifies mounted subscribers', () => {
+    const field = new NumberField(0.25, { step: 1, deriveStepFromValue: true })
+    const op = { id: '/number', inputs: { val: field } }
+    const observed: Array<number | undefined> = []
+    const subscription = field.stepOverride$.subscribe(step => observed.push(step))
+    mockedGetOpStore.mockReturnValue({ getOp: vi.fn(() => op) } as never)
+
+    applyOperatorInputs(
+      JSON.stringify({
+        '/number': { val: 0.25 },
+        $ui: { '/number': { numberSteps: { val: 0.001 } } },
+      })
+    )
+
+    expect(field.stepOverride).toBe(0.001)
+    expect(observed).toEqual([undefined, 0.001])
+    subscription.unsubscribe()
+  })
+
+  it('clears an explicit number step when restoring a snapshot without UI metadata', () => {
+    const field = new NumberField(0.25, { step: 1, deriveStepFromValue: true })
+    field.setStepOverride(0.001)
+    const op = { id: '/number', inputs: { val: field } }
+    mockedGetOpStore.mockReturnValue({ getOp: vi.fn(() => op) } as never)
+
+    applyOperatorInputs(JSON.stringify({ '/number': { val: 0.25 } }))
+
+    expect(field.stepOverride).toBeUndefined()
+    expect(field.getEffectiveStep()).toBe(0.01)
+  })
 })
 
 describe('registerPropertyMutationCallback and firePropertyMutation', () => {
@@ -207,6 +253,25 @@ describe('registerPropertyMutationCallback and firePropertyMutation', () => {
     firePropertyMutation('No change', before)
 
     expect(callback).not.toHaveBeenCalled()
+  })
+
+  it('records a precision-only change when the numeric value is unchanged', () => {
+    const callback = vi.fn()
+    registerPropertyMutationCallback(callback)
+    const field = new NumberField(0.25, { step: 1, deriveStepFromValue: true })
+    const op = { id: '/number', inputs: { val: field } }
+    mockedGetAllOps.mockReturnValue([op as never])
+    const before = captureOperatorInputs()
+
+    field.setStepOverride(0.001)
+    firePropertyMutation('Change precision', before)
+
+    expect(callback).toHaveBeenCalledOnce()
+    const [, beforeState, afterState] = callback.mock.calls[0]
+    expect(JSON.parse(beforeState)).not.toHaveProperty('$ui')
+    expect(JSON.parse(afterState).$ui).toEqual({
+      '/number': { numberSteps: { val: 0.001 } },
+    })
   })
 
   it('can clear the callback by registering undefined', () => {
@@ -445,5 +510,24 @@ describe('captureOperatorInputs + applyOperatorInputs round-trip', () => {
 
     // setValue should be called with the original value (42)
     expect(field.setValue).toHaveBeenCalledWith(42)
+  })
+
+  it('round-trips a precision-only change when the number value is unchanged', () => {
+    const field = new NumberField(0.25, { step: 1, deriveStepFromValue: true })
+    const op = { id: '/number', inputs: { val: field } }
+    mockedGetAllOps.mockReturnValue([op as never])
+    mockedGetOpStore.mockReturnValue({ getOp: vi.fn(() => op) } as never)
+
+    const automatic = captureOperatorInputs() as string
+    field.setStepOverride(0.001)
+    const explicit = captureOperatorInputs() as string
+    expect(explicit).not.toBe(automatic)
+
+    applyOperatorInputs(automatic)
+    expect(field.stepOverride).toBeUndefined()
+
+    applyOperatorInputs(explicit)
+    expect(field.stepOverride).toBe(0.001)
+    expect(field.value).toBe(0.25)
   })
 })

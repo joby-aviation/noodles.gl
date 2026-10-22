@@ -542,7 +542,7 @@ describe('TableEditor - Edit Flow', () => {
       }
       const data = [{ score: 50 }]
 
-      const { container, getByText } = render(
+      const { container } = render(
         <TableEditor
           op={mockOp}
           data={data}
@@ -552,10 +552,11 @@ describe('TableEditor - Edit Flow', () => {
         />
       )
 
-      const cell = getByText('50')
+      // The cell remounts after each edit, so look it up before every click
+      const getCell = () => container.querySelector('td button') as HTMLElement
 
       // Test invalid input defaults to 0
-      fireEvent.click(cell)
+      fireEvent.click(getCell())
       let input = container.querySelector('input.p-inputtext') as HTMLInputElement
       fireEvent.change(input, { target: { value: 'abc' } })
       fireEvent.blur(input)
@@ -564,7 +565,7 @@ describe('TableEditor - Edit Flow', () => {
       onDataChange.mockClear()
 
       // Test max clamping
-      fireEvent.click(cell)
+      fireEvent.click(getCell())
       input = container.querySelector('input.p-inputtext') as HTMLInputElement
       fireEvent.change(input, { target: { value: '150' } })
       fireEvent.blur(input)
@@ -573,7 +574,7 @@ describe('TableEditor - Edit Flow', () => {
       onDataChange.mockClear()
 
       // Test min clamping
-      fireEvent.click(cell)
+      fireEvent.click(getCell())
       input = container.querySelector('input.p-inputtext') as HTMLInputElement
       fireEvent.change(input, { target: { value: '-10' } })
       fireEvent.blur(input)

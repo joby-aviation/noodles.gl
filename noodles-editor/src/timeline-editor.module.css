@@ -1,11 +1,3 @@
-.actionButtons {
-  position: absolute;
-  left: 50%;
-  z-index: var(--z-index-canvas);
-  display: flex;
-  flex-direction: row;
-}
-
 .cameraControlStatus {
   position: absolute;
   top: 8px;

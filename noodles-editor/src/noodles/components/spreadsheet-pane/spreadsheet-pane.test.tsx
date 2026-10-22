@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, act } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { Subject } from 'rxjs'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -35,9 +35,9 @@ vi.mock('./spreadsheet-viewer', () => ({
   ),
 }))
 
+import { getOp } from '../../store'
 // Import after mocks
 import { SpreadsheetPane } from './spreadsheet-pane'
-import { getOp } from '../../store'
 
 const mockGetOp = vi.mocked(getOp)
 

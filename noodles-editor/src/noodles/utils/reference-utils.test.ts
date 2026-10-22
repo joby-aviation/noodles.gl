@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   convertReferenceFormat,
   formatReference,
-  parseReference,
   type ParsedReference,
+  parseReference,
 } from './reference-utils'
 
 describe('parseReference', () => {

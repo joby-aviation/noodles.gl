@@ -40,21 +40,14 @@ describe('018-repair-duplicate-edges', () => {
       project([edge('/a', '/target-a', 'collision'), edge('/b', '/target-b', 'collision')])
     )
 
-    expect(migrated.edges).toEqual([
-      edge('/a', '/target-a'),
-      edge('/b', '/target-b'),
-    ])
+    expect(migrated.edges).toEqual([edge('/a', '/target-a'), edge('/b', '/target-b')])
   })
 
   it('does not let a repaired ID rename a non-conflicting legacy edge', async () => {
     const reservedId = '/a.out.data->/target-a.par.data'
     const legacy = edge('/legacy', '/target-legacy', reservedId)
     const migrated = await up(
-      project([
-        edge('/a', '/target-a', 'collision'),
-        edge('/b', '/target-b', 'collision'),
-        legacy,
-      ])
+      project([edge('/a', '/target-a', 'collision'), edge('/b', '/target-b', 'collision'), legacy])
     )
 
     expect(migrated.edges[0].id).toBe(`${reservedId}#2`)

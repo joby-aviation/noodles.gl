@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import type { NoodlesProjectJSON } from './serialization'
 import { generateDraftId, memoryProjectStore } from './memory-project-store'
+import type { NoodlesProjectJSON } from './serialization'
 
 const STUB_PROJECT: NoodlesProjectJSON = {
   version: 14,

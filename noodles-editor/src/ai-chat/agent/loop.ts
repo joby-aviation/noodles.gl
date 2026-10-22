@@ -9,12 +9,7 @@
 import { debugAiChat } from '../../utils/debug'
 import type { MCPTools } from '../mcp-tools'
 import { getToolDefinition } from '../tool-definitions'
-import {
-  type ProjectModification,
-  parseModifications,
-  type ToolCall,
-  type ToolResult,
-} from '../types'
+import type { ProjectModification, ToolCall, ToolResult } from '../types'
 import { capToolResult, resultBudgetChars } from './result-budget'
 import { FIND_TOOLS_NAME, type ToolRouter } from './tool-router'
 import type {
@@ -35,6 +30,12 @@ const SMALL_CONTEXT_TOKENS = 32_000
 
 const DEFAULT_MAX_TOKENS = 8192
 
+// Small models loop: the same lookup after it failed, the same edit queued six
+// times. An identical call gets the earlier outcome back as an error instead of
+// running again, and the call that reaches this count ends the run.
+const REPEAT_LIMIT = 3
+const REPEAT_PREVIEW_CHARS = 200
+
 interface ScreenshotData {
   screenshot: string
   format?: 'png' | 'jpeg'
@@ -51,6 +52,29 @@ function isScreenshotData(data: unknown): data is ScreenshotData {
     'screenshot' in data &&
     typeof (data as ScreenshotData).screenshot === 'string'
   )
+}
+
+// delegate is marked mutating because its child may edit the graph, but a report
+// is a claim, not a change. Only changed: true, set when one of the child's own
+// tools changed the project, tells the parent work landed.
+function reportsWithoutEdits(data: unknown): boolean {
+  return (
+    typeof data === 'object' &&
+    data !== null &&
+    'report' in data &&
+    (data as { changed?: unknown }).changed !== true
+  )
+}
+
+// Whether a successful mutating call changed the project. run_code is marked
+// mutating because it can set field values, but most calls only read, and it
+// reports changedFieldValues when one did change.
+function changedProject(outcome: { name: string; result: ToolResult }): boolean {
+  if (outcome.name === 'run_code') {
+    const data = outcome.result.data as { changedFieldValues?: unknown } | undefined
+    return data?.changedFieldValues === true
+  }
+  return !reportsWithoutEdits(outcome.result.data)
 }
 
 function isModificationsData(data: unknown): data is ModificationsData {
@@ -116,6 +140,13 @@ export async function runAgent(params: RunAgentParams): Promise<AgentRunResult> 
   let stopReason: StopReason = 'end_turn'
   let steps = 0
 
+  const seen = new Map<string, SeenCall>()
+  let looping = false
+  // Whether any mutating tool actually succeeded. Keyframe tools change the
+  // project without going through the modifications list, so the list alone is
+  // not enough to tell whether the run did anything.
+  let mutated = false
+
   while (steps < maxSteps) {
     if (signal?.aborted)
       return { text, toolCalls, modifications, messages, usage, stopReason: 'aborted', steps }
@@ -152,14 +183,78 @@ export async function runAgent(params: RunAgentParams): Promise<AgentRunResult> 
 
     if (turn.toolCalls.length === 0) break
 
-    const executed = await executeToolBatch({
-      calls: turn.toolCalls,
-      tools,
-      router,
-      resultBudget,
-      depth,
-      signal,
-    })
+    // A call is judged against the history as it stands when its turn comes, not
+    // as it stood when the batch arrived: a write earlier in the batch clears it
+    // (seek 5 then 0 both run), and a call the batch already made counts as made
+    // (an identical second edit is refused)
+    const refuse = (call: StreamedTurn['toolCalls'][number]): ToolOutcome | null => {
+      const prior = seen.get(callSignature(call))
+      if (!prior) return null
+      prior.count++
+      if (prior.count >= REPEAT_LIMIT) looping = true
+      onEvent?.({
+        type: 'diagnostic',
+        kind: 'repeated_tool_call',
+        detail: `${call.name} ×${prior.count}`,
+      })
+      const result: ToolResult = {
+        success: false,
+        error: `You already called ${call.name} with these arguments and got ${prior.outcome}. Calling it again returns the same thing — try a different tool or different arguments, or answer with what you know.`,
+      }
+      return { ...call, result, capped: result }
+    }
+
+    const record = (outcome: ToolOutcome) => {
+      const readOnly = isReadOnly(outcome.name, router)
+      // A successful write can change what any earlier call returns or does, so
+      // they may all run again: a read may see something new, and repeating an
+      // earlier write (a playhead back to 0 after 5) undoes this one
+      if (!readOnly && outcome.result.success) {
+        if (changedProject(outcome)) mutated = true
+        seen.clear()
+      }
+      seen.set(callSignature(outcome), {
+        count: 1,
+        outcome: describeOutcome(outcome.capped),
+        readOnly,
+      })
+    }
+
+    const callParams: ToolCallParams = { tools, router, depth, signal }
+    const executed: ToolOutcome[] = []
+    const allReadOnly = turn.toolCalls.every(call => isReadOnly(call.name, router))
+
+    if (allReadOnly && turn.toolCalls.length > 1) {
+      // Reads overlap. Nothing in the batch can change another's answer, so each
+      // distinct call runs once and a duplicate gets the refusal afterwards.
+      const distinct = new Map<string, StreamedTurn['toolCalls'][number]>()
+      for (const call of turn.toolCalls) {
+        const signature = callSignature(call)
+        if (!seen.has(signature) && !distinct.has(signature)) distinct.set(signature, call)
+      }
+      const ran = await Promise.all(
+        [...distinct.values()].map(call => runOne(call, callParams, resultBudget))
+      )
+      for (const outcome of ran) record(outcome)
+      const ranById = new Map(ran.map(outcome => [outcome.id, outcome]))
+      for (const call of turn.toolCalls) {
+        executed.push(ranById.get(call.id) ?? (refuse(call) as ToolOutcome))
+      }
+    } else {
+      // Once a write is in the batch, everything runs in order: two
+      // apply_modifications racing on one graph would interleave unpredictably,
+      // and a read beside a write could observe either side of it
+      for (const call of turn.toolCalls) {
+        const refused = refuse(call)
+        if (refused) {
+          executed.push(refused)
+          continue
+        }
+        const outcome = await runOne(call, callParams, resultBudget)
+        record(outcome)
+        executed.push(outcome)
+      }
+    }
 
     const resultContent: AgentContent[] = []
     let pendingScreenshot: { data: string; mediaType: string } | null = null
@@ -202,32 +297,84 @@ export async function runAgent(params: RunAgentParams): Promise<AgentRunResult> 
     }
 
     messages.push({ role: 'user', content: resultContent })
+
+    if (looping) {
+      debugAiChat('[agent] stopping: the model repeated a tool call %d times', REPEAT_LIMIT)
+      break
+    }
   }
 
   if (steps >= maxSteps && stopReason === 'tool_use') {
     debugAiChat('[agent] hit the %d step limit with tools still pending', maxSteps)
   }
 
-  // Models sometimes write a modifications array into a fenced JSON block instead
-  // of calling apply_modifications. Honouring that is the difference between the
-  // edit landing and the user seeing a wall of JSON.
-  modifications.push(...extractProsedModifications(text))
+  // A modifications array written into the reply as JSON is not picked up: only
+  // apply_modifications validates a batch against the project, and the user
+  // accepts what reaches them as a proposal. A reply claiming such a block was
+  // applied is caught by the claim check below.
+
+  // Small models announce edits they never made — "the radius is now 10", one
+  // step, no tool call. Passing that on unmarked reads as done, so the reply
+  // carries a correction and the run carries a diagnostic the bench can count.
+  if (!mutated && modifications.length === 0 && claimsAnEdit(text)) {
+    onEvent?.({ type: 'diagnostic', kind: 'unverified_edit_claim' })
+    debugAiChat('[agent] reply claims an edit but no tool changed the project')
+    text += `\n\n${UNVERIFIED_EDIT_NOTE}`
+  }
 
   return { text, toolCalls, modifications, messages, usage, stopReason, steps }
 }
 
-const JSON_BLOCK = /```json\s*([\s\S]*?)\s*```/g
+export const UNVERIFIED_EDIT_NOTE =
+  '_Nothing was applied: the project is unchanged. The step above describes what should happen, not what happened._'
 
-function extractProsedModifications(text: string): ProjectModification[] {
-  for (const match of text.matchAll(JSON_BLOCK)) {
-    try {
-      const modifications = parseModifications(JSON.parse(match[1]))
-      if (modifications && modifications.length > 0) return modifications
-    } catch {
-      // Not a modifications block; the next fence may be
-    }
+// Past-tense claims of a change that landed. Deliberately narrow: it only ever
+// runs when the project really is unchanged, so a stray match costs a redundant
+// note, while "I cannot change it" matching costs nothing worth avoiding.
+const EDIT_CLAIM =
+  /\b(?:added|created|updated|changed|set|connected|wired|removed|deleted|fixed|renamed|applied|enabled|disabled)\b(?![^.!?]*\?)/gi
+// Past or perfect aspect only. "is currently set to #8d12af" describes the graph
+// and is the right answer to a question; "has been set to 10" claims a change.
+const CLAIM_SUBJECT =
+  /\b(?:i(?:'ve| have)?|we(?:'ve| have)?|has|have|had|was|were|been|now|successfully)\s+\w*\s*$/i
+
+export function claimsAnEdit(text: string): boolean {
+  // Every verb, not the first: "is currently set to purple. I have changed it"
+  // describes, then claims. "I set the radius" is a claim; "set the radius
+  // yourself" is an instruction.
+  for (const match of text.matchAll(EDIT_CLAIM)) {
+    if (CLAIM_SUBJECT.test(text.slice(0, match.index))) return true
   }
-  return []
+  return false
+}
+
+interface SeenCall {
+  count: number
+  outcome: string
+  readOnly: boolean
+}
+
+// Key order is not part of the arguments: {"a":1,"b":2} and {"b":2,"a":1} are
+// the same call. Array order is.
+function callSignature(call: { name: string; input: Record<string, unknown> }): string {
+  return `${call.name}:${JSON.stringify(sortKeys(call.input))}`
+}
+
+function sortKeys(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(sortKeys)
+  if (typeof value !== 'object' || value === null) return value
+  return Object.fromEntries(
+    Object.keys(value)
+      .sort()
+      .map(key => [key, sortKeys((value as Record<string, unknown>)[key])])
+  )
+}
+
+function describeOutcome(result: ToolResult): string {
+  const text = result.success
+    ? `success: ${JSON.stringify(result.data ?? null)}`
+    : `error: ${result.error ?? 'failed'}`
+  return text.length > REPEAT_PREVIEW_CHARS ? `${text.slice(0, REPEAT_PREVIEW_CHARS)}…` : text
 }
 
 interface StreamedTurn {
@@ -298,31 +445,6 @@ interface ToolOutcome {
   input: Record<string, unknown>
   result: ToolResult
   capped: ToolResult
-}
-
-// Read-only calls in one batch run concurrently; the first mutating call forces
-// the rest of the batch to run in order after it. Two apply_modifications calls
-// racing on the same graph would interleave unpredictably, and a read scheduled
-// alongside a write could observe either side of it.
-async function executeToolBatch(
-  params: ToolCallParams & {
-    calls: Array<{ id: string; name: string; input: Record<string, unknown> }>
-    resultBudget: number
-  }
-): Promise<ToolOutcome[]> {
-  const { calls, resultBudget } = params
-
-  const allReadOnly = calls.every(call => isReadOnly(call.name, params.router))
-
-  if (allReadOnly && calls.length > 1) {
-    return Promise.all(calls.map(call => runOne(call, params, resultBudget)))
-  }
-
-  const outcomes: ToolOutcome[] = []
-  for (const call of calls) {
-    outcomes.push(await runOne(call, params, resultBudget))
-  }
-  return outcomes
 }
 
 export function isReadOnly(toolName: string, router?: ToolRouter): boolean {

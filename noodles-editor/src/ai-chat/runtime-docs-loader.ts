@@ -23,9 +23,14 @@ const exampleReadmes = import.meta.glob('../examples/*/README.md', {
   import: 'default',
 })
 
-// Extract headings from markdown content
-function extractHeadings(content: string): Array<{ level: number; text: string; anchor: string }> {
+// Extract headings from markdown content. A repeated heading gets `-1`, `-2`, ...
+// like the website's (github-slugger) ids, so each changelog `### Added` links
+// to its own month.
+export function extractHeadings(
+  content: string
+): Array<{ level: number; text: string; anchor: string }> {
   const headings: Array<{ level: number; text: string; anchor: string }> = []
+  const used = new Set<string>()
   const lines = content.split('\n')
 
   for (const line of lines) {
@@ -33,10 +38,13 @@ function extractHeadings(content: string): Array<{ level: number; text: string; 
     if (match) {
       const level = match[1].length
       const text = match[2]
-      const anchor = text
+      const slug = text
         .toLowerCase()
         .replace(/[^\w\s-]/g, '')
         .replace(/\s+/g, '-')
+      let anchor = slug
+      for (let n = 1; used.has(anchor); n++) anchor = `${slug}-${n}`
+      used.add(anchor)
       headings.push({ level, text, anchor })
     }
   }

@@ -4,10 +4,11 @@ import { useEffect, useRef, useState } from 'react'
 import { useAgentModelStore } from '../ai-chat/agent/model-store'
 import { validateCustomEndpoint } from '../ai-chat/agent/providers/custom'
 import { ENDPOINT_PRESETS, type EndpointPreset } from '../ai-chat/agent/providers/endpoint-presets'
-import { WEBLLM_MODELS, webgpuAvailable } from '../ai-chat/agent/providers/webllm'
+import { WEBLLM_MODELS, webgpuAvailable, webllmModelLabel } from '../ai-chat/agent/providers/webllm'
 import type { ProviderPreference } from '../noodles/keys-store'
 import { getEnvKeys, useKeysStore } from '../noodles/keys-store'
 import { useOpenRouterConnect } from '../noodles/use-openrouter-connect'
+import { getGitSettings, saveGitSettings, useGitSettings } from '../noodles/utils/git-settings'
 import { analytics } from '../utils/analytics'
 import s from './settings-dialog.module.css'
 
@@ -20,6 +21,8 @@ type EndpointStatus =
 interface SettingsDialogProps {
   open: boolean
   setOpen: (open: boolean) => void
+  // Saved project whose version control settings the dialog edits; null when there is none
+  projectName?: string | null
 }
 
 // Component that groups all sources (browser, project, env) for a single key type
@@ -34,6 +37,7 @@ interface KeyGroupProps {
   onBrowserChange: (value: string) => void
   onBrowserClear: () => void
   onProjectRemove?: () => void
+  notice?: string
   inputRef?: React.RefObject<HTMLInputElement>
 }
 
@@ -48,6 +52,7 @@ const KeyGroup = ({
   onBrowserChange,
   onBrowserClear,
   onProjectRemove,
+  notice,
   inputRef,
 }: KeyGroupProps) => {
   const handleCopy = (value: string, source: 'project' | 'env') => {
@@ -124,14 +129,21 @@ const KeyGroup = ({
             </button>
           </div>
         )}
+
+        {notice && <div className={s.keyDescription}>{notice}</div>}
       </div>
     </div>
   )
 }
 
-type TabName = 'general' | 'ai-provider' | 'api-keys'
+// An AI key in a project file is dropped on load, so the user is told rather than
+// left wondering why the chat does not use it
+const ignoredProjectKeyNotice = (keyName: string) =>
+  `This project file included ${keyName} key. It isn't used, and saving removes it from the file.`
 
-export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
+type TabName = 'general' | 'ai-provider' | 'api-keys' | 'version-control'
+
+export function SettingsDialog({ open, setOpen, projectName = null }: SettingsDialogProps) {
   const [analyticsEnabled, setAnalyticsEnabled] = useState(false)
   const [errorCaptureEnabled, setErrorCaptureEnabled] = useState(true)
   const [activeTab, setActiveTab] = useState<TabName>('general')
@@ -140,6 +152,7 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
   const browserKeys = useKeysStore(state => state.browserKeys)
   const saveInProject = useKeysStore(state => state.saveInProject)
   const projectKeys = useKeysStore(state => state.projectKeys || {})
+  const ignoredProjectKeys = useKeysStore(state => state.ignoredProjectKeys)
   const providerPreference = useKeysStore(state => state.getProviderPreference())
   const customEndpoint = useKeysStore(state => state.getCustomEndpoint())
   const setBrowserKey = useKeysStore(state => state.setBrowserKey)
@@ -181,6 +194,16 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
   const openRouterInputRef = useRef<HTMLInputElement>(null)
   const [focusedField, setFocusedField] = useState<string | null>(null)
 
+  // Version control settings belong to the open project; the author is shared
+  const {
+    enabled: gitEnabled,
+    autoCommit: gitAutoCommit,
+    autoCommitDelay: gitAutoCommitDelay,
+    useExistingRepo: gitUseExistingRepo,
+  } = useGitSettings(projectName)
+  const [gitAuthorName, setGitAuthorName] = useState('Noodles User')
+  const [gitAuthorEmail, setGitAuthorEmail] = useState('user@noodles.local')
+
   // Environment keys (static)
   const envKeys = getEnvKeys()
 
@@ -198,10 +221,14 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
       setEndpointModel(endpoint?.model || '')
       setEndpointDisplayName(endpoint?.displayName || '')
 
+      const { author } = getGitSettings()
+      setGitAuthorName(author.name)
+      setGitAuthorEmail(author.email)
+
       // Check for deep link in URL hash (supports "api-keys:anthropic" format)
       const hash = window.location.hash.slice(1)
       const [tabName, targetField] = hash.split(':')
-      if (tabName === 'ai-provider' || tabName === 'api-keys') {
+      if (tabName === 'ai-provider' || tabName === 'api-keys' || tabName === 'version-control') {
         setActiveTab(tabName as TabName)
         if (targetField) {
           setFocusedField(targetField)
@@ -364,6 +391,32 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
     analytics.track('custom_endpoint_preset_applied', { preset: preset.id })
   }
 
+  // Git settings handlers
+  const handleGitEnabledToggle = (enabled: boolean) => {
+    saveGitSettings({ enabled }, projectName)
+    analytics.track(enabled ? 'git_versioning_enabled' : 'git_versioning_disabled')
+  }
+
+  const handleGitAutoCommitToggle = (enabled: boolean) => {
+    saveGitSettings({ autoCommit: enabled }, projectName)
+  }
+
+  const handleGitAutoCommitDelayChange = (delay: number) => {
+    saveGitSettings({ autoCommitDelay: delay }, projectName)
+  }
+
+  const handleGitUseExistingRepoToggle = (useExistingRepo: boolean) => {
+    saveGitSettings({ useExistingRepo }, projectName)
+    analytics.track(useExistingRepo ? 'git_existing_repo_enabled' : 'git_existing_repo_disabled')
+  }
+
+  const handleGitAuthorSave = () => {
+    saveGitSettings({
+      author: { name: gitAuthorName, email: gitAuthorEmail },
+    })
+    analytics.track('git_author_changed')
+  }
+
   return (
     <Dialog.Root open={open} onOpenChange={setOpen}>
       <Dialog.Portal>
@@ -394,6 +447,13 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
                 onClick={() => setActiveTab('api-keys')}
               >
                 API Keys
+              </button>
+              <button
+                type="button"
+                className={`${s.tab} ${activeTab === 'version-control' ? s.tabActive : ''}`}
+                onClick={() => setActiveTab('version-control')}
+              >
+                Version Control
               </button>
             </div>
           </div>
@@ -549,9 +609,13 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
                         {openRouterConnect.blockedUrl && (
                           <div className={s.providerOptionDescription}>
                             Your browser blocked the sign-in window.{' '}
-                            <a href={openRouterConnect.blockedUrl} target="_blank" rel="noreferrer">
-                              Open it in a new tab
-                            </a>
+                            <button
+                              type="button"
+                              onClick={openRouterConnect.retryPopup}
+                              className={s.linkButton}
+                            >
+                              Open it again
+                            </button>
                             .
                           </div>
                         )}
@@ -602,14 +666,18 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
                           Runs on this machine's GPU. No account, no key, and no prompt ever leaves
                           the browser — in exchange for a one-time download of a gigabyte or more.
                         </div>
+                        <div className={s.providerOptionDescription}>
+                          Slower: 10 seconds to a minute per answer, and best at questions and small
+                          edits. The hosted providers above answer in seconds.
+                        </div>
                         {webgpuReady === false ? (
                           <div className={s.providerOptionDescription}>
                             Unavailable: this browser does not offer WebGPU. Chrome and Edge do.
                           </div>
                         ) : (
                           <>
-                            {/* Choosing a model is what arms this provider, and the size in
-                                each label is the decision actually being made. Nothing
+                            {/* Choosing a model is what arms this provider, and the sizes in
+                                each label are the decision actually being made. Nothing
                                 downloads until the chat next opens a session. */}
                             <select
                               className={s.select}
@@ -617,11 +685,24 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
                               onChange={e => handleWebLLMModelChange(e.target.value)}
                             >
                               <option value="">Choose a model…</option>
-                              {WEBLLM_MODELS.map(option => (
-                                <option key={option.id} value={option.id}>
-                                  {option.label}
-                                </option>
-                              ))}
+                              <optgroup label="Recommended">
+                                {WEBLLM_MODELS.filter(
+                                  option => option.tier !== 'compatibility'
+                                ).map(option => (
+                                  <option key={option.id} value={option.id}>
+                                    {webllmModelLabel(option, { memory: true })}
+                                  </option>
+                                ))}
+                              </optgroup>
+                              <optgroup label="Advanced compatibility">
+                                {WEBLLM_MODELS.filter(
+                                  option => option.tier === 'compatibility'
+                                ).map(option => (
+                                  <option key={option.id} value={option.id}>
+                                    {webllmModelLabel(option)}
+                                  </option>
+                                ))}
+                              </optgroup>
                             </select>
                             {providerPreference === 'webllm' && !webllmModel && (
                               <div className={s.providerOptionDescription}>
@@ -647,9 +728,15 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
                         className={s.providerRadio}
                       />
                       <div className={s.providerOptionContent}>
-                        <div className={s.providerOptionTitle}>Chrome Built-in AI</div>
+                        <div className={s.providerOptionTitle}>
+                          Chrome Built-in AI (experimental)
+                        </div>
                         <div className={s.providerOptionDescription}>
-                          Free, runs locally, no API key (Chrome 127+ required)
+                          Free, runs locally, no API key (Chrome 127+ required). Never picked
+                          automatically: its tool use and instruction following are unreliable.
+                        </div>
+                        <div className={s.providerOptionDescription}>
+                          Slower than a hosted provider, and best at questions and single edits.
                         </div>
                       </div>
                     </label>
@@ -798,7 +885,8 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
 
                   <div className={s.privacyNote}>
                     Your API keys are never sent to Noodles.gl servers. Keys can be stored in your
-                    browser or in project files.
+                    browser or in project files. AI provider keys are never read from or saved to
+                    project files.
                   </div>
 
                   <div className={s.keysGroup}>
@@ -823,7 +911,7 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
 
                     <KeyGroup
                       label="Google Maps API Key"
-                      description="Enables transit directions and higher-quality place search. Optional — place search works without it via Photon (OpenStreetMap)."
+                      description="Enables traffic-aware driving, transit directions, and higher-quality place search. Enable the Maps JavaScript API, Routes API, and Places API in Google Cloud."
                       placeholder="AIza..."
                       browserValue={browserKeys.googleMaps || ''}
                       projectValue={projectKeys.googleMaps}
@@ -864,7 +952,6 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
                       description="Claude models directly from Anthropic. Get your API key at console.anthropic.com/settings/keys"
                       placeholder="sk-ant-..."
                       browserValue={browserKeys.anthropic || ''}
-                      projectValue={projectKeys.anthropic}
                       envValue={envKeys.anthropic}
                       activeSource={getActiveSource('anthropic')}
                       onBrowserChange={value => setBrowserKey('anthropic', value)}
@@ -872,10 +959,11 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
                         setBrowserKey('anthropic', undefined)
                         analytics.track('key_cleared', { key: 'anthropic' })
                       }}
-                      onProjectRemove={() => {
-                        removeProjectKey('anthropic')
-                        analytics.track('project_key_removed', { key: 'anthropic' })
-                      }}
+                      notice={
+                        ignoredProjectKeys.includes('anthropic')
+                          ? ignoredProjectKeyNotice('an Anthropic')
+                          : undefined
+                      }
                       inputRef={anthropicInputRef}
                     />
 
@@ -884,7 +972,6 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
                       description="Access to multiple AI providers with unified billing. Get your API key at openrouter.ai/keys"
                       placeholder="sk-or-v1-..."
                       browserValue={browserKeys.openrouter || ''}
-                      projectValue={projectKeys.openrouter}
                       envValue={envKeys.openrouter}
                       activeSource={getActiveSource('openrouter')}
                       onBrowserChange={value => setBrowserKey('openrouter', value)}
@@ -892,10 +979,11 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
                         setBrowserKey('openrouter', undefined)
                         analytics.track('key_cleared', { key: 'openrouter' })
                       }}
-                      onProjectRemove={() => {
-                        removeProjectKey('openrouter')
-                        analytics.track('project_key_removed', { key: 'openrouter' })
-                      }}
+                      notice={
+                        ignoredProjectKeys.includes('openrouter')
+                          ? ignoredProjectKeyNotice('an OpenRouter')
+                          : undefined
+                      }
                       inputRef={openRouterInputRef}
                     />
 
@@ -931,15 +1019,163 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
                       <div className={s.settingContent}>
                         <div className={s.settingName}>Save browser keys in project file</div>
                         <div className={s.settingDescription}>
-                          Include your browser keys in the project file when saving. Only enable
-                          this if you want to share your keys with collaborators. Keys are stored in
-                          plain text.
+                          Include your browser map and data keys in the project file when saving.
+                          Only enable this if you want to share them with collaborators. Keys are
+                          stored in plain text. AI provider keys are never saved in a project file.
                         </div>
                       </div>
                     </label>
                   </div>
                 </div>
               </>
+            )}
+
+            {/* Version Control Tab */}
+            {activeTab === 'version-control' && (
+              <div className={s.section}>
+                <h3 className={s.sectionTitle}>Git Version Control</h3>
+                <p className={s.sectionDescription}>
+                  Automatically track project history with git. Each save creates a commit, allowing
+                  you to restore to previous versions.
+                </p>
+                {!projectName && (
+                  <p className={s.sectionDescription}>
+                    Save the project to a folder to change its version control settings.
+                  </p>
+                )}
+
+                {/* Enable Git */}
+                <div className={s.settingItem}>
+                  <label className={s.settingLabel}>
+                    <input
+                      type="checkbox"
+                      checked={gitEnabled}
+                      onChange={e => handleGitEnabledToggle(e.target.checked)}
+                      className={s.checkbox}
+                      disabled={!projectName}
+                    />
+                    <div className={s.settingContent}>
+                      <div className={s.settingName}>Enable version control</div>
+                      <div className={s.settingDescription}>
+                        Track changes and create git commits automatically for this project.
+                      </div>
+                    </div>
+                  </label>
+                </div>
+
+                {/* Existing repository */}
+                <div className={s.settingItem}>
+                  <label className={s.settingLabel}>
+                    <input
+                      type="checkbox"
+                      checked={gitUseExistingRepo}
+                      onChange={e => handleGitUseExistingRepoToggle(e.target.checked)}
+                      className={s.checkbox}
+                      disabled={!projectName || !gitEnabled}
+                    />
+                    <div className={s.settingContent}>
+                      <div className={s.settingName}>Commit to an existing repository</div>
+                      <div className={s.settingDescription}>
+                        If the project folder already had a git repository, Noodles leaves it alone.
+                        Turn this on to commit every save into that repository, including any other
+                        files in the folder.
+                      </div>
+                    </div>
+                  </label>
+                </div>
+
+                {/* Autosave */}
+                <div className={s.settingItem}>
+                  <label className={s.settingLabel}>
+                    <input
+                      type="checkbox"
+                      checked={gitAutoCommit}
+                      onChange={e => handleGitAutoCommitToggle(e.target.checked)}
+                      className={s.checkbox}
+                      disabled={!projectName || !gitEnabled}
+                    />
+                    <div className={s.settingContent}>
+                      <div className={s.settingName}>Autosave</div>
+                      <div className={s.settingDescription}>
+                        Automatically save and commit changes after a period of inactivity. Manual
+                        saves (Cmd+S) always create commits immediately.
+                      </div>
+                    </div>
+                  </label>
+                </div>
+
+                {/* Autosave Delay */}
+                {projectName && gitEnabled && gitAutoCommit && (
+                  <div className={s.settingItem}>
+                    <div className={s.settingContent}>
+                      <div className={s.settingName}>Autosave delay</div>
+                      <div className={s.settingDescription}>
+                        Time to wait after last change before automatically saving
+                      </div>
+                      <div className={s.delayOptions}>
+                        {[15000, 30000, 60000].map(delay => (
+                          <label key={delay} className={s.radioLabel}>
+                            <input
+                              type="radio"
+                              name="autoCommitDelay"
+                              checked={gitAutoCommitDelay === delay}
+                              onChange={() => handleGitAutoCommitDelayChange(delay)}
+                              className={s.radio}
+                            />
+                            <span>{delay / 1000}s</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Author Settings */}
+                {gitEnabled && (
+                  <div className={s.settingItem}>
+                    <div className={s.settingContent}>
+                      <div className={s.settingName}>Commit author</div>
+                      <div className={s.settingDescription}>
+                        Your name and email for git commits, used in every project
+                      </div>
+                      <div className={s.authorFields}>
+                        <input
+                          type="text"
+                          value={gitAuthorName}
+                          onChange={e => setGitAuthorName(e.target.value)}
+                          placeholder="Your name"
+                          className={s.input}
+                        />
+                        <input
+                          type="email"
+                          value={gitAuthorEmail}
+                          onChange={e => setGitAuthorEmail(e.target.value)}
+                          placeholder="your.email@example.com"
+                          className={s.input}
+                        />
+                        <button
+                          type="button"
+                          onClick={handleGitAuthorSave}
+                          className={s.saveAuthorButton}
+                        >
+                          Save Author
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Keyboard Shortcut Info */}
+                <div className={s.settingItem}>
+                  <div className={s.settingContent}>
+                    <div className={s.settingName}>View history</div>
+                    <div className={s.settingDescription}>
+                      Press <kbd className={s.kbd}>Cmd+Shift+H</kbd> to open the version history
+                      panel and restore to previous commits.
+                    </div>
+                  </div>
+                </div>
+              </div>
             )}
           </div>
 

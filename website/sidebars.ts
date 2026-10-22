@@ -78,7 +78,6 @@ const sidebars: SidebarsConfig = {
           items: [
             'developers/node-based-tools',
             'developers/framework-extension',
-            'developers/external-control-guide',
             'developers/utils-api-reference',
           ],
         },

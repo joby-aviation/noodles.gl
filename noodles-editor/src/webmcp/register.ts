@@ -65,8 +65,9 @@ export async function initWebMCP(signal: AbortSignal): Promise<void> {
     signal.addEventListener('abort', unsubscribe)
 
     // Skips tools this session does not offer — run_code is absent in safe mode,
-    // which external clients have to respect for the same reason the chat does
-    const definitions = availableToolDefinitions()
+    // which external clients have to respect for the same reason the chat does.
+    // Includes the external-only tools (export_video) the chat never sees.
+    const definitions = availableToolDefinitions({ includeExternal: true })
 
     for (const definition of definitions) {
       navigator.modelContext.registerTool(
@@ -101,7 +102,12 @@ async function runTool(
     // apply_modifications only validates in MCPTools — the actual graph
     // mutation goes through the editor's applier registered in the bridge
     if (definition.name === 'apply_modifications' && result.success) {
-      return applyToEditor(result)
+      const applied = applyToEditor(result)
+      // A rejected batch never lands, so its ids must not stay queued and block
+      // a corrected retry as "already exists". A batch that applied lands, and
+      // setProject drops its ids.
+      if (!applied.success) tools.clearQueuedModifications()
+      return applied
     }
 
     return result

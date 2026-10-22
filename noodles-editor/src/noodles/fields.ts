@@ -1,4 +1,4 @@
-import { type LayerProps, View } from '@deck.gl/core'
+import { LayerExtension, type LayerProps, View } from '@deck.gl/core'
 import { interpolateLab, scaleOrdinal, schemeAccent } from 'd3'
 import { BehaviorSubject, combineLatest, type Subscription } from 'rxjs'
 import { Temporal } from 'temporal-polyfill'
@@ -12,7 +12,10 @@ import type { IOperator, Operator } from './operators'
 import type { DeckViewDescriptor, DeckViewValue } from './types'
 import { deepEqual } from './utils/deep-equal'
 import type { ExtractProps } from './utils/extract-props'
+import { deriveDecimalStep } from './utils/number-precision'
 import { resolvePath } from './utils/path-utils'
+
+export { deriveDecimalStep } from './utils/number-precision'
 
 export interface IField<
   S extends z.ZodType = z.ZodType,
@@ -57,6 +60,9 @@ type NumberFieldOptions = BaseFieldOptions & {
   softMin: number
   softMax: number
   step: number
+  // Generic Number operators can infer their editing step from the current value.
+  // Semantic fields (opacity, latitude, width, etc.) keep their declared step.
+  deriveStepFromValue: boolean
 }
 
 type CompoundPropsFieldOptions = BaseFieldOptions &
@@ -368,19 +374,16 @@ export class StringField extends Field<z.ZodString> {
 
 type FileUrlFieldOptions = BaseFieldOptions & {
   accept?: string // e.g. '.glb,.gltf' — controls file picker filter and shows upload button
-  suggestions?: { value: string; label: string }[] // typeahead suggestions shown in input
 }
 
 export class FileUrlField extends Field<z.ZodString, FileUrlFieldOptions> {
   static type = 'file-url'
   static defaultValue = ''
   accept?: string
-  suggestions: { value: string; label: string }[]
 
   constructor(initialValue?: string, options?: Partial<FileUrlFieldOptions>) {
     super(initialValue, options)
     this.accept = options?.accept
-    this.suggestions = options?.suggestions ?? []
   }
 
   createSchema(_options?: Partial<FileUrlFieldOptions>) {
@@ -390,7 +393,6 @@ export class FileUrlField extends Field<z.ZodString, FileUrlFieldOptions> {
 
 export interface MapStyleFieldOptions extends BaseFieldOptions {
   accept?: string
-  suggestions?: { value: string | Record<string, unknown>; label: string }[]
 }
 
 export class MapStyleField extends Field<
@@ -400,12 +402,10 @@ export class MapStyleField extends Field<
   static type = 'map-style'
   static defaultValue = ''
   accept?: string
-  suggestions: { value: string; label: string }[]
 
   constructor(defaultValue = '', options?: Partial<MapStyleFieldOptions>) {
     super(defaultValue, options)
     this.accept = options?.accept
-    this.suggestions = options?.suggestions ?? []
   }
 
   createSchema(_options?: Partial<MapStyleFieldOptions>) {
@@ -647,6 +647,11 @@ export class NumberField extends Field<z.ZodNumber, NumberFieldOptions> {
   softMin: number
   softMax: number
   step: number
+  deriveStepFromValue: boolean
+
+  // A user-selected step is UI state rather than graph data. Keeping it observable
+  // lets an undo/redo restore update an already-mounted number control.
+  readonly stepOverride$ = new BehaviorSubject<number | undefined>(undefined)
 
   createSchema(options: NumberFieldOptions) {
     const schema = z.number().min(options.min).max(options.max)
@@ -662,6 +667,7 @@ export class NumberField extends Field<z.ZodNumber, NumberFieldOptions> {
       softMin: -Infinity,
       softMax: Infinity,
       step: 0.1,
+      deriveStepFromValue: false,
       ...options,
     }
     super(override, opts)
@@ -670,6 +676,23 @@ export class NumberField extends Field<z.ZodNumber, NumberFieldOptions> {
     this.softMin = opts.softMin
     this.softMax = opts.softMax
     this.step = opts.step
+    this.deriveStepFromValue = opts.deriveStepFromValue
+  }
+
+  get stepOverride(): number | undefined {
+    return this.stepOverride$.value
+  }
+
+  setStepOverride(step: number | undefined): void {
+    if (step !== undefined && (!Number.isFinite(step) || step <= 0)) return
+    if (Object.is(this.stepOverride$.value, step)) return
+    this.stepOverride$.next(step)
+  }
+
+  getEffectiveStep(value: number = this.value): number {
+    if (this.stepOverride !== undefined) return this.stepOverride
+    if (this.deriveStepFromValue) return deriveDecimalStep(value, this.step)
+    return this.step
   }
 }
 
@@ -1424,6 +1447,61 @@ export class CompoundPropsField extends Field<
   }
 }
 
+export type NumberStepOverrides = Record<string, number>
+
+export type NodeUIMetadata = {
+  numberSteps?: NumberStepOverrides
+}
+
+function visitNumberFields(
+  fields: Record<string, unknown>,
+  visitor: (path: string, field: NumberField) => void,
+  parentPath = ''
+): void {
+  for (const [name, field] of Object.entries(fields)) {
+    const path = parentPath ? `${parentPath}.${name}` : name
+    if (field instanceof NumberField) {
+      visitor(path, field)
+    } else if (field instanceof CompoundPropsField) {
+      visitNumberFields(field.fields, visitor, path)
+    }
+  }
+}
+
+export function captureNumberStepOverrides(fields: Record<string, unknown>): NumberStepOverrides {
+  const overrides: NumberStepOverrides = {}
+  visitNumberFields(fields, (path, field) => {
+    if (field.stepOverride !== undefined) overrides[path] = field.stepOverride
+  })
+  return overrides
+}
+
+// Applying an absent map deliberately clears overrides. Property-history snapshots
+// need to undo a precision-only change even when the numeric input value is unchanged.
+export function applyNumberStepOverrides(
+  fields: Record<string, unknown>,
+  overrides?: NumberStepOverrides
+): void {
+  visitNumberFields(fields, (path, field) => {
+    const step = overrides?.[path]
+    field.setStepOverride(
+      typeof step === 'number' && Number.isFinite(step) && step > 0 ? step : undefined
+    )
+  })
+}
+
+export function captureNodeUIMetadata(fields: Record<string, unknown>): NodeUIMetadata | undefined {
+  const numberSteps = captureNumberStepOverrides(fields)
+  return Object.keys(numberSteps).length > 0 ? { numberSteps } : undefined
+}
+
+export function applyNodeUIMetadata(
+  fields: Record<string, unknown>,
+  metadata?: NodeUIMetadata
+): void {
+  applyNumberStepOverrides(fields, metadata?.numberSteps)
+}
+
 // TODO: Should this be flag like `multiple`? Or should it be a separate class?
 export class ListField<F extends Field> extends Field<
   z.ZodArray<F['schema']>,
@@ -1544,7 +1622,10 @@ export class ExtensionField extends Field<z.ZodTypeAny> {
   static defaultValue = undefined
   createSchema() {
     return z.strictObject({
-      extension: z.looseObject({ type: z.string() }),
+      // A `{ type }` descriptor from an extension operator, or a LayerExtension
+      // instance built by the user (e.g. in a CodeOp). Instance first so a
+      // subclass with a `type` property isn't flattened into a plain object.
+      extension: z.union([z.instanceof(LayerExtension), z.looseObject({ type: z.string() })]),
       props: z.looseObject({}),
     })
   }

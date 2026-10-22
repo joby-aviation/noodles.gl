@@ -95,8 +95,14 @@ export async function writeFileToDirectory(
   })
 
   const writable = await fileHandle.createWritable()
-  await writable.write(contents)
-  await writable.close()
+  try {
+    await writable.write(contents)
+    await writable.close()
+  } catch (error) {
+    // Discard the partial write and release the file, which keeps its previous contents
+    await writable.abort().catch(() => {})
+    throw error
+  }
 }
 
 export async function fileExists(

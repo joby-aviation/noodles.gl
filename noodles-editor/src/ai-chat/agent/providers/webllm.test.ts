@@ -2,10 +2,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AgentEvent, AgentRequest, AgentTool } from '../types'
 import {
   DEFAULT_WEBLLM_MODEL,
+  FAST_WEBLLM_MODEL,
   WEBLLM_MODELS,
   type WebLLMEngine,
   WebLLMProvider,
   webgpuAvailable,
+  webllmModelLabel,
 } from './webllm'
 
 const TOOLS: AgentTool[] = [
@@ -48,8 +50,8 @@ function splitInThree(text: string): string[] {
 }
 
 interface StubOptions {
-  // One entry per create() call; an Error rejects instead of streaming
-  responses: Array<Chunk[] | Error>
+  // One entry per create() call; an Error or a string rejects instead of streaming
+  responses: Array<Chunk[] | Error | string>
   onCreate?: () => void
 }
 
@@ -63,7 +65,7 @@ function stubEngine(options: StubOptions) {
     requests.push(request)
     options.onCreate?.()
     const response = options.responses[callIndex++]
-    if (response instanceof Error) throw response
+    if (response instanceof Error || typeof response === 'string') throw response
     return (async function* () {
       for (const chunk of response ?? []) yield chunk
     })()
@@ -89,6 +91,33 @@ function requestFor(text: string, tools = TOOLS): AgentRequest {
   }
 }
 
+// The turn in which find_tools unlocked capture_visualization, as the loop records it
+function withFindToolsResult(request: AgentRequest): AgentRequest {
+  return {
+    ...request,
+    messages: [
+      ...request.messages,
+      {
+        role: 'assistant',
+        content: [
+          { type: 'tool_use', id: 'f1', name: 'find_tools', input: { query: 'screenshot' } },
+        ],
+      },
+      {
+        role: 'user',
+        content: [
+          {
+            type: 'tool_result',
+            toolUseId: 'f1',
+            content:
+              '{"unlocked":[{"name":"capture_visualization","description":"Take a screenshot"}]}',
+          },
+        ],
+      },
+    ],
+  }
+}
+
 async function collect(events: AsyncIterable<AgentEvent>): Promise<AgentEvent[]> {
   const collected: AgentEvent[] = []
   for await (const event of events) collected.push(event)
@@ -100,11 +129,50 @@ describe('WEBLLM_MODELS', () => {
     expect(WEBLLM_MODELS.map(model => model.id)).toContain(DEFAULT_WEBLLM_MODEL)
   })
 
-  it('labels every model with a size', () => {
+  it('gives every model a download size, GPU memory, tier and image flag', () => {
     for (const model of WEBLLM_MODELS) {
-      expect(model.sizeMb).toBeGreaterThan(0)
-      expect(model.label).toMatch(/GB\)$/)
+      expect(model.downloadMb).toBeGreaterThan(0)
+      expect(model.vramMb).toBeGreaterThanOrEqual(model.downloadMb)
+      expect(['quality', 'fast', 'compatibility']).toContain(model.tier)
+      expect(model.supportsImages).toBe(false)
+      expect(webllmModelLabel(model)).toMatch(/GB download\)$/)
     }
+  })
+
+  it('recommends Qwen3.5 4B first, with 2B as the fast fallback', () => {
+    expect(WEBLLM_MODELS[0]).toMatchObject({
+      id: DEFAULT_WEBLLM_MODEL,
+      downloadMb: 2390,
+      vramMb: 3868,
+      tier: 'quality',
+    })
+    expect(WEBLLM_MODELS[1]).toMatchObject({
+      id: FAST_WEBLLM_MODEL,
+      downloadMb: 1080,
+      vramMb: 2245,
+      tier: 'fast',
+    })
+  })
+
+  // An id the installed WebLLM does not ship throws at load time, which would
+  // break both the recommended pick and the fall-back-to-fast button
+  it('offers only models the installed WebLLM ships, with its GPU memory figure', async () => {
+    const { prebuiltAppConfig } = await import('@mlc-ai/web-llm')
+    const shipped = new Map(prebuiltAppConfig.model_list.map(record => [record.model_id, record]))
+    for (const id of [DEFAULT_WEBLLM_MODEL, FAST_WEBLLM_MODEL]) {
+      expect(shipped.has(id), id).toBe(true)
+    }
+    for (const model of WEBLLM_MODELS) {
+      const record = shipped.get(model.id)
+      expect(record, model.id).toBeDefined()
+      expect(model.vramMb, model.id).toBe(Math.round(record?.vram_required_MB ?? 0))
+    }
+  })
+
+  it('names GPU memory when asked', () => {
+    expect(webllmModelLabel(WEBLLM_MODELS[1], { memory: true })).toBe(
+      'Local fast: Qwen3.5 2B (1.1 GB download, 2.2 GB GPU memory)'
+    )
   })
 })
 
@@ -161,6 +229,19 @@ describe('WebLLMProvider', () => {
     }
   })
 
+  it('keeps the prebuilt 4k window unless asked for more', () => {
+    const stub = stubEngine({ responses: [] })
+    expect(providerFor(stub).contextWindow).toBe(4096)
+    const larger = new WebLLMProvider({
+      engine: stub.engine,
+      model: DEFAULT_WEBLLM_MODEL,
+      contextWindow: 16_384,
+    })
+    // The router, result budget and step limit all read this, so it has to be
+    // the size the engine was actually loaded with
+    expect(larger.contextWindow).toBe(16_384)
+  })
+
   it('turns a JSON action into a tool call', async () => {
     const action = '{"tool":"get_node_info","input":{"nodeId":"/viewer"},"reply":"Checking."}'
     const stub = stubEngine({ responses: [chunksFor(action)] })
@@ -168,6 +249,7 @@ describe('WebLLMProvider', () => {
     const events = await collect(providerFor(stub).stream(requestFor('what is /viewer')))
 
     expect(events).toEqual([
+      { type: 'provider_block', provider: 'webllm', block: action },
       { type: 'text_delta', text: 'Checking.' },
       { type: 'tool_call', id: 'webllm_1', name: 'get_node_info', input: { nodeId: '/viewer' } },
       { type: 'stop', reason: 'tool_use' },
@@ -175,13 +257,13 @@ describe('WebLLMProvider', () => {
   })
 
   it('ends the turn when the action names no tool', async () => {
-    const stub = stubEngine({
-      responses: [chunksFor('{"tool":"none","reply":"There are 4 nodes."}')],
-    })
+    const action = '{"tool":"none","reply":"There are 4 nodes."}'
+    const stub = stubEngine({ responses: [chunksFor(action)] })
 
     const events = await collect(providerFor(stub).stream(requestFor('how many nodes')))
 
     expect(events).toEqual([
+      { type: 'provider_block', provider: 'webllm', block: action },
       { type: 'text_delta', text: 'There are 4 nodes.' },
       { type: 'stop', reason: 'end_turn' },
     ])
@@ -251,6 +333,108 @@ describe('WebLLMProvider', () => {
     expect(messages[1]).toEqual({ role: 'user', content: 'hello' })
   })
 
+  // The engine reuses its KV cache only for a request that extends the last one
+  // exactly, so a system message that grew with each unlocked tool would mean
+  // prefilling the whole prompt again on every step
+  it('keeps the system message stable when find_tools unlocks more tools', async () => {
+    const stub = stubEngine({
+      responses: [
+        chunksFor('{"tool":"none","reply":"Hi."}'),
+        chunksFor('{"tool":"none","reply":"Hi."}'),
+      ],
+    })
+    const provider = providerFor(stub)
+    const unlocked: AgentTool = {
+      name: 'capture_visualization',
+      description: 'Take a screenshot',
+      inputSchema: { type: 'object', properties: {} },
+    }
+
+    await collect(provider.stream(requestFor('hello')))
+    await collect(provider.stream(withFindToolsResult(requestFor('hello', [...TOOLS, unlocked]))))
+
+    const system = (index: number) =>
+      (stub.requests[index].messages as Array<{ content: string }>)[0].content
+    expect(system(1)).toBe(system(0))
+    // Still callable: the grammar is per request and not part of the cached prefix
+    const schema = stub.requests[1].response_format as { schema: string }
+    expect(JSON.parse(schema.schema).properties.tool.enum).toContain('capture_visualization')
+  })
+
+  it('rebuilds the system message once the result describing an unlocked tool is gone', async () => {
+    // Trimming, or the next user turn, drops the find_tools result; with the old
+    // preamble the model would have the tool's name and no description
+    const stub = stubEngine({
+      responses: [
+        chunksFor('{"tool":"none","reply":"Hi."}'),
+        chunksFor('{"tool":"none","reply":"Hi."}'),
+      ],
+    })
+    const provider = providerFor(stub)
+    const unlocked: AgentTool = {
+      name: 'capture_visualization',
+      description: 'Take a screenshot',
+      inputSchema: { type: 'object', properties: {} },
+    }
+
+    await collect(provider.stream(requestFor('hello')))
+    await collect(provider.stream(requestFor('hello', [...TOOLS, unlocked])))
+
+    const system = (index: number) =>
+      (stub.requests[index].messages as Array<{ content: string }>)[0].content
+    expect(system(1)).not.toBe(system(0))
+    expect(system(1)).toContain('Take a screenshot')
+  })
+
+  it('rebuilds the system message when a tool it lists is no longer offered', async () => {
+    const stub = stubEngine({
+      responses: [
+        chunksFor('{"tool":"none","reply":"Hi."}'),
+        chunksFor('{"tool":"none","reply":"Hi."}'),
+      ],
+    })
+    const provider = providerFor(stub)
+
+    await collect(provider.stream(requestFor('hello')))
+    await collect(provider.stream(requestFor('hello', TOOLS.slice(0, 1))))
+
+    const system = (stub.requests[1].messages as Array<{ content: string }>)[0].content
+    expect(system).not.toContain('get_node_info')
+  })
+
+  it('sends its own earlier completions back verbatim', async () => {
+    const raw = '<think>\n\n</think>\n\n{"tool":"list_nodes","reply":"Looking.","input":{}}'
+    const stub = stubEngine({
+      responses: [chunksFor(raw), chunksFor('{"tool":"none","reply":"4."}')],
+    })
+    const provider = providerFor(stub)
+
+    const first = await collect(provider.stream(requestFor('how many nodes')))
+    const block = first.find(event => event.type === 'provider_block')
+    if (block?.type !== 'provider_block') throw new Error('no provider block')
+
+    const request = requestFor('how many nodes')
+    request.messages.push(
+      {
+        role: 'assistant',
+        content: [
+          { type: 'provider_block', provider: block.provider, block: block.block },
+          { type: 'text', text: 'Looking.' },
+          { type: 'tool_use', id: 'webllm_1', name: 'list_nodes', input: {} },
+        ],
+      },
+      {
+        role: 'user',
+        content: [{ type: 'tool_result', toolUseId: 'webllm_1', content: '4 nodes' }],
+      }
+    )
+    await collect(provider.stream(request))
+
+    const messages = stub.requests[1].messages as Array<{ role: string; content: string }>
+    expect(messages[2]).toEqual({ role: 'assistant', content: raw })
+    expect(messages[3]).toEqual({ role: 'user', content: 'Result: 4 nodes' })
+  })
+
   // Errors cross the worker boundary as their toString(), so the class is gone by
   // the time this sees them and only the message prefix is left
   it('retries on a trimmed transcript when the context overflows', async () => {
@@ -273,6 +457,8 @@ describe('WebLLMProvider', () => {
     const events = await collect(providerFor(stub).stream(request))
 
     expect(events).toEqual([
+      { type: 'diagnostic', kind: 'context_trimmed' },
+      { type: 'provider_block', provider: 'webllm', block: '{"tool":"none","reply":"Trimmed."}' },
       { type: 'text_delta', text: 'Trimmed.' },
       { type: 'stop', reason: 'end_turn' },
     ])
@@ -282,11 +468,67 @@ describe('WebLLMProvider', () => {
     expect(second.length).toBeLessThan(first.length)
   })
 
+  // What the real worker engine does: its client rejects with the worker's
+  // err.toString(), a plain string, and the count is only the tokens added on top
+  // of the KV cache the engine kept, which is why it reads as well under 4096
+  it('retries when the overflow arrives as the worker engine rejects it, a string', async () => {
+    const overflow =
+      'ContextWindowSizeExceededError: Prompt tokens exceed context window size: number of prompt tokens: 446; context window size: 4096'
+    const stub = stubEngine({
+      responses: [overflow, chunksFor('{"tool":"none","reply":"Trimmed."}')],
+    })
+
+    const request = requestFor('make the points bigger')
+    request.messages = [
+      { role: 'user', content: [{ type: 'text', text: 'make the points bigger' }] },
+      {
+        role: 'assistant',
+        content: [{ type: 'tool_use', id: 'a', name: 'list_nodes', input: {} }],
+      },
+      { role: 'user', content: [{ type: 'tool_result', toolUseId: 'a', content: '[...]' }] },
+      {
+        role: 'assistant',
+        content: [{ type: 'tool_use', id: 'b', name: 'get_node_info', input: { nodeId: '/a' } }],
+      },
+      { role: 'user', content: [{ type: 'tool_result', toolUseId: 'b', content: '{...}' }] },
+    ]
+
+    const events = await collect(providerFor(stub).stream(request))
+
+    expect(events[0]).toEqual({ type: 'diagnostic', kind: 'context_trimmed' })
+    expect(events).toContainEqual({ type: 'text_delta', text: 'Trimmed.' })
+    expect(stub.requests).toHaveLength(2)
+    // The retry keeps the task and the last call with its result, and drops the middle
+    expect((stub.requests[1].messages as unknown[]).length).toBe(4)
+  })
+
   it('does not retry an error that is not an overflow', async () => {
     const stub = stubEngine({ responses: [new Error('WebGPU device lost')] })
 
     await expect(collect(providerFor(stub).stream(requestFor('hello')))).rejects.toThrow(
       'WebGPU device lost'
+    )
+    expect(stub.requests).toHaveLength(1)
+  })
+
+  // After the first tool call there is no middle to drop, and a retry on the tool
+  // result alone would answer without the task or the call it came from
+  it('does not retry an overflow when there is nothing to trim', async () => {
+    const overflow = new Error('ContextWindowSizeExceededError: prompt tokens exceed 4096')
+    const stub = stubEngine({ responses: [overflow] })
+
+    const request = requestFor('add a layer')
+    request.messages = [
+      { role: 'user', content: [{ type: 'text', text: 'add a layer' }] },
+      {
+        role: 'assistant',
+        content: [{ type: 'tool_use', id: 'a', name: 'list_nodes', input: {} }],
+      },
+      { role: 'user', content: [{ type: 'tool_result', toolUseId: 'a', content: '[...]' }] },
+    ]
+
+    await expect(collect(providerFor(stub).stream(request))).rejects.toThrow(
+      'ContextWindowSizeExceededError'
     )
     expect(stub.requests).toHaveLength(1)
   })

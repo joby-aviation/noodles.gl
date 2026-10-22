@@ -19,7 +19,7 @@ This document provides essential context for Large Language Models (LLMs) workin
 - **[Architecture](dev-docs/architecture.md)** - System architecture, state management, and error handling
 - **[Development Guide](dev-docs/developing.md)** - Setup, commands, workflows, and best practices
 - **[Testing Guide](dev-docs/testing-guide.md)** - Testing strategy, critical components, and runbook guidelines
-- **[PR Guidelines](dev-docs/pr-guidelines.md)** - Creating focused PRs with tests and documentation
+- **[PR Guidelines](dev-docs/pr-guidelines.md)** - Focused PRs, PR description format, screenshots for UI changes
 - **[Analytics](dev-docs/analytics.md)** - Privacy-preserving analytics guidelines
 - **[Agent Harness](dev-docs/agent-harness.md)** - The in-app AI chat: providers, tool routing, context budgets
 - **[Tech Stack](dev-docs/tech-stack.md)** - Complete technology listing
@@ -127,7 +127,7 @@ Projects are stored as JSON files with this structure:
 
 ```json
 {
-  "version": 6,
+  "version": 18,
   "nodes": [
     {
       "id": "/data-loader",
@@ -153,6 +153,8 @@ Projects are stored as JSON files with this structure:
   "viewport": {"x": 0, "y": 0, "zoom": 1}
 }
 ```
+
+**Validate every project file you write or edit** with `npm run validate:projects -- path/to/noodles.json` from the repo root (or the `noodles` MCP server's `validate_project`; never a bare `npx validate-projects`, which can fetch from npm). It checks operator types, input names, edge handles and the schema version against the operator registry, and names the fix for each error. The file is done when it prints `OK`.
 
 **Path Prefixes in File References:**
 
@@ -254,7 +256,7 @@ npm workspaces (root `package.json`): run `npm install` at the root, then run ap
 ### Development URLs
 
 - **Local**: `http://localhost:5173/examples/nyc-taxis`
-- **Specific Project**: Replace `nyc-taxis` with project name from `noodles-editor/public/examples/`
+- **Specific Project**: Replace `nyc-taxis` with project name from `noodles-editor/src/examples/`
 - **Safe Mode**: Add `?safeMode=true` to disable code execution
 
 ### Testing
@@ -352,6 +354,13 @@ Any field can be keyframed via the native timeline system. Changes in timeline p
 
 **Pull Requests:** Keep PRs focused, include tests and documentation, provide test runbooks for UI changes. See [pr-guidelines.md](dev-docs/pr-guidelines.md) for complete guidelines.
 
+**PR Descriptions:**
+- Use the headings from `.github/pull_request_template.md` as they are: an issue reference, an optional `#### Background`, a `#### Change List` and `#### Screenshots`. Do not add `Summary`, `Test plan` or `Validation` sections.
+- Keep it short. Most good descriptions are under 900 characters, not counting a collapsed test runbook.
+- Change List: one bullet per operator, component, API or artifact, ten words or less, identifiers in backticks, no trailing periods. End with `Unit tests` / `Browser tests` / `Documentation` / `Migration` as applicable, and one line on what was actually run to verify.
+- **UI changes need a before/after screenshot or GIF.** Capture them (see [screenshot-guide.md](dev-docs/screenshot-guide.md)) outside the repo or in a gitignored directory, and attach with `gh pr create --attach './before.png#Alt text'` (also on `gh pr edit` / `gh pr comment`). Don't commit them.
+- Do not add footers, emoji, links to tool sessions, `Co-Authored-By` lines, or tables of files. Do not make up an issue number; remove the line if there is none.
+
 **Analytics:** Add `analytics.track()` for user actions and feature usage. Never track sensitive data. See [analytics.md](dev-docs/analytics.md) for guidelines.
 
 ## Important Notes for LLMs
@@ -373,9 +382,11 @@ The chat panel (`noodles-editor/src/ai-chat/`) has its own agent loop, tool surf
 
 ## Using Claude Code with Noodles.gl
 
-See [dev-docs/claude-code-workflow.md](dev-docs/claude-code-workflow.md) for editing `noodles.json` directly, validating changes, graph design guidelines, and connecting to a running browser via WebMCP or the MCP proxy.
+See [dev-docs/claude-code-workflow.md](dev-docs/claude-code-workflow.md) for editing `noodles.json` directly, validating changes, graph design guidelines, and connecting to a running browser via WebMCP.
+
+The `noodles` MCP server (`.mcp.json`, [noodles-mcp](noodles-mcp/README.md)) looks up operator schemas, docs and example projects without a browser, and validates project files. The [`noodles-live`](.claude/skills/noodles-live/SKILL.md) skill covers changing a project open in the editor.
 
 ---
 
-**Last Updated**: 2026-09-21
-**Version**: Based on project version 6 schema
+**Last Updated**: 2026-10-21
+**Version**: Based on project version 18 schema

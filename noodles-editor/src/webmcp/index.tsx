@@ -7,8 +7,7 @@ import { initWebMCP } from './register'
 
 // The npx local relay (@mcp-b/webmcp-local-relay) only discovers tabs that load
 // its embed script; the WebMCP extension and native Chrome paths need nothing.
-// Pinned CDN build, injected on localhost only — same trust model as the
-// legacy WebSocket bridge. The pinned version must match the relay major the
+// Pinned CDN build, injected on localhost only. The pinned version must match the relay major the
 // docs tell users to run (the discovery handshake changes between majors).
 // To self-host instead, copy embed.js/widget.js/widget.html from the package
 // tarball into public/webmcp/.

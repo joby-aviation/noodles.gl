@@ -1,7 +1,9 @@
-import { fireEvent, render, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { afterEach, describe, expect, it } from 'vitest'
 import { OutOp } from '../operators'
 import { RenderSettingsPanel } from './render-settings-panel'
+
+afterEach(cleanup)
 
 describe('RenderSettingsPanel preview scale', () => {
   it('defaults to Fit and preserves manual scale while its slider is hidden', () => {
@@ -23,5 +25,51 @@ describe('RenderSettingsPanel preview scale', () => {
 
     fireEvent.change(previewMode, { target: { value: 'manual' } })
     expect(screen.getByLabelText('Scale')).toHaveValue('0.65')
+  })
+})
+
+describe('RenderSettingsPanel sequence format', () => {
+  it('defaults to PNG and stores the chosen format on the OutOp', () => {
+    const op = new OutOp('/out')
+    render(<RenderSettingsPanel op={op} />)
+
+    const format = screen.getByLabelText('Sequence')
+    expect(format).toHaveValue('png')
+
+    fireEvent.change(format, { target: { value: 'exr' } })
+    expect(op.inputs.sequenceFormat.value).toBe('exr')
+
+    fireEvent.click(screen.getByText('Reset to Defaults'))
+    expect(op.inputs.sequenceFormat.value).toBe('png')
+  })
+})
+
+describe('RenderSettingsPanel transparency', () => {
+  it('turns on a transparent background once the codec can carry alpha', () => {
+    const op = new OutOp('/out')
+    render(<RenderSettingsPanel op={op} />)
+
+    // The default H.264 cannot
+    const checkbox = screen.getByLabelText('Transparent background')
+    expect(checkbox).toBeDisabled()
+    expect(screen.getByText('Needs the VP9 codec')).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('Codec'), { target: { value: 'vp9' } })
+    expect(checkbox).toBeEnabled()
+    fireEvent.click(checkbox)
+    expect(op.inputs.exportAlpha.value).toBe(true)
+    expect(checkbox).toBeChecked()
+    expect(screen.getByText('Saves a WebM video with an alpha channel')).toBeInTheDocument()
+  })
+
+  it('shows the setting unchecked while the codec cannot use it', () => {
+    const op = new OutOp('/out')
+    op.inputs.exportAlpha.setValue(true)
+    render(<RenderSettingsPanel op={op} />)
+
+    const checkbox = screen.getByLabelText('Transparent background')
+    expect(checkbox).not.toBeChecked()
+    act(() => op.inputs.codec.setValue('vp9'))
+    expect(checkbox).toBeChecked()
   })
 })

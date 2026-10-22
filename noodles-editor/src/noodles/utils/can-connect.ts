@@ -1,6 +1,6 @@
 import type z from 'zod/v4'
-import { type Field, ListField, UnknownField } from '../fields'
 import { debugConnect } from '../../utils/debug'
+import { type Field, ListField, UnknownField } from '../fields'
 
 export type ConnectionValidationResult = {
   valid: boolean
@@ -356,7 +356,7 @@ export function validateConnection(from: Field, to: Field): ConnectionValidation
   const toFieldType = (to.constructor as typeof Field).type
 
   if (debugConnect.enabled) {
-    debugConnect(`\n=== validateConnection ===`)
+    debugConnect('\n=== validateConnection ===')
     debugConnect(`From: ${from.constructor.name} (type=${fromFieldType})`)
     debugConnect(`To: ${to.constructor.name} (type=${toFieldType})`)
   }
@@ -373,13 +373,13 @@ export function validateConnection(from: Field, to: Field): ConnectionValidation
   const toSchema = to instanceof ListField ? to.schema.unwrap() : to.schema
 
   if (debugConnect.enabled) {
-    debugConnect(`Schema comparison starting...`)
+    debugConnect('Schema comparison starting...')
   }
 
   // Structural type check
   if (!schemasAreCompatible(fromSchema, toSchema)) {
     if (debugConnect.enabled) {
-      debugConnect(`✗ Schema compatibility failed`)
+      debugConnect('✗ Schema compatibility failed')
     }
     return {
       valid: false,
@@ -388,7 +388,7 @@ export function validateConnection(from: Field, to: Field): ConnectionValidation
     }
   }
   if (debugConnect.enabled) {
-    debugConnect(`✓ Schema compatible`)
+    debugConnect('✓ Schema compatible')
   }
 
   // Get fromType for constraint validation check

@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
+import type { VideoCodec } from '../../render/renderer'
+import { ALPHA_VIDEO_CODECS } from '../../render/video-export'
 import { useExportActions } from '../contexts/export-actions-context'
 import type { OutOp } from '../operators'
 import { useActiveOutOpStore } from '../store'
@@ -39,9 +41,11 @@ export function RenderSettingsPanel({ op }: RenderSettingsPanelProps) {
   const [framerate, setFramerate] = useState(op.inputs.framerate.value)
   const [bitrateMbps, setBitrateMbps] = useState(op.inputs.bitrateMbps.value)
   const [bitrateMode, setBitrateMode] = useState(op.inputs.bitrateMode.value)
+  const [exportAlpha, setExportAlpha] = useState(op.inputs.exportAlpha.value)
   const [waitForData, setWaitForData] = useState(op.inputs.waitForData.value)
   const [captureDelay, setCaptureDelay] = useState(op.inputs.captureDelay.value)
   const [rendersDirectory, setRendersDirectory] = useState(op.inputs.rendersDirectory.value)
+  const [sequenceFormat, setSequenceFormat] = useState(op.inputs.sequenceFormat.value)
 
   useEffect(() => {
     const subscriptions = [
@@ -55,14 +59,18 @@ export function RenderSettingsPanel({ op }: RenderSettingsPanelProps) {
       op.inputs.framerate.subscribe(v => setFramerate(v)),
       op.inputs.bitrateMbps.subscribe(v => setBitrateMbps(v)),
       op.inputs.bitrateMode.subscribe(v => setBitrateMode(v)),
+      op.inputs.exportAlpha.subscribe(v => setExportAlpha(v)),
       op.inputs.waitForData.subscribe(v => setWaitForData(v)),
       op.inputs.captureDelay.subscribe(v => setCaptureDelay(v)),
       op.inputs.rendersDirectory.subscribe(v => setRendersDirectory(v)),
+      op.inputs.sequenceFormat.subscribe(v => setSequenceFormat(v)),
     ]
     return () => {
       for (const sub of subscriptions) sub.unsubscribe()
     }
   }, [op])
+
+  const alphaCodec = ALPHA_VIDEO_CODECS.includes(codec as VideoCodec)
 
   const handleResolutionPresetChange = useCallback(
     (value: string) => {
@@ -84,9 +92,11 @@ export function RenderSettingsPanel({ op }: RenderSettingsPanelProps) {
     op.inputs.framerate.setValue(DEFAULT_RENDER_SETTINGS.framerate)
     op.inputs.bitrateMbps.setValue(DEFAULT_RENDER_SETTINGS.bitrateMbps)
     op.inputs.bitrateMode.setValue(DEFAULT_RENDER_SETTINGS.bitrateMode)
+    op.inputs.exportAlpha.setValue(DEFAULT_RENDER_SETTINGS.exportAlpha)
     op.inputs.waitForData.setValue(DEFAULT_RENDER_SETTINGS.waitForData)
     op.inputs.captureDelay.setValue(DEFAULT_RENDER_SETTINGS.captureDelay)
     op.inputs.rendersDirectory.setValue(DEFAULT_RENDER_SETTINGS.rendersDirectory)
+    op.inputs.sequenceFormat.setValue(DEFAULT_RENDER_SETTINGS.sequenceFormat)
   }, [op])
 
   return (
@@ -290,6 +300,22 @@ export function RenderSettingsPanel({ op }: RenderSettingsPanelProps) {
             <option value="variable">Variable</option>
           </select>
         </div>
+
+        <div className={s.settingRow}>
+          <label className={s.checkboxLabel}>
+            <input
+              type="checkbox"
+              checked={exportAlpha && alphaCodec}
+              disabled={!alphaCodec}
+              onChange={e => op.inputs.exportAlpha.setValue(e.target.checked)}
+              className={s.checkbox}
+            />
+            Transparent background
+          </label>
+        </div>
+        <div className={s.hint}>
+          {alphaCodec ? 'Saves a WebM video with an alpha channel' : 'Needs the VP9 codec'}
+        </div>
       </div>
 
       {/* Advanced Section */}
@@ -338,6 +364,21 @@ export function RenderSettingsPanel({ op }: RenderSettingsPanelProps) {
             <i className="pi pi-folder" />
             {rendersDirectory || 'renders'}
           </button>
+        </div>
+
+        <div className={s.settingRow}>
+          <label htmlFor="render-sequence-format" className={s.label}>
+            Sequence
+          </label>
+          <select
+            id="render-sequence-format"
+            className={s.select}
+            value={sequenceFormat}
+            onChange={e => op.inputs.sequenceFormat.setValue(e.target.value as 'png' | 'exr')}
+          >
+            <option value="png">PNG</option>
+            <option value="exr">OpenEXR (linear)</option>
+          </select>
         </div>
       </div>
 

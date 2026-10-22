@@ -36,6 +36,7 @@ import type {
   StopReason,
 } from '../types'
 import {
+  diagnosticFor,
   parseAction,
   preamble,
   responseSchema,
@@ -238,13 +239,15 @@ function readUsage(session: LanguageModelSession): number {
 
 export class ChromeProvider implements AgentProvider {
   readonly id = 'chrome' as const
-  readonly model = 'gemini-nano'
+  readonly model = CHROME_MODELS[0].id
   readonly supportsNativeTools = false
   readonly supportsImages = false
   readonly contextWindow: number
 
   private callCounter = 0
   private hasRetried = false
+  // Set by retrimmed() so stream() can report that this turn lost history
+  private trimmedThisTurn = false
 
   // The live session, plus what it has already been told. `sent` is one entry per
   // AgentMessage in the order the session received them, so the next request's
@@ -270,9 +273,11 @@ export class ChromeProvider implements AgentProvider {
     // Reset retry flag at the start of each stream so failed turns don't consume
     // the retry budget for subsequent independent requests
     this.hasRetried = false
+    this.trimmedThisTurn = false
 
     try {
       const raw = await this.promptTurn(api, request, signal)
+      if (this.trimmedThisTurn) yield { type: 'diagnostic', kind: 'context_trimmed' }
       yield* this.eventsFor(raw, request.tools)
     } catch (error) {
       // The session's history is only worth keeping if the turn that would have
@@ -312,7 +317,8 @@ export class ChromeProvider implements AgentProvider {
     const offset = this.sent.length
     const input = toPromptMessages(lines.slice(offset), request.messages, offset)
 
-    if (!(await this.fits(session, input, options))) {
+    // An untrimmable turn is sent as-is, so the API's own quota error reaches the user
+    if (canTrim(request.messages) && !(await this.fits(session, input, options))) {
       debugAiChat('[chrome] turn will not fit, rebuilding on a trimmed transcript')
       return this.retrimmed(api, request, options, signal)
     }
@@ -321,6 +327,8 @@ export class ChromeProvider implements AgentProvider {
       return await this.send(session, input, options, lines)
     } catch (error) {
       if (isQuotaExceeded(error)) {
+        // A rebuild on the same transcript would overflow the same way
+        if (!canTrim(request.messages)) throw error
         // measureContextUsage is optional, and its estimate can be short of what the
         // session actually charges, so catch-and-retry stays as a backstop
         debugAiChat('[chrome] over quota, rebuilding on a trimmed transcript')
@@ -348,6 +356,7 @@ export class ChromeProvider implements AgentProvider {
     signal?: AbortSignal
   ): Promise<string> {
     const trimmed = trimTranscript(request.messages)
+    this.trimmedThisTurn = true
     debugAiChat('[chrome] kept %d of %d messages', trimmed.length, request.messages.length)
 
     const session = await this.rebuild(api, request, signal)
@@ -460,6 +469,8 @@ export class ChromeProvider implements AgentProvider {
 
   private *eventsFor(raw: string, tools: AgentTool[]): Generator<AgentEvent> {
     const action = parseAction(raw, tools)
+    const diagnostic = diagnosticFor(action)
+    if (diagnostic) yield diagnostic
 
     // No incremental text: the response is one JSON object, and streaming a
     // half-written object to the chat panel would show the user braces. Nano's
@@ -507,6 +518,11 @@ function toPromptMessages(
 
 function isAbort(error: unknown): boolean {
   return error instanceof Error && (error.name === 'AbortError' || error.name === 'TimeoutError')
+}
+
+// False when trimTranscript would keep every message, so a retry would send the same turn
+function canTrim(messages: AgentMessage[]): boolean {
+  return trimTranscript(messages).length < messages.length
 }
 
 function isQuotaExceeded(error: unknown): boolean {
