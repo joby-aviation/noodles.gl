@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from 'react'
-import { getOp, useUIStore } from '../../store'
+import { useCallback, useEffect } from 'react'
+import { useNodeRows } from '../../../editor/node-rows'
+import { useUIStore } from '../../store'
 import s from './spreadsheet-pane.module.css'
 import { SpreadsheetViewer } from './spreadsheet-viewer'
 
@@ -9,45 +10,20 @@ export function SpreadsheetPane({ selectedNodeIds }: { selectedNodeIds: string[]
   const pinnedNodeId = useUIStore(state => state.pinnedSpreadsheetNodeId)
   const setPinnedNodeId = useUIStore(state => state.setPinnedSpreadsheetNodeId)
 
-  const [data, setData] = useState<unknown>(null)
-  const [error, setError] = useState<string | null>(null)
-
-  // Determine which operator to display (pinned or selected)
+  // The pinned node, else the one selected node
   const targetNodeId = pinnedNodeId || (selectedNodeIds.length === 1 ? selectedNodeIds[0] : null)
+  const { name, data, total, note, error } = useNodeRows(targetNodeId)
 
-  // Subscribe to operator's first output field
+  // A pinned node that was deleted stops being pinned
   useEffect(() => {
-    setData(null)
-    setError(null)
-
-    if (!targetNodeId) return
-
-    const op = getOp(targetNodeId)
-    if (!op) {
-      setError('Operator not found')
-      // Clear pinned node if it was deleted
-      if (pinnedNodeId) setPinnedNodeId(null)
-      return
-    }
-
-    const outputFields = Object.values(op.outputs)
-    if (outputFields.length === 0) {
-      setError('No outputs available')
-      return
-    }
-
-    // Capture subscription in a local const so cleanup always unsubscribes the right one
-    const sub = outputFields[0].subscribe(value => {
-      setData(value)
-      setError(null)
-    })
-    return () => sub.unsubscribe()
-  }, [targetNodeId, pinnedNodeId, setPinnedNodeId])
+    if (pinnedNodeId && error === 'Node not found') setPinnedNodeId(null)
+  }, [pinnedNodeId, error, setPinnedNodeId])
 
   const handleTogglePin = useCallback(() => {
     setPinnedNodeId(pinnedNodeId ? null : targetNodeId)
   }, [pinnedNodeId, targetNodeId, setPinnedNodeId])
 
+  const shown = Array.isArray(data) ? data.length : 0
   return (
     <div className={s.spreadsheetArea}>
       <div className={s.header}>
@@ -55,7 +31,10 @@ export function SpreadsheetPane({ selectedNodeIds }: { selectedNodeIds: string[]
         <div className={s.controls}>
           {targetNodeId && (
             <>
-              <span className={s.operatorName}>{targetNodeId}</span>
+              <span className={s.operatorName} title={note}>
+                {name ?? targetNodeId}
+                {total !== undefined && total > shown ? ` · first ${shown} of ${total}` : ''}
+              </span>
               <button
                 type="button"
                 className={s.pinButton}
