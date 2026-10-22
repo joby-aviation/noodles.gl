@@ -298,6 +298,27 @@ console.log(route.path.length)        // Number of points in route
 
 **Note:** Requires `VITE_MAPBOX_ACCESS_TOKEN` or `VITE_GOOGLE_MAPS_API_KEY` environment variable.
 
+### `parseWkt(wkt)`
+
+Parse a Well-Known Text geometry into a GeoJSON geometry. Supports every OGC simple feature type, Z, M and ZM coordinates (M values are dropped) and an EWKT `SRID=4326;` prefix.
+
+**Parameters:**
+- `wkt` (string): WKT text, such as `'POINT (-122.4 37.8)'`
+
+**Returns:** GeoJSON `Geometry`, or `null` for `EMPTY` geometries and text it can't read
+
+**Example:**
+```javascript
+// AccessorOp: position from a WKT column
+utils.parseWkt(d.WKT).coordinates
+
+// CodeOp: rows with a WKT column to a FeatureCollection
+return {
+  type: 'FeatureCollection',
+  features: d.map(row => ({ type: 'Feature', geometry: utils.parseWkt(row.WKT), properties: row })),
+}
+```
+
 ## Distance Conversion Constants
 
 Constants for converting between distance units.

@@ -89,7 +89,8 @@
     "generate:migration": "tsx scripts/generate-migration.ts",
     "generate:registry": "vitest run src/noodles/operator-registry-snapshot.test.ts --update",
     "bench:agent": "tsx bench/agent/run.ts",
-    "bench:agent:report": "tsx bench/agent/report.ts"
+    "bench:agent:report": "tsx bench/agent/report.ts",
+    "bench:agent:judge": "tsx bench/agent/judge-run.ts"
   },
   "browserslist": {
     "production": [
@@ -104,6 +105,7 @@
     ]
   },
   "devDependencies": {
+    "@anthropic-ai/bedrock-sdk": "^0.33.8",
     "@biomejs/biome": "2.5.15",
     "@mcp-b/webmcp-types": "^3.0.0",
     "@testing-library/dom": "^10.4.1",
