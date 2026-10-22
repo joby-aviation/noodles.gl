@@ -42,6 +42,7 @@ export function RenderSettingsPanel({ op }: RenderSettingsPanelProps) {
   const [waitForData, setWaitForData] = useState(op.inputs.waitForData.value)
   const [captureDelay, setCaptureDelay] = useState(op.inputs.captureDelay.value)
   const [rendersDirectory, setRendersDirectory] = useState(op.inputs.rendersDirectory.value)
+  const [sequenceFormat, setSequenceFormat] = useState(op.inputs.sequenceFormat.value)
 
   useEffect(() => {
     const subscriptions = [
@@ -58,6 +59,7 @@ export function RenderSettingsPanel({ op }: RenderSettingsPanelProps) {
       op.inputs.waitForData.subscribe(v => setWaitForData(v)),
       op.inputs.captureDelay.subscribe(v => setCaptureDelay(v)),
       op.inputs.rendersDirectory.subscribe(v => setRendersDirectory(v)),
+      op.inputs.sequenceFormat.subscribe(v => setSequenceFormat(v)),
     ]
     return () => {
       for (const sub of subscriptions) sub.unsubscribe()
@@ -87,6 +89,7 @@ export function RenderSettingsPanel({ op }: RenderSettingsPanelProps) {
     op.inputs.waitForData.setValue(DEFAULT_RENDER_SETTINGS.waitForData)
     op.inputs.captureDelay.setValue(DEFAULT_RENDER_SETTINGS.captureDelay)
     op.inputs.rendersDirectory.setValue(DEFAULT_RENDER_SETTINGS.rendersDirectory)
+    op.inputs.sequenceFormat.setValue(DEFAULT_RENDER_SETTINGS.sequenceFormat)
   }, [op])
 
   return (
@@ -338,6 +341,21 @@ export function RenderSettingsPanel({ op }: RenderSettingsPanelProps) {
             <i className="pi pi-folder" />
             {rendersDirectory || 'renders'}
           </button>
+        </div>
+
+        <div className={s.settingRow}>
+          <label htmlFor="render-sequence-format" className={s.label}>
+            Sequence
+          </label>
+          <select
+            id="render-sequence-format"
+            className={s.select}
+            value={sequenceFormat}
+            onChange={e => op.inputs.sequenceFormat.setValue(e.target.value as 'png' | 'exr')}
+          >
+            <option value="png">PNG</option>
+            <option value="exr">OpenEXR (linear)</option>
+          </select>
         </div>
       </div>
 
