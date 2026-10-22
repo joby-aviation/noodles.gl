@@ -5,8 +5,8 @@ and browser tests live next to the code in `src/`.
 
 - `examples-visual.spec.ts`: opens every example in `src/examples/`, waits for the scene to
   settle and compares the map pane against a baseline in `__snapshots__/`.
-- `export.spec.ts`: CUJ A1. Opens an example, clicks Export Photo and Export Video in the
-  Out node's Render Settings, and checks that a PNG and an MP4 arrive. The video test
+- `export.spec.ts`: CUJ A1. Opens an example, picks Image and Video from the top bar's
+  Export menu, and checks that a PNG and an MP4 arrive. The video test
   skips when the browser has no encoder for any export codec.
 
 ## Running
