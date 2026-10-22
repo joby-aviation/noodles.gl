@@ -8,6 +8,7 @@ import {
   installSavePickerAsDownload,
   openExample,
   openRenderSettings,
+  removeSavePicker,
   waitForScene,
 } from './helpers'
 
@@ -21,13 +22,18 @@ const CODECS = [
   ['av1', 'av01.0.08M.08'],
 ] as const
 
-async function openForExport(page: Page) {
-  await installSavePickerAsDownload(page)
+// savePicker: false removes showSaveFilePicker, as in Firefox and Safari
+async function openForExport(page: Page, { savePicker = true } = {}) {
+  await (savePicker ? installSavePickerAsDownload(page) : removeSavePicker(page))
   // An export error is reported with alert(); fail on it instead of letting it auto-dismiss
   page.on('dialog', dialog => {
     throw new Error(`Unexpected dialog: ${dialog.message()}`)
   })
   await openExample(page, EXAMPLE)
+  if (!savePicker) {
+    // Otherwise a download could still come from the stand-in rather than the fallback
+    expect(await page.evaluate(() => typeof window.showSaveFilePicker)).toBe('undefined')
+  }
   await waitForScene(page)
   // Codec and framerate are set here, as a user would
   await openRenderSettings(page)
@@ -49,55 +55,73 @@ async function downloadBytes(download: Download) {
   return readFileSync(await download.path())
 }
 
+async function exportPng(page: Page) {
+  const downloadPromise = page.waitForEvent('download')
+  await exportFromMenu(page, 'Image (PNG)')
+  const download = await downloadPromise
+
+  expect(download.suggestedFilename()).toMatch(/\.png$/)
+  const bytes = await downloadBytes(download)
+  expect(bytes.length).toBeGreaterThan(1000)
+  expect(bytes.subarray(0, 8)).toEqual(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
+}
+
+async function exportShortMp4(page: Page) {
+  // Headless Linux Chromium often has no H.264 encoder; use whatever this browser has
+  const codec = await page.evaluate(async codecs => {
+    for (const [name, codec] of codecs) {
+      for (const hardwareAcceleration of ['prefer-hardware', 'no-preference'] as const) {
+        const { supported } = await VideoEncoder.isConfigSupported({
+          codec,
+          width: 1280,
+          height: 720,
+          bitrate: 2_000_000,
+          hardwareAcceleration,
+        })
+        if (supported) return name
+      }
+    }
+    return null
+  }, CODECS)
+  test.skip(codec === null, 'this browser has no video encoder for any export codec')
+
+  await page.locator('#render-resolution-preset').selectOption('1280x720')
+  await page.locator('#render-codec').selectOption(codec as string)
+  await page.locator('#render-framerate').fill('10')
+  // Five frames keep the encode short; a user would drag the out marker
+  await page.evaluate(() => window.__noodlesTest?.getTimelineStore().setOutPoint(0.5))
+
+  const downloadPromise = page.waitForEvent('download', { timeout: 90_000 })
+  await exportFromMenu(page, 'Video (MP4)')
+  const download = await downloadPromise
+
+  expect(download.suggestedFilename()).toMatch(/\.mp4$/)
+  const bytes = await downloadBytes(download)
+  expect(bytes.length).toBeGreaterThan(1000)
+  // Every MP4 starts with an ftyp box
+  expect(bytes.subarray(4, 8).toString('ascii')).toBe('ftyp')
+}
+
 test.describe('export', () => {
   test('exports a PNG still', async ({ page }) => {
     await openForExport(page)
-
-    const downloadPromise = page.waitForEvent('download')
-    await exportFromMenu(page, 'Image (PNG)')
-    const download = await downloadPromise
-
-    expect(download.suggestedFilename()).toMatch(/\.png$/)
-    const bytes = await downloadBytes(download)
-    expect(bytes.length).toBeGreaterThan(1000)
-    expect(bytes.subarray(0, 8)).toEqual(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
+    await exportPng(page)
   })
 
   test('exports a short MP4', async ({ page }) => {
     await openForExport(page)
+    await exportShortMp4(page)
+  })
 
-    // Headless Linux Chromium often has no H.264 encoder; use whatever this browser has
-    const codec = await page.evaluate(async codecs => {
-      for (const [name, codec] of codecs) {
-        for (const hardwareAcceleration of ['prefer-hardware', 'no-preference'] as const) {
-          const { supported } = await VideoEncoder.isConfigSupported({
-            codec,
-            width: 1280,
-            height: 720,
-            bitrate: 2_000_000,
-            hardwareAcceleration,
-          })
-          if (supported) return name
-        }
-      }
-      return null
-    }, CODECS)
-    test.skip(codec === null, 'this browser has no video encoder for any export codec')
+  test.describe('without a save picker', () => {
+    test('downloads a PNG still', async ({ page }) => {
+      await openForExport(page, { savePicker: false })
+      await exportPng(page)
+    })
 
-    await page.locator('#render-resolution-preset').selectOption('1280x720')
-    await page.locator('#render-codec').selectOption(codec as string)
-    await page.locator('#render-framerate').fill('10')
-    // Five frames keep the encode short; a user would drag the out marker
-    await page.evaluate(() => window.__noodlesTest?.getTimelineStore().setOutPoint(0.5))
-
-    const downloadPromise = page.waitForEvent('download', { timeout: 90_000 })
-    await exportFromMenu(page, 'Video (MP4)')
-    const download = await downloadPromise
-
-    expect(download.suggestedFilename()).toMatch(/\.mp4$/)
-    const bytes = await downloadBytes(download)
-    expect(bytes.length).toBeGreaterThan(1000)
-    // Every MP4 starts with an ftyp box
-    expect(bytes.subarray(4, 8).toString('ascii')).toBe('ftyp')
+    test('downloads a short MP4', async ({ page }) => {
+      await openForExport(page, { savePicker: false })
+      await exportShortMp4(page)
+    })
   })
 })

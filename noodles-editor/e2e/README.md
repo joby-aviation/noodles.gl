@@ -8,6 +8,7 @@ and browser tests live next to the code in `src/`.
 - `export.spec.ts`: CUJ A1. Opens an example, picks Image and Video from the top bar's
   Export menu, and checks that a PNG and an MP4 arrive. The video test
   skips when the browser has no encoder for any export codec.
+  Both run again without `showSaveFilePicker`, through the download fallback Firefox and Safari use.
 
 ## Running
 

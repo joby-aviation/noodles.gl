@@ -191,3 +191,12 @@ export function installSavePickerAsDownload(page: Page) {
     }) as unknown as typeof window.showSaveFilePicker
   })
 }
+
+// Firefox and Safari have no showSaveFilePicker, and the export buttons fall back to an
+// <a download> link. Removing it before the app loads takes Chromium down that path.
+export function removeSavePicker(page: Page) {
+  return page.addInitScript(() => {
+    // The app checks 'showSaveFilePicker' in window, so setting it to undefined is not enough
+    delete (window as Partial<Window>).showSaveFilePicker
+  })
+}
