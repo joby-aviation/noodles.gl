@@ -1046,6 +1046,8 @@ export function getNoodles(): Visualization {
 
   // Handle pending quick start actions (file upload or LLM question from quick start modal)
   const pendingActionHandledRef = useRef(false)
+  const [pendingImportFile, setPendingImportFile] = useState<File | null>(null)
+  const clearPendingImportFile = useCallback(() => setPendingImportFile(null), [])
   useEffect(() => {
     // Only run once after project is loaded (nodes are populated)
     if (nodes.length === 0 || pendingActionHandledRef.current) return
@@ -1061,14 +1063,19 @@ export function getNoodles(): Visualization {
       setShowChatPanel(true)
       analytics.track('quick_start_llm_action_handled')
     } else if (pendingAction.type === 'file' && pendingAction.file) {
-      // For file uploads, we'll open the chat panel and suggest using the AI to visualize
-      // The file can be referenced in the message
+      if (pendingAction.mode === 'map') {
+        // Coordinates were found: CanvasDropImport builds the map, no LLM needed
+        setPendingImportFile(pendingAction.file)
+        analytics.track('quick_start_file_action_handled', { mode: 'map' })
+        return
+      }
+      // Otherwise open the chat panel and ask the AI to help visualize the file
       const fileName = pendingAction.file.name
       setChatInitialMessage(
         `I just uploaded a file called "${fileName}". Please help me create a visualization from this data. First, I'll need to import it using the Data Importer (click the upload icon in the toolbar). Can you guide me through the process?`
       )
       setShowChatPanel(true)
-      analytics.track('quick_start_file_action_handled', { fileName })
+      analytics.track('quick_start_file_action_handled', { mode: 'chat' })
     }
   }, [nodes.length])
 
@@ -1704,7 +1711,10 @@ export function getNoodles(): Visualization {
               >
                 <ReactFlowInstanceCapture />
                 <EdgeConnectionSynchronizer />
-                <CanvasDropImport />
+                <CanvasDropImport
+                  pendingFile={pendingImportFile}
+                  onPendingFileHandled={clearPendingImportFile}
+                />
                 <Background />
                 <Controls position="bottom-right" />
                 <BlockLibrary ref={blockLibraryRef} reactFlowRef={reactFlowRef} />

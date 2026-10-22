@@ -1,17 +1,48 @@
 import { useReactFlow } from '@xyflow/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { analytics } from '../../../utils/analytics'
-import { useFileImport } from '../../hooks/use-file-import'
+import { useFileSystemStore } from '../../filesystem-store'
+import { type FileImportResult, useFileImport } from '../../hooks/use-file-import'
 import s from './canvas-drop-import.module.css'
+import { describeDetection } from './detect-coordinates'
 import { extensionOf, IMPORTABLE_EXTENSIONS, isImportable } from './import-pipelines'
+
+interface Notice {
+  tone: 'error' | 'info'
+  text: string
+}
+
+// Tell the user where the points came from, or why there are none, so a CSV that
+// didn't map isn't a silent empty layer
+function detectionNotice({ detection }: FileImportResult): Notice | null {
+  if (!detection || detection.kind === 'geojson') return null
+  if (detection.kind === 'none') {
+    return {
+      tone: 'info',
+      text: `${describeDetection(detection)}. Edit the position Accessor to place the rows.`,
+    }
+  }
+  return { tone: 'info', text: describeDetection(detection) }
+}
+
+interface CanvasDropImportProps {
+  // A file handed over from the quick start dialog, imported once a project is loaded
+  pendingFile?: File | null
+  onPendingFileHandled?: () => void
+}
 
 // Drop a data file anywhere on the graph canvas to build its pipeline, without
 // opening the Import Data dialog first. The pipeline lands where the file was
 // dropped. Listeners are on the window so a drop over a node still counts.
-export function CanvasDropImport() {
-  const { screenToFlowPosition } = useReactFlow()
+export function CanvasDropImport({ pendingFile, onPendingFileHandled }: CanvasDropImportProps) {
+  const { screenToFlowPosition, getNodes } = useReactFlow()
   const [state, setState] = useState<'idle' | 'active' | 'importing'>('idle')
-  const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<Notice | null>(null)
+  const setError = useCallback(
+    (text: string | null) => setNotice(text ? { tone: 'error', text } : null),
+    []
+  )
+  const currentProjectName = useFileSystemStore(state => state.currentProjectName)
 
   // dragenter/dragleave fire per element as the cursor moves over children, so
   // count them rather than clearing the highlight on the first leave
@@ -84,11 +115,12 @@ export function CanvasDropImport() {
       const dropPosition = getBasePosition(event)
       try {
         for (const [index, file] of supported.entries()) {
-          await importFile(
+          const result = await importFile(
             file,
             { x: dropPosition.x, y: dropPosition.y + index * 700 },
             'canvas_drop'
           )
+          setNotice(detectionNotice(result))
         }
         const skipped = files.length - supported.length
         if (skipped > 0) {
@@ -123,14 +155,38 @@ export function CanvasDropImport() {
       window.removeEventListener('dragleave', onDragLeave)
       window.removeEventListener('drop', onDrop)
     }
-  }, [getBasePosition, importFile])
+  }, [getBasePosition, importFile, setError])
 
-  // Clear the error banner on its own so it can't linger over the graph
+  // Import the quick start file into the project that was opened for it. Placed to
+  // the left of the existing renderer so its edges run left to right.
   useEffect(() => {
-    if (!error) return
-    const timer = setTimeout(() => setError(null), 6000)
+    if (!pendingFile || !currentProjectName) return
+    onPendingFileHandled?.()
+    const renderer = getNodes().find(node => node.type === 'DeckRendererOp')
+    const position = renderer
+      ? { x: renderer.position.x - 1000, y: renderer.position.y }
+      : getBasePosition()
+    setState('importing')
+    importFile(pendingFile, position, 'quickstart')
+      .then(result => setNotice(detectionNotice(result)))
+      .catch(err => setError(err instanceof Error ? err.message : 'Failed to import file'))
+      .finally(() => setState('idle'))
+  }, [
+    pendingFile,
+    currentProjectName,
+    onPendingFileHandled,
+    getNodes,
+    getBasePosition,
+    importFile,
+    setError,
+  ])
+
+  // Clear the banner on its own so it can't linger over the graph
+  useEffect(() => {
+    if (!notice) return
+    const timer = setTimeout(() => setNotice(null), 6000)
     return () => clearTimeout(timer)
-  }, [error])
+  }, [notice])
 
   return (
     <>
@@ -152,11 +208,16 @@ export function CanvasDropImport() {
           </div>
         </div>
       )}
-      {error && (
-        <div className={s.error}>
-          <i className="pi pi-exclamation-triangle" />
-          <span>{error}</span>
-          <button type="button" className={s.errorClose} onClick={() => setError(null)}>
+      {notice && (
+        <div
+          className={notice.tone === 'info' ? `${s.error} ${s.info}` : s.error}
+          role={notice.tone === 'error' ? 'alert' : 'status'}
+        >
+          <i
+            className={notice.tone === 'info' ? 'pi pi-map-marker' : 'pi pi-exclamation-triangle'}
+          />
+          <span>{notice.text}</span>
+          <button type="button" className={s.errorClose} onClick={() => setNotice(null)}>
             <i className="pi pi-times" />
           </button>
         </div>

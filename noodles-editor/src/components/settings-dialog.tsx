@@ -663,6 +663,10 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
                           Runs on this machine's GPU. No account, no key, and no prompt ever leaves
                           the browser — in exchange for a one-time download of a gigabyte or more.
                         </div>
+                        <div className={s.providerOptionDescription}>
+                          Slower: 10 seconds to a minute per answer, and best at questions and small
+                          edits. The hosted providers above answer in seconds.
+                        </div>
                         {webgpuReady === false ? (
                           <div className={s.providerOptionDescription}>
                             Unavailable: this browser does not offer WebGPU. Chrome and Edge do.
@@ -711,6 +715,9 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
                         <div className={s.providerOptionTitle}>Chrome Built-in AI</div>
                         <div className={s.providerOptionDescription}>
                           Free, runs locally, no API key (Chrome 127+ required)
+                        </div>
+                        <div className={s.providerOptionDescription}>
+                          Slower than a hosted provider, and best at questions and single edits.
                         </div>
                       </div>
                     </label>
