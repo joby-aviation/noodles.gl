@@ -34,7 +34,7 @@ a speed the user can change.
 ## Prompt (verbatim)
 
 > Using the flight export at `noodles-editor/src/examples/flight-route/flights.csv`,
-> show flight FLT-1018 (West 30th Street to East Hampton on 2026-10-16) as an
+> show flight FLT-1018 (Manhattan to eastern Long Island on 2026-10-16) as an
 > animated route that draws itself along the flight path, and give me a
 > control to adjust the playback speed. Save it as a Noodles project at
 > `noodles-editor/src/examples/flight-route/noodles.json` so I can open it at

@@ -1,13 +1,13 @@
-// map-flights-last-week: a map of last week's New York Blade flights from the
-// made-up flights export. The filter is the task: the rendered layers must
-// receive exactly the 12 target flights, measured in the loaded app (the
-// frozen get_node_output probe), not inferred from the query text. A filter
-// can be SQL, a CodeOp, or an accessor, and only the runtime data says
+// map-flights-last-week: a map of last week's helicopter flights around New
+// York from the made-up flights export. The filter is the task: the rendered
+// layers must receive exactly the 12 target flights, measured in the loaded
+// app (the frozen get_node_output probe), not inferred from the query text. A
+// filter can be SQL, a CodeOp, or an accessor, and only the runtime data says
 // whether it worked.
 
 import {
   describeSetDiff,
-  expectedLastWeekNewYorkBlade,
+  expectedLastWeekNewYorkHelicopters,
   flightsSeen,
   renderedLayerIds,
 } from './flight-fixture'
@@ -39,7 +39,7 @@ export function customChecks(ctx: CheckContext): Record<string, CheckResult> {
   }
 
   if (!nodeOutputs) {
-    checks['renders-exactly-last-weeks-ny-blade-flights'] = {
+    checks['renders-exactly-last-weeks-ny-helicopter-flights'] = {
       pass: false,
       detail: 'no runtime probe (project did not load, or WebMCP tools never registered)',
     }
@@ -47,9 +47,9 @@ export function customChecks(ctx: CheckContext): Record<string, CheckResult> {
   }
   const probed = layers.map(id => nodeOutputs[id])
   const { flights, via } = flightsSeen(probed)
-  const expected = expectedLastWeekNewYorkBlade()
+  const expected = expectedLastWeekNewYorkHelicopters()
   const exact = flights.size === expected.size && [...expected].every(id => flights.has(id))
-  checks['renders-exactly-last-weeks-ny-blade-flights'] = {
+  checks['renders-exactly-last-weeks-ny-helicopter-flights'] = {
     pass: exact,
     detail: `via ${via}: ${describeSetDiff(flights, expected)}`,
   }

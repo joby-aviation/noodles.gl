@@ -38,10 +38,10 @@ it was pulled, which is what a tool result would carry.
 
 ## Prompt (verbatim)
 
-> Map of last week's New York Blade flights.
+> Map of last week's helicopter flights around New York.
 >
-> Our flight-data tool isn't connected in this environment, so I exported its
-> results for you: the last two weeks of flights, pulled Monday 2026-10-19,
+> The flight-data service isn't connected in this environment, so its results
+> were exported for you: the last two weeks of flights, pulled Monday 2026-10-19,
 > are in `noodles-editor/src/examples/ny-flights/flights.csv`. Build the map
 > as a Noodles project at `noodles-editor/src/examples/ny-flights/noodles.json`
 > so I can open it in the editor at `/examples/ny-flights`.
@@ -60,15 +60,17 @@ it was pulled, which is what a tool result would carry.
 
 ## The fixture
 
-577 position samples (every 30 s) for 24 flights, columns
-`flight_id,operator,timestamp,lng,lat,alt_m,origin,destination`.
+589 position samples (every 30 s) for 24 flights, columns
+`flight_id,aircraft,timestamp,lng,lat,alt_m,origin,destination`.
+Site codes `NYHP` (Manhattan heliport), `EEND` (eastern Long Island), and
+`XFLD` (a field outside the region) are made up.
 
 | Flights | Why they are there |
 |---|---|
-| 12 Blade flights, New York, 2026-10-12 to 10-18 | the target set |
-| 6 Blade flights, New York, the week before | "last week" |
-| 3 Blade flights, Nice to Monaco, last week | "New York" |
-| 3 Joby flights last week, one of them JFK to JRA | "Blade" |
+| 12 helicopter flights, New York, 2026-10-12 to 10-18 | the target set |
+| 6 helicopter flights, New York, the week before | "last week" |
+| 3 helicopter flights, Nice to Monaco, last week | "New York" |
+| 3 airplane flights last week, one of them JFK to HPN | "helicopter" |
 
 Every departure is between 12:00 and 23:00 UTC, so the UTC and New York
 calendar days agree: a calendar week (Mon 10-12 to Sun 10-18) and a rolling

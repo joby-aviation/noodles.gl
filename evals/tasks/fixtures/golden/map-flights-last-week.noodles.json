@@ -17,17 +17,17 @@
       }
     },
     {
-      "id": "/last-week-ny-blade",
+      "id": "/last-week-ny-helicopters",
       "type": "CodeOp",
       "data": {
         "inputs": {
           "code": [
             "// Last week = Mon 2026-10-12 to Sun 2026-10-18 (the export was pulled Mon 10-19)",
-            "const NY = new Set(['JRA', 'JRB', 'JFK', 'EWR', 'LGA', 'HPN', 'HTO'])",
+            "const NY = new Set(['NYHP', 'JFK', 'EWR', 'LGA', 'HPN', 'EEND'])",
             "// FileOp's autoType turns ISO timestamps into Dates",
             "const day = r => new Date(r.timestamp).toISOString().slice(0, 10)",
             "const rows = d.filter(r =>",
-            "  r.operator === 'Blade' &&",
+            "  r.aircraft === 'helicopter' &&",
             "  day(r) >= '2026-10-12' && day(r) <= '2026-10-18' &&",
             "  (NY.has(r.origin) || NY.has(r.destination))",
             ")",
@@ -110,15 +110,15 @@
   ],
   "edges": [
     {
-      "id": "/flights-export.out.data->/last-week-ny-blade.par.data",
+      "id": "/flights-export.out.data->/last-week-ny-helicopters.par.data",
       "source": "/flights-export",
       "sourceHandle": "out.data",
-      "target": "/last-week-ny-blade",
+      "target": "/last-week-ny-helicopters",
       "targetHandle": "par.data"
     },
     {
-      "id": "/last-week-ny-blade.out.data->/route-layer.par.data",
-      "source": "/last-week-ny-blade",
+      "id": "/last-week-ny-helicopters.out.data->/route-layer.par.data",
+      "source": "/last-week-ny-helicopters",
       "sourceHandle": "out.data",
       "target": "/route-layer",
       "targetHandle": "par.data"

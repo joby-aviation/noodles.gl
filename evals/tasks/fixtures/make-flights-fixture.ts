@@ -9,12 +9,13 @@
 // byte for byte. Changing the output is a task change for both tasks (07 D7).
 //
 // Shape: one row per position sample, every 30 s.
-//   flight_id,operator,timestamp,lng,lat,alt_m,origin,destination
+//   flight_id,aircraft,timestamp,lng,lat,alt_m,origin,destination
 // The export is "pulled Monday 2026-10-19", so "last week" is 2026-10-12
 // through 2026-10-18. All departures are 12:00-23:00 UTC (8am-7pm New York
 // time), so the UTC and local calendar day agree and either reading of "last
-// week" selects the same flights. Distractors: the week before, Blade flights
-// outside New York, and another operator's flights inside New York.
+// week" selects the same flights. Distractors: the week before, helicopter
+// flights outside New York, and airplane flights, one of them inside New York.
+// Site codes NYHP, EEND, and XFLD are made up.
 // Each flight's path bows by its own seeded amount, so its interior samples
 // fingerprint it even when a session drops the flight_id column.
 
@@ -23,46 +24,46 @@ import * as path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 export const SITES: Record<string, [number, number]> = {
-  JRA: [-74.009, 40.7546], // West 30th Street Heliport
+  NYHP: [-74.009, 40.7546], // Manhattan heliport
   JFK: [-73.7781, 40.6413],
   EWR: [-74.1745, 40.6895],
   HPN: [-73.7076, 41.067],
-  HTO: [-72.2518, 40.9596], // East Hampton
+  EEND: [-72.2518, 40.9596], // eastern Long Island
   NCE: [7.2159, 43.6584], // Nice
   MCM: [7.4197, 43.7262], // Monaco heliport
-  OAR: [-121.7634, 36.6819], // Marina, CA
+  XFLD: [-89.6501, 39.8442], // training field, outside the region
 }
 
-// [operator, origin, destination, departure (UTC)]
+// [aircraft, origin, destination, departure (UTC)]
 const SCHEDULE: Array<[string, string, string, string]> = [
-  // week before (2026-10-05 to 2026-10-11): Blade, New York
-  ['Blade', 'JRA', 'JFK', '2026-10-05T13:20:00Z'],
-  ['Blade', 'EWR', 'JRA', '2026-10-06T16:05:00Z'],
-  ['Blade', 'JRA', 'HPN', '2026-10-07T21:40:00Z'],
-  ['Blade', 'JRA', 'HTO', '2026-10-09T19:10:00Z'],
-  ['Blade', 'HTO', 'JRA', '2026-10-11T20:30:00Z'],
-  ['Blade', 'JFK', 'JRA', '2026-10-11T22:00:00Z'],
-  // last week (2026-10-12 to 2026-10-18): Blade, New York (the target set)
-  ['Blade', 'JRA', 'JFK', '2026-10-12T13:10:00Z'],
-  ['Blade', 'JFK', 'JRA', '2026-10-12T14:05:00Z'],
-  ['Blade', 'JRA', 'EWR', '2026-10-13T15:30:00Z'],
-  ['Blade', 'JRA', 'JFK', '2026-10-14T12:40:00Z'],
-  ['Blade', 'HPN', 'JRA', '2026-10-15T13:00:00Z'],
-  ['Blade', 'JRA', 'HPN', '2026-10-15T21:15:00Z'],
-  ['Blade', 'JRA', 'HTO', '2026-10-16T19:00:00Z'],
-  ['Blade', 'HTO', 'JRA', '2026-10-17T14:30:00Z'],
-  ['Blade', 'JRA', 'EWR', '2026-10-17T16:45:00Z'],
-  ['Blade', 'JRA', 'JFK', '2026-10-18T17:20:00Z'],
-  ['Blade', 'EWR', 'JRA', '2026-10-18T18:05:00Z'],
-  ['Blade', 'JFK', 'JRA', '2026-10-18T22:10:00Z'],
-  // last week: Blade outside New York
-  ['Blade', 'NCE', 'MCM', '2026-10-14T12:00:00Z'],
-  ['Blade', 'MCM', 'NCE', '2026-10-14T13:30:00Z'],
-  ['Blade', 'NCE', 'MCM', '2026-10-17T12:15:00Z'],
-  // last week: another operator, one of them inside New York
-  ['Joby', 'JFK', 'JRA', '2026-10-15T15:00:00Z'],
-  ['Joby', 'OAR', 'OAR', '2026-10-13T17:00:00Z'],
-  ['Joby', 'OAR', 'OAR', '2026-10-16T18:30:00Z'],
+  // week before (2026-10-05 to 2026-10-11): helicopter, New York
+  ['helicopter', 'NYHP', 'JFK', '2026-10-05T13:20:00Z'],
+  ['helicopter', 'EWR', 'NYHP', '2026-10-06T16:05:00Z'],
+  ['helicopter', 'NYHP', 'HPN', '2026-10-07T21:40:00Z'],
+  ['helicopter', 'NYHP', 'EEND', '2026-10-09T19:10:00Z'],
+  ['helicopter', 'EEND', 'NYHP', '2026-10-11T20:30:00Z'],
+  ['helicopter', 'JFK', 'NYHP', '2026-10-11T22:00:00Z'],
+  // last week (2026-10-12 to 2026-10-18): helicopter, New York (the target set)
+  ['helicopter', 'NYHP', 'JFK', '2026-10-12T13:10:00Z'],
+  ['helicopter', 'JFK', 'NYHP', '2026-10-12T14:05:00Z'],
+  ['helicopter', 'NYHP', 'EWR', '2026-10-13T15:30:00Z'],
+  ['helicopter', 'NYHP', 'JFK', '2026-10-14T12:40:00Z'],
+  ['helicopter', 'HPN', 'NYHP', '2026-10-15T13:00:00Z'],
+  ['helicopter', 'NYHP', 'HPN', '2026-10-15T21:15:00Z'],
+  ['helicopter', 'NYHP', 'EEND', '2026-10-16T19:00:00Z'],
+  ['helicopter', 'EEND', 'NYHP', '2026-10-17T14:30:00Z'],
+  ['helicopter', 'NYHP', 'EWR', '2026-10-17T16:45:00Z'],
+  ['helicopter', 'NYHP', 'JFK', '2026-10-18T17:20:00Z'],
+  ['helicopter', 'EWR', 'NYHP', '2026-10-18T18:05:00Z'],
+  ['helicopter', 'JFK', 'NYHP', '2026-10-18T22:10:00Z'],
+  // last week: helicopter outside New York
+  ['helicopter', 'NCE', 'MCM', '2026-10-14T12:00:00Z'],
+  ['helicopter', 'MCM', 'NCE', '2026-10-14T13:30:00Z'],
+  ['helicopter', 'NCE', 'MCM', '2026-10-17T12:15:00Z'],
+  // last week: airplane, one of them inside New York
+  ['airplane', 'JFK', 'HPN', '2026-10-15T15:00:00Z'],
+  ['airplane', 'XFLD', 'XFLD', '2026-10-13T17:00:00Z'],
+  ['airplane', 'XFLD', 'XFLD', '2026-10-16T18:30:00Z'],
 ]
 
 const SAMPLE_SECONDS = 30
@@ -91,14 +92,14 @@ function distanceMeters([lng1, lat1]: [number, number], [lng2, lat2]: [number, n
 
 export function generateRows(): string[] {
   const rand = mulberry32(20261019)
-  const flights = SCHEDULE.map(([operator, origin, destination, departure]) => ({
-    operator,
+  const flights = SCHEDULE.map(([aircraft, origin, destination, departure]) => ({
+    aircraft,
     origin,
     destination,
     departure,
   })).sort((a, b) => a.departure.localeCompare(b.departure))
 
-  const rows = ['flight_id,operator,timestamp,lng,lat,alt_m,origin,destination']
+  const rows = ['flight_id,aircraft,timestamp,lng,lat,alt_m,origin,destination']
   flights.forEach((f, i) => {
     const id = `FLT-${1001 + i}`
     const from = SITES[f.origin]
@@ -129,7 +130,7 @@ export function generateRows(): string[] {
       rows.push(
         [
           id,
-          f.operator,
+          f.aircraft,
           timestamp,
           lng.toFixed(6),
           lat.toFixed(6),

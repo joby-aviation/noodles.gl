@@ -16,14 +16,14 @@ import { TASKS_ROOT } from '../config'
 import type { ProjectJson } from './types'
 
 export const FLIGHTS_FIXTURE = 'fixtures/flights-fixture.csv'
-export const NEW_YORK_SITES = new Set(['JRA', 'JRB', 'JFK', 'EWR', 'LGA', 'HPN', 'HTO'])
+export const NEW_YORK_SITES = new Set(['NYHP', 'JFK', 'EWR', 'LGA', 'HPN', 'EEND'])
 // The export is pulled Monday 2026-10-19; "last week" is Mon 10-12 to Sun 10-18.
 export const LAST_WEEK = { start: '2026-10-12', endExclusive: '2026-10-19' }
 export const ROUTE_FLIGHT_ID = 'FLT-1018'
 
 export interface FixtureFlight {
   id: string
-  operator: string
+  aircraft: string
   origin: string
   destination: string
   departure: string
@@ -45,7 +45,7 @@ export function fixtureFlights(): Map<string, FixtureFlight> {
     if (!flight) {
       flight = {
         id,
-        operator: cells[col('operator')],
+        aircraft: cells[col('aircraft')],
         origin: cells[col('origin')],
         destination: cells[col('destination')],
         departure: cells[col('timestamp')],
@@ -59,13 +59,13 @@ export function fixtureFlights(): Map<string, FixtureFlight> {
   return flights
 }
 
-export function expectedLastWeekNewYorkBlade(): Set<string> {
+export function expectedLastWeekNewYorkHelicopters(): Set<string> {
   const ids = new Set<string>()
   for (const f of fixtureFlights().values()) {
     const day = f.departure.slice(0, 10)
     const inWeek = day >= LAST_WEEK.start && day < LAST_WEEK.endExclusive
     const inNewYork = NEW_YORK_SITES.has(f.origin) || NEW_YORK_SITES.has(f.destination)
-    if (f.operator === 'Blade' && inWeek && inNewYork) ids.add(f.id)
+    if (f.aircraft === 'helicopter' && inWeek && inNewYork) ids.add(f.id)
   }
   return ids
 }
@@ -169,7 +169,19 @@ export function renderedLayerIds(project: ProjectJson): string[] {
     .map(n => n.id as string)
 }
 
-const REF_RES = [/op\(\s*['"]([^'"]+)['"]\s*\)/g, /\{\{\s*([^}.\s]+(?:\/[^}.\s]+)*)\./g]
+// op('/path') and {{/path.par.x}} references. The mustache path is one run of
+// non-delimiter characters (slashes included) up to the first '.': a single
+// character class with no nested quantifier, so it cannot backtrack
+// exponentially on a long unterminated '{{a/a/a/...' (CodeQL js/redos). '{' is
+// excluded too, so a run of '{{{{...' fails at each start in constant time.
+const REF_RES = [/op\(\s*['"]([^'"]+)['"]\s*\)/g, /\{\{\s*([^{}.\s]+)\./g]
+
+/** Raw paths named by op()/mustache references in a text, in match order. */
+export function referencedPaths(text: string): string[] {
+  const paths: string[] = []
+  for (const re of REF_RES) for (const m of text.matchAll(re)) paths.push(m[1])
+  return paths
+}
 
 /** Every node an input depends on: upstream edges, op()/mustache references
  * in upstream inputs, and the children of any container on the way. */
@@ -210,15 +222,12 @@ function references(value: unknown, fromId: string, ids: Set<string>): string[] 
   if (!text) return []
   const container = fromId.split('/').slice(0, -1).join('/')
   const found: string[] = []
-  for (const re of REF_RES) {
-    for (const m of text.matchAll(re)) {
-      const raw = m[1]
-      const candidates = raw.startsWith('/')
-        ? [raw]
-        : [`${container}/${raw.replace(/^\.\//, '')}`, `/${raw.replace(/^\.\//, '')}`]
-      const hit = candidates.find(c => ids.has(c))
-      if (hit) found.push(hit)
-    }
+  for (const raw of referencedPaths(text)) {
+    const candidates = raw.startsWith('/')
+      ? [raw]
+      : [`${container}/${raw.replace(/^\.\//, '')}`, `/${raw.replace(/^\.\//, '')}`]
+    const hit = candidates.find(c => ids.has(c))
+    if (hit) found.push(hit)
   }
   return found
 }

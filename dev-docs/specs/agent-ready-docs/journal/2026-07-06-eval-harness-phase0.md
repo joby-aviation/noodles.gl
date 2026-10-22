@@ -668,10 +668,10 @@ fixes carry the container idiom without the stack.
 
 Three tasks for user flows the suite had no coverage for, stacked on this branch:
 
-- **`map-flights-last-week`**: "Map of last week's New York Blade flights." The data comes from
+- **`map-flights-last-week`**: "Map of last week's helicopter flights around New York." The data comes from
   a made-up fixture (`tasks/fixtures/flights-fixture.csv`, written by a seeded generator) standing
   in for a flight-data tool's export: 24 flights, 12 of them the target set, with distractors for
-  each word of the ask (the week before, Blade outside New York, another operator inside New York).
+  each word of the ask (the week before, helicopters outside New York, an airplane inside New York).
 - **`animate-flight-route`**: one flight from the same fixture as a TripsLayer route that animates,
   with a speed control.
 - **`quick-start-screenshot`**: the quick-start prompt, pasted into a session that starts in an
