@@ -106,36 +106,13 @@ npm test -- --coverage
 # Run only the Node tests for CLI scripts
 npm test -- --project node
 
-# Run smoke tests (E2E rendering tests)
-npm test smoke-test
-
 # Run performance tests
 npm test export-performance
 ```
 
 ## Testing Rendering and Video Export
 
-The rendering pipeline is critical for video export performance. We have comprehensive tests to ensure the 8.6x speedup optimization (MapLibre render event vs onIdle) works correctly and doesn't regress.
-
-### Smoke Tests
-
-**File:** `noodles-editor/src/render/smoke-test.test.ts`
-
-Validates basic rendering functionality:
-- Loads example projects and creates operators
-- Verifies connections between operators
-- Tests MapLibre basemap integration
-- Tests Deck.gl-only scenes (without basemap)
-
-```bash
-npm test smoke-test
-```
-
-**What these tests cover:**
-- Project loading and operator instantiation
-- Data connections and subscriptions
-- Input value initialization
-- Error handling for invalid operators
+Tests for the rendering pipeline live in `noodles-editor/src/render/`.
 
 ### Performance Tests
 
@@ -167,11 +144,6 @@ localStorage.debug = 'noodles:render*'
 
 ### What to Look For in Test Failures
 
-**Smoke test failures:**
-- Check if operators are registered in `opTypes`
-- Verify edge connection format (sourceHandle/targetHandle)
-- Ensure operator input fields exist and match project data
-
 **Performance test failures:**
 - `OutOp` render settings changed → update the settings tests
 
@@ -180,9 +152,8 @@ localStorage.debug = 'noodles:render*'
 When modifying the rendering pipeline:
 
 1. **Add unit tests** for logic changes (e.g., new timing calculations)
-2. **Update smoke tests** if operator behavior changes
-3. **Add performance tests** for new optimization strategies
-4. **Document expected timing** in test comments
+2. **Add performance tests** for new optimization strategies
+3. **Document expected timing** in test comments
 
 **Example test structure:**
 ```typescript
