@@ -193,4 +193,20 @@ describe('KeyboardManager', () => {
 
     expect(handler).not.toHaveBeenCalled()
   })
+
+  it('should use shared input detection utility', () => {
+    const handler = vi.fn()
+    keyboardManager.register('a', handler)
+
+    // Test that it correctly identifies and blocks input elements
+    const input = document.createElement('input')
+    document.body.appendChild(input)
+
+    const event = new KeyboardEvent('keyup', { key: 'a', bubbles: true })
+    input.dispatchEvent(event)
+
+    expect(handler).not.toHaveBeenCalled()
+
+    document.body.removeChild(input)
+  })
 })

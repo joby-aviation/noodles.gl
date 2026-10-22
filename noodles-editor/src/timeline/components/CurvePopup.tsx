@@ -26,7 +26,7 @@ export interface CurvePopupProps {
 }
 
 const POPUP_WIDTH = 420
-const POPUP_HEIGHT = 300
+const POPUP_HEIGHT = 360
 const CURVE_WIDTH = 240
 const CURVE_HEIGHT = 200
 
@@ -117,10 +117,10 @@ function InlineCurveEditor({
       x: (px - pad) / (w - pad * 2),
       y: (h - pad - py) / (h - pad * 2),
     }),
-    [h, w]
+    []
   )
 
-  const curvePath = useMemo(() => generatePath(handles, w, h, pad), [handles, h, w])
+  const curvePath = useMemo(() => generatePath(handles, w, h, pad), [handles])
   const start = toPixel(0, 0)
   const end = toPixel(1, 1)
   const lh = toPixel(handles.left[0], handles.left[1])

@@ -51,7 +51,7 @@ describe('Graph Execution E2E', () => {
       },
     ]
 
-    const operators = transformGraph({ nodes, edges })
+    const { operators } = transformGraph({ nodes, edges })
 
     // Verify all operators created
     expect(operators).toHaveLength(3)
@@ -174,7 +174,7 @@ describe('Graph Execution E2E', () => {
       },
     ]
 
-    const operators = transformGraph({ nodes, edges })
+    const { operators } = transformGraph({ nodes, edges })
 
     expect(operators).toHaveLength(4)
 

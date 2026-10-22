@@ -13,7 +13,7 @@ import { useCallback, useRef } from 'react'
 import { analytics } from '../../utils/analytics'
 import type { ConnectionDragState } from '../store'
 import { getNodeCenter, pointToLineDistance } from '../utils/edge-geometry'
-import { EdgeSpatialIndex } from '../utils/spatial-index'
+import type { EdgeSpatialIndex } from '../utils/spatial-index'
 
 // Distance threshold in pixels for considering a drop position "on" an edge
 const EDGE_DROP_THRESHOLD = 50

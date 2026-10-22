@@ -14,7 +14,6 @@ import {
   Controls,
   ReactFlow,
   type ReactFlowInstance,
-  reconnectEdge,
   useEdgesState,
   useNodesState,
   useReactFlow,
@@ -25,11 +24,23 @@ import type { LayerExtension } from 'deck.gl'
 import * as deck from 'deck.gl'
 import type { JSZipObject } from 'jszip'
 import { PrimeReactProvider } from 'primereact/api'
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react'
 import { useLocation, useParams } from 'wouter'
 import { globalContextManager } from '../ai-chat/global-context-manager'
+import type { NoodlesProject } from '../ai-chat/types'
 import { getPendingQuickStartAction } from '../components/quick-start-modal'
 import { analytics } from '../utils/analytics'
+import { setCurrentProject, setModificationApplier } from '../webmcp/bridge'
+import { agentBench, externalControl } from './globals'
 import { getKeysForProject, getKeysStore } from './keys-store'
 import newProjectJSON from './new.json'
 import { BitmapOverlayWidget, type BitmapOverlayWidgetProps } from './widgets/bitmap-overlay-widget'
@@ -56,6 +67,8 @@ import { CopyControls, type CopyControlsRef } from './components/copy-controls'
 import { NodeInfoOverlay, ViewportInfoPanel } from './components/devtools'
 import { ErrorBoundary } from './components/error-boundary'
 import { ExampleNotFoundDialog } from './components/example-not-found-dialog'
+import { type GraphError, GraphErrorDialog } from './components/graph-error-dialog'
+import { LayerPanel } from './components/layer-panel'
 import { PropertyPanel } from './components/node-properties'
 import { NodeTreeSidebar } from './components/node-tree-sidebar'
 import { edgeComponents, nodeComponents } from './components/op-components'
@@ -63,15 +76,19 @@ import { ParameterEditorDialog } from './components/parameter-editor-dialog'
 import { ProjectNotFoundDialog } from './components/project-not-found-dialog'
 import { RenameDialog } from './components/rename-dialog'
 import { SaveAsDialog } from './components/save-as-dialog'
+import { SidebarTabs } from './components/sidebar-tabs'
 import { StorageErrorHandler } from './components/storage-error-handler'
+import { CanvasDropImport } from './components/tools/canvas-drop-import'
 import { UndoRedoHandler, type UndoRedoHandlerRef } from './components/UndoRedoHandler'
+import { ProjectModificationActionsProvider } from './contexts/project-modification-actions-context'
 import { useActiveStorageType, useFileSystemStore } from './filesystem-store'
 import { findEdgeAtPosition, useConnectionDropOnEdge } from './hooks/use-connection-drop-on-edge'
 import { useKeyboardShortcut } from './hooks/use-keyboard-shortcut'
 import { useNodeDropOnEdge } from './hooks/use-node-drop-on-edge'
 import { useProjectModifications } from './hooks/use-project-modifications'
-import type { IOperator, Operator, OutOp } from './operators'
+import type { DeckRendererOp, IOperator, Operator, OutOp } from './operators'
 import { extensionMap } from './operators'
+import { referenceDependencyModel } from './reference-dependencies'
 import {
   copyDataDirectory,
   copyExampleAssetsToMemory,
@@ -79,9 +96,11 @@ import {
   copyPublicFolderData,
   hasDataDirectory,
   load,
+  readMemoryOutputCache,
   save,
 } from './storage'
 import {
+  clearPendingInsertionIndex,
   getOp,
   getOpStore,
   getUIStore,
@@ -91,16 +110,28 @@ import {
 } from './store'
 import { transformGraph } from './transform-graph'
 import { canConnectCached } from './utils/can-connect'
+import { DeckProjectAssetResolver } from './utils/deck-project-asset-resolver'
+import { instantiateDeckView } from './utils/deck-view'
 import { directoryHandleCache } from './utils/directory-handle-cache'
+import { insertUniqueEdge } from './utils/edge-integrity'
 import {
   fileExists,
   requestPermission,
   selectDirectory,
   writeFileToDirectory,
 } from './utils/filesystem'
+import { reconcileForLoopGroups } from './utils/for-loop-group-utils'
 import { edgeId, nodeId } from './utils/id-utils'
+import { shouldBlockKeyboardShortcut } from './utils/input-detection'
 import { generateDraftId, memoryProjectStore } from './utils/memory-project-store'
 import { migrateProject } from './utils/migrate-schema'
+import { normalizeMultiInputEdges } from './utils/multi-input-utils'
+import {
+  CACHE_DIRECTORY_NAME,
+  type OutputCache,
+  serializeOutputCache,
+  writeOutputCache,
+} from './utils/output-cache'
 import { getParentPath, parseHandleId } from './utils/path-utils'
 import { applyOperatorInputs, getLastCommittedBeforeState } from './utils/property-history'
 import {
@@ -191,9 +222,15 @@ export function getNoodles(): Visualization {
     hasDataFiles: boolean
   } | null>(null)
   const [showExampleNotFoundDialog, setShowExampleNotFoundDialog] = useState(false)
+  const [graphErrors, setGraphErrors] = useState<GraphError[]>([])
   const storageType = useActiveStorageType()
-  const { currentDirectory, setCurrentDirectory, setActiveStorageType, setError } =
-    useFileSystemStore()
+  const {
+    currentDirectory,
+    currentProjectName: storedProjectName,
+    setCurrentDirectory,
+    setActiveStorageType,
+    setError,
+  } = useFileSystemStore()
   const timelineStore = getTimelineStore()
   const getTimelineJson = useCallback((): Record<string, unknown> => {
     return timelineStore.toTimelineJSON() as unknown as Record<string, unknown>
@@ -201,23 +238,34 @@ export function getNoodles(): Visualization {
 
   const [nodes, setNodes, onNodesChangeBase] = useNodesState<AnyNodeJSON>([])
   const [edges, setEdges, onEdgesChangeBase] = useEdgesState<ReactFlowEdge<unknown>>([])
+  const referenceEdges = useSyncExternalStore(
+    referenceDependencyModel.subscribe,
+    referenceDependencyModel.getSnapshot,
+    referenceDependencyModel.getSnapshot
+  )
+  const modelEdges = useMemo<ReactFlowEdge[]>(
+    () => [...(edges as ReactFlowEdge[]), ...referenceEdges],
+    [edges, referenceEdges]
+  )
   const [defaultViewport, setDefaultViewport] = useState({ x: 0, y: 0, zoom: 1 })
 
-  // Refs to access current nodes/edges without triggering callback recreations
-  const nodesRef = useRef(nodes)
-  const edgesRef = useRef(edges)
+  useEffect(() => () => referenceDependencyModel.reset(), [])
+
+  useEffect(() => {
+    const inspectedEdge = getUIStore().inspectedReferenceEdge
+    if (inspectedEdge && !referenceEdges.some(edge => edge.id === inspectedEdge.id)) {
+      getUIStore().setInspectedReferenceEdge(null)
+    }
+  }, [referenceEdges])
+
+  // Single ref providing synchronous access to the full graph state.
+  // Used by CopyControls, UndoRedoHandler, and hooks that need all nodes/edges
+  // without triggering re-renders or being limited to the displayed scope.
+  const graphRef = useRef({ nodes, edges })
+  graphRef.current = { nodes, edges }
 
   // Spatial index for fast edge proximity queries (R-tree)
   const spatialIndexRef = useRef<EdgeSpatialIndex | null>(null)
-
-  // Keep refs in sync with state
-  useEffect(() => {
-    nodesRef.current = nodes
-  }, [nodes])
-
-  useEffect(() => {
-    edgesRef.current = edges
-  }, [edges])
 
   // Update spatial index when nodes or edges change
   useEffect(() => {
@@ -226,10 +274,10 @@ export function getNoodles(): Visualization {
     }
 
     // Rebuild index if nodes/edges changed
-    if (spatialIndexRef.current.needsRebuild(nodes, edges)) {
-      spatialIndexRef.current.build(nodes, edges)
+    if (spatialIndexRef.current.needsRebuild(nodes, modelEdges)) {
+      spatialIndexRef.current.build(nodes, modelEdges)
     }
-  }, [nodes, edges])
+  }, [nodes, modelEdges])
   const [showChatPanel, setShowChatPanel] = useState(false)
   const [chatInitialMessage, setChatInitialMessage] = useState<string | undefined>(undefined)
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
@@ -247,6 +295,7 @@ export function getNoodles(): Visualization {
       // Track selection changes
       const selectedChanges = changes.filter(change => change.type === 'select' && change.selected)
       if (selectedChanges.length > 0) {
+        getUIStore().setInspectedReferenceEdge(null)
         analytics.track('node_selected', { count: selectedChanges.length })
       }
 
@@ -331,6 +380,30 @@ export function getNoodles(): Visualization {
     return `${nodeIds}|${edgeIds}`
   }, [nodes, edges])
 
+  // Visual ForLoop groups are derived from the directed Begin-to-End subgraph. Re-run
+  // when connectivity, membership, or measured dimensions change, but not during a drag.
+  const forLoopLayoutKey = useMemo(() => {
+    const nodeState = nodes
+      .map(
+        node =>
+          `${node.id}:${node.type}:${node.parentId ?? ''}:${node.measured?.width ?? ''}x${node.measured?.height ?? ''}`
+      )
+      .sort()
+      .join(',')
+    const connectivity = modelEdges
+      .map(edge => `${edge.source}->${edge.target}`)
+      .sort()
+      .join(',')
+    return `${nodeState}|${connectivity}`
+  }, [nodes, modelEdges])
+
+  // nodes/edges are represented by forLoopLayoutKey; position-only updates intentionally
+  // do not trigger this effect because drag-stop performs the fit once per gesture.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional key-based reconciliation
+  useEffect(() => {
+    setNodes(currentNodes => reconcileForLoopGroups(currentNodes, modelEdges))
+  }, [forLoopLayoutKey, setNodes])
+
   // `transformGraph` needs all nodes to build the opMap and resolve connections
   // Use useEffect instead of useMemo to avoid setState during render
   const [operators, setOperators] = useState<Operator<IOperator>[]>([])
@@ -342,8 +415,24 @@ export function getNoodles(): Visualization {
   useEffect(() => {
     // loadProjectFile already called transformGraph directly, so skip this triggered re-run
     if (isProjectLoadRef.current) return
-    const ops = transformGraph({ nodes, edges })
-    setOperators(ops)
+    const result = transformGraph({ nodes, edges })
+    setOperators(result.operators)
+    // Show error dialog if there are graph errors
+    if (result.errors.length > 0) {
+      setGraphErrors(
+        result.errors.map(e => ({
+          type: e.type,
+          message: e.message,
+        }))
+      )
+    }
+    // Catch-all for multi-input slot caches: re-derive orderIndex/groupSize now that the
+    // operators exist in the store (covers undo/redo restores, keyboard deletes, and AI/paste
+    // paths that added edges before their operators were instantiated). Returns the same
+    // array reference when nothing changed, so this doesn't loop.
+    setEdges(currentEdges =>
+      normalizeMultiInputEdges(currentEdges.filter(edge => edge.type !== 'ReferenceEdge'))
+    )
   }, [graphStructureKey])
 
   // Reset isProjectLoadRef after every render so the flag never gets stuck when
@@ -376,7 +465,9 @@ export function getNoodles(): Visualization {
 
   // Use shared hook for project modifications
   const {
+    applyModifications,
     onConnect: onConnectBase,
+    onReconnect: onReconnectBase,
     onNodesDelete: onNodesDeleteBase,
     updateOperatorId,
   } = useProjectModifications({
@@ -385,6 +476,21 @@ export function getNoodles(): Visualization {
     setNodes,
     setEdges,
   })
+
+  // Keep the WebMCP tool surface in sync with editor state when external
+  // control is enabled (?externalControl=true). The agent benchmark reads and
+  // applies through the same bridge.
+  useEffect(() => {
+    if (!externalControl && !agentBench) return
+    setModificationApplier(applyModifications)
+    return () => setModificationApplier(null)
+  }, [applyModifications])
+
+  useEffect(() => {
+    if (!externalControl && !agentBench) return
+    // ReactFlow edges type sourceHandle as string | null; the project shape uses undefined
+    setCurrentProject({ nodes, edges } as NoodlesProject)
+  }, [nodes, edges])
 
   // Wrap onConnect to mark unsaved changes
   const onConnect = useCallback(
@@ -407,11 +513,19 @@ export function getNoodles(): Visualization {
   // Wrap onReconnect to mark unsaved changes
   const onReconnect = useCallback(
     (oldEdge: ReactFlowEdge, newConnection: Connection) => {
-      setEdges(els => reconnectEdge(oldEdge, newConnection, els))
+      onReconnectBase(oldEdge, newConnection)
       setHasUnsavedChanges(true)
     },
-    [setEdges]
+    [onReconnectBase]
   )
+
+  // Clear any leftover multi-input slot state when a reconnect drag is dropped or cancelled
+  const onReconnectEnd = useCallback(() => {
+    clearPendingInsertionIndex()
+  }, [])
+
+  const spreadsheetVisible = useUIStore(state => state.spreadsheetVisible)
+  const setSpreadsheetVisible = useUIStore(state => state.setSpreadsheetVisible)
 
   // Track connection drag state for dimming unconnectable nodes
   const setConnectionDragState = useUIStore(state => state.setConnectionDragState)
@@ -494,6 +608,9 @@ export function getNoodles(): Visualization {
       onConnectionDropEnd(event, connectionState)
       setConnectionDragState(null)
       setTargetedEdge(null)
+      // Drop any multi-input slot state from a cancelled drag (successful connects
+      // already consumed it in onConnect)
+      clearPendingInsertionIndex()
     },
     [onConnectionDropEnd, setConnectionDragState, setTargetedEdge]
   )
@@ -509,8 +626,8 @@ export function getNoodles(): Visualization {
       const edge = findEdgeAtPosition(
         pos,
         connectionDragState.sourceNodeId,
-        () => nodesRef.current,
-        () => edgesRef.current,
+        () => graphRef.current.nodes,
+        () => graphRef.current.edges,
         connectionDragState.compatibleEdgeIds,
         spatialIndexRef.current || undefined
       )
@@ -525,8 +642,8 @@ export function getNoodles(): Visualization {
 
   // Hook for dropping nodes onto edges to insert them
   const { onNodeDrag: onNodeDragBase, onNodeDragStop: onNodeDragStopBase } = useNodeDropOnEdge({
-    getNodes: useCallback(() => nodesRef.current, []),
-    getEdges: useCallback(() => edgesRef.current, []),
+    getNodes: useCallback(() => graphRef.current.nodes, []),
+    getEdges: useCallback(() => graphRef.current.edges, []),
     setEdges,
   })
 
@@ -542,12 +659,18 @@ export function getNoodles(): Visualization {
   const onNodeDragStop = useCallback(
     (event: React.MouseEvent, node: ReactFlowNode) => {
       const result = onNodeDragStopBase(event, node)
+      setNodes(currentNodes =>
+        reconcileForLoopGroups(currentNodes, [
+          ...graphRef.current.edges,
+          ...referenceDependencyModel.getSnapshot(),
+        ])
+      )
       // Mark as unsaved if a node was inserted into an edge
       if (result) {
         setHasUnsavedChanges(true)
       }
     },
-    [onNodeDragStopBase]
+    [onNodeDragStopBase, setNodes]
   )
 
   const onNodeContextMenu = useCallback(
@@ -565,7 +688,15 @@ export function getNoodles(): Visualization {
   const blockLibraryRef = useRef<BlockLibraryRef>(null)
 
   // Avoid circular dependency
-  const loadProjectFileRef = useRef<(project: NoodlesProjectJSON, name?: string) => void>()
+  const loadProjectFileRef =
+    useRef<
+      (
+        project: NoodlesProjectJSON,
+        name?: string,
+        targetRoutePrefix?: string,
+        outputCache?: OutputCache
+      ) => void
+    >()
 
   const currentProjectRef = useRef<NoodlesProjectJSON>(newProjectJSON)
 
@@ -586,7 +717,23 @@ export function getNoodles(): Visualization {
   const onDeselectAll = useCallback(() => {
     setNodes(nodes => nodes.map(node => ({ ...node, selected: false })))
     setEdges(edges => edges.map(edge => ({ ...edge, selected: false })))
+    getUIStore().setInspectedReferenceEdge(null)
   }, [setNodes, setEdges])
+
+  const onEdgeClick = useCallback(
+    (_event: React.MouseEvent, edge: ReactFlowEdge) => {
+      analytics.track('edge_selected', { type: edge.type ?? 'default' })
+      if (edge.type === 'ReferenceEdge') {
+        onDeselectAll()
+        getUIStore().setInspectedReferenceEdge(
+          referenceEdges.find(referenceEdge => referenceEdge.id === edge.id) ?? edge
+        )
+      } else {
+        getUIStore().setInspectedReferenceEdge(null)
+      }
+    },
+    [onDeselectAll, referenceEdges]
+  )
 
   const onPaneClick = useCallback(() => {
     blockLibraryRef.current?.closeModal()
@@ -604,95 +751,58 @@ export function getNoodles(): Visualization {
 
   // Handle 'v' keyup to create ViewerOp (momentary button behavior)
   useKeyboardShortcut('v', () => {
+    const currentNodes = graphRef.current.nodes
+    const hoveredHandle = getUIStore().hoveredOutputHandle
+    let sourceNode: ReactFlowNode | undefined
+    let sourceHandle: string | null = null
+
+    // Priority 1: If hovering over ANY output handle, use that
+    if (hoveredHandle?.handleId.startsWith('out.')) {
+      sourceNode = currentNodes.find(node => node.id === hoveredHandle.nodeId)
+      sourceHandle = sourceNode ? hoveredHandle.handleId : null
+    }
+
+    // Priority 2: If nodes are selected, use rightmost selected node
+    if (!sourceNode) {
+      const selectedNodes = currentNodes.filter(node => node.selected)
+      if (selectedNodes.length === 0) return
+
+      sourceNode = selectedNodes.reduce((rightmost, node) =>
+        node.position.x > rightmost.position.x ? node : rightmost
+      )
+      const sourceOp = getOpStore().getOp(sourceNode.id)
+      const firstOutputKey = sourceOp && Object.keys(sourceOp.outputs)[0]
+      sourceHandle = firstOutputKey ? `out.${firstOutputKey}` : null
+    }
+
+    const viewerId = nodeId('viewer', currentContainerId)
+    const viewerNode: AnyNodeJSON = {
+      id: viewerId,
+      type: 'ViewerOp',
+      position: calculateViewerPosition(sourceNode, currentNodes),
+      data: undefined,
+    }
+
+    setNodes(nodes => (nodes.some(node => node.id === viewerId) ? nodes : [...nodes, viewerNode]))
+
+    if (sourceHandle) {
+      const targetHandle = 'par.data'
+      const newEdge: ReactFlowEdge = {
+        id: edgeId({
+          source: sourceNode.id,
+          sourceHandle,
+          target: viewerId,
+          targetHandle,
+        }),
+        source: sourceNode.id,
+        sourceHandle,
+        target: viewerId,
+        targetHandle,
+      }
+      setEdges(edges => normalizeMultiInputEdges(insertUniqueEdge(edges, newEdge)))
+    }
+
     analytics.track('viewer_created', { method: 'keyboard' })
-
-    setNodes(currentNodes => {
-      const selectedNodes = currentNodes.filter(n => n.selected)
-      const opStore = getOpStore()
-      const uiStore = getUIStore()
-      const hoveredHandle = uiStore.hoveredOutputHandle
-
-      // Priority 1: If hovering over ANY output handle, use that
-      if (hoveredHandle?.handleId.startsWith('out.')) {
-        const hoveredNode = currentNodes.find(n => n.id === hoveredHandle.nodeId)
-        if (hoveredNode) {
-          const newViewerPosition = calculateViewerPosition(hoveredNode, currentNodes)
-          const viewerId = nodeId('viewer', currentContainerId)
-
-          const viewerNode: AnyNodeJSON = {
-            id: viewerId,
-            type: 'ViewerOp',
-            position: newViewerPosition,
-            data: undefined,
-          }
-
-          const sourceHandle = hoveredHandle.handleId
-          const targetHandle = 'par.data'
-          const newEdge = {
-            id: edgeId({
-              source: hoveredHandle.nodeId,
-              sourceHandle,
-              target: viewerId,
-              targetHandle,
-            }),
-            source: hoveredHandle.nodeId,
-            sourceHandle,
-            target: viewerId,
-            targetHandle,
-          }
-
-          setEdges(currentEdges => [...currentEdges, newEdge])
-          return [...currentNodes, viewerNode]
-        }
-      }
-
-      // Priority 2: If nodes are selected, use rightmost selected node
-      if (selectedNodes.length > 0) {
-        const rightmostNode = selectedNodes.reduce((rightmost, node) => {
-          return node.position.x > rightmost.position.x ? node : rightmost
-        }, selectedNodes[0])
-
-        const sourceOp = opStore.getOp(rightmostNode.id)
-        let sourceHandle: string | null = null
-        if (sourceOp) {
-          const firstOutputKey = Object.keys(sourceOp.outputs)[0]
-          if (firstOutputKey) {
-            sourceHandle = `out.${firstOutputKey}`
-          }
-        }
-
-        const newViewerPosition = calculateViewerPosition(rightmostNode, currentNodes)
-        const viewerId = nodeId('viewer', currentContainerId)
-
-        const viewerNode: AnyNodeJSON = {
-          id: viewerId,
-          type: 'ViewerOp',
-          position: newViewerPosition,
-          data: undefined,
-        }
-
-        if (sourceHandle) {
-          const targetHandle = 'par.data'
-          const newEdge = {
-            id: edgeId({
-              source: rightmostNode.id,
-              sourceHandle,
-              target: viewerId,
-              targetHandle,
-            }),
-            source: rightmostNode.id,
-            sourceHandle,
-            target: viewerId,
-            targetHandle,
-          }
-          setEdges(currentEdges => [...currentEdges, newEdge])
-        }
-
-        return [...currentNodes, viewerNode]
-      }
-
-      return currentNodes
-    })
   }, [setNodes, setEdges, currentContainerId])
 
   // Handle 'a' keyup to open Block Library (momentary button behavior)
@@ -709,16 +819,18 @@ export function getNoodles(): Visualization {
   }, [])
 
   const [showOverlay, setShowOverlay] = useState(true)
-  const [layoutMode, setLayoutMode] = useState<'split' | 'noodles-on-top' | 'output-on-top'>(
-    'noodles-on-top'
-  )
   const [showDebugInfo, setShowDebugInfo] = useState(false)
 
   // Render settings are now stored as OutOp inputs (see migration 012)
   // Use useRenderSettings() hook to read them
 
   const loadProjectFile = useCallback(
-    (project: NoodlesProjectJSON, name?: string, targetRoutePrefix?: string) => {
+    (
+      project: NoodlesProjectJSON,
+      name?: string,
+      targetRoutePrefix?: string,
+      outputCache?: OutputCache
+    ) => {
       const { nodes, edges, viewport, timeline, editorSettings, apiKeys } = project
 
       // Prevent the storage-loading useEffect from reloading when the URL changes below
@@ -727,6 +839,11 @@ export function getNoodles(): Visualization {
       isProjectLoadRef.current = true
 
       currentProjectRef.current = project
+
+      // Install embedded keys before constructing operators. Key-dependent operators
+      // may inspect credentials while their fields and listeners are initialized.
+      const keysStore = getKeysStore()
+      keysStore.setProjectKeys(apiKeys)
 
       // Dispose all old operators cleanly (executionState.complete() + unsubscribeListeners)
       const store = getOpStore()
@@ -738,6 +855,7 @@ export function getNoodles(): Visualization {
       // Load timeline state before transformGraph so field bindings see the right keyframe data
       clearAllBindings()
       const hasTimeline = timeline && Object.keys(timeline).length > 0
+      const timelineErrors: GraphError[] = []
       if (hasTimeline) {
         try {
           // Timeline data uses a timeline JSON format.
@@ -746,29 +864,47 @@ export function getNoodles(): Visualization {
           )
         } catch (error) {
           console.error('Failed to load timeline:', error)
+          timelineErrors.push({
+            type: 'operator-execution',
+            message: 'Failed to load timeline data',
+            details: error instanceof Error ? error.stack : String(error),
+          })
         }
       } else {
         timelineStore.reset()
       }
 
       // Build the operator graph synchronously — operators are ready before any re-render
-      const ops = transformGraph({ nodes, edges })
-      setOperators(ops)
+      const result = transformGraph({ nodes, edges, outputCache })
+      setOperators(result.operators)
+      // Show error dialog if there are graph or timeline errors
+      const allErrors = [
+        ...timelineErrors,
+        ...result.errors.map(e => ({
+          type: e.type,
+          message: e.message,
+        })),
+      ]
+      if (allErrors.length > 0) {
+        setGraphErrors(allErrors)
+      }
 
-      // Update React Flow state (for rendering; graph is already set up above)
+      // Update React Flow state (for rendering; graph is already set up above).
+      // Normalizing here (after transformGraph, so operators exist for the ListField
+      // lookup) derives multi-input slot rendering caches from the file's edge order —
+      // project files never store them.
       setNodes(nodes)
-      setEdges(edges)
+      setEdges(
+        normalizeMultiInputEdges(
+          (edges as ReactFlowEdge[]).filter(edge => edge.type !== 'ReferenceEdge')
+        )
+      )
 
       // Load editor settings from project with defaults
-      setLayoutMode(editorSettings?.layoutMode ?? 'noodles-on-top')
       setShowOverlay(editorSettings?.showOverlay ?? true)
       setShowDebugInfo(editorSettings?.showDebugInfo ?? false)
 
       // Render settings are now stored as OutOp inputs (migration 012 handles conversion)
-
-      // Load API keys from project file if present
-      const keysStore = getKeysStore()
-      keysStore.setProjectKeys(apiKeys)
 
       // Restore viewport unless we're in an undo/redo restore
       if (viewport && name && !undoRedoRef.current?.isRestoring()) {
@@ -833,9 +969,10 @@ export function getNoodles(): Visualization {
         const existingInMemory = memoryProjectStore.getProjectJson(projectName)
         if (existingInMemory) {
           const project = await migrateProject(existingInMemory)
+          const outputCache = await readMemoryOutputCache(projectName, project.nodes)
           setCurrentDirectory(null, projectName)
           setActiveStorageType('memory')
-          loadProjectFile(project, projectName)
+          loadProjectFile(project, projectName, undefined, outputCache)
           return
         }
 
@@ -860,9 +997,10 @@ export function getNoodles(): Visualization {
               memoryProjectStore.setDisplayName(projectName, project.name)
             }
             await copyExampleAssetsToMemory(projectName, projectName)
+            const outputCache = await readMemoryOutputCache(projectName, project.nodes)
             setCurrentDirectory(null, projectName)
             setActiveStorageType('memory')
-            loadProjectFile(project, projectName)
+            loadProjectFile(project, projectName, undefined, outputCache)
             return
           } catch (error) {
             debugApp('Failed to load example project:', error)
@@ -880,7 +1018,7 @@ export function getNoodles(): Visualization {
             // Update store with directory handle, project name, and storage type
             setCurrentDirectory(result.data.directoryHandle, projectName)
             setActiveStorageType(storageType)
-            loadProjectFile(project, projectName)
+            loadProjectFile(project, projectName, undefined, result.data.outputCache)
           } else {
             // Project not found in storage - show dialog
             if (result.error.type === 'not-found') {
@@ -947,13 +1085,13 @@ export function getNoodles(): Visualization {
   }, [displayedNodes])
 
   const activeEdges = useMemo(() => {
-    return edges
+    return modelEdges
       .filter(edge => visibleNodeIds.has(edge.source) && visibleNodeIds.has(edge.target))
       .map(edge => ({
         ...edge,
         sourceHandle: edge.type === 'ReferenceEdge' ? null : edge.sourceHandle,
       }))
-  }, [edges, visibleNodeIds])
+  }, [modelEdges, visibleNodeIds])
 
   // File menu callbacks
   const getNoodlesProjectJson = useCallback((): NoodlesProjectJSON => {
@@ -970,17 +1108,20 @@ export function getNoodles(): Visualization {
       viewport,
       timeline,
       editorSettings: {
-        layoutMode,
         showOverlay,
         showDebugInfo,
       },
       ...(projectKeys ? { apiKeys: projectKeys } : {}),
     }
-  }, [nodes, edges, layoutMode, showOverlay, showDebugInfo, timelineStore.toTimelineJSON])
+  }, [nodes, edges, showOverlay, showDebugInfo, timelineStore.toTimelineJSON])
+
+  // Files for the project's cache folder: the outputs of locked operators
+  const getOutputCacheFiles = useCallback(() => serializeOutputCache(getOpStore(), nodes), [nodes])
 
   const onMenuSave = useCallback(async () => {
     if (!projectName) return
     const noodlesProjectJson = getNoodlesProjectJson()
+    const cacheFiles = getOutputCacheFiles()
 
     if (storageType === 'memory') {
       try {
@@ -994,6 +1135,7 @@ export function getNoodles(): Visualization {
           'noodles.json',
           safeStringify(noodlesProjectJson)
         )
+        await writeOutputCache(directoryHandle, cacheFiles)
         await copyMemoryDataToDirectory(projectName, directoryHandle)
         await directoryHandleCache.cacheHandle(directoryName, directoryHandle, directoryName)
 
@@ -1016,7 +1158,7 @@ export function getNoodles(): Visualization {
       return
     }
 
-    const result = await save(storageType, projectName, noodlesProjectJson)
+    const result = await save(storageType, projectName, noodlesProjectJson, cacheFiles)
     if (result.success) {
       setCurrentDirectory(result.data.directoryHandle, projectName)
       setHasUnsavedChanges(false)
@@ -1027,6 +1169,7 @@ export function getNoodles(): Visualization {
   }, [
     projectName,
     getNoodlesProjectJson,
+    getOutputCacheFiles,
     storageType,
     setCurrentDirectory,
     setActiveStorageType,
@@ -1088,6 +1231,7 @@ export function getNoodles(): Visualization {
 
       // Write project to noodles.json
       await writeFileToDirectory(directoryHandle, 'noodles.json', safeStringify(projectData))
+      await writeOutputCache(directoryHandle, getOutputCacheFiles())
 
       // Copy data files if requested
       if (options.copyDataFiles && projectName) {
@@ -1130,6 +1274,7 @@ export function getNoodles(): Visualization {
     [
       saveAsOptions,
       getNoodlesProjectJson,
+      getOutputCacheFiles,
       projectName,
       storageType,
       currentDirectory,
@@ -1170,6 +1315,7 @@ export function getNoodles(): Visualization {
 
         // Write project to noodles.json
         await writeFileToDirectory(directoryHandle, 'noodles.json', safeStringify(projectData))
+        await writeOutputCache(directoryHandle, getOutputCacheFiles())
 
         // Copy data files
         if (currentDirectory) {
@@ -1209,6 +1355,7 @@ export function getNoodles(): Visualization {
     },
     [
       getNoodlesProjectJson,
+      getOutputCacheFiles,
       projectName,
       storageType,
       currentDirectory,
@@ -1221,6 +1368,8 @@ export function getNoodles(): Visualization {
   // Handle mod+shift+s for Save As and mod+shift+a for Rename Project
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (shouldBlockKeyboardShortcut(e)) return
+
       const key = e.key.toLowerCase()
       const isMod = e.metaKey || e.ctrlKey
       const isShift = e.shiftKey
@@ -1244,9 +1393,14 @@ export function getNoodles(): Visualization {
 
   const onDownload = useCallback(async () => {
     const noodlesProjectJson = getNoodlesProjectJson()
-    await saveProjectLocally(projectName || 'untitled', noodlesProjectJson, storageType)
+    await saveProjectLocally(
+      projectName || 'untitled',
+      noodlesProjectJson,
+      storageType,
+      getOutputCacheFiles()
+    )
     analytics.track('project_exported', { storageType })
-  }, [projectName, getNoodlesProjectJson, storageType])
+  }, [projectName, getNoodlesProjectJson, getOutputCacheFiles, storageType])
 
   const onOpenAddNode = useCallback(() => {
     const pane = reactFlowRef.current?.getBoundingClientRect()
@@ -1374,16 +1528,22 @@ export function getNoodles(): Visualization {
       const draftId = generateDraftId('import')
       memoryProjectStore.setProjectJson(draftId, projectData)
 
-      // Write non-noodles.json files as in-memory assets
+      // Write non-noodles.json files as in-memory assets, keeping the cache folder apart
+      const cachePrefix = `${CACHE_DIRECTORY_NAME}/`
       for (const [path, content] of filesToWrite.entries()) {
         if (path === 'noodles.json') continue
+        if (path.startsWith(cachePrefix) && typeof content === 'string') {
+          memoryProjectStore.setCacheFile(draftId, path.substring(cachePrefix.length), content)
+          continue
+        }
         const blob = content instanceof ArrayBuffer ? new Blob([content]) : new Blob([content])
         memoryProjectStore.writeAsset(draftId, path, blob)
       }
 
+      const outputCache = await readMemoryOutputCache(draftId, projectData.nodes)
       setCurrentDirectory(null, draftId)
       setActiveStorageType('memory')
-      loadProjectFile(projectData, draftId, '/projects')
+      loadProjectFile(projectData, draftId, '/projects', outputCache)
 
       analytics.track('project_imported', { format: isZip ? 'zip' : 'json' })
     } catch (error) {
@@ -1438,7 +1598,7 @@ export function getNoodles(): Visualization {
         if (result.success) {
           const project = await migrateProject(result.data.projectData)
           // Always navigate to /projects since this is a user project
-          loadProjectFile(project, finalProjectName, '/projects')
+          loadProjectFile(project, finalProjectName, '/projects', result.data.outputCache)
           // Update store with directory handle returned from load
           setCurrentDirectory(result.data.directoryHandle, finalProjectName)
           // Set storage type to fileSystemAccess since we used File System Access API
@@ -1489,50 +1649,44 @@ export function getNoodles(): Visualization {
       >
         <PrimeReactProvider>
           <TimelineProvider>
-            <ReactFlow
-              ref={reactFlowRef}
-              nodes={displayedNodes}
-              edges={activeEdges}
-              onNodesChange={onNodesChange}
-              onEdgesChange={onEdgesChange}
-              onConnect={onConnect}
-              onConnectStart={onConnectStart}
-              onConnectEnd={onConnectEnd}
-              onReconnect={onReconnect}
-              onNodeContextMenu={onNodeContextMenu}
-              onNodesDelete={onNodesDelete}
-              onNodeDrag={onNodeDrag}
-              onNodeDragStop={onNodeDragStop}
-              onPaneContextMenu={onPaneContextMenu}
-              onPaneClick={onPaneClick}
-              minZoom={0.2}
-              fitViewOptions={fitViewOptions}
-              defaultEdgeOptions={defaultEdgeOptions}
-              defaultViewport={defaultViewport}
-              nodeTypes={nodeComponents}
-              edgeTypes={edgeComponents}
-            >
-              <ReactFlowInstanceCapture />
-              <EdgeConnectionSynchronizer />
-              <Background />
-              <Controls position="bottom-right" />
-              <BlockLibrary ref={blockLibraryRef} reactFlowRef={reactFlowRef} />
-              <CopyControls ref={copyControlsRef} />
-              <UndoRedoHandler ref={undoRedoRef} />
-              <Suspense fallback={null}>
-                <ChatPanel
-                  project={{ nodes, edges }}
-                  onClose={() => {
-                    setShowChatPanel(false)
-                    setChatInitialMessage(undefined)
-                  }}
-                  isVisible={showChatPanel}
-                  initialMessage={chatInitialMessage}
-                />
-              </Suspense>
-              {showDebugInfo && <NodeInfoOverlay />}
-              {showDebugInfo && <ViewportInfoPanel />}
-            </ReactFlow>
+            <ProjectModificationActionsProvider updateOperatorId={updateOperatorId}>
+              <ReactFlow
+                ref={reactFlowRef}
+                nodes={displayedNodes}
+                edges={activeEdges}
+                onNodesChange={onNodesChange}
+                onEdgesChange={onEdgesChange}
+                onConnect={onConnect}
+                onConnectStart={onConnectStart}
+                onConnectEnd={onConnectEnd}
+                onReconnect={onReconnect}
+                onReconnectEnd={onReconnectEnd}
+                onNodeContextMenu={onNodeContextMenu}
+                onEdgeClick={onEdgeClick}
+                onNodesDelete={onNodesDelete}
+                onNodeDrag={onNodeDrag}
+                onNodeDragStop={onNodeDragStop}
+                onPaneContextMenu={onPaneContextMenu}
+                onPaneClick={onPaneClick}
+                minZoom={0.2}
+                fitViewOptions={fitViewOptions}
+                defaultEdgeOptions={defaultEdgeOptions}
+                defaultViewport={defaultViewport}
+                nodeTypes={nodeComponents}
+                edgeTypes={edgeComponents}
+              >
+                <ReactFlowInstanceCapture />
+                <EdgeConnectionSynchronizer />
+                <CanvasDropImport />
+                <Background />
+                <Controls position="bottom-right" />
+                <BlockLibrary ref={blockLibraryRef} reactFlowRef={reactFlowRef} />
+                <CopyControls ref={copyControlsRef} graphRef={graphRef} />
+                <UndoRedoHandler ref={undoRedoRef} graphRef={graphRef} />
+                {showDebugInfo && <NodeInfoOverlay />}
+                {showDebugInfo && <ViewportInfoPanel />}
+              </ReactFlow>
+            </ProjectModificationActionsProvider>
           </TimelineProvider>
         </PrimeReactProvider>
         {parameterEditorState.operatorId && (
@@ -1568,9 +1722,9 @@ export function getNoodles(): Visualization {
         <ProjectNotFoundDialog
           projectName={projectName || ''}
           open={showProjectNotFoundDialog}
-          onProjectLoaded={(project, name) => {
+          onProjectLoaded={(project, name, outputCache) => {
             // Always navigate to /projects since this is a user project
-            loadProjectFile(project, name, '/projects')
+            loadProjectFile(project, name, '/projects', outputCache)
             setShowProjectNotFoundDialog(false)
           }}
           onNewProject={onNewProject}
@@ -1601,6 +1755,12 @@ export function getNoodles(): Visualization {
           onCheckMyProjects={onCheckMyProjects}
           onClose={() => setShowExampleNotFoundDialog(false)}
         />
+        <GraphErrorDialog
+          open={graphErrors.length > 0}
+          errors={graphErrors}
+          onClose={() => setGraphErrors([])}
+          validOperatorCount={operators.length}
+        />
         <StorageErrorHandler />
       </div>
     </ErrorBoundary>
@@ -1610,7 +1770,33 @@ export function getNoodles(): Visualization {
   const OUT_OP_ID = '/out'
   const outOp = operators.find(n => n.id === OUT_OP_ID)! as unknown as OutOp
 
-  const [visProps, setVisProps] = useState(outOp?.inputs.vis.value || {})
+  // Find the DeckRendererOp that connects to OutOp
+  // Subscribe to its output instead of OutOp's input to create active subscription chain
+  const deckRendererOp = useMemo(() => {
+    const visConnection = edges.find(e => e.target === OUT_OP_ID && e.targetHandle === 'par.vis')
+    if (visConnection) {
+      return operators.find(op => op.id === visConnection.source) as DeckRendererOp | undefined
+    }
+    return undefined
+  }, [operators, edges])
+
+  const [visProps, setVisProps] = useState(
+    deckRendererOp?.outputs.vis.value || outOp?.inputs.vis.value || {}
+  )
+  const deckProjectAssetResolver = useMemo(() => new DeckProjectAssetResolver(), [])
+  const [committedAssetGeneration, setCommittedAssetGeneration] = useState(0)
+
+  useEffect(
+    () => () => {
+      deckProjectAssetResolver.dispose()
+    },
+    [deckProjectAssetResolver]
+  )
+
+  useEffect(() => {
+    // Deck.gl has received the replacement props by the time this effect runs.
+    deckProjectAssetResolver.releaseRetiredUrlsThrough(committedAssetGeneration)
+  }, [committedAssetGeneration, deckProjectAssetResolver])
 
   // Create overlay layer for selected GeoJSON-producing operators
   const selectedGeoJsonFeatures = useMemo(() => {
@@ -1633,95 +1819,153 @@ export function getNoodles(): Visualization {
   }, [nodes])
 
   useEffect(() => {
-    if (outOp) {
-      const visSub = outOp.inputs.vis.subscribe(
-        ({ deckProps: { layers, widgets, ...deckProps }, mapProps }) => {
-          // Map layers from POJOs to deck.gl instances
-          const instantiatedLayers =
-            layers?.map(({ type, extensions, ...layer }) => {
-              // Instantiate extensions from POJOs if present
-              let instantiatedExtensions: LayerExtension[] | undefined
-              if (extensions && Array.isArray(extensions)) {
-                instantiatedExtensions = extensions
-                  .map((ext: { type: string; [key: string]: unknown }) => {
-                    const { type: extType, ...constructorArgs } = ext
-                    const extensionDef = extensionMap[extType]
-                    if (!extensionDef) {
-                      debugApp(`Unknown extension type: ${extType}`)
-                      return null
-                    }
+    // Subscribe to DeckRendererOp output if available, otherwise fall back to OutOp input
+    // DeckRendererOp creates active subscription chain, but may not be available during initial render
+    const field = deckRendererOp?.outputs.vis || outOp?.inputs.vis
 
-                    // Check if it's a wrapped extension (with ExtensionClass and args)
-                    if (typeof extensionDef === 'object' && 'ExtensionClass' in extensionDef) {
-                      return new extensionDef.ExtensionClass(extensionDef.args)
-                    }
-
-                    // It's a direct class constructor
-                    const ExtensionClass = extensionDef as new (
-                      ...args: unknown[]
-                    ) => LayerExtension
-                    return Object.keys(constructorArgs).length > 0
-                      ? new ExtensionClass(constructorArgs)
-                      : new ExtensionClass()
-                  })
-                  .filter((e): e is LayerExtension => e !== null)
+    if (field) {
+      debugVis(
+        'Creating vis subscription from %s',
+        deckRendererOp ? 'DeckRendererOp.outputs.vis' : 'OutOp.inputs.vis'
+      )
+      let cancelled = false
+      const reportMaterializationError = (error: unknown) => {
+        if (cancelled) return
+        console.error('[Noodles] Failed to materialize Deck.gl layer assets:', error)
+        debugVis('Failed to materialize Deck.gl layer assets: %o', error)
+      }
+      const visSub = field.subscribe(
+        ({ deckProps: { layers, widgets, views, ...deckProps }, mapProps }) => {
+          void deckProjectAssetResolver
+            .resolveLayers(layers ?? [], {
+              activeStorageType: storageType,
+              currentProjectName: storedProjectName,
+            })
+            .then(assetResolution => {
+              if (!assetResolution || cancelled) {
+                if (assetResolution) deckProjectAssetResolver.discard(assetResolution)
+                return
               }
 
-              // biome-ignore lint/performance/noDynamicNamespaceImportAccess: We intentionally support all deck.gl layer types dynamically
-              return new deck[type]({
-                ...layer,
-                ...(instantiatedExtensions ? { extensions: instantiatedExtensions } : {}),
-                // Prevent deck.gl layer errors from crashing the GPU process
-                onError: (e: Error) => debugVis('Layer error in %s: %o', type, e),
-              })
-            }) || []
+              try {
+                // Map layers from POJOs to deck.gl instances
+                const instantiatedLayers = assetResolution.layers.map(
+                  ({ type, extensions, ...layer }) => {
+                    // Instantiate extensions from POJOs if present
+                    let instantiatedExtensions: LayerExtension[] | undefined
+                    if (extensions && Array.isArray(extensions)) {
+                      instantiatedExtensions = extensions
+                        .map((ext: { type: string; [key: string]: unknown }) => {
+                          const { type: extType, ...constructorArgs } = ext
+                          const extensionDef = extensionMap[extType]
+                          if (!extensionDef) {
+                            debugApp(`Unknown extension type: ${extType}`)
+                            return null
+                          }
 
-          // Add overlay layer for selected GeoJSON features
-          if (selectedGeoJsonFeatures.length > 0) {
-            const overlayLayer = new deck.GeoJsonLayer({
-              id: 'selected-geojson-overlay',
-              data: selectedGeoJsonFeatures,
-              filled: true,
-              stroked: true,
-              getFillColor: [255, 0, 0, 100], // Red with transparency
-              getLineColor: [255, 0, 0, 255], // Red outline
-              getLineWidth: 2,
-              lineWidthMinPixels: 2,
-              getPointRadius: 10,
-              pointRadiusMinPixels: 10,
+                          // Check if it's a wrapped extension (with ExtensionClass and args)
+                          if (
+                            typeof extensionDef === 'object' &&
+                            'ExtensionClass' in extensionDef
+                          ) {
+                            return new extensionDef.ExtensionClass(extensionDef.args)
+                          }
+
+                          // It's a direct class constructor
+                          const ExtensionClass = extensionDef as new (
+                            ...args: unknown[]
+                          ) => LayerExtension
+                          return Object.keys(constructorArgs).length > 0
+                            ? new ExtensionClass(constructorArgs)
+                            : new ExtensionClass()
+                        })
+                        .filter((e): e is LayerExtension => e !== null)
+                    }
+
+                    // biome-ignore lint/performance/noDynamicNamespaceImportAccess: We intentionally support all deck.gl layer types dynamically
+                    return new deck[type]({
+                      ...layer,
+                      ...(instantiatedExtensions ? { extensions: instantiatedExtensions } : {}),
+                      // Prevent deck.gl layer errors from crashing the GPU process
+                      onError: (e: Error) => {
+                        console.error(`[Noodles] Layer error in ${layer.id} (${type}):`, e)
+                        debugVis('Layer error in %s (id=%s): %o', type, layer.id, e)
+                      },
+                    })
+                  }
+                )
+
+                // Add overlay layer for selected GeoJSON features
+                if (selectedGeoJsonFeatures.length > 0) {
+                  const overlayLayer = new deck.GeoJsonLayer({
+                    id: 'selected-geojson-overlay',
+                    data: selectedGeoJsonFeatures,
+                    filled: true,
+                    stroked: true,
+                    getFillColor: [255, 0, 0, 100], // Red with transparency
+                    getLineColor: [255, 0, 0, 255], // Red outline
+                    getLineWidth: 2,
+                    lineWidthMinPixels: 2,
+                    getPointRadius: 10,
+                    pointRadiusMinPixels: 10,
+                  })
+                  instantiatedLayers.push(overlayLayer)
+                }
+
+                const instantiatedViews = views?.map(instantiateDeckView)
+
+                debugVis(
+                  'vis subscription fired: %d layers types=%O hasMapProps=%s',
+                  instantiatedLayers.length,
+                  assetResolution.layers.map(l => l.type),
+                  !!mapProps
+                )
+
+                const nextVisProps = {
+                  deckProps: {
+                    ...deckProps,
+                    layers: instantiatedLayers,
+                    widgets: widgets?.map(({ type, ...widget }) => {
+                      if (type === 'LegendWidget')
+                        return new LegendWidget(widget as unknown as LegendWidgetProps)
+                      if (type === 'BitmapOverlay')
+                        return new BitmapOverlayWidget(
+                          widget as unknown as BitmapOverlayWidgetProps
+                        )
+                      // biome-ignore lint/performance/noDynamicNamespaceImportAccess: We intentionally support all deck.gl widget types dynamically
+                      return new deckWidgets[type](widget)
+                    }),
+                    ...(instantiatedViews?.length ? { views: instantiatedViews } : {}),
+                  },
+                  mapProps,
+                }
+
+                if (!deckProjectAssetResolver.commit(assetResolution)) return
+                setCommittedAssetGeneration(assetResolution.generation)
+                setVisProps(nextVisProps)
+              } catch (error) {
+                deckProjectAssetResolver.discard(assetResolution)
+                reportMaterializationError(error)
+              }
             })
-            instantiatedLayers.push(overlayLayer)
-          }
-
-          debugVis(
-            'vis subscription fired: %d layers types=%O hasMapProps=%s',
-            instantiatedLayers.length,
-            layers?.map(l => l.type) || [],
-            !!mapProps
-          )
-
-          setVisProps({
-            deckProps: {
-              ...deckProps,
-              layers: instantiatedLayers,
-              widgets: widgets?.map(({ type, ...widget }) => {
-                if (type === 'LegendWidget')
-                  return new LegendWidget(widget as unknown as LegendWidgetProps)
-                if (type === 'BitmapOverlay')
-                  return new BitmapOverlayWidget(widget as unknown as BitmapOverlayWidgetProps)
-                // biome-ignore lint/performance/noDynamicNamespaceImportAccess: We intentionally support all deck.gl widget types dynamically
-                return new deckWidgets[type](widget)
-              }),
-            },
-            mapProps,
-          })
+            .catch(reportMaterializationError)
         }
       )
       return () => {
+        debugVis('Cleaning up vis subscription')
+        cancelled = true
         visSub.unsubscribe()
+        deckProjectAssetResolver.cancelPending()
       }
     }
-  }, [outOp, selectedGeoJsonFeatures])
+  }, [
+    deckProjectAssetResolver,
+    deckRendererOp,
+    outOp,
+    selectedGeoJsonFeatures,
+    storageType,
+    storedProjectName,
+  ])
 
   const propertiesPanel = (
     <ErrorBoundary title="Property Panel Error">
@@ -1731,20 +1975,51 @@ export function getNoodles(): Visualization {
     </ErrorBoundary>
   )
 
+  const chatPanel = (
+    <Suspense fallback={null}>
+      <ChatPanel
+        project={{ nodes, edges }}
+        onClose={() => {
+          setShowChatPanel(false)
+          setChatInitialMessage(undefined)
+        }}
+        isVisible={showChatPanel}
+        initialMessage={chatInitialMessage}
+      />
+    </Suspense>
+  )
+
   return {
     flowGraph,
+    selectedNodeIds: nodes.filter(n => n.selected).map(n => n.id),
     nodeSidebar: (
-      <ErrorBoundary title="Node Tree Error">
-        <NodeTreeSidebar updateOperatorId={updateOperatorId} />
+      <ErrorBoundary title="Sidebar Error">
+        <SidebarTabs
+          tabs={[
+            {
+              id: 'nodes',
+              label: 'Nodes',
+              icon: 'pi-sitemap',
+              content: <NodeTreeSidebar updateOperatorId={updateOperatorId} />,
+            },
+            {
+              id: 'layers',
+              label: 'Layers',
+              icon: 'pi-clone',
+              content: <LayerPanel />,
+            },
+          ]}
+        />
       </ErrorBoundary>
     ),
     propertiesPanel,
-    layoutMode,
+    chatPanel,
     showOverlay,
-    onChangeLayoutMode: setLayoutMode,
     onChangeShowOverlay: setShowOverlay,
     showDebugInfo,
     onChangeShowDebugInfo: setShowDebugInfo,
+    spreadsheetVisible,
+    onChangeSpreadsheetVisible: setSpreadsheetVisible,
     // Render settings are now read from OutOp via useRenderSettings() hook
     // Export these so timeline-editor can create the menu with render actions
     projectName:

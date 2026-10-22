@@ -94,11 +94,14 @@ describe('TableEditor', () => {
     const addButton = getByRole('button', { name: /add row/i })
     fireEvent.click(addButton)
 
-    expect(onDataChange).toHaveBeenCalledWith([
-      { name: 'Alice', count: 10 },
-      { name: 'Bob', count: 20 },
-      { name: '', count: 0 }, // New row with defaults
-    ])
+    expect(onDataChange).toHaveBeenCalledWith(
+      [
+        { name: 'Alice', count: 10 },
+        { name: 'Bob', count: 20 },
+        { name: '', count: 0 }, // New row with defaults
+      ],
+      'Add table row'
+    )
   })
 
   it('should render different column types', () => {
@@ -186,7 +189,7 @@ describe('TableEditor', () => {
     const deleteButtons = container.querySelectorAll('.pi-trash')
     fireEvent.click(deleteButtons[0])
 
-    expect(onDataChange).toHaveBeenCalledWith([{ name: 'Bob', count: 20 }])
+    expect(onDataChange).toHaveBeenCalledWith([{ name: 'Bob', count: 20 }], 'Delete table row')
   })
 
   it('should call onSchemaChange when schema is updated', () => {
@@ -210,6 +213,167 @@ describe('TableEditor', () => {
 
     // The dialog should open (we're testing that the callback is wired up)
     // Actual schema editing is tested in schema-editor-dialog.test.tsx
+  })
+
+  it('should copy column values when a duplicated column is renamed', () => {
+    const onDataChange = vi.fn()
+    const onSchemaChange = vi.fn()
+
+    const { container, getByRole, getAllByPlaceholderText, getByText } = render(
+      <TableEditor
+        op={mockOp}
+        data={simpleData}
+        schema={simpleSchema}
+        onDataChange={onDataChange}
+        onSchemaChange={onSchemaChange}
+      />
+    )
+
+    fireEvent.click(container.querySelector('.pi-cog') as Element)
+    fireEvent.click(getByRole('button', { name: 'Duplicate column name' }))
+
+    const nameInputs = getAllByPlaceholderText('Column name')
+    fireEvent.change(nameInputs[1], { target: { value: 'display_name' } })
+    fireEvent.click(getByText('Save'))
+
+    expect(onSchemaChange).toHaveBeenCalledWith(
+      {
+        columns: [
+          { name: 'name', type: 'string', defaultValue: '' },
+          {
+            id: expect.any(String),
+            name: 'display_name',
+            type: 'string',
+            defaultValue: '',
+          },
+          { name: 'count', type: 'number', defaultValue: 0 },
+        ],
+      },
+      [
+        { name: 'Alice', display_name: 'Alice', count: 10 },
+        { name: 'Bob', display_name: 'Bob', count: 20 },
+      ]
+    )
+  })
+
+  it('should use the default for a fresh column that reuses a renamed column name', () => {
+    const onSchemaChange = vi.fn()
+
+    const { container, getAllByPlaceholderText, getByRole, getByText } = render(
+      <TableEditor
+        op={mockOp}
+        data={simpleData}
+        schema={simpleSchema}
+        onDataChange={vi.fn()}
+        onSchemaChange={onSchemaChange}
+      />
+    )
+
+    fireEvent.click(container.querySelector('.pi-cog') as Element)
+    const nameInputs = getAllByPlaceholderText('Column name')
+    fireEvent.change(nameInputs[0], { target: { value: 'display_name' } })
+    fireEvent.click(getByRole('button', { name: 'Add Column' }))
+    fireEvent.change(getAllByPlaceholderText('Column name')[2], { target: { value: 'name' } })
+    fireEvent.click(getByText('Save'))
+
+    expect(onSchemaChange).toHaveBeenCalledWith(
+      {
+        columns: [
+          {
+            id: 'name',
+            name: 'display_name',
+            type: 'string',
+            defaultValue: '',
+          },
+          { name: 'count', type: 'number', defaultValue: 0 },
+          { id: expect.any(String), name: 'name', type: 'string', defaultValue: '' },
+        ],
+      },
+      [
+        { display_name: 'Alice', count: 10, name: '' },
+        { display_name: 'Bob', count: 20, name: '' },
+      ]
+    )
+  })
+
+  it('preserves values when an existing column is renamed', () => {
+    const onSchemaChange = vi.fn()
+    const { container, getAllByPlaceholderText, getByText } = render(
+      <TableEditor
+        op={mockOp}
+        data={simpleData}
+        schema={simpleSchema}
+        onDataChange={vi.fn()}
+        onSchemaChange={onSchemaChange}
+      />
+    )
+
+    fireEvent.click(container.querySelector('.pi-cog') as Element)
+    fireEvent.change(getAllByPlaceholderText('Column name')[0], {
+      target: { value: 'display_name' },
+    })
+    fireEvent.click(getByText('Save'))
+
+    expect(onSchemaChange).toHaveBeenCalledWith(
+      {
+        columns: [
+          {
+            id: 'name',
+            name: 'display_name',
+            type: 'string',
+            defaultValue: '',
+          },
+          { name: 'count', type: 'number', defaultValue: 0 },
+        ],
+      },
+      [
+        { display_name: 'Alice', count: 10 },
+        { display_name: 'Bob', count: 20 },
+      ]
+    )
+  })
+
+  it('persists values when a connected schema renames a column', () => {
+    const onDataChange = vi.fn()
+    const renamedSchema: TableSchema = {
+      columns: [
+        {
+          id: 'name',
+          name: 'display_name',
+          type: 'string',
+          defaultValue: '',
+        },
+        { name: 'count', type: 'number', defaultValue: 0 },
+      ],
+    }
+    const { rerender, getByText } = render(
+      <TableEditor
+        op={mockOp}
+        data={simpleData}
+        schema={simpleSchema}
+        onDataChange={onDataChange}
+        onSchemaChange={vi.fn()}
+      />
+    )
+
+    rerender(
+      <TableEditor
+        op={mockOp}
+        data={simpleData}
+        schema={renamedSchema}
+        onDataChange={onDataChange}
+        onSchemaChange={vi.fn()}
+      />
+    )
+
+    expect(getByText('Alice')).toBeDefined()
+    expect(onDataChange).toHaveBeenCalledWith(
+      [
+        { display_name: 'Alice', count: 10 },
+        { display_name: 'Bob', count: 20 },
+      ],
+      'Apply connected table schema rename'
+    )
   })
 
   it('should update tableData when data prop changes', () => {
@@ -244,6 +408,127 @@ describe('TableEditor', () => {
     expect(getByText(/1 row × 2 columns/i)).toBeDefined()
   })
 
+  it('applies declared defaults when an inherited schema adds columns', () => {
+    const onDataChange = vi.fn()
+    const onSchemaChange = vi.fn()
+    const initialSchema: TableSchema = {
+      columns: [{ name: 'name', type: 'string', defaultValue: '' }],
+    }
+    const inheritedSchema: TableSchema = {
+      columns: [
+        { name: 'name', type: 'string', defaultValue: '' },
+        {
+          name: 'anchor',
+          type: 'stringLiteral',
+          defaultValue: 'start',
+          options: { values: ['start', 'end', 'middle'] },
+        },
+        { name: 'offset', type: 'vec2', defaultValue: [64, 0] },
+      ],
+    }
+    const data = [{ name: 'Downtown Skyport' }]
+
+    const { getByText, rerender } = render(
+      <TableEditor
+        op={mockOp}
+        data={data}
+        schema={initialSchema}
+        onDataChange={onDataChange}
+        onSchemaChange={onSchemaChange}
+      />
+    )
+
+    rerender(
+      <TableEditor
+        op={mockOp}
+        data={data}
+        schema={inheritedSchema}
+        onDataChange={onDataChange}
+        onSchemaChange={onSchemaChange}
+      />
+    )
+
+    expect(getByText('start')).toBeDefined()
+    expect(getByText('[64.0000, 0.0000]')).toBeDefined()
+  })
+
+  it('preserves compatible custom values when an unchanged schema is saved', () => {
+    const onSchemaChange = vi.fn()
+    const schema: TableSchema = {
+      columns: [
+        {
+          name: 'anchor',
+          type: 'stringLiteral',
+          defaultValue: 'start',
+          options: { values: ['start', 'end', 'middle'] },
+        },
+        { name: 'offset', type: 'vec2', defaultValue: [64, 0] },
+      ],
+    }
+    const data = [
+      { anchor: 'end', offset: [-64, 0] },
+      { anchor: 'middle', offset: [12, 24] },
+    ]
+
+    const { container, getByRole } = render(
+      <TableEditor
+        op={mockOp}
+        data={data}
+        schema={schema}
+        onDataChange={vi.fn()}
+        onSchemaChange={onSchemaChange}
+      />
+    )
+
+    fireEvent.click(container.querySelector('.pi-cog') as Element)
+    fireEvent.click(getByRole('button', { name: /save/i }))
+
+    expect(onSchemaChange).toHaveBeenCalledWith(schema, data)
+  })
+
+  it('flushes an active edit before applying an inherited schema update', () => {
+    const onDataChange = vi.fn()
+    const initialSchema: TableSchema = {
+      columns: [{ name: 'name', type: 'string', defaultValue: '' }],
+    }
+    const inheritedSchema: TableSchema = {
+      columns: [
+        { name: 'name', type: 'string', defaultValue: '' },
+        { name: 'offset', type: 'vec2', defaultValue: [64, 0] },
+      ],
+    }
+    const data = [{ name: 'Downtown Skyport' }]
+
+    const { container, getByText, rerender } = render(
+      <TableEditor
+        op={mockOp}
+        data={data}
+        schema={initialSchema}
+        onDataChange={onDataChange}
+        onSchemaChange={vi.fn()}
+      />
+    )
+
+    fireEvent.click(getByText('Downtown Skyport'))
+    fireEvent.change(container.querySelector('input.p-inputtext') as HTMLInputElement, {
+      target: { value: 'Edited Skyport' },
+    })
+
+    rerender(
+      <TableEditor
+        op={mockOp}
+        data={data}
+        schema={inheritedSchema}
+        onDataChange={onDataChange}
+        onSchemaChange={vi.fn()}
+      />
+    )
+
+    expect(onDataChange).toHaveBeenCalledWith([{ name: 'Edited Skyport' }], 'Edit cell name')
+    expect(getByText('Edited Skyport')).toBeDefined()
+    expect(getByText('[64.0000, 0.0000]')).toBeDefined()
+  })
+
   it('should add default values for all column types when adding row', () => {
     const complexSchema: TableSchema = {
       columns: [
@@ -276,20 +561,23 @@ describe('TableEditor', () => {
     const addButton = getByRole('button', { name: /add row/i })
     fireEvent.click(addButton)
 
-    expect(onDataChange).toHaveBeenCalledWith([
-      {
-        str: 'default',
-        num: 42,
-        bool: true,
-        color: '#ffffff',
-        point2d: [1, 2],
-        point3d: [1, 2, 3],
-        vec2: [5, 6],
-        vec3: [7, 8, 9],
-        date: '2026-01-01',
-        literal: 'a',
-      },
-    ])
+    expect(onDataChange).toHaveBeenCalledWith(
+      [
+        {
+          str: 'default',
+          num: 42,
+          bool: true,
+          color: '#ffffff',
+          point2d: [1, 2],
+          point3d: [1, 2, 3],
+          vec2: [5, 6],
+          vec3: [7, 8, 9],
+          date: '2026-01-01',
+          literal: 'a',
+        },
+      ],
+      'Add table row'
+    )
   })
 
   it('should convert existing values when column type changes', () => {

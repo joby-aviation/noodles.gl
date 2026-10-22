@@ -207,6 +207,7 @@ function KeyframeTrackLabel({
       </div>
       {contextMenu &&
         createPortal(
+          // biome-ignore lint/a11y/noStaticElementInteractions: keeps a click in the menu from closing it
           <div
             ref={trackMenuRef}
             className={s.handleTypeMenu}
@@ -579,7 +580,10 @@ function KeyframeShape({
 
       case 'hold':
         // Square with rounded corners
-        return { filled: 'M 2.5 2 L 7.5 2 Q 8 2 8 2.5 L 8 7.5 Q 8 8 7.5 8 L 2.5 8 Q 2 8 2 7.5 L 2 2.5 Q 2 2 2.5 2 Z' }
+        return {
+          filled:
+            'M 2.5 2 L 7.5 2 Q 8 2 8 2.5 L 8 7.5 Q 8 8 7.5 8 L 2.5 8 Q 2 8 2 7.5 L 2 2.5 Q 2 2 2.5 2 Z',
+        }
 
       case 'hold-ease-out':
         // Square with right curved notch (ease out) - prominent square left side
@@ -834,6 +838,18 @@ function KeyframeDiamond({
     [isSelected, keyframe.id, onSelect]
   )
 
+  const hasCopiedKeyframes = useTimelineStore(s => s.copiedKeyframes.length > 0)
+
+  const handleCopy = useCallback(() => {
+    setContextMenu(null)
+    getTimelineStore().copySelectedKeyframes()
+  }, [])
+
+  const handlePaste = useCallback(() => {
+    setContextMenu(null)
+    getTimelineStore().pasteKeyframes()
+  }, [])
+
   const handleDelete = useCallback(() => {
     setContextMenu(null)
     const before = captureTimelineState()
@@ -873,14 +889,23 @@ function KeyframeDiamond({
       </div>
       {contextMenu &&
         createPortal(
+          // biome-ignore lint/a11y/noStaticElementInteractions: keeps a click in the menu from closing it
           <div
             ref={menuRef}
             className={s.handleTypeMenu}
             style={{ top: contextMenu.y, left: contextMenu.x }}
             onMouseDown={e => e.stopPropagation()}
           >
+            <button type="button" onClick={handleCopy}>
+              Copy
+            </button>
+            {hasCopiedKeyframes && (
+              <button type="button" onClick={handlePaste}>
+                Paste
+              </button>
+            )}
             <button type="button" onClick={handleDelete}>
-              Delete keyframe
+              Delete
             </button>
           </div>,
           document.body

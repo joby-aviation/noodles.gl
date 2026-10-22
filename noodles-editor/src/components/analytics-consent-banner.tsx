@@ -17,7 +17,6 @@ export function AnalyticsConsentBanner() {
 
   const handleAccept = () => {
     analytics.setConsent(true)
-    analytics.track('analytics_consent_accepted')
     setShowBanner(false)
   }
 
@@ -47,7 +46,7 @@ export function AnalyticsConsentBanner() {
             rel="noopener noreferrer"
             className={s.link}
           >
-            Learn more
+            Privacy policy
           </a>
         </span>
       </p>

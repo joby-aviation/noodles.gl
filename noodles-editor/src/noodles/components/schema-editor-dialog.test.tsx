@@ -1,10 +1,18 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { analytics } from '../../utils/analytics'
 import type { TableSchema } from '../table-schema'
 import { SchemaEditorDialog } from './schema-editor-dialog'
+import s from './schema-editor-dialog.module.css'
+
+vi.mock('../../utils/analytics', () => ({
+  analytics: { track: vi.fn() },
+}))
 
 afterEach(() => {
   cleanup()
+  document.documentElement.style.removeProperty('--z-index-modal')
+  document.documentElement.style.removeProperty('--z-index-top')
 })
 
 describe('SchemaEditorDialog', () => {
@@ -56,6 +64,111 @@ describe('SchemaEditorDialog', () => {
     const nameInputs = screen.getAllByPlaceholderText('Column name')
     expect(nameInputs.length).toBe(3)
     expect(nameInputs[2]).toHaveValue('column_3')
+  })
+
+  it('should duplicate a column with a unique editable name and source metadata', () => {
+    const onChange = vi.fn()
+    render(<SchemaEditorDialog schema={mockSchema} onChange={onChange} />)
+
+    fireEvent.click(screen.getByRole('button'))
+    fireEvent.click(screen.getByRole('button', { name: 'Duplicate column name' }))
+
+    expect(analytics.track).toHaveBeenCalledWith('table_column_duplicated')
+
+    const nameInputs = screen.getAllByPlaceholderText('Column name')
+    expect(nameInputs).toHaveLength(3)
+    expect(nameInputs[1]).toHaveValue('name-1')
+
+    fireEvent.change(nameInputs[1], { target: { value: 'display_name' } })
+    fireEvent.click(screen.getByText('Save'))
+
+    expect(onChange).toHaveBeenCalledWith(
+      {
+        columns: [
+          { name: 'name', type: 'string', defaultValue: '' },
+          {
+            id: expect.any(String),
+            name: 'display_name',
+            type: 'string',
+            defaultValue: '',
+          },
+          { name: 'age', type: 'number', defaultValue: 0 },
+        ],
+      },
+      { sourceColumnNames: ['name', 'name', 'age'] }
+    )
+  })
+
+  it('should name the icon-only column buttons', () => {
+    render(<SchemaEditorDialog schema={mockSchema} onChange={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Edit schema' }))
+
+    for (const name of [
+      'Move column name down',
+      'Duplicate column name',
+      'Delete column name',
+      'Move column age up',
+      'Duplicate column age',
+      'Delete column age',
+    ]) {
+      expect(screen.getByRole('button', { name })).toBeDefined()
+    }
+  })
+
+  it('should keep focus on a column after moving it', () => {
+    const schema: TableSchema = {
+      columns: [
+        { name: 'first', type: 'string', defaultValue: '' },
+        { name: 'second', type: 'string', defaultValue: '' },
+        { name: 'third', type: 'string', defaultValue: '' },
+      ],
+    }
+    render(<SchemaEditorDialog schema={schema} onChange={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button'))
+
+    const moveDown = screen.getByRole('button', { name: 'Move column first down' })
+    moveDown.focus()
+    fireEvent.click(moveDown)
+
+    const nameInputs = screen.getAllByPlaceholderText('Column name')
+    expect(nameInputs.map(input => (input as HTMLInputElement).value)).toEqual([
+      'second',
+      'first',
+      'third',
+    ])
+    const focusedRow = document.activeElement?.closest('[class*="columnRow"]')
+    expect(focusedRow?.querySelector('input')).toHaveValue('first')
+  })
+
+  it('should increment a duplicate column numeric suffix', () => {
+    render(<SchemaEditorDialog schema={mockSchema} onChange={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('button'))
+    fireEvent.click(screen.getByRole('button', { name: 'Duplicate column name' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Duplicate column name-1' }))
+
+    const nameInputs = screen.getAllByPlaceholderText('Column name')
+    expect(nameInputs.map(input => (input as HTMLInputElement).value)).toEqual([
+      'name',
+      'name-1',
+      'name-2',
+      'age',
+    ])
+  })
+
+  it('should place dialog tooltips above modal content', () => {
+    document.documentElement.style.setProperty('--z-index-modal', '10000')
+    document.documentElement.style.setProperty('--z-index-top', '10001')
+    render(
+      <>
+        <div className={s.content} data-testid="dialog-layer" />
+        <div className={s.dialogTooltip} data-testid="tooltip-layer" />
+      </>
+    )
+
+    const dialogZIndex = Number(getComputedStyle(screen.getByTestId('dialog-layer')).zIndex)
+    const tooltipZIndex = Number(getComputedStyle(screen.getByTestId('tooltip-layer')).zIndex)
+    expect(tooltipZIndex).toBeGreaterThan(dialogZIndex)
   })
 
   it('should add Position XYZ quick template with Number type', () => {
@@ -162,6 +275,91 @@ describe('SchemaEditorDialog', () => {
     expect(screen.queryByDisplayValue('active, inactive')).toBeDefined()
   })
 
+  it('should render a default value editor for every column type', () => {
+    const allTypesSchema: TableSchema = {
+      columns: [
+        { name: 'number', type: 'number', defaultValue: 1 },
+        { name: 'string', type: 'string', defaultValue: 'text' },
+        { name: 'boolean', type: 'boolean', defaultValue: true },
+        { name: 'color', type: 'color', defaultValue: '#ff0000' },
+        { name: 'point2d', type: 'point2d', defaultValue: [1, 2] },
+        { name: 'point3d', type: 'point3d', defaultValue: [1, 2, 3] },
+        { name: 'vec2', type: 'vec2', defaultValue: [1, 2] },
+        { name: 'vec3', type: 'vec3', defaultValue: [1, 2, 3] },
+        { name: 'date', type: 'date', defaultValue: '2026-08-07' },
+        {
+          name: 'dateTime',
+          type: 'dateTime',
+          defaultValue: { datetime: '2026-08-07T12:00:00.000', timezone: 'UTC' },
+        },
+        {
+          name: 'literal',
+          type: 'stringLiteral',
+          defaultValue: 'start',
+          options: { values: ['start', 'end'] },
+        },
+      ],
+    }
+
+    render(<SchemaEditorDialog schema={allTypesSchema} onChange={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button'))
+
+    for (const column of allTypesSchema.columns) {
+      expect(screen.getByRole('group', { name: `Default value for ${column.name}` })).toBeDefined()
+    }
+  })
+
+  it('should save an edited column default value', () => {
+    const onChange = vi.fn()
+    render(<SchemaEditorDialog schema={mockSchema} onChange={onChange} />)
+    fireEvent.click(screen.getByRole('button'))
+
+    const defaultEditor = screen.getByRole('group', { name: 'Default value for name' })
+    fireEvent.change(within(defaultEditor).getByRole('textbox'), {
+      target: { value: 'Unknown' },
+    })
+    fireEvent.click(screen.getByText('Save'))
+
+    expect(onChange).toHaveBeenCalledWith({
+      columns: [
+        { name: 'name', type: 'string', defaultValue: 'Unknown' },
+        { name: 'age', type: 'number', defaultValue: 0 },
+      ],
+    })
+  })
+
+  it('should replace an invalid StringLiteral default with its first option', () => {
+    const onChange = vi.fn()
+    const schema: TableSchema = {
+      columns: [
+        {
+          name: 'anchor',
+          type: 'stringLiteral',
+          defaultValue: '',
+          options: { values: ['start', 'end', 'middle'] },
+        },
+      ],
+    }
+
+    render(<SchemaEditorDialog schema={schema} onChange={onChange} />)
+    fireEvent.click(screen.getByRole('button'))
+
+    const defaultEditor = screen.getByRole('group', { name: 'Default value for anchor' })
+    expect(defaultEditor).toHaveTextContent('start')
+
+    fireEvent.click(screen.getByText('Save'))
+    expect(onChange).toHaveBeenCalledWith({
+      columns: [
+        {
+          name: 'anchor',
+          type: 'stringLiteral',
+          defaultValue: 'start',
+          options: { values: ['start', 'end', 'middle'] },
+        },
+      ],
+    })
+  })
+
   it('should call onChange with updated schema when Save is clicked', () => {
     const onChange = vi.fn()
     render(<SchemaEditorDialog schema={mockSchema} onChange={onChange} />)
@@ -180,7 +378,7 @@ describe('SchemaEditorDialog', () => {
       columns: [
         { name: 'name', type: 'string', defaultValue: '' },
         { name: 'age', type: 'number', defaultValue: 0 },
-        { name: 'column_3', type: 'string', defaultValue: '' },
+        { id: expect.any(String), name: 'column_3', type: 'string', defaultValue: '' },
       ],
     })
   })
