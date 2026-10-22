@@ -17,7 +17,7 @@ import {
 } from '../../utils/debug'
 import type { GraphRef } from '../types'
 import { type LockChange, redoLockChange, undoLockChange } from './lock-history'
-import { applyOperatorInputs, captureOperatorInputs } from './property-history'
+import { applyOperatorInputs, captureOperatorInputs, UI_STATE_KEY } from './property-history'
 
 interface HistoryEntry {
   id: string
@@ -695,9 +695,12 @@ export function useUndoRedo(options?: UseUndoRedoOptions) {
           description,
           nodeChanges: [],
           edgeChanges: [],
-          nodesBefore: before.nodes,
+          // Undo and redo rebuild a deleted operator from its node's data, and the
+          // node's data still holds the inputs it was created with. Carry the live
+          // field values in it, since applyOperatorInputs finds no operator to set.
+          nodesBefore: withOperatorInputs(before.nodes, operatorStateBefore),
           edgesBefore: before.edges,
-          nodesAfter: after.nodes,
+          nodesAfter: withOperatorInputs(after.nodes, operatorStateAfter),
           edgesAfter: after.edges,
           timelineStateBefore: timelineState,
           timelineStateAfter: timelineState,
@@ -733,6 +736,29 @@ export function useUndoRedo(options?: UseUndoRedoOptions) {
       })
     },
   }
+}
+
+// Copies the field values (and field UI state) in an operator inputs snapshot into
+// each node's data, the form transformGraph builds a new operator from
+function withOperatorInputs(nodes: ReactFlowNode[], snapshot: string | undefined) {
+  if (!snapshot) return nodes
+  let state: Record<string, Record<string, unknown>>
+  try {
+    state = JSON.parse(snapshot)
+  } catch {
+    return nodes
+  }
+  const uiState = state[UI_STATE_KEY] as Record<string, unknown> | undefined
+  return nodes.map(node => {
+    const inputs = state[node.id]
+    if (!inputs) return node
+    const data = node.data as { inputs?: Record<string, unknown> }
+    const ui = uiState?.[node.id]
+    return {
+      ...node,
+      data: { ...node.data, inputs: { ...data.inputs, ...inputs }, ...(ui ? { ui } : {}) },
+    }
+  })
 }
 
 // React Flow replaces a node or edge object when it changes, so identity is enough

@@ -6,7 +6,7 @@ import { ReactFlowProvider, useStoreApi } from '@xyflow/react'
 import { createElement, useRef } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useTimelineStore } from '../../timeline/timeline-store'
-import { MathOp } from '../operators'
+import { MathOp, NumberOp } from '../operators'
 import { clearOps, deleteOp, getOp, setOp } from '../store'
 import type { GraphRef } from '../types'
 import { registerLockChangeCallback, setLockedWithHistory } from './lock-history'
@@ -481,6 +481,40 @@ describe('useUndoRedo — graph mutations', () => {
     act(() => result.current.undoRedo.undo())
 
     expect(onNodesChange).toHaveBeenCalledWith([{ type: 'remove', id: '/n' }])
+  })
+
+  it('undoing a deletion brings the node back with its live field values', async () => {
+    const onNodesChange = vi.fn()
+    const node = {
+      id: '/n',
+      type: 'NumberOp',
+      position: { x: 0, y: 0 },
+      data: { inputs: { val: 1 } },
+    }
+    const { result } = renderHook(() => useTestHook(), { wrapper })
+    await act(async () => {
+      result.current.storeApi.setState({ onNodesChange, nodes: [node] })
+    })
+    const op = new NumberOp('/n', { val: 1 })
+    setOp(op.id, op)
+    // Edited through its field control, which leaves the node's data alone
+    op.inputs.val.setValue(5)
+
+    act(() =>
+      result.current.undoRedo.recordGraphMutation('Apply assistant proposal', () =>
+        result.current.storeApi.setState({ nodes: [] })
+      )
+    )
+    // transformGraph disposes the operator once the deletion settles
+    deleteOp('/n')
+    await act(() => vi.advanceTimersByTimeAsync(0))
+
+    act(() => result.current.undoRedo.undo())
+
+    expect(onNodesChange).toHaveBeenCalledOnce()
+    const [[change]] = onNodesChange.mock.calls[0]
+    expect(change.type).toBe('add')
+    expect(change.item.data.inputs.val).toBe(5)
   })
 
   it('records nothing when the batch changed nothing', async () => {

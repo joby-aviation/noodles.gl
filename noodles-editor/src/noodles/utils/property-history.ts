@@ -15,7 +15,7 @@ type PropertyMutationCallback = (description: string, before: string, after: str
 
 let _propertyMutationCallback: PropertyMutationCallback | undefined
 let _lastCommittedBeforeState: string | null = null
-const UI_STATE_KEY = '$ui'
+export const UI_STATE_KEY = '$ui'
 
 export function registerPropertyMutationCallback(cb: PropertyMutationCallback | undefined) {
   _propertyMutationCallback = cb
