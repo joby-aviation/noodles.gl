@@ -488,8 +488,21 @@ const MACROS: Record<string, { params: string[]; expand: Expand }> = {
  * The prelude every graph's registry starts from. Built once: parsing is the only cost, and
  * a `FunctionDef` is never mutated after it is made.
  */
+/**
+ * Functions over strings, which only SQL can run, so unlike the geo functions they never reach
+ * the CPU or the GPU. A vector of scalars, because SQL emits a vector as one column per component.
+ */
+export const STRING_SPECS: Record<string, FunctionSpec> = {
+  /** A `#rgb` / `#rrggbb` string as an RGB color in 0–1. */
+  hex_color: {
+    params: ['s'],
+    body: '[hex_byte(s, 0.0) / 255.0, hex_byte(s, 1.0) / 255.0, hex_byte(s, 2.0) / 255.0]',
+  },
+};
+
 export const GEO_PRELUDE: FunctionRegistry = (() => {
   const registry = buildRegistry(GEO_SPECS, new Map(), GEO_SOURCE_PREFIX);
+  buildRegistry(STRING_SPECS, registry, GEO_SOURCE_PREFIX);
   for (const [name, { params, expand }] of Object.entries(MACROS)) {
     addFunction(registry, { name, params, expand, source: `${GEO_SOURCE_PREFIX}${name}` } satisfies FunctionDef);
   }

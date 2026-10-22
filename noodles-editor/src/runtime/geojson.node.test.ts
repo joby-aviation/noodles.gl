@@ -175,3 +175,69 @@ describe('a geojson source feeding a planner polygon layer', () => {
     expect(color && [...color.data].some(Number.isNaN)).toBe(false)
   })
 })
+
+describe('hex_color', () => {
+  it('reads #rrggbb and #rgb property strings in SQL, with coalesce for a missing one', async () => {
+    const url = 'https://example.com/lines.geojson'
+    const line = (color: string | null, x: number) => ({
+      type: 'Feature',
+      properties: { color },
+      geometry: {
+        type: 'LineString',
+        coordinates: [
+          [x, 0],
+          [x, 1],
+        ],
+      },
+    })
+    await loadGeojson(
+      url,
+      JSON.stringify({
+        type: 'FeatureCollection',
+        features: [line('#ff8000', 0), line('#0F0', 1), line(null, 2)],
+      }),
+      (name, ipc) => duck.insertArrow(name, ipc)
+    )
+    const doc: EditorDoc = {
+      version: 1,
+      name: 'lines',
+      nodes: [
+        { id: 'g', op: 'geojson', x: 0, y: 0, params: { url } },
+        {
+          id: 'c',
+          op: 'attribute',
+          x: 0,
+          y: 0,
+          params: { name: 'rgb', expression: "hex_color(coalesce(color, '#000'))" },
+        },
+        {
+          id: 'paths',
+          op: 'path',
+          x: 0,
+          y: 0,
+          params: { position: '[lng, lat]', pathId: 'id', order: 'vertex', color: 'rgb' },
+        },
+        { id: 'map', op: 'deck', x: 0, y: 0, params: {} },
+      ],
+      edges: [
+        { id: 'e1', source: 'g', sourcePort: 'lines', target: 'c', targetPort: 'in' },
+        { id: 'e2', source: 'c', sourcePort: 'out', target: 'paths', targetPort: 'in' },
+        { id: 'e3', source: 'paths', sourcePort: 'out', target: 'map', targetPort: 'layers' },
+      ],
+    }
+    const lowered = lowerDocument(doc)
+    expect(lowered.errors).toEqual([])
+    const runtime = new ProgramRuntime(duck)
+    await runtime.setGraph(lowered.graph, parameterValues(lowered, { T: 0, F: 0 }).values)
+    expect(runtime.program()?.errors).toEqual([])
+    const rgb = runtime.layers()[0].data?.attributes.get('rgb')
+    // One vertex of each line, in line order.
+    const first = (row: number) =>
+      [...(rgb?.data.slice(row * 6, row * 6 + 3) ?? [])].map(v => Math.round(v * 255))
+    expect([first(0), first(1), first(2)]).toEqual([
+      [255, 128, 0],
+      [0, 255, 0],
+      [0, 0, 0],
+    ])
+  })
+})

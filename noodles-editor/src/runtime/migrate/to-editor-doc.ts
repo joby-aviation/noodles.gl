@@ -224,6 +224,33 @@ export function translateAccessor(js: string): string | undefined {
   return text
 }
 
+/**
+ * An accessor that returns a string, such as a per-feature `#rrggbb` color: the expression with
+ * `a || b` as `coalesce(a, b)`. Only SQL runs strings, so its consumers decide what it becomes
+ * (`hex_color` for a color channel).
+ */
+export function translateStringAccessor(js: string): string | undefined {
+  let text = js.trim().replace(/;$/, '')
+  if (/^return\s/.test(text)) text = text.slice(7)
+  if (/\bop\(|\bdata\b|\bi\b|=>|`|\.\w+\(/.test(text)) return undefined
+  text = text
+    .replace(/"([^"']*)"/g, "'$1'")
+    .replace(/\bd\.properties\.([A-Za-z_]\w*)/g, '$1')
+    .replace(/\bd\.([A-Za-z_]\w*)/g, '$1')
+  if (/\bd\b/.test(text)) return undefined
+  for (const op of ['||', '??']) {
+    const parts = text.split(op)
+    if (parts.length === 2) text = `coalesce(${parts[0].trim()}, ${parts[1].trim()})`
+    else if (parts.length > 2) return undefined
+  }
+  try {
+    parseExpr(text)
+  } catch {
+    return undefined
+  }
+  return text
+}
+
 const MATH: Record<string, (a: string, b: string) => string> = {
   add: (a, b) => `(${a} + ${b})`,
   subtract: (a, b) => `(${a} - ${b})`,
@@ -284,6 +311,10 @@ interface RowNode {
   /** Attributes it reads, so the chain can be ordered. */
   reads: Set<string>
   attribute: string
+  /** Its value is a string; a color channel reads it through `hex_color`. */
+  stringValued?: boolean
+  /** Already rewritten to a 0–1 color. */
+  color?: boolean
 }
 
 // ---------------------------------------------------------------------------
@@ -488,9 +519,14 @@ export function toEditorDoc(project: NoodlesProject): Migrated {
     switch (n.type) {
       case 'AccessorOp': {
         const expr = translateAccessor(String(i.expression ?? ''))
-        if (!expr)
+        if (expr) return add('attribute', { name: attribute, expression: expr }, [])
+        const text = translateStringAccessor(String(i.expression ?? ''))
+        if (!text)
           throw new MigrationError(`${id}: '${i.expression}' needs JS the planner can't express`)
-        return add('attribute', { name: attribute, expression: expr }, [])
+        const value = add('attribute', { name: attribute, expression: text }, [])
+        const row = chain.get(id)
+        if (row) row.stringValued = true
+        return value
       }
       case 'MapRangeOp': {
         const val = resolve(src, id, 'val', i.val)
@@ -586,12 +622,19 @@ export function toEditorDoc(project: NoodlesProject): Migrated {
     return { color: c.rgb }
   }
 
-  // Accessors for colors return 0–255 in Noodles and 0–1 in the planner.
+  // Accessors for colors return 0–255 arrays or hex strings in Noodles, and 0–1 in the planner.
   const colorChannel = (v: Value) => {
     if (v.kind !== 'row') return v
     const writer = [...chains.values()]
       .flatMap(c => [...c.values()])
       .find(r => r.attribute === v.expr)
+    if (writer?.stringValued) {
+      if (!writer.color) {
+        writer.node.params.expression = `hex_color(${writer.node.params.expression})`
+        writer.color = true
+      }
+      return v
+    }
     return writer?.node.op === 'attribute'
       ? { kind: 'row' as const, expr: `(${v.expr}) / 255.0` }
       : v
@@ -983,7 +1026,11 @@ export function toEditorDoc(project: NoodlesProject): Migrated {
       }
       ordered.push(r)
     }
-    for (const r of rows) visit(r)
+    // Attributes that read only source columns first: a string one runs in SQL, and SQL runs
+    // before the CPU stage, so it must not follow a CPU-only node in the chain.
+    for (const r of [...rows].sort((a, b) => Number(a.reads.size > 0) - Number(b.reads.size > 0))) {
+      visit(r)
+    }
     let head = src
     let port = sourcePort.get(src) ?? 'out'
     for (const r of ordered) {
