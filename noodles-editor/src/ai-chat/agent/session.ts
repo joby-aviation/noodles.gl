@@ -88,6 +88,9 @@ export class AgentSession {
       { role: 'user', content: userContent },
     ]
 
+    // Edits the last run queued have landed or never will
+    this.tools.clearQueuedModifications()
+
     const result = await runAgent({
       provider: this.provider,
       tools: this.tools,

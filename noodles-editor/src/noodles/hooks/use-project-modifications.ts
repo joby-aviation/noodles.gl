@@ -27,6 +27,7 @@ import {
   orderedEdgeIdsForHandle,
 } from '../utils/multi-input-utils'
 import { generateQualifiedPath, getParentPath, parseHandleId } from '../utils/path-utils'
+import { hasPosition, placeNewNode } from '../utils/viewer-position'
 
 // Using ReactFlowNode instead of AnyNodeJSON for compatibility
 export type ProjectModification =
@@ -445,6 +446,23 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
               success: false,
               error: `Unknown modification type: ${(mod as { type: string }).type}`,
             }
+        }
+      }
+
+      // A node without a position crashes the canvas on its first render (edge
+      // hit-testing reads position.x), and the whole batch is lost with it. The AI
+      // assistant often leaves it out.
+      for (const [index, node] of nodesToAdd.entries()) {
+        if (hasPosition(node)) continue
+        const placed = [...getNodes(), ...nodesToAdd.filter(hasPosition)]
+        nodesToAdd[index] = { ...node, position: placeNewNode(node.id, edgesToAdd, placed) }
+      }
+
+      // An update aimed at no node would otherwise vanish while the result says success
+      if (nodesToUpdate.length > 0) {
+        const present = new Set([...getNodes().map(n => n.id), ...nodesToAdd.map(n => n.id)])
+        for (const { id } of nodesToUpdate) {
+          if (!present.has(id)) allWarnings.push(`update_node: no node ${id ?? '(missing id)'}`)
         }
       }
 
