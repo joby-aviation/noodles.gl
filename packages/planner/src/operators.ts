@@ -229,6 +229,43 @@ const colorRangeParam: ParamDef = {
   help: 'Six colors sampled from a ramp.',
 };
 
+/** A 3D model per row, placed by channels. The model URL is structural: deck loads it once. */
+function modelLayer(kind: 'mesh' | 'scenegraph', label: string, urlParam: string, urlLabel: string, urlDefault: string): OpDef {
+  return {
+    type: kind, label, category: 'layer',
+    description: 'A 3D model per row, positioned, oriented (pitch, yaw, roll in degrees), scaled and colored by channels.',
+    inputs: [table()], outputs: [out('layer')],
+    params: [
+      channel('position', 'Position', 'P'),
+      channel('color', 'Color', ''),
+      channel('orientation', 'Orientation', '', '[pitch, yaw, roll] in degrees.'),
+      channel('scale', 'Scale', '', '[x, y, z] multipliers.'),
+      channel('translation', 'Translation', '', '[x, y, z] offset in meters.'),
+      { name: urlParam, label: urlLabel, kind: 'url', default: urlDefault, folder: 'Model' },
+      { name: 'sizeScale', label: 'Size scale', kind: 'float', default: 1, min: 0, max: 10000, step: 1, bind: 'prop', folder: 'Style', port: true },
+      ...(kind === 'scenegraph'
+        ? [
+          { name: 'sizeMinPixels', label: 'Min size (px)', kind: 'float', default: 0, min: 0, max: 100, step: 1, bind: 'prop', folder: 'Style' } as ParamDef,
+          { name: 'sizeMaxPixels', label: 'Max size (px)', kind: 'float', default: 100, min: 0, max: 10000, step: 1, bind: 'prop', folder: 'Style' } as ParamDef,
+        ]
+        : [{ name: 'wireframe', label: 'Wireframe', kind: 'toggle', default: false, folder: 'Style' } as ParamDef]),
+      { name: 'modelColor', label: 'Color', kind: 'color', default: [255, 255, 255], folder: 'Style' },
+      rampParam,
+      opacity,
+      blendParam,
+    ],
+    lower: (ctx) => lowerLayer(ctx, kind,
+      ['position', 'color', 'orientation', 'scale', 'translation'].map((c) => ({ channel: c, param: c })),
+      {
+        model: ctx.str(urlParam), sizeScale: ctx.bind('sizeScale'), color: ctx.bindColor('modelColor'),
+        ...(kind === 'scenegraph'
+          ? { sizeMinPixels: ctx.bind('sizeMinPixels'), sizeMaxPixels: ctx.bind('sizeMaxPixels') }
+          : { wireframe: ctx.bool('wireframe') }),
+        opacity: ctx.bind('opacity'),
+      }),
+  };
+}
+
 /** Hexagon and grid bins: the same layer but for the shape of a bin. */
 function binLayer(
   type: string, kind: 'hexagon' | 'grid', label: string, size: string, sizeLabel: string, sizeDefault: number,
@@ -942,6 +979,8 @@ export const OPERATORS: OpDef[] = [
         opacity: ctx.bind('opacity'),
       }),
   },
+  modelLayer('mesh', 'Simple Mesh Layer', 'mesh', 'Mesh URL', 'https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/humanoid_quad.obj'),
+  modelLayer('scenegraph', 'Scenegraph Layer', 'scenegraph', 'Model URL (glTF)', 'https://raw.githubusercontent.com/visgl/deck.gl-data/master/examples/scenegraph-layer/airplane.glb'),
   binLayer('hexagon', 'hexagon', 'Hexagon Layer', 'radius', 'Radius (m)', 1000),
   // `grid` is the Grid Bin operator; this draws deck's own grid aggregation.
   binLayer('grid-layer', 'grid', 'Grid Layer', 'cellSize', 'Cell size (m)', 1000),

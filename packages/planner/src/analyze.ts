@@ -325,6 +325,17 @@ export function analyze(
     }
   };
 
+  // Vector attributes some node computes. SQL holds one as a column per component, so an
+  // expression that does more than pass one through (`c / 255.0`) has no SQL form: it would
+  // name a column that does not exist.
+  const vectorAttributes = new Set<string>();
+  const withoutSqlVectors = (e: Expr, stages: Set<Stage>): Set<Stage> => {
+    if (e.kind === 'col' || !columnsOf(e).some((c) => vectorAttributes.has(c))) return stages;
+    const out = new Set(stages);
+    out.delete('sql');
+    return out;
+  };
+
   for (const node of ordered) {
     switch (node.type) {
       case 'source':
@@ -340,7 +351,7 @@ export function analyze(
         const resolved = parseOrThrow(node.predicate, node.id);
         requireColumns(resolved, node.id);
         const expr = hoist(resolved);
-        const feasible = withStrings(expr, feasibleStages(expr));
+        const feasible = withoutSqlVectors(expr, withStrings(expr, feasibleStages(expr)));
         if (feasible.size === 0) {
           throw new PlanError(`Node ${node.id}: predicate is neither SQL- nor GPU-expressible`);
         }
@@ -397,10 +408,12 @@ export function analyze(
         }
         const width = widthOf(resolved, (n) => schema.get(n) ?? 1);
         const expr = hoist(resolved);
-        const feasible = withStrings(expr, feasibleStages(expr));
+        const feasible = withoutSqlVectors(expr, withStrings(expr, feasibleStages(expr)));
         if (feasible.size === 0) {
           throw new PlanError(`Node ${node.id}: expression mixes strings with functions only the GPU has`);
         }
+        if (width > 1) vectorAttributes.add(node.name);
+        else vectorAttributes.delete(node.name);
         if (isStringValued(resolved, strings)) strings.add(node.name);
         else strings.delete(node.name);
         order.push({

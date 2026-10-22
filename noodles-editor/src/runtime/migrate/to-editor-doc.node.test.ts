@@ -186,6 +186,55 @@ describe('toEditorDoc', () => {
     expect(warnings.filter(w => w.includes('not converted'))).toEqual([])
   })
 
+  it('converts orbit: a scenegraph over generated rows, under its own OrbitView', () => {
+    const { doc } = toEditorDoc(example('orbit'))
+    const lowered = lowerDocument(doc)
+    expect(lowered.errors).toEqual([])
+    expect(doc.nodes.find(n => n.id === '/dummy-data')).toMatchObject({
+      op: 'generate',
+      params: { count: 1 },
+    })
+    expect(doc.nodes.find(n => n.id === '/scene')).toMatchObject({
+      op: 'scenegraph',
+      params: { position: '[0.0, 0.0, 0.0]', sizeMinPixels: 10 },
+    })
+    expect(doc.edges).toContainEqual(
+      expect.objectContaining({ source: '/camera', targetPort: 'views' })
+    )
+  })
+
+  it('runs simple-mesh-example: list positions, an RGB color and a random yaw per row', async () => {
+    const { doc } = toEditorDoc(example('simple-mesh-example'))
+    // The stations file is remote; a local one with its shape stands in.
+    const url = 'bart-stations.json'
+    const source = doc.nodes.find(n => n.id === '/data-source')
+    if (source) source.params.url = url
+    const lowered = lowerDocument(doc)
+    expect(lowered.errors).toEqual([])
+    duck.registerText(
+      url,
+      JSON.stringify([
+        { name: 'A', coordinates: [-122.4, 37.79], exits: 400 },
+        { name: 'B', coordinates: [-122.41, 37.78], exits: 900 },
+      ])
+    )
+    const runtime = new ProgramRuntime(duck)
+    await runtime.setGraph(lowered.graph, parameterValues(lowered, { T: 0, F: 0 }).values)
+    expect(runtime.program()?.errors).toEqual([])
+    const mesh = runtime.layers()[0]
+    expect(mesh.plan.kind).toBe('mesh')
+    expect(mesh.error).toBeUndefined()
+    const at = (name: string) => [...(mesh.data?.attributes.get(name)?.data ?? [])]
+    expect(at('position_accessor').map(v => +v.toFixed(2))).toEqual([-122.4, 37.79, -122.41, 37.78])
+    // [sqrt(exits), 140, 0] in 0–255, divided down to 0–1 for the planner.
+    const color = mesh.data?.attributes.get(
+      mesh.plan.plan.layer?.bindings.find(b => b.channel === 'color')?.attribute ?? ''
+    )
+    expect([...(color?.data.slice(0, 3) ?? [])].map(v => Math.round(v * 255))).toEqual([20, 140, 0])
+    const yaw = at('orientation_accessor').filter((_, i) => i % 3 === 1)
+    expect(yaw.every(v => v >= 0 && v < 180)).toBe(true)
+  })
+
   it('reads a per-feature hex color string through hex_color', () => {
     const { doc } = toEditorDoc(example('geojson-example'))
     expect(lowerDocument(doc).errors).toEqual([])

@@ -15,10 +15,12 @@
  * attribute upload and throw away the point of routing that parameter as `prop`.
  */
 
-import { type LayerKind, RAMP_STOPS, type ResolvedProp, toUint8Color } from '@noodles.gl/planner'
 // From the deck.gl bundle the app itself imports, never the @deck.gl/* packages: Vite
 // pre-bundles them apart, and an aggregation layer whose sublayer comes from the other copy
 // draws nothing (its geometry buffers belong to a different luma.gl).
+import { OBJLoader } from '@loaders.gl/obj'
+import { PLYLoader } from '@loaders.gl/ply'
+import { type LayerKind, RAMP_STOPS, type ResolvedProp, toUint8Color } from '@noodles.gl/planner'
 import {
   ArcLayer,
   ColumnLayer,
@@ -28,6 +30,8 @@ import {
   type Layer,
   PathLayer,
   ScatterplotLayer,
+  ScenegraphLayer,
+  SimpleMeshLayer,
   SolidPolygonLayer,
   TextLayer,
   TripsLayer,
@@ -231,6 +235,20 @@ function toBinary(input: ProgramLayerInput): Binary {
       put('getColorWeight', scalar('colorWeight'), 1)
       put('getElevationWeight', scalar('elevationWeight'), 1)
       return { length: n, attributes: at }
+    case 'mesh':
+    case 'scenegraph': {
+      put('getPosition', pos('position'), 3)
+      put('getColor', colors(attr(input, 'color'), n), 4, true)
+      for (const [channel, deckName] of [
+        ['orientation', 'getOrientation'],
+        ['scale', 'getScale'],
+        ['translation', 'getTranslation'],
+      ]) {
+        const a = attr(input, channel)
+        put(deckName, a ? positions(a, n) : undefined, 3)
+      }
+      return { length: n, attributes: at }
+    }
     case 'text': {
       // Text has no binary path worth taking at label counts: deck lays out glyphs per string
       // on the CPU regardless. Capped, because thousands of labels are unreadable anyway.
@@ -466,6 +484,33 @@ function buildLayer(input: ProgramLayerInput, binary: Binary): Layer | undefined
         getColorWeight: has('getColorWeight') ? undefined : 1,
         getElevationWeight: has('getElevationWeight') ? undefined : 1,
         ...colorRange(p.colorRange),
+      } as never)
+    }
+    case 'mesh':
+    case 'scenegraph': {
+      const model = String(p.model ?? '')
+      const placement = {
+        ...common,
+        data: binary as never,
+        sizeScale: num(p.sizeScale, 1),
+        ...constant('getColor', rgb(p.color, [255, 255, 255])),
+        getOrientation: has('getOrientation') ? undefined : [0, 0, 0],
+        getScale: has('getScale') ? undefined : [1, 1, 1],
+        getTranslation: has('getTranslation') ? undefined : [0, 0, 0],
+      }
+      if (input.kind === 'scenegraph') {
+        return new ScenegraphLayer({
+          ...placement,
+          scenegraph: model,
+          sizeMinPixels: num(p.sizeMinPixels, 0),
+          sizeMaxPixels: num(p.sizeMaxPixels, 100),
+        } as never)
+      }
+      return new SimpleMeshLayer({
+        ...placement,
+        mesh: model,
+        wireframe: p.wireframe === true,
+        loaders: [/\.ply(\?|$)/i.test(model) ? PLYLoader : OBJLoader],
       } as never)
     }
     case 'text':

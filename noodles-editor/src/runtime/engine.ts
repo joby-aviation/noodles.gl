@@ -197,7 +197,10 @@ export class Engine {
           unknown
         >)
       : undefined
-    const view = { ...this.runtime.view(), ...(hostView ?? {}) }
+    // A deck with its own views and no map (an OrbitView, say) keeps the view's own camera:
+    // the deck node's longitude and latitude mean nothing to it.
+    const geographic = !!(deck && styleOf(deck)) || into('views').length === 0
+    const view = { ...(geographic ? this.runtime.view() : {}), ...(hostView ?? {}) }
     const mapStyle = deck ? styleOf(deck) : undefined
     const views = hostValues('views').map(v => host?.view(v))
     const widgets = hostValues('widgets').map(w => host?.widget(w as { type: string }))
