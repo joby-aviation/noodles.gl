@@ -17,10 +17,16 @@ const rl = readline.createInterface({
   output: process.stdout,
 })
 
-function question(prompt: string): Promise<string> {
-  return new Promise(resolve => {
-    rl.question(prompt, resolve)
-  })
+// The iterator buffers lines, so answers piped in all at once aren't dropped
+// the way they are with rl.question()
+const lines = rl[Symbol.asyncIterator]()
+
+async function question(prompt: string): Promise<string> {
+  rl.setPrompt(prompt)
+  rl.prompt()
+  const { value, done } = await lines.next()
+  if (done) throw new Error('Input ended before all questions were answered')
+  return value
 }
 
 async function main() {
@@ -29,7 +35,7 @@ async function main() {
   const agent = new MigrationGeneratorAgent()
 
   // Get existing migrations
-  const migrationsDir = path.join(__dirname, '../src/noodles/__migrations__')
+  const migrationsDir = path.join(import.meta.dirname, '../src/noodles/__migrations__')
   const existingMigrations = fs
     .readdirSync(migrationsDir)
     .filter(f => f.endsWith('.ts') && !f.endsWith('.test.ts'))
@@ -150,7 +156,6 @@ async function main() {
     console.log('  1. Review the generated migration files')
     console.log('  2. Update the test assertions with actual test cases')
     console.log('  3. Run tests: npm test')
-    console.log(`  4. Update NOODLES_VERSION in migrate-schema.ts to ${nextVersion}`)
   } catch (error) {
     console.error('❌ Error generating migration:', error)
   }

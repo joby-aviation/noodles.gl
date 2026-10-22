@@ -50,6 +50,7 @@ export class AgentSession {
   // Lives as long as the session so tools unlocked on one turn stay available
   private router: ToolRouter
   private maxSteps: number | undefined
+  private inFlight: Promise<unknown> | null = null
 
   constructor(provider: AgentProvider, tools: MCPTools, options: SessionOptions = {}) {
     this.provider = provider
@@ -70,11 +71,25 @@ export class AgentSession {
 
   // Called when the panel replaces this session. The Chrome provider holds an
   // on-device session carrying the transcript; nothing reclaims it otherwise.
+  // A reply still running keeps its provider until it settles: WebLLM's dispose
+  // terminates the worker, and a request that worker was serving never returns.
   dispose() {
-    this.provider.dispose?.()
+    const release = () => this.provider.dispose?.()
+    if (this.inFlight) this.inFlight.then(release, release)
+    else release()
   }
 
   async send(params: SendParams): Promise<ClaudeResponse> {
+    const run = this.run(params)
+    this.inFlight = run
+    try {
+      return await run
+    } finally {
+      if (this.inFlight === run) this.inFlight = null
+    }
+  }
+
+  private async run(params: SendParams): Promise<ClaudeResponse> {
     const history = await this.prepareHistory(params.conversationHistory ?? [])
 
     const userContent: AgentContent[] = [{ type: 'text', text: params.message }]

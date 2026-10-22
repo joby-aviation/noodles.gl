@@ -87,3 +87,12 @@
     opacity: 1;
   }
 }
+
+/* Applied with .error for a result that isn't a failure */
+.info {
+  border-color: var(--color-accent);
+}
+
+.info i {
+  color: var(--color-accent);
+}

@@ -146,6 +146,7 @@ export default function TimelineEditor() {
     waitForData,
     captureDelay,
     rendersDirectory,
+    sequenceFormat,
   } = renderSettings
 
   const { startCapture, startSequenceCapture, captureFrame, isRendering } = useRenderer({
@@ -535,6 +536,7 @@ export default function TimelineEditor() {
       // onAfterRender wired up inside startSequenceCapture via getDeck.
       getDeck: basemapEnabled ? undefined : () => deckRef.current,
       directoryHandle: rendersDir,
+      format: sequenceFormat,
       captureDelay,
       waitForData,
       startFrame: Math.floor((inPoint ?? 0) * framerate),
@@ -555,6 +557,7 @@ export default function TimelineEditor() {
     captureDelay,
     waitForData,
     rendersDirectory,
+    sequenceFormat,
     basemapEnabled,
     currentDirectory,
     activeStorageType,
@@ -619,6 +622,8 @@ export default function TimelineEditor() {
       onChangeShowOverlay={noodles.onChangeShowOverlay}
       showDebugInfo={noodles.showDebugInfo}
       onChangeShowDebugInfo={noodles.onChangeShowDebugInfo}
+      autoLayout={noodles.autoLayout}
+      onChangeAutoLayout={noodles.onChangeAutoLayout}
       spreadsheetVisible={noodles.spreadsheetVisible}
       onChangeSpreadsheetVisible={noodles.onChangeSpreadsheetVisible}
     />
