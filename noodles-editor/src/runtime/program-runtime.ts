@@ -43,6 +43,8 @@ import {
 import { MaterializingCatalog } from './catalog'
 import { evaluateLayer, type LayerData, type QueriedLayer, queryLayer } from './execute'
 import { plainRow } from './plain-rows'
+import type { BlockingSql } from './worker/blocking-sql'
+import { UdfHost } from './worker/udf-host'
 
 export interface LayerState {
   id: string
@@ -103,12 +105,15 @@ export class ProgramRuntime {
   private pendingValues?: Record<string, number | string>
   private readonly listeners = new Set<Listener>()
   private compileError?: string
+  /** Registers JS functions, when the SQL engine can (DuckDB-Wasm's synchronous build). */
+  private readonly udfs?: UdfHost
 
   constructor(
     private readonly sql: SqlEngine,
     private readonly options: RuntimeOptions = {}
   ) {
     this.caps = options.caps ?? targetCaps('deck-webgl2', undefined)
+    if ('createNumberFunction' in sql) this.udfs = new UdfHost(sql as BlockingSql)
     this.catalog = new MaterializingCatalog(sql, {
       capacity: options.capacity,
       // A dropped table leaves any statement prepared over it stale.
@@ -157,6 +162,8 @@ export class ProgramRuntime {
 
   /** A structural edit: recompile, keeping everything memoization says is still valid. */
   setGraph(graph: Graph, values: Record<string, number | string>): Promise<UpdateReport> {
+    // The graph's JS functions exist in DuckDB before anything compiles against them
+    this.udfs?.register(graph.udfs)
     this.graph = graph
     this.values = { ...values }
     this.pendingValues = undefined

@@ -19,7 +19,8 @@ describe('JS functions as DuckDB UDFs', () => {
     registerUdfs(into, udfs);
     const [first] = udfRegistrations(udfs);
     const sql = FUNCTIONS[first.sqlName].sql as (args: string[]) => string;
-    expect(sql(['"x"', '"label"'])).toBe(`${first.sqlName}(CAST("x" AS DOUBLE), CAST("label" AS VARCHAR))`);
+    // `x` is auto, cast by analysis from its column's type; `label` is declared text
+    expect(sql(['"x"', '"label"'])).toBe(`${first.sqlName}("x", CAST("label" AS VARCHAR))`);
     expect(FUNCTIONS[first.sqlName].wgsl).toBeNull();
     const expanded = into.get('spiral')?.expand?.([{ kind: 'col', name: 'x' }, { kind: 'col', name: 'label' }]);
     expect(expanded?.kind).toBe('vec');

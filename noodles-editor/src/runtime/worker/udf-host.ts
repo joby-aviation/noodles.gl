@@ -26,9 +26,9 @@ export class UdfHost {
         // A throw or a non-number is NaN for that row, as a failed accessor was skipped
         try {
           const value = fn(...args)
-          const n = Number(
-            width === 1 ? value : (value as ArrayLike<unknown> | undefined)?.[component]
-          )
+          // A shorter array than the width (a 2D position read as 3D) is zero past its end
+          const part = width === 1 ? value : (value as ArrayLike<unknown> | undefined)?.[component]
+          const n = width > 1 && part === undefined ? 0 : Number(part)
           return Number.isFinite(n) ? n : Number.NaN
         } catch {
           return Number.NaN

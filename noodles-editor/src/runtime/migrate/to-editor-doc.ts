@@ -385,6 +385,45 @@ export function translateStringAccessor(js: string): string | undefined {
   return text
 }
 
+/** Components a field's accessor returns: positions and colors are vectors, the rest numbers. */
+function widthOf(field: string): number {
+  if (/(Position|Color|^getOrientation|^getScale|^getTranslation)$/.test(field)) return 3
+  return 1
+}
+
+/**
+ * An accessor as the body of a JS function DuckDB runs per row: `d.col` reads become the
+ * function's parameters, one per column. Undefined when it reads more than columns (the whole
+ * row, the row index, the dataset, another operator) or needs the editor's libraries.
+ */
+export function jsAccessor(js: string): { columns: string[]; body: string } | undefined {
+  let text = js.trim().replace(/;$/, '')
+  if (/\bop\(|\bdata\b|\bi\b|\bd3\.|\bturf\.|\butils\./.test(text)) return undefined
+  const columns: string[] = []
+  let unreadable = false
+  // A column read becomes a parameter; a name no parameter can have leaves the read in place
+  const column = (read: string, name: string) => {
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) {
+      unreadable = true
+      return read
+    }
+    if (!columns.includes(name)) columns.push(name)
+    return name
+  }
+  text = text
+    .replace(/\bd\.properties\.([A-Za-z_]\w*)/g, (m, c) => column(m, c))
+    .replace(/\bd\[(['"])([^'"]+)\1\]/g, (m, _q, c) => column(m, c))
+    .replace(/\bd\.([A-Za-z_]\w*)/g, (m, c) => column(m, c))
+  if (unreadable || /\bd\b/.test(text) || columns.length === 0) return undefined
+  const body = /\breturn\b/.test(text) ? text : `return (${text})`
+  try {
+    new Function(...columns, body)
+  } catch {
+    return undefined
+  }
+  return { columns, body }
+}
+
 const MATH: Record<string, (a: string, b: string) => string> = {
   add: (a, b) => `(${a} + ${b})`,
   subtract: (a, b) => `(${a} - ${b})`,
@@ -719,7 +758,7 @@ export function toEditorDoc(project: NoodlesProject): Migrated {
   const resolve = (src: string, nodeId: string, field: string, literal: unknown): Value => {
     const e = incomingOne(nodeId, field)
     if (!e) return { kind: 'const', value: literal }
-    return resolveOutput(src, e.source)
+    return resolveOutput(src, e.source, widthOf(field))
   }
 
   /**
@@ -748,7 +787,10 @@ export function toEditorDoc(project: NoodlesProject): Migrated {
     edge(src, sourcePort.get(src) ?? 'out', id, 'in')
   }
 
-  const resolveOutput = (src: string, id: string): Value => {
+  /** JS functions made for accessors, by accessor id: one node each, shared by every chain. */
+  const jsFunctions = new Map<string, string>()
+
+  const resolveOutput = (src: string, id: string, width = 1): Value => {
     const n = byId.get(id)
     if (!n) throw new MigrationError(`Missing node ${id}`)
     const chain = chainOf(src)
@@ -788,8 +830,32 @@ export function toEditorDoc(project: NoodlesProject): Migrated {
         const expr = translateAccessor(String(i.expression ?? ''), indexNames.get(src))
         if (expr) return add('attribute', { name: attribute, expression: expr }, [])
         const text = translateStringAccessor(String(i.expression ?? ''))
-        if (!text)
-          throw new MigrationError(`${id}: '${i.expression}' needs JS the planner can't express`)
+        if (!text) {
+          // JS the expression language has no words for runs as a JS function DuckDB calls
+          // per row, with the columns it reads as arguments
+          const js = jsAccessor(String(i.expression ?? ''))
+          if (!js) {
+            throw new MigrationError(`${id}: '${i.expression}' needs JS the planner can't express`)
+          }
+          let fn = jsFunctions.get(id)
+          if (!fn) {
+            fn = `${attribute}_fn`
+            jsFunctions.set(id, fn)
+            nodes.push({
+              id: `${id}-fn`,
+              op: 'js-function',
+              name: fn,
+              x: position(n).x,
+              y: position(n).y - 120,
+              params: { name: fn, params: js.columns.join(', '), width, body: js.body },
+            })
+          }
+          return add(
+            'attribute',
+            { name: attribute, expression: `${fn}(${js.columns.join(', ')})` },
+            []
+          )
+        }
         const value = add('attribute', { name: attribute, expression: text }, [])
         const row = chain.get(id)
         if (row) row.stringValued = true

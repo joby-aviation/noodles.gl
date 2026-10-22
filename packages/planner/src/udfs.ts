@@ -21,8 +21,11 @@ import { hashOf } from './hash.js';
 
 export interface UdfParam {
   name: string;
-  /** How DuckDB passes it: a number (DOUBLE, the default) or text (VARCHAR). */
-  type?: 'number' | 'text';
+  /**
+   * How DuckDB passes it: a number (DOUBLE), text (VARCHAR), or `auto`, the default: text
+   * for a text column and a number for anything else.
+   */
+  type?: 'number' | 'text' | 'auto';
 }
 
 export interface UdfSpec {
@@ -47,7 +50,7 @@ export interface UdfRegistration {
 const NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 function params(spec: UdfSpec): Required<UdfParam>[] {
-  return spec.params.map((p) => (typeof p === 'string' ? { name: p, type: 'number' } : { name: p.name, type: p.type ?? 'number' }));
+  return spec.params.map((p) => (typeof p === 'string' ? { name: p, type: 'auto' } : { name: p.name, type: p.type ?? 'auto' }));
 }
 
 /** Every DuckDB function a graph's UDFs need, for the engine to register. */
@@ -75,14 +78,15 @@ export function registerUdfs(into: Map<string, FunctionDef>, udfs: Record<string
     if (!NAME.test(name)) throw new Error(`udfs.${name}: '${name}' is not a valid function name`);
     const mine = regs.filter((r) => r.sqlName.startsWith(`udf_${name.toLowerCase()}_`) && r.body === spec.body);
     for (const r of mine) {
-      // DuckDB takes a UDF's arguments as DOUBLE or VARCHAR only, so each is cast
-      const casts = r.params.map((p) => (p.type === 'text' ? 'VARCHAR' : 'DOUBLE'));
+      // DuckDB takes a UDF's arguments as DOUBLE or VARCHAR only: a declared type is cast
+      // here, and an `auto` one by analysis, which knows the column's type
+      const casts = r.params.map((p) => (p.type === 'text' ? 'VARCHAR' : p.type === 'number' ? 'DOUBLE' : undefined));
       FUNCTIONS[r.sqlName] = {
         arity: [r.params.length, r.params.length],
-        sql: (args) => `${r.sqlName}(${args.map((a, i) => `CAST(${a} AS ${casts[i]})`).join(', ')})`,
+        sql: (args) => `${r.sqlName}(${args.map((a, i) => (casts[i] ? `CAST(${a} AS ${casts[i]})` : a)).join(', ')})`,
         wgsl: null,
         width: 1,
-        textArgs: r.params.map((p) => p.type === 'text'),
+        argTypes: r.params.map((p) => p.type),
       };
     }
     const call = (fn: string, args: readonly Expr[]): Expr => ({ kind: 'call', fn, args: [...args] });
