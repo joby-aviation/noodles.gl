@@ -100,6 +100,42 @@ const DEFAULTS: Record<string, Record<string, unknown>> = {
     getElevation: 1000,
     elevationScale: 1,
   },
+  HeatmapLayerOp: {
+    visible: true,
+    opacity: 1,
+    getWeight: 1,
+    aggregation: 'SUM',
+    radiusPixels: 30,
+    intensity: 1,
+    threshold: 0.05,
+  },
+  HexagonLayerOp: {
+    visible: true,
+    opacity: 1,
+    radius: 1000,
+    getColorWeight: 1,
+    colorAggregation: 'SUM',
+    upperPercentile: 100,
+    lowerPercentile: 0,
+    extruded: false,
+    getElevationWeight: 1,
+    elevationAggregation: 'SUM',
+    elevationScale: 1,
+  },
+  GridLayerOp: {
+    visible: true,
+    opacity: 1,
+    cellSize: 1000,
+    getColorWeight: 1,
+    colorAggregation: 'SUM',
+    upperPercentile: 100,
+    lowerPercentile: 0,
+    extruded: true,
+    getElevationWeight: 1,
+    elevationAggregation: 'SUM',
+    elevationScale: 1,
+  },
+  SwitchOp: { index: 0, blend: false },
   MapRangeOp: { val: 0, inMin: 0, inMax: 1, outMin: 0, outMax: 1 },
   ColorRampOp: { colorScheme: 'viridis', value: 0 },
   MathOp: { operator: 'add', a: 0, b: 0 },
@@ -148,7 +184,14 @@ const ACCESSOR_OPS = new Set(
 
 /** Deck inputs that pass host values through to deck and MapLibre. */
 /** Layers and sources the planner draws and reads itself. */
-const PLANNER_LAYERS = new Set(['ScatterplotLayerOp', 'ArcLayerOp', 'GeoJsonLayerOp'])
+const PLANNER_LAYERS = new Set([
+  'ScatterplotLayerOp',
+  'ArcLayerOp',
+  'GeoJsonLayerOp',
+  'HeatmapLayerOp',
+  'HexagonLayerOp',
+  'GridLayerOp',
+])
 const PLANNER_SOURCES = new Set(['FileOp', 'DuckDbOp'])
 
 const DECK_VALUE_PORTS = ['views', 'effects', 'widgets', 'viewState', 'maplibreLayers']
@@ -205,6 +248,7 @@ export function translateAccessor(js: string): string | undefined {
   text = text
     .replace(/\bd\.properties\.([A-Za-z_]\w*)/g, '$1')
     .replace(/\bd\.([A-Za-z_]\w*)/g, '$1')
+    .replace(/\b([A-Za-z_]\w*)\[(\d+)\]/g, 'item($1, $2.0)')
     .replace(/\bMath\.PI\b/g, String(Math.PI))
     .replace(/\bMath\.E\b/g, String(Math.E))
     .replace(/\bMath\.log\(/g, 'ln(')
@@ -426,6 +470,14 @@ export function toEditorDoc(project: NoodlesProject): Migrated {
       }
       nodes.push({ id, op: 'geojson', name: segment(id), ...position(n), params: { url: i.url } })
       sourcePort.set(id, 'all')
+    } else if (n.type === 'FileOp' && i.format === 'json' && typeof i.url === 'string') {
+      nodes.push({
+        id,
+        op: 'file',
+        name: segment(id),
+        ...position(n),
+        params: { url: i.url, format: 'json' },
+      })
     } else if (n.type === 'FileOp' && i.format === 'csv' && typeof i.url === 'string') {
       nodes.push({
         id,
@@ -640,6 +692,22 @@ export function toEditorDoc(project: NoodlesProject): Migrated {
       : v
   }
 
+  /**
+   * A position channel. An accessor that returns a row's `[lng, lat]` array reads a list column
+   * (JSON gives one), which SQL indexes: the attribute becomes `[item(c, 0), item(c, 1)]`.
+   */
+  const positionOf = (v: Value, owner: string): string => {
+    if (v.kind !== 'row') throw new MigrationError(`${owner}: a constant position is not converted`)
+    const writer = [...chains.values()]
+      .flatMap(c => [...c.values()])
+      .find(r => r.attribute === v.expr)
+    const expression = writer?.node.op === 'attribute' ? String(writer.node.params.expression) : ''
+    if (/^[A-Za-z_]\w*$/.test(expression) && writer) {
+      writer.node.params.expression = `[item(${expression}, 0.0), item(${expression}, 1.0)]`
+    }
+    return v.expr
+  }
+
   const blendOf = (layer: NoodlesNode): string => {
     const e = incomingOne(layer.id, 'parameters')
     if (!e) return 'normal'
@@ -756,7 +824,7 @@ export function toEditorDoc(project: NoodlesProject): Migrated {
         params: { ...common, ...params },
       })
       edge(from, 'out', id, 'in')
-      edge(id, 'out', deckOp.id, 'layers', index * 10 + k)
+      edge(id, 'out', deckOp.id, 'layers', index + k)
     }
     const constant = (value: Value, field: string): number => {
       if (value.kind !== 'const')
@@ -888,12 +956,22 @@ export function toEditorDoc(project: NoodlesProject): Migrated {
   // --- layers, in the deck's order -------------------------------------------------------
   const layerEdges = incoming(deckOp.id, 'layers')
   const layerSource = new Map<string, string>()
-  layerEdges.forEach((le, index) => {
-    const layer = byId.get(le.source)
-    if (!layer) throw new MigrationError(`Missing layer ${le.source}`)
+  /** Where a layer's output goes: the deck's layers, or a switch's inputs. */
+  interface Target {
+    node: string
+    port: string
+    index: number
+  }
+  const migrateLayer = (layerId: string, fromPort: string, target: Target): void => {
+    const layer = byId.get(layerId)
+    if (!layer) throw new MigrationError(`Missing layer ${layerId}`)
+    if (layer.type === 'SwitchOp') {
+      switchNode(layer, target)
+      return
+    }
     if (!PLANNER_LAYERS.has(layer.type)) {
       hostNode(layer.id)
-      edge(layer.id, handleField(le.sourceHandle), deckOp.id, 'layers', index)
+      edge(layer.id, fromPort, target.node, target.port, target.index)
       return
     }
     const dataEdge = incomingOne(layer.id, 'data')
@@ -910,10 +988,7 @@ export function toEditorDoc(project: NoodlesProject): Migrated {
 
     switch (layer.type) {
       case 'ScatterplotLayerOp': {
-        const pos = v('getPosition')
-        if (pos.kind !== 'row')
-          throw new MigrationError(`${layer.id}: a constant position is not converted`)
-        params.position = pos.expr
+        params.position = positionOf(v('getPosition'), layer.id)
         const fill = colorInput(colorChannel(v('getFillColor')), layer.id, 'getFillColor')
         if (fill.channel) params.color = fill.channel
         else params.color = ''
@@ -950,13 +1025,8 @@ export function toEditorDoc(project: NoodlesProject): Migrated {
         break
       }
       case 'ArcLayerOp': {
-        const s = v('getSourcePosition')
-        const t = v('getTargetPosition')
-        if (s.kind !== 'row' || t.kind !== 'row') {
-          throw new MigrationError(`${layer.id}: a constant arc endpoint is not converted`)
-        }
-        params.source = s.expr
-        params.target = t.expr
+        params.source = positionOf(v('getSourcePosition'), layer.id)
+        params.target = positionOf(v('getTargetPosition'), layer.id)
         const from = colorInput(colorChannel(v('getSourceColor')), layer.id, 'getSourceColor')
         const to = colorInput(colorChannel(v('getTargetColor')), layer.id, 'getTargetColor')
         params.sourceColor = from.channel ?? ''
@@ -993,15 +1063,121 @@ export function toEditorDoc(project: NoodlesProject): Migrated {
         break
       }
       case 'GeoJsonLayerOp': {
-        geojsonLayer(layer, src, i, v, params, index)
+        if (target.port !== 'layers') {
+          throw new MigrationError(
+            `${layer.id}: a GeoJsonLayer into a ${target.port} is not converted`
+          )
+        }
+        geojsonLayer(layer, src, i, v, params, target.index)
         used.add(layer.id)
         return
+      }
+      case 'HeatmapLayerOp': {
+        params.position = positionOf(v('getPosition'), layer.id)
+        const weight = v('getWeight')
+        params.weight = weight.kind === 'row' ? weight.expr : ''
+        if (weight.kind === 'const') params.weightConstant = num(weight.value, 1)
+        for (const k of ['aggregation', 'radiusPixels', 'intensity', 'threshold']) {
+          params[k] = i[k] as ParamValue
+        }
+        nodes.push({
+          id: layer.id,
+          op: 'heatmap',
+          name: segment(layer.id),
+          ...position(layer),
+          params,
+        })
+        dropUnmapped(layer, [
+          'opacity',
+          'visible',
+          'getPosition',
+          'getWeight',
+          'aggregation',
+          'radiusPixels',
+          'intensity',
+          'threshold',
+        ])
+        break
+      }
+      case 'HexagonLayerOp':
+      case 'GridLayerOp': {
+        const hexagon = layer.type === 'HexagonLayerOp'
+        params.position = positionOf(v('getPosition'), layer.id)
+        for (const [field, param] of [
+          ['getColorWeight', 'colorWeight'],
+          ['getElevationWeight', 'elevationWeight'],
+        ]) {
+          const w = v(field)
+          if (w.kind === 'const' && num(w.value, 1) !== 1) {
+            warnings.push(
+              `${layer.id}: constant ${field} ${w.value} has no effect on a SUM and was dropped`
+            )
+          }
+          params[param] = w.kind === 'row' ? w.expr : ''
+        }
+        const size = hexagon ? 'radius' : 'cellSize'
+        const mapped = [
+          size,
+          'colorAggregation',
+          'upperPercentile',
+          'lowerPercentile',
+          'extruded',
+          'elevationAggregation',
+          'elevationScale',
+        ]
+        for (const k of mapped) params[k] = i[k] as ParamValue
+        if (layer.data?.inputs?.colorRange)
+          warnings.push(`${layer.id}: a custom colorRange is not converted`)
+        nodes.push({
+          id: layer.id,
+          op: hexagon ? 'hexagon' : 'grid-layer',
+          name: segment(layer.id),
+          ...position(layer),
+          params,
+        })
+        dropUnmapped(layer, [
+          'opacity',
+          'visible',
+          'getPosition',
+          'getColorWeight',
+          'getElevationWeight',
+          'colorRange',
+          ...mapped,
+        ])
+        break
       }
       default:
         throw new MigrationError(`${layer.id}: ${layer.type} is not converted yet`)
     }
     used.add(layer.id)
-    edge(layer.id, 'out', deckOp.id, 'layers', index * 10)
+    edge(layer.id, 'out', target.node, target.port, target.index)
+  }
+
+  /** A SwitchOp choosing among layers: a planner switch, the index structural. */
+  const switchNode = (n: NoodlesNode, target: Target) => {
+    if (incomingOne(n.id, 'index'))
+      throw new MigrationError(`${n.id}: a wired Switch index is not converted`)
+    used.add(n.id)
+    nodes.push({
+      id: n.id,
+      op: 'switch',
+      name: segment(n.id),
+      ...position(n),
+      params: { index: Math.floor(num(inputs(n).index, 0)) },
+    })
+    if (inputs(n).blend === true) warnings.push(`${n.id}: blending between layers is not converted`)
+    incoming(n.id, 'values').forEach((e, k) => {
+      migrateLayer(e.source, handleField(e.sourceHandle), { node: n.id, port: 'in', index: k })
+    })
+    edge(n.id, 'out', target.node, target.port, target.index)
+  }
+
+  layerEdges.forEach((le, index) => {
+    migrateLayer(le.source, handleField(le.sourceHandle), {
+      node: deckOp.id,
+      port: 'layers',
+      index: index * 10,
+    })
   })
 
   for (const port of DECK_VALUE_PORTS) {

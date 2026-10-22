@@ -21,9 +21,14 @@
  * rather than computed by the renderer.
  */
 
-export type LayerKind = 'scatter' | 'arc' | 'path' | 'trips' | 'column' | 'text' | 'polygon';
+export type LayerKind =
+  | 'scatter' | 'arc' | 'path' | 'trips' | 'column' | 'text' | 'polygon'
+  /** Aggregation layers: deck bins positions on the GPU or CPU, weighted per row. */
+  | 'heatmap' | 'hexagon' | 'grid';
 
-export const LAYER_KINDS: readonly LayerKind[] = ['scatter', 'arc', 'path', 'trips', 'column', 'text', 'polygon'];
+export const LAYER_KINDS: readonly LayerKind[] = [
+  'scatter', 'arc', 'path', 'trips', 'column', 'text', 'polygon', 'heatmap', 'hexagon', 'grid',
+];
 
 /**
  * What a channel holds. `vec` accepts a 2- or 3-component position; `color` a 3- or 4-
@@ -103,6 +108,26 @@ export const LAYER_SPECS: Record<LayerKind, LayerKindSpec> = {
       { name: 'color', type: 'color', fallback: 'color' },
       { name: 'lineColor', type: 'color' },
       { name: 'elevation', type: 'num' },
+    ],
+  },
+  heatmap: {
+    channels: [
+      { name: 'position', type: 'vec', required: true, fallback: 'position' },
+      { name: 'weight', type: 'num' },
+    ],
+  },
+  hexagon: {
+    channels: [
+      { name: 'position', type: 'vec', required: true, fallback: 'position' },
+      { name: 'colorWeight', type: 'num' },
+      { name: 'elevationWeight', type: 'num' },
+    ],
+  },
+  grid: {
+    channels: [
+      { name: 'position', type: 'vec', required: true, fallback: 'position' },
+      { name: 'colorWeight', type: 'num' },
+      { name: 'elevationWeight', type: 'num' },
     ],
   },
 };

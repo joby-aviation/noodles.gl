@@ -252,8 +252,10 @@ export function analyze(
   // is what keeps them out of every stage but SQL.
   const strings = new Set<string>();
   const fullSource: Schema = new Map(sourceSchema);
+  // Lists, structs and geometry are SQL-only too: an expression can read one in SQL (`item`
+  // of a list, say) and hand the CPU a number.
   for (const [name, type] of columnTypes ?? []) {
-    if (type !== 'str') continue;
+    if (type === 'num') continue;
     strings.add(name);
     if (!fullSource.has(name)) fullSource.set(name, 1);
   }
