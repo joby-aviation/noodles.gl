@@ -6,15 +6,18 @@ import { join } from 'node:path'
 import { describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { EXIT_INVALID, EXIT_OK, EXIT_USAGE, run } from '../src/cli.ts'
+import { currentFixtures } from './fixtures.ts'
 
 const PACKAGE = fileURLToPath(new URL('..', import.meta.url))
 const BIN = join(PACKAGE, 'bin/validate-projects.ts')
+// Paths in these tests are relative to a copy of the fixtures at the current version
+const ROOT = currentFixtures()
 
 function cli(...argv: string[]) {
   const out: string[] = []
   const err: string[] = []
   const code = run(argv, {
-    cwd: PACKAGE,
+    cwd: ROOT,
     stdout: text => out.push(text),
     stderr: text => err.push(text),
   })
@@ -72,17 +75,17 @@ describe('validate-projects', () => {
   it('exits 2 for a missing path, an unknown flag, or no projects found', () => {
     assert.equal(cli('does-not-exist.json').code, EXIT_USAGE)
     assert.equal(cli('--fix').code, EXIT_USAGE)
-    assert.equal(cli('src').code, EXIT_USAGE)
+    assert.equal(cli(join(PACKAGE, 'src')).code, EXIT_USAGE)
   })
 
   it('finds every example project in the editor valid', () => {
-    const { code, stdout } = cli('../noodles-editor/src/examples')
+    const { code, stdout } = cli(join(PACKAGE, '../noodles-editor/src/examples'))
     assert.equal(code, EXIT_OK, stdout)
   })
 
   it('runs as a plain Node script', () => {
     const result = spawnSync(process.execPath, [BIN, 'test/fixtures/broken'], {
-      cwd: PACKAGE,
+      cwd: ROOT,
       encoding: 'utf8',
     })
     assert.equal(result.status, EXIT_INVALID)
