@@ -4,13 +4,9 @@ This directory contains utility scripts for the Noodles.gl project.
 
 ## Available Scripts
 
-### validate-examples.js
+### validate:examples
 
-Validates all example project files to ensure:
-- Valid JSON structure
-- Required fields present (version, nodes, edges)
-- All edge references point to existing nodes
-- No generic node names (e.g., `duckdb-0`, `accessor-1`)
+`npm run validate:examples` runs [`validate-projects`](../noodles-validate/README.md) over `noodles-editor/src/examples`. It checks each project against the operator registry: schema version, operator types, input names, edge endpoints and handles, duplicate edges, and generic node names (e.g. `duckdb-0`, `accessor-1`, now a warning).
 
 Run manually:
 ```bash

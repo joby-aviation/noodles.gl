@@ -1,0 +1,381 @@
+// Registry-aware checks for a noodles.json project file. Pure: takes parsed JSON
+// and a registry, returns diagnostics. No editor code, so it runs in plain Node.
+
+import {
+  fieldNames,
+  handleProblem,
+  isTypo,
+  type Side,
+  unknownInput,
+  unknownType,
+} from './fields.ts'
+import type { Diagnostic, Registry, Rule, Severity, ValidationResult } from './types.ts'
+
+// React Flow group nodes carry no operator
+const SPECIAL_NODE_TYPES = new Set(['group'])
+// Derived from op() references on load; a saved one is ignored
+const REFERENCE_EDGE_TYPE = 'ReferenceEdge'
+// The only fields that take more than one incoming edge
+const MULTI_INPUT_FIELD_TYPE = 'ListField'
+// `${source}.${sourceHandle}->${target}.${targetHandle}`
+const CANONICAL_EDGE_ID = /^\/.*\.(out|par)\..+->\/.*\.(out|par)\..+$/
+
+type Json = Record<string, unknown>
+
+interface NodeRecord {
+  id: string
+  type: string
+  index: number
+  customInputs: string[]
+}
+
+export function validateProject(project: unknown, registry: Registry): ValidationResult {
+  const diagnostics = lintProject(project, registry)
+  const errors = diagnostics.filter(d => d.severity === 'error')
+  const warnings = diagnostics.filter(d => d.severity === 'warning')
+  return { valid: errors.length === 0, errors, warnings }
+}
+
+export function lintProject(project: unknown, registry: Registry): Diagnostic[] {
+  const out: Diagnostic[] = []
+  const report = (severity: Severity, rule: Rule, at: string, message: string, id?: string) =>
+    out.push({ severity, rule, at, message, ...(id !== undefined && { id }) })
+
+  if (!isObject(project)) {
+    report(
+      'error',
+      'project-shape',
+      '$',
+      'A project file is a JSON object with version, nodes and edges.'
+    )
+    return out
+  }
+
+  checkVersion(project.version, registry, report)
+
+  const nodes = new Map<string, NodeRecord>()
+  if (!Array.isArray(project.nodes)) {
+    report(
+      'error',
+      'project-shape',
+      'nodes',
+      'nodes is missing or not an array. An empty project has "nodes": [].'
+    )
+  } else {
+    project.nodes.forEach((node, index) => {
+      checkNode(node, index, registry, nodes, report)
+    })
+  }
+
+  if (!Array.isArray(project.edges)) {
+    report(
+      'error',
+      'project-shape',
+      'edges',
+      'edges is missing or not an array. A project with no connections has "edges": [].'
+    )
+  } else if (Array.isArray(project.nodes)) {
+    checkEdges(project.edges, registry, nodes, report)
+  }
+
+  return out
+}
+
+type Report = (severity: Severity, rule: Rule, at: string, message: string, id?: string) => void
+
+function checkVersion(version: unknown, registry: Registry, report: Report) {
+  const current = registry.projectVersion
+  if (typeof version !== 'number' || !Number.isInteger(version)) {
+    report(
+      'error',
+      'project-shape',
+      'version',
+      `version is missing or not an integer. A current project file has "version": ${current}.`
+    )
+  } else if (version < current) {
+    report(
+      'error',
+      'version',
+      'version',
+      `version is ${version}; the current schema version is ${current}. Migrate the file rather than changing the number, since migrations also rewrite nodes and edges: open it in the editor and save, or put it under noodles-editor/src/examples/<name>/ and run "npm run migrate-projects" from noodles-editor/. Field and handle errors below may be ones the migration fixes.`
+    )
+  } else if (version > current) {
+    report(
+      'error',
+      'version',
+      'version',
+      `version is ${version}, newer than this checkout's schema version ${current}. Update the checkout, or regenerate registry.json with "npm run generate:registry" from noodles-editor/.`
+    )
+  }
+}
+
+function checkNode(
+  node: unknown,
+  index: number,
+  registry: Registry,
+  nodes: Map<string, NodeRecord>,
+  report: Report
+) {
+  const at = `nodes[${index}]`
+  if (!isObject(node)) {
+    report('error', 'project-shape', at, 'Each node is an object with id, type, position and data.')
+    return
+  }
+  const { id, type } = node
+  if (typeof id !== 'string' || !isNodePath(id)) {
+    report(
+      'error',
+      'node-id',
+      at,
+      `Node id ${JSON.stringify(id)} is not an absolute path. Node ids look like /earthquake-data, or /container/child inside a container.`
+    )
+    return
+  }
+  if (nodes.has(id)) {
+    report(
+      'error',
+      'duplicate-node-id',
+      at,
+      `Node id ${id} is also used by nodes[${nodes.get(id)?.index}]. Give one of them a different id and update its edges.`,
+      id
+    )
+    return
+  }
+  if (typeof type !== 'string' || !type) {
+    report(
+      'error',
+      'project-shape',
+      at,
+      `${id} has no type. Operator types end in "Op", e.g. FileOp.`,
+      id
+    )
+    return
+  }
+
+  const data = isObject(node.data) ? node.data : {}
+  const customInputs = customInputNames(data)
+  nodes.set(id, { id, type, index, customInputs })
+
+  if (SPECIAL_NODE_TYPES.has(type)) return
+  if (!registry.operators[type]) {
+    report('error', 'unknown-operator', at, `${id}: ${unknownType(type, registry)}`, id)
+    return
+  }
+
+  if (data.inputs !== undefined && !isObject(data.inputs)) {
+    report(
+      'error',
+      'project-shape',
+      at,
+      `${id} data.inputs is not an object of input names to values.`,
+      id
+    )
+  } else if (isObject(data.inputs)) {
+    const known = [...fieldNames(registry, type, 'inputs'), ...customInputs]
+    for (const name of Object.keys(data.inputs)) {
+      if (!known.includes(name)) {
+        report('error', 'unknown-input', at, unknownInput(id, type, name, known), id)
+      }
+    }
+  }
+
+  // Checked by the old scripts/validate-examples.js, and in the graph design guidelines
+  if (/-\d+$/.test(id)) {
+    report(
+      'warning',
+      'generic-node-name',
+      at,
+      `${id} has a generic name. Name nodes for what they hold, e.g. /earthquake-data rather than /file-1.`,
+      id
+    )
+  }
+}
+
+function checkEdges(
+  edges: unknown[],
+  registry: Registry,
+  nodes: Map<string, NodeRecord>,
+  report: Report
+) {
+  const connections = new Map<string, number>()
+  const ids = new Map<string, number>()
+  // target + targetHandle -> indexes of the edges into it
+  const incoming = new Map<string, number[]>()
+
+  edges.forEach((edge, index) => {
+    const at = `edges[${index}]`
+    if (!isObject(edge)) {
+      report(
+        'error',
+        'edge-shape',
+        at,
+        'Each edge is an object with id, source, sourceHandle, target and targetHandle.'
+      )
+      return
+    }
+    if (edge.type === REFERENCE_EDGE_TYPE) return
+
+    const { id, source, target, sourceHandle, targetHandle } = edge
+    const label = typeof id === 'string' ? id : undefined
+    const missing = (['id', 'source', 'sourceHandle', 'target', 'targetHandle'] as const).filter(
+      key => typeof edge[key] !== 'string' || !edge[key]
+    )
+    if (missing.length > 0) {
+      report(
+        'error',
+        'edge-shape',
+        at,
+        `Edge is missing ${missing.join(', ')}. An edge looks like {"id": "/a.out.data->/b.par.data", "source": "/a", "sourceHandle": "out.data", "target": "/b", "targetHandle": "par.data"}.`,
+        label
+      )
+      return
+    }
+    const s = source as string
+    const t = target as string
+    const sh = sourceHandle as string
+    const th = targetHandle as string
+    const edgeId = id as string
+
+    const canonical = `${s}.${sh}->${t}.${th}`
+    const connection = JSON.stringify([s, sh, t, th])
+    const earlier = connections.get(connection)
+    if (earlier !== undefined) {
+      report(
+        'error',
+        'duplicate-edge',
+        at,
+        `Edge ${edgeId} repeats the connection of edges[${earlier}]. Delete one of them.`,
+        edgeId
+      )
+      return
+    }
+    connections.set(connection, index)
+
+    const sameId = ids.get(edgeId)
+    if (sameId !== undefined) {
+      report(
+        'error',
+        'duplicate-edge-id',
+        at,
+        `Edge id ${edgeId} is also used by edges[${sameId}], which connects different handles. Set this edge's id to ${canonical}.`,
+        edgeId
+      )
+    } else {
+      ids.set(edgeId, index)
+    }
+
+    // Migrations keep legacy ids ("/a.layer->/b.basemap") and suffix repaired
+    // ones "#2", so only an id in the canonical shape that names other
+    // endpoints is out of date
+    const unsuffixed = edgeId.replace(/#\d+$/, '')
+    if (CANONICAL_EDGE_ID.test(unsuffixed) && unsuffixed !== canonical) {
+      report(
+        'warning',
+        'stale-edge-id',
+        at,
+        `Edge id ${edgeId} doesn't match its endpoints. When an edge's endpoints change, its id becomes ${canonical}.`,
+        edgeId
+      )
+    }
+
+    const sourceOk = checkEndpoint(s, sh, 'source', t, registry, nodes, at, edgeId, report)
+    const targetOk = checkEndpoint(t, th, 'target', s, registry, nodes, at, edgeId, report)
+    if (sourceOk && targetOk) {
+      const key = `${t}\u0000${th}`
+      incoming.set(key, [...(incoming.get(key) ?? []), index])
+    }
+  })
+
+  for (const [key, indexes] of incoming) {
+    if (indexes.length < 2) continue
+    const [target, handle] = key.split('\u0000')
+    const node = nodes.get(target)
+    const field = handle.startsWith('par.') ? handle.slice(4) : null
+    if (!node || !field) continue
+    if (registry.operators[node.type]?.inputs[field]?.type === MULTI_INPUT_FIELD_TYPE) continue
+    report(
+      'error',
+      'multiple-inputs',
+      `edges[${indexes[1]}]`,
+      `${target} ${handle} has ${indexes.length} incoming edges (${indexes.map(i => `edges[${i}]`).join(', ')}). Only list inputs take more than one; keep one edge, or merge the data upstream.`,
+      target
+    )
+  }
+}
+
+// True when the node exists and the handle names one of its fields
+function checkEndpoint(
+  nodeId: string,
+  handle: string,
+  role: 'source' | 'target',
+  otherId: string,
+  registry: Registry,
+  nodes: Map<string, NodeRecord>,
+  at: string,
+  edgeId: string,
+  report: Report
+): boolean {
+  const node = nodes.get(nodeId)
+  if (!node) {
+    const near = [...nodes.keys()].filter(id => isTypo(id, nodeId) || id.endsWith(nodeId))
+    const hint = near.length > 0 ? ` Did you mean ${near.slice(0, 5).join(', ')}?` : ''
+    report(
+      'error',
+      'edge-unknown-node',
+      at,
+      `Edge ${role} ${nodeId} is not a node in this project.${hint} If a node was renamed, update the edge's ${role} and id.`,
+      edgeId
+    )
+    return false
+  }
+  // An unknown type is reported on the node itself
+  if (!registry.operators[node.type]) {
+    if (SPECIAL_NODE_TYPES.has(node.type)) {
+      report(
+        'error',
+        'edge-handle',
+        at,
+        `Edge ${role} ${nodeId} is a ${node.type} node, which has no inputs or outputs.`,
+        edgeId
+      )
+    }
+    return false
+  }
+
+  // A container passes values across its boundary from its own side: the edge
+  // into its GraphInputOp starts at the container's input (par.), and the edge
+  // out of its GraphOutputOp ends at the container's output (out.)
+  const crossesBoundary = isDirectChild(otherId, nodeId)
+  const side: Side = (role === 'source') !== crossesBoundary ? 'outputs' : 'inputs'
+  const known = [
+    ...fieldNames(registry, node.type, side),
+    ...(side === 'inputs' ? node.customInputs : []),
+  ]
+  const problem = handleProblem(nodeId, node.type, handle, side, known)
+  if (problem) {
+    report('error', 'edge-handle', at, `Edge ${edgeId}: ${problem}`, edgeId)
+    return false
+  }
+  return true
+}
+
+function isNodePath(id: string): boolean {
+  return /^(\/[^/\s]+)+$/.test(id)
+}
+
+function isDirectChild(childId: string, parentId: string): boolean {
+  return childId.startsWith(`${parentId}/`) && !childId.slice(parentId.length + 1).includes('/')
+}
+
+// A node may declare its own inputs alongside the values for them
+function customInputNames(data: Json): string[] {
+  const custom = data.customInputs
+  if (!Array.isArray(custom)) return []
+  return custom
+    .map(def => (isObject(def) ? def.name : null))
+    .filter((name): name is string => typeof name === 'string')
+}
+
+function isObject(value: unknown): value is Json {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}

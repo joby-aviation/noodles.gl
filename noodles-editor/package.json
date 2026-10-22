@@ -86,7 +86,8 @@
     "fix-lint": "biome check --write --unsafe ./src",
     "build:migrate-script": "vite build --config vite.config.migrate.ts",
     "migrate-projects": "npm run build:migrate-script && node dist/migrate-project-files.js",
-    "generate:migration": "tsx scripts/generate-migration.ts"
+    "generate:migration": "tsx scripts/generate-migration.ts",
+    "generate:registry": "vitest run src/noodles/operator-registry-snapshot.test.ts --update"
   },
   "browserslist": {
     "production": [

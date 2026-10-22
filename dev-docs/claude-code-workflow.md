@@ -24,13 +24,13 @@ Project files (`noodles.json`) are plain JSON and can be read and written by Cla
 
 ### Validating Changes
 
-After editing a project in `src/examples/`, check that the JSON parses and every edge points at an existing node (run from the repo root):
+After editing a project file, check it against the operator registry (run from anywhere in the repo):
 
 ```bash
-npm run validate:examples
+npx validate-projects path/to/noodles.json
 ```
 
-This is a structural check only; it does not check operator types or handle names.
+It checks the schema version, operator types, input names, edge handles and duplicate edges, and names the fix for each error. When it prints `OK`, the file is valid. With no path it checks every project under `src/examples/` and `public/noodles/`; `npm run validate:examples` checks `src/examples/` only. See [noodles-validate](../noodles-validate/README.md) for the rules and exit codes.
 
 Load it in the browser at `http://localhost:5173/examples/<project-name>` to visually verify.
 
