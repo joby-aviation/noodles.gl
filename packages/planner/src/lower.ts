@@ -241,7 +241,10 @@ export function lowerDocument(doc: EditorDoc, options: LowerOptions = {}): Lower
   const fps = options.fps ?? doc.timeline?.fps ?? 30;
   const flat = flattenSubnets(doc);
   const nodes = flat.nodes;
-  const edges = applyBypass(nodes, flat.edges, firstTablePort);
+  // A bypassed transform passes its input through; a bypassed layer, whose output is not a
+  // table, has nothing to pass and drops out with its wires.
+  const passThrough = (n: DocNode) => OPERATOR_INDEX.get(n.op)?.outputs[0]?.type === 'table' ? firstTablePort(n) : undefined;
+  const edges = applyBypass(nodes, flat.edges, passThrough);
   const byId = new Map(nodes.map((n) => [n.id, n]));
   const errors: Lowered['errors'] = [];
   const tracks = new Map((doc.timeline?.tracks ?? []).map((t) => [t.target, t]));

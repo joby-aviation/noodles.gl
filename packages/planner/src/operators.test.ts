@@ -412,3 +412,32 @@ describe('time series', () => {
     expect(parameterValues(lowered, { T: 0, F: 0 }).values[time]).toBe(5);
   });
 });
+
+describe('bypass', () => {
+  it('drops a bypassed layer out of the deck, and passes a bypassed filter through', () => {
+    const doc: EditorDoc = {
+      version: 1,
+      name: 'bypass',
+      nodes: [
+        { id: 'src', op: 'sql', x: 0, y: 0, params: { query: 'SELECT 1.0 AS x, 2.0 AS y' } },
+        { id: 'keep', op: 'filter', x: 0, y: 0, params: { mode: 'expression', expression: 'x > 5.0' }, flags: { bypass: true } },
+        { id: 'a', op: 'scatter', x: 0, y: 0, params: { position: '[x, y]' }, flags: { bypass: true } },
+        { id: 'b', op: 'scatter', x: 0, y: 0, params: { position: '[x, y]' } },
+        { id: 'map', op: 'deck', x: 0, y: 0, params: {} },
+      ],
+      edges: [
+        { id: 'e1', source: 'src', sourcePort: 'out', target: 'keep', targetPort: 'in' },
+        { id: 'e2', source: 'keep', sourcePort: 'out', target: 'a', targetPort: 'in' },
+        { id: 'e3', source: 'keep', sourcePort: 'out', target: 'b', targetPort: 'in' },
+        { id: 'e4', source: 'a', sourcePort: 'out', target: 'map', targetPort: 'layers', index: 0 },
+        { id: 'e5', source: 'b', sourcePort: 'out', target: 'map', targetPort: 'layers', index: 1 },
+      ],
+    };
+    const lowered = lowerDocument(doc);
+    expect(lowered.errors).toEqual([]);
+    const deck = lowered.graph.nodes.find((n) => n.type === 'deck') as DeckNode;
+    expect(deck.inputs).toEqual(['b']);
+    // The bypassed filter is gone from the graph; its consumer reads the source instead
+    expect(lowered.graph.nodes.some((n) => n.id === 'keep')).toBe(false);
+  });
+});

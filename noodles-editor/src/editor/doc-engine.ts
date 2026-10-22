@@ -98,7 +98,14 @@ function openEngine(readAsset: (name: string) => Promise<Uint8Array>): Promise<E
 
 export function errorsOf(e: Engine): NodeError[] {
   const program = e.runtime.program()?.errors ?? []
-  return [...(e.lowering()?.errors ?? []), ...e.errors(), ...program]
+  // A compile that failed outright keeps the last program; say so rather than draw stale layers
+  const failed = e.runtime.error()
+  return [
+    ...(e.lowering()?.errors ?? []),
+    ...e.errors(),
+    ...program,
+    ...(failed ? [{ nodeId: '', message: failed }] : []),
+  ]
 }
 
 /**
