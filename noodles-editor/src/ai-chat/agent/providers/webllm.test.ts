@@ -50,8 +50,8 @@ function splitInThree(text: string): string[] {
 }
 
 interface StubOptions {
-  // One entry per create() call; an Error rejects instead of streaming
-  responses: Array<Chunk[] | Error>
+  // One entry per create() call; an Error or a string rejects instead of streaming
+  responses: Array<Chunk[] | Error | string>
   onCreate?: () => void
 }
 
@@ -65,7 +65,7 @@ function stubEngine(options: StubOptions) {
     requests.push(request)
     options.onCreate?.()
     const response = options.responses[callIndex++]
-    if (response instanceof Error) throw response
+    if (response instanceof Error || typeof response === 'string') throw response
     return (async function* () {
       for (const chunk of response ?? []) yield chunk
     })()
@@ -451,6 +451,40 @@ describe('WebLLMProvider', () => {
     const first = stub.requests[0].messages as unknown[]
     const second = stub.requests[1].messages as unknown[]
     expect(second.length).toBeLessThan(first.length)
+  })
+
+  // What the real worker engine does: its client rejects with the worker's
+  // err.toString(), a plain string, and the count is only the tokens added on top
+  // of the KV cache the engine kept, which is why it reads as well under 4096
+  it('retries when the overflow arrives as the worker engine rejects it, a string', async () => {
+    const overflow =
+      'ContextWindowSizeExceededError: Prompt tokens exceed context window size: number of prompt tokens: 446; context window size: 4096'
+    const stub = stubEngine({
+      responses: [overflow, chunksFor('{"tool":"none","reply":"Trimmed."}')],
+    })
+
+    const request = requestFor('make the points bigger')
+    request.messages = [
+      { role: 'user', content: [{ type: 'text', text: 'make the points bigger' }] },
+      {
+        role: 'assistant',
+        content: [{ type: 'tool_use', id: 'a', name: 'list_nodes', input: {} }],
+      },
+      { role: 'user', content: [{ type: 'tool_result', toolUseId: 'a', content: '[...]' }] },
+      {
+        role: 'assistant',
+        content: [{ type: 'tool_use', id: 'b', name: 'get_node_info', input: { nodeId: '/a' } }],
+      },
+      { role: 'user', content: [{ type: 'tool_result', toolUseId: 'b', content: '{...}' }] },
+    ]
+
+    const events = await collect(providerFor(stub).stream(request))
+
+    expect(events[0]).toEqual({ type: 'diagnostic', kind: 'context_trimmed' })
+    expect(events).toContainEqual({ type: 'text_delta', text: 'Trimmed.' })
+    expect(stub.requests).toHaveLength(2)
+    // The retry keeps the task and the last call with its result, and drops the middle
+    expect((stub.requests[1].messages as unknown[]).length).toBe(4)
   })
 
   it('does not retry an error that is not an overflow', async () => {

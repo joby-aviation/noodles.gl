@@ -1,0 +1,23 @@
+{
+  "name": "noodles-validate",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Check Noodles.gl project files (noodles.json) against the operator registry",
+  "type": "module",
+  "bin": {
+    "validate-projects": "./bin/validate-projects.ts"
+  },
+  "exports": {
+    ".": "./src/index.ts",
+    "./registry.json": "./registry.json"
+  },
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "test": "node --test \"test/*.test.ts\"",
+    "lint": "biome lint .",
+    "typecheck": "tsc -p .",
+    "format:check": "biome format ."
+  }
+}

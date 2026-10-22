@@ -6,9 +6,11 @@ import { useLocation } from 'wouter'
 import logoSvg from '/noodles-favicon.svg'
 import { SettingsDialog } from '../../components/settings-dialog'
 import type { RenderSource } from '../../render/render-analytics'
+import { exportsTransparentVideo } from '../../render/video-export'
 import { analytics } from '../../utils/analytics'
 import { debugUI } from '../../utils/debug'
 import { useActiveOutOp } from '../hooks/use-active-outop'
+import { useRenderSettings } from '../hooks/use-render-settings'
 import { ContainerOp } from '../operators'
 import { getOpStore, type MapMode, useNestingStore, useUIStore } from '../store'
 import { directoryHandleCache } from '../utils/directory-handle-cache'
@@ -27,6 +29,8 @@ import type { UndoRedoHandlerRef } from './UndoRedoHandler'
 
 interface TopMenuBarProps {
   projectName?: string
+  // Project whose version control settings the settings dialog edits; null when unsaved
+  versionedProjectName?: string | null
   onSaveProject: () => void
   onSaveAs?: () => Promise<void>
   onRename?: () => void
@@ -55,6 +59,7 @@ interface TopMenuBarProps {
 
 export function TopMenuBar({
   projectName,
+  versionedProjectName,
   onSaveProject,
   onSaveAs,
   onRename,
@@ -81,6 +86,7 @@ export function TopMenuBar({
 }: TopMenuBarProps) {
   const settingsDialogOpen = useUIStore(state => state.settingsDialogOpen)
   const setSettingsDialogOpen = useUIStore(state => state.setSettingsDialogOpen)
+
   const mapMode = useUIStore(state => state.mapMode)
   const setMapMode = useUIStore(state => state.setMapMode)
   const triggerSidebarSearch = useUIStore(state => state.triggerSidebarSearch)
@@ -93,6 +99,7 @@ export function TopMenuBar({
   const setCurrentContainerId = useNestingStore(state => state.setCurrentContainerId)
   const reactFlow = useReactFlow()
   const activeOutOp = useActiveOutOp()
+  const renderSettings = useRenderSettings()
 
   // Load recent projects on mount
   useEffect(() => {
@@ -577,6 +584,7 @@ export function TopMenuBar({
         <div className={s.rightSection}>
           <ExportButton
             activeOutOpId={activeOutOp?.id ?? null}
+            transparentVideo={exportsTransparentVideo(renderSettings)}
             isRendering={Boolean(isRendering)}
             takeScreenshot={takeScreenshot}
             startRender={startRender}
@@ -619,7 +627,11 @@ export function TopMenuBar({
         </>
       )}
 
-      <SettingsDialog open={settingsDialogOpen} setOpen={setSettingsDialogOpen} />
+      <SettingsDialog
+        open={settingsDialogOpen}
+        setOpen={setSettingsDialogOpen}
+        projectName={versionedProjectName}
+      />
     </>
   )
 }

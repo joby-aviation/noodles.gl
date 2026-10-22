@@ -10,10 +10,12 @@ export type RenderSettings = {
   codec: 'avc' | 'hevc' | 'vp9' | 'av1'
   bitrateMbps: number
   bitrateMode: 'constant' | 'variable'
+  exportAlpha: boolean
   scaleControl: number
   framerate: number
   captureDelay: number
   rendersDirectory: string
+  sequenceFormat: 'png' | 'exr'
 }
 
 export const DEFAULT_RENDER_SETTINGS: RenderSettings = {
@@ -25,8 +27,10 @@ export const DEFAULT_RENDER_SETTINGS: RenderSettings = {
   codec: 'avc',
   bitrateMbps: 10,
   bitrateMode: 'constant',
+  exportAlpha: false,
   scaleControl: 0.3,
   framerate: 30,
   captureDelay: 50,
   rendersDirectory: 'renders',
+  sequenceFormat: 'png',
 }

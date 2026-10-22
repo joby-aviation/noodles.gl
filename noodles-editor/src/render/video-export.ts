@@ -7,6 +7,23 @@ import type { CaptureResult, VideoCodec } from './renderer'
 
 export const VIDEO_CODECS: VideoCodec[] = ['avc', 'hevc', 'vp9', 'av1']
 
+// Codecs a transparent video can use. It goes in a WebM file, which holds VP9 and AV1
+// but not H.264 or H.265. AV1 is left out: mediabunny can write its alpha, but Chrome
+// plays an AV1 WebM as opaque, while it plays VP9's alpha.
+export const ALPHA_VIDEO_CODECS: VideoCodec[] = ['vp9']
+
+// Whether an export with these settings keeps transparency. The setting only applies
+// with a codec that can carry alpha; with any other codec the export is an opaque MP4.
+export function exportsTransparentVideo({
+  codec,
+  exportAlpha,
+}: {
+  codec: VideoCodec
+  exportAlpha: boolean
+}): boolean {
+  return exportAlpha && ALPHA_VIDEO_CODECS.includes(codec)
+}
+
 // Everything is optional: a field left out takes the active OutOp's render setting,
 // and the time range defaults to the timeline's in/out points, then its full length
 export interface VideoExportRequest {
