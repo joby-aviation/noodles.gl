@@ -113,6 +113,23 @@ export interface GraphLoadError {
   message: string
 }
 
+// Map nodes whose operator type isn't registered to UnknownOperator so React Flow renders the
+// placeholder component. originalType stays in data so serializeNodes can write the node back.
+export function markUnknownOperatorNodes<N extends { type?: string; data?: unknown }>(
+  nodes: N[]
+): N[] {
+  return nodes.map(node => {
+    if (opTypes[node.type as OpType] === undefined && node.type !== 'group') {
+      return {
+        ...node,
+        type: 'UnknownOperator',
+        data: { ...(node.data as object), originalType: node.type },
+      } as N
+    }
+    return node
+  })
+}
+
 export function transformGraph<
   OP extends Operator<IOperator>,
   E extends Edge<OP, OP>,
@@ -131,17 +148,7 @@ export function transformGraph<
   errors: GraphLoadError[]
 } {
   const errors: GraphLoadError[] = []
-  // Map unknown operators to UnknownOperator type so React Flow can find the component
-  const nodes = _nodes.map(node => {
-    if (opTypes[node.type as T] === undefined && node.type !== 'group') {
-      return {
-        ...node,
-        type: 'UnknownOperator' as T,
-        data: { ...node.data, originalType: node.type },
-      }
-    }
-    return node
-  }) as NodeJSON<OpType>[]
+  const nodes = markUnknownOperatorNodes(_nodes) as NodeJSON<OpType>[]
   const dataEdges = _edges.filter(edge => (edge as E & { type?: string }).type !== 'ReferenceEdge')
   // Reference dependencies are model-owned and derived for every node, mounted or not.
   const edges = [
