@@ -22,6 +22,15 @@ const highest = Math.max(...versions)
 const highestFilename = filenames.find(f => versionOf(f) === highest)?.replace(/\.ts$/, '')
 const fixHint = `Rebase on main and renumber yours to ${pad(highest + 1)}, then update __migrations__/LATEST and bump example project versions`
 
+// Migrations run from version 0, so the chain must start at 001
+const missingVersions = (nums: number[]) => {
+  const missing: string[] = []
+  for (let v = 1; v <= Math.max(...nums); v++) {
+    if (!nums.includes(v)) missing.push(pad(v))
+  }
+  return missing
+}
+
 describe('migration numbering', () => {
   it('finds migrations', () => {
     expect(filenames.length).toBeGreaterThan(0)
@@ -52,12 +61,8 @@ describe('migration numbering', () => {
     }
   })
 
-  it('numbers migrations without gaps', () => {
-    const unique = [...new Set(versions)].sort((a, b) => a - b)
-    const missing: string[] = []
-    for (let v = unique[0]; v <= highest; v++) {
-      if (!unique.includes(v)) missing.push(pad(v))
-    }
+  it('numbers migrations from 001 without gaps', () => {
+    const missing = missingVersions(versions)
     expect(
       missing,
       `No migration uses ${missing.join(', ')}. Renumber the migrations above the gap so the numbers are consecutive, then update __migrations__/LATEST`
@@ -74,6 +79,20 @@ describe('migration numbering', () => {
 
   it('sets NOODLES_VERSION to the highest migration number', () => {
     expect(NOODLES_VERSION).toBe(highest)
+  })
+})
+
+describe('missingVersions', () => {
+  it('reports a missing first migration', () => {
+    expect(missingVersions([2, 3])).toEqual(['001'])
+  })
+
+  it('reports a gap in the middle', () => {
+    expect(missingVersions([1, 3])).toEqual(['002'])
+  })
+
+  it('accepts a consecutive chain from 001', () => {
+    expect(missingVersions([1, 2, 3])).toEqual([])
   })
 })
 
