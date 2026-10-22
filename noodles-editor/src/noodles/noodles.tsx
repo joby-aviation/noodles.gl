@@ -121,7 +121,7 @@ import {
   writeFileToDirectory,
 } from './utils/filesystem'
 import { reconcileForLoopGroups } from './utils/for-loop-group-utils'
-import { getGitSettings } from './utils/git-service'
+import { shouldAutosave, supportsVersioning, useGitSettings } from './utils/git-settings'
 import { edgeId, nodeId } from './utils/id-utils'
 import { shouldBlockKeyboardShortcut } from './utils/input-detection'
 import { generateDraftId, memoryProjectStore } from './utils/memory-project-store'
@@ -1189,20 +1189,19 @@ export function getNoodles(): Visualization {
     navigate,
   ])
 
-  // Autosave with debouncing
+  // Autosave with debouncing. Reading the settings through the hook re-runs this effect when
+  // version control or autosave is turned off, which cancels a pending save.
+  const gitSettings = useGitSettings(projectName)
   useEffect(() => {
-    // Don't autosave for examples (read-only) or if no unsaved changes
-    if (isExamplesRoute || !hasUnsavedChanges) return
-
-    const gitSettings = getGitSettings()
-    if (!gitSettings.enabled || !gitSettings.autoCommit) return
+    if (!shouldAutosave({ settings: gitSettings, storageType, hasUnsavedChanges, isExamplesRoute }))
+      return
 
     const timeoutId = setTimeout(() => {
       onMenuSave()
     }, gitSettings.autoCommitDelay)
 
     return () => clearTimeout(timeoutId)
-  }, [hasUnsavedChanges, isExamplesRoute, onMenuSave])
+  }, [gitSettings, storageType, hasUnsavedChanges, isExamplesRoute, onMenuSave])
 
   // Step 1 of Save As: Select directory and check conditions
   const onSaveAs = useCallback(async () => {
@@ -1416,7 +1415,7 @@ export function getNoodles(): Visualization {
       // mod+shift+h for Git History
       if (isMod && isShift && key === 'h') {
         e.preventDefault()
-        if (storageType !== 'memory') {
+        if (supportsVersioning(storageType)) {
           setShowGitHistoryPanel(prev => !prev)
         }
       }
@@ -2030,6 +2029,7 @@ export function getNoodles(): Visualization {
     <Suspense fallback={null}>
       <GitHistoryPanel
         projectDirectory={currentDirectory}
+        projectName={projectName}
         onClose={() => setShowGitHistoryPanel(false)}
       />
     </Suspense>
@@ -2073,6 +2073,8 @@ export function getNoodles(): Visualization {
       storageType === 'memory'
         ? memoryProjectStore.getDisplayName(projectName || '') || null
         : projectName,
+    // The project whose version control settings the settings dialog edits
+    versionedProjectName: supportsVersioning(storageType) ? projectName : null,
     getTimelineJson,
     onSaveProject: onMenuSave,
     onSaveAs,

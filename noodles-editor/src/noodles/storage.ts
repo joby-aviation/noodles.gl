@@ -11,7 +11,7 @@ import {
   selectDirectory,
   writeFileToDirectory,
 } from './utils/filesystem'
-import { createGitService, getGitSettings } from './utils/git-service'
+import { supportsVersioning } from './utils/git-settings'
 import { memoryProjectStore } from './utils/memory-project-store'
 import {
   CACHE_DIRECTORY_NAME,
@@ -281,24 +281,16 @@ export async function save(
       },
     }
 
-    // Git commit after successful save
-    if (!options?.skipGitCommit) {
+    // Record the save in the project's version history. A failure never fails the save.
+    if (!options?.skipGitCommit && supportsVersioning(type)) {
       try {
-        const gitSettings = getGitSettings()
-        if (gitSettings.enabled) {
-          const gitService = await createGitService(projectDirectory)
-
-          // Initialize repo if it doesn't exist
-          if (!(await gitService.isGitRepo())) {
-            await gitService.initRepo()
-          }
-
-          // Create commit
-          const message = options?.commitMessage || `Save ${new Date().toISOString()}`
-          await gitService.commit(message, gitSettings.author)
-        }
+        const { commitProjectSnapshot } = await import('./utils/git-service')
+        await commitProjectSnapshot(
+          projectDirectory,
+          projectName,
+          options?.commitMessage || `Save ${new Date().toISOString()}`
+        )
       } catch (error) {
-        // Log error but don't fail the save operation
         console.warn('Git commit failed:', error)
       }
     }
@@ -384,21 +376,12 @@ export async function load(
       await directoryHandleCache.cacheHandle(projectName, projectDirectory, projectDirectory.name)
     }
 
-    // Initialize git repo if it doesn't exist (automatic upgrade for existing projects)
-    if (type !== 'memory') {
-      try {
-        const gitSettings = getGitSettings()
-        if (gitSettings.enabled) {
-          const gitService = await createGitService(projectDirectory)
-          if (!(await gitService.isGitRepo())) {
-            await gitService.initRepo()
-            await gitService.commit('Initialize git repository', gitSettings.author)
-          }
-        }
-      } catch (error) {
-        // Log error but don't fail the load operation
-        console.warn('Git initialization failed:', error)
-      }
+    // Start version history for a project that doesn't have it yet. This runs in the
+    // background so a large data folder doesn't hold up opening the project.
+    if (supportsVersioning(type)) {
+      import('./utils/git-service')
+        .then(({ initProjectRepo }) => initProjectRepo(projectDirectory, projectName))
+        .catch(error => console.warn('Git initialization failed:', error))
     }
 
     return {

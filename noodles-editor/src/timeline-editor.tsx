@@ -646,6 +646,7 @@ export default function TimelineEditor() {
   const topBar = (
     <TopMenuBar
       projectName={noodles.projectName}
+      versionedProjectName={noodles.versionedProjectName}
       onSaveProject={noodles.onSaveProject!}
       onSaveAs={noodles.onSaveAs}
       onRename={noodles.onRename}

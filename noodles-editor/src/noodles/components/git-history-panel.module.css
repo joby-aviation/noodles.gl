@@ -119,8 +119,15 @@
 }
 
 .commitItem {
+  display: block;
+  width: 100%;
   padding: 12px 16px;
+  border: none;
   border-bottom: 1px solid var(--color-border);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
   cursor: pointer;
   transition: background-color 0.2s;
 }

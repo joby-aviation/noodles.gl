@@ -1,15 +1,17 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { Commit, GitService } from '../utils/git-service'
-import { createGitService } from '../utils/git-service'
-import { useUIStore } from '../store'
+import type { Commit } from '../utils/git-service'
+import { canVersionProject, createGitService, restoreProjectVersion } from '../utils/git-service'
+import { useGitSettings } from '../utils/git-settings'
 import styles from './git-history-panel.module.css'
 
 interface GitHistoryPanelProps {
   projectDirectory: FileSystemDirectoryHandle | null
+  projectName: string | null
   onClose: () => void
 }
 
-export function GitHistoryPanel({ projectDirectory, onClose }: GitHistoryPanelProps) {
+export function GitHistoryPanel({ projectDirectory, projectName, onClose }: GitHistoryPanelProps) {
+  const settings = useGitSettings(projectName)
   const [commits, setCommits] = useState<Commit[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -27,15 +29,25 @@ export function GitHistoryPanel({ projectDirectory, onClose }: GitHistoryPanelPr
     try {
       setLoading(true)
       setError(null)
-      const gitService = await createGitService(projectDirectory)
-
-      if (!(await gitService.isGitRepo())) {
-        setError('This project is not a git repository')
+      const { allowed, status } = await canVersionProject(projectDirectory, settings)
+      if (!settings.enabled) {
+        setError('Version control is off for this project. Turn it on in Settings.')
         setCommits([])
-        setLoading(false)
+        return
+      }
+      if (!allowed && status === 'external') {
+        setError(
+          'This folder already has a git repository that Noodles did not create. To save versions into it, turn on "Commit to an existing repository" in Settings.'
+        )
+        setCommits([])
+        return
+      }
+      if (status === 'none') {
+        setCommits([])
         return
       }
 
+      const gitService = await createGitService(projectDirectory)
       const history = await gitService.log({ maxCount: 100 })
       setCommits(history)
     } catch (err) {
@@ -44,7 +56,7 @@ export function GitHistoryPanel({ projectDirectory, onClose }: GitHistoryPanelPr
     } finally {
       setLoading(false)
     }
-  }, [projectDirectory])
+  }, [projectDirectory, settings])
 
   useEffect(() => {
     loadHistory()
@@ -78,12 +90,11 @@ export function GitHistoryPanel({ projectDirectory, onClose }: GitHistoryPanelPr
   }
 
   const handleRestoreConfirm = async () => {
-    if (!projectDirectory || !selectedCommit) return
+    if (!projectDirectory || !projectName || !selectedCommit) return
 
     try {
       setRestoring(true)
-      const gitService = await createGitService(projectDirectory)
-      await gitService.restore(selectedCommit.oid)
+      await restoreProjectVersion(projectDirectory, projectName, selectedCommit.oid)
 
       // Reload the page to reflect the restored state
       window.location.reload()
@@ -102,7 +113,7 @@ export function GitHistoryPanel({ projectDirectory, onClose }: GitHistoryPanelPr
     <div className={styles.panel}>
       <div className={styles.header}>
         <h2 className={styles.title}>Version History</h2>
-        <button className={styles.closeButton} onClick={onClose} aria-label="Close">
+        <button type="button" className={styles.closeButton} onClick={onClose} aria-label="Close">
           ×
         </button>
       </div>
@@ -117,7 +128,7 @@ export function GitHistoryPanel({ projectDirectory, onClose }: GitHistoryPanelPr
       {error && (
         <div className={styles.error}>
           <p>{error}</p>
-          <button onClick={loadHistory} className={styles.retryButton}>
+          <button type="button" onClick={loadHistory} className={styles.retryButton}>
             Retry
           </button>
         </div>
@@ -134,22 +145,21 @@ export function GitHistoryPanel({ projectDirectory, onClose }: GitHistoryPanelPr
         <div className={styles.content}>
           <div className={styles.commitList}>
             {commits.map(commit => (
-              <div
+              <button
+                type="button"
                 key={commit.oid}
                 className={`${styles.commitItem} ${selectedCommit?.oid === commit.oid ? styles.selected : ''}`}
                 onClick={() => setSelectedCommit(commit)}
               >
                 <div className={styles.commitHeader}>
-                  <span className={styles.commitHash} onClick={() => copyCommitHash(commit.oid)}>
-                    {commit.oid.substring(0, 7)}
-                  </span>
+                  <span className={styles.commitHash}>{commit.oid.substring(0, 7)}</span>
                   <span className={styles.commitTime}>
                     {formatRelativeTime(commit.author.timestamp)}
                   </span>
                 </div>
                 <div className={styles.commitMessage}>{commit.message}</div>
                 <div className={styles.commitAuthor}>{commit.author.name}</div>
-              </div>
+              </button>
             ))}
           </div>
 
@@ -162,6 +172,7 @@ export function GitHistoryPanel({ projectDirectory, onClose }: GitHistoryPanelPr
                   <span className={styles.detailValue}>
                     {selectedCommit.oid}
                     <button
+                      type="button"
                       className={styles.copyButton}
                       onClick={() => copyCommitHash(selectedCommit.oid)}
                       title="Copy commit hash"
@@ -198,7 +209,12 @@ export function GitHistoryPanel({ projectDirectory, onClose }: GitHistoryPanelPr
                 )}
               </div>
               <div className={styles.detailsFooter}>
-                <button className={styles.restoreButton} onClick={handleRestoreClick} disabled={restoring}>
+                <button
+                  type="button"
+                  className={styles.restoreButton}
+                  onClick={handleRestoreClick}
+                  disabled={restoring}
+                >
                   {restoring ? 'Restoring...' : 'Restore to this commit'}
                 </button>
               </div>
@@ -213,17 +229,28 @@ export function GitHistoryPanel({ projectDirectory, onClose }: GitHistoryPanelPr
           <div className={styles.confirmDialog}>
             <h3 className={styles.confirmTitle}>Restore to this commit?</h3>
             <p className={styles.confirmMessage}>
-              This will restore your project to commit <code>{selectedCommit.oid.substring(0, 7)}</code>.
+              This will restore your project to commit{' '}
+              <code>{selectedCommit.oid.substring(0, 7)}</code>.
             </p>
             <p className={styles.confirmWarning}>
               <strong>Warning:</strong> Any unsaved changes will be lost. The page will reload after
               restoration.
             </p>
             <div className={styles.confirmActions}>
-              <button className={styles.confirmCancel} onClick={handleRestoreCancel} disabled={restoring}>
+              <button
+                type="button"
+                className={styles.confirmCancel}
+                onClick={handleRestoreCancel}
+                disabled={restoring}
+              >
                 Cancel
               </button>
-              <button className={styles.confirmRestore} onClick={handleRestoreConfirm} disabled={restoring}>
+              <button
+                type="button"
+                className={styles.confirmRestore}
+                onClick={handleRestoreConfirm}
+                disabled={restoring}
+              >
                 {restoring ? 'Restoring...' : 'Restore'}
               </button>
             </div>
