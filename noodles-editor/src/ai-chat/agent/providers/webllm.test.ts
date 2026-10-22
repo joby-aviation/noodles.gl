@@ -461,6 +461,90 @@ describe('WebLLMProvider', () => {
     expect((stub.requests[1].messages as unknown[]).length).toBe(4)
   })
 
+  it('keeps sending the trimmed transcript on later steps so the engine can reuse its cache', async () => {
+    const overflow = 'ContextWindowSizeExceededError: number of prompt tokens: 446'
+    const stub = stubEngine({
+      responses: [
+        overflow,
+        chunksFor('{"tool":"get_node_info","reply":"Reading","input":{"nodeId":"/c"}}'),
+        chunksFor('{"tool":"none","reply":"Done.","input":{}}'),
+      ],
+    })
+    const provider = providerFor(stub)
+
+    const request = requestFor('make the points bigger')
+    request.messages = [
+      { role: 'user', content: [{ type: 'text', text: 'make the points bigger' }] },
+      {
+        role: 'assistant',
+        content: [{ type: 'tool_use', id: 'a', name: 'list_nodes', input: {} }],
+      },
+      { role: 'user', content: [{ type: 'tool_result', toolUseId: 'a', content: '[...]' }] },
+      {
+        role: 'assistant',
+        content: [{ type: 'tool_use', id: 'b', name: 'get_node_info', input: { nodeId: '/a' } }],
+      },
+      { role: 'user', content: [{ type: 'tool_result', toolUseId: 'b', content: '{...}' }] },
+    ]
+    const first = await collect(provider.stream(request))
+
+    // The loop appends the step's call and its result to its own, untrimmed transcript
+    const block = first.find(event => event.type === 'provider_block')
+    const next: AgentRequest = {
+      ...request,
+      messages: [
+        ...request.messages,
+        {
+          role: 'assistant',
+          content: [
+            {
+              type: 'provider_block',
+              provider: 'webllm',
+              block: (block as { block: string }).block,
+            },
+            { type: 'tool_use', id: 'c', name: 'get_node_info', input: { nodeId: '/c' } },
+          ],
+        },
+        { role: 'user', content: [{ type: 'tool_result', toolUseId: 'c', content: '{"c":1}' }] },
+      ],
+    }
+    const second = await collect(provider.stream(next))
+
+    expect(second).not.toContainEqual({ type: 'diagnostic', kind: 'context_trimmed' })
+    const retried = stub.requests[1].messages as unknown[]
+    const extended = stub.requests[2].messages as unknown[]
+    // The trimmed request plus the call it produced and that call's result, byte for byte
+    expect(extended.slice(0, retried.length)).toEqual(retried)
+    expect(extended).toHaveLength(retried.length + 2)
+  })
+
+  it('sends a new conversation whole after an earlier one was trimmed', async () => {
+    const stub = stubEngine({
+      responses: [
+        'ContextWindowSizeExceededError: number of prompt tokens: 446',
+        chunksFor('{"tool":"none","reply":"Trimmed.","input":{}}'),
+        chunksFor('{"tool":"none","reply":"Hello.","input":{}}'),
+      ],
+    })
+    const provider = providerFor(stub)
+
+    const long = requestFor('first')
+    long.messages = [
+      { role: 'user', content: [{ type: 'text', text: 'first' }] },
+      { role: 'assistant', content: [{ type: 'text', text: 'one' }] },
+      { role: 'user', content: [{ type: 'text', text: 'second' }] },
+      { role: 'assistant', content: [{ type: 'text', text: 'two' }] },
+      { role: 'user', content: [{ type: 'text', text: 'third' }] },
+    ]
+    await collect(provider.stream(long))
+    await collect(provider.stream(requestFor('hello')))
+
+    expect(stub.requests[2].messages).toEqual([
+      expect.objectContaining({ role: 'system' }),
+      { role: 'user', content: 'hello' },
+    ])
+  })
+
   it('does not retry an error that is not an overflow', async () => {
     const stub = stubEngine({ responses: [new Error('WebGPU device lost')] })
 

@@ -163,7 +163,11 @@ Five facts shape `providers/webllm.ts`:
    `json-tools.ts` keeps the first turn, the current request and the last tool call
    with its result, and drops the middle. A transcript with no middle to drop (the
    task, one call, one result) is not retried, because the same prompt would overflow
-   the same way. The error crosses the worker's
+   the same way. The loop still holds every message, so after a trim the provider
+   sends the trimmed transcript plus whatever is newer (`transcriptFor`). Later steps
+   then extend what the engine holds instead of overflowing again and prefilling
+   about 3k tokens from an empty cache (Qwen3.5-4B: 118 tokens in 0.3 s instead of
+   ~3,000 in ~11 s). The error crosses the worker's
    `postMessage` as its `toString()` and the engine rejects with that string, not an
    `Error`, so the provider matches the `ContextWindowSizeExceededError` prefix in
    the text. Its token count is only the tokens added this step: the engine checks

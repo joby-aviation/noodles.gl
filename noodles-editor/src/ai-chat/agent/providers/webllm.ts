@@ -24,7 +24,7 @@
 // 5. Prefill is most of the wait. The engine skips it for everything it has seen
 //    before only when the next request extends the last one exactly, so the
 //    system message and every earlier turn are kept byte-stable (preambleFor,
-//    toWireTurns).
+//    toWireTurns), and so is a transcript once it has been trimmed (transcriptFor).
 
 import { debugAiChat } from '../../../utils/debug'
 import type {
@@ -220,6 +220,9 @@ export class WebLLMProvider implements AgentProvider {
   // The system message each system prompt was first sent with, and the tools it
   // listed. See preambleFor.
   private readonly preambles = new Map<string, { tools: string[]; text: string }>()
+  // After an overflow: the shorter transcript sent in place of the loop's, and the
+  // loop's messages it replaced, as wire text. See transcriptFor.
+  private trim: { replaced: string[]; kept: AgentMessage[] } | null = null
 
   constructor(options: {
     engine: WebLLMEngine
@@ -248,7 +251,7 @@ export class WebLLMProvider implements AgentProvider {
       return
     }
 
-    const completion = await this.complete(request, request.messages, signal)
+    const completion = await this.complete(request, signal)
 
     if (signal?.aborted) {
       yield { type: 'stop', reason: 'aborted' }
@@ -260,11 +263,8 @@ export class WebLLMProvider implements AgentProvider {
     yield* this.eventsFor(completion, request.tools)
   }
 
-  private async complete(
-    request: AgentRequest,
-    messages: AgentMessage[],
-    signal?: AbortSignal
-  ): Promise<Completion> {
+  private async complete(request: AgentRequest, signal?: AbortSignal): Promise<Completion> {
+    const messages = this.transcriptFor(request.messages)
     try {
       return await this.generate(request, messages, signal)
     } catch (error) {
@@ -280,8 +280,30 @@ export class WebLLMProvider implements AgentProvider {
         trimmed.length,
         messages.length
       )
-      return { ...(await this.generate(request, trimmed, signal)), trimmed: true }
+      const completion = await this.generate(request, trimmed, signal)
+      this.trim = { replaced: request.messages.map(wireText), kept: trimmed }
+      return { ...completion, trimmed: true }
     }
+  }
+
+  // The loop keeps every message, so after one overflow each later step would
+  // overflow again and be trimmed again, to a transcript that differs from the
+  // last one in its final exchange. The engine would then prefill the whole prompt
+  // from an empty cache: about 3k tokens, 11 to 12 seconds on a laptop GPU, every
+  // step. Sending the trimmed transcript plus what came after it extends the
+  // conversation the engine holds instead, so only the new messages are prefilled.
+  private transcriptFor(messages: AgentMessage[]): AgentMessage[] {
+    const trim = this.trim
+    const extendsTrim =
+      trim !== null &&
+      messages.length >= trim.replaced.length &&
+      trim.replaced.every((text, index) => wireText(messages[index]) === text)
+    if (!extendsTrim) {
+      // A new conversation, or one the loop rewrote
+      this.trim = null
+      return messages
+    }
+    return [...trim.kept, ...messages.slice(trim.replaced.length)]
   }
 
   private async generate(
@@ -295,7 +317,7 @@ export class WebLLMProvider implements AgentProvider {
       messages: [
         // The tool schemas ride in the system message, as they do for every
         // provider without native tools
-        { role: 'system', content: this.preambleFor(request) },
+        { role: 'system', content: this.preambleFor(request, messages) },
         ...toWireTurns(messages),
       ],
       max_tokens: Math.min(request.maxTokens, MAX_OUTPUT_TOKENS),
@@ -353,7 +375,7 @@ export class WebLLMProvider implements AgentProvider {
   // laptop GPU, every step. So the first preamble for a system prompt is kept
   // while every tool it lists is still offered. Tools unlocked later still reach
   // the model, through find_tools' own result and the grammar's enum.
-  private preambleFor(request: AgentRequest): string {
+  private preambleFor(request: AgentRequest, messages: AgentMessage[]): string {
     const offered = new Set(request.tools.map(tool => tool.name))
     const pinned = this.preambles.get(request.system)
     const stillValid =
@@ -366,7 +388,7 @@ export class WebLLMProvider implements AgentProvider {
       // would have its name and nothing else, so the preamble is rebuilt.
       [...offered]
         .filter(name => !pinned.tools.includes(name))
-        .every(name => describedInTranscript(name, request.messages))
+        .every(name => describedInTranscript(name, messages))
     if (stillValid) return pinned.text
 
     const text = preamble(request)
@@ -424,6 +446,12 @@ function toWireTurns(messages: AgentMessage[]): {
       content: rawCompletion(message) ?? serializeMessage(message),
     }))
     .filter(turn => turn.content.length > 0)
+}
+
+// One message as the engine sees it, role included, for telling whether the loop's
+// transcript still starts with the messages a trim replaced
+function wireText(message: AgentMessage): string {
+  return `${message.role}:${rawCompletion(message) ?? serializeMessage(message)}`
 }
 
 function describedInTranscript(toolName: string, messages: AgentMessage[]): boolean {
