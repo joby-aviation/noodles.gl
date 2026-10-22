@@ -44,6 +44,17 @@ function stripLargeDataFields(project: unknown): unknown {
   )
 }
 
+// First sentence of the first paragraph, skipping headings and _italic_ attribution
+// lines. It goes into the system prompt for every example, so keep it to one sentence
+export function extractDescription(readme: string): string | undefined {
+  for (const line of readme.split('\n')) {
+    const trimmed = line.trim()
+    if (!trimmed || trimmed.startsWith('#') || trimmed.startsWith('_')) continue
+    return trimmed.match(/^.+?[.!?](?=\s|$)/)?.[0] ?? trimmed
+  }
+  return undefined
+}
+
 // Get metadata for all available examples (without loading full projects)
 function getExampleMetadata() {
   const metadata: Record<
@@ -67,12 +78,7 @@ function getExampleMetadata() {
       ? titleMatch[1]
       : id.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
 
-    // Extract description (first paragraph after title)
-    let description = `Example project: ${id}`
-    const descMatch = readme.match(/^#\s+.+\n\n(.+)/m)
-    if (descMatch) {
-      description = descMatch[1].trim()
-    }
+    const description = extractDescription(readme) ?? `Example project: ${id}`
 
     metadata[id] = {
       id,
