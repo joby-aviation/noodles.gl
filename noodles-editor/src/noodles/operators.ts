@@ -10,7 +10,7 @@ import {
   type DeckProps,
   FirstPersonView,
   _GlobeView as GlobeView,
-  LayerExtension,
+  type LayerExtension,
   type LayerProps,
   MapView,
   OrbitView,
@@ -3014,8 +3014,8 @@ function gatherTriggers(
   return triggers
 }
 
-type LayerExtensionFieldValue = null | {
-  extension: LayerExtension | { type: string, [key: string]: unknown }
+type LayerExtensionFieldReturnValue = null | {
+  extension: LayerExtension
   props: Record<string, unknown>
 }
 
@@ -3049,36 +3049,25 @@ function parseLayerProps<P extends LayerProps>({
   extensions = [],
   ...props
 }: {
-  extensions: LayerExtensionFieldValue[]
+  extensions: LayerExtensionFieldReturnValue[]
 } & P) {
   const validExtensions = extensions.filter(
-    (e): e is Exclude<LayerExtensionFieldValue, null> => e !== null
+    (e): e is Exclude<LayerExtensionFieldReturnValue, null> => e !== null
   )
 
-  const layerProps = {
-    ...props,
-    ...validExtensions.reduce((acc, ext) => {
-      if (ext.extension) {
-        return { ...acc, ...ext.props }
-      }
-      return acc
-    }, {} as Record<string, unknown>),
+  const result = { ...props }
+
+  if (validExtensions.length > 0) {
+    // Keep extensions as POJOs for now - they'll be instantiated later in noodles.tsx
+    result.extensions = validExtensions.map(e => e.extension)
+
+    // Merge extension props into the layer props
+    for (const ext of validExtensions) {
+      Object.assign(result, ext.props)
+    }
   }
 
-  // Keep extensions as POJOs for now - they'll be instantiated later
-  // in noodles.tsx unless they are already instantiated (i.e. custom extensions)
-  return {
-    ...props,
-    extensions: validExtensions.length > 0 ? [
-      ...validExtensions.filter(e => e instanceof LayerExtension),
-
-      // Merge extension props into the layer props
-      ...validExtensions
-        .filter(e => e.extension)
-        .map(e => e.extension),
-    ] : undefined,
-  }
-
+  return result
 }
 
 export class PathLayerOp extends Operator<PathLayerOp> {
