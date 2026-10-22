@@ -74,10 +74,11 @@ import type {
 import { BehaviorSubject, combineLatest, Subject, type Subscription } from 'rxjs'
 import { distinctUntilChanged, filter, mergeMap, skip } from 'rxjs/operators'
 import { Temporal } from 'temporal-polyfill'
-import type z from 'zod/v4'
+import z from 'zod/v4'
 
 import './utils/bigint-fix' // BigInt JSON polyfill for DuckDB
 import * as duckdb from '@duckdb/duckdb-wasm'
+import { getRenderSurfaceSize, subscribeToRenderSurfaceSize } from '../render/render-surface-size'
 import { getTransformScaleFactor } from '../render/transform-scale'
 import { subscribeToPosition } from '../timeline/timeline-store'
 import * as utils from '../utils'
@@ -101,7 +102,7 @@ import {
   continuousInterpolators,
 } from './color-schemes'
 import { FilterColorExtension } from './extensions/filter-color-extension'
-import { Mask3DExtension } from './extensions/mask-3d-extension'
+import { Mask3DExtension, toMaskTargetPosition } from './extensions/mask-3d-extension'
 import {
   ArrayField,
   applyNodeUIMetadata,
@@ -1191,22 +1192,19 @@ export class UnknownOperator extends Operator<UnknownOperator> {
   static description = 'Placeholder for an operator type that could not be found'
 
   originalType: string
-  // Store original inputs to preserve them through save/load cycles
-  originalInputs: Record<string, unknown>
+  // The node's saved data (inputs, locked, customInputs, ...), written back unchanged on save
+  // so the project still opens once the operator type is available again
+  originalData: Record<string, unknown>
 
   constructor(id: OpId, data?: Record<string, unknown>) {
-    const originalType = (data?.originalType as string) || 'Unknown'
-    const originalInputs = (data?.inputs as Record<string, unknown>) || {}
     super(id, {}, false)
-    this.originalType = originalType
-    this.originalInputs = originalInputs
+    const { originalType, ...originalData } = data ?? {}
+    this.originalType = (originalType as string) || 'Unknown'
+    this.originalData = originalData
   }
 
   createInputs() {
-    // Create an UnknownField to store original inputs for serialization
-    return {
-      __originalInputs: new UnknownField(this.originalInputs),
-    }
+    return {}
   }
 
   createOutputs() {
@@ -1563,6 +1561,217 @@ export class DateTimeOp extends Operator<DateTimeOp> {
   }
   execute({ date }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     return { date }
+  }
+}
+
+const DATE_MATH_OPERATORS = [
+  'add',
+  'subtract',
+  'difference',
+  'isBefore',
+  'isAfter',
+  'equals',
+  'interpolate',
+] as const
+const DATE_MATH_USES_DATE_B = new Set([
+  'difference',
+  'isBefore',
+  'isAfter',
+  'equals',
+  'interpolate',
+])
+const DURATION_UNITS = [
+  'years',
+  'months',
+  'weeks',
+  'days',
+  'hours',
+  'minutes',
+  'seconds',
+  'milliseconds',
+] as const
+
+// Date arithmetic and comparison. The output type depends on the operator:
+// add/subtract/interpolate return a date, difference returns a number in `unit`,
+// isBefore/isAfter/equals return a boolean. Accepts accessors for per-item math.
+export class DateMathOp extends Operator<DateMathOp> {
+  static displayName = 'DateMath'
+  static description = 'Add, subtract, compare, or interpolate dates'
+
+  constructor(id: OpId, inputs?: unknown, locked?: boolean) {
+    super(id, inputs, locked)
+
+    const sub = this.inputs.operator.subscribe((operator: string) => {
+      const visible = new Set<string>(['operator', 'date'])
+      if (DATE_MATH_USES_DATE_B.has(operator)) visible.add('dateB')
+      if (operator === 'add' || operator === 'subtract') visible.add('amount')
+      if (operator === 'add' || operator === 'subtract' || operator === 'difference') {
+        visible.add('unit')
+      }
+      if (operator === 'interpolate') visible.add('t')
+      this.visibleFields.next(visible)
+    })
+    this.subs.push(sub)
+  }
+
+  createInputs() {
+    return {
+      operator: new StringLiteralField('add', { values: [...DATE_MATH_OPERATORS] }),
+      date: new DateField(undefined, { accessor: true }),
+      dateB: new DateField(undefined, { accessor: true, showByDefault: false }),
+      amount: new NumberField(1, { step: 1, accessor: true }),
+      unit: new StringLiteralField('days', { values: [...DURATION_UNITS] }),
+      t: new NumberField(0, { min: 0, max: 1, step: 0.01, accessor: true, showByDefault: false }),
+    }
+  }
+  createOutputs() {
+    return {
+      result: new UnknownField(),
+    }
+  }
+  execute({
+    operator,
+    date,
+    dateB,
+    amount,
+    unit,
+    t,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    type Value<T> = T | ((...args: unknown[]) => T)
+    const transform = (
+      a: Temporal.PlainDateTime,
+      b: Temporal.PlainDateTime,
+      n: number,
+      tVal: number
+    ) => {
+      switch (operator) {
+        case 'add':
+          return a.add({ [unit]: n })
+        case 'subtract':
+          return a.subtract({ [unit]: n })
+        case 'difference':
+          // total() keeps the fraction: 12 hours in 'days' is 0.5, not 0
+          return a.until(b).total({ unit: unit as Temporal.DateTimeUnit, relativeTo: a })
+        case 'isBefore':
+          return Temporal.PlainDateTime.compare(a, b) < 0
+        case 'isAfter':
+          return Temporal.PlainDateTime.compare(a, b) > 0
+        case 'equals':
+          return Temporal.PlainDateTime.compare(a, b) === 0
+        case 'interpolate':
+          return interpolateTemporal(a, b, Math.max(0, Math.min(1, tVal)))
+        default:
+          throw new Error(`Unknown operator: ${operator}`)
+      }
+    }
+
+    // Only inputs the operator reads can turn the result into an accessor
+    const inputs: [
+      Value<Temporal.PlainDateTime>,
+      Value<Temporal.PlainDateTime>,
+      Value<number>,
+      Value<number>,
+    ] = [
+      date,
+      DATE_MATH_USES_DATE_B.has(operator) ? dateB : date,
+      operator === 'add' || operator === 'subtract' ? amount : 0,
+      operator === 'interpolate' ? t : 0,
+    ]
+    if (!inputs.some(isAccessor)) {
+      return {
+        result: transform(
+          ...(inputs as [Temporal.PlainDateTime, Temporal.PlainDateTime, number, number])
+        ),
+      }
+    }
+    const result = (...args: unknown[]) => {
+      const [a, b, n, tVal] = inputs.map(v => (isAccessor(v) ? v(...args) : v))
+      return transform(
+        a as Temporal.PlainDateTime,
+        b as Temporal.PlainDateTime,
+        n as number,
+        tVal as number
+      )
+    }
+    return { result }
+  }
+}
+
+// Split a date into numeric components, one output per part
+export class DatePartsOp extends Operator<DatePartsOp> {
+  static displayName = 'DateParts'
+  static description = 'Split a date into year, month, day, hour, and other components'
+  createInputs() {
+    return {
+      date: new DateField(undefined, { accessor: true }),
+    }
+  }
+  createOutputs() {
+    return {
+      year: new NumberField(),
+      month: new NumberField(),
+      day: new NumberField(),
+      hour: new NumberField(),
+      minute: new NumberField(),
+      second: new NumberField(),
+      millisecond: new NumberField(),
+      dayOfWeek: new NumberField(),
+      dayOfYear: new NumberField(),
+      weekOfYear: new NumberField(),
+    }
+  }
+  execute({ date }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const part = (key: keyof ReturnType<DatePartsOp['createOutputs']>) =>
+      composeAccessor(date, (d: Temporal.PlainDateTime) => d[key] as number)
+    return {
+      year: part('year'),
+      month: part('month'),
+      day: part('day'),
+      hour: part('hour'),
+      minute: part('minute'),
+      second: part('second'),
+      millisecond: part('millisecond'),
+      dayOfWeek: part('dayOfWeek'),
+      dayOfYear: part('dayOfYear'),
+      weekOfYear: part('weekOfYear'),
+    } as ExtractProps<typeof this.outputs>
+  }
+}
+
+const DATE_FORMAT_TOKENS = /YYYY|MM|DD|HH|mm|ss|SSS/g
+
+// Format a date with YYYY, MM, DD, HH, mm, ss, and SSS tokens. An empty pattern gives ISO 8601.
+export class DateFormatOp extends Operator<DateFormatOp> {
+  static displayName = 'DateFormat'
+  static description = 'Format a date as a string, e.g. YYYY-MM-DD HH:mm'
+  createInputs() {
+    return {
+      date: new DateField(undefined, { accessor: true }),
+      pattern: new StringField('YYYY-MM-DD HH:mm:ss'),
+    }
+  }
+  createOutputs() {
+    return {
+      text: new StringField(),
+    }
+  }
+  execute({ date, pattern }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const format = (d: Temporal.PlainDateTime) => {
+      if (!pattern) return d.toString()
+      const pad = (n: number, width = 2) => n.toString().padStart(width, '0')
+      const tokens: Record<string, string> = {
+        YYYY: pad(d.year, 4),
+        MM: pad(d.month),
+        DD: pad(d.day),
+        HH: pad(d.hour),
+        mm: pad(d.minute),
+        ss: pad(d.second),
+        SSS: pad(d.millisecond, 3),
+      }
+      // One pass, so text a token produces is never matched by a later token
+      return pattern.replace(DATE_FORMAT_TOKENS, token => tokens[token])
+    }
+    return { text: composeAccessor(date, format) } as ExtractProps<typeof this.outputs>
   }
 }
 
@@ -2803,14 +3012,87 @@ export class BoundsOp extends Operator<BoundsOp> {
   }
 }
 
+const GEOJSON_COORDINATE_GEOMETRIES = new Set([
+  'Point',
+  'MultiPoint',
+  'LineString',
+  'MultiLineString',
+  'Polygon',
+  'MultiPolygon',
+])
+
+const isPlainObject = (val: unknown): val is Record<string, unknown> =>
+  typeof val === 'object' && val !== null && !Array.isArray(val)
+
+// Checks the members each type requires, but not every position, so large inputs stay cheap
+function isGeoJsonGeometry(val: unknown): val is GeoJSON.Geometry {
+  if (!isPlainObject(val)) return false
+  if (val.type === 'GeometryCollection') {
+    return Array.isArray(val.geometries) && val.geometries.every(isGeoJsonGeometry)
+  }
+  return GEOJSON_COORDINATE_GEOMETRIES.has(val.type as string) && Array.isArray(val.coordinates)
+}
+
+function isGeoJsonFeature(val: unknown): val is GeoJSON.Feature {
+  return (
+    isPlainObject(val) &&
+    val.type === 'Feature' &&
+    (val.geometry === null || isGeoJsonGeometry(val.geometry))
+  )
+}
+
+function isGeoJson(val: unknown): val is GeoJSON.GeoJSON {
+  if (isPlainObject(val) && val.type === 'FeatureCollection') {
+    return Array.isArray(val.features) && val.features.every(isGeoJsonFeature)
+  }
+  return isGeoJsonFeature(val) || isGeoJsonGeometry(val)
+}
+
+const geoJsonSchema = z.custom<GeoJSON.GeoJSON>(isGeoJson)
+
+// Widen a field's schema to also accept `other`, keeping the union in the field's type.
+// The field keeps its class, so its handle and editor UI are unchanged.
+function orSchema<F extends { schema: z.ZodType }, O extends z.ZodType>(
+  field: F,
+  other: O
+): Field<z.ZodUnion<[F['schema'], O]>> {
+  const widened = field as unknown as Field<z.ZodUnion<[F['schema'], O]>>
+  widened.schema = z.union([field.schema, other])
+  return widened
+}
+
+// The southwest and northeast corners of a GeoJSON object's bounds. Empty when it has
+// no coordinates (turf returns Infinity bounds for an empty FeatureCollection).
+function geoJsonBoundsCorners(geojson: GeoJSON.GeoJSON): { lng: number; lat: number }[] {
+  const [west, south, east, north] = turf.bbox(geojson)
+  if (![west, south, east, north].every(Number.isFinite)) return []
+  return [
+    { lng: west, lat: south },
+    { lng: east, lat: north },
+  ]
+}
+
 export class BoundingBoxOp extends Operator<BoundingBoxOp> {
   static displayName = 'BoundingBox'
   static description =
-    'Calculate the geographic bounds of your points (with lat/lng keys) and get a camera position (center, zoom) that fits them all in view.'
+    'Calculate the geographic bounds of your points (with lat/lng keys) or GeoJSON and get a camera position (center, zoom) that fits them all in view.'
   asDownload = () => this.outputData
+
+  constructor(
+    id: OpId,
+    data?: Partial<ExtractProps<ReturnType<BoundingBoxOp['createInputs']>>>,
+    locked = false,
+    containerId?: string
+  ) {
+    super(id, data, locked, containerId)
+    // The fit depends on the render surface, not just inputs; refit when it resizes
+    this.subs.push(subscribeToRenderSurfaceSize(() => this.markDirty('render surface resize')))
+  }
+
   createInputs() {
     return {
-      data: new ArrayField(new Point2DField()),
+      // Points, or a GeoJSON FeatureCollection, Feature or Geometry (e.g. a GeoJson operator's output)
+      data: orSchema(new ArrayField(new Point2DField()), geoJsonSchema),
       // TODO: could be a union, either a number or object with top, right, bottom, left
       padding: new NumberField(0, { softMin: -1_000, softMax: 1_000 }),
     }
@@ -2835,7 +3117,8 @@ export class BoundingBoxOp extends Operator<BoundingBoxOp> {
     let south = 90
     // Should this be a turf function? Do we need to cast data to GeoJSON first?
     // Or allow the lat / lng keys to be configurable?
-    for (const d of data) {
+    const points = Array.isArray(data) ? data : geoJsonBoundsCorners(data)
+    for (const d of points) {
       if (d.lng < west) {
         west = d.lng
       }
@@ -2854,13 +3137,7 @@ export class BoundingBoxOp extends Operator<BoundingBoxOp> {
       [east, north],
     ] as [[number, number], [number, number]]
 
-    // const { resolution: { width, height } } = useSlice(store => store.renderer)
-    // TODO: get the state values. Currently broken due to tests
-    // Different containers for interleaved and pure deck.gl mode
-    const container =
-      document.querySelector('.deckgl-container') || document.querySelector('.maplibregl-map')
-    const width = container?.clientWidth || window.innerWidth
-    const height = container?.clientHeight || window.innerHeight
+    const { width, height } = getRenderSurfaceSize()
 
     const { longitude, latitude, zoom } = fitBounds({
       bounds,
@@ -5237,6 +5514,8 @@ export class OutOp extends Operator<OutOp> {
       codec: new StringLiteralField('avc', ['avc', 'hevc', 'vp9', 'av1']),
       bitrateMbps: new NumberField(10, { min: 1, max: 100, step: 1 }),
       bitrateMode: new StringLiteralField('constant', ['constant', 'variable']),
+      // Keep the canvas's transparency in video exports (VP9 only)
+      exportAlpha: new BooleanField(false),
       scaleControl: new NumberField(0.3, { min: 0.1, max: 1, step: 0.05 }),
       framerate: new NumberField(30, { min: 1, max: 120, step: 1 }),
       captureDelay: new NumberField(50, { min: 0, max: 10000, step: 10 }),
@@ -6771,12 +7050,14 @@ export class Tile3DLayerOp extends Operator<Tile3DLayerOp> {
 
 export class Mask3DExtensionOp extends Operator<Mask3DExtensionOp> {
   static displayName = 'Mask3DExtension'
-  static description = 'Mask a sphere (used with Tile3DLayer)'
+  static description =
+    'Show only a sphere around a lng/lat/alt (meters) of a Tile3DLayer, fading to white at the edge'
   createInputs() {
     return {
-      targetPosition: new Vec3Field([0, 0, 0], { returnType: 'tuple' }),
-      innerRadius: new NumberField(0, { min: 0, softMax: 10_000 }),
-      fadeRange: new NumberField(0, { min: 0, softMax: 10_000 }),
+      // Downtown Los Angeles
+      targetPosition: new Point3DField([-118.2637, 34.0171, 0], { returnType: 'tuple' }),
+      innerRadius: new NumberField(1000, { min: 0, softMax: 10_000 }),
+      fadeRange: new NumberField(7, { min: 0, softMax: 10_000 }),
     }
   }
   createOutputs() {
@@ -6785,9 +7066,10 @@ export class Mask3DExtensionOp extends Operator<Mask3DExtensionOp> {
     }
   }
   execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const [lng, lat, alt = 0] = props.targetPosition as number[]
     const extension = {
       extension: { type: 'Mask3DExtension' },
-      props,
+      props: { ...props, targetPosition: toMaskTargetPosition(lng, lat, alt) },
     }
     return { extension }
   }
@@ -10486,6 +10768,9 @@ export const opTypes = {
   ConvexHullOp,
   CrossOp,
   DataFilterExtensionOp,
+  DateFormatOp,
+  DateMathOp,
+  DatePartsOp,
   DateTimeOp,
   DBScanClusterOp,
   DeckRendererOp,

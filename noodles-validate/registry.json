@@ -515,7 +515,7 @@
       "name": "BoundingBox",
       "type": "BoundingBoxOp",
       "category": "data",
-      "description": "Calculate the geographic bounds of your points (with lat/lng keys) and get a camera position (center, zoom) that fits them all in view.",
+      "description": "Calculate the geographic bounds of your points (with lat/lng keys) or GeoJSON and get a camera position (center, zoom) that fits them all in view.",
       "inputs": {
         "data": {
           "type": "ArrayField",
@@ -1489,6 +1489,104 @@
       "outputs": {
         "extension": {
           "type": "ExtensionField"
+        }
+      }
+    },
+    "DateFormatOp": {
+      "name": "DateFormat",
+      "type": "DateFormatOp",
+      "category": "string",
+      "description": "Format a date as a string, e.g. YYYY-MM-DD HH:mm",
+      "inputs": {
+        "date": {
+          "type": "DateField"
+        },
+        "pattern": {
+          "type": "StringField",
+          "default": "YYYY-MM-DD HH:mm:ss"
+        }
+      },
+      "outputs": {
+        "text": {
+          "type": "StringField"
+        }
+      }
+    },
+    "DateMathOp": {
+      "name": "DateMath",
+      "type": "DateMathOp",
+      "category": "number",
+      "description": "Add, subtract, compare, or interpolate dates",
+      "inputs": {
+        "operator": {
+          "type": "StringLiteralField",
+          "default": "add"
+        },
+        "date": {
+          "type": "DateField"
+        },
+        "dateB": {
+          "type": "DateField"
+        },
+        "amount": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "unit": {
+          "type": "StringLiteralField",
+          "default": "days"
+        },
+        "t": {
+          "type": "NumberField",
+          "default": 0
+        }
+      },
+      "outputs": {
+        "result": {
+          "type": "UnknownField"
+        }
+      }
+    },
+    "DatePartsOp": {
+      "name": "DateParts",
+      "type": "DatePartsOp",
+      "category": "number",
+      "description": "Split a date into year, month, day, hour, and other components",
+      "inputs": {
+        "date": {
+          "type": "DateField"
+        }
+      },
+      "outputs": {
+        "year": {
+          "type": "NumberField"
+        },
+        "month": {
+          "type": "NumberField"
+        },
+        "day": {
+          "type": "NumberField"
+        },
+        "hour": {
+          "type": "NumberField"
+        },
+        "minute": {
+          "type": "NumberField"
+        },
+        "second": {
+          "type": "NumberField"
+        },
+        "millisecond": {
+          "type": "NumberField"
+        },
+        "dayOfWeek": {
+          "type": "NumberField"
+        },
+        "dayOfYear": {
+          "type": "NumberField"
+        },
+        "weekOfYear": {
+          "type": "NumberField"
         }
       }
     },
@@ -4058,23 +4156,23 @@
       "name": "Mask3DExtension",
       "type": "Mask3DExtensionOp",
       "category": "extension",
-      "description": "Mask a sphere (used with Tile3DLayer)",
+      "description": "Show only a sphere around a lng/lat/alt (meters) of a Tile3DLayer, fading to white at the edge",
       "inputs": {
         "targetPosition": {
-          "type": "Vec3Field",
+          "type": "Point3DField",
           "default": [
-            0,
-            0,
+            -118.2637,
+            34.0171,
             0
           ]
         },
         "innerRadius": {
           "type": "NumberField",
-          "default": 0
+          "default": 1000
         },
         "fadeRange": {
           "type": "NumberField",
-          "default": 0
+          "default": 7
         }
       },
       "outputs": {
@@ -4513,6 +4611,10 @@
         "bitrateMode": {
           "type": "StringLiteralField",
           "default": "constant"
+        },
+        "exportAlpha": {
+          "type": "BooleanField",
+          "default": false
         },
         "scaleControl": {
           "type": "NumberField",
@@ -6931,12 +7033,7 @@
       "type": "UnknownOperator",
       "category": "utility",
       "description": "Placeholder for an operator type that could not be found",
-      "inputs": {
-        "__originalInputs": {
-          "type": "UnknownField",
-          "default": null
-        }
-      },
+      "inputs": {},
       "outputs": {}
     },
     "UnprojectOp": {

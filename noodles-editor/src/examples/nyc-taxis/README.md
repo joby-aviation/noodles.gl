@@ -13,6 +13,7 @@ This example visualizes NYC taxi trips as a three-layer visualization: purple ci
 - **Arc layer**: `ArcLayerOp` draws routes from pickup to dropoff
 - **Blending**: `BlendingOp` with `additive` mode brightens overlapping points and arcs
 - **Basemap**: `MaplibreBasemapOp` with dark matter style
+- **Camera animation**: two timeline keyframes on the basemap's `viewState.bearing` turn the camera a full circle over 20 seconds at a constant speed, so playback loops without a jump. Press play in the timeline to watch it
 
 ## Data Structure
 The CSV file contains taxi trip records with fields:

@@ -52,6 +52,7 @@
     "mediabunny": "^1.40.1",
     "memoize-one": "^6.0.0",
     "nanoid": "^5.1.7",
+    "noodles-validate": "0.1.0",
     "posthog-js": "^1.363.6",
     "primeicons": "^7.0.0",
     "primereact": "^10.9.7",

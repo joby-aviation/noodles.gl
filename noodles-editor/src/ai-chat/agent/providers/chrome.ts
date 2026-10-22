@@ -239,7 +239,7 @@ function readUsage(session: LanguageModelSession): number {
 
 export class ChromeProvider implements AgentProvider {
   readonly id = 'chrome' as const
-  readonly model = 'gemini-nano'
+  readonly model = CHROME_MODELS[0].id
   readonly supportsNativeTools = false
   readonly supportsImages = false
   readonly contextWindow: number

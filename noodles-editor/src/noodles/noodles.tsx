@@ -109,7 +109,7 @@ import {
   useNestingStore,
   useUIStore,
 } from './store'
-import { transformGraph } from './transform-graph'
+import { markUnknownOperatorNodes, transformGraph } from './transform-graph'
 import { layoutNodes } from './utils/auto-layout'
 import { canConnectCached } from './utils/can-connect'
 import { createProjectFromSQL, takeCreateFromSQLRequest } from './utils/create-from-sql'
@@ -846,6 +846,8 @@ export function getNoodles(): Visualization {
     >()
 
   const currentProjectRef = useRef<NoodlesProjectJSON>(newProjectJSON)
+  // Counts project loads, so the chat panel can tell its proposal's project was replaced
+  const [projectLoadId, setProjectLoadId] = useState(0)
 
   // Track when we're programmatically loading a project to prevent useEffect from trying to reload
   const isProgrammaticLoadRef = useRef(false)
@@ -1012,6 +1014,7 @@ export function getNoodles(): Visualization {
       isProjectLoadRef.current = true
 
       currentProjectRef.current = project
+      setProjectLoadId(id => id + 1)
 
       // Install embedded keys before constructing operators. Key-dependent operators
       // may inspect credentials while their fields and listeners are initialized.
@@ -1065,8 +1068,9 @@ export function getNoodles(): Visualization {
       // Update React Flow state (for rendering; graph is already set up above).
       // Normalizing here (after transformGraph, so operators exist for the ListField
       // lookup) derives multi-input slot rendering caches from the file's edge order —
-      // project files never store them.
-      setNodes(nodes)
+      // project files never store them. Nodes with a missing operator type render as the
+      // UnknownOperator placeholder; serializeNodes saves them back with their original type.
+      setNodes(markUnknownOperatorNodes(nodes))
       setEdges(
         normalizeMultiInputEdges(
           (edges as ReactFlowEdge[]).filter(edge => edge.type !== 'ReferenceEdge')
@@ -2212,6 +2216,7 @@ export function getNoodles(): Visualization {
     <Suspense fallback={null}>
       <ChatPanel
         project={{ nodes, edges }}
+        projectKey={projectLoadId}
         onClose={() => {
           setShowChatPanel(false)
           setChatInitialMessage(undefined)
@@ -2235,6 +2240,7 @@ export function getNoodles(): Visualization {
   return {
     flowGraph,
     selectedNodeIds: nodes.filter(n => n.selected).map(n => n.id),
+    edges,
     nodeSidebar: (
       <ErrorBoundary title="Sidebar Error">
         <SidebarTabs

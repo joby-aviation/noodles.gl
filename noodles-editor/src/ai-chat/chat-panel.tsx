@@ -5,6 +5,7 @@ import { type FC, useEffect, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import {
+  type ModificationResult,
   type ProjectModification,
   useProjectModifications,
 } from '../noodles/hooks/use-project-modifications'
@@ -12,10 +13,11 @@ import type { CustomEndpointConfig, ProviderPreference } from '../noodles/keys-s
 import { useKeysStore } from '../noodles/keys-store'
 import { useUIStore } from '../noodles/store'
 import { useOpenRouterConnect } from '../noodles/use-openrouter-connect'
+import { recordGraphMutation } from '../noodles/utils/graph-history'
 import { analytics } from '../utils/analytics'
 import { debugAiChat } from '../utils/debug'
 import { useAgentModelStore } from './agent/model-store'
-import { createProvider } from './agent/provider-factory'
+import { createProvider, resolveProviderModel } from './agent/provider-factory'
 import {
   type Credentials,
   isOnDevice,
@@ -32,7 +34,13 @@ import {
   OPENROUTER_MODELS,
   type OpenRouterModel,
 } from './agent/providers/openrouter'
-import { WEBLLM_MODELS, webgpuAvailable } from './agent/providers/webllm'
+import {
+  FAST_WEBLLM_MODEL,
+  formatGb,
+  WEBLLM_MODELS,
+  webgpuAvailable,
+  webllmModelLabel,
+} from './agent/providers/webllm'
 import { AgentSession } from './agent/session'
 import type { AgentProvider, AgentUsage, DownloadProgress, ProviderId } from './agent/types'
 import { webSearchConfigFor } from './agent/web-search'
@@ -42,6 +50,7 @@ import { loadConversation, saveConversation } from './conversation-history'
 import { ConversationHistoryPanel } from './conversation-history-panel'
 import { globalContextManager } from './global-context-manager'
 import { MCPTools } from './mcp-tools'
+import { createProposal, type ModificationProposal } from './modification-proposal'
 import {
   dismissOnDeviceNotice,
   OnDeviceNotice,
@@ -52,12 +61,21 @@ import type { Message, NoodlesProject } from './types'
 
 interface ChatPanelProps {
   project: NoodlesProject
+  // Changes whenever another project replaces the graph. A proposal planned
+  // against the old graph must not be applied to the new one.
+  projectKey?: number
   onClose: () => void
   isVisible: boolean
   initialMessage?: string
 }
 
-export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, initialMessage }) => {
+export const ChatPanel: FC<ChatPanelProps> = ({
+  project,
+  projectKey,
+  onClose,
+  isVisible,
+  initialMessage,
+}) => {
   // Get ReactFlow state for the modification hook
   const { getNodes, getEdges, setNodes, setEdges } = useReactFlow()
 
@@ -82,6 +100,14 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
   const [streamingText, setStreamingText] = useState('')
   const [activeTools, setActiveTools] = useState<string[]>([])
   const [lastUsage, setLastUsage] = useState<AgentUsage | null>(null)
+  // Whether the running model takes images. The Capture button is hidden when it
+  // does not, since the screenshot would be dropped before it was sent.
+  const [providerSupportsImages, setProviderSupportsImages] = useState(false)
+  // A manual capture, attached to the next message and then cleared
+  const [pendingScreenshot, setPendingScreenshot] = useState<{
+    data: string
+    format: 'png' | 'jpeg'
+  } | null>(null)
   // Whether this browser has a usable built-in model. Only knowable
   // asynchronously, so it starts false and the option stays disabled until then.
   const [chromeAvailable, setChromeAvailable] = useState(false)
@@ -94,7 +120,15 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
   // A provider that would not start. Distinct from a failed message: nothing can
   // be sent at all, so it replaces the panel rather than appearing in it.
   const [providerError, setProviderError] = useState<string | null>(null)
+  // An edit the assistant proposed, waiting on Accept or Reject. Sending is blocked
+  // until it is resolved: the next run would be planned against a graph the user
+  // has not decided on, and its own proposal would have nowhere to go.
+  const [pendingProposal, setPendingProposal] = useState<ModificationProposal | null>(null)
   const abortRef = useRef<AbortController | null>(null)
+  // Bumped when the conversation or the project changes. A run that finishes
+  // after that belongs to neither, so its reply and proposal are dropped.
+  const generationRef = useRef(0)
+  const projectKeyRef = useRef(projectKey)
 
   // Get API keys directly from store (reactive)
   const apiKey = useKeysStore(state => state.getKey('anthropic'))
@@ -265,6 +299,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
   useEffect(() => {
     if (!providerReady) {
       setContextLoading(false)
+      setProviderSupportsImages(false)
       return
     }
 
@@ -275,9 +310,15 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
     let built: AgentSession | null = null
     let cancelled = false
 
+    // Both outcomes report the model that was attempted, so a failed load and a
+    // successful one of the same model land under one name
+    const attemptedModel =
+      resolveProviderModel({ providerId, model, customEndpoint }) ?? 'unconfigured'
+
     const init = async () => {
       setContextLoading(true)
       setProviderError(null)
+      setProviderSupportsImages(false)
       try {
         // Wait for context to be ready (should be instant if already loaded)
         const loader = await globalContextManager.waitForReady()
@@ -305,12 +346,32 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
           return
         }
 
+        setProviderSupportsImages(provider.supportsImages)
         setMcpTools(tools)
         setSession(built)
+        analytics.track('ai_provider_load', {
+          provider: providerId,
+          model: attemptedModel,
+          outcome: 'success',
+        })
+
+        // OpenRouter learns which models take images from its catalogue, which
+        // may land after this session was built. Ask again once it has (the
+        // fetch is shared and cached, so this costs no extra request).
+        if (providerId === 'openrouter') {
+          fetchOpenRouterFreeModels().then(() => {
+            if (!cancelled) setProviderSupportsImages(provider.supportsImages)
+          })
+        }
       } catch (error) {
         debugAiChat('Failed to initialize the assistant:', error)
         setSession(null)
         setProviderError(error instanceof Error ? error.message : String(error))
+        analytics.track('ai_provider_load', {
+          provider: providerId,
+          model: attemptedModel,
+          outcome: 'failed',
+        })
       } finally {
         setDownloadProgress(null)
         setContextLoading(false)
@@ -332,6 +393,25 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
     }
   }, [mcpTools, project])
 
+  // Another project replaced the graph: stop the run planning against the old
+  // one and drop its proposal
+  useEffect(() => {
+    if (projectKeyRef.current === projectKey) return
+    projectKeyRef.current = projectKey
+    generationRef.current += 1
+    abortRef.current?.abort()
+    if (pendingProposal) {
+      setPendingProposal(null)
+      setMessages(prev => [
+        ...prev,
+        {
+          role: 'assistant',
+          content: 'Another project was opened, so the proposed graph update was not applied.',
+        },
+      ])
+    }
+  }, [projectKey, pendingProposal])
+
   // Handle initial message from quick start modal
   useEffect(() => {
     if (initialMessage && isVisible && messages.length === 0) {
@@ -345,7 +425,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
   }, [])
 
   const handleSend = async () => {
-    if (!input.trim() || !session || !project) return
+    if (!input.trim() || !session || !project || pendingProposal) return
 
     const userMessage: Message = {
       role: 'user',
@@ -358,12 +438,20 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
     setStreamingText('')
     setActiveTools([])
 
+    // Consumed now rather than when the reply finishes, so a capture taken while
+    // it streams stays attached to the next message
+    const screenshot = pendingScreenshot
+    setPendingScreenshot(null)
+
     const controller = new AbortController()
     abortRef.current = controller
+    const generation = generationRef.current
 
     try {
       const response = await session.send({
         message: input,
+        screenshot: screenshot?.data,
+        screenshotFormat: screenshot?.format,
         conversationHistory: messages,
         signal: controller.signal,
         onEvent: event => {
@@ -372,6 +460,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
           if (event.type === 'usage') setLastUsage(event.usage)
         },
       })
+      if (generation !== generationRef.current) return
 
       // An aborted run still returns whatever it had produced, which is worth
       // keeping — the user stopped it, they did not undo it
@@ -389,37 +478,19 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
 
       setMessages(prev => [...prev, assistantMessage])
 
-      // Apply project modifications if any
+      // apply_modifications validated these against the project; they land only
+      // once the user accepts them
       if (response.projectModifications && response.projectModifications.length > 0) {
-        debugAiChat('Applying project modifications:', response.projectModifications)
-        const result = applyModifications(response.projectModifications as ProjectModification[])
-
-        if (!result.success) {
-          // Surface validation errors back to the user and AI
-          const errorMessage = `Failed to apply modifications: ${result.error}`
-          debugAiChat(errorMessage)
-          setMessages(prev => [
-            ...prev,
-            {
-              role: 'assistant',
-              content: errorMessage,
-            },
-          ])
-        } else if (result.warnings && result.warnings.length > 0) {
-          // Show warnings in console and chat
-          debugAiChat('Modification warnings:', result.warnings)
-          const warningMessage = `⚠️ Modifications applied with warnings:\n${result.warnings.map(w => `• ${w}`).join('\n')}`
-          setMessages(prev => [
-            ...prev,
-            {
-              role: 'assistant',
-              content: warningMessage,
-            },
-          ])
-        }
+        debugAiChat('Proposing project modifications:', response.projectModifications)
+        setPendingProposal(createProposal(response.projectModifications))
+        analytics.track('ai_modification_proposed', {
+          provider: providerId,
+          modificationCount: response.projectModifications.length,
+        })
       }
     } catch (error) {
       debugAiChat('Error sending message:', error)
+      if (generation !== generationRef.current) return
 
       // Check error type and provide helpful messages
       const errorStr = error instanceof Error ? error.message : String(error)
@@ -478,12 +549,65 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
     abortRef.current?.abort()
   }
 
+  const acceptProposal = () => {
+    if (!pendingProposal) return
+    const { modifications } = pendingProposal
+    setPendingProposal(null)
+
+    // One undo entry for the whole batch, even when it fails partway
+    let result: ModificationResult = { success: false, error: 'not applied' }
+    recordGraphMutation('Apply assistant proposal', () => {
+      result = applyModifications(modifications as ProjectModification[])
+    })
+    analytics.track('ai_modification_proposal_resolved', {
+      provider: providerId,
+      outcome: result.success ? 'accepted' : 'failed',
+      modificationCount: modifications.length,
+    })
+
+    if (!result.success) {
+      // Surface the failure to the user and, through the history, to the model
+      const errorMessage = `Failed to apply modifications: ${result.error}`
+      debugAiChat(errorMessage)
+      setMessages(prev => [...prev, { role: 'assistant', content: errorMessage }])
+    } else if (result.warnings && result.warnings.length > 0) {
+      debugAiChat('Modification warnings:', result.warnings)
+      const warningMessage = `⚠️ Modifications applied with warnings:\n${result.warnings.map(w => `• ${w}`).join('\n')}`
+      setMessages(prev => [...prev, { role: 'assistant', content: warningMessage }])
+    }
+  }
+
+  // Recorded in the conversation so the next turn knows the edit did not land
+  const rejectProposal = () => {
+    if (!pendingProposal) return
+    analytics.track('ai_modification_proposal_resolved', {
+      provider: providerId,
+      outcome: 'rejected',
+      modificationCount: pendingProposal.modifications.length,
+    })
+    setPendingProposal(null)
+    // Only the proposed batch is known not to have landed: a run_code call in the
+    // same run may already have changed field values
+    setMessages(prev => [
+      ...prev,
+      { role: 'assistant', content: 'Proposal rejected. Its changes were not applied.' },
+    ])
+  }
+
   const handleManualCapture = async () => {
     if (!mcpTools) return
 
     const result = await mcpTools.captureVisualization({})
     if (result.success) {
-      alert('Screenshot captured! It will be included with your next message.')
+      const data = result.data as { screenshot?: unknown; format?: unknown }
+      if (typeof data?.screenshot !== 'string') {
+        alert('Failed to capture screenshot: no image data was returned.')
+        return
+      }
+      setPendingScreenshot({
+        data: data.screenshot,
+        format: data.format === 'png' ? 'png' : 'jpeg',
+      })
     } else {
       alert(`Failed to capture screenshot: ${result.error}`)
     }
@@ -500,8 +624,12 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
       }
     }
 
-    // Start fresh
+    // Start fresh. A pending proposal, and the reply of a run still in flight,
+    // belong to the conversation they came from.
+    generationRef.current += 1
+    abortRef.current?.abort()
     setMessages([])
+    setPendingProposal(null)
     setCurrentConversationId(null)
     setShowHistory(false)
   }
@@ -536,7 +664,10 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
 
     const conversation = loadConversation(id)
     if (conversation) {
+      generationRef.current += 1
+      abortRef.current?.abort()
       setMessages(conversation.messages)
+      setPendingProposal(null)
       setCurrentConversationId(id)
       setShowHistory(false)
     } else {
@@ -546,12 +677,9 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
 
   if (!isVisible) return null
 
-  // Show onboarding when no provider is ready, or when Chrome is the only ready
-  // provider and the user hasn't explicitly chosen it. Chrome auto-detects in
-  // capable browsers, but it's the weakest option, so we should prompt the user
-  // to configure a better provider unless they specifically want Chrome.
-  const shouldShowOnboarding =
-    !contextLoading && (!providerReady || (providerId === 'chrome' && preference !== 'chrome'))
+  // Show onboarding when no provider is ready. Chrome counts only when it was
+  // chosen, since resolveProviderId never picks it on its own.
+  const shouldShowOnboarding = !contextLoading && !providerReady
 
   if (shouldShowOnboarding) {
     return (
@@ -588,6 +716,17 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
             <button type="button" onClick={openProviderSettings} className={styles.chatSendBtn}>
               Provider settings
             </button>
+            {/* A load that fails on the default is usually GPU memory, which the
+                fast model needs about half as much of */}
+            {providerId === 'webllm' && model !== FAST_WEBLLM_MODEL && (
+              <button
+                type="button"
+                onClick={() => setStoredModel('webllm', FAST_WEBLLM_MODEL)}
+                className={styles.chatPanelActionBtn}
+              >
+                Try {fastModelLabel()}
+              </button>
+            )}
             <button type="button" onClick={handleClose} className={styles.chatPanelActionBtn}>
               Close
             </button>
@@ -660,12 +799,6 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
             value={providerId}
             onChange={e => {
               const newProvider = e.target.value as ProviderPreference
-              const credentials = {
-                anthropicKey: apiKey,
-                openRouterKey,
-                customEndpoint,
-                chromeAvailable,
-              }
 
               // If provider isn't ready, open config flow instead of switching
               if (newProvider !== 'automatic' && !isProviderReady(newProvider, credentials)) {
@@ -737,14 +870,20 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
           </button>
           {lastUsage && <span className={styles.usageReadout}>{formatUsage(lastUsage)}</span>}
         </div>
-        <button
-          type="button"
-          onClick={handleManualCapture}
-          className={styles.captureBtn}
-          title="Capture current visualization"
-        >
-          📸 Capture
-        </button>
+        {providerSupportsImages && (
+          <button
+            type="button"
+            onClick={handleManualCapture}
+            className={styles.captureBtn}
+            title={
+              pendingScreenshot
+                ? 'Screenshot attached to your next message'
+                : 'Capture current visualization'
+            }
+          >
+            {pendingScreenshot ? '📸 Attached' : '📸 Capture'}
+          </button>
+        )}
       </div>
 
       {onDevice && !noticeDismissed && (
@@ -821,6 +960,35 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
           </div>
         )}
 
+        {pendingProposal && (
+          <section className={styles.proposalCard} aria-label="Proposed graph update">
+            <div className={styles.proposalTitle}>Review graph update</div>
+            <p>These changes are not applied yet.</p>
+            <ul className={styles.proposalDiff}>
+              {pendingProposal.lines.map((line, idx) => (
+                <li key={`${idx}-${line.text}`}>
+                  {line.detail ? (
+                    <details>
+                      <summary>{line.text}</summary>
+                      <pre className={styles.proposalDetail}>{line.detail}</pre>
+                    </details>
+                  ) : (
+                    line.text
+                  )}
+                </li>
+              ))}
+            </ul>
+            <div className={styles.proposalActions}>
+              <button type="button" className={styles.chatSendBtn} onClick={acceptProposal}>
+                Accept
+              </button>
+              <button type="button" className={styles.chatPanelActionBtn} onClick={rejectProposal}>
+                Reject
+              </button>
+            </div>
+          </section>
+        )}
+
         <div ref={messagesEndRef} />
       </div>
 
@@ -834,8 +1002,10 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
               handleSend()
             }
           }}
-          placeholder="Ask for help..."
-          disabled={loading}
+          placeholder={
+            pendingProposal ? 'Accept or reject the graph update to continue' : 'Ask for help...'
+          }
+          disabled={loading || pendingProposal !== null}
           rows={3}
         />
         {loading ? (
@@ -846,7 +1016,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
           <button
             type="button"
             onClick={handleSend}
-            disabled={!input.trim()}
+            disabled={!input.trim() || pendingProposal !== null}
             className={styles.chatSendBtn}
           >
             Send
@@ -916,9 +1086,24 @@ function modelGroupsFor(
     case 'chrome':
       return [{ models: CHROME_MODELS }]
     // Labelled with their download size, since that is the decision the user is
-    // actually making
+    // actually making. Older ids stay under compatibility for a saved choice.
     case 'webllm':
-      return [{ models: WEBLLM_MODELS.map(({ id, label }) => ({ id, label })) }]
+      return [
+        {
+          label: 'Recommended',
+          models: WEBLLM_MODELS.filter(m => m.tier !== 'compatibility').map(m => ({
+            id: m.id,
+            label: webllmModelLabel(m),
+          })),
+        },
+        {
+          label: 'Advanced compatibility',
+          models: WEBLLM_MODELS.filter(m => m.tier === 'compatibility').map(m => ({
+            id: m.id,
+            label: webllmModelLabel(m),
+          })),
+        },
+      ]
     // A custom endpoint's model is part of its saved config, so the picker shows
     // it rather than offering a choice this app cannot enumerate
     case 'custom':
@@ -943,9 +1128,14 @@ function downloadNoteFor(providerId: ProviderId, model: string | undefined): str
   if (providerId !== 'webllm') {
     return 'Chrome downloads about 2GB the first time, and only once.'
   }
-  const sizeMb = WEBLLM_MODELS.find(option => option.id === model)?.sizeMb
-  const size = sizeMb ? `${(sizeMb / 1024).toFixed(1)}GB` : 'a few gigabytes'
-  return `${size} the first time, then it is cached and starts instantly.`
+  const metadata = WEBLLM_MODELS.find(option => option.id === model)
+  if (!metadata) return 'A few gigabytes the first time, then it is cached and starts instantly.'
+  return `${formatGb(metadata.downloadMb)} the first time, then cached. Needs about ${formatGb(metadata.vramMb)} of GPU memory.`
+}
+
+function fastModelLabel(): string {
+  const fast = WEBLLM_MODELS.find(option => option.id === FAST_WEBLLM_MODEL)
+  return fast ? `${fast.label} (${formatGb(fast.downloadMb)})` : 'a smaller model'
 }
 
 function formatPercent(progress: DownloadProgress): string {

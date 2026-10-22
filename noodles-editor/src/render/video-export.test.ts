@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { resolveExportSettings, type VideoExportContext } from './video-export'
+import {
+  exportsTransparentVideo,
+  resolveExportSettings,
+  type VideoExportContext,
+} from './video-export'
 
 const context: VideoExportContext = {
   sequenceLength: 10,
@@ -92,5 +96,18 @@ describe('resolveExportSettings', () => {
     expect(
       errorOf(resolveExportSettings({ codec: 'prores' as unknown as 'avc' }, context))
     ).toContain('codec')
+  })
+})
+
+describe('exportsTransparentVideo', () => {
+  it('keeps transparency with VP9 only', () => {
+    expect(exportsTransparentVideo({ codec: 'vp9', exportAlpha: true })).toBe(true)
+    expect(exportsTransparentVideo({ codec: 'av1', exportAlpha: true })).toBe(false)
+    expect(exportsTransparentVideo({ codec: 'avc', exportAlpha: true })).toBe(false)
+    expect(exportsTransparentVideo({ codec: 'hevc', exportAlpha: true })).toBe(false)
+  })
+
+  it('is off unless the setting is on', () => {
+    expect(exportsTransparentVideo({ codec: 'vp9', exportAlpha: false })).toBe(false)
   })
 })

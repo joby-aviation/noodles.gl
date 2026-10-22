@@ -58,6 +58,7 @@
   --node-vector-color: #610d4e;
   --node-view-color: #0e8fc9;
   --node-widget-color: #7a61d5;
+  --node-unknown-color: #4a4d52;
 
   --property-panel-background-color: #282b2fcc;
   --tooltip-icon-color: #919191;
@@ -67,6 +68,8 @@
   --xy-controls-button-color-hover: #262626;
 
   --timeline-accent: #48c6cf;
+
+  --font-mono: source-code-pro, Menlo, Monaco, Consolas, "Courier New", monospace;
 }
 
 :root {
@@ -310,6 +313,10 @@
 
 .headerData {
   background-color: var(--node-data-color);
+}
+
+.headerUnknown {
+  background-color: var(--node-unknown-color);
 }
 
 .headerGeojson {
@@ -1250,7 +1257,8 @@
   }
 }
 
-.wrapperError {
+/* Ring the React Flow node itself so it follows the node's rounded corners and full height */
+:global(.react-flow__node):has(> .wrapperError) {
   box-shadow: 0 0 0 1px var(--node-execution-error-color);
 }
 
@@ -1334,48 +1342,14 @@
     filter 0.15s ease-out;
 }
 
-.unknownOperatorWrapper {
-  border: 2px solid var(--red-9);
-  background: var(--red-3);
-  min-width: 200px;
-}
-
-.unknownOperatorHeader {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  background: var(--red-4);
-  border-bottom: 1px solid var(--red-6);
-}
-
-.errorIcon {
-  font-size: 20px;
-  line-height: 1;
-}
-
-.unknownOperatorTitle {
-  font-weight: 600;
-  color: var(--red-11);
-  font-size: 13px;
-}
-
-.unknownOperatorContent {
-  padding: 12px;
-}
-
-.unknownOperatorType {
-  font-family: var(--font-mono);
-  font-size: 12px;
-  color: var(--gray-12);
-  margin-bottom: 6px;
-  font-weight: 500;
-}
-
+/* Wraps to the header's width instead of widening the node */
 .unknownOperatorHelp {
-  font-size: 11px;
-  color: var(--gray-11);
+  width: 0;
+  min-width: 100%;
+  margin: 0;
+  font-size: 0.85em;
   line-height: 1.4;
+  color: var(--color-text-secondary);
 }
 
 .handleDimmed {

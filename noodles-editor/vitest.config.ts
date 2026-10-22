@@ -19,6 +19,10 @@ export default defineConfig({
             provider: playwright({
               // Software WebGL so shader tests can render in headless Chromium
               launchOptions: { args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] },
+              contextOptions: {
+                // MapLibre sizes its canvas from DPR, so pin browser raster dimensions in CI.
+                deviceScaleFactor: 1,
+              },
             }),
             enabled: true,
             headless: true,

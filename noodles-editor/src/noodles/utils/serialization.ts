@@ -7,6 +7,7 @@ import type {
 import { debugSerialize } from '../../utils/debug'
 import { resizeableNodes } from '../components/op-components'
 import { captureNodeUIMetadata } from '../fields'
+import { UnknownOperator } from '../operators'
 import type { useOperatorStore } from '../store'
 import { deepEqual } from './deep-equal'
 import type { ExtractProps } from './extract-props'
@@ -146,6 +147,21 @@ export function serializeNodes(
     }
     const op = store.getOp(node.id)
     if (!op) continue
+
+    // A placeholder for a missing operator type saves the node exactly as it was loaded
+    if (op instanceof UnknownOperator) {
+      const {
+        selected: _,
+        dragging: __,
+        hidden: ___,
+        measured,
+        width,
+        height,
+        ...cleanedNode
+      } = node
+      preparedNodes.push({ ...cleanedNode, type: op.originalType, data: op.originalData })
+      continue
+    }
 
     // Don't set node data for connected inputs (saves space). A locked upstream op restores
     // its own outputs from the cache folder, so its values aren't copied here either.

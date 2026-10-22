@@ -24,7 +24,7 @@
 // 5. Prefill is most of the wait. The engine skips it for everything it has seen
 //    before only when the next request extends the last one exactly, so the
 //    system message and every earlier turn are kept byte-stable (preambleFor,
-//    toWireTurns).
+//    toWireTurns), and so is a transcript once it has been trimmed (transcriptFor).
 
 import { debugAiChat } from '../../../utils/debug'
 import type {
@@ -49,33 +49,96 @@ import {
 export interface WebLLMModel {
   id: string
   label: string
-  // Download size, which is also roughly the VRAM the model will hold
-  sizeMb: number
+  // What the first load fetches, and what the model holds on the GPU once loaded.
+  // The second is the config's own vram_required_MB and runs well above the first.
+  downloadMb: number
+  vramMb: number
+  // Recommended models are listed first; compatibility ones stay available for a
+  // saved choice and for GPUs that cannot hold a recommended model
+  tier: 'quality' | 'fast' | 'compatibility'
+  // False for every artifact today: WebLLM ships no Qwen3.5 vision build yet
+  supportsImages: boolean
 }
 
 // Verified against prebuiltAppConfig.model_list — an id that is not in that list
 // throws at load time, and the whole point of this provider is that the first run
-// works. Sizes are the config's own vram_required_MB.
+// works. vramMb is the config's own vram_required_MB.
 //
-// All six are instruction-tuned and small enough to run on an integrated GPU. The
+// All are instruction-tuned and small enough to run on an integrated GPU. The
 // Qwen models are reasoning models, but constrained decoding leaves no room for a
 // thinking block, so they behave as ordinary chat models here.
 export const WEBLLM_MODELS: readonly WebLLMModel[] = [
   {
-    id: 'Llama-3.2-1B-Instruct-q4f16_1-MLC',
-    label: 'Llama 3.2 1B (0.9 GB)',
-    sizeMb: 879,
+    id: 'Qwen3.5-4B-q4f16_1-MLC',
+    label: 'Local quality: Qwen3.5 4B',
+    downloadMb: 2390,
+    vramMb: 3868,
+    tier: 'quality',
+    supportsImages: false,
   },
-  { id: 'Qwen3-1.7B-q4f16_1-MLC', label: 'Qwen3 1.7B (2.0 GB)', sizeMb: 2037 },
+  {
+    id: 'Qwen3.5-2B-q4f16_1-MLC',
+    label: 'Local fast: Qwen3.5 2B',
+    downloadMb: 1080,
+    vramMb: 2245,
+    tier: 'fast',
+    supportsImages: false,
+  },
+  {
+    id: 'Llama-3.2-1B-Instruct-q4f16_1-MLC',
+    label: 'Llama 3.2 1B',
+    downloadMb: 879,
+    vramMb: 879,
+    tier: 'compatibility',
+    supportsImages: false,
+  },
+  {
+    id: 'Qwen3-1.7B-q4f16_1-MLC',
+    label: 'Qwen3 1.7B',
+    downloadMb: 1200,
+    vramMb: 2037,
+    tier: 'compatibility',
+    supportsImages: false,
+  },
   {
     id: 'Hermes-3-Llama-3.2-3B-q4f16_1-MLC',
-    label: 'Hermes 3 Llama 3.2 3B (2.2 GB)',
-    sizeMb: 2264,
+    label: 'Hermes 3 Llama 3.2 3B',
+    downloadMb: 1900,
+    vramMb: 2264,
+    tier: 'compatibility',
+    supportsImages: false,
   },
-  { id: 'Qwen3-4B-q4f16_1-MLC', label: 'Qwen3 4B (3.4 GB)', sizeMb: 3432 },
-  { id: 'Qwen3.5-4B-q4f16_1-MLC', label: 'Qwen3.5 4B (3.9 GB)', sizeMb: 3868 },
-  { id: 'Qwen3-8B-q4f16_1-MLC', label: 'Qwen3 8B (5.6 GB)', sizeMb: 5696 },
+  {
+    id: 'Qwen3-4B-q4f16_1-MLC',
+    label: 'Qwen3 4B',
+    downloadMb: 2390,
+    vramMb: 3432,
+    tier: 'compatibility',
+    supportsImages: false,
+  },
+  {
+    id: 'Qwen3-8B-q4f16_1-MLC',
+    label: 'Qwen3 8B',
+    downloadMb: 4700,
+    vramMb: 5696,
+    tier: 'compatibility',
+    supportsImages: false,
+  },
 ]
+
+// Qwen3.5 2B for a GPU that cannot hold the 4B: about half the download and GPU
+// memory. The panel offers it when the default fails to load.
+export const FAST_WEBLLM_MODEL = 'Qwen3.5-2B-q4f16_1-MLC'
+
+export function formatGb(mb: number): string {
+  return `${(mb / 1000).toFixed(1)} GB`
+}
+
+// The download is the decision the user is making, so every label carries it
+export function webllmModelLabel(model: WebLLMModel, options: { memory?: boolean } = {}): string {
+  const memory = options.memory ? `, ${formatGb(model.vramMb)} GPU memory` : ''
+  return `${model.label} (${formatGb(model.downloadMb)} download${memory})`
+}
 
 // The only one that reliably makes an edit: 89% on the single-edit bench tasks,
 // against 11% for Qwen3-4B (bench/agent/results/2026-10-01-03-17-adam-mac).
@@ -211,7 +274,7 @@ export class WebLLMProvider implements AgentProvider {
   readonly id = 'webllm' as const
   readonly model: string
   readonly supportsNativeTools = false
-  readonly supportsImages = false
+  readonly supportsImages: boolean
   readonly contextWindow: number
 
   private readonly engine: WebLLMEngine
@@ -220,6 +283,9 @@ export class WebLLMProvider implements AgentProvider {
   // The system message each system prompt was first sent with, and the tools it
   // listed. See preambleFor.
   private readonly preambles = new Map<string, { tools: string[]; text: string }>()
+  // After an overflow: the shorter transcript sent in place of the loop's, and the
+  // loop's messages it replaced, as wire text. See transcriptFor.
+  private trim: { replaced: string[]; kept: AgentMessage[] } | null = null
 
   constructor(options: {
     engine: WebLLMEngine
@@ -231,6 +297,8 @@ export class WebLLMProvider implements AgentProvider {
     this.engine = options.engine
     this.model = options.model
     this.worker = options.worker
+    this.supportsImages =
+      WEBLLM_MODELS.find(model => model.id === options.model)?.supportsImages ?? false
   }
 
   // A model left loaded holds gigabytes of VRAM that the browser will not reclaim
@@ -248,7 +316,7 @@ export class WebLLMProvider implements AgentProvider {
       return
     }
 
-    const completion = await this.complete(request, request.messages, signal)
+    const completion = await this.complete(request, signal)
 
     if (signal?.aborted) {
       yield { type: 'stop', reason: 'aborted' }
@@ -260,11 +328,8 @@ export class WebLLMProvider implements AgentProvider {
     yield* this.eventsFor(completion, request.tools)
   }
 
-  private async complete(
-    request: AgentRequest,
-    messages: AgentMessage[],
-    signal?: AbortSignal
-  ): Promise<Completion> {
+  private async complete(request: AgentRequest, signal?: AbortSignal): Promise<Completion> {
+    const messages = this.transcriptFor(request.messages)
     try {
       return await this.generate(request, messages, signal)
     } catch (error) {
@@ -280,8 +345,30 @@ export class WebLLMProvider implements AgentProvider {
         trimmed.length,
         messages.length
       )
-      return { ...(await this.generate(request, trimmed, signal)), trimmed: true }
+      const completion = await this.generate(request, trimmed, signal)
+      this.trim = { replaced: request.messages.map(wireText), kept: trimmed }
+      return { ...completion, trimmed: true }
     }
+  }
+
+  // The loop keeps every message, so after one overflow each later step would
+  // overflow again and be trimmed again, to a transcript that differs from the
+  // last one in its final exchange. The engine would then prefill the whole prompt
+  // from an empty cache: about 3k tokens, 11 to 12 seconds on a laptop GPU, every
+  // step. Sending the trimmed transcript plus what came after it extends the
+  // conversation the engine holds instead, so only the new messages are prefilled.
+  private transcriptFor(messages: AgentMessage[]): AgentMessage[] {
+    const trim = this.trim
+    const extendsTrim =
+      trim !== null &&
+      messages.length >= trim.replaced.length &&
+      trim.replaced.every((text, index) => wireText(messages[index]) === text)
+    if (!extendsTrim) {
+      // A new conversation, or one the loop rewrote
+      this.trim = null
+      return messages
+    }
+    return [...trim.kept, ...messages.slice(trim.replaced.length)]
   }
 
   private async generate(
@@ -295,7 +382,7 @@ export class WebLLMProvider implements AgentProvider {
       messages: [
         // The tool schemas ride in the system message, as they do for every
         // provider without native tools
-        { role: 'system', content: this.preambleFor(request) },
+        { role: 'system', content: this.preambleFor(request, messages) },
         ...toWireTurns(messages),
       ],
       max_tokens: Math.min(request.maxTokens, MAX_OUTPUT_TOKENS),
@@ -353,7 +440,7 @@ export class WebLLMProvider implements AgentProvider {
   // laptop GPU, every step. So the first preamble for a system prompt is kept
   // while every tool it lists is still offered. Tools unlocked later still reach
   // the model, through find_tools' own result and the grammar's enum.
-  private preambleFor(request: AgentRequest): string {
+  private preambleFor(request: AgentRequest, messages: AgentMessage[]): string {
     const offered = new Set(request.tools.map(tool => tool.name))
     const pinned = this.preambles.get(request.system)
     const stillValid =
@@ -366,7 +453,7 @@ export class WebLLMProvider implements AgentProvider {
       // would have its name and nothing else, so the preamble is rebuilt.
       [...offered]
         .filter(name => !pinned.tools.includes(name))
-        .every(name => describedInTranscript(name, request.messages))
+        .every(name => describedInTranscript(name, messages))
     if (stillValid) return pinned.text
 
     const text = preamble(request)
@@ -424,6 +511,12 @@ function toWireTurns(messages: AgentMessage[]): {
       content: rawCompletion(message) ?? serializeMessage(message),
     }))
     .filter(turn => turn.content.length > 0)
+}
+
+// One message as the engine sees it, role included, for telling whether the loop's
+// transcript still starts with the messages a trim replaced
+function wireText(message: AgentMessage): string {
+  return `${message.role}:${rawCompletion(message) ?? serializeMessage(message)}`
 }
 
 function describedInTranscript(toolName: string, messages: AgentMessage[]): boolean {

@@ -33,6 +33,7 @@ export function useRenderSettings(): RenderSettings {
       outOp.inputs.codec.subscribe(() => updateSettings()),
       outOp.inputs.bitrateMbps.subscribe(() => updateSettings()),
       outOp.inputs.bitrateMode.subscribe(() => updateSettings()),
+      outOp.inputs.exportAlpha.subscribe(() => updateSettings()),
       outOp.inputs.scaleControl.subscribe(() => updateSettings()),
       outOp.inputs.framerate.subscribe(() => updateSettings()),
       outOp.inputs.captureDelay.subscribe(() => updateSettings()),
@@ -72,6 +73,7 @@ export function getRenderSettingsFromOutOp(outOp: OutOp): RenderSettings {
     codec: outOp.inputs.codec.value as RenderSettings['codec'],
     bitrateMbps: outOp.inputs.bitrateMbps.value,
     bitrateMode: outOp.inputs.bitrateMode.value as RenderSettings['bitrateMode'],
+    exportAlpha: outOp.inputs.exportAlpha.value,
     scaleControl: outOp.inputs.scaleControl.value,
     framerate: outOp.inputs.framerate.value,
     captureDelay: outOp.inputs.captureDelay.value,
@@ -107,6 +109,9 @@ export function setRenderSettingsOnOutOp(outOp: OutOp, settings: Partial<RenderS
   }
   if (settings.bitrateMode !== undefined) {
     outOp.inputs.bitrateMode.setValue(settings.bitrateMode)
+  }
+  if (settings.exportAlpha !== undefined) {
+    outOp.inputs.exportAlpha.setValue(settings.exportAlpha)
   }
   if (settings.scaleControl !== undefined) {
     outOp.inputs.scaleControl.setValue(settings.scaleControl)
