@@ -10,6 +10,8 @@ Any animatable field can be keyframed. Values interpolate between keyframes, so 
 
 A track ID is `"operator-name / fieldName"` — the operator's name, a space-slash-space, then the field. For example `"my-layer / opacity"` or `"threshold / value"`. Note it uses the bare operator name, not the leading-slash path.
 
+A TableEditor cell has its own track: `"table-name / data / <rowIndex> / <column>"`, for example `"cities / data / 0 / population"`. Row indices start at 0.
+
 ## Interpolation
 
 - `"bezier"` — smooth easing between keyframes. The default, and what you want for most motion.

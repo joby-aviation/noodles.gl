@@ -35,9 +35,13 @@ function snapToFrame(time: number, fps: number): number {
 
 // Extract display name from field path
 // "maplibre-basemap / viewState / zoom" -> "zoom"
-function getDisplayName(fieldPath: string): string {
+// Table cells: "cities / data / 0 / population" -> "population (row 1)", matching the table's # column
+export function getDisplayName(fieldPath: string): string {
   const parts = fieldPath.split(' / ')
-  return parts[parts.length - 1]
+  const name = parts[parts.length - 1]
+  const row = parts[parts.length - 2]
+  if (parts.length >= 4 && /^\d+$/.test(row)) return `${name} (row ${Number(row) + 1})`
+  return name
 }
 
 interface KeyframeTrackLabelProps {
