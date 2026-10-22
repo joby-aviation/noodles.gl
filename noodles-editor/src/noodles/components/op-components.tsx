@@ -82,6 +82,7 @@ import {
   firePropertyMutation,
   usePropertyHistory,
 } from '../utils/property-history'
+import { BrushableHistogramOpComponent } from './brushable-histogram-op'
 import { categories as baseCategories, nodeTypeToDisplayName } from './categories'
 import { FieldComponent, type inputComponents } from './field-components'
 import { GeoEditorOpComponent } from './geo-editor-op'
@@ -248,6 +249,7 @@ function UnknownOperatorComponent({
 
 export const nodeComponents = {
   ...defaultNodeComponents,
+  BrushableHistogramOp: memo(BrushableHistogramOpComponent, nodePropsAreEqual),
   GeocoderOp: memo(GeocoderOpComponent, nodePropsAreEqual),
   GeoEditorOp: memo(GeoEditorOpComponent, nodePropsAreEqual),
   MapStyleConfiguratorOp: memo(MapStyleConfiguratorOpComponent, nodePropsAreEqual),
