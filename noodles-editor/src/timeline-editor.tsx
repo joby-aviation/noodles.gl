@@ -5,6 +5,7 @@ import { ReactFlowProvider } from '@xyflow/react'
 import type { CustomLayerInterface, Map as MapLibre } from 'maplibre-gl'
 import { forwardRef, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import ReactMapGL, { type MapProps, useControl } from 'react-map-gl/maplibre'
+import { useDocNoodles } from './editor/doc-noodles'
 import { Layout } from './layout'
 import { ErrorBoundary } from './noodles/components/error-boundary'
 import { useMapClickToEdit } from './noodles/components/map-click-to-edit'
@@ -14,26 +15,10 @@ import { useMapToolStore } from './noodles/components/tools/map-tool-store'
 import { TopMenuBar } from './noodles/components/top-menu-bar'
 import { ExportActionsProvider } from './noodles/contexts/export-actions-context'
 import { useActiveStorageType, useCurrentDirectory } from './noodles/filesystem-store'
-import { agentBench, externalControl } from './noodles/globals'
-import { useActiveOutOp } from './noodles/hooks/use-active-outop'
-import { useRenderSettings } from './noodles/hooks/use-render-settings'
-import { getNoodles } from './noodles/noodles'
 import { fnWithSource } from './noodles/operators'
 import { useUIStore } from './noodles/store'
-import {
-  trackDeckInteraction,
-  trackMapLibreGesture,
-  trackPanelToggled,
-} from './noodles/utils/editor-analytics'
-import {
-  createCameraGestureHistory,
-  updateCameraInputs,
-  useCameraControlState,
-} from './noodles/utils/map-camera-control'
-import { captureOperatorInputs, firePropertyMutation } from './noodles/utils/property-history'
-import type { RenderSettings } from './noodles/utils/serialization'
-import { PREVIEW_FRAME_DELAY, useDeckDrawLoop } from './render/draw-loop'
-import { FrameCounter } from './render/frame-stats'
+import { DEFAULT_RENDER_SETTINGS, type RenderSettings } from './noodles/utils/serialization'
+import { useDeckDrawLoop } from './render/draw-loop'
 import type { RenderSource } from './render/render-analytics'
 import { resetRenderProgress, setRenderProgress } from './render/render-progress-store'
 import {
@@ -152,24 +137,14 @@ export default function TimelineEditor() {
     if (!isRenderingRef.current) setRand(Math.random())
   }, [])
 
-  const noodles = getNoodles()
-  const {
-    flowGraph,
-    nodeSidebar,
-    propertiesPanel,
-    chatPanel,
-    gitHistoryPanel,
-    selectedNodeIds,
-    edges,
-    ...visualization
-  } = noodles
+  const noodles = useDocNoodles()
+  const { flowGraph, nodeSidebar, propertiesPanel, chatPanel, selectedNodeIds, ...visualization } =
+    noodles
 
   const setTimelineExpanded = useUIStore(state => state.setTimelineExpanded)
 
-  // Render settings are now stored as OutOp inputs
-  const renderSettings = useRenderSettings()
-  // Active OutOp for updating rendersDirectory when user picks a directory
-  const activeOutOp = useActiveOutOp()
+  // Render settings are the document's deck parameters
+  const renderSettings = noodles.renderSettings ?? DEFAULT_RENDER_SETTINGS
   // File system state for resolving the renders directory
   const currentDirectory = useCurrentDirectory()
   const activeStorageType = useActiveStorageType()
@@ -724,12 +699,12 @@ export default function TimelineEditor() {
     try {
       const handle = await window.showDirectoryPicker({ mode: 'readwrite' })
       rendersDirectoryHandleRef.current = handle
-      // Persist the folder name to the OutOp so it survives project reloads
-      activeOutOp?.inputs.rendersDirectory.setValue(handle.name)
+      // Persist the folder name in the document so it survives project reloads
+      noodles.setRenderSettings?.({ ...renderSettings, rendersDirectory: handle.name })
     } catch (e) {
       if ((e as DOMException).name !== 'AbortError') throw e
     }
-  }, [activeOutOp])
+  }, [noodles.setRenderSettings, renderSettings])
 
   const exportSequence = useCallback(async () => {
     const canvas = getDeckCanvas()
