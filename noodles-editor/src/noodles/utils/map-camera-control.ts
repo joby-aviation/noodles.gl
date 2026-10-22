@@ -1,3 +1,5 @@
+import { useEffect, useState } from 'react'
+import { type Observable, skip } from 'rxjs'
 import { DeckRendererOp, MaplibreBasemapOp, MapViewStateOp, RerouteOp } from '../operators'
 import { getOp } from '../store'
 
@@ -183,6 +185,35 @@ export function getCameraControlState(
   }
 
   return { op: selectedOp, enabled: true, reason: null }
+}
+
+// getCameraControlState as a hook that re-renders when the selected camera is locked or
+// unlocked, or an input enters or leaves expression mode. Those live on RxJS subjects,
+// not React state, so without this the control only updated on an unrelated re-render.
+// Edges, playback and export state are React state and already re-render the caller.
+export function useCameraControlState(
+  selectedNodeIds: string[],
+  context: CameraControlContext
+): CameraControlState {
+  const selectedOp = selectedNodeIds.length === 1 ? getOp(selectedNodeIds[0]) : undefined
+  const camera = selectedOp instanceof MapViewStateOp ? selectedOp : null
+  const [, setVersion] = useState(0)
+
+  useEffect(() => {
+    if (!camera) return
+    const sources: Observable<unknown>[] = [
+      camera.locked,
+      ...CAMERA_INPUT_NAMES.map(name => camera.inputs[name].expression$),
+    ]
+    const bump = () => setVersion(version => version + 1)
+    // BehaviorSubjects replay their current value on subscribe; react to later changes only
+    const subscriptions = sources.map(source => source.pipe(skip(1)).subscribe(bump))
+    return () => {
+      for (const subscription of subscriptions) subscription.unsubscribe()
+    }
+  }, [camera])
+
+  return getCameraControlState(selectedNodeIds, context)
 }
 
 export function extractCameraViewState(value: unknown): CameraViewState | null {

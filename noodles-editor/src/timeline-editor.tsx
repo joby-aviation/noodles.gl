@@ -19,8 +19,8 @@ import { fnWithSource } from './noodles/operators'
 import { useUIStore } from './noodles/store'
 import {
   createCameraGestureHistory,
-  getCameraControlState,
   updateCameraInputs,
+  useCameraControlState,
 } from './noodles/utils/map-camera-control'
 import { captureOperatorInputs, firePropertyMutation } from './noodles/utils/property-history'
 import type { RenderSettings } from './noodles/utils/serialization'
@@ -182,7 +182,7 @@ export default function TimelineEditor() {
   isRenderingRef.current = isRendering
 
   const isPlaying = useTimelineStore(state => state.playing)
-  const cameraControl = getCameraControlState(selectedNodeIds ?? [], {
+  const cameraControl = useCameraControlState(selectedNodeIds ?? [], {
     edges: edges ?? [],
     isRendering,
     isPlaying,

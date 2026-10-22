@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { act, cleanup, renderHook } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   CodeOp,
   DeckRendererOp,
@@ -16,6 +17,7 @@ import {
   type GraphEdge,
   getCameraControlState,
   updateCameraInputs,
+  useCameraControlState,
   wrapLongitude,
 } from './map-camera-control'
 
@@ -120,6 +122,28 @@ describe('selected map camera control', () => {
     const state = getCameraControlState(['/second'], context(edges))
     expect(state.enabled).toBe(false)
     expect(state.reason).toMatch(/does not drive the visible map/)
+  })
+
+  describe('useCameraControlState', () => {
+    afterEach(cleanup)
+
+    it('updates when the selected camera is locked or an input gets an expression', () => {
+      const camera = new MapViewStateOp('/camera')
+      setOp('/camera', camera)
+      const edges = wireView()
+      const { result } = renderHook(() => useCameraControlState(['/camera'], context(edges)))
+      expect(result.current.enabled).toBe(true)
+
+      act(() => camera.locked.next(true))
+      expect(result.current.reason).toMatch(/Unlock/)
+      act(() => camera.locked.next(false))
+      expect(result.current.enabled).toBe(true)
+
+      act(() => camera.inputs.pitch.setExpression('10'))
+      expect(result.current.reason).toMatch(/expressions.*pitch/)
+      act(() => camera.inputs.pitch.clearExpression())
+      expect(result.current.enabled).toBe(true)
+    })
   })
 
   describe('findViewCameraOpId', () => {
