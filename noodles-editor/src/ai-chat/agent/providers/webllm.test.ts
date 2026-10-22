@@ -154,6 +154,21 @@ describe('WEBLLM_MODELS', () => {
     })
   })
 
+  // An id the installed WebLLM does not ship throws at load time, which would
+  // break both the recommended pick and the fall-back-to-fast button
+  it('offers only models the installed WebLLM ships, with its GPU memory figure', async () => {
+    const { prebuiltAppConfig } = await import('@mlc-ai/web-llm')
+    const shipped = new Map(prebuiltAppConfig.model_list.map(record => [record.model_id, record]))
+    for (const id of [DEFAULT_WEBLLM_MODEL, FAST_WEBLLM_MODEL]) {
+      expect(shipped.has(id), id).toBe(true)
+    }
+    for (const model of WEBLLM_MODELS) {
+      const record = shipped.get(model.id)
+      expect(record, model.id).toBeDefined()
+      expect(model.vramMb, model.id).toBe(Math.round(record?.vram_required_MB ?? 0))
+    }
+  })
+
   it('names GPU memory when asked', () => {
     expect(webllmModelLabel(WEBLLM_MODELS[1], { memory: true })).toBe(
       'Local fast: Qwen3.5 2B (1.1 GB download, 2.2 GB GPU memory)'

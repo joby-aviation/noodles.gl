@@ -15,7 +15,7 @@ import { useOpenRouterConnect } from '../noodles/use-openrouter-connect'
 import { analytics } from '../utils/analytics'
 import { debugAiChat } from '../utils/debug'
 import { useAgentModelStore } from './agent/model-store'
-import { createProvider } from './agent/provider-factory'
+import { createProvider, resolveProviderModel } from './agent/provider-factory'
 import {
   type Credentials,
   isOnDevice,
@@ -281,6 +281,11 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
     let built: AgentSession | null = null
     let cancelled = false
 
+    // Both outcomes report the model that was attempted, so a failed load and a
+    // successful one of the same model land under one name
+    const attemptedModel =
+      resolveProviderModel({ providerId, model, customEndpoint }) ?? 'unconfigured'
+
     const init = async () => {
       setContextLoading(true)
       setProviderError(null)
@@ -315,7 +320,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
         setSession(built)
         analytics.track('ai_provider_load', {
           provider: providerId,
-          model: provider.model,
+          model: attemptedModel,
           outcome: 'success',
         })
       } catch (error) {
@@ -324,7 +329,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
         setProviderError(error instanceof Error ? error.message : String(error))
         analytics.track('ai_provider_load', {
           provider: providerId,
-          model: model ?? 'default',
+          model: attemptedModel,
           outcome: 'failed',
         })
       } finally {

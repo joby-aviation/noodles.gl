@@ -3,7 +3,9 @@ import { ReactFlowProvider } from '@xyflow/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getKeysStore } from '../noodles/keys-store'
 import { AUTH_MESSAGE_TYPE } from '../noodles/openrouter-oauth'
+import { analytics } from '../utils/analytics'
 import { useAgentModelStore } from './agent/model-store'
+import { DEFAULT_ANTHROPIC_MODEL } from './agent/providers/anthropic'
 import { DEFAULT_OPENROUTER_MODEL, resetOpenRouterCatalogue } from './agent/providers/openrouter'
 import { WEBLLM_MODELS } from './agent/providers/webllm'
 import { ChatPanel } from './chat-panel'
@@ -16,7 +18,10 @@ import type { NoodlesProject } from './types'
 const createProvider = vi.hoisted(() =>
   vi.fn(async () => ({ model: 'stub', supportsNativeTools: false, contextWindow: 4096 }))
 )
-vi.mock('./agent/provider-factory', () => ({ createProvider }))
+vi.mock('./agent/provider-factory', async importOriginal => ({
+  ...(await importOriginal<typeof import('./agent/provider-factory')>()),
+  createProvider,
+}))
 
 // Report a WebGPU adapter so the local model can be ready
 vi.mock('./agent/providers/webllm', async importOriginal => ({
@@ -148,5 +153,32 @@ describe('ChatPanel model picker', () => {
     expect(createProvider).toHaveBeenLastCalledWith(
       expect.objectContaining({ providerId: 'webllm' })
     )
+  })
+})
+
+describe('ChatPanel load reports', () => {
+  it('names the attempted default model when a load fails', async () => {
+    getKeysStore().setBrowserKey('anthropic', 'sk-ant-test')
+    useAgentModelStore.getState().setModel('anthropic', undefined)
+    vi.spyOn(globalContextManager, 'waitForReady').mockResolvedValue({} as ContextLoader)
+    createProvider.mockRejectedValueOnce(new Error('load failed'))
+    const track = vi.spyOn(analytics, 'track')
+    render(
+      <ReactFlowProvider>
+        <ChatPanel
+          project={{ nodes: [], edges: [] } as NoodlesProject}
+          onClose={() => {}}
+          isVisible
+        />
+      </ReactFlowProvider>
+    )
+    await act(() => vi.advanceTimersByTimeAsync(0))
+
+    expect(track).toHaveBeenCalledWith('ai_provider_load', {
+      provider: 'anthropic',
+      model: DEFAULT_ANTHROPIC_MODEL,
+      outcome: 'failed',
+    })
+    track.mockRestore()
   })
 })
