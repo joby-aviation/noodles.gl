@@ -101,6 +101,8 @@ export const LAYER_SPECS: Record<LayerKind, LayerKindSpec> = {
     channels: [
       { name: 'position', type: 'vec', required: true, fallback: 'position' },
       { name: 'color', type: 'color', fallback: 'color' },
+      { name: 'lineColor', type: 'color' },
+      { name: 'elevation', type: 'num' },
     ],
   },
 };

@@ -23,6 +23,7 @@ import {
   targetCaps,
 } from '@noodles.gl/planner'
 import { DeckLayerBuilder } from './deck-layers'
+import { loadGeojson } from './geojson'
 import { ProgramRuntime, type UpdateReport } from './program-runtime'
 import { registerNoodlesRamps } from './ramps'
 
@@ -75,6 +76,10 @@ export interface EngineOptions {
   readAsset?: (name: string) => Promise<Uint8Array>
   /** Make bytes readable by DuckDB under a file name. */
   registerFile?: (name: string, bytes: Uint8Array) => Promise<void>
+  /** Create or replace a DuckDB table from an Arrow IPC stream: how GeoJSON rows arrive. */
+  insertArrow?: (table: string, ipc: Uint8Array) => Promise<void>
+  /** Text of a remote file. Defaults to `fetch`. */
+  fetchText?: (url: string) => Promise<string>
 }
 
 type Listener = (vis: EngineVis, report?: UpdateReport) => void
@@ -254,16 +259,39 @@ export class Engine {
     this.emit()
   }
 
-  /** Project assets a file node reads, registered with DuckDB under their `@/` name. */
+  /**
+   * What a compile needs to exist first: project assets registered with DuckDB under their `@/`
+   * name, and each GeoJSON file loaded as vertex-row tables.
+   */
   private async registerAssets(): Promise<void> {
-    const { readAsset, registerFile } = this.options
-    if (!readAsset || !registerFile) return
+    const { readAsset, registerFile, insertArrow } = this.options
+    const fetchText =
+      this.options.fetchText ??
+      (async (url: string) => {
+        const res = await fetch(url)
+        if (!res.ok) throw new Error(`Failed to fetch ${url}: ${res.status} ${res.statusText}`)
+        return res.text()
+      })
     for (const n of this.doc?.nodes ?? []) {
-      const url = n.op === 'file' ? String(n.params.url ?? '') : ''
-      if (!url.startsWith('@/') || this.registered.has(url)) continue
-      await registerFile(url, await readAsset(url.slice(2)))
-      this.registered.add(url)
+      const url = n.op === 'file' || n.op === 'geojson' ? String(n.params.url ?? '') : ''
+      if (!url || this.registered.has(`${n.op}:${url}`)) continue
+      if (n.op === 'file') {
+        if (!url.startsWith('@/') || !readAsset || !registerFile) continue
+        await registerFile(url, await readAsset(url.slice(2)))
+      } else {
+        if (!insertArrow) continue
+        const text = url.startsWith('@/')
+          ? new TextDecoder().decode(await this.requireAsset(url))
+          : await fetchText(url)
+        await loadGeojson(url, text, insertArrow)
+      }
+      this.registered.add(`${n.op}:${url}`)
     }
+  }
+
+  private requireAsset(url: string): Promise<Uint8Array> {
+    if (!this.options.readAsset) throw new Error(`No project to read ${url} from`)
+    return this.options.readAsset(url.slice(2))
   }
 
   private emit(report?: UpdateReport): void {

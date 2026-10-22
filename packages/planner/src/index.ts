@@ -78,7 +78,7 @@ export {
 export { canonicalJson, hashOf } from './hash.js';
 export {
   columnTypeOf, sqlLiteral, inlineParamsInText, exprError,
-  sourceSql, joinSql, unionSql, sortSql, limitSql, sqlNodeSql, generateSql, unnestSql, rowwiseSql,
+  sourceSql, geojsonTable, GEOJSON_KINDS, type GeojsonKind, joinSql, unionSql, sortSql, limitSql, sqlNodeSql, generateSql, unnestSql, rowwiseSql,
   type RelColumn, type RelVector, type RelShape,
 } from './relational.js';
 export {

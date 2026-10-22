@@ -193,6 +193,8 @@ function toBinary(input: ProgramLayerInput): Binary {
       const p = pos('position')
       put('getPolygon', p, 3)
       put('getFillColor', colors(attr(input, 'color'), n), 4, true)
+      put('getElevation', scalar('elevation'), 1)
+      const lineColor = colors(attr(input, 'lineColor'), n)
       const tri = p ? triangulate(p, 3, n, starts, rings) : undefined
       if (tri) at.indices = tri.indices
       return {
@@ -204,7 +206,10 @@ function toBinary(input: ProgramLayerInput): Binary {
           ? {
               length: rings.length,
               startIndices: rings,
-              attributes: { getPath: { value: p, size: 3 } },
+              attributes: {
+                getPath: { value: p, size: 3 },
+                ...(lineColor ? { getColor: { value: lineColor, size: 4, normalized: true } } : {}),
+              },
             }
           : undefined,
         triangles: tri ? tri.indices.length / 3 : 0,
@@ -264,18 +269,25 @@ function buildLayers(input: ProgramLayerInput, binary: Binary): Layer[] {
   const fill = buildLayer(input, binary)
   const layers = fill ? [fill] : []
   if (p.stroked === true && binary.outline) {
+    const perRowColor = 'getColor' in binary.outline.attributes
     layers.push(
       new PathLayer({
         id: `${input.id}:outline`,
         opacity: num(p.opacity, 1),
         pickable: false,
+        parameters: BLEND_PARAMETERS[String(p.blend)] ?? {},
         data: binary.outline as never,
         _pathType: 'loop',
-        widthUnits: 'pixels',
+        widthUnits: p.lineWidthUnits === 'meters' ? 'meters' : 'pixels',
+        widthScale: num(p.lineWidthScale, 1),
         widthMinPixels: num(p.lineWidthMinPixels, 1),
         getWidth: 1,
-        getColor: rgb(p.lineColor, [255, 255, 255]),
-        updateTriggers: { getColor: String(p.lineColor) },
+        ...(perRowColor
+          ? {}
+          : {
+              getColor: rgb(p.lineColor, [255, 255, 255]),
+              updateTriggers: { getColor: String(p.lineColor) },
+            }),
       } as never)
     )
   }
@@ -383,8 +395,10 @@ function buildLayer(input: ProgramLayerInput, binary: Binary): Layer | undefined
         // The rows are already rings in order and `indices` is the triangulation, so deck must
         // neither re-wind nor re-tessellate them.
         _normalize: false,
-        filled: true,
-        extruded: false,
+        filled: p.filled !== false,
+        extruded: p.extruded === true,
+        elevationScale: num(p.elevationScale, 1),
+        getElevation: has('getElevation') ? undefined : 1,
         ...constant('getFillColor', rgb(p.fillColor, [80, 160, 220])),
       } as never)
     case 'text':

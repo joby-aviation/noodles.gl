@@ -95,6 +95,15 @@ export const FUNCTIONS: Record<string, FnSpec> = {
   log10:  { arity: [1, 1], sql: 'log10', wgsl: 'log10', width: 'broadcast' },
   log2:   { arity: [1, 1], sql: 'log2',  wgsl: 'log2',  width: 'broadcast' },
 
+  // The first argument unless it is missing: SQL NULL, or NaN, which is how a null column reaches
+  // the CPU stage and the GPU. GeoJSON properties are often absent on some features.
+  coalesce: {
+    arity: [2, 2],
+    sql: 'coalesce',
+    wgsl: (a) => `select(${a[0]}, ${a[1]}, ${a[0]} != ${a[0]})`,
+    width: 'broadcast',
+  },
+
   // `clamp` exists in both but DuckDB has no 3-arg clamp, so spell it out.
   clamp: {
     arity: [3, 3],
