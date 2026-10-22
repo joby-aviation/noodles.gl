@@ -60,6 +60,7 @@ const config: Config = {
 
   plugins: [
     './symlink-plugin',
+    './raw-text-plugin',
     [
       '@docusaurus/plugin-google-gtag',
       {
