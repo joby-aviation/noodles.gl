@@ -29,6 +29,11 @@ export default defineConfig(({ mode }) => {
 
   return {
     base: mode === 'development' ? '/' : '/app/',
+    build: {
+      // Only the GitHub Pages deploy sets SOURCEMAPS=true, and only when PostHog sourcemap
+      // upload is configured. It uploads the maps to PostHog and deletes them before publishing.
+      sourcemap: env.SOURCEMAPS === 'true',
+    },
     server: {
       open: true,
       // The agent benchmark's Chrome profile churns constantly while a model runs

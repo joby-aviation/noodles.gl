@@ -9,12 +9,7 @@
 import { debugAiChat } from '../../utils/debug'
 import type { MCPTools } from '../mcp-tools'
 import { getToolDefinition } from '../tool-definitions'
-import {
-  type ProjectModification,
-  parseModifications,
-  type ToolCall,
-  type ToolResult,
-} from '../types'
+import type { ProjectModification, ToolCall, ToolResult } from '../types'
 import { capToolResult, resultBudgetChars } from './result-budget'
 import { FIND_TOOLS_NAME, type ToolRouter } from './tool-router'
 import type {
@@ -313,10 +308,10 @@ export async function runAgent(params: RunAgentParams): Promise<AgentRunResult> 
     debugAiChat('[agent] hit the %d step limit with tools still pending', maxSteps)
   }
 
-  // Models sometimes write a modifications array into a fenced JSON block instead
-  // of calling apply_modifications. Honouring that is the difference between the
-  // edit landing and the user seeing a wall of JSON.
-  modifications.push(...extractProsedModifications(text))
+  // A modifications array written into the reply as JSON is not picked up: only
+  // apply_modifications validates a batch against the project, and the user
+  // accepts what reaches them as a proposal. A reply claiming such a block was
+  // applied is caught by the claim check below.
 
   // Small models announce edits they never made — "the radius is now 10", one
   // step, no tool call. Passing that on unmarked reads as done, so the reply
@@ -380,20 +375,6 @@ function describeOutcome(result: ToolResult): string {
     ? `success: ${JSON.stringify(result.data ?? null)}`
     : `error: ${result.error ?? 'failed'}`
   return text.length > REPEAT_PREVIEW_CHARS ? `${text.slice(0, REPEAT_PREVIEW_CHARS)}…` : text
-}
-
-const JSON_BLOCK = /```json\s*([\s\S]*?)\s*```/g
-
-function extractProsedModifications(text: string): ProjectModification[] {
-  for (const match of text.matchAll(JSON_BLOCK)) {
-    try {
-      const modifications = parseModifications(JSON.parse(match[1]))
-      if (modifications && modifications.length > 0) return modifications
-    } catch {
-      // Not a modifications block; the next fence may be
-    }
-  }
-  return []
 }
 
 interface StreamedTurn {

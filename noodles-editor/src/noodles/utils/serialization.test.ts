@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { hexToColor } from '../../utils/color'
 import { CodeField, ColorField, NumberField } from '../fields'
 import {
+  CodeOp,
   DateTimeOp,
   DirectionsOp,
   GeoJsonLayerOp,
@@ -244,6 +245,44 @@ describe('serializeNodes', () => {
     const result = serializeNodes(getOpStore(), nodes, [])
     expect(result[0].data.inputs).toEqual({ val: 123 })
     expect(result[1].data.inputs).toEqual({})
+  })
+
+  it('omits optional UI metadata when a number field has no explicit step override', () => {
+    setOp('num', new NumberOp('num', { val: 0.25 }, false))
+    const nodes = [{ id: 'num', type: 'NumberOp', data: {}, position: { x: 0, y: 0 } }]
+
+    const [result] = serializeNodes(getOpStore(), nodes, [])
+
+    expect(result.data).not.toHaveProperty('ui')
+  })
+
+  it('serializes an explicit number step as optional per-field UI metadata', () => {
+    const op = new NumberOp('num', { val: 0.25 }, false)
+    op.inputs.val.setStepOverride(0.001)
+    setOp('num', op)
+    const nodes = [{ id: 'num', type: 'NumberOp', data: {}, position: { x: 0, y: 0 } }]
+
+    const [result] = serializeNodes(getOpStore(), nodes, [])
+
+    expect(result.data.ui).toEqual({ numberSteps: { val: 0.001 } })
+  })
+
+  it('serializes an explicit step for a custom number field', () => {
+    const op = new CodeOp('code')
+    op.addCustomInput({
+      id: 'amount-id',
+      name: 'amount',
+      type: 'number',
+      order: 0,
+      defaultValue: 0.25,
+    })
+    ;(op.inputs.amount as NumberField).setStepOverride(0.001)
+    setOp('code', op)
+    const nodes = [{ id: 'code', type: 'CodeOp', data: {}, position: { x: 0, y: 0 } }]
+
+    const [result] = serializeNodes(getOpStore(), nodes, [])
+
+    expect(result.data.ui).toEqual({ numberSteps: { amount: 0.001 } })
   })
 
   it('does not serialize object default values', () => {
@@ -995,6 +1034,7 @@ describe('unknown operator types save and reload', () => {
         inputs: { threshold: 5, label: 'kept' },
         locked: true,
         visibleInputs: ['threshold'],
+        ui: { numberSteps: { threshold: 0.01 } },
       },
       position: { x: 10, y: 20 },
     }
