@@ -8,7 +8,8 @@ const cwd = path.join(import.meta.dirname, '..')
 // TypeScript without the tsx CLI, which needs a local IPC socket.
 function runScript(script: string): Promise<{ stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, ['--import', 'tsx', script], { cwd })
+    // Kill a stuck script before the 20s test timeout so it doesn't outlive the test
+    const child = spawn(process.execPath, ['--import', 'tsx', script], { cwd, timeout: 15_000 })
     let stdout = ''
     let stderr = ''
     child.stdout.on('data', chunk => {
