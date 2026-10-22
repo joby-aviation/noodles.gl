@@ -27,6 +27,8 @@ import type { UndoRedoHandlerRef } from './UndoRedoHandler'
 
 interface TopMenuBarProps {
   projectName?: string
+  // Project whose version control settings the settings dialog edits; null when unsaved
+  versionedProjectName?: string | null
   onSaveProject: () => void
   onSaveAs?: () => Promise<void>
   onRename?: () => void
@@ -55,6 +57,7 @@ interface TopMenuBarProps {
 
 export function TopMenuBar({
   projectName,
+  versionedProjectName,
   onSaveProject,
   onSaveAs,
   onRename,
@@ -81,6 +84,7 @@ export function TopMenuBar({
 }: TopMenuBarProps) {
   const settingsDialogOpen = useUIStore(state => state.settingsDialogOpen)
   const setSettingsDialogOpen = useUIStore(state => state.setSettingsDialogOpen)
+
   const mapMode = useUIStore(state => state.mapMode)
   const setMapMode = useUIStore(state => state.setMapMode)
   const triggerSidebarSearch = useUIStore(state => state.triggerSidebarSearch)
@@ -619,7 +623,11 @@ export function TopMenuBar({
         </>
       )}
 
-      <SettingsDialog open={settingsDialogOpen} setOpen={setSettingsDialogOpen} />
+      <SettingsDialog
+        open={settingsDialogOpen}
+        setOpen={setSettingsDialogOpen}
+        projectName={versionedProjectName}
+      />
     </>
   )
 }

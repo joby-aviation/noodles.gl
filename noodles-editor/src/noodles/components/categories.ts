@@ -7,6 +7,7 @@ export const categories = {
     'Arc',
     'BoundingBox',
     'Bounds',
+    'BrushableHistogram',
     'Chart',
     'Concat',
     'Cross',
@@ -34,6 +35,8 @@ export const categories = {
     'ViewState',
   ],
   geojson: [
+    'ChoroplethJoin',
+    'ChoroplethLayer',
     'Clip',
     'Explode',
     'GeoEditor',

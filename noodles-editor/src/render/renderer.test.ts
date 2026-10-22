@@ -1,4 +1,5 @@
 import { act, renderHook } from '@testing-library/react'
+import { decodeRgba } from 'exrjs'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { analytics } from '../utils/analytics'
 import {
@@ -308,6 +309,73 @@ describe('useRenderer analytics on failure', () => {
         frameCount: 5,
       })
       expect(JSON.stringify(properties)).not.toContain('data.csv')
+    } finally {
+      clearInterval(paint)
+      canvas.remove()
+      vi.useFakeTimers()
+    }
+  })
+})
+
+describe('startSequenceCapture', () => {
+  beforeEach(() => {
+    track.mockClear()
+  })
+
+  // Collects what the export writes, keyed by file name
+  const memoryDirectory = () => {
+    const files = new Map<string, Blob>()
+    const handle = {
+      getFileHandle: async (name: string) => ({
+        createWritable: async () => ({
+          write: async (data: Blob) => void files.set(name, data),
+          close: async () => {},
+        }),
+      }),
+    } as unknown as FileSystemDirectoryHandle
+    return { files, handle }
+  }
+
+  // Real frames from the compositor, on the real clock, as in the encode tests above
+  it('writes one EXR per frame at the canvas size', async () => {
+    vi.useRealTimers()
+    const canvas = document.createElement('canvas')
+    canvas.width = 8
+    canvas.height = 4
+    document.body.appendChild(canvas)
+    const ctx = canvas.getContext('2d')!
+    const paint = setInterval(() => {
+      ctx.fillStyle = '#ff0000'
+      ctx.fillRect(0, 0, 8, 4)
+    }, 5)
+
+    try {
+      const redraw = vi.fn(() => queueMicrotask(() => result.current.captureFrame()))
+      const { result } = renderHook(() =>
+        useRenderer({ projectName: 'exr-test', fps: 10, bitrateMode: 'constant', redraw })
+      )
+      const { files, handle } = memoryDirectory()
+
+      await act(() =>
+        result.current.startSequenceCapture({
+          canvas,
+          directoryHandle: handle,
+          format: 'exr',
+          startFrame: 0,
+          endFrame: 1,
+        })
+      )
+
+      expect([...files.keys()].sort()).toEqual(['exr-test_0000.exr', 'exr-test_0001.exr'])
+      const decoded = decodeRgba(await files.get('exr-test_0000.exr')!.arrayBuffer())
+      expect(decoded.width).toBe(8)
+      expect(decoded.height).toBe(4)
+      // Opaque red stays red in linear light
+      expect(Array.from(decoded.pixels.slice(0, 4))).toEqual([1, 0, 0, 1])
+      expect(track).toHaveBeenLastCalledWith(
+        'render_completed',
+        expect.objectContaining({ format: 'exr_sequence', frameCount: 2 })
+      )
     } finally {
       clearInterval(paint)
       canvas.remove()
