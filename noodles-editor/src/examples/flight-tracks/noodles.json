@@ -1,4 +1,93 @@
 {
+  "edges": [
+    {
+      "id": "/duckdb-flight-data.out.data->/path-layer.par.data",
+      "source": "/duckdb-flight-data",
+      "sourceHandle": "out.data",
+      "target": "/path-layer",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/path-accessor.out.accessor->/path-layer.par.getPath",
+      "source": "/path-accessor",
+      "sourceHandle": "out.accessor",
+      "target": "/path-layer",
+      "targetHandle": "par.getPath"
+    },
+    {
+      "id": "/duckdb-flight-data.out.data->/scatterplot-start.par.data",
+      "source": "/duckdb-flight-data",
+      "sourceHandle": "out.data",
+      "target": "/scatterplot-start",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/start-position-accessor.out.accessor->/scatterplot-start.par.getPosition",
+      "source": "/start-position-accessor",
+      "sourceHandle": "out.accessor",
+      "target": "/scatterplot-start",
+      "targetHandle": "par.getPosition"
+    },
+    {
+      "id": "/duckdb-flight-data.out.data->/scatterplot-end.par.data",
+      "source": "/duckdb-flight-data",
+      "sourceHandle": "out.data",
+      "target": "/scatterplot-end",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/end-position-accessor.out.accessor->/scatterplot-end.par.getPosition",
+      "source": "/end-position-accessor",
+      "sourceHandle": "out.accessor",
+      "target": "/scatterplot-end",
+      "targetHandle": "par.getPosition"
+    },
+    {
+      "id": "/path-layer.out.layer->/deck.par.layers",
+      "source": "/path-layer",
+      "sourceHandle": "out.layer",
+      "target": "/deck",
+      "targetHandle": "par.layers"
+    },
+    {
+      "id": "/scatterplot-start.out.layer->/deck.par.layers",
+      "source": "/scatterplot-start",
+      "sourceHandle": "out.layer",
+      "target": "/deck",
+      "targetHandle": "par.layers"
+    },
+    {
+      "id": "/scatterplot-end.out.layer->/deck.par.layers",
+      "source": "/scatterplot-end",
+      "sourceHandle": "out.layer",
+      "target": "/deck",
+      "targetHandle": "par.layers"
+    },
+    {
+      "id": "/basemap.out.maplibre->/deck.par.basemap",
+      "source": "/basemap",
+      "sourceHandle": "out.maplibre",
+      "target": "/deck",
+      "targetHandle": "par.basemap"
+    },
+    {
+      "id": "/deck.out.vis->/out.par.vis",
+      "source": "/deck",
+      "sourceHandle": "out.vis",
+      "target": "/out",
+      "targetHandle": "par.vis"
+    }
+  ],
+  "viewport": {
+    "x": 534.0033593826707,
+    "y": 343.55942368830074,
+    "zoom": 0.3391789834557667
+  },
+  "version": 18,
+  "name": "Flight Tracks",
+  "editorSettings": {
+    "showOverlay": true
+  },
   "nodes": [
     {
       "id": "/duckdb-flight-data",
@@ -83,7 +172,7 @@
       },
       "data": {
         "inputs": {
-          "expression": "d.geom_text.replace('LINESTRING (', '').replace(')', '').split(',').map(coord => coord.trim().split(' ').map(Number).reverse())"
+          "expression": "d.geom_text.replace('LINESTRING (', '').replace(')', '').split(',').map(coord => coord.trim().split(' ').map(Number))"
         },
         "locked": false
       }
@@ -193,95 +282,23 @@
         "y": 0
       },
       "data": {
-        "inputs": {},
+        "inputs": {
+          "display": "fixed",
+          "width": 1920,
+          "height": 1080,
+          "lod": 2,
+          "waitForData": true,
+          "codec": "avc",
+          "bitrateMbps": 10,
+          "bitrateMode": "constant",
+          "scaleControl": 0.3,
+          "framerate": 30,
+          "captureDelay": 50
+        },
         "locked": false
       }
     }
   ],
-  "edges": [
-    {
-      "id": "/duckdb-flight-data.out.data->/path-layer.par.data",
-      "source": "/duckdb-flight-data",
-      "sourceHandle": "out.data",
-      "target": "/path-layer",
-      "targetHandle": "par.data"
-    },
-    {
-      "id": "/path-accessor.out.accessor->/path-layer.par.getPath",
-      "source": "/path-accessor",
-      "sourceHandle": "out.accessor",
-      "target": "/path-layer",
-      "targetHandle": "par.getPath"
-    },
-    {
-      "id": "/duckdb-flight-data.out.data->/scatterplot-start.par.data",
-      "source": "/duckdb-flight-data",
-      "sourceHandle": "out.data",
-      "target": "/scatterplot-start",
-      "targetHandle": "par.data"
-    },
-    {
-      "id": "/start-position-accessor.out.accessor->/scatterplot-start.par.getPosition",
-      "source": "/start-position-accessor",
-      "sourceHandle": "out.accessor",
-      "target": "/scatterplot-start",
-      "targetHandle": "par.getPosition"
-    },
-    {
-      "id": "/duckdb-flight-data.out.data->/scatterplot-end.par.data",
-      "source": "/duckdb-flight-data",
-      "sourceHandle": "out.data",
-      "target": "/scatterplot-end",
-      "targetHandle": "par.data"
-    },
-    {
-      "id": "/end-position-accessor.out.accessor->/scatterplot-end.par.getPosition",
-      "source": "/end-position-accessor",
-      "sourceHandle": "out.accessor",
-      "target": "/scatterplot-end",
-      "targetHandle": "par.getPosition"
-    },
-    {
-      "id": "/path-layer.out.layer->/deck.par.layers",
-      "source": "/path-layer",
-      "sourceHandle": "out.layer",
-      "target": "/deck",
-      "targetHandle": "par.layers"
-    },
-    {
-      "id": "/scatterplot-start.out.layer->/deck.par.layers",
-      "source": "/scatterplot-start",
-      "sourceHandle": "out.layer",
-      "target": "/deck",
-      "targetHandle": "par.layers"
-    },
-    {
-      "id": "/scatterplot-end.out.layer->/deck.par.layers",
-      "source": "/scatterplot-end",
-      "sourceHandle": "out.layer",
-      "target": "/deck",
-      "targetHandle": "par.layers"
-    },
-    {
-      "id": "/basemap.out.maplibre->/deck.par.basemap",
-      "source": "/basemap",
-      "sourceHandle": "out.maplibre",
-      "target": "/deck",
-      "targetHandle": "par.basemap"
-    },
-    {
-      "id": "/deck.out.vis->/out.par.vis",
-      "source": "/deck",
-      "sourceHandle": "out.vis",
-      "target": "/out",
-      "targetHandle": "par.vis"
-    }
-  ],
-  "viewport": {
-    "x": 534.0033593826707,
-    "y": 343.55942368830074,
-    "zoom": 0.3391789834557667
-  },
   "timeline": {
     "sheetsById": {
       "Noodles": {
@@ -294,6 +311,5 @@
     "revisionHistory": [
       "vrjd4WA23V7f--Q9"
     ]
-  },
-  "version": 7
+  }
 }

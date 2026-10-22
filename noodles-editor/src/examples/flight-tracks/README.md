@@ -1,10 +1,10 @@
-# Flight Tracks Near SFO
+# Flight Tracks
 
 _Adapted from [Root Geospatial Flight Tracks dataset](https://source.coop/root-geospatial/flight-tracks)_
 
 ## Overview
 
-This example visualizes flight tracks near San Francisco International Airport (SFO) on June 15, 2024. It queries pre-processed flight trajectory data from the Root Geospatial Flight Tracks dataset on Source Cooperative's S3 bucket and displays flight paths as colored lines with start (green) and end (red) points. The data covers 4 quadkey tiles around the San Francisco Bay Area.
+This example visualizes flight tracks over the California Central Coast, from Monterey Bay to the southern San Joaquin Valley, on June 15, 2024. It queries pre-processed flight trajectory data from the Root Geospatial Flight Tracks dataset on Source Cooperative's S3 bucket and displays flight paths as colored lines with start (green) and end (red) points. The data covers 4 adjacent zoom-8 quadkey tiles (latitude 35.5 to 36.6, longitude -123.75 to -118.1).
 
 ## Key Techniques
 
