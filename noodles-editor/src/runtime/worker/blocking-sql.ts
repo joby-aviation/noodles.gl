@@ -2,11 +2,12 @@
 // the engine worker (and in Node for tests), and the only one with JS scalar UDFs.
 
 import type { QueryTiming, SqlEngine } from '@noodles.gl/planner'
-import type { Table } from 'apache-arrow'
+import { type DataType, Float64, type Table } from 'apache-arrow'
 
 export interface BlockingConnection {
   query(sql: string): Table
   prepare(sql: string): { query(...binds: unknown[]): Table; close(): void }
+  createScalarFunction(name: string, returns: DataType, fn: (...args: unknown[]) => unknown): void
 }
 
 export interface BlockingDb {
@@ -20,6 +21,8 @@ export interface BlockingSql extends SqlEngine {
   registerText(name: string, text: string): void
   /** Rows of a query as plain objects. */
   rows(sql: string, binds?: (number | string)[]): Promise<Record<string, unknown>[]>
+  /** A JS function DuckDB calls per row, returning a number. */
+  createNumberFunction(name: string, fn: (...args: unknown[]) => number): void
   readonly counters: { executions: number; prepares: number; execs: number }
 }
 
@@ -76,6 +79,9 @@ export function blockingSql(db: BlockingDb, conn: BlockingConnection): BlockingS
     },
     registerText(name, text) {
       db.registerFileText(name, text)
+    },
+    createNumberFunction(name, fn) {
+      conn.createScalarFunction(name, new Float64(), fn)
     },
     async rows(sql, binds) {
       const { table } = await run(sql, binds)

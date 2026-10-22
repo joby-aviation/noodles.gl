@@ -8,6 +8,7 @@
  * expression templates.
  */
 
+import { registerUdfs, type UdfSpec } from './udfs.js';
 import type { Expr } from './expr.js';
 import { parseWrangle, expandWrangle } from './wrangle.js';
 import { type AttributeConventions, HOUDINI_CONVENTIONS } from './conventions.js';
@@ -507,6 +508,8 @@ export interface Graph {
    * time, so they cost the planner and the backends nothing. See `functions.ts`.
    */
   functions?: Record<string, FunctionSpec>;
+  /** JS functions DuckDB runs as scalar UDFs, callable from any expression. See `udfs.ts`. */
+  udfs?: Record<string, UdfSpec>;
   nodes: GraphNode[];
   /** Node id of the render or layer node to evaluate. Defaults to the last render node. */
   output?: string;
@@ -576,6 +579,7 @@ export function desugar(
   // flat registry, so a redefinition is an error wherever it came from. The geo prelude is
   // the registry's starting point, which is what puts it in scope for every graph.
   const functions = buildRegistry(graph.functions, new Map(GEO_PRELUDE));
+  registerUdfs(functions, graph.udfs);
   const out: CoreNode[] = [];
   const notes: string[] = [];
   // One LUT is bound per kernel, so this prototype supports one ramp per graph.

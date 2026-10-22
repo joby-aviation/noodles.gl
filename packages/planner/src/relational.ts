@@ -312,7 +312,7 @@ export function rowwiseSql(
   };
   const sub: Graph = {
     params: graph.params,
-    functions: graph.functions,
+    functions: graph.functions, udfs: graph.udfs,
     nodes: [
       { id: sourceId, type: 'source', dataset: { ref: sourceId } },
       ...chain.map(rewire),
