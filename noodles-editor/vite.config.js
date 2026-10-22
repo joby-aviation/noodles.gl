@@ -4,6 +4,11 @@ import react from '@vitejs/plugin-react'
 import { defineConfig, loadEnv } from 'vite'
 import { nodePolyfills } from 'vite-plugin-node-polyfills'
 
+// The planner is a workspace package; resolve it to source so an edit needs no build.
+export const plannerAlias = {
+  '@noodles.gl/planner': path.resolve(import.meta.dirname, '../packages/planner/src/index.ts'),
+}
+
 const ENV_VARIABLES_WITH_INSTRUCTIONS = {
   VITE_GOOGLE_MAPS_API_KEY:
     'Get token at https://developers.google.com/maps/documentation/javascript/get-api-key',
@@ -34,6 +39,7 @@ export default defineConfig(({ mode }) => {
       // upload is configured. It uploads the maps to PostHog and deletes them before publishing.
       sourcemap: env.SOURCEMAPS === 'true',
     },
+    resolve: { alias: plannerAlias },
     server: {
       open: true,
       // The agent benchmark's Chrome profile churns constantly while a model runs

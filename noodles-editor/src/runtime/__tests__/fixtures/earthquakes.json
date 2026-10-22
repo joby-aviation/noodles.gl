@@ -1,0 +1,97 @@
+{
+  "version": 1,
+  "name": "USGS earthquakes",
+  "description": "Noodles' california-earthquakes example on the live USGS feed: a magnitude threshold drives both the filter and the radius scale, one by a wire and one by a ch() reference.",
+  "credits": ["Earthquakes: U.S. Geological Survey, earthquake.usgs.gov (public domain)"],
+  "nodes": [
+    {
+      "id": "quakes",
+      "op": "file",
+      "x": 0,
+      "y": 120,
+      "params": {
+        "url": "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_month.csv",
+        "format": "csv"
+      }
+    },
+    {
+      "id": "threshold",
+      "op": "number",
+      "name": "min_mag",
+      "x": 0,
+      "y": 0,
+      "params": { "value": 2.5 }
+    },
+    {
+      "id": "strong",
+      "op": "filter",
+      "x": 260,
+      "y": 120,
+      "params": { "mode": "compare", "column": "mag", "op": ">=" }
+    },
+    {
+      "id": "pos",
+      "op": "position",
+      "x": 520,
+      "y": 120,
+      "params": { "lng": "longitude", "lat": "latitude", "alt": "0.0" }
+    },
+    {
+      "id": "size",
+      "op": "map-range",
+      "x": 780,
+      "y": 120,
+      "params": {
+        "input": "mag",
+        "name": "radius",
+        "kind": "linear",
+        "inMin": { "ref": "min_mag/value" },
+        "inMax": 7.5,
+        "outMin": 1.5,
+        "outMax": 14
+      }
+    },
+    {
+      "id": "depth",
+      "op": "color-ramp",
+      "x": 1040,
+      "y": 120,
+      "params": { "input": "depth", "ramp": "magma", "min": 0, "max": 250 }
+    },
+    {
+      "id": "dots",
+      "op": "scatter",
+      "x": 1300,
+      "y": 120,
+      "params": {
+        "position": "P",
+        "color": "Cd",
+        "radius": "radius",
+        "radiusScale": 1,
+        "opacity": 0.85
+      }
+    },
+    {
+      "id": "map",
+      "op": "deck",
+      "x": 1560,
+      "y": 120,
+      "params": { "basemap": "dark-matter", "longitude": -150, "latitude": 25, "zoom": 1.6 }
+    }
+  ],
+  "edges": [
+    { "id": "e1", "source": "quakes", "sourcePort": "out", "target": "strong", "targetPort": "in" },
+    {
+      "id": "e2",
+      "source": "threshold",
+      "sourcePort": "out",
+      "target": "strong",
+      "targetPort": "par:value"
+    },
+    { "id": "e3", "source": "strong", "sourcePort": "out", "target": "pos", "targetPort": "in" },
+    { "id": "e4", "source": "pos", "sourcePort": "out", "target": "size", "targetPort": "in" },
+    { "id": "e5", "source": "size", "sourcePort": "out", "target": "depth", "targetPort": "in" },
+    { "id": "e6", "source": "depth", "sourcePort": "out", "target": "dots", "targetPort": "in" },
+    { "id": "e7", "source": "dots", "sourcePort": "out", "target": "map", "targetPort": "layers" }
+  ]
+}

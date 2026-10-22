@@ -1,9 +1,18 @@
+import { fileURLToPath } from 'node:url'
 import { playwright } from '@vitest/browser-playwright'
 import { nodePolyfills } from 'vite-plugin-node-polyfills'
 import { configDefaults, defineConfig } from 'vitest/config'
 
+// The planner is a workspace package; resolve it to source so an edit needs no build.
+const plannerAlias = {
+  '@noodles.gl/planner': fileURLToPath(
+    new URL('../packages/planner/src/index.ts', import.meta.url)
+  ),
+}
+
 export default defineConfig({
   resolve: {
+    alias: plannerAlias,
     dedupe: ['react', 'react-dom'],
   },
   test: {
@@ -12,7 +21,7 @@ export default defineConfig({
         extends: true,
         test: {
           name: 'browser',
-          exclude: [...configDefaults.exclude, 'scripts/**'],
+          exclude: [...configDefaults.exclude, 'scripts/**', '**/*.node.test.ts'],
           setupFiles: ['src/setupTests.ts'],
           browser: {
             provider: playwright({
@@ -30,12 +39,15 @@ export default defineConfig({
           },
         },
       },
-      // CLI scripts need real Node APIs (child processes, the file system)
+      // CLI scripts need real Node APIs (child processes, the file system). Runtime tests run
+      // real SQL through duckdb-wasm's Node build: no browser, and no node polyfills, which
+      // would replace the `node:module` the Node build loads through.
       {
+        resolve: { alias: plannerAlias },
         test: {
           name: 'node',
           environment: 'node',
-          include: ['scripts/**/*.test.ts'],
+          include: ['scripts/**/*.test.ts', 'src/**/*.node.test.ts'],
         },
       },
     ],

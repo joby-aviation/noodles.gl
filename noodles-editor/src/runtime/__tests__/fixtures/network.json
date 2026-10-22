@@ -1,0 +1,175 @@
+{
+  "version": 1,
+  "name": "Airport route network",
+  "description": "The shape of a regional air-mobility network map: sites filtered to one country, every scheduled route between them joined twice (origin and destination), deduplicated, measured, and filtered by length. One filtered relation forks into the join, the markers and the labels.",
+  "credits": ["Airports and routes: OpenFlights, openflights.org (Open Database License)"],
+  "nodes": [
+    {
+      "id": "airports",
+      "op": "file",
+      "x": 0,
+      "y": 0,
+      "params": {
+        "url": "https://raw.githubusercontent.com/jpatokal/openflights/master/data/airports.dat",
+        "format": "csv",
+        "header": false,
+        "names": "id, name, city, country, iata, icao, lat, lng, alt, tz, dst, tzdb, kind, origin",
+        "nullstr": "\\N"
+      }
+    },
+    {
+      "id": "routes",
+      "op": "file",
+      "x": 0,
+      "y": 260,
+      "params": {
+        "url": "https://raw.githubusercontent.com/jpatokal/openflights/master/data/routes.dat",
+        "format": "csv",
+        "header": false,
+        "names": "airline, airline_id, src, src_id, dst, dst_id, codeshare, stops, equipment",
+        "nullstr": "\\N"
+      }
+    },
+    {
+      "id": "region",
+      "op": "filter",
+      "x": 260,
+      "y": 0,
+      "params": { "mode": "match", "column": "country", "text": "United Kingdom" }
+    },
+    {
+      "id": "from",
+      "op": "join",
+      "x": 520,
+      "y": 260,
+      "params": { "how": "inner", "leftKey": "src", "rightKey": "iata", "prefix": "o_" }
+    },
+    {
+      "id": "to",
+      "op": "join",
+      "x": 780,
+      "y": 260,
+      "params": { "how": "inner", "leftKey": "dst", "rightKey": "iata", "prefix": "d_" }
+    },
+    {
+      "id": "pairs",
+      "op": "aggregate",
+      "x": 1040,
+      "y": 260,
+      "params": { "groupBy": "src, dst, o_lng, o_lat, d_lng, d_lat", "aggs": "airlines = count()" }
+    },
+    {
+      "id": "dist",
+      "op": "distance",
+      "x": 1300,
+      "y": 260,
+      "params": { "lng1": "o_lng", "lat1": "o_lat", "lng2": "d_lng", "lat2": "d_lat", "name": "km" }
+    },
+    {
+      "id": "short",
+      "op": "filter",
+      "x": 1560,
+      "y": 260,
+      "params": { "mode": "compare", "column": "km", "op": "<", "value": 450 }
+    },
+    {
+      "id": "arcs",
+      "op": "arc",
+      "x": 1820,
+      "y": 260,
+      "params": {
+        "source": "[o_lng, o_lat]",
+        "target": "[d_lng, d_lat]",
+        "width": "sqrt(airlines)",
+        "widthScale": 1.2,
+        "height": 0.5,
+        "opacity": 0.7
+      }
+    },
+    {
+      "id": "sites",
+      "op": "position",
+      "x": 520,
+      "y": 0,
+      "params": { "lng": "lng", "lat": "lat", "alt": "0.0" }
+    },
+    {
+      "id": "dots",
+      "op": "scatter",
+      "x": 1820,
+      "y": 0,
+      "params": { "position": "P", "radiusScale": 3, "fillColor": [255, 255, 255], "opacity": 0.9 }
+    },
+    {
+      "id": "labels",
+      "op": "text",
+      "x": 1820,
+      "y": 120,
+      "params": { "position": "P", "text": "iata", "size": 11, "textColor": [200, 210, 225] }
+    },
+    {
+      "id": "map",
+      "op": "deck",
+      "x": 2100,
+      "y": 140,
+      "params": {
+        "basemap": "dark-matter",
+        "longitude": -2.6,
+        "latitude": 54.2,
+        "zoom": 4.9,
+        "pitch": 35,
+        "bearing": -8
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "source": "airports",
+      "sourcePort": "out",
+      "target": "region",
+      "targetPort": "in"
+    },
+    { "id": "e2", "source": "routes", "sourcePort": "out", "target": "from", "targetPort": "left" },
+    {
+      "id": "e3",
+      "source": "region",
+      "sourcePort": "out",
+      "target": "from",
+      "targetPort": "right"
+    },
+    { "id": "e4", "source": "from", "sourcePort": "out", "target": "to", "targetPort": "left" },
+    { "id": "e5", "source": "region", "sourcePort": "out", "target": "to", "targetPort": "right" },
+    { "id": "e6", "source": "to", "sourcePort": "out", "target": "pairs", "targetPort": "in" },
+    { "id": "e7", "source": "pairs", "sourcePort": "out", "target": "dist", "targetPort": "in" },
+    { "id": "e8", "source": "dist", "sourcePort": "out", "target": "short", "targetPort": "in" },
+    { "id": "e9", "source": "short", "sourcePort": "out", "target": "arcs", "targetPort": "in" },
+    { "id": "e10", "source": "region", "sourcePort": "out", "target": "sites", "targetPort": "in" },
+    { "id": "e11", "source": "sites", "sourcePort": "out", "target": "dots", "targetPort": "in" },
+    { "id": "e12", "source": "sites", "sourcePort": "out", "target": "labels", "targetPort": "in" },
+    {
+      "id": "e13",
+      "source": "arcs",
+      "sourcePort": "out",
+      "target": "map",
+      "targetPort": "layers",
+      "index": 0
+    },
+    {
+      "id": "e14",
+      "source": "dots",
+      "sourcePort": "out",
+      "target": "map",
+      "targetPort": "layers",
+      "index": 1
+    },
+    {
+      "id": "e15",
+      "source": "labels",
+      "sourcePort": "out",
+      "target": "map",
+      "targetPort": "layers",
+      "index": 2
+    }
+  ]
+}
