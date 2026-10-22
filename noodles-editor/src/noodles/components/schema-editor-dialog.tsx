@@ -47,6 +47,8 @@ interface ColumnEditorProps {
 }
 
 interface ColumnDraft {
+  // Stable React key for the editor row. column.id can change during a rename.
+  key: string
   column: ColumnSchema
   sourceName?: string
 }
@@ -61,6 +63,7 @@ function normalizeColumnDefault(column: ColumnSchema): ColumnSchema {
 
 function createColumnDrafts(schema: TableSchema): ColumnDraft[] {
   return schema.columns.map(column => ({
+    key: crypto.randomUUID(),
     column: normalizeColumnDefault(column),
     sourceName: column.name,
   }))
@@ -457,7 +460,7 @@ export function SchemaEditorDialog({ schema, onChange, onClose }: SchemaEditorDi
       type: 'string',
       defaultValue: '',
     }
-    setColumnDrafts([...columnDrafts, { column: newColumn }])
+    setColumnDrafts([...columnDrafts, { key: crypto.randomUUID(), column: newColumn }])
   }
 
   const updateColumn = (index: number, updates: ColumnSchema) => {
@@ -492,6 +495,7 @@ export function SchemaEditorDialog({ schema, onChange, onClose }: SchemaEditorDi
     }
     const newDrafts = [...columnDrafts]
     newDrafts.splice(index + 1, 0, {
+      key: crypto.randomUUID(),
       column: duplicate,
       sourceName: source.sourceName,
     })
@@ -537,7 +541,10 @@ export function SchemaEditorDialog({ schema, onChange, onClose }: SchemaEditorDi
 
     setColumnDrafts([
       ...columnDrafts,
-      ...newColumns.map(column => ({ column: { ...column, id: crypto.randomUUID() } })),
+      ...newColumns.map(column => ({
+        key: crypto.randomUUID(),
+        column: { ...column, id: crypto.randomUUID() },
+      })),
     ])
   }
 
@@ -566,9 +573,9 @@ export function SchemaEditorDialog({ schema, onChange, onClose }: SchemaEditorDi
               </div>
             ) : (
               <div className={s.columnList}>
-                {columnDrafts.map(({ column }, index) => (
+                {columnDrafts.map(({ key, column }, index) => (
                   <ColumnEditor
-                    key={index}
+                    key={key}
                     column={column}
                     onChange={updated => updateColumn(index, updated)}
                     onDuplicate={() => duplicateColumn(index)}
