@@ -23,6 +23,7 @@ import {
 } from '@noodles.gl/planner'
 import { migrateTimelineData } from '../../timeline/migrate-timeline'
 import type { TimelineData } from '../../timeline/types'
+import { OP_CATALOG } from './op-catalog'
 
 export interface NoodlesNode {
   id: string
@@ -494,12 +495,32 @@ interface RowNode {
 // The conversion
 // ---------------------------------------------------------------------------
 
-export function toEditorDoc(project: NoodlesProject): Migrated {
-  if (project.version !== 18) {
+// A project with its Reroute operators wired through: a reroute is only a bend in a wire
+function withoutReroutes(project: NoodlesProject): NoodlesProject {
+  const reroutes = new Set(project.nodes.filter(n => n.type === 'RerouteOp').map(n => n.id))
+  if (reroutes.size === 0) return project
+  const into = new Map(project.edges.filter(e => reroutes.has(e.target)).map(e => [e.target, e]))
+  // The edge a wire really starts at, following reroutes of reroutes
+  const origin = (e: NoodlesEdge): NoodlesEdge | undefined => {
+    if (!reroutes.has(e.source)) return e
+    const up = into.get(e.source)
+    return up && origin(up)
+  }
+  const edges = project.edges.flatMap(e => {
+    if (reroutes.has(e.target)) return []
+    const from = origin(e)
+    return from ? [{ ...e, source: from.source, sourceHandle: from.sourceHandle }] : []
+  })
+  return { ...project, nodes: project.nodes.filter(n => !reroutes.has(n.id)), edges }
+}
+
+export function toEditorDoc(original: NoodlesProject): Migrated {
+  if (original.version !== 18) {
     throw new MigrationError(
-      `Expected a schema 18 project; migrate it first (got ${project.version})`
+      `Expected a schema 18 project; migrate it first (got ${original.version})`
     )
   }
+  const project = withoutReroutes(original)
   const warnings: string[] = []
   const byId = new Map(project.nodes.map(n => [n.id, n]))
   const inputs = (n: NoodlesNode) => ({ ...DEFAULTS[n.type], ...(n.data?.inputs ?? {}) })
@@ -1088,6 +1109,14 @@ export function toEditorDoc(project: NoodlesProject): Migrated {
     }
     if (n.type === 'ContainerOp' || n.type.startsWith('ForLoop')) {
       throw new MigrationError(`${id}: ${n.type} is not converted yet`)
+    }
+    // Only an operator the catalog keeps on the host, or one a later step converts, is one
+    const plan = OP_CATALOG[n.type]
+    if (!plan) throw new MigrationError(`${id}: ${n.type} has no conversion plan`)
+    if (plan.becomes !== 'host' && !plan.hostWhen && !plan.pending) {
+      throw new MigrationError(
+        `${id}: ${n.type} becomes ${plan.becomes} nodes, not a host operator`
+      )
     }
     hostNodes.add(id)
     used.add(id)
