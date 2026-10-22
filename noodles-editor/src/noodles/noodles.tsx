@@ -87,7 +87,7 @@ import { useKeyboardShortcut } from './hooks/use-keyboard-shortcut'
 import { useNodeDropOnEdge } from './hooks/use-node-drop-on-edge'
 import { useProjectModifications } from './hooks/use-project-modifications'
 import type { DeckRendererOp, IOperator, Operator, OutOp } from './operators'
-import { extensionMap } from './operators'
+import { instantiateExtension } from './operators'
 import { referenceDependencyModel } from './reference-dependencies'
 import {
   copyDataDirectory,
@@ -1865,29 +1865,10 @@ export function getNoodles(): Visualization {
                     let instantiatedExtensions: LayerExtension[] | undefined
                     if (extensions && Array.isArray(extensions)) {
                       instantiatedExtensions = extensions
-                        .map((ext: { type: string; [key: string]: unknown }) => {
-                          const { type: extType, ...constructorArgs } = ext
-                          const extensionDef = extensionMap[extType]
-                          if (!extensionDef) {
-                            debugApp(`Unknown extension type: ${extType}`)
-                            return null
-                          }
-
-                          // Check if it's a wrapped extension (with ExtensionClass and args)
-                          if (
-                            typeof extensionDef === 'object' &&
-                            'ExtensionClass' in extensionDef
-                          ) {
-                            return new extensionDef.ExtensionClass(extensionDef.args)
-                          }
-
-                          // It's a direct class constructor
-                          const ExtensionClass = extensionDef as new (
-                            ...args: unknown[]
-                          ) => LayerExtension
-                          return Object.keys(constructorArgs).length > 0
-                            ? new ExtensionClass(constructorArgs)
-                            : new ExtensionClass()
+                        .map(ext => {
+                          const instance = instantiateExtension(ext)
+                          if (!instance) debugApp('Unknown extension type: %o', ext)
+                          return instance
                         })
                         .filter((e): e is LayerExtension => e !== null)
                     }
