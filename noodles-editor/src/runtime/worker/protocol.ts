@@ -13,6 +13,7 @@ export type Request =
   | { type: 'idle' }
   | { type: 'registerFile'; name: string; bytes: Uint8Array }
   | { type: 'query'; sql: string }
+  | { type: 'relationRows'; relation: string }
   | { type: 'preview'; nodeId: string; limit: number }
 
 /** A layer plan as the editor reads it: what to draw with, never how it was planned. */

@@ -42,8 +42,9 @@ import {
 } from '@noodles.gl/planner'
 import { MaterializingCatalog } from './catalog'
 import { evaluateLayer, type LayerData, type QueriedLayer, queryLayer } from './execute'
-import { plainRow } from './plain-rows'
+import { plainRow, readPlainRows } from './plain-rows'
 import type { BlockingSql } from './worker/blocking-sql'
+import { JsTables } from './worker/js-tables'
 import { UdfHost } from './worker/udf-host'
 
 export interface LayerState {
@@ -113,9 +114,13 @@ export class ProgramRuntime {
     private readonly options: RuntimeOptions = {}
   ) {
     this.caps = options.caps ?? targetCaps('deck-webgl2', undefined)
-    if ('createNumberFunction' in sql) this.udfs = new UdfHost(sql as BlockingSql)
+    // DuckDB-Wasm's synchronous build runs JS: functions per row, and code nodes' tables
+    const blocking = 'createNumberFunction' in sql ? (sql as BlockingSql) : undefined
+    if (blocking) this.udfs = new UdfHost(blocking)
+    const jsTables = blocking ? new JsTables(blocking) : undefined
     this.catalog = new MaterializingCatalog(sql, {
       capacity: options.capacity,
+      jsTables: jsTables ? rel => jsTables.make(rel) : undefined,
       // A dropped table leaves any statement prepared over it stale.
       onDrop: async table => {
         for (const s of this.states.values()) {
@@ -123,6 +128,11 @@ export class ProgramRuntime {
         }
       },
     })
+  }
+
+  /** A relation's rows as plain objects, decimals and 64-bit integers as numbers. */
+  relationRows(relation: string): Promise<Record<string, unknown>[]> {
+    return readPlainRows(this.sql, relation)
   }
 
   /** Rows of a query as plain objects. */

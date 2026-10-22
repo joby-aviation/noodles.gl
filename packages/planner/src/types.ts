@@ -426,11 +426,27 @@ export interface VerticesNode {
   geometry?: string;
 }
 
+/**
+ * Rows a JavaScript function makes from its input's rows (or from nothing): a code operator
+ * that returns a table. The engine runs it when the relation materializes, in dependency order
+ * so its input exists, and loads what it returns into DuckDB; the relation reads that table.
+ * Its code is part of its hash, so editing it is a new relation.
+ */
+export interface JsTableNode {
+  id: string;
+  type: 'js';
+  input?: string;
+  /** A JSON file read whole instead of an input: `d` is the parsed file. */
+  url?: string;
+  /** A function body: `d` is the input's rows as plain objects; return an array of rows. */
+  code: string;
+}
+
 export type RelationalNode =
-  | JoinNode | UnionNode | SortNode | LimitNode | SqlNode | GenerateNode | UnnestNode | VerticesNode;
+  | JoinNode | UnionNode | SortNode | LimitNode | SqlNode | GenerateNode | UnnestNode | VerticesNode | JsTableNode;
 
 export const RELATIONAL_TYPES: ReadonlySet<string> = new Set([
-  'source', 'join', 'union', 'sort', 'limit', 'sql', 'generate', 'unnest', 'vertices',
+  'source', 'join', 'union', 'sort', 'limit', 'sql', 'generate', 'unnest', 'vertices', 'js',
 ]);
 
 /**
@@ -696,7 +712,7 @@ export function desugar(
       }
 
       case 'join': case 'union': case 'sort': case 'limit': case 'sql': case 'generate': case 'vertices':
-      case 'unnest': case 'deck':
+      case 'unnest': case 'js': case 'deck':
         // These change the row set, which a single plan cannot: it has one source and one
         // statement. `compileProgram` splits a graph at them and plans each piece.
         throw new Error(

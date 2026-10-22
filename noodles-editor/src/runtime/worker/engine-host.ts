@@ -77,6 +77,8 @@ export class EngineHost {
         return undefined
       case 'query':
         return this.runtime.query(message.sql)
+      case 'relationRows':
+        return this.runtime.relationRows(message.relation)
       case 'preview':
         return this.runtime.preview(message.nodeId, message.limit)
     }

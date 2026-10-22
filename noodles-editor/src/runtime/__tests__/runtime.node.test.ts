@@ -117,6 +117,56 @@ describe('routing a change to exactly its dependents', () => {
 })
 
 describe('animation', () => {
+  it('moving a time series samples its segment table again and creates no table', async () => {
+    const doc: EditorDoc = {
+      version: 1,
+      name: 'heads',
+      nodes: [
+        {
+          id: 'verts',
+          op: 'sql',
+          x: 0,
+          y: 0,
+          params: {
+            query:
+              "SELECT * FROM (VALUES (1.0, 1, 0.0, 0.0, 0.0, 'a'), (1.0, 2, 10.0, 10.0, 0.0, 'a'), (2.0, 1, 0.0, 0.0, 5.0, 'b'), (2.0, 2, 10.0, 0.0, 15.0, 'b')) AS t(trip, k, t, lng, lat, name)",
+          },
+        },
+        {
+          id: 'heads',
+          op: 'time-series',
+          x: 0,
+          y: 0,
+          params: { pathId: 'trip', order: 'k', timestamp: 't', values: 'lng, lat' },
+        },
+        { id: 'dots', op: 'scatter', x: 0, y: 0, params: { position: '[lng, lat]' } },
+        { id: 'map', op: 'deck', x: 0, y: 0, params: { basemap: 'none' } },
+      ],
+      edges: [
+        { id: 'e1', source: 'verts', sourcePort: 'out', target: 'heads', targetPort: 'in' },
+        { id: 'e2', source: 'heads', sourcePort: 'out', target: 'dots', targetPort: 'in' },
+        { id: 'e3', source: 'dots', sourcePort: 'out', target: 'map', targetPort: 'layers' },
+      ],
+    }
+    const { rt, lowered, values } = await start(doc)
+    expect(rt.program()?.errors).toEqual([])
+    // The sample is read once, so it stays a subquery the layer's column list reaches
+    const sample = rt.program()!.relations.find(r => r.id === 'heads')!
+    expect(sample.materialize).toBe(false)
+    const [time] = lowered.slotParams['heads.time']
+    const materialized = rt.catalog.counters.materialized
+    await rt.setValues({ ...values(), [time]: 5 })
+    expect(rt.catalog.counters.materialized).toBe(materialized)
+    const dots = rt.layers().find(l => l.id === 'dots')!
+    const position = dots.data!.attributes.get(dots.plan.plan.layer!.bindings[0].attribute)!
+    const at = (row: number) => [0, 1].map(c => position.data[row * position.width + c])
+    // Halfway along both paths
+    expect([at(0), at(1)].sort()).toEqual([
+      [0, 10],
+      [5, 0],
+    ])
+  })
+
   it('playing the timeline moves the trails and the camera with zero queries', async () => {
     const doc = structuredClone(tripsJson) as unknown as EditorDoc
     const trips = doc.nodes.find(n => n.id === 'trips')!

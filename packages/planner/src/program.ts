@@ -72,6 +72,8 @@ export interface RelationPlan {
   shape: RelShape;
   stats?: SourceStats;
   rows?: number;
+  /** For a JS table: what the catalog runs, and the table it loads the result into. */
+  js?: { code: string; table: string; input?: string; url?: string };
 }
 
 export interface LayerPlan {
@@ -157,6 +159,8 @@ export function inputsOf(node: GraphNode): string[] {
       return node.inputs?.length ? node.inputs : node.input ? [node.input] : [];
     case 'sql':
       return node.inputs?.length ? node.inputs : node.input ? [node.input] : [];
+    case 'js':
+      return node.input ? [node.input] : [];
     default: {
       const n = node as { input?: string; inputs?: string[] };
       if (n.inputs?.length) return n.inputs;
@@ -348,6 +352,7 @@ export async function compileProgram(
       let vectors = shapes[0]?.vectors ?? [];
       let used: string[] = [];
       let structure: unknown = structural(node);
+      let jsTable: string | undefined;
 
       switch (node.type) {
         case 'source': sql = sourceSql(node as SourceNode); vectors = []; break;
@@ -359,6 +364,13 @@ export async function compileProgram(
         case 'generate': ({ sql, params: used } = generateSql(node, values)); vectors = []; break;
         case 'unnest': ({ sql, vectors } = unnestSql(node, refs[0], shapes[0])); break;
         case 'vertices': sql = verticesSql(node, refs[0], shapes[0]); vectors = []; break;
+        case 'js': {
+          // The catalog fills the table before describing the relation; see RelationPlan.js
+          jsTable = `__js_${hashOf({ code: node.code, url: node.url, inputs: ins.map((r) => r.hash) })}`;
+          sql = `SELECT * FROM ${quoteIdent(jsTable)}`;
+          vectors = [];
+          break;
+        }
         default: {
           // A row-wise node a relational node reads: its tail, lowered to SQL.
           const chainIds = [...tailOf(node.id, inputIds[0]), node.id].filter((id) => byId.get(id)!.type !== 'stats');
@@ -384,15 +396,22 @@ export async function compileProgram(
       const cons = consumers.get(node.id) ?? [];
       // Materialize what is expensive to recompute or read more than once. A cheap relation
       // read once is inlined, so it costs no memory and DuckDB can push predicates through it.
-      const materialize =
+      // A query reading parameters is rebuilt whenever they move, so one read once is inlined
+      // too: its reader's column list reaches the scan, rather than every column being copied
+      // into a table each frame.
+      const perValue = node.type === 'sql' && used.length > 0 && cons.length < 2;
+      const materialize = !perValue && (
         node.type === 'source' || node.type === 'join' || node.type === 'unnest' || node.type === 'vertices' ||
-        node.type === 'sql' || node.type === 'generate' || node.type === 'union' || cons.length >= 2;
+        node.type === 'sql' || node.type === 'generate' || node.type === 'union' || cons.length >= 2);
       const table = `__m_${hash}`;
       const rel: RelationPlan = {
         id: node.id, kind: node.type, hash, table, sql,
         ref: materialize ? quoteIdent(table) : `(${sql})`,
         materialize, inputs: inputIds, params: used, consumers: cons,
         shape: { columns: [], vectors },
+        ...(node.type === 'js' && jsTable
+          ? { js: { code: node.code, table: jsTable, ...(refs[0] ? { input: refs[0] } : {}), ...(node.url ? { url: node.url } : {}) } }
+          : {}),
       };
       const described = await catalog.describe(rel);
       // Component columns of a vector are real columns; the vector itself is listed apart.

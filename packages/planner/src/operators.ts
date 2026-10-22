@@ -548,6 +548,23 @@ export const OPERATORS: OpDef[] = [
     },
   },
   {
+    type: 'code', label: 'Code', category: 'data',
+    description: "Rows made by JavaScript: `d` is the input's rows as objects (an empty array with nothing wired), or a JSON file parsed whole when a URL is set, and the body returns an array of rows or GeoJSON. d3, turf and utils are in scope. It runs when its input changes, in the engine, and its rows become a DuckDB table every later node plans over; for per-row values use a JS Function instead.",
+    inputs: [table('in', 'input', { optional: true })], outputs: [out()],
+    params: [
+      { name: 'code', label: 'Code', kind: 'code', language: 'js', default: 'return d' },
+      { name: 'url', label: 'JSON file', kind: 'url', default: '', help: 'Read instead of an input: d is the parsed file.' },
+    ],
+    lower: (ctx) => {
+      const input = ctx.maybeInput('in');
+      const url = ctx.str('url');
+      return {
+        nodes: [{ id: ctx.id, type: 'js', ...(input ? { input } : {}), ...(url && !input ? { url } : {}), code: ctx.str('code') }],
+        outputs: { out: ctx.id },
+      };
+    },
+  },
+  {
     type: 'js-function', label: 'JS Function', category: 'rows',
     description: "A JavaScript function any expression can call by name, run by DuckDB per row. For logic the expression language has no words for; it returns a number, or an array of `width` numbers. Prefer an expression where one will do: DuckDB runs JS some 20 times slower than SQL.",
     inputs: [], outputs: [],
