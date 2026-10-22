@@ -318,8 +318,8 @@ export function transformGraph<
         const ctor = opTypes[type]
         const containerId = getParentPath(id)
 
-        if (!ctor) {
-          // Unknown operator type - create placeholder
+        if (!ctor || ctor === opTypes.UnknownOperator) {
+          // Unknown operator type - create placeholder from the full node data
           // originalType is already in data from the nodes mapping above
           console.warn(
             `[noodles] Unknown operator type "${type}" for node "${id}". Creating placeholder.`
