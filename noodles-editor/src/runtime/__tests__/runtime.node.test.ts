@@ -1,0 +1,138 @@
+import { type EditorDoc, type Lowered, lowerDocument, parameterValues } from '@noodles.gl/planner'
+import { beforeAll, describe, expect, it } from 'vitest'
+import { ProgramRuntime } from '../program-runtime'
+import { type NodeDuck, openNodeDuck } from './duckdb-node'
+
+import networkJson from './fixtures/network.json'
+import tripsJson from './fixtures/trips.json'
+
+/**
+ * Signal flow, measured. Each test changes one kind of parameter and counts what DuckDB was
+ * actually asked to do — the claim is not that a prop change is "cheap" but that it executes
+ * nothing, and that a requery touches one layer's statement and no other.
+ */
+
+const AIRPORTS =
+  '507,"Heathrow","London","United Kingdom","LHR","EGLL",51.47,-0.46,83,0,"E","Europe/London","airport","OurAirports"\n' +
+  '478,"Manchester","Manchester","United Kingdom","MAN","EGCC",53.35,-2.27,257,0,"E","Europe/London","airport","OurAirports"\n' +
+  '469,"Newcastle","Newcastle","United Kingdom","NCL","EGNT",55.03,-1.69,266,0,"E","Europe/London","airport","OurAirports"\n' +
+  '1382,"De Gaulle","Paris","France","CDG","LFPG",49.01,2.55,392,1,"E","Europe/Paris","airport","OurAirports"\n' +
+  '1386,"Orly","Paris","France","ORY","LFPO",48.72,2.36,291,1,"E","Europe/Paris","airport","OurAirports"\n'
+const ROUTES =
+  'BA,1,LHR,507,MAN,478,,0,320\nBA,1,LHR,507,NCL,469,,0,320\nAF,2,CDG,1382,ORY,1386,,0,320\nLS,3,MAN,478,NCL,469,,0,733\n'
+
+let duck: NodeDuck
+beforeAll(async () => {
+  duck = await openNodeDuck()
+  duck.registerText('airports.dat', AIRPORTS)
+  duck.registerText('routes.dat', ROUTES)
+}, 30_000)
+
+function localNetwork(): EditorDoc {
+  const doc = structuredClone(networkJson) as unknown as EditorDoc
+  for (const n of doc.nodes)
+    if (n.op === 'file') n.params.url = String(n.params.url).split('/').pop()!
+  return doc
+}
+
+async function start(doc: EditorDoc): Promise<{
+  rt: ProgramRuntime
+  lowered: Lowered
+  values: (t?: number) => Record<string, number | string>
+}> {
+  const lowered = lowerDocument(doc)
+  const values = (t = 0) => parameterValues(lowered, { T: t, F: t * 30 }).values
+  const rt = new ProgramRuntime(duck)
+  await rt.setGraph(lowered.graph, values())
+  return { rt, lowered, values }
+}
+
+const executions = () => duck.counters.executions + duck.counters.execs
+
+describe('routing a change to exactly its dependents', () => {
+  it('draws every layer on load', async () => {
+    const { rt } = await start(localNetwork())
+    expect(rt.program()?.errors).toEqual([])
+    const rows = Object.fromEntries(rt.layers().map(l => [l.id, l.data?.rows]))
+    expect(rows).toEqual({ arcs: 3, dots: 3, labels: 3 })
+  })
+
+  it('a prop change executes nothing', async () => {
+    const { rt, values } = await start(localNetwork())
+    const before = executions()
+    await rt.setValues({ ...values(), arcs__widthScale: 4 })
+    expect(executions()).toBe(before)
+    expect(rt.layers().find(l => l.id === 'arcs')!.props.widthScale).toBe(4)
+  })
+
+  it('a layer-query parameter requeries that layer only', async () => {
+    const { rt, values } = await start(localNetwork())
+    const route = rt.program()!.routes.short__value
+    const report = await rt.setValues({ ...values(), short__value: 220 })
+    if (route.some(r => r.route === 'requery')) {
+      expect(report?.requeried).toEqual(['arcs'])
+    } else {
+      // The cost model may keep a dragged filter on the CPU: then nothing is queried at all.
+      expect(report?.requeried).toEqual([])
+      expect(report?.evaluated).toEqual(['arcs'])
+    }
+    // MAN–NCL is ~190 km; LHR–MAN (~243 km) and LHR–NCL are longer.
+    expect(rt.layers().find(l => l.id === 'arcs')!.data!.rows).toBe(1)
+  })
+
+  it('a relation parameter rematerializes the relation and what reads it, and nothing else', async () => {
+    const { rt, values } = await start(localNetwork())
+    const materialized = rt.catalog.counters.materialized
+    const report = await rt.setValues({ ...values(), region__text: 'France' })
+    // region, both joins; the two file sources are memo hits.
+    expect(rt.catalog.counters.materialized - materialized).toBe(3)
+    expect(report?.requeried.sort()).toEqual(['arcs', 'dots', 'labels'])
+    expect(
+      rt
+        .layers()
+        .find(l => l.id === 'labels')!
+        .data!.strings.get('iata')
+    ).toEqual(['CDG', 'ORY'])
+  })
+
+  it('recompiling an unchanged graph executes nothing', async () => {
+    const { rt, lowered, values } = await start(localNetwork())
+    const before = executions()
+    const report = await rt.setGraph(lowered.graph, values())
+    expect(report.requeried).toEqual([])
+    expect(executions()).toBe(before)
+  })
+
+  it('a structural edit elsewhere keeps the other layers’ data', async () => {
+    const doc = localNetwork()
+    const { rt, values } = await start(doc)
+    const dots = rt.layers().find(l => l.id === 'dots')!.data
+    const arc = doc.nodes.find(n => n.id === 'arcs')!
+    arc.params.width = '1.0'
+    const lowered = lowerDocument(doc)
+    const report = await rt.setGraph(lowered.graph, values())
+    expect(report.requeried).toEqual(['arcs'])
+    expect(rt.layers().find(l => l.id === 'dots')!.data).toBe(dots)
+  })
+})
+
+describe('animation', () => {
+  it('playing the timeline moves the trails and the camera with zero queries', async () => {
+    const doc = structuredClone(tripsJson) as unknown as EditorDoc
+    const trips = doc.nodes.find(n => n.id === 'trips')!
+    trips.op = 'sql'
+    trips.params = {
+      query:
+        'SELECT * FROM (VALUES (0, [[-74.0, 40.72], [-73.99, 40.73]], [10.0, 20.0])) AS t(vendor, path, timestamps)',
+    }
+    const { rt, values } = await start(doc)
+    expect(rt.program()?.errors).toEqual([])
+    const before = executions()
+    for (let frame = 1; frame <= 30; frame++) await rt.setValues(values(frame / 30))
+    expect(executions()).toBe(before)
+    const trails = rt.layers().find(l => l.id === 'trails')!
+    expect(trails.props.currentTime).toBeCloseTo(60)
+    expect(rt.view().bearing).not.toBeCloseTo(-10)
+    expect(rt.counters.propUpdates).toBe(30)
+  })
+})
