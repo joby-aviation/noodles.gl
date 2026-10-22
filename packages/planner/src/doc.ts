@@ -22,7 +22,9 @@ import type { Timeline } from './keyframes.js';
 export type ParamValue =
   | number | string | boolean | number[]
   | { expr: string }
-  | { ref: string };
+  | { ref: string }
+  /** A host operator's own serialized value (code lines, a compound object). Never lowered. */
+  | string[] | { [key: string]: unknown };
 
 export interface PromotedParam {
   /** Name on the subnet. */

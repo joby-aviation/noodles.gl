@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { lowerDocument, parameterValues } from './lower.js'
-import { OPERATOR_INDEX, registerRamp } from './operators.js'
+import { OPERATOR_INDEX, canConnect, paramAccepts, registerOperator, registerRamp } from './operators.js'
 import { buildRampLut, RAMP_STOPS } from './types.js'
 import type { EditorDoc } from './doc.js'
 import type { DeckNode, LayerNode } from './types.js'
@@ -112,3 +112,35 @@ describe('deck', () => {
     )
   })
 })
+
+describe('host operators', () => {
+  it('registers an operator lowering skips, and drops its layer from the deck', () => {
+    registerOperator({
+      type: 'HostLayerOp', label: 'Host layer', category: 'host', description: 'test',
+      inputs: [], outputs: [{ name: 'layer', type: 'layer' }],
+      params: [{ name: 'image', label: 'Image', kind: 'field', default: '', port: true, portType: 'value' }],
+    });
+    expect(OPERATOR_INDEX.get('HostLayerOp')?.category).toBe('host');
+    const doc = scatterDoc({}, [{ id: 'bitmap', op: 'HostLayerOp', x: 0, y: 0, params: { image: '@/a.png' } }]);
+    doc.edges.push({ id: 'e3', source: 'bitmap', sourcePort: 'layer', target: 'map', targetPort: 'layers', index: 1 });
+    const lowered = lowerDocument(doc);
+    expect(lowered.errors).toEqual([]);
+    const deck = lowered.graph.nodes.find((n): n is DeckNode => n.type === 'deck')!;
+    expect(deck.inputs).toEqual(['dots']);
+  });
+
+  it('lets value ports take anything, and a value feed a layer port', () => {
+    expect(canConnect('table', 'value')).toBe(true);
+    expect(canConnect('layer', 'value')).toBe(true);
+    expect(canConnect('value', 'layer')).toBe(true);
+    expect(canConnect('value', 'table')).toBe(false);
+    expect(paramAccepts({ name: 'x', label: 'x', kind: 'float', default: 0 })).toBe('number');
+  });
+
+  it('gives the deck pass-through ports for views, effects, widgets and MapLibre layers', () => {
+    const ports = OPERATOR_INDEX.get('deck')!.inputs.map((p) => `${p.name}:${p.type}`);
+    expect(ports).toEqual([
+      'layers:layer', 'views:value', 'effects:value', 'widgets:value', 'viewState:value', 'maplibreLayers:value',
+    ]);
+  });
+});

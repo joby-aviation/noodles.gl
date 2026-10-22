@@ -1,0 +1,207 @@
+// Runs a document's host operators: Noodles operator classes executed on JS values.
+//
+// Host operators sit beside the planner, not inside it. Each runs in dependency order with its
+// inputs resolved from the document: a literal parameter, another host operator's output, a
+// planner layer (built by the engine), or a scalar slot from the scalar program. An operator
+// whose inputs are identical to its last run returns its last output, as `_cachedOutput` did;
+// one that read the timeline also re-runs when the time moves.
+
+import type { DocEdge, DocNode, EditorDoc } from '@noodles.gl/planner'
+import { applySerializedFieldValue, type Field, ListField } from '../../noodles/fields'
+import { type IOperator, type Operator, opTypes } from '../../noodles/operators'
+import { useTimelineDependencyStore } from '../../noodles/utils/timeline-dependencies'
+import { isHostOperator } from './host-ops'
+
+export interface HostInputs {
+  /** A planner node's output as a host value: a deck layer, for a planner layer. */
+  planner(nodeId: string, port: string): unknown
+  /** Scalar slots (`nodeId.param`, `nodeId.out`) from the scalar program. */
+  slots: ReadonlyMap<string, unknown>
+  /** Timeline seconds; time-dependent operators re-run when it changes. */
+  time: number
+}
+
+export interface HostReport {
+  ran: string[]
+  reused: string[]
+  errors: { nodeId: string; message: string }[]
+}
+
+type OperatorClass = new (id: string, data?: unknown, locked?: boolean) => Operator<IOperator>
+
+interface Entry {
+  op: Operator<IOperator>
+  /** The values the last run read, compared by identity. */
+  read?: unknown[]
+  outputs?: Record<string, unknown>
+  timed: boolean
+}
+
+export const isHostNode = (n: DocNode) => n.op in opTypes && isHostOperator(n.op)
+
+export interface HostRunnerOptions {
+  /**
+   * Post-process an operator's outputs before anything reads them, e.g. to turn a layer's
+   * `@/` project asset into a URL deck can load.
+   */
+  resolveOutputs?: (
+    nodeId: string,
+    outputs: Record<string, unknown>
+  ) => Promise<Record<string, unknown>>
+}
+
+export class HostRunner {
+  private readonly entries = new Map<string, Entry>()
+  private chain: Promise<unknown> = Promise.resolve()
+
+  constructor(private readonly options: HostRunnerOptions = {}) {}
+
+  /** A host node's output, after the last run. */
+  output(nodeId: string, port: string): unknown {
+    return this.entries.get(nodeId)?.outputs?.[port]
+  }
+
+  operator(nodeId: string): Operator<IOperator> | undefined {
+    return this.entries.get(nodeId)?.op
+  }
+
+  idle(): Promise<void> {
+    return this.chain.then(() => undefined)
+  }
+
+  run(doc: EditorDoc, inputs: HostInputs): Promise<HostReport> {
+    const next = this.chain.then(() => this.runNow(doc, inputs))
+    this.chain = next.catch(() => undefined)
+    return next
+  }
+
+  private async runNow(doc: EditorDoc, inputs: HostInputs): Promise<HostReport> {
+    const report: HostReport = { ran: [], reused: [], errors: [] }
+    const hosts = doc.nodes.filter(isHostNode)
+    const isHost = new Set(hosts.map(n => n.id))
+    for (const id of [...this.entries.keys()]) {
+      if (!isHost.has(id)) this.drop(id)
+    }
+
+    const failed = new Set<string>()
+    for (const node of order(hosts, doc.edges)) {
+      const entry = this.entry(node)
+      const into = (field: string) =>
+        doc.edges
+          .filter(e => e.target === node.id && e.targetPort === `par:${field}`)
+          .sort((a, b) => (a.index ?? 0) - (b.index ?? 0))
+      const edgeValue = (e: DocEdge) =>
+        isHost.has(e.source)
+          ? this.output(e.source, e.sourcePort)
+          : (inputs.slots.get(`${e.source}.${e.sourcePort}`) ??
+            inputs.planner(e.source, e.sourcePort))
+
+      const fields = Object.entries(entry.op.inputs as Record<string, Field>)
+      const upstreamFailed = fields.some(([name]) => into(name).some(e => failed.has(e.source)))
+      if (upstreamFailed) {
+        failed.add(node.id)
+        report.errors.push({ nodeId: node.id, message: 'skipped: an input failed' })
+        continue
+      }
+      const read: unknown[] = fields.map(([name, field]) => {
+        const edges = into(name)
+        if (edges.length === 0) return node.params[name]
+        const values = edges.map(edgeValue)
+        return field instanceof ListField ? values : values[0]
+      })
+      if (entry.timed) read.push(inputs.time)
+      if (entry.outputs && entry.read && sameValues(entry.read, read)) {
+        report.reused.push(node.id)
+        continue
+      }
+
+      try {
+        fields.forEach(([name, field], i) => {
+          if (into(name).length === 0) {
+            if (read[i] !== undefined) applySerializedFieldValue(field, read[i])
+          } else {
+            field.setValue(read[i] as never)
+          }
+        })
+        const props = Object.fromEntries(fields.map(([name, field]) => [name, field.value]))
+        const result = (await entry.op.execute(props as never)) as Record<string, unknown> | null
+        if (result === null) throw new Error(`${node.op} returned no output`)
+        for (const [name, value] of Object.entries(result ?? {})) {
+          ;(entry.op.outputs as Record<string, Field>)[name]?.next(value as never)
+        }
+        entry.outputs = this.options.resolveOutputs
+          ? await this.options.resolveOutputs(node.id, result ?? {})
+          : (result ?? {})
+        entry.read = read
+        entry.timed = useTimelineDependencyStore.getState().subscriptions.has(entry.op.id)
+        report.ran.push(node.id)
+      } catch (error) {
+        failed.add(node.id)
+        entry.outputs = undefined
+        report.errors.push({ nodeId: node.id, message: (error as Error).message })
+      }
+    }
+    return report
+  }
+
+  private entry(node: DocNode): Entry {
+    const existing = this.entries.get(node.id)
+    if (
+      existing &&
+      existing.op.constructor === (opTypes as unknown as Record<string, unknown>)[node.op]
+    ) {
+      return existing
+    }
+    if (existing) this.drop(node.id)
+    const Class = (opTypes as unknown as Record<string, OperatorClass>)[node.op]
+    const entry: Entry = { op: new Class(node.id, undefined, false), timed: false }
+    this.entries.set(node.id, entry)
+    return entry
+  }
+
+  private drop(id: string) {
+    const op = this.entries.get(id)?.op as { dispose?: () => void } | undefined
+    op?.dispose?.()
+    this.entries.delete(id)
+  }
+}
+
+/** Host nodes in dependency order. A cycle runs in declaration order rather than hanging. */
+function order(nodes: DocNode[], edges: DocEdge[]): DocNode[] {
+  const byId = new Map(nodes.map(n => [n.id, n]))
+  const out: DocNode[] = []
+  const state = new Map<string, 'visiting' | 'done'>()
+  const visit = (n: DocNode) => {
+    if (state.get(n.id)) return
+    state.set(n.id, 'visiting')
+    for (const e of edges) {
+      const dep = e.target === n.id ? byId.get(e.source) : undefined
+      if (dep && state.get(dep.id) !== 'visiting') visit(dep)
+    }
+    state.set(n.id, 'done')
+    out.push(n)
+  }
+  for (const n of nodes) visit(n)
+  return out
+}
+
+function sameValues(a: unknown[], b: unknown[]): boolean {
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i++) {
+    const x = a[i]
+    const y = b[i]
+    if (x === y) continue
+    // Literal parameters come from a document that is a fresh copy after every edit.
+    if (
+      x &&
+      y &&
+      typeof x === 'object' &&
+      typeof y === 'object' &&
+      !Array.isArray(x) === !Array.isArray(y)
+    ) {
+      if (JSON.stringify(x) === JSON.stringify(y)) continue
+    }
+    return false
+  }
+  return true
+}

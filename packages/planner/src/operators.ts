@@ -26,7 +26,11 @@ import type { ParamValue } from './doc.js';
 import { RAMP_STOPS, type RampName } from './types.js';
 import { parseGeometry } from './geometry.js';
 
-export type PortType = 'table' | 'layer' | 'number';
+/**
+ * `value` is anything a host application passes between its own operators (a view, an
+ * extension, a loaded mesh). The planner never reads one; it only checks where it may flow.
+ */
+export type PortType = 'table' | 'layer' | 'number' | 'value';
 
 export interface PortSpec {
   name: string;
@@ -38,7 +42,9 @@ export interface PortSpec {
 }
 
 export type ParamKind =
-  | 'float' | 'int' | 'toggle' | 'menu' | 'string' | 'text' | 'expr' | 'code' | 'column' | 'color' | 'url';
+  | 'float' | 'int' | 'toggle' | 'menu' | 'string' | 'text' | 'expr' | 'code' | 'column' | 'color' | 'url'
+  /** Edited by a widget the host application supplies; see `ParamDef.field`. */
+  | 'field';
 
 export interface ParamDef {
   name: string;
@@ -61,11 +67,18 @@ export interface ParamDef {
   changeRate?: number;
   /** Offer a `par:<name>` handle so a number output can drive it. */
   port?: boolean;
+  /** What a `par:` handle accepts. Defaults to `number`. */
+  portType?: PortType;
+  /** For `kind: 'field'`: the host's description of its widget. Opaque to the planner. */
+  field?: unknown;
   /** Show only when another parameter has one of these values. */
   when?: { param: string; is: (string | number | boolean)[] };
 }
 
-export type Category = 'data' | 'table' | 'rows' | 'color' | 'layer' | 'output' | 'number' | 'structure';
+export type Category =
+  | 'data' | 'table' | 'rows' | 'color' | 'layer' | 'output' | 'number' | 'structure'
+  /** Host operators: run by the application, never lowered. */
+  | 'host';
 
 export interface LowerCtx {
   id: string;
@@ -804,7 +817,15 @@ export const OPERATORS: OpDef[] = [
   {
     type: 'deck', label: 'Deck', category: 'output',
     description: 'The map: layers bottom to top, the basemap, and the camera. Camera fields are props, so a keyframed fly-through costs no queries.',
-    inputs: [{ name: 'layers', type: 'layer', label: 'layers', multi: true }], outputs: [],
+    inputs: [
+      { name: 'layers', type: 'layer', label: 'layers', multi: true },
+      // Host values the planner passes through to deck and MapLibre untouched.
+      { name: 'views', type: 'value', label: 'views', multi: true, optional: true },
+      { name: 'effects', type: 'value', label: 'effects', multi: true, optional: true },
+      { name: 'widgets', type: 'value', label: 'widgets', multi: true, optional: true },
+      { name: 'viewState', type: 'value', label: 'view state', optional: true },
+      { name: 'maplibreLayers', type: 'value', label: 'MapLibre layers', multi: true, optional: true },
+    ], outputs: [],
     params: [
       { name: 'basemap', label: 'Basemap', kind: 'menu', default: 'dark-matter', options: [
         { value: 'dark-matter', label: 'Dark Matter' }, { value: 'positron', label: 'Positron' }, { value: 'voyager', label: 'Voyager' }, { value: 'none', label: 'None' },
@@ -920,7 +941,22 @@ export const OPERATORS: OpDef[] = [
   },
 ];
 
-export const OPERATOR_INDEX: ReadonlyMap<string, OpDef> = new Map(OPERATORS.map((o) => [o.type, o]));
+const INDEX = new Map(OPERATORS.map((o) => [o.type, o]));
+export const OPERATOR_INDEX: ReadonlyMap<string, OpDef> = INDEX;
+
+/**
+ * Add an operator to the catalog, e.g. a host application's own operator that runs outside the
+ * planner. One without `lower` is skipped by lowering, and a deck drops a layer from it.
+ */
+export function registerOperator(def: OpDef): void {
+  if (INDEX.has(def.type)) {
+    const i = OPERATORS.findIndex((o) => o.type === def.type);
+    OPERATORS[i] = def;
+  } else {
+    OPERATORS.push(def);
+  }
+  INDEX.set(def.type, def);
+}
 
 export function operator(type: string): OpDef {
   const op = OPERATOR_INDEX.get(type);
@@ -937,8 +973,14 @@ export function bindingOf(def: ParamDef): 'value' | 'prop' | 'structural' {
 /** Whether an output port may feed an input port. */
 export function canConnect(from: PortType, to: PortType | 'param'): boolean {
   if (to === 'param') return from === 'number';
+  // A host value port takes anything; a host value may be a layer (a switch between two).
+  if (to === 'value') return true;
+  if (from === 'value') return to === 'layer';
   return from === to;
 }
+
+/** The port type a parameter's `par:` handle accepts. */
+export const paramAccepts = (def: ParamDef): PortType => def.portType ?? 'number';
 
 /** The port a parameter handle is addressed by. */
 export const paramPort = (param: string): string => `par:${param}`;
