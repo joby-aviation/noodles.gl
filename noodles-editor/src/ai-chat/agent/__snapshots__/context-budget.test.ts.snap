@@ -10,7 +10,7 @@ exports[`context budget > reports first-turn headroom per provider window 1`] = 
     "tools": 550,
   },
   {
-    "headroom": 2450,
+    "headroom": 2400,
     "headroomAfterInspect": 2000,
     "system": 2150,
     "target": "chrome 6k (fallback)",
@@ -18,7 +18,7 @@ exports[`context budget > reports first-turn headroom per provider window 1`] = 
   },
   {
     "headroom": 12900,
-    "headroomAfterInspect": 11800,
+    "headroomAfterInspect": 11750,
     "system": 2150,
     "target": "webllm 16k",
     "tools": 550,
@@ -31,7 +31,7 @@ exports[`context budget > reports first-turn headroom per provider window 1`] = 
     "tools": 550,
   },
   {
-    "headroom": 189100,
+    "headroom": 189050,
     "headroomAfterInspect": 186200,
     "system": 2150,
     "target": "anthropic 200k",
