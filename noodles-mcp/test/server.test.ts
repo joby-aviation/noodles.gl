@@ -85,6 +85,12 @@ describe('noodles-mcp', () => {
       assert.equal((await data('get_operator_schema', { type: 'File' })).type, 'FileOp')
     })
 
+    it('points at list_operators when no type is close', async () => {
+      const { isError, text } = await call('get_operator_schema', { type: 'QwertyOp' })
+      assert.equal(isError, true)
+      assert.match(text, /list_operators shows every type\./)
+    })
+
     it('suggests a type for one that does not exist', async () => {
       const { isError, text } = await call('get_operator_schema', { type: 'ScaterplotLayerOp' })
       assert.equal(isError, true)
