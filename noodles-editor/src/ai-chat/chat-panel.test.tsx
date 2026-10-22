@@ -5,6 +5,7 @@ import { getKeysStore } from '../noodles/keys-store'
 import { AUTH_MESSAGE_TYPE } from '../noodles/openrouter-oauth'
 import { useAgentModelStore } from './agent/model-store'
 import { DEFAULT_OPENROUTER_MODEL, resetOpenRouterCatalogue } from './agent/providers/openrouter'
+import { WEBLLM_MODELS } from './agent/providers/webllm'
 import { AgentSession } from './agent/session'
 import type { AgentProvider } from './agent/types'
 import { ChatPanel } from './chat-panel'
@@ -12,9 +13,11 @@ import type { ContextLoader } from './context-loader'
 import { globalContextManager } from './global-context-manager'
 import type { ClaudeResponse, NoodlesProject } from './types'
 
-// The session is built for real; only the provider behind it is a stand-in
-vi.mock('./agent/provider-factory', () => ({
-  createProvider: vi.fn(
+// The session is built for real; only the provider behind it is a stand-in. The
+// picker only shows once a session has started, and starting a real local model
+// means a download
+const createProvider = vi.hoisted(() =>
+  vi.fn(
     async (): Promise<AgentProvider> => ({
       id: 'anthropic',
       model: 'test-model',
@@ -23,7 +26,14 @@ vi.mock('./agent/provider-factory', () => ({
       contextWindow: 200_000,
       async *stream() {},
     })
-  ),
+  )
+)
+vi.mock('./agent/provider-factory', () => ({ createProvider }))
+
+// Report a WebGPU adapter so the local model can be ready
+vi.mock('./agent/providers/webllm', async importOriginal => ({
+  ...(await importOriginal<typeof import('./agent/providers/webllm')>()),
+  webgpuAvailable: async () => true,
 }))
 
 const FREE_MODEL = 'z-ai/glm-4.5-air:free'
@@ -85,7 +95,10 @@ afterEach(() => {
   vi.unstubAllGlobals()
   resetOpenRouterCatalogue()
   useAgentModelStore.getState().setModel('openrouter', undefined)
+  useAgentModelStore.getState().setModel('webllm', undefined)
   getKeysStore().clearBrowserKey('openrouter')
+  getKeysStore().clearBrowserKey('anthropic')
+  createProvider.mockClear()
   getKeysStore().setProviderPreference('automatic')
 })
 
@@ -214,5 +227,40 @@ describe('ChatPanel graph-edit proposals', () => {
 
     expect(screen.queryByLabelText('Proposed graph update')).toBeNull()
     expect((screen.getByRole('textbox') as HTMLTextAreaElement).disabled).toBe(false)
+  })
+})
+
+describe('ChatPanel model picker', () => {
+  it('switches to a local model that is already set up instead of opening Settings', async () => {
+    // Anthropic wins 'automatic', so the local model is a switch away from it
+    getKeysStore().setBrowserKey('anthropic', 'sk-ant-test')
+    useAgentModelStore.getState().setModel('webllm', WEBLLM_MODELS[0].id)
+    vi.spyOn(globalContextManager, 'waitForReady').mockResolvedValue({} as ContextLoader)
+    window.location.hash = ''
+    render(
+      <ReactFlowProvider>
+        <ChatPanel
+          project={{ nodes: [], edges: [] } as NoodlesProject}
+          onClose={() => {}}
+          isVisible
+        />
+      </ReactFlowProvider>
+    )
+    // Let the WebGPU check and the session start settle
+    await act(() => vi.advanceTimersByTimeAsync(0))
+    const picker = screen.getByTitle('Which API the assistant talks to') as HTMLSelectElement
+    expect(picker.value).toBe('anthropic')
+    expect(createProvider).toHaveBeenLastCalledWith(
+      expect.objectContaining({ providerId: 'anthropic' })
+    )
+
+    fireEvent.change(picker, { target: { value: 'webllm' } })
+    await act(() => vi.advanceTimersByTimeAsync(0))
+
+    expect(getKeysStore().getProviderPreference()).toBe('webllm')
+    expect(window.location.hash).toBe('')
+    expect(createProvider).toHaveBeenLastCalledWith(
+      expect.objectContaining({ providerId: 'webllm' })
+    )
   })
 })

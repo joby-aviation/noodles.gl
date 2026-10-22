@@ -1,5 +1,11 @@
 import * as Dialog from '@radix-ui/react-dialog'
-import { Cross2Icon, EyeNoneIcon, EyeOpenIcon, Link2Icon } from '@radix-ui/react-icons'
+import {
+  Cross2Icon,
+  EyeNoneIcon,
+  EyeOpenIcon,
+  Link2Icon,
+  ViewGridIcon,
+} from '@radix-ui/react-icons'
 import type { Edge } from '@xyflow/react'
 import { useReactFlow, useStore } from '@xyflow/react'
 import cx from 'classnames'
@@ -14,6 +20,7 @@ import {
   useTimelineStore,
 } from '../../timeline/timeline-store'
 import type { KeyframeValue } from '../../timeline/types'
+import { analytics } from '../../utils/analytics'
 import {
   CodeField,
   CompoundPropsField,
@@ -41,6 +48,7 @@ import { createNodesForType, type NodeType } from '../utils/node-creation-utils'
 import { computeRelativePath, getBaseName, parseHandleId } from '../utils/path-utils'
 import { captureOperatorInputs, firePropertyMutation } from '../utils/property-history'
 import { formatReference, parseReference, type ReferenceFormat } from '../utils/reference-utils'
+import type { AutoLayoutSettings } from '../utils/serialization'
 import { ErrorBoundary } from './error-boundary'
 import {
   BooleanFieldComponent,
@@ -1480,7 +1488,17 @@ export function EdgeProperties({ edge }: { edge: Edge }) {
   )
 }
 
-export function PropertyPanel() {
+interface PropertyPanelProps {
+  onAutoLayout?: () => void
+  autoLayout?: AutoLayoutSettings
+  onChangeAutoLayout?: (settings: AutoLayoutSettings) => void
+}
+
+export function PropertyPanel({
+  onAutoLayout,
+  autoLayout,
+  onChangeAutoLayout,
+}: PropertyPanelProps) {
   // Only re-renders when selection changes, not on position updates during drag
   const { selectedNodeId, selectedNodeCount, selectedEdge, selectedEdgeCount } = useStore(
     s => {
@@ -1507,6 +1525,9 @@ export function PropertyPanel() {
         : selectedEdge
       : null
 
+  const showLayoutButton = selectedNodeCount >= 2 && onAutoLayout !== undefined
+  const showAutoLayoutToggle = autoLayout !== undefined && onChangeAutoLayout !== undefined
+
   return (
     <div className={s.panel}>
       {selectedNodeId != null ? (
@@ -1519,7 +1540,7 @@ export function PropertyPanel() {
             <div className={s.title}>Page</div>
           </div>
           {selectedNodeCount > 1 || selectedEdgeCount > 1 ? (
-            <div className={s.opMeta}>
+            <div className={s.selectionInfo}>
               {selectedNodeCount > 0 && (
                 <div>
                   {selectedNodeCount} {selectedNodeCount === 1 ? 'node' : 'nodes'} selected
@@ -1533,6 +1554,38 @@ export function PropertyPanel() {
             </div>
           ) : (
             <div className={s.opMeta}>Select a node or edge to inspect it</div>
+          )}
+          {(showLayoutButton || showAutoLayoutToggle) && (
+            <div className={s.section}>
+              <div className={s.sectionTitle}>Layout</div>
+              <div className={s.layoutControls}>
+                {showLayoutButton && (
+                  <button
+                    type="button"
+                    className={s.layoutButton}
+                    onClick={onAutoLayout}
+                    title="Layout selected nodes (Cmd/Ctrl+L)"
+                  >
+                    <ViewGridIcon />
+                    <span>Layout selection</span>
+                  </button>
+                )}
+                {showAutoLayoutToggle && (
+                  <label className={s.checkboxLabel}>
+                    <input
+                      type="checkbox"
+                      className={s.checkbox}
+                      checked={autoLayout.enabled}
+                      onChange={e => {
+                        onChangeAutoLayout({ ...autoLayout, enabled: e.target.checked })
+                        analytics.track('auto_layout_toggled', { enabled: e.target.checked })
+                      }}
+                    />
+                    Auto-layout when connecting nodes
+                  </label>
+                )}
+              </div>
+            </div>
           )}
         </>
       )}

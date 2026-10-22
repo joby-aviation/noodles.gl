@@ -693,12 +693,6 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
             value={providerId}
             onChange={e => {
               const newProvider = e.target.value as ProviderPreference
-              const credentials = {
-                anthropicKey: apiKey,
-                openRouterKey,
-                customEndpoint,
-                chromeAvailable,
-              }
 
               // If provider isn't ready, open config flow instead of switching
               if (newProvider !== 'automatic' && !isProviderReady(newProvider, credentials)) {

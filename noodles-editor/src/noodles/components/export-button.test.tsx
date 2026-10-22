@@ -47,6 +47,23 @@ describe('ExportButton', () => {
     expect(screen.getByText("Uses /out's render settings")).toBeInTheDocument()
   })
 
+  it('names the WebM format when the render settings keep transparency', () => {
+    render(
+      <ExportButton
+        activeOutOpId="/out"
+        transparentVideo
+        isRendering={false}
+        takeScreenshot={vi.fn()}
+        startRender={vi.fn()}
+      />
+    )
+
+    openMenu()
+    expect(
+      screen.getByRole('menuitem', { name: /video \(webm, transparent\)/i })
+    ).toBeInTheDocument()
+  })
+
   it('takes a screenshot with the toolbar as its analytics source', async () => {
     const takeScreenshot = vi.fn().mockResolvedValue(undefined)
     render(

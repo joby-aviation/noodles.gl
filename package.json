@@ -4,7 +4,9 @@
 	"private": true,
 	"workspaces": [
 		"website",
-		"noodles-editor"
+		"noodles-editor",
+		"noodles-validate",
+		"noodles-mcp"
 	],
 	"scripts": {
 		"postinstall": "node scripts/patch-vitest-browser-playwright.cjs",
@@ -17,7 +19,8 @@
 		"start:app": "(cd noodles-editor && npm start)",
 		"serve:website": "(cd website && npm run serve)",
 		"serve:app": "(cd noodles-editor && npm run serve)",
-		"validate:examples": "node scripts/validate-examples.js"
+		"validate:examples": "validate-projects noodles-editor/src/examples",
+		"validate:projects": "validate-projects"
 	},
 	"devDependencies": {
 		"@testing-library/dom": "^10.4.1"

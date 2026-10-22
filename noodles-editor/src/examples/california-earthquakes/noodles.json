@@ -71,11 +71,11 @@
       "id": "/magnitude-accessor.out.accessor->/sqrt.par.a"
     },
     {
-      "source": "/magnitude-accessor",
-      "sourceHandle": "out.accessor",
+      "id": "/sqrt.out.result->/multiply.par.a",
+      "source": "/sqrt",
       "target": "/multiply",
-      "targetHandle": "par.a",
-      "id": "/magnitude-accessor.out.accessor->/multiply.par.a"
+      "sourceHandle": "out.result",
+      "targetHandle": "par.a"
     }
   ],
   "viewport": {
@@ -83,7 +83,7 @@
     "y": 172.88548024794358,
     "zoom": 0.4813563009649149
   },
-  "version": 18,
+  "version": 19,
   "name": "California Earthquakes",
   "editorSettings": {
     "layoutMode": "noodles-on-top",
@@ -256,7 +256,7 @@
       "data": {
         "inputs": {
           "operator": "multiply",
-          "b": 1000
+          "b": 1700
         },
         "locked": false
       },

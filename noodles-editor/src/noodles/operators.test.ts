@@ -1,3 +1,5 @@
+import { LayerExtension } from '@deck.gl/core'
+import { PathStyleExtension } from '@deck.gl/extensions'
 import * as deckWidgets from '@deck.gl/widgets'
 import * as turf from '@turf/turf'
 import { Temporal } from 'temporal-polyfill'
@@ -33,6 +35,7 @@ import {
   GlobeViewOp,
   GreatCircleLayerOp,
   H3ClusterLayerOp,
+  instantiateExtension,
   JSONOp,
   KmlToGeoJsonOp,
   LayerPropsOp,
@@ -1179,6 +1182,25 @@ describe('ScatterplotLayerOp', () => {
     expect(layer.otherProp).toEqual(1)
   })
 
+  it('passes LayerExtension instances through alongside descriptors', () => {
+    class CustomExtension extends LayerExtension {}
+    const custom = new CustomExtension()
+    const operator = new ScatterplotLayerOp('/scatterplot-0')
+    const { layer } = operator.execute({
+      extensions: [
+        { extension: custom, props: { customProp: 1 } },
+        null,
+        { extension: { type: 'PathStyleExtension', dash: true }, props: { dashJustified: true } },
+      ],
+    })
+
+    expect(layer.extensions).toHaveLength(2)
+    expect(layer.extensions[0]).toBe(custom)
+    expect(layer.extensions[1]).toEqual({ type: 'PathStyleExtension', dash: true })
+    expect(layer.customProp).toBe(1)
+    expect(layer.dashJustified).toBe(true)
+  })
+
   it('creates a scatterplot layer with updateTriggers', () => {
     const operator = new ScatterplotLayerOp('/scatterplot-0')
     const { layer } = operator.execute({
@@ -1187,6 +1209,30 @@ describe('ScatterplotLayerOp', () => {
     })
     expect(layer.updateTriggers).toEqual({ getPosition: ['test'] })
     expect(layer.otherProp).toEqual(1)
+  })
+})
+
+describe('instantiateExtension', () => {
+  it('returns LayerExtension instances unchanged', () => {
+    class CustomExtension extends LayerExtension {}
+    const custom = new CustomExtension()
+
+    expect(instantiateExtension(custom)).toBe(custom)
+  })
+
+  it('instantiates descriptors with their constructor args', () => {
+    const extension = instantiateExtension({ type: 'PathStyleExtension', dash: true })
+
+    expect(extension).toBeInstanceOf(PathStyleExtension)
+    expect(extension?.opts).toMatchObject({ dash: true })
+  })
+
+  it('instantiates wrapped extensions with their preset args', () => {
+    expect(instantiateExtension({ type: 'VibranceExtension' })).toBeInstanceOf(LayerExtension)
+  })
+
+  it('returns null for unknown extension types', () => {
+    expect(instantiateExtension({ type: 'UnknownExtension' })).toBeNull()
   })
 })
 
@@ -3351,6 +3397,30 @@ describe('Custom Fields', () => {
 
     // Original value should be preserved
     expect(operator.inputs.myNumber.value).toBe(999)
+  })
+
+  it('preserves a custom number field step override when rebuilding inputs', () => {
+    const operator = new CodeOp('/code-custom')
+
+    operator.addCustomInput({
+      id: 'id-1',
+      name: 'myNumber',
+      type: 'number',
+      order: 0,
+      defaultValue: 0,
+    })
+    const numberField = operator.inputs.myNumber as NumberField
+    numberField.setStepOverride(0.001)
+
+    operator.addCustomInput({
+      id: 'id-2',
+      name: 'myString',
+      type: 'string',
+      order: 1,
+      defaultValue: '',
+    })
+
+    expect((operator.inputs.myNumber as NumberField).stepOverride).toBe(0.001)
   })
 
   it('getAllInputs returns built-in and custom inputs', () => {
