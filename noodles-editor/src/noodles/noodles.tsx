@@ -2138,7 +2138,11 @@ export function getNoodles(): Visualization {
   const propertiesPanel = (
     <ErrorBoundary title="Property Panel Error">
       <div className={s.rightPanel}>
-        <PropertyPanel onAutoLayout={onAutoLayout} autoLayout={autoLayout} />
+        <PropertyPanel
+          onAutoLayout={onAutoLayout}
+          autoLayout={autoLayout}
+          onChangeAutoLayout={setAutoLayout}
+        />
       </div>
     </ErrorBoundary>
   )
