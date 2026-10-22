@@ -177,6 +177,7 @@ export default function TimelineEditor() {
     bitrate: bitrateMbps * 1_000_000,
     bitrateMode,
     redraw,
+    settle: noodles.settle,
   })
   isRenderingRef.current = isRendering
 

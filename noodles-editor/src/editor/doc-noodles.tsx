@@ -19,14 +19,15 @@ import {
   saveProjectLocally,
 } from '../noodles/utils/serialization'
 import { TimelineProvider } from '../timeline/timeline-context'
-import { getTimelineStore, useTimelineStore } from '../timeline/timeline-store'
+import { useTimelineStore } from '../timeline/timeline-store'
 import type { Visualization } from '../visualizations'
-import { bindEngine, useEngineState } from './doc-engine'
+import { bindEngine, settleEngine, useEngineState, visCommitted } from './doc-engine'
 import { canPaste, copySelection, DocNetwork, pasteClipboard } from './doc-network'
 import { setParam } from './doc-ops'
 import '../noodles/layers.css'
 import { DocProperties } from './doc-properties'
 import { docStore, useEditor } from './doc-store'
+import { bindTimeline, resetTimelinePanel } from './doc-timeline'
 import { loadDoc } from './load-doc'
 
 const exampleProjectUrls = import.meta.glob('../examples/**/noodles.json', {
@@ -70,13 +71,10 @@ function renderSettingsOf(doc: EditorDoc): RenderSettings {
   }
 }
 
-/** Open a document: the store, and the timeline's length and frame rate. */
+/** Open a document. The timeline panel follows it through `bindTimeline`. */
 function openDoc(doc: EditorDoc) {
+  resetTimelinePanel()
   docStore().load(doc)
-  const timeline = getTimelineStore()
-  timeline.reset()
-  if (doc.timeline?.length) timeline.setLength(doc.timeline.length)
-  if (doc.timeline?.fps) timeline.setFps(doc.timeline.fps)
 }
 
 async function openJson(json: unknown, name?: string): Promise<void> {
@@ -96,6 +94,7 @@ export function useDocNoodles(): Visualization {
   const dirty = useEditor(s => s.dirty)
   const selection = useEditor(s => s.selection)
   const { vis } = useEngineState()
+  useEffect(() => visCommitted(vis), [vis])
   const [showOverlay, setShowOverlay] = useState(true)
   const [showDebugInfo, setShowDebugInfo] = useState(false)
   const [spreadsheetVisible, setSpreadsheetVisible] = useState(false)
@@ -103,6 +102,7 @@ export function useDocNoodles(): Visualization {
 
   // The engine runs whatever document the store holds, at the timeline's playhead.
   useEffect(() => bindEngine(docStore(), readProjectAsset), [])
+  useEffect(() => bindTimeline(docStore()), [])
   const position = useTimelineStore(s => s.position)
   useEffect(() => docStore().set({ time: position }), [position])
 
@@ -266,6 +266,7 @@ export function useDocNoodles(): Visualization {
     hasUnsavedChanges: dirty,
     renderSettings,
     setRenderSettings,
+    settle: settleEngine,
     deckProps: (vis?.deckProps ?? { layers: [] }) as Visualization['deckProps'],
     mapProps: vis?.mapProps as Visualization['mapProps'],
     maplibreLayers: vis?.maplibreLayers as Visualization['maplibreLayers'],

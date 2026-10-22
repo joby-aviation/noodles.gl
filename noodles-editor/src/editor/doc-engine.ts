@@ -129,7 +129,32 @@ export function bindEngine(
   }
 }
 
-/** Resolves when everything the last change set in motion has finished: for export frames. */
-export async function settleEngine(): Promise<void> {
-  await (await engine)?.settle()
+// Export waits for a frame's layers to reach the screen: `settleEngine` resolves once the view
+// has committed the visualization it published.
+const committedWaiters = new Map<EngineVis, () => void>()
+
+/** The view calls this after committing a visualization. */
+export function visCommitted(vis: EngineVis | undefined): void {
+  if (!vis) return
+  committedWaiters.get(vis)?.()
+  committedWaiters.delete(vis)
+}
+
+/**
+ * Run the document at `time` and resolve when everything that set in motion has finished and
+ * the view has committed the result: a frame for export, never a stale one. A view that does not
+ * commit within a second (the editor hidden, say) does not hold the export up.
+ */
+export async function settleEngine(time: number): Promise<void> {
+  const e = await engine
+  if (!e) return
+  await e.setTime(time)
+  await e.settle()
+  const vis = e.vis()
+  const committed = new Promise<void>(resolve => {
+    committedWaiters.set(vis, resolve)
+    setTimeout(resolve, 1000)
+  })
+  publish({ vis, errors: errorsOf(e) })
+  await committed
 }

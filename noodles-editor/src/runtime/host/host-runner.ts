@@ -86,6 +86,7 @@ export class HostRunner {
       if (!isHost.has(id)) this.drop(id)
     }
 
+    const keyed = new Set((doc.timeline?.tracks ?? []).map(t => t.target))
     const failed = new Set<string>()
     for (const node of order(hosts, doc.edges)) {
       const entry = this.entry(node)
@@ -111,7 +112,11 @@ export class HostRunner {
       const read: unknown[] = await Promise.all(
         fields.map(async ([name, field]) => {
           const edges = into(name)
-          if (edges.length === 0) return node.params[name]
+          if (edges.length === 0) {
+            // A keyframed parameter is its track's value at the playhead.
+            const key = `${node.id}.${name}`
+            return keyed.has(key) ? inputs.slots.get(key) : node.params[name]
+          }
           const values = await Promise.all(edges.map(edgeValue))
           return field instanceof ListField ? values : values[0]
         })

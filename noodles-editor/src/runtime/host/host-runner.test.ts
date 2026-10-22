@@ -69,6 +69,28 @@ describe('HostRunner', () => {
     expect(runner.output('/bitmap', 'layer')).toMatchObject({ opacity: 0.25 })
   })
 
+  it('reads a keyframed parameter at the playhead from the scalar program', async () => {
+    const runner = new HostRunner()
+    const keyed: EditorDoc = {
+      ...doc(1),
+      timeline: {
+        length: 2,
+        fps: 30,
+        tracks: [
+          {
+            target: '/bitmap.opacity',
+            keyframes: [
+              { id: 'a', time: 0, value: 0, interpolation: 'linear' },
+              { id: 'b', time: 2, value: 1, interpolation: 'linear' },
+            ],
+          },
+        ],
+      },
+    }
+    await runner.run(keyed, inputs({ '/bitmap.opacity': 0.5 }))
+    expect(runner.output('/bitmap', 'layer')).toMatchObject({ opacity: 0.5 })
+  })
+
   it('reports a failing operator instead of throwing', async () => {
     const runner = new HostRunner()
     const bad: EditorDoc = {
