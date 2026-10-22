@@ -283,4 +283,16 @@ describe('BrushableHistogramOp', () => {
       expect(result2.filteredData).toHaveLength(3)
     })
   })
+
+  describe('field choices', () => {
+    it('offers a numeric column whose first cell is empty', () => {
+      const op = new BrushableHistogramOp('/test')
+      op.inputs.data.setValue([
+        { name: 'a', speed: null, altitude: 100 },
+        { name: 'b', speed: 12, altitude: 200 },
+      ])
+
+      expect(op.inputs.field.choices.map(c => c.value)).toEqual(['altitude', 'speed'])
+    })
+  })
 })

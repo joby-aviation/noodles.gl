@@ -68,17 +68,20 @@ function generateExamplesReference(): string {
   const examples = listExamples()
   const lines = ['## Available Examples\n']
 
-  // Show first 10 examples
+  // Show first 10 examples. Names only: every provider shares this prompt, including
+  // 4k-window local models, and list_examples returns the descriptions
   const examplesToShow = examples.slice(0, 10)
   for (const example of examplesToShow) {
-    lines.push(`- **${example.name}** (${example.id}): ${example.description}`)
+    lines.push(`- **${example.name}** (${example.id})`)
   }
 
   if (examples.length > 10) {
     lines.push(`- ... and ${examples.length - 10} more`)
   }
 
-  lines.push('\nUse `get_example({ id: "example-id" })` for full project details.')
+  lines.push(
+    '\nUse `list_examples()` for descriptions or `get_example({ id: "example-id" })` for full project details.'
+  )
 
   return lines.join('\n')
 }

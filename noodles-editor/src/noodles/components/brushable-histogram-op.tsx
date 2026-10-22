@@ -127,8 +127,9 @@ export function BrushableHistogramDialog({ op, open, onOpenChange }: HistogramDi
 
       const onMouseMove = (moveEvent: MouseEvent) => {
         if (!svgRef.current) return
+        // The SVG scales to fit narrow windows, so convert screen pixels to viewBox units
         const rect = svgRef.current.getBoundingClientRect()
-        const x = moveEvent.clientX - rect.left - MARGIN.left
+        const x = ((moveEvent.clientX - rect.left) * WIDTH) / rect.width - MARGIN.left
         setHandleValue(handle, xScale.invert(x))
       }
 
@@ -187,11 +188,11 @@ export function BrushableHistogramDialog({ op, open, onOpenChange }: HistogramDi
   // Handle offset mode controls
   const handleCenterChange = useCallback(
     (newCenter: number) => {
-      const halfWidth = brushWidth / 2
-      const minVal = Math.max(extent[0], newCenter - halfWidth)
-      const maxVal = Math.min(extent[1], newCenter + halfWidth)
-      op.inputs.brushMin.setValue(minVal)
-      op.inputs.brushMax.setValue(maxVal)
+      // Stop the center where the brush meets the extent, so moving it never changes the width
+      const halfWidth = Math.min(brushWidth, extent[1] - extent[0]) / 2
+      const center = Math.max(extent[0] + halfWidth, Math.min(extent[1] - halfWidth, newCenter))
+      op.inputs.brushMin.setValue(center - halfWidth)
+      op.inputs.brushMax.setValue(center + halfWidth)
     },
     [brushWidth, extent, op]
   )
@@ -361,7 +362,13 @@ export function BrushableHistogramDialog({ op, open, onOpenChange }: HistogramDi
               </div>
 
               <div className={styles.chartContainer}>
-                <svg ref={svgRef} width={WIDTH} height={HEIGHT} className={styles.svg}>
+                <svg
+                  ref={svgRef}
+                  width={WIDTH}
+                  height={HEIGHT}
+                  viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
+                  className={styles.svg}
+                >
                   <title>
                     {`Histogram of ${field || 'values'}, brushed from ${brushMin.toFixed(2)} to ${brushMax.toFixed(2)}`}
                   </title>
