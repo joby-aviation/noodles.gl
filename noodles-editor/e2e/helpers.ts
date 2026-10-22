@@ -42,6 +42,33 @@ export async function waitForScene(page: Page, timeout = 60_000) {
       cause: error,
     })
   }
+  await waitForSmoothFrames(page, timeout)
+}
+
+// Software WebGL compiles each shader program on first use, and the deck and MapLibre
+// contexts share one GPU process. After the scene settles that backlog can hold the page
+// under one frame a second for tens of seconds, and a screenshot or an export's frame read
+// started then times out. Wait until frames arrive at a normal rate.
+async function waitForSmoothFrames(page: Page, timeout: number) {
+  const smooth = await page.evaluate(
+    timeoutMs =>
+      new Promise<boolean>(resolve => {
+        // A timer too, since a stalled page may not run the next animation frame at all
+        const timer = setTimeout(() => resolve(false), timeoutMs)
+        let streak = 0
+        let last = performance.now()
+        const tick = (now: number) => {
+          streak = now - last < 100 ? streak + 1 : 0
+          last = now
+          if (streak < 10) return requestAnimationFrame(tick)
+          clearTimeout(timer)
+          resolve(true)
+        }
+        requestAnimationFrame(tick)
+      }),
+    timeout
+  )
+  if (!smooth) throw new Error(`Frames did not return to a normal rate within ${timeout}ms`)
 }
 
 // Examples render at 1920x1080 with LOD 2, a 4K canvas that software WebGL draws too
