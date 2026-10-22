@@ -1,9 +1,9 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { validateFile } from './file.ts'
 import { loadRegistry } from './index.ts'
-import { validateProject } from './lint.ts'
-import type { Diagnostic, Registry, ValidationResult } from './types.ts'
+import type { Registry, ValidationResult } from './types.ts'
 
 export const EXIT_OK = 0
 export const EXIT_INVALID = 1
@@ -98,22 +98,6 @@ export function run(argv: string[], io: Io, registry: Registry = loadRegistry())
     io.stdout(formatResults(results, registry))
   }
   return valid ? EXIT_OK : EXIT_INVALID
-}
-
-export function validateFile(file: string, registry: Registry): ValidationResult {
-  let project: unknown
-  try {
-    project = JSON.parse(readFileSync(file, 'utf8'))
-  } catch (error) {
-    const diagnostic: Diagnostic = {
-      severity: 'error',
-      rule: 'invalid-json',
-      at: '$',
-      message: `Not valid JSON: ${(error as Error).message}`,
-    }
-    return { valid: false, errors: [diagnostic], warnings: [] }
-  }
-  return validateProject(project, registry)
 }
 
 // Every noodles.json, plus other .json files shaped like a project (e.g.

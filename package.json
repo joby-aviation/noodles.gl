@@ -5,7 +5,8 @@
 	"workspaces": [
 		"website",
 		"noodles-editor",
-		"noodles-validate"
+		"noodles-validate",
+		"noodles-mcp"
 	],
 	"scripts": {
 		"postinstall": "node scripts/patch-vitest-browser-playwright.cjs",
