@@ -290,7 +290,7 @@ export function rowwiseSql(
   input: string,
   shape: RelShape,
   values: Record<string, number | string>,
-  graph: Pick<Graph, 'functions' | 'params'>,
+  graph: Pick<Graph, 'functions' | 'params' | 'udfs'>,
   label: string,
 ): { sql: string; vectors: RelVector[]; params: string[] } {
   if (chain.length === 0) return { sql: `SELECT * FROM ${input}`, vectors: shape.vectors, params: [] };

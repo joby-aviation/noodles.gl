@@ -70,8 +70,11 @@ export interface FnSpec {
   width: 'broadcast' | number;
   /** True for SQL aggregates, which collapse rows and so can never be a GPU kernel. */
   aggregate?: boolean;
-  /** Per argument: whether it is text, which a numeric use must not cast (a UDF's text parameter). */
-  textArgs?: boolean[];
+  /**
+   * Per argument, how a UDF takes it: as a number, as text, or `auto` (text for a text column,
+   * a number otherwise), which analysis resolves from the column's type.
+   */
+  argTypes?: ('number' | 'text' | 'auto')[];
 }
 
 export const FUNCTIONS: Record<string, FnSpec> = {
@@ -105,6 +108,10 @@ export const FUNCTIONS: Record<string, FnSpec> = {
     wgsl: (a) => `select(${a[0]}, ${a[1]}, ${a[0]} != ${a[0]})`,
     width: 'broadcast',
   },
+
+  // How a UDF's `auto` argument reaches DuckDB, decided by analysis from the column's type.
+  as_double: { arity: [1, 1], sql: (a) => `CAST(${a[0]} AS DOUBLE)`, wgsl: null, width: 1 },
+  as_text: { arity: [1, 1], sql: (a) => `CAST(${a[0]} AS VARCHAR)`, wgsl: null, width: 1 },
 
   // Text read as a number, NULL when it is not one: how a numeric field typed as text is used.
   to_number: { arity: [1, 1], sql: (a) => `TRY_CAST(${a[0]} AS DOUBLE)`, wgsl: null, width: 1 },

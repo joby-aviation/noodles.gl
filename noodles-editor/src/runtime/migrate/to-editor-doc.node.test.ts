@@ -135,11 +135,54 @@ describe('toEditorDoc', () => {
     )
   })
 
-  it('refuses accessors it cannot express, rather than keeping them as accessors', () => {
+  it('refuses accessors that read more than columns, rather than keeping them as accessors', () => {
     const project = example('nyc-taxis')
     const accessor = project.nodes.find(n => n.type === 'AccessorOp')
-    if (accessor?.data?.inputs) accessor.data.inputs.expression = 'd.trips.map(t => t.fare)'
+    if (accessor?.data?.inputs) accessor.data.inputs.expression = 'Object.keys(d).length'
     expect(() => toEditorDoc(project)).toThrow(/can't express/)
+  })
+
+  it('runs JS the expression language cannot say as a JS function DuckDB calls per row', async () => {
+    const project = example('nyc-taxis')
+    // The hour of the pickup, from the timestamp's text, plus the passengers
+    project.nodes.push({
+      id: '/pickup-radius',
+      type: 'AccessorOp',
+      position: { x: 0, y: 0 },
+      data: {
+        inputs: { expression: 'd.tpep_pickup_datetime.slice(11, 13) * 0.5 + d.passenger_count' },
+      },
+    })
+    project.edges.push({
+      id: '/pickup-radius.out.accessor->/pickup-layer.par.getRadius',
+      source: '/pickup-radius',
+      target: '/pickup-layer',
+      sourceHandle: 'out.accessor',
+      targetHandle: 'par.getRadius',
+    })
+    const { doc } = toEditorDoc(project)
+    const fn = doc.nodes.find(n => n.op === 'js-function')
+    expect(fn?.params).toMatchObject({ params: 'tpep_pickup_datetime, passenger_count', width: 1 })
+    expect(doc.nodes.find(n => n.id === '/pickup-radius')?.params.expression).toBe(
+      'pickup_radius_fn(tpep_pickup_datetime, passenger_count)'
+    )
+
+    duck.registerText(
+      '@/data.csv',
+      readFileSync(resolve('src/examples/nyc-taxis/data.csv'), 'utf8')
+    )
+    const lowered = lowerDocument(doc)
+    expect(lowered.errors).toEqual([])
+    const runtime = new ProgramRuntime(duck)
+    await runtime.setGraph(lowered.graph, parameterValues(lowered, { T: 0, F: 0 }).values)
+    expect(runtime.error()).toBeUndefined()
+    expect(runtime.program()?.errors).toEqual([])
+    const layer = runtime.layers().find(l => l.id === '/pickup-layer')
+    const radius = layer?.data?.attributes.get('pickup_radius')?.data
+    const [first] = await duck.rows(
+      "SELECT CAST(substr(CAST(tpep_pickup_datetime AS VARCHAR), 12, 2) AS DOUBLE) * 0.5 + passenger_count AS r FROM read_csv_auto('@/data.csv') LIMIT 1"
+    )
+    expect(radius?.[0]).toBeCloseTo(Number(first.r))
   })
 
   it('converts aggregation-example: a switch between hexagon and grid layers over JSON rows', () => {

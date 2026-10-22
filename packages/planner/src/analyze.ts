@@ -734,7 +734,7 @@ function pushDownFilters(nodes: CoreNode[], notes: string[]): CoreNode[] {
 }
 
 /** Functions whose arguments are not numbers: they read strings or lists as they are. */
-const TEXT_ARGUMENTS = new Set(['category', 'coalesce', 'hex_byte', 'item', 'to_number']);
+const TEXT_ARGUMENTS = new Set(['as_text', 'category', 'coalesce', 'hex_byte', 'item', 'to_number']);
 
 /**
  * A string column used as a number (`sqrt(exits)`, `pop * 2`) read as one, as JS would: JSON
@@ -755,12 +755,23 @@ function coerceStrings(e: Expr, strings: ReadonlySet<string>, numeric = false): 
         return { ...n, left: go(n.left, arithmetic), right: go(n.right, arithmetic) };
       }
       case 'call': {
+        const argTypes = FUNCTIONS[n.fn]?.argTypes;
+        if (argTypes) {
+          // A UDF: a text column goes as text, anything else as a number
+          return {
+            ...n,
+            args: n.args.map((a, i) => {
+              const type = argTypes[i];
+              if (type === 'text') return a;
+              if (type === 'number') return go(a, true);
+              return a.kind === 'col' && strings.has(a.name)
+                ? { kind: 'call', fn: 'as_text', args: [a] }
+                : { kind: 'call', fn: 'as_double', args: [go(a, true)] };
+            }),
+          };
+        }
         const text = TEXT_ARGUMENTS.has(n.fn);
-        const textArgs = FUNCTIONS[n.fn]?.textArgs;
-        return {
-          ...n,
-          args: n.args.map((a, i) => go(a, textArgs ? !textArgs[i] : !text || (n.fn === 'hex_byte' && i === 1))),
-        };
+        return { ...n, args: n.args.map((a, i) => go(a, !text || (n.fn === 'hex_byte' && i === 1))) };
       }
       case 'vec':
         return { ...n, components: n.components.map((c) => go(c, true)) };
