@@ -137,22 +137,13 @@ npm test smoke-test
 
 **File:** `noodles-editor/src/render/export-performance.test.ts`
 
-Validates the render event optimization:
-- EXPORT_FRAME_DELAY constant (16ms safety margin)
-- Skip-first-render counter logic
-- waitForData flag behavior
-- frameCapturedRef guard (prevents double-capture)
-- Performance targets and regression detection
+Covers:
+- Timing breakdown logging for video and image sequence export
+- `captureDelay` and `waitForData` settings on `OutOp`
 
 ```bash
 npm test export-performance
 ```
-
-**Key performance thresholds:**
-- Frame capture time < 50ms per frame
-- Total export time for 30 frames < 2 seconds
-- Speed factor ≥ 0.5x realtime (target: 0.93x)
-- Speedup vs old approach ≥ 6x (target: 8.6x)
 
 ### Debugging Render Performance
 
@@ -180,9 +171,8 @@ localStorage.debug = 'noodles:render*'
 - Ensure operator input fields exist and match project data
 
 **Performance test failures:**
-- Skip-first-render logic changed → update renderCountSinceRedraw tests
-- EXPORT_FRAME_DELAY changed → update constant validation
-- waitForData behavior changed → update layer loading tests
+- Timing log format changed → update the instrumentation tests
+- `OutOp` render settings changed → update the settings tests
 
 ### Adding New Rendering Tests
 
