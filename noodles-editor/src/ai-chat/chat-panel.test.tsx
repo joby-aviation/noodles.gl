@@ -13,9 +13,10 @@ import type { NoodlesProject } from './types'
 
 // The picker only shows once a session has started, and starting a real local model
 // means a download
-vi.mock('./agent/provider-factory', () => ({
-  createProvider: async () => ({ model: 'stub', supportsNativeTools: false, contextWindow: 4096 }),
-}))
+const createProvider = vi.hoisted(() =>
+  vi.fn(async () => ({ model: 'stub', supportsNativeTools: false, contextWindow: 4096 }))
+)
+vi.mock('./agent/provider-factory', () => ({ createProvider }))
 
 // Report a WebGPU adapter so the local model can be ready
 vi.mock('./agent/providers/webllm', async importOriginal => ({
@@ -84,6 +85,8 @@ afterEach(() => {
   useAgentModelStore.getState().setModel('openrouter', undefined)
   useAgentModelStore.getState().setModel('webllm', undefined)
   getKeysStore().clearBrowserKey('openrouter')
+  getKeysStore().clearBrowserKey('anthropic')
+  createProvider.mockClear()
   getKeysStore().setProviderPreference('automatic')
 })
 
@@ -115,6 +118,8 @@ describe('ChatPanel after connecting OpenRouter', () => {
 
 describe('ChatPanel model picker', () => {
   it('switches to a local model that is already set up instead of opening Settings', async () => {
+    // Anthropic wins 'automatic', so the local model is a switch away from it
+    getKeysStore().setBrowserKey('anthropic', 'sk-ant-test')
     useAgentModelStore.getState().setModel('webllm', WEBLLM_MODELS[0].id)
     vi.spyOn(globalContextManager, 'waitForReady').mockResolvedValue({} as ContextLoader)
     window.location.hash = ''
@@ -129,11 +134,19 @@ describe('ChatPanel model picker', () => {
     )
     // Let the WebGPU check and the session start settle
     await act(() => vi.advanceTimersByTimeAsync(0))
-    const picker = screen.getByTitle('Which API the assistant talks to')
+    const picker = screen.getByTitle('Which API the assistant talks to') as HTMLSelectElement
+    expect(picker.value).toBe('anthropic')
+    expect(createProvider).toHaveBeenLastCalledWith(
+      expect.objectContaining({ providerId: 'anthropic' })
+    )
 
     fireEvent.change(picker, { target: { value: 'webllm' } })
+    await act(() => vi.advanceTimersByTimeAsync(0))
 
     expect(getKeysStore().getProviderPreference()).toBe('webllm')
     expect(window.location.hash).toBe('')
+    expect(createProvider).toHaveBeenLastCalledWith(
+      expect.objectContaining({ providerId: 'webllm' })
+    )
   })
 })
