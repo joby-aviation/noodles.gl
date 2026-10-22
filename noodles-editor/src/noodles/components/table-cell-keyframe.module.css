@@ -1,0 +1,23 @@
+.wrapper {
+  display: flex;
+  align-items: center;
+}
+
+.wrapper > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Keeps its space while hidden so showing it on hover doesn't reflow the row */
+.indicator {
+  display: flex;
+  flex-shrink: 0;
+  margin-right: 4px;
+  opacity: 0;
+}
+
+.wrapper:hover .indicator,
+.wrapper:focus-within .indicator,
+.animated {
+  opacity: 1;
+}
