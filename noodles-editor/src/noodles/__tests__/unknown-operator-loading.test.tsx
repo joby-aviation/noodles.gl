@@ -1,58 +1,71 @@
-// Loading a project with a missing operator type: React Flow renders the UnknownOperator
-// placeholder, and saving writes the node back with its original type and data
-import { act, cleanup, render, screen } from '@testing-library/react'
-import { ReactFlow, ReactFlowProvider } from '@xyflow/react'
+// Loading a project with a missing operator type through the editor: React Flow renders the
+// UnknownOperator placeholder, and saving writes the node back with its original type and data
+import { cleanup, render, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { nodeComponents } from '../components/op-components'
-import { clearOps, getOpStore } from '../store'
-import { markUnknownOperatorNodes, transformGraph } from '../transform-graph'
+import App from '../../app'
+import { getCurrentProject } from '../../webmcp/bridge'
+import { getOpStore } from '../store'
+import { memoryProjectStore } from '../utils/memory-project-store'
+import { NOODLES_VERSION } from '../utils/migrate-schema'
 import { serializeNodes } from '../utils/serialization'
+
+// Publishes the editor's React Flow nodes on the WebMCP bridge so the test can read them
+vi.mock('../globals', async importOriginal => ({
+  ...(await importOriginal<typeof import('../globals')>()),
+  externalControl: true,
+}))
 
 describe('loading a project with a missing operator type', () => {
   afterEach(() => {
     cleanup()
-    clearOps()
+    vi.useFakeTimers()
     vi.restoreAllMocks()
   })
 
   it('renders the placeholder and saves the original type', async () => {
-    const projectNodes = [
-      {
-        id: '/missing',
-        type: 'RemovedOp',
-        data: { inputs: { threshold: 5 }, locked: true },
-        position: { x: 0, y: 0 },
-      },
-      {
-        id: '/num',
-        type: 'NumberOp',
-        data: { inputs: { val: 3 } },
-        position: { x: 300, y: 0 },
-      },
-    ]
+    vi.useRealTimers()
     vi.spyOn(console, 'warn').mockImplementation(() => {})
+    vi.spyOn(console, 'error').mockImplementation(() => {})
 
-    // Same steps as loadProjectFile in noodles.tsx
-    transformGraph({ nodes: projectNodes, edges: [] })
-    const nodes = markUnknownOperatorNodes(projectNodes)
-    expect(nodes[0].type).toBe('UnknownOperator')
-    expect(nodes[1]).toBe(projectNodes[1])
+    const missingNode = {
+      id: '/missing',
+      type: 'RemovedOp',
+      data: { inputs: { threshold: 5 }, locked: true },
+      position: { x: 0, y: 0 },
+    }
+    memoryProjectStore.setProjectJson('unknown-operator-test', {
+      version: NOODLES_VERSION,
+      nodes: [
+        missingNode,
+        { id: '/num', type: 'NumberOp', data: { inputs: { val: 3 } }, position: { x: 300, y: 0 } },
+      ],
+      edges: [],
+      viewport: { x: 0, y: 0, zoom: 1 },
+    } as unknown as Parameters<typeof memoryProjectStore.setProjectJson>[1])
+    window.history.replaceState({}, '', '/examples/unknown-operator-test')
 
-    render(
-      <ReactFlowProvider>
-        <div style={{ width: 800, height: 600 }}>
-          <ReactFlow nodes={nodes} edges={[]} nodeTypes={nodeComponents} />
-        </div>
-      </ReactFlowProvider>
+    const { container } = render(<App />)
+
+    const placeholder = await waitFor(
+      () => {
+        const node = container.querySelector('.react-flow__node[data-id="/missing"]')
+        expect(node?.classList.contains('react-flow__node-UnknownOperator')).toBe(true)
+        return node as HTMLElement
+      },
+      { timeout: 15_000 }
     )
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(50)
-    })
+    expect(placeholder.textContent).toContain('RemovedOp')
+    expect(placeholder.querySelector('[title="/missing (RemovedOp)"]')?.textContent).toBe(
+      'missing (Removed)'
+    )
 
-    expect(screen.getByText('missing (Removed)')).toBeTruthy()
-    expect(screen.getByText(/RemovedOp isn't available/)).toBeTruthy()
-
-    const [saved] = serializeNodes(getOpStore(), nodes, [])
-    expect(saved).toEqual(projectNodes[0])
+    // What the editor writes on save
+    const editorNodes = getCurrentProject()?.nodes ?? []
+    const saved = serializeNodes(
+      getOpStore(),
+      editorNodes as Parameters<typeof serializeNodes>[1],
+      []
+    )
+    expect(saved.find(node => node.id === '/missing')).toEqual(missingNode)
   })
 })
