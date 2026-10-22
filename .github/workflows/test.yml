@@ -120,8 +120,8 @@ jobs:
           npm run lint
           npm run format:check
 
-      - name: Validate example projects
-        run: npm run validate:examples
+      - name: Validate every project file
+        run: npx validate-projects
 
   test-website:
     runs-on: ubuntu-latest
