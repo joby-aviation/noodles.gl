@@ -87,4 +87,4 @@ Example projects live in memory, so their saved copy is gone after a reload. Pas
 
 Live edits change the open project. They do not write `noodles.json` in the repo. If the user wants the change in a file, tell them to save from the editor, or edit the file as described in `dev-docs/claude-code-workflow.md`.
 
-If you edit the file yourself, validate it before you report it done: `validate_project` with its path (the `noodles` MCP server), or `npx validate-projects <path>`. Fix every error it lists. The file is done when it validates.
+If you edit the file yourself, validate it before you report it done: `validate_project` with its path (the `noodles` MCP server), or `npm run validate:projects -- <path>` from the repo root (not `npx validate-projects`, which can download a package from npm). Fix every error it lists. The file is done when it validates.

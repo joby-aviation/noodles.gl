@@ -42,13 +42,15 @@ To write a project file:
 
 ### Validating Changes
 
-After editing a project file, check it against the operator registry, with the `validate_project` tool or from anywhere in the repo:
+After editing a project file, check it against the operator registry, with the `validate_project` tool or from the repo root:
 
 ```bash
-npx validate-projects path/to/noodles.json
+npm run validate:projects -- path/to/noodles.json
 ```
 
-It checks the schema version, operator types, input names, edge handles and duplicate edges, and names the fix for each error. When it prints `OK` (or `validate_project` returns `"valid": true`), the file is valid. With no path it checks every project under `src/examples/` and `public/noodles/`; `npm run validate:examples` checks `src/examples/` only. See [noodles-validate](../noodles-validate/README.md) for the rules and exit codes.
+From another directory, use `node noodles-validate/bin/validate-projects.ts <path>` with the path to this checkout. Don't run it as a bare `npx validate-projects`: the name isn't published on npm, so in a checkout without `node_modules` (a fresh clone, or a git worktree) npx would download and run whatever package someone publishes under it.
+
+It checks the schema version, operator types, input names, edge handles, duplicate edges and loops, and names the fix for each error. When it prints `OK` (or `validate_project` returns `"valid": true`), the file is valid. With no path it checks every project under `src/examples/` and `public/noodles/`; `npm run validate:examples` checks `src/examples/` only. See [noodles-validate](../noodles-validate/README.md) for the rules and exit codes.
 
 It doesn't check the `timeline` key or run the project. Load it in the browser at `http://localhost:5173/examples/<project-name>` to visually verify.
 

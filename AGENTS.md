@@ -154,7 +154,7 @@ Projects are stored as JSON files with this structure:
 }
 ```
 
-**Validate every project file you write or edit** with `npx validate-projects path/to/noodles.json` (or the `noodles` MCP server's `validate_project`). It checks operator types, input names, edge handles and the schema version against the operator registry, and names the fix for each error. The file is done when it prints `OK`.
+**Validate every project file you write or edit** with `npm run validate:projects -- path/to/noodles.json` from the repo root (or the `noodles` MCP server's `validate_project`; never a bare `npx validate-projects`, which can fetch from npm). It checks operator types, input names, edge handles and the schema version against the operator registry, and names the fix for each error. The file is done when it prints `OK`.
 
 **Path Prefixes in File References:**
 

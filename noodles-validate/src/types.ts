@@ -28,6 +28,7 @@ export interface Registry {
 export type Severity = 'error' | 'warning'
 
 export type Rule =
+  | 'unreadable-file'
   | 'invalid-json'
   | 'project-shape'
   | 'version'
@@ -43,6 +44,7 @@ export type Rule =
   | 'duplicate-edge'
   | 'duplicate-edge-id'
   | 'multiple-inputs'
+  | 'cycle'
   | 'stale-edge-id'
 
 export interface Diagnostic {

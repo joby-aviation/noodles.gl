@@ -31,7 +31,7 @@ Relative `path`s resolve against the server's working directory, which for Claud
 
 - **A running editor.** To change what's on screen, use the editor's WebMCP tools through the relay (see `dev-docs/claude-code-workflow.md` and the `noodles-live` skill). The `--live` mode in the agent-ready docs spec is dropped: #668 removed the WebSocket proxy it would have wrapped.
 - **Remote mode.** The spec's default reads `https://noodles.gl/r/`, which doesn't exist yet. Until it does, the server needs a checkout.
-- **npm.** Node won't strip types from files under `node_modules`, so publishing needs a build step first.
+- **npm.** Node won't strip types from files under `node_modules`, so publishing needs a build step first. Until it's published under a scope we own, don't register it as `npx noodles-mcp`: the name is unclaimed on npm, so npx in a checkout without `node_modules` would fetch whatever someone publishes under it. `.mcp.json` runs the file with `node` for that reason.
 
 ## Development
 

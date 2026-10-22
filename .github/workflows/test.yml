@@ -121,7 +121,7 @@ jobs:
           npm run format:check
 
       - name: Validate every project file
-        run: npx validate-projects
+        run: npm run validate:projects
 
   test-website:
     runs-on: ubuntu-latest
