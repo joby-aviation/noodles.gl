@@ -1,0 +1,126 @@
+// Editor state: the document, what is selected, where the playhead is.
+//
+// A plain store read through `useSyncExternalStore`, as d-d-d's editor has: one document and a
+// few view fields, and the engine (DuckDB, the runtime) lives outside React and subscribes the
+// same way components do.
+//
+// Undo is by document snapshot. Edits that arrive in a burst (a slider dragged, a keyframe
+// moved) coalesce into one step, so undo goes back to where the drag began, not one pixel.
+
+import type { EditorDoc } from '@noodles.gl/planner'
+import { useSyncExternalStore } from 'react'
+
+export interface EditorState {
+  doc: EditorDoc
+  /** Node ids. */
+  selection: string[]
+  /** The subnet being viewed; undefined is the root network. */
+  network?: string
+  /** Timeline seconds. */
+  time: number
+  /** Incremented by every `load`, so views can reset once per opened document. */
+  loadId: number
+  /** Edits since the last load or save. */
+  dirty: boolean
+}
+
+type Listener = () => void
+
+const COALESCE_MS = 500
+const HISTORY = 200
+
+export const EMPTY_DOC: EditorDoc = { version: 1, name: 'Untitled', nodes: [], edges: [] }
+
+export class DocStore {
+  private state: EditorState
+  private readonly listeners = new Set<Listener>()
+  private undoStack: EditorDoc[] = []
+  private redoStack: EditorDoc[] = []
+  private lastEdit = 0
+  private lastTag?: string
+
+  constructor(doc: EditorDoc = EMPTY_DOC) {
+    this.state = { doc, selection: [], time: 0, loadId: 0, dirty: false }
+  }
+
+  get = (): EditorState => this.state
+
+  subscribe = (listener: Listener): (() => void) => {
+    this.listeners.add(listener)
+    return () => this.listeners.delete(listener)
+  }
+
+  /** View state: never an undo step. */
+  set(patch: Partial<EditorState> | ((s: EditorState) => Partial<EditorState>)): void {
+    const next = typeof patch === 'function' ? patch(this.state) : patch
+    this.state = { ...this.state, ...next }
+    for (const l of this.listeners) l()
+  }
+
+  /**
+   * Change the document. `tag` names the gesture: consecutive edits with the same tag inside
+   * the coalescing window are one undo step.
+   */
+  edit(fn: (doc: EditorDoc) => EditorDoc | undefined, tag?: string): void {
+    const now = performance.now()
+    const coalesce = tag !== undefined && tag === this.lastTag && now - this.lastEdit < COALESCE_MS
+    if (!coalesce) {
+      this.undoStack.push(this.state.doc)
+      if (this.undoStack.length > HISTORY) this.undoStack.shift()
+      this.redoStack = []
+    }
+    this.lastEdit = now
+    this.lastTag = tag
+    const draft = structuredClone(this.state.doc)
+    const result = fn(draft) ?? draft
+    this.set({ doc: result, dirty: true })
+  }
+
+  /** Replace the document outright, e.g. opening a project. Clears history. */
+  load(doc: EditorDoc): void {
+    this.undoStack = []
+    this.redoStack = []
+    this.lastTag = undefined
+    this.set(s => ({
+      doc,
+      selection: [],
+      network: undefined,
+      time: 0,
+      loadId: s.loadId + 1,
+      dirty: false,
+    }))
+  }
+
+  canUndo = () => this.undoStack.length > 0
+  canRedo = () => this.redoStack.length > 0
+
+  undo(): void {
+    const prev = this.undoStack.pop()
+    if (!prev) return
+    this.redoStack.push(this.state.doc)
+    this.lastTag = undefined
+    this.set({ doc: prev, dirty: true })
+  }
+
+  redo(): void {
+    const next = this.redoStack.pop()
+    if (!next) return
+    this.undoStack.push(this.state.doc)
+    this.lastTag = undefined
+    this.set({ doc: next, dirty: true })
+  }
+}
+
+let current: DocStore | undefined
+
+/** The editor's store. One per page: the engine and every view share it. */
+export function docStore(): DocStore {
+  current ??= new DocStore()
+  return current
+}
+
+/** Subscribe a component to a slice of state. Return primitives or stable references. */
+export function useEditor<T>(select: (s: EditorState) => T): T {
+  const s = docStore()
+  return useSyncExternalStore(s.subscribe, () => select(s.get()))
+}

@@ -154,8 +154,9 @@ export class Engine {
   }
 
   /** Show a document: a structural edit recompiles, a value edit only rebinds. */
-  setDoc(doc: EditorDoc): Promise<void> {
+  setDoc(doc: EditorDoc, time = this.time): Promise<void> {
     this.doc = doc
+    this.time = time
     this.lower()
     return this.update()
   }
