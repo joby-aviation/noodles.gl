@@ -64,7 +64,10 @@ export function portType(
   const node = doc.nodes.find(n => n.id === nodeId)
   const def = node && OPERATOR_INDEX.get(node.op)
   if (!def) return undefined
-  if (side === 'in' && port.startsWith('par:')) return 'param'
+  if (side === 'in' && port.startsWith('par:')) {
+    // A host operator's parameter takes what its field does; a planner parameter, a number
+    return def.params.find(p => p.name === port.slice(4))?.portType ?? 'param'
+  }
   return (side === 'in' ? def.inputs : def.outputs).find(p => p.name === port)?.type
 }
 

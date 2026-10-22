@@ -96,4 +96,65 @@ describe('Engine host bridge', () => {
     expect(runs).toBeGreaterThan(1)
     expect(files).toEqual(['__host_1.json'])
   })
+
+  it('hands a host FeatureCollection to DuckDB spatial, for a geojson node to draw', async () => {
+    const collection = {
+      type: 'FeatureCollection',
+      features: [
+        {
+          type: 'Feature',
+          properties: { name: 'a' },
+          geometry: {
+            type: 'Polygon',
+            coordinates: [
+              [
+                [0, 0],
+                [1, 0],
+                [1, 1],
+                [0, 0],
+              ],
+            ],
+          },
+        },
+      ],
+    }
+    const host: EngineHost = {
+      runner: {
+        run: async () => ({ errors: [] }),
+        output: (id, port) => (id === '/reader' && port === 'data' ? collection : undefined),
+        idle: async () => undefined,
+      },
+      layer: d => d as never,
+      widget: d => d,
+      view: d => d,
+    }
+    const engine = new Engine(duck, {
+      host,
+      registerFile: async (name, bytes) => duck.registerText(name, new TextDecoder().decode(bytes)),
+    })
+    await engine.setDoc({
+      version: 1,
+      name: 'features',
+      nodes: [
+        { id: '/reader', op: 'RowsTestOp', x: 0, y: 0, params: {} },
+        { id: '/shapes', op: 'geojson', x: 0, y: 0, params: {} },
+        {
+          id: '/fill',
+          op: 'polygon',
+          x: 0,
+          y: 0,
+          params: { position: '[lng, lat]', pathId: 'id', ringId: 'ring', order: 'vertex' },
+        },
+        { id: '/map', op: 'deck', x: 0, y: 0, params: { basemap: 'none' } },
+      ],
+      edges: [
+        { id: 'e1', source: '/reader', sourcePort: 'data', target: '/shapes', targetPort: 'in' },
+        { id: 'e2', source: '/shapes', sourcePort: 'polygons', target: '/fill', targetPort: 'in' },
+        { id: 'e3', source: '/fill', sourcePort: 'out', target: '/map', targetPort: 'layers' },
+      ],
+    })
+    await engine.settle()
+    expect(engine.lowering()?.errors).toEqual([])
+    expect(engine.runtime.layers().find(l => l.id === '/fill')?.data?.rows).toBe(3)
+  })
 })
