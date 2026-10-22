@@ -632,6 +632,40 @@ export function toEditorDoc(project: NoodlesProject): Migrated {
     return id
   }
 
+  /**
+   * A CodeOp as a code node the engine runs, when its code needs nothing but its input: no
+   * `op()`, no timeline values, no per-operator `this`. Its input is a planner source's rows,
+   * a JSON file read whole (as FileOp parsed it for CodeOp), or nothing. False leaves it a
+   * host operator.
+   */
+  const codeNode = (n: NoodlesNode): boolean => {
+    const i = inputs(n)
+    const code = Array.isArray(i.code) ? i.code.join('\n') : String(i.code ?? '')
+    if (/\bop\(|\bsequenceTime\b|\bframe\b|\btotalFrames\b|\bsequence\b|\bthis\b/.test(code))
+      return false
+    const feeds = incoming(n.id, 'data')
+    if (feeds.length > 1) return false
+    const feed = feeds[0]
+    const from = feed ? byId.get(feed.source) : undefined
+    const params: Record<string, ParamValue> = { code }
+    let input: string | undefined
+    if (
+      from?.type === 'FileOp' &&
+      ['json', 'geojson'].includes(String(inputs(from).format)) &&
+      typeof inputs(from).url === 'string'
+    ) {
+      params.url = String(inputs(from).url)
+      used.add(from.id)
+    } else if (from && PLANNER_SOURCES.has(from.type)) {
+      input = source(from.id)
+    } else if (from) {
+      return false
+    }
+    nodes.push({ id: n.id, op: 'code', name: segment(n.id), ...position(n), params })
+    if (input) edge(input, sourcePort.get(input) ?? 'out', n.id, 'in')
+    return true
+  }
+
   const source = (id: string, geometry = false, port?: string): string => {
     const cached = sources.get(id)
     if (cached) return cached
@@ -728,6 +762,8 @@ export function toEditorDoc(project: NoodlesProject): Migrated {
       edge(verts, 'out', id, 'in')
       wiredNumber(id, 'currentTime', id, 'time')
       indexNames.set(id, VERTEX_COMPONENTS)
+    } else if (n.type === 'CodeOp' && codeNode(n)) {
+      // Rows JavaScript makes, run by the engine and planned over like any table
     } else if (!ACCESSOR_OPS.has(n.type) && !PLANNER_SOURCES.has(n.type)) {
       // Rows a host operator makes (a CodeOp's): the engine hands them to DuckDB.
       hostNode(id)

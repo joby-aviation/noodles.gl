@@ -43,6 +43,8 @@ export interface CatalogOptions {
   stats?: boolean
   /** Called after a table is dropped, so statements over it can be released. */
   onDrop?: (table: string) => void | Promise<void>
+  /** Fills a JS table's rows (see RelationPlan.js) before its relation is described. */
+  jsTables?: (rel: RelationPlan) => Promise<void>
 }
 
 interface Entry {
@@ -71,6 +73,11 @@ export class MaterializingCatalog implements Catalog {
       existing.used = ++this.clock
       if (rel.materialize) this.counters.hits++
       return existing.entry
+    }
+
+    if (rel.js) {
+      if (!this.options.jsTables) throw new Error('Code nodes run in the engine worker')
+      await this.options.jsTables(rel)
     }
 
     let target: string

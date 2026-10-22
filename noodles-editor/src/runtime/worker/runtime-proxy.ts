@@ -9,6 +9,7 @@ import type { Envelope, LayerView, Message, ProgramView, Request, Values } from 
 export interface WorkerPort {
   postMessage(message: Envelope, transfer?: Transferable[]): void
   addEventListener(type: 'message', listener: (event: MessageEvent<Message>) => void): void
+  addEventListener(type: 'error', listener: (event: ErrorEvent) => void): void
 }
 
 type Listener = (report: UpdateReport) => void
@@ -26,13 +27,23 @@ export class RuntimeProxy {
   private programView?: ProgramView
   private viewState: Record<string, number> = {}
   private compileError?: string
+  private failure?: string
 
   constructor(private readonly port: WorkerPort) {
     port.addEventListener('message', event => this.receive(event.data))
+    // A worker that fails to load or throws outside a request fails every request in flight,
+    // and every later one, rather than leaving them waiting
+    port.addEventListener('error', event => {
+      this.failure = event.message || 'The engine worker failed'
+      this.compileError = this.failure
+      for (const waiting of this.pending.values()) waiting.reject(new Error(this.failure))
+      this.pending.clear()
+    })
   }
 
   private request<T>(message: Request, transfer?: Transferable[]): Promise<T> {
     const id = this.next++
+    if (this.failure) return Promise.reject(new Error(this.failure))
     return new Promise<T>((resolve, reject) => {
       this.pending.set(id, { resolve: v => resolve(v as T), reject })
       this.port.postMessage({ ...message, id }, transfer)
@@ -101,6 +112,10 @@ export class RuntimeProxy {
 
   query(sql: string): Promise<Record<string, unknown>[]> {
     return this.request({ type: 'query', sql })
+  }
+
+  relationRows(relation: string): Promise<Record<string, unknown>[]> {
+    return this.request({ type: 'relationRows', relation })
   }
 
   registerFile(name: string, bytes: Uint8Array): Promise<void> {

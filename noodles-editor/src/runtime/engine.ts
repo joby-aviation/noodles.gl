@@ -24,6 +24,7 @@ import {
   targetCaps,
 } from '@noodles.gl/planner'
 import { DeckLayerBuilder } from './deck-layers'
+import { flatRow, isFeatureCollection } from './plain-rows'
 import {
   type Preview,
   ProgramRuntime,
@@ -116,6 +117,8 @@ export interface RuntimeLike {
   preview(nodeId: string, limit?: number): Promise<Preview>
   /** Rows of a query as plain objects. */
   query(sql: string): Promise<Record<string, unknown>[]>
+  /** A relation's rows as plain objects, decimals and 64-bit integers as numbers. */
+  relationRows(relation: string): Promise<Record<string, unknown>[]>
   onUpdate(listener: (report: UpdateReport) => void): () => void
 }
 
@@ -424,7 +427,7 @@ export class Engine {
     if (!rel) return PENDING
     let rows = this.rows.get(rel.hash)
     if (!rows) {
-      rows = this.runtime.query(`SELECT * FROM ${rel.ref}`)
+      rows = this.runtime.relationRows(rel.ref)
       this.rows.set(rel.hash, rows)
     }
     return rows
@@ -446,12 +449,12 @@ export class Engine {
         return new Uint8Array(await res.arrayBuffer())
       })
     for (const n of this.doc?.nodes ?? []) {
-      const url = n.op === 'file' || n.op === 'geojson' ? String(n.params.url ?? '') : ''
+      const url = ['file', 'geojson', 'code'].includes(n.op) ? String(n.params.url ?? '') : ''
       if (!url || this.registered.has(url)) continue
       if (url.startsWith('@/')) {
         if (!readAsset) continue
         await registerFile(url, await readAsset(url.slice(2)))
-      } else if (n.op === 'geojson') {
+      } else if (n.op === 'geojson' || n.op === 'code') {
         await registerFile(url, await fetchBytes(url))
       } else {
         continue
@@ -465,28 +468,6 @@ export class Engine {
     const vis = this.vis()
     for (const l of this.listeners) l(vis, report)
   }
-}
-
-function isFeatureCollection(value: unknown): value is { type: 'FeatureCollection' } {
-  return (
-    !!value &&
-    typeof value === 'object' &&
-    (value as { type?: unknown }).type === 'FeatureCollection' &&
-    Array.isArray((value as { features?: unknown }).features)
-  )
-}
-
-/**
- * A host row as a table row: a GeoJSON-style `properties` object becomes columns, as feature
- * properties are columns everywhere else; a name already taken keeps a `p_` prefix.
- */
-function flatRow(row: unknown): unknown {
-  if (!row || typeof row !== 'object' || Array.isArray(row)) return { value: row }
-  const { properties, ...rest } = row as Record<string, unknown>
-  if (!properties || typeof properties !== 'object' || Array.isArray(properties)) return row
-  const out: Record<string, unknown> = { ...rest }
-  for (const [k, v] of Object.entries(properties)) out[k in rest ? `p_${k}` : k] = v
-  return out
 }
 
 function styleOf(deck: DocNode): string | undefined {

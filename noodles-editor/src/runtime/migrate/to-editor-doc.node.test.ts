@@ -411,21 +411,22 @@ describe('toEditorDoc with time', () => {
     nodes: doc.nodes.map(n => (n.id === '/time' ? { ...n, params: { value: time } } : n)),
   })
 
-  it('converts world-flights: trails and heads from host rows, colored by category', async () => {
+  it('converts world-flights: trails and heads from a code node, colored by category', async () => {
     const { doc, warnings } = toEditorDoc(example('world-flights'))
     expect(warnings).toEqual(["/scatterplot-layer: dropped 'getLineColor'"])
     // The keyframed clock is a planner track on the number it drove.
     expect(doc.timeline?.tracks.map(t => t.target)).toEqual(['/time.value'])
-    expect(doc.nodes.find(n => n.id === '/data-source-json')?.op).toBe('FileOp')
-
+    // The CodeOp runs in the engine, reading the GeoJSON file whole as FileOp parsed it
+    const code = doc.nodes.find(n => n.id === '/transform-flights')
+    expect(code?.op).toBe('code')
     const url = String(doc.nodes.find(n => n.op === 'geojson')?.params.url)
-    duck.registerText(url, JSON.stringify(geojson))
-    duck.registerText('flights.json', JSON.stringify(flights))
-    const hostTable = (id: string, port: string) =>
-      id === '/transform-flights' && port === 'data'
-        ? "SELECT * FROM read_json_auto('flights.json')"
-        : undefined
-    const lowered = lowerDocument(at(doc, 1005), { hostTable })
+    expect(code?.params.url).toBe(url)
+    expect(doc.nodes.some(n => n.op === 'FileOp')).toBe(false)
+
+    // DuckDB in Node cannot open a registered https:// name, so both readers get a local one
+    for (const n of doc.nodes) if (n.params.url === url) n.params.url = 'flights.geojson'
+    duck.registerText('flights.geojson', JSON.stringify(geojson))
+    const lowered = lowerDocument(at(doc, 1005))
     expect(lowered.errors).toEqual([])
     const runtime = new ProgramRuntime(duck)
     await runtime.setGraph(lowered.graph, parameterValues(lowered, { T: 0, F: 0 }).values)
@@ -451,7 +452,7 @@ describe('toEditorDoc with time', () => {
     expect(color && trail && [...color.slice(0, 3)]).toEqual(trail && [...trail.slice(0, 3)])
 
     // After both flights end, each holds its last vertex.
-    const later = lowerDocument(at(doc, 1030), { hostTable })
+    const later = lowerDocument(at(doc, 1030))
     await runtime.setValues(parameterValues(later, { T: 0, F: 0 }).values)
     await runtime.idle()
     expect(await heads()).toEqual([

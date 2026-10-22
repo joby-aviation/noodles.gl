@@ -8,7 +8,7 @@ import { type NodeDuck, openNodeDuck } from '../__tests__/duckdb-node'
 import { Engine } from '../engine'
 import { EngineHost } from './engine-host'
 import type { Envelope, Message } from './protocol'
-import { RuntimeProxy } from './runtime-proxy'
+import { RuntimeProxy, type WorkerPort as RuntimeProxyPort } from './runtime-proxy'
 
 let duck: NodeDuck
 let channel: MessageChannel
@@ -25,8 +25,10 @@ beforeAll(async () => {
   proxy = new RuntimeProxy({
     postMessage: (m: Envelope, transfer?: Transferable[]) =>
       port2.postMessage(m, transfer as never),
-    addEventListener: (_type, listener) =>
-      port2.on('message', (data: Message) => listener({ data } as MessageEvent<Message>)),
+    addEventListener: ((type: string, listener: (event: MessageEvent<Message>) => void) => {
+      if (type === 'message')
+        port2.on('message', (data: Message) => listener({ data } as MessageEvent<Message>))
+    }) as RuntimeProxyPort['addEventListener'],
   })
 }, 60_000)
 afterAll(() => channel.port1.close())

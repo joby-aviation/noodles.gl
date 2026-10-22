@@ -8,6 +8,7 @@ export interface BlockingConnection {
   query(sql: string): Table
   prepare(sql: string): { query(...binds: unknown[]): Table; close(): void }
   createScalarFunction(name: string, returns: DataType, fn: (...args: unknown[]) => unknown): void
+  insertArrowFromIPCStream(buffer: Uint8Array, options: { name: string; create?: boolean }): void
 }
 
 export interface BlockingDb {
@@ -23,6 +24,8 @@ export interface BlockingSql extends SqlEngine {
   rows(sql: string, binds?: (number | string)[]): Promise<Record<string, unknown>[]>
   /** A JS function DuckDB calls per row, returning a number. */
   createNumberFunction(name: string, fn: (...args: unknown[]) => number): void
+  /** Load an Arrow IPC stream as a new table. */
+  insertArrow(name: string, ipc: Uint8Array): void
   readonly counters: { executions: number; prepares: number; execs: number }
 }
 
@@ -82,6 +85,9 @@ export function blockingSql(db: BlockingDb, conn: BlockingConnection): BlockingS
     },
     createNumberFunction(name, fn) {
       conn.createScalarFunction(name, new Float64(), fn)
+    },
+    insertArrow(name, ipc) {
+      conn.insertArrowFromIPCStream(ipc, { name, create: true })
     },
     async rows(sql, binds) {
       const { table } = await run(sql, binds)

@@ -4,11 +4,15 @@
 
 import { type UdfRegistration, type UdfSpec, udfRegistrations } from '@noodles.gl/planner'
 import type { BlockingSql } from './blocking-sql'
+import { compileWithScope } from './js-scope'
 
-/** What a UDF body can use besides its parameters: Math and the other JS built-ins. */
+/** A UDF body with its parameters, and the engine's JS scope (d3, turf, utils). */
 function compile(reg: UdfRegistration): (...args: unknown[]) => unknown {
   // A UDF is code the document's author wrote, run in the engine worker
-  return new Function(...reg.params.map(p => p.name), reg.body) as (...args: unknown[]) => unknown
+  return compileWithScope(
+    reg.params.map(p => p.name),
+    reg.body
+  )
 }
 
 export class UdfHost {
