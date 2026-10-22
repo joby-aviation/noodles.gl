@@ -2,6 +2,101 @@
 
 All notable changes to Noodles.gl are documented here.
 
+## October 2026
+
+### Added
+- Export button in the top bar ([#676](https://github.com/joby-aviation/noodles.gl/pull/676))
+- Transparent video export as a VP9 WebM ([#176](https://github.com/joby-aviation/noodles.gl/pull/176))
+- Image sequence export as OpenEXR ([#285](https://github.com/joby-aviation/noodles.gl/pull/285))
+- WebMCP video export with `export_video`, and the `noodles-live` skill for driving the editor from a coding agent ([#669](https://github.com/joby-aviation/noodles.gl/pull/669), [#674](https://github.com/joby-aviation/noodles.gl/pull/674))
+- `noodles-mcp`, an MCP server with operator schemas, docs, examples and project validation ([#703](https://github.com/joby-aviation/noodles.gl/pull/703), [#704](https://github.com/joby-aviation/noodles.gl/pull/704))
+- `validate-projects` CLI that checks `noodles.json` files against the operator registry ([#692](https://github.com/joby-aviation/noodles.gl/pull/692), [#719](https://github.com/joby-aviation/noodles.gl/pull/719))
+- Claude Code quick start prompt on the site and in the app ([#693](https://github.com/joby-aviation/noodles.gl/pull/693))
+- Assistant graph edits shown as proposals to accept or reject, and checked against the project and operator registry first ([#716](https://github.com/joby-aviation/noodles.gl/pull/716), [#684](https://github.com/joby-aviation/noodles.gl/pull/684))
+- Card-based AI assistant onboarding ([#644](https://github.com/joby-aviation/noodles.gl/pull/644))
+- Qwen3.5 4B and 2B as the recommended local models, with download and GPU memory sizes ([#714](https://github.com/joby-aviation/noodles.gl/pull/714))
+- Ranked documentation search for the assistant ([#715](https://github.com/joby-aviation/noodles.gl/pull/715))
+- Per-project git versioning with a history panel and restore ([#612](https://github.com/joby-aviation/noodles.gl/pull/612))
+- Locked operator outputs saved in a project cache folder, with faded edges into locked nodes ([#658](https://github.com/joby-aviation/noodles.gl/pull/658), [#663](https://github.com/joby-aviation/noodles.gl/pull/663))
+- Auto-layout for node graphs, with its toggle in the properties panel ([#268](https://github.com/joby-aviation/noodles.gl/pull/268), [#723](https://github.com/joby-aviation/noodles.gl/pull/723))
+- ChoroplethJoin and ChoroplethLayer operators ([#373](https://github.com/joby-aviation/noodles.gl/pull/373))
+- DateMath, DateParts and DateFormat operators ([#433](https://github.com/joby-aviation/noodles.gl/pull/433))
+- Brushable histogram operator ([#631](https://github.com/joby-aviation/noodles.gl/pull/631), [#722](https://github.com/joby-aviation/noodles.gl/pull/722))
+- GeoJSON line interpolation operator ([#617](https://github.com/joby-aviation/noodles.gl/pull/617))
+- Google traffic-aware driving directions ([#553](https://github.com/joby-aviation/noodles.gl/pull/553))
+- Keyframes for TableEditorOp cell values ([#550](https://github.com/joby-aviation/noodles.gl/pull/550))
+- Control the selected MapViewState from the map ([#556](https://github.com/joby-aviation/noodles.gl/pull/556), [#736](https://github.com/joby-aviation/noodles.gl/pull/736))
+- BoundingBox fit to a GeoJSON input ([#742](https://github.com/joby-aviation/noodles.gl/pull/742))
+- LayerExtension instances in ExtensionField ([#156](https://github.com/joby-aviation/noodles.gl/pull/156))
+- `createFromSQL` query parameter for new projects ([#302](https://github.com/joby-aviation/noodles.gl/pull/302))
+- Drop a CSV of points onto the editor to map it, without the assistant ([#694](https://github.com/joby-aviation/noodles.gl/pull/694))
+- Flight Tracks example for querying ADS-B data, and an animated camera bearing in the NYC Taxis example ([#108](https://github.com/joby-aviation/noodles.gl/pull/108), [#743](https://github.com/joby-aviation/noodles.gl/pull/743))
+
+### Changed
+- External control runs only over WebMCP; the legacy WebSocket path is removed ([#668](https://github.com/joby-aviation/noodles.gl/pull/668))
+- On-device assistant is faster and loops less: it reuses the KV cache across steps, keeps the task when it trims the conversation, and says up front that it is slower ([#686](https://github.com/joby-aviation/noodles.gl/pull/686), [#730](https://github.com/joby-aviation/noodles.gl/pull/730), [#671](https://github.com/joby-aviation/noodles.gl/pull/671), [#685](https://github.com/joby-aviation/noodles.gl/pull/685), [#687](https://github.com/joby-aviation/noodles.gl/pull/687))
+
+### Fixed
+- Exports fall back to software encoding when the hardware refuses a codec ([#670](https://github.com/joby-aviation/noodles.gl/pull/670))
+- Exports capture the basemap before the map finishes loading, and fail instead of hanging when the canvas is replaced ([#678](https://github.com/joby-aviation/noodles.gl/pull/678), [#710](https://github.com/joby-aviation/noodles.gl/pull/710))
+- Each exported frame is recorded at its own position ([#738](https://github.com/joby-aviation/noodles.gl/pull/738))
+- Exports download when the browser has no save picker ([#741](https://github.com/joby-aviation/noodles.gl/pull/741))
+- Bounding box fit, imported files and the map follow the render size ([#618](https://github.com/joby-aviation/noodles.gl/pull/618), [#737](https://github.com/joby-aviation/noodles.gl/pull/737), [#745](https://github.com/joby-aviation/noodles.gl/pull/745))
+- Linear and default keyframe handles interpolate linearly ([#746](https://github.com/joby-aviation/noodles.gl/pull/746))
+- Missing operator types show a placeholder and keep their type and settings on save ([#720](https://github.com/joby-aviation/noodles.gl/pull/720), [#725](https://github.com/joby-aviation/noodles.gl/pull/725), [#729](https://github.com/joby-aviation/noodles.gl/pull/729))
+- AI keys are never read from or saved in project files, and the OpenRouter key and auth code are no longer logged ([#661](https://github.com/joby-aviation/noodles.gl/pull/661), [#653](https://github.com/joby-aviation/noodles.gl/pull/653))
+- Locked operators no longer re-execute ([#657](https://github.com/joby-aviation/noodles.gl/pull/657))
+- Isolated operators execute ([#474](https://github.com/joby-aviation/noodles.gl/pull/474))
+- Value comparison tells different dates and 0 from -0 apart ([#656](https://github.com/joby-aviation/noodles.gl/pull/656), [#659](https://github.com/joby-aviation/noodles.gl/pull/659))
+- Number input precision persists ([#621](https://github.com/joby-aviation/noodles.gl/pull/621))
+- List expressions keep working when a referenced value changes ([#739](https://github.com/joby-aviation/noodles.gl/pull/739))
+- TimeOp returns current values ([#695](https://github.com/joby-aviation/noodles.gl/pull/695))
+- A dropped TSV file imports as TSV ([#697](https://github.com/joby-aviation/noodles.gl/pull/697))
+- Mask3DExtension ([#17](https://github.com/joby-aviation/noodles.gl/pull/17))
+- Screenshots go only to models that take images ([#717](https://github.com/joby-aviation/noodles.gl/pull/717))
+- Chat model picker switches to a ready local model ([#721](https://github.com/joby-aviation/noodles.gl/pull/721))
+- Local model context overflows are retried ([#727](https://github.com/joby-aviation/noodles.gl/pull/727))
+- GIS operators use the bundled Turf ([#711](https://github.com/joby-aviation/noodles.gl/pull/711))
+- Demo projects and example READMEs repaired ([#699](https://github.com/joby-aviation/noodles.gl/pull/699), [#700](https://github.com/joby-aviation/noodles.gl/pull/700), [#707](https://github.com/joby-aviation/noodles.gl/pull/707), [#712](https://github.com/joby-aviation/noodles.gl/pull/712), [#713](https://github.com/joby-aviation/noodles.gl/pull/713))
+- Monospace text renders in a monospace font ([#732](https://github.com/joby-aviation/noodles.gl/pull/732))
+- Schema editor rows keep their keys, and icon-only buttons have names ([#680](https://github.com/joby-aviation/noodles.gl/pull/680), [#690](https://github.com/joby-aviation/noodles.gl/pull/690), [#679](https://github.com/joby-aviation/noodles.gl/pull/679))
+
+## September 2026
+
+### Added
+- Multi-provider AI assistant: Anthropic, OpenRouter, Chrome built-in AI and custom OpenAI-compatible endpoints, on one provider-agnostic agent loop ([#576](https://github.com/joby-aviation/noodles.gl/pull/576), [#587](https://github.com/joby-aviation/noodles.gl/pull/587))
+- One-click OpenRouter sign-in and on-device WebLLM models ([#637](https://github.com/joby-aviation/noodles.gl/pull/637), [#642](https://github.com/joby-aviation/noodles.gl/pull/642), [#636](https://github.com/joby-aviation/noodles.gl/pull/636))
+- Assistant on-device tier, `run_code` tool, and a project file area it can write to ([#615](https://github.com/joby-aviation/noodles.gl/pull/615))
+- Markdown rendering in the assistant chat, and noodles.gl links in its doc search ([#635](https://github.com/joby-aviation/noodles.gl/pull/635), [#630](https://github.com/joby-aviation/noodles.gl/pull/630))
+- Placeholder node for missing operator types, instead of a crash to a black screen ([#646](https://github.com/joby-aviation/noodles.gl/pull/646), [#572](https://github.com/joby-aviation/noodles.gl/pull/572))
+- BboxField type for bounding box inputs ([#570](https://github.com/joby-aviation/noodles.gl/pull/570))
+- OverpassOp, Overture and Overpass docs, and syntax highlighting in the code editor ([#89](https://github.com/joby-aviation/noodles.gl/pull/89))
+- Visual dropdown for color schemes ([#580](https://github.com/joby-aviation/noodles.gl/pull/580))
+- Copy and paste references from the property context menu ([#573](https://github.com/joby-aviation/noodles.gl/pull/573))
+- Selected edge data in the properties panel ([#599](https://github.com/joby-aviation/noodles.gl/pull/599))
+- Number scrubbing in table cells, and duplicate columns in TableEditor ([#620](https://github.com/joby-aviation/noodles.gl/pull/620), [#596](https://github.com/joby-aviation/noodles.gl/pull/596))
+- Debugger traces where an operator's re-execution started ([#606](https://github.com/joby-aviation/noodles.gl/pull/606))
+
+### Changed
+- Upgraded deck.gl to 9.4 with its MapLibre integration, and luma.gl to 9.4.2 ([#582](https://github.com/joby-aviation/noodles.gl/pull/582), [#648](https://github.com/joby-aviation/noodles.gl/pull/648))
+- Eye icons for field visibility, and polished field layout ([#574](https://github.com/joby-aviation/noodles.gl/pull/574), [#579](https://github.com/joby-aviation/noodles.gl/pull/579))
+- FileOp shows `autoType` only for CSV and TSV ([#593](https://github.com/joby-aviation/noodles.gl/pull/593))
+- Docs reorganized, with a simpler Getting Started example and a separate API keys page ([#563](https://github.com/joby-aviation/noodles.gl/pull/563), [#592](https://github.com/joby-aviation/noodles.gl/pull/592), [#632](https://github.com/joby-aviation/noodles.gl/pull/632), [#634](https://github.com/joby-aviation/noodles.gl/pull/634), [#639](https://github.com/joby-aviation/noodles.gl/pull/639))
+
+### Fixed
+- Containers: first output publication, input order on a fresh load, and renames deleting hidden children ([#559](https://github.com/joby-aviation/noodles.gl/pull/559), [#585](https://github.com/joby-aviation/noodles.gl/pull/585), [#584](https://github.com/joby-aviation/noodles.gl/pull/584))
+- Project API keys kept across handoff ([#552](https://github.com/joby-aviation/noodles.gl/pull/552))
+- Fixed-size previews fit the map panel ([#558](https://github.com/joby-aviation/noodles.gl/pull/558), [#610](https://github.com/joby-aviation/noodles.gl/pull/610))
+- TableEditor schema persistence, defaults, cell layout, and values across column renames ([#595](https://github.com/joby-aviation/noodles.gl/pull/595), [#601](https://github.com/joby-aviation/noodles.gl/pull/601), [#627](https://github.com/joby-aviation/noodles.gl/pull/627))
+- Optional compound property connections validate ([#598](https://github.com/joby-aviation/noodles.gl/pull/598))
+- Converting a ViewerOp to a TableEditorOp removes its data edges ([#611](https://github.com/joby-aviation/noodles.gl/pull/611))
+- Expression autocomplete ([#602](https://github.com/joby-aviation/noodles.gl/pull/602))
+- Duplicate edge records migrated and prevented ([#605](https://github.com/joby-aviation/noodles.gl/pull/605))
+- BitmapLayer renders project assets ([#619](https://github.com/joby-aviation/noodles.gl/pull/619))
+- Geocoder map selection ([#554](https://github.com/joby-aviation/noodles.gl/pull/554))
+- Chrome Gemini Nano unknown errors handled ([#633](https://github.com/joby-aviation/noodles.gl/pull/633))
+- Timeline bezier editor clipping, chat panel stacking, and toolbar shifting and overlap ([#575](https://github.com/joby-aviation/noodles.gl/pull/575), [#578](https://github.com/joby-aviation/noodles.gl/pull/578), [#581](https://github.com/joby-aviation/noodles.gl/pull/581), [#588](https://github.com/joby-aviation/noodles.gl/pull/588))
+
 ## August 2026
 
 ### Added
