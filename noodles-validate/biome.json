@@ -2,6 +2,6 @@
   "$schema": "https://biomejs.dev/schemas/2.5.15/schema.json",
   "extends": ["../noodles-editor/biome.json"],
   "files": {
-    "includes": ["**", "!registry.json"]
+    "includes": ["!registry.json"]
   }
 }

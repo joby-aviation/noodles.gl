@@ -17,8 +17,6 @@ const SPECIAL_NODE_TYPES = new Set(['group'])
 const REFERENCE_EDGE_TYPE = 'ReferenceEdge'
 // The only fields that take more than one incoming edge
 const MULTI_INPUT_FIELD_TYPE = 'ListField'
-// `${source}.${sourceHandle}->${target}.${targetHandle}`
-const CANONICAL_EDGE_ID = /^\/.*\.(out|par)\..+->\/.*\.(out|par)\..+$/
 
 type Json = Record<string, unknown>
 
@@ -268,7 +266,7 @@ function checkEdges(
     // ones "#2", so only an id in the canonical shape that names other
     // endpoints is out of date
     const unsuffixed = edgeId.replace(/#\d+$/, '')
-    if (CANONICAL_EDGE_ID.test(unsuffixed) && unsuffixed !== canonical) {
+    if (hasCanonicalShape(unsuffixed) && unsuffixed !== canonical) {
       report(
         'warning',
         'stale-edge-id',
@@ -357,6 +355,16 @@ function checkEndpoint(
     return false
   }
   return true
+}
+
+// `${source}.${sourceHandle}->${target}.${targetHandle}`, split rather than
+// matched with one regex, which backtracks badly on long ids
+function hasCanonicalShape(id: string): boolean {
+  const arrow = id.indexOf('->')
+  if (arrow < 0) return false
+  return [id.slice(0, arrow), id.slice(arrow + 2)].every(
+    side => side.startsWith('/') && /\.(out|par)\./.test(side)
+  )
 }
 
 function isNodePath(id: string): boolean {

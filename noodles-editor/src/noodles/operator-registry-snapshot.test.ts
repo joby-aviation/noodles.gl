@@ -23,7 +23,10 @@ function buildSnapshot() {
           inputs: Object.fromEntries(
             Object.entries(op.inputs).map(([name, field]) => [
               name,
-              { type: field.type, default: field.defaultValue },
+              // A DateField default is a local time, so it differs by timezone
+              field.type === 'DateField'
+                ? { type: field.type }
+                : { type: field.type, default: field.defaultValue },
             ])
           ),
           outputs: Object.fromEntries(

@@ -1329,8 +1329,7 @@
       "description": "A date and time",
       "inputs": {
         "date": {
-          "type": "DateField",
-          "default": "2025-01-31T19:00:00"
+          "type": "DateField"
         }
       },
       "outputs": {
@@ -1476,8 +1475,7 @@
           "default": "now"
         },
         "departureTime": {
-          "type": "DateField",
-          "default": "2025-01-31T19:00:00"
+          "type": "DateField"
         },
         "trafficModel": {
           "type": "StringLiteralField",
