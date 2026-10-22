@@ -8,11 +8,13 @@
 
 import {
   type DocNode,
+  evaluateTrack,
   isExpr,
   isRef,
   OPERATOR_INDEX,
   type ParamDef,
   type ParamValue,
+  type Timeline,
 } from '@noodles.gl/planner'
 import {
   applySerializedFieldValue,
@@ -136,13 +138,18 @@ export class NodeFields {
     }
   }
 
-  /** Bring the fields to a node's current parameters, without writing anything back. */
-  sync(node: DocNode): void {
+  /**
+   * Bring the fields to a node's current parameters, without writing anything back. A
+   * keyframed parameter shows its value at the playhead.
+   */
+  sync(node: DocNode, timeline?: Timeline, time = 0): void {
     this.node = node
     this.applying = true
     try {
       for (const [name, binding] of this.bindings) {
-        const value = node.params[name]
+        const track = timeline?.tracks.find(t => t.target === `${node.id}.${name}`)
+        const keyed = track ? evaluateTrack(track, time) : undefined
+        const value = keyed ?? node.params[name]
         binding.driven = isExpr(value)
           ? `= ${value.expr}`
           : isRef(value)

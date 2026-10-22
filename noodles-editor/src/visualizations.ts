@@ -61,6 +61,11 @@ export type Visualization = {
   // Render settings for video export
   renderSettings?: RenderSettings
   setRenderSettings?: (settings: RenderSettings) => void
+  /**
+   * Bring the visualization to `time` and resolve once it is on screen: export awaits it after
+   * moving the playhead, so no frame is captured before its data is drawn.
+   */
+  settle?: (time: number) => Promise<void>
   // Visualization props
   mapProps?: BetterMapProps
   deckProps: BetterDeckProps

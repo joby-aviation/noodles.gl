@@ -12,13 +12,16 @@ import {
 import { Handle, type NodeProps, Position } from '@xyflow/react'
 import cx from 'classnames'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { inputComponents } from '../noodles/components/field-components'
 import { handleClass, headerClass } from '../noodles/components/op-components'
 import type { Field } from '../noodles/fields'
 import s from '../noodles/noodles.module.css'
 import { useEngineState } from './doc-engine'
+import { clearTrack, removeKey, setKey, setParam } from './doc-ops'
 import { docStore, useEditor } from './doc-store'
 import { NodeFields } from './field-adapter'
+import { ContextMenu, type MenuItem } from './menus'
 
 const CATEGORY_HEADERS: Record<string, string | undefined> = {
   data: s.headerData,
@@ -49,6 +52,8 @@ export function shown(def: ParamDef, node: DocNode, op: OpDef): boolean {
 /** The node's fields while it is shown, kept in step with its parameters. */
 export function useNodeFields(node: DocNode | undefined): NodeFields | undefined {
   const [fields, setFields] = useState<NodeFields>()
+  const timeline = useEditor(s => s.doc.timeline)
+  const time = useEditor(s => s.time)
   const id = node?.id
   const op = node?.op
   // biome-ignore lint/correctness/useExhaustiveDependencies: fields are rebuilt only for a new node or operator; parameter changes sync below
@@ -59,8 +64,8 @@ export function useNodeFields(node: DocNode | undefined): NodeFields | undefined
     return () => created.dispose()
   }, [id, op])
   useEffect(() => {
-    if (node && fields) fields.sync(node)
-  }, [node, fields])
+    if (node && fields) fields.sync(node, timeline, time)
+  }, [node, fields, timeline, time])
   return fields
 }
 
@@ -82,13 +87,21 @@ function PortRow({ port, side }: { port: PortSpec; side: 'in' | 'out' }) {
   )
 }
 
+const KEYABLE = new Set(['float', 'int'])
+
+/** Whether a parameter can be keyframed: a number, the planner's or a host field's. */
+const keyable = (def: ParamDef, field: Field) =>
+  KEYABLE.has(def.kind) || (def.kind === 'field' && typeof field.value === 'number')
+
 export function ParamRow({
+  nodeId,
   def,
   field,
   driven,
   wired,
   handle = true,
 }: {
+  nodeId: string
   def: ParamDef
   field: Field
   driven?: string
@@ -98,8 +111,52 @@ export function ParamRow({
 }) {
   const { type } = field.constructor as typeof Field
   const Widget = inputComponents[type]
+  const target = `${nodeId}.${def.name}`
+  const track = useEditor(s => s.doc.timeline?.tracks.find(t => t.target === target))
+  const time = useEditor(s => s.time)
+  const [menu, setMenu] = useState<{ x: number; y: number }>()
+  const atKey = track?.keyframes.some(k => Math.abs(k.time - time) < 1e-3)
+  const canKey = keyable(def, field) && !wired && !driven
+  const items: MenuItem[] = [
+    { heading: def.label },
+    {
+      label: atKey ? 'Update keyframe' : 'Add keyframe at playhead',
+      disabled: !canKey,
+      onClick: () =>
+        docStore().edit(d => setKey(d, target, time, Number(field.value)), `key:${target}`),
+    },
+    {
+      label: 'Remove keyframe here',
+      disabled: !atKey,
+      onClick: () => docStore().edit(d => removeKey(d, target, time)),
+    },
+    {
+      label: 'Clear keyframes',
+      disabled: !track,
+      onClick: () => docStore().edit(d => clearTrack(d, target)),
+    },
+    { separator: true },
+    {
+      label: 'Revert to default',
+      disabled: wired,
+      onClick: () =>
+        docStore().edit(d => {
+          clearTrack(d, target)
+          setParam(d, nodeId, def.name, undefined)
+        }),
+    },
+  ]
   return (
-    <div style={{ position: 'relative' }} title={def.help}>
+    // biome-ignore lint/a11y/noStaticElementInteractions: right-click opens the parameter's menu, also reachable from the properties panel
+    <div
+      style={{ position: 'relative' }}
+      title={def.help}
+      onContextMenu={e => {
+        e.preventDefault()
+        e.stopPropagation()
+        setMenu({ x: e.clientX, y: e.clientY })
+      }}
+    >
       {handle && def.port && (
         <Handle
           id={`par:${def.name}`}
@@ -109,6 +166,14 @@ export function ParamRow({
           style={{ top: '12.5px', transform: 'translateX(-17px)' }}
         />
       )}
+      {track && (
+        <span
+          title={atKey ? 'Keyframe at the playhead' : 'Keyframed'}
+          style={{ position: 'absolute', right: 2, top: 4, opacity: atKey ? 1 : 0.5, fontSize: 9 }}
+        >
+          ◆
+        </span>
+      )}
       {wired || driven ? (
         <div className={cx(s.fieldWrapper, 'nokey')}>
           <div className={s.fieldLabel}>{def.label}</div>
@@ -117,6 +182,11 @@ export function ParamRow({
       ) : (
         Widget && <Widget id={def.name} field={field} disabled={false} />
       )}
+      {menu &&
+        createPortal(
+          <ContextMenu x={menu.x} y={menu.y} items={items} onClose={() => setMenu(undefined)} />,
+          document.body
+        )}
     </div>
   )
 }
@@ -177,6 +247,7 @@ export function DocNodeComponent({ id }: NodeProps) {
               return b && inBody ? (
                 <ParamRow
                   key={def.name}
+                  nodeId={node.id}
                   def={def}
                   field={b.field}
                   driven={b.driven}

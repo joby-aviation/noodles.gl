@@ -84,6 +84,7 @@ export function DocProperties() {
               return b ? (
                 <ParamRow
                   key={def.name}
+                  nodeId={node.id}
                   def={def}
                   field={b.field}
                   driven={b.driven}
