@@ -518,6 +518,66 @@ describe('WebLLMProvider', () => {
     expect(extended).toHaveLength(retried.length + 2)
   })
 
+  it('describes a tool again once a trim drops the find_tools result that unlocked it', async () => {
+    const stub = stubEngine({
+      responses: [
+        chunksFor('{"tool":"none","reply":"Hi.","input":{}}'),
+        'ContextWindowSizeExceededError: number of prompt tokens: 446',
+        chunksFor('{"tool":"capture_visualization","reply":"Capturing","input":{}}'),
+        chunksFor('{"tool":"none","reply":"Done.","input":{}}'),
+      ],
+    })
+    const provider = providerFor(stub)
+    const unlocked: AgentTool = {
+      name: 'capture_visualization',
+      description: 'Take a screenshot',
+      inputSchema: { type: 'object', properties: {} },
+    }
+
+    // Pins a preamble that lists only the default tools
+    await collect(provider.stream(requestFor('show me the map')))
+
+    // find_tools unlocked the tool, then a later step overflows and the trim drops
+    // the result that described it
+    const unlocking = withFindToolsResult(requestFor('show me the map', [...TOOLS, unlocked]))
+    unlocking.messages.push(
+      {
+        role: 'assistant',
+        content: [{ type: 'tool_use', id: 'b', name: 'list_nodes', input: {} }],
+      },
+      { role: 'user', content: [{ type: 'tool_result', toolUseId: 'b', content: '[...]' }] }
+    )
+    const first = await collect(provider.stream(unlocking))
+
+    const block = first.find(event => event.type === 'provider_block') as { block: string }
+    await collect(
+      provider.stream({
+        ...unlocking,
+        messages: [
+          ...unlocking.messages,
+          {
+            role: 'assistant',
+            content: [
+              { type: 'provider_block', provider: 'webllm', block: block.block },
+              { type: 'tool_use', id: 'c', name: 'capture_visualization', input: {} },
+            ],
+          },
+          { role: 'user', content: [{ type: 'tool_result', toolUseId: 'c', content: '{}' }] },
+        ],
+      })
+    )
+
+    const system = (index: number) =>
+      (stub.requests[index].messages as Array<{ content: string }>)[0].content
+    // The overflowing attempt still had the find_tools result, so it kept the pin
+    expect(system(1)).toBe(system(0))
+    // The trimmed retry describes the tool itself
+    expect(system(2)).not.toBe(system(0))
+    expect(system(2)).toContain('Take a screenshot')
+    // and the step after it keeps that system message, so the cache still applies
+    expect(system(3)).toBe(system(2))
+  })
+
   it('sends a new conversation whole after an earlier one was trimmed', async () => {
     const stub = stubEngine({
       responses: [
