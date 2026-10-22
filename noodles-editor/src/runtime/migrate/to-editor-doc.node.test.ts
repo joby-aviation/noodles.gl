@@ -129,11 +129,16 @@ describe('toEditorDoc', () => {
   })
 
   it('refuses accessors it cannot express, rather than keeping them as accessors', () => {
-    // BART's line colors are hex strings per feature.
-    expect(() => toEditorDoc(example('geojson-example'))).toThrow(
-      /needs JS the planner can't express/
-    )
     expect(() => toEditorDoc(example('world-flights'))).toThrow()
+  })
+
+  it('reads a per-feature hex color string through hex_color', () => {
+    const { doc } = toEditorDoc(example('geojson-example'))
+    expect(lowerDocument(doc).errors).toEqual([])
+    expect(doc.nodes.find(n => n.id === '/line-color-accessor')?.params.expression).toBe(
+      "hex_color(coalesce(color, '#000'))"
+    )
+    expect(doc.nodes.find(n => n.id === '/geojson-layer-labels')?.params.text).toBe('name')
   })
 })
 

@@ -104,6 +104,23 @@ export const FUNCTIONS: Record<string, FnSpec> = {
     width: 'broadcast',
   },
 
+  // One byte of a `#rgb` or `#rrggbb` color string, 0–255: `i` is 0, 1 or 2 for red, green,
+  // blue. Strings live in SQL only, so this does too; `hex_color` (the prelude) builds an RGB
+  // vector from three of them.
+  hex_byte: {
+    arity: [2, 2],
+    sql: (a) => {
+      const s = `lower(${a[0]})`;
+      const c = (i: number) => `substr(${s}, ${i}, 1)`;
+      const full = `(CASE WHEN length(${s}) = 4 THEN '#' || ${c(2)} || ${c(2)} || ${c(3)} || ${c(3)} || ${c(4)} || ${c(4)} ELSE ${s} END)`;
+      const nibble = (k: number) =>
+        `(strpos('0123456789abcdef', substr(${full}, CAST(2 + 2 * (${a[1]}) + ${k} AS INTEGER), 1)) - 1)`;
+      return `(${nibble(0)} * 16 + ${nibble(1)})`;
+    },
+    wgsl: null,
+    width: 1,
+  },
+
   // `clamp` exists in both but DuckDB has no 3-arg clamp, so spell it out.
   clamp: {
     arity: [3, 3],
