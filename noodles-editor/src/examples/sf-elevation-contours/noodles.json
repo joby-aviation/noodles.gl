@@ -29,10 +29,17 @@
       "targetHandle": "par.getLineColor"
     },
     {
-      "id": "/elevation-accessor.out.accessor->/elevation-color.par.value",
+      "id": "/elevation-accessor.out.accessor->/elevation-range.par.val",
       "source": "/elevation-accessor",
-      "target": "/elevation-color",
+      "target": "/elevation-range",
       "sourceHandle": "out.accessor",
+      "targetHandle": "par.val"
+    },
+    {
+      "id": "/elevation-range.out.scaled->/elevation-color.par.value",
+      "source": "/elevation-range",
+      "target": "/elevation-color",
+      "sourceHandle": "out.scaled",
       "targetHandle": "par.value"
     },
     {
@@ -55,7 +62,7 @@
     "y": 48.131400370141876,
     "zoom": 0.42504626773596543
   },
-  "version": 18,
+  "version": 19,
   "name": "San Francisco Elevation Contours",
   "editorSettings": {
     "layoutMode": "noodles-on-top",
@@ -151,6 +158,21 @@
       },
       "position": {
         "x": 22.383164005805497,
+        "y": 357.60812772133534
+      }
+    },
+    {
+      "id": "/elevation-range",
+      "type": "MapRangeOp",
+      "data": {
+        "inputs": {
+          "inMin": 0,
+          "inMax": 900
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 220,
         "y": 357.60812772133534
       }
     },

@@ -1,15 +1,19 @@
-import { MapView } from '@deck.gl/core'
+import { LayerExtension, MapView } from '@deck.gl/core'
 import { Temporal } from 'temporal-polyfill'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import z from 'zod/v4'
 import { hexToColor } from '../utils/color'
 import {
   ArrayField,
+  applyNodeUIMetadata,
   BboxField,
   ColorField,
   CompoundPropsField,
+  captureNodeUIMetadata,
   DataField,
   DateField,
+  deriveDecimalStep,
+  ExtensionField,
   Field,
   FileUrlField,
   FunctionField,
@@ -544,6 +548,73 @@ describe('NumberField', () => {
     // Cannot go below hard min
     field.setValue(-10)
     expect(field.value).toEqual(200) // unchanged
+  })
+
+  it.each([
+    { value: 0.25, step: 0.01 },
+    { value: -12.345, step: 0.001 },
+    { value: 1.25e-4, step: 1e-6 },
+    { value: 1.25e-13, step: 1e-15 },
+    { value: -1.25e-13, step: 1e-15 },
+  ])('derives a $step decimal step from $value', ({ value, step }) => {
+    expect(deriveDecimalStep(value)).toBe(step)
+  })
+
+  it.each([42, 0, 1.25e13])('uses the declared fallback step for integer value %s', value => {
+    expect(deriveDecimalStep(value, 0.25)).toBe(0.25)
+  })
+
+  it('ignores ordinary floating-point arithmetic noise when deriving a step', () => {
+    expect(deriveDecimalStep(0.1 + 0.2)).toBe(0.1)
+  })
+
+  it('uses the declared step unless value-derived precision is explicitly enabled', () => {
+    const semanticField = new NumberField(0.25, { step: 0.5 })
+    const numberOp = new NumberOp('/number', { val: 0.25 })
+
+    expect(semanticField.getEffectiveStep()).toBe(0.5)
+    expect(numberOp.inputs.val.getEffectiveStep()).toBe(0.01)
+
+    semanticField.setStepOverride(0.01)
+    expect(semanticField.getEffectiveStep()).toBe(0.01)
+  })
+
+  it('prefers an observable user-selected step over declared or derived steps', () => {
+    const field = new NumberField(0.25, { step: 1, deriveStepFromValue: true })
+    const observed: Array<number | undefined> = []
+    const subscription = field.stepOverride$.subscribe(step => observed.push(step))
+
+    field.setStepOverride(0.001)
+    expect(field.getEffectiveStep()).toBe(0.001)
+    field.setStepOverride(undefined)
+    expect(field.getEffectiveStep()).toBe(0.01)
+    expect(observed).toEqual([undefined, 0.001, undefined])
+
+    subscription.unsubscribe()
+  })
+
+  it('captures and restores top-level and nested number-step overrides', () => {
+    const plain = new NumberField(1)
+    const nested = new NumberField(2)
+    const fields = {
+      plain,
+      settings: new CompoundPropsField({ nested, untouched: new NumberField(3) }),
+    }
+    plain.setStepOverride(0.1)
+    nested.setStepOverride(0.001)
+
+    expect(captureNodeUIMetadata(fields)).toEqual({
+      numberSteps: { plain: 0.1, 'settings.nested': 0.001 },
+    })
+
+    applyNodeUIMetadata(fields, { numberSteps: { plain: 10, 'settings.nested': 0.01 } })
+    expect(plain.stepOverride).toBe(10)
+    expect(nested.stepOverride).toBe(0.01)
+
+    applyNodeUIMetadata(fields)
+    expect(plain.stepOverride).toBeUndefined()
+    expect(nested.stepOverride).toBeUndefined()
+    expect(captureNodeUIMetadata(fields)).toBeUndefined()
   })
 })
 
@@ -1146,6 +1217,33 @@ describe('ViewField', () => {
     field.setValue(view)
 
     expect(field.value).toBe(view)
+  })
+})
+
+describe('ExtensionField', () => {
+  it('accepts extension descriptors from extension operators', () => {
+    const field = new ExtensionField()
+    const value = { extension: { type: 'PathStyleExtension', dash: true }, props: {} }
+    field.setValue(value)
+
+    expect(field.value).toEqual(value)
+  })
+
+  it('accepts LayerExtension instances from custom operators', () => {
+    class CustomExtension extends LayerExtension {}
+    const field = new ExtensionField()
+    const extension = new CustomExtension()
+    field.setValue({ extension, props: { custom: 1 } })
+
+    expect(field.value.extension).toBe(extension)
+    expect(field.value.props).toEqual({ custom: 1 })
+  })
+
+  it('rejects extensions without a type', () => {
+    const field = new ExtensionField()
+    field.setValue({ extension: { dash: true }, props: {} })
+
+    expect(field.value).toBeUndefined()
   })
 })
 

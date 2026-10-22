@@ -3,13 +3,16 @@ import { useCallback, useRef, useState } from 'react'
 import { getTimelineStore, useTimelineStore } from '../timeline/timeline-store'
 import { analytics } from '../utils/analytics'
 import { debugRender, debugRenderFrame } from '../utils/debug'
+import { encodeExrFrame, loadExrEncoder } from './exr-export'
 import { type RenderErrorCategory, type RenderSource, trackRender } from './render-analytics'
+import { ALPHA_VIDEO_CODECS } from './video-export'
 
 export const rafDriver = {
   tick: (_timestamp: number) => {},
 }
 
 export type VideoCodec = 'hevc' | 'avc' | 'vp9' | 'av1'
+export type SequenceFormat = 'png' | 'exr'
 
 const codecMap = {
   hevc: {
@@ -94,6 +97,7 @@ export const useRenderer = ({
       width,
       height,
       codec,
+      exportAlpha = false,
       fps: captureFps = fps,
       startFrame = 0,
       endFrame = Math.floor(sequenceLength * captureFps),
@@ -105,6 +109,8 @@ export const useRenderer = ({
       width: number
       height: number
       codec: VideoCodec
+      // Keep the canvas's transparency: VP9 in a WebM file instead of an MP4
+      exportAlpha?: boolean
       fps?: number
       startFrame?: number
       endFrame?: number
@@ -119,7 +125,7 @@ export const useRenderer = ({
 
       const tracker = trackRender({
         source,
-        format: 'mp4',
+        format: exportAlpha ? 'webm' : 'mp4',
         codec,
         width,
         height,
@@ -137,13 +143,14 @@ export const useRenderer = ({
       let encoderError: Error | undefined
 
       const pickFileStream = async (name: string) => {
+        const extension = exportAlpha ? '.webm' : '.mp4'
         const fileHandle = await window
           .showSaveFilePicker({
-            suggestedName: `${name}.mp4`,
+            suggestedName: `${name}${extension}`,
             types: [
               {
                 description: 'Video File',
-                accept: { 'video/mp4': ['.mp4'] },
+                accept: { [exportAlpha ? 'video/webm' : 'video/mp4']: [extension] },
               },
             ],
           })
@@ -177,6 +184,9 @@ export const useRenderer = ({
           Mp4OutputFormat,
           Output,
           StreamTarget,
+          VideoSample,
+          VideoSampleSource,
+          WebMOutputFormat,
         } = await import('mediabunny')
 
         const outputTarget = fileWritableStream
@@ -189,6 +199,63 @@ export const useRenderer = ({
               { chunked: true }
             )
           : new BufferTarget()
+
+        const bufferOf = () =>
+          outputTarget instanceof BufferTarget ? (outputTarget.buffer ?? undefined) : undefined
+
+        if (exportAlpha) {
+          // WebCodecs encoders drop alpha, so mediabunny splits each frame into color and
+          // alpha, encodes both, and stores the alpha as WebM side data
+          const output = new Output({ format: new WebMOutputFormat(), target: outputTarget })
+          const videoSource = new VideoSampleSource({
+            codec,
+            fullCodecString: config.codec,
+            hardwareAcceleration: config.hardwareAcceleration,
+            bitrate,
+            bitrateMode,
+            alpha: 'keep',
+            // A key frame every 60 frames, as in the MP4 path
+            keyFrameInterval: 60 / fps,
+          })
+          output.addVideoTrack(videoSource, { frameRate: fps })
+          await output.start()
+
+          // The canvas is the export size times the LOD, and mediabunny encodes at the
+          // size of the frames it gets, so scale them down first. The MP4 path's
+          // VideoEncoder does this itself.
+          const scaled = new OffscreenCanvas(width, height)
+          const scaledContext = scaled.getContext('2d')!
+          let frameIndex = 0
+          const encodeFrame = async (frame: VideoFrame) => {
+            let source: VideoFrame | OffscreenCanvas = frame
+            if (frame.displayWidth !== width || frame.displayHeight !== height) {
+              scaledContext.clearRect(0, 0, width, height)
+              scaledContext.drawImage(frame, 0, 0, width, height)
+              source = scaled
+            }
+            // The simulated time, not the captured frame's real-time timestamp
+            const sample = new VideoSample(source, {
+              timestamp: frameIndex / fps,
+              duration: 1 / fps,
+            })
+            frameIndex++
+            try {
+              // Resolves once the encoders can take another frame
+              await videoSource.add(sample)
+            } catch (error) {
+              encoderError ??= error instanceof Error ? error : new Error(String(error))
+              throw error
+            } finally {
+              sample.close()
+            }
+          }
+          const finishEncoding = async () => {
+            videoSource.close()
+            await output.finalize()
+            return bufferOf()
+          }
+          return { encodeFrame, finishEncoding }
+        }
 
         const output = new Output({
           format: new Mp4OutputFormat({
@@ -233,18 +300,10 @@ export const useRenderer = ({
           await videoEncoder.flush()
           videoSource.close()
           await output.finalize()
-          return outputTarget instanceof BufferTarget
-            ? (outputTarget.buffer ?? undefined)
-            : undefined
+          return bufferOf()
         }
 
-        return {
-          videoEncoder,
-          encodeFrame,
-          output,
-          videoSource,
-          finishEncoding,
-        }
+        return { encodeFrame, finishEncoding }
       }
 
       function getCanvasRecorder(canvas: HTMLCanvasElement) {
@@ -255,6 +314,13 @@ export const useRenderer = ({
       }
 
       try {
+        if (exportAlpha && !ALPHA_VIDEO_CODECS.includes(codec)) {
+          return fail(
+            'unsupported_codec',
+            new Error(`Transparent video needs the VP9 codec, not ${codec}`)
+          )
+        }
+
         // Checked before the save dialog, so a codec the browser refuses does not leave
         // an empty file behind. The check takes milliseconds, well inside the few
         // seconds the click that opens the dialog stays valid.
@@ -417,12 +483,13 @@ export const useRenderer = ({
     [projectName, sequenceLength, fps, bitrate, bitrateMode, canvasFrameReady, redraw, setPosition]
   )
 
-  // Image sequence export — same frame loop as video capture, writes individual PNGs.
+  // Image sequence export — same frame loop as video capture, writes one PNG or EXR per frame.
   const startSequenceCapture = useCallback(
     async ({
       canvas,
       getDeck,
       directoryHandle,
+      format = 'png',
       captureDelay = 200,
       waitForData = true,
       startFrame = 0,
@@ -433,6 +500,7 @@ export const useRenderer = ({
       canvas: HTMLCanvasElement
       getDeck?: () => Deck | null
       directoryHandle: FileSystemDirectoryHandle
+      format?: SequenceFormat
       captureDelay?: number
       waitForData?: boolean
       startFrame?: number
@@ -451,7 +519,7 @@ export const useRenderer = ({
       // Frames are captured at the canvas's own size
       const tracker = trackRender({
         source: 'menu',
-        format: 'png_sequence',
+        format: `${format}_sequence`,
         width: canvas.width,
         height: canvas.height,
         frameCount: totalFrames,
@@ -496,6 +564,9 @@ export const useRenderer = ({
           })
 
       try {
+        // Load the encoder before the first frame so a failed chunk load stops the export early
+        if (format === 'exr') await loadExrEncoder()
+
         // Use captureStream + requestFrame to read from the browser compositor rather than
         // the raw GL framebuffer (which is cleared after the buffer swap when
         // preserveDrawingBuffer is false). Inside the try: captureStream throws on a
@@ -528,7 +599,7 @@ export const useRenderer = ({
           totalWaitTime += waitEnd - waitStart
 
           const frameNumber = String(i).padStart(padLength, '0')
-          const filename = `${projectName}_${frameNumber}.png`
+          const filename = `${projectName}_${frameNumber}.${format}`
 
           // Drain oldest write if the queue is full before capturing the next frame
           if (pendingWrites.length >= MAX_CONCURRENT_WRITES) {
@@ -536,7 +607,7 @@ export const useRenderer = ({
           }
 
           // Capture via compositor: requestFrame reads from the display buffer, not the
-          // GL buffer (which may already be cleared). Draw into OffscreenCanvas for PNG.
+          // GL buffer (which may already be cleared). Draw into OffscreenCanvas to encode.
           const captureStart = performance.now()
           // @ts-expect-error - typescript types not updated yet
           track.requestFrame()
@@ -547,11 +618,15 @@ export const useRenderer = ({
           assert(frame, 'frame is required - might be a problem with the browser')
 
           const convertStart = performance.now()
-          const offscreen = new OffscreenCanvas(frame.displayWidth, frame.displayHeight)
-          const ctx = offscreen.getContext('2d')!
+          const { displayWidth: width, displayHeight: height } = frame
+          const offscreen = new OffscreenCanvas(width, height)
+          const ctx = offscreen.getContext('2d', { willReadFrequently: format === 'exr' })!
           ctx.drawImage(frame, 0, 0)
           frame.close()
-          const blob = await offscreen.convertToBlob({ type: 'image/png' })
+          const blob =
+            format === 'exr'
+              ? new Blob([await encodeExrFrame(ctx.getImageData(0, 0, width, height))])
+              : await offscreen.convertToBlob({ type: 'image/png' })
           const convertEnd = performance.now()
           totalConvertTime += convertEnd - convertStart
 

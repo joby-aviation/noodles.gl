@@ -165,8 +165,11 @@ Five facts shape `providers/webllm.ts`:
    with its result, and drops the middle. A transcript with no middle to drop (the
    task, one call, one result) is not retried, because the same prompt would overflow
    the same way. The error crosses the worker's
-   `postMessage` as its `toString()`, so the class is gone by the time the provider
-   sees it and only the `ContextWindowSizeExceededError` prefix in the message is left.
+   `postMessage` as its `toString()` and the engine rejects with that string, not an
+   `Error`, so the provider matches the `ContextWindowSizeExceededError` prefix in
+   the text. Its token count is only the tokens added this step: the engine checks
+   them plus the KV cache it kept from earlier steps, so an overflow can read as
+   "446 tokens; context window size 4096".
 3. **Inference runs in a worker** (`webllm-worker.ts`). On the main thread the GPU
    submit loop competes with deck.gl's and the map stutters for the length of every
    answer. `vite.config.js` sets `worker.format: 'es'` for this: the worker's
