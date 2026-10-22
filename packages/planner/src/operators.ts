@@ -121,6 +121,12 @@ export interface OpDef {
   lower?: (ctx: LowerCtx) => LowerResult;
   /** Scalar operators compute a number from their parameters and the clock. */
   scalar?: (p: ScalarParams, clock: { T: number; F: number }) => number;
+  /**
+   * Number outputs that are statistics of the rows: computed in the layer's SQL, not by the
+   * scalar program. A parameter wired from one binds the statistic, so it lives in the same
+   * plan as the rows it summarizes.
+   */
+  stats?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -258,14 +264,17 @@ export const OPERATORS: OpDef[] = [
   },
   {
     type: 'geojson', label: 'GeoJSON', category: 'data',
-    description: 'A GeoJSON file as vertex rows: polygons (id, ring, vertex), lines (id, vertex) and points, with each feature\'s properties as columns.',
+    description: 'A GeoJSON file as vertex rows: polygons (id, ring, vertex), lines (id, vertex) and points, with each feature\'s properties as columns. `all` has every row, with a `kind` column.',
     inputs: [],
-    outputs: [{ name: 'polygons', type: 'table' }, { name: 'lines', type: 'table' }, { name: 'points', type: 'table' }],
+    outputs: [
+      { name: 'all', type: 'table' }, { name: 'polygons', type: 'table' },
+      { name: 'lines', type: 'table' }, { name: 'points', type: 'table' },
+    ],
     params: [{ name: 'url', label: 'URL', kind: 'url', default: '' }],
     lower(ctx) {
       const url = ctx.str('url');
       if (!url) ctx.error('GeoJSON needs a URL');
-      const kinds = ['polygons', 'lines', 'points'] as const;
+      const kinds = ['all', 'polygons', 'lines', 'points'] as const;
       return {
         nodes: kinds.map((kind) => ({
           id: `${ctx.id}#${kind}`, type: 'source' as const, dataset: { ref: url },
@@ -597,6 +606,18 @@ export const OPERATORS: OpDef[] = [
     params: [{ name: 'color', label: 'Color', kind: 'color', default: [255, 255, 255] }],
   },
   {
+    type: 'extent', label: 'Extent', category: 'rows', stats: true,
+    description: 'The minimum and maximum of an expression over the rows that reach it, computed in SQL. Wire min or max into another node\'s parameter, e.g. a Map Range\'s In max.',
+    inputs: [table()],
+    outputs: [{ name: 'min', type: 'number' }, { name: 'max', type: 'number' }],
+    params: [{ name: 'input', label: 'Input', kind: 'expr', default: 'value', of: 'in' }],
+    lower: (ctx) => ({
+      // Statistics publish `<id>_min` and `<id>_max`, so the id must be a parameter name.
+      nodes: [{ id: safeId(ctx.id), type: 'stats', input: ctx.input('in'), column: ctx.expr('input'), ops: ['min', 'max'] }],
+      outputs: {},
+    }),
+  },
+  {
     type: 'distance', label: 'Distance', category: 'rows',
     description: 'Great-circle distance in km between two lng/lat points (haversine).',
     inputs: [table()], outputs: [out()],
@@ -723,13 +744,14 @@ export const OPERATORS: OpDef[] = [
       rampParam,
       { name: 'widthScale', label: 'Width scale', kind: 'float', default: 2, min: 0, max: 50, step: 0.1, bind: 'prop', folder: 'Style', port: true },
       { name: 'widthMinPixels', label: 'Min width (px)', kind: 'float', default: 1, min: 0, max: 20, step: 0.5, bind: 'prop', folder: 'Style' },
+      { name: 'widthUnits', label: 'Width units', kind: 'menu', default: 'pixels', options: [{ value: 'pixels', label: 'Pixels' }, { value: 'meters', label: 'Metres' }], folder: 'Style' },
       { name: 'lineColor', label: 'Line color', kind: 'color', default: [120, 200, 255], folder: 'Style' },
       opacity,
       blendParam,
     ],
     lower: (ctx) => lowerLayer(ctx, 'path',
       [{ channel: 'position', param: 'position' }, { channel: 'color', param: 'color' }, { channel: 'width', param: 'width' }],
-      { widthScale: ctx.bind('widthScale'), widthMinPixels: ctx.bind('widthMinPixels'), color: ctx.bindColor('lineColor'), opacity: ctx.bind('opacity') },
+      { widthScale: ctx.bind('widthScale'), widthMinPixels: ctx.bind('widthMinPixels'), widthUnits: ctx.str('widthUnits'), color: ctx.bindColor('lineColor'), opacity: ctx.bind('opacity') },
       { pathId: ctx.str('pathId'), orderBy: [ctx.str('order')].filter(Boolean) }),
   },
   {

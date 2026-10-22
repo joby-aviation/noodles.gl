@@ -25,7 +25,7 @@ interface Feature {
 }
 
 /** Column names the geometry uses; a property with one of these names gets a `p_` prefix. */
-const RESERVED = new Set(['id', 'feature', 'ring', 'vertex', 'lng', 'lat', 'alt'])
+const RESERVED = new Set(['kind', 'id', 'feature', 'ring', 'vertex', 'lng', 'lat', 'alt'])
 
 interface Builder {
   id: number[]
@@ -40,7 +40,7 @@ interface Builder {
   next: number
 }
 
-const builder = (kind: GeojsonKind): Builder => ({
+const builder = (kind: Exclude<GeojsonKind, 'all'>): Builder => ({
   id: [],
   feature: [],
   ...(kind === 'polygons' ? { ring: [] } : {}),
@@ -71,7 +71,9 @@ function openRing(ring: Position[]): Position[] {
   return closed ? ring.slice(0, -1) : ring
 }
 
-function addGeometry(g: Geometry | null, f: number, out: Record<GeojsonKind, Builder>) {
+type Builders = Record<Exclude<GeojsonKind, 'all'>, Builder>
+
+function addGeometry(g: Geometry | null, f: number, out: Builders) {
   if (!g) return
   const c = g.coordinates as unknown
   const polygon = (rings: Position[][]) => {
@@ -154,7 +156,7 @@ function propertyColumns(all: Feature[], rows: number[]) {
 /** A GeoJSON value as one vertex-row table per geometry kind. */
 export function geojsonToTables(json: unknown): Record<GeojsonKind, Table> {
   const all = features(json)
-  const out: Record<GeojsonKind, Builder> = {
+  const out: Builders = {
     polygons: builder('polygons'),
     lines: builder('lines'),
     points: builder('points'),
@@ -177,7 +179,46 @@ export function geojsonToTables(json: unknown): Record<GeojsonKind, Table> {
       ...props,
     })
   }
-  return { polygons: table(out.polygons), lines: table(out.lines), points: table(out.points) }
+  // Every row in one table: polygons, then lines, then points, each kind's ids its own.
+  const kinds = [
+    ['polygon', out.polygons],
+    ['line', out.lines],
+    ['point', out.points],
+  ] as const
+  const merged: Builder = { ...builder('polygons'), vertex: [] }
+  const kindColumn: string[] = []
+  const rings: (number | null)[] = []
+  const vertices: (number | null)[] = []
+  for (const [kind, b] of kinds) {
+    for (let i = 0; i < b.id.length; i++) {
+      merged.id.push(b.id[i])
+      merged.feature.push(b.feature[i])
+      merged.lng.push(b.lng[i])
+      merged.lat.push(b.lat[i])
+      merged.alt.push(b.alt[i])
+      merged.rows.push(b.rows[i])
+      rings.push(b.ring ? b.ring[i] : null)
+      vertices.push(b.vertex ? b.vertex[i] : null)
+      kindColumn.push(kind)
+    }
+  }
+  const allTable = new Table({
+    kind: vectorFromArray(kindColumn, new Utf8()),
+    id: vectorFromArray(merged.id, new Int32()),
+    feature: vectorFromArray(merged.feature, new Int32()),
+    ring: vectorFromArray(rings, new Int32()),
+    vertex: vectorFromArray(vertices, new Int32()),
+    lng: vectorFromArray(merged.lng, new Float64()),
+    lat: vectorFromArray(merged.lat, new Float64()),
+    alt: vectorFromArray(merged.alt, new Float64()),
+    ...propertyColumns(all, merged.rows),
+  })
+  return {
+    all: allTable,
+    polygons: table(out.polygons),
+    lines: table(out.lines),
+    points: table(out.points),
+  }
 }
 
 /** Load a GeoJSON file into the tables its `geojson` source reads. */
@@ -188,7 +229,7 @@ export async function loadGeojson(
 ): Promise<Record<GeojsonKind, number>> {
   const tables = geojsonToTables(JSON.parse(text))
   const rows = {} as Record<GeojsonKind, number>
-  for (const kind of ['polygons', 'lines', 'points'] as const) {
+  for (const kind of ['all', 'polygons', 'lines', 'points'] as const) {
     await insert(geojsonTable(url, kind), tableToIPC(tables[kind], 'stream'))
     rows[kind] = tables[kind].numRows
   }

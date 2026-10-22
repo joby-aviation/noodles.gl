@@ -3,6 +3,7 @@ import { resolve } from 'node:path'
 import { lowerDocument, parameterValues } from '@noodles.gl/planner'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { type NodeDuck, openNodeDuck } from '../__tests__/duckdb-node'
+import { loadGeojson } from '../geojson'
 import { ProgramRuntime } from '../program-runtime'
 import { registerNoodlesRamps } from '../ramps'
 import { type NoodlesProject, toEditorDoc, translateAccessor } from './to-editor-doc'
@@ -127,10 +128,74 @@ describe('toEditorDoc', () => {
     expect(hubble.warnings).toContain('timeline keyframes are not converted yet')
   })
 
-  it('refuses accessor layers rather than keeping their accessors', () => {
+  it('refuses accessors it cannot express, rather than keeping them as accessors', () => {
+    // BART's line colors are hex strings per feature.
     expect(() => toEditorDoc(example('geojson-example'))).toThrow(
-      /GeoJsonLayerOp takes per-row accessors/
+      /needs JS the planner can't express/
     )
     expect(() => toEditorDoc(example('world-flights'))).toThrow()
+  })
+})
+
+describe('toEditorDoc with GeoJSON', () => {
+  async function runGeojson(name: string, file: string) {
+    const { doc, warnings } = toEditorDoc(example(name))
+    const lowered = lowerDocument(doc)
+    expect(lowered.errors).toEqual([])
+    const source = doc.nodes.find(n => n.op === 'geojson')
+    const url = String(source?.params.url)
+    await loadGeojson(
+      url,
+      readFileSync(resolve(`src/examples/${name}/${file}`), 'utf8'),
+      (t, ipc) => duck.insertArrow(t, ipc)
+    )
+    const runtime = new ProgramRuntime(duck)
+    await runtime.setGraph(lowered.graph, parameterValues(lowered, { T: 0, F: 0 }).values)
+    expect(runtime.program()?.errors).toEqual([])
+    const layers = Object.fromEntries(runtime.layers().map(l => [l.id, l]))
+    return { doc, warnings, layers }
+  }
+
+  it('converts nyc-census to extruded polygons colored and raised by population', async () => {
+    const { doc, layers } = await runGeojson('nyc-census', 'data.json')
+    const fill = layers['/geojson-layer']
+    expect(fill.error).toBeUndefined()
+    expect(fill.plan.kind).toBe('polygon')
+    expect(fill.props).toMatchObject({ extruded: true, elevationScale: 11, stroked: false })
+    // One deck polygon per census tract polygon (2,125 Polygons + 41 MultiPolygons' parts).
+    expect(fill.data?.starts?.length).toBeGreaterThan(2166)
+    expect(fill.data?.attributes.has('population_to_elevation')).toBe(true)
+    expect(fill.data?.attributes.has('population_color')).toBe(true)
+    // The file has no lines or points; those layers draw nothing.
+    expect(layers['/geojson-layer-lines'].data?.rows ?? 0).toBe(0)
+    expect(doc.nodes.find(n => n.id === '/geojson-layer-polygon-rows')?.params.expression).toBe(
+      "kind == 'polygon'"
+    )
+  })
+
+  it('converts us-county-unemployment, with the color domain from an Extent in SQL', async () => {
+    const { doc, layers } = await runGeojson('us-county-unemployment', 'data.geojson')
+    expect(doc.nodes.find(n => n.id === '/extent')).toMatchObject({
+      op: 'extent',
+      params: { input: 'coalesce(unemployment_rate, 0)' },
+    })
+    const fill = layers['/geojson-layer']
+    expect(fill.error).toBeUndefined()
+    const stats = fill.plan.plan.stats
+    expect(stats.map(st => st.outputs.map(o => o.param))).toEqual([['_extent_min', '_extent_max']])
+    const color = fill.data?.attributes.get('unemployment_color')
+    expect(color && [...color.data].some(Number.isNaN)).toBe(false)
+  })
+
+  it('converts sf-elevation-contours, with fill and outline colored by elevation', () => {
+    const { doc } = toEditorDoc(example('sf-elevation-contours'))
+    expect(lowerDocument(doc).errors).toEqual([])
+    expect(doc.nodes.find(n => n.id === '/geojson-layer')?.params).toMatchObject({
+      color: 'elevation_color',
+      lineColorChannel: 'elevation_color',
+      lineWidthScale: 8,
+      lineWidthMinPixels: 0.2,
+      opacity: 0.38,
+    })
   })
 })

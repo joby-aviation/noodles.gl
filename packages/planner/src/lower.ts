@@ -18,7 +18,7 @@
  * is what lets the optimizer price an animation like the slider it effectively is.
  */
 
-import type { Graph, GraphNode, ParamSpec, DeckNode, LayerNode } from './types.js';
+import { statParamName, type Graph, type GraphNode, type ParamSpec, type DeckNode, type LayerNode, type StatOp } from './types.js';
 import { parseExpr, type Expr } from './expr.js';
 import { toJs } from './backends/js.js';
 import { evaluateTrack, type Track } from './keyframes.js';
@@ -256,6 +256,11 @@ export function lowerDocument(doc: EditorDoc, options: LowerOptions = {}): Lower
   const sourceFor = (node: DocNode, def: ParamDef | undefined, param: string, value: ParamValue | undefined): Source => {
     const key = slotKey(node.id, param);
     const edge = paramEdge.get(key);
+    if (edge && OPERATOR_INDEX.get(byId.get(edge.source)?.op ?? '')?.stats) {
+      // A statistic binds in the plan (see `bind`); the scalar program has no value for it.
+      references.push({ from: slotKey(edge.source, edge.sourcePort), to: key });
+      return { kind: 'literal', value: 0 };
+    }
     if (edge) {
       references.push({ from: slotKey(edge.source, 'out'), to: key });
       return { kind: 'alias', key: slotKey(edge.source, 'out') };
@@ -398,6 +403,12 @@ export function lowerDocument(doc: EditorDoc, options: LowerOptions = {}): Lower
       bool: (param) => { const v = literal(param); return v === true || v === 'true' || v === 1; },
       bind(param) {
         const d = defOf(param);
+        const stat = paramEdge.get(slotKey(id, param));
+        const statNode = stat ? byId.get(stat.source) : undefined;
+        if (stat && statNode && OPERATOR_INDEX.get(statNode.op)?.stats) {
+          if (!lowerNode(statNode.id)) ctx.error(`input '${nameOf(statNode)}' failed`);
+          return `{{${statParamName(safeId(statNode.id), stat.sourcePort as StatOp)}}}`;
+        }
         const binding = bindingOf(d);
         if (binding === 'structural') return String(literal(param));
         return `{{${registerParam(slotKey(id, param), d, `${nameOf(node)} ${d.label}`, binding)}}}`;

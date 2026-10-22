@@ -77,6 +77,29 @@ const DEFAULTS: Record<string, Record<string, unknown>> = {
     getWidth: 1,
     getHeight: 1,
   },
+  GeoJsonLayerOp: {
+    visible: true,
+    opacity: 1,
+    pointType: 'circle',
+    getPointRadius: 1,
+    pointRadiusUnits: 'meters',
+    pointRadiusScale: 1,
+    getText: '',
+    getTextSize: 32,
+    getTextColor: '#000000',
+    textSizeScale: 1,
+    filled: true,
+    getFillColor: '#006ac6',
+    stroked: true,
+    getLineColor: '#000000',
+    getLineWidth: 1,
+    lineWidthUnits: 'meters',
+    lineWidthScale: 1,
+    lineWidthMinPixels: 0,
+    extruded: false,
+    getElevation: 1000,
+    elevationScale: 1,
+  },
   MapRangeOp: { val: 0, inMin: 0, inMax: 1, outMin: 0, outMax: 1 },
   ColorRampOp: { colorScheme: 'viridis', value: 0 },
   MathOp: { operator: 'add', a: 0, b: 0 },
@@ -125,7 +148,7 @@ const ACCESSOR_OPS = new Set(
 
 /** Deck inputs that pass host values through to deck and MapLibre. */
 /** Layers and sources the planner draws and reads itself. */
-const PLANNER_LAYERS = new Set(['ScatterplotLayerOp', 'ArcLayerOp'])
+const PLANNER_LAYERS = new Set(['ScatterplotLayerOp', 'ArcLayerOp', 'GeoJsonLayerOp'])
 const PLANNER_SOURCES = new Set(['FileOp', 'DuckDbOp'])
 
 const DECK_VALUE_PORTS = ['views', 'effects', 'widgets', 'viewState', 'maplibreLayers']
@@ -177,7 +200,10 @@ export function translateAccessor(js: string): string | undefined {
   // Anything beyond column reads and Math is a host expression.
   if (/\bop\(|\bdata\b|\bi\b|=>|`|\.\w+\(/.test(text.replace(/\bMath\.\w+\(/g, '')))
     return undefined
+  // Strings are text, and text has no per-row number or color: only a text channel reads it.
+  if (/['"]/.test(text)) return undefined
   text = text
+    .replace(/\bd\.properties\.([A-Za-z_]\w*)/g, '$1')
     .replace(/\bd\.([A-Za-z_]\w*)/g, '$1')
     .replace(/\bMath\.PI\b/g, String(Math.PI))
     .replace(/\bMath\.E\b/g, String(Math.E))
@@ -186,6 +212,10 @@ export function translateAccessor(js: string): string | undefined {
     .replace(/===/g, '==')
     .replace(/!==/g, '!=')
   if (/\bd\b/.test(text)) return undefined
+  // `a ?? b` at the top level: a property some features lack.
+  const parts = text.split('??')
+  if (parts.length === 2) text = `coalesce(${parts[0].trim()}, ${parts[1].trim()})`
+  else if (parts.length > 2) return undefined
   try {
     parseExpr(text)
   } catch {
@@ -346,13 +376,26 @@ export function toEditorDoc(project: NoodlesProject): Migrated {
 
   // --- data sources --------------------------------------------------------------------
   const sources = new Map<string, string>()
-  const source = (id: string): string => {
+  /** The output port a source's rows leave by: `out`, or a GeoJSON source's `all`. */
+  const sourcePort = new Map<string, string>()
+  const source = (id: string, geometry = false): string => {
     const cached = sources.get(id)
     if (cached) return cached
     const n = byId.get(id)
     if (!n) throw new MigrationError(`Missing node ${id}`)
     const i = inputs(n)
-    if (n.type === 'FileOp' && i.format === 'csv' && typeof i.url === 'string') {
+    if (geometry) {
+      const format = String(i.format)
+      if (
+        n.type !== 'FileOp' ||
+        !['json', 'geojson'].includes(format) ||
+        typeof i.url !== 'string'
+      ) {
+        throw new MigrationError(`${id} (${n.type}) is not a GeoJSON file`)
+      }
+      nodes.push({ id, op: 'geojson', name: segment(id), ...position(n), params: { url: i.url } })
+      sourcePort.set(id, 'all')
+    } else if (n.type === 'FileOp' && i.format === 'csv' && typeof i.url === 'string') {
       nodes.push({
         id,
         op: 'file',
@@ -387,6 +430,32 @@ export function toEditorDoc(project: NoodlesProject): Migrated {
     const e = incomingOne(nodeId, field)
     if (!e) return { kind: 'const', value: literal }
     return resolveOutput(src, e.source)
+  }
+
+  /**
+   * An ExtentOp as a planner extent: min and max computed in SQL over the source's rows. Its
+   * data must be those rows (directly, or ExpressionOp `d.features` of a GeoJSON source) and its
+   * accessor an expression the planner can read.
+   */
+  const extentNode = (src: string, id: string) => {
+    if (used.has(id)) return
+    const n = byId.get(id) as NoodlesNode
+    let data = incomingOne(id, 'data')?.source
+    const via = data ? byId.get(data) : undefined
+    if (via?.type === 'ExpressionOp' && String(inputs(via).expression).trim() === 'd.features') {
+      used.add(via.id)
+      data = incomingOne(via.id, 'data')?.source
+    }
+    if (data !== src) throw new MigrationError(`${id}: an Extent over other rows is not converted`)
+    const accessor = byId.get(incomingOne(id, 'accessor')?.source ?? '')
+    const expr =
+      accessor?.type === 'AccessorOp'
+        ? translateAccessor(String(inputs(accessor).expression))
+        : undefined
+    if (!expr) throw new MigrationError(`${id}: its accessor needs JS the planner can't express`)
+    used.add(id)
+    nodes.push({ id, op: 'extent', name: segment(id), ...position(n), params: { input: expr } })
+    edge(src, sourcePort.get(src) ?? 'out', id, 'in')
   }
 
   const resolveOutput = (src: string, id: string): Value => {
@@ -429,21 +498,32 @@ export function toEditorDoc(project: NoodlesProject): Migrated {
           const [a, b, c, d] = ['inMin', 'inMax', 'outMin', 'outMax'].map(k => num(i[k], 0))
           return { kind: 'const', value: c + ((d - c) * (num(val.value, 0) - a)) / (b - a) }
         }
-        return add(
-          'map-range',
-          {
-            input: exprOf(val, 'val'),
-            name: attribute,
-            kind: 'linear',
-            inMin: num(i.inMin, 0),
-            inMax: num(i.inMax, 1),
-            outMin: num(i.outMin, 0),
-            outMax: num(i.outMax, 1),
-            // d3's scaleLinear, which MapRange used, does not clamp.
-            clamp: false,
-          },
-          rowReads(val)
-        )
+        const params: Record<string, ParamValue> = {
+          input: exprOf(val, 'val'),
+          name: attribute,
+          kind: 'linear',
+          // d3's scaleLinear, which MapRange used, does not clamp.
+          clamp: false,
+        }
+        for (const [k, fallback] of [
+          ['inMin', 0],
+          ['inMax', 1],
+          ['outMin', 0],
+          ['outMax', 1],
+        ] as const) {
+          const e = incomingOne(id, k)
+          if (e && byId.get(e.source)?.type === 'ExtentOp') {
+            extentNode(src, e.source)
+            edge(e.source, handleField(e.sourceHandle), id, `par:${k}`)
+          } else if (e) {
+            throw new MigrationError(
+              `${id}: ${k} from ${byId.get(e.source)?.type} is not converted`
+            )
+          } else {
+            params[k] = num(i[k], fallback)
+          }
+        }
+        return add('map-range', params, rowReads(val))
       }
       case 'ColorRampOp': {
         const value = resolve(src, id, 'value', i.value)
@@ -589,6 +669,179 @@ export function toEditorDoc(project: NoodlesProject): Migrated {
     })
   }
 
+  /**
+   * A GeoJsonLayer as the planner layers it draws: polygons (fill and outline), lines and
+   * points (circles, labels), each reading its kind of row from the source's `all` table through
+   * one shared chain of attribute nodes. Its sublayer order is GeoJsonLayer's.
+   */
+  const geojsonLayer = (
+    layer: NoodlesNode,
+    src: string,
+    i: Record<string, unknown>,
+    v: (field: string) => Value,
+    common: Record<string, ParamValue>,
+    index: number
+  ) => {
+    const at = position(layer)
+    const rows = (kind: 'polygon' | 'line' | 'point', dy: number) => {
+      const id = `${layer.id}-${kind}-rows`
+      nodes.push({
+        id,
+        op: 'filter',
+        name: segment(id),
+        x: at.x - 260,
+        y: at.y + dy,
+        params: { mode: 'expression', expression: `kind == '${kind}'` },
+      })
+      layerSource.set(id, src)
+      return id
+    }
+    const draw = (
+      id: string,
+      op: string,
+      from: string,
+      dy: number,
+      params: Record<string, ParamValue>,
+      k: number
+    ) => {
+      nodes.push({
+        id,
+        op,
+        name: segment(id),
+        x: at.x,
+        y: at.y + dy,
+        params: { ...common, ...params },
+      })
+      edge(from, 'out', id, 'in')
+      edge(id, 'out', deckOp.id, 'layers', index * 10 + k)
+    }
+    const constant = (value: Value, field: string): number => {
+      if (value.kind !== 'const')
+        throw new MigrationError(`${layer.id}: a per-row ${field} is not converted`)
+      return num(value.value, 0)
+    }
+    const fill = colorInput(colorChannel(v('getFillColor')), layer.id, 'getFillColor')
+    const line = colorInput(colorChannel(v('getLineColor')), layer.id, 'getLineColor')
+    const lineWidth = constant(v('getLineWidth'), 'getLineWidth') * num(i.lineWidthScale, 1)
+    const geo = { position: '[lng, lat]', pathId: 'id', order: 'vertex' }
+
+    const elevation = v('getElevation')
+    draw(
+      layer.id,
+      'polygon',
+      rows('polygon', 0),
+      0,
+      {
+        ...geo,
+        ringId: 'ring',
+        color: fill.channel ?? '',
+        ...(fill.color ? { fillColor: fill.color } : {}),
+        lineColorChannel: line.channel ?? '',
+        ...(line.color ? { lineColor: line.color } : {}),
+        filled: i.filled !== false,
+        stroked: i.stroked !== false,
+        lineWidthScale: lineWidth,
+        lineWidthUnits: String(i.lineWidthUnits),
+        lineWidthMinPixels: num(i.lineWidthMinPixels, 0),
+        extruded: i.extruded === true,
+        elevation: elevation.kind === 'row' ? elevation.expr : '',
+        elevationScale:
+          num(i.elevationScale, 1) *
+          (elevation.kind === 'row' ? 1 : constant(elevation, 'getElevation')),
+      },
+      0
+    )
+    draw(
+      `${layer.id}-lines`,
+      'path',
+      rows('line', 160),
+      160,
+      {
+        ...geo,
+        color: line.channel ?? '',
+        ...(line.color ? { lineColor: line.color } : {}),
+        widthScale: lineWidth,
+        widthUnits: String(i.lineWidthUnits),
+        widthMinPixels: num(i.lineWidthMinPixels, 0),
+      },
+      1
+    )
+    const pointType = String(i.pointType)
+    const points = rows('point', 320)
+    if (pointType.includes('circle')) {
+      draw(
+        `${layer.id}-points`,
+        'scatter',
+        points,
+        320,
+        {
+          position: '[lng, lat]',
+          color: fill.channel ?? '',
+          ...(fill.color ? { fillColor: fill.color } : {}),
+          radius: '',
+          radiusScale: constant(v('getPointRadius'), 'getPointRadius') * num(i.pointRadiusScale, 1),
+          radiusUnits: String(i.pointRadiusUnits),
+        },
+        2
+      )
+    }
+    if (pointType.includes('text')) {
+      const text = v('getText')
+      if (text.kind !== 'row' || !/^[A-Za-z_]\w*$/.test(text.expr)) {
+        throw new MigrationError(`${layer.id}: point text must be a property`)
+      }
+      // A text channel names a column; drop the attribute node that only copied it.
+      const copy = [...chains.values()]
+        .flatMap(c => [...c.entries()])
+        .find(([, r]) => r.attribute === text.expr)
+      const column =
+        copy && copy[1].node.op === 'attribute' ? String(copy[1].node.params.expression) : text.expr
+      if (copy && column !== text.expr) {
+        for (const c of chains.values()) c.delete(copy[0])
+        used.add(copy[0])
+      }
+      const textColor = colorInput(v('getTextColor'), layer.id, 'getTextColor')
+      draw(
+        `${layer.id}-labels`,
+        'text',
+        points,
+        400,
+        {
+          position: '[lng, lat]',
+          text: column,
+          size: constant(v('getTextSize'), 'getTextSize') * num(i.textSizeScale, 1),
+          ...(textColor.color ? { textColor: textColor.color } : {}),
+          offsetY: 0,
+        },
+        3
+      )
+    }
+    if (pointType.includes('icon')) warnings.push(`${layer.id}: icon points are not converted`)
+    dropUnmapped(layer, [
+      'opacity',
+      'visible',
+      'pointType',
+      'getPointRadius',
+      'pointRadiusUnits',
+      'pointRadiusScale',
+      'getText',
+      'getTextSize',
+      'getTextColor',
+      'textSizeScale',
+      'filled',
+      'getFillColor',
+      'stroked',
+      'getLineColor',
+      'getLineWidth',
+      'lineWidthUnits',
+      'lineWidthScale',
+      'lineWidthMinPixels',
+      'extruded',
+      'getElevation',
+      'elevationScale',
+    ])
+  }
+
   // --- layers, in the deck's order -------------------------------------------------------
   const layerEdges = incoming(deckOp.id, 'layers')
   const layerSource = new Map<string, string>()
@@ -602,8 +855,8 @@ export function toEditorDoc(project: NoodlesProject): Migrated {
     }
     const dataEdge = incomingOne(layer.id, 'data')
     if (!dataEdge) throw new MigrationError(`${layer.id} has no data`)
-    const src = source(dataEdge.source)
-    layerSource.set(layer.id, src)
+    const src = source(dataEdge.source, layer.type === 'GeoJsonLayerOp')
+    if (layer.type !== 'GeoJsonLayerOp') layerSource.set(layer.id, src)
     const i = inputs(layer)
     const v = (field: string) => resolve(src, layer.id, field, i[field])
     const params: Record<string, ParamValue> = {
@@ -696,11 +949,16 @@ export function toEditorDoc(project: NoodlesProject): Migrated {
         ])
         break
       }
+      case 'GeoJsonLayerOp': {
+        geojsonLayer(layer, src, i, v, params, index)
+        used.add(layer.id)
+        return
+      }
       default:
         throw new MigrationError(`${layer.id}: ${layer.type} is not converted yet`)
     }
     used.add(layer.id)
-    edge(layer.id, 'out', deckOp.id, 'layers', index)
+    edge(layer.id, 'out', deckOp.id, 'layers', index * 10)
   })
 
   for (const port of DECK_VALUE_PORTS) {
@@ -727,15 +985,17 @@ export function toEditorDoc(project: NoodlesProject): Migrated {
     }
     for (const r of rows) visit(r)
     let head = src
+    let port = sourcePort.get(src) ?? 'out'
     for (const r of ordered) {
       nodes.push(r.node)
-      edge(head, 'out', r.node.id, 'in')
+      edge(head, port, r.node.id, 'in')
       head = r.node.id
+      port = 'out'
     }
-    for (const [layer, from] of layerSource) if (from === src) edge(head, 'out', layer, 'in')
+    for (const [layer, from] of layerSource) if (from === src) edge(head, port, layer, 'in')
   }
   for (const [layer, src] of layerSource) {
-    if (!chains.has(src)) edge(src, 'out', layer, 'in')
+    if (!chains.has(src)) edge(src, sourcePort.get(src) ?? 'out', layer, 'in')
   }
 
   for (const n of project.nodes) {

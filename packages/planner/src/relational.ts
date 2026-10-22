@@ -54,7 +54,7 @@ const STRING = /^(VARCHAR|TEXT|STRING|CHAR|BPCHAR|ENUM|UUID)/i;
 
 /** Classify a DuckDB type name. */
 /** The vertex-row tables a host loads for a GeoJSON file, one per geometry kind. */
-export const GEOJSON_KINDS = ['polygons', 'lines', 'points'] as const;
+export const GEOJSON_KINDS = ['all', 'polygons', 'lines', 'points'] as const;
 export type GeojsonKind = (typeof GEOJSON_KINDS)[number];
 
 /**
@@ -64,6 +64,8 @@ export type GeojsonKind = (typeof GEOJSON_KINDS)[number];
  *   polygons  id, feature, ring, vertex, lng, lat, ...properties   (ring 0 is the outline)
  *   lines     id, feature, vertex, lng, lat, ...properties
  *   points    id, feature, lng, lat, ...properties
+ *   all       the three together, with `kind` ('polygon' | 'line' | 'point'): one path for
+ *             attribute nodes shared by a fill, its lines and its points
  */
 export function geojsonTable(url: string, kind: GeojsonKind): string {
   return `__geojson_${hashOf(url)}_${kind}`;
@@ -138,7 +140,7 @@ export function sourceSql(node: SourceNode): string {
     throw new PlanError(`Source ${node.id}: a program source needs 'file' (format and url)`);
   }
   if (file.format === 'geojson') {
-    const kind = String(file.options?.geometry ?? 'polygons');
+    const kind = String(file.options?.geometry ?? 'all');
     if (!GEOJSON_KINDS.includes(kind as GeojsonKind)) {
       throw new PlanError(`Source ${node.id}: GeoJSON geometry must be one of ${GEOJSON_KINDS.join(', ')}`);
     }

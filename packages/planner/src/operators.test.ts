@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest'
 import { lowerDocument, parameterValues } from './lower.js'
 import { OPERATOR_INDEX, canConnect, paramAccepts, registerOperator, registerRamp } from './operators.js'
 import { buildRampLut, RAMP_STOPS } from './types.js'
+import { plan } from './planner.js'
+import { targetCaps } from './target.js'
 import type { EditorDoc } from './doc.js'
 import type { DeckNode, LayerNode } from './types.js'
 
@@ -144,3 +146,72 @@ describe('host operators', () => {
     ]);
   });
 });
+
+describe('extent', () => {
+  it('binds a wired min or max as a SQL statistic of the same layer', () => {
+    const doc = scatterDoc({ radius: 'r' }, [
+      { id: '/range', op: 'extent', x: 0, y: 0, params: { input: 'coalesce(y, 0.0)' } },
+      { id: 'size', op: 'map-range', x: 0, y: 0, params: { input: 'y', name: 'r', inMin: 0, outMin: 0, outMax: 10 } },
+    ])
+    doc.edges = [
+      { id: 'e1', source: 'src', sourcePort: 'out', target: 'size', targetPort: 'in' },
+      { id: 'e2', source: 'src', sourcePort: 'out', target: '/range', targetPort: 'in' },
+      { id: 'e3', source: '/range', sourcePort: 'max', target: 'size', targetPort: 'par:inMax' },
+      { id: 'e4', source: 'size', sourcePort: 'out', target: 'dots', targetPort: 'in' },
+      { id: 'e5', source: 'dots', sourcePort: 'out', target: 'map', targetPort: 'layers' },
+    ]
+    const lowered = lowerDocument(doc)
+    expect(lowered.errors).toEqual([])
+    const stats = lowered.graph.nodes.find((n) => n.type === 'stats')
+    expect(stats).toMatchObject({ id: '_range', column: 'coalesce(y, 0.0)', ops: ['min', 'max'] })
+    const scale = lowered.graph.nodes.find((n) => n.id === 'size') as { domain: string[] }
+    expect(scale.domain[1]).toBe('{{_range_max}}')
+    // No scalar parameter stands in for the statistic.
+    expect(Object.keys(lowered.graph.params ?? {}).some((k) => k.includes('inMax'))).toBe(false)
+  })
+})
+
+describe('predicate pushdown', () => {
+  it('moves a SQL-only filter ahead of CPU-only attributes it does not read', () => {
+    const graph = {
+      params: {},
+      nodes: [
+        { id: 'src', type: 'source' as const, dataset: { ref: 't' } },
+        { id: 'c', type: 'attribute' as const, input: 'src', name: 'Cd', expr: 'ramp(v / 10.0)' },
+        { id: 'only', type: 'filter' as const, input: 'c', predicate: "kind == 'polygon'" },
+        { id: 'l', type: 'layer' as const, kind: 'scatter' as const, input: 'only', channels: { position: 'P0' } },
+        { id: 'p', type: 'attribute' as const, input: 'src', name: 'P0', expr: '[x, y]' },
+      ],
+      output: 'l',
+    }
+    graph.nodes[3] = { ...graph.nodes[3], input: 'only' }
+    graph.nodes[1] = { ...graph.nodes[1], input: 'p' }
+    const schema = new Map([['v', 1], ['x', 1], ['y', 1], ['kind', 1]])
+    const physical = plan(graph as never, schema, {
+      policy: 'auto', relation: '"t"', columnTypes: new Map([['kind', 'str']]),
+      caps: targetCaps('deck-webgl2', undefined),
+    })
+    expect(physical.sql).toContain("WHERE")
+    expect(physical.sql).toContain("'polygon'")
+    expect(physical.notes.some((n) => n.includes('predicate pushdown'))).toBe(true)
+  })
+
+  it('keeps a filter behind the attribute it reads', () => {
+    const graph = {
+      params: {},
+      nodes: [
+        { id: 'src', type: 'source' as const, dataset: { ref: 't' } },
+        { id: 'a', type: 'attribute' as const, input: 'src', name: 'big', expr: 'v * 2.0' },
+        { id: 'f', type: 'filter' as const, input: 'a', predicate: 'big > 3.0' },
+        { id: 'l', type: 'layer' as const, kind: 'scatter' as const, input: 'f', channels: { position: 'P0' } },
+      ],
+      output: 'l',
+    }
+    graph.nodes.splice(1, 0, { id: 'p', type: 'attribute' as const, input: 'src', name: 'P0', expr: '[v, v]' } as never)
+    graph.nodes[2] = { ...graph.nodes[2], input: 'p' } as never
+    const physical = plan(graph as never, new Map([['v', 1]]), {
+      policy: 'auto', relation: '"t"', caps: targetCaps('deck-webgl2', undefined),
+    })
+    expect(physical.notes.some((n) => n.includes('predicate pushdown: f'))).toBe(false)
+  })
+})
