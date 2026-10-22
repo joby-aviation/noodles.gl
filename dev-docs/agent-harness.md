@@ -629,3 +629,6 @@ cloud provider as the ceiling — and grades the resulting project deterministic
 [README](../noodles-editor/bench/agent/README.md). It is how a change to the prompt,
 the tool surface or the context budget should be judged: run the matrix before and
 after, then `bench:agent:report --compare`.
+
+The release gate for recommending a local model, with its 200-case set and
+thresholds, is described in [agent-evaluation.md](agent-evaluation.md).
