@@ -1,5 +1,5 @@
 import * as turf from '@turf/turf'
-import { beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import {
   AggregateOp,
   AlongOp,
@@ -37,9 +37,22 @@ import {
   VoronoiOp,
   XYZTileOp,
 } from './operators'
+import operatorsSource from './operators.ts?raw'
 
+// Nothing in the app sets globalThis.turf, so an op that reads it throws in the
+// real editor. Trap reads here so every test below fails if an op does that.
+let globalTurfReads = 0
 beforeAll(() => {
-  ;(globalThis as unknown as Record<string, unknown>).turf = turf
+  Object.defineProperty(globalThis, 'turf', {
+    configurable: true,
+    get() {
+      globalTurfReads++
+      throw new Error('Operators must use the imported turf, not globalThis.turf')
+    },
+  })
+})
+afterAll(() => {
+  delete (globalThis as { turf?: unknown }).turf
 })
 
 const polygon = turf.polygon([
@@ -599,5 +612,18 @@ describe('Format Support Operators', () => {
     const op = new ShapefileOp('/shp')
     const result = await op.execute({ url: '', encoding: 'utf-8' })
     expect(result.featureCollection.features).toHaveLength(0)
+  })
+})
+
+describe('turf import', () => {
+  it('no operator reads library globals from globalThis', () => {
+    // Multi-line form, e.g. (globalThis as unknown as Record<string, unknown>)\n  .turf
+    const globalLibRead =
+      /globalThis\b[^\n]*?\)\s*\.\s*(turf|d3|deck|Plot)\b|globalThis\s*\.\s*(turf|d3|deck|Plot)\b|globalThis\[\s*['"](turf|d3|deck|Plot)['"]\s*\]/
+    expect(operatorsSource.match(globalLibRead)?.[0]).toBeUndefined()
+  })
+
+  it('no operator read globalThis.turf during the tests above', () => {
+    expect(globalTurfReads).toBe(0)
   })
 })

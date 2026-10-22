@@ -3,6 +3,7 @@ import { registerTimelineMutationCallback } from '../../timeline/timeline-store'
 import { analytics } from '../../utils/analytics'
 import { debugHistoryRedo, debugHistoryUndo } from '../../utils/debug'
 import type { GraphRef } from '../types'
+import { registerGraphMutationRecorder } from '../utils/graph-history'
 import { shouldBlockKeyboardShortcut } from '../utils/input-detection'
 import { registerLockChangeCallback } from '../utils/lock-history'
 import { registerPropertyMutationCallback } from '../utils/property-history'
@@ -48,6 +49,12 @@ export const UndoRedoHandler = forwardRef<UndoRedoHandlerRef, UndoRedoHandlerPro
       registerLockChangeCallback(undoRedo.recordLockChange)
       return () => registerLockChangeCallback(undefined)
     }, [undoRedo.recordLockChange])
+
+    // Register the graph mutation recorder so an accepted assistant proposal is one undo entry
+    useEffect(() => {
+      registerGraphMutationRecorder(undoRedo.recordGraphMutation)
+      return () => registerGraphMutationRecorder(undefined)
+    }, [undoRedo.recordGraphMutation])
 
     // Expose the undo/redo methods to parent component via ref
     useImperativeHandle(

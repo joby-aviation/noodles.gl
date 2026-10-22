@@ -17,7 +17,7 @@ import {
   Vec2Field,
   Vec3Field,
 } from '../fields'
-import { StringOp } from '../operators'
+import { NumberOp, StringOp } from '../operators'
 import { clearOps, setOp } from '../store'
 import { registerPropertyMutationCallback } from '../utils/property-history'
 import {
@@ -137,6 +137,51 @@ describe('NumberFieldComponent', () => {
 
     const input = screen.getByRole('spinbutton')
     expect(input).toHaveAttribute('step', '0.5')
+  })
+
+  it('derives the Number operator step from its current decimal precision', () => {
+    const op = new NumberOp('/number', { val: 0.25 })
+    render(<NumberFieldComponent id="val" field={op.inputs.val} disabled={false} />)
+
+    expect(screen.getByRole('spinbutton')).toHaveAttribute('step', '0.01')
+  })
+
+  it('increments a decimal Number operator by its derived precision', () => {
+    const op = new NumberOp('/number', { val: 0.25 })
+    render(<NumberFieldComponent id="val" field={op.inputs.val} disabled={false} />)
+    const input = screen.getByRole('spinbutton') as HTMLInputElement
+
+    fireEvent.focus(input)
+    input.stepUp()
+    fireEvent.input(input)
+
+    expect(op.inputs.val.value).toBe(0.26)
+    expect(input).toHaveAttribute('step', '0.01')
+  })
+
+  it('reacts to a restored explicit step override', () => {
+    const op = new NumberOp('/number', { val: 0.25 })
+    render(<NumberFieldComponent id="val" field={op.inputs.val} disabled={false} />)
+
+    act(() => op.inputs.val.setStepOverride(0.001))
+
+    expect(screen.getByRole('spinbutton')).toHaveAttribute('step', '0.001')
+  })
+
+  it('persists the precision selected while scrubbing', () => {
+    const op = new NumberOp('/number', { val: 0.25 })
+    setOp(op.id, op)
+    const { container } = render(
+      <NumberFieldComponent id="val" field={op.inputs.val} disabled={false} />
+    )
+    const wrapper = container.querySelector('[role="group"]') as HTMLElement
+
+    fireEvent.mouseDown(wrapper, { clientX: 100, clientY: 100 })
+    fireEvent.mouseMove(document, { clientX: 100, clientY: 120 })
+    fireEvent.mouseMove(document, { clientX: 120, clientY: 120 })
+
+    expect(op.inputs.val.stepOverride).toBe(0.001)
+    fireEvent.mouseUp(document)
   })
 })
 
@@ -988,9 +1033,8 @@ describe('NumberFieldComponent edge cases', () => {
     render(<NumberFieldComponent id="test-field" field={field} disabled={false} />)
 
     const input = screen.getByRole('spinbutton')
-    // The display rounds to 2 decimal places when not focused
-    expect(input).toHaveValue(1.23)
-    // But the field stores the full precision
+    // The display and field both preserve the full precision.
+    expect(input).toHaveValue(1.23456)
     expect(field.value).toBe(1.23456)
   })
 

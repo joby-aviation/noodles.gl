@@ -154,6 +154,8 @@ Projects are stored as JSON files with this structure:
 }
 ```
 
+**Validate every project file you write or edit** with `npm run validate:projects -- path/to/noodles.json` from the repo root (or the `noodles` MCP server's `validate_project`; never a bare `npx validate-projects`, which can fetch from npm). It checks operator types, input names, edge handles and the schema version against the operator registry, and names the fix for each error. The file is done when it prints `OK`.
+
 **Path Prefixes in File References:**
 
 - `@/` - Relative to project data directory
@@ -381,6 +383,8 @@ The chat panel (`noodles-editor/src/ai-chat/`) has its own agent loop, tool surf
 ## Using Claude Code with Noodles.gl
 
 See [dev-docs/claude-code-workflow.md](dev-docs/claude-code-workflow.md) for editing `noodles.json` directly, validating changes, graph design guidelines, and connecting to a running browser via WebMCP.
+
+The `noodles` MCP server (`.mcp.json`, [noodles-mcp](noodles-mcp/README.md)) looks up operator schemas, docs and example projects without a browser, and validates project files. The [`noodles-live`](.claude/skills/noodles-live/SKILL.md) skill covers changing a project open in the editor.
 
 ---
 

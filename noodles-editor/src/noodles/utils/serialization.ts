@@ -6,6 +6,7 @@ import type {
 } from '@xyflow/react'
 import { debugSerialize } from '../../utils/debug'
 import { resizeableNodes } from '../components/op-components'
+import { captureNodeUIMetadata } from '../fields'
 import { UnknownOperator } from '../operators'
 import type { useOperatorStore } from '../store'
 import { deepEqual } from './deep-equal'
@@ -17,16 +18,13 @@ import { parseHandleId } from './path-utils'
 
 export { NOODLES_VERSION } from './migrate-schema'
 
+// Older projects may also carry `algorithm` and `direction`; they are ignored on load
 export type AutoLayoutSettings = {
   enabled: boolean
-  algorithm: 'dagre' | 'd3-force' | 'semantic'
-  direction: 'LR' | 'TB'
 }
 
 export const DEFAULT_AUTO_LAYOUT: AutoLayoutSettings = {
   enabled: false,
-  algorithm: 'semantic',
-  direction: 'LR',
 }
 
 export type EditorSettings = {
@@ -237,6 +235,8 @@ export function serializeNodes(
       }
     }
 
+    const ui = captureNodeUIMetadata(op.inputs)
+
     preparedNodes.push({
       ...cleanedNode,
       ...(node.type && (resizeableNodes as readonly string[]).includes(node.type)
@@ -248,6 +248,7 @@ export function serializeNodes(
         ...(op.customInputDefinitions?.length > 0
           ? { customInputs: op.customInputDefinitions }
           : {}),
+        ...(ui ? { ui } : {}),
         ...visibilityData,
       },
     })

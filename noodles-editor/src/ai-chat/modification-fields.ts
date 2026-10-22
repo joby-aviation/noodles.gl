@@ -7,13 +7,23 @@
 // for FileOp, "out.vis" for out.layer — and never found out. The registry is the
 // same one get_operator_schema reads, so an error here names what the model
 // should have asked for.
+//
+// The checks and their wording come from noodles-validate, which validates
+// noodles.json files the same way, so an agent sees one set of messages.
 
+import {
+  handleProblem as describeHandleProblem,
+  getOperator,
+  resolveOperatorType,
+  type Side,
+  unknownInput,
+  unknownType,
+} from 'noodles-validate/fields'
 import type { OperatorRegistry, ProjectModification } from './types'
 
-// How many names a "has no input" error lists
-const FIELD_SUGGESTIONS = 15
+export { resolveOperatorType }
 
-type Side = 'inputs' | 'outputs'
+const ALL_TYPES = 'list_operators shows every type.'
 
 export interface FieldCheckContext {
   registry: OperatorRegistry
@@ -22,23 +32,6 @@ export interface FieldCheckContext {
   types: Map<string, string>
   // Fields a live operator has beyond its class's, e.g. user-defined custom inputs
   liveFields: (nodeId: string, side: Side) => string[]
-}
-
-// "File", "file", "FileOp" and "fileop" all name FileOp. Resolves a name that
-// matches exactly one operator by type or display name; returned unchanged
-// otherwise, so the check below can report it.
-export function resolveOperatorType(type: string, registry: OperatorRegistry): string {
-  const operators = registry.operators
-  if (operators[type]) return type
-  if (operators[`${type}Op`]) return `${type}Op`
-  const wanted = type.trim().toLowerCase()
-  const matches = Object.values(operators).filter(
-    op =>
-      op.type.toLowerCase() === wanted ||
-      op.type.toLowerCase() === `${wanted}op` ||
-      op.name.toLowerCase() === wanted
-  )
-  return matches.length === 1 ? matches[0].type : type
 }
 
 // A bare field name on an edge ("data") is unambiguous about which side it is on
@@ -51,8 +44,9 @@ export function qualifyHandle(handle: unknown, side: 'source' | 'target'): unkno
 export function checkFields(mod: ProjectModification, context: FieldCheckContext): string[] {
   switch (mod.type) {
     case 'add_node': {
-      const schema = context.registry.operators[mod.data.type]
-      if (!schema) return [unknownType(mod.data.type, context.registry)]
+      if (!getOperator(context.registry, mod.data.type)) {
+        return [unknownType(mod.data.type, context.registry, ALL_TYPES)]
+      }
       const declared = customInputNames(mod.data.data)
       return unknownInputs(mod.data.id, mod.data.type, inputsOf(mod.data.data), [
         ...fieldNames(context, mod.data.id, mod.data.type, 'inputs'),
@@ -61,7 +55,7 @@ export function checkFields(mod: ProjectModification, context: FieldCheckContext
     }
     case 'update_node': {
       const type = context.types.get(mod.data.id)
-      if (!type || !context.registry.operators[type]) return []
+      if (!type || !getOperator(context.registry, type)) return []
       const declared = customInputNames(mod.data.data)
       return unknownInputs(mod.data.id, type, inputsOf(mod.data.data), [
         ...fieldNames(context, mod.data.id, type, 'inputs'),
@@ -85,25 +79,10 @@ export function checkFields(mod: ProjectModification, context: FieldCheckContext
   }
 }
 
-function unknownType(type: string, registry: OperatorRegistry): string {
-  const wanted = type.toLowerCase().replace(/op$/, '')
-  const similar = Object.values(registry.operators)
-    .filter(op => op.type.toLowerCase().includes(wanted) || wanted.includes(op.name.toLowerCase()))
-    .map(op => op.type)
-    .slice(0, FIELD_SUGGESTIONS)
-  const hint =
-    similar.length > 0
-      ? ` Did you mean: ${similar.join(', ')}?`
-      : ' list_operators shows every type.'
-  return `Unknown operator type ${type}.${hint} Types end in "Op", e.g. FileOp, ScatterplotLayerOp.`
-}
-
 function unknownInputs(id: string, type: string, given: string[], known: string[]): string[] {
-  const missing = given.filter(name => !known.includes(name))
-  if (missing.length === 0) return []
-  return missing.map(
-    name => `${id} (${type}) has no input ${name}. ${suggest(name, known, 'Inputs')}`
-  )
+  return given
+    .filter(name => !known.includes(name))
+    .map(name => unknownInput(id, type, name, known))
 }
 
 function handleProblem(
@@ -114,22 +93,8 @@ function handleProblem(
 ): string | null {
   const type = context.types.get(nodeId)
   // An unknown node is checkTarget's to report, an unknown type add_node's
-  if (!type || !context.registry.operators[type]) return null
-
-  const prefix = side === 'outputs' ? 'out' : 'par'
-  const role = side === 'outputs' ? 'sourceHandle' : 'targetHandle'
-  const match = /^(par|out)\.(.+)$/.exec(handle)
-  const known = fieldNames(context, nodeId, type, side)
-  if (!match) {
-    return `${role} ${handle} is malformed: ${side === 'outputs' ? 'outputs' : 'inputs'} are "${prefix}.<name>". ${suggest('', known, side === 'outputs' ? 'Outputs' : 'Inputs', nodeId, prefix)}`
-  }
-  if (match[1] !== prefix) {
-    return `${role} ${handle} is on the wrong side: the ${side === 'outputs' ? 'source' : 'target'} of an edge is an ${side === 'outputs' ? 'output' : 'input'}, "${prefix}.<name>". ${suggest(match[2], known, side === 'outputs' ? 'Outputs' : 'Inputs', nodeId, prefix)}`
-  }
-  // The graph looks up everything after the prefix, so 'par.viewState.zoom' is a
-  // field named 'viewState.zoom', not the viewState field
-  if (known.includes(match[2])) return null
-  return `${nodeId} (${type}) has no ${side === 'outputs' ? 'output' : 'input'} ${match[2]}. ${suggest(match[2], known, side === 'outputs' ? 'Outputs' : 'Inputs', nodeId, prefix)}`
+  if (!type || !getOperator(context.registry, type)) return null
+  return describeHandleProblem(nodeId, type, handle, side, fieldNames(context, nodeId, type, side))
 }
 
 function fieldNames(
@@ -138,29 +103,8 @@ function fieldNames(
   type: string,
   side: Side
 ): string[] {
-  const fromClass = Object.keys(context.registry.operators[type]?.[side] ?? {})
+  const fromClass = Object.keys(getOperator(context.registry, type)?.[side] ?? {})
   return [...new Set([...fromClass, ...context.liveFields(nodeId, side)])]
-}
-
-// Names containing the wrong one first ("color" -> getFillColor, getLineColor),
-// otherwise the full list, so the next attempt is a pick rather than a guess
-function suggest(
-  name: string,
-  known: string[],
-  label: string,
-  nodeId?: string,
-  prefix?: string
-): string {
-  if (known.length === 0) return `It has no ${label.toLowerCase()}.`
-  const wanted = name.toLowerCase()
-  const similar = wanted
-    ? known.filter(k => k.toLowerCase().includes(wanted) || wanted.includes(k.toLowerCase()))
-    : []
-  const list = (similar.length > 0 ? similar : known).slice(0, FIELD_SUGGESTIONS)
-  const more = (similar.length > 0 ? similar : known).length - list.length
-  const shown = prefix ? list.map(k => `${prefix}.${k}`) : list
-  const where = nodeId ? ` on ${nodeId}` : ''
-  return `${similar.length > 0 ? 'Did you mean' : `${label}${where}`}: ${shown.join(', ')}${more > 0 ? ` (+${more} more)` : ''}.`
 }
 
 function inputsOf(data: Record<string, unknown> | undefined): string[] {
