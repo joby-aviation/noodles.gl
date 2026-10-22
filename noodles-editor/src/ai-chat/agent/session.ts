@@ -13,12 +13,10 @@ import {
   shouldCompact,
 } from '../conversation-compaction'
 import type { MCPTools } from '../mcp-tools'
-// Only the core prompt is always in context. The workflow walkthroughs live in
-// prompts/sections/ and reach the model through get_documentation on demand.
-import systemPromptTemplate from '../prompts/core.md?raw'
+import { getSystemPrompt } from '../system-prompt'
 import type { ClaudeResponse, Message } from '../types'
 import { runAgent } from './loop'
-import { createDelegateTool } from './subagent'
+import { createDelegateTool, delegateAvailable } from './subagent'
 import { ToolRouter } from './tool-router'
 import type { AgentContent, AgentEvent, AgentMessage, AgentProvider } from './types'
 import { createWebSearchTool, type WebSearchConfig } from './web-search'
@@ -42,6 +40,8 @@ export interface SessionOptions {
   // Enables web_search when the provider supports it. Omitted, the tool is not
   // offered at all, so the model never promises a search it cannot run.
   webSearch?: WebSearchConfig | null
+  // Overrides the step limit the loop derives from the context window
+  maxSteps?: number
 }
 
 export class AgentSession {
@@ -49,18 +49,29 @@ export class AgentSession {
   private tools: MCPTools
   // Lives as long as the session so tools unlocked on one turn stay available
   private router: ToolRouter
+  private maxSteps: number | undefined
 
   constructor(provider: AgentProvider, tools: MCPTools, options: SessionOptions = {}) {
     this.provider = provider
     this.tools = tools
+    this.maxSteps = options.maxSteps
 
     const webSearch = options.webSearch ? createWebSearchTool(options.webSearch) : null
     const childTools = webSearch ? [webSearch] : []
     // The sub-agent runs on the same provider by default; pointing it at a
-    // cheaper one is a change here and nowhere else.
-    const delegate = createDelegateTool({ provider, tools, harnessTools: childTools })
+    // cheaper one is a change here and nowhere else. On-device windows are too
+    // small to spend on a second loop whose report the parent cannot check.
+    const delegate = delegateAvailable(provider)
+      ? [createDelegateTool({ provider, tools, harnessTools: childTools })]
+      : []
 
-    this.router = new ToolRouter(provider.contextWindow, [...childTools, delegate])
+    this.router = new ToolRouter(provider.contextWindow, [...childTools, ...delegate])
+  }
+
+  // Called when the panel replaces this session. The Chrome provider holds an
+  // on-device session carrying the transcript; nothing reclaims it otherwise.
+  dispose() {
+    this.provider.dispose?.()
   }
 
   async send(params: SendParams): Promise<ClaudeResponse> {
@@ -80,13 +91,17 @@ export class AgentSession {
       { role: 'user', content: userContent },
     ]
 
+    // Edits the last run queued have landed or never will
+    this.tools.clearQueuedModifications()
+
     const result = await runAgent({
       provider: this.provider,
       tools: this.tools,
       router: this.router,
-      systemPrompt: systemPromptTemplate,
+      systemPrompt: getSystemPrompt(),
       messages,
       maxTokens: MAX_TOKENS,
+      maxSteps: this.maxSteps,
       signal: params.signal,
       onEvent: params.onEvent,
     })

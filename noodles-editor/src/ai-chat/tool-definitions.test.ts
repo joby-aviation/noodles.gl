@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { MCPTools } from './mcp-tools'
-import { getToolDefinition, toolDefinitions } from './tool-definitions'
+import { availableToolDefinitions, getToolDefinition, toolDefinitions } from './tool-definitions'
 
 // The full Noodles capability surface. Every definition is callable by both the
 // chat (via agent/tool-router.ts) and WebMCP — this list guards against a tool
@@ -11,6 +11,11 @@ const ALL_TOOL_NAMES = [
   'get_render_stats',
   'inspect_layer',
   'apply_modifications',
+  'run_code',
+  'list_files',
+  'read_file',
+  'write_file',
+  'grep_files',
   'get_current_project',
   'list_nodes',
   'get_node_info',
@@ -19,6 +24,8 @@ const ALL_TOOL_NAMES = [
   'set_keyframe',
   'delete_keyframe',
   'set_playback_position',
+  'export_video',
+  'get_export_status',
   'search_code',
   'get_source_code',
   'get_operator_schema',
@@ -64,9 +71,35 @@ describe('toolDefinitions', () => {
     expect(writeTools.sort()).toEqual([
       'apply_modifications',
       'delete_keyframe',
+      'export_video',
+      'run_code',
       'set_keyframe',
       'set_playback_position',
+      'write_file',
     ])
+  })
+
+  it('gates only run_code on availability', () => {
+    // Everything else must be unconditionally available, or WebMCP and the router
+    // would quietly disagree about the surface depending on how they were reached
+    const gated = toolDefinitions.filter(d => d.available).map(d => d.name)
+    expect(gated).toEqual(['run_code'])
+  })
+
+  it('keeps only the export tools out of the in-app chat', () => {
+    const external = toolDefinitions.filter(d => d.audience === 'external').map(d => d.name)
+    expect(external.sort()).toEqual(['export_video', 'get_export_status'])
+  })
+
+  it('hides external-only tools from chat lookups unless asked for', () => {
+    // The defaults are the chat's view, so discovery and dispatch in agent/ both miss them
+    expect(getToolDefinition('export_video')).toBeUndefined()
+    expect(availableToolDefinitions().some(d => d.name === 'export_video')).toBe(false)
+
+    expect(getToolDefinition('export_video', { includeExternal: true })?.name).toBe('export_video')
+    const all = availableToolDefinitions({ includeExternal: true }).map(d => d.name)
+    expect(all).toContain('export_video')
+    expect(all).toContain('get_export_status')
   })
 
   it('declares annotations on every definition', () => {

@@ -1,6 +1,6 @@
-import type { NoodlesProjectJSON } from '../utils/serialization'
 import type { RenderSettings } from '../utils/render-settings-constants'
 import { DEFAULT_RENDER_SETTINGS } from '../utils/render-settings-constants'
+import type { NoodlesProjectJSON } from '../utils/serialization'
 
 // Migration to move render settings from Theatre.js staticOverrides and project-level settings
 // to OutOp input fields.

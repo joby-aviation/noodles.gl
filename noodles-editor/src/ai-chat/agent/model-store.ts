@@ -51,9 +51,12 @@ export function getEnvModel(provider: ProviderId): string | undefined {
       return import.meta.env.VITE_ANTHROPIC_MODEL
     case 'openrouter':
       return import.meta.env.VITE_OPENROUTER_MODEL
-    // Both carry their model with them: a custom endpoint's is part of its saved
-    // config, and Chrome exposes exactly one built-in model
+    // These carry their model with them, or have nothing to override: a custom
+    // endpoint's model is part of its saved config, Chrome exposes exactly one
+    // built-in model, and a WebLLM model is a gigabyte-scale download nobody
+    // should trigger from a build-time env var
     case 'custom':
+    case 'webllm':
     case 'chrome':
       return undefined
   }

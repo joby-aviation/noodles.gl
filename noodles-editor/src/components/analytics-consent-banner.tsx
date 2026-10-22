@@ -46,7 +46,7 @@ export function AnalyticsConsentBanner() {
             rel="noopener noreferrer"
             className={s.link}
           >
-            Learn more
+            Privacy policy
           </a>
         </span>
       </p>

@@ -23,12 +23,14 @@ import {
   FileOp,
   FillStyleExtensionOp,
   FilterOp,
+  FirstPersonViewOp,
   FpsWidgetOp,
   FullscreenWidgetOp,
   GeocoderOp,
   GeohashLayerOp,
   GeoJsonLayerOp,
   GeoJsonTransformOp,
+  GlobeViewOp,
   GreatCircleLayerOp,
   H3ClusterLayerOp,
   JSONOp,
@@ -43,6 +45,8 @@ import {
   NetworkOp,
   NumberOp,
   Operator,
+  OrbitViewOp,
+  OrthographicViewOp,
   OverpassOp,
   PathLayerOp,
   PathStyleExtensionOp,
@@ -62,19 +66,66 @@ import {
   SelectOp,
   SmoothOp,
   SwitchOp,
+  TableEditorOp,
   Tile3DLayerOp,
+  TimeOp,
   TimeSeriesOp,
   TripsLayerOp,
   ZoomWidgetOp,
 } from './operators'
 import { deleteOp, getOpStore, setOp } from './store'
 import { isAccessor } from './utils/accessor-helpers'
+import { canConnect, validateConnection } from './utils/can-connect'
 
 describe('basic Operators', () => {
   it('creates an Operator', () => {
     const operator = new NumberOp('/num-0')
     expect(operator.data.val).toEqual(0)
     expect(operator.outputData.val).toEqual(0)
+  })
+})
+
+describe('TableEditorOp', () => {
+  it('materializes declared schema defaults in output data', () => {
+    const operator = new TableEditorOp('/table')
+    const schema = {
+      columns: [
+        {
+          name: 'anchor',
+          type: 'stringLiteral' as const,
+          defaultValue: 'start',
+          options: { values: ['start', 'end', 'middle'] },
+        },
+        { name: 'offset2d', type: 'vec2' as const, defaultValue: [64, 0] },
+        { name: 'offset3d', type: 'vec3' as const, defaultValue: [64, 0, 10] },
+      ],
+    }
+
+    const result = operator.execute({ data: [{}], schema })
+
+    expect(result.data).toEqual([{ anchor: 'start', offset2d: [64, 0], offset3d: [64, 0, 10] }])
+  })
+
+  it('preserves date-time values when TableEditors are chained', () => {
+    const first = new TableEditorOp('/first')
+    const second = new TableEditorOp('/second')
+    const schema = {
+      columns: [{ name: 'time', type: 'dateTime' as const }],
+    }
+    const storedValue = {
+      datetime: '2026-09-05T12:30:00.000',
+      timezone: 'America/Los_Angeles',
+    }
+
+    const firstResult = first.execute({ data: [{ time: storedValue }], schema })
+    const secondResult = second.execute({ data: firstResult.data, schema })
+    const chainedValue = secondResult.data[0].time as Temporal.ZonedDateTime
+
+    expect(chainedValue).toBeInstanceOf(Temporal.ZonedDateTime)
+    expect(chainedValue.toPlainDateTime().toString({ smallestUnit: 'millisecond' })).toBe(
+      storedValue.datetime
+    )
+    expect(chainedValue.timeZoneId).toBe(storedValue.timezone)
   })
 })
 
@@ -186,6 +237,113 @@ describe('Error handling', () => {
       num: 1,
     })
     expect(onError.mock.calls[1][0]).toEqual(new Error('Test error'))
+  })
+})
+
+describe('Operator.isComputing', () => {
+  it('is true for the whole pull, before the executing status appears', async () => {
+    const op = new MathOp('/math', { operator: 'add', a: 2, b: 3 })
+    let finish = () => {}
+    const held = new Promise<void>(resolve => {
+      finish = resolve
+    })
+    const execute = op.execute.bind(op)
+    vi.spyOn(op, 'execute').mockImplementation(async inputs => {
+      await held
+      return execute(inputs)
+    })
+
+    expect(op.isComputing).toBe(false)
+    const pulled = op.pull()
+    expect(op.isComputing).toBe(true)
+    // The status waits 200ms, so a fast check sees idle while work is running
+    expect(op.executionState.value.status).not.toBe('executing')
+
+    finish()
+    await pulled
+    expect(op.isComputing).toBe(false)
+  })
+})
+
+describe('Locked operators', () => {
+  it('serves the last output without executing while locked', async () => {
+    const op = new MathOp('/math', { operator: 'add', a: 2, b: 3 })
+    await op.pull()
+    op.locked.next(true)
+    const execute = vi.spyOn(op, 'execute')
+
+    op.inputs.a.setValue(10)
+
+    await expect(op.pull()).resolves.toEqual({ result: 5 })
+    expect(execute).not.toHaveBeenCalled()
+  })
+
+  it('executes once when locked without any output yet', async () => {
+    const op = new MathOp('/math', { operator: 'add', a: 2, b: 3 }, true)
+    const execute = vi.spyOn(op, 'execute')
+
+    await expect(op.pull()).resolves.toEqual({ result: 5 })
+    op.inputs.a.setValue(10)
+    await expect(op.pull()).resolves.toEqual({ result: 5 })
+    expect(execute).toHaveBeenCalledTimes(1)
+  })
+
+  it('catches up on input changes after unlocking', async () => {
+    const op = new MathOp('/math', { operator: 'add', a: 2, b: 3 })
+    await op.pull()
+    op.locked.next(true)
+    op.inputs.a.setValue(10)
+    await op.pull()
+
+    op.locked.next(false)
+
+    await expect(op.pull()).resolves.toEqual({ result: 13 })
+  })
+
+  it('does not pull upstream while locked', async () => {
+    const upstream = new NumberOp('/num', { val: 1 })
+    const op = new MathOp('/math', { operator: 'add', a: 2, b: 3 })
+    op.addUpstreamDependency(upstream)
+    upstream.addDownstreamDependent(op)
+    await op.pull()
+    op.locked.next(true)
+    const upstreamPull = vi.spyOn(upstream, 'pull')
+
+    upstream.inputs.val.setValue(2)
+    await op.pull()
+
+    expect(upstreamPull).not.toHaveBeenCalled()
+  })
+
+  it('serves outputs set with setOutputValues without executing', async () => {
+    const op = new MathOp('/math', { operator: 'add', a: 2, b: 3 }, true)
+    const execute = vi.spyOn(op, 'execute')
+
+    op.setOutputValues({ result: 42 })
+
+    expect(op.hasOutput).toBe(true)
+    await expect(op.pull()).resolves.toEqual({ result: 42 })
+    expect(execute).not.toHaveBeenCalled()
+  })
+
+  it('restores saved outputs and serves them without executing', async () => {
+    const op = new MathOp('/math', { operator: 'add', a: 2, b: 3 }, true)
+    const execute = vi.spyOn(op, 'execute')
+
+    expect(op.restoreOutputs({ result: 42 })).toBe(true)
+
+    expect(op.outputs.result.value).toBe(42)
+    await expect(op.pull()).resolves.toEqual({ result: 42 })
+    expect(execute).not.toHaveBeenCalled()
+  })
+
+  it('ignores saved outputs that no longer fit the output fields', async () => {
+    const op = new MathOp('/math', { operator: 'add', a: 2, b: 3 }, true)
+
+    expect(op.restoreOutputs({ result: 'not a number' })).toBe(false)
+
+    expect(op.hasOutput).toBe(false)
+    await expect(op.pull()).resolves.toEqual({ result: 5 })
   })
 })
 
@@ -710,6 +868,22 @@ describe('AccessorOp op() error handling', () => {
 })
 
 describe('BoundingBoxOp', () => {
+  it('connects its viewState output to a MaplibreBasemap viewState input', () => {
+    const boundingBox = new BoundingBoxOp('/bbox-0')
+    const basemap = new MaplibreBasemapOp('/maplibre-0')
+
+    expect(canConnect(boundingBox.outputs.viewState, basemap.inputs.viewState)).toBe(true)
+  })
+
+  it('identifies an incompatible MaplibreBasemap compound property', () => {
+    const boundingBox = new BoundingBoxOp('/bbox-0')
+    const basemap = new MaplibreBasemapOp('/maplibre-0')
+
+    expect(validateConnection(boundingBox.outputs.viewState, basemap.inputs.sky).error).toBe(
+      'Type mismatch at sky.enabled: expected boolean, received undefined'
+    )
+  })
+
   it('finds the bounding box of a list of points', () => {
     const operator = new BoundingBoxOp('/bbox-0')
     const val = operator.execute({
@@ -756,6 +930,30 @@ describe('MathOps', () => {
       b: 1000000000000000000,
     })
     expect(val.result).toEqual(1000000000000000000000000000000000000)
+  })
+})
+
+describe('TimeOp', () => {
+  it('feeds a downstream MathOp through a pull', async () => {
+    const clock = new TimeOp('/clock')
+    const seconds = new MathOp('/seconds', { operator: 'divide', b: 1000 })
+    seconds.inputs.a.addConnection('/clock.out.now', clock.outputs.now)
+    seconds.addUpstreamDependency(clock)
+    clock.addDownstreamDependent(seconds)
+
+    const first = await seconds.pull()
+    expect(typeof first.result).toBe('number')
+    expect(first.result).toBe(Date.now() / 1000)
+
+    vi.advanceTimersByTime(1000)
+    vi.advanceTimersToNextFrame()
+
+    const second = await seconds.pull()
+    expect(second.result).toBe(Date.now() / 1000)
+    expect(second.result).toBeGreaterThan(first.result)
+    await expect(clock.pull()).resolves.toMatchObject({ now: Date.now() })
+
+    clock.dispose()
   })
 })
 
@@ -1088,7 +1286,7 @@ describe('deck.gl 9.4 properties', () => {
     const operator = new MapViewOp('/map-0')
     const { view } = operator.execute({ parameters: { depthTest: false } })
 
-    expect(view.props.parameters).toEqual({ depthTest: false })
+    expect(view.parameters).toEqual({ depthTest: false })
   })
 
   it('configures the zoom widget step', () => {
@@ -1102,6 +1300,10 @@ describe('deck.gl 9.4 properties', () => {
 describe('DeckRendererOp', () => {
   it('returns views if provided', () => {
     const operator = new DeckRendererOp('/deck-0')
+    const viewDescriptors = [
+      { type: 'MapView' as const, id: 'map-view' },
+      { type: 'OrbitView' as const, id: 'orbit-view' },
+    ]
     const {
       vis: {
         deckProps: { views },
@@ -1109,14 +1311,33 @@ describe('DeckRendererOp', () => {
     } = operator.execute({
       layers: [],
       effects: [],
-      views: ['view1', 'view2'],
+      views: viewDescriptors,
       layerFilter: () => true,
     })
-    expect(views).toEqual(['view1', 'view2'])
+    expect(views).toEqual(viewDescriptors)
     const {
       vis: { deckProps },
     } = operator.execute({})
     expect(deckProps.views).not.toBeDefined()
+  })
+
+  it('accepts connected view operator descriptors', async () => {
+    const viewOperator = new MapViewOp('/map-view')
+    const renderer = new DeckRendererOp('/deck-0')
+    renderer.inputs.views.addConnection('view-edge', viewOperator.outputs.view)
+
+    await viewOperator.pull()
+
+    expect(renderer.inputs.views.value).toEqual([
+      expect.objectContaining({ type: 'MapView', id: '/map-view' }),
+    ])
+    await expect(renderer.pull()).resolves.toMatchObject({
+      vis: {
+        deckProps: {
+          views: [expect.objectContaining({ type: 'MapView', id: '/map-view' })],
+        },
+      },
+    })
   })
 
   it('returns undefined mapProps when basemap is null', () => {
@@ -1344,7 +1565,21 @@ describe('MapViewOp', () => {
     const { view } = operator.execute({
       clearColor: [127.5, 0, 127.5, 255],
     })
-    expect(view.props.clearColor).toEqual([127.5, 0, 127.5, 255])
+    expect(view.clearColor).toEqual([127.5, 0, 127.5, 255])
+  })
+
+  it.each([
+    [MapViewOp, 'MapView'],
+    [GlobeViewOp, 'GlobeView'],
+    [FirstPersonViewOp, 'FirstPersonView'],
+    [OrbitViewOp, 'OrbitView'],
+    [OrthographicViewOp, 'OrthographicView'],
+  ] as const)('%s returns a serializable %s descriptor', (ViewOperator, type) => {
+    const operator = new ViewOperator('/view-0')
+    const { view } = operator.execute({})
+
+    expect(view).toMatchObject({ type, id: '/view-0' })
+    expect(JSON.parse(JSON.stringify(view))).toEqual(view)
   })
 })
 
@@ -2712,7 +2947,7 @@ describe('FileOp', () => {
 
   describe('JSON format', () => {
     it('should parse JSON from text input', async () => {
-      const operator = new FileOp('/file-0')
+      const operator = new FileOp('/file-json-text')
       const testData = { test: 'data', value: 123 }
       const result = await operator.execute({
         format: 'json',
@@ -2725,7 +2960,7 @@ describe('FileOp', () => {
     })
 
     it('should fetch and parse JSON from URL', async () => {
-      const operator = new FileOp('/file-1')
+      const operator = new FileOp('/file-json-url')
       const testData = { test: 'remote', value: 456 }
       global.fetch = vi.fn().mockResolvedValue({
         json: () => Promise.resolve(testData),
@@ -2743,7 +2978,7 @@ describe('FileOp', () => {
     })
 
     it('should throw error for invalid JSON', async () => {
-      const operator = new FileOp('/file-2')
+      const operator = new FileOp('/file-invalid-json')
       await expect(
         operator.execute({
           format: 'json',
@@ -2757,8 +2992,19 @@ describe('FileOp', () => {
   })
 
   describe('CSV format', () => {
+    it('should only show autoType input when format is csv or tsv', () => {
+      const operator = new FileOp('/file-format-autotype-visibility')
+      expect(operator.isFieldVisible('autoType')).toBe(false)
+      operator.inputs.format.setValue('csv')
+      expect(operator.isFieldVisible('autoType')).toBe(true)
+      operator.inputs.format.setValue('tsv')
+      expect(operator.isFieldVisible('autoType')).toBe(true)
+      operator.inputs.format.setValue('json')
+      expect(operator.isFieldVisible('autoType')).toBe(false)
+    })
+
     it('should parse CSV from text input', async () => {
-      const operator = new FileOp('/file-3')
+      const operator = new FileOp('/file-csv-text')
       const csvText = 'name,value\nJohn,30\nJane,25'
       const result = await operator.execute({
         format: 'csv',
@@ -2773,8 +3019,8 @@ describe('FileOp', () => {
       expect(result.data[1]).toEqual({ name: 'Jane', value: 25 })
     })
 
-    it('should parse CSV without autoType', async () => {
-      const operator = new FileOp('/file-4')
+    it('should parse CSV without autoType as strings', async () => {
+      const operator = new FileOp('/file-csv-no-autotype')
       const csvText = 'name,value\nJohn,30\nJane,25'
       const result = await operator.execute({
         format: 'csv',
@@ -2792,7 +3038,7 @@ describe('FileOp', () => {
 
   describe('TSV format', () => {
     it('should parse TSV from text input', async () => {
-      const operator = new FileOp('/file-tsv-0')
+      const operator = new FileOp('/file-tsv-text')
       const tsvText = 'name\tvalue\nJohn\t30\nJane\t25'
       const result = await operator.execute({
         format: 'tsv',
@@ -2806,8 +3052,8 @@ describe('FileOp', () => {
       expect(result.data[1]).toEqual({ name: 'Jane', value: 25 })
     })
 
-    it('should parse TSV without autoType', async () => {
-      const operator = new FileOp('/file-tsv-1')
+    it('should parse TSV without autoType as strings', async () => {
+      const operator = new FileOp('/file-tsv-no-autotype')
       const tsvText = 'name\tvalue\nJohn\t30\nJane\t25'
       const result = await operator.execute({
         format: 'tsv',
@@ -2824,7 +3070,7 @@ describe('FileOp', () => {
 
   describe('Text format', () => {
     it('should return text from text input', async () => {
-      const operator = new FileOp('/file-5')
+      const operator = new FileOp('/file-text')
       const textContent = 'This is plain text content\nwith multiple lines'
       const result = await operator.execute({
         format: 'text',
@@ -2837,7 +3083,7 @@ describe('FileOp', () => {
     })
 
     it('should fetch text from URL', async () => {
-      const operator = new FileOp('/file-6')
+      const operator = new FileOp('/file-text-url')
       const textContent = 'Remote text content'
       global.fetch = vi.fn().mockResolvedValue({
         text: () => Promise.resolve(textContent),
@@ -2855,7 +3101,7 @@ describe('FileOp', () => {
     })
 
     it('should return empty string when no input provided', async () => {
-      const operator = new FileOp('/file-7')
+      const operator = new FileOp('/file-text-empty')
       const result = await operator.execute({
         format: 'text',
         url: '',
@@ -2869,7 +3115,7 @@ describe('FileOp', () => {
 
   describe('Binary format', () => {
     it('should convert text input to Uint8Array', async () => {
-      const operator = new FileOp('/file-8')
+      const operator = new FileOp('/file-binary-uint8')
       const textContent = 'Binary data as text'
       const result = await operator.execute({
         format: 'binary',
@@ -2888,7 +3134,7 @@ describe('FileOp', () => {
     })
 
     it('should fetch binary data from URL', async () => {
-      const operator = new FileOp('/file-9')
+      const operator = new FileOp('/file-binary-url')
       const binaryData = new ArrayBuffer(8)
       const view = new Uint8Array(binaryData)
       view.set([1, 2, 3, 4, 5, 6, 7, 8])
@@ -2910,7 +3156,7 @@ describe('FileOp', () => {
     })
 
     it('should return empty Uint8Array when no input provided', async () => {
-      const operator = new FileOp('/file-10')
+      const operator = new FileOp('/file-uint8-empty')
       const result = await operator.execute({
         format: 'binary',
         url: '',
@@ -2924,7 +3170,7 @@ describe('FileOp', () => {
     })
 
     it('should handle UTF-8 encoded text in binary format', async () => {
-      const operator = new FileOp('/file-11')
+      const operator = new FileOp('/file-utf8-binary')
       const textWithEmoji = 'Hello 👋 World'
       const result = await operator.execute({
         format: 'binary',
@@ -2944,7 +3190,7 @@ describe('FileOp', () => {
 
   describe('Error handling', () => {
     it('should throw error with descriptive message on fetch failure', async () => {
-      const operator = new FileOp('/file-12')
+      const operator = new FileOp('/file-fetch-error')
       global.fetch = vi.fn().mockRejectedValue(new Error('Network error'))
 
       await expect(
@@ -2959,7 +3205,7 @@ describe('FileOp', () => {
     })
 
     it('should throw error for unsupported format', async () => {
-      const operator = new FileOp('/file-13')
+      const operator = new FileOp('/file-unsupported-error')
       await expect(
         operator.execute({
           format: 'unsupported' as any,
@@ -3275,6 +3521,19 @@ describe('Tile3DLayerOp', () => {
   const GOOGLE_URL = 'https://tile.googleapis.com/v1/3dtiles/root.json'
   const CESIUM_URL = 'https://assets.ion.cesium.com/242005/tileset.json'
 
+  // Set keys in the store so the tests don't depend on VITE_ env keys
+  beforeEach(() => {
+    getKeysStore().setBrowserKey('googleMaps', 'test-google-key')
+    getKeysStore().setBrowserKey('cesium', 'test-cesium-token')
+  })
+
+  afterEach(() => {
+    // Restore first: the store copies a spied getKey into the next state on set
+    vi.restoreAllMocks()
+    getKeysStore().clearBrowserKey('googleMaps')
+    getKeysStore().clearBrowserKey('cesium')
+  })
+
   it('defaults to the Google tileset URL when provider is Google', async () => {
     const op = new Tile3DLayerOp('/tile3d-0')
     const { layer } = await op.execute({})
@@ -3305,6 +3564,13 @@ describe('Tile3DLayerOp', () => {
     const op = new Tile3DLayerOp('/tile3d-0')
     const { layer } = await op.execute({ tilesetUrl: '', provider: 'Cesium' })
     expect(layer.data).toEqual(CESIUM_URL)
+  })
+
+  it('throws when the provider key is missing', async () => {
+    vi.spyOn(getKeysStore(), 'getKey').mockReturnValue(undefined)
+    const op = new Tile3DLayerOp('/tile3d-0')
+    await expect(op.execute({ provider: 'Cesium' })).rejects.toThrow('Cesium Ion access token')
+    await expect(op.execute({ provider: 'Google' })).rejects.toThrow('Google Maps API key')
   })
 
   it('hides tilesetUrl by default', () => {
@@ -3949,6 +4215,30 @@ describe('CategoricalColorRampOp', () => {
 })
 
 describe('DirectionsOp', () => {
+  it('exposes traffic scheduling inputs with backward-compatible defaults', () => {
+    const directionsOp = new DirectionsOp('/directions')
+
+    expect(directionsOp.inputs.mode.value).toBe('transit')
+    expect(directionsOp.inputs.departureMode.value).toBe('now')
+    expect(directionsOp.inputs.departureTime.value).toBeInstanceOf(Temporal.PlainDateTime)
+    expect(directionsOp.inputs.trafficModel.value).toBe('best-guess')
+    expect(directionsOp.inputs.avoidTolls.value).toBe(false)
+    expect(directionsOp.isFieldVisible('departureMode')).toBe(false)
+    expect(directionsOp.isFieldVisible('departureTime')).toBe(false)
+    expect(directionsOp.isFieldVisible('trafficModel')).toBe(false)
+    expect(directionsOp.isFieldVisible('avoidTolls')).toBe(false)
+
+    directionsOp.inputs.mode.setValue('driving-traffic')
+    expect(directionsOp.isFieldVisible('departureMode')).toBe(true)
+    expect(directionsOp.isFieldVisible('trafficModel')).toBe(true)
+    expect(directionsOp.isFieldVisible('avoidTolls')).toBe(true)
+    expect(directionsOp.isFieldVisible('departureTime')).toBe(false)
+    directionsOp.inputs.departureMode.setValue('scheduled')
+    expect(directionsOp.inputs.mode.value).toBe('driving-traffic')
+    expect(directionsOp.inputs.departureMode.value).toBe('scheduled')
+    expect(directionsOp.isFieldVisible('departureTime')).toBe(true)
+  })
+
   it('accepts GeoJSON Point Features via Point2DField', () => {
     const directionsOp = new DirectionsOp('/directions')
     const feature = {
@@ -4147,6 +4437,27 @@ describe('GeocoderOp', () => {
 
     await expect(geocoderOp.execute({ query: 'Long Beach' })).rejects.toThrow(
       'Mapbox geocoding failed: 429 Too Many Requests'
+    )
+    getKeySpy.mockRestore()
+  })
+
+  it('includes the reason Mapbox gives for rejecting a query', async () => {
+    const getKeySpy = vi.spyOn(getKeysStore(), 'getKey').mockReturnValue('test-token')
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 422,
+        statusText: 'Unprocessable Entity',
+        json: () => Promise.resolve({ message: 'Query too long - 21/20 tokens' }),
+      })
+    )
+
+    const geocoderOp = new GeocoderOp('/geocoder')
+    geocoderOp.inputs.query.addConnection('query-connection', new StringField('Long Beach'))
+
+    await expect(geocoderOp.execute({ query: 'Long Beach' })).rejects.toThrow(
+      'Mapbox geocoding failed: 422 Query too long - 21/20 tokens'
     )
     getKeySpy.mockRestore()
   })

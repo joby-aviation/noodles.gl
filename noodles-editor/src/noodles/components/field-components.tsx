@@ -1,10 +1,10 @@
 import type { OnMount } from '@monaco-editor/react'
 import * as Dialog from '@radix-ui/react-dialog'
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { Cross2Icon, QuestionMarkCircledIcon } from '@radix-ui/react-icons'
 import { Handle, Position, useEdges, useNodeId, useReactFlow } from '@xyflow/react'
 import cx from 'classnames'
 import type { ScaleLinear, ScaleOrdinal } from 'd3'
-import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { Button } from 'primereact/button'
 import { InputText } from 'primereact/inputtext'
 import {
@@ -27,10 +27,16 @@ const CodeiumEditor = lazy(() =>
 )
 
 import { Temporal } from 'temporal-polyfill'
-import { analytics } from '../../utils/analytics'
 import { VectorKeyframeIndicator } from '../../timeline/components/KeyframeIndicator'
 import { getFieldPath } from '../../timeline/field-bindings'
 import { useTimelineStore } from '../../timeline/timeline-store'
+import { analytics } from '../../utils/analytics'
+import {
+  categoricalSchemesFixed,
+  categoricalSchemesStepped,
+  continuousInterpolators,
+  renderColorScheme,
+} from '../color-schemes'
 import {
   type BboxField,
   type BezierCurveField,
@@ -60,7 +66,6 @@ import { useObservable } from '../hooks/use-observable'
 import s from '../noodles.module.css'
 import { getFriendlyErrorMessage } from '../operators'
 import { checkAssetExists, getAssetFileHandle, writeAsset } from '../storage'
-import { extensionOf } from './tools/import-pipelines'
 import { getOp, useEdgeConnectionStore } from '../store'
 import { type ExpressionContext, getExpressionContext } from '../utils/expression-context'
 import { projectScheme } from '../utils/filesystem'
@@ -73,18 +78,14 @@ import {
 } from '../utils/property-history'
 import { formatReference, parseReference, type ReferenceFormat } from '../utils/reference-utils'
 import { ColorSwatch } from './color-swatch'
+import { DraggableNumberInput } from './draggable-number-input'
 import { ExpressionEditorOverlay } from './ExpressionEditorOverlay'
 import { GeocodingDialog } from './geocoding-dialog'
 import menuStyles from './menu.module.css'
+import { MultiInputHandle } from './multi-input-handle'
 import contextMenuStyles from './node-properties.module.css'
 import { handleClass, useHandleDimmed } from './op-components'
-import { MultiInputHandle } from './multi-input-handle'
-import {
-  categoricalSchemesFixed,
-  categoricalSchemesStepped,
-  continuousInterpolators,
-  renderColorScheme,
-} from '../color-schemes'
+import { extensionOf } from './tools/import-pipelines'
 
 type InputComponent = React.ComponentType<{
   id: OpId
@@ -1088,7 +1089,6 @@ export function FileUrlFieldComponent({
 }) {
   const [value, setValue] = useState(guardAccessorFallback(field.value))
   const { captureStart, commitChange } = usePropertyHistory()
-  const [suggestionsOpen, setSuggestionsOpen] = useState(false)
 
   useEffect(() => {
     const sub = field.subscribe(newVal => {
@@ -1111,23 +1111,7 @@ export function FileUrlFieldComponent({
       field.setValue(val)
     }
     commitChange('Change file')
-    // Delay closing so a suggestion click registers first
-    setTimeout(() => setSuggestionsOpen(false), 150)
   }
-
-  const onSuggestionSelect = (val: string) => {
-    captureStart()
-    field.setValue(val)
-    setValue(val)
-    commitChange('Change file')
-    setSuggestionsOpen(false)
-  }
-
-  const filteredSuggestions = field.suggestions.filter(
-    ({ value: v, label }) =>
-      v.toLowerCase().includes(value.toLowerCase()) ||
-      label.toLowerCase().includes(value.toLowerCase())
-  )
 
   const [replaceDialogOpen, setReplaceDialogOpen] = useState(false)
   const [pendingFile, setPendingFile] = useState<{ name: string; contents: Blob } | null>(null)
@@ -1263,41 +1247,17 @@ export function FileUrlFieldComponent({
         <label className={s.fieldLabel} htmlFor={id}>
           {id}
         </label>
-        <div
-          className={cx('p-inputgroup', s.fieldFileInputGroup, s.fieldFileInputGroupSuggestions)}
-        >
+        <div className={cx('p-inputgroup', s.fieldFileInputGroup)}>
           <InputText
             id={id}
             placeholder="https://"
             className={cx(s.fieldInput, s.fieldInputFileUrl)}
             value={value}
-            onFocus={() => {
-              captureStart()
-              setSuggestionsOpen(true)
-            }}
+            onFocus={captureStart}
             onBlur={onBlur}
             onChange={onChange}
             disabled={disabled}
           />
-          {field.suggestions.length > 0 && suggestionsOpen && filteredSuggestions.length > 0 && (
-            <ul className={s.fileUrlSuggestions}>
-              {filteredSuggestions.map(({ value: val, label }) => (
-                // biome-ignore lint/a11y/useSemanticElements: custom combobox option
-                <li
-                  key={val}
-                  role="option"
-                  aria-selected={val === value}
-                  className={cx(s.fileUrlSuggestion, {
-                    [s.fileUrlSuggestionActive]: val === value,
-                  })}
-                  onMouseDown={() => onSuggestionSelect(val)}
-                >
-                  <span className={s.fileUrlSuggestionLabel}>{label}</span>
-                  <span className={s.fileUrlSuggestionUrl}>{val}</span>
-                </li>
-              ))}
-            </ul>
-          )}
           <Button
             icon="pi pi-upload"
             className={s.fieldInputUploadButton}
@@ -1552,415 +1512,6 @@ export function MapStyleFieldComponent({
         </Dialog.Portal>
       </Dialog.Root>
     </>
-  )
-}
-
-type DragState = {
-  startX: number
-  startY: number
-  startValue: number
-  totalDistanceMoved: number
-  detected: boolean
-}
-
-type UseDragOptions = {
-  disabled?: boolean
-  onDragStart?: (e: MouseEvent | TouchEvent) => boolean
-  onDrag?: (deltaX: number, deltaY: number, e: MouseEvent | TouchEvent) => void
-  onDragEnd?: (e: MouseEvent | TouchEvent) => void
-}
-
-function useDrag(options: UseDragOptions) {
-  const { disabled, onDragStart, onDrag, onDragEnd } = options
-  const [isDragging, setIsDragging] = useState(false)
-  const dragStateRef = useRef<DragState | null>(null)
-
-  const handleMouseDown = useCallback(
-    (e: React.MouseEvent) => {
-      if (disabled) return
-      if (onDragStart && !onDragStart(e.nativeEvent)) return
-
-      dragStateRef.current = {
-        startX: e.clientX,
-        startY: e.clientY,
-        startValue: 0,
-        totalDistanceMoved: 0,
-        detected: false,
-      }
-
-      const handleMouseMove = (e: MouseEvent) => {
-        if (!dragStateRef.current) return
-
-        const { startX, startY, detected } = dragStateRef.current
-        const deltaX = e.clientX - startX
-        const deltaY = startY - e.clientY // Invert Y axis so up is positive
-
-        if (!detected) {
-          dragStateRef.current.totalDistanceMoved += Math.abs(deltaX) + Math.abs(deltaY)
-          if (dragStateRef.current.totalDistanceMoved > 5) {
-            // Drag detection threshold
-            dragStateRef.current.detected = true
-            setIsDragging(true)
-          }
-        }
-
-        if (dragStateRef.current.detected && onDrag) {
-          onDrag(deltaX, deltaY, e)
-        }
-      }
-
-      const handleMouseUp = (e: MouseEvent) => {
-        if (dragStateRef.current?.detected) {
-          setIsDragging(false)
-          onDragEnd?.(e)
-        }
-        dragStateRef.current = null
-        document.removeEventListener('mousemove', handleMouseMove)
-        document.removeEventListener('mouseup', handleMouseUp)
-      }
-
-      document.addEventListener('mousemove', handleMouseMove)
-      document.addEventListener('mouseup', handleMouseUp)
-    },
-    [disabled, onDragStart, onDrag, onDragEnd]
-  )
-
-  const handleTouchStart = useCallback(
-    (e: React.TouchEvent) => {
-      if (disabled) return
-      if (onDragStart && !onDragStart(e)) return
-
-      dragStateRef.current = {
-        startX: e.touches[0].clientX,
-        startY: e.touches[0].clientY,
-        startValue: 0,
-        totalDistanceMoved: 0,
-        detected: false,
-      }
-
-      const handleTouchMove = (e: TouchEvent) => {
-        if (!dragStateRef.current) return
-
-        const { startX, startY, detected } = dragStateRef.current
-        const deltaX = e.touches[0].clientX - startX
-        const deltaY = startY - e.touches[0].clientY
-
-        if (!detected) {
-          dragStateRef.current.totalDistanceMoved += Math.abs(deltaX) + Math.abs(deltaY)
-          if (dragStateRef.current.totalDistanceMoved > 5) {
-            dragStateRef.current.detected = true
-            setIsDragging(true)
-          }
-        }
-
-        if (dragStateRef.current.detected && onDrag) {
-          onDrag(deltaX, deltaY, e)
-        }
-      }
-
-      const handleTouchEnd = (e: TouchEvent) => {
-        if (dragStateRef.current?.detected) {
-          setIsDragging(false)
-          onDragEnd?.(e)
-        }
-        dragStateRef.current = null
-        document.removeEventListener('touchmove', handleTouchMove)
-        document.removeEventListener('touchend', handleTouchEnd)
-      }
-
-      document.addEventListener('touchmove', handleTouchMove)
-      document.addEventListener('touchend', handleTouchEnd)
-    },
-    [disabled, onDragStart, onDrag, onDragEnd]
-  )
-
-  return {
-    isDragging,
-    handleMouseDown,
-    handleTouchStart,
-  }
-}
-
-function StepLadder({
-  baseStep,
-  currentStepMultiplier,
-  mousePos,
-  containerRect,
-}: {
-  baseStep: number
-  currentStepMultiplier: number
-  mousePos: { x: number; y: number }
-  containerRect?: DOMRect | null
-}) {
-  // Generate step ladder showing current and neighboring step sizes (largest on top)
-  const steps = []
-  for (let i = 2; i >= -2; i--) {
-    // Reverse order: 2, 1, 0, -1, -2
-    const multiplier = Math.pow(10, i)
-    const stepSize = baseStep * multiplier
-
-    // Check if this step size matches the current snapped step size
-    const isActive = Math.abs(currentStepMultiplier - multiplier) < 0.01
-
-    steps.push({
-      multiplier,
-      stepSize,
-      isActive,
-      label:
-        stepSize >= 1
-          ? stepSize.toString()
-          : stepSize.toFixed(Math.max(0, -Math.floor(Math.log10(stepSize)))),
-    })
-  }
-
-  // Position vertically so the default step (1x) is centered at the mouse position
-  const defaultStepIndex = steps.findIndex(step => step.multiplier === 1)
-  const stepItemHeight = 28
-
-  let topPosition = 0
-
-  if (containerRect) {
-    const relativeMouseY = mousePos.y - containerRect.top
-    topPosition = relativeMouseY - (defaultStepIndex * stepItemHeight + stepItemHeight / 2)
-  }
-
-  return (
-    <div
-      className={s.stepLadder}
-      style={{
-        right: 'calc(100% + 4px)',
-        top: `${topPosition}px`,
-        transform: 'none',
-      }}
-    >
-      {steps.map(({ multiplier, stepSize, isActive, label }) => (
-        <div
-          key={multiplier}
-          className={cx(s.stepLadderItem, {
-            [s.stepLadderItemActive]: isActive,
-          })}
-          title={`Step size: ${stepSize}`}
-        >
-          <span className={s.stepLadderLabel}>{label}</span>
-        </div>
-      ))}
-    </div>
-  )
-}
-
-function DraggableNumberInput({
-  id,
-  value,
-  disabled,
-  onChange,
-  onCommit,
-  onInteractionStart,
-  min,
-  max,
-  softMin,
-  softMax,
-  step = 1,
-  className,
-  title,
-  placeholder,
-}: {
-  id?: string
-  value: number
-  disabled: boolean
-  onChange: (val: number) => void
-  onCommit?: () => void
-  onInteractionStart?: () => void
-  min?: number
-  max?: number
-  softMin?: number
-  softMax?: number
-  step?: number
-  className?: string
-  title?: string
-  placeholder?: string
-}) {
-  const [displayValue, setDisplayValue] = useState<string>(value?.toString() ?? '0')
-  const [isActive, setIsActive] = useState<boolean>(false)
-  const [currentStepMultiplier, setCurrentStepMultiplier] = useState<number>(1)
-  const [isDragStarted, setIsDragStarted] = useState<boolean>(false)
-  const [showLadder, setShowLadder] = useState<boolean>(false)
-  const [initialMousePos, setInitialMousePos] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
-  const inputRef = useRef<HTMLInputElement>(null)
-  const containerRef = useRef<HTMLDivElement>(null)
-  const startValueRef = useRef<number>(0)
-  const isHorizontalLockedRef = useRef<boolean>(false)
-  const lockedStepMultiplierRef = useRef<number>(1)
-  const ladderTimerRef = useRef<NodeJS.Timeout | null>(null)
-
-  useEffect(() => {
-    setDisplayValue(value?.toString() ?? '0')
-  }, [value])
-
-  useEffect(() => {
-    const cleanup = () => {
-      if (isDragStarted) {
-        setIsDragStarted(false)
-        setShowLadder(false)
-        isHorizontalLockedRef.current = false
-        setCurrentStepMultiplier(1)
-        lockedStepMultiplierRef.current = 1
-        if (ladderTimerRef.current) {
-          clearTimeout(ladderTimerRef.current)
-          ladderTimerRef.current = null
-        }
-      }
-    }
-
-    document.addEventListener('mouseup', cleanup)
-    window.addEventListener('blur', cleanup)
-    return () => {
-      document.removeEventListener('mouseup', cleanup)
-      window.removeEventListener('blur', cleanup)
-    }
-  }, [isDragStarted])
-
-  const onInputChange = useCallback(
-    (e: React.FormEvent<HTMLInputElement>) => {
-      const newValue = e.currentTarget.value
-      setDisplayValue(newValue)
-      if (!(+newValue === 0 && newValue.length !== 1)) {
-        onChange(+newValue)
-      }
-    },
-    [onChange]
-  )
-
-  const { isDragging, handleMouseDown, handleTouchStart } = useDrag({
-    disabled,
-    onDragStart: e => {
-      const target = e.target as HTMLInputElement
-      const touchEvent = e as unknown as TouchEvent
-      if (
-        target.type === 'number' &&
-        ('offsetX' in e ? e.offsetX : touchEvent.touches[0].clientX - target.offsetLeft) >
-          target.offsetWidth - 20
-      ) {
-        return false
-      }
-
-      onInteractionStart?.()
-      startValueRef.current = value
-      setInitialMousePos({
-        x: 'clientX' in e ? e.clientX : touchEvent.touches[0].clientX,
-        y: 'clientY' in e ? e.clientY : touchEvent.touches[0].clientY,
-      })
-      setCurrentStepMultiplier(1)
-      isHorizontalLockedRef.current = false
-      setIsDragStarted(true)
-      lockedStepMultiplierRef.current = 1
-
-      ladderTimerRef.current = setTimeout(() => {
-        window.getSelection()?.removeAllRanges()
-        setShowLadder(true)
-      }, 400)
-
-      return true
-    },
-    onDrag: (deltaX, deltaY) => {
-      const horizontalMovement = Math.abs(deltaX) > 15
-
-      let snappedStepMultiplier = 1
-
-      if (!isHorizontalLockedRef.current) {
-        const rawStepMultiplier = Math.pow(10, deltaY / 20)
-        const logMultiplier = Math.log10(rawStepMultiplier)
-        const snappedLogMultiplier = Math.round(logMultiplier)
-        const clampedLogMultiplier = Math.max(-2, Math.min(2, snappedLogMultiplier))
-        snappedStepMultiplier = Math.pow(10, clampedLogMultiplier)
-      }
-
-      if (!isHorizontalLockedRef.current) {
-        if (!horizontalMovement) {
-          setCurrentStepMultiplier(snappedStepMultiplier)
-        } else {
-          lockedStepMultiplierRef.current = snappedStepMultiplier
-          isHorizontalLockedRef.current = true
-        }
-      }
-
-      if (horizontalMovement || isHorizontalLockedRef.current) {
-        const activeStepMultiplier = isHorizontalLockedRef.current
-          ? lockedStepMultiplierRef.current
-          : snappedStepMultiplier
-        const stepSize = activeStepMultiplier * step
-        const valueChange = Math.round(deltaX) * stepSize
-        const newValue = startValueRef.current + valueChange
-        const clampedValue =
-          min !== undefined && max !== undefined ? Math.min(Math.max(newValue, min), max) : newValue
-        const fixedValue = parseFloat(clampedValue.toFixed(7))
-
-        setDisplayValue(fixedValue.toString())
-        onChange(fixedValue)
-      }
-    },
-    onDragEnd: () => {
-      setCurrentStepMultiplier(1)
-      isHorizontalLockedRef.current = false
-      lockedStepMultiplierRef.current = 1
-      setIsDragStarted(false)
-      setShowLadder(false)
-      if (ladderTimerRef.current) {
-        clearTimeout(ladderTimerRef.current)
-        ladderTimerRef.current = null
-      }
-      onCommit?.()
-    },
-  })
-
-  const shouldShowLadder = showLadder && isDragStarted && !isHorizontalLockedRef.current
-  const containerRect = containerRef.current?.getBoundingClientRect()
-  const formatted =
-    displayValue === '' ? '' : Math.round((+displayValue + Number.EPSILON) * 100) / 100
-
-  return (
-    // biome-ignore lint/a11y/useSemanticElements: Number input wrapper with drag interaction requires div with role
-    <div
-      className={s.fieldInputWrapper}
-      style={{ position: 'relative' }}
-      role="group"
-      tabIndex={-1}
-      onMouseDown={handleMouseDown}
-      onTouchStart={handleTouchStart}
-      ref={containerRef}
-    >
-      <input
-        id={id}
-        ref={inputRef}
-        type="number"
-        onFocus={() => {
-          setIsActive(true)
-          onInteractionStart?.()
-        }}
-        onBlur={() => {
-          setIsActive(false)
-          onCommit?.()
-        }}
-        className={cx(className, {
-          [s.fieldInputNumberDragging]: isDragging,
-        })}
-        value={isActive ? displayValue : formatted}
-        title={title || displayValue}
-        placeholder={placeholder}
-        onChange={onInputChange}
-        disabled={disabled}
-        min={Number.isFinite(softMin ?? -Infinity) ? softMin : min}
-        max={Number.isFinite(softMax ?? Infinity) ? softMax : max}
-        step={step}
-      />
-      {shouldShowLadder && (
-        <StepLadder
-          baseStep={step}
-          currentStepMultiplier={currentStepMultiplier}
-          mousePos={initialMousePos}
-          containerRect={containerRect}
-        />
-      )}
-    </div>
   )
 }
 
@@ -2392,6 +1943,13 @@ export function EmptyFieldComponent({ id }: { id: OpId; field: Field<IField> }) 
   )
 }
 
+const BEZIER_SVG_SIZE = { width: 200, height: 150 }
+const BEZIER_PADDING = { top: 10, right: 10, bottom: 20, left: 20 }
+const BEZIER_GRAPH_AREA = {
+  width: BEZIER_SVG_SIZE.width - BEZIER_PADDING.left - BEZIER_PADDING.right,
+  height: BEZIER_SVG_SIZE.height - BEZIER_PADDING.top - BEZIER_PADDING.bottom,
+}
+
 export function BezierCurveFieldComponent({
   id,
   field,
@@ -2413,36 +1971,23 @@ export function BezierCurveFieldComponent({
     startY: number
   } | null>(null)
 
-  const svgSize = { width: 200, height: 150 }
-  const padding = { top: 10, right: 10, bottom: 20, left: 20 }
-  const graphArea = useMemo(
-    () => ({
-      width: svgSize.width - padding.left - padding.right,
-      height: svgSize.height - padding.top - padding.bottom,
-    }),
-    []
-  )
-
   // Convert SVG coordinates to curve coordinates (0-1, 0-1)
-  const svgToCurve = useCallback(
-    (x: number, y: number) => {
-      const curveX = (x - padding.left) / graphArea.width
-      const curveY = 1 - (y - padding.top) / graphArea.height // Flip Y axis
-      return {
-        x: Math.max(0, Math.min(1, curveX)),
-        y: Math.max(0, Math.min(1, curveY)),
-      }
-    },
-    [graphArea.width, graphArea.height]
-  )
+  const svgToCurve = useCallback((x: number, y: number) => {
+    const curveX = (x - BEZIER_PADDING.left) / BEZIER_GRAPH_AREA.width
+    const curveY = 1 - (y - BEZIER_PADDING.top) / BEZIER_GRAPH_AREA.height // Flip Y axis
+    return {
+      x: Math.max(0, Math.min(1, curveX)),
+      y: Math.max(0, Math.min(1, curveY)),
+    }
+  }, [])
 
   // Convert curve coordinates to SVG coordinates
   const curveToSvg = useCallback(
     (x: number, y: number) => ({
-      x: padding.left + x * graphArea.width,
-      y: padding.top + (1 - y) * graphArea.height, // Flip Y axis
+      x: BEZIER_PADDING.left + x * BEZIER_GRAPH_AREA.width,
+      y: BEZIER_PADDING.top + (1 - y) * BEZIER_GRAPH_AREA.height, // Flip Y axis
     }),
-    [graphArea.width, graphArea.height]
+    []
   )
 
   // Generate SVG path for the bezier curve
@@ -2481,14 +2026,14 @@ export function BezierCurveFieldComponent({
 
     // Vertical grid lines
     for (let i = 0; i <= 4; i++) {
-      const x = padding.left + (i / 4) * graphArea.width
+      const x = BEZIER_PADDING.left + (i / 4) * BEZIER_GRAPH_AREA.width
       lines.push(
         <line
           key={`v-${i}`}
           x1={x}
-          y1={padding.top}
+          y1={BEZIER_PADDING.top}
           x2={x}
-          y2={padding.top + graphArea.height}
+          y2={BEZIER_PADDING.top + BEZIER_GRAPH_AREA.height}
           stroke="#333"
           strokeWidth="1"
         />
@@ -2497,13 +2042,13 @@ export function BezierCurveFieldComponent({
 
     // Horizontal grid lines
     for (let i = 0; i <= 4; i++) {
-      const y = padding.top + (i / 4) * graphArea.height
+      const y = BEZIER_PADDING.top + (i / 4) * BEZIER_GRAPH_AREA.height
       lines.push(
         <line
           key={`h-${i}`}
-          x1={padding.left}
+          x1={BEZIER_PADDING.left}
           y1={y}
-          x2={padding.left + graphArea.width}
+          x2={BEZIER_PADDING.left + BEZIER_GRAPH_AREA.width}
           y2={y}
           stroke="#333"
           strokeWidth="1"
@@ -2512,7 +2057,7 @@ export function BezierCurveFieldComponent({
     }
 
     return lines
-  }, [graphArea])
+  }, [])
 
   // Find what the user is trying to interact with
   const getInteractionTarget = useCallback(
@@ -2698,9 +2243,9 @@ export function BezierCurveFieldComponent({
       <div className={s.bezierCurveEditor}>
         <svg
           ref={svgRef}
-          width={svgSize.width}
-          height={svgSize.height}
-          viewBox={`0 0 ${svgSize.width} ${svgSize.height}`}
+          width={BEZIER_SVG_SIZE.width}
+          height={BEZIER_SVG_SIZE.height}
+          viewBox={`0 0 ${BEZIER_SVG_SIZE.width} ${BEZIER_SVG_SIZE.height}`}
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
@@ -2719,17 +2264,17 @@ export function BezierCurveFieldComponent({
         >
           <title>Bezier curve editor</title>
           {/* Background */}
-          <rect width={svgSize.width} height={svgSize.height} fill="#1a1a1a" />
+          <rect width={BEZIER_SVG_SIZE.width} height={BEZIER_SVG_SIZE.height} fill="#1a1a1a" />
 
           {/* Grid */}
           {gridLines}
 
           {/* Border */}
           <rect
-            x={padding.left}
-            y={padding.top}
-            width={graphArea.width}
-            height={graphArea.height}
+            x={BEZIER_PADDING.left}
+            y={BEZIER_PADDING.top}
+            width={BEZIER_GRAPH_AREA.width}
+            height={BEZIER_GRAPH_AREA.height}
             fill="none"
             stroke="#555"
             strokeWidth="1"
@@ -3332,6 +2877,17 @@ export function FieldComponent({
   )
 }
 
+// Normalize bbox value to object format for internal use
+function normalizeBboxValue(val: any) {
+  if (Array.isArray(val)) {
+    // Tuple format: [[lng, lat], [lng, lat]] or [{lng, lat}, {lng, lat}]
+    const sw = Array.isArray(val[0]) ? { lng: val[0][0], lat: val[0][1] } : val[0]
+    const ne = Array.isArray(val[1]) ? { lng: val[1][0], lat: val[1][1] } : val[1]
+    return { southwest: sw, northeast: ne }
+  }
+  return val
+}
+
 export function BboxFieldComponent({
   id,
   field,
@@ -3347,21 +2903,10 @@ export function BboxFieldComponent({
   fieldName?: string
   expandTimeline?: () => void
 }) {
-  // Normalize bbox value to object format for internal use
-  const normalizeValue = (val: any) => {
-    if (Array.isArray(val)) {
-      // Tuple format: [[lng, lat], [lng, lat]] or [{lng, lat}, {lng, lat}]
-      const sw = Array.isArray(val[0]) ? { lng: val[0][0], lat: val[0][1] } : val[0]
-      const ne = Array.isArray(val[1]) ? { lng: val[1][0], lat: val[1][1] } : val[1]
-      return { southwest: sw, northeast: ne }
-    }
-    return val
-  }
-
   const [value, setValue] = useState<{
     southwest: { lng: number; lat: number }
     northeast: { lng: number; lat: number }
-  }>(normalizeValue(guardAccessorFallback(field.value)))
+  }>(normalizeBboxValue(guardAccessorFallback(field.value)))
   const [geocodingOpen, setGeocodingOpen] = useState(false)
   const [geocodingCorner, setGeocodingCorner] = useState<'southwest' | 'northeast'>('southwest')
   const { captureStart, commitChange } = usePropertyHistory()
@@ -3373,7 +2918,7 @@ export function BboxFieldComponent({
   useEffect(() => {
     const sub = field.subscribe(newVal => {
       if (typeof newVal === 'function') return
-      setValue(normalizeValue(newVal))
+      setValue(normalizeBboxValue(newVal))
     })
     return () => sub.unsubscribe()
   }, [field])

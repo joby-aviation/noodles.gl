@@ -24,6 +24,7 @@ import {
 import { safeMode } from '../globals'
 import { fnWithSource, freeExports } from '../operators'
 import { getOp } from '../store'
+import { deepEqual } from './deep-equal'
 import { getEnableExpressionDependencies } from './enable-expression-evaluator'
 import { getTimelineContext } from './timeline-context'
 
@@ -38,18 +39,6 @@ const evaluationTokens = new WeakMap<Field, number>()
 // overflows. A field already evaluating higher up the stack skips re-entry: each change
 // propagates one pass around the cycle and settles.
 const evaluating = new Set<Field>()
-
-function deepEqual(a: unknown, b: unknown): boolean {
-  if (Object.is(a, b)) return true
-  if (a === null || b === null || typeof a !== 'object' || typeof b !== 'object') return false
-  if (Array.isArray(a) !== Array.isArray(b)) return false
-  const keysA = Object.keys(a as object)
-  const keysB = Object.keys(b as object)
-  if (keysA.length !== keysB.length) return false
-  return keysA.every(k =>
-    deepEqual((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k])
-  )
-}
 
 // Replace mustache sugar ({{/path.out.val}}, {{par.field}}) with op() calls, matching CodeOp
 export function preprocessExpression(expr: string, opId: string): string {
@@ -91,7 +80,7 @@ function applyResult(field: Field, result: unknown): void {
   // (e.g. `par.radius + 1` driving another sibling) converge instead of looping
   if (deepEqual(field.value, parsed.data)) return
   field.next(parsed.data)
-  field.op?.markDirty()
+  field.op?.markDirty(field)
 }
 
 export function evaluateFieldExpression(field: Field): void {

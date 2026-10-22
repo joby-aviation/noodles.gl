@@ -301,6 +301,16 @@ export class AnalyticsManager {
       return
     }
 
+    // Filter benign ResizeObserver errors
+    // These are harmless browser optimization warnings that occur when ResizeObserver
+    // callbacks trigger layout changes. They don't indicate actual problems and
+    // would create noise in error tracking.
+    const message = error.message || ''
+    if (message.includes('ResizeObserver loop')) {
+      debugAnalytics('Filtered benign ResizeObserver error from analytics')
+      return
+    }
+
     // PostHog exception capture
     if (this.posthogInitialized) {
       try {

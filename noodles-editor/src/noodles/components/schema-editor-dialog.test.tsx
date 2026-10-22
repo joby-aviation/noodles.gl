@@ -1,10 +1,18 @@
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { analytics } from '../../utils/analytics'
 import type { TableSchema } from '../table-schema'
 import { SchemaEditorDialog } from './schema-editor-dialog'
+import s from './schema-editor-dialog.module.css'
+
+vi.mock('../../utils/analytics', () => ({
+  analytics: { track: vi.fn() },
+}))
 
 afterEach(() => {
   cleanup()
+  document.documentElement.style.removeProperty('--z-index-modal')
+  document.documentElement.style.removeProperty('--z-index-top')
 })
 
 describe('SchemaEditorDialog', () => {
@@ -56,6 +64,111 @@ describe('SchemaEditorDialog', () => {
     const nameInputs = screen.getAllByPlaceholderText('Column name')
     expect(nameInputs.length).toBe(3)
     expect(nameInputs[2]).toHaveValue('column_3')
+  })
+
+  it('should duplicate a column with a unique editable name and source metadata', () => {
+    const onChange = vi.fn()
+    render(<SchemaEditorDialog schema={mockSchema} onChange={onChange} />)
+
+    fireEvent.click(screen.getByRole('button'))
+    fireEvent.click(screen.getByRole('button', { name: 'Duplicate column name' }))
+
+    expect(analytics.track).toHaveBeenCalledWith('table_column_duplicated')
+
+    const nameInputs = screen.getAllByPlaceholderText('Column name')
+    expect(nameInputs).toHaveLength(3)
+    expect(nameInputs[1]).toHaveValue('name-1')
+
+    fireEvent.change(nameInputs[1], { target: { value: 'display_name' } })
+    fireEvent.click(screen.getByText('Save'))
+
+    expect(onChange).toHaveBeenCalledWith(
+      {
+        columns: [
+          { name: 'name', type: 'string', defaultValue: '' },
+          {
+            id: expect.any(String),
+            name: 'display_name',
+            type: 'string',
+            defaultValue: '',
+          },
+          { name: 'age', type: 'number', defaultValue: 0 },
+        ],
+      },
+      { sourceColumnNames: ['name', 'name', 'age'] }
+    )
+  })
+
+  it('should name the icon-only column buttons', () => {
+    render(<SchemaEditorDialog schema={mockSchema} onChange={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Edit schema' }))
+
+    for (const name of [
+      'Move column name down',
+      'Duplicate column name',
+      'Delete column name',
+      'Move column age up',
+      'Duplicate column age',
+      'Delete column age',
+    ]) {
+      expect(screen.getByRole('button', { name })).toBeDefined()
+    }
+  })
+
+  it('should keep focus on a column after moving it', () => {
+    const schema: TableSchema = {
+      columns: [
+        { name: 'first', type: 'string', defaultValue: '' },
+        { name: 'second', type: 'string', defaultValue: '' },
+        { name: 'third', type: 'string', defaultValue: '' },
+      ],
+    }
+    render(<SchemaEditorDialog schema={schema} onChange={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button'))
+
+    const moveDown = screen.getByRole('button', { name: 'Move column first down' })
+    moveDown.focus()
+    fireEvent.click(moveDown)
+
+    const nameInputs = screen.getAllByPlaceholderText('Column name')
+    expect(nameInputs.map(input => (input as HTMLInputElement).value)).toEqual([
+      'second',
+      'first',
+      'third',
+    ])
+    const focusedRow = document.activeElement?.closest('[class*="columnRow"]')
+    expect(focusedRow?.querySelector('input')).toHaveValue('first')
+  })
+
+  it('should increment a duplicate column numeric suffix', () => {
+    render(<SchemaEditorDialog schema={mockSchema} onChange={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('button'))
+    fireEvent.click(screen.getByRole('button', { name: 'Duplicate column name' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Duplicate column name-1' }))
+
+    const nameInputs = screen.getAllByPlaceholderText('Column name')
+    expect(nameInputs.map(input => (input as HTMLInputElement).value)).toEqual([
+      'name',
+      'name-1',
+      'name-2',
+      'age',
+    ])
+  })
+
+  it('should place dialog tooltips above modal content', () => {
+    document.documentElement.style.setProperty('--z-index-modal', '10000')
+    document.documentElement.style.setProperty('--z-index-top', '10001')
+    render(
+      <>
+        <div className={s.content} data-testid="dialog-layer" />
+        <div className={s.dialogTooltip} data-testid="tooltip-layer" />
+      </>
+    )
+
+    const dialogZIndex = Number(getComputedStyle(screen.getByTestId('dialog-layer')).zIndex)
+    const tooltipZIndex = Number(getComputedStyle(screen.getByTestId('tooltip-layer')).zIndex)
+    expect(tooltipZIndex).toBeGreaterThan(dialogZIndex)
   })
 
   it('should add Position XYZ quick template with Number type', () => {
@@ -192,9 +305,7 @@ describe('SchemaEditorDialog', () => {
     fireEvent.click(screen.getByRole('button'))
 
     for (const column of allTypesSchema.columns) {
-      expect(
-        screen.getByRole('group', { name: `Default value for ${column.name}` })
-      ).toBeDefined()
+      expect(screen.getByRole('group', { name: `Default value for ${column.name}` })).toBeDefined()
     }
   })
 
@@ -267,7 +378,7 @@ describe('SchemaEditorDialog', () => {
       columns: [
         { name: 'name', type: 'string', defaultValue: '' },
         { name: 'age', type: 'number', defaultValue: 0 },
-        { name: 'column_3', type: 'string', defaultValue: '' },
+        { id: expect.any(String), name: 'column_3', type: 'string', defaultValue: '' },
       ],
     })
   })

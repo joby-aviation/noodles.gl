@@ -8,7 +8,7 @@ import {
   NumberField,
   StringField,
 } from '../fields'
-import { NumberOp } from '../operators'
+import { DateTimeOp, NumberOp } from '../operators'
 import { clearOps, setOp } from '../store'
 import { evaluateFieldExpression, preprocessExpression } from './field-expressions'
 import { applyOperatorInputs, captureOperatorInputs } from './property-history'
@@ -50,6 +50,19 @@ describe('field expression mode', () => {
       expect(op.inputs.val.value).toEqual(99)
       op.inputs.val.evaluateExpression()
       expect(op.inputs.val.value).toEqual(10)
+    })
+
+    it('applies a date expression', () => {
+      const op = new DateTimeOp('/date')
+      op.inputs.date.setExpression("Temporal.PlainDateTime.from('2026-10-17T08:30')")
+      expect(op.inputs.date.expressionError$.value).toBeNull()
+      expect(op.inputs.date.value.toString()).toEqual('2026-10-17T08:30:00')
+    })
+
+    it('applies -0 over 0', () => {
+      const op = new NumberOp('/num')
+      op.inputs.val.setExpression('-0')
+      expect(Object.is(op.inputs.val.value, -0)).toBe(true)
     })
 
     it('supports math utilities and Math global', () => {

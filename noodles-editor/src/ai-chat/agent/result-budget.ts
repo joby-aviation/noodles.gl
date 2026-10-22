@@ -42,6 +42,10 @@ const HINTS: Record<string, string> = {
   get_example: 'inspect the example a few nodes at a time',
   list_examples: 'filter by category or tag',
   get_console_errors: 'lower maxResults or filter by level',
+  run_code: 'return a summary — a length, a few rows, an aggregate — rather than the whole value',
+  read_file: 'pass startLine/endLine to page through it, or process it in run_code instead',
+  grep_files: 'narrow the pattern, pass path, or lower maxResults',
+  list_files: 'pass path to list one subdirectory',
 }
 
 const DEFAULT_HINT = 'narrow your query and call the tool again'

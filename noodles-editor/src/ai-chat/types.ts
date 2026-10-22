@@ -92,6 +92,7 @@ export interface DocTopic {
   title: string
   section: 'users' | 'developers' | 'intro' | 'ai-assistant' | 'examples'
   file: string
+  url: string | null
   content: string
   headings: Heading[]
   codeExamples: CodeExample[]
@@ -120,6 +121,7 @@ export interface Example {
   name: string
   description: string
   category: string
+  readme: string
   project: unknown // NoodlesProject - keeping as unknown since it's serialized JSON
   annotations: Record<string, NodeAnnotation>
   tags: string[]

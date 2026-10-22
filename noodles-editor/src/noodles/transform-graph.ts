@@ -16,6 +16,7 @@ import {
 import { deriveReferenceEdges, referenceDependencyModel } from './reference-dependencies'
 import { getOpStore } from './store'
 import { validateConnection } from './utils/can-connect'
+import type { OutputCache } from './utils/output-cache'
 import { getParentPath, isDirectChild, parseHandleId } from './utils/path-utils'
 import { computeVisibilityHeuristic } from './utils/visibility-heuristic'
 
@@ -119,15 +120,28 @@ export function transformGraph<
 >({
   nodes: _nodes,
   edges: _edges,
+  outputCache,
 }: {
   nodes: NodeJSON<unknown>[]
   edges: E[]
+  // Saved outputs of locked operators, restored before anything can pull them
+  outputCache?: OutputCache
 }): {
   operators: OP[]
   errors: GraphLoadError[]
 } {
   const errors: GraphLoadError[] = []
-  const nodes = _nodes.filter(n => opTypes[n.type as T] !== undefined) as NodeJSON<OpType>[]
+  // Map unknown operators to UnknownOperator type so React Flow can find the component
+  const nodes = _nodes.map(node => {
+    if (opTypes[node.type as T] === undefined && node.type !== 'group') {
+      return {
+        ...node,
+        type: 'UnknownOperator' as T,
+        data: { ...node.data, originalType: node.type },
+      }
+    }
+    return node
+  }) as NodeJSON<OpType>[]
   const dataEdges = _edges.filter(edge => (edge as E & { type?: string }).type !== 'ReferenceEdge')
   // Reference dependencies are model-owned and derived for every node, mounted or not.
   const edges = [
@@ -279,6 +293,8 @@ export function transformGraph<
 
   const sortedNodes = topologicalSort(nodes, executorEdges as unknown as E[])
   const created: Operator<IOperator>[] = []
+  // Locked operators' saved outputs, restored once every field exists
+  const savedOutputsByOp = new Map<Operator<IOperator>, Record<string, unknown>>()
   let instances: OP[] = []
 
   // Batch all store operations for performance
@@ -299,13 +315,25 @@ export function transformGraph<
       if (!op) {
         const ctor = opTypes[type]
         const containerId = getParentPath(id)
-        // Create operator with fully qualified path as id and store containerId
-        op = new ctor(id, data?.inputs, data?.locked, containerId) as unknown as OP
 
-        // Restore custom field definitions if present
-        if (data?.customInputs && Array.isArray(data.customInputs)) {
-          op.customInputDefinitions = data.customInputs
-          op.rebuildInputs()
+        if (!ctor) {
+          // Unknown operator type - create placeholder
+          // originalType is already in data from the nodes mapping above
+          console.warn(
+            `[noodles] Unknown operator type "${type}" for node "${id}". Creating placeholder.`
+          )
+          op = new opTypes.UnknownOperator(id, data) as unknown as OP
+        } else {
+          // Create operator with fully qualified path as id and store containerId
+          op = new ctor(id, data?.inputs, data?.locked, containerId) as unknown as OP
+          const savedOutputs = data?.locked ? outputCache?.get(id) : undefined
+          if (savedOutputs) savedOutputsByOp.set(op, savedOutputs)
+
+          // Restore custom field definitions if present
+          if (data?.customInputs && Array.isArray(data.customInputs)) {
+            op.customInputDefinitions = data.customInputs
+            op.rebuildInputs()
+          }
         }
 
         created.push(op)
@@ -536,6 +564,11 @@ export function transformGraph<
         }
       }
     }
+  }
+
+  // After the container wiring above, since a GraphInput only gets its custom outputs there
+  for (const [op, savedOutputs] of savedOutputsByOp) {
+    op.restoreOutputs(savedOutputs)
   }
 
   referenceDependencyModel.configure({

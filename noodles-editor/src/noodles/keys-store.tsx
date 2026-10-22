@@ -12,10 +12,33 @@ export interface KeysConfig {
   overpass?: string
 }
 
+// Keys for the AI assistant come only from the browser or the environment. A
+// project file is shared, so a key read from one would send the reader's
+// conversation through someone else's account, and a key saved into one would
+// hand the user's account to everyone they share it with.
+export const AI_KEY_TYPES = ['anthropic', 'openrouter'] as const satisfies readonly KeyType[]
+
+export function isAIKey(key: KeyType): boolean {
+  return (AI_KEY_TYPES as readonly KeyType[]).includes(key)
+}
+
+function withoutAIKeys(keys: KeysConfig | undefined): KeysConfig | undefined {
+  if (!keys) return undefined
+  const kept = { ...keys }
+  for (const key of AI_KEY_TYPES) delete kept[key]
+  return Object.keys(kept).length > 0 ? kept : undefined
+}
+
 // Which provider the AI assistant should use. 'automatic' resolves by which
 // credential is present; the rest name one of the agent loop's providers, so the
 // strings deliberately match ProviderId in ai-chat/agent/types.ts.
-export type ProviderPreference = 'automatic' | 'anthropic' | 'openrouter' | 'custom' | 'chrome'
+export type ProviderPreference =
+  | 'automatic'
+  | 'anthropic'
+  | 'openrouter'
+  | 'custom'
+  | 'webllm'
+  | 'chrome'
 
 // 'chrome-ai' was the persisted spelling before the preference shared a
 // vocabulary with the agent loop. Read-side only, so a stored value keeps working
@@ -44,6 +67,8 @@ interface KeysState {
 
   // NOT persisted (comes from loaded project)
   projectKeys: KeysConfig | undefined
+  // AI keys the loaded project file contained, which were dropped rather than used
+  ignoredProjectKeys: KeyType[]
 }
 
 interface KeysActions {
@@ -76,6 +101,7 @@ export const useKeysStore = create<KeysStore>()(
       providerPreference: 'automatic',
       customEndpoint: undefined,
       projectKeys: undefined,
+      ignoredProjectKeys: [],
 
       // Actions
       setBrowserKey: (key, value) => {
@@ -116,7 +142,10 @@ export const useKeysStore = create<KeysStore>()(
       },
 
       setProjectKeys: keys => {
-        set({ projectKeys: keys })
+        set({
+          projectKeys: withoutAIKeys(keys),
+          ignoredProjectKeys: AI_KEY_TYPES.filter(key => keys?.[key]),
+        })
       },
 
       setProviderPreference: preference => {
@@ -127,11 +156,11 @@ export const useKeysStore = create<KeysStore>()(
         set({ customEndpoint: config })
       },
 
-      // Computed getters (priority: browser > project > env)
+      // Computed getters (priority: browser > project > env, and never project for AI keys)
       getKey: key => {
         const state = get()
         if (state.browserKeys[key]) return state.browserKeys[key]
-        if (state.projectKeys?.[key]) return state.projectKeys[key]
+        if (!isAIKey(key) && state.projectKeys?.[key]) return state.projectKeys[key]
         const envKeys = getEnvKeys()
         return envKeys[key]
       },
@@ -143,7 +172,7 @@ export const useKeysStore = create<KeysStore>()(
       getActiveSource: key => {
         const state = get()
         if (state.browserKeys[key]) return 'browser'
-        if (state.projectKeys?.[key]) return 'project'
+        if (!isAIKey(key) && state.projectKeys?.[key]) return 'project'
         const envKeys = getEnvKeys()
         if (envKeys[key]) return 'env'
         return null
@@ -181,11 +210,10 @@ export const useProjectKeys = () => useKeysStore(state => state.projectKeys)
 // Utility functions (no state needed)
 export function getKeysForProject(): KeysConfig | undefined {
   const state = getKeysStore()
-  const keys = {
+  return withoutAIKeys({
     ...state.projectKeys,
     ...(state.saveInProject ? state.browserKeys : {}),
-  }
-  return Object.keys(keys).length > 0 ? keys : undefined
+  })
 }
 
 export function getEnvKeys(): KeysConfig {

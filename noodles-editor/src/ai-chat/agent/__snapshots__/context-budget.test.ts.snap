@@ -1,0 +1,41 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`context budget > reports first-turn headroom per provider window 1`] = `
+[
+  {
+    "headroom": 550,
+    "headroomAfterInspect": 300,
+    "system": 2250,
+    "target": "webllm 4k (today)",
+    "tools": 550,
+  },
+  {
+    "headroom": 2350,
+    "headroomAfterInspect": 1950,
+    "system": 2250,
+    "target": "chrome 6k (fallback)",
+    "tools": 550,
+  },
+  {
+    "headroom": 12850,
+    "headroomAfterInspect": 11700,
+    "system": 2250,
+    "target": "webllm 16k",
+    "tools": 550,
+  },
+  {
+    "headroom": 29200,
+    "headroomAfterInspect": 26350,
+    "system": 2250,
+    "target": "webllm 32k",
+    "tools": 550,
+  },
+  {
+    "headroom": 189000,
+    "headroomAfterInspect": 186150,
+    "system": 2250,
+    "target": "anthropic 200k",
+    "tools": 550,
+  },
+]
+`;

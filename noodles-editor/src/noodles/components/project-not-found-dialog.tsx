@@ -7,13 +7,18 @@ import { useFileSystemStore } from '../filesystem-store'
 import { load } from '../storage'
 import { selectDirectory } from '../utils/filesystem'
 import { migrateProject } from '../utils/migrate-schema'
+import type { OutputCache } from '../utils/output-cache'
 import type { NoodlesProjectJSON } from '../utils/serialization'
 import s from './menu.module.css'
 
 interface ProjectNotFoundDialogProps {
   projectName: string
   open: boolean
-  onProjectLoaded: (project: NoodlesProjectJSON, projectName: string) => void
+  onProjectLoaded: (
+    project: NoodlesProjectJSON,
+    projectName: string,
+    outputCache?: OutputCache
+  ) => void
   onNewProject: () => Promise<void>
   onImport: () => Promise<void>
   onClose: () => void
@@ -53,7 +58,7 @@ export const ProjectNotFoundDialog = ({
           const project = await migrateProject(result.data.projectData)
           setCurrentDirectory(result.data.directoryHandle, projectName)
           setActiveStorageType('fileSystemAccess')
-          onProjectLoaded(project, projectName)
+          onProjectLoaded(project, projectName, result.data.outputCache)
           onClose()
         } catch (error) {
           debugUI('Error migrating project:', error)

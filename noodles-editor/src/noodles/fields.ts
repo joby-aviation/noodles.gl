@@ -9,6 +9,7 @@ import { debugSetValue } from '../utils/debug'
 import type { BetterDeckProps, BetterMapProps } from '../visualizations'
 import type { inputComponents } from './components/field-components'
 import type { IOperator, Operator } from './operators'
+import type { DeckViewDescriptor, DeckViewValue } from './types'
 import { deepEqual } from './utils/deep-equal'
 import type { ExtractProps } from './utils/extract-props'
 import { resolvePath } from './utils/path-utils'
@@ -262,7 +263,7 @@ export abstract class Field<
       this.next(parsed.data)
 
       // Mark the owning operator as dirty
-      this.op?.markDirty()
+      this.op?.markDirty(this)
     } else {
       debugSetValue('%s: %O -> %O [PARSE FAILED]', path, oldValue, value)
       debugSetValue('Parse error', parsed.error.issues)
@@ -317,7 +318,7 @@ export abstract class Field<
       } else {
         this.next(this.value)
         // For reference connections, also mark dirty
-        this.op?.markDirty()
+        this.op?.markDirty(this)
       }
     })
     this.subscriptions.set(id, subscription)
@@ -367,19 +368,16 @@ export class StringField extends Field<z.ZodString> {
 
 type FileUrlFieldOptions = BaseFieldOptions & {
   accept?: string // e.g. '.glb,.gltf' — controls file picker filter and shows upload button
-  suggestions?: { value: string; label: string }[] // typeahead suggestions shown in input
 }
 
 export class FileUrlField extends Field<z.ZodString, FileUrlFieldOptions> {
   static type = 'file-url'
   static defaultValue = ''
   accept?: string
-  suggestions: { value: string; label: string }[]
 
   constructor(initialValue?: string, options?: Partial<FileUrlFieldOptions>) {
     super(initialValue, options)
     this.accept = options?.accept
-    this.suggestions = options?.suggestions ?? []
   }
 
   createSchema(_options?: Partial<FileUrlFieldOptions>) {
@@ -389,7 +387,6 @@ export class FileUrlField extends Field<z.ZodString, FileUrlFieldOptions> {
 
 export interface MapStyleFieldOptions extends BaseFieldOptions {
   accept?: string
-  suggestions?: { value: string | Record<string, unknown>; label: string }[]
 }
 
 export class MapStyleField extends Field<
@@ -399,12 +396,10 @@ export class MapStyleField extends Field<
   static type = 'map-style'
   static defaultValue = ''
   accept?: string
-  suggestions: { value: string; label: string }[]
 
   constructor(defaultValue = '', options?: Partial<MapStyleFieldOptions>) {
     super(defaultValue, options)
     this.accept = options?.accept
-    this.suggestions = options?.suggestions ?? []
   }
 
   createSchema(_options?: Partial<MapStyleFieldOptions>) {
@@ -1549,14 +1544,26 @@ export class ExtensionField extends Field<z.ZodTypeAny> {
   }
 }
 
-export class ViewField extends Field<
-  z.ZodType<InstanceType<View>, z.ZodTypeDef, InstanceType<View>>
-> {
+const deckViewDescriptorSchema = z.looseObject({
+  type: z.enum(['MapView', 'GlobeView', 'FirstPersonView', 'OrbitView', 'OrthographicView']),
+}) as z.ZodType<DeckViewDescriptor>
+
+const deckViewSchema = z.union([
+  deckViewDescriptorSchema,
+  z.instanceof(View),
+]) as z.ZodType<DeckViewValue>
+
+export class ViewField extends Field<z.ZodType<DeckViewValue>> {
   static type = 'view'
   static defaultValue = undefined
   createSchema() {
-    return z.instanceof(View)
+    return deckViewSchema
   }
+}
+
+export type VisualizationDeckProps = Omit<BetterDeckProps, 'layers' | 'views'> & {
+  layers?: (LayerProps & { type: string })[]
+  views?: DeckViewValue[]
 }
 
 export class MapLibreLayerField extends Field<
@@ -1586,7 +1593,7 @@ export class MapLibreLayerField extends Field<
 
 export class VisualizationField extends Field<
   z.ZodType<{
-    deckProps: { layers: (LayerProps & { type: string })[] } & BetterDeckProps
+    deckProps: VisualizationDeckProps
     mapProps?: BetterMapProps
     maplibreLayers?: Array<{
       id: string
@@ -1610,6 +1617,7 @@ export class VisualizationField extends Field<
             })
           )
           .optional(),
+        views: z.array(deckViewSchema).optional(),
       }),
       mapProps: z
         .looseObject({
