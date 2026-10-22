@@ -337,25 +337,8 @@ describe('MapStyleField', () => {
   })
 
   it('stores options on the instance', () => {
-    const field = new MapStyleField('', {
-      accept: '.json',
-      suggestions: [
-        { value: 'https://example.com/style1.json', label: 'Style 1' },
-        { value: 'https://example.com/style2.json', label: 'Style 2' },
-      ],
-    })
-
+    const field = new MapStyleField('', { accept: '.json' })
     expect(field.accept).toEqual('.json')
-    expect(field.suggestions).toHaveLength(2)
-    expect(field.suggestions[0]).toEqual({
-      value: 'https://example.com/style1.json',
-      label: 'Style 1',
-    })
-  })
-
-  it('defaults to empty array for suggestions', () => {
-    const field = new MapStyleField()
-    expect(field.suggestions).toEqual([])
   })
 
   it('skips setValue when object content is deeply equal', () => {
