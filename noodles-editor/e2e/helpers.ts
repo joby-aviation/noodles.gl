@@ -45,15 +45,36 @@ export async function waitForScene(page: Page, timeout = 60_000) {
 }
 
 // Examples render at 1920x1080 with LOD 2, a 4K canvas that software WebGL draws too
-// slowly to test. Lower the LOD from the Out node's Render Settings, as a user would.
+// slowly to test. Lower the Out node's LOD in the project as it loads: changing it in
+// Render Settings after the map has drawn sometimes leaves the basemap drawn into one
+// corner of the resized canvas.
 export const TEST_LOD = 0.5
 
-export async function openExample(page: Page, exampleName: string, { lod = TEST_LOD } = {}) {
+// lod: null leaves the example's own LOD, for tests that only check the canvas mounts
+export async function openExample(
+  page: Page,
+  exampleName: string,
+  { lod = TEST_LOD }: { lod?: number | null } = {}
+) {
+  if (lod !== null) {
+    await page.route(/\/noodles[^/]*\.json(\?|$)/, async route => {
+      const response = await route.fetch()
+      let project: { nodes?: { type: string; data: { inputs?: object } }[] }
+      try {
+        project = await response.json()
+      } catch {
+        // Vite also serves the file as a JS module for the examples list; leave that alone
+        return route.fulfill({ response })
+      }
+      for (const node of project.nodes ?? []) {
+        if (node.type === 'OutOp') node.data.inputs = { ...node.data.inputs, lod }
+      }
+      await route.fulfill({ response, json: project })
+    })
+  }
   await page.goto(`/examples/${exampleName}`)
   // The map canvas sits in a fixed overlay pinned over #map, not inside it
   await page.locator('canvas').first().waitFor({ state: 'attached', timeout: 60_000 })
-  await openRenderSettings(page)
-  await page.locator('#render-lod').fill(String(lod))
 }
 
 export async function openRenderSettings(page: Page) {
@@ -79,7 +100,19 @@ export async function screenshotMap(page: Page) {
   const right = Math.floor(Math.min(output.x + output.width, pane.x + pane.width))
   const bottom = Math.floor(Math.min(output.y + output.height, pane.y + pane.height))
   const clip = { x: left, y: top, width: right - left, height: bottom - top }
-  return page.screenshot({ clip, animations: 'disabled', timeout: 60_000 })
+  const shoot = () => page.screenshot({ clip, animations: 'disabled', timeout: 60_000 })
+
+  // pendingWork() can report idle a beat before the last basemap tiles are drawn, so also
+  // wait for two identical captures a second apart
+  const deadline = Date.now() + 30_000
+  let previous = await shoot()
+  while (Date.now() < deadline) {
+    await page.waitForTimeout(1000)
+    const current = await shoot()
+    if (current.equals(previous)) return current
+    previous = current
+  }
+  return previous
 }
 
 // The export buttons save through showSaveFilePicker, a native dialog Playwright cannot

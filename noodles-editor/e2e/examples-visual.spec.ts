@@ -20,17 +20,18 @@ const MOUNT_ONLY: Record<string, string> = {
 }
 
 // Deck text layers draw labels with a system font, which differs between macOS and Linux
-// (about 2% of pixels for geojson-example's station names)
+// (about 3.6% of pixels for geojson-example's station names)
 const MAX_DIFF_PIXEL_RATIO: Record<string, number> = {
-  'geojson-example': 0.03,
+  'geojson-example': 0.05,
 }
 
 test.describe('examples', () => {
   for (const exampleName of EXAMPLES) {
     test(exampleName, async ({ page }) => {
-      await openExample(page, exampleName)
+      const mountOnly = exampleName in MOUNT_ONLY
+      await openExample(page, exampleName, { lod: mountOnly ? null : undefined })
 
-      if (MOUNT_ONLY[exampleName]) {
+      if (mountOnly) {
         test.info().annotations.push({ type: 'mount only', description: MOUNT_ONLY[exampleName] })
         return
       }

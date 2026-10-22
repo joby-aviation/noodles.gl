@@ -314,6 +314,7 @@ export default function TimelineEditor() {
         return !node || node.dirty || node.executionState.value.status === 'executing'
       })
       if (basemapEnabled && !mapIdleRef.current) pending.push('basemap')
+      // @ts-expect-error layerManager is protected but accessible
       const layers = deckRef.current?.layerManager?.getLayers()
       if (!layers) pending.push('deck')
       for (const layer of layers ?? []) {

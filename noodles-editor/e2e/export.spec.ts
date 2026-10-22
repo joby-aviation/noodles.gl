@@ -4,7 +4,12 @@
 
 import { readFileSync } from 'node:fs'
 import { type Download, expect, type Page, test } from '@playwright/test'
-import { installSavePickerAsDownload, openExample, waitForScene } from './helpers'
+import {
+  installSavePickerAsDownload,
+  openExample,
+  openRenderSettings,
+  waitForScene,
+} from './helpers'
 
 const EXAMPLE = 'california-earthquakes'
 
@@ -22,9 +27,10 @@ async function openForExport(page: Page) {
   page.on('dialog', dialog => {
     throw new Error(`Unexpected dialog: ${dialog.message()}`)
   })
-  // openExample leaves the Out node's Render Settings open
   await openExample(page, EXAMPLE)
   await waitForScene(page)
+  // Codec and framerate are set here, as a user would
+  await openRenderSettings(page)
   await expect(exportButton(page)).toBeEnabled()
 }
 

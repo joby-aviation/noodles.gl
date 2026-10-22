@@ -33,15 +33,19 @@ The editor exposes `window.__noodlesTest` (see `src/timeline-editor.tsx`):
   names what it was still waiting on if it times out.
 - `getTimelineStore()` sets the out point so the video export stays short.
 
-Tests lower the Out node's LOD to 0.5 through Render Settings first. The examples render
-a 4K canvas by default, which software WebGL draws too slowly.
+Tests lower the Out node's LOD to 0.5 in the project file as it loads. The examples
+render a 4K canvas by default, which software WebGL draws too slowly, and changing the LOD
+in Render Settings after the map has drawn sometimes leaves the basemap drawn into one
+corner of the resized canvas.
 
 ## Baselines
 
 Every test renders with SwiftShader (software WebGL), the only WebGL on CI runners. It
 draws the same on macOS and Linux to within 0.2% of pixels, under the 1% tolerance in
 `playwright.config.ts`, so one set of baselines serves both. The exception is deck text
-layers, which draw with a system font: `geojson-example` allows 3% for its station names. Update them with:
+layers, which draw with a system font: `geojson-example` allows 5% for its station names.
+
+Update the baselines with:
 
 ```bash
 npx playwright test examples-visual --update-snapshots
