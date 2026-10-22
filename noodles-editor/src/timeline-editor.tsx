@@ -23,6 +23,7 @@ import type { RenderSource } from './render/render-analytics'
 import { resetRenderProgress, setRenderProgress } from './render/render-progress-store'
 import { captureScreenshot, useRenderer } from './render/renderer'
 import { deckRenderingDefaults, mapRenderingDefaults } from './render/rendering-defaults'
+import { exposeCanvasToTools } from './render/tool-canvas'
 import { TransformScale } from './render/transform-scale'
 import { resolveExportSettings, setVideoExporter, type VideoExporter } from './render/video-export'
 import { TimelinePanel } from './timeline/components/TimelinePanel'
@@ -332,27 +333,8 @@ export default function TimelineEditor() {
     }
   }, [])
 
-  // Expose the canvas and deck instance to the AI tools (capture_visualization,
-  // inspect_layer). Getters, because the map and deck are created after mount.
-  useEffect(() => {
-    const w = window as Window & { __deckCanvas?: HTMLCanvasElement; __deckInstance?: Deck }
-    Object.defineProperties(w, {
-      __deckCanvas: {
-        configurable: true,
-        // With a basemap, deck draws into MapLibre's canvas (interleaved), so capture that one
-        get: () =>
-          basemapEnabled
-            ? mapRef.current?.getCanvas()
-            : // @ts-expect-error canvas is protected but accessible
-              deckRef.current?.canvas,
-      },
-      __deckInstance: { configurable: true, get: () => deckRef.current ?? undefined },
-    })
-    return () => {
-      delete w.__deckCanvas
-      delete w.__deckInstance
-    }
-  }, [basemapEnabled])
+  // The AI tools read the canvas through window globals
+  useEffect(() => exposeCanvasToTools(basemapEnabled, mapRef, deckRef), [basemapEnabled])
 
   // onIdle resolves when all data is loaded and drawing has settled.
   mapProps.onIdle = ({ target: map }) => {
