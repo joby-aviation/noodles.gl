@@ -72,14 +72,14 @@ export interface ConfigTierStats {
   outputTokensPerSecond: number
 }
 
+// The configuration that was asked for, not the window measured after load: a
+// run whose model never loaded records no window, and keyed on the measured one
+// it would drop out of --compare, hiding exactly the regression that matters
 export const configKey = (row: RunRow) => {
-  // The ctx knob is the context window, so printing the knobs verbatim alongside
-  // it read as "ctx=16384 ctx=16384"
-  const rest = (row.knobs ?? '')
-    .split(',')
-    .filter(knob => knob && !knob.startsWith('ctx='))
-    .join(',')
-  return `${row.provider}/${row.model} ctx=${row.contextWindow}${rest ? ` ${rest}` : ''}`
+  const knobs = (row.knobs ?? '').split(',').filter(Boolean)
+  const ctx = knobs.find(knob => knob.startsWith('ctx='))?.slice(4) ?? 'default'
+  const rest = knobs.filter(knob => !knob.startsWith('ctx=')).join(',')
+  return `${row.provider}/${row.model} ctx=${ctx}${rest ? ` ${rest}` : ''}`
 }
 
 const mean = (values: number[]) =>
