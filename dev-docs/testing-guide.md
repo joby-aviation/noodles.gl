@@ -154,33 +154,6 @@ npm test export-performance
 - Speed factor ≥ 0.5x realtime (target: 0.93x)
 - Speedup vs old approach ≥ 6x (target: 8.6x)
 
-### Performance Benchmarks
-
-**Scripts:**
-- `npm run benchmark:export` - Generate theoretical benchmark data
-- `npm run benchmark:check` - Validate results against thresholds
-
-**Output:** `benchmark-results.json` with timing data for CI tracking
-
-**Benchmark scenarios:**
-- Simple scene (icon-layer-test)
-- Complex scene (3d-building-gradient)
-- Variable captureDelay values (0ms, 25ms, 50ms, 100ms, 200ms)
-
-**Example workflow:**
-```bash
-# Generate benchmark results
-npm run benchmark:export
-
-# Check if results meet thresholds
-npm run benchmark:check
-```
-
-**Interpreting benchmark results:**
-- `avgFrameTime`: Time per frame (lower is better, target <50ms)
-- `speedFactor`: Realtime performance ratio (higher is better, target >0.5x)
-- `waitPercent`: Percentage of time waiting for render (should be low with render event)
-
 ### Debugging Render Performance
 
 Enable debug logging in browser console to see detailed timing:
@@ -211,11 +184,6 @@ localStorage.debug = 'noodles:render*'
 - EXPORT_FRAME_DELAY changed → update constant validation
 - waitForData behavior changed → update layer loading tests
 
-**Benchmark threshold failures:**
-- Frame time > 50ms → performance regression, investigate bottleneck
-- Speed factor < 0.5x → too slow, check if render event is working
-- Speedup < 6x → optimization not effective, compare vs baseline
-
 ### Adding New Rendering Tests
 
 When modifying the rendering pipeline:
@@ -245,9 +213,8 @@ it('should use new optimization strategy', () => {
 When intentional performance changes occur:
 
 1. **Measure new baseline** using debug logging or Playwright
-2. **Update thresholds** in `scripts/check-benchmark-thresholds.js`
-3. **Update documentation** in test comments
-4. **Document reason** in PR description
+2. **Update documentation** in test comments
+3. **Document reason** in PR description
 
 **When to update baselines:**
 - Hardware upgrades (CI infrastructure changes)
