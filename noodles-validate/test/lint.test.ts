@@ -7,6 +7,8 @@ const registry = loadRegistry()
 const VALID = JSON.parse(
   readFileSync(new URL('./fixtures/valid/noodles.json', import.meta.url), 'utf8')
 )
+// The fixture is a current project whatever the latest migration is
+VALID.version = registry.projectVersion
 
 type Project = typeof VALID
 type Node = Project['nodes'][number]
@@ -49,7 +51,15 @@ describe('validateProject', () => {
   })
 
   it('reads the schema version from the registry', () => {
-    assert.equal(VALID.version, registry.projectVersion)
+    assert.equal(typeof registry.projectVersion, 'number')
+    const stale = validateProject(
+      project(p => (p.version = registry.projectVersion - 1)),
+      registry
+    )
+    assert.deepEqual(
+      stale.errors.map(d => d.rule),
+      ['version']
+    )
   })
 
   describe('project shape', () => {

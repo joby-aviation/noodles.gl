@@ -1,5 +1,5 @@
 {
-  "projectVersion": 18,
+  "projectVersion": 19,
   "customFieldTypes": [
     "number",
     "string",
@@ -589,6 +589,49 @@
       "outputs": {
         "extension": {
           "type": "ExtensionField"
+        }
+      }
+    },
+    "BrushableHistogramOp": {
+      "name": "BrushableHistogram",
+      "type": "BrushableHistogramOp",
+      "category": "data",
+      "description": "Interactive histogram with brushable range selection for data filtering. Drag handles to select a range, keyframe brush positions for animation.",
+      "inputs": {
+        "data": {
+          "type": "DataField",
+          "default": []
+        },
+        "field": {
+          "type": "StringLiteralField",
+          "default": ""
+        },
+        "binCount": {
+          "type": "NumberField",
+          "default": 20
+        },
+        "brushMin": {
+          "type": "NumberField",
+          "default": 0
+        },
+        "brushMax": {
+          "type": "NumberField",
+          "default": 100
+        },
+        "brushMode": {
+          "type": "StringLiteralField",
+          "default": "handles"
+        }
+      },
+      "outputs": {
+        "filteredData": {
+          "type": "DataField"
+        },
+        "binData": {
+          "type": "DataField"
+        },
+        "extent": {
+          "type": "UnknownField"
         }
       }
     },
@@ -4378,6 +4421,10 @@
         "rendersDirectory": {
           "type": "StringField",
           "default": "renders"
+        },
+        "sequenceFormat": {
+          "type": "StringLiteralField",
+          "default": "png"
         }
       },
       "outputs": {}
