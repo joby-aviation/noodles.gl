@@ -3,6 +3,13 @@ import { useCallback, useRef, useState } from 'react'
 import { getTimelineStore, useTimelineStore } from '../timeline/timeline-store'
 import { analytics } from '../utils/analytics'
 import { debugRender, debugRenderFrame } from '../utils/debug'
+import {
+  CanvasReplacedError,
+  FRAME_READ_TIMEOUT_MS,
+  FRAME_READY_TIMEOUT_MS,
+  FrameTimeoutError,
+  guardFrameStep,
+} from './frame-guard'
 import { type RenderErrorCategory, type RenderSource, trackRender } from './render-analytics'
 
 export const rafDriver = {
@@ -91,6 +98,7 @@ export const useRenderer = ({
   const startCapture = useCallback(
     async ({
       canvas,
+      getCanvas = () => canvas,
       width,
       height,
       codec,
@@ -102,6 +110,8 @@ export const useRenderer = ({
       onFrameComplete,
     }: {
       canvas: HTMLCanvasElement
+      // The canvas being drawn now, to notice when the recorded one is replaced
+      getCanvas?: () => HTMLCanvasElement | null | undefined
       width: number
       height: number
       codec: VideoCodec
@@ -284,6 +294,7 @@ export const useRenderer = ({
         tracker.restartClock()
 
         const mapRecorder = getCanvasRecorder(canvas)
+        const guard = { recording: canvas, getCanvas }
 
         const finishEncoding = async () => {
           const buffer = await mapContainer.finishEncoding()
@@ -298,7 +309,12 @@ export const useRenderer = ({
         setPosition(warmupSimTime)
         redraw()
 
-        const warmupResult = await canvasFrameReady()
+        const warmupResult = await guardFrameStep(
+          canvasFrameReady(),
+          guard,
+          FRAME_READY_TIMEOUT_MS,
+          `The first frame did not finish drawing within ${FRAME_READY_TIMEOUT_MS / 1000}s`
+        )
         if (warmupResult?.error) {
           debugRender('Error during render warmup:', warmupResult.error)
           mapRecorder.reader.releaseLock()
@@ -321,7 +337,12 @@ export const useRenderer = ({
             debugRenderFrame('capturing frame %d/%d at simtime %d', i, endFrame, simTime)
 
           const waitStart = performance.now()
-          const canvasResult = await canvasFrameReady()
+          const canvasResult = await guardFrameStep(
+            canvasFrameReady(),
+            guard,
+            FRAME_READY_TIMEOUT_MS,
+            `Frame ${i} did not finish drawing within ${FRAME_READY_TIMEOUT_MS / 1000}s`
+          )
           const waitEnd = performance.now()
           totalWaitTime += waitEnd - waitStart
 
@@ -344,7 +365,12 @@ export const useRenderer = ({
             captureStart = performance.now()
             // @ts-expect-error - typescript types not updated yet
             recorder.track.requestFrame()
-            const result = await recorder.reader.read()
+            const result = await guardFrameStep(
+              recorder.reader.read(),
+              guard,
+              FRAME_READ_TIMEOUT_MS,
+              `Frame ${i} could not be read from the canvas within ${FRAME_READ_TIMEOUT_MS / 1000}s`
+            )
             captureEnd = performance.now()
             totalCaptureTime += captureEnd - captureStart
 
@@ -409,6 +435,8 @@ export const useRenderer = ({
         // After an encoder error the encoder closes, so the next encode() or flush()
         // throws. The encoder's own error says what went wrong.
         if (encoderError) return fail('encoder', encoderError)
+        if (error instanceof CanvasReplacedError) return fail('canvas_replaced', error)
+        if (error instanceof FrameTimeoutError) return fail('timeout', error)
         return fail('exception', error instanceof Error ? error : new Error(String(error)))
       } finally {
         setIsRendering(false)
@@ -421,6 +449,7 @@ export const useRenderer = ({
   const startSequenceCapture = useCallback(
     async ({
       canvas,
+      getCanvas = () => canvas,
       getDeck,
       directoryHandle,
       captureDelay = 200,
@@ -431,6 +460,8 @@ export const useRenderer = ({
       onFrameComplete,
     }: {
       canvas: HTMLCanvasElement
+      // The canvas being drawn now, to notice when the recorded one is replaced
+      getCanvas?: () => HTMLCanvasElement | null | undefined
       getDeck?: () => Deck | null
       directoryHandle: FileSystemDirectoryHandle
       captureDelay?: number
@@ -503,6 +534,7 @@ export const useRenderer = ({
         const track = canvas.captureStream(0).getVideoTracks()[0]
         const mediaProcessor = new MediaStreamTrackProcessor({ track })
         reader = mediaProcessor.readable.getReader()
+        const guard = { recording: canvas, getCanvas }
 
         const exportStartTime = performance.now()
         let totalWaitTime = 0
@@ -523,7 +555,12 @@ export const useRenderer = ({
 
           // Wait for frame to be ready (onAfterRender for pure-deck, onIdle for basemap)
           const waitStart = performance.now()
-          await canvasFrameReady()
+          await guardFrameStep(
+            canvasFrameReady(),
+            guard,
+            FRAME_READY_TIMEOUT_MS,
+            `Frame ${i} did not finish drawing within ${FRAME_READY_TIMEOUT_MS / 1000}s`
+          )
           const waitEnd = performance.now()
           totalWaitTime += waitEnd - waitStart
 
@@ -540,7 +577,12 @@ export const useRenderer = ({
           const captureStart = performance.now()
           // @ts-expect-error - typescript types not updated yet
           track.requestFrame()
-          const { value: frame } = await reader.read()
+          const { value: frame } = await guardFrameStep(
+            reader.read(),
+            guard,
+            FRAME_READ_TIMEOUT_MS,
+            `Frame ${i} could not be read from the canvas within ${FRAME_READ_TIMEOUT_MS / 1000}s`
+          )
           const captureEnd = performance.now()
           totalCaptureTime += captureEnd - captureStart
 
@@ -601,8 +643,14 @@ export const useRenderer = ({
         )
         tracker.completed()
       } catch (error) {
+        const category: RenderErrorCategory =
+          error instanceof CanvasReplacedError
+            ? 'canvas_replaced'
+            : error instanceof FrameTimeoutError
+              ? 'timeout'
+              : 'exception'
         tracker.failed(
-          'exception',
+          category,
           error instanceof Error ? error : new Error(String(error)),
           framesDone
         )

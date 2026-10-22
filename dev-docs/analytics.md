@@ -102,7 +102,7 @@ Tracked in the renderer, not the buttons, so the Export button, the render setti
 - `format`: `mp4` or `png_sequence`; `codec` (`avc`, `hevc`, `vp9`, `av1`) is sent for `mp4` only
 - `resolution`: a bucket by the short side (`under_720p`, `720p`, `1080p`, `1440p`, `4k`, `8k`), not exact dimensions
 - `durationMs`: wall time from the end of the save dialog to the end of the render
-- `errorCategory`: `unsupported_codec`, `frame`, `encoder` or `exception`. `errorName` is the error class or DOMException name (`NotAllowedError`). The error message is never sent, since it can contain file paths.
+- `errorCategory`: `unsupported_codec`, `frame`, `encoder`, `canvas_replaced` (the recorded canvas was rebuilt mid-export, e.g. by adding or removing the basemap), `timeout` (a frame took too long to draw or read) or `exception`. `errorName` is the error class or DOMException name (`NotAllowedError`). The error message is never sent, since it can contain file paths.
 
 The agent's `capture_visualization` tool is not a `screenshot_taken`: it returns the image to the model rather than saving a file.
 
