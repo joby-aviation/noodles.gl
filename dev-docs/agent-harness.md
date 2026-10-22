@@ -36,6 +36,7 @@ every tool schema on every request, and serialized tool results with no size cap
 | `noodles/openrouter-oauth.ts` | The PKCE flow that mints an OpenRouter key without a paste |
 | `prompts/core.md` | The always-in-context system prompt |
 | `prompts/sections/*.md` | Workflow walkthroughs, retrieved on demand via `get_documentation` |
+| `docs-search.ts` | BM25 passage search behind `get_documentation`: best passage per topic, linked to its heading |
 
 `tool-definitions.ts` and `mcp-tools.ts` remain the single source of truth for the
 tool surface. WebMCP (`src/webmcp/register.ts`) registers all of them and is
@@ -58,7 +59,7 @@ in `agent-files.ts`, which goes through `resolvePath()` like `write_file`.
 | Default model | `claude-sonnet-5` | best free tool-capable model in the catalogue | whatever you type | `Qwen3.5-4B-q4f16_1-MLC` | `gemini-nano` |
 | Context window | 200k | from `/models`, per-model table as fallback | configurable, 32k default | 4k, pinned by every prebuilt config | discovered at runtime (~6k), and measured per turn |
 | Native tool calling | yes | yes (filtered on `supported_parameters`) | assumed, switchable off | **no** — constrained JSON | **no** — constrained JSON |
-| Images (screenshots) | yes | yes | off by default | no | no |
+| Images (screenshots) | yes | only when the catalogue lists `image` input | off by default | no | no |
 | Web search | server-side `web_search_2026…`/`…20250305` | `plugins: [{id:'web'}]` | unavailable | unavailable | unavailable |
 | Prompt caching | `cache_control: ephemeral` on the system prompt | — | — | KV cache reused across steps (byte-stable prefix) | session reused across turns |
 | API key | required | one click, no paste | required, unless the server is your own | none | none |
@@ -83,10 +84,11 @@ The provider is chosen in the chat panel header (or pinned in Settings) and stor
 `providerPreference` in `noodles/keys-store.tsx`; the model is stored separately in
 `agent/model-store.ts`. The rules live in `agent/provider-selection.ts` rather than in
 the panel, so they can be tested without mounting the editor. `'automatic'` walks
-`anthropic → openrouter → custom → webllm → chrome` and takes the first one that is
-*ready*, so neither on-device provider is picked for you — they are the weakest of the
-five and have to be asked for. A pinned provider that is not ready falls back to the
-same walk rather than showing an error.
+`anthropic → openrouter → custom → webllm` and takes the first one that is *ready*.
+WebLLM is ready only once the user has chosen a model, so it is never a fallback for
+a missing key. Chrome is experimental and not in the walk at all: its tool use and
+instruction following are unreliable enough that it runs only when pinned. A pinned
+provider that is not ready falls back to the same walk rather than showing an error.
 
 "Ready" is not the same question as "has a key":
 
@@ -201,10 +203,15 @@ or opens Settings → AI Provider, where OpenRouter is one click. Switching stop
 running reply, and `AgentSession.dispose` waits for it to settle before disposing
 the provider.
 
-`WEBLLM_MODELS` carries six ids checked against `prebuiltAppConfig.model_list`, each
-with the download size from the config's own `vram_required_MB`, because "3.4GB the
-first time" is the number that makes the choice an informed one. The download reports
-progress through the same `DownloadProgress` UI Chrome uses.
+`WEBLLM_MODELS` carries seven ids checked against `prebuiltAppConfig.model_list`. Two
+are recommended: Qwen3.5 4B (2.4 GB download, 3.9 GB GPU memory) and Qwen3.5 2B, the
+fast one (1.1 GB download, 2.2 GB GPU memory). The rest sit under "Advanced
+compatibility" so a saved choice keeps working. Download size and GPU memory are
+separate fields, since `vram_required_MB` runs well above the download and both
+numbers make the choice an informed one. When a model fails to load, the panel
+offers the 2B, which needs about half the memory. Every entry carries
+`supportsImages: false` until WebLLM ships a Qwen3.5 vision build. The download
+reports progress through the same `DownloadProgress` UI Chrome uses.
 
 ### Why there is no keyless preset
 
@@ -326,6 +333,19 @@ when the window is under 32k. Each step is one model turn plus its tool batch.
   names are the class's fields plus the live operator's, plus custom inputs an
   `add_node` in the run declares. A handle is checked by its whole name, since the
   graph looks up `par.viewState.zoom` as a field named `viewState.zoom`.
+- **Proposals.** What a run queued reaches the panel as a proposal: a card listing
+  each change and its proposed values (long values cut to a preview that expands)
+  with Accept and Reject. Nothing in the batch touches the graph until Accept, which
+  runs the batch through `useProjectModifications` inside `recordGraphMutation`
+  (`noodles/utils/graph-history.ts`), so the whole batch, field values included, is
+  one undo entry. Reject leaves a line in the conversation so the next turn knows
+  the edit did not land (a `run_code` call in the same run may already have changed
+  field values; the card and the line speak only for the batch). Sending is blocked
+  while a proposal waits. Starting or loading a conversation, or opening another
+  project (`projectKey`), drops it and aborts a run in flight, whose reply and
+  proposal are then ignored. A modifications array written into the reply as
+  JSON is not picked up: only `apply_modifications` validates a batch. The live
+  benchmark and WebMCP apply batches directly, without a proposal.
 - **Unverified edit claims.** A reply that announces a change in the past tense
   ("the radius has been set to 10") when no mutating tool succeeded and no
   modification was queued gets a one-line correction appended and emits an
@@ -334,7 +354,10 @@ when the window is under 32k. Each step is one model turn plus its tool batch.
   descriptions ("is currently set to `#8d12af`"), instructions and refusals are left
   alone; `claimsAnEdit` in `agent/loop.ts` holds the test.
 - **Screenshots.** Base64 is stripped from the tool result and reattached as an
-  image block on the follow-up message — only when `provider.supportsImages`.
+  image block on the follow-up message — only when `provider.supportsImages`. The
+  panel's Capture button is hidden when it is false, and a capture rides on the
+  next message the user sends. OpenRouter reads `supportsImages` from the
+  catalogue's `architecture.input_modalities`, since many free models are text-only.
 - **Opaque provider blocks.** Anything a provider needs echoed back verbatim
   (Anthropic thinking blocks, for instance) rides through the transcript as a
   `provider_block` and is never inspected. Dropping them makes Anthropic reject the
@@ -402,8 +425,8 @@ Four things about it are deliberate:
   `captureOperatorInputs` / `firePropertyMutation` pair. Pure computation creates no
   entry at all, and a call that did change something reports `changedFieldValues`.
   This only covers field values — adding or deleting operators goes through
-  `apply_modifications`, which the UI applies with its own history — so the tool
-  description points structural edits there.
+  `apply_modifications`, whose accepted proposal is its own undo entry — so the
+  tool description points structural edits there.
 - **`timeoutMs` bounds the await, not the code.** A synchronous infinite loop hangs
   the tab and no amount of racing changes that; the only real fix is a worker, and a
   worker cannot see the graph, which is the point of the tool. What the timeout does
