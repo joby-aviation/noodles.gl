@@ -1,11 +1,20 @@
 import type { Deck } from '@deck.gl/core'
+import type { FrameCounter, FrameStats } from './frame-stats'
 
-type ToolWindow = Window & { __deckCanvas?: HTMLCanvasElement; __deckInstance?: Deck }
+type ToolWindow = Window & {
+  __deckCanvas?: HTMLCanvasElement
+  __deckInstance?: Deck
+  __deckStats?: FrameStats & { layerCount: number }
+}
 
-// Exposes the canvas and deck instance to the AI tools (capture_visualization,
-// inspect_layer). Getters, because the deck is created after the editor mounts: a value
-// read at mount would stay undefined. Returns the cleanup.
-export function exposeCanvasToTools(deckRef: { current: Deck | null }): () => void {
+// Exposes the canvas, deck instance and frame stats to the AI tools (capture_visualization,
+// inspect_layer, get_render_stats). Getters, because the deck is created after the editor
+// mounts, and the stats should be current when read, not frozen at the last frame.
+// Returns the cleanup.
+export function exposeCanvasToTools(
+  deckRef: { current: Deck | null },
+  frames: FrameCounter
+): () => void {
   const w = window as ToolWindow
   Object.defineProperties(w, {
     __deckCanvas: {
@@ -17,9 +26,20 @@ export function exposeCanvasToTools(deckRef: { current: Deck | null }): () => vo
       get: () => deckRef.current?.canvas ?? undefined,
     },
     __deckInstance: { configurable: true, get: () => deckRef.current ?? undefined },
+    __deckStats: {
+      configurable: true,
+      get: () => {
+        const stats = frames.stats()
+        if (!stats) return undefined
+        // @ts-expect-error layerManager is protected but accessible
+        const layerCount: number = deckRef.current?.layerManager?.getLayers().length ?? 0
+        return { ...stats, layerCount }
+      },
+    },
   })
   return () => {
     delete w.__deckCanvas
     delete w.__deckInstance
+    delete w.__deckStats
   }
 }
