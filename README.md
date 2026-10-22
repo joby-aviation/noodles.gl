@@ -6,13 +6,13 @@ A React-based visualization platform for creating animated timeline presentation
 
 ```bash
 # Install dependencies
-yarn install:all
+npm run install:all
 
 # Start development server
-yarn start:app
+npm run start:app
 
 # Build for production
-yarn build:all
+npm run build:all
 ```
 
 ## Documentation

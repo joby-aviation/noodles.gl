@@ -75,3 +75,23 @@
 .refreshButton:hover {
   background-color: #ff6666;
 }
+
+.buttonRow {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.undoButton {
+  padding: 8px 16px;
+  background-color: #3b82f6;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.undoButton:hover {
+  background-color: #60a5fa;
+}

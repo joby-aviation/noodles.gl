@@ -1,5 +1,5 @@
 {
-  "$schema": "https://biomejs.dev/schemas/2.3.0/schema.json",
+  "$schema": "https://biomejs.dev/schemas/2.5.15/schema.json",
   "files": {
     "includes": [
       "**",
@@ -7,7 +7,9 @@
       "!**/node_modules",
       "!**/public",
       "!**/website/build",
-      "!**/src/examples/nyc-census/data.json"
+      "!**/src/examples/nyc-census/data.json",
+      "!**/bench/agent/.profile",
+      "!**/bench/agent/results"
     ]
   },
   "assist": { "actions": { "source": { "organizeImports": "on" } } },
@@ -18,8 +20,14 @@
   "linter": {
     "enabled": true,
     "rules": {
-      "recommended": true,
+      "preset": "recommended",
       "a11y": {
+        "noLabelWithoutControl": {
+          "level": "error",
+          "options": {
+            "inputComponents": ["InputNumber", "InputSwitch", "StringLiteralValuesInput"]
+          }
+        },
         "useKeyWithClickEvents": "off"
       },
       "complexity": {
@@ -78,6 +86,26 @@
         "rules": {
           "suspicious": {
             "noExplicitAny": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/noodles/noodles.tsx"],
+      "linter": {
+        "rules": {
+          "correctness": {
+            "useHookAtTopLevel": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/ai-chat/chat-panel.tsx"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noArrayIndexKey": "off"
           }
         }
       }

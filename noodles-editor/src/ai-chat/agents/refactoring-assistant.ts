@@ -4,22 +4,7 @@
 // Read-only analysis - does not automatically apply changes.
 
 import type { ContextLoader } from '../context-loader'
-
-interface CodeSymbol {
-  name: string
-  kind: string
-  line: number
-  endLine?: number
-}
-
-interface CodeFile {
-  lines: string[]
-  symbols: CodeSymbol[]
-}
-
-interface CodeIndex {
-  files: Record<string, CodeFile>
-}
+import type { CodeIndex } from '../types'
 
 export interface CodeAnalysisResult {
   file: string
@@ -173,13 +158,13 @@ export class RefactoringAssistantAgent {
   ): { filePath: string; lines: string[]; startLine: number; endLine: number } | null {
     // Search for class definition in code index
     for (const [filePath, file] of Object.entries(codeIndex.files)) {
-      const symbol = file.symbols.find(s => s.name === operatorType && s.kind === 'class')
+      const symbol = file.symbols.find(s => s.name === operatorType && s.type === 'class')
       if (symbol) {
         return {
           filePath,
           lines: file.lines,
           startLine: symbol.line,
-          endLine: symbol.endLine || symbol.line + 50, // Default to 50 lines
+          endLine: symbol.endLine || symbol.line + 50,
         }
       }
     }

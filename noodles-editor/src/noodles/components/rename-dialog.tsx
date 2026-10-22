@@ -2,6 +2,7 @@ import * as Dialog from '@radix-ui/react-dialog'
 import { Cross2Icon } from '@radix-ui/react-icons'
 import cx from 'classnames'
 import { useCallback, useEffect, useState } from 'react'
+import { debugUI } from '../../utils/debug'
 import s from './menu.module.css'
 
 interface RenameDialogProps {
@@ -55,7 +56,7 @@ export const RenameDialog = ({ open, onClose, onConfirm, currentName }: RenameDi
         setIsRenaming(false)
         return
       }
-      console.error('Failed to rename project:', err)
+      debugUI('Failed to rename project:', err)
       setError(err instanceof Error ? err.message : 'Failed to rename project')
     } finally {
       setIsRenaming(false)

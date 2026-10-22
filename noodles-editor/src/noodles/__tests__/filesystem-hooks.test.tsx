@@ -190,6 +190,62 @@ describe('FileSystem Hooks', () => {
 
       expect(result.current).toBe('fileSystemAccess')
     })
+
+    it('supports memory storage type', () => {
+      const { result } = renderHook(() => useActiveStorageType())
+
+      act(() => {
+        useFileSystemStore.getState().setActiveStorageType('memory')
+      })
+
+      expect(result.current).toBe('memory')
+    })
+  })
+
+  describe('memory project workflow', () => {
+    it('sets up memory project with null directory and draft name', () => {
+      const { result: dirResult } = renderHook(() => useCurrentDirectory())
+      const { result: nameResult } = renderHook(() => useCurrentProjectName())
+      const { result: typeResult } = renderHook(() => useActiveStorageType())
+
+      act(() => {
+        const store = useFileSystemStore.getState()
+        store.setCurrentDirectory(null, 'draft-abc123')
+        store.setActiveStorageType('memory')
+      })
+
+      expect(dirResult.current).toBeNull()
+      expect(nameResult.current).toBe('draft-abc123')
+      expect(typeResult.current).toBe('memory')
+    })
+
+    it('promotes from memory to fileSystemAccess on save', () => {
+      const { result: dirResult } = renderHook(() => useCurrentDirectory())
+      const { result: nameResult } = renderHook(() => useCurrentProjectName())
+      const { result: typeResult } = renderHook(() => useActiveStorageType())
+
+      // Start as memory project
+      act(() => {
+        const store = useFileSystemStore.getState()
+        store.setCurrentDirectory(null, 'draft-abc123')
+        store.setActiveStorageType('memory')
+      })
+
+      expect(typeResult.current).toBe('memory')
+      expect(dirResult.current).toBeNull()
+
+      // Promote to disk
+      const mockHandle = createMockDirectoryHandle('my-saved-project')
+      act(() => {
+        const store = useFileSystemStore.getState()
+        store.setCurrentDirectory(mockHandle, 'my-saved-project')
+        store.setActiveStorageType('fileSystemAccess')
+      })
+
+      expect(typeResult.current).toBe('fileSystemAccess')
+      expect(dirResult.current).toBe(mockHandle)
+      expect(nameResult.current).toBe('my-saved-project')
+    })
   })
 
   describe('useFileSystemSupport', () => {

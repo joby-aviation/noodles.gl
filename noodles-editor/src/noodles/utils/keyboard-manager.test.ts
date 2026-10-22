@@ -167,12 +167,16 @@ describe('KeyboardManager', () => {
     document.body.removeChild(button)
   })
 
-  it('should warn when initializing twice', () => {
+  it('should be idempotent when initializing twice', () => {
+    // beforeEach already called init() once; calling again should warn but not throw
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
 
     keyboardManager.init()
-
     expect(warnSpy).toHaveBeenCalledWith('KeyboardManager already initialized')
+    expect(warnSpy).toHaveBeenCalledTimes(1)
+
+    keyboardManager.init()
+    expect(warnSpy).toHaveBeenCalledTimes(2)
 
     warnSpy.mockRestore()
   })
@@ -188,5 +192,21 @@ describe('KeyboardManager', () => {
     document.dispatchEvent(event)
 
     expect(handler).not.toHaveBeenCalled()
+  })
+
+  it('should use shared input detection utility', () => {
+    const handler = vi.fn()
+    keyboardManager.register('a', handler)
+
+    // Test that it correctly identifies and blocks input elements
+    const input = document.createElement('input')
+    document.body.appendChild(input)
+
+    const event = new KeyboardEvent('keyup', { key: 'a', bubbles: true })
+    input.dispatchEvent(event)
+
+    expect(handler).not.toHaveBeenCalled()
+
+    document.body.removeChild(input)
   })
 })

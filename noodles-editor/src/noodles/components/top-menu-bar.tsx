@@ -2,18 +2,26 @@ import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { ChevronDownIcon, ExternalLinkIcon } from '@radix-ui/react-icons'
 import { useReactFlow } from '@xyflow/react'
 import { type RefObject, useCallback, useEffect, useMemo, useState } from 'react'
+import { useLocation } from 'wouter'
 import logoSvg from '/noodles-favicon.svg'
 import { SettingsDialog } from '../../components/settings-dialog'
-import { ExternalControlButton } from '../../external-control/components/external-control-button'
+import type { RenderSource } from '../../render/render-analytics'
 import { analytics } from '../../utils/analytics'
+import { debugUI } from '../../utils/debug'
+import { useActiveOutOp } from '../hooks/use-active-outop'
 import { ContainerOp } from '../operators'
-import { getOpStore, useNestingStore, useUIStore } from '../store'
+import { getOpStore, type MapMode, useNestingStore, useUIStore } from '../store'
 import { directoryHandleCache } from '../utils/directory-handle-cache'
+import { shouldBlockKeyboardShortcut } from '../utils/input-detection'
 import { getParentPath, splitPath } from '../utils/path-utils'
 import { Breadcrumbs } from './breadcrumbs'
 import type { CopyControlsRef } from './copy-controls'
+import { ExportButton } from './export-button'
 import { DataImporterTool } from './tools/data-importer-tool'
+import type { GeoRecipe } from './tools/geo-recipes'
+import { GeoToolWizard } from './tools/geo-tool-wizard'
 import { PointWizardTool } from './tools/point-wizard-tool'
+import { ToolShelf } from './tools/tool-shelf'
 import s from './top-menu-bar.module.css'
 import type { UndoRedoHandlerRef } from './UndoRedoHandler'
 
@@ -32,14 +40,16 @@ interface TopMenuBarProps {
   undoRedoRef: RefObject<UndoRedoHandlerRef | null>
   copyControlsRef: RefObject<CopyControlsRef | null>
   // Export functions always use the active OutOp's settings
-  startRender?: () => Promise<void>
-  takeScreenshot?: () => Promise<void>
+  startRender?: (source?: RenderSource) => Promise<void>
+  takeScreenshot?: (source?: RenderSource) => Promise<void>
   isRendering?: boolean
   hasUnsavedChanges?: boolean
   showOverlay?: boolean
   onChangeShowOverlay?: (show: boolean) => void
-  layoutMode?: 'split' | 'noodles-on-top' | 'output-on-top'
-  onChangeLayoutMode?: (mode: 'split' | 'noodles-on-top' | 'output-on-top') => void
+  showDebugInfo?: boolean
+  onChangeShowDebugInfo?: (show: boolean) => void
+  spreadsheetVisible?: boolean
+  onChangeSpreadsheetVisible?: (show: boolean) => void
   reactFlowRef?: RefObject<HTMLDivElement>
 }
 
@@ -63,30 +73,40 @@ export function TopMenuBar({
   hasUnsavedChanges,
   showOverlay,
   onChangeShowOverlay,
-  layoutMode,
-  onChangeLayoutMode,
+  showDebugInfo,
+  onChangeShowDebugInfo,
+  spreadsheetVisible,
+  onChangeSpreadsheetVisible,
   reactFlowRef,
 }: TopMenuBarProps) {
   const settingsDialogOpen = useUIStore(state => state.settingsDialogOpen)
   const setSettingsDialogOpen = useUIStore(state => state.setSettingsDialogOpen)
+  const mapMode = useUIStore(state => state.mapMode)
+  const setMapMode = useUIStore(state => state.setMapMode)
+  const triggerSidebarSearch = useUIStore(state => state.triggerSidebarSearch)
+  const [, navigate] = useLocation()
   const [recentProjects, setRecentProjects] = useState<string[]>([])
   const [showPointWizard, setShowPointWizard] = useState(false)
   const [showDataImporter, setShowDataImporter] = useState(false)
+  const [activeRecipe, setActiveRecipe] = useState<GeoRecipe | null>(null)
   const currentContainerId = useNestingStore(state => state.currentContainerId)
   const setCurrentContainerId = useNestingStore(state => state.setCurrentContainerId)
   const reactFlow = useReactFlow()
+  const activeOutOp = useActiveOutOp()
 
   // Load recent projects on mount
   useEffect(() => {
     directoryHandleCache
       .getAllProjectNames()
       .then(names => setRecentProjects(names))
-      .catch(err => console.error('Failed to load recent projects:', err))
+      .catch(err => debugUI('Failed to load recent projects:', err))
   }, [])
 
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (shouldBlockKeyboardShortcut(e)) return
+
       const isMod = e.metaKey || e.ctrlKey
 
       if (isMod && e.key === 's') {
@@ -105,12 +125,16 @@ export function TopMenuBar({
         e.preventDefault()
         onImport()
         analytics.track('keyboard_shortcut_used', { action: 'import' })
+      } else if (isMod && e.key === 'f') {
+        e.preventDefault()
+        triggerSidebarSearch()
+        analytics.track('keyboard_shortcut_used', { action: 'find' })
       }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [onSaveProject, onNewProject, onOpen, onImport])
+  }, [onSaveProject, onNewProject, onOpen, onImport, triggerSidebarSearch])
 
   // Detect platform for keyboard shortcuts
   const isMac = useMemo(() => navigator.platform.toUpperCase().indexOf('MAC') >= 0, [])
@@ -136,17 +160,16 @@ export function TopMenuBar({
 
   const canGoInto = selectedContainer !== null
 
-  // Simplified export handlers - always use active OutOp's settings
+  // Simplified export handlers - always use active OutOp's settings. The renderer
+  // tracks render and screenshot analytics, so every button that exports is counted.
   const handleStartRender = useCallback(async () => {
     if (!startRender) return
     await startRender()
-    analytics.track('render_started', { source: 'menu' })
   }, [startRender])
 
   const handleTakeScreenshot = useCallback(async () => {
     if (!takeScreenshot) return
     await takeScreenshot()
-    analytics.track('screenshot_taken', { source: 'menu' })
   }, [takeScreenshot])
 
   const goUp = useCallback(() => {
@@ -266,6 +289,13 @@ export function TopMenuBar({
                         </DropdownMenu.SubTrigger>
                         <DropdownMenu.Portal>
                           <DropdownMenu.SubContent className={s.dropdownContent} sideOffset={2}>
+                            <DropdownMenu.Item
+                              className={s.dropdownItem}
+                              onSelect={() => navigate('/projects')}
+                            >
+                              View Recent...
+                            </DropdownMenu.Item>
+                            <DropdownMenu.Separator className={s.dropdownSeparator} />
                             {recentProjects.length === 0 ? (
                               <DropdownMenu.Item className={s.dropdownItem} disabled>
                                 No recent projects
@@ -284,6 +314,13 @@ export function TopMenuBar({
                           </DropdownMenu.SubContent>
                         </DropdownMenu.Portal>
                       </DropdownMenu.Sub>
+                      <DropdownMenu.Separator className={s.dropdownSeparator} />
+                      <DropdownMenu.Item
+                        className={s.dropdownItem}
+                        onSelect={() => navigate('/examples')}
+                      >
+                        Examples
+                      </DropdownMenu.Item>
                     </DropdownMenu.SubContent>
                   </DropdownMenu.Portal>
                 </DropdownMenu.Sub>
@@ -332,6 +369,17 @@ export function TopMenuBar({
                       >
                         <span>Paste</span>
                         <span className={s.shortcut}>{mod}+V</span>
+                      </DropdownMenu.Item>
+                      <DropdownMenu.Separator className={s.dropdownSeparator} />
+                      <DropdownMenu.Item
+                        className={s.dropdownItem}
+                        onSelect={() => {
+                          triggerSidebarSearch()
+                          analytics.track('keyboard_shortcut_used', { action: 'find' })
+                        }}
+                      >
+                        <span>Find</span>
+                        <span className={s.shortcut}>{mod}+F</span>
                       </DropdownMenu.Item>
                     </DropdownMenu.SubContent>
                   </DropdownMenu.Portal>
@@ -385,14 +433,33 @@ export function TopMenuBar({
                         <DropdownMenu.ItemIndicator className={s.itemIndicator}>
                           <i className="pi pi-check" style={{ fontSize: '12px' }} />
                         </DropdownMenu.ItemIndicator>
-                        Show node graph overlay
+                        Show node graph
                       </DropdownMenu.CheckboxItem>
-
+                      <DropdownMenu.CheckboxItem
+                        className={s.dropdownItem}
+                        checked={showDebugInfo}
+                        onCheckedChange={onChangeShowDebugInfo}
+                      >
+                        <DropdownMenu.ItemIndicator className={s.itemIndicator}>
+                          <i className="pi pi-check" style={{ fontSize: '12px' }} />
+                        </DropdownMenu.ItemIndicator>
+                        Show editor debug info
+                      </DropdownMenu.CheckboxItem>
+                      <DropdownMenu.CheckboxItem
+                        className={s.dropdownItem}
+                        checked={spreadsheetVisible}
+                        onCheckedChange={onChangeSpreadsheetVisible}
+                      >
+                        <DropdownMenu.ItemIndicator className={s.itemIndicator}>
+                          <i className="pi pi-check" style={{ fontSize: '12px' }} />
+                        </DropdownMenu.ItemIndicator>
+                        Show spreadsheet
+                      </DropdownMenu.CheckboxItem>
                       <DropdownMenu.Separator className={s.dropdownSeparator} />
 
                       <DropdownMenu.Sub>
                         <DropdownMenu.SubTrigger className={s.dropdownItem}>
-                          Layout
+                          Map
                           <i
                             className="pi pi-chevron-right"
                             style={{ marginLeft: 'auto', fontSize: '10px' }}
@@ -401,36 +468,26 @@ export function TopMenuBar({
                         <DropdownMenu.Portal>
                           <DropdownMenu.SubContent className={s.dropdownContent} sideOffset={2}>
                             <DropdownMenu.RadioGroup
-                              value={layoutMode}
-                              onValueChange={value =>
-                                onChangeLayoutMode?.(
-                                  value as 'split' | 'noodles-on-top' | 'output-on-top'
-                                )
-                              }
+                              value={mapMode}
+                              onValueChange={value => setMapMode(value as MapMode)}
                             >
-                              <DropdownMenu.RadioItem className={s.dropdownItem} value="split">
+                              <DropdownMenu.RadioItem className={s.dropdownItem} value="docked">
                                 <DropdownMenu.ItemIndicator className={s.itemIndicator}>
                                   <i className="pi pi-check" style={{ fontSize: '12px' }} />
                                 </DropdownMenu.ItemIndicator>
-                                Split
+                                Docked panel
                               </DropdownMenu.RadioItem>
-                              <DropdownMenu.RadioItem
-                                className={s.dropdownItem}
-                                value="noodles-on-top"
-                              >
+                              <DropdownMenu.RadioItem className={s.dropdownItem} value="floating">
                                 <DropdownMenu.ItemIndicator className={s.itemIndicator}>
                                   <i className="pi pi-check" style={{ fontSize: '12px' }} />
                                 </DropdownMenu.ItemIndicator>
-                                Noodles on Top
+                                Floating window
                               </DropdownMenu.RadioItem>
-                              <DropdownMenu.RadioItem
-                                className={s.dropdownItem}
-                                value="output-on-top"
-                              >
+                              <DropdownMenu.RadioItem className={s.dropdownItem} value="underlay">
                                 <DropdownMenu.ItemIndicator className={s.itemIndicator}>
                                   <i className="pi pi-check" style={{ fontSize: '12px' }} />
                                 </DropdownMenu.ItemIndicator>
-                                Output on Top
+                                Behind node graph
                               </DropdownMenu.RadioItem>
                             </DropdownMenu.RadioGroup>
                           </DropdownMenu.SubContent>
@@ -508,42 +565,22 @@ export function TopMenuBar({
           </div>
         </div>
 
-        <div className={s.centerSection}>
-          {reactFlowRef && (
-            <>
-              <button
-                type="button"
-                className={s.toolButton}
-                onClick={onOpenAddNode}
-                disabled={!onOpenAddNode}
-              >
-                <i className="pi pi-plus-circle" />
-                <span className={s.toolLabel}>Add Op</span>
-              </button>
-
-              <button
-                type="button"
-                className={s.toolButton}
-                onClick={() => setShowPointWizard(true)}
-              >
-                <i className="pi pi-map-marker" />
-                <span className={s.toolLabel}>Create Point</span>
-              </button>
-
-              <button
-                type="button"
-                className={s.toolButton}
-                onClick={() => setShowDataImporter(true)}
-              >
-                <i className="pi pi-file-import" />
-                <span className={s.toolLabel}>Import Data</span>
-              </button>
-            </>
-          )}
-        </div>
+        {reactFlowRef && (
+          <ToolShelf
+            onOpenAddNode={onOpenAddNode}
+            onCreatePoint={() => setShowPointWizard(true)}
+            onImportFile={() => setShowDataImporter(true)}
+            onRunRecipe={setActiveRecipe}
+          />
+        )}
 
         <div className={s.rightSection}>
-          <ExternalControlButton />
+          <ExportButton
+            activeOutOpId={activeOutOp?.id ?? null}
+            isRendering={Boolean(isRendering)}
+            takeScreenshot={takeScreenshot}
+            startRender={startRender}
+          />
           {onChangeShowChatPanel && (
             <button
               type="button"
@@ -569,6 +606,14 @@ export function TopMenuBar({
           <DataImporterTool
             open={showDataImporter}
             onOpenChange={setShowDataImporter}
+            reactFlowRef={reactFlowRef}
+          />
+
+          <GeoToolWizard
+            recipe={activeRecipe}
+            onOpenChange={open => {
+              if (!open) setActiveRecipe(null)
+            }}
             reactFlowRef={reactFlowRef}
           />
         </>

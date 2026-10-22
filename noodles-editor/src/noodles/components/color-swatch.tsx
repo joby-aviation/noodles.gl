@@ -11,6 +11,10 @@ interface ColorSwatchProps {
   onChange: (color: string) => void
   // Whether the swatch is disabled
   disabled?: boolean
+  // Called when the color picker opens (before any color change)
+  onPickerOpen?: () => void
+  // Called when the color picker closes (after all color changes are complete)
+  onPickerClose?: () => void
 }
 
 // ColorSwatch - A color picker component
@@ -21,7 +25,13 @@ interface ColorSwatchProps {
 // - Click-outside, escape, scroll, and touch-to-close behavior
 // - Global blur when picker closes
 // - Smart positioning (below or above swatch based on available space)
-export function ColorSwatch({ value, onChange, disabled = false }: ColorSwatchProps) {
+export function ColorSwatch({
+  value,
+  onChange,
+  disabled = false,
+  onPickerOpen,
+  onPickerClose,
+}: ColorSwatchProps) {
   const [showPicker, setShowPicker] = useState(false)
   const [pickerPosition, setPickerPosition] = useState<{
     top: number
@@ -43,6 +53,7 @@ export function ColorSwatch({ value, onChange, disabled = false }: ColorSwatchPr
   useEffect(() => {
     const closePicker = () => {
       setShowPicker(false)
+      onPickerClose?.()
       // Global blur: remove focus from the button to ensure the node loses focus
       swatchRef.current?.blur()
       // Also blur any active element to ensure complete blur behavior
@@ -104,7 +115,7 @@ export function ColorSwatch({ value, onChange, disabled = false }: ColorSwatchPr
         document.removeEventListener('touchstart', handleTouchStart, true)
       }
     }
-  }, [showPicker])
+  }, [showPicker, onPickerClose])
 
   const calculatePickerPosition = useCallback(() => {
     if (!swatchRef.current) return null
@@ -144,15 +155,17 @@ export function ColorSwatch({ value, onChange, disabled = false }: ColorSwatchPr
     if (showPicker) {
       // Close picker if already open
       setShowPicker(false)
+      onPickerClose?.()
     } else {
       // Calculate position and open picker
       const position = calculatePickerPosition()
       if (position) {
         setPickerPosition(position)
         setShowPicker(true)
+        onPickerOpen?.()
       }
     }
-  }, [disabled, showPicker, calculatePickerPosition])
+  }, [disabled, showPicker, calculatePickerPosition, onPickerOpen, onPickerClose])
 
   const onPickerChange = useCallback(
     (color: { rgb: { r: number; g: number; b: number; a?: number } }) => {
@@ -186,11 +199,10 @@ export function ColorSwatch({ value, onChange, disabled = false }: ColorSwatchPr
         createPortal(
           <div
             ref={pickerRef}
+            className={s.colorPickerPortal}
             style={{
-              position: 'fixed',
               top: `${pickerPosition.top}px`,
               left: `${pickerPosition.left}px`,
-              zIndex: 10000,
             }}
           >
             <div className={s.chromePickerWrapper}>

@@ -14,11 +14,6 @@ const RESOLUTION_PRESETS = [
   { label: '4K 16:9', width: 3840, height: 2160 },
 ] as const
 
-function getResolutionPresetValue(width: number, height: number): string {
-  const preset = RESOLUTION_PRESETS.find(p => p.width === width && p.height === height)
-  return preset ? `${preset.width}x${preset.height}` : 'custom'
-}
-
 interface RenderSettingsPanelProps {
   op: OutOp
 }
@@ -30,13 +25,15 @@ export function RenderSettingsPanel({ op }: RenderSettingsPanelProps) {
   const isActive = activeOutOpId === op.id
 
   // Get export actions from context (provided by TimelineEditor)
-  const { startRender, takeScreenshot, isRendering } = useExportActions()
+  const { startRender, takeScreenshot, exportSequence, selectRendersDirectory, isRendering } =
+    useExportActions()
 
   // Subscribe to field changes
   const [display, setDisplay] = useState(op.inputs.display.value)
   const [width, setWidth] = useState(op.inputs.width.value)
   const [height, setHeight] = useState(op.inputs.height.value)
   const [lod, setLod] = useState(op.inputs.lod.value)
+  const [scaleMode, setScaleMode] = useState(op.inputs.scaleMode.value)
   const [scaleControl, setScaleControl] = useState(op.inputs.scaleControl.value)
   const [codec, setCodec] = useState(op.inputs.codec.value)
   const [framerate, setFramerate] = useState(op.inputs.framerate.value)
@@ -44,6 +41,7 @@ export function RenderSettingsPanel({ op }: RenderSettingsPanelProps) {
   const [bitrateMode, setBitrateMode] = useState(op.inputs.bitrateMode.value)
   const [waitForData, setWaitForData] = useState(op.inputs.waitForData.value)
   const [captureDelay, setCaptureDelay] = useState(op.inputs.captureDelay.value)
+  const [rendersDirectory, setRendersDirectory] = useState(op.inputs.rendersDirectory.value)
 
   useEffect(() => {
     const subscriptions = [
@@ -51,6 +49,7 @@ export function RenderSettingsPanel({ op }: RenderSettingsPanelProps) {
       op.inputs.width.subscribe(v => setWidth(v)),
       op.inputs.height.subscribe(v => setHeight(v)),
       op.inputs.lod.subscribe(v => setLod(v)),
+      op.inputs.scaleMode.subscribe(v => setScaleMode(v)),
       op.inputs.scaleControl.subscribe(v => setScaleControl(v)),
       op.inputs.codec.subscribe(v => setCodec(v)),
       op.inputs.framerate.subscribe(v => setFramerate(v)),
@@ -58,6 +57,7 @@ export function RenderSettingsPanel({ op }: RenderSettingsPanelProps) {
       op.inputs.bitrateMode.subscribe(v => setBitrateMode(v)),
       op.inputs.waitForData.subscribe(v => setWaitForData(v)),
       op.inputs.captureDelay.subscribe(v => setCaptureDelay(v)),
+      op.inputs.rendersDirectory.subscribe(v => setRendersDirectory(v)),
     ]
     return () => {
       for (const sub of subscriptions) sub.unsubscribe()
@@ -66,7 +66,6 @@ export function RenderSettingsPanel({ op }: RenderSettingsPanelProps) {
 
   const handleResolutionPresetChange = useCallback(
     (value: string) => {
-      if (value === 'custom') return
       const [w, h] = value.split('x').map(Number)
       op.inputs.width.setValue(w)
       op.inputs.height.setValue(h)
@@ -79,6 +78,7 @@ export function RenderSettingsPanel({ op }: RenderSettingsPanelProps) {
     op.inputs.width.setValue(DEFAULT_RENDER_SETTINGS.resolution.width)
     op.inputs.height.setValue(DEFAULT_RENDER_SETTINGS.resolution.height)
     op.inputs.lod.setValue(DEFAULT_RENDER_SETTINGS.lod)
+    op.inputs.scaleMode.setValue(DEFAULT_RENDER_SETTINGS.scaleMode)
     op.inputs.scaleControl.setValue(DEFAULT_RENDER_SETTINGS.scaleControl)
     op.inputs.codec.setValue(DEFAULT_RENDER_SETTINGS.codec)
     op.inputs.framerate.setValue(DEFAULT_RENDER_SETTINGS.framerate)
@@ -86,6 +86,7 @@ export function RenderSettingsPanel({ op }: RenderSettingsPanelProps) {
     op.inputs.bitrateMode.setValue(DEFAULT_RENDER_SETTINGS.bitrateMode)
     op.inputs.waitForData.setValue(DEFAULT_RENDER_SETTINGS.waitForData)
     op.inputs.captureDelay.setValue(DEFAULT_RENDER_SETTINGS.captureDelay)
+    op.inputs.rendersDirectory.setValue(DEFAULT_RENDER_SETTINGS.rendersDirectory)
   }, [op])
 
   return (
@@ -124,72 +125,81 @@ export function RenderSettingsPanel({ op }: RenderSettingsPanelProps) {
         {display === 'fixed' && (
           <>
             <div className={s.settingRow}>
-              <label htmlFor="render-resolution-preset" className={s.label}>
+              <label htmlFor="render-resolution-width" className={s.label}>
                 Resolution
               </label>
+              <div className={s.resolutionInputs}>
+                <input
+                  id="render-resolution-width"
+                  type="number"
+                  className={s.numberInput}
+                  value={width}
+                  min="1"
+                  max="7680"
+                  onChange={e => op.inputs.width.setValue(Number(e.target.value))}
+                />
+                <span className={s.separator}>×</span>
+                <input
+                  id="render-resolution-height"
+                  type="number"
+                  className={s.numberInput}
+                  value={height}
+                  min="1"
+                  max="4320"
+                  onChange={e => op.inputs.height.setValue(Number(e.target.value))}
+                />
+                <select
+                  id="render-resolution-preset"
+                  className={s.presetSelect}
+                  value=""
+                  onChange={e => handleResolutionPresetChange(e.target.value)}
+                >
+                  <option value="" disabled hidden />
+                  {RESOLUTION_PRESETS.map(preset => (
+                    <option
+                      key={`${preset.width}x${preset.height}`}
+                      value={`${preset.width}x${preset.height}`}
+                    >
+                      {preset.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className={s.settingRow}>
+              <label htmlFor="render-scale-mode" className={s.label}>
+                Preview
+              </label>
               <select
-                id="render-resolution-preset"
+                id="render-scale-mode"
                 className={s.select}
-                value={getResolutionPresetValue(width, height)}
-                onChange={e => handleResolutionPresetChange(e.target.value)}
+                value={scaleMode}
+                onChange={e => op.inputs.scaleMode.setValue(e.target.value as 'fit' | 'manual')}
               >
-                {RESOLUTION_PRESETS.map(preset => (
-                  <option
-                    key={`${preset.width}x${preset.height}`}
-                    value={`${preset.width}x${preset.height}`}
-                  >
-                    {preset.label}
-                  </option>
-                ))}
-                <option value="custom">Custom</option>
+                <option value="fit">Fit to panel</option>
+                <option value="manual">Manual scale</option>
               </select>
             </div>
 
-            {getResolutionPresetValue(width, height) === 'custom' && (
+            {scaleMode === 'manual' && (
               <div className={s.settingRow}>
-                <label htmlFor="render-resolution-width" className={s.label}>
-                  Size
+                <label htmlFor="render-scale-control" className={s.label}>
+                  Scale
                 </label>
-                <div className={s.resolutionInputs}>
-                  <input
-                    id="render-resolution-width"
-                    type="number"
-                    className={s.numberInput}
-                    value={width}
-                    min="1"
-                    max="7680"
-                    onChange={e => op.inputs.width.setValue(Number(e.target.value))}
-                  />
-                  <span className={s.separator}>×</span>
-                  <input
-                    id="render-resolution-height"
-                    type="number"
-                    className={s.numberInput}
-                    value={height}
-                    min="1"
-                    max="4320"
-                    onChange={e => op.inputs.height.setValue(Number(e.target.value))}
-                  />
-                </div>
+                <input
+                  id="render-scale-control"
+                  type="range"
+                  min="0.1"
+                  max="1"
+                  step="0.05"
+                  value={scaleControl}
+                  onChange={e => op.inputs.scaleControl.setValue(Number(e.target.value))}
+                  className={s.slider}
+                />
+                <span className={s.value}>{Math.round(scaleControl * 100)}%</span>
               </div>
             )}
-
-            <div className={s.settingRow}>
-              <label htmlFor="render-scale-control" className={s.label}>
-                Scale
-              </label>
-              <input
-                id="render-scale-control"
-                type="range"
-                min="0.1"
-                max="1"
-                step="0.05"
-                value={scaleControl}
-                onChange={e => op.inputs.scaleControl.setValue(Number(e.target.value))}
-                className={s.slider}
-              />
-              <span className={s.value}>{Math.round(scaleControl * 100)}%</span>
-            </div>
           </>
         )}
 
@@ -314,6 +324,21 @@ export function RenderSettingsPanel({ op }: RenderSettingsPanelProps) {
           />
           <span className={s.unit}>ms</span>
         </div>
+
+        <div className={s.settingRow}>
+          <label htmlFor="render-renders-directory" className={s.label}>
+            Output Dir
+          </label>
+          <button
+            id="render-renders-directory"
+            type="button"
+            className={s.directoryButton}
+            onClick={() => selectRendersDirectory?.()}
+          >
+            <i className="pi pi-folder" />
+            {rendersDirectory || 'renders'}
+          </button>
+        </div>
       </div>
 
       <button type="button" className={s.resetButton} onClick={handleResetToDefaults}>
@@ -334,6 +359,19 @@ export function RenderSettingsPanel({ op }: RenderSettingsPanelProps) {
         >
           <i className="pi pi-image" />
           Export Photo
+        </button>
+        <button
+          type="button"
+          className={s.exportButton}
+          onClick={() => {
+            // Ensure this OutOp is active before exporting
+            setActiveOutOpId(op.id)
+            exportSequence?.()
+          }}
+          disabled={!exportSequence || isRendering}
+        >
+          <i className="pi pi-images" />
+          {isRendering ? 'Exporting...' : 'Export Sequence'}
         </button>
         <button
           type="button"

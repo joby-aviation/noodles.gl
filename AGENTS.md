@@ -14,20 +14,17 @@ This document provides essential context for Large Language Models (LLMs) workin
 - Enable rapid prototyping and development of complex visualizations
 - Export to video, images, or interactive web presentations
 
-### Key Users
-- Visualization experts creating presentation-ready graphics
-- Developers doing rapid visualization prototyping
-- Data scientists exploring and analyzing data
-- Research teams publishing geospatial analysis
-
 ## Quick Reference Links
 
 - **[Architecture](dev-docs/architecture.md)** - System architecture, state management, and error handling
 - **[Development Guide](dev-docs/developing.md)** - Setup, commands, workflows, and best practices
 - **[Testing Guide](dev-docs/testing-guide.md)** - Testing strategy, critical components, and runbook guidelines
-- **[PR Guidelines](dev-docs/pr-guidelines.md)** - Creating focused PRs with tests and documentation
+- **[PR Guidelines](dev-docs/pr-guidelines.md)** - Focused PRs, PR description format, screenshots for UI changes
 - **[Analytics](dev-docs/analytics.md)** - Privacy-preserving analytics guidelines
+- **[Agent Harness](dev-docs/agent-harness.md)** - The in-app AI chat: providers, tool routing, context budgets
 - **[Tech Stack](dev-docs/tech-stack.md)** - Complete technology listing
+- **[Adding Operators](dev-docs/adding-operators.md)** - Operator class template, registration checklist, custom field types
+- **[Claude Code Workflow](dev-docs/claude-code-workflow.md)** - Editing noodles.json directly, WebMCP connection, graph design guidelines
 
 ## Architecture
 
@@ -52,71 +49,6 @@ This document provides essential context for Large Language Models (LLMs) workin
 - Parallel execution for independent branches
 - GraphExecutor manages the execution loop with RAF-based timing
 
-### Technology Stack
-
-**Core:** React 18, TypeScript, Vite, Yarn
-
-**Animation:** Theatre.js (timeline editor, all parameters can be keyframed)
-
-**Visualization:** Deck.gl (WebGL data visualization), MapLibre GL (mapping), luma.gl (rendering), D3.js (data)
-
-**Geospatial:** @turf/turf (analysis), H3-js (indexing), DuckDB-WASM (SQL), Apache Arrow (columnar data)
-
-**UI:** @xyflow/react (node editor), Radix UI, PrimeReact
-
-**State:** Zustand (global state), RxJS (reactive data flow), Theatre.js (animation state)
-
-**Dev Tools:** Biome (linting/formatting), TypeScript, Vitest, Playwright
-
-See [tech-stack.md](dev-docs/tech-stack.md) for complete details.
-
-## Project Structure
-
-```
-noodles-gl-public/
-├── noodles-editor/           # Main application
-│   ├── src/
-│   │   ├── noodles/          # Core node system
-│   │   │   ├── operators.ts  # Operator registry
-│   │   │   ├── fields.ts     # Field system
-│   │   │   ├── components/   # React components
-│   │   │   │   ├── op-components.tsx      # Operator node renderers
-│   │   │   │   ├── field-components.tsx   # Field input renderers
-│   │   │   │   ├── menu.tsx               # Operator menu
-│   │   │   │   └── categories.ts          # Operator categorization
-│   │   │   ├── utils/        # Utilities
-│   │   │   │   ├── path-utils.ts          # Path resolution
-│   │   │   │   ├── memoize.ts             # Caching
-│   │   │   │   ├── serialization.ts       # Save/load
-│   │   │   │   └── ...
-│   │   │   └── hooks/        # React hooks
-│   │   ├── ai-chat/          # Claude AI integration
-│   │   ├── utils/            # General utilities
-│   │   ├── timeline-editor.tsx  # Timeline interface
-│   │   ├── noodles.tsx       # Main viz component
-│   │   └── index.tsx         # App entry point
-│   ├── public/
-│   │   └── noodles/          # Example projects
-│   ├── scripts/              # Build scripts
-│   ├── package.json
-│   ├── vite.config.js
-│   └── tsconfig.json
-├── website/                  # Documentation website
-├── docs/                     # Documentation source
-│   ├── developers/           # Developer guides
-│   └── users/                # User guides
-├── dev-docs/                 # Internal dev docs
-│   ├── architecture.md
-│   ├── developing.md
-│   ├── testing-guide.md
-│   ├── pr-guidelines.md
-│   ├── analytics.md
-│   ├── tech-stack.md
-│   └── specs/                # Design specs
-├── README.md
-└── CONTRIBUTING.md
-```
-
 ## Key Files and Their Purposes
 
 ### Core Application Files
@@ -127,7 +59,7 @@ noodles-gl-public/
 - **`noodles-editor/src/noodles/components/op-components.tsx`** - React components for rendering operator nodes. Most use default renderer, some have custom components.
 - **`noodles-editor/src/noodles/components/field-components.tsx`** - React components for rendering field inputs.
 - **`noodles-editor/src/noodles/noodles.tsx`** - Main visualization component that loads projects and manages state, orchestrates nodes with React Flow.
-- **`noodles-editor/src/timeline-editor.tsx`** - Timeline editor interface for Theatre.js integration.
+- **`noodles-editor/src/timeline-editor.tsx`** - Timeline editor interface with native timeline components.
 
 ### Utilities
 
@@ -195,7 +127,7 @@ Projects are stored as JSON files with this structure:
 
 ```json
 {
-  "version": 6,
+  "version": 18,
   "nodes": [
     {
       "id": "/data-loader",
@@ -227,50 +159,6 @@ Projects are stored as JSON files with this structure:
 - `@/` - Relative to project data directory
 - Absolute paths work as-is
 - URLs can reference remote resources
-
-## Operator Categories
-
-### Data Sources
-- **FileOp**: Load JSON, CSV, GeoJSON files
-- **DuckDbOp**: SQL queries with reactive references
-- **GeocoderOp**: Convert addresses to coordinates
-- **H3IndexOp**: Generate H3 cell indices
-
-### Data Processing
-- **FilterOp**: Filter data based on conditions
-- **MapOp**: Transform data arrays
-- **GroupByOp**: Group and aggregate data
-- **JoinOp**: Combine multiple datasets
-- **SliceOp**: Slice arrays
-
-### Math & Logic
-- **NumberOp**: Numeric constants
-- **ExpressionOp**: Single-line JavaScript expressions
-- **CodeOp**: Multi-line custom JavaScript code
-- **AccessorOp**: Data accessor functions for Deck.gl
-
-### GeoJSON Operations
-- **GeoJsonOp**: Create GeoJSON from data
-- **BoundingBoxOp**: Calculate bounding boxes
-- **GeoJsonCircleOp**: Generate circles on the map
-
-### Deck.gl Layers (Visualization)
-- **ScatterplotLayerOp**: Point visualizations
-- **PathLayerOp**: Line and route visualizations
-- **ArcLayerOp**: Arc connections between points
-- **H3HexagonLayerOp**: Hexagonal grid visualizations
-- **HeatmapLayerOp**: Density visualizations
-- **GeoJsonLayerOp**: Render GeoJSON features
-- **ColumnLayerOp**: 3D columns
-- **IconLayerOp**: Icon markers
-- **TextLayerOp**: Text labels
-- **PolygonLayerOp**: Polygon rendering
-- **TripsLayerOp**: Animated paths
-
-### View & Rendering
-- **DeckViewOp**: Configure Deck.gl views (MapView, OrbitView, FirstPersonView, GlobeView)
-- **MapboxOp**: Configure map style and properties
-- **DeckRendererOp**: Main rendering node
 
 ## Code Operators and Available Globals
 
@@ -322,18 +210,6 @@ Math.PI * Math.pow(d.radius, 2)
 
 The `utils` object is available globally in CodeOp, AccessorOp, and ExpressionOp. It provides commonly-used functions:
 
-**Key utilities include:**
-
-- **Arc Geometry**: `getArc()` - Generate 3D arc paths between two points
-- **Color Conversion**: `hexToColor()`, `colorToHex()`, `rgbaToColor()` - Convert between color formats
-- **Geospatial**: `getDirections()` - Get routing directions between points
-- **Interpolation**: `interpolate()` - Create mapping functions between ranges
-- **Array Operations**: `cross()` - Generate all unique pairs from an array
-- **Search**: `binarySearchClosest()` - Find closest value in sorted array
-- **Distance Constants**: `FEET_TO_METERS`, `MILES_TO_METERS`, etc.
-- **Map Styles**: `CARTO_DARK`, `MAP_STYLES` - Predefined basemap URLs
-- **Random**: `mulberry32(seed)` - Deterministic pseudo-random number generator
-
 **Example usage:**
 ```javascript
 // Create a 3D arc between two cities
@@ -360,33 +236,6 @@ const altToIntensity = utils.interpolate([0, 10000], [0, 255])
 
 All operator classes are available as globals in CodeOp for programmatic instantiation:
 
-**Data Sources & Processing:**
-`FileOp`, `DuckDbOp`, `NetworkOp`, `GeocoderOp`, `DirectionsOp`, `FilterOp`, `MapRangeOp`, `MergeOp`, `ConcatOp`, `SliceOp`, `SortOp`, `SelectOp`, `SwitchOp`, `TableEditorOp`
-
-**Math & Logic:**
-`NumberOp`, `BooleanOp`, `StringOp`, `DateOp`, `TimeOp`, `MathOp`, `ExpressionOp`, `CodeOp`, `AccessorOp`, `JSONOp`, `HSLOp`, `ColorOp`
-
-**Geometry & Transforms:**
-`PointOp`, `BoundsOp`, `RectangleOp`, `ArcOp`, `BezierCurveOp`, `BoundingBoxOp`, `ExtentOp`, `ProjectOp`, `UnprojectOp`, `GeoJsonOp`, `GeoJsonTransformOp`, `ScatterOp`
-
-**Combinators:**
-`CombineRGBAOp`, `CombineXYOp`, `CombineXYZOp`, `SplitRGBAOp`, `SplitXYOp`, `SplitXYZOp`, `SplitMapViewStateOp`
-
-**Deck.gl Layers:**
-`ScatterplotLayerOp`, `PathLayerOp`, `ArcLayerOp`, `LineLayerOp`, `IconLayerOp`, `TextLayerOp`, `PolygonLayerOp`, `SolidPolygonLayerOp`, `GeoJsonLayerOp`, `ColumnLayerOp`, `GridLayerOp`, `GridCellLayerOp`, `HexagonLayerOp`, `ContourLayerOp`, `ScreenGridLayerOp`, `HeatmapLayerOp`, `H3HexagonLayerOp`, `H3ClusterLayerOp`, `GreatCircleLayerOp`, `TripsLayerOp`, `BitmapLayerOp`, `TileLayerOp`, `MVTLayerOp`, `TerrainLayerOp`, `Tile3DLayerOp`, `PointCloudLayerOp`, `ScenegraphLayerOp`, `SimpleMeshLayerOp`, `GeohashLayerOp`, `S2LayerOp`, `QuadkeyLayerOp`, `A5LayerOp`, `RasterTileLayerOp`
-
-**Deck.gl Extensions:**
-`BrushingExtensionOp`, `DataFilterExtensionOp`, `ClipExtensionOp`, `MaskExtensionOp`, `Mask3DExtensionOp`, `PathStyleExtensionOp`, `FillStyleExtensionOp`, `CollisionFilterExtensionOp`, `TerrainExtensionOp`, `BrightnessContrastExtensionOp`, `HueSaturationExtensionOp`, `VibranceExtensionOp`
-
-**Views & Rendering:**
-`MapViewOp`, `GlobeViewOp`, `OrbitViewOp`, `FirstPersonViewOp`, `MapViewStateOp`, `DeckRendererOp`, `MaplibreBasemapOp`, `MapStyleOp`, `ViewerOp`
-
-**Color & Styling:**
-`ColorRampOp`, `CategoricalColorRampOp`, `LayerPropsOp`, `RandomizeAttributeOp`
-
-**Control Flow & Organization:**
-`ContainerOp`, `ForLoopBeginOp`, `ForLoopEndOp`, `GraphInputOp`, `GraphOutputOp`, `OutOp`, `ConsoleOp`, `FpsWidgetOp`, `MouseOp`
-
 ```javascript
 // Example: Instantiate operators programmatically
 const numberOps = data.map((value, i) => {
@@ -400,37 +249,12 @@ const numberOps = data.map((value, i) => {
 
 ### Quick Start Commands
 
-```bash
-# Install dependencies
-yarn install:all
-
-# Start development server
-cd noodles-editor && yarn start
-
-# Run tests
-cd noodles-editor && yarn test
-
-# Lint and format
-cd noodles-editor && yarn lint
-cd noodles-editor && yarn fix-lint
-
-# Build for production
-yarn build:all
-```
-
-**Node.js and Package Manager Requirements:**
-- Node.js version pinned in `.nvmrc`
-- Yarn version managed by Corepack, pinned in `package.json`
-- If you encounter Node.js compatibility errors, ensure you're using the correct version from `.nvmrc`
-- **Recommended**: Use [fnm](https://github.com/Schniz/fnm) for fast Node.js version management
-  - fnm automatically uses the correct Node version from `.nvmrc`
-  - Alternative: Use [nvm](https://github.com/nvm-sh/nvm) or any Node version manager
-- **Yarn management**: Enable Corepack with `corepack enable yarn` to use the pinned Yarn version
+npm workspaces (root `package.json`): run `npm install` at the root, then run app commands (`npm start`, `npm test`, `npm run lint`, `npm run fix-lint`) from `noodles-editor/`. `npm run build:all` at the root builds app and website. Node version is pinned in `.nvmrc`.
 
 ### Development URLs
 
 - **Local**: `http://localhost:5173/examples/nyc-taxis`
-- **Specific Project**: Replace `nyc-taxis` with project name from `noodles-editor/public/examples/`
+- **Specific Project**: Replace `nyc-taxis` with project name from `noodles-editor/src/examples/`
 - **Safe Mode**: Add `?safeMode=true` to disable code execution
 
 ### Testing
@@ -438,61 +262,33 @@ yarn build:all
 - Unit tests co-located with source files (`*.test.ts`)
 - Vitest for unit testing
 - Playwright for browser integration tests
-- Run specific tests: `yarn test src/noodles/operators.test.ts`
+- Run specific tests: `npm test src/noodles/operators.test.ts`
+
+### Debug Logging
+
+The codebase uses the `debug` package for development logging. Debug output is disabled by default and has zero overhead when disabled.
+
+**Enable in browser console:**
+```javascript
+localStorage.debug = 'noodles:*'        // All noodles logging
+localStorage.debug = 'noodles:history*' // Just history/undo-redo
+localStorage.debug = ''                 // Disable
+// Refresh the page after changing
+```
+
+**Available namespaces:** see [`noodles-editor/src/utils/debug.ts`](noodles-editor/src/utils/debug.ts) for the full list with descriptions.
+
+**Adding new debug logging:**
+```typescript
+import { debugHistory } from '../../utils/debug'
+debugHistory('Message with %s formatting', value)
+```
 
 ## Creating New Operators
 
-### Basic Structure
+See [dev-docs/adding-operators.md](dev-docs/adding-operators.md) for the class template, registration checklist, and custom field types.
 
-```typescript
-export class CustomOperator extends Operator<CustomOperator> {
-  static displayName = 'Custom Processor'
-  static description = 'Processes data with custom logic'
-
-  createInputs() {
-    return {
-      data: new DataField(),
-      threshold: new NumberField(50, { min: 0, max: 100 }),
-    }
-  }
-
-  createOutputs() {
-    return {
-      result: new DataField(),
-    }
-  }
-
-  execute({
-    data,
-    threshold,
-  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    return {
-      result: data.filter(item => item.value > threshold)
-    }
-  }
-}
-```
-
-### Key Principles
-
-1. **Pure Functions**: Operators should be deterministic
-2. **Typed Inputs/Outputs**: Use Field types with Zod schemas
-3. **Reactive**: Changes propagate automatically
-4. **Memoized**: Results cached based on input values
-5. **Register**: Add to operator registry in `operators.ts`
-
-## Common Field Types
-
-- **DataField**: Generic data arrays
-- **NumberField**: Numeric values with min/max/step
-- **StringField**: Text values
-- **BooleanField**: Boolean flags
-- **ColorField**: Color values (hex or RGB)
-- **CodeField**: Code expressions (JavaScript, SQL, JSON)
-- **ArrayField**: Array of sub-fields
-- **CompoundPropsField**: Object with multiple properties
-- **PointField**: Geographic coordinates [lng, lat]
-- **Vec2Field**: 2D vectors
+**Critical:** a new operator must be registered in the `opTypes` object in `operators.ts` AND added to a category in `components/categories.ts` (display name without the "Op" suffix), or it never appears in the Add Node menu. Operators are pure, typed with Zod-backed fields, memoized by the framework, and require unit tests.
 
 ## State Management
 
@@ -548,49 +344,20 @@ return {
 
 ### Timeline Animation
 
-Any field can be keyframed via Theatre.js. Changes in timeline propagate through reactive system with smooth interpolation between keyframes.
-
-## Common Tasks for LLMs
-
-### Adding a New Operator
-1. Create operator class in `operators.ts` or separate file
-2. Define inputs with `createInputs()` method
-3. Define outputs with `createOutputs()` method
-4. Implement `execute()` method with pure function logic
-5. Register operator in operator registry
-6. Add to category in `components/categories.ts` using display name without "Op" suffix (e.g., `'File'` not `'FileOp'`)
-7. **Write unit tests** (required for all operators)
-8. Document behavior and limitations if complex
-9. Test in UI with example projects
-
-### Modifying Existing Operator
-1. Locate operator in `operators.ts`
-2. Modify inputs, outputs, or execute logic
-3. Consider migration if schema changes
-4. **Update tests** to cover new behavior
-5. Add tests for bug fixes to prevent regressions
-6. Update documentation if behavior changes
-7. Test in UI with example projects
-
-### Debugging Data Flow
-1. Check operator paths are correct (use absolute paths from root)
-2. Verify edge connections in project JSON
-3. Inspect field values with console logging
-4. Check Zod schema validation errors
-5. Use execution tracing for performance issues
-
-### Creating Custom Field Type
-1. Extend `Field` class in `fields.ts`
-2. Implement `createSchema()` method with Zod schema
-3. Set default value and options
-4. Add custom UI component in `field-components.tsx` if needed
-5. Register in field registry
+Any field can be keyframed via the native timeline system. Changes in timeline propagate through the reactive system with smooth bezier interpolation between keyframes.
 
 ## Testing and Pull Requests
 
 **Testing:** Add tests for new operators, bug fixes, and changes to critical components. See [testing-guide.md](dev-docs/testing-guide.md) for strategy and best practices.
 
 **Pull Requests:** Keep PRs focused, include tests and documentation, provide test runbooks for UI changes. See [pr-guidelines.md](dev-docs/pr-guidelines.md) for complete guidelines.
+
+**PR Descriptions:**
+- Use the headings from `.github/pull_request_template.md` as they are: an issue reference, an optional `#### Background`, a `#### Change List` and `#### Screenshots`. Do not add `Summary`, `Test plan` or `Validation` sections.
+- Keep it short. Most good descriptions are under 900 characters, not counting a collapsed test runbook.
+- Change List: one bullet per operator, component, API or artifact, ten words or less, identifiers in backticks, no trailing periods. End with `Unit tests` / `Browser tests` / `Documentation` / `Migration` as applicable, and one line on what was actually run to verify.
+- **UI changes need a before/after screenshot or GIF.** Capture them (see [screenshot-guide.md](dev-docs/screenshot-guide.md)) outside the repo or in a gitignored directory, and attach with `gh pr create --attach './before.png#Alt text'` (also on `gh pr edit` / `gh pr comment`). Don't commit them.
+- Do not add footers, emoji, links to tool sessions, `Co-Authored-By` lines, or tables of files. Do not make up an issue number; remove the line if there is none.
 
 **Analytics:** Add `analytics.track()` for user actions and feature usage. Never track sensitive data. See [analytics.md](dev-docs/analytics.md) for guidelines.
 
@@ -601,13 +368,21 @@ Any field can be keyframed via Theatre.js. Changes in timeline propagate through
 3. **Fields are observables** - Use `field.setValue()` to update, `field.value` to read
 4. **Memoization is automatic** - Don't worry about caching, the framework handles it
 5. **Type safety is critical** - Always use Zod schemas for validation
-6. **Timeline integration** - Any parameter can be animated via Theatre.js
+6. **Timeline integration** - Any parameter can be animated via the native timeline
 7. **Project files are JSON** - Easy to parse and modify programmatically
 8. **Testing is expected** - Add tests for new features and changes to critical components
 9. **Document edge cases** - Users may not expect implementation-specific behavior
 10. **Keep PRs focused** - Split large changes into reviewable chunks when possible
 
+## The In-App AI Assistant
+
+The chat panel (`noodles-editor/src/ai-chat/`) has its own agent loop, tool surface, and one security boundary. Guidance lives in `noodles-editor/src/ai-chat/AGENTS.md` (loaded automatically when working there) and [dev-docs/agent-harness.md](dev-docs/agent-harness.md).
+
+## Using Claude Code with Noodles.gl
+
+See [dev-docs/claude-code-workflow.md](dev-docs/claude-code-workflow.md) for editing `noodles.json` directly, validating changes, graph design guidelines, and connecting to a running browser via WebMCP.
+
 ---
 
-**Last Updated**: 2025-12-01
-**Version**: Based on project version 6 schema
+**Last Updated**: 2026-10-21
+**Version**: Based on project version 18 schema

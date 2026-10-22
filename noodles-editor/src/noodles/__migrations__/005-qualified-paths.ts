@@ -1,4 +1,5 @@
 import type { Edge, Node } from '@xyflow/react'
+import { debugMigration } from '../../utils/debug'
 import { getFieldReferences } from '../fields'
 import { edgeId } from '../utils/id-utils'
 import { isAbsolutePath } from '../utils/path-utils'
@@ -120,7 +121,7 @@ export async function up(project: NoodlesProjectJSON): Promise<NoodlesProjectJSO
 
       // Skip orphaned edges that reference non-existent nodes
       if (!newSource || !newTarget) {
-        console.warn(`Skipping orphaned edge: ${edge.id} (${edge.source} -> ${edge.target})`)
+        debugMigration(`Skipping orphaned edge: ${edge.id} (${edge.source} -> ${edge.target})`)
         return null
       }
 

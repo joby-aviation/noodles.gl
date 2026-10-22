@@ -48,7 +48,7 @@ Fields are the individual parameters on each operator. They come in two types:
 
 **Input Fields** (left side):
 - Accept values from connections or manual entry
-- Can be configured in the Properties Panel
+- Can be configured in the [Properties Panel](./properties-panel.md)
 - Can be animated with keyframes
 
 **Output Fields** (right side):
@@ -84,6 +84,17 @@ Workflows in Noodles.gl are **reactive**, meaning:
 - No need to manually refresh or recalculate
 
 This makes experimentation fast and intuitive.
+
+### Locking Nodes
+
+Click the lock icon in a node's header to keep its result. Use it for slow or paid nodes, such as directions, while you work on the rest of the workflow.
+
+- A locked node keeps its result when its inputs change. The connections into it fade to show that changes there have no effect.
+- A locked node's result is saved with the project, so reopening the project doesn't run it again. Results that can't be saved, such as layers, run once when you reopen.
+- A locked node with no result yet runs once to get one.
+- Unlocking runs the node again with its current inputs. The editor asks first, and undo restores the previous result.
+
+Saved results go in a `cache` folder next to `noodles.json`. Commit it to share results with your collaborators, or add it to `.gitignore` to keep them on your machine.
 
 ## Building Your First Workflow
 
@@ -254,7 +265,7 @@ All [deck.gl layers](https://deck.gl/docs/api-reference/layers) are available, i
 
 1. **Use the Properties Panel**: Most operator configuration happens here
 2. **Inspect data**: Use Viewer nodes or the TableEditor to see your data
-3. **Lock nodes**: Click the lock icon to prevent accidental changes
+3. **Lock slow nodes**: Keep a result while you work elsewhere. See [Locking Nodes](#locking-nodes)
 4. **Check connections**: Hover over handles to see data types or outputs
 5. **Experiment freely**: Changes are reactive and reversible
 

@@ -1,10 +1,10 @@
 import type { DeckProps, FirstPersonViewState, MapViewState } from '@deck.gl/core'
-import type { IProject, ISheet } from '@theatre/core'
 import type { RefObject } from 'react'
 
 import type { MapProps } from 'react-map-gl/maplibre'
 import type { CopyControlsRef } from './noodles/components/copy-controls'
 import type { UndoRedoHandlerRef } from './noodles/components/UndoRedoHandler'
+import type { RenderSettings } from './noodles/utils/serialization'
 
 export type ViewState =
   | MapViewState
@@ -14,15 +14,27 @@ export type ViewState =
 export type BetterMapProps = MapProps & MapViewState
 export type BetterDeckProps = Partial<DeckProps & { viewState: ViewState }>
 
+export interface MapLibreLayerConfig {
+  id: string
+  type: 'custom'
+  code: string
+  renderingMode?: '2d' | '3d'
+  beforeId?: string
+  params?: Record<string, unknown>
+}
+
 export type Visualization = {
   // Direct component props (no widgets wrapper)
   flowGraph?: React.ReactNode
   nodeSidebar?: React.ReactNode
   propertiesPanel?: React.ReactNode
-  layoutMode?: 'split' | 'noodles-on-top' | 'output-on-top'
-  onChangeLayoutMode?: (mode: 'split' | 'noodles-on-top' | 'output-on-top') => void
   showOverlay?: boolean
   onChangeShowOverlay?: (show: boolean) => void
+  showDebugInfo?: boolean
+  onChangeShowDebugInfo?: (show: boolean) => void
+  spreadsheetVisible?: boolean
+  onChangeSpreadsheetVisible?: (visible: boolean) => void
+  selectedNodeIds?: string[]
   // Noodles props for creating menu in timeline-editor
   projectName?: string
   getTimelineJson?: () => Record<string, unknown>
@@ -40,9 +52,11 @@ export type Visualization = {
   showChatPanel?: boolean
   onChangeShowChatPanel?: (show: boolean) => void
   hasUnsavedChanges?: boolean
+  // Render settings for video export
+  renderSettings?: RenderSettings
+  setRenderSettings?: (settings: RenderSettings) => void
   // Visualization props
   mapProps?: BetterMapProps
   deckProps: BetterDeckProps
-  project: IProject
-  sheet: ISheet
+  maplibreLayers?: MapLibreLayerConfig[]
 }
