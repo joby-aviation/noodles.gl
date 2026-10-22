@@ -39,7 +39,12 @@ export function resolveOperatorType(type: string, registry: Registry): string {
   return matches.length === 1 ? matches[0].type : type
 }
 
-export function unknownType(type: string, registry: Registry): string {
+// allTypes says where the full list is: list_operators for an agent with tools
+export function unknownType(
+  type: string,
+  registry: Registry,
+  allTypes = 'registry.json in noodles-validate lists every type.'
+): string {
   const resolved = resolveOperatorType(type, registry)
   if (resolved !== type) {
     return `Unknown operator type ${type}. Did you mean: ${resolved}? Types end in "Op", e.g. FileOp, ScatterplotLayerOp.`
@@ -54,10 +59,7 @@ export function unknownType(type: string, registry: Registry): string {
     )
     .map(op => op.type)
     .slice(0, FIELD_SUGGESTIONS)
-  const hint =
-    similar.length > 0
-      ? ` Did you mean: ${similar.join(', ')}?`
-      : ' registry.json in noodles-validate lists every type.'
+  const hint = similar.length > 0 ? ` Did you mean: ${similar.join(', ')}?` : ` ${allTypes}`
   return `Unknown operator type ${type}.${hint} Types end in "Op", e.g. FileOp, ScatterplotLayerOp.`
 }
 

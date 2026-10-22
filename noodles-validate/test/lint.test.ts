@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { describe, it } from 'node:test'
-import { loadRegistry, type Rule, validateProject } from '../src/index.ts'
+import { loadRegistry, type Rule, unknownType, validateProject } from '../src/index.ts'
 
 const registry = loadRegistry()
 const VALID = JSON.parse(
@@ -114,6 +114,15 @@ describe('validateProject', () => {
       const p = project(p => (p.nodes[0].type = 'File'))
       assert.deepEqual(rules(p), ['unknown-operator'])
       assert.match(messages(p)[0], /Did you mean: FileOp\?/)
+    })
+
+    it('says where every type is listed when nothing is close', () => {
+      const p = project(p => (p.nodes[0].type = 'QwertyOp'))
+      assert.match(messages(p)[0], /registry\.json in noodles-validate lists every type\./)
+      assert.match(
+        unknownType('QwertyOp', registry, 'list_operators shows every type.'),
+        /Unknown operator type QwertyOp\. list_operators shows every type\./
+      )
     })
 
     it('suggests a type one typo away', () => {
