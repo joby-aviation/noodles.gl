@@ -327,12 +327,16 @@ when the window is under 32k. Each step is one model turn plus its tool batch.
   `add_node` in the run declares. A handle is checked by its whole name, since the
   graph looks up `par.viewState.zoom` as a field named `viewState.zoom`.
 - **Proposals.** What a run queued reaches the panel as a proposal: a card listing
-  each change with Accept and Reject. Nothing touches the graph until Accept, which
+  each change and its proposed values (long values cut to a preview that expands)
+  with Accept and Reject. Nothing in the batch touches the graph until Accept, which
   runs the batch through `useProjectModifications` inside `recordGraphMutation`
   (`noodles/utils/graph-history.ts`), so the whole batch, field values included, is
   one undo entry. Reject leaves a line in the conversation so the next turn knows
-  the edit did not land. Sending is blocked while a proposal waits, and starting or
-  loading a conversation drops it. A modifications array written into the reply as
+  the edit did not land (a `run_code` call in the same run may already have changed
+  field values; the card and the line speak only for the batch). Sending is blocked
+  while a proposal waits. Starting or loading a conversation, or opening another
+  project (`projectKey`), drops it and aborts a run in flight, whose reply and
+  proposal are then ignored. A modifications array written into the reply as
   JSON is not picked up: only `apply_modifications` validates a batch. The live
   benchmark and WebMCP apply batches directly, without a proposal.
 - **Unverified edit claims.** A reply that announces a change in the past tense

@@ -510,6 +510,18 @@
   line-height: 1.5;
 }
 
+.proposalDetail {
+  max-height: 200px;
+  margin: 4px 0;
+  padding: 6px 8px;
+  overflow: auto;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.3);
+  font-size: 11px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .proposalActions {
   display: flex;
   gap: 8px;

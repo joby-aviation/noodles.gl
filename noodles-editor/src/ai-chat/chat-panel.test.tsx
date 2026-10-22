@@ -147,17 +147,30 @@ describe('ChatPanel graph-edit proposals', () => {
     getKeysStore().clearBrowserKey('anthropic')
   })
 
+  const panel = (projectKey = 1) => (
+    <ReactFlowProvider>
+      <ChatPanel
+        project={{ nodes: [], edges: [] } as NoodlesProject}
+        projectKey={projectKey}
+        onClose={() => {}}
+        isVisible
+      />
+    </ReactFlowProvider>
+  )
+
   async function renderReadyPanel() {
-    render(
-      <ReactFlowProvider>
-        <ChatPanel
-          project={{ nodes: [], edges: [] } as NoodlesProject}
-          onClose={() => {}}
-          isVisible
-        />
-      </ReactFlowProvider>
-    )
+    const view = render(panel())
     await vi.waitFor(() => expect(screen.getByPlaceholderText('Ask for help...')).toBeTruthy())
+    return view
+  }
+
+  // A reply the test hands back when it chooses, standing in for a run in flight
+  function deferSend() {
+    let finish: (response: ClaudeResponse) => void = () => {}
+    vi.spyOn(AgentSession.prototype, 'send').mockImplementation(
+      () => new Promise(resolve => (finish = resolve))
+    )
+    return (response: ClaudeResponse) => act(async () => finish(response))
   }
 
   async function send(text: string) {
@@ -173,7 +186,8 @@ describe('ChatPanel graph-edit proposals', () => {
 
     await send('Set /number to 2')
     await vi.waitFor(() => expect(screen.getByLabelText('Proposed graph update')).toBeTruthy())
-    expect(screen.getByText('Set value on /number')).toBeTruthy()
+    expect(screen.getByText('Set value = 2 on /number')).toBeTruthy()
+    expect(screen.getByText('These changes are not applied yet.')).toBeTruthy()
 
     const textarea = screen.getByRole('textbox') as HTMLTextAreaElement
     expect(textarea.disabled).toBe(true)
@@ -189,7 +203,7 @@ describe('ChatPanel graph-edit proposals', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Reject' }))
     expect(screen.queryByLabelText('Proposed graph update')).toBeNull()
-    expect(screen.getByText('Proposal rejected. The graph was not changed.')).toBeTruthy()
+    expect(screen.getByText('Proposal rejected. Its changes were not applied.')).toBeTruthy()
     expect((screen.getByRole('textbox') as HTMLTextAreaElement).disabled).toBe(false)
 
     await send('And make it 3')
@@ -214,6 +228,48 @@ describe('ChatPanel graph-edit proposals', () => {
 
     expect(screen.queryByLabelText('Proposed graph update')).toBeNull()
     expect((screen.getByRole('textbox') as HTMLTextAreaElement).disabled).toBe(false)
+  })
+
+  it('drops a pending proposal when another project is opened', async () => {
+    vi.spyOn(AgentSession.prototype, 'send').mockResolvedValue(proposalResponse)
+    const { rerender } = await renderReadyPanel()
+
+    await send('Set /number to 2')
+    await vi.waitFor(() => expect(screen.getByLabelText('Proposed graph update')).toBeTruthy())
+
+    rerender(panel(2))
+
+    expect(screen.queryByLabelText('Proposed graph update')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Accept' })).toBeNull()
+    expect(
+      screen.getByText('Another project was opened, so the proposed graph update was not applied.')
+    ).toBeTruthy()
+    expect((screen.getByRole('textbox') as HTMLTextAreaElement).disabled).toBe(false)
+  })
+
+  it('drops the proposal of a run that finishes after another project is opened', async () => {
+    const finish = deferSend()
+    const { rerender } = await renderReadyPanel()
+
+    await send('Set /number to 2')
+    rerender(panel(2))
+    await finish(proposalResponse)
+
+    expect(screen.queryByLabelText('Proposed graph update')).toBeNull()
+    expect(screen.queryByText('I set the value to 2.')).toBeNull()
+  })
+
+  it('keeps the reply and proposal of a run out of a conversation started after it', async () => {
+    const finish = deferSend()
+    await renderReadyPanel()
+
+    await send('Set /number to 2')
+    fireEvent.click(screen.getByTitle('Start New Conversation'))
+    await finish(proposalResponse)
+
+    expect(screen.queryByLabelText('Proposed graph update')).toBeNull()
+    expect(screen.queryByText('I set the value to 2.')).toBeNull()
+    expect(screen.queryByText('Set /number to 2')).toBeNull()
   })
 
   it('drops a pending proposal when a new conversation starts', async () => {

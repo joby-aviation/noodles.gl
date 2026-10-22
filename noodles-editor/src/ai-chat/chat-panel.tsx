@@ -55,12 +55,21 @@ import type { Message, NoodlesProject } from './types'
 
 interface ChatPanelProps {
   project: NoodlesProject
+  // Changes whenever another project replaces the graph. A proposal planned
+  // against the old graph must not be applied to the new one.
+  projectKey?: number
   onClose: () => void
   isVisible: boolean
   initialMessage?: string
 }
 
-export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, initialMessage }) => {
+export const ChatPanel: FC<ChatPanelProps> = ({
+  project,
+  projectKey,
+  onClose,
+  isVisible,
+  initialMessage,
+}) => {
   // Get ReactFlow state for the modification hook
   const { getNodes, getEdges, setNodes, setEdges } = useReactFlow()
 
@@ -102,6 +111,10 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
   // has not decided on, and its own proposal would have nowhere to go.
   const [pendingProposal, setPendingProposal] = useState<ModificationProposal | null>(null)
   const abortRef = useRef<AbortController | null>(null)
+  // Bumped when the conversation or the project changes. A run that finishes
+  // after that belongs to neither, so its reply and proposal are dropped.
+  const generationRef = useRef(0)
+  const projectKeyRef = useRef(projectKey)
 
   // Get API keys directly from store (reactive)
   const apiKey = useKeysStore(state => state.getKey('anthropic'))
@@ -339,6 +352,25 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
     }
   }, [mcpTools, project])
 
+  // Another project replaced the graph: stop the run planning against the old
+  // one and drop its proposal
+  useEffect(() => {
+    if (projectKeyRef.current === projectKey) return
+    projectKeyRef.current = projectKey
+    generationRef.current += 1
+    abortRef.current?.abort()
+    if (pendingProposal) {
+      setPendingProposal(null)
+      setMessages(prev => [
+        ...prev,
+        {
+          role: 'assistant',
+          content: 'Another project was opened, so the proposed graph update was not applied.',
+        },
+      ])
+    }
+  }, [projectKey, pendingProposal])
+
   // Handle initial message from quick start modal
   useEffect(() => {
     if (initialMessage && isVisible && messages.length === 0) {
@@ -367,6 +399,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
 
     const controller = new AbortController()
     abortRef.current = controller
+    const generation = generationRef.current
 
     try {
       const response = await session.send({
@@ -379,6 +412,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
           if (event.type === 'usage') setLastUsage(event.usage)
         },
       })
+      if (generation !== generationRef.current) return
 
       // An aborted run still returns whatever it had produced, which is worth
       // keeping — the user stopped it, they did not undo it
@@ -408,6 +442,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
       }
     } catch (error) {
       debugAiChat('Error sending message:', error)
+      if (generation !== generationRef.current) return
 
       // Check error type and provide helpful messages
       const errorStr = error instanceof Error ? error.message : String(error)
@@ -503,9 +538,11 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
       modificationCount: pendingProposal.modifications.length,
     })
     setPendingProposal(null)
+    // Only the proposed batch is known not to have landed: a run_code call in the
+    // same run may already have changed field values
     setMessages(prev => [
       ...prev,
-      { role: 'assistant', content: 'Proposal rejected. The graph was not changed.' },
+      { role: 'assistant', content: 'Proposal rejected. Its changes were not applied.' },
     ])
   }
 
@@ -531,7 +568,10 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
       }
     }
 
-    // Start fresh. A pending proposal belongs to the conversation it came from.
+    // Start fresh. A pending proposal, and the reply of a run still in flight,
+    // belong to the conversation they came from.
+    generationRef.current += 1
+    abortRef.current?.abort()
     setMessages([])
     setPendingProposal(null)
     setCurrentConversationId(null)
@@ -568,6 +608,8 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
 
     const conversation = loadConversation(id)
     if (conversation) {
+      generationRef.current += 1
+      abortRef.current?.abort()
       setMessages(conversation.messages)
       setPendingProposal(null)
       setCurrentConversationId(id)
@@ -851,10 +893,19 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
         {pendingProposal && (
           <section className={styles.proposalCard} aria-label="Proposed graph update">
             <div className={styles.proposalTitle}>Review graph update</div>
-            <p>Nothing has changed yet.</p>
+            <p>These changes are not applied yet.</p>
             <ul className={styles.proposalDiff}>
               {pendingProposal.lines.map((line, idx) => (
-                <li key={`${idx}-${line}`}>{line}</li>
+                <li key={`${idx}-${line.text}`}>
+                  {line.detail ? (
+                    <details>
+                      <summary>{line.text}</summary>
+                      <pre className={styles.proposalDetail}>{line.detail}</pre>
+                    </details>
+                  ) : (
+                    line.text
+                  )}
+                </li>
               ))}
             </ul>
             <div className={styles.proposalActions}>
