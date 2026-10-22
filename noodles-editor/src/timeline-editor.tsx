@@ -461,12 +461,8 @@ export default function TimelineEditor() {
 
   const takeScreenshot = useCallback(
     async (source: RenderSource = 'menu') => {
-      if (!deckRef.current) {
-        debugRender('Take Screenshot: deck is not defined')
-        return
-      }
-      if (basemapEnabled && !mapRef.current) {
-        debugRender('Take Screenshot: maplibre is not defined')
+      if (!getDeckCanvas()) {
+        debugRender('Take Screenshot: the canvas is not ready yet')
         return
       }
 
@@ -475,13 +471,15 @@ export default function TimelineEditor() {
         suggestedName,
         () => {
           redraw()
-          // @ts-expect-error canvas is protected
-          return deckRef.current.canvas!
+          // Read again: the save dialog can stay open while the basemap is added or removed
+          const canvas = getDeckCanvas()
+          if (!canvas) throw new Error('The canvas went away while the save dialog was open')
+          return canvas
         },
         { source }
       )
     },
-    [noodles.projectName, redraw, basemapEnabled]
+    [noodles.projectName, redraw, getDeckCanvas]
   )
 
   const selectRendersDirectory = useCallback(async () => {
