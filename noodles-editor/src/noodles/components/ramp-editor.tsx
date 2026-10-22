@@ -1,8 +1,8 @@
 import { scaleLinear } from 'd3'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { monotoneSlopes } from '../operators'
 import type { RampInterpType } from '../operators'
+import { monotoneSlopes } from '../operators'
 
 export interface RampStop {
   id: string
@@ -222,6 +222,7 @@ export default function RampEditor({
         ref={svgRef}
         width={width}
         height={height}
+        // biome-ignore lint/a11y/noNoninteractiveTabindex: focusable so Delete removes the selected stop
         tabIndex={0}
         onKeyDown={handleKeyDown}
         style={{
@@ -234,6 +235,7 @@ export default function RampEditor({
         }}
       >
         {/* Clickable background to add stops */}
+        {/* biome-ignore lint/a11y/noStaticElementInteractions: pointer-only; the node's stop inputs are the keyboard path */}
         <rect
           x={0}
           y={0}
@@ -248,6 +250,7 @@ export default function RampEditor({
         {sortedStops.map(stop => (
           <g key={stop.id}>
             {/* Large transparent hit area */}
+            {/* biome-ignore lint/a11y/noStaticElementInteractions: drag target; the node's stop inputs are the keyboard path */}
             <circle
               cx={xScale(stop.pos)}
               cy={yScale(stop.val)}

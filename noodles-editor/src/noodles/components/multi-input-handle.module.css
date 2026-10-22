@@ -11,7 +11,7 @@
 }
 
 .multiInputHandle::before {
-  content: '';
+  content: "";
   position: absolute;
   top: 2px;
   bottom: 2px;

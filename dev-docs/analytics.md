@@ -86,6 +86,26 @@ VITE_GA_MEASUREMENT_ID=G-XXXXXXXXXX
 | `edge_added` | `count` | use-project-modifications.ts |
 | `edge_deleted` | `count` | use-project-modifications.ts |
 
+### Rendering and Export
+
+Tracked in the renderer, not the buttons, so the Export button, the render settings panel and the `export_video` agent tool are each counted once. Every `render_started` is followed by exactly one of `render_completed`, `render_failed` or `render_cancelled`.
+
+| Event | Properties | Location |
+|-------|-----------|----------|
+| `render_started` | `source, format, codec, resolution, frameCount` | render-analytics.ts |
+| `render_completed` | started properties + `durationMs` | render-analytics.ts |
+| `render_failed` | started properties + `durationMs, errorCategory, errorName, framesDone` | render-analytics.ts |
+| `render_cancelled` | started properties + `durationMs` | render-analytics.ts |
+| `screenshot_taken` | `source` | renderer.ts (captureScreenshot) |
+
+- `source`: `menu` (the logo menu and the Out node's panel), `toolbar` (the top bar's Export button) or `agent` (the `export_video` tool)
+- `format`: `mp4` or `png_sequence`; `codec` (`avc`, `hevc`, `vp9`, `av1`) is sent for `mp4` only
+- `resolution`: a bucket by the short side (`under_720p`, `720p`, `1080p`, `1440p`, `4k`, `8k`), not exact dimensions
+- `durationMs`: wall time from the end of the save dialog to the end of the render
+- `errorCategory`: `unsupported_codec`, `frame`, `encoder` or `exception`. `errorName` is the error class or DOMException name (`NotAllowedError`). The error message is never sent, since it can contain file paths.
+
+The agent's `capture_visualization` tool is not a `screenshot_taken`: it returns the image to the model rather than saving a file.
+
 ### User Interface
 
 | Event | Properties | Location |
@@ -141,30 +161,6 @@ These properties are automatically removed:
 - `username`, `email`, `url`, `path`, `filePath`
 
 ### Optional Future Tracking
-
-#### Render Operations (`src/render/renderer.ts`)
-
-```typescript
-import { analytics } from '../utils/analytics'
-
-// In startCapture()
-analytics.track('render_started', {
-  codec: codec,
-  resolution: `${width}x${height}`
-})
-
-// When complete
-analytics.track('render_completed', {
-  duration: elapsedSeconds,
-  frameCount: totalFrames
-})
-
-// If cancelled
-analytics.track('render_cancelled')
-
-// In captureScreenshot()
-analytics.track('screenshot_captured')
-```
 
 #### AI Chat Operations (`src/ai-chat/chat-panel.tsx`)
 

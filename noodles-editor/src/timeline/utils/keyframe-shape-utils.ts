@@ -65,7 +65,7 @@ export function getKeyframeShapeType(
   if (prevKeyframe && prevKeyframe.interpolation !== 'hold') {
     const prevRightHandle =
       prevKeyframe.interpolation === 'linear'
-        ? [1, 1] as [number, number]
+        ? ([1, 1] as [number, number])
         : (prevKeyframe.handles || DEFAULT_BEZIER_HANDLES).right
     prevHandleIsLinear = isHandleLinear(prevRightHandle)
   }
@@ -74,7 +74,7 @@ export function getKeyframeShapeType(
   if (nextKeyframe && nextKeyframe.interpolation !== 'hold') {
     const nextLeftHandle =
       nextKeyframe.interpolation === 'linear'
-        ? [0, 0] as [number, number]
+        ? ([0, 0] as [number, number])
         : (nextKeyframe.handles || DEFAULT_BEZIER_HANDLES).left
     nextHandleIsLinear = isHandleLinear(nextLeftHandle)
   }

@@ -18,7 +18,7 @@ import { getTimezoneOptions } from '../utils/timezone-utils'
 import { ColorSwatch } from './color-swatch'
 import { DraggableNumberInput } from './draggable-number-input'
 import { GeocodingDialog } from './geocoding-dialog'
-import { SchemaEditorDialog, type SchemaChangeMetadata } from './schema-editor-dialog'
+import { type SchemaChangeMetadata, SchemaEditorDialog } from './schema-editor-dialog'
 import s from './table-editor.module.css'
 
 // Cell editor components for each column type
@@ -223,6 +223,7 @@ function BooleanCellEditor({ value, onChange, onComplete }: CellEditorProps) {
 
 function ColorCellEditor({ value, onChange, onComplete }: CellEditorProps) {
   return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: catches blur and key events bubbling from the color picker
     <div
       onBlur={onComplete}
       onKeyDown={e => {
@@ -525,6 +526,7 @@ function DateTimeCellEditor({ value, onChange, onComplete, column }: CellEditorP
   }
 
   return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: catches blur bubbling from the date and timezone inputs
     <div ref={containerRef} className={s.dateTimeCellEditor} onBlur={handleBlur}>
       <InputText
         type="datetime-local"
@@ -569,6 +571,7 @@ function DateTimeCellEditor({ value, onChange, onComplete, column }: CellEditorP
         className={s.timezoneDropdown}
         panelClassName={s.timezonePanel}
         itemTemplate={item => (
+          // biome-ignore lint/a11y/noStaticElementInteractions: records a mouse pick before blur; onSelect handles the keyboard
           <div
             onMouseDown={() => {
               setPendingTimezone(item)
@@ -625,10 +628,10 @@ function renderBooleanCell(value: unknown): string {
 function renderColorCell(value: unknown): React.ReactNode {
   const color = typeof value === 'string' ? value : '#000000'
   return (
-    <div className={s.colorDisplay}>
-      <div className={s.colorSwatch} style={{ backgroundColor: color }} />
+    <span className={s.colorDisplay}>
+      <span className={s.colorSwatch} style={{ backgroundColor: color }} />
       <span>{color}</span>
-    </div>
+    </span>
   )
 }
 
@@ -812,18 +815,9 @@ function EditableCell({ getValue, row, column, table }: EditableCellProps) {
   }
 
   return (
-    <div
-      className={s.cell}
-      onClick={startEditing}
-      onKeyDown={e => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          startEditing()
-        }
-      }}
-      tabIndex={0}
-    >
+    <button type="button" className={cx(s.cell, s.cellButton)} onClick={startEditing}>
       {renderedValue}
-    </div>
+    </button>
   )
 }
 
@@ -847,6 +841,10 @@ export function TableEditor({ data, schema, onDataChange, onSchemaChange }: Tabl
   // it can both run in one tick without the second reading stale state
   const tableDataRef = useRef(tableData)
   tableDataRef.current = tableData
+
+  // Latest callback for the prop-sync effect, which should only re-run when data or schema change
+  const onDataChangeRef = useRef(onDataChange)
+  onDataChangeRef.current = onDataChange
 
   const commitData = (newData: unknown[], description: string) => {
     tableDataRef.current = newData
@@ -873,7 +871,7 @@ export function TableEditor({ data, schema, onDataChange, onSchemaChange }: Tabl
     setTableData(newTableData)
 
     if (schemaChanged && !dataChanged && transition.renamedColumns.length > 0) {
-      onDataChange(newTableData, 'Apply connected table schema rename')
+      onDataChangeRef.current(newTableData, 'Apply connected table schema rename')
     }
     previousDataRef.current = data
     previousSchemaRef.current = schema

@@ -1,12 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import type { OpType } from '../operators'
-import {
-  changeDefaultValue,
-  migrateProject,
-  NOODLES_VERSION,
-  renameHandle,
-} from './migrate-schema'
+import { changeDefaultValue, migrateProject, NOODLES_VERSION, renameHandle } from './migrate-schema'
 import type { NoodlesProjectJSON } from './serialization'
 
 describe('migrateProject', () => {
@@ -124,7 +119,6 @@ describe('migrateProject', () => {
     expect(migrated.version).toBe(18)
     expect(migrated.edges).toEqual([duplicate])
   })
-
 })
 
 describe('renameHandle', () => {

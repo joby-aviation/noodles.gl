@@ -55,12 +55,12 @@ in `agent-files.ts`, which goes through `resolvePath()` like `write_file`.
 
 | | Anthropic | OpenRouter | Custom | WebLLM | Chrome |
 | --- | --- | --- | --- | --- | --- |
-| Default model | `claude-sonnet-5` | best free tool-capable model in the catalogue | whatever you type | `Qwen3-4B-q4f16_1-MLC` | `gemini-nano` |
+| Default model | `claude-sonnet-5` | best free tool-capable model in the catalogue | whatever you type | `Qwen3.5-4B-q4f16_1-MLC` | `gemini-nano` |
 | Context window | 200k | from `/models`, per-model table as fallback | configurable, 32k default | 4k, pinned by every prebuilt config | discovered at runtime (~6k), and measured per turn |
 | Native tool calling | yes | yes (filtered on `supported_parameters`) | assumed, switchable off | **no** — constrained JSON | **no** — constrained JSON |
 | Images (screenshots) | yes | yes | off by default | no | no |
 | Web search | server-side `web_search_2026…`/`…20250305` | `plugins: [{id:'web'}]` | unavailable | unavailable | unavailable |
-| Prompt caching | `cache_control: ephemeral` on the system prompt | — | — | — | — |
+| Prompt caching | `cache_control: ephemeral` on the system prompt | — | — | KV cache reused across steps (byte-stable prefix) | session reused across turns |
 | API key | required | one click, no paste | required, unless the server is your own | none | none |
 
 `custom` is one provider no matter how many servers it points at: any endpoint
@@ -107,7 +107,10 @@ same walk rather than showing an error.
 Two provider flags carry all the behavioural difference: `supportsNativeTools`
 (false routes the provider through `providers/json-tools.ts`, which emulates the tool
 round-trip with a JSON schema the runtime enforces and translates the model's
-one-object reply into the same `tool_call` event the others emit) and `contextWindow`
+one-object reply into the same `tool_call` event the others emit — `input` is the
+last property, because a grammar that requires `reply` after it leaves a model that
+wants to close the object nothing to emit but whitespace until `max_tokens`, and an
+object cut off anyway is closed and flagged `json_repaired`) and `contextWindow`
 (which sizes the disclosure limits, the per-result budget, the step limit, and the
 compaction threshold).
 
@@ -144,7 +147,7 @@ faster than releases. On any failure it falls back to the static `OPENROUTER_MOD
 
 ### WebLLM: the model runs in the tab
 
-Four facts shape `providers/webllm.ts`:
+Five facts shape `providers/webllm.ts`:
 
 1. **No native tool calling, for any model.** WebLLM does ship tool calls, but only
    for four Hermes builds, and its parser requires the *entire* completion to be a
@@ -170,8 +173,23 @@ Four facts shape `providers/webllm.ts`:
 4. **`@mlc-ai/web-llm` is only ever reached through `await import()`.** It is the
    largest dependency in the app and users who never pick a local model pay nothing
    for it. It is also in `optimizeDeps.exclude`.
+5. **Prefill is most of the wait, so the prefix stays byte-stable.** The engine
+   keeps its KV cache only when a request is the previous conversation plus one
+   message, compared string for string, system message included; anything else
+   resets it and prefills the whole prompt again. Two things used to break that on
+   every step. The preamble listed the current tools, which grow with each
+   `find_tools`, so `preambleFor` now keeps the first preamble per system prompt
+   while every tool it lists is still offered; later tools reach the model through
+   `find_tools`' own result and the grammar's enum, which is per request and not
+   part of the prefix. Once that result has left the transcript (trimmed, or a new
+   turn), the preamble is rebuilt so the tool keeps its description. And assistant turns went back re-serialised ("Called X with
+   …") rather than as the JSON the engine had recorded, so the raw completion now
+   rides in a `provider_block` and `toWireTurns` replays it verbatim. Measured on
+   Qwen3-4B at 16k (M-series Mac, T2 tasks): later steps prefill 20–1,000 new tokens
+   in 0.1–2.3 s instead of ~4k in 14–23 s, and tasks take 6–22 s instead of 10–48 s.
+   Each step logs its prefill and decode timings under `noodles:ai-chat`.
 
-`WEBLLM_MODELS` carries five ids checked against `prebuiltAppConfig.model_list`, each
+`WEBLLM_MODELS` carries six ids checked against `prebuiltAppConfig.model_list`, each
 with the download size from the config's own `vram_required_MB`, because "3.4GB the
 first time" is the number that makes the choice an informed one. The download reports
 progress through the same `DownloadProgress` UI Chrome uses.
@@ -270,6 +288,39 @@ when the window is under 32k. Each step is one model turn plus its tool batch.
   read-only (`ToolAnnotations.readOnlyHint`, or `HarnessTool.readOnly`); the first
   mutating call forces the rest to run in order after it, so two
   `apply_modifications` calls can never race.
+- **Repeated calls.** A call identical to an earlier one (same name, same input)
+  is not run again; the model gets the earlier outcome back as an error telling it
+  to try something else, and the third identical call ends the run. Small models
+  otherwise loop — the same failed lookup six times, or the same edit queued six
+  times. A successful mutating call clears the memory of read-only calls, since a
+  read may now return something new, and a read that follows a write in the same
+  batch always runs. Each refusal emits a `repeated_tool_call` diagnostic.
+- **Validated edits.** `apply_modifications` validates the whole batch against
+  `ProjectModificationSchema` and the project before anything is queued: ids must
+  name existing nodes (or nodes added earlier in the batch or the run), `add_node`
+  must not collide, and an `update_node` must change something. Every problem is
+  reported at once, with the ids that do exist. Bare ids (`pickup-layer`,
+  `map-range` for `/analysis/map-range`) are resolved when they name exactly one
+  node, here and in `get_node_info` / `get_node_output`. What a run queued is
+  forgotten when the next run starts, so a failed run cannot block its retry.
+- **Validated fields.** When a context loader supplies the operator registry,
+  `modification-fields.ts` also checks operator types, input names and edge
+  handles. The editor would otherwise accept all three silently: an unknown type
+  becomes a dead node, a wrong handle becomes an edge that connects nothing. A
+  display name (`File`) or a missing `Op` suffix resolves to the type when it names
+  exactly one operator, and a bare handle (`data`) gets its side (`out.data` /
+  `par.data`). Anything else is rejected with the names that do exist, e.g. "/heat
+  (HeatmapLayerOp) has no output vis. Outputs on /heat: out.layer". The known
+  names are the class's fields plus the live operator's, plus custom inputs an
+  `add_node` in the run declares. A handle is checked by its whole name, since the
+  graph looks up `par.viewState.zoom` as a field named `viewState.zoom`.
+- **Unverified edit claims.** A reply that announces a change in the past tense
+  ("the radius has been set to 10") when no mutating tool succeeded and no
+  modification was queued gets a one-line correction appended and emits an
+  `unverified_edit_claim` diagnostic. On-device models do this often — one step, no
+  tool call, a confident report — and unmarked it reads as done. Present-tense
+  descriptions ("is currently set to `#8d12af`"), instructions and refusals are left
+  alone; `claimsAnEdit` in `agent/loop.ts` holds the test.
 - **Screenshots.** Base64 is stripped from the tool result and reattached as an
   image block on the follow-up message — only when `provider.supportsImages`.
 - **Opaque provider blocks.** Anything a provider needs echoed back verbatim
@@ -455,7 +506,17 @@ the rest:
 | `build` | inspect plus `apply_modifications` and keyframes | yes |
 
 A `build` sub-agent's edits reach the graph because `delegate` returns them under
-`modifications`, which the parent loop already collects.
+`modifications`, which the parent loop already collects. A `build` child that
+reports success while nothing landed — no modifications, no keyframe call — comes
+back as an **error** with its claim quoted, because the report is all the parent
+can see and small models write reports for work they never did. A keyframe-only
+build queues no modifications, so `delegate` also returns `changed: true` when the
+child's own tools changed the project.
+
+`delegate` is only offered when `provider.contextWindow` is at least 32k
+(`DELEGATE_MIN_CONTEXT_TOKENS`). Below that the window cannot afford a second loop,
+and on-device models spent their one delegation on a fabricated report they then
+relayed to the user.
 
 ## Transcript fidelity
 
@@ -486,11 +547,11 @@ the old `listNodes` shape copied verbatim.
 
 | Per-turn component | Before | After | Change |
 | --- | --- | --- | --- |
-| System prompt | 9,278 chars (~2,300 tok) | 2,910 chars (~730 tok) | −69% |
+| System prompt | 9,278 chars (~2,300 tok) | ~9,000 chars (~2,250 tok) | −3% |
 | Tool schemas | 4,291 chars, 13 tools (~1,070 tok) | 2,292 chars, 5 tools (~570 tok) | −47% |
 | One `list_nodes` result (200k window) | 18,447 chars (~4,600 tok) | 11,462 chars (~2,870 tok) | −38% |
 | One `list_nodes` result (6k window) | 18,447 chars (~4,600 tok) | 1,637 chars (~410 tok) | −91% |
-| **First turn, all three** | ~32,000 chars (~8,000 tok) | ~16,700 chars (~4,175 tok) | **−48%** |
+| **First turn, all three** | ~32,000 chars (~8,000 tok) | ~22,750 chars (~5,700 tok) | **−29%** |
 
 The `list_nodes` saving is the slimming alone (role groupings carry ids instead of
 re-serialized node objects; `position` dropped; long string inputs clipped to a
@@ -500,7 +561,27 @@ all: 18k chars would exceed the entire context.
 
 The remaining six prompt sections (16,914 chars total) are no longer sent at all;
 they reach the model through `get_documentation` when a workflow actually calls for
-one.
+one. The system prompt barely shrank anyway: `core.md` is 2,910 chars, but
+`generateContextReference()` appends ~6,000 more (every operator name, doc topic
+titles, example summaries), and that reference is sent on every turn.
+
+### Headroom per window
+
+`src/ai-chat/agent/context-budget.test.ts` subtracts the fixed first-turn cost
+(system prompt, tool schemas, the provider's output reserve) and one capped
+`list_nodes` result from each provider's window. Rounded to 50 tokens:
+
+| Target | Fixed cost | Left before any tool result | Left after one `list_nodes` |
+| --- | --- | --- | --- |
+| WebLLM, 4k window (today) | ~3,570 tok | ~550 tok | ~300 tok |
+| Chrome Nano, 6k fallback | ~3,800 tok | ~2,350 tok | ~1,950 tok |
+| WebLLM, 16k window | ~3,570 tok | ~12,850 tok | ~11,700 tok |
+| Anthropic, 200k | ~11,000 tok | ~189,000 tok | ~186,150 tok |
+
+At 4k the model has room for one small tool result and nothing else, which is why
+on-device sessions run out of context almost immediately. The test snapshots these
+numbers, so growth in the prompt or tier-0 schemas shows up in the PR diff, and it
+fails if a window of 16k or more leaves less than 1,500 tokens after an inspect.
 
 **Not yet measured:** live per-turn `inputTokens` from a real provider. The figures
 above are payload sizes computed offline, which is why they are reproducible without
@@ -529,3 +610,13 @@ End-to-end checks that do need keys are listed in the PR description for this wo
 streaming and Stop on Anthropic, cost readout on OpenRouter, `find_tools` →
 `get_documentation` on a docs question, `delegate` on an examples question, and a
 `list_nodes` turn on Chrome Canary with the Prompt API enabled.
+
+## Live benchmark
+
+`noodles-editor/bench/agent/` runs this harness against scripted tasks with a real
+model in a real browser — WebLLM and Gemini Nano on the machine's own GPU, or a
+cloud provider as the ceiling — and grades the resulting project deterministically.
+`npm run bench:agent` from `noodles-editor/`; see its
+[README](../noodles-editor/bench/agent/README.md). It is how a change to the prompt,
+the tool surface or the context budget should be judged: run the matrix before and
+after, then `bench:agent:report --compare`.

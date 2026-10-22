@@ -128,9 +128,10 @@ export function renameHandle({
     const { [oldFieldName as InputKey]: oldValue, ...restOfInputs } = node.data.inputs
 
     // Only add the new field if the old value existed
-    const newInputs = oldValue !== undefined
-      ? { ...restOfInputs, [newFieldName as InputKey]: oldValue }
-      : restOfInputs
+    const newInputs =
+      oldValue !== undefined
+        ? { ...restOfInputs, [newFieldName as InputKey]: oldValue }
+        : restOfInputs
 
     const newNode = {
       ...node,

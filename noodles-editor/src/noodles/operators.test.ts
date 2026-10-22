@@ -68,6 +68,7 @@ import {
   SwitchOp,
   TableEditorOp,
   Tile3DLayerOp,
+  TimeOp,
   TimeSeriesOp,
   TripsLayerOp,
   ZoomWidgetOp,
@@ -236,6 +237,31 @@ describe('Error handling', () => {
       num: 1,
     })
     expect(onError.mock.calls[1][0]).toEqual(new Error('Test error'))
+  })
+})
+
+describe('Operator.isComputing', () => {
+  it('is true for the whole pull, before the executing status appears', async () => {
+    const op = new MathOp('/math', { operator: 'add', a: 2, b: 3 })
+    let finish = () => {}
+    const held = new Promise<void>(resolve => {
+      finish = resolve
+    })
+    const execute = op.execute.bind(op)
+    vi.spyOn(op, 'execute').mockImplementation(async inputs => {
+      await held
+      return execute(inputs)
+    })
+
+    expect(op.isComputing).toBe(false)
+    const pulled = op.pull()
+    expect(op.isComputing).toBe(true)
+    // The status waits 200ms, so a fast check sees idle while work is running
+    expect(op.executionState.value.status).not.toBe('executing')
+
+    finish()
+    await pulled
+    expect(op.isComputing).toBe(false)
   })
 })
 
@@ -904,6 +930,30 @@ describe('MathOps', () => {
       b: 1000000000000000000,
     })
     expect(val.result).toEqual(1000000000000000000000000000000000000)
+  })
+})
+
+describe('TimeOp', () => {
+  it('feeds a downstream MathOp through a pull', async () => {
+    const clock = new TimeOp('/clock')
+    const seconds = new MathOp('/seconds', { operator: 'divide', b: 1000 })
+    seconds.inputs.a.addConnection('/clock.out.now', clock.outputs.now)
+    seconds.addUpstreamDependency(clock)
+    clock.addDownstreamDependent(seconds)
+
+    const first = await seconds.pull()
+    expect(typeof first.result).toBe('number')
+    expect(first.result).toBe(Date.now() / 1000)
+
+    vi.advanceTimersByTime(1000)
+    vi.advanceTimersToNextFrame()
+
+    const second = await seconds.pull()
+    expect(second.result).toBe(Date.now() / 1000)
+    expect(second.result).toBeGreaterThan(first.result)
+    await expect(clock.pull()).resolves.toMatchObject({ now: Date.now() })
+
+    clock.dispose()
   })
 })
 
@@ -3471,6 +3521,19 @@ describe('Tile3DLayerOp', () => {
   const GOOGLE_URL = 'https://tile.googleapis.com/v1/3dtiles/root.json'
   const CESIUM_URL = 'https://assets.ion.cesium.com/242005/tileset.json'
 
+  // Set keys in the store so the tests don't depend on VITE_ env keys
+  beforeEach(() => {
+    getKeysStore().setBrowserKey('googleMaps', 'test-google-key')
+    getKeysStore().setBrowserKey('cesium', 'test-cesium-token')
+  })
+
+  afterEach(() => {
+    // Restore first: the store copies a spied getKey into the next state on set
+    vi.restoreAllMocks()
+    getKeysStore().clearBrowserKey('googleMaps')
+    getKeysStore().clearBrowserKey('cesium')
+  })
+
   it('defaults to the Google tileset URL when provider is Google', async () => {
     const op = new Tile3DLayerOp('/tile3d-0')
     const { layer } = await op.execute({})
@@ -3501,6 +3564,13 @@ describe('Tile3DLayerOp', () => {
     const op = new Tile3DLayerOp('/tile3d-0')
     const { layer } = await op.execute({ tilesetUrl: '', provider: 'Cesium' })
     expect(layer.data).toEqual(CESIUM_URL)
+  })
+
+  it('throws when the provider key is missing', async () => {
+    vi.spyOn(getKeysStore(), 'getKey').mockReturnValue(undefined)
+    const op = new Tile3DLayerOp('/tile3d-0')
+    await expect(op.execute({ provider: 'Cesium' })).rejects.toThrow('Cesium Ion access token')
+    await expect(op.execute({ provider: 'Google' })).rejects.toThrow('Google Maps API key')
   })
 
   it('hides tilesetUrl by default', () => {

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { AccessorOp, CodeOp, DirectionsOp, GraphInputOp, ViewerOp } from '../operators'
+import { AccessorOp, CodeOp, DirectionsOp, type GraphInputOp, ViewerOp } from '../operators'
 import { clearOps, getOpStore, setOp } from '../store'
 import { transformGraph } from '../transform-graph'
 import {

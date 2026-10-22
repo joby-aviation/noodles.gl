@@ -285,7 +285,10 @@ describe('NodeProperties', () => {
           id: '/bitmap',
           type: 'BitmapLayerOp',
           position: { x: 0, y: 0 },
-          data: { inputs: { bounds: [-122.5, 37.7, -122.3, 37.9] }, visibleInputs: ['image', 'bounds'] },
+          data: {
+            inputs: { bounds: [-122.5, 37.7, -122.3, 37.9] },
+            visibleInputs: ['image', 'bounds'],
+          },
         },
       ],
       edges: [],

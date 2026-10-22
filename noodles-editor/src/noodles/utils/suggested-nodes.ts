@@ -1,6 +1,6 @@
-import type { Field } from '../fields'
-import { type IOperator, type OpType, type Operator, opTypes } from '../operators'
 import { categories, nodeTypeToDisplayName } from '../components/categories'
+import type { Field } from '../fields'
+import { type IOperator, type Operator, type OpType, opTypes } from '../operators'
 
 export interface SuggestedNode {
   opType: OpType

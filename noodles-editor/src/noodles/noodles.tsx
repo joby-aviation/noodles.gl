@@ -40,7 +40,7 @@ import type { NoodlesProject } from '../ai-chat/types'
 import { getPendingQuickStartAction } from '../components/quick-start-modal'
 import { analytics } from '../utils/analytics'
 import { setCurrentProject, setModificationApplier } from '../webmcp/bridge'
-import { externalControl } from './globals'
+import { agentBench, externalControl } from './globals'
 import { getKeysForProject, getKeysStore } from './keys-store'
 import newProjectJSON from './new.json'
 import { BitmapOverlayWidget, type BitmapOverlayWidgetProps } from './widgets/bitmap-overlay-widget'
@@ -113,6 +113,7 @@ import { canConnectCached } from './utils/can-connect'
 import { DeckProjectAssetResolver } from './utils/deck-project-asset-resolver'
 import { instantiateDeckView } from './utils/deck-view'
 import { directoryHandleCache } from './utils/directory-handle-cache'
+import { insertUniqueEdge } from './utils/edge-integrity'
 import {
   fileExists,
   requestPermission,
@@ -120,7 +121,6 @@ import {
   writeFileToDirectory,
 } from './utils/filesystem'
 import { reconcileForLoopGroups } from './utils/for-loop-group-utils'
-import { insertUniqueEdge } from './utils/edge-integrity'
 import { edgeId, nodeId } from './utils/id-utils'
 import { shouldBlockKeyboardShortcut } from './utils/input-detection'
 import { generateDraftId, memoryProjectStore } from './utils/memory-project-store'
@@ -478,15 +478,16 @@ export function getNoodles(): Visualization {
   })
 
   // Keep the WebMCP tool surface in sync with editor state when external
-  // control is enabled (?externalControl=true)
+  // control is enabled (?externalControl=true). The agent benchmark reads and
+  // applies through the same bridge.
   useEffect(() => {
-    if (!externalControl) return
+    if (!externalControl && !agentBench) return
     setModificationApplier(applyModifications)
     return () => setModificationApplier(null)
   }, [applyModifications])
 
   useEffect(() => {
-    if (!externalControl) return
+    if (!externalControl && !agentBench) return
     // ReactFlow edges type sourceHandle as string | null; the project shape uses undefined
     setCurrentProject({ nodes, edges } as NoodlesProject)
   }, [nodes, edges])

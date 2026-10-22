@@ -1,7 +1,9 @@
 import { assert, type Deck } from '@deck.gl/core'
 import { useCallback, useRef, useState } from 'react'
 import { getTimelineStore, useTimelineStore } from '../timeline/timeline-store'
+import { analytics } from '../utils/analytics'
 import { debugRender, debugRenderFrame } from '../utils/debug'
+import { type RenderErrorCategory, type RenderSource, trackRender } from './render-analytics'
 
 export const rafDriver = {
   tick: (_timestamp: number) => {},
@@ -96,6 +98,7 @@ export const useRenderer = ({
       startFrame = 0,
       endFrame = Math.floor(sequenceLength * captureFps),
       target = 'picker',
+      source = 'menu',
       onFrameComplete,
     }: {
       canvas: HTMLCanvasElement
@@ -106,12 +109,26 @@ export const useRenderer = ({
       startFrame?: number
       endFrame?: number
       target?: CaptureTarget
+      source?: RenderSource
       onFrameComplete?: (frame: number, total: number) => void
     }): Promise<CaptureResult> => {
       assert(canvas, 'canvas is required')
 
       let i = startFrame
       const fps = captureFps
+
+      const tracker = trackRender({
+        source,
+        format: 'mp4',
+        codec,
+        width,
+        height,
+        frameCount: endFrame - startFrame + 1,
+      })
+      const fail = (category: RenderErrorCategory, error: Error): CaptureResult => {
+        tracker.failed(category, error, i - startFrame)
+        return { status: 'error', error }
+      }
 
       setIsRendering(true)
 
@@ -131,12 +148,11 @@ export const useRenderer = ({
             ],
           })
           .catch(error => {
-            if (error.name === 'AbortError') {
-              debugRender('File picker cancelled by user for: %s', name)
-            } else {
-              debugRender('Error in showSaveFilePicker for', name, ':', error)
-            }
-            return null // Signal cancellation/failure
+            // Only the user closing the dialog is a cancellation. Anything else, such as
+            // the browser refusing to open it, fails the export.
+            if (error.name !== 'AbortError') throw error
+            debugRender('File picker cancelled by user for: %s', name)
+            return null
           })
 
         if (!fileHandle) {
@@ -251,19 +267,21 @@ export const useRenderer = ({
           ...codecMap[codec],
         })
         if (!config) {
-          return {
-            status: 'error',
-            error: new Error(
+          return fail(
+            'unsupported_codec',
+            new Error(
               `This browser cannot encode ${codec} at ${width}x${height}. Try another codec or a smaller resolution.`
-            ),
-          }
+            )
+          )
         }
 
         const mapContainer = await getContainer(`${projectName}-map`, config)
         if (!mapContainer) {
           debugRender('Render setup cancelled by user (map container)')
+          tracker.cancelled()
           return { status: 'cancelled' }
         }
+        tracker.restartClock()
 
         const mapRecorder = getCanvasRecorder(canvas)
 
@@ -284,7 +302,7 @@ export const useRenderer = ({
         if (warmupResult?.error) {
           debugRender('Error during render warmup:', warmupResult.error)
           mapRecorder.reader.releaseLock()
-          return { status: 'error', error: warmupResult.error }
+          return fail('frame', warmupResult.error)
         }
 
         const frameStartTime = performance.now()
@@ -310,7 +328,7 @@ export const useRenderer = ({
           if (canvasResult?.error) {
             debugRender('Error capturing canvas frame:', canvasResult.error)
             mapRecorder.reader.releaseLock()
-            return { status: 'error', error: canvasResult.error }
+            return fail('frame', canvasResult.error)
           }
 
           // Lift timing variables outside closure for per-frame logging
@@ -383,11 +401,15 @@ export const useRenderer = ({
           (totalEncodeTime / totalTime) * 100
         )
         const buffer = await finishEncoding()
-        if (encoderError) return { status: 'error', error: encoderError }
+        if (encoderError) return fail('encoder', encoderError)
+        tracker.completed()
         return { status: 'done', frameCount, fps, buffer }
       } catch (error) {
         debugRender('Render failed:', error)
-        return { status: 'error', error: error instanceof Error ? error : new Error(String(error)) }
+        // After an encoder error the encoder closes, so the next encode() or flush()
+        // throws. The encoder's own error says what went wrong.
+        if (encoderError) return fail('encoder', encoderError)
+        return fail('exception', error instanceof Error ? error : new Error(String(error)))
       } finally {
         setIsRendering(false)
       }
@@ -426,6 +448,16 @@ export const useRenderer = ({
       const totalFrames = endFrame - startFrame + 1
       const padLength = Math.max(4, String(endFrame).length)
 
+      // Frames are captured at the canvas's own size
+      const tracker = trackRender({
+        source: 'menu',
+        format: 'png_sequence',
+        width: canvas.width,
+        height: canvas.height,
+        frameCount: totalFrames,
+      })
+      let framesDone = 0
+
       // For pure-deck scenes (no basemap), install a temporary onAfterRender that fires captureFrame().
       // Basemap scenes already drive frame readiness via mapProps.onIdle.
       const deck = getDeck?.()
@@ -447,12 +479,7 @@ export const useRenderer = ({
         })
       }
 
-      // Use captureStream + requestFrame to read from the browser compositor rather than
-      // the raw GL framebuffer (which is cleared after the buffer swap when
-      // preserveDrawingBuffer is false).
-      const track = canvas.captureStream(0).getVideoTracks()[0]
-      const mediaProcessor = new MediaStreamTrackProcessor({ track })
-      const reader = mediaProcessor.readable.getReader()
+      let reader: ReadableStreamDefaultReader<VideoFrame> | undefined
 
       // Pipelined writes: up to MAX_CONCURRENT_WRITES file writes run concurrently with
       // the next frame's render to avoid ~750ms/frame disk flush stalls.
@@ -469,6 +496,14 @@ export const useRenderer = ({
           })
 
       try {
+        // Use captureStream + requestFrame to read from the browser compositor rather than
+        // the raw GL framebuffer (which is cleared after the buffer swap when
+        // preserveDrawingBuffer is false). Inside the try: captureStream throws on a
+        // canvas with cross-origin content.
+        const track = canvas.captureStream(0).getVideoTracks()[0]
+        const mediaProcessor = new MediaStreamTrackProcessor({ track })
+        reader = mediaProcessor.readable.getReader()
+
         const exportStartTime = performance.now()
         let totalWaitTime = 0
         let totalCaptureTime = 0
@@ -522,7 +557,8 @@ export const useRenderer = ({
 
           pendingWrites.push(writeFile(filename, blob))
 
-          onFrameComplete?.(i - startFrame + 1, totalFrames)
+          framesDone = i - startFrame + 1
+          onFrameComplete?.(framesDone, totalFrames)
 
           if (i % 10 === 0) {
             const frameIterationEnd = performance.now()
@@ -563,8 +599,16 @@ export const useRenderer = ({
           totalConvertTime.toFixed(0),
           (totalConvertTime / totalTime) * 100
         )
+        tracker.completed()
+      } catch (error) {
+        tracker.failed(
+          'exception',
+          error instanceof Error ? error : new Error(String(error)),
+          framesDone
+        )
+        throw error
       } finally {
-        reader.releaseLock()
+        reader?.releaseLock()
         if (deck) {
           deck.setProps({ onAfterRender: originalOnAfterRender ?? (() => {}) })
         }
@@ -590,7 +634,7 @@ export default useRenderer
 export const captureScreenshot = async (
   suggestedName: string,
   getBufferedCanvas: () => HTMLCanvasElement,
-  quality = 1
+  { quality = 1, source = 'menu' }: { quality?: number; source?: RenderSource } = {}
 ) => {
   const imageHandle = await window.showSaveFilePicker({
     suggestedName,
@@ -620,4 +664,5 @@ export const captureScreenshot = async (
   const fileWritableStream = await imageHandle.createWritable()
   await fileWritableStream.write(blob)
   await fileWritableStream.close()
+  analytics.track('screenshot_taken', { source })
 }

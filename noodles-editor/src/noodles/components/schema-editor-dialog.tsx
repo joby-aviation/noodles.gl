@@ -47,6 +47,8 @@ interface ColumnEditorProps {
 }
 
 interface ColumnDraft {
+  // Stable React key for the editor row. column.id can change during a rename.
+  key: string
   column: ColumnSchema
   sourceName?: string
 }
@@ -61,6 +63,7 @@ function normalizeColumnDefault(column: ColumnSchema): ColumnSchema {
 
 function createColumnDrafts(schema: TableSchema): ColumnDraft[] {
   return schema.columns.map(column => ({
+    key: crypto.randomUUID(),
     column: normalizeColumnDefault(column),
     sourceName: column.name,
   }))
@@ -96,7 +99,7 @@ function StringLiteralValuesInput({
   const handleBlur = () => {
     const parsed = inputValue
       .split(',')
-      .map((v) => v.trim())
+      .map(v => v.trim())
       .filter(Boolean)
     onChange(parsed)
   }
@@ -104,7 +107,7 @@ function StringLiteralValuesInput({
   return (
     <InputText
       value={inputValue}
-      onChange={(e) => setInputValue(e.target.value)}
+      onChange={e => setInputValue(e.target.value)}
       onBlur={handleBlur}
       placeholder="option1, option2, option3"
       className={s.fullWidthInput}
@@ -294,6 +297,7 @@ function ColumnEditor({
               className="p-button-text p-button-sm"
               onClick={onMoveUp}
               disabled={!onMoveUp}
+              aria-label={`Move column ${column.name} up`}
             />
           )}
           {onMoveDown && (
@@ -302,6 +306,7 @@ function ColumnEditor({
               className="p-button-text p-button-sm"
               onClick={onMoveDown}
               disabled={!onMoveDown}
+              aria-label={`Move column ${column.name} down`}
             />
           )}
           <Button
@@ -316,21 +321,18 @@ function ColumnEditor({
             icon="pi pi-trash"
             className="p-button-text p-button-sm p-button-danger"
             onClick={onDelete}
+            aria-label={`Delete column ${column.name}`}
           />
         </div>
       </div>
 
-      <div
-        className={s.defaultValueRow}
-        role="group"
-        aria-label={`Default value for ${column.name}`}
-      >
+      <fieldset className={s.defaultValueRow} aria-label={`Default value for ${column.name}`}>
         <span className={s.optionLabel}>Default:</span>
         <DefaultValueEditor
           column={column}
           onChange={defaultValue => onChange({ ...column, defaultValue })}
         />
-      </div>
+      </fieldset>
 
       {column.type === 'number' && (
         <div className={s.typeOptions}>
@@ -461,7 +463,7 @@ export function SchemaEditorDialog({ schema, onChange, onClose }: SchemaEditorDi
       type: 'string',
       defaultValue: '',
     }
-    setColumnDrafts([...columnDrafts, { column: newColumn }])
+    setColumnDrafts([...columnDrafts, { key: crypto.randomUUID(), column: newColumn }])
   }
 
   const updateColumn = (index: number, updates: ColumnSchema) => {
@@ -496,6 +498,7 @@ export function SchemaEditorDialog({ schema, onChange, onClose }: SchemaEditorDi
     }
     const newDrafts = [...columnDrafts]
     newDrafts.splice(index + 1, 0, {
+      key: crypto.randomUUID(),
       column: duplicate,
       sourceName: source.sourceName,
     })
@@ -541,7 +544,10 @@ export function SchemaEditorDialog({ schema, onChange, onClose }: SchemaEditorDi
 
     setColumnDrafts([
       ...columnDrafts,
-      ...newColumns.map(column => ({ column: { ...column, id: crypto.randomUUID() } })),
+      ...newColumns.map(column => ({
+        key: crypto.randomUUID(),
+        column: { ...column, id: crypto.randomUUID() },
+      })),
     ])
   }
 
@@ -553,6 +559,7 @@ export function SchemaEditorDialog({ schema, onChange, onClose }: SchemaEditorDi
           onClick={handleOpen}
           className={`p-button-text p-button-sm ${s.trigger}`}
           tooltip="Edit Schema"
+          aria-label="Edit schema"
         />
       </Dialog.Trigger>
       <Dialog.Portal>
@@ -570,9 +577,9 @@ export function SchemaEditorDialog({ schema, onChange, onClose }: SchemaEditorDi
               </div>
             ) : (
               <div className={s.columnList}>
-                {columnDrafts.map(({ column }, index) => (
+                {columnDrafts.map(({ key, column }, index) => (
                   <ColumnEditor
-                    key={index}
+                    key={key}
                     column={column}
                     onChange={updated => updateColumn(index, updated)}
                     onDuplicate={() => duplicateColumn(index)}

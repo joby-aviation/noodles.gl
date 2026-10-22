@@ -1,9 +1,9 @@
 import {
-  type SortingState,
   createColumnHelper,
   flexRender,
   getCoreRowModel,
   getSortedRowModel,
+  type SortingState,
   useReactTable,
 } from '@tanstack/react-table'
 import { useVirtualizer } from '@tanstack/react-virtual'
@@ -22,6 +22,7 @@ export function SpreadsheetViewer({ data, operatorId }: { data: unknown; operato
   const tableContainerRef = useRef<HTMLDivElement>(null)
 
   // Reset sort/visibility when switching to a different operator
+  // biome-ignore lint/correctness/useExhaustiveDependencies: operatorId triggers the reset
   useEffect(() => {
     setSorting([])
     setColumnVisibility({})
