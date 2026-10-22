@@ -1,5 +1,6 @@
 import { useState } from 'react'
-// The website's "Use with Claude Code" section copies the same prompt
+// The website's "Use with your AI agent" section copies the same prompts
+import agentPrompt from '../../../../website/static/agent-prompt.txt?raw'
 import claudeCodePrompt from '../../../../website/static/claude-code-prompt.txt?raw'
 import type { OpenRouterConnect } from '../../noodles/use-openrouter-connect'
 import { analytics } from '../../utils/analytics'
@@ -21,17 +22,26 @@ export function AssistantOnboarding({
   freeModels,
 }: AssistantOnboardingProps) {
   const freeModelName = freeModels[0]?.label ?? 'a free model'
-  const [promptCopy, setPromptCopy] = useState<'idle' | 'copied' | 'failed'>('idle')
+  const [promptCopy, setPromptCopy] = useState<{
+    agent: 'claude_code' | 'other'
+    status: 'copied' | 'failed'
+  } | null>(null)
 
-  const copyClaudeCodePrompt = async () => {
+  const copyPrompt = async (agent: 'claude_code' | 'other') => {
     try {
-      await navigator.clipboard.writeText(claudeCodePrompt)
-      setPromptCopy('copied')
-      analytics.track('claude_code_prompt_copied', { source: 'assistant_onboarding' })
+      await navigator.clipboard.writeText(agent === 'claude_code' ? claudeCodePrompt : agentPrompt)
+      setPromptCopy({ agent, status: 'copied' })
+      analytics.track('agent_prompt_copied', { agent, source: 'assistant_onboarding' })
     } catch {
-      setPromptCopy('failed')
+      setPromptCopy({ agent, status: 'failed' })
     }
   }
+  const copied = (agent: 'claude_code' | 'other') =>
+    promptCopy?.agent === agent && promptCopy.status === 'copied'
+  const failedHref =
+    promptCopy?.agent === 'other'
+      ? 'https://noodles.gl/agent-prompt.txt'
+      : 'https://noodles.gl/claude-code-prompt.txt'
 
   return (
     <div className={styles.container}>
@@ -87,26 +97,39 @@ export function AssistantOnboarding({
           </div>
         )}
 
-        {/* Claude Code Card - Tertiary Option */}
+        {/* Coding Agent Card - Tertiary Option */}
         <div className={styles.card}>
           <div className={styles.cardHeader}>
-            <h4 className={styles.cardTitle}>Use Claude Code</h4>
+            <h4 className={styles.cardTitle}>Use your coding agent</h4>
           </div>
           <p className={styles.cardDescription}>
-            Paste this prompt into Claude Code. It installs Noodles.gl on your computer, opens an
-            example map, changes it, and shows you a screenshot. Then Claude Code can edit and
-            export your maps.
+            Paste this prompt into Claude Code, Codex, Gemini CLI, Cursor, or another agent. It
+            installs Noodles.gl on your computer, opens an example map, changes it, and shows you a
+            screenshot. Then your agent can edit and export your maps.
           </p>
-          <button type="button" onClick={copyClaudeCodePrompt} className={styles.tertiaryButton}>
-            {promptCopy === 'copied'
+          <button
+            type="button"
+            onClick={() => copyPrompt('claude_code')}
+            className={styles.tertiaryButton}
+          >
+            {copied('claude_code')
               ? 'Copied. Paste it into Claude Code'
               : 'Copy Claude Code prompt'}
           </button>
-          {promptCopy === 'failed' && (
+          <button
+            type="button"
+            onClick={() => copyPrompt('other')}
+            className={`${styles.linkButton} ${styles.otherAgentButton}`}
+          >
+            {copied('other')
+              ? 'Copied. Paste it into your agent'
+              : 'Copy the prompt for other agents'}
+          </button>
+          {promptCopy?.status === 'failed' && (
             <p className={styles.errorText}>
               Your browser blocked the copy. The prompt is at{' '}
-              <a href="https://noodles.gl/claude-code-prompt.txt" target="_blank" rel="noreferrer">
-                noodles.gl/claude-code-prompt.txt
+              <a href={failedHref} target="_blank" rel="noreferrer">
+                {failedHref.replace('https://', '')}
               </a>
             </p>
           )}

@@ -14,10 +14,13 @@ Key Features:
 - Support for JSON, CSV, GeoJSON, and other data formats
 - Export to video, images, or interactive web presentations
 
-## Use with Claude Code
+## Use with an AI agent
 
-- Quick start prompt: https://noodles.gl/claude-code-prompt.txt. Paste it into Claude Code. It clones the repo, installs, starts the editor, registers the WebMCP relay, changes an example map, and shows a screenshot.
+- Overview of the ways to use Noodles.gl with an agent (in-app assistant, driving a running editor, writing project files): https://noodles.gl/users/ai-agents
+- Quick start prompt for Claude Code: https://noodles.gl/claude-code-prompt.txt. It clones the repo, installs, starts the editor, registers the WebMCP relay, changes an example map, and shows a screenshot.
+- Quick start prompt for other agents (Codex, Gemini CLI, Cursor, VS Code, any MCP client): https://noodles.gl/agent-prompt.txt. Same steps, with one restart after the relay is registered.
 - Driving a running editor: the `noodles-live` skill at https://github.com/joby-aviation/noodles.gl/blob/main/.claude/skills/noodles-live/SKILL.md
+- Writing and validating noodles.json without a browser: the `noodles` MCP server at https://github.com/joby-aviation/noodles.gl/blob/main/noodles-mcp/README.md and the validator at https://github.com/joby-aviation/noodles.gl/blob/main/noodles-validate/README.md
 - WebMCP setup and tool list: https://github.com/joby-aviation/noodles.gl/blob/main/dev-docs/claude-code-workflow.md
 
 ## Primary Documentation
@@ -30,6 +33,8 @@ Key Features:
 - Introduction: https://noodles.gl/intro
 - Comparison with Other Tools: https://noodles.gl/users/comparison
 - Data Guide: https://noodles.gl/users/data-guide
+- AI Assistant: https://noodles.gl/users/ai-assistant
+- Use Noodles with your AI agent: https://noodles.gl/users/ai-agents
 - Operators Guide: https://noodles.gl/users/operators-guide
 - Animation and Rendering: https://noodles.gl/users/animation-and-rendering
 

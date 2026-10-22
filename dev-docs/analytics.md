@@ -134,9 +134,9 @@ When a CSV or JSON table is imported, the editor looks for coordinate columns so
 | `analytics_consent_granted` | - | analytics.ts (setConsent) |
 | `analytics_consent_denied` | - | analytics.ts (setConsent) |
 | `analytics_enabled_in_settings` | - | settings-dialog.tsx |
-| `claude_code_prompt_copied` | `source` (`assistant_onboarding`) | assistant-onboarding.tsx |
+| `agent_prompt_copied` | `agent` (`claude_code`, `other`), `source` (`assistant_onboarding`) | assistant-onboarding.tsx |
 
-The website's "Use with Claude Code" section sends `claude_code_prompt_copied` too, with `location: 'landing'`, through the site's own PostHog and GA tags (`website/src/components/ClaudeCodeQuickStart`). The prompt text itself is never sent.
+The website's "Use with your AI agent" section sends `agent_prompt_copied` too, with `agent` and `location: 'landing'`, through the site's own PostHog and GA tags (`website/src/components/AgentQuickStart`). Before October 2026 both sent `claude_code_prompt_copied`. The prompt text itself is never sent.
 
 ### AI Assistant
 

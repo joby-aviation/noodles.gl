@@ -39,7 +39,12 @@ All of these live in Settings → **AI Provider** (the gear icon in the chat hea
 
 ### Running a model locally
 
-Settings → AI Provider → **Local model (on-device)**, then pick a model. Nothing downloads until you pick one — sizes are shown next to each name, from 0.9 GB for Llama 3.2 1B up to 5.6 GB for Qwen3 8B. Qwen3 4B (3.4 GB) is a good default.
+Settings → AI Provider → **Local model (on-device)**, then pick a model. Nothing downloads until you pick one. Each model shows its download size and the GPU memory it needs:
+
+- **Qwen3.5 4B** (2.4 GB download, 3.9 GB GPU memory): the default, and the better answers
+- **Qwen3.5 2B** (1.1 GB download, 2.2 GB GPU memory): faster, and needs about half the memory
+
+Older models sit under **Advanced compatibility**, so a model you picked before keeps working. If a model fails to load, the editor offers the 2B.
 
 The download happens once and shows a progress bar. After that the model is cached in your browser and starts immediately, and no prompt ever leaves your machine.
 
@@ -117,6 +122,12 @@ The assistant has access to powerful tools to help you:
 - Search for tutorials and guides
 - Look up Deck.gl and MapLibre documentation
 - Find GeoJSON datasets and examples
+
+### Reviewing changes
+
+When the assistant wants to change your graph, it doesn't change it right away. The chat shows a card that lists each node, input and connection it would add, change or remove. Nothing touches the graph until you click **Accept**, and an accepted batch is one undo step. **Reject** drops the batch and tells the assistant, so you can ask for something different.
+
+You can't send another message while a card is waiting. Starting or loading a conversation, or opening another project, drops it.
 
 ### Example Conversations
 
@@ -248,7 +259,7 @@ A local or built-in model is fine for questions about your graph and single-step
 **Solutions:**
 - Close other tabs and applications
 - Restart your browser
-- Pick a smaller local model — Llama 3.2 1B needs about a quarter of the memory Qwen3 8B does
+- Pick a smaller local model: Qwen3.5 2B needs about half the GPU memory of Qwen3.5 4B
 - Use OpenRouter or Anthropic instead; neither uses your device's memory
 
 ### AI gives incorrect or unhelpful answers
@@ -333,6 +344,7 @@ Conversations are automatically saved as you chat.
 ---
 
 **Next Steps:**
+- [Use Noodles with Claude Code, Codex, Gemini CLI or Cursor →](./ai-agents.md)
 - [Learn about operators →](/users/operators-guide)
 - [Explore workflows →](/users/workflows-intro)
 - [Read developer documentation →](/developers/overview)
