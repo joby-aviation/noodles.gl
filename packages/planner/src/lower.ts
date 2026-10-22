@@ -481,8 +481,12 @@ export function lowerDocument(doc: EditorDoc, options: LowerOptions = {}): Lower
   };
 }
 
-/** Every IR parameter's value at one instant, from the scalar program. */
-export function parameterValues(lowered: Lowered, clock: Clock): {
+/**
+ * Every IR parameter's value at one instant, from the scalar program. `host` supplies keys the
+ * scalar program does not compute: a host application's operator outputs, such as
+ * `nodeId.out.location.lat` for a `ch('geocoder/out.location.lat')` reference.
+ */
+export function parameterValues(lowered: Lowered, clock: Clock, host?: { get(key: string): unknown }): {
   values: Record<string, number | string>;
   slots: Map<string, SlotValue>;
   errors: Map<string, string>;
@@ -490,7 +494,7 @@ export function parameterValues(lowered: Lowered, clock: Clock): {
   const { values: slots, errors } = lowered.scalars.evaluate(clock);
   const values: Record<string, number | string> = {};
   for (const p of Object.values(lowered.params)) {
-    const v = slots.get(p.key);
+    const v = slots.get(p.key) ?? (host?.get(p.key) as SlotValue | undefined);
     const x = p.component !== undefined && Array.isArray(v) ? v[p.component] : v;
     values[p.name] = typeof x === 'string' ? x : typeof x === 'boolean' ? Number(x) : Number(x ?? 0);
   }

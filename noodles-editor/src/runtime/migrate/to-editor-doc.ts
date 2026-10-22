@@ -211,6 +211,18 @@ const attributeName = (id: string) =>
     .replace(/[^A-Za-z0-9_]/g, '_')
     .replace(/^(\d)/, '_$1')
 
+/** A Noodles operator path, relative (`centroid`, `./a`, `../b`) or absolute, from `from`. */
+function resolveNoodlesPath(path: string, from: string): string {
+  if (path.startsWith('/')) return path
+  const parts = from.split('/').slice(0, -1)
+  for (const seg of path.split('/')) {
+    if (seg === '.' || seg === '') continue
+    if (seg === '..') parts.pop()
+    else parts.push(seg)
+  }
+  return parts.join('/') || '/'
+}
+
 const handleField = (handle: string | null | undefined) =>
   (handle ?? '').replace(/^(par|out)\./, '')
 
@@ -450,6 +462,8 @@ export function toEditorDoc(project: NoodlesProject): Migrated {
   })
 
   // --- data sources --------------------------------------------------------------------
+  /** Operators a query references by `{{…}}`: they must exist in the document too. */
+  const referenced = new Set<string>()
   const sources = new Map<string, string>()
   /** The output port a source's rows leave by: `out`, or a GeoJSON source's `all`. */
   const sourcePort = new Map<string, string>()
@@ -486,8 +500,26 @@ export function toEditorDoc(project: NoodlesProject): Migrated {
         ...position(n),
         params: { url: i.url, format: 'csv' },
       })
-    } else if (n.type === 'DuckDbOp' && typeof i.query === 'string' && !i.query.includes('{{')) {
-      nodes.push({ id, op: 'sql', name: segment(id), ...position(n), params: { query: i.query } })
+    } else if (n.type === 'DuckDbOp' && (typeof i.query === 'string' || Array.isArray(i.query))) {
+      const text = (Array.isArray(i.query) ? i.query.join('\n') : String(i.query))
+        .trim()
+        .replace(/;$/, '')
+      if (text.split(';').filter(t => t.trim()).length > 1) {
+        throw new MigrationError(`${id}: a DuckDB query of several statements is not converted`)
+      }
+      // `{{op.par.x}}` / `{{op.out.x.y}}` references become ch(), which the planner binds as a
+      // parameter of the relation: a change rematerializes it, as DuckDbOp re-ran its query.
+      const query = text.replace(
+        /\{\{([^.}]+)\.(par|out)\.([\w.-]+)\}\}/g,
+        (_m, ref, inOut, path) => {
+          const target = resolveNoodlesPath(ref, id)
+          referenced.add(target)
+          return inOut === 'out'
+            ? `ch('${segment(target)}/out.${path}')`
+            : `ch('${segment(target)}/${path}')`
+        }
+      )
+      nodes.push({ id, op: 'sql', name: segment(id), ...position(n), params: { query } })
     } else {
       throw new MigrationError(`${id} (${n.type}) is not a CSV file or a plain DuckDB query yet`)
     }
@@ -760,9 +792,10 @@ export function toEditorDoc(project: NoodlesProject): Migrated {
         continue
       }
       if (PLANNER_SOURCES.has(src.type)) {
-        throw new MigrationError(
-          `${id}: reading ${src.type} rows from a host operator is not converted yet`
-        )
+        // The host operator reads the relation's rows as JS objects.
+        source(src.id)
+        edge(src.id, sourcePort.get(src.id) ?? 'out', id, `par:${field}`)
+        continue
       }
       hostNode(src.id)
       edge(src.id, handleField(e.sourceHandle), id, `par:${field}`)
@@ -1179,6 +1212,16 @@ export function toEditorDoc(project: NoodlesProject): Migrated {
       index: index * 10,
     })
   })
+
+  // A camera driven by an operator (MapViewState fitting the data, say) is the deck's view state.
+  const cameraEdge = basemap ? incomingOne(basemap.id, 'viewState') : undefined
+  if (cameraEdge) {
+    hostNode(cameraEdge.source)
+    edge(cameraEdge.source, handleField(cameraEdge.sourceHandle), deckOp.id, 'viewState')
+  }
+  for (const id of referenced) {
+    if (!used.has(id)) hostNode(id)
+  }
 
   for (const port of DECK_VALUE_PORTS) {
     incoming(deckOp.id, port).forEach((e, index) => {

@@ -10,6 +10,7 @@ import type { DocEdge, DocNode, EditorDoc } from '@noodles.gl/planner'
 import { applySerializedFieldValue, type Field, ListField } from '../../noodles/fields'
 import { type IOperator, type Operator, opTypes } from '../../noodles/operators'
 import { useTimelineDependencyStore } from '../../noodles/utils/timeline-dependencies'
+import { PENDING } from '../engine'
 import { isHostOperator } from './host-ops'
 
 export interface HostInputs {
@@ -24,6 +25,8 @@ export interface HostInputs {
 export interface HostReport {
   ran: string[]
   reused: string[]
+  /** Waiting for planner output that does not exist yet. */
+  pending: string[]
   errors: { nodeId: string; message: string }[]
 }
 
@@ -76,7 +79,7 @@ export class HostRunner {
   }
 
   private async runNow(doc: EditorDoc, inputs: HostInputs): Promise<HostReport> {
-    const report: HostReport = { ran: [], reused: [], errors: [] }
+    const report: HostReport = { ran: [], reused: [], pending: [], errors: [] }
     const hosts = doc.nodes.filter(isHostNode)
     const isHost = new Set(hosts.map(n => n.id))
     for (const id of [...this.entries.keys()]) {
@@ -97,18 +100,29 @@ export class HostRunner {
             inputs.planner(e.source, e.sourcePort))
 
       const fields = Object.entries(entry.op.inputs as Record<string, Field>)
-      const upstreamFailed = fields.some(([name]) => into(name).some(e => failed.has(e.source)))
+      const upstreamFailed = fields.some(([name]) =>
+        into(name).some(e => failed.has(e.source) && !report.pending.includes(e.source))
+      )
       if (upstreamFailed) {
         failed.add(node.id)
         report.errors.push({ nodeId: node.id, message: 'skipped: an input failed' })
         continue
       }
-      const read: unknown[] = fields.map(([name, field]) => {
-        const edges = into(name)
-        if (edges.length === 0) return node.params[name]
-        const values = edges.map(edgeValue)
-        return field instanceof ListField ? values : values[0]
-      })
+      const read: unknown[] = await Promise.all(
+        fields.map(async ([name, field]) => {
+          const edges = into(name)
+          if (edges.length === 0) return node.params[name]
+          const values = await Promise.all(edges.map(edgeValue))
+          return field instanceof ListField ? values : values[0]
+        })
+      )
+      const waiting = (v: unknown) => v === PENDING || (Array.isArray(v) && v.includes(PENDING))
+      const upstreamPending = fields.some(([name]) => into(name).some(e => failed.has(e.source)))
+      if (read.some(waiting) || upstreamPending) {
+        failed.add(node.id)
+        report.pending.push(node.id)
+        continue
+      }
       if (entry.timed) read.push(inputs.time)
       if (entry.outputs && entry.read && sameValues(entry.read, read)) {
         report.reused.push(node.id)
