@@ -150,9 +150,18 @@ export function renderTranscript(result: BenchResult): string[] {
         }`
       )
     }
-    // The loop only stops on tool_use when it ran out of steps mid-task
+    // The loop stops on tool_use either at its step limit or on the third
+    // identical call (REPEAT_LIMIT in agent/loop.ts), which it reports as
+    // repeated_tool_call "<name> ×3"
     if (turn.stopReasons.at(-1) === 'tool_use') {
-      lines.push('[harness] budget-exhausted: step limit')
+      const repeated = turn.diagnostics.some(
+        d => d.kind === 'repeated_tool_call' && Number(d.detail?.match(/×(\d+)$/)?.[1]) >= 3
+      )
+      lines.push(
+        repeated
+          ? '[harness] stopped: the same tool call was repeated 3 times'
+          : '[harness] budget-exhausted: step limit'
+      )
     }
   })
   if (result.timedOut) lines.push('[harness] budget-exhausted: wall clock')
@@ -166,7 +175,11 @@ export interface Artifact {
 }
 
 export function artifacts(result: BenchResult): Artifact[] {
+  const json = (value: unknown) => JSON.stringify(value, null, 2).split('\n')
   return [
+    ...(result.initialProject
+      ? [{ name: 'start-project.json', lines: json(result.initialProject) }]
+      : []),
     { name: 'project.json', lines: JSON.stringify(result.finalProject, null, 2).split('\n') },
     { name: 'ops.json', lines: JSON.stringify(result.finalOps, null, 2).split('\n') },
   ]
@@ -278,6 +291,14 @@ export function checkCitations(
     }
   }
   return { checked, resolved, unresolved }
+}
+
+// Zero samples would save a judgment of 0 without asking the judge anything, and
+// later runs skip a judged file unless --force
+export function assertSampleCount(samples: number) {
+  if (!Number.isInteger(samples) || samples < 1) {
+    throw new Error(`samples must be a positive integer, got ${samples}`)
+  }
 }
 
 // NaN when every criterion is na, which drops the dimension from the weighting

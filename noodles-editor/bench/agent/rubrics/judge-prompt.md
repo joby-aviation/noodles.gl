@@ -20,10 +20,13 @@ competent but whose artifacts contradict it scores on the artifacts.
 3. **The transcript**, with line numbers (`L12`). Tool calls show their
    arguments and a clipped result. A turn's reply text is shown after its tool
    calls.
-4. **The final artifacts**, with file names and line numbers: `project.json`
+4. **The artifacts**, with file names and line numbers: `start-project.json`
+   (nodes and edges after task setup, before the first turn), `project.json`
    (nodes and edges after the session) and `ops.json` (every operator's input
    values as the running graph holds them — trust this over node data in
-   `project.json` when they disagree).
+   `project.json` when they disagree). Compare `start-project.json` with
+   `project.json` to judge whether existing work was kept or reused; when
+   `start-project.json` is absent, criteria that need it are `na`.
 5. **Mechanical results** recorded by deterministic checks.
 
 ## Non-negotiable rules

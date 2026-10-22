@@ -24,6 +24,7 @@ import type { BenchResult } from '../../src/ai-chat/bench/bench-hook'
 import type { Grade } from './grade'
 import {
   artifacts,
+  assertSampleCount,
   buildJudgePrompt,
   checkCitations,
   type JudgeSample,
@@ -177,6 +178,7 @@ function sameRun(row: RunRow, raw: RawRun, fileName: string) {
 }
 
 export async function judgeDirectory(rawDir: string, options: JudgeOptions) {
+  assertSampleCount(options.samples)
   const template = readFileSync(join(rubricsDir, 'judge-prompt.md'), 'utf8')
   const runId = basename(rawDir)
   const summaryPath = join(rawDir, '..', '..', `${runId}.summary.json`)

@@ -4,6 +4,8 @@ import { describe, expect, it } from 'vitest'
 import type { BenchResult } from '../../src/ai-chat/bench/bench-hook'
 import type { Grade } from './grade'
 import {
+  artifacts,
+  assertSampleCount,
   buildJudgePrompt,
   checkCitations,
   type JudgeSample,
@@ -134,6 +136,36 @@ describe('renderTranscript', () => {
   it('marks a turn that ended mid-tool-use as out of steps', () => {
     expect(lines).toContain('[harness] budget-exhausted: step limit')
   })
+
+  it('says a turn ended on a repeated call rather than the step limit', () => {
+    const [turn] = result.turns
+    const repeated = renderTranscript({
+      ...result,
+      turns: [
+        { ...turn, diagnostics: [{ kind: 'repeated_tool_call', detail: 'get_node_info ×3' }] },
+      ],
+    } as BenchResult)
+    expect(repeated).toContain('[harness] stopped: the same tool call was repeated 3 times')
+    expect(repeated).not.toContain('[harness] budget-exhausted: step limit')
+  })
+})
+
+describe('artifacts', () => {
+  it('adds the starting graph when the run recorded one', () => {
+    const start = { nodes: [{ id: '/pickup' }], edges: [] }
+    const names = (r: BenchResult) => artifacts(r).map(a => a.name)
+    expect(names({ ...result, initialProject: start } as unknown as BenchResult)).toEqual([
+      'start-project.json',
+      'project.json',
+      'ops.json',
+    ])
+    expect(names(result)).toEqual(['project.json', 'ops.json'])
+  })
+})
+
+it('rejects a sample count that would judge nothing', () => {
+  for (const bad of [0, -1, Number.NaN, 1.5]) expect(() => assertSampleCount(bad)).toThrow()
+  expect(() => assertSampleCount(3)).not.toThrow()
 })
 
 it('fills every slot of the committed prompt', () => {
