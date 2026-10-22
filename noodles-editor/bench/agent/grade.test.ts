@@ -102,6 +102,22 @@ describe('grade', () => {
     expect(graded.checks[0].detail).toBe('model failed to load')
   })
 
+  it('fails a run that timed out, whatever its partial answer matched', () => {
+    const graded = grade([{ type: 'nodeCount', min: 0 }], {
+      result: result({ timedOut: true }),
+    })
+    expect(graded.pass).toBe(false)
+    expect(graded.checks[0].detail).toBe('timed out before the last turn finished')
+  })
+
+  it('fails a run whose later turn errored', () => {
+    const graded = grade([{ type: 'nodeCount', min: 0 }], {
+      result: result({ error: 'the graph was still computing 15s after the last turn' }),
+    })
+    expect(graded.pass).toBe(false)
+    expect(graded.score).toBe(0)
+  })
+
   describe('answerMatches', () => {
     const answered = result({ turns: [turn({ reply: 'Use {{/threshold.par.value}} in SQL' })] })
 
