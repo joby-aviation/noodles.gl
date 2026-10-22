@@ -20,7 +20,7 @@ Project files (`noodles.json`) are plain JSON and can be read and written by Cla
 - Node IDs are Unix-style paths: `/my-node`, `/container/child`
 - Edge handles: `out.fieldName` (source) → `par.fieldName` (target)
 - Only non-default input values need to be serialized
-- Version 18 is current (the latest migration in `src/noodles/__migrations__/`). Write new files at the current version; older files are migrated when they load, so don't bump the version of an existing file by hand
+- The current version is the number of the latest migration in `src/noodles/__migrations__/`; `validate-projects` prints it. Write new files at the current version; older files are migrated when they load, so don't bump the version of an existing file by hand
 
 ### Looking Things Up Without a Browser
 
