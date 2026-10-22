@@ -161,12 +161,6 @@ export class DuckDbEngine implements SqlEngine {
     this.prepared.clear()
   }
 
-  /** Create (or replace) a table from an Arrow IPC stream. */
-  async insertArrow(name: string, ipc: Uint8Array): Promise<void> {
-    await this.conn.query(`DROP TABLE IF EXISTS "${name.replace(/"/g, '""')}"`)
-    await this.conn.insertArrowFromIPCStream(ipc, { name, create: true })
-  }
-
   /** Make bytes readable by DuckDB under `name`, e.g. a project asset for `read_csv_auto`. */
   async registerFile(name: string, bytes: Uint8Array): Promise<void> {
     await this.db.registerFileBuffer(name, bytes)

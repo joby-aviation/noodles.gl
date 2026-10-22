@@ -264,23 +264,24 @@ export const OPERATORS: OpDef[] = [
   },
   {
     type: 'geojson', label: 'GeoJSON', category: 'data',
-    description: 'A GeoJSON file as vertex rows: polygons (id, ring, vertex), lines (id, vertex) and points, with each feature\'s properties as columns. `all` has every row, with a `kind` column.',
+    description: 'A GeoJSON file, or any vector file DuckDB spatial reads (shapefile, GeoPackage…), as rows: `features` has one row per feature with its geometry; polygons, lines and points have one row per vertex, ready for a layer; `all` has every vertex row with a `kind` column.',
     inputs: [],
     outputs: [
       { name: 'all', type: 'table' }, { name: 'polygons', type: 'table' },
-      { name: 'lines', type: 'table' }, { name: 'points', type: 'table' },
+      { name: 'lines', type: 'table' }, { name: 'points', type: 'table' }, { name: 'features', type: 'table' },
     ],
     params: [{ name: 'url', label: 'URL', kind: 'url', default: '' }],
     lower(ctx) {
       const url = ctx.str('url');
       if (!url) ctx.error('GeoJSON needs a URL');
+      const features = `${ctx.id}#features`;
       const kinds = ['all', 'polygons', 'lines', 'points'] as const;
       return {
-        nodes: kinds.map((kind) => ({
-          id: `${ctx.id}#${kind}`, type: 'source' as const, dataset: { ref: url },
-          file: { format: 'geojson' as const, url, options: { geometry: kind } },
-        })),
-        outputs: Object.fromEntries(kinds.map((kind) => [kind, `${ctx.id}#${kind}`])),
+        nodes: [
+          { id: features, type: 'source', dataset: { ref: url }, file: { format: 'spatial', url } },
+          ...kinds.map((kind) => ({ id: `${ctx.id}#${kind}`, type: 'vertices' as const, input: features, kind })),
+        ],
+        outputs: { features, ...Object.fromEntries(kinds.map((kind) => [kind, `${ctx.id}#${kind}`])) },
       };
     },
   },

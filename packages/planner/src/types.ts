@@ -286,10 +286,10 @@ export interface LayerNode {
 export interface FileSource {
   /** `csv`, `json` and `parquet` map to DuckDB's `read_*` functions. */
   /**
-   * `geojson` reads a table the host created with the file's geometry as vertex rows
-   * (`geojsonTable`); the planner never parses geometry itself.
+   * `spatial` reads any vector format DuckDB spatial's `ST_Read` does (GeoJSON, shapefile,
+   * GeoPackage…): one row per feature, its properties as columns and its geometry as `geom`.
    */
-  format: 'csv' | 'json' | 'parquet' | 'geojson';
+  format: 'csv' | 'json' | 'parquet' | 'spatial';
   url: string;
   /**
    * Named options for the reader, rendered as DuckDB named parameters: a headerless CSV needs
@@ -403,11 +403,33 @@ export interface DeckNode {
   view?: Record<string, number | string>;
 }
 
+/**
+ * Geometry to vertex rows: what a layer draws from a relation with a GEOMETRY column (a
+ * `spatial` source, say). Each row of the input is a feature; its geometry is split into
+ * parts, and each part into rows a planner layer reads directly:
+ *
+ *   polygons  feature, id, ring, vertex, lng, lat, ...properties   (ring 0 is the outline)
+ *   lines     feature, id, vertex, lng, lat, ...properties
+ *   points    feature, id, lng, lat, ...properties
+ *   all       the three, with `kind` ('polygon' | 'line' | 'point')
+ *
+ * The geometry itself stays in DuckDB; only coordinates leave it. A property whose name a
+ * vertex column uses is renamed with a `p_` prefix.
+ */
+export interface VerticesNode {
+  id: string;
+  type: 'vertices';
+  input: string;
+  kind: 'polygons' | 'lines' | 'points' | 'all';
+  /** The GEOMETRY column. Defaults to `geom`, what DuckDB spatial's ST_Read names it. */
+  geometry?: string;
+}
+
 export type RelationalNode =
-  | JoinNode | UnionNode | SortNode | LimitNode | SqlNode | GenerateNode | UnnestNode;
+  | JoinNode | UnionNode | SortNode | LimitNode | SqlNode | GenerateNode | UnnestNode | VerticesNode;
 
 export const RELATIONAL_TYPES: ReadonlySet<string> = new Set([
-  'source', 'join', 'union', 'sort', 'limit', 'sql', 'generate', 'unnest',
+  'source', 'join', 'union', 'sort', 'limit', 'sql', 'generate', 'unnest', 'vertices',
 ]);
 
 /**
@@ -669,7 +691,7 @@ export function desugar(
         break;
       }
 
-      case 'join': case 'union': case 'sort': case 'limit': case 'sql': case 'generate':
+      case 'join': case 'union': case 'sort': case 'limit': case 'sql': case 'generate': case 'vertices':
       case 'unnest': case 'deck':
         // These change the row set, which a single plan cannot: it has one source and one
         // statement. `compileProgram` splits a graph at them and plans each piece.

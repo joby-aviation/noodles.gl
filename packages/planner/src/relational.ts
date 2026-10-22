@@ -15,12 +15,11 @@
  *     full precision; only the final layer query narrows to f32 for the buffer.
  */
 
-import { hashOf } from './hash.js';
 import { type Expr, parseExpr, columnsOf } from './expr.js';
 import { toSql, toSqlColumns, castToDouble, quoteIdent, SqlParams } from './backends/sql.js';
 import { escapeLiteral } from './source.js';
 import type {
-  SourceNode, JoinNode, UnionNode, SortNode, LimitNode, SqlNode, GenerateNode, UnnestNode,
+  SourceNode, JoinNode, UnionNode, SortNode, LimitNode, SqlNode, GenerateNode, UnnestNode, VerticesNode,
   Graph, GraphNode,
 } from './types.js';
 import { analyze, PlanError, type ColumnType, type AnalyzedNode } from './analyze.js';
@@ -53,24 +52,6 @@ const NUMERIC = /^(TINYINT|SMALLINT|INTEGER|BIGINT|HUGEINT|UTINYINT|USMALLINT|UI
 const STRING = /^(VARCHAR|TEXT|STRING|CHAR|BPCHAR|ENUM|UUID)/i;
 
 /** Classify a DuckDB type name. */
-/** The vertex-row tables a host loads for a GeoJSON file, one per geometry kind. */
-export const GEOJSON_KINDS = ['all', 'polygons', 'lines', 'points'] as const;
-export type GeojsonKind = (typeof GEOJSON_KINDS)[number];
-
-/**
- * Where a host puts a GeoJSON file's rows of one geometry kind. Keyed by URL, as other file
- * sources are memoized by URL.
- *
- *   polygons  id, feature, ring, vertex, lng, lat, ...properties   (ring 0 is the outline)
- *   lines     id, feature, vertex, lng, lat, ...properties
- *   points    id, feature, lng, lat, ...properties
- *   all       the three together, with `kind` ('polygon' | 'line' | 'point'): one path for
- *             attribute nodes shared by a fill, its lines and its points
- */
-export function geojsonTable(url: string, kind: GeojsonKind): string {
-  return `__geojson_${hashOf(url)}_${kind}`;
-}
-
 export function columnTypeOf(duckType: string): ColumnType {
   if (NUMERIC.test(duckType)) return 'num';
   if (STRING.test(duckType)) return 'str';
@@ -139,13 +120,7 @@ export function sourceSql(node: SourceNode): string {
   if (!file) {
     throw new PlanError(`Source ${node.id}: a program source needs 'file' (format and url)`);
   }
-  if (file.format === 'geojson') {
-    const kind = String(file.options?.geometry ?? 'all');
-    if (!GEOJSON_KINDS.includes(kind as GeojsonKind)) {
-      throw new PlanError(`Source ${node.id}: GeoJSON geometry must be one of ${GEOJSON_KINDS.join(', ')}`);
-    }
-    return `SELECT * FROM ${quoteIdent(geojsonTable(file.url, kind as GeojsonKind))}`;
-  }
+  if (file.format === 'spatial') return `SELECT * FROM ST_Read('${escapeLiteral(file.url)}')`;
   const reader = file.format === 'csv' ? 'read_csv_auto'
     : file.format === 'json' ? 'read_json_auto'
     : 'read_parquet';
@@ -425,5 +400,50 @@ export function exprError(src: string): string | undefined {
     return undefined;
   } catch (err) {
     return (err as Error).message;
+  }
+}
+
+/** Vertex column names; a property with one of them is renamed `p_<name>`. */
+const VERTEX_COLUMNS = new Set(['feature', 'kind', 'id', 'ring', 'vertex', 'lng', 'lat']);
+
+/** Geometry to vertex rows. See `VerticesNode` for the row shapes. */
+export function verticesSql(node: VerticesNode, input: string, shape: RelShape): string {
+  const geom = node.geometry ?? 'geom';
+  if (!shape.columns.some((c) => c.name === geom)) {
+    throw new PlanError(`Vertices ${node.id}: the input has no geometry column '${geom}'`);
+  }
+  const props = shape.columns
+    .filter((c) => c.name !== geom)
+    .map((c) => (VERTEX_COLUMNS.has(c.name)
+      ? `f.${quoteIdent(c.name)} AS ${quoteIdent(`p_${c.name}`)}`
+      : `f.${quoteIdent(c.name)}`));
+  const features =
+    `SELECT (row_number() OVER () - 1)::INTEGER AS "feature"${props.map((p) => `, ${p}`).join('')}, ` +
+    `f.${quoteIdent(geom)} AS __geom FROM ${input} f`;
+  // Multi-part geometries and collections become one row per part.
+  const parts = `SELECT g.* EXCLUDE (__geom), unnest(ST_Dump(g.__geom)).geom AS __part FROM (${features}) g`;
+  const numbered = (type: string) =>
+    `SELECT *, (row_number() OVER () - 1)::INTEGER AS "id" FROM (${parts}) WHERE ST_GeometryType(__part) = '${type}'`;
+  // A ring's points without the closing one, which repeats the first.
+  const vertexColumns = (alias: string) =>
+    `(${alias}.path[1] - 1)::INTEGER AS "vertex", ST_X(${alias}.geom) AS "lng", ST_Y(${alias}.geom) AS "lat"`;
+  const polygons =
+    `SELECT r.* EXCLUDE (__ring), ${vertexColumns('v.__pt')} FROM (` +
+    `SELECT p.* EXCLUDE (__part), coalesce(b.__ln.path[1] - 1, 0)::INTEGER AS "ring", b.__ln.geom AS __ring ` +
+    `FROM (${numbered('POLYGON')}) p, LATERAL (SELECT unnest(ST_Dump(ST_Boundary(p.__part))) AS __ln) b` +
+    `) r, LATERAL (SELECT unnest(ST_Dump(ST_Points(r.__ring))) AS __pt) v WHERE v.__pt.path[1] < ST_NPoints(r.__ring)`;
+  const lines =
+    `SELECT l.* EXCLUDE (__part), ${vertexColumns('v.__pt')} FROM (${numbered('LINESTRING')}) l, ` +
+    'LATERAL (SELECT unnest(ST_Dump(ST_Points(l.__part))) AS __pt) v';
+  const points =
+    `SELECT * EXCLUDE (__part), ST_X(__part) AS "lng", ST_Y(__part) AS "lat" FROM (${numbered('POINT')})`;
+  switch (node.kind) {
+    case 'polygons': return polygons;
+    case 'lines': return lines;
+    case 'points': return points;
+    case 'all':
+      return `SELECT 'polygon' AS "kind", * FROM (${polygons}) UNION ALL BY NAME ` +
+        `SELECT 'line' AS "kind", * FROM (${lines}) UNION ALL BY NAME ` +
+        `SELECT 'point' AS "kind", * FROM (${points})`;
   }
 }
