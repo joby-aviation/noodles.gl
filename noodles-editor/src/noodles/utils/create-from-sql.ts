@@ -126,6 +126,22 @@ export function createProjectFromSQL({ sql }: CreateFromSQLOptions): NoodlesProj
   }
 }
 
+export const CREATE_FROM_SQL_PARAM = 'createFromSQL'
+
+export type CreateFromSQLRequest = { sql: string } | { error: string }
+
+// Reads ?createFromSQL= and removes it from the URL so a link applies once. Never run
+// the SQL directly: DuckDB can fetch remote URLs, so show it and wait for the user to confirm.
+export function takeCreateFromSQLRequest(): CreateFromSQLRequest | null {
+  const url = new URL(window.location.href)
+  const sql = url.searchParams.get(CREATE_FROM_SQL_PARAM)
+  if (sql === null) return null
+  url.searchParams.delete(CREATE_FROM_SQL_PARAM)
+  window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`)
+  const validation = validateSQL(sql)
+  return validation.valid ? { sql } : { error: validation.error ?? 'Invalid SQL query' }
+}
+
 export function validateSQL(sql: string): { valid: boolean; error?: string } {
   if (!sql || sql.trim().length === 0) {
     return { valid: false, error: 'SQL query is empty' }

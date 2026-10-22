@@ -64,6 +64,7 @@ import type { Visualization } from '../visualizations'
 import { BlockLibrary, type BlockLibraryRef } from './components/block-library'
 import { categories, nodeTypeToDisplayName } from './components/categories'
 import { CopyControls, type CopyControlsRef } from './components/copy-controls'
+import { CreateFromSQLDialog } from './components/create-from-sql-dialog'
 import { NodeInfoOverlay, ViewportInfoPanel } from './components/devtools'
 import { ErrorBoundary } from './components/error-boundary'
 import { ExampleNotFoundDialog } from './components/example-not-found-dialog'
@@ -110,6 +111,7 @@ import {
 } from './store'
 import { transformGraph } from './transform-graph'
 import { canConnectCached } from './utils/can-connect'
+import { createProjectFromSQL, takeCreateFromSQLRequest } from './utils/create-from-sql'
 import { DeckProjectAssetResolver } from './utils/deck-project-asset-resolver'
 import { instantiateDeckView } from './utils/deck-view'
 import { directoryHandleCache } from './utils/directory-handle-cache'
@@ -222,6 +224,19 @@ export function getNoodles(): Visualization {
     hasDataFiles: boolean
   } | null>(null)
   const [showExampleNotFoundDialog, setShowExampleNotFoundDialog] = useState(false)
+  const [pendingCreateFromSQL, setPendingCreateFromSQL] = useState<string | null>(null)
+  // A ?createFromSQL= link opens CreateFromSQLDialog; the project is created only on confirm.
+  // Declared before the project-loading effects, whose navigate() drops the query string.
+  useEffect(() => {
+    const request = takeCreateFromSQLRequest()
+    if (!request) return
+    if ('sql' in request) {
+      setPendingCreateFromSQL(request.sql)
+    } else {
+      console.error('Invalid SQL query:', request.error)
+      alert(`Invalid SQL query: ${request.error}`)
+    }
+  }, [])
   const [graphErrors, setGraphErrors] = useState<GraphError[]>([])
   const storageType = useActiveStorageType()
   const {
@@ -1417,16 +1432,31 @@ export function getNoodles(): Visualization {
     blockLibraryRef.current?.openModal(centerX, centerY)
   }, [])
 
+  const createMemoryProject = useCallback(
+    (project: NoodlesProjectJSON, method: 'new' | 'createFromSQL') => {
+      memoryProjectStore.setProjectJson('new', project)
+
+      setCurrentDirectory(null, 'new')
+      setActiveStorageType('memory')
+      loadProjectFile(project, 'new', '/projects')
+
+      analytics.track('project_created', { method })
+    },
+    [setCurrentDirectory, setActiveStorageType, loadProjectFile]
+  )
+
   const onNewProject = useCallback(async () => {
     const starterProject = { ...newProjectJSON, version: NOODLES_VERSION } as NoodlesProjectJSON
-    memoryProjectStore.setProjectJson('new', starterProject)
+    createMemoryProject(starterProject, 'new')
+  }, [createMemoryProject])
 
-    setCurrentDirectory(null, 'new')
-    setActiveStorageType('memory')
-    loadProjectFile(starterProject, 'new', '/projects')
-
-    analytics.track('project_created', { method: 'new' })
-  }, [setCurrentDirectory, setActiveStorageType, loadProjectFile])
+  const onConfirmCreateFromSQL = useCallback(
+    (sql: string) => {
+      setPendingCreateFromSQL(null)
+      createMemoryProject(createProjectFromSQL({ sql }), 'createFromSQL')
+    },
+    [createMemoryProject]
+  )
 
   const onImport = useCallback(async () => {
     try {
@@ -1764,6 +1794,11 @@ export function getNoodles(): Visualization {
           onBrowseExamples={onBrowseExamples}
           onCheckMyProjects={onCheckMyProjects}
           onClose={() => setShowExampleNotFoundDialog(false)}
+        />
+        <CreateFromSQLDialog
+          sql={pendingCreateFromSQL}
+          onConfirm={onConfirmCreateFromSQL}
+          onClose={() => setPendingCreateFromSQL(null)}
         />
         <GraphErrorDialog
           open={graphErrors.length > 0}

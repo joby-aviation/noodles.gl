@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest'
-import { createProjectFromSQL, validateSQL } from './create-from-sql'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { createProjectFromSQL, takeCreateFromSQLRequest, validateSQL } from './create-from-sql'
 import { NOODLES_VERSION } from './serialization'
 
 describe('createProjectFromSQL', () => {
@@ -148,5 +148,46 @@ describe('validateSQL', () => {
     const result = validateSQL('   \n  \t  ')
     expect(result.valid).toBe(false)
     expect(result.error).toContain('empty')
+  })
+})
+
+describe('takeCreateFromSQLRequest', () => {
+  let originalUrl: string
+
+  beforeEach(() => {
+    originalUrl = window.location.href
+  })
+
+  afterEach(() => {
+    window.history.replaceState(null, '', originalUrl)
+  })
+
+  const setSearch = (search: string) => {
+    window.history.replaceState(null, '', `${window.location.pathname}${search}`)
+  }
+
+  it('returns null when there is no createFromSQL param', () => {
+    setSearch('?foo=bar')
+    expect(takeCreateFromSQLRequest()).toBeNull()
+  })
+
+  it('returns the SQL for confirmation instead of a project', () => {
+    const sql = "SELECT * FROM 'https://example.com/data.parquet'"
+    setSearch(`?createFromSQL=${encodeURIComponent(sql)}`)
+    expect(takeCreateFromSQLRequest()).toEqual({ sql })
+  })
+
+  it('removes the param from the URL so the link applies once', () => {
+    setSearch(`?foo=bar&createFromSQL=${encodeURIComponent('SELECT 1')}`)
+    takeCreateFromSQLRequest()
+    const params = new URLSearchParams(window.location.search)
+    expect(params.has('createFromSQL')).toBe(false)
+    expect(params.get('foo')).toBe('bar')
+    expect(takeCreateFromSQLRequest()).toBeNull()
+  })
+
+  it('returns an error for SQL that is not a SELECT', () => {
+    setSearch(`?createFromSQL=${encodeURIComponent('DROP TABLE users')}`)
+    expect(takeCreateFromSQLRequest()).toEqual({ error: 'SQL query must start with SELECT' })
   })
 })

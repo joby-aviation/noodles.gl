@@ -24,7 +24,7 @@ describe('createFromSQL integration', () => {
     const sql = 'SELECT 1 as id, -74.0 as lng, 40.7 as lat'
     const project = createProjectFromSQL({ sql })
 
-    const operators = transformGraph({ nodes: project.nodes, edges: project.edges })
+    const { operators } = transformGraph({ nodes: project.nodes, edges: project.edges })
 
     // Find DuckDBOp
     const duckDbOp = operators.find(op => op.constructor.name === 'DuckDbOp')
@@ -38,7 +38,7 @@ describe('createFromSQL integration', () => {
     const sql = 'SELECT * FROM data'
     const project = createProjectFromSQL({ sql })
 
-    const operators = transformGraph({ nodes: project.nodes, edges: project.edges })
+    const { operators } = transformGraph({ nodes: project.nodes, edges: project.edges })
 
     // Check for complete pipeline
     const opTypes = operators.map(op => op.constructor.name)
@@ -53,7 +53,7 @@ describe('createFromSQL integration', () => {
     const sql = 'SELECT * FROM data'
     const project = createProjectFromSQL({ sql })
 
-    const operators = transformGraph({ nodes: project.nodes, edges: project.edges })
+    const { operators } = transformGraph({ nodes: project.nodes, edges: project.edges })
 
     // Find ScatterplotLayer
     const scatterplotOp = operators.find(op => op.constructor.name === 'ScatterplotLayerOp')
@@ -79,7 +79,7 @@ describe('createFromSQL integration', () => {
     const sql = 'SELECT * FROM data'
     const project = createProjectFromSQL({ sql })
 
-    const operators = transformGraph({ nodes: project.nodes, edges: project.edges })
+    const { operators } = transformGraph({ nodes: project.nodes, edges: project.edges })
 
     // Find DeckRenderer
     const deckOp = operators.find(op => op.constructor.name === 'DeckRendererOp')
@@ -95,7 +95,7 @@ describe('createFromSQL integration', () => {
     const sql = 'SELECT * FROM data'
     const project = createProjectFromSQL({ sql })
 
-    const operators = transformGraph({ nodes: project.nodes, edges: project.edges })
+    const { operators } = transformGraph({ nodes: project.nodes, edges: project.edges })
 
     // Find OutOp
     const outOp = operators.find(op => op.constructor.name === 'OutOp')
@@ -111,7 +111,7 @@ describe('createFromSQL integration', () => {
     const sql = 'SELECT * FROM data'
     const project = createProjectFromSQL({ sql })
 
-    const operators = transformGraph({ nodes: project.nodes, edges: project.edges })
+    const { operators } = transformGraph({ nodes: project.nodes, edges: project.edges })
 
     // Find accessor operators
     const accessors = operators.filter(op => op.constructor.name === 'AccessorOp')
@@ -133,7 +133,7 @@ describe('createFromSQL integration', () => {
     const sql = 'SELECT * FROM data'
     const project = createProjectFromSQL({ sql })
 
-    const operators = transformGraph({ nodes: project.nodes, edges: project.edges })
+    const { operators } = transformGraph({ nodes: project.nodes, edges: project.edges })
 
     // Find key operators by ID
     const duckDbOp = operators.find(op => op.id === '/query')
@@ -151,7 +151,7 @@ describe('createFromSQL integration', () => {
     const sql = 'SELECT * FROM data'
     const project = createProjectFromSQL({ sql })
 
-    const operators = transformGraph({ nodes: project.nodes, edges: project.edges })
+    const { operators } = transformGraph({ nodes: project.nodes, edges: project.edges })
 
     // Should include MaplibreBasemap from base template
     const maplibreOp = operators.find(op => op.constructor.name === 'MaplibreBasemapOp')
