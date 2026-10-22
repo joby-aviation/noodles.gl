@@ -16,20 +16,31 @@ permissions:
 jobs:
   cleanup:
     runs-on: ubuntu-latest
+    env:
+      # Job-level if: cannot read secrets, so each step checks this instead
+      R2_CONFIGURED: ${{ secrets.R2_ACCOUNT_ID != '' && secrets.R2_BUCKET_NAME != '' && secrets.R2_ACCESS_KEY_ID != '' && secrets.R2_SECRET_ACCESS_KEY != '' }}
     steps:
+      - name: Skip when R2 is not configured
+        if: env.R2_CONFIGURED != 'true'
+        run: echo "::notice::R2 secrets are not set, so there are no sourcemaps to clean up"
+
       - name: Checkout
-        uses: actions/checkout@v4
+        if: env.R2_CONFIGURED == 'true'
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Setup Node.js
+        if: env.R2_CONFIGURED == 'true'
         uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
         with:
           node-version-file: '.nvmrc'
           cache: 'npm'
 
       - name: Install dependencies
+        if: env.R2_CONFIGURED == 'true'
         run: npm ci
 
       - name: Delete expired sourcemaps
+        if: env.R2_CONFIGURED == 'true'
         run: npm run cleanup-sourcemaps
         working-directory: ./noodles-editor
         env:

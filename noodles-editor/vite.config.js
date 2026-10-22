@@ -30,8 +30,9 @@ export default defineConfig(({ mode }) => {
   return {
     base: mode === 'development' ? '/' : '/app/',
     build: {
-      // CF Pages runs its own build without the R2 upload step, so skip maps there
-      sourcemap: !env.CF_PAGES,
+      // Only the GitHub Pages deploy sets SOURCEMAPS=true, and only when R2 is configured:
+      // upload-sourcemaps then moves the maps to R2 so they are not published with the app
+      sourcemap: env.SOURCEMAPS === 'true',
     },
     server: {
       open: true,

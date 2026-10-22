@@ -11,9 +11,13 @@
 // Optional:
 //   MAX_AGE_DAYS          – default 60
 
-import { execSync } from 'node:child_process'
+import { execFileSync } from 'node:child_process'
 
-const MAX_AGE_DAYS = Number(process.env.MAX_AGE_DAYS ?? 60)
+const MAX_AGE_DAYS = Number(process.env.MAX_AGE_DAYS || 60)
+// A non-numeric value would make every SHA look expired
+if (!Number.isFinite(MAX_AGE_DAYS) || MAX_AGE_DAYS < 1) {
+  throw new Error(`MAX_AGE_DAYS must be a number of days >= 1, got "${process.env.MAX_AGE_DAYS}"`)
+}
 const CUTOFF_MS = MAX_AGE_DAYS * 24 * 60 * 60 * 1000
 
 function requireEnv(name: string): string {
@@ -44,16 +48,19 @@ function listAllObjects(): S3Object[] {
   let continuationToken: string | undefined
 
   do {
-    const tokenArg = continuationToken
-      ? `--continuation-token "${continuationToken}"`
-      : ''
-    const raw = execSync(
-      `aws s3api list-objects-v2 --bucket "${bucketName}"` +
-        ` --endpoint-url "${r2Endpoint}"` +
-        ` --output json` +
-        (tokenArg ? ` ${tokenArg}` : ''),
-      { encoding: 'utf8', env: { ...process.env } },
-    )
+    const args = [
+      's3api',
+      'list-objects-v2',
+      '--bucket',
+      bucketName,
+      '--endpoint-url',
+      r2Endpoint,
+      '--output',
+      'json',
+    ]
+    if (continuationToken) args.push('--continuation-token', continuationToken)
+    // Arguments go to aws as an array, never through a shell
+    const raw = execFileSync('aws', args, { encoding: 'utf8' })
     const parsed: ListObjectsOutput = JSON.parse(raw)
     if (parsed.Contents) all.push(...parsed.Contents)
     continuationToken = parsed.IsTruncated ? parsed.NextContinuationToken : undefined
@@ -64,10 +71,10 @@ function listAllObjects(): S3Object[] {
 
 // Read the content of a single R2 object as a string
 function readObject(key: string): string {
-  return execSync(
-    `aws s3 cp "s3://${bucketName}/${key}" -` +
-      ` --endpoint-url "${r2Endpoint}"`,
-    { encoding: 'utf8', env: { ...process.env } },
+  return execFileSync(
+    'aws',
+    ['s3', 'cp', `s3://${bucketName}/${key}`, '-', '--endpoint-url', r2Endpoint],
+    { encoding: 'utf8' }
   ).trim()
 }
 
@@ -85,7 +92,9 @@ for (const ref of envRefObjects) {
     console.warn(`Could not read ${ref.Key}, skipping`)
   }
 }
-console.log(`Active SHAs referenced by staging environments: ${[...activeSHAs].join(', ') || '(none)'}`)
+console.log(
+  `Active SHAs referenced by staging environments: ${[...activeSHAs].join(', ') || '(none)'}`
+)
 
 // Group sourcemap objects by their SHA prefix (first path segment)
 // Skip env-refs/ objects — they are never deleted here
@@ -117,10 +126,10 @@ for (const [sha, group] of shaGroups) {
   }
 
   console.log(`Deleting ${sha} — ${ageDays} day(s) old, no active env refs`)
-  execSync(
-    `aws s3 rm "s3://${bucketName}/${sha}/" --recursive` +
-      ` --endpoint-url "${r2Endpoint}"`,
-    { stdio: 'inherit', env: { ...process.env } },
+  execFileSync(
+    'aws',
+    ['s3', 'rm', `s3://${bucketName}/${sha}/`, '--recursive', '--endpoint-url', r2Endpoint],
+    { stdio: 'inherit' }
   )
   deletedSHAs++
 }

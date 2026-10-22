@@ -24,6 +24,10 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
+    env:
+      # Sourcemaps are built and uploaded to R2 only when all of these are set.
+      # Without them the deploy builds no sourcemaps, as before.
+      R2_CONFIGURED: ${{ secrets.R2_ACCOUNT_ID != '' && secrets.R2_BUCKET_NAME != '' && secrets.R2_ACCESS_KEY_ID != '' && secrets.R2_SECRET_ACCESS_KEY != '' && vars.SOURCEMAPS_PUBLIC_URL != '' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -44,6 +48,21 @@ jobs:
         env:
           VITE_POSTHOG_API_KEY: ${{ secrets.VITE_POSTHOG_API_KEY }}
           VITE_GA_MEASUREMENT_ID: ${{ secrets.VITE_GA_MEASUREMENT_ID }}
+          SOURCEMAPS: ${{ env.R2_CONFIGURED }}
+
+      # Moves the maps out of the published app (website/build/app) and into R2
+      - name: Upload sourcemaps to R2
+        if: env.R2_CONFIGURED == 'true'
+        run: npm run upload-sourcemaps -- ../website/build/app
+        working-directory: ./noodles-editor
+        env:
+          GIT_SHA: ${{ github.sha }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME }}
+          SOURCEMAPS_PUBLIC_URL: ${{ vars.SOURCEMAPS_PUBLIC_URL }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
