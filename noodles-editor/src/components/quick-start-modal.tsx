@@ -3,7 +3,13 @@ import { Cross2Icon } from '@radix-ui/react-icons'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useLocation } from 'wouter'
 import logoSvg from '/noodles-favicon.svg'
-import { extensionOf } from '../noodles/components/tools/import-pipelines'
+import {
+  type CoordinateDetection,
+  describeDetection,
+  detectFileCoordinates,
+  hasCoordinates,
+} from '../noodles/components/tools/detect-coordinates'
+import { detectFormat, extensionOf } from '../noodles/components/tools/import-pipelines'
 import { analytics } from '../utils/analytics'
 import { CURATED_EXAMPLES, ExamplesView } from './examples-view'
 import { ProjectsView, useRecentProjects } from './projects-view'
@@ -18,6 +24,8 @@ const DEFAULT_EXAMPLE = 'nyc-taxis'
 interface PendingQuickStartAction {
   type: 'file' | 'llm'
   file?: File
+  // map: build the map from detected coordinates. chat: ask the AI assistant.
+  mode?: 'map' | 'chat'
   question?: string
 }
 
@@ -57,6 +65,8 @@ export function QuickStartModal({
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [uploadedFile, setUploadedFile] = useState<File | null>(null)
+  // undefined while the file is being read
+  const [detection, setDetection] = useState<CoordinateDetection | null>()
   const [llmQuestion, setLlmQuestion] = useState('')
   const [error, setError] = useState<string | null>(null)
 
@@ -87,6 +97,25 @@ export function QuickStartModal({
     }
 
     return null
+  }, [])
+
+  // Look for coordinates as soon as a file is chosen, so the dialog can say whether
+  // it will map before the user commits
+  const latestFileRef = useRef<File | null>(null)
+  const acceptFile = useCallback((file: File) => {
+    latestFileRef.current = file
+    setUploadedFile(file)
+    setDetection(undefined)
+    // Ignore the result if another file was dropped while this one was being read
+    const settle = (found: CoordinateDetection | null) => {
+      if (latestFileRef.current === file) setDetection(found)
+    }
+    file
+      .text()
+      .then(contents =>
+        settle(detectFileCoordinates(detectFormat(file.name, contents), contents) ?? null)
+      )
+      .catch(() => settle(null))
   }, [])
 
   const handleDragEnter = useCallback((e: React.DragEvent) => {
@@ -130,11 +159,11 @@ export function QuickStartModal({
           setError(validationError)
           return
         }
-        setUploadedFile(file)
+        acceptFile(file)
         analytics.track('quick_start_file_dropped', { fileType: file.type, fileSize: file.size })
       }
     },
-    [validateFile]
+    [validateFile, acceptFile]
   )
 
   const handleFileSelect = useCallback(
@@ -157,28 +186,32 @@ export function QuickStartModal({
           setError(validationError)
           return
         }
-        setUploadedFile(file)
+        acceptFile(file)
         analytics.track('quick_start_file_selected', { fileType: file.type, fileSize: file.size })
       }
     },
-    [validateFile]
+    [validateFile, acceptFile]
   )
 
-  const handleCreateFromFile = useCallback(() => {
-    if (!uploadedFile) return
+  const handleCreateFromFile = useCallback(
+    (mode: 'map' | 'chat') => {
+      if (!uploadedFile) return
 
-    analytics.track('quick_start_create_from_file', {
-      fileName: uploadedFile.name,
-      fileSize: uploadedFile.size,
-    })
+      analytics.track('quick_start_create_from_file', {
+        fileSize: uploadedFile.size,
+        mode,
+        detected: hasCoordinates(detection ?? undefined),
+      })
 
-    // Store the file for the main app to pick up
-    setPendingQuickStartAction({ type: 'file', file: uploadedFile })
+      // Store the file for the main app to pick up
+      setPendingQuickStartAction({ type: 'file', file: uploadedFile, mode })
 
-    // Navigate to an example - the main app can detect the pending action
-    onOpenChange(false)
-    navigate(`/examples/${DEFAULT_EXAMPLE}`)
-  }, [uploadedFile, onOpenChange, navigate])
+      // Mapping starts from a blank project; the AI path opens an example to work from
+      onOpenChange(false)
+      navigate(mode === 'map' ? '/projects/new' : `/examples/${DEFAULT_EXAMPLE}`)
+    },
+    [uploadedFile, detection, onOpenChange, navigate]
+  )
 
   const handleAskQuestion = useCallback(() => {
     if (!llmQuestion.trim()) return
@@ -237,6 +270,46 @@ export function QuickStartModal({
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
   }
 
+  const renderFileActions = () => {
+    if (detection === undefined) {
+      return <span className={s.detectionText}>Looking for coordinates…</span>
+    }
+    const mappable = hasCoordinates(detection ?? undefined)
+    const message =
+      detection && detection.kind !== 'geojson' ? describeDetection(detection, 'found') : null
+    return (
+      <>
+        {message && (
+          <span className={s.detectionText}>
+            {mappable ? message : `${message}. The AI assistant can help map it.`}
+          </span>
+        )}
+        <button
+          type="button"
+          className={s.createButton}
+          onClick={e => {
+            e.stopPropagation()
+            handleCreateFromFile(mappable ? 'map' : 'chat')
+          }}
+        >
+          {mappable ? 'Show on map' : 'Ask AI to map it'}
+        </button>
+        {mappable && (
+          <button
+            type="button"
+            className={s.secondaryLink}
+            onClick={e => {
+              e.stopPropagation()
+              handleCreateFromFile('chat')
+            }}
+          >
+            Ask AI instead
+          </button>
+        )}
+      </>
+    )
+  }
+
   const renderHomeView = () => (
     <div className={s.body}>
       {/* Upload Section */}
@@ -270,16 +343,7 @@ export function QuickStartModal({
               <i className={`pi pi-file ${s.uploadIcon}`} style={{ fontSize: '28px' }} />
               <span className={s.fileName}>{uploadedFile.name}</span>
               <span className={s.fileSize}>{formatFileSize(uploadedFile.size)}</span>
-              <button
-                type="button"
-                className={s.createButton}
-                onClick={e => {
-                  e.stopPropagation()
-                  handleCreateFromFile()
-                }}
-              >
-                Create Visualization
-              </button>
+              {renderFileActions()}
             </div>
           ) : (
             <>
