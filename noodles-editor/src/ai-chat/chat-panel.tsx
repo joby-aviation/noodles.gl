@@ -318,6 +318,15 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
         setProviderSupportsImages(provider.supportsImages)
         setMcpTools(tools)
         setSession(built)
+
+        // OpenRouter learns which models take images from its catalogue, which
+        // may land after this session was built. Ask again once it has (the
+        // fetch is shared and cached, so this costs no extra request).
+        if (providerId === 'openrouter') {
+          fetchOpenRouterFreeModels().then(() => {
+            if (!cancelled) setProviderSupportsImages(provider.supportsImages)
+          })
+        }
       } catch (error) {
         debugAiChat('Failed to initialize the assistant:', error)
         setSession(null)
@@ -369,14 +378,19 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
     setStreamingText('')
     setActiveTools([])
 
+    // Consumed now rather than when the reply finishes, so a capture taken while
+    // it streams stays attached to the next message
+    const screenshot = pendingScreenshot
+    setPendingScreenshot(null)
+
     const controller = new AbortController()
     abortRef.current = controller
 
     try {
       const response = await session.send({
         message: input,
-        screenshot: pendingScreenshot?.data,
-        screenshotFormat: pendingScreenshot?.format,
+        screenshot: screenshot?.data,
+        screenshotFormat: screenshot?.format,
         conversationHistory: messages,
         signal: controller.signal,
         onEvent: event => {
@@ -385,7 +399,6 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
           if (event.type === 'usage') setLastUsage(event.usage)
         },
       })
-      setPendingScreenshot(null)
 
       // An aborted run still returns whatever it had produced, which is worth
       // keeping — the user stopped it, they did not undo it

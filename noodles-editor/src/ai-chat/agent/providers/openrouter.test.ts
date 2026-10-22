@@ -235,4 +235,31 @@ describe('OpenRouterProvider image input', () => {
       new OpenRouterProvider({ apiKey: 'test', model: 'vendor/vision-no-tools' }).supportsImages
     ).toBe(false)
   })
+
+  it('picks up image support for a model built before the catalogue arrives', async () => {
+    // A restored model outside the shortlist, built while the fetch is in flight
+    const provider = new OpenRouterProvider({ apiKey: 'test', model: 'vendor/vision' })
+    expect(provider.supportsImages).toBe(false)
+
+    stubCatalogue([
+      entry({ id: 'vendor/vision', architecture: { input_modalities: ['text', 'image'] } }),
+    ])
+    await fetchOpenRouterFreeModels()
+
+    expect(provider.supportsImages).toBe(true)
+  })
+
+  it('keeps an explicit supportsImages over the catalogue', async () => {
+    const provider = new OpenRouterProvider({
+      apiKey: 'test',
+      model: 'vendor/vision',
+      supportsImages: false,
+    })
+    stubCatalogue([
+      entry({ id: 'vendor/vision', architecture: { input_modalities: ['text', 'image'] } }),
+    ])
+    await fetchOpenRouterFreeModels()
+
+    expect(provider.supportsImages).toBe(false)
+  })
 })

@@ -224,25 +224,32 @@ export class OpenRouterProvider implements AgentProvider {
   readonly id = 'openrouter' as const
   readonly model: string
   readonly supportsNativeTools = true
-  // Only when the model takes image input; screenshots are dropped otherwise
-  readonly supportsImages: boolean
   readonly contextWindow: number
 
   private apiKey: string
   private webSearch?: { maxResults?: number }
+  private imageOverride?: boolean
 
   constructor(options: OpenRouterProviderOptions) {
     this.model = options.model ?? DEFAULT_OPENROUTER_MODEL
     this.apiKey = options.apiKey
     this.webSearch = options.webSearch
-    const modalities = LEARNED_MODALITIES.get(this.model) ??
-      INPUT_MODALITIES[this.model] ?? ['text']
-    this.supportsImages = options.supportsImages ?? modalities.includes('image')
+    this.imageOverride = options.supportsImages
     this.contextWindow =
       options.contextWindow ??
       LEARNED_WINDOWS.get(this.model) ??
       CONTEXT_WINDOWS[this.model] ??
       FALLBACK_CONTEXT_WINDOW
+  }
+
+  // Only when the model takes image input; screenshots are dropped otherwise.
+  // Read on each call rather than fixed at construction: a restored model is
+  // often built before the catalogue arrives, and the shortlist only covers four.
+  get supportsImages(): boolean {
+    if (this.imageOverride !== undefined) return this.imageOverride
+    const modalities = LEARNED_MODALITIES.get(this.model) ??
+      INPUT_MODALITIES[this.model] ?? ['text']
+    return modalities.includes('image')
   }
 
   async *stream(request: AgentRequest, signal?: AbortSignal): AsyncIterable<AgentEvent> {
