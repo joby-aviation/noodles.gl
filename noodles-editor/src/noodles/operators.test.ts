@@ -68,6 +68,7 @@ import {
   SwitchOp,
   TableEditorOp,
   Tile3DLayerOp,
+  TimeOp,
   TimeSeriesOp,
   TripsLayerOp,
   ZoomWidgetOp,
@@ -904,6 +905,30 @@ describe('MathOps', () => {
       b: 1000000000000000000,
     })
     expect(val.result).toEqual(1000000000000000000000000000000000000)
+  })
+})
+
+describe('TimeOp', () => {
+  it('feeds a downstream MathOp through a pull', async () => {
+    const clock = new TimeOp('/clock')
+    const seconds = new MathOp('/seconds', { operator: 'divide', b: 1000 })
+    seconds.inputs.a.addConnection('/clock.out.now', clock.outputs.now)
+    seconds.addUpstreamDependency(clock)
+    clock.addDownstreamDependent(seconds)
+
+    const first = await seconds.pull()
+    expect(typeof first.result).toBe('number')
+    expect(first.result).toBe(Date.now() / 1000)
+
+    vi.advanceTimersByTime(1000)
+    vi.advanceTimersToNextFrame()
+
+    const second = await seconds.pull()
+    expect(second.result).toBe(Date.now() / 1000)
+    expect(second.result).toBeGreaterThan(first.result)
+    await expect(clock.pull()).resolves.toMatchObject({ now: Date.now() })
+
+    clock.dispose()
   })
 })
 

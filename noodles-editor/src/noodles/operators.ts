@@ -1945,6 +1945,8 @@ export class TimeOp extends Operator<TimeOp> {
       this.outputs.now.next(state.now)
       this.outputs.tick.next(state.tick)
       this.outputs.sequenceTime.next(state.sequenceTime)
+      // Drop the cached result so the next pull returns the current time
+      this.markDirty()
     })
     this.subs.push(sub)
 
@@ -1980,8 +1982,10 @@ export class TimeOp extends Operator<TimeOp> {
   }
 
   execute(_: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    // Outputs are driven by the BehaviorSubject, not by execute()
-    return null
+    // The BehaviorSubject pushes each update to the outputs; execute() reports the
+    // current values so pulls through this operator get a result to cache
+    const { now, sequenceTime, tick } = this.timeState$.value
+    return { now, sequenceTime, tick }
   }
 }
 
