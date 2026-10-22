@@ -1,5 +1,39 @@
 import { describe, expect, it } from 'vitest'
-import { describeToolUses } from './session'
+import type { MCPTools } from '../mcp-tools'
+import { AgentSession, describeToolUses } from './session'
+import type { AgentEvent, AgentProvider, AgentRequest } from './types'
+
+describe('AgentSession', () => {
+  it('caps the run at maxSteps when one is given', async () => {
+    // A model that asks for a tool on every turn runs until the step limit
+    const requests: AgentRequest[] = []
+    const provider: AgentProvider = {
+      id: 'anthropic',
+      model: 'fake',
+      supportsNativeTools: true,
+      supportsImages: false,
+      contextWindow: 200_000,
+      async *stream(request): AsyncIterable<AgentEvent> {
+        requests.push(request)
+        yield {
+          type: 'tool_call',
+          id: `call-${requests.length}`,
+          name: 'list_nodes',
+          input: { page: requests.length },
+        }
+        yield { type: 'stop', reason: 'tool_use' }
+      },
+    }
+    const tools = {
+      getProject: () => ({ nodes: [], edges: [] }),
+      listNodes: async () => ({ success: true, data: { nodes: [] } }),
+    } as unknown as MCPTools
+
+    await new AgentSession(provider, tools, { maxSteps: 2 }).send({ message: 'hi' })
+
+    expect(requests).toHaveLength(2)
+  })
+})
 
 describe('describeToolUses', () => {
   it('is empty when the turn used no tools', () => {

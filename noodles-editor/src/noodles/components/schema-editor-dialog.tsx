@@ -297,6 +297,7 @@ function ColumnEditor({
               className="p-button-text p-button-sm"
               onClick={onMoveUp}
               disabled={!onMoveUp}
+              aria-label={`Move column ${column.name} up`}
             />
           )}
           {onMoveDown && (
@@ -305,6 +306,7 @@ function ColumnEditor({
               className="p-button-text p-button-sm"
               onClick={onMoveDown}
               disabled={!onMoveDown}
+              aria-label={`Move column ${column.name} down`}
             />
           )}
           <Button
@@ -319,6 +321,7 @@ function ColumnEditor({
             icon="pi pi-trash"
             className="p-button-text p-button-sm p-button-danger"
             onClick={onDelete}
+            aria-label={`Delete column ${column.name}`}
           />
         </div>
       </div>
@@ -556,6 +559,7 @@ export function SchemaEditorDialog({ schema, onChange, onClose }: SchemaEditorDi
           onClick={handleOpen}
           className={`p-button-text p-button-sm ${s.trigger}`}
           tooltip="Edit Schema"
+          aria-label="Edit schema"
         />
       </Dialog.Trigger>
       <Dialog.Portal>

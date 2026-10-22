@@ -46,3 +46,7 @@ venv.bak/
 
 # Claude Code quick start output (website/static/claude-code-prompt.txt)
 .quick-start/
+
+# Agent benchmark: browser profile (model weights) and per-run raw results
+noodles-editor/bench/agent/.profile/
+noodles-editor/bench/agent/results/raw/
