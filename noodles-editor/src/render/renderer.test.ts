@@ -319,75 +319,85 @@ describe('useRenderer analytics on failure', () => {
 
   // Adding or removing the basemap rebuilds the canvas mid-export. The recorded canvas
   // is never drawn again, so before the guard this export waited forever.
-  it('fails with canvas_replaced when the canvas is rebuilt partway through', async ({ skip }) => {
-    vi.useRealTimers()
-    const canvas = document.createElement('canvas')
-    canvas.width = 64
-    canvas.height = 64
-    document.body.appendChild(canvas)
-    const ctx = canvas.getContext('2d')!
-    const paint = setInterval(() => ctx.fillRect(0, 0, 64, 64), 5)
-    let current: HTMLCanvasElement = canvas
-    const tracks: MediaStreamTrack[] = []
-    const captureStream = canvas.captureStream.bind(canvas)
-    vi.spyOn(canvas, 'captureStream').mockImplementation(rate => {
-      const stream = captureStream(rate)
-      tracks.push(...stream.getVideoTracks())
-      return stream
-    })
-
-    try {
-      // Warmup, then frames 0 and 1 draw; then the canvas is replaced, and the next frame
-      // is never reported ready
-      let draws = 0
-      const redraw = vi.fn(() => {
-        if (draws++ === 3) {
-          canvas.remove()
-          current = document.createElement('canvas')
-          return
-        }
-        queueMicrotask(() => result.current.captureFrame())
+  it.for([
+    { exportAlpha: false, label: 'MP4' },
+    { exportAlpha: true, label: 'WebM with alpha' },
+  ])(
+    'fails with canvas_replaced when the canvas is rebuilt partway through ($label)',
+    async ({ exportAlpha }, { skip }) => {
+      vi.useRealTimers()
+      const canvas = document.createElement('canvas')
+      canvas.width = 64
+      canvas.height = 64
+      document.body.appendChild(canvas)
+      const ctx = canvas.getContext('2d')!
+      const paint = setInterval(() => ctx.fillRect(0, 0, 64, 64), 5)
+      let current: HTMLCanvasElement = canvas
+      const tracks: MediaStreamTrack[] = []
+      const captureStream = canvas.captureStream.bind(canvas)
+      vi.spyOn(canvas, 'captureStream').mockImplementation(rate => {
+        const stream = captureStream(rate)
+        tracks.push(...stream.getVideoTracks())
+        return stream
       })
-      const { result } = renderHook(() =>
-        useRenderer({ fps: 10, bitrate: 1_000_000, bitrateMode: 'constant', redraw })
-      )
 
-      let capture: CaptureResult | undefined
-      await act(async () => {
-        capture = await result.current.startCapture({
-          canvas,
-          getCanvas: () => current,
-          width: 64,
-          height: 64,
-          codec: 'vp9',
-          startFrame: 0,
-          endFrame: 4,
-          target: 'buffer',
+      try {
+        // Warmup, then frames 0 and 1 draw; then the canvas is replaced, and the next frame
+        // is never reported ready
+        let draws = 0
+        const redraw = vi.fn(() => {
+          if (draws++ === 3) {
+            canvas.remove()
+            current = document.createElement('canvas')
+            return
+          }
+          queueMicrotask(() => result.current.captureFrame())
         })
-      })
+        const { result } = renderHook(() =>
+          useRenderer({ fps: 10, bitrate: 1_000_000, bitrateMode: 'constant', redraw })
+        )
 
-      if (capture?.status === 'error' && capture.error.message.startsWith('This browser cannot')) {
-        skip('this browser has no vp9 encoder')
+        let capture: CaptureResult | undefined
+        await act(async () => {
+          capture = await result.current.startCapture({
+            canvas,
+            getCanvas: () => current,
+            width: 64,
+            height: 64,
+            codec: 'vp9',
+            exportAlpha,
+            startFrame: 0,
+            endFrame: 4,
+            target: 'buffer',
+          })
+        })
+
+        if (
+          capture?.status === 'error' &&
+          capture.error.message.startsWith('This browser cannot')
+        ) {
+          skip('this browser has no vp9 encoder')
+        }
+        expect(capture?.status).toBe('error')
+        if (capture?.status === 'error') {
+          expect(capture.error.message).toContain('rebuilt during the export')
+        }
+        expect(trackedEvents()).toEqual(['render_started', 'render_failed'])
+        expect(track.mock.lastCall![1]).toMatchObject({
+          errorCategory: 'canvas_replaced',
+          errorName: 'CanvasReplacedError',
+          framesDone: 2,
+        })
+        // The failed export released its capture, so a retry starts clean
+        expect(tracks.length).toBe(1)
+        expect(tracks[0].readyState).toBe('ended')
+      } finally {
+        clearInterval(paint)
+        canvas.remove()
+        vi.useFakeTimers()
       }
-      expect(capture?.status).toBe('error')
-      if (capture?.status === 'error') {
-        expect(capture.error.message).toContain('rebuilt during the export')
-      }
-      expect(trackedEvents()).toEqual(['render_started', 'render_failed'])
-      expect(track.mock.lastCall![1]).toMatchObject({
-        errorCategory: 'canvas_replaced',
-        errorName: 'CanvasReplacedError',
-        framesDone: 2,
-      })
-      // The failed export released its capture, so a retry starts clean
-      expect(tracks.length).toBe(1)
-      expect(tracks[0].readyState).toBe('ended')
-    } finally {
-      clearInterval(paint)
-      canvas.remove()
-      vi.useFakeTimers()
     }
-  })
+  )
 })
 
 describe('startSequenceCapture', () => {
