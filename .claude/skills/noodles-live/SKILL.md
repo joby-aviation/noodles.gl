@@ -30,6 +30,8 @@ If the user asked for a video, only the file counts. Once the screenshot or file
 
 The relay only works on localhost. `run_code` is missing when the URL has `?safeMode=true`.
 
+Without the WebMCP tools you can still look things up: in this repo the `noodles` MCP server has `get_operator_schema`, `list_operators`, `get_documentation` and `get_example` with no browser. It can't see or change the open project.
+
 ## 2. Read before you edit
 
 1. `list_nodes` for the node ids, types, and current inputs.
@@ -84,3 +86,5 @@ Example projects live in memory, so their saved copy is gone after a reload. Pas
 ## Saving
 
 Live edits change the open project. They do not write `noodles.json` in the repo. If the user wants the change in a file, tell them to save from the editor, or edit the file as described in `dev-docs/claude-code-workflow.md`.
+
+If you edit the file yourself, validate it before you report it done: `validate_project` with its path (the `noodles` MCP server), or `npm run validate:projects -- <path>` from the repo root (not `npx validate-projects`, which can download a package from npm). Fix every error it lists. The file is done when it validates.
