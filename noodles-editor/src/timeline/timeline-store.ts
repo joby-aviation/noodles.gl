@@ -877,7 +877,12 @@ export const useTimelineStore = create<TimelineStore>()(
         // Parse field path: "operator-name / prop / subprop" -> object: "operator-name", prop: "prop.subprop"
         const parts = fieldPath.split(' / ')
         const objectName = parts[0]
-        const propPath = parts.slice(1).join('.')
+        // Dotted names (e.g. a table column "properties.name") are written as a JSON array
+        // so fromTimelineJSON doesn't split them into extra path segments
+        const propParts = parts.slice(1)
+        const propPath = propParts.some(part => part.includes('.'))
+          ? JSON.stringify(propParts)
+          : propParts.join('.')
 
         if (!tracksByObject[objectName]) {
           tracksByObject[objectName] = {
