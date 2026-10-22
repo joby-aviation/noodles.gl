@@ -13,7 +13,7 @@ import { useUIStore } from './noodles/store'
 const TIMELINE_HEIGHT_KEY = 'noodles-timeline-height'
 const SPREADSHEET_WIDTH_KEY = 'noodles-spreadsheet-width'
 
-const TIMELINE_DEFAULT_HEIGHT = 250
+const TIMELINE_DEFAULT_HEIGHT = 200
 const SPREADSHEET_DEFAULT_WIDTH = 400
 
 function loadPx(key: string, fallback: number): number {
