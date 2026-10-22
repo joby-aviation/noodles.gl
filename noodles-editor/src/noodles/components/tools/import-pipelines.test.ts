@@ -1,16 +1,42 @@
 import { describe, expect, it } from 'vitest'
+import { parseWkt } from '../../../utils/wkt'
 import { opTypes } from '../../operators'
+import { type CoordinateDetection, detectCoordinates, type Row } from './detect-coordinates'
 import {
   createImportPipeline,
   type DetectedFormat,
   detectFormat,
   detectFormatFromUrl,
-  detectPositionAccessor,
   isBinaryFormat,
   isImportable,
+  positionExpression,
+  propertyAccess,
+  radiusExpression,
+  toGeoJsonCode,
 } from './import-pipelines'
 
 const basePosition = { x: 100, y: 200 }
+
+function detectRows(rows: Row[]): CoordinateDetection {
+  return detectCoordinates(Object.keys(rows[0] ?? {}), rows)
+}
+
+const latLng = detectRows([
+  { name: 'NYC', Latitude: 40.7, Longitude: -74 },
+  { name: 'LDN', Latitude: 51.5, Longitude: -0.1 },
+])
+const latLngSized = detectRows([
+  { lat: 40.7, lng: -74, population: 8_000_000 },
+  { lat: 51.5, lng: -0.1, population: 9_000_000 },
+])
+const wktPoints = detectRows([{ WKT: 'POINT (1 2)' }, { WKT: 'POINT (3 4)' }])
+const wktShapes = detectRows([{ geom: 'POLYGON ((0 0, 1 0, 1 1, 0 0))' }])
+const noCoordinates = detectRows([{ region: 'North', units: 3 }])
+
+// Evaluate a generated accessor or CodeOp body the way the operators do
+function evaluate(body: string, d: unknown) {
+  return new Function('d', 'utils', body)(d, { parseWkt })
+}
 
 // Deterministic ids so tests don't depend on the operator store
 function makeCountingNodeId() {
@@ -89,30 +115,89 @@ describe('isImportable / isBinaryFormat', () => {
   })
 })
 
-describe('detectPositionAccessor', () => {
-  it('finds longitude and latitude columns by name', () => {
-    expect(detectPositionAccessor('name,Longitude,Latitude\nNYC,-74,40')).toBe(
-      '[d["Longitude"], d["Latitude"]]'
+describe('propertyAccess', () => {
+  it('uses dot access for identifiers and brackets otherwise', () => {
+    expect(propertyAccess('Latitude')).toBe('d.Latitude')
+    expect(propertyAccess('lat (deg)')).toBe('d["lat (deg)"]')
+    expect(propertyAccess('2020')).toBe('d["2020"]')
+    expect(propertyAccess('say "hi"', 'row')).toBe('row["say \\"hi\\""]')
+  })
+})
+
+describe('positionExpression', () => {
+  it('reads the detected columns', () => {
+    const expression = positionExpression(latLng)
+    expect(expression).toBe('[d.Longitude, d.Latitude]')
+    expect(evaluate(`return ${expression}`, { Latitude: 40.7, Longitude: -74 })).toEqual([
+      -74, 40.7,
+    ])
+  })
+
+  it('parses WKT and GeoJSON point columns', () => {
+    const wkt = positionExpression(wktPoints)
+    expect(wkt).toBe('utils.parseWkt(d.WKT).coordinates')
+    expect(evaluate(`return ${wkt}`, { WKT: 'POINT (1 2)' })).toEqual([1, 2])
+
+    const geojson = positionExpression(
+      detectRows([{ geometry: '{"type":"Point","coordinates":[5,6]}' }])
     )
-    expect(detectPositionAccessor('lon\tlat\n1\t2')).toBe('[d["lon"], d["lat"]]')
+    expect(geojson).toBe('JSON.parse(d.geometry).coordinates')
+    expect(
+      evaluate(`return ${geojson}`, { geometry: '{"type":"Point","coordinates":[5,6]}' })
+    ).toEqual([5, 6])
   })
 
-  it('strips quotes from header cells', () => {
-    expect(detectPositionAccessor('"lng","lat"\n1,2')).toBe('[d["lng"], d["lat"]]')
+  it("falls back to today's default without coordinates", () => {
+    expect(positionExpression(noCoordinates)).toBe('[d.lng, d.lat]')
+    expect(positionExpression(undefined)).toBe('[d.lng, d.lat]')
+  })
+})
+
+describe('radiusExpression', () => {
+  it('maps the column range onto a pixel radius by area', () => {
+    const expression = radiusExpression({ column: 'mag', min: 2, max: 6 }, 100)
+    const radius = (mag: unknown) => evaluate(`return ${expression}`, { mag })
+    expect(radius(2)).toBe(16)
+    expect(radius(6)).toBe(48)
+    expect(radius(3)).toBeCloseTo(16 + 32 * Math.sqrt(0.25))
+    // Missing and out of range values stay at the base size instead of NaN
+    expect(radius(null)).toBe(16)
+    expect(radius(-10)).toBe(16)
   })
 
-  it('falls back when columns are unrecognized or missing', () => {
-    expect(detectPositionAccessor('a,b\n1,2')).toBe('[d.lng, d.lat]')
-    expect(detectPositionAccessor('')).toBe('[d.lng, d.lat]')
-    expect(detectPositionAccessor(undefined)).toBe('[d.lng, d.lat]')
+  it('uses smaller points for larger datasets', () => {
+    expect(radiusExpression({ column: 'v', min: 0, max: 1 }, 50_000)).toMatch(/^4 \+ 8 /)
+  })
+})
+
+describe('toGeoJsonCode', () => {
+  it('turns rows into a FeatureCollection, dropping unreadable geometries', () => {
+    if (wktShapes.kind !== 'geometry') throw new Error('expected a geometry detection')
+    const rows = [{ geom: 'POLYGON ((0 0, 1 0, 1 1, 0 0))', name: 'a' }, { geom: 'nope' }]
+    const result = evaluate(toGeoJsonCode(wktShapes), rows)
+    expect(result.type).toBe('FeatureCollection')
+    expect(result.features).toHaveLength(1)
+    expect(result.features[0].geometry.type).toBe('Polygon')
+    expect(result.features[0].properties.name).toBe('a')
   })
 })
 
 describe('createImportPipeline', () => {
   it('references only registered operator types with valid handles', () => {
-    const formats: DetectedFormat[] = ['csv', 'json', 'geojson', 'shapefile', 'geoparquet']
-    for (const format of formats) {
-      const { nodes, edges } = build(format)
+    const cases: [DetectedFormat, CoordinateDetection?][] = [
+      ['csv'],
+      ['json'],
+      ['geojson'],
+      ['shapefile'],
+      ['geoparquet'],
+      ['csv', latLng],
+      ['csv', latLngSized],
+      ['csv', wktPoints],
+      ['csv', wktShapes],
+      ['csv', noCoordinates],
+    ]
+    for (const [format, detection] of cases) {
+      const { nodes, edges } = build(format, { detection })
       const byId = new Map(nodes.map(n => [n.id, n]))
       for (const node of nodes) {
         expect(opTypes, `${format} -> ${node.type}`).toHaveProperty(node.type)
@@ -136,8 +221,68 @@ describe('createImportPipeline', () => {
     }
   })
 
-  it('builds a scatterplot pipeline for CSV', () => {
-    const { nodes, primaryNodeId } = build('csv', { contents: 'lng,lat\n1,2' })
+  it('builds a fitted scatterplot map from detected lat / lng columns', () => {
+    const { nodes, edges, primaryNodeId, viewState } = build('csv', { detection: latLng })
+    expect(nodes.map(n => n.type)).toEqual([
+      'FileOp',
+      'AccessorOp',
+      'ScatterplotLayerOp',
+      'MaplibreBasemapOp',
+      'DeckRendererOp',
+    ])
+    expect(primaryNodeId).toBe('/data')
+    expect(nodes[0].data.inputs).toEqual({ format: 'csv', url: '@/data' })
+    expect(nodes[1].data.inputs.expression).toBe('[d.Longitude, d.Latitude]')
+    expect(nodes[2].data.inputs).toMatchObject({ getRadius: 16 })
+
+    // The camera is set from the data bounds, so no BoundingBox is needed
+    expect(viewState?.latitude).toBeGreaterThan(40)
+    expect(viewState?.latitude).toBeLessThan(52)
+    expect(nodes[3].data.inputs).toEqual({ viewState })
+    expect(edges.some(e => e.targetHandle === 'par.viewState')).toBe(false)
+  })
+
+  it('sizes points by an obvious numeric column', () => {
+    const { nodes, edges } = build('csv', { detection: latLngSized })
+    expect(nodes).toHaveLength(6)
+    const radius = nodes.find(n => n.id === '/scatter-radius')
+    expect(radius?.type).toBe('AccessorOp')
+    expect(radius?.data.inputs.expression).toContain('d.population')
+    expect(nodes.find(n => n.id === '/scatter')?.data.inputs).not.toHaveProperty('getRadius')
+    expect(edges).toContainEqual(
+      expect.objectContaining({
+        source: '/scatter-radius',
+        target: '/scatter',
+        targetHandle: 'par.getRadius',
+      })
+    )
+  })
+
+  it('draws WKT points with a ScatterplotLayer', () => {
+    const { nodes } = build('csv', { detection: wktPoints })
+    expect(nodes.map(n => n.type)).toContain('ScatterplotLayerOp')
+    expect(nodes[1].data.inputs.expression).toBe('utils.parseWkt(d.WKT).coordinates')
+  })
+
+  it('converts WKT shapes to GeoJSON for a GeoJsonLayer', () => {
+    const { nodes, edges } = build('csv', { detection: wktShapes })
+    expect(nodes.map(n => n.type)).toEqual([
+      'FileOp',
+      'CodeOp',
+      'GeoJsonLayerOp',
+      'MaplibreBasemapOp',
+      'DeckRendererOp',
+    ])
+    expect(edges.map(e => `${e.source}->${e.target}`)).toEqual([
+      '/data->/to-geojson',
+      '/to-geojson->/geojson-layer',
+      '/basemap->/deck',
+      '/geojson-layer->/deck',
+    ])
+  })
+
+  it("keeps today's pipeline when no coordinates were found", () => {
+    const { nodes, viewState } = build('csv', { detection: noCoordinates })
     expect(nodes.map(n => n.type)).toEqual([
       'FileOp',
       'AccessorOp',
@@ -146,9 +291,25 @@ describe('createImportPipeline', () => {
       'DeckRendererOp',
       'BoundingBoxOp',
     ])
-    expect(primaryNodeId).toBe('/data')
-    expect(nodes[0].data.inputs).toEqual({ format: 'csv', url: '@/data' })
-    expect(nodes[1].data.inputs.expression).toBe('[d["lng"], d["lat"]]')
+    expect(nodes[1].data.inputs.expression).toBe('[d.lng, d.lat]')
+    expect(viewState).toBeUndefined()
+  })
+
+  it('returns the camera for an existing renderer to apply', () => {
+    const { nodes, viewState } = build('csv', { detection: latLng, rendererId: '/deck' })
+    expect(nodes.map(n => n.type)).toEqual(['FileOp', 'AccessorOp', 'ScatterplotLayerOp'])
+    expect(viewState).toBeDefined()
+  })
+
+  it('fits the camera to GeoJSON bounds', () => {
+    const detection: CoordinateDetection = {
+      kind: 'geojson',
+      rowCount: 1,
+      bounds: { west: 10, east: 11, south: 50, north: 51 },
+    }
+    const { nodes, viewState } = build('geojson', { detection })
+    expect(viewState?.longitude).toBeCloseTo(10.5)
+    expect(nodes.find(n => n.type === 'MaplibreBasemapOp')?.data.inputs).toEqual({ viewState })
   })
 
   it('builds a GeoJsonLayer pipeline for GeoJSON', () => {

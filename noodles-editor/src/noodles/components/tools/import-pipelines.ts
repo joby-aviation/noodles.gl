@@ -1,6 +1,13 @@
 import type { NodeJSON } from '@xyflow/react'
 import type { OpType } from '../../operators'
 import { edgeId, nodeId } from '../../utils/id-utils'
+import {
+  type CoordinateDetection,
+  type DetectedCoordinates,
+  hasCoordinates,
+  type SizeColumn,
+  viewStateForBounds,
+} from './detect-coordinates'
 
 // Turns an imported file or URL into a working graph. Kept free of React and the
 // operator store so the format detection, layout and wiring can be tested directly.
@@ -73,24 +80,62 @@ export function detectFormatFromUrl(url: string): DetectedFormat {
   return EXTENSION_FORMATS[extensionOf(path)] ?? 'json'
 }
 
-const LNG_PATTERNS = ['lng', 'lon', 'longitude', 'long', 'x']
-const LAT_PATTERNS = ['lat', 'latitude', 'y']
-
 const DEFAULT_POSITION = '[d.lng, d.lat]'
 
-export function detectPositionAccessor(contents?: string): string {
-  const firstLine = contents?.split('\n')[0]
-  if (!firstLine) return DEFAULT_POSITION
+type GeometryDetection = Extract<DetectedCoordinates, { kind: 'geometry' }>
 
-  const columns = firstLine.split(/[,\t]/).map(c => c.trim().replace(/^["']|["']$/g, ''))
-  const lower = columns.map(c => c.toLowerCase())
+// `d.name` when the column is a plain identifier, `d["lat (deg)"]` otherwise
+export function propertyAccess(column: string, variable = 'd'): string {
+  return /^[A-Za-z_$][\w$]*$/.test(column)
+    ? `${variable}.${column}`
+    : `${variable}[${JSON.stringify(column)}]`
+}
 
-  const lngCol = columns.find((_, i) => LNG_PATTERNS.includes(lower[i]))
-  const latCol = columns.find((_, i) => LAT_PATTERNS.includes(lower[i]))
+function geometryExpression(detection: GeometryDetection, row = 'd') {
+  const value = propertyAccess(detection.column, row)
+  if (detection.encoding === 'wkt') return `utils.parseWkt(${value})`
+  if (detection.encoding === 'geojson_string') return `JSON.parse(${value})`
+  return value
+}
 
-  if (lngCol && latCol) return `[d["${lngCol}"], d["${latCol}"]]`
+export function positionExpression(detection?: CoordinateDetection): string {
+  if (detection?.kind === 'lat_lng') {
+    return `[${propertyAccess(detection.lngColumn)}, ${propertyAccess(detection.latColumn)}]`
+  }
+  if (detection?.kind === 'geometry') return `${geometryExpression(detection)}.coordinates`
   return DEFAULT_POSITION
 }
+
+// Point radius in map pixels. The map is drawn at the render size (3840 wide by
+// default) and shown scaled down in the editor, so this is larger than it looks.
+// Fewer points can be bigger without hiding each other.
+function baseRadius(rowCount: number) {
+  if (rowCount < 1_000) return 16
+  if (rowCount < 10_000) return 8
+  return 4
+}
+
+// From one to three times the base radius. Square root so a point's area, not its
+// radius, tracks the value.
+export function radiusExpression({ column, min, max }: SizeColumn, rowCount: number): string {
+  const base = baseRadius(rowCount)
+  const value = propertyAccess(column)
+  return `${base} + ${base * 2} * Math.sqrt(Math.max(0, (${value} - ${min}) / ${max - min}))`
+}
+
+export function toGeoJsonCode(detection: GeometryDetection) {
+  return [
+    `// Turn each row's ${detection.column} column into a GeoJSON feature`,
+    'return {',
+    "  type: 'FeatureCollection',",
+    '  features: d',
+    `    .map(row => ({ type: 'Feature', geometry: ${geometryExpression(detection, 'row')}, properties: row }))`,
+    '    .filter(feature => feature.geometry),',
+    '}',
+  ].join('\n')
+}
+
+const POINT_STYLE = { getFillColor: '#f59e0b', opacity: 0.8 }
 
 interface SourceSpec {
   nodeName: string
@@ -170,14 +215,20 @@ export interface BuiltPipeline {
   edges: (Connection & { id: string })[]
   // The source node, so callers can select and frame the thing worth editing
   primaryNodeId: string
+  // Camera framing the data, when its bounds are known. Already set on a scaffolded
+  // basemap; callers reusing a renderer can apply it to the existing basemap.
+  viewState?: { longitude: number; latitude: number; zoom: number }
 }
 
 export interface ImportPipelineOptions {
   url: string
   format: DetectedFormat
   basePosition: { x: number; y: number }
-  // First line of a text file, used to guess longitude/latitude columns
-  contents?: string
+  // Where the points are, from detectCoordinates. Absent for URL imports, which
+  // are never downloaded here, and for binary formats.
+  detection?: CoordinateDetection
+  // Size of the map the camera is fitted to
+  mapSize?: { width: number; height: number }
   // Renderer already in the graph. When absent, one is scaffolded with a basemap.
   rendererId?: string | null
   // Injectable so tests do not need the operator store
@@ -188,12 +239,14 @@ export function createImportPipeline({
   url,
   format,
   basePosition,
-  contents,
+  detection,
+  mapSize = { width: 1280, height: 800 },
   rendererId,
   makeNodeId = baseName => nodeId(baseName, '/'),
 }: ImportPipelineOptions): BuiltPipeline {
   const source = SOURCES[format]
   const sourceId = makeNodeId(source.nodeName)
+  const at = (dx: number, dy: number) => ({ x: basePosition.x + dx, y: basePosition.y + dy })
 
   const nodes: NodeJSON<OpType>[] = [
     {
@@ -204,47 +257,78 @@ export function createImportPipeline({
     },
   ]
   const connections: Connection[] = []
+  const connect = (source: string, sourceHandle: string, target: string, targetHandle: string) =>
+    connections.push({ source, sourceHandle, target, targetHandle })
 
   if (source.shape === 'source-only') {
     return { nodes, edges: [], primaryNodeId: sourceId }
   }
 
-  // Layer
-  const layerId = makeNodeId(source.shape === 'tabular' ? 'scatter' : 'geojson-layer')
-  if (source.shape === 'tabular') {
+  const found = hasCoordinates(detection) ? detection : undefined
+  const viewState = found ? viewStateForBounds(found.bounds, mapSize) : undefined
+
+  // Rows whose geometry column holds lines or polygons become GeoJSON features;
+  // rows of points, by column or by WKT / GeoJSON point, go to a ScatterplotLayer
+  const tabularShapes =
+    source.shape === 'tabular' && found?.kind === 'geometry' && !found.pointsOnly ? found : null
+  const drawsPoints = source.shape === 'tabular' && !tabularShapes
+
+  let layerId: string
+  if (drawsPoints) {
+    layerId = makeNodeId('scatter')
     const accessorId = makeNodeId('scatter-position')
     nodes.push({
       id: accessorId,
       type: 'AccessorOp',
-      data: { inputs: { expression: detectPositionAccessor(contents) } },
-      position: { x: basePosition.x + 300, y: basePosition.y + 200 },
+      data: { inputs: { expression: positionExpression(found) } },
+      position: at(300, 200),
     })
+
+    const sizeColumn = found && 'sizeColumn' in found ? found.sizeColumn : undefined
+    const layerInputs: Record<string, unknown> = found
+      ? { ...POINT_STYLE, getRadius: baseRadius(found.rowCount) }
+      : { getLineColor: '#000000', getFillColor: '#ffffff' }
+    if (found && sizeColumn) {
+      delete layerInputs.getRadius
+      const radiusId = makeNodeId('scatter-radius')
+      nodes.push({
+        id: radiusId,
+        type: 'AccessorOp',
+        data: { inputs: { expression: radiusExpression(sizeColumn, found.rowCount) } },
+        position: at(300, 400),
+      })
+      connect(radiusId, 'out.accessor', layerId, 'par.getRadius')
+    }
     nodes.push({
       id: layerId,
       type: 'ScatterplotLayerOp',
-      data: { inputs: { getLineColor: '#000000', getFillColor: '#ffffff' } },
-      position: { x: basePosition.x + 600, y: basePosition.y },
+      data: { inputs: layerInputs },
+      position: at(600, 0),
     })
-    connections.push({
-      source: accessorId,
-      target: layerId,
-      sourceHandle: 'out.accessor',
-      targetHandle: 'par.getPosition',
-    })
+    connect(accessorId, 'out.accessor', layerId, 'par.getPosition')
+    connect(sourceId, source.output, layerId, 'par.data')
   } else {
+    layerId = makeNodeId('geojson-layer')
+    let layerSource = { id: sourceId, handle: source.output }
+    if (tabularShapes) {
+      const codeId = makeNodeId('to-geojson')
+      nodes.push({
+        id: codeId,
+        type: 'CodeOp',
+        data: { inputs: { code: toGeoJsonCode(tabularShapes) } },
+        position: at(300, 0),
+      })
+      connect(sourceId, source.output, codeId, 'par.data')
+      layerSource = { id: codeId, handle: 'out.data' }
+    }
     nodes.push({
       id: layerId,
       type: 'GeoJsonLayerOp',
       data: { inputs: GEOJSON_LAYER_STYLE },
-      position: { x: basePosition.x + 600, y: basePosition.y },
+      position: at(600, 0),
     })
+    connect(layerSource.id, layerSource.handle, layerId, 'par.data')
   }
-  connections.push({
-    source: sourceId,
-    target: layerId,
-    sourceHandle: source.output,
-    targetHandle: 'par.data',
-  })
 
   // Reuse the existing renderer when there is one; otherwise scaffold a renderer
   // and basemap so the import is visible without further wiring
@@ -255,57 +339,38 @@ export function createImportPipeline({
     nodes.push({
       id: basemapId,
       type: 'MaplibreBasemapOp',
-      data: { inputs: {} },
-      position: { x: basePosition.x + 600, y: basePosition.y + 400 },
+      data: { inputs: viewState ? { viewState } : {} },
+      position: at(600, 400),
     })
     nodes.push({
       id: deckId,
       type: 'DeckRendererOp',
       data: { inputs: {} },
-      position: { x: basePosition.x + 950, y: basePosition.y + 160 },
+      position: at(950, 160),
     })
-    connections.push({
-      source: basemapId,
-      target: deckId,
-      sourceHandle: 'out.maplibre',
-      targetHandle: 'par.basemap',
-    })
+    connect(basemapId, 'out.maplibre', deckId, 'par.basemap')
 
-    // Only tabular sources expose an array of points that BoundingBox can fit a
-    // camera to. Wiring it lets the new basemap frame the data on first render.
-    if (source.shape === 'tabular') {
+    // Without detected bounds, fall back to fitting the camera at runtime. Only
+    // tabular sources expose an array of points that BoundingBox can read.
+    if (!viewState && source.shape === 'tabular') {
       const bboxId = makeNodeId('bbox')
       nodes.push({
         id: bboxId,
         type: 'BoundingBoxOp',
         data: { inputs: {} },
-        position: { x: basePosition.x + 300, y: basePosition.y + 400 },
+        position: at(300, 400),
       })
-      connections.push({
-        source: sourceId,
-        target: bboxId,
-        sourceHandle: source.output,
-        targetHandle: 'par.data',
-      })
-      connections.push({
-        source: bboxId,
-        target: basemapId,
-        sourceHandle: 'out.viewState',
-        targetHandle: 'par.viewState',
-      })
+      connect(sourceId, source.output, bboxId, 'par.data')
+      connect(bboxId, 'out.viewState', basemapId, 'par.viewState')
     }
   }
 
-  connections.push({
-    source: layerId,
-    target: deckId,
-    sourceHandle: 'out.layer',
-    targetHandle: 'par.layers',
-  })
+  connect(layerId, 'out.layer', deckId, 'par.layers')
 
   return {
     nodes,
     edges: connections.map(connection => ({ ...connection, id: edgeId(connection) })),
     primaryNodeId: sourceId,
+    viewState,
   }
 }

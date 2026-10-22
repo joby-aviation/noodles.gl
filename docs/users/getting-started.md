@@ -45,6 +45,8 @@ Creates a PointOp node with the selected coordinates.
 #### Import Data
 Drag-and-drop or browse for CSV/JSON files. The importer automatically creates a complete visualization pipeline including data source, layer, and map components. Files are saved to your project's data directory.
 
+For tables of points, the importer looks for latitude and longitude columns (`lat`/`lng`, `Latitude`/`Longitude`, `x`/`y` and common variants) or a WKT or GeoJSON geometry column. It then fits the camera to the data and, when there is an obvious numeric column such as `population` or `magnitude`, sizes the points by it. If no coordinates are found, a message says so and the position is left for you to set in the Accessor node. Dropping a CSV on the start screen does the same in a new project.
+
 ## Your First Project
 
 **Data Source** → **Filter/Transform** → **Deck.gl Layer**
