@@ -26,7 +26,12 @@ import { captureScreenshot, useRenderer } from './render/renderer'
 import { deckRenderingDefaults, mapRenderingDefaults } from './render/rendering-defaults'
 import { exposeCanvasToTools } from './render/tool-canvas'
 import { TransformScale } from './render/transform-scale'
-import { resolveExportSettings, setVideoExporter, type VideoExporter } from './render/video-export'
+import {
+  exportsTransparentVideo,
+  resolveExportSettings,
+  setVideoExporter,
+  type VideoExporter,
+} from './render/video-export'
 import { TimelinePanel } from './timeline/components/TimelinePanel'
 import { getTimelineStore, useTimelineStore } from './timeline/timeline-store'
 import { debugRender } from './utils/debug'
@@ -121,8 +126,15 @@ export default function TimelineEditor() {
   }, [])
 
   const noodles = getNoodles()
-  const { flowGraph, nodeSidebar, propertiesPanel, chatPanel, selectedNodeIds, ...visualization } =
-    noodles
+  const {
+    flowGraph,
+    nodeSidebar,
+    propertiesPanel,
+    chatPanel,
+    gitHistoryPanel,
+    selectedNodeIds,
+    ...visualization
+  } = noodles
 
   const setTimelineExpanded = useUIStore(state => state.setTimelineExpanded)
 
@@ -150,6 +162,9 @@ export default function TimelineEditor() {
     rendersDirectory,
     sequenceFormat,
   } = renderSettings
+  // Both canvases already have an alpha channel: MapLibre always asks for one, and
+  // deck.gl's context keeps the browser default. So transparency needs no new context.
+  const exportAlpha = exportsTransparentVideo(renderSettings)
 
   const { startCapture, startSequenceCapture, captureFrame, isRendering } = useRenderer({
     projectName: noodles.projectName ?? 'render',
@@ -405,6 +420,15 @@ export default function TimelineEditor() {
     props: deckProps,
   })
 
+  // The canvas exports record from. With a basemap this is the map canvas: the interleaved
+  // deck draws into it. Unlike mapRef, it is there before the map's load event and never
+  // outlives a removed basemap.
+  const getDeckCanvas = useCallback(
+    // @ts-expect-error canvas is protected but accessible
+    (): HTMLCanvasElement | null => deckRef.current?.canvas ?? null,
+    []
+  )
+
   const startRender = useCallback(
     async (source: RenderSource = 'menu') => {
       // Two captures would share one frame-ready callback and the timeline position
@@ -413,33 +437,18 @@ export default function TimelineEditor() {
         return
       }
 
-      let canvas: HTMLCanvasElement | null = null
-
-      if (basemapEnabled) {
-        if (!mapRef.current) {
-          debugRender('Start Render: maplibre is not defined (when basemapEnabled is true)')
-          return
-        }
-        canvas = mapRef.current.getCanvas()
-      } else {
-        // Pure Deck.gl mode
-        if (!deckRef.current) {
-          debugRender('Start Render: deckRef is not defined (when basemapEnabled is false)')
-          return
-        }
-        // @ts-expect-error canvas is protected but accessible
-        canvas = deckRef.current.canvas
-      }
-
+      const canvas = getDeckCanvas()
       if (!canvas) {
-        debugRender('Start Render: Failed to get canvas element')
+        debugRender('Start Render: the canvas is not ready yet')
         return
       }
 
       resetRenderProgress()
       const result = await startCapture({
         canvas,
+        getCanvas: getDeckCanvas,
         codec,
+        exportAlpha,
         // This always scales the video to the specified value, regardless of `canvas` size
         ...resolution,
         startFrame: Math.floor((inPoint ?? 0) * framerate),
@@ -451,22 +460,29 @@ export default function TimelineEditor() {
         alert(`Export failed: ${result.error.message}`)
       }
     },
-    [startCapture, codec, resolution, basemapEnabled, framerate, inPoint, outPoint, sequenceLength]
+    [
+      startCapture,
+      getDeckCanvas,
+      codec,
+      exportAlpha,
+      resolution,
+      framerate,
+      inPoint,
+      outPoint,
+      sequenceLength,
+    ]
   )
 
   // The export_video tool's way in. Same canvas and render settings as startRender, but
   // the MP4 comes back as a buffer: the save dialog only opens on a click, which an
-  // agent driving the editor cannot make.
+  // agent driving the editor cannot make. Always an opaque MP4, whatever exportAlpha says.
   const exportVideoForAgent = useCallback<VideoExporter>(
     (request, onFrameComplete) => {
       if (isRenderingRef.current) {
         return { status: 'refused', error: 'An export is already running in the editor' }
       }
 
-      // With a basemap this is the map canvas: the interleaved deck draws into it. Unlike
-      // mapRef, it is there before the map's load event and never outlives the map.
-      // @ts-expect-error canvas is protected but accessible
-      const canvas: HTMLCanvasElement | null | undefined = deckRef.current?.canvas
+      const canvas = getDeckCanvas()
       if (!canvas) {
         return {
           status: 'refused',
@@ -492,6 +508,7 @@ export default function TimelineEditor() {
         settings,
         result: startCapture({
           canvas,
+          getCanvas: getDeckCanvas,
           codec: settings.codec,
           width: settings.width,
           height: settings.height,
@@ -507,7 +524,7 @@ export default function TimelineEditor() {
         }),
       }
     },
-    [startCapture, codec, resolution, framerate]
+    [startCapture, getDeckCanvas, codec, resolution, framerate]
   )
 
   useEffect(() => {
@@ -517,12 +534,8 @@ export default function TimelineEditor() {
 
   const takeScreenshot = useCallback(
     async (source: RenderSource = 'menu') => {
-      if (!deckRef.current) {
-        debugRender('Take Screenshot: deck is not defined')
-        return
-      }
-      if (basemapEnabled && !mapRef.current) {
-        debugRender('Take Screenshot: maplibre is not defined')
+      if (!getDeckCanvas()) {
+        debugRender('Take Screenshot: the canvas is not ready yet')
         return
       }
 
@@ -531,13 +544,15 @@ export default function TimelineEditor() {
         suggestedName,
         () => {
           redraw()
-          // @ts-expect-error canvas is protected
-          return deckRef.current.canvas!
+          // Read again: the save dialog can stay open while the basemap is added or removed
+          const canvas = getDeckCanvas()
+          if (!canvas) throw new Error('The canvas went away while the save dialog was open')
+          return canvas
         },
         { source }
       )
     },
-    [noodles.projectName, redraw, basemapEnabled]
+    [noodles.projectName, redraw, getDeckCanvas]
   )
 
   const selectRendersDirectory = useCallback(async () => {
@@ -552,12 +567,9 @@ export default function TimelineEditor() {
   }, [activeOutOp])
 
   const exportSequence = useCallback(async () => {
-    if (!deckRef.current) {
-      debugRender('Export Sequence: deck is not defined')
-      return
-    }
-    if (basemapEnabled && !mapRef.current) {
-      debugRender('Export Sequence: maplibre is not defined')
+    const canvas = getDeckCanvas()
+    if (!canvas) {
+      debugRender('Export Sequence: the canvas is not ready yet')
       return
     }
 
@@ -588,34 +600,33 @@ export default function TimelineEditor() {
       }
     }
 
-    let canvas: HTMLCanvasElement
-    if (basemapEnabled) {
-      canvas = mapRef.current!.getCanvas()
-    } else {
-      // @ts-expect-error canvas is protected
-      canvas = deckRef.current.canvas!
-    }
-
     resetRenderProgress()
-    await startSequenceCapture({
-      canvas,
-      // Basemap scenes use mapProps.onIdle for frame readiness; pure-deck scenes need
-      // onAfterRender wired up inside startSequenceCapture via getDeck.
-      getDeck: basemapEnabled ? undefined : () => deckRef.current,
-      directoryHandle: rendersDir,
-      format: sequenceFormat,
-      captureDelay,
-      waitForData,
-      startFrame: Math.floor((inPoint ?? 0) * framerate),
-      endFrame: Math.floor((outPoint ?? sequenceLength) * framerate),
-      onFrameStart: (frame, total) => debugRender('Exporting frame %d/%d', frame + 1, total),
-      onFrameComplete: (frame, total) => {
-        setRenderProgress(frame, total)
-        debugRender('Completed frame %d/%d', frame, total)
-      },
-    })
+    try {
+      await startSequenceCapture({
+        canvas,
+        getCanvas: getDeckCanvas,
+        // Basemap scenes use mapProps.onIdle for frame readiness; pure-deck scenes need
+        // onAfterRender wired up inside startSequenceCapture via getDeck.
+        getDeck: basemapEnabled ? undefined : () => deckRef.current,
+        directoryHandle: rendersDir,
+        format: sequenceFormat,
+        captureDelay,
+        waitForData,
+        startFrame: Math.floor((inPoint ?? 0) * framerate),
+        endFrame: Math.floor((outPoint ?? sequenceLength) * framerate),
+        onFrameStart: (frame, total) => debugRender('Exporting frame %d/%d', frame + 1, total),
+        onFrameComplete: (frame, total) => {
+          setRenderProgress(frame, total)
+          debugRender('Completed frame %d/%d', frame, total)
+        },
+      })
+    } catch (e) {
+      // The frames written so far stay in the folder; say why the rest are missing
+      alert(`Export failed: ${e instanceof Error ? e.message : String(e)}`)
+    }
   }, [
     startSequenceCapture,
+    getDeckCanvas,
     sequenceLength,
     inPoint,
     outPoint,
@@ -667,6 +678,7 @@ export default function TimelineEditor() {
   const topBar = (
     <TopMenuBar
       projectName={noodles.projectName}
+      versionedProjectName={noodles.versionedProjectName}
       onSaveProject={noodles.onSaveProject!}
       onSaveAs={noodles.onSaveAs}
       onRename={noodles.onRename}
@@ -688,8 +700,6 @@ export default function TimelineEditor() {
       onChangeShowOverlay={noodles.onChangeShowOverlay}
       showDebugInfo={noodles.showDebugInfo}
       onChangeShowDebugInfo={noodles.onChangeShowDebugInfo}
-      autoLayout={noodles.autoLayout}
-      onChangeAutoLayout={noodles.onChangeAutoLayout}
       spreadsheetVisible={noodles.spreadsheetVisible}
       onChangeSpreadsheetVisible={noodles.onChangeSpreadsheetVisible}
     />
@@ -728,6 +738,7 @@ export default function TimelineEditor() {
           )}
         </Layout>
         {chatPanel}
+        {gitHistoryPanel}
       </ExportActionsProvider>
     </ReactFlowProvider>
   )

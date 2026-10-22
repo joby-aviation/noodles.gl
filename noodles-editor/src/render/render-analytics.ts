@@ -13,6 +13,8 @@ export type RenderErrorCategory =
   | 'frame' // the scene reported an error while drawing a frame
   | 'encoder' // the VideoEncoder reported an error
   | 'exception' // anything thrown: muxing, file writes, a missing frame
+  | 'canvas_replaced' // the recorded canvas was rebuilt mid-export, e.g. the basemap toggled
+  | 'timeout' // a frame took too long to draw or to read from the canvas
 
 // By the short side, so a portrait 1080x1920 video counts as 1080p
 export function resolutionBucket(width: number, height: number): string {
@@ -40,7 +42,7 @@ export function trackRender({
   frameCount,
 }: {
   source: RenderSource
-  format: 'mp4' | 'png_sequence' | 'exr_sequence'
+  format: 'mp4' | 'webm' | 'png_sequence' | 'exr_sequence'
   codec?: string
   width: number
   height: number

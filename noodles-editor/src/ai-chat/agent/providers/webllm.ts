@@ -461,10 +461,13 @@ function stopReasonFor(tool: string | null, finishReason: string): StopReason {
   return 'end_turn'
 }
 
-// Thrown as ContextWindowSizeExceededError inside the worker, but errors cross a
-// postMessage boundary as their `toString()`, so by the time it arrives the class
-// is gone and only the prefix in the message is left.
+// Thrown as ContextWindowSizeExceededError inside the worker, but the worker posts
+// errors back as their `toString()` and the engine rejects with that string, so
+// what arrives is not an Error at all: only the class name at the start of the text
+// is left. The token count in it is misleading too. It is the new tokens alone,
+// while the engine checks them plus the KV cache kept from earlier steps.
 function isContextOverflow(error: unknown): boolean {
+  if (typeof error === 'string') return error.includes('ContextWindowSizeExceededError')
   if (!(error instanceof Error)) return false
   if (error.name === 'ContextWindowSizeExceededError') return true
   return error.message.includes('ContextWindowSizeExceededError')

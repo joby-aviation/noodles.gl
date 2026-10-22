@@ -17,7 +17,7 @@ import {
 } from '../../utils/debug'
 import type { GraphRef } from '../types'
 import { type LockChange, redoLockChange, undoLockChange } from './lock-history'
-import { applyOperatorInputs } from './property-history'
+import { applyOperatorInputs, captureOperatorInputs, UI_STATE_KEY } from './property-history'
 
 interface HistoryEntry {
   id: string
@@ -665,6 +665,58 @@ export function useUndoRedo(options?: UseUndoRedoOptions) {
     [getSnapshot]
   )
 
+  // Run a batch of graph edits made outside the change handlers (an accepted
+  // assistant proposal) and record what it changed, field values included, as
+  // one entry. Like the interceptors above, the after-state is read on a timeout
+  // because setNodes / setEdges reach the store after the caller returns.
+  const recordGraphMutation = useCallback(
+    (description: string, mutate: () => void) => {
+      if (isRestoringRef.current) {
+        mutate()
+        return
+      }
+      const before = getSnapshot()
+      const operatorStateBefore = captureOperatorInputs() ?? undefined
+      const timelineState = captureTimelineState()
+      mutate()
+
+      setTimeout(() => {
+        const after = getSnapshot()
+        const operatorStateAfter = captureOperatorInputs() ?? undefined
+        const changed =
+          !sameItems(before.nodes, after.nodes) ||
+          !sameItems(before.edges, after.edges) ||
+          operatorStateBefore !== operatorStateAfter
+        if (!changed) return
+
+        const entry: HistoryEntry = {
+          id: crypto.randomUUID(),
+          timestamp: Date.now(),
+          description,
+          nodeChanges: [],
+          edgeChanges: [],
+          // Undo and redo rebuild a deleted operator from its node's data, and the
+          // node's data still holds the inputs it was created with. Carry the live
+          // field values in it, since applyOperatorInputs finds no operator to set.
+          nodesBefore: withOperatorInputs(before.nodes, operatorStateBefore),
+          edgesBefore: before.edges,
+          nodesAfter: withOperatorInputs(after.nodes, operatorStateAfter),
+          edgesAfter: after.edges,
+          timelineStateBefore: timelineState,
+          timelineStateAfter: timelineState,
+          operatorStateBefore,
+          operatorStateAfter,
+        }
+        setUndoRedoState(prev => {
+          const history = [...prev.history.slice(0, prev.currentIndex + 1), entry]
+          const finalHistory = history.slice(-maxHistorySize)
+          return { history: finalHistory, currentIndex: finalHistory.length - 1 }
+        })
+      }, 0)
+    },
+    [getSnapshot]
+  )
+
   return {
     undo,
     redo,
@@ -675,6 +727,7 @@ export function useUndoRedo(options?: UseUndoRedoOptions) {
     recordTimelineChange,
     recordPropertyChange,
     recordLockChange,
+    recordGraphMutation,
     history,
     clear: () => {
       setUndoRedoState({
@@ -683,6 +736,34 @@ export function useUndoRedo(options?: UseUndoRedoOptions) {
       })
     },
   }
+}
+
+// Copies the field values (and field UI state) in an operator inputs snapshot into
+// each node's data, the form transformGraph builds a new operator from
+function withOperatorInputs(nodes: ReactFlowNode[], snapshot: string | undefined) {
+  if (!snapshot) return nodes
+  let state: Record<string, Record<string, unknown>>
+  try {
+    state = JSON.parse(snapshot)
+  } catch {
+    return nodes
+  }
+  const uiState = state[UI_STATE_KEY] as Record<string, unknown> | undefined
+  return nodes.map(node => {
+    const inputs = state[node.id]
+    if (!inputs) return node
+    const data = node.data as { inputs?: Record<string, unknown> }
+    const ui = uiState?.[node.id]
+    return {
+      ...node,
+      data: { ...node.data, inputs: { ...data.inputs, ...inputs }, ...(ui ? { ui } : {}) },
+    }
+  })
+}
+
+// React Flow replaces a node or edge object when it changes, so identity is enough
+function sameItems<T>(before: readonly T[], after: readonly T[]): boolean {
+  return before.length === after.length && before.every((item, i) => item === after[i])
 }
 
 function getChangeDescription(changes: (NodeChange | EdgeChange)[], type: 'node' | 'edge'): string {
