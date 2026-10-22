@@ -70,6 +70,15 @@ Notes:
 - If multiple Noodles tabs are open, the relay suffixes tool names with a tab ID.
 - Code search/docs tools download their context bundles on page load when external control is enabled.
 
+#### Quick start prompt
+
+[`website/static/claude-code-prompt.txt`](../website/static/claude-code-prompt.txt) is the one-paste setup that the landing page and the assistant's onboarding panel copy. It clones and installs the repo, starts the dev server, registers the relay, and makes one change. Claude Code only loads an MCP server at startup, so the session that registers the relay runs a second `claude -p` session for the change and the screenshot, and pulls the image out of that session's `stream-json` output.
+
+Two things the prompt works around, found while testing it:
+
+- Open the tab after the relay is running. The relay's page widget scans ports 9333 to 9348 and stops retrying after about 10 seconds, so a tab opened earlier never connects until it is reloaded. That is why the second session opens the example itself.
+- Keep the browser window visible. A hidden tab stops drawing, so `capture_visualization` refuses rather than return a stale frame.
+
 ### Graph Design Guidelines for Claude Code
 
 When generating or modifying `noodles.json` programmatically:

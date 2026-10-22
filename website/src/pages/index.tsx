@@ -4,6 +4,8 @@ import Heading from "@theme/Heading";
 import Layout from "@theme/Layout";
 import clsx from "clsx";
 
+import ClaudeCodeQuickStart from "../components/ClaudeCodeQuickStart";
+
 import styles from "./index.module.css";
 
 function HomepageHeader() {
@@ -54,6 +56,15 @@ function HomepageHeader() {
 					>
 						Read Docs
 					</Link>
+					<a
+						className={clsx(
+							"button button--secondary button--lg",
+							styles.secondaryButton,
+						)}
+						href="#claude-code"
+					>
+						AI quick start
+					</a>
 				</div>
 			</div>
 		</header>
@@ -408,6 +419,7 @@ export default function Home() {
 			<HomepageHeader />
 			<main>
 				<ShowcaseGallery />
+				<ClaudeCodeQuickStart />
 				<Positioning />
 				<VideoSection />
 				<UseCases />

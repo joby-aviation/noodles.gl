@@ -31,6 +31,8 @@ export default defineConfig(({ mode }) => {
     base: mode === 'development' ? '/' : '/app/',
     server: {
       open: true,
+      // The agent benchmark's Chrome profile churns constantly while a model runs
+      watch: { ignored: ['**/bench/agent/.profile/**', '**/bench/agent/results/**'] },
     },
     // duckdb-wasm bundles WASM + worker files that break Vite's dep optimization.
     // web-llm is excluded for the opposite reason: it is only ever reached through

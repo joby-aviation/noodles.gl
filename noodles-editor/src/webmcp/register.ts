@@ -102,7 +102,12 @@ async function runTool(
     // apply_modifications only validates in MCPTools — the actual graph
     // mutation goes through the editor's applier registered in the bridge
     if (definition.name === 'apply_modifications' && result.success) {
-      return applyToEditor(result)
+      const applied = applyToEditor(result)
+      // A rejected batch never lands, so its ids must not stay queued and block
+      // a corrected retry as "already exists". A batch that applied lands, and
+      // setProject drops its ids.
+      if (!applied.success) tools.clearQueuedModifications()
+      return applied
     }
 
     return result

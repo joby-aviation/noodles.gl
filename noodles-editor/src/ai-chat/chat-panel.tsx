@@ -14,19 +14,18 @@ import { useUIStore } from '../noodles/store'
 import { useOpenRouterConnect } from '../noodles/use-openrouter-connect'
 import { debugAiChat } from '../utils/debug'
 import { useAgentModelStore } from './agent/model-store'
+import { createProvider } from './agent/provider-factory'
 import { type Credentials, isProviderReady, resolveProviderId } from './agent/provider-selection'
-import { ANTHROPIC_MODELS, AnthropicProvider } from './agent/providers/anthropic'
-import { CHROME_MODELS, chromeAvailability, createChromeProvider } from './agent/providers/chrome'
-import { CustomProvider } from './agent/providers/custom'
+import { ANTHROPIC_MODELS } from './agent/providers/anthropic'
+import { CHROME_MODELS, chromeAvailability } from './agent/providers/chrome'
 import {
   cachedOpenRouterFreeModels,
   defaultFreeModel,
   fetchOpenRouterFreeModels,
   OPENROUTER_MODELS,
   type OpenRouterModel,
-  OpenRouterProvider,
 } from './agent/providers/openrouter'
-import { createWebLLMProvider, WEBLLM_MODELS, webgpuAvailable } from './agent/providers/webllm'
+import { WEBLLM_MODELS, webgpuAvailable } from './agent/providers/webllm'
 import { AgentSession } from './agent/session'
 import type { AgentProvider, AgentUsage, DownloadProgress, ProviderId } from './agent/types'
 import { webSearchConfigFor } from './agent/web-search'
@@ -857,38 +856,6 @@ function modelGroupsFor(
             : [{ id: '', label: 'Not configured' }],
         },
       ]
-  }
-}
-
-interface CreateProviderOptions {
-  providerId: ProviderId
-  apiKey: string | undefined
-  model: string | undefined
-  customEndpoint: CustomEndpointConfig | undefined
-  onDownloadProgress: (progress: DownloadProgress) => void
-}
-
-// The on-device providers are the ones whose construction is async: the model has
-// to be resident before the first request, and that is also where the download
-// happens, so both report progress while they build.
-async function createProvider(options: CreateProviderOptions): Promise<AgentProvider> {
-  const { providerId, apiKey, model, customEndpoint } = options
-  switch (providerId) {
-    case 'chrome':
-      return createChromeProvider({ onDownloadProgress: options.onDownloadProgress })
-    case 'webllm':
-      return createWebLLMProvider({ model, onDownloadProgress: options.onDownloadProgress })
-    case 'openrouter':
-      return new OpenRouterProvider({ apiKey: apiKey ?? '', model })
-    case 'anthropic':
-      return new AnthropicProvider({ apiKey: apiKey ?? '', model })
-    case 'custom':
-      if (!customEndpoint) throw new Error('No custom endpoint is configured')
-      return new CustomProvider({
-        baseUrl: customEndpoint.baseUrl,
-        apiKey: customEndpoint.apiKey,
-        model: customEndpoint.model,
-      })
   }
 }
 

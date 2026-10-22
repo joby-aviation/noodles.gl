@@ -3,13 +3,18 @@ import { Redirect, Route, Router, Switch, useLocation, useRoute, useSearchParams
 import { AnalyticsConsentBanner } from './components/analytics-consent-banner'
 import { OpenRouterCallback } from './components/openrouter-callback'
 import { type ModalView, QuickStartModal } from './components/quick-start-modal'
-import { externalControl } from './noodles/globals'
+import { agentBench, externalControl } from './noodles/globals'
 import { useUIStore } from './noodles/store'
 import TimelineEditor from './timeline-editor'
 import { analytics } from './utils/analytics'
 import { debugApp } from './utils/debug'
 
 const WebMCPProvider = lazy(() => import('./webmcp').then(m => ({ default: m.WebMCPProvider })))
+
+// The DEV check is repeated inline so the production build drops the import
+if (import.meta.env.DEV && agentBench) {
+  import('./ai-chat/bench/bench-hook').then(m => m.installBenchHook())
+}
 
 // Error boundary to catch analytics failures
 class AnalyticsErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {

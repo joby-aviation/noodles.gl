@@ -88,7 +88,7 @@ import {
   type MaplibreStyle,
   type StyleConfiguratorData,
 } from '../utils/map-style-utils'
-import { CARTO_DARK, MAP_STYLES } from '../utils/map-styles'
+import { CARTO_DARK } from '../utils/map-styles'
 import { mulberry32 } from '../utils/random'
 import { sqlIdentifier, sqlLiteral } from '../utils/sql'
 import {
@@ -270,6 +270,12 @@ export abstract class Operator<OP extends IOperator> {
   // Dependency tracking for pull-based model
   private _upstreamDependencies: Set<Operator<IOperator>> = new Set()
   private _downstreamDependents: Set<Operator<IOperator>> = new Set()
+
+  // True from the moment a pull starts. executionState only reports 'executing'
+  // after 200ms, so it reads idle while a fetch is just getting going.
+  get isComputing(): boolean {
+    return this._computingPromise !== null
+  }
 
   constructor(
     public id: OpId,
@@ -1945,6 +1951,8 @@ export class TimeOp extends Operator<TimeOp> {
       this.outputs.now.next(state.now)
       this.outputs.tick.next(state.tick)
       this.outputs.sequenceTime.next(state.sequenceTime)
+      // Drop the cached result so the next pull returns the current time
+      this.markDirty()
     })
     this.subs.push(sub)
 
@@ -1980,8 +1988,10 @@ export class TimeOp extends Operator<TimeOp> {
   }
 
   execute(_: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    // Outputs are driven by the BehaviorSubject, not by execute()
-    return null
+    // The BehaviorSubject pushes each update to the outputs; execute() reports the
+    // current values so pulls through this operator get a result to cache
+    const { now, sequenceTime, tick } = this.timeState$.value
+    return { now, sequenceTime, tick }
   }
 }
 
@@ -4091,10 +4101,7 @@ export class MaplibreBasemapOp extends Operator<MaplibreBasemapOp> {
 
   createInputs() {
     return {
-      mapStyle: new MapStyleField(CARTO_DARK, {
-        accept: '.json',
-        suggestions: Object.entries(MAP_STYLES).map(([url, name]) => ({ value: url, label: name })),
-      }),
+      mapStyle: new MapStyleField(CARTO_DARK, { accept: '.json' }),
       projection: new StringLiteralField('mercator', {
         values: ['mercator', 'globe'],
         showByDefault: false,
