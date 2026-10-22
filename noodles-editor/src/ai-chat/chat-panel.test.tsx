@@ -1,13 +1,27 @@
-import { act, cleanup, render } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { ReactFlowProvider } from '@xyflow/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getKeysStore } from '../noodles/keys-store'
 import { AUTH_MESSAGE_TYPE } from '../noodles/openrouter-oauth'
 import { useAgentModelStore } from './agent/model-store'
 import { DEFAULT_OPENROUTER_MODEL, resetOpenRouterCatalogue } from './agent/providers/openrouter'
+import { WEBLLM_MODELS } from './agent/providers/webllm'
 import { ChatPanel } from './chat-panel'
+import type { ContextLoader } from './context-loader'
 import { globalContextManager } from './global-context-manager'
 import type { NoodlesProject } from './types'
+
+// The picker only shows once a session has started, and starting a real local model
+// means a download
+vi.mock('./agent/provider-factory', () => ({
+  createProvider: async () => ({ model: 'stub', supportsNativeTools: false, contextWindow: 4096 }),
+}))
+
+// Report a WebGPU adapter so the local model can be ready
+vi.mock('./agent/providers/webllm', async importOriginal => ({
+  ...(await importOriginal<typeof import('./agent/providers/webllm')>()),
+  webgpuAvailable: async () => true,
+}))
 
 const FREE_MODEL = 'z-ai/glm-4.5-air:free'
 
@@ -68,6 +82,7 @@ afterEach(() => {
   vi.unstubAllGlobals()
   resetOpenRouterCatalogue()
   useAgentModelStore.getState().setModel('openrouter', undefined)
+  useAgentModelStore.getState().setModel('webllm', undefined)
   getKeysStore().clearBrowserKey('openrouter')
   getKeysStore().setProviderPreference('automatic')
 })
@@ -95,5 +110,30 @@ describe('ChatPanel after connecting OpenRouter', () => {
     await act(async () => releaseCatalogue())
     await vi.waitFor(() => expect(storedOpenRouterModel()).toBe(FREE_MODEL))
     expect(storedOpenRouterModel()).not.toBe(DEFAULT_OPENROUTER_MODEL)
+  })
+})
+
+describe('ChatPanel model picker', () => {
+  it('switches to a local model that is already set up instead of opening Settings', async () => {
+    useAgentModelStore.getState().setModel('webllm', WEBLLM_MODELS[0].id)
+    vi.spyOn(globalContextManager, 'waitForReady').mockResolvedValue({} as ContextLoader)
+    window.location.hash = ''
+    render(
+      <ReactFlowProvider>
+        <ChatPanel
+          project={{ nodes: [], edges: [] } as NoodlesProject}
+          onClose={() => {}}
+          isVisible
+        />
+      </ReactFlowProvider>
+    )
+    // Let the WebGPU check and the session start settle
+    await act(() => vi.advanceTimersByTimeAsync(0))
+    const picker = screen.getByTitle('Which API the assistant talks to')
+
+    fireEvent.change(picker, { target: { value: 'webllm' } })
+
+    expect(getKeysStore().getProviderPreference()).toBe('webllm')
+    expect(window.location.hash).toBe('')
   })
 })
