@@ -3,11 +3,11 @@
 // user's session does.
 
 import type { CustomEndpointConfig } from '../../noodles/keys-store'
-import { AnthropicProvider } from './providers/anthropic'
-import { createChromeProvider } from './providers/chrome'
+import { AnthropicProvider, DEFAULT_ANTHROPIC_MODEL } from './providers/anthropic'
+import { CHROME_MODELS, createChromeProvider } from './providers/chrome'
 import { CustomProvider } from './providers/custom'
-import { OpenRouterProvider } from './providers/openrouter'
-import { createWebLLMProvider } from './providers/webllm'
+import { DEFAULT_OPENROUTER_MODEL, OpenRouterProvider } from './providers/openrouter'
+import { createWebLLMProvider, DEFAULT_WEBLLM_MODEL } from './providers/webllm'
 import type { AgentProvider, DownloadProgress, ProviderId } from './types'
 
 export interface CreateProviderOptions {
@@ -19,6 +19,28 @@ export interface CreateProviderOptions {
   // WebLLM only: the KV-cache size to allocate, in tokens. Unset keeps the
   // prebuilt config's 4096.
   contextWindow?: number
+}
+
+// The model a provider built from these options runs, known before building it.
+// A load that fails never produces a provider to read `.model` off, so reporting
+// the outcome by this keeps a failure and a success of the same model under one
+// name. Undefined only for a custom endpoint that is not configured.
+export function resolveProviderModel(
+  options: Pick<CreateProviderOptions, 'providerId' | 'model' | 'customEndpoint'>
+): string | undefined {
+  const { providerId, model, customEndpoint } = options
+  switch (providerId) {
+    case 'chrome':
+      return CHROME_MODELS[0].id
+    case 'webllm':
+      return model ?? DEFAULT_WEBLLM_MODEL
+    case 'openrouter':
+      return model ?? DEFAULT_OPENROUTER_MODEL
+    case 'anthropic':
+      return model ?? DEFAULT_ANTHROPIC_MODEL
+    case 'custom':
+      return customEndpoint?.model
+  }
 }
 
 // The on-device providers are the ones whose construction is async: the model has

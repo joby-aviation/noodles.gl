@@ -12,7 +12,10 @@ import { globalContextManager } from './global-context-manager'
 import { MCPTools } from './mcp-tools'
 import type { NoodlesProject } from './types'
 
-vi.mock('./agent/provider-factory', () => ({ createProvider: vi.fn() }))
+vi.mock('./agent/provider-factory', async importOriginal => ({
+  ...(await importOriginal<typeof import('./agent/provider-factory')>()),
+  createProvider: vi.fn(),
+}))
 
 function fakeProvider(supportsImages: boolean): AgentProvider {
   return {

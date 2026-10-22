@@ -49,33 +49,96 @@ import {
 export interface WebLLMModel {
   id: string
   label: string
-  // Download size, which is also roughly the VRAM the model will hold
-  sizeMb: number
+  // What the first load fetches, and what the model holds on the GPU once loaded.
+  // The second is the config's own vram_required_MB and runs well above the first.
+  downloadMb: number
+  vramMb: number
+  // Recommended models are listed first; compatibility ones stay available for a
+  // saved choice and for GPUs that cannot hold a recommended model
+  tier: 'quality' | 'fast' | 'compatibility'
+  // False for every artifact today: WebLLM ships no Qwen3.5 vision build yet
+  supportsImages: boolean
 }
 
 // Verified against prebuiltAppConfig.model_list — an id that is not in that list
 // throws at load time, and the whole point of this provider is that the first run
-// works. Sizes are the config's own vram_required_MB.
+// works. vramMb is the config's own vram_required_MB.
 //
-// All six are instruction-tuned and small enough to run on an integrated GPU. The
+// All are instruction-tuned and small enough to run on an integrated GPU. The
 // Qwen models are reasoning models, but constrained decoding leaves no room for a
 // thinking block, so they behave as ordinary chat models here.
 export const WEBLLM_MODELS: readonly WebLLMModel[] = [
   {
-    id: 'Llama-3.2-1B-Instruct-q4f16_1-MLC',
-    label: 'Llama 3.2 1B (0.9 GB)',
-    sizeMb: 879,
+    id: 'Qwen3.5-4B-q4f16_1-MLC',
+    label: 'Local quality: Qwen3.5 4B',
+    downloadMb: 2390,
+    vramMb: 3868,
+    tier: 'quality',
+    supportsImages: false,
   },
-  { id: 'Qwen3-1.7B-q4f16_1-MLC', label: 'Qwen3 1.7B (2.0 GB)', sizeMb: 2037 },
+  {
+    id: 'Qwen3.5-2B-q4f16_1-MLC',
+    label: 'Local fast: Qwen3.5 2B',
+    downloadMb: 1080,
+    vramMb: 2245,
+    tier: 'fast',
+    supportsImages: false,
+  },
+  {
+    id: 'Llama-3.2-1B-Instruct-q4f16_1-MLC',
+    label: 'Llama 3.2 1B',
+    downloadMb: 879,
+    vramMb: 879,
+    tier: 'compatibility',
+    supportsImages: false,
+  },
+  {
+    id: 'Qwen3-1.7B-q4f16_1-MLC',
+    label: 'Qwen3 1.7B',
+    downloadMb: 1200,
+    vramMb: 2037,
+    tier: 'compatibility',
+    supportsImages: false,
+  },
   {
     id: 'Hermes-3-Llama-3.2-3B-q4f16_1-MLC',
-    label: 'Hermes 3 Llama 3.2 3B (2.2 GB)',
-    sizeMb: 2264,
+    label: 'Hermes 3 Llama 3.2 3B',
+    downloadMb: 1900,
+    vramMb: 2264,
+    tier: 'compatibility',
+    supportsImages: false,
   },
-  { id: 'Qwen3-4B-q4f16_1-MLC', label: 'Qwen3 4B (3.4 GB)', sizeMb: 3432 },
-  { id: 'Qwen3.5-4B-q4f16_1-MLC', label: 'Qwen3.5 4B (3.9 GB)', sizeMb: 3868 },
-  { id: 'Qwen3-8B-q4f16_1-MLC', label: 'Qwen3 8B (5.6 GB)', sizeMb: 5696 },
+  {
+    id: 'Qwen3-4B-q4f16_1-MLC',
+    label: 'Qwen3 4B',
+    downloadMb: 2390,
+    vramMb: 3432,
+    tier: 'compatibility',
+    supportsImages: false,
+  },
+  {
+    id: 'Qwen3-8B-q4f16_1-MLC',
+    label: 'Qwen3 8B',
+    downloadMb: 4700,
+    vramMb: 5696,
+    tier: 'compatibility',
+    supportsImages: false,
+  },
 ]
+
+// Qwen3.5 2B for a GPU that cannot hold the 4B: about half the download and GPU
+// memory. The panel offers it when the default fails to load.
+export const FAST_WEBLLM_MODEL = 'Qwen3.5-2B-q4f16_1-MLC'
+
+export function formatGb(mb: number): string {
+  return `${(mb / 1000).toFixed(1)} GB`
+}
+
+// The download is the decision the user is making, so every label carries it
+export function webllmModelLabel(model: WebLLMModel, options: { memory?: boolean } = {}): string {
+  const memory = options.memory ? `, ${formatGb(model.vramMb)} GPU memory` : ''
+  return `${model.label} (${formatGb(model.downloadMb)} download${memory})`
+}
 
 // The only one that reliably makes an edit: 89% on the single-edit bench tasks,
 // against 11% for Qwen3-4B (bench/agent/results/2026-10-01-03-17-adam-mac).
@@ -211,7 +274,7 @@ export class WebLLMProvider implements AgentProvider {
   readonly id = 'webllm' as const
   readonly model: string
   readonly supportsNativeTools = false
-  readonly supportsImages = false
+  readonly supportsImages: boolean
   readonly contextWindow: number
 
   private readonly engine: WebLLMEngine
@@ -231,6 +294,8 @@ export class WebLLMProvider implements AgentProvider {
     this.engine = options.engine
     this.model = options.model
     this.worker = options.worker
+    this.supportsImages =
+      WEBLLM_MODELS.find(model => model.id === options.model)?.supportsImages ?? false
   }
 
   // A model left loaded holds gigabytes of VRAM that the browser will not reclaim

@@ -84,10 +84,11 @@ The provider is chosen in the chat panel header (or pinned in Settings) and stor
 `providerPreference` in `noodles/keys-store.tsx`; the model is stored separately in
 `agent/model-store.ts`. The rules live in `agent/provider-selection.ts` rather than in
 the panel, so they can be tested without mounting the editor. `'automatic'` walks
-`anthropic → openrouter → custom → webllm → chrome` and takes the first one that is
-*ready*, so neither on-device provider is picked for you — they are the weakest of the
-five and have to be asked for. A pinned provider that is not ready falls back to the
-same walk rather than showing an error.
+`anthropic → openrouter → custom → webllm` and takes the first one that is *ready*.
+WebLLM is ready only once the user has chosen a model, so it is never a fallback for
+a missing key. Chrome is experimental and not in the walk at all: its tool use and
+instruction following are unreliable enough that it runs only when pinned. A pinned
+provider that is not ready falls back to the same walk rather than showing an error.
 
 "Ready" is not the same question as "has a key":
 
@@ -202,10 +203,15 @@ or opens Settings → AI Provider, where OpenRouter is one click. Switching stop
 running reply, and `AgentSession.dispose` waits for it to settle before disposing
 the provider.
 
-`WEBLLM_MODELS` carries six ids checked against `prebuiltAppConfig.model_list`, each
-with the download size from the config's own `vram_required_MB`, because "3.4GB the
-first time" is the number that makes the choice an informed one. The download reports
-progress through the same `DownloadProgress` UI Chrome uses.
+`WEBLLM_MODELS` carries seven ids checked against `prebuiltAppConfig.model_list`. Two
+are recommended: Qwen3.5 4B (2.4 GB download, 3.9 GB GPU memory) and Qwen3.5 2B, the
+fast one (1.1 GB download, 2.2 GB GPU memory). The rest sit under "Advanced
+compatibility" so a saved choice keeps working. Download size and GPU memory are
+separate fields, since `vram_required_MB` runs well above the download and both
+numbers make the choice an informed one. When a model fails to load, the panel
+offers the 2B, which needs about half the memory. Every entry carries
+`supportsImages: false` until WebLLM ships a Qwen3.5 vision build. The download
+reports progress through the same `DownloadProgress` UI Chrome uses.
 
 ### Why there is no keyless preset
 

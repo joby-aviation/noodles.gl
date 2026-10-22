@@ -55,6 +55,9 @@ describe('loading a project with a missing operator type', () => {
       { timeout: 15_000 }
     )
     expect(placeholder.textContent).toContain('RemovedOp')
+    expect(placeholder.querySelector('[title="/missing (RemovedOp)"]')?.textContent).toBe(
+      'missing (Removed)'
+    )
 
     // What the editor writes on save
     const editorNodes = getCurrentProject()?.nodes ?? []
