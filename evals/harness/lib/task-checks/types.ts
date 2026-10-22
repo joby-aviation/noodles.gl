@@ -37,6 +37,13 @@ export interface CheckContext {
   before: ProjectJson | null
   /** the session's final answer text, when a task grades the explanation */
   resultText: string | null
+  /** get_node_output results probed in the loaded app, keyed by node id
+   * (load.probeLayers; frozen at run time, also stored as node-outputs.json) */
+  nodeOutputs?: Record<string, unknown> | null
+  /** the session's workspace, still on disk while checks run */
+  workspace?: string
+  /** session wall-clock duration, for tasks that grade a time target */
+  sessionDurationMs?: number
 }
 
 export type CustomChecks = (ctx: CheckContext) => Record<string, CheckResult>

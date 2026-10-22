@@ -15,6 +15,8 @@ export interface LoadCheckResult {
   screenshotNonBlank: boolean | null
   pixelStddev: number | null
   bodyText: string | null
+  /** get_node_output results by node id (only when probeNodeIds was given) */
+  nodeOutputs: Record<string, unknown> | null
   detail: string
 }
 
@@ -61,6 +63,11 @@ export async function loadAndScreenshot(opts: {
   /** Expand the collapsed timeline panel before the screenshot — animation
    * tasks are graded on keyframes, which are invisible with the panel shut. */
   openTimeline?: boolean
+  /** After the screenshot, read these nodes' outputs through the app's own
+   * WebMCP get_node_output tool (navigator.modelContextTesting). Opens the
+   * route with ?externalControl=true, which only mounts the tool surface;
+   * the rendered project is the same. */
+  probeNodeIds?: string[]
 }): Promise<LoadCheckResult> {
   const editorDir = path.join(opts.workspace, 'noodles-editor')
   const server = spawn('npx', ['vite', '--port', String(opts.port), '--strictPort'], {
@@ -87,6 +94,7 @@ export async function loadAndScreenshot(opts: {
         screenshotNonBlank: null,
         pixelStddev: null,
         bodyText: null,
+        nodeOutputs: null,
         detail: `vite dev server did not start: ${serverLog.slice(-500)}`,
       }
     }
@@ -143,8 +151,14 @@ export async function loadAndScreenshot(opts: {
         )
       }
       const consoleErrors: string[] = []
+      // ?externalControl=true (probe mode) also starts the WebMCP local-relay
+      // transport, which dials ws://127.0.0.1:9333+ and logs each refusal.
+      // The harness asked for that mode; the project did not cause it.
+      const probeNoise = (text: string) =>
+        opts.probeNodeIds !== undefined &&
+        /WebSocket connection to 'ws:\/\/(127\.0\.0\.1|localhost|\[::1\]):\d+\/?' failed/.test(text)
       page.on('console', msg => {
-        if (msg.type() === 'error' && !isEnvironmentNoise(msg.text(), msg.location()?.url)) {
+        if (msg.type() === 'error' && !probeNoise(msg.text()) && !isEnvironmentNoise(msg.text(), msg.location()?.url)) {
           consoleErrors.push(msg.text().slice(0, 500))
         }
       })
@@ -154,7 +168,8 @@ export async function loadAndScreenshot(opts: {
         }
       })
 
-      const url = `http://localhost:${opts.port}${opts.route}`
+      const probing = opts.probeNodeIds !== undefined
+      const url = `http://localhost:${opts.port}${opts.route}${probing ? `${opts.route.includes('?') ? '&' : '?'}externalControl=true` : ''}`
       await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60_000 })
       const canvas = await page.waitForSelector('canvas', { timeout: 60_000 }).catch(() => null)
       // Give data loading + first render time to settle.
@@ -184,6 +199,8 @@ export async function loadAndScreenshot(opts: {
             .catch(() => null)
         : null
 
+      const nodeOutputs = probing ? await probeNodeOutputs(page, opts.probeNodeIds ?? []) : null
+
       const { nonBlank, stddev } = analyzeScreenshot(opts.screenshotPath)
       return {
         loaded: canvas !== null,
@@ -192,6 +209,7 @@ export async function loadAndScreenshot(opts: {
         screenshotNonBlank: nonBlank,
         pixelStddev: stddev,
         bodyText,
+        nodeOutputs,
         detail: canvas ? 'ok' : 'no canvas element appeared',
       }
     } finally {
@@ -200,6 +218,108 @@ export async function loadAndScreenshot(opts: {
     }
   } finally {
     killTree(server)
+  }
+}
+
+// Minimal shape of the WebMCP testing API the @mcp-b/global polyfill installs.
+interface ModelContextTesting {
+  listTools(): Array<{ name: string }>
+  executeTool(name: string, inputArgsJson: string): Promise<string | null>
+}
+
+/** Call get_node_output for each node in the page. Results are parsed JSON
+ * where possible; a node the tool can't read records its error text. */
+async function probeNodeOutputs(
+  page: import('playwright').Page,
+  nodeIds: string[]
+): Promise<Record<string, unknown> | null> {
+  const ready = await page
+    .waitForFunction(
+      () => {
+        const t = (globalThis as { navigator?: { modelContextTesting?: ModelContextTesting } }).navigator
+          ?.modelContextTesting
+        return !!t && t.listTools().some(tool => tool.name === 'get_node_output')
+      },
+      undefined,
+      { timeout: 30_000 }
+    )
+    .then(() => true)
+    .catch(() => false)
+  if (!ready) return null
+  const raw = await page.evaluate(async ids => {
+    const t = (globalThis as unknown as { navigator: { modelContextTesting: ModelContextTesting } }).navigator
+      .modelContextTesting
+    const out: Record<string, string | null> = {}
+    for (const id of ids) {
+      try {
+        out[id] = await t.executeTool('get_node_output', JSON.stringify({ nodeId: id, maxRows: 100_000 }))
+      } catch (e) {
+        out[id] = `error: ${String(e)}`
+      }
+    }
+    return out
+  }, nodeIds)
+  // Each result is an MCP response whose payload is JSON text inside
+  // content[].text; unwrap it so checks see the data, not a string.
+  const tryJson = (text: string): unknown => {
+    try {
+      return JSON.parse(text)
+    } catch {
+      return text
+    }
+  }
+  const parsed: Record<string, unknown> = {}
+  for (const [id, text] of Object.entries(raw)) {
+    const response = text === null ? null : tryJson(text)
+    const content = (response as { content?: Array<{ type?: string; text?: string }> } | null)?.content
+    const texts = Array.isArray(content) ? content.filter(c => c.type === 'text' && typeof c.text === 'string') : []
+    parsed[id] = texts.length === 1 ? tryJson(texts[0].text as string) : texts.length ? texts.map(c => tryJson(c.text as string)) : response
+  }
+  return parsed
+}
+
+/** Pixel stats for any image the browser can decode (the agent's own
+ * screenshot may be JPEG; pngjs reads PNG only). Same thresholds as
+ * analyzeScreenshot. */
+export async function analyzeImageFile(file: string): Promise<{ nonBlank: boolean; stddev: number }> {
+  if (/\.png$/i.test(file)) return analyzeScreenshot(file)
+  const { chromium } = await import('playwright')
+  const browser = await chromium.launch()
+  try {
+    const page = await browser.newPage()
+    const mime = /\.webp$/i.test(file) ? 'image/webp' : 'image/jpeg'
+    const dataUrl = `data:${mime};base64,${fs.readFileSync(file).toString('base64')}`
+    return await page.evaluate(async src => {
+      const g = globalThis as unknown as {
+        Image: new () => { src: string; width: number; height: number; decode(): Promise<void> }
+        document: { createElement(tag: 'canvas'): { width: number; height: number; getContext(k: '2d'): any } }
+      }
+      const img = new g.Image()
+      img.src = src
+      await img.decode()
+      const canvas = g.document.createElement('canvas')
+      canvas.width = img.width
+      canvas.height = img.height
+      const ctx = canvas.getContext('2d')
+      ctx.drawImage(img, 0, 0)
+      const data: Uint8ClampedArray = ctx.getImageData(0, 0, img.width, img.height).data
+      const n = img.width * img.height
+      const step = Math.max(1, Math.floor(n / 20_000))
+      const samples: number[] = []
+      const counts = new Map<number, number>()
+      for (let i = 0; i < n; i += step) {
+        const o = i * 4
+        samples.push(0.2126 * data[o] + 0.7152 * data[o + 1] + 0.0722 * data[o + 2])
+        const q = (Math.round(data[o] / 16) << 8) | (Math.round(data[o + 1] / 16) << 4) | Math.round(data[o + 2] / 16)
+        counts.set(q, (counts.get(q) ?? 0) + 1)
+      }
+      const mean = samples.reduce((a, b) => a + b, 0) / samples.length
+      const stddev = Math.sqrt(samples.reduce((a, b) => a + (b - mean) ** 2, 0) / samples.length)
+      const dominant = Math.max(...counts.values()) / samples.length
+      return { nonBlank: stddev > 4 && dominant < 0.98, stddev }
+    }, dataUrl)
+  } finally {
+    await browser.close()
   }
 }
 

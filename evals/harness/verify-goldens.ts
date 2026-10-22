@@ -27,7 +27,11 @@ import { loadRegistry, noodlesVersion } from './lib/registry'
 import { CUSTOM_CHECKS, type ProjectJson } from './lib/task-checks'
 import { loadTask } from './lib/task'
 import { validateProject } from './lib/validate-project'
-import { createWorkspace } from './lib/workspace'
+import { createWorkspace, measuredSurfaceDir } from './lib/workspace'
+
+// App-tree facts (registry, schema version, base projects, AGENTS.md) come
+// from the measured ref, the surface sessions and the visual layer see.
+const SURFACE_ROOT = measuredSurfaceDir()
 
 const FIXTURES = path.join(TASKS_ROOT, 'fixtures')
 const GOLDEN_DIR = path.join(FIXTURES, 'golden')
@@ -50,6 +54,9 @@ interface Target {
    * 'informational' captures without asserting (documented env limits) */
   render: 'healthy' | 'informational'
   grabBodyText?: boolean
+  /** re-run the custom checks against get_node_output probes of the loaded
+   * golden (checks that grade runtime data can't pass statically) */
+  probe?: boolean
 }
 
 const TARGETS: Target[] = [
@@ -61,6 +68,8 @@ const TARGETS: Target[] = [
   { id: 'animate-camera', taskId: 'animate-camera', render: 'healthy' },
   { id: 'code-refs-containers', taskId: 'code-refs-containers', render: 'healthy' },
   { id: 'hiking-time', taskId: 'author-hiking-time', render: 'healthy', grabBodyText: true },
+  { id: 'map-flights-last-week', taskId: 'map-flights-last-week', render: 'healthy', probe: true },
+  { id: 'animate-flight-route', taskId: 'animate-flight-route', render: 'healthy', probe: true },
 ]
 
 // Reference diagnosis used ONLY to exercise the resultText checks' pass side
@@ -111,8 +120,8 @@ const loadJson = (file: string): ProjectJson => JSON.parse(fs.readFileSync(file,
 const goldenPath = (id: string) => path.join(GOLDEN_DIR, `${id}.noodles.json`)
 
 async function main(): Promise<void> {
-  const registry = loadRegistry(REPO_ROOT)
-  const version = noodlesVersion(REPO_ROOT)
+  const registry = loadRegistry(SURFACE_ROOT)
+  const version = noodlesVersion(SURFACE_ROOT)
 
   // Repo-vs-origin/main sanity: sessions run against origin/main; the semantic
   // layer verifies against this checkout. Flag divergence in the app tree.
@@ -123,7 +132,7 @@ async function main(): Promise<void> {
       encoding: 'utf-8',
     }).trim()
     if (diff) {
-      console.log('note: checkout diverges from origin/main in the app tree; verification uses the checkout:')
+      console.log('note: checkout diverges from origin/main in the app tree; static checks use the measured ref, not the checkout:')
       console.log(diff.split('\n').slice(-3).join('\n'))
     }
   } catch {
@@ -198,10 +207,12 @@ function runStaticChecks(
 
   const checks = CUSTOM_CHECKS[target.id]?.({
     after: project,
-    before: target.id === 'modify-arcs' ? loadJson(path.join(REPO_ROOT, loadTask(target.taskId).workspace?.project as string)) : null,
+    before: target.id === 'modify-arcs' ? loadJson(path.join(SURFACE_ROOT, loadTask(target.taskId).workspace?.project as string)) : null,
     resultText: target.id === 'debug-blank-viz' ? REFERENCE_DIAGNOSIS : null,
   })
   for (const [name, check] of Object.entries(checks ?? {})) {
+    // runtime-data checks are graded in the visual layer, against the probe
+    if (target.probe && check.detail?.startsWith('no runtime probe')) continue
     report(target.id, `check:${name}`, check.pass, check.detail ?? '')
   }
 }
@@ -513,7 +524,7 @@ function verifyCodeRefsSemantics(project: ProjectJson): void {
 
 function verifyModifyArcsSemantics(golden: ProjectJson): void {
   const t = 'modify-arcs'
-  const base = loadJson(path.join(REPO_ROOT, loadTask(t).workspace?.project as string))
+  const base = loadJson(path.join(SURFACE_ROOT, loadTask(t).workspace?.project as string))
 
   // The doubling target in the checks (160) must really be 2x the BASE width —
   // read the base instead of trusting the constant.
@@ -536,9 +547,9 @@ function verifyModifyArcsSemantics(golden: ProjectJson): void {
 
 function verifyAnswerKey(): void {
   const t = 'answer-key'
-  const operators = fs.readFileSync(path.join(REPO_ROOT, 'noodles-editor/src/noodles/operators.ts'), 'utf-8')
-  const agents = fs.readFileSync(path.join(REPO_ROOT, 'AGENTS.md'), 'utf-8')
-  const migrationsDir = path.join(REPO_ROOT, 'noodles-editor/src/noodles/__migrations__')
+  const operators = fs.readFileSync(path.join(SURFACE_ROOT, 'noodles-editor/src/noodles/operators.ts'), 'utf-8')
+  const agents = fs.readFileSync(path.join(SURFACE_ROOT, 'AGENTS.md'), 'utf-8')
+  const migrationsDir = path.join(SURFACE_ROOT, 'noodles-editor/src/noodles/__migrations__')
   const migration = (n: string) => {
     const f = fs.readdirSync(migrationsDir).find(f => f.startsWith(n))
     return f ? fs.readFileSync(path.join(migrationsDir, f), 'utf-8') : ''
@@ -613,7 +624,7 @@ function verifyAnswerKey(): void {
   q('q18-date-to-datetime', /DateOp/.test(m008) && /DateTimeOp/.test(m008), m008 ? 'migration 008 renames DateOp -> DateTimeOp' : 'migration 008 missing')
   q('q19-time-markers', /markers/.test(migration('013')), 'migration 013 adds markers')
   // q20-q22, q29: edge shape facts, verified against a committed example
-  const example = loadJson(path.join(REPO_ROOT, 'noodles-editor/src/examples/uk-commute/noodles.json'))
+  const example = loadJson(path.join(SURFACE_ROOT, 'noodles-editor/src/examples/uk-commute/noodles.json'))
   const edges = example.edges ?? []
   const wellFormed = edges.every(
     e => e.id === `${e.source}.${e.sourceHandle}->${e.target}.${e.targetHandle}` && e.sourceHandle?.startsWith('out.') && e.targetHandle?.startsWith('par.')
@@ -635,7 +646,7 @@ function verifyAnswerKey(): void {
     fs.readFileSync(path.join(TASKS_ROOT, 'fixtures/contextualize-answer-key.json'), 'utf-8')
   ) as { answers: Array<{ id: string; expected: string }> }
   const q23 = answerKey.answers.find(a => a.id === 'q23')
-  const liveVersion = noodlesVersion(REPO_ROOT)
+  const liveVersion = noodlesVersion(SURFACE_ROOT)
   q(
     'q23-version',
     q23 !== undefined && new RegExp(q23.expected).test(String(liveVersion)) && example.version === liveVersion,
@@ -668,6 +679,7 @@ async function runVisualChecks(targets: Target[]): Promise<void> {
     render: 'healthy' | 'informational' | 'expected-unhealthy'
     grabBodyText?: boolean
     openTimeline?: boolean
+    probe?: { project: ProjectJson; nodeIds: string[] }
   }
   const visuals: Visual[] = []
 
@@ -683,7 +695,17 @@ async function runVisualChecks(targets: Target[]): Promise<void> {
     fs.mkdirSync(path.dirname(artifact), { recursive: true })
     fs.copyFileSync(candidatePath ?? goldenPath(target.id), artifact)
     const route = task.grader.mechanical.load?.route ?? `/examples/${path.basename(path.dirname(artifact))}`
+    const installed = loadJson(artifact)
+    const probe = target.probe
+      ? {
+          project: installed,
+          nodeIds: (installed.nodes ?? [])
+            .filter(n => typeof n.type === 'string' && /LayerOp$/.test(n.type) && n.id)
+            .map(n => n.id as string),
+        }
+      : undefined
     visuals.push({
+      probe,
       name: target.id,
       route,
       render: target.render,
@@ -724,6 +746,7 @@ async function runVisualChecks(targets: Target[]): Promise<void> {
         port: port++,
         grabBodyText: v.grabBodyText,
         openTimeline: v.openTimeline,
+        probeNodeIds: v.probe?.nodeIds,
       })
     } catch (e) {
       // One wedged capture (e.g. the software rasterizer starving on a huge
@@ -745,6 +768,20 @@ async function runVisualChecks(targets: Target[]): Promise<void> {
       report(v.name, 'render-2k-informational', healthy, detail, true)
     }
     for (const err of result.consoleErrors.slice(0, 3)) console.log(`      console: ${err.slice(0, 160)}`)
+
+    if (v.probe) {
+      if (!result.nodeOutputs) report(v.name, 'runtime-probe', false, 'get_node_output tools never registered')
+      else fs.writeFileSync(path.join(SCREENS_DIR, `${v.name}.node-outputs.json`), JSON.stringify(result.nodeOutputs, null, 1))
+      const checks = CUSTOM_CHECKS[v.name]?.({
+        after: v.probe.project,
+        before: null,
+        resultText: null,
+        nodeOutputs: result.nodeOutputs,
+      })
+      for (const [name, check] of Object.entries(checks ?? {})) {
+        report(v.name, `runtime:${name}`, check.pass, check.detail ?? '')
+      }
+    }
 
     if (v.grabBodyText && expectedHikingTotal !== null) {
       const text = result.bodyText ?? ''

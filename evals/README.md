@@ -50,7 +50,8 @@ Fable never grades itself) and small-fast
 `AnthropicBedrockMantle` endpoint does not serve the pinned models in this
 account/region — see the journal). Requires `AWS_ACCESS_KEY_ID`,
 `AWS_SECRET_ACCESS_KEY`, `AWS_REGION` (plus `AWS_SESSION_TOKEN` for
-temporary credentials).
+temporary credentials), or a named `AWS_PROFILE` (SSO or shared credentials
+file) plus `AWS_REGION`.
 
 **OpenAI via Codex CLI** — the GPT-5.6 family: `gpt-5.6-sol` /
 `gpt-5.6-terra` / `gpt-5.6-luna`. Sessions are spawned through the pinned
@@ -99,9 +100,9 @@ export EVALS_R2_ACCOUNT_ID=... EVALS_R2_ACCESS_KEY_ID=... \
 
 cd evals && npm run selftest        # offline, must pass
 # smoke one session per provider you plan to run:
-npm run run -- --task modify-arcs --model us.anthropic.claude-fable-5 --sessions 1 --series 2026-08-18.t0.c62c28c99a5d
-npm run run -- --task modify-arcs --model gpt-5.6-luna              --sessions 1 --series 2026-08-18.t0.c62c28c99a5d
-npm run run -- --task modify-arcs --model local/<name>              --sessions 1 --series 2026-08-18.t0.c62c28c99a5d
+npm run run -- --task modify-arcs --model us.anthropic.claude-fable-5 --sessions 1 --series 2026-10-21.t0.6d3fe28a8989
+npm run run -- --task modify-arcs --model gpt-5.6-luna              --sessions 1 --series 2026-10-21.t0.6d3fe28a8989
+npm run run -- --task modify-arcs --model local/<name>              --sessions 1 --series 2026-10-21.t0.6d3fe28a8989
 
 # full matrix (sequential; ~8 tasks x 3 sessions per model)
 for m in us.anthropic.claude-sonnet-4-6 us.anthropic.claude-sonnet-5 \
@@ -109,14 +110,14 @@ for m in us.anthropic.claude-sonnet-4-6 us.anthropic.claude-sonnet-5 \
          gpt-5.6-sol gpt-5.6-terra gpt-5.6-luna; do
   for t in author-scatterplot modify-arcs debug-blank-viz sql-h3-pipeline \
            animate-camera contextualize-operator author-hiking-time code-refs-containers; do
-    npm run run -- --task "$t" --model "$m" --sessions 3 --series 2026-08-18.t0.c62c28c99a5d
+    npm run run -- --task "$t" --model "$m" --sessions 3 --series 2026-10-21.t0.6d3fe28a8989
   done
 done
 
-npm run grade  -- --series 2026-08-18.t0.c62c28c99a5d   # needs bedrock env (judge)
-npm run report -- --series 2026-08-18.t0.c62c28c99a5d
-npm run sync-results -- --push --series 2026-08-18.t0.c62c28c99a5d && \
-npm run sync-results -- --verify --series 2026-08-18.t0.c62c28c99a5d --all
+npm run grade  -- --series 2026-10-21.t0.6d3fe28a8989   # needs bedrock env (judge)
+npm run report -- --series 2026-10-21.t0.6d3fe28a8989
+npm run sync-results -- --push --series 2026-10-21.t0.6d3fe28a8989 && \
+npm run sync-results -- --verify --series 2026-10-21.t0.6d3fe28a8989 --all
 ```
 
 The measured surface is pinned in `harness/lib/config.ts` (`MEASURED_REF`,
@@ -179,6 +180,33 @@ isolation audit scans every tool call for the harness checkout, the spec dir,
 or `evals/`, and its verdict is recorded in the results row. The first run
 builds an installed template workspace (one `npm install`); later runs copy it
 (hardlinked `node_modules`).
+
+### Task file options beyond the basics
+
+Most tasks only set fixtures, an artifact, and mechanical checks. A few
+need more:
+
+| Frontmatter | What it does | Used by |
+|---|---|---|
+| `promptFile: fixtures/<file>` | Reads the verbatim prompt from a file instead of the body's blockquote, for prompts that are published artifacts. | `quick-start-screenshot` |
+| `workspace.mode: empty` | The session starts in an empty directory: no checkout, no template, no git. Whatever it needs, it fetches. | `quick-start-screenshot` |
+| `session.isolatedConfig: true` | Runs the `claude` CLI with a per-run `CLAUDE_CONFIG_DIR`, so `claude mcp add` and nested sessions never touch the operator's config. | `quick-start-screenshot` |
+| `mechanical.agentScreenshot: true` | Copies the newest image the session wrote to `agent-screenshot.<ext>` and checks it is non-blank (PNG, JPEG, or WebP). | `quick-start-screenshot` |
+| `mechanical.load.probeLayers: true` | Opens the route with `?externalControl=true` and reads every `*LayerOp`'s output through the app's own WebMCP `get_node_output` tool. Frozen as `node-outputs.json` and passed to the custom checks, so a filter is graded on the data the layer received. | `map-flights-last-week`, `animate-flight-route` |
+
+After every session the runner kills processes whose command line contains
+the workspace path (a dev server the session left running in the
+background).
+
+Offline checks (`selftest`, the static and semantic layers of
+`verify-goldens`) read the operator registry, schema version, example
+projects, and AGENTS.md from the measured ref (`MEASURED_REF`, extracted to
+`<work root>/surface-<sha12>`), not from this branch's app tree, so goldens
+are judged by the same surface sessions see.
+
+`tasks/fixtures/flights-fixture.csv` is made-up data written by
+`tasks/fixtures/make-flights-fixture.ts` (deterministic; the selftest fails if
+the committed CSV drifts from the generator).
 
 ## Grading (three layers, strictly ordered)
 
