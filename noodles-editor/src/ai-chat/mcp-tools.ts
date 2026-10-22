@@ -405,7 +405,8 @@ export class MCPTools {
   // Capture screenshot of the current visualization
   async captureVisualization(params: {
     includeUI?: boolean
-    format?: 'png'
+    format?: 'png' | 'jpeg'
+    quality?: number
   }): Promise<ToolResult> {
     try {
       const canvas = this.getCanvas()
@@ -416,14 +417,15 @@ export class MCPTools {
         }
       }
 
-      const format = params.format || 'png'
+      const format = params.format || 'jpeg'
+      const quality = params.quality || 0.5
 
       // Resize to max 1024px on longest side to reduce token usage
       // This typically reduces a 1920x1080 screenshot from ~500KB to ~50KB
       const resizedCanvas = this.resizeCanvas(canvas, 1024)
 
       // Capture resized canvas
-      const dataUrl = resizedCanvas.toDataURL(`image/${format}`)
+      const dataUrl = resizedCanvas.toDataURL(`image/${format}`, quality)
       const base64 = dataUrl.split(',')[1]
 
       return {

@@ -77,7 +77,7 @@ export interface NodeHandle {
 
 export interface Screenshot {
   data: string // base64 encoded image
-  format: 'png'
+  format: 'png' | 'jpeg'
   width: number
   height: number
 }
@@ -387,11 +387,12 @@ export class ExternalControl {
   }
 
   // Capture a screenshot of the visualization
-  async captureVisualization(format: 'png' = 'png'): Promise<Screenshot> {
+  async captureVisualization(format: 'png' | 'jpeg' = 'png', quality = 0.9): Promise<Screenshot> {
     this.ensureConnected()
 
     const result = await this.executeTool('captureVisualization', {
       format,
+      quality,
     })
 
     if (!result.success) {
