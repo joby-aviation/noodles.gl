@@ -7,8 +7,9 @@ import {
   captureScreenshot,
   resolveEncoderConfig,
   useRenderer,
+  type VideoCodec,
 } from './renderer'
-import { VIDEO_CODECS } from './video-export'
+import { ALPHA_VIDEO_CODECS, VIDEO_CODECS } from './video-export'
 
 vi.mock('../utils/analytics', () => ({
   analytics: { track: vi.fn() },
@@ -453,6 +454,159 @@ describe('startSequenceCapture', () => {
       canvas.remove()
       vi.useFakeTimers()
     }
+  })
+})
+
+describe('useRenderer transparent video', () => {
+  beforeEach(() => {
+    track.mockClear()
+  })
+
+  // Half opaque red, half fully transparent, painted the way deck.gl does: a WebGL
+  // canvas that clears to [0, 0, 0, 0]
+  function transparentCanvas() {
+    const canvas = document.createElement('canvas')
+    canvas.width = 64
+    canvas.height = 64
+    document.body.appendChild(canvas)
+    const gl = canvas.getContext('webgl2', { alpha: true })!
+    const draw = () => {
+      gl.disable(gl.SCISSOR_TEST)
+      gl.clearColor(0, 0, 0, 0)
+      gl.clear(gl.COLOR_BUFFER_BIT)
+      gl.enable(gl.SCISSOR_TEST)
+      gl.scissor(0, 0, 32, 64)
+      gl.clearColor(1, 0, 0, 1)
+      gl.clear(gl.COLOR_BUFFER_BIT)
+    }
+    // Keep painting, as in the encode test above
+    const paint = setInterval(draw, 5)
+    return { canvas, stop: () => clearInterval(paint) }
+  }
+
+  async function capture(
+    canvas: HTMLCanvasElement,
+    codec: VideoCodec,
+    size = 64
+  ): Promise<CaptureResult | undefined> {
+    const redraw = vi.fn(() => {
+      queueMicrotask(() => result.current.captureFrame())
+    })
+    const { result } = renderHook(() =>
+      useRenderer({ fps: 10, bitrate: 1_000_000, bitrateMode: 'variable', redraw })
+    )
+    let captured: CaptureResult | undefined
+    await act(async () => {
+      captured = await result.current.startCapture({
+        canvas,
+        width: size,
+        height: size,
+        codec,
+        exportAlpha: true,
+        startFrame: 0,
+        endFrame: 4,
+        target: 'buffer',
+      })
+    })
+    return captured
+  }
+
+  // A real encode and decode on the real clock. mediabunny encodes the color and the
+  // alpha as two WebCodecs streams; reading the file back proves the alpha survived.
+  // Played in a <video> element too, since that is how most people will view it.
+  it.for(ALPHA_VIDEO_CODECS)('keeps the alpha channel in a %s WebM', async (codec, { skip }) => {
+    vi.useRealTimers()
+    const { canvas, stop } = transparentCanvas()
+    try {
+      const result = await capture(canvas, codec)
+      if (result?.status === 'error' && result.error.message.startsWith('This browser cannot')) {
+        skip(`this browser has no ${codec} encoder`)
+      }
+      expect(result?.status === 'error' ? result.error.message : result?.status).toBe('done')
+      if (result?.status !== 'done') return
+
+      const { ALL_FORMATS, BufferSource, CanvasSink, Input } = await import('mediabunny')
+      const input = new Input({ source: new BufferSource(result.buffer!), formats: ALL_FORMATS })
+      expect(await input.getMimeType()).toMatch(/^video\/webm/)
+      const videoTrack = (await input.getPrimaryVideoTrack())!
+      expect(videoTrack.codec).toBe(codec)
+      expect(await videoTrack.canBeTransparent()).toBe(true)
+      expect(await videoTrack.computeDuration()).toBeCloseTo(0.5)
+
+      const decoded = await new CanvasSink(videoTrack, { alpha: true }).getCanvas(0.25)
+      const ctx = (decoded!.canvas as HTMLCanvasElement).getContext('2d')!
+      const [, , , opaqueAlpha] = ctx.getImageData(8, 32, 1, 1).data
+      const [, , , clearAlpha] = ctx.getImageData(56, 32, 1, 1).data
+      expect(opaqueAlpha).toBeGreaterThan(240)
+      expect(clearAlpha).toBeLessThan(16)
+
+      const video = document.createElement('video')
+      video.muted = true
+      video.src = URL.createObjectURL(new Blob([result.buffer!], { type: 'video/webm' }))
+      await new Promise(resolve => {
+        video.onloadeddata = resolve
+      })
+      video.currentTime = 0.25
+      await new Promise(resolve => {
+        video.onseeked = resolve
+      })
+      const played = document.createElement('canvas').getContext('2d')!
+      played.drawImage(video, 0, 0)
+      expect(played.getImageData(8, 32, 1, 1).data[3]).toBeGreaterThan(240)
+      expect(played.getImageData(56, 32, 1, 1).data[3]).toBeLessThan(16)
+      URL.revokeObjectURL(video.src)
+
+      expect(track).toHaveBeenLastCalledWith(
+        'render_completed',
+        expect.objectContaining({ format: 'webm', codec })
+      )
+    } finally {
+      stop()
+      canvas.remove()
+      vi.useFakeTimers()
+    }
+  })
+
+  // The canvas is drawn at the export size times the LOD
+  it('scales the frames to the export size', async ({ skip }) => {
+    vi.useRealTimers()
+    const { canvas, stop } = transparentCanvas()
+    try {
+      const result = await capture(canvas, 'vp9', 32)
+      if (result?.status === 'error' && result.error.message.startsWith('This browser cannot')) {
+        skip('this browser has no vp9 encoder')
+      }
+      expect(result?.status === 'error' ? result.error.message : result?.status).toBe('done')
+      if (result?.status !== 'done') return
+
+      const { ALL_FORMATS, BufferSource, CanvasSink, Input } = await import('mediabunny')
+      const input = new Input({ source: new BufferSource(result.buffer!), formats: ALL_FORMATS })
+      const videoTrack = (await input.getPrimaryVideoTrack())!
+      expect([videoTrack.displayWidth, videoTrack.displayHeight]).toEqual([32, 32])
+      const decoded = await new CanvasSink(videoTrack, { alpha: true }).getCanvas(0.25)
+      const ctx = (decoded!.canvas as HTMLCanvasElement).getContext('2d')!
+      expect(ctx.getImageData(4, 16, 1, 1).data[3]).toBeGreaterThan(240)
+      expect(ctx.getImageData(28, 16, 1, 1).data[3]).toBeLessThan(16)
+    } finally {
+      stop()
+      canvas.remove()
+      vi.useFakeTimers()
+    }
+  })
+
+  it('refuses a codec that cannot carry alpha before opening the save dialog', async () => {
+    const picker = vi.spyOn(globalThis, 'showSaveFilePicker')
+    const result = await capture(document.createElement('canvas'), 'avc')
+
+    expect(result?.status === 'error' && result.error.message).toBe(
+      'Transparent video needs the VP9 codec, not avc'
+    )
+    expect(picker).not.toHaveBeenCalled()
+    expect(track.mock.lastCall![1]).toMatchObject({
+      format: 'webm',
+      errorCategory: 'unsupported_codec',
+    })
+    picker.mockRestore()
   })
 })
 

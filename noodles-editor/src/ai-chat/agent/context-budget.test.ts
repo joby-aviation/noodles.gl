@@ -3,9 +3,8 @@
 // tool result. What is left is the room the model has to actually work in.
 //
 // context-cost.test.ts measures the payload against the old client; this measures
-// it against the windows the payload has to fit. Re-run with `npx vitest run
-// src/ai-chat/agent/context-budget.test.ts --silent=false` to print the table. The
-// snapshot is rounded so it only moves when the prompt or schemas grow for real.
+// it against the windows the payload has to fit. Each value is checked against
+// BASELINE within TOLERANCE, so it only fails when the prompt or schemas grow for real.
 
 import { describe, expect, it } from 'vitest'
 import { estimateTokens } from '../conversation-compaction'
@@ -36,9 +35,22 @@ const TARGETS: Target[] = [
   { label: 'anthropic 200k', window: 200_000, outputReserve: 8192, jsonTools: false },
 ]
 
-// Snapshot granularity, so an operator or doc added in an unrelated PR does not
-// churn the snapshot
-const round = (tokens: number) => Math.round(tokens / 50) * 50
+// Measured token counts. When the test fails, it prints the new values; copy them
+// here, and say in the PR what moved them.
+const BASELINE: Record<string, Record<Measured, number>> = {
+  'webllm 4k (today)': { system: 2157, tools: 555, headroom: 616, headroomAfterInspect: 393 },
+  'chrome 6k (fallback)': { system: 2157, tools: 555, headroom: 2432, headroomAfterInspect: 2022 },
+  'webllm 16k': { system: 2157, tools: 555, headroom: 12904, headroomAfterInspect: 11781 },
+  'webllm 32k': { system: 2157, tools: 555, headroom: 29288, headroomAfterInspect: 26422 },
+  'anthropic 200k': { system: 2157, tools: 573, headroom: 189078, headroomAfterInspect: 186212 },
+}
+
+// About one default tool's schema. An operator name or a small doc edit in an
+// unrelated PR stays inside it; a new default tool or a paragraph of prompt does not.
+const TOLERANCE = 100
+
+type Measured = 'system' | 'tools' | 'headroom' | 'headroomAfterInspect'
+const MEASURED: Measured[] = ['system', 'tools', 'headroom', 'headroomAfterInspect']
 
 function budgetFor(target: Target, listNodes: ToolResult) {
   const system = getSystemPrompt()
@@ -78,22 +90,17 @@ describe('context budget', () => {
     const listNodes = await tools.listNodes()
     const rows = TARGETS.map(target => budgetFor(target, listNodes))
 
-    console.table(rows)
-
     // A 16k window is the smallest the on-device providers should be sized to, and
     // it has to leave room for several real tool results, not one
     for (const row of rows.filter(r => r.window >= 16_384)) {
       expect(row.headroomAfterInspect, row.target).toBeGreaterThanOrEqual(1500)
     }
 
-    expect(
-      rows.map(r => ({
-        target: r.target,
-        system: round(r.system),
-        tools: round(r.tools),
-        headroom: round(r.headroom),
-        headroomAfterInspect: round(r.headroomAfterInspect),
-      }))
-    ).toMatchSnapshot()
+    const drifted = rows.flatMap(row =>
+      MEASURED.filter(key => Math.abs(row[key] - BASELINE[row.target][key]) > TOLERANCE).map(
+        key => `${row.target} ${key}: ${BASELINE[row.target][key]} -> ${row[key]}`
+      )
+    )
+    expect(drifted, 'outside BASELINE by more than TOLERANCE tokens').toEqual([])
   })
 })

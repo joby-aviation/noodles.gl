@@ -42,7 +42,7 @@ export function trackRender({
   frameCount,
 }: {
   source: RenderSource
-  format: 'mp4' | 'png_sequence' | 'exr_sequence'
+  format: 'mp4' | 'webm' | 'png_sequence' | 'exr_sequence'
   codec?: string
   width: number
   height: number

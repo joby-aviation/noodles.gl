@@ -67,6 +67,10 @@ import {
   tsvParse,
 } from 'd3'
 import * as deck from 'deck.gl'
+import type {
+  Feature as GeoJsonFeature,
+  FeatureCollection as GeoJsonFeatureCollection,
+} from 'geojson'
 import { BehaviorSubject, combineLatest, Subject, type Subscription } from 'rxjs'
 import { distinctUntilChanged, filter, mergeMap, skip } from 'rxjs/operators'
 import { Temporal } from 'temporal-polyfill'
@@ -97,9 +101,10 @@ import {
   continuousInterpolators,
 } from './color-schemes'
 import { FilterColorExtension } from './extensions/filter-color-extension'
-import { Mask3DExtension } from './extensions/mask-3d-extension'
+import { Mask3DExtension, toMaskTargetPosition } from './extensions/mask-3d-extension'
 import {
   ArrayField,
+  applyNodeUIMetadata,
   applySerializedFieldValue,
   BboxField,
   BezierCurveField,
@@ -109,6 +114,7 @@ import {
   ColorField,
   ColorRampField,
   CompoundPropsField,
+  captureNodeUIMetadata,
   DataField,
   DateField,
   EffectField,
@@ -148,6 +154,13 @@ import { getAllOps, getOp } from './store'
 import { prepareTableDataForOutput, type TableSchema, validateTableData } from './table-schema'
 import type { ExtensionConstructorArgs, LayerPropsValue } from './types'
 import { composeAccessor, isAccessor } from './utils/accessor-helpers'
+import {
+  detectGeoKey,
+  type Geography,
+  type GeoKey,
+  getBoundaries,
+  joinDataToFeatures,
+} from './utils/choropleth-boundaries'
 import { deepEqual } from './utils/deep-equal'
 import type { ExtractProps } from './utils/extract-props'
 import { projectScheme } from './utils/filesystem'
@@ -1085,6 +1098,7 @@ export abstract class Operator<OP extends IOperator> {
     )
     // Preserve existing field values and connections
     const oldValues = new Map<string, unknown>()
+    const oldUIMetadata = captureNodeUIMetadata(this.inputs)
     const oldConnections = new Map<
       string,
       Array<{ id: string; field: Field; connectionType: 'reference' | 'value' }>
@@ -1144,6 +1158,8 @@ export abstract class Operator<OP extends IOperator> {
       assignPathToProps(field, key, [this.id, IN_NS])
     }
 
+    applyNodeUIMetadata(this.inputs, oldUIMetadata)
+
     // Note: Connections will be restored by transform-graph.ts when edges are re-applied
 
     // Notify listeners that custom fields have changed
@@ -1175,22 +1191,19 @@ export class UnknownOperator extends Operator<UnknownOperator> {
   static description = 'Placeholder for an operator type that could not be found'
 
   originalType: string
-  // Store original inputs to preserve them through save/load cycles
-  originalInputs: Record<string, unknown>
+  // The node's saved data (inputs, locked, customInputs, ...), written back unchanged on save
+  // so the project still opens once the operator type is available again
+  originalData: Record<string, unknown>
 
   constructor(id: OpId, data?: Record<string, unknown>) {
-    const originalType = (data?.originalType as string) || 'Unknown'
-    const originalInputs = (data?.inputs as Record<string, unknown>) || {}
     super(id, {}, false)
-    this.originalType = originalType
-    this.originalInputs = originalInputs
+    const { originalType, ...originalData } = data ?? {}
+    this.originalType = (originalType as string) || 'Unknown'
+    this.originalData = originalData
   }
 
   createInputs() {
-    // Create an UnknownField to store original inputs for serialization
-    return {
-      __originalInputs: new UnknownField(this.originalInputs),
-    }
+    return {}
   }
 
   createOutputs() {
@@ -1207,7 +1220,7 @@ export class NumberOp extends Operator<NumberOp> {
   static description = 'A number'
   public createInputs() {
     return {
-      val: new NumberField(0, { step: 1 }),
+      val: new NumberField(0, { step: 1, deriveStepFromValue: true }),
     }
   }
   public createOutputs() {
@@ -2615,14 +2628,18 @@ export class BrushableHistogramOp extends Operator<BrushableHistogramOp> {
     const data = new DataField()
     const field = new StringLiteralField('', [])
 
-    // Dynamically populate field choices from numeric data keys
+    // Dynamically populate field choices from numeric data keys. Sample several rows, since
+    // a numeric column can have an empty first cell.
     data.subscribe((newData: unknown[]) => {
-      if (Array.isArray(newData) && newData.length > 0 && typeof newData[0] === 'object') {
-        const sample = newData[0] as Record<string, unknown>
-        const numericKeys = Object.keys(sample).filter(
-          k => typeof sample[k] === 'number' && !Number.isNaN(sample[k])
-        )
-        field.updateChoices(numericKeys)
+      if (Array.isArray(newData) && newData.length > 0) {
+        const numericKeys = new Set<string>()
+        for (const row of newData.slice(0, 100)) {
+          if (typeof row !== 'object' || row === null) continue
+          for (const [key, value] of Object.entries(row)) {
+            if (typeof value === 'number' && !Number.isNaN(value)) numericKeys.add(key)
+          }
+        }
+        field.updateChoices([...numericKeys])
       }
     })
 
@@ -5217,6 +5234,8 @@ export class OutOp extends Operator<OutOp> {
       codec: new StringLiteralField('avc', ['avc', 'hevc', 'vp9', 'av1']),
       bitrateMbps: new NumberField(10, { min: 1, max: 100, step: 1 }),
       bitrateMode: new StringLiteralField('constant', ['constant', 'variable']),
+      // Keep the canvas's transparency in video exports (VP9 only)
+      exportAlpha: new BooleanField(false),
       scaleControl: new NumberField(0.3, { min: 0.1, max: 1, step: 0.05 }),
       framerate: new NumberField(30, { min: 1, max: 120, step: 1 }),
       captureDelay: new NumberField(50, { min: 0, max: 10000, step: 10 }),
@@ -6751,12 +6770,14 @@ export class Tile3DLayerOp extends Operator<Tile3DLayerOp> {
 
 export class Mask3DExtensionOp extends Operator<Mask3DExtensionOp> {
   static displayName = 'Mask3DExtension'
-  static description = 'Mask a sphere (used with Tile3DLayer)'
+  static description =
+    'Show only a sphere around a lng/lat/alt (meters) of a Tile3DLayer, fading to white at the edge'
   createInputs() {
     return {
-      targetPosition: new Vec3Field([0, 0, 0], { returnType: 'tuple' }),
-      innerRadius: new NumberField(0, { min: 0, softMax: 10_000 }),
-      fadeRange: new NumberField(0, { min: 0, softMax: 10_000 }),
+      // Downtown Los Angeles
+      targetPosition: new Point3DField([-118.2637, 34.0171, 0], { returnType: 'tuple' }),
+      innerRadius: new NumberField(1000, { min: 0, softMax: 10_000 }),
+      fadeRange: new NumberField(7, { min: 0, softMax: 10_000 }),
     }
   }
   createOutputs() {
@@ -6765,9 +6786,10 @@ export class Mask3DExtensionOp extends Operator<Mask3DExtensionOp> {
     }
   }
   execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const [lng, lat, alt = 0] = props.targetPosition as number[]
     const extension = {
       extension: { type: 'Mask3DExtension' },
-      props,
+      props: { ...props, targetPosition: toMaskTargetPosition(lng, lat, alt) },
     }
     return { extension }
   }
@@ -7822,8 +7844,6 @@ export class BufferOp extends Operator<BufferOp> {
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!geojson?.features?.length)
       return { featureCollection: { type: 'FeatureCollection', features: [] } }
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const buffered = turf.buffer(geojson, radius, { units: units as 'kilometers', steps })
     return { featureCollection: buffered || { type: 'FeatureCollection', features: [] } }
   }
@@ -7844,8 +7864,6 @@ export class UnionOp extends Operator<UnionOp> {
   execute({ geojson }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!geojson?.features?.length)
       return { featureCollection: { type: 'FeatureCollection', features: [] } }
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const polygons = geojson.features.filter(
       (f: { geometry: { type: string } }) =>
         f.geometry.type === 'Polygon' || f.geometry.type === 'MultiPolygon'
@@ -7876,8 +7894,6 @@ export class DifferenceOp extends Operator<DifferenceOp> {
   execute({ a, b }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!a?.features?.length || !b?.features?.length)
       return { featureCollection: a || { type: 'FeatureCollection', features: [] } }
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const polyA = a.features[0]
     const polyB = b.features[0]
     const result = turf.difference(turf.featureCollection([polyA, polyB]))
@@ -7901,8 +7917,6 @@ export class IntersectOp extends Operator<IntersectOp> {
   execute({ a, b }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!a?.features?.length || !b?.features?.length)
       return { featureCollection: { type: 'FeatureCollection', features: [] } }
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const polyA = a.features[0]
     const polyB = b.features[0]
     const result = turf.intersect(turf.featureCollection([polyA, polyB]))
@@ -7925,8 +7939,6 @@ export class CentroidOp extends Operator<CentroidOp> {
   execute({ geojson }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!geojson?.features?.length)
       return { featureCollection: { type: 'FeatureCollection', features: [] } }
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const centroids = geojson.features.map((f: GeoJSON.Feature) => {
       const c = turf.centroid(f)
       c.properties = { ...f.properties, ...c.properties }
@@ -7951,8 +7963,6 @@ export class ConvexHullOp extends Operator<ConvexHullOp> {
   execute({ geojson }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!geojson?.features?.length)
       return { featureCollection: { type: 'FeatureCollection', features: [] } }
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const hull = turf.convex(geojson)
     return { featureCollection: { type: 'FeatureCollection', features: hull ? [hull] : [] } }
   }
@@ -7973,8 +7983,6 @@ export class VoronoiOp extends Operator<VoronoiOp> {
   execute({ geojson }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!geojson?.features?.length)
       return { featureCollection: { type: 'FeatureCollection', features: [] } }
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const bbox = turf.bbox(geojson)
     const voronoi = turf.voronoi(geojson, { bbox })
     return { featureCollection: voronoi || { type: 'FeatureCollection', features: [] } }
@@ -8000,8 +8008,6 @@ export class DissolveOp extends Operator<DissolveOp> {
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!geojson?.features?.length)
       return { featureCollection: { type: 'FeatureCollection', features: [] } }
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const dissolved = turf.dissolve(geojson, { propertyName: propertyName || undefined })
     return { featureCollection: dissolved }
   }
@@ -8023,8 +8029,6 @@ export class ClipOp extends Operator<ClipOp> {
   execute({ geojson, mask }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!geojson?.features?.length || !mask?.features?.length)
       return { featureCollection: geojson || { type: 'FeatureCollection', features: [] } }
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const maskPoly = mask.features[0]
     const clipped = geojson.features
       .map((f: GeoJSON.Feature) => {
@@ -8066,8 +8070,6 @@ export class SpatialJoinOp extends Operator<SpatialJoinOp> {
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!target?.features?.length || !join?.features?.length)
       return { featureCollection: target || { type: 'FeatureCollection', features: [] } }
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const check =
       relationship === 'within'
         ? turf.booleanWithin
@@ -8116,8 +8118,6 @@ export class PointInPolygonOp extends Operator<PointInPolygonOp> {
     const empty = { type: 'FeatureCollection' as const, features: [] as GeoJSON.Feature[] }
     if (!points?.features?.length || !polygon?.features?.length)
       return { inside: empty, outside: empty }
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const poly = polygon.features[0]
     const inside: GeoJSON.Feature[] = []
     const outside: GeoJSON.Feature[] = []
@@ -8159,8 +8159,6 @@ export class NearestPointOp extends Operator<NearestPointOp> {
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!points?.features?.length)
       return { nearest: { type: 'FeatureCollection', features: [] }, distance: 0 }
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const target = turf.point(targetPoint)
     const nearest = turf.nearestPoint(target, points)
     const dist = nearest.properties?.distanceToPoint ?? 0
@@ -8191,8 +8189,6 @@ export class AreaOp extends Operator<AreaOp> {
   execute({ geojson, units }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!geojson?.features?.length)
       return { featureCollection: { type: 'FeatureCollection', features: [] }, totalArea: 0 }
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const conversions: Record<string, number> = {
       squareMeters: 1,
       squareKilometers: 1e-6,
@@ -8232,8 +8228,6 @@ export class LengthOp extends Operator<LengthOp> {
   execute({ geojson, units }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!geojson?.features?.length)
       return { featureCollection: { type: 'FeatureCollection', features: [] }, totalLength: 0 }
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     let total = 0
     const features = geojson.features.map((f: GeoJSON.Feature) => {
       const len = turf.length(f, { units: units as 'kilometers' })
@@ -8316,8 +8310,6 @@ export class PointGridOp extends Operator<PointGridOp> {
     cellSize,
     units,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const turfBbox: [number, number, number, number] = [
       bbox.southwest.lng,
       bbox.southwest.lat,
@@ -8355,8 +8347,6 @@ export class HexGridOp extends Operator<HexGridOp> {
     cellSize,
     units,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const turfBbox: [number, number, number, number] = [
       bbox.southwest.lng,
       bbox.southwest.lat,
@@ -8394,8 +8384,6 @@ export class SquareGridOp extends Operator<SquareGridOp> {
     cellSize,
     units,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const turfBbox: [number, number, number, number] = [
       bbox.southwest.lng,
       bbox.southwest.lat,
@@ -8428,8 +8416,6 @@ export class TinOp extends Operator<TinOp> {
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!geojson?.features?.length)
       return { featureCollection: { type: 'FeatureCollection', features: [] } }
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const tin = turf.tin(geojson, zProperty || undefined)
     return { featureCollection: tin }
   }
@@ -8456,8 +8442,6 @@ export class IsolineOp extends Operator<IsolineOp> {
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!geojson?.features?.length)
       return { featureCollection: { type: 'FeatureCollection', features: [] } }
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const isolines = turf.isolines(geojson, breaks as number[], { zProperty })
     return { featureCollection: isolines }
   }
@@ -8478,8 +8462,6 @@ export class LineToPolygonOp extends Operator<LineToPolygonOp> {
   execute({ geojson }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!geojson?.features?.length)
       return { featureCollection: { type: 'FeatureCollection', features: [] } }
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const features = geojson.features.map((f: GeoJSON.Feature) => {
       if (f.geometry.type === 'LineString' || f.geometry.type === 'MultiLineString') {
         try {
@@ -8509,8 +8491,6 @@ export class PolygonToLineOp extends Operator<PolygonToLineOp> {
   execute({ geojson }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!geojson?.features?.length)
       return { featureCollection: { type: 'FeatureCollection', features: [] } }
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const features = geojson.features.map((f: GeoJSON.Feature) => {
       if (f.geometry.type === 'Polygon' || f.geometry.type === 'MultiPolygon') {
         return turf.polygonToLine(f)
@@ -8539,8 +8519,6 @@ export class ExplodeOp extends Operator<ExplodeOp> {
   execute({ geojson, mode }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!geojson?.features?.length)
       return { featureCollection: { type: 'FeatureCollection', features: [] } }
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     if (mode === 'vertices') {
       const exploded = turf.explode(geojson)
       return { featureCollection: exploded }
@@ -8574,8 +8552,6 @@ export class AggregateOp extends Operator<AggregateOp> {
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!polygons?.features?.length || !points?.features?.length)
       return { featureCollection: polygons || { type: 'FeatureCollection', features: [] } }
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const features = polygons.features.map((poly: GeoJSON.Feature) => {
       const inside = points.features.filter((pt: GeoJSON.Feature) => {
         try {
@@ -8626,8 +8602,6 @@ export class KMeansClusterOp extends Operator<KMeansClusterOp> {
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!geojson?.features?.length)
       return { featureCollection: { type: 'FeatureCollection', features: [] } }
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const clustered = turf.clustersKmeans(geojson, { numberOfClusters })
     return { featureCollection: clustered }
   }
@@ -8656,8 +8630,6 @@ export class DBScanClusterOp extends Operator<DBScanClusterOp> {
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!geojson?.features?.length)
       return { featureCollection: { type: 'FeatureCollection', features: [] } }
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const clustered = turf.clustersDbscan(geojson, maxDistance, {
       units: units as 'kilometers',
       minPoints,
@@ -8691,8 +8663,6 @@ export class InterpolateOp extends Operator<InterpolateOp> {
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!geojson?.features?.length)
       return { featureCollection: { type: 'FeatureCollection', features: [] } }
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const interpolated = turf.interpolate(geojson, cellSize, {
       gridType: 'point',
       property,
@@ -8723,8 +8693,6 @@ export class AlongOp extends Operator<AlongOp> {
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!geojson?.features?.length)
       return { featureCollection: { type: 'FeatureCollection', features: [] } }
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const features = geojson.features
       .filter((f: GeoJSON.Feature) => f.geometry.type === 'LineString')
       .map((f: GeoJSON.Feature) =>
@@ -8759,8 +8727,6 @@ export class LineSliceOp extends Operator<LineSliceOp> {
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!geojson?.features?.length)
       return { featureCollection: { type: 'FeatureCollection', features: [] } }
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const features = geojson.features
       .filter((f: GeoJSON.Feature) => f.geometry.type === 'LineString')
       .map((f: GeoJSON.Feature) => {
@@ -8797,8 +8763,6 @@ export class TransformRotateOp extends Operator<TransformRotateOp> {
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!geojson?.features?.length || angle === 0)
       return { featureCollection: geojson || { type: 'FeatureCollection', features: [] } }
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const features = geojson.features.map((f: GeoJSON.Feature) => {
       const pivotPt = pivot === 'centroid' ? turf.centroid(f) : turf.center(f)
       return turf.transformRotate(f, angle, { pivot: pivotPt })
@@ -8830,8 +8794,6 @@ export class TransformScaleOp extends Operator<TransformScaleOp> {
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!geojson?.features?.length || factor === 1)
       return { featureCollection: geojson || { type: 'FeatureCollection', features: [] } }
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const features = geojson.features.map((f: GeoJSON.Feature) =>
       turf.transformScale(f, factor, { origin: origin as 'centroid' })
     )
@@ -8862,8 +8824,6 @@ export class TransformTranslateOp extends Operator<TransformTranslateOp> {
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!geojson?.features?.length || distance === 0)
       return { featureCollection: geojson || { type: 'FeatureCollection', features: [] } }
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const features = geojson.features.map((f: GeoJSON.Feature) =>
       turf.transformTranslate(f, distance, direction, { units: units as 'kilometers' })
     )
@@ -8940,6 +8900,270 @@ export class GeoJsonTransformOp extends Operator<GeoJsonTransformOp> {
     }
 
     return { feature: transformed }
+  }
+}
+
+// ==================== Choropleth ====================
+
+// Shared geography and geoKey options
+const GEOGRAPHY_OPTIONS: { value: Geography; label: string }[] = [
+  { value: 'us-states', label: 'US States' },
+  { value: 'world-countries', label: 'World Countries' },
+  { value: 'ca-provinces', label: 'Canadian Provinces' },
+  { value: 'custom', label: 'Custom (use boundaries input)' },
+]
+
+const GEO_KEY_OPTIONS: { value: GeoKey; label: string }[] = [
+  { value: 'auto', label: 'Auto-detect' },
+  { value: 'name', label: 'Name' },
+  { value: 'abbrev', label: 'Abbreviation / Code' },
+  { value: 'fips', label: 'FIPS Code (US)' },
+  { value: 'iso2', label: 'ISO Alpha-2' },
+  { value: 'iso3', label: 'ISO Alpha-3' },
+]
+
+async function joinDataToFeaturesViaDuckDb(
+  boundaries: GeoJsonFeatureCollection,
+  data: Record<string, unknown>[],
+  customSQL: string
+): Promise<GeoJsonFeatureCollection> {
+  // Flatten boundary features to rows (no geometry) keyed by __idx for round-tripping
+  const boundaryRows = boundaries.features.map((f, i) => ({
+    __idx: i,
+    ...(f.properties ?? {}),
+  }))
+
+  const db = await duckDbInstance
+  const suffix = Math.random().toString(36).slice(2)
+  const boundsFile = `__choropleth_bounds_${suffix}.json`
+  const dataFile = `__choropleth_data_${suffix}.json`
+
+  await db.registerFileText(boundsFile, JSON.stringify(boundaryRows))
+  await db.registerFileText(dataFile, JSON.stringify(data))
+
+  const conn = await db.connect()
+  try {
+    await conn.query(
+      `CREATE OR REPLACE TEMP VIEW boundaries AS SELECT * FROM read_json('${boundsFile}', format='array')`
+    )
+    await conn.query(
+      `CREATE OR REPLACE TEMP VIEW data AS SELECT * FROM read_json('${dataFile}', format='array')`
+    )
+
+    const result = await conn.query(customSQL)
+    const rows: Record<string, unknown>[] = result.toArray().map(r => {
+      const obj: Record<string, unknown> = {}
+      for (const [k, v] of r as Iterable<[string, unknown]>) obj[k] = v
+      return obj
+    })
+
+    // Re-attach joined properties back to original features using __idx
+    const rowByIdx = new Map<number, Record<string, unknown>>()
+    for (const row of rows) {
+      if (row.__idx != null) rowByIdx.set(row.__idx as number, row)
+    }
+
+    const features = boundaries.features.map((f, i) => {
+      const match = rowByIdx.get(i)
+      if (!match) return f
+      const { __idx: _, ...matchProps } = match
+      return { ...f, properties: { ...f.properties, ...matchProps } }
+    })
+
+    return { type: 'FeatureCollection', features }
+  } finally {
+    await conn.close().catch(() => null)
+    await db.dropFile(boundsFile).catch(() => null)
+    await db.dropFile(dataFile).catch(() => null)
+  }
+}
+
+function buildChoroplethInputs() {
+  const data = new DataField(new ArrayField(new UnknownField()))
+  const geography = new StringLiteralField('us-states', GEOGRAPHY_OPTIONS)
+  const boundaries = new GeoJsonField()
+  const joinKey = new StringLiteralField('', [])
+  const geoKey = new StringLiteralField('auto', GEO_KEY_OPTIONS)
+  const customSQL = new CodeField('', { language: 'sql', showByDefault: false })
+
+  data.subscribe((d: unknown[]) => {
+    if (d.length > 0) joinKey.updateChoices(Object.keys(d[0]))
+  })
+
+  return { data, geography, boundaries, joinKey, geoKey, customSQL }
+}
+
+async function resolveBoundariesAndJoin(
+  data: unknown[],
+  geography: string,
+  boundaries: unknown,
+  joinKey: string,
+  geoKey: string,
+  customSQL?: string
+) {
+  const geo = geography as Geography
+  const gk = geoKey as GeoKey
+  const userBoundaries =
+    geography === 'custom' ? (boundaries as GeoJsonFeatureCollection) : undefined
+  const resolvedBoundaries = await getBoundaries(geo, userBoundaries)
+
+  const rows = data as Record<string, unknown>[]
+
+  if (customSQL?.trim()) {
+    return joinDataToFeaturesViaDuckDb(resolvedBoundaries, rows, customSQL)
+  }
+
+  const resolvedGeoKey =
+    gk === 'auto' && geo !== 'custom'
+      ? detectGeoKey(rows, joinKey, geo)
+      : gk === 'auto'
+        ? 'name'
+        : gk
+
+  return joinDataToFeatures(resolvedBoundaries, rows, joinKey, resolvedGeoKey)
+}
+
+export class ChoroplethJoinOp extends Operator<ChoroplethJoinOp> {
+  static displayName = 'ChoroplethJoin'
+  static description =
+    'Join tabular data onto geographic boundaries (US states, world countries, Canadian provinces) to produce a colored FeatureCollection'
+
+  asDownload = () => this.outputData
+
+  createInputs() {
+    return buildChoroplethInputs()
+  }
+
+  createOutputs() {
+    return {
+      features: new GeoJsonField(),
+    }
+  }
+
+  async execute({
+    data,
+    geography,
+    boundaries,
+    joinKey,
+    geoKey,
+    customSQL,
+  }: ExtractProps<typeof this.inputs>): Promise<ExtractProps<typeof this.outputs>> {
+    const features = await resolveBoundariesAndJoin(
+      data,
+      geography,
+      boundaries,
+      joinKey,
+      geoKey,
+      customSQL
+    )
+    return { features }
+  }
+}
+
+export class ChoroplethLayerOp extends Operator<ChoroplethLayerOp> {
+  static displayName = 'ChoroplethLayer'
+  static description =
+    'All-in-one choropleth: joins tabular data onto geographic boundaries and renders with a color scale'
+  static cacheable = false
+
+  createInputs() {
+    const base = buildChoroplethInputs()
+    const valueColumn = new StringLiteralField('', [])
+    const colorScheme = new StringLiteralField('viridis', {
+      values: Object.keys(continuousInterpolators),
+      displayAs: 'color-scheme',
+    })
+    const opacity = new NumberField(0.85, { min: 0, max: 1, step: 0.01 })
+    const stroked = new BooleanField(true, { showByDefault: false })
+    const getLineColor = new ColorField('#000000', { transform: hexToColor, showByDefault: false })
+    const getLineWidth = new NumberField(1, { min: 0, softMax: 100, showByDefault: false })
+    const visible = new BooleanField(true)
+
+    base.data.subscribe((d: unknown[]) => {
+      if (d.length > 0) valueColumn.updateChoices(Object.keys(d[0]))
+    })
+
+    return {
+      ...base,
+      valueColumn,
+      colorScheme,
+      opacity,
+      stroked,
+      getLineColor,
+      getLineWidth,
+      visible,
+    }
+  }
+
+  createOutputs() {
+    return {
+      layer: new LayerField<GeoJsonLayerProps>(),
+    }
+  }
+
+  async execute({
+    data,
+    geography,
+    boundaries,
+    joinKey,
+    geoKey,
+    customSQL,
+    valueColumn,
+    colorScheme,
+    opacity,
+    stroked,
+    getLineColor,
+    getLineWidth,
+    visible,
+  }: ExtractProps<typeof this.inputs>): Promise<ExtractProps<typeof this.outputs>> {
+    const featureCollection = await resolveBoundariesAndJoin(
+      data,
+      geography,
+      boundaries,
+      joinKey,
+      geoKey,
+      customSQL
+    )
+
+    const interpolator =
+      continuousInterpolators[colorScheme as keyof typeof continuousInterpolators] ??
+      continuousInterpolators.viridis
+
+    // Auto-compute domain from matched features' valueColumn
+    const values = featureCollection.features
+      .map(f => f.properties?.[valueColumn])
+      .filter((v): v is number => typeof v === 'number' && !Number.isNaN(v))
+
+    const domainMin = values.length > 0 ? Math.min(...values) : 0
+    const domainMax = values.length > 0 ? Math.max(...values) : 1
+    const range = domainMax - domainMin || 1
+
+    const getFillColor = (f: GeoJsonFeature) => {
+      const val = f.properties?.[valueColumn]
+      if (typeof val !== 'number' || Number.isNaN(val))
+        return [180, 180, 180, 100] as [number, number, number, number]
+      const t = (val - domainMin) / range
+      const hex = d3Color(interpolator(t))?.formatHex() ?? '#808080'
+      return hexToColor(hex) ?? ([128, 128, 128, 255] as [number, number, number, number])
+    }
+
+    const layer = {
+      type: 'GeoJsonLayer' as const,
+      id: this.id,
+      data: featureCollection,
+      visible,
+      opacity,
+      filled: true,
+      stroked,
+      getFillColor,
+      getLineColor,
+      getLineWidth,
+      updateTriggers: {
+        getFillColor: [valueColumn, colorScheme, domainMin, domainMax],
+      },
+    }
+
+    return { layer }
   }
 }
 
@@ -10244,6 +10468,8 @@ export const opTypes = {
   CategoricalColorRampOp,
   CentroidOp,
   ChartOp,
+  ChoroplethJoinOp,
+  ChoroplethLayerOp,
   ClipExtensionOp,
   ClipOp,
   CodeOp,

@@ -12,6 +12,7 @@ import {
   guardFrameStep,
 } from './frame-guard'
 import { type RenderErrorCategory, type RenderSource, trackRender } from './render-analytics'
+import { ALPHA_VIDEO_CODECS } from './video-export'
 
 export const rafDriver = {
   tick: (_timestamp: number) => {},
@@ -104,6 +105,7 @@ export const useRenderer = ({
       width,
       height,
       codec,
+      exportAlpha = false,
       fps: captureFps = fps,
       startFrame = 0,
       endFrame = Math.floor(sequenceLength * captureFps),
@@ -117,6 +119,8 @@ export const useRenderer = ({
       width: number
       height: number
       codec: VideoCodec
+      // Keep the canvas's transparency: VP9 in a WebM file instead of an MP4
+      exportAlpha?: boolean
       fps?: number
       startFrame?: number
       endFrame?: number
@@ -131,7 +135,7 @@ export const useRenderer = ({
 
       const tracker = trackRender({
         source,
-        format: 'mp4',
+        format: exportAlpha ? 'webm' : 'mp4',
         codec,
         width,
         height,
@@ -149,13 +153,14 @@ export const useRenderer = ({
       let encoderError: Error | undefined
 
       const pickFileStream = async (name: string) => {
+        const extension = exportAlpha ? '.webm' : '.mp4'
         const fileHandle = await window
           .showSaveFilePicker({
-            suggestedName: `${name}.mp4`,
+            suggestedName: `${name}${extension}`,
             types: [
               {
                 description: 'Video File',
-                accept: { 'video/mp4': ['.mp4'] },
+                accept: { [exportAlpha ? 'video/webm' : 'video/mp4']: [extension] },
               },
             ],
           })
@@ -189,6 +194,9 @@ export const useRenderer = ({
           Mp4OutputFormat,
           Output,
           StreamTarget,
+          VideoSample,
+          VideoSampleSource,
+          WebMOutputFormat,
         } = await import('mediabunny')
 
         const outputTarget = fileWritableStream
@@ -201,6 +209,65 @@ export const useRenderer = ({
               { chunked: true }
             )
           : new BufferTarget()
+
+        const bufferOf = () =>
+          outputTarget instanceof BufferTarget ? (outputTarget.buffer ?? undefined) : undefined
+
+        if (exportAlpha) {
+          // WebCodecs encoders drop alpha, so mediabunny splits each frame into color and
+          // alpha, encodes both, and stores the alpha as WebM side data
+          const output = new Output({ format: new WebMOutputFormat(), target: outputTarget })
+          const videoSource = new VideoSampleSource({
+            codec,
+            fullCodecString: config.codec,
+            hardwareAcceleration: config.hardwareAcceleration,
+            bitrate,
+            bitrateMode,
+            alpha: 'keep',
+            // A key frame every 60 frames, as in the MP4 path
+            keyFrameInterval: 60 / fps,
+          })
+          output.addVideoTrack(videoSource, { frameRate: fps })
+          await output.start()
+
+          // The canvas is the export size times the LOD, and mediabunny encodes at the
+          // size of the frames it gets, so scale them down first. The MP4 path's
+          // VideoEncoder does this itself.
+          const scaled = new OffscreenCanvas(width, height)
+          const scaledContext = scaled.getContext('2d')!
+          let frameIndex = 0
+          const encodeFrame = async (frame: VideoFrame) => {
+            let source: VideoFrame | OffscreenCanvas = frame
+            if (frame.displayWidth !== width || frame.displayHeight !== height) {
+              scaledContext.clearRect(0, 0, width, height)
+              scaledContext.drawImage(frame, 0, 0, width, height)
+              source = scaled
+            }
+            // The simulated time, not the captured frame's real-time timestamp
+            const sample = new VideoSample(source, {
+              timestamp: frameIndex / fps,
+              duration: 1 / fps,
+            })
+            frameIndex++
+            try {
+              // Resolves once the encoders can take another frame
+              await videoSource.add(sample)
+            } catch (error) {
+              encoderError ??= error instanceof Error ? error : new Error(String(error))
+              throw error
+            } finally {
+              sample.close()
+            }
+          }
+          const finishEncoding = async () => {
+            videoSource.close()
+            await output.finalize()
+            return bufferOf()
+          }
+          // For a failed export: closes the encoders and the output's target (the file)
+          const cancel = () => output.cancel()
+          return { encodeFrame, finishEncoding, cancel }
+        }
 
         const output = new Output({
           format: new Mp4OutputFormat({
@@ -245,18 +312,16 @@ export const useRenderer = ({
           await videoEncoder.flush()
           videoSource.close()
           await output.finalize()
-          return outputTarget instanceof BufferTarget
-            ? (outputTarget.buffer ?? undefined)
-            : undefined
+          return bufferOf()
         }
 
-        return {
-          videoEncoder,
-          encodeFrame,
-          output,
-          videoSource,
-          finishEncoding,
+        // For a failed export: closes the encoder and the output's target (the file)
+        async function cancel() {
+          if (videoEncoder.state !== 'closed') videoEncoder.close()
+          await output.cancel()
         }
+
+        return { encodeFrame, finishEncoding, cancel }
       }
 
       // Held outside the try so a failed export can release them
@@ -272,6 +337,13 @@ export const useRenderer = ({
       }
 
       try {
+        if (exportAlpha && !ALPHA_VIDEO_CODECS.includes(codec)) {
+          return fail(
+            'unsupported_codec',
+            new Error(`Transparent video needs the VP9 codec, not ${codec}`)
+          )
+        }
+
         // Checked before the save dialog, so a codec the browser refuses does not leave
         // an empty file behind. The check takes milliseconds, well inside the few
         // seconds the click that opens the dialog stays valid.
@@ -451,10 +523,7 @@ export const useRenderer = ({
         // and the output, which closes the chosen file. Retrying then starts clean.
         if (!finished) {
           await mapRecorder?.reader.cancel().catch(() => {})
-          if (mapContainer && mapContainer.videoEncoder.state !== 'closed') {
-            mapContainer.videoEncoder.close()
-          }
-          await mapContainer?.output.cancel().catch(() => {})
+          await mapContainer?.cancel().catch(() => {})
         }
         mapRecorder?.track.stop()
         setIsRendering(false)

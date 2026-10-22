@@ -64,6 +64,7 @@ import type { Visualization } from '../visualizations'
 import { BlockLibrary, type BlockLibraryRef } from './components/block-library'
 import { categories, nodeTypeToDisplayName } from './components/categories'
 import { CopyControls, type CopyControlsRef } from './components/copy-controls'
+import { CreateFromSQLDialog } from './components/create-from-sql-dialog'
 import { NodeInfoOverlay, ViewportInfoPanel } from './components/devtools'
 import { ErrorBoundary } from './components/error-boundary'
 import { ExampleNotFoundDialog } from './components/example-not-found-dialog'
@@ -111,6 +112,7 @@ import {
 import { transformGraph } from './transform-graph'
 import { layoutNodes } from './utils/auto-layout'
 import { canConnectCached } from './utils/can-connect'
+import { createProjectFromSQL, takeCreateFromSQLRequest } from './utils/create-from-sql'
 import { DeckProjectAssetResolver } from './utils/deck-project-asset-resolver'
 import { instantiateDeckView } from './utils/deck-view'
 import { directoryHandleCache } from './utils/directory-handle-cache'
@@ -122,6 +124,7 @@ import {
   writeFileToDirectory,
 } from './utils/filesystem'
 import { reconcileForLoopGroups } from './utils/for-loop-group-utils'
+import { shouldAutosave, supportsVersioning, useGitSettings } from './utils/git-settings'
 import { edgeId, nodeId } from './utils/id-utils'
 import { shouldBlockKeyboardShortcut } from './utils/input-detection'
 import { generateDraftId, memoryProjectStore } from './utils/memory-project-store'
@@ -150,6 +153,9 @@ import { EdgeSpatialIndex } from './utils/spatial-index'
 import { calculateViewerPosition } from './utils/viewer-position'
 
 const ChatPanel = lazy(() => import('../ai-chat/chat-panel').then(m => ({ default: m.ChatPanel })))
+const GitHistoryPanel = lazy(() =>
+  import('./components/git-history-panel').then(m => ({ default: m.GitHistoryPanel }))
+)
 
 /*
  * CSS Architecture:
@@ -225,6 +231,19 @@ export function getNoodles(): Visualization {
     hasDataFiles: boolean
   } | null>(null)
   const [showExampleNotFoundDialog, setShowExampleNotFoundDialog] = useState(false)
+  const [pendingCreateFromSQL, setPendingCreateFromSQL] = useState<string | null>(null)
+  // A ?createFromSQL= link opens CreateFromSQLDialog; the project is created only on confirm.
+  // Declared before the project-loading effects, whose navigate() drops the query string.
+  useEffect(() => {
+    const request = takeCreateFromSQLRequest()
+    if (!request) return
+    if ('sql' in request) {
+      setPendingCreateFromSQL(request.sql)
+    } else {
+      console.error('Invalid SQL query:', request.error)
+      alert(`Invalid SQL query: ${request.error}`)
+    }
+  }, [])
   const [graphErrors, setGraphErrors] = useState<GraphError[]>([])
   const storageType = useActiveStorageType()
   const {
@@ -283,6 +302,7 @@ export function getNoodles(): Visualization {
   }, [nodes, modelEdges])
   const [showChatPanel, setShowChatPanel] = useState(false)
   const [chatInitialMessage, setChatInitialMessage] = useState<string | undefined>(undefined)
+  const [showGitHistoryPanel, setShowGitHistoryPanel] = useState(false)
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const [parameterEditorState, setParameterEditorState] = useState<{
     open: boolean
@@ -514,12 +534,10 @@ export function getNoodles(): Visualization {
     )
 
     // Apply layout
-    const layoutedNodes = layoutNodes(targetNodes, targetEdges, autoLayout)
+    const layoutedNodes = layoutNodes(targetNodes, targetEdges)
 
     // Track layout application
     analytics.track('layout_applied', {
-      algorithm: autoLayout.algorithm,
-      direction: autoLayout.direction,
       nodeCount: targetNodes.length,
       edgeCount: targetEdges.length,
       isManual: true,
@@ -547,7 +565,7 @@ export function getNoodles(): Visualization {
         padding: 0.2,
       })
     }, 0)
-  }, [autoLayout, nodes, edges, currentContainerId, setNodes])
+  }, [nodes, edges, currentContainerId, setNodes])
 
   // Auto-layout function for current container (used by onConnect trigger)
   const applyAutoLayoutToContainer = useCallback(() => {
@@ -568,12 +586,10 @@ export function getNoodles(): Visualization {
     )
 
     // Apply layout
-    const layoutedNodes = layoutNodes(containerNodes, containerEdges, autoLayout)
+    const layoutedNodes = layoutNodes(containerNodes, containerEdges)
 
     // Track automatic layout application
     analytics.track('layout_applied', {
-      algorithm: autoLayout.algorithm,
-      direction: autoLayout.direction,
       nodeCount: containerNodes.length,
       edgeCount: containerEdges.length,
       isManual: false,
@@ -1061,8 +1077,7 @@ export function getNoodles(): Visualization {
       setShowOverlay(editorSettings?.showOverlay ?? true)
       setShowDebugInfo(editorSettings?.showDebugInfo ?? false)
       setAutoLayout({
-        ...DEFAULT_AUTO_LAYOUT,
-        ...editorSettings?.autoLayout,
+        enabled: editorSettings?.autoLayout?.enabled ?? DEFAULT_AUTO_LAYOUT.enabled,
       })
 
       // Render settings are now stored as OutOp inputs (migration 012 handles conversion)
@@ -1270,10 +1285,7 @@ export function getNoodles(): Visualization {
     // Render settings are now stored as OutOp inputs, serialized with the node
 
     // Only include autoLayout if different from defaults
-    const autoLayoutChanged =
-      autoLayout.enabled !== DEFAULT_AUTO_LAYOUT.enabled ||
-      autoLayout.algorithm !== DEFAULT_AUTO_LAYOUT.algorithm ||
-      autoLayout.direction !== DEFAULT_AUTO_LAYOUT.direction
+    const autoLayoutChanged = autoLayout.enabled !== DEFAULT_AUTO_LAYOUT.enabled
 
     return {
       version: NOODLES_VERSION,
@@ -1351,6 +1363,20 @@ export function getNoodles(): Visualization {
     setError,
     navigate,
   ])
+
+  // Autosave with debouncing. Reading the settings through the hook re-runs this effect when
+  // version control or autosave is turned off, which cancels a pending save.
+  const gitSettings = useGitSettings(projectName)
+  useEffect(() => {
+    if (!shouldAutosave({ settings: gitSettings, storageType, hasUnsavedChanges, isExamplesRoute }))
+      return
+
+    const timeoutId = setTimeout(() => {
+      onMenuSave()
+    }, gitSettings.autoCommitDelay)
+
+    return () => clearTimeout(timeoutId)
+  }, [gitSettings, storageType, hasUnsavedChanges, isExamplesRoute, onMenuSave])
 
   // Step 1 of Save As: Select directory and check conditions
   const onSaveAs = useCallback(async () => {
@@ -1561,6 +1587,13 @@ export function getNoodles(): Visualization {
           setShowRenameDialog(true)
         }
       }
+      // mod+shift+h for Git History
+      if (isMod && isShift && key === 'h') {
+        e.preventDefault()
+        if (supportsVersioning(storageType)) {
+          setShowGitHistoryPanel(prev => !prev)
+        }
+      }
     }
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
@@ -1592,27 +1625,41 @@ export function getNoodles(): Visualization {
 
     analytics.track('auto_layout_applied', {
       nodeCount: selectedNodes.length,
-      algorithm: autoLayout.algorithm,
       trigger: 'manual_button',
     })
 
     applyManualLayout()
-  }, [nodes, autoLayout.algorithm, applyManualLayout])
+  }, [nodes, applyManualLayout])
 
   // Note: Auto-layout on node addition was removed based on PR feedback.
   // Users can still trigger layout manually via the Layout button in the property panel (3+ nodes selected).
   // Auto-layout still triggers on edge creation when enabled (see onConnect handler above).
 
+  const createMemoryProject = useCallback(
+    (project: NoodlesProjectJSON, method: 'new' | 'createFromSQL') => {
+      memoryProjectStore.setProjectJson('new', project)
+
+      setCurrentDirectory(null, 'new')
+      setActiveStorageType('memory')
+      loadProjectFile(project, 'new', '/projects')
+
+      analytics.track('project_created', { method })
+    },
+    [setCurrentDirectory, setActiveStorageType, loadProjectFile]
+  )
+
   const onNewProject = useCallback(async () => {
     const starterProject = { ...newProjectJSON, version: NOODLES_VERSION } as NoodlesProjectJSON
-    memoryProjectStore.setProjectJson('new', starterProject)
+    createMemoryProject(starterProject, 'new')
+  }, [createMemoryProject])
 
-    setCurrentDirectory(null, 'new')
-    setActiveStorageType('memory')
-    loadProjectFile(starterProject, 'new', '/projects')
-
-    analytics.track('project_created', { method: 'new' })
-  }, [setCurrentDirectory, setActiveStorageType, loadProjectFile])
+  const onConfirmCreateFromSQL = useCallback(
+    (sql: string) => {
+      setPendingCreateFromSQL(null)
+      createMemoryProject(createProjectFromSQL({ sql }), 'createFromSQL')
+    },
+    [createMemoryProject]
+  )
 
   const onImport = useCallback(async () => {
     try {
@@ -1951,6 +1998,11 @@ export function getNoodles(): Visualization {
           onCheckMyProjects={onCheckMyProjects}
           onClose={() => setShowExampleNotFoundDialog(false)}
         />
+        <CreateFromSQLDialog
+          sql={pendingCreateFromSQL}
+          onConfirm={onConfirmCreateFromSQL}
+          onClose={() => setPendingCreateFromSQL(null)}
+        />
         <GraphErrorDialog
           open={graphErrors.length > 0}
           errors={graphErrors}
@@ -2147,7 +2199,11 @@ export function getNoodles(): Visualization {
   const propertiesPanel = (
     <ErrorBoundary title="Property Panel Error">
       <div className={s.rightPanel}>
-        <PropertyPanel onAutoLayout={onAutoLayout} autoLayout={autoLayout} />
+        <PropertyPanel
+          onAutoLayout={onAutoLayout}
+          autoLayout={autoLayout}
+          onChangeAutoLayout={setAutoLayout}
+        />
       </div>
     </ErrorBoundary>
   )
@@ -2162,6 +2218,16 @@ export function getNoodles(): Visualization {
         }}
         isVisible={showChatPanel}
         initialMessage={chatInitialMessage}
+      />
+    </Suspense>
+  )
+
+  const gitHistoryPanel = showGitHistoryPanel && (
+    <Suspense fallback={null}>
+      <GitHistoryPanel
+        projectDirectory={currentDirectory}
+        projectName={projectName}
+        onClose={() => setShowGitHistoryPanel(false)}
       />
     </Suspense>
   )
@@ -2191,12 +2257,11 @@ export function getNoodles(): Visualization {
     ),
     propertiesPanel,
     chatPanel,
+    gitHistoryPanel,
     showOverlay,
     onChangeShowOverlay: setShowOverlay,
     showDebugInfo,
     onChangeShowDebugInfo: setShowDebugInfo,
-    autoLayout,
-    onChangeAutoLayout: setAutoLayout,
     spreadsheetVisible,
     onChangeSpreadsheetVisible: setSpreadsheetVisible,
     // Render settings are now read from OutOp via useRenderSettings() hook
@@ -2205,6 +2270,8 @@ export function getNoodles(): Visualization {
       storageType === 'memory'
         ? memoryProjectStore.getDisplayName(projectName || '') || null
         : projectName,
+    // The project whose version control settings the settings dialog edits
+    versionedProjectName: supportsVersioning(storageType) ? projectName : null,
     getTimelineJson,
     onSaveProject: onMenuSave,
     onSaveAs,
