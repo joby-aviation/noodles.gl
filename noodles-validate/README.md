@@ -73,6 +73,8 @@ import { loadRegistry, validateProject } from 'noodles-validate'
 const { valid, errors, warnings } = validateProject(JSON.parse(text), loadRegistry())
 ```
 
+`noodles-validate/fields` has the type, input and handle checks on their own, with no Node APIs, for the browser. The editor's `apply_modifications` uses them (`noodles-editor/src/ai-chat/modification-fields.ts`), so it reports the same errors as the CLI.
+
 ## Development
 
 The package is TypeScript run by Node's built-in type stripping (Node 22.18 or later), so there is no build step. Imports use `.ts` extensions and only erasable syntax.

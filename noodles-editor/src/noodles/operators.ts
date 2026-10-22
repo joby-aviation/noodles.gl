@@ -101,7 +101,7 @@ import {
   continuousInterpolators,
 } from './color-schemes'
 import { FilterColorExtension } from './extensions/filter-color-extension'
-import { Mask3DExtension } from './extensions/mask-3d-extension'
+import { Mask3DExtension, toMaskTargetPosition } from './extensions/mask-3d-extension'
 import {
   ArrayField,
   applyNodeUIMetadata,
@@ -1191,22 +1191,19 @@ export class UnknownOperator extends Operator<UnknownOperator> {
   static description = 'Placeholder for an operator type that could not be found'
 
   originalType: string
-  // Store original inputs to preserve them through save/load cycles
-  originalInputs: Record<string, unknown>
+  // The node's saved data (inputs, locked, customInputs, ...), written back unchanged on save
+  // so the project still opens once the operator type is available again
+  originalData: Record<string, unknown>
 
   constructor(id: OpId, data?: Record<string, unknown>) {
-    const originalType = (data?.originalType as string) || 'Unknown'
-    const originalInputs = (data?.inputs as Record<string, unknown>) || {}
     super(id, {}, false)
-    this.originalType = originalType
-    this.originalInputs = originalInputs
+    const { originalType, ...originalData } = data ?? {}
+    this.originalType = (originalType as string) || 'Unknown'
+    this.originalData = originalData
   }
 
   createInputs() {
-    // Create an UnknownField to store original inputs for serialization
-    return {
-      __originalInputs: new UnknownField(this.originalInputs),
-    }
+    return {}
   }
 
   createOutputs() {
@@ -6773,12 +6770,14 @@ export class Tile3DLayerOp extends Operator<Tile3DLayerOp> {
 
 export class Mask3DExtensionOp extends Operator<Mask3DExtensionOp> {
   static displayName = 'Mask3DExtension'
-  static description = 'Mask a sphere (used with Tile3DLayer)'
+  static description =
+    'Show only a sphere around a lng/lat/alt (meters) of a Tile3DLayer, fading to white at the edge'
   createInputs() {
     return {
-      targetPosition: new Vec3Field([0, 0, 0], { returnType: 'tuple' }),
-      innerRadius: new NumberField(0, { min: 0, softMax: 10_000 }),
-      fadeRange: new NumberField(0, { min: 0, softMax: 10_000 }),
+      // Downtown Los Angeles
+      targetPosition: new Point3DField([-118.2637, 34.0171, 0], { returnType: 'tuple' }),
+      innerRadius: new NumberField(1000, { min: 0, softMax: 10_000 }),
+      fadeRange: new NumberField(7, { min: 0, softMax: 10_000 }),
     }
   }
   createOutputs() {
@@ -6787,9 +6786,10 @@ export class Mask3DExtensionOp extends Operator<Mask3DExtensionOp> {
     }
   }
   execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const [lng, lat, alt = 0] = props.targetPosition as number[]
     const extension = {
       extension: { type: 'Mask3DExtension' },
-      props,
+      props: { ...props, targetPosition: toMaskTargetPosition(lng, lat, alt) },
     }
     return { extension }
   }
