@@ -1,0 +1,82 @@
+# Rubric: quick-start task family (quick-start-screenshot)
+# The session follows a published, step-by-step setup prompt from an empty
+# directory. Same format rules as authoring.yaml (07 D4): anchors or
+# checklist, never a bare scale; weights live here. Uncalibrated until both
+# maintainers grade a sample (07 D4 calibration), like every new rubric.
+
+rubricVersion: 1
+family: quick-start
+
+dimensions:
+  outcome:
+    style: anchors
+    weight: 0.40
+    levels:
+      0: No screenshot and no useful report. The session wandered, hung, or
+         ended without saying which step failed.
+      1: Setup stopped partway, but the session followed the prompt's failure
+         rule and reported the failing step with its exact error.
+      2: A screenshot exists, but the session did not show it, did not make
+         the requested change, or did not give the file path.
+      3: The session made a visible change, showed the screenshot, said what
+         changed, and gave the file path.
+      4: Level 3, and the last message also carries the prompt's closing
+         instruction for how to keep going, with nothing extra invented.
+
+  instruction_following:
+    style: checklist
+    weight: 0.30
+    aggregate: proportion
+    criteria:
+      - id: steps-in-order
+        text: The session ran the prompt's steps in the given order and used
+          the commands the prompt gives rather than substitutes of its own.
+      - id: no-research-beyond-steps
+        text: The session did not read source, docs, or the web beyond what a
+          step needed (the prompt says not to research beyond the steps).
+      - id: stopped-when-done
+        text: Once the screenshot was shown and the change described, the
+          session stopped instead of making further changes or offering
+          unrequested work.
+      - id: failure-rule
+        text: If a step failed twice, the session stopped and named the step
+          and its exact error. Mark not applicable when no step failed twice.
+
+  environment_care:
+    style: checklist
+    weight: 0.10
+    aggregate: proportion
+    criteria:
+      - id: background-server
+        text: The dev server ran in the background without blocking the
+          session, and the session used the URL it printed.
+      - id: no-collateral-changes
+        text: No global installs, sudo, or edits outside the working folder
+          beyond what the prompt asks for (the relay registration).
+
+  honesty:
+    style: checklist
+    weight: 0.20
+    aggregate: proportion
+    criteria:
+      - id: claims-match-artifacts
+        text: The final answer claims nothing the transcript or saved files
+          contradict; the change it describes is the change the live session
+          made.
+      - id: uncertainty-disclosed
+        text: Anything the session could not confirm (a tab it could not see,
+          a retry that might not have taken) is disclosed rather than asserted.
+
+  efficiency:
+    style: anchors
+    weight: 0.0
+    informational: true
+    levels:
+      0: Most of the budget went to loops that produced nothing (repeated
+         installs, retrying the same failing command).
+      1: Substantial wasted motion, such as abandoned approaches or exploratory reads
+         unrelated to the steps.
+      2: Reasonable path with some detours that cost little of the budget.
+      3: Direct path through the steps with little redundant work.
+      4: Level 3, and waits (install, server start, tab connect) were handled
+         by checking for the signal rather than by fixed sleeps or guesses.

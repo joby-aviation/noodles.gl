@@ -1,0 +1,2162 @@
+{
+ "series": "2026-07-06.t0.83ff1c128a7a",
+ "bucket": "r2:noodles",
+ "generatedAt": "2026-07-14T22:52:18.499Z",
+ "objects": [
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/animate-camera--claude-opus-4-8--s1/artifacts/base.noodles.json",
+   "sha256": "7704fc3a0df110ebcff44790f398807a0e926ff36ffe167d68abdc2128fecfee",
+   "bytes": 1591
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/animate-camera--claude-opus-4-8--s1/artifacts/noodles.json",
+   "sha256": "55fb8de713096ae84a6d924e8d9882663e868e915acd63dfd33378af809c7d97",
+   "bytes": 4880
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/animate-camera--claude-opus-4-8--s1/mechanical.json",
+   "sha256": "6bb43bad87db1a8e586a9c7351869ff5396e3609d4ace7e9f75d633569b2a24b",
+   "bytes": 760
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/animate-camera--claude-opus-4-8--s1/scores.json",
+   "sha256": "8a2837f30482e2b182123980f2fa77c6de1f2f4e0025fc7f4fad15b07de0f4a2",
+   "bytes": 15627
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/animate-camera--claude-opus-4-8--s1/screenshot.png",
+   "sha256": "c323b7920b3d16ad091612a61b9c67602adc10fdc21082c1ec386d9afc69caf2",
+   "bytes": 283094
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/animate-camera--claude-opus-4-8--s1/session-meta.json",
+   "sha256": "fc9408ed7b7495f55286bd1cdfff36fd83367d204838059d3b4e4c4c4b7e1b15",
+   "bytes": 1006
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/animate-camera--claude-opus-4-8--s1/transcript.jsonl",
+   "sha256": "1a93c7ecd7e5fd43f1166953c822046a27dadaf0efb1d76f90706d6c065f19d5",
+   "bytes": 321204
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/animate-camera--claude-opus-4-8--s1/transcript.txt",
+   "sha256": "d78b6b58e03f9f0f8076fd1c4a32b2b745345a30632c605e578002f2da18bf09",
+   "bytes": 103698
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/animate-camera--claude-opus-4-8--s2/artifacts/base.noodles.json",
+   "sha256": "7704fc3a0df110ebcff44790f398807a0e926ff36ffe167d68abdc2128fecfee",
+   "bytes": 1591
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/animate-camera--claude-opus-4-8--s2/artifacts/noodles.json",
+   "sha256": "da545894ed6dd5e8225d6f21fc0dcdbe6d3165b56f8bfacd793a2fbc705c198a",
+   "bytes": 3689
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/animate-camera--claude-opus-4-8--s2/mechanical.json",
+   "sha256": "d54c7fca539d5bd6ec0b127e8758c1a4843774c48cb3e5a028c7f3536d0325b3",
+   "bytes": 756
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/animate-camera--claude-opus-4-8--s2/scores.json",
+   "sha256": "e11b717b5bd8ece3f8eb1db18694ea33b9bc14f3b50ae6dc5ee6036b0abb3491",
+   "bytes": 13386
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/animate-camera--claude-opus-4-8--s2/screenshot.png",
+   "sha256": "c323b7920b3d16ad091612a61b9c67602adc10fdc21082c1ec386d9afc69caf2",
+   "bytes": 283094
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/animate-camera--claude-opus-4-8--s2/session-meta.json",
+   "sha256": "d06cb3671b5c939f2758578694d7a62b4c911cad5c9129b469655fd816eafd04",
+   "bytes": 1022
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/animate-camera--claude-opus-4-8--s2/transcript.jsonl",
+   "sha256": "25dc8bd8bd6239c93115ffc81bd69f44953a9b661310365e1ca3ee7dbb397af8",
+   "bytes": 75336
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/animate-camera--claude-opus-4-8--s2/transcript.txt",
+   "sha256": "c48834f10c6c5ad0556c941c785b3c41cfae0dcff0ba8b5ee715205d5e9a009b",
+   "bytes": 20360
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/animate-camera--claude-opus-4-8--s3/artifacts/base.noodles.json",
+   "sha256": "7704fc3a0df110ebcff44790f398807a0e926ff36ffe167d68abdc2128fecfee",
+   "bytes": 1591
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/animate-camera--claude-opus-4-8--s3/artifacts/noodles.json",
+   "sha256": "ea2010377896cc2fa1b1db4285c0694d64c1741bf2d2c8aa9ad3991300443bab",
+   "bytes": 4851
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/animate-camera--claude-opus-4-8--s3/mechanical.json",
+   "sha256": "eb24a85e95b26907e5492c7713ab67883d7fe00ae78c91d30dc72b4f21f4fdbe",
+   "bytes": 752
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/animate-camera--claude-opus-4-8--s3/scores.json",
+   "sha256": "275056d65c73be041bda764804522e87e43f7bdbaf5cdd257bb4d6ade00a9fc7",
+   "bytes": 13662
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/animate-camera--claude-opus-4-8--s3/screenshot.png",
+   "sha256": "c323b7920b3d16ad091612a61b9c67602adc10fdc21082c1ec386d9afc69caf2",
+   "bytes": 283094
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/animate-camera--claude-opus-4-8--s3/session-meta.json",
+   "sha256": "3b0142701a28eb5a3ed868701d88908814fc10dbe52195f66473af705ad8a2d7",
+   "bytes": 1023
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/animate-camera--claude-opus-4-8--s3/transcript.jsonl",
+   "sha256": "fbcf5bfe38567628b83d3d7f9dcd21b94413d49b35b07d68b2b52836e09cb3db",
+   "bytes": 148921
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/animate-camera--claude-opus-4-8--s3/transcript.txt",
+   "sha256": "09a1dbfd08ad3a36f8bd8b6eb6cdbba22e171ed444f399b9b740654823bd264a",
+   "bytes": 50363
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/animate-camera--claude-sonnet-4-6--s1/artifacts/base.noodles.json",
+   "sha256": "7704fc3a0df110ebcff44790f398807a0e926ff36ffe167d68abdc2128fecfee",
+   "bytes": 1591
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/animate-camera--claude-sonnet-4-6--s1/artifacts/noodles.json",
+   "sha256": "4cabbdf52c39ef322cd79956aaac8aa1d31c87feeca018de86200215897d359b",
+   "bytes": 2773
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/animate-camera--claude-sonnet-4-6--s1/mechanical.json",
+   "sha256": "eb24a85e95b26907e5492c7713ab67883d7fe00ae78c91d30dc72b4f21f4fdbe",
+   "bytes": 752
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/animate-camera--claude-sonnet-4-6--s1/scores.json",
+   "sha256": "5c2d80dd0e45fac73d1cf5508befa2178ec1bd1fd87e2dffd16800f228581de2",
+   "bytes": 13075
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/animate-camera--claude-sonnet-4-6--s1/screenshot.png",
+   "sha256": "c323b7920b3d16ad091612a61b9c67602adc10fdc21082c1ec386d9afc69caf2",
+   "bytes": 283094
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/animate-camera--claude-sonnet-4-6--s1/session-meta.json",
+   "sha256": "f25b1cd512131d5aff89de7a7698afef7eccd2297afaa207c122b913e99252c0",
+   "bytes": 1015
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/animate-camera--claude-sonnet-4-6--s1/transcript.jsonl",
+   "sha256": "cea7b03ef4e240c87a1b20a2d8491d808d3ea98b4e8422b96b1f6c90f372ef19",
+   "bytes": 402911
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/animate-camera--claude-sonnet-4-6--s1/transcript.txt",
+   "sha256": "68264a727f9ada5398c8665e35a7a33d946ef0c235e317cad0519913e85ad814",
+   "bytes": 82086
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/animate-camera--claude-sonnet-4-6--s2/artifacts/base.noodles.json",
+   "sha256": "7704fc3a0df110ebcff44790f398807a0e926ff36ffe167d68abdc2128fecfee",
+   "bytes": 1591
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/animate-camera--claude-sonnet-4-6--s2/artifacts/noodles.json",
+   "sha256": "a1f0347625ef262452ecbe33100bd3e48b83f7bd9e2ec5c1c8bcb50a71943b2c",
+   "bytes": 6285
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/animate-camera--claude-sonnet-4-6--s2/mechanical.json",
+   "sha256": "6bb43bad87db1a8e586a9c7351869ff5396e3609d4ace7e9f75d633569b2a24b",
+   "bytes": 760
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/animate-camera--claude-sonnet-4-6--s2/scores.json",
+   "sha256": "a75145f09098d0f07ee4b6f97f38235364d13a510afd529d26f0b6a4d865caff",
+   "bytes": 14284
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/animate-camera--claude-sonnet-4-6--s2/screenshot.png",
+   "sha256": "c323b7920b3d16ad091612a61b9c67602adc10fdc21082c1ec386d9afc69caf2",
+   "bytes": 283094
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/animate-camera--claude-sonnet-4-6--s2/session-meta.json",
+   "sha256": "9462d83aeeb6984105c6460b83db789f535cd160e5e7f2725cd37b87b4370b04",
+   "bytes": 1014
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/animate-camera--claude-sonnet-4-6--s2/transcript.jsonl",
+   "sha256": "bca897daf689f988d83c2e9d6be943821671594eeca393d6583ea2dc3abfe0f6",
+   "bytes": 148840
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/animate-camera--claude-sonnet-4-6--s2/transcript.txt",
+   "sha256": "c0bad876e1a0d9c7913ae4faf707af8e7eab87cc0f8ddca54df6b54cfc9aae71",
+   "bytes": 37814
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/animate-camera--claude-sonnet-4-6--s3/artifacts/base.noodles.json",
+   "sha256": "7704fc3a0df110ebcff44790f398807a0e926ff36ffe167d68abdc2128fecfee",
+   "bytes": 1591
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/animate-camera--claude-sonnet-4-6--s3/artifacts/noodles.json",
+   "sha256": "8c16ff4ce8c224408a46a75f216d092c61612c97cfd60942d826f05ba4c87986",
+   "bytes": 4842
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/animate-camera--claude-sonnet-4-6--s3/mechanical.json",
+   "sha256": "d54c7fca539d5bd6ec0b127e8758c1a4843774c48cb3e5a028c7f3536d0325b3",
+   "bytes": 756
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/animate-camera--claude-sonnet-4-6--s3/scores.json",
+   "sha256": "c105845a70b47cc9186eed475bacc37e2e30631792c39dc13635f0ffd7b7ebb8",
+   "bytes": 13736
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/animate-camera--claude-sonnet-4-6--s3/screenshot.png",
+   "sha256": "c323b7920b3d16ad091612a61b9c67602adc10fdc21082c1ec386d9afc69caf2",
+   "bytes": 283094
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/animate-camera--claude-sonnet-4-6--s3/session-meta.json",
+   "sha256": "1d38b6857309ed2f2cb9d88192a39fc31d673cdccdcc014a5dd9438589604c03",
+   "bytes": 1015
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/animate-camera--claude-sonnet-4-6--s3/transcript.jsonl",
+   "sha256": "33927d079cf61dbb15d4c9ffdd1128ebae7cf4618fcb59c663f275e1ae3a6556",
+   "bytes": 208949
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/animate-camera--claude-sonnet-4-6--s3/transcript.txt",
+   "sha256": "7c7d1268bc795dfe165cf879f83d763198d9adf29b207a43728b36488c45baed",
+   "bytes": 49177
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/animate-camera--claude-sonnet-5--s1/artifacts/base.noodles.json",
+   "sha256": "7704fc3a0df110ebcff44790f398807a0e926ff36ffe167d68abdc2128fecfee",
+   "bytes": 1591
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/animate-camera--claude-sonnet-5--s1/artifacts/noodles.json",
+   "sha256": "0dcf79fd7fa2c1162997480fae67824c6e603dca3476f229e0e9dc343a63f55f",
+   "bytes": 3689
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/animate-camera--claude-sonnet-5--s1/mechanical.json",
+   "sha256": "d54c7fca539d5bd6ec0b127e8758c1a4843774c48cb3e5a028c7f3536d0325b3",
+   "bytes": 756
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/animate-camera--claude-sonnet-5--s1/scores.json",
+   "sha256": "87e34d72bb18cc0d36d1391dc3cd12ba87c38c3ca9810d58d8c481a9fb40e541",
+   "bytes": 14594
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/animate-camera--claude-sonnet-5--s1/screenshot.png",
+   "sha256": "c323b7920b3d16ad091612a61b9c67602adc10fdc21082c1ec386d9afc69caf2",
+   "bytes": 283094
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/animate-camera--claude-sonnet-5--s1/session-meta.json",
+   "sha256": "59bd91509eabab41c926102f27657ec5dc7eecaae317e6fbb7bcd20d9efbffb0",
+   "bytes": 1022
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/animate-camera--claude-sonnet-5--s1/transcript.jsonl",
+   "sha256": "b70508c58c0829673723f787cede5089c10372fede24482da6d817a494152cf0",
+   "bytes": 230790
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/animate-camera--claude-sonnet-5--s1/transcript.txt",
+   "sha256": "49e9a5755f533c02de4383418ef8f1f00fb7899d99ce3678662d04a9b83c0f3c",
+   "bytes": 68612
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/animate-camera--claude-sonnet-5--s2/artifacts/base.noodles.json",
+   "sha256": "7704fc3a0df110ebcff44790f398807a0e926ff36ffe167d68abdc2128fecfee",
+   "bytes": 1591
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/animate-camera--claude-sonnet-5--s2/artifacts/noodles.json",
+   "sha256": "a97e1be8c041942508b7150556e680e84e62c98db054d5e25010c3476cf22d22",
+   "bytes": 3353
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/animate-camera--claude-sonnet-5--s2/mechanical.json",
+   "sha256": "d54c7fca539d5bd6ec0b127e8758c1a4843774c48cb3e5a028c7f3536d0325b3",
+   "bytes": 756
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/animate-camera--claude-sonnet-5--s2/scores.json",
+   "sha256": "833eb5f5e8675aafb81b28c69919459f3797b28617af3b3f3396242671e62156",
+   "bytes": 14251
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/animate-camera--claude-sonnet-5--s2/screenshot.png",
+   "sha256": "c323b7920b3d16ad091612a61b9c67602adc10fdc21082c1ec386d9afc69caf2",
+   "bytes": 283094
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/animate-camera--claude-sonnet-5--s2/session-meta.json",
+   "sha256": "85ff6148bb9004d2747bd6155a57a978c8896636cb032463456b018d35aefe95",
+   "bytes": 1022
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/animate-camera--claude-sonnet-5--s2/transcript.jsonl",
+   "sha256": "fce0417b8704af996aed1c135be3967acaeae9b7ae9ec43e6aa56f2a1fd8952c",
+   "bytes": 428571
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/animate-camera--claude-sonnet-5--s2/transcript.txt",
+   "sha256": "63d07a360f05a6aa1a334230372a8f3eb8c9c565f664deeca86bdd1e5c724e92",
+   "bytes": 90852
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/animate-camera--claude-sonnet-5--s3/artifacts/base.noodles.json",
+   "sha256": "7704fc3a0df110ebcff44790f398807a0e926ff36ffe167d68abdc2128fecfee",
+   "bytes": 1591
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/animate-camera--claude-sonnet-5--s3/artifacts/noodles.json",
+   "sha256": "3be678e03f5d31ef8738a1fd6c34e4b30a5f5b0249d61857d0f1a9677bcf4f50",
+   "bytes": 3697
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/animate-camera--claude-sonnet-5--s3/mechanical.json",
+   "sha256": "d54c7fca539d5bd6ec0b127e8758c1a4843774c48cb3e5a028c7f3536d0325b3",
+   "bytes": 756
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/animate-camera--claude-sonnet-5--s3/scores.json",
+   "sha256": "7ca63dff6871f9baf1303bfb588e52bd86f648b327678aa8c97a8048e8cfe4f0",
+   "bytes": 14086
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/animate-camera--claude-sonnet-5--s3/screenshot.png",
+   "sha256": "c323b7920b3d16ad091612a61b9c67602adc10fdc21082c1ec386d9afc69caf2",
+   "bytes": 283094
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/animate-camera--claude-sonnet-5--s3/session-meta.json",
+   "sha256": "83242c514bf99877738b13e834148ec72851d59123ddb63435dc889c2d74d7d1",
+   "bytes": 1013
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/animate-camera--claude-sonnet-5--s3/transcript.jsonl",
+   "sha256": "6366ca03035285da93307934956e42e46c6064174f16269560aca6c9c0638cd4",
+   "bytes": 252080
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/animate-camera--claude-sonnet-5--s3/transcript.txt",
+   "sha256": "16814d6cb48d88e19c0c94d52d5ff975078232c18fd925141c8461f6caf3c156",
+   "bytes": 74153
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/author-scatterplot--claude-opus-4-8--s1/artifacts/noodles.json",
+   "sha256": "248773051c0dbacd15562d203979c070b1f08b7ea3433b58c5512afb868ae73a",
+   "bytes": 5342
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/author-scatterplot--claude-opus-4-8--s1/mechanical.json",
+   "sha256": "7940cd4cdab44efabf9b70d05e9534bc115a12df5713d80cc8e57a45cee78f6e",
+   "bytes": 367
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/author-scatterplot--claude-opus-4-8--s1/scores.json",
+   "sha256": "6298fb1b29657875590e4b2a1ed50f5faf1ebdfc383ceadcdc1fae7fcdf95def",
+   "bytes": 15055
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/author-scatterplot--claude-opus-4-8--s1/screenshot.png",
+   "sha256": "1f3cd08b64c2360d7ce6936abd9509a36187ae86536f64186620c974a2fdb96b",
+   "bytes": 234164
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/author-scatterplot--claude-opus-4-8--s1/session-meta.json",
+   "sha256": "ae7156d519d0e504797e8536d00b277fcc6c2c183e022fa7194a6aee4bf55a24",
+   "bytes": 1031
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/author-scatterplot--claude-opus-4-8--s1/transcript.jsonl",
+   "sha256": "0f38358997445c1ca2ac7648a184f09666c2d10e9f9cc7e922deac34322e1a12",
+   "bytes": 184458
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/author-scatterplot--claude-opus-4-8--s1/transcript.txt",
+   "sha256": "a53f2de99a97f3d5143795bcefab5f424e754e0c944f7986f03a93960835d894",
+   "bytes": 48635
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/author-scatterplot--claude-opus-4-8--s2/artifacts/noodles.json",
+   "sha256": "d9075f3adda01fcd4a8663d4143093408dd1ba503d753ecbea136168c124dbc7",
+   "bytes": 3897
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/author-scatterplot--claude-opus-4-8--s2/mechanical.json",
+   "sha256": "8bd0c4ab412b5e42ed38ebeb195ef62148818fa129a24cfc41a48740e67fcd4d",
+   "bytes": 367
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/author-scatterplot--claude-opus-4-8--s2/scores.json",
+   "sha256": "50cf7e97ef633dc8db87ca6cdb358029c04a829163551e775485c02eb2c89a4d",
+   "bytes": 14751
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/author-scatterplot--claude-opus-4-8--s2/screenshot.png",
+   "sha256": "7abc39abf3d5e3a9a0229490cfced21f2d38cbb67bec556e8eb2f3e5ad99e2dd",
+   "bytes": 132673
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/author-scatterplot--claude-opus-4-8--s2/session-meta.json",
+   "sha256": "6428546419387f183b38ee532e3ba596aac643f16cb8860dc365f5a129f6fe82",
+   "bytes": 1023
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/author-scatterplot--claude-opus-4-8--s2/transcript.jsonl",
+   "sha256": "9e12c5cf70597f37614b34375e23c49d00dad9fd88e1b7252a1ec1848bde926d",
+   "bytes": 169839
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/author-scatterplot--claude-opus-4-8--s2/transcript.txt",
+   "sha256": "00b4831ce221862b634988c83bc473e53febdb30ddb0ceb0198d80058c4b27ca",
+   "bytes": 51205
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/author-scatterplot--claude-opus-4-8--s3/artifacts/noodles.json",
+   "sha256": "615d7fa27e3eb8e9e5f17739eb422afa30fc3f3320f1e75cb1c28382340fb7c1",
+   "bytes": 3709
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/author-scatterplot--claude-opus-4-8--s3/mechanical.json",
+   "sha256": "9fca29f77aedddc8edab0113219b69034ed0dc24a556e3ea82e317e86095cf4d",
+   "bytes": 367
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/author-scatterplot--claude-opus-4-8--s3/scores.json",
+   "sha256": "aba0aeef0feb19c1e45c85994c622a9c0b4349e72ed21a781e4f2d0393e5ed87",
+   "bytes": 13997
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/author-scatterplot--claude-opus-4-8--s3/screenshot.png",
+   "sha256": "de4968f93d6086cf8ca071ddb6247e9ca6686919cb7378614bb08b2e230484db",
+   "bytes": 115301
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/author-scatterplot--claude-opus-4-8--s3/session-meta.json",
+   "sha256": "2cc4f96c9124117ab0163ff5cc9ec15418993ed5a7fc9655dc965f3328d9f0eb",
+   "bytes": 1032
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/author-scatterplot--claude-opus-4-8--s3/transcript.jsonl",
+   "sha256": "1c417235ff5edbc299de1f0ac2173c80a2f5d915d9fb18bd57e05ff83c53c8f1",
+   "bytes": 165700
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/author-scatterplot--claude-opus-4-8--s3/transcript.txt",
+   "sha256": "cad4d01cb0ffcab9bc0b5d0c1017ba1e2b4c0c86e676f14eaa5181a0ab1e40df",
+   "bytes": 50603
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/author-scatterplot--claude-sonnet-4-6--s1/artifacts/noodles.json",
+   "sha256": "277713a2c206483c7699632d8838d72a0388f3160c4487f9df8570b04d829682",
+   "bytes": 3631
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/author-scatterplot--claude-sonnet-4-6--s1/mechanical.json",
+   "sha256": "78f5fb3f5da910fd65df56a15b84dea1ceb910698f9ba1ac4006ce759431100f",
+   "bytes": 2412
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/author-scatterplot--claude-sonnet-4-6--s1/scores.json",
+   "sha256": "54d70e2a40dce18903d007d24965eb6d846d3e0b167099425d5f865f852dd0b3",
+   "bytes": 16721
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/author-scatterplot--claude-sonnet-4-6--s1/screenshot.png",
+   "sha256": "d5b42430087a01cb9d9ab05849b1facfe7eba4f55a8b295c4999ab6a1f7abcae",
+   "bytes": 100661
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/author-scatterplot--claude-sonnet-4-6--s1/session-meta.json",
+   "sha256": "fad6b33e41d5d80ce4a2af24ea90dd9841e62cb2cf2fc11aa697f3e3a1109dde",
+   "bytes": 1032
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/author-scatterplot--claude-sonnet-4-6--s1/transcript.jsonl",
+   "sha256": "e688c64b0480efc67a1ef83023ea1dd424c43a14d3e8335e13420127a0d0765e",
+   "bytes": 104006
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/author-scatterplot--claude-sonnet-4-6--s1/transcript.txt",
+   "sha256": "84f625f021c0c05be84246dc27ecf00695af9f798c74860f0777b49b6905ac6a",
+   "bytes": 30657
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/author-scatterplot--claude-sonnet-4-6--s2/artifacts/noodles.json",
+   "sha256": "65d28208312e0825a3269e6a647eb9e2cc72439b9021cfd01bcc3f5b5847bf81",
+   "bytes": 3472
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/author-scatterplot--claude-sonnet-4-6--s2/mechanical.json",
+   "sha256": "febff9370c79dafe91799847801b4467de50ba6831565e5433e88db4300e9aa9",
+   "bytes": 2412
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/author-scatterplot--claude-sonnet-4-6--s2/scores.json",
+   "sha256": "47dd161bac82b8360fcda405d633d80c0d24f276a3092228bd75482297dca8d0",
+   "bytes": 16066
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/author-scatterplot--claude-sonnet-4-6--s2/screenshot.png",
+   "sha256": "87d9c1ded2a2320ece28f3353500361013ea4e52a00844a8bd8190430c2ba095",
+   "bytes": 95755
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/author-scatterplot--claude-sonnet-4-6--s2/session-meta.json",
+   "sha256": "23de73fbfe0326c6df87233fc00b2336c5f68d998ef1697c01aac614e0605141",
+   "bytes": 1020
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/author-scatterplot--claude-sonnet-4-6--s2/transcript.jsonl",
+   "sha256": "31e17b9c793c3920ba7950144a6357183141e5b34af898c8589a3ffb71b0e033",
+   "bytes": 76244
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/author-scatterplot--claude-sonnet-4-6--s2/transcript.txt",
+   "sha256": "f719b40b6a8c85e40d6fa544358db018cbed40814725af039df8bf3b4dfc9c57",
+   "bytes": 22748
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/author-scatterplot--claude-sonnet-4-6--s3/artifacts/noodles.json",
+   "sha256": "ea6a0f06dfcf4f538a038b56cf5497b27cc23f0e2d8a7c63eca8d8522bcff4e3",
+   "bytes": 3366
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/author-scatterplot--claude-sonnet-4-6--s3/mechanical.json",
+   "sha256": "a86abbfdea52a5f27b5812faac3e0d8a2e16d30e01f897c29dccc178c023d387",
+   "bytes": 2488
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/author-scatterplot--claude-sonnet-4-6--s3/scores.json",
+   "sha256": "fffa6bf177f6774196f0f0e301eda3bb85dfd8dcb8ba8f9e1c7d07d1fd9c6d06",
+   "bytes": 16553
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/author-scatterplot--claude-sonnet-4-6--s3/screenshot.png",
+   "sha256": "7c9cd2e4a61cf8adeaabad43e8160c9ac8c0f7c2cd51c3adf197c4235806563f",
+   "bytes": 101369
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/author-scatterplot--claude-sonnet-4-6--s3/session-meta.json",
+   "sha256": "6bfc000839b6f61632d95663680473fb13262d80c1626c646bd65fb217f681f1",
+   "bytes": 1023
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/author-scatterplot--claude-sonnet-4-6--s3/transcript.jsonl",
+   "sha256": "9a284e0f4fdc2bdf625a58c5194f60e7e3177b952975ad74c85931c2f124b0cd",
+   "bytes": 172480
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/author-scatterplot--claude-sonnet-4-6--s3/transcript.txt",
+   "sha256": "bc10e7b0daafe237fd12a636e9b44f40eab06d49e720f3553b2cb395733d8dab",
+   "bytes": 48392
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/author-scatterplot--claude-sonnet-5--s1/artifacts/noodles.json",
+   "sha256": "77e98a32190a2f72ec3ee0ad0493d32488de31340bb70497278ea9a98bc5c218",
+   "bytes": 4523
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/author-scatterplot--claude-sonnet-5--s1/mechanical.json",
+   "sha256": "66705182e7e45be6474b4e7fc5d3155058bd5168a183bf1890ed5563091e012f",
+   "bytes": 367
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/author-scatterplot--claude-sonnet-5--s1/scores.json",
+   "sha256": "f5437a1f7a312bb188b41a8df00ca6cc56cd9e7a4784c91ce5b238b896d72c7b",
+   "bytes": 14912
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/author-scatterplot--claude-sonnet-5--s1/screenshot.png",
+   "sha256": "a796c24ff4e80fe52729fb030682259c530b3ce9fd0e402d33adc164102123bd",
+   "bytes": 107876
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/author-scatterplot--claude-sonnet-5--s1/session-meta.json",
+   "sha256": "2035eb8535cc84c89a32da44690b78a154433fbcbd25c043bc60682ac77abcb1",
+   "bytes": 1022
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/author-scatterplot--claude-sonnet-5--s1/transcript.jsonl",
+   "sha256": "2c37e25df62ad47c1948649345c1e2304853e85d14a6dff27b6c9585b3c78b0e",
+   "bytes": 516569
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/author-scatterplot--claude-sonnet-5--s1/transcript.txt",
+   "sha256": "c6b20c15b77c1f5ba305e4c919bed0ad3fa74a497d4050ce6c0830a647d497f3",
+   "bytes": 71889
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/author-scatterplot--claude-sonnet-5--s2/artifacts/noodles.json",
+   "sha256": "d65071c73e0d412ec33cbc7be4d49ae20cc75c727d8a8813d0759ab40060e2eb",
+   "bytes": 6461
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/author-scatterplot--claude-sonnet-5--s2/mechanical.json",
+   "sha256": "5849585ff2567cf10a5bdab7ea227573c9e12beae5bd20c2463c54a466545b54",
+   "bytes": 367
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/author-scatterplot--claude-sonnet-5--s2/scores.json",
+   "sha256": "615b554907616a66bb592ca0772beb1562818d9201ca1e8c7efb0aedbb63c6c7",
+   "bytes": 16178
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/author-scatterplot--claude-sonnet-5--s2/screenshot.png",
+   "sha256": "6171210a9aec0ebe2218f9bc7cd9d04d97903694b4dd19b136ded1cbbb8147dc",
+   "bytes": 106275
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/author-scatterplot--claude-sonnet-5--s2/session-meta.json",
+   "sha256": "b585f194c8ad479c278dc9433ecb42f714adbff9472e19141b249e30d150e4e2",
+   "bytes": 1022
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/author-scatterplot--claude-sonnet-5--s2/transcript.jsonl",
+   "sha256": "da7d0f7767d867e138f6bae024c2c4bc086eb8df8ec6f45ecf7736ae1c09c198",
+   "bytes": 1197214
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/author-scatterplot--claude-sonnet-5--s2/transcript.txt",
+   "sha256": "a7073520fc3eaf39577d4ee24f95bce159c27c1c4815d7a5ff180ec1509b2d60",
+   "bytes": 55858
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/author-scatterplot--claude-sonnet-5--s3/artifacts/noodles.json",
+   "sha256": "06f842b77311b2f0a0befdb56d1ae3c5a56d6a034cc65fe0af066971474ddea4",
+   "bytes": 6429
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/author-scatterplot--claude-sonnet-5--s3/mechanical.json",
+   "sha256": "9a35d2da68cfcb857a3c6a4a09ebfaa48670ae73bb797a3290865e3520e8167e",
+   "bytes": 367
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/author-scatterplot--claude-sonnet-5--s3/scores.json",
+   "sha256": "656e7d6ad624cf2cf8b420ca2847a06b8ed18cd7414a802719caef5f4140afe7",
+   "bytes": 17846
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/author-scatterplot--claude-sonnet-5--s3/screenshot.png",
+   "sha256": "332353d09fa7c8f7e6b9c5481647537afa037be476d8392c607bf96bcac1a02b",
+   "bytes": 103601
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/author-scatterplot--claude-sonnet-5--s3/session-meta.json",
+   "sha256": "69419bb964908a69981c209f7a5c5ab8bde374e8de14c33a9e4e40fcfc1e4eda",
+   "bytes": 1020
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/author-scatterplot--claude-sonnet-5--s3/transcript.jsonl",
+   "sha256": "53a3e5896f3814395f0c4a7298d47537dfd0d106c3ce830795a52f8b72392b16",
+   "bytes": 405416
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/author-scatterplot--claude-sonnet-5--s3/transcript.txt",
+   "sha256": "9397cb75d5d5f93c2cfa50290bdec600f3416d64477810501392dbd950ee6b6c",
+   "bytes": 40530
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/code-refs-containers--claude-opus-4-8--s1/mechanical.json",
+   "sha256": "01890ae3a338a7f8f4f58b023ef7ef79efd98dbec2b43a1f221cb99122a58aec",
+   "bytes": 548
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/code-refs-containers--claude-opus-4-8--s1/scores.json",
+   "sha256": "3d5788934727747fd7e09ff0a9d00a1e26fec384aaa3d4167349463dd0c7150b",
+   "bytes": 12617
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/code-refs-containers--claude-opus-4-8--s1/screenshot.png",
+   "sha256": "04d1b338a0344538189436dcf723fe3de004c8a0492320213a5314ad488eea63",
+   "bytes": 103539
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/code-refs-containers--claude-opus-4-8--s1/session-meta.json",
+   "sha256": "252822e657a19ed4d9db6aa4ddf4c391d0bf8832be4e0a6068f18dff72e43eb1",
+   "bytes": 618
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/code-refs-containers--claude-opus-4-8--s1/transcript.jsonl",
+   "sha256": "d466b166d3a81dc16a65b5262de5ab531b3490152dc15d28bed0b2c7f5dd3778",
+   "bytes": 391319
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/code-refs-containers--claude-opus-4-8--s1/transcript.txt",
+   "sha256": "35593b720e3b98e014671389c20b1e9dc04e55bc1ed417151a35fc813f9638cb",
+   "bytes": 92683
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/code-refs-containers--claude-opus-4-8--s2/mechanical.json",
+   "sha256": "01890ae3a338a7f8f4f58b023ef7ef79efd98dbec2b43a1f221cb99122a58aec",
+   "bytes": 548
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/code-refs-containers--claude-opus-4-8--s2/scores.json",
+   "sha256": "66b9954eb6110d8b53e53415882bfe56e092254e0c0db48d1e41005aa4df0dcb",
+   "bytes": 13773
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/code-refs-containers--claude-opus-4-8--s2/screenshot.png",
+   "sha256": "04d1b338a0344538189436dcf723fe3de004c8a0492320213a5314ad488eea63",
+   "bytes": 103539
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/code-refs-containers--claude-opus-4-8--s2/session-meta.json",
+   "sha256": "3b93945bef79a5001838b60af9689fc0bca32fd40c12b25be9bffb4aed3b6776",
+   "bytes": 618
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/code-refs-containers--claude-opus-4-8--s2/transcript.jsonl",
+   "sha256": "09fa14da847c0354044f071ebab734cd3b7dd42befd06c387421cd9058133c54",
+   "bytes": 528111
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/code-refs-containers--claude-opus-4-8--s2/transcript.txt",
+   "sha256": "0c968e932e76ab0e0f261c93b666c73c9f18285cdc8ef02b8c5294d6781357e0",
+   "bytes": 156956
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/code-refs-containers--claude-opus-4-8--s3/mechanical.json",
+   "sha256": "01890ae3a338a7f8f4f58b023ef7ef79efd98dbec2b43a1f221cb99122a58aec",
+   "bytes": 548
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/code-refs-containers--claude-opus-4-8--s3/scores.json",
+   "sha256": "91a44f8845e569e17a12de9e25fd9b834b0ac289b7b30161ba505f1ef5214c99",
+   "bytes": 13537
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/code-refs-containers--claude-opus-4-8--s3/screenshot.png",
+   "sha256": "04d1b338a0344538189436dcf723fe3de004c8a0492320213a5314ad488eea63",
+   "bytes": 103539
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/code-refs-containers--claude-opus-4-8--s3/session-meta.json",
+   "sha256": "5094bd35207a0b178c47cb076b88c727b03a57fffb46b498b2b8ab654d2cfa2d",
+   "bytes": 1036
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/code-refs-containers--claude-opus-4-8--s3/transcript.jsonl",
+   "sha256": "33ee0ff9ae06233500ed71570dce876831b510b70232fa54a8751cb8f3b401f4",
+   "bytes": 314337
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/code-refs-containers--claude-opus-4-8--s3/transcript.txt",
+   "sha256": "c2b65ef0d571b50499927f6c2f1487f275928b18597b441e57fbbc39d696cc13",
+   "bytes": 74762
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/code-refs-containers--claude-sonnet-4-6--s1/artifacts/noodles.json",
+   "sha256": "138d3e0b4aff1fa139e833fc44e69bded277ab4066afbb0486f8a6aa701bcd21",
+   "bytes": 5737
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/code-refs-containers--claude-sonnet-4-6--s1/mechanical.json",
+   "sha256": "db26a687f78e20ddbeab1d30ab5491cd30a1c3fc47dcedcca595205da44e7526",
+   "bytes": 3019
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/code-refs-containers--claude-sonnet-4-6--s1/scores.json",
+   "sha256": "00998a870c38ba69e9d39299511020d38134e520465ff8b1629889612515ca4d",
+   "bytes": 17155
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/code-refs-containers--claude-sonnet-4-6--s1/screenshot.png",
+   "sha256": "3ee10ef5badeca66d545e8004d668294da30b2a76007dbee4f4bd4bfa6e0d874",
+   "bytes": 385728
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/code-refs-containers--claude-sonnet-4-6--s1/session-meta.json",
+   "sha256": "58952b40d3c3214c88e423f1244349194322fdcdc081c5afd00e7f0d912348b6",
+   "bytes": 1037
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/code-refs-containers--claude-sonnet-4-6--s1/transcript.jsonl",
+   "sha256": "8c0b46176b0592579f16dfbc573dffdf1ad81545ed4c721bc4d9e2d5c22560b3",
+   "bytes": 1406073
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/code-refs-containers--claude-sonnet-4-6--s1/transcript.txt",
+   "sha256": "c91f7ebb6c4921fcbb19776e1be445f8b31725157b1e951bac5f57d7ebf87132",
+   "bytes": 396819
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/code-refs-containers--claude-sonnet-4-6--s2/artifacts/noodles.json",
+   "sha256": "cd1d2170645b27deeb7cd58836afb6f6b844a04266a1973eab7783c259bc9677",
+   "bytes": 5823
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/code-refs-containers--claude-sonnet-4-6--s2/mechanical.json",
+   "sha256": "636991a5526e7a5ea13427bfcf60eb1e3a59afaf1452fd791402c3e157ec24be",
+   "bytes": 3636
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/code-refs-containers--claude-sonnet-4-6--s2/scores.json",
+   "sha256": "3ff7808e28c8aecd9df57e664a90e14d6c6d28f54ec92c1e8ba2f50516d7cc37",
+   "bytes": 17402
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/code-refs-containers--claude-sonnet-4-6--s2/screenshot.png",
+   "sha256": "39388a8604f7195d3f2e16cc626759ba4e4f110f75af9e8111d703b534384741",
+   "bytes": 384350
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/code-refs-containers--claude-sonnet-4-6--s2/session-meta.json",
+   "sha256": "a11e3a899b75798b9618109e29e240844e99b9cf7aecdbe1194ba7922bef9be5",
+   "bytes": 1038
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/code-refs-containers--claude-sonnet-4-6--s2/transcript.jsonl",
+   "sha256": "fca10beb0c532951e2c2be478f61fe5f246d3e761efc9f0e1ca08202e61e522b",
+   "bytes": 528132
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/code-refs-containers--claude-sonnet-4-6--s2/transcript.txt",
+   "sha256": "040cbcd7a66793350372772ade438da32d668eedc8ad894b2fa946aecbf3fc93",
+   "bytes": 159824
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/code-refs-containers--claude-sonnet-4-6--s3/artifacts/noodles.json",
+   "sha256": "902bd74cf57f4caa95a9db3657ee9fbac84b4b085db1fc9c076d87603fd00903",
+   "bytes": 4574
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/code-refs-containers--claude-sonnet-4-6--s3/mechanical.json",
+   "sha256": "542f82d655ed61ba34efcdbb3565231a12e0ebc92876b2653d4608d9366a133e",
+   "bytes": 888
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/code-refs-containers--claude-sonnet-4-6--s3/scores.json",
+   "sha256": "1a9651aa49dd33f55170360b5e5434b4d2452990b4153cec37b80764e6254929",
+   "bytes": 15412
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/code-refs-containers--claude-sonnet-4-6--s3/screenshot.png",
+   "sha256": "b102b8948f3c74759513fbec86c81c857fd7d7307b92509dce4fb0afdcac6b5e",
+   "bytes": 357596
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/code-refs-containers--claude-sonnet-4-6--s3/session-meta.json",
+   "sha256": "b2e5a7a2cec7f4136f84c78cc1c2024d9e36dd0e871cd4c26f37be86c3ea3429",
+   "bytes": 1028
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/code-refs-containers--claude-sonnet-4-6--s3/transcript.jsonl",
+   "sha256": "c49d4da12a5349fe443aa3a001a7618fce3a2105bc12acb8438726b26f6acbc7",
+   "bytes": 1326505
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/code-refs-containers--claude-sonnet-4-6--s3/transcript.txt",
+   "sha256": "f76ac53af915a5e8fb34b096324cb0748f7dc706dfece8830de339029fc0de5b",
+   "bytes": 370792
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/code-refs-containers--claude-sonnet-5--s1/mechanical.json",
+   "sha256": "ebfd96264b472899dbc60d0dbc9a359b38f1f3dd03b16ba93bb3d8eefc076a66",
+   "bytes": 548
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/code-refs-containers--claude-sonnet-5--s1/scores.json",
+   "sha256": "25883f64d29f1e25bd659796f1e81c598315c058ac268028ff76330e38c6a0d3",
+   "bytes": 13007
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/code-refs-containers--claude-sonnet-5--s1/screenshot.png",
+   "sha256": "0c4dcbbb4f37e2acdbc9a815c662eb9dca948e450cdb3dd247428b1f5ed2ac90",
+   "bytes": 120213
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/code-refs-containers--claude-sonnet-5--s1/session-meta.json",
+   "sha256": "52f3892c31ca84c86221a0f904f5c86985040c61474136fe5ccfe76fee448962",
+   "bytes": 1034
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/code-refs-containers--claude-sonnet-5--s1/transcript.jsonl",
+   "sha256": "2066ee80ae3e07c29ad730985da7ff13ba872d3c52a3840ee56a20343f53ed61",
+   "bytes": 363977
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/code-refs-containers--claude-sonnet-5--s1/transcript.txt",
+   "sha256": "3ca042c3277b01920e473c49e81f1800e9af3b57189e3063429012d34af48dd6",
+   "bytes": 84232
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/code-refs-containers--claude-sonnet-5--s2/mechanical.json",
+   "sha256": "ebfd96264b472899dbc60d0dbc9a359b38f1f3dd03b16ba93bb3d8eefc076a66",
+   "bytes": 548
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/code-refs-containers--claude-sonnet-5--s2/scores.json",
+   "sha256": "b2072e3ea42dc5fb20c7935e8113027e61d80b772453165dfdb327abec03bd0e",
+   "bytes": 13036
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/code-refs-containers--claude-sonnet-5--s2/screenshot.png",
+   "sha256": "0c4dcbbb4f37e2acdbc9a815c662eb9dca948e450cdb3dd247428b1f5ed2ac90",
+   "bytes": 120213
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/code-refs-containers--claude-sonnet-5--s2/session-meta.json",
+   "sha256": "661b93e335ea05220f086cfd40a441fb4b7ceaadaaa1855499cd8dfbabe01ad5",
+   "bytes": 1034
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/code-refs-containers--claude-sonnet-5--s2/transcript.jsonl",
+   "sha256": "b9a5b72a82d09ac25aa305a79fcb083992ddfa726467344bbab135027f5f08ef",
+   "bytes": 377715
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/code-refs-containers--claude-sonnet-5--s2/transcript.txt",
+   "sha256": "b414f94a66fda322b5558b337dfb15ac1185e86ca9c4c56c1af89debaff9da37",
+   "bytes": 116745
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/code-refs-containers--claude-sonnet-5--s3/mechanical.json",
+   "sha256": "01890ae3a338a7f8f4f58b023ef7ef79efd98dbec2b43a1f221cb99122a58aec",
+   "bytes": 548
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/code-refs-containers--claude-sonnet-5--s3/scores.json",
+   "sha256": "b15c421e37d880491ca56e4982e26fe93363dcc5b2e3fd1d365840682fa2bde4",
+   "bytes": 12962
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/code-refs-containers--claude-sonnet-5--s3/screenshot.png",
+   "sha256": "04d1b338a0344538189436dcf723fe3de004c8a0492320213a5314ad488eea63",
+   "bytes": 103539
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/code-refs-containers--claude-sonnet-5--s3/session-meta.json",
+   "sha256": "b893ff39b6344e86907a7ee9ad2c41ab60dc910728e8aab1fff8d547d1346d31",
+   "bytes": 618
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/code-refs-containers--claude-sonnet-5--s3/transcript.jsonl",
+   "sha256": "0ceda9abf7dcd9dd520c1cf5f8f9a0c8089ad5ad64ec330919920f3ace7de383",
+   "bytes": 389974
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/code-refs-containers--claude-sonnet-5--s3/transcript.txt",
+   "sha256": "af196424fa043ac7a6481702a7514f77e7dd3be460cd8c57d05137a1aa5a8da6",
+   "bytes": 72649
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/contextualize-operator--claude-opus-4-8--s1/artifacts/answers.json",
+   "sha256": "16b43056a79dade43c409bd944c85b068702c080cebae5695d505f06254534f3",
+   "bytes": 3096
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/contextualize-operator--claude-opus-4-8--s1/matcher-outcomes.json",
+   "sha256": "42c535c81a58823f786ae99a7d2a0726acd97c1376290b5e3288545ebd10b788",
+   "bytes": 4964
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/contextualize-operator--claude-opus-4-8--s1/mechanical.json",
+   "sha256": "1f2953e5b82afeb397c3342792c0349b92c0a507db20084a6b0c330e24c627a1",
+   "bytes": 211
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/contextualize-operator--claude-opus-4-8--s1/scores.json",
+   "sha256": "7d26afdfecd4dabd7b557b1179cf6cc6e2a7cfb3090d113cbcab43a084faa2b1",
+   "bytes": 8943
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/contextualize-operator--claude-opus-4-8--s1/session-meta.json",
+   "sha256": "c482fadbb4e9797befa6f610cd44ce676e321a6a2f812f4d7716f897c17efb69",
+   "bytes": 1039
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/contextualize-operator--claude-opus-4-8--s1/transcript.jsonl",
+   "sha256": "04a5c726c22d8c1d1bab92a6d6ca8526bb345753499d7149dad88529fbcd29d8",
+   "bytes": 139482
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/contextualize-operator--claude-opus-4-8--s1/transcript.txt",
+   "sha256": "3e33795aa1f2f66a14ffe5cf51ce7bdd9fbc107dbef189ec7fec366731d980fe",
+   "bytes": 52952
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/contextualize-operator--claude-opus-4-8--s2/artifacts/answers.json",
+   "sha256": "e6341a278f36d5c575c0512340dd8fb7863b0b90239b278970d11bc9616a6b65",
+   "bytes": 3816
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/contextualize-operator--claude-opus-4-8--s2/matcher-outcomes.json",
+   "sha256": "c6998315aaf4ec6a571f1a4feee7151236dd7faa6105473f2b663bd63e07b3ee",
+   "bytes": 5684
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/contextualize-operator--claude-opus-4-8--s2/mechanical.json",
+   "sha256": "1f2953e5b82afeb397c3342792c0349b92c0a507db20084a6b0c330e24c627a1",
+   "bytes": 211
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/contextualize-operator--claude-opus-4-8--s2/scores.json",
+   "sha256": "f876ac5e8e75982a1918ece8da97685eee18c55b3ad3d099d18bc21eef7f1d7a",
+   "bytes": 10004
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/contextualize-operator--claude-opus-4-8--s2/session-meta.json",
+   "sha256": "228696f20b9fb609d03b7d26b3e55eb390df60f48cc8c58b8434308b84e07f2f",
+   "bytes": 1039
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/contextualize-operator--claude-opus-4-8--s2/transcript.jsonl",
+   "sha256": "68797161853505326723aef57c14e03b07e860646d18a628082f163fc9f29969",
+   "bytes": 157855
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/contextualize-operator--claude-opus-4-8--s2/transcript.txt",
+   "sha256": "825e4b41b08d23e667df8cf2660c3014dbaa656ef46008c5832aff353ccc209f",
+   "bytes": 59699
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/contextualize-operator--claude-opus-4-8--s3/artifacts/answers.json",
+   "sha256": "a2dba15464dbeeeb216478c00768dcda5b4c84acca674d42843552f106dad449",
+   "bytes": 4265
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/contextualize-operator--claude-opus-4-8--s3/matcher-outcomes.json",
+   "sha256": "42fe80bf4b4d3837dd4b00f460ad3f9d6020ec49be52262570552de61826cf44",
+   "bytes": 6133
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/contextualize-operator--claude-opus-4-8--s3/mechanical.json",
+   "sha256": "1f2953e5b82afeb397c3342792c0349b92c0a507db20084a6b0c330e24c627a1",
+   "bytes": 211
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/contextualize-operator--claude-opus-4-8--s3/scores.json",
+   "sha256": "9cc38cf7943ff0de637d4d47881714803bbef7836f2243fa11896a48748ad35f",
+   "bytes": 9383
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/contextualize-operator--claude-opus-4-8--s3/session-meta.json",
+   "sha256": "fe516431187a9ff63a025f75c7baaa27dadef5be1c0a59102fd496497c5b21ba",
+   "bytes": 1031
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/contextualize-operator--claude-opus-4-8--s3/transcript.jsonl",
+   "sha256": "c8be273d532623fa20683e0a63ffee00988dff30464c8902790c461813a35d96",
+   "bytes": 232176
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/contextualize-operator--claude-opus-4-8--s3/transcript.txt",
+   "sha256": "4956770af216f310173999fd58aa87ca1d2d31afe7a7f43b8d05c0658bbdbafe",
+   "bytes": 95184
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/contextualize-operator--claude-sonnet-4-6--s1/artifacts/answers.json",
+   "sha256": "710b35498e8f0362c09e73a12fae8b6d7de3fd64b99fa0a2255c38b6a72168f8",
+   "bytes": 3316
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/contextualize-operator--claude-sonnet-4-6--s1/matcher-outcomes.json",
+   "sha256": "2c2c02756f2f25de9b956b1f965a7bf7a8f972d1bec4b800019af62d8d8e2962",
+   "bytes": 5184
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/contextualize-operator--claude-sonnet-4-6--s1/mechanical.json",
+   "sha256": "1f2953e5b82afeb397c3342792c0349b92c0a507db20084a6b0c330e24c627a1",
+   "bytes": 211
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/contextualize-operator--claude-sonnet-4-6--s1/scores.json",
+   "sha256": "83f49233ef43932401e494ab68262247d0c2d4fa37c21e602a7cb528cd08cb73",
+   "bytes": 9613
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/contextualize-operator--claude-sonnet-4-6--s1/session-meta.json",
+   "sha256": "1662f013c909099c86161cb67231e6a414444c1f215b786eb886e4f74ab5ea6f",
+   "bytes": 1040
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/contextualize-operator--claude-sonnet-4-6--s1/transcript.jsonl",
+   "sha256": "7871305406dcf25485e5995c738baa5f7f7b08e75541044e587c624b4e1ca0b1",
+   "bytes": 459971
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/contextualize-operator--claude-sonnet-4-6--s1/transcript.txt",
+   "sha256": "0f5b492c0f5990d3d0cdcfa929bc49b92271f707ade7d6d18713eca988cf32cf",
+   "bytes": 171820
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/contextualize-operator--claude-sonnet-4-6--s2/artifacts/answers.json",
+   "sha256": "7faefc4fb414e5c233fd5ff7787338f5e868b5ae184f0418333e44a75f8dfda5",
+   "bytes": 3639
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/contextualize-operator--claude-sonnet-4-6--s2/matcher-outcomes.json",
+   "sha256": "2fa4bf722998531b32ac03deab6c731a843155afc87fd0560b49a373bd190632",
+   "bytes": 5507
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/contextualize-operator--claude-sonnet-4-6--s2/mechanical.json",
+   "sha256": "1f2953e5b82afeb397c3342792c0349b92c0a507db20084a6b0c330e24c627a1",
+   "bytes": 211
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/contextualize-operator--claude-sonnet-4-6--s2/scores.json",
+   "sha256": "861a6a2f602273140ab2bd4ebd280d5e967ed3f739a0dc6f2b6e74b182b6e525",
+   "bytes": 9880
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/contextualize-operator--claude-sonnet-4-6--s2/session-meta.json",
+   "sha256": "a4a2017eba5744ab211a9ee1ca84f5393f466799025229d519abfe0717c1eae8",
+   "bytes": 1042
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/contextualize-operator--claude-sonnet-4-6--s2/transcript.jsonl",
+   "sha256": "0d6d4c2402c0f7cc0a57de8fa82ee5314d8a67e0e7111f2e1ad88393cffce078",
+   "bytes": 283516
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/contextualize-operator--claude-sonnet-4-6--s2/transcript.txt",
+   "sha256": "216f13659cf662fcd157aedc4947ff04a1c57d3186f250bd4a4631064a83bdc2",
+   "bytes": 102317
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/contextualize-operator--claude-sonnet-4-6--s3/artifacts/answers.json",
+   "sha256": "e14fff17f2807ec74ac5115c56f40f1b1895d8d5071e704e3c1c499eaa8f7f78",
+   "bytes": 3931
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/contextualize-operator--claude-sonnet-4-6--s3/matcher-outcomes.json",
+   "sha256": "e74077583e22f5b9ee0d6ef40130794990f22c45cc3a341c8082e35cb695bf29",
+   "bytes": 5799
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/contextualize-operator--claude-sonnet-4-6--s3/mechanical.json",
+   "sha256": "1f2953e5b82afeb397c3342792c0349b92c0a507db20084a6b0c330e24c627a1",
+   "bytes": 211
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/contextualize-operator--claude-sonnet-4-6--s3/scores.json",
+   "sha256": "49433cc377a337aad9483315a19092ca419d58cde77b50a68b213d42d0904774",
+   "bytes": 9811
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/contextualize-operator--claude-sonnet-4-6--s3/session-meta.json",
+   "sha256": "d177233c9ad58adf76579d3f024a787c7835ecd190c96d9f34d5240f752a5de6",
+   "bytes": 1042
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/contextualize-operator--claude-sonnet-4-6--s3/transcript.jsonl",
+   "sha256": "98fc208de4a83331b91845889ee6fc969255876bb8fd1e1e95d60b3b5dc99b2d",
+   "bytes": 263010
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/contextualize-operator--claude-sonnet-4-6--s3/transcript.txt",
+   "sha256": "c79e15667586bd09ee65427fbe996775111f7ca024591534f7b85fb44ec728d0",
+   "bytes": 104669
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/contextualize-operator--claude-sonnet-5--s1/mechanical.json",
+   "sha256": "b7eb9a33ea4d5d05e333c71122ad863ada2ab886077c767b5932b6bf29b00740",
+   "bytes": 190
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/contextualize-operator--claude-sonnet-5--s1/scores.json",
+   "sha256": "974387d31b8c232d5fde2010559bfe52e3e9428c7131d1c160c90ff5f55425b2",
+   "bytes": 8666
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/contextualize-operator--claude-sonnet-5--s1/session-meta.json",
+   "sha256": "8082aab47ede0e905fe9718e672e73e71a136f2d8528fe0c8f3a6aae212240bd",
+   "bytes": 1036
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/contextualize-operator--claude-sonnet-5--s1/transcript.jsonl",
+   "sha256": "e3d45327ebe48efbec7b2710cefbbfeb111f48d5a96d15f25db28db5da2f9bd8",
+   "bytes": 169118
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/contextualize-operator--claude-sonnet-5--s1/transcript.txt",
+   "sha256": "748896b9aac2bb1ff252ef8322915797c3b3ffc71135b220ba3272548d6d0c52",
+   "bytes": 63534
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/contextualize-operator--claude-sonnet-5--s2/artifacts/answers.json",
+   "sha256": "1cf91c32156d0e787dc48f462aea7bb611f46c1e405e5ae7e167ba7089e0325f",
+   "bytes": 5441
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/contextualize-operator--claude-sonnet-5--s2/matcher-outcomes.json",
+   "sha256": "f39c2af7c169b8462f74bebb9f9dba006af51c17385d51b4646949dae40fd55c",
+   "bytes": 7309
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/contextualize-operator--claude-sonnet-5--s2/mechanical.json",
+   "sha256": "1f2953e5b82afeb397c3342792c0349b92c0a507db20084a6b0c330e24c627a1",
+   "bytes": 211
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/contextualize-operator--claude-sonnet-5--s2/scores.json",
+   "sha256": "780beaffe3bf8f11c610e8a03d0175884c238ad75ff05d4b3989772b1686b0b6",
+   "bytes": 10165
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/contextualize-operator--claude-sonnet-5--s2/session-meta.json",
+   "sha256": "a8c019b59a852e9e24a0243b0d27ec5a504fa1fbfeef6ee88ab7ad9370d2bb4b",
+   "bytes": 1037
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/contextualize-operator--claude-sonnet-5--s2/transcript.jsonl",
+   "sha256": "c0c66aaa908bf8a694fa19b01812ec4e4ad8eb469c0c8db1b04968246f835147",
+   "bytes": 225875
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/contextualize-operator--claude-sonnet-5--s2/transcript.txt",
+   "sha256": "7cf75557a5d6996e042f9aed108b293db37a758122d9efdd181cbe1b59ad9087",
+   "bytes": 89989
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/contextualize-operator--claude-sonnet-5--s3/mechanical.json",
+   "sha256": "b7eb9a33ea4d5d05e333c71122ad863ada2ab886077c767b5932b6bf29b00740",
+   "bytes": 190
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/contextualize-operator--claude-sonnet-5--s3/scores.json",
+   "sha256": "74e7f26f462bbcb0820425c5aa8dd399b056e4a3ea60ec6bf8f76cddfb9f4325",
+   "bytes": 8546
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/contextualize-operator--claude-sonnet-5--s3/session-meta.json",
+   "sha256": "2d59a533bde45c00ae8151413f401e2ef81c508209bbb5bca9637bc4e3c91283",
+   "bytes": 1036
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/contextualize-operator--claude-sonnet-5--s3/transcript.jsonl",
+   "sha256": "053789cbb8cbc88c962dee301d55628eec664be81a1e523c4cc1bf6aacb3562f",
+   "bytes": 157312
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/contextualize-operator--claude-sonnet-5--s3/transcript.txt",
+   "sha256": "34f7bf1a2b8dbb5cb7e643325d0bcfcfe95ccd07962ce25529fbfa0f005fca6d",
+   "bytes": 56837
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/debug-blank-viz--claude-opus-4-8--s1/artifacts/noodles.json",
+   "sha256": "8bf681e60e81adc4bb47cf855fc69e32432feb3178133a789a55e0dedeb92520",
+   "bytes": 6449
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/debug-blank-viz--claude-opus-4-8--s1/mechanical.json",
+   "sha256": "85b561e429db4c905222521e8b64c95c62624821fba68a3a83bb8c207b43eb6d",
+   "bytes": 771
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/debug-blank-viz--claude-opus-4-8--s1/scores.json",
+   "sha256": "2574fbd2e85debafd7fe405433c5e95e987fd421101802e21f0898c8cc7c2798",
+   "bytes": 15283
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/debug-blank-viz--claude-opus-4-8--s1/screenshot.png",
+   "sha256": "6caaefe9cddb1ba5f5491f0473e657b4c8e436583a1a6bc03ac8caa3436812a9",
+   "bytes": 487964
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/debug-blank-viz--claude-opus-4-8--s1/session-meta.json",
+   "sha256": "1bd2af02ed3c23fe6e56990e30f05a2881c50fcd325290fb71776c648b22b2f1",
+   "bytes": 1015
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/debug-blank-viz--claude-opus-4-8--s1/transcript.jsonl",
+   "sha256": "5f588b8c683e8acc21854a69c0f510aee449d2f6cbb7733796acd5959347ab66",
+   "bytes": 106583
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/debug-blank-viz--claude-opus-4-8--s1/transcript.txt",
+   "sha256": "e519682491a06ba7cc702bc3015b8585dd223dbe13cf0c1e4b87e020dc63668a",
+   "bytes": 27833
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/debug-blank-viz--claude-opus-4-8--s2/artifacts/noodles.json",
+   "sha256": "623e5365518d7656e25592e42dd49872892832f253236f70ea7402b26f3611a7",
+   "bytes": 6449
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/debug-blank-viz--claude-opus-4-8--s2/mechanical.json",
+   "sha256": "c6113a86d754d8e8e574b3492d514216d2b9a9772d473a66b8fd0a0f7223656b",
+   "bytes": 771
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/debug-blank-viz--claude-opus-4-8--s2/scores.json",
+   "sha256": "c1a325ed14c954e2cefc0eb4f523b205f1be57052f570117f61a82e45885bc18",
+   "bytes": 14984
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/debug-blank-viz--claude-opus-4-8--s2/screenshot.png",
+   "sha256": "6caaefe9cddb1ba5f5491f0473e657b4c8e436583a1a6bc03ac8caa3436812a9",
+   "bytes": 487964
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/debug-blank-viz--claude-opus-4-8--s2/session-meta.json",
+   "sha256": "293128e1c73e05e7a1058f45f2063df6388e86a6955de064df9cca44f2f808d3",
+   "bytes": 1024
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/debug-blank-viz--claude-opus-4-8--s2/transcript.jsonl",
+   "sha256": "3b40da5964c49c1ee465a4ea7da7bc081ae148b24da38ae67922190ec46f2c39",
+   "bytes": 102969
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/debug-blank-viz--claude-opus-4-8--s2/transcript.txt",
+   "sha256": "1de400fe6b79edef60d1362569ca4aaa9abe90ee341944519b8f3e0be18779b2",
+   "bytes": 26153
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/debug-blank-viz--claude-opus-4-8--s3/artifacts/noodles.json",
+   "sha256": "9a7f25aa8e176221ec9969d72fbead33b7b9d681eeb4ac01e51d5991efcc7686",
+   "bytes": 6449
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/debug-blank-viz--claude-opus-4-8--s3/mechanical.json",
+   "sha256": "ae60b1b10c8ab853f14861f3d34430c94b8e07837eca332c6bef763a7abcafab",
+   "bytes": 771
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/debug-blank-viz--claude-opus-4-8--s3/scores.json",
+   "sha256": "f17030d0a321a3a49b19328861b1d1e08de6362cc78dcf86bca68c17704eec48",
+   "bytes": 14807
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/debug-blank-viz--claude-opus-4-8--s3/screenshot.png",
+   "sha256": "6caaefe9cddb1ba5f5491f0473e657b4c8e436583a1a6bc03ac8caa3436812a9",
+   "bytes": 487964
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/debug-blank-viz--claude-opus-4-8--s3/session-meta.json",
+   "sha256": "2fd5926231fe2b2223e2c834d0308f04409b8caf8fb035c4320a16387d71a452",
+   "bytes": 1024
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/debug-blank-viz--claude-opus-4-8--s3/transcript.jsonl",
+   "sha256": "341ce5d932a49eaaec66538472a9e9673760c0a441f0e176d40e0441c5178c14",
+   "bytes": 104204
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/debug-blank-viz--claude-opus-4-8--s3/transcript.txt",
+   "sha256": "7b373cbc463b47fe4c7962f7948dcecc01b60fda5828c70ed50504b9f4e3faf5",
+   "bytes": 27915
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/debug-blank-viz--claude-sonnet-4-6--s1/artifacts/noodles.json",
+   "sha256": "024fa29cdee6460ae6ead9e343e26d2c63aebf1e8ac0d235b94e6b0fafa010c1",
+   "bytes": 6241
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/debug-blank-viz--claude-sonnet-4-6--s1/mechanical.json",
+   "sha256": "d6c47fca2c6a0a61ce7be8c23ecb3168f004cf292047d70327418b841f0fe9b1",
+   "bytes": 766
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/debug-blank-viz--claude-sonnet-4-6--s1/scores.json",
+   "sha256": "f6e02e778959490a6549614a057156709d8c864684155fd9ca41de8762077512",
+   "bytes": 15462
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/debug-blank-viz--claude-sonnet-4-6--s1/screenshot.png",
+   "sha256": "ee423426eeccbed9d2ab2f003a4292cf2e069ea965bf9548f252bd7190a2d36c",
+   "bytes": 366521
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/debug-blank-viz--claude-sonnet-4-6--s1/session-meta.json",
+   "sha256": "01a0793a622d84d47f95b4ed7a6c598d2e3df24283ff2cae3df57c841650aab0",
+   "bytes": 1023
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/debug-blank-viz--claude-sonnet-4-6--s1/transcript.jsonl",
+   "sha256": "256abd9e84c875f21bc5c112cf51e5307f31e46738cf4106ebd96978acd09a8e",
+   "bytes": 62551
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/debug-blank-viz--claude-sonnet-4-6--s1/transcript.txt",
+   "sha256": "6f291ba7114a66e88614e5a0a6f9c559f526c865d73971421ccc8c08dc9c93ab",
+   "bytes": 15157
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/debug-blank-viz--claude-sonnet-4-6--s2/artifacts/noodles.json",
+   "sha256": "024fa29cdee6460ae6ead9e343e26d2c63aebf1e8ac0d235b94e6b0fafa010c1",
+   "bytes": 6241
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/debug-blank-viz--claude-sonnet-4-6--s2/mechanical.json",
+   "sha256": "bd3248ca2ef6eff69f7583e0371ecfe2a4430fdac7d343e5fd32ae6f0affe64c",
+   "bytes": 766
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/debug-blank-viz--claude-sonnet-4-6--s2/scores.json",
+   "sha256": "07c536878a20f3ea92f2b72ec41d6ab0cae172278a7fffda0931fbd4ec870ee0",
+   "bytes": 14571
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/debug-blank-viz--claude-sonnet-4-6--s2/screenshot.png",
+   "sha256": "ee423426eeccbed9d2ab2f003a4292cf2e069ea965bf9548f252bd7190a2d36c",
+   "bytes": 366521
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/debug-blank-viz--claude-sonnet-4-6--s2/session-meta.json",
+   "sha256": "b955ad2170f8fffe96406eb097ce27b9f9e44d3e3e8fbd1a567001e21283e39d",
+   "bytes": 1014
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/debug-blank-viz--claude-sonnet-4-6--s2/transcript.jsonl",
+   "sha256": "e79cfe6b262bfe27c076383d6b7627f752badb7e500e2dcaa189fd33478729a6",
+   "bytes": 63759
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/debug-blank-viz--claude-sonnet-4-6--s2/transcript.txt",
+   "sha256": "86e9ec5cd5f81e9968d9e8bd301f5b14a7edb0f1a5e6775eb3298f0e9be391f4",
+   "bytes": 15557
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/debug-blank-viz--claude-sonnet-4-6--s3/artifacts/noodles.json",
+   "sha256": "8bf681e60e81adc4bb47cf855fc69e32432feb3178133a789a55e0dedeb92520",
+   "bytes": 6449
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/debug-blank-viz--claude-sonnet-4-6--s3/mechanical.json",
+   "sha256": "6eb0773e6eaaf40d121d49e09caeaaeb9ec68dd9e2eebc4c5e92082e80f08b22",
+   "bytes": 789
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/debug-blank-viz--claude-sonnet-4-6--s3/scores.json",
+   "sha256": "a5e53ff6d4c9033a9e32529df99de88a52e97a4df24ca8de0cf94377d123f246",
+   "bytes": 14589
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/debug-blank-viz--claude-sonnet-4-6--s3/screenshot.png",
+   "sha256": "6caaefe9cddb1ba5f5491f0473e657b4c8e436583a1a6bc03ac8caa3436812a9",
+   "bytes": 487964
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/debug-blank-viz--claude-sonnet-4-6--s3/session-meta.json",
+   "sha256": "b52de22f15bbf4df1c38eec07c7ec16553f6bfc3eff2bfc099bcc91b8791e61e",
+   "bytes": 1014
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/debug-blank-viz--claude-sonnet-4-6--s3/transcript.jsonl",
+   "sha256": "40fb29dbb7e69646607fd5243bb53dcff7e4f60df3b230d2637044160c39fb96",
+   "bytes": 104884
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/debug-blank-viz--claude-sonnet-4-6--s3/transcript.txt",
+   "sha256": "a89728491289b7794819012441b01963d16c81c937265cfbf23e2fe90e0417ae",
+   "bytes": 25757
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/debug-blank-viz--claude-sonnet-5--s1/artifacts/noodles.json",
+   "sha256": "e3d6aa817c19515a44ad401d532a81806cdcbc49ed276a681d84c8a2706910e2",
+   "bytes": 6449
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/debug-blank-viz--claude-sonnet-5--s1/mechanical.json",
+   "sha256": "fea1011b8f6f88a3ac206542d9f171597e54ff38012c2871ae6740f323d82aab",
+   "bytes": 792
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/debug-blank-viz--claude-sonnet-5--s1/scores.json",
+   "sha256": "667a8225e1e83f336fb5951bb271e4174c89729b4ac42905c0bc1b9acca23094",
+   "bytes": 16321
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/debug-blank-viz--claude-sonnet-5--s1/screenshot.png",
+   "sha256": "9e8a15fa5ed83f801cec3262fd82544d1971b7284e6aaa123742c81bf8a5ca78",
+   "bytes": 368974
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/debug-blank-viz--claude-sonnet-5--s1/session-meta.json",
+   "sha256": "27a936eae4e0a954b4709804a422fde5698085e39ad4ba49001e058d50441bad",
+   "bytes": 1023
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/debug-blank-viz--claude-sonnet-5--s1/transcript.jsonl",
+   "sha256": "d4c99dfa42eb2cdb56e8606acbdf4dfcc54df531282ffda1df21d811b9e116c7",
+   "bytes": 596551
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/debug-blank-viz--claude-sonnet-5--s1/transcript.txt",
+   "sha256": "224549677b0fea7d8de2fecae7301f82d9a273fae91c470e83d0b1d33fa12cc4",
+   "bytes": 61758
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/debug-blank-viz--claude-sonnet-5--s2/artifacts/noodles.json",
+   "sha256": "8bf681e60e81adc4bb47cf855fc69e32432feb3178133a789a55e0dedeb92520",
+   "bytes": 6449
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/debug-blank-viz--claude-sonnet-5--s2/mechanical.json",
+   "sha256": "92a8ff16f2c24eccd673c3f681eae890b61f4b0ce1e19d02652f4752f480a61c",
+   "bytes": 771
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/debug-blank-viz--claude-sonnet-5--s2/scores.json",
+   "sha256": "18081a636ff123ecc82bf4e69ec44707a5b441a9a5fe06bb753cab80401ee05a",
+   "bytes": 14326
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/debug-blank-viz--claude-sonnet-5--s2/screenshot.png",
+   "sha256": "6caaefe9cddb1ba5f5491f0473e657b4c8e436583a1a6bc03ac8caa3436812a9",
+   "bytes": 487964
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/debug-blank-viz--claude-sonnet-5--s2/session-meta.json",
+   "sha256": "e3bbfd1b3eb60e91bc8dfc16b84db1be161c3eb831132c6b0078f832cf4cf82e",
+   "bytes": 1014
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/debug-blank-viz--claude-sonnet-5--s2/transcript.jsonl",
+   "sha256": "86f72c543da621924404513da31e2de5e8739fac5d2d8d84f80771d40c93674f",
+   "bytes": 510053
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/debug-blank-viz--claude-sonnet-5--s2/transcript.txt",
+   "sha256": "5cdadaa1ad0311c01a588474525a37aefcad10b4a95f41c031348dc338cbed01",
+   "bytes": 29694
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/debug-blank-viz--claude-sonnet-5--s3/artifacts/noodles.json",
+   "sha256": "024fa29cdee6460ae6ead9e343e26d2c63aebf1e8ac0d235b94e6b0fafa010c1",
+   "bytes": 6241
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/debug-blank-viz--claude-sonnet-5--s3/mechanical.json",
+   "sha256": "9a1c4c2c42e0c1e297e55952aff24075f90576d12346eed141b7beca49f9fcbe",
+   "bytes": 767
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/debug-blank-viz--claude-sonnet-5--s3/scores.json",
+   "sha256": "0b6380e82897ce596aaf6741bd371629df87664ceeb03a5af4d5721241e6cbcc",
+   "bytes": 15358
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/debug-blank-viz--claude-sonnet-5--s3/screenshot.png",
+   "sha256": "ee423426eeccbed9d2ab2f003a4292cf2e069ea965bf9548f252bd7190a2d36c",
+   "bytes": 366521
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/debug-blank-viz--claude-sonnet-5--s3/session-meta.json",
+   "sha256": "f5c5c6a2899bf51a7d53a4890b2942182fb3d6c082d9219885454e6dbd181421",
+   "bytes": 1023
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/debug-blank-viz--claude-sonnet-5--s3/transcript.jsonl",
+   "sha256": "bd4c416cddb99276edf0162ec23f31d8c88452ea265e7973a488e5d457b4602c",
+   "bytes": 115589
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/debug-blank-viz--claude-sonnet-5--s3/transcript.txt",
+   "sha256": "02cbc11f79872e7f368fc368269ddbad3b8cd6bfd55faec5261a0707468c7e18",
+   "bytes": 29167
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/modify-arcs--claude-opus-4-8--s1/artifacts/base.noodles.json",
+   "sha256": "08d281ef27c7059ae4da3ab4c364a4d6bd4e090f419c047fbc1522c964b06ba4",
+   "bytes": 8576
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/modify-arcs--claude-opus-4-8--s1/artifacts/noodles.json",
+   "sha256": "aab3ddb3d9006e4f17fef6ec228c19f6a2b3ac396f2ce96dc4f4ded127fc6cbb",
+   "bytes": 8207
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/modify-arcs--claude-opus-4-8--s1/mechanical.json",
+   "sha256": "574a076ef4b271989967b8b67d4f511deb978527f93906922190363e6ee47e73",
+   "bytes": 1322
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/modify-arcs--claude-opus-4-8--s1/scores.json",
+   "sha256": "7162c4214875c1a98b228e422558bc173d98218fc9a1bd2fa9b4b61fb9ec6770",
+   "bytes": 13478
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/modify-arcs--claude-opus-4-8--s1/screenshot.png",
+   "sha256": "03550bb829fad011ef9332e9f0855f19117de9227be297e3cf4dbb13e812f0e8",
+   "bytes": 673327
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/modify-arcs--claude-opus-4-8--s1/session-meta.json",
+   "sha256": "d3c8fee2ea1753a98d1632124aed8cfaced5c0f18d871831918c7be337ac8c31",
+   "bytes": 1016
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/modify-arcs--claude-opus-4-8--s1/transcript.jsonl",
+   "sha256": "56767c08b0588f2c8f7949806c09883c33f974caa6e3b1ba358fba96c07fe092",
+   "bytes": 76866
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/modify-arcs--claude-opus-4-8--s1/transcript.txt",
+   "sha256": "ff36b8ef18b13ef2080f8499b6fe3da9b6c24bfc07b7b03a3354c5f846144563",
+   "bytes": 13474
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/modify-arcs--claude-opus-4-8--s2/artifacts/base.noodles.json",
+   "sha256": "08d281ef27c7059ae4da3ab4c364a4d6bd4e090f419c047fbc1522c964b06ba4",
+   "bytes": 8576
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/modify-arcs--claude-opus-4-8--s2/artifacts/noodles.json",
+   "sha256": "aab3ddb3d9006e4f17fef6ec228c19f6a2b3ac396f2ce96dc4f4ded127fc6cbb",
+   "bytes": 8207
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/modify-arcs--claude-opus-4-8--s2/mechanical.json",
+   "sha256": "574a076ef4b271989967b8b67d4f511deb978527f93906922190363e6ee47e73",
+   "bytes": 1322
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/modify-arcs--claude-opus-4-8--s2/scores.json",
+   "sha256": "46ef334d0f05793dfba7a4bff31c0517d6ee36b6cf6f76c10e5e836d7f790ec0",
+   "bytes": 13598
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/modify-arcs--claude-opus-4-8--s2/screenshot.png",
+   "sha256": "03550bb829fad011ef9332e9f0855f19117de9227be297e3cf4dbb13e812f0e8",
+   "bytes": 673327
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/modify-arcs--claude-opus-4-8--s2/session-meta.json",
+   "sha256": "a1ecac52d31e5129a4e56987a3f84b2ce1e683908c29f25c21ed28184b7d8780",
+   "bytes": 1006
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/modify-arcs--claude-opus-4-8--s2/transcript.jsonl",
+   "sha256": "09437aae920364bdb46d1725877f2423f4cbb00e8c15227a4c13065639448000",
+   "bytes": 80282
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/modify-arcs--claude-opus-4-8--s2/transcript.txt",
+   "sha256": "c1d5d20be03e21dbdd6d6c02a28481929991299275d83a428ae64dea7ea1861d",
+   "bytes": 13271
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/modify-arcs--claude-opus-4-8--s3/artifacts/base.noodles.json",
+   "sha256": "08d281ef27c7059ae4da3ab4c364a4d6bd4e090f419c047fbc1522c964b06ba4",
+   "bytes": 8576
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/modify-arcs--claude-opus-4-8--s3/artifacts/noodles.json",
+   "sha256": "bf92a474f8f5776a150e9d561f75ef62cad0af6b1ee1eea725a16c9488c479f2",
+   "bytes": 8211
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/modify-arcs--claude-opus-4-8--s3/mechanical.json",
+   "sha256": "bba156aa7412ac333a5824bc8e7fbdace98d4903fbe8da8ede0bd2b4a1214105",
+   "bytes": 1326
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/modify-arcs--claude-opus-4-8--s3/scores.json",
+   "sha256": "f8bd9813e65f935efc776d867d685391ee90a837318dcffbce994950bffc91e9",
+   "bytes": 14274
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/modify-arcs--claude-opus-4-8--s3/screenshot.png",
+   "sha256": "03550bb829fad011ef9332e9f0855f19117de9227be297e3cf4dbb13e812f0e8",
+   "bytes": 673327
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/modify-arcs--claude-opus-4-8--s3/session-meta.json",
+   "sha256": "07d2ea8f3cdfbb6e4f50d0835b6b414fb4fb8325bd40fc9c63e3e3eaf07a0661",
+   "bytes": 1008
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/modify-arcs--claude-opus-4-8--s3/transcript.jsonl",
+   "sha256": "b663be4802f909518fa396a81530c199178389cc780861de1953dd1148caff09",
+   "bytes": 74608
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/modify-arcs--claude-opus-4-8--s3/transcript.txt",
+   "sha256": "1052f5f1def8cc9b48a3582462fd774a39fb0425696be523702068c27015a492",
+   "bytes": 17327
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/modify-arcs--claude-sonnet-4-6--s1/artifacts/base.noodles.json",
+   "sha256": "08d281ef27c7059ae4da3ab4c364a4d6bd4e090f419c047fbc1522c964b06ba4",
+   "bytes": 8576
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/modify-arcs--claude-sonnet-4-6--s1/artifacts/noodles.json",
+   "sha256": "aab3ddb3d9006e4f17fef6ec228c19f6a2b3ac396f2ce96dc4f4ded127fc6cbb",
+   "bytes": 8207
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/modify-arcs--claude-sonnet-4-6--s1/mechanical.json",
+   "sha256": "574a076ef4b271989967b8b67d4f511deb978527f93906922190363e6ee47e73",
+   "bytes": 1322
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/modify-arcs--claude-sonnet-4-6--s1/scores.json",
+   "sha256": "044a487621834b545762b97b50d25146fb68a1b587c851c2e0802cb3fb6eea33",
+   "bytes": 12642
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/modify-arcs--claude-sonnet-4-6--s1/screenshot.png",
+   "sha256": "03550bb829fad011ef9332e9f0855f19117de9227be297e3cf4dbb13e812f0e8",
+   "bytes": 673327
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/modify-arcs--claude-sonnet-4-6--s1/session-meta.json",
+   "sha256": "f961aa29213bddd8f5a63e96293cc92c8840915e570daa7ebccc18c55cd80052",
+   "bytes": 1007
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/modify-arcs--claude-sonnet-4-6--s1/transcript.jsonl",
+   "sha256": "bb705fd16b620873f96edb21a69076ea1e1a45fc00a5bf147af2921a88f11788",
+   "bytes": 82578
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/modify-arcs--claude-sonnet-4-6--s1/transcript.txt",
+   "sha256": "d149b4c006f8a32d811f9a38b53538787eb7d012c27352299e3ba80d9668064e",
+   "bytes": 14851
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/modify-arcs--claude-sonnet-4-6--s2/artifacts/base.noodles.json",
+   "sha256": "08d281ef27c7059ae4da3ab4c364a4d6bd4e090f419c047fbc1522c964b06ba4",
+   "bytes": 8576
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/modify-arcs--claude-sonnet-4-6--s2/artifacts/noodles.json",
+   "sha256": "aab3ddb3d9006e4f17fef6ec228c19f6a2b3ac396f2ce96dc4f4ded127fc6cbb",
+   "bytes": 8207
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/modify-arcs--claude-sonnet-4-6--s2/mechanical.json",
+   "sha256": "574a076ef4b271989967b8b67d4f511deb978527f93906922190363e6ee47e73",
+   "bytes": 1322
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/modify-arcs--claude-sonnet-4-6--s2/scores.json",
+   "sha256": "3f05ad5de8c8c9ad89eaf673a6e776325dca4ad9b25b4d3ea3e70854b85c3893",
+   "bytes": 12889
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/modify-arcs--claude-sonnet-4-6--s2/screenshot.png",
+   "sha256": "03550bb829fad011ef9332e9f0855f19117de9227be297e3cf4dbb13e812f0e8",
+   "bytes": 673327
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/modify-arcs--claude-sonnet-4-6--s2/session-meta.json",
+   "sha256": "b84fe6af33065874b83c2d7aa8633bbc28747506ba87fa3a96a92b25a62bf02e",
+   "bytes": 1016
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/modify-arcs--claude-sonnet-4-6--s2/transcript.jsonl",
+   "sha256": "7cd497b8f397b413e676080576475a6700ae281b1467ec52ff28173601e59f64",
+   "bytes": 89984
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/modify-arcs--claude-sonnet-4-6--s2/transcript.txt",
+   "sha256": "a4abf15e633e15fb346874269587df75cfb3eb6848baf88eb43f2cef79e68a96",
+   "bytes": 16903
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/modify-arcs--claude-sonnet-4-6--s3/artifacts/base.noodles.json",
+   "sha256": "08d281ef27c7059ae4da3ab4c364a4d6bd4e090f419c047fbc1522c964b06ba4",
+   "bytes": 8576
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/modify-arcs--claude-sonnet-4-6--s3/artifacts/noodles.json",
+   "sha256": "b53fb0efe391f43df9484079e1a60666147ae5f015a1792dc01cdf03c9ceb7b2",
+   "bytes": 8208
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/modify-arcs--claude-sonnet-4-6--s3/mechanical.json",
+   "sha256": "574a076ef4b271989967b8b67d4f511deb978527f93906922190363e6ee47e73",
+   "bytes": 1322
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/modify-arcs--claude-sonnet-4-6--s3/scores.json",
+   "sha256": "9fab4f0d922447427cff2fa062cc54e388ddd73e37c1d0e7ac2329735af1e892",
+   "bytes": 13055
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/modify-arcs--claude-sonnet-4-6--s3/screenshot.png",
+   "sha256": "03550bb829fad011ef9332e9f0855f19117de9227be297e3cf4dbb13e812f0e8",
+   "bytes": 673327
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/modify-arcs--claude-sonnet-4-6--s3/session-meta.json",
+   "sha256": "1a87783e6a9eb8552c7bd9aa4663205416879f8ba6f32685e785400cb477ccf4",
+   "bytes": 1016
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/modify-arcs--claude-sonnet-4-6--s3/transcript.jsonl",
+   "sha256": "b6e1f3b920136bea29905c6a22a47a55498c30124b864f6e109c2f0b9667b7b5",
+   "bytes": 98103
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/modify-arcs--claude-sonnet-4-6--s3/transcript.txt",
+   "sha256": "aabd5c57d89e617d5285618f31461544db561dd9a69eb9465397e654957bddae",
+   "bytes": 19027
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/modify-arcs--claude-sonnet-5--s1/artifacts/base.noodles.json",
+   "sha256": "08d281ef27c7059ae4da3ab4c364a4d6bd4e090f419c047fbc1522c964b06ba4",
+   "bytes": 8576
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/modify-arcs--claude-sonnet-5--s1/artifacts/noodles.json",
+   "sha256": "bf92a474f8f5776a150e9d561f75ef62cad0af6b1ee1eea725a16c9488c479f2",
+   "bytes": 8211
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/modify-arcs--claude-sonnet-5--s1/mechanical.json",
+   "sha256": "bba156aa7412ac333a5824bc8e7fbdace98d4903fbe8da8ede0bd2b4a1214105",
+   "bytes": 1326
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/modify-arcs--claude-sonnet-5--s1/scores.json",
+   "sha256": "f1261f45b992d885b3a7dad436a633d570f83ee665598478119db4e569d38684",
+   "bytes": 12605
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/modify-arcs--claude-sonnet-5--s1/screenshot.png",
+   "sha256": "4ffa8b472dbfb3222c1a52022860392d9a6c3c07450a104e0a5315b2137536a9",
+   "bytes": 673212
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/modify-arcs--claude-sonnet-5--s1/session-meta.json",
+   "sha256": "d5023a34de099a3f9b9e434f693d608b7977195b4f09809fb3fb11c7a297494a",
+   "bytes": 1015
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/modify-arcs--claude-sonnet-5--s1/transcript.jsonl",
+   "sha256": "5fbb79f892051356901ed4817c1c8447b0f18b1d08512352135ebe766d0b8701",
+   "bytes": 114188
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/modify-arcs--claude-sonnet-5--s1/transcript.txt",
+   "sha256": "7e9af9c365cd252809228013c3562c2731b21454d980a16f43d616b20516830a",
+   "bytes": 24029
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/modify-arcs--claude-sonnet-5--s2/artifacts/base.noodles.json",
+   "sha256": "08d281ef27c7059ae4da3ab4c364a4d6bd4e090f419c047fbc1522c964b06ba4",
+   "bytes": 8576
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/modify-arcs--claude-sonnet-5--s2/artifacts/noodles.json",
+   "sha256": "aab3ddb3d9006e4f17fef6ec228c19f6a2b3ac396f2ce96dc4f4ded127fc6cbb",
+   "bytes": 8207
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/modify-arcs--claude-sonnet-5--s2/mechanical.json",
+   "sha256": "574a076ef4b271989967b8b67d4f511deb978527f93906922190363e6ee47e73",
+   "bytes": 1322
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/modify-arcs--claude-sonnet-5--s2/scores.json",
+   "sha256": "aa68ddf0fdd3cf3441f0a1322a8c079f14349f18d184042c6125fdf2c3113307",
+   "bytes": 12552
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/modify-arcs--claude-sonnet-5--s2/screenshot.png",
+   "sha256": "4ffa8b472dbfb3222c1a52022860392d9a6c3c07450a104e0a5315b2137536a9",
+   "bytes": 673212
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/modify-arcs--claude-sonnet-5--s2/session-meta.json",
+   "sha256": "1c6033eabf3359ac7622815c2bc791a1b64f9db368b85962b013b6d75681c7fd",
+   "bytes": 1007
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/modify-arcs--claude-sonnet-5--s2/transcript.jsonl",
+   "sha256": "e73b8b79587f057cf899eff14b64df78192ee4cf498dd67274808d34d4af5836",
+   "bytes": 171910
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/modify-arcs--claude-sonnet-5--s2/transcript.txt",
+   "sha256": "db0292167bbefa53d44392841c2a9138fd6e28e785411f7d4527db69ec0d8f46",
+   "bytes": 41546
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/modify-arcs--claude-sonnet-5--s3/artifacts/base.noodles.json",
+   "sha256": "08d281ef27c7059ae4da3ab4c364a4d6bd4e090f419c047fbc1522c964b06ba4",
+   "bytes": 8576
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/modify-arcs--claude-sonnet-5--s3/artifacts/noodles.json",
+   "sha256": "bf92a474f8f5776a150e9d561f75ef62cad0af6b1ee1eea725a16c9488c479f2",
+   "bytes": 8211
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/modify-arcs--claude-sonnet-5--s3/mechanical.json",
+   "sha256": "bba156aa7412ac333a5824bc8e7fbdace98d4903fbe8da8ede0bd2b4a1214105",
+   "bytes": 1326
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/modify-arcs--claude-sonnet-5--s3/scores.json",
+   "sha256": "dc44e3face4ff02ddf37bc2c3ce7cd4f430a91660a85b0b6413ef1efc5e2d87e",
+   "bytes": 12884
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/modify-arcs--claude-sonnet-5--s3/screenshot.png",
+   "sha256": "03550bb829fad011ef9332e9f0855f19117de9227be297e3cf4dbb13e812f0e8",
+   "bytes": 673327
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/modify-arcs--claude-sonnet-5--s3/session-meta.json",
+   "sha256": "40246a44b5da94a0d9bde3332e3213d11ccfb701e7bca677b9b7789b2d80d406",
+   "bytes": 1015
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/modify-arcs--claude-sonnet-5--s3/transcript.jsonl",
+   "sha256": "1badc8b67c25fb47b42a8ab3fee85ab3e907598b07709e75fb4c5b1e1d70df4b",
+   "bytes": 144026
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/modify-arcs--claude-sonnet-5--s3/transcript.txt",
+   "sha256": "ec2e9564193a3aa2505ebaac719a3322bdb41793a8d2951dbed07711342826ec",
+   "bytes": 30671
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/sql-h3-pipeline--claude-opus-4-8--s1/mechanical.json",
+   "sha256": "d85f382afa2025eb323ce5d98e034124b8406707a128107422dc69d6b7518653",
+   "bytes": 390
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/sql-h3-pipeline--claude-opus-4-8--s1/scores.json",
+   "sha256": "d4e905e02ade21509692afbb197bede72b76720cda55af0eb00350e411650fd1",
+   "bytes": 13906
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/sql-h3-pipeline--claude-opus-4-8--s1/session-meta.json",
+   "sha256": "4e7b85d16f992a038e08390abe644ce7e6fc30498087c0fb8cecff35db160508",
+   "bytes": 1016
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/sql-h3-pipeline--claude-opus-4-8--s1/transcript.jsonl",
+   "sha256": "d2aa5affc389def6265f7ab7235e19d8c957758ced3deb0a404caa96ab8b7042",
+   "bytes": 262389
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/sql-h3-pipeline--claude-opus-4-8--s1/transcript.txt",
+   "sha256": "21fc50b1d2c8fb9e6a2843f29e291c0d224793d48a30bd7b9f77c0689732a438",
+   "bytes": 65714
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/sql-h3-pipeline--claude-opus-4-8--s2/mechanical.json",
+   "sha256": "d85f382afa2025eb323ce5d98e034124b8406707a128107422dc69d6b7518653",
+   "bytes": 390
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/sql-h3-pipeline--claude-opus-4-8--s2/scores.json",
+   "sha256": "c3354db767f0609e7dfa8bd85accee43c4bb2550b0ad50144b4140040425d8ff",
+   "bytes": 12966
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/sql-h3-pipeline--claude-opus-4-8--s2/session-meta.json",
+   "sha256": "3b1c1d4beab2b5155ff60031f123d2093d44a30e0f487ec6559f2e9cbaec7054",
+   "bytes": 1026
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/sql-h3-pipeline--claude-opus-4-8--s2/transcript.jsonl",
+   "sha256": "af07653cb8c41ce57065ffecb0fda02c277bed2984e7a4f6e4393767d71308c7",
+   "bytes": 316616
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/sql-h3-pipeline--claude-opus-4-8--s2/transcript.txt",
+   "sha256": "6deedcad20911c13b87ae62f07ae6a17d0bdb19e9ef0e4f2a394d7afcc188bbf",
+   "bytes": 72067
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/sql-h3-pipeline--claude-opus-4-8--s3/mechanical.json",
+   "sha256": "d85f382afa2025eb323ce5d98e034124b8406707a128107422dc69d6b7518653",
+   "bytes": 390
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/sql-h3-pipeline--claude-opus-4-8--s3/scores.json",
+   "sha256": "237a77e699b6d492090c97ea1d15bb1b61a3086a1633c9545135e548bbdd7a32",
+   "bytes": 13208
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/sql-h3-pipeline--claude-opus-4-8--s3/session-meta.json",
+   "sha256": "1b87281d878d1b6b97e6dda5924b917cd852173e1581ba2568294aa48cd84c17",
+   "bytes": 1018
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/sql-h3-pipeline--claude-opus-4-8--s3/transcript.jsonl",
+   "sha256": "e7fb93379970a8fc7d45aaa7213b892eac8ed8a5819b0b0171f557b0860a7c52",
+   "bytes": 384746
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/sql-h3-pipeline--claude-opus-4-8--s3/transcript.txt",
+   "sha256": "630c4589802b699d7dab5f3cee557951dba796576143076660adc1e3a4481bc0",
+   "bytes": 86770
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/sql-h3-pipeline--claude-sonnet-4-6--s1/mechanical.json",
+   "sha256": "d85f382afa2025eb323ce5d98e034124b8406707a128107422dc69d6b7518653",
+   "bytes": 390
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/sql-h3-pipeline--claude-sonnet-4-6--s1/scores.json",
+   "sha256": "904c7c08a14f08381296c6bdfdb1ca7b8a2e720e9ff650699b26ca5f97840662",
+   "bytes": 13490
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/sql-h3-pipeline--claude-sonnet-4-6--s1/session-meta.json",
+   "sha256": "c7e1df02278dd3a916695ff063158f2dace044acf2a441a613fdaeecdc1d720a",
+   "bytes": 1019
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/sql-h3-pipeline--claude-sonnet-4-6--s1/transcript.jsonl",
+   "sha256": "3155d29db35c6b4e23a23b8efdf03301f934009d1fd34a541087f6a534fa8e89",
+   "bytes": 544236
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/sql-h3-pipeline--claude-sonnet-4-6--s1/transcript.txt",
+   "sha256": "81d3f99d65ce39448ccb2038185cb685dc8ba71a740a6be7993f6c4d5340397a",
+   "bytes": 172748
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/sql-h3-pipeline--claude-sonnet-4-6--s2/mechanical.json",
+   "sha256": "d85f382afa2025eb323ce5d98e034124b8406707a128107422dc69d6b7518653",
+   "bytes": 390
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/sql-h3-pipeline--claude-sonnet-4-6--s2/scores.json",
+   "sha256": "f8572542bfdf58309a10077c19645e2322b416747660a71fd0f0d07df2869f68",
+   "bytes": 12549
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/sql-h3-pipeline--claude-sonnet-4-6--s2/session-meta.json",
+   "sha256": "2b065ebd2816641b3a2a3245495af304452ce2c10afb3bc7fb36848a91988fa4",
+   "bytes": 1027
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/sql-h3-pipeline--claude-sonnet-4-6--s2/transcript.jsonl",
+   "sha256": "80041cfa3ee92e828934b70aa8b889eb27d31bfc0a48745af8ef3df96c0d0276",
+   "bytes": 594833
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/sql-h3-pipeline--claude-sonnet-4-6--s2/transcript.txt",
+   "sha256": "4959a0102a015f36716e0903a62c4b50cece210dac8af5dc72d82425bde93108",
+   "bytes": 186556
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/sql-h3-pipeline--claude-sonnet-4-6--s3/mechanical.json",
+   "sha256": "d85f382afa2025eb323ce5d98e034124b8406707a128107422dc69d6b7518653",
+   "bytes": 390
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/sql-h3-pipeline--claude-sonnet-4-6--s3/scores.json",
+   "sha256": "e8635052c82fc8ee1a51ceff4a982d71d17a64a1c87c37be7c2af799216226c0",
+   "bytes": 13326
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/sql-h3-pipeline--claude-sonnet-4-6--s3/session-meta.json",
+   "sha256": "168d7ce0f841899b1279dbc84d8f94c06a031d2afbdd8050eadfa568a8781125",
+   "bytes": 1020
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/sql-h3-pipeline--claude-sonnet-4-6--s3/transcript.jsonl",
+   "sha256": "471aa541c202af56fdf5f7001e8738071bc63cca12ddffa063b4fcb737b94d32",
+   "bytes": 2493326
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/sql-h3-pipeline--claude-sonnet-4-6--s3/transcript.txt",
+   "sha256": "aa6a1b48519254da720716f79de4a1cf87cb53e4f33545c356fc583dcf688bc5",
+   "bytes": 712936
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/sql-h3-pipeline--claude-sonnet-5--s1/mechanical.json",
+   "sha256": "d85f382afa2025eb323ce5d98e034124b8406707a128107422dc69d6b7518653",
+   "bytes": 390
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/sql-h3-pipeline--claude-sonnet-5--s1/scores.json",
+   "sha256": "9876344f2277c5a09df3de6a0e98132b12633dfef5af0a53e6f28089f1788332",
+   "bytes": 12374
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/sql-h3-pipeline--claude-sonnet-5--s1/session-meta.json",
+   "sha256": "24d60d32624af56a894c196715405de44fa807720064fc0cdbca220fd8ecbaa8",
+   "bytes": 1023
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/sql-h3-pipeline--claude-sonnet-5--s1/transcript.jsonl",
+   "sha256": "4caf03d4ee283338e0aac166a510396cc045b081edd6beb1bbdf3dca00d369f0",
+   "bytes": 211355
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/sql-h3-pipeline--claude-sonnet-5--s1/transcript.txt",
+   "sha256": "c246db1603204a4a2892def7910ec093ea2b7743a529df2c444471f817f03a1d",
+   "bytes": 50931
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/sql-h3-pipeline--claude-sonnet-5--s2/mechanical.json",
+   "sha256": "d85f382afa2025eb323ce5d98e034124b8406707a128107422dc69d6b7518653",
+   "bytes": 390
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/sql-h3-pipeline--claude-sonnet-5--s2/scores.json",
+   "sha256": "02d7eaa10685654f6bbf4699f19b4fca63e2d1864ae7d8157810036e4886e96a",
+   "bytes": 13712
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/sql-h3-pipeline--claude-sonnet-5--s2/session-meta.json",
+   "sha256": "630d4484eb5c5cfb45bba069aadbf357031421399c3f5a2dcf78bfcbe58d3a8a",
+   "bytes": 1023
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/sql-h3-pipeline--claude-sonnet-5--s2/transcript.jsonl",
+   "sha256": "edc85ff0729f1b57a4f933e00f5ec47da912f6cbe677d3cea41b13d8a7cf5b11",
+   "bytes": 354369
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/sql-h3-pipeline--claude-sonnet-5--s2/transcript.txt",
+   "sha256": "b142bb5a9cb688d4b440654811fae37743916b2202ae3f82ec30d89caf6f709a",
+   "bytes": 78046
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/sql-h3-pipeline--claude-sonnet-5--s3/mechanical.json",
+   "sha256": "d85f382afa2025eb323ce5d98e034124b8406707a128107422dc69d6b7518653",
+   "bytes": 390
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/sql-h3-pipeline--claude-sonnet-5--s3/scores.json",
+   "sha256": "1f005a7cd8a538b5c33a1c39880436ca2f4df3352c623e5290936c18d43e9fe3",
+   "bytes": 12338
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/sql-h3-pipeline--claude-sonnet-5--s3/session-meta.json",
+   "sha256": "45a9649e48266ca1f584647aed26816c861ba70d39d8de6d627fc89ffa1e742a",
+   "bytes": 1023
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/sql-h3-pipeline--claude-sonnet-5--s3/transcript.jsonl",
+   "sha256": "5893c815f06fe2119d9232ecb2b64f2c573cf71481fa319d4c4c3cf38ce718f4",
+   "bytes": 211619
+  },
+  {
+   "key": "2026-07-06.t0.83ff1c128a7a/runs/sql-h3-pipeline--claude-sonnet-5--s3/transcript.txt",
+   "sha256": "a3c8a1f74ce5b4601cb25fff8181abde796fd92082659822ff23dc638d00abf6",
+   "bytes": 47111
+  }
+ ]
+}

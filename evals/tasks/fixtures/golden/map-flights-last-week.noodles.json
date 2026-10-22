@@ -1,0 +1,167 @@
+{
+  "version": 18,
+  "nodes": [
+    {
+      "id": "/flights-export",
+      "type": "FileOp",
+      "data": {
+        "inputs": {
+          "format": "csv",
+          "url": "@/flights.csv"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": -500,
+        "y": 0
+      }
+    },
+    {
+      "id": "/last-week-ny-blade",
+      "type": "CodeOp",
+      "data": {
+        "inputs": {
+          "code": [
+            "// Last week = Mon 2026-10-12 to Sun 2026-10-18 (the export was pulled Mon 10-19)",
+            "const NY = new Set(['JRA', 'JRB', 'JFK', 'EWR', 'LGA', 'HPN', 'HTO'])",
+            "// FileOp's autoType turns ISO timestamps into Dates",
+            "const day = r => new Date(r.timestamp).toISOString().slice(0, 10)",
+            "const rows = d.filter(r =>",
+            "  r.operator === 'Blade' &&",
+            "  day(r) >= '2026-10-12' && day(r) <= '2026-10-18' &&",
+            "  (NY.has(r.origin) || NY.has(r.destination))",
+            ")",
+            "const byFlight = d3.group(rows, r => r.flight_id)",
+            "return [...byFlight].map(([flight_id, samples]) => ({",
+            "  flight_id,",
+            "  route: `${samples[0].origin} to ${samples[0].destination}`,",
+            "  path: samples.map(s => [Number(s.lng), Number(s.lat)])",
+            "}))"
+          ]
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "id": "/route-layer",
+      "type": "PathLayerOp",
+      "data": {
+        "inputs": {
+          "widthUnits": "pixels",
+          "getWidth": 3,
+          "getColor": "#ffb000"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 700,
+        "y": 0
+      }
+    },
+    {
+      "id": "/basemap",
+      "type": "MaplibreBasemapOp",
+      "data": {
+        "inputs": {
+          "mapStyle": "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
+          "viewState": {
+            "longitude": -73.55,
+            "latitude": 40.8,
+            "zoom": 8.3,
+            "pitch": 0,
+            "bearing": 0
+          }
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 1150,
+        "y": -450
+      }
+    },
+    {
+      "id": "/deck",
+      "type": "DeckRendererOp",
+      "data": {
+        "inputs": {},
+        "locked": false
+      },
+      "position": {
+        "x": 1150,
+        "y": 0
+      }
+    },
+    {
+      "id": "/out",
+      "type": "OutOp",
+      "data": {
+        "inputs": {},
+        "locked": false
+      },
+      "position": {
+        "x": 1550,
+        "y": 0
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "/flights-export.out.data->/last-week-ny-blade.par.data",
+      "source": "/flights-export",
+      "sourceHandle": "out.data",
+      "target": "/last-week-ny-blade",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/last-week-ny-blade.out.data->/route-layer.par.data",
+      "source": "/last-week-ny-blade",
+      "sourceHandle": "out.data",
+      "target": "/route-layer",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/route-layer.out.layer->/deck.par.layers",
+      "source": "/route-layer",
+      "sourceHandle": "out.layer",
+      "target": "/deck",
+      "targetHandle": "par.layers"
+    },
+    {
+      "id": "/basemap.out.maplibre->/deck.par.basemap",
+      "source": "/basemap",
+      "sourceHandle": "out.maplibre",
+      "target": "/deck",
+      "targetHandle": "par.basemap"
+    },
+    {
+      "id": "/deck.out.vis->/out.par.vis",
+      "source": "/deck",
+      "sourceHandle": "out.vis",
+      "target": "/out",
+      "targetHandle": "par.vis"
+    }
+  ],
+  "viewport": {
+    "x": 600,
+    "y": 350,
+    "zoom": 0.55
+  },
+  "editorSettings": {
+    "showOverlay": true
+  },
+  "timeline": {
+    "sheetsById": {
+      "Noodles": {
+        "staticOverrides": {
+          "byObject": {}
+        }
+      }
+    },
+    "definitionVersion": "0.4.0",
+    "revisionHistory": []
+  }
+}
