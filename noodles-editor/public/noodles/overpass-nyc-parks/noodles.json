@@ -79,8 +79,7 @@
             "  relation[\"leisure\"=\"park\"]({{bbox}});",
             ");",
             "out geom;"
-          ],
-          "endpoint": "https://overpass-api.de/api/interpreter"
+          ]
         },
         "locked": false
       },
