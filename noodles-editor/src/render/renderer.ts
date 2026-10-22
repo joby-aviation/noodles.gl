@@ -8,9 +8,9 @@ import { CanvasFrameReader } from './capture-canvas-frame'
 import { encodeExrFrame, loadExrEncoder } from './exr-export'
 import {
   CanvasReplacedError,
-  FRAME_READ_TIMEOUT_MS,
   FRAME_READY_TIMEOUT_MS,
   FrameTimeoutError,
+  frameReadTimeoutMs,
   guardFrameStep,
 } from './frame-guard'
 import { type RenderErrorCategory, type RenderSource, trackRender } from './render-analytics'
@@ -418,19 +418,23 @@ export const useRenderer = ({
             debugRenderFrame('capturing frame %d/%d at simtime %d', i, endFrame, simTime)
 
           const waitStart = performance.now()
+          const notDrawn = `Frame ${i} did not finish drawing within ${FRAME_READY_TIMEOUT_MS / 1000}s`
           const canvasResult = await guardFrameStep(
             canvasFrameReady(),
             guard,
             FRAME_READY_TIMEOUT_MS,
-            `Frame ${i} did not finish drawing within ${FRAME_READY_TIMEOUT_MS / 1000}s`
+            notDrawn
           )
-          const waitEnd = performance.now()
-          totalWaitTime += waitEnd - waitStart
 
           if (canvasResult?.error) {
             debugRender('Error capturing canvas frame:', canvasResult.error)
             return fail('frame', canvasResult.error)
           }
+
+          // Part of drawing the frame, so the read's shorter budget covers only the read
+          await guardFrameStep(frames.drawn(), guard, FRAME_READY_TIMEOUT_MS, notDrawn)
+          const waitEnd = performance.now()
+          totalWaitTime += waitEnd - waitStart
 
           // Lift timing variables outside closure for per-frame logging
           let captureStart = 0
@@ -443,11 +447,12 @@ export const useRenderer = ({
             container: Awaited<ReturnType<typeof getContainer>>
           ) => {
             captureStart = performance.now()
+            const readTimeout = frameReadTimeoutMs(i === startFrame)
             const result = await guardFrameStep(
               frames.read(),
               guard,
-              FRAME_READ_TIMEOUT_MS,
-              `Frame ${i} could not be read from the canvas within ${FRAME_READ_TIMEOUT_MS / 1000}s`
+              readTimeout,
+              `Frame ${i} could not be read from the canvas within ${readTimeout / 1000}s`
             )
             captureEnd = performance.now()
             totalCaptureTime += captureEnd - captureStart
@@ -643,12 +648,10 @@ export const useRenderer = ({
 
           // Wait for frame to be ready (onAfterRender for pure-deck, onIdle for basemap)
           const waitStart = performance.now()
-          await guardFrameStep(
-            canvasFrameReady(),
-            guard,
-            FRAME_READY_TIMEOUT_MS,
-            `Frame ${i} did not finish drawing within ${FRAME_READY_TIMEOUT_MS / 1000}s`
-          )
+          const notDrawn = `Frame ${i} did not finish drawing within ${FRAME_READY_TIMEOUT_MS / 1000}s`
+          await guardFrameStep(canvasFrameReady(), guard, FRAME_READY_TIMEOUT_MS, notDrawn)
+          // Part of drawing the frame, so the read's shorter budget covers only the read
+          await guardFrameStep(frames.drawn(), guard, FRAME_READY_TIMEOUT_MS, notDrawn)
           const waitEnd = performance.now()
           totalWaitTime += waitEnd - waitStart
 
@@ -663,11 +666,12 @@ export const useRenderer = ({
           // Read from the compositor, then draw into an OffscreenCanvas to encode. Inside
           // the try: the first read throws on a canvas with cross-origin content.
           const captureStart = performance.now()
+          const readTimeout = frameReadTimeoutMs(i === startFrame)
           const { value: frame } = await guardFrameStep(
             frames.read(),
             guard,
-            FRAME_READ_TIMEOUT_MS,
-            `Frame ${i} could not be read from the canvas within ${FRAME_READ_TIMEOUT_MS / 1000}s`
+            readTimeout,
+            `Frame ${i} could not be read from the canvas within ${readTimeout / 1000}s`
           )
           const captureEnd = performance.now()
           totalCaptureTime += captureEnd - captureStart
