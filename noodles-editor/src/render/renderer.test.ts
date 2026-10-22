@@ -327,6 +327,13 @@ describe('useRenderer analytics on failure', () => {
     const ctx = canvas.getContext('2d')!
     const paint = setInterval(() => ctx.fillRect(0, 0, 64, 64), 5)
     let current: HTMLCanvasElement = canvas
+    const tracks: MediaStreamTrack[] = []
+    const captureStream = canvas.captureStream.bind(canvas)
+    vi.spyOn(canvas, 'captureStream').mockImplementation(rate => {
+      const stream = captureStream(rate)
+      tracks.push(...stream.getVideoTracks())
+      return stream
+    })
 
     try {
       // Warmup, then frames 0 and 1 draw; then the canvas is replaced, and the next frame
@@ -371,6 +378,9 @@ describe('useRenderer analytics on failure', () => {
         errorName: 'CanvasReplacedError',
         framesDone: 2,
       })
+      // The failed export released its capture, so a retry starts clean
+      expect(tracks.length).toBe(1)
+      expect(tracks[0].readyState).toBe('ended')
     } finally {
       clearInterval(paint)
       canvas.remove()

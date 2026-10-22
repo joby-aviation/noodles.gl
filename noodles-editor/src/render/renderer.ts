@@ -259,6 +259,11 @@ export const useRenderer = ({
         }
       }
 
+      // Held outside the try so a failed export can release them
+      let mapContainer: Awaited<ReturnType<typeof getContainer>> = null
+      let mapRecorder: ReturnType<typeof getCanvasRecorder> | undefined
+      let finished = false
+
       function getCanvasRecorder(canvas: HTMLCanvasElement) {
         const track = canvas.captureStream(0).getVideoTracks()[0]
         const mediaProcessor = new MediaStreamTrackProcessor({ track })
@@ -287,7 +292,7 @@ export const useRenderer = ({
           )
         }
 
-        const mapContainer = await getContainer(`${projectName}-map`, config)
+        mapContainer = await getContainer(`${projectName}-map`, config)
         if (!mapContainer) {
           debugRender('Render setup cancelled by user (map container)')
           tracker.cancelled()
@@ -295,12 +300,15 @@ export const useRenderer = ({
         }
         tracker.restartClock()
 
-        const mapRecorder = getCanvasRecorder(canvas)
+        const container = mapContainer
+        const recorder = getCanvasRecorder(canvas)
+        mapRecorder = recorder
         const guard = { recording: canvas, getCanvas }
 
         const finishEncoding = async () => {
-          const buffer = await mapContainer.finishEncoding()
-          mapRecorder?.reader?.releaseLock()
+          const buffer = await container.finishEncoding()
+          finished = true
+          recorder.reader.releaseLock()
           return buffer
         }
 
@@ -319,7 +327,6 @@ export const useRenderer = ({
         )
         if (warmupResult?.error) {
           debugRender('Error during render warmup:', warmupResult.error)
-          mapRecorder.reader.releaseLock()
           return fail('frame', warmupResult.error)
         }
 
@@ -350,7 +357,6 @@ export const useRenderer = ({
 
           if (canvasResult?.error) {
             debugRender('Error capturing canvas frame:', canvasResult.error)
-            mapRecorder.reader.releaseLock()
             return fail('frame', canvasResult.error)
           }
 
@@ -388,7 +394,7 @@ export const useRenderer = ({
             frame.close()
           }
 
-          await addRecorderFrame(mapRecorder, mapContainer)
+          await addRecorderFrame(recorder, container)
           onFrameComplete?.(i - startFrame + 1, endFrame - startFrame + 1)
 
           if (i % 10 === 0) {
@@ -441,6 +447,16 @@ export const useRenderer = ({
         if (error instanceof FrameTimeoutError) return fail('timeout', error)
         return fail('exception', error instanceof Error ? error : new Error(String(error)))
       } finally {
+        // A failed export releases what it holds: the pending frame read, the encoder,
+        // and the output, which closes the chosen file. Retrying then starts clean.
+        if (!finished) {
+          await mapRecorder?.reader.cancel().catch(() => {})
+          if (mapContainer && mapContainer.videoEncoder.state !== 'closed') {
+            mapContainer.videoEncoder.close()
+          }
+          await mapContainer?.output.cancel().catch(() => {})
+        }
+        mapRecorder?.track.stop()
         setIsRendering(false)
       }
     },
@@ -515,6 +531,8 @@ export const useRenderer = ({
       }
 
       let reader: ReadableStreamDefaultReader<VideoFrame> | undefined
+      let track: MediaStreamTrack | undefined
+      let failed = false
 
       // Pipelined writes: up to MAX_CONCURRENT_WRITES file writes run concurrently with
       // the next frame's render to avoid ~750ms/frame disk flush stalls.
@@ -538,8 +556,9 @@ export const useRenderer = ({
         // the raw GL framebuffer (which is cleared after the buffer swap when
         // preserveDrawingBuffer is false). Inside the try: captureStream throws on a
         // canvas with cross-origin content.
-        const track = canvas.captureStream(0).getVideoTracks()[0]
-        const mediaProcessor = new MediaStreamTrackProcessor({ track })
+        const videoTrack = canvas.captureStream(0).getVideoTracks()[0]
+        const mediaProcessor = new MediaStreamTrackProcessor({ track: videoTrack })
+        track = videoTrack
         reader = mediaProcessor.readable.getReader()
         const guard = { recording: canvas, getCanvas }
 
@@ -583,7 +602,7 @@ export const useRenderer = ({
           // GL buffer (which may already be cleared). Draw into OffscreenCanvas to encode.
           const captureStart = performance.now()
           // @ts-expect-error - typescript types not updated yet
-          track.requestFrame()
+          videoTrack.requestFrame()
           const { value: frame } = await guardFrameStep(
             reader.read(),
             guard,
@@ -654,6 +673,7 @@ export const useRenderer = ({
         )
         tracker.completed()
       } catch (error) {
+        failed = true
         const category: RenderErrorCategory =
           error instanceof CanvasReplacedError
             ? 'canvas_replaced'
@@ -667,7 +687,10 @@ export const useRenderer = ({
         )
         throw error
       } finally {
+        // Drop a frame read still pending when the export failed, then the canvas track
+        if (failed) await reader?.cancel().catch(() => {})
         reader?.releaseLock()
+        track?.stop()
         if (deck) {
           deck.setProps({ onAfterRender: originalOnAfterRender ?? (() => {}) })
         }

@@ -529,24 +529,29 @@ export default function TimelineEditor() {
     }
 
     resetRenderProgress()
-    await startSequenceCapture({
-      canvas,
-      getCanvas: getDeckCanvas,
-      // Basemap scenes use mapProps.onIdle for frame readiness; pure-deck scenes need
-      // onAfterRender wired up inside startSequenceCapture via getDeck.
-      getDeck: basemapEnabled ? undefined : () => deckRef.current,
-      directoryHandle: rendersDir,
-      format: sequenceFormat,
-      captureDelay,
-      waitForData,
-      startFrame: Math.floor((inPoint ?? 0) * framerate),
-      endFrame: Math.floor((outPoint ?? sequenceLength) * framerate),
-      onFrameStart: (frame, total) => debugRender('Exporting frame %d/%d', frame + 1, total),
-      onFrameComplete: (frame, total) => {
-        setRenderProgress(frame, total)
-        debugRender('Completed frame %d/%d', frame, total)
-      },
-    })
+    try {
+      await startSequenceCapture({
+        canvas,
+        getCanvas: getDeckCanvas,
+        // Basemap scenes use mapProps.onIdle for frame readiness; pure-deck scenes need
+        // onAfterRender wired up inside startSequenceCapture via getDeck.
+        getDeck: basemapEnabled ? undefined : () => deckRef.current,
+        directoryHandle: rendersDir,
+        format: sequenceFormat,
+        captureDelay,
+        waitForData,
+        startFrame: Math.floor((inPoint ?? 0) * framerate),
+        endFrame: Math.floor((outPoint ?? sequenceLength) * framerate),
+        onFrameStart: (frame, total) => debugRender('Exporting frame %d/%d', frame + 1, total),
+        onFrameComplete: (frame, total) => {
+          setRenderProgress(frame, total)
+          debugRender('Completed frame %d/%d', frame, total)
+        },
+      })
+    } catch (e) {
+      // The frames written so far stay in the folder; say why the rest are missing
+      alert(`Export failed: ${e instanceof Error ? e.message : String(e)}`)
+    }
   }, [
     startSequenceCapture,
     getDeckCanvas,
