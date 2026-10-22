@@ -21,6 +21,7 @@ function entry(overrides: Record<string, unknown> = {}) {
     context_length: 64_000,
     pricing: { prompt: '0', completion: '0' },
     supported_parameters: ['tools', 'temperature'],
+    architecture: { input_modalities: ['text'] },
     ...overrides,
   }
 }
@@ -192,5 +193,46 @@ describe('OpenRouterProvider context window', () => {
     })
 
     expect(provider.contextWindow).toBe(4_096)
+  })
+})
+
+describe('OpenRouterProvider image input', () => {
+  it('takes images only when the catalogue says the model accepts them', async () => {
+    stubCatalogue([
+      entry({ id: 'vendor/text', architecture: { input_modalities: ['text'] } }),
+      entry({ id: 'vendor/vision', architecture: { input_modalities: ['text', 'image'] } }),
+    ])
+    await fetchOpenRouterFreeModels()
+
+    expect(new OpenRouterProvider({ apiKey: 'test', model: 'vendor/text' }).supportsImages).toBe(
+      false
+    )
+    expect(new OpenRouterProvider({ apiKey: 'test', model: 'vendor/vision' }).supportsImages).toBe(
+      true
+    )
+  })
+
+  it('falls back to the shortlist before the catalogue loads, and to text otherwise', () => {
+    expect(
+      new OpenRouterProvider({ apiKey: 'test', model: 'google/gemini-2.5-flash' }).supportsImages
+    ).toBe(true)
+    expect(new OpenRouterProvider({ apiKey: 'test', model: 'vendor/unknown' }).supportsImages).toBe(
+      false
+    )
+  })
+
+  it('learns nothing from a model that cannot call tools', async () => {
+    stubCatalogue([
+      entry({
+        id: 'vendor/vision-no-tools',
+        supported_parameters: ['temperature'],
+        architecture: { input_modalities: ['text', 'image'] },
+      }),
+    ])
+    await fetchOpenRouterFreeModels()
+
+    expect(
+      new OpenRouterProvider({ apiKey: 'test', model: 'vendor/vision-no-tools' }).supportsImages
+    ).toBe(false)
   })
 })
