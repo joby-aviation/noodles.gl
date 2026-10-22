@@ -2660,9 +2660,6 @@ export class BrushableHistogramOp extends Operator<BrushableHistogramOp> {
       }
     }
 
-    // Get d3 from global context
-    const d3 = (globalThis as unknown as Record<string, unknown>).d3 as typeof import('d3')
-
     // Extract accessor function
     const accessor = (d: unknown) => {
       if (typeof d === 'object' && d !== null && field in d) {

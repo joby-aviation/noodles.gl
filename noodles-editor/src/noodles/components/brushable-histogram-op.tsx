@@ -2,18 +2,20 @@ import * as Dialog from '@radix-ui/react-dialog'
 import { Cross2Icon } from '@radix-ui/react-icons'
 import type { NodeProps as ReactFlowNodeProps } from '@xyflow/react'
 import cx from 'classnames'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { max as d3Max, scaleLinear } from 'd3'
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 
 import { analytics } from '../../utils/analytics'
 import { debugUI } from '../../utils/debug'
 import type { Field, IField } from '../fields'
+import { useObservable } from '../hooks/use-observable'
 import s from '../noodles.module.css'
 import type { BrushableHistogramOp, IOperator, Operator } from '../operators'
 import { getOp } from '../store'
 import type { NodeDataJSON } from '../transform-graph'
 import { usePropertyHistory } from '../utils/property-history'
-import { FieldComponent } from './field-components'
 import styles from './brushable-histogram.module.css'
+import { FieldComponent } from './field-components'
 import {
   NodeHeader,
   OutputHandle,
@@ -23,85 +25,117 @@ import {
   useNodeDimmed,
 } from './op-components'
 
+type Bin = { x0: number; x1: number; count: number }
+type BrushHandle = 'min' | 'max'
+
+const EMPTY_BINS: Bin[] = []
+const DEFAULT_EXTENT: [number, number] = [0, 100]
+
+// Histogram dimensions
+const WIDTH = 700
+const HEIGHT = 300
+const MARGIN = { top: 20, right: 20, bottom: 40, left: 50 }
+const CHART_WIDTH = WIDTH - MARGIN.left - MARGIN.right
+const CHART_HEIGHT = HEIGHT - MARGIN.top - MARGIN.bottom
+
+// Arrow keys move a handle by 1% of the extent; Shift or PageUp/PageDown by 10%
+const KEYBOARD_STEPS = 100
+const LARGE_STEP_MULTIPLIER = 10
+
 interface HistogramDialogProps {
   op: Operator<BrushableHistogramOp>
   open: boolean
   onOpenChange: (open: boolean) => void
 }
 
-function BrushableHistogramDialog({ op, open, onOpenChange }: HistogramDialogProps) {
+export function BrushableHistogramDialog({ op, open, onOpenChange }: HistogramDialogProps) {
   debugUI('BrushableHistogramDialog render open=%s op=%s', open, op.id)
 
   const svgRef = useRef<SVGSVGElement>(null)
-  const [isDragging, setIsDragging] = useState<'min' | 'max' | null>(null)
+  const [isDragging, setIsDragging] = useState<BrushHandle | null>(null)
   const { captureStart, commitChange } = usePropertyHistory()
+  const idPrefix = useId()
+  const modeId = `${idPrefix}-mode`
+  const centerId = `${idPrefix}-center`
+  const widthId = `${idPrefix}-width`
+  const minId = `${idPrefix}-min`
+  const maxId = `${idPrefix}-max`
 
-  // Get current operator values
-  const binData = (op.outputs.binData.value as Array<{ x0: number; x1: number; count: number }>) ?? []
-  const extent = (op.outputs.extent.value as [number, number]) ?? [0, 100]
-  const brushMin = op.inputs.brushMin.value as number
-  const brushMax = op.inputs.brushMax.value as number
-  const brushMode = op.inputs.brushMode.value as 'handles' | 'offset'
+  // Subscribe to the fields so the dialog re-renders on drag, keyboard input and execution
+  const binData = (useObservable(op.outputs.binData, op.outputs.binData.value) ??
+    EMPTY_BINS) as Bin[]
+  const extent = (useObservable(op.outputs.extent, op.outputs.extent.value) ?? DEFAULT_EXTENT) as [
+    number,
+    number,
+  ]
+  const filteredData = useObservable(op.outputs.filteredData, op.outputs.filteredData.value)
+  const data = useObservable(op.inputs.data, op.inputs.data.value)
+  const field = useObservable(op.inputs.field, op.inputs.field.value) as string
+  const brushMin = useObservable(op.inputs.brushMin, op.inputs.brushMin.value) as number
+  const brushMax = useObservable(op.inputs.brushMax, op.inputs.brushMax.value) as number
+  const brushMode = useObservable(op.inputs.brushMode, op.inputs.brushMode.value) as
+    | 'handles'
+    | 'offset'
 
   // Derived state for offset mode
   const brushCenter = (brushMin + brushMax) / 2
   const brushWidth = brushMax - brushMin
 
-  // Histogram dimensions
-  const width = 700
-  const height = 300
-  const margin = { top: 20, right: 20, bottom: 40, left: 50 }
-  const chartWidth = width - margin.left - margin.right
-  const chartHeight = height - margin.top - margin.bottom
-
-  // Scales
-  const d3 = (globalThis as unknown as Record<string, unknown>).d3 as typeof import('d3')
-  const xScale = useMemo(
-    () => d3.scaleLinear().domain(extent).range([0, chartWidth]),
-    [extent, chartWidth]
+  const xScale = useMemo(() => scaleLinear().domain(extent).range([0, CHART_WIDTH]), [extent])
+  const maxCount = useMemo(() => d3Max(binData, d => d.count) ?? 0, [binData])
+  const yScale = useMemo(
+    () => scaleLinear().domain([0, maxCount]).range([CHART_HEIGHT, 0]),
+    [maxCount]
   )
-  const yScale = useMemo(() => {
-    const maxCount = d3.max(binData, d => d.count) ?? 0
-    return d3.scaleLinear().domain([0, maxCount]).range([chartHeight, 0])
-  }, [binData, chartHeight])
+
+  // The dialog is opened by the node's button, which Radix does not report through
+  // onOpenChange, so start the undo snapshot whenever `open` turns true
+  useEffect(() => {
+    if (!open) return
+    captureStart()
+    analytics.track('brushable_histogram_opened')
+  }, [open, captureStart])
 
   const handleOpenChange = useCallback(
     (nextOpen: boolean) => {
-      if (nextOpen) {
-        captureStart()
-        analytics.track('brushable_histogram_opened')
-      } else {
-        commitChange('Adjust histogram brush')
-      }
+      if (!nextOpen) commitChange('Adjust histogram brush')
       onOpenChange(nextOpen)
     },
-    [captureStart, commitChange, onOpenChange]
+    [commitChange, onOpenChange]
   )
 
-  // Handle mouse down on brush handles (handles mode)
+  // Moves one handle, clamped to the extent and to the other handle
+  const setHandleValue = useCallback(
+    (handle: BrushHandle, value: number) => {
+      const clamped = Math.max(extent[0], Math.min(extent[1], value))
+      if (handle === 'min') {
+        op.inputs.brushMin.setValue(Math.min(clamped, op.inputs.brushMax.value as number))
+      } else {
+        op.inputs.brushMax.setValue(Math.max(clamped, op.inputs.brushMin.value as number))
+      }
+    },
+    [extent, op]
+  )
+
+  // Drag a handle with the mouse. Each drag is its own undo step.
   const handleMouseDown = useCallback(
-    (handle: 'min' | 'max', e: React.MouseEvent) => {
+    (handle: BrushHandle, e: React.MouseEvent) => {
       e.preventDefault()
       setIsDragging(handle)
+      commitChange('Adjust histogram brush')
       captureStart()
 
-      const onMouseMove = (e: MouseEvent) => {
+      const onMouseMove = (moveEvent: MouseEvent) => {
         if (!svgRef.current) return
         const rect = svgRef.current.getBoundingClientRect()
-        const x = e.clientX - rect.left - margin.left
-        const value = xScale.invert(x)
-        const clamped = Math.max(extent[0], Math.min(extent[1], value))
-
-        if (handle === 'min') {
-          op.inputs.brushMin.setValue(Math.min(clamped, brushMax))
-        } else {
-          op.inputs.brushMax.setValue(Math.max(clamped, brushMin))
-        }
+        const x = moveEvent.clientX - rect.left - MARGIN.left
+        setHandleValue(handle, xScale.invert(x))
       }
 
       const onMouseUp = () => {
         setIsDragging(null)
         commitChange('Adjust brush handle')
+        captureStart()
         document.removeEventListener('mousemove', onMouseMove)
         document.removeEventListener('mouseup', onMouseUp)
       }
@@ -109,7 +143,45 @@ function BrushableHistogramDialog({ op, open, onOpenChange }: HistogramDialogPro
       document.addEventListener('mousemove', onMouseMove)
       document.addEventListener('mouseup', onMouseUp)
     },
-    [svgRef, xScale, extent, brushMin, brushMax, margin.left, captureStart, commitChange, op]
+    [xScale, setHandleValue, captureStart, commitChange]
+  )
+
+  // Keyboard control for the handles, following the ARIA slider pattern
+  const handleKeyDown = useCallback(
+    (handle: BrushHandle, e: React.KeyboardEvent) => {
+      const step = (extent[1] - extent[0]) / KEYBOARD_STEPS || 1
+      const largeStep = step * LARGE_STEP_MULTIPLIER
+      const current = handle === 'min' ? brushMin : brushMax
+      const delta = e.shiftKey ? largeStep : step
+      let next: number
+      switch (e.key) {
+        case 'ArrowLeft':
+        case 'ArrowDown':
+          next = current - delta
+          break
+        case 'ArrowRight':
+        case 'ArrowUp':
+          next = current + delta
+          break
+        case 'PageDown':
+          next = current - largeStep
+          break
+        case 'PageUp':
+          next = current + largeStep
+          break
+        case 'Home':
+          next = extent[0]
+          break
+        case 'End':
+          next = extent[1]
+          break
+        default:
+          return
+      }
+      e.preventDefault()
+      setHandleValue(handle, next)
+    },
+    [extent, brushMin, brushMax, setHandleValue]
   )
 
   // Handle offset mode controls
@@ -153,6 +225,29 @@ function BrushableHistogramDialog({ op, open, onOpenChange }: HistogramDialogPro
     [op]
   )
 
+  const renderHandle = (handle: BrushHandle) => {
+    const value = handle === 'min' ? brushMin : brushMax
+    const x = xScale(value)
+    return (
+      <g
+        role="slider"
+        tabIndex={0}
+        aria-label={handle === 'min' ? 'Brush minimum' : 'Brush maximum'}
+        aria-orientation="horizontal"
+        aria-valuemin={handle === 'min' ? extent[0] : brushMin}
+        aria-valuemax={handle === 'min' ? brushMax : extent[1]}
+        aria-valuenow={value}
+        aria-valuetext={value.toFixed(2)}
+        className={cx(styles.brushHandle, isDragging === handle && styles.dragging)}
+        onMouseDown={e => handleMouseDown(handle, e)}
+        onKeyDown={e => handleKeyDown(handle, e)}
+      >
+        <line x1={x} y1={0} x2={x} y2={CHART_HEIGHT} className={styles.handleLine} />
+        <circle cx={x} cy={CHART_HEIGHT / 2} r={6} className={styles.handleCircle} />
+      </g>
+    )
+  }
+
   return (
     <Dialog.Root open={open} onOpenChange={handleOpenChange}>
       <Dialog.Portal>
@@ -176,8 +271,11 @@ function BrushableHistogramDialog({ op, open, onOpenChange }: HistogramDialogPro
             <>
               <div className={styles.controls}>
                 <div className={styles.controlRow}>
-                  <label className={styles.label}>Mode</label>
+                  <label htmlFor={modeId} className={styles.label}>
+                    Mode
+                  </label>
                   <select
+                    id={modeId}
                     className={styles.select}
                     value={brushMode}
                     onChange={handleModeChange}
@@ -190,8 +288,11 @@ function BrushableHistogramDialog({ op, open, onOpenChange }: HistogramDialogPro
                 {brushMode === 'offset' ? (
                   <>
                     <div className={styles.controlRow}>
-                      <label className={styles.label}>Center</label>
+                      <label htmlFor={centerId} className={styles.label}>
+                        Center
+                      </label>
                       <input
+                        id={centerId}
                         type="range"
                         className={styles.slider}
                         min={extent[0]}
@@ -203,8 +304,11 @@ function BrushableHistogramDialog({ op, open, onOpenChange }: HistogramDialogPro
                       <span className={styles.value}>{brushCenter.toFixed(2)}</span>
                     </div>
                     <div className={styles.controlRow}>
-                      <label className={styles.label}>Width</label>
+                      <label htmlFor={widthId} className={styles.label}>
+                        Width
+                      </label>
                       <input
+                        id={widthId}
                         type="range"
                         className={styles.slider}
                         min={0}
@@ -219,8 +323,11 @@ function BrushableHistogramDialog({ op, open, onOpenChange }: HistogramDialogPro
                 ) : (
                   <>
                     <div className={styles.controlRow}>
-                      <label className={styles.label}>Min</label>
+                      <label htmlFor={minId} className={styles.label}>
+                        Min
+                      </label>
                       <input
+                        id={minId}
                         type="number"
                         className={styles.input}
                         value={brushMin.toFixed(2)}
@@ -233,8 +340,11 @@ function BrushableHistogramDialog({ op, open, onOpenChange }: HistogramDialogPro
                       />
                     </div>
                     <div className={styles.controlRow}>
-                      <label className={styles.label}>Max</label>
+                      <label htmlFor={maxId} className={styles.label}>
+                        Max
+                      </label>
                       <input
+                        id={maxId}
                         type="number"
                         className={styles.input}
                         value={brushMax.toFixed(2)}
@@ -251,18 +361,21 @@ function BrushableHistogramDialog({ op, open, onOpenChange }: HistogramDialogPro
               </div>
 
               <div className={styles.chartContainer}>
-                <svg ref={svgRef} width={width} height={height} className={styles.svg}>
-                  <g transform={`translate(${margin.left},${margin.top})`}>
+                <svg ref={svgRef} width={WIDTH} height={HEIGHT} className={styles.svg}>
+                  <title>
+                    {`Histogram of ${field || 'values'}, brushed from ${brushMin.toFixed(2)} to ${brushMax.toFixed(2)}`}
+                  </title>
+                  <g transform={`translate(${MARGIN.left},${MARGIN.top})`}>
                     {/* Histogram bars */}
-                    {binData.map((bin, i) => {
+                    {binData.map(bin => {
                       const x = xScale(bin.x0 ?? 0)
                       const barWidth = xScale(bin.x1 ?? 0) - x
                       const y = yScale(bin.count)
-                      const barHeight = chartHeight - y
+                      const barHeight = CHART_HEIGHT - y
 
                       return (
                         <rect
-                          key={i}
+                          key={`${bin.x0}-${bin.x1}`}
                           x={x}
                           y={y}
                           width={Math.max(0, barWidth - 1)}
@@ -277,65 +390,30 @@ function BrushableHistogramDialog({ op, open, onOpenChange }: HistogramDialogPro
                       x={xScale(brushMin)}
                       y={0}
                       width={xScale(brushMax) - xScale(brushMin)}
-                      height={chartHeight}
+                      height={CHART_HEIGHT}
                       className={styles.brushOverlay}
                     />
 
                     {/* Brush handles */}
-                    <g
-                      className={cx(styles.brushHandle, isDragging === 'min' && styles.dragging)}
-                      onMouseDown={e => handleMouseDown('min', e)}
-                    >
-                      <line
-                        x1={xScale(brushMin)}
-                        y1={0}
-                        x2={xScale(brushMin)}
-                        y2={chartHeight}
-                        className={styles.handleLine}
-                      />
-                      <circle
-                        cx={xScale(brushMin)}
-                        cy={chartHeight / 2}
-                        r={6}
-                        className={styles.handleCircle}
-                      />
-                    </g>
-
-                    <g
-                      className={cx(styles.brushHandle, isDragging === 'max' && styles.dragging)}
-                      onMouseDown={e => handleMouseDown('max', e)}
-                    >
-                      <line
-                        x1={xScale(brushMax)}
-                        y1={0}
-                        x2={xScale(brushMax)}
-                        y2={chartHeight}
-                        className={styles.handleLine}
-                      />
-                      <circle
-                        cx={xScale(brushMax)}
-                        cy={chartHeight / 2}
-                        r={6}
-                        className={styles.handleCircle}
-                      />
-                    </g>
+                    {renderHandle('min')}
+                    {renderHandle('max')}
 
                     {/* X axis */}
-                    <g transform={`translate(0,${chartHeight})`}>
-                      <line x1={0} y1={0} x2={chartWidth} y2={0} className={styles.axis} />
+                    <g transform={`translate(0,${CHART_HEIGHT})`}>
+                      <line x1={0} y1={0} x2={CHART_WIDTH} y2={0} className={styles.axis} />
                       <text x={0} y={20} className={styles.axisLabel}>
                         {extent[0].toFixed(1)}
                       </text>
-                      <text x={chartWidth} y={20} textAnchor="end" className={styles.axisLabel}>
+                      <text x={CHART_WIDTH} y={20} textAnchor="end" className={styles.axisLabel}>
                         {extent[1].toFixed(1)}
                       </text>
                     </g>
 
                     {/* Y axis */}
                     <g>
-                      <line x1={0} y1={0} x2={0} y2={chartHeight} className={styles.axis} />
+                      <line x1={0} y1={0} x2={0} y2={CHART_HEIGHT} className={styles.axis} />
                       <text x={-10} y={0} textAnchor="end" className={styles.axisLabel}>
-                        {(d3.max(binData, d => d.count) ?? 0).toFixed(0)}
+                        {maxCount.toFixed(0)}
                       </text>
                     </g>
                   </g>
@@ -343,8 +421,8 @@ function BrushableHistogramDialog({ op, open, onOpenChange }: HistogramDialogPro
               </div>
 
               <div className={styles.info}>
-                Filtered: {(op.outputs.filteredData.value as unknown[])?.length ?? 0} /{' '}
-                {(op.inputs.data.value as unknown[])?.length ?? 0} items
+                Filtered: {(filteredData as unknown[] | undefined)?.length ?? 0} /{' '}
+                {(data as unknown[] | undefined)?.length ?? 0} items
               </div>
             </>
           )}

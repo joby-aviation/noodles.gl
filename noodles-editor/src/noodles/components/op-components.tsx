@@ -82,9 +82,9 @@ import {
   firePropertyMutation,
   usePropertyHistory,
 } from '../utils/property-history'
+import { BrushableHistogramOpComponent } from './brushable-histogram-op'
 import { categories as baseCategories, nodeTypeToDisplayName } from './categories'
 import { FieldComponent, type inputComponents } from './field-components'
-import { BrushableHistogramOpComponent } from './brushable-histogram-op'
 import { GeoEditorOpComponent } from './geo-editor-op'
 import previewStyles from './handle-preview.module.css'
 import { MapStyleConfiguratorOpComponent } from './map-style-configurator-op'

@@ -192,6 +192,15 @@
   opacity: 1;
 }
 
+.brushHandle:focus {
+  outline: none;
+}
+
+.brushHandle:focus-visible .handleCircle {
+  fill: #60a5fa;
+  stroke: #ffffff;
+}
+
 .handleLine {
   stroke: #3b82f6;
   stroke-width: 2;

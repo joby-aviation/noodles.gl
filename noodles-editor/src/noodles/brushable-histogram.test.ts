@@ -1,62 +1,5 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { BrushableHistogramOp } from './operators'
-
-// Mock d3 for tests
-const mockBin = (domain: [number, number], thresholds: number) => {
-  return (data: unknown[]) => {
-    const [min, max] = domain
-    const binWidth = (max - min) / thresholds
-    const bins: Array<{
-      x0: number
-      x1: number
-      length: number
-      values: unknown[]
-    }> = []
-
-    for (let i = 0; i < thresholds; i++) {
-      bins.push({
-        x0: min + i * binWidth,
-        x1: min + (i + 1) * binWidth,
-        length: 0,
-        values: [],
-      })
-    }
-
-    // Assign data to bins
-    data.forEach(d => {
-      const value = typeof d === 'object' && d !== null ? (d as Record<string, number>).value : 0
-      const binIndex = Math.min(
-        Math.floor(((value - min) / (max - min)) * thresholds),
-        thresholds - 1
-      )
-      if (binIndex >= 0 && binIndex < thresholds) {
-        bins[binIndex].values.push(d)
-        bins[binIndex].length++
-      }
-    })
-
-    return bins
-  }
-}
-
-const mockD3 = {
-  extent: (data: unknown[], accessor: (d: unknown) => number | null) => {
-    const values = data.map(accessor).filter((v): v is number => v !== null)
-    if (values.length === 0) return [undefined, undefined]
-    return [Math.min(...values), Math.max(...values)]
-  },
-  bin: () => ({
-    domain: (d: [number, number]) => ({
-      thresholds: (t: number) => ({
-        value: (_accessor: (d: unknown) => number | null) => mockBin(d, t),
-      }),
-    }),
-  }),
-}
-
-beforeEach(() => {
-  ;(globalThis as unknown as Record<string, unknown>).d3 = mockD3
-})
 
 describe('BrushableHistogramOp', () => {
   describe('empty data handling', () => {
@@ -108,8 +51,9 @@ describe('BrushableHistogramOp', () => {
       })
 
       expect(result.extent).toEqual([10, 50])
-      expect(result.binData).toHaveLength(5)
-      expect(result.binData.every(bin => typeof bin.count === 'number')).toBe(true)
+      // d3.bin treats binCount as a hint and snaps thresholds to nice values (10, 20, 30, 40)
+      expect(result.binData).toHaveLength(4)
+      expect(result.binData.map(bin => bin.count)).toEqual([1, 1, 1, 2])
       expect(result.binData.every(bin => typeof bin.x0 === 'number')).toBe(true)
       expect(result.binData.every(bin => typeof bin.x1 === 'number')).toBe(true)
     })
