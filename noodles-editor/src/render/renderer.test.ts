@@ -556,10 +556,21 @@ describe('useRenderer transparent video', () => {
       await new Promise(resolve => {
         video.onloadeddata = resolve
       })
-      video.currentTime = 0.25
-      await new Promise(resolve => {
+      // Chromium fires `seeked` before the decoded frame reaches the element, so a
+      // drawImage right after it can read an empty frame on a slow machine. Wait until
+      // the frame at 0.25 s (the one from 0.2 s, at 10 fps) is the one being shown.
+      const shown = new Promise<void>(resolve => {
+        const onFrame: VideoFrameRequestCallback = (_, { mediaTime }) => {
+          if (Math.abs(mediaTime - 0.2) < 0.01) resolve()
+          else video.requestVideoFrameCallback(onFrame)
+        }
+        video.requestVideoFrameCallback(onFrame)
+      })
+      const seeked = new Promise(resolve => {
         video.onseeked = resolve
       })
+      video.currentTime = 0.25
+      await Promise.all([seeked, shown])
       const played = document.createElement('canvas').getContext('2d')!
       played.drawImage(video, 0, 0)
       expect(played.getImageData(8, 32, 1, 1).data[3]).toBeGreaterThan(240)
