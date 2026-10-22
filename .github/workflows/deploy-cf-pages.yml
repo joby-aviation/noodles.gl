@@ -27,8 +27,64 @@ jobs:
     permissions:
       contents: read
       deployments: write
+      pull-requests: write
+      statuses: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+      SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      PR: ${{ github.event.pull_request.number }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
     steps:
+      # Sets a "Pages preview" commit status and, on PRs, keeps one comment with the
+      # preview links up to date. Written from the workflow instead of a file in the
+      # repo because PR branches that predate it don't have the file.
+      - name: Report build started
+        run: |
+          cat > "$RUNNER_TEMP/report.sh" <<'EOF'
+          set -euo pipefail
+          state=$1
+          marker='<!-- cf-pages-preview -->'
+          case $state in
+            pending) status='⏳ Building'; description='Building preview'; target=$RUN_URL ;;
+            success) status='✅ Deploy successful!'; description='Preview deployed'; target=$URL ;;
+            *) state=failure; status='❌ Build failed'; description='Build or deploy failed'; target=$RUN_URL ;;
+          esac
+
+          gh api "repos/$REPO/statuses/$SHA" -f state="$state" -f context='Pages preview' \
+            -f description="$description" -f target_url="$target" > /dev/null
+
+          if [ -z "$PR" ]; then exit 0; fi
+          body="$marker
+          ### Cloudflare Pages preview
+
+          | | |
+          | --- | --- |
+          | **Latest commit** | \`${SHA:0:7}\` |
+          | **Status** | $status |"
+          if [ "$state" = success ]; then
+            body+="
+          | **Preview URL** | $URL |"
+            if [ -n "$ALIAS" ]; then
+              body+="
+          | **Branch Preview URL** | $ALIAS |"
+            fi
+          fi
+          body+="
+
+          [View logs]($RUN_URL)"
+
+          id=$(gh api "repos/$REPO/issues/$PR/comments" --paginate \
+            --jq ".[] | select(.user.login == \"github-actions[bot]\" and (.body | startswith(\"$marker\"))) | .id" | head -n 1)
+          if [ -n "$id" ]; then
+            gh api -X PATCH "repos/$REPO/issues/comments/$id" -f body="$body" > /dev/null
+          else
+            gh api "repos/$REPO/issues/$PR/comments" -f body="$body" > /dev/null
+          fi
+          EOF
+          bash "$RUNNER_TEMP/report.sh" pending
+
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           # Build the branch head, not the PR merge commit, so the preview matches the branch
@@ -89,10 +145,11 @@ jobs:
           # Creates a GitHub deployment, which links the preview URL on the PR
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Summary
+      # Skipped when a newer push cancels this run, so it can't overwrite the newer run's status
+      - name: Report result
+        if: ${{ !cancelled() }}
         env:
           URL: ${{ steps.deploy.outputs.deployment-url }}
           ALIAS: ${{ steps.deploy.outputs.pages-deployment-alias-url }}
-        run: |
-          echo "Deployment: $URL" >> "$GITHUB_STEP_SUMMARY"
-          if [ -n "$ALIAS" ]; then echo "Branch alias: $ALIAS" >> "$GITHUB_STEP_SUMMARY"; fi
+          JOB_STATUS: ${{ job.status }}
+        run: bash "$RUNNER_TEMP/report.sh" "$JOB_STATUS"
