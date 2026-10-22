@@ -6,10 +6,14 @@ import { fileURLToPath } from 'node:url'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
+import { currentFixtures } from '../../noodles-validate/test/fixtures.ts'
 import { createServer, DEFAULT_REPO_ROOT, parseArgs } from '../src/index.ts'
 
 const REPO_ROOT = DEFAULT_REPO_ROOT
-const FIXTURES = join(REPO_ROOT, 'noodles-validate/test/fixtures')
+// noodles-validate's fixtures at the current schema version; relative paths in
+// these tests resolve against WORKDIR
+const WORKDIR = currentFixtures()
+const FIXTURES = join(WORKDIR, 'test/fixtures')
 const BIN = fileURLToPath(new URL('../bin/noodles-mcp.ts', import.meta.url))
 
 let client: Client
@@ -28,7 +32,7 @@ async function data(name: string, args: Record<string, unknown> = {}) {
 
 before(async () => {
   const [clientSide, serverSide] = InMemoryTransport.createLinkedPair()
-  await createServer({ repoRoot: REPO_ROOT, cwd: REPO_ROOT }).connect(serverSide)
+  await createServer({ repoRoot: REPO_ROOT, cwd: WORKDIR }).connect(serverSide)
   client = new Client({ name: 'test', version: '0' })
   await client.connect(clientSide)
 })
@@ -171,7 +175,7 @@ describe('noodles-mcp', () => {
 
     it('resolves a relative path against the working directory', async () => {
       const result = await data('validate_project', {
-        path: 'noodles-validate/test/fixtures/valid/noodles.json',
+        path: 'test/fixtures/valid/noodles.json',
       })
       assert.equal(result.valid, true)
     })
@@ -201,11 +205,11 @@ describe('noodles-mcp', () => {
     it('serves over stdio', async () => {
       const stdio = new Client({ name: 'stdio-test', version: '0' })
       await stdio.connect(
-        new StdioClientTransport({ command: process.execPath, args: [BIN], cwd: REPO_ROOT })
+        new StdioClientTransport({ command: process.execPath, args: [BIN], cwd: WORKDIR })
       )
       const result = await stdio.callTool({
         name: 'validate_project',
-        arguments: { path: 'noodles-validate/test/fixtures/valid/noodles.json' },
+        arguments: { path: 'test/fixtures/valid/noodles.json' },
       })
       const [content] = result.content as Array<{ text: string }>
       assert.equal(JSON.parse(content.text).valid, true)

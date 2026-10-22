@@ -13,6 +13,8 @@ Run manually:
 npm run validate:examples
 ```
 
+`validate-examples.js` is a shim that runs the same check, for pre-commit hooks installed before `validate-projects` existed. Rerun `./scripts/setup-hooks.sh` to replace an old hook.
+
 ### setup-hooks.sh
 
 Installs git pre-commit hooks that automatically validate example projects before commits.
