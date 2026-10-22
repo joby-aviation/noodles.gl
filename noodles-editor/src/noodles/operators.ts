@@ -74,7 +74,7 @@ import type {
 import { BehaviorSubject, combineLatest, Subject, type Subscription } from 'rxjs'
 import { distinctUntilChanged, filter, mergeMap, skip } from 'rxjs/operators'
 import { Temporal } from 'temporal-polyfill'
-import type z from 'zod/v4'
+import z from 'zod/v4'
 
 import './utils/bigint-fix' // BigInt JSON polyfill for DuckDB
 import * as duckdb from '@duckdb/duckdb-wasm'
@@ -2801,10 +2801,35 @@ export class BoundsOp extends Operator<BoundsOp> {
   }
 }
 
+const geoJsonObjectSchema = z.looseObject({
+  type: z.enum([
+    'FeatureCollection',
+    'Feature',
+    'Point',
+    'MultiPoint',
+    'LineString',
+    'MultiLineString',
+    'Polygon',
+    'MultiPolygon',
+    'GeometryCollection',
+  ]),
+})
+
+// The southwest and northeast corners of a GeoJSON object's bounds. Empty when it has
+// no coordinates (turf returns Infinity bounds for an empty FeatureCollection).
+function geoJsonBoundsCorners(geojson: GeoJSON.GeoJSON): { lng: number; lat: number }[] {
+  const [west, south, east, north] = turf.bbox(geojson)
+  if (![west, south, east, north].every(Number.isFinite)) return []
+  return [
+    { lng: west, lat: south },
+    { lng: east, lat: north },
+  ]
+}
+
 export class BoundingBoxOp extends Operator<BoundingBoxOp> {
   static displayName = 'BoundingBox'
   static description =
-    'Calculate the geographic bounds of your points (with lat/lng keys) and get a camera position (center, zoom) that fits them all in view.'
+    'Calculate the geographic bounds of your points (with lat/lng keys) or GeoJSON and get a camera position (center, zoom) that fits them all in view.'
   asDownload = () => this.outputData
 
   constructor(
@@ -2819,8 +2844,12 @@ export class BoundingBoxOp extends Operator<BoundingBoxOp> {
   }
 
   createInputs() {
+    // There is no union field type, so widen the schema: `data` also takes a GeoJSON
+    // FeatureCollection, Feature or Geometry, such as a GeoJson operator's output
+    const data = new ArrayField(new Point2DField())
+    data.schema = data.schema.or(geoJsonObjectSchema) as unknown as typeof data.schema
     return {
-      data: new ArrayField(new Point2DField()),
+      data,
       // TODO: could be a union, either a number or object with top, right, bottom, left
       padding: new NumberField(0, { softMin: -1_000, softMax: 1_000 }),
     }
@@ -2845,7 +2874,10 @@ export class BoundingBoxOp extends Operator<BoundingBoxOp> {
     let south = 90
     // Should this be a turf function? Do we need to cast data to GeoJSON first?
     // Or allow the lat / lng keys to be configurable?
-    for (const d of data) {
+    const points = Array.isArray(data)
+      ? data
+      : geoJsonBoundsCorners(data as unknown as GeoJSON.GeoJSON)
+    for (const d of points) {
       if (d.lng < west) {
         west = d.lng
       }

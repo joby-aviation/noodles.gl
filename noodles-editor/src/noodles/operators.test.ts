@@ -31,6 +31,7 @@ import {
   GeocoderOp,
   GeohashLayerOp,
   GeoJsonLayerOp,
+  GeoJsonOp,
   GeoJsonTransformOp,
   GlobeViewOp,
   GreatCircleLayerOp,
@@ -901,6 +902,92 @@ describe('BoundingBoxOp', () => {
       longitude: 2.0000000000000027,
       zoom: 9.566616522774169,
     })
+  })
+
+  const pointsViewState = () =>
+    new BoundingBoxOp('/bbox-points').execute({
+      data: [
+        { lng: 1, lat: 2 },
+        { lng: 3, lat: 4 },
+      ],
+      padding: 0,
+    }).viewState
+
+  it('accepts a GeoJsonOp FeatureCollection on its data input', () => {
+    const geojson = new GeoJsonOp('/geojson-0')
+    const operator = new BoundingBoxOp('/bbox-0')
+    const featureCollection = geojson.execute({
+      features: [turf.point([1, 2]), turf.point([3, 4])],
+    }).featureCollection
+
+    expect(canConnect(geojson.outputs.featureCollection, operator.inputs.data)).toBe(true)
+    operator.inputs.data.setValue(featureCollection)
+    expect(operator.inputs.data.value).toEqual(featureCollection)
+
+    const val = operator.execute({ data: operator.inputs.data.value, padding: 0 })
+    expect(val.bounds).toEqual([
+      [1, 2],
+      [3, 4],
+    ])
+    expect(val.viewState).toEqual(pointsViewState())
+  })
+
+  it('still parses a list of points on its data input', () => {
+    const operator = new BoundingBoxOp('/bbox-0')
+    operator.inputs.data.setValue([[1, 2], { longitude: 3, latitude: 4 }])
+    expect(operator.inputs.data.value).toEqual([
+      { lng: 1, lat: 2 },
+      { lng: 3, lat: 4 },
+    ])
+  })
+
+  it('rejects objects that are not GeoJSON', () => {
+    const operator = new BoundingBoxOp('/bbox-0')
+    operator.inputs.data.setValue({ foo: 'bar' } as never)
+    expect(operator.inputs.data.value).toEqual([])
+  })
+
+  it('finds the bounding box of a single Feature', () => {
+    const operator = new BoundingBoxOp('/bbox-0')
+    const val = operator.execute({
+      data: turf.lineString([
+        [1, 2],
+        [2, 3],
+        [3, 4],
+      ]) as never,
+      padding: 0,
+    })
+    expect(val.viewState).toEqual(pointsViewState())
+  })
+
+  it('finds the bounding box of a bare Geometry', () => {
+    const operator = new BoundingBoxOp('/bbox-0')
+    const val = operator.execute({
+      data: {
+        type: 'Polygon',
+        coordinates: [
+          [
+            [1, 2],
+            [3, 2],
+            [3, 4],
+            [1, 4],
+            [1, 2],
+          ],
+        ],
+      } as never,
+      padding: 0,
+    })
+    expect(val.viewState).toEqual(pointsViewState())
+  })
+
+  it('treats an empty FeatureCollection like an empty point list', () => {
+    const operator = new BoundingBoxOp('/bbox-0')
+    const empty = operator.execute({ data: [], padding: 0 })
+    const val = operator.execute({
+      data: { type: 'FeatureCollection', features: [] } as never,
+      padding: 0,
+    })
+    expect(val).toEqual(empty)
   })
 })
 
