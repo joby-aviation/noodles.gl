@@ -43,7 +43,8 @@ corner of the resized canvas.
 Every test renders with SwiftShader (software WebGL), the only WebGL on CI runners. It
 draws the same on macOS and Linux to within 0.2% of pixels, under the 1% tolerance in
 `playwright.config.ts`, so one set of baselines serves both. The exception is deck text
-layers, which draw with a system font: `geojson-example` allows 5% for its station names.
+layers, which draw with a system font: `geojson-example` and `us-state-population` allow 5%
+for their labels.
 
 Update the baselines with:
 

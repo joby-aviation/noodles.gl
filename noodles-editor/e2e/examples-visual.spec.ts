@@ -23,6 +23,7 @@ const MOUNT_ONLY: Record<string, string> = {
 // (about 3.6% of pixels for geojson-example's station names)
 const MAX_DIFF_PIXEL_RATIO: Record<string, number> = {
   'geojson-example': 0.05,
+  'us-state-population': 0.05,
 }
 
 test.describe('examples', () => {
