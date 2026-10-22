@@ -424,12 +424,12 @@ test('animate-flight-route checks: golden passes; static, speedless, and multi-f
   someFail(
     check({ after, before: null, resultText: null, nodeOutputs: { '/route-trips': await probeFor(['FLT-1018', 'FLT-1004']) } })
   )
-  // no speed control: currentTime fed straight from the clock
+  // no speed control: currentTime fed straight from the keyframed playhead
   const speedless = JSON.parse(JSON.stringify(after))
   speedless.nodes = speedless.nodes.filter((n: { id: string }) => !['/speed', '/scaled-time'].includes(n.id))
   speedless.edges = speedless.edges
     .filter((e: { source: string; target: string }) => ![e.source, e.target].some(id => ['/speed', '/scaled-time'].includes(id)))
-    .concat([{ id: '/clock-seconds.out.result->/loop.par.a', source: '/clock-seconds', sourceHandle: 'out.result', target: '/loop', targetHandle: 'par.a' }])
+    .concat([{ id: '/playhead.out.val->/route-trips.par.currentTime', source: '/playhead', sourceHandle: 'out.val', target: '/route-trips', targetHandle: 'par.currentTime' }])
   const speedlessResult = check({ after: speedless, before: null, resultText: null, nodeOutputs: one })
   assert.equal(speedlessResult['speed-control-feeds-current-time'].pass, false)
   assert.equal(speedlessResult['current-time-animated'].pass, true)

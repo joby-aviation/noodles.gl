@@ -78,9 +78,12 @@ export async function runOne(args: {
   const ws = emptyWorkspace
     ? createEmptyWorkspace(runId)
     : createWorkspace({ runId, fixtures: task.workspace?.fixtures, fixturesRoot: TASKS_ROOT })
-  // A per-run Claude config dir (session.isolatedConfig): MCP servers the
-  // prompt adds, and anything else it writes to user config, stay in the run.
-  const configDir = task.session?.isolatedConfig ? path.join(WORK_ROOT, 'config', runId) : null
+  // Every claude CLI session gets a fresh, per-run config dir. Without one the
+  // CLI loads the operator's ~/.claude (CLAUDE.md, hooks, skills, memory,
+  // settings env), which is not greenfield and, on a desktop machine, can
+  // point the session at an endpoint it cannot reach. MCP servers a prompt
+  // adds (claude mcp add) also stay inside the run.
+  const configDir = providerFor(args.model) === 'bedrock' ? path.join(WORK_ROOT, 'config', runId) : null
   if (configDir) {
     fs.rmSync(configDir, { recursive: true, force: true })
     fs.mkdirSync(configDir, { recursive: true })

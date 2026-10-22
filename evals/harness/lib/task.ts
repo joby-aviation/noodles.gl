@@ -28,12 +28,6 @@ export interface TaskDefinition {
      * before the session so checks can diff before/after */
     project?: string
   }
-  session?: {
-    /** run the claude CLI with a fresh, per-run CLAUDE_CONFIG_DIR, so a
-     * prompt that adds MCP servers or reads user settings starts clean and
-     * never touches the operator's own config */
-    isolatedConfig?: boolean
-  }
   /** read the verbatim prompt from this file (relative to tasks/) instead of
    * the body's blockquote, for prompts that are published artifacts */
   promptFile?: string

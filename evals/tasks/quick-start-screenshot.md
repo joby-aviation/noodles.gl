@@ -14,10 +14,6 @@ tiers:
     only what the prompt tells it to fetch (the public repo at main)
 workspace:
   mode: empty
-session:
-  # The prompt runs `claude mcp add` and a nested `claude -p`; both must use
-  # a throwaway config, never the operator's.
-  isolatedConfig: true
 grader:
   rubric: quick-start.yaml
   # the nested live session's transcript, which carries the capture
@@ -64,10 +60,19 @@ runs the exact published text.
   machine with Chrome, or give the container one. The harness kills processes
   started from the workspace (the dev server) after the session; it cannot
   close the browser tab.
+- **Run it on a dedicated machine or VM, not a personal one.** The session
+  drives the machine's real default browser. In the first baseline run
+  (sonnet-5, 2026-10-21) it left the prompt's steps when the tab did not
+  connect: it scripted Chrome through AppleScript, read the Chrome profile's
+  extension folders, and clicked Chrome's "Allow JavaScript from Apple Events"
+  menu item through System Events. The per-run config dir does not contain
+  any of that; only the machine boundary does.
 - **Tier.** The session clones public `main`, which includes the
   `noodles-live` skill and the WebMCP tools. Workspace stripping does not
   apply (there is no workspace checkout to strip), so this task measures the
   published experience, not a resource tier. Compare its rows only with
   each other.
-- The `claude mcp add` and nested `claude -p` calls run with a per-run
-  `CLAUDE_CONFIG_DIR` (`session.isolatedConfig`), deleted after the run.
+- The `claude mcp add` and nested `claude -p` calls inherit the session's
+  per-run `CLAUDE_CONFIG_DIR` (every claude session gets one), so the relay
+  registration never reaches the operator's config and is deleted after the
+  run.

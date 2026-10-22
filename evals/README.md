@@ -190,12 +190,14 @@ need more:
 |---|---|---|
 | `promptFile: fixtures/<file>` | Reads the verbatim prompt from a file instead of the body's blockquote, for prompts that are published artifacts. | `quick-start-screenshot` |
 | `workspace.mode: empty` | The session starts in an empty directory: no checkout, no template, no git. Whatever it needs, it fetches. | `quick-start-screenshot` |
-| `session.isolatedConfig: true` | Runs the `claude` CLI with a per-run `CLAUDE_CONFIG_DIR`, so `claude mcp add` and nested sessions never touch the operator's config. | `quick-start-screenshot` |
 | `mechanical.agentScreenshot: true` | Copies the newest image the session wrote to `agent-screenshot.<ext>` and checks it is non-blank (PNG, JPEG, or WebP). | `quick-start-screenshot` |
 | `mechanical.load.probeLayers: true` | Opens the route with `?externalControl=true` and reads every `*LayerOp`'s output through the app's own WebMCP `get_node_output` tool. Frozen as `node-outputs.json` and passed to the custom checks, so a filter is graded on the data the layer received. | `map-flights-last-week`, `animate-flight-route` |
 
-After every session the runner kills processes whose command line contains
-the workspace path (a dev server the session left running in the
+Every `claude` CLI session runs with a fresh per-run `CLAUDE_CONFIG_DIR`, so
+the operator's `~/.claude` (CLAUDE.md, hooks, skills, memory, settings) never
+loads into a greenfield session, and `claude mcp add` in a prompt stays inside
+the run. After every session the runner kills processes whose command line
+contains the workspace path (a dev server the session left running in the
 background).
 
 Offline checks (`selftest`, the static and semantic layers of
