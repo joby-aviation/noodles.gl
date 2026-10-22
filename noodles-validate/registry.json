@@ -515,7 +515,7 @@
       "name": "BoundingBox",
       "type": "BoundingBoxOp",
       "category": "data",
-      "description": "Calculate the geographic bounds of your points (with lat/lng keys) and get a camera position (center, zoom) that fits them all in view.",
+      "description": "Calculate the geographic bounds of your points (with lat/lng keys) or GeoJSON and get a camera position (center, zoom) that fits them all in view.",
       "inputs": {
         "data": {
           "type": "ArrayField",
