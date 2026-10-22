@@ -4,7 +4,7 @@
 
 import type { EditorDoc } from '@noodles.gl/planner'
 import { PrimeReactProvider } from 'primereact/api'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useParams } from 'wouter'
 import type { CopyControlsRef } from '../noodles/components/copy-controls'
 import type { UndoRedoHandlerRef } from '../noodles/components/UndoRedoHandler'
@@ -29,6 +29,8 @@ import { DocProperties } from './doc-properties'
 import { docStore, useEditor } from './doc-store'
 import { bindTimeline, resetTimelinePanel } from './doc-timeline'
 import { loadDoc } from './load-doc'
+
+const ChatPanel = lazy(() => import('../ai-chat/chat-panel').then(m => ({ default: m.ChatPanel })))
 
 const exampleProjectUrls = import.meta.glob('../examples/**/noodles.json', {
   eager: true,
@@ -99,6 +101,17 @@ export function useDocNoodles(): Visualization {
   const [showDebugInfo, setShowDebugInfo] = useState(false)
   const [spreadsheetVisible, setSpreadsheetVisible] = useState(false)
   const reactFlowRef = useRef<HTMLDivElement>(null)
+  const [showChatPanel, setShowChatPanel] = useState(false)
+
+  // The assistant's context bundles load the first time the chat opens
+  const contextLoadStarted = useRef(false)
+  useEffect(() => {
+    if (!showChatPanel || contextLoadStarted.current) return
+    contextLoadStarted.current = true
+    void import('../ai-chat/global-context-manager').then(m =>
+      m.globalContextManager.startLoading().catch(error => console.warn('[assistant]', error))
+    )
+  }, [showChatPanel])
 
   // The engine runs whatever document the store holds, at the timeline's playhead.
   useEffect(() => bindEngine(docStore(), readProjectAsset), [])
@@ -245,8 +258,17 @@ export function useDocNoodles(): Visualization {
     </div>
   )
 
+  const chatPanel = (
+    <Suspense fallback={null}>
+      <ChatPanel onClose={() => setShowChatPanel(false)} isVisible={showChatPanel} />
+    </Suspense>
+  )
+
   return {
     flowGraph,
+    chatPanel,
+    showChatPanel,
+    onChangeShowChatPanel: setShowChatPanel,
     selectedNodeIds: selection,
     propertiesPanel: <DocProperties />,
     showOverlay,

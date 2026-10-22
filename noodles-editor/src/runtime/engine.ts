@@ -148,6 +148,11 @@ export class Engine {
     return this.lowered
   }
 
+  /** A host operator's output after its last run. */
+  hostOutput(nodeId: string, port: string): unknown {
+    return this.options.host?.runner.output(nodeId, port)
+  }
+
   /** Host operators that failed on the last run. */
   errors(): { nodeId: string; message: string }[] {
     return this.hostErrors

@@ -29,6 +29,7 @@ export type Visualization = {
   flowGraph?: React.ReactNode
   nodeSidebar?: React.ReactNode
   propertiesPanel?: React.ReactNode
+  chatPanel?: React.ReactNode
   showOverlay?: boolean
   onChangeShowOverlay?: (show: boolean) => void
   showDebugInfo?: boolean

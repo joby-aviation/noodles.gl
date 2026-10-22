@@ -260,8 +260,35 @@ export function parseModifications(input: unknown): ProjectModification[] | null
     return arrayResult.data
   }
 
+  // Document-shaped edits ({type, op, params} without a data wrapper): applyModifications
+  // validates them against the operators, so only the shape is checked here.
+  const list = Array.isArray(parsed)
+    ? parsed
+    : (parsed as { modifications?: unknown } | null)?.modifications
+  if (
+    Array.isArray(list) &&
+    list.length > 0 &&
+    list.every(
+      m =>
+        typeof m === 'object' &&
+        m !== null &&
+        !('data' in m) &&
+        MODIFICATION_TYPES.has((m as { type?: unknown }).type as string)
+    )
+  ) {
+    return list as ProjectModification[]
+  }
+
   return null
 }
+
+const MODIFICATION_TYPES = new Set([
+  'add_node',
+  'update_node',
+  'delete_node',
+  'add_edge',
+  'delete_edge',
+])
 
 // Validate a single modification object.
 // Returns the validated modification or null if invalid.

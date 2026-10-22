@@ -1,14 +1,8 @@
 // ChatPanel - Main UI component for Claude AI integration
 
-import { useReactFlow } from '@xyflow/react'
 import { type FC, useEffect, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import {
-  type ModificationResult,
-  type ProjectModification,
-  useProjectModifications,
-} from '../noodles/hooks/use-project-modifications'
 import type { CustomEndpointConfig, ProviderPreference } from '../noodles/keys-store'
 import { useKeysStore } from '../noodles/keys-store'
 import { useUIStore } from '../noodles/store'
@@ -48,9 +42,9 @@ import styles from './chat-panel.module.css'
 import { AssistantOnboarding } from './components/assistant-onboarding'
 import { loadConversation, saveConversation } from './conversation-history'
 import { ConversationHistoryPanel } from './conversation-history-panel'
+import { applyModifications } from './doc-tools'
 import { globalContextManager } from './global-context-manager'
-import { MCPTools } from './mcp-tools'
-import { createProposal, type ModificationProposal } from './modification-proposal'
+import { editorDocContext, MCPTools } from './mcp-tools'
 import {
   dismissOnDeviceNotice,
   OnDeviceNotice,
@@ -60,32 +54,14 @@ import {
 import type { Message, NoodlesProject } from './types'
 
 interface ChatPanelProps {
-  project: NoodlesProject
-  // Changes whenever another project replaces the graph. A proposal planned
-  // against the old graph must not be applied to the new one.
-  projectKey?: number
+  /** The operator-graph project, for callers that still pass one; the tools read the document. */
+  project?: NoodlesProject
   onClose: () => void
   isVisible: boolean
   initialMessage?: string
 }
 
-export const ChatPanel: FC<ChatPanelProps> = ({
-  project,
-  projectKey,
-  onClose,
-  isVisible,
-  initialMessage,
-}) => {
-  // Get ReactFlow state for the modification hook
-  const { getNodes, getEdges, setNodes, setEdges } = useReactFlow()
-
-  // Use project modifications hook with ReactFlow state
-  const { applyModifications } = useProjectModifications({
-    getNodes,
-    getEdges,
-    setNodes,
-    setEdges,
-  })
+export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, initialMessage }) => {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
@@ -445,7 +421,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({
   }, [])
 
   const handleSend = async () => {
-    if (!input.trim() || !session || !project || pendingProposal) return
+    if (!input.trim() || !session) return
 
     const userMessage: Message = {
       role: 'user',
@@ -501,12 +477,24 @@ export const ChatPanel: FC<ChatPanelProps> = ({
       // apply_modifications validated these against the project; they land only
       // once the user accepts them
       if (response.projectModifications && response.projectModifications.length > 0) {
-        debugAiChat('Proposing project modifications:', response.projectModifications)
-        setPendingProposal(createProposal(response.projectModifications))
-        analytics.track('ai_modification_proposed', {
-          provider: providerId,
-          modificationCount: response.projectModifications.length,
+        debugAiChat('Applying project modifications:', response.projectModifications)
+        // Tool calls apply as they run; these are the ones a model wrote out as JSON instead
+        const result = applyModifications(editorDocContext(), {
+          modifications: response.projectModifications,
         })
+
+        if (!result.success) {
+          // Surface validation errors back to the user and AI
+          const errorMessage = `Failed to apply modifications: ${result.error}`
+          debugAiChat(errorMessage)
+          setMessages(prev => [
+            ...prev,
+            {
+              role: 'assistant',
+              content: errorMessage,
+            },
+          ])
+        }
       }
     } catch (error) {
       debugAiChat('Error sending message:', error)

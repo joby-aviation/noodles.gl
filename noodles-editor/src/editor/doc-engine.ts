@@ -68,6 +68,10 @@ async function resolveAssets(nodeId: string, outputs: Record<string, unknown>) {
 }
 
 let engine: Promise<Engine> | undefined
+let opened: Engine | undefined
+
+/** The engine once it has started; tools read rows and errors from it. */
+export const currentEngine = (): Engine | undefined => opened
 
 function openEngine(readAsset: (name: string) => Promise<Uint8Array>): Promise<Engine> {
   engine ??= DuckDbEngine.open().then(sql => {
@@ -82,6 +86,7 @@ function openEngine(readAsset: (name: string) => Promise<Uint8Array>): Promise<E
         view: v => instantiateDeckView(v as never),
       },
     })
+    opened = e
     e.onChange(vis => publish({ vis, errors: errorsOf(e) }))
     Object.assign(window as unknown as Record<string, unknown>, { plannerEngine: e })
     return e
@@ -89,7 +94,7 @@ function openEngine(readAsset: (name: string) => Promise<Uint8Array>): Promise<E
   return engine
 }
 
-function errorsOf(e: Engine): NodeError[] {
+export function errorsOf(e: Engine): NodeError[] {
   const program = e.runtime.program()?.errors ?? []
   return [...(e.lowering()?.errors ?? []), ...e.errors(), ...program]
 }

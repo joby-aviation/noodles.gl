@@ -1,27 +1,13 @@
-# Debugging a visualization: nothing showing, blank map, missing points
+# Debugging a document
 
-Read this when the map is blank or empty, a scatterplot or layer is not showing, points are invisible or missing, nothing renders, or a change had no visible effect.
+When something does not draw, work from the error back to its cause.
 
-Noodles fails quietly. A broken graph usually renders an empty map rather than throwing, so work from the data end toward the renderer instead of from the symptom.
+1. `list_nodes` reports each node's `errors`. A node whose input failed reports that too, so look for the first node in the chain with an error of its own.
+2. `get_node_info` on that node gives the full message, its wires and its parameters. Typical causes: an expression naming a column the table does not have (check with `get_node_output` on the node feeding it), a table input with no wire (`connect its 'in' input`), an operator type that does not exist.
+3. `get_node_output` shows the rows at any node: column names, count and a sample. Zero rows after a `filter` means its condition matches nothing; compare the sample's values with the filter's.
+4. `analyze_project` lists every error the engine has, plus nodes nothing reads (a layer not wired into `deck` draws nothing).
+5. `get_console_errors` shows errors the browser logged, such as a file that failed to load (a wrong URL, a server without CORS).
 
-1. `get_console_errors` — rules out JavaScript exceptions in `CodeOp` / `AccessorOp` expressions first.
-2. `list_nodes` — confirms the graph is actually shaped the way you assume.
-3. `get_node_output` on the data source, then on each transform downstream. The first node returning empty or `null` output is the fault, and everything after it is a symptom.
-4. `get_node_info` on the layer — verify `data` and the `get*` accessors are all connected.
-5. `capture_visualization` only when the user asks to see the current state, or asks "why can't I see …". Screenshots are expensive; the four steps above usually settle it.
+A host operator (a Noodles operator such as `CodeOp` or `BitmapLayerOp`) runs as JavaScript; its errors appear on the node like any other.
 
-## Common causes, roughly in order of frequency
-
-- **A missing edge.** The layer never reaches `DeckRendererOp`, or `getPosition` is unconnected. Nothing renders and nothing errors.
-- **Wrong field names in an accessor.** `d.lat` when the data has `latitude`, so every position is `[undefined, undefined]`. Confirm against `get_node_output` on the data source.
-- **`opacity: 0` or `visible: false`** — often a leftover from an earlier edit or a timeline keyframe.
-- **No basemap.** Data renders, but with no `MaplibreBasemapOp` there is no geographic context to place it against.
-- **Camera pointed elsewhere.** The layer is fine but the view is over a different part of the world; check the `MapViewStateOp` / view state against the data's actual extent.
-
-## When the data is the problem
-
-`get_node_output` shows you the real rows. Look for coordinates as strings rather than numbers, swapped longitude and latitude (Noodles wants `[lng, lat]`), null coordinates on some rows, or an empty array from an over-restrictive filter or SQL `WHERE` clause.
-
-## When an expression is the problem
-
-`CodeOp` and `AccessorOp` failures land in `get_console_errors`. An `AccessorOp` runs once per row, so an error there repeats thousands of times — read the first occurrence, not the last.
+When the cause is found, fix it with `apply_modifications` and check again. Report what was wrong in one sentence.
