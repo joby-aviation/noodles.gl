@@ -7822,8 +7822,6 @@ export class BufferOp extends Operator<BufferOp> {
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!geojson?.features?.length)
       return { featureCollection: { type: 'FeatureCollection', features: [] } }
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const buffered = turf.buffer(geojson, radius, { units: units as 'kilometers', steps })
     return { featureCollection: buffered || { type: 'FeatureCollection', features: [] } }
   }
@@ -7844,8 +7842,6 @@ export class UnionOp extends Operator<UnionOp> {
   execute({ geojson }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!geojson?.features?.length)
       return { featureCollection: { type: 'FeatureCollection', features: [] } }
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const polygons = geojson.features.filter(
       (f: { geometry: { type: string } }) =>
         f.geometry.type === 'Polygon' || f.geometry.type === 'MultiPolygon'
@@ -7876,8 +7872,6 @@ export class DifferenceOp extends Operator<DifferenceOp> {
   execute({ a, b }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!a?.features?.length || !b?.features?.length)
       return { featureCollection: a || { type: 'FeatureCollection', features: [] } }
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const polyA = a.features[0]
     const polyB = b.features[0]
     const result = turf.difference(turf.featureCollection([polyA, polyB]))
@@ -7901,8 +7895,6 @@ export class IntersectOp extends Operator<IntersectOp> {
   execute({ a, b }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!a?.features?.length || !b?.features?.length)
       return { featureCollection: { type: 'FeatureCollection', features: [] } }
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const polyA = a.features[0]
     const polyB = b.features[0]
     const result = turf.intersect(turf.featureCollection([polyA, polyB]))
@@ -7925,8 +7917,6 @@ export class CentroidOp extends Operator<CentroidOp> {
   execute({ geojson }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!geojson?.features?.length)
       return { featureCollection: { type: 'FeatureCollection', features: [] } }
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const centroids = geojson.features.map((f: GeoJSON.Feature) => {
       const c = turf.centroid(f)
       c.properties = { ...f.properties, ...c.properties }
@@ -7951,8 +7941,6 @@ export class ConvexHullOp extends Operator<ConvexHullOp> {
   execute({ geojson }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!geojson?.features?.length)
       return { featureCollection: { type: 'FeatureCollection', features: [] } }
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const hull = turf.convex(geojson)
     return { featureCollection: { type: 'FeatureCollection', features: hull ? [hull] : [] } }
   }
@@ -7973,8 +7961,6 @@ export class VoronoiOp extends Operator<VoronoiOp> {
   execute({ geojson }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!geojson?.features?.length)
       return { featureCollection: { type: 'FeatureCollection', features: [] } }
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const bbox = turf.bbox(geojson)
     const voronoi = turf.voronoi(geojson, { bbox })
     return { featureCollection: voronoi || { type: 'FeatureCollection', features: [] } }
@@ -8000,8 +7986,6 @@ export class DissolveOp extends Operator<DissolveOp> {
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!geojson?.features?.length)
       return { featureCollection: { type: 'FeatureCollection', features: [] } }
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const dissolved = turf.dissolve(geojson, { propertyName: propertyName || undefined })
     return { featureCollection: dissolved }
   }
@@ -8023,8 +8007,6 @@ export class ClipOp extends Operator<ClipOp> {
   execute({ geojson, mask }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!geojson?.features?.length || !mask?.features?.length)
       return { featureCollection: geojson || { type: 'FeatureCollection', features: [] } }
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const maskPoly = mask.features[0]
     const clipped = geojson.features
       .map((f: GeoJSON.Feature) => {
@@ -8066,8 +8048,6 @@ export class SpatialJoinOp extends Operator<SpatialJoinOp> {
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!target?.features?.length || !join?.features?.length)
       return { featureCollection: target || { type: 'FeatureCollection', features: [] } }
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const check =
       relationship === 'within'
         ? turf.booleanWithin
@@ -8116,8 +8096,6 @@ export class PointInPolygonOp extends Operator<PointInPolygonOp> {
     const empty = { type: 'FeatureCollection' as const, features: [] as GeoJSON.Feature[] }
     if (!points?.features?.length || !polygon?.features?.length)
       return { inside: empty, outside: empty }
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const poly = polygon.features[0]
     const inside: GeoJSON.Feature[] = []
     const outside: GeoJSON.Feature[] = []
@@ -8159,8 +8137,6 @@ export class NearestPointOp extends Operator<NearestPointOp> {
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!points?.features?.length)
       return { nearest: { type: 'FeatureCollection', features: [] }, distance: 0 }
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const target = turf.point(targetPoint)
     const nearest = turf.nearestPoint(target, points)
     const dist = nearest.properties?.distanceToPoint ?? 0
@@ -8191,8 +8167,6 @@ export class AreaOp extends Operator<AreaOp> {
   execute({ geojson, units }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!geojson?.features?.length)
       return { featureCollection: { type: 'FeatureCollection', features: [] }, totalArea: 0 }
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const conversions: Record<string, number> = {
       squareMeters: 1,
       squareKilometers: 1e-6,
@@ -8232,8 +8206,6 @@ export class LengthOp extends Operator<LengthOp> {
   execute({ geojson, units }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!geojson?.features?.length)
       return { featureCollection: { type: 'FeatureCollection', features: [] }, totalLength: 0 }
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     let total = 0
     const features = geojson.features.map((f: GeoJSON.Feature) => {
       const len = turf.length(f, { units: units as 'kilometers' })
@@ -8316,8 +8288,6 @@ export class PointGridOp extends Operator<PointGridOp> {
     cellSize,
     units,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const turfBbox: [number, number, number, number] = [
       bbox.southwest.lng,
       bbox.southwest.lat,
@@ -8355,8 +8325,6 @@ export class HexGridOp extends Operator<HexGridOp> {
     cellSize,
     units,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const turfBbox: [number, number, number, number] = [
       bbox.southwest.lng,
       bbox.southwest.lat,
@@ -8394,8 +8362,6 @@ export class SquareGridOp extends Operator<SquareGridOp> {
     cellSize,
     units,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const turfBbox: [number, number, number, number] = [
       bbox.southwest.lng,
       bbox.southwest.lat,
@@ -8428,8 +8394,6 @@ export class TinOp extends Operator<TinOp> {
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!geojson?.features?.length)
       return { featureCollection: { type: 'FeatureCollection', features: [] } }
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const tin = turf.tin(geojson, zProperty || undefined)
     return { featureCollection: tin }
   }
@@ -8456,8 +8420,6 @@ export class IsolineOp extends Operator<IsolineOp> {
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!geojson?.features?.length)
       return { featureCollection: { type: 'FeatureCollection', features: [] } }
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const isolines = turf.isolines(geojson, breaks as number[], { zProperty })
     return { featureCollection: isolines }
   }
@@ -8478,8 +8440,6 @@ export class LineToPolygonOp extends Operator<LineToPolygonOp> {
   execute({ geojson }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!geojson?.features?.length)
       return { featureCollection: { type: 'FeatureCollection', features: [] } }
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const features = geojson.features.map((f: GeoJSON.Feature) => {
       if (f.geometry.type === 'LineString' || f.geometry.type === 'MultiLineString') {
         try {
@@ -8509,8 +8469,6 @@ export class PolygonToLineOp extends Operator<PolygonToLineOp> {
   execute({ geojson }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!geojson?.features?.length)
       return { featureCollection: { type: 'FeatureCollection', features: [] } }
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const features = geojson.features.map((f: GeoJSON.Feature) => {
       if (f.geometry.type === 'Polygon' || f.geometry.type === 'MultiPolygon') {
         return turf.polygonToLine(f)
@@ -8539,8 +8497,6 @@ export class ExplodeOp extends Operator<ExplodeOp> {
   execute({ geojson, mode }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!geojson?.features?.length)
       return { featureCollection: { type: 'FeatureCollection', features: [] } }
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     if (mode === 'vertices') {
       const exploded = turf.explode(geojson)
       return { featureCollection: exploded }
@@ -8574,8 +8530,6 @@ export class AggregateOp extends Operator<AggregateOp> {
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!polygons?.features?.length || !points?.features?.length)
       return { featureCollection: polygons || { type: 'FeatureCollection', features: [] } }
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const features = polygons.features.map((poly: GeoJSON.Feature) => {
       const inside = points.features.filter((pt: GeoJSON.Feature) => {
         try {
@@ -8626,8 +8580,6 @@ export class KMeansClusterOp extends Operator<KMeansClusterOp> {
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!geojson?.features?.length)
       return { featureCollection: { type: 'FeatureCollection', features: [] } }
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const clustered = turf.clustersKmeans(geojson, { numberOfClusters })
     return { featureCollection: clustered }
   }
@@ -8656,8 +8608,6 @@ export class DBScanClusterOp extends Operator<DBScanClusterOp> {
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!geojson?.features?.length)
       return { featureCollection: { type: 'FeatureCollection', features: [] } }
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const clustered = turf.clustersDbscan(geojson, maxDistance, {
       units: units as 'kilometers',
       minPoints,
@@ -8691,8 +8641,6 @@ export class InterpolateOp extends Operator<InterpolateOp> {
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!geojson?.features?.length)
       return { featureCollection: { type: 'FeatureCollection', features: [] } }
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const interpolated = turf.interpolate(geojson, cellSize, {
       gridType: 'point',
       property,
@@ -8723,8 +8671,6 @@ export class AlongOp extends Operator<AlongOp> {
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!geojson?.features?.length)
       return { featureCollection: { type: 'FeatureCollection', features: [] } }
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const features = geojson.features
       .filter((f: GeoJSON.Feature) => f.geometry.type === 'LineString')
       .map((f: GeoJSON.Feature) =>
@@ -8759,8 +8705,6 @@ export class LineSliceOp extends Operator<LineSliceOp> {
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!geojson?.features?.length)
       return { featureCollection: { type: 'FeatureCollection', features: [] } }
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const features = geojson.features
       .filter((f: GeoJSON.Feature) => f.geometry.type === 'LineString')
       .map((f: GeoJSON.Feature) => {
@@ -8797,8 +8741,6 @@ export class TransformRotateOp extends Operator<TransformRotateOp> {
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!geojson?.features?.length || angle === 0)
       return { featureCollection: geojson || { type: 'FeatureCollection', features: [] } }
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const features = geojson.features.map((f: GeoJSON.Feature) => {
       const pivotPt = pivot === 'centroid' ? turf.centroid(f) : turf.center(f)
       return turf.transformRotate(f, angle, { pivot: pivotPt })
@@ -8830,8 +8772,6 @@ export class TransformScaleOp extends Operator<TransformScaleOp> {
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!geojson?.features?.length || factor === 1)
       return { featureCollection: geojson || { type: 'FeatureCollection', features: [] } }
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const features = geojson.features.map((f: GeoJSON.Feature) =>
       turf.transformScale(f, factor, { origin: origin as 'centroid' })
     )
@@ -8862,8 +8802,6 @@ export class TransformTranslateOp extends Operator<TransformTranslateOp> {
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!geojson?.features?.length || distance === 0)
       return { featureCollection: geojson || { type: 'FeatureCollection', features: [] } }
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const features = geojson.features.map((f: GeoJSON.Feature) =>
       turf.transformTranslate(f, distance, direction, { units: units as 'kilometers' })
     )
