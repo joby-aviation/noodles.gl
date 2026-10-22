@@ -18,7 +18,10 @@ import {
 } from './functions.js';
 import { GEO_PRELUDE } from './geo.js';
 
-export type RampName = 'viridis' | 'magma' | 'turbo' | 'cividis';
+/**
+ * A color ramp's name: one of the built-in ramps, or one registered with `registerRamp`.
+ */
+export type RampName = string;
 
 export interface ParamSpec {
   /**
@@ -492,7 +495,7 @@ export type CoreNode =
   | SourceNode | FilterNode | AggregateNode | StatsNode | AttributeNode | RawNode
   | Bin2dNode | RenderNode | LayerNode;
 
-export const RAMP_STOPS: Record<RampName, [number, number, number][]> = {
+export const RAMP_STOPS: Record<string, [number, number, number][]> = {
   // 8-stop approximations, linearly interpolated in the LUT builder. Close enough for
   // a prototype and far cheaper than shipping the full 256-entry tables.
   viridis: [
@@ -701,6 +704,7 @@ export function desugar(
 /** Build a 256-entry RGB LUT from a ramp's stops. */
 export function buildRampLut(ramp: RampName, size = 256): Float32Array {
   const stops = RAMP_STOPS[ramp];
+  if (!stops) throw new Error(`Unknown color ramp '${ramp}'`);
   const lut = new Float32Array(size * 4);
   for (let i = 0; i < size; i++) {
     const t = (i / (size - 1)) * (stops.length - 1);

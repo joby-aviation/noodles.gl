@@ -99,7 +99,7 @@ export {
   type EditorDoc, type DocNode, type DocEdge, type ParamValue, type PromotedParam,
 } from './doc.js';
 export {
-  OPERATORS, OPERATOR_INDEX, operator, bindingOf, canConnect, paramPort, safeId,
+  OPERATORS, OPERATOR_INDEX, operator, bindingOf, canConnect, paramPort, safeId, registerRamp,
   type OpDef, type ParamDef, type ParamKind, type PortSpec, type PortType, type Category,
   type LowerCtx, type LowerResult, type ScalarParams,
 } from './operators.js';
