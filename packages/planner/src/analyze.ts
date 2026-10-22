@@ -458,7 +458,24 @@ export function analyze(
 
   for (const s of statsNodes) {
     if (!sourceSchema.has(s.column) && !schema.has(s.column)) {
-      throw new PlanError(`Stats node ${s.id}: unknown column '${s.column}'`);
+      // An expression over source columns: its statistics are one SQL aggregate over the
+      // relation, so it may read nothing a later stage computes.
+      let reads: string[];
+      try {
+        reads = columnsOf(parseExpr(s.column));
+      } catch {
+        throw new PlanError(`Stats node ${s.id}: unknown column '${s.column}'`);
+      }
+      const missing = reads.filter((c) => !sourceSchema.has(c));
+      if (missing.length && s.column.trim() === missing[0]) {
+        throw new PlanError(`Stats node ${s.id}: unknown column '${s.column}'`);
+      }
+      if (missing.length) {
+        throw new PlanError(`Stats node ${s.id}: '${s.column}' reads ${missing.join(', ')}, which the source does not have`);
+      }
+      const str = reads.filter((c) => strings.has(c));
+      if (str.length) throw new PlanError(`Stats node ${s.id}: '${str.join(', ')}' is a string column`);
+      continue;
     }
     if (strings.has(s.column)) throw new PlanError(`Stats node ${s.id}: '${s.column}' is a string column`);
   }
@@ -661,6 +678,42 @@ function topoSort(
   }
 
   if (out.length !== live.length) throw new PlanError('Cycle in graph: topological sort did not consume every node');
+  return pushDownFilters(out, notes);
+}
+
+/**
+ * Predicate pushdown: move each filter ahead of the attribute nodes it does not read.
+ *
+ * Attribute nodes are per-row and pure, so a filter commutes with every one whose output it
+ * does not read. Moving it earlier is what lets a SQL-only filter (a string comparison, say)
+ * run in SQL after a chain of CPU-only attributes: stages run SQL, then CPU, then GPU, so in
+ * declaration order the filter would follow work SQL cannot do and no plan would be legal.
+ * It only moves past attributes; a source, aggregate, bin or another filter stops it, so
+ * nothing that reshapes or reorders rows is crossed.
+ */
+function pushDownFilters(nodes: CoreNode[], notes: string[]): CoreNode[] {
+  const out = [...nodes];
+  for (let i = 0; i < out.length; i++) {
+    const f = out[i];
+    if (f.type !== 'filter') continue;
+    let reads: Set<string>;
+    try {
+      reads = new Set(columnsOf(parseExpr(f.predicate)));
+    } catch {
+      continue; // User functions resolve later; leave the filter where it was declared.
+    }
+    let j = i;
+    while (j > 0) {
+      const prev = out[j - 1];
+      if (prev.type !== 'attribute' || reads.has(prev.name)) break;
+      j--;
+    }
+    if (j < i) {
+      out.splice(i, 1);
+      out.splice(j, 0, f);
+      notes.push(`predicate pushdown: ${f.id} moved ahead of ${i - j} attribute node(s)`);
+    }
+  }
   return out;
 }
 

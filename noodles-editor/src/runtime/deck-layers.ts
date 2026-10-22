@@ -369,7 +369,7 @@ function buildLayer(input: ProgramLayerInput, binary: Binary): Layer | undefined
         _pathType: 'open',
         widthScale: num(p.widthScale, 1),
         widthMinPixels: num(p.widthMinPixels, 1),
-        widthUnits: 'pixels',
+        widthUnits: widthUnits(p.widthUnits),
         getWidth: has('getWidth') ? undefined : 1,
         jointRounded: true,
         capRounded: true,
