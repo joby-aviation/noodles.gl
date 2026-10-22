@@ -7,19 +7,35 @@ export default defineConfig({
     dedupe: ['react', 'react-dom'],
   },
   test: {
-    setupFiles: ['src/setupTests.ts'],
-    // e2e/ is the Playwright suite (playwright.config.ts), not Vitest
-    exclude: [...configDefaults.exclude, 'e2e/**'],
-    browser: {
-      provider: playwright({
-        // Software WebGL so shader tests can render in headless Chromium
-        launchOptions: { args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] },
-      }),
-      enabled: true,
-      headless: true,
-      screenshotFailures: false,
-      instances: [{ browser: 'chromium' }],
-    },
+    projects: [
+      {
+        extends: true,
+        test: {
+          name: 'browser',
+          // e2e/ is the Playwright suite (playwright.config.ts), not Vitest
+          exclude: [...configDefaults.exclude, 'scripts/**', 'e2e/**'],
+          setupFiles: ['src/setupTests.ts'],
+          browser: {
+            provider: playwright({
+              // Software WebGL so shader tests can render in headless Chromium
+              launchOptions: { args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] },
+            }),
+            enabled: true,
+            headless: true,
+            screenshotFailures: false,
+            instances: [{ browser: 'chromium' }],
+          },
+        },
+      },
+      // CLI scripts need real Node APIs (child processes, the file system)
+      {
+        test: {
+          name: 'node',
+          environment: 'node',
+          include: ['scripts/**/*.test.ts'],
+        },
+      },
+    ],
   },
   optimizeDeps: {
     include: [

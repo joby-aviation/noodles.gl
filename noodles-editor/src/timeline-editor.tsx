@@ -24,6 +24,7 @@ import type { RenderSource } from './render/render-analytics'
 import { resetRenderProgress, setRenderProgress } from './render/render-progress-store'
 import { captureScreenshot, useRenderer } from './render/renderer'
 import { deckRenderingDefaults, mapRenderingDefaults } from './render/rendering-defaults'
+import { exposeCanvasToTools } from './render/tool-canvas'
 import { TransformScale } from './render/transform-scale'
 import { resolveExportSettings, setVideoExporter, type VideoExporter } from './render/video-export'
 import { TimelinePanel } from './timeline/components/TimelinePanel'
@@ -147,6 +148,7 @@ export default function TimelineEditor() {
     waitForData,
     captureDelay,
     rendersDirectory,
+    sequenceFormat,
   } = renderSettings
 
   const { startCapture, startSequenceCapture, captureFrame, isRendering } = useRenderer({
@@ -362,19 +364,8 @@ export default function TimelineEditor() {
     }
   }, [])
 
-  // Expose deck.gl canvas and instance for Claude AI visual debugging
-  useEffect(() => {
-    if (deckRef.current) {
-      // @ts-expect-error canvas is protected but accessible
-      const canvas = deckRef.current.canvas
-      if (canvas) {
-        // Store canvas globally for MCPTools to access
-        ;(window as Window & { __deckCanvas?: unknown }).__deckCanvas = canvas
-      }
-      // Store deck instance globally for layer inspection
-      ;(window as Window & { __deckInstance?: unknown }).__deckInstance = deckRef.current
-    }
-  }, [])
+  // The AI tools read the canvas through window globals
+  useEffect(() => exposeCanvasToTools(basemapEnabled, mapRef, deckRef), [basemapEnabled])
 
   mapProps.onRender = () => {
     mapIdleRef.current = false
@@ -622,6 +613,7 @@ export default function TimelineEditor() {
       // onAfterRender wired up inside startSequenceCapture via getDeck.
       getDeck: basemapEnabled ? undefined : () => deckRef.current,
       directoryHandle: rendersDir,
+      format: sequenceFormat,
       captureDelay,
       waitForData,
       startFrame: Math.floor((inPoint ?? 0) * framerate),
@@ -641,6 +633,7 @@ export default function TimelineEditor() {
     captureDelay,
     waitForData,
     rendersDirectory,
+    sequenceFormat,
     basemapEnabled,
     currentDirectory,
     activeStorageType,
@@ -705,6 +698,8 @@ export default function TimelineEditor() {
       onChangeShowOverlay={noodles.onChangeShowOverlay}
       showDebugInfo={noodles.showDebugInfo}
       onChangeShowDebugInfo={noodles.onChangeShowDebugInfo}
+      autoLayout={noodles.autoLayout}
+      onChangeAutoLayout={noodles.onChangeAutoLayout}
       spreadsheetVisible={noodles.spreadsheetVisible}
       onChangeSpreadsheetVisible={noodles.onChangeSpreadsheetVisible}
     />

@@ -16,7 +16,7 @@ import type { MCPTools } from '../mcp-tools'
 import { getSystemPrompt } from '../system-prompt'
 import type { ClaudeResponse, Message } from '../types'
 import { runAgent } from './loop'
-import { createDelegateTool } from './subagent'
+import { createDelegateTool, delegateAvailable } from './subagent'
 import { ToolRouter } from './tool-router'
 import type { AgentContent, AgentEvent, AgentMessage, AgentProvider } from './types'
 import { createWebSearchTool, type WebSearchConfig } from './web-search'
@@ -50,6 +50,7 @@ export class AgentSession {
   // Lives as long as the session so tools unlocked on one turn stay available
   private router: ToolRouter
   private maxSteps: number | undefined
+  private inFlight: Promise<unknown> | null = null
 
   constructor(provider: AgentProvider, tools: MCPTools, options: SessionOptions = {}) {
     this.provider = provider
@@ -59,19 +60,36 @@ export class AgentSession {
     const webSearch = options.webSearch ? createWebSearchTool(options.webSearch) : null
     const childTools = webSearch ? [webSearch] : []
     // The sub-agent runs on the same provider by default; pointing it at a
-    // cheaper one is a change here and nowhere else.
-    const delegate = createDelegateTool({ provider, tools, harnessTools: childTools })
+    // cheaper one is a change here and nowhere else. On-device windows are too
+    // small to spend on a second loop whose report the parent cannot check.
+    const delegate = delegateAvailable(provider)
+      ? [createDelegateTool({ provider, tools, harnessTools: childTools })]
+      : []
 
-    this.router = new ToolRouter(provider.contextWindow, [...childTools, delegate])
+    this.router = new ToolRouter(provider.contextWindow, [...childTools, ...delegate])
   }
 
   // Called when the panel replaces this session. The Chrome provider holds an
   // on-device session carrying the transcript; nothing reclaims it otherwise.
+  // A reply still running keeps its provider until it settles: WebLLM's dispose
+  // terminates the worker, and a request that worker was serving never returns.
   dispose() {
-    this.provider.dispose?.()
+    const release = () => this.provider.dispose?.()
+    if (this.inFlight) this.inFlight.then(release, release)
+    else release()
   }
 
   async send(params: SendParams): Promise<ClaudeResponse> {
+    const run = this.run(params)
+    this.inFlight = run
+    try {
+      return await run
+    } finally {
+      if (this.inFlight === run) this.inFlight = null
+    }
+  }
+
+  private async run(params: SendParams): Promise<ClaudeResponse> {
     const history = await this.prepareHistory(params.conversationHistory ?? [])
 
     const userContent: AgentContent[] = [{ type: 'text', text: params.message }]
@@ -87,6 +105,9 @@ export class AgentSession {
       ...history.map(toAgentMessage),
       { role: 'user', content: userContent },
     ]
+
+    // Edits the last run queued have landed or never will
+    this.tools.clearQueuedModifications()
 
     const result = await runAgent({
       provider: this.provider,

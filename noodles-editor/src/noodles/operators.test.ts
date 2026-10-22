@@ -1,3 +1,5 @@
+import { LayerExtension } from '@deck.gl/core'
+import { PathStyleExtension } from '@deck.gl/extensions'
 import * as deckWidgets from '@deck.gl/widgets'
 import * as turf from '@turf/turf'
 import { Temporal } from 'temporal-polyfill'
@@ -33,6 +35,7 @@ import {
   GlobeViewOp,
   GreatCircleLayerOp,
   H3ClusterLayerOp,
+  instantiateExtension,
   JSONOp,
   KmlToGeoJsonOp,
   LayerPropsOp,
@@ -68,6 +71,7 @@ import {
   SwitchOp,
   TableEditorOp,
   Tile3DLayerOp,
+  TimeOp,
   TimeSeriesOp,
   TripsLayerOp,
   ZoomWidgetOp,
@@ -932,6 +936,30 @@ describe('MathOps', () => {
   })
 })
 
+describe('TimeOp', () => {
+  it('feeds a downstream MathOp through a pull', async () => {
+    const clock = new TimeOp('/clock')
+    const seconds = new MathOp('/seconds', { operator: 'divide', b: 1000 })
+    seconds.inputs.a.addConnection('/clock.out.now', clock.outputs.now)
+    seconds.addUpstreamDependency(clock)
+    clock.addDownstreamDependent(seconds)
+
+    const first = await seconds.pull()
+    expect(typeof first.result).toBe('number')
+    expect(first.result).toBe(Date.now() / 1000)
+
+    vi.advanceTimersByTime(1000)
+    vi.advanceTimersToNextFrame()
+
+    const second = await seconds.pull()
+    expect(second.result).toBe(Date.now() / 1000)
+    expect(second.result).toBeGreaterThan(first.result)
+    await expect(clock.pull()).resolves.toMatchObject({ now: Date.now() })
+
+    clock.dispose()
+  })
+})
+
 describe('FilterOp', () => {
   it('executes a FilterOp', () => {
     const operator = new FilterOp('/filter')
@@ -1154,6 +1182,25 @@ describe('ScatterplotLayerOp', () => {
     expect(layer.otherProp).toEqual(1)
   })
 
+  it('passes LayerExtension instances through alongside descriptors', () => {
+    class CustomExtension extends LayerExtension {}
+    const custom = new CustomExtension()
+    const operator = new ScatterplotLayerOp('/scatterplot-0')
+    const { layer } = operator.execute({
+      extensions: [
+        { extension: custom, props: { customProp: 1 } },
+        null,
+        { extension: { type: 'PathStyleExtension', dash: true }, props: { dashJustified: true } },
+      ],
+    })
+
+    expect(layer.extensions).toHaveLength(2)
+    expect(layer.extensions[0]).toBe(custom)
+    expect(layer.extensions[1]).toEqual({ type: 'PathStyleExtension', dash: true })
+    expect(layer.customProp).toBe(1)
+    expect(layer.dashJustified).toBe(true)
+  })
+
   it('creates a scatterplot layer with updateTriggers', () => {
     const operator = new ScatterplotLayerOp('/scatterplot-0')
     const { layer } = operator.execute({
@@ -1162,6 +1209,30 @@ describe('ScatterplotLayerOp', () => {
     })
     expect(layer.updateTriggers).toEqual({ getPosition: ['test'] })
     expect(layer.otherProp).toEqual(1)
+  })
+})
+
+describe('instantiateExtension', () => {
+  it('returns LayerExtension instances unchanged', () => {
+    class CustomExtension extends LayerExtension {}
+    const custom = new CustomExtension()
+
+    expect(instantiateExtension(custom)).toBe(custom)
+  })
+
+  it('instantiates descriptors with their constructor args', () => {
+    const extension = instantiateExtension({ type: 'PathStyleExtension', dash: true })
+
+    expect(extension).toBeInstanceOf(PathStyleExtension)
+    expect(extension?.opts).toMatchObject({ dash: true })
+  })
+
+  it('instantiates wrapped extensions with their preset args', () => {
+    expect(instantiateExtension({ type: 'VibranceExtension' })).toBeInstanceOf(LayerExtension)
+  })
+
+  it('returns null for unknown extension types', () => {
+    expect(instantiateExtension({ type: 'UnknownExtension' })).toBeNull()
   })
 })
 
