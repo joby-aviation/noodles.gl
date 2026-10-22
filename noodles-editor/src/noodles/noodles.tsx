@@ -2240,6 +2240,7 @@ export function getNoodles(): Visualization {
   return {
     flowGraph,
     selectedNodeIds: nodes.filter(n => n.selected).map(n => n.id),
+    edges,
     nodeSidebar: (
       <ErrorBoundary title="Sidebar Error">
         <SidebarTabs

@@ -138,6 +138,7 @@ export default function TimelineEditor() {
     chatPanel,
     gitHistoryPanel,
     selectedNodeIds,
+    edges,
     ...visualization
   } = noodles
 
@@ -180,7 +181,10 @@ export default function TimelineEditor() {
   })
   isRenderingRef.current = isRendering
 
-  const cameraControl = getCameraControlState(selectedNodeIds ?? [], isRendering)
+  const cameraControl = getCameraControlState(selectedNodeIds ?? [], {
+    edges: edges ?? [],
+    isRendering,
+  })
   const cameraHistoryRef = useRef(
     createCameraGestureHistory(captureOperatorInputs, before =>
       firePropertyMutation('Move map camera', before)

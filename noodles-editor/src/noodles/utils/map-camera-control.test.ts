@@ -1,13 +1,43 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { MapViewStateOp, NumberOp } from '../operators'
+import {
+  CodeOp,
+  DeckRendererOp,
+  MaplibreBasemapOp,
+  MapViewStateOp,
+  NumberOp,
+  OutOp,
+  RerouteOp,
+} from '../operators'
 import { getOpStore, setOp } from '../store'
 import {
   createCameraGestureHistory,
   extractCameraViewState,
+  findViewCameraOpId,
+  type GraphEdge,
   getCameraControlState,
   updateCameraInputs,
   wrapLongitude,
 } from './map-camera-control'
+
+function edge(source: string, sourceHandle: string, target: string, targetHandle: string) {
+  return { source, sourceHandle, target, targetHandle }
+}
+
+// /camera -> /basemap -> /deck -> /out, the layout most projects use
+function wireView(): GraphEdge[] {
+  setOp('/out', new OutOp('/out'))
+  setOp('/deck', new DeckRendererOp('/deck'))
+  setOp('/basemap', new MaplibreBasemapOp('/basemap'))
+  return [
+    edge('/deck', 'out.vis', '/out', 'par.vis'),
+    edge('/basemap', 'out.maplibre', '/deck', 'par.basemap'),
+    edge('/camera', 'out.viewState', '/basemap', 'par.viewState'),
+  ]
+}
+
+function context(edges: GraphEdge[], overrides: { isRendering?: boolean } = {}) {
+  return { edges, isRendering: false, ...overrides }
+}
 
 describe('selected map camera control', () => {
   beforeEach(() => getOpStore().clearOps())
@@ -16,7 +46,7 @@ describe('selected map camera control', () => {
     const camera = new MapViewStateOp('/camera')
     setOp('/camera', camera)
 
-    expect(getCameraControlState(['/camera'], false)).toMatchObject({
+    expect(getCameraControlState(['/camera'], context(wireView()))).toMatchObject({
       op: camera,
       enabled: true,
       reason: null,
@@ -25,7 +55,7 @@ describe('selected map camera control', () => {
 
   it('ignores a selected non-camera operator', () => {
     setOp('/number', new NumberOp('/number'))
-    expect(getCameraControlState(['/number'], false)).toEqual({
+    expect(getCameraControlState(['/number'], context([]))).toEqual({
       op: null,
       enabled: false,
       reason: null,
@@ -37,17 +67,97 @@ describe('selected map camera control', () => {
     const second = new MapViewStateOp('/second')
     setOp('/camera', camera)
     setOp('/second', second)
+    const edges = wireView()
 
-    expect(getCameraControlState(['/camera', '/second'], false).reason).toMatch(/exactly one/)
+    expect(getCameraControlState(['/camera', '/second'], context(edges)).reason).toMatch(
+      /exactly one/
+    )
 
     camera.locked.next(true)
-    expect(getCameraControlState(['/camera'], false).reason).toMatch(/Unlock/)
+    expect(getCameraControlState(['/camera'], context(edges)).reason).toMatch(/Unlock/)
     camera.locked.next(false)
 
-    expect(getCameraControlState(['/camera'], true).reason).toMatch(/exporting/)
+    expect(
+      getCameraControlState(['/camera'], context(edges, { isRendering: true })).reason
+    ).toMatch(/exporting/)
 
     camera.inputs.longitude.addConnection('edge', new NumberOp('/source').outputs.val)
-    expect(getCameraControlState(['/camera'], false).reason).toMatch(/longitude/)
+    expect(getCameraControlState(['/camera'], context(edges)).reason).toMatch(/longitude/)
+  })
+
+  it('disables a MapViewStateOp that does not drive the visible map', () => {
+    setOp('/camera', new MapViewStateOp('/camera'))
+    setOp('/second', new MapViewStateOp('/second'))
+    const edges = wireView()
+
+    const state = getCameraControlState(['/second'], context(edges))
+    expect(state.enabled).toBe(false)
+    expect(state.reason).toMatch(/does not drive the visible map/)
+  })
+
+  describe('findViewCameraOpId', () => {
+    beforeEach(() => {
+      setOp('/camera', new MapViewStateOp('/camera'))
+      setOp('/other', new MapViewStateOp('/other'))
+    })
+
+    it('follows the basemap viewState to the camera', () => {
+      expect(findViewCameraOpId(wireView())).toBe('/camera')
+    })
+
+    it('finds a camera connected to the renderer viewState', () => {
+      const edges = wireView().filter(e => e.target !== '/basemap')
+      edges.push(edge('/camera', 'out.viewState', '/deck', 'par.viewState'))
+      expect(findViewCameraOpId(edges)).toBe('/camera')
+    })
+
+    it('prefers the renderer viewState over the basemap camera', () => {
+      const edges = [...wireView(), edge('/other', 'out.viewState', '/deck', 'par.viewState')]
+      expect(findViewCameraOpId(edges)).toBe('/other')
+    })
+
+    it('follows Reroute pass-throughs', () => {
+      setOp('/reroute', new RerouteOp('/reroute'))
+      const edges = wireView().filter(e => e.target !== '/basemap')
+      edges.push(
+        edge('/camera', 'out.viewState', '/reroute', 'par.value'),
+        edge('/reroute', 'out.value', '/basemap', 'par.viewState')
+      )
+      expect(findViewCameraOpId(edges)).toBe('/camera')
+    })
+
+    it('returns null when the camera is transformed before the renderer', () => {
+      setOp('/transform', new CodeOp('/transform'))
+      const edges = wireView().filter(e => e.target !== '/basemap')
+      edges.push(
+        edge('/camera', 'out.viewState', '/transform', 'par.data'),
+        edge('/transform', 'out.data', '/basemap', 'par.viewState')
+      )
+      expect(findViewCameraOpId(edges)).toBeNull()
+    })
+
+    it('returns null when nothing reaches the output', () => {
+      expect(findViewCameraOpId([])).toBeNull()
+      expect(findViewCameraOpId(wireView().filter(e => e.target !== '/out'))).toBeNull()
+    })
+
+    it('returns null when renderer or basemap values override the camera', () => {
+      const edges = wireView()
+      const deck = getOpStore().getOp('/deck') as DeckRendererOp
+      deck.inputs.viewState.setValue({ zoom: 4 })
+      expect(findViewCameraOpId(edges)).toBeNull()
+      deck.inputs.viewState.setValue({})
+
+      const basemap = getOpStore().getOp('/basemap') as MaplibreBasemapOp
+      basemap.inputs.viewState.fields.zoom.setExpression('4')
+      expect(findViewCameraOpId(edges)).toBeNull()
+      basemap.inputs.viewState.fields.zoom.clearExpression()
+
+      expect(
+        findViewCameraOpId([...edges, edge('/n', 'out.val', '/basemap', 'par.viewState.zoom')])
+      ).toBeNull()
+      expect(findViewCameraOpId(edges)).toBe('/camera')
+    })
   })
 
   it('extracts camera state from direct and keyed Deck view states', () => {
