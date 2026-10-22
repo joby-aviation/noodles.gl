@@ -7,7 +7,28 @@ import type { NoodlesProjectJSON } from './serialization'
 
 const migrations = import.meta.glob(['../__migrations__/*.ts', '!../__migrations__/*.test.ts'])
 
+// Two PRs can add migrations with the same number without a git conflict. Projects
+// already saved at that version would skip one of them, so refuse to load instead.
+assertUniqueMigrationVersions(Object.keys(migrations))
+
 export const NOODLES_VERSION = Math.max(...Object.keys(migrations).map(versionFromFilename))
+
+export function assertUniqueMigrationVersions(filenames: string[]) {
+  const byVersion = new Map<number, string[]>()
+  for (const filename of filenames) {
+    const version = versionFromFilename(filename)
+    byVersion.set(version, [...(byVersion.get(version) ?? []), basename(filename)])
+  }
+  const next = String(Math.max(...byVersion.keys()) + 1).padStart(3, '0')
+  for (const [version, names] of byVersion) {
+    if (names.length > 1) {
+      const padded = String(version).padStart(3, '0')
+      throw new Error(
+        `Two migrations use ${padded} (${names.join(', ')}). Rebase on main and renumber yours to ${next}, then update __migrations__/LATEST and bump example project versions`
+      )
+    }
+  }
+}
 
 interface IMigration {
   up: (project: NoodlesProjectJSON) => Promise<NoodlesProjectJSON>
