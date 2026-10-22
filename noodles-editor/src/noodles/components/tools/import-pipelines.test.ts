@@ -162,11 +162,14 @@ describe('radiusExpression', () => {
     expect(radius(3)).toBeCloseTo(16 + 32 * Math.sqrt(0.25))
     // Missing and out of range values stay at the base size instead of NaN
     expect(radius(null)).toBe(16)
+    expect(radius(undefined)).toBe(16)
+    expect(radius('n/a')).toBe(16)
     expect(radius(-10)).toBe(16)
+    expect(radius('6')).toBe(48)
   })
 
   it('uses smaller points for larger datasets', () => {
-    expect(radiusExpression({ column: 'v', min: 0, max: 1 }, 50_000)).toMatch(/^4 \+ 8 /)
+    expect(radiusExpression({ column: 'v', min: 0, max: 1 }, 50_000)).toMatch(/\? 4 \+ 8 /)
   })
 })
 
@@ -179,6 +182,41 @@ describe('toGeoJsonCode', () => {
     expect(result.features).toHaveLength(1)
     expect(result.features[0].geometry.type).toBe('Polygon')
     expect(result.features[0].properties.name).toBe('a')
+  })
+
+  it('skips GeoJSON strings that do not parse instead of throwing', () => {
+    const detection = detectRows([
+      { geometry: '{"type":"Polygon","coordinates":[[[0,0],[1,0],[1,1],[0,0]]]}' },
+    ])
+    if (detection.kind !== 'geometry') throw new Error('expected a geometry detection')
+    const rows = [
+      { geometry: '{"type":"Polygon","coordinates":[[[0,0],[1,0],[1,1],[0,0]]]}' },
+      { geometry: 'n/a' },
+      { geometry: '123' },
+    ]
+    expect(evaluate(toGeoJsonCode(detection), rows).features).toHaveLength(1)
+  })
+
+  it('never runs text from a column name', () => {
+    const column = 'geom\nglobalThis.__injected = true;//'
+    const polygon = {
+      type: 'Polygon',
+      coordinates: [
+        [
+          [0, 0],
+          [1, 0],
+          [1, 1],
+          [0, 0],
+        ],
+      ],
+    }
+    const detection = detectRows([{ [column]: polygon }])
+    if (detection.kind !== 'geometry') throw new Error('expected a geometry detection')
+    const g = globalThis as { __injected?: boolean }
+    delete g.__injected
+    const result = evaluate(toGeoJsonCode(detection), [{ [column]: polygon }])
+    expect(g.__injected).toBeUndefined()
+    expect(result.features).toHaveLength(1)
   })
 })
 

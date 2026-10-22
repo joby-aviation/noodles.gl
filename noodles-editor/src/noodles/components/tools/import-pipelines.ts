@@ -116,21 +116,33 @@ function baseRadius(rowCount: number) {
 }
 
 // From one to three times the base radius. Square root so a point's area, not its
-// radius, tracks the value.
+// radius, tracks the value. Rows with a missing or non-numeric value keep the base
+// radius rather than a NaN that would hide the point.
 export function radiusExpression({ column, min, max }: SizeColumn, rowCount: number): string {
   const base = baseRadius(rowCount)
   const value = propertyAccess(column)
-  return `${base} + ${base * 2} * Math.sqrt(Math.max(0, (${value} - ${min}) / ${max - min}))`
+  return `Number.isFinite(Number(${value})) ? ${base} + ${base * 2} * Math.sqrt(Math.max(0, (${value} - ${min}) / ${max - min})) : ${base}`
 }
 
+// Column names come from the imported file, so they only ever reach generated code
+// through propertyAccess, never as raw text (a newline in a comment would end it)
 export function toGeoJsonCode(detection: GeometryDetection) {
+  const value = propertyAccess(detection.column, 'row')
+  // Detection allows up to 10% unreadable cells, so one bad cell must not throw
+  const read =
+    detection.encoding === 'wkt'
+      ? `const read = row => utils.parseWkt(${value})`
+      : detection.encoding === 'geojson_string'
+        ? `const read = row => {\n  try {\n    return JSON.parse(${value})\n  } catch {\n    return null\n  }\n}`
+        : `const read = row => ${value}`
   return [
-    `// Turn each row's ${detection.column} column into a GeoJSON feature`,
+    "// Turn each row's geometry column into a GeoJSON feature, skipping unreadable cells",
+    read,
     'return {',
     "  type: 'FeatureCollection',",
     '  features: d',
-    `    .map(row => ({ type: 'Feature', geometry: ${geometryExpression(detection, 'row')}, properties: row }))`,
-    '    .filter(feature => feature.geometry),',
+    "    .map(row => ({ type: 'Feature', geometry: read(row), properties: row }))",
+    '    .filter(feature => feature.geometry?.type),',
     '}',
   ].join('\n')
 }
