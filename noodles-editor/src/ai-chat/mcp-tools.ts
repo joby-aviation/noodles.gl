@@ -254,6 +254,21 @@ function checkTarget(
   }
 }
 
+// Custom inputs a modification gives a node before its operator exists: an
+// add_node's own, or an update_node's when the node is new this run. An update
+// to a node that already exists does not rebuild its inputs, so it adds none.
+function declaredInputs(
+  mod: ProjectModification,
+  isNew: (id: string) => boolean
+): Array<[string, string[]]> {
+  if (mod.type === 'add_node') return [[mod.data.id, customInputNames(mod.data.data)]]
+  if (mod.type === 'update_node' && isNew(mod.data.id)) {
+    const names = customInputNames(mod.data.data as Record<string, unknown> | undefined)
+    return names.length > 0 ? [[mod.data.id, names]] : []
+  }
+  return []
+}
+
 // Fields the live operator has, including user-defined custom inputs the class
 // does not declare. Empty for a node that exists only in this run's queue.
 function liveFieldNames(nodeId: string, side: 'inputs' | 'outputs'): string[] {
@@ -932,6 +947,9 @@ export class MCPTools {
     const errors: string[] = []
     const accepted: Array<{ label: string; mod: ProjectModification }> = []
     const addedSoFar = new Set<string>()
+    // A node this run creates: the editor merges updates into it before it builds
+    // the operator, so custom inputs an update declares become real fields
+    const isNew = (id: string) => addedSoFar.has(id) || this.queuedNodes.has(id)
     for (const [index, raw] of modifications.entries()) {
       const label = `modifications[${index}]${isRecord(raw) && typeof raw.type === 'string' ? ` (${raw.type})` : ''}`
       const parsed = ProjectModificationSchema.safeParse(
@@ -954,6 +972,9 @@ export class MCPTools {
         addedSoFar.add(mod.data.id)
         types.set(mod.data.id, mod.data.type)
       }
+      // The editor adds a batch's edges before deleting any, so a later
+      // delete_edge may cancel one this batch adds
+      if (mod.type === 'add_edge') edgeIds.add(mod.data.id)
       accepted.push({ label, mod })
     }
 
@@ -962,7 +983,9 @@ export class MCPTools {
     if (registry) {
       const declared = new Map(this.queuedCustomInputs)
       for (const { mod } of accepted) {
-        if (mod.type === 'add_node') declared.set(mod.data.id, customInputNames(mod.data.data))
+        for (const [id, names] of declaredInputs(mod, isNew)) {
+          declared.set(id, [...(declared.get(id) ?? []), ...names])
+        }
       }
       const liveFields = (nodeId: string, side: 'inputs' | 'outputs') => [
         ...liveFieldNames(nodeId, side),
@@ -983,9 +1006,9 @@ export class MCPTools {
 
     const mods = accepted.map(entry => entry.mod)
     for (const mod of mods) {
-      if (mod.type === 'add_node') {
-        this.queuedNodes.set(mod.data.id, mod.data.type)
-        this.queuedCustomInputs.set(mod.data.id, customInputNames(mod.data.data))
+      if (mod.type === 'add_node') this.queuedNodes.set(mod.data.id, mod.data.type)
+      for (const [id, names] of declaredInputs(mod, isNew)) {
+        this.queuedCustomInputs.set(id, [...(this.queuedCustomInputs.get(id) ?? []), ...names])
       }
       if (mod.type === 'add_edge') this.queuedEdges.add(mod.data.id)
     }
