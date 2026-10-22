@@ -353,7 +353,8 @@
 .timelinePlayhead {
   position: absolute;
   top: 0;
-  bottom: 0;
+  /* Its height comes from the panel; never let it overflow a shorter keyframe area */
+  max-height: 100%;
   width: 1.5px;
   background: var(--tl-accent-strong);
   box-shadow: 0 0 10px rgb(72 198 207 / 0.38);

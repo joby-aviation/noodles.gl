@@ -7,9 +7,10 @@ import s from './TimelinePanel.module.css'
 export interface PlayheadProps {
   position: number
   pixelsPerSecond: number
+  height: number
 }
 
-export function Playhead({ position, pixelsPerSecond }: PlayheadProps) {
+export function Playhead({ position, pixelsPerSecond, height }: PlayheadProps) {
   const [isDragging, setIsDragging] = useState(false)
   const dragStartRef = useRef<{ startX: number; startPosition: number } | null>(null)
 
@@ -59,6 +60,7 @@ export function Playhead({ position, pixelsPerSecond }: PlayheadProps) {
       className={s.timelinePlayhead}
       style={{
         left: x,
+        height,
         opacity: isDragging ? 0.8 : 1,
       }}
     >
