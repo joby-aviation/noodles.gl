@@ -10,6 +10,12 @@ Clicking a node with animatable properties will surface its properties in the ri
 
 You can scrub the timeline further ahead and change any value to set a new keyframe. You should now see a new keyframe added to the timeline as a diamond icon. You can move and adjust these values using the timeline editor, or edit the curve between the values.
 
+### Animating table cells
+
+Cells in a TableEditor can be keyframed one at a time. Hover a cell and click its diamond to add a keyframe, then scrub ahead and edit the cell to add the next one. Numbers, colors, and points interpolate; text and booleans switch at the midpoint. Each cell gets its own track, named `table / data / <row> / <column>`.
+
+Tracks follow the row's position in the table. Adding or deleting rows above an animated row moves its animation onto whichever row takes that position, and renaming a column leaves its tracks on the old name.
+
 ## Rendering output
 
 On the lefthand node tree, find the "render" sheet object under the current project (typically the project name, the bottom-most one with the most sheet objects).
