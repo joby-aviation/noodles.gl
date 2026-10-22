@@ -4,7 +4,18 @@ Learn how to load, process, and transform data in Noodles.gl for your visualizat
 
 ## Data Sources
 
-Use a `FileOp` to read a file from a URL or text. Supports csv and json, such as:
+### Local and Remote Files
+
+Use a `FileOp` to read a file from a URL or text. Supported formats:
+
+| Format | Output Type | Use Case |
+|--------|-------------|----------|
+| `json` | Parsed object/array | JSON data files |
+| `csv` | Array of row objects | Tabular data |
+| `text` | Raw string | Plain text files, custom parsing |
+| `binary` | ArrayBuffer/Uint8Array | Images, binary files |
+
+### Common Data Formats
 
 ### JSON Data
 ```javascript
@@ -44,6 +55,16 @@ SFO,LAX,150,"[-122.4194, 37.7749]"
   ]
 }
 ```
+
+### Text and Binary Formats
+
+Use `text` format for custom parsing or `binary` for non-text files (images, etc.).
+
+### Geospatial Data
+
+**Overture Maps** - Global datasets (places, buildings, roads) via `DuckDbOp`. Best for large-scale analytics. Query Parquet files on S3 with SQL. See [docs.overturemaps.org](https://docs.overturemaps.org/).
+
+**Overpass API** - Real-time OpenStreetMap via `OverpassOp`. Best for current data and city-scale queries. Uses Overpass QL syntax with `{{bbox}}` template replacement. See [Overpass QL docs](https://wiki.openstreetmap.org/wiki/Overpass_API/Overpass_QL).
 
 ## Data Processing
 

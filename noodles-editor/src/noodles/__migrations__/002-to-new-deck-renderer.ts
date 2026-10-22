@@ -217,10 +217,10 @@ export async function down(project: NoodlesProjectJSON) {
     | DeckOpJson
     | undefined
   if (basemapSource) {
-    ; (newNodes[deckRendererNode] as DeckOpJson).data.inputs.mapStyle =
+    ;(newNodes[deckRendererNode] as DeckOpJson).data.inputs.mapStyle =
       basemapSource.data.inputs.mapStyle
-      ; (newNodes[deckRendererNode] as DeckOpJson).data.inputs.viewState =
-        basemapSource.data.inputs.viewState
+    ;(newNodes[deckRendererNode] as DeckOpJson).data.inputs.viewState =
+      basemapSource.data.inputs.viewState
   }
 
   // Edge: If viewState was connected to MaplibreBasemapOp, move connection to DeckRenderer
@@ -256,7 +256,7 @@ export async function down(project: NoodlesProjectJSON) {
       | DeckOpJson
       | undefined
     if (viewStateSource) {
-      ; (newNodes[deckRendererNode] as DeckOpJson).data.inputs.viewState = null
+      ;(newNodes[deckRendererNode] as DeckOpJson).data.inputs.viewState = null
     }
   }
 

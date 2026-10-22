@@ -1,27 +1,14 @@
 // End-to-end tests for graph execution flow
 // Tests the complete flow: graph transformation -> operator creation -> subscriptions
 import type { Node as ReactFlowNode } from '@xyflow/react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import { MathOp, NumberOp } from '../operators'
-import { opMap } from '../store'
+import { clearOps, getOp } from '../store'
 import { transformGraph } from '../transform-graph'
-
-// Mock Theatre.js studio to avoid side effects
-vi.mock('@theatre/studio', () => ({
-  default: {
-    transaction: vi.fn(fn =>
-      fn({
-        __experimental_forgetSheet: vi.fn(),
-      })
-    ),
-    setSelection: vi.fn(),
-    createContentOfSaveFile: vi.fn(() => ({ sheetsById: {} })),
-  },
-}))
 
 describe('Graph Execution E2E', () => {
   afterEach(() => {
-    opMap.clear()
+    clearOps()
   })
 
   it('creates fully connected computation graph', () => {
@@ -64,13 +51,13 @@ describe('Graph Execution E2E', () => {
       },
     ]
 
-    const operators = transformGraph({ nodes, edges })
+    const { operators } = transformGraph({ nodes, edges })
 
     // Verify all operators created
     expect(operators).toHaveLength(3)
-    const num1Op = opMap.get('/num1') as NumberOp
-    const num2Op = opMap.get('/num2') as NumberOp
-    const addOp = opMap.get('/add') as MathOp
+    const num1Op = getOp('/num1') as NumberOp
+    const num2Op = getOp('/num2') as NumberOp
+    const addOp = getOp('/add') as MathOp
 
     expect(num1Op).toBeInstanceOf(NumberOp)
     expect(num2Op).toBeInstanceOf(NumberOp)
@@ -115,8 +102,8 @@ describe('Graph Execution E2E', () => {
 
     transformGraph({ nodes, edges })
 
-    const numOp = opMap.get('/num') as NumberOp
-    const multiplyOp = opMap.get('/multiply') as MathOp
+    const numOp = getOp('/num') as NumberOp
+    const multiplyOp = getOp('/multiply') as MathOp
 
     // Verify subscription exists
     expect(multiplyOp.inputs.a.subscriptions.size).toBe(1)
@@ -187,12 +174,12 @@ describe('Graph Execution E2E', () => {
       },
     ]
 
-    const operators = transformGraph({ nodes, edges })
+    const { operators } = transformGraph({ nodes, edges })
 
     expect(operators).toHaveLength(4)
 
-    const addOp = opMap.get('/add') as MathOp
-    const multiplyOp = opMap.get('/multiply') as MathOp
+    const addOp = getOp('/add') as MathOp
+    const multiplyOp = getOp('/multiply') as MathOp
 
     // Verify all connections in the chain
     expect(addOp.inputs.a.subscriptions.size).toBe(1)
@@ -229,7 +216,7 @@ describe('Graph Execution E2E', () => {
 
     transformGraph({ nodes, edges })
 
-    const addOp = opMap.get('/add') as MathOp
+    const addOp = getOp('/add') as MathOp
 
     // Verify constant value is set
     expect(addOp.inputs.b.value).toBe(5)
@@ -266,8 +253,8 @@ describe('Graph Execution E2E', () => {
 
     transformGraph({ nodes, edges })
 
-    const numOp = opMap.get('/num')
-    const mathOp = opMap.get('/math')
+    const numOp = getOp('/num')
+    const mathOp = getOp('/math')
 
     // Verify correct operator types
     expect(numOp?.constructor.name).toBe('NumberOp')
@@ -320,9 +307,9 @@ describe('Graph Execution E2E', () => {
 
     transformGraph({ nodes, edges })
 
-    const aOp = opMap.get('/a') as NumberOp
-    const bOp = opMap.get('/b') as MathOp
-    const cOp = opMap.get('/c') as MathOp
+    const aOp = getOp('/a') as NumberOp
+    const bOp = getOp('/b') as MathOp
+    const cOp = getOp('/c') as MathOp
 
     // Track notifications through the chain
     let bNotified = false

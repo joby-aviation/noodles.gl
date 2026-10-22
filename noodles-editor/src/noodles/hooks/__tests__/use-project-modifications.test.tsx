@@ -2,11 +2,12 @@
 // Tests node and edge manipulation operations
 
 import { act, renderHook } from '@testing-library/react'
-import { type Edge as ReactFlowEdge, type Node as ReactFlowNode } from '@xyflow/react'
+import type { Edge as ReactFlowEdge, Node as ReactFlowNode } from '@xyflow/react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { NumberOp } from '../../operators'
-import { opMap } from '../../store'
-import { useProjectModifications, type ProjectModification } from '../use-project-modifications'
+import { ConcatOp, ContainerOp, DeckRendererOp, NumberOp } from '../../operators'
+import { clearOps, getOp, hasOp, setOp, setPendingInsertionIndex } from '../../store'
+import { MULTI_INPUT_EDGE_TYPE } from '../../utils/multi-input-utils'
+import { type ProjectModification, useProjectModifications } from '../use-project-modifications'
 
 describe('useProjectModifications', () => {
   // State management for React Flow
@@ -25,11 +26,11 @@ describe('useProjectModifications', () => {
   beforeEach(() => {
     nodes = []
     edges = []
-    opMap.clear()
+    clearOps()
   })
 
   afterEach(() => {
-    opMap.clear()
+    clearOps()
   })
 
   describe('addNode', () => {
@@ -108,7 +109,7 @@ describe('useProjectModifications', () => {
 
     it('should update node inputs and sync with operator', () => {
       const op = new NumberOp('/test-node', { val: 10 })
-      opMap.set('/test-node', op)
+      setOp('/test-node', op)
 
       const { result } = renderHook(() =>
         useProjectModifications({ getNodes, getEdges, setNodes, setEdges })
@@ -149,6 +150,111 @@ describe('useProjectModifications', () => {
         expect(updateResult.success).toBe(false)
         expect(updateResult.error).toContain('not found')
       })
+    })
+
+    it('should auto-show hidden field when setting value programmatically', () => {
+      // DeckRendererOp has 'effects' field with showByDefault: false
+      const op = new DeckRendererOp('/deck')
+      setOp('/deck', op)
+
+      // Verify effects is hidden by default
+      expect(op.inputs.effects.showByDefault).toBe(false)
+      expect(op.isFieldVisible('effects')).toBe(false)
+
+      const node: ReactFlowNode = {
+        id: '/deck',
+        type: 'DeckRendererOp',
+        position: { x: 0, y: 0 },
+        data: {},
+      }
+
+      nodes = [node]
+
+      const { result } = renderHook(() =>
+        useProjectModifications({ getNodes, getEdges, setNodes, setEdges })
+      )
+
+      // Update the hidden 'effects' field programmatically
+      act(() => {
+        result.current.updateNode('/deck', {
+          data: {
+            inputs: {
+              effects: [{ type: 'lighting' }],
+            },
+          },
+        })
+      })
+
+      // Field should now be visible after programmatic update
+      expect(op.isFieldVisible('effects')).toBe(true)
+      expect(op.visibleFields.value).toBeInstanceOf(Set)
+      expect(op.visibleFields.value?.has('effects')).toBe(true)
+    })
+  })
+
+  describe('updateOperatorId', () => {
+    it('renames a container across the complete node and edge graph', async () => {
+      const container = new ContainerOp('/container')
+      const child = new NumberOp('/container/group/child', { val: 42 }, false, '/container/group')
+      setOp(container.id, container)
+      setOp(child.id, child)
+      nodes = [
+        {
+          id: '/container',
+          type: 'ContainerOp',
+          position: { x: 0, y: 0 },
+          data: { inputs: {} },
+        },
+        {
+          id: '/container/group',
+          type: 'group',
+          position: { x: 50, y: 50 },
+          data: {},
+        },
+        {
+          id: '/container/group/child',
+          type: 'NumberOp',
+          parentId: '/container/group',
+          position: { x: 20, y: 20 },
+          data: { inputs: { val: 42 } },
+        },
+      ]
+      edges = [
+        {
+          id: '/container/group/child.out.val->/container.par.in',
+          source: '/container/group/child',
+          sourceHandle: 'out.val',
+          target: '/container',
+          targetHandle: 'par.in',
+        },
+      ]
+      const { result } = renderHook(() =>
+        useProjectModifications({ getNodes, getEdges, setNodes, setEdges })
+      )
+
+      await act(async () => {
+        result.current.updateOperatorId('/container', 'scale-container', true)
+        await Promise.resolve()
+      })
+
+      expect(nodes.map(node => node.id)).toEqual([
+        '/scale-container',
+        '/scale-container/group',
+        '/scale-container/group/child',
+      ])
+      expect(nodes[2].parentId).toBe('/scale-container/group')
+      expect(edges).toEqual([
+        expect.objectContaining({
+          id: '/scale-container/group/child.out.val->/scale-container.par.in',
+          source: '/scale-container/group/child',
+          target: '/scale-container',
+        }),
+      ])
+      expect(hasOp('/container')).toBe(false)
+      expect(hasOp('/container/group/child')).toBe(false)
+      expect(getOp('/scale-container')).toBe(container)
+      expect(getOp('/scale-container/group/child')).toBe(child)
+      expect(child.containerId).toBe('/scale-container/group')
     })
   })
 
@@ -194,9 +300,9 @@ describe('useProjectModifications', () => {
       const op1 = new NumberOp('/node-1', { val: 1 })
       const op2 = new NumberOp('/node-2', { val: 2 })
       const op3 = new NumberOp('/node-3', { val: 3 })
-      opMap.set('/node-1', op1)
-      opMap.set('/node-2', op2)
-      opMap.set('/node-3', op3)
+      setOp('/node-1', op1)
+      setOp('/node-2', op2)
+      setOp('/node-3', op3)
 
       const { result } = renderHook(() =>
         useProjectModifications({ getNodes, getEdges, setNodes, setEdges })
@@ -269,8 +375,8 @@ describe('useProjectModifications', () => {
       // Set up two connected operators
       const op1 = new NumberOp('/source', { val: 42 })
       const op2 = new NumberOp('/target', { val: 0 })
-      opMap.set('/source', op1)
-      opMap.set('/target', op2)
+      setOp('/source', op1)
+      setOp('/target', op2)
 
       nodes = [
         {
@@ -308,6 +414,26 @@ describe('useProjectModifications', () => {
 
       expect(edges).toHaveLength(1)
       expect(edges[0]).toEqual(edge)
+    })
+
+    it('should not add the same logical connection under a different ID', () => {
+      const { result } = renderHook(() =>
+        useProjectModifications({ getNodes, getEdges, setNodes, setEdges })
+      )
+      const connection: ReactFlowEdge = {
+        id: 'first-id',
+        source: '/source',
+        target: '/target',
+        sourceHandle: 'out.val',
+        targetHandle: 'par.val',
+      }
+
+      act(() => {
+        result.current.addEdge(connection)
+        result.current.addEdge({ ...connection, id: 'alternate-id' })
+      })
+
+      expect(edges).toEqual([connection])
     })
 
     it('should reject edge with non-existent source node', () => {
@@ -422,8 +548,8 @@ describe('useProjectModifications', () => {
       // Set up operators
       const op1 = new NumberOp('/node-1', { val: 1 })
       const op2 = new NumberOp('/node-2', { val: 2 })
-      opMap.set('/node-1', op1)
-      opMap.set('/node-2', op2)
+      setOp('/node-1', op1)
+      setOp('/node-2', op2)
 
       const { result } = renderHook(() =>
         useProjectModifications({ getNodes, getEdges, setNodes, setEdges })
@@ -471,11 +597,42 @@ describe('useProjectModifications', () => {
       expect(edges[0].target).toBe('/node-2')
     })
 
+    it('should deduplicate logical connections within a batch', () => {
+      setOp('/node-1', new NumberOp('/node-1', { val: 1 }))
+      setOp('/node-2', new NumberOp('/node-2', { val: 2 }))
+      const { result } = renderHook(() =>
+        useProjectModifications({ getNodes, getEdges, setNodes, setEdges })
+      )
+      const connection = {
+        source: '/node-1',
+        target: '/node-2',
+        sourceHandle: 'out.val',
+        targetHandle: 'par.val',
+      }
+
+      act(() => {
+        result.current.applyModifications([
+          {
+            type: 'add_node',
+            data: { id: '/node-1', type: 'NumberOp', position: { x: 0, y: 0 }, data: {} },
+          },
+          {
+            type: 'add_node',
+            data: { id: '/node-2', type: 'NumberOp', position: { x: 100, y: 0 }, data: {} },
+          },
+          { type: 'add_edge', data: { id: 'first-id', ...connection } },
+          { type: 'add_edge', data: { id: 'alternate-id', ...connection } },
+        ])
+      })
+
+      expect(edges).toEqual([{ id: 'first-id', ...connection }])
+    })
+
     it('should handle mixed operations (add, update, delete)', () => {
       const op1 = new NumberOp('/node-1', { val: 1 })
       const op2 = new NumberOp('/node-2', { val: 2 })
-      opMap.set('/node-1', op1)
-      opMap.set('/node-2', op2)
+      setOp('/node-1', op1)
+      setOp('/node-2', op2)
 
       const { result } = renderHook(() =>
         useProjectModifications({ getNodes, getEdges, setNodes, setEdges })
@@ -520,7 +677,9 @@ describe('useProjectModifications', () => {
         },
       ]
 
-      let applyResult: { success: boolean; error?: string; warnings?: string[] } = { success: false }
+      let applyResult: { success: boolean; error?: string; warnings?: string[] } = {
+        success: false,
+      }
       act(() => {
         applyResult = result.current.applyModifications(modifications)
       })
@@ -535,7 +694,7 @@ describe('useProjectModifications', () => {
 
     it('should skip edges with missing nodes but continue with valid edges', () => {
       const op1 = new NumberOp('/node-1', { val: 1 })
-      opMap.set('/node-1', op1)
+      setOp('/node-1', op1)
 
       const { result } = renderHook(() =>
         useProjectModifications({ getNodes, getEdges, setNodes, setEdges })
@@ -574,6 +733,45 @@ describe('useProjectModifications', () => {
       expect(nodes).toHaveLength(1)
       expect(edges).toHaveLength(0) // Edge should be skipped
     })
+
+    it('warns about an update aimed at no node instead of reporting a clean success', () => {
+      const { result } = renderHook(() =>
+        useProjectModifications({ getNodes, getEdges, setNodes, setEdges })
+      )
+
+      act(() => {
+        const applyResult = result.current.applyModifications([
+          { type: 'update_node', data: { id: '/missing', position: { x: 1, y: 1 } } },
+        ])
+        expect(applyResult.warnings).toEqual(['update_node: no node /missing'])
+      })
+    })
+
+    // Unplaced, the node crashed the canvas and the benchmark lost the whole batch
+    it('places a node sent without a position beside the node feeding it', () => {
+      nodes = [{ id: '/data', type: 'NumberOp', position: { x: 0, y: 0 }, data: {} }]
+      const { result } = renderHook(() =>
+        useProjectModifications({ getNodes, getEdges, setNodes, setEdges })
+      )
+
+      act(() => {
+        result.current.applyModifications([
+          { type: 'add_node', data: { id: '/heat', type: 'NumberOp', data: {} } as ReactFlowNode },
+          {
+            type: 'add_edge',
+            data: {
+              id: '/data.out.val->/heat.par.val',
+              source: '/data',
+              target: '/heat',
+              sourceHandle: 'out.val',
+              targetHandle: 'par.val',
+            },
+          },
+        ])
+      })
+
+      expect(nodes.find(n => n.id === '/heat')?.position).toEqual({ x: 250, y: 0 })
+    })
   })
 
   describe('ReactFlow callbacks', () => {
@@ -582,9 +780,9 @@ describe('useProjectModifications', () => {
       const op1 = new NumberOp('/node-1', { val: 1 })
       const op2 = new NumberOp('/node-2', { val: 2 })
       const op3 = new NumberOp('/node-3', { val: 3 })
-      opMap.set('/node-1', op1)
-      opMap.set('/node-2', op2)
-      opMap.set('/node-3', op3)
+      setOp('/node-1', op1)
+      setOp('/node-2', op2)
+      setOp('/node-3', op3)
 
       const { result } = renderHook(() =>
         useProjectModifications({ getNodes, getEdges, setNodes, setEdges })
@@ -659,11 +857,40 @@ describe('useProjectModifications', () => {
       expect(edges.some(e => e.source === '/node-1' && e.target === '/node-3')).toBe(true)
     })
 
+    it('onConnect should not create an edge when source and target are the same node', () => {
+      const op = new NumberOp('/self', { val: 42 })
+      setOp('/self', op)
+
+      const { result } = renderHook(() =>
+        useProjectModifications({ getNodes, getEdges, setNodes, setEdges })
+      )
+
+      act(() => {
+        result.current.addNode({
+          id: '/self',
+          type: 'NumberOp',
+          position: { x: 0, y: 0 },
+          data: {},
+        })
+      })
+
+      act(() => {
+        result.current.onConnect({
+          source: '/self',
+          target: '/self',
+          sourceHandle: 'out.val',
+          targetHandle: 'par.val',
+        })
+      })
+
+      expect(edges).toHaveLength(0)
+    })
+
     it('onConnect should add edge with validation', () => {
       const op1 = new NumberOp('/source', { val: 42 })
       const op2 = new NumberOp('/target', { val: 0 })
-      opMap.set('/source', op1)
-      opMap.set('/target', op2)
+      setOp('/source', op1)
+      setOp('/target', op2)
 
       const { result } = renderHook(() =>
         useProjectModifications({ getNodes, getEdges, setNodes, setEdges })
@@ -696,6 +923,407 @@ describe('useProjectModifications', () => {
       expect(edges).toHaveLength(1)
       expect(edges[0].source).toBe('/source')
       expect(edges[0].target).toBe('/target')
+    })
+  })
+
+  describe('edge replacement with reconnectEdge', () => {
+    it('should replace existing edge when connecting to non-ListField input', () => {
+      const op1 = new NumberOp('/source-1', { val: 1 })
+      const op2 = new NumberOp('/source-2', { val: 2 })
+      const op3 = new NumberOp('/target', { val: 0 })
+      setOp('/source-1', op1)
+      setOp('/source-2', op2)
+      setOp('/target', op3)
+
+      const { result } = renderHook(() =>
+        useProjectModifications({ getNodes, getEdges, setNodes, setEdges })
+      )
+
+      act(() => {
+        result.current.addNode({
+          id: '/source-1',
+          type: 'NumberOp',
+          position: { x: 0, y: 0 },
+          data: {},
+        })
+        result.current.addNode({
+          id: '/source-2',
+          type: 'NumberOp',
+          position: { x: 0, y: 100 },
+          data: {},
+        })
+        result.current.addNode({
+          id: '/target',
+          type: 'NumberOp',
+          position: { x: 200, y: 50 },
+          data: {},
+        })
+      })
+
+      // Create first connection
+      act(() => {
+        result.current.onConnect({
+          source: '/source-1',
+          target: '/target',
+          sourceHandle: 'out.val',
+          targetHandle: 'par.val',
+        })
+      })
+
+      expect(edges).toHaveLength(1)
+      expect(edges[0].source).toBe('/source-1')
+      expect(edges[0].target).toBe('/target')
+      const firstEdgeId = edges[0].id
+
+      // Create second connection to same input - should replace first
+      act(() => {
+        result.current.onConnect({
+          source: '/source-2',
+          target: '/target',
+          sourceHandle: 'out.val',
+          targetHandle: 'par.val',
+        })
+      })
+
+      // Should still have only 1 edge (replaced)
+      expect(edges).toHaveLength(1)
+      expect(edges[0].source).toBe('/source-2')
+      expect(edges[0].target).toBe('/target')
+      expect(edges[0].id).not.toBe(firstEdgeId)
+    })
+
+    it('should use reconnectEdge atomically without intermediate state', () => {
+      const op1 = new NumberOp('/source-1', { val: 1 })
+      const op2 = new NumberOp('/source-2', { val: 2 })
+      const op3 = new NumberOp('/target', { val: 0 })
+      setOp('/source-1', op1)
+      setOp('/source-2', op2)
+      setOp('/target', op3)
+
+      // Track edge lengths to verify atomic updates
+      const edgeLengthsHistory: number[] = []
+
+      const { result } = renderHook(() =>
+        useProjectModifications({
+          getNodes,
+          getEdges,
+          setNodes,
+          setEdges: (update: ReactFlowEdge[] | ((edges: ReactFlowEdge[]) => ReactFlowEdge[])) => {
+            const newEdges = typeof update === 'function' ? update(edges) : update
+            edgeLengthsHistory.push(newEdges.length)
+            setEdges(newEdges)
+          },
+        })
+      )
+
+      act(() => {
+        result.current.addNode({
+          id: '/source-1',
+          type: 'NumberOp',
+          position: { x: 0, y: 0 },
+          data: {},
+        })
+        result.current.addNode({
+          id: '/source-2',
+          type: 'NumberOp',
+          position: { x: 0, y: 100 },
+          data: {},
+        })
+        result.current.addNode({
+          id: '/target',
+          type: 'NumberOp',
+          position: { x: 200, y: 50 },
+          data: {},
+        })
+      })
+
+      // Create first connection
+      act(() => {
+        result.current.onConnect({
+          source: '/source-1',
+          target: '/target',
+          sourceHandle: 'out.val',
+          targetHandle: 'par.val',
+        })
+      })
+
+      expect(edges).toHaveLength(1)
+
+      // Create second connection - should be atomic (single state update, no intermediate 0 or 2 edges)
+      act(() => {
+        result.current.onConnect({
+          source: '/source-2',
+          target: '/target',
+          sourceHandle: 'out.val',
+          targetHandle: 'par.val',
+        })
+      })
+
+      // Verify atomic update - should never have 0 or 2 edges during replacement
+      expect(edgeLengthsHistory).not.toContain(0)
+      expect(edgeLengthsHistory).not.toContain(2)
+      expect(edges).toHaveLength(1)
+      expect(edges[0].source).toBe('/source-2')
+    })
+
+    it('should preserve edge metadata during reconnectEdge', () => {
+      const op1 = new NumberOp('/source-1', { val: 1 })
+      const op2 = new NumberOp('/source-2', { val: 2 })
+      const op3 = new NumberOp('/target', { val: 0 })
+      setOp('/source-1', op1)
+      setOp('/source-2', op2)
+      setOp('/target', op3)
+
+      const { result } = renderHook(() =>
+        useProjectModifications({ getNodes, getEdges, setNodes, setEdges })
+      )
+
+      act(() => {
+        result.current.addNode({
+          id: '/source-1',
+          type: 'NumberOp',
+          position: { x: 0, y: 0 },
+          data: {},
+        })
+        result.current.addNode({
+          id: '/source-2',
+          type: 'NumberOp',
+          position: { x: 0, y: 100 },
+          data: {},
+        })
+        result.current.addNode({
+          id: '/target',
+          type: 'NumberOp',
+          position: { x: 200, y: 50 },
+          data: {},
+        })
+      })
+
+      // Create first connection
+      act(() => {
+        result.current.onConnect({
+          source: '/source-1',
+          target: '/target',
+          sourceHandle: 'out.val',
+          targetHandle: 'par.val',
+        })
+      })
+
+      const originalTargetHandle = edges[0].targetHandle
+
+      // Replace connection
+      act(() => {
+        result.current.onConnect({
+          source: '/source-2',
+          target: '/target',
+          sourceHandle: 'out.val',
+          targetHandle: 'par.val',
+        })
+      })
+
+      // Verify metadata preserved
+      expect(edges[0].targetHandle).toBe(originalTargetHandle)
+      expect(edges[0].target).toBe('/target')
+    })
+  })
+  describe('multi-input (ListField) connections', () => {
+    const numberSource = (id: string, val: number) => {
+      setOp(id, new NumberOp(id, { val }))
+      nodes.push({ id, type: 'NumberOp', position: { x: 0, y: 0 }, data: {} })
+    }
+
+    const listConnection = (source: string) => ({
+      source,
+      target: '/concat',
+      sourceHandle: 'out.val',
+      targetHandle: 'par.values',
+    })
+
+    const listEdgeId = (source: string) => `${source}.out.val->/concat.par.values`
+
+    const groupIds = () =>
+      edges.filter(e => e.target === '/concat' && e.targetHandle === 'par.values').map(e => e.id)
+
+    const fieldOrder = (concat: ConcatOp) => Array.from(concat.inputs.values.fields.keys())
+
+    let concat: ConcatOp
+
+    beforeEach(() => {
+      concat = new ConcatOp('/concat')
+      setOp('/concat', concat)
+      nodes.push({ id: '/concat', type: 'ConcatOp', position: { x: 0, y: 0 }, data: {} })
+      numberSource('/a', 1)
+      numberSource('/b', 2)
+      numberSource('/c', 3)
+      setPendingInsertionIndex(null)
+    })
+
+    const setup = () =>
+      renderHook(() => useProjectModifications({ getNodes, getEdges, setNodes, setEdges })).result
+
+    it('onConnect appends to the end and normalizes edge data', () => {
+      const result = setup()
+
+      act(() => {
+        result.current.onConnect(listConnection('/a'))
+        result.current.onConnect(listConnection('/b'))
+      })
+
+      expect(groupIds()).toEqual([listEdgeId('/a'), listEdgeId('/b')])
+      expect(edges.map(e => e.type)).toEqual([MULTI_INPUT_EDGE_TYPE, MULTI_INPUT_EDGE_TYPE])
+      expect(edges.map(e => e.data?.orderIndex)).toEqual([0, 1])
+      expect(edges.map(e => e.data?.groupSize)).toEqual([2, 2])
+      expect(fieldOrder(concat)).toEqual([listEdgeId('/a'), listEdgeId('/b')])
+    })
+
+    it('onConnect inserts at the slot tracked during the drag', () => {
+      const result = setup()
+
+      act(() => {
+        result.current.onConnect(listConnection('/a'))
+        result.current.onConnect(listConnection('/b'))
+      })
+
+      // MultiInputHandle tracked the pointer between slots 0 and 1 during the drag
+      act(() => {
+        setPendingInsertionIndex({ nodeId: '/concat', handleId: 'par.values', index: 1 })
+        result.current.onConnect(listConnection('/c'))
+      })
+
+      expect(groupIds()).toEqual([listEdgeId('/a'), listEdgeId('/c'), listEdgeId('/b')])
+      expect(edges.map(e => e.data?.orderIndex)).toEqual([0, 1, 2])
+      // The actual data order the operator receives must match the visual slot order
+      expect(fieldOrder(concat)).toEqual([listEdgeId('/a'), listEdgeId('/c'), listEdgeId('/b')])
+    })
+
+    it('onConnect ignores a pending index left over from a different handle', () => {
+      const result = setup()
+
+      act(() => {
+        setPendingInsertionIndex({ nodeId: '/other', handleId: 'par.values', index: 0 })
+        result.current.onConnect(listConnection('/a'))
+      })
+
+      expect(groupIds()).toEqual([listEdgeId('/a')])
+    })
+
+    it('onConnect is a no-op for a duplicate connection', () => {
+      const result = setup()
+
+      act(() => {
+        result.current.onConnect(listConnection('/a'))
+        result.current.onConnect(listConnection('/a'))
+      })
+
+      expect(edges).toHaveLength(1)
+      expect(fieldOrder(concat)).toEqual([listEdgeId('/a')])
+    })
+
+    it('onReconnect reorders an edge within the same handle', () => {
+      const result = setup()
+
+      act(() => {
+        result.current.onConnect(listConnection('/a'))
+        result.current.onConnect(listConnection('/b'))
+        result.current.onConnect(listConnection('/c'))
+      })
+
+      // Drag /a's edge endpoint to the boundary below /c (boundary index 3 of 3 slots)
+      act(() => {
+        setPendingInsertionIndex({ nodeId: '/concat', handleId: 'par.values', index: 3 })
+        const oldEdge = edges.find(e => e.id === listEdgeId('/a'))!
+        result.current.onReconnect(oldEdge, listConnection('/a'))
+      })
+
+      expect(groupIds()).toEqual([listEdgeId('/b'), listEdgeId('/c'), listEdgeId('/a')])
+      expect(edges.map(e => e.data?.orderIndex)).toEqual([0, 1, 2])
+      expect(fieldOrder(concat)).toEqual([listEdgeId('/b'), listEdgeId('/c'), listEdgeId('/a')])
+    })
+
+    it('onReconnect without a tracked slot leaves order unchanged', () => {
+      const result = setup()
+
+      act(() => {
+        result.current.onConnect(listConnection('/a'))
+        result.current.onConnect(listConnection('/b'))
+      })
+
+      act(() => {
+        const oldEdge = edges.find(e => e.id === listEdgeId('/a'))!
+        result.current.onReconnect(oldEdge, listConnection('/a'))
+      })
+
+      expect(groupIds()).toEqual([listEdgeId('/a'), listEdgeId('/b')])
+    })
+
+    it('onReconnect to a new source keeps the slot position', () => {
+      numberSource('/d', 4)
+      const result = setup()
+
+      act(() => {
+        result.current.onConnect(listConnection('/a'))
+        result.current.onConnect(listConnection('/b'))
+        result.current.onConnect(listConnection('/c'))
+      })
+
+      // Swap the middle edge's source from /b to /d
+      act(() => {
+        const oldEdge = edges.find(e => e.id === listEdgeId('/b'))!
+        result.current.onReconnect(oldEdge, listConnection('/d'))
+      })
+
+      expect(groupIds()).toEqual([listEdgeId('/a'), listEdgeId('/d'), listEdgeId('/c')])
+      expect(fieldOrder(concat)).toEqual([listEdgeId('/a'), listEdgeId('/d'), listEdgeId('/c')])
+      expect(concat.inputs.values.subscriptions.has(listEdgeId('/b'))).toBe(false)
+    })
+
+    it('onReconnect to a different handle disconnects the old field and connects the new one', () => {
+      const other = new ConcatOp('/concat-2')
+      setOp('/concat-2', other)
+      nodes.push({ id: '/concat-2', type: 'ConcatOp', position: { x: 0, y: 0 }, data: {} })
+      const result = setup()
+
+      act(() => {
+        result.current.onConnect(listConnection('/a'))
+        result.current.onConnect(listConnection('/b'))
+      })
+
+      act(() => {
+        const oldEdge = edges.find(e => e.id === listEdgeId('/b'))!
+        result.current.onReconnect(oldEdge, {
+          source: '/b',
+          target: '/concat-2',
+          sourceHandle: 'out.val',
+          targetHandle: 'par.values',
+        })
+      })
+
+      expect(groupIds()).toEqual([listEdgeId('/a')])
+      expect(fieldOrder(concat)).toEqual([listEdgeId('/a')])
+      expect(fieldOrder(other)).toEqual(['/b.out.val->/concat-2.par.values'])
+      // The remaining single-member group is renormalized
+      expect(edges.find(e => e.id === listEdgeId('/a'))?.data).toEqual({
+        orderIndex: 0,
+        groupSize: 1,
+      })
+    })
+
+    it('deleteEdge closes slot gaps and renormalizes the group', () => {
+      const result = setup()
+
+      act(() => {
+        result.current.onConnect(listConnection('/a'))
+        result.current.onConnect(listConnection('/b'))
+        result.current.onConnect(listConnection('/c'))
+      })
+
+      act(() => {
+        result.current.deleteEdge(listEdgeId('/b'))
+      })
+
+      expect(groupIds()).toEqual([listEdgeId('/a'), listEdgeId('/c')])
+      expect(edges.map(e => e.data?.orderIndex)).toEqual([0, 1])
+      expect(edges.map(e => e.data?.groupSize)).toEqual([2, 2])
     })
   })
 })

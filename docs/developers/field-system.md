@@ -25,11 +25,20 @@ const numberField = new NumberField(50, {
 #### NumberField
 ```typescript
 new NumberField(50, {
-  min: 0,           // Minimum value
-  max: 100,         // Maximum value
+  min: 0,           // Hard minimum (validation enforced)
+  max: 100,         // Hard maximum (validation enforced)
+  softMin: 10,      // UI hint for slider minimum (not enforced)
+  softMax: 90,      // UI hint for slider maximum (not enforced)
   step: 1,          // Increment step
 })
 ```
+
+**Soft vs Hard Limits:**
+- `min`/`max`: Validation is enforced - values outside this range will fail schema validation
+- `softMin`/`softMax`: UI hints only - sliders use these bounds but values outside are allowed
+- Defaults: `softMin: -Infinity`, `softMax: Infinity`
+
+Use soft limits when you want to guide users toward reasonable values while still allowing edge cases (e.g., a radius that's usually 0-100 but could be larger).
 
 #### BooleanField
 ```typescript
@@ -115,22 +124,34 @@ new StringField('user@example.com', {
 ## Field Connections
 
 ### Creating Connections
+
+Connections between fields are managed through the graph transformation system. In the UI, simply drag from an output handle to an input handle. Programmatically, connections are created via the edge format in project files:
+
 ```typescript
-// Connect output of nodeA to input of nodeB using fully qualified paths
-nodeB.fields.input.addConnection('/container/nodeA', nodeA.fields.output)
+// Edge format in noodles.json
+{
+  "id": "/nodeA.out.data->/nodeB.par.input",
+  "source": "/nodeA",
+  "target": "/nodeB",
+  "sourceHandle": "out.data",
+  "targetHandle": "par.input"
+}
 ```
 
 ### Connection Rules
 
-- **Type Compatibility**: Output type must match input type
-- **Single Input**: Each input can have only one connection
+- **Type Compatibility**: Output type should match input type (warnings shown for mismatches)
+- **Single Input**: Each input accepts only one connection
 - **Multiple Outputs**: Outputs can connect to multiple inputs
 - **No Cycles**: Connections cannot create circular dependencies
 
 ### Connection Validation
+
 ```typescript
-// Check if connection is valid
-const canConnect = nodeA.fields.output.canConnectTo(nodeB.fields.input)
+import { canConnect } from './utils/can-connect'
+
+// Check if two fields are type-compatible
+const isCompatible = canConnect(sourceField, targetField)
 ```
 
 ## Custom Fields

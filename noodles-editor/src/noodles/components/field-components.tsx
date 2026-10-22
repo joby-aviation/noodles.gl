@@ -1,16 +1,44 @@
-import { CodeiumEditor } from '@codeium/react-code-editor'
+import type { OnMount } from '@monaco-editor/react'
 import * as Dialog from '@radix-ui/react-dialog'
-import { Cross2Icon } from '@radix-ui/react-icons'
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
+import { Cross2Icon, QuestionMarkCircledIcon } from '@radix-ui/react-icons'
 import { Handle, Position, useEdges, useNodeId, useReactFlow } from '@xyflow/react'
 import cx from 'classnames'
 import type { ScaleLinear, ScaleOrdinal } from 'd3'
 import { Button } from 'primereact/button'
 import { InputText } from 'primereact/inputtext'
-import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { Temporal } from 'temporal-polyfill'
-
-import { colorToHex } from '../../utils/color'
 import {
+  Fragment,
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
+import { createPortal } from 'react-dom'
+
+import { BasemapGallery } from './basemap-gallery'
+
+const CodeiumEditor = lazy(() =>
+  import('@codeium/react-code-editor').then(m => ({ default: m.CodeiumEditor }))
+)
+
+import { Temporal } from 'temporal-polyfill'
+import { VectorKeyframeIndicator } from '../../timeline/components/KeyframeIndicator'
+import { getFieldPath } from '../../timeline/field-bindings'
+import { useTimelineStore } from '../../timeline/timeline-store'
+import { analytics } from '../../utils/analytics'
+import {
+  categoricalSchemesFixed,
+  categoricalSchemesStepped,
+  continuousInterpolators,
+  renderColorScheme,
+} from '../color-schemes'
+import {
+  type BboxField,
   type BezierCurveField,
   type BooleanField,
   CategoricalColorRampField,
@@ -19,26 +47,45 @@ import {
   type ColorRampField,
   type CompoundPropsField,
   type DateField,
+  type ExpressionField,
   type Field,
-  type FileField,
-  getFieldReferences,
+  type FileUrlField,
   type IField,
+  ListField,
+  type MapStyleField,
   type NumberField,
   Point2DField,
   Point3DField,
   StringLiteralField,
-  Vec2Field,
-  Vec3Field,
+  type Vec2Field,
+  type Vec3Field,
 } from '../fields'
 import { useFileSystemStore } from '../filesystem-store'
-import type { Edge } from '../noodles'
+import type { Edge as GraphEdge } from '../graph-executor'
+import { useObservable } from '../hooks/use-observable'
 import s from '../noodles.module.css'
-import type { IOperator, Operator } from '../operators'
-import { checkAssetExists, writeAsset } from '../storage'
+import { getFriendlyErrorMessage } from '../operators'
+import { checkAssetExists, getAssetFileHandle, writeAsset } from '../storage'
+import { getOp, useEdgeConnectionStore } from '../store'
+import { type ExpressionContext, getExpressionContext } from '../utils/expression-context'
 import { projectScheme } from '../utils/filesystem'
-import { edgeId, type OpId } from '../utils/id-utils'
-import { handleClass } from './op-components'
+import type { OpId } from '../utils/id-utils'
+import { computeRelativePath } from '../utils/path-utils'
+import {
+  captureOperatorInputs,
+  firePropertyMutation,
+  usePropertyHistory,
+} from '../utils/property-history'
+import { formatReference, parseReference, type ReferenceFormat } from '../utils/reference-utils'
+import { ColorSwatch } from './color-swatch'
+import { DraggableNumberInput } from './draggable-number-input'
+import { ExpressionEditorOverlay } from './ExpressionEditorOverlay'
+import { GeocodingDialog } from './geocoding-dialog'
 import menuStyles from './menu.module.css'
+import { MultiInputHandle } from './multi-input-handle'
+import contextMenuStyles from './node-properties.module.css'
+import { handleClass, useHandleDimmed } from './op-components'
+import { extensionOf } from './tools/import-pipelines'
 
 type InputComponent = React.ComponentType<{
   id: OpId
@@ -51,25 +98,9 @@ export interface HandleOptions {
   namespace: 'par' | 'out'
 }
 
-// Helper to format values for the handle preview
-function viewerFormatter(value: unknown): unknown {
-  if (typeof value === 'function') {
-    return { value: `Function(${value.name || 'anonymous'})` }
-  }
-  if (
-    typeof value === 'string' ||
-    typeof value === 'number' ||
-    typeof value === 'boolean' ||
-    value instanceof Date ||
-    value instanceof Temporal.PlainDateTime
-  ) {
-    return { value }
-  }
-  return value
-}
-
 export const inputComponents = {
   array: EmptyFieldComponent,
+  bbox: BboxFieldComponent,
   'bezier-curve': BezierCurveFieldComponent,
   boolean: BooleanFieldComponent,
   'category-color-ramp': ColorRampComponent,
@@ -80,14 +111,15 @@ export const inputComponents = {
   data: EmptyFieldComponent,
   date: DateFieldComponent,
   effect: EmptyFieldComponent,
-  expression: TextFieldComponent,
-  file: FileFieldComponent,
+  expression: ExpressionFieldComponent,
+  'file-url': FileUrlFieldComponent,
   function: EmptyFieldComponent,
+  geojson: EmptyFieldComponent,
   'geopoint-2d': VectorFieldComponent,
   'geopoint-3d': VectorFieldComponent,
-  'json-url': TextFieldComponent,
   layer: EmptyFieldComponent,
   list: EmptyFieldComponent,
+  'map-style': MapStyleFieldComponent,
   number: NumberFieldComponent,
   string: TextFieldComponent,
   'string-literal': TextFieldComponent,
@@ -112,6 +144,137 @@ const formatText = (val: unknown) =>
       ? val
       : JSON.stringify(val, null, 2)
 
+function StringLiteralTypeaheadInput({
+  id,
+  field,
+  value,
+  onChange,
+  disabled,
+  captureStart,
+  commitChange,
+}: {
+  id: OpId
+  field: StringLiteralField
+  value: string
+  onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void
+  disabled: boolean
+  captureStart: () => void
+  commitChange: (message: string) => void
+}) {
+  const [localValue, setLocalValue] = useState(value)
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false)
+  const [position, setPosition] = useState({ top: 0, left: 0, width: 0 })
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    setLocalValue(value)
+  }, [value])
+
+  useEffect(() => {
+    if (suggestionsOpen && inputRef.current) {
+      const rect = inputRef.current.getBoundingClientRect()
+      setPosition({
+        top: rect.bottom,
+        left: rect.left,
+        width: rect.width,
+      })
+    }
+  }, [suggestionsOpen])
+
+  const onInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newValue = e.target.value
+    setLocalValue(newValue)
+    const syntheticEvent = {
+      ...e,
+      currentTarget: { value: newValue } as HTMLTextAreaElement,
+      target: { value: newValue } as HTMLTextAreaElement,
+    } as React.ChangeEvent<HTMLTextAreaElement>
+    onChange(syntheticEvent)
+  }
+
+  const onFocus = () => {
+    captureStart()
+    setSuggestionsOpen(true)
+  }
+
+  const onBlur = () => {
+    commitChange('Change value')
+    setTimeout(() => setSuggestionsOpen(false), 150)
+  }
+
+  const onSuggestionSelect = (selectedValue: string) => {
+    setLocalValue(selectedValue)
+    field.setValue(selectedValue)
+    commitChange('Change value')
+    setSuggestionsOpen(false)
+  }
+
+  const filteredSuggestions = field.choices.filter(
+    ({ value: v, label }) =>
+      v.toLowerCase().includes(localValue.toLowerCase()) ||
+      label.toLowerCase().includes(localValue.toLowerCase())
+  )
+
+  const showSuggestions = suggestionsOpen && filteredSuggestions.length > 0
+  const suggestionsId = `${id}-suggestions`
+
+  return (
+    <>
+      <input
+        ref={inputRef}
+        id={id}
+        type="text"
+        role="combobox"
+        aria-autocomplete="list"
+        aria-controls={suggestionsId}
+        aria-expanded={showSuggestions}
+        className={cx(s.fieldInput, s.fieldInputTypeahead)}
+        value={localValue}
+        onChange={onInputChange}
+        onFocus={onFocus}
+        onBlur={onBlur}
+        disabled={disabled}
+        placeholder="Type or select..."
+      />
+      {showSuggestions &&
+        createPortal(
+          <div
+            id={suggestionsId}
+            role="listbox"
+            className={s.stringLiteralSuggestions}
+            style={{
+              position: 'fixed',
+              top: `${position.top}px`,
+              left: `${position.left}px`,
+              width: `${position.width}px`,
+            }}
+          >
+            {filteredSuggestions.map(({ value: v, label }) => (
+              <div
+                key={v}
+                role="option"
+                tabIndex={-1}
+                aria-selected={v === localValue}
+                className={cx(s.stringLiteralSuggestion, {
+                  [s.stringLiteralSuggestionActive]: v === localValue,
+                })}
+                onMouseDown={event => {
+                  // Keep focus on the input so selecting an option cannot also
+                  // trigger the blur commit path.
+                  event.preventDefault()
+                  onSuggestionSelect(v)
+                }}
+              >
+                {label}
+              </div>
+            ))}
+          </div>,
+          document.body
+        )}
+    </>
+  )
+}
+
 export function TextFieldComponent({
   id,
   field,
@@ -122,6 +285,7 @@ export function TextFieldComponent({
   disabled: boolean
 }) {
   const [value, setValue] = useState(formatText(field.value))
+  const { captureStart, commitChange } = usePropertyHistory()
 
   useEffect(() => {
     const sub = field.subscribe(newVal => {
@@ -142,41 +306,448 @@ export function TextFieldComponent({
 
   let input = null
   if (field instanceof StringLiteralField) {
-    input = (
-      <select
-        id={id}
-        className={cx(s.fieldInput, s.fieldInputSelect)}
-        value={value}
-        onChange={onChange}
-        disabled={disabled}
-      >
-        {field.choices.map(({ label, value }) => (
-          <option key={value} value={value}>
-            {label}
-          </option>
-        ))}
-      </select>
-    )
+    const useTypeahead = field.choices.length > 0 && field.freeform
+
+    if (field.displayAs === 'color-scheme') {
+      // Get step count for categorical ramps
+      const stepCount =
+        field.op && 'steps' in field.op.inputs
+          ? (field.op.inputs.steps?.value as number | undefined)
+          : undefined
+
+      input = (
+        <ColorSchemeDropdown
+          choices={field.choices}
+          value={value}
+          onChange={newValue => {
+            captureStart()
+            field.setValue(newValue)
+            commitChange('Change color scheme')
+          }}
+          disabled={disabled}
+          stepCount={stepCount}
+        />
+      )
+    } else if (useTypeahead) {
+      input = (
+        <StringLiteralTypeaheadInput
+          id={id}
+          field={field}
+          value={value}
+          onChange={onChange}
+          disabled={disabled}
+          captureStart={captureStart}
+          commitChange={commitChange}
+        />
+      )
+    } else if (field.choices.length > 0) {
+      // Select dropdown: capture before + commit after inline since change is atomic
+      const onSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        captureStart()
+        onChange(e)
+        commitChange('Change value')
+      }
+      input = (
+        <select
+          id={id}
+          className={cx(s.fieldInput, s.fieldInputSelect)}
+          value={value}
+          onChange={onSelectChange}
+          disabled={disabled}
+        >
+          {field.choices.map(({ label, value }) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </select>
+      )
+    } else {
+      // No choices - use plain text input
+      const lineCount = typeof value === 'string' ? value.split('\n').length : 1
+      input = (
+        <textarea
+          id={id}
+          className={cx(s.fieldInput, s.fieldTextarea)}
+          title={value}
+          value={value}
+          onFocus={captureStart}
+          onBlur={e => {
+            onChange(e)
+            commitChange('Change text')
+          }}
+          onChange={onChange}
+          disabled={disabled}
+          rows={lineCount}
+        />
+      )
+    }
   } else {
+    // Always use textarea - handles both single-line and multiline naturally
+    const lineCount = typeof value === 'string' ? value.split('\n').length : 1
     input = (
-      <input
+      <textarea
         id={id}
-        className={s.fieldInput}
+        className={cx(s.fieldInput, s.fieldTextarea)}
         title={value}
         value={value}
-        onBlur={onChange}
+        onFocus={captureStart}
+        onBlur={e => {
+          onChange(e)
+          commitChange('Change text')
+        }}
         onChange={onChange}
         disabled={disabled}
+        rows={lineCount}
       />
     )
   }
+
+  return (
+    <div className={cx(s.fieldWrapper, 'nokey')}>
+      <label className={s.fieldLabel} htmlFor={id}>
+        {id}
+      </label>
+      <div className={s.fieldInputWrapper}>{input}</div>
+    </div>
+  )
+}
+
+const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor as FunctionConstructor
+
+// Validates an expression by attempting to parse it
+// Returns an error message if invalid, null if valid
+function validateExpression(expression: string): string | null {
+  if (!expression.trim()) return null
+
+  try {
+    // Try to parse as a function body (wrapping with return like the operators do)
+    // Match the actual parameters available in AccessorOp.execute() and ExpressionOp.execute()
+    // fnWithSource duck-types async the same way, so `await` expressions parse like the
+    // evaluator will actually run them
+    const Ctor = /\bawait\b/.test(expression) ? AsyncFunction : Function
+    // eslint-disable-next-line no-new-func
+    new Ctor(
+      'd',
+      'i',
+      'data',
+      'op',
+      'utils',
+      'd3',
+      'turf',
+      'deck',
+      'Plot',
+      'Temporal',
+      `return ${expression}`
+    )
+    return null
+  } catch (e) {
+    if (e instanceof SyntaxError) {
+      // Use the friendly error message from operators.ts for better user feedback
+      return getFriendlyErrorMessage(e.message, expression)
+    }
+    return 'Invalid expression'
+  }
+}
+
+export function ExpressionFieldComponent({
+  id,
+  field,
+  disabled,
+}: {
+  id: OpId
+  field: ExpressionField
+  disabled: boolean
+}) {
+  const [value, setValue] = useState(field.value ?? '')
+  const [overlayOpen, setOverlayOpen] = useState(false)
+  const [validationError, setValidationError] = useState<string | null>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null)
+  const { captureStart, commitChange } = usePropertyHistory()
+  // Tracks when a click is about to open the overlay so handleInputBlur can skip its commit
+  const openingOverlayRef = useRef(false)
+
+  const nodeId = useNodeId() as string
+  const edges = useEdges()
+
+  // Convert edges to GraphEdge format for context
+  const graphEdges = useMemo(
+    () =>
+      edges.map(e => ({
+        id: e.id,
+        source: e.source,
+        target: e.target,
+        sourceHandle: e.sourceHandle || '',
+        targetHandle: e.targetHandle || '',
+      })) as GraphEdge[],
+    [edges]
+  )
+
+  // Get expression context for autocomplete
+  const expressionContext = useMemo(
+    () => getExpressionContext(nodeId, graphEdges),
+    [nodeId, graphEdges]
+  )
+
+  useEffect(() => {
+    const sub = field.subscribe(newVal => {
+      if (typeof newVal === 'function') return
+      setValue(newVal ?? '')
+      // Validate on external changes
+      setValidationError(validateExpression(newVal ?? ''))
+    })
+    return () => sub.unsubscribe()
+  }, [field])
+
+  const handleInputClick = useCallback(() => {
+    if (disabled) return
+    if (inputRef.current) {
+      setAnchorRect(inputRef.current.getBoundingClientRect())
+    }
+    // Re-capture before the blur fires so handleInputBlur doesn't consume the snapshot
+    openingOverlayRef.current = true
+    captureStart()
+    setOverlayOpen(true)
+  }, [disabled, captureStart])
+
+  const handleOverlayChange = useCallback(
+    (newValue: string) => {
+      setValue(newValue)
+      field.setValue(newValue)
+      setValidationError(validateExpression(newValue))
+    },
+    [field]
+  )
+
+  const handleOverlayClose = useCallback(() => {
+    setOverlayOpen(false)
+    commitChange('Change expression')
+  }, [commitChange])
+
+  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const newValue = e.currentTarget.value
+    setValue(newValue)
+  }, [])
+
+  const handleInputBlur = useCallback(
+    (e: React.FocusEvent<HTMLInputElement>) => {
+      const newValue = e.currentTarget.value
+      if (newValue !== field.value) {
+        field.setValue(newValue)
+        setValidationError(validateExpression(newValue))
+      }
+      // Skip commit when the overlay is opening — handleOverlayClose will commit instead
+      if (openingOverlayRef.current) {
+        openingOverlayRef.current = false
+        return
+      }
+      commitChange('Change expression')
+    },
+    [field, commitChange]
+  )
+
+  return (
+    <div className={cx(s.fieldWrapper, 'nokey')}>
+      <label className={s.fieldLabel} htmlFor={id}>
+        {id}
+      </label>
+      <div className={cx(s.fieldInputWrapper, s.expressionFieldWrapper)}>
+        <input
+          ref={inputRef}
+          id={id}
+          className={cx(s.fieldInput, s.expressionFieldInput, {
+            [s.expressionFieldError]: validationError,
+          })}
+          title={validationError || value}
+          value={value}
+          onChange={handleInputChange}
+          onFocus={captureStart}
+          onBlur={handleInputBlur}
+          onClick={handleInputClick}
+          disabled={disabled}
+          placeholder="Click to edit expression..."
+        />
+        {validationError && <span className={s.expressionFieldErrorIcon}>⚠</span>}
+      </div>
+      {overlayOpen && (
+        <ExpressionEditorOverlay
+          value={value}
+          onChange={handleOverlayChange}
+          onClose={handleOverlayClose}
+          context={expressionContext}
+          anchorRect={anchorRect}
+          validationError={validationError}
+        />
+      )}
+    </div>
+  )
+}
+
+// Formats a compact preview of a driven field's evaluated value
+function formatEvaluatedValue(value: unknown): string {
+  if (typeof value === 'function') return 'ƒ'
+  if (typeof value === 'number') return Number.isInteger(value) ? String(value) : value.toFixed(3)
+  if (typeof value === 'string') return value.length > 20 ? `${value.slice(0, 20)}…` : value
+  if (value === undefined) return 'undefined'
+  try {
+    const json = JSON.stringify(value)
+    return json && json.length > 20 ? `${json.slice(0, 20)}…` : (json ?? String(value))
+  } catch {
+    return String(value)
+  }
+}
+
+// Canvas variant of the expression input: derives autocomplete context from the live graph.
+// The graph-owned reference dependency model projects dashed edges for visualization.
+export function ExpressionDrivenInput({
+  id,
+  field,
+  disabled,
+}: {
+  id: OpId
+  field: Field
+  disabled: boolean
+}) {
+  // Outside a node (e.g. the Properties Panel) useNodeId is null; the field knows its op
+  const nodeId = useNodeId() ?? field.op?.id ?? ''
+  const edges = useEdges()
+
+  const graphEdges = useMemo(
+    () =>
+      edges.map(e => ({
+        id: e.id,
+        source: e.source,
+        target: e.target,
+        sourceHandle: e.sourceHandle || '',
+        targetHandle: e.targetHandle || '',
+      })) as GraphEdge[],
+    [edges]
+  )
+
+  const expressionContext = useMemo(
+    () => getExpressionContext(nodeId, graphEdges),
+    [nodeId, graphEdges]
+  )
+
+  return (
+    <ExpressionInputBase id={id} field={field} disabled={disabled} context={expressionContext} />
+  )
+}
+
+// Input for a field in expression mode: shows the expression (mono, violet-tinted),
+// a live preview of the evaluated value, and opens the Monaco overlay for editing.
+// Works outside ReactFlow (e.g. the Properties Panel) — pass the autocomplete context in.
+export function ExpressionInputBase({
+  id,
+  field,
+  disabled,
+  context,
+}: {
+  id: OpId
+  field: Field
+  disabled: boolean
+  context: ExpressionContext
+}) {
+  const expression = useObservable(field.expression$, field.expression) ?? ''
+  const [draft, setDraft] = useState(expression)
+  const [overlayOpen, setOverlayOpen] = useState(false)
+  const [syntaxError, setSyntaxError] = useState<string | null>(null)
+  const evalError = useObservable(field.expressionError$, field.expressionError$.value)
+  const evaluated = useObservable(field, field.value)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null)
+  const { captureStart, commitChange } = usePropertyHistory()
+  const openingOverlayRef = useRef(false)
+
+  // Keep the draft in sync when the expression changes externally (undo, load)
+  useEffect(() => {
+    setDraft(expression)
+    setSyntaxError(validateExpression(expression))
+  }, [expression])
+
+  const applyDraft = useCallback(
+    (newValue: string) => {
+      setDraft(newValue)
+      setSyntaxError(validateExpression(newValue))
+      if (newValue !== field.expression) {
+        field.setExpression(newValue)
+      }
+    },
+    [field]
+  )
+
+  const handleInputClick = useCallback(() => {
+    if (disabled) return
+    if (inputRef.current) {
+      setAnchorRect(inputRef.current.getBoundingClientRect())
+    }
+    openingOverlayRef.current = true
+    captureStart()
+    setOverlayOpen(true)
+  }, [disabled, captureStart])
+
+  const handleOverlayClose = useCallback(() => {
+    setOverlayOpen(false)
+    commitChange('Change expression')
+  }, [commitChange])
+
+  const handleInputBlur = useCallback(
+    (e: React.FocusEvent<HTMLInputElement>) => {
+      applyDraft(e.currentTarget.value)
+      if (openingOverlayRef.current) {
+        openingOverlayRef.current = false
+        return
+      }
+      commitChange('Change expression')
+    },
+    [applyDraft, commitChange]
+  )
+
+  const error = syntaxError || evalError
 
   return (
     <div className={s.fieldWrapper}>
       <label className={s.fieldLabel} htmlFor={id}>
         {id}
       </label>
-      <div className={s.fieldInputWrapper}>{input}</div>
+      <div className={cx(s.fieldInputWrapper, s.expressionFieldWrapper)}>
+        <input
+          ref={inputRef}
+          id={id}
+          className={cx(s.fieldInput, s.expressionFieldInput, s.expressionDrivenInput, {
+            [s.expressionFieldError]: error,
+          })}
+          title={error || expression}
+          value={draft}
+          onChange={e => setDraft(e.currentTarget.value)}
+          onFocus={captureStart}
+          onBlur={handleInputBlur}
+          onClick={handleInputClick}
+          disabled={disabled}
+          placeholder="Enter expression…"
+          spellCheck={false}
+        />
+        {error ? (
+          <span className={s.expressionFieldErrorIcon} title={error}>
+            ⚠
+          </span>
+        ) : (
+          <span className={s.expressionValueBadge} title="Current evaluated value">
+            {formatEvaluatedValue(evaluated)}
+          </span>
+        )}
+      </div>
+      {overlayOpen && (
+        <ExpressionEditorOverlay
+          value={draft}
+          onChange={applyDraft}
+          onClose={handleOverlayClose}
+          context={context}
+          anchorRect={anchorRect}
+          validationError={error}
+        />
+      )}
     </div>
   )
 }
@@ -188,6 +759,7 @@ function VectorNumberInput({
   disabled,
   onChange,
   onCommit,
+  onInteractionStart,
 }: {
   keyName: string
   value: number
@@ -195,6 +767,7 @@ function VectorNumberInput({
   disabled: boolean
   onChange: (key: string | number, val: number) => void
   onCommit: () => void
+  onInteractionStart?: () => void
 }) {
   const handleChange = useCallback(
     (val: number) => {
@@ -204,18 +777,20 @@ function VectorNumberInput({
   )
 
   return (
-    <Fragment>
-      <div className={cx(s.fieldLabel, s.fieldLabelVector)}>{keyName}</div>
+    <div className={s.fieldVectorChannel}>
+      <span className={s.fieldLabelVector}>{keyName}</span>
       <DraggableNumberInput
         value={value}
         disabled={disabled}
         onChange={handleChange}
         onCommit={onCommit}
+        onInteractionStart={onInteractionStart}
         step={0.1}
         className={cx(s.fieldInput, s.fieldInputVector, s.fieldInputNumber)}
         title={`${keyName}: ${value}`}
+        placeholder={keyName}
       />
-    </Fragment>
+    </div>
   )
 }
 
@@ -223,25 +798,27 @@ export function VectorFieldComponent({
   id,
   field,
   disabled,
+  opId,
+  fieldName,
+  expandTimeline,
 }: {
   id: OpId
   field: Vec2Field | Vec3Field | Point2DField | Point3DField
   disabled: boolean
+  opId?: string
+  fieldName?: string
+  expandTimeline?: () => void
 }) {
   const [value, setValue] = useState<
     { [key: string]: number } | [number, number] | [number, number, number]
   >(guardAccessorFallback(field.value))
+  const [geocodingOpen, setGeocodingOpen] = useState(false)
+  const { captureStart, commitChange } = usePropertyHistory()
 
-  const keys =
-    field instanceof Point3DField
-      ? ['lng', 'lat', 'alt']
-      : field instanceof Point2DField
-        ? ['lng', 'lat']
-        : field instanceof Vec2Field
-          ? ['x', 'y']
-          : field instanceof Vec3Field
-            ? ['x', 'y', 'z']
-            : Object.keys(value)
+  const isPointField = field instanceof Point2DField || field instanceof Point3DField
+  const isPoint3D = field instanceof Point3DField
+
+  const keys = (field.constructor as typeof Vec2Field).channelKeys ?? Object.keys(value)
 
   // Track the latest value in a ref for onCommit
   const latestValueRef = useRef(value)
@@ -271,14 +848,56 @@ export function VectorFieldComponent({
 
   const onCommit = useCallback(() => {
     field.setValue(latestValueRef.current)
+    commitChange('Change value')
+  }, [field, commitChange])
+
+  // Get current coordinates for Point fields
+  const getCurrentCoordinates = useCallback(() => {
+    const currentValue = field.value
+    if (field.returnType === 'tuple') {
+      return {
+        longitude: (currentValue as number[])[0],
+        latitude: (currentValue as number[])[1],
+      }
+    }
+    return {
+      longitude: (currentValue as { lng: number; lat: number }).lng,
+      latitude: (currentValue as { lng: number; lat: number }).lat,
+    }
   }, [field])
 
+  // Handle location selection from geocoding dialog
+  const handleLocationSelected = useCallback(
+    ({ longitude, latitude }: { longitude: number; latitude: number }) => {
+      if (field.returnType === 'tuple') {
+        // For tuple format, preserve altitude for Point3D
+        if (isPoint3D) {
+          const currentAlt = (field.value as number[])[2] || 0
+          field.setValue([longitude, latitude, currentAlt])
+        } else {
+          field.setValue([longitude, latitude])
+        }
+      } else {
+        // For object format, preserve altitude for Point3D
+        if (isPoint3D) {
+          const currentAlt = (field.value as { lng: number; lat: number; alt: number }).alt || 0
+          field.setValue({ lng: longitude, lat: latitude, alt: currentAlt })
+        } else {
+          field.setValue({ lng: longitude, lat: latitude })
+        }
+      }
+      commitChange('Change location')
+      setGeocodingOpen(false)
+    },
+    [field, isPoint3D, commitChange]
+  )
+
   return (
-    <div className={s.fieldWrapper}>
+    <div className={cx(s.fieldWrapper, 'nokey')}>
       <label className={s.fieldLabel} htmlFor={id}>
         {id}
       </label>
-      <div id={id} className={s.fieldInputWrapper}>
+      <div id={id} className={cx(s.fieldInputWrapper, s.fieldInputWrapperVector)}>
         {keys.map((key, i) => {
           const objectKey = field.returnType === 'tuple' ? i : key
           return (
@@ -290,10 +909,47 @@ export function VectorFieldComponent({
               disabled={disabled}
               onChange={onChange}
               onCommit={onCommit}
+              onInteractionStart={captureStart}
             />
           )
         })}
+        {isPointField && (
+          <Button
+            icon="pi pi-map-marker"
+            className={s.fieldLookupButton}
+            onClick={() => {
+              captureStart()
+              setGeocodingOpen(true)
+            }}
+            title="Lookup Location"
+            size="small"
+            disabled={disabled}
+            severity="secondary"
+            text
+          />
+        )}
+        {opId && fieldName && (
+          <VectorKeyframeIndicator
+            opId={opId}
+            fieldName={fieldName}
+            keys={keys}
+            value={value as Record<string | number, number>}
+            returnType={field.returnType}
+            disabled={disabled}
+            onKeyframeAdded={expandTimeline}
+          />
+        )}
       </div>
+
+      {isPointField && (
+        <GeocodingDialog
+          open={geocodingOpen}
+          onOpenChange={setGeocodingOpen}
+          mode="update-field"
+          initialValue={getCurrentCoordinates()}
+          onLocationSelected={handleLocationSelected}
+        />
+      )}
     </div>
   )
 }
@@ -307,20 +963,14 @@ export function CodeFieldComponent({
   disabled: boolean
 }) {
   const [value, setValue] = useState(guardAccessorFallback(field.value))
-  const { setEdges, getNode } = useReactFlow()
-  const editorRef = useRef<unknown>(null)
+  const { getNode } = useReactFlow()
+  const editorRef = useRef<Parameters<OnMount>[0] | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const { captureStart, commitChange } = usePropertyHistory()
 
   const nodeId = useNodeId() as string
   const node = getNode(nodeId)
   const nodeHeight = node?.height || 300
-
-  // We assume the field name is the last in the pathToProps, but that may not hold true for nested fields.
-  // We don't use any nested CodeFields at the moment so this is fine
-  const fieldName = field.pathToProps[field.pathToProps.length - 1]
-  const thisFieldId = `par.${fieldName}`
-  const thisOpId = field.op.id
-
   const handleEditorChange = useCallback(
     (value: string | undefined, _event) => {
       if (disabled || value === undefined) return
@@ -329,17 +979,33 @@ export function CodeFieldComponent({
     [field, disabled]
   )
 
-  const handleEditorDidMount = useCallback((editor: unknown) => {
-    editorRef.current = editor
-    editor.layout()
-  }, [])
+  const handleEditorDidMount: OnMount = useCallback(
+    (editor, _monaco) => {
+      editorRef.current = editor
+      editor.layout()
+      // Capture property state when user begins editing, commit when they stop
+      editor.onDidFocusEditorText(() => captureStart())
+      editor.onDidBlurEditorWidget(() => commitChange('Change code'))
+    },
+    [captureStart, commitChange]
+  )
 
+  const handleBeforeMount = useCallback(
+    async (monaco: unknown) => {
+      // Ensure Overpass QL language is registered before editor mounts
+      if (field.language === 'overpass-ql') {
+        const { registerOverpassQL } = await import('../languages/register-monaco-languages')
+        await registerOverpassQL(monaco as any)
+      }
+    },
+    [field.language]
+  )
   // Force layout update on load and when node height changes
   useLayoutEffect(() => {
     if (editorRef.current) {
       editorRef.current.layout()
     }
-  }, [nodeHeight])
+  }, [])
 
   useEffect(() => {
     const sub = field.subscribe(_ => {
@@ -348,107 +1014,81 @@ export function CodeFieldComponent({
     return () => sub.unsubscribe()
   }, [field])
 
-  // Sync reference edges when field value changes
-  // This effect should NOT depend on edges to avoid infinite loops
-  const fieldReferences = useMemo(() => getFieldReferences(value, thisOpId), [value, thisOpId])
-
-  useEffect(() => {
-    setEdges(oldEdges => {
-      // Find existing ReferenceEdges targeting this field
-      const existingReferenceEdges = oldEdges.filter(
-        e => e.target === nodeId && e.targetHandle === thisFieldId && e.type === 'ReferenceEdge'
-      )
-
-      // Determine which edges to add and remove
-      const existingHandleIds = new Set(existingReferenceEdges.map(e => e.sourceHandle))
-      const referencedHandleIds = new Set(fieldReferences.map(ref => ref.handleId))
-
-      const toAdd = fieldReferences.filter(ref => !existingHandleIds.has(ref.handleId))
-      const idsToRemove = new Set(
-        existingReferenceEdges
-          .filter(e => !referencedHandleIds.has(e.sourceHandle || ''))
-          .map(e => e.id)
-      )
-
-      if (toAdd.length === 0 && idsToRemove.size === 0) {
-        return oldEdges // No changes needed
-      }
-
-      let newEdges = oldEdges
-
-      // Remove edges that are no longer referenced
-      if (idsToRemove.size > 0) {
-        newEdges = newEdges.filter(e => !idsToRemove.has(e.id))
-      }
-
-      // Add new reference edges
-      if (toAdd.length > 0) {
-        const newReferenceEdges = toAdd.map(({ opId, handleId }) => {
-          const connection = {
-            source: opId,
-            sourceHandle: handleId,
-            target: thisOpId,
-            targetHandle: thisFieldId,
-          }
-          return {
-            id: edgeId(connection),
-            type: 'ReferenceEdge',
-            selectable: false,
-            deletable: false,
-            focusable: false,
-            reconnectable: false,
-            source: opId,
-            target: thisOpId,
-            sourceHandle: handleId,
-            targetHandle: thisFieldId,
-          } as Edge<Operator<IOperator>, Operator<IOperator>>
-        })
-
-        newEdges = [...newEdges, ...newReferenceEdges]
-      }
-
-      return newEdges
-    })
-  }, [fieldReferences, thisOpId, thisFieldId, nodeId, setEdges])
-
   return (
     <div className={cx(s.fieldWrapper, s.fieldWrapperCode)} ref={containerRef}>
       <div className={s.fieldInputWrapperCodeEditor}>
-        <CodeiumEditor
-          language={field.language}
-          options={{
-            tabSize: 2,
-            scrollBeyondLastLine: false,
-            minimap: { enabled: false },
-            automaticLayout: true,
-            fixedOverflowWidgets: true,
-            scrollbar: {
-              vertical: 'visible',
-              horizontal: 'visible',
-            },
-          }}
-          theme="vs-dark"
-          width="100%"
-          height={nodeHeight - 80}
-          defaultValue={field.value}
-          onChange={handleEditorChange}
-          onMount={handleEditorDidMount}
-        />
+        <Suspense
+          fallback={
+            <textarea
+              style={{
+                width: '100%',
+                height: nodeHeight - 80,
+                background: '#1e1e1e',
+                color: '#d4d4d4',
+              }}
+              value={value}
+              onChange={e => field.setValue(e.target.value)}
+            />
+          }
+        >
+          <CodeiumEditor
+            language={field.language}
+            options={{
+              tabSize: 2,
+              scrollBeyondLastLine: false,
+              minimap: { enabled: false },
+              automaticLayout: true,
+              fixedOverflowWidgets: true,
+              scrollbar: {
+                vertical: 'visible',
+                horizontal: 'visible',
+              },
+            }}
+            theme="vs-dark"
+            width="100%"
+            height={nodeHeight - 80}
+            defaultValue={field.value}
+            beforeMount={handleBeforeMount}
+            onChange={handleEditorChange}
+            onMount={handleEditorDidMount}
+          />
+        </Suspense>
       </div>
     </div>
   )
 }
 
-export function FileFieldComponent({
+const EXT_MIME_MAP: Record<string, string> = {
+  '.csv': 'text/csv',
+  '.json': 'application/json',
+  '.geojson': 'application/json',
+  '.glb': 'model/gltf-binary',
+  '.gltf': 'model/gltf+json',
+}
+
+// Groups extensions from a comma-separated accept string by MIME type for
+// showOpenFilePicker. Unknown extensions fall back to application/octet-stream.
+function extToMimeTypes(accept: string): Record<string, `.${string}`[]> {
+  const result: Record<string, `.${string}`[]> = {}
+  for (const ext of accept.split(',').map(e => e.trim())) {
+    const mime = EXT_MIME_MAP[ext] ?? 'application/octet-stream'
+    if (!result[mime]) result[mime] = []
+    result[mime].push(ext as `.${string}`)
+  }
+  return result
+}
+
+export function FileUrlFieldComponent({
   id,
   field,
   disabled,
 }: {
   id: OpId
-  field: FileField
+  field: FileUrlField
   disabled: boolean
 }) {
   const [value, setValue] = useState(guardAccessorFallback(field.value))
+  const { captureStart, commitChange } = usePropertyHistory()
 
   useEffect(() => {
     const sub = field.subscribe(newVal => {
@@ -470,51 +1110,93 @@ export function FileFieldComponent({
     if (val !== field.value) {
       field.setValue(val)
     }
+    commitChange('Change file')
   }
 
   const [replaceDialogOpen, setReplaceDialogOpen] = useState(false)
-  const [pendingFile, setPendingFile] = useState<{ name: string; contents: string } | null>(null)
+  const [pendingFile, setPendingFile] = useState<{ name: string; contents: Blob } | null>(null)
 
-  const onReupload = async () => {
-    // Get current project and storage type
+  const onUpload = async () => {
+    try {
+      await doUpload()
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return
+      throw err
+    }
+  }
+
+  const doUpload = async () => {
     const { currentProjectName, activeStorageType } = useFileSystemStore.getState()
+
     if (!currentProjectName) {
       throw new Error('No project loaded. Please save or load a project first.')
     }
 
-    const [fileHandle] = await window.showOpenFilePicker({
-      types: [
-        {
-          description: 'CSV and JSON Files',
-          accept: {
-            'text/csv': ['.csv'],
-            'application/json': ['.json'],
-          },
-        },
-      ],
-      excludeAcceptAllOption: true,
-      multiple: false,
-    })
-    const file = await fileHandle.getFile()
-    const contents = await file.text()
+    const pickerOpts: OpenFilePickerOptions = field.accept
+      ? {
+          types: [{ description: 'Files', accept: extToMimeTypes(field.accept) }],
+          excludeAcceptAllOption: true,
+          multiple: false,
+        }
+      : { multiple: false }
 
-    // Check if file already exists
+    const [fileHandle] = await window.showOpenFilePicker(pickerOpts)
+    const file = await fileHandle.getFile()
+    const fileType = extensionOf(file.name) || 'unknown'
+
+    // Read as ArrayBuffer so binary files (e.g. .glb) are preserved
+    const buffer = await file.arrayBuffer()
+    const contents = new Blob([buffer], { type: file.type })
+
     const exists = await checkAssetExists(activeStorageType, currentProjectName, file.name)
     if (exists) {
-      // Show confirmation dialog
+      // If the user picked the exact same file already in the data directory, just use it
+      const existingHandle = await getAssetFileHandle(
+        activeStorageType,
+        currentProjectName,
+        file.name
+      )
+      if (existingHandle && (await fileHandle.isSameEntry(existingHandle))) {
+        captureStart()
+        field.setValue(projectScheme + file.name)
+        setValue(projectScheme + file.name)
+        commitChange('Change file')
+        analytics.track('file_imported', {
+          fileType,
+          fileFormat: fileType,
+          source: 'field',
+          fileSize: file.size,
+        })
+        return
+      }
+      captureStart()
       setPendingFile({ name: file.name, contents })
       setReplaceDialogOpen(true)
       return
     }
 
-    // Write directly if file doesn't exist
     const result = await writeAsset(activeStorageType, currentProjectName, file.name, contents)
-
     if (!result.success) {
+      analytics.track('file_import_failed', {
+        fileType,
+        attemptedFormat: fileType,
+        reason: 'write_failed',
+        source: 'field',
+        fileSize: file.size,
+      })
       throw new Error(result.error?.message || `Failed to write file: ${file.name}`)
     }
 
+    captureStart()
     field.setValue(projectScheme + file.name)
+    setValue(projectScheme + file.name)
+    commitChange('Change file')
+    analytics.track('file_imported', {
+      fileType,
+      fileFormat: fileType,
+      source: 'field',
+      fileSize: file.size,
+    })
   }
 
   const onConfirmReplace = async () => {
@@ -523,22 +1205,35 @@ export function FileFieldComponent({
     const { currentProjectName, activeStorageType } = useFileSystemStore.getState()
     if (!currentProjectName) return
 
-    // Write with overwrite option
+    const fileType = extensionOf(pendingFile.name) || 'unknown'
     const result = await writeAsset(
       activeStorageType,
       currentProjectName,
       pendingFile.name,
-      pendingFile.contents,
-      { overwrite: true }
+      pendingFile.contents
     )
-
     if (!result.success) {
+      analytics.track('file_import_failed', {
+        fileType,
+        attemptedFormat: fileType,
+        reason: 'write_failed',
+        source: 'field',
+        fileSize: pendingFile.contents.size,
+      })
       throw new Error(result.error?.message || `Failed to write file: ${pendingFile.name}`)
     }
 
     field.setValue(projectScheme + pendingFile.name)
+    setValue(projectScheme + pendingFile.name)
+    commitChange('Change file')
     setReplaceDialogOpen(false)
     setPendingFile(null)
+    analytics.track('file_imported', {
+      fileType,
+      fileFormat: fileType,
+      source: 'field',
+      fileSize: pendingFile.contents.size,
+    })
   }
 
   const onCancelReplace = () => {
@@ -548,25 +1243,26 @@ export function FileFieldComponent({
 
   return (
     <>
-      <div className="node-field-wrapper">
-        <label className="node-field-label" htmlFor={id}>
+      <div className={cx(s.fieldWrapper, 'nokey')}>
+        <label className={s.fieldLabel} htmlFor={id}>
           {id}
         </label>
-        <div className="p-inputgroup node-field-input-group">
+        <div className={cx('p-inputgroup', s.fieldFileInputGroup)}>
           <InputText
             id={id}
             placeholder="https://"
-            className="node-field-input"
+            className={cx(s.fieldInput, s.fieldInputFileUrl)}
             value={value}
+            onFocus={captureStart}
             onBlur={onBlur}
             onChange={onChange}
             disabled={disabled}
           />
           <Button
             icon="pi pi-upload"
-            className="node-field-input--upload"
-            onClick={onReupload}
-            title="Upload Data"
+            className={s.fieldInputUploadButton}
+            onClick={onUpload}
+            title="Upload File"
             size="small"
           />
         </div>
@@ -606,402 +1302,216 @@ export function FileFieldComponent({
   )
 }
 
-type DragState = {
-  startX: number
-  startY: number
-  startValue: number
-  totalDistanceMoved: number
-  detected: boolean
-}
-
-type UseDragOptions = {
-  disabled?: boolean
-  onDragStart?: (e: MouseEvent | TouchEvent) => boolean
-  onDrag?: (deltaX: number, deltaY: number, e: MouseEvent | TouchEvent) => void
-  onDragEnd?: (e: MouseEvent | TouchEvent) => void
-}
-
-function useDrag(options: UseDragOptions) {
-  const { disabled, onDragStart, onDrag, onDragEnd } = options
-  const [isDragging, setIsDragging] = useState(false)
-  const dragStateRef = useRef<DragState | null>(null)
-
-  const handleMouseDown = useCallback(
-    (e: React.MouseEvent) => {
-      if (disabled) return
-      if (onDragStart && !onDragStart(e.nativeEvent)) return
-
-      dragStateRef.current = {
-        startX: e.clientX,
-        startY: e.clientY,
-        startValue: 0,
-        totalDistanceMoved: 0,
-        detected: false,
-      }
-
-      const handleMouseMove = (e: MouseEvent) => {
-        if (!dragStateRef.current) return
-
-        const { startX, startY, detected } = dragStateRef.current
-        const deltaX = e.clientX - startX
-        const deltaY = startY - e.clientY // Invert Y axis so up is positive
-
-        if (!detected) {
-          dragStateRef.current.totalDistanceMoved += Math.abs(deltaX) + Math.abs(deltaY)
-          if (dragStateRef.current.totalDistanceMoved > 5) {
-            // Drag detection threshold
-            dragStateRef.current.detected = true
-            setIsDragging(true)
-          }
-        }
-
-        if (dragStateRef.current.detected && onDrag) {
-          onDrag(deltaX, deltaY, e)
-        }
-      }
-
-      const handleMouseUp = (e: MouseEvent) => {
-        if (dragStateRef.current?.detected) {
-          setIsDragging(false)
-          onDragEnd?.(e)
-        }
-        dragStateRef.current = null
-        document.removeEventListener('mousemove', handleMouseMove)
-        document.removeEventListener('mouseup', handleMouseUp)
-      }
-
-      document.addEventListener('mousemove', handleMouseMove)
-      document.addEventListener('mouseup', handleMouseUp)
-    },
-    [disabled, onDragStart, onDrag, onDragEnd]
-  )
-
-  const handleTouchStart = useCallback(
-    (e: React.TouchEvent) => {
-      if (disabled) return
-      if (onDragStart && !onDragStart(e)) return
-
-      dragStateRef.current = {
-        startX: e.touches[0].clientX,
-        startY: e.touches[0].clientY,
-        startValue: 0,
-        totalDistanceMoved: 0,
-        detected: false,
-      }
-
-      const handleTouchMove = (e: TouchEvent) => {
-        if (!dragStateRef.current) return
-
-        const { startX, startY, detected } = dragStateRef.current
-        const deltaX = e.touches[0].clientX - startX
-        const deltaY = startY - e.touches[0].clientY
-
-        if (!detected) {
-          dragStateRef.current.totalDistanceMoved += Math.abs(deltaX) + Math.abs(deltaY)
-          if (dragStateRef.current.totalDistanceMoved > 5) {
-            dragStateRef.current.detected = true
-            setIsDragging(true)
-          }
-        }
-
-        if (dragStateRef.current.detected && onDrag) {
-          onDrag(deltaX, deltaY, e)
-        }
-      }
-
-      const handleTouchEnd = (e: TouchEvent) => {
-        if (dragStateRef.current?.detected) {
-          setIsDragging(false)
-          onDragEnd?.(e)
-        }
-        dragStateRef.current = null
-        document.removeEventListener('touchmove', handleTouchMove)
-        document.removeEventListener('touchend', handleTouchEnd)
-      }
-
-      document.addEventListener('touchmove', handleTouchMove)
-      document.addEventListener('touchend', handleTouchEnd)
-    },
-    [disabled, onDragStart, onDrag, onDragEnd]
-  )
-
-  return {
-    isDragging,
-    handleMouseDown,
-    handleTouchStart,
-  }
-}
-
-function StepLadder({
-  baseStep,
-  currentStepMultiplier,
-  mousePos,
-  containerRect,
-}: {
-  baseStep: number
-  currentStepMultiplier: number
-  mousePos: { x: number; y: number }
-  containerRect?: DOMRect | null
-}) {
-  // Generate step ladder showing current and neighboring step sizes (largest on top)
-  const steps = []
-  for (let i = 2; i >= -2; i--) {
-    // Reverse order: 2, 1, 0, -1, -2
-    const multiplier = Math.pow(10, i)
-    const stepSize = baseStep * multiplier
-
-    // Check if this step size matches the current snapped step size
-    const isActive = Math.abs(currentStepMultiplier - multiplier) < 0.01
-
-    steps.push({
-      multiplier,
-      stepSize,
-      isActive,
-      label:
-        stepSize >= 1
-          ? stepSize.toString()
-          : stepSize.toFixed(Math.max(0, -Math.floor(Math.log10(stepSize)))),
-    })
-  }
-
-  // Position the ladder behind the mouse cursor, relative to container
-  const defaultStepIndex = steps.findIndex(step => step.multiplier === 1)
-  const stepItemHeight = 28 // Adjusted height based on CSS: padding(3px) + margin(1px) + font + borders
-
-  let topPosition = 0
-  let leftPosition = 0
-
-  if (containerRect) {
-    // Convert global mouse coordinates to relative coordinates within the container
-    const relativeMouseX = mousePos.x - containerRect.left
-    const relativeMouseY = mousePos.y - containerRect.top
-
-    // Position so the default step (1x) is centered at the mouse position
-    topPosition = relativeMouseY - (defaultStepIndex * stepItemHeight + stepItemHeight / 2)
-    leftPosition = relativeMouseX - 40 // Increased offset to better center behind cursor
-  }
-
-  return (
-    <div
-      className={s.stepLadder}
-      style={{
-        left: `${leftPosition}px`,
-        top: `${topPosition}px`,
-        transform: 'none',
-      }}
-    >
-      {steps.map(({ multiplier, stepSize, isActive, label }) => (
-        <div
-          key={multiplier}
-          className={cx(s.stepLadderItem, {
-            [s.stepLadderItemActive]: isActive,
-          })}
-          title={`Step size: ${stepSize}`}
-        >
-          <span className={s.stepLadderLabel}>{label}</span>
-        </div>
-      ))}
-    </div>
-  )
-}
-
-function DraggableNumberInput({
+export function MapStyleFieldComponent({
   id,
-  value,
+  field,
   disabled,
-  onChange,
-  onCommit,
-  min,
-  max,
-  step = 1,
-  className,
-  title,
 }: {
-  id?: string
-  value: number
+  id: OpId
+  field: MapStyleField
   disabled: boolean
-  onChange: (val: number) => void
-  onCommit?: () => void
-  min?: number
-  max?: number
-  step?: number
-  className?: string
-  title?: string
 }) {
-  const [displayValue, setDisplayValue] = useState<string>(value?.toString() ?? '0')
-  const [isActive, setIsActive] = useState<boolean>(false)
-  const [currentStepMultiplier, setCurrentStepMultiplier] = useState<number>(1)
-  const [isDragStarted, setIsDragStarted] = useState<boolean>(false)
-  const [showLadder, setShowLadder] = useState<boolean>(false)
-  const [initialMousePos, setInitialMousePos] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
-  const inputRef = useRef<HTMLInputElement>(null)
-  const containerRef = useRef<HTMLDivElement>(null)
-  const startValueRef = useRef<number>(0)
-  const isHorizontalLockedRef = useRef<boolean>(false)
-  const lockedStepMultiplierRef = useRef<number>(1)
-  const ladderTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const [value, setValue] = useState(guardAccessorFallback(field.value))
+  const { captureStart, commitChange } = usePropertyHistory()
 
   useEffect(() => {
-    setDisplayValue(value?.toString() ?? '0')
-  }, [value])
+    const sub = field.subscribe(newVal => {
+      if (typeof newVal === 'function') return
+      setValue(newVal)
+    })
+    return () => sub.unsubscribe()
+  }, [field])
 
-  useEffect(() => {
-    const cleanup = () => {
-      if (isDragStarted) {
-        setIsDragStarted(false)
-        setShowLadder(false)
-        isHorizontalLockedRef.current = false
-        setCurrentStepMultiplier(1)
-        lockedStepMultiplierRef.current = 1
-        if (ladderTimerRef.current) {
-          clearTimeout(ladderTimerRef.current)
-          ladderTimerRef.current = null
-        }
-      }
+  const isObject = typeof value === 'object' && value !== null
+  const displayValue = isObject ? '[Style Object]' : value
+
+  const onChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.currentTarget.value
+    if (typeof field.value !== 'object' && val !== field.value) {
+      setValue(val)
+    }
+  }
+
+  const onBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+    const val = e.currentTarget.value
+    if (typeof field.value !== 'object' && val !== field.value) {
+      field.setValue(val)
+    }
+    commitChange('Change map style')
+  }
+
+  const [galleryOpen, setGalleryOpen] = useState(false)
+
+  const onGallerySelect = (val: string | object) => {
+    captureStart()
+    field.setValue(val)
+    setValue(typeof val === 'string' ? val : val)
+    commitChange('Change map style')
+  }
+
+  const [replaceDialogOpen, setReplaceDialogOpen] = useState(false)
+  const [pendingFile, setPendingFile] = useState<{ name: string; contents: Blob } | null>(null)
+
+  const onUpload = async () => {
+    try {
+      await doUpload()
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return
+      throw err
+    }
+  }
+
+  const doUpload = async () => {
+    const { currentProjectName, activeStorageType } = useFileSystemStore.getState()
+    if (!currentProjectName) {
+      throw new Error('No project loaded. Please save or load a project first.')
     }
 
-    document.addEventListener('mouseup', cleanup)
-    window.addEventListener('blur', cleanup)
-    return () => {
-      document.removeEventListener('mouseup', cleanup)
-      window.removeEventListener('blur', cleanup)
-    }
-  }, [isDragStarted])
-
-  const onInputChange = useCallback(
-    (e: React.FormEvent<HTMLInputElement>) => {
-      const newValue = e.currentTarget.value
-      setDisplayValue(newValue)
-      if (newValue !== '') {
-        onChange(+newValue)
-      }
-    },
-    [onChange]
-  )
-
-  const { isDragging, handleMouseDown, handleTouchStart } = useDrag({
-    disabled,
-    onDragStart: e => {
-      const target = e.target as HTMLInputElement
-      if (
-        target.type === 'number' &&
-        ('offsetX' in e ? e.offsetX : (e as any).touches[0].clientX - target.offsetLeft) >
-          target.offsetWidth - 20
-      ) {
-        return false
-      }
-
-      startValueRef.current = value
-      setInitialMousePos({
-        x: 'clientX' in e ? e.clientX : (e as any).touches[0].clientX,
-        y: 'clientY' in e ? e.clientY : (e as any).touches[0].clientY,
-      })
-      setCurrentStepMultiplier(1)
-      isHorizontalLockedRef.current = false
-      setIsDragStarted(true)
-      lockedStepMultiplierRef.current = 1
-
-      ladderTimerRef.current = setTimeout(() => {
-        window.getSelection()?.removeAllRanges()
-        setShowLadder(true)
-      }, 400)
-
-      return true
-    },
-    onDrag: (deltaX, deltaY) => {
-      const horizontalMovement = Math.abs(deltaX) > 15
-
-      let snappedStepMultiplier = 1
-
-      if (!isHorizontalLockedRef.current) {
-        const rawStepMultiplier = Math.pow(10, deltaY / 20)
-        const logMultiplier = Math.log10(rawStepMultiplier)
-        const snappedLogMultiplier = Math.round(logMultiplier)
-        const clampedLogMultiplier = Math.max(-2, Math.min(2, snappedLogMultiplier))
-        snappedStepMultiplier = Math.pow(10, clampedLogMultiplier)
-      }
-
-      if (!isHorizontalLockedRef.current) {
-        if (!horizontalMovement) {
-          setCurrentStepMultiplier(snappedStepMultiplier)
-        } else {
-          lockedStepMultiplierRef.current = snappedStepMultiplier
-          isHorizontalLockedRef.current = true
+    const pickerOpts: OpenFilePickerOptions = field.accept
+      ? {
+          types: [{ description: 'Files', accept: extToMimeTypes(field.accept) }],
+          excludeAcceptAllOption: true,
+          multiple: false,
         }
-      }
+      : { multiple: false }
 
-      if (horizontalMovement || isHorizontalLockedRef.current) {
-        const activeStepMultiplier = isHorizontalLockedRef.current
-          ? lockedStepMultiplierRef.current
-          : snappedStepMultiplier
-        const stepSize = activeStepMultiplier * step
-        const valueChange = Math.round(deltaX) * stepSize
-        const newValue = startValueRef.current + valueChange
-        const clampedValue =
-          min !== undefined && max !== undefined ? Math.min(Math.max(newValue, min), max) : newValue
-        const fixedValue = parseFloat(clampedValue.toFixed(7))
+    const [fileHandle] = await window.showOpenFilePicker(pickerOpts)
+    const file = await fileHandle.getFile()
+    const buffer = await file.arrayBuffer()
+    const contents = new Blob([buffer], { type: file.type })
 
-        setDisplayValue(fixedValue.toString())
-        onChange(fixedValue)
+    const exists = await checkAssetExists(activeStorageType, currentProjectName, file.name)
+    if (exists) {
+      const existingHandle = await getAssetFileHandle(
+        activeStorageType,
+        currentProjectName,
+        file.name
+      )
+      if (existingHandle && (await fileHandle.isSameEntry(existingHandle))) {
+        captureStart()
+        field.setValue(projectScheme + file.name)
+        setValue(projectScheme + file.name)
+        commitChange('Change map style')
+        return
       }
-    },
-    onDragEnd: () => {
-      setCurrentStepMultiplier(1)
-      isHorizontalLockedRef.current = false
-      lockedStepMultiplierRef.current = 1
-      setIsDragStarted(false)
-      setShowLadder(false)
-      if (ladderTimerRef.current) {
-        clearTimeout(ladderTimerRef.current)
-        ladderTimerRef.current = null
-      }
-      onCommit?.()
-    },
-  })
+      captureStart()
+      setPendingFile({ name: file.name, contents })
+      setReplaceDialogOpen(true)
+      return
+    }
 
-  const shouldShowLadder = showLadder && isDragStarted && !isHorizontalLockedRef.current
-  const containerRect = containerRef.current?.getBoundingClientRect()
-  const formatted =
-    displayValue === '' ? '' : Math.round((+displayValue + Number.EPSILON) * 100) / 100
+    const result = await writeAsset(activeStorageType, currentProjectName, file.name, contents)
+    if (!result.success) {
+      throw new Error(result.error?.message || `Failed to write file: ${file.name}`)
+    }
+
+    captureStart()
+    field.setValue(projectScheme + file.name)
+    setValue(projectScheme + file.name)
+    commitChange('Change map style')
+  }
+
+  const onConfirmReplace = async () => {
+    if (!pendingFile) return
+
+    const { currentProjectName, activeStorageType } = useFileSystemStore.getState()
+    if (!currentProjectName) return
+
+    const result = await writeAsset(
+      activeStorageType,
+      currentProjectName,
+      pendingFile.name,
+      pendingFile.contents
+    )
+    if (!result.success) {
+      throw new Error(result.error?.message || `Failed to write file: ${pendingFile.name}`)
+    }
+
+    field.setValue(projectScheme + pendingFile.name)
+    setValue(projectScheme + pendingFile.name)
+    commitChange('Change map style')
+    setReplaceDialogOpen(false)
+    setPendingFile(null)
+  }
+
+  const onCancelReplace = () => {
+    setReplaceDialogOpen(false)
+    setPendingFile(null)
+  }
 
   return (
-    <div
-      className={s.fieldInputWrapper}
-      style={{ position: 'relative' }}
-      tabIndex={-1}
-      onMouseDown={handleMouseDown}
-      onTouchStart={handleTouchStart}
-      ref={containerRef}
-    >
-      <input
-        id={id}
-        ref={inputRef}
-        type="number"
-        onFocus={() => setIsActive(true)}
-        onBlur={() => {
-          setIsActive(false)
-          onCommit?.()
-        }}
-        className={cx(className, {
-          [s.fieldInputNumberDragging]: isDragging,
-        })}
-        value={isActive ? displayValue : formatted}
-        title={title || displayValue}
-        onChange={onInputChange}
-        disabled={disabled}
-        min={min}
-        max={max}
-        step={step}
+    <>
+      <div className={cx(s.fieldWrapper, 'nokey')}>
+        <label className={s.fieldLabel} htmlFor={id}>
+          {id}
+        </label>
+        <div className={cx('p-inputgroup', s.fieldFileInputGroup)}>
+          <InputText
+            id={id}
+            placeholder={isObject ? '' : 'https://'}
+            className={cx(s.fieldInput, s.fieldInputFileUrl)}
+            value={displayValue}
+            onFocus={captureStart}
+            onBlur={onBlur}
+            onChange={onChange}
+            disabled={disabled || isObject}
+          />
+          <Button
+            icon="pi pi-images"
+            className={s.fieldInputUploadButton}
+            onClick={() => setGalleryOpen(true)}
+            title="Browse Basemaps"
+            size="small"
+          />
+          <Button
+            icon="pi pi-upload"
+            className={s.fieldInputUploadButton}
+            onClick={onUpload}
+            title="Upload File"
+            size="small"
+            disabled={isObject}
+          />
+        </div>
+      </div>
+
+      <BasemapGallery
+        open={galleryOpen}
+        onOpenChange={setGalleryOpen}
+        onSelect={onGallerySelect}
+        currentValue={typeof value === 'string' ? value : undefined}
       />
-      {shouldShowLadder && (
-        <StepLadder
-          baseStep={step}
-          currentStepMultiplier={currentStepMultiplier}
-          mousePos={initialMousePos}
-          containerRect={containerRect}
-        />
-      )}
-    </div>
+
+      <Dialog.Root open={replaceDialogOpen} onOpenChange={setReplaceDialogOpen}>
+        <Dialog.Portal>
+          <Dialog.Overlay className={menuStyles.dialogOverlay} />
+          <Dialog.Content className={menuStyles.dialogContent}>
+            <Dialog.Title className={menuStyles.dialogTitle}>Replace file</Dialog.Title>
+            <Dialog.Description className={menuStyles.dialogDescription}>
+              A file named "{pendingFile?.name}" already exists. Do you want to replace it?
+            </Dialog.Description>
+            <div className={menuStyles.dialogRightSlot}>
+              <Dialog.Close asChild>
+                <button type="button" className={menuStyles.dialogButton} onClick={onCancelReplace}>
+                  Cancel
+                </button>
+              </Dialog.Close>
+              <button
+                type="button"
+                className={cx(menuStyles.dialogButton, menuStyles.red)}
+                onClick={onConfirmReplace}
+              >
+                Replace
+              </button>
+            </div>
+            <Dialog.Close asChild onClick={onCancelReplace}>
+              <button type="button" className={menuStyles.dialogIconButton} aria-label="Close">
+                <Cross2Icon />
+              </button>
+            </Dialog.Close>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
+    </>
   )
 }
 
@@ -1015,6 +1525,7 @@ export function NumberFieldComponent({
   disabled: boolean
 }) {
   const [value, setValue] = useState<number>(guardAccessorFallback(field.value))
+  const { captureStart, commitChange } = usePropertyHistory()
 
   useEffect(() => {
     const sub = field.subscribe(newVal => {
@@ -1033,7 +1544,7 @@ export function NumberFieldComponent({
   )
 
   return (
-    <div className={s.fieldWrapper}>
+    <div className={cx(s.fieldWrapper, 'nokey')}>
       <label className={s.fieldLabel} htmlFor={id}>
         {id}
       </label>
@@ -1042,8 +1553,12 @@ export function NumberFieldComponent({
         value={value}
         disabled={disabled}
         onChange={handleChange}
+        onCommit={() => commitChange('Change value')}
+        onInteractionStart={captureStart}
         min={field.min}
         max={field.max}
+        softMin={field.softMin}
+        softMax={field.softMax}
         step={field.step}
         className={cx(s.fieldInput, s.fieldInputNumber)}
         title={value.toString()}
@@ -1062,6 +1577,7 @@ export function BooleanFieldComponent({
   disabled: boolean
 }) {
   const [value, setValue] = useState<boolean>(guardAccessorFallback(field.value))
+  const { captureStart, commitChange } = usePropertyHistory()
 
   useEffect(() => {
     const sub = field.subscribe(newVal => {
@@ -1073,13 +1589,15 @@ export function BooleanFieldComponent({
 
   const onChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
+      captureStart()
       field.setValue(e.currentTarget.checked)
+      commitChange('Toggle boolean')
     },
-    [field]
+    [field, captureStart, commitChange]
   )
 
   return (
-    <div className={s.fieldWrapper}>
+    <div className={cx(s.fieldWrapper, 'nokey')}>
       <label className={s.fieldLabel} htmlFor={id}>
         {id}
       </label>
@@ -1107,6 +1625,7 @@ export function DateFieldComponent({
   disabled: boolean
 }) {
   const [value, setValue] = useState(guardAccessorFallback(field.value))
+  const { captureStart, commitChange } = usePropertyHistory()
 
   useEffect(() => {
     const sub = field.subscribe(newVal => {
@@ -1116,21 +1635,22 @@ export function DateFieldComponent({
     return () => sub.unsubscribe()
   }, [field])
 
-  const onChange = e => {
+  const onChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     // Parse the datetime-local input value and create a Temporal.PlainDateTime
-    // datetime-local format: YYYY-MM-DDTHH:mm (no timezone, local time)
     const inputValue = e.currentTarget.value
     if (inputValue) {
-      // Add seconds to match ISO format, then parse as PlainDateTime
-      field.setValue(Temporal.PlainDateTime.from(`${inputValue}:00`))
+      captureStart()
+      field.setValue(Temporal.PlainDateTime.from(inputValue))
+      commitChange('Change date')
     }
   }
 
-  // Convert Temporal.PlainDateTime to datetime-local format (YYYY-MM-DDTHH:mm)
-  const formatted = value?.toString?.()?.substring(0, 16) || ''
+  // Convert Temporal.PlainDateTime to datetime-local format
+  // Always show full precision with milliseconds: YYYY-MM-DDTHH:mm:ss.SSS
+  const formatted = value?.toString?.()?.substring(0, 23) || ''
 
   return (
-    <div className={s.fieldWrapper}>
+    <div className={cx(s.fieldWrapper, 'nokey')}>
       <label className={s.fieldLabel} htmlFor={id}>
         {id}
       </label>
@@ -1138,10 +1658,11 @@ export function DateFieldComponent({
         <input
           id={id}
           type="datetime-local"
-          className={s.fieldInput}
+          className={cx(s.fieldInput, s.fieldInputDate)}
           value={formatted}
           onChange={onChange}
           disabled={disabled}
+          step={0.001}
         />
       </div>
     </div>
@@ -1158,6 +1679,7 @@ export function ColorFieldComponent({
   disabled: boolean
 }) {
   const [value, setValue] = useState(guardAccessorFallback(field.value))
+  const { captureStart, commitChange } = usePropertyHistory()
 
   useEffect(() => {
     const sub = field.subscribe(newVal => {
@@ -1167,28 +1689,97 @@ export function ColorFieldComponent({
     return () => sub.unsubscribe()
   }, [field])
 
-  const onChange = e => {
-    field.setValue(e.currentTarget.value)
-  }
-
-  const formatted = typeof value === 'string' ? value : colorToHex(value, false)
+  const handleColorChange = useCallback(
+    (hexColor: string) => {
+      field.setValue(hexColor)
+    },
+    [field]
+  )
 
   return (
-    <div className={s.fieldWrapper}>
+    <div className={cx(s.fieldWrapper, 'nokey')}>
       <label className={s.fieldLabel} htmlFor={id}>
         {id}
       </label>
       <div className={s.fieldInputWrapper}>
-        <input
-          id={id}
-          type="color"
-          className={cx(s.fieldInput, s.fieldInputColor)}
-          value={formatted}
-          onChange={onChange}
+        <ColorSwatch
+          value={value}
+          onChange={handleColorChange}
           disabled={disabled}
+          onPickerOpen={captureStart}
+          onPickerClose={() => commitChange('Change color')}
         />
       </div>
     </div>
+  )
+}
+
+function ColorSchemePreview({
+  schemeName,
+  stepCount = 8,
+}: {
+  schemeName: string
+  stepCount?: number
+}) {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    renderColorScheme(ctx, schemeName, 100, 16, stepCount)
+  }, [schemeName, stepCount])
+
+  return <canvas ref={canvasRef} className={s.colorSchemePreviewCanvas} width={100} height={16} />
+}
+
+function ColorSchemeDropdown({
+  choices,
+  value,
+  onChange,
+  disabled,
+  triggerElement,
+  stepCount,
+}: {
+  choices: { value: string; label: string }[]
+  value: string
+  onChange: (value: string) => void
+  disabled: boolean
+  triggerElement?: React.ReactNode
+  stepCount?: number
+}) {
+  const defaultTrigger = (
+    <button type="button" className={cx(s.fieldInput, s.fieldInputSelect)} disabled={disabled}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <ColorSchemePreview schemeName={value} stepCount={stepCount} />
+        <span>{choices.find(c => c.value === value)?.label || value}</span>
+      </div>
+    </button>
+  )
+
+  return (
+    <DropdownMenu.Root>
+      <DropdownMenu.Trigger asChild disabled={disabled}>
+        {triggerElement || defaultTrigger}
+      </DropdownMenu.Trigger>
+      <DropdownMenu.Portal>
+        <DropdownMenu.Content className={s.colorSchemeDropdownContent} sideOffset={4}>
+          {choices.map(choice => (
+            <DropdownMenu.Item
+              key={choice.value}
+              className={s.colorSchemeDropdownItem}
+              onSelect={() => onChange(choice.value)}
+            >
+              <ColorSchemePreview schemeName={choice.value} stepCount={stepCount} />
+              <span className={s.colorSchemeName}>{choice.label}</span>
+            </DropdownMenu.Item>
+          ))}
+        </DropdownMenu.Content>
+      </DropdownMenu.Portal>
+    </DropdownMenu.Root>
   )
 }
 
@@ -1204,7 +1795,13 @@ export function ColorRampComponent({
   const [interpolate, setInterpolate] = useState<
     ScaleOrdinal<string, string> | ScaleLinear<number, string>
   >(() => field.value)
-  const steps = field instanceof CategoricalColorRampField ? field.count : 512
+
+  // For categorical ramps, get count from the scale's domain length
+  // For continuous ramps, use a fixed pixel width
+  const steps =
+    field instanceof CategoricalColorRampField && 'domain' in interpolate
+      ? (interpolate as ScaleOrdinal<string, string>).domain().length
+      : 512
 
   useEffect(() => {
     const sub = field.subscribe(newVal => {
@@ -1212,11 +1809,6 @@ export function ColorRampComponent({
     })
     return () => sub.unsubscribe()
   }, [field])
-
-  const _onChange = e => {
-    if (disabled) return
-    field.setValue(e.currentTarget.value)
-  }
 
   const canvasRef = useRef<HTMLCanvasElement>(null)
   useEffect(() => {
@@ -1226,14 +1818,6 @@ export function ColorRampComponent({
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
-    // const gradient = ctx.createLinearGradient(0, 0, 200, 0)
-    // gradient.addColorStop(0, 'red')
-    // gradient.addColorStop(0.5, 'green')
-    // gradient.addColorStop(1, 'blue')
-
-    // ctx.fillStyle = gradient
-    // ctx.fillRect(0, 0, 200, 100)
-
     for (let i = 0; i < steps; ++i) {
       const val = field instanceof CategoricalColorRampField ? `${id}-${i}` : i / (steps - 1)
       ctx.fillStyle = interpolate(val)
@@ -1241,9 +1825,70 @@ export function ColorRampComponent({
     }
   }, [interpolate, field, id, steps])
 
+  // Check for sibling colorScheme field
+  const colorSchemeField = useMemo(() => {
+    const op = field.op
+    if (!op) return null
+    const csField = op.inputs.colorScheme
+    return csField instanceof StringLiteralField && csField.displayAs === 'color-scheme'
+      ? csField
+      : null
+  }, [field.op])
+
+  // Get step count for categorical ramps
+  const stepCount = useMemo(() => {
+    const op = field.op
+    if (!op || !('steps' in op.inputs)) return undefined
+    return op.inputs.steps?.value as number | undefined
+  }, [field.op])
+
+  const { captureStart, commitChange } = usePropertyHistory()
+
+  if (colorSchemeField) {
+    // Render clickable canvas with dropdown
+    const triggerElement = (
+      <button
+        type="button"
+        className={s.fieldInputColorRampButton}
+        disabled={disabled}
+        title="Click to change color scheme"
+      >
+        <canvas ref={canvasRef} className={s.fieldInputColorRamp} width={steps} height={1} />
+      </button>
+    )
+
+    return (
+      <div className={cx(s.fieldWrapper, 'nokey')}>
+        <ColorSchemeDropdown
+          choices={colorSchemeField.choices}
+          value={colorSchemeField.value}
+          onChange={newValue => {
+            captureStart()
+            colorSchemeField.setValue(newValue)
+            commitChange('Change color scheme')
+          }}
+          disabled={disabled}
+          triggerElement={triggerElement}
+          stepCount={stepCount}
+        />
+      </div>
+    )
+  }
+
+  // Fallback: read-only canvas (existing behavior)
   return (
-    <div className={s.fieldWrapper}>
-      <canvas className={s.fieldInputColorRamp} ref={canvasRef} width={steps} height={1} />
+    <div className={cx(s.fieldWrapper, 'nokey')}>
+      <label className={s.fieldLabel} htmlFor={id}>
+        {id}
+      </label>
+      <canvas
+        id={id}
+        aria-label={`${id} color ramp`}
+        className={s.fieldInputColorRamp}
+        ref={canvasRef}
+        width={steps}
+        height={1}
+      />
     </div>
   )
 }
@@ -1259,7 +1904,7 @@ export function CompoundFieldComponent({
 }) {
   const [expanded, setExpanded] = useState(true)
   return (
-    <div className={s.fieldWrapper}>
+    <div className={cx(s.fieldWrapper, 'nokey')}>
       <button
         className={s.fieldLabel}
         type="button"
@@ -1267,7 +1912,9 @@ export function CompoundFieldComponent({
         aria-expanded={expanded}
       >
         {id}
-        <span className={cx(s.compoundPropsExpander, expanded && s.compoundPropsExpanderExpanded)}>►</span>
+        <span className={cx(s.compoundPropsExpander, expanded && s.compoundPropsExpanderExpanded)}>
+          ►
+        </span>
       </button>
       {expanded ? (
         <div id={id} className={s.fieldCompoundWrapper}>
@@ -1276,25 +1923,31 @@ export function CompoundFieldComponent({
           ))}
         </div>
       ) : (
-          <button
-            className={s.compoundPropsExpander}
-            type="button"
-            onClick={() => setExpanded(e => !e)}
-          >
-            ({Object.entries(field.fields).length} hidden props)
-          </button>
-        )
-      }
+        <button
+          className={s.compoundPropsExpander}
+          type="button"
+          onClick={() => setExpanded(e => !e)}
+        >
+          ({Object.entries(field.fields).length} hidden props)
+        </button>
+      )}
     </div>
   )
 }
 
 export function EmptyFieldComponent({ id }: { id: OpId; field: Field<IField> }) {
   return (
-    <div className={s.fieldWrapper}>
-      <label className={s.fieldLabel}>{id}</label>
+    <div className={cx(s.fieldWrapper, 'nokey')}>
+      <div className={s.fieldLabel}>{id}</div>
     </div>
   )
+}
+
+const BEZIER_SVG_SIZE = { width: 200, height: 150 }
+const BEZIER_PADDING = { top: 10, right: 10, bottom: 20, left: 20 }
+const BEZIER_GRAPH_AREA = {
+  width: BEZIER_SVG_SIZE.width - BEZIER_PADDING.left - BEZIER_PADDING.right,
+  height: BEZIER_SVG_SIZE.height - BEZIER_PADDING.top - BEZIER_PADDING.bottom,
 }
 
 export function BezierCurveFieldComponent({
@@ -1308,6 +1961,8 @@ export function BezierCurveFieldComponent({
 }) {
   const svgRef = useRef<SVGSVGElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const { captureStart, commitChange } = usePropertyHistory()
+  const [isHelpOpen, setIsHelpOpen] = useState(false)
   const [dragState, setDragState] = useState<{
     isDragging: boolean
     dragIndex: number
@@ -1316,33 +1971,23 @@ export function BezierCurveFieldComponent({
     startY: number
   } | null>(null)
 
-  const svgSize = { width: 200, height: 150 }
-  const padding = { top: 10, right: 10, bottom: 20, left: 20 }
-  const graphArea = {
-    width: svgSize.width - padding.left - padding.right,
-    height: svgSize.height - padding.top - padding.bottom,
-  }
-
   // Convert SVG coordinates to curve coordinates (0-1, 0-1)
-  const svgToCurve = useCallback(
-    (x: number, y: number) => {
-      const curveX = (x - padding.left) / graphArea.width
-      const curveY = 1 - (y - padding.top) / graphArea.height // Flip Y axis
-      return {
-        x: Math.max(0, Math.min(1, curveX)),
-        y: Math.max(0, Math.min(1, curveY)),
-      }
-    },
-    [graphArea.width, graphArea.height]
-  )
+  const svgToCurve = useCallback((x: number, y: number) => {
+    const curveX = (x - BEZIER_PADDING.left) / BEZIER_GRAPH_AREA.width
+    const curveY = 1 - (y - BEZIER_PADDING.top) / BEZIER_GRAPH_AREA.height // Flip Y axis
+    return {
+      x: Math.max(0, Math.min(1, curveX)),
+      y: Math.max(0, Math.min(1, curveY)),
+    }
+  }, [])
 
   // Convert curve coordinates to SVG coordinates
   const curveToSvg = useCallback(
     (x: number, y: number) => ({
-      x: padding.left + x * graphArea.width,
-      y: padding.top + (1 - y) * graphArea.height, // Flip Y axis
+      x: BEZIER_PADDING.left + x * BEZIER_GRAPH_AREA.width,
+      y: BEZIER_PADDING.top + (1 - y) * BEZIER_GRAPH_AREA.height, // Flip Y axis
     }),
-    [graphArea.width, graphArea.height]
+    []
   )
 
   // Generate SVG path for the bezier curve
@@ -1381,14 +2026,14 @@ export function BezierCurveFieldComponent({
 
     // Vertical grid lines
     for (let i = 0; i <= 4; i++) {
-      const x = padding.left + (i / 4) * graphArea.width
+      const x = BEZIER_PADDING.left + (i / 4) * BEZIER_GRAPH_AREA.width
       lines.push(
         <line
           key={`v-${i}`}
           x1={x}
-          y1={padding.top}
+          y1={BEZIER_PADDING.top}
           x2={x}
-          y2={padding.top + graphArea.height}
+          y2={BEZIER_PADDING.top + BEZIER_GRAPH_AREA.height}
           stroke="#333"
           strokeWidth="1"
         />
@@ -1397,13 +2042,13 @@ export function BezierCurveFieldComponent({
 
     // Horizontal grid lines
     for (let i = 0; i <= 4; i++) {
-      const y = padding.top + (i / 4) * graphArea.height
+      const y = BEZIER_PADDING.top + (i / 4) * BEZIER_GRAPH_AREA.height
       lines.push(
         <line
           key={`h-${i}`}
-          x1={padding.left}
+          x1={BEZIER_PADDING.left}
           y1={y}
-          x2={padding.left + graphArea.width}
+          x2={BEZIER_PADDING.left + BEZIER_GRAPH_AREA.width}
           y2={y}
           stroke="#333"
           strokeWidth="1"
@@ -1412,7 +2057,7 @@ export function BezierCurveFieldComponent({
     }
 
     return lines
-  }, [graphArea])
+  }, [])
 
   // Find what the user is trying to interact with
   const getInteractionTarget = useCallback(
@@ -1488,6 +2133,7 @@ export function BezierCurveFieldComponent({
       const target = getInteractionTarget(x, y)
 
       if (target) {
+        captureStart()
         setDragState({
           isDragging: true,
           dragIndex: target.index,
@@ -1499,11 +2145,21 @@ export function BezierCurveFieldComponent({
         // Add new point if clicking on empty space within the graph area
         const curvePos = svgToCurve(x, y)
         if (curvePos.x >= 0 && curvePos.x <= 1 && curvePos.y >= 0 && curvePos.y <= 1) {
+          captureStart()
           field.addPoint(curvePos.x, curvePos.y)
+          commitChange('Add curve point')
         }
       }
     },
-    [disabled, getInteractionTarget, svgToCurve, field, getMousePosition]
+    [
+      disabled,
+      getInteractionTarget,
+      svgToCurve,
+      field,
+      getMousePosition,
+      captureStart,
+      commitChange,
+    ]
   )
 
   const handleMouseMove = useCallback(
@@ -1533,8 +2189,11 @@ export function BezierCurveFieldComponent({
   )
 
   const handleMouseUp = useCallback(() => {
+    if (dragState?.isDragging) {
+      commitChange('Edit curve')
+    }
     setDragState(null)
-  }, [])
+  }, [dragState, commitChange])
 
   const handleDoubleClick = useCallback(
     (e: React.MouseEvent<SVGSVGElement>) => {
@@ -1544,11 +2203,13 @@ export function BezierCurveFieldComponent({
       const target = getInteractionTarget(x, y)
 
       if (target && target.type === 'point') {
+        captureStart()
         // Remove point on double-click
         field.removePoint(target.index)
+        commitChange('Remove curve point')
       }
     },
-    [disabled, getInteractionTarget, field, getMousePosition]
+    [disabled, getInteractionTarget, field, getMousePosition, captureStart, commitChange]
   )
 
   // Handle point selection for showing controls
@@ -1575,16 +2236,16 @@ export function BezierCurveFieldComponent({
   const gridLines = generateGridLines()
 
   return (
-    <div className={s.fieldWrapper} ref={containerRef}>
+    <div className={cx(s.fieldWrapper, 'nokey')} ref={containerRef}>
       <label className={s.fieldLabel} htmlFor={id}>
         {id}
       </label>
-      <div className="bezier-curve-editor">
+      <div className={s.bezierCurveEditor}>
         <svg
           ref={svgRef}
-          width={svgSize.width}
-          height={svgSize.height}
-          viewBox={`0 0 ${svgSize.width} ${svgSize.height}`}
+          width={BEZIER_SVG_SIZE.width}
+          height={BEZIER_SVG_SIZE.height}
+          viewBox={`0 0 ${BEZIER_SVG_SIZE.width} ${BEZIER_SVG_SIZE.height}`}
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
@@ -1599,19 +2260,21 @@ export function BezierCurveFieldComponent({
             maxWidth: '100%',
             height: 'auto',
           }}
+          aria-label="Bezier curve editor"
         >
+          <title>Bezier curve editor</title>
           {/* Background */}
-          <rect width={svgSize.width} height={svgSize.height} fill="#1a1a1a" />
+          <rect width={BEZIER_SVG_SIZE.width} height={BEZIER_SVG_SIZE.height} fill="#1a1a1a" />
 
           {/* Grid */}
           {gridLines}
 
           {/* Border */}
           <rect
-            x={padding.left}
-            y={padding.top}
-            width={graphArea.width}
-            height={graphArea.height}
+            x={BEZIER_PADDING.left}
+            y={BEZIER_PADDING.top}
+            width={BEZIER_GRAPH_AREA.width}
+            height={BEZIER_GRAPH_AREA.height}
             fill="none"
             stroke="#555"
             strokeWidth="1"
@@ -1626,6 +2289,7 @@ export function BezierCurveFieldComponent({
             const isSelected = selectedIndex === index
 
             return (
+              // biome-ignore lint/suspicious/noArrayIndexKey: Bezier curve points don't have stable IDs
               <g key={index}>
                 {/* Left handle */}
                 {point.handleLeftX !== undefined && point.handleLeftY !== undefined && (
@@ -1807,14 +2471,300 @@ export function BezierCurveFieldComponent({
           </div>
         )}
 
-        <div
-          className="bezier-curve-controls"
-          style={{ marginTop: '8px', fontSize: '12px', color: '#888' }}
-        >
-          Click to add point • Click point to select • Double-click to remove • Drag to move
+        <div className={s.bezierHelp}>
+          <button
+            type="button"
+            className={cx(s.bezierHelpButton, 'nodrag')}
+            aria-label={`${isHelpOpen ? 'Hide' : 'Show'} Bézier curve help`}
+            aria-controls={`${id}-bezier-help`}
+            aria-expanded={isHelpOpen}
+            title="Bézier curve help"
+            onClick={() => setIsHelpOpen(open => !open)}
+          >
+            <QuestionMarkCircledIcon aria-hidden="true" />
+          </button>
+          {isHelpOpen && (
+            <div id={`${id}-bezier-help`} className={s.bezierHelpPopover} role="note">
+              Click to add a point. Click a point to select it. Double-click to remove it. Drag to
+              move it.
+            </div>
+          )}
         </div>
       </div>
     </div>
+  )
+}
+
+// O(1) lookup for incoming connections via centralized EdgeConnectionStore
+// The store only updates when edges structurally change (add/remove), not on position updates
+function useHasIncomingConnection(nodeId: string | null, handleId: string): boolean {
+  return useEdgeConnectionStore(
+    useCallback(
+      state => {
+        if (!nodeId) return false
+        const key = `${nodeId}::${handleId}` as const
+        return state.connectionMap.has(key)
+      },
+      [nodeId, handleId]
+    )
+  )
+}
+
+// Field types that can't be driven by an expression: code/expression fields are already
+// expressions, and function fields hold accessors that come from connections
+const EXPRESSION_EXCLUDED_TYPES = new Set([
+  'code',
+  'expression',
+  'function',
+  'layer',
+  'effect',
+  'widget',
+  'view',
+  'visualization',
+])
+
+// Returns true for scalar/value field types that can show an editable input
+export function isValueField(field: Field): boolean {
+  const { type } = field.constructor as typeof Field
+  return [
+    'number',
+    'boolean',
+    'color',
+    'string',
+    'string-literal',
+    'date',
+    'vec2',
+    'vec3',
+    'geopoint-2d',
+    'geopoint-3d',
+  ].includes(type)
+}
+
+// Whether a field's type supports expression mode (connection state is checked separately)
+export function canFieldBeDriven(field: Field): boolean {
+  const { type } = field.constructor as typeof Field
+  return !EXPRESSION_EXCLUDED_TYPES.has(type)
+}
+
+// Seed the expression editor with the field's current value so entering expression mode
+// starts from something meaningful (Houdini-style)
+function toInitialExpressionSource(value: unknown): string {
+  if (typeof value === 'function' || value === undefined) return ''
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value)
+  try {
+    return JSON.stringify(value) ?? ''
+  } catch {
+    return ''
+  }
+}
+
+// Enter or exit expression mode on a field, recording an undo/redo snapshot.
+// Shared by the canvas field context menu and the Properties Panel context menu.
+export function toggleFieldExpression(field: Field): void {
+  const before = captureOperatorInputs()
+  if (field.expression !== null) {
+    field.clearExpression()
+    firePropertyMutation('Remove expression', before)
+  } else {
+    field.setExpression(toInitialExpressionSource(field.value))
+    firePropertyMutation('Add expression', before)
+  }
+}
+
+// Determine the preferred reference format for a field type
+function getPreferredReferenceFormat(field: Field): ReferenceFormat {
+  // SQL code fields use mustache syntax
+  if (field instanceof CodeField && field.language === 'sql') {
+    return 'mustache'
+  }
+  // JavaScript code and expression fields use code syntax
+  if (field instanceof CodeField || field instanceof ExpressionField) {
+    return 'code'
+  }
+  // Default to code format for other fields
+  return 'code'
+}
+
+async function pasteReference(
+  field: Field,
+  operatorId: string,
+  useRelativePath: boolean
+): Promise<boolean> {
+  try {
+    const text = await navigator.clipboard.readText()
+    const parsed = parseReference(text)
+    if (!parsed) {
+      return false
+    }
+
+    // Validate reference points to valid field
+    const { opPath, namespace, fieldName } = parsed
+    const targetOp = getOp(opPath, operatorId)
+    if (!targetOp) {
+      console.warn(`Paste reference: operator not found: ${opPath}`)
+      return false
+    }
+
+    const targetField =
+      namespace === 'par' ? targetOp.inputs[fieldName] : targetOp.outputs[fieldName]
+    if (!targetField) {
+      console.warn(`Paste reference: field not found: ${fieldName}`)
+      return false
+    }
+
+    // Convert to relative path if requested
+    let finalPath = opPath
+    if (useRelativePath) {
+      finalPath = computeRelativePath(targetOp.id, operatorId)
+    }
+
+    // Determine format based on field type
+    const preferredFormat = getPreferredReferenceFormat(field)
+    const ref = { opPath: finalPath, namespace, fieldName }
+    const formattedRef = formatReference(ref, preferredFormat)
+
+    // Set expression on field
+    const before = captureOperatorInputs()
+    field.setExpression(formattedRef.trim())
+    firePropertyMutation('Paste reference', before)
+
+    return true
+  } catch (err) {
+    console.error('Failed to paste reference:', err)
+    return false
+  }
+}
+
+// Right-click context menu for a field row.
+export function FieldContextMenu({
+  field,
+  operatorId,
+  fieldName,
+  namespace,
+  position,
+  onClose,
+}: {
+  field: Field
+  operatorId: string
+  fieldName: string
+  namespace: 'par' | 'out'
+  position: { x: number; y: number }
+  onClose: () => void
+}) {
+  const isDriven = field.expression !== null
+
+  // Generate absolute code reference
+  const absoluteCodeRef = `op('${operatorId}').${namespace}.${fieldName}`
+
+  // Lazy field value serialization - only compute when copying
+  const canCopyValue = isValueField(field)
+  const getFieldValue = useCallback((): string | undefined => {
+    if (!isValueField(field)) return undefined
+    try {
+      const v = field.value
+      return typeof v === 'string' ? v : JSON.stringify(v)
+    } catch {
+      return undefined
+    }
+  }, [field])
+
+  // Check clipboard for valid reference
+  const [clipboardHasReference, setClipboardHasReference] = useState(false)
+  useEffect(() => {
+    navigator.clipboard
+      .readText()
+      .then(text => {
+        const parsed = parseReference(text)
+        setClipboardHasReference(parsed !== null)
+      })
+      .catch(() => {
+        setClipboardHasReference(false)
+      })
+  }, [])
+
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    document.addEventListener('pointerdown', onClose)
+    document.addEventListener('keydown', handleKey)
+    return () => {
+      document.removeEventListener('pointerdown', onClose)
+      document.removeEventListener('keydown', handleKey)
+    }
+  }, [onClose])
+
+  return createPortal(
+    <div
+      className={contextMenuStyles.contextMenu}
+      style={{ top: position.y, left: position.x }}
+      onPointerDown={e => e.stopPropagation()}
+    >
+      <button
+        type="button"
+        className={contextMenuStyles.contextMenuItem}
+        disabled={!canCopyValue}
+        onClick={() => {
+          const fieldValue = getFieldValue()
+          if (fieldValue === undefined) return
+          navigator.clipboard.writeText(fieldValue)
+          onClose()
+        }}
+      >
+        Copy value
+      </button>
+      <div className={contextMenuStyles.contextMenuSeparator} />
+      <button
+        type="button"
+        className={contextMenuStyles.contextMenuItem}
+        onClick={() => {
+          navigator.clipboard.writeText(absoluteCodeRef)
+          onClose()
+        }}
+      >
+        Copy reference
+      </button>
+      {clipboardHasReference && (
+        <>
+          <button
+            type="button"
+            className={contextMenuStyles.contextMenuItem}
+            onClick={async () => {
+              const success = await pasteReference(field, operatorId, false)
+              if (success) {
+                onClose()
+              }
+            }}
+          >
+            Paste as absolute reference
+          </button>
+          <button
+            type="button"
+            className={contextMenuStyles.contextMenuItem}
+            onClick={async () => {
+              const success = await pasteReference(field, operatorId, true)
+              if (success) {
+                onClose()
+              }
+            }}
+          >
+            Paste as relative reference
+          </button>
+        </>
+      )}
+      <div className={contextMenuStyles.contextMenuSeparator} />
+      <button
+        type="button"
+        className={contextMenuStyles.contextMenuItem}
+        onClick={() => {
+          toggleFieldExpression(field)
+          onClose()
+        }}
+      >
+        {isDriven ? 'Remove expression' : 'Edit expression'}
+      </button>
+    </div>,
+    document.body
   )
 }
 
@@ -1832,37 +2782,276 @@ export function FieldComponent({
   renderInput?: boolean
 }) {
   const nid = useNodeId()
-  const edges = useEdges()
   const qualifiedFieldId = handle ? `${handle.namespace}.${fieldId}` : `par.${fieldId}`
-  const incomers = edges.filter(
-    edge =>
-      edge.target === nid && edge.targetHandle === qualifiedFieldId && edge.type !== 'ReferenceEdge'
+  const isHandleDimmed = useHandleDimmed(nid ?? '', qualifiedFieldId)
+  const hasIncomingConnection = useHasIncomingConnection(nid, qualifiedFieldId)
+
+  const { type } = field.constructor as typeof Field
+  const InputComp = inputComponents[type]
+
+  const expression = useObservable(field.expression$, field.expression)
+  const isDriven = expression !== null
+  const [contextMenuPos, setContextMenuPos] = useState<{ x: number; y: number } | null>(null)
+
+  // Expression mode only applies to input fields (par namespace)
+  const canDrive =
+    renderInput && handle?.namespace !== 'out' && canFieldBeDriven(field) && !hasIncomingConnection
+
+  const onContextMenu = useCallback(
+    (e: React.MouseEvent) => {
+      if (disabled) return
+      e.preventDefault()
+      // Keep node-level context menus (e.g. the parameter editor) from also firing
+      e.stopPropagation()
+      setContextMenuPos({ x: e.clientX, y: e.clientY })
+    },
+    [disabled]
   )
 
-  const ctor = field.constructor as unknown as Field<IField>
-  const InputComp = inputComponents[ctor.type]
+  const hasKeyframes = useTimelineStore(state => {
+    if (!nid || !renderInput) return false
+    // Check for a direct track or any sub-property track (e.g. compound fields)
+    const prefix = getFieldPath(nid, fieldId)
+    for (const [path, track] of state.tracks) {
+      if ((path === prefix || path.startsWith(`${prefix} / `)) && track.keyframes.length > 0) {
+        return true
+      }
+    }
+    return false
+  })
 
-  // When renderInput is false, position handle absolutely to avoid relying on container height
+  // Position handle at the center of the 25px label row (12.5px from top)
+  // This ensures alignment even when field content expands (CompoundProps, ListField)
+  // ListFields use MultiInputHandle with left: -3px container, so need less translateX
+  const translateX = field instanceof ListField ? '-10px' : '-17px'
   const handleStyle = renderInput
-    ? { transform: 'translate(-17px, -50%)' }
-    : { transform: 'translate(-17px, 15px)' }
+    ? { top: '12.5px', transform: `translateX(${translateX})` }
+    : { top: '15px', transform: `translateX(${translateX})` }
 
   return (
-    <div style={{ position: 'relative' }}>
-      {handle && (
-        <Handle
-          id={qualifiedFieldId}
-          className={handleClass(field)}
-          style={handleStyle}
-          type={handle.type}
-          position={Position.Left}
+    // biome-ignore lint/a11y/noStaticElementInteractions: right-click menu is a shortcut; the same actions are reachable via the Properties Panel context menu
+    <div
+      style={{ position: 'relative' }}
+      onContextMenu={canDrive || isDriven ? onContextMenu : undefined}
+    >
+      {handle &&
+        (field instanceof ListField ? (
+          <MultiInputHandle
+            id={qualifiedFieldId}
+            field={field}
+            className={cx(handleClass(field), { [s.handleDimmed]: isHandleDimmed })}
+            style={handleStyle}
+          />
+        ) : (
+          <Handle
+            id={qualifiedFieldId}
+            className={cx(handleClass(field), { [s.handleDimmed]: isHandleDimmed })}
+            style={handleStyle}
+            type={handle.type}
+            position={Position.Left}
+          />
+        ))}
+      {renderInput &&
+        (hasIncomingConnection ? (
+          <EmptyFieldComponent id={fieldId} field={field} />
+        ) : isDriven ? (
+          <ExpressionDrivenInput id={fieldId} field={field} disabled={disabled} />
+        ) : hasKeyframes ? (
+          <div className={s.keyframedFieldInput}>
+            <InputComp id={fieldId} field={field} disabled={disabled} />
+          </div>
+        ) : (
+          <InputComp id={fieldId} field={field} disabled={disabled} />
+        ))}
+      {contextMenuPos && nid && (
+        <FieldContextMenu
+          field={field}
+          operatorId={nid}
+          fieldName={fieldId}
+          namespace={handle?.namespace ?? 'par'}
+          position={contextMenuPos}
+          onClose={() => setContextMenuPos(null)}
         />
       )}
-      {renderInput && (
-        incomers.length > 0
-          ? <EmptyFieldComponent id={fieldId} field={field} />
-          : <InputComp id={fieldId} field={field} disabled={disabled} />
-      )}
+    </div>
+  )
+}
+
+// Normalize bbox value to object format for internal use
+function normalizeBboxValue(val: any) {
+  if (Array.isArray(val)) {
+    // Tuple format: [[lng, lat], [lng, lat]] or [{lng, lat}, {lng, lat}]
+    const sw = Array.isArray(val[0]) ? { lng: val[0][0], lat: val[0][1] } : val[0]
+    const ne = Array.isArray(val[1]) ? { lng: val[1][0], lat: val[1][1] } : val[1]
+    return { southwest: sw, northeast: ne }
+  }
+  return val
+}
+
+export function BboxFieldComponent({
+  id,
+  field,
+  disabled,
+  opId,
+  fieldName,
+  expandTimeline,
+}: {
+  id: OpId
+  field: BboxField
+  disabled: boolean
+  opId?: string
+  fieldName?: string
+  expandTimeline?: () => void
+}) {
+  const [value, setValue] = useState<{
+    southwest: { lng: number; lat: number }
+    northeast: { lng: number; lat: number }
+  }>(normalizeBboxValue(guardAccessorFallback(field.value)))
+  const [geocodingOpen, setGeocodingOpen] = useState(false)
+  const [geocodingCorner, setGeocodingCorner] = useState<'southwest' | 'northeast'>('southwest')
+  const { captureStart, commitChange } = usePropertyHistory()
+
+  // Track the latest value in a ref for onCommit
+  const latestValueRef = useRef(value)
+  latestValueRef.current = value
+
+  useEffect(() => {
+    const sub = field.subscribe(newVal => {
+      if (typeof newVal === 'function') return
+      setValue(normalizeBboxValue(newVal))
+    })
+    return () => sub.unsubscribe()
+  }, [field])
+
+  const onChange = useCallback(
+    (corner: 'southwest' | 'northeast', coord: 'lng' | 'lat', val: number) => {
+      setValue(prevValue => {
+        const updated = {
+          ...prevValue,
+          [corner]: {
+            ...prevValue[corner],
+            [coord]: val,
+          },
+        }
+        latestValueRef.current = updated
+        return updated
+      })
+    },
+    []
+  )
+
+  const onCommit = useCallback(() => {
+    field.setValue(latestValueRef.current)
+    commitChange('Change bbox')
+  }, [field, commitChange])
+
+  // Handle location selection from geocoding dialog
+  const handleLocationSelected = useCallback(
+    ({ longitude, latitude }: { longitude: number; latitude: number }) => {
+      setValue(prevValue => {
+        const updated = {
+          ...prevValue,
+          [geocodingCorner]: { lng: longitude, lat: latitude },
+        }
+        field.setValue(updated)
+        return updated
+      })
+      commitChange('Change bbox corner')
+      setGeocodingOpen(false)
+    },
+    [field, geocodingCorner, commitChange]
+  )
+
+  return (
+    <div className={cx(s.fieldWrapper, 'nokey')}>
+      <label className={s.fieldLabel} htmlFor={id}>
+        {id}
+      </label>
+      <div id={id} className={s.fieldCompoundWrapper}>
+        <div className={s.fieldGroupLabel}>Southwest</div>
+        <div className={cx(s.fieldInputWrapper, s.fieldInputWrapperVector)}>
+          <VectorNumberInput
+            keyName="lng"
+            value={value.southwest.lng}
+            objectKey="lng"
+            disabled={disabled}
+            onChange={(_, val) => onChange('southwest', 'lng', val)}
+            onCommit={onCommit}
+            onInteractionStart={captureStart}
+          />
+          <VectorNumberInput
+            keyName="lat"
+            value={value.southwest.lat}
+            objectKey="lat"
+            disabled={disabled}
+            onChange={(_, val) => onChange('southwest', 'lat', val)}
+            onCommit={onCommit}
+            onInteractionStart={captureStart}
+          />
+          <Button
+            icon="pi pi-map-marker"
+            className={s.fieldLookupButton}
+            onClick={() => {
+              captureStart()
+              setGeocodingCorner('southwest')
+              setGeocodingOpen(true)
+            }}
+            title="Lookup Southwest Corner"
+            size="small"
+            disabled={disabled}
+            severity="secondary"
+            text
+          />
+        </div>
+
+        <div className={cx(s.fieldGroupLabel, s.fieldGroupLabelSpaced)}>Northeast</div>
+        <div className={cx(s.fieldInputWrapper, s.fieldInputWrapperVector)}>
+          <VectorNumberInput
+            keyName="lng"
+            value={value.northeast.lng}
+            objectKey="lng"
+            disabled={disabled}
+            onChange={(_, val) => onChange('northeast', 'lng', val)}
+            onCommit={onCommit}
+            onInteractionStart={captureStart}
+          />
+          <VectorNumberInput
+            keyName="lat"
+            value={value.northeast.lat}
+            objectKey="lat"
+            disabled={disabled}
+            onChange={(_, val) => onChange('northeast', 'lat', val)}
+            onCommit={onCommit}
+            onInteractionStart={captureStart}
+          />
+          <Button
+            icon="pi pi-map-marker"
+            className={s.fieldLookupButton}
+            onClick={() => {
+              captureStart()
+              setGeocodingCorner('northeast')
+              setGeocodingOpen(true)
+            }}
+            title="Lookup Northeast Corner"
+            size="small"
+            disabled={disabled}
+            severity="secondary"
+            text
+          />
+        </div>
+      </div>
+
+      <GeocodingDialog
+        open={geocodingOpen}
+        onOpenChange={setGeocodingOpen}
+        mode="update-field"
+        initialValue={
+          geocodingCorner === 'southwest'
+            ? { longitude: value.southwest.lng, latitude: value.southwest.lat }
+            : { longitude: value.northeast.lng, latitude: value.northeast.lat }
+        }
+        onLocationSelected={handleLocationSelected}
+      />
     </div>
   )
 }

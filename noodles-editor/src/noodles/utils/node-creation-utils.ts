@@ -7,7 +7,9 @@ export type NodeType = OpType | MathOpType | 'ForLoop'
 // Get all available node types (operators, math ops, and special types like ForLoop)
 export function getNodeTypeOptions(): NodeType[] {
   return (Object.keys(opTypes) as NodeType[])
-    .filter(type => type !== 'ForLoopBeginOp' && type !== 'ForLoopEndOp')
+    .filter(
+      type => type !== 'ForLoopBeginOp' && type !== 'ForLoopEndOp' && type !== 'ForLoopMetaOp'
+    )
     .concat(['ForLoop', ...Object.keys(mathOps)])
     .sort()
 }
@@ -51,12 +53,17 @@ export function createNodesForType(
   const { x, y } = position
 
   if (type === 'ForLoop') {
-    const bodyId = nodeId('for-loop-body', currentContainerId)
+    // ForLoop scope: group node containing ForLoopBeginOp, ForLoopEndOp, and ForLoopMetaOp
+    const beginId = makeOpId('ForLoopBeginOp', currentContainerId)
+    // Group nodes are React Flow-only nodes, so nodeId() cannot see them in the
+    // operator store. Derive the visual group's suffix from the unique begin operator
+    // instead. This gives every loop its own group while keeping it in the same container.
+    const bodyId = beginId.replace(/for-loop-begin(-\d+)?$/, 'for-loop-body$1')
     const beginNode = {
-      id: makeOpId('ForLoopBeginOp', currentContainerId),
+      id: beginId,
       type: 'ForLoopBeginOp',
       data: undefined,
-      parentNode: bodyId,
+      parentId: bodyId,
       expandParent: true,
       position: { x: 0, y: 100 },
     }
@@ -64,31 +71,41 @@ export function createNodesForType(
       id: makeOpId('ForLoopEndOp', currentContainerId),
       type: 'ForLoopEndOp',
       data: undefined,
-      parentNode: bodyId,
+      parentId: bodyId,
       expandParent: true,
       position: { x: 900, y: 100 },
+    }
+    const metaNode = {
+      id: makeOpId('ForLoopMetaOp', currentContainerId),
+      type: 'ForLoopMetaOp',
+      data: undefined,
+      parentId: bodyId,
+      expandParent: true,
+      position: { x: 450, y: 250 },
     }
     nodes.push({
       id: bodyId,
       type: 'group',
       selectable: false,
       draggable: false,
-      style: { width: 1200, height: 300 },
+      style: { width: 1200, height: 400 },
       position: { x, y },
     } as NodeJSON<'group'>)
     nodes.push(beginNode)
     nodes.push(endNode)
+    nodes.push(metaNode)
+    // Connect ForLoopBegin.item -> ForLoopEnd.item (default connection)
     edges.push({
       id: edgeId({
         source: beginNode.id,
-        sourceHandle: 'd',
+        sourceHandle: 'out.item',
         target: endNode.id,
-        targetHandle: 'd',
+        targetHandle: 'par.item',
       }),
       source: beginNode.id,
       target: endNode.id,
-      sourceHandle: 'd',
-      targetHandle: 'd',
+      sourceHandle: 'out.item',
+      targetHandle: 'par.item',
     })
   } else if (type === 'ContainerOp') {
     const id = nodeId('container', currentContainerId)

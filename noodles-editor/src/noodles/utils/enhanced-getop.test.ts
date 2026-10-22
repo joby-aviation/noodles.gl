@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import type { IOperator, Operator } from '../operators'
-import { getOp, opMap } from '../store'
+import { clearOps, getOp, setOp } from '../store'
 
 // Mock operator for testing
 const mockOperator = {
@@ -19,19 +19,19 @@ const mockOperator = {
 
 describe('getOp with path resolution', () => {
   beforeEach(() => {
-    opMap.clear()
+    clearOps()
   })
 
   describe('absolute paths', () => {
     it('resolves absolute paths directly', () => {
-      opMap.set('/operator', mockOperator as Operator<IOperator>)
+      setOp('/operator', mockOperator as Operator<IOperator>)
 
       expect(getOp('/operator')).toBe(mockOperator)
       expect(getOp('/nonexistent')).toBeUndefined()
     })
 
     it('ignores context for absolute paths', () => {
-      opMap.set('/target', mockOperator as Operator<IOperator>)
+      setOp('/target', mockOperator as Operator<IOperator>)
 
       expect(getOp('/target', '/some/context')).toBe(mockOperator)
     })
@@ -40,19 +40,19 @@ describe('getOp with path resolution', () => {
   describe('relative paths with context', () => {
     beforeEach(() => {
       // Set up a hierarchy of operators
-      opMap.set('/container/operator1', {
+      setOp('/container/operator1', {
         ...mockOperator,
         id: '/container/operator1',
       } as Operator<IOperator>)
-      opMap.set('/container/operator2', {
+      setOp('/container/operator2', {
         ...mockOperator,
         id: '/container/operator2',
       } as Operator<IOperator>)
-      opMap.set('/container/sub/operator3', {
+      setOp('/container/sub/operator3', {
         ...mockOperator,
         id: '/container/sub/operator3',
       } as Operator<IOperator>)
-      opMap.set('/other/operator4', {
+      setOp('/other/operator4', {
         ...mockOperator,
         id: '/other/operator4',
       } as Operator<IOperator>)
@@ -70,7 +70,7 @@ describe('getOp with path resolution', () => {
 
     it('resolves parent-container references', () => {
       // Add an operator at the root level for this test
-      opMap.set('/operator4', { ...mockOperator, id: '/operator4' } as Operator<IOperator>)
+      setOp('/operator4', { ...mockOperator, id: '/operator4' } as Operator<IOperator>)
 
       const result = getOp('../operator4', '/container/operator1')
       expect(result?.id).toBe('/operator4')
@@ -93,7 +93,7 @@ describe('getOp with path resolution', () => {
 
   describe('no context provided', () => {
     it('treats relative paths as absolute', () => {
-      opMap.set('/operator', mockOperator as Operator<IOperator>)
+      setOp('/operator', mockOperator as Operator<IOperator>)
 
       // Without context, relative paths are treated as absolute
       expect(getOp('/operator')).toBe(mockOperator)

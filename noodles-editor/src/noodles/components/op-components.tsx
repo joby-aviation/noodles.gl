@@ -1,11 +1,11 @@
 import MapboxGeocoder from '@mapbox/mapbox-gl-geocoder'
 import ReactJson from '@microlink/react-json-view'
+import * as ContextMenu from '@radix-ui/react-context-menu'
 import * as Tooltip from '@radix-ui/react-tooltip'
-import { type ISheet, onChange, types, val } from '@theatre/core'
-import studio from '@theatre/studio'
 import {
   BaseEdge,
   type EdgeProps,
+  getBezierPath,
   getStraightPath,
   Handle,
   NodeResizer,
@@ -14,64 +14,85 @@ import {
   type NodeProps as ReactFlowNodeProps,
   type NodeTypes as ReactFlowNodeTypes,
   useNodeId,
-  useNodes,
   useReactFlow,
 } from '@xyflow/react'
 import cx from 'classnames'
 import { Layer } from 'deck.gl'
-import { isPlainObject } from 'lodash'
 import { Button } from 'primereact/button'
-import { Column } from 'primereact/column'
-import { DataTable } from 'primereact/datatable'
-import { InputNumber } from 'primereact/inputnumber'
-import { InputText } from 'primereact/inputtext'
-import { useCallback, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import {
+  type ComponentType,
+  memo,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react'
 import { createPortal } from 'react-dom'
 import { Temporal } from 'temporal-polyfill'
-import { isHexColor } from 'validator'
 
-import { colorToRgba, hexToRgba, type Rgba, rgbaToHex } from '../../utils/color'
-import { SheetContext } from '../../utils/sheet-context'
-import {
-  ArrayField,
-  BooleanField,
-  ColorField,
-  CompoundPropsField,
-  DateField,
-  type Field,
-  ListField,
-  NumberField,
-  Point2DField,
-  Point3DField,
-  StringField,
-  StringLiteralField,
-  Vec2Field,
-  Vec3Field,
-} from '../fields'
+import { analytics } from '../../utils/analytics'
+import { useProjectModificationActions } from '../contexts/project-modification-actions-context'
+import { ArrayField, type Field, type IField, ListField } from '../fields'
+import { useKeysStore } from '../keys-store'
 import s from '../noodles.module.css'
-import type { ExecutionState, IOperator, OperatorInstance, OpType } from '../operators'
+import type { ExecutionState, IOperator, OpType } from '../operators'
 import {
   type ContainerOp,
+  type DirectionsOp,
   type GeocoderOp,
   type MouseOp,
-  mathOps,
   mathOpDescriptions,
+  mathOps,
   Operator,
+  type OutOp,
   opTypes,
+  type RampInterpType,
+  type RampOp,
+  type RerouteOp,
   type TableEditorOp,
   type TimeOp,
   type ViewerOp,
 } from '../operators'
-import { opMap, setHoveredOutputHandle, useOp, useSlice } from '../store'
+import {
+  getOp,
+  hasOp,
+  setHoveredOutputHandle,
+  useEdgeConnectionStore,
+  useNestingStore,
+  useOperatorStore,
+  useUIStore,
+} from '../store'
+import { inferSchema, type TableSchema } from '../table-schema'
 import type { NodeDataJSON } from '../transform-graph'
-import { edgeId } from '../utils/id-utils'
+import { canConnect } from '../utils/can-connect'
+import {
+  evaluateEnableExpression,
+  getEnableExpressionDependencies,
+} from '../utils/enable-expression-evaluator'
+import { setLockedWithHistory, shouldConfirmUnlock } from '../utils/lock-history'
+import { type MultiInputEdgeData, slotOffsetY } from '../utils/multi-input-utils'
+import type { NodeType } from '../utils/node-creation-utils'
+import { convertViewerToTableEditor } from '../utils/operator-conversion'
 import { generateQualifiedPath, getBaseName, getParentPath } from '../utils/path-utils'
-import type { NodeType } from './add-node-menu'
+import {
+  captureOperatorInputs,
+  firePropertyMutation,
+  usePropertyHistory,
+} from '../utils/property-history'
+import { categories as baseCategories, nodeTypeToDisplayName } from './categories'
 import { FieldComponent, type inputComponents } from './field-components'
+import { GeoEditorOpComponent } from './geo-editor-op'
 import previewStyles from './handle-preview.module.css'
-import { categories as baseCategories } from './categories'
+import { MapStyleConfiguratorOpComponent } from './map-style-configurator-op'
+import RampEditor, { type RampStop } from './ramp-editor'
+import { TableEditor } from './table-editor'
+import { UnlockDialog } from './unlock-dialog'
 
-const MAPBOX_ACCESS_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN
+const isPlainObject = (v: unknown): v is Record<string, unknown> =>
+  v !== null && typeof v === 'object' && Object.getPrototypeOf(v) === Object.prototype
 
 // Extend categories with mathOps for UI purposes (add node menu, header classes, typeCategory)
 // Base categories.ts doesn't include mathOps to keep it clean for context generation
@@ -87,37 +108,223 @@ const categories: Record<string, string[]> = Object.fromEntries(
 const SLOW_EXECUTION_THRESHOLD_MS = 100
 
 // Hook to subscribe to operator execution state
-function useExecutionState(op: OperatorInstance): ExecutionState {
-  const [executionState, setExecutionState] = useState<ExecutionState>({ status: 'idle' })
-
+function useExecutionState(op: Operator<IOperator> | undefined): ExecutionState {
+  const [value, setValue] = useState<ExecutionState>({ status: 'idle' })
   useEffect(() => {
-    const subscription = op.executionState.subscribe(setExecutionState)
-    return () => subscription.unsubscribe()
+    if (!op) return
+    const sub = op.executionState.subscribe(setValue)
+    return () => sub.unsubscribe()
   }, [op])
-
-  return executionState
+  return value
 }
 
-const defaultNodeComponents = {} as Record<OpType, typeof NodeComponent>
+// Hook to subscribe to operator connection errors
+function useConnectionErrors(op: Operator<IOperator> | undefined): Map<string, string> {
+  const [value, setValue] = useState<Map<string, string>>(new Map())
+  useEffect(() => {
+    if (!op) return
+    const sub = op.connectionErrors.subscribe(setValue)
+    return () => sub.unsubscribe()
+  }, [op])
+  return value
+}
+
+// Hook to check if a node should be dimmed during connection drag
+export function useNodeDimmed(nodeId: string): boolean {
+  return useUIStore(state => {
+    const drag = state.connectionDragState
+    if (!drag) return false
+    if (drag.sourceNodeId === nodeId) return false
+    return !drag.compatibleNodeIds.has(nodeId)
+  })
+}
+
+// Hook to check if a handle should be dimmed during connection drag
+export function useHandleDimmed(nodeId: string, handleId: string): boolean {
+  const drag = useUIStore(state => state.connectionDragState)
+
+  if (!drag) return false
+  // Dim all handles on the source node except the one being dragged (no self-connections)
+  if (drag.sourceNodeId === nodeId) return drag.sourceHandleId !== handleId
+  // If the node is not compatible, handles are already dimmed via node dimming
+  if (!drag.compatibleNodeIds.has(nodeId)) return false
+
+  // Parse handle IDs to get namespace (par/out) and field name
+  const sourceHandleParts = drag.sourceHandleId.split('.')
+  const sourceNamespace = sourceHandleParts[0] as 'par' | 'out'
+  const sourceFieldName = sourceHandleParts.slice(1).join('.')
+
+  const targetHandleParts = handleId.split('.')
+  const targetNamespace = targetHandleParts[0] as 'par' | 'out'
+  const targetFieldName = targetHandleParts.slice(1).join('.')
+
+  // Can only connect output to input (out -> par or par -> out)
+  const canPotentiallyConnect =
+    (sourceNamespace === 'out' && targetNamespace === 'par') ||
+    (sourceNamespace === 'par' && targetNamespace === 'out')
+
+  if (!canPotentiallyConnect) return true
+
+  // Get operators and fields
+  const sourceOp = getOp(drag.sourceNodeId)
+  const targetOp = getOp(nodeId)
+  if (!sourceOp || !targetOp) return true
+
+  const sourceField =
+    sourceNamespace === 'out' ? sourceOp.outputs[sourceFieldName] : sourceOp.inputs[sourceFieldName]
+
+  const targetField =
+    targetNamespace === 'out' ? targetOp.outputs[targetFieldName] : targetOp.inputs[targetFieldName]
+
+  if (!sourceField || !targetField) return true
+
+  // canConnect(from, to) where from is output field, to is input field
+  if (sourceNamespace === 'out') {
+    return !canConnect(sourceField, targetField)
+  }
+  return !canConnect(targetField, sourceField)
+}
+
+// Custom comparison function for node components
+// During drag, React Flow passes new position/data objects but id/type/selected don't change
+// By only comparing these three props, we prevent re-renders during drag operations
+// Exported for testing
+export function nodePropsAreEqual(
+  prevProps: ReactFlowNodeProps,
+  nextProps: ReactFlowNodeProps
+): boolean {
+  return (
+    prevProps.id === nextProps.id &&
+    prevProps.type === nextProps.type &&
+    prevProps.selected === nextProps.selected
+  )
+}
+
+// Memoized once - all node types in the registry share this single wrapper
+const MemoNodeComponent = memo(NodeComponent, nodePropsAreEqual)
+
+const defaultNodeComponents: Record<string, ComponentType<ReactFlowNodeProps>> = {}
 for (const key of Object.keys(opTypes)) {
-  defaultNodeComponents[key] = NodeComponent
+  defaultNodeComponents[key] = MemoNodeComponent
+}
+
+function UnknownOperatorComponent({
+  id,
+  selected,
+}: ReactFlowNodeProps<NodeDataJSON<Operator<IOperator>>> & { type: OpType }) {
+  const op = getOp(id as string) as import('../operators').UnknownOperator | null
+  const { deleteElements } = useReactFlow()
+
+  const handleDelete = useCallback(() => {
+    deleteElements({ nodes: [{ id: id as string }] })
+  }, [id, deleteElements])
+
+  if (!op) return null
+
+  return (
+    <ContextMenu.Root>
+      <ContextMenu.Trigger asChild>
+        <div className={cx(s.wrapper, s.unknownOperatorWrapper)}>
+          <div className={s.unknownOperatorHeader}>
+            <div className={s.errorIcon}>⚠️</div>
+            <div className={s.unknownOperatorTitle}>Unknown Operator</div>
+          </div>
+          <div className={s.unknownOperatorContent}>
+            <div className={s.unknownOperatorType}>{op.originalType}</div>
+            <div className={s.unknownOperatorHelp}>This operator type is no longer available</div>
+          </div>
+        </div>
+      </ContextMenu.Trigger>
+      <ContextMenu.Portal>
+        <ContextMenu.Content className={s.contextMenu} sideOffset={5}>
+          <ContextMenu.Item className={s.contextMenuItem} onSelect={handleDelete}>
+            Delete Node
+          </ContextMenu.Item>
+        </ContextMenu.Content>
+      </ContextMenu.Portal>
+    </ContextMenu.Root>
+  )
 }
 
 export const nodeComponents = {
   ...defaultNodeComponents,
-  GeocoderOp: GeocoderOpComponent,
-  MouseOp: MouseOpComponent,
-  TableEditorOp: TableEditorOpComponent,
-  TimeOp: TimeOpComponent,
-  ViewerOp: ViewerOpComponent,
-  ContainerOp: ContainerOpComponent,
+  GeocoderOp: memo(GeocoderOpComponent, nodePropsAreEqual),
+  GeoEditorOp: memo(GeoEditorOpComponent, nodePropsAreEqual),
+  MapStyleConfiguratorOp: memo(MapStyleConfiguratorOpComponent, nodePropsAreEqual),
+  DirectionsOp: memo(DirectionsOpComponent, nodePropsAreEqual),
+  MouseOp: memo(MouseOpComponent, nodePropsAreEqual),
+  OutOp: memo(OutOpComponent, nodePropsAreEqual),
+  RampOp: memo(RampOpComponent, nodePropsAreEqual),
+  RerouteOp: memo(RerouteOpComponent, nodePropsAreEqual),
+  TableEditorOp: memo(TableEditorOpComponent, nodePropsAreEqual),
+  TimeOp: memo(TimeOpComponent, nodePropsAreEqual),
+  UnknownOperator: memo(UnknownOperatorComponent, nodePropsAreEqual),
+  ViewerOp: memo(ViewerOpComponent, nodePropsAreEqual),
+  ContainerOp: memo(ContainerOpComponent, nodePropsAreEqual),
 } as const as ReactFlowNodeTypes
 
 export const edgeComponents = {
+  default: DefaultEdgeComponent,
   ReferenceEdge: ReferenceEdgeComponent,
+  MultiInputEdge: MultiInputEdgeComponent,
 } as const as ReactFlowEdgeTypes
 
+// A locked node ignores its inputs, so the edges into it fade until it's unlocked
+function useTargetLocked(target: string) {
+  return useLocked(getOp(target))
+}
+
+function DefaultEdgeComponent({
+  id,
+  target,
+  sourceX,
+  sourceY,
+  targetX,
+  targetY,
+  sourcePosition,
+  targetPosition,
+  style = {},
+  markerEnd,
+}: EdgeProps) {
+  const targetedEdge = useUIStore(s => s.targetedEdge)
+  const nodeDragState = useUIStore(s => s.nodeDragState)
+  const targetLocked = useTargetLocked(target)
+  const [edgePath] = getBezierPath({
+    sourceX,
+    sourceY,
+    targetX,
+    targetY,
+    sourcePosition,
+    targetPosition,
+  })
+
+  // Edge is targeted if either connection drag or node drag is targeting it
+  const isConnectionTarget = targetedEdge?.id === id
+  const isNodeDropTarget = nodeDragState?.targetedEdge?.id === id
+  const _isTarget = isConnectionTarget || isNodeDropTarget
+
+  let edgeClassName: string | undefined
+  if (isConnectionTarget) {
+    edgeClassName = targetedEdge.compatible ? s.targetedEdge : s.targetedEdgeIncompatible
+  } else if (isNodeDropTarget) {
+    edgeClassName = nodeDragState.targetedEdge.canInsert
+      ? s.targetedEdge
+      : s.targetedEdgeIncompatible
+  }
+
+  return (
+    <BaseEdge
+      path={edgePath}
+      markerEnd={markerEnd}
+      style={style}
+      className={edgeClassName ?? (targetLocked ? s.lockedEdge : undefined)}
+    />
+  )
+}
+
 function ReferenceEdgeComponent({
+  id,
+  target,
   sourceX,
   sourceY,
   targetX,
@@ -125,6 +332,8 @@ function ReferenceEdgeComponent({
   style = {},
   markerEnd,
 }: EdgeProps) {
+  const isInspected = useUIStore(s => s.inspectedReferenceEdge?.id === id)
+  const targetLocked = useTargetLocked(target)
   const [edgePath] = getStraightPath({
     sourceX,
     sourceY,
@@ -133,7 +342,68 @@ function ReferenceEdgeComponent({
   })
 
   return (
-    <BaseEdge path={edgePath} markerEnd={markerEnd} className={s.referenceEdge} style={style} />
+    <BaseEdge
+      path={edgePath}
+      markerEnd={markerEnd}
+      className={cx(s.referenceEdge, {
+        [s.inspectedReferenceEdge]: isInspected,
+        [s.lockedEdge]: targetLocked && !isInspected,
+      })}
+      style={style}
+    />
+  )
+}
+
+function MultiInputEdgeComponent({
+  id,
+  target,
+  sourceX,
+  sourceY,
+  targetX,
+  targetY,
+  sourcePosition,
+  targetPosition,
+  style = {},
+  markerEnd,
+  data,
+}: EdgeProps) {
+  const targetedEdge = useUIStore(s => s.targetedEdge)
+  const nodeDragState = useUIStore(s => s.nodeDragState)
+  const targetLocked = useTargetLocked(target)
+
+  // Anchor the edge on its slot within the grown handle. React Flow reports targetY at the
+  // handle's vertical center; slotOffsetY spreads the group symmetrically around it using
+  // the orderIndex/groupSize caches maintained by normalizeMultiInputEdges.
+  const { orderIndex = 0, groupSize = 1 } = (data ?? {}) as Partial<MultiInputEdgeData>
+
+  const [edgePath] = getBezierPath({
+    sourceX,
+    sourceY,
+    targetX,
+    targetY: targetY + slotOffsetY(orderIndex, groupSize),
+    sourcePosition: sourcePosition || Position.Right,
+    targetPosition: targetPosition || Position.Left,
+  })
+
+  const isConnectionTarget = targetedEdge?.id === id
+  const isNodeDropTarget = nodeDragState?.targetedEdge?.id === id
+
+  let edgeClassName: string | undefined
+  if (isConnectionTarget) {
+    edgeClassName = targetedEdge.compatible ? s.targetedEdge : s.targetedEdgeIncompatible
+  } else if (isNodeDropTarget) {
+    edgeClassName = nodeDragState.targetedEdge.canInsert
+      ? s.targetedEdge
+      : s.targetedEdgeIncompatible
+  }
+
+  return (
+    <BaseEdge
+      path={edgePath}
+      markerEnd={markerEnd}
+      style={style}
+      className={edgeClassName ?? (targetLocked ? s.lockedEdge : undefined)}
+    />
   )
 }
 
@@ -174,8 +444,16 @@ export function getNodeDescription(type: NodeType): string {
 }
 
 export function typeCategory(type: NodeType) {
+  // Check for type directly first (handles mathOps like AddOp, MultiplyOp, etc.)
   for (const [category, types] of Object.entries(categories)) {
     if ((types as readonly string[]).includes(type)) {
+      return toPascal(category)
+    }
+  }
+  // Fall back to checking display name (handles regular operators)
+  const displayName = nodeTypeToDisplayName(type)
+  for (const [category, types] of Object.entries(categories)) {
+    if ((types as readonly string[]).includes(displayName)) {
       return toPascal(category)
     }
   }
@@ -199,12 +477,30 @@ const headerClasses = {
   widget: s.headerWidget,
 } as const as Record<keyof typeof categories, string>
 
+const categoryCache = new Map<string, string>()
+
 export function headerClass(type: NodeType) {
+  // Check cache first for O(1) lookup
+  if (categoryCache.has(type)) {
+    return headerClasses[categoryCache.get(type) as keyof typeof categories]
+  }
+
+  // Check for type directly first (handles mathOps like AddOp, MultiplyOp, etc.)
   for (const [category, types] of Object.entries(categories)) {
     if ((types as readonly string[]).includes(type)) {
+      categoryCache.set(type, category)
       return headerClasses[category]
     }
   }
+  // Fall back to checking display name (handles regular operators)
+  const displayName = nodeTypeToDisplayName(type)
+  for (const [category, types] of Object.entries(categories)) {
+    if ((types as readonly string[]).includes(displayName)) {
+      categoryCache.set(type, category)
+      return headerClasses[category]
+    }
+  }
+  categoryCache.set(type, 'data')
   return s.headerData
 }
 
@@ -221,13 +517,14 @@ const handleClasses = {
   effect: s.handleEffect,
   expression: s.handleCode,
   extension: s.handleExtension,
-  file: s.handleString,
+  'file-url': s.handleString,
   function: s.handleCode,
+  geojson: s.handleGeojson,
   'geopoint-2d': s.handleVector,
   'geopoint-3d': s.handleVector,
-  'json-url': s.handleString,
   layer: s.handleLayer,
   list: s.handleList,
+  'map-style': s.handleString,
   number: s.handleNumber,
   string: s.handleString,
   'string-literal': s.handleString,
@@ -241,10 +538,11 @@ const handleClasses = {
 } as const as Record<keyof typeof inputComponents, string>
 
 export const handleClass = (field: Field<IField>): string => {
+  const { type } = field.constructor as typeof Field
   if (field instanceof ListField || field instanceof ArrayField) {
-    return cx(handleClasses[field.constructor.type], handleClass(field.field))
+    return cx(handleClasses[type], handleClass(field.field))
   }
-  return handleClasses[field.constructor.type]
+  return handleClasses[type]
 }
 
 export const SOURCE_HANDLE = 'source'
@@ -252,125 +550,59 @@ export const TARGET_HANDLE = 'target'
 export const PAR_NAMESPACE = 'par'
 export const OUT_NAMESPACE = 'out'
 
-function colorToTheatreColor(color: [number, number, number, number] | string): Rgba {
-  const val =
-    typeof color === 'string' && isHexColor(color)
-      ? hexToRgba(color)
-      : Array.isArray(color)
-        ? colorToRgba(color)
-        : color
-  return val as Rgba
-}
+// Stable constant - avoids creating a new object on every render inside .map()
+export const PAR_HANDLE_OPTIONS = { type: TARGET_HANDLE, namespace: PAR_NAMESPACE } as const
 
-function fieldToTheatreProp(input: Field<IField>, fields: [string, Field<IField>][]) {
-  try {
-    if (input instanceof NumberField) {
-      return types.number(input.value, {
-        range: [input.min, input.max],
-        nudgeMultiplier: input.step,
-      })
-    }
-    if (input instanceof BooleanField) {
-      return types.boolean(input.value)
-    }
-    if (input instanceof StringField) {
-      return types.string(input.value)
-    }
-    if (input instanceof StringLiteralField) {
-      return types.stringLiteral(
-        input.value,
-        Object.fromEntries(input.choices.map(({ label, value }) => [label, value]))
-      )
-    }
-    if (input instanceof ColorField) {
-      return types.rgba(colorToTheatreColor(input.value))
-    }
-    if (input instanceof DateField) {
-      // Convert Temporal.PlainDateTime to epoch milliseconds for Theatre.js
-      const instant = input.value.toZonedDateTime('UTC').toInstant()
-      return types.number(instant.epochMilliseconds)
-    }
-    if (input instanceof CompoundPropsField) {
-      return types.compound(fieldsToTheatreProps({}, input.fields, fields))
-    }
-    if (input instanceof Vec2Field) {
-      return types.compound({
-        x: types.number('x' in input.value ? input.value.x : input.value[0]),
-        y: types.number('y' in input.value ? input.value.y : input.value[1]),
-      })
-    }
-    if (input instanceof Vec3Field) {
-      return types.compound({
-        x: types.number('x' in input.value ? input.value.x : input.value[0]),
-        y: types.number('y' in input.value ? input.value.y : input.value[1]),
-        z: types.number('z' in input.value ? input.value.z : input.value[2]),
-      })
-    }
-    if (input instanceof Point2DField) {
-      return types.compound({
-        lng: types.number('lng' in input.value ? input.value.lng : input.value[0]),
-        lat: types.number('lat' in input.value ? input.value.lat : input.value[1]),
-      })
-    }
-    if (input instanceof Point3DField) {
-      return types.compound({
-        lng: types.number('lng' in input.value ? input.value.lng : input.value[0]),
-        lat: types.number('lat' in input.value ? input.value.lat : input.value[1]),
-        alt: types.number('alt' in input.value ? input.value.alt : input.value[2]),
-      })
-    }
-  } catch (e) {
-    // When thrown, theatre will create a Sheet Object for this field, and this should subsequently be addressed.
-    const link = input.subscriptions.keys().next().value
-    console.error(`Caught TheatreJS prop error (${link})`, e)
-  }
-}
-function fieldsToTheatreProps(
-  propConfig: Record<string, types.PropTypeConfig>,
-  inputs: Record<string, Field<IField>>,
-  fields: Field<IField>[]
-) {
-  const theatreFields = Object.entries(inputs)
-    .map(([k, f]) => (f instanceof ListField ? [k, f.field] : [k, f]))
-    .filter(
-      ([_, f]) =>
-        // Accessor functions should not be passed to Theatre
-        typeof f.value !== 'function'
-    )
-    .filter(
-      ([_, f]) =>
-        f instanceof NumberField ||
-        f instanceof ColorField ||
-        f instanceof DateField ||
-        f instanceof BooleanField ||
-        f instanceof StringField ||
-        f instanceof StringLiteralField ||
-        f instanceof CompoundPropsField ||
-        f instanceof Vec2Field ||
-        f instanceof Vec3Field ||
-        f instanceof Point2DField ||
-        f instanceof Point3DField
-    )
-
-  for (const [key, field] of theatreFields) {
-    const theatreProp = fieldToTheatreProp(field, fields)
-    if (theatreProp) {
-      propConfig[key] = theatreProp
-      fields.push([key, field])
-    }
-  }
-  return propConfig
-}
-
-function useLocked(op: Operator<IOperator>) {
-  const [locked, setLocked] = useState(op.locked.value)
+export function useLocked(op: Operator<IOperator> | undefined) {
+  const [locked, setLocked] = useState(op?.locked.value ?? false)
   useEffect(() => {
-    op.locked.subscribe(setLocked)
+    if (!op) return
+    const subscription = op.locked.subscribe(setLocked)
+    return () => subscription.unsubscribe()
   }, [op])
   return locked
 }
 
-function HandlePreviewContent({ data, name, type }: { data: unknown; name: string; type: string }) {
+function useBreakpoint(op: Operator<IOperator> | undefined): [boolean, (checked: boolean) => void] {
+  const [enabled, setEnabled] = useState(op?.breakpointEnabled.value ?? false)
+
+  useEffect(() => {
+    if (!op) return
+    const subscription = op.breakpointEnabled.subscribe(setEnabled)
+    return () => subscription.unsubscribe()
+  }, [op])
+
+  const toggle = useCallback(
+    (checked: boolean) => {
+      op?.breakpointEnabled.next(checked)
+    },
+    [op]
+  )
+
+  return [enabled, toggle]
+}
+
+// Hook to subscribe to field visibility changes and trigger re-render
+export function useFieldVisibility(op: Operator<IOperator> | undefined) {
+  const [, setVisibility] = useState(op?.visibleFields.value)
+  useEffect(() => {
+    if (!op) return
+    const subscription = op.visibleFields.subscribe(setVisibility)
+    return () => subscription.unsubscribe()
+  }, [op])
+}
+
+export function HandlePreviewContent({
+  data,
+  name,
+  type,
+  collapsed,
+}: {
+  data: unknown
+  name: string
+  type: string
+  collapsed?: boolean | number
+}) {
   return (
     <>
       <div className={previewStyles.handlePreviewHeader}>
@@ -383,14 +615,23 @@ function HandlePreviewContent({ data, name, type }: { data: unknown; name: strin
         ) : data instanceof Element ? (
           <ViewerDOMContent content={data} />
         ) : data instanceof Set ? (
-          <ReactJson src={Array.from(data)} theme="twilight" collapsed={1} />
+          <ReactJson src={Array.from(data)} theme="twilight" collapsed={collapsed ?? 1} />
         ) : Array.isArray(data) &&
           data.length > 0 &&
           data.length < 10 &&
           isPlainObject(data[0]) &&
           Object.keys(data[0]).length < 10 ? (
           (() => {
-            const keys = Object.keys(data[0] || {})
+            // Derive union of all keys across rows to avoid silently dropping columns
+            const allKeys = new Set<string>()
+            for (const row of data) {
+              if (isPlainObject(row)) {
+                for (const key of Object.keys(row)) {
+                  allKeys.add(key)
+                }
+              }
+            }
+            const keys = Array.from(allKeys)
             return (
               <table className={previewStyles.handlePreviewTable}>
                 <thead>
@@ -402,10 +643,15 @@ function HandlePreviewContent({ data, name, type }: { data: unknown; name: strin
                 </thead>
                 <tbody>
                   {data.map((row, i) => (
-                    <tr key={i}>
+                    // biome-ignore lint/suspicious/noArrayIndexKey: read-only preview rows have no id
+                    <tr key={`row-${i}-${JSON.stringify(row).slice(0, 50)}`}>
                       {keys.map(key => (
                         <td key={key}>
-                          {typeof row[key] === 'string' ? row[key] : JSON.stringify(row[key])}
+                          {key in (row as Record<string, unknown>)
+                            ? typeof row[key] === 'string'
+                              ? row[key]
+                              : JSON.stringify(row[key])
+                            : ''}
                         </td>
                       ))}
                     </tr>
@@ -415,11 +661,11 @@ function HandlePreviewContent({ data, name, type }: { data: unknown; name: strin
             )
           })()
         ) : data instanceof Operator ? (
-          <ReactJson src={data} theme="twilight" />
+          <ReactJson src={data} theme="twilight" collapsed={collapsed} />
         ) : data instanceof Promise ? (
           <div className={previewStyles.handlePreviewEmpty}>Loading...</div>
         ) : (
-          <ReactJson src={data} theme="twilight" />
+          <ReactJson src={data} theme="twilight" collapsed={collapsed} />
         )}
       </div>
     </>
@@ -427,9 +673,10 @@ function HandlePreviewContent({ data, name, type }: { data: unknown; name: strin
 }
 
 // Output handle component that renders just a handle (no label, no input UI)
-function OutputHandle({ id, field }: { id: string; field: Field<IField> }) {
+export function OutputHandle({ id, field }: { id: string; field: Field<IField> }) {
   const nid = useNodeId()
   const qualifiedFieldId = `${OUT_NAMESPACE}.${id}`
+  const isHandleDimmed = useHandleDimmed(nid ?? '', qualifiedFieldId)
 
   // Handle preview state
   const [previewData, setPreviewData] = useState<unknown>(null)
@@ -449,7 +696,7 @@ function OutputHandle({ id, field }: { id: string; field: Field<IField> }) {
         // Get the handle's position in the viewport
         const rect = currentTarget.getBoundingClientRect()
         setPreviewPosition({ x: rect.right, y: rect.top })
-        setPreviewData(viewerFormatter(field.value))
+        setPreviewData(formatViewerValue(field.value))
       }, 1000)
     },
     [field, nid, qualifiedFieldId]
@@ -475,11 +722,13 @@ function OutputHandle({ id, field }: { id: string; field: Field<IField> }) {
     }
   }, [])
 
+  const { type } = field.constructor as typeof Field
+
   return (
     <div style={{ position: 'relative', flex: 1, pointerEvents: 'auto' }}>
       <Handle
         id={qualifiedFieldId}
-        className={handleClass(field)}
+        className={cx(handleClass(field), { [s.handleDimmed]: isHandleDimmed })}
         style={{ transform: 'translate(4px, -50%)' }}
         type="source"
         position={Position.Right}
@@ -495,7 +744,7 @@ function OutputHandle({ id, field }: { id: string; field: Field<IField> }) {
               top: `${previewPosition.y}px`,
             }}
           >
-            <HandlePreviewContent data={previewData} name={id} type={field.constructor.type} />
+            <HandlePreviewContent data={previewData} name={id} type={type} />
           </div>,
           document.body
         )}
@@ -503,135 +752,538 @@ function OutputHandle({ id, field }: { id: string; field: Field<IField> }) {
   )
 }
 
+// Hook to subscribe to field value changes for reactive enable expressions
+// Only subscribes to fields referenced in enable expressions for performance
+function useFieldValueChanges(op: Operator<IOperator> | undefined) {
+  const [, forceUpdate] = useState(0)
+
+  useEffect(() => {
+    if (!op) return
+    const customFieldDefs = op.customInputDefinitions
+    if (!customFieldDefs || customFieldDefs.length === 0) {
+      return
+    }
+
+    // Collect fields referenced in enable expressions
+    const referencedFields = new Set<string>()
+    for (const def of customFieldDefs) {
+      if (def.enableExpression) {
+        const deps = getEnableExpressionDependencies(def.enableExpression)
+        for (const dep of deps) {
+          if (dep.type === 'local-par') {
+            referencedFields.add(dep.field)
+          }
+        }
+      }
+    }
+
+    if (referencedFields.size === 0) {
+      return
+    }
+
+    // Subscribe only to referenced fields
+    const allInputs = (op.constructor as typeof Operator).supportsCustomFields
+      ? op.getAllInputs()
+      : op.inputs
+    const subscriptions = Array.from(referencedFields)
+      .map(fieldName => allInputs[fieldName])
+      .filter(Boolean)
+      .map(field => field.subscribe(() => forceUpdate(n => n + 1)))
+
+    return () => {
+      for (const sub of subscriptions) sub.unsubscribe()
+    }
+  }, [op])
+}
+
 function NodeComponent({
   id,
   type,
   selected,
 }: ReactFlowNodeProps<NodeDataJSON<Operator<IOperator>>> & { type: OpType }) {
-  const op = useOp(id)
-
-  const sheet = useContext(SheetContext) as ISheet
-  const sheetObjects = useSlice(state => state.sheetObjects)
+  const op = getOp(id as string)
 
   const locked = useLocked(op)
-
-  useEffect(() => {
-    const untapFns = [] as (() => void)[]
-    const fields = [] as [string, Field<IField>][]
-    const propConfig = fieldsToTheatreProps({}, op.inputs, fields)
-
-    if (!Object.keys(propConfig).length) return
-
-    const basename = getBaseName(id)
-    const obj = sheet.object(basename, propConfig)
-    sheetObjects.set(id, obj)
-
-    for (const [_key, input] of fields) {
-      const pathToProps = input.pathToProps.slice(2) // Skip the object id and par/out keys
-      let updating = false
-      let pointer = obj.props
-      for (const p of pathToProps) {
-        pointer = pointer[p]
-      }
-      const unsub = input.subscribe(value_ => {
-        if (op.locked.value) return
-        // Note: Transactions can only run after the theatre project is "ready"
-        if (updating) return
-        updating = true
-
-        try {
-          // Try to detect an infinite loop for setting values to Theatre
-          const value = input instanceof ColorField ? colorToTheatreColor(value_) : value_
-
-          // TODO: This has a bug with StringLiterals where the value is not updated, but removing
-          // the value check causes another bug.
-
-          // Prevent infinite loop
-          if (input instanceof CompoundPropsField) {
-            updating = false
-            return
-          }
-
-          // Read the current value BEFORE entering the transaction
-          // Cannot use val() inside a transaction as it reads from a cold prism
-          const currentValue = val(pointer)
-
-          if (currentValue !== value) {
-            studio.transaction(({ set }) => {
-              set(pointer, value)
-            })
-          }
-        } catch (e) {
-          console.warn(e)
-          debugger
-        }
-        updating = false
-      })
-      untapFns.push(unsub.unsubscribe.bind(unsub))
-
-      // Parse Theatre values to Op input field types
-      const untapFn = onChange(pointer, value_ => {
-        if (op.locked.value) return
-        try {
-          if (updating) return
-          updating = true
-
-          const value =
-            input instanceof ColorField
-              ? rgbaToHex(value_)
-              : input instanceof DateField
-                ? Temporal.Instant.fromEpochMilliseconds(value_ as unknown as number)
-                    .toZonedDateTimeISO('UTC')
-                    .toPlainDateTime()
-                : value_
-
-          if (input.value !== value && value !== undefined) {
-            input.setValue(value)
-          }
-        } catch (_e) {
-          debugger
-        }
-        updating = false
-      })
-      untapFns.push(untapFn)
-    }
-
-    return () => {
-      for (const untapFn of untapFns) {
-        untapFn()
-      }
-      sheet?.detachObject(basename)
-      sheetObjects.delete(id)
-    }
-  }, [sheet, op.locked.value, id, op.inputs, sheetObjects])
-
+  const [breakpointEnabled, toggleBreakpoint] = useBreakpoint(op)
   const executionState = useExecutionState(op)
+  const connectionErrors = useConnectionErrors(op)
+  const hasConnectionErrors = connectionErrors.size > 0
+  const isDimmed = useNodeDimmed(id)
+  const isDropTarget = useUIStore(
+    s => s.nodeDragState?.nodeId === id && s.nodeDragState?.targetedEdge !== null
+  )
+  useFieldVisibility(op)
+
+  // Subscribe to field value changes for reactive enable expressions
+  useFieldValueChanges(op)
+
+  // Get all inputs (including custom fields for operators that support them)
+  const allInputs = op
+    ? (op.constructor as typeof Operator).supportsCustomFields
+      ? op.getAllInputs()
+      : op.inputs
+    : {}
+
+  // Get custom field definitions for enable expression checking
+  const customFieldDefs = op?.customInputDefinitions ?? []
+  const builtInFieldNames = op ? Object.keys(op.createInputs()) : []
+
+  // Track enable expression errors
+  const [enableExpressionErrors, setEnableExpressionErrors] = useState<Map<string, string>>(
+    new Map()
+  )
+
+  // Check if a field should be visible based on its enable expression
+  const isFieldEnabled = useCallback(
+    (fieldName: string): boolean => {
+      // Built-in fields are always enabled
+      if (!op || builtInFieldNames.includes(fieldName)) {
+        return true
+      }
+      // Find the custom field definition
+      const def = customFieldDefs.find(d => d.name === fieldName)
+      if (!def?.enableExpression) {
+        return true // No expression means always enabled
+      }
+      const result = evaluateEnableExpression(def.enableExpression, op, getOp)
+
+      // Track errors for display
+      if (result.error) {
+        setEnableExpressionErrors(prev => {
+          const next = new Map(prev)
+          next.set(fieldName, result.error!)
+          return next
+        })
+      } else {
+        setEnableExpressionErrors(prev => {
+          if (prev.has(fieldName)) {
+            const next = new Map(prev)
+            next.delete(fieldName)
+            return next
+          }
+          return prev
+        })
+      }
+
+      return result.enabled
+    },
+    [builtInFieldNames, customFieldDefs, op]
+  )
+
+  if (!op) return null
+
+  return (
+    <ContextMenu.Root>
+      <ContextMenu.Trigger asChild>
+        <div
+          className={cx(s.wrapper, {
+            [s.wrapperError]:
+              executionState.status === 'error' ||
+              hasConnectionErrors ||
+              enableExpressionErrors.size > 0,
+            [s.wrapperExecuting]: executionState.status === 'executing',
+            [s.wrapperDimmed]: isDimmed,
+            [s.nodeDropTarget]: isDropTarget,
+          })}
+        >
+          <NodeHeader
+            id={id}
+            type={type}
+            op={op}
+            connectionErrors={connectionErrors}
+            enableExpressionErrors={enableExpressionErrors}
+          />
+          {(resizeableNodes as readonly string[]).includes(type) && (
+            <NodeResizer isVisible={selected} minWidth={200} minHeight={100} />
+          )}
+          <div className={s.content}>
+            {Object.entries(allInputs)
+              .filter(([key]) => op.isFieldVisible(key) && isFieldEnabled(key))
+              .map(([key, field]) => (
+                <FieldComponent
+                  key={key}
+                  id={key}
+                  field={field}
+                  disabled={locked}
+                  handle={PAR_HANDLE_OPTIONS}
+                />
+              ))}
+            <div className={s.outputHandleContainer}>
+              {Object.entries(op.outputs).map(([key, field]) => (
+                <OutputHandle key={key} id={key} field={field} />
+              ))}
+            </div>
+          </div>
+        </div>
+      </ContextMenu.Trigger>
+
+      <ContextMenu.Portal>
+        <ContextMenu.Content className={s.contextMenu} sideOffset={5}>
+          <ContextMenu.CheckboxItem
+            className={s.contextMenuItem}
+            checked={breakpointEnabled}
+            onCheckedChange={toggleBreakpoint}
+          >
+            <ContextMenu.ItemIndicator className={s.contextMenuIndicator}>
+              <i className="pi pi-check" style={{ fontSize: '12px' }} />
+            </ContextMenu.ItemIndicator>
+            Debug Breakpoint
+          </ContextMenu.CheckboxItem>
+        </ContextMenu.Content>
+      </ContextMenu.Portal>
+    </ContextMenu.Root>
+  )
+}
+
+// Renders a popover anchored directly to the trigger element via position:absolute
+// so it stays inside the ReactFlow canvas coordinate space (avoids fixed-positioning
+// issues caused by CSS transforms on the ReactFlow viewport).
+function ErrorPopover({
+  error,
+  trigger,
+  open,
+  onDismiss,
+}: {
+  error: string
+  trigger: ReactNode
+  open: boolean
+  onDismiss: () => void
+}) {
+  const handleTriggerClick = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation()
+      navigator.clipboard
+        .writeText(error)
+        .then(() => {
+          console.log('[Noodles] Error copied to clipboard')
+        })
+        .catch(err => {
+          console.error('[Noodles] Failed to copy error:', err)
+        })
+    },
+    [error]
+  )
+
+  const handleCloseClick = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation()
+      e.preventDefault()
+      onDismiss()
+    },
+    [onDismiss]
+  )
+
+  return (
+    <div className={s.errorPopoverAnchor}>
+      <button
+        type="button"
+        className={s.errorPopoverTrigger}
+        onClick={handleTriggerClick}
+        title="Click to copy error"
+      >
+        {trigger}
+      </button>
+      {open && (
+        <div className={s.errorPopover}>
+          <span className={s.errorPopoverMessage}>{error}</span>
+          <button className={s.errorPopoverClose} onClick={handleCloseClick} type="button">
+            <i className="pi pi-times" />
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function makeDefaultStops(): RampStop[] {
+  return [
+    { id: crypto.randomUUID(), pos: 0, val: 0, interp: 'smooth' },
+    { id: crypto.randomUUID(), pos: 1, val: 1, interp: 'smooth' },
+  ]
+}
+
+function RampOpComponent({
+  id,
+  type,
+}: ReactFlowNodeProps<NodeDataJSON<RampOp>> & { type: 'RampOp' }) {
+  const op = getOp(id as string) as RampOp | undefined
+  const locked = useLocked(op)
+  const posInputId = useId()
+  const valInputId = useId()
+  const executionState = useExecutionState(op)
+  const connectionErrors = useConnectionErrors(op)
+  const hasConnectionErrors = connectionErrors.size > 0
+  const isDimmed = useNodeDimmed(id)
+
+  const [stops, setStops] = useState<RampStop[]>(() => {
+    const v = op?.inputs.stops.value as RampStop[] | null | undefined
+    return v && v.length > 0 ? v : makeDefaultStops()
+  })
+  const [activeStopId, setActiveStopId] = useState<string | null>(() => {
+    const v = op?.inputs.stops.value as RampStop[] | null | undefined
+    const s = v && v.length > 0 ? v : makeDefaultStops()
+    return s[0]?.id ?? null
+  })
+
+  // Subscribe to stops to handle undo/redo and project load
+  useEffect(() => {
+    if (!op) return
+    const stopsSub = op.inputs.stops.subscribe(newVal => {
+      const v = newVal as RampStop[] | null
+      const nextStops = v && v.length > 0 ? v : makeDefaultStops()
+      setStops(nextStops)
+      // Keep active stop if still present, otherwise fall back to first
+      setActiveStopId(prev =>
+        nextStops.find(s => s.id === prev) ? prev : (nextStops[0]?.id ?? null)
+      )
+    })
+    return () => stopsSub.unsubscribe()
+  }, [op])
+
+  // Seed default stops on first render if empty
+  useEffect(() => {
+    if (!op) return
+    const v = op.inputs.stops.value as RampStop[] | null
+    if (!v || v.length === 0) op.inputs.stops.setValue(makeDefaultStops())
+  }, [op])
+
+  // History helpers
+  const { captureStart, commitChange } = usePropertyHistory()
+
+  // Continuous drag update — no history commit per frame; history bracketed by drag start/end
+  const handleChange = useCallback(
+    (newStops: RampStop[]) => {
+      if (locked || !op) return
+      op.inputs.stops.setValue(newStops)
+    },
+    [op, locked]
+  )
+
+  // Structural change (add/delete from ramp-editor) — atomic history commit
+  const handleStructuralChange = useCallback(
+    (newStops: RampStop[], description: string) => {
+      if (locked || !op) return
+      const before = captureOperatorInputs()
+      op.inputs.stops.setValue(newStops)
+      firePropertyMutation(description, before)
+    },
+    [op, locked]
+  )
+
+  const handleDragStart = useCallback(() => captureStart(), [captureStart])
+  const handleDragEnd = useCallback(() => commitChange('Move ramp stop'), [commitChange])
+
+  const activeStop = stops.find(s => s.id === activeStopId) ?? null
+
+  const handleActivate = useCallback((stopId: string) => setActiveStopId(stopId), [])
+
+  // Debounced history commit for continuous text input
+  const inputBeforeRef = useRef<string | null>(null)
+  const inputTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const commitInputDebounced = useCallback((description: string) => {
+    if (inputTimerRef.current) clearTimeout(inputTimerRef.current)
+    inputTimerRef.current = setTimeout(() => {
+      if (inputBeforeRef.current !== null) {
+        firePropertyMutation(description, inputBeforeRef.current)
+        inputBeforeRef.current = null
+      }
+    }, 600)
+  }, [])
+
+  const handlePosChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      if (!activeStopId || locked || !op) return
+      const sorted = [...stops].sort((a, b) => a.pos - b.pos)
+      const isFirst = sorted[0]?.id === activeStopId
+      const isLast = sorted[sorted.length - 1]?.id === activeStopId
+      if (isFirst || isLast) return
+      const pos = Math.max(0, Math.min(1, Number.parseFloat(e.target.value)))
+      if (Number.isNaN(pos)) return
+      if (inputBeforeRef.current === null) inputBeforeRef.current = captureOperatorInputs()
+      op.inputs.stops.setValue(
+        stops.map(s => (s.id === activeStopId ? { ...s, pos } : s)).sort((a, b) => a.pos - b.pos)
+      )
+      commitInputDebounced('Update ramp stop position')
+    },
+    [activeStopId, locked, stops, op, commitInputDebounced]
+  )
+
+  const handleValChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      if (!activeStopId || locked || !op) return
+      const val = Math.max(0, Math.min(1, Number.parseFloat(e.target.value)))
+      if (Number.isNaN(val)) return
+      if (inputBeforeRef.current === null) inputBeforeRef.current = captureOperatorInputs()
+      op.inputs.stops.setValue(stops.map(s => (s.id === activeStopId ? { ...s, val } : s)))
+      commitInputDebounced('Update ramp stop value')
+    },
+    [activeStopId, locked, stops, op, commitInputDebounced]
+  )
+
+  const handleInterpChange = useCallback(
+    (interp: RampInterpType) => {
+      if (!activeStopId || locked || !op) return
+      const before = captureOperatorInputs()
+      op.inputs.stops.setValue(stops.map(s => (s.id === activeStopId ? { ...s, interp } : s)))
+      firePropertyMutation('Change ramp interpolation', before)
+    },
+    [activeStopId, locked, stops, op]
+  )
+
+  const handleDeleteActiveStop = useCallback(() => {
+    if (!activeStopId || locked || stops.length <= 2 || !op) return
+    const before = captureOperatorInputs()
+    op.inputs.stops.setValue(stops.filter(s => s.id !== activeStopId))
+    firePropertyMutation('Delete ramp stop', before)
+  }, [activeStopId, locked, stops, op])
+
+  const canDelete = !!activeStop && stops.length > 2
+
+  if (!op) return null
 
   return (
     <div
       className={cx(s.wrapper, {
-        [s.wrapperError]: executionState.status === 'error',
+        [s.wrapperError]: executionState.status === 'error' || hasConnectionErrors,
         [s.wrapperExecuting]: executionState.status === 'executing',
+        [s.wrapperDimmed]: isDimmed,
       })}
     >
-      <NodeHeader id={id} type={type} op={op} />
-      {resizeableNodes.includes(type) && (
-        <NodeResizer isVisible={selected} minWidth={200} minHeight={100} />
-      )}
+      <NodeHeader id={id} type={type} op={op} connectionErrors={connectionErrors} />
       <div className={s.content}>
-        {Object.entries(op.inputs).map(([key, field]) => (
-          <FieldComponent
-            key={key}
-            id={key}
-            field={field}
+        <FieldComponent
+          id="position"
+          field={op.inputs.position}
+          disabled={locked}
+          handle={PAR_HANDLE_OPTIONS}
+        />
+        <div style={{ position: 'relative', padding: '4px 0' }}>
+          <RampEditor
+            stops={stops}
+            onChange={handleChange}
+            onStructuralChange={handleStructuralChange}
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
             disabled={locked}
-            handle={{ type: TARGET_HANDLE, namespace: PAR_NAMESPACE }}
+            activeStopId={activeStopId}
+            onActivate={handleActivate}
           />
-        ))}
+          {canDelete && !locked && (
+            <button
+              type="button"
+              title="Delete stop"
+              onClick={handleDeleteActiveStop}
+              style={{
+                position: 'absolute',
+                top: 8,
+                right: 4,
+                width: 16,
+                height: 16,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: 0,
+                background: 'rgba(30,38,52,0.85)',
+                border: '1px solid rgba(255,255,255,0.2)',
+                borderRadius: 3,
+                color: '#e2dede',
+                cursor: 'pointer',
+                fontSize: 14,
+                lineHeight: 1,
+              }}
+            >
+              −
+            </button>
+          )}
+        </div>
+        <div className={s.fieldWrapper}>
+          <span className={s.fieldLabel} style={{ whiteSpace: 'nowrap' }}>
+            {activeStop ? `stop ${stops.indexOf(activeStop) + 1}` : 'stop'}
+          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, flex: 2, minWidth: 0 }}>
+            <label
+              className={s.fieldLabelVector}
+              htmlFor={posInputId}
+              title="position"
+              style={{ cursor: 'default', flexShrink: 0 }}
+            >
+              p
+            </label>
+            <input
+              id={posInputId}
+              type="number"
+              className={s.fieldInput}
+              value={activeStop?.pos.toFixed(3) ?? ''}
+              min={0}
+              max={1}
+              step={0.001}
+              disabled={locked || !activeStop}
+              onChange={handlePosChange}
+              style={{ flex: 1, minWidth: 0 }}
+            />
+            <label
+              className={s.fieldLabelVector}
+              htmlFor={valInputId}
+              title="value"
+              style={{ cursor: 'default', flexShrink: 0 }}
+            >
+              v
+            </label>
+            <input
+              id={valInputId}
+              type="number"
+              className={s.fieldInput}
+              value={activeStop?.val.toFixed(3) ?? ''}
+              min={0}
+              max={1}
+              step={0.001}
+              disabled={locked || !activeStop}
+              onChange={handleValChange}
+              style={{ flex: 1, minWidth: 0 }}
+            />
+          </div>
+        </div>
+        <div className={s.fieldWrapper}>
+          <span className={s.fieldLabel}>interp</span>
+          <div
+            style={{
+              display: 'flex',
+              borderRadius: 12,
+              overflow: 'hidden',
+              border: '1px solid rgba(255,255,255,0.15)',
+              opacity: !activeStop ? 0.4 : 1,
+            }}
+          >
+            {(['linear', 'smooth', 'hold'] as RampInterpType[]).map((type, i) => {
+              const active = (activeStop?.interp ?? 'smooth') === type
+              return (
+                <button
+                  key={type}
+                  type="button"
+                  style={{
+                    flex: 1,
+                    padding: '4px 8px',
+                    fontSize: '0.75em',
+                    fontWeight: active ? 600 : 400,
+                    cursor: locked || !activeStop ? 'default' : 'pointer',
+                    background: active ? '#3b82f6' : 'transparent',
+                    color: active ? '#fff' : 'rgba(255,255,255,0.55)',
+                    border: 'none',
+                    borderLeft: i > 0 ? '1px solid rgba(255,255,255,0.15)' : 'none',
+                    transition: 'background 0.1s, color 0.1s',
+                  }}
+                  disabled={locked || !activeStop}
+                  onClick={() => handleInterpChange(type)}
+                >
+                  {type}
+                </button>
+              )
+            })}
+          </div>
+        </div>
         <div className={s.outputHandleContainer}>
-          {Object.entries(op.outputs).map(([key, field]) => (
-            <OutputHandle key={key} id={key} field={field} />
-          ))}
+          <OutputHandle id="value" field={op.outputs.value} />
         </div>
       </div>
     </div>
@@ -642,43 +1294,123 @@ const ExecutionIndicator = ({ status, error, executionTime }: ExecutionState) =>
   switch (status) {
     case 'executing':
       return (
-        <div
+        <span
           className={cx(s.executionIndicator, s.executionIndicatorExecuting)}
           title="Executing..."
         >
           <i className="pi pi-spin pi-spinner" />
-        </div>
+        </span>
       )
     case 'error':
       return (
-        <div
-          className={cx(s.executionIndicator, s.executionIndicatorError)}
-          title={`Error: ${error}`}
-        >
+        <span className={cx(s.executionIndicator, s.executionIndicatorError)}>
           <i className="pi pi-exclamation-triangle" />
-        </div>
+        </span>
       )
     case 'success':
       return executionTime && executionTime > SLOW_EXECUTION_THRESHOLD_MS ? (
-        <div
+        <span
           className={cx(s.executionIndicator, s.executionIndicatorSlow)}
           title={`Executed in ${executionTime.toFixed(1)}ms`}
         >
           <i className="pi pi-clock" />
-        </div>
+        </span>
       ) : null
     default:
       return null
   }
 }
 
-const headerHeight = 49
-function NodeHeader({ id, type, op }: { id: string; type: OpType; op: OperatorInstance }) {
+export function NodeHeader({
+  id,
+  type,
+  op,
+  connectionErrors,
+  enableExpressionErrors,
+}: {
+  id: string
+  type: OpType
+  op: Operator<IOperator>
+  connectionErrors?: Map<string, string>
+  enableExpressionErrors?: Map<string, string>
+}) {
   const [locked, setLocked] = useState(op.locked.value)
   const executionState = useExecutionState(op)
+  const hasConnectionErrors = connectionErrors && connectionErrors.size > 0
+  const hasEnableExpressionErrors = enableExpressionErrors && enableExpressionErrors.size > 0
 
+  // Popover visibility state for execution errors
+  const [execAutoShow, setExecAutoShow] = useState(false)
+  const [execDismissed, setExecDismissed] = useState(false)
+  // Popover visibility state for connection errors
+  const [connAutoShow, setConnAutoShow] = useState(false)
+  const [connDismissed, setConnDismissed] = useState(false)
+  // Popover visibility state for enable expression errors
+  const [exprAutoShow, setExprAutoShow] = useState(false)
+  const [exprDismissed, setExprDismissed] = useState(false)
+  const [headerHovered, setHeaderHovered] = useState(false)
+
+  const execErrorKey = executionState.status === 'error' ? (executionState.error ?? '') : null
+  const connErrorKey = hasConnectionErrors
+    ? Array.from(connectionErrors!.values()).join('\n')
+    : null
+  const exprErrorKey = hasEnableExpressionErrors
+    ? Array.from(enableExpressionErrors!.entries())
+        .map(([field, error]) => `${field}: ${error}`)
+        .join('\n')
+    : null
+
+  useEffect(() => {
+    if (execErrorKey !== null) {
+      setExecAutoShow(true)
+      setExecDismissed(false)
+      const t = setTimeout(() => setExecAutoShow(false), 10_000)
+      return () => clearTimeout(t)
+    }
+    setExecAutoShow(false)
+    setExecDismissed(false)
+  }, [execErrorKey])
+
+  useEffect(() => {
+    if (connErrorKey !== null) {
+      setConnAutoShow(true)
+      setConnDismissed(false)
+      const t = setTimeout(() => setConnAutoShow(false), 10_000)
+      return () => clearTimeout(t)
+    }
+    setConnAutoShow(false)
+    setConnDismissed(false)
+  }, [connErrorKey])
+
+  useEffect(() => {
+    if (exprErrorKey !== null) {
+      setExprAutoShow(true)
+      setExprDismissed(false)
+      const t = setTimeout(() => setExprAutoShow(false), 10_000)
+      return () => clearTimeout(t)
+    }
+    setExprAutoShow(false)
+    setExprDismissed(false)
+  }, [exprErrorKey])
+
+  const execPopoverOpen =
+    execErrorKey !== null && ((execAutoShow && !execDismissed) || headerHovered)
+  const connPopoverOpen =
+    connErrorKey !== null && ((connAutoShow && !connDismissed) || headerHovered)
+  const exprPopoverOpen =
+    exprErrorKey !== null && ((exprAutoShow && !exprDismissed) || headerHovered)
+
+  const [confirmingUnlock, setConfirmingUnlock] = useState(false)
   const toggleLock = () => {
-    op.locked.next(!op.locked.value)
+    if (shouldConfirmUnlock(op)) {
+      setConfirmingUnlock(true)
+      return
+    }
+    setLockedWithHistory(op, !op.locked.value)
+  }
+  const confirmUnlock = () => {
+    setConfirmingUnlock(false)
+    setLockedWithHistory(op, false)
   }
 
   useEffect(() => {
@@ -688,13 +1420,13 @@ function NodeHeader({ id, type, op }: { id: string; type: OpType; op: OperatorIn
   const [editing, setEditing] = useState(false)
   const [inputValue, setInputValue] = useState('')
   const [hasConflict, setHasConflict] = useState(false)
-  const { setNodes, setEdges } = useReactFlow()
+  const { updateOperatorId } = useProjectModificationActions()
 
   const checkForConflict = useCallback(
     (newBaseName: string): boolean => {
       if (!newBaseName.trim()) return false
       const newQualifiedId = generateQualifiedPath(newBaseName.trim(), op.containerId)
-      return newQualifiedId !== id && opMap.has(newQualifiedId)
+      return newQualifiedId !== id && hasOp(newQualifiedId)
     },
     [id, op.containerId]
   )
@@ -727,82 +1459,19 @@ function NodeHeader({ id, type, op }: { id: string; type: OpType; op: OperatorIn
         return
       }
 
-      const newQualifiedId = generateQualifiedPath(trimmedName, op.containerId)
-      const isContainer = type === 'ContainerOp'
+      // Only update if the name actually changed
+      if (trimmedName !== baseName) {
+        const isContainer = type === 'ContainerOp'
 
-      // Update the operator itself
-      opMap.set(newQualifiedId, op)
-      op.id = newQualifiedId
-
-      // If this is a container, update all children nodes and their operators
-      if (isContainer) {
-        const childOps = Array.from(opMap.values()).filter(childOp =>
-          childOp.id.startsWith(`${id}/`)
-        )
-
-        for (const childOp of childOps) {
-          const oldChildId = childOp.id
-          // Replace only the exact container path at the start
-          const newChildId = newQualifiedId + oldChildId.slice(id.length)
-          opMap.set(newChildId, childOp)
-          childOp.id = newChildId
-          // TODO: this is a hack. We should hook into some sort of "after update" event
-          queueMicrotask(() => opMap.delete(oldChildId))
-        }
+        // Call the store function to update the operator
+        updateOperatorId(id, trimmedName, isContainer)
       }
 
-      // Give React time to update the component tree before deleting the old id
-      // TODO: this is a hack. We should hook into some sort of "after update" event
-      queueMicrotask(() => {
-        opMap.delete(id)
-      })
-
-      // Update React Flow nodes and edges
-      setNodes(nodes =>
-        nodes.map(n => {
-          // Update the node itself if it matches
-          if (n.id === id) {
-            return { ...n, id: newQualifiedId }
-          }
-          // Update children if this is a container
-          if (isContainer && n.id.startsWith(`${id}/`)) {
-            return { ...n, id: newQualifiedId + n.id.slice(id.length) }
-          }
-          return n
-        })
-      )
-
-      setEdges(edges =>
-        edges.map(edge => {
-          const sourceNeedsUpdate =
-            edge.source === id || (isContainer && edge.source.startsWith(`${id}/`))
-          const targetNeedsUpdate =
-            edge.target === id || (isContainer && edge.target.startsWith(`${id}/`))
-
-          if (!sourceNeedsUpdate && !targetNeedsUpdate) return edge
-
-          const updatedEdge = {
-            ...edge,
-            source: sourceNeedsUpdate
-              ? edge.source === id
-                ? newQualifiedId
-                : newQualifiedId + edge.source.slice(id.length)
-              : edge.source,
-            target: targetNeedsUpdate
-              ? edge.target === id
-                ? newQualifiedId
-                : newQualifiedId + edge.target.slice(id.length)
-              : edge.target,
-          }
-
-          return { ...updatedEdge, id: edgeId(updatedEdge) }
-        })
-      )
       setEditing(false)
       setHasConflict(false)
       setInputValue('')
     },
-    [id, op, type, setNodes, setEdges, checkForConflict]
+    [id, type, baseName, updateOperatorId, checkForConflict]
   )
 
   const onInputChange = useCallback(
@@ -873,6 +1542,7 @@ function NodeHeader({ id, type, op }: { id: string; type: OpType; op: OperatorIn
       </Tooltip.Root>
     </Tooltip.Provider>
   ) : (
+    // biome-ignore lint/a11y/useSemanticElements: Inline editable text requires span with role
     <span className={s.headerId} role="button" tabIndex={0} onDoubleClick={onNodeHeaderDoubleClick}>
       {baseName}
     </span>
@@ -881,8 +1551,23 @@ function NodeHeader({ id, type, op }: { id: string; type: OpType; op: OperatorIn
   const downloadable = Boolean(op.asDownload)
   const createDownload = useCallback(() => {
     if (!op.asDownload) return
-    // TODO: make this more generic, or have the op handle it
     const data = op.asDownload()
+
+    if (data instanceof Element) {
+      const svgEl = data instanceof SVGElement ? data : data.querySelector('svg')
+      if (svgEl) {
+        const svgStr = new XMLSerializer().serializeToString(svgEl)
+        const blob = new Blob([svgStr], { type: 'image/svg+xml' })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `${baseName}.svg`
+        a.click()
+        URL.revokeObjectURL(url)
+        return
+      }
+    }
+
     const blob = new Blob([JSON.stringify(data)], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -892,12 +1577,56 @@ function NodeHeader({ id, type, op }: { id: string; type: OpType; op: OperatorIn
     URL.revokeObjectURL(url)
   }, [op, baseName])
 
+  const { displayName } = op.constructor as typeof Operator
+
+  // Memoize event handlers to avoid recreating on every render
+  const handleMouseEnter = useCallback(() => setHeaderHovered(true), [])
+  const handleMouseLeave = useCallback(() => setHeaderHovered(false), [])
+
   return (
-    <div className={cx(s.header, headerClass(type))}>
-      <div className={s.headerTitle} title={`${id} (${op.constructor.displayName})`}>
-        {editableId} ({op.constructor.displayName})
+    // biome-ignore lint/a11y/noStaticElementInteractions: hover only previews error popovers, which also open on their own
+    <div
+      className={cx(s.header, s.dragHandle, headerClass(type))}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+    >
+      <div className={s.headerTitle} title={`${id} (${displayName})`}>
+        {editableId} ({displayName})
       </div>
-      <ExecutionIndicator {...executionState} />
+      {execErrorKey !== null ? (
+        <ErrorPopover
+          error={`Error: ${execErrorKey}`}
+          open={execPopoverOpen}
+          onDismiss={() => setExecDismissed(true)}
+          trigger={<ExecutionIndicator {...executionState} />}
+        />
+      ) : (
+        <ExecutionIndicator {...executionState} />
+      )}
+      {hasConnectionErrors && connErrorKey && (
+        <ErrorPopover
+          error={connErrorKey}
+          open={connPopoverOpen}
+          onDismiss={() => setConnDismissed(true)}
+          trigger={
+            <span className={cx(s.executionIndicator, s.executionIndicatorError)}>
+              <i className="pi pi-link" />
+            </span>
+          }
+        />
+      )}
+      {hasEnableExpressionErrors && exprErrorKey && (
+        <ErrorPopover
+          error={`Enable expression error:\n${exprErrorKey}`}
+          open={exprPopoverOpen}
+          onDismiss={() => setExprDismissed(true)}
+          trigger={
+            <span className={cx(s.executionIndicator, s.executionIndicatorError)}>
+              <i className="pi pi-eye-slash" />
+            </span>
+          }
+        />
+      )}
       <div className={s.headerActions}>
         {downloadable && (
           <Button
@@ -918,6 +1647,12 @@ function NodeHeader({ id, type, op }: { id: string; type: OpType; op: OperatorIn
           text
         />
       </div>
+      <UnlockDialog
+        open={confirmingUnlock}
+        nodeName={baseName}
+        onConfirm={confirmUnlock}
+        onClose={() => setConfirmingUnlock(false)}
+      />
     </div>
   )
 }
@@ -928,30 +1663,74 @@ function GeocoderOpComponent({
   id,
   type,
 }: ReactFlowNodeProps<NodeDataJSON<GeocoderOp>> & { type: 'GeocoderOp' }) {
-  const op = useOp(id)
+  const op = getOp(id as string)
 
   const containerRef = useRef<HTMLDivElement>(null)
   const geocoderRef = useRef<MapboxGeocoder>()
+  const prevApiKeyRef = useRef<string | null | undefined>(undefined)
+  const executionState = useExecutionState(op)
+  const connectionErrors = useConnectionErrors(op)
+  const hasConnectionErrors = connectionErrors.size > 0
+  const isDimmed = useNodeDimmed(id)
+  const queryConnected = useEdgeConnectionStore(state =>
+    state.connectionMap.has(`${id}::par.query`)
+  )
+
+  // Get API key directly from store (reactive)
+  const apiKey = useKeysStore(state => state.getKey('mapbox'))
 
   useLayoutEffect(() => {
-    if (!containerRef.current) return
+    if (!op) return
+    op.removeConnectionError('geocoder-setup')
+
+    // Connected queries execute headlessly; match other connected inputs by
+    // hiding the editor instead of mounting a second, interactive query UI.
+    if (queryConnected) {
+      return
+    }
+
+    if (!containerRef.current) {
+      return
+    }
+
+    // No key — execute() will throw and show the error via the standard mechanism
+    if (!apiKey) {
+      prevApiKeyRef.current = null
+      return
+    }
+
+    const keyJustAdded = prevApiKeyRef.current === null && !!apiKey
+    prevApiKeyRef.current = apiKey
+
     const container = containerRef.current
 
-    const g = new MapboxGeocoder({
-      accessToken: MAPBOX_ACCESS_TOKEN,
-      collapsed: true,
-    })
+    let g: MapboxGeocoder
+    try {
+      g = new MapboxGeocoder({
+        accessToken: apiKey,
+        collapsed: true,
+      })
 
-    g.on('query', e => {
-      op.inputs.query.setValue(e.query)
-    })
+      g.on('query', (e: { query: string }) => {
+        op.inputs.query.setValue(e.query)
+      })
 
-    g.on('result', e => {
-      const [lng, lat] = e.result.geometry.coordinates as [number, number]
-      op.outputs.location.next({ lng, lat })
-    })
+      g.on('result', (e: { result: { geometry: { coordinates: [number, number] } } }) => {
+        const [lng, lat] = e.result.geometry.coordinates as [number, number]
+        op.outputs.location.next({ lng, lat })
+      })
 
-    g.addTo(container)
+      g.addTo(container)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Invalid token'
+      op.addConnectionError('geocoder-setup', `Geocoder error: ${message}`)
+      return
+    }
+
+    // Key was just added — re-execute to clear the "no key" error from executionState
+    if (keyJustAdded) {
+      op.inputs.query.setValue(op.inputs.query.value)
+    }
 
     g.query(op.inputs.query.value)
 
@@ -969,10 +1748,12 @@ function GeocoderOpComponent({
     return () => {
       removed = true
       g.onRemove()
+      geocoderRef.current = undefined
     }
-  }, [op])
+  }, [op, apiKey, queryConnected])
 
   const locked = useLocked(op)
+  useFieldVisibility(op)
   useEffect(() => {
     const inputEl = geocoderRef.current?._inputEl
     if (inputEl) {
@@ -980,41 +1761,105 @@ function GeocoderOpComponent({
     }
   }, [locked])
 
+  if (!op) return null
+
+  const hasError = executionState.status === 'error' || hasConnectionErrors
+
   return (
-    <>
-      <NodeHeader id={id} type={type} op={op} />
+    <div
+      className={cx(s.wrapper, {
+        [s.wrapperError]: hasError,
+        [s.wrapperDimmed]: isDimmed,
+      })}
+    >
+      <NodeHeader id={id} type={type} op={op} connectionErrors={connectionErrors} />
       <div className={s.content}>
-        {Object.entries(op.inputs).map(([key, field]) => (
-          <FieldComponent
-            key={key}
-            id={key}
-            field={field}
-            disabled={locked}
-            handle={{ type: TARGET_HANDLE, namespace: PAR_NAMESPACE }}
-            renderInput={false}
-          />
-        ))}
-        <div ref={containerRef} className={s.fieldWrapper} />
+        {Object.entries(op.inputs)
+          .filter(([key]) => op.isFieldVisible(key))
+          .map(([key, field]) => (
+            <FieldComponent
+              key={key}
+              id={key}
+              field={field}
+              disabled={locked}
+              handle={PAR_HANDLE_OPTIONS}
+              renderInput={queryConnected}
+            />
+          ))}
+        <div
+          ref={containerRef}
+          className={s.fieldWrapper}
+          style={{ display: hasError || queryConnected ? 'none' : 'block' }}
+        />
         <div className={s.outputHandleContainer}>
           {Object.entries(op.outputs).map(([key, field]) => (
             <OutputHandle key={key} id={key} field={field} />
           ))}
         </div>
       </div>
-    </>
+    </div>
   )
+}
+
+function DirectionsOpComponent({
+  id,
+  type,
+}: ReactFlowNodeProps<NodeDataJSON<DirectionsOp>> & { type: 'DirectionsOp' }) {
+  const op = getOp(id as string)
+  const [, forceFieldVisibilityUpdate] = useState(0)
+
+  // Reactive - automatically updates when keys change
+  const hasMapboxKey = useKeysStore(state => state.hasKey('mapbox'))
+  const hasGoogleMapsKey = useKeysStore(state => state.hasKey('googleMaps'))
+
+  // Track previous values to detect additions
+  const prevHasMapboxKey = useRef(hasMapboxKey)
+  const prevHasGoogleMapsKey = useRef(hasGoogleMapsKey)
+
+  useEffect(() => {
+    if (!op) return
+    const mapboxKeyAdded = !prevHasMapboxKey.current && hasMapboxKey
+    const googleMapsKeyAdded = !prevHasGoogleMapsKey.current && hasGoogleMapsKey
+
+    if (mapboxKeyAdded || googleMapsKeyAdded) {
+      // Trigger re-execution by touching one of the input fields
+      // This will invalidate the memoization cache and cause the operator to re-execute
+      const currentOrigin = op.inputs.origin.value
+      op.inputs.origin.setValue(currentOrigin)
+    }
+
+    // Update refs for next check
+    prevHasMapboxKey.current = hasMapboxKey
+    prevHasGoogleMapsKey.current = hasGoogleMapsKey
+  }, [op, hasMapboxKey, hasGoogleMapsKey])
+
+  useEffect(() => {
+    if (!op) return
+    const subscriptions = [op.inputs.mode, op.inputs.departureMode].map(field =>
+      field.subscribe(() => forceFieldVisibilityUpdate(value => value + 1))
+    )
+    return () => {
+      for (const subscription of subscriptions) subscription.unsubscribe()
+    }
+  }, [op])
+
+  if (!op) return null
+
+  return <NodeComponent id={id} type={type} />
 }
 
 function MouseOpComponent({
   id,
   type,
 }: ReactFlowNodeProps<NodeDataJSON<MouseOp>> & { type: 'MouseOp' }) {
-  const op = useOp(id)
+  const op = getOp(id as string)
 
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 })
+  const isDimmed = useNodeDimmed(id)
 
   // Inject the container element into the operator
   useEffect(() => {
+    if (!op) return
     const container = document.querySelector('.transform-scale')
     if (container) {
       op.setContainer(container)
@@ -1023,14 +1868,17 @@ function MouseOpComponent({
 
   // Subscribe to output for display
   useEffect(() => {
+    if (!op) return
     const sub = op.outputs.position.subscribe(setMousePosition)
     return () => {
       sub.unsubscribe()
     }
   }, [op])
 
+  if (!op) return null
+
   return (
-    <>
+    <div className={cx(s.wrapper, { [s.wrapperDimmed]: isDimmed })}>
       <NodeHeader id={id} type={type} op={op} />
       <div className={s.content}>
         <div className={s.fieldWrapper}>
@@ -1047,157 +1895,119 @@ function MouseOpComponent({
           ))}
         </div>
       </div>
-    </>
+    </div>
   )
 }
 
-function TableEditorOpComponent({
+export function TableEditorOpComponent({
   id,
   type,
   selected,
 }: ReactFlowNodeProps<NodeDataJSON<TableEditorOp>> & { type: 'TableEditorOp' }) {
-  const op = useOp(id)
+  const op = getOp(id as string)
 
-  const [dataArray, setDataArray] = useState(op.inputs.data.value as unknown[])
+  const isDimmed = useNodeDimmed(id)
+  const locked = useLocked(op)
+  useFieldVisibility(op)
+
+  const [data, setData] = useState((op?.inputs.data.value ?? []) as unknown[])
+  const [schema, setSchema] = useState<TableSchema>(() => {
+    // Get schema from output or infer from data
+    const outputSchema = op?.outputs.schema.value
+    if (outputSchema && typeof outputSchema === 'object' && 'columns' in outputSchema) {
+      return outputSchema as TableSchema
+    }
+    return inferSchema((op?.inputs.data.value ?? []) as unknown[])
+  })
+
+  // Subscribe to data and schema changes
   useEffect(() => {
-    const sub = op.inputs.data.subscribe(newVal => {
-      setDataArray(newVal as unknown[])
+    if (!op) return
+    const dataSub = op.inputs.data.subscribe(newData => {
+      setData(newData as unknown[])
     })
-    return () => sub.unsubscribe()
+    const schemaSub = op.outputs.schema.subscribe(newSchema => {
+      if (newSchema && typeof newSchema === 'object' && 'columns' in newSchema) {
+        setSchema(newSchema as TableSchema)
+      }
+    })
+    return () => {
+      dataSub.unsubscribe()
+      schemaSub.unsubscribe()
+    }
   }, [op])
 
-  const columns =
-    dataArray?.length > 0
-      ? Object.keys(dataArray[0]).map(field => ({
-          field,
-          header: field,
-        }))
-      : []
+  if (!op) return null
 
-  const onCellEditComplete = e => {
-    const { rowData, newValue, field, newRowData, rowIndex } = e
-
-    // In the future we can have custom formatters, like for dates, currency, etc.
-    // if (field === '....')
-
-    // Set the value for the DataTable. The API wants us to mutate the row
-    rowData[field] = newValue
-
-    // Update the row data in the state
-    op.inputs.data.setValue([
-      ...dataArray.slice(0, rowIndex),
-      newRowData,
-      ...dataArray.slice(rowIndex + 1),
-    ])
-  }
-
-  const addColumn = () => {
-    const field = prompt('Enter the column name')
-    const newData = dataArray.map(row => ({ ...row, [field]: '' }))
+  const handleDataChange = (newData: unknown[], description = 'Edit table data') => {
+    const before = captureOperatorInputs()
     op.inputs.data.setValue(newData)
+    op.outputs.data.setValue(newData)
+    firePropertyMutation(description, before)
   }
 
-  const cellEditor = options => {
-    return typeof options.value === 'number' ? (
-      <InputNumber
-        value={options.value}
-        minFractionDigits={1}
-        onValueChange={e => options.editorCallback(e.value)}
-        onKeyDown={e => e.stopPropagation()}
-      />
-    ) : (
-      <InputText
-        type="text"
-        value={options.value}
-        onChange={e => options.editorCallback(e.target.value)}
-        onKeyDown={e => e.stopPropagation()}
-      />
-    )
+  const handleSchemaChange = (newSchema: TableSchema, newData?: unknown[]) => {
+    const before = captureOperatorInputs()
+    op.inputs.schema.setValue(newSchema)
+    op.outputs.schema.setValue(newSchema)
+    setSchema(newSchema)
+    if (newData) {
+      op.inputs.data.setValue(newData)
+      op.outputs.data.setValue(newData)
+    }
+    firePropertyMutation('Edit table schema', before)
   }
-
-  const locked = useLocked(op)
 
   return (
-    <>
+    <div className={cx(s.wrapper, { [s.wrapperDimmed]: isDimmed })}>
       <NodeHeader id={id} type={type} op={op} />
-      <NodeResizer isVisible={selected} minWidth={400} minHeight={200} />
+      <NodeResizer isVisible={selected} minWidth={500} minHeight={300} />
       <div className={s.content}>
-        {Object.entries(op.inputs).map(([key, field]) => (
-          <FieldComponent
-            key={key}
-            id={key}
-            field={field}
-            disabled={locked}
-            handle={{ type: TARGET_HANDLE, namespace: PAR_NAMESPACE }}
-          />
-        ))}
-        <div className="card p-fluid">
-          <DataTable
-            value={dataArray}
-            editMode="cell"
-            size="small"
-            resizableColumns
-            reorderableRows
-            onRowReorder={e => {
-              op.inputs.data.setValue(e.value.slice())
-            }}
-            showGridlines
-            stripedRows
-            scrollable
-            scrollHeight="400px"
-            tableStyle={{ minWidth: '50rem' }}
-          >
-            <Column rowReorder style={{ width: '3rem' }} />
-            {columns.map((col, _i) => (
-              <Column
-                key={col.field}
-                field={col.field}
-                header={col.header}
-                editor={options => cellEditor(options)}
-                onCellEditComplete={onCellEditComplete}
-                sortable
-              />
-            ))}
-            <Column
-              header={
-                columns.length ? (
-                  <Button
-                    label="+"
-                    icon="pi pi-plus"
-                    className="p-button-success mr-2"
-                    onClick={addColumn}
-                  />
-                ) : null
-              }
+        {Object.entries(op.inputs)
+          .filter(([key]) => op.isFieldVisible(key) && key !== 'data')
+          .map(([key, field]) => (
+            <FieldComponent
+              key={key}
+              id={key}
+              field={field}
+              disabled={locked}
+              handle={PAR_HANDLE_OPTIONS}
             />
-          </DataTable>
-        </div>
+          ))}
+        <TableEditor
+          op={op}
+          data={data}
+          schema={schema}
+          onDataChange={handleDataChange}
+          onSchemaChange={handleSchemaChange}
+        />
         <div className={s.outputHandleContainer}>
           {Object.entries(op.outputs).map(([key, field]) => (
             <OutputHandle key={key} id={key} field={field} />
           ))}
         </div>
       </div>
-    </>
+    </div>
   )
 }
 
 // Helper for ViewerOp to format Layer and Operator instances
-const viewerFormatter = (value: unknown) => {
+export const formatViewerValue = (value: unknown): unknown => {
   if (value instanceof Layer) {
     // Guard against ReactJson crash since layer.props has no `hasOwnProperty` method
     const { lifecycle, count, isLoaded, props } = value
     return { lifecycle, count, isLoaded, props: { ...props } }
   }
   if (value instanceof Operator) {
+    const { displayName } = value.constructor as typeof Operator
     return {
       id: value.id,
-      type: value.constructor.displayName,
+      type: displayName,
       inputs: Object.fromEntries(
-        Object.entries(value.inputs).map(([key, field]) => [key, viewerFormatter(field.value)])
+        Object.entries(value.inputs).map(([key, field]) => [key, formatViewerValue(field.value)])
       ),
       outputs: Object.fromEntries(
-        Object.entries(value.outputs).map(([key, field]) => [key, viewerFormatter(field.value)])
+        Object.entries(value.outputs).map(([key, field]) => [key, formatViewerValue(field.value)])
       ),
     }
   }
@@ -1231,17 +2041,38 @@ function ViewerOpComponent({
   type,
   selected,
 }: ReactFlowNodeProps<NodeDataJSON<ViewerOp>> & { type: 'ViewerOp' }) {
-  const op = useOp(id)
+  const op = getOp(id as string)
+
+  const executionState = useExecutionState(op)
+  const connectionErrors = useConnectionErrors(op)
+  const hasConnectionErrors = connectionErrors.size > 0
+  const isDimmed = useNodeDimmed(id)
+  const { setNodes, setEdges } = useReactFlow()
 
   // TODO: use react-flow helpers
-  const [viewerData, setViewerData] = useState(viewerFormatter(op.inputs.data.value))
+  const [viewerData, setViewerData] = useState(() =>
+    op ? formatViewerValue(op.inputs.data.value) : null
+  )
 
   useEffect(() => {
+    if (!op) return
     const sub = op.inputs.data.subscribe(newVal => {
-      setViewerData(viewerFormatter(newVal))
+      setViewerData(formatViewerValue(newVal))
     })
     return () => sub.unsubscribe()
   }, [op])
+
+  const handleConvertToTableEditor = useCallback(() => {
+    const success = convertViewerToTableEditor(id, setNodes, setEdges)
+    if (!success) {
+      console.error('Failed to convert to TableEditor: data is not in a suitable format')
+    }
+  }, [id, setNodes, setEdges])
+
+  const locked = useLocked(op)
+  useFieldVisibility(op)
+
+  if (!op) return null
 
   let content = null
   if (viewerData === null) {
@@ -1257,7 +2088,16 @@ function ViewerOpComponent({
     isPlainObject(viewerData[0]) &&
     Object.keys(viewerData[0]).length < 20
   ) {
-    const keys = Object.keys(viewerData[0] || {})
+    // Derive union of all keys across rows to avoid silently dropping columns
+    const allKeys = new Set<string>()
+    for (const row of viewerData) {
+      if (isPlainObject(row)) {
+        for (const key of Object.keys(row)) {
+          allKeys.add(key)
+        }
+      }
+    }
+    const keys = Array.from(allKeys)
     content = (
       <table>
         <thead>
@@ -1268,7 +2108,11 @@ function ViewerOpComponent({
             <tr key={`${JSON.stringify(row)}`}>
               {keys.map((key, _j) => (
                 <td key={key}>
-                  {typeof row[key] === 'string' ? row[key] : JSON.stringify(row[key])}
+                  {key in row
+                    ? typeof row[key] === 'string'
+                      ? row[key]
+                      : JSON.stringify(row[key])
+                    : ''}
                 </td>
               ))}
             </tr>
@@ -1277,37 +2121,62 @@ function ViewerOpComponent({
       </table>
     )
   } else if (viewerData instanceof Operator) {
-    content = <ReactJson src={viewerFormatter(viewerData)} theme="twilight" />
+    content = <ReactJson src={formatViewerValue(viewerData)} theme="twilight" />
   } else if (viewerData instanceof Promise) {
     content = 'Loading...'
   } else {
     content = <ReactJson src={viewerData} theme="twilight" />
   }
 
-  const locked = useLocked(op)
+  // Show conversion button when viewing tabular data (array of plain objects)
+  // Match the same conditions used for table rendering
+  const showConversionButton =
+    Array.isArray(viewerData) &&
+    viewerData.length > 0 &&
+    viewerData.length < 20 &&
+    isPlainObject(viewerData[0]) &&
+    Object.keys(viewerData[0]).length < 20
 
   return (
-    <>
-      <NodeHeader id={id} type={type} op={op} />
+    <div
+      className={cx(s.wrapper, {
+        [s.wrapperError]: executionState.status === 'error' || hasConnectionErrors,
+        [s.wrapperDimmed]: isDimmed,
+      })}
+    >
+      <NodeHeader id={id} type={type} op={op} connectionErrors={connectionErrors} />
       <NodeResizer isVisible={selected} minWidth={400} minHeight={200} />
       <div className={s.content}>
-        {Object.entries(op.inputs).map(([key, field]) => (
-          <FieldComponent
-            key={key}
-            id={key}
-            field={field}
-            disabled={locked}
-            handle={{ type: TARGET_HANDLE, namespace: PAR_NAMESPACE }}
-          />
-        ))}
+        {Object.entries(op.inputs)
+          .filter(([key]) => op.isFieldVisible(key))
+          .map(([key, field]) => (
+            <FieldComponent
+              key={key}
+              id={key}
+              field={field}
+              disabled={locked}
+              handle={PAR_HANDLE_OPTIONS}
+            />
+          ))}
         {content}
+        {showConversionButton && (
+          <div style={{ marginTop: '8px', textAlign: 'center' }}>
+            <Button
+              label="Convert to Table Editor"
+              icon="pi pi-table"
+              onClick={handleConvertToTableEditor}
+              size="small"
+              outlined
+            />
+          </div>
+        )}
         <div className={s.outputHandleContainer}>
           {Object.entries(op.outputs).map(([key, field]) => (
             <OutputHandle key={key} id={key} field={field} />
           ))}
         </div>
       </div>
-    </>
+    </div>
   )
 }
 
@@ -1316,35 +2185,55 @@ function ContainerOpComponent({
   type,
   selected,
 }: ReactFlowNodeProps<NodeDataJSON<ContainerOp>>) {
-  const op = useOp(id)
+  const op = getOp(id as string)
 
-  const { setCurrentContainerId } = useSlice(state => state.nesting)
-  const nodes = useNodes()
-  const children = nodes.filter(node => getParentPath(node.id) === id)
+  const connectionErrors = useConnectionErrors(op)
+  const hasConnectionErrors = connectionErrors.size > 0
+  const isDimmed = useNodeDimmed(id)
+
+  const setCurrentContainerId = useNestingStore(state => state.setCurrentContainerId)
+  const reactFlow = useReactFlow()
+
+  // Subscribe to operator store to get reactive children count
+  const childrenCount = useOperatorStore(state => {
+    return Array.from(state.operators.keys()).filter(opId => getParentPath(opId) === id).length
+  })
 
   const locked = useLocked(op)
+  useFieldVisibility(op)
+
+  if (!op) return null
 
   return (
-    // Add a specific class for styling the container
     <div
       role="tree"
+      className={cx(s.wrapper, {
+        [s.wrapperError]: hasConnectionErrors,
+        [s.wrapperDimmed]: isDimmed,
+      })}
       onDoubleClick={() => {
+        // Clear selection when changing levels
+        reactFlow.setNodes(nodes => nodes.map(node => ({ ...node, selected: false })))
         setCurrentContainerId(op.id)
+        analytics.track('container_navigated', { method: 'double_click', direction: 'into' })
+        reactFlow.fitView({ duration: 0 })
       }}
     >
-      <NodeHeader id={id} type={type} op={op} />
+      <NodeHeader id={id} type={type} op={op} connectionErrors={connectionErrors} />
       <NodeResizer isVisible={selected} minWidth={200} minHeight={50} />
       <div className={s.content}>
-        {Object.entries(op.inputs).map(([key, field]) => (
-          <FieldComponent
-            key={key}
-            id={key}
-            field={field}
-            disabled={locked}
-            handle={{ type: TARGET_HANDLE, namespace: PAR_NAMESPACE }}
-          />
-        ))}
-        <div>Children: {children.length}</div>
+        {Object.entries(op.inputs)
+          .filter(([key]) => op.isFieldVisible(key))
+          .map(([key, field]) => (
+            <FieldComponent
+              key={key}
+              id={key}
+              field={field}
+              disabled={locked}
+              handle={PAR_HANDLE_OPTIONS}
+            />
+          ))}
+        <div>Children: {childrenCount}</div>
         {/* Children nodes are rendered by React Flow normally */}
         <div className={s.outputHandleContainer}>
           {Object.entries(op.outputs).map(([key, field]) => (
@@ -1360,22 +2249,16 @@ function TimeOpComponent({
   id,
   type,
 }: ReactFlowNodeProps<NodeDataJSON<TimeOp>> & { type: 'TimeOp' }) {
-  const op = useOp(id)
-  const sheet = useContext(SheetContext) as ISheet
+  const op = getOp(id as string)
+  const isDimmed = useNodeDimmed(id)
 
   const [now, setNow] = useState(0)
   const [sequenceTime, setSequenceTime] = useState(0)
   const [tick, setTick] = useState(0)
 
-  // Inject Theatre sheet into operator on mount
-  useEffect(() => {
-    if (sheet) {
-      op.setTheatreSheet(sheet)
-    }
-  }, [sheet, op])
-
   // Subscribe to outputs for display
   useEffect(() => {
+    if (!op) return
     const subs = [
       op.outputs.now.subscribe(setNow),
       op.outputs.sequenceTime.subscribe(setSequenceTime),
@@ -1388,8 +2271,10 @@ function TimeOpComponent({
     }
   }, [op])
 
+  if (!op) return null
+
   return (
-    <>
+    <div className={cx(s.wrapper, { [s.wrapperDimmed]: isDimmed })}>
       <NodeHeader id={id} type={type} op={op} />
       <div className={s.content}>
         <div>
@@ -1405,6 +2290,77 @@ function TimeOpComponent({
           ))}
         </div>
       </div>
-    </>
+    </div>
+  )
+}
+
+function RerouteOpComponent({
+  id,
+}: ReactFlowNodeProps<NodeDataJSON<RerouteOp>> & { type: 'RerouteOp' }) {
+  const isDimmed = useNodeDimmed(id)
+  const isInputDimmed = useHandleDimmed(id, 'par.value')
+  const isOutputDimmed = useHandleDimmed(id, 'out.value')
+
+  return (
+    <div className={cx(s.rerouteNode, s.dragHandle, { [s.wrapperDimmed]: isDimmed })}>
+      <Handle
+        id="par.value"
+        type="target"
+        position={Position.Left}
+        className={cx(s.rerouteHandle, { [s.handleDimmed]: isInputDimmed })}
+        style={{ top: '50%', transform: 'translateY(-50%)' }}
+      />
+      <Handle
+        id="out.value"
+        type="source"
+        position={Position.Right}
+        className={cx(s.rerouteHandle, { [s.handleDimmed]: isOutputDimmed })}
+        style={{ top: '50%', transform: 'translateY(-50%)' }}
+      />
+    </div>
+  )
+}
+
+// OutOp component that only shows the vis input.
+// Render settings are hidden from the node UI and shown in the properties panel instead.
+function OutOpComponent({ id, type }: ReactFlowNodeProps<NodeDataJSON<OutOp>> & { type: 'OutOp' }) {
+  const op = getOp(id as string)
+  const locked = useLocked(op)
+  const executionState = useExecutionState(op)
+  const connectionErrors = useConnectionErrors(op)
+  const hasConnectionErrors = connectionErrors.size > 0
+  const isDimmed = useNodeDimmed(id)
+
+  if (!op) return null
+
+  // Only show the 'vis' input, hide render settings
+  const visibleInputs = { vis: op.inputs.vis }
+
+  return (
+    <div
+      className={cx(s.wrapper, {
+        [s.wrapperError]: executionState.status === 'error' || hasConnectionErrors,
+        [s.wrapperExecuting]: executionState.status === 'executing',
+        [s.wrapperDimmed]: isDimmed,
+      })}
+    >
+      <NodeHeader id={id} type={type} op={op} connectionErrors={connectionErrors} />
+      <div className={s.content}>
+        {Object.entries(visibleInputs).map(([key, field]) => (
+          <FieldComponent
+            key={key}
+            id={key}
+            field={field}
+            disabled={locked}
+            handle={PAR_HANDLE_OPTIONS}
+          />
+        ))}
+        <div className={s.outputHandleContainer}>
+          {Object.entries(op.outputs).map(([key, field]) => (
+            <OutputHandle key={key} id={key} field={field} />
+          ))}
+        </div>
+      </div>
+    </div>
   )
 }

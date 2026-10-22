@@ -2,6 +2,8 @@
 
 Basic workflows for using Noodles.gl to create geospatial visualizations and animations.
 
+![Simple Noodles.gl graph showing DeckRenderer connected to an Out node](/img/noodles-simple-graph.png)
+
 > New to node-based workflows? Start with [Introduction to Workflows](./workflows-intro.md) to learn the fundamentals of how data flows through Noodles.gl.
 
 ## Interface Overview
@@ -15,11 +17,35 @@ Basic workflows for using Noodles.gl to create geospatial visualizations and ani
 - **Configure Inputs**: Adjust operator parameters
 - **Reorder Fields**: Drag to change input order
 - **Timeline Controls**: Keyframe values for animation
+- See the full [Properties Panel](./properties-panel.md) reference for context menu actions and field management
 
 ### Timeline Editor
 - **Keyframes**: Click any parameter in property panel to add keyframes
-- **Animation**: Use [Theatre.js timeline](https://www.theatrejs.com/docs/latest/manual/sequences#addingremoving-keyframes) for smooth motion
+- **Animation**: Create smooth motion with bezier curve interpolation
 - **Playback**: Press 'space' to play animation
+
+### Tools Shelf
+
+The Tools Shelf in the top menu provides quick access to common operations:
+
+| Tool | Description |
+|------|-------------|
+| **Add Node** | Opens the operator menu at canvas center |
+| **Create Point** | Geocoding wizard to create a PointOp from an address or coordinates |
+| **Import Data** | Import CSV/JSON files and auto-create a visualization pipeline |
+
+#### Create Point Wizard
+Search for locations by address or paste coordinates. The wizard uses multiple geocoding services with automatic fallback:
+1. Google Places (if API key configured)
+2. Mapbox (if API key configured)
+3. Photon (free, no key required)
+
+Creates a PointOp node with the selected coordinates.
+
+#### Import Data
+Drag-and-drop or browse for CSV/JSON files. The importer automatically creates a complete visualization pipeline including data source, layer, and map components. Files are saved to your project's data directory.
+
+For tables of points, the importer looks for latitude and longitude columns (`lat`/`lng`, `Latitude`/`Longitude`, `x`/`y` and common variants) or a WKT or GeoJSON geometry column. It then fits the camera to the data and, when there is an obvious numeric column such as `population` or `magnitude`, sizes the points by it. If no coordinates are found, a message says so and the position is left for you to set in the Accessor node. Dropping a CSV on the start screen does the same in a new project.
 
 ## Your First Project
 
@@ -32,3 +58,20 @@ Basic workflows for using Noodles.gl to create geospatial visualizations and ani
 3. **Style & Configure**: Use the properties panel to customize appearance
 4. **Animate**: [Add timeline keyframes](./animation-and-rendering.md) to create smooth animations
 5. **Export**: Generate images, videos, or interactive applications
+
+## Try the NYC Taxis Example
+
+See Noodles.gl in action with a real-world dataset:
+
+[**Open NYC Taxis Example →**](https://noodles.gl/examples/nyc-taxis)
+
+This example visualizes millions of NYC taxi trips using:
+- Arc layers connecting pickup and dropoff locations
+- Brushing interaction to filter trips
+- Timeline animation showing temporal patterns
+
+If running locally: `http://localhost:5173/examples/nyc-taxis`
+
+## Need API Keys?
+
+Some features require API keys for external services. See [API Keys Configuration](./api-keys.md) for setup instructions.

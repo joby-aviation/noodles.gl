@@ -1,0 +1,30 @@
+.overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  transform-origin: 0 0;
+}
+
+.nodeLabel {
+  position: absolute;
+  font-size: 10px;
+  font-family: monospace;
+  color: rgba(255, 255, 255, 0.5);
+  pointer-events: none;
+  white-space: nowrap;
+  padding: 2px 4px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 3px;
+}
+
+.viewportInfo {
+  font-size: 11px;
+  font-family: monospace;
+  color: rgba(255, 255, 255, 0.6);
+  background: rgba(0, 0, 0, 0.4);
+  padding: 4px 8px;
+  border-radius: 4px;
+}

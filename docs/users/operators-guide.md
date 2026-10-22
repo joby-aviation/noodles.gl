@@ -33,10 +33,35 @@ Operators are the core processing units in the Noodles.gl system. They take inpu
 - **DeckRendererOp**: Visualization deck.gl layers and Maplibre maps
 - **OutOp**: Output a visualization
 
+## Routing
+
+- **DirectionsOp**: Get a route between two points, as a path with timestamps for animating along it
+
+Each mode uses a different routing service, and some inputs and outputs only work with one of them. Inputs that don't apply to the selected mode are hidden.
+
+| Mode | Service | API key | Extra inputs | Extra outputs |
+|------|---------|---------|--------------|---------------|
+| Driving (Mapbox / OSRM) | Mapbox Directions; without a Mapbox key, the free [OSRM](https://project-osrm.org/) demo server | Mapbox (optional) | — | — |
+| Driving with traffic (Google) | Google Routes API | Google Maps | Departure time, traffic model, avoid tolls | `hasTolls`, `tollAmount`, `tollCurrency` |
+| Transit (Google) | Google Directions | Google Maps | — | — |
+
+All modes output `distance` (meters), `duration` (seconds), `durationFormatted`, `path` and `timestamps`. The toll outputs are blank in other modes.
+
+Notes on Driving with traffic:
+- **Departure time** is local time at the origin. Scheduled departures must be in the future.
+- **Traffic model** sets the assumption Google uses for traffic. *Best guess* is the typical time and matches Google Maps. *Pessimistic* is a heavy-traffic estimate and *Optimistic* a light-traffic one.
+- **Tolls**: `tollAmount` is Google's estimated cash price. If `hasTolls` is true but `tollAmount` is blank, Google expects tolls but doesn't know the price.
+
+See [API Keys](./api-keys.md) for which Google APIs to enable.
+
 ## Utilities
 - **SwitchOp**: Switch between multiple values
 - **MathOp**: Perform a mathematical operation
 - **Debugging**: Use `ViewerOp` and `ConsoleOp` to inspect intermediate results
+
+## GeoJSON
+
+- **LineInterpolationOp**: Resample LineString and MultiLineString geometry with Catmull–Rom, cardinal, basis, natural, or monotone curves. Its turn-radius mode preserves straight legs and replaces corners with circular arcs measured in meters; short legs automatically limit the effective radius to prevent adjacent turns from overlapping.
 
 ## Organization
 

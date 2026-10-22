@@ -1,11 +1,11 @@
 import type { AnyNodeJSON } from 'SKIP-@xyflow/react'
 import * as deckWidgets from '@deck.gl/widgets'
-import { getProject, type IProjectConfig, types } from '@theatre/core'
-import studio from '@theatre/studio'
 import type {
   Connection,
   DefaultEdgeOptions,
   FitViewOptions,
+  OnConnectEnd,
+  OnConnectStart,
   Edge as ReactFlowEdge,
   Node as ReactFlowNode,
 } from '@xyflow/react'
@@ -13,61 +13,159 @@ import {
   Background,
   Controls,
   ReactFlow,
-  reconnectEdge,
+  type ReactFlowInstance,
   useEdgesState,
-  useKeyPress,
   useNodesState,
+  useReactFlow,
+  useStoreApi,
 } from '@xyflow/react'
 import cx from 'classnames'
 import type { LayerExtension } from 'deck.gl'
 import * as deck from 'deck.gl'
+import type { JSZipObject } from 'jszip'
 import { PrimeReactProvider } from 'primereact/api'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react'
+import { useLocation, useParams } from 'wouter'
+import { globalContextManager } from '../ai-chat/global-context-manager'
+import type { NoodlesProject } from '../ai-chat/types'
+import { getPendingQuickStartAction } from '../components/quick-start-modal'
+import { analytics } from '../utils/analytics'
+import { setCurrentProject, setModificationApplier } from '../webmcp/bridge'
+import { agentBench, externalControl } from './globals'
+import { getKeysForProject, getKeysStore } from './keys-store'
+import newProjectJSON from './new.json'
+import { BitmapOverlayWidget, type BitmapOverlayWidgetProps } from './widgets/bitmap-overlay-widget'
+import { LegendWidget, type LegendWidgetProps } from './widgets/legend-widget'
 
-import '@deck.gl/widgets/stylesheet.css'
-import '@mapbox/mapbox-gl-geocoder/dist/mapbox-gl-geocoder.css'
-import '@xyflow/react/dist/style.css'
-import 'primereact/resources/themes/md-dark-indigo/theme.css'
-import 'primeicons/primeicons.css'
+// Get URLs for all example noodles.json files (lazy-loaded)
+const exampleProjectUrls = import.meta.glob('../examples/**/noodles.json', {
+  eager: true,
+  query: '?url',
+  import: 'default',
+})
 
-import { SheetProvider } from '../utils/sheet-context'
-import useSheetValue from '../utils/use-sheet-value'
+import {
+  bindOperatorToTimeline,
+  cleanupRemovedOperators as cleanupRemovedOperatorsNative,
+  clearAllBindings,
+} from '../timeline/field-bindings'
+import { TimelineProvider } from '../timeline/timeline-context'
+import { getTimelineStore } from '../timeline/timeline-store'
 import type { Visualization } from '../visualizations'
 import { BlockLibrary, type BlockLibraryRef } from './components/block-library'
-import { Breadcrumbs } from './components/breadcrumbs'
-import { CopyControls } from './components/copy-controls'
-import { DropTarget } from './components/drop-target'
+import { categories, nodeTypeToDisplayName } from './components/categories'
+import { CopyControls, type CopyControlsRef } from './components/copy-controls'
+import { NodeInfoOverlay, ViewportInfoPanel } from './components/devtools'
 import { ErrorBoundary } from './components/error-boundary'
-import { NoodlesMenubar } from './components/menu'
+import { ExampleNotFoundDialog } from './components/example-not-found-dialog'
+import { type GraphError, GraphErrorDialog } from './components/graph-error-dialog'
+import { LayerPanel } from './components/layer-panel'
 import { PropertyPanel } from './components/node-properties'
-import { categories } from './components/categories'
+import { NodeTreeSidebar } from './components/node-tree-sidebar'
 import { edgeComponents, nodeComponents } from './components/op-components'
-import { ProjectNameBar, UNSAVED_PROJECT_NAME } from './components/project-name-bar'
+import { ParameterEditorDialog } from './components/parameter-editor-dialog'
 import { ProjectNotFoundDialog } from './components/project-not-found-dialog'
+import { RenameDialog } from './components/rename-dialog'
+import { SaveAsDialog } from './components/save-as-dialog'
+import { SidebarTabs } from './components/sidebar-tabs'
 import { StorageErrorHandler } from './components/storage-error-handler'
-import { ChatPanel } from '../ai-chat/chat-panel'
-import { globalContextManager } from '../ai-chat/global-context-manager'
-import { useProjectModifications } from './hooks/use-project-modifications'
+import { CanvasDropImport } from './components/tools/canvas-drop-import'
+import { UndoRedoHandler, type UndoRedoHandlerRef } from './components/UndoRedoHandler'
+import { ProjectModificationActionsProvider } from './contexts/project-modification-actions-context'
 import { useActiveStorageType, useFileSystemStore } from './filesystem-store'
-import { IS_PROD, projectId } from './globals'
-import s from './noodles.module.css'
-import type { IOperator, Operator, OutOp } from './operators'
+import { findEdgeAtPosition, useConnectionDropOnEdge } from './hooks/use-connection-drop-on-edge'
+import { useKeyboardShortcut } from './hooks/use-keyboard-shortcut'
+import { useNodeDropOnEdge } from './hooks/use-node-drop-on-edge'
+import { useProjectModifications } from './hooks/use-project-modifications'
+import type { DeckRendererOp, IOperator, Operator, OutOp } from './operators'
 import { extensionMap } from './operators'
-import { load } from './storage'
-import { opMap, useSlice, hoveredOutputHandle } from './store'
+import { referenceDependencyModel } from './reference-dependencies'
+import {
+  copyDataDirectory,
+  copyExampleAssetsToMemory,
+  copyMemoryDataToDirectory,
+  copyPublicFolderData,
+  hasDataDirectory,
+  load,
+  readMemoryOutputCache,
+  save,
+} from './storage'
+import {
+  clearPendingInsertionIndex,
+  getOp,
+  getOpStore,
+  getUIStore,
+  useEdgeConnectionStore,
+  useNestingStore,
+  useUIStore,
+} from './store'
 import { transformGraph } from './transform-graph'
+import { canConnectCached } from './utils/can-connect'
+import { DeckProjectAssetResolver } from './utils/deck-project-asset-resolver'
+import { instantiateDeckView } from './utils/deck-view'
+import { directoryHandleCache } from './utils/directory-handle-cache'
+import { insertUniqueEdge } from './utils/edge-integrity'
+import {
+  fileExists,
+  requestPermission,
+  selectDirectory,
+  writeFileToDirectory,
+} from './utils/filesystem'
+import { reconcileForLoopGroups } from './utils/for-loop-group-utils'
 import { edgeId, nodeId } from './utils/id-utils'
+import { shouldBlockKeyboardShortcut } from './utils/input-detection'
+import { generateDraftId, memoryProjectStore } from './utils/memory-project-store'
 import { migrateProject } from './utils/migrate-schema'
-import { getParentPath } from './utils/path-utils'
-import { pick } from './utils/pick'
-import { EMPTY_PROJECT, type NoodlesProjectJSON } from './utils/serialization'
+import { normalizeMultiInputEdges } from './utils/multi-input-utils'
+import {
+  CACHE_DIRECTORY_NAME,
+  type OutputCache,
+  serializeOutputCache,
+  writeOutputCache,
+} from './utils/output-cache'
+import { getParentPath, parseHandleId } from './utils/path-utils'
+import { applyOperatorInputs, getLastCommittedBeforeState } from './utils/property-history'
+import {
+  EMPTY_PROJECT,
+  NOODLES_VERSION,
+  type NoodlesProjectJSON,
+  safeStringify,
+  saveProjectLocally,
+  serializeEdges,
+  serializeNodes,
+} from './utils/serialization'
+import { EdgeSpatialIndex } from './utils/spatial-index'
+import { calculateViewerPosition } from './utils/viewer-position'
+
+const ChatPanel = lazy(() => import('../ai-chat/chat-panel').then(m => ({ default: m.ChatPanel })))
+
+/*
+ * CSS Architecture:
+ * - layers.css: Establishes CSS layers and imports vendor CSS into 'vendors' layer
+ * - noodles.module.css: Component styles and critical unlayered overrides
+ *
+ * CSS layers ensure vendor styles have lowest priority, making our overrides
+ * work reliably regardless of import order (prevents linting from breaking styles).
+ */
+import './layers.css'
+import { debugApp, debugParams, debugVis } from '../utils/debug'
+import s from './noodles.module.css'
 
 export type Edge<N1 extends Operator<IOperator>, N2 extends Operator<IOperator>> = {
-  id: `${N1['id']}/${keyof N1['outputs']}->${N2['id']}/${keyof N2['inputs']}`
+  id: `${N1['id']}.${'par' | 'out'}.${keyof N1['outputs']}->${N2['id']}.${'par' | 'out'}.${keyof N2['inputs']}`
   source: N1['id']
   target: N2['id']
-  sourceHandle: `${N1['id']}/${keyof N1['outputs']}`
-  targetHandle: `${N2['id']}/${keyof N2['inputs']}`
+  sourceHandle: `${'par' | 'out'}.${keyof N1['outputs']}`
+  targetHandle: `${'par' | 'out'}.${keyof N2['inputs']}`
 }
 
 const fitViewOptions: FitViewOptions = {
@@ -78,129 +176,564 @@ const defaultEdgeOptions: DefaultEdgeOptions = {
   animated: false,
 }
 
-// Offset to position new ViewerOps to the right of the source node when created via 'v' keypress
-const VIEWER_OFFSET_X = 400
+// Syncs edge data from React Flow store to centralized EdgeConnectionStore for O(1) lookups
+function EdgeConnectionSynchronizer() {
+  const store = useStoreApi()
+  const prevEdgesRef = useRef<ReactFlowEdge[] | null>(null)
 
-// TheatreJS is used by the Noodles framework to provide a timeline and keyframe animation for Op fields.
-// Naturally, the Noodles framework will load a new theatre state when a Noodles project is loaded.
-// TheatreJS doesn't support loading projects with the same ID more than once, so a new theatre project name is generated when a new Noodles project is loaded.
-// Currently a UUID is used, but a more human-readable name could be generated instead as long as its unique to the page session.
-//
-// TheatreJS project names are not included in the Noodles project file.
-// TheatreJS sheet names are included, so they should be the same for every project.
-const THEATRE_SHEET_ID = 'Noodles'
-function useTheatreJs(projectName?: string) {
-  // Increment whenever a new theatre project is created to keep the project name unique *within theatre*.
-  const _projectCounterRef = useRef(1)
-  const name = `${projectName || UNSAVED_PROJECT_NAME}-${_projectCounterRef.current}`
-  const config = {} as IProjectConfig
-  const [theatreState, setTheatreState] = useState({ name, config })
-  const [theatreReady, setTheatreReady] = useState(false)
-  const theatreProject = useMemo(() => {
-    const { name, config } = theatreState
-    setTheatreReady(false)
-    return getProject(name, config)
-  }, [theatreState])
-  const theatreSheet = useMemo(() => theatreProject.sheet(THEATRE_SHEET_ID), [theatreProject])
   useEffect(() => {
-    theatreProject?.ready.then(() => setTheatreReady(true))
-  }, [theatreProject])
+    const unsubscribe = store.subscribe(state => {
+      // Skip if edges array identity hasn't changed (position-only updates)
+      if (prevEdgesRef.current === state.edges) {
+        return
+      }
+      prevEdgesRef.current = state.edges
+      useEdgeConnectionStore.getState().updateFromEdges(state.edges)
+    })
+    // Initial sync
+    const currentEdges = store.getState().edges
+    prevEdgesRef.current = currentEdges
+    useEdgeConnectionStore.getState().updateFromEdges(currentEdges)
+    return unsubscribe
+  }, [store])
 
-  const setTheatreProject = useCallback(
-    (theatreConfig: IProjectConfig, incomingProjectName?: string) => {
-      // Theatre stores too much state if you don't reset it
-      studio.transaction(api => {
-        api.__experimental_forgetSheet(theatreSheet)
-      })
-      // Increment the project counter to keep the project name unique
-      _projectCounterRef.current += 1
-      const newProjectName = `${incomingProjectName || UNSAVED_PROJECT_NAME}-${_projectCounterRef.current}`
-      setTheatreState({ name: newProjectName, config: theatreConfig })
-    },
-    [theatreSheet]
-  )
-
-  const getTimelineJson = useCallback(() => {
-    const timeline = studio.createContentOfSaveFile(theatreState.name)
-
-    // Clear staticOverrides to prevent them from being saved, only preserve editor and render
-    // objects since we're storing that state in Theatre
-    const sheetsById = Object.fromEntries(
-      Object.entries(
-        timeline.sheetsById as Record<string, { staticOverrides?: { byObject?: unknown } }>
-      ).map(([sheetId, sheet]) => [
-        sheetId,
-        {
-          ...sheet,
-          staticOverrides: {
-            byObject: pick(sheet.staticOverrides?.byObject || {}, ['editor', 'render']),
-          },
-        },
-      ])
-    )
-
-    return { ...timeline, sheetsById }
-  }, [theatreState.name])
-
-  return { theatreReady, theatreProject, theatreSheet, setTheatreProject, getTimelineJson }
+  return null
 }
 
-// Not using the top-level sheet since a Noodles theatre sheet and project are dynamically created.
-// Also, the top-level sheet is used for theatre-managed project files, whereas a Noodles project file is managed within this visType.
 export function getNoodles(): Visualization {
-  const [projectName, setProjectName] = useState<string>()
-  const [showProjectNotFoundDialog, setShowProjectNotFoundDialog] = useState(false)
-  const storageType = useActiveStorageType()
-  const { setCurrentDirectory, setActiveStorageType, setError } = useFileSystemStore()
-  const { theatreReady, theatreProject, theatreSheet, setTheatreProject, getTimelineJson } =
-    useTheatreJs(projectName)
-  const ops = useSlice(state => state.ops)
-  const sheetObjects = useSlice(state => state.sheetObjects)
-  const [nodes, setNodes, onNodesChange] = useNodesState<AnyNodeJSON>([])
-  const [edges, setEdges, onEdgesChange] = useEdgesState<ReactFlowEdge<unknown>>([])
-  const vPressed = useKeyPress('v')
-  const aPressed = useKeyPress('a')
-  const [showChatPanel, setShowChatPanel] = useState(false)
+  const [location, navigate] = useLocation()
+  const params = useParams()
 
-  // Eagerly start loading AI context bundles on app start
+  // Get projectId from route params (/examples/:projectId or /projects/:projectId) - router is single source of truth
+  const projectName = params.projectId ?? null
+
+  // Detect if we're on /projects or /examples route to preserve it when navigating
+  const routePrefix = location.startsWith('/projects/') ? '/projects' : '/examples'
+  const isExamplesRoute = routePrefix === '/examples'
+  const isNewProjectRoute = projectName === 'new'
+  const isProjectsRoute = routePrefix === '/projects' && !isNewProjectRoute
+
+  const [showProjectNotFoundDialog, setShowProjectNotFoundDialog] = useState(false)
+  const [showSaveAsDialog, setShowSaveAsDialog] = useState(false)
+  const [showRenameDialog, setShowRenameDialog] = useState(false)
+  const [saveAsOptions, setSaveAsOptions] = useState<{
+    targetHandle: FileSystemDirectoryHandle | null
+    hasExistingProject: boolean
+    hasDataFiles: boolean
+  } | null>(null)
+  const [showExampleNotFoundDialog, setShowExampleNotFoundDialog] = useState(false)
+  const [graphErrors, setGraphErrors] = useState<GraphError[]>([])
+  const storageType = useActiveStorageType()
+  const {
+    currentDirectory,
+    currentProjectName: storedProjectName,
+    setCurrentDirectory,
+    setActiveStorageType,
+    setError,
+  } = useFileSystemStore()
+  const timelineStore = getTimelineStore()
+  const getTimelineJson = useCallback((): Record<string, unknown> => {
+    return timelineStore.toTimelineJSON() as unknown as Record<string, unknown>
+  }, [timelineStore.toTimelineJSON])
+
+  const [nodes, setNodes, onNodesChangeBase] = useNodesState<AnyNodeJSON>([])
+  const [edges, setEdges, onEdgesChangeBase] = useEdgesState<ReactFlowEdge<unknown>>([])
+  const referenceEdges = useSyncExternalStore(
+    referenceDependencyModel.subscribe,
+    referenceDependencyModel.getSnapshot,
+    referenceDependencyModel.getSnapshot
+  )
+  const modelEdges = useMemo<ReactFlowEdge[]>(
+    () => [...(edges as ReactFlowEdge[]), ...referenceEdges],
+    [edges, referenceEdges]
+  )
+  const [defaultViewport, setDefaultViewport] = useState({ x: 0, y: 0, zoom: 1 })
+
+  useEffect(() => () => referenceDependencyModel.reset(), [])
+
   useEffect(() => {
-    globalContextManager.startLoading().catch(error => {
-      console.warn('Failed to preload AI context:', error)
-    })
-  }, [])
+    const inspectedEdge = getUIStore().inspectedReferenceEdge
+    if (inspectedEdge && !referenceEdges.some(edge => edge.id === inspectedEdge.id)) {
+      getUIStore().setInspectedReferenceEdge(null)
+    }
+  }, [referenceEdges])
+
+  // Single ref providing synchronous access to the full graph state.
+  // Used by CopyControls, UndoRedoHandler, and hooks that need all nodes/edges
+  // without triggering re-renders or being limited to the displayed scope.
+  const graphRef = useRef({ nodes, edges })
+  graphRef.current = { nodes, edges }
+
+  // Spatial index for fast edge proximity queries (R-tree)
+  const spatialIndexRef = useRef<EdgeSpatialIndex | null>(null)
+
+  // Update spatial index when nodes or edges change
+  useEffect(() => {
+    if (!spatialIndexRef.current) {
+      spatialIndexRef.current = new EdgeSpatialIndex()
+    }
+
+    // Rebuild index if nodes/edges changed
+    if (spatialIndexRef.current.needsRebuild(nodes, modelEdges)) {
+      spatialIndexRef.current.build(nodes, modelEdges)
+    }
+  }, [nodes, modelEdges])
+  const [showChatPanel, setShowChatPanel] = useState(false)
+  const [chatInitialMessage, setChatInitialMessage] = useState<string | undefined>(undefined)
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+  const [parameterEditorState, setParameterEditorState] = useState<{
+    open: boolean
+    operatorId: string | null
+  }>({ open: false, operatorId: null })
+  const [paramEditorError, setParamEditorError] = useState<Error | null>(null)
+  // Throw during render so the ErrorBoundary catches it with a descriptive message
+  if (paramEditorError) throw paramEditorError
+
+  // Wrap onNodesChange to track node selection and mark unsaved changes
+  const onNodesChange = useCallback(
+    (changes: Parameters<typeof onNodesChangeBase>[0]) => {
+      // Track selection changes
+      const selectedChanges = changes.filter(change => change.type === 'select' && change.selected)
+      if (selectedChanges.length > 0) {
+        getUIStore().setInspectedReferenceEdge(null)
+        analytics.track('node_selected', { count: selectedChanges.length })
+      }
+
+      // Mark as unsaved if there are user-initiated changes
+      // (exclude 'select' and 'dimensions' - dimensions are fired when React Flow measures nodes)
+      const hasUserChanges = changes.some(
+        change => change.type !== 'select' && change.type !== 'dimensions'
+      )
+      if (hasUserChanges) {
+        setHasUnsavedChanges(true)
+      }
+
+      onNodesChangeBase(changes)
+    },
+    [onNodesChangeBase]
+  )
+
+  // Wrap onEdgesChange to mark unsaved changes
+  const onEdgesChange = useCallback(
+    (changes: Parameters<typeof onEdgesChangeBase>[0]) => {
+      // Mark as unsaved if there are non-selection changes
+      const hasNonSelectionChanges = changes.some(change => change.type !== 'select')
+      if (hasNonSelectionChanges) {
+        setHasUnsavedChanges(true)
+      }
+
+      onEdgesChangeBase(changes)
+    },
+    [onEdgesChangeBase]
+  )
+
+  const contextLoadStarted = useRef(false)
+
+  // Start loading AI context bundles when the chat panel is first opened
+  useEffect(() => {
+    if (showChatPanel && !contextLoadStarted.current) {
+      contextLoadStarted.current = true
+      globalContextManager.startLoading().catch(error => {
+        debugApp('Failed to preload AI context:', error)
+      })
+    }
+  }, [showChatPanel])
+
+  // Warn before leaving page with unsaved changes
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      // Don't warn for examples - they're read-only demos
+      if (isExamplesRoute) {
+        return
+      }
+      if (hasUnsavedChanges || storageType === 'memory') {
+        e.preventDefault()
+        e.returnValue = ''
+      }
+    }
+
+    const displayName =
+      storageType === 'memory'
+        ? memoryProjectStore.getDisplayName(projectName || '') || 'Untitled'
+        : projectName
+    // Don't show asterisk for examples - they're read-only
+    const showAsterisk = !isExamplesRoute && (hasUnsavedChanges || storageType === 'memory')
+    document.title = displayName
+      ? `Noodles.gl - ${displayName}${showAsterisk ? ' *' : ''}`
+      : 'Noodles.gl'
+
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+  }, [hasUnsavedChanges, projectName, storageType, isExamplesRoute])
+
+  // Only changes when graph structure changes (nodes added/removed/type changed, edges reconnected)
+  // Intentionally excludes node position so dragging does NOT re-run transformGraph
+  const graphStructureKey = useMemo(() => {
+    const nodeIds = nodes
+      .map(n => `${n.id}:${n.type}`)
+      .sort()
+      .join(',')
+    const edgeIds = edges
+      .map(e => e.id)
+      .sort()
+      .join(',')
+    return `${nodeIds}|${edgeIds}`
+  }, [nodes, edges])
+
+  // Visual ForLoop groups are derived from the directed Begin-to-End subgraph. Re-run
+  // when connectivity, membership, or measured dimensions change, but not during a drag.
+  const forLoopLayoutKey = useMemo(() => {
+    const nodeState = nodes
+      .map(
+        node =>
+          `${node.id}:${node.type}:${node.parentId ?? ''}:${node.measured?.width ?? ''}x${node.measured?.height ?? ''}`
+      )
+      .sort()
+      .join(',')
+    const connectivity = modelEdges
+      .map(edge => `${edge.source}->${edge.target}`)
+      .sort()
+      .join(',')
+    return `${nodeState}|${connectivity}`
+  }, [nodes, modelEdges])
+
+  // nodes/edges are represented by forLoopLayoutKey; position-only updates intentionally
+  // do not trigger this effect because drag-stop performs the fit once per gesture.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional key-based reconciliation
+  useEffect(() => {
+    setNodes(currentNodes => reconcileForLoopGroups(currentNodes, modelEdges))
+  }, [forLoopLayoutKey, setNodes])
 
   // `transformGraph` needs all nodes to build the opMap and resolve connections
-  const operators = useMemo(() => transformGraph({ nodes, edges }), [nodes, edges])
+  // Use useEffect instead of useMemo to avoid setState during render
+  const [operators, setOperators] = useState<Operator<IOperator>[]>([])
+  // Set to true in loadProjectFile so the effect below skips the redundant re-run triggered
+  // by setNodes/setEdges — the graph was already built synchronously during load
+  const isProjectLoadRef = useRef(false)
+  // nodes/edges omitted from deps intentionally — only re-run on structural changes, not position updates during drag
+  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional - graphStructureKey gates this
+  useEffect(() => {
+    // loadProjectFile already called transformGraph directly, so skip this triggered re-run
+    if (isProjectLoadRef.current) return
+    const result = transformGraph({ nodes, edges })
+    setOperators(result.operators)
+    // Show error dialog if there are graph errors
+    if (result.errors.length > 0) {
+      setGraphErrors(
+        result.errors.map(e => ({
+          type: e.type,
+          message: e.message,
+        }))
+      )
+    }
+    // Catch-all for multi-input slot caches: re-derive orderIndex/groupSize now that the
+    // operators exist in the store (covers undo/redo restores, keyboard deletes, and AI/paste
+    // paths that added edges before their operators were instantiated). Returns the same
+    // array reference when nothing changed, so this doesn't loop.
+    setEdges(currentEdges =>
+      normalizeMultiInputEdges(currentEdges.filter(edge => edge.type !== 'ReferenceEdge'))
+    )
+  }, [graphStructureKey])
+
+  // Reset isProjectLoadRef after every render so the flag never gets stuck when
+  // graphStructureKey doesn't change (e.g. re-loading the same project, undo of position-only drag).
+  // Defined after the graphStructureKey effect so it clears the flag after the guard check runs.
+  useEffect(() => {
+    isProjectLoadRef.current = false
+  })
+
+  // Bind timeline tracks for all operators (outside ReactFlow rendering pipeline).
+  useEffect(() => {
+    const newCleanupFns = new Map<string, () => void>()
+    const currentOperatorIds = new Set(operators.map(op => op.id))
+
+    for (const op of operators) {
+      if (op.id === '/out') continue // Skip special operators
+      const cleanup = bindOperatorToTimeline(op)
+      if (cleanup) {
+        newCleanupFns.set(op.id, cleanup)
+      }
+    }
+    cleanupRemovedOperatorsNative(currentOperatorIds)
+
+    return () => {
+      for (const cleanup of newCleanupFns.values()) {
+        cleanup()
+      }
+    }
+  }, [operators])
 
   // Use shared hook for project modifications
-  const { onConnect, onNodesDelete } = useProjectModifications({
+  const {
+    applyModifications,
+    onConnect: onConnectBase,
+    onReconnect: onReconnectBase,
+    onNodesDelete: onNodesDeleteBase,
+    updateOperatorId,
+  } = useProjectModifications({
     getNodes: useCallback(() => nodes, [nodes]),
     getEdges: useCallback(() => edges, [edges]),
     setNodes,
-    setEdges
+    setEdges,
   })
 
-  const onReconnect = useCallback(
-    (oldEdge: ReactFlowEdge, newConnection: Connection) =>
-      setEdges(els => reconnectEdge(oldEdge, newConnection, els)),
-    [setEdges]
-  )
+  // Keep the WebMCP tool surface in sync with editor state when external
+  // control is enabled (?externalControl=true). The agent benchmark reads and
+  // applies through the same bridge.
+  useEffect(() => {
+    if (!externalControl && !agentBench) return
+    setModificationApplier(applyModifications)
+    return () => setModificationApplier(null)
+  }, [applyModifications])
 
-  const onNodeClick = useCallback(
-    (_e: React.MouseEvent, node: ReactFlowNode<unknown>) => {
-      const obj = sheetObjects.get(node.id)
-      if (obj) studio.setSelection([obj])
+  useEffect(() => {
+    if (!externalControl && !agentBench) return
+    // ReactFlow edges type sourceHandle as string | null; the project shape uses undefined
+    setCurrentProject({ nodes, edges } as NoodlesProject)
+  }, [nodes, edges])
+
+  // Wrap onConnect to mark unsaved changes
+  const onConnect = useCallback(
+    (connection: Connection) => {
+      onConnectBase(connection)
+      setHasUnsavedChanges(true)
     },
-    [sheetObjects]
+    [onConnectBase]
   )
 
+  // Wrap onNodesDelete to mark unsaved changes
+  const onNodesDelete = useCallback(
+    (deleted: ReactFlowNode[]) => {
+      onNodesDeleteBase(deleted)
+      setHasUnsavedChanges(true)
+    },
+    [onNodesDeleteBase]
+  )
+
+  // Wrap onReconnect to mark unsaved changes
+  const onReconnect = useCallback(
+    (oldEdge: ReactFlowEdge, newConnection: Connection) => {
+      onReconnectBase(oldEdge, newConnection)
+      setHasUnsavedChanges(true)
+    },
+    [onReconnectBase]
+  )
+
+  // Clear any leftover multi-input slot state when a reconnect drag is dropped or cancelled
+  const onReconnectEnd = useCallback(() => {
+    clearPendingInsertionIndex()
+  }, [])
+
+  const spreadsheetVisible = useUIStore(state => state.spreadsheetVisible)
+  const setSpreadsheetVisible = useUIStore(state => state.setSpreadsheetVisible)
+
+  // Track connection drag state for dimming unconnectable nodes
+  const setConnectionDragState = useUIStore(state => state.setConnectionDragState)
+  const connectionDragState = useUIStore(state => state.connectionDragState)
+  const setTargetedEdge = useUIStore(state => state.setTargetedEdge)
+  const onConnectStart: OnConnectStart = useCallback(
+    (_event, params) => {
+      if (!params.nodeId || !params.handleId) return
+
+      const sourceOp = getOp(params.nodeId)
+      if (!sourceOp) return
+
+      // Parse handle ID to get namespace and field name (e.g., "out.data" -> ["out", "data"])
+      const [namespace, fieldName] = params.handleId.split('.')
+      if (!namespace || !fieldName) return
+
+      // Determine the source field based on handle type
+      const isOutput = params.handleType === 'source'
+      const sourceField = isOutput ? sourceOp.outputs[fieldName] : sourceOp.inputs[fieldName]
+      if (!sourceField) return
+
+      // Calculate which nodes have compatible handles
+      const compatibleNodeIds = new Set<string>()
+      const store = getOpStore()
+
+      for (const [nodeId, op] of store.operators) {
+        if (nodeId === params.nodeId) continue
+
+        // Check target handles (inputs if dragging from output, outputs if dragging from input)
+        const targetFields = isOutput ? op.inputs : op.outputs
+        for (const targetField of Object.values(targetFields)) {
+          const compatible = isOutput
+            ? canConnectCached(sourceField, targetField)
+            : canConnectCached(targetField, sourceField)
+          if (compatible) {
+            compatibleNodeIds.add(nodeId)
+            break
+          }
+        }
+      }
+
+      // Calculate which existing edges the dragged source is compatible with (computed once,
+      // used to vary hit area size and highlight style during mousemove)
+      const compatibleEdgeIds = new Set<string>()
+      for (const edge of edges) {
+        if (edge.type === 'ReferenceEdge') continue
+        if (edge.source === params.nodeId || edge.target === params.nodeId) continue
+        const targetHandleInfo = parseHandleId(edge.targetHandle || '')
+        if (!targetHandleInfo) continue
+        const targetOp = getOp(edge.target)
+        if (!targetOp) continue
+        const targetField = targetOp.inputs[targetHandleInfo.fieldName]
+        if (!targetField) continue
+        const compatible = isOutput
+          ? canConnectCached(sourceField, targetField)
+          : canConnectCached(targetField, sourceField)
+        if (compatible) compatibleEdgeIds.add(edge.id)
+      }
+
+      setConnectionDragState({
+        sourceNodeId: params.nodeId,
+        sourceHandleId: params.handleId,
+        compatibleNodeIds,
+        compatibleEdgeIds,
+      })
+    },
+    [setConnectionDragState, edges]
+  )
+
+  const { onConnectEnd: onConnectionDropEnd } = useConnectionDropOnEdge({
+    getNodes: useCallback(() => nodes, [nodes]),
+    getEdges: useCallback(() => edges, [edges]),
+    onConnect,
+    getConnectionDragState: () => useUIStore.getState().connectionDragState,
+    screenToFlowPosition: pos => reactFlowInstanceRef.current?.screenToFlowPosition(pos) ?? pos,
+  })
+
+  const onConnectEnd: OnConnectEnd = useCallback(
+    (event, connectionState) => {
+      onConnectionDropEnd(event, connectionState)
+      setConnectionDragState(null)
+      setTargetedEdge(null)
+      // Drop any multi-input slot state from a cancelled drag (successful connects
+      // already consumed it in onConnect)
+      clearPendingInsertionIndex()
+    },
+    [onConnectionDropEnd, setConnectionDragState, setTargetedEdge]
+  )
+
+  const onMouseMove = useCallback(
+    (event: { clientX: number; clientY: number }) => {
+      if (!connectionDragState) return
+      const pos = reactFlowInstanceRef.current?.screenToFlowPosition({
+        x: event.clientX,
+        y: event.clientY,
+      })
+      if (!pos) return
+      const edge = findEdgeAtPosition(
+        pos,
+        connectionDragState.sourceNodeId,
+        () => graphRef.current.nodes,
+        () => graphRef.current.edges,
+        connectionDragState.compatibleEdgeIds,
+        spatialIndexRef.current || undefined
+      )
+      setTargetedEdge(
+        edge
+          ? { id: edge.id, compatible: connectionDragState.compatibleEdgeIds.has(edge.id) }
+          : null
+      )
+    },
+    [connectionDragState, setTargetedEdge]
+  )
+
+  // Hook for dropping nodes onto edges to insert them
+  const { onNodeDrag: onNodeDragBase, onNodeDragStop: onNodeDragStopBase } = useNodeDropOnEdge({
+    getNodes: useCallback(() => graphRef.current.nodes, []),
+    getEdges: useCallback(() => graphRef.current.edges, []),
+    setEdges,
+  })
+
+  // Track node drag for visual feedback
+  const onNodeDrag = useCallback(
+    (event: React.MouseEvent, node: ReactFlowNode) => {
+      onNodeDragBase(event, node)
+    },
+    [onNodeDragBase]
+  )
+
+  // Wrap onNodeDragStop to mark unsaved changes when a node is inserted
+  const onNodeDragStop = useCallback(
+    (event: React.MouseEvent, node: ReactFlowNode) => {
+      const result = onNodeDragStopBase(event, node)
+      setNodes(currentNodes =>
+        reconcileForLoopGroups(currentNodes, [
+          ...graphRef.current.edges,
+          ...referenceDependencyModel.getSnapshot(),
+        ])
+      )
+      // Mark as unsaved if a node was inserted into an edge
+      if (result) {
+        setHasUnsavedChanges(true)
+      }
+    },
+    [onNodeDragStopBase, setNodes]
+  )
+
+  const onNodeContextMenu = useCallback(
+    (event: React.MouseEvent, node: ReactFlowNode<Record<string, unknown>>) => {
+      event.preventDefault()
+      const op = getOp(node.id)
+      if (op && (op.constructor as typeof Operator).supportsCustomFields) {
+        setParameterEditorState({ open: true, operatorId: node.id })
+      }
+    },
+    []
+  )
   const reactFlowRef = useRef<HTMLDivElement>(null)
+  const reactFlowInstanceRef = useRef<ReactFlowInstance | null>(null)
   const blockLibraryRef = useRef<BlockLibraryRef>(null)
+
+  // Avoid circular dependency
+  const loadProjectFileRef =
+    useRef<
+      (
+        project: NoodlesProjectJSON,
+        name?: string,
+        targetRoutePrefix?: string,
+        outputCache?: OutputCache
+      ) => void
+    >()
+
+  const currentProjectRef = useRef<NoodlesProjectJSON>(newProjectJSON)
+
+  // Track when we're programmatically loading a project to prevent useEffect from trying to reload
+  const isProgrammaticLoadRef = useRef(false)
+
+  // Ref to access undo/redo and copy/paste functionality from inside ReactFlow context
+  const undoRedoRef = useRef<UndoRedoHandlerRef>(null)
+  const copyControlsRef = useRef<CopyControlsRef>(null)
+
+  // Helper component to capture ReactFlow instance
+  function ReactFlowInstanceCapture() {
+    const instance = useReactFlow()
+    reactFlowInstanceRef.current = instance
+    return null
+  }
 
   const onDeselectAll = useCallback(() => {
     setNodes(nodes => nodes.map(node => ({ ...node, selected: false })))
     setEdges(edges => edges.map(edge => ({ ...edge, selected: false })))
+    getUIStore().setInspectedReferenceEdge(null)
   }, [setNodes, setEdges])
+
+  const onEdgeClick = useCallback(
+    (_event: React.MouseEvent, edge: ReactFlowEdge) => {
+      analytics.track('edge_selected', { type: edge.type ?? 'default' })
+      if (edge.type === 'ReferenceEdge') {
+        onDeselectAll()
+        getUIStore().setInspectedReferenceEdge(
+          referenceEdges.find(referenceEdge => referenceEdge.id === edge.id) ?? edge
+        )
+      } else {
+        getUIStore().setInspectedReferenceEdge(null)
+      }
+    },
+    [onDeselectAll, referenceEdges]
+  )
 
   const onPaneClick = useCallback(() => {
     blockLibraryRef.current?.closeModal()
@@ -210,140 +743,71 @@ export function getNoodles(): Visualization {
   const onPaneContextMenu = useCallback((event: React.MouseEvent<Element, MouseEvent>) => {
     event.preventDefault()
     // Show Block Library at the right-click position
+    analytics.track('block_library_opened', { method: 'context_menu' })
     blockLibraryRef.current?.openModal(event.clientX, event.clientY)
   }, [])
 
-  const vPressHandledRef = useRef(false)
+  const currentContainerId = useNestingStore(state => state.currentContainerId)
 
-  const { currentContainerId } = useSlice(state => state.nesting)
+  // Handle 'v' keyup to create ViewerOp (momentary button behavior)
+  useKeyboardShortcut('v', () => {
+    const currentNodes = graphRef.current.nodes
+    const hoveredHandle = getUIStore().hoveredOutputHandle
+    let sourceNode: ReactFlowNode | undefined
+    let sourceHandle: string | null = null
 
-  // Handle 'v' key press to create ViewerOp
-  useEffect(() => {
-    if (!vPressed) {
-      // Reset the flag when key is released
-      vPressHandledRef.current = false
-      return
+    // Priority 1: If hovering over ANY output handle, use that
+    if (hoveredHandle?.handleId.startsWith('out.')) {
+      sourceNode = currentNodes.find(node => node.id === hoveredHandle.nodeId)
+      sourceHandle = sourceNode ? hoveredHandle.handleId : null
     }
 
-    // Only handle once per key press
-    if (vPressHandledRef.current) return
-    vPressHandledRef.current = true
+    // Priority 2: If nodes are selected, use rightmost selected node
+    if (!sourceNode) {
+      const selectedNodes = currentNodes.filter(node => node.selected)
+      if (selectedNodes.length === 0) return
 
-    setNodes(currentNodes => {
-      const selectedNodes = currentNodes.filter(n => n.selected)
-      if (selectedNodes.length === 0) {
-        if (hoveredOutputHandle) {
-          const hoveredNode = currentNodes.find(n => n.id === hoveredOutputHandle.nodeId)
-          if (hoveredNode) {
-            const newViewerPosition = {
-              x: hoveredNode.position.x + VIEWER_OFFSET_X,
-              y: hoveredNode.position.y,
-            }
+      sourceNode = selectedNodes.reduce((rightmost, node) =>
+        node.position.x > rightmost.position.x ? node : rightmost
+      )
+      const sourceOp = getOpStore().getOp(sourceNode.id)
+      const firstOutputKey = sourceOp && Object.keys(sourceOp.outputs)[0]
+      sourceHandle = firstOutputKey ? `out.${firstOutputKey}` : null
+    }
 
-            const viewerId = nodeId('viewer', currentContainerId)
+    const viewerId = nodeId('viewer', currentContainerId)
+    const viewerNode: AnyNodeJSON = {
+      id: viewerId,
+      type: 'ViewerOp',
+      position: calculateViewerPosition(sourceNode, currentNodes),
+      data: undefined,
+    }
 
-            const viewerNode: AnyNodeJSON = {
-              id: viewerId,
-              type: 'ViewerOp',
-              position: newViewerPosition,
-              data: undefined,
-            }
+    setNodes(nodes => (nodes.some(node => node.id === viewerId) ? nodes : [...nodes, viewerNode]))
 
-            const sourceHandle = hoveredOutputHandle.handleId
-            const targetHandle = 'par.data'
-            const newEdge = {
-              id: edgeId({ source: hoveredOutputHandle.nodeId, sourceHandle, target: viewerId, targetHandle }),
-              source: hoveredOutputHandle.nodeId,
-              sourceHandle,
-              target: viewerId,
-              targetHandle,
-            }
-
-            setEdges(currentEdges => [...currentEdges, newEdge])
-            return [...currentNodes, viewerNode]
-          }
-        }
-        return currentNodes
-      }
-
-      // Find the rightmost selected node
-      const rightmostNode = selectedNodes.reduce((rightmost, node) => {
-        return node.position.x > rightmost.position.x ? node : rightmost
-      }, selectedNodes[0])
-
-      // Calculate position for new ViewerOp (to the right of the rightmost node)
-      const newViewerPosition = {
-        x: rightmostNode.position.x + VIEWER_OFFSET_X,
-        y: rightmostNode.position.y,
-      }
-
-      const viewerId = nodeId('viewer', currentContainerId)
-
-      // Create the ViewerOp node
-      const viewerNode: AnyNodeJSON = {
-        id: viewerId,
-        type: 'ViewerOp',
-        position: newViewerPosition,
-        data: undefined,
-      }
-
-      // Determine sourceHandle to use
-      let sourceNodeId = rightmostNode.id
-      let sourceHandle: string | null = null
-
-      // Check if a handle is hovered (from shared store)
-      if (hoveredOutputHandle && selectedNodes.some(n => n.id === hoveredOutputHandle.nodeId)) {
-        // Use hovered handle if it's on a selected node
-        // Handle ID is already in the format "out.fieldName"
-        if (hoveredOutputHandle.handleId.startsWith('out.')) {
-          sourceNodeId = hoveredOutputHandle.nodeId
-          sourceHandle = hoveredOutputHandle.handleId
-        }
-      }
-
-      // If no hovered handle, use the first output handle of the rightmost node
-      if (!sourceHandle) {
-        const sourceOp = ops.get(sourceNodeId)
-        if (sourceOp) {
-          const firstOutputKey = Object.keys(sourceOp.outputs)[0]
-          if (firstOutputKey) {
-            sourceHandle = `out.${firstOutputKey}`
-          }
-        }
-      }
-
-      // Create edge if we have a valid source handle
-      if (sourceHandle) {
-        const targetHandle = 'par.data'
-        const newEdge = {
-          id: edgeId({ source: sourceNodeId, sourceHandle, target: viewerId, targetHandle }),
-          source: sourceNodeId,
+    if (sourceHandle) {
+      const targetHandle = 'par.data'
+      const newEdge: ReactFlowEdge = {
+        id: edgeId({
+          source: sourceNode.id,
           sourceHandle,
           target: viewerId,
           targetHandle,
-        }
-
-        // Add edge
-        setEdges(currentEdges => [...currentEdges, newEdge])
+        }),
+        source: sourceNode.id,
+        sourceHandle,
+        target: viewerId,
+        targetHandle,
       }
-
-      return [...currentNodes, viewerNode]
-    })
-  }, [vPressed, ops, setNodes, setEdges, currentContainerId])
-
-  const aPressHandledRef = useRef(false)
-
-  // Handle 'a' key press to open Block Library
-  useEffect(() => {
-    if (!aPressed) {
-      // Reset the flag when key is released
-      aPressHandledRef.current = false
-      return
+      setEdges(edges => normalizeMultiInputEdges(insertUniqueEdge(edges, newEdge)))
     }
 
-    // Only handle once per key press
-    if (aPressHandledRef.current) return
-    aPressHandledRef.current = true
+    analytics.track('viewer_created', { method: 'keyboard' })
+  }, [setNodes, setEdges, currentContainerId])
+
+  // Handle 'a' keyup to open Block Library (momentary button behavior)
+  useKeyboardShortcut('a', () => {
+    analytics.track('block_library_opened', { method: 'keyboard' })
 
     // Open Block Library at center of screen
     const pane = reactFlowRef.current?.getBoundingClientRect()
@@ -352,78 +816,209 @@ export function getNoodles(): Visualization {
     const centerX = pane.left + pane.width / 2
     const centerY = pane.top + pane.height / 2
     blockLibraryRef.current?.openModal(centerX, centerY)
-  }, [aPressed])
+  }, [])
 
-  const editorSheet = useMemo(() => {
-    return theatreSheet.object('editor', {
-      showOverlay: types.boolean(!IS_PROD),
-      layoutMode: types.stringLiteral('noodles-on-top', {
-        split: 'Split',
-        'noodles-on-top': 'Noodles on Top',
-        'output-on-top': 'Output on Top',
-      }),
-    })
-  }, [theatreSheet])
+  const [showOverlay, setShowOverlay] = useState(true)
+  const [showDebugInfo, setShowDebugInfo] = useState(false)
 
-  const { showOverlay, layoutMode } = useSheetValue(editorSheet)
+  // Render settings are now stored as OutOp inputs (see migration 012)
+  // Use useRenderSettings() hook to read them
 
   const loadProjectFile = useCallback(
-    (project: NoodlesProjectJSON, name?: string) => {
-      const {
-        nodes,
-        edges,
-        // viewport, // TODO: Set viewport in React Flow (needs to be done in a ReactFlowContext)
-        timeline,
-      } = project
-      for (const op of opMap.values()) {
-        op.unsubscribeListeners()
-      }
-      opMap.clear()
-      setNodes(nodes)
-      setEdges(edges)
-      setProjectName(name)
-      setTheatreProject(name ? { state: timeline } : {}, name)
+    (
+      project: NoodlesProjectJSON,
+      name?: string,
+      targetRoutePrefix?: string,
+      outputCache?: OutputCache
+    ) => {
+      const { nodes, edges, viewport, timeline, editorSettings, apiKeys } = project
 
-      // Update URL query parameter with project name
-      if (name) {
-        const url = new URL(window.location.href)
-        url.searchParams.set('project', name)
-        window.history.replaceState({}, '', url.toString())
+      // Prevent the storage-loading useEffect from reloading when the URL changes below
+      isProgrammaticLoadRef.current = true
+      // Signal the graphStructureKey effect to skip — transformGraph runs synchronously below
+      isProjectLoadRef.current = true
+
+      currentProjectRef.current = project
+
+      // Install embedded keys before constructing operators. Key-dependent operators
+      // may inspect credentials while their fields and listeners are initialized.
+      const keysStore = getKeysStore()
+      keysStore.setProjectKeys(apiKeys)
+
+      // Dispose all old operators cleanly (executionState.complete() + unsubscribeListeners)
+      const store = getOpStore()
+      for (const op of store.getAllOps()) {
+        op.dispose()
       }
+      store.clearOps()
+
+      // Load timeline state before transformGraph so field bindings see the right keyframe data
+      clearAllBindings()
+      const hasTimeline = timeline && Object.keys(timeline).length > 0
+      const timelineErrors: GraphError[] = []
+      if (hasTimeline) {
+        try {
+          // Timeline data uses a timeline JSON format.
+          timelineStore.fromTimelineJSON(
+            timeline as unknown as import('../timeline/types').TimelineData
+          )
+        } catch (error) {
+          console.error('Failed to load timeline:', error)
+          timelineErrors.push({
+            type: 'operator-execution',
+            message: 'Failed to load timeline data',
+            details: error instanceof Error ? error.stack : String(error),
+          })
+        }
+      } else {
+        timelineStore.reset()
+      }
+
+      // Build the operator graph synchronously — operators are ready before any re-render
+      const result = transformGraph({ nodes, edges, outputCache })
+      setOperators(result.operators)
+      // Show error dialog if there are graph or timeline errors
+      const allErrors = [
+        ...timelineErrors,
+        ...result.errors.map(e => ({
+          type: e.type,
+          message: e.message,
+        })),
+      ]
+      if (allErrors.length > 0) {
+        setGraphErrors(allErrors)
+      }
+
+      // Update React Flow state (for rendering; graph is already set up above).
+      // Normalizing here (after transformGraph, so operators exist for the ListField
+      // lookup) derives multi-input slot rendering caches from the file's edge order —
+      // project files never store them.
+      setNodes(nodes)
+      setEdges(
+        normalizeMultiInputEdges(
+          (edges as ReactFlowEdge[]).filter(edge => edge.type !== 'ReferenceEdge')
+        )
+      )
+
+      // Load editor settings from project with defaults
+      setShowOverlay(editorSettings?.showOverlay ?? true)
+      setShowDebugInfo(editorSettings?.showDebugInfo ?? false)
+
+      // Render settings are now stored as OutOp inputs (migration 012 handles conversion)
+
+      // Restore viewport unless we're in an undo/redo restore
+      if (viewport && name && !undoRedoRef.current?.isRestoring()) {
+        setDefaultViewport(viewport)
+      }
+
+      // Navigate to the project URL
+      const effectiveRoutePrefix = targetRoutePrefix ?? routePrefix
+      navigate(name ? `${effectiveRoutePrefix}/${name}` : '/', { replace: true })
+
+      setHasUnsavedChanges(false)
     },
-    [setNodes, setEdges, setTheatreProject]
+    [setNodes, setEdges, navigate, routePrefix, timelineStore.fromTimelineJSON, timelineStore.reset]
   )
+
+  // Assign to ref for undo/redo system
+  loadProjectFileRef.current = loadProjectFile
+
+  // Keyboard shortcuts are now handled by UndoRedoHandler component
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: loadProjectFile would cause infinite loop
   useEffect(() => {
     ;(async () => {
-      if (projectId) {
-        // First try to load from static files (for built-in examples)
+      // If this is a programmatic load (from onNewProject, onImport, etc.),
+      // skip loading from storage to avoid showing the "Project Not Found" dialog
+      if (isProgrammaticLoadRef.current) {
+        isProgrammaticLoadRef.current = false
+        return
+      }
+
+      // If no projectName, load the default new project
+      if (!projectName) {
         try {
-          const req = await fetch(`./noodles/${projectId}/noodles.json`)
-          const noodlesFile = (await req.json()) as Partial<NoodlesProjectJSON>
-          const project = await migrateProject({
-            ...EMPTY_PROJECT,
-            ...noodlesFile,
-          } as NoodlesProjectJSON)
-          // Set project name and storage type for public projects so @/ asset paths work
-          setCurrentDirectory(null, projectId)
-          setActiveStorageType('publicFolder')
-          loadProjectFile(project, projectId)
+          loadProjectFile(newProjectJSON as NoodlesProjectJSON)
           return
         } catch (_error) {
-          console.log('Static project file not found, trying storage...')
+          debugApp('Failed to load default new project:', _error)
+        }
+        return
+      }
+
+      // Handle /projects/new route - load new project into memory
+      if (isNewProjectRoute) {
+        const existingProject = memoryProjectStore.getProjectJson('new')
+        if (existingProject) {
+          const project = await migrateProject(existingProject)
+          setCurrentDirectory(null, 'new')
+          setActiveStorageType('memory')
+          loadProjectFile(project, 'new')
+        } else {
+          const starter = { ...newProjectJSON, version: NOODLES_VERSION } as NoodlesProjectJSON
+          memoryProjectStore.setProjectJson('new', starter)
+          setCurrentDirectory(null, 'new')
+          setActiveStorageType('memory')
+          loadProjectFile(starter, 'new')
+        }
+        return
+      }
+
+      if (isExamplesRoute) {
+        // For /examples route: check memory first, then load from bundled examples
+        const existingInMemory = memoryProjectStore.getProjectJson(projectName)
+        if (existingInMemory) {
+          const project = await migrateProject(existingInMemory)
+          const outputCache = await readMemoryOutputCache(projectName, project.nodes)
+          setCurrentDirectory(null, projectName)
+          setActiveStorageType('memory')
+          loadProjectFile(project, projectName, undefined, outputCache)
+          return
         }
 
-        // Try to load from storage (OPFS or File System Access API)
+        // Not in memory, load from static bundled examples and copy into memory for editing
+        const projectKey = `../examples/${projectName}/noodles.json`
+        const projectUrl = exampleProjectUrls[projectKey] as string | undefined
+
+        if (projectUrl) {
+          try {
+            const response = await fetch(projectUrl)
+            if (!response.ok) {
+              throw new Error(`Failed to fetch example project: ${response.statusText}`)
+            }
+            const noodlesFile = (await response.json()) as Partial<NoodlesProjectJSON>
+            const project = await migrateProject({
+              ...EMPTY_PROJECT,
+              ...noodlesFile,
+            } as NoodlesProjectJSON)
+            // Store in memory with example name as ID and set display name from project JSON
+            memoryProjectStore.setProjectJson(projectName, project)
+            if (project.name) {
+              memoryProjectStore.setDisplayName(projectName, project.name)
+            }
+            await copyExampleAssetsToMemory(projectName, projectName)
+            const outputCache = await readMemoryOutputCache(projectName, project.nodes)
+            setCurrentDirectory(null, projectName)
+            setActiveStorageType('memory')
+            loadProjectFile(project, projectName, undefined, outputCache)
+            return
+          } catch (error) {
+            debugApp('Failed to load example project:', error)
+          }
+        }
+
+        // Example not found - show dialog with navigation options
+        setShowExampleNotFoundDialog(true)
+      } else if (isProjectsRoute) {
+        // For /projects route: ONLY load from user storage (OPFS or File System Access API)
         try {
-          const result = await load(storageType, projectId)
+          const result = await load(storageType, projectName)
           if (result.success) {
             const project = await migrateProject(result.data.projectData)
             // Update store with directory handle, project name, and storage type
-            setCurrentDirectory(result.data.directoryHandle, projectId)
-            // storageType here is already correct (opfs or fileSystemAccess)
-            loadProjectFile(project, projectId)
+            setCurrentDirectory(result.data.directoryHandle, projectName)
+            setActiveStorageType(storageType)
+            loadProjectFile(project, projectName, undefined, result.data.outputCache)
           } else {
             // Project not found in storage - show dialog
             if (result.error.type === 'not-found') {
@@ -442,74 +1037,739 @@ export function getNoodles(): Visualization {
         }
       }
     })()
-  }, [])
+  }, [projectName, isExamplesRoute, isNewProjectRoute, isProjectsRoute])
+
+  // Handle pending quick start actions (file upload or LLM question from quick start modal)
+  const pendingActionHandledRef = useRef(false)
+  const [pendingImportFile, setPendingImportFile] = useState<File | null>(null)
+  const clearPendingImportFile = useCallback(() => setPendingImportFile(null), [])
+  useEffect(() => {
+    // Only run once after project is loaded (nodes are populated)
+    if (nodes.length === 0 || pendingActionHandledRef.current) return
+
+    const pendingAction = getPendingQuickStartAction()
+    if (!pendingAction) return
+
+    pendingActionHandledRef.current = true
+
+    if (pendingAction.type === 'llm' && pendingAction.question) {
+      // Open AI chat panel with the question pre-filled
+      setChatInitialMessage(pendingAction.question)
+      setShowChatPanel(true)
+      analytics.track('quick_start_llm_action_handled')
+    } else if (pendingAction.type === 'file' && pendingAction.file) {
+      if (pendingAction.mode === 'map') {
+        // Coordinates were found: CanvasDropImport builds the map, no LLM needed
+        setPendingImportFile(pendingAction.file)
+        analytics.track('quick_start_file_action_handled', { mode: 'map' })
+        return
+      }
+      // Otherwise open the chat panel and ask the AI to help visualize the file
+      const fileName = pendingAction.file.name
+      setChatInitialMessage(
+        `I just uploaded a file called "${fileName}". Please help me create a visualization from this data. First, I'll need to import it using the Data Importer (click the upload icon in the toolbar). Can you guide me through the process?`
+      )
+      setShowChatPanel(true)
+      analytics.track('quick_start_file_action_handled', { mode: 'chat' })
+    }
+  }, [nodes.length])
 
   const displayedNodes = useMemo(() => {
-    // If no containerId, show all nodes
-    // TODO: add support for for-loop begin/end nodes
-    // return nodes.filter(node =>
-    //   'containerId' in node ? node.containerId === currentContainerId : currentContainerId === null
-    // )
+    const dragHandle = `.${s.dragHandle}`
+    const targetContainerId = currentContainerId || '/'
 
-    return nodes.map(node => ({
-      ...node,
-      hidden: getParentPath(node.id) !== currentContainerId,
-      dragHandle: `.${s.header}`,
-    }))
+    return nodes
+      .filter(node => (getParentPath(node.id) ?? '/') === targetContainerId)
+      .map(node => ({
+        ...node,
+        hidden: false,
+        dragHandle,
+      }))
   }, [currentContainerId, nodes])
 
-  const activeEdges = useMemo(() => {
-    return edges.map(edge => ({
-      ...edge,
-      sourceHandle: edge.type === 'ReferenceEdge' ? null : edge.sourceHandle,
-    }))
-  }, [edges])
+  const visibleNodeIds = useMemo(() => {
+    return new Set(displayedNodes.map(node => node.id))
+  }, [displayedNodes])
 
-  const flowGraph = theatreReady && (
-    <ErrorBoundary>
-      <div className={cx('react-flow-wrapper', !showOverlay && 'react-flow-wrapper-hidden')}>
+  const activeEdges = useMemo(() => {
+    return modelEdges
+      .filter(edge => visibleNodeIds.has(edge.source) && visibleNodeIds.has(edge.target))
+      .map(edge => ({
+        ...edge,
+        sourceHandle: edge.type === 'ReferenceEdge' ? null : edge.sourceHandle,
+      }))
+  }, [modelEdges, visibleNodeIds])
+
+  // File menu callbacks
+  const getNoodlesProjectJson = useCallback((): NoodlesProjectJSON => {
+    const store = getOpStore()
+    const timeline = timelineStore.toTimelineJSON() as unknown as Record<string, unknown>
+    const viewport = reactFlowInstanceRef.current?.getViewport() || { x: 0, y: 0, zoom: 1 }
+    const projectKeys = getKeysForProject()
+    // Render settings are now stored as OutOp inputs, serialized with the node
+
+    return {
+      version: NOODLES_VERSION,
+      nodes: serializeNodes(store, nodes, edges),
+      edges: serializeEdges(store, nodes, edges),
+      viewport,
+      timeline,
+      editorSettings: {
+        showOverlay,
+        showDebugInfo,
+      },
+      ...(projectKeys ? { apiKeys: projectKeys } : {}),
+    }
+  }, [nodes, edges, showOverlay, showDebugInfo, timelineStore.toTimelineJSON])
+
+  // Files for the project's cache folder: the outputs of locked operators
+  const getOutputCacheFiles = useCallback(() => serializeOutputCache(getOpStore(), nodes), [nodes])
+
+  const onMenuSave = useCallback(async () => {
+    if (!projectName) return
+    const noodlesProjectJson = getNoodlesProjectJson()
+    const cacheFiles = getOutputCacheFiles()
+
+    if (storageType === 'memory') {
+      try {
+        const directoryHandle = await selectDirectory()
+        const hasPermission = await requestPermission(directoryHandle, 'readwrite')
+        if (!hasPermission) return
+
+        const directoryName = directoryHandle.name
+        await writeFileToDirectory(
+          directoryHandle,
+          'noodles.json',
+          safeStringify(noodlesProjectJson)
+        )
+        await writeOutputCache(directoryHandle, cacheFiles)
+        await copyMemoryDataToDirectory(projectName, directoryHandle)
+        await directoryHandleCache.cacheHandle(directoryName, directoryHandle, directoryName)
+
+        const oldProjectName = projectName
+        setCurrentDirectory(directoryHandle, directoryName)
+        setActiveStorageType('fileSystemAccess')
+        navigate(`/projects/${directoryName}`, { replace: true })
+        memoryProjectStore.deleteProject(oldProjectName)
+        setHasUnsavedChanges(false)
+        analytics.track('project_saved', { storageType: 'memory', promoted: true })
+      } catch (error) {
+        if (error instanceof Error && error.name === 'AbortError') return
+        setError({
+          type: 'unknown',
+          message: 'Error saving project',
+          details: error instanceof Error ? error.message : 'Unknown error',
+          originalError: error,
+        })
+      }
+      return
+    }
+
+    const result = await save(storageType, projectName, noodlesProjectJson, cacheFiles)
+    if (result.success) {
+      setCurrentDirectory(result.data.directoryHandle, projectName)
+      setHasUnsavedChanges(false)
+      analytics.track('project_saved', { storageType })
+    } else {
+      setError(result.error)
+    }
+  }, [
+    projectName,
+    getNoodlesProjectJson,
+    getOutputCacheFiles,
+    storageType,
+    setCurrentDirectory,
+    setActiveStorageType,
+    setError,
+    navigate,
+  ])
+
+  // Step 1 of Save As: Select directory and check conditions
+  const onSaveAs = useCallback(async () => {
+    try {
+      // Prompt user to select/create a directory for the project
+      const directoryHandle = await selectDirectory()
+
+      // Ensure we have write permission
+      const hasPermission = await requestPermission(directoryHandle, 'readwrite')
+      if (!hasPermission) {
+        debugApp('Permission denied to write to directory')
+        return
+      }
+
+      // Check if target has existing noodles.json
+      const hasExisting = await fileExists(directoryHandle, 'noodles.json')
+
+      // Check if source has data files
+      const hasData = projectName ? await hasDataDirectory(storageType, projectName) : false
+
+      // Show dialog with options
+      setSaveAsOptions({
+        targetHandle: directoryHandle,
+        hasExistingProject: hasExisting,
+        hasDataFiles: hasData,
+      })
+      setShowSaveAsDialog(true)
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        // User cancelled the picker
+        return
+      }
+      debugApp('Failed to open directory picker:', error)
+      setError({
+        type: 'unknown',
+        message: 'Error selecting directory',
+        details: error instanceof Error ? error.message : 'Unknown error',
+        originalError: error,
+      })
+    }
+  }, [storageType, projectName, setError])
+
+  // Step 2 of Save As: Actually perform the save
+  const onSaveAsConfirm = useCallback(
+    async (options: { copyDataFiles: boolean }) => {
+      if (!saveAsOptions?.targetHandle) return
+
+      const directoryHandle = saveAsOptions.targetHandle
+      const directoryName = directoryHandle.name
+
+      // Get current project data
+      const projectData = getNoodlesProjectJson()
+
+      // Write project to noodles.json
+      await writeFileToDirectory(directoryHandle, 'noodles.json', safeStringify(projectData))
+      await writeOutputCache(directoryHandle, getOutputCacheFiles())
+
+      // Copy data files if requested
+      if (options.copyDataFiles && projectName) {
+        if (storageType === 'memory') {
+          await copyMemoryDataToDirectory(projectName, directoryHandle)
+        } else if (storageType === 'publicFolder') {
+          await copyPublicFolderData(projectName, directoryHandle)
+        } else if (currentDirectory) {
+          await copyDataDirectory(currentDirectory, directoryHandle)
+        }
+      }
+
+      // Clean up memory project if promoting from memory
+      if (storageType === 'memory') {
+        memoryProjectStore.deleteProject(projectName!)
+      }
+
+      // Cache the directory handle
+      await directoryHandleCache.cacheHandle(directoryName, directoryHandle, directoryHandle.name)
+
+      // Update store with directory handle
+      setCurrentDirectory(directoryHandle, directoryName)
+
+      // Update storage type to fileSystemAccess since we used File System Access API
+      setActiveStorageType('fileSystemAccess')
+
+      // Update the URL to reflect the new project name
+      navigate(`/projects/${directoryName}`, { replace: true })
+
+      // Mark as saved
+      setHasUnsavedChanges(false)
+
+      analytics.track('project_saved_as', {
+        fromStorageType: storageType,
+        toStorageType: 'fileSystemAccess',
+        copyDataFiles: options.copyDataFiles,
+        overwroteExisting: saveAsOptions.hasExistingProject,
+      })
+    },
+    [
+      saveAsOptions,
+      getNoodlesProjectJson,
+      getOutputCacheFiles,
+      projectName,
+      storageType,
+      currentDirectory,
+      setCurrentDirectory,
+      setActiveStorageType,
+      navigate,
+    ]
+  )
+
+  // Open rename dialog
+  const onRename = useCallback(() => {
+    if (!projectName || storageType === 'publicFolder' || storageType === 'memory') return
+    setShowRenameDialog(true)
+  }, [projectName, storageType])
+
+  // Perform rename (copy to new location with new name)
+  const onRenameConfirm = useCallback(
+    async (newName: string) => {
+      try {
+        // Prompt user to select/create a directory with the new name
+        const directoryHandle = await selectDirectory()
+
+        // Verify the directory name matches what user entered (case-insensitive for macOS/Windows)
+        if (directoryHandle.name.toLowerCase() !== newName.toLowerCase()) {
+          throw new Error(
+            `Selected folder name "${directoryHandle.name}" does not match the entered name "${newName}". Please select or create a folder with the name "${newName}".`
+          )
+        }
+
+        // Ensure we have write permission
+        const hasPermission = await requestPermission(directoryHandle, 'readwrite')
+        if (!hasPermission) {
+          throw new Error('Permission denied to write to directory')
+        }
+
+        // Get current project data
+        const projectData = getNoodlesProjectJson()
+
+        // Write project to noodles.json
+        await writeFileToDirectory(directoryHandle, 'noodles.json', safeStringify(projectData))
+        await writeOutputCache(directoryHandle, getOutputCacheFiles())
+
+        // Copy data files
+        if (currentDirectory) {
+          await copyDataDirectory(currentDirectory, directoryHandle)
+        }
+
+        // Update cache: remove old, add new
+        if (projectName) {
+          await directoryHandleCache.renameProject(projectName, newName, directoryHandle)
+        } else {
+          await directoryHandleCache.cacheHandle(newName, directoryHandle, directoryHandle.name)
+        }
+
+        // Update store with directory handle
+        setCurrentDirectory(directoryHandle, newName)
+
+        // Update storage type to fileSystemAccess since we used File System Access API
+        setActiveStorageType('fileSystemAccess')
+
+        // Update the URL to reflect the new project name
+        navigate(`/projects/${newName}`, { replace: true })
+
+        // Mark as saved
+        setHasUnsavedChanges(false)
+
+        analytics.track('project_renamed', {
+          fromStorageType: storageType,
+          toStorageType: 'fileSystemAccess',
+        })
+      } catch (error) {
+        if (error instanceof Error && error.name === 'AbortError') {
+          // User cancelled the picker - throw to keep dialog open
+          throw new Error('Directory selection was cancelled')
+        }
+        throw error // Re-throw to be handled by the dialog
+      }
+    },
+    [
+      getNoodlesProjectJson,
+      getOutputCacheFiles,
+      projectName,
+      storageType,
+      currentDirectory,
+      setCurrentDirectory,
+      setActiveStorageType,
+      navigate,
+    ]
+  )
+
+  // Handle mod+shift+s for Save As and mod+shift+a for Rename Project
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (shouldBlockKeyboardShortcut(e)) return
+
+      const key = e.key.toLowerCase()
+      const isMod = e.metaKey || e.ctrlKey
+      const isShift = e.shiftKey
+
+      // mod+shift+s for Save As
+      if (isMod && isShift && key === 's') {
+        e.preventDefault()
+        onSaveAs()
+      }
+      // mod+shift+a for Rename Project
+      if (isMod && isShift && key === 'a') {
+        e.preventDefault()
+        if (projectName && storageType !== 'publicFolder' && storageType !== 'memory') {
+          setShowRenameDialog(true)
+        }
+      }
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [projectName, storageType, onSaveAs])
+
+  const onDownload = useCallback(async () => {
+    const noodlesProjectJson = getNoodlesProjectJson()
+    await saveProjectLocally(
+      projectName || 'untitled',
+      noodlesProjectJson,
+      storageType,
+      getOutputCacheFiles()
+    )
+    analytics.track('project_exported', { storageType })
+  }, [projectName, getNoodlesProjectJson, getOutputCacheFiles, storageType])
+
+  const onOpenAddNode = useCallback(() => {
+    const pane = reactFlowRef.current?.getBoundingClientRect()
+    if (!pane) return
+    const centerX = pane.left + pane.width / 2
+    const centerY = pane.top + pane.height / 2
+    blockLibraryRef.current?.openModal(centerX, centerY)
+  }, [])
+
+  const onNewProject = useCallback(async () => {
+    const starterProject = { ...newProjectJSON, version: NOODLES_VERSION } as NoodlesProjectJSON
+    memoryProjectStore.setProjectJson('new', starterProject)
+
+    setCurrentDirectory(null, 'new')
+    setActiveStorageType('memory')
+    loadProjectFile(starterProject, 'new', '/projects')
+
+    analytics.track('project_created', { method: 'new' })
+  }, [setCurrentDirectory, setActiveStorageType, loadProjectFile])
+
+  const onImport = useCallback(async () => {
+    try {
+      // First, prompt for the project file to import
+      const [fileHandle] = await window.showOpenFilePicker({
+        types: [
+          {
+            description: 'Noodles Project',
+            accept: {
+              'application/json': ['.json'],
+              'application/zip': ['.zip'],
+            },
+          },
+        ],
+      })
+      const file = await fileHandle.getFile()
+      const isZip = file.name.endsWith('.zip')
+
+      let projectData: NoodlesProjectJSON
+      const filesToWrite: Map<string, string | ArrayBuffer> = new Map()
+
+      if (isZip) {
+        // Handle ZIP import
+        const { default: JSZip } = await import('jszip')
+        const zip = await JSZip.loadAsync(await file.arrayBuffer())
+
+        // Find the shallowest noodles.json in the ZIP (could be at root or in a subfolder)
+        // We want the project root, not a noodles.json that might be in a data subfolder
+        let noodlesJsonPath: string | null = null
+        let projectFolder = ''
+
+        // Iterate over files in the ZIP to find the shallowest noodles.json
+        zip.forEach((relativePath, zipEntry) => {
+          if (relativePath.endsWith('noodles.json') && !zipEntry.dir) {
+            // Extract the folder path (everything before noodles.json)
+            const folder = relativePath.substring(0, relativePath.lastIndexOf('noodles.json'))
+            // Keep this one if it's the first found, or if it's shallower (fewer path segments)
+            const currentDepth = noodlesJsonPath
+              ? projectFolder.split('/').filter(Boolean).length
+              : Infinity
+            const newDepth = folder.split('/').filter(Boolean).length
+            if (newDepth < currentDepth) {
+              noodlesJsonPath = relativePath
+              projectFolder = folder
+            }
+          }
+        })
+
+        if (!noodlesJsonPath) {
+          throw new Error('No noodles.json found in ZIP file')
+        }
+
+        // Parse noodles.json
+        const noodlesJsonFile = zip.file(noodlesJsonPath)
+        if (!noodlesJsonFile) {
+          throw new Error('Could not read noodles.json from ZIP')
+        }
+        const noodlesJsonText = await noodlesJsonFile.async('text')
+        const parsed = JSON.parse(noodlesJsonText) as Partial<NoodlesProjectJSON>
+        projectData = await migrateProject({
+          ...EMPTY_PROJECT,
+          ...parsed,
+        } as NoodlesProjectJSON)
+
+        // Extract all files from the ZIP
+        const fileEntries: Array<[string, JSZipObject]> = []
+        zip.forEach((relativePath, zipEntry) => {
+          if (!zipEntry.dir) {
+            fileEntries.push([relativePath, zipEntry])
+          }
+        })
+
+        for (const [relativePath, zipEntry] of fileEntries) {
+          // Remove the project folder prefix to get relative path within project
+          let cleanPath = relativePath
+          if (projectFolder && relativePath.startsWith(projectFolder)) {
+            cleanPath = relativePath.substring(projectFolder.length)
+          }
+
+          // Read file contents
+          if (cleanPath.endsWith('.json')) {
+            const text = await zipEntry.async('text')
+            filesToWrite.set(cleanPath, text)
+          } else {
+            const arrayBuffer = await zipEntry.async('arraybuffer')
+            filesToWrite.set(cleanPath, arrayBuffer)
+          }
+        }
+
+        // Write migrated noodles.json (overwrites any unmigrated version extracted from ZIP)
+        filesToWrite.set('noodles.json', safeStringify(projectData))
+      } else {
+        // Handle single JSON file import
+        const text = await file.text()
+        const parsed = JSON.parse(text) as Partial<NoodlesProjectJSON>
+        projectData = await migrateProject({
+          ...EMPTY_PROJECT,
+          ...parsed,
+        } as NoodlesProjectJSON)
+
+        // Only write noodles.json
+        filesToWrite.set('noodles.json', safeStringify(projectData))
+      }
+
+      // Load imported project into memory (user can save to disk later via Cmd+S)
+      const draftId = generateDraftId('import')
+      memoryProjectStore.setProjectJson(draftId, projectData)
+
+      // Write non-noodles.json files as in-memory assets, keeping the cache folder apart
+      const cachePrefix = `${CACHE_DIRECTORY_NAME}/`
+      for (const [path, content] of filesToWrite.entries()) {
+        if (path === 'noodles.json') continue
+        if (path.startsWith(cachePrefix) && typeof content === 'string') {
+          memoryProjectStore.setCacheFile(draftId, path.substring(cachePrefix.length), content)
+          continue
+        }
+        const blob = content instanceof ArrayBuffer ? new Blob([content]) : new Blob([content])
+        memoryProjectStore.writeAsset(draftId, path, blob)
+      }
+
+      const outputCache = await readMemoryOutputCache(draftId, projectData.nodes)
+      setCurrentDirectory(null, draftId)
+      setActiveStorageType('memory')
+      loadProjectFile(projectData, draftId, '/projects', outputCache)
+
+      analytics.track('project_imported', { format: isZip ? 'zip' : 'json' })
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        // User cancelled the picker
+        return
+      }
+      debugApp('Failed to import project:', error)
+    }
+  }, [setCurrentDirectory, setActiveStorageType, loadProjectFile])
+
+  // Handlers for ExampleNotFoundDialog
+  const onBrowseExamples = useCallback(() => {
+    setShowExampleNotFoundDialog(false)
+    navigate('/examples')
+  }, [navigate])
+
+  const onCheckMyProjects = useCallback(() => {
+    setShowExampleNotFoundDialog(false)
+    if (projectName) {
+      navigate(`/projects/${projectName}`)
+    }
+  }, [navigate, projectName])
+
+  const onOpen = useCallback(
+    async (projectName?: string) => {
+      try {
+        let result: Awaited<ReturnType<typeof load>>
+        let finalProjectName: string
+
+        if (projectName) {
+          // Load project by name (for recent projects)
+          // Recent projects from directoryHandleCache are always fileSystemAccess
+          finalProjectName = projectName
+          result = await load('fileSystemAccess', projectName)
+        } else {
+          // Show the native folder picker (File System Access API)
+          const projectDirectory = await selectDirectory()
+          finalProjectName = projectDirectory.name
+
+          // Cache the directory handle
+          await directoryHandleCache.cacheHandle(
+            finalProjectName,
+            projectDirectory,
+            projectDirectory.name
+          )
+
+          // Load project from the selected directory
+          result = await load('fileSystemAccess', projectDirectory)
+        }
+
+        if (result.success) {
+          const project = await migrateProject(result.data.projectData)
+          // Always navigate to /projects since this is a user project
+          loadProjectFile(project, finalProjectName, '/projects', result.data.outputCache)
+          // Update store with directory handle returned from load
+          setCurrentDirectory(result.data.directoryHandle, finalProjectName)
+          // Set storage type to fileSystemAccess since we used File System Access API
+          setActiveStorageType('fileSystemAccess')
+          analytics.track('project_opened', { storageType: 'fileSystemAccess' })
+        } else {
+          setError(result.error)
+          analytics.track('project_open_failed', {
+            storageType: 'fileSystemAccess',
+            error: 'load_error',
+          })
+        }
+      } catch (error) {
+        if (error instanceof Error && error.name === 'AbortError') {
+          // User cancelled the picker
+          return
+        }
+        debugApp('Failed to open project:', error)
+        setError({
+          type: 'unknown',
+          message:
+            error instanceof Error && projectName
+              ? 'Error migrating project'
+              : 'Error opening folder',
+          details: error instanceof Error ? error.message : 'Unknown error',
+          originalError: error,
+        })
+        analytics.track('project_open_failed', {
+          storageType: 'fileSystemAccess',
+          error: projectName ? 'migration_error' : 'unknown',
+        })
+      }
+    },
+    [loadProjectFile, setCurrentDirectory, setActiveStorageType, setError]
+  )
+
+  const flowGraph = (
+    <ErrorBoundary
+      onUndo={() => {
+        const before = getLastCommittedBeforeState()
+        if (before != null) applyOperatorInputs(before)
+      }}
+    >
+      {/* biome-ignore lint/a11y/noStaticElementInteractions: canvas wrapper needs mouse tracking */}
+      <div
+        className={cx('react-flow-wrapper', !showOverlay && 'react-flow-wrapper-hidden')}
+        onMouseMove={onMouseMove}
+      >
         <PrimeReactProvider>
-          <SheetProvider value={theatreSheet}>
-            <Breadcrumbs />
-            <ReactFlow
-              ref={reactFlowRef}
-              nodes={displayedNodes}
-              edges={activeEdges}
-              onNodesChange={onNodesChange}
-              onEdgesChange={onEdgesChange}
-              onConnect={onConnect}
-              onReconnect={onReconnect}
-              onNodeClick={onNodeClick}
-              onNodesDelete={onNodesDelete}
-              onPaneContextMenu={onPaneContextMenu}
-              onPaneClick={onPaneClick}
-              minZoom={0.2}
-              fitView
-              fitViewOptions={fitViewOptions}
-              defaultEdgeOptions={defaultEdgeOptions}
-              nodeTypes={nodeComponents}
-              edgeTypes={edgeComponents}
-            >
-              <Background />
-              <Controls position="bottom-right" />
-              <BlockLibrary ref={blockLibraryRef} reactFlowRef={reactFlowRef} />
-              <CopyControls />
-              <ChatPanel
-                project={{ nodes, edges }}
-                onClose={() => setShowChatPanel(false)}
-                isVisible={showChatPanel}
-              />
-            </ReactFlow>
-          </SheetProvider>
+          <TimelineProvider>
+            <ProjectModificationActionsProvider updateOperatorId={updateOperatorId}>
+              <ReactFlow
+                ref={reactFlowRef}
+                nodes={displayedNodes}
+                edges={activeEdges}
+                onNodesChange={onNodesChange}
+                onEdgesChange={onEdgesChange}
+                onConnect={onConnect}
+                onConnectStart={onConnectStart}
+                onConnectEnd={onConnectEnd}
+                onReconnect={onReconnect}
+                onReconnectEnd={onReconnectEnd}
+                onNodeContextMenu={onNodeContextMenu}
+                onEdgeClick={onEdgeClick}
+                onNodesDelete={onNodesDelete}
+                onNodeDrag={onNodeDrag}
+                onNodeDragStop={onNodeDragStop}
+                onPaneContextMenu={onPaneContextMenu}
+                onPaneClick={onPaneClick}
+                minZoom={0.2}
+                fitViewOptions={fitViewOptions}
+                defaultEdgeOptions={defaultEdgeOptions}
+                defaultViewport={defaultViewport}
+                nodeTypes={nodeComponents}
+                edgeTypes={edgeComponents}
+              >
+                <ReactFlowInstanceCapture />
+                <EdgeConnectionSynchronizer />
+                <CanvasDropImport
+                  pendingFile={pendingImportFile}
+                  onPendingFileHandled={clearPendingImportFile}
+                />
+                <Background />
+                <Controls position="bottom-right" />
+                <BlockLibrary ref={blockLibraryRef} reactFlowRef={reactFlowRef} />
+                <CopyControls ref={copyControlsRef} graphRef={graphRef} />
+                <UndoRedoHandler ref={undoRedoRef} graphRef={graphRef} />
+                {showDebugInfo && <NodeInfoOverlay />}
+                {showDebugInfo && <ViewportInfoPanel />}
+              </ReactFlow>
+            </ProjectModificationActionsProvider>
+          </TimelineProvider>
         </PrimeReactProvider>
+        {parameterEditorState.operatorId && (
+          <ParameterEditorDialog
+            open={parameterEditorState.open}
+            onOpenChange={open => {
+              setParameterEditorState({ open, operatorId: null })
+              if (!open) setParamEditorError(null)
+            }}
+            operator={getOp(parameterEditorState.operatorId)!}
+            onSave={definitions => {
+              debugParams(
+                'onSave for op %s, %d definitions',
+                parameterEditorState.operatorId,
+                definitions.length
+              )
+              const op = getOp(parameterEditorState.operatorId!)
+              if (op) {
+                try {
+                  op.customInputDefinitions = definitions
+                  debugParams('calling rebuildInputs on %s', op.id)
+                  op.rebuildInputs()
+                  debugParams('rebuildInputs complete, forcing re-render')
+                  setNodes(nodes => [...nodes]) // Force re-render
+                } catch (err) {
+                  debugParams('rebuildInputs threw: %O', err)
+                  setParamEditorError(err instanceof Error ? err : new Error(String(err)))
+                }
+              }
+            }}
+          />
+        )}
         <ProjectNotFoundDialog
-          projectName={projectId || ''}
+          projectName={projectName || ''}
           open={showProjectNotFoundDialog}
-          onProjectLoaded={(project, name) => {
-            loadProjectFile(project, name)
+          onProjectLoaded={(project, name, outputCache) => {
+            // Always navigate to /projects since this is a user project
+            loadProjectFile(project, name, '/projects', outputCache)
             setShowProjectNotFoundDialog(false)
           }}
+          onNewProject={onNewProject}
+          onImport={onImport}
           onClose={() => setShowProjectNotFoundDialog(false)}
+        />
+        <SaveAsDialog
+          open={showSaveAsDialog}
+          onClose={() => {
+            setShowSaveAsDialog(false)
+            setSaveAsOptions(null)
+          }}
+          onConfirm={onSaveAsConfirm}
+          targetDirectoryName={saveAsOptions?.targetHandle?.name || ''}
+          hasExistingProject={saveAsOptions?.hasExistingProject || false}
+          hasDataFiles={saveAsOptions?.hasDataFiles || false}
+        />
+        <RenameDialog
+          open={showRenameDialog}
+          onClose={() => setShowRenameDialog(false)}
+          onConfirm={onRenameConfirm}
+          currentName={projectName || ''}
+        />
+        <ExampleNotFoundDialog
+          projectName={projectName || ''}
+          open={showExampleNotFoundDialog}
+          onBrowseExamples={onBrowseExamples}
+          onCheckMyProjects={onCheckMyProjects}
+          onClose={() => setShowExampleNotFoundDialog(false)}
+        />
+        <GraphErrorDialog
+          open={graphErrors.length > 0}
+          errors={graphErrors}
+          onClose={() => setGraphErrors([])}
+          validOperatorCount={operators.length}
         />
         <StorageErrorHandler />
       </div>
@@ -520,130 +1780,277 @@ export function getNoodles(): Visualization {
   const OUT_OP_ID = '/out'
   const outOp = operators.find(n => n.id === OUT_OP_ID)! as unknown as OutOp
 
-  const [visProps, setVisProps] = useState(outOp?.inputs.vis.value || {})
+  // Find the DeckRendererOp that connects to OutOp
+  // Subscribe to its output instead of OutOp's input to create active subscription chain
+  const deckRendererOp = useMemo(() => {
+    const visConnection = edges.find(e => e.target === OUT_OP_ID && e.targetHandle === 'par.vis')
+    if (visConnection) {
+      return operators.find(op => op.id === visConnection.source) as DeckRendererOp | undefined
+    }
+    return undefined
+  }, [operators, edges])
+
+  const [visProps, setVisProps] = useState(
+    deckRendererOp?.outputs.vis.value || outOp?.inputs.vis.value || {}
+  )
+  const deckProjectAssetResolver = useMemo(() => new DeckProjectAssetResolver(), [])
+  const [committedAssetGeneration, setCommittedAssetGeneration] = useState(0)
+
+  useEffect(
+    () => () => {
+      deckProjectAssetResolver.dispose()
+    },
+    [deckProjectAssetResolver]
+  )
+
+  useEffect(() => {
+    // Deck.gl has received the replacement props by the time this effect runs.
+    deckProjectAssetResolver.releaseRetiredUrlsThrough(committedAssetGeneration)
+  }, [committedAssetGeneration, deckProjectAssetResolver])
 
   // Create overlay layer for selected GeoJSON-producing operators
   const selectedGeoJsonFeatures = useMemo(() => {
     const features: unknown[] = []
     const selectedNodes = nodes.filter(n => n.selected)
+    const store = getOpStore()
 
     for (const node of selectedNodes) {
-      const op = ops.get(node.id)
+      const op = store.getOp(node.id)
       if (!op) continue
 
       // Check if this is a GeoJSON-producing operator
-      if (categories.geojson.includes(node.type)) {
+      if (categories.geojson.includes(nodeTypeToDisplayName(node.type))) {
         const feature = op.outputs.feature?.value
         if (feature) features.push(feature)
       }
     }
 
     return features
-  }, [nodes, ops])
+  }, [nodes])
 
   useEffect(() => {
-    if (outOp) {
-      const visSub = outOp.inputs.vis.subscribe(
-        ({ deckProps: { layers, widgets, ...deckProps }, mapProps }) => {
-          // Map layers from POJOs to deck.gl instances
-          const instantiatedLayers =
-            layers?.map(({ type, extensions, ...layer }) => {
-              // Instantiate extensions from POJOs if present
-              let instantiatedExtensions
-              if (extensions && Array.isArray(extensions)) {
-                instantiatedExtensions = extensions
-                  .map((ext: { type: string; [key: string]: unknown }) => {
-                    const { type: extType, ...constructorArgs } = ext
-                    const extensionDef = extensionMap[extType]
-                    if (!extensionDef) {
-                      console.warn(`Unknown extension type: ${extType}`)
-                      return null
-                    }
+    // Subscribe to DeckRendererOp output if available, otherwise fall back to OutOp input
+    // DeckRendererOp creates active subscription chain, but may not be available during initial render
+    const field = deckRendererOp?.outputs.vis || outOp?.inputs.vis
 
-                    // Check if it's a wrapped extension (with ExtensionClass and args)
-                    if (typeof extensionDef === 'object' && 'ExtensionClass' in extensionDef) {
-                      return new extensionDef.ExtensionClass(extensionDef.args)
-                    }
-
-                    // It's a direct class constructor
-                    const ExtensionClass = extensionDef as new (
-                      ...args: unknown[]
-                    ) => LayerExtension
-                    return Object.keys(constructorArgs).length > 0
-                      ? new ExtensionClass(constructorArgs)
-                      : new ExtensionClass()
-                  })
-                  .filter((e): e is LayerExtension => e !== null)
+    if (field) {
+      debugVis(
+        'Creating vis subscription from %s',
+        deckRendererOp ? 'DeckRendererOp.outputs.vis' : 'OutOp.inputs.vis'
+      )
+      let cancelled = false
+      const reportMaterializationError = (error: unknown) => {
+        if (cancelled) return
+        console.error('[Noodles] Failed to materialize Deck.gl layer assets:', error)
+        debugVis('Failed to materialize Deck.gl layer assets: %o', error)
+      }
+      const visSub = field.subscribe(
+        ({ deckProps: { layers, widgets, views, ...deckProps }, mapProps }) => {
+          void deckProjectAssetResolver
+            .resolveLayers(layers ?? [], {
+              activeStorageType: storageType,
+              currentProjectName: storedProjectName,
+            })
+            .then(assetResolution => {
+              if (!assetResolution || cancelled) {
+                if (assetResolution) deckProjectAssetResolver.discard(assetResolution)
+                return
               }
 
-              return new deck[type]({
-                ...layer,
-                ...(instantiatedExtensions ? { extensions: instantiatedExtensions } : {}),
-              })
-            }) || []
+              try {
+                // Map layers from POJOs to deck.gl instances
+                const instantiatedLayers = assetResolution.layers.map(
+                  ({ type, extensions, ...layer }) => {
+                    // Instantiate extensions from POJOs if present
+                    let instantiatedExtensions: LayerExtension[] | undefined
+                    if (extensions && Array.isArray(extensions)) {
+                      instantiatedExtensions = extensions
+                        .map((ext: { type: string; [key: string]: unknown }) => {
+                          const { type: extType, ...constructorArgs } = ext
+                          const extensionDef = extensionMap[extType]
+                          if (!extensionDef) {
+                            debugApp(`Unknown extension type: ${extType}`)
+                            return null
+                          }
 
-          // Add overlay layer for selected GeoJSON features
-          if (selectedGeoJsonFeatures.length > 0) {
-            const overlayLayer = new deck.GeoJsonLayer({
-              id: 'selected-geojson-overlay',
-              data: selectedGeoJsonFeatures,
-              filled: true,
-              stroked: true,
-              getFillColor: [255, 0, 0, 100], // Red with transparency
-              getLineColor: [255, 0, 0, 255], // Red outline
-              getLineWidth: 2,
-              lineWidthMinPixels: 2,
-              getPointRadius: 10,
-              pointRadiusMinPixels: 10,
+                          // Check if it's a wrapped extension (with ExtensionClass and args)
+                          if (
+                            typeof extensionDef === 'object' &&
+                            'ExtensionClass' in extensionDef
+                          ) {
+                            return new extensionDef.ExtensionClass(extensionDef.args)
+                          }
+
+                          // It's a direct class constructor
+                          const ExtensionClass = extensionDef as new (
+                            ...args: unknown[]
+                          ) => LayerExtension
+                          return Object.keys(constructorArgs).length > 0
+                            ? new ExtensionClass(constructorArgs)
+                            : new ExtensionClass()
+                        })
+                        .filter((e): e is LayerExtension => e !== null)
+                    }
+
+                    // biome-ignore lint/performance/noDynamicNamespaceImportAccess: We intentionally support all deck.gl layer types dynamically
+                    return new deck[type]({
+                      ...layer,
+                      ...(instantiatedExtensions ? { extensions: instantiatedExtensions } : {}),
+                      // Prevent deck.gl layer errors from crashing the GPU process
+                      onError: (e: Error) => {
+                        console.error(`[Noodles] Layer error in ${layer.id} (${type}):`, e)
+                        debugVis('Layer error in %s (id=%s): %o', type, layer.id, e)
+                      },
+                    })
+                  }
+                )
+
+                // Add overlay layer for selected GeoJSON features
+                if (selectedGeoJsonFeatures.length > 0) {
+                  const overlayLayer = new deck.GeoJsonLayer({
+                    id: 'selected-geojson-overlay',
+                    data: selectedGeoJsonFeatures,
+                    filled: true,
+                    stroked: true,
+                    getFillColor: [255, 0, 0, 100], // Red with transparency
+                    getLineColor: [255, 0, 0, 255], // Red outline
+                    getLineWidth: 2,
+                    lineWidthMinPixels: 2,
+                    getPointRadius: 10,
+                    pointRadiusMinPixels: 10,
+                  })
+                  instantiatedLayers.push(overlayLayer)
+                }
+
+                const instantiatedViews = views?.map(instantiateDeckView)
+
+                debugVis(
+                  'vis subscription fired: %d layers types=%O hasMapProps=%s',
+                  instantiatedLayers.length,
+                  assetResolution.layers.map(l => l.type),
+                  !!mapProps
+                )
+
+                const nextVisProps = {
+                  deckProps: {
+                    ...deckProps,
+                    layers: instantiatedLayers,
+                    widgets: widgets?.map(({ type, ...widget }) => {
+                      if (type === 'LegendWidget')
+                        return new LegendWidget(widget as unknown as LegendWidgetProps)
+                      if (type === 'BitmapOverlay')
+                        return new BitmapOverlayWidget(
+                          widget as unknown as BitmapOverlayWidgetProps
+                        )
+                      // biome-ignore lint/performance/noDynamicNamespaceImportAccess: We intentionally support all deck.gl widget types dynamically
+                      return new deckWidgets[type](widget)
+                    }),
+                    ...(instantiatedViews?.length ? { views: instantiatedViews } : {}),
+                  },
+                  mapProps,
+                }
+
+                if (!deckProjectAssetResolver.commit(assetResolution)) return
+                setCommittedAssetGeneration(assetResolution.generation)
+                setVisProps(nextVisProps)
+              } catch (error) {
+                deckProjectAssetResolver.discard(assetResolution)
+                reportMaterializationError(error)
+              }
             })
-            instantiatedLayers.push(overlayLayer)
-          }
-
-          setVisProps({
-            deckProps: {
-              ...deckProps,
-              // biome-ignore lint/performance/noDynamicNamespaceImportAccess: We intentionally support all deck.gl layer types dynamically
-              layers: instantiatedLayers,
-              widgets: widgets?.map(({ type, ...widget }) => new deckWidgets[type](widget)),
-            },
-            mapProps,
-          })
+            .catch(reportMaterializationError)
         }
       )
       return () => {
+        debugVis('Cleaning up vis subscription')
+        cancelled = true
         visSub.unsubscribe()
+        deckProjectAssetResolver.cancelPending()
       }
     }
-  }, [outOp, selectedGeoJsonFeatures])
+  }, [
+    deckProjectAssetResolver,
+    deckRendererOp,
+    outOp,
+    selectedGeoJsonFeatures,
+    storageType,
+    storedProjectName,
+  ])
 
-  const menuBar = (
-    <NoodlesMenubar
-      projectName={projectName}
-      setProjectName={setProjectName}
-      getTimelineJson={getTimelineJson}
-      loadProjectFile={loadProjectFile}
-      showChatPanel={showChatPanel}
-      setShowChatPanel={setShowChatPanel}
-    />
+  const propertiesPanel = (
+    <ErrorBoundary title="Property Panel Error">
+      <div className={s.rightPanel}>
+        <PropertyPanel />
+      </div>
+    </ErrorBoundary>
   )
 
-  const right = (
-    <div className={s.rightPanel}>
-      <PropertyPanel />
-      <DropTarget />
-    </div>
+  const chatPanel = (
+    <Suspense fallback={null}>
+      <ChatPanel
+        project={{ nodes, edges }}
+        onClose={() => {
+          setShowChatPanel(false)
+          setChatInitialMessage(undefined)
+        }}
+        isVisible={showChatPanel}
+        initialMessage={chatInitialMessage}
+      />
+    </Suspense>
   )
 
   return {
-    widgets: {
-      flowGraph,
-      bottom: menuBar,
-      top: <ProjectNameBar projectName={projectName} />,
-      right,
-    },
-    layoutMode,
+    flowGraph,
+    selectedNodeIds: nodes.filter(n => n.selected).map(n => n.id),
+    nodeSidebar: (
+      <ErrorBoundary title="Sidebar Error">
+        <SidebarTabs
+          tabs={[
+            {
+              id: 'nodes',
+              label: 'Nodes',
+              icon: 'pi-sitemap',
+              content: <NodeTreeSidebar updateOperatorId={updateOperatorId} />,
+            },
+            {
+              id: 'layers',
+              label: 'Layers',
+              icon: 'pi-clone',
+              content: <LayerPanel />,
+            },
+          ]}
+        />
+      </ErrorBoundary>
+    ),
+    propertiesPanel,
+    chatPanel,
+    showOverlay,
+    onChangeShowOverlay: setShowOverlay,
+    showDebugInfo,
+    onChangeShowDebugInfo: setShowDebugInfo,
+    spreadsheetVisible,
+    onChangeSpreadsheetVisible: setSpreadsheetVisible,
+    // Render settings are now read from OutOp via useRenderSettings() hook
+    // Export these so timeline-editor can create the menu with render actions
+    projectName:
+      storageType === 'memory'
+        ? memoryProjectStore.getDisplayName(projectName || '') || null
+        : projectName,
+    getTimelineJson,
+    onSaveProject: onMenuSave,
+    onSaveAs,
+    onRename: storageType !== 'publicFolder' && storageType !== 'memory' ? onRename : undefined,
+    onDownload,
+    onNewProject,
+    onImport,
+    onOpen,
+    onOpenAddNode,
+    undoRedoRef,
+    copyControlsRef,
+    reactFlowRef,
+    showChatPanel,
+    onChangeShowChatPanel: setShowChatPanel,
+    hasUnsavedChanges,
     ...visProps,
-    project: theatreProject,
-    sheet: theatreSheet,
   }
 }

@@ -6,13 +6,13 @@ A React-based visualization platform for creating animated timeline presentation
 
 ```bash
 # Install dependencies
-yarn install:all
+npm run install:all
 
 # Start development server
-yarn start:app
+npm run start:app
 
 # Build for production
-yarn build:all
+npm run build:all
 ```
 
 ## Documentation
@@ -34,3 +34,7 @@ For contributors working on the Noodles.gl codebase itself, see [/dev-docs](dev-
 ## Contributing
 
 Read the [contribution guidelines](/CONTRIBUTING.md) if you are interested in contributing.
+
+---
+
+**Noodles.gl is an open-source project sponsored by Joby Aviation. It is not a Joby product.**

@@ -63,7 +63,7 @@ Noodles.gl provides access to all standard deck.gl layers as operators. Here are
 - PathLayerOp - Multi-segment paths
 - PolygonLayerOp - Filled polygons with optional extrusion
 - IconLayerOp - Icon markers
-- TextLayerOp - Text labels
+- TextLayerOp - Text labels (see [Text Rendering](#text-rendering) below)
 
 **Aggregation Layers:**
 
@@ -191,6 +191,39 @@ Both tools share the same foundation, so choosing between them depends on your u
 **Use Kepler.gl for:** Quick data exploration, simpler interface, built-in filter UI
 
 **Use Noodles.gl for:** Timeline animations, full deck.gl layer library, custom data processing (CodeOp/DuckDbOp), programmatic basemap editing, video/image export, motion graphics
+
+## Text Rendering
+
+### TextLayerOp
+
+TextLayerOp supports SDF (Signed Distance Field) font rendering for crisp text at any zoom level. Enable SDF in the `fontSettings` input:
+
+- **sdf**: Enable SDF rendering (default: false). When enabled, text remains sharp at high zoom levels.
+
+SDF rendering is recommended for labels that will be viewed at varying zoom levels.
+
+### GeoJsonLayerOp Text
+
+GeoJsonLayerOp supports combined point and text rendering via the `pointType` property:
+
+| pointType | Description |
+|-----------|-------------|
+| `circle` | Standard circle markers (default) |
+| `icon` | Icon markers |
+| `text` | Text labels only |
+| `circle+text` | Circles with text labels |
+| `icon+text` | Icons with text labels |
+
+When using text modes, configure text appearance with these properties:
+
+- **getText**: Accessor for label text (e.g., `d.properties.name`)
+- **getTextSize**: Font size in pixels (default: 32)
+- **getTextColor**: Text color
+- **getTextAngle**: Rotation angle in degrees
+- **getTextAnchor**: Horizontal alignment (`start`, `middle`, `end`)
+- **getTextAlignmentBaseline**: Vertical alignment (`top`, `center`, `bottom`)
+- **getTextPixelOffset**: Offset from point position `[x, y]`
+- **textSizeScale**: Global scale multiplier for text size
 
 ## Learn More
 

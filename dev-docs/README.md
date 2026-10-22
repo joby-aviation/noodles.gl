@@ -7,6 +7,7 @@ This directory contains internal documentation for **contributors working on the
 - **[architecture.md](architecture.md)** - System architecture, directory structure, and design patterns
 - **[tech-stack.md](tech-stack.md)** - Complete technology stack and libraries
 - **[developing.md](developing.md)** - Development commands, code style guidelines, and workflows
+- **[analytics.md](analytics.md)** - Privacy-preserving analytics integration with PostHog
 - **[specs/](specs/)** - Design specifications for features and enhancements
 
 ## Audience

@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
     paths:
-      - 'animations/timeline-editor/src/visualizations/noodles/__migrations__/*.ts'
+      - 'noodles-editor/src/noodles/__migrations__/*.ts'
   workflow_dispatch:
 
 permissions:
@@ -25,7 +25,7 @@ jobs:
       - name: Check for new migration files
         id: check-migrations
         run: |
-          if git diff HEAD~1 HEAD --name-only | grep -q "animations/timeline-editor/src/visualizations/noodles/__migrations__/.*\.ts$"; then
+          if git diff HEAD~1 HEAD --name-only | grep -q "noodles-editor/src/noodles/__migrations__/.*\.ts$"; then
             echo "has-new-migrations=true" >> $GITHUB_OUTPUT
             echo "New migration files detected"
           else
@@ -39,23 +39,22 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ./animations/timeline-editor
+        working-directory: ./noodles-editor
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
         with:
-          node-version: '18'
-          cache: 'yarn'
-          cache-dependency-path: './animations/timeline-editor/yarn.lock'
-
+          node-version-file: '.nvmrc'
+          cache: 'npm'
       - name: Install dependencies
-        run: yarn install --frozen-lockfile
+        run: npm ci
+        working-directory: .
 
       - name: Run migrations on project files
-        run: yarn migrate-projects
+        run: npm run migrate-projects
 
       - name: Check for changes
         id: check-changes
@@ -82,7 +81,7 @@ jobs:
           body: |
             ## Automated Project File Migration
 
-            This PR contains automated migrations of project files in `animations/timeline-editor/public/noodles/` after detecting new migration files in the codebase.
+            This PR contains automated migrations of project files in `noodles-editor/src/examples/` and `noodles-editor/public/noodles/` after detecting new migration files in the codebase.
 
             ### Changes
             - Applied latest schema migrations to project files

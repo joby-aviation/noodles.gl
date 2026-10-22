@@ -1,4 +1,5 @@
 // Type definitions for Claude AI integration
+import { z } from 'zod'
 
 export interface Manifest {
   version: string
@@ -78,7 +79,7 @@ export interface FieldSchema {
   type: string
   description?: string
   required: boolean
-  defaultValue?: any
+  defaultValue?: unknown
 }
 
 export interface DocsIndex {
@@ -91,6 +92,7 @@ export interface DocTopic {
   title: string
   section: 'users' | 'developers' | 'intro' | 'ai-assistant' | 'examples'
   file: string
+  url: string | null
   content: string
   headings: Heading[]
   codeExamples: CodeExample[]
@@ -119,7 +121,8 @@ export interface Example {
   name: string
   description: string
   category: string
-  project: any; // NoodlesProject
+  readme: string
+  project: unknown // NoodlesProject - keeping as unknown since it's serialized JSON
   annotations: Record<string, NodeAnnotation>
   tags: string[]
   dataSourceTypes: string[]
@@ -144,7 +147,7 @@ export interface LoadProgress {
 
 export interface ToolResult {
   success: boolean
-  data?: any
+  data?: unknown
   error?: string
 }
 
@@ -163,25 +166,126 @@ export interface SearchCodeResult {
   symbol?: string
 }
 
+// What the assistant did on a turn, kept alongside its reply so a follow-up like
+// "why did you pick that layer?" has something to answer from.
+//
+// Deliberately not the full tool_use / tool_result blocks: replaying those would
+// put every past tool result back into context on every later turn — the exact
+// cost the result budget exists to bound — and Anthropic requires each tool_use
+// to be paired with its result. The name, the arguments, and whether it worked
+// are what a follow-up actually needs.
+export interface MessageToolUse {
+  name: string
+  params?: Record<string, unknown>
+  ok: boolean
+}
+
 export interface Message {
   role: 'user' | 'assistant'
-  content: string | any[]
+  content: string | Array<{ type: string; text?: string; [key: string]: unknown }>
+  toolUses?: MessageToolUse[]
+}
+
+// Zod schemas for project modification validation
+const PositionSchema = z.object({
+  x: z.number(),
+  y: z.number(),
+})
+
+const NodeSchema = z.object({
+  id: z.string(),
+  type: z.string(),
+  position: PositionSchema.optional(),
+  data: z.record(z.string(), z.unknown()).optional(),
+})
+
+const EdgeSchema = z.object({
+  id: z.string(),
+  source: z.string(),
+  target: z.string(),
+  sourceHandle: z.string().optional(),
+  targetHandle: z.string().optional(),
+})
+
+export const ProjectModificationSchema = z.discriminatedUnion('type', [
+  z.object({
+    type: z.literal('add_node'),
+    data: NodeSchema,
+  }),
+  z.object({
+    type: z.literal('update_node'),
+    data: NodeSchema.partial().extend({ id: z.string() }),
+  }),
+  z.object({
+    type: z.literal('delete_node'),
+    data: z.object({ id: z.string() }),
+  }),
+  z.object({
+    type: z.literal('add_edge'),
+    data: EdgeSchema,
+  }),
+  z.object({
+    type: z.literal('delete_edge'),
+    data: z.object({ id: z.string() }),
+  }),
+])
+
+export type ProjectModification = z.infer<typeof ProjectModificationSchema>
+
+const ModificationsArraySchema = z.array(ProjectModificationSchema)
+
+const ModificationsResponseSchema = z.object({
+  modifications: ModificationsArraySchema,
+})
+
+// Parse and validate project modifications from a JSON string or object.
+// Returns validated modifications array or null if invalid.
+export function parseModifications(input: unknown): ProjectModification[] | null {
+  let parsed: unknown = input
+  if (typeof parsed === 'string') {
+    try {
+      parsed = JSON.parse(parsed)
+    } catch {
+      return null
+    }
+  }
+
+  const responseResult = ModificationsResponseSchema.safeParse(parsed)
+  if (responseResult.success) {
+    return responseResult.data.modifications
+  }
+
+  const arrayResult = ModificationsArraySchema.safeParse(parsed)
+  if (arrayResult.success) {
+    return arrayResult.data
+  }
+
+  return null
+}
+
+// Validate a single modification object.
+// Returns the validated modification or null if invalid.
+export function validateModification(mod: unknown): ProjectModification | null {
+  const result = ProjectModificationSchema.safeParse(mod)
+  return result.success ? result.data : null
 }
 
 export interface ClaudeResponse {
   message: string
   projectModifications?: ProjectModification[]
   toolCalls?: ToolCall[]
-}
-
-export interface ProjectModification {
-  type: 'add_node' | 'update_node' | 'delete_node' | 'add_edge' | 'delete_edge'
-  data: any
+  // What the turn cost. Absent when the provider does not report it.
+  usage?: {
+    inputTokens: number
+    outputTokens: number
+    cachedInputTokens?: number
+    costUsd?: number
+  }
 }
 
 export interface ToolCall {
   name: string
-  params: any
+  params: Record<string, unknown>
   result: ToolResult
 }
 
@@ -193,4 +297,24 @@ export interface ConsoleError {
   colno?: number
   stack?: string
   timestamp: number
+}
+
+// Basic project structure with nodes and edges
+export interface NoodlesProject {
+  nodes?: Array<{
+    id: string
+    type: string
+    position?: { x: number; y: number }
+    data?: Record<string, unknown>
+    [key: string]: unknown
+  }>
+  edges?: Array<{
+    id: string
+    source: string
+    target: string
+    sourceHandle?: string
+    targetHandle?: string
+    [key: string]: unknown
+  }>
+  [key: string]: unknown
 }

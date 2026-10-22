@@ -3,25 +3,32 @@ import { nodePolyfills } from 'vite-plugin-node-polyfills'
 import { defineConfig } from 'vitest/config'
 
 export default defineConfig({
+  resolve: {
+    dedupe: ['react', 'react-dom'],
+  },
   test: {
     setupFiles: ['src/setupTests.ts'],
     browser: {
-      provider: playwright(),
+      provider: playwright({
+        // Software WebGL so shader tests can render in headless Chromium
+        launchOptions: { args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] },
+      }),
       enabled: true,
       headless: true,
       screenshotFailures: false,
-      instances: [
-        { browser: 'chromium' },
-      ],
-    }
+      instances: [{ browser: 'chromium' }],
+    },
   },
   optimizeDeps: {
     include: [
       'vite-plugin-node-polyfills/shims/buffer',
       'vite-plugin-node-polyfills/shims/global',
       'vite-plugin-node-polyfills/shims/process',
+      'react',
+      'react-dom',
       'react/jsx-dev-runtime',
       'node:path',
+      'node:module',
     ],
   },
   plugins: [

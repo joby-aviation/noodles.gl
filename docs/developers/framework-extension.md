@@ -152,7 +152,7 @@ const migratedData = migrateSchema(savedData, currentVersion)
 
 - **Browser DevTools**: Inspect React components and state
 - **RxJS DevTools**: Trace observable streams
-- **Theatre.js Studio**: Debug timeline and keyframes
+- **Timeline Panel**: Debug keyframes and animation curves
 
 ### Debugging Techniques
 

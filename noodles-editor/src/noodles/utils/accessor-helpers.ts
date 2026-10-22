@@ -9,6 +9,15 @@
 //   Transform: (val) => normalize(val)  // operator transformation
 //   Output: (d) => normalize(d.count)   // composed accessor
 
+// Generic accessor type for deck.gl style accessors
+// TData: the type of each data item
+// TReturn: the return type of the accessor
+export type Accessor<TData, TReturn> = (datum: TData, index?: number, data?: TData[]) => TReturn
+
+// A value that can be either a static value or an accessor function
+export type AccessorOrValue<TData, TReturn> = TReturn | Accessor<TData, TReturn>
+
+// Legacy type for backwards compatibility with existing code
 export type AccessorFunction = (...args: unknown[]) => unknown
 
 // Compose a transformation with a value that might be an accessor function.
@@ -27,7 +36,7 @@ export type AccessorFunction = (...args: unknown[]) => unknown
 export function composeAccessor<TIn, TOut>(
   value: TIn | AccessorFunction,
   transform: (val: TIn) => TOut
-): TOut | AccessorFunction {
+): TOut | ((...args: unknown[]) => TOut) {
   if (typeof value === 'function') {
     // Compose: create new accessor that applies both
     return (...args: unknown[]) => transform(value(...args) as TIn)
@@ -38,5 +47,12 @@ export function composeAccessor<TIn, TOut>(
 
 // Check if a value is an accessor function.
 export function isAccessor(value: unknown): value is AccessorFunction {
+  return typeof value === 'function'
+}
+
+// Type-safe version of isAccessor for when you know the data and return types
+export function isTypedAccessor<TData, TReturn>(
+  value: AccessorOrValue<TData, TReturn>
+): value is Accessor<TData, TReturn> {
   return typeof value === 'function'
 }
