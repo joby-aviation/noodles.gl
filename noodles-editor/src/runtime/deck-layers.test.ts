@@ -1,5 +1,5 @@
 // Planner layers drawn by a real deck on WebGL, from a program run against DuckDB-Wasm.
-import { Deck, type Layer, OrthographicView } from '@deck.gl/core'
+import { Deck, type Layer, MapView, OrthographicView } from '@deck.gl/core'
 import { type EditorDoc, lowerDocument, parameterValues } from '@noodles.gl/planner'
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { DeckLayerBuilder } from './deck-layers'
@@ -119,5 +119,61 @@ describe('DeckLayerBuilder', () => {
     expect(next[0].props.data).toBe(layers[0].props.data)
     expect((next[0].props as unknown as Record<string, unknown>).radiusScale).toBe(2)
     await engine.close()
+  })
+})
+
+describe('DeckLayerBuilder aggregation layers', () => {
+  it('bins binary positions and weights into hexagons', async () => {
+    const n = 50
+    const position = new Float32Array(n * 2)
+    for (let i = 0; i < n; i++) {
+      position[i * 2] = -122.42 + (i % 5) * 0.002
+      position[i * 2 + 1] = 37.77 + Math.floor(i / 5) * 0.002
+    }
+    const weight = new Float32Array(n).fill(2)
+    const builder = new DeckLayerBuilder()
+    const layers =
+      builder
+        .build([
+          {
+            id: 'bins',
+            kind: 'hexagon',
+            data: {
+              rows: n,
+              attributes: new Map([
+                ['P', { data: position, width: 2 }],
+                ['w', { data: weight, width: 1 }],
+              ]),
+              strings: new Map(),
+              evalMs: 0,
+              code: '',
+            },
+            bindings: [
+              { channel: 'position', attribute: 'P' },
+              { channel: 'colorWeight', attribute: 'w' },
+            ],
+            props: { radius: 200, extruded: false },
+          },
+        ])
+        .get('bins') ?? []
+    canvas = document.createElement('canvas')
+    document.body.appendChild(canvas)
+    const map = new Deck({
+      canvas,
+      width: SIZE,
+      height: SIZE,
+      views: new MapView(),
+      initialViewState: { longitude: -122.416, latitude: 37.78, zoom: 13 },
+      layers,
+    })
+    deck = map as unknown as Deck<OrthographicView>
+    await new Promise(resolve => setTimeout(resolve, 1000))
+    const cells = map.layerManager?.getLayers().find(l => l.id.endsWith('-cells'))
+    expect(cells?.getNumInstances()).toBeGreaterThan(0)
+    // An aggregation that read nothing leaves deck's sentinel domain, [3e38, -3e38].
+    const props = cells?.props as unknown as { colorDomain?: number[] } | undefined
+    const domain = props?.colorDomain ?? [1, 0]
+    expect(domain[0]).toBeLessThanOrEqual(domain[1])
+    expect(domain[1]).toBeGreaterThan(0)
   })
 })

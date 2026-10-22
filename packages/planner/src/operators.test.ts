@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { lowerDocument, parameterValues } from './lower.js'
-import { OPERATOR_INDEX, canConnect, paramAccepts, registerOperator, registerRamp } from './operators.js'
+import { OPERATOR_INDEX, OPERATORS, canConnect, paramAccepts, registerOperator, registerRamp } from './operators.js'
 import { buildRampLut, RAMP_STOPS } from './types.js'
 import { plan } from './planner.js'
 import { targetCaps } from './target.js'
@@ -213,5 +213,46 @@ describe('predicate pushdown', () => {
       policy: 'auto', relation: '"t"', caps: targetCaps('deck-webgl2', undefined),
     })
     expect(physical.notes.some((n) => n.includes('predicate pushdown: f'))).toBe(false)
+  })
+})
+
+describe('switch', () => {
+  const twoLayers = (index: number): EditorDoc => ({
+    version: 1,
+    name: 'switch',
+    nodes: [
+      { id: 'src', op: 'sql', x: 0, y: 0, params: { query: 'SELECT 1.0 AS x, 2.0 AS y' } },
+      { id: 'dots', op: 'scatter', x: 0, y: 0, params: { position: '[x, y]' } },
+      { id: 'bins', op: 'hexagon', x: 0, y: 0, params: { position: '[x, y]', radius: 200 } },
+      { id: 'pick', op: 'switch', x: 0, y: 0, params: { index } },
+      { id: 'map', op: 'deck', x: 0, y: 0, params: {} },
+    ],
+    edges: [
+      { id: 'e1', source: 'src', sourcePort: 'out', target: 'dots', targetPort: 'in' },
+      { id: 'e2', source: 'src', sourcePort: 'out', target: 'bins', targetPort: 'in' },
+      { id: 'e3', source: 'dots', sourcePort: 'out', target: 'pick', targetPort: 'in', index: 0 },
+      { id: 'e4', source: 'bins', sourcePort: 'out', target: 'pick', targetPort: 'in', index: 1 },
+      { id: 'e5', source: 'pick', sourcePort: 'out', target: 'map', targetPort: 'layers' },
+    ],
+  })
+
+  it('passes the chosen layer to the deck, clamping the index', () => {
+    const deckInputs = (index: number) =>
+      lowerDocument(twoLayers(index)).graph.nodes.find((n): n is DeckNode => n.type === 'deck')!.inputs
+    expect(deckInputs(0)).toEqual(['dots'])
+    expect(deckInputs(1)).toEqual(['bins'])
+    expect(deckInputs(7)).toEqual(['bins'])
+    const lowered = lowerDocument(twoLayers(1))
+    expect(lowered.outputs.pick.out).toBe('bins')
+    const bins = lowered.graph.nodes.find((n): n is LayerNode => n.id === 'bins')!
+    expect(bins.kind).toBe('hexagon')
+    expect(bins.props?.radius).toMatch(/^\{\{.*\}\}$/)
+  })
+})
+
+describe('the catalog', () => {
+  it('has one operator per type, so none silently replaces another', () => {
+    const types = OPERATORS.map((o) => o.type)
+    expect(types.filter((t, i) => types.indexOf(t) !== i)).toEqual([])
   })
 })

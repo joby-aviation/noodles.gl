@@ -104,6 +104,14 @@ export const FUNCTIONS: Record<string, FnSpec> = {
     width: 'broadcast',
   },
 
+  // Element `i` (0-based) of a list column, such as a `[lng, lat]` read from JSON. SQL only.
+  item: {
+    arity: [2, 2],
+    sql: (a) => `list_extract(${a[0]}, CAST(${a[1]} AS INTEGER) + 1)`,
+    wgsl: null,
+    width: 1,
+  },
+
   // One byte of a `#rgb` or `#rrggbb` color string, 0–255: `i` is 0, 1 or 2 for red, green,
   // blue. Strings live in SQL only, so this does too; `hex_color` (the prelude) builds an RGB
   // vector from three of them.

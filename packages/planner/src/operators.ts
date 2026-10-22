@@ -222,6 +222,55 @@ function lowerLayer(
   return { nodes, outputs: { out: ctx.id } };
 }
 
+/** A color range for aggregation layers, from a ramp. Empty keeps deck's own default. */
+const colorRangeParam: ParamDef = {
+  name: 'colorRange', label: 'Color range', kind: 'menu', default: '', folder: 'Style',
+  options: [{ value: '', label: 'Default (yellow to red)' }, ...RAMPS],
+  help: 'Six colors sampled from a ramp.',
+};
+
+/** Hexagon and grid bins: the same layer but for the shape of a bin. */
+function binLayer(
+  type: string, kind: 'hexagon' | 'grid', label: string, size: string, sizeLabel: string, sizeDefault: number,
+): OpDef {
+  const aggregation = (name: string, folder: string): ParamDef => ({
+    name, label: 'Aggregation', kind: 'menu', default: 'SUM', folder,
+    options: ['SUM', 'MEAN', 'MIN', 'MAX', 'COUNT'].map((v) => ({ value: v, label: v[0] + v.slice(1).toLowerCase() })),
+  });
+  return {
+    type, label, category: 'layer',
+    description: `Rows binned into ${kind === 'hexagon' ? 'hexagons' : 'square cells'}, colored and raised by per-row weights deck sums per bin.`,
+    inputs: [table()], outputs: [out('layer')],
+    params: [
+      channel('position', 'Position', 'P'),
+      channel('colorWeight', 'Color weight', '', 'Per-row weight for color. Empty counts rows.'),
+      channel('elevationWeight', 'Elevation weight', '', 'Per-row weight for height. Empty counts rows.'),
+      { name: size, label: sizeLabel, kind: 'float', default: sizeDefault, min: 1, max: 100000, step: 10, bind: 'prop', folder: 'Style', port: true },
+      { ...aggregation('colorAggregation', 'Color') },
+      { name: 'upperPercentile', label: 'Upper percentile', kind: 'float', default: 100, min: 0, max: 100, step: 1, bind: 'prop', folder: 'Color' },
+      { name: 'lowerPercentile', label: 'Lower percentile', kind: 'float', default: 0, min: 0, max: 100, step: 1, bind: 'prop', folder: 'Color' },
+      colorRangeParam,
+      { name: 'extruded', label: 'Extruded', kind: 'toggle', default: kind === 'grid', folder: 'Elevation' },
+      { ...aggregation('elevationAggregation', 'Elevation') },
+      { name: 'elevationScale', label: 'Elevation scale', kind: 'float', default: 1, min: 0, max: 1000, step: 0.5, bind: 'prop', folder: 'Elevation', port: true },
+      rampParam,
+      opacity,
+      blendParam,
+    ],
+    lower: (ctx) => lowerLayer(ctx, kind,
+      [
+        { channel: 'position', param: 'position' }, { channel: 'colorWeight', param: 'colorWeight' },
+        { channel: 'elevationWeight', param: 'elevationWeight' },
+      ],
+      {
+        [size]: ctx.bind(size), colorAggregation: ctx.str('colorAggregation'), upperPercentile: ctx.bind('upperPercentile'),
+        lowerPercentile: ctx.bind('lowerPercentile'), colorRange: ctx.str('colorRange'), extruded: ctx.bool('extruded'),
+        elevationAggregation: ctx.str('elevationAggregation'), elevationScale: ctx.bind('elevationScale'),
+        opacity: ctx.bind('opacity'),
+      }),
+  };
+}
+
 const channel = (name: string, label: string, def: string, help?: string): ParamDef =>
   ({ name, label, kind: 'expr', default: def, folder: 'Channels', of: 'in', help });
 
@@ -867,6 +916,36 @@ export const OPERATORS: OpDef[] = [
     },
   },
 
+  // --- aggregation layers -----------------------------------------------------
+  {
+    type: 'heatmap', label: 'Heatmap Layer', category: 'layer',
+    description: 'A density surface of the rows\' positions, weighted per row.',
+    inputs: [table()], outputs: [out('layer')],
+    params: [
+      channel('position', 'Position', 'P'),
+      channel('weight', 'Weight', '', 'Per-row weight. Empty uses the constant Weight.'),
+      { name: 'weightConstant', label: 'Weight', kind: 'float', default: 1, min: 0, max: 1000, step: 0.1, bind: 'prop', folder: 'Style', port: true },
+      { name: 'aggregation', label: 'Aggregation', kind: 'menu', default: 'SUM', options: [{ value: 'SUM', label: 'Sum' }, { value: 'MEAN', label: 'Mean' }], folder: 'Style' },
+      { name: 'radiusPixels', label: 'Radius (px)', kind: 'float', default: 30, min: 1, max: 500, step: 1, bind: 'prop', folder: 'Style', port: true },
+      { name: 'intensity', label: 'Intensity', kind: 'float', default: 1, min: 0, max: 10, step: 0.05, bind: 'prop', folder: 'Style', port: true },
+      { name: 'threshold', label: 'Threshold', kind: 'float', default: 0.05, min: 0, max: 1, step: 0.01, bind: 'prop', folder: 'Style' },
+      colorRangeParam,
+      rampParam,
+      opacity,
+      blendParam,
+    ],
+    lower: (ctx) => lowerLayer(ctx, 'heatmap',
+      [{ channel: 'position', param: 'position' }, { channel: 'weight', param: 'weight' }],
+      {
+        weight: ctx.bind('weightConstant'), aggregation: ctx.str('aggregation'), radiusPixels: ctx.bind('radiusPixels'),
+        intensity: ctx.bind('intensity'), threshold: ctx.bind('threshold'), colorRange: ctx.str('colorRange'),
+        opacity: ctx.bind('opacity'),
+      }),
+  },
+  binLayer('hexagon', 'hexagon', 'Hexagon Layer', 'radius', 'Radius (m)', 1000),
+  // `grid` is the Grid Bin operator; this draws deck's own grid aggregation.
+  binLayer('grid-layer', 'grid', 'Grid Layer', 'cellSize', 'Cell size (m)', 1000),
+
   // --- output ---------------------------------------------------------------
   {
     type: 'deck', label: 'Deck', category: 'output',
@@ -974,6 +1053,19 @@ export const OPERATORS: OpDef[] = [
   },
 
   // --- structure ------------------------------------------------------------
+  {
+    type: 'switch', label: 'Switch', category: 'structure',
+    description: 'Pass one of several layers through, chosen by index. A change re-plans, and the memo keeps every layer it is not showing, so switching back costs at most that layer\'s query.',
+    inputs: [{ name: 'in', type: 'layer', label: 'layers', multi: true }],
+    outputs: [out('layer')],
+    params: [{ name: 'index', label: 'Index', kind: 'int', default: 0, min: 0, max: 16, step: 1, bind: 'structural' }],
+    lower(ctx) {
+      const layers = ctx.inputs('in');
+      if (layers.length === 0) ctx.error('Switch needs a layer');
+      const i = Math.max(0, Math.min(layers.length - 1, Math.floor(ctx.num('index') || 0)));
+      return { nodes: [], outputs: { out: layers[i] } };
+    },
+  },
   {
     type: 'subnet', label: 'Subnetwork', category: 'structure',
     description: 'A network inside a node. Double-click to enter. Promote parameters to control the inside from here.',

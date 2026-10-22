@@ -131,6 +131,31 @@ describe('toEditorDoc', () => {
     expect(() => toEditorDoc(example('world-flights'))).toThrow()
   })
 
+  it('converts aggregation-example: a switch between hexagon and grid layers over JSON rows', () => {
+    const { doc, warnings } = toEditorDoc(example('aggregation-example'))
+    const lowered = lowerDocument(doc)
+    expect(lowered.errors).toEqual([])
+    expect(doc.nodes.find(n => n.id === '/switch')).toMatchObject({
+      op: 'switch',
+      params: { index: 0 },
+    })
+    expect(doc.nodes.find(n => n.id === '/data-source')).toMatchObject({
+      op: 'file',
+      params: { format: 'json' },
+    })
+    // A [lng, lat] list column, indexed in SQL.
+    expect(doc.nodes.find(n => n.id === '/position-accessor')?.params.expression).toBe(
+      '[item(COORDINATES, 0.0), item(COORDINATES, 1.0)]'
+    )
+    expect(doc.nodes.find(n => n.id === '/hexagon-layer')).toMatchObject({
+      op: 'hexagon',
+      params: { radius: 200, extruded: true, elevationScale: 4, colorWeight: 'spaces_accessor' },
+    })
+    // Switch index 0 is the first value wired in, the hexagon layer.
+    expect(lowered.outputs['/switch'].out).toBe('/hexagon-layer')
+    expect(warnings).toEqual([])
+  })
+
   it('reads a per-feature hex color string through hex_color', () => {
     const { doc } = toEditorDoc(example('geojson-example'))
     expect(lowerDocument(doc).errors).toEqual([])

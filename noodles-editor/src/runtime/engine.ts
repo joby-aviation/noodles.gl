@@ -162,7 +162,8 @@ export class Engine {
 
     // Draw order is the deck's edge order, planner and host layers alike.
     const layers = into('layers').flatMap(e => {
-      const planned = this.built.get(e.source)
+      // A planner node's output is the IR layer it lowered to: a switch's is the one it chose.
+      const planned = this.built.get(this.lowered?.outputs[e.source]?.[e.sourcePort] ?? e.source)
       if (planned) return planned
       const v = host?.runner.output(e.source, e.sourcePort)
       return (Array.isArray(v) ? v : v ? [v] : []).flatMap(item => this.asLayer(item))
@@ -248,7 +249,8 @@ export class Engine {
     await this.runtime.idle()
     this.buildPlannerLayers()
     const report = await host.runner.run(this.doc, {
-      planner: nodeId => this.built.get(nodeId)?.[0],
+      planner: (nodeId, port) =>
+        this.built.get(this.lowered?.outputs[nodeId]?.[port] ?? nodeId)?.[0],
       slots: this.slots,
       time: this.time,
     })

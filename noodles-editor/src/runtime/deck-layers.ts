@@ -15,18 +15,23 @@
  * attribute upload and throw away the point of routing that parameter as `prop`.
  */
 
-import type { Layer } from '@deck.gl/core'
-import { TripsLayer } from '@deck.gl/geo-layers'
+import { type LayerKind, RAMP_STOPS, type ResolvedProp, toUint8Color } from '@noodles.gl/planner'
+// From the deck.gl bundle the app itself imports, never the @deck.gl/* packages: Vite
+// pre-bundles them apart, and an aggregation layer whose sublayer comes from the other copy
+// draws nothing (its geometry buffers belong to a different luma.gl).
 import {
   ArcLayer,
   ColumnLayer,
+  GridLayer,
+  HeatmapLayer,
+  HexagonLayer,
+  type Layer,
   PathLayer,
   ScatterplotLayer,
   SolidPolygonLayer,
   TextLayer,
-} from '@deck.gl/layers'
-
-import { type LayerKind, type ResolvedProp, toUint8Color } from '@noodles.gl/planner'
+  TripsLayer,
+} from 'deck.gl'
 import type { LayerData } from './execute'
 import { triangulate } from './triangulate'
 
@@ -216,6 +221,16 @@ function toBinary(input: ProgramLayerInput): Binary {
         triangulateMs: tri?.ms ?? 0,
       }
     }
+    case 'heatmap':
+      put('getPosition', pos('position'), 3)
+      put('getWeight', scalar('weight'), 1)
+      return { length: n, attributes: at }
+    case 'hexagon':
+    case 'grid':
+      put('getPosition', pos('position'), 3)
+      put('getColorWeight', scalar('colorWeight'), 1)
+      put('getElevationWeight', scalar('elevationWeight'), 1)
+      return { length: n, attributes: at }
     case 'text': {
       // Text has no binary path worth taking at label counts: deck lays out glyphs per string
       // on the CPU regardless. Capped, because thousands of labels are unreadable anyway.
@@ -314,6 +329,22 @@ const BLEND_PARAMETERS: Record<string, Record<string, unknown>> = {
   },
 }
 
+/** Six colors from a ramp, for an aggregation layer's color range; deck's default when unset. */
+function colorRange(name: ResolvedProp | undefined): { colorRange?: number[][] } {
+  const stops = typeof name === 'string' && name ? RAMP_STOPS[name] : undefined
+  if (!stops) return {}
+  return {
+    colorRange: Array.from({ length: 6 }, (_, i) => {
+      const t = (i / 5) * (stops.length - 1)
+      const lo = Math.min(Math.floor(t), stops.length - 2)
+      const f = t - lo
+      return [0, 1, 2].map(c =>
+        Math.round((stops[lo][c] + (stops[lo + 1][c] - stops[lo][c]) * f) * 255)
+      )
+    }),
+  }
+}
+
 const widthUnits = (v: ResolvedProp | undefined) =>
   v === 'meters' || v === 'common' ? v : 'pixels'
 
@@ -403,6 +434,40 @@ function buildLayer(input: ProgramLayerInput, binary: Binary): Layer | undefined
         getElevation: has('getElevation') ? undefined : 1,
         ...constant('getFillColor', rgb(p.fillColor, [80, 160, 220])),
       } as never)
+    case 'heatmap':
+      return new HeatmapLayer({
+        ...common,
+        data: binary as never,
+        radiusPixels: num(p.radiusPixels, 30),
+        intensity: num(p.intensity, 1),
+        threshold: num(p.threshold, 0.05),
+        aggregation: p.aggregation === 'MEAN' ? 'MEAN' : 'SUM',
+        getWeight: has('getWeight') ? undefined : num(p.weight, 1),
+        ...colorRange(p.colorRange),
+      } as never)
+    case 'hexagon':
+    case 'grid': {
+      const LayerClass = input.kind === 'hexagon' ? HexagonLayer : GridLayer
+      return new LayerClass({
+        ...common,
+        data: binary as never,
+        ...(input.kind === 'hexagon'
+          ? { radius: num(p.radius, 1000) }
+          : { cellSize: num(p.cellSize, 1000) }),
+        colorAggregation: String(p.colorAggregation ?? 'SUM'),
+        elevationAggregation: String(p.elevationAggregation ?? 'SUM'),
+        upperPercentile: num(p.upperPercentile, 100),
+        lowerPercentile: num(p.lowerPercentile, 0),
+        extruded: p.extruded === true,
+        elevationScale: num(p.elevationScale, 1),
+        // deck's GPU aggregator bins nothing from binary float32 attributes (its domain stays
+        // empty); the CPU aggregator reads them directly.
+        gpuAggregation: false,
+        getColorWeight: has('getColorWeight') ? undefined : 1,
+        getElevationWeight: has('getElevationWeight') ? undefined : 1,
+        ...colorRange(p.colorRange),
+      } as never)
+    }
     case 'text':
       return new TextLayer({
         ...common,

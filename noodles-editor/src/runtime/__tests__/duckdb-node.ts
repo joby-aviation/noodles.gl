@@ -64,6 +64,8 @@ export async function openNodeDuck(): Promise<NodeDuck> {
   try {
     conn.query('INSTALL spatial')
     conn.query('LOAD spatial')
+    conn.query('INSTALL json')
+    conn.query('LOAD json')
   } finally {
     process.env.HOME = home
   }
