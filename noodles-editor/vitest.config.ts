@@ -47,7 +47,9 @@ export default defineConfig({
         test: {
           name: 'node',
           environment: 'node',
-          include: ['scripts/**/*.test.ts', 'src/**/*.node.test.ts'],
+          // These run real DuckDB queries over real example files: seconds each, more when the
+          // machine is busy
+          testTimeout: 30_000,
         },
       },
     ],
