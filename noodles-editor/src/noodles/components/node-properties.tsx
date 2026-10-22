@@ -1,9 +1,14 @@
 import * as Dialog from '@radix-ui/react-dialog'
-import { Cross2Icon, EyeNoneIcon, EyeOpenIcon, Link2Icon } from '@radix-ui/react-icons'
+import {
+  Cross2Icon,
+  EyeNoneIcon,
+  EyeOpenIcon,
+  Link2Icon,
+  ViewGridIcon,
+} from '@radix-ui/react-icons'
 import type { Edge } from '@xyflow/react'
 import { useReactFlow, useStore } from '@xyflow/react'
 import cx from 'classnames'
-import { LayoutGrid } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { KeyframeIndicator } from '../../timeline/components/KeyframeIndicator'
@@ -1545,7 +1550,7 @@ export function PropertyPanel({ onAutoLayout, autoLayout }: PropertyPanelProps) 
                   onClick={onAutoLayout}
                   title="Layout selected nodes (Cmd/Ctrl+L)"
                 >
-                  <LayoutGrid size={16} />
+                  <ViewGridIcon />
                   <span>Layout</span>
                 </button>
               )}

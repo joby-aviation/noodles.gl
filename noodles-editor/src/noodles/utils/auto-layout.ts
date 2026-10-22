@@ -221,7 +221,7 @@ enum LayoutTier {
   TRANSFORM = 1,
   ENHANCEMENT = 2,
   VIEW = 2.5,
-  BASEMAP = 3,
+  BASEMAP = 3.5, // Must differ from LAYER: tiers are grouped by value
   LAYER = 3,
   SWITCH = 4,
   EXTENSION = 4.5,
@@ -250,9 +250,15 @@ function categorizeOperatorByType(nodeType: string): LayoutTier {
 
   // Data source operators
   if (
-    ['FileOp', 'DuckDbOp', 'JSONOp', 'GeocoderOp', 'DirectionsOp', 'NetworkOp', 'TableEditorOp'].includes(
-      nodeType
-    )
+    [
+      'FileOp',
+      'DuckDbOp',
+      'JSONOp',
+      'GeocoderOp',
+      'DirectionsOp',
+      'NetworkOp',
+      'TableEditorOp',
+    ].includes(nodeType)
   )
     return LayoutTier.DATA_SOURCE
 
@@ -441,7 +447,7 @@ function layoutWithSemanticColumns(nodes: Node[], edges: Edge[], options: Semant
   const outputNodes = tierGroups.get(LayoutTier.OUTPUT) ?? []
   for (const node of outputNodes) {
     const x = getNodeX(node)
-    const renderY = renderNodes[0] ? positionedNodes.get(renderNodes[0].id)?.y ?? 0 : 0
+    const renderY = renderNodes[0] ? (positionedNodes.get(renderNodes[0].id)?.y ?? 0) : 0
     positionedNodes.set(node.id, { x, y: renderY })
   }
 

@@ -47,7 +47,6 @@
     "haversine-distance": "^1.2.4",
     "jszip": "^3.10.1",
     "lodash": "^4.17.23",
-    "lucide-react": "^0.562.0",
     "maplibre-gl": "^5.21.1",
     "mediabunny": "^1.40.1",
     "memoize-one": "^6.0.0",

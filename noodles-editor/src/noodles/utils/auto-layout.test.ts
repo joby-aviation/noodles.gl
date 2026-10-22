@@ -3,14 +3,7 @@ import type { Edge, Node } from '@xyflow/react'
 import { describe, expect, it } from 'vitest'
 import { type LayoutOptions, layoutNodes, resolveOverlaps } from './auto-layout'
 
-const createNode = (
-  id: string,
-  x = 0,
-  y = 0,
-  width = 200,
-  height = 100,
-  type?: string
-): Node => ({
+const createNode = (id: string, x = 0, y = 0, width = 200, height = 100, type?: string): Node => ({
   id,
   position: { x, y },
   data: {},
@@ -187,8 +180,14 @@ describe('layoutNodes', () => {
           const w2 = n2.measured?.width ?? 200
           const h2 = n2.measured?.height ?? 100
 
-          const overlapX = Math.min(n1.position.x + w1, n2.position.x + w2) - Math.max(n1.position.x, n2.position.x) + margin
-          const overlapY = Math.min(n1.position.y + h1, n2.position.y + h2) - Math.max(n1.position.y, n2.position.y) + margin
+          const overlapX =
+            Math.min(n1.position.x + w1, n2.position.x + w2) -
+            Math.max(n1.position.x, n2.position.x) +
+            margin
+          const overlapY =
+            Math.min(n1.position.y + h1, n2.position.y + h2) -
+            Math.max(n1.position.y, n2.position.y) +
+            margin
 
           expect(overlapX > 0 && overlapY > 0).toBe(false)
         }
@@ -244,8 +243,8 @@ describe('resolveOverlaps', () => {
     // three overlapping nodes arranged in a triangle — all pairs overlap
     const nodes = [
       createNode('a', 0, 0),
-      createNode('b', 100, 0),  // overlaps a (200px wide, only 100px apart)
-      createNode('c', 50, 60),  // overlaps both a and b
+      createNode('b', 100, 0), // overlaps a (200px wide, only 100px apart)
+      createNode('c', 50, 60), // overlaps both a and b
     ]
     const margin = 50
     const result = resolveOverlaps(nodes, margin)
@@ -254,8 +253,14 @@ describe('resolveOverlaps', () => {
       for (let j = i + 1; j < result.length; j++) {
         const n1 = result[i]
         const n2 = result[j]
-        const overlapX = Math.min(n1.position.x + 200, n2.position.x + 200) - Math.max(n1.position.x, n2.position.x) + margin
-        const overlapY = Math.min(n1.position.y + 100, n2.position.y + 100) - Math.max(n1.position.y, n2.position.y) + margin
+        const overlapX =
+          Math.min(n1.position.x + 200, n2.position.x + 200) -
+          Math.max(n1.position.x, n2.position.x) +
+          margin
+        const overlapY =
+          Math.min(n1.position.y + 100, n2.position.y + 100) -
+          Math.max(n1.position.y, n2.position.y) +
+          margin
         expect(overlapX > 0 && overlapY > 0).toBe(false)
       }
     }
@@ -494,9 +499,13 @@ describe('layoutNodes with semantic algorithm', () => {
         const h2 = n2.measured?.height ?? 100
 
         const overlapX =
-          Math.min(n1.position.x + w1, n2.position.x + w2) - Math.max(n1.position.x, n2.position.x) + margin
+          Math.min(n1.position.x + w1, n2.position.x + w2) -
+          Math.max(n1.position.x, n2.position.x) +
+          margin
         const overlapY =
-          Math.min(n1.position.y + h1, n2.position.y + h2) - Math.max(n1.position.y, n2.position.y) + margin
+          Math.min(n1.position.y + h1, n2.position.y + h2) -
+          Math.max(n1.position.y, n2.position.y) +
+          margin
 
         expect(overlapX > 0 && overlapY > 0).toBe(false)
       }
