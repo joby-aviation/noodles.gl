@@ -486,11 +486,11 @@ the old `listNodes` shape copied verbatim.
 
 | Per-turn component | Before | After | Change |
 | --- | --- | --- | --- |
-| System prompt | 9,278 chars (~2,300 tok) | 2,910 chars (~730 tok) | −69% |
+| System prompt | 9,278 chars (~2,300 tok) | ~9,000 chars (~2,250 tok) | −3% |
 | Tool schemas | 4,291 chars, 13 tools (~1,070 tok) | 2,292 chars, 5 tools (~570 tok) | −47% |
 | One `list_nodes` result (200k window) | 18,447 chars (~4,600 tok) | 11,462 chars (~2,870 tok) | −38% |
 | One `list_nodes` result (6k window) | 18,447 chars (~4,600 tok) | 1,637 chars (~410 tok) | −91% |
-| **First turn, all three** | ~32,000 chars (~8,000 tok) | ~16,700 chars (~4,175 tok) | **−48%** |
+| **First turn, all three** | ~32,000 chars (~8,000 tok) | ~22,750 chars (~5,700 tok) | **−29%** |
 
 The `list_nodes` saving is the slimming alone (role groupings carry ids instead of
 re-serialized node objects; `position` dropped; long string inputs clipped to a
@@ -500,7 +500,27 @@ all: 18k chars would exceed the entire context.
 
 The remaining six prompt sections (16,914 chars total) are no longer sent at all;
 they reach the model through `get_documentation` when a workflow actually calls for
-one.
+one. The system prompt barely shrank anyway: `core.md` is 2,910 chars, but
+`generateContextReference()` appends ~6,000 more (every operator name, doc topic
+titles, example summaries), and that reference is sent on every turn.
+
+### Headroom per window
+
+`src/ai-chat/agent/context-budget.test.ts` subtracts the fixed first-turn cost
+(system prompt, tool schemas, the provider's output reserve) and one capped
+`list_nodes` result from each provider's window. Rounded to 50 tokens:
+
+| Target | Fixed cost | Left before any tool result | Left after one `list_nodes` |
+| --- | --- | --- | --- |
+| WebLLM, 4k window (today) | ~3,570 tok | ~550 tok | ~300 tok |
+| Chrome Nano, 6k fallback | ~3,800 tok | ~2,350 tok | ~1,950 tok |
+| WebLLM, 16k window | ~3,570 tok | ~12,850 tok | ~11,700 tok |
+| Anthropic, 200k | ~11,000 tok | ~189,000 tok | ~186,150 tok |
+
+At 4k the model has room for one small tool result and nothing else, which is why
+on-device sessions run out of context almost immediately. The test snapshots these
+numbers, so growth in the prompt or tier-0 schemas shows up in the PR diff, and it
+fails if a window of 16k or more leaves less than 1,500 tokens after an inspect.
 
 **Not yet measured:** live per-turn `inputTokens` from a real provider. The figures
 above are payload sizes computed offline, which is why they are reproducible without

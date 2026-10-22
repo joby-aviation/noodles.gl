@@ -77,8 +77,9 @@ export const DEFAULT_WEBLLM_MODEL = 'Qwen3-4B-q4f16_1-MLC'
 
 // Every prebuilt model overrides context_window_size to this. Not read from the
 // config at runtime because the value is needed to size the tool router before the
-// engine exists.
-const CONTEXT_WINDOW = 4096
+// engine exists. The override is there to keep VRAM low, not because the models
+// stop at 4k — a caller can ask for more, and pays in KV cache for it.
+export const DEFAULT_CONTEXT_WINDOW = 4096
 
 // What is left for the answer after the system prompt, the tool schemas and the
 // transcript. A JSON action object is a few hundred tokens; asking for more than
@@ -139,6 +140,7 @@ interface WebLLMChunk {
 export async function createWebLLMProvider(options: {
   model?: string
   onDownloadProgress?: (progress: DownloadProgress) => void
+  contextWindow?: number
 }): Promise<WebLLMProvider> {
   if (!(await webgpuAvailable())) {
     throw new Error(
@@ -147,6 +149,7 @@ export async function createWebLLMProvider(options: {
   }
 
   const model = options.model ?? DEFAULT_WEBLLM_MODEL
+  const contextWindow = options.contextWindow ?? DEFAULT_CONTEXT_WINDOW
   const { CreateWebWorkerMLCEngine } = await import('@mlc-ai/web-llm')
 
   const worker = new Worker(new URL('./webllm-worker.ts', import.meta.url), {
@@ -155,20 +158,28 @@ export async function createWebLLMProvider(options: {
   debugAiChat('[webllm] loading %s', model)
 
   try {
-    const engine = await CreateWebWorkerMLCEngine(worker, model, {
-      initProgressCallback: report => {
-        // `progress` is a 0..1 fraction over the whole load, which is the only
-        // measure WebLLM reports: the byte counts are per-shard
-        debugAiChat('[webllm] %s', report.text)
-        options.onDownloadProgress?.({ loaded: report.progress, total: 1 })
+    const engine = await CreateWebWorkerMLCEngine(
+      worker,
+      model,
+      {
+        initProgressCallback: report => {
+          // `progress` is a 0..1 fraction over the whole load, which is the only
+          // measure WebLLM reports: the byte counts are per-shard
+          debugAiChat('[webllm] %s', report.text)
+          options.onDownloadProgress?.({ loaded: report.progress, total: 1 })
+        },
       },
-    })
+      // Only sent when it differs, so the default load is byte-for-byte the
+      // prebuilt config
+      contextWindow === DEFAULT_CONTEXT_WINDOW ? undefined : { context_window_size: contextWindow }
+    )
 
-    debugAiChat('[webllm] ready, %d token window', CONTEXT_WINDOW)
+    debugAiChat('[webllm] ready, %d token window', contextWindow)
     return new WebLLMProvider({
       engine: engine as unknown as WebLLMEngine,
       model,
       worker,
+      contextWindow,
     })
   } catch (error) {
     // A failed load leaves a worker holding a partially initialised engine
@@ -182,7 +193,7 @@ export class WebLLMProvider implements AgentProvider {
   readonly model: string
   readonly supportsNativeTools = false
   readonly supportsImages = false
-  readonly contextWindow = CONTEXT_WINDOW
+  readonly contextWindow: number
 
   private readonly engine: WebLLMEngine
   private readonly worker: Worker | undefined
@@ -192,7 +203,9 @@ export class WebLLMProvider implements AgentProvider {
     engine: WebLLMEngine
     model: string
     worker?: Worker
+    contextWindow?: number
   }) {
+    this.contextWindow = options.contextWindow ?? DEFAULT_CONTEXT_WINDOW
     this.engine = options.engine
     this.model = options.model
     this.worker = options.worker
