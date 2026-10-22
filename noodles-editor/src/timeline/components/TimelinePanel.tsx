@@ -580,11 +580,7 @@ export function TimelinePanel({ height = 300, onCollapse }: TimelinePanelProps) 
                 connectingFromMarkerId={connectingFromMarkerId}
                 onKeyframeConnectionDrop={handleKeyframeConnectionDrop}
               />
-              <Playhead
-                position={position}
-                pixelsPerSecond={pixelsPerSecond}
-                height={height - 80}
-              />
+              <Playhead position={position} pixelsPerSecond={pixelsPerSecond} />
               {/* Marker connection lines */}
               <MarkerConnectionLines
                 markers={markers}
