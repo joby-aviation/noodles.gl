@@ -941,10 +941,42 @@ describe('BoundingBoxOp', () => {
     ])
   })
 
-  it('rejects objects that are not GeoJSON', () => {
+  it.each([
+    ['an object without a GeoJSON type', { foo: 'bar' }],
+    ['a Point without coordinates', { type: 'Point' }],
+    ['a Polygon with non-array coordinates', { type: 'Polygon', coordinates: 'nope' }],
+    ['a GeometryCollection without geometries', { type: 'GeometryCollection' }],
+    [
+      'a GeometryCollection with an incomplete geometry',
+      { type: 'GeometryCollection', geometries: [{ type: 'LineString' }] },
+    ],
+    ['a Feature without a geometry', { type: 'Feature', properties: {} }],
+    [
+      'a Feature with an incomplete geometry',
+      { type: 'Feature', properties: {}, geometry: { type: 'Point' } },
+    ],
+    ['a FeatureCollection without features', { type: 'FeatureCollection' }],
+    [
+      'a FeatureCollection with a non-Feature member',
+      { type: 'FeatureCollection', features: [{ type: 'Point', coordinates: [1, 2] }] },
+    ],
+  ])('rejects %s', (_name, value) => {
     const operator = new BoundingBoxOp('/bbox-0')
-    operator.inputs.data.setValue({ foo: 'bar' } as never)
+    // Deliberately invalid input, so it can't match the field's type
+    operator.inputs.data.setValue(value as unknown as GeoJSON.GeoJSON)
     expect(operator.inputs.data.value).toEqual([])
+  })
+
+  it('accepts a Feature with a null geometry', () => {
+    const operator = new BoundingBoxOp('/bbox-0')
+    // GeoJSON allows a null geometry, but @types/geojson's default Feature type doesn't
+    const feature = {
+      type: 'Feature',
+      properties: {},
+      geometry: null,
+    } as unknown as GeoJSON.Feature
+    operator.inputs.data.setValue(feature)
+    expect(operator.inputs.data.value).toEqual(feature)
   })
 
   it('finds the bounding box of a single Feature', () => {
@@ -954,7 +986,7 @@ describe('BoundingBoxOp', () => {
         [1, 2],
         [2, 3],
         [3, 4],
-      ]) as never,
+      ]),
       padding: 0,
     })
     expect(val.viewState).toEqual(pointsViewState())
@@ -974,7 +1006,7 @@ describe('BoundingBoxOp', () => {
             [1, 2],
           ],
         ],
-      } as never,
+      },
       padding: 0,
     })
     expect(val.viewState).toEqual(pointsViewState())
@@ -984,7 +1016,7 @@ describe('BoundingBoxOp', () => {
     const operator = new BoundingBoxOp('/bbox-0')
     const empty = operator.execute({ data: [], padding: 0 })
     const val = operator.execute({
-      data: { type: 'FeatureCollection', features: [] } as never,
+      data: { type: 'FeatureCollection', features: [] },
       padding: 0,
     })
     expect(val).toEqual(empty)

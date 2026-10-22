@@ -2801,19 +2801,54 @@ export class BoundsOp extends Operator<BoundsOp> {
   }
 }
 
-const geoJsonObjectSchema = z.looseObject({
-  type: z.enum([
-    'FeatureCollection',
-    'Feature',
-    'Point',
-    'MultiPoint',
-    'LineString',
-    'MultiLineString',
-    'Polygon',
-    'MultiPolygon',
-    'GeometryCollection',
-  ]),
-})
+const GEOJSON_COORDINATE_GEOMETRIES = new Set([
+  'Point',
+  'MultiPoint',
+  'LineString',
+  'MultiLineString',
+  'Polygon',
+  'MultiPolygon',
+])
+
+const isPlainObject = (val: unknown): val is Record<string, unknown> =>
+  typeof val === 'object' && val !== null && !Array.isArray(val)
+
+// Checks the members each type requires, but not every position, so large inputs stay cheap
+function isGeoJsonGeometry(val: unknown): val is GeoJSON.Geometry {
+  if (!isPlainObject(val)) return false
+  if (val.type === 'GeometryCollection') {
+    return Array.isArray(val.geometries) && val.geometries.every(isGeoJsonGeometry)
+  }
+  return GEOJSON_COORDINATE_GEOMETRIES.has(val.type as string) && Array.isArray(val.coordinates)
+}
+
+function isGeoJsonFeature(val: unknown): val is GeoJSON.Feature {
+  return (
+    isPlainObject(val) &&
+    val.type === 'Feature' &&
+    (val.geometry === null || isGeoJsonGeometry(val.geometry))
+  )
+}
+
+function isGeoJson(val: unknown): val is GeoJSON.GeoJSON {
+  if (isPlainObject(val) && val.type === 'FeatureCollection') {
+    return Array.isArray(val.features) && val.features.every(isGeoJsonFeature)
+  }
+  return isGeoJsonFeature(val) || isGeoJsonGeometry(val)
+}
+
+const geoJsonSchema = z.custom<GeoJSON.GeoJSON>(isGeoJson)
+
+// Widen a field's schema to also accept `other`, keeping the union in the field's type.
+// The field keeps its class, so its handle and editor UI are unchanged.
+function orSchema<F extends { schema: z.ZodType }, O extends z.ZodType>(
+  field: F,
+  other: O
+): Field<z.ZodUnion<[F['schema'], O]>> {
+  const widened = field as unknown as Field<z.ZodUnion<[F['schema'], O]>>
+  widened.schema = z.union([field.schema, other])
+  return widened
+}
 
 // The southwest and northeast corners of a GeoJSON object's bounds. Empty when it has
 // no coordinates (turf returns Infinity bounds for an empty FeatureCollection).
@@ -2844,12 +2879,9 @@ export class BoundingBoxOp extends Operator<BoundingBoxOp> {
   }
 
   createInputs() {
-    // There is no union field type, so widen the schema: `data` also takes a GeoJSON
-    // FeatureCollection, Feature or Geometry, such as a GeoJson operator's output
-    const data = new ArrayField(new Point2DField())
-    data.schema = data.schema.or(geoJsonObjectSchema) as unknown as typeof data.schema
     return {
-      data,
+      // Points, or a GeoJSON FeatureCollection, Feature or Geometry (e.g. a GeoJson operator's output)
+      data: orSchema(new ArrayField(new Point2DField()), geoJsonSchema),
       // TODO: could be a union, either a number or object with top, right, bottom, left
       padding: new NumberField(0, { softMin: -1_000, softMax: 1_000 }),
     }
@@ -2874,9 +2906,7 @@ export class BoundingBoxOp extends Operator<BoundingBoxOp> {
     let south = 90
     // Should this be a turf function? Do we need to cast data to GeoJSON first?
     // Or allow the lat / lng keys to be configurable?
-    const points = Array.isArray(data)
-      ? data
-      : geoJsonBoundsCorners(data as unknown as GeoJSON.GeoJSON)
+    const points = Array.isArray(data) ? data : geoJsonBoundsCorners(data)
     for (const d of points) {
       if (d.lng < west) {
         west = d.lng
