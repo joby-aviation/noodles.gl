@@ -710,6 +710,19 @@ export default function TimelineEditor() {
     return observeRenderSurface(surface, setRenderSurfaceSize)
   }, [isFixedMode, renderWidth, renderHeight])
 
+  // MapLibre follows its container through a ResizeObserver throttled to 50 ms, so it can
+  // draw a frame or more at the old size after the LOD or resolution changes, while the
+  // interleaved deck shares its canvas. Resize it in the same commit as its container (#728).
+  const displayWidth = displayResolution?.width
+  const displayHeight = displayResolution?.height
+  // biome-ignore lint/correctness/useExhaustiveDependencies: resize only when the map container size changes
+  useLayoutEffect(() => {
+    const map = mapRef.current
+    if (!basemapEnabled || !map) return
+    map.resize()
+    map.triggerRepaint()
+  }, [displayWidth, displayHeight])
+
   const renderContent = () => {
     const content = basemapEnabled ? (
       <ReactMapGL style={displayResolution} {...mapProps}>
