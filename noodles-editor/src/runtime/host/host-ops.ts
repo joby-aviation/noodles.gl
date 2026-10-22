@@ -7,7 +7,14 @@
 // and wrangle nodes, and its layer to a planner layer fed binary attributes.
 
 import { type OpDef, type ParamDef, type PortType, registerOperator } from '@noodles.gl/planner'
-import { type Field, LayerField, ListField, NumberField } from '../../noodles/fields'
+import {
+  DataField,
+  type Field,
+  GeoJsonField,
+  LayerField,
+  ListField,
+  NumberField,
+} from '../../noodles/fields'
 import { type IOperator, type Operator, opTypes } from '../../noodles/operators'
 
 /** Noodles operators the conversion replaces with planner operators. */
@@ -34,6 +41,8 @@ function portTypeOf(field: Field): PortType {
   const inner = field instanceof ListField ? (field as ListField<Field>).field : field
   if (inner instanceof LayerField) return 'layer'
   if (inner instanceof NumberField) return 'number'
+  // Rows and GeoJSON reach planner nodes as tables (the engine hands them to DuckDB)
+  if (inner instanceof DataField || inner instanceof GeoJsonField) return 'table'
   return 'value'
 }
 
@@ -76,7 +85,8 @@ export function hostOpDef(type: string, instance: Operator<IOperator>): OpDef {
       kind: 'field',
       default: field.serialize() as ParamDef['default'],
       port: true,
-      portType: portTypeOf(field),
+      // An input takes rows from a table or any value, as the field always did
+      portType: portTypeOf(field) === 'table' ? 'value' : portTypeOf(field),
       // The parameter pane builds its widget from a fresh instance of this field.
       field: { op: type, input: name },
     })

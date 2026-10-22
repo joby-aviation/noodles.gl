@@ -314,18 +314,26 @@ export class Engine {
       const key = `${e.source}.${e.sourcePort}`
       if (live.has(key)) continue
       live.add(key)
-      const rows = host.runner.output(e.source, e.sourcePort)
-      if (!Array.isArray(rows)) {
+      const value = host.runner.output(e.source, e.sourcePort)
+      // Rows become a JSON table; a GeoJSON FeatureCollection a spatial one DuckDB reads with
+      // ST_Read, one row per feature with its geometry as `geom`
+      const geojson = isFeatureCollection(value)
+      if (!Array.isArray(value) && !geojson) {
         if (this.hostTables.delete(key)) changed = true
         continue
       }
-      let file = this.tableFiles.get(rows)
+      let file = this.tableFiles.get(value)
       if (!file) {
-        file = `__host_${++this.tableCount}.json`
-        await registerFile(file, new TextEncoder().encode(JSON.stringify(rows.map(flatRow))))
-        this.tableFiles.set(rows, file)
+        file = `__host_${++this.tableCount}.${geojson ? 'geojson' : 'json'}`
+        const text = geojson
+          ? JSON.stringify(value)
+          : JSON.stringify((value as unknown[]).map(flatRow))
+        await registerFile(file, new TextEncoder().encode(text))
+        this.tableFiles.set(value, file)
       }
-      const query = `SELECT * FROM read_json_auto('${file}')`
+      const query = geojson
+        ? `SELECT * FROM ST_Read('${file}')`
+        : `SELECT * FROM read_json_auto('${file}')`
       if (this.hostTables.get(key) !== query) {
         this.hostTables.set(key, query)
         changed = true
@@ -451,6 +459,15 @@ export class Engine {
     const vis = this.vis()
     for (const l of this.listeners) l(vis, report)
   }
+}
+
+function isFeatureCollection(value: unknown): value is { type: 'FeatureCollection' } {
+  return (
+    !!value &&
+    typeof value === 'object' &&
+    (value as { type?: unknown }).type === 'FeatureCollection' &&
+    Array.isArray((value as { features?: unknown }).features)
+  )
 }
 
 /**

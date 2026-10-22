@@ -1,6 +1,6 @@
-import { type Edge, useReactFlow } from '@xyflow/react'
+import { useReactFlow } from '@xyflow/react'
 import { useCallback } from 'react'
-import { getRenderSurfaceSize } from '../../render/render-surface-size'
+import { docStore } from '../../editor/doc-store'
 import { analytics } from '../../utils/analytics'
 import { debugUI } from '../../utils/debug'
 import {
@@ -9,7 +9,7 @@ import {
   rowCountBucket,
 } from '../components/tools/detect-coordinates'
 import {
-  createImportPipeline,
+  createImportDoc,
   type DetectedFormat,
   detectFormat,
   detectFormatFromUrl,
@@ -17,44 +17,30 @@ import {
   isBinaryFormat,
 } from '../components/tools/import-pipelines'
 import { useFileSystemStore } from '../filesystem-store'
-import type { Operator } from '../operators'
 import { writeAsset } from '../storage'
-import { useOperatorStore } from '../store'
-import { appendUniqueEdges } from '../utils/edge-integrity'
 import { projectScheme } from '../utils/filesystem'
-import { normalizeMultiInputEdges } from '../utils/multi-input-utils'
-import { resolveNodeOverlaps } from '../utils/node-layout'
 
 // Shared import behaviour for the Import Data dialog and for dropping a file onto
 // the canvas: copy the file into the project, scaffold a pipeline for its format,
 // then select and frame the source node so it is clear what to edit next.
 
-function findRendererId(): string | null {
-  for (const [id, op] of useOperatorStore.getState().operators.entries()) {
-    if ((op.constructor as typeof Operator).displayName === 'DeckRenderer') return id
+// The size of the map the camera is fitted to: the map on screen, else the deck's render size
+function mapSize() {
+  const container =
+    document.querySelector('.deckgl-container') || document.querySelector('.maplibregl-map')
+  if (container?.clientWidth && container.clientHeight) {
+    return { width: container.clientWidth, height: container.clientHeight }
   }
-  return null
-}
-
-// Point the renderer's basemap at newly imported data, unless something upstream
-// already drives its camera (a BoundingBox, a keyframe source, ...)
-function fitExistingBasemap(
-  rendererId: string,
-  viewState: { longitude: number; latitude: number; zoom: number },
-  edges: Edge[]
-) {
-  const basemapId = edges.find(
-    e => e.target === rendererId && e.targetHandle === 'par.basemap'
-  )?.source
-  const basemap = basemapId ? useOperatorStore.getState().operators.get(basemapId) : undefined
-  if (!basemap || (basemap.constructor as typeof Operator).displayName !== 'MaplibreBasemap') return
-  const driven = edges.some(
-    e => e.target === basemapId && e.targetHandle?.startsWith('par.viewState')
-  )
-  if (driven) return
-  // fitBounds frames the data from straight above, so drop any tilt or rotation
-  const field = basemap.inputs.viewState
-  field.setValue({ ...(field.value as object), ...viewState, pitch: 0, bearing: 0 })
+  const deck = docStore()
+    .get()
+    .doc.nodes.find(n => n.op === 'deck')
+  const width = Number(deck?.params.width)
+  const height = Number(deck?.params.height)
+  if (width && height) {
+    const scale = Number(deck?.params.lod) || 1
+    return { width: width * scale, height: height * scale }
+  }
+  return { width: window.innerWidth, height: window.innerHeight }
 }
 
 export interface FileImportResult {
@@ -69,7 +55,7 @@ interface UseFileImportOptions {
 }
 
 export function useFileImport({ getBasePosition, onImported }: UseFileImportOptions) {
-  const { addNodes, setEdges, setNodes, fitView, getNodes, getEdges } = useReactFlow()
+  const { fitView } = useReactFlow()
 
   const addPipeline = useCallback(
     (
@@ -78,34 +64,33 @@ export function useFileImport({ getBasePosition, onImported }: UseFileImportOpti
       basePosition: { x: number; y: number },
       detection?: CoordinateDetection
     ) => {
-      const rendererId = findRendererId()
-      const built = createImportPipeline({
+      const store = docStore()
+      const built = createImportDoc({
+        doc: store.get().doc,
         url,
         format,
         basePosition,
         detection,
-        // Fit to the surface the renderer draws to, as BoundingBoxOp does
-        mapSize: getRenderSurfaceSize(),
-        rendererId,
+        mapSize: mapSize(),
       })
-      const { edges, primaryNodeId, viewState } = built
-      const nodes = resolveNodeOverlaps(built.nodes, getNodes())
-
-      addNodes(nodes)
-      if (edges.length > 0) {
-        setEdges(current => normalizeMultiInputEdges(appendUniqueEdges(current, edges)))
-      }
-      setNodes(ns => ns.map(n => ({ ...n, selected: n.id === primaryNodeId })))
-      // A scaffolded basemap already has the camera; an existing one is moved to the data
-      if (rendererId && viewState) fitExistingBasemap(rendererId, viewState, getEdges())
+      store.edit(d => {
+        d.nodes.push(...built.nodes)
+        d.edges.push(...built.edges)
+        // A deck already there turns to the data, unless its camera is wired to something
+        const deck = d.nodes.find(n => n.id === built.deckId)
+        const driven = d.edges.some(e => e.target === built.deckId && e.targetPort === 'viewState')
+        if (deck && built.viewState && !built.newDeck && !driven) {
+          Object.assign(deck.params, { ...built.viewState, pitch: 0, bearing: 0 })
+        }
+      })
+      store.set({ selection: [built.primaryNodeId] })
       requestAnimationFrame(() => {
-        fitView({ nodes: nodes.map(n => ({ id: n.id })), duration: 300, padding: 0.3 })
+        fitView({ nodes: built.nodes.map(n => ({ id: n.id })), duration: 300, padding: 0.3 })
       })
     },
-    [addNodes, setEdges, setNodes, fitView, getNodes, getEdges]
+    [fitView]
   )
 
-  // Copy a dropped or picked file into the project's data directory, then build its pipeline
   const importFile = useCallback(
     async (
       file: File,
