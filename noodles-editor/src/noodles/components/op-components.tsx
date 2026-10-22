@@ -643,6 +643,7 @@ export function HandlePreviewContent({
                 </thead>
                 <tbody>
                   {data.map((row, i) => (
+                    // biome-ignore lint/suspicious/noArrayIndexKey: read-only preview rows have no id
                     <tr key={`row-${i}-${JSON.stringify(row).slice(0, 50)}`}>
                       {keys.map(key => (
                         <td key={key}>

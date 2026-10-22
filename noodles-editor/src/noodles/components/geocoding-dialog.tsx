@@ -386,6 +386,7 @@ export function GeocodingDialog({
                     suggestions.map((suggestion, index) => (
                       <button
                         type="button"
+                        // biome-ignore lint/suspicious/noArrayIndexKey: suggestions are replaced on each search and hold no state
                         key={`${suggestion.label}-${index}`}
                         className={s.suggestionItem}
                         onMouseDown={() => handleSuggestionSelect(suggestion)}
