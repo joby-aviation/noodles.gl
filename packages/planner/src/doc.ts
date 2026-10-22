@@ -73,6 +73,8 @@ export interface EditorDoc {
   timeline?: Timeline;
   /** Attribution for the data a document uses. */
   credits?: string[];
+  /** Host-application state saved with the document (viewport, settings). Never lowered. */
+  meta?: Record<string, unknown>;
 }
 
 export class DocumentError extends Error {

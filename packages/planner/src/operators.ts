@@ -23,7 +23,7 @@
 import type { GraphNode, LayerNode, DeckNode } from './types.js';
 import type { LayerKind, LayerPropValue } from './layers.js';
 import type { ParamValue } from './doc.js';
-import type { RampName } from './types.js';
+import { RAMP_STOPS, type RampName } from './types.js';
 import { parseGeometry } from './geometry.js';
 
 export type PortType = 'table' | 'layer' | 'number';
@@ -119,6 +119,18 @@ const RAMPS: { value: RampName; label: string }[] = [
   { value: 'turbo', label: 'Turbo' }, { value: 'cividis', label: 'Cividis' },
 ];
 
+/**
+ * Add a color ramp, or replace one, so `ramp()`, colorscale nodes and every ramp menu can use
+ * it. Stops are 0–1 RGB, evenly spaced and linearly interpolated, as the built-ins are.
+ */
+export function registerRamp(name: string, stops: [number, number, number][], label = name): void {
+  if (stops.length < 2) throw new Error(`Ramp '${name}' needs at least two stops`);
+  RAMP_STOPS[name] = stops;
+  const existing = RAMPS.find((r) => r.value === name);
+  if (existing) existing.label = label;
+  else RAMPS.push({ value: name, label });
+}
+
 const table = (name = 'in', label?: string, extra: Partial<PortSpec> = {}): PortSpec => ({ name, type: 'table', label, ...extra });
 const out = (type: PortType = 'table', name = 'out'): PortSpec => ({ name, type });
 
@@ -128,6 +140,11 @@ export const safeId = (id: string): string => id.replace(/[^A-Za-z0-9_]/g, '_').
 const BARE = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 const opacity: ParamDef = { name: 'opacity', label: 'Opacity', kind: 'float', default: 1, min: 0, max: 1, step: 0.01, bind: 'prop', folder: 'Style', port: true };
+/** luma.gl blend presets, as Noodles' Blending operator names them. */
+const blendParam: ParamDef = {
+  name: 'blend', label: 'Blending', kind: 'menu', default: 'normal', folder: 'Style',
+  options: [{ value: 'normal', label: 'Normal' }, { value: 'additive', label: 'Additive' }, { value: 'subtractive', label: 'Subtractive' }],
+};
 const rampParam: ParamDef = { name: 'ramp', label: 'Color ramp', kind: 'menu', default: 'viridis', options: RAMPS, folder: 'Channels', help: 'Used by ramp() in any channel expression.' };
 
 interface ChannelParam { channel: string; param: string }
@@ -182,7 +199,7 @@ function lowerLayer(
     nodes.push({ id: wid, type: 'wrangle', input: base, body: lines.join('\n'), ramp: ctx.str('ramp') as RampName });
     input = wid;
   }
-  nodes.push({ id: ctx.id, type: 'layer', kind, input, channels: bound, props, ...extra });
+  nodes.push({ id: ctx.id, type: 'layer', kind, input, channels: bound, props: { ...props, blend: ctx.str('blend') }, ...extra });
   return { nodes, outputs: { out: ctx.id } };
 }
 
@@ -542,6 +559,12 @@ export const OPERATORS: OpDef[] = [
     }),
   },
   {
+    type: 'color', label: 'Color', category: 'color',
+    description: 'A color other parameters reference, so several layers can share one.',
+    inputs: [], outputs: [],
+    params: [{ name: 'color', label: 'Color', kind: 'color', default: [255, 255, 255] }],
+  },
+  {
     type: 'distance', label: 'Distance', category: 'rows',
     description: 'Great-circle distance in km between two lng/lat points (haversine).',
     inputs: [table()], outputs: [out()],
@@ -618,6 +641,7 @@ export const OPERATORS: OpDef[] = [
       { name: 'radiusUnits', label: 'Units', kind: 'menu', default: 'pixels', options: [{ value: 'pixels', label: 'Pixels' }, { value: 'meters', label: 'Metres' }], folder: 'Style' },
       { name: 'fillColor', label: 'Fill color', kind: 'color', default: [255, 140, 0], folder: 'Style' },
       opacity,
+      blendParam,
     ],
     lower: (ctx) => lowerLayer(ctx, 'scatter',
       [{ channel: 'position', param: 'position' }, { channel: 'color', param: 'color' }, { channel: 'radius', param: 'radius' }],
@@ -635,11 +659,13 @@ export const OPERATORS: OpDef[] = [
       channel('width', 'Width', ''),
       rampParam,
       { name: 'widthScale', label: 'Width scale', kind: 'float', default: 1.5, min: 0, max: 20, step: 0.1, bind: 'prop', folder: 'Style', port: true },
+      { name: 'widthUnits', label: 'Width units', kind: 'menu', default: 'pixels', options: [{ value: 'pixels', label: 'Pixels' }, { value: 'meters', label: 'Metres' }, { value: 'common', label: 'Common' }], folder: 'Style' },
       { name: 'height', label: 'Height', kind: 'float', default: 1, min: 0, max: 5, step: 0.05, bind: 'prop', folder: 'Style', port: true },
       { name: 'greatCircle', label: 'Great circle', kind: 'toggle', default: false, folder: 'Style' },
       { name: 'fromColor', label: 'From color', kind: 'color', default: [0, 180, 255], folder: 'Style' },
       { name: 'toColor', label: 'To color', kind: 'color', default: [255, 60, 120], folder: 'Style' },
       opacity,
+      blendParam,
     ],
     lower: (ctx) => lowerLayer(ctx, 'arc',
       [
@@ -648,7 +674,7 @@ export const OPERATORS: OpDef[] = [
         { channel: 'width', param: 'width' },
       ],
       {
-        widthScale: ctx.bind('widthScale'), height: ctx.bind('height'), greatCircle: ctx.bool('greatCircle'),
+        widthScale: ctx.bind('widthScale'), widthUnits: ctx.str('widthUnits'), height: ctx.bind('height'), greatCircle: ctx.bool('greatCircle'),
         sourceColor: ctx.bindColor('fromColor'), targetColor: ctx.bindColor('toColor'), opacity: ctx.bind('opacity'),
       }),
   },
@@ -667,6 +693,7 @@ export const OPERATORS: OpDef[] = [
       { name: 'widthMinPixels', label: 'Min width (px)', kind: 'float', default: 1, min: 0, max: 20, step: 0.5, bind: 'prop', folder: 'Style' },
       { name: 'lineColor', label: 'Line color', kind: 'color', default: [120, 200, 255], folder: 'Style' },
       opacity,
+      blendParam,
     ],
     lower: (ctx) => lowerLayer(ctx, 'path',
       [{ channel: 'position', param: 'position' }, { channel: 'color', param: 'color' }, { channel: 'width', param: 'width' }],
@@ -689,6 +716,7 @@ export const OPERATORS: OpDef[] = [
       { name: 'widthMinPixels', label: 'Width (px)', kind: 'float', default: 2, min: 0, max: 20, step: 0.5, bind: 'prop', folder: 'Style' },
       { name: 'lineColor', label: 'Trail color', kind: 'color', default: [253, 128, 93], folder: 'Style' },
       opacity,
+      blendParam,
     ],
     lower: (ctx) => lowerLayer(ctx, 'trips',
       [{ channel: 'position', param: 'position' }, { channel: 'timestamp', param: 'timestamp' }, { channel: 'color', param: 'color' }],
@@ -711,6 +739,7 @@ export const OPERATORS: OpDef[] = [
       { name: 'elevationScale', label: 'Elevation scale', kind: 'float', default: 20, min: 0, max: 5000, step: 1, bind: 'prop', folder: 'Style', port: true },
       { name: 'columnColor', label: 'Column color', kind: 'color', default: [255, 170, 60], folder: 'Style' },
       opacity,
+      blendParam,
     ],
     lower: (ctx) => lowerLayer(ctx, 'column',
       [{ channel: 'position', param: 'position' }, { channel: 'elevation', param: 'elevation' }, { channel: 'color', param: 'color' }],
@@ -732,6 +761,7 @@ export const OPERATORS: OpDef[] = [
       { name: 'lineColor', label: 'Outline color', kind: 'color', default: [255, 255, 255], folder: 'Style' },
       { name: 'lineWidthMinPixels', label: 'Outline width (px)', kind: 'float', default: 1, min: 0, max: 20, step: 0.5, bind: 'prop', folder: 'Style' },
       opacity,
+      blendParam,
     ],
     lower: (ctx) => lowerLayer(ctx, 'polygon',
       [{ channel: 'position', param: 'position' }, { channel: 'color', param: 'color' }],
@@ -757,6 +787,7 @@ export const OPERATORS: OpDef[] = [
       { name: 'textColor', label: 'Color', kind: 'color', default: [230, 230, 230], folder: 'Style' },
       { name: 'offsetY', label: 'Offset Y (px)', kind: 'float', default: -12, min: -64, max: 64, step: 1, bind: 'prop', folder: 'Style' },
       opacity,
+      blendParam,
     ],
     lower(ctx) {
       const text = ctx.str('text');
@@ -784,10 +815,26 @@ export const OPERATORS: OpDef[] = [
       { name: 'pitch', label: 'Pitch', kind: 'float', default: 0, min: 0, max: 85, step: 0.5, bind: 'prop', folder: 'Camera', port: true },
       { name: 'bearing', label: 'Bearing', kind: 'float', default: 0, min: -180, max: 180, step: 0.5, bind: 'prop', folder: 'Camera', port: true },
       { name: 'follow', label: 'Drive the map camera', kind: 'toggle', default: false, folder: 'Camera', help: 'On: the camera parameters (and their keyframes) move the map. Off: the map is free to pan.' },
+      { name: 'mapStyle', label: 'Map style URL', kind: 'url', default: '', help: 'A MapLibre style. Overrides Basemap when set.' },
+      { name: 'projection', label: 'Projection', kind: 'menu', default: 'mercator', options: [{ value: 'mercator', label: 'Mercator' }, { value: 'globe', label: 'Globe' }] },
+      // Video export. Read by the renderer, never lowered.
+      { name: 'display', label: 'Display', kind: 'menu', default: 'fixed', options: [{ value: 'fixed', label: 'Fixed size' }, { value: 'responsive', label: 'Responsive' }], folder: 'Export' },
+      { name: 'width', label: 'Width', kind: 'int', default: 1920, min: 1, max: 8192, step: 1, folder: 'Export' },
+      { name: 'height', label: 'Height', kind: 'int', default: 1080, min: 1, max: 8192, step: 1, folder: 'Export' },
+      { name: 'lod', label: 'Level of detail', kind: 'float', default: 2, min: 0.1, max: 4, step: 0.1, folder: 'Export' },
+      { name: 'scaleMode', label: 'Scale mode', kind: 'menu', default: 'fit', options: [{ value: 'fit', label: 'Fit' }, { value: 'manual', label: 'Manual' }], folder: 'Export' },
+      { name: 'waitForData', label: 'Wait for data', kind: 'toggle', default: true, folder: 'Export' },
+      { name: 'codec', label: 'Codec', kind: 'menu', default: 'avc', options: ['avc', 'hevc', 'vp9', 'av1'].map((v) => ({ value: v, label: v.toUpperCase() })), folder: 'Export' },
+      { name: 'bitrateMbps', label: 'Bitrate (Mbps)', kind: 'float', default: 10, min: 1, max: 100, step: 1, folder: 'Export' },
+      { name: 'bitrateMode', label: 'Bitrate mode', kind: 'menu', default: 'constant', options: [{ value: 'constant', label: 'Constant' }, { value: 'variable', label: 'Variable' }], folder: 'Export' },
+      { name: 'scaleControl', label: 'Scale control', kind: 'float', default: 0.3, min: 0.1, max: 1, step: 0.05, folder: 'Export' },
+      { name: 'framerate', label: 'Frame rate', kind: 'int', default: 30, min: 1, max: 120, step: 1, folder: 'Export' },
+      { name: 'captureDelay', label: 'Capture delay (ms)', kind: 'int', default: 50, min: 0, max: 10000, step: 10, folder: 'Export' },
+      { name: 'rendersDirectory', label: 'Renders folder', kind: 'string', default: 'renders', folder: 'Export' },
     ],
     lower(ctx) {
       const deck: DeckNode = {
-        id: ctx.id, type: 'deck', inputs: ctx.inputs('layers'), basemap: ctx.str('basemap'),
+        id: ctx.id, type: 'deck', inputs: ctx.inputs('layers'), basemap: ctx.str('mapStyle') || ctx.str('basemap'),
         view: Object.fromEntries(['longitude', 'latitude', 'zoom', 'pitch', 'bearing'].map((k) => [k, ctx.bind(k)])),
       };
       return { nodes: [deck], outputs: {} };

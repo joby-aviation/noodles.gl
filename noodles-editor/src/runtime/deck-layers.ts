@@ -282,11 +282,35 @@ function buildLayers(input: ProgramLayerInput, binary: Binary): Layer[] {
   return layers
 }
 
+/** luma.gl blend parameters for a layer's `blend` prop, matching Noodles' Blending presets. */
+const BLEND_PARAMETERS: Record<string, Record<string, unknown>> = {
+  normal: {},
+  additive: {
+    blend: true,
+    blendColorSrcFactor: 'src-alpha',
+    blendColorDstFactor: 'dst-alpha',
+    blendColorOperation: 'add',
+  },
+  subtractive: {
+    blend: true,
+    blendColorSrcFactor: 'one',
+    blendColorDstFactor: 'one-minus-dst-color',
+    blendAlphaSrcFactor: 'src-alpha',
+    blendAlphaDstFactor: 'dst-alpha',
+    blendColorOperation: 'reverse-subtract',
+    blendAlphaOperation: 'add',
+  },
+}
+
+const widthUnits = (v: ResolvedProp | undefined) =>
+  v === 'meters' || v === 'common' ? v : 'pixels'
+
 function buildLayer(input: ProgramLayerInput, binary: Binary): Layer | undefined {
   const p = input.props
   const has = (deckName: string) => deckName in binary.attributes
   const opacity = num(p.opacity, 1)
-  const common = { id: input.id, opacity, pickable: false }
+  const parameters = BLEND_PARAMETERS[String(p.blend)] ?? {}
+  const common = { id: input.id, opacity, pickable: false, parameters }
   // A constant color is an accessor too; its trigger is its value, so deck re-reads it only
   // when the color actually changes.
   const constant = (deckName: string, value: [number, number, number, number]) =>
@@ -302,15 +326,15 @@ function buildLayer(input: ProgramLayerInput, binary: Binary): Layer | undefined
         radiusMinPixels: 0.5,
         getRadius: has('getRadius') ? undefined : 1,
         ...constant('getFillColor', rgb(p.fillColor, [255, 140, 0])),
-        // Points on the ground plane only z-fight at pitch with depth testing; see maplibre-pane.
-        parameters: { depthCompare: 'always' },
+        // Points on the ground plane only z-fight at pitch with depth testing.
+        parameters: { ...parameters, depthCompare: 'always' },
       } as never)
     case 'arc':
       return new ArcLayer({
         ...common,
         data: binary as never,
         widthScale: num(p.widthScale, 1),
-        widthUnits: 'pixels',
+        widthUnits: widthUnits(p.widthUnits),
         getWidth: has('getWidth') ? undefined : 1,
         getHeight: num(p.height, 1),
         greatCircle: p.greatCircle === true,
