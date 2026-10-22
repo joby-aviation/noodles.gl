@@ -35,11 +35,42 @@ export const BASEMAPS: Record<string, string | undefined> = {
 }
 
 export interface EngineVis {
-  deckProps: { layers: Layer[]; viewState: Record<string, number> }
+  deckProps: {
+    layers: Layer[]
+    viewState: Record<string, unknown>
+    views?: unknown[]
+    widgets?: unknown[]
+    effects?: unknown[]
+  }
   mapProps?: Record<string, unknown>
+  maplibreLayers?: unknown[]
+}
+
+/** Host-side pieces the engine needs but must not import (they pull in the operator library). */
+export interface EngineHost {
+  runner: {
+    run(
+      doc: EditorDoc,
+      inputs: HostRunInputs
+    ): Promise<{ errors: { nodeId: string; message: string }[] }>
+    output(nodeId: string, port: string): unknown
+    idle(): Promise<void>
+  }
+  /** A layer operator's plain-object output as a deck layer. */
+  layer(description: { type: string; [key: string]: unknown }): Layer
+  widget(description: { type: string; [key: string]: unknown }): unknown
+  view(description: unknown): unknown
+}
+
+export interface HostRunInputs {
+  planner(nodeId: string, port: string): unknown
+  slots: ReadonlyMap<string, unknown>
+  time: number
 }
 
 export interface EngineOptions {
+  /** Runs the document's host operators. Without it, host nodes draw nothing. */
+  host?: EngineHost
   /** Bytes of a project asset, for file nodes that read `@/name`. */
   readAsset?: (name: string) => Promise<Uint8Array>
   /** Make bytes readable by DuckDB under a file name. */
@@ -65,7 +96,10 @@ export class Engine {
   private lowered?: Lowered
   private structure?: string
   private time = 0
+  private slots: ReadonlyMap<string, unknown> = new Map()
   private pending: Promise<unknown> = Promise.resolve()
+  private built = new Map<string, Layer[]>()
+  private hostErrors: { nodeId: string; message: string }[] = []
 
   constructor(
     sql: SqlEngine,
@@ -85,6 +119,11 @@ export class Engine {
     return this.lowered
   }
 
+  /** Host operators that failed on the last run. */
+  errors(): { nodeId: string; message: string }[] {
+    return this.hostErrors
+  }
+
   /** Show a document: a structural edit recompiles, a value edit only rebinds. */
   setDoc(doc: EditorDoc): Promise<void> {
     this.doc = doc
@@ -102,12 +141,69 @@ export class Engine {
   async settle(): Promise<void> {
     await this.pending
     await this.runtime.idle()
+    await this.options.host?.runner.idle()
   }
 
   vis(): EngineVis {
-    const runtime = this.runtime
-    const built = this.builder.build(
-      runtime.layers().map(l => ({
+    this.buildPlannerLayers()
+    const deck = this.deckNode()
+    const host = this.options.host
+    const into = (port: string) =>
+      (this.doc?.edges ?? [])
+        .filter(e => deck && e.target === deck.id && e.targetPort === port)
+        .sort((a, b) => (a.index ?? 0) - (b.index ?? 0))
+    const hostValues = (port: string) =>
+      into(port).flatMap(e => {
+        const v = host?.runner.output(e.source, e.sourcePort)
+        return v === undefined ? [] : Array.isArray(v) ? v : [v]
+      })
+
+    // Draw order is the deck's edge order, planner and host layers alike.
+    const layers = into('layers').flatMap(e => {
+      const planned = this.built.get(e.source)
+      if (planned) return planned
+      const v = host?.runner.output(e.source, e.sourcePort)
+      return (Array.isArray(v) ? v : v ? [v] : []).flatMap(item => this.asLayer(item))
+    })
+    const viewStateEdge = into('viewState')[0]
+    const hostView = viewStateEdge
+      ? (host?.runner.output(viewStateEdge.source, viewStateEdge.sourcePort) as Record<
+          string,
+          unknown
+        >)
+      : undefined
+    const view = { ...this.runtime.view(), ...(hostView ?? {}) }
+    const mapStyle = deck ? styleOf(deck) : undefined
+    const views = hostValues('views').map(v => host?.view(v))
+    const widgets = hostValues('widgets').map(w => host?.widget(w as { type: string }))
+    const effects = hostValues('effects')
+    return {
+      deckProps: {
+        layers,
+        viewState: view,
+        ...(views.length ? { views } : {}),
+        ...(widgets.length ? { widgets } : {}),
+        ...(effects.length ? { effects } : {}),
+      },
+      mapProps: mapStyle
+        ? { mapStyle, projection: String(deck?.params.projection ?? 'mercator'), ...view }
+        : undefined,
+      maplibreLayers: hostValues('maplibreLayers'),
+    }
+  }
+
+  private asLayer(item: unknown): Layer[] {
+    if (!item || typeof item !== 'object') return []
+    if ('type' in item && typeof (item as { type: unknown }).type === 'string') {
+      return this.options.host ? [this.options.host.layer(item as { type: string })] : []
+    }
+    // Already a deck layer: a planner layer passed through a host switch, say.
+    return [item as Layer]
+  }
+
+  private buildPlannerLayers(): void {
+    this.built = this.builder.build(
+      this.runtime.layers().map(l => ({
         id: l.id,
         kind: l.plan.kind,
         data: l.data,
@@ -115,17 +211,6 @@ export class Engine {
         props: l.props,
       }))
     )
-    // Draw order is the program's, which is the deck node's layer order.
-    const layers = (runtime.program()?.draw ?? []).flatMap(id => built.get(id) ?? [])
-    const view = runtime.view()
-    const deck = this.deckNode()
-    const mapStyle = deck ? styleOf(deck) : undefined
-    return {
-      deckProps: { layers, viewState: view },
-      mapProps: mapStyle
-        ? { mapStyle, projection: String(deck?.params.projection ?? 'mercator'), ...view }
-        : undefined,
-    }
   }
 
   private deckNode(): DocNode | undefined {
@@ -136,7 +221,11 @@ export class Engine {
     const lowered = this.lowered
     if (!lowered) return Promise.resolve()
     const fps = this.doc?.timeline?.fps ?? 30
-    const { values } = parameterValues(lowered, { T: this.time, F: Math.round(this.time * fps) })
+    const { values, slots } = parameterValues(lowered, {
+      T: this.time,
+      F: Math.round(this.time * fps),
+    })
+    this.slots = slots
     const key = structureKey(lowered.graph)
     const work =
       key !== this.structure
@@ -145,9 +234,24 @@ export class Engine {
             return this.runtime.setGraph(lowered.graph, values)
           })
         : this.runtime.setValues(values)
-    this.pending = work.catch(() => undefined)
-    // Props apply synchronously and the runtime reports them with no work behind them.
-    return work.then(() => undefined)
+    const all = work.then(() => this.runHost())
+    this.pending = all.catch(() => undefined)
+    return all
+  }
+
+  /** Host operators, after the planner: they may read planner layers and scalar slots. */
+  private async runHost(): Promise<void> {
+    const host = this.options.host
+    if (!host || !this.doc) return
+    await this.runtime.idle()
+    this.buildPlannerLayers()
+    const report = await host.runner.run(this.doc, {
+      planner: nodeId => this.built.get(nodeId)?.[0],
+      slots: this.slots,
+      time: this.time,
+    })
+    this.hostErrors = report.errors
+    this.emit()
   }
 
   /** Project assets a file node reads, registered with DuckDB under their `@/` name. */

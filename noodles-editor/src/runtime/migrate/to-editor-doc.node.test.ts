@@ -97,7 +97,40 @@ describe('toEditorDoc', () => {
     expect(arc?.params.fromColor).toEqual({ ref: 'source-color/color' })
   })
 
-  it('refuses projects it cannot convert yet, rather than dropping layers', () => {
+  it('keeps operators without per-row values as host nodes, wired by par: handles', () => {
+    const { doc } = toEditorDoc(example('bitmap-layer'))
+    const bitmap = doc.nodes.find(n => n.id === '/bitmap-layer')
+    expect(bitmap?.op).toBe('BitmapLayerOp')
+    expect(bitmap?.params.image).toBe('@/sf-districts.png')
+    expect(doc.edges).toContainEqual(
+      expect.objectContaining({
+        source: '/bitmap-layer',
+        sourcePort: 'layer',
+        target: '/deck',
+        targetPort: 'layers',
+      })
+    )
+    expect(lowerDocument(doc).errors).toEqual([])
+  })
+
+  it('passes MapLibre layers and code-built layers through the deck', () => {
+    const custom = toEditorDoc(example('custom-maplibre-layer-test')).doc
+    expect(custom.edges).toContainEqual(
+      expect.objectContaining({
+        source: '/test-layer',
+        target: '/deck-renderer',
+        targetPort: 'maplibreLayers',
+      })
+    )
+    const hubble = toEditorDoc(example('cesium-hubble'))
+    expect(hubble.doc.nodes.map(n => n.op).sort()).toEqual(['CodeOp', 'Tile3DLayerOp', 'deck'])
+    expect(hubble.warnings).toContain('timeline keyframes are not converted yet')
+  })
+
+  it('refuses accessor layers rather than keeping their accessors', () => {
+    expect(() => toEditorDoc(example('geojson-example'))).toThrow(
+      /GeoJsonLayerOp takes per-row accessors/
+    )
     expect(() => toEditorDoc(example('world-flights'))).toThrow()
   })
 })

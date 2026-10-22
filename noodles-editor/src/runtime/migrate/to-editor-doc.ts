@@ -105,6 +105,31 @@ const DEFAULTS: Record<string, Record<string, unknown>> = {
   },
 }
 
+/**
+ * Schema 18 operators with accessor inputs. Their per-row work becomes attribute nodes, and the
+ * layers among them become planner layers; none of them runs as a host operator.
+ */
+const ACCESSOR_OPS = new Set(
+  (
+    'A5LayerOp ArcLayerOp BezierCurveOp BrushingExtensionOp CategoricalColorRampOp ' +
+    'CollisionFilterExtensionOp ColorRampOp ColumnLayerOp CombineRGBAOp CombineXYOp CombineXYZOp ' +
+    'ContourLayerOp DataFilterExtensionOp ExtentOp FillStyleExtensionOp GeoJsonLayerOp ' +
+    'GeohashLayerOp GreatCircleLayerOp GridCellLayerOp GridLayerOp H3ClusterLayerOp ' +
+    'H3HexagonLayerOp HSLOp HeatmapLayerOp HexagonLayerOp IconLayerOp LineLayerOp MVTLayerOp ' +
+    'MapRangeOp MathOp PathLayerOp PathStyleExtensionOp PointCloudLayerOp PolygonLayerOp ' +
+    'QuadkeyLayerOp RampOp S2LayerOp ScatterplotLayerOp ScenegraphLayerOp ScreenGridLayerOp ' +
+    'SimpleMeshLayerOp SolidPolygonLayerOp SplitRGBAOp SplitXYOp SplitXYZOp SwitchOp ' +
+    'TextLayerOp TimeSeriesOp TripsLayerOp AccessorOp'
+  ).split(' ')
+)
+
+/** Deck inputs that pass host values through to deck and MapLibre. */
+/** Layers and sources the planner draws and reads itself. */
+const PLANNER_LAYERS = new Set(['ScatterplotLayerOp', 'ArcLayerOp'])
+const PLANNER_SOURCES = new Set(['FileOp', 'DuckDbOp'])
+
+const DECK_VALUE_PORTS = ['views', 'effects', 'widgets', 'viewState', 'maplibreLayers']
+
 /** Inputs every layer has that the planner handles itself, or that change nothing drawn. */
 const LAYER_IGNORED = new Set(['data', 'parameters', 'extensions', 'updateTriggers'])
 
@@ -513,12 +538,68 @@ export function toEditorDoc(project: NoodlesProject): Migrated {
     }
   }
 
+  // --- host operators: their own inputs as parameters, wired by `par:` handles -----------
+  const hostNodes = new Set<string>()
+  const hostNode = (id: string): void => {
+    if (hostNodes.has(id)) return
+    const n = byId.get(id)
+    if (!n) throw new MigrationError(`Missing node ${id}`)
+    if (ACCESSOR_OPS.has(n.type)) {
+      throw new MigrationError(`${id}: ${n.type} takes per-row accessors; it is not converted yet`)
+    }
+    if (n.type === 'ContainerOp' || n.type.startsWith('ForLoop')) {
+      throw new MigrationError(`${id}: ${n.type} is not converted yet`)
+    }
+    hostNodes.add(id)
+    used.add(id)
+    nodes.push({
+      id,
+      op: n.type,
+      name: segment(id),
+      ...position(n),
+      params: { ...(n.data?.inputs ?? {}) } as Record<string, ParamValue>,
+    })
+    for (const e of project.edges.filter(x => x.target === id)) {
+      const field = handleField(e.targetHandle)
+      const src = byId.get(e.source)
+      if (!src) continue
+      if (src.type === 'NumberOp') {
+        numberNode(src)
+        edge(src.id, 'out', id, `par:${field}`)
+        continue
+      }
+      if (PLANNER_SOURCES.has(src.type)) {
+        throw new MigrationError(
+          `${id}: reading ${src.type} rows from a host operator is not converted yet`
+        )
+      }
+      hostNode(src.id)
+      edge(src.id, handleField(e.sourceHandle), id, `par:${field}`)
+    }
+  }
+  const numberNode = (n: NoodlesNode) => {
+    if (used.has(n.id)) return
+    used.add(n.id)
+    nodes.push({
+      id: n.id,
+      op: 'number',
+      name: segment(n.id),
+      ...position(n),
+      params: { value: num(inputs(n).val, 0) },
+    })
+  }
+
   // --- layers, in the deck's order -------------------------------------------------------
   const layerEdges = incoming(deckOp.id, 'layers')
   const layerSource = new Map<string, string>()
   layerEdges.forEach((le, index) => {
     const layer = byId.get(le.source)
     if (!layer) throw new MigrationError(`Missing layer ${le.source}`)
+    if (!PLANNER_LAYERS.has(layer.type)) {
+      hostNode(layer.id)
+      edge(layer.id, handleField(le.sourceHandle), deckOp.id, 'layers', index)
+      return
+    }
     const dataEdge = incomingOne(layer.id, 'data')
     if (!dataEdge) throw new MigrationError(`${layer.id} has no data`)
     const src = source(dataEdge.source)
@@ -546,10 +627,12 @@ export function toEditorDoc(project: NoodlesProject): Migrated {
         if (radius.kind === 'row') {
           params.radius = radius.expr
           params.radiusScale = scale
-        } else {
+        } else if (radius.kind === 'const') {
           // A constant radius is deck's default radius of 1, scaled.
           params.radius = ''
           params.radiusScale = num(radius.value, 20) * scale
+        } else {
+          throw new MigrationError(`${layer.id}: getRadius from a color is not a radius`)
         }
         params.radiusUnits = String(i.radiusUnits)
         nodes.push({
@@ -588,9 +671,11 @@ export function toEditorDoc(project: NoodlesProject): Migrated {
         if (width.kind === 'row') {
           params.width = width.expr
           params.widthScale = 1
-        } else {
+        } else if (width.kind === 'const') {
           params.width = ''
           params.widthScale = num(width.value, 1)
+        } else {
+          throw new MigrationError(`${layer.id}: getWidth from a color is not a width`)
         }
         params.widthUnits = String(i.widthUnits)
         const height = v('getHeight')
@@ -617,6 +702,13 @@ export function toEditorDoc(project: NoodlesProject): Migrated {
     used.add(layer.id)
     edge(layer.id, 'out', deckOp.id, 'layers', index)
   })
+
+  for (const port of DECK_VALUE_PORTS) {
+    incoming(deckOp.id, port).forEach((e, index) => {
+      hostNode(e.source)
+      edge(e.source, handleField(e.sourceHandle), deckOp.id, port, index)
+    })
+  }
 
   // --- chains: source -> row nodes in dependency order -> layers ----------------------------
   for (const [src, chain] of chains) {

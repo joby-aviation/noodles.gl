@@ -4,9 +4,15 @@
 // opens a project.)
 
 import { useEffect, useSyncExternalStore } from 'react'
+import { useFileSystemStore } from '../noodles/filesystem-store'
+import { DeckProjectAssetResolver } from '../noodles/utils/deck-project-asset-resolver'
+import { instantiateDeckView } from '../noodles/utils/deck-view'
+import { instantiateLayer, instantiateWidget } from '../noodles/utils/instantiate-vis'
 import type { NoodlesProjectJSON } from '../noodles/utils/serialization'
 import { DuckDbEngine } from './duckdb'
 import { Engine, type EngineVis } from './engine'
+import { registerHostOperators } from './host/host-ops'
+import { HostRunner } from './host/host-runner'
 import { MigrationError, type NoodlesProject, toEditorDoc } from './migrate/to-editor-doc'
 
 export const plannerPreviewEnabled = () =>
@@ -28,9 +34,44 @@ function subscribe(listener: () => void) {
   return () => subscribers.delete(listener)
 }
 
+/** One asset resolver per host node, so each node's generations stand alone. */
+const resolvers = new Map<string, DeckProjectAssetResolver>()
+
+async function resolveAssets(nodeId: string, outputs: Record<string, unknown>) {
+  const { currentProjectName, activeStorageType } = useFileSystemStore.getState()
+  const out: Record<string, unknown> = {}
+  for (const [name, value] of Object.entries(outputs)) {
+    const isLayer =
+      value && typeof value === 'object' && typeof (value as { type?: unknown }).type === 'string'
+    if (!isLayer) {
+      out[name] = value
+      continue
+    }
+    const resolver = resolvers.get(nodeId) ?? new DeckProjectAssetResolver()
+    resolvers.set(nodeId, resolver)
+    const resolution = await resolver.resolveLayers([value as { type: string; id: string }], {
+      activeStorageType,
+      currentProjectName,
+    })
+    if (resolution && resolver.commit(resolution)) out[name] = resolution.layers[0]
+    else out[name] = value
+  }
+  return out
+}
+
 function getEngine(readAsset: (name: string) => Promise<Uint8Array>): Promise<Engine> {
   engine ??= DuckDbEngine.open().then(sql => {
-    const e = new Engine(sql, { readAsset, registerFile: (n, b) => sql.registerFile(n, b) })
+    registerHostOperators()
+    const e = new Engine(sql, {
+      readAsset,
+      registerFile: (n, b) => sql.registerFile(n, b),
+      host: {
+        runner: new HostRunner({ resolveOutputs: resolveAssets }),
+        layer: instantiateLayer,
+        widget: instantiateWidget,
+        view: v => instantiateDeckView(v as never),
+      },
+    })
     e.onChange(publish)
     Object.assign(window as unknown as Record<string, unknown>, { plannerEngine: e })
     return e

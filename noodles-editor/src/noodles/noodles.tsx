@@ -1,5 +1,4 @@
 import type { AnyNodeJSON } from 'SKIP-@xyflow/react'
-import * as deckWidgets from '@deck.gl/widgets'
 import type {
   Connection,
   DefaultEdgeOptions,
@@ -18,12 +17,11 @@ import {
   useStoreApi,
 } from '@xyflow/react'
 import cx from 'classnames'
-import type { LayerExtension } from 'deck.gl'
 import * as deck from 'deck.gl'
 import type { JSZipObject } from 'jszip'
 import { PrimeReactProvider } from 'primereact/api'
 import {
-  type SetStateAction,
+  lazy,
   Suspense,
   useCallback,
   useEffect,
@@ -35,15 +33,12 @@ import {
 import { useLocation, useParams } from 'wouter'
 import { globalContextManager } from '../ai-chat/global-context-manager'
 import type { NoodlesProject } from '../ai-chat/types'
-import { getPendingQuickStartAction, planQuickStartAction } from '../components/quick-start-modal'
+import { getPendingQuickStartAction } from '../components/quick-start-modal'
 import { analytics } from '../utils/analytics'
-import { lazyWithReload, staleChunk } from '../utils/stale-chunk'
 import { setCurrentProject, setModificationApplier } from '../webmcp/bridge'
 import { agentBench, externalControl } from './globals'
 import { getKeysForProject, getKeysStore } from './keys-store'
 import newProjectJSON from './new.json'
-import { BitmapOverlayWidget, type BitmapOverlayWidgetProps } from './widgets/bitmap-overlay-widget'
-import { LegendWidget, type LegendWidgetProps } from './widgets/legend-widget'
 
 // Get URLs for all example noodles.json files (lazy-loaded)
 const exampleProjectUrls = import.meta.glob('../examples/**/noodles.json', {
@@ -63,7 +58,6 @@ import type { Visualization } from '../visualizations'
 import { BlockLibrary, type BlockLibraryRef } from './components/block-library'
 import { categories, nodeTypeToDisplayName } from './components/categories'
 import { CopyControls, type CopyControlsRef } from './components/copy-controls'
-import { CreateFromSQLDialog } from './components/create-from-sql-dialog'
 import { NodeInfoOverlay, ViewportInfoPanel } from './components/devtools'
 import { ErrorBoundary } from './components/error-boundary'
 import { ExampleNotFoundDialog } from './components/example-not-found-dialog'
@@ -91,7 +85,6 @@ import { useKeyboardShortcut } from './hooks/use-keyboard-shortcut'
 import { useNodeDropOnEdge } from './hooks/use-node-drop-on-edge'
 import { useProjectModifications } from './hooks/use-project-modifications'
 import type { DeckRendererOp, IOperator, Operator, OutOp } from './operators'
-import { instantiateExtension, opTypes } from './operators'
 import { referenceDependencyModel } from './reference-dependencies'
 import {
   copyDataDirectory,
@@ -114,10 +107,8 @@ import {
   useNestingStore,
   useUIStore,
 } from './store'
-import { markUnknownOperatorNodes, transformGraph } from './transform-graph'
-import { layoutNodes } from './utils/auto-layout'
+import { transformGraph } from './transform-graph'
 import { canConnectCached } from './utils/can-connect'
-import { createProjectFromSQL, takeCreateFromSQLRequest } from './utils/create-from-sql'
 import { DeckProjectAssetResolver } from './utils/deck-project-asset-resolver'
 import { instantiateDeckView } from './utils/deck-view'
 import { directoryHandleCache } from './utils/directory-handle-cache'
@@ -130,7 +121,6 @@ import {
   writeFileToDirectory,
 } from './utils/filesystem'
 import { reconcileForLoopGroups } from './utils/for-loop-group-utils'
-import { shouldAutosave, supportsVersioning, useGitSettings } from './utils/git-settings'
 import { edgeId, nodeId } from './utils/id-utils'
 import { shouldBlockKeyboardShortcut } from './utils/input-detection'
 import { generateDraftId, memoryProjectStore } from './utils/memory-project-store'
@@ -145,8 +135,6 @@ import {
 import { getParentPath, parseHandleId } from './utils/path-utils'
 import { applyOperatorInputs, getLastCommittedBeforeState } from './utils/property-history'
 import {
-  type AutoLayoutSettings,
-  DEFAULT_AUTO_LAYOUT,
   EMPTY_PROJECT,
   NOODLES_VERSION,
   type NoodlesProjectJSON,
@@ -156,16 +144,9 @@ import {
   serializeNodes,
 } from './utils/serialization'
 import { EdgeSpatialIndex } from './utils/spatial-index'
-import { claimStarterSelection, findStarterNodeId } from './utils/starter-node'
-import { expandTimelineIfAnimated } from './utils/timeline-panel'
 import { calculateViewerPosition } from './utils/viewer-position'
 
-const ChatPanel = lazyWithReload(() =>
-  import('../ai-chat/chat-panel').then(m => ({ default: m.ChatPanel }))
-)
-const GitHistoryPanel = lazyWithReload(() =>
-  import('./components/git-history-panel').then(m => ({ default: m.GitHistoryPanel }))
-)
+const ChatPanel = lazy(() => import('../ai-chat/chat-panel').then(m => ({ default: m.ChatPanel })))
 
 /*
  * CSS Architecture:
@@ -179,6 +160,7 @@ import './layers.css'
 import { plannerPreviewEnabled, usePlannerPreview } from '../runtime/planner-preview'
 import { debugApp, debugParams, debugVis } from '../utils/debug'
 import s from './noodles.module.css'
+import { instantiateLayer, instantiateWidget } from './utils/instantiate-vis'
 
 export type Edge<N1 extends Operator<IOperator>, N2 extends Operator<IOperator>> = {
   id: `${N1['id']}.${'par' | 'out'}.${keyof N1['outputs']}->${N2['id']}.${'par' | 'out'}.${keyof N2['inputs']}`
@@ -252,19 +234,6 @@ export function getNoodles(): Visualization {
     hasDataFiles: boolean
   } | null>(null)
   const [showExampleNotFoundDialog, setShowExampleNotFoundDialog] = useState(false)
-  const [pendingCreateFromSQL, setPendingCreateFromSQL] = useState<string | null>(null)
-  // A ?createFromSQL= link opens CreateFromSQLDialog; the project is created only on confirm.
-  // Declared before the project-loading effects, whose navigate() drops the query string.
-  useEffect(() => {
-    const request = takeCreateFromSQLRequest()
-    if (!request) return
-    if ('sql' in request) {
-      setPendingCreateFromSQL(request.sql)
-    } else {
-      console.error('Invalid SQL query:', request.error)
-      alert(`Invalid SQL query: ${request.error}`)
-    }
-  }, [])
   const [graphErrors, setGraphErrors] = useState<GraphError[]>([])
   const storageType = useActiveStorageType()
   const {
@@ -349,7 +318,6 @@ export function getNoodles(): Visualization {
   }, [nodes, modelEdges])
   const [showChatPanel, setShowChatPanel] = useState(false)
   const [chatInitialMessage, setChatInitialMessage] = useState<string | undefined>(undefined)
-  const [showGitHistoryPanel, setShowGitHistoryPanel] = useState(false)
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const [parameterEditorState, setParameterEditorState] = useState<{
     open: boolean
@@ -358,9 +326,6 @@ export function getNoodles(): Visualization {
   const [paramEditorError, setParamEditorError] = useState<Error | null>(null)
   // Throw during render so the ErrorBoundary catches it with a descriptive message
   if (paramEditorError) throw paramEditorError
-
-  // Auto-layout settings (declared early as they're used in multiple places)
-  const [autoLayout, setAutoLayout] = useState<AutoLayoutSettings>(DEFAULT_AUTO_LAYOUT)
 
   // Wrap onNodesChange to track node selection and mark unsaved changes
   const onNodesChange = useCallback(
@@ -414,10 +379,12 @@ export function getNoodles(): Visualization {
 
   // Warn before leaving page with unsaved changes
   useEffect(() => {
-    // Don't warn for examples - they're read-only demos
-    const unsaved = !isExamplesRoute && (hasUnsavedChanges || storageType === 'memory')
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (unsaved) {
+      // Don't warn for examples - they're read-only demos
+      if (isExamplesRoute) {
+        return
+      }
+      if (hasUnsavedChanges || storageType === 'memory') {
         e.preventDefault()
         e.returnValue = ''
       }
@@ -427,17 +394,14 @@ export function getNoodles(): Visualization {
       storageType === 'memory'
         ? memoryProjectStore.getDisplayName(projectName || '') || 'Untitled'
         : projectName
+    // Don't show asterisk for examples - they're read-only
+    const showAsterisk = !isExamplesRoute && (hasUnsavedChanges || storageType === 'memory')
     document.title = displayName
-      ? `Noodles.gl - ${displayName}${unsaved ? ' *' : ''}`
+      ? `Noodles.gl - ${displayName}${showAsterisk ? ' *' : ''}`
       : 'Noodles.gl'
 
-    // A stale chunk after a deploy prompts instead of reloading while this guard is armed
-    staleChunk.setUnsavedWork(unsaved)
     window.addEventListener('beforeunload', handleBeforeUnload)
-    return () => {
-      staleChunk.setUnsavedWork(false)
-      window.removeEventListener('beforeunload', handleBeforeUnload)
-    }
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
   }, [hasUnsavedChanges, projectName, storageType, isExamplesRoute])
 
   // Only changes when graph structure changes (nodes added/removed/type changed, edges reconnected)
@@ -553,122 +517,6 @@ export function getNoodles(): Visualization {
     setEdges,
   })
 
-  const currentContainerId = useNestingStore(state => state.currentContainerId)
-
-  // Manual layout function - layouts selected nodes or all nodes in current container
-  const applyManualLayout = useCallback(() => {
-    // Get selected nodes in the current container
-    const selectedNodes = nodes.filter(node => {
-      if (!node.selected) return false
-      const nodeParent = getParentPath(node.id)
-      return currentContainerId === '/' ? nodeParent === '/' : nodeParent === currentContainerId
-    })
-
-    // If less than 2 nodes selected, use all nodes in container
-    const targetNodes =
-      selectedNodes.length >= 2
-        ? selectedNodes
-        : nodes.filter(node => {
-            const nodeParent = getParentPath(node.id)
-            return currentContainerId === '/'
-              ? nodeParent === '/'
-              : nodeParent === currentContainerId
-          })
-
-    if (targetNodes.length < 2) return
-
-    // Get edges between these nodes
-    const targetNodeIds = new Set(targetNodes.map(n => n.id))
-    const targetEdges = edges.filter(
-      e => targetNodeIds.has(e.source) && targetNodeIds.has(e.target)
-    )
-
-    // Apply layout
-    const layoutedNodes = layoutNodes(targetNodes, targetEdges)
-
-    // Track layout application
-    analytics.track('layout_applied', {
-      nodeCount: targetNodes.length,
-      edgeCount: targetEdges.length,
-      isManual: true,
-      scope: selectedNodes.length >= 2 ? 'selection' : 'container',
-    })
-
-    // Update node positions
-    setNodes(currentNodes =>
-      currentNodes.map(node => {
-        const layoutedNode = layoutedNodes.find(n => n.id === node.id)
-        if (layoutedNode) {
-          return {
-            ...node,
-            position: layoutedNode.position,
-          }
-        }
-        return node
-      })
-    )
-
-    // Fit view to show all nodes with animation
-    setTimeout(() => {
-      reactFlowInstanceRef.current?.fitView({
-        duration: 300,
-        padding: 0.2,
-      })
-    }, 0)
-  }, [nodes, edges, currentContainerId, setNodes])
-
-  // Auto-layout function for current container (used by onConnect trigger)
-  const applyAutoLayoutToContainer = useCallback(() => {
-    if (!autoLayout.enabled) return
-
-    // Get all nodes in the current container
-    const containerNodes = nodes.filter(node => {
-      const nodeParent = getParentPath(node.id)
-      return currentContainerId === '/' ? nodeParent === '/' : nodeParent === currentContainerId
-    })
-
-    if (containerNodes.length < 2) return
-
-    // Get edges between these nodes
-    const containerNodeIds = new Set(containerNodes.map(n => n.id))
-    const containerEdges = edges.filter(
-      e => containerNodeIds.has(e.source) && containerNodeIds.has(e.target)
-    )
-
-    // Apply layout
-    const layoutedNodes = layoutNodes(containerNodes, containerEdges)
-
-    // Track automatic layout application
-    analytics.track('layout_applied', {
-      nodeCount: containerNodes.length,
-      edgeCount: containerEdges.length,
-      isManual: false,
-      scope: 'container',
-    })
-
-    // Update node positions
-    setNodes(currentNodes =>
-      currentNodes.map(node => {
-        const layoutedNode = layoutedNodes.find(n => n.id === node.id)
-        if (layoutedNode) {
-          return {
-            ...node,
-            position: layoutedNode.position,
-          }
-        }
-        return node
-      })
-    )
-
-    // Fit view to show all nodes with animation
-    setTimeout(() => {
-      reactFlowInstanceRef.current?.fitView({
-        duration: 300,
-        padding: 0.2,
-      })
-    }, 0)
-  }, [autoLayout, nodes, edges, currentContainerId, setNodes])
-
   // Keep the WebMCP tool surface in sync with editor state when external
   // control is enabled (?externalControl=true). The agent benchmark reads and
   // applies through the same bridge.
@@ -684,18 +532,13 @@ export function getNoodles(): Visualization {
     setCurrentProject({ nodes, edges } as NoodlesProject)
   }, [nodes, edges])
 
-  // Wrap onConnect to mark unsaved changes and trigger auto-layout if enabled
+  // Wrap onConnect to mark unsaved changes
   const onConnect = useCallback(
     (connection: Connection) => {
       onConnectBase(connection)
       setHasUnsavedChanges(true)
-      // Trigger auto-layout after the connection is established
-      if (autoLayout.enabled) {
-        // Use setTimeout to ensure the edge is added before layout is computed
-        setTimeout(() => applyAutoLayoutToContainer(), 0)
-      }
     },
-    [onConnectBase, autoLayout.enabled, applyAutoLayoutToContainer]
+    [onConnectBase]
   )
 
   // Wrap onNodesDelete to mark unsaved changes
@@ -896,8 +739,6 @@ export function getNoodles(): Visualization {
     >()
 
   const currentProjectRef = useRef<NoodlesProjectJSON>(newProjectJSON)
-  // Counts project loads, so the chat panel can tell its proposal's project was replaced
-  const [projectLoadId, setProjectLoadId] = useState(0)
 
   // Track when we're programmatically loading a project to prevent useEffect from trying to reload
   const isProgrammaticLoadRef = useRef(false)
@@ -945,6 +786,8 @@ export function getNoodles(): Visualization {
     analytics.track('block_library_opened', { method: 'context_menu' })
     blockLibraryRef.current?.openModal(event.clientX, event.clientY)
   }, [])
+
+  const currentContainerId = useNestingStore(state => state.currentContainerId)
 
   // Handle 'v' keyup to create ViewerOp (momentary button behavior)
   useKeyboardShortcut('v', () => {
@@ -1015,34 +858,6 @@ export function getNoodles(): Visualization {
     blockLibraryRef.current?.openModal(centerX, centerY)
   }, [])
 
-  // Handle Cmd+A / Ctrl+A to select all nodes in current container
-  const selectAllNodes = useCallback(
-    (e: KeyboardEvent) => {
-      e.preventDefault()
-      analytics.track('select_all_nodes')
-
-      setNodes(currentNodes =>
-        currentNodes.map(node => {
-          const nodeParent = getParentPath(node.id)
-          const isInCurrentContainer =
-            currentContainerId === '/' ? nodeParent === '/' : nodeParent === currentContainerId
-
-          return {
-            ...node,
-            selected: isInCurrentContainer ? true : node.selected,
-          }
-        })
-      )
-      return false
-    },
-    [setNodes, currentContainerId]
-  )
-
-  // Register platform-specific shortcuts
-  const isMac = useMemo(() => navigator.platform.toUpperCase().indexOf('MAC') >= 0, [])
-  useKeyboardShortcut(isMac ? 'cmd+a' : 'ctrl+a', selectAllNodes, [selectAllNodes])
-  useKeyboardShortcut(isMac ? 'cmd+l' : 'ctrl+l', applyManualLayout, [applyManualLayout])
-
   const [showOverlay, setShowOverlay] = useState(true)
   const [showDebugInfo, setShowDebugInfo] = useState(false)
 
@@ -1066,8 +881,6 @@ export function getNoodles(): Visualization {
       isProjectLoadRef.current = true
 
       currentProjectRef.current = project
-      setProjectLoadId(id => id + 1)
-      getUIStore().setStarterHintNodeId(null)
 
       // Install embedded keys before constructing operators. Key-dependent operators
       // may inspect credentials while their fields and listeners are initialized.
@@ -1091,7 +904,6 @@ export function getNoodles(): Visualization {
           timelineStore.fromTimelineJSON(
             timeline as unknown as import('../timeline/types').TimelineData
           )
-          expandTimelineIfAnimated()
         } catch (error) {
           console.error('Failed to load timeline:', error)
           timelineErrors.push({
@@ -1121,9 +933,8 @@ export function getNoodles(): Visualization {
       // Update React Flow state (for rendering; graph is already set up above).
       // Normalizing here (after transformGraph, so operators exist for the ListField
       // lookup) derives multi-input slot rendering caches from the file's edge order —
-      // project files never store them. Nodes with a missing operator type render as the
-      // UnknownOperator placeholder; serializeNodes saves them back with their original type.
-      setNodes(markUnknownOperatorNodes(nodes))
+      // project files never store them.
+      setNodes(nodes)
       setEdges(
         normalizeMultiInputEdges(
           (edges as ReactFlowEdge[]).filter(edge => edge.type !== 'ReferenceEdge')
@@ -1133,9 +944,6 @@ export function getNoodles(): Visualization {
       // Load editor settings from project with defaults
       setShowOverlay(editorSettings?.showOverlay ?? true)
       setShowDebugInfo(editorSettings?.showDebugInfo ?? false)
-      setAutoLayout({
-        enabled: editorSettings?.autoLayout?.enabled ?? DEFAULT_AUTO_LAYOUT.enabled,
-      })
 
       // Render settings are now stored as OutOp inputs (migration 012 handles conversion)
 
@@ -1332,15 +1140,26 @@ export function getNoodles(): Visualization {
 
     pendingActionHandledRef.current = true
 
-    const plan = planQuickStartAction(pendingAction)
-    if (!plan) return
-    if (plan.importFile) setPendingImportFile(plan.importFile)
-    if (plan.chatMessage) {
-      setChatInitialMessage(plan.chatMessage)
+    if (pendingAction.type === 'llm' && pendingAction.question) {
+      // Open AI chat panel with the question pre-filled
+      setChatInitialMessage(pendingAction.question)
       setShowChatPanel(true)
-      trackChatOpened('quick_start')
+      analytics.track('quick_start_llm_action_handled')
+    } else if (pendingAction.type === 'file' && pendingAction.file) {
+      if (pendingAction.mode === 'map') {
+        // Coordinates were found: CanvasDropImport builds the map, no LLM needed
+        setPendingImportFile(pendingAction.file)
+        analytics.track('quick_start_file_action_handled', { mode: 'map' })
+        return
+      }
+      // Otherwise open the chat panel and ask the AI to help visualize the file
+      const fileName = pendingAction.file.name
+      setChatInitialMessage(
+        `I just uploaded a file called "${fileName}". Please help me create a visualization from this data. First, I'll need to import it using the Data Importer (click the upload icon in the toolbar). Can you guide me through the process?`
+      )
+      setShowChatPanel(true)
+      analytics.track('quick_start_file_action_handled', { mode: 'chat' })
     }
-    analytics.track(plan.event, plan.mode ? { mode: plan.mode } : undefined)
   }, [nodes.length])
 
   const displayedNodes = useMemo(() => {
@@ -1380,11 +1199,6 @@ export function getNoodles(): Visualization {
     const projectKeys = getKeysForProject()
     // Render settings are now stored as OutOp inputs, serialized with the node
 
-    // Only include autoLayout if different from defaults
-    const autoLayoutChanged = autoLayout.enabled !== DEFAULT_AUTO_LAYOUT.enabled
-    // Kept so saving an example from the editor doesn't drop its starter node
-    const startNode = currentProjectRef.current?.editorSettings?.startNode
-
     return {
       version: NOODLES_VERSION,
       nodes: serializeNodes(store, nodes, edges),
@@ -1393,13 +1207,12 @@ export function getNoodles(): Visualization {
       timeline,
       editorSettings: {
         showOverlay,
-        ...(autoLayoutChanged ? { autoLayout } : {}),
         showDebugInfo,
         ...(startNode ? { startNode } : {}),
       },
       ...(projectKeys ? { apiKeys: projectKeys } : {}),
     }
-  }, [nodes, edges, showOverlay, showDebugInfo, timelineStore.toTimelineJSON, autoLayout])
+  }, [nodes, edges, showOverlay, showDebugInfo, timelineStore.toTimelineJSON])
 
   // Files for the project's cache folder: the outputs of locked operators
   const getOutputCacheFiles = useCallback(() => serializeOutputCache(getOpStore(), nodes), [nodes])
@@ -1462,20 +1275,6 @@ export function getNoodles(): Visualization {
     setError,
     navigate,
   ])
-
-  // Autosave with debouncing. Reading the settings through the hook re-runs this effect when
-  // version control or autosave is turned off, which cancels a pending save.
-  const gitSettings = useGitSettings(projectName)
-  useEffect(() => {
-    if (!shouldAutosave({ settings: gitSettings, storageType, hasUnsavedChanges, isExamplesRoute }))
-      return
-
-    const timeoutId = setTimeout(() => {
-      onMenuSave()
-    }, gitSettings.autoCommitDelay)
-
-    return () => clearTimeout(timeoutId)
-  }, [gitSettings, storageType, hasUnsavedChanges, isExamplesRoute, onMenuSave])
 
   // Step 1 of Save As: Select directory and check conditions
   const onSaveAs = useCallback(async () => {
@@ -1686,13 +1485,6 @@ export function getNoodles(): Visualization {
           setShowRenameDialog(true)
         }
       }
-      // mod+shift+h for Git History
-      if (isMod && isShift && key === 'h') {
-        e.preventDefault()
-        if (supportsVersioning(storageType)) {
-          setShowGitHistoryPanel(prev => !prev)
-        }
-      }
     }
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
@@ -1717,53 +1509,16 @@ export function getNoodles(): Visualization {
     blockLibraryRef.current?.openModal(centerX, centerY)
   }, [])
 
-  // Layout callback for UI button (wraps applyManualLayout with analytics)
-  const onAutoLayout = useCallback(() => {
-    const selectedNodes = nodes.filter(n => n.selected)
-    if (selectedNodes.length < 2) return
-
-    analytics.track('auto_layout_applied', {
-      nodeCount: selectedNodes.length,
-      trigger: 'manual_button',
-    })
-
-    applyManualLayout()
-  }, [nodes, applyManualLayout])
-
-  const onChangeAutoLayoutOnConnect = useCallback((enabled: boolean) => {
-    setAutoLayout(prev => ({ ...prev, enabled }))
-    analytics.track('auto_layout_toggled', { enabled })
-  }, [])
-
-  // Note: Auto-layout on node addition was removed based on PR feedback.
-  // Users can still trigger layout manually via the Layout button in the property panel (3+ nodes selected).
-  // Auto-layout still triggers on edge creation when enabled (see onConnect handler above).
-
-  const createMemoryProject = useCallback(
-    (project: NoodlesProjectJSON, method: 'new' | 'createFromSQL') => {
-      memoryProjectStore.setProjectJson('new', project)
-
-      setCurrentDirectory(null, 'new')
-      setActiveStorageType('memory')
-      loadProjectFile(project, 'new', '/projects')
-
-      analytics.track('project_created', { method })
-    },
-    [setCurrentDirectory, setActiveStorageType, loadProjectFile]
-  )
-
   const onNewProject = useCallback(async () => {
     const starterProject = { ...newProjectJSON, version: NOODLES_VERSION } as NoodlesProjectJSON
-    createMemoryProject(starterProject, 'new')
-  }, [createMemoryProject])
+    memoryProjectStore.setProjectJson('new', starterProject)
 
-  const onConfirmCreateFromSQL = useCallback(
-    (sql: string) => {
-      setPendingCreateFromSQL(null)
-      createMemoryProject(createProjectFromSQL({ sql }), 'createFromSQL')
-    },
-    [createMemoryProject]
-  )
+    setCurrentDirectory(null, 'new')
+    setActiveStorageType('memory')
+    loadProjectFile(starterProject, 'new', '/projects')
+
+    analytics.track('project_created', { method: 'new' })
+  }, [setCurrentDirectory, setActiveStorageType, loadProjectFile])
 
   const onImport = useCallback(async () => {
     try {
@@ -2106,11 +1861,6 @@ export function getNoodles(): Visualization {
           onCheckMyProjects={onCheckMyProjects}
           onClose={() => setShowExampleNotFoundDialog(false)}
         />
-        <CreateFromSQLDialog
-          sql={pendingCreateFromSQL}
-          onConfirm={onConfirmCreateFromSQL}
-          onClose={() => setPendingCreateFromSQL(null)}
-        />
         <GraphErrorDialog
           open={graphErrors.length > 0}
           errors={graphErrors}
@@ -2205,34 +1955,8 @@ export function getNoodles(): Visualization {
 
               try {
                 // Map layers from POJOs to deck.gl instances
-                const instantiatedLayers = assetResolution.layers.map(
-                  ({ type, extensions, ...layer }) => {
-                    // Instantiate extensions from POJOs if present
-                    let instantiatedExtensions: LayerExtension[] | undefined
-                    if (extensions && Array.isArray(extensions)) {
-                      instantiatedExtensions = extensions
-                        .map(ext => {
-                          const instance = instantiateExtension(ext)
-                          if (!instance) debugApp('Unknown extension type: %o', ext)
-                          return instance
-                        })
-                        .filter((e): e is LayerExtension => e !== null)
-                    }
-
-                    // biome-ignore lint/performance/noDynamicNamespaceImportAccess: We intentionally support all deck.gl layer types dynamically
-                    return new deck[type]({
-                      // Click-to-edit picks features, so layers that don't say otherwise
-                      // are pickable in the editor. The node's output is unchanged.
-                      ...(EDITOR_PICKING ? { pickable: true } : {}),
-                      ...layer,
-                      ...(instantiatedExtensions ? { extensions: instantiatedExtensions } : {}),
-                      // Prevent deck.gl layer errors from crashing the GPU process
-                      onError: (e: Error) => {
-                        console.error(`[Noodles] Layer error in ${layer.id} (${type}):`, e)
-                        debugVis('Layer error in %s (id=%s): %o', type, layer.id, e)
-                      },
-                    })
-                  }
+                const instantiatedLayers = assetResolution.layers.map(layer =>
+                  instantiateLayer(layer as { type: string; [key: string]: unknown })
                 )
 
                 // Add overlay layer for selected GeoJSON features
@@ -2265,16 +1989,9 @@ export function getNoodles(): Visualization {
                   deckProps: {
                     ...deckProps,
                     layers: instantiatedLayers,
-                    widgets: widgets?.map(({ type, ...widget }) => {
-                      if (type === 'LegendWidget')
-                        return new LegendWidget(widget as unknown as LegendWidgetProps)
-                      if (type === 'BitmapOverlay')
-                        return new BitmapOverlayWidget(
-                          widget as unknown as BitmapOverlayWidgetProps
-                        )
-                      // biome-ignore lint/performance/noDynamicNamespaceImportAccess: We intentionally support all deck.gl widget types dynamically
-                      return new deckWidgets[type](widget)
-                    }),
+                    widgets: widgets?.map(widget =>
+                      instantiateWidget(widget as { type: string; [key: string]: unknown })
+                    ),
                     ...(instantiatedViews?.length ? { views: instantiatedViews } : {}),
                   },
                   mapProps,
@@ -2324,7 +2041,7 @@ export function getNoodles(): Visualization {
   const propertiesPanel = (
     <ErrorBoundary title="Property Panel Error">
       <div className={s.rightPanel}>
-        <PropertyPanel onAutoLayout={onAutoLayout} />
+        <PropertyPanel />
       </div>
     </ErrorBoundary>
   )
@@ -2333,7 +2050,6 @@ export function getNoodles(): Visualization {
     <Suspense fallback={null}>
       <ChatPanel
         project={{ nodes, edges }}
-        projectKey={projectLoadId}
         onClose={() => {
           trackChatClosed('panel')
           setShowChatPanel(false)
@@ -2345,20 +2061,9 @@ export function getNoodles(): Visualization {
     </Suspense>
   )
 
-  const gitHistoryPanel = showGitHistoryPanel && (
-    <Suspense fallback={null}>
-      <GitHistoryPanel
-        projectDirectory={currentDirectory}
-        projectName={projectName}
-        onClose={() => setShowGitHistoryPanel(false)}
-      />
-    </Suspense>
-  )
-
   return {
     flowGraph,
     selectedNodeIds: nodes.filter(n => n.selected).map(n => n.id),
-    edges,
     nodeSidebar: (
       <ErrorBoundary title="Sidebar Error">
         <SidebarTabs
@@ -2381,13 +2086,10 @@ export function getNoodles(): Visualization {
     ),
     propertiesPanel,
     chatPanel,
-    gitHistoryPanel,
     showOverlay,
     onChangeShowOverlay: setShowOverlay,
     showDebugInfo,
     onChangeShowDebugInfo: setShowDebugInfo,
-    autoLayoutOnConnect: autoLayout.enabled,
-    onChangeAutoLayoutOnConnect,
     spreadsheetVisible,
     onChangeSpreadsheetVisible: setSpreadsheetVisible,
     // Render settings are now read from OutOp via useRenderSettings() hook
@@ -2396,8 +2098,6 @@ export function getNoodles(): Visualization {
       storageType === 'memory'
         ? memoryProjectStore.getDisplayName(projectName || '') || null
         : projectName,
-    // The project whose version control settings the settings dialog edits
-    versionedProjectName: supportsVersioning(storageType) ? projectName : null,
     getTimelineJson,
     onSaveProject: onMenuSave,
     onSaveAs,

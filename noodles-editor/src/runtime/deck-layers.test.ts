@@ -117,7 +117,7 @@ describe('DeckLayerBuilder', () => {
     const next = builder.build(inputs()).get('dots') ?? []
     expect(builder.metrics().rebuilt).toBe(0)
     expect(next[0].props.data).toBe(layers[0].props.data)
-    expect(next[0].props.radiusScale).toBe(2)
+    expect((next[0].props as unknown as Record<string, unknown>).radiusScale).toBe(2)
     await engine.close()
   })
 })
