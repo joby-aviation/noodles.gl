@@ -35,8 +35,11 @@ function wireView(): GraphEdge[] {
   ]
 }
 
-function context(edges: GraphEdge[], overrides: { isRendering?: boolean } = {}) {
-  return { edges, isRendering: false, ...overrides }
+function context(
+  edges: GraphEdge[],
+  overrides: { isRendering?: boolean; isPlaying?: boolean } = {}
+) {
+  return { edges, isRendering: false, isPlaying: false, ...overrides }
 }
 
 describe('selected map camera control', () => {
@@ -80,6 +83,11 @@ describe('selected map camera control', () => {
     expect(
       getCameraControlState(['/camera'], context(edges, { isRendering: true })).reason
     ).toMatch(/exporting/)
+
+    expect(getCameraControlState(['/camera'], context(edges, { isPlaying: true }))).toMatchObject({
+      enabled: false,
+      reason: expect.stringMatching(/Pause the timeline/),
+    })
 
     const connected = [...edges, edge('/source', 'out.val', '/camera', 'par.longitude')]
     expect(getCameraControlState(['/camera'], context(connected)).reason).toMatch(

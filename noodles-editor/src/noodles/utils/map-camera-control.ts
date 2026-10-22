@@ -24,6 +24,8 @@ export interface CameraControlContext {
   // Every value edge in the project, not just the ones in the displayed container
   edges: readonly GraphEdge[]
   isRendering: boolean
+  // Writes during playback would land on whatever frame is playing, keyframing along the way
+  isPlaying: boolean
 }
 
 export interface CameraControlState {
@@ -123,7 +125,7 @@ export function findViewCameraOpId(edges: readonly GraphEdge[]): string | null {
 
 export function getCameraControlState(
   selectedNodeIds: string[],
-  { edges, isRendering }: CameraControlContext
+  { edges, isRendering, isPlaying }: CameraControlContext
 ): CameraControlState {
   if (selectedNodeIds.length !== 1) {
     const includesCamera = selectedNodeIds.some(id => getOp(id) instanceof MapViewStateOp)
@@ -142,6 +144,9 @@ export function getCameraControlState(
       enabled: false,
       reason: 'Camera controls are disabled while exporting.',
     }
+  }
+  if (isPlaying) {
+    return { op: selectedOp, enabled: false, reason: 'Pause the timeline to drag the camera.' }
   }
   if (findViewCameraOpId(edges) !== selectedOp.id) {
     return {

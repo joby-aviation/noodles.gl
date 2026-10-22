@@ -181,9 +181,11 @@ export default function TimelineEditor() {
   })
   isRenderingRef.current = isRendering
 
+  const isPlaying = useTimelineStore(state => state.playing)
   const cameraControl = getCameraControlState(selectedNodeIds ?? [], {
     edges: edges ?? [],
     isRendering,
+    isPlaying,
   })
   const cameraHistoryRef = useRef(
     createCameraGestureHistory(captureOperatorInputs, before =>
