@@ -4,7 +4,6 @@ import type { z } from 'zod'
 import type { Operator } from '../noodles/operators'
 import { getOpStore } from '../noodles/store'
 import { safeStringify } from '../noodles/utils/serialization'
-import { getVisualizationCanvas, getVisualizationDeck } from '../render/visualization-target'
 import {
   captureTimelineState,
   fireTimelineMutation,
@@ -359,6 +358,12 @@ export class MCPTools {
       this.contextLoader.getDocsIndex() !== null ||
       this.contextLoader.getExamples() !== null
     )
+  }
+
+  // Get deck.gl canvas from global reference
+  private getCanvas(): HTMLCanvasElement | null {
+    // biome-ignore lint/suspicious/noExplicitAny: accessing global window property
+    return (window as any).__deckCanvas || null
   }
 
   // Search source code using regex or text matching
@@ -739,11 +744,21 @@ export class MCPTools {
     quality?: number
   }): Promise<ToolResult> {
     try {
-      const canvas = getVisualizationCanvas()
+      // A hidden tab stops drawing: the map never loads, or the canvas still shows the
+      // frame from before the last edit. Either way the screenshot would mislead.
+      if (document.visibilityState === 'hidden') {
+        return {
+          success: false,
+          error:
+            'The Noodles tab is hidden, so the browser has paused drawing. Bring the tab to the front (macOS: open -a "Google Chrome") and try again.',
+        }
+      }
+      const canvas = this.getCanvas()
       if (!canvas) {
         return {
           success: false,
-          error: 'Canvas not available. Make sure deck.gl is initialized.',
+          error:
+            'Canvas not available. The map has not finished loading; wait a few seconds and try again.',
         }
       }
 
@@ -862,8 +877,8 @@ export class MCPTools {
   // Inspect a specific layer in the visualization
   async inspectLayer(params: { layerId: string }): Promise<ToolResult> {
     try {
-      // biome-ignore lint/suspicious/noExplicitAny: layerManager is protected on Deck
-      const deckInstance = getVisualizationDeck() as any
+      // biome-ignore lint/suspicious/noExplicitAny: accessing global window property
+      const deckInstance = (window as any).__deckInstance
 
       if (!deckInstance) {
         return {

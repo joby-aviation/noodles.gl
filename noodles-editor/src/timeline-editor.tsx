@@ -23,9 +23,9 @@ import type { RenderSource } from './render/render-analytics'
 import { resetRenderProgress, setRenderProgress } from './render/render-progress-store'
 import { captureScreenshot, useRenderer } from './render/renderer'
 import { deckRenderingDefaults, mapRenderingDefaults } from './render/rendering-defaults'
+import { exposeCanvasToTools } from './render/tool-canvas'
 import { TransformScale } from './render/transform-scale'
 import { resolveExportSettings, setVideoExporter, type VideoExporter } from './render/video-export'
-import { setVisualizationTarget } from './render/visualization-target'
 import { TimelinePanel } from './timeline/components/TimelinePanel'
 import { getTimelineStore, useTimelineStore } from './timeline/timeline-store'
 import { debugRender } from './utils/debug'
@@ -333,12 +333,8 @@ export default function TimelineEditor() {
     }
   }, [])
 
-  // Expose the deck instance, and through it the canvas, to the AI tools. The ref is read
-  // when a tool asks, since the basemap's deck overlay doesn't exist yet when this runs.
-  useEffect(() => {
-    setVisualizationTarget({ getDeck: () => deckRef.current })
-    return () => setVisualizationTarget(null)
-  }, [])
+  // The AI tools read the canvas and deck through window globals
+  useEffect(() => exposeCanvasToTools(deckRef), [])
 
   // onIdle resolves when all data is loaded and drawing has settled.
   mapProps.onIdle = ({ target: map }) => {

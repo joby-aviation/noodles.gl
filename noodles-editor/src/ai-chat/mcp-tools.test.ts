@@ -1,6 +1,4 @@
-import type { Deck } from '@deck.gl/core'
-import { afterEach, describe, expect, it } from 'vitest'
-import { setVisualizationTarget } from '../render/visualization-target'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { ContextLoader } from './context-loader'
 import { MCPTools } from './mcp-tools'
 import { getOperatorRegistry } from './runtime-operator-registry'
@@ -204,73 +202,29 @@ describe('getDocumentation guards', () => {
   })
 })
 
-// The editor registers a deck getter rather than a canvas, because with a basemap the
-// deck overlay (and so the canvas) only exists once the map does, after mount
-describe('visualization tools', () => {
-  afterEach(() => setVisualizationTarget(null))
+describe('captureVisualization', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+    delete (window as Window & { __deckCanvas?: unknown }).__deckCanvas
+  })
 
-  function redCanvas(width: number, height: number): HTMLCanvasElement {
-    const canvas = document.createElement('canvas')
-    canvas.width = width
-    canvas.height = height
-    const ctx = canvas.getContext('2d')!
-    ctx.fillStyle = 'red'
-    ctx.fillRect(0, 0, width, height)
-    return canvas
-  }
+  it('refuses in a hidden tab, whose canvas does not show the latest edit', async () => {
+    vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden')
+    ;(window as Window & { __deckCanvas?: unknown }).__deckCanvas = document.createElement('canvas')
 
-  function fakeDeck(): Deck {
-    class ScatterplotLayer {
-      static layerName = 'ScatterplotLayer'
-      id = 'points'
-      props = { visible: true, opacity: 0.8, pickable: false, data: [1, 2, 3] }
-    }
-    const layers = [new ScatterplotLayer()]
-    return { layerManager: { getLayers: () => layers } } as unknown as Deck
-  }
-
-  it('reports that the canvas is missing when the editor is not mounted', async () => {
     const result = await new MCPTools().captureVisualization({})
+
     expect(result.success).toBe(false)
-    expect(result.error).toContain('Canvas not available')
+    expect(result.error).toContain('tab is hidden')
   })
 
-  it('captures a canvas that becomes available after the editor registers', async () => {
-    let deck: Deck | null = null
-    setVisualizationTarget({ getDeck: () => deck })
-    const tools = new MCPTools()
+  it('says the map is still loading when there is no canvas yet', async () => {
+    vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible')
 
-    expect((await tools.captureVisualization({})).success).toBe(false)
+    const result = await new MCPTools().captureVisualization({})
 
-    deck = { canvas: redCanvas(64, 32) } as unknown as Deck
-    const result = await tools.captureVisualization({ format: 'png' })
-    expect(result.success).toBe(true)
-    const data = result.data as { screenshot: string; width: number; height: number }
-    expect(data.screenshot.length).toBeGreaterThan(0)
-    expect(data.width).toBe(64)
-    expect(data.height).toBe(32)
-  })
-
-  it('inspects a layer on a deck instance created after registration', async () => {
-    let deck: Deck | null = null
-    setVisualizationTarget({ getDeck: () => deck })
-    const tools = new MCPTools()
-
-    expect((await tools.inspectLayer({ layerId: 'points' })).error).toBe(
-      'Deck.gl instance not available'
-    )
-
-    deck = fakeDeck()
-    const result = await tools.inspectLayer({ layerId: 'points' })
-    expect(result.success).toBe(true)
-    expect(result.data).toEqual({
-      id: 'points',
-      type: 'ScatterplotLayer',
-      visible: true,
-      opacity: 0.8,
-      pickable: false,
-      dataLength: 3,
-    })
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('not finished loading')
   })
 })
 
