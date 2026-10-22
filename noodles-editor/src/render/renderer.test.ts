@@ -49,6 +49,59 @@ function editorLikeScene(fps: number, ready: () => void) {
   return { canvas, redraw, frameOf: (red: number) => Math.round(red / 50) - 1 }
 }
 
+// Firefox and Safari have no showSaveFilePicker. Removes Chromium's until restored.
+function withoutSavePicker() {
+  const descriptor = Object.getOwnPropertyDescriptor(window, 'showSaveFilePicker')!
+  Reflect.deleteProperty(window, 'showSaveFilePicker')
+  return () => Object.defineProperty(window, 'showSaveFilePicker', descriptor)
+}
+
+// Records <a download> clicks instead of downloading
+function spyOnDownloads() {
+  const downloads: { name: string; href: string }[] = []
+  function record(this: HTMLAnchorElement) {
+    downloads.push({ name: this.download, href: this.href })
+  }
+  const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(record)
+  return { downloads, restore: () => click.mockRestore() }
+}
+
+// Paints a new red level on each redraw and reports the frame ready, like a settled map
+function paintingRenderer(projectName: string) {
+  const canvas = document.createElement('canvas')
+  canvas.width = 64
+  canvas.height = 64
+  document.body.appendChild(canvas)
+  const ctx = canvas.getContext('2d')!
+  let frame = 0
+  const redraw = vi.fn(() => {
+    ctx.fillStyle = `rgb(${(frame++ * 40) % 255}, 0, 0)`
+    ctx.fillRect(0, 0, 64, 64)
+    queueMicrotask(() => result.current.captureFrame())
+  })
+  const { result } = renderHook(() =>
+    useRenderer({ projectName, fps: 10, bitrate: 1_000_000, bitrateMode: 'constant', redraw })
+  )
+  const capture = async () => {
+    let captured: CaptureResult | undefined
+    await act(async () => {
+      captured = await result.current.startCapture({
+        canvas,
+        width: 64,
+        height: 64,
+        codec: 'avc',
+        startFrame: 0,
+        endFrame: 2,
+      })
+    })
+    return captured
+  }
+  return { canvas, capture }
+}
+
+const startsWithFtyp = (buffer: ArrayBuffer) =>
+  new TextDecoder().decode(new Uint8Array(buffer, 4, 4)) === 'ftyp'
+
 describe('useRenderer', () => {
   beforeEach(() => {
     track.mockClear()
@@ -184,6 +237,59 @@ describe('useRenderer', () => {
       }
     }
   )
+
+  it('downloads the video when the browser has no save dialog', async ({ skip }) => {
+    vi.useRealTimers()
+    const restorePicker = withoutSavePicker()
+    const clicks = spyOnDownloads()
+    const renderer = paintingRenderer('no-picker')
+
+    try {
+      const capture = await renderer.capture()
+      if (capture?.status === 'error' && capture.error.message.startsWith('This browser cannot')) {
+        skip('this browser has no avc encoder')
+      }
+      expect(capture?.status === 'error' ? capture.error.message : capture?.status).toBe('done')
+      expect(clicks.downloads.map(d => d.name)).toEqual(['no-picker-map.mp4'])
+      const downloaded = await (await fetch(clicks.downloads[0].href)).blob()
+      expect(downloaded.type).toBe('video/mp4')
+      expect(startsWithFtyp(await downloaded.arrayBuffer())).toBe(true)
+    } finally {
+      renderer.canvas.remove()
+      clicks.restore()
+      restorePicker()
+      vi.useFakeTimers()
+    }
+  })
+
+  it('writes the video to the picked file, without a download', async ({ skip }) => {
+    vi.useRealTimers()
+    const chunks: Uint8Array[] = []
+    const picker = vi.spyOn(globalThis, 'showSaveFilePicker').mockResolvedValue({
+      createWritable: async () =>
+        new WritableStream<{ data: Uint8Array }>({ write: chunk => void chunks.push(chunk.data) }),
+    } as unknown as FileSystemFileHandle)
+    const clicks = spyOnDownloads()
+    const renderer = paintingRenderer('with-picker')
+
+    try {
+      const capture = await renderer.capture()
+      if (capture?.status === 'error' && capture.error.message.startsWith('This browser cannot')) {
+        skip('this browser has no avc encoder')
+      }
+      expect(capture?.status === 'error' ? capture.error.message : capture?.status).toBe('done')
+      expect(picker).toHaveBeenCalledWith(
+        expect.objectContaining({ suggestedName: 'with-picker-map.mp4' })
+      )
+      expect(chunks.length).toBeGreaterThan(0)
+      expect(clicks.downloads).toEqual([])
+    } finally {
+      renderer.canvas.remove()
+      clicks.restore()
+      picker.mockRestore()
+      vi.useFakeTimers()
+    }
+  })
 
   // A frame read too early, or a capture track made before the scene settled, hands
   // over the previous position's paint instead
@@ -741,6 +847,7 @@ describe('captureScreenshot', () => {
 
   it('tracks the source that took the screenshot', async () => {
     const write = vi.fn()
+    const clicks = spyOnDownloads()
     vi.spyOn(globalThis, 'showSaveFilePicker').mockResolvedValue({
       getFile: async () => new File([], 'shot.png', { type: 'image/png' }),
       createWritable: async () => ({ write, close: vi.fn() }),
@@ -755,6 +862,31 @@ describe('captureScreenshot', () => {
     await captureScreenshot('shot', () => canvas, { source: 'toolbar' })
     expect(track).toHaveBeenLastCalledWith('screenshot_taken', { source: 'toolbar' })
     expect(write).toHaveBeenCalledTimes(2)
+    expect(clicks.downloads).toEqual([])
+    clicks.restore()
+  })
+
+  it('downloads a PNG when the browser has no save dialog', async () => {
+    const restorePicker = withoutSavePicker()
+    const clicks = spyOnDownloads()
+    const canvas = document.createElement('canvas')
+    canvas.width = 4
+    canvas.height = 4
+    canvas.getContext('2d')!.fillRect(0, 0, 4, 4)
+
+    try {
+      await captureScreenshot('shot', () => canvas, { source: 'toolbar' })
+      expect(clicks.downloads.map(d => d.name)).toEqual(['shot.png'])
+      const downloaded = await (await fetch(clicks.downloads[0].href)).blob()
+      expect(downloaded.type).toBe('image/png')
+      // A PNG starts with \x89PNG
+      const signature = new Uint8Array(await downloaded.arrayBuffer(), 1, 3)
+      expect(new TextDecoder().decode(signature)).toBe('PNG')
+      expect(track).toHaveBeenLastCalledWith('screenshot_taken', { source: 'toolbar' })
+    } finally {
+      clicks.restore()
+      restorePicker()
+    }
   })
 })
 

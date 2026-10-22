@@ -1,5 +1,6 @@
 import { assert, type Deck } from '@deck.gl/core'
 import { useCallback, useRef, useState } from 'react'
+import { checkFileSystemSupport } from '../noodles/utils/filesystem'
 import { getTimelineStore, useTimelineStore } from '../timeline/timeline-store'
 import { analytics } from '../utils/analytics'
 import { debugRender, debugRenderFrame } from '../utils/debug'
@@ -153,15 +154,21 @@ export const useRenderer = ({
       // reports errors through a callback, so they would otherwise only be logged.
       let encoderError: Error | undefined
 
+      const extension = exportAlpha ? '.webm' : '.mp4'
+      const mimeType = exportAlpha ? 'video/webm' : 'video/mp4'
+      // Firefox and Safari have no save dialog, so the video is kept in memory and
+      // downloaded once it is done
+      const download = target === 'picker' && !checkFileSystemSupport().fileSystemAccess
+      const captureTarget: CaptureTarget = download ? 'buffer' : target
+
       const pickFileStream = async (name: string) => {
-        const extension = exportAlpha ? '.webm' : '.mp4'
         const fileHandle = await window
           .showSaveFilePicker({
             suggestedName: `${name}${extension}`,
             types: [
               {
                 description: 'Video File',
-                accept: { [exportAlpha ? 'video/webm' : 'video/mp4']: [extension] },
+                accept: { [mimeType]: [extension] },
               },
             ],
           })
@@ -183,8 +190,8 @@ export const useRenderer = ({
       const getContainer = async (name: string, config: VideoEncoderConfig) => {
         // The picker comes first: it needs the click that started the export, and the
         // browser only honors that click for a few seconds
-        const fileWritableStream = target === 'picker' ? await pickFileStream(name) : null
-        if (target === 'picker' && !fileWritableStream) {
+        const fileWritableStream = captureTarget === 'picker' ? await pickFileStream(name) : null
+        if (captureTarget === 'picker' && !fileWritableStream) {
           return null
         }
 
@@ -499,6 +506,9 @@ export const useRenderer = ({
         )
         const buffer = await finishEncoding()
         if (encoderError) return fail('encoder', encoderError)
+        if (download && buffer) {
+          downloadBlob(new Blob([buffer], { type: mimeType }), `${projectName}-map${extension}`)
+        }
         tracker.completed()
         return { status: 'done', frameCount, fps, buffer }
       } catch (error) {
@@ -762,38 +772,58 @@ export const useRenderer = ({
 
 export default useRenderer
 
+// Saves through an <a download> click, for browsers without a save dialog (Firefox, Safari)
+function downloadBlob(blob: Blob, fileName: string) {
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = fileName
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  // The download reads from the URL asynchronously, so revoking it at once can cancel it
+  setTimeout(() => URL.revokeObjectURL(url), 60_000)
+}
+
 export const captureScreenshot = async (
   suggestedName: string,
   getBufferedCanvas: () => HTMLCanvasElement,
   { quality = 1, source = 'menu' }: { quality?: number; source?: RenderSource } = {}
 ) => {
-  const imageHandle = await window.showSaveFilePicker({
-    suggestedName,
-    types: [
-      {
-        description: 'PNG',
-        accept: { 'image/png': ['.png'] },
-      },
-      {
-        description: 'JPEG',
-        accept: { 'image/jpeg': ['.jpeg'] },
-      },
-    ],
-  })
+  // Without a save dialog the screenshot downloads as a PNG
+  const imageHandle = checkFileSystemSupport().fileSystemAccess
+    ? await window.showSaveFilePicker({
+        suggestedName,
+        types: [
+          {
+            description: 'PNG',
+            accept: { 'image/png': ['.png'] },
+          },
+          {
+            description: 'JPEG',
+            accept: { 'image/jpeg': ['.jpeg'] },
+          },
+        ],
+      })
+    : null
 
-  const file = await imageHandle.getFile()
+  const type = imageHandle ? (await imageHandle.getFile()).type : 'image/png'
 
   const blob = await new Promise<Blob>((resolve, reject) => {
     // canvas needs to redrawn immediately before capture or else buffer will be empty.
     getBufferedCanvas().toBlob(
       blob => (blob ? resolve(blob) : reject('canvas is empty')),
-      file.type,
+      type,
       quality
     )
   })
 
-  const fileWritableStream = await imageHandle.createWritable()
-  await fileWritableStream.write(blob)
-  await fileWritableStream.close()
+  if (imageHandle) {
+    const fileWritableStream = await imageHandle.createWritable()
+    await fileWritableStream.write(blob)
+    await fileWritableStream.close()
+  } else {
+    downloadBlob(blob, `${suggestedName}.png`)
+  }
   analytics.track('screenshot_taken', { source })
 }
