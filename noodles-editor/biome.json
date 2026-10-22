@@ -109,21 +109,6 @@
           }
         }
       }
-    },
-    {
-      "includes": [
-        "src/noodles/components/geocoding-dialog.tsx",
-        "src/noodles/components/graph-error-dialog.tsx",
-        "src/noodles/components/op-components.tsx",
-        "src/noodles/components/schema-editor-dialog.tsx"
-      ],
-      "linter": {
-        "rules": {
-          "suspicious": {
-            "noArrayIndexKey": "warn"
-          }
-        }
-      }
     }
   ]
 }
