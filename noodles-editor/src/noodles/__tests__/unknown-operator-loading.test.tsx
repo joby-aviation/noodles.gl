@@ -49,8 +49,8 @@ describe('loading a project with a missing operator type', () => {
       await vi.advanceTimersByTimeAsync(50)
     })
 
-    expect(screen.getByText('Unknown Operator')).toBeTruthy()
-    expect(screen.getByText('RemovedOp')).toBeTruthy()
+    expect(screen.getByText('missing (Removed)')).toBeTruthy()
+    expect(screen.getByText(/RemovedOp isn't available/)).toBeTruthy()
 
     const [saved] = serializeNodes(getOpStore(), nodes, [])
     expect(saved).toEqual(projectNodes[0])

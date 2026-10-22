@@ -211,7 +211,6 @@ for (const key of Object.keys(opTypes)) {
 
 function UnknownOperatorComponent({
   id,
-  selected,
 }: ReactFlowNodeProps<NodeDataJSON<Operator<IOperator>>> & { type: OpType }) {
   const op = getOp(id as string) as import('../operators').UnknownOperator | null
   const { deleteElements } = useReactFlow()
@@ -222,17 +221,28 @@ function UnknownOperatorComponent({
 
   if (!op) return null
 
+  // Same display convention as other nodes: "name (Type)" without the "Op" suffix
+  const typeName = op.originalType.replace(/Op$/, '')
+
   return (
     <ContextMenu.Root>
       <ContextMenu.Trigger asChild>
-        <div className={cx(s.wrapper, s.unknownOperatorWrapper)}>
-          <div className={s.unknownOperatorHeader}>
-            <div className={s.errorIcon}>⚠️</div>
-            <div className={s.unknownOperatorTitle}>Unknown Operator</div>
+        <div className={cx(s.wrapper, s.wrapperError)}>
+          <div className={cx(s.header, s.dragHandle, s.headerUnknown)}>
+            <div className={s.headerTitle} title={`${id} (${op.originalType})`}>
+              {getBaseName(id)} ({typeName})
+            </div>
+            <span
+              className={cx(s.executionIndicator, s.executionIndicatorError)}
+              title="Operator type not available"
+            >
+              <i className="pi pi-exclamation-triangle" />
+            </span>
           </div>
-          <div className={s.unknownOperatorContent}>
-            <div className={s.unknownOperatorType}>{op.originalType}</div>
-            <div className={s.unknownOperatorHelp}>This operator type is no longer available</div>
+          <div className={s.content}>
+            <p className={s.unknownOperatorHelp}>
+              {op.originalType} isn't available. Its settings are kept when you save.
+            </p>
           </div>
         </div>
       </ContextMenu.Trigger>
