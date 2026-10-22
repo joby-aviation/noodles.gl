@@ -95,7 +95,8 @@ export const toolDefinitions: ToolDefinition[] = [
   {
     name: 'get_render_stats',
     annotations: { readOnlyHint: true },
-    description: 'Get deck.gl rendering statistics',
+    description:
+      'Get deck.gl rendering statistics: frames drawn in the last second (fps), the time between the last two frames, layer count and JS memory. fps counts frames actually drawn, so a still scene that nothing is animating or redrawing reads 0; that is not a performance problem.',
     inputSchema: {
       type: 'object',
       properties: {},
