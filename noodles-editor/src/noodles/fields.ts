@@ -1,4 +1,4 @@
-import { type LayerProps, View } from '@deck.gl/core'
+import { LayerExtension, type LayerProps, View } from '@deck.gl/core'
 import { interpolateLab, scaleOrdinal, schemeAccent } from 'd3'
 import { BehaviorSubject, combineLatest, type Subscription } from 'rxjs'
 import { Temporal } from 'temporal-polyfill'
@@ -1538,7 +1538,10 @@ export class ExtensionField extends Field<z.ZodTypeAny> {
   static defaultValue = undefined
   createSchema() {
     return z.strictObject({
-      extension: z.looseObject({ type: z.string() }),
+      // A `{ type }` descriptor from an extension operator, or a LayerExtension
+      // instance built by the user (e.g. in a CodeOp). Instance first so a
+      // subclass with a `type` property isn't flattened into a plain object.
+      extension: z.union([z.instanceof(LayerExtension), z.looseObject({ type: z.string() })]),
       props: z.looseObject({}),
     })
   }
