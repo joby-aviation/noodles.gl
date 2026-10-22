@@ -5,11 +5,15 @@
 // is blank. Every message here names what should have been written instead, so
 // the next attempt is a pick from a list rather than another guess.
 //
-// The wording matches the apply_modifications checks in the editor's
-// src/ai-chat/modification-fields.ts, so an agent sees the same error whether it
-// edits the file or the running app.
+// The editor's apply_modifications checks (src/ai-chat/modification-fields.ts)
+// import these too, so an agent sees the same error whether it edits the file
+// or the running app. Nothing here touches Node APIs, so the editor bundles it
+// through the "noodles-validate/fields" export.
 
 import type { OperatorInfo, Registry } from './types.ts'
+
+// The editor's runtime registry has the operators but no schema version
+export type OperatorLookup = Pick<Registry, 'operators'>
 
 // How many names a "has no input" error lists
 const FIELD_SUGGESTIONS = 15
@@ -18,14 +22,14 @@ export type Side = 'inputs' | 'outputs'
 
 // Own properties only: a plain lookup finds "constructor" and "toString" on
 // every object, so a node of type "constructor" would pass as an operator
-export function getOperator(registry: Registry, type: string): OperatorInfo | undefined {
+export function getOperator(registry: OperatorLookup, type: string): OperatorInfo | undefined {
   return Object.hasOwn(registry.operators, type) ? registry.operators[type] : undefined
 }
 
 // "File", "file", "FileOp" and "fileop" all name FileOp. Resolves a name that
 // matches exactly one operator by type or display name; returned unchanged
 // otherwise.
-export function resolveOperatorType(type: string, registry: Registry): string {
+export function resolveOperatorType(type: string, registry: OperatorLookup): string {
   const operators = registry.operators
   if (getOperator(registry, type)) return type
   if (getOperator(registry, `${type}Op`)) return `${type}Op`
@@ -42,7 +46,7 @@ export function resolveOperatorType(type: string, registry: Registry): string {
 // allTypes says where the full list is: list_operators for an agent with tools
 export function unknownType(
   type: string,
-  registry: Registry,
+  registry: OperatorLookup,
   allTypes = 'registry.json in noodles-validate lists every type.'
 ): string {
   const resolved = resolveOperatorType(type, registry)
@@ -63,7 +67,7 @@ export function unknownType(
   return `Unknown operator type ${type}.${hint} Types end in "Op", e.g. FileOp, ScatterplotLayerOp.`
 }
 
-export function fieldNames(registry: Registry, type: string, side: Side): string[] {
+export function fieldNames(registry: OperatorLookup, type: string, side: Side): string[] {
   return Object.keys(getOperator(registry, type)?.[side] ?? {})
 }
 

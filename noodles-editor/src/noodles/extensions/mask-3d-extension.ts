@@ -37,8 +37,47 @@ const mask3DUniforms: ShaderModule<Props> = {
   }),
 }
 
+// WGS84 geodetic coordinates (degrees, meters above the ellipsoid) to Earth-centered,
+// Earth-fixed (ECEF) meters: X through lng 0 on the equator, Y through lng 90, Z north.
+export function toGeocentric(
+  longitude: number,
+  latitude: number,
+  height = 0
+): [number, number, number] {
+  const a = 6378137 // semi-major axis
+  const f = 1 / 298.257223563 // flattening
+  const e2 = f * (2 - f) // eccentricity squared
+
+  const lat = (latitude * Math.PI) / 180
+  const lng = (longitude * Math.PI) / 180
+  const sinLat = Math.sin(lat)
+  const n = a / Math.sqrt(1 - e2 * sinLat * sinLat) // prime vertical radius
+
+  return [
+    (n + height) * Math.cos(lat) * Math.cos(lng),
+    (n + height) * Math.cos(lat) * Math.sin(lng),
+    (n * (1 - e2) + height) * sinLat,
+  ]
+}
+
+// The targetPosition uniform for a lng/lat/alt. glTF tiles are Y-up, and the shader reads
+// geometry.worldPosition before the tile's model matrix turns it Z-up, so vWorldPosition is
+// ECEF as (X, Z, -Y). The shader compares vWorldPosition.zyx = (-Y, Z, X) with
+// targetPosition.yzx, so the target is ECEF with Y negated. The fork this came from negated
+// the longitude instead, which flips Y the same way.
+export function toMaskTargetPosition(
+  longitude: number,
+  latitude: number,
+  height = 0
+): [number, number, number] {
+  const [x, y, z] = toGeocentric(longitude, latitude, height)
+  return [x, -y, z]
+}
+
 // Forked from https://github.com/grahambates-code/3d_tiles_mask
 export class Mask3DExtension extends LayerExtension {
+  static extensionName = 'Mask3DExtension'
+
   getShaders() {
     return {
       modules: [project32, mask3DUniforms],
