@@ -308,7 +308,7 @@ export function analyze(
   const resolve = (src: string | Expr, nodeId: string): Expr => {
     try {
       const tree = typeof src === 'string' ? parseExpr(src, { functions }) : src;
-      return simplifyExpr(inlineFunctions(tree, functions));
+      return coerceStrings(simplifyExpr(inlineFunctions(tree, functions)), strings);
     } catch (err) {
       throw new PlanError(`Node ${nodeId}: ${(err as Error).message}`);
     }
@@ -730,6 +730,44 @@ function pushDownFilters(nodes: CoreNode[], notes: string[]): CoreNode[] {
     }
   }
   return out;
+}
+
+/** Functions whose arguments are not numbers: they read strings or lists as they are. */
+const TEXT_ARGUMENTS = new Set(['coalesce', 'hex_byte', 'item', 'to_number']);
+
+/**
+ * A string column used as a number (`sqrt(exits)`, `pop * 2`) read as one, as JS would: JSON
+ * and CSV readers often type a numeric field as text, and Noodles' accessors never noticed.
+ * A string compared, passed to a text function, or used bare, stays text.
+ */
+function coerceStrings(e: Expr, strings: ReadonlySet<string>, numeric = false): Expr {
+  const go = (n: Expr, asNumber: boolean): Expr => {
+    switch (n.kind) {
+      case 'col':
+        return asNumber && strings.has(n.name) ? { kind: 'call', fn: 'to_number', args: [n] } : n;
+      case 'unary':
+        return { ...n, operand: go(n.operand, n.op === '-') };
+      case 'binary': {
+        // A comparison may be between strings (`country == {{region}}`); only arithmetic is
+        // certainly numeric.
+        const arithmetic = ['+', '-', '*', '/', '%'].includes(n.op);
+        return { ...n, left: go(n.left, arithmetic), right: go(n.right, arithmetic) };
+      }
+      case 'call': {
+        const text = TEXT_ARGUMENTS.has(n.fn);
+        return { ...n, args: n.args.map((a, i) => go(a, !text || (n.fn === 'hex_byte' && i === 1))) };
+      }
+      case 'vec':
+        return { ...n, components: n.components.map((c) => go(c, true)) };
+      case 'swizzle':
+        return { ...n, target: go(n.target, true) };
+      case 'cond':
+        return { ...n, test: go(n.test, false), then: go(n.then, asNumber), else: go(n.else, asNumber) };
+      default:
+        return n;
+    }
+  };
+  return go(e, numeric);
 }
 
 /** True when the expression's value is a string: a literal, a string column, or a branch of them. */

@@ -178,3 +178,48 @@ describe('DeckLayerBuilder aggregation layers', () => {
     expect(domain[1]).toBeGreaterThan(0)
   })
 })
+
+describe('DeckLayerBuilder mesh layers', () => {
+  it('turns per-row orientation and scale into the instance model matrix deck reads', () => {
+    const builder = new DeckLayerBuilder()
+    const [layer] =
+      builder
+        .build([
+          {
+            id: 'meshes',
+            kind: 'mesh',
+            data: {
+              rows: 2,
+              attributes: new Map([
+                ['P', { data: new Float32Array([0, 0, 0, 1, 1, 0]), width: 3 }],
+                ['O', { data: new Float32Array([0, 0, 0, 0, 90, 0]), width: 3 }],
+                ['S', { data: new Float32Array([1, 1, 1, 2, 2, 2]), width: 3 }],
+              ]),
+              strings: new Map(),
+              evalMs: 0,
+              code: '',
+            },
+            bindings: [
+              { channel: 'position', attribute: 'P' },
+              { channel: 'orientation', attribute: 'O' },
+              { channel: 'scale', attribute: 'S' },
+            ],
+            props: {},
+          },
+        ])
+        .get('meshes') ?? []
+    const data = layer.props.data as unknown as {
+      attributes: Record<string, { value: Float32Array; size: number }>
+    }
+    const matrix = data.attributes.instanceModelMatrix
+    expect(matrix.size).toBe(12)
+    expect([...matrix.value.slice(0, 9)].map(v => Math.round(v) || 0)).toEqual([
+      1, 0, 0, 0, 1, 0, 0, 0, 1,
+    ])
+    // Yaw 90 degrees at scale 2: x maps to y and y to -x.
+    expect([...matrix.value.slice(12, 21)].map(v => Math.round(v) || 0)).toEqual([
+      0, 2, 0, -2, 0, 0, 0, 0, 2,
+    ])
+    expect(data.attributes.getOrientation).toBeUndefined()
+  })
+})

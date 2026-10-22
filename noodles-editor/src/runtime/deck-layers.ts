@@ -239,13 +239,17 @@ function toBinary(input: ProgramLayerInput): Binary {
     case 'scenegraph': {
       put('getPosition', pos('position'), 3)
       put('getColor', colors(attr(input, 'color'), n), 4, true)
-      for (const [channel, deckName] of [
-        ['orientation', 'getOrientation'],
-        ['scale', 'getScale'],
-        ['translation', 'getTranslation'],
-      ]) {
-        const a = attr(input, channel)
-        put(deckName, a ? positions(a, n) : undefined, 3)
+      // deck derives each instance's model matrix from per-object accessors and never reads
+      // binary orientation or scale, so the matrix itself is the binary attribute.
+      const transform = ['orientation', 'scale', 'translation'].map(c => attr(input, c))
+      if (transform.some(Boolean)) {
+        const [orientation, scale, translation] = transform.map(a =>
+          a ? positions(a, n) : undefined
+        )
+        at.instanceModelMatrix = {
+          value: modelMatrices(n, orientation, scale, translation),
+          size: 12,
+        }
       }
       return { length: n, attributes: at }
     }
@@ -345,6 +349,45 @@ const BLEND_PARAMETERS: Record<string, Record<string, unknown>> = {
     blendColorOperation: 'reverse-subtract',
     blendAlphaOperation: 'add',
   },
+}
+
+const RADIANS = Math.PI / 180
+
+/**
+ * deck's mesh instance matrix, 12 floats per row: a 3x3 rotation-and-scale from pitch, yaw and
+ * roll in degrees, then the translation. The formula is deck's `calculateTransformMatrix`.
+ */
+function modelMatrices(
+  n: number,
+  orientation: Float32Array | undefined,
+  scale: Float32Array | undefined,
+  translation: Float32Array | undefined
+): Float32Array {
+  const out = new Float32Array(n * 12)
+  for (let i = 0; i < n; i++) {
+    const pitch = (orientation?.[i * 3] ?? 0) * RADIANS
+    const yaw = (orientation?.[i * 3 + 1] ?? 0) * RADIANS
+    const roll = (orientation?.[i * 3 + 2] ?? 0) * RADIANS
+    const [scx, scy, scz] = scale ? [scale[i * 3], scale[i * 3 + 1], scale[i * 3 + 2]] : [1, 1, 1]
+    const sr = Math.sin(roll)
+    const sp = Math.sin(pitch)
+    const sw = Math.sin(yaw)
+    const cr = Math.cos(roll)
+    const cp = Math.cos(pitch)
+    const cw = Math.cos(yaw)
+    const m = out.subarray(i * 12, i * 12 + 12)
+    m[0] = scx * cw * cp
+    m[1] = scx * sw * cp
+    m[2] = scx * -sp
+    m[3] = scy * (-sw * cr + cw * sp * sr)
+    m[4] = scy * (cw * cr + sw * sp * sr)
+    m[5] = scy * cp * sr
+    m[6] = scz * (sw * sr + cw * sp * cr)
+    m[7] = scz * (-cw * sr + sw * sp * cr)
+    m[8] = scz * cp * cr
+    if (translation) m.set(translation.subarray(i * 3, i * 3 + 3), 9)
+  }
+  return out
 }
 
 /** Six colors from a ramp, for an aggregation layer's color range; deck's default when unset. */
@@ -494,9 +537,11 @@ function buildLayer(input: ProgramLayerInput, binary: Binary): Layer | undefined
         data: binary as never,
         sizeScale: num(p.sizeScale, 1),
         ...constant('getColor', rgb(p.color, [255, 255, 255])),
-        getOrientation: has('getOrientation') ? undefined : [0, 0, 0],
-        getScale: has('getScale') ? undefined : [1, 1, 1],
-        getTranslation: has('getTranslation') ? undefined : [0, 0, 0],
+        // Constants, so deck's own matrix update stays constant; per-row transforms arrive
+        // as the binary instanceModelMatrix instead.
+        getOrientation: [0, 0, 0],
+        getScale: [1, 1, 1],
+        getTranslation: [0, 0, 0],
       }
       if (input.kind === 'scenegraph') {
         return new ScenegraphLayer({
