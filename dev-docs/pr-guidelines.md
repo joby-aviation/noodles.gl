@@ -232,7 +232,6 @@ For changes affecting video export or rendering performance:
 1. **Run performance tests:**
    ```bash
    npm test export-performance
-   npm test export-e2e
    ```
 
 2. **Measure actual performance:**
@@ -248,8 +247,6 @@ For changes affecting video export or rendering performance:
 4. **Regression check:**
    - Ensure no performance degradation vs. current main
    - Document if tradeoffs were made (e.g., quality vs. speed)
-
-See `src/render/PERFORMANCE.md` for detailed performance documentation.
 
 ## Common PR Patterns
 
