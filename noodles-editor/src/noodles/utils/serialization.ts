@@ -6,6 +6,7 @@ import type {
 } from '@xyflow/react'
 import { debugSerialize } from '../../utils/debug'
 import { resizeableNodes } from '../components/op-components'
+import { captureNodeUIMetadata } from '../fields'
 import { UnknownOperator } from '../operators'
 import type { useOperatorStore } from '../store'
 import { deepEqual } from './deep-equal'
@@ -237,6 +238,8 @@ export function serializeNodes(
       }
     }
 
+    const ui = captureNodeUIMetadata(op.inputs)
+
     preparedNodes.push({
       ...cleanedNode,
       ...(node.type && (resizeableNodes as readonly string[]).includes(node.type)
@@ -248,6 +251,7 @@ export function serializeNodes(
         ...(op.customInputDefinitions?.length > 0
           ? { customInputs: op.customInputDefinitions }
           : {}),
+        ...(ui ? { ui } : {}),
         ...visibilityData,
       },
     })

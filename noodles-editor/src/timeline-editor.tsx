@@ -19,6 +19,7 @@ import { fnWithSource } from './noodles/operators'
 import { useUIStore } from './noodles/store'
 import type { RenderSettings } from './noodles/utils/serialization'
 import { useDeckDrawLoop } from './render/draw-loop'
+import { FrameCounter } from './render/frame-stats'
 import type { RenderSource } from './render/render-analytics'
 import { resetRenderProgress, setRenderProgress } from './render/render-progress-store'
 import { captureScreenshot, useRenderer } from './render/renderer'
@@ -118,8 +119,15 @@ export default function TimelineEditor() {
   }, [])
 
   const noodles = getNoodles()
-  const { flowGraph, nodeSidebar, propertiesPanel, chatPanel, selectedNodeIds, ...visualization } =
-    noodles
+  const {
+    flowGraph,
+    nodeSidebar,
+    propertiesPanel,
+    chatPanel,
+    gitHistoryPanel,
+    selectedNodeIds,
+    ...visualization
+  } = noodles
 
   const setTimelineExpanded = useUIStore(state => state.setTimelineExpanded)
 
@@ -163,9 +171,8 @@ export default function TimelineEditor() {
   const basemapEnabled = Boolean(visualization.mapProps?.mapStyle)
   // console.log(rgbaToClearColor(mapState.background))
 
-  // Track deck.gl rendering stats for Claude AI debugging
-  const lastFrameTimeRef = useRef(Date.now())
-  const fpsRef = useRef(0)
+  // Counts drawn frames for get_render_stats
+  const [frames] = useState(() => new FrameCounter())
 
   const deckProps: DeckProps = {
     ...deckRenderingDefaults,
@@ -176,25 +183,7 @@ export default function TimelineEditor() {
     },
     onAfterRender: () => {
       visualization.deckProps?.onAfterRender?.()
-
-      // Track FPS and stats for Claude AI debugging
-      // Use deck.gl's built-in fps metric when available
-      const now = Date.now()
-      const deltaTime = now - lastFrameTimeRef.current
-      lastFrameTimeRef.current = now
-      const calculatedFps = deltaTime > 0 ? Math.round(1000 / deltaTime) : 0
-
-      // Prefer deck.gl's built-in fps metric
-      const deckFps = deckRef.current?.metrics?.fps
-      fpsRef.current = deckFps !== undefined ? deckFps : calculatedFps
-
-      // Expose stats globally for MCPTools
-      ;(window as Window & { __deckStats?: Record<string, unknown> }).__deckStats = {
-        fps: fpsRef.current,
-        lastFrameTime: deltaTime,
-        layerCount: deckRef.current?.layerManager?.getLayers().length || 0,
-        timestamp: now,
-      }
+      frames.frame()
     },
   }
 
@@ -334,8 +323,8 @@ export default function TimelineEditor() {
     }
   }, [])
 
-  // The AI tools read the canvas through window globals
-  useEffect(() => exposeCanvasToTools(basemapEnabled, mapRef, deckRef), [basemapEnabled])
+  // The AI tools read the canvas, deck and frame stats through window globals
+  useEffect(() => exposeCanvasToTools(deckRef, frames), [frames])
 
   // onIdle resolves when all data is loaded and drawing has settled.
   mapProps.onIdle = ({ target: map }) => {
@@ -435,13 +424,10 @@ export default function TimelineEditor() {
         return { status: 'refused', error: 'An export is already running in the editor' }
       }
 
-      let canvas: HTMLCanvasElement | undefined
-      if (basemapEnabled) {
-        canvas = mapRef.current?.getCanvas()
-      } else {
-        // @ts-expect-error canvas is protected but accessible
-        canvas = deckRef.current?.canvas
-      }
+      // With a basemap this is the map canvas: the interleaved deck draws into it. Unlike
+      // mapRef, it is there before the map's load event and never outlives the map.
+      // @ts-expect-error canvas is protected but accessible
+      const canvas: HTMLCanvasElement | null | undefined = deckRef.current?.canvas
       if (!canvas) {
         return {
           status: 'refused',
@@ -482,7 +468,7 @@ export default function TimelineEditor() {
         }),
       }
     },
-    [startCapture, codec, resolution, basemapEnabled, framerate]
+    [startCapture, codec, resolution, framerate]
   )
 
   useEffect(() => {
@@ -642,6 +628,7 @@ export default function TimelineEditor() {
   const topBar = (
     <TopMenuBar
       projectName={noodles.projectName}
+      versionedProjectName={noodles.versionedProjectName}
       onSaveProject={noodles.onSaveProject!}
       onSaveAs={noodles.onSaveAs}
       onRename={noodles.onRename}
@@ -703,6 +690,7 @@ export default function TimelineEditor() {
           )}
         </Layout>
         {chatPanel}
+        {gitHistoryPanel}
       </ExportActionsProvider>
     </ReactFlowProvider>
   )
