@@ -1,6 +1,13 @@
 # WebLLM AI Chat Specification
 
-**Status:** Draft
+> **Superseded — never implemented.** This spec proposed LangChain.js +
+> `@mlc-ai/web-llm` + `voy`; no matching code was ever written. The in-app assistant
+> instead runs on a hand-rolled, provider-agnostic agent loop, with local inference
+> supplied by Chrome's built-in Prompt API rather than WebLLM. See
+> [dev-docs/agent-harness.md](../../agent-harness.md). Kept as a record of the
+> earlier proposal.
+
+**Status:** Superseded (was: Draft)
 **Created:** 2025-11-10
 **Issue:** https://github.com/joby-aviation/noodles.gl/issues/123
 **Author:** AI Assistant
@@ -729,7 +736,7 @@ async function generateRagEmbeddings() {
 {
   "scripts": {
     "generate:rag": "tsx scripts/generate-rag-embeddings.ts",
-    "prebuild": "yarn generate:context && yarn generate:rag"
+    "prebuild": "npm run generate:context && npm run generate:rag"
   }
 }
 ```

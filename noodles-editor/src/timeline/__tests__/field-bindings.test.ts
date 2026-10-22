@@ -647,6 +647,261 @@ describe('isAnimatableField', () => {
   })
 })
 
+describe('bindOperatorToTimeline - Vec2Field per-channel handling', () => {
+  beforeEach(() => {
+    useTimelineStore.getState().reset()
+  })
+
+  afterEach(() => {
+    useTimelineStore.getState().reset()
+  })
+
+  it('creates per-channel tracks for Vec2Field, not a single parent track', () => {
+    const posField = new Vec2Field({ x: 0, y: 0 })
+    const op = makeOpWithField('/scatter', 'position', posField)
+    const store = getTimelineStore()
+
+    const cleanup = bindOperatorToTimeline(op)
+
+    expect(store.getTrack('scatter / position / x')).toBeDefined()
+    expect(store.getTrack('scatter / position / y')).toBeDefined()
+    // parent track should not be created
+    expect(store.getTrack('scatter / position')).toBeUndefined()
+
+    cleanup()
+  })
+
+  it('scrubbing updates only the x channel when only x has keyframes', () => {
+    const posField = new Vec2Field({ x: 0, y: 5 })
+    const op = makeOpWithField('/scatter', 'position', posField)
+    const store = getTimelineStore()
+    const xPath = 'scatter / position / x'
+
+    store.getOrCreateTrack(xPath, 0)
+    store.addKeyframe(xPath, { position: 0, value: 0, interpolation: 'linear' })
+    store.addKeyframe(xPath, { position: 10, value: 100, interpolation: 'linear' })
+
+    const cleanup = bindOperatorToTimeline(op)
+
+    store.setPosition(5)
+    // x should animate to 50
+    expect((posField.value as { x: number; y: number }).x).toBeCloseTo(50, 0)
+    // y should remain at its original value
+    expect((posField.value as { x: number; y: number }).y).toBe(5)
+
+    cleanup()
+  })
+
+  it('each channel can be keyframed independently', () => {
+    const posField = new Vec2Field({ x: 0, y: 0 })
+    const op = makeOpWithField('/scatter', 'position', posField)
+    const store = getTimelineStore()
+    const xPath = 'scatter / position / x'
+    const yPath = 'scatter / position / y'
+
+    store.getOrCreateTrack(xPath, 0)
+    store.addKeyframe(xPath, { position: 0, value: 0, interpolation: 'linear' })
+    store.addKeyframe(xPath, { position: 10, value: 100, interpolation: 'linear' })
+
+    store.getOrCreateTrack(yPath, 0)
+    store.addKeyframe(yPath, { position: 0, value: 200, interpolation: 'linear' })
+    store.addKeyframe(yPath, { position: 10, value: 0, interpolation: 'linear' })
+
+    const cleanup = bindOperatorToTimeline(op)
+
+    store.setPosition(5)
+    expect((posField.value as { x: number; y: number }).x).toBeCloseTo(50, 0)
+    expect((posField.value as { x: number; y: number }).y).toBeCloseTo(100, 0)
+
+    cleanup()
+  })
+
+  it('changing x field value adds a keyframe on x track but not y', () => {
+    const posField = new Vec2Field({ x: 0, y: 0 })
+    const op = makeOpWithField('/scatter', 'position', posField)
+    const store = getTimelineStore()
+    const xPath = 'scatter / position / x'
+    const yPath = 'scatter / position / y'
+
+    store.getOrCreateTrack(xPath, 0)
+    store.addKeyframe(xPath, { position: 0, value: 0, interpolation: 'linear' })
+    store.getOrCreateTrack(yPath, 0)
+
+    const cleanup = bindOperatorToTimeline(op)
+    store.setPosition(5)
+
+    posField.setValue({ x: 50, y: 0 })
+
+    const xTrack = store.getTrack(xPath)
+    const yTrack = store.getTrack(yPath)
+    // x should get a new keyframe at T=5
+    expect(xTrack?.keyframes).toHaveLength(2)
+    const newXKf = xTrack?.keyframes.find(kf => Math.abs(kf.position - 5) < 0.001)
+    expect(newXKf?.value).toBe(50)
+    // y has no existing keyframes so no new one should be added
+    expect(yTrack?.keyframes).toHaveLength(0)
+
+    cleanup()
+  })
+
+  it('cleanupRemovedOperators removes Vec2 channel bindings by operator ID', () => {
+    const posField = new Vec2Field({ x: 0, y: 0 })
+    const op = makeOpWithField('/scatter', 'position', posField)
+    const store = getTimelineStore()
+    const xPath = 'scatter / position / x'
+
+    store.getOrCreateTrack(xPath, 0)
+    store.addKeyframe(xPath, { position: 0, value: 0, interpolation: 'linear' })
+    store.addKeyframe(xPath, { position: 10, value: 100, interpolation: 'linear' })
+
+    bindOperatorToTimeline(op)
+
+    // Remove the operator
+    cleanupRemovedOperators(new Set())
+
+    // Binding is gone — scrubbing must not update the field
+    posField.next({ x: 0, y: 0 })
+    store.setPosition(5)
+    expect((posField.value as { x: number; y: number }).x).toBe(0)
+  })
+})
+
+describe('bindOperatorToTimeline - Vec3Field per-channel handling', () => {
+  beforeEach(() => {
+    useTimelineStore.getState().reset()
+  })
+
+  afterEach(() => {
+    useTimelineStore.getState().reset()
+  })
+
+  it('creates x, y, z tracks for Vec3Field, not a single parent track', () => {
+    const vecField = new Vec3Field({ x: 0, y: 0, z: 0 })
+    const op = makeOpWithField('/node', 'offset', vecField)
+    const store = getTimelineStore()
+
+    const cleanup = bindOperatorToTimeline(op)
+
+    expect(store.getTrack('node / offset / x')).toBeDefined()
+    expect(store.getTrack('node / offset / y')).toBeDefined()
+    expect(store.getTrack('node / offset / z')).toBeDefined()
+    expect(store.getTrack('node / offset')).toBeUndefined()
+
+    cleanup()
+  })
+
+  it('scrubbing updates only the z channel when only z has keyframes', () => {
+    const vecField = new Vec3Field({ x: 1, y: 2, z: 0 })
+    const op = makeOpWithField('/node', 'offset', vecField)
+    const store = getTimelineStore()
+    const zPath = 'node / offset / z'
+
+    store.getOrCreateTrack(zPath, 0)
+    store.addKeyframe(zPath, { position: 0, value: 0, interpolation: 'linear' })
+    store.addKeyframe(zPath, { position: 10, value: 1000, interpolation: 'linear' })
+
+    const cleanup = bindOperatorToTimeline(op)
+
+    store.setPosition(5)
+    const val = vecField.value as { x: number; y: number; z: number }
+    expect(val.x).toBe(1)
+    expect(val.y).toBe(2)
+    expect(val.z).toBeCloseTo(500, 0)
+
+    cleanup()
+  })
+})
+
+describe('bindOperatorToTimeline - Point2DField per-channel handling', () => {
+  beforeEach(() => {
+    useTimelineStore.getState().reset()
+  })
+
+  afterEach(() => {
+    useTimelineStore.getState().reset()
+  })
+
+  it('creates lng, lat tracks for Point2DField, not a single parent track', () => {
+    const pointField = new Point2DField({ lng: 0, lat: 0 })
+    const op = makeOpWithField('/map', 'center', pointField)
+    const store = getTimelineStore()
+
+    const cleanup = bindOperatorToTimeline(op)
+
+    expect(store.getTrack('map / center / lng')).toBeDefined()
+    expect(store.getTrack('map / center / lat')).toBeDefined()
+    expect(store.getTrack('map / center')).toBeUndefined()
+
+    cleanup()
+  })
+
+  it('scrubbing updates only lat when only lat has keyframes', () => {
+    const pointField = new Point2DField({ lng: -74, lat: 0 })
+    const op = makeOpWithField('/map', 'center', pointField)
+    const store = getTimelineStore()
+    const latPath = 'map / center / lat'
+
+    store.getOrCreateTrack(latPath, 0)
+    store.addKeyframe(latPath, { position: 0, value: 0, interpolation: 'linear' })
+    store.addKeyframe(latPath, { position: 10, value: 40, interpolation: 'linear' })
+
+    const cleanup = bindOperatorToTimeline(op)
+
+    store.setPosition(5)
+    const val = pointField.value as { lng: number; lat: number }
+    expect(val.lng).toBe(-74)
+    expect(val.lat).toBeCloseTo(20, 0)
+
+    cleanup()
+  })
+})
+
+describe('bindOperatorToTimeline - Point3DField per-channel handling', () => {
+  beforeEach(() => {
+    useTimelineStore.getState().reset()
+  })
+
+  afterEach(() => {
+    useTimelineStore.getState().reset()
+  })
+
+  it('creates lng, lat, alt tracks for Point3DField, not a single parent track', () => {
+    const pointField = new Point3DField({ lng: 0, lat: 0, alt: 0 })
+    const op = makeOpWithField('/camera', 'position', pointField)
+    const store = getTimelineStore()
+
+    const cleanup = bindOperatorToTimeline(op)
+
+    expect(store.getTrack('camera / position / lng')).toBeDefined()
+    expect(store.getTrack('camera / position / lat')).toBeDefined()
+    expect(store.getTrack('camera / position / alt')).toBeDefined()
+    expect(store.getTrack('camera / position')).toBeUndefined()
+
+    cleanup()
+  })
+
+  it('scrubbing animates alt independently of lng and lat', () => {
+    const pointField = new Point3DField({ lng: -74, lat: 40, alt: 0 })
+    const op = makeOpWithField('/camera', 'position', pointField)
+    const store = getTimelineStore()
+    const altPath = 'camera / position / alt'
+
+    store.getOrCreateTrack(altPath, 0)
+    store.addKeyframe(altPath, { position: 0, value: 0, interpolation: 'linear' })
+    store.addKeyframe(altPath, { position: 10, value: 10000, interpolation: 'linear' })
+
+    const cleanup = bindOperatorToTimeline(op)
+
+    store.setPosition(5)
+    const val = pointField.value as { lng: number; lat: number; alt: number }
+    expect(val.lng).toBe(-74)
+    expect(val.lat).toBe(40)
+    expect(val.alt).toBeCloseTo(5000, 0)
+
+    cleanup()
+  })
+})
+
 describe('bindOperatorToTimeline - CompoundPropsField handling', () => {
   beforeEach(() => {
     useTimelineStore.getState().reset()
@@ -752,5 +1007,137 @@ describe('bindOperatorToTimeline - CompoundPropsField handling', () => {
     zoomField.next(0)
     store.setPosition(5)
     expect(zoomField.value).toBe(0)
+  })
+})
+
+describe('bindOperatorToTimeline - tuple-format Vec3Field per-channel handling', () => {
+  beforeEach(() => {
+    useTimelineStore.getState().reset()
+  })
+
+  afterEach(() => {
+    useTimelineStore.getState().reset()
+  })
+
+  it('scrubbing updates only the animated channel, leaving others unchanged', () => {
+    const vecField = new Vec3Field([1, 2, 0], { returnType: 'tuple' } as any)
+    const op = makeOpWithField('/camera', 'offset', vecField)
+    const store = getTimelineStore()
+    const zPath = 'camera / offset / z'
+
+    store.getOrCreateTrack(zPath, 0)
+    store.addKeyframe(zPath, { position: 0, value: 0, interpolation: 'linear' })
+    store.addKeyframe(zPath, { position: 10, value: 1000, interpolation: 'linear' })
+
+    const cleanup = bindOperatorToTimeline(op)
+
+    store.setPosition(5)
+    const val = vecField.value as number[]
+    expect(val[0]).toBe(1)
+    expect(val[1]).toBe(2)
+    expect(val[2]).toBeCloseTo(500, 0)
+
+    cleanup()
+  })
+
+  it('editing a channel adds a keyframe on that channel track only', () => {
+    const vecField = new Vec3Field([0, 0, 0], { returnType: 'tuple' } as any)
+    const op = makeOpWithField('/camera', 'offset', vecField)
+    const store = getTimelineStore()
+    const xPath = 'camera / offset / x'
+    const yPath = 'camera / offset / y'
+
+    store.getOrCreateTrack(xPath, 0)
+    store.addKeyframe(xPath, { position: 0, value: 0, interpolation: 'linear' })
+    store.getOrCreateTrack(yPath, 0)
+
+    const cleanup = bindOperatorToTimeline(op)
+    store.setPosition(5)
+
+    vecField.setValue([50, 0, 0] as any)
+
+    const xTrack = store.getTrack(xPath)
+    const yTrack = store.getTrack(yPath)
+    expect(xTrack?.keyframes).toHaveLength(2)
+    const newKf = xTrack?.keyframes.find(kf => Math.abs(kf.position - 5) < 0.001)
+    expect(newKf?.value).toBe(50)
+    expect(yTrack?.keyframes).toHaveLength(0)
+
+    cleanup()
+  })
+
+  it('cleanupRemovedOperators removes tuple-format Vec3 channel bindings', () => {
+    const vecField = new Vec3Field([0, 0, 0], { returnType: 'tuple' } as any)
+    const op = makeOpWithField('/camera', 'offset', vecField)
+    const store = getTimelineStore()
+    const xPath = 'camera / offset / x'
+
+    store.getOrCreateTrack(xPath, 0)
+    store.addKeyframe(xPath, { position: 0, value: 0, interpolation: 'linear' })
+    store.addKeyframe(xPath, { position: 10, value: 100, interpolation: 'linear' })
+
+    bindOperatorToTimeline(op)
+    cleanupRemovedOperators(new Set())
+
+    vecField.next([0, 0, 0] as any)
+    store.setPosition(5)
+    expect((vecField.value as number[])[0]).toBe(0)
+  })
+})
+
+describe('bindOperatorToTimeline - tuple-format Point3DField per-channel handling', () => {
+  beforeEach(() => {
+    useTimelineStore.getState().reset()
+  })
+
+  afterEach(() => {
+    useTimelineStore.getState().reset()
+  })
+
+  it('scrubbing updates only the animated channel, leaving others unchanged', () => {
+    const pointField = new Point3DField([10, 20, 0], { returnType: 'tuple' } as any)
+    const op = makeOpWithField('/camera', 'position', pointField)
+    const store = getTimelineStore()
+    const altPath = 'camera / position / alt'
+
+    store.getOrCreateTrack(altPath, 0)
+    store.addKeyframe(altPath, { position: 0, value: 0, interpolation: 'linear' })
+    store.addKeyframe(altPath, { position: 10, value: 5000, interpolation: 'linear' })
+
+    const cleanup = bindOperatorToTimeline(op)
+
+    store.setPosition(5)
+    const val = pointField.value as number[]
+    expect(val[0]).toBe(10)
+    expect(val[1]).toBe(20)
+    expect(val[2]).toBeCloseTo(2500, 0)
+
+    cleanup()
+  })
+
+  it('editing a channel adds a keyframe on that channel track only', () => {
+    const pointField = new Point3DField([0, 0, 0], { returnType: 'tuple' } as any)
+    const op = makeOpWithField('/camera', 'position', pointField)
+    const store = getTimelineStore()
+    const lngPath = 'camera / position / lng'
+    const latPath = 'camera / position / lat'
+
+    store.getOrCreateTrack(lngPath, 0)
+    store.addKeyframe(lngPath, { position: 0, value: 0, interpolation: 'linear' })
+    store.getOrCreateTrack(latPath, 0)
+
+    const cleanup = bindOperatorToTimeline(op)
+    store.setPosition(5)
+
+    pointField.setValue([-74, 0, 0] as any)
+
+    const lngTrack = store.getTrack(lngPath)
+    const latTrack = store.getTrack(latPath)
+    expect(lngTrack?.keyframes).toHaveLength(2)
+    const newKf = lngTrack?.keyframes.find(kf => Math.abs(kf.position - 5) < 0.001)
+    expect(newKf?.value).toBe(-74)
+    expect(latTrack?.keyframes).toHaveLength(0)
+
+    cleanup()
   })
 })

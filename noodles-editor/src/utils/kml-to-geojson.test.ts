@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { kmlToGeoJson } from './kml-to-geojson'
 
 describe('kmlToGeoJson', () => {
-  it('should convert a simple KML point to GeoJSON', () => {
+  it('should convert a simple KML point to GeoJSON', async () => {
     const kml = `<?xml version="1.0" encoding="UTF-8"?>
 <kml xmlns="http://www.opengis.net/kml/2.2">
   <Document>
@@ -15,7 +15,7 @@ describe('kmlToGeoJson', () => {
   </Document>
 </kml>`
 
-    const result = kmlToGeoJson(kml)
+    const result = await kmlToGeoJson(kml)
 
     expect(result.type).toBe('FeatureCollection')
     expect(result.features).toHaveLength(1)
@@ -26,7 +26,7 @@ describe('kmlToGeoJson', () => {
     expect(result.features[0].properties?.name).toBe('Test Point')
   })
 
-  it('should convert a KML LineString to GeoJSON', () => {
+  it('should convert a KML LineString to GeoJSON', async () => {
     const kml = `<?xml version="1.0" encoding="UTF-8"?>
 <kml xmlns="http://www.opengis.net/kml/2.2">
   <Document>
@@ -42,7 +42,7 @@ describe('kmlToGeoJson', () => {
   </Document>
 </kml>`
 
-    const result = kmlToGeoJson(kml)
+    const result = await kmlToGeoJson(kml)
 
     expect(result.type).toBe('FeatureCollection')
     expect(result.features).toHaveLength(1)
@@ -51,7 +51,7 @@ describe('kmlToGeoJson', () => {
     expect(result.features[0].properties?.name).toBe('Test Line')
   })
 
-  it('should convert a KML Polygon to GeoJSON', () => {
+  it('should convert a KML Polygon to GeoJSON', async () => {
     const kml = `<?xml version="1.0" encoding="UTF-8"?>
 <kml xmlns="http://www.opengis.net/kml/2.2">
   <Document>
@@ -74,7 +74,7 @@ describe('kmlToGeoJson', () => {
   </Document>
 </kml>`
 
-    const result = kmlToGeoJson(kml)
+    const result = await kmlToGeoJson(kml)
 
     expect(result.type).toBe('FeatureCollection')
     expect(result.features).toHaveLength(1)
@@ -82,7 +82,7 @@ describe('kmlToGeoJson', () => {
     expect(result.features[0].properties?.name).toBe('Test Polygon')
   })
 
-  it('should handle multiple placemarks', () => {
+  it('should handle multiple placemarks', async () => {
     const kml = `<?xml version="1.0" encoding="UTF-8"?>
 <kml xmlns="http://www.opengis.net/kml/2.2">
   <Document>
@@ -101,7 +101,7 @@ describe('kmlToGeoJson', () => {
   </Document>
 </kml>`
 
-    const result = kmlToGeoJson(kml)
+    const result = await kmlToGeoJson(kml)
 
     expect(result.type).toBe('FeatureCollection')
     expect(result.features).toHaveLength(2)
@@ -109,20 +109,20 @@ describe('kmlToGeoJson', () => {
     expect(result.features[1].properties?.name).toBe('Point 2')
   })
 
-  it('should throw an error for invalid KML', () => {
+  it('should throw an error for invalid KML', async () => {
     const invalidKml = 'This is not valid XML'
 
-    expect(() => kmlToGeoJson(invalidKml)).toThrow('Failed to parse KML')
+    await expect(kmlToGeoJson(invalidKml)).rejects.toThrow('Failed to parse KML')
   })
 
-  it('should handle empty KML document', () => {
+  it('should handle empty KML document', async () => {
     const kml = `<?xml version="1.0" encoding="UTF-8"?>
 <kml xmlns="http://www.opengis.net/kml/2.2">
   <Document>
   </Document>
 </kml>`
 
-    const result = kmlToGeoJson(kml)
+    const result = await kmlToGeoJson(kml)
 
     expect(result.type).toBe('FeatureCollection')
     expect(result.features).toHaveLength(0)

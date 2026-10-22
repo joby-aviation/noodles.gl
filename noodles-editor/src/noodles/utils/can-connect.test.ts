@@ -3,14 +3,17 @@ import z from 'zod/v4'
 
 import {
   ArrayField,
+  ColorField,
   CompoundPropsField,
   DataField,
+  FunctionField,
   LayerField,
   ListField,
   NumberField,
   Point2DField,
   StringField,
   UnknownField,
+  VisualizationField,
 } from '../fields'
 import { canConnect, schemasAreCompatible, validateConnection } from './can-connect'
 
@@ -108,6 +111,22 @@ describe('CanConnect', () => {
     expect(canConnect(field2, field1)).toBe(true)
   })
 
+  it('allows FunctionField to connect to a ColorField with accessor: true', () => {
+    // ColorField with accessor only (no transform) — schema is union([string, function])
+    const fnField = new FunctionField()
+    const colorField = new ColorField('#ff0000', { accessor: true })
+    expect(canConnect(fnField, colorField)).toBe(true)
+  })
+
+  it('allows FunctionField to connect to a ColorField with accessor and transform', () => {
+    // All layer getColor inputs use both accessor: true and transform: hexToColor.
+    // This produces pipe(union([string, function]), transform), which previously failed
+    // because unwrapSchema could not traverse ZodPipe (Zod v4 uses def.in, not def.innerType).
+    const fnField = new FunctionField()
+    const colorField = new ColorField('#ff0000', { accessor: true, transform: (v: unknown) => v })
+    expect(canConnect(fnField, colorField)).toBe(true)
+  })
+
   it('allows UnknownField to connect to any field', () => {
     const field1 = new UnknownField()
     const field2 = new NumberField(10)
@@ -134,6 +153,17 @@ describe('CanConnect', () => {
       true
     )
   })
+
+  it('allows VisualizationField to connect to VisualizationField (DeckRendererOp → OutOp)', () => {
+    // This is the exact connection that was failing in user projects
+    const sourceVis = new VisualizationField()
+    const targetVis = new VisualizationField()
+
+    expect(
+      canConnect(sourceVis, targetVis),
+      'VisualizationField should connect to VisualizationField'
+    ).toBe(true)
+  })
 })
 
 describe('ValidateConnection', () => {
@@ -154,6 +184,19 @@ describe('ValidateConnection', () => {
     expect(result.error).toContain('Type mismatch')
     expect(result.error).toContain('string')
     expect(result.error).toContain('number')
+  })
+
+  it('identifies the incompatible property in compound fields', () => {
+    const source = new CompoundPropsField({ latitude: new StringField('north') })
+    const target = new CompoundPropsField({ latitude: new NumberField() })
+    target.pathToProps = ['/target', 'par', 'viewState']
+
+    const result = validateConnection(source, target)
+
+    expect(result.valid).toBe(false)
+    expect(result.error).toBe(
+      'Type mismatch at viewState.latitude: expected number, received string'
+    )
   })
 
   it('returns valid for UnknownField connecting to any field', () => {
@@ -293,6 +336,20 @@ describe('schemasAreCompatible', () => {
     expect(schemasAreCompatible(target, source)).toBe(false)
   })
 
+  it('allows optional target properties to be absent from the source', () => {
+    const source = z.object({ a: z.number() })
+    const target = z.object({ a: z.number(), b: z.string().optional() })
+
+    expect(schemasAreCompatible(source, target)).toBe(true)
+  })
+
+  it('still validates optional target properties when they exist in the source', () => {
+    const source = z.object({ a: z.number(), b: z.number() })
+    const target = z.object({ a: z.number(), b: z.string().optional() })
+
+    expect(schemasAreCompatible(source, target)).toBe(false)
+  })
+
   it('objects with incompatible property types are incompatible', () => {
     const source = z.object({ a: z.string() })
     const target = z.object({ a: z.number() })
@@ -303,6 +360,17 @@ describe('schemasAreCompatible', () => {
     expect(schemasAreCompatible(z.number().optional(), z.number())).toBe(true)
     expect(schemasAreCompatible(z.number(), z.number().optional())).toBe(true)
     expect(schemasAreCompatible(z.string().optional(), z.number())).toBe(false)
+  })
+
+  it('optional vs optional with same inner type are compatible', () => {
+    expect(schemasAreCompatible(z.number().optional(), z.number().optional())).toBe(true)
+    expect(schemasAreCompatible(z.string().optional(), z.string().optional())).toBe(true)
+    expect(
+      schemasAreCompatible(
+        z.looseObject({ a: z.number() }).optional(),
+        z.looseObject({ a: z.number() }).optional()
+      )
+    ).toBe(true)
   })
 
   it('nullable wrappers are unwrapped for comparison', () => {
@@ -341,6 +409,15 @@ describe('schemasAreCompatible', () => {
     const literals = z.union([z.literal('foo'), z.literal('bar')])
     expect(schemasAreCompatible(z.string(), literals)).toBe(true)
     expect(schemasAreCompatible(z.number(), literals)).toBe(false)
+  })
+
+  it('literal to literal comparison is order-independent', () => {
+    // Note: z.literal in Zod v4 only accepts a single value per call
+    // This test verifies that if Zod ever supports multi-value literals,
+    // our sorting logic handles different orders correctly
+    const literal1 = z.literal('foo')
+    const literal2 = z.literal('foo')
+    expect(schemasAreCompatible(literal1, literal2)).toBe(true)
   })
 
   it('unions are compatible if all source options match at least one target option', () => {

@@ -91,16 +91,16 @@ it('should update state correctly', () => {
 
 ```bash
 # Run all tests
-cd noodles-editor && yarn test
+cd noodles-editor && npm test
 
 # Run specific test file
-yarn test src/noodles/operators.test.ts
+npm test src/noodles/operators.test.ts
 
 # Run tests in watch mode
-yarn test --watch
+npm test -- --watch
 
 # Run tests with coverage
-yarn test --coverage
+npm test -- --coverage
 ```
 
 ## Test Runbooks for PRs
@@ -152,7 +152,7 @@ Provide a complete `noodles.json` file that can be saved in `noodles-editor/publ
 
 ```json
 {
-  "version": 6,
+  "version": 18,
   "nodes": [
     {
       "id": "/test-op",

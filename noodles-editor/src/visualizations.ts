@@ -14,17 +14,27 @@ export type ViewState =
 export type BetterMapProps = MapProps & MapViewState
 export type BetterDeckProps = Partial<DeckProps & { viewState: ViewState }>
 
+export interface MapLibreLayerConfig {
+  id: string
+  type: 'custom'
+  code: string
+  renderingMode?: '2d' | '3d'
+  beforeId?: string
+  params?: Record<string, unknown>
+}
+
 export type Visualization = {
   // Direct component props (no widgets wrapper)
   flowGraph?: React.ReactNode
   nodeSidebar?: React.ReactNode
   propertiesPanel?: React.ReactNode
-  layoutMode?: 'split' | 'noodles-on-top' | 'output-on-top'
-  onChangeLayoutMode?: (mode: 'split' | 'noodles-on-top' | 'output-on-top') => void
   showOverlay?: boolean
   onChangeShowOverlay?: (show: boolean) => void
   showDebugInfo?: boolean
   onChangeShowDebugInfo?: (show: boolean) => void
+  spreadsheetVisible?: boolean
+  onChangeSpreadsheetVisible?: (visible: boolean) => void
+  selectedNodeIds?: string[]
   // Noodles props for creating menu in timeline-editor
   projectName?: string
   getTimelineJson?: () => Record<string, unknown>
@@ -48,4 +58,5 @@ export type Visualization = {
   // Visualization props
   mapProps?: BetterMapProps
   deckProps: BetterDeckProps
+  maplibreLayers?: MapLibreLayerConfig[]
 }

@@ -4,15 +4,9 @@ import { afterAll, afterEach, expect, vi } from 'vitest'
 
 expect.extend(matchers)
 
+// Vitest runs setup files before test modules, so imports observe this frozen clock.
 vi.useFakeTimers({
   now: new Date('2025-02-01T00:00:00Z'),
-})
-
-// Fields depends on a global Date object, so we need to mock
-// it, but imports are tricky so we need to use vi.mock to ensure
-// the import runs after the fake timers are set up.
-vi.mock('./noodles/fields', async importOriginal => {
-  return await importOriginal()
 })
 
 afterEach(() => {

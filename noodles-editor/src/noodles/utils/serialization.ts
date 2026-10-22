@@ -4,60 +4,37 @@ import type {
   ReactFlowJsonObject,
   Node as ReactFlowNode,
 } from '@xyflow/react'
-import JSZip from 'jszip'
-import { isEqual } from 'lodash'
-
 import { debugSerialize } from '../../utils/debug'
 import { resizeableNodes } from '../components/op-components'
 import type { useOperatorStore } from '../store'
+import { deepEqual } from './deep-equal'
 import type { ExtractProps } from './extract-props'
+import type { StorageType } from './filesystem'
+import { MULTI_INPUT_EDGE_TYPE } from './multi-input-utils'
+import { CACHE_DIRECTORY_NAME, type OutputCacheFiles } from './output-cache'
 import { parseHandleId } from './path-utils'
 
 export { NOODLES_VERSION } from './migrate-schema'
 
 export type EditorSettings = {
-  layoutMode?: 'split' | 'noodles-on-top' | 'output-on-top'
   showOverlay?: boolean
   showDebugInfo?: boolean
 }
 
-export type RenderSettings = {
-  display: 'fixed' | 'responsive'
-  resolution: { width: number; height: number }
-  lod: number
-  waitForData: boolean
-  codec: 'avc' | 'hevc' | 'vp9' | 'av1'
-  bitrateMbps: number
-  bitrateMode: 'constant' | 'variable'
-  scaleControl: number
-  framerate: number
-  captureDelay: number
-  rendersDirectory: string
-}
-
-export const DEFAULT_RENDER_SETTINGS: RenderSettings = {
-  display: 'fixed',
-  resolution: { width: 1920, height: 1080 },
-  lod: 2,
-  waitForData: true,
-  codec: 'avc',
-  bitrateMbps: 10,
-  bitrateMode: 'constant',
-  scaleControl: 0.3,
-  framerate: 30,
-  captureDelay: 200,
-  rendersDirectory: 'renders',
-}
+export type { RenderSettings } from './render-settings-constants'
+export { DEFAULT_RENDER_SETTINGS } from './render-settings-constants'
 
 export type NoodlesProjectJSON = ReactFlowJsonObject & {
   version: number
   timeline: Record<string, unknown>
+  name?: string
   editorSettings?: EditorSettings
   renderSettings?: Partial<RenderSettings>
   apiKeys?: {
     mapbox?: string
     googleMaps?: string
     cesium?: string
+    // Older files may carry AI keys. They are dropped on load and never written.
     anthropic?: string
   }
 }
@@ -72,17 +49,27 @@ export const EMPTY_PROJECT: NoodlesProjectJSON = {
   editorSettings: {},
 }
 
-// Replace functions and circular references
+// Replace functions and circular references while preserving repeated references.
+// A connected field can share the exact same object value with its source. Once the
+// field is disconnected, that value becomes local state and must serialize in full.
 function getJsonSanitizer() {
-  const seen = new Set()
-  return (_key: string, value: unknown) => {
+  const ancestors: unknown[] = []
+  return function (this: unknown, _key: string, value: unknown) {
+    if (typeof value === 'function') {
+      return undefined
+    }
+
     if (typeof value === 'object' && value !== null) {
-      if (seen.has(value)) {
+      // JSON.stringify calls the replacer with the containing object as `this`.
+      // Objects no longer in that containing object's ancestry are safe to visit
+      // again; only a value already in the current ancestry is truly circular.
+      while (ancestors.length > 0 && ancestors[ancestors.length - 1] !== this) {
+        ancestors.pop()
+      }
+      if (ancestors.includes(value)) {
         return undefined
       }
-      seen.add(value)
-    } else if (typeof value === 'function') {
-      return undefined
+      ancestors.push(value)
     }
     return value
   }
@@ -128,17 +115,31 @@ export function serializeNodes(
   const preparedNodes: NodeJSON<unknown>[] = []
   for (const node of nodes) {
     if (node.type === 'group') {
-      // Include visual aid nodes (e.g. for loops) as-is
-      preparedNodes.push(node)
+      // React Flow's runtime dimensions override style dimensions when a project
+      // is loaded. Persist the fitted size in style, not the transient measurement
+      // cache, so a stale measurement cannot resurrect old group bounds.
+      const { measured, width, height, ...cleanedGroup } = node
+      const fittedWidth = node.style?.width ?? measured?.width ?? width
+      const fittedHeight = node.style?.height ?? measured?.height ?? height
+      preparedNodes.push({
+        ...cleanedGroup,
+        ...((fittedWidth !== undefined || fittedHeight !== undefined) && {
+          style: {
+            ...node.style,
+            ...(fittedWidth !== undefined && { width: fittedWidth }),
+            ...(fittedHeight !== undefined && { height: fittedHeight }),
+          },
+        }),
+      })
       continue
     }
     const op = store.getOp(node.id)
     if (!op) continue
 
-    // Don't set node data for connected inputs (saves space) except if upstream op is locked
+    // Don't set node data for connected inputs (saves space). A locked upstream op restores
+    // its own outputs from the cache folder, so its values aren't copied here either.
     const incomers = edges
       .filter(edge => edge.target === node.id && edge.type !== 'ReferenceEdge')
-      .filter(edge => store.getOp(edge.source)?.locked?.value === false)
       .map(edge => parseHandleId(edge.targetHandle)?.fieldName)
       .reduce((acc, fieldName) => acc.add(fieldName), new Set<string | undefined>())
 
@@ -157,8 +158,11 @@ export function serializeNodes(
       } catch {
         // If parsing fails, use the raw default value
       }
+      // Expression-driven fields always serialize — the expression must persist even
+      // when its current evaluated value happens to equal the default
       const hasNonDefaultValue =
-        serialized !== undefined && !isEqual(field.value, normalizedDefault)
+        serialized !== undefined &&
+        (field.expression !== null || !deepEqual(field.value, normalizedDefault))
       if (hasNonDefaultValue && !incomers.has(name)) {
         inputs[name] = serialized
       }
@@ -206,10 +210,15 @@ export function serializeNodes(
 
     preparedNodes.push({
       ...cleanedNode,
-      ...(resizeableNodes.includes(node.type) ? { width, height, measured } : {}),
+      ...(node.type && (resizeableNodes as readonly string[]).includes(node.type)
+        ? { width, height, measured }
+        : {}),
       data: {
         inputs,
         locked: op.locked.value,
+        ...(op.customInputDefinitions?.length > 0
+          ? { customInputs: op.customInputDefinitions }
+          : {}),
         ...visibilityData,
       },
     })
@@ -239,11 +248,29 @@ export function serializeEdges(
       }
       return true
     })
-    .map(edge =>
-      Object.fromEntries(
+    .map(edge => {
+      const serialized = Object.fromEntries(
         Object.entries(edge).filter(([key]) => !['selected', 'animated'].includes(key))
       )
-    )
+
+      // Multi-input slot state (edge type + orderIndex/groupSize) is derived from edge
+      // array order at load time — keep files canonical by not persisting it
+      if (serialized.type === MULTI_INPUT_EDGE_TYPE) {
+        delete serialized.type
+        const {
+          orderIndex: _orderIndex,
+          groupSize: _groupSize,
+          ...data
+        } = (serialized.data ?? {}) as Record<string, unknown>
+        if (Object.keys(data).length > 0) {
+          serialized.data = data
+        } else {
+          delete serialized.data
+        }
+      }
+
+      return serialized
+    })
 }
 
 // Pre-load all example asset URLs for download functionality
@@ -253,17 +280,25 @@ const exampleAssetUrls: Record<string, string> = import.meta.glob('../../example
   query: '?url',
 })
 
-// Export a project as a downloadable zip file containing noodles.json and data files
+// Export a project as a downloadable zip file containing noodles.json, data and cache files
 export async function saveProjectLocally(
   projectName: string,
   projectJson: NoodlesProjectJSON,
-  storageType: 'fileSystemAccess' | 'opfs' | 'publicFolder'
+  storageType: StorageType,
+  cacheFiles: OutputCacheFiles
 ) {
   debugSerialize('saveProjectLocally: %s (storage: %s)', projectName, storageType)
+  const { default: JSZip } = await import('jszip')
   const zip = new JSZip()
 
-  // Create a folder with the project name
-  const projectFolder = zip.folder(projectName)
+  // Use a readable folder name for the ZIP (strip draft ID prefixes)
+  const folderName =
+    projectName.startsWith('draft-') ||
+    projectName.startsWith('example-') ||
+    projectName.startsWith('import-')
+      ? 'project'
+      : projectName
+  const projectFolder = zip.folder(folderName)
   if (!projectFolder) {
     throw new Error('Failed to create project folder in zip')
   }
@@ -271,9 +306,19 @@ export async function saveProjectLocally(
   // Add noodles.json to the project folder
   const contents = safeStringify(projectJson)
   projectFolder.file('noodles.json', contents)
+  for (const [fileName, cacheContents] of cacheFiles) {
+    projectFolder.file(`${CACHE_DIRECTORY_NAME}/${fileName}`, cacheContents)
+  }
 
   // Handle data files based on storage type
-  if (storageType === 'publicFolder') {
+  if (storageType === 'memory') {
+    const { memoryProjectStore } = await import('./memory-project-store')
+    const assets = memoryProjectStore.getAllAssets(projectName)
+    for (const [fileName, blob] of assets) {
+      const arrayBuffer = await blob.arrayBuffer()
+      projectFolder.file(`data/${fileName}`, arrayBuffer)
+    }
+  } else if (storageType === 'publicFolder') {
     // For public folder projects, use pre-loaded asset URLs
     const projectPrefix = `../../examples/${projectName}/`
 
@@ -287,6 +332,8 @@ export async function saveProjectLocally(
       if (assetPath.startsWith(projectPrefix)) {
         // Extract the relative path within the project
         const relativePath = assetPath.substring(projectPrefix.length)
+        // The cache folder was written above from the current outputs
+        if (relativePath.startsWith(`${CACHE_DIRECTORY_NAME}/`)) continue
 
         try {
           const response = await fetch(assetUrl)
@@ -338,7 +385,7 @@ export async function saveProjectLocally(
   const blob = await zip.generateAsync({ type: 'blob' })
 
   const a = document.createElement('a')
-  a.download = `${projectName}.zip`
+  a.download = `${folderName}.zip`
   const url = URL.createObjectURL(blob)
   a.href = url
   document.body.appendChild(a)

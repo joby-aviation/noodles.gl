@@ -186,6 +186,114 @@ export function KeyframeIndicator({
   )
 }
 
+// Single keyframe button that manages all channels of a vector field together
+export interface VectorKeyframeIndicatorProps {
+  opId: string
+  fieldName: string
+  keys: string[]
+  value: Record<string | number, number>
+  returnType: string
+  disabled?: boolean
+  onKeyframeAdded?: () => void
+}
+
+export function VectorKeyframeIndicator({
+  opId,
+  fieldName,
+  keys,
+  value,
+  returnType,
+  disabled = false,
+  onKeyframeAdded,
+}: VectorKeyframeIndicatorProps) {
+  const fieldPaths = keys.map(key => getFieldPath(opId, fieldName, [key]))
+
+  // "at keyframe" only when ALL channels have a keyframe at the current position
+  const isAtKeyframe = useTimelineStore(state => {
+    const epsilon = 0.001
+    return fieldPaths.every(path => {
+      const track = state.tracks.get(path)
+      if (!track) return false
+      return track.keyframes.some(kf => Math.abs(kf.position - state.position) < epsilon)
+    })
+  })
+
+  // "has keyframes" when ANY channel has at least one keyframe
+  const hasKeyframes = useTimelineStore(state =>
+    fieldPaths.some(path => {
+      const track = state.tracks.get(path)
+      return track ? track.keyframes.length > 0 : false
+    })
+  )
+
+  const handleClick = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation()
+      e.preventDefault()
+      if (disabled) return
+      const store = getTimelineStore()
+      const position = store.position
+      const epsilon = 0.001
+
+      if (isAtKeyframe) {
+        for (const path of fieldPaths) {
+          const track = store.getTrack(path)
+          if (!track) continue
+          const kf = track.keyframes.find(k => Math.abs(k.position - position) < epsilon)
+          if (kf) store.deleteKeyframe(path, kf.id)
+        }
+      } else {
+        let added = false
+        for (let i = 0; i < keys.length; i++) {
+          const objectKey = returnType === 'tuple' ? i : keys[i]
+          const channelValue = value[objectKey]
+          const path = fieldPaths[i]
+          store.getOrCreateTrack(path, channelValue)
+          const track = store.getTrack(path)
+          if (!track) continue
+          const existing = track.keyframes.find(k => Math.abs(k.position - position) < epsilon)
+          if (!existing) {
+            store.addKeyframe(path, { position, value: channelValue, interpolation: 'bezier' })
+            added = true
+          }
+        }
+        if (added) onKeyframeAdded?.()
+      }
+    },
+    [fieldPaths, keys, value, returnType, isAtKeyframe, disabled, onKeyframeAdded]
+  )
+
+  const isAnimated = hasKeyframes && !isAtKeyframe
+  const title = isAtKeyframe
+    ? 'Delete keyframes'
+    : hasKeyframes
+      ? 'Add keyframes at current time'
+      : 'Add keyframes'
+
+  const className = [
+    s.keyframeIndicator,
+    s.keyframeIndicatorSmall,
+    hasKeyframes ? s.hasKeyframes : '',
+    isAtKeyframe ? s.atKeyframe : '',
+    isAnimated ? s.animated : '',
+  ]
+    .filter(Boolean)
+    .join(' ')
+
+  return (
+    <button
+      type="button"
+      className={className}
+      onClick={handleClick}
+      disabled={disabled}
+      title={title}
+      aria-label={title}
+    >
+      <DiamondIcon filled={isAtKeyframe} animated={isAnimated} size="small" />
+    </button>
+  )
+}
+
 // Wrapper component that adds keyframe indicator to any field
 export interface WithKeyframeIndicatorProps {
   children: React.ReactNode

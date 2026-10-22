@@ -257,9 +257,9 @@ describe('CurvePopup', () => {
         />
       )
 
-      const curveEditor = screen.getByLabelText('Bezier curve editor')
-      const presetLabel = curveEditor.parentElement?.lastElementChild
-      expect(presetLabel?.textContent).toBe('Linear')
+      screen.getByLabelText('Bezier curve editor')
+      const presetLabel = screen.getByTestId('preset-label')
+      expect(presetLabel.textContent).toBe('Linear')
     })
 
     it('shows "Hold" label for hold interpolation', () => {
@@ -281,9 +281,9 @@ describe('CurvePopup', () => {
         />
       )
 
-      const curveEditor = screen.getByLabelText('Bezier curve editor')
-      const presetLabel = curveEditor.parentElement?.lastElementChild
-      expect(presetLabel?.textContent).toBe('Hold')
+      screen.getByLabelText('Bezier curve editor')
+      const presetLabel = screen.getByTestId('preset-label')
+      expect(presetLabel.textContent).toBe('Hold')
     })
   })
 

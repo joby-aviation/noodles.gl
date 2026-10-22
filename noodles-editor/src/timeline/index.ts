@@ -1,5 +1,5 @@
 // Native Timeline System - Public API
-// Replaces Theatre.js for timeline animation
+// Native timeline animation system
 
 // ============================================================================
 // Types
@@ -16,10 +16,10 @@ export type {
   Point3D,
   RGBA,
   SequenceState,
-  TheatreKeyframe,
-  TheatreSequenceData,
-  TheatreTimelineData,
-  TheatreTrackData,
+  TimelineData,
+  TimelineKeyframe,
+  TimelineSequenceData,
+  TimelineTrackData,
   Track,
   Vec2,
   Vec3,
@@ -116,7 +116,6 @@ export {
 // ============================================================================
 
 export type {
-  CollapsibleTimelinePanelProps,
   CurveEditorProps,
   KeyframeIndicatorProps,
   KeyframeTrackProps,
@@ -128,7 +127,6 @@ export type {
   WithKeyframeIndicatorProps,
 } from './components'
 export {
-  CollapsibleTimelinePanel,
   CurveEditor,
   KeyframeIndicator,
   KeyframeTrack,
@@ -167,15 +165,15 @@ export {
 
 export type { NativeTimelineData, ValidationResult } from './migrate-timeline'
 export {
-  bezierHandlesToTheatreHandles,
-  exportToTheatreFormat,
-  fieldPathToTheatreObjectName,
-  keyframeToTheatreKeyframe,
-  migrateTheatreTimeline,
-  theatreHandlesToBezierHandles,
-  theatreKeyframeToKeyframe,
-  theatreObjectNameToFieldPath,
-  theatreTrackDataToTrack,
-  theatreValueToKeyframeValue,
-  validateTheatreData,
+  bezierHandlesToSerializedHandles,
+  exportToTimelineFormat,
+  fieldPathToObjectName,
+  keyframeToSerializedKeyframe,
+  migrateTimelineData,
+  objectNameToFieldPath,
+  rawValueToKeyframeValue,
+  serializedHandlesToBezierHandles,
+  serializedKeyframeToKeyframe,
+  trackDataToTrack,
+  validateTimelineData,
 } from './migrate-timeline'

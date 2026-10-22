@@ -6,45 +6,45 @@
 
 ```bash
 # Install dependencies
-yarn install:all
+npm run install:all
 
 # Start development server
-yarn start:app            # or cd noodles-editor && yarn start
+npm run start:app         # or cd noodles-editor && npm start
 ```
 
 ### Development URLs
 
 - **Local**: `http://localhost:5173/examples/nyc-taxis`
-- **Specific Project**: Replace `nyc-taxis` with project name from `noodles-editor/public/examples/`
+- **Specific Project**: Replace `nyc-taxis` with project name from `noodles-editor/src/examples/`
 - **Safe Mode**: Add `?safeMode=true` to disable code execution
 
 ### Build & Test
 
 ```bash
 # Run tests
-cd noodles-editor && yarn test
+cd noodles-editor && npm test
 
 # Run specific test file
-yarn test src/visualizations/noodles/noodles.test.ts
+npm test src/visualizations/noodles/noodles.test.ts
 
 # Run test with specific name
-yarn test -t "should transform graph"
+npm test -- -t "should transform graph"
 
 # Build for production
-yarn build:all
+npm run build:all
 ```
 
 ### Linting & Formatting
 
 ```bash
 # Run linter
-cd noodles-editor && yarn lint
+cd noodles-editor && npm run lint
 
 # Automatically fix linting issues
-cd noodles-editor && yarn fix-lint
+cd noodles-editor && npm run fix-lint
 
 # Type checking
-yarn typecheck
+npm run typecheck
 ```
 
 ## Environment Setup
@@ -66,6 +66,28 @@ The project uses:
 - **TypeScript** for type checking
 - **Vitest** for unit testing
 - **Playwright** for end-to-end testing
+
+### Tracing Dirty Operators
+
+To diagnose a graph that keeps executing, enable pull logs together with the causal dirty trace
+in the browser console, then reload:
+
+```javascript
+localStorage.debug = 'noodles:executor:pull,noodles-trace:dirty'
+location.reload()
+```
+
+`noodles-trace:dirty` records the operator's prior state, the field or subsystem that started the
+dirty wave, its downstream count, and the caller stack. It is intentionally excluded from
+`noodles:*` because collecting stacks is expensive. When the namespace is disabled, no stacks are
+captured and no trace state is retained.
+
+Disable it after investigating:
+
+```javascript
+localStorage.debug = ''
+location.reload()
+```
 
 ## Code Style Guidelines
 

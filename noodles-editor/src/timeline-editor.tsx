@@ -1,27 +1,36 @@
 import type { Deck, DeckProps } from '@deck.gl/core'
-import { MapboxOverlay, type MapboxOverlayProps } from '@deck.gl/mapbox'
+import { MapLibreOverlay, type MapLibreOverlayProps } from '@deck.gl/maplibre'
 import { DeckGL } from '@deck.gl/react'
 import { ReactFlowProvider } from '@xyflow/react'
-import type { Map as MapLibre } from 'maplibre-gl'
+import type { CustomLayerInterface, Map as MapLibre } from 'maplibre-gl'
 import { forwardRef, useCallback, useEffect, useRef, useState } from 'react'
 import ReactMapGL, { type MapProps, useControl } from 'react-map-gl/maplibre'
 import { Layout } from './layout'
 import { ErrorBoundary } from './noodles/components/error-boundary'
+import { SpreadsheetPane } from './noodles/components/spreadsheet-pane/spreadsheet-pane'
+import { MapToolLayer } from './noodles/components/tools/map-tool-layer'
 import { TopMenuBar } from './noodles/components/top-menu-bar'
 import { ExportActionsProvider } from './noodles/contexts/export-actions-context'
 import { useActiveStorageType, useCurrentDirectory } from './noodles/filesystem-store'
 import { useActiveOutOp } from './noodles/hooks/use-active-outop'
 import { useRenderSettings } from './noodles/hooks/use-render-settings'
 import { getNoodles } from './noodles/noodles'
+import { fnWithSource } from './noodles/operators'
+import { useUIStore } from './noodles/store'
 import type { RenderSettings } from './noodles/utils/serialization'
 import { useDeckDrawLoop } from './render/draw-loop'
+import type { RenderSource } from './render/render-analytics'
+import { resetRenderProgress, setRenderProgress } from './render/render-progress-store'
 import { captureScreenshot, useRenderer } from './render/renderer'
+import { deckRenderingDefaults, mapRenderingDefaults } from './render/rendering-defaults'
+import { exposeCanvasToTools } from './render/tool-canvas'
 import { TransformScale } from './render/transform-scale'
-import { CollapsibleTimelinePanel } from './timeline/components/CollapsibleTimelinePanel'
-import { useTimelineStore } from './timeline/timeline-store'
-import s from './timeline-editor.module.css'
+import { resolveExportSettings, setVideoExporter, type VideoExporter } from './render/video-export'
+import { TimelinePanel } from './timeline/components/TimelinePanel'
+import { getTimelineStore, useTimelineStore } from './timeline/timeline-store'
 import { debugRender } from './utils/debug'
 import setRef from './utils/set-ref'
+import { workerSetTimeout } from './utils/worker-timer'
 
 function useSequenceLength() {
   return useTimelineStore(state => state.sequence.length)
@@ -29,14 +38,16 @@ function useSequenceLength() {
 
 const DeckGLOverlay = forwardRef<
   Deck,
-  MapboxOverlayProps & {
+  MapLibreOverlayProps & {
     renderer: RenderSettings
     isRendering: boolean
   }
 >(({ renderer, isRendering, ...props }, ref) => {
-  // MapboxOverlay handles a variety of props differently than the Deck class.
-  // https://deck.gl/docs/api-reference/mapbox/mapbox-overlay#constructor
-  const deck = useControl<MapboxOverlay>(() => new MapboxOverlay({ ...props, interleaved: true }))
+  // MapLibreOverlay handles a variety of props differently than the Deck class.
+  // https://deck.gl/docs/api-reference/maplibre/overview
+  const deck = useControl<MapLibreOverlay>(
+    () => new MapLibreOverlay({ ...props, interleaved: true })
+  )
 
   if (!isRendering) {
     deck.setProps({
@@ -64,12 +75,36 @@ const DeckGLOverlay = forwardRef<
 
 const isMapReady = (map: MapLibre | null) => !map || (map.isStyleLoaded() && map.areTilesLoaded())
 
+// Helper function to evaluate MapLibre layer code using shared fnWithSource utility
+function evaluateMapLibreLayerCode(
+  code: string,
+  params: Record<string, unknown>,
+  layerId: string,
+  map: MapLibre
+): Partial<CustomLayerInterface> {
+  const fn = fnWithSource(['params', 'map'], code, layerId)
+  const result = fn(params, map)
+
+  if (typeof result !== 'object' || result === null) {
+    throw new Error('Layer code must return an object')
+  }
+
+  if (typeof result.render !== 'function') {
+    throw new Error('Layer code must define a render() method')
+  }
+
+  return result as Partial<CustomLayerInterface>
+}
+
 export default function TimelineEditor() {
   const mapRef = useRef<MapLibre | null>(null)
   const deckRef = useRef<Deck>(null)
   const isRenderingRef = useRef(false)
   // Session-only handle set by selectRendersDirectory; takes priority over project subdir
   const rendersDirectoryHandleRef = useRef<FileSystemDirectoryHandle | null>(null)
+  const customLayersRef = useRef<Set<string>>(new Set())
+  // Track style version to trigger layer re-addition after style changes
+  const [styleVersion, setStyleVersion] = useState(0)
 
   // Trigger a redraw of React, mapbox and deck when the renderer state changes,
   // to ensure that the VideoStreamReader in renderer.ts runs
@@ -83,7 +118,10 @@ export default function TimelineEditor() {
   }, [])
 
   const noodles = getNoodles()
-  const { flowGraph, nodeSidebar, propertiesPanel, layoutMode, ...visualization } = noodles
+  const { flowGraph, nodeSidebar, propertiesPanel, chatPanel, selectedNodeIds, ...visualization } =
+    noodles
+
+  const setTimelineExpanded = useUIStore(state => state.setTimelineExpanded)
 
   // Render settings are now stored as OutOp inputs
   const renderSettings = useRenderSettings()
@@ -94,6 +132,8 @@ export default function TimelineEditor() {
   const activeStorageType = useActiveStorageType()
 
   const sequenceLength = useSequenceLength()
+  const inPoint = useTimelineStore(state => state.sequence.inPoint)
+  const outPoint = useTimelineStore(state => state.sequence.outPoint)
 
   const {
     framerate,
@@ -107,14 +147,13 @@ export default function TimelineEditor() {
     rendersDirectory,
   } = renderSettings
 
-  const { startCapture, startSequenceCapture, captureFrame, currentFrame, isRendering } =
-    useRenderer({
-      projectName: noodles.projectName ?? 'render',
-      fps: framerate,
-      bitrate: bitrateMbps * 1_000_000,
-      bitrateMode,
-      redraw,
-    })
+  const { startCapture, startSequenceCapture, captureFrame, isRendering } = useRenderer({
+    projectName: noodles.projectName ?? 'render',
+    fps: framerate,
+    bitrate: bitrateMbps * 1_000_000,
+    bitrateMode,
+    redraw,
+  })
   isRenderingRef.current = isRendering
 
   // If the visualization doesn't supply mapProps (or has a blank mapStyle), disable basemap.
@@ -128,14 +167,7 @@ export default function TimelineEditor() {
   const fpsRef = useRef(0)
 
   const deckProps: DeckProps = {
-    deviceProps: {
-      type: 'webgl',
-      powerPreference: 'high-performance',
-      webgl: {
-        stencil: true,
-      },
-    },
-    useDevicePixels: false,
+    ...deckRenderingDefaults,
     ...visualization.deckProps,
     onDeviceInitialized: device => {
       visualization.deckProps?.onDeviceInitialized?.(device)
@@ -168,9 +200,7 @@ export default function TimelineEditor() {
   // Destructure light and sky since they're applied imperatively via setLight/setSky
   const { light, sky, ...basemapProps } = visualization.mapProps ?? {}
   const mapProps: MapProps = {
-    interactive: false,
-    antialias: true,
-    preserveDrawingBuffer: true,
+    ...mapRenderingDefaults,
     onLoad: ({ target: map }) => {
       // Redraw react to ensure hooks check for map ref changes
       mapRef.current = map
@@ -207,19 +237,104 @@ export default function TimelineEditor() {
       map.setSky(undefined)
     }
   }, [light, sky])
-  // Expose deck.gl canvas and instance for Claude AI visual debugging
+
+  // Manage custom MapLibre layers
+  // biome-ignore lint/correctness/useExhaustiveDependencies: styleVersion re-adds the layers after a style reload
   useEffect(() => {
-    if (deckRef.current) {
-      // @ts-expect-error canvas is protected but accessible
-      const canvas = deckRef.current.canvas
-      if (canvas) {
-        // Store canvas globally for MCPTools to access
-        ;(window as Window & { __deckCanvas?: unknown }).__deckCanvas = canvas
+    const map = mapRef.current
+    if (!map || !map.isStyleLoaded()) return
+
+    const layerConfigs = visualization.maplibreLayers || []
+    const desiredLayerIds = new Set(layerConfigs.map(config => config.id))
+
+    // Remove layers that are no longer in the config
+    for (const existingId of customLayersRef.current) {
+      if (!desiredLayerIds.has(existingId)) {
+        try {
+          if (map.getLayer(existingId)) {
+            map.removeLayer(existingId)
+            debugRender('Removed custom MapLibre layer: %s', existingId)
+          }
+        } catch (e) {
+          debugRender('Error removing custom MapLibre layer %s: %o', existingId, e)
+        }
       }
-      // Store deck instance globally for layer inspection
-      ;(window as Window & { __deckInstance?: unknown }).__deckInstance = deckRef.current
+    }
+
+    // Add or update layers
+    for (const config of layerConfigs) {
+      try {
+        const existingLayer = map.getLayer(config.id)
+
+        if (existingLayer) {
+          map.removeLayer(config.id)
+        }
+
+        const layerImpl = evaluateMapLibreLayerCode(
+          config.code,
+          config.params || {},
+          config.id,
+          map
+        )
+
+        const customLayer: CustomLayerInterface = {
+          ...layerImpl,
+          id: config.id,
+          type: 'custom',
+          renderingMode: config.renderingMode || '3d',
+        }
+
+        map.addLayer(customLayer, config.beforeId)
+        customLayersRef.current.add(config.id)
+
+        debugRender('Added/updated custom MapLibre layer: %s', config.id)
+      } catch (e) {
+        const error = e instanceof Error ? e : new Error(String(e))
+        debugRender('Error adding custom MapLibre layer %s: %o', config.id, error)
+      }
+    }
+
+    customLayersRef.current = desiredLayerIds
+  }, [visualization.maplibreLayers, styleVersion])
+
+  // Clean up custom layers on unmount
+  useEffect(() => {
+    return () => {
+      const map = mapRef.current
+      if (!map) return
+
+      for (const layerId of customLayersRef.current) {
+        try {
+          if (map.getLayer(layerId)) {
+            map.removeLayer(layerId)
+          }
+        } catch (e) {
+          debugRender('Error removing layer on cleanup: %o', e)
+        }
+      }
+      customLayersRef.current.clear()
     }
   }, [])
+
+  // Handle map style changes - increment styleVersion to trigger layer re-addition
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+
+    const handleStyleData = () => {
+      customLayersRef.current.clear()
+      setStyleVersion(v => v + 1)
+    }
+
+    map.on('styledata', handleStyleData)
+
+    return () => {
+      map.off('styledata', handleStyleData)
+    }
+  }, [])
+
+  // The AI tools read the canvas through window globals
+  useEffect(() => exposeCanvasToTools(basemapEnabled, mapRef, deckRef), [basemapEnabled])
 
   // onIdle resolves when all data is loaded and drawing has settled.
   mapProps.onIdle = ({ target: map }) => {
@@ -245,7 +360,8 @@ export default function TimelineEditor() {
     // Because onIdle can be synchronous, we need to defer the promise resolution to the next tick.
     // TODO: Perhaps set up the promises refs before the render loop, and then later await the Promise.all?
     // Delay rendering by 200ms so that deck and maplibre can settle before capturing.
-    setTimeout(() => captureFrame(), captureDelay)
+    // Use worker timer so this fires even when the tab is switched.
+    workerSetTimeout(() => captureFrame(), captureDelay)
   }
 
   const pureDeckInstance = !basemapEnabled ? deckRef.current : null
@@ -260,55 +376,143 @@ export default function TimelineEditor() {
     props: deckProps,
   })
 
-  const startRender = useCallback(async () => {
-    let canvas: HTMLCanvasElement | null = null
-
-    if (basemapEnabled) {
-      if (!mapRef.current) {
-        debugRender('Start Render: maplibre is not defined (when basemapEnabled is true)')
+  const startRender = useCallback(
+    async (source: RenderSource = 'menu') => {
+      // Two captures would share one frame-ready callback and the timeline position
+      if (isRenderingRef.current) {
+        debugRender('Start Render: an export is already running')
         return
       }
-      canvas = mapRef.current.getCanvas()
-    } else {
-      // Pure Deck.gl mode
+
+      let canvas: HTMLCanvasElement | null = null
+
+      if (basemapEnabled) {
+        if (!mapRef.current) {
+          debugRender('Start Render: maplibre is not defined (when basemapEnabled is true)')
+          return
+        }
+        canvas = mapRef.current.getCanvas()
+      } else {
+        // Pure Deck.gl mode
+        if (!deckRef.current) {
+          debugRender('Start Render: deckRef is not defined (when basemapEnabled is false)')
+          return
+        }
+        // @ts-expect-error canvas is protected but accessible
+        canvas = deckRef.current.canvas
+      }
+
+      if (!canvas) {
+        debugRender('Start Render: Failed to get canvas element')
+        return
+      }
+
+      resetRenderProgress()
+      const result = await startCapture({
+        canvas,
+        codec,
+        // This always scales the video to the specified value, regardless of `canvas` size
+        ...resolution,
+        startFrame: Math.floor((inPoint ?? 0) * framerate),
+        endFrame: Math.floor((outPoint ?? sequenceLength) * framerate),
+        source,
+        onFrameComplete: setRenderProgress,
+      })
+      if (result.status === 'error') {
+        alert(`Export failed: ${result.error.message}`)
+      }
+    },
+    [startCapture, codec, resolution, basemapEnabled, framerate, inPoint, outPoint, sequenceLength]
+  )
+
+  // The export_video tool's way in. Same canvas and render settings as startRender, but
+  // the MP4 comes back as a buffer: the save dialog only opens on a click, which an
+  // agent driving the editor cannot make.
+  const exportVideoForAgent = useCallback<VideoExporter>(
+    (request, onFrameComplete) => {
+      if (isRenderingRef.current) {
+        return { status: 'refused', error: 'An export is already running in the editor' }
+      }
+
+      let canvas: HTMLCanvasElement | undefined
+      if (basemapEnabled) {
+        canvas = mapRef.current?.getCanvas()
+      } else {
+        // @ts-expect-error canvas is protected but accessible
+        canvas = deckRef.current?.canvas
+      }
+      if (!canvas) {
+        return {
+          status: 'refused',
+          error: 'The visualization canvas is not ready yet. Try again once the map has loaded.',
+        }
+      }
+
+      const { sequence } = getTimelineStore()
+      const resolved = resolveExportSettings(request, {
+        sequenceLength: sequence.length,
+        inPoint: sequence.inPoint,
+        outPoint: sequence.outPoint,
+        framerate,
+        resolution,
+        codec,
+      })
+      if (!resolved.ok) return { status: 'refused', error: resolved.error }
+
+      const { settings } = resolved
+      resetRenderProgress()
+      return {
+        status: 'started',
+        settings,
+        result: startCapture({
+          canvas,
+          codec: settings.codec,
+          width: settings.width,
+          height: settings.height,
+          fps: settings.fps,
+          startFrame: settings.startFrame,
+          endFrame: settings.endFrame,
+          target: 'buffer',
+          source: 'agent',
+          onFrameComplete: (frame, total) => {
+            setRenderProgress(frame, total)
+            onFrameComplete(frame, total)
+          },
+        }),
+      }
+    },
+    [startCapture, codec, resolution, basemapEnabled, framerate]
+  )
+
+  useEffect(() => {
+    setVideoExporter(exportVideoForAgent)
+    return () => setVideoExporter(null)
+  }, [exportVideoForAgent])
+
+  const takeScreenshot = useCallback(
+    async (source: RenderSource = 'menu') => {
       if (!deckRef.current) {
-        debugRender('Start Render: deckRef is not defined (when basemapEnabled is false)')
+        debugRender('Take Screenshot: deck is not defined')
         return
       }
-      // @ts-expect-error canvas is protected but accessible
-      canvas = deckRef.current.canvas
-    }
+      if (basemapEnabled && !mapRef.current) {
+        debugRender('Take Screenshot: maplibre is not defined')
+        return
+      }
 
-    if (!canvas) {
-      debugRender('Start Render: Failed to get canvas element')
-      return
-    }
-
-    await startCapture({
-      canvas,
-      codec,
-      // This always scales the video to the specified value, regardless of `canvas` size
-      ...resolution,
-    })
-  }, [startCapture, codec, resolution, basemapEnabled])
-
-  const takeScreenshot = useCallback(async () => {
-    if (!deckRef.current) {
-      debugRender('Take Screenshot: deck is not defined')
-      return
-    }
-    if (basemapEnabled && !mapRef.current) {
-      debugRender('Take Screenshot: maplibre is not defined')
-      return
-    }
-
-    const suggestedName = noodles.projectName ?? 'screenshot'
-    await captureScreenshot(suggestedName, () => {
-      redraw()
-      // @ts-expect-error canvas is protected
-      return deckRef.current.canvas!
-    })
-  }, [noodles.projectName, redraw, basemapEnabled])
+      const suggestedName = noodles.projectName ?? 'screenshot'
+      await captureScreenshot(
+        suggestedName,
+        () => {
+          redraw()
+          // @ts-expect-error canvas is protected
+          return deckRef.current.canvas!
+        },
+        { source }
+      )
+    },
+    [noodles.projectName, redraw, basemapEnabled]
+  )
 
   const selectRendersDirectory = useCallback(async () => {
     try {
@@ -366,6 +570,7 @@ export default function TimelineEditor() {
       canvas = deckRef.current.canvas!
     }
 
+    resetRenderProgress()
     await startSequenceCapture({
       canvas,
       // Basemap scenes use mapProps.onIdle for frame readiness; pure-deck scenes need
@@ -374,14 +579,19 @@ export default function TimelineEditor() {
       directoryHandle: rendersDir,
       captureDelay,
       waitForData,
-      startFrame: 0,
-      endFrame: Math.floor(sequenceLength * framerate),
+      startFrame: Math.floor((inPoint ?? 0) * framerate),
+      endFrame: Math.floor((outPoint ?? sequenceLength) * framerate),
       onFrameStart: (frame, total) => debugRender('Exporting frame %d/%d', frame + 1, total),
-      onFrameComplete: (frame, total) => debugRender('Completed frame %d/%d', frame, total),
+      onFrameComplete: (frame, total) => {
+        setRenderProgress(frame, total)
+        debugRender('Completed frame %d/%d', frame, total)
+      },
     })
   }, [
     startSequenceCapture,
     sequenceLength,
+    inPoint,
+    outPoint,
     framerate,
     captureDelay,
     waitForData,
@@ -412,6 +622,8 @@ export default function TimelineEditor() {
             isRendering={isRendering}
             {...deckProps}
           />
+          {/* Interactive Draw and Measure tools, armed from the top shelf */}
+          <MapToolLayer mapRef={mapRef} basemapEnabled isRendering={isRendering} />
         </ReactMapGL>
       )
     }
@@ -448,48 +660,45 @@ export default function TimelineEditor() {
       onChangeShowOverlay={noodles.onChangeShowOverlay}
       showDebugInfo={noodles.showDebugInfo}
       onChangeShowDebugInfo={noodles.onChangeShowDebugInfo}
-      layoutMode={noodles.layoutMode}
-      onChangeLayoutMode={noodles.onChangeLayoutMode}
+      spreadsheetVisible={noodles.spreadsheetVisible}
+      onChangeSpreadsheetVisible={noodles.onChangeSpreadsheetVisible}
     />
   )
 
   return (
-    <>
-      {isRendering && (
-        <div className={s.actionButtons}>
-          <progress
-            max={sequenceLength * renderSettings.framerate}
-            value={currentFrame}
-            title={`Rendered ${currentFrame} / ${sequenceLength * renderSettings.framerate}`}
-          />
-        </div>
-      )}
-      <ReactFlowProvider>
-        <ExportActionsProvider
-          startRender={startRender}
-          takeScreenshot={takeScreenshot}
-          exportSequence={exportSequence}
-          selectRendersDirectory={selectRendersDirectory}
-          isRendering={isRendering}
+    <ReactFlowProvider>
+      <ExportActionsProvider
+        startRender={startRender}
+        takeScreenshot={takeScreenshot}
+        exportSequence={exportSequence}
+        selectRendersDirectory={selectRendersDirectory}
+        isRendering={isRendering}
+      >
+        <Layout
+          top={topBar}
+          left={nodeSidebar}
+          right={propertiesPanel}
+          timeline={heightPx => (
+            <TimelinePanel height={heightPx} onCollapse={() => setTimelineExpanded(false)} />
+          )}
+          flowGraph={flowGraph}
+          spreadsheet={<SpreadsheetPane selectedNodeIds={selectedNodeIds ?? []} />}
         >
-          <Layout
-            top={topBar}
-            left={nodeSidebar}
-            right={propertiesPanel}
-            bottom={<CollapsibleTimelinePanel />}
-            flowGraph={flowGraph}
-            layoutMode={layoutMode}
-          >
-            {isFixedMode ? (
-              <TransformScale scale={renderSettings.scaleControl}>
-                <ErrorBoundary title="Visualization Error">{renderContent()}</ErrorBoundary>
-              </TransformScale>
-            ) : (
+          {isFixedMode ? (
+            <TransformScale
+              scale={renderSettings.scaleControl}
+              scaleMode={renderSettings.scaleMode}
+              width={lodResolution.width}
+              height={lodResolution.height}
+            >
               <ErrorBoundary title="Visualization Error">{renderContent()}</ErrorBoundary>
-            )}
-          </Layout>
-        </ExportActionsProvider>
-      </ReactFlowProvider>
-    </>
+            </TransformScale>
+          ) : (
+            <ErrorBoundary title="Visualization Error">{renderContent()}</ErrorBoundary>
+          )}
+        </Layout>
+        {chatPanel}
+      </ExportActionsProvider>
+    </ReactFlowProvider>
   )
 }

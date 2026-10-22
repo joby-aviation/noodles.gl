@@ -29,8 +29,13 @@ export interface TargetFieldInfo {
   returnType?: 'object' | 'tuple' // For point/vec fields
 }
 
+export interface DataKeyDefinition {
+  label: string
+  path: string[]
+}
+
 export interface ExpressionContext {
-  dataKeys: string[] // Keys from upstream data: ['lat', 'lng', 'count']
+  dataKeys: DataKeyDefinition[] // Keys from upstream data, preserving literal vs nested paths
   globals: GlobalDefinition[] // d, data, op, utils, d3, turf, etc.
   operatorPaths: string[] // Available operator paths for op() autocomplete
   targetField?: TargetFieldInfo // For AccessorOp: info about the field it connects to
@@ -45,6 +50,27 @@ const EXPRESSION_GLOBALS: GlobalDefinition[] = [
   },
   { name: 'data', description: 'Full data array', type: 'variable' },
   { name: 'op', description: 'Access other operators by path', type: 'function' },
+  {
+    name: 'sequenceTime',
+    description: 'Current timeline position in seconds',
+    type: 'variable',
+  },
+  {
+    name: 'frame',
+    description: 'Current frame number (computed from sequenceTime * fps)',
+    type: 'variable',
+  },
+  {
+    name: 'totalFrames',
+    description: 'Total frames in sequence (sequence.length * sequence.fps)',
+    type: 'variable',
+  },
+  {
+    name: 'sequence',
+    description: 'Sequence metadata',
+    type: 'library',
+    properties: ['length', 'fps'],
+  },
   {
     name: 'utils',
     description: 'Utility functions',
@@ -83,7 +109,7 @@ const ACCESSOR_GLOBALS: GlobalDefinition[] = [
 ]
 
 // Extract keys from a data object/array
-function extractDataKeys(data: unknown): string[] {
+function extractDataKeys(data: unknown): DataKeyDefinition[] {
   if (!data) return []
 
   // If it's an array, look at the first item
@@ -92,13 +118,13 @@ function extractDataKeys(data: unknown): string[] {
   if (!item || typeof item !== 'object') return []
 
   // Get all keys, including nested ones (one level deep)
-  const keys: string[] = []
-  for (const [key, value] of Object.entries(item)) {
-    keys.push(key)
+  const keys: DataKeyDefinition[] = []
+  for (const [key, value] of Object.entries(item as Record<string, unknown>)) {
+    keys.push({ label: key, path: [key] })
     // Add nested keys for objects (not arrays)
     if (value && typeof value === 'object' && !Array.isArray(value)) {
       for (const nestedKey of Object.keys(value)) {
-        keys.push(`${key}.${nestedKey}`)
+        keys.push({ label: `${key}.${nestedKey}`, path: [key, nestedKey] })
       }
     }
   }
@@ -205,7 +231,7 @@ export function getExpressionContext(operatorId: OpId, edges: Edge[]): Expressio
   }
 
   const displayName = (op.constructor as { displayName?: string }).displayName || ''
-  let dataKeys: string[] = []
+  let dataKeys: DataKeyDefinition[] = []
   let globals = EXPRESSION_GLOBALS
 
   let targetField: TargetFieldInfo | undefined
