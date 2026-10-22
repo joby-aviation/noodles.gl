@@ -10,11 +10,10 @@ import type { InputSchema } from '@mcp-b/webmcp-types'
 import { globalContextManager } from '../ai-chat/global-context-manager'
 import { MCPTools } from '../ai-chat/mcp-tools'
 import { availableToolDefinitions, type ToolDefinition } from '../ai-chat/tool-definitions'
-import type { ProjectModification, ToolResult } from '../ai-chat/types'
-import type { ProjectModification as ReactFlowModification } from '../noodles/hooks/use-project-modifications'
+import type { ToolResult } from '../ai-chat/types'
 import { safeStringify } from '../noodles/utils/serialization'
 import { debugWebMCP } from '../utils/debug'
-import { getCurrentProject, getModificationApplier, onProjectChange } from './bridge'
+import { getCurrentProject } from './bridge'
 
 interface ContentBlock {
   type: string
@@ -58,11 +57,8 @@ export async function initWebMCP(signal: AbortSignal): Promise<void> {
 
     if (signal.aborted) return
 
+    // The tools read and edit the editor's document directly
     const tools = new MCPTools(loader)
-    const project = getCurrentProject()
-    if (project) tools.setProject(project)
-    const unsubscribe = onProjectChange(p => tools.setProject(p))
-    signal.addEventListener('abort', unsubscribe)
 
     // Skips tools this session does not offer — run_code is absent in safe mode,
     // which external clients have to respect for the same reason the chat does.
@@ -97,54 +93,12 @@ async function runTool(
   params: Record<string, unknown>
 ): Promise<ToolResult> {
   try {
-    const result = await definition.execute(tools, params, getCurrentProject)
-
-    // apply_modifications only validates in MCPTools — the actual graph
-    // mutation goes through the editor's applier registered in the bridge
-    if (definition.name === 'apply_modifications' && result.success) {
-      const applied = applyToEditor(result)
-      // A rejected batch never lands, so its ids must not stay queued and block
-      // a corrected retry as "already exists". A batch that applied lands, and
-      // setProject drops its ids.
-      if (!applied.success) tools.clearQueuedModifications()
-      return applied
-    }
-
-    return result
+    return await definition.execute(tools, params, getCurrentProject)
   } catch (error) {
     return {
       success: false,
       error: error instanceof Error ? error.message : String(error),
     }
-  }
-}
-
-function applyToEditor(validationResult: ToolResult): ToolResult {
-  const applier = getModificationApplier()
-  if (!applier) {
-    return { success: false, error: 'Editor not mounted — open a project first' }
-  }
-
-  const data = validationResult.data as { modifications?: ProjectModification[] } | undefined
-  const modifications = data?.modifications
-  if (!modifications || modifications.length === 0) {
-    return { success: false, error: 'No modifications to apply' }
-  }
-
-  // The editor applier expects React Flow node/edge shapes; the validated
-  // modifications carry the same structure (chat-panel.tsx does the same cast)
-  const applied = applier(modifications as unknown as ReactFlowModification[])
-  if (!applied.success) {
-    return { success: false, error: applied.error ?? 'Failed to apply modifications' }
-  }
-
-  return {
-    success: true,
-    data: {
-      modificationsCount: modifications.length,
-      warnings: applied.warnings,
-      message: `${modifications.length} modification(s) applied to the project`,
-    },
   }
 }
 

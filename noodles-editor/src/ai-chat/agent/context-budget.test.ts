@@ -7,13 +7,14 @@
 // BASELINE within TOLERANCE, so it only fails when the prompt or schemas grow for real.
 
 import { describe, expect, it } from 'vitest'
+import { DocStore } from '../../editor/doc-store'
 import { estimateTokens } from '../conversation-compaction'
 import { MCPTools } from '../mcp-tools'
 import { getSystemPrompt } from '../system-prompt'
-import type { NoodlesProject, ToolResult } from '../types'
+import type { ToolResult } from '../types'
 import { preamble } from './providers/json-tools'
 import { capToolResult, resultBudgetChars } from './result-budget'
-import { sampleProject } from './sample-project'
+import { sampleDoc } from './sample-project'
 import { ToolRouter } from './tool-router'
 
 interface Target {
@@ -85,8 +86,10 @@ function budgetFor(target: Target, listNodes: ToolResult) {
 
 describe('context budget', () => {
   it('reports first-turn headroom per provider window', async () => {
-    const tools = new MCPTools()
-    tools.setProject(sampleProject() as unknown as NoodlesProject)
+    const tools = new MCPTools(undefined, {
+      store: new DocStore(sampleDoc()),
+      engine: () => undefined,
+    })
     const listNodes = await tools.listNodes()
     const rows = TARGETS.map(target => budgetFor(target, listNodes))
 
