@@ -227,6 +227,11 @@ export interface LowerOptions {
   fps?: number;
   /** Position expression for a node's display-flag preview, e.g. from its known columns. */
   displayPosition?: (nodeId: string) => string | undefined;
+  /**
+   * A query reading a host operator's table output (rows the host put in DuckDB), so planner
+   * nodes can read what a host operator made. Undefined while there is none yet.
+   */
+  hostTable?: (nodeId: string, port: string) => string | undefined;
 }
 
 const firstTablePort = (n: DocNode): string | undefined =>
@@ -351,6 +356,18 @@ export function lowerDocument(doc: EditorDoc, options: LowerOptions = {}): Lower
     const node = byId.get(id);
     if (!node) return undefined;
     const op = OPERATOR_INDEX.get(node.op);
+    if (op && !op.lower && options.hostTable) {
+      // A host operator lowers to nothing but the tables it has handed over.
+      const tables = op.outputs.flatMap((p) => {
+        const query = options.hostTable?.(id, p.name);
+        return query ? [{ port: p.name, node: { id: `${id}#${p.name}`, type: 'sql' as const, query } }] : [];
+      });
+      if (tables.length === 0) return undefined;
+      irOut.push(...tables.map((t) => t.node));
+      irNodes[id] = tables.map((t) => t.node.id);
+      outputs[id] = Object.fromEntries(tables.map((t) => [t.port, t.node.id]));
+      return outputs[id];
+    }
     if (!op?.lower) return undefined;
     // Placeholder so a cycle is reported instead of recursing forever.
     failed.add(id);
@@ -384,7 +401,11 @@ export function lowerDocument(doc: EditorDoc, options: LowerOptions = {}): Lower
         if (!e) return undefined;
         const up = lowerNode(e.source);
         const ir = up?.[e.sourcePort];
-        if (!ir) throw new DocumentError(`input '${nameOf(byId.get(e.source) ?? node)}' failed`, id);
+        if (!ir) {
+          const src = byId.get(e.source);
+          const host = src && !OPERATOR_INDEX.get(src.op)?.lower;
+          throw new DocumentError(`input '${nameOf(src ?? node)}' ${host ? 'has no rows yet' : 'failed'}`, id);
+        }
         return ir;
       },
       inputs(port) {

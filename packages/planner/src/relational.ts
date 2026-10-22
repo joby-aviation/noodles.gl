@@ -424,17 +424,20 @@ export function verticesSql(node: VerticesNode, input: string, shape: RelShape):
   const parts = `SELECT g.* EXCLUDE (__geom), unnest(ST_Dump(g.__geom)).geom AS __part FROM (${features}) g`;
   const numbered = (type: string) =>
     `SELECT *, (row_number() OVER () - 1)::INTEGER AS "id" FROM (${parts}) WHERE ST_GeometryType(__part) = '${type}'`;
+  // Vertices unnest in the projection, never by a LATERAL join: a join copies each row's whole
+  // geometry once per vertex, which for a large file is gigabytes.
+  const vertexColumns = '(__pt.path[1] - 1)::INTEGER AS "vertex", ST_X(__pt.geom) AS "lng", ST_Y(__pt.geom) AS "lat"';
+  const rings =
+    `SELECT * EXCLUDE (__part, __ln), coalesce(__ln.path[1] - 1, 0)::INTEGER AS "ring", __ln.geom AS __ring ` +
+    `FROM (SELECT *, unnest(ST_Dump(ST_Boundary(__part))) AS __ln FROM (${numbered('POLYGON')}))`;
   // A ring's points without the closing one, which repeats the first.
-  const vertexColumns = (alias: string) =>
-    `(${alias}.path[1] - 1)::INTEGER AS "vertex", ST_X(${alias}.geom) AS "lng", ST_Y(${alias}.geom) AS "lat"`;
   const polygons =
-    `SELECT r.* EXCLUDE (__ring), ${vertexColumns('v.__pt')} FROM (` +
-    `SELECT p.* EXCLUDE (__part), coalesce(b.__ln.path[1] - 1, 0)::INTEGER AS "ring", b.__ln.geom AS __ring ` +
-    `FROM (${numbered('POLYGON')}) p, LATERAL (SELECT unnest(ST_Dump(ST_Boundary(p.__part))) AS __ln) b` +
-    `) r, LATERAL (SELECT unnest(ST_Dump(ST_Points(r.__ring))) AS __pt) v WHERE v.__pt.path[1] < ST_NPoints(r.__ring)`;
+    `SELECT * EXCLUDE (__ring, __pt, __n), ${vertexColumns} FROM (` +
+    `SELECT *, ST_NPoints(__ring) AS __n, unnest(ST_Dump(ST_Points(__ring))) AS __pt FROM (${rings})` +
+    ') WHERE __pt.path[1] < __n';
   const lines =
-    `SELECT l.* EXCLUDE (__part), ${vertexColumns('v.__pt')} FROM (${numbered('LINESTRING')}) l, ` +
-    'LATERAL (SELECT unnest(ST_Dump(ST_Points(l.__part))) AS __pt) v';
+    `SELECT * EXCLUDE (__part, __pt), ${vertexColumns} FROM (` +
+    `SELECT *, unnest(ST_Dump(ST_Points(__part))) AS __pt FROM (${numbered('LINESTRING')}))`;
   const points =
     `SELECT * EXCLUDE (__part), ST_X(__part) AS "lng", ST_Y(__part) AS "lat" FROM (${numbered('POINT')})`;
   switch (node.kind) {

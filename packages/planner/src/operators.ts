@@ -500,6 +500,53 @@ export const OPERATORS: OpDef[] = [
     },
   },
   {
+    type: 'time-series', label: 'Time Series', category: 'table',
+    description: "Each path's place at one time: vertex rows interpolated between the two vertices around it, holding the first and last vertex outside the path's span. The time is a query parameter: moving it re-runs only the sampling query, never the segment table.",
+    inputs: [table()], outputs: [out()],
+    params: [
+      { name: 'pathId', label: 'Path id', kind: 'column', default: 'row', of: 'in', folder: 'Channels' },
+      { name: 'order', label: 'Vertex order', kind: 'column', default: 'index', of: 'in', folder: 'Channels' },
+      { name: 'timestamp', label: 'Timestamp', kind: 'column', default: 't', of: 'in', columnType: 'num', folder: 'Channels' },
+      { name: 'values', label: 'Interpolate', kind: 'string', default: 'lng, lat', help: 'Comma-separated numeric columns.' },
+      { name: 'time', label: 'Time', kind: 'float', default: 0, min: 0, max: 86400, step: 1, port: true },
+    ],
+    lower(ctx) {
+      const q = (c: string) => `"${c.replace(/"/g, '""')}"`;
+      const path = q(ctx.str('pathId') || 'row');
+      const t = q(ctx.str('timestamp') || 't');
+      const values = ctx.str('values').split(',').map((v) => v.trim()).filter(Boolean);
+      if (values.length === 0) ctx.error('Time Series needs a column to interpolate');
+      const w = `(PARTITION BY ${path} ORDER BY ${q(ctx.str('order') || 'index')})`;
+      const next = values.map((v, i) => `coalesce(lead(${q(v)}) OVER ${w}, ${q(v)}) AS __v${i}`);
+      // Each vertex starts a segment that ends at the next one. The first also covers all time
+      // before it and the last all time after, so a path is always somewhere.
+      const segments = [
+        `SELECT *, CASE WHEN row_number() OVER ${w} = 1 THEN -1e300 ELSE ${t} END AS __lo,`,
+        `  coalesce(lead(${t}) OVER ${w}, 1e300) AS __hi,`,
+        `  coalesce(lead(${t}) OVER ${w}, ${t}) AS __t1,`,
+        `  ${next.join(', ')}`,
+        'FROM {{input0}}',
+      ].join('\n');
+      // Timestamps are often epoch seconds, past float32's integers, so the fraction along a
+      // segment is computed here in doubles rather than on the CPU or GPU.
+      const time = ctx.bind('time');
+      const hidden = ['__lo', '__hi', '__t1', '__u', ...values.map((_, i) => `__v${i}`)];
+      const lerped = values.map((v, i) => `${q(v)} + (__v${i} - ${q(v)}) * __u AS ${q(v)}`);
+      const sample = [
+        `SELECT * EXCLUDE (${hidden.join(', ')}) REPLACE (${lerped.join(', ')})`,
+        `FROM (SELECT *, CASE WHEN __t1 > ${t} THEN greatest(0.0, least(1.0, (${time} - ${t}) / (__t1 - ${t}))) ELSE 0.0 END AS __u`,
+        `  FROM {{input0}} WHERE __lo <= ${time} AND ${time} < __hi)`,
+      ].join('\n');
+      return {
+        nodes: [
+          { id: `${ctx.id}#segments`, type: 'sql', inputs: [ctx.input('in')], query: segments },
+          { id: ctx.id, type: 'sql', inputs: [`${ctx.id}#segments`], query: sample },
+        ],
+        outputs: { out: ctx.id },
+      };
+    },
+  },
+  {
     type: 'aggregate', label: 'Aggregate', category: 'table',
     description: 'GROUP BY with aggregates, one per line: name = count(), total = sum(pop).',
     inputs: [table()], outputs: [out()],
@@ -854,7 +901,10 @@ export const OPERATORS: OpDef[] = [
       rampParam,
       { name: 'currentTime', label: 'Current time', kind: 'float', default: 0, min: 0, max: 86400, step: 1, bind: 'prop', folder: 'Animation', port: true },
       { name: 'trailLength', label: 'Trail length', kind: 'float', default: 180, min: 1, max: 20000, step: 1, bind: 'prop', folder: 'Animation', port: true },
+      { name: 'fadeTrail', label: 'Fade trail', kind: 'toggle', default: true, folder: 'Animation' },
       { name: 'widthMinPixels', label: 'Width (px)', kind: 'float', default: 2, min: 0, max: 20, step: 0.5, bind: 'prop', folder: 'Style' },
+      { name: 'widthScale', label: 'Width', kind: 'float', default: 1, min: 0, max: 10000, step: 1, bind: 'prop', folder: 'Style' },
+      { name: 'widthUnits', label: 'Width units', kind: 'menu', default: 'meters', options: [{ value: 'pixels', label: 'Pixels' }, { value: 'meters', label: 'Metres' }], folder: 'Style' },
       { name: 'lineColor', label: 'Trail color', kind: 'color', default: [253, 128, 93], folder: 'Style' },
       opacity,
       blendParam,
@@ -862,8 +912,9 @@ export const OPERATORS: OpDef[] = [
     lower: (ctx) => lowerLayer(ctx, 'trips',
       [{ channel: 'position', param: 'position' }, { channel: 'timestamp', param: 'timestamp' }, { channel: 'color', param: 'color' }],
       {
-        currentTime: ctx.bind('currentTime'), trailLength: ctx.bind('trailLength'),
-        widthMinPixels: ctx.bind('widthMinPixels'), color: ctx.bindColor('lineColor'), opacity: ctx.bind('opacity'),
+        currentTime: ctx.bind('currentTime'), trailLength: ctx.bind('trailLength'), fadeTrail: ctx.bool('fadeTrail'),
+        widthMinPixels: ctx.bind('widthMinPixels'), widthScale: ctx.bind('widthScale'), widthUnits: ctx.str('widthUnits'),
+        color: ctx.bindColor('lineColor'), opacity: ctx.bind('opacity'),
       },
       { pathId: ctx.str('pathId'), orderBy: [ctx.str('order')].filter(Boolean) }),
   },

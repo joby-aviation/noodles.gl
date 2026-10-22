@@ -147,7 +147,9 @@ export class HostRunner {
           ? await this.options.resolveOutputs(node.id, result ?? {})
           : (result ?? {})
         entry.read = read
-        entry.timed = useTimelineDependencyStore.getState().subscriptions.has(entry.op.id)
+        entry.timed =
+          useTimelineDependencyStore.getState().subscriptions.has(entry.op.id) &&
+          codeReadsTime(node)
         report.ran.push(node.id)
       } catch (error) {
         failed.add(node.id)
@@ -180,6 +182,20 @@ export class HostRunner {
   }
 }
 
+// What a code operator's text can read the timeline through: the time values it is passed, or
+// `op()`, whose target might be timed.
+const TIMELINE_NAMES = /\b(sequenceTime|frame|totalFrames|sequence|op)\b/
+
+/**
+ * Whether an operator reads the time. A code operator subscribes to the timeline whatever its
+ * code says, and re-running one every frame re-hands its rows to DuckDB, so its code decides.
+ */
+function codeReadsTime(node: DocNode): boolean {
+  const code = node.params.code ?? node.params.expression
+  if (code === undefined) return true
+  return TIMELINE_NAMES.test(Array.isArray(code) ? code.join('\n') : String(code))
+}
+
 /** Host nodes in dependency order. A cycle runs in declaration order rather than hanging. */
 function order(nodes: DocNode[], edges: DocEdge[]): DocNode[] {
   const byId = new Map(nodes.map(n => [n.id, n]))
@@ -205,13 +221,20 @@ function sameValues(a: unknown[], b: unknown[]): boolean {
     const x = a[i]
     const y = b[i]
     if (x === y) continue
+    // A list input is a fresh array of the same upstream values every run: compare its items,
+    // never its contents as text (an item may be a 65 MB GeoJSON object).
+    if (Array.isArray(x) && Array.isArray(y)) {
+      if (sameValues(x, y)) continue
+      return false
+    }
     // Literal parameters come from a document that is a fresh copy after every edit.
     if (
       x &&
       y &&
       typeof x === 'object' &&
       typeof y === 'object' &&
-      !Array.isArray(x) === !Array.isArray(y)
+      !Array.isArray(x) &&
+      !Array.isArray(y)
     ) {
       if (JSON.stringify(x) === JSON.stringify(y)) continue
     }

@@ -18,7 +18,11 @@ import {
   type EditorDoc,
   type ParamValue,
   parseExpr,
+  type Timeline,
+  type Track,
 } from '@noodles.gl/planner'
+import { migrateTimelineData } from '../../timeline/migrate-timeline'
+import type { TimelineData } from '../../timeline/types'
 
 export interface NoodlesNode {
   id: string
@@ -136,6 +140,21 @@ const DEFAULTS: Record<string, Record<string, unknown>> = {
     elevationScale: 1,
   },
   SwitchOp: { index: 0, blend: false },
+  TripsLayerOp: {
+    visible: true,
+    opacity: 1,
+    getColor: '#bfcae3',
+    getWidth: 8,
+    currentTime: 0,
+    fadeTrail: false,
+    trailLength: 120,
+    widthUnits: 'meters',
+    widthMinPixels: 2,
+    widthScale: 20,
+  },
+  TimeSeriesOp: { currentTime: 0 },
+  CategoricalColorRampOp: { colorScheme: 'accent', steps: 8, value: '' },
+  NumberOp: { val: 0 },
   SimpleMeshLayerOp: {
     visible: true,
     opacity: 1,
@@ -219,7 +238,24 @@ const PLANNER_LAYERS = new Set([
   'GridLayerOp',
   'SimpleMeshLayerOp',
   'ScenegraphLayerOp',
+  'TripsLayerOp',
 ])
+
+/** Fixed categorical schemes and their lengths; CategoricalColorRamp slices the first `steps`. */
+const CATEGORICAL_SCHEMES: Record<string, number> = {
+  accent: 8,
+  category10: 10,
+  dark: 8,
+  paired: 12,
+  set1: 9,
+  set2: 8,
+  set3: 12,
+  tableau10: 10,
+  joby: 10,
+}
+
+/** How a path list column's positions are named once unnested into vertex rows. */
+const VERTEX_COMPONENTS = ['lng', 'lat', 'alt']
 const PLANNER_SOURCES = new Set(['FileOp', 'DuckDbOp'])
 
 const DECK_VALUE_PORTS = ['views', 'effects', 'widgets', 'viewState', 'maplibreLayers']
@@ -287,9 +323,11 @@ const lit = (x: number) => (Number.isInteger(x) ? `${x}.0` : String(x))
  * uses something the planner can't express (row index, the whole dataset, `op()`, strings,
  * method calls). Per-row JS is `d.column`; the planner reads the column by name.
  */
-export function translateAccessor(js: string): string | undefined {
+export function translateAccessor(js: string, indexNames?: string[]): string | undefined {
   let text = js.trim().replace(/;$/, '')
   if (/^return\s/.test(text)) text = text.slice(7)
+  // A row that is an array (TimeSeries spreads a position into one): `d[0]` is a named column.
+  if (indexNames) text = text.replace(/\bd\[(\d+)\]/g, (m, i) => indexNames[Number(i)] ?? m)
   // colorToHex only respells an RGB array; a color field turns it straight back into one.
   text = text.replace(/\butils\.colorToHex\(/g, '(')
   // Anything beyond column reads and Math is a host expression.
@@ -507,7 +545,55 @@ export function toEditorDoc(project: NoodlesProject): Migrated {
   const sources = new Map<string, string>()
   /** The output port a source's rows leave by: `out`, or a GeoJSON source's `all`. */
   const sourcePort = new Map<string, string>()
-  const source = (id: string, geometry = false): string => {
+  /** Column names a source's rows index by position: `d[0]` of a TimeSeries row is `lng`. */
+  const indexNames = new Map<string, string[]>()
+
+  /**
+   * The column a list accessor reads (`d.path`, `d.timestamps`), or its default when nothing
+   * is wired: lists unnest into vertex rows, so only a bare column converts.
+   */
+  const listColumn = (owner: string, field: string, fallback: string): string => {
+    const e = incomingOne(owner, field)
+    if (!e) return fallback
+    const acc = byId.get(e.source)
+    const expr =
+      acc?.type === 'AccessorOp' ? translateAccessor(String(inputs(acc).expression)) : undefined
+    if (!acc || !expr || !/^[A-Za-z_]\w*$/.test(expr)) {
+      throw new MigrationError(`${owner}: ${field} must read a list column, as d.path does`)
+    }
+    used.add(acc.id)
+    return expr
+  }
+
+  /**
+   * One row per vertex of rows that each hold a path (a list of positions) and its timestamps:
+   * what a trips layer draws and a time series samples. Shared by every reader of the same lists.
+   */
+  const vertexSource = (src: string, path: string, times: string, near: NoodlesNode): string => {
+    const id = `${src}-vertices${path === 'path' ? '' : `-${path}`}`
+    if (!sources.has(id)) {
+      const at = position(near)
+      nodes.push({
+        id,
+        op: 'unnest',
+        name: segment(id),
+        x: at.x - 260,
+        y: at.y,
+        params: {
+          lists: `${path}, ${times}`,
+          split: `${path}: ${VERTEX_COMPONENTS.join(' ')}`,
+          rename: `${times}: t`,
+          rowId: 'trip',
+          index: 'k',
+        },
+      })
+      edge(src, sourcePort.get(src) ?? 'out', id, 'in')
+      sources.set(id, id)
+    }
+    return id
+  }
+
+  const source = (id: string, geometry = false, port?: string): string => {
     const cached = sources.get(id)
     if (cached) return cached
     const n = byId.get(id)
@@ -573,6 +659,42 @@ export function toEditorDoc(project: NoodlesProject): Migrated {
         }
       )
       nodes.push({ id, op: 'sql', name: segment(id), ...position(n), params: { query } })
+    } else if (n.type === 'TimeSeriesOp') {
+      // Each path's interpolated place at the current time, sampled in SQL from vertex rows.
+      const data = incomingOne(id, 'data')
+      if (!data) throw new MigrationError(`${id} has no data`)
+      const up = source(data.source, false, handleField(data.sourceHandle))
+      const values = listColumn(id, 'getValues', 'values')
+      const verts = vertexSource(up, values, listColumn(id, 'getTimestamps', 'timestamps'), n)
+      const props = incomingOne(id, 'getProperties')
+      const propsText = props
+        ? String(inputs(byId.get(props.source) as NoodlesNode).expression)
+        : ''
+      // Properties are columns already (host rows flatten `properties`), so they need nothing.
+      if (
+        props &&
+        !/^(d|d\.properties|\{\s*properties:\s*d\.properties\s*\})$/.test(propsText.trim())
+      ) {
+        throw new MigrationError(`${id}: getProperties '${propsText}' is not converted`)
+      }
+      if (props) used.add(props.source)
+      const params: Record<string, ParamValue> = {
+        pathId: 'trip',
+        order: 'k',
+        timestamp: 't',
+        values: VERTEX_COMPONENTS.join(', '),
+        time: num(i.currentTime, 0),
+      }
+      nodes.push({ id, op: 'time-series', name: segment(id), ...position(n), params })
+      edge(verts, 'out', id, 'in')
+      wiredNumber(id, 'currentTime', id, 'time')
+      indexNames.set(id, VERTEX_COMPONENTS)
+    } else if (!ACCESSOR_OPS.has(n.type) && !PLANNER_SOURCES.has(n.type)) {
+      // Rows a host operator makes (a CodeOp's): the engine hands them to DuckDB.
+      hostNode(id)
+      sourcePort.set(id, port || 'data')
+      sources.set(id, id)
+      return id
     } else {
       throw new MigrationError(`${id} (${n.type}) is not a CSV file or a plain DuckDB query yet`)
     }
@@ -634,17 +756,25 @@ export function toEditorDoc(project: NoodlesProject): Migrated {
     if (existing) return { kind: 'row', expr: existing.attribute }
     const i = inputs(n)
     const attribute = attributeName(id)
-    const add = (op: string, params: Record<string, ParamValue>, reads: string[]) => {
-      if ([...chains.values()].some(c => c !== chain && c.has(id))) {
-        throw new MigrationError(`${id} is read by layers on two different data sources`)
-      }
-      chain.set(id, {
-        node: { id, op, name: segment(id), ...position(n), params },
+    // An accessor read by layers on two sources (a color shared by trails and their heads) is
+    // one row node per source; the copies are named for their source.
+    const docId = (key: string) =>
+      [...chains.values()].some(c => c !== chain && c.has(id)) ? `${key}-${segment(src)}` : key
+    const add = (
+      op: string,
+      params: Record<string, ParamValue>,
+      reads: string[],
+      key = id,
+      name = attribute
+    ) => {
+      const nodeId = docId(key)
+      chain.set(key, {
+        node: { id: nodeId, op, name: segment(nodeId), ...position(n), params },
         reads: new Set(reads),
-        attribute,
+        attribute: name,
       })
       used.add(id)
-      return { kind: 'row' as const, expr: attribute }
+      return { kind: 'row' as const, expr: name }
     }
     const rowReads = (...vs: Value[]) => vs.flatMap(v => (v.kind === 'row' ? [v.expr] : []))
     const exprOf = (v: Value, what: string): string => {
@@ -655,7 +785,7 @@ export function toEditorDoc(project: NoodlesProject): Migrated {
 
     switch (n.type) {
       case 'AccessorOp': {
-        const expr = translateAccessor(String(i.expression ?? ''))
+        const expr = translateAccessor(String(i.expression ?? ''), indexNames.get(src))
         if (expr) return add('attribute', { name: attribute, expression: expr }, [])
         const text = translateStringAccessor(String(i.expression ?? ''))
         if (!text)
@@ -706,6 +836,34 @@ export function toEditorDoc(project: NoodlesProject): Migrated {
           'color-ramp',
           { input: value.expr, ramp: String(i.colorScheme), min: 0, max: 1, name: attribute },
           rowReads(value)
+        )
+      }
+      case 'CategoricalColorRampOp': {
+        const value = resolve(src, id, 'value', i.value)
+        if (value.kind !== 'row')
+          throw new MigrationError(`${id}: a constant CategoricalColorRamp is not converted yet`)
+        const scheme = String(i.colorScheme)
+        const size = CATEGORICAL_SCHEMES[scheme]
+        if (!size)
+          throw new MigrationError(`${id}: the stepped scheme '${scheme}' is not converted yet`)
+        // An ordinal scale gives each category one of the first `steps` colors. Here a hash
+        // picks the color, so one category always has one color, though not the one d3 picked.
+        const steps = Math.min(Math.max(Math.round(num(i.steps, 8)), 3), size)
+        const index = `${attribute}_index`
+        add(
+          'attribute',
+          {
+            name: index,
+            expression: `(category(${value.expr}, ${lit(steps)}) + 0.5) / ${lit(size)}`,
+          },
+          rowReads(value),
+          `${id}-index`,
+          index
+        )
+        return add(
+          'color-ramp',
+          { input: index, ramp: `categorical-${scheme}`, min: 0, max: 1, name: attribute },
+          [index]
         )
       }
       case 'MathOp': {
@@ -845,6 +1003,28 @@ export function toEditorDoc(project: NoodlesProject): Migrated {
       if (src.type === 'NumberOp') {
         numberNode(src)
         edge(src.id, 'out', id, `par:${field}`)
+        continue
+      }
+      if (src.type === 'FileOp') {
+        // A host operator reads a file as FileOp parsed it (a GeoJSON object, say), so the
+        // file is a host FileOp; when planner layers read it too, that one is a second node.
+        const plannerReads = project.edges.some(
+          x => x.source === src.id && ACCESSOR_OPS.has(byId.get(x.target)?.type ?? '')
+        )
+        const fileId = plannerReads ? `${src.id}-json` : src.id
+        if (!hostNodes.has(fileId)) {
+          hostNodes.add(fileId)
+          used.add(src.id)
+          nodes.push({
+            id: fileId,
+            op: 'FileOp',
+            name: segment(fileId),
+            ...position(src),
+            y: position(src).y + (plannerReads ? 160 : 0),
+            params: { ...(src.data?.inputs ?? {}) } as Record<string, ParamValue>,
+          })
+        }
+        edge(fileId, handleField(e.sourceHandle) || 'data', id, `par:${field}`)
         continue
       }
       if (PLANNER_SOURCES.has(src.type)) {
@@ -1065,7 +1245,20 @@ export function toEditorDoc(project: NoodlesProject): Migrated {
     }
     const dataEdge = incomingOne(layer.id, 'data')
     if (!dataEdge) throw new MigrationError(`${layer.id} has no data`)
-    const src = source(dataEdge.source, layer.type === 'GeoJsonLayerOp')
+    let src = source(
+      dataEdge.source,
+      layer.type === 'GeoJsonLayerOp',
+      handleField(dataEdge.sourceHandle)
+    )
+    // A trips layer draws vertex rows: its data's path and timestamp lists, unnested.
+    if (layer.type === 'TripsLayerOp') {
+      src = vertexSource(
+        src,
+        listColumn(layer.id, 'getPath', 'path'),
+        listColumn(layer.id, 'getTimestamps', 'timestamps'),
+        layer
+      )
+    }
     if (layer.type !== 'GeoJsonLayerOp') layerSource.set(layer.id, src)
     const i = inputs(layer)
     const v = (field: string) => resolve(src, layer.id, field, i[field])
@@ -1160,6 +1353,49 @@ export function toEditorDoc(project: NoodlesProject): Migrated {
         geojsonLayer(layer, src, i, v, params, target.index)
         used.add(layer.id)
         return
+      }
+      case 'TripsLayerOp': {
+        // A path's positions may be 2D; its missing altitude is the ground.
+        params.position = `[${VERTEX_COMPONENTS[0]}, ${VERTEX_COMPONENTS[1]}, coalesce(${VERTEX_COMPONENTS[2]}, 0.0)]`
+        params.timestamp = 't'
+        params.pathId = 'trip'
+        params.order = 'k'
+        const color = colorInput(colorChannel(v('getColor')), layer.id, 'getColor')
+        params.color = color.channel ?? ''
+        if (color.color) params.lineColor = color.color
+        const width = v('getWidth')
+        if (width.kind !== 'const')
+          throw new MigrationError(`${layer.id}: a per-row trail width is not converted`)
+        params.widthScale = num(width.value, 8) * num(i.widthScale, 20)
+        params.widthUnits = String(i.widthUnits)
+        params.widthMinPixels = num(i.widthMinPixels, 2)
+        params.trailLength = num(i.trailLength, 120)
+        params.fadeTrail = i.fadeTrail === true
+        params.currentTime = num(i.currentTime, 0)
+        wiredNumber(layer.id, 'currentTime', layer.id, 'currentTime')
+        wiredNumber(layer.id, 'trailLength', layer.id, 'trailLength')
+        nodes.push({
+          id: layer.id,
+          op: 'trips',
+          name: segment(layer.id),
+          ...position(layer),
+          params,
+        })
+        dropUnmapped(layer, [
+          'opacity',
+          'visible',
+          'getPath',
+          'getTimestamps',
+          'getColor',
+          'getWidth',
+          'widthScale',
+          'widthUnits',
+          'widthMinPixels',
+          'trailLength',
+          'fadeTrail',
+          'currentTime',
+        ])
+        break
       }
       case 'HeatmapLayerOp': {
         params.position = positionOf(v('getPosition'), layer.id)
@@ -1297,6 +1533,18 @@ export function toEditorDoc(project: NoodlesProject): Migrated {
   }
 
   /** A SwitchOp choosing among layers: a planner switch, the index structural. */
+  /** A number input wired from a NumberOp: the number node, wired to the planner parameter. */
+  const wiredNumber = (owner: string, field: string, target: string, param: string) => {
+    const e = incomingOne(owner, field)
+    if (!e) return
+    const src = byId.get(e.source)
+    if (src?.type !== 'NumberOp') {
+      throw new MigrationError(`${owner}: ${field} from ${src?.type} is not converted`)
+    }
+    numberNode(src)
+    edge(src.id, 'out', target, `par:${param}`)
+  }
+
   const switchNode = (n: NoodlesNode, target: Target) => {
     if (incomingOne(n.id, 'index'))
       throw new MigrationError(`${n.id}: a wired Switch index is not converted`)
@@ -1377,7 +1625,7 @@ export function toEditorDoc(project: NoodlesProject): Migrated {
   for (const n of project.nodes) {
     if (!used.has(n.id)) warnings.push(`${n.id}: dropped ${n.type}; nothing drawn reads it`)
   }
-  if (hasTracks(project.timeline)) warnings.push('timeline keyframes are not converted yet')
+  const timeline = project.timeline ? convertTimeline(project.timeline, nodes, warnings) : undefined
 
   return {
     doc: {
@@ -1385,6 +1633,7 @@ export function toEditorDoc(project: NoodlesProject): Migrated {
       name: project.name ?? 'Untitled',
       nodes,
       edges,
+      ...(timeline ? { timeline } : {}),
       meta: {
         noodlesVersion: project.version,
         ...(project.viewport ? { viewport: project.viewport } : {}),
@@ -1396,11 +1645,51 @@ export function toEditorDoc(project: NoodlesProject): Migrated {
   }
 }
 
-function hasTracks(timeline: unknown): boolean {
-  const sheets = (
-    timeline as { sheetsById?: Record<string, { sequence?: { tracksByObject?: object } }> }
-  )?.sheetsById
-  return Object.values(sheets ?? {}).some(
-    s => Object.keys(s.sequence?.tracksByObject ?? {}).length > 0
-  )
+/** Where a Noodles field's keyframes go: the planner parameter that took its value. */
+function trackTarget(fieldPath: string, nodes: DocNode[]): string | undefined {
+  const at = fieldPath.indexOf('.par.')
+  if (at < 0) return undefined
+  const id = fieldPath.slice(0, at)
+  // Theatre names a property by a JSON path: `["viewState","zoom"]`.
+  let field = fieldPath.slice(at + 5)
+  try {
+    const path = JSON.parse(field)
+    if (Array.isArray(path)) field = path.join('.')
+  } catch {}
+  const node = nodes.find(n => n.id === id)
+  // A basemap's camera is the deck's.
+  const camera = /^viewState\.(longitude|latitude|zoom|pitch|bearing)$/.exec(field)
+  if (camera && !node) {
+    const deck = nodes.find(n => n.op === 'deck')
+    return deck ? `${deck.id}.${camera[1]}` : undefined
+  }
+  if (!node) return undefined
+  if (node.op === 'number' && field === 'val') return `${id}.value`
+  return field in node.params ? `${id}.${field}` : undefined
+}
+
+/** Theatre-era keyframes, through the native timeline's migration, as planner tracks. */
+function convertTimeline(raw: unknown, nodes: DocNode[], warnings: string[]): Timeline | undefined {
+  const native = migrateTimelineData(raw as TimelineData)
+  const tracks: Track[] = []
+  for (const track of Object.values(native.tracks)) {
+    const target = trackTarget(track.fieldPath, nodes)
+    const numeric = track.keyframes.every(k => typeof k.value === 'number')
+    if (!target || !numeric) {
+      warnings.push(`timeline: keyframes on ${track.fieldPath} are not converted`)
+      continue
+    }
+    tracks.push({
+      target,
+      keyframes: track.keyframes.map(k => ({
+        id: k.id,
+        time: k.position,
+        value: k.value as number,
+        interpolation: k.interpolation,
+        ...(k.handles ? { handles: { left: k.handles.left, right: k.handles.right } } : {}),
+      })),
+    })
+  }
+  if (tracks.length === 0) return undefined
+  return { length: native.sequence.length, fps: native.sequence.fps, tracks }
 }

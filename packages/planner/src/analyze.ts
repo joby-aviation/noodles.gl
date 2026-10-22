@@ -733,7 +733,7 @@ function pushDownFilters(nodes: CoreNode[], notes: string[]): CoreNode[] {
 }
 
 /** Functions whose arguments are not numbers: they read strings or lists as they are. */
-const TEXT_ARGUMENTS = new Set(['coalesce', 'hex_byte', 'item', 'to_number']);
+const TEXT_ARGUMENTS = new Set(['category', 'coalesce', 'hex_byte', 'item', 'to_number']);
 
 /**
  * A string column used as a number (`sqrt(exits)`, `pop * 2`) read as one, as JS would: JSON
