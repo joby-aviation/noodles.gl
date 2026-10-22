@@ -42,7 +42,7 @@ describe('accessor-helpers', () => {
         const result = composeAccessor(accessor, (x: number) => x * 2)
 
         expect(typeof result).toBe('function')
-        const composed = result as Function
+        const composed = result as unknown as (d: { value: number }) => number
         expect(composed({ value: 10 })).toBe(20)
       })
 
@@ -50,7 +50,7 @@ describe('accessor-helpers', () => {
         const accessor = (d: { x: number }, index: number) => d.x + index
         const result = composeAccessor(accessor, (x: number) => x * 2)
 
-        const composed = result as Function
+        const composed = result as unknown as (d: { x: number }, index: number) => number
         expect(composed({ x: 10 }, 3)).toBe(26) // (10 + 3) * 2
       })
 
@@ -59,7 +59,7 @@ describe('accessor-helpers', () => {
         const normalize = (val: number) => val / 100
         const result = composeAccessor(accessor, normalize)
 
-        const composed = result as Function
+        const composed = result as unknown as (d: { count: number }) => number
         expect(composed({ count: 50 })).toBe(0.5)
       })
 
@@ -68,7 +68,7 @@ describe('accessor-helpers', () => {
         const toObject = (val: number) => ({ normalized: val / 10 })
         const result = composeAccessor(accessor, toObject)
 
-        const composed = result as Function
+        const composed = result as unknown as (d: { value: number }) => { normalized: number }
         expect(composed({ value: 50 })).toEqual({ normalized: 5 })
       })
     })
@@ -88,7 +88,7 @@ describe('accessor-helpers', () => {
         }
         const colored = composeAccessor(normalized, colorScale)
 
-        const finalAccessor = colored as Function
+        const finalAccessor = colored as unknown as (d: { count: number }) => string
         expect(finalAccessor({ count: 30 })).toBe('#00ff00')
         expect(finalAccessor({ count: 80 })).toBe('#ff0000')
       })
@@ -109,7 +109,7 @@ describe('accessor-helpers', () => {
         }
         const finalColor = composeAccessor(normalized, colorRamp)
 
-        const accessor = finalColor as Function
+        const accessor = finalColor as unknown as (d: { count: number }) => string
         expect(accessor({ count: 50 })).toBe('#00ff00') // 50/200 = 0.25 < 0.33
         expect(accessor({ count: 100 })).toBe('#ffff00') // 100/200 = 0.5, 0.33 < 0.5 < 0.66
         expect(accessor({ count: 150 })).toBe('#ff0000') // 150/200 = 0.75 > 0.66
@@ -131,7 +131,7 @@ describe('accessor-helpers', () => {
         const accessor = () => null
         const result = composeAccessor(accessor, val => val)
 
-        const composed = result as Function
+        const composed = result as unknown as () => null
         expect(composed()).toBeNull()
       })
 
@@ -140,7 +140,7 @@ describe('accessor-helpers', () => {
         const asyncTransform = async (val: number) => val * 2
         const result = composeAccessor(accessor, asyncTransform)
 
-        const composed = result as Function
+        const composed = result as unknown as (d: { value: number }) => Promise<number>
         const promise = composed({ value: 10 })
         expect(promise instanceof Promise).toBe(true)
         await expect(promise).resolves.toBe(20)
@@ -154,7 +154,7 @@ describe('accessor-helpers', () => {
         }
         const result = composeAccessor(accessor, throwingTransform)
 
-        const composed = result as Function
+        const composed = result as unknown as (d: { value: number }) => number
         expect(() => composed({ value: -5 })).toThrow('Negative value')
         expect(composed({ value: 5 })).toBe(10)
       })

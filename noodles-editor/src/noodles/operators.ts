@@ -6,16 +6,7 @@ import type {
   HexagonLayerProps,
   ScreenGridLayerProps,
 } from '@deck.gl/aggregation-layers'
-import {
-  type DeckProps,
-  FirstPersonView,
-  _GlobeView as GlobeView,
-  type LayerExtension,
-  type LayerProps,
-  MapView,
-  OrbitView,
-  WebMercatorViewport,
-} from '@deck.gl/core'
+import { type LayerExtension, type LayerProps, WebMercatorViewport } from '@deck.gl/core'
 import {
   BrushingExtension,
   ClipExtension,
@@ -42,6 +33,7 @@ import type {
 } from '@deck.gl/geo-layers'
 import type {
   ArcLayerProps,
+  BitmapBoundingBox,
   BitmapLayerProps,
   ColumnLayerProps,
   GeoJsonLayerProps,
@@ -56,14 +48,10 @@ import type {
   TextLayerProps,
 } from '@deck.gl/layers'
 import type { ScenegraphLayerProps, SimpleMeshLayerProps } from '@deck.gl/mesh-layers'
-import { CesiumIonLoader, Tiles3DLoader } from '@loaders.gl/3d-tiles'
-import { OBJLoader } from '@loaders.gl/obj'
-import { PLYLoader } from '@loaders.gl/ply'
 import type { Tileset3D } from '@loaders.gl/tiles'
 import { brightnessContrast, hueSaturation, vibrance } from '@luma.gl/effects'
 import { fitBounds } from '@math.gl/web-mercator'
 import * as Plot from '@observablehq/plot'
-import { onChange } from '@theatre/core'
 import * as turf from '@turf/turf'
 import * as d3 from 'd3'
 import {
@@ -73,81 +61,47 @@ import {
   color as d3Color,
   hsl,
   interpolate,
-  interpolateBlues,
-  interpolateBuGn,
-  interpolateBuPu,
-  interpolateCividis,
-  interpolateCool,
-  interpolateCubehelixDefault,
-  interpolateGnBu,
-  interpolateGreens,
-  interpolateGreys,
-  interpolateInferno,
-  interpolateMagma,
-  interpolateOranges,
-  interpolateOrRd,
-  interpolatePiYG,
-  interpolatePlasma,
-  interpolatePuOr,
-  interpolatePurples,
-  interpolateRainbow,
-  interpolateRdBu,
-  interpolateRdGy,
-  interpolateRdYlBu,
-  interpolateReds,
-  interpolateSinebow,
-  interpolateSpectral,
-  interpolateTurbo,
-  interpolateViridis,
-  interpolateWarm,
   scaleLinear,
   scaleOrdinal,
-  schemeAccent,
-  schemeBrBG,
-  schemeCategory10,
-  schemeDark2,
-  schemePaired,
-  schemePiYG,
-  schemePRGn,
-  schemePuBu,
-  schemeRdBu,
-  schemeRdGy,
-  schemeRdYlBu,
-  schemeRdYlGn,
-  schemeSet1,
-  schemeSet2,
-  schemeSet3,
-  schemeSpectral,
-  schemeTableau10,
-  schemeYlGn,
+  tsv,
+  tsvParse,
 } from 'd3'
 import * as deck from 'deck.gl'
-import { BehaviorSubject, combineLatest, type Subscription } from 'rxjs'
-import { debounceTime, filter, mergeMap } from 'rxjs/operators'
+import { BehaviorSubject, combineLatest, Subject, type Subscription } from 'rxjs'
+import { distinctUntilChanged, filter, mergeMap, skip } from 'rxjs/operators'
 import { Temporal } from 'temporal-polyfill'
-import vega from 'vega-embed'
 import type z from 'zod/v4'
 
 import './utils/bigint-fix' // BigInt JSON polyfill for DuckDB
 import * as duckdb from '@duckdb/duckdb-wasm'
-import duckdb_pthread_worker from '@duckdb/duckdb-wasm/dist/duckdb-browser-coi.pthread.worker.js?url'
-import coi_worker from '@duckdb/duckdb-wasm/dist/duckdb-browser-coi.worker.js?url'
-import eh_worker from '@duckdb/duckdb-wasm/dist/duckdb-browser-eh.worker.js?url'
-import mvp_worker from '@duckdb/duckdb-wasm/dist/duckdb-browser-mvp.worker.js?url'
-import duckdb_wasm_coi from '@duckdb/duckdb-wasm/dist/duckdb-coi.wasm?url'
-import duckdb_wasm_eh from '@duckdb/duckdb-wasm/dist/duckdb-eh.wasm?url'
-import duckdb_wasm from '@duckdb/duckdb-wasm/dist/duckdb-mvp.wasm?url'
 import { getTransformScaleFactor } from '../render/transform-scale'
+import { subscribeToPosition } from '../timeline/timeline-store'
 import * as utils from '../utils'
+import { analytics } from '../utils/analytics'
 import { getArc } from '../utils/arc-geometry'
 import { colorToHex, hexToColor } from '../utils/color'
+import { debugDirty, debugDirtyTrace, debugExecute, debugParams, debugPull } from '../utils/debug'
 import { getDirections } from '../utils/directions'
-import { CARTO_DARK, MAP_STYLES } from '../utils/map-styles'
+import { geocodeWithMapbox } from '../utils/geocoding'
+import {
+  applyStyleOverrides,
+  type MaplibreStyle,
+  type StyleConfiguratorData,
+} from '../utils/map-style-utils'
+import { CARTO_DARK } from '../utils/map-styles'
 import { mulberry32 } from '../utils/random'
+import { sqlIdentifier, sqlLiteral } from '../utils/sql'
+import {
+  categoricalSchemesFixed,
+  categoricalSchemesStepped,
+  continuousInterpolators,
+} from './color-schemes'
 import { FilterColorExtension } from './extensions/filter-color-extension'
 import { Mask3DExtension } from './extensions/mask-3d-extension'
 import {
   ArrayField,
+  applySerializedFieldValue,
+  BboxField,
   BezierCurveField,
   BooleanField,
   CategoricalColorRampField,
@@ -162,13 +116,16 @@ import {
   ExtensionField,
   type Field,
   type FieldReference,
-  FileField,
+  FileUrlField,
   FunctionField,
+  fieldTypeToClass,
+  GeoJsonField,
   IN_NS,
   type InOut,
-  JSONUrlField,
   LayerField,
   ListField,
+  MapLibreLayerField,
+  MapStyleField,
   mustacheRe,
   NumberField,
   OUT_NS,
@@ -176,21 +133,32 @@ import {
   Point3DField,
   StringField,
   StringLiteralField,
+  selfParMustacheRe,
   UnknownField,
   Vec2Field,
   Vec3Field,
   ViewField,
+  type VisualizationDeckProps,
   VisualizationField,
   WidgetField,
 } from './fields'
 import { DEFAULT_LATITUDE, DEFAULT_LONGITUDE, safeMode } from './globals'
-import { getOp, opMap } from './store'
+import { getKeysStore } from './keys-store'
+import { getAllOps, getOp } from './store'
+import { prepareTableDataForOutput, type TableSchema, validateTableData } from './table-schema'
+import type { ExtensionConstructorArgs, LayerPropsValue } from './types'
 import { composeAccessor, isAccessor } from './utils/accessor-helpers'
+import { deepEqual } from './utils/deep-equal'
 import type { ExtractProps } from './utils/extract-props'
 import { projectScheme } from './utils/filesystem'
 import type { OpId } from './utils/id-utils'
 import { isDirectChild } from './utils/path-utils'
 import { pick } from './utils/pick'
+import { getTimelineContext } from './utils/timeline-context'
+import { subscribeOpToTimeline, unsubscribeOpFromTimeline } from './utils/timeline-dependencies'
+// Side-effect import: registers the field expression evaluator so { $expr } payloads
+// applied in the Operator constructor evaluate immediately
+import './utils/field-expressions'
 import { validateViewState } from './utils/viewstate-helpers'
 
 // https://stackoverflow.com/questions/66044717/typescript-infer-type-of-abstract-methods-implementation
@@ -199,11 +167,43 @@ export interface IOperator {
   createOutputs(): Record<string, Field<z.ZodType>>
 }
 
+// Custom field definition for dynamic parameters
+export interface CustomFieldDefinition {
+  id: string // UUID
+  name: string // Field name (valid JS identifier)
+  type: string // Field type ('number', 'string', 'boolean', etc.)
+  order: number // Display order
+  options?: Record<string, unknown> // Type-specific options (min, max, step, etc.)
+  defaultValue?: unknown // Default value
+  enableExpression?: string // JavaScript expression for conditional visibility (e.g., "par.mode === 'advanced'")
+}
+
+// Pull-based execution status
+export enum PullExecutionStatus {
+  CLEAN = 'clean', // Valid cached output
+  DIRTY = 'dirty', // Needs re-execution
+  COMPUTING = 'computing', // Currently executing
+  ERROR = 'error', // Execution failed
+}
+
+// Deserializers can throw on bad input, such as a date that isn't ISO
+function parseSavedOutput(field: Field, value: unknown) {
+  try {
+    return field.schema.safeParse((field.constructor as typeof Field).deserialize(value))
+  } catch {
+    return { success: false as const }
+  }
+}
+
 // An Operator is a collection of Fields, and a transform function responsible
 // for taking in a set of input fields and mapping them to the output.
 export abstract class Operator<OP extends IOperator> {
   static displayName = 'Operator'
   static description = ''
+
+  // Opt-in flag for operators that support custom fields
+  static supportsCustomFields = false
+
   inputs: ReturnType<OP['createInputs']>
   outputs: ReturnType<OP['createOutputs']>
 
@@ -212,11 +212,14 @@ export abstract class Operator<OP extends IOperator> {
   out = proxyFields(this, 'outputs')
 
   // If the operator allows its data to be downloaded, override this method
-  asDownload?: () => unknown
-
-  // Should the execute function be memoized? Ops that store state elsewhere might not want to be cached.
-  static cacheable = true
+  asDownload?: () => Blob | string | ArrayBuffer
   public containerId?: string
+
+  // Custom field definitions for dynamic parameters
+  customInputDefinitions: CustomFieldDefinition[] = []
+
+  // Emits when custom field definitions change (for reactive updates like GraphInputOp)
+  customFieldsChanged = new Subject<CustomFieldDefinition[]>()
 
   abstract createInputs(): ReturnType<OP['createInputs']>
   abstract createOutputs(): ReturnType<OP['createOutputs']>
@@ -228,8 +231,51 @@ export abstract class Operator<OP extends IOperator> {
 
   locked = new BehaviorSubject<boolean>(false)
 
+  // Debug breakpoint - when enabled, execution pauses at this operator
+  breakpointEnabled = new BehaviorSubject<boolean>(false)
+
   // Execution state for visual debugging
   executionState = new BehaviorSubject<ExecutionState>({ status: 'idle' })
+
+  // Connection errors - tracks errors from incompatible connections
+  // Map of edgeId -> error message
+  connectionErrors = new BehaviorSubject<Map<string, string>>(new Map())
+
+  // Dirty flag for GraphExecutor
+  dirty = true
+
+  // === Field visibility ===
+  // Per-instance visible fields (null = use defaults from field.showByDefault)
+  visibleFields = new BehaviorSubject<Set<string> | null>(null)
+
+  // === Pull-based execution additions ===
+  // Global dirty epoch for markDirty wave pruning. Incremented whenever ANY
+  // operator's status transitions away from DIRTY (see
+  // _setPullExecutionStatus) and whenever the dependency graph gains an edge
+  // (see addDownstreamDependent). See markDirty for the pruning invariant.
+  private static _dirtyEpoch = 0
+
+  // Execution status for pull-based model
+  private _pullExecutionStatus: PullExecutionStatus = PullExecutionStatus.DIRTY
+  // Epoch of the markDirty wave that last marked this operator (see markDirty)
+  private _dirtyMarkEpoch = -1
+  private _cachedOutput: ExtractProps<(typeof this)['outputs']> | null = null
+  private _lastExecutionTime = 0
+  private _computingPromise: Promise<ExtractProps<(typeof this)['outputs']>> | null = null
+  private _lastLoggedError: string | null = null
+  // True once the output fields hold a real result, from an execution or the project cache.
+  // A locked operator serves that result instead of executing again.
+  private _hasOutput = false
+
+  // Dependency tracking for pull-based model
+  private _upstreamDependencies: Set<Operator<IOperator>> = new Set()
+  private _downstreamDependents: Set<Operator<IOperator>> = new Set()
+
+  // True from the moment a pull starts. executionState only reports 'executing'
+  // after 200ms, so it reads idle while a fetch is just getting going.
+  get isComputing(): boolean {
+    return this._computingPromise !== null
+  }
 
   constructor(
     public id: OpId,
@@ -267,9 +313,8 @@ export abstract class Operator<OP extends IOperator> {
     if (data) {
       for (const [key, value] of Object.entries(data)) {
         if (key in this.inputs) {
-          const field = this.inputs[key]
-          const parsed = field.constructor.deserialize(value)
-          field.setValue(parsed)
+          // Routes { $expr } payloads to setExpression, plain values to setValue
+          applySerializedFieldValue(this.inputs[key], value)
         }
       }
     }
@@ -277,6 +322,13 @@ export abstract class Operator<OP extends IOperator> {
     if (locked) {
       this.locked.next(true)
     }
+
+    // Unlocking catches up on any input changes that arrived while locked
+    this.subs.push(
+      this.locked.pipe(skip(1), distinctUntilChanged()).subscribe(isLocked => {
+        if (!isLocked) this.markDirty('unlocked')
+      })
+    )
   }
 
   get data() {
@@ -295,8 +347,529 @@ export abstract class Operator<OP extends IOperator> {
     return outputData as ExtractProps<typeof this.outputs>
   }
 
+  get hasOutput(): boolean {
+    return this._hasOutput
+  }
+
+  // Put known output values back without executing, e.g. when undo relocks an operator.
+  // A locked operator then serves them from pull(). Values are trusted, not schema-checked.
+  setOutputValues(values: Record<string, unknown>) {
+    for (const [key, field] of Object.entries(this.outputs)) {
+      if (key in values && field.value !== values[key]) field.next(values[key])
+    }
+    this._hasOutput = true
+  }
+
+  // Restore the outputs a locked operator was saved with, so it can serve them without
+  // executing. Returns false and changes nothing if a saved value no longer fits its field.
+  restoreOutputs(outputs: Record<string, unknown>): boolean {
+    const unknownKey = Object.keys(outputs).find(key => !(key in this.outputs))
+    if (unknownKey) {
+      debugExecute('%s: saved output %s has no field, will execute', this.id, unknownKey)
+      return false
+    }
+    const restored: Record<string, unknown> = {}
+    for (const [key, field] of Object.entries(this.outputs)) {
+      const parsed = parseSavedOutput(field, outputs[key])
+      if (!parsed.success) {
+        debugExecute('%s: saved output %s no longer fits, will execute', this.id, key)
+        return false
+      }
+      restored[key] = parsed.data
+    }
+    this.setOutputValues(restored)
+    return true
+  }
+
   // Left open for sub-classes to override
-  onError(_err: unknown) { }
+  onError(_err: Error) {}
+
+  // === Connection error methods ===
+
+  // Add a connection error for a specific edge
+  addConnectionError(edgeId: string, error: string) {
+    const errors = new Map(this.connectionErrors.value)
+    errors.set(edgeId, error)
+    this.connectionErrors.next(errors)
+  }
+
+  // Remove a connection error for a specific edge
+  removeConnectionError(edgeId: string) {
+    const errors = new Map(this.connectionErrors.value)
+    if (errors.delete(edgeId)) {
+      this.connectionErrors.next(errors)
+    }
+  }
+
+  // Check if the operator has any connection errors
+  hasConnectionErrors(): boolean {
+    return this.connectionErrors.value.size > 0
+  }
+
+  // Get all connection error messages
+  getConnectionErrorMessages(): string[] {
+    return Array.from(this.connectionErrors.value.values())
+  }
+
+  // === Field visibility methods ===
+
+  // Check if a field is visible (for UI rendering)
+  isFieldVisible(name: string): boolean {
+    const visible = this.visibleFields.value
+    if (visible === null) {
+      // Use defaults: showByDefault defaults to true
+      return this.inputs[name]?.showByDefault ?? true
+    }
+    return visible.has(name)
+  }
+
+  // Show a field (add to visible set)
+  // Used for auto-showing fields when connections are established or values are set programmatically
+  showField(name: string): void {
+    // Skip if inputs not initialized yet or field doesn't exist
+    if (!this.inputs || !(name in this.inputs)) return
+    // Skip if already visible
+    if (this.isFieldVisible(name)) return
+
+    // Get current visible fields, or compute defaults from showByDefault
+    const current =
+      this.visibleFields.value ??
+      new Set(
+        Object.entries(this.inputs)
+          .filter(([_, field]) => field.showByDefault)
+          .map(([fieldName]) => fieldName)
+      )
+
+    const newSet = new Set(current)
+    newSet.add(name)
+    this.visibleFields.next(newSet)
+  }
+
+  // Hide a field (remove from visible set)
+  hideField(name: string): void {
+    // Skip if inputs not initialized yet or field doesn't exist
+    if (!this.inputs || !(name in this.inputs)) return
+    // Skip if already hidden
+    if (!this.isFieldVisible(name)) return
+
+    // Get current visible fields, or compute defaults from showByDefault
+    const current =
+      this.visibleFields.value ??
+      new Set(
+        Object.entries(this.inputs)
+          .filter(([_, field]) => field.showByDefault)
+          .map(([fieldName]) => fieldName)
+      )
+
+    const newSet = new Set(current)
+    newSet.delete(name)
+    this.visibleFields.next(newSet)
+  }
+
+  // Set field visibility (show or hide based on boolean)
+  setFieldVisibility(name: string, visible: boolean): void {
+    if (visible) {
+      this.showField(name)
+    } else {
+      this.hideField(name)
+    }
+  }
+
+  // === Pull-based execution methods ===
+
+  // Pull data from this operator, executing if needed (pull-based model)
+  async pull(): Promise<ExtractProps<(typeof this)['outputs']>> {
+    // A locked operator keeps its last result: no upstream pulls, no execute(). It still
+    // executes once if it has never produced output (e.g. its outputs couldn't be cached).
+    if (this.locked.value && this._hasOutput && this._computingPromise === null) {
+      debugPull('%s: locked -> last output', this.id)
+      this._cachedOutput = this.outputData
+      this._setPullExecutionStatus(PullExecutionStatus.CLEAN)
+      this.dirty = false
+      return this._cachedOutput
+    }
+
+    // Return cached if clean
+    if (this._pullExecutionStatus === PullExecutionStatus.CLEAN && this._cachedOutput !== null) {
+      debugPull('%s: %s -> cached', this.id, PullExecutionStatus.CLEAN)
+      return this._cachedOutput
+    }
+
+    // Wait for ongoing computation. Guard on _computingPromise alone, not on
+    // status === COMPUTING: a markDirty arriving mid-execution resets the
+    // status to DIRTY while a computation is still in flight, and falling
+    // through here would start a second concurrent _pullExecution for the
+    // same operator. The DIRTY status survives completion of the in-flight
+    // run (see _pullExecution), so the next pull after it settles will
+    // re-execute with the fresh inputs.
+    if (this._computingPromise !== null) {
+      debugPull('%s: %s -> waiting', this.id, this._pullExecutionStatus)
+      return this._computingPromise
+    }
+
+    // Handle error state
+    if (this._pullExecutionStatus === PullExecutionStatus.ERROR) {
+      debugPull('%s: %s -> error', this.id, PullExecutionStatus.ERROR)
+      throw new Error(`Operator ${this.id} is in error state`)
+    }
+
+    debugPull('%s: %s -> executing', this.id, this._pullExecutionStatus)
+
+    // Mark as computing
+    this._setPullExecutionStatus(PullExecutionStatus.COMPUTING)
+
+    // Create computation promise
+    this._computingPromise = this._pullExecution()
+
+    try {
+      const result = await this._computingPromise
+      return result
+    } finally {
+      this._computingPromise = null
+    }
+  }
+
+  // Internal pull execution logic
+  private async _pullExecution(): Promise<ExtractProps<(typeof this)['outputs']>> {
+    debugExecute('%s: starting %O', this.id, { inputs: this.data })
+
+    let executionTime = 0
+    let startTime = 0
+    // Show executing indicator only for ops taking longer than 200ms
+    const executingTimer = setTimeout(() => {
+      this.executionState.next({ status: 'executing' })
+    }, 200)
+
+    try {
+      // Pull upstream dependencies first
+      await this._pullUpstreamDependencies()
+
+      // Get current input values (eager snapshot of all input fields)
+      const inputValues = this.data
+
+      // Absorb dirty marks that arrived before the snapshot: value
+      // propagation from the upstream pulls above lands via setValue ->
+      // markDirty while we are COMPUTING, but those values are captured in
+      // the snapshot we just took, so they don't invalidate this execution.
+      // Marks arriving from here on (e.g. an async upstream resolving while
+      // execute() awaits) are NOT reflected in the snapshot and must keep the
+      // operator dirty — see the completion check below.
+      this._setPullExecutionStatus(PullExecutionStatus.COMPUTING)
+
+      // Debug breakpoint - pause execution if enabled
+      if (this.breakpointEnabled.value) {
+        console.log(`[Breakpoint] Pausing execution at operator: ${this.id}`, {
+          inputs: inputValues,
+          operator: this,
+        })
+        debugger
+      }
+
+      // Execute the operator - measure only own execution time
+      startTime = performance.now()
+      const result = this.execute(inputValues)
+      const finalResult = result instanceof Promise ? await result : result
+      executionTime = performance.now() - startTime
+
+      if (finalResult === null) {
+        throw new Error(`Operator ${this.id} returned null`)
+      }
+
+      clearTimeout(executingTimer)
+
+      // Cache result and mark clean — but only transition COMPUTING -> CLEAN.
+      // If a markDirty arrived after the input snapshot (status was reset to
+      // DIRTY mid-flight), or an upstream dependency finished this frame
+      // DIRTY (its fresh data has not flowed into our inputs yet), the result
+      // we just computed is already stale — e.g. a FileOp resolving its CSV
+      // during this same frame's pull walk. Setting CLEAN unconditionally
+      // here clobbered that mark (lost update): the operator then served the
+      // stale cache forever because pull() never re-executes a CLEAN op.
+      // Leave it DIRTY so the next frame re-executes with the new inputs.
+      const markedAfterSnapshot = this._pullExecutionStatus !== PullExecutionStatus.COMPUTING
+      this._cachedOutput = finalResult
+      if (markedAfterSnapshot || this._hasDirtyUpstreamDependency()) {
+        debugPull('%s: dirtied mid-execution, staying dirty for re-execution', this.id)
+        this._setPullExecutionStatus(PullExecutionStatus.DIRTY)
+        this.dirty = true
+      } else {
+        this._setPullExecutionStatus(PullExecutionStatus.CLEAN)
+        this.dirty = false // Also clear the dirty flag for GraphExecutor
+      }
+      this._lastExecutionTime = executionTime
+      this._hasOutput = true
+
+      debugExecute('%s: %dms %O', this.id, this._lastExecutionTime.toFixed(2), {
+        outputs: finalResult,
+      })
+
+      // Update execution state for UI
+      this.executionState.next({
+        status: 'success',
+        lastExecuted: Date.now(),
+        executionTime: executionTime,
+      })
+
+      // Clear any stale connection errors on successful execution
+      // This handles cases where validation errors were added during transient failures
+      if (this.connectionErrors.value.size > 0) {
+        this.connectionErrors.next(new Map())
+      }
+
+      // Update output fields for UI/debugging purposes only
+      // In pull mode, this is not for propagation but for inspection
+      for (const [key, field] of Object.entries(this.outputs)) {
+        const newValue = finalResult[key]
+        const currentValue = field.value
+
+        // Use deep equality for fields that opt-in, otherwise use reference equality
+        const hasChanged = field.useDeepEquality
+          ? typeof newValue === 'object' && newValue !== null
+            ? !deepEqual(currentValue, newValue, field.maxDepth)
+            : currentValue !== newValue
+          : currentValue !== newValue
+
+        if (hasChanged) {
+          field.next(newValue)
+        }
+      }
+
+      return finalResult
+    } catch (err) {
+      clearTimeout(executingTimer)
+      const error = err instanceof Error ? err : new Error(String(err))
+
+      // Calculate actual elapsed time even on error
+      executionTime = performance.now() - startTime
+
+      // Only log if this is a new/different error
+      if (this._lastLoggedError !== error.message) {
+        debugExecute('%s: ERROR - %s', this.id, error.message)
+        debugPull(
+          `Pull execution failure in [${this.id} (${(this.constructor as typeof Operator).displayName})]:`,
+          error.message
+        )
+        console.error(`[Noodles] Operator ${this.id} error:`, error)
+        this._lastLoggedError = error.message
+      }
+
+      // Set ERROR unconditionally, even if a markDirty arrived mid-execution.
+      // Unlike the success path we deliberately let ERROR win over a
+      // mid-flight DIRTY: markDirty clears ERROR back to DIRTY on the next
+      // wave anyway (any future input change retries), while preserving DIRTY
+      // here would silently retry a failing operator every frame.
+      this._setPullExecutionStatus(PullExecutionStatus.ERROR)
+      this._cachedOutput = null
+
+      // Update execution state for UI
+      this.executionState.next({
+        status: 'error',
+        lastExecuted: Date.now(),
+        executionTime: executionTime,
+        error: error.message,
+      })
+
+      this.onError(error)
+      throw error
+    }
+  }
+
+  // Pull all upstream dependencies
+  private async _pullUpstreamDependencies(): Promise<void> {
+    const promises: Promise<unknown>[] = []
+
+    for (const dep of this._upstreamDependencies) {
+      promises.push(dep.pull())
+    }
+
+    await Promise.all(promises)
+    // Field connections will have updated the values already via subscriptions
+  }
+
+  // True if any upstream dependency is DIRTY. Used at execution completion:
+  // an upstream that ended this frame dirty (e.g. its async data arrived
+  // mid-pull) has fresh data that our just-taken input snapshot missed, so we
+  // must not mark ourselves CLEAN on top of it.
+  //
+  // NOTE: this check is intentionally approximate. It scans the flat upstream
+  // set, so it can fire on UNRELATED upstream dirtiness: an upstream marked
+  // dirty by a separate source after we pulled it keeps us DIRTY for one
+  // extra frame even though our snapshot already captured everything we
+  // needed from it. That direction of error is always SAFE — one redundant
+  // re-execution next frame — whereas the opposite direction (declaring CLEAN
+  // over an upstream whose new data we missed) recreates the permanent
+  // stale-cache dirty island. Do not narrow this check (e.g. by tracking
+  // which upstream each snapshot value came from) without revisiting the
+  // lost-update soundness argument in _pullExecution's completion path.
+  private _hasDirtyUpstreamDependency(): boolean {
+    for (const dep of this._upstreamDependencies) {
+      if (dep._pullExecutionStatus === PullExecutionStatus.DIRTY) {
+        return true
+      }
+    }
+    return false
+  }
+
+  // Single write point for _pullExecutionStatus. Bumps the global dirty epoch
+  // whenever a status transitions AWAY from DIRTY — that is precisely the
+  // event that can invalidate the markDirty prune ("this op and its whole
+  // downstream closure are still dirty"): a wave's claim about its closure
+  // only breaks when something in it becomes clean. Route every status
+  // assignment through this helper so a future write site cannot silently
+  // skip the bump.
+  private _setPullExecutionStatus(status: PullExecutionStatus): void {
+    if (
+      this._pullExecutionStatus === PullExecutionStatus.DIRTY &&
+      status !== PullExecutionStatus.DIRTY
+    ) {
+      Operator._dirtyEpoch++
+    }
+    this._pullExecutionStatus = status
+  }
+
+  // Mark this operator as dirty and propagate downstream.
+  //
+  // WHY the wave must always propagate: an earlier version early-returned when
+  // an operator was already DIRTY, assuming the invariant "if I'm dirty,
+  // everything downstream of me is already dirty". That invariant breaks when
+  // async data arrival interleaves with frame pulls: a frame pull can clean
+  // the sink chain while an intermediate operator is re-marked dirty, so when
+  // upstream data later arrives (e.g. a FileOp resolving a CSV) the dirty wave
+  // stops at the already-dirty intermediate and never reaches the CLEAN sink.
+  // The sink then returns its cached output forever and the dirty island is
+  // never re-executed. Propagating unconditionally restores soundness.
+  //
+  // WHY the visited set: container bridge edges (container -> GraphInput ->
+  // child -> GraphOutput -> container) create node-level dependency cycles, so
+  // unconditional recursion would overflow the stack. Walking iteratively with
+  // a visited set marks each operator at most once per wave, terminating on
+  // cycles without relying on prior dirty state.
+  //
+  // WHY the epoch prune is sound: an op that is DIRTY with a stamp from the
+  // CURRENT epoch was marked by a wave in this epoch, and that wave walked the
+  // op's entire downstream closure (marking or pruning inductively). The epoch
+  // only stays current while no operator anywhere transitions away from DIRTY
+  // (_setPullExecutionStatus) and no dependency edge is added
+  // (addDownstreamDependent) — so the closure is provably still all-DIRTY and
+  // re-walking it is redundant. This locally re-establishes the old
+  // "dirty implies downstream dirty" invariant: it was CLEANING interleaved
+  // with marks that broke it, and cleaning is exactly what bumps the epoch and
+  // disables the prune. The global epoch is deliberately coarse (any op
+  // leaving DIRTY anywhere disables pruning until the next wave re-stamps);
+  // correctness first — the hot path (repeated marks between two frame pulls,
+  // e.g. timeline scrubbing keyframed ops) stays O(1) per repeated mark.
+  markDirty(cause?: Field | string): void {
+    // Stack capture is intentionally gated behind a separate namespace so
+    // ordinary `noodles:*` logging cannot add work to this hot path.
+    if (debugDirtyTrace.enabled) {
+      const source =
+        typeof cause === 'string'
+          ? cause
+          : cause?.pathToProps.length
+            ? cause.pathToProps.join('.')
+            : 'direct call'
+      const stack = new Error().stack?.split('\n').slice(2).join('\n') ?? 'stack unavailable'
+      debugDirtyTrace(
+        '%s: %s -> dirty; source=%s; downstream=%d\n%s',
+        this.id,
+        this._pullExecutionStatus,
+        source,
+        this._downstreamDependents.size,
+        stack
+      )
+    }
+
+    const epoch = Operator._dirtyEpoch
+    const visited = new Set<Operator<IOperator>>()
+    const stack: Operator<IOperator>[] = [this as Operator<IOperator>]
+
+    while (stack.length > 0) {
+      const op = stack.pop()
+      if (op === undefined || visited.has(op)) continue
+      visited.add(op)
+
+      // Prune: already marked by a wave in the current epoch and still dirty,
+      // so its whole downstream closure is still dirty (see comment above)
+      if (op._pullExecutionStatus === PullExecutionStatus.DIRTY && op._dirtyMarkEpoch === epoch) {
+        debugDirty('%s already marked in epoch %d, pruning wave', op.id, epoch)
+        continue
+      }
+
+      // Log recovery from error state
+      if (op._pullExecutionStatus === PullExecutionStatus.ERROR) {
+        debugDirty('%s cleared from error state', op.id)
+        op._lastLoggedError = null
+      }
+
+      debugDirty(
+        '%s marked dirty, propagating to %d downstream',
+        op.id,
+        op._downstreamDependents.size
+      )
+
+      op._setPullExecutionStatus(PullExecutionStatus.DIRTY)
+      op._dirtyMarkEpoch = epoch
+      op._cachedOutput = null
+      op.dirty = true // Also set the dirty flag for GraphExecutor
+
+      // Propagate dirty flag to downstream dependents
+      for (const dependent of op._downstreamDependents) {
+        if (!visited.has(dependent)) {
+          stack.push(dependent)
+        }
+      }
+    }
+  }
+
+  // Add upstream dependency (for pull-based model)
+  addUpstreamDependency(op: Operator<IOperator>): void {
+    this._upstreamDependencies.add(op)
+  }
+
+  // Add downstream dependent (for pull-based model)
+  addDownstreamDependent(op: Operator<IOperator>): void {
+    this._downstreamDependents.add(op)
+    // A new edge grows downstream closures, so a wave stamped before this
+    // edge existed never walked the new dependent — invalidate the prune.
+    // (Removing an edge only shrinks closures and stays sound.)
+    Operator._dirtyEpoch++
+  }
+
+  // Remove upstream dependency (for pull-based model)
+  removeUpstreamDependency(op: Operator<IOperator>): void {
+    this._upstreamDependencies.delete(op)
+  }
+
+  // Remove downstream dependent (for pull-based model)
+  removeDownstreamDependent(op: Operator<IOperator>): void {
+    this._downstreamDependents.delete(op)
+  }
+
+  // Get pull execution status
+  get pullExecutionStatus(): PullExecutionStatus {
+    return this._pullExecutionStatus
+  }
+
+  // Get cached output (for debugging)
+  get cachedOutput(): ExtractProps<(typeof this)['outputs']> | null {
+    return this._cachedOutput
+  }
+
+  // Set cached output and mark clean (for use by GraphExecutor ForLoop handling)
+  setCachedOutput(output: ExtractProps<(typeof this)['outputs']>): void {
+    this._cachedOutput = output
+    this._setPullExecutionStatus(PullExecutionStatus.CLEAN)
+    this.dirty = false
+  }
+
+  // Clear cached output and mark dirty. NOTE: deliberately does not stamp
+  // _dirtyMarkEpoch — this sets DIRTY without walking downstream, so future
+  // waves must not prune at this operator.
+  clearCache(): void {
+    this._cachedOutput = null
+    this._setPullExecutionStatus(PullExecutionStatus.DIRTY)
+    this.dirty = true
+  }
 
   // Needs to be called after sub-classes have created their inputs and outputs
   createListeners() {
@@ -311,6 +884,15 @@ export abstract class Operator<OP extends IOperator> {
           this.executionState.next({ status: 'executing' })
 
           try {
+            // Debug breakpoint - pause execution if enabled
+            if (this.breakpointEnabled.value) {
+              console.log(`[Breakpoint] Pausing execution at operator: ${this.id}`, {
+                inputs: inputValues,
+                operator: this,
+              })
+              debugger
+            }
+
             const result = this.execute(inputValues)
             const finalResult = result instanceof Promise ? await result : result
 
@@ -318,15 +900,15 @@ export abstract class Operator<OP extends IOperator> {
             const executionTime = performance.now() - startTime
             this.executionState.next({
               status: 'success',
-              lastExecuted: new Date(),
+              lastExecuted: Date.now(),
               executionTime,
             })
 
             return finalResult
           } catch (err: unknown) {
             const error = err instanceof Error ? err : new Error(String(err))
-            console.warn(
-              `Failure in [${this.id} (${this.constructor.displayName})]:`,
+            debugExecute(
+              `Failure in [${this.id} (${(this.constructor as typeof Operator).displayName})]:`,
               error.message,
               error.stack
             )
@@ -336,9 +918,9 @@ export abstract class Operator<OP extends IOperator> {
             const executionTime = performance.now() - startTime
             this.executionState.next({
               status: 'error',
-              lastExecuted: new Date(),
+              lastExecuted: Date.now(),
               executionTime,
-              error: err.message,
+              error: error.message,
             })
 
             return null
@@ -348,9 +930,19 @@ export abstract class Operator<OP extends IOperator> {
       )
       .subscribe(outputValues => {
         for (const [key, field] of Object.entries(this.outputs)) {
-          if (field.value !== outputValues[key]) {
+          const oldValue = field.value
+          const newValue = outputValues[key]
+
+          // Use deep equality for fields that opt-in, otherwise use reference equality
+          const hasChanged = field.useDeepEquality
+            ? typeof newValue === 'object' && newValue !== null
+              ? !deepEqual(oldValue, newValue, field.maxDepth)
+              : oldValue !== newValue
+            : oldValue !== newValue
+
+          if (hasChanged) {
             // Skip schema validation on outputs
-            field.next(outputValues[key])
+            field.next(newValue)
           }
         }
       })
@@ -364,9 +956,249 @@ export abstract class Operator<OP extends IOperator> {
     }
   }
 
+  // === Custom Field Management ===
+
+  // Get all inputs (built-in + custom)
+  getAllInputs(): Record<string, Field> {
+    const builtIn = this.inputs
+    const custom = this.getCustomInputFields()
+    return { ...builtIn, ...custom }
+  }
+
+  // Get custom input fields as Field instances
+  getCustomInputFields(): Record<string, Field> {
+    debugParams(
+      'getCustomInputFields %s: %d definitions',
+      this.id,
+      this.customInputDefinitions.length
+    )
+    const fields: Record<string, Field> = {}
+    for (const def of this.customInputDefinitions) {
+      const field = this.createFieldFromDefinition(def)
+      debugParams('created field "%s" type=%s value=%O', def.name, def.type, field.value)
+      fields[def.name] = field
+    }
+    return fields
+  }
+
+  // Create a Field instance from a custom field definition
+  protected createFieldFromDefinition(def: CustomFieldDefinition): Field {
+    debugParams(
+      'createFieldFromDefinition type=%s name=%s defaultValue=%O',
+      def.type,
+      def.name,
+      def.defaultValue
+    )
+    const FieldClass = fieldTypeToClass[def.type]
+    if (!FieldClass) {
+      debugParams('unknown field type: %s', def.type)
+      throw new Error(`Unknown field type: ${def.type}`)
+    }
+    const field = new FieldClass(def.defaultValue, def.options)
+    // If value is still undefined, the defaultValue passed was invalid for this field type
+    if (field.value === undefined) {
+      debugParams(
+        'field value undefined after construction: type=%s name=%s defaultValue=%O',
+        def.type,
+        def.name,
+        def.defaultValue
+      )
+      throw new Error(
+        `Invalid default value for field "${def.name}" (type: ${def.type}): ${JSON.stringify(def.defaultValue)}`
+      )
+    }
+    return field
+  }
+
+  // Validate custom field name
+  validateCustomFieldName(name: string, excludeId?: string): string | null {
+    if (!name.trim()) {
+      return 'Name is required'
+    }
+    if (!/^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(name)) {
+      return 'Invalid identifier (use only letters, numbers, _, $)'
+    }
+    const builtInFieldNames = Object.keys(this.createInputs())
+    if (builtInFieldNames.includes(name)) {
+      return 'Name conflicts with built-in field'
+    }
+    if (this.customInputDefinitions.some(d => d.id !== excludeId && d.name === name)) {
+      return 'Name already exists'
+    }
+    return null
+  }
+
+  // Add custom field
+  addCustomInput(def: CustomFieldDefinition): void {
+    const error = this.validateCustomFieldName(def.name, def.id)
+    if (error) {
+      throw new Error(error)
+    }
+    this.customInputDefinitions.push(def)
+    this.rebuildInputs()
+    this.markDirty()
+  }
+
+  // Remove custom field
+  removeCustomInput(id: string): void {
+    this.customInputDefinitions = this.customInputDefinitions.filter(d => d.id !== id)
+    this.rebuildInputs()
+    this.markDirty()
+  }
+
+  // Update custom field definition
+  updateCustomInput(id: string, updates: Partial<CustomFieldDefinition>): void {
+    const index = this.customInputDefinitions.findIndex(d => d.id === id)
+    if (index >= 0) {
+      const updated = { ...this.customInputDefinitions[index], ...updates }
+      if (updates.name) {
+        const error = this.validateCustomFieldName(updates.name, id)
+        if (error) {
+          throw new Error(error)
+        }
+      }
+      this.customInputDefinitions[index] = updated
+      this.rebuildInputs()
+      this.markDirty()
+    }
+  }
+
+  // Reorder custom fields
+  reorderCustomInputs(fromIndex: number, toIndex: number): void {
+    const defs = [...this.customInputDefinitions]
+    const [moved] = defs.splice(fromIndex, 1)
+    defs.splice(toIndex, 0, moved)
+    // Update order property
+    defs.forEach((def, index) => {
+      def.order = index
+    })
+    this.customInputDefinitions = defs
+    // No need to rebuild inputs, just update order
+  }
+
+  // Rebuild inputs when custom fields change
+  rebuildInputs(): void {
+    debugParams(
+      'rebuildInputs start %s, %d custom definitions',
+      this.id,
+      this.customInputDefinitions.length
+    )
+    // Preserve existing field values and connections
+    const oldValues = new Map<string, unknown>()
+    const oldConnections = new Map<
+      string,
+      Array<{ id: string; field: Field; connectionType: 'reference' | 'value' }>
+    >()
+
+    for (const [name, field] of Object.entries(this.inputs)) {
+      oldValues.set(name, field.value)
+      const connections = []
+      for (const [id, _subscription] of field.subscriptions) {
+        // We can't easily get the field reference, so we'll need to rely on transform-graph to reconnect
+        connections.push({ id, field: field, connectionType: 'value' })
+      }
+      if (connections.length > 0) {
+        oldConnections.set(name, connections)
+      }
+    }
+
+    // Recreate inputs (built-in + custom)
+    const builtInInputs = this.createInputs()
+    const customInputs = this.getCustomInputFields() // may throw on invalid field definitions
+    debugParams(
+      'rebuildInputs built %d custom inputs for %s',
+      Object.keys(customInputs).length,
+      this.id
+    )
+
+    this.inputs = { ...builtInInputs, ...customInputs } as ReturnType<OP['createInputs']>
+
+    // Restore values
+    for (const [name, field] of Object.entries(this.inputs)) {
+      if (oldValues.has(name)) {
+        try {
+          field.setValue(oldValues.get(name))
+        } catch (err) {
+          console.warn(`Failed to restore value for field ${name}:`, err)
+        }
+      }
+    }
+
+    // Re-assign pathToProps for all fields
+    const assignPathToProps = (field: Field, key: string, parentPath: string[] = []) => {
+      const currentPath = [...parentPath, key]
+      field.pathToProps = currentPath
+      field.op = this
+
+      if (field.field !== undefined) {
+        field.field.pathToProps = currentPath
+      }
+      if (field instanceof CompoundPropsField) {
+        for (const [k, f] of Object.entries(field.fields)) {
+          assignPathToProps(f, k, currentPath)
+        }
+      }
+    }
+
+    for (const [key, field] of Object.entries(this.inputs)) {
+      assignPathToProps(field, key, [this.id, IN_NS])
+    }
+
+    // Note: Connections will be restored by transform-graph.ts when edges are re-applied
+
+    // Notify listeners that custom fields have changed
+    this.customFieldsChanged.next(this.customInputDefinitions)
+    debugParams('rebuildInputs complete %s', this.id)
+  }
+
   dispose() {
     this.unsubscribeListeners()
     this.executionState.complete()
+    this.customFieldsChanged.complete()
+
+    // Cleanup expression-mode subscriptions (sibling/timeline reactivity)
+    for (const field of Object.values(this.inputs)) {
+      field.expressionCleanup?.()
+    }
+
+    // Cleanup timeline subscriptions
+    unsubscribeOpFromTimeline(this.id)
+  }
+}
+
+// UnknownOperator is a special system operator that serves as a fallback when loading
+// projects with removed or unavailable operator types. It is intentionally NOT included
+// in categories.ts because it should never be user-creatable - it's only instantiated
+// automatically during project deserialization for backward compatibility.
+export class UnknownOperator extends Operator<UnknownOperator> {
+  static displayName = 'Unknown Operator'
+  static description = 'Placeholder for an operator type that could not be found'
+
+  originalType: string
+  // Store original inputs to preserve them through save/load cycles
+  originalInputs: Record<string, unknown>
+
+  constructor(id: OpId, data?: Record<string, unknown>) {
+    const originalType = (data?.originalType as string) || 'Unknown'
+    const originalInputs = (data?.inputs as Record<string, unknown>) || {}
+    super(id, {}, false)
+    this.originalType = originalType
+    this.originalInputs = originalInputs
+  }
+
+  createInputs() {
+    // Create an UnknownField to store original inputs for serialization
+    return {
+      __originalInputs: new UnknownField(this.originalInputs),
+    }
+  }
+
+  createOutputs() {
+    return {}
+  }
+
+  execute() {
+    return {}
   }
 }
 
@@ -390,7 +1222,8 @@ export class NumberOp extends Operator<NumberOp> {
 
 export class MapRangeOp extends Operator<MapRangeOp> {
   static displayName = 'MapRange'
-  static description = 'Map a value from one range to another'
+  static description =
+    'Remap a number from one range to another (e.g., map 0-100 to 0-1, or temperature to color intensity)'
   public createInputs() {
     return {
       val: new NumberField(0, { step: 0.01, accessor: true }),
@@ -422,7 +1255,7 @@ export class MapRangeOp extends Operator<MapRangeOp> {
 export class ExtentOp extends Operator<ExtentOp> {
   static displayName = 'Extent'
   static description =
-    'Calculate the minimum and maximum values of a dataset using an optional accessor'
+    'Find the minimum and maximum values in your data (e.g., to set color scale ranges or determine data bounds)'
   createInputs() {
     return {
       data: new DataField(),
@@ -439,7 +1272,7 @@ export class ExtentOp extends Operator<ExtentOp> {
   execute({ data, accessor }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     // Use d3.extent with the accessor function if provided
     const accessorFn = typeof accessor === 'function' ? accessor : undefined
-    const extent = d3.extent(data, accessorFn as any)
+    const extent = d3.extent(data, accessorFn as (d: unknown) => number | undefined)
 
     const min = extent[0] ?? 0
     const max = extent[1] ?? 0
@@ -454,7 +1287,8 @@ export class ExtentOp extends Operator<ExtentOp> {
 
 export class SelectOp extends Operator<SelectOp> {
   static displayName = 'Select'
-  static description = 'Select an element from an array using an index (clamped to array bounds by default, or wrapped around array bounds)'
+  static description =
+    'Select an element from an array using an index (clamped to array bounds by default, or wrapped around array bounds)'
   createInputs() {
     return {
       data: new DataField(),
@@ -467,7 +1301,11 @@ export class SelectOp extends Operator<SelectOp> {
       value: new UnknownField(undefined),
     }
   }
-  execute({ data, index, wrap }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+  execute({
+    data,
+    index,
+    wrap,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!Array.isArray(data) || data.length === 0) {
       return { value: undefined }
     }
@@ -503,6 +1341,22 @@ export const mathOps = {
   CeilOp: 'ceil',
   AbsOp: 'abs',
 } as const
+
+export const mathOpDescriptions = {
+  DivideOp: 'Divide two numbers',
+  MultiplyOp: 'Multiply two numbers',
+  SubtractOp: 'Subtract two numbers',
+  AddOp: 'Add two numbers',
+  ModuloOp: 'Calculate the remainder of division',
+  SineOp: 'Calculate the sine of a number',
+  CosineOp: 'Calculate the cosine of a number',
+  MinOp: 'Get the minimum of two numbers',
+  MaxOp: 'Get the maximum of two numbers',
+  RoundOp: 'Round a number to the nearest integer',
+  FloorOp: 'Round down to the nearest integer',
+  CeilOp: 'Round up to the nearest integer',
+  AbsOp: 'Get the absolute value of a number',
+} as const as Record<keyof typeof mathOps, string>
 
 export type MathOpType = keyof typeof mathOps
 
@@ -625,8 +1479,8 @@ export class MathOp extends Operator<MathOp> {
     if (aIsAccessor && bIsAccessor) {
       // Both are accessors
       const result = (...args: unknown[]) => {
-        const aVal = (a as Function)(...args)
-        const bVal = (b as Function)(...args)
+        const aVal = (a as (...args: unknown[]) => number)(...args)
+        const bVal = (b as (...args: unknown[]) => number)(...args)
         return transform(aVal, bVal)
       }
       return { result }
@@ -634,8 +1488,8 @@ export class MathOp extends Operator<MathOp> {
 
     // One is accessor, one is static
     const result = (...args: unknown[]) => {
-      const aVal = aIsAccessor ? (a as Function)(...args) : (a as number)
-      const bVal = bIsAccessor ? (b as Function)(...args) : (b as number)
+      const aVal = aIsAccessor ? (a as (...args: unknown[]) => number)(...args) : (a as number)
+      const bVal = bIsAccessor ? (b as (...args: unknown[]) => number)(...args) : (b as number)
       return transform(aVal, bVal)
     }
     return { result }
@@ -678,9 +1532,9 @@ export class BooleanOp extends Operator<BooleanOp> {
   }
 }
 
-export class DateOp extends Operator<DateOp> {
-  static displayName = 'Date'
-  static description = 'A date'
+export class DateTimeOp extends Operator<DateTimeOp> {
+  static displayName = 'DateTime'
+  static description = 'A date and time'
   createInputs() {
     return {
       date: new DateField(),
@@ -701,8 +1555,8 @@ export class CombineXYOp extends Operator<CombineXYOp> {
   static description = 'Combine x and y into a 2D vector'
   createInputs() {
     return {
-      x: new NumberField(0, { step: 0.01 }),
-      y: new NumberField(0, { step: 0.01 }),
+      x: new NumberField(0, { step: 0.01, accessor: true }),
+      y: new NumberField(0, { step: 0.01, accessor: true }),
     }
   }
   createOutputs() {
@@ -711,7 +1565,21 @@ export class CombineXYOp extends Operator<CombineXYOp> {
     }
   }
   execute({ x, y }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const xy = { x, y }
+    // Check if any inputs are accessor functions
+    const xIsAccessor = isAccessor(x)
+    const yIsAccessor = isAccessor(y)
+
+    if (!xIsAccessor && !yIsAccessor) {
+      // Both static values
+      return { xy: { x: x as number, y: y as number } }
+    }
+
+    // At least one is an accessor - return accessor function
+    const xy = (...args: unknown[]) => {
+      const xVal = xIsAccessor ? (x as (...args: unknown[]) => unknown)(...args) : (x as number)
+      const yVal = yIsAccessor ? (y as (...args: unknown[]) => unknown)(...args) : (y as number)
+      return { x: xVal, y: yVal }
+    }
     return { xy }
   }
 }
@@ -721,9 +1589,9 @@ export class CombineXYZOp extends Operator<CombineXYZOp> {
   static description = 'Combine x, y, and z into a 3D vector'
   createInputs() {
     return {
-      x: new NumberField(0, { step: 0.01 }),
-      y: new NumberField(0, { step: 0.01 }),
-      z: new NumberField(0, { step: 0.01 }),
+      x: new NumberField(0, { step: 0.01, accessor: true }),
+      y: new NumberField(0, { step: 0.01, accessor: true }),
+      z: new NumberField(0, { step: 0.01, accessor: true }),
     }
   }
   createOutputs() {
@@ -732,7 +1600,23 @@ export class CombineXYZOp extends Operator<CombineXYZOp> {
     }
   }
   execute({ x, y, z }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const xyz = { x, y, z }
+    // Check if any inputs are accessor functions
+    const xIsAccessor = isAccessor(x)
+    const yIsAccessor = isAccessor(y)
+    const zIsAccessor = isAccessor(z)
+
+    if (!xIsAccessor && !yIsAccessor && !zIsAccessor) {
+      // All static values
+      return { xyz: { x: x as number, y: y as number, z: z as number } }
+    }
+
+    // At least one is an accessor - return accessor function
+    const xyz = (...args: unknown[]) => {
+      const xVal = xIsAccessor ? (x as (...args: unknown[]) => unknown)(...args) : (x as number)
+      const yVal = yIsAccessor ? (y as (...args: unknown[]) => unknown)(...args) : (y as number)
+      const zVal = zIsAccessor ? (z as (...args: unknown[]) => unknown)(...args) : (z as number)
+      return { x: xVal, y: yVal, z: zVal }
+    }
     return { xyz }
   }
 }
@@ -742,7 +1626,7 @@ export class SplitXYOp extends Operator<SplitXYOp> {
   static description = 'Split a 2D vector into its x and y components'
   createInputs() {
     return {
-      vec: new Vec2Field(),
+      vec: new Vec2Field({ x: 0, y: 0 }, { accessor: true }),
     }
   }
   createOutputs() {
@@ -752,7 +1636,15 @@ export class SplitXYOp extends Operator<SplitXYOp> {
     }
   }
   execute({ vec }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const { x, y } = vec
+    if (isAccessor(vec)) {
+      // Return accessor functions for each component
+      const x = composeAccessor(vec, (v: { x: number; y: number }) => v.x)
+      const y = composeAccessor(vec, (v: { x: number; y: number }) => v.y)
+      return { x, y } as ExtractProps<typeof this.outputs>
+    }
+
+    // Static value
+    const { x, y } = vec as { x: number; y: number }
     return { x, y }
   }
 }
@@ -762,7 +1654,7 @@ export class SplitXYZOp extends Operator<SplitXYZOp> {
   static description = 'Split a 3D vector into its x, y, and z components'
   createInputs() {
     return {
-      vec: new Vec3Field(),
+      vec: new Vec3Field({ x: 0, y: 0, z: 0 }, { accessor: true }),
     }
   }
   createOutputs() {
@@ -773,7 +1665,16 @@ export class SplitXYZOp extends Operator<SplitXYZOp> {
     }
   }
   execute({ vec }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const { x, y, z } = vec
+    if (isAccessor(vec)) {
+      // Return accessor functions for each component
+      const x = composeAccessor(vec, (v: { x: number; y: number; z: number }) => v.x)
+      const y = composeAccessor(vec, (v: { x: number; y: number; z: number }) => v.y)
+      const z = composeAccessor(vec, (v: { x: number; y: number; z: number }) => v.z)
+      return { x, y, z } as ExtractProps<typeof this.outputs>
+    }
+
+    // Static value
+    const { x, y, z } = vec as { x: number; y: number; z: number }
     return { x, y, z }
   }
 }
@@ -783,10 +1684,10 @@ export class CombineRGBAOp extends Operator<CombineRGBAOp> {
   static description = 'Combine r, g, b, and a into a color (range 0-255)'
   createInputs() {
     return {
-      r: new NumberField(0),
-      g: new NumberField(0),
-      b: new NumberField(0),
-      a: new NumberField(1),
+      r: new NumberField(0, { accessor: true }),
+      g: new NumberField(0, { accessor: true }),
+      b: new NumberField(0, { accessor: true }),
+      a: new NumberField(1, { accessor: true }),
     }
   }
   createOutputs() {
@@ -795,8 +1696,26 @@ export class CombineRGBAOp extends Operator<CombineRGBAOp> {
     }
   }
   execute({ r, g, b, a }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const color = colorToHex([r, g, b, a])
-    return { color }
+    // Check if any inputs are accessor functions
+    const rIsAccessor = isAccessor(r)
+    const gIsAccessor = isAccessor(g)
+    const bIsAccessor = isAccessor(b)
+    const aIsAccessor = isAccessor(a)
+
+    if (!rIsAccessor && !gIsAccessor && !bIsAccessor && !aIsAccessor) {
+      // All static values
+      return { color: colorToHex([r as number, g as number, b as number, a as number]) }
+    }
+
+    // At least one is an accessor - return accessor function
+    const color = (...args: unknown[]) => {
+      const rVal = rIsAccessor ? (r as (...args: unknown[]) => unknown)(...args) : (r as number)
+      const gVal = gIsAccessor ? (g as (...args: unknown[]) => unknown)(...args) : (g as number)
+      const bVal = bIsAccessor ? (b as (...args: unknown[]) => unknown)(...args) : (b as number)
+      const aVal = aIsAccessor ? (a as (...args: unknown[]) => unknown)(...args) : (a as number)
+      return colorToHex([rVal as number, gVal as number, bVal as number, aVal as number])
+    }
+    return { color } as ExtractProps<typeof this.outputs>
   }
 }
 
@@ -805,7 +1724,7 @@ export class SplitRGBAOp extends Operator<SplitRGBAOp> {
   static description = 'Split a color into its red, green, blue, and alpha components (range 0-255)'
   createInputs() {
     return {
-      color: new ColorField(),
+      color: new ColorField({ accessor: true }),
     }
   }
   createOutputs() {
@@ -817,10 +1736,24 @@ export class SplitRGBAOp extends Operator<SplitRGBAOp> {
     }
   }
   execute({ color }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const [r, g, b, a] = hexToColor(color)
-      .split(',')
-      .map((v: string) => parseInt(v, 10))
-    return { r, g, b, a }
+    const parseColor = (c: string) => {
+      const [r, g, b, a] = hexToColor(c)
+        .split(',')
+        .map((v: string) => parseInt(v, 10))
+      return { r, g, b, a }
+    }
+
+    if (isAccessor(color)) {
+      // Return accessor functions for each component
+      const r = composeAccessor(color, (c: string) => parseColor(c).r)
+      const g = composeAccessor(color, (c: string) => parseColor(c).g)
+      const b = composeAccessor(color, (c: string) => parseColor(c).b)
+      const a = composeAccessor(color, (c: string) => parseColor(c).a)
+      return { r, g, b, a } as ExtractProps<typeof this.outputs>
+    }
+
+    // Static value
+    return parseColor(color as string)
   }
 }
 
@@ -847,9 +1780,9 @@ export class HSLOp extends Operator<HSLOp> {
   static description = 'A color in HSL (hue, saturation, lightness) format'
   createInputs() {
     return {
-      h: new NumberField(0, { min: 0, max: 360, step: 1 }),
-      s: new NumberField(0.5, { min: 0, max: 1, step: 0.01 }),
-      l: new NumberField(0.8, { min: 0, max: 1, step: 0.01 }),
+      h: new NumberField(0, { min: 0, max: 360, step: 1, accessor: true }),
+      s: new NumberField(0.5, { min: 0, max: 1, step: 0.01, accessor: true }),
+      l: new NumberField(0.8, { min: 0, max: 1, step: 0.01, accessor: true }),
     }
   }
   createOutputs() {
@@ -858,8 +1791,24 @@ export class HSLOp extends Operator<HSLOp> {
     }
   }
   execute({ h, s, l }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const color = hsl(h, s, l).formatHex()
-    return { color }
+    // Check if any inputs are accessor functions
+    const hIsAccessor = isAccessor(h)
+    const sIsAccessor = isAccessor(s)
+    const lIsAccessor = isAccessor(l)
+
+    if (!hIsAccessor && !sIsAccessor && !lIsAccessor) {
+      // All static values
+      return { color: hsl(h as number, s as number, l as number).formatHex() }
+    }
+
+    // At least one is an accessor - return accessor function
+    const color = (...args: unknown[]) => {
+      const hVal = hIsAccessor ? (h as (...args: unknown[]) => unknown)(...args) : (h as number)
+      const sVal = sIsAccessor ? (s as (...args: unknown[]) => unknown)(...args) : (s as number)
+      const lVal = lIsAccessor ? (l as (...args: unknown[]) => unknown)(...args) : (l as number)
+      return hsl(hVal as number, sVal as number, lVal as number).formatHex()
+    }
+    return { color } as ExtractProps<typeof this.outputs>
   }
 }
 
@@ -867,53 +1816,14 @@ export class ColorRampOp extends Operator<ColorRampOp> {
   static displayName = 'ColorRamp'
   static description = 'Interpolate a color from a color ramp, value range 0-1'
   createInputs() {
-    const colorRamp = new ColorRampField()
-
-    const interpolators = {
-      viridis: interpolateViridis,
-      inferno: interpolateInferno,
-      plasma: interpolatePlasma,
-      magma: interpolateMagma,
-      turbo: interpolateTurbo,
-      cividis: interpolateCividis,
-
-      warm: interpolateWarm,
-      cool: interpolateCool,
-      cubehelix: interpolateCubehelixDefault,
-      spectral: interpolateSpectral,
-
-      rainbow: interpolateRainbow,
-      sinebow: interpolateSinebow,
-
-      blues: interpolateBlues,
-      greens: interpolateGreens,
-      greys: interpolateGreys,
-      reds: interpolateReds,
-      oranges: interpolateOranges,
-      purples: interpolatePurples,
-
-      PinkYellowGreen: interpolatePiYG,
-      PurpleOrange: interpolatePuOr,
-      RedBlue: interpolateRdBu,
-      RedGrey: interpolateRdGy,
-      RedYellowBlue: interpolateRdYlBu,
-      BlueGreen: interpolateBuGn,
-      BluePurple: interpolateBuPu,
-      GreenBlue: interpolateGnBu,
-      OrangeRed: interpolateOrRd,
-    }
-
-    const colorScheme = new StringLiteralField('viridis', Object.keys(interpolators))
-
-    colorScheme.subscribe(val => {
-      const interpolate = interpolators[val as keyof typeof interpolators]
-      colorRamp.setValue(interpolate)
+    const colorScheme = new StringLiteralField('viridis', {
+      values: Object.keys(continuousInterpolators),
+      displayAs: 'color-scheme',
     })
 
     const value = new NumberField(0, { min: 0, max: 1, step: 0.01, accessor: true })
 
     return {
-      colorRamp,
       colorScheme,
       value,
     }
@@ -921,14 +1831,80 @@ export class ColorRampOp extends Operator<ColorRampOp> {
   createOutputs() {
     return {
       color: new ColorField(),
+      colorRamp: new ColorRampField(),
     }
   }
   execute({
-    colorRamp,
-    colorScheme: _,
+    colorScheme,
     value,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const scale = (val: number) => {
+    // Get the interpolator for the selected scheme
+    const interpolate = continuousInterpolators[colorScheme as keyof typeof continuousInterpolators]
+
+    // Normalize all color formats to hex for consistency
+    // TODO: VIS-813: Make all colors d3 Colors?
+    const normalizedRamp = (val: number) => {
+      const c = interpolate(val)
+      return d3Color(c)?.formatHex() ?? c
+    }
+
+    // Use composeAccessor helper to handle both static values and accessor functions
+    const color = composeAccessor(value, normalizedRamp)
+
+    return { color, colorRamp: normalizedRamp }
+  }
+}
+
+export class CategoricalColorRampOp extends Operator<CategoricalColorRampOp> {
+  static displayName = 'CategoricalColorRamp'
+  static description = 'Map a string category to a color'
+  createInputs() {
+    const allSchemeNames = [
+      ...Object.keys(categoricalSchemesFixed),
+      ...Object.keys(categoricalSchemesStepped),
+    ]
+
+    const colorScheme = new StringLiteralField('accent', {
+      values: allSchemeNames,
+      displayAs: 'color-scheme',
+    })
+    const steps = new NumberField(8, { min: 3, max: 11, step: 1 })
+
+    const value = new StringField('', { accessor: true })
+
+    return {
+      colorScheme,
+      steps,
+      value,
+    }
+  }
+  createOutputs() {
+    return {
+      color: new ColorField(),
+      colorRamp: new CategoricalColorRampField(),
+    }
+  }
+  execute({
+    colorScheme,
+    steps,
+    value,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    // Derive the color scheme from colorScheme and steps
+    const schemeName = colorScheme
+    const n = Math.max(Math.round(steps), 3)
+    let scheme: readonly string[]
+    if (schemeName in categoricalSchemesFixed) {
+      const full = categoricalSchemesFixed[schemeName as keyof typeof categoricalSchemesFixed]
+      scheme = full.slice(0, Math.min(n, full.length))
+    } else {
+      const steppedScheme =
+        categoricalSchemesStepped[schemeName as keyof typeof categoricalSchemesStepped]
+      const clamped = Math.min(n, steppedScheme.length - 1)
+      scheme = steppedScheme[clamped] as readonly string[]
+    }
+    const colorRamp = scaleOrdinal(scheme)
+
+    const scale = (val: string) => {
       const color = colorRamp(val)
 
       // Some return values are in rgb, some are in hex. Convert them all to be safe
@@ -939,74 +1915,7 @@ export class ColorRampOp extends Operator<ColorRampOp> {
     // Use composeAccessor helper to handle both static values and accessor functions
     const color = composeAccessor(value, scale)
 
-    return { color }
-  }
-}
-
-export class CategoricalColorRampOp extends Operator<CategoricalColorRampOp> {
-  static displayName = 'CategoricalColorRamp'
-  static description = 'Map a string category to a color'
-  createInputs() {
-    const colorRamp = new CategoricalColorRampField()
-
-    const schemes = {
-      accent: schemeAccent,
-      category10: schemeCategory10,
-      dark: schemeDark2,
-      paired: schemePaired,
-      set1: schemeSet1,
-      set2: schemeSet2,
-      set3: schemeSet3,
-      tableau10: schemeTableau10,
-
-      // These schemes are arrays of arrays, ordered by number of stops. In the future we should
-      // allow the user to select the number of stops
-      BrownGreen: schemeBrBG[11],
-      PurpleGreen: schemePRGn[11],
-      PurpleBlue: schemePuBu[9],
-      PinkYellowGreen: schemePiYG[11],
-      RedBlue: schemeRdBu[11],
-      RedGrey: schemeRdGy[11],
-      RedYellowBlue: schemeRdYlBu[11],
-      RedYellowGreen: schemeRdYlGn[11],
-      YellowGreen: schemeYlGn[9],
-      spectral: schemeSpectral[11],
-    }
-
-    const colorScheme = new StringLiteralField('accent', Object.keys(schemes))
-
-    // TODO: Should this move to the execute function and component?
-    colorScheme.subscribe(val => {
-      const scheme = schemes[val as keyof typeof schemes]
-      const interpolate = scaleOrdinal(scheme)
-      colorRamp.count = scheme.length
-      colorRamp.setValue(interpolate)
-    })
-
-    const value = new StringField('')
-
-    return {
-      colorRamp,
-      colorScheme,
-      value,
-    }
-  }
-  createOutputs() {
-    return {
-      color: new ColorField(),
-    }
-  }
-  execute({
-    colorRamp,
-    value,
-  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    let color = colorRamp(value)
-
-    // Some return values are in rgb, some are in hex. Convert them all to be safe
-    // TODO: VIS-813: Make all colors d3 Colors?
-    color = d3Color(color)?.formatHex()
-
-    return { color }
+    return { color, colorRamp }
   }
 }
 
@@ -1016,7 +1925,13 @@ export class TimeOp extends Operator<TimeOp> {
 
   private timeState$ = new BehaviorSubject({ now: Date.now(), tick: 0, sequenceTime: 0 })
   private rafId?: number
-  private theatreUnsub?: () => void
+  private positionUnsub?: () => void
+
+  constructor(id: OpId, inputs?: unknown, locked?: boolean) {
+    super(id, inputs, locked)
+    // Initialize time updates after outputs are created
+    this.initializeTimeUpdates()
+  }
 
   createInputs() {
     return {}
@@ -1030,15 +1945,21 @@ export class TimeOp extends Operator<TimeOp> {
     }
   }
 
-  // Override createListeners to set up our custom update mechanism
-  createListeners() {
+  private initializeTimeUpdates() {
     // Set up subscription from timeState$ to outputs
     const sub = this.timeState$.subscribe(state => {
       this.outputs.now.next(state.now)
       this.outputs.tick.next(state.tick)
       this.outputs.sequenceTime.next(state.sequenceTime)
+      // Drop the cached result so the next pull returns the current time
+      this.markDirty()
     })
     this.subs.push(sub)
+
+    this.positionUnsub = subscribeToPosition((pos: number) => {
+      const current = this.timeState$.value
+      this.timeState$.next({ ...current, sequenceTime: pos })
+    })
 
     // Start RAF loop after outputs are fully initialized
     this.startRAF()
@@ -1057,27 +1978,20 @@ export class TimeOp extends Operator<TimeOp> {
     update()
   }
 
-  // Called by the component to inject Theatre sheet
-  setTheatreSheet(sheet: { sequence: { pointer: { position: unknown } } }) {
-    this.theatreUnsub?.()
-    this.theatreUnsub = onChange(sheet.sequence.pointer.position, (pos: number) => {
-      const current = this.timeState$.value
-      this.timeState$.next({ ...current, sequenceTime: pos })
-    })
-  }
-
   dispose() {
     if (this.rafId !== undefined) {
       cancelAnimationFrame(this.rafId)
     }
-    this.theatreUnsub?.()
+    this.positionUnsub?.()
     this.timeState$.complete()
     super.dispose()
   }
 
   execute(_: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    // Outputs are driven by the BehaviorSubject, not by execute()
-    return null
+    // The BehaviorSubject pushes each update to the outputs; execute() reports the
+    // current values so pulls through this operator get a result to cache
+    const { now, sequenceTime, tick } = this.timeState$.value
+    return { now, sequenceTime, tick }
   }
 }
 
@@ -1086,7 +2000,7 @@ export class BezierCurveOp extends Operator<BezierCurveOp> {
   static description = 'Bezier curve for mapping input values using an interactive graph editor'
   createInputs() {
     return {
-      factor: new NumberField(0.5, { min: 0, max: 1, step: 0.01 }),
+      factor: new NumberField(0.5, { min: 0, max: 1, step: 0.01, accessor: true }),
       curve: new BezierCurveField(),
     }
   }
@@ -1095,31 +2009,178 @@ export class BezierCurveOp extends Operator<BezierCurveOp> {
       value: new NumberField(),
     }
   }
-  execute({ factor, curve }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+  execute({
+    factor,
+    curve: _curve,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     const curveField = this.inputs.curve as BezierCurveField
-    const value = curveField.evaluate(factor)
-    return { value }
+    // Use composeAccessor helper to handle both static values and accessor functions
+    const value = composeAccessor(factor, (f: number) => curveField.evaluate(f))
+    return { value } as ExtractProps<typeof this.outputs>
   }
 }
 
 export class FileOp extends Operator<FileOp> {
   static displayName = 'File'
-  static description = 'Read a file from a URL or text. Supports csv and json'
+  static description =
+    'Fetch a file from a URL or text. Supports csv, tsv, json, text, and binary formats'
   asDownload = () => this.outputData
+
+  constructor(id: OpId, inputs?: unknown, locked?: boolean) {
+    super(id, inputs, locked)
+
+    const sub = this.inputs.format.subscribe(format => {
+      this.setFieldVisibility('autoType', format === 'csv' || format === 'tsv')
+    })
+    this.subs.push(sub)
+  }
+
   createInputs() {
     return {
-      format: new StringLiteralField('json', { values: ['json', 'csv'] }),
-      url: new FileField(),
-      text: new StringField(),
-      autoType: new BooleanField(true), // TODO: Make this only available for csv
-      pulse: new NumberField(0, { min: 0, step: 1 }),
+      format: new StringLiteralField('json', { values: ['json', 'csv', 'tsv', 'text', 'binary'] }),
+      url: new FileUrlField(),
+      text: new StringField(), // TODO: make this mutually exclusive with `url`
+      autoType: new BooleanField(true, { showByDefault: false }),
+      pulse: new NumberField(0, { min: 0, step: 1, showByDefault: false }),
     }
   }
+
   createOutputs() {
     return {
       data: new DataField(),
     }
   }
+
+  // Helper method to read from project assets
+  private async readFromProjectAsset(
+    url: string,
+    binary = false
+  ): Promise<string | ArrayBuffer | null> {
+    if (!url?.startsWith(projectScheme)) {
+      return null
+    }
+
+    // Lazy imports to avoid circular dependency
+    const { readAsset, readAssetBinary } = await import('./storage')
+    const { useFileSystemStore } = await import('./filesystem-store')
+
+    // Get current project and storage type
+    const { currentProjectName, activeStorageType } = useFileSystemStore.getState()
+    if (!currentProjectName) {
+      throw new Error('No project loaded. Please save or load a project first.')
+    }
+
+    const fileName = url.substring(projectScheme.length)
+
+    // Use appropriate read function based on binary flag
+    if (binary) {
+      const result = await readAssetBinary(activeStorageType, currentProjectName, fileName)
+      if (!result.success) {
+        throw new Error(result.error.message)
+      }
+      return result.data
+    }
+    const result = await readAsset(activeStorageType, currentProjectName, fileName)
+    if (!result.success) {
+      throw new Error(result.error.message)
+    }
+    return result.data
+  }
+
+  // Helper method to fetch from URL
+  private async fetchFromUrl(
+    url: string,
+    format: 'json' | 'csv' | 'tsv' | 'text' | 'binary'
+  ): Promise<unknown> {
+    if (format === 'csv') {
+      const parseFn = this.inputs.autoType.value ? d3.autoType : null
+      return await csv(url, parseFn)
+    }
+    if (format === 'tsv') {
+      const parseFn = this.inputs.autoType.value ? d3.autoType : null
+      return await tsv(url, parseFn)
+    }
+
+    const resp = await fetch(url)
+
+    switch (format) {
+      case 'json':
+        return await resp.json()
+      case 'text':
+        return await resp.text()
+      case 'binary':
+        return await resp.arrayBuffer()
+      default:
+        throw new Error(`Unsupported format: ${format}`)
+    }
+  }
+
+  // Helper method to process data based on format
+  private processData(
+    data: string | ArrayBuffer | DSVRowArray<string> | unknown,
+    format: string,
+    autoType: boolean
+  ): ExtractProps<typeof this.outputs> {
+    if (format === 'csv' && typeof data === 'string') {
+      const parseFn = autoType ? d3.autoType : null
+      return { data: csvParse(data, parseFn) }
+    }
+    if (format === 'tsv' && typeof data === 'string') {
+      const parseFn = autoType ? d3.autoType : null
+      return { data: tsvParse(data, parseFn) }
+    }
+    if (format === 'json' && typeof data === 'string') {
+      return { data: JSON.parse(data) }
+    }
+    return { data }
+  }
+
+  // Helper method to process text input
+  private processText(
+    text: string,
+    format: string,
+    autoType: boolean
+  ): ExtractProps<typeof this.outputs> {
+    switch (format) {
+      case 'csv': {
+        const parseFn = autoType ? d3.autoType : null
+        return { data: csvParse(text, parseFn) }
+      }
+      case 'tsv': {
+        const parseFn = autoType ? d3.autoType : null
+        return { data: tsvParse(text, parseFn) }
+      }
+      case 'json':
+        return { data: JSON.parse(text) }
+      case 'text':
+        return { data: text }
+      case 'binary': {
+        // Convert text to Uint8Array for binary format
+        const encoder = new TextEncoder()
+        return { data: encoder.encode(text) }
+      }
+      default:
+        throw new Error(`Unsupported format: ${format}`)
+    }
+  }
+
+  // Helper method to get empty result based on format
+  private getEmptyResult(format: string): ExtractProps<typeof this.outputs> {
+    switch (format) {
+      case 'csv':
+      case 'tsv':
+        return { data: [] }
+      case 'json':
+        return { data: {} }
+      case 'text':
+        return { data: '' }
+      case 'binary':
+        return { data: new Uint8Array() }
+      default:
+        return { data: null }
+    }
+  }
+
   async execute({
     format,
     url,
@@ -1127,58 +2188,28 @@ export class FileOp extends Operator<FileOp> {
     autoType,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     try {
-      if (format === 'csv') {
-        let data: DSVRowArray<string> = []
-        const parseFn = autoType ? d3.autoType : null
-        if (url?.startsWith(projectScheme)) {
-          // Lazy imports to avoid circular dependency
-          const { readAsset } = await import('./storage')
-          const { useFileSystemStore } = await import('./filesystem-store')
-
-          // Use new readAsset function with current project and storage type
-          const { currentProjectName, activeStorageType } = useFileSystemStore.getState()
-          if (!currentProjectName) {
-            throw new Error('No project loaded. Please save or load a project first.')
-          }
-          const fileName = url.substring(projectScheme.length)
-          const result = await readAsset(activeStorageType, currentProjectName, fileName)
-          if (!result.success) {
-            throw new Error(result.error.message)
-          }
-          data = csvParse(result.data, parseFn)
-        } else if (url) {
-          data = await csv(url, parseFn)
-        } else if (text) {
-          data = csvParse(text, parseFn)
+      // Try reading from project asset first
+      if (url) {
+        const assetData = await this.readFromProjectAsset(url, format === 'binary')
+        if (assetData !== null) {
+          return this.processData(assetData, format, autoType)
         }
-        return { data }
-      }
-      if (format === 'json') {
-        let data = {}
-        if (url?.startsWith(projectScheme)) {
-          // Lazy imports to avoid circular dependency
-          const { readAsset } = await import('./storage')
-          const { useFileSystemStore } = await import('./filesystem-store')
 
-          // Use new readAsset function with current project and storage type
-          const { currentProjectName, activeStorageType } = useFileSystemStore.getState()
-          if (!currentProjectName) {
-            throw new Error('No project loaded. Please save or load a project first.')
-          }
-          const fileName = url.substring(projectScheme.length)
-          const result = await readAsset(activeStorageType, currentProjectName, fileName)
-          if (!result.success) {
-            throw new Error(result.error.message)
-          }
-          data = JSON.parse(result.data)
-        } else if (url) {
-          const resp = await fetch(url)
-          data = await resp.json()
-        } else if (text) {
-          data = JSON.parse(text)
-        }
-        return { data }
+        // Not a project asset, fetch from URL
+        const data = await this.fetchFromUrl(
+          url,
+          format as 'json' | 'csv' | 'tsv' | 'text' | 'binary'
+        )
+        return this.processData(data, format, autoType)
       }
+
+      // Handle text input
+      if (text) {
+        return this.processText(text, format, autoType)
+      }
+
+      // No input provided, return empty result
+      return this.getEmptyResult(format)
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
       throw new Error(`Unable to read file "${url}": ${errorMessage}`)
@@ -1187,24 +2218,73 @@ export class FileOp extends Operator<FileOp> {
 }
 
 const duckDbInstance = (async () => {
-  const MANUAL_BUNDLES: duckdb.DuckDBBundles = {
-    mvp: {
-      mainModule: duckdb_wasm,
-      mainWorker: mvp_worker,
-    },
-    eh: {
-      mainModule: duckdb_wasm_eh,
-      mainWorker: eh_worker,
-    },
-    coi: {
-      mainModule: duckdb_wasm_coi,
-      mainWorker: coi_worker,
-      pthreadWorker: duckdb_pthread_worker,
-    },
+  // Use CDN bundles for Cloudflare Pages (which has a 25 MiB file size limit)
+  // Use local bundles for development and GitHub Actions (which can access local files)
+  let bundles: duckdb.DuckDBBundles
+
+  // Use import.meta.env directly in the condition for proper tree-shaking
+  if (import.meta.env.VITE_USE_CDN_DUCKDB === 'true') {
+    // jsdelivr CDN hosts the large WASM files externally
+    bundles = duckdb.getJsDelivrBundles()
+  } else {
+    // Dynamically import the WASM files only when not using CDN
+    // Vite will tree-shake this entire branch when VITE_USE_CDN_DUCKDB is 'true'
+    const [
+      duckdb_wasm,
+      mvp_worker,
+      duckdb_wasm_eh,
+      eh_worker,
+      duckdb_wasm_coi,
+      coi_worker,
+      duckdb_pthread_worker,
+    ] = await Promise.all([
+      import('@duckdb/duckdb-wasm/dist/duckdb-mvp.wasm?url').then(m => m.default),
+      import('@duckdb/duckdb-wasm/dist/duckdb-browser-mvp.worker.js?url').then(m => m.default),
+      import('@duckdb/duckdb-wasm/dist/duckdb-eh.wasm?url').then(m => m.default),
+      import('@duckdb/duckdb-wasm/dist/duckdb-browser-eh.worker.js?url').then(m => m.default),
+      import('@duckdb/duckdb-wasm/dist/duckdb-coi.wasm?url').then(m => m.default),
+      import('@duckdb/duckdb-wasm/dist/duckdb-browser-coi.worker.js?url').then(m => m.default),
+      import('@duckdb/duckdb-wasm/dist/duckdb-browser-coi.pthread.worker.js?url').then(
+        m => m.default
+      ),
+    ])
+
+    // Bundle the WASM files locally for environments that support it
+    bundles = {
+      mvp: {
+        mainModule: duckdb_wasm,
+        mainWorker: mvp_worker,
+      },
+      eh: {
+        mainModule: duckdb_wasm_eh,
+        mainWorker: eh_worker,
+      },
+      coi: {
+        mainModule: duckdb_wasm_coi,
+        mainWorker: coi_worker,
+        pthreadWorker: duckdb_pthread_worker,
+      },
+    }
   }
+
   // Select a bundle based on browser checks
-  const bundle = await duckdb.selectBundle(MANUAL_BUNDLES)
-  const worker = new Worker(bundle.mainWorker!)
+  const bundle = await duckdb.selectBundle(bundles)
+  const workerUrl = bundle.mainWorker!
+
+  // Handle cross-origin URLs by fetching and creating blob URL
+  const isCrossOrigin =
+    workerUrl.startsWith('http') && !workerUrl.startsWith(window.location.origin)
+  const resolvedWorkerUrl = isCrossOrigin
+    ? await fetch(workerUrl).then(async res => {
+        if (!res.ok) {
+          throw new Error(`Failed to fetch DuckDB worker: ${res.status} ${res.statusText}`)
+        }
+        const blob = new Blob([await res.text()], { type: 'application/javascript' })
+        return URL.createObjectURL(blob)
+      })
+    : workerUrl
+
+  const worker = new Worker(resolvedWorkerUrl)
   const logger = new duckdb.ConsoleLogger(duckdb.LogLevel.WARNING)
   const db = new duckdb.AsyncDuckDB(logger, worker)
   await db.instantiate(bundle.mainModule, bundle.pthreadWorker)
@@ -1239,10 +2319,14 @@ export class DuckDbOp extends Operator<DuckDbOp> {
   }
 
   async execute({
-    query: queryString,
+    query: queryString = '',
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> | null {
-    const query = queryString?.trim()
-    if (!query) {
+    const queries = queryString
+      .split(';')
+      .map(s => s.trim())
+      .filter(Boolean)
+      .map(s => `${s};`)
+    if (!queries?.length) {
       return { data: [] }
     }
 
@@ -1250,33 +2334,73 @@ export class DuckDbOp extends Operator<DuckDbOp> {
     const conn = await db.connect()
 
     try {
-      // Parse the query and extract references
-      const references: FieldReference[] = []
-      const parameterizedQuery = query.replace(mustacheRe, (raw, opId, inOut, fieldPath) => {
-        // If the opId is a relative path (doesn't start with /), make it relative to current context
-        const resolvedOpId = opId.startsWith('/') ? opId : `./${opId}`
-        references.push({ opId: resolvedOpId, inOut, fieldPath, raw })
-        return `$${references.length}` // $1, $2, etc.
-      })
+      let data = []
+      for (const query of queries) {
+        if (!mustacheRe.test(query)) {
+          const result = await conn.query(query)
+          data = result.toArray()
+          continue
+        }
 
-      // Prepare the query with the current connection
-      const prepared = await conn.prepare(parameterizedQuery)
+        // Parse the query and extract references
+        const references: FieldReference[] = []
+        const parameterizedQuery = query.replace(mustacheRe, (raw, opId, inOut, fieldPath) => {
+          // If the opId is a relative path (doesn't start with /), make it relative to current context
+          const resolvedOpId = opId.startsWith('/') ? opId : `./${opId}`
+          references.push({ opId: resolvedOpId, inOut, fieldPath, raw })
+          return `$${references.length}` // $1, $2, etc.
+        })
 
-      // Resolve reference values
-      const positionalParams = references.map(({ opId, inOut, fieldPath }) => {
-        const op = getOp(opId, this.id)
-        const [firstKey, ...rest] = fieldPath.split('.')
-        return rest.reduce((d, prop) => d[prop], op?.[inOut][firstKey])
-      })
+        // Resolve reference values
+        const positionalParams = references.map(({ opId, inOut, fieldPath }) => {
+          const op = getOp(opId, this.id)
+          const [firstKey, ...rest] = fieldPath.split('.')
 
-      const result = await prepared.query(...positionalParams)
-      const data = await result.toArray()
+          const field = op?.[inOut === 'par' ? 'inputs' : 'outputs']?.[firstKey]
+          if (!field) {
+            throw new Error(`Field ${firstKey} not found on ${opId}`)
+          }
+
+          return rest.reduce((d, prop) => d[prop], field.value)
+        })
+
+        // Prepare the query with the current connection
+        const prepared = await conn.prepare(parameterizedQuery)
+
+        const result = await prepared.query(...positionalParams)
+        data = result.toArray()
+      }
       await conn.close()
       return { data }
     } catch (e) {
-      console.error('Error executing query', e)
+      const error = e instanceof Error ? e : new Error(String(e))
+      const errorMsg = error.message || ''
+
+      debugExecute('Error executing query', e)
+
+      // Log error to console for debugging
+      // Note: "Object Not Found" and syntax errors often occur during typing,
+      // so we don't capture those to PostHog to avoid noise from incomplete queries
+      if (errorMsg.includes('Object Not Found')) {
+        console.error(
+          '[DuckDbOp] Object not found - table or view may not be registered.',
+          'This often happens when typing an incomplete query.',
+          error
+        )
+      } else if (errorMsg.includes('syntax error') || errorMsg.includes('Parser Error')) {
+        console.error('[DuckDbOp] SQL syntax error (likely incomplete query):', error)
+      } else {
+        // Only capture non-typing-related errors to analytics
+        console.error('[DuckDbOp] Query execution failed:', error)
+        analytics.captureException(error, {
+          source: 'duckdb_op',
+          errorType: 'execution_error',
+        })
+      }
+
       await conn.close()
-      return null
+      await db.reset()
+      throw error
     }
   }
 }
@@ -1337,32 +2461,160 @@ export class ViewerOp extends Operator<ViewerOp> {
 
 export class TableEditorOp extends Operator<TableEditorOp> {
   static displayName = 'TableEditor'
-  static description = 'Edit a table in the viewer'
+  static description = 'Edit a table with typed columns'
   asDownload = () => this.outputData
+
   createInputs() {
     return {
       data: new DataField(),
+      schema: new UnknownField(null), // TableSchema | null - optional schema override
     }
   }
 
   createOutputs() {
     return {
       data: new DataField(),
+      schema: new UnknownField(null), // Computed schema (inferred or explicit)
     }
   }
 
-  execute({ data }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    // This is a special-case because it's essentially a pass-through. The TableEditor component will handle the data
-    return { data }
+  execute({ data, schema }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const validatedData = schema ? validateTableData(data, schema as TableSchema) : data
+    // Convert dateTime strings to Temporal.ZonedDateTime for output
+    // This happens at the operator boundary: internal storage = strings, output = Temporal
+    const outputData = schema
+      ? prepareTableDataForOutput(validatedData, schema as TableSchema)
+      : validatedData
+
+    return {
+      data: outputData,
+      schema: schema || null,
+    }
+  }
+}
+
+export class ChartOp extends Operator<ChartOp> {
+  static displayName = 'Chart'
+  static description = 'Create charts using Observable Plot (bar, histogram, scatter)'
+
+  createInputs() {
+    const data = new DataField()
+    const chartType = new StringLiteralField('bar', { values: ['bar', 'histogram', 'scatter'] })
+    const xField = new StringLiteralField('', [])
+    const yField = new StringLiteralField('', [])
+
+    // Dynamic field population pattern (from FilterOp)
+    data.subscribe((data: unknown[]) => {
+      if (Array.isArray(data) && data.length > 0) {
+        const keys = Object.keys(data[0])
+        xField.updateChoices(keys)
+        yField.updateChoices(keys)
+      }
+    })
+
+    // Field visibility based on chart type
+    chartType.subscribe(type => {
+      // Hide yField for histogram (only needs x-axis)
+      this.setFieldVisibility('yField', type !== 'histogram')
+    })
+
+    return {
+      data,
+      chartType,
+      xField,
+      yField,
+      width: new NumberField(640, { min: 100, max: 2000, step: 10 }),
+      height: new NumberField(400, { min: 100, max: 2000, step: 10 }),
+      color: new ColorField('#4269d0'),
+      title: new StringField(''),
+      xLabel: new StringField(''),
+      yLabel: new StringField(''),
+    }
+  }
+
+  createOutputs() {
+    return {
+      // Plot.plot() returns a <figure> element containing the chart SVG
+      chart: new UnknownField(),
+    }
+  }
+
+  execute({
+    data,
+    chartType,
+    xField,
+    yField,
+    width,
+    height,
+    color,
+    title,
+    xLabel,
+    yLabel,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    // Validate inputs
+    if (!Array.isArray(data) || data.length === 0) {
+      return { chart: null }
+    }
+
+    // Validate that fields are populated (not empty strings)
+    // This prevents Observable Plot from receiving undefined field names
+    if (!xField || (chartType !== 'histogram' && !yField)) {
+      console.warn(
+        `[ChartOp] Field validation failed - xField: "${xField}", yField: "${yField}", chartType: "${chartType}"`
+      )
+      return { chart: null }
+    }
+
+    try {
+      // Build marks based on chart type
+      let marks: Plot.Markish[]
+      switch (chartType) {
+        case 'bar':
+          marks = [Plot.barY(data, { x: xField, y: yField, fill: color })]
+          break
+        case 'histogram':
+          marks = [Plot.rectY(data, Plot.binX({ y: 'count' }, { x: xField, fill: color }))]
+          break
+        case 'scatter':
+          marks = [Plot.dot(data, { x: xField, y: yField, fill: color })]
+          break
+      }
+
+      // Generate and return plot
+      const chart = Plot.plot({
+        width,
+        height,
+        title,
+        marks,
+        x: { label: xLabel || xField },
+        y: { label: yLabel || yField },
+      })
+
+      return { chart }
+    } catch (error) {
+      console.error('[ChartOp] Plot generation failed:', error)
+      analytics.captureException(error as Error, {
+        source: 'chart_op',
+        chartType,
+        hasData: data?.length > 0,
+        hasXField: !!xField,
+        hasYField: !!yField,
+        dataLength: data?.length,
+      })
+      return { chart: null }
+    }
   }
 }
 
 export class ScatterOp extends Operator<ScatterOp> {
   static displayName = 'Scatter'
-  static description = 'Scatter points within a bounding box'
+  static description = 'Scatter points randomly within a bounding box'
   createInputs() {
     return {
-      bounds: new ArrayField(new Point2DField([0, 0], { returnType: 'tuple' })),
+      bounds: new BboxField(
+        { southwest: { lng: -180, lat: -90 }, northeast: { lng: 180, lat: 90 } },
+        { returnType: 'tuple' }
+      ),
       count: new NumberField(100, { min: 1, step: 1 }),
       seed: new NumberField(1, { min: 0, step: 1 }),
     }
@@ -1405,8 +2657,8 @@ export class BoundsOp extends Operator<BoundsOp> {
   static description = 'Create a bounding box from two points'
   createInputs() {
     return {
-      point1: new Point2DField(),
-      point2: new Point2DField(),
+      southwest: new Point2DField(),
+      northeast: new Point2DField(),
     }
   }
   createOutputs() {
@@ -1414,11 +2666,14 @@ export class BoundsOp extends Operator<BoundsOp> {
       bounds: new ArrayField(new Point2DField([0, 0], { returnType: 'tuple' })),
     }
   }
-  execute({ point1, point2 }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const west = Math.min(point1.lng, point2.lng)
-    const east = Math.max(point1.lng, point2.lng)
-    const south = Math.min(point1.lat, point2.lat)
-    const north = Math.max(point1.lat, point2.lat)
+  execute({
+    southwest,
+    northeast,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const west = Math.min(southwest.lng, northeast.lng)
+    const east = Math.max(southwest.lng, northeast.lng)
+    const south = Math.min(southwest.lat, northeast.lat)
+    const north = Math.max(southwest.lat, northeast.lat)
 
     const bounds = [
       [west, south],
@@ -1432,13 +2687,13 @@ export class BoundsOp extends Operator<BoundsOp> {
 export class BoundingBoxOp extends Operator<BoundingBoxOp> {
   static displayName = 'BoundingBox'
   static description =
-    'Get the bounding box of a set of points. They must have lat/lng keys. Returns a center point and zoom level.'
+    'Calculate the geographic bounds of your points (with lat/lng keys) and get a camera position (center, zoom) that fits them all in view.'
   asDownload = () => this.outputData
   createInputs() {
     return {
       data: new ArrayField(new Point2DField()),
       // TODO: could be a union, either a number or object with top, right, bottom, left
-      padding: new NumberField(0, { min: -1_000, max: 1_000 }),
+      padding: new NumberField(0, { softMin: -1_000, softMax: 1_000 }),
     }
   }
   createOutputs() {
@@ -1516,32 +2771,72 @@ export class GeocoderOp extends Operator<GeocoderOp> {
   createOutputs() {
     return {
       location: new Point2DField(),
+      results: new DataField(),
     }
   }
-  async execute(_: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    // This is a special-case because it's essentially a pass-through. The Geocoder component will handle the API call
-    return null
+  async execute({
+    query,
+  }: ExtractProps<typeof this.inputs>): Promise<ExtractProps<typeof this.outputs>> {
+    const { getKey } = getKeysStore()
+    const apiKey = getKey('mapbox')
+    if (!apiKey) {
+      throw new Error('Mapbox API key required (Settings > API Keys)')
+    }
 
-    /*
-    const response = await fetch(
-      `https://api.mapbox.com/geocoding/v5/mapbox.places/${query}.json?access_token=${MAPBOX_ACCESS_TOKEN}`
-    )
-    const data = await response.json()
-    const location = data.features[0].center
-    return { location }
-    */
+    // An unconnected query is driven by GeocoderOpComponent so the user can
+    // inspect Mapbox's suggestions and choose a result. Only connected queries
+    // should geocode automatically during graph execution.
+    if (this.inputs.query.subscriptions.size === 0) {
+      return this.outputData
+    }
+
+    const emptyResult = { location: { lng: 0, lat: 0 }, results: [] }
+    if (!query.trim()) return emptyResult
+
+    const results = await geocodeWithMapbox(query, apiKey)
+    const [result] = results
+    if (!result) return emptyResult
+
+    return {
+      location: {
+        lng: result.coordinates.longitude,
+        lat: result.coordinates.latitude,
+      },
+      results,
+    }
   }
 }
 
 export class DirectionsOp extends Operator<DirectionsOp> {
   static displayName = 'Directions'
-  static description = 'Get driving or transit directions between two points'
+  static description = 'Get driving, traffic-aware driving, or transit directions between points'
   asDownload = () => this.outputData
   createInputs() {
     return {
       origin: new Point2DField(),
       destination: new Point2DField(),
-      mode: new StringLiteralField('transit', { values: ['driving', 'transit'] }),
+      mode: new StringLiteralField('transit', {
+        values: [
+          { value: 'driving', label: 'Driving (Mapbox / OSRM)' },
+          { value: 'driving-traffic', label: 'Driving with traffic (Google)' },
+          { value: 'transit', label: 'Transit (Google)' },
+        ],
+      }),
+      departureMode: new StringLiteralField('now', {
+        values: [
+          { value: 'now', label: 'Depart now' },
+          { value: 'scheduled', label: 'Schedule departure' },
+        ],
+      }),
+      departureTime: new DateField(),
+      trafficModel: new StringLiteralField('best-guess', {
+        values: [
+          { value: 'best-guess', label: 'Best guess' },
+          { value: 'pessimistic', label: 'Pessimistic' },
+          { value: 'optimistic', label: 'Optimistic' },
+        ],
+      }),
+      avoidTolls: new BooleanField(false),
     }
   }
   createOutputs() {
@@ -1553,21 +2848,40 @@ export class DirectionsOp extends Operator<DirectionsOp> {
           durationFormatted: new StringField('', { optional: true }),
           timestamps: new ArrayField(new NumberField()),
           path: new ArrayField(new Point2DField([0, 0], { returnType: 'tuple' })),
+          hasTolls: new BooleanField(false, { optional: true }),
+          tollAmount: new NumberField(0, { min: 0, optional: true }),
+          tollCurrency: new StringField('', { optional: true }),
         },
         { passthrough: true }
       ),
     }
   }
+  override isFieldVisible(name: string): boolean {
+    if (name === 'departureMode' || name === 'trafficModel' || name === 'avoidTolls') {
+      return this.inputs.mode.value === 'driving-traffic'
+    }
+    if (name === 'departureTime') {
+      return (
+        this.inputs.mode.value === 'driving-traffic' &&
+        this.inputs.departureMode.value === 'scheduled'
+      )
+    }
+    return super.isFieldVisible(name)
+  }
   async execute({
     origin,
     destination,
     mode,
+    departureMode,
+    departureTime,
+    trafficModel,
+    avoidTolls,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     // Guard on default values
     if (
       (origin.lng === 0 && origin.lat === 0) ||
       (destination.lng === 0 && destination.lat === 0) ||
-      !(mode === 'driving' || mode === 'transit')
+      !(mode === 'driving' || mode === 'driving-traffic' || mode === 'transit')
     ) {
       console.debug('Invalid origin, destination or mode', origin, destination, mode)
       return { route: { timestamps: [], path: [] } }
@@ -1577,9 +2891,263 @@ export class DirectionsOp extends Operator<DirectionsOp> {
       origin,
       destination,
       mode,
+      departureTime:
+        mode === 'driving-traffic' && departureMode === 'scheduled' ? departureTime : undefined,
+      trafficModel,
+      avoidTolls,
     })
 
     return { route }
+  }
+}
+
+/**
+ * Query OpenStreetMap data using Overpass API
+ *
+ * Executes Overpass QL queries against the Overpass API and converts
+ * the OSM JSON response to GeoJSON format. Supports bbox template
+ * replacement for dynamic bounding box queries.
+ *
+ * Uses overpass.kumi.systems mirror which supports CORS.
+ *
+ * @example
+ * ```overpass-ql
+ * [out:json][timeout:25];
+ * (
+ *   way["leisure"="park"]({{bbox}});
+ *   relation["leisure"="park"]({{bbox}});
+ * );
+ * out geom;
+ * ```
+ */
+export class OverpassOp extends Operator<OverpassOp> {
+  static displayName = 'Overpass'
+  static description = 'Query OpenStreetMap data using Overpass API'
+  asDownload = () => this.outputData
+  createInputs() {
+    return {
+      query: new CodeField(
+        '[out:json][timeout:25];\n(\n  way["leisure"="park"]({{bbox}});\n  relation["leisure"="park"]({{bbox}});\n);\nout geom;',
+        {
+          language: 'overpass-ql',
+        }
+      ),
+      bbox: new BboxField(
+        {
+          southwest: { lng: -74.05, lat: 40.68 },
+          northeast: { lng: -73.9, lat: 40.82 },
+        },
+        { optional: false }
+      ),
+      pulse: new NumberField(0, { min: 0, step: 1 }),
+    }
+  }
+  createOutputs() {
+    return {
+      data: new DataField(),
+    }
+  }
+  async execute({
+    query,
+    bbox,
+  }: ExtractProps<typeof this.inputs>): Promise<ExtractProps<typeof this.outputs>> {
+    try {
+      // Get endpoint from settings
+      const keysStore = getKeysStore()
+      const endpoint = keysStore.getKey('overpass')
+      if (!endpoint) {
+        throw new Error(
+          'Overpass API endpoint not configured. Please set it in Settings > API Keys.'
+        )
+      }
+
+      // Replace {{bbox}} template with actual coordinates if bbox is provided and valid
+      // Overpass format: (south,west,north,east)
+      let processedQuery = query
+      if (bbox && /\{\{bbox\}\}/.test(query)) {
+        const { southwest, northeast } = bbox
+        const bboxString = `${southwest.lat},${southwest.lng},${northeast.lat},${northeast.lng}`
+        processedQuery = processedQuery.replace(/\{\{bbox\}\}/g, bboxString)
+      }
+
+      // Query Overpass API
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        body: processedQuery,
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      })
+
+      if (!response.ok) {
+        throw new Error(`Overpass API error: ${response.status} ${response.statusText}`)
+      }
+
+      const osmData = await response.json()
+
+      // Check for timeout or other errors
+      if (osmData.remark?.includes('timeout')) {
+        throw new Error('Overpass query timeout - try a smaller area or simpler query')
+      }
+
+      // Convert OSM JSON to GeoJSON
+      const geojson = this.osmToGeoJson(osmData)
+      return { data: geojson }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      throw new Error(`Overpass query failed: ${errorMessage}`)
+    }
+  }
+
+  private osmToGeoJson(osmData: {
+    elements?: Array<{
+      type: string
+      id: number
+      lat?: number
+      lon?: number
+      tags?: Record<string, string>
+      geometry?: Array<{ lat: number; lon: number }>
+      nodes?: number[]
+    }>
+  }): { type: 'FeatureCollection'; features: unknown[] } {
+    const features: unknown[] = []
+
+    // Build node map for way processing
+    const nodeMap: Record<
+      number,
+      {
+        id: number
+        lat: number
+        lon: number
+        tags?: Record<string, string>
+      }
+    > = {}
+    for (const element of osmData.elements || []) {
+      if (element.type === 'node') {
+        nodeMap[element.id] = element
+
+        // Only create features for tagged nodes (POIs)
+        if (element.tags) {
+          features.push({
+            type: 'Feature',
+            geometry: {
+              type: 'Point',
+              coordinates: [element.lon, element.lat],
+            },
+            properties: { ...element.tags, osm_id: element.id, osm_type: 'node' },
+          })
+        }
+      }
+    }
+
+    // Process ways (lines and polygons)
+    for (const element of osmData.elements || []) {
+      if (element.type === 'way' && element.tags) {
+        // If geometry is included (from 'out geom'), use it directly
+        if (element.geometry) {
+          const coordinates = element.geometry.map(node => [node.lon, node.lat])
+
+          if (coordinates.length < 2) continue
+
+          // Check if way is closed (polygon) using epsilon comparison for floating point coordinates
+          const epsilon = 1e-9
+          const isClosed =
+            coordinates.length > 2 &&
+            Math.abs(coordinates[0][0] - coordinates[coordinates.length - 1][0]) < epsilon &&
+            Math.abs(coordinates[0][1] - coordinates[coordinates.length - 1][1]) < epsilon
+
+          features.push({
+            type: 'Feature',
+            geometry: {
+              type: isClosed ? 'Polygon' : 'LineString',
+              coordinates: isClosed ? [coordinates] : coordinates,
+            },
+            properties: { ...element.tags, osm_id: element.id, osm_type: 'way' },
+          })
+        }
+        // Otherwise try to build from nodes
+        else if (element.nodes) {
+          const coordinates = element.nodes
+            .map((nodeId: number) => {
+              const node = nodeMap[nodeId] || osmData.elements?.find(n => n.id === nodeId)
+              return node?.lat !== undefined && node?.lon !== undefined
+                ? [node.lon, node.lat]
+                : null
+            })
+            .filter((coord): coord is [number, number] => coord !== null)
+
+          if (coordinates.length < 2) continue
+
+          // Check if way is closed (polygon)
+          const isClosed = element.nodes[0] === element.nodes[element.nodes.length - 1]
+
+          features.push({
+            type: 'Feature',
+            geometry: {
+              type: isClosed ? 'Polygon' : 'LineString',
+              coordinates: isClosed ? [coordinates] : coordinates,
+            },
+            properties: { ...element.tags, osm_id: element.id, osm_type: 'way' },
+          })
+        }
+      }
+    }
+
+    // Process relations (multipolygons and other complex geometries)
+    for (const element of osmData.elements || []) {
+      if (element.type === 'relation' && element.tags) {
+        // Relations with 'out geom;' include member geometries
+        const members = (
+          element as unknown as {
+            members?: Array<{
+              type: string
+              ref: number
+              role: string
+              lat?: number
+              lon?: number
+              geometry?: Array<{ lat: number; lon: number }>
+            }>
+          }
+        ).members
+
+        if (!members) continue
+
+        // Group members by role (outer/inner for multipolygons)
+        const outerWays = members.filter(m => m.role === 'outer' && m.geometry)
+        const innerWays = members.filter(m => m.role === 'inner' && m.geometry)
+
+        if (outerWays.length > 0) {
+          // Build polygon rings
+          const outerRings = outerWays.map(way => way.geometry!.map(node => [node.lon, node.lat]))
+          const innerRings = innerWays.map(way => way.geometry!.map(node => [node.lon, node.lat]))
+
+          // If single outer ring, create Polygon; otherwise MultiPolygon
+          if (outerRings.length === 1) {
+            features.push({
+              type: 'Feature',
+              geometry: {
+                type: 'Polygon',
+                coordinates: [outerRings[0], ...innerRings],
+              },
+              properties: { ...element.tags, osm_id: element.id, osm_type: 'relation' },
+            })
+          } else {
+            // Multiple outer rings - create MultiPolygon
+            features.push({
+              type: 'Feature',
+              geometry: {
+                type: 'MultiPolygon',
+                coordinates: outerRings.map(outer => [outer, ...innerRings]),
+              },
+              properties: { ...element.tags, osm_id: element.id, osm_type: 'relation' },
+            })
+          }
+        }
+      }
+    }
+
+    return {
+      type: 'FeatureCollection',
+      features,
+    }
   }
 }
 
@@ -1591,11 +3159,11 @@ export class ArcOp extends Operator<ArcOp> {
     return {
       source: new Point3DField(),
       target: new Point3DField(),
-      altitudeMultiplier: new NumberField(2, { min: 0, max: 100 }),
-      apexAlt: new NumberField(10_000, { min: 0, max: 100_000 }),
+      altitudeMultiplier: new NumberField(2, { min: 0, softMax: 100 }),
+      apexAlt: new NumberField(10_000, { min: 0, softMax: 100_000 }),
       smoothHeight: new BooleanField(true),
       smoothPosition: new BooleanField(true),
-      segmentCount: new NumberField(250, { min: 0, max: 1000 }),
+      segmentCount: new NumberField(250, { min: 1, softMax: 1000 }),
       tilt: new NumberField(0, { min: -90, max: 90 }),
     }
   }
@@ -1690,15 +3258,85 @@ export class NetworkOp extends Operator<NetworkOp> {
   }
 }
 
+// Helper function to detect Temporal objects
+function isTemporal(
+  value: unknown
+): value is
+  | Temporal.PlainDate
+  | Temporal.PlainDateTime
+  | Temporal.Instant
+  | Temporal.ZonedDateTime {
+  return (
+    value instanceof Temporal.PlainDate ||
+    value instanceof Temporal.PlainDateTime ||
+    value instanceof Temporal.Instant ||
+    value instanceof Temporal.ZonedDateTime
+  )
+}
+
+// Helper function to interpolate between two Temporal objects
+function interpolateTemporal(a: unknown, b: unknown, t: number): unknown {
+  // Convert both to epoch milliseconds for interpolation
+  let aMs: number
+  let bMs: number
+  let type: 'Instant' | 'ZonedDateTime' | 'PlainDateTime' | 'PlainDate'
+
+  if (a instanceof Temporal.Instant) {
+    aMs = a.epochMilliseconds
+    bMs = b.epochMilliseconds
+    type = 'Instant'
+  } else if (a instanceof Temporal.ZonedDateTime) {
+    aMs = a.epochMilliseconds
+    bMs = b.epochMilliseconds
+    type = 'ZonedDateTime'
+  } else if (a instanceof Temporal.PlainDateTime) {
+    // Convert to a reference Instant (using UTC as reference)
+    aMs = a.toZonedDateTime('UTC').epochMilliseconds
+    bMs = b.toZonedDateTime('UTC').epochMilliseconds
+    type = 'PlainDateTime'
+  } else if (a instanceof Temporal.PlainDate) {
+    // Convert to a reference Instant (start of day in UTC)
+    aMs = a.toZonedDateTime({
+      timeZone: 'UTC',
+      plainTime: Temporal.PlainTime.from('00:00'),
+    }).epochMilliseconds
+    bMs = b.toZonedDateTime({
+      timeZone: 'UTC',
+      plainTime: Temporal.PlainTime.from('00:00'),
+    }).epochMilliseconds
+    type = 'PlainDate'
+  } else {
+    throw new Error('Unsupported Temporal type for interpolation')
+  }
+
+  // Interpolate the milliseconds
+  const interpolatedMs = Math.round(aMs + (bMs - aMs) * t)
+
+  // Convert back to the appropriate Temporal type
+  if (type === 'Instant') {
+    return Temporal.Instant.fromEpochMilliseconds(interpolatedMs)
+  }
+  if (type === 'ZonedDateTime') {
+    const instant = Temporal.Instant.fromEpochMilliseconds(interpolatedMs)
+    return instant.toZonedDateTimeISO((a as Temporal.ZonedDateTime).timeZoneId)
+  }
+  if (type === 'PlainDateTime') {
+    const instant = Temporal.Instant.fromEpochMilliseconds(interpolatedMs)
+    return instant.toZonedDateTimeISO('UTC').toPlainDateTime()
+  }
+  // PlainDate
+  const instant = Temporal.Instant.fromEpochMilliseconds(interpolatedMs)
+  return instant.toZonedDateTimeISO('UTC').toPlainDate()
+}
+
 export class SwitchOp extends Operator<SwitchOp> {
   static displayName = 'Switch'
   static description =
-    'Switch between multiple values based on an index. Blend enables interpolation between values.'
+    'Select one value from a list using an index (0, 1, 2...). With blend enabled, smoothly interpolate between values for animation effects.'
   createInputs() {
     return {
-      // TODO: support arbitrary outputs, maybe a union type?
       values: new ListField(new DataField()),
-      index: new NumberField(0, { min: 0, step: 1 }),
+      index: new NumberField(0, { min: 0, step: 1, accessor: true }),
       blend: new BooleanField(false),
     }
   }
@@ -1712,50 +3350,94 @@ export class SwitchOp extends Operator<SwitchOp> {
     index,
     blend,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    if (blend) {
-      const value = interpolate(...values)(index)
+    // Define helper functions
+    const selectValue = (values: unknown[], index: number): unknown => {
+      if (values.length === 0) return undefined
+      const clampedIndex = Math.max(0, Math.min(index, values.length - 1))
+      return values[Math.floor(clampedIndex)]
+    }
+
+    const blendValues = (values: unknown[], index: number): unknown => {
+      if (values.length === 0) return undefined
+      if (values.length === 1) return values[0]
+
+      const clampedIndex = Math.max(0, Math.min(index, values.length - 1))
+      const lowerIndex = Math.floor(clampedIndex)
+      const upperIndex = Math.ceil(clampedIndex)
+
+      if (lowerIndex === upperIndex) return values[lowerIndex]
+
+      const t = clampedIndex - lowerIndex
+      const lowerValue = values[lowerIndex]
+      const upperValue = values[upperIndex]
+
+      if (isTemporal(lowerValue) && isTemporal(upperValue)) {
+        return interpolateTemporal(lowerValue, upperValue, t)
+      }
+
+      return interpolate(lowerValue, upperValue)(t)
+    }
+
+    // Choose function based on blend mode
+    const selectFn = blend ? blendValues : selectValue
+
+    // Handle accessor input
+    if (isAccessor(index)) {
+      const value = (...args: unknown[]) => {
+        const idx = (index as (...args: unknown[]) => number)(...args)
+        return selectFn(values, idx)
+      }
       return { value }
     }
 
-    const value = values[Math.min(index, values.length - 1)]
+    // Handle static input (unchanged behavior)
+    const value = selectFn(values, index as number)
     return { value }
   }
 }
 
-// This is a special control flow Operator that will loop over an array of data
-// We need a way to signal to the UI that this is a loop, and to render the loop
 export class ForLoopBeginOp extends Operator<ForLoopBeginOp> {
   static displayName = 'ForLoopBegin'
   static description =
-    'Begin a for loop. The loop will iterate over the data array and pass each value to the downstream operators. Requires a ForLoopEnd operator to complete the loop.'
+    'Start a loop that processes each item in an array. The scope body is wrapped in a group node. Outputs are set by the executor during iteration.'
+
   createInputs() {
     return {
       data: new DataField(new ArrayField(new UnknownField())),
     }
   }
+
   createOutputs() {
     return {
-      d: new DataField(new UnknownField()),
+      item: new DataField(new UnknownField()),
+      index: new NumberField(0), // Current iteration index
+      total: new NumberField(0), // Total number of items
     }
   }
+
   execute({ data }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    return { d: data }
+    // GraphExecutor sets these values during iteration
+    const arr = Array.isArray(data) ? data : []
+    return {
+      item: arr.length > 0 ? arr[0] : null,
+      index: 0,
+      total: arr.length,
+    }
   }
 }
 
 export class ForLoopEndOp extends Operator<ForLoopEndOp> {
   static displayName = 'ForLoopEnd'
   static description =
-    'End a for loop. This operator is required to complete the loop. It will pass the data array to the downstream operators.'
+    'End a loop started by ForLoopBegin. Collects all the processed items into an array and passes them to downstream operators.'
   static defaultValue = []
 
-  // This is a special case where we need to keep track of the loop
-  _subs: Subscription[] = []
   chain: Operator<IOperator>[] = []
+  private _iterating = false // Flag to prevent concurrent iterations
 
   createInputs() {
     return {
-      d: new DataField(new UnknownField()),
+      item: new DataField(new UnknownField()),
     }
   }
   createOutputs() {
@@ -1763,78 +3445,187 @@ export class ForLoopEndOp extends Operator<ForLoopEndOp> {
       data: new DataField(new ArrayField(new UnknownField())),
     }
   }
-  // Override the default to handle the loop
+
+  // GraphExecutor owns loop scheduling; a normal reactive listener would run
+  // the body again when each iteration changes an internal input.
   createListeners() {
-    return
+    // Intentionally empty.
   }
 
-  // This is a complicated operator that needs to keep track of the loop.
-  // We need to know when the loop is done, and when to start the next iteration
-  // It hijacks event-oriented nature of Operators, firing an event on the beginLoopOp
-  // and then listening for the endLoopOp to know when to stop, using the number of
-  // elements in the data array to know when to stop and pass along the results to
-  // the downstream operators
+  // Store the chain used by pull() while leaving scheduling to GraphExecutor.
   createForLoopListeners(chain: Operator<IOperator>[] = []) {
     this.chain = chain
+  }
 
-    const beginOp = chain.find(op => op instanceof ForLoopBeginOp)! as ForLoopBeginOp
-    // biome-ignore lint/complexity/noUselessThisAlias: Provides clarity
-    const endOp = this
-    let running = false
+  // Override pull() to iterate through input data and collect results
+  // This is used when chain is set up (tests) or when called via GraphExecutor.
+  async pull(): Promise<ExtractProps<typeof this.outputs>> {
+    // If no chain or no begin op, fall back to default pull
+    const beginOp = this.chain.find(op => op instanceof ForLoopBeginOp) as
+      | ForLoopBeginOp
+      | undefined
+    if (!beginOp || this.chain.length === 0) {
+      // Return cached if clean and no chain.
+      if (this._pullExecutionStatus === PullExecutionStatus.CLEAN && this._cachedOutput !== null) {
+        return this._cachedOutput as ExtractProps<typeof this.outputs>
+      }
+      return super.pull()
+    }
 
-    // Debounce the loop to prevent it from running too frequently when the data changes
-    const runForLoop = () => {
-      if (running) return
-      running = true
-      const data = beginOp.inputs.data.getValue()
-      const collection: unknown[] = []
-      let i = 0
+    // Check if beginOp is dirty - if so, we need to re-run the iteration
+    // Also check if any operator in the chain is dirty
+    const anyDirty = this.chain.some(op => op.dirty)
+    if (
+      !anyDirty &&
+      this._pullExecutionStatus === PullExecutionStatus.CLEAN &&
+      this._cachedOutput !== null
+    ) {
+      return this._cachedOutput as ExtractProps<typeof this.outputs>
+    }
 
-      // For the first run, when data is empty just pass along the empty array
-      if (data.length === 0) {
-        endOp.outputs['data'].next(collection)
-        running = false
-        return
+    // Prevent concurrent iterations (with reactive subscription)
+    if (this._iterating) {
+      // Another iteration is in progress, return current cache or wait
+      if (this._cachedOutput !== null) {
+        return this._cachedOutput as ExtractProps<typeof this.outputs>
+      }
+      return super.pull()
+    }
+    this._iterating = true
+
+    try {
+      // Legacy/test mode: chain is set, do iteration here
+      // First pull the beginOp to get the input data
+      await beginOp.pull()
+
+      const data = beginOp.inputs.data.value
+      if (!Array.isArray(data) || data.length === 0) {
+        const result = { data: [] as unknown[] }
+        this.setCachedOutput(result)
+        this.outputs.data.next(result.data)
+        return result
       }
 
-      let firstRun = true
-      const sub = endOp.inputs['d'].subscribe(values => {
-        if (data.length === 0 || i === data.length) {
-          endOp.outputs['data'].next(collection)
-          running = false
-          if (i === data.length) {
-            sub.unsubscribe()
-          }
-        } else if (i < data.length && !firstRun) {
-          collection.push(values)
-          i++
+      const total = data.length
+      const results: unknown[] = []
+
+      // Chain is in reverse order (EndOp inputs first), get proper execution order
+      const executionOrder = [...this.chain].reverse()
+
+      // Find ForLoopMetaOp if present
+      const metaOp = this.chain.find(op => op instanceof ForLoopMetaOp) as ForLoopMetaOp | undefined
+      let accumulator: unknown = metaOp?.inputs.initialValue.value ?? null
+
+      for (let index = 0; index < total; index++) {
+        const item = data[index]
+        const isFirst = index === 0
+        const isLast = index === total - 1
+
+        // Set iteration values on ForLoopBeginOp outputs
+        beginOp.outputs.item.next(item)
+        beginOp.outputs.index.next(index)
+        beginOp.outputs.total.next(total)
+
+        // CRITICAL: Cache BeginOp so downstream pulls return iteration values
+        // Without this, pulling intermediate ops re-executes BeginOp and gets arr[0]
+        beginOp.setCachedOutput({ item, index, total })
+
+        // Set iteration metadata on ForLoopMetaOp if present
+        if (metaOp) {
+          metaOp.outputs.accumulator.next(accumulator)
+          metaOp.outputs.index.next(index)
+          metaOp.outputs.total.next(total)
+          metaOp.outputs.isFirst.next(isFirst)
+          metaOp.outputs.isLast.next(isLast)
+          metaOp.setCachedOutput({ accumulator, index, total, isFirst, isLast })
         }
-      })
 
-      firstRun = false
-      for (const d of data) {
-        beginOp.outputs['d'].next(d)
-      }
-    }
-
-    for (const sub of this._subs) {
-      sub.unsubscribe()
-    }
-
-    for (const chainOp of chain) {
-      const sub = combineLatest(chainOp.inputs)
-        .pipe(debounceTime(200))
-        .subscribe(() => {
-          // Only run if the operator is still mounted
-          if (opMap.has(beginOp.id)) {
-            runForLoop()
+        // Clear cache on intermediate operators so pull() re-executes them
+        // NOTE: We use clearCache() not markDirty() because pull() checks _pullExecutionStatus, not dirty
+        for (const op of executionOrder) {
+          if (op !== beginOp && op !== metaOp && op !== this) {
+            op.clearCache()
           }
-        })
-      this._subs.push(sub)
+        }
+
+        // Execute chain in topological order by pulling each
+        for (const op of executionOrder) {
+          if (op !== beginOp && op !== metaOp && op !== this) {
+            await op.pull()
+          }
+        }
+
+        // Collect result - the input field should now have the value from upstream
+        results.push(this.inputs.item.value)
+
+        // Update accumulator from meta op for next iteration
+        if (metaOp) {
+          accumulator = metaOp.inputs.currentValue.value
+        }
+      }
+
+      const result = { data: results }
+      this.setCachedOutput(result)
+
+      // Update output field
+      this.outputs.data.next(results)
+
+      return result
+    } finally {
+      this._iterating = false
     }
   }
-  execute({ d }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    return { data: d }
+
+  execute({ item }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    // This execute() is called by pull() when no chain is set up.
+    // When the chain is set up, executeIteration() handles the full iteration.
+    return { data: item }
+  }
+}
+
+// ForLoopMetaOp provides accumulator for reduce-like operations within a ForLoop scope.
+// GraphExecutor is responsible for:
+// - Iterating over the data array
+// - Setting d/index/total on ForLoopBeginOp for each iteration
+// - Setting accumulator/index/total/isFirst/isLast on ForLoopMetaOp
+// - Collecting results from ForLoopEndOp across iterations
+
+export class ForLoopMetaOp extends Operator<ForLoopMetaOp> {
+  static displayName = 'ForLoopMeta'
+  static description =
+    'Access iteration metadata and accumulator within a ForLoop scope. Like Houdini iteration metadata.'
+
+  createInputs() {
+    return {
+      initialValue: new DataField(new UnknownField(), { description: 'Initial accumulator value' }),
+      currentValue: new DataField(new UnknownField(), {
+        description: 'Value to pass to next iteration',
+      }),
+    }
+  }
+
+  createOutputs() {
+    return {
+      accumulator: new DataField(new UnknownField()),
+      index: new NumberField(0),
+      total: new NumberField(0),
+      isFirst: new BooleanField(false),
+      isLast: new BooleanField(false),
+    }
+  }
+
+  execute({
+    initialValue,
+    currentValue,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    // GraphExecutor manages accumulator state across iterations
+    return {
+      accumulator: currentValue ?? initialValue,
+      index: 0,
+      total: 0,
+      isFirst: true,
+      isLast: true,
+    }
   }
 }
 
@@ -1999,7 +3790,7 @@ export class RandomizeAttributeOp extends Operator<RandomizeAttributeOp> {
     min,
     max,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const randomized = data.map((item) => ({
+    const randomized = data.map(item => ({
       ...item,
       [key]: Math.random() * (max - min) + min,
     }))
@@ -2007,10 +3798,10 @@ export class RandomizeAttributeOp extends Operator<RandomizeAttributeOp> {
   }
 }
 
-export class MergeOp extends Operator<MergeOp> {
-  static displayName = 'Merge'
+export class ConcatOp extends Operator<ConcatOp> {
+  static displayName = 'Concat'
   static description =
-    'Concatenate multiple arrays into one. The arrays should have the same shape. The optional depth argument allows deeply nested arrays to be merged.'
+    'Concatenate multiple arrays into a single array. Use depth to flatten nested arrays (depth=1 flattens one level, depth=2 flattens two levels).'
   createInputs() {
     return {
       values: new ListField(new DataField()),
@@ -2040,8 +3831,27 @@ export class MergeOp extends Operator<MergeOp> {
   }
 }
 
-export class ObjectMergeOp extends Operator<ObjectMergeOp> {
-  static displayName = 'ObjectMerge'
+export class CrossOp extends Operator<CrossOp> {
+  static displayName = 'Cross'
+  static description =
+    'Generate all unique pairs from an array. For example, [1, 2, 3] produces [[1, 2], [1, 3], [2, 3]]'
+  createInputs() {
+    return {
+      data: new DataField(),
+    }
+  }
+  createOutputs() {
+    return {
+      pairs: new DataField(),
+    }
+  }
+  execute({ data }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    return { pairs: utils.cross(data) }
+  }
+}
+
+export class MergeOp extends Operator<MergeOp> {
+  static displayName = 'Merge'
   static description = 'Merge multiple objects into one (think Object.assign)'
   createInputs() {
     return {
@@ -2080,6 +3890,12 @@ export class MouseOp extends Operator<MouseOp> {
   private mouseListener?: (e: MouseEvent) => void
   private containerElement?: Element
 
+  constructor(id: OpId, inputs?: unknown, locked?: boolean) {
+    super(id, inputs, locked)
+    // Initialize mouse position updates after outputs are created
+    this.initializeMouseUpdates()
+  }
+
   createInputs() {
     return {}
   }
@@ -2090,8 +3906,7 @@ export class MouseOp extends Operator<MouseOp> {
     }
   }
 
-  // Override createListeners to set up our custom update mechanism
-  createListeners() {
+  private initializeMouseUpdates() {
     // Subscribe output to the behavior subject
     const sub = this.mousePosition$.subscribe(pos => {
       this.outputs.position.next(pos)
@@ -2134,29 +3949,6 @@ export class MouseOp extends Operator<MouseOp> {
   }
 }
 
-class MapStyleOp extends Operator<MapStyleOp> {
-  static displayName = 'MapStyle'
-  static description = 'Map style for MapLibre'
-  createInputs() {
-    return {
-      mapStyle: new StringLiteralField(CARTO_DARK, {
-        values: Object.entries(MAP_STYLES).map(([url, name]) => ({
-          label: name,
-          value: url as string,
-        })),
-      }),
-    }
-  }
-  createOutputs() {
-    return {
-      mapStyle: new StringField(),
-    }
-  }
-  execute({ mapStyle }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    return { mapStyle }
-  }
-}
-
 export class ProjectOp extends Operator<ProjectOp> {
   static displayName = 'Project'
   static description =
@@ -2164,8 +3956,8 @@ export class ProjectOp extends Operator<ProjectOp> {
   createInputs() {
     return {
       position: new Point2DField(),
-      width: new NumberField(1920, { min: 0, max: 10_000 }),
-      height: new NumberField(1080, { min: 0, max: 10_000 }),
+      width: new NumberField(1920, { min: 1, softMax: 10_000 }),
+      height: new NumberField(1080, { min: 1, softMax: 10_000 }),
       viewState: new CompoundPropsField({
         latitude: new NumberField(DEFAULT_LATITUDE, { min: -90, max: 90, step: 0.1 }),
         longitude: new NumberField(DEFAULT_LONGITUDE, { min: -180, max: 180, step: 0.1 }),
@@ -2204,8 +3996,8 @@ export class UnprojectOp extends Operator<UnprojectOp> {
   createInputs() {
     return {
       screenPosition: new Vec2Field(),
-      width: new NumberField(1920, { min: 0, max: 10_000 }),
-      height: new NumberField(1080, { min: 0, max: 10_000 }),
+      width: new NumberField(1920, { min: 1, softMax: 10_000 }),
+      height: new NumberField(1080, { min: 1, softMax: 10_000 }),
       viewState: new CompoundPropsField({
         latitude: new NumberField(DEFAULT_LATITUDE, { min: -90, max: 90, step: 0.1 }),
         longitude: new NumberField(DEFAULT_LONGITUDE, { min: -180, max: 180, step: 0.1 }),
@@ -2245,7 +4037,7 @@ export class MapViewStateOp extends Operator<MapViewStateOp> {
       longitude: new NumberField(DEFAULT_LONGITUDE, { min: -180, max: 180, step: 0.001 }),
       latitude: new NumberField(DEFAULT_LATITUDE, { min: -90, max: 90, step: 0.001 }),
       zoom: new NumberField(12, { min: 0, max: 24, step: 0.1 }),
-      pitch: new NumberField(0, { min: 0, max: 60, optional: true }),
+      pitch: new NumberField(0, { min: 0, max: 85, optional: true }),
       bearing: new NumberField(0, { optional: true }),
     }
   }
@@ -2282,7 +4074,7 @@ export class SplitMapViewStateOp extends Operator<SplitMapViewStateOp> {
         longitude: new NumberField(DEFAULT_LONGITUDE, { min: -180, max: 180, step: 0.001 }),
         latitude: new NumberField(DEFAULT_LATITUDE, { min: -90, max: 90, step: 0.001 }),
         zoom: new NumberField(12, { min: 0, max: 24, step: 0.1 }),
-        pitch: new NumberField(0, { min: 0, max: 60, optional: true }),
+        pitch: new NumberField(0, { min: 0, max: 85, optional: true }),
         bearing: new NumberField(0, { optional: true }),
       }),
     }
@@ -2296,9 +4088,7 @@ export class SplitMapViewStateOp extends Operator<SplitMapViewStateOp> {
       bearing: new NumberField(),
     }
   }
-  execute({
-    viewState,
-  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+  execute({ viewState }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     validateViewState(viewState)
     return { ...viewState }
   }
@@ -2306,39 +4096,186 @@ export class SplitMapViewStateOp extends Operator<SplitMapViewStateOp> {
 
 export class MaplibreBasemapOp extends Operator<MaplibreBasemapOp> {
   static displayName = 'MaplibreBasemap'
-  static description = 'A Maplibre basemap.'
+  static description =
+    'A MapLibre basemap with sky and lighting settings. Sky colors apply to mercator projection; light and atmosphere apply to globe projection.'
 
   createInputs() {
     return {
-      mapStyle: new JSONUrlField(CARTO_DARK),
+      mapStyle: new MapStyleField(CARTO_DARK, { accept: '.json' }),
+      projection: new StringLiteralField('mercator', {
+        values: ['mercator', 'globe'],
+        showByDefault: false,
+      }),
       viewState: new CompoundPropsField({
         latitude: new NumberField(DEFAULT_LATITUDE, { min: -90, max: 90, step: 0.001 }),
         longitude: new NumberField(DEFAULT_LONGITUDE, { min: -180, max: 180, step: 0.001 }),
         zoom: new NumberField(12, { min: 0, max: 24, step: 0.1 }),
-        pitch: new NumberField(0, { min: 0, max: 60, optional: true }),
+        pitch: new NumberField(0, { min: 0, max: 85, optional: true }),
         bearing: new NumberField(0, { optional: true }),
       }),
+      sky: new CompoundPropsField(
+        {
+          enabled: new BooleanField(false),
+          skyColor: new ColorField('#88C6FC'),
+          horizonColor: new ColorField('#ffffff'),
+          skyHorizonBlend: new NumberField(0.8, { min: 0, max: 1, step: 0.01 }),
+          atmosphereBlend: new NumberField(0.5, { min: 0, max: 1, step: 0.01 }),
+        },
+        { showByDefault: false }
+      ),
+      light: new CompoundPropsField(
+        {
+          anchor: new StringLiteralField('viewport', ['map', 'viewport']),
+          azimuthal: new NumberField(210, { step: 1 }),
+          polar: new NumberField(30, { step: 1 }),
+        },
+        { showByDefault: false }
+      ),
     }
   }
 
   createOutputs() {
     return {
-      maplibre: new CompoundPropsField({
-        mapStyle: new JSONUrlField(),
-        longitude: new NumberField(),
-        latitude: new NumberField(),
-        zoom: new NumberField(),
-        pitch: new NumberField(),
-        bearing: new NumberField(),
-      }),
+      maplibre: new CompoundPropsField(
+        {
+          mapStyle: new MapStyleField(),
+          projection: new StringField(),
+          longitude: new NumberField(),
+          latitude: new NumberField(),
+          zoom: new NumberField(),
+          pitch: new NumberField(),
+          bearing: new NumberField(),
+          light: new UnknownField(),
+          sky: new UnknownField(),
+        },
+        { useDeepEquality: true, maxDepth: 2 }
+      ),
     }
   }
   execute({
     mapStyle,
+    projection,
     viewState,
+    light,
+    sky,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     validateViewState(viewState)
-    return { maplibre: { mapStyle, ...viewState } }
+
+    return {
+      maplibre: {
+        mapStyle,
+        projection,
+        ...viewState,
+        light,
+        sky,
+      },
+    }
+  }
+}
+
+export class CustomMapLibreLayerOp extends Operator<CustomMapLibreLayerOp> {
+  static displayName = 'CustomMapLibreLayer'
+  static description =
+    'Define a custom MapLibre GL layer with WebGL rendering. ' +
+    'The code must return an object with onAdd, render, and onRemove methods. ' +
+    'Access parameters via `params` object and map instance via `map`.'
+
+  createInputs() {
+    return {
+      id: new StringField('custom-layer'),
+      code: new CodeField('', { language: 'javascript' }),
+      renderingMode: new StringLiteralField('3d', {
+        values: ['2d', '3d'],
+      }),
+      beforeId: new StringField('', {
+        optional: true,
+        showByDefault: false,
+      }),
+      params: new UnknownField(
+        {},
+        {
+          optional: true,
+          showByDefault: false,
+        }
+      ),
+    }
+  }
+
+  createOutputs() {
+    return {
+      layer: new MapLibreLayerField(),
+    }
+  }
+
+  execute({
+    id,
+    code: codeString,
+    renderingMode,
+    beforeId,
+    params,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    if (!codeString || codeString.trim() === '') {
+      throw new Error('CustomMapLibreLayer code cannot be empty')
+    }
+
+    return {
+      layer: {
+        id,
+        type: 'custom',
+        code: codeString,
+        renderingMode: renderingMode || '3d',
+        beforeId,
+        params: params || {},
+      },
+    }
+  }
+}
+
+export class MapStyleConfiguratorOp extends Operator<MapStyleConfiguratorOp> {
+  static displayName = 'MapStyleConfigurator'
+  static description =
+    'Visually edit Maplibre style layer colors, fonts, and visibility. Connect the output to MaplibreBasemap.'
+
+  // Cache to avoid re-fetching the same style URL on every override change
+  private _cachedStyleUrl: string | null = null
+  private _cachedStyle: MaplibreStyle | null = null
+
+  createInputs() {
+    return {
+      baseStyle: new FileUrlField(CARTO_DARK, { accept: '.json' }),
+      // Stores layer + global overrides as { layers: LayerOverride[], global: StyleGlobalOverrides }
+      overrides: new UnknownField({ layers: [], global: {} }),
+    }
+  }
+
+  createOutputs() {
+    return {
+      // UnknownField because execute() returns a full style object, not just a URL string
+      mapStyle: new UnknownField(),
+    }
+  }
+
+  async execute({
+    baseStyle,
+    overrides,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    if (!baseStyle) return { mapStyle: '' }
+
+    let styleObj: MaplibreStyle
+    if (typeof baseStyle === 'string') {
+      if (this._cachedStyleUrl !== baseStyle) {
+        const resp = await fetch(baseStyle)
+        if (!resp.ok) throw new Error(`Failed to fetch map style: ${resp.statusText}`)
+        this._cachedStyle = await resp.json()
+        this._cachedStyleUrl = baseStyle
+      }
+      styleObj = this._cachedStyle!
+    } else {
+      styleObj = baseStyle as MaplibreStyle
+    }
+
+    const config = (overrides ?? { layers: [], global: {} }) as StyleConfiguratorData
+    return { mapStyle: applyStyleOverrides(styleObj, config) }
   }
 }
 
@@ -2349,11 +4286,11 @@ export class DeckRendererOp extends Operator<DeckRendererOp> {
   createInputs() {
     return {
       layers: new ListField(new LayerField()), // TODO: extend LayerField schema to support the beforeId prop.
-      effects: new ListField(new EffectField()),
+      effects: new ListField(new EffectField(), { showByDefault: false }),
       // Additional views on top of the map. A MapView({id: 'mapbox'}) will be inserted at the bottom of the stack.
       views: new ListField(new ViewField()),
-      widgets: new ListField(new WidgetField()),
-      layerFilter: new FunctionField(() => true),
+      widgets: new ListField(new WidgetField(), { showByDefault: false }),
+      layerFilter: new FunctionField(() => true, { showByDefault: false }),
       // TODO: We need a nullable field. This should be a nullable (intentionally empty), or a compound object below.
       // TODO: Nullable fields need to be disable-able from the UI so their values can be cleared.
       basemap: new UnknownField(
@@ -2366,19 +4303,23 @@ export class DeckRendererOp extends Operator<DeckRendererOp> {
         { optional: true }
       ),
       // basemap: new CompoundPropsField({
-      //   mapStyle: new JSONUrlField(CARTO_DARK),
+      //   mapStyle: new FileUrlField(CARTO_DARK),
       //   latitude: new NumberField(DEFAULT_LATITUDE, { min: -90, max: 90, step: 0.001 }),
       //   longitude: new NumberField(DEFAULT_LONGITUDE, { min: -180, max: 180, step: 0.001 }),
       //   zoom: new NumberField(12, { min: 0, max: 24, step: 0.1 }),
       //   pitch: new NumberField(0, { min: 0, max: 60, optional: true }),
       //   bearing: new NumberField(0, { optional: true }),
       // }, { optional: true }),
-      viewState: new UnknownField({}),
+      viewState: new UnknownField({}, { showByDefault: false }),
+      maplibreLayers: new ListField(new MapLibreLayerField(), {
+        optional: true,
+        showByDefault: false,
+      }),
     }
   }
   createOutputs() {
     return {
-      vis: new VisualizationField(),
+      vis: new VisualizationField(undefined, { useDeepEquality: true, maxDepth: 3 }),
     }
   }
   execute({
@@ -2389,15 +4330,24 @@ export class DeckRendererOp extends Operator<DeckRendererOp> {
     basemap,
     views,
     layerFilter,
+    maplibreLayers,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     // Validate the ViewState to ensure lat/lng are within valid bounds
     validateViewState(viewState)
 
-    const deckProps: DeckProps & { layers: (LayerProps & { type: string })[] } = {
+    // Extract geo fields from basemap so standalone DeckGL gets the correct position
+    // when basemapEnabled=false (empty mapStyle). MapLibreOverlay ignores viewState, so
+    // this doesn't affect the interleaved basemap rendering path.
+    const basemapViewState = basemap
+      ? pick(basemap, ['longitude', 'latitude', 'zoom', 'pitch', 'bearing'])
+      : {}
+    if (basemap) validateViewState(basemapViewState)
+
+    const deckProps: VisualizationDeckProps = {
       layers,
       effects,
       ...(views?.length > 0 ? { views } : {}),
-      viewState,
+      viewState: { ...basemapViewState, ...viewState },
       layerFilter,
       widgets,
     }
@@ -2407,15 +4357,16 @@ export class DeckRendererOp extends Operator<DeckRendererOp> {
     const mapProps =
       basemap !== null
         ? {
-          ...basemap,
-          ...pick(viewState, ['longitude', 'latitude', 'zoom', 'pitch', 'bearing']),
-        }
+            ...basemap,
+            ...pick(viewState, ['longitude', 'latitude', 'zoom', 'pitch', 'bearing']),
+          }
         : undefined
 
     return {
       vis: {
         deckProps,
         mapProps,
+        maplibreLayers: maplibreLayers || [],
       },
     }
   }
@@ -2426,29 +4377,40 @@ export class DeckRendererOp extends Operator<DeckRendererOp> {
 // - unique view props ordered by most to least often used.
 // - viewState props ordered by most to least often used.
 // - override props go last (e.g. projectionMatrix)
+// Base view fields that apply to all view types
 function createBaseViewFields() {
   return {
-    x: new NumberField(0),
-    y: new NumberField(0),
+    x: new NumberField(0, { showByDefault: false }),
+    y: new NumberField(0, { showByDefault: false }),
     width: new StringField('100%'),
     height: new StringField('100%'),
-    orthographic: new BooleanField(false),
     padding: new CompoundPropsField({
       top: new NumberField(0, { min: 0 }),
       right: new NumberField(0, { min: 0 }),
       bottom: new NumberField(0, { min: 0 }),
       left: new NumberField(0, { min: 0 }),
     }),
-    clear: new BooleanField(false),
-    clearColor: new ColorField('#00000000', { transform: hexToColor }),
+    clear: new BooleanField(false, { showByDefault: false }),
+    clearColor: new ColorField('#00000000', { transform: hexToColor, showByDefault: false }),
+    parameters: new CompoundPropsField({}, { showByDefault: false }),
   }
 }
 
 function createGeoViewFields() {
   return {
-    altitude: new NumberField(1.5, { min: -100_000, max: 100_000, step: 0.1 }),
-    nearZMultiplier: new NumberField(0.1, { min: 0, max: 1_000, step: 0.1 }),
-    farZMultiplier: new NumberField(1.01, { min: 0, max: 1_000 }),
+    altitude: new NumberField(1.5, {
+      softMin: -100_000,
+      softMax: 100_000,
+      step: 0.1,
+      showByDefault: false,
+    }),
+    nearZMultiplier: new NumberField(0.1, {
+      min: 0,
+      softMax: 1_000,
+      step: 0.1,
+      showByDefault: false,
+    }),
+    farZMultiplier: new NumberField(1.01, { min: 0, softMax: 1_000, showByDefault: false }),
   }
 }
 
@@ -2466,8 +4428,9 @@ export class MapViewOp extends Operator<MapViewOp> {
   createInputs() {
     return {
       ...createBaseViewFields(),
-      fovy: new NumberField(40, { min: 0.1, max: 179.9 }),
-      repeat: new BooleanField(false),
+      orthographic: new BooleanField(false, { showByDefault: false }),
+      fovy: new NumberField(40, { min: 0.1, max: 179.9, showByDefault: false }),
+      repeat: new BooleanField(false, { showByDefault: false }),
       ...createGeoViewFields(),
       viewState: new CompoundPropsField({
         ...createGeoViewStateFields(),
@@ -2491,7 +4454,7 @@ export class MapViewOp extends Operator<MapViewOp> {
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     validateViewState(viewState)
     return {
-      view: new MapView({ id: this.id, ...props, viewState: { ...viewState, maxPitch: 90 } }),
+      view: { type: 'MapView', id: this.id, ...props, viewState: { ...viewState, maxPitch: 90 } },
     }
   }
 }
@@ -2499,6 +4462,8 @@ export class MapViewOp extends Operator<MapViewOp> {
 export class GraphInputOp extends Operator<GraphInputOp> {
   static displayName = 'GraphInput'
   static description = 'Receives input from the parent Container.'
+  private _containerSub: Subscription | null = null
+  private _containerInputDependencies = new Set<Operator<IOperator>>()
 
   createInputs() {
     return { parentValue: new UnknownField(null, { optional: true }) }
@@ -2508,8 +4473,153 @@ export class GraphInputOp extends Operator<GraphInputOp> {
     return { value: new UnknownField(null, { optional: true }) }
   }
 
-  execute({ parentValue }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    return { value: parentValue }
+  execute(inputs: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const result: Record<string, unknown> = { value: inputs.parentValue }
+    // Pass through all custom field values from inputs to outputs
+    for (const key of Object.keys(this.outputs)) {
+      if (key !== 'value' && key in inputs) {
+        result[key] = inputs[key]
+      }
+    }
+    return result as ExtractProps<typeof this.outputs>
+  }
+
+  /**
+   * Mirror the operators feeding the parent container as direct pull
+   * dependencies. The value still flows through the container fields, but
+   * this relationship guarantees those fields are populated before the child
+   * graph reads them on its first pull.
+   */
+  setContainerInputDependencies(dependencies: Iterable<Operator<IOperator>>) {
+    const nextDependencies = new Set(dependencies)
+    let changed = false
+
+    for (const dependency of this._containerInputDependencies) {
+      if (nextDependencies.has(dependency)) continue
+      dependency.removeDownstreamDependent(this)
+      this.removeUpstreamDependency(dependency)
+      changed = true
+    }
+
+    for (const dependency of nextDependencies) {
+      if (this._containerInputDependencies.has(dependency)) continue
+      dependency.addDownstreamDependent(this)
+      this.addUpstreamDependency(dependency)
+      changed = true
+    }
+
+    this._containerInputDependencies = nextDependencies
+    if (changed) this.markDirty()
+  }
+
+  /**
+   * Set the parent ContainerOp and subscribe to custom field changes.
+   * When container custom fields change, rebuild outputs to mirror them.
+   */
+  setParentContainer(containerOp: ContainerOp | null) {
+    // Unsubscribe from previous container
+    if (this._containerSub) {
+      this._containerSub.unsubscribe()
+      this._containerSub = null
+    }
+
+    if (containerOp) {
+      // Initial sync
+      this.rebuildFromContainer(containerOp)
+
+      // Subscribe to future changes
+      this._containerSub = containerOp.customFieldsChanged.subscribe(() => {
+        this.rebuildFromContainer(containerOp)
+      })
+    }
+  }
+
+  /**
+   * Rebuild both inputs and outputs to mirror the parent ContainerOp's custom input fields.
+   * Creates an input and output for each custom field on the container.
+   * This allows values to flow: container input → GraphInputOp input → execute() → GraphInputOp output
+   */
+  rebuildFromContainer(containerOp: ContainerOp) {
+    // Preserve old values where possible
+    const oldInputValues = new Map<string, unknown>()
+    for (const [name, field] of Object.entries(this.inputs)) {
+      oldInputValues.set(name, field.value)
+    }
+    const oldOutputValues = new Map<string, unknown>()
+    for (const [name, field] of Object.entries(this.outputs)) {
+      oldOutputValues.set(name, field.value)
+    }
+
+    // Rebuild inputs: parentValue + custom fields. The base parentValue field
+    // object is PRESERVED, not recreated: transformGraph wires the parent
+    // container's `in` field to it via addConnection, and replacing the object
+    // orphans that subscription — data arriving after the rebuild (e.g. an
+    // async FileOp upstream of the container) then never reaches the
+    // container's children, silently freezing them on the initial value.
+    const newInputs: Record<string, Field> = {
+      parentValue: this.inputs.parentValue ?? new UnknownField(null, { optional: true }),
+    }
+    for (const def of containerOp.customInputDefinitions) {
+      const field = this.createFieldFromDefinition(def)
+      newInputs[def.name] = field
+    }
+    this.inputs = newInputs as ReturnType<GraphInputOp['createInputs']>
+
+    // Rebuild outputs: value + custom fields (base `value` preserved for the
+    // same reason — downstream edges subscribe to the field object).
+    const newOutputs: Record<string, Field> = {
+      value: this.outputs.value ?? new UnknownField(null, { optional: true }),
+    }
+    for (const def of containerOp.customInputDefinitions) {
+      const field = this.createFieldFromDefinition(def)
+      newOutputs[def.name] = field
+    }
+    this.outputs = newOutputs as ReturnType<GraphInputOp['createOutputs']>
+
+    // Restore input values where field names match
+    for (const [name, field] of Object.entries(this.inputs)) {
+      if (oldInputValues.has(name)) {
+        try {
+          field.setValue(oldInputValues.get(name))
+        } catch (_err) {
+          // Type mismatch, skip
+        }
+      }
+    }
+
+    // Restore output values where field names match
+    for (const [name, field] of Object.entries(this.outputs)) {
+      if (oldOutputValues.has(name)) {
+        try {
+          field.setValue(oldOutputValues.get(name))
+        } catch (_err) {
+          // Type mismatch, skip
+        }
+      }
+    }
+
+    // Re-assign pathToProps for inputs
+    for (const [key, field] of Object.entries(this.inputs)) {
+      field.pathToProps = [this.id, IN_NS, key]
+      field.op = this
+    }
+
+    // Re-assign pathToProps for outputs
+    for (const [key, field] of Object.entries(this.outputs)) {
+      field.pathToProps = [this.id, OUT_NS, key]
+      field.op = this
+    }
+
+    // Notify that fields changed
+    this.markDirty()
+  }
+
+  dispose() {
+    this.setContainerInputDependencies([])
+    if (this._containerSub) {
+      this._containerSub.unsubscribe()
+    }
+    super.dispose()
   }
 }
 
@@ -2553,13 +4663,13 @@ export class GlobeViewOp extends Operator<GlobeViewOp> {
 
   execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     validateViewState(props.viewState)
-    return { view: new GlobeView({ id: this.id, ...props }) }
+    return { view: { type: 'GlobeView', id: this.id, ...props } }
   }
 }
 
 export class FpsWidgetOp extends Operator<FpsWidgetOp> {
   static displayName = 'FpsWidget'
-  static description = 'Display frames per second (FPS) widget'
+  static description = 'Display frames per second (FPS) and rendering stats widget'
 
   createInputs() {
     return {
@@ -2582,8 +4692,308 @@ export class FpsWidgetOp extends Operator<FpsWidgetOp> {
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     const widget = {
       id: this.id,
-      type: '_FpsWidget',
+      type: '_StatsWidget',
       placement,
+      ...(viewId && viewId !== '' ? { viewId } : {}),
+    }
+    return { widget }
+  }
+}
+
+export class FullscreenWidgetOp extends Operator<FullscreenWidgetOp> {
+  static displayName = 'FullscreenWidget'
+  static description = 'Enter/exit fullscreen widget'
+
+  createInputs() {
+    return {
+      placement: new StringLiteralField('top-right', {
+        values: ['top-left', 'top-right', 'bottom-left', 'bottom-right'],
+      }),
+      viewId: new StringField('', { optional: true }),
+    }
+  }
+
+  createOutputs() {
+    return {
+      widget: new WidgetField(),
+    }
+  }
+
+  execute({
+    placement,
+    viewId,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const widget = {
+      id: this.id,
+      type: 'FullscreenWidget',
+      placement,
+      ...(viewId && viewId !== '' ? { viewId } : {}),
+    }
+    return { widget }
+  }
+}
+
+export class ZoomWidgetOp extends Operator<ZoomWidgetOp> {
+  static displayName = 'ZoomWidget'
+  static description = 'Zoom in/out buttons widget'
+
+  createInputs() {
+    return {
+      placement: new StringLiteralField('top-right', {
+        values: ['top-left', 'top-right', 'bottom-left', 'bottom-right'],
+      }),
+      zoomStep: new NumberField(1, { min: 0, softMax: 10, showByDefault: false }),
+      viewId: new StringField('', { optional: true }),
+    }
+  }
+
+  createOutputs() {
+    return {
+      widget: new WidgetField(),
+    }
+  }
+
+  execute({
+    placement,
+    zoomStep,
+    viewId,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const widget = {
+      id: this.id,
+      type: 'ZoomWidget',
+      placement,
+      zoomStep,
+      ...(viewId && viewId !== '' ? { viewId } : {}),
+    }
+    return { widget }
+  }
+}
+
+export class CompassWidgetOp extends Operator<CompassWidgetOp> {
+  static displayName = 'CompassWidget'
+  static description = 'Compass and bearing reset widget'
+
+  createInputs() {
+    return {
+      placement: new StringLiteralField('top-right', {
+        values: ['top-left', 'top-right', 'bottom-left', 'bottom-right'],
+      }),
+      viewId: new StringField('', { optional: true }),
+    }
+  }
+
+  createOutputs() {
+    return {
+      widget: new WidgetField(),
+    }
+  }
+
+  execute({
+    placement,
+    viewId,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const widget = {
+      id: this.id,
+      type: 'CompassWidget',
+      placement,
+      ...(viewId && viewId !== '' ? { viewId } : {}),
+    }
+    return { widget }
+  }
+}
+
+export class ScaleWidgetOp extends Operator<ScaleWidgetOp> {
+  static displayName = 'ScaleWidget'
+  static description = 'Display a map distance scale widget'
+
+  createInputs() {
+    return {
+      placement: new StringLiteralField('bottom-left', {
+        values: ['top-left', 'top-right', 'bottom-left', 'bottom-right'],
+      }),
+      label: new StringField('Scale'),
+      viewId: new StringField('', { optional: true }),
+    }
+  }
+
+  createOutputs() {
+    return {
+      widget: new WidgetField(),
+    }
+  }
+
+  execute({
+    placement,
+    label,
+    viewId,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const widget = {
+      id: this.id,
+      type: '_ScaleWidget',
+      placement,
+      label,
+      ...(viewId && viewId !== '' ? { viewId } : {}),
+    }
+    return { widget }
+  }
+}
+
+export class ScreenshotWidgetOp extends Operator<ScreenshotWidgetOp> {
+  static displayName = 'ScreenshotWidget'
+  static description = 'Download current frame as PNG widget'
+
+  createInputs() {
+    return {
+      placement: new StringLiteralField('top-right', {
+        values: ['top-left', 'top-right', 'bottom-left', 'bottom-right'],
+      }),
+      viewId: new StringField('', { optional: true }),
+    }
+  }
+
+  createOutputs() {
+    return {
+      widget: new WidgetField(),
+    }
+  }
+
+  execute({
+    placement,
+    viewId,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const widget = {
+      id: this.id,
+      type: 'ScreenshotWidget',
+      placement,
+      ...(viewId && viewId !== '' ? { viewId } : {}),
+    }
+    return { widget }
+  }
+}
+
+export class LegendWidgetOp extends Operator<LegendWidgetOp> {
+  static displayName = 'LegendWidget'
+  static description = 'Display a color scale legend overlay on the visualization'
+
+  createInputs() {
+    return {
+      colorRamp: new ColorRampField(),
+      label: new StringField(''),
+      minValue: new NumberField(0),
+      maxValue: new NumberField(1),
+      placement: new StringLiteralField('bottom-right', {
+        values: ['top-left', 'top-right', 'bottom-left', 'bottom-right'],
+      }),
+      steps: new NumberField(12, { min: 2, max: 32, step: 1, showByDefault: false }),
+      scale: new NumberField(1, { min: 0.25, max: 4, step: 0.25 }),
+    }
+  }
+
+  createOutputs() {
+    return {
+      widget: new WidgetField(),
+    }
+  }
+
+  execute({
+    colorRamp,
+    label,
+    minValue,
+    maxValue,
+    placement,
+    steps,
+    scale,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const colorStops: string[] = []
+    for (let i = 0; i < steps; i++) {
+      colorStops.push(colorRamp(i / (steps - 1)))
+    }
+    const widget = {
+      id: this.id,
+      type: 'LegendWidget',
+      colorStops,
+      label,
+      minValue,
+      maxValue,
+      placement,
+      scale,
+    }
+    return { widget }
+  }
+}
+
+export class BitmapOverlayWidgetOp extends Operator<BitmapOverlayWidgetOp> {
+  static displayName = 'Bitmap Overlay'
+  static description = 'Display a bitmap image as a screen-space overlay'
+
+  createInputs() {
+    return {
+      image: new FileUrlField('', {
+        accept: '.png,.jpg,.jpeg,.gif,.webp,.svg',
+      }),
+      placement: new StringLiteralField('top-right', {
+        values: ['top-left', 'top-right', 'bottom-left', 'bottom-right', 'fill'],
+      }),
+      width: new NumberField(200, { min: 1, max: 2000, step: 1 }),
+      height: new NumberField(200, { min: 1, max: 2000, step: 1 }),
+      opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
+      scale: new NumberField(1, { min: 0.25, max: 4, step: 0.25 }),
+      offsetX: new NumberField(0, { min: -2000, max: 2000, step: 1, showByDefault: false }),
+      offsetY: new NumberField(0, { min: -2000, max: 2000, step: 1, showByDefault: false }),
+      viewId: new StringField('', { optional: true }),
+    }
+  }
+
+  createOutputs() {
+    return {
+      widget: new WidgetField(),
+    }
+  }
+
+  async execute({
+    image,
+    placement,
+    width,
+    height,
+    opacity,
+    scale,
+    offsetX,
+    offsetY,
+    viewId,
+  }: ExtractProps<typeof this.inputs>): Promise<ExtractProps<typeof this.outputs>> {
+    // Resolve project-relative paths (@/) to blob URLs
+    let resolvedImage = image
+    if (image?.startsWith(projectScheme)) {
+      const { readAssetBinary } = await import('./storage')
+      const { useFileSystemStore } = await import('./filesystem-store')
+
+      const { currentProjectName, activeStorageType } = useFileSystemStore.getState()
+      if (!currentProjectName) {
+        throw new Error('No project loaded. Please save or load a project first.')
+      }
+
+      const fileName = image.substring(projectScheme.length)
+      const result = await readAssetBinary(activeStorageType, currentProjectName, fileName)
+      if (!result.success) {
+        throw new Error(result.error.message)
+      }
+
+      // Create blob URL from the binary data
+      const blob = new Blob([result.data])
+      resolvedImage = URL.createObjectURL(blob)
+    }
+
+    const widget = {
+      id: this.id,
+      type: 'BitmapOverlay',
+      image: resolvedImage,
+      placement,
+      width,
+      height,
+      opacity,
+      scale,
+      offsetX,
+      offsetY,
       ...(viewId && viewId !== '' ? { viewId } : {}),
     }
     return { widget }
@@ -2592,9 +5002,8 @@ export class FpsWidgetOp extends Operator<FpsWidgetOp> {
 
 function createFrustumViewFields() {
   return {
-    near: new NumberField(0.1, { min: 0, max: 1_000_000, step: 0.1 }),
-    far: new NumberField(100000, { min: 0, max: 1_000_000 }),
-    fovy: new NumberField(40, { min: 0.1, max: 179.9 }),
+    near: new NumberField(0.1, { min: 0, softMax: 1_000_000, step: 0.1, showByDefault: false }),
+    far: new NumberField(100000, { min: 0, softMax: 1_000_000, showByDefault: false }),
   }
 }
 
@@ -2605,7 +5014,9 @@ export class FirstPersonViewOp extends Operator<FirstPersonViewOp> {
   createInputs() {
     return {
       ...createBaseViewFields(),
+      orthographic: new BooleanField(false, { showByDefault: false }),
       ...createFrustumViewFields(),
+      fovy: new NumberField(40, { min: 0.1, max: 179.9, showByDefault: false }),
       // focalDistance: new NumberField(1),
       viewState: new CompoundPropsField({
         ...createGeoViewStateFields(),
@@ -2624,7 +5035,7 @@ export class FirstPersonViewOp extends Operator<FirstPersonViewOp> {
 
   execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     validateViewState(props.viewState)
-    return { view: new FirstPersonView({ id: this.id, ...props }) }
+    return { view: { type: 'FirstPersonView', id: this.id, ...props } }
   }
 }
 
@@ -2635,10 +5046,13 @@ export class OrbitViewOp extends Operator<OrbitViewOp> {
   createInputs() {
     return {
       ...createBaseViewFields(),
+      orthographic: new BooleanField(false, { showByDefault: false }),
       orbitAxis: new StringLiteralField('Z', {
         values: ['X', 'Y', 'Z'],
+        showByDefault: false,
       }),
       ...createFrustumViewFields(),
+      fovy: new NumberField(40, { min: 0.1, max: 179.9, showByDefault: false }),
       viewState: new CompoundPropsField({
         target: new Vec3Field([0, 0, 0], { returnType: 'tuple', optional: true }),
         rotationOrbit: new NumberField(0, { optional: true }),
@@ -2656,7 +5070,35 @@ export class OrbitViewOp extends Operator<OrbitViewOp> {
 
   execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     validateViewState(props.viewState)
-    return { view: new OrbitView({ id: this.id, ...props }) }
+    return { view: { type: 'OrbitView', id: this.id, ...props } }
+  }
+}
+
+export class OrthographicViewOp extends Operator<OrthographicViewOp> {
+  static displayName = 'OrthographicView'
+  static description = 'A deck.gl orthographic view.'
+
+  createInputs() {
+    return {
+      ...createBaseViewFields(),
+      ...createFrustumViewFields(),
+      flipY: new BooleanField(false, { showByDefault: false }),
+      viewState: new CompoundPropsField({
+        target: new Vec3Field([0, 0, 0], { returnType: 'tuple', optional: true }),
+        zoom: new NumberField(0, { optional: true }),
+      }),
+    }
+  }
+
+  createOutputs() {
+    return {
+      view: new ViewField(),
+    }
+  }
+
+  execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    validateViewState(props.viewState)
+    return { view: { type: 'OrthographicView', id: this.id, ...props } }
   }
 }
 
@@ -2666,6 +5108,20 @@ export class OutOp extends Operator<OutOp> {
   createInputs() {
     return {
       vis: new VisualizationField(),
+      // Render settings (not keyframable since OutOp is excluded from Theatre.js)
+      display: new StringLiteralField('fixed', ['fixed', 'responsive']),
+      width: new NumberField(1920, { min: 1, max: 8192, step: 1 }),
+      height: new NumberField(1080, { min: 1, max: 8192, step: 1 }),
+      lod: new NumberField(2, { min: 0.1, max: 4, step: 0.1 }),
+      scaleMode: new StringLiteralField('fit', ['fit', 'manual']),
+      waitForData: new BooleanField(true),
+      codec: new StringLiteralField('avc', ['avc', 'hevc', 'vp9', 'av1']),
+      bitrateMbps: new NumberField(10, { min: 1, max: 100, step: 1 }),
+      bitrateMode: new StringLiteralField('constant', ['constant', 'variable']),
+      scaleControl: new NumberField(0.3, { min: 0.1, max: 1, step: 0.05 }),
+      framerate: new NumberField(30, { min: 1, max: 120, step: 1 }),
+      captureDelay: new NumberField(50, { min: 0, max: 10000, step: 10 }),
+      rendersDirectory: new StringField('renders'),
     }
   }
   createOutputs() {
@@ -2690,6 +5146,24 @@ export class ConsoleOp extends Operator<ConsoleOp> {
   execute({ data }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     console.log(data)
     return {}
+  }
+}
+
+export class RerouteOp extends Operator<RerouteOp> {
+  static displayName = 'Reroute'
+  static description = 'Pass-through for organizing graph layout'
+  createInputs() {
+    return {
+      value: new UnknownField(undefined, { optional: true }),
+    }
+  }
+  createOutputs() {
+    return {
+      value: new UnknownField(undefined),
+    }
+  }
+  execute({ value }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    return { value }
   }
 }
 
@@ -2741,16 +5215,19 @@ function gatherTriggers(
 
 type LayerExtensionFieldReturnValue = null | {
   extension: LayerExtension
-  props: Record<string, unknown>
+  props: Record<string, LayerPropsValue>
 }
 
 // Map of extension type names to extension classes or wrapped classes with constructor args
 export const extensionMap: Record<
   string,
   | (new (
-    ...args: unknown[]
-  ) => LayerExtension)
-  | { ExtensionClass: new (...args: unknown[]) => LayerExtension; args: unknown }
+      ...args: ExtensionConstructorArgs
+    ) => LayerExtension)
+  | {
+      ExtensionClass: new (...args: ExtensionConstructorArgs) => LayerExtension
+      args: ExtensionConstructorArgs
+    }
 > = {
   BrushingExtension,
   ClipExtension,
@@ -2795,10 +5272,99 @@ function parseLayerProps<P extends LayerProps>({
   return result
 }
 
+export class BlendingOp extends Operator<BlendingOp> {
+  static displayName = 'Blending'
+  static description = 'Configure WebGL blending mode for layers (additive, normal, subtractive)'
+  createInputs() {
+    return {
+      mode: new StringLiteralField('normal', {
+        values: ['normal', 'additive', 'subtractive', 'custom'],
+      }),
+      // Custom mode fields (only used when mode='custom')
+      blendColorSrcFactor: new StringLiteralField('src-alpha', {
+        values: [
+          'src-alpha',
+          'one',
+          'zero',
+          'dst-alpha',
+          'one-minus-src-alpha',
+          'one-minus-dst-alpha',
+          'one-minus-dst-color',
+        ],
+        optional: true,
+        showByDefault: false,
+      }),
+      blendColorDstFactor: new StringLiteralField('one-minus-src-alpha', {
+        values: [
+          'src-alpha',
+          'one',
+          'zero',
+          'dst-alpha',
+          'one-minus-src-alpha',
+          'one-minus-dst-alpha',
+          'one-minus-dst-color',
+        ],
+        optional: true,
+        showByDefault: false,
+      }),
+    }
+  }
+  createOutputs() {
+    return {
+      parameters: new UnknownField({}),
+    }
+  }
+  execute({
+    mode,
+    blendColorSrcFactor,
+    blendColorDstFactor,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    // Kepler-style presets using luma.gl v9 parameter names
+    const presets = {
+      normal: {
+        blend: true,
+        blendColorSrcFactor: 'src-alpha',
+        blendColorDstFactor: 'one-minus-src-alpha',
+        blendAlphaSrcFactor: 'one',
+        blendAlphaDstFactor: 'one-minus-src-alpha',
+        blendColorOperation: 'add',
+        blendAlphaOperation: 'add',
+      },
+      additive: {
+        blend: true,
+        blendColorSrcFactor: 'src-alpha',
+        blendColorDstFactor: 'dst-alpha',
+        blendColorOperation: 'add',
+      },
+      subtractive: {
+        blend: true,
+        blendColorSrcFactor: 'one',
+        blendColorDstFactor: 'one-minus-dst-color',
+        blendAlphaSrcFactor: 'src-alpha',
+        blendAlphaDstFactor: 'dst-alpha',
+        blendColorOperation: 'reverse-subtract',
+        blendAlphaOperation: 'add',
+      },
+    }
+
+    if (mode === 'custom' && blendColorSrcFactor && blendColorDstFactor) {
+      return {
+        parameters: {
+          blend: true,
+          blendColorSrcFactor,
+          blendColorDstFactor,
+          blendColorOperation: 'add',
+        },
+      }
+    }
+
+    return { parameters: presets[mode as keyof typeof presets] || presets.normal }
+  }
+}
+
 export class PathLayerOp extends Operator<PathLayerOp> {
   static displayName = 'PathLayer'
   static description = 'Render a path on the map'
-  static cacheable = false
   createInputs() {
     return {
       data: new DataField(
@@ -2807,20 +5373,29 @@ export class PathLayerOp extends Operator<PathLayerOp> {
       ),
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
-      billboard: new BooleanField(true),
-      capRounded: new BooleanField(true),
+      billboard: new BooleanField(true, { showByDefault: false }),
+      capRounded: new BooleanField(true, { showByDefault: false }),
+      jointRounded: new BooleanField(false, { showByDefault: false }),
+      antialiasing: new BooleanField(false, { showByDefault: false }),
       getPath: new UnknownField((d: unknown) => d?.path || [], { accessor: true }),
       // getPath: new ArrayField(new Point3DField([0, 0, 0], { returnType: 'tuple' }), { accessor: true }),
       getColor: new ColorField('#006ac6', { accessor: true, transform: hexToColor }),
-      getWidth: new NumberField(8, { min: 0, max: 100, accessor: true }),
-      widthUnits: new StringLiteralField('meters', ['pixels', 'meters']),
-      widthScale: new NumberField(20, { min: 0, max: 100 }),
-      widthMinPixels: new NumberField(2, { min: 0, max: 100 }),
-      parameters: new CompoundPropsField({
-        depthWriteEnabled: new BooleanField(true),
+      getWidth: new NumberField(8, { min: 0, softMax: 100, accessor: true }),
+      widthUnits: new StringLiteralField('meters', {
+        values: ['pixels', 'meters', 'common'],
+        showByDefault: false,
       }),
-      extensions: new ListField(new ExtensionField()),
-      wrapLongitude: new BooleanField(false),
+      widthScale: new NumberField(20, { min: 0, softMax: 100, showByDefault: false }),
+      widthMinPixels: new NumberField(2, { min: 0, softMax: 100, showByDefault: false }),
+      parameters: new CompoundPropsField(
+        {
+          depthTest: new BooleanField(true),
+          depthWriteEnabled: new BooleanField(true),
+        },
+        { showByDefault: false }
+      ),
+      extensions: new ListField(new ExtensionField(), { showByDefault: false }),
+      wrapLongitude: new BooleanField(false, { showByDefault: false }),
     }
   }
   createOutputs() {
@@ -2842,22 +5417,40 @@ export class PathLayerOp extends Operator<PathLayerOp> {
 export class ScatterplotLayerOp extends Operator<ScatterplotLayerOp> {
   static displayName = 'ScatterplotLayer'
   static description = 'Render a scatterplot of points as circles on the map'
-  static cacheable = false
   createInputs() {
     return {
       data: new DataField(),
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
-      stroked: new BooleanField(true),
-      billboard: new BooleanField(false),
+      stroked: new BooleanField(true, { showByDefault: false }),
+      billboard: new BooleanField(false, { showByDefault: false }),
+      antialiasing: new BooleanField(true, { showByDefault: false }),
       getPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true }),
+      getPixelOffset: new Vec2Field([0, 0], {
+        returnType: 'tuple',
+        accessor: true,
+        showByDefault: false,
+      }),
       getFillColor: new ColorField('#fff', { accessor: true, transform: hexToColor }),
-      getLineColor: new ColorField('#fff', { accessor: true, transform: hexToColor }),
-      getRadius: new NumberField(600, { min: 0, max: 1_000_000, accessor: true }),
-      getLineWidth: new NumberField(0, { accessor: true }),
-      radiusScale: new NumberField(1, { min: 0, max: 100 }),
-      radiusUnits: new StringLiteralField('meters', ['pixels', 'meters']),
-      extensions: new ListField(new ExtensionField()),
+      getLineColor: new ColorField('#fff', {
+        accessor: true,
+        transform: hexToColor,
+        showByDefault: false,
+      }),
+      getRadius: new NumberField(20, { min: 0, softMax: 1_000_000, accessor: true }),
+      getLineWidth: new NumberField(0, { min: 0, accessor: true, showByDefault: false }),
+      radiusScale: new NumberField(1, { min: 0, softMax: 100, showByDefault: false }),
+      radiusUnits: new StringLiteralField('pixels', {
+        values: ['pixels', 'meters'],
+        showByDefault: false,
+      }),
+      parameters: new CompoundPropsField(
+        {
+          depthTest: new BooleanField(true),
+        },
+        { showByDefault: false }
+      ),
+      extensions: new ListField(new ExtensionField(), { showByDefault: false }),
     }
   }
   createOutputs() {
@@ -2879,7 +5472,6 @@ export class ScatterplotLayerOp extends Operator<ScatterplotLayerOp> {
 export class TripsLayerOp extends Operator<TripsLayerOp> {
   static displayName = 'TripsLayer'
   static description = 'Render a set of trips with timestamps for animation on the map'
-  static cacheable = false
   createInputs() {
     return {
       data: new DataField(
@@ -2896,17 +5488,27 @@ export class TripsLayerOp extends Operator<TripsLayerOp> {
       // getPath: new ArrayField(new Point3DField([0, 0, 0], { returnType: 'tuple' }), { accessor: true }),
       // getTimestamps: new ArrayField(new NumberField(0, { min: 0, max: Number.MAX_SAFE_INTEGER }), { accessor: true }),
       getColor: new ColorField('#bfcae3', { accessor: true, transform: hexToColor }),
-      getWidth: new NumberField(8, { min: 0, max: 100, accessor: true }),
-      billboard: new BooleanField(false),
-      capRounded: new BooleanField(true),
-      jointRounded: new BooleanField(true),
+      getWidth: new NumberField(8, { min: 0, softMax: 100, accessor: true }),
+      billboard: new BooleanField(false, { showByDefault: false }),
+      capRounded: new BooleanField(true, { showByDefault: false }),
+      jointRounded: new BooleanField(true, { showByDefault: false }),
+      antialiasing: new BooleanField(false, { showByDefault: false }),
       currentTime: new NumberField(0, { min: 0 }),
       fadeTrail: new BooleanField(false),
       trailLength: new NumberField(120, { min: 0 }),
-      widthUnits: new StringLiteralField('meters', ['pixels', 'meters']),
-      widthMinPixels: new NumberField(2, { min: 0, max: 100 }),
-      widthScale: new NumberField(20, { min: 0, max: 100 }),
-      extensions: new ListField(new ExtensionField()),
+      widthUnits: new StringLiteralField('meters', {
+        values: ['pixels', 'meters', 'common'],
+        showByDefault: false,
+      }),
+      widthMinPixels: new NumberField(2, { min: 0, softMax: 100, showByDefault: false }),
+      widthScale: new NumberField(20, { min: 0, softMax: 100, showByDefault: false }),
+      parameters: new CompoundPropsField(
+        {
+          depthTest: new BooleanField(true),
+        },
+        { showByDefault: false }
+      ),
+      extensions: new ListField(new ExtensionField(), { showByDefault: false }),
     }
   }
   createOutputs() {
@@ -2928,7 +5530,6 @@ export class TripsLayerOp extends Operator<TripsLayerOp> {
 export class SolidPolygonLayerOp extends Operator<SolidPolygonLayerOp> {
   static displayName = 'SolidPolygonLayer'
   static description = 'Render a set of solid polygons on the map'
-  static cacheable = false
   createInputs() {
     return {
       data: new DataField(),
@@ -2937,8 +5538,14 @@ export class SolidPolygonLayerOp extends Operator<SolidPolygonLayerOp> {
       getPolygon: new UnknownField((d: unknown) => d?.polygon || [], { accessor: true }),
       getFillColor: new ColorField('#fff', { accessor: true, transform: hexToColor }),
       getLineColor: new ColorField('#fff', { accessor: true, transform: hexToColor }),
-      getLineWidth: new NumberField(0, { accessor: true }),
-      extensions: new ListField(new ExtensionField()),
+      getLineWidth: new NumberField(0, { min: 0, accessor: true }),
+      parameters: new CompoundPropsField(
+        {
+          depthTest: new BooleanField(true),
+        },
+        { showByDefault: false }
+      ),
+      extensions: new ListField(new ExtensionField(), { showByDefault: false }),
     }
   }
   createOutputs() {
@@ -2960,7 +5567,6 @@ export class SolidPolygonLayerOp extends Operator<SolidPolygonLayerOp> {
 export class TextLayerOp extends Operator<TextLayerOp> {
   static displayName = 'TextLayer'
   static description = 'Render a set of text labels on the map'
-  static cacheable = false
   createInputs() {
     return {
       data: new DataField(),
@@ -2971,20 +5577,103 @@ export class TextLayerOp extends Operator<TextLayerOp> {
       billboard: new BooleanField(true),
       fontFamily: new StringField('Inter'),
       fontWeight: new NumberField(400, { min: 100, max: 900, step: 100 }),
-      sizeUnits: new StringLiteralField('pixels', ['pixels', 'meters']),
-      getSize: new NumberField(48, { min: 0, max: 100, accessor: true }),
+      sizeUnits: new StringLiteralField('pixels', {
+        values: ['pixels', 'meters', 'common'],
+        showByDefault: false,
+      }),
+      sizeScale: new NumberField(1, { min: 0, softMax: 100, showByDefault: false }),
+      sizeMinPixels: new NumberField(0, { min: 0, softMax: 200, showByDefault: false }),
+      sizeMaxPixels: new NumberField(Number.MAX_SAFE_INTEGER, {
+        min: 0,
+        softMax: 2048,
+        showByDefault: false,
+      }),
+      getSize: new NumberField(48, { min: 0, softMax: 200, accessor: true }),
       getColor: new ColorField('#f0f0f0', { accessor: true, transform: hexToColor }),
-      getAngle: new NumberField(0, { min: 0, max: 360, accessor: true }),
+      background: new BooleanField(false, { showByDefault: false }),
+      getBackgroundColor: new ColorField('#ffffffff', {
+        accessor: true,
+        transform: hexToColor,
+        showByDefault: false,
+      }),
+      getBorderColor: new ColorField('#000000ff', {
+        accessor: true,
+        transform: hexToColor,
+        showByDefault: false,
+      }),
+      getBorderWidth: new NumberField(0, {
+        min: 0,
+        softMax: 20,
+        accessor: true,
+        showByDefault: false,
+      }),
+      backgroundPadding: new Vec2Field(
+        { x: 0, y: 0 },
+        { returnType: 'tuple', showByDefault: false }
+      ),
+      backgroundBorderRadius: new NumberField(0, {
+        min: 0,
+        softMax: 100,
+        showByDefault: true,
+      }),
+      lineHeight: new NumberField(1, {
+        min: 0,
+        softMax: 4,
+        step: 0.05,
+        showByDefault: false,
+      }),
+      outlineWidth: new NumberField(0, {
+        min: 0,
+        softMax: 12,
+        step: 0.1,
+        showByDefault: false,
+      }),
+      outlineColor: new ColorField('#000000ff', {
+        transform: hexToColor,
+        showByDefault: false,
+      }),
+      wordBreak: new StringLiteralField('break-word', {
+        values: ['break-word', 'break-all'],
+        showByDefault: false,
+      }),
+      maxWidth: new NumberField(-1, { min: -1, softMax: 100, showByDefault: false }),
+      getAngle: new NumberField(0, {
+        softMin: 0,
+        softMax: 360,
+        accessor: true,
+        showByDefault: false,
+      }),
       getTextAnchor: new StringLiteralField('middle', {
         values: ['start', 'middle', 'end'],
         accessor: true,
       }),
-      getPixelOffset: new Vec2Field({ x: 96, y: 124 }, { returnType: 'tuple', accessor: true }),
+      getPixelOffset: new Vec2Field(
+        { x: 0, y: 0 },
+        { returnType: 'tuple', accessor: true, showByDefault: false }
+      ),
       getAlignmentBaseline: new StringLiteralField('center', {
         values: ['top', 'center', 'bottom'],
         accessor: true,
+        showByDefault: false,
       }),
-      extensions: new ListField(new ExtensionField()),
+      fontSettings: new CompoundPropsField({
+        sdf: new BooleanField(false),
+        fontSize: new NumberField(64, { min: 8, softMax: 256 }),
+        buffer: new NumberField(4, { min: 0, softMax: 20 }),
+        radius: new NumberField(12, { min: 0, softMax: 50 }),
+        cutoff: new NumberField(0.25, { min: 0, max: 1, step: 0.01 }),
+        smoothing: new NumberField(0.1, { min: 0, max: 1, step: 0.01 }),
+      }),
+      parameters: new CompoundPropsField(
+        {
+          depthTest: new BooleanField(true),
+          cullMode: new StringLiteralField('none', {
+            values: ['none', 'back', 'front'],
+          }),
+        },
+        { showByDefault: false }
+      ),
+      extensions: new ListField(new ExtensionField(), { showByDefault: false }),
     }
   }
   createOutputs() {
@@ -3006,30 +5695,61 @@ export class TextLayerOp extends Operator<TextLayerOp> {
 export class IconLayerOp extends Operator<IconLayerOp> {
   static displayName = 'IconLayer'
   static description = 'Render a set of icons on the map'
-  static cacheable = false
+  private _iconCache = new Map<
+    string,
+    {
+      data: { url: string; width: number; height: number; id: string }
+      accessor: () => { url: string; width: number; height: number; id: string }
+    }
+  >()
+  private readonly MAX_CACHE_SIZE = 50
   createInputs() {
     return {
       data: new DataField(),
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
       getPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true }),
-      iconAtlas: new StringField(
-        'https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/icon-atlas.png'
+      iconAtlas: new FileUrlField(
+        'https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/icon-atlas.png',
+        { showByDefault: false, accept: '.png,.jpg,.jpeg,.gif,.webp,.svg' }
       ),
-      iconMapping: new JSONUrlField(
-        'https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/icon-atlas.json'
+      // MapStyleField accepts either a URL string or a parsed JSON object and retains file upload UI.
+      iconMapping: new MapStyleField(
+        'https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/icon-atlas.json',
+        { showByDefault: false, accept: '.json' }
       ),
       billboard: new BooleanField(true),
-      getIcon: new UnknownField(null, { accessor: true }), // Union of { url: string, width: number, height: number } or url: string, plus accessors
-      getSize: new NumberField(1, { min: 0, accessor: true }),
-      sizeUnits: new StringLiteralField('pixels', ['pixels', 'meters']),
-      sizeScale: new NumberField(1, { min: 0, max: 10_000 }),
-      sizeMinPixels: new NumberField(0, { min: 0, max: 10_000 }),
-      sizeMaxPixels: new NumberField(100, { min: 0, max: 10_000 }),
-      getPixelOffset: new Vec2Field({ x: 0, y: 0 }, { returnType: 'tuple', accessor: true }),
+      getIcon: new FileUrlField('', {
+        accessor: true,
+        optional: true,
+        accept: '.png,.jpg,.jpeg,.gif,.webp,.svg',
+      }), // Can be: uploaded file URL, external URL, or accessor function returning {url, width?, height?}
+      getSize: new NumberField(1, { min: 0, softMax: 100, accessor: true }),
+      sizeUnits: new StringLiteralField('pixels', {
+        values: ['pixels', 'meters', 'common'],
+        showByDefault: false,
+      }),
+      sizeScale: new NumberField(1, { min: 0, softMax: 10_000 }),
+      sizeMinPixels: new NumberField(0, { min: 0, softMax: 10_000, showByDefault: false }),
+      sizeMaxPixels: new NumberField(2048, { min: 0, softMax: 10_000, showByDefault: false }),
+      getPixelOffset: new Vec2Field(
+        { x: 0, y: 0 },
+        { returnType: 'tuple', accessor: true, showByDefault: false }
+      ),
       getColor: new ColorField('#fff', { accessor: true, transform: hexToColor }),
       getAngle: new NumberField(0, { accessor: true }),
-      extensions: new ListField(new ExtensionField()),
+      sizeBasis: new StringLiteralField('height', {
+        values: ['height', 'width'],
+        showByDefault: false,
+        optional: true,
+      }),
+      parameters: new CompoundPropsField(
+        {
+          depthTest: new BooleanField(true),
+        },
+        { showByDefault: false }
+      ),
+      extensions: new ListField(new ExtensionField(), { showByDefault: false }),
     }
   }
   createOutputs() {
@@ -3037,12 +5757,175 @@ export class IconLayerOp extends Operator<IconLayerOp> {
       layer: new LayerField<IconLayerProps>(),
     }
   }
-  execute(_props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const { getIcon, iconMapping, iconAtlas, ...rest } = _props
+  async execute(
+    _props: ExtractProps<typeof this.inputs>
+  ): Promise<ExtractProps<typeof this.outputs>> {
+    const { getIcon, iconMapping, iconAtlas, sizeMaxPixels, ...rest } = _props
+
+    // Helper to resolve @/ URLs to blob URLs with proper MIME type
+    const resolveProjectUrl = async (url: string): Promise<string> => {
+      if (!url?.startsWith(projectScheme)) {
+        return url
+      }
+
+      const { readAssetBinary } = await import('./storage')
+      const { useFileSystemStore } = await import('./filesystem-store')
+
+      const { currentProjectName, activeStorageType } = useFileSystemStore.getState()
+      if (!currentProjectName) {
+        throw new Error('No project loaded. Please save or load a project first.')
+      }
+
+      const fileName = url.substring(projectScheme.length)
+      const result = await readAssetBinary(activeStorageType, currentProjectName, fileName)
+      if (!result.success) {
+        throw new Error(result.error.message)
+      }
+
+      // Infer MIME type from file extension for loaders.gl
+      const ext = fileName.toLowerCase().split('.').pop()
+      const mimeTypes: Record<string, string> = {
+        png: 'image/png',
+        jpg: 'image/jpeg',
+        jpeg: 'image/jpeg',
+        gif: 'image/gif',
+        webp: 'image/webp',
+        svg: 'image/svg+xml',
+      }
+      const mimeType = mimeTypes[ext || ''] || 'application/octet-stream'
+
+      const blob = new Blob([result.data], { type: mimeType })
+      return URL.createObjectURL(blob)
+    }
+
+    const resolveIconMapping = async (
+      mapping: string | Record<string, unknown>
+    ): Promise<string | Record<string, unknown>> => {
+      if (typeof mapping !== 'string' || !mapping.startsWith(projectScheme)) {
+        return mapping
+      }
+
+      const { readAsset } = await import('./storage')
+      const { useFileSystemStore } = await import('./filesystem-store')
+
+      const { currentProjectName, activeStorageType } = useFileSystemStore.getState()
+      if (!currentProjectName) {
+        throw new Error('No project loaded. Please save or load a project first.')
+      }
+
+      const fileName = mapping.substring(projectScheme.length)
+      const result = await readAsset(activeStorageType, currentProjectName, fileName)
+      if (!result.success) {
+        throw new Error(result.error.message)
+      }
+
+      try {
+        const parsed = JSON.parse(result.data)
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+          throw new Error('icon mapping must be a JSON object')
+        }
+        return parsed as Record<string, unknown>
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        throw new Error(`Unable to parse icon mapping "${mapping}": ${message}`)
+      }
+    }
+
+    // Helper to resolve image URL and extract dimensions
+    const resolveImageWithDimensions = async (
+      url: string,
+      maxDisplaySize: number
+    ): Promise<{ url: string; width: number; height: number; id: string }> => {
+      const resolvedUrl = await resolveProjectUrl(url)
+
+      // Load image to get natural dimensions
+      return new Promise((resolve, reject) => {
+        const img = new Image()
+        img.onload = () => {
+          const naturalWidth = img.naturalWidth
+          const naturalHeight = img.naturalHeight
+
+          // Calculate max texture dimension based on display size
+          // Use 2x for quality buffer (like Retina), cap at 512 to avoid
+          // Deck.gl icon atlas packing issues with large dimensions
+          const maxDimension = Math.min(maxDisplaySize * 2, 512)
+          const aspectRatio = naturalWidth / naturalHeight
+          let width = naturalWidth
+          let height = naturalHeight
+
+          // Normalize to max dimension while preserving aspect ratio
+          // This prevents deck.gl auto-packing issues with very large images
+          if (width > maxDimension || height > maxDimension) {
+            if (width > height) {
+              width = maxDimension
+              height = Math.round(maxDimension / aspectRatio)
+            } else {
+              height = maxDimension
+              width = Math.round(maxDimension * aspectRatio)
+            }
+          }
+
+          const iconData = {
+            url: resolvedUrl,
+            width,
+            height,
+            id: url, // Use original URL as unique ID for deduplication
+          }
+          resolve(iconData)
+        }
+        img.onerror = () => {
+          reject(new Error(`Failed to load image from ${url}`))
+        }
+        img.src = resolvedUrl
+      })
+    }
+
+    // Determine icon mode and resolve URLs as needed
+    let iconProps: Partial<IconLayerProps>
+
+    if (typeof getIcon === 'function') {
+      // Accessor function mode - pass through
+      iconProps = { getIcon }
+    } else if (getIcon && typeof getIcon === 'string') {
+      // Single-icon mode - cache resolved icon data AND accessor function
+      // to avoid re-resolving and creating new accessor references every frame
+      // (new accessor references trigger deck.gl updateTriggers and cause texture re-upload)
+      const cacheKey = `${getIcon}:${sizeMaxPixels}`
+      let cached = this._iconCache.get(cacheKey)
+
+      if (!cached) {
+        const iconData = await resolveImageWithDimensions(getIcon, sizeMaxPixels)
+        const accessor = () => iconData
+        cached = { data: iconData, accessor }
+
+        // Simple LRU: if cache is full, delete oldest entry (first in Map)
+        if (this._iconCache.size >= this.MAX_CACHE_SIZE) {
+          const firstKey = this._iconCache.keys().next().value
+          this._iconCache.delete(firstKey)
+        }
+
+        this._iconCache.set(cacheKey, cached)
+      } else {
+        // Move to end for LRU (delete + re-add)
+        this._iconCache.delete(cacheKey)
+        this._iconCache.set(cacheKey, cached)
+      }
+
+      iconProps = { getIcon: cached.accessor }
+    } else {
+      // Atlas mode - resolve uploaded project assets and accept parsed JSON from connected inputs
+      const resolvedIconAtlas = await resolveProjectUrl(iconAtlas)
+      const resolvedIconMapping = await resolveIconMapping(iconMapping)
+      iconProps = {
+        iconMapping: resolvedIconMapping as IconLayerProps['iconMapping'],
+        iconAtlas: resolvedIconAtlas,
+      }
+    }
 
     const props: IconLayerProps = {
       ...rest,
-      ...(typeof getIcon === 'function' ? { getIcon } : { iconMapping, iconAtlas }),
+      ...iconProps,
+      sizeMaxPixels,
     }
 
     const layer = {
@@ -3058,24 +5941,34 @@ export class IconLayerOp extends Operator<IconLayerOp> {
 export class ScenegraphLayerOp extends Operator<ScenegraphLayerOp> {
   static displayName = 'ScenegraphLayer'
   static description = 'Render a 3D model on the map'
-  static cacheable = false
   createInputs() {
     return {
       data: new DataField(),
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
-      scenegraph: new JSONUrlField(
-        'https://raw.githubusercontent.com/visgl/deck.gl-data/master/examples/scenegraph-layer/airplane.glb'
+      scenegraph: new FileUrlField(
+        'https://raw.githubusercontent.com/visgl/deck.gl-data/master/examples/scenegraph-layer/airplane.glb',
+        { accept: '.glb,.gltf' }
       ),
       getPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true }),
       getOrientation: new Vec3Field([0, 0, 0], { returnType: 'tuple', accessor: true }),
       getScale: new Vec3Field([1, 1, 1], { returnType: 'tuple', accessor: true }),
-      sizeScale: new NumberField(1, { min: 0, max: 10_000 }),
-      sizeMinPixels: new NumberField(0, { min: 0, max: 100 }),
-      sizeMaxPixels: new NumberField(100, { min: 0, max: 100 }),
+      sizeScale: new NumberField(1, { min: 0, softMax: 10_000, showByDefault: false }),
+      sizeMinPixels: new NumberField(0, { min: 0, softMax: 100, showByDefault: false }),
+      sizeMaxPixels: new NumberField(100, { min: 0, softMax: 100, showByDefault: false }),
       getColor: new ColorField('#fff', { accessor: true, transform: hexToColor }),
-      getTranslation: new Vec3Field([0, 0, 0], { returnType: 'tuple', accessor: true }),
-      extensions: new ListField(new ExtensionField()),
+      getTranslation: new Vec3Field([0, 0, 0], {
+        returnType: 'tuple',
+        accessor: true,
+        showByDefault: false,
+      }),
+      parameters: new CompoundPropsField(
+        {
+          depthTest: new BooleanField(true),
+        },
+        { showByDefault: false }
+      ),
+      extensions: new ListField(new ExtensionField(), { showByDefault: false }),
     }
   }
   createOutputs() {
@@ -3097,7 +5990,6 @@ export class ScenegraphLayerOp extends Operator<ScenegraphLayerOp> {
 export class SimpleMeshLayerOp extends Operator<SimpleMeshLayerOp> {
   static displayName = 'SimpleMeshLayer'
   static description = 'Render simple 3D meshes/models at specified positions'
-  static cacheable = false
   createInputs() {
     return {
       data: new DataField(),
@@ -3106,16 +5998,26 @@ export class SimpleMeshLayerOp extends Operator<SimpleMeshLayerOp> {
       mesh: new StringField(
         'https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/humanoid_quad.obj'
       ),
-      wireframe: new BooleanField(false),
-      texture: new UnknownField(null, { optional: true }),
-      textureParameters: new DataField(),
+      wireframe: new BooleanField(false, { showByDefault: false }),
+      texture: new UnknownField(null, { optional: true, showByDefault: false }),
+      textureParameters: new DataField(undefined, { showByDefault: false }),
       getPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true }),
       getColor: new ColorField('#000000', { accessor: true, transform: hexToColor }),
       getOrientation: new Vec3Field([0, 0, 0], { returnType: 'tuple', accessor: true }),
       getScale: new Vec3Field([1, 1, 1], { returnType: 'tuple', accessor: true }),
-      sizeScale: new NumberField(1, { min: 0, max: 1000 }),
-      getTranslation: new Vec3Field([0, 0, 0], { returnType: 'tuple', accessor: true }),
-      extensions: new ListField(new ExtensionField()),
+      sizeScale: new NumberField(1, { min: 0, softMax: 1000, showByDefault: false }),
+      getTranslation: new Vec3Field([0, 0, 0], {
+        returnType: 'tuple',
+        accessor: true,
+        showByDefault: false,
+      }),
+      parameters: new CompoundPropsField(
+        {
+          depthTest: new BooleanField(true),
+        },
+        { showByDefault: false }
+      ),
+      extensions: new ListField(new ExtensionField(), { showByDefault: false }),
     }
   }
   createOutputs() {
@@ -3123,8 +6025,12 @@ export class SimpleMeshLayerOp extends Operator<SimpleMeshLayerOp> {
       layer: new LayerField<SimpleMeshLayerProps>(),
     }
   }
-  execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+  async execute(props: ExtractProps<typeof this.inputs>) {
     const ext = extname(props.mesh || '')
+    const [{ OBJLoader }, { PLYLoader }] = await Promise.all([
+      import('@loaders.gl/obj'),
+      import('@loaders.gl/ply'),
+    ])
     const layer = {
       ...parseLayerProps<SimpleMeshLayerProps>(props),
       loaders: [ext === '.obj' ? OBJLoader : PLYLoader],
@@ -3139,7 +6045,6 @@ export class SimpleMeshLayerOp extends Operator<SimpleMeshLayerOp> {
 export class H3HexagonLayerOp extends Operator<H3HexagonLayerOp> {
   static displayName = 'H3HexagonLayer'
   static description = 'Render a hexagon grid on the map using the H3 grid system'
-  static cacheable = false
   createInputs() {
     return {
       data: new DataField(),
@@ -3147,9 +6052,15 @@ export class H3HexagonLayerOp extends Operator<H3HexagonLayerOp> {
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
       getHexagon: new StringField('', { accessor: true }),
       getFillColor: new ColorField('#fff', { accessor: true, transform: hexToColor }),
-      getRadius: new NumberField(1, { accessor: true }),
-      getLineWidth: new NumberField(1, { accessor: true }),
-      extensions: new ListField(new ExtensionField()),
+      getRadius: new NumberField(1, { min: 0, accessor: true }),
+      getLineWidth: new NumberField(1, { min: 0, accessor: true }),
+      parameters: new CompoundPropsField(
+        {
+          depthTest: new BooleanField(true),
+        },
+        { showByDefault: false }
+      ),
+      extensions: new ListField(new ExtensionField(), { showByDefault: false }),
     }
   }
   createOutputs() {
@@ -3170,8 +6081,8 @@ export class H3HexagonLayerOp extends Operator<H3HexagonLayerOp> {
 
 export class A5LayerOp extends Operator<A5LayerOp> {
   static displayName = 'A5Layer'
-  static description = 'Render filled and/or stroked polygons using the A5 geospatial indexing system'
-  static cacheable = false
+  static description =
+    'Render filled and/or stroked polygons using the A5 geospatial indexing system'
   createInputs() {
     return {
       data: new DataField(),
@@ -3179,11 +6090,18 @@ export class A5LayerOp extends Operator<A5LayerOp> {
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
       getPentagon: new UnknownField((d: unknown) => d?.pentagon || '', { accessor: true }),
       getFillColor: new ColorField('#fff', { accessor: true, transform: hexToColor }),
-      getElevation: new NumberField(1000, { min: 0, max: 100000, accessor: true }),
-      elevationScale: new NumberField(1, { min: 0, max: 100 }),
+      getElevation: new NumberField(1000, { min: 0, softMax: 100000, accessor: true }),
+      elevationScale: new NumberField(1, { min: 0, softMax: 100, showByDefault: false }),
       extruded: new BooleanField(false),
-      pickable: new BooleanField(true),
-      extensions: new ListField(new ExtensionField()),
+      lineAntialiasing: new BooleanField(false, { showByDefault: false }),
+      pickable: new BooleanField(true, { showByDefault: false }),
+      parameters: new CompoundPropsField(
+        {
+          depthTest: new BooleanField(true),
+        },
+        { showByDefault: false }
+      ),
+      extensions: new ListField(new ExtensionField(), { showByDefault: false }),
     }
   }
   createOutputs() {
@@ -3205,19 +6123,24 @@ export class A5LayerOp extends Operator<A5LayerOp> {
 export class HeatmapLayerOp extends Operator<HeatmapLayerOp> {
   static displayName = 'HeatmapLayer'
   static description = 'Render a heatmap from points on the map'
-  static cacheable = false
   createInputs() {
     return {
       data: new DataField(),
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
       getPosition: new Point2DField([0, 0], { returnType: 'tuple', accessor: true }),
-      getWeight: new NumberField(1, { accessor: true }),
+      getWeight: new NumberField(1, { min: 0, accessor: true }),
       aggregation: new StringLiteralField('SUM', { values: ['SUM', 'MEAN'] }),
-      radiusPixels: new NumberField(30, { min: 0, max: 10_000 }),
-      intensity: new NumberField(1, { min: 0, max: 1 }),
-      threshold: new NumberField(0.05, { min: 0, max: 1, step: 0.01 }),
-      extensions: new ListField(new ExtensionField()),
+      radiusPixels: new NumberField(30, { min: 0, softMax: 10_000 }),
+      intensity: new NumberField(1, { min: 0, max: 1, showByDefault: false }),
+      threshold: new NumberField(0.05, { min: 0, max: 1, step: 0.01, showByDefault: false }),
+      parameters: new CompoundPropsField(
+        {
+          depthTest: new BooleanField(true),
+        },
+        { showByDefault: false }
+      ),
+      extensions: new ListField(new ExtensionField(), { showByDefault: false }),
     }
   }
   createOutputs() {
@@ -3239,53 +6162,123 @@ export class HeatmapLayerOp extends Operator<HeatmapLayerOp> {
 export class GeoJsonLayerOp extends Operator<GeoJsonLayerOp> {
   static displayName = 'GeoJsonLayer'
   static description = 'Render GeoJSON data with points, lines, and polygons'
-  static cacheable = false
   createInputs() {
     return {
-      data: new DataField(),
+      // Core fields (visible by default)
+      data: new GeoJsonField(),
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
 
+      // Point styling (hidden by default)
       pointType: new StringLiteralField('circle', {
         values: ['circle', 'icon', 'text', 'circle+text', 'icon+text', 'circle+icon'],
+        showByDefault: false,
       }),
-      getPointRadius: new NumberField(1, { min: 0, max: 100000, accessor: true }),
+      getPointRadius: new NumberField(1, {
+        min: 0,
+        softMax: 100000,
+        accessor: true,
+        showByDefault: false,
+      }),
       // pointType: circle
-      pointRadiusUnits: new StringLiteralField('meters', ['pixels', 'meters']),
-      pointRadiusScale: new NumberField(1, { min: 0, max: 100 }),
-      pointRadiusMinPixels: new NumberField(0, { min: 0, max: 100 }),
-      pointRadiusMaxPixels: new NumberField(100, { min: 0, max: 1000 }),
-      pointRadiusBillboard: new BooleanField(false),
+      pointRadiusUnits: new StringLiteralField('meters', {
+        values: ['pixels', 'meters'],
+        showByDefault: false,
+      }),
+      pointRadiusScale: new NumberField(1, { min: 0, softMax: 100, showByDefault: false }),
+      pointRadiusMinPixels: new NumberField(0, { min: 0, softMax: 100, showByDefault: false }),
+      pointRadiusMaxPixels: new NumberField(100, { min: 0, softMax: 1000, showByDefault: false }),
+      pointRadiusBillboard: new BooleanField(false, { showByDefault: false }),
 
       // pointType: icon
 
-      // pointType: text
-      getText: new StringField('', { accessor: true }),
+      // pointType: text (hidden by default)
+      getText: new StringField('', { accessor: true, showByDefault: false }),
+      getTextSize: new NumberField(32, {
+        min: 0,
+        softMax: 200,
+        accessor: true,
+        showByDefault: false,
+      }),
+      getTextColor: new ColorField('#000000', {
+        accessor: true,
+        transform: hexToColor,
+        showByDefault: false,
+      }),
+      getTextAngle: new NumberField(0, {
+        softMin: 0,
+        softMax: 360,
+        accessor: true,
+        showByDefault: false,
+      }),
+      getTextAnchor: new StringLiteralField('middle', {
+        values: ['start', 'middle', 'end'],
+        accessor: true,
+        showByDefault: false,
+      }),
+      getTextAlignmentBaseline: new StringLiteralField('center', {
+        values: ['top', 'center', 'bottom'],
+        accessor: true,
+        showByDefault: false,
+      }),
+      getTextPixelOffset: new Vec2Field(
+        { x: 0, y: 0 },
+        { returnType: 'tuple', accessor: true, showByDefault: false }
+      ),
+      textSizeUnits: new StringLiteralField('pixels', {
+        values: ['pixels', 'meters'],
+        showByDefault: false,
+      }),
+      textSizeScale: new NumberField(1, { min: 0, softMax: 100, showByDefault: false }),
+      textSizeMinPixels: new NumberField(0, { min: 0, softMax: 100, showByDefault: false }),
+      textSizeMaxPixels: new NumberField(100, { min: 0, showByDefault: false }),
+      textBillboard: new BooleanField(true, { showByDefault: false }),
+      textFontFamily: new StringField('Monaco, monospace', { showByDefault: false }),
+      textFontWeight: new NumberField(400, { min: 100, max: 900, step: 100, showByDefault: false }),
 
-      // polygon
+      // polygon (core fields visible by default)
       filled: new BooleanField(true),
       getFillColor: new ColorField('#006ac6', { accessor: true, transform: hexToColor }),
 
-      // line
+      // line (core fields visible by default)
       stroked: new BooleanField(true),
       getLineColor: new ColorField('#000000', { accessor: true, transform: hexToColor }),
-      getLineWidth: new NumberField(1, { min: 0, max: 100, accessor: true }),
-      lineWidthUnits: new StringLiteralField('meters', ['pixels', 'meters']),
-      lineWidthScale: new NumberField(1, { min: 0, max: 100 }),
-      lineWidthMinPixels: new NumberField(0, { min: 0, max: 100 }),
-      lineWidthMaxPixels: new NumberField(100, { min: 0, max: 1000 }),
-      lineCapRounded: new BooleanField(false),
-      lineJointRounded: new BooleanField(false),
-      lineMiterLimit: new NumberField(4, { min: 0, max: 10 }),
-      lineBillboard: new BooleanField(false),
+      getLineWidth: new NumberField(1, { min: 0, softMax: 100, accessor: true }),
+      // line (advanced fields hidden by default)
+      lineWidthUnits: new StringLiteralField('meters', {
+        values: ['pixels', 'meters'],
+        showByDefault: false,
+      }),
+      lineWidthScale: new NumberField(1, { min: 0, softMax: 100, showByDefault: false }),
+      lineWidthMinPixels: new NumberField(0, { min: 0, softMax: 100, showByDefault: false }),
+      lineWidthMaxPixels: new NumberField(100, { min: 0, softMax: 1000, showByDefault: false }),
+      lineCapRounded: new BooleanField(false, { showByDefault: false }),
+      lineJointRounded: new BooleanField(false, { showByDefault: false }),
+      lineMiterLimit: new NumberField(4, { min: 0, softMax: 10, showByDefault: false }),
+      lineBillboard: new BooleanField(false, { showByDefault: false }),
+      lineAntialiasing: new BooleanField(false, { showByDefault: false }),
 
-      // 3d
-      extruded: new BooleanField(false),
-      wireframe: new BooleanField(false),
-      getElevation: new NumberField(1000, { min: 0, max: 100000, accessor: true }),
-      elevationScale: new NumberField(1, { min: 0, max: 100 }),
-      _full3d: new BooleanField(false),
-      extensions: new ListField(new ExtensionField()),
+      // 3d (hidden by default)
+      extruded: new BooleanField(false, { showByDefault: false }),
+      wireframe: new BooleanField(false, { showByDefault: false }),
+      getElevation: new NumberField(1000, {
+        min: 0,
+        softMax: 100000,
+        accessor: true,
+        showByDefault: false,
+      }),
+      elevationScale: new NumberField(1, { min: 0, softMax: 100, showByDefault: false }),
+      _full3d: new BooleanField(false, { showByDefault: false }),
+      parameters: new CompoundPropsField(
+        {
+          depthTest: new BooleanField(true),
+          cullMode: new StringLiteralField('none', {
+            values: ['none', 'back', 'front'],
+          }),
+        },
+        { showByDefault: false }
+      ),
+      extensions: new ListField(new ExtensionField(), { showByDefault: false }),
     }
   }
   createOutputs() {
@@ -3307,7 +6300,6 @@ export class GeoJsonLayerOp extends Operator<GeoJsonLayerOp> {
 export class ArcLayerOp extends Operator<ArcLayerOp> {
   static displayName = 'ArcLayer'
   static description = 'Render a set of arcs on the map'
-  static cacheable = false
   createInputs() {
     return {
       data: new DataField(),
@@ -3317,9 +6309,21 @@ export class ArcLayerOp extends Operator<ArcLayerOp> {
       getTargetPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true }),
       getSourceColor: new ColorField('#fff', { accessor: true, transform: hexToColor }),
       getTargetColor: new ColorField('#fff', { accessor: true, transform: hexToColor }),
-      widthUnits: new StringLiteralField('meters', ['pixels', 'meters']),
-      getWidth: new NumberField(1, { min: 0, max: 100, accessor: true }),
-      extensions: new ListField(new ExtensionField()),
+      widthUnits: new StringLiteralField('meters', {
+        values: ['pixels', 'meters', 'common'],
+        showByDefault: false,
+      }),
+      antialiasing: new BooleanField(false, { showByDefault: false }),
+      getWidth: new NumberField(1, { min: 0, softMax: 100, accessor: true }),
+      getHeight: new NumberField(1, { min: 0, softMax: 10, accessor: true, showByDefault: false }),
+      getTilt: new NumberField(0, { min: -90, max: 90, accessor: true, showByDefault: false }),
+      parameters: new CompoundPropsField(
+        {
+          depthTest: new BooleanField(true),
+        },
+        { showByDefault: false }
+      ),
+      extensions: new ListField(new ExtensionField(), { showByDefault: false }),
     }
   }
   createOutputs() {
@@ -3350,14 +6354,13 @@ const DEFAULT_COLOR_RANGE = [
 export class GridLayerOp extends Operator<GridLayerOp> {
   static displayName = 'GridLayer'
   static description = 'Aggregate data into a grid and render as columns'
-  static cacheable = false
   createInputs() {
     return {
       data: new DataField(),
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
       getPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true }),
-      cellSize: new NumberField(1000, { min: 1, max: 100000 }),
+      cellSize: new NumberField(1000, { min: 1, softMax: 100000 }),
 
       getColorWeight: new NumberField(1, { min: 0, accessor: true }),
       colorAggregation: new StringLiteralField('SUM', {
@@ -3366,15 +6369,16 @@ export class GridLayerOp extends Operator<GridLayerOp> {
       // TODO: Support the second agg option, getColorValue?
       colorScaleType: new StringLiteralField('quantize', {
         values: ['linear', 'quantize', 'quantile', 'ordinal'],
+        showByDefault: false,
       }),
       colorRange: new UnknownField(DEFAULT_COLOR_RANGE, { optional: true }),
       // TODO: Support default color range
       // colorRange: new ArrayField(new ColorField('#fff', { transform: hexToColor }), {
       //   optional: true,
       // }),
-      colorDomain: new UnknownField(null, { optional: true }), // number[2] | null for auto
-      upperPercentile: new NumberField(100, { min: 0, max: 100, step: 0.1 }),
-      lowerPercentile: new NumberField(0, { min: 0, max: 100, step: 0.1 }),
+      colorDomain: new UnknownField(null, { optional: true, showByDefault: false }), // number[2] | null for auto
+      upperPercentile: new NumberField(100, { min: 0, max: 100, step: 0.1, showByDefault: false }),
+      lowerPercentile: new NumberField(0, { min: 0, max: 100, step: 0.1, showByDefault: false }),
 
       extruded: new BooleanField(true),
       getElevationWeight: new NumberField(1, { min: 0, accessor: true }),
@@ -3384,16 +6388,33 @@ export class GridLayerOp extends Operator<GridLayerOp> {
       // TODO: Support the second agg option, getElevationValue?
       elevationScaleType: new StringLiteralField('linear', {
         values: ['linear', 'quantile'],
+        showByDefault: false,
       }),
-      elevationScale: new NumberField(1, { min: 0, max: 100 }),
-      elevationRange: new Vec2Field([0, 1000], { returnType: 'tuple' }),
-      elevationDomain: new UnknownField(null, { optional: true }), // number[2] | null for auto
-      elevationUpperPercentile: new NumberField(100, { min: 0, max: 100, step: 0.1 }),
-      elevationLowerPercentile: new NumberField(0, { min: 0, max: 100, step: 0.1 }),
+      elevationScale: new NumberField(1, { min: 0, softMax: 100, showByDefault: false }),
+      elevationRange: new Vec2Field([0, 1000], { returnType: 'tuple', showByDefault: false }),
+      elevationDomain: new UnknownField(null, { optional: true, showByDefault: false }), // number[2] | null for auto
+      elevationUpperPercentile: new NumberField(100, {
+        min: 0,
+        max: 100,
+        step: 0.1,
+        showByDefault: false,
+      }),
+      elevationLowerPercentile: new NumberField(0, {
+        min: 0,
+        max: 100,
+        step: 0.1,
+        showByDefault: false,
+      }),
 
-      coverage: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
-      gpuAggregation: new BooleanField(true),
-      extensions: new ListField(new ExtensionField()),
+      coverage: new NumberField(1, { min: 0, max: 1, step: 0.01, showByDefault: false }),
+      gpuAggregation: new BooleanField(true, { showByDefault: false }),
+      parameters: new CompoundPropsField(
+        {
+          depthTest: new BooleanField(true),
+        },
+        { showByDefault: false }
+      ),
+      extensions: new ListField(new ExtensionField(), { showByDefault: false }),
     }
   }
   createOutputs() {
@@ -3416,14 +6437,13 @@ export class GridLayerOp extends Operator<GridLayerOp> {
 export class HexagonLayerOp extends Operator<HexagonLayerOp> {
   static displayName = 'HexagonLayer'
   static description = 'Aggregate data into hexagonal bins and render as hexagonal columns'
-  static cacheable = false
   createInputs() {
     return {
       data: new DataField(),
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
       getPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true }),
-      radius: new NumberField(1000, { min: 1, max: 100000 }),
+      radius: new NumberField(1000, { min: 1, softMax: 100000 }),
 
       getColorWeight: new NumberField(1, { min: 0, accessor: true }),
       colorAggregation: new StringLiteralField('SUM', {
@@ -3432,15 +6452,16 @@ export class HexagonLayerOp extends Operator<HexagonLayerOp> {
       // TODO: Support the second agg option, getColorValue?
       colorScaleType: new StringLiteralField('quantize', {
         values: ['linear', 'quantize', 'quantile', 'ordinal'],
+        showByDefault: false,
       }),
       colorRange: new UnknownField(DEFAULT_COLOR_RANGE, { optional: true }),
       // TODO: Support default color range
       // colorRange: new ArrayField(new ColorField('#fff', { transform: hexToColor }), {
       //   optional: true,
       // }),
-      colorDomain: new UnknownField(null, { optional: true }), // number[2] | null for auto
-      upperPercentile: new NumberField(100, { min: 0, max: 100, step: 0.1 }),
-      lowerPercentile: new NumberField(0, { min: 0, max: 100, step: 0.1 }),
+      colorDomain: new UnknownField(null, { optional: true, showByDefault: false }), // number[2] | null for auto
+      upperPercentile: new NumberField(100, { min: 0, max: 100, step: 0.1, showByDefault: false }),
+      lowerPercentile: new NumberField(0, { min: 0, max: 100, step: 0.1, showByDefault: false }),
 
       extruded: new BooleanField(false),
       getElevationWeight: new NumberField(1, { min: 0, accessor: true }),
@@ -3450,16 +6471,33 @@ export class HexagonLayerOp extends Operator<HexagonLayerOp> {
       // TODO: Support the second agg option, getElevationValue?
       elevationScaleType: new StringLiteralField('linear', {
         values: ['linear', 'quantile'],
+        showByDefault: false,
       }),
-      elevationScale: new NumberField(1, { min: 0, max: 100 }),
-      elevationRange: new Vec2Field([0, 1000], { returnType: 'tuple' }),
-      elevationDomain: new UnknownField(null, { optional: true }), // number[2] | null for auto
-      elevationUpperPercentile: new NumberField(100, { min: 0, max: 100, step: 0.1 }),
-      elevationLowerPercentile: new NumberField(0, { min: 0, max: 100, step: 0.1 }),
+      elevationScale: new NumberField(1, { min: 0, softMax: 100, showByDefault: false }),
+      elevationRange: new Vec2Field([0, 1000], { returnType: 'tuple', showByDefault: false }),
+      elevationDomain: new UnknownField(null, { optional: true, showByDefault: false }), // number[2] | null for auto
+      elevationUpperPercentile: new NumberField(100, {
+        min: 0,
+        max: 100,
+        step: 0.1,
+        showByDefault: false,
+      }),
+      elevationLowerPercentile: new NumberField(0, {
+        min: 0,
+        max: 100,
+        step: 0.1,
+        showByDefault: false,
+      }),
 
-      coverage: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
-      gpuAggregation: new BooleanField(true),
-      extensions: new ListField(new ExtensionField()),
+      coverage: new NumberField(1, { min: 0, max: 1, step: 0.01, showByDefault: false }),
+      gpuAggregation: new BooleanField(true, { showByDefault: false }),
+      parameters: new CompoundPropsField(
+        {
+          depthTest: new BooleanField(true),
+        },
+        { showByDefault: false }
+      ),
+      extensions: new ListField(new ExtensionField(), { showByDefault: false }),
     }
   }
   createOutputs() {
@@ -3480,24 +6518,30 @@ export class HexagonLayerOp extends Operator<HexagonLayerOp> {
 
 export class Tile3DLayerOp extends Operator<Tile3DLayerOp> {
   static displayName = 'Tile3DLayer'
-  static description = 'Render Cesium or Google 3D tiles on the map'
-  static cacheable = false
+  static description = 'Render 3D tiles on the map (Google, Cesium, or a custom tileset URL)'
   createInputs() {
     return {
       visible: new BooleanField(true),
-      provider: new StringLiteralField('Cesium', ['Cesium', 'Google']),
+      provider: new StringLiteralField('Google', ['Cesium', 'Generic', 'Google']),
+      tilesetUrl: new StringField('', { showByDefault: false }),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
       operation: new StringLiteralField('terrain+draw', {
         values: ['terrain+draw', 'draw', 'terrain'],
       }),
       wireframe: new BooleanField(false),
-      flatLighting: new BooleanField(true),
-      throttleRequests: new BooleanField(false),
-      pointSize: new NumberField(1, { min: 0, max: 100 }), // Only applies when tile format is 'pnts'
-      maxLodMetricValue: new NumberField(2, { min: 0, max: 10 }),
-      maxScreenSpaceError: new NumberField(50, { min: 0, max: 1_000 }),
-      maxMemoryUsage: new NumberField(2024, { min: 0, max: 10_000 }),
-      extensions: new ListField(new ExtensionField()),
+      flatLighting: new BooleanField(true, { showByDefault: false }),
+      throttleRequests: new BooleanField(false, { showByDefault: false }),
+      pointSize: new NumberField(1, { min: 0, softMax: 100 }), // Only applies when tile format is 'pnts'
+      maxLodMetricValue: new NumberField(2, { min: 0, softMax: 10, showByDefault: false }),
+      maxScreenSpaceError: new NumberField(50, { min: 0, softMax: 1_000, showByDefault: false }),
+      maxMemoryUsage: new NumberField(2024, { min: 0, softMax: 10_000, showByDefault: false }),
+      parameters: new CompoundPropsField(
+        {
+          depthTest: new BooleanField(true),
+        },
+        { showByDefault: false }
+      ),
+      extensions: new ListField(new ExtensionField(), { showByDefault: false }),
     }
   }
   createOutputs() {
@@ -3505,23 +6549,35 @@ export class Tile3DLayerOp extends Operator<Tile3DLayerOp> {
       layer: new LayerField<Tile3DLayerProps>(),
     }
   }
-  execute({
+  async execute({
     flatLighting,
     provider,
+    tilesetUrl,
     throttleRequests,
     maxMemoryUsage,
     maxScreenSpaceError,
     ...props
-  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    // TODO: Add a typeahead field with pre-populated values, or the option to add a custom value
+  }: ExtractProps<typeof this.inputs>) {
     const GOOGLE_TILESET_URL = 'https://tile.googleapis.com/v1/3dtiles/root.json'
     const NYC_CESIUM_TILESET_URL = 'https://assets.ion.cesium.com/242005/tileset.json'
 
-    const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY!
-    const CESIUM_ACCESS_TOKEN = import.meta.env.VITE_CESIUM_ACCESS_TOKEN!
+    const { getKey } = getKeysStore()
+    const GOOGLE_MAPS_API_KEY = getKey('googleMaps')
+    const CESIUM_ACCESS_TOKEN = getKey('cesium')
 
-    const tilesetUrl = provider === 'Cesium' ? NYC_CESIUM_TILESET_URL : GOOGLE_TILESET_URL
+    if (provider === 'Google' && !GOOGLE_MAPS_API_KEY) {
+      throw new Error('Tile3DLayer: Google Maps API key is not set (add it in Settings > API Keys)')
+    }
+    if (provider === 'Cesium' && !CESIUM_ACCESS_TOKEN) {
+      throw new Error(
+        'Tile3DLayer: Cesium Ion access token is not set (add it in Settings > API Keys)'
+      )
+    }
 
+    const defaultUrl = provider === 'Cesium' ? NYC_CESIUM_TILESET_URL : GOOGLE_TILESET_URL
+    const data = tilesetUrl || defaultUrl
+
+    const { CesiumIonLoader, Tiles3DLoader } = await import('@loaders.gl/3d-tiles')
     const loader = provider === 'Cesium' ? CesiumIonLoader : Tiles3DLoader
 
     const _subLayerProps = flatLighting ? { scenegraph: { _lighting: 'flat' } } : undefined
@@ -3531,11 +6587,11 @@ export class Tile3DLayerOp extends Operator<Tile3DLayerOp> {
         ? { fetch: { headers: { 'X-GOOG-API-KEY': GOOGLE_MAPS_API_KEY } } }
         : provider === 'Cesium'
           ? {
-            tileset: {
-              throttleRequests,
-            },
-            'cesium-ion': { accessToken: CESIUM_ACCESS_TOKEN },
-          }
+              tileset: {
+                throttleRequests,
+              },
+              'cesium-ion': { accessToken: CESIUM_ACCESS_TOKEN },
+            }
           : null
 
     const onTilesetLoad = (tileset3d: Tileset3D) => {
@@ -3558,7 +6614,7 @@ export class Tile3DLayerOp extends Operator<Tile3DLayerOp> {
     const layer = {
       ...parseLayerProps<Tile3DLayerProps>(props),
       type: 'Tile3DLayer' as const,
-      data: tilesetUrl,
+      data,
       loader,
       loadOptions,
       onTilesetLoad,
@@ -3570,31 +6626,14 @@ export class Tile3DLayerOp extends Operator<Tile3DLayerOp> {
   }
 }
 
-function toGeocentric(longitude: number, latitude: number, height = 50) {
-  const a = 6378137.0; // Semi-major axis (meters)
-  const f = 1 / 298.257223563; // Flattening
-  const b = a * (1 - f); // Semi-minor axis
-  const e2 = 1 - (b * b) / (a * a); // Eccentricity squared
-
-  const latRad = (latitude * Math.PI) / 180;
-  const lonRad = (-1 * longitude * Math.PI) / 180;
-  const N = a / Math.sqrt(1 - e2 * Math.sin(latRad) * Math.sin(latRad));
-
-  const X = (N + height) * Math.cos(latRad) * Math.cos(lonRad);
-  const Y = (N + height) * Math.cos(latRad) * Math.sin(lonRad);
-  const Z = (N * (1 - e2) + height) * Math.sin(latRad);
-
-  return [X, Y, Z];
-}
-
 export class Mask3DExtensionOp extends Operator<Mask3DExtensionOp> {
   static displayName = 'Mask3DExtension'
   static description = 'Mask a sphere (used with Tile3DLayer)'
   createInputs() {
     return {
-      targetPosition: new Point3DField([-118.26370299999999, 34.017137999999996, 0], { returnType: 'tuple' }),
-      innerRadius: new NumberField(1000, { min: 0 }),
-      fadeRange: new NumberField(7, { min: 0 }),
+      targetPosition: new Vec3Field([0, 0, 0], { returnType: 'tuple' }),
+      innerRadius: new NumberField(0, { min: 0, softMax: 10_000 }),
+      fadeRange: new NumberField(0, { min: 0, softMax: 10_000 }),
     }
   }
   createOutputs() {
@@ -3603,13 +6642,9 @@ export class Mask3DExtensionOp extends Operator<Mask3DExtensionOp> {
     }
   }
   execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const targetPosition = toGeocentric(...props.targetPosition)
     const extension = {
       extension: { type: 'Mask3DExtension' },
-      props: {
-        ...props,
-        targetPosition,
-      },
+      props,
     }
     return { extension }
   }
@@ -3621,7 +6656,7 @@ export class BrushingExtensionOp extends Operator<BrushingExtensionOp> {
     'Only render the points within a given radius of the mouse position. Used with most layer types.'
   createInputs() {
     return {
-      brushingRadius: new NumberField(100, { min: 0, max: 100_000 }),
+      brushingRadius: new NumberField(100, { min: 0, softMax: 100_000 }),
       brushingEnabled: new BooleanField(true),
       brushingTarget: new StringLiteralField('source', {
         values: ['source', 'target', 'source_target', 'custom'],
@@ -3649,11 +6684,13 @@ export class PathStyleExtensionOp extends Operator<PathStyleExtensionOp> {
   createInputs() {
     return {
       dash: new BooleanField(true),
-      highPrecisionDash: new BooleanField(false),
+      highPrecisionDash: new BooleanField(false, { showByDefault: false }),
       offset: new BooleanField(false),
+      dashMode: new StringLiteralField('segment', ['segment', 'path']),
       dashJustified: new BooleanField(false),
+      dashUnits: new StringLiteralField('widths', ['widths', 'pixels', 'meters', 'common']),
       getDashArray: new Vec2Field([4, 4], { returnType: 'tuple', accessor: true }),
-      getOffset: new NumberField(0, { min: -10_000, max: 10_000, accessor: true }),
+      getOffset: new NumberField(0, { softMin: -10_000, softMax: 10_000, accessor: true }),
       dashGapPickable: new BooleanField(false),
     }
   }
@@ -3666,10 +6703,16 @@ export class PathStyleExtensionOp extends Operator<PathStyleExtensionOp> {
     dash,
     highPrecisionDash,
     offset,
+    dashMode,
     ...props
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     const extension = {
-      extension: { type: 'PathStyleExtension', dash, highPrecisionDash, offset },
+      extension: {
+        type: 'PathStyleExtension',
+        dash,
+        dashMode: highPrecisionDash ? 'path' : dashMode,
+        offset,
+      },
       props,
     }
     return { extension }
@@ -3701,7 +6744,6 @@ class TerrainExtensionOp extends Operator<TerrainExtensionOp> {
 class RasterTileLayerOp extends Operator<RasterTileLayerOp> {
   static displayName = 'RasterTileLayer'
   static description = 'Render a raster tile layer on the map'
-  static cacheable = false
   createInputs() {
     return {
       visible: new BooleanField(true),
@@ -3711,7 +6753,13 @@ class RasterTileLayerOp extends Operator<RasterTileLayerOp> {
       ),
       minZoom: new NumberField(0, { min: 0, max: 24 }),
       maxZoom: new NumberField(24, { min: 0, max: 24 }),
-      tileSize: new NumberField(256, { min: 1, max: 1024 }),
+      tileSize: new NumberField(256, { min: 1, softMax: 1024 }),
+      parameters: new CompoundPropsField(
+        {
+          depthTest: new BooleanField(true),
+        },
+        { showByDefault: false }
+      ),
       extensions: new ListField(new ExtensionField()),
     }
   }
@@ -3819,10 +6867,93 @@ class VibranceExtensionOp extends Operator<VibranceExtensionOp> {
 // TODO: Do we want to include the args as a property as well? Source is currently just the function body
 type FunctionWithSource = ((...args: unknown[]) => unknown | Promise<unknown>) & { source: string }
 // biome-ignore lint/complexity/useArrowFunction: This is a function declaration
-const AsyncFunction = Object.getPrototypeOf(async function () { }).constructor
+const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor
+
+// Count occurrences of a character in a string (for bracket matching)
+function countChar(str: string, char: string): number {
+  return (str.match(new RegExp(`\\${char}`, 'g')) || []).length
+}
+
+// Convert cryptic JS errors to actionable messages based on code analysis
+export function getFriendlyErrorMessage(jsError: string, userCode: string): string {
+  // Count unmatched delimiters - used for multiple error types
+  const brackets = countChar(userCode, '[') - countChar(userCode, ']')
+  const parens = countChar(userCode, '(') - countChar(userCode, ')')
+  const braces = countChar(userCode, '{') - countChar(userCode, '}')
+
+  // Handle "Unexpected end of input" or "Unexpected token '}'" or "Unexpected token ')'"
+  // These typically mean something is unclosed
+  if (
+    jsError.includes('Unexpected end of input') ||
+    jsError.includes("Unexpected token '}'") ||
+    jsError.includes("Unexpected token ')'")
+  ) {
+    if (brackets > 0) return `Missing ${brackets} closing ']'`
+    if (parens > 0) return `Missing ${parens} closing ')'`
+    if (braces > 0) return `Missing ${braces} closing '}'`
+
+    // Check for trailing operators
+    if (/[+\-*/%&|^=!<>]+\s*$/.test(userCode)) {
+      return 'Expression incomplete - missing value after operator'
+    }
+
+    // Check for trailing dot (property access)
+    if (/\.\s*$/.test(userCode)) {
+      return 'Expression incomplete - missing property name after "."'
+    }
+
+    // Check for trailing comma
+    if (/,\s*$/.test(userCode)) {
+      return 'Expression incomplete - trailing comma'
+    }
+  }
+
+  // Handle unterminated strings
+  if (jsError.includes('Unterminated string')) {
+    const singleQuotes = countChar(userCode, "'") % 2
+    const doubleQuotes = countChar(userCode, '"') % 2
+    const backticks = countChar(userCode, '`') % 2
+
+    if (singleQuotes) return "Missing closing ' (single quote)"
+    if (doubleQuotes) return 'Missing closing " (double quote)'
+    if (backticks) return 'Missing closing ` (backtick)'
+    return 'Unclosed string literal'
+  }
+
+  // Handle unexpected tokens - check if we have unclosed delimiters anyway
+  if (jsError.includes('Unexpected token')) {
+    if (brackets > 0) return `Missing ${brackets} closing ']'`
+    if (parens > 0) return `Missing ${parens} closing ')'`
+    if (braces > 0) return `Missing ${braces} closing '}'`
+    return jsError
+  }
+
+  // Fallback to original error
+  return jsError
+}
+
+// Format a syntax error message to be more helpful
+function formatSyntaxError(error: Error, id: string, body: string): string {
+  const errorType = error.name === 'SyntaxError' ? 'Syntax error' : error.name
+
+  // Strip "return " prefix if present (added by ExpressionOp/AccessorOp)
+  const userCode = body.startsWith('return ') ? body.slice(7) : body
+
+  // Try to provide actionable message based on code analysis
+  const friendly = getFriendlyErrorMessage(error.message, userCode)
+
+  let message = `${errorType} in ${id}: ${friendly}`
+
+  // For single-line code, show the code inline
+  if (body.split('\n').length === 1 && userCode.length < 60) {
+    message += `\n  Code: ${userCode}`
+  }
+
+  return message
+}
 
 // Create a function with a source property for debugging
-function fnWithSource(args: string[], body: string, id: string): FunctionWithSource {
+export function fnWithSource(args: string[], body: string, id: string): FunctionWithSource {
   try {
     // Duck typing to check if the function is async
     const isAsync = /\bawait\b/.test(body)
@@ -3835,15 +6966,36 @@ function fnWithSource(args: string[], body: string, id: string): FunctionWithSou
     })
     return func
   } catch (e) {
-    console.error(id, e)
-    throw e
+    const error = e instanceof Error ? e : new Error(String(e))
+    // Use debugExecute since syntax errors during editing are expected
+    debugExecute(formatSyntaxError(error, id, body))
+
+    // Strip "return " prefix for user code analysis
+    const userCode = body.startsWith('return ') ? body.slice(7) : body
+
+    // Throw error with friendly message for UI display
+    const friendlyMessage = getFriendlyErrorMessage(error.message, userCode)
+    const FriendlyError = error.constructor as ErrorConstructor
+    throw new FriendlyError(friendlyMessage)
+  }
+}
+
+// Creates a safe wrapper around getOp that throws a clear error when operator not found.
+function safeOpGetter(contextOpId: string): (path: string) => Operator<IOperator> {
+  return (path: string) => {
+    const op = getOp(path, contextOpId)
+    if (!op) {
+      throw new Error(`Operator '${path}' not found`)
+    }
+    return op
   }
 }
 
 // An Accessor is an ExpressionOp that returns a function instead of executing it
 export class AccessorOp extends Operator<AccessorOp> {
   static displayName = 'Accessor'
-  static description = 'Create an accessor function for use in deck.gl layers'
+  static description =
+    'A function called for each row of your data and passed to Deck.gl layer properties. The current row is passed as the `d` variable (e.g., `d.population`, `d.properties.color`). Available variables: `d` (current row), `i` (index), `data` (all rows), `op()` (access operators), `sequenceTime` (timeline position), `frame` (current frame), `totalFrames`, `sequence` (timeline metadata). Includes d3, turf, and other utilities.'
   createInputs() {
     return {
       expression: new ExpressionField(),
@@ -3856,16 +7008,48 @@ export class AccessorOp extends Operator<AccessorOp> {
   }
   execute({ expression }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     const fn = fnWithSource(
-      ['d', 'dInfo', 'op', ...Object.keys(freeExports)],
+      [
+        'd',
+        'i',
+        'data',
+        'op',
+        'sequenceTime',
+        'frame',
+        'totalFrames',
+        'sequence',
+        ...Object.keys(freeExports),
+      ],
       `return ${expression}`,
       this.id
     )
+
+    // Subscribe to timeline changes - accessor will get fresh values on each call
+    subscribeOpToTimeline(this)
+
     // https://deck.gl/docs/developer-guide/using-layers#accessors
     const accessor = (d: unknown, dInfo: { index: number; data: unknown; target: number[] }) => {
-      // Create a context-aware getOp function for the accessor execution
-      const contextualGetOp = (path: string) => getOp(path, this.id)
-      return fn(d, dInfo, contextualGetOp, ...Object.values(freeExports))
+      const contextualGetOp = safeOpGetter(this.id)
+      // Get fresh timeline values for each accessor call
+      const timelineContext = getTimelineContext()
+      try {
+        return fn(
+          d,
+          dInfo.index,
+          dInfo.data,
+          contextualGetOp,
+          timelineContext.sequenceTime,
+          timelineContext.frame,
+          timelineContext.totalFrames,
+          timelineContext.sequence,
+          ...Object.values(freeExports)
+        )
+      } catch (_e) {
+        // Swallow per-row errors — returning undefined lets deck.gl skip the item
+        // rather than crashing the GPU process
+        return undefined
+      }
     }
+
     return { accessor }
   }
 }
@@ -3873,7 +7057,8 @@ export class AccessorOp extends Operator<AccessorOp> {
 export class CodeOp extends Operator<CodeOp> {
   static displayName = 'Code'
   static description =
-    'Run custom JavaScript code on the data. Use "data" to access the input data list, "d" for the first element of the list, and "op" to access other operators. Also passes a freeExports object with turf and d3 utils. Use `this` to store state.'
+    'Run custom JavaScript code to transform your data. Available variables: `data` (all input data), `d` (first element), `op()` (access other operators), `sequenceTime` (timeline position), `frame` (current frame), `totalFrames`, `sequence` (timeline metadata). Includes d3, turf, and other utilities. Use `this` to store state between executions.'
+  static supportsCustomFields = true
   asDownload = () => this.outputs.data.value
   createInputs() {
     return {
@@ -3890,20 +7075,52 @@ export class CodeOp extends Operator<CodeOp> {
     data,
     code: codeString,
   }: ExtractProps<typeof this.inputs>): Promise<ExtractProps<typeof this.outputs>> {
-    // Replace mustache references with op() calls, handling relative paths
-    const processedCode = codeString
+    // Replace self-parameter shorthand {{par.field}} with op() calls referencing this operator
+    let processedCode = codeString
       .trim()
-      .replace(mustacheRe, (_match, opId, inOut, fieldPath) => {
-        return `op('${opId}').${inOut}.${fieldPath}`
+      .replace(selfParMustacheRe, (_match, _inOut, fieldPath) => {
+        return `op('${this.id}').par.${fieldPath}`
       })
+
+    // Replace standard mustache references with op() calls, handling relative paths
+    processedCode = processedCode.replace(mustacheRe, (_match, opId, inOut, fieldPath) => {
+      return `op('${opId}').${inOut}.${fieldPath}`
+    })
+
+    // Get current timeline values
+    const timelineContext = getTimelineContext()
+
+    // Subscribe to timeline changes for reactive updates
+    subscribeOpToTimeline(this)
+
     // Create a context-aware getOp function for the code execution
-    const contextualGetOp = (path: string) => getOp(path, this.id)
+    const contextualGetOp = safeOpGetter(this.id)
     const fn = fnWithSource(
-      ['data', 'd', 'op', ...Object.keys(freeExports)],
+      [
+        'data',
+        'd',
+        'op',
+        'sequenceTime',
+        'frame',
+        'totalFrames',
+        'sequence',
+        ...Object.keys(freeExports),
+      ],
       processedCode,
       this.id
     )
-    const result = fn.call(this, data, data[0], contextualGetOp, ...Object.values(freeExports))
+    const result = fn.call(
+      this,
+      data,
+      data[0],
+      contextualGetOp,
+      timelineContext.sequenceTime,
+      timelineContext.frame,
+      timelineContext.totalFrames,
+      timelineContext.sequence,
+      ...Object.values(freeExports)
+    )
+
     const output = result instanceof Promise ? await result : result
     return { data: output }
   }
@@ -3912,6 +7129,9 @@ export class CodeOp extends Operator<CodeOp> {
 export class ContainerOp extends Operator<ContainerOp> {
   static displayName = 'Container'
   static description = 'Encapsulates a subgraph of operators. Visually groups child nodes.'
+  static supportsCustomFields = true
+
+  private graphOutputOp?: GraphOutputOp
 
   createInputs() {
     return { in: new UnknownField(null, { optional: true }) }
@@ -3921,24 +7141,41 @@ export class ContainerOp extends Operator<ContainerOp> {
     return { out: new UnknownField(null, { optional: true }) }
   }
 
+  setGraphOutputOp(output?: GraphOutputOp) {
+    if (this.graphOutputOp === output) return
+
+    if (this.graphOutputOp) {
+      this.graphOutputOp.removeDownstreamDependent(this)
+      this.removeUpstreamDependency(this.graphOutputOp)
+    }
+
+    this.graphOutputOp = output
+    if (output) {
+      output.addDownstreamDependent(this)
+      this.addUpstreamDependency(output)
+    }
+    this.markDirty()
+  }
+
   execute(_: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    let outputValue = null
     // The 'in' port of ContainerOp drives its execution.
     // The 'out' port should reflect the value from a GraphOutputOp inside it.
-    for (const op of opMap.values()) {
-      if (op instanceof GraphOutputOp && isDirectChild(op.id, this.id)) {
-        outputValue = op.outputs.propagatedValue.value
-        break // Take the first one found
-      }
-    }
-    return { out: outputValue }
+    const output =
+      this.graphOutputOp ??
+      getAllOps().find(op => op instanceof GraphOutputOp && isDirectChild(op.id, this.id))
+    return { out: output?.outputs.propagatedValue.value ?? null }
+  }
+
+  dispose() {
+    this.setGraphOutputOp(undefined)
+    super.dispose()
   }
 }
 
 export class ExpressionOp extends Operator<ExpressionOp> {
   static displayName = 'Expression'
   static description =
-    'Run a JavaScript expression on the data. Use "data" to access the input data list, "d" for the first element of the list, and "op" to access other operators. Also passes a freeExports object with turf and d3 utils.'
+    'Evaluate a JavaScript expression to compute a single value. Available variables: `data` (all input data), `d` (first element), `op()` (access other operators), `sequenceTime` (timeline position), `frame` (current frame), `totalFrames`, `sequence` (timeline metadata). Includes d3, turf, and other utilities.'
   createInputs() {
     return {
       data: new ListField(new DataField()),
@@ -3954,13 +7191,28 @@ export class ExpressionOp extends Operator<ExpressionOp> {
     data,
     expression,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    // Get current timeline values
+    const timelineContext = getTimelineContext()
+
+    // Subscribe to timeline changes for reactive updates
+    subscribeOpToTimeline(this)
+
     const fn = fnWithSource(
-      ['data', 'd', 'op', ...Object.keys(freeExports)],
+      [
+        'data',
+        'd',
+        'op',
+        'sequenceTime',
+        'frame',
+        'totalFrames',
+        'sequence',
+        ...Object.keys(freeExports),
+      ],
       `return ${expression}`,
       this.id
     )
     // Create a context-aware getOp function for the expression execution
-    const contextualGetOp = (path: string) => getOp(path, this.id)
+    const contextualGetOp = safeOpGetter(this.id)
 
     // Check if any data items are accessor functions
     const hasAccessors = data.some(isAccessor)
@@ -3969,14 +7221,146 @@ export class ExpressionOp extends Operator<ExpressionOp> {
       // Return an accessor function that evaluates all data items and applies the expression
       const result = (...args: unknown[]) => {
         const evaluatedData = data.map(item => (isAccessor(item) ? item(...args) : item))
-        return fn(evaluatedData, evaluatedData[0], contextualGetOp, ...Object.values(freeExports))
+        // Get fresh timeline values for each accessor call
+        const freshTimeline = getTimelineContext()
+        return fn(
+          evaluatedData,
+          evaluatedData[0],
+          contextualGetOp,
+          freshTimeline.sequenceTime,
+          freshTimeline.frame,
+          freshTimeline.totalFrames,
+          freshTimeline.sequence,
+          ...Object.values(freeExports)
+        )
       }
+
       return { data: result }
     }
 
     // Static evaluation
-    const result = fn(data, data[0], contextualGetOp, ...Object.values(freeExports))
+    const result = fn(
+      data,
+      data[0],
+      contextualGetOp,
+      timelineContext.sequenceTime,
+      timelineContext.frame,
+      timelineContext.totalFrames,
+      timelineContext.sequence,
+      ...Object.values(freeExports)
+    )
+
     return { data: result }
+  }
+}
+
+export type RampInterpType = 'linear' | 'smooth' | 'hold'
+
+// Tangent slopes matching D3's curveMonotoneX (Fritsch-Carlson algorithm)
+// so the smooth computation result matches the visual curve exactly.
+// For n=2, D3 draws a straight line, so we return the chord slope at both endpoints.
+export function monotoneSlopes(stops: Array<{ pos: number; val: number }>): number[] {
+  const n = stops.length
+  const m = new Array<number>(n).fill(0)
+  if (n < 2) return m
+  if (n === 2) {
+    const h = stops[1].pos - stops[0].pos
+    const s = h !== 0 ? (stops[1].val - stops[0].val) / h : 0
+    return [s, s]
+  }
+
+  // Interior slopes — D3 slope3 formula
+  for (let i = 1; i < n - 1; i++) {
+    const h0 = stops[i].pos - stops[i - 1].pos
+    const h1 = stops[i + 1].pos - stops[i].pos
+    const s0 = h0 !== 0 ? (stops[i].val - stops[i - 1].val) / h0 : 0
+    const s1 = h1 !== 0 ? (stops[i + 1].val - stops[i].val) / h1 : 0
+    const p = (s0 * h1 + s1 * h0) / (h0 + h1)
+    const sign = (v: number) => (v < 0 ? -1 : v > 0 ? 1 : 0)
+    m[i] = (sign(s0) + sign(s1)) * Math.min(Math.abs(s0), Math.abs(s1), 0.5 * Math.abs(p)) || 0
+  }
+
+  // Endpoint slopes — D3 slope2 formula
+  const h0 = stops[1].pos - stops[0].pos
+  const hN = stops[n - 1].pos - stops[n - 2].pos
+  m[0] = h0 !== 0 ? ((3 * (stops[1].val - stops[0].val)) / h0 - m[1]) / 2 : m[1]
+  m[n - 1] = hN !== 0 ? ((3 * (stops[n - 1].val - stops[n - 2].val)) / hN - m[n - 2]) / 2 : m[n - 2]
+
+  return m
+}
+
+// Per-segment interpolation: uses each stop's interp type for the segment that follows it
+function interpolateRamp(
+  position: number,
+  sortedStops: Array<{ pos: number; val: number; interp?: RampInterpType }>
+): number {
+  const n = sortedStops.length
+  if (n === 1) return sortedStops[0].val
+  if (position <= sortedStops[0].pos) return sortedStops[0].val
+  if (position >= sortedStops[n - 1].pos) return sortedStops[n - 1].val
+
+  let i = 0
+  while (i < n - 2 && position >= sortedStops[i + 1].pos) i++
+
+  const s0 = sortedStops[i]
+  const s1 = sortedStops[i + 1]
+  const h = s1.pos - s0.pos
+  if (h === 0) return s0.val
+
+  const interp = s0.interp ?? 'smooth'
+
+  if (interp === 'hold') return s0.val
+
+  const t = (position - s0.pos) / h
+
+  if (interp === 'linear') return s0.val + t * (s1.val - s0.val)
+
+  // smooth: cubic Hermite with PCHIP slopes
+  const slopes = monotoneSlopes(sortedStops)
+  const t2 = t * t
+  const t3 = t2 * t
+  return (
+    (2 * t3 - 3 * t2 + 1) * s0.val +
+    (t3 - 2 * t2 + t) * h * slopes[i] +
+    (-2 * t3 + 3 * t2) * s1.val +
+    (t3 - t2) * h * slopes[i + 1]
+  )
+}
+
+export class RampOp extends Operator<RampOp> {
+  static displayName = 'Ramp'
+  static description = 'Map a position (0–1) to a value using a user-defined curve'
+
+  createInputs() {
+    return {
+      // softMin/softMax suggests 0-1 in the UI without hard-clamping accessor functions
+      position: new NumberField(0, { softMin: 0, softMax: 1, step: 0.01, accessor: true }),
+      stops: new DataField(),
+    }
+  }
+
+  createOutputs() {
+    return {
+      value: new NumberField(),
+    }
+  }
+
+  execute({
+    position,
+    stops,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const rampStops: Array<{ pos: number; val: number; interp?: RampInterpType }> =
+      !stops || (stops as unknown[]).length === 0
+        ? [
+            { pos: 0, val: 0, interp: 'smooth' as RampInterpType },
+            { pos: 1, val: 1, interp: 'smooth' as RampInterpType },
+          ]
+        : [...(stops as Array<{ pos: number; val: number; interp?: RampInterpType }>)].sort(
+            (a, b) => a.pos - b.pos
+          )
+
+    const value = composeAccessor(position, (p: number) => interpolateRamp(p, rampStops))
+    return { value }
   }
 }
 
@@ -3989,14 +7373,14 @@ export class RectangleOp extends Operator<RectangleOp> {
     return {
       center: new Point2DField([DEFAULT_LONGITUDE, DEFAULT_LATITUDE], { returnType: 'object' }),
       altitude: new NumberField(0, { step: 0.1 }),
-      width: new NumberField(10, { min: 0.001, max: 10000, step: 0.1 }),
-      height: new NumberField(10, { min: 0.001, max: 10000, step: 0.1 }),
+      width: new NumberField(10, { min: 0.001, softMax: 10000, step: 0.1 }),
+      height: new NumberField(10, { min: 0.001, softMax: 10000, step: 0.1 }),
       properties: new DataField({}),
     }
   }
   createOutputs() {
     return {
-      feature: new DataField(),
+      feature: new GeoJsonField(),
     }
   }
   execute({
@@ -4055,7 +7439,7 @@ export class PointOp extends Operator<PointOp> {
   }
   createOutputs() {
     return {
-      feature: new DataField(),
+      feature: new GeoJsonField(),
     }
   }
   execute({
@@ -4078,12 +7462,12 @@ export class GeoJsonOp extends Operator<GeoJsonOp> {
   asDownload = () => this.outputData
   createInputs() {
     return {
-      features: new ListField(new DataField()),
+      features: new ListField(new GeoJsonField()),
     }
   }
   createOutputs() {
     return {
-      featureCollection: new DataField(),
+      featureCollection: new GeoJsonField(),
     }
   }
   execute({ features }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
@@ -4095,22 +7479,1311 @@ export class GeoJsonOp extends Operator<GeoJsonOp> {
   }
 }
 
+export class GeoEditorOp extends Operator<GeoEditorOp> {
+  static displayName = 'GeoEditor'
+  static description = 'Draw and edit GeoJSON geometry with a visual editor'
+  asDownload = () => this.outputData
+  createInputs() {
+    return {
+      geojson: new CodeField(JSON.stringify({ type: 'FeatureCollection', features: [] }, null, 2), {
+        language: 'json',
+      }),
+    }
+  }
+  createOutputs() {
+    return {
+      featureCollection: new GeoJsonField(),
+    }
+  }
+  execute({ geojson }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    try {
+      const parsed = typeof geojson === 'string' ? JSON.parse(geojson) : geojson
+      if (parsed.type === 'FeatureCollection') return { featureCollection: parsed }
+      if (parsed.type === 'Feature')
+        return { featureCollection: { type: 'FeatureCollection', features: [parsed] } }
+      return {
+        featureCollection: {
+          type: 'FeatureCollection',
+          features: [{ type: 'Feature', geometry: parsed, properties: {} }],
+        },
+      }
+    } catch {
+      return { featureCollection: { type: 'FeatureCollection', features: [] } }
+    }
+  }
+}
+
+export class GeoParquetOp extends Operator<GeoParquetOp> {
+  static displayName = 'GeoParquet'
+  static description =
+    'Load a GeoParquet file and output GeoJSON FeatureCollection via DuckDB Spatial'
+  asDownload = () => this.outputData
+  createInputs() {
+    return {
+      url: new FileUrlField(),
+      geometryColumn: new StringField('geometry'),
+      limit: new NumberField(0, { min: 0, step: 1 }),
+    }
+  }
+  createOutputs() {
+    return {
+      featureCollection: new GeoJsonField(),
+      data: new DataField(),
+    }
+  }
+  async execute({
+    url,
+    geometryColumn,
+    limit,
+  }: ExtractProps<typeof this.inputs>): Promise<ExtractProps<typeof this.outputs>> {
+    if (!url) return { featureCollection: { type: 'FeatureCollection', features: [] }, data: [] }
+    const db = await duckDbInstance
+    const conn = await db.connect()
+    try {
+      await conn.query('INSTALL spatial; LOAD spatial;')
+      const limitClause = limit > 0 ? `LIMIT ${Math.floor(limit)}` : ''
+      // Quote both interpolations so URLs and column names containing quotes stay literal
+      const geomIdent = sqlIdentifier(geometryColumn)
+      const result = await conn.query(
+        `SELECT ST_AsGeoJSON(${geomIdent}) as geojson, * EXCLUDE(${geomIdent}) FROM read_parquet(${sqlLiteral(url)}) ${limitClause}`
+      )
+      const rows = result
+        .toArray()
+        .map((row: { toJSON: () => Record<string, unknown> }) => row.toJSON())
+      const features = rows.map((row: Record<string, unknown>) => {
+        const { geojson, ...properties } = row
+        return {
+          type: 'Feature',
+          geometry: JSON.parse(geojson as string),
+          properties,
+        }
+      })
+      return {
+        featureCollection: { type: 'FeatureCollection', features },
+        data: rows,
+      }
+    } finally {
+      await conn.close()
+    }
+  }
+}
+
+export class ShapefileOp extends Operator<ShapefileOp> {
+  static displayName = 'Shapefile'
+  static description = 'Load a Shapefile (.shp) and convert to GeoJSON'
+  asDownload = () => this.outputData
+  createInputs() {
+    return {
+      url: new FileUrlField(),
+      encoding: new StringField('utf-8'),
+    }
+  }
+  createOutputs() {
+    return {
+      featureCollection: new GeoJsonField(),
+    }
+  }
+  async execute({
+    url,
+    encoding,
+  }: ExtractProps<typeof this.inputs>): Promise<ExtractProps<typeof this.outputs>> {
+    if (!url) return { featureCollection: { type: 'FeatureCollection', features: [] } }
+    const shapefile = await import('shapefile')
+    const response = await fetch(url)
+    const buffer = await response.arrayBuffer()
+    const geojson = await shapefile.read(buffer, undefined, { encoding })
+    return { featureCollection: geojson }
+  }
+}
+
+export class PMTilesOp extends Operator<PMTilesOp> {
+  static displayName = 'PMTiles'
+  static description = 'Load a PMTiles archive as a MapLibre vector or raster source'
+  createInputs() {
+    return {
+      url: new FileUrlField(),
+      sourceLayer: new StringField(''),
+      minZoom: new NumberField(0, { min: 0, max: 22 }),
+      maxZoom: new NumberField(14, { min: 0, max: 22 }),
+    }
+  }
+  createOutputs() {
+    return {
+      sourceConfig: new UnknownField(null),
+    }
+  }
+  execute({
+    url,
+    sourceLayer,
+    minZoom,
+    maxZoom,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    if (!url) return { sourceConfig: null }
+    return {
+      sourceConfig: {
+        type: 'vector',
+        url: `pmtiles://${url}`,
+        minzoom: minZoom,
+        maxzoom: maxZoom,
+        ...(sourceLayer ? { sourceLayer } : {}),
+      },
+    }
+  }
+}
+
+export class XYZTileOp extends Operator<XYZTileOp> {
+  static displayName = 'XYZTile'
+  static description = 'Configure a raster XYZ tile source from a URL template ({z}/{x}/{y})'
+  createInputs() {
+    return {
+      url: new StringField('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'),
+      subdomains: new StringField('abc'),
+      tileSize: new NumberField(256, { min: 64, max: 1024, step: 64 }),
+      minZoom: new NumberField(0, { min: 0, max: 22 }),
+      maxZoom: new NumberField(19, { min: 0, max: 22 }),
+      attribution: new StringField(''),
+    }
+  }
+  createOutputs() {
+    return {
+      sourceConfig: new UnknownField(null),
+    }
+  }
+  execute({
+    url,
+    subdomains,
+    tileSize,
+    minZoom,
+    maxZoom,
+    attribution,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    if (!url) return { sourceConfig: null }
+    const tiles = subdomains ? subdomains.split('').map(s => url.replace('{s}', s)) : [url]
+    return {
+      sourceConfig: {
+        type: 'raster',
+        tiles,
+        tileSize,
+        minzoom: minZoom,
+        maxzoom: maxZoom,
+        ...(attribution ? { attribution } : {}),
+      },
+    }
+  }
+}
+
+// ==================== Geometry Operations ====================
+
+export class BufferOp extends Operator<BufferOp> {
+  static displayName = 'Buffer'
+  static description = 'Create a buffer zone around input geometry at a given distance'
+  asDownload = () => this.outputData
+  createInputs() {
+    return {
+      geojson: new GeoJsonField(),
+      radius: new NumberField(1, { min: 0, step: 0.1 }),
+      units: new StringLiteralField('kilometers', {
+        values: ['kilometers', 'miles', 'meters', 'degrees'],
+      }),
+      steps: new NumberField(64, { min: 4, max: 256, step: 1, showByDefault: false }),
+    }
+  }
+  createOutputs() {
+    return { featureCollection: new GeoJsonField() }
+  }
+  execute({
+    geojson,
+    radius,
+    units,
+    steps,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    if (!geojson?.features?.length)
+      return { featureCollection: { type: 'FeatureCollection', features: [] } }
+    const turf = (globalThis as unknown as Record<string, unknown>)
+      .turf as typeof import('@turf/turf')
+    const buffered = turf.buffer(geojson, radius, { units: units as 'kilometers', steps })
+    return { featureCollection: buffered || { type: 'FeatureCollection', features: [] } }
+  }
+}
+
+export class UnionOp extends Operator<UnionOp> {
+  static displayName = 'Union'
+  static description = 'Merge multiple polygons into a single combined polygon'
+  asDownload = () => this.outputData
+  createInputs() {
+    return {
+      geojson: new GeoJsonField(),
+    }
+  }
+  createOutputs() {
+    return { featureCollection: new GeoJsonField() }
+  }
+  execute({ geojson }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    if (!geojson?.features?.length)
+      return { featureCollection: { type: 'FeatureCollection', features: [] } }
+    const turf = (globalThis as unknown as Record<string, unknown>)
+      .turf as typeof import('@turf/turf')
+    const polygons = geojson.features.filter(
+      (f: { geometry: { type: string } }) =>
+        f.geometry.type === 'Polygon' || f.geometry.type === 'MultiPolygon'
+    )
+    if (polygons.length === 0)
+      return { featureCollection: { type: 'FeatureCollection', features: [] } }
+    let merged = polygons[0]
+    for (let i = 1; i < polygons.length; i++) {
+      merged = turf.union(turf.featureCollection([merged, polygons[i]])) || merged
+    }
+    return { featureCollection: { type: 'FeatureCollection', features: [merged] } }
+  }
+}
+
+export class DifferenceOp extends Operator<DifferenceOp> {
+  static displayName = 'Difference'
+  static description = 'Subtract one polygon from another (A minus B)'
+  asDownload = () => this.outputData
+  createInputs() {
+    return {
+      a: new GeoJsonField(),
+      b: new GeoJsonField(),
+    }
+  }
+  createOutputs() {
+    return { featureCollection: new GeoJsonField() }
+  }
+  execute({ a, b }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    if (!a?.features?.length || !b?.features?.length)
+      return { featureCollection: a || { type: 'FeatureCollection', features: [] } }
+    const turf = (globalThis as unknown as Record<string, unknown>)
+      .turf as typeof import('@turf/turf')
+    const polyA = a.features[0]
+    const polyB = b.features[0]
+    const result = turf.difference(turf.featureCollection([polyA, polyB]))
+    return { featureCollection: { type: 'FeatureCollection', features: result ? [result] : [] } }
+  }
+}
+
+export class IntersectOp extends Operator<IntersectOp> {
+  static displayName = 'Intersect'
+  static description = 'Find the overlapping area between two polygons'
+  asDownload = () => this.outputData
+  createInputs() {
+    return {
+      a: new GeoJsonField(),
+      b: new GeoJsonField(),
+    }
+  }
+  createOutputs() {
+    return { featureCollection: new GeoJsonField() }
+  }
+  execute({ a, b }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    if (!a?.features?.length || !b?.features?.length)
+      return { featureCollection: { type: 'FeatureCollection', features: [] } }
+    const turf = (globalThis as unknown as Record<string, unknown>)
+      .turf as typeof import('@turf/turf')
+    const polyA = a.features[0]
+    const polyB = b.features[0]
+    const result = turf.intersect(turf.featureCollection([polyA, polyB]))
+    return { featureCollection: { type: 'FeatureCollection', features: result ? [result] : [] } }
+  }
+}
+
+export class CentroidOp extends Operator<CentroidOp> {
+  static displayName = 'Centroid'
+  static description = 'Calculate the centroid (center of mass) of each feature'
+  asDownload = () => this.outputData
+  createInputs() {
+    return {
+      geojson: new GeoJsonField(),
+    }
+  }
+  createOutputs() {
+    return { featureCollection: new GeoJsonField() }
+  }
+  execute({ geojson }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    if (!geojson?.features?.length)
+      return { featureCollection: { type: 'FeatureCollection', features: [] } }
+    const turf = (globalThis as unknown as Record<string, unknown>)
+      .turf as typeof import('@turf/turf')
+    const centroids = geojson.features.map((f: GeoJSON.Feature) => {
+      const c = turf.centroid(f)
+      c.properties = { ...f.properties, ...c.properties }
+      return c
+    })
+    return { featureCollection: { type: 'FeatureCollection', features: centroids } }
+  }
+}
+
+export class ConvexHullOp extends Operator<ConvexHullOp> {
+  static displayName = 'ConvexHull'
+  static description = 'Calculate the convex hull (smallest enclosing polygon) of features'
+  asDownload = () => this.outputData
+  createInputs() {
+    return {
+      geojson: new GeoJsonField(),
+    }
+  }
+  createOutputs() {
+    return { featureCollection: new GeoJsonField() }
+  }
+  execute({ geojson }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    if (!geojson?.features?.length)
+      return { featureCollection: { type: 'FeatureCollection', features: [] } }
+    const turf = (globalThis as unknown as Record<string, unknown>)
+      .turf as typeof import('@turf/turf')
+    const hull = turf.convex(geojson)
+    return { featureCollection: { type: 'FeatureCollection', features: hull ? [hull] : [] } }
+  }
+}
+
+export class VoronoiOp extends Operator<VoronoiOp> {
+  static displayName = 'Voronoi'
+  static description = 'Generate Voronoi polygons from a set of points'
+  asDownload = () => this.outputData
+  createInputs() {
+    return {
+      geojson: new GeoJsonField(),
+    }
+  }
+  createOutputs() {
+    return { featureCollection: new GeoJsonField() }
+  }
+  execute({ geojson }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    if (!geojson?.features?.length)
+      return { featureCollection: { type: 'FeatureCollection', features: [] } }
+    const turf = (globalThis as unknown as Record<string, unknown>)
+      .turf as typeof import('@turf/turf')
+    const bbox = turf.bbox(geojson)
+    const voronoi = turf.voronoi(geojson, { bbox })
+    return { featureCollection: voronoi || { type: 'FeatureCollection', features: [] } }
+  }
+}
+
+export class DissolveOp extends Operator<DissolveOp> {
+  static displayName = 'Dissolve'
+  static description = 'Dissolve polygons that share a common property value into single features'
+  asDownload = () => this.outputData
+  createInputs() {
+    return {
+      geojson: new GeoJsonField(),
+      propertyName: new StringField(''),
+    }
+  }
+  createOutputs() {
+    return { featureCollection: new GeoJsonField() }
+  }
+  execute({
+    geojson,
+    propertyName,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    if (!geojson?.features?.length)
+      return { featureCollection: { type: 'FeatureCollection', features: [] } }
+    const turf = (globalThis as unknown as Record<string, unknown>)
+      .turf as typeof import('@turf/turf')
+    const dissolved = turf.dissolve(geojson, { propertyName: propertyName || undefined })
+    return { featureCollection: dissolved }
+  }
+}
+
+export class ClipOp extends Operator<ClipOp> {
+  static displayName = 'Clip'
+  static description = 'Clip features to a bounding polygon (mask)'
+  asDownload = () => this.outputData
+  createInputs() {
+    return {
+      geojson: new GeoJsonField(),
+      mask: new GeoJsonField(),
+    }
+  }
+  createOutputs() {
+    return { featureCollection: new GeoJsonField() }
+  }
+  execute({ geojson, mask }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    if (!geojson?.features?.length || !mask?.features?.length)
+      return { featureCollection: geojson || { type: 'FeatureCollection', features: [] } }
+    const turf = (globalThis as unknown as Record<string, unknown>)
+      .turf as typeof import('@turf/turf')
+    const maskPoly = mask.features[0]
+    const clipped = geojson.features
+      .map((f: GeoJSON.Feature) => {
+        try {
+          return turf.booleanWithin(f, maskPoly)
+            ? f
+            : turf.intersect(turf.featureCollection([f, maskPoly]))
+        } catch {
+          return null
+        }
+      })
+      .filter(Boolean)
+    return { featureCollection: { type: 'FeatureCollection', features: clipped } }
+  }
+}
+
+// ==================== Spatial Analysis ====================
+
+export class SpatialJoinOp extends Operator<SpatialJoinOp> {
+  static displayName = 'SpatialJoin'
+  static description = 'Join attributes from one layer to another based on spatial relationship'
+  asDownload = () => this.outputData
+  createInputs() {
+    return {
+      target: new GeoJsonField(),
+      join: new GeoJsonField(),
+      relationship: new StringLiteralField('within', {
+        values: ['within', 'intersects', 'contains'],
+      }),
+    }
+  }
+  createOutputs() {
+    return { featureCollection: new GeoJsonField() }
+  }
+  execute({
+    target,
+    join,
+    relationship,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    if (!target?.features?.length || !join?.features?.length)
+      return { featureCollection: target || { type: 'FeatureCollection', features: [] } }
+    const turf = (globalThis as unknown as Record<string, unknown>)
+      .turf as typeof import('@turf/turf')
+    const check =
+      relationship === 'within'
+        ? turf.booleanWithin
+        : relationship === 'contains'
+          ? turf.booleanContains
+          : turf.booleanIntersects
+    const joined = target.features.map((targetFeat: GeoJSON.Feature) => {
+      const matching = join.features.find((joinFeat: GeoJSON.Feature) => {
+        try {
+          return check(targetFeat, joinFeat)
+        } catch {
+          return false
+        }
+      })
+      return {
+        ...targetFeat,
+        properties: { ...targetFeat.properties, ...(matching?.properties || {}) },
+      }
+    })
+    return { featureCollection: { type: 'FeatureCollection', features: joined } }
+  }
+}
+
+export class PointInPolygonOp extends Operator<PointInPolygonOp> {
+  static displayName = 'PointInPolygon'
+  static description = 'Filter points that fall within a polygon boundary'
+  asDownload = () => this.outputData
+  createInputs() {
+    return {
+      points: new GeoJsonField(),
+      polygon: new GeoJsonField(),
+      invert: new BooleanField(false),
+    }
+  }
+  createOutputs() {
+    return {
+      inside: new GeoJsonField(),
+      outside: new GeoJsonField(),
+    }
+  }
+  execute({
+    points,
+    polygon,
+    invert,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const empty = { type: 'FeatureCollection' as const, features: [] as GeoJSON.Feature[] }
+    if (!points?.features?.length || !polygon?.features?.length)
+      return { inside: empty, outside: empty }
+    const turf = (globalThis as unknown as Record<string, unknown>)
+      .turf as typeof import('@turf/turf')
+    const poly = polygon.features[0]
+    const inside: GeoJSON.Feature[] = []
+    const outside: GeoJSON.Feature[] = []
+    for (const pt of points.features) {
+      if (pt.geometry.type !== 'Point') {
+        outside.push(pt)
+        continue
+      }
+      const isInside = turf.booleanPointInPolygon(pt, poly)
+      if (isInside !== invert) inside.push(pt)
+      else outside.push(pt)
+    }
+    return {
+      inside: { type: 'FeatureCollection', features: inside },
+      outside: { type: 'FeatureCollection', features: outside },
+    }
+  }
+}
+
+export class NearestPointOp extends Operator<NearestPointOp> {
+  static displayName = 'NearestPoint'
+  static description = 'Find the nearest point in a collection to a target point'
+  asDownload = () => this.outputData
+  createInputs() {
+    return {
+      targetPoint: new Point2DField([0, 0]),
+      points: new GeoJsonField(),
+    }
+  }
+  createOutputs() {
+    return {
+      nearest: new GeoJsonField(),
+      distance: new NumberField(0),
+    }
+  }
+  execute({
+    targetPoint,
+    points,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    if (!points?.features?.length)
+      return { nearest: { type: 'FeatureCollection', features: [] }, distance: 0 }
+    const turf = (globalThis as unknown as Record<string, unknown>)
+      .turf as typeof import('@turf/turf')
+    const target = turf.point(targetPoint)
+    const nearest = turf.nearestPoint(target, points)
+    const dist = nearest.properties?.distanceToPoint ?? 0
+    return {
+      nearest: { type: 'FeatureCollection', features: [nearest] },
+      distance: dist as number,
+    }
+  }
+}
+
+export class AreaOp extends Operator<AreaOp> {
+  static displayName = 'Area'
+  static description = 'Calculate the area of polygon features in specified units'
+  createInputs() {
+    return {
+      geojson: new GeoJsonField(),
+      units: new StringLiteralField('squareKilometers', {
+        values: ['squareMeters', 'squareKilometers', 'squareMiles', 'acres', 'hectares'],
+      }),
+    }
+  }
+  createOutputs() {
+    return {
+      featureCollection: new GeoJsonField(),
+      totalArea: new NumberField(0),
+    }
+  }
+  execute({ geojson, units }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    if (!geojson?.features?.length)
+      return { featureCollection: { type: 'FeatureCollection', features: [] }, totalArea: 0 }
+    const turf = (globalThis as unknown as Record<string, unknown>)
+      .turf as typeof import('@turf/turf')
+    const conversions: Record<string, number> = {
+      squareMeters: 1,
+      squareKilometers: 1e-6,
+      squareMiles: 3.861e-7,
+      acres: 0.000247105,
+      hectares: 0.0001,
+    }
+    const factor = conversions[units] || 1
+    let total = 0
+    const features = geojson.features.map((f: GeoJSON.Feature) => {
+      const areaM2 = turf.area(f)
+      const area = areaM2 * factor
+      total += area
+      return { ...f, properties: { ...f.properties, area } }
+    })
+    return { featureCollection: { type: 'FeatureCollection', features }, totalArea: total }
+  }
+}
+
+export class LengthOp extends Operator<LengthOp> {
+  static displayName = 'Length'
+  static description = 'Calculate the length of line features in specified units'
+  createInputs() {
+    return {
+      geojson: new GeoJsonField(),
+      units: new StringLiteralField('kilometers', {
+        values: ['kilometers', 'miles', 'meters', 'nauticalmiles'],
+      }),
+    }
+  }
+  createOutputs() {
+    return {
+      featureCollection: new GeoJsonField(),
+      totalLength: new NumberField(0),
+    }
+  }
+  execute({ geojson, units }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    if (!geojson?.features?.length)
+      return { featureCollection: { type: 'FeatureCollection', features: [] }, totalLength: 0 }
+    const turf = (globalThis as unknown as Record<string, unknown>)
+      .turf as typeof import('@turf/turf')
+    let total = 0
+    const features = geojson.features.map((f: GeoJSON.Feature) => {
+      const len = turf.length(f, { units: units as 'kilometers' })
+      total += len
+      return { ...f, properties: { ...f.properties, length: len } }
+    })
+    return { featureCollection: { type: 'FeatureCollection', features }, totalLength: total }
+  }
+}
+
+export class ReprojectOp extends Operator<ReprojectOp> {
+  static displayName = 'Reproject'
+  static description = 'Transform coordinates between WGS84 and Web Mercator projections'
+  asDownload = () => this.outputData
+  createInputs() {
+    return {
+      geojson: new GeoJsonField(),
+      from: new StringLiteralField('EPSG:4326', { values: ['EPSG:4326', 'EPSG:3857'] }),
+      to: new StringLiteralField('EPSG:3857', { values: ['EPSG:4326', 'EPSG:3857'] }),
+    }
+  }
+  createOutputs() {
+    return { featureCollection: new GeoJsonField() }
+  }
+  execute({
+    geojson,
+    from,
+    to,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    if (!geojson?.features?.length || from === to)
+      return { featureCollection: geojson || { type: 'FeatureCollection', features: [] } }
+    const toMercator = (lng: number, lat: number): [number, number] => {
+      const x = (lng * 20037508.34) / 180
+      const y =
+        ((Math.log(Math.tan(((90 + lat) * Math.PI) / 360)) / (Math.PI / 180)) * 20037508.34) / 180
+      return [x, y]
+    }
+    const toWGS84 = (x: number, y: number): [number, number] => {
+      const lng = (x * 180) / 20037508.34
+      const lat = (Math.atan(Math.exp((y * Math.PI) / 20037508.34)) * 360) / Math.PI - 90
+      return [lng, lat]
+    }
+    const transform = from === 'EPSG:4326' ? toMercator : toWGS84
+    const transformCoords = (coords: unknown): unknown => {
+      if (typeof coords[0] === 'number') return transform(coords[0] as number, coords[1] as number)
+      return (coords as unknown[]).map(transformCoords)
+    }
+    const features = geojson.features.map((f: GeoJSON.Feature) => ({
+      ...f,
+      geometry: {
+        ...f.geometry,
+        coordinates: transformCoords((f.geometry as { coordinates: unknown }).coordinates),
+      },
+    }))
+    return { featureCollection: { type: 'FeatureCollection', features } }
+  }
+}
+
+export class PointGridOp extends Operator<PointGridOp> {
+  static displayName = 'PointGrid'
+  static description = 'Generate a regular grid of points within a bounding box'
+  asDownload = () => this.outputData
+  createInputs() {
+    return {
+      bbox: new BboxField({
+        southwest: { lng: -180, lat: -90 },
+        northeast: { lng: 180, lat: 90 },
+      }),
+      cellSize: new NumberField(10, { min: 0.001, step: 1 }),
+      units: new StringLiteralField('kilometers', {
+        values: ['kilometers', 'miles', 'meters', 'degrees'],
+      }),
+    }
+  }
+  createOutputs() {
+    return { featureCollection: new GeoJsonField() }
+  }
+  execute({
+    bbox,
+    cellSize,
+    units,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const turf = (globalThis as unknown as Record<string, unknown>)
+      .turf as typeof import('@turf/turf')
+    const turfBbox: [number, number, number, number] = [
+      bbox.southwest.lng,
+      bbox.southwest.lat,
+      bbox.northeast.lng,
+      bbox.northeast.lat,
+    ]
+    const grid = turf.pointGrid(turfBbox, cellSize, {
+      units: units as 'kilometers',
+    })
+    return { featureCollection: grid }
+  }
+}
+
+export class HexGridOp extends Operator<HexGridOp> {
+  static displayName = 'HexGrid'
+  static description = 'Generate a hexagonal grid within a bounding box'
+  asDownload = () => this.outputData
+  createInputs() {
+    return {
+      bbox: new BboxField({
+        southwest: { lng: -180, lat: -90 },
+        northeast: { lng: 180, lat: 90 },
+      }),
+      cellSize: new NumberField(10, { min: 0.001, step: 1 }),
+      units: new StringLiteralField('kilometers', {
+        values: ['kilometers', 'miles', 'meters', 'degrees'],
+      }),
+    }
+  }
+  createOutputs() {
+    return { featureCollection: new GeoJsonField() }
+  }
+  execute({
+    bbox,
+    cellSize,
+    units,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const turf = (globalThis as unknown as Record<string, unknown>)
+      .turf as typeof import('@turf/turf')
+    const turfBbox: [number, number, number, number] = [
+      bbox.southwest.lng,
+      bbox.southwest.lat,
+      bbox.northeast.lng,
+      bbox.northeast.lat,
+    ]
+    const grid = turf.hexGrid(turfBbox, cellSize, {
+      units: units as 'kilometers',
+    })
+    return { featureCollection: grid }
+  }
+}
+
+export class SquareGridOp extends Operator<SquareGridOp> {
+  static displayName = 'SquareGrid'
+  static description = 'Generate a square grid within a bounding box'
+  asDownload = () => this.outputData
+  createInputs() {
+    return {
+      bbox: new BboxField({
+        southwest: { lng: -180, lat: -90 },
+        northeast: { lng: 180, lat: 90 },
+      }),
+      cellSize: new NumberField(10, { min: 0.001, step: 1 }),
+      units: new StringLiteralField('kilometers', {
+        values: ['kilometers', 'miles', 'meters', 'degrees'],
+      }),
+    }
+  }
+  createOutputs() {
+    return { featureCollection: new GeoJsonField() }
+  }
+  execute({
+    bbox,
+    cellSize,
+    units,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const turf = (globalThis as unknown as Record<string, unknown>)
+      .turf as typeof import('@turf/turf')
+    const turfBbox: [number, number, number, number] = [
+      bbox.southwest.lng,
+      bbox.southwest.lat,
+      bbox.northeast.lng,
+      bbox.northeast.lat,
+    ]
+    const grid = turf.squareGrid(turfBbox, cellSize, {
+      units: units as 'kilometers',
+    })
+    return { featureCollection: grid }
+  }
+}
+
+export class TinOp extends Operator<TinOp> {
+  static displayName = 'Tin'
+  static description = 'Generate a Triangulated Irregular Network (TIN) from points'
+  asDownload = () => this.outputData
+  createInputs() {
+    return {
+      geojson: new GeoJsonField(),
+      zProperty: new StringField(''),
+    }
+  }
+  createOutputs() {
+    return { featureCollection: new GeoJsonField() }
+  }
+  execute({
+    geojson,
+    zProperty,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    if (!geojson?.features?.length)
+      return { featureCollection: { type: 'FeatureCollection', features: [] } }
+    const turf = (globalThis as unknown as Record<string, unknown>)
+      .turf as typeof import('@turf/turf')
+    const tin = turf.tin(geojson, zProperty || undefined)
+    return { featureCollection: tin }
+  }
+}
+
+export class IsolineOp extends Operator<IsolineOp> {
+  static displayName = 'Isoline'
+  static description = 'Generate isolines (contour lines) from point data with Z values'
+  asDownload = () => this.outputData
+  createInputs() {
+    return {
+      geojson: new GeoJsonField(),
+      zProperty: new StringField('elevation'),
+      breaks: new UnknownField([100, 200, 500, 1000, 2000]),
+    }
+  }
+  createOutputs() {
+    return { featureCollection: new GeoJsonField() }
+  }
+  execute({
+    geojson,
+    zProperty,
+    breaks,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    if (!geojson?.features?.length)
+      return { featureCollection: { type: 'FeatureCollection', features: [] } }
+    const turf = (globalThis as unknown as Record<string, unknown>)
+      .turf as typeof import('@turf/turf')
+    const isolines = turf.isolines(geojson, breaks as number[], { zProperty })
+    return { featureCollection: isolines }
+  }
+}
+
+export class LineToPolygonOp extends Operator<LineToPolygonOp> {
+  static displayName = 'LineToPolygon'
+  static description = 'Convert closed LineString features to Polygon features'
+  asDownload = () => this.outputData
+  createInputs() {
+    return {
+      geojson: new GeoJsonField(),
+    }
+  }
+  createOutputs() {
+    return { featureCollection: new GeoJsonField() }
+  }
+  execute({ geojson }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    if (!geojson?.features?.length)
+      return { featureCollection: { type: 'FeatureCollection', features: [] } }
+    const turf = (globalThis as unknown as Record<string, unknown>)
+      .turf as typeof import('@turf/turf')
+    const features = geojson.features.map((f: GeoJSON.Feature) => {
+      if (f.geometry.type === 'LineString' || f.geometry.type === 'MultiLineString') {
+        try {
+          return turf.lineToPolygon(f)
+        } catch {
+          return f
+        }
+      }
+      return f
+    })
+    return { featureCollection: { type: 'FeatureCollection', features } }
+  }
+}
+
+export class PolygonToLineOp extends Operator<PolygonToLineOp> {
+  static displayName = 'PolygonToLine'
+  static description = 'Convert Polygon features to LineString features (extract boundaries)'
+  asDownload = () => this.outputData
+  createInputs() {
+    return {
+      geojson: new GeoJsonField(),
+    }
+  }
+  createOutputs() {
+    return { featureCollection: new GeoJsonField() }
+  }
+  execute({ geojson }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    if (!geojson?.features?.length)
+      return { featureCollection: { type: 'FeatureCollection', features: [] } }
+    const turf = (globalThis as unknown as Record<string, unknown>)
+      .turf as typeof import('@turf/turf')
+    const features = geojson.features.map((f: GeoJSON.Feature) => {
+      if (f.geometry.type === 'Polygon' || f.geometry.type === 'MultiPolygon') {
+        return turf.polygonToLine(f)
+      }
+      return f
+    })
+    const flat = features.flat ? features.flat() : features
+    return { featureCollection: { type: 'FeatureCollection', features: flat } }
+  }
+}
+
+export class ExplodeOp extends Operator<ExplodeOp> {
+  static displayName = 'Explode'
+  static description =
+    'Break multi-part geometries into individual features, or extract all vertices as points'
+  asDownload = () => this.outputData
+  createInputs() {
+    return {
+      geojson: new GeoJsonField(),
+      mode: new StringLiteralField('vertices', { values: ['vertices', 'parts'] }),
+    }
+  }
+  createOutputs() {
+    return { featureCollection: new GeoJsonField() }
+  }
+  execute({ geojson, mode }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    if (!geojson?.features?.length)
+      return { featureCollection: { type: 'FeatureCollection', features: [] } }
+    const turf = (globalThis as unknown as Record<string, unknown>)
+      .turf as typeof import('@turf/turf')
+    if (mode === 'vertices') {
+      const exploded = turf.explode(geojson)
+      return { featureCollection: exploded }
+    }
+    const parts = turf.flatten(geojson)
+    return { featureCollection: parts }
+  }
+}
+
+export class AggregateOp extends Operator<AggregateOp> {
+  static displayName = 'Aggregate'
+  static description = 'Aggregate point data into polygons (count, sum, mean, min, max per zone)'
+  createInputs() {
+    return {
+      polygons: new GeoJsonField(),
+      points: new GeoJsonField(),
+      field: new StringField(''),
+      operation: new StringLiteralField('count', {
+        values: ['count', 'sum', 'mean', 'min', 'max'],
+      }),
+    }
+  }
+  createOutputs() {
+    return { featureCollection: new GeoJsonField() }
+  }
+  execute({
+    polygons,
+    points,
+    field,
+    operation,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    if (!polygons?.features?.length || !points?.features?.length)
+      return { featureCollection: polygons || { type: 'FeatureCollection', features: [] } }
+    const turf = (globalThis as unknown as Record<string, unknown>)
+      .turf as typeof import('@turf/turf')
+    const features = polygons.features.map((poly: GeoJSON.Feature) => {
+      const inside = points.features.filter((pt: GeoJSON.Feature) => {
+        try {
+          return pt.geometry.type === 'Point' && turf.booleanPointInPolygon(pt, poly)
+        } catch {
+          return false
+        }
+      })
+      let value: number
+      if (operation === 'count') {
+        value = inside.length
+      } else {
+        const values = inside
+          .map((p: GeoJSON.Feature) => Number(p.properties?.[field]))
+          .filter((v: number) => !Number.isNaN(v))
+        if (values.length === 0) value = 0
+        else if (operation === 'sum') value = values.reduce((a: number, b: number) => a + b, 0)
+        else if (operation === 'mean')
+          value = values.reduce((a: number, b: number) => a + b, 0) / values.length
+        else if (operation === 'min') value = Math.min(...values)
+        else value = Math.max(...values)
+      }
+      return {
+        ...poly,
+        properties: { ...poly.properties, [`${operation}_${field || 'points'}`]: value },
+      }
+    })
+    return { featureCollection: { type: 'FeatureCollection', features } }
+  }
+}
+
+export class KMeansClusterOp extends Operator<KMeansClusterOp> {
+  static displayName = 'KMeansCluster'
+  static description = 'Cluster points into k groups using k-means algorithm'
+  asDownload = () => this.outputData
+  createInputs() {
+    return {
+      geojson: new GeoJsonField(),
+      numberOfClusters: new NumberField(5, { min: 2, max: 100, step: 1 }),
+    }
+  }
+  createOutputs() {
+    return { featureCollection: new GeoJsonField() }
+  }
+  execute({
+    geojson,
+    numberOfClusters,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    if (!geojson?.features?.length)
+      return { featureCollection: { type: 'FeatureCollection', features: [] } }
+    const turf = (globalThis as unknown as Record<string, unknown>)
+      .turf as typeof import('@turf/turf')
+    const clustered = turf.clustersKmeans(geojson, { numberOfClusters })
+    return { featureCollection: clustered }
+  }
+}
+
+export class DBScanClusterOp extends Operator<DBScanClusterOp> {
+  static displayName = 'DBScanCluster'
+  static description = 'Cluster points using DBSCAN density-based algorithm'
+  asDownload = () => this.outputData
+  createInputs() {
+    return {
+      geojson: new GeoJsonField(),
+      maxDistance: new NumberField(1, { min: 0, step: 0.1 }),
+      units: new StringLiteralField('kilometers', { values: ['kilometers', 'miles', 'meters'] }),
+      minPoints: new NumberField(3, { min: 1, step: 1 }),
+    }
+  }
+  createOutputs() {
+    return { featureCollection: new GeoJsonField() }
+  }
+  execute({
+    geojson,
+    maxDistance,
+    units,
+    minPoints,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    if (!geojson?.features?.length)
+      return { featureCollection: { type: 'FeatureCollection', features: [] } }
+    const turf = (globalThis as unknown as Record<string, unknown>)
+      .turf as typeof import('@turf/turf')
+    const clustered = turf.clustersDbscan(geojson, maxDistance, {
+      units: units as 'kilometers',
+      minPoints,
+    })
+    return { featureCollection: clustered }
+  }
+}
+
+export class InterpolateOp extends Operator<InterpolateOp> {
+  static displayName = 'Interpolate'
+  static description = 'Interpolate scattered point data to a regular grid (IDW)'
+  asDownload = () => this.outputData
+  createInputs() {
+    return {
+      geojson: new GeoJsonField(),
+      cellSize: new NumberField(1, { min: 0.01, step: 0.1 }),
+      property: new StringField('value'),
+      units: new StringLiteralField('kilometers', { values: ['kilometers', 'miles', 'meters'] }),
+      weight: new NumberField(2, { min: 0.1, max: 10, step: 0.1, showByDefault: false }),
+    }
+  }
+  createOutputs() {
+    return { featureCollection: new GeoJsonField() }
+  }
+  execute({
+    geojson,
+    cellSize,
+    property,
+    units,
+    weight,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    if (!geojson?.features?.length)
+      return { featureCollection: { type: 'FeatureCollection', features: [] } }
+    const turf = (globalThis as unknown as Record<string, unknown>)
+      .turf as typeof import('@turf/turf')
+    const interpolated = turf.interpolate(geojson, cellSize, {
+      gridType: 'point',
+      property,
+      units: units as 'kilometers',
+      weight,
+    })
+    return { featureCollection: interpolated }
+  }
+}
+
+export class AlongOp extends Operator<AlongOp> {
+  static displayName = 'Along'
+  static description = 'Find a point at a specified distance along a line'
+  createInputs() {
+    return {
+      geojson: new GeoJsonField(),
+      distance: new NumberField(1, { min: 0, step: 0.1 }),
+      units: new StringLiteralField('kilometers', { values: ['kilometers', 'miles', 'meters'] }),
+    }
+  }
+  createOutputs() {
+    return { featureCollection: new GeoJsonField() }
+  }
+  execute({
+    geojson,
+    distance,
+    units,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    if (!geojson?.features?.length)
+      return { featureCollection: { type: 'FeatureCollection', features: [] } }
+    const turf = (globalThis as unknown as Record<string, unknown>)
+      .turf as typeof import('@turf/turf')
+    const features = geojson.features
+      .filter((f: GeoJSON.Feature) => f.geometry.type === 'LineString')
+      .map((f: GeoJSON.Feature) =>
+        turf.along(f as GeoJSON.Feature<GeoJSON.LineString>, distance, {
+          units: units as 'kilometers',
+        })
+      )
+    return { featureCollection: { type: 'FeatureCollection', features } }
+  }
+}
+
+export class LineSliceOp extends Operator<LineSliceOp> {
+  static displayName = 'LineSlice'
+  static description = 'Extract a segment of a line between two distances along it'
+  asDownload = () => this.outputData
+  createInputs() {
+    return {
+      geojson: new GeoJsonField(),
+      startDistance: new NumberField(0, { min: 0, step: 0.1 }),
+      stopDistance: new NumberField(1, { min: 0, step: 0.1 }),
+      units: new StringLiteralField('kilometers', { values: ['kilometers', 'miles', 'meters'] }),
+    }
+  }
+  createOutputs() {
+    return { featureCollection: new GeoJsonField() }
+  }
+  execute({
+    geojson,
+    startDistance,
+    stopDistance,
+    units,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    if (!geojson?.features?.length)
+      return { featureCollection: { type: 'FeatureCollection', features: [] } }
+    const turf = (globalThis as unknown as Record<string, unknown>)
+      .turf as typeof import('@turf/turf')
+    const features = geojson.features
+      .filter((f: GeoJSON.Feature) => f.geometry.type === 'LineString')
+      .map((f: GeoJSON.Feature) => {
+        const start = turf.along(f as GeoJSON.Feature<GeoJSON.LineString>, startDistance, {
+          units: units as 'kilometers',
+        })
+        const stop = turf.along(f as GeoJSON.Feature<GeoJSON.LineString>, stopDistance, {
+          units: units as 'kilometers',
+        })
+        return turf.lineSlice(start, stop, f as GeoJSON.Feature<GeoJSON.LineString>)
+      })
+    return { featureCollection: { type: 'FeatureCollection', features } }
+  }
+}
+
+export class TransformRotateOp extends Operator<TransformRotateOp> {
+  static displayName = 'TransformRotate'
+  static description = 'Rotate features by an angle around a pivot point'
+  asDownload = () => this.outputData
+  createInputs() {
+    return {
+      geojson: new GeoJsonField(),
+      angle: new NumberField(0, { min: -360, max: 360, step: 1 }),
+      pivot: new StringLiteralField('centroid', { values: ['centroid', 'center'] }),
+    }
+  }
+  createOutputs() {
+    return { featureCollection: new GeoJsonField() }
+  }
+  execute({
+    geojson,
+    angle,
+    pivot,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    if (!geojson?.features?.length || angle === 0)
+      return { featureCollection: geojson || { type: 'FeatureCollection', features: [] } }
+    const turf = (globalThis as unknown as Record<string, unknown>)
+      .turf as typeof import('@turf/turf')
+    const features = geojson.features.map((f: GeoJSON.Feature) => {
+      const pivotPt = pivot === 'centroid' ? turf.centroid(f) : turf.center(f)
+      return turf.transformRotate(f, angle, { pivot: pivotPt })
+    })
+    return { featureCollection: { type: 'FeatureCollection', features } }
+  }
+}
+
+export class TransformScaleOp extends Operator<TransformScaleOp> {
+  static displayName = 'TransformScale'
+  static description = 'Scale features by a factor around their center'
+  asDownload = () => this.outputData
+  createInputs() {
+    return {
+      geojson: new GeoJsonField(),
+      factor: new NumberField(1, { min: 0.01, max: 100, step: 0.1 }),
+      origin: new StringLiteralField('centroid', {
+        values: ['centroid', 'center', 'sw', 'se', 'nw', 'ne'],
+      }),
+    }
+  }
+  createOutputs() {
+    return { featureCollection: new GeoJsonField() }
+  }
+  execute({
+    geojson,
+    factor,
+    origin,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    if (!geojson?.features?.length || factor === 1)
+      return { featureCollection: geojson || { type: 'FeatureCollection', features: [] } }
+    const turf = (globalThis as unknown as Record<string, unknown>)
+      .turf as typeof import('@turf/turf')
+    const features = geojson.features.map((f: GeoJSON.Feature) =>
+      turf.transformScale(f, factor, { origin: origin as 'centroid' })
+    )
+    return { featureCollection: { type: 'FeatureCollection', features } }
+  }
+}
+
+export class TransformTranslateOp extends Operator<TransformTranslateOp> {
+  static displayName = 'TransformTranslate'
+  static description = 'Move features by a distance in a direction'
+  asDownload = () => this.outputData
+  createInputs() {
+    return {
+      geojson: new GeoJsonField(),
+      distance: new NumberField(0, { min: 0, step: 0.1 }),
+      direction: new NumberField(0, { min: 0, max: 360, step: 1 }),
+      units: new StringLiteralField('kilometers', { values: ['kilometers', 'miles', 'meters'] }),
+    }
+  }
+  createOutputs() {
+    return { featureCollection: new GeoJsonField() }
+  }
+  execute({
+    geojson,
+    distance,
+    direction,
+    units,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    if (!geojson?.features?.length || distance === 0)
+      return { featureCollection: geojson || { type: 'FeatureCollection', features: [] } }
+    const turf = (globalThis as unknown as Record<string, unknown>)
+      .turf as typeof import('@turf/turf')
+    const features = geojson.features.map((f: GeoJSON.Feature) =>
+      turf.transformTranslate(f, distance, direction, { units: units as 'kilometers' })
+    )
+    return { featureCollection: { type: 'FeatureCollection', features } }
+  }
+}
+
+export class KmlToGeoJsonOp extends Operator<KmlToGeoJsonOp> {
+  static displayName = 'KmlToGeoJson'
+  static description = 'Convert KML string to GeoJSON FeatureCollection'
+  asDownload = () => this.outputData
+  createInputs() {
+    return {
+      kml: new CodeField('', { language: 'xml' }),
+    }
+  }
+  createOutputs() {
+    return {
+      geojson: new DataField(),
+    }
+  }
+  async execute({ kml }: ExtractProps<typeof this.inputs>) {
+    const geojson = await utils.kmlToGeoJson(kml)
+    return { geojson }
+  }
+}
+
 export class GeoJsonTransformOp extends Operator<GeoJsonTransformOp> {
   static displayName = 'GeoJsonTransform'
   static description = 'Transform a GeoJSON feature with scale, translate, and rotate operations'
   asDownload = () => this.outputData
   createInputs() {
     return {
-      feature: new DataField(),
-      scale: new NumberField(1, { min: 0.001, max: 100, step: 0.1 }),
-      translateX: new NumberField(0, { min: -10000, max: 10000, step: 0.1 }),
-      translateY: new NumberField(0, { min: -10000, max: 10000, step: 0.1 }),
-      rotate: new NumberField(0, { min: -360, max: 360, step: 1 }),
+      feature: new GeoJsonField(),
+      scale: new NumberField(1, { min: 0.001, softMax: 100, step: 0.1 }),
+      translateX: new NumberField(0, { softMin: -10000, softMax: 10000, step: 0.1 }),
+      translateY: new NumberField(0, { softMin: -10000, softMax: 10000, step: 0.1 }),
+      rotate: new NumberField(0, { softMin: -360, softMax: 360, step: 1 }),
     }
   }
   createOutputs() {
     return {
-      feature: new DataField(),
+      feature: new GeoJsonField(),
     }
   }
   execute({
@@ -4147,25 +8820,223 @@ export class GeoJsonTransformOp extends Operator<GeoJsonTransformOp> {
   }
 }
 
+export class SimplifyOp extends Operator<SimplifyOp> {
+  static displayName = 'Simplify'
+  static description = 'Simplify GeoJSON geometries using Ramer-Douglas-Peucker algorithm'
+  asDownload = () => this.outputData
+
+  createInputs() {
+    return {
+      feature: new GeoJsonField(),
+      tolerance: new NumberField(0.01, { min: 0, softMax: 1, step: 0.01 }),
+      highQuality: new BooleanField(false),
+    }
+  }
+
+  createOutputs() {
+    return {
+      feature: new GeoJsonField(),
+    }
+  }
+
+  execute({
+    feature,
+    tolerance,
+    highQuality,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    // Apply Ramer-Douglas-Peucker simplification
+    const simplified = turf.simplify(feature, {
+      tolerance,
+      highQuality,
+      mutate: false, // Never mutate input to avoid side effects
+    })
+
+    return { feature: simplified }
+  }
+}
+
+export class LineInterpolationOp extends Operator<LineInterpolationOp> {
+  static displayName = 'Line Interpolation'
+  static description =
+    'Interpolate GeoJSON lines with D3 curves or round corners with a physical turn radius'
+  asDownload = () => this.outputData
+
+  createInputs() {
+    return {
+      feature: new GeoJsonField(),
+      method: new StringLiteralField('catmull-rom', {
+        values: [
+          { value: 'linear', label: 'Linear' },
+          { value: 'catmull-rom', label: 'Catmull–Rom' },
+          { value: 'cardinal', label: 'Cardinal' },
+          { value: 'basis', label: 'Basis' },
+          { value: 'natural', label: 'Natural' },
+          { value: 'monotone-x', label: 'Monotone X' },
+          { value: 'monotone-y', label: 'Monotone Y' },
+          { value: 'turn-radius', label: 'Turn radius' },
+        ],
+      }),
+      samplesPerSegment: new NumberField(12, { min: 1, max: 64, step: 1 }),
+      alpha: new NumberField(0.5, { min: 0, max: 1, step: 0.05, showByDefault: false }),
+      tension: new NumberField(0, { min: 0, max: 1, step: 0.05, showByDefault: false }),
+      turnRadiusMeters: new NumberField(250, {
+        min: 0,
+        softMax: 10_000,
+        step: 10,
+      }),
+    }
+  }
+
+  createOutputs() {
+    return { feature: new GeoJsonField() }
+  }
+
+  execute({
+    feature,
+    method,
+    samplesPerSegment,
+    alpha,
+    tension,
+    turnRadiusMeters,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    return {
+      feature: utils.interpolateGeoJsonLines(feature, {
+        method: method as utils.LineInterpolationMethod,
+        samplesPerSegment,
+        alpha,
+        tension,
+        turnRadiusMeters,
+      }),
+    }
+  }
+}
+
+export class SmoothOp extends Operator<SmoothOp> {
+  static displayName = 'Smooth'
+  static description = 'Apply smoothing to LineString coordinates using Gaussian or boxcar kernel'
+  asDownload = () => this.outputData
+
+  createInputs() {
+    return {
+      feature: new GeoJsonField(),
+      windowSize: new NumberField(5, { min: 1, max: 100, step: 2 }),
+      method: new StringLiteralField('gaussian', ['gaussian', 'boxcar']),
+    }
+  }
+
+  createOutputs() {
+    return {
+      feature: new GeoJsonField(),
+    }
+  }
+
+  execute({
+    feature,
+    windowSize,
+    method,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    // Handle LineString
+    if (feature.geometry.type === 'LineString') {
+      if (feature.geometry.coordinates.length <= 1) {
+        return { feature }
+      }
+
+      const smoothedCoords = this.smoothCoordinates(
+        feature.geometry.coordinates,
+        windowSize,
+        method
+      )
+      return { feature: turf.lineString(smoothedCoords, feature.properties) }
+    }
+
+    // Handle MultiLineString
+    if (feature.geometry.type === 'MultiLineString') {
+      const smoothedLines = feature.geometry.coordinates.map(line =>
+        this.smoothCoordinates(line, windowSize, method)
+      )
+      return { feature: turf.multiLineString(smoothedLines, feature.properties) }
+    }
+
+    // Pass through other geometry types unchanged
+    return { feature }
+  }
+
+  private smoothCoordinates(
+    coords: number[][],
+    windowSize: number,
+    method: 'boxcar' | 'gaussian'
+  ): number[][] {
+    const radius = Math.floor(windowSize / 2)
+    const sigma = method === 'gaussian' ? windowSize / 6 : 0
+
+    return coords.map((pt, i) => {
+      let lonSum = 0
+      let latSum = 0
+      let weightSum = 0
+
+      // Iterate over window centered on current point
+      for (let j = i - radius; j <= i + radius; j++) {
+        if (j < 0 || j >= coords.length) continue
+
+        // Calculate weight based on smoothing method
+        let weight: number
+        if (method === 'gaussian') {
+          const distance = Math.abs(j - i)
+          weight = Math.exp(-0.5 * Math.pow(distance / sigma, 2))
+        } else {
+          weight = 1 // Boxcar: uniform weights
+        }
+
+        lonSum += coords[j][0] * weight
+        latSum += coords[j][1] * weight
+        weightSum += weight
+      }
+
+      // Return smoothed lon/lat plus preserved extra channels
+      return [
+        lonSum / weightSum,
+        latSum / weightSum,
+        ...pt.slice(2), // Preserve altitude, timestamps, etc.
+      ]
+    })
+  }
+}
+
 // ==================== Core Layers (@deck.gl/layers) ====================
 
 export class BitmapLayerOp extends Operator<BitmapLayerOp> {
   static displayName = 'BitmapLayer'
   static description = 'Render a raster image at specified boundaries'
-  static cacheable = false
+
   createInputs() {
     return {
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
-      image: new StringField(''),
-      bounds: new UnknownField([
-        [-122.5, 37.7],
-        [-122.3, 37.9],
-      ]), // [[minLng, minLat], [maxLng, maxLat]] - defaults to SF area
-      desaturate: new NumberField(0, { min: 0, max: 1, step: 0.01 }),
-      transparentColor: new ColorField(null, { optional: true, transform: hexToColor }),
-      tintColor: new ColorField(null, { optional: true, transform: hexToColor }),
-      extensions: new ListField(new ExtensionField()),
+      image: new FileUrlField('', {
+        accept: '.png,.jpg,.jpeg,.gif,.webp,.svg',
+      }),
+      bounds: new BboxField(
+        { southwest: { lng: -122.5, lat: 37.7 }, northeast: { lng: -122.3, lat: 37.9 } },
+        { returnType: 'tuple' }
+      ),
+      desaturate: new NumberField(0, { min: 0, max: 1, step: 0.01, showByDefault: false }),
+      transparentColor: new ColorField(null, {
+        optional: true,
+        transform: hexToColor,
+        showByDefault: false,
+      }),
+      tintColor: new ColorField(null, {
+        optional: true,
+        transform: hexToColor,
+        showByDefault: false,
+      }),
+      parameters: new CompoundPropsField(
+        {
+          depthTest: new BooleanField(true),
+        },
+        { showByDefault: false }
+      ),
+      extensions: new ListField(new ExtensionField(), { showByDefault: false }),
     }
   }
   createOutputs() {
@@ -4173,9 +9044,45 @@ export class BitmapLayerOp extends Operator<BitmapLayerOp> {
       layer: new LayerField<BitmapLayerProps>(),
     }
   }
+
   execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const { bounds, image, transparentColor, tintColor, ...restProps } = props
+    let deckBounds: BitmapBoundingBox
+    if (
+      Array.isArray(bounds) &&
+      bounds.length === 4 &&
+      bounds.every((coordinate: unknown) => typeof coordinate === 'number')
+    ) {
+      // Preserve the flat format accepted by Deck.gl and older direct callers.
+      deckBounds = [...bounds] as BitmapBoundingBox
+    } else if (
+      Array.isArray(bounds) &&
+      bounds.length === 2 &&
+      Array.isArray(bounds[0]) &&
+      Array.isArray(bounds[1]) &&
+      typeof bounds[0][0] === 'number' &&
+      typeof bounds[0][1] === 'number' &&
+      typeof bounds[1][0] === 'number' &&
+      typeof bounds[1][1] === 'number'
+    ) {
+      // BboxField returns [southwest, northeast], while Deck.gl requires a flat bbox.
+      deckBounds = [bounds[0][0], bounds[0][1], bounds[1][0], bounds[1][1]]
+    } else {
+      throw new Error(
+        `[BitmapLayerOp] Invalid bounds format. Expected [minLng, minLat, maxLng, maxLat] or [[minLng, minLat], [maxLng, maxLat]], got: ${JSON.stringify(bounds)}`
+      )
+    }
+
     const layer = {
-      ...parseLayerProps<BitmapLayerProps>(props),
+      ...parseLayerProps<BitmapLayerProps>({
+        ...restProps,
+        image,
+        // Let Deck.gl apply its array-valued defaults. Passing null overrides those defaults
+        // and crashes BitmapLayer.draw when it calls .map()/.slice() on the colors.
+        ...(transparentColor ? { transparentColor } : {}),
+        ...(tintColor ? { tintColor } : {}),
+      }),
+      bounds: deckBounds,
       type: 'BitmapLayer' as const,
       id: this.id,
       updateTriggers: gatherTriggers(this.inputs, props),
@@ -4187,30 +9094,45 @@ export class BitmapLayerOp extends Operator<BitmapLayerOp> {
 export class ColumnLayerOp extends Operator<ColumnLayerOp> {
   static displayName = 'ColumnLayer'
   static description = 'Render extruded cylinders (columns) at given positions'
-  static cacheable = false
   createInputs() {
     return {
       data: new DataField(),
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
-      diskResolution: new NumberField(20, { min: 3, max: 100 }),
-      vertices: new UnknownField(null, { optional: true }),
-      offset: new Vec3Field([0, 0, 0], { returnType: 'tuple' }),
-      coverage: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
-      elevationScale: new NumberField(1, { min: 0, max: 100 }),
+      diskResolution: new NumberField(20, { min: 3, softMax: 100, showByDefault: false }),
+      vertices: new UnknownField(null, { optional: true, showByDefault: false }),
+      offset: new Vec3Field([0, 0, 0], { returnType: 'tuple', showByDefault: false }),
+      coverage: new NumberField(1, { min: 0, max: 1, step: 0.01, showByDefault: false }),
+      elevationScale: new NumberField(1, { min: 0, softMax: 100, showByDefault: false }),
       filled: new BooleanField(true),
-      stroked: new BooleanField(false),
+      stroked: new BooleanField(false, { showByDefault: false }),
       extruded: new BooleanField(true),
-      wireframe: new BooleanField(false),
-      flatShading: new BooleanField(false),
-      radiusUnits: new StringLiteralField('meters', ['pixels', 'meters']),
-      lineWidthUnits: new StringLiteralField('meters', ['pixels', 'meters']),
+      wireframe: new BooleanField(false, { showByDefault: false }),
+      flatShading: new BooleanField(false, { showByDefault: false }),
+      radiusUnits: new StringLiteralField('meters', {
+        values: ['pixels', 'meters'],
+        showByDefault: false,
+      }),
+      lineWidthUnits: new StringLiteralField('meters', {
+        values: ['pixels', 'meters'],
+        showByDefault: false,
+      }),
       getPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true }),
       getFillColor: new ColorField('#000000', { accessor: true, transform: hexToColor }),
-      getLineColor: new ColorField('#000000', { accessor: true, transform: hexToColor }),
+      getLineColor: new ColorField('#000000', {
+        accessor: true,
+        transform: hexToColor,
+        showByDefault: false,
+      }),
       getElevation: new NumberField(1000, { min: 0, accessor: true }),
-      getLineWidth: new NumberField(1, { min: 0, accessor: true }),
-      extensions: new ListField(new ExtensionField()),
+      getLineWidth: new NumberField(1, { min: 0, accessor: true, showByDefault: false }),
+      parameters: new CompoundPropsField(
+        {
+          depthTest: new BooleanField(true),
+        },
+        { showByDefault: false }
+      ),
+      extensions: new ListField(new ExtensionField(), { showByDefault: false }),
     }
   }
   createOutputs() {
@@ -4232,24 +9154,29 @@ export class ColumnLayerOp extends Operator<ColumnLayerOp> {
 export class GridCellLayerOp extends Operator<GridCellLayerOp> {
   static displayName = 'GridCellLayer'
   static description = 'Render a grid of cells at specified coordinates'
-  static cacheable = false
   createInputs() {
     return {
       data: new DataField(),
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
-      cellSize: new NumberField(1000, { min: 1, max: 100000 }),
-      coverage: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
-      elevationScale: new NumberField(1, { min: 0, max: 100 }),
+      cellSize: new NumberField(1000, { min: 1, softMax: 100000 }),
+      coverage: new NumberField(1, { min: 0, max: 1, step: 0.01, showByDefault: false }),
+      elevationScale: new NumberField(1, { min: 0, softMax: 100, showByDefault: false }),
       extruded: new BooleanField(true),
       filled: new BooleanField(true),
       stroked: new BooleanField(false),
-      wireframe: new BooleanField(false),
-      flatShading: new BooleanField(false),
+      wireframe: new BooleanField(false, { showByDefault: false }),
+      flatShading: new BooleanField(false, { showByDefault: false }),
       getPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true }),
       getColor: new ColorField('#000000', { accessor: true, transform: hexToColor }),
       getElevation: new NumberField(1000, { min: 0, accessor: true }),
-      extensions: new ListField(new ExtensionField()),
+      parameters: new CompoundPropsField(
+        {
+          depthTest: new BooleanField(true),
+        },
+        { showByDefault: false }
+      ),
+      extensions: new ListField(new ExtensionField(), { showByDefault: false }),
     }
   }
   createOutputs() {
@@ -4271,21 +9198,30 @@ export class GridCellLayerOp extends Operator<GridCellLayerOp> {
 export class LineLayerOp extends Operator<LineLayerOp> {
   static displayName = 'LineLayer'
   static description = 'Render straight lines between source and target coordinates'
-  static cacheable = false
   createInputs() {
     return {
       data: new DataField(),
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
-      widthUnits: new StringLiteralField('pixels', ['pixels', 'meters']),
-      widthScale: new NumberField(1, { min: 0, max: 100 }),
-      widthMinPixels: new NumberField(0, { min: 0, max: 100 }),
-      widthMaxPixels: new NumberField(100, { min: 0, max: 1000 }),
+      widthUnits: new StringLiteralField('pixels', {
+        values: ['pixels', 'meters', 'common'],
+        showByDefault: false,
+      }),
+      widthScale: new NumberField(1, { min: 0, softMax: 100, showByDefault: false }),
+      widthMinPixels: new NumberField(0, { min: 0, softMax: 100, showByDefault: false }),
+      widthMaxPixels: new NumberField(100, { min: 0, softMax: 1000, showByDefault: false }),
+      antialiasing: new BooleanField(false, { showByDefault: false }),
       getSourcePosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true }),
       getTargetPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true }),
       getColor: new ColorField('#000000', { accessor: true, transform: hexToColor }),
       getWidth: new NumberField(1, { min: 0, accessor: true }),
-      extensions: new ListField(new ExtensionField()),
+      parameters: new CompoundPropsField(
+        {
+          depthTest: new BooleanField(true),
+        },
+        { showByDefault: false }
+      ),
+      extensions: new ListField(new ExtensionField(), { showByDefault: false }),
     }
   }
   createOutputs() {
@@ -4307,18 +9243,31 @@ export class LineLayerOp extends Operator<LineLayerOp> {
 export class PointCloudLayerOp extends Operator<PointCloudLayerOp> {
   static displayName = 'PointCloudLayer'
   static description = 'Render a point cloud with millions of 3D points'
-  static cacheable = false
   createInputs() {
     return {
       data: new DataField(),
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
-      sizeUnits: new StringLiteralField('pixels', ['pixels', 'meters', 'common']),
+      sizeUnits: new StringLiteralField('pixels', {
+        values: ['pixels', 'meters', 'common'],
+        showByDefault: false,
+      }),
       pointSize: new NumberField(10, { min: 0, max: 100 }),
+      antialiasing: new BooleanField(false, { showByDefault: false }),
       getPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true }),
-      getNormal: new Vec3Field([0, 0, 1], { returnType: 'tuple', accessor: true }),
+      getNormal: new Vec3Field([0, 0, 1], {
+        returnType: 'tuple',
+        accessor: true,
+        showByDefault: false,
+      }),
       getColor: new ColorField('#000000', { accessor: true, transform: hexToColor }),
-      extensions: new ListField(new ExtensionField()),
+      parameters: new CompoundPropsField(
+        {
+          depthTest: new BooleanField(true),
+        },
+        { showByDefault: false }
+      ),
+      extensions: new ListField(new ExtensionField(), { showByDefault: false }),
     }
   }
   createOutputs() {
@@ -4340,7 +9289,6 @@ export class PointCloudLayerOp extends Operator<PointCloudLayerOp> {
 export class PolygonLayerOp extends Operator<PolygonLayerOp> {
   static displayName = 'PolygonLayer'
   static description = 'Render filled and/or stroked polygons'
-  static cacheable = false
   createInputs() {
     return {
       data: new DataField(),
@@ -4349,20 +9297,30 @@ export class PolygonLayerOp extends Operator<PolygonLayerOp> {
       filled: new BooleanField(true),
       stroked: new BooleanField(true),
       extruded: new BooleanField(false),
-      wireframe: new BooleanField(false),
-      elevationScale: new NumberField(1, { min: 0, max: 100 }),
-      lineWidthUnits: new StringLiteralField('meters', ['pixels', 'meters']),
-      lineWidthScale: new NumberField(1, { min: 0, max: 100 }),
-      lineWidthMinPixels: new NumberField(0, { min: 0, max: 100 }),
-      lineWidthMaxPixels: new NumberField(100, { min: 0, max: 1000 }),
-      lineJointRounded: new BooleanField(false),
-      lineMiterLimit: new NumberField(4, { min: 0, max: 10 }),
+      wireframe: new BooleanField(false, { showByDefault: false }),
+      elevationScale: new NumberField(1, { min: 0, softMax: 100, showByDefault: false }),
+      lineWidthUnits: new StringLiteralField('meters', {
+        values: ['pixels', 'meters'],
+        showByDefault: false,
+      }),
+      lineWidthScale: new NumberField(1, { min: 0, softMax: 100, showByDefault: false }),
+      lineWidthMinPixels: new NumberField(0, { min: 0, softMax: 100, showByDefault: false }),
+      lineWidthMaxPixels: new NumberField(100, { min: 0, softMax: 1000, showByDefault: false }),
+      lineJointRounded: new BooleanField(false, { showByDefault: false }),
+      lineMiterLimit: new NumberField(4, { min: 0, softMax: 10, showByDefault: false }),
+      lineAntialiasing: new BooleanField(false, { showByDefault: false }),
       getPolygon: new UnknownField((d: unknown) => d?.polygon || [], { accessor: true }),
       getFillColor: new ColorField('#000000', { accessor: true, transform: hexToColor }),
       getLineColor: new ColorField('#000000', { accessor: true, transform: hexToColor }),
       getLineWidth: new NumberField(1, { min: 0, accessor: true }),
       getElevation: new NumberField(1000, { min: 0, accessor: true }),
-      extensions: new ListField(new ExtensionField()),
+      parameters: new CompoundPropsField(
+        {
+          depthTest: new BooleanField(true),
+        },
+        { showByDefault: false }
+      ),
+      extensions: new ListField(new ExtensionField(), { showByDefault: false }),
     }
   }
   createOutputs() {
@@ -4386,24 +9344,29 @@ export class PolygonLayerOp extends Operator<PolygonLayerOp> {
 export class ContourLayerOp extends Operator<ContourLayerOp> {
   static displayName = 'ContourLayer'
   static description = 'Aggregate data and render contour lines or filled contour bands'
-  static cacheable = false
   createInputs() {
     return {
       data: new DataField(),
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
-      cellSize: new NumberField(1000, { min: 1, max: 100000 }),
-      gpuAggregation: new BooleanField(true),
+      cellSize: new NumberField(1000, { min: 1, softMax: 100000 }),
+      gpuAggregation: new BooleanField(true, { showByDefault: false }),
       aggregation: new StringLiteralField('SUM', { values: ['SUM', 'MEAN', 'MIN', 'MAX'] }),
       contours: new UnknownField([
         { threshold: 1, color: [255, 0, 0] },
         { threshold: 5, color: [0, 255, 0] },
         { threshold: 10, color: [0, 0, 255] },
       ]),
-      zOffset: new NumberField(0.005, { min: 0, max: 1, step: 0.001 }),
+      zOffset: new NumberField(0.005, { min: 0, max: 1, step: 0.001, showByDefault: false }),
       getPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true }),
       getWeight: new NumberField(1, { min: 0, accessor: true }),
-      extensions: new ListField(new ExtensionField()),
+      parameters: new CompoundPropsField(
+        {
+          depthTest: new BooleanField(true),
+        },
+        { showByDefault: false }
+      ),
+      extensions: new ListField(new ExtensionField(), { showByDefault: false }),
     }
   }
   createOutputs() {
@@ -4425,20 +9388,25 @@ export class ContourLayerOp extends Operator<ContourLayerOp> {
 export class ScreenGridLayerOp extends Operator<ScreenGridLayerOp> {
   static displayName = 'ScreenGridLayer'
   static description = 'Aggregate data into a grid in screen space and visualize as a heatmap'
-  static cacheable = false
   createInputs() {
     return {
       data: new DataField(),
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
-      cellSizePixels: new NumberField(50, { min: 1, max: 1000 }),
-      cellMarginPixels: new NumberField(2, { min: 0, max: 100 }),
+      cellSizePixels: new NumberField(50, { min: 1, softMax: 1000 }),
+      cellMarginPixels: new NumberField(2, { min: 0, softMax: 100, showByDefault: false }),
       colorRange: new UnknownField(DEFAULT_COLOR_RANGE, { optional: true }),
-      colorDomain: new UnknownField(null, { optional: true }),
+      colorDomain: new UnknownField(null, { optional: true, showByDefault: false }),
       aggregation: new StringLiteralField('SUM', { values: ['SUM', 'MEAN', 'MIN', 'MAX'] }),
       getPosition: new Point3DField([0, 0, 0], { returnType: 'tuple', accessor: true }),
       getWeight: new NumberField(1, { min: 0, accessor: true }),
-      extensions: new ListField(new ExtensionField()),
+      parameters: new CompoundPropsField(
+        {
+          depthTest: new BooleanField(true),
+        },
+        { showByDefault: false }
+      ),
+      extensions: new ListField(new ExtensionField(), { showByDefault: false }),
     }
   }
   createOutputs() {
@@ -4462,23 +9430,32 @@ export class ScreenGridLayerOp extends Operator<ScreenGridLayerOp> {
 export class GreatCircleLayerOp extends Operator<GreatCircleLayerOp> {
   static displayName = 'GreatCircleLayer'
   static description = 'Render great circle arcs between pairs of source and target coordinates'
-  static cacheable = false
   createInputs() {
     return {
       data: new DataField(),
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
-      numSegments: new NumberField(20, { min: 1, max: 100 }),
-      widthUnits: new StringLiteralField('pixels', ['pixels', 'meters']),
-      widthScale: new NumberField(1, { min: 0, max: 100 }),
-      widthMinPixels: new NumberField(0, { min: 0, max: 100 }),
-      widthMaxPixels: new NumberField(100, { min: 0, max: 1000 }),
+      numSegments: new NumberField(20, { min: 1, softMax: 100, showByDefault: false }),
+      widthUnits: new StringLiteralField('pixels', {
+        values: ['pixels', 'meters', 'common'],
+        showByDefault: false,
+      }),
+      widthScale: new NumberField(1, { min: 0, softMax: 100, showByDefault: false }),
+      widthMinPixels: new NumberField(0, { min: 0, softMax: 100, showByDefault: false }),
+      widthMaxPixels: new NumberField(100, { min: 0, softMax: 1000, showByDefault: false }),
+      antialiasing: new BooleanField(false, { showByDefault: false }),
       getSourcePosition: new Point2DField([0, 0], { returnType: 'tuple', accessor: true }),
       getTargetPosition: new Point2DField([0, 0], { returnType: 'tuple', accessor: true }),
       getSourceColor: new ColorField('#000000', { accessor: true, transform: hexToColor }),
       getTargetColor: new ColorField('#000000', { accessor: true, transform: hexToColor }),
       getWidth: new NumberField(1, { min: 0, accessor: true }),
-      extensions: new ListField(new ExtensionField()),
+      parameters: new CompoundPropsField(
+        {
+          depthTest: new BooleanField(true),
+        },
+        { showByDefault: false }
+      ),
+      extensions: new ListField(new ExtensionField(), { showByDefault: false }),
     }
   }
   createOutputs() {
@@ -4500,17 +9477,23 @@ export class GreatCircleLayerOp extends Operator<GreatCircleLayerOp> {
 export class H3ClusterLayerOp extends Operator<H3ClusterLayerOp> {
   static displayName = 'H3ClusterLayer'
   static description = 'Render hexagons from H3 hexagon indices and cluster them by density'
-  static cacheable = false
   createInputs() {
     return {
       data: new DataField(),
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
       getHexagons: new UnknownField((d: unknown) => d?.hexagons || [], { accessor: true }),
-      getLineWidth: new NumberField(1, { accessor: true }),
+      getLineWidth: new NumberField(1, { min: 0, accessor: true }),
       getFillColor: new ColorField('#000000', { accessor: true, transform: hexToColor }),
       getElevation: new NumberField(1000, { accessor: true }),
-      extensions: new ListField(new ExtensionField()),
+      lineAntialiasing: new BooleanField(false, { showByDefault: false }),
+      parameters: new CompoundPropsField(
+        {
+          depthTest: new BooleanField(true),
+        },
+        { showByDefault: false }
+      ),
+      extensions: new ListField(new ExtensionField(), { showByDefault: false }),
     }
   }
   createOutputs() {
@@ -4532,7 +9515,6 @@ export class H3ClusterLayerOp extends Operator<H3ClusterLayerOp> {
 export class GeohashLayerOp extends Operator<GeohashLayerOp> {
   static displayName = 'GeohashLayer'
   static description = 'Render filled and/or stroked polygons based on geohash strings'
-  static cacheable = false
   createInputs() {
     return {
       data: new DataField(),
@@ -4542,12 +9524,19 @@ export class GeohashLayerOp extends Operator<GeohashLayerOp> {
       getFillColor: new ColorField('#000000', { accessor: true, transform: hexToColor }),
       getLineColor: new ColorField('#000000', { accessor: true, transform: hexToColor }),
       getElevation: new NumberField(1000, { accessor: true }),
-      getLineWidth: new NumberField(1, { accessor: true }),
-      elevationScale: new NumberField(1, { min: 0, max: 100 }),
+      getLineWidth: new NumberField(1, { min: 0, accessor: true }),
+      elevationScale: new NumberField(1, { min: 0, softMax: 100, showByDefault: false }),
       filled: new BooleanField(true),
       stroked: new BooleanField(false),
       extruded: new BooleanField(false),
-      extensions: new ListField(new ExtensionField()),
+      lineAntialiasing: new BooleanField(false, { showByDefault: false }),
+      parameters: new CompoundPropsField(
+        {
+          depthTest: new BooleanField(true),
+        },
+        { showByDefault: false }
+      ),
+      extensions: new ListField(new ExtensionField(), { showByDefault: false }),
     }
   }
   createOutputs() {
@@ -4569,7 +9558,6 @@ export class GeohashLayerOp extends Operator<GeohashLayerOp> {
 export class S2LayerOp extends Operator<S2LayerOp> {
   static displayName = 'S2Layer'
   static description = 'Render filled and/or stroked polygons based on S2 tokens'
-  static cacheable = false
   createInputs() {
     return {
       data: new DataField(),
@@ -4579,12 +9567,19 @@ export class S2LayerOp extends Operator<S2LayerOp> {
       getFillColor: new ColorField('#000000', { accessor: true, transform: hexToColor }),
       getLineColor: new ColorField('#000000', { accessor: true, transform: hexToColor }),
       getElevation: new NumberField(1000, { accessor: true }),
-      getLineWidth: new NumberField(1, { accessor: true }),
-      elevationScale: new NumberField(1, { min: 0, max: 100 }),
+      getLineWidth: new NumberField(1, { min: 0, accessor: true }),
+      elevationScale: new NumberField(1, { min: 0, softMax: 100, showByDefault: false }),
       filled: new BooleanField(true),
       stroked: new BooleanField(false),
       extruded: new BooleanField(false),
-      extensions: new ListField(new ExtensionField()),
+      lineAntialiasing: new BooleanField(false, { showByDefault: false }),
+      parameters: new CompoundPropsField(
+        {
+          depthTest: new BooleanField(true),
+        },
+        { showByDefault: false }
+      ),
+      extensions: new ListField(new ExtensionField(), { showByDefault: false }),
     }
   }
   createOutputs() {
@@ -4606,7 +9601,6 @@ export class S2LayerOp extends Operator<S2LayerOp> {
 export class QuadkeyLayerOp extends Operator<QuadkeyLayerOp> {
   static displayName = 'QuadkeyLayer'
   static description = 'Render filled and/or stroked polygons based on quadkey strings'
-  static cacheable = false
   createInputs() {
     return {
       data: new DataField(),
@@ -4616,12 +9610,19 @@ export class QuadkeyLayerOp extends Operator<QuadkeyLayerOp> {
       getFillColor: new ColorField('#000000', { accessor: true, transform: hexToColor }),
       getLineColor: new ColorField('#000000', { accessor: true, transform: hexToColor }),
       getElevation: new NumberField(1000, { accessor: true }),
-      getLineWidth: new NumberField(1, { accessor: true }),
-      elevationScale: new NumberField(1, { min: 0, max: 100 }),
+      getLineWidth: new NumberField(1, { min: 0, accessor: true }),
+      elevationScale: new NumberField(1, { min: 0, softMax: 100, showByDefault: false }),
       filled: new BooleanField(true),
       stroked: new BooleanField(false),
       extruded: new BooleanField(false),
-      extensions: new ListField(new ExtensionField()),
+      lineAntialiasing: new BooleanField(false, { showByDefault: false }),
+      parameters: new CompoundPropsField(
+        {
+          depthTest: new BooleanField(true),
+        },
+        { showByDefault: false }
+      ),
+      extensions: new ListField(new ExtensionField(), { showByDefault: false }),
     }
   }
   createOutputs() {
@@ -4643,7 +9644,6 @@ export class QuadkeyLayerOp extends Operator<QuadkeyLayerOp> {
 export class MVTLayerOp extends Operator<MVTLayerOp> {
   static displayName = 'MVTLayer'
   static description = 'Render Mapbox Vector Tiles (MVT)'
-  static cacheable = false
   createInputs() {
     return {
       data: new StringField('https://example.com/tiles/{z}/{x}/{y}.mvt'),
@@ -4653,13 +9653,24 @@ export class MVTLayerOp extends Operator<MVTLayerOp> {
       maxZoom: new NumberField(24, { min: 0, max: 24 }),
       filled: new BooleanField(true),
       stroked: new BooleanField(false),
-      lineWidthMinPixels: new NumberField(1, { min: 0 }),
+      lineAntialiasing: new BooleanField(false, { showByDefault: false }),
+      lineWidthMinPixels: new NumberField(1, { min: 0, showByDefault: false }),
       getFillColor: new ColorField('#000000', { accessor: true, transform: hexToColor }),
       getLineColor: new ColorField('#000000', { accessor: true, transform: hexToColor }),
-      getLineWidth: new NumberField(1, { accessor: true }),
+      getLineWidth: new NumberField(1, { min: 0, accessor: true }),
       getPointRadius: new NumberField(1, { accessor: true }),
-      pointRadiusUnits: new StringLiteralField('pixels', ['pixels', 'meters']),
-      extensions: new ListField(new ExtensionField()),
+      pointRadiusUnits: new StringLiteralField('pixels', {
+        values: ['pixels', 'meters'],
+        showByDefault: false,
+      }),
+      autoLabels: new BooleanField(false, { optional: true }),
+      parameters: new CompoundPropsField(
+        {
+          depthTest: new BooleanField(true),
+        },
+        { showByDefault: false }
+      ),
+      extensions: new ListField(new ExtensionField(), { showByDefault: false }),
     }
   }
   createOutputs() {
@@ -4681,24 +9692,29 @@ export class MVTLayerOp extends Operator<MVTLayerOp> {
 export class TerrainLayerOp extends Operator<TerrainLayerOp> {
   static displayName = 'TerrainLayer'
   static description = 'Render a terrain mesh from heightmap tiles'
-  static cacheable = false
   createInputs() {
     return {
       elevationData: new StringField('https://example.com/elevation/{z}/{x}/{y}.png'),
       texture: new StringField('', { optional: true }),
       visible: new BooleanField(true),
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
-      meshMaxError: new NumberField(4, { min: 0, max: 100 }),
+      meshMaxError: new NumberField(4, { min: 0, softMax: 100, showByDefault: false }),
       elevationDecoder: new CompoundPropsField({
         rScaler: new NumberField(1),
         gScaler: new NumberField(0),
         bScaler: new NumberField(0),
         offset: new NumberField(0),
       }),
-      bounds: new UnknownField(null, { optional: true }),
+      bounds: new BboxField(null, { optional: true, returnType: 'tuple' }),
       color: new ColorField('#ffffff', { transform: hexToColor }),
-      wireframe: new BooleanField(false),
-      extensions: new ListField(new ExtensionField()),
+      wireframe: new BooleanField(false, { showByDefault: false }),
+      parameters: new CompoundPropsField(
+        {
+          depthTest: new BooleanField(true),
+        },
+        { showByDefault: false }
+      ),
+      extensions: new ListField(new ExtensionField(), { showByDefault: false }),
     }
   }
   createOutputs() {
@@ -4720,7 +9736,6 @@ export class TerrainLayerOp extends Operator<TerrainLayerOp> {
 export class TileLayerOp extends Operator<TileLayerOp> {
   static displayName = 'TileLayer'
   static description = 'Render data organized in a tiled format (generic tile layer)'
-  static cacheable = false
   createInputs() {
     return {
       data: new StringField('https://example.com/tiles/{z}/{x}/{y}'),
@@ -4728,16 +9743,26 @@ export class TileLayerOp extends Operator<TileLayerOp> {
       opacity: new NumberField(1, { min: 0, max: 1, step: 0.01 }),
       minZoom: new NumberField(0, { min: 0, max: 24 }),
       maxZoom: new NumberField(24, { min: 0, max: 24 }),
-      tileSize: new NumberField(256, { min: 1, max: 1024 }),
-      maxCacheSize: new NumberField(Infinity, { optional: true }),
-      maxCacheByteSize: new NumberField(Infinity, { optional: true }),
+      tileSize: new NumberField(256, { min: 1, softMax: 1024, showByDefault: false }),
+      maxCacheSize: new NumberField(Infinity, { optional: true, showByDefault: false }),
+      maxCacheByteSize: new NumberField(Infinity, { optional: true, showByDefault: false }),
       refinementStrategy: new StringLiteralField('best-available', {
         values: ['best-available', 'no-overlap', 'never'],
+        showByDefault: false,
       }),
-      zRange: new UnknownField([0, 24], { optional: true }),
-      extent: new UnknownField([-Infinity, -Infinity, Infinity, Infinity], { optional: true }),
-      renderSubLayers: new FunctionField(null, { optional: true }),
-      extensions: new ListField(new ExtensionField()),
+      zRange: new UnknownField([0, 24], { optional: true, showByDefault: false }),
+      extent: new UnknownField([-Infinity, -Infinity, Infinity, Infinity], {
+        optional: true,
+        showByDefault: false,
+      }),
+      renderSubLayers: new FunctionField(null, { optional: true, showByDefault: false }),
+      parameters: new CompoundPropsField(
+        {
+          depthTest: new BooleanField(true),
+        },
+        { showByDefault: false }
+      ),
+      extensions: new ListField(new ExtensionField(), { showByDefault: false }),
     }
   }
   createOutputs() {
@@ -4851,12 +9876,19 @@ export class FillStyleExtensionOp extends Operator<FillStyleExtensionOp> {
   createInputs() {
     return {
       fillPatternEnabled: new BooleanField(true),
+      proceduralPattern: new BooleanField(false, { showByDefault: false }),
       fillPatternMask: new BooleanField(true),
+      fillPatternSizeUnits: new StringLiteralField('meters', ['pixels', 'meters', 'common']),
       fillPatternAtlas: new StringField('', { optional: true }),
       fillPatternMapping: new UnknownField(null, { optional: true }),
       getFillPattern: new UnknownField(null, { accessor: true }),
       getFillPatternScale: new NumberField(1, { accessor: true }),
       getFillPatternOffset: new Vec2Field([0, 0], { returnType: 'tuple', accessor: true }),
+      getFillPatternBackgroundColor: new ColorField('#00000000', {
+        accessor: true,
+        transform: hexToColor,
+        showByDefault: false,
+      }),
     }
   }
   createOutputs() {
@@ -4866,10 +9898,15 @@ export class FillStyleExtensionOp extends Operator<FillStyleExtensionOp> {
   }
   execute({
     fillPatternEnabled,
+    proceduralPattern,
     ...props
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     const extension = {
-      extension: { type: 'FillStyleExtension', pattern: fillPatternEnabled },
+      extension: {
+        type: 'FillStyleExtension',
+        pattern: fillPatternEnabled,
+        proceduralPattern,
+      },
       props,
     }
     return { extension }
@@ -4899,36 +9936,216 @@ export class MaskExtensionOp extends Operator<MaskExtensionOp> {
   }
 }
 
+type TimeSeriesDataPoint = {
+  time: number
+  [key: string]: number
+}
+
+// Interpolate time series data at a given time using linear interpolation
+function interpolateTimeSeries(
+  timeSeries: TimeSeriesDataPoint[],
+  currentTime: number
+): Record<string, number> {
+  if (!timeSeries || timeSeries.length === 0) {
+    return { time: currentTime }
+  }
+
+  // If only one data point, return it
+  if (timeSeries.length === 1) {
+    return { ...timeSeries[0] }
+  }
+
+  // If currentTime is before first point, return first point
+  if (currentTime <= timeSeries[0].time) {
+    return { ...timeSeries[0] }
+  }
+
+  // If currentTime is after last point, return last point
+  if (currentTime >= timeSeries[timeSeries.length - 1].time) {
+    return { ...timeSeries[timeSeries.length - 1] }
+  }
+
+  // Binary search to find the two points to interpolate between
+  let left = 0
+  let right = timeSeries.length - 1
+
+  while (left < right - 1) {
+    const mid = Math.floor((left + right) / 2)
+    if (timeSeries[mid].time <= currentTime) {
+      left = mid
+    } else {
+      right = mid
+    }
+  }
+
+  const before = timeSeries[left]
+  const after = timeSeries[right]
+
+  // Calculate interpolation factor (0 to 1)
+  const timeDelta = after.time - before.time
+  const factor = timeDelta === 0 ? 0 : (currentTime - before.time) / timeDelta
+
+  // Interpolate all numeric fields. before and after always share the same
+  // keys within a timeSeries, so iterating before's keys is sufficient.
+  const result: Record<string, number> = {}
+  for (const key of Object.keys(before)) {
+    const beforeVal = before[key] ?? 0
+    const afterVal = after[key] ?? 0
+    result[key] = beforeVal + (afterVal - beforeVal) * factor
+  }
+
+  return result
+}
+
+export class TimeSeriesOp extends Operator<TimeSeriesOp> {
+  static displayName = 'TimeSeries'
+  static description =
+    'Interpolate time-varying data at a given time. Aligns with TripsLayer API for easy reuse of accessors.'
+  asDownload = () => this.outputData
+
+  // Precomputed per-item data keyed by data/accessor references. Rebuilt only
+  // when those inputs change, not on every currentTime change during scrubbing.
+  private _precomputedTimeSeries: TimeSeriesDataPoint[][] | null = null
+  private _precomputedProperties: Record<string, unknown>[] | null = null
+  private _precomputeCacheKey: {
+    data: unknown
+    getTimestamps: unknown
+    getValues: unknown
+    getProperties: unknown
+  } | null = null
+
+  createInputs() {
+    return {
+      data: new DataField(),
+      currentTime: new NumberField(0),
+      getTimestamps: new UnknownField(
+        (d: unknown) => (d as { timestamps?: unknown[] })?.timestamps || [],
+        { accessor: true }
+      ),
+      getValues: new UnknownField((d: unknown) => (d as { values?: unknown[] })?.values || [], {
+        accessor: true,
+      }),
+      getProperties: new UnknownField((d: unknown) => d, { accessor: true, optional: true }),
+    }
+  }
+  createOutputs() {
+    return {
+      data: new DataField(),
+    }
+  }
+
+  execute({
+    data,
+    currentTime,
+    getTimestamps,
+    getValues,
+    getProperties,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    if (!Array.isArray(data) || !data.length) {
+      return { data: [] }
+    }
+
+    type DeckAccessor<T> = (
+      d: unknown,
+      info: { index: number; data: unknown; target: unknown[] }
+    ) => T
+
+    // Rebuild the expensive per-item structure only when data or accessors change.
+    // During timeline scrubbing only currentTime changes, so this cache stays hot.
+    const cacheKey = this._precomputeCacheKey
+    if (
+      !this._precomputedTimeSeries ||
+      !this._precomputedProperties ||
+      cacheKey?.data !== data ||
+      cacheKey?.getTimestamps !== getTimestamps ||
+      cacheKey?.getValues !== getValues ||
+      cacheKey?.getProperties !== getProperties
+    ) {
+      this._precomputedTimeSeries = data.map((d, i) => {
+        const timestamps = (getTimestamps as DeckAccessor<number[]>)(d, {
+          index: i,
+          data,
+          target: [],
+        })
+        const values = (getValues as DeckAccessor<unknown[]>)(d, {
+          index: i,
+          data,
+          target: [],
+        })
+        return timestamps.map((time: number, idx: number) => ({
+          time,
+          ...(values[idx] || {}),
+        }))
+      })
+      this._precomputedProperties = data.map((d, i) =>
+        getProperties
+          ? (getProperties as DeckAccessor<Record<string, unknown>>)(d, {
+              index: i,
+              data,
+              target: [],
+            })
+          : {}
+      )
+      this._precomputeCacheKey = { data, getTimestamps, getValues, getProperties }
+    }
+
+    return {
+      data: this._precomputedTimeSeries.map((timeSeries, i) => ({
+        ...this._precomputedProperties![i],
+        ...interpolateTimeSeries(timeSeries, currentTime),
+        time: currentTime,
+      })),
+    }
+  }
+}
+
 export const opTypes = {
   AccessorOp,
   A5LayerOp,
+  AggregateOp,
+  AlongOp,
   ArcOp,
   ArcLayerOp,
+  AreaOp,
   BezierCurveOp,
   BitmapLayerOp,
+  BitmapOverlayWidgetOp,
+  BlendingOp,
   BooleanOp,
   BoundingBoxOp,
+  BufferOp,
   BoundsOp,
   BrightnessContrastExtensionOp,
   BrushingExtensionOp,
   CategoricalColorRampOp,
+  CentroidOp,
+  ChartOp,
   ClipExtensionOp,
+  ClipOp,
   CodeOp,
   CollisionFilterExtensionOp,
+  CompassWidgetOp,
   ColorOp,
   ColorRampOp,
   ColumnLayerOp,
   CombineRGBAOp,
   CombineXYOp,
-  CombineXYZOp,
+  ConcatOp,
+  CustomMapLibreLayerOp,
   ConsoleOp,
   ContainerOp,
   ContourLayerOp,
+  ConvexHullOp,
+  CrossOp,
   DataFilterExtensionOp,
-  DateOp,
+  DateTimeOp,
+  DBScanClusterOp,
   DeckRendererOp,
+  DifferenceOp,
   DirectionsOp,
+  DissolveOp,
   DuckDbOp,
+  ExplodeOp,
   ExpressionOp,
   ExtentOp,
   FileOp,
@@ -4937,12 +10154,16 @@ export const opTypes = {
   FirstPersonViewOp,
   ForLoopBeginOp,
   ForLoopEndOp,
+  ForLoopMetaOp,
   FpsWidgetOp,
+  FullscreenWidgetOp,
   GeocoderOp,
   GeohashLayerOp,
+  GeoEditorOp,
   GeoJsonOp,
   GeoJsonLayerOp,
   GeoJsonTransformOp,
+  GeoParquetOp,
   GlobeViewOp,
   GraphInputOp,
   GraphOutputOp,
@@ -4953,15 +10174,26 @@ export const opTypes = {
   H3HexagonLayerOp,
   HeatmapLayerOp,
   HexagonLayerOp,
+  HexGridOp,
   HSLOp,
   HueSaturationExtensionOp,
   IconLayerOp,
+  InterpolateOp,
+  IntersectOp,
+  IsolineOp,
   JSONOp,
+  KMeansClusterOp,
+  KmlToGeoJsonOp,
   LayerPropsOp,
+  LegendWidgetOp,
+  LengthOp,
+  LineInterpolationOp,
   LineLayerOp,
+  LineSliceOp,
+  LineToPolygonOp,
   MaplibreBasemapOp,
   MapRangeOp,
-  MapStyleOp,
+  MapStyleConfiguratorOp,
   MapViewOp,
   MapViewStateOp,
   Mask3DExtensionOp,
@@ -4970,35 +10202,51 @@ export const opTypes = {
   MergeOp,
   MouseOp,
   MVTLayerOp,
+  NearestPointOp,
   NetworkOp,
   NumberOp,
-  ObjectMergeOp,
   OrbitViewOp,
+  OrthographicViewOp,
   OutOp,
+  OverpassOp,
   PathLayerOp,
   PathStyleExtensionOp,
+  PMTilesOp,
   PointCloudLayerOp,
+  PointGridOp,
+  PointInPolygonOp,
   PointOp,
   PolygonLayerOp,
+  PolygonToLineOp,
   ProjectOp,
   QuadkeyLayerOp,
+  RampOp,
   RandomizeAttributeOp,
   RasterTileLayerOp,
   RectangleOp,
+  ReprojectOp,
+  RerouteOp,
   S2LayerOp,
+  ScaleWidgetOp,
   ScatterOp,
   ScatterplotLayerOp,
   ScenegraphLayerOp,
   ScreenGridLayerOp,
+  ScreenshotWidgetOp,
+  ShapefileOp,
   SimpleMeshLayerOp,
+  SimplifyOp,
+  SmoothOp,
   SelectOp,
   SliceOp,
   SolidPolygonLayerOp,
   SortOp,
+  SpatialJoinOp,
   SplitRGBAOp,
   SplitMapViewStateOp,
   SplitXYOp,
   SplitXYZOp,
+  SquareGridOp,
   StringOp,
   SwitchOp,
   TableEditorOp,
@@ -5008,31 +10256,41 @@ export const opTypes = {
   Tile3DLayerOp,
   TileLayerOp,
   TimeOp,
+  TimeSeriesOp,
+  TinOp,
+  TransformRotateOp,
+  TransformScaleOp,
+  TransformTranslateOp,
   TripsLayerOp,
+  UnionOp,
+  UnknownOperator,
   UnprojectOp,
   VibranceExtensionOp,
   ViewerOp,
+  VoronoiOp,
+  XYZTileOp,
+  ZoomWidgetOp,
 } as const // as Record<OpType, typeof Operator>
 
 // Execution state for visual debugging
 export type ExecutionState =
   | {
-    status: 'idle'
-  }
+      status: 'idle'
+    }
   | {
-    status: 'executing'
-  }
+      status: 'executing'
+    }
   | {
-    status: 'success'
-    lastExecuted: Date
-    executionTime: number
-  }
+      status: 'success'
+      lastExecuted: number
+      executionTime: number
+    }
   | {
-    status: 'error'
-    lastExecuted?: Date
-    executionTime?: number
-    error?: string
-  }
+      status: 'error'
+      lastExecuted?: number
+      executionTime?: number
+      error?: string
+    }
 
 export type OpType = keyof typeof opTypes
 
@@ -5042,7 +10300,15 @@ export type SpecialNodeType = 'group'
 function proxyFields(op: Operator<IOperator>, fields: 'inputs' | 'outputs') {
   return new Proxy(op, {
     get(target, prop: string | symbol) {
-      return target[fields][prop as string].value
+      // Proxy is used for convenient field access (e.g. `op('/x').par.foo`).
+      // Missing or symbol keys should behave like normal JS property access
+      // and return undefined rather than throwing on `.value`.
+      if (typeof prop !== 'string') {
+        return undefined
+      }
+
+      const field = target[fields][prop]
+      return field?.value
     },
     set(_target, _prop: string | symbol, _value) {
       throw new Error('Cannot set value on par or out')
@@ -5051,13 +10317,12 @@ function proxyFields(op: Operator<IOperator>, fields: 'inputs' | 'outputs') {
 }
 
 // For convenience in code / expression blocks
-const freeExports = {
+export const freeExports = {
   utils,
   d3,
   turf,
   deck,
   Plot,
-  vega,
   Temporal,
   // studio,
   ...opTypes,

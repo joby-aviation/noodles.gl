@@ -1,8 +1,9 @@
 import polyline from '@mapbox/polyline'
 import haversine from 'haversine-distance'
-
-const MAPBOX_ACCESS_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN
-const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY
+import { Temporal } from 'temporal-polyfill'
+import tzLookup from 'tz-lookup'
+import { getKeysStore } from '../noodles/keys-store'
+import { loadGoogleMapsAPI } from './geocoding'
 
 export type AnimatedDirections = {
   distance: number
@@ -10,27 +11,165 @@ export type AnimatedDirections = {
   durationFormatted: string
   path: number[][]
   timestamps: number[]
+  // Only populated by traffic-aware driving. hasTolls without tollAmount means Google
+  // expects tolls but doesn't know the price.
+  hasTolls?: boolean
+  tollAmount?: number
+  tollCurrency?: string
+}
+
+// Mapbox Directions API response types
+// See: https://docs.mapbox.com/api/navigation/directions/
+interface MapboxRoute {
+  geometry: string // polyline-encoded string
+  distance: number // meters
+  duration: number // seconds
+}
+
+interface MapboxDirectionsResponse {
+  code: string
+  message?: string
+  routes: MapboxRoute[]
 }
 
 export const DRIVING = 'driving'
+export const DRIVING_TRAFFIC = 'driving-traffic'
 export const TRANSIT = 'transit'
+
+export type DirectionsMode = typeof DRIVING | typeof DRIVING_TRAFFIC | typeof TRANSIT
+
+export const TRAFFIC_MODELS = ['best-guess', 'pessimistic', 'optimistic'] as const
+export type TrafficModel = (typeof TRAFFIC_MODELS)[number]
+
+export function resolveOriginDepartureTime({
+  origin,
+  localTime,
+  now = Temporal.Now.instant(),
+}: {
+  origin: { lat: number; lng: number }
+  localTime: Temporal.PlainDateTime
+  now?: Temporal.Instant
+}): Date {
+  let timeZone: string
+  try {
+    timeZone = tzLookup(origin.lat, origin.lng)
+  } catch {
+    throw new Error('Could not determine the departure timezone from the route origin.')
+  }
+
+  let instant: Temporal.Instant
+  try {
+    instant = localTime.toZonedDateTime(timeZone, { disambiguation: 'reject' }).toInstant()
+  } catch {
+    throw new Error(
+      `The departure time ${localTime.toString()} is ambiguous or does not exist in ${timeZone} because of daylight saving time.`
+    )
+  }
+
+  if (Temporal.Instant.compare(instant, now) <= 0) {
+    throw new Error(`Departure time must be in the future at the route origin (${timeZone}).`)
+  }
+
+  return new Date(instant.epochMilliseconds)
+}
 
 export async function getDirections({
   origin,
   destination,
   mode = DRIVING,
+  departureTime,
+  trafficModel,
+  avoidTolls,
 }: {
   origin: { lat: number; lng: number }
   destination: { lat: number; lng: number }
-  mode?: typeof DRIVING | typeof TRANSIT
+  mode?: DirectionsMode
+  departureTime?: Temporal.PlainDateTime
+  trafficModel?: TrafficModel
+  avoidTolls?: boolean
 }): Promise<AnimatedDirections> {
   switch (mode) {
     case DRIVING:
       return getDrivingDirections({ origin, destination })
+    case DRIVING_TRAFFIC:
+      return getTrafficAwareDrivingDirections({
+        origin,
+        destination,
+        departureTime,
+        trafficModel,
+        avoidTolls,
+      })
     case TRANSIT:
       return getTransitDirections({ origin, destination })
     default:
       throw new Error(`Invalid mode: ${mode}`)
+  }
+}
+
+function formatDuration(duration: number): string {
+  return `${Math.round(duration / 60)} mins, ${Math.round(duration % 60)} secs`
+}
+
+function createTimestamps(path: number[][], distance: number, duration: number): number[] {
+  if (path.length === 0 || distance <= 0 || duration <= 0) return []
+
+  // Millisecond precision matches TripsLayer's existing route animation contract.
+  const speed = distance / duration / 1000
+  const timestamps = [0]
+  for (let i = 1; i < path.length; i++) {
+    const previous = timestamps[i - 1]
+    const segmentDistance = haversine([path[i - 1][1], path[i - 1][0]], [path[i][1], path[i][0]])
+    timestamps.push(previous + segmentDistance / speed)
+  }
+  return timestamps
+}
+
+// OSRM public demo server response types
+interface OSRMRoute {
+  geometry: {
+    type: 'LineString'
+    coordinates: [number, number][] // [lng, lat]
+  }
+  distance: number // meters
+  duration: number // seconds
+}
+
+interface OSRMDirectionsResponse {
+  code: string
+  message?: string
+  routes: OSRMRoute[]
+}
+
+async function getDrivingDirectionsOSRM({
+  origin,
+  destination,
+}: {
+  origin: { lat: number; lng: number }
+  destination: { lat: number; lng: number }
+}): Promise<AnimatedDirections> {
+  // NOTE: router.project-osrm.org is a public demo server — not for production traffic.
+  // Replace with a self-hosted or commercial OSRM endpoint before shipping.
+  const res = await fetch(
+    `https://router.project-osrm.org/route/v1/driving/${origin.lng},${origin.lat};${destination.lng},${destination.lat}?overview=full&geometries=geojson`
+  )
+  const data: OSRMDirectionsResponse = await res.json()
+
+  if (data.code !== 'Ok') {
+    throw new Error(data.message || `OSRM routing failed: ${data.code}`)
+  }
+
+  const [{ geometry, distance, duration }] = data.routes
+  const coords = geometry.coordinates // already [lng, lat]
+
+  const timestamps = createTimestamps(coords, distance, duration)
+  const durationFormatted = formatDuration(duration)
+
+  return {
+    distance,
+    duration,
+    durationFormatted,
+    path: coords as number[][], // already [lng, lat] — no swap needed
+    timestamps,
   }
 }
 
@@ -41,43 +180,120 @@ async function getDrivingDirections({
   origin: { lat: number; lng: number }
   destination: { lat: number; lng: number }
 }): Promise<AnimatedDirections> {
-  const res = await fetch(
-    `https://api.mapbox.com/directions/v5/mapbox/driving/${origin.lng},${origin.lat};${destination.lng},${destination.lat}?access_token=${MAPBOX_ACCESS_TOKEN}&overview=full`
-  )
-  const data = await res.json()
+  const keysStore = getKeysStore()
+  const token = keysStore.getKey('mapbox')
 
-  if (data.code === 'NoSegment' || data.code === 'InvalidInput') {
-    throw new Error(data.message)
+  if (token) {
+    const res = await fetch(
+      `https://api.mapbox.com/directions/v5/mapbox/driving/${origin.lng},${origin.lat};${destination.lng},${destination.lat}?access_token=${token}&overview=full`
+    )
+    const data: MapboxDirectionsResponse = await res.json()
+
+    if (data.code === 'NoSegment' || data.code === 'InvalidInput') {
+      throw new Error(data.message)
+    }
+
+    const [{ geometry, distance, duration }] = data.routes
+
+    const coords = polyline.decode(geometry)
+    const path = coords.map(([lat, lng]) => [lng, lat])
+    const timestamps = createTimestamps(path, distance, duration)
+    const durationFormatted = formatDuration(duration)
+
+    return { distance, duration, durationFormatted, path, timestamps }
   }
 
-  const [{ geometry, distance, duration }] = data.routes
+  // Fall back to OSRM public demo server (free, no key required)
+  try {
+    return await getDrivingDirectionsOSRM({ origin, destination })
+  } catch (error) {
+    throw new Error(
+      `Directions failed using free OSRM fallback: ${error instanceof Error ? error.message : error}. ` +
+        'Add a Mapbox access token in Settings > API Keys for more reliable routing.'
+    )
+  }
+}
 
-  // use millisecond precision for smooth motion
-  // https://docs.unfolded.ai/studio/layer-reference/trip#geojson-as-input
-  const speed = distance / duration / 1000
-  const coords = polyline.decode(geometry)
-
-  const startTime = 0
-  const timestamps = [startTime]
-
-  for (let i = 1; i < coords.length; i++) {
-    const prev = timestamps[i - 1]
-    const dist = haversine(coords[i - 1], coords[i])
-    const delta = dist / speed
-    timestamps.push(prev + delta)
+async function getTrafficAwareDrivingDirections({
+  origin,
+  destination,
+  departureTime,
+  trafficModel = 'best-guess',
+  avoidTolls = false,
+}: {
+  origin: { lat: number; lng: number }
+  destination: { lat: number; lng: number }
+  departureTime?: Temporal.PlainDateTime
+  trafficModel?: TrafficModel
+  avoidTolls?: boolean
+}): Promise<AnimatedDirections> {
+  const apiKey = getKeysStore().getKey('googleMaps')
+  if (!apiKey) {
+    throw new Error(
+      'Google Maps API key not configured. Add one in Settings > API Keys to use traffic-aware driving.'
+    )
   }
 
-  // Convert to Deck format
-  const path = coords.map(([lat, lng]) => [lng, lat])
+  await loadGoogleMapsAPI(apiKey)
+  const {
+    ComputeRoutesExtraComputation,
+    PolylineQuality,
+    Route,
+    RoutingPreference,
+    TrafficModel,
+    TravelMode,
+  } = await google.maps.importLibrary('routes')
+  const googleTrafficModel = {
+    'best-guess': TrafficModel.BEST_GUESS,
+    pessimistic: TrafficModel.PESSIMISTIC,
+    optimistic: TrafficModel.OPTIMISTIC,
+  }[trafficModel]
 
-  const durationFormatted = `${Math.round(duration / 60)} mins, ${Math.round(duration % 60)} secs`
+  const scheduledDeparture = departureTime
+    ? resolveOriginDepartureTime({ origin, localTime: departureTime })
+    : undefined
 
-  return {
-    distance,
-    duration,
-    durationFormatted,
-    path,
-    timestamps,
+  try {
+    const { routes } = await Route.computeRoutes({
+      origin,
+      destination,
+      travelMode: TravelMode.DRIVING,
+      routingPreference: RoutingPreference.TRAFFIC_AWARE_OPTIMAL,
+      trafficModel: googleTrafficModel,
+      polylineQuality: PolylineQuality.HIGH_QUALITY,
+      routeModifiers: { avoidTolls },
+      extraComputations: [ComputeRoutesExtraComputation.TOLLS],
+      fields: ['path', 'distanceMeters', 'durationMillis', 'travelAdvisory'],
+      ...(scheduledDeparture ? { departureTime: scheduledDeparture } : {}),
+    })
+
+    const route = routes?.[0]
+    const distance = route?.distanceMeters
+    const durationMillis = route?.durationMillis
+    const path = route?.path?.map(point => [point.lng, point.lat])
+    if (!route || distance === undefined || durationMillis == null || !path?.length) {
+      throw new Error('Google returned no complete route.')
+    }
+
+    // No tollInfo means no tolls. Without a toll pass, Google estimates the cash price.
+    const tollInfo = route.travelAdvisory?.tollInfo
+    const [tollPrice] = tollInfo?.estimatedPrices ?? []
+
+    const duration = durationMillis / 1000
+    return {
+      distance,
+      duration,
+      durationFormatted: formatDuration(duration),
+      path,
+      timestamps: createTimestamps(path, distance, duration),
+      hasTolls: Boolean(tollInfo),
+      tollAmount: tollPrice ? tollPrice.units + tollPrice.nanos / 1e9 : undefined,
+      tollCurrency: tollPrice?.currencyCode,
+    }
+  } catch (error) {
+    throw new Error(
+      `Google traffic directions failed: ${error instanceof Error ? error.message : String(error)}`
+    )
   }
 }
 
@@ -88,23 +304,26 @@ async function getTransitDirections({
   origin: { lat: number; lng: number }
   destination: { lat: number; lng: number }
 }): Promise<AnimatedDirections> {
-  const params = new URLSearchParams({
-    v: 'weekly',
-    key: GOOGLE_MAPS_API_KEY,
-  })
-
-  await import(/* @vite-ignore */ `https://maps.googleapis.com/maps/api/js?${params.toString()}`)
-
-  const directionsService = new google.maps.DirectionsService()
-  const request = {
-    origin: `${origin.lat}, ${origin.lng}`,
-    destination: `${destination.lat}, ${destination.lng}`,
-    travelMode: 'TRANSIT',
+  const keysStore = getKeysStore()
+  const apiKey = keysStore.getKey('googleMaps')
+  if (!apiKey) {
+    throw new Error(
+      'Google Maps API key not configured. Please add your key in Settings > API Keys.'
+    )
   }
 
-  const data = await new Promise((resolve, reject) => {
+  await loadGoogleMapsAPI(apiKey)
+
+  const directionsService = new google.maps.DirectionsService()
+  const request: google.maps.DirectionsRequest = {
+    origin: `${origin.lat}, ${origin.lng}`,
+    destination: `${destination.lat}, ${destination.lng}`,
+    travelMode: google.maps.TravelMode.TRANSIT,
+  }
+
+  const data = await new Promise<google.maps.DirectionsResult>((resolve, reject) => {
     directionsService.route(request, (result, status) => {
-      if (status === 'OK') {
+      if (status === 'OK' && result) {
         resolve(result)
       } else {
         reject(new Error(status))

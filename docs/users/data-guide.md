@@ -4,7 +4,18 @@ Learn how to load, process, and transform data in Noodles.gl for your visualizat
 
 ## Data Sources
 
-Use a `FileOp` to read a file from a URL or text. Supports csv and json, such as:
+### Local and Remote Files
+
+Use a `FileOp` to read a file from a URL or text. Supported formats:
+
+| Format | Output Type | Use Case |
+|--------|-------------|----------|
+| `json` | Parsed object/array | JSON data files |
+| `csv` | Array of row objects | Tabular data |
+| `text` | Raw string | Plain text files, custom parsing |
+| `binary` | ArrayBuffer/Uint8Array | Images, binary files |
+
+### Common Data Formats
 
 ### JSON Data
 ```javascript
@@ -12,14 +23,14 @@ Use a `FileOp` to read a file from a URL or text. Supports csv and json, such as
   "flights": [
     {
       "origin": "SFO",
-      "destination": "LAX", 
+      "destination": "LAX",
       "coordinates": [-122.4194, 37.7749]
     }
   ]
 }
 ```
 
-### CSV Data  
+### CSV Data
 ```javascript
 origin,destination,passengers,coordinates
 SFO,LAX,150,"[-122.4194, 37.7749]"
@@ -45,20 +56,30 @@ SFO,LAX,150,"[-122.4194, 37.7749]"
 }
 ```
 
+### Text and Binary Formats
+
+Use `text` format for custom parsing or `binary` for non-text files (images, etc.).
+
+### Geospatial Data
+
+**Overture Maps** - Global datasets (places, buildings, roads) via `DuckDbOp`. Best for large-scale analytics. Query Parquet files on S3 with SQL. See [docs.overturemaps.org](https://docs.overturemaps.org/).
+
+**Overpass API** - Real-time OpenStreetMap via `OverpassOp`. Best for current data and city-scale queries. Uses Overpass QL syntax with `{{bbox}}` template replacement. See [Overpass QL docs](https://wiki.openstreetmap.org/wiki/Overpass_API/Overpass_QL).
+
 ## Data Processing
 
 ### Code Operators
 
-Run custom JavaScript code on the data. Use `data` to access the input data list, `d` for the first element of the list, and `op` to access other operators. Also passes a freeExports object with `turf` and `d3` utils. Use `this` to store state.
+Run custom JavaScript code on the data. Use `data` to access the input data list, `d` for the first element of the list, and `op` to access other operators. Also passes utils like `turf` and `d3`, and all Noodles.gl operator classes as variables. Use `this` to store state.
 
 ```javascript
 // CodeOp
 const csvData = d // input data list connected to FileOp
-const filtered = csvData.filter(row => row.passengers > 100)
-return filtered.map(row => ({
-  ...row,
-  coordinates: JSON.parse(row.coordinates)
-}))
+const parsed = d3.csvParse(csvData) // parse CSV string using available d3 utility
+const filtered = parsed.filter(row => row.passengers > 100)
+return turf.featureCollection(filtered.map(row => (
+  turf.point([row.lng, row.lat], { name: row.name, passengers: row.passengers })
+)))
 ```
 
 ### Referencing Operators
@@ -85,18 +106,26 @@ return d3.scaleLinear()
 
 ```javascript
 // CodeOp - import an ESM module
-const _ = await import('https://esm.sh/lodash');
+const _ = await import('https://esm.sh/lodash')
 return _.mapValues(
   _.groupBy(d, 'name'),
   group => _.sortBy(group, 'ts'),
 )
 ```
 
+```javascript
+// CodeOp - use turf for geospatial calculations
+const buffered = d.map(feature =>
+  turf.buffer(feature, 5, { units: 'kilometers' })
+)
+return buffered
+```
+
 ## Common Data Tasks
 
 ### Coordinate Conversion
 ```javascript
-// Convert lat/lng to [lng, lat] for Deck.gl
+// Convert lat/lng to [lng, lat] for Deck.gl as a reactive reference
 const data = op('./raw-coordinates').out.data
 return data.map(point => ({
   ...point,

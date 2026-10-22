@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Redirecting...</title>
+    <script>
+      // SPA redirect for GitHub Pages and Cloudflare Pages
+      //
+      // For Cloudflare: _redirects file should handle /app/* routing,
+      // but this serves as a fallback for other paths
+      //
+      // For GitHub Pages: This converts the path to a query parameter
+      // which is then handled by index.html
+
+      const path = window.location.pathname
+      const query = window.location.search
+
+      const appRoot = window.location.hostname === 'localhost' ? '/' : '/app/'
+
+      if (path && path !== '/') {
+        // Redirect to index.html with the path as a query parameter.
+        // Original query params are hoisted to the top level (not folded into
+        // redirect) so module-init reads like ?externalControl=true still work
+        window.location.replace(
+          appRoot + '?redirect=' + encodeURIComponent(path) + (query ? '&' + query.slice(1) : '')
+        )
+      } else {
+        // Already at root, redirect
+        window.location.replace(window.location.origin + appRoot)
+      }
+    </script>
+  </head>
+  <body>
+    <p>Redirecting...</p>
+  </body>
+</html>

@@ -39,7 +39,6 @@ const mask3DUniforms: ShaderModule<Props> = {
 
 // Forked from https://github.com/grahambates-code/3d_tiles_mask
 export class Mask3DExtension extends LayerExtension {
-  static extensionName = 'Mask3DExtension'
   getShaders() {
     return {
       modules: [project32, mask3DUniforms],
@@ -83,6 +82,7 @@ export class Mask3DExtension extends LayerExtension {
     }
   }
 
+  // biome-ignore lint/suspicious/noExplicitAny: Deck.gl extension context type is not fully typed
   initializeState(this: Layer, _context: any, _extension: this) {
     // Set default uniform values using the new API
     this.setShaderModuleProps({
@@ -95,6 +95,7 @@ export class Mask3DExtension extends LayerExtension {
   }
 
   updateState(this: Layer, params: UpdateParameters<Layer>, _extension: this) {
+    // biome-ignore lint/suspicious/noExplicitAny: accessing dynamic extension props from layer
     const props = params.props as any
     const {
       targetPosition = props.targetPosition,

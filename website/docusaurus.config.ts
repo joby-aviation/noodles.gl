@@ -7,7 +7,7 @@ import type * as Preset from '@docusaurus/preset-classic'
 
 const config: Config = {
   title: 'Noodles.gl',
-  tagline: 'Interactive geospatial visualization and animation platform',
+  tagline: 'The animation studio for maps',
   favicon: 'img/noodles-favicon.png',
 
   // Future flags, see https://docusaurus.io/docs/api/docusaurus-config#future
@@ -25,7 +25,12 @@ const config: Config = {
   projectName: 'noodles.gl',
 
   onBrokenLinks: 'throw',
-  onBrokenMarkdownLinks: 'warn',
+
+  markdown: {
+    hooks: {
+      onBrokenMarkdownLinks: 'warn',
+    },
+  },
 
   // Even if you don't use internationalization, you can use this field to set
   // useful metadata like html lang. For example, if your site is Chinese, you
@@ -42,7 +47,7 @@ const config: Config = {
         docs: {
           path: '../docs',
           sidebarPath: './sidebars.ts',
-          editUrl: 'https://github.com/joby/noodles.gl/tree/main/docs/',
+          editUrl: 'https://github.com/joby-aviation/noodles.gl/tree/main/docs/',
           routeBasePath: '/', // Serve docs at root of baseURL instead of /docs
         },
         blog: false, // Disable blog since we're docs-only
@@ -53,11 +58,42 @@ const config: Config = {
     ],
   ],
 
-  plugins: ['./symlink-plugin'],
+  plugins: [
+    './symlink-plugin',
+    './raw-text-plugin',
+    [
+      '@docusaurus/plugin-google-gtag',
+      {
+        trackingID: 'G-Q2MLT93C10',
+      },
+    ],
+    [
+      './posthog-plugin',
+      {
+        // PostHog web keys are public-facing (same as GA tracking IDs — visible in the page source).
+        // Override with POSTHOG_API_KEY env var if you need to use a different project.
+        apiKey: process.env.POSTHOG_API_KEY ?? 'phc_JfAar8Lcv7PZnNGkn0iAYxFlahhDQgXazrIJcxhQe7n',
+        host: process.env.POSTHOG_HOST ?? 'https://us.i.posthog.com',
+      },
+    ],
+  ],
 
   themeConfig: {
     // Replace with your project's social card
     image: 'img/docusaurus-social-card.jpg',
+    colorMode: {
+      defaultMode: 'dark',
+      disableSwitch: false,
+      respectPrefersColorScheme: false,
+    },
+    algolia: {
+      appId: '51PYD2IBGO',
+      apiKey: '14545660beb6f71aa7e1a59704dfd030',
+      indexName: 'noodles-gl',
+      contextualSearch: true,
+      searchParameters: {},
+      searchPagePath: 'search',
+    },
     navbar: {
       title: 'Noodles.gl',
       logo: {
@@ -72,7 +108,7 @@ const config: Config = {
           label: 'Docs',
         },
         {
-          href: 'https://github.com/joby/noodles.gl',
+          href: 'https://github.com/joby-aviation/noodles.gl',
           label: 'GitHub',
           position: 'right',
         },
@@ -95,11 +131,11 @@ const config: Config = {
           items: [
             {
               label: 'GitHub Issues',
-              href: 'https://github.com/joby/noodles.gl/issues',
+              href: 'https://github.com/joby-aviation/noodles.gl/issues',
             },
             {
               label: 'Discussions',
-              href: 'https://github.com/joby/noodles.gl/discussions',
+              href: 'https://github.com/joby-aviation/noodles.gl/discussions',
             },
           ],
         },
@@ -108,12 +144,16 @@ const config: Config = {
           items: [
             {
               label: 'GitHub',
-              href: 'https://github.com/joby/noodles.gl',
+              href: 'https://github.com/joby-aviation/noodles.gl',
+            },
+            {
+              label: 'Privacy',
+              to: '/privacy',
             },
           ],
         },
       ],
-      copyright: `Copyright © ${new Date().getFullYear()} Joby Aero, Inc.`,
+      copyright: `Copyright © ${new Date().getFullYear()} <a href="https://jobyaviation.com" target="_blank" rel="noopener noreferrer">Joby Aero, Inc.</a><br />Noodles.gl is an open-source project sponsored by Joby Aviation. It is not a Joby product.`,
     },
     prism: {
       theme: prismThemes.github,

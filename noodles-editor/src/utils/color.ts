@@ -1,9 +1,8 @@
 import type { Color } from '@deck.gl/core'
-import type { types } from '@theatre/core'
 
 export type RGBA = { r: number; g: number; b: number; a: number }
 export type RGBX = { r: number; g: number; b: number; a?: number }
-export type Rgba = Parameters<typeof types.rgba>[0] | RGBA
+export type Rgba = RGBA
 
 export function colorToRgba([r, g, b, a = 255]: number[] | Color): Rgba {
   return {
@@ -56,8 +55,8 @@ export function hexToColor(val: string, alpha = true): Color {
   return [r, g, b, a]
 }
 
-export function colorToHex(color: Color, alpha = true): string {
-  return `#${color.map(c => c.toString(16).padStart(2, '0')).join('')}`.slice(0, alpha ? 9 : 7)
+export function colorToHex(color: Color): string {
+  return `#${color.map(c => c.toString(16).padStart(2, '0')).join('')}`.slice(0, 9)
 }
 
 export function hexToRgba(hex: string): Rgba {
@@ -65,5 +64,5 @@ export function hexToRgba(hex: string): Rgba {
 }
 
 export function rgbaToHex(rgba: RGBX): string {
-  return colorToHex(rgbaToColor(rgba, { alpha: false }))
+  return colorToHex(rgbaToColor(rgba, { alpha: true }))
 }

@@ -320,6 +320,38 @@ describe('migration 005 up', () => {
     expect(migrated.edges[0].sourceHandle).toBe('par.val')
     expect(migrated.edges[0].targetHandle).toBe(null)
   })
+
+  it('converts deprecated parentNode to parentId (ReactFlow v11 to v12 migration)', async () => {
+    // Old ReactFlow v11 format used parentNode, v12+ uses parentId
+    const project = {
+      version: 4,
+      nodes: [
+        {
+          id: 'group1',
+          type: 'group',
+          position: { x: 0, y: 0 },
+          data: { inputs: {} },
+        },
+        {
+          id: 'child1',
+          type: 'CodeOp',
+          position: { x: 10, y: 10 },
+          data: { inputs: {} },
+          parentNode: 'group1', // Old v11 format
+        },
+      ],
+      edges: [],
+      viewport: { x: 0, y: 0, zoom: 1 },
+      timeline: {},
+    } as NoodlesProjectJSON
+
+    const migrated = await up(project)
+
+    // Should convert parentNode to parentId
+    expect(migrated.nodes[1].parentId).toBe('/group1')
+    // Should not have the old parentNode property
+    expect((migrated.nodes[1] as any).parentNode).toBeUndefined()
+  })
 })
 
 describe('migration 005 down', () => {
