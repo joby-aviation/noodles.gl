@@ -458,7 +458,9 @@ export default function TimelineEditor() {
   // The AI tools read the canvas, deck and frame stats through window globals
   useEffect(() => exposeCanvasToTools(deckRef, frames), [frames])
 
-  mapProps.onRender = () => {
+  // Keep the visualization's own onRender, if it set one
+  mapProps.onRender = event => {
+    basemapProps.onRender?.(event)
     mapIdleRef.current = false
   }
 
