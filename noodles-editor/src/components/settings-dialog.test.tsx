@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { getKeysStore, useKeysStore } from '../noodles/keys-store'
+import { getGitSettings } from '../noodles/utils/git-settings'
 import { SettingsDialog } from './settings-dialog'
 
 describe('SettingsDialog API keys', () => {
@@ -47,5 +48,38 @@ describe('SettingsDialog API keys', () => {
     openApiKeysTab()
 
     expect(screen.queryByText(/This project file included/)).toBeNull()
+  })
+})
+
+describe('SettingsDialog version control', () => {
+  beforeEach(() => {
+    localStorage.clear()
+  })
+
+  afterEach(() => {
+    cleanup()
+  })
+
+  function openVersionControlTab(projectName: string | null) {
+    render(<SettingsDialog open setOpen={() => {}} projectName={projectName} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Version Control' }))
+  }
+
+  it('should change settings for the open project only', () => {
+    openVersionControlTab('project-a')
+    const enable = screen.getByRole('checkbox', { name: /Enable version control/ })
+    fireEvent.click(enable)
+
+    expect((enable as HTMLInputElement).checked).toBe(false)
+    expect(getGitSettings('project-a').enabled).toBe(false)
+    expect(getGitSettings('project-b').enabled).toBe(true)
+  })
+
+  it('should not offer project settings without a saved project', () => {
+    openVersionControlTab(null)
+    const enable = screen.getByRole('checkbox', { name: /Enable version control/ })
+
+    expect((enable as HTMLInputElement).disabled).toBe(true)
+    expect(screen.getByText(/Save the project to a folder/)).toBeTruthy()
   })
 })

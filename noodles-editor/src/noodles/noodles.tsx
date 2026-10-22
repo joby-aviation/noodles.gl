@@ -124,6 +124,7 @@ import {
   writeFileToDirectory,
 } from './utils/filesystem'
 import { reconcileForLoopGroups } from './utils/for-loop-group-utils'
+import { shouldAutosave, supportsVersioning, useGitSettings } from './utils/git-settings'
 import { edgeId, nodeId } from './utils/id-utils'
 import { shouldBlockKeyboardShortcut } from './utils/input-detection'
 import { generateDraftId, memoryProjectStore } from './utils/memory-project-store'
@@ -152,6 +153,9 @@ import { EdgeSpatialIndex } from './utils/spatial-index'
 import { calculateViewerPosition } from './utils/viewer-position'
 
 const ChatPanel = lazy(() => import('../ai-chat/chat-panel').then(m => ({ default: m.ChatPanel })))
+const GitHistoryPanel = lazy(() =>
+  import('./components/git-history-panel').then(m => ({ default: m.GitHistoryPanel }))
+)
 
 /*
  * CSS Architecture:
@@ -298,6 +302,7 @@ export function getNoodles(): Visualization {
   }, [nodes, modelEdges])
   const [showChatPanel, setShowChatPanel] = useState(false)
   const [chatInitialMessage, setChatInitialMessage] = useState<string | undefined>(undefined)
+  const [showGitHistoryPanel, setShowGitHistoryPanel] = useState(false)
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const [parameterEditorState, setParameterEditorState] = useState<{
     open: boolean
@@ -1367,6 +1372,20 @@ export function getNoodles(): Visualization {
     navigate,
   ])
 
+  // Autosave with debouncing. Reading the settings through the hook re-runs this effect when
+  // version control or autosave is turned off, which cancels a pending save.
+  const gitSettings = useGitSettings(projectName)
+  useEffect(() => {
+    if (!shouldAutosave({ settings: gitSettings, storageType, hasUnsavedChanges, isExamplesRoute }))
+      return
+
+    const timeoutId = setTimeout(() => {
+      onMenuSave()
+    }, gitSettings.autoCommitDelay)
+
+    return () => clearTimeout(timeoutId)
+  }, [gitSettings, storageType, hasUnsavedChanges, isExamplesRoute, onMenuSave])
+
   // Step 1 of Save As: Select directory and check conditions
   const onSaveAs = useCallback(async () => {
     try {
@@ -1574,6 +1593,13 @@ export function getNoodles(): Visualization {
         e.preventDefault()
         if (projectName && storageType !== 'publicFolder' && storageType !== 'memory') {
           setShowRenameDialog(true)
+        }
+      }
+      // mod+shift+h for Git History
+      if (isMod && isShift && key === 'h') {
+        e.preventDefault()
+        if (supportsVersioning(storageType)) {
+          setShowGitHistoryPanel(prev => !prev)
         }
       }
     }
@@ -2201,6 +2227,16 @@ export function getNoodles(): Visualization {
     </Suspense>
   )
 
+  const gitHistoryPanel = showGitHistoryPanel && (
+    <Suspense fallback={null}>
+      <GitHistoryPanel
+        projectDirectory={currentDirectory}
+        projectName={projectName}
+        onClose={() => setShowGitHistoryPanel(false)}
+      />
+    </Suspense>
+  )
+
   return {
     flowGraph,
     selectedNodeIds: nodes.filter(n => n.selected).map(n => n.id),
@@ -2226,6 +2262,7 @@ export function getNoodles(): Visualization {
     ),
     propertiesPanel,
     chatPanel,
+    gitHistoryPanel,
     showOverlay,
     onChangeShowOverlay: setShowOverlay,
     showDebugInfo,
@@ -2240,6 +2277,8 @@ export function getNoodles(): Visualization {
       storageType === 'memory'
         ? memoryProjectStore.getDisplayName(projectName || '') || null
         : projectName,
+    // The project whose version control settings the settings dialog edits
+    versionedProjectName: supportsVersioning(storageType) ? projectName : null,
     getTimelineJson,
     onSaveProject: onMenuSave,
     onSaveAs,

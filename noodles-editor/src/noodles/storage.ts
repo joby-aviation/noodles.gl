@@ -11,6 +11,7 @@ import {
   selectDirectory,
   writeFileToDirectory,
 } from './utils/filesystem'
+import { supportsVersioning } from './utils/git-settings'
 import { memoryProjectStore } from './utils/memory-project-store'
 import {
   CACHE_DIRECTORY_NAME,
@@ -238,7 +239,8 @@ export async function save(
   type: StorageType,
   projectName: string,
   projectData: NoodlesProjectJSON,
-  cacheFiles: OutputCacheFiles
+  cacheFiles: OutputCacheFiles,
+  options?: { skipGitCommit?: boolean; commitMessage?: string }
 ): Promise<FileSystemResult<FileSystemProject>> {
   if (type === 'memory') {
     memoryProjectStore.setProjectJson(projectName, projectData)
@@ -269,8 +271,8 @@ export async function save(
 
     const projectFileHandle = await projectDirectory.getFileHandle(PROJECT_FILE_NAME)
 
-    return {
-      success: true,
+    const saveResult = {
+      success: true as const,
       data: {
         directoryHandle: projectDirectory,
         projectFileHandle,
@@ -278,6 +280,22 @@ export async function save(
         projectData,
       },
     }
+
+    // Record the save in the project's version history. A failure never fails the save.
+    if (!options?.skipGitCommit && supportsVersioning(type)) {
+      try {
+        const { commitProjectSnapshot } = await import('./utils/git-service')
+        await commitProjectSnapshot(
+          projectDirectory,
+          projectName,
+          options?.commitMessage || `Save ${new Date().toISOString()}`
+        )
+      } catch (error) {
+        console.warn('Git commit failed:', error)
+      }
+    }
+
+    return saveResult
   } catch (error) {
     return {
       success: false,
@@ -356,6 +374,14 @@ export async function load(
     // This ensures the handle is available on refresh and save operations
     if (type === 'fileSystemAccess' && typeof fromProject !== 'string') {
       await directoryHandleCache.cacheHandle(projectName, projectDirectory, projectDirectory.name)
+    }
+
+    // Start version history for a project that doesn't have it yet. This runs in the
+    // background so a large data folder doesn't hold up opening the project.
+    if (supportsVersioning(type)) {
+      import('./utils/git-service')
+        .then(({ initProjectRepo }) => initProjectRepo(projectDirectory, projectName))
+        .catch(error => console.warn('Git initialization failed:', error))
     }
 
     return {
