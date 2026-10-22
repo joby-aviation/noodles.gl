@@ -1,3 +1,4 @@
+import { debugSerialize } from '../utils/debug'
 import { directoryHandleCache } from './utils/directory-handle-cache'
 import type { StorageType } from './utils/filesystem'
 import {
@@ -5,10 +6,20 @@ import {
   fileExists,
   getOPFSRoot,
   readFileFromDirectory,
+  readFileFromDirectoryBinary,
   requestPermission,
   selectDirectory,
   writeFileToDirectory,
 } from './utils/filesystem'
+import { memoryProjectStore } from './utils/memory-project-store'
+import {
+  CACHE_DIRECTORY_NAME,
+  type OutputCache,
+  type OutputCacheFiles,
+  readDirectoryOutputCache,
+  readOutputCache,
+  writeOutputCache,
+} from './utils/output-cache'
 import { EMPTY_PROJECT, type NoodlesProjectJSON, safeStringify } from './utils/serialization'
 
 // Pre-load all example asset URLs at build time using import.meta.glob
@@ -26,6 +37,7 @@ export interface FileSystemProject {
   name: string // Project name (directory name)
   projectData: NoodlesProjectJSON // The project data
   dataDirectoryHandle?: FileSystemDirectoryHandle // Optional data directory handle for assets
+  outputCache?: OutputCache // Saved outputs of locked operators, set on load
 }
 
 // Result type for file system operations
@@ -196,13 +208,13 @@ export async function getProjectDirectoryHandle(
       }
     }
 
-    case 'publicFolder': {
-      // Public folder projects don't have directory handles
+    case 'publicFolder':
+    case 'memory': {
       return {
         success: false,
         error: {
           type: 'not-found',
-          message: 'Public folder projects do not have directory handles',
+          message: `${type} projects do not have directory handles`,
         },
       }
     }
@@ -225,8 +237,23 @@ export async function getProjectDirectoryHandle(
 export async function save(
   type: StorageType,
   projectName: string,
-  projectData: NoodlesProjectJSON
+  projectData: NoodlesProjectJSON,
+  cacheFiles: OutputCacheFiles
 ): Promise<FileSystemResult<FileSystemProject>> {
+  if (type === 'memory') {
+    memoryProjectStore.setProjectJson(projectName, projectData)
+    memoryProjectStore.setCacheFiles(projectName, cacheFiles)
+    return {
+      success: true,
+      data: {
+        directoryHandle: null as unknown as FileSystemDirectoryHandle,
+        projectFileHandle: null as unknown as FileSystemFileHandle,
+        name: projectName,
+        projectData,
+      },
+    }
+  }
+
   const result = await getProjectDirectoryHandle(type, projectName, true)
   if (!result.success) {
     return result
@@ -238,6 +265,7 @@ export async function save(
     // Serialize and write noodles.json
     const projectJson = safeStringify(projectData)
     await writeFileToDirectory(projectDirectory, PROJECT_FILE_NAME, projectJson)
+    await writeOutputCache(projectDirectory, cacheFiles)
 
     const projectFileHandle = await projectDirectory.getFileHandle(PROJECT_FILE_NAME)
 
@@ -265,6 +293,27 @@ export async function load(
   type: StorageType,
   fromProject: string | FileSystemDirectoryHandle
 ): Promise<FileSystemResult<FileSystemProject>> {
+  if (type === 'memory' && typeof fromProject === 'string') {
+    const projectJson = memoryProjectStore.getProjectJson(fromProject)
+    if (!projectJson) {
+      return {
+        success: false,
+        error: { type: 'not-found', message: `Memory project not found: ${fromProject}` },
+      }
+    }
+    const projectData = { ...EMPTY_PROJECT, ...projectJson } as NoodlesProjectJSON
+    return {
+      success: true,
+      data: {
+        directoryHandle: null as unknown as FileSystemDirectoryHandle,
+        projectFileHandle: null as unknown as FileSystemFileHandle,
+        name: fromProject,
+        projectData,
+        outputCache: await readMemoryOutputCache(fromProject, projectData.nodes),
+      },
+    }
+  }
+
   let projectDirectory: FileSystemDirectoryHandle
   let projectName: string
 
@@ -301,6 +350,13 @@ export async function load(
     } as NoodlesProjectJSON
 
     const projectFileHandle = await projectDirectory.getFileHandle(PROJECT_FILE_NAME)
+    const outputCache = await readDirectoryOutputCache(projectDirectory, projectData.nodes)
+
+    // Cache the directory handle if loaded via File System Access API
+    // This ensures the handle is available on refresh and save operations
+    if (type === 'fileSystemAccess' && typeof fromProject !== 'string') {
+      await directoryHandleCache.cacheHandle(projectName, projectDirectory, projectDirectory.name)
+    }
 
     return {
       success: true,
@@ -309,6 +365,7 @@ export async function load(
         projectFileHandle,
         name: projectName,
         projectData,
+        outputCache,
       },
     }
   } catch (error) {
@@ -319,12 +376,34 @@ export async function load(
   }
 }
 
+// Read the saved outputs of an in-memory project's locked nodes
+export function readMemoryOutputCache(
+  projectId: string,
+  nodes: NoodlesProjectJSON['nodes']
+): Promise<OutputCache> {
+  return readOutputCache(
+    async fileName => memoryProjectStore.getCacheFile(projectId, fileName),
+    nodes
+  )
+}
+
 // Read an asset file from a project's data directory or from public folder
 export async function readAsset(
   type: StorageType,
   projectName: string,
   fileName: string
 ): Promise<FileSystemResult<string>> {
+  if (type === 'memory') {
+    const data = await memoryProjectStore.readAsset(projectName, fileName)
+    if (data === null) {
+      return {
+        success: false,
+        error: { type: 'not-found', message: `Asset not found in memory: ${fileName}` },
+      }
+    }
+    return { success: true, data }
+  }
+
   // For public folder projects, fetch from asset URLs
   if (type === 'publicFolder') {
     try {
@@ -404,12 +483,112 @@ export async function readAsset(
   }
 }
 
+// Read a binary asset file from a project's data directory or from public folder
+export async function readAssetBinary(
+  type: StorageType,
+  projectName: string,
+  fileName: string
+): Promise<FileSystemResult<ArrayBuffer>> {
+  if (type === 'memory') {
+    const data = await memoryProjectStore.readAssetBinary(projectName, fileName)
+    if (data === null) {
+      return {
+        success: false,
+        error: { type: 'not-found', message: `Asset not found in memory: ${fileName}` },
+      }
+    }
+    return { success: true, data }
+  }
+
+  // For public folder projects, fetch from asset URLs
+  if (type === 'publicFolder') {
+    try {
+      // Build the key that import.meta.glob uses: '../examples/project-name/file.ext'
+      const assetKey = `../examples/${projectName}/${fileName}`
+      const url = exampleAssetUrls[assetKey]
+
+      if (!url) {
+        return {
+          success: false,
+          error: {
+            type: 'not-found',
+            message: `Asset not found: ${fileName}`,
+            details: `Path: examples/${projectName}/${fileName}`,
+          },
+        }
+      }
+
+      // Fetch the file contents from the URL as binary
+      const response = await fetch(url)
+      if (!response.ok) {
+        return {
+          success: false,
+          error: {
+            type: 'not-found',
+            message: `Asset not found: ${fileName}`,
+            details: `Path: ${url}`,
+          },
+        }
+      }
+
+      const contents = await response.arrayBuffer()
+      return {
+        success: true,
+        data: contents,
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error: handleError(error, 'read binary asset file from public folder'),
+      }
+    }
+  }
+
+  // For filesystem-based storage types (fileSystemAccess or opfs)
+  // Try to get directory handle, prompting user if not found in cache
+  const projectDirectory = await getProjectDirectoryHandle(type, projectName, true)
+  if (!projectDirectory.success) {
+    return projectDirectory
+  }
+
+  try {
+    const hasDataDir = await directoryExists(projectDirectory.data, DATA_DIRECTORY_NAME)
+    if (!hasDataDir) {
+      return {
+        success: false,
+        error: {
+          type: 'not-found',
+          message: 'Data directory not found',
+        },
+      }
+    }
+
+    const dataDirectory = await projectDirectory.data.getDirectoryHandle(DATA_DIRECTORY_NAME)
+    const filenameWithoutDir = fileName.replace(/^data\//, '') // Remove data/ prefix if present
+    const contents = await readFileFromDirectoryBinary(dataDirectory, filenameWithoutDir)
+
+    return {
+      success: true,
+      data: contents,
+    }
+  } catch (error) {
+    return {
+      success: false,
+      error: handleError(error, 'read binary asset file'),
+    }
+  }
+}
+
 // Check if an asset file exists in a project's data directory
 export async function checkAssetExists(
   type: StorageType,
   projectName: string,
   fileName: string
 ): Promise<boolean> {
+  if (type === 'memory') {
+    return memoryProjectStore.checkAssetExists(projectName, fileName)
+  }
+
   // For public folder projects, check if asset exists in URL map
   if (type === 'publicFolder') {
     const assetKey = `../examples/${projectName}/${fileName}`
@@ -434,6 +613,25 @@ export async function checkAssetExists(
   }
 }
 
+// Returns the FileSystemFileHandle for an existing asset, or null if unavailable
+export async function getAssetFileHandle(
+  type: StorageType,
+  projectName: string,
+  fileName: string
+): Promise<FileSystemFileHandle | null> {
+  if (type !== 'fileSystemAccess') return null
+  const projectDirectory = await getProjectDirectoryHandle(type, projectName, false)
+  if (!projectDirectory.success) return null
+  try {
+    const hasDataDir = await directoryExists(projectDirectory.data, DATA_DIRECTORY_NAME)
+    if (!hasDataDir) return null
+    const dataDirectory = await projectDirectory.data.getDirectoryHandle(DATA_DIRECTORY_NAME)
+    return await dataDirectory.getFileHandle(fileName)
+  } catch {
+    return null
+  }
+}
+
 // Write an asset file to a project's data directory
 export async function writeAsset(
   type: StorageType,
@@ -441,6 +639,11 @@ export async function writeAsset(
   fileName: string,
   contents: string | Blob
 ): Promise<FileSystemResult<void>> {
+  if (type === 'memory') {
+    memoryProjectStore.writeAsset(projectName, fileName, contents)
+    return { success: true, data: undefined }
+  }
+
   // Public folder projects are read-only
   if (type === 'publicFolder') {
     return {
@@ -472,6 +675,272 @@ export async function writeAsset(
     return {
       success: false,
       error: handleError(error, 'write asset file'),
+    }
+  }
+}
+
+// ============================================================================
+// Save As / Rename Utilities
+// ============================================================================
+
+// Check if a project has a data directory with files
+export async function hasDataDirectory(type: StorageType, projectName: string): Promise<boolean> {
+  if (type === 'memory') {
+    return memoryProjectStore.hasDataDirectory(projectName)
+  }
+
+  // For public folder projects, check if any data files exist in URL map
+  if (type === 'publicFolder') {
+    const prefix = `../examples/${projectName}/data/`
+    return Object.keys(exampleAssetUrls).some(key => key.startsWith(prefix))
+  }
+
+  const projectDirectory = await getProjectDirectoryHandle(type, projectName, false)
+  if (!projectDirectory.success) {
+    return false
+  }
+
+  try {
+    const hasDataDir = await directoryExists(projectDirectory.data, DATA_DIRECTORY_NAME)
+    if (!hasDataDir) {
+      return false
+    }
+
+    // Check if data directory has any files
+    const dataDirectory = await projectDirectory.data.getDirectoryHandle(DATA_DIRECTORY_NAME)
+    for await (const _entry of dataDirectory.values()) {
+      return true // Has at least one entry
+    }
+    return false
+  } catch (_error) {
+    return false
+  }
+}
+
+// List all files in a project's data directory (recursively)
+export async function listDataFiles(
+  type: StorageType,
+  projectName: string
+): Promise<FileSystemResult<string[]>> {
+  if (type === 'memory') {
+    return { success: true, data: memoryProjectStore.listDataFiles(projectName) }
+  }
+
+  // For public folder projects, list from URL map
+  if (type === 'publicFolder') {
+    const prefix = `../examples/${projectName}/data/`
+    const files = Object.keys(exampleAssetUrls)
+      .filter(key => key.startsWith(prefix))
+      .map(key => key.replace(prefix, ''))
+    return { success: true, data: files }
+  }
+
+  const projectDirectory = await getProjectDirectoryHandle(type, projectName, false)
+  if (!projectDirectory.success) {
+    return projectDirectory
+  }
+
+  try {
+    const hasDataDir = await directoryExists(projectDirectory.data, DATA_DIRECTORY_NAME)
+    if (!hasDataDir) {
+      return { success: true, data: [] }
+    }
+
+    const dataDirectory = await projectDirectory.data.getDirectoryHandle(DATA_DIRECTORY_NAME)
+    const files: string[] = []
+
+    // Recursively list all files
+    async function listRecursive(dir: FileSystemDirectoryHandle, prefix: string) {
+      for await (const entry of dir.values()) {
+        const path = prefix ? `${prefix}/${entry.name}` : entry.name
+        if (entry.kind === 'file') {
+          files.push(path)
+        } else if (entry.kind === 'directory') {
+          const subDir = await dir.getDirectoryHandle(entry.name)
+          await listRecursive(subDir, path)
+        }
+      }
+    }
+
+    await listRecursive(dataDirectory, '')
+    return { success: true, data: files }
+  } catch (error) {
+    return {
+      success: false,
+      error: handleError(error, 'list data files'),
+    }
+  }
+}
+
+// Copy all files from source data directory to target directory
+export async function copyDataDirectory(
+  sourceDirectory: FileSystemDirectoryHandle,
+  targetDirectory: FileSystemDirectoryHandle
+): Promise<FileSystemResult<void>> {
+  try {
+    // Check if source has data directory
+    const hasDataDir = await directoryExists(sourceDirectory, DATA_DIRECTORY_NAME)
+    if (!hasDataDir) {
+      return { success: true, data: undefined } // Nothing to copy
+    }
+
+    const sourceDataDir = await sourceDirectory.getDirectoryHandle(DATA_DIRECTORY_NAME)
+    const targetDataDir = await targetDirectory.getDirectoryHandle(DATA_DIRECTORY_NAME, {
+      create: true,
+    })
+
+    // Recursively copy all files
+    async function copyRecursive(
+      sourceDir: FileSystemDirectoryHandle,
+      targetDir: FileSystemDirectoryHandle
+    ) {
+      for await (const entry of sourceDir.values()) {
+        if (entry.kind === 'file') {
+          const fileHandle = await sourceDir.getFileHandle(entry.name)
+          const file = await fileHandle.getFile()
+          const contents = await file.arrayBuffer()
+          await writeFileToDirectory(targetDir, entry.name, contents)
+        } else if (entry.kind === 'directory') {
+          const sourceSubDir = await sourceDir.getDirectoryHandle(entry.name)
+          const targetSubDir = await targetDir.getDirectoryHandle(entry.name, { create: true })
+          await copyRecursive(sourceSubDir, targetSubDir)
+        }
+      }
+    }
+
+    await copyRecursive(sourceDataDir, targetDataDir)
+    return { success: true, data: undefined }
+  } catch (error) {
+    return {
+      success: false,
+      error: handleError(error, 'copy data directory'),
+    }
+  }
+}
+
+// Copy data files from a public folder project to a target directory
+export async function copyPublicFolderData(
+  projectName: string,
+  targetDirectory: FileSystemDirectoryHandle
+): Promise<FileSystemResult<void>> {
+  try {
+    const prefix = `../examples/${projectName}/data/`
+    const dataFiles = Object.entries(exampleAssetUrls).filter(([key]) => key.startsWith(prefix))
+
+    if (dataFiles.length === 0) {
+      return { success: true, data: undefined } // Nothing to copy
+    }
+
+    // Create data directory in target
+    const targetDataDir = await targetDirectory.getDirectoryHandle(DATA_DIRECTORY_NAME, {
+      create: true,
+    })
+
+    const failedFiles: string[] = []
+
+    for (const [key, url] of dataFiles) {
+      const relativePath = key.replace(prefix, '')
+      const pathParts = relativePath.split('/')
+      const fileName = pathParts.pop()!
+
+      // Create subdirectories if needed
+      let currentDir = targetDataDir
+      for (const part of pathParts) {
+        currentDir = await currentDir.getDirectoryHandle(part, { create: true })
+      }
+
+      // Fetch and write file
+      const response = await fetch(url)
+      if (!response.ok) {
+        debugSerialize(`Failed to fetch ${url}`)
+        failedFiles.push(relativePath)
+        continue
+      }
+      const contents = await response.arrayBuffer()
+      await writeFileToDirectory(currentDir, fileName, contents)
+    }
+
+    if (failedFiles.length > 0) {
+      return {
+        success: false,
+        error: {
+          type: 'unknown',
+          message: `Failed to copy ${failedFiles.length} data file(s)`,
+          details: `Failed files: ${failedFiles.join(', ')}`,
+        },
+      }
+    }
+
+    return { success: true, data: undefined }
+  } catch (error) {
+    return {
+      success: false,
+      error: handleError(error, 'copy public folder data'),
+    }
+  }
+}
+
+// Copy in-memory assets to a target directory on disk
+export async function copyMemoryDataToDirectory(
+  projectId: string,
+  targetDirectory: FileSystemDirectoryHandle
+): Promise<FileSystemResult<void>> {
+  try {
+    const assets = memoryProjectStore.getAllAssets(projectId)
+    if (assets.size === 0) {
+      return { success: true, data: undefined }
+    }
+
+    const targetDataDir = await targetDirectory.getDirectoryHandle(DATA_DIRECTORY_NAME, {
+      create: true,
+    })
+
+    for (const [fileName, blob] of assets) {
+      const pathParts = fileName.split('/')
+      const baseName = pathParts.pop()!
+
+      let currentDir = targetDataDir
+      for (const part of pathParts) {
+        currentDir = await currentDir.getDirectoryHandle(part, { create: true })
+      }
+
+      const contents = await blob.arrayBuffer()
+      await writeFileToDirectory(currentDir, baseName, contents)
+    }
+
+    return { success: true, data: undefined }
+  } catch (error) {
+    return {
+      success: false,
+      error: handleError(error, 'copy memory data to directory'),
+    }
+  }
+}
+
+// Copy bundled example assets into an in-memory project so examples become editable
+export async function copyExampleAssetsToMemory(
+  exampleName: string,
+  memoryProjectId: string
+): Promise<void> {
+  const prefix = `../examples/${exampleName}/`
+  for (const [key, url] of Object.entries(exampleAssetUrls)) {
+    if (key.startsWith(prefix) && !key.endsWith('noodles.json') && !key.endsWith('README.md')) {
+      try {
+        const response = await fetch(url)
+        if (response.ok) {
+          const blob = await response.blob()
+          const relativePath = key.substring(prefix.length)
+          const cachePrefix = `${CACHE_DIRECTORY_NAME}/`
+          if (relativePath.startsWith(cachePrefix)) {
+            const fileName = relativePath.substring(cachePrefix.length)
+            memoryProjectStore.setCacheFile(memoryProjectId, fileName, await blob.text())
+          } else {
+            memoryProjectStore.writeAsset(memoryProjectId, relativePath, blob)
+          }
+        }
+      } catch {
+        debugSerialize(`Failed to copy example asset: ${key}`)
+      }
     }
   }
 }

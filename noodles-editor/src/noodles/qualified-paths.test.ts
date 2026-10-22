@@ -373,19 +373,20 @@ describe('Container Integration Tests', () => {
 
     it('returns direct children only and handles within container detection', () => {
       // Direct children
-      const children = getDirectChildren('/container', getOpStore().operators)
+      const { operators } = getOpStore()
+      const children = getDirectChildren('/container', operators)
       expect(children).toHaveLength(2)
       expect(children.map(c => c.id).sort()).toEqual(['/container/child1', '/container/child2'])
 
       // Empty array for containers with no children
-      const noChildren = getDirectChildren('/container/child2', getOpStore().operators)
+      const noChildren = getDirectChildren('/container/child2', operators)
       expect(noChildren).toHaveLength(0)
 
       // Does not include grandchildren
       expect(children.find(c => c.id === '/container/child1/grandchild')).toBeUndefined()
 
       // Non-existent containers
-      const nonExistent = getDirectChildren('/non-existent', getOpStore().operators)
+      const nonExistent = getDirectChildren('/non-existent', operators)
       expect(nonExistent).toHaveLength(0)
 
       // Within container detection

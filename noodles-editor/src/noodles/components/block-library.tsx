@@ -11,6 +11,8 @@ import {
 } from 'react'
 import { createPortal } from 'react-dom'
 import { useNestingStore } from '../store'
+import { appendUniqueEdges } from '../utils/edge-integrity'
+import { normalizeMultiInputEdges } from '../utils/multi-input-utils'
 import { createNodesForType, getNodeTypeOptions, type NodeType } from '../utils/node-creation-utils'
 import s from './block-library.module.css'
 import { getPopularOperators, rankNodeTypes } from './block-library-ranking'
@@ -27,7 +29,7 @@ type BlockLibraryProps = {
 
 export const BlockLibrary = forwardRef<BlockLibraryRef, BlockLibraryProps>(
   ({ reactFlowRef }, ref) => {
-    const { addNodes, addEdges, screenToFlowPosition } = useReactFlow()
+    const { addNodes, setEdges, screenToFlowPosition } = useReactFlow()
     const [isOpen, setIsOpen] = useState(false)
     const currentContainerId = useNestingStore(state => state.currentContainerId)
     const [searchText, setSearchText] = useState('')
@@ -96,7 +98,7 @@ export const BlockLibrary = forwardRef<BlockLibraryRef, BlockLibraryProps>(
 
       const { nodes, edges } = createNodesForType(type, position, currentContainerId)
       addNodes(nodes)
-      addEdges(edges)
+      setEdges(current => normalizeMultiInputEdges(appendUniqueEdges(current, edges)))
       onCloseModal()
     }
 
@@ -176,20 +178,56 @@ export const BlockLibrary = forwardRef<BlockLibraryRef, BlockLibraryProps>(
 
     const inputRef = useRef<HTMLInputElement>(null)
     const cardRefs = useRef<Map<number, HTMLElement>>(new Map())
+    const contentRef = useRef<HTMLDivElement>(null)
+    const [inputMode, setInputMode] = useState<'keyboard' | 'mouse'>('mouse')
 
     useEffect(() => {
       if (isOpen) {
         inputRef.current?.focus()
+        // Start in mouse mode
+        setInputMode('mouse')
       }
     }, [isOpen])
 
-    // Scroll selected card into view when navigating with keyboard
+    // Switch to mouse mode only when mouse actually moves
     useEffect(() => {
-      const selectedCard = cardRefs.current.get(selectedIndex)
+      if (!isOpen) return
+
+      const handleMouseMove = (e: MouseEvent) => {
+        const lastPos = lastMousePosRef.current
+        const currentPos = { x: e.clientX, y: e.clientY }
+
+        // Only switch to mouse mode if cursor actually moved
+        if (!lastPos || lastPos.x !== currentPos.x || lastPos.y !== currentPos.y) {
+          setInputMode('mouse')
+          lastMousePosRef.current = currentPos
+        }
+      }
+
+      const contentEl = contentRef.current
+      if (contentEl) {
+        contentEl.addEventListener('mousemove', handleMouseMove)
+        return () => contentEl.removeEventListener('mousemove', handleMouseMove)
+      }
+    }, [isOpen])
+
+    // Helper to scroll selected card into view (only called by keyboard navigation)
+    const scrollToSelected = useCallback((index: number) => {
+      const selectedCard = cardRefs.current.get(index)
       if (selectedCard) {
         selectedCard.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
       }
-    }, [selectedIndex])
+    }, [])
+
+    // Handle mouse enter on cards (only when in mouse mode)
+    const handleCardMouseEnter = useCallback(
+      (index: number) => {
+        if (inputMode === 'mouse') {
+          setSelectedIndex(index)
+        }
+      },
+      [inputMode]
+    )
 
     // Handle keyboard navigation (2D grid with 3 columns)
     useEffect(() => {
@@ -215,33 +253,53 @@ export const BlockLibrary = forwardRef<BlockLibraryRef, BlockLibraryProps>(
         // 2D grid navigation with arrow keys
         if (e.key === 'ArrowDown') {
           e.preventDefault()
-          setSelectedIndex(prev => Math.min(prev + COLS, totalResults - 1))
+          setInputMode('keyboard')
+          setSelectedIndex(prev => {
+            const newIndex = Math.min(prev + COLS, totalResults - 1)
+            scrollToSelected(newIndex)
+            return newIndex
+          })
           return
         }
 
         if (e.key === 'ArrowUp') {
           e.preventDefault()
-          setSelectedIndex(prev => Math.max(prev - COLS, 0))
+          setInputMode('keyboard')
+          setSelectedIndex(prev => {
+            const newIndex = Math.max(prev - COLS, 0)
+            scrollToSelected(newIndex)
+            return newIndex
+          })
           return
         }
 
         if (e.key === 'ArrowRight') {
           e.preventDefault()
-          setSelectedIndex(prev => Math.min(prev + 1, totalResults - 1))
+          setInputMode('keyboard')
+          setSelectedIndex(prev => {
+            const newIndex = Math.min(prev + 1, totalResults - 1)
+            scrollToSelected(newIndex)
+            return newIndex
+          })
           return
         }
 
         if (e.key === 'ArrowLeft') {
           e.preventDefault()
-          setSelectedIndex(prev => Math.max(prev - 1, 0))
+          setInputMode('keyboard')
+          setSelectedIndex(prev => {
+            const newIndex = Math.max(prev - 1, 0)
+            scrollToSelected(newIndex)
+            return newIndex
+          })
           return
         }
       }
 
       document.addEventListener('keydown', handleKeyDown)
       return () => document.removeEventListener('keydown', handleKeyDown)
-      // biome-ignore lint/correctness/useExhaustiveDependencies: addNode is stable from parent context
-    }, [isOpen, onCloseModal, flatResults, selectedIndex, addNode])
+      // biome-ignore lint/correctness/useExhaustiveDependencies: addNode and setInputMode are stable from parent context
+    }, [isOpen, onCloseModal, flatResults, selectedIndex, addNode, scrollToSelected])
 
     if (!isOpen) return null
 
@@ -250,7 +308,7 @@ export const BlockLibrary = forwardRef<BlockLibraryRef, BlockLibraryProps>(
       <div className={s.blockLibraryOverlay} onClick={onCloseModal}>
         {/* biome-ignore lint/a11y/noStaticElementInteractions: modal content container */}
         <div className={s.blockLibraryModal} onClick={e => e.stopPropagation()}>
-          <div className={s.blockLibrarySidebar}>
+          <div className={s.blockLibrarySidebar} data-input-mode={inputMode}>
             <div className={s.blockLibraryHeader}>Operator Library</div>
             <input
               ref={inputRef}
@@ -285,7 +343,7 @@ export const BlockLibrary = forwardRef<BlockLibraryRef, BlockLibraryProps>(
               ))}
             </div>
           </div>
-          <div className={s.blockLibraryContent}>
+          <div ref={contentRef} className={s.blockLibraryContent} data-input-mode={inputMode}>
             {displayMode.mode === 'ranked' ? (
               // Ranked mode: flat list sorted by relevance
               <div className={s.blockLibraryGrid}>
@@ -311,7 +369,7 @@ export const BlockLibrary = forwardRef<BlockLibraryRef, BlockLibraryProps>(
                       })}
                       onClick={() => addNode(type)}
                       onKeyDown={e => e.key === 'Enter' && addNode(type)}
-                      onMouseEnter={() => setSelectedIndex(index)}
+                      onMouseEnter={() => handleCardMouseEnter(index)}
                     >
                       <div className={s.blockLibraryCardHeader}>
                         <div className={s.blockLibraryCardTitle}>{displayName}</div>
@@ -328,55 +386,58 @@ export const BlockLibrary = forwardRef<BlockLibraryRef, BlockLibraryProps>(
               </div>
             ) : (
               // Grouped mode: organized by categories
-              displayMode.groups.map(group => {
-                // Find the starting index for this group in flatResults
-                const groupStartIndex = flatResults.indexOf(group.types[0])
+              (() => {
+                let cumulativeIndex = 0
+                return displayMode.groups.map(group => {
+                  const groupStartIndex = cumulativeIndex
+                  cumulativeIndex += group.types.length
 
-                return (
-                  <div key={group.category}>
-                    <div className={s.blockLibraryContentCategoryHeader}>{group.category}</div>
-                    <div className={s.blockLibraryGrid}>
-                      {group.types.map((type, indexInGroup) => {
-                        const globalIndex = groupStartIndex + indexInGroup
-                        const description = getNodeDescription(type)
-                        const displayName = typeDisplayName(type)
-                        const category = typeCategory(type)
-                        const isSelected = globalIndex === selectedIndex
+                  return (
+                    <div key={group.category}>
+                      <div className={s.blockLibraryContentCategoryHeader}>{group.category}</div>
+                      <div className={s.blockLibraryGrid}>
+                        {group.types.map((type, indexInGroup) => {
+                          const globalIndex = groupStartIndex + indexInGroup
+                          const description = getNodeDescription(type)
+                          const displayName = typeDisplayName(type)
+                          const category = typeCategory(type)
+                          const isSelected = globalIndex === selectedIndex
 
-                        return (
-                          <button
-                            type="button"
-                            key={type}
-                            ref={el => {
-                              if (el) {
-                                cardRefs.current.set(globalIndex, el)
-                              } else {
-                                cardRefs.current.delete(globalIndex)
-                              }
-                            }}
-                            className={cx(s.blockLibraryCard, {
-                              [s.blockLibraryCardSelected]: isSelected,
-                            })}
-                            onClick={() => addNode(type)}
-                            onKeyDown={e => e.key === 'Enter' && addNode(type)}
-                            onMouseEnter={() => setSelectedIndex(globalIndex)}
-                          >
-                            <div className={s.blockLibraryCardHeader}>
-                              <div className={s.blockLibraryCardTitle}>{displayName}</div>
-                              <div className={cx(s.blockLibraryCardCategory, headerClass(type))}>
-                                {category}
+                          return (
+                            <button
+                              type="button"
+                              key={type}
+                              ref={el => {
+                                if (el) {
+                                  cardRefs.current.set(globalIndex, el)
+                                } else {
+                                  cardRefs.current.delete(globalIndex)
+                                }
+                              }}
+                              className={cx(s.blockLibraryCard, {
+                                [s.blockLibraryCardSelected]: isSelected,
+                              })}
+                              onClick={() => addNode(type)}
+                              onKeyDown={e => e.key === 'Enter' && addNode(type)}
+                              onMouseEnter={() => handleCardMouseEnter(globalIndex)}
+                            >
+                              <div className={s.blockLibraryCardHeader}>
+                                <div className={s.blockLibraryCardTitle}>{displayName}</div>
+                                <div className={cx(s.blockLibraryCardCategory, headerClass(type))}>
+                                  {category}
+                                </div>
                               </div>
-                            </div>
-                            {description && (
-                              <div className={s.blockLibraryCardDescription}>{description}</div>
-                            )}
-                          </button>
-                        )
-                      })}
+                              {description && (
+                                <div className={s.blockLibraryCardDescription}>{description}</div>
+                              )}
+                            </button>
+                          )
+                        })}
+                      </div>
                     </div>
-                  </div>
-                )
-              })
+                  )
+                })
+              })()
             )}
           </div>
         </div>

@@ -267,37 +267,6 @@ const filtered = op('./filter').out.data
 
 Note: This path-based syntax is only used within CodeField expressions for programmatic operator references. For regular node-to-node connections in the graph, use the edge format with `sourceHandle` and `targetHandle` as described in the Connection System section.
 
-## Integration Points
-
-### Theatre.js Timeline
-
-```typescript
-// Keyframe field values over time
-const animatedValue = useSheetValue(
-  sheet.object('/node', nodeId).props.fieldName,
-  defaultValue
-)
-```
-
-### Deck.gl Rendering
-
-```typescript
-// Connect node outputs to Deck.gl layers
-const layers = nodeGraph.getLayerNodes().map(node =>
-  node.execute(inputs)
-)
-```
-
-### External Data Sources
-
-```typescript
-// Reactive data loading
-const dataStream = fromFetch('/api/data').pipe(
-  map(response => response.json()),
-  catchError(error => of(fallbackData))
-)
-```
-
 ## Best Practices
 
 ### Graph Design

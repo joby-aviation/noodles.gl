@@ -3,7 +3,7 @@
 // Aliases deck.gl and luma.gl imports to local source directories (../deck.gl, ../luma.gl)
 // for rapid development iteration without needing to publish/link packages.
 //
-// Usage: yarn start:local
+// Usage: npm run start:local
 //
 // Limitations:
 // - @deck.gl/widgets uses npm package (CSS loading blocked by Vite 7 fs restrictions)
@@ -38,10 +38,13 @@ export default defineConfig(({ mode }) => {
     localAliases['@deck.gl/core'] = path.resolve(deckglDir, 'modules/core/src')
     localAliases['@deck.gl/layers'] = path.resolve(deckglDir, 'modules/layers/src')
     localAliases['@deck.gl/geo-layers'] = path.resolve(deckglDir, 'modules/geo-layers/src')
-    localAliases['@deck.gl/aggregation-layers'] = path.resolve(deckglDir, 'modules/aggregation-layers/src')
+    localAliases['@deck.gl/aggregation-layers'] = path.resolve(
+      deckglDir,
+      'modules/aggregation-layers/src'
+    )
     localAliases['@deck.gl/mesh-layers'] = path.resolve(deckglDir, 'modules/mesh-layers/src')
     localAliases['@deck.gl/extensions'] = path.resolve(deckglDir, 'modules/extensions/src')
-    localAliases['@deck.gl/mapbox'] = path.resolve(deckglDir, 'modules/mapbox/src')
+    localAliases['@deck.gl/maplibre'] = path.resolve(deckglDir, 'modules/maplibre/src')
     localAliases['@deck.gl/react'] = path.resolve(deckglDir, 'modules/react/src')
     // Note: @deck.gl/widgets uses npm package (CSS loading issues with local source)
     // localAliases['@deck.gl/widgets'] = path.resolve(deckglDir, 'modules/widgets/src')
@@ -61,17 +64,17 @@ export default defineConfig(({ mode }) => {
 
   return mergeConfig(base, {
     resolve: {
-      alias: Object.entries(localAliases).map(([find, replacement]) => ({ find, replacement }))
+      alias: Object.entries(localAliases).map(([find, replacement]) => ({ find, replacement })),
     },
     server: {
       ...base.server,
       fs: {
-        allow: [rootDir]
-      }
+        allow: [rootDir],
+      },
     },
     optimizeDeps: {
       // Force include local packages in optimization
-      include: Object.keys(localAliases)
-    }
+      include: Object.keys(localAliases),
+    },
   })
 })

@@ -69,15 +69,15 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'yarn'
+          cache: 'npm'
 
       - name: Install dependencies
-        run: yarn install:all
+        run: npm run install:all
 
       - name: Generate context bundles
         run: |
           cd noodles-editor
-          yarn generate:context
+          npm run generate:context
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
@@ -1700,7 +1700,7 @@ Common operators you'll work with:
 - **Fields** define input/output schemas and UI hints. Connect fields via edges.
 - **Paths** identify operators: \`/name\` for root, \`/container/name\` for nested.
 - **Reactive references**: Use \`op('/path').par.field\` in CodeOp/ExpressionOp or \`{{/path.out.field}}\` in DuckDbOp.
-- **Theatre.js timeline**: Any operator input can be keyframed for animation.
+- **Timeline**: Any operator input can be keyframed for animation with bezier interpolation.
 
 Be helpful, thorough, and always validate your suggestions against the actual operator schemas!`
   }

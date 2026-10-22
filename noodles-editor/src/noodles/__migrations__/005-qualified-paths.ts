@@ -1,4 +1,5 @@
 import type { Edge, Node } from '@xyflow/react'
+import { debugMigration } from '../../utils/debug'
 import { getFieldReferences } from '../fields'
 import { edgeId } from '../utils/id-utils'
 import { isAbsolutePath } from '../utils/path-utils'
@@ -95,12 +96,15 @@ export async function up(project: NoodlesProjectJSON): Promise<NoodlesProjectJSO
       return node
     }
 
-    let parentId = node.parentId
+    // Support both parentId (v12+) and parentNode (v11) for backwards compatibility
+    let parentId = node.parentId || (node as any).parentNode
     if (parentId) {
       parentId = idMapping.get(parentId) || parentId
     }
 
     delete node.containerId
+    // Remove deprecated parentNode property if present
+    delete (node as any).parentNode
 
     return {
       ...node,
@@ -117,7 +121,7 @@ export async function up(project: NoodlesProjectJSON): Promise<NoodlesProjectJSO
 
       // Skip orphaned edges that reference non-existent nodes
       if (!newSource || !newTarget) {
-        console.warn(`Skipping orphaned edge: ${edge.id} (${edge.source} -> ${edge.target})`)
+        debugMigration(`Skipping orphaned edge: ${edge.id} (${edge.source} -> ${edge.target})`)
         return null
       }
 

@@ -7,6 +7,7 @@ We use Posthog to collect anonymized, aggregate analytics on site usage to help 
 ## Data Collection
 
 - **Data collected:** Aggregate event data (e.g., page views, feature usage), no personally identifiable information (PII).
+- **Error reports:** Error reports are sent by default to help us identify and fix bugs. Error reports contain only technical information (error messages and stack traces) and do not include any personal data or project content. You can disable error reporting in the Settings dialog.
 - **What we don't collect:** We never collect your project data, node content, code, SQL queries, or any personal information.
 
 ## Data Usage and Sharing

@@ -1,12 +1,8 @@
-import { kml } from '@tmcw/togeojson'
 import type { FeatureCollection } from 'geojson'
 
-/**
- * Convert KML string to GeoJSON FeatureCollection
- * @param kmlString - KML string to convert
- * @returns GeoJSON FeatureCollection
- */
-export function kmlToGeoJson(kmlString: string): FeatureCollection {
+// Convert KML string to GeoJSON FeatureCollection
+export async function kmlToGeoJson(kmlString: string): Promise<FeatureCollection> {
+  const { kml } = await import('@tmcw/togeojson')
   // Parse KML string to XML DOM
   const parser = new DOMParser()
   const xmlDoc = parser.parseFromString(kmlString, 'text/xml')

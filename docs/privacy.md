@@ -5,6 +5,7 @@ Noodles.gl uses limited, privacy-preserving analytics through Posthog to underst
 ## What We Collect
 
 - **Aggregate event data:** Page views, feature usage, and interaction patterns
+- **Error reports:** Error reports are sent by default to help us identify and fix bugs. These contain only technical information (error messages and stack traces), not personal data or project content. You can disable this in the Settings dialog.
 - **No personally identifiable information (PII):** We never collect names, email addresses, IP addresses, or any personal data
 - **No project data:** Your projects, node content, code, SQL queries, and visualizations are never collected or transmitted
 

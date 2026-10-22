@@ -9,14 +9,15 @@ export default defineConfig({
   test: {
     setupFiles: ['src/setupTests.ts'],
     browser: {
-      provider: playwright(),
+      provider: playwright({
+        // Software WebGL so shader tests can render in headless Chromium
+        launchOptions: { args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] },
+      }),
       enabled: true,
       headless: true,
       screenshotFailures: false,
-      instances: [
-        { browser: 'chromium' },
-      ],
-    }
+      instances: [{ browser: 'chromium' }],
+    },
   },
   optimizeDeps: {
     include: [
@@ -27,6 +28,7 @@ export default defineConfig({
       'react-dom',
       'react/jsx-dev-runtime',
       'node:path',
+      'node:module',
     ],
   },
   plugins: [

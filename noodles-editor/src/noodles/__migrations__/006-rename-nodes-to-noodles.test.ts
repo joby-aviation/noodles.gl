@@ -70,7 +70,6 @@ describe('migration 006 up', () => {
     const project = createProjectWithNodesSheet()
     const migrated = await up(project)
 
-    // biome-ignore lint/suspicious/noExplicitAny: testing migration with dynamic sheet structure
     const noodlesSheet = migrated.timeline.sheetsById.Noodles as any
     expect(noodlesSheet.staticOverrides.byObject['test-node'].field.value).toBe('test')
     expect(noodlesSheet.sequence.tracksByObject).toEqual({})
@@ -165,7 +164,6 @@ describe('migration 006 down', () => {
     const project = createProjectWithNoodlesSheet()
     const reverted = await down(project)
 
-    // biome-ignore lint/suspicious/noExplicitAny: testing migration with dynamic sheet structure
     const nodesSheet = reverted.timeline.sheetsById.Nodes as any
     expect(nodesSheet.staticOverrides.byObject['test-node'].field.value).toBe('test')
     expect(nodesSheet.sequence.tracksByObject).toEqual({})
