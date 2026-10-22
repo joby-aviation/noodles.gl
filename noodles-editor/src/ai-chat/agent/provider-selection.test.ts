@@ -3,6 +3,7 @@ import {
   type Credentials,
   isOnDevice,
   isProviderReady,
+  isLocalEndpoint,
   readyCloudProvider,
   resolveProviderId,
 } from './provider-selection'
@@ -152,5 +153,43 @@ describe('readyCloudProvider', () => {
     expect(
       readyCloudProvider({ ...NOTHING, openRouterKey: 'or-key', anthropicKey: 'sk-ant' })
     ).toBe('anthropic')
+  })
+
+  it('skips a custom endpoint on this machine or the LAN, which is not hosted', () => {
+    const custom = (baseUrl: string) => ({
+      ...NOTHING,
+      customEndpoint: { baseUrl, model: 'm', apiKey: '' },
+    })
+    expect(readyCloudProvider(custom('http://localhost:1234/v1'))).toBeNull()
+    expect(readyCloudProvider(custom('http://192.168.1.20:8080/v1'))).toBeNull()
+    expect(readyCloudProvider(custom('https://api.groq.com/openai/v1'))).toBe('custom')
+  })
+})
+
+describe('isLocalEndpoint', () => {
+  it('recognises loopback, private and .local hosts', () => {
+    for (const url of [
+      'http://localhost:1234/v1',
+      'http://127.0.0.1:8080',
+      'http://[::1]:8080',
+      'http://10.0.0.5/v1',
+      'http://172.20.1.1/v1',
+      'http://192.168.0.2/v1',
+      'http://gpu-box.local:8000/v1',
+      'not a url',
+    ]) {
+      expect(isLocalEndpoint(url), url).toBe(true)
+    }
+  })
+
+  it('leaves public hosts alone', () => {
+    for (const url of [
+      'https://api.groq.com/openai/v1',
+      'https://api.openai.com/v1',
+      'http://172.32.0.1/v1',
+      'https://fd.example.com/v1',
+    ]) {
+      expect(isLocalEndpoint(url), url).toBe(false)
+    }
   })
 })

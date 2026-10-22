@@ -77,8 +77,15 @@ const MECHANICAL_CAP = 0.4
 export const MECHANICAL_FAILURE_CAP = MAX_SCORE * MECHANICAL_CAP
 
 export function grade(checks: Check[], input: GradeInput): Grade {
-  // A run that never completed a turn has nothing to grade
-  if (input.result.turns.length === 0) {
+  // A run that never completed a turn has nothing to grade, and one that timed out
+  // or failed partway is unfinished whatever its partial answer says
+  const unfinished =
+    input.result.turns.length === 0
+      ? (input.result.error ?? 'no turn completed')
+      : input.result.timedOut
+        ? 'timed out before the last turn finished'
+        : input.result.error
+  if (unfinished) {
     return {
       score: 0,
       pass: false,
@@ -87,7 +94,7 @@ export function grade(checks: Check[], input: GradeInput): Grade {
         check,
         pass: false,
         mechanical: MECHANICAL.has(check.type),
-        detail: input.result.error ?? 'no turn completed',
+        detail: unfinished,
       })),
     }
   }

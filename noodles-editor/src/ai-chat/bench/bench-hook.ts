@@ -12,6 +12,7 @@ import { getKeysStore } from '../../noodles/keys-store'
 import { getAllOps } from '../../noodles/store'
 import { getCurrentProject, getModificationApplier, onProjectChange } from '../../webmcp/bridge'
 import { createProvider } from '../agent/provider-factory'
+import { DEFAULT_CONTEXT_WINDOW, DEFAULT_WEBLLM_MODEL } from '../agent/providers/webllm'
 import { AgentSession } from '../agent/session'
 import type {
   AgentEvent,
@@ -107,7 +108,7 @@ export interface BenchResult {
 }
 
 const PREVIEW_CHARS = 400
-const SETTLE_TIMEOUT_MS = 5000
+const SETTLE_TIMEOUT_MS = 15_000
 // Consecutive idle frames before the graph counts as settled
 const SETTLED_FRAMES = 3
 
@@ -163,7 +164,11 @@ async function runBenchTask(
     // "the 8B model does not fit" is exactly what the benchmark should record
     return {
       taskId: task.id,
-      provider: { id: config.providerId, model: config.model ?? '', contextWindow: knobs.ctx ?? 0 },
+      provider: {
+        id: config.providerId,
+        model: config.model ?? (config.providerId === 'webllm' ? DEFAULT_WEBLLM_MODEL : ''),
+        contextWindow: knobs.ctx ?? (config.providerId === 'webllm' ? DEFAULT_CONTEXT_WINDOW : 0),
+      },
       knobs,
       setupApply,
       initialProject,
@@ -205,7 +210,7 @@ async function runBenchTask(
       if (controller.signal.aborted) break
       const turn = await runTurn(session, prompt, history, controller.signal)
       turns.push(turn)
-      history.push({ role: 'user', content: prompt }, { role: 'assistant', content: turn.reply })
+      history.push({ role: 'user', content: prompt }, ...historyFor(turn))
     }
   } catch (e) {
     error = e instanceof Error ? e.message : String(e)
@@ -213,6 +218,12 @@ async function runBenchTask(
     if (timer) clearTimeout(timer)
     unsubscribe()
     session.dispose()
+  }
+
+  // The final snapshot is what gets graded, so a graph still computing (a slow
+  // fetch) would be graded on stale values and no error yet
+  if (!(await settleGraph()) && !error) {
+    error = `the graph was still computing ${SETTLE_TIMEOUT_MS / 1000}s after the last turn`
   }
 
   return {
@@ -307,7 +318,8 @@ async function applyAndSettle(modifications: ProjectModification[]): Promise<Mod
 // isComputing rather than executionState, which only says 'executing' after
 // 200ms. Idle has to hold for a few frames, because the executor starts a
 // downstream pull on a later frame than the upstream one that fed it.
-async function settleGraph() {
+// False when the deadline passed with work still running.
+async function settleGraph(): Promise<boolean> {
   const deadline = performance.now() + SETTLE_TIMEOUT_MS
   let idleFrames = 0
   while (idleFrames < SETTLED_FRAMES && performance.now() < deadline) {
@@ -315,6 +327,36 @@ async function settleGraph() {
     const busy = getAllOps().some(op => op.isComputing)
     idleFrames = busy ? 0 : idleFrames + 1
   }
+  return idleFrames >= SETTLED_FRAMES
+}
+
+// What the chat panel keeps of a turn, so a scripted follow-up sees the same
+// conversation a user's would: the reply with its tool uses, and a note when
+// the editor rejected the turn's edits or applied them with warnings
+export function historyFor(turn: Pick<BenchTurn, 'reply' | 'toolCalls' | 'apply'>): Message[] {
+  const messages: Message[] = [
+    {
+      role: 'assistant',
+      content: turn.reply || '(stopped)',
+      toolUses: turn.toolCalls.map(call => ({
+        name: call.name,
+        params: call.params,
+        ok: call.success,
+      })),
+    },
+  ]
+  if (turn.apply && !turn.apply.success) {
+    messages.push({
+      role: 'assistant',
+      content: `Failed to apply modifications: ${turn.apply.error}`,
+    })
+  } else if (turn.apply?.warnings?.length) {
+    messages.push({
+      role: 'assistant',
+      content: `⚠️ Modifications applied with warnings:\n${turn.apply.warnings.map(w => `• ${w}`).join('\n')}`,
+    })
+  }
+  return messages
 }
 
 function operatorErrors() {

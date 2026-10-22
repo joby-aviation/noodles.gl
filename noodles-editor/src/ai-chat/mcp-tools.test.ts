@@ -504,6 +504,51 @@ describe('applyModifications field validation', () => {
     expect((await later.applyModifications({ modifications: [wire] })).error).toBeUndefined()
   })
 
+  it('wires an edge to a custom input an update gave a node this run adds', async () => {
+    const t = tools()
+    const add = { type: 'add_node', data: { id: '/code', type: 'NumberOp' } }
+    const update = {
+      type: 'update_node',
+      data: { id: '/code', data: { customInputs: [{ name: 'foo', type: 'number' }] } },
+    }
+    const limit = { type: 'add_node', data: { id: '/limit', type: 'NumberOp' } }
+    const wire = {
+      type: 'add_edge',
+      data: { source: '/limit', target: '/code', sourceHandle: 'out.val', targetHandle: 'par.foo' },
+    }
+
+    const together = await t.applyModifications({ modifications: [add, limit, update, wire] })
+    expect(together.error).toBeUndefined()
+
+    // And across calls in the same run
+    const later = tools()
+    await later.applyModifications({ modifications: [add, limit] })
+    await later.applyModifications({ modifications: [update] })
+    expect((await later.applyModifications({ modifications: [wire] })).error).toBeUndefined()
+  })
+
+  it('accepts a batch that adds an edge and then deletes it', async () => {
+    // The editor adds every edge before deleting any, so this nets to no edge
+    const id = '/n.out.val->/n.par.val'
+    const result = await tools().applyModifications({
+      modifications: [
+        { type: 'add_node', data: { id: '/n', type: 'NumberOp' } },
+        {
+          type: 'add_edge',
+          data: {
+            id,
+            source: '/n',
+            target: '/n',
+            sourceHandle: 'out.val',
+            targetHandle: 'par.val',
+          },
+        },
+        { type: 'delete_edge', data: { id } },
+      ],
+    })
+    expect(result.error).toBeUndefined()
+  })
+
   it('checks an update against the type queued by an earlier call', async () => {
     const t = tools()
     await t.applyModifications({

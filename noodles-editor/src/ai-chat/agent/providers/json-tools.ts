@@ -62,12 +62,17 @@ export function parseAction(raw: string, tools: AgentTool[]): ParsedAction {
   const unfenced = text.replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '')
   let parsed = parseJson(unfenced)
   let repaired = false
+  // Whether the repair only closed the outer object. Anything more means the cut
+  // fell inside input, and a call on half its arguments (half a write_file)
+  // must not run.
+  let inputIntact = true
   if (!parsed) {
     // Output cut off by max_tokens: the tool and its input are usually complete
-    // and only the closing braces are missing
+    // and only the closing brace is missing
     const closed = closeTruncated(unfenced)
     parsed = closed ? parseJson(closed) : null
     repaired = parsed !== null
+    inputIntact = closed === `${unfenced.trimEnd()}}` && parsed !== null && 'input' in parsed
   }
   if (!parsed) {
     // Constraint ignored, which happens. The text is still an answer.
@@ -83,6 +88,7 @@ export function parseAction(raw: string, tools: AgentTool[]): ParsedAction {
   if (name === NO_TOOL) return { tool: null, input: {}, reply, ...recovered }
   const known = tools.some(tool => tool.name === name)
   if (!known) return { tool: null, input: {}, reply, fallback: 'unknown_tool', requestedTool: name }
+  if (!inputIntact) return { tool: null, input: {}, reply, fallback: 'json_repaired' }
 
   return { tool: name, input: asRecord(parsed.input), reply, ...recovered }
 }

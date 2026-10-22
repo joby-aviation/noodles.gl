@@ -89,6 +89,33 @@ function requestFor(text: string, tools = TOOLS): AgentRequest {
   }
 }
 
+// The turn in which find_tools unlocked capture_visualization, as the loop records it
+function withFindToolsResult(request: AgentRequest): AgentRequest {
+  return {
+    ...request,
+    messages: [
+      ...request.messages,
+      {
+        role: 'assistant',
+        content: [
+          { type: 'tool_use', id: 'f1', name: 'find_tools', input: { query: 'screenshot' } },
+        ],
+      },
+      {
+        role: 'user',
+        content: [
+          {
+            type: 'tool_result',
+            toolUseId: 'f1',
+            content:
+              '{"unlocked":[{"name":"capture_visualization","description":"Take a screenshot"}]}',
+          },
+        ],
+      },
+    ],
+  }
+}
+
 async function collect(events: AsyncIterable<AgentEvent>): Promise<AgentEvent[]> {
   const collected: AgentEvent[] = []
   for await (const event of events) collected.push(event)
@@ -283,7 +310,7 @@ describe('WebLLMProvider', () => {
     }
 
     await collect(provider.stream(requestFor('hello')))
-    await collect(provider.stream(requestFor('hello', [...TOOLS, unlocked])))
+    await collect(provider.stream(withFindToolsResult(requestFor('hello', [...TOOLS, unlocked]))))
 
     const system = (index: number) =>
       (stub.requests[index].messages as Array<{ content: string }>)[0].content
@@ -291,6 +318,31 @@ describe('WebLLMProvider', () => {
     // Still callable: the grammar is per request and not part of the cached prefix
     const schema = stub.requests[1].response_format as { schema: string }
     expect(JSON.parse(schema.schema).properties.tool.enum).toContain('capture_visualization')
+  })
+
+  it('rebuilds the system message once the result describing an unlocked tool is gone', async () => {
+    // Trimming, or the next user turn, drops the find_tools result; with the old
+    // preamble the model would have the tool's name and no description
+    const stub = stubEngine({
+      responses: [
+        chunksFor('{"tool":"none","reply":"Hi."}'),
+        chunksFor('{"tool":"none","reply":"Hi."}'),
+      ],
+    })
+    const provider = providerFor(stub)
+    const unlocked: AgentTool = {
+      name: 'capture_visualization',
+      description: 'Take a screenshot',
+      inputSchema: { type: 'object', properties: {} },
+    }
+
+    await collect(provider.stream(requestFor('hello')))
+    await collect(provider.stream(requestFor('hello', [...TOOLS, unlocked])))
+
+    const system = (index: number) =>
+      (stub.requests[index].messages as Array<{ content: string }>)[0].content
+    expect(system(1)).not.toBe(system(0))
+    expect(system(1)).toContain('Take a screenshot')
   })
 
   it('rebuilds the system message when a tool it lists is no longer offered', async () => {

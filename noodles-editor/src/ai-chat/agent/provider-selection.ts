@@ -64,8 +64,41 @@ export function isOnDevice(providerId: ProviderId): boolean {
 
 // The hosted provider an on-device user could switch to without setting anything
 // up, in the same order resolveProviderId tries them. null when none is ready,
-// which is when the panel offers setup instead of a switch.
+// which is when the panel offers setup instead of a switch. A custom endpoint on
+// this machine or the LAN (LM Studio, llama.cpp) is another local model, not the
+// faster hosted one the notice offers, so it does not count.
 export function readyCloudProvider(credentials: Credentials): ProviderId | null {
   const order: ProviderId[] = ['anthropic', 'openrouter', 'custom']
-  return order.find(id => isProviderReady(id, credentials)) ?? null
+  return (
+    order.find(
+      id =>
+        isProviderReady(id, credentials) &&
+        !(id === 'custom' && isLocalEndpoint(credentials.customEndpoint?.baseUrl))
+    ) ?? null
+  )
+}
+
+// localhost, .local names, and loopback, private and link-local addresses. A URL
+// that does not parse counts as local, since it cannot be shown to be hosted.
+export function isLocalEndpoint(baseUrl: string | undefined): boolean {
+  let host: string
+  try {
+    host = new URL(baseUrl ?? '').hostname.toLowerCase().replace(/^\[|\]$/g, '')
+  } catch {
+    return true
+  }
+  if (host === 'localhost' || host.endsWith('.localhost') || host.endsWith('.local')) return true
+  if (host === '0.0.0.0') return true
+  // IPv6 literals: loopback, unique local (fc00::/7) and link-local (fe80::/10)
+  if (host.includes(':')) return host === '::1' || /^f[cd]/.test(host) || host.startsWith('fe80:')
+  const ipv4 = host.match(/^(\d+)\.(\d+)\.\d+\.\d+$/)
+  if (!ipv4) return false
+  const [a, b] = [Number(ipv4[1]), Number(ipv4[2])]
+  return (
+    a === 127 ||
+    a === 10 ||
+    (a === 192 && b === 168) ||
+    (a === 172 && b >= 16 && b <= 31) ||
+    (a === 169 && b === 254)
+  )
 }
