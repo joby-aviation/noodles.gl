@@ -285,7 +285,11 @@ export interface LayerNode {
 /** A relation read from a file DuckDB can open, or from SQL the host supplies. */
 export interface FileSource {
   /** `csv`, `json` and `parquet` map to DuckDB's `read_*` functions. */
-  format: 'csv' | 'json' | 'parquet';
+  /**
+   * `geojson` reads a table the host created with the file's geometry as vertex rows
+   * (`geojsonTable`); the planner never parses geometry itself.
+   */
+  format: 'csv' | 'json' | 'parquet' | 'geojson';
   url: string;
   /**
    * Named options for the reader, rendered as DuckDB named parameters: a headerless CSV needs

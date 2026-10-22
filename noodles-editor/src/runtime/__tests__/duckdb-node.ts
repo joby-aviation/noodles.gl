@@ -18,6 +18,7 @@ const require = createRequire(import.meta.url)
 interface BlockingConnection {
   query(sql: string): Table
   prepare(sql: string): { query(...binds: unknown[]): Table; close(): void }
+  insertArrowFromIPCStream(buffer: Uint8Array, options: { name: string; create: boolean }): void
 }
 interface BlockingDb {
   instantiate(): Promise<void>
@@ -26,6 +27,8 @@ interface BlockingDb {
 }
 
 export interface NodeDuck extends SqlEngine {
+  /** Create (or replace) a table from an Arrow IPC stream. */
+  insertArrow(name: string, ipc: Uint8Array): Promise<void>
   /** Make `text` readable as a file called `name`, e.g. by `read_csv_auto('name')`. */
   registerText(name: string, text: string): void
   /** Rows of a query as plain objects. */
@@ -104,6 +107,10 @@ export async function openNodeDuck(): Promise<NodeDuck> {
     async release(sql) {
       prepared.get(sql)?.close()
       prepared.delete(sql)
+    },
+    async insertArrow(name, ipc) {
+      conn.query(`DROP TABLE IF EXISTS "${name.replace(/"/g, '""')}"`)
+      conn.insertArrowFromIPCStream(ipc, { name, create: true })
     },
     registerText(name, text) {
       db.registerFileText(name, text)

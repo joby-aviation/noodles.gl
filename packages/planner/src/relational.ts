@@ -15,6 +15,7 @@
  *     full precision; only the final layer query narrows to f32 for the buffer.
  */
 
+import { hashOf } from './hash.js';
 import { type Expr, parseExpr, columnsOf } from './expr.js';
 import { toSql, toSqlColumns, castToDouble, quoteIdent, SqlParams } from './backends/sql.js';
 import { escapeLiteral } from './source.js';
@@ -52,6 +53,22 @@ const NUMERIC = /^(TINYINT|SMALLINT|INTEGER|BIGINT|HUGEINT|UTINYINT|USMALLINT|UI
 const STRING = /^(VARCHAR|TEXT|STRING|CHAR|BPCHAR|ENUM|UUID)/i;
 
 /** Classify a DuckDB type name. */
+/** The vertex-row tables a host loads for a GeoJSON file, one per geometry kind. */
+export const GEOJSON_KINDS = ['polygons', 'lines', 'points'] as const;
+export type GeojsonKind = (typeof GEOJSON_KINDS)[number];
+
+/**
+ * Where a host puts a GeoJSON file's rows of one geometry kind. Keyed by URL, as other file
+ * sources are memoized by URL.
+ *
+ *   polygons  id, feature, ring, vertex, lng, lat, ...properties   (ring 0 is the outline)
+ *   lines     id, feature, vertex, lng, lat, ...properties
+ *   points    id, feature, lng, lat, ...properties
+ */
+export function geojsonTable(url: string, kind: GeojsonKind): string {
+  return `__geojson_${hashOf(url)}_${kind}`;
+}
+
 export function columnTypeOf(duckType: string): ColumnType {
   if (NUMERIC.test(duckType)) return 'num';
   if (STRING.test(duckType)) return 'str';
@@ -119,6 +136,13 @@ export function sourceSql(node: SourceNode): string {
   const file = node.file;
   if (!file) {
     throw new PlanError(`Source ${node.id}: a program source needs 'file' (format and url)`);
+  }
+  if (file.format === 'geojson') {
+    const kind = String(file.options?.geometry ?? 'polygons');
+    if (!GEOJSON_KINDS.includes(kind as GeojsonKind)) {
+      throw new PlanError(`Source ${node.id}: GeoJSON geometry must be one of ${GEOJSON_KINDS.join(', ')}`);
+    }
+    return `SELECT * FROM ${quoteIdent(geojsonTable(file.url, kind as GeojsonKind))}`;
   }
   const reader = file.format === 'csv' ? 'read_csv_auto'
     : file.format === 'json' ? 'read_json_auto'

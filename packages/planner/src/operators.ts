@@ -257,6 +257,25 @@ export const OPERATORS: OpDef[] = [
     },
   },
   {
+    type: 'geojson', label: 'GeoJSON', category: 'data',
+    description: 'A GeoJSON file as vertex rows: polygons (id, ring, vertex), lines (id, vertex) and points, with each feature\'s properties as columns.',
+    inputs: [],
+    outputs: [{ name: 'polygons', type: 'table' }, { name: 'lines', type: 'table' }, { name: 'points', type: 'table' }],
+    params: [{ name: 'url', label: 'URL', kind: 'url', default: '' }],
+    lower(ctx) {
+      const url = ctx.str('url');
+      if (!url) ctx.error('GeoJSON needs a URL');
+      const kinds = ['polygons', 'lines', 'points'] as const;
+      return {
+        nodes: kinds.map((kind) => ({
+          id: `${ctx.id}#${kind}`, type: 'source' as const, dataset: { ref: url },
+          file: { format: 'geojson' as const, url, options: { geometry: kind } },
+        })),
+        outputs: Object.fromEntries(kinds.map((kind) => [kind, `${ctx.id}#${kind}`])),
+      };
+    },
+  },
+  {
     type: 'sql', label: 'DuckDB SQL', category: 'data',
     description: 'Any SELECT. {{input0}}…{{input2}} name the connected tables; other {{name}} are parameters.',
     inputs: [table('in0', 'input0', { optional: true }), table('in1', 'input1', { optional: true }), table('in2', 'input2', { optional: true })],
@@ -768,19 +787,31 @@ export const OPERATORS: OpDef[] = [
       { name: 'ringId', label: 'Ring id', kind: 'column', default: '', of: 'in', folder: 'Channels', help: 'Empty: every polygon is one ring.' },
       { name: 'order', label: 'Vertex order', kind: 'column', default: 'index', of: 'in', folder: 'Channels' },
       channel('color', 'Color', ''),
+      channel('lineColorChannel', 'Outline color', '', 'Per-row outline color in 0–1. Empty uses the constant Outline color.'),
+      channel('elevation', 'Elevation', '', 'Per-row height when extruded. Empty uses 1 × Elevation scale.'),
       rampParam,
+      { name: 'filled', label: 'Fill', kind: 'toggle', default: true, folder: 'Style' },
       { name: 'fillColor', label: 'Fill color', kind: 'color', default: [80, 160, 220], folder: 'Style' },
       { name: 'stroked', label: 'Outline', kind: 'toggle', default: false, folder: 'Style' },
       { name: 'lineColor', label: 'Outline color', kind: 'color', default: [255, 255, 255], folder: 'Style' },
-      { name: 'lineWidthMinPixels', label: 'Outline width (px)', kind: 'float', default: 1, min: 0, max: 20, step: 0.5, bind: 'prop', folder: 'Style' },
+      { name: 'lineWidthScale', label: 'Outline width', kind: 'float', default: 1, min: 0, max: 1000, step: 0.1, bind: 'prop', folder: 'Style' },
+      { name: 'lineWidthUnits', label: 'Outline units', kind: 'menu', default: 'pixels', options: [{ value: 'pixels', label: 'Pixels' }, { value: 'meters', label: 'Metres' }], folder: 'Style' },
+      { name: 'lineWidthMinPixels', label: 'Outline min width (px)', kind: 'float', default: 1, min: 0, max: 20, step: 0.1, bind: 'prop', folder: 'Style' },
+      { name: 'extruded', label: 'Extruded', kind: 'toggle', default: false, folder: 'Style' },
+      { name: 'elevationScale', label: 'Elevation scale', kind: 'float', default: 1, min: 0, max: 10000, step: 1, bind: 'prop', folder: 'Style', port: true },
       opacity,
       blendParam,
     ],
     lower: (ctx) => lowerLayer(ctx, 'polygon',
-      [{ channel: 'position', param: 'position' }, { channel: 'color', param: 'color' }],
+      [
+        { channel: 'position', param: 'position' }, { channel: 'color', param: 'color' },
+        { channel: 'lineColor', param: 'lineColorChannel' }, { channel: 'elevation', param: 'elevation' },
+      ],
       {
-        fillColor: ctx.bindColor('fillColor'), stroked: ctx.bool('stroked'), lineColor: ctx.bindColor('lineColor'),
-        lineWidthMinPixels: ctx.bind('lineWidthMinPixels'), opacity: ctx.bind('opacity'),
+        fillColor: ctx.bindColor('fillColor'), filled: ctx.bool('filled'), stroked: ctx.bool('stroked'),
+        lineColor: ctx.bindColor('lineColor'), lineWidthScale: ctx.bind('lineWidthScale'),
+        lineWidthUnits: ctx.str('lineWidthUnits'), lineWidthMinPixels: ctx.bind('lineWidthMinPixels'),
+        extruded: ctx.bool('extruded'), elevationScale: ctx.bind('elevationScale'), opacity: ctx.bind('opacity'),
       },
       {
         pathId: ctx.str('pathId'),

@@ -59,6 +59,7 @@ const JS_FN: Record<string, (args: string[][], width: number, c: number) => stri
   log10: (a, _w, c) => `Math.log10(${a[0][c]})`,
   log2: (a, _w, c) => `Math.log2(${a[0][c]})`,
   clamp: (a, _w, c) => `Math.min(Math.max(${a[0][c]}, ${a[1][c]}), ${a[2][c]})`,
+  coalesce: (a, _w, c) => `(Number.isNaN(${a[0][c]}) ? ${a[1][c]} : ${a[0][c]})`,
   fit: (a, _w, c) =>
     `(${a[3][c]} + (${a[4][c]} - ${a[3][c]}) * ((${a[0][c]}) - (${a[1][c]})) / ((${a[2][c]}) - (${a[1][c]})))`,
   lerp: (a, _w, c) => `((${a[0][c]}) + ((${a[1][c]}) - (${a[0][c]})) * (${a[2][c]}))`,
