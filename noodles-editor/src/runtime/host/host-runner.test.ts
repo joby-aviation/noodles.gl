@@ -1,5 +1,8 @@
 import type { EditorDoc } from '@noodles.gl/planner'
 import { describe, expect, it } from 'vitest'
+import { DocStore } from '../../editor/doc-store'
+import { opView } from '../../editor/op-view'
+import { setOpResolver } from '../../noodles/op-resolver'
 import { isHostOperator, registerHostOperators } from './host-ops'
 import { HostRunner } from './host-runner'
 
@@ -89,6 +92,31 @@ describe('HostRunner', () => {
     }
     await runner.run(keyed, inputs({ '/bitmap.opacity': 0.5 }))
     expect(runner.output('/bitmap', 'layer')).toMatchObject({ opacity: 0.5 })
+  })
+
+  it("resolves op() in a CodeOp's code against the document", async () => {
+    const code: EditorDoc = {
+      ...doc(1),
+      nodes: [
+        ...doc(1).nodes,
+        {
+          id: '/code',
+          op: 'CodeOp',
+          x: 0,
+          y: 0,
+          params: { code: "return [op('/level').par.value * 4]" },
+        },
+      ],
+    }
+    const store = new DocStore(code)
+    setOpResolver((path, contextId) => opView(store, () => undefined, path, contextId))
+    try {
+      const runner = new HostRunner()
+      await runner.run(code, inputs())
+      expect(runner.output('/code', 'data')).toEqual([1])
+    } finally {
+      setOpResolver(undefined)
+    }
   })
 
   it('reports a failing operator instead of throwing', async () => {

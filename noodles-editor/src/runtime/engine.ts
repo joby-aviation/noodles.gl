@@ -375,6 +375,24 @@ export class Engine {
   }
 
   private readonly rows = new Map<string, Promise<unknown[]>>()
+  private readonly loadedRows = new Map<string, unknown[]>()
+
+  /**
+   * A planner node's rows if they have been read, for code that needs them now (`op()`):
+   * undefined the first time, which starts the read.
+   */
+  peekRows(nodeId: string, port = 'out'): unknown[] | undefined {
+    const ir = this.lowered?.outputs[nodeId]?.[port]
+    const rel = ir ? this.runtime.program()?.relations.find(r => r.id === ir) : undefined
+    if (!rel) return undefined
+    const loaded = this.loadedRows.get(rel.hash)
+    if (loaded) return loaded
+    const pending = this.rowsOf(rel.id)
+    if (pending !== PENDING) {
+      void pending.then(rows => this.loadedRows.set(rel.hash, rows)).catch(() => undefined)
+    }
+    return undefined
+  }
 
   /**
    * A relation's rows for a host operator that needs JS objects. Read once per relation hash,

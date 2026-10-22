@@ -151,7 +151,8 @@ import {
 } from './fields'
 import { DEFAULT_LATITUDE, DEFAULT_LONGITUDE, safeMode } from './globals'
 import { getKeysStore } from './keys-store'
-import { getAllOps, getOp } from './store'
+import { type OpView, resolveOp } from './op-resolver'
+import { getAllOps } from './store'
 import { prepareTableDataForOutput, type TableSchema, validateTableData } from './table-schema'
 import type { ExtensionConstructorArgs, LayerPropsValue } from './types'
 import { composeAccessor, isAccessor } from './utils/accessor-helpers'
@@ -2492,15 +2493,13 @@ export class DuckDbOp extends Operator<DuckDbOp> {
 
         // Resolve reference values
         const positionalParams = references.map(({ opId, inOut, fieldPath }) => {
-          const op = getOp(opId, this.id)
+          const op = resolveOp(opId, this.id)
           const [firstKey, ...rest] = fieldPath.split('.')
-
-          const field = op?.[inOut === 'par' ? 'inputs' : 'outputs']?.[firstKey]
-          if (!field) {
+          const values = op?.[inOut === 'par' ? 'par' : 'out']
+          if (!values || !(firstKey in values)) {
             throw new Error(`Field ${firstKey} not found on ${opId}`)
           }
-
-          return rest.reduce((d, prop) => d[prop], field.value)
+          return rest.reduce((d, prop) => d[prop], values[firstKey] as never)
         })
 
         // Prepare the query with the current connection
@@ -2561,15 +2560,14 @@ export class JSONOp extends Operator<JSONOp> {
     const json = text.replace(mustacheRe, (_, opId: string, inOut: InOut, fieldPath: string) => {
       // If the opId is a relative path (doesn't start with /), make it relative to current context
       const resolvedOpId = opId.startsWith('/') ? opId : `./${opId}`
-      const op = getOp(resolvedOpId, this.id)
+      const op = resolveOp(resolvedOpId, this.id)
       const [fieldName, ...propKeys] = fieldPath.split('.')
-
-      const field = op?.[inOut === 'par' ? 'inputs' : 'outputs']?.[fieldName]
-      if (!field) {
+      const values = op?.[inOut === 'par' ? 'par' : 'out']
+      if (!values || !(fieldName in values)) {
         throw new Error(`Field ${fieldName} not found on ${resolvedOpId}`)
       }
 
-      const val = propKeys.reduce((d, prop) => d[prop], field.value)
+      const val = propKeys.reduce((d, prop) => d[prop], values[fieldName] as never)
       return JSON.stringify(val)
     })
 
@@ -7353,9 +7351,9 @@ export function fnWithSource(args: string[], body: string, id: string): Function
 }
 
 // Creates a safe wrapper around getOp that throws a clear error when operator not found.
-function safeOpGetter(contextOpId: string): (path: string) => Operator<IOperator> {
+function safeOpGetter(contextOpId: string): (path: string) => OpView {
   return (path: string) => {
-    const op = getOp(path, contextOpId)
+    const op = resolveOp(path, contextOpId)
     if (!op) {
       throw new Error(`Operator '${path}' not found`)
     }
