@@ -1,0 +1,897 @@
+/**
+ * The operator library: what an editor offers, and how each operator becomes graph nodes.
+ *
+ * An operator is the thing a person places — "Filter", "Arc Layer" — with typed ports and a
+ * parameter schema. The schema is what an editor builds a parameter pane from (widgets,
+ * folders, ranges, which input a column menu lists); `lower` is how the operator becomes IR.
+ * Operators are deliberately *not* IR node types: several lower to more than one node (a grid
+ * is two attributes and an aggregate), and a layer's channel expressions become a wrangle in
+ * front of it. The IR stays small and the library can grow without the planner noticing.
+ *
+ * How a parameter reaches the plan is the one decision that matters for interactivity, and it
+ * is declared here, per parameter:
+ *
+ *   value       a number that lowers to a `{{placeholder}}` with a ParamSpec. Dragging it
+ *               rebinds — a uniform write, a prepared-statement rebind, a CPU re-evaluation,
+ *               or a rematerialize if a relation reads it — and never replans.
+ *   prop        a number that lowers to a deck layer prop reference. Changing it costs no
+ *               query and no evaluation at all; deck applies it as a uniform.
+ *   structural  substituted into the graph as text. A change recompiles, and memoization
+ *               makes that cost only what actually changed.
+ */
+
+import type { GraphNode, LayerNode, DeckNode } from './types.js';
+import type { LayerKind, LayerPropValue } from './layers.js';
+import type { ParamValue } from './doc.js';
+import type { RampName } from './types.js';
+import { parseGeometry } from './geometry.js';
+
+export type PortType = 'table' | 'layer' | 'number';
+
+export interface PortSpec {
+  name: string;
+  type: PortType;
+  label?: string;
+  /** Takes several edges, in order: a deck's layers, a union's inputs. */
+  multi?: boolean;
+  optional?: boolean;
+}
+
+export type ParamKind =
+  | 'float' | 'int' | 'toggle' | 'menu' | 'string' | 'text' | 'expr' | 'code' | 'column' | 'color' | 'url';
+
+export interface ParamDef {
+  name: string;
+  label: string;
+  kind: ParamKind;
+  default: ParamValue;
+  min?: number;
+  max?: number;
+  step?: number;
+  options?: { value: string; label: string }[];
+  /** Parameter-pane folder, as in Houdini's tabbed parameter interface. */
+  folder?: string;
+  help?: string;
+  /** Column pickers: the input port whose columns are listed. */
+  of?: string;
+  columnType?: 'num' | 'str' | 'any';
+  language?: 'sql' | 'vex' | 'expr' | 'geometry';
+  bind?: 'value' | 'prop' | 'structural';
+  /** Expected changes per second while being dragged; the optimizer's amortization input. */
+  changeRate?: number;
+  /** Offer a `par:<name>` handle so a number output can drive it. */
+  port?: boolean;
+  /** Show only when another parameter has one of these values. */
+  when?: { param: string; is: (string | number | boolean)[] };
+}
+
+export type Category = 'data' | 'table' | 'rows' | 'color' | 'layer' | 'output' | 'number' | 'structure';
+
+export interface LowerCtx {
+  id: string;
+  /** IR id of the node connected to an input port. Throws when a required port is empty. */
+  input(port: string): string;
+  maybeInput(port: string): string | undefined;
+  inputs(port: string): string[];
+  /** Structural reads. An expression or reference in a structural parameter is an error. */
+  str(param: string): string;
+  num(param: string): number;
+  bool(param: string): boolean;
+  /** `{{key}}` for a value or prop parameter. */
+  bind(param: string): string;
+  /** Three `{{key}}` references, 0–255, for a color. */
+  bindColor(param: string): string[];
+  /** Expression text with `ch()` references rewritten to placeholders. */
+  expr(param: string): string;
+  error(message: string): never;
+}
+
+export interface ScalarParams {
+  num(param: string): number;
+  str(param: string): string;
+}
+
+export interface LowerResult {
+  nodes: GraphNode[];
+  /** Output port -> IR node id producing it. */
+  outputs: Record<string, string>;
+}
+
+export interface OpDef {
+  type: string;
+  label: string;
+  category: Category;
+  description: string;
+  inputs: PortSpec[];
+  outputs: PortSpec[];
+  params: ParamDef[];
+  lower?: (ctx: LowerCtx) => LowerResult;
+  /** Scalar operators compute a number from their parameters and the clock. */
+  scalar?: (p: ScalarParams, clock: { T: number; F: number }) => number;
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+const RAMPS: { value: RampName; label: string }[] = [
+  { value: 'viridis', label: 'Viridis' }, { value: 'magma', label: 'Magma' },
+  { value: 'turbo', label: 'Turbo' }, { value: 'cividis', label: 'Cividis' },
+];
+
+const table = (name = 'in', label?: string, extra: Partial<PortSpec> = {}): PortSpec => ({ name, type: 'table', label, ...extra });
+const out = (type: PortType = 'table', name = 'out'): PortSpec => ({ name, type });
+
+/** An identifier safe as an attribute name, derived from a node id. */
+export const safeId = (id: string): string => id.replace(/[^A-Za-z0-9_]/g, '_').replace(/^(\d)/, '_$1');
+
+const BARE = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+const opacity: ParamDef = { name: 'opacity', label: 'Opacity', kind: 'float', default: 1, min: 0, max: 1, step: 0.01, bind: 'prop', folder: 'Style', port: true };
+const rampParam: ParamDef = { name: 'ramp', label: 'Color ramp', kind: 'menu', default: 'viridis', options: RAMPS, folder: 'Channels', help: 'Used by ramp() in any channel expression.' };
+
+interface ChannelParam { channel: string; param: string }
+
+/** Lower Manhattan, as a default any lng/lat data near New York lands partly inside. */
+const DEFAULT_REGION = 'POLYGON((-74.02 40.70, -73.97 40.71, -73.97 40.76, -74.01 40.76, -74.02 40.70))';
+const geometryParam: ParamDef = {
+  name: 'geometry', label: 'Geometry', kind: 'code', language: 'geometry', default: DEFAULT_REGION,
+  help: 'WKT or GeoJSON, lng/lat degrees. Expanded into the expression, so a change replans.',
+};
+
+/**
+ * The geometry parameter as an expression string literal, checked here so a bad ring or a
+ * swapped axis is an error on the node rather than from the planner. Structural: the
+ * literal's vertices become constants in the tree (docs/geometry.md, case 1a).
+ */
+function geometryLiteral(ctx: LowerCtx, dims: number[], what: string): string {
+  const text = ctx.str('geometry');
+  let g;
+  try { g = parseGeometry(text); } catch (err) { ctx.error((err as Error).message); }
+  if (!dims.includes(g.dim)) ctx.error(`${what} needs ${dims.includes(2) ? 'a polygon' : 'a geometry'}, got a ${g.type}`);
+  return `'${text.replace(/'/g, "''")}'`;
+}
+
+/**
+ * A layer: channel expressions, then the layer node. A channel that names an attribute binds
+ * it directly; anything else — `sqrt(mag) * 2`, `ramp(fit(depth, 0, 700, 0, 1))` — becomes one
+ * statement of a wrangle in front of the layer, so the planner places it like any attribute.
+ */
+function lowerLayer(
+  ctx: LowerCtx,
+  kind: LayerKind,
+  channels: ChannelParam[],
+  props: Record<string, LayerPropValue>,
+  extra: Partial<LayerNode> = {},
+): LowerResult {
+  const base = ctx.input('in');
+  const bound: Record<string, string> = {};
+  const lines: string[] = [];
+  for (const { channel, param } of channels) {
+    const text = ctx.expr(param).trim();
+    if (!text) continue;
+    if (BARE.test(text)) { bound[channel] = text; continue; }
+    const name = `${safeId(ctx.id)}_${channel}`;
+    lines.push(`@${name} = ${text};`);
+    bound[channel] = name;
+  }
+  const nodes: GraphNode[] = [];
+  let input = base;
+  if (lines.length) {
+    const wid = `${ctx.id}__ch`;
+    nodes.push({ id: wid, type: 'wrangle', input: base, body: lines.join('\n'), ramp: ctx.str('ramp') as RampName });
+    input = wid;
+  }
+  nodes.push({ id: ctx.id, type: 'layer', kind, input, channels: bound, props, ...extra });
+  return { nodes, outputs: { out: ctx.id } };
+}
+
+const channel = (name: string, label: string, def: string, help?: string): ParamDef =>
+  ({ name, label, kind: 'expr', default: def, folder: 'Channels', of: 'in', help });
+
+// ---------------------------------------------------------------------------
+// The catalog
+// ---------------------------------------------------------------------------
+
+export const OPERATORS: OpDef[] = [
+  // --- data -----------------------------------------------------------------
+  {
+    type: 'file', label: 'File', category: 'data',
+    description: 'Read a CSV, JSON or Parquet file by URL. The relation is memoized: it is fetched once.',
+    inputs: [], outputs: [out()],
+    params: [
+      { name: 'url', label: 'URL', kind: 'url', default: '' },
+      { name: 'format', label: 'Format', kind: 'menu', default: 'csv', options: [
+        { value: 'csv', label: 'CSV' }, { value: 'json', label: 'JSON' }, { value: 'parquet', label: 'Parquet' },
+      ] },
+      { name: 'header', label: 'Header row', kind: 'toggle', default: true, when: { param: 'format', is: ['csv'] }, folder: 'CSV' },
+      { name: 'names', label: 'Column names', kind: 'string', default: '', when: { param: 'format', is: ['csv'] }, folder: 'CSV', help: 'Comma-separated, for a file without a header row.' },
+      { name: 'nullstr', label: 'Null marker', kind: 'string', default: '', when: { param: 'format', is: ['csv'] }, folder: 'CSV', help: 'Text that means "no value", such as \\N.' },
+    ],
+    lower(ctx) {
+      const url = ctx.str('url');
+      if (!url) ctx.error('File needs a URL');
+      const format = ctx.str('format') as 'csv' | 'json' | 'parquet';
+      const options: Record<string, string | number | boolean | string[]> = {};
+      if (format === 'csv') {
+        options.header = ctx.bool('header');
+        const names = ctx.str('names').split(',').map((s) => s.trim()).filter(Boolean);
+        if (names.length) options.names = names;
+        const nullstr = ctx.str('nullstr');
+        if (nullstr) options.nullstr = nullstr;
+      }
+      return {
+        nodes: [{ id: ctx.id, type: 'source', dataset: { ref: url }, file: { format, url, options } }],
+        outputs: { out: ctx.id },
+      };
+    },
+  },
+  {
+    type: 'sql', label: 'DuckDB SQL', category: 'data',
+    description: 'Any SELECT. {{input0}}…{{input2}} name the connected tables; other {{name}} are parameters.',
+    inputs: [table('in0', 'input0', { optional: true }), table('in1', 'input1', { optional: true }), table('in2', 'input2', { optional: true })],
+    outputs: [out()],
+    params: [{ name: 'query', label: 'Query', kind: 'code', language: 'sql', default: 'SELECT * FROM {{input0}}' }],
+    lower(ctx) {
+      const inputs = ['in0', 'in1', 'in2'].map((p) => ctx.maybeInput(p));
+      const firstGap = inputs.findIndex((i) => i === undefined);
+      if (firstGap >= 0 && inputs.slice(firstGap).some((i) => i !== undefined)) ctx.error('Connect inputs in order: input0, then input1');
+      return {
+        nodes: [{ id: ctx.id, type: 'sql', inputs: inputs.filter((i): i is string => !!i), query: ctx.expr('query') }],
+        outputs: { out: ctx.id },
+      };
+    },
+  },
+  {
+    type: 'generate', label: 'Generate', category: 'data',
+    description: 'N rows numbered 0…N−1. Cross-join it to give every row N steps.',
+    inputs: [], outputs: [out()],
+    params: [
+      { name: 'count', label: 'Count', kind: 'int', default: 16, min: 1, max: 1000, step: 1, changeRate: 0.5 },
+      { name: 'name', label: 'Column', kind: 'string', default: 'i' },
+    ],
+    lower: (ctx) => ({
+      nodes: [{ id: ctx.id, type: 'generate', count: ctx.bind('count'), name: ctx.str('name') || 'i' }],
+      outputs: { out: ctx.id },
+    }),
+  },
+
+  // --- table ----------------------------------------------------------------
+  {
+    type: 'join', label: 'Join', category: 'table',
+    description: 'Match rows of two tables on key columns. Right-hand columns get the prefix.',
+    inputs: [table('left', 'left'), table('right', 'right')], outputs: [out()],
+    params: [
+      { name: 'how', label: 'Kind', kind: 'menu', default: 'inner', options: [
+        { value: 'inner', label: 'Inner' }, { value: 'left', label: 'Left' }, { value: 'cross', label: 'Cross (every pair)' },
+      ] },
+      { name: 'leftKey', label: 'Left key', kind: 'column', default: '', of: 'left', when: { param: 'how', is: ['inner', 'left'] } },
+      { name: 'rightKey', label: 'Right key', kind: 'column', default: '', of: 'right', when: { param: 'how', is: ['inner', 'left'] } },
+      { name: 'leftKey2', label: 'Left key 2', kind: 'column', default: '', of: 'left', when: { param: 'how', is: ['inner', 'left'] }, folder: 'More keys' },
+      { name: 'rightKey2', label: 'Right key 2', kind: 'column', default: '', of: 'right', when: { param: 'how', is: ['inner', 'left'] }, folder: 'More keys' },
+      { name: 'prefix', label: 'Right prefix', kind: 'string', default: 'r_' },
+    ],
+    lower(ctx) {
+      const how = ctx.str('how') as 'inner' | 'left' | 'cross';
+      const on: [string, string][] = [];
+      if (how !== 'cross') {
+        if (!ctx.str('leftKey') || !ctx.str('rightKey')) ctx.error('Join needs a left and a right key');
+        on.push([ctx.str('leftKey'), ctx.str('rightKey')]);
+        if (ctx.str('leftKey2') && ctx.str('rightKey2')) on.push([ctx.str('leftKey2'), ctx.str('rightKey2')]);
+      }
+      return {
+        nodes: [{ id: ctx.id, type: 'join', input: ctx.input('left'), right: ctx.input('right'), how, on, prefix: ctx.str('prefix') }],
+        outputs: { out: ctx.id },
+      };
+    },
+  },
+  {
+    type: 'union', label: 'Union', category: 'table',
+    description: 'All rows of every input, columns matched by name.',
+    inputs: [table('in', 'inputs', { multi: true })], outputs: [out()],
+    params: [{ name: 'distinct', label: 'Drop duplicates', kind: 'toggle', default: false }],
+    lower: (ctx) => ({
+      nodes: [{ id: ctx.id, type: 'union', inputs: ctx.inputs('in'), distinct: ctx.bool('distinct') }],
+      outputs: { out: ctx.id },
+    }),
+  },
+  {
+    type: 'sort', label: 'Sort', category: 'table',
+    description: 'Order rows by a column; with a limit, keep the top N.',
+    inputs: [table()], outputs: [out()],
+    params: [
+      { name: 'by', label: 'Column', kind: 'column', default: '', of: 'in' },
+      { name: 'descending', label: 'Descending', kind: 'toggle', default: false },
+      { name: 'limit', label: 'Limit (0 = all)', kind: 'int', default: 0, min: 0, max: 100000, step: 1, bind: 'structural' },
+    ],
+    lower(ctx) {
+      const by = ctx.str('by');
+      if (!by) ctx.error('Sort needs a column');
+      const limit = ctx.num('limit');
+      return {
+        nodes: [{ id: ctx.id, type: 'sort', input: ctx.input('in'), by: [`${by}${ctx.bool('descending') ? ' desc' : ''}`], limit: limit > 0 ? limit : undefined }],
+        outputs: { out: ctx.id },
+      };
+    },
+  },
+  {
+    type: 'limit', label: 'Limit', category: 'table',
+    description: 'The first N rows.',
+    inputs: [table()], outputs: [out()],
+    params: [
+      { name: 'count', label: 'Count', kind: 'int', default: 1000, min: 0, max: 1_000_000, step: 1, bind: 'structural' },
+      { name: 'offset', label: 'Offset', kind: 'int', default: 0, min: 0, max: 1_000_000, step: 1, bind: 'structural' },
+    ],
+    lower: (ctx) => ({
+      nodes: [{ id: ctx.id, type: 'limit', input: ctx.input('in'), count: ctx.num('count'), offset: ctx.num('offset') }],
+      outputs: { out: ctx.id },
+    }),
+  },
+  {
+    type: 'unnest', label: 'Unnest', category: 'table',
+    description: 'List columns to rows, in lockstep. Numbers each source row and each position, which is what a path layer groups and orders by.',
+    inputs: [table()], outputs: [out()],
+    params: [
+      { name: 'lists', label: 'List columns', kind: 'string', default: 'path, timestamps', help: 'Comma-separated; unnested together.' },
+      { name: 'split', label: 'Split', kind: 'string', default: 'path: lng lat', help: 'list: a b … names the components of a list of lists.' },
+      { name: 'rename', label: 'Rename', kind: 'string', default: 'timestamps: t', help: 'list: name, comma-separated.' },
+      { name: 'rowId', label: 'Row id column', kind: 'string', default: 'row', folder: 'Numbering' },
+      { name: 'index', label: 'Position column', kind: 'string', default: 'index', folder: 'Numbering' },
+    ],
+    lower(ctx) {
+      const lists = ctx.str('lists').split(',').map((s) => s.trim()).filter(Boolean);
+      const pairs = (text: string) => Object.fromEntries(text.split(',').map((s) => s.trim()).filter(Boolean).map((s) => {
+        const [k, v = ''] = s.split(':').map((x) => x.trim());
+        return [k, v];
+      }));
+      const split = Object.fromEntries(Object.entries(pairs(ctx.str('split'))).map(([k, v]) => [k, v.split(/\s+/).filter(Boolean)]));
+      return {
+        nodes: [{
+          id: ctx.id, type: 'unnest', input: ctx.input('in'), lists, split, as: pairs(ctx.str('rename')),
+          rowId: ctx.str('rowId') || 'row', index: ctx.str('index') || 'index',
+        }],
+        outputs: { out: ctx.id },
+      };
+    },
+  },
+  {
+    type: 'aggregate', label: 'Aggregate', category: 'table',
+    description: 'GROUP BY with aggregates, one per line: name = count(), total = sum(pop).',
+    inputs: [table()], outputs: [out()],
+    params: [
+      { name: 'groupBy', label: 'Group by', kind: 'string', default: '', help: 'Comma-separated columns.' },
+      { name: 'aggs', label: 'Aggregates', kind: 'code', language: 'expr', default: 'n = count()' },
+    ],
+    lower(ctx) {
+      const groupBy = ctx.str('groupBy').split(',').map((s) => s.trim()).filter(Boolean);
+      const aggs = ctx.expr('aggs').split(/[;\n]/).map((s) => s.trim()).filter(Boolean).map((line) => {
+        const m = /^([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.+)$/.exec(line);
+        if (!m) ctx.error(`Aggregate line '${line}' is not 'name = expression'`);
+        return { name: m![1], expr: m![2] };
+      });
+      if (!groupBy.length) ctx.error('Aggregate needs at least one group-by column');
+      return { nodes: [{ id: ctx.id, type: 'aggregate', input: ctx.input('in'), groupBy, aggs }], outputs: { out: ctx.id } };
+    },
+  },
+  {
+    type: 'grid', label: 'Grid Bin', category: 'table',
+    description: 'Count rows per square cell and emit one row per cell at its centre (P), with n and the weight sum w.',
+    inputs: [table()], outputs: [out()],
+    params: [
+      { name: 'x', label: 'X', kind: 'expr', default: 'lng', of: 'in' },
+      { name: 'y', label: 'Y', kind: 'expr', default: 'lat', of: 'in' },
+      { name: 'cell', label: 'Cell size', kind: 'float', default: 0.01, min: 0.0005, max: 1, step: 0.0005, changeRate: 2 },
+      { name: 'weight', label: 'Weight', kind: 'expr', default: '1.0', of: 'in' },
+    ],
+    lower(ctx) {
+      const id = ctx.id;
+      const cell = ctx.bind('cell');
+      const x = ctx.expr('x');
+      const y = ctx.expr('y');
+      const w = ctx.expr('weight') || '1.0';
+      return {
+        nodes: [
+          { id: `${id}__ix`, type: 'attribute', input: ctx.input('in'), name: 'ix', expr: `floor((${x}) / ${cell})` },
+          { id: `${id}__iy`, type: 'attribute', input: `${id}__ix`, name: 'iy', expr: `floor((${y}) / ${cell})` },
+          { id: `${id}__w`, type: 'attribute', input: `${id}__iy`, name: 'cellw', expr: w },
+          { id: `${id}__agg`, type: 'aggregate', input: `${id}__w`, groupBy: ['ix', 'iy'], aggs: [{ name: 'n', expr: 'count()' }, { name: 'w', expr: 'sum(cellw)' }] },
+          { id, type: 'attribute', input: `${id}__agg`, name: 'P', expr: `[(ix + 0.5) * ${cell}, (iy + 0.5) * ${cell}, 0.0]` },
+        ],
+        outputs: { out: id },
+      };
+    },
+  },
+
+  // --- rows -----------------------------------------------------------------
+  {
+    type: 'filter', label: 'Filter', category: 'rows',
+    description: 'Keep rows matching a condition. The planner puts it in SQL when that removes real volume.',
+    inputs: [table()], outputs: [out()],
+    params: [
+      { name: 'mode', label: 'Mode', kind: 'menu', default: 'compare', options: [
+        { value: 'compare', label: 'Compare a number' }, { value: 'match', label: 'Match text' }, { value: 'expression', label: 'Expression' },
+      ] },
+      { name: 'column', label: 'Column', kind: 'column', default: '', of: 'in', when: { param: 'mode', is: ['compare', 'match'] } },
+      { name: 'op', label: 'Operator', kind: 'menu', default: '>', when: { param: 'mode', is: ['compare'] }, options: [
+        { value: '>', label: '>' }, { value: '>=', label: '≥' }, { value: '<', label: '<' }, { value: '<=', label: '≤' }, { value: '==', label: '=' }, { value: '!=', label: '≠' },
+      ] },
+      { name: 'value', label: 'Value', kind: 'float', default: 0, min: -1000, max: 1000, step: 0.1, when: { param: 'mode', is: ['compare'] }, changeRate: 4, port: true },
+      { name: 'text', label: 'Text', kind: 'text', default: '', when: { param: 'mode', is: ['match'] } },
+      { name: 'negate', label: 'Invert', kind: 'toggle', default: false, when: { param: 'mode', is: ['match'] } },
+      { name: 'expression', label: 'Expression', kind: 'expr', default: 'true', of: 'in', when: { param: 'mode', is: ['expression'] } },
+    ],
+    lower(ctx) {
+      const mode = ctx.str('mode');
+      let predicate: string;
+      if (mode === 'expression') predicate = ctx.expr('expression');
+      else {
+        const col = ctx.str('column');
+        if (!col) ctx.error('Filter needs a column');
+        predicate = mode === 'match'
+          ? `${col} ${ctx.bool('negate') ? '!=' : '=='} ${ctx.bind('text')}`
+          : `${col} ${ctx.str('op')} ${ctx.bind('value')}`;
+      }
+      return { nodes: [{ id: ctx.id, type: 'filter', input: ctx.input('in'), predicate }], outputs: { out: ctx.id } };
+    },
+  },
+  {
+    type: 'range', label: 'Range Filter', category: 'rows',
+    description: 'Keep rows whose column lies between two values.',
+    inputs: [table()], outputs: [out()],
+    params: [
+      { name: 'column', label: 'Column', kind: 'column', default: '', of: 'in', columnType: 'num' },
+      { name: 'min', label: 'Min', kind: 'float', default: 0, min: -1000, max: 1000, step: 0.1, changeRate: 4, port: true },
+      { name: 'max', label: 'Max', kind: 'float', default: 100, min: -1000, max: 1000, step: 0.1, changeRate: 4, port: true },
+    ],
+    lower(ctx) {
+      const col = ctx.str('column');
+      if (!col) ctx.error('Range Filter needs a column');
+      return {
+        nodes: [{ id: ctx.id, type: 'filter', input: ctx.input('in'), predicate: `${col} >= ${ctx.bind('min')} && ${col} <= ${ctx.bind('max')}` }],
+        outputs: { out: ctx.id },
+      };
+    },
+  },
+  {
+    type: 'attribute', label: 'Attribute Create', category: 'rows',
+    description: 'Create or overwrite one attribute from an expression.',
+    inputs: [table()], outputs: [out()],
+    params: [
+      { name: 'name', label: 'Name', kind: 'string', default: 'value' },
+      { name: 'expression', label: 'Expression', kind: 'expr', default: '0.0', of: 'in' },
+    ],
+    lower(ctx) {
+      const name = ctx.str('name');
+      if (!BARE.test(name)) ctx.error(`'${name}' is not a valid attribute name`);
+      return { nodes: [{ id: ctx.id, type: 'attribute', input: ctx.input('in'), name, expr: ctx.expr('expression') }], outputs: { out: ctx.id } };
+    },
+  },
+  {
+    type: 'wrangle', label: 'Attribute Wrangle', category: 'rows',
+    description: 'A VEX-style body: @name = expr; var t = expr; fn f(x) = expr;. Each statement is placed on its own.',
+    inputs: [table()], outputs: [out()],
+    params: [
+      { name: 'code', label: 'VEXpression', kind: 'code', language: 'vex', default: '@value = 1.0;' },
+      rampParam,
+    ],
+    lower: (ctx) => ({
+      nodes: [{ id: ctx.id, type: 'wrangle', input: ctx.input('in'), body: ctx.expr('code'), ramp: ctx.str('ramp') as RampName }],
+      outputs: { out: ctx.id },
+    }),
+  },
+  {
+    type: 'position', label: 'Point Position', category: 'rows',
+    description: 'Build the position attribute P from longitude, latitude and altitude.',
+    inputs: [table()], outputs: [out()],
+    params: [
+      { name: 'lng', label: 'Longitude', kind: 'expr', default: 'lng', of: 'in' },
+      { name: 'lat', label: 'Latitude', kind: 'expr', default: 'lat', of: 'in' },
+      { name: 'alt', label: 'Altitude (m)', kind: 'expr', default: '0.0', of: 'in' },
+      { name: 'name', label: 'Attribute', kind: 'string', default: 'P' },
+    ],
+    lower: (ctx) => ({
+      nodes: [{
+        id: ctx.id, type: 'attribute', input: ctx.input('in'), name: ctx.str('name') || 'P',
+        expr: `[${ctx.expr('lng')}, ${ctx.expr('lat')}, ${ctx.expr('alt') || '0.0'}]`,
+      }],
+      outputs: { out: ctx.id },
+    }),
+  },
+  {
+    type: 'map-range', label: 'Map Range', category: 'rows',
+    description: 'Rescale a value from one range to another, linearly, on a log scale or a square root.',
+    inputs: [table()], outputs: [out()],
+    params: [
+      { name: 'input', label: 'Input', kind: 'expr', default: 'value', of: 'in' },
+      { name: 'name', label: 'Output', kind: 'string', default: 'pscale' },
+      { name: 'kind', label: 'Scale', kind: 'menu', default: 'linear', options: [
+        { value: 'linear', label: 'Linear' }, { value: 'log', label: 'Log' }, { value: 'sqrt', label: 'Square root' },
+      ] },
+      { name: 'inMin', label: 'In min', kind: 'float', default: 0, min: -1000, max: 1000, step: 0.1, folder: 'Ranges', port: true },
+      { name: 'inMax', label: 'In max', kind: 'float', default: 1, min: -1000, max: 1000, step: 0.1, folder: 'Ranges', port: true },
+      { name: 'outMin', label: 'Out min', kind: 'float', default: 0, min: -1000, max: 1000, step: 0.1, folder: 'Ranges', port: true },
+      { name: 'outMax', label: 'Out max', kind: 'float', default: 1, min: -1000, max: 1000, step: 0.1, folder: 'Ranges', port: true },
+      { name: 'clamp', label: 'Clamp', kind: 'toggle', default: true },
+    ],
+    lower: (ctx) => ({
+      nodes: [{
+        id: ctx.id, type: 'scale', input: ctx.input('in'), name: ctx.str('name'), expr: ctx.expr('input'),
+        kind: ctx.str('kind') as 'linear' | 'log' | 'sqrt',
+        domain: [ctx.bind('inMin'), ctx.bind('inMax')], range: [ctx.bind('outMin'), ctx.bind('outMax')], clamp: ctx.bool('clamp'),
+      }],
+      outputs: { out: ctx.id },
+    }),
+  },
+  {
+    type: 'color-ramp', label: 'Color Ramp', category: 'color',
+    description: 'Map a value through a color ramp into an RGB attribute.',
+    inputs: [table()], outputs: [out()],
+    params: [
+      { name: 'input', label: 'Input', kind: 'expr', default: 'value', of: 'in' },
+      { name: 'ramp', label: 'Ramp', kind: 'menu', default: 'viridis', options: RAMPS },
+      { name: 'min', label: 'Min', kind: 'float', default: 0, min: -1000, max: 1000, step: 0.1, port: true },
+      { name: 'max', label: 'Max', kind: 'float', default: 1, min: -1000, max: 1000, step: 0.1, port: true },
+      { name: 'name', label: 'Output', kind: 'string', default: 'Cd' },
+    ],
+    lower: (ctx) => ({
+      nodes: [{
+        id: ctx.id, type: 'colorscale', input: ctx.input('in'), expr: ctx.expr('input'),
+        ramp: ctx.str('ramp') as RampName, domain: [ctx.bind('min'), ctx.bind('max')], name: ctx.str('name') || 'Cd',
+      }],
+      outputs: { out: ctx.id },
+    }),
+  },
+  {
+    type: 'distance', label: 'Distance', category: 'rows',
+    description: 'Great-circle distance in km between two lng/lat points (haversine).',
+    inputs: [table()], outputs: [out()],
+    params: [
+      { name: 'lng1', label: 'From lng', kind: 'expr', default: 'lng', of: 'in' },
+      { name: 'lat1', label: 'From lat', kind: 'expr', default: 'lat', of: 'in' },
+      { name: 'lng2', label: 'To lng', kind: 'expr', default: 'r_lng', of: 'in' },
+      { name: 'lat2', label: 'To lat', kind: 'expr', default: 'r_lat', of: 'in' },
+      { name: 'name', label: 'Output', kind: 'string', default: 'km' },
+    ],
+    lower(ctx) {
+      const [x1, y1, x2, y2] = ['lng1', 'lat1', 'lng2', 'lat2'].map((p) => `(${ctx.expr(p)})`);
+      // The geo prelude's `distance` (geo.ts). This used to be spelled out here with
+      // `pow(sin(Δ), 2.0)`, which WGSL leaves undefined for a negative base — half of all
+      // point pairs — and with a 6371 km radius where turf and DuckDB use 6371.0088.
+      const km = `distance([${x1}, ${y1}], [${x2}, ${y2}])`;
+      return { nodes: [{ id: ctx.id, type: 'attribute', input: ctx.input('in'), name: ctx.str('name') || 'km', expr: km }], outputs: { out: ctx.id } };
+    },
+  },
+  {
+    type: 'region', label: 'Region Filter', category: 'rows',
+    description: 'Keep rows inside, outside or near a polygon. Runs in SQL, on the GPU or the CPU, wherever the planner puts it.',
+    inputs: [table()], outputs: [out()],
+    params: [
+      { name: 'mode', label: 'Keep', kind: 'menu', default: 'inside', options: [
+        { value: 'inside', label: 'Inside' }, { value: 'outside', label: 'Outside' }, { value: 'near', label: 'Within a distance' },
+      ] },
+      geometryParam,
+      { name: 'metres', label: 'Distance (m)', kind: 'float', default: 500, min: 0, max: 50000, step: 10, when: { param: 'mode', is: ['near'] }, changeRate: 4, port: true },
+      { name: 'lng', label: 'Longitude', kind: 'expr', default: 'lng', of: 'in', folder: 'Point' },
+      { name: 'lat', label: 'Latitude', kind: 'expr', default: 'lat', of: 'in', folder: 'Point' },
+    ],
+    lower(ctx) {
+      const mode = ctx.str('mode');
+      // Near is measured to any geometry; inside and outside need an area.
+      const g = geometryLiteral(ctx, mode === 'near' ? [0, 1, 2] : [2], 'Region Filter');
+      const p = `[(${ctx.expr('lng')}), (${ctx.expr('lat')})]`;
+      const predicate = mode === 'near' ? `st_dwithin(${g}, ${p}, ${ctx.bind('metres')})`
+        : mode === 'outside' ? `!st_intersects(${g}, ${p})` : `st_intersects(${g}, ${p})`;
+      return { nodes: [{ id: ctx.id, type: 'filter', input: ctx.input('in'), predicate }], outputs: { out: ctx.id } };
+    },
+  },
+  {
+    type: 'geo-distance', label: 'Distance to Geometry', category: 'rows',
+    description: 'Distance from each row\'s point to a line, polygon or set of points: zero inside a polygon.',
+    inputs: [table()], outputs: [out()],
+    params: [
+      { ...geometryParam, default: 'LINESTRING(-74.02 40.70, -73.99 40.73, -73.97 40.76)' },
+      { name: 'units', label: 'Units', kind: 'menu', default: 'm', options: [{ value: 'm', label: 'Metres' }, { value: 'km', label: 'Kilometres' }] },
+      { name: 'name', label: 'Output', kind: 'string', default: 'dist' },
+      { name: 'lng', label: 'Longitude', kind: 'expr', default: 'lng', of: 'in', folder: 'Point' },
+      { name: 'lat', label: 'Latitude', kind: 'expr', default: 'lat', of: 'in', folder: 'Point' },
+    ],
+    lower(ctx) {
+      const name = ctx.str('name') || 'dist';
+      if (!BARE.test(name)) ctx.error(`'${name}' is not a valid attribute name`);
+      const metres = `st_distance(${geometryLiteral(ctx, [0, 1, 2], 'Distance to Geometry')}, [(${ctx.expr('lng')}), (${ctx.expr('lat')})])`;
+      const expr = ctx.str('units') === 'km' ? `${metres} / 1000.0` : metres;
+      return { nodes: [{ id: ctx.id, type: 'attribute', input: ctx.input('in'), name, expr }], outputs: { out: ctx.id } };
+    },
+  },
+
+  // --- layers ---------------------------------------------------------------
+  {
+    type: 'scatter', label: 'Scatterplot Layer', category: 'layer',
+    description: 'A circle per row.',
+    inputs: [table()], outputs: [out('layer')],
+    params: [
+      channel('position', 'Position', 'P', '[lng, lat] or [lng, lat, metres], or an attribute holding one.'),
+      channel('color', 'Color', '', 'An RGB attribute or expression in 0–1, e.g. ramp(fit(mag, 0, 7, 0, 1)). Empty uses Fill color.'),
+      channel('radius', 'Radius', '', 'Per-row radius. Empty uses 1 × Radius scale.'),
+      rampParam,
+      { name: 'radiusScale', label: 'Radius scale', kind: 'float', default: 4, min: 0, max: 100, step: 0.1, bind: 'prop', folder: 'Style', port: true },
+      { name: 'radiusUnits', label: 'Units', kind: 'menu', default: 'pixels', options: [{ value: 'pixels', label: 'Pixels' }, { value: 'meters', label: 'Metres' }], folder: 'Style' },
+      { name: 'fillColor', label: 'Fill color', kind: 'color', default: [255, 140, 0], folder: 'Style' },
+      opacity,
+    ],
+    lower: (ctx) => lowerLayer(ctx, 'scatter',
+      [{ channel: 'position', param: 'position' }, { channel: 'color', param: 'color' }, { channel: 'radius', param: 'radius' }],
+      { radiusScale: ctx.bind('radiusScale'), radiusUnits: ctx.str('radiusUnits'), fillColor: ctx.bindColor('fillColor'), opacity: ctx.bind('opacity') }),
+  },
+  {
+    type: 'arc', label: 'Arc Layer', category: 'layer',
+    description: 'An arc per row between two positions.',
+    inputs: [table()], outputs: [out('layer')],
+    params: [
+      channel('source', 'Source position', '[lng, lat]'),
+      channel('target', 'Target position', '[r_lng, r_lat]'),
+      channel('sourceColor', 'Source color', ''),
+      channel('targetColor', 'Target color', ''),
+      channel('width', 'Width', ''),
+      rampParam,
+      { name: 'widthScale', label: 'Width scale', kind: 'float', default: 1.5, min: 0, max: 20, step: 0.1, bind: 'prop', folder: 'Style', port: true },
+      { name: 'height', label: 'Height', kind: 'float', default: 1, min: 0, max: 5, step: 0.05, bind: 'prop', folder: 'Style', port: true },
+      { name: 'greatCircle', label: 'Great circle', kind: 'toggle', default: false, folder: 'Style' },
+      { name: 'fromColor', label: 'From color', kind: 'color', default: [0, 180, 255], folder: 'Style' },
+      { name: 'toColor', label: 'To color', kind: 'color', default: [255, 60, 120], folder: 'Style' },
+      opacity,
+    ],
+    lower: (ctx) => lowerLayer(ctx, 'arc',
+      [
+        { channel: 'sourcePosition', param: 'source' }, { channel: 'targetPosition', param: 'target' },
+        { channel: 'sourceColor', param: 'sourceColor' }, { channel: 'targetColor', param: 'targetColor' },
+        { channel: 'width', param: 'width' },
+      ],
+      {
+        widthScale: ctx.bind('widthScale'), height: ctx.bind('height'), greatCircle: ctx.bool('greatCircle'),
+        sourceColor: ctx.bindColor('fromColor'), targetColor: ctx.bindColor('toColor'), opacity: ctx.bind('opacity'),
+      }),
+  },
+  {
+    type: 'path', label: 'Path Layer', category: 'layer',
+    description: 'Rows are vertices: grouped into paths by an id column, ordered by another.',
+    inputs: [table()], outputs: [out('layer')],
+    params: [
+      channel('position', 'Position', 'P'),
+      { name: 'pathId', label: 'Path id', kind: 'column', default: 'row', of: 'in', folder: 'Channels' },
+      { name: 'order', label: 'Vertex order', kind: 'column', default: 'index', of: 'in', folder: 'Channels' },
+      channel('color', 'Color', ''),
+      channel('width', 'Width', ''),
+      rampParam,
+      { name: 'widthScale', label: 'Width scale', kind: 'float', default: 2, min: 0, max: 50, step: 0.1, bind: 'prop', folder: 'Style', port: true },
+      { name: 'widthMinPixels', label: 'Min width (px)', kind: 'float', default: 1, min: 0, max: 20, step: 0.5, bind: 'prop', folder: 'Style' },
+      { name: 'lineColor', label: 'Line color', kind: 'color', default: [120, 200, 255], folder: 'Style' },
+      opacity,
+    ],
+    lower: (ctx) => lowerLayer(ctx, 'path',
+      [{ channel: 'position', param: 'position' }, { channel: 'color', param: 'color' }, { channel: 'width', param: 'width' }],
+      { widthScale: ctx.bind('widthScale'), widthMinPixels: ctx.bind('widthMinPixels'), color: ctx.bindColor('lineColor'), opacity: ctx.bind('opacity') },
+      { pathId: ctx.str('pathId'), orderBy: [ctx.str('order')].filter(Boolean) }),
+  },
+  {
+    type: 'trips', label: 'Trips Layer', category: 'layer',
+    description: 'Animated trails: vertex rows with a timestamp each. Current time is a deck prop, so playing costs no queries.',
+    inputs: [table()], outputs: [out('layer')],
+    params: [
+      channel('position', 'Position', 'P'),
+      channel('timestamp', 'Timestamp', 't'),
+      { name: 'pathId', label: 'Path id', kind: 'column', default: 'row', of: 'in', folder: 'Channels' },
+      { name: 'order', label: 'Vertex order', kind: 'column', default: 'index', of: 'in', folder: 'Channels' },
+      channel('color', 'Color', ''),
+      rampParam,
+      { name: 'currentTime', label: 'Current time', kind: 'float', default: 0, min: 0, max: 86400, step: 1, bind: 'prop', folder: 'Animation', port: true },
+      { name: 'trailLength', label: 'Trail length', kind: 'float', default: 180, min: 1, max: 20000, step: 1, bind: 'prop', folder: 'Animation', port: true },
+      { name: 'widthMinPixels', label: 'Width (px)', kind: 'float', default: 2, min: 0, max: 20, step: 0.5, bind: 'prop', folder: 'Style' },
+      { name: 'lineColor', label: 'Trail color', kind: 'color', default: [253, 128, 93], folder: 'Style' },
+      opacity,
+    ],
+    lower: (ctx) => lowerLayer(ctx, 'trips',
+      [{ channel: 'position', param: 'position' }, { channel: 'timestamp', param: 'timestamp' }, { channel: 'color', param: 'color' }],
+      {
+        currentTime: ctx.bind('currentTime'), trailLength: ctx.bind('trailLength'),
+        widthMinPixels: ctx.bind('widthMinPixels'), color: ctx.bindColor('lineColor'), opacity: ctx.bind('opacity'),
+      },
+      { pathId: ctx.str('pathId'), orderBy: [ctx.str('order')].filter(Boolean) }),
+  },
+  {
+    type: 'column', label: 'Column Layer', category: 'layer',
+    description: 'An extruded column per row: bars on a map.',
+    inputs: [table()], outputs: [out('layer')],
+    params: [
+      channel('position', 'Position', 'P'),
+      channel('elevation', 'Elevation', 'n'),
+      channel('color', 'Color', ''),
+      rampParam,
+      { name: 'radius', label: 'Radius (m)', kind: 'float', default: 250, min: 1, max: 50000, step: 1, bind: 'prop', folder: 'Style', port: true },
+      { name: 'elevationScale', label: 'Elevation scale', kind: 'float', default: 20, min: 0, max: 5000, step: 1, bind: 'prop', folder: 'Style', port: true },
+      { name: 'columnColor', label: 'Column color', kind: 'color', default: [255, 170, 60], folder: 'Style' },
+      opacity,
+    ],
+    lower: (ctx) => lowerLayer(ctx, 'column',
+      [{ channel: 'position', param: 'position' }, { channel: 'elevation', param: 'elevation' }, { channel: 'color', param: 'color' }],
+      { radius: ctx.bind('radius'), elevationScale: ctx.bind('elevationScale'), fillColor: ctx.bindColor('columnColor'), opacity: ctx.bind('opacity') }),
+  },
+  {
+    type: 'polygon', label: 'Polygon Layer', category: 'layer',
+    description: 'Rows are vertices: grouped into polygons by an id, into rings by another (the first ring is the outline, the rest are holes), ordered by a third.',
+    inputs: [table()], outputs: [out('layer')],
+    params: [
+      channel('position', 'Position', 'P'),
+      { name: 'pathId', label: 'Polygon id', kind: 'column', default: 'row', of: 'in', folder: 'Channels' },
+      { name: 'ringId', label: 'Ring id', kind: 'column', default: '', of: 'in', folder: 'Channels', help: 'Empty: every polygon is one ring.' },
+      { name: 'order', label: 'Vertex order', kind: 'column', default: 'index', of: 'in', folder: 'Channels' },
+      channel('color', 'Color', ''),
+      rampParam,
+      { name: 'fillColor', label: 'Fill color', kind: 'color', default: [80, 160, 220], folder: 'Style' },
+      { name: 'stroked', label: 'Outline', kind: 'toggle', default: false, folder: 'Style' },
+      { name: 'lineColor', label: 'Outline color', kind: 'color', default: [255, 255, 255], folder: 'Style' },
+      { name: 'lineWidthMinPixels', label: 'Outline width (px)', kind: 'float', default: 1, min: 0, max: 20, step: 0.5, bind: 'prop', folder: 'Style' },
+      opacity,
+    ],
+    lower: (ctx) => lowerLayer(ctx, 'polygon',
+      [{ channel: 'position', param: 'position' }, { channel: 'color', param: 'color' }],
+      {
+        fillColor: ctx.bindColor('fillColor'), stroked: ctx.bool('stroked'), lineColor: ctx.bindColor('lineColor'),
+        lineWidthMinPixels: ctx.bind('lineWidthMinPixels'), opacity: ctx.bind('opacity'),
+      },
+      {
+        pathId: ctx.str('pathId'),
+        ...(ctx.str('ringId') ? { ringId: ctx.str('ringId') } : {}),
+        orderBy: [ctx.str('order')].filter(Boolean),
+      }),
+  },
+  {
+    type: 'text', label: 'Text Layer', category: 'layer',
+    description: 'A label per row from a string column.',
+    inputs: [table()], outputs: [out('layer')],
+    params: [
+      channel('position', 'Position', 'P'),
+      { name: 'text', label: 'Text', kind: 'column', default: 'name', of: 'in', columnType: 'str', folder: 'Channels' },
+      rampParam,
+      { name: 'size', label: 'Size (px)', kind: 'float', default: 12, min: 4, max: 64, step: 1, bind: 'prop', folder: 'Style', port: true },
+      { name: 'textColor', label: 'Color', kind: 'color', default: [230, 230, 230], folder: 'Style' },
+      { name: 'offsetY', label: 'Offset Y (px)', kind: 'float', default: -12, min: -64, max: 64, step: 1, bind: 'prop', folder: 'Style' },
+      opacity,
+    ],
+    lower(ctx) {
+      const text = ctx.str('text');
+      if (!text) ctx.error('Text Layer needs a text column');
+      const r = lowerLayer(ctx, 'text', [{ channel: 'position', param: 'position' }],
+        { size: ctx.bind('size'), color: ctx.bindColor('textColor'), offsetY: ctx.bind('offsetY'), opacity: ctx.bind('opacity') });
+      const layer = r.nodes[r.nodes.length - 1] as LayerNode;
+      layer.channels = { ...layer.channels, text };
+      return r;
+    },
+  },
+
+  // --- output ---------------------------------------------------------------
+  {
+    type: 'deck', label: 'Deck', category: 'output',
+    description: 'The map: layers bottom to top, the basemap, and the camera. Camera fields are props, so a keyframed fly-through costs no queries.',
+    inputs: [{ name: 'layers', type: 'layer', label: 'layers', multi: true }], outputs: [],
+    params: [
+      { name: 'basemap', label: 'Basemap', kind: 'menu', default: 'dark-matter', options: [
+        { value: 'dark-matter', label: 'Dark Matter' }, { value: 'positron', label: 'Positron' }, { value: 'voyager', label: 'Voyager' }, { value: 'none', label: 'None' },
+      ] },
+      { name: 'longitude', label: 'Longitude', kind: 'float', default: 0, min: -180, max: 180, step: 0.01, bind: 'prop', folder: 'Camera', port: true },
+      { name: 'latitude', label: 'Latitude', kind: 'float', default: 20, min: -85, max: 85, step: 0.01, bind: 'prop', folder: 'Camera', port: true },
+      { name: 'zoom', label: 'Zoom', kind: 'float', default: 1.5, min: 0, max: 22, step: 0.05, bind: 'prop', folder: 'Camera', port: true },
+      { name: 'pitch', label: 'Pitch', kind: 'float', default: 0, min: 0, max: 85, step: 0.5, bind: 'prop', folder: 'Camera', port: true },
+      { name: 'bearing', label: 'Bearing', kind: 'float', default: 0, min: -180, max: 180, step: 0.5, bind: 'prop', folder: 'Camera', port: true },
+      { name: 'follow', label: 'Drive the map camera', kind: 'toggle', default: false, folder: 'Camera', help: 'On: the camera parameters (and their keyframes) move the map. Off: the map is free to pan.' },
+    ],
+    lower(ctx) {
+      const deck: DeckNode = {
+        id: ctx.id, type: 'deck', inputs: ctx.inputs('layers'), basemap: ctx.str('basemap'),
+        view: Object.fromEntries(['longitude', 'latitude', 'zoom', 'pitch', 'bearing'].map((k) => [k, ctx.bind(k)])),
+      };
+      return { nodes: [deck], outputs: {} };
+    },
+  },
+
+  // --- numbers --------------------------------------------------------------
+  {
+    type: 'number', label: 'Number', category: 'number',
+    description: 'A constant, a slider, or a keyframed value. Wire it into any parameter.',
+    inputs: [], outputs: [out('number')],
+    params: [{ name: 'value', label: 'Value', kind: 'float', default: 0, min: -1000, max: 1000, step: 0.01 }],
+    scalar: (p) => p.num('value'),
+  },
+  {
+    type: 'time', label: 'Time', category: 'number',
+    description: 'Timeline seconds × speed + offset. The clock that drives an animation.',
+    inputs: [], outputs: [out('number')],
+    params: [
+      { name: 'speed', label: 'Speed', kind: 'float', default: 1, min: -100, max: 1000, step: 0.1 },
+      { name: 'offset', label: 'Offset', kind: 'float', default: 0, min: -100000, max: 100000, step: 1 },
+    ],
+    scalar: (p, clock) => clock.T * p.num('speed') + p.num('offset'),
+  },
+  {
+    type: 'math', label: 'Math', category: 'number',
+    description: 'Combine two numbers.',
+    inputs: [], outputs: [out('number')],
+    params: [
+      { name: 'op', label: 'Operation', kind: 'menu', default: '*', options: [
+        { value: '+', label: 'a + b' }, { value: '-', label: 'a − b' }, { value: '*', label: 'a × b' }, { value: '/', label: 'a ÷ b' },
+        { value: 'min', label: 'min(a, b)' }, { value: 'max', label: 'max(a, b)' }, { value: 'pow', label: 'a ^ b' }, { value: 'mod', label: 'a mod b' },
+      ] },
+      { name: 'a', label: 'a', kind: 'float', default: 1, min: -1000, max: 1000, step: 0.01, port: true },
+      { name: 'b', label: 'b', kind: 'float', default: 1, min: -1000, max: 1000, step: 0.01, port: true },
+    ],
+    scalar(p) {
+      const a = p.num('a');
+      const b = p.num('b');
+      switch (p.str('op')) {
+        case '+': return a + b;
+        case '-': return a - b;
+        case '/': return a / b;
+        case 'min': return Math.min(a, b);
+        case 'max': return Math.max(a, b);
+        case 'pow': return a ** b;
+        case 'mod': return a - b * Math.floor(a / b);
+        default: return a * b;
+      }
+    },
+  },
+  {
+    type: 'expression', label: 'Expression', category: 'number',
+    description: 'A number from an expression over a, b, T (seconds), F (frame) and ch() references.',
+    inputs: [], outputs: [out('number')],
+    params: [
+      { name: 'a', label: 'a', kind: 'float', default: 0, min: -1000, max: 1000, step: 0.01, port: true },
+      { name: 'b', label: 'b', kind: 'float', default: 0, min: -1000, max: 1000, step: 0.01, port: true },
+      { name: 'expression', label: 'Expression', kind: 'expr', default: 'a + b * sin(T)' },
+    ],
+    // Evaluated by the scalar program, which compiles `expression` with a, b, T and F bound.
+  },
+
+  // --- structure ------------------------------------------------------------
+  {
+    type: 'subnet', label: 'Subnetwork', category: 'structure',
+    description: 'A network inside a node. Double-click to enter. Promote parameters to control the inside from here.',
+    inputs: [table('in0', 'in0', { optional: true }), table('in1', 'in1', { optional: true })],
+    outputs: [out('table', 'out0')],
+    params: [],
+  },
+  {
+    type: 'subnet-input', label: 'Subnet Input', category: 'structure',
+    description: 'Inside a subnet: the table connected to the subnet\'s input.',
+    inputs: [], outputs: [out()],
+    params: [{ name: 'index', label: 'Input', kind: 'int', default: 0, min: 0, max: 1, step: 1, bind: 'structural' }],
+  },
+  {
+    type: 'subnet-output', label: 'Subnet Output', category: 'structure',
+    description: 'Inside a subnet: what the subnet outputs.',
+    inputs: [table()], outputs: [],
+    params: [{ name: 'index', label: 'Output', kind: 'int', default: 0, min: 0, max: 0, step: 1, bind: 'structural' }],
+  },
+];
+
+export const OPERATOR_INDEX: ReadonlyMap<string, OpDef> = new Map(OPERATORS.map((o) => [o.type, o]));
+
+export function operator(type: string): OpDef {
+  const op = OPERATOR_INDEX.get(type);
+  if (!op) throw new Error(`Unknown operator '${type}'`);
+  return op;
+}
+
+/** How a parameter reaches the plan, with the defaults spelled out once. */
+export function bindingOf(def: ParamDef): 'value' | 'prop' | 'structural' {
+  if (def.bind) return def.bind;
+  return def.kind === 'float' || def.kind === 'int' || def.kind === 'text' ? 'value' : 'structural';
+}
+
+/** Whether an output port may feed an input port. */
+export function canConnect(from: PortType, to: PortType | 'param'): boolean {
+  if (to === 'param') return from === 'number';
+  return from === to;
+}
+
+/** The port a parameter handle is addressed by. */
+export const paramPort = (param: string): string => `par:${param}`;
