@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { NumberOp } from '../noodles/operators'
-import { clearOps, setOp } from '../noodles/store'
-import { registerPropertyMutationCallback } from '../noodles/utils/property-history'
+import { docStore } from '../editor/doc-store'
+import { opView } from '../editor/op-view'
+import { setOpResolver } from '../noodles/op-resolver'
 import { capToolResult } from './agent/result-budget'
 import { runCode } from './run-code'
 import { getToolDefinition } from './tool-definitions'
@@ -11,19 +11,23 @@ function data(result: { data?: unknown }): Record<string, unknown> {
   return (result.data ?? {}) as Record<string, unknown>
 }
 
-// Constructing an operator does not put it in the store, and op() resolves through
-// the store — so every test that calls op() has to register its operator
-function makeNumberOp(id: string, value?: number): NumberOp {
-  const op = new NumberOp(id)
-  if (value !== undefined) op.inputs.val.setValue(value)
-  setOp(id, op)
-  return op
+// op() resolves through the editor's document, so a test that calls it opens one
+function makeNumberOp(id: string, value?: number) {
+  docStore().load({
+    version: 1,
+    name: 'run-code',
+    nodes: [{ id, op: 'number', x: 0, y: 0, params: value === undefined ? {} : { value } }],
+    edges: [],
+  })
+}
+
+function resetDoc() {
+  docStore().load({ version: 1, name: 'empty', nodes: [], edges: [] })
+  setOpResolver((path, contextId) => opView(docStore(), () => undefined, path, contextId))
 }
 
 describe('runCode', () => {
-  beforeEach(() => {
-    clearOps()
-  })
+  beforeEach(resetDoc)
 
   it('returns the value the code returns', async () => {
     const result = await runCode({ code: 'return 6 * 7' })
@@ -43,14 +47,14 @@ describe('runCode', () => {
   it('reads operator outputs through op()', async () => {
     makeNumberOp('/num', 11)
 
-    const result = await runCode({ code: "return op('/num').par.val * 2" })
+    const result = await runCode({ code: "return op('/num').par.value * 2" })
 
     expect(result.success).toBe(true)
     expect(data(result).result).toBe(22)
   })
 
   it('names the operator when the path does not resolve', async () => {
-    const result = await runCode({ code: "return op('/nope').par.val" })
+    const result = await runCode({ code: "return op('/nope').par.value" })
 
     expect(result.success).toBe(false)
     expect(result.error).toMatch(/'\/nope' not found/)
@@ -136,9 +140,7 @@ describe('runCode', () => {
 // A tool that can return anything at all is the one most likely to blow the budget,
 // so the summary happens here rather than being left to result-budget's ladder.
 describe('runCode result summaries', () => {
-  beforeEach(() => {
-    clearOps()
-  })
+  beforeEach(resetDoc)
 
   it('returns a short array as itself', async () => {
     const result = await runCode({ code: 'return [1, 2, 3]' })
@@ -230,35 +232,29 @@ describe('runCode result summaries', () => {
 })
 
 describe('runCode and the undo history', () => {
-  beforeEach(() => {
-    clearOps()
-  })
-
-  afterEach(() => {
-    registerPropertyMutationCallback(undefined)
-  })
+  beforeEach(resetDoc)
 
   it('reports nothing changed for a pure computation', async () => {
-    registerPropertyMutationCallback(vi.fn())
     makeNumberOp('/num', 3)
 
-    const result = await runCode({ code: "return op('/num').par.val" })
+    const result = await runCode({ code: "return op('/num').par.value" })
 
+    expect(data(result).result).toBe(3)
     expect(data(result).changedFieldValues).toBeUndefined()
   })
 
-  it('records one undo entry when the code changes a field value', async () => {
-    const record = vi.fn()
-    registerPropertyMutationCallback(record)
+  it('edits the document, as one undo step, when the code assigns a parameter', async () => {
+    makeNumberOp('/num', 1)
 
-    const op = makeNumberOp('/num', 1)
+    const result = await runCode({
+      code: "op('/num').par.value = 98\nop('/num').par.value = 99\nreturn 'set'",
+    })
 
-    const result = await runCode({ code: "op('/num').inputs.val.setValue(99)\nreturn 'set'" })
-
-    expect(op.inputs.val.value).toBe(99)
+    const value = () => docStore().get().doc.nodes[0].params.value
+    expect(value()).toBe(99)
     expect(data(result).changedFieldValues).toBe(true)
-    expect(record).toHaveBeenCalledTimes(1)
-    expect(record.mock.calls[0][0]).toBe('Run code')
+    docStore().undo()
+    expect(value()).toBe(1)
   })
 })
 

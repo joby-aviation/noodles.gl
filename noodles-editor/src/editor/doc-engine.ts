@@ -6,6 +6,7 @@
 import type { EditorDoc } from '@noodles.gl/planner'
 import { useSyncExternalStore } from 'react'
 import { useFileSystemStore } from '../noodles/filesystem-store'
+import { setOpResolver } from '../noodles/op-resolver'
 import { DeckProjectAssetResolver } from '../noodles/utils/deck-project-asset-resolver'
 import { instantiateDeckView } from '../noodles/utils/deck-view'
 import { instantiateLayer, instantiateWidget } from '../noodles/utils/instantiate-vis'
@@ -14,6 +15,7 @@ import { Engine, type EngineVis } from '../runtime/engine'
 import { registerHostOperators } from '../runtime/host/host-ops'
 import { HostRunner } from '../runtime/host/host-runner'
 import type { DocStore } from './doc-store'
+import { opView } from './op-view'
 
 /** What a node's badge shows: why it drew nothing. */
 export interface NodeError {
@@ -127,10 +129,12 @@ export function bindEngine(
     }
   }
   const unsubscribe = store.subscribe(() => void sync())
+  setOpResolver((path, contextId) => opView(store, currentEngine, path, contextId))
   void sync()
   return () => {
     stopped = true
     unsubscribe()
+    setOpResolver(undefined)
   }
 }
 
