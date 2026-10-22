@@ -1,0 +1,7093 @@
+{
+  "projectVersion": 19,
+  "customFieldTypes": [
+    "number",
+    "string",
+    "boolean",
+    "color",
+    "vec2",
+    "vec3",
+    "vec4",
+    "geopoint-2d",
+    "geopoint-3d",
+    "bbox",
+    "date",
+    "expression",
+    "code",
+    "bezier-curve",
+    "string-literal",
+    "data",
+    "unknown"
+  ],
+  "operators": {
+    "A5LayerOp": {
+      "name": "A5Layer",
+      "type": "A5LayerOp",
+      "category": "layer",
+      "description": "Render filled and/or stroked polygons using the A5 geospatial indexing system",
+      "inputs": {
+        "data": {
+          "type": "DataField",
+          "default": []
+        },
+        "visible": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "opacity": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "getPentagon": {
+          "type": "UnknownField"
+        },
+        "getFillColor": {
+          "type": "ColorField",
+          "default": "#fff"
+        },
+        "getElevation": {
+          "type": "NumberField",
+          "default": 1000
+        },
+        "elevationScale": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "extruded": {
+          "type": "BooleanField",
+          "default": false
+        },
+        "lineAntialiasing": {
+          "type": "BooleanField",
+          "default": false
+        },
+        "pickable": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "parameters": {
+          "type": "CompoundPropsField",
+          "default": {
+            "depthTest": true
+          }
+        },
+        "extensions": {
+          "type": "ListField",
+          "default": []
+        }
+      },
+      "outputs": {
+        "layer": {
+          "type": "LayerField"
+        }
+      }
+    },
+    "AccessorOp": {
+      "name": "Accessor",
+      "type": "AccessorOp",
+      "category": "code",
+      "description": "A function called for each row of your data and passed to Deck.gl layer properties. The current row is passed as the `d` variable (e.g., `d.population`, `d.properties.color`). Available variables: `d` (current row), `i` (index), `data` (all rows), `op()` (access operators), `sequenceTime` (timeline position), `frame` (current frame), `totalFrames`, `sequence` (timeline metadata). Includes d3, turf, and other utilities.",
+      "inputs": {
+        "expression": {
+          "type": "ExpressionField",
+          "default": ""
+        }
+      },
+      "outputs": {
+        "accessor": {
+          "type": "FunctionField"
+        }
+      }
+    },
+    "AggregateOp": {
+      "name": "Aggregate",
+      "type": "AggregateOp",
+      "category": "analysis",
+      "description": "Aggregate point data into polygons (count, sum, mean, min, max per zone)",
+      "inputs": {
+        "polygons": {
+          "type": "GeoJsonField",
+          "default": {
+            "type": "FeatureCollection",
+            "features": []
+          }
+        },
+        "points": {
+          "type": "GeoJsonField",
+          "default": {
+            "type": "FeatureCollection",
+            "features": []
+          }
+        },
+        "field": {
+          "type": "StringField",
+          "default": ""
+        },
+        "operation": {
+          "type": "StringLiteralField",
+          "default": "count"
+        }
+      },
+      "outputs": {
+        "featureCollection": {
+          "type": "GeoJsonField"
+        }
+      }
+    },
+    "AlongOp": {
+      "name": "Along",
+      "type": "AlongOp",
+      "category": "analysis",
+      "description": "Find a point at a specified distance along a line",
+      "inputs": {
+        "geojson": {
+          "type": "GeoJsonField",
+          "default": {
+            "type": "FeatureCollection",
+            "features": []
+          }
+        },
+        "distance": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "units": {
+          "type": "StringLiteralField",
+          "default": "kilometers"
+        }
+      },
+      "outputs": {
+        "featureCollection": {
+          "type": "GeoJsonField"
+        }
+      }
+    },
+    "ArcLayerOp": {
+      "name": "ArcLayer",
+      "type": "ArcLayerOp",
+      "category": "layer",
+      "description": "Render a set of arcs on the map",
+      "inputs": {
+        "data": {
+          "type": "DataField",
+          "default": []
+        },
+        "visible": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "opacity": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "getSourcePosition": {
+          "type": "Point3DField",
+          "default": [
+            0,
+            0,
+            0
+          ]
+        },
+        "getTargetPosition": {
+          "type": "Point3DField",
+          "default": [
+            0,
+            0,
+            0
+          ]
+        },
+        "getSourceColor": {
+          "type": "ColorField",
+          "default": "#fff"
+        },
+        "getTargetColor": {
+          "type": "ColorField",
+          "default": "#fff"
+        },
+        "widthUnits": {
+          "type": "StringLiteralField",
+          "default": "meters"
+        },
+        "antialiasing": {
+          "type": "BooleanField",
+          "default": false
+        },
+        "getWidth": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "getHeight": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "getTilt": {
+          "type": "NumberField",
+          "default": 0
+        },
+        "parameters": {
+          "type": "CompoundPropsField",
+          "default": {
+            "depthTest": true
+          }
+        },
+        "extensions": {
+          "type": "ListField",
+          "default": []
+        }
+      },
+      "outputs": {
+        "layer": {
+          "type": "LayerField"
+        }
+      }
+    },
+    "ArcOp": {
+      "name": "Arc",
+      "type": "ArcOp",
+      "category": "data",
+      "description": "Generate an arc path between two points at a given altitude",
+      "inputs": {
+        "source": {
+          "type": "Point3DField",
+          "default": {
+            "lng": 0,
+            "lat": 0,
+            "alt": 0
+          }
+        },
+        "target": {
+          "type": "Point3DField",
+          "default": {
+            "lng": 0,
+            "lat": 0,
+            "alt": 0
+          }
+        },
+        "altitudeMultiplier": {
+          "type": "NumberField",
+          "default": 2
+        },
+        "apexAlt": {
+          "type": "NumberField",
+          "default": 10000
+        },
+        "smoothHeight": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "smoothPosition": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "segmentCount": {
+          "type": "NumberField",
+          "default": 250
+        },
+        "tilt": {
+          "type": "NumberField",
+          "default": 0
+        }
+      },
+      "outputs": {
+        "path": {
+          "type": "ArrayField"
+        }
+      }
+    },
+    "AreaOp": {
+      "name": "Area",
+      "type": "AreaOp",
+      "category": "analysis",
+      "description": "Calculate the area of polygon features in specified units",
+      "inputs": {
+        "geojson": {
+          "type": "GeoJsonField",
+          "default": {
+            "type": "FeatureCollection",
+            "features": []
+          }
+        },
+        "units": {
+          "type": "StringLiteralField",
+          "default": "squareKilometers"
+        }
+      },
+      "outputs": {
+        "featureCollection": {
+          "type": "GeoJsonField"
+        },
+        "totalArea": {
+          "type": "NumberField"
+        }
+      }
+    },
+    "BezierCurveOp": {
+      "name": "BezierCurve",
+      "type": "BezierCurveOp",
+      "category": "number",
+      "description": "Bezier curve for mapping input values using an interactive graph editor",
+      "inputs": {
+        "factor": {
+          "type": "NumberField",
+          "default": 0.5
+        },
+        "curve": {
+          "type": "BezierCurveField",
+          "default": {
+            "points": [
+              {
+                "x": 0,
+                "y": 0,
+                "handleRightX": 0.3,
+                "handleRightY": 0,
+                "handleRightType": "auto"
+              },
+              {
+                "x": 1,
+                "y": 1,
+                "handleLeftX": 0.7,
+                "handleLeftY": 1,
+                "handleLeftType": "auto"
+              }
+            ],
+            "segments": []
+          }
+        }
+      },
+      "outputs": {
+        "value": {
+          "type": "NumberField"
+        }
+      }
+    },
+    "BitmapLayerOp": {
+      "name": "BitmapLayer",
+      "type": "BitmapLayerOp",
+      "category": "layer",
+      "description": "Render a raster image at specified boundaries",
+      "inputs": {
+        "visible": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "opacity": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "image": {
+          "type": "FileUrlField",
+          "default": ""
+        },
+        "bounds": {
+          "type": "BboxField",
+          "default": {
+            "southwest": {
+              "lng": -122.5,
+              "lat": 37.7
+            },
+            "northeast": {
+              "lng": -122.3,
+              "lat": 37.9
+            }
+          }
+        },
+        "desaturate": {
+          "type": "NumberField",
+          "default": 0
+        },
+        "transparentColor": {
+          "type": "ColorField",
+          "default": null
+        },
+        "tintColor": {
+          "type": "ColorField",
+          "default": null
+        },
+        "parameters": {
+          "type": "CompoundPropsField",
+          "default": {
+            "depthTest": true
+          }
+        },
+        "extensions": {
+          "type": "ListField",
+          "default": []
+        }
+      },
+      "outputs": {
+        "layer": {
+          "type": "LayerField"
+        }
+      }
+    },
+    "BitmapOverlayWidgetOp": {
+      "name": "Bitmap Overlay",
+      "type": "BitmapOverlayWidgetOp",
+      "category": "utility",
+      "description": "Display a bitmap image as a screen-space overlay",
+      "inputs": {
+        "image": {
+          "type": "FileUrlField",
+          "default": ""
+        },
+        "placement": {
+          "type": "StringLiteralField",
+          "default": "top-right"
+        },
+        "width": {
+          "type": "NumberField",
+          "default": 200
+        },
+        "height": {
+          "type": "NumberField",
+          "default": 200
+        },
+        "opacity": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "scale": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "offsetX": {
+          "type": "NumberField",
+          "default": 0
+        },
+        "offsetY": {
+          "type": "NumberField",
+          "default": 0
+        },
+        "viewId": {
+          "type": "StringField",
+          "default": ""
+        }
+      },
+      "outputs": {
+        "widget": {
+          "type": "WidgetField"
+        }
+      }
+    },
+    "BlendingOp": {
+      "name": "Blending",
+      "type": "BlendingOp",
+      "category": "utility",
+      "description": "Configure WebGL blending mode for layers (additive, normal, subtractive)",
+      "inputs": {
+        "mode": {
+          "type": "StringLiteralField",
+          "default": "normal"
+        },
+        "blendColorSrcFactor": {
+          "type": "StringLiteralField",
+          "default": "src-alpha"
+        },
+        "blendColorDstFactor": {
+          "type": "StringLiteralField",
+          "default": "one-minus-src-alpha"
+        }
+      },
+      "outputs": {
+        "parameters": {
+          "type": "UnknownField"
+        }
+      }
+    },
+    "BooleanOp": {
+      "name": "Boolean",
+      "type": "BooleanOp",
+      "category": "utility",
+      "description": "A boolean",
+      "inputs": {
+        "val": {
+          "type": "BooleanField",
+          "default": false
+        }
+      },
+      "outputs": {
+        "val": {
+          "type": "BooleanField"
+        }
+      }
+    },
+    "BoundingBoxOp": {
+      "name": "BoundingBox",
+      "type": "BoundingBoxOp",
+      "category": "data",
+      "description": "Calculate the geographic bounds of your points (with lat/lng keys) and get a camera position (center, zoom) that fits them all in view.",
+      "inputs": {
+        "data": {
+          "type": "ArrayField",
+          "default": []
+        },
+        "padding": {
+          "type": "NumberField",
+          "default": 0
+        }
+      },
+      "outputs": {
+        "bounds": {
+          "type": "ArrayField"
+        },
+        "longitude": {
+          "type": "NumberField"
+        },
+        "latitude": {
+          "type": "NumberField"
+        },
+        "zoom": {
+          "type": "NumberField"
+        },
+        "viewState": {
+          "type": "CompoundPropsField"
+        }
+      }
+    },
+    "BoundsOp": {
+      "name": "Bounds",
+      "type": "BoundsOp",
+      "category": "data",
+      "description": "Create a bounding box from two points",
+      "inputs": {
+        "southwest": {
+          "type": "Point2DField",
+          "default": {
+            "lng": 0,
+            "lat": 0
+          }
+        },
+        "northeast": {
+          "type": "Point2DField",
+          "default": {
+            "lng": 0,
+            "lat": 0
+          }
+        }
+      },
+      "outputs": {
+        "bounds": {
+          "type": "ArrayField"
+        }
+      }
+    },
+    "BrightnessContrastExtensionOp": {
+      "name": "BrightnessContrastExtension",
+      "type": "BrightnessContrastExtensionOp",
+      "category": "extension",
+      "description": "Adjust brightness and contrast of a layer",
+      "inputs": {
+        "brightness": {
+          "type": "NumberField",
+          "default": 0
+        },
+        "contrast": {
+          "type": "NumberField",
+          "default": 0
+        }
+      },
+      "outputs": {
+        "extension": {
+          "type": "ExtensionField"
+        }
+      }
+    },
+    "BrushableHistogramOp": {
+      "name": "BrushableHistogram",
+      "type": "BrushableHistogramOp",
+      "category": "data",
+      "description": "Interactive histogram with brushable range selection for data filtering. Drag handles to select a range, keyframe brush positions for animation.",
+      "inputs": {
+        "data": {
+          "type": "DataField",
+          "default": []
+        },
+        "field": {
+          "type": "StringLiteralField",
+          "default": ""
+        },
+        "binCount": {
+          "type": "NumberField",
+          "default": 20
+        },
+        "brushMin": {
+          "type": "NumberField",
+          "default": 0
+        },
+        "brushMax": {
+          "type": "NumberField",
+          "default": 100
+        },
+        "brushMode": {
+          "type": "StringLiteralField",
+          "default": "handles"
+        }
+      },
+      "outputs": {
+        "filteredData": {
+          "type": "DataField"
+        },
+        "binData": {
+          "type": "DataField"
+        },
+        "extent": {
+          "type": "UnknownField"
+        }
+      }
+    },
+    "BrushingExtensionOp": {
+      "name": "BrushingExtension",
+      "type": "BrushingExtensionOp",
+      "category": "extension",
+      "description": "Only render the points within a given radius of the mouse position. Used with most layer types.",
+      "inputs": {
+        "brushingRadius": {
+          "type": "NumberField",
+          "default": 100
+        },
+        "brushingEnabled": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "brushingTarget": {
+          "type": "StringLiteralField",
+          "default": "source"
+        },
+        "getBrushingTarget": {
+          "type": "Point2DField",
+          "default": [
+            0,
+            0
+          ]
+        }
+      },
+      "outputs": {
+        "extension": {
+          "type": "ExtensionField"
+        }
+      }
+    },
+    "BufferOp": {
+      "name": "Buffer",
+      "type": "BufferOp",
+      "category": "geometry",
+      "description": "Create a buffer zone around input geometry at a given distance",
+      "inputs": {
+        "geojson": {
+          "type": "GeoJsonField",
+          "default": {
+            "type": "FeatureCollection",
+            "features": []
+          }
+        },
+        "radius": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "units": {
+          "type": "StringLiteralField",
+          "default": "kilometers"
+        },
+        "steps": {
+          "type": "NumberField",
+          "default": 64
+        }
+      },
+      "outputs": {
+        "featureCollection": {
+          "type": "GeoJsonField"
+        }
+      }
+    },
+    "CategoricalColorRampOp": {
+      "name": "CategoricalColorRamp",
+      "type": "CategoricalColorRampOp",
+      "category": "color",
+      "description": "Map a string category to a color",
+      "inputs": {
+        "colorScheme": {
+          "type": "StringLiteralField",
+          "default": "accent"
+        },
+        "steps": {
+          "type": "NumberField",
+          "default": 8
+        },
+        "value": {
+          "type": "StringField",
+          "default": ""
+        }
+      },
+      "outputs": {
+        "color": {
+          "type": "ColorField"
+        },
+        "colorRamp": {
+          "type": "CategoricalColorRampField"
+        }
+      }
+    },
+    "CentroidOp": {
+      "name": "Centroid",
+      "type": "CentroidOp",
+      "category": "geometry",
+      "description": "Calculate the centroid (center of mass) of each feature",
+      "inputs": {
+        "geojson": {
+          "type": "GeoJsonField",
+          "default": {
+            "type": "FeatureCollection",
+            "features": []
+          }
+        }
+      },
+      "outputs": {
+        "featureCollection": {
+          "type": "GeoJsonField"
+        }
+      }
+    },
+    "ChartOp": {
+      "name": "Chart",
+      "type": "ChartOp",
+      "category": "data",
+      "description": "Create charts using Observable Plot (bar, histogram, scatter)",
+      "inputs": {
+        "data": {
+          "type": "DataField",
+          "default": []
+        },
+        "chartType": {
+          "type": "StringLiteralField",
+          "default": "bar"
+        },
+        "xField": {
+          "type": "StringLiteralField",
+          "default": ""
+        },
+        "yField": {
+          "type": "StringLiteralField",
+          "default": ""
+        },
+        "width": {
+          "type": "NumberField",
+          "default": 640
+        },
+        "height": {
+          "type": "NumberField",
+          "default": 400
+        },
+        "color": {
+          "type": "ColorField",
+          "default": "#4269d0"
+        },
+        "title": {
+          "type": "StringField",
+          "default": ""
+        },
+        "xLabel": {
+          "type": "StringField",
+          "default": ""
+        },
+        "yLabel": {
+          "type": "StringField",
+          "default": ""
+        }
+      },
+      "outputs": {
+        "chart": {
+          "type": "UnknownField"
+        }
+      }
+    },
+    "ChoroplethJoinOp": {
+      "name": "ChoroplethJoin",
+      "type": "ChoroplethJoinOp",
+      "category": "geojson",
+      "description": "Join tabular data onto geographic boundaries (US states, world countries, Canadian provinces) to produce a colored FeatureCollection",
+      "inputs": {
+        "data": {
+          "type": "DataField",
+          "default": []
+        },
+        "geography": {
+          "type": "StringLiteralField",
+          "default": "us-states"
+        },
+        "boundaries": {
+          "type": "GeoJsonField",
+          "default": {
+            "type": "FeatureCollection",
+            "features": []
+          }
+        },
+        "joinKey": {
+          "type": "StringLiteralField",
+          "default": ""
+        },
+        "geoKey": {
+          "type": "StringLiteralField",
+          "default": "auto"
+        },
+        "customSQL": {
+          "type": "CodeField",
+          "default": ""
+        }
+      },
+      "outputs": {
+        "features": {
+          "type": "GeoJsonField"
+        }
+      }
+    },
+    "ChoroplethLayerOp": {
+      "name": "ChoroplethLayer",
+      "type": "ChoroplethLayerOp",
+      "category": "geojson",
+      "description": "All-in-one choropleth: joins tabular data onto geographic boundaries and renders with a color scale",
+      "inputs": {
+        "data": {
+          "type": "DataField",
+          "default": []
+        },
+        "geography": {
+          "type": "StringLiteralField",
+          "default": "us-states"
+        },
+        "boundaries": {
+          "type": "GeoJsonField",
+          "default": {
+            "type": "FeatureCollection",
+            "features": []
+          }
+        },
+        "joinKey": {
+          "type": "StringLiteralField",
+          "default": ""
+        },
+        "geoKey": {
+          "type": "StringLiteralField",
+          "default": "auto"
+        },
+        "customSQL": {
+          "type": "CodeField",
+          "default": ""
+        },
+        "valueColumn": {
+          "type": "StringLiteralField",
+          "default": ""
+        },
+        "colorScheme": {
+          "type": "StringLiteralField",
+          "default": "viridis"
+        },
+        "opacity": {
+          "type": "NumberField",
+          "default": 0.85
+        },
+        "stroked": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "getLineColor": {
+          "type": "ColorField",
+          "default": "#000000"
+        },
+        "getLineWidth": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "visible": {
+          "type": "BooleanField",
+          "default": true
+        }
+      },
+      "outputs": {
+        "layer": {
+          "type": "LayerField"
+        }
+      }
+    },
+    "ClipExtensionOp": {
+      "name": "ClipExtension",
+      "type": "ClipExtensionOp",
+      "category": "extension",
+      "description": "Clip layers by a rectangular bounds",
+      "inputs": {
+        "clipByInstance": {
+          "type": "BooleanField",
+          "default": false
+        },
+        "clipBounds": {
+          "type": "UnknownField",
+          "default": [
+            0,
+            0,
+            1,
+            1
+          ]
+        }
+      },
+      "outputs": {
+        "extension": {
+          "type": "ExtensionField"
+        }
+      }
+    },
+    "ClipOp": {
+      "name": "Clip",
+      "type": "ClipOp",
+      "category": "geojson",
+      "description": "Clip features to a bounding polygon (mask)",
+      "inputs": {
+        "geojson": {
+          "type": "GeoJsonField",
+          "default": {
+            "type": "FeatureCollection",
+            "features": []
+          }
+        },
+        "mask": {
+          "type": "GeoJsonField",
+          "default": {
+            "type": "FeatureCollection",
+            "features": []
+          }
+        }
+      },
+      "outputs": {
+        "featureCollection": {
+          "type": "GeoJsonField"
+        }
+      }
+    },
+    "CodeOp": {
+      "name": "Code",
+      "type": "CodeOp",
+      "category": "code",
+      "description": "Run custom JavaScript code to transform your data. Available variables: `data` (all input data), `d` (first element), `op()` (access other operators), `sequenceTime` (timeline position), `frame` (current frame), `totalFrames`, `sequence` (timeline metadata). Includes d3, turf, and other utilities. Use `this` to store state between executions.",
+      "inputs": {
+        "data": {
+          "type": "ListField",
+          "default": []
+        },
+        "code": {
+          "type": "CodeField",
+          "default": ""
+        }
+      },
+      "outputs": {
+        "data": {
+          "type": "DataField"
+        }
+      }
+    },
+    "CollisionFilterExtensionOp": {
+      "name": "CollisionFilterExtension",
+      "type": "CollisionFilterExtensionOp",
+      "category": "extension",
+      "description": "Hide overlapping objects (e.g., labels)",
+      "inputs": {
+        "collisionEnabled": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "collisionGroup": {
+          "type": "StringField",
+          "default": "default"
+        },
+        "getCollisionPriority": {
+          "type": "NumberField",
+          "default": 0
+        }
+      },
+      "outputs": {
+        "extension": {
+          "type": "ExtensionField"
+        }
+      }
+    },
+    "ColorOp": {
+      "name": "Color",
+      "type": "ColorOp",
+      "category": "color",
+      "description": "A color",
+      "inputs": {
+        "color": {
+          "type": "ColorField",
+          "default": "#0000ffff"
+        }
+      },
+      "outputs": {
+        "color": {
+          "type": "ColorField"
+        }
+      }
+    },
+    "ColorRampOp": {
+      "name": "ColorRamp",
+      "type": "ColorRampOp",
+      "category": "color",
+      "description": "Interpolate a color from a color ramp, value range 0-1",
+      "inputs": {
+        "colorScheme": {
+          "type": "StringLiteralField",
+          "default": "viridis"
+        },
+        "value": {
+          "type": "NumberField",
+          "default": 0
+        }
+      },
+      "outputs": {
+        "color": {
+          "type": "ColorField"
+        },
+        "colorRamp": {
+          "type": "ColorRampField"
+        }
+      }
+    },
+    "ColumnLayerOp": {
+      "name": "ColumnLayer",
+      "type": "ColumnLayerOp",
+      "category": "layer",
+      "description": "Render extruded cylinders (columns) at given positions",
+      "inputs": {
+        "data": {
+          "type": "DataField",
+          "default": []
+        },
+        "visible": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "opacity": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "diskResolution": {
+          "type": "NumberField",
+          "default": 20
+        },
+        "vertices": {
+          "type": "UnknownField",
+          "default": null
+        },
+        "offset": {
+          "type": "Vec3Field",
+          "default": [
+            0,
+            0,
+            0
+          ]
+        },
+        "coverage": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "elevationScale": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "filled": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "stroked": {
+          "type": "BooleanField",
+          "default": false
+        },
+        "extruded": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "wireframe": {
+          "type": "BooleanField",
+          "default": false
+        },
+        "flatShading": {
+          "type": "BooleanField",
+          "default": false
+        },
+        "radiusUnits": {
+          "type": "StringLiteralField",
+          "default": "meters"
+        },
+        "lineWidthUnits": {
+          "type": "StringLiteralField",
+          "default": "meters"
+        },
+        "getPosition": {
+          "type": "Point3DField",
+          "default": [
+            0,
+            0,
+            0
+          ]
+        },
+        "getFillColor": {
+          "type": "ColorField",
+          "default": "#000000"
+        },
+        "getLineColor": {
+          "type": "ColorField",
+          "default": "#000000"
+        },
+        "getElevation": {
+          "type": "NumberField",
+          "default": 1000
+        },
+        "getLineWidth": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "parameters": {
+          "type": "CompoundPropsField",
+          "default": {
+            "depthTest": true
+          }
+        },
+        "extensions": {
+          "type": "ListField",
+          "default": []
+        }
+      },
+      "outputs": {
+        "layer": {
+          "type": "LayerField"
+        }
+      }
+    },
+    "CombineRGBAOp": {
+      "name": "CombineRGBA",
+      "type": "CombineRGBAOp",
+      "category": "color",
+      "description": "Combine r, g, b, and a into a color (range 0-255)",
+      "inputs": {
+        "r": {
+          "type": "NumberField",
+          "default": 0
+        },
+        "g": {
+          "type": "NumberField",
+          "default": 0
+        },
+        "b": {
+          "type": "NumberField",
+          "default": 0
+        },
+        "a": {
+          "type": "NumberField",
+          "default": 1
+        }
+      },
+      "outputs": {
+        "color": {
+          "type": "ColorField"
+        }
+      }
+    },
+    "CombineXYOp": {
+      "name": "CombineXY",
+      "type": "CombineXYOp",
+      "category": "vector",
+      "description": "Combine x and y into a 2D vector",
+      "inputs": {
+        "x": {
+          "type": "NumberField",
+          "default": 0
+        },
+        "y": {
+          "type": "NumberField",
+          "default": 0
+        }
+      },
+      "outputs": {
+        "xy": {
+          "type": "Vec2Field"
+        }
+      }
+    },
+    "CompassWidgetOp": {
+      "name": "CompassWidget",
+      "type": "CompassWidgetOp",
+      "category": "widget",
+      "description": "Compass and bearing reset widget",
+      "inputs": {
+        "placement": {
+          "type": "StringLiteralField",
+          "default": "top-right"
+        },
+        "viewId": {
+          "type": "StringField",
+          "default": ""
+        }
+      },
+      "outputs": {
+        "widget": {
+          "type": "WidgetField"
+        }
+      }
+    },
+    "ConcatOp": {
+      "name": "Concat",
+      "type": "ConcatOp",
+      "category": "data",
+      "description": "Concatenate multiple arrays into a single array. Use depth to flatten nested arrays (depth=1 flattens one level, depth=2 flattens two levels).",
+      "inputs": {
+        "values": {
+          "type": "ListField",
+          "default": []
+        },
+        "depth": {
+          "type": "NumberField",
+          "default": 1
+        }
+      },
+      "outputs": {
+        "data": {
+          "type": "DataField"
+        }
+      }
+    },
+    "ConsoleOp": {
+      "name": "Console",
+      "type": "ConsoleOp",
+      "category": "utility",
+      "description": "Log data to the console",
+      "inputs": {
+        "data": {
+          "type": "DataField",
+          "default": []
+        }
+      },
+      "outputs": {}
+    },
+    "ContainerOp": {
+      "name": "Container",
+      "type": "ContainerOp",
+      "category": "grouping",
+      "description": "Encapsulates a subgraph of operators. Visually groups child nodes.",
+      "inputs": {
+        "in": {
+          "type": "UnknownField",
+          "default": null
+        }
+      },
+      "outputs": {
+        "out": {
+          "type": "UnknownField"
+        }
+      }
+    },
+    "ContourLayerOp": {
+      "name": "ContourLayer",
+      "type": "ContourLayerOp",
+      "category": "layer",
+      "description": "Aggregate data and render contour lines or filled contour bands",
+      "inputs": {
+        "data": {
+          "type": "DataField",
+          "default": []
+        },
+        "visible": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "opacity": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "cellSize": {
+          "type": "NumberField",
+          "default": 1000
+        },
+        "gpuAggregation": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "aggregation": {
+          "type": "StringLiteralField",
+          "default": "SUM"
+        },
+        "contours": {
+          "type": "UnknownField",
+          "default": [
+            {
+              "threshold": 1,
+              "color": [
+                255,
+                0,
+                0
+              ]
+            },
+            {
+              "threshold": 5,
+              "color": [
+                0,
+                255,
+                0
+              ]
+            },
+            {
+              "threshold": 10,
+              "color": [
+                0,
+                0,
+                255
+              ]
+            }
+          ]
+        },
+        "zOffset": {
+          "type": "NumberField",
+          "default": 0.005
+        },
+        "getPosition": {
+          "type": "Point3DField",
+          "default": [
+            0,
+            0,
+            0
+          ]
+        },
+        "getWeight": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "parameters": {
+          "type": "CompoundPropsField",
+          "default": {
+            "depthTest": true
+          }
+        },
+        "extensions": {
+          "type": "ListField",
+          "default": []
+        }
+      },
+      "outputs": {
+        "layer": {
+          "type": "LayerField"
+        }
+      }
+    },
+    "ConvexHullOp": {
+      "name": "ConvexHull",
+      "type": "ConvexHullOp",
+      "category": "geometry",
+      "description": "Calculate the convex hull (smallest enclosing polygon) of features",
+      "inputs": {
+        "geojson": {
+          "type": "GeoJsonField",
+          "default": {
+            "type": "FeatureCollection",
+            "features": []
+          }
+        }
+      },
+      "outputs": {
+        "featureCollection": {
+          "type": "GeoJsonField"
+        }
+      }
+    },
+    "CrossOp": {
+      "name": "Cross",
+      "type": "CrossOp",
+      "category": "data",
+      "description": "Generate all unique pairs from an array. For example, [1, 2, 3] produces [[1, 2], [1, 3], [2, 3]]",
+      "inputs": {
+        "data": {
+          "type": "DataField",
+          "default": []
+        }
+      },
+      "outputs": {
+        "pairs": {
+          "type": "DataField"
+        }
+      }
+    },
+    "CustomMapLibreLayerOp": {
+      "name": "CustomMapLibreLayer",
+      "type": "CustomMapLibreLayerOp",
+      "category": "view",
+      "description": "Define a custom MapLibre GL layer with WebGL rendering. The code must return an object with onAdd, render, and onRemove methods. Access parameters via `params` object and map instance via `map`.",
+      "inputs": {
+        "id": {
+          "type": "StringField",
+          "default": "custom-layer"
+        },
+        "code": {
+          "type": "CodeField",
+          "default": ""
+        },
+        "renderingMode": {
+          "type": "StringLiteralField",
+          "default": "3d"
+        },
+        "beforeId": {
+          "type": "StringField",
+          "default": ""
+        },
+        "params": {
+          "type": "UnknownField",
+          "default": {}
+        }
+      },
+      "outputs": {
+        "layer": {
+          "type": "MapLibreLayerField"
+        }
+      }
+    },
+    "DataFilterExtensionOp": {
+      "name": "DataFilterExtension",
+      "type": "DataFilterExtensionOp",
+      "category": "extension",
+      "description": "Filter data by one or more numeric ranges",
+      "inputs": {
+        "filterSize": {
+          "type": "NumberField",
+          "default": 2
+        },
+        "filterEnabled": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "filterRange": {
+          "type": "UnknownField",
+          "default": [
+            [
+              0,
+              1
+            ],
+            [
+              0,
+              1
+            ]
+          ]
+        },
+        "filterSoftRange": {
+          "type": "UnknownField",
+          "default": null
+        },
+        "filterTransformSize": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "filterTransformColor": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "getFilterValue": {
+          "type": "UnknownField"
+        }
+      },
+      "outputs": {
+        "extension": {
+          "type": "ExtensionField"
+        }
+      }
+    },
+    "DateTimeOp": {
+      "name": "DateTime",
+      "type": "DateTimeOp",
+      "category": "data",
+      "description": "A date and time",
+      "inputs": {
+        "date": {
+          "type": "DateField"
+        }
+      },
+      "outputs": {
+        "date": {
+          "type": "DateField"
+        }
+      }
+    },
+    "DBScanClusterOp": {
+      "name": "DBScanCluster",
+      "type": "DBScanClusterOp",
+      "category": "analysis",
+      "description": "Cluster points using DBSCAN density-based algorithm",
+      "inputs": {
+        "geojson": {
+          "type": "GeoJsonField",
+          "default": {
+            "type": "FeatureCollection",
+            "features": []
+          }
+        },
+        "maxDistance": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "units": {
+          "type": "StringLiteralField",
+          "default": "kilometers"
+        },
+        "minPoints": {
+          "type": "NumberField",
+          "default": 3
+        }
+      },
+      "outputs": {
+        "featureCollection": {
+          "type": "GeoJsonField"
+        }
+      }
+    },
+    "DeckRendererOp": {
+      "name": "DeckRenderer",
+      "type": "DeckRendererOp",
+      "category": "data",
+      "description": "Render a deck.gl visualization with layers and effects.",
+      "inputs": {
+        "layers": {
+          "type": "ListField",
+          "default": []
+        },
+        "effects": {
+          "type": "ListField",
+          "default": []
+        },
+        "views": {
+          "type": "ListField",
+          "default": []
+        },
+        "widgets": {
+          "type": "ListField",
+          "default": []
+        },
+        "layerFilter": {
+          "type": "FunctionField"
+        },
+        "basemap": {
+          "type": "UnknownField",
+          "default": {
+            "mapStyle": "https://basemaps.cartocdn.com/gl/dark-matter-nolabels-gl-style/style.json",
+            "latitude": 40.7128,
+            "longitude": -74.006,
+            "zoom": 12
+          }
+        },
+        "viewState": {
+          "type": "UnknownField",
+          "default": {}
+        },
+        "maplibreLayers": {
+          "type": "ListField",
+          "default": []
+        }
+      },
+      "outputs": {
+        "vis": {
+          "type": "VisualizationField"
+        }
+      }
+    },
+    "DifferenceOp": {
+      "name": "Difference",
+      "type": "DifferenceOp",
+      "category": "geometry",
+      "description": "Subtract one polygon from another (A minus B)",
+      "inputs": {
+        "a": {
+          "type": "GeoJsonField",
+          "default": {
+            "type": "FeatureCollection",
+            "features": []
+          }
+        },
+        "b": {
+          "type": "GeoJsonField",
+          "default": {
+            "type": "FeatureCollection",
+            "features": []
+          }
+        }
+      },
+      "outputs": {
+        "featureCollection": {
+          "type": "GeoJsonField"
+        }
+      }
+    },
+    "DirectionsOp": {
+      "name": "Directions",
+      "type": "DirectionsOp",
+      "category": "data",
+      "description": "Get driving, traffic-aware driving, or transit directions between points",
+      "inputs": {
+        "origin": {
+          "type": "Point2DField",
+          "default": {
+            "lng": 0,
+            "lat": 0
+          }
+        },
+        "destination": {
+          "type": "Point2DField",
+          "default": {
+            "lng": 0,
+            "lat": 0
+          }
+        },
+        "mode": {
+          "type": "StringLiteralField",
+          "default": "transit"
+        },
+        "departureMode": {
+          "type": "StringLiteralField",
+          "default": "now"
+        },
+        "departureTime": {
+          "type": "DateField"
+        },
+        "trafficModel": {
+          "type": "StringLiteralField",
+          "default": "best-guess"
+        },
+        "avoidTolls": {
+          "type": "BooleanField",
+          "default": false
+        }
+      },
+      "outputs": {
+        "route": {
+          "type": "CompoundPropsField"
+        }
+      }
+    },
+    "DissolveOp": {
+      "name": "Dissolve",
+      "type": "DissolveOp",
+      "category": "geometry",
+      "description": "Dissolve polygons that share a common property value into single features",
+      "inputs": {
+        "geojson": {
+          "type": "GeoJsonField",
+          "default": {
+            "type": "FeatureCollection",
+            "features": []
+          }
+        },
+        "propertyName": {
+          "type": "StringField",
+          "default": ""
+        }
+      },
+      "outputs": {
+        "featureCollection": {
+          "type": "GeoJsonField"
+        }
+      }
+    },
+    "DuckDbOp": {
+      "name": "DuckDB",
+      "type": "DuckDbOp",
+      "category": "utility",
+      "description": "Query a DuckDB database using sql",
+      "inputs": {
+        "query": {
+          "type": "CodeField",
+          "default": "SELECT 1 as val;"
+        }
+      },
+      "outputs": {
+        "data": {
+          "type": "DataField"
+        }
+      }
+    },
+    "ExplodeOp": {
+      "name": "Explode",
+      "type": "ExplodeOp",
+      "category": "geojson",
+      "description": "Break multi-part geometries into individual features, or extract all vertices as points",
+      "inputs": {
+        "geojson": {
+          "type": "GeoJsonField",
+          "default": {
+            "type": "FeatureCollection",
+            "features": []
+          }
+        },
+        "mode": {
+          "type": "StringLiteralField",
+          "default": "vertices"
+        }
+      },
+      "outputs": {
+        "featureCollection": {
+          "type": "GeoJsonField"
+        }
+      }
+    },
+    "ExpressionOp": {
+      "name": "Expression",
+      "type": "ExpressionOp",
+      "category": "code",
+      "description": "Evaluate a JavaScript expression to compute a single value. Available variables: `data` (all input data), `d` (first element), `op()` (access other operators), `sequenceTime` (timeline position), `frame` (current frame), `totalFrames`, `sequence` (timeline metadata). Includes d3, turf, and other utilities.",
+      "inputs": {
+        "data": {
+          "type": "ListField",
+          "default": []
+        },
+        "expression": {
+          "type": "ExpressionField",
+          "default": ""
+        }
+      },
+      "outputs": {
+        "data": {
+          "type": "DataField"
+        }
+      }
+    },
+    "ExtentOp": {
+      "name": "Extent",
+      "type": "ExtentOp",
+      "category": "number",
+      "description": "Find the minimum and maximum values in your data (e.g., to set color scale ranges or determine data bounds)",
+      "inputs": {
+        "data": {
+          "type": "DataField",
+          "default": []
+        },
+        "accessor": {
+          "type": "UnknownField"
+        }
+      },
+      "outputs": {
+        "min": {
+          "type": "NumberField"
+        },
+        "max": {
+          "type": "NumberField"
+        },
+        "extent": {
+          "type": "Vec2Field"
+        }
+      }
+    },
+    "FileOp": {
+      "name": "File",
+      "type": "FileOp",
+      "category": "data",
+      "description": "Fetch a file from a URL or text. Supports csv, tsv, json, text, and binary formats",
+      "inputs": {
+        "format": {
+          "type": "StringLiteralField",
+          "default": "json"
+        },
+        "url": {
+          "type": "FileUrlField",
+          "default": ""
+        },
+        "text": {
+          "type": "StringField",
+          "default": ""
+        },
+        "autoType": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "pulse": {
+          "type": "NumberField",
+          "default": 0
+        }
+      },
+      "outputs": {
+        "data": {
+          "type": "DataField"
+        }
+      }
+    },
+    "FillStyleExtensionOp": {
+      "name": "FillStyleExtension",
+      "type": "FillStyleExtensionOp",
+      "category": "extension",
+      "description": "Add patterns and styles to polygon fills",
+      "inputs": {
+        "fillPatternEnabled": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "proceduralPattern": {
+          "type": "BooleanField",
+          "default": false
+        },
+        "fillPatternMask": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "fillPatternSizeUnits": {
+          "type": "StringLiteralField",
+          "default": "meters"
+        },
+        "fillPatternAtlas": {
+          "type": "StringField",
+          "default": ""
+        },
+        "fillPatternMapping": {
+          "type": "UnknownField",
+          "default": null
+        },
+        "getFillPattern": {
+          "type": "UnknownField",
+          "default": null
+        },
+        "getFillPatternScale": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "getFillPatternOffset": {
+          "type": "Vec2Field",
+          "default": [
+            0,
+            0
+          ]
+        },
+        "getFillPatternBackgroundColor": {
+          "type": "ColorField",
+          "default": "#00000000"
+        }
+      },
+      "outputs": {
+        "extension": {
+          "type": "ExtensionField"
+        }
+      }
+    },
+    "FilterOp": {
+      "name": "FilterOp",
+      "type": "FilterOp",
+      "category": "utility",
+      "description": "Filter an array of data based on a condition",
+      "inputs": {
+        "data": {
+          "type": "DataField",
+          "default": []
+        },
+        "columnName": {
+          "type": "StringLiteralField",
+          "default": ""
+        },
+        "condition": {
+          "type": "StringLiteralField",
+          "default": "equals"
+        },
+        "value": {
+          "type": "StringField",
+          "default": ""
+        }
+      },
+      "outputs": {
+        "data": {
+          "type": "DataField"
+        }
+      }
+    },
+    "FirstPersonViewOp": {
+      "name": "FirstPersonView",
+      "type": "FirstPersonViewOp",
+      "category": "view",
+      "description": "A deck.gl first person view.",
+      "inputs": {
+        "x": {
+          "type": "NumberField",
+          "default": 0
+        },
+        "y": {
+          "type": "NumberField",
+          "default": 0
+        },
+        "width": {
+          "type": "StringField",
+          "default": "100%"
+        },
+        "height": {
+          "type": "StringField",
+          "default": "100%"
+        },
+        "padding": {
+          "type": "CompoundPropsField",
+          "default": {
+            "top": 0,
+            "right": 0,
+            "bottom": 0,
+            "left": 0
+          }
+        },
+        "clear": {
+          "type": "BooleanField",
+          "default": false
+        },
+        "clearColor": {
+          "type": "ColorField",
+          "default": "#00000000"
+        },
+        "parameters": {
+          "type": "CompoundPropsField",
+          "default": {}
+        },
+        "orthographic": {
+          "type": "BooleanField",
+          "default": false
+        },
+        "near": {
+          "type": "NumberField",
+          "default": 0.1
+        },
+        "far": {
+          "type": "NumberField",
+          "default": 100000
+        },
+        "fovy": {
+          "type": "NumberField",
+          "default": 40
+        },
+        "viewState": {
+          "type": "CompoundPropsField",
+          "default": {
+            "latitude": 40.7128,
+            "longitude": -74.006,
+            "position": [
+              0,
+              0,
+              0
+            ],
+            "bearing": 0,
+            "pitch": 0
+          }
+        }
+      },
+      "outputs": {
+        "view": {
+          "type": "ViewField"
+        }
+      }
+    },
+    "ForLoopBeginOp": {
+      "name": "ForLoopBegin",
+      "type": "ForLoopBeginOp",
+      "category": "grouping",
+      "description": "Start a loop that processes each item in an array. The scope body is wrapped in a group node. Outputs are set by the executor during iteration.",
+      "inputs": {
+        "data": {
+          "type": "DataField",
+          "default": []
+        }
+      },
+      "outputs": {
+        "item": {
+          "type": "DataField"
+        },
+        "index": {
+          "type": "NumberField"
+        },
+        "total": {
+          "type": "NumberField"
+        }
+      }
+    },
+    "ForLoopEndOp": {
+      "name": "ForLoopEnd",
+      "type": "ForLoopEndOp",
+      "category": "grouping",
+      "description": "End a loop started by ForLoopBegin. Collects all the processed items into an array and passes them to downstream operators.",
+      "inputs": {
+        "item": {
+          "type": "DataField",
+          "default": null
+        }
+      },
+      "outputs": {
+        "data": {
+          "type": "DataField"
+        }
+      }
+    },
+    "ForLoopMetaOp": {
+      "name": "ForLoopMeta",
+      "type": "ForLoopMetaOp",
+      "category": "utility",
+      "description": "Access iteration metadata and accumulator within a ForLoop scope. Like Houdini iteration metadata.",
+      "inputs": {
+        "initialValue": {
+          "type": "DataField",
+          "default": null
+        },
+        "currentValue": {
+          "type": "DataField",
+          "default": null
+        }
+      },
+      "outputs": {
+        "accumulator": {
+          "type": "DataField"
+        },
+        "index": {
+          "type": "NumberField"
+        },
+        "total": {
+          "type": "NumberField"
+        },
+        "isFirst": {
+          "type": "BooleanField"
+        },
+        "isLast": {
+          "type": "BooleanField"
+        }
+      }
+    },
+    "FpsWidgetOp": {
+      "name": "FpsWidget",
+      "type": "FpsWidgetOp",
+      "category": "widget",
+      "description": "Display frames per second (FPS) and rendering stats widget",
+      "inputs": {
+        "placement": {
+          "type": "StringLiteralField",
+          "default": "top-left"
+        },
+        "viewId": {
+          "type": "StringField",
+          "default": ""
+        }
+      },
+      "outputs": {
+        "widget": {
+          "type": "WidgetField"
+        }
+      }
+    },
+    "FullscreenWidgetOp": {
+      "name": "FullscreenWidget",
+      "type": "FullscreenWidgetOp",
+      "category": "widget",
+      "description": "Enter/exit fullscreen widget",
+      "inputs": {
+        "placement": {
+          "type": "StringLiteralField",
+          "default": "top-right"
+        },
+        "viewId": {
+          "type": "StringField",
+          "default": ""
+        }
+      },
+      "outputs": {
+        "widget": {
+          "type": "WidgetField"
+        }
+      }
+    },
+    "GeocoderOp": {
+      "name": "Geocoder",
+      "type": "GeocoderOp",
+      "category": "data",
+      "description": "Get the location of a query string",
+      "inputs": {
+        "query": {
+          "type": "StringField",
+          "default": ""
+        }
+      },
+      "outputs": {
+        "location": {
+          "type": "Point2DField"
+        },
+        "results": {
+          "type": "DataField"
+        }
+      }
+    },
+    "GeoEditorOp": {
+      "name": "GeoEditor",
+      "type": "GeoEditorOp",
+      "category": "geojson",
+      "description": "Draw and edit GeoJSON geometry with a visual editor",
+      "inputs": {
+        "geojson": {
+          "type": "CodeField",
+          "default": "{\n  \"type\": \"FeatureCollection\",\n  \"features\": []\n}"
+        }
+      },
+      "outputs": {
+        "featureCollection": {
+          "type": "GeoJsonField"
+        }
+      }
+    },
+    "GeohashLayerOp": {
+      "name": "GeohashLayer",
+      "type": "GeohashLayerOp",
+      "category": "layer",
+      "description": "Render filled and/or stroked polygons based on geohash strings",
+      "inputs": {
+        "data": {
+          "type": "DataField",
+          "default": []
+        },
+        "visible": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "opacity": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "getGeohash": {
+          "type": "StringField",
+          "default": ""
+        },
+        "getFillColor": {
+          "type": "ColorField",
+          "default": "#000000"
+        },
+        "getLineColor": {
+          "type": "ColorField",
+          "default": "#000000"
+        },
+        "getElevation": {
+          "type": "NumberField",
+          "default": 1000
+        },
+        "getLineWidth": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "elevationScale": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "filled": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "stroked": {
+          "type": "BooleanField",
+          "default": false
+        },
+        "extruded": {
+          "type": "BooleanField",
+          "default": false
+        },
+        "lineAntialiasing": {
+          "type": "BooleanField",
+          "default": false
+        },
+        "parameters": {
+          "type": "CompoundPropsField",
+          "default": {
+            "depthTest": true
+          }
+        },
+        "extensions": {
+          "type": "ListField",
+          "default": []
+        }
+      },
+      "outputs": {
+        "layer": {
+          "type": "LayerField"
+        }
+      }
+    },
+    "GeoJsonLayerOp": {
+      "name": "GeoJsonLayer",
+      "type": "GeoJsonLayerOp",
+      "category": "layer",
+      "description": "Render GeoJSON data with points, lines, and polygons",
+      "inputs": {
+        "data": {
+          "type": "GeoJsonField",
+          "default": {
+            "type": "FeatureCollection",
+            "features": []
+          }
+        },
+        "visible": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "opacity": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "pointType": {
+          "type": "StringLiteralField",
+          "default": "circle"
+        },
+        "getPointRadius": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "pointRadiusUnits": {
+          "type": "StringLiteralField",
+          "default": "meters"
+        },
+        "pointRadiusScale": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "pointRadiusMinPixels": {
+          "type": "NumberField",
+          "default": 0
+        },
+        "pointRadiusMaxPixels": {
+          "type": "NumberField",
+          "default": 100
+        },
+        "pointRadiusBillboard": {
+          "type": "BooleanField",
+          "default": false
+        },
+        "getText": {
+          "type": "StringField",
+          "default": ""
+        },
+        "getTextSize": {
+          "type": "NumberField",
+          "default": 32
+        },
+        "getTextColor": {
+          "type": "ColorField",
+          "default": "#000000"
+        },
+        "getTextAngle": {
+          "type": "NumberField",
+          "default": 0
+        },
+        "getTextAnchor": {
+          "type": "StringLiteralField",
+          "default": "middle"
+        },
+        "getTextAlignmentBaseline": {
+          "type": "StringLiteralField",
+          "default": "center"
+        },
+        "getTextPixelOffset": {
+          "type": "Vec2Field",
+          "default": {
+            "x": 0,
+            "y": 0
+          }
+        },
+        "textSizeUnits": {
+          "type": "StringLiteralField",
+          "default": "pixels"
+        },
+        "textSizeScale": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "textSizeMinPixels": {
+          "type": "NumberField",
+          "default": 0
+        },
+        "textSizeMaxPixels": {
+          "type": "NumberField",
+          "default": 100
+        },
+        "textBillboard": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "textFontFamily": {
+          "type": "StringField",
+          "default": "Monaco, monospace"
+        },
+        "textFontWeight": {
+          "type": "NumberField",
+          "default": 400
+        },
+        "filled": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "getFillColor": {
+          "type": "ColorField",
+          "default": "#006ac6"
+        },
+        "stroked": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "getLineColor": {
+          "type": "ColorField",
+          "default": "#000000"
+        },
+        "getLineWidth": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "lineWidthUnits": {
+          "type": "StringLiteralField",
+          "default": "meters"
+        },
+        "lineWidthScale": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "lineWidthMinPixels": {
+          "type": "NumberField",
+          "default": 0
+        },
+        "lineWidthMaxPixels": {
+          "type": "NumberField",
+          "default": 100
+        },
+        "lineCapRounded": {
+          "type": "BooleanField",
+          "default": false
+        },
+        "lineJointRounded": {
+          "type": "BooleanField",
+          "default": false
+        },
+        "lineMiterLimit": {
+          "type": "NumberField",
+          "default": 4
+        },
+        "lineBillboard": {
+          "type": "BooleanField",
+          "default": false
+        },
+        "lineAntialiasing": {
+          "type": "BooleanField",
+          "default": false
+        },
+        "extruded": {
+          "type": "BooleanField",
+          "default": false
+        },
+        "wireframe": {
+          "type": "BooleanField",
+          "default": false
+        },
+        "getElevation": {
+          "type": "NumberField",
+          "default": 1000
+        },
+        "elevationScale": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "_full3d": {
+          "type": "BooleanField",
+          "default": false
+        },
+        "parameters": {
+          "type": "CompoundPropsField",
+          "default": {
+            "depthTest": true,
+            "cullMode": "none"
+          }
+        },
+        "extensions": {
+          "type": "ListField",
+          "default": []
+        }
+      },
+      "outputs": {
+        "layer": {
+          "type": "LayerField"
+        }
+      }
+    },
+    "GeoJsonOp": {
+      "name": "GeoJson",
+      "type": "GeoJsonOp",
+      "category": "geojson",
+      "description": "Create a GeoJSON FeatureCollection from a list of features",
+      "inputs": {
+        "features": {
+          "type": "ListField",
+          "default": []
+        }
+      },
+      "outputs": {
+        "featureCollection": {
+          "type": "GeoJsonField"
+        }
+      }
+    },
+    "GeoJsonTransformOp": {
+      "name": "GeoJsonTransform",
+      "type": "GeoJsonTransformOp",
+      "category": "geojson",
+      "description": "Transform a GeoJSON feature with scale, translate, and rotate operations",
+      "inputs": {
+        "feature": {
+          "type": "GeoJsonField",
+          "default": {
+            "type": "FeatureCollection",
+            "features": []
+          }
+        },
+        "scale": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "translateX": {
+          "type": "NumberField",
+          "default": 0
+        },
+        "translateY": {
+          "type": "NumberField",
+          "default": 0
+        },
+        "rotate": {
+          "type": "NumberField",
+          "default": 0
+        }
+      },
+      "outputs": {
+        "feature": {
+          "type": "GeoJsonField"
+        }
+      }
+    },
+    "GeoParquetOp": {
+      "name": "GeoParquet",
+      "type": "GeoParquetOp",
+      "category": "data",
+      "description": "Load a GeoParquet file and output GeoJSON FeatureCollection via DuckDB Spatial",
+      "inputs": {
+        "url": {
+          "type": "FileUrlField",
+          "default": ""
+        },
+        "geometryColumn": {
+          "type": "StringField",
+          "default": "geometry"
+        },
+        "limit": {
+          "type": "NumberField",
+          "default": 0
+        }
+      },
+      "outputs": {
+        "featureCollection": {
+          "type": "GeoJsonField"
+        },
+        "data": {
+          "type": "DataField"
+        }
+      }
+    },
+    "GlobeViewOp": {
+      "name": "GlobeView",
+      "type": "GlobeViewOp",
+      "category": "view",
+      "description": "A deck.gl globe view.",
+      "inputs": {
+        "x": {
+          "type": "NumberField",
+          "default": 0
+        },
+        "y": {
+          "type": "NumberField",
+          "default": 0
+        },
+        "width": {
+          "type": "StringField",
+          "default": "100%"
+        },
+        "height": {
+          "type": "StringField",
+          "default": "100%"
+        },
+        "padding": {
+          "type": "CompoundPropsField",
+          "default": {
+            "top": 0,
+            "right": 0,
+            "bottom": 0,
+            "left": 0
+          }
+        },
+        "clear": {
+          "type": "BooleanField",
+          "default": false
+        },
+        "clearColor": {
+          "type": "ColorField",
+          "default": "#00000000"
+        },
+        "parameters": {
+          "type": "CompoundPropsField",
+          "default": {}
+        },
+        "altitude": {
+          "type": "NumberField",
+          "default": 1.5
+        },
+        "nearZMultiplier": {
+          "type": "NumberField",
+          "default": 0.1
+        },
+        "farZMultiplier": {
+          "type": "NumberField",
+          "default": 1.01
+        },
+        "viewState": {
+          "type": "CompoundPropsField",
+          "default": {
+            "latitude": 40.7128,
+            "longitude": -74.006,
+            "zoom": 12
+          }
+        }
+      },
+      "outputs": {
+        "view": {
+          "type": "ViewField"
+        }
+      }
+    },
+    "GraphInputOp": {
+      "name": "GraphInput",
+      "type": "GraphInputOp",
+      "category": "grouping",
+      "description": "Receives input from the parent Container.",
+      "inputs": {
+        "parentValue": {
+          "type": "UnknownField",
+          "default": null
+        }
+      },
+      "outputs": {
+        "value": {
+          "type": "UnknownField"
+        }
+      }
+    },
+    "GraphOutputOp": {
+      "name": "GraphOutput",
+      "type": "GraphOutputOp",
+      "category": "grouping",
+      "description": "Provides output to the parent Container.",
+      "inputs": {
+        "value": {
+          "type": "UnknownField",
+          "default": null
+        }
+      },
+      "outputs": {
+        "propagatedValue": {
+          "type": "UnknownField"
+        }
+      }
+    },
+    "GreatCircleLayerOp": {
+      "name": "GreatCircleLayer",
+      "type": "GreatCircleLayerOp",
+      "category": "layer",
+      "description": "Render great circle arcs between pairs of source and target coordinates",
+      "inputs": {
+        "data": {
+          "type": "DataField",
+          "default": []
+        },
+        "visible": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "opacity": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "numSegments": {
+          "type": "NumberField",
+          "default": 20
+        },
+        "widthUnits": {
+          "type": "StringLiteralField",
+          "default": "pixels"
+        },
+        "widthScale": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "widthMinPixels": {
+          "type": "NumberField",
+          "default": 0
+        },
+        "widthMaxPixels": {
+          "type": "NumberField",
+          "default": 100
+        },
+        "antialiasing": {
+          "type": "BooleanField",
+          "default": false
+        },
+        "getSourcePosition": {
+          "type": "Point2DField",
+          "default": [
+            0,
+            0
+          ]
+        },
+        "getTargetPosition": {
+          "type": "Point2DField",
+          "default": [
+            0,
+            0
+          ]
+        },
+        "getSourceColor": {
+          "type": "ColorField",
+          "default": "#000000"
+        },
+        "getTargetColor": {
+          "type": "ColorField",
+          "default": "#000000"
+        },
+        "getWidth": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "parameters": {
+          "type": "CompoundPropsField",
+          "default": {
+            "depthTest": true
+          }
+        },
+        "extensions": {
+          "type": "ListField",
+          "default": []
+        }
+      },
+      "outputs": {
+        "layer": {
+          "type": "LayerField"
+        }
+      }
+    },
+    "GridCellLayerOp": {
+      "name": "GridCellLayer",
+      "type": "GridCellLayerOp",
+      "category": "layer",
+      "description": "Render a grid of cells at specified coordinates",
+      "inputs": {
+        "data": {
+          "type": "DataField",
+          "default": []
+        },
+        "visible": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "opacity": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "cellSize": {
+          "type": "NumberField",
+          "default": 1000
+        },
+        "coverage": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "elevationScale": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "extruded": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "filled": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "stroked": {
+          "type": "BooleanField",
+          "default": false
+        },
+        "wireframe": {
+          "type": "BooleanField",
+          "default": false
+        },
+        "flatShading": {
+          "type": "BooleanField",
+          "default": false
+        },
+        "getPosition": {
+          "type": "Point3DField",
+          "default": [
+            0,
+            0,
+            0
+          ]
+        },
+        "getColor": {
+          "type": "ColorField",
+          "default": "#000000"
+        },
+        "getElevation": {
+          "type": "NumberField",
+          "default": 1000
+        },
+        "parameters": {
+          "type": "CompoundPropsField",
+          "default": {
+            "depthTest": true
+          }
+        },
+        "extensions": {
+          "type": "ListField",
+          "default": []
+        }
+      },
+      "outputs": {
+        "layer": {
+          "type": "LayerField"
+        }
+      }
+    },
+    "GridLayerOp": {
+      "name": "GridLayer",
+      "type": "GridLayerOp",
+      "category": "layer",
+      "description": "Aggregate data into a grid and render as columns",
+      "inputs": {
+        "data": {
+          "type": "DataField",
+          "default": []
+        },
+        "visible": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "opacity": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "getPosition": {
+          "type": "Point3DField",
+          "default": [
+            0,
+            0,
+            0
+          ]
+        },
+        "cellSize": {
+          "type": "NumberField",
+          "default": 1000
+        },
+        "getColorWeight": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "colorAggregation": {
+          "type": "StringLiteralField",
+          "default": "SUM"
+        },
+        "colorScaleType": {
+          "type": "StringLiteralField",
+          "default": "quantize"
+        },
+        "colorRange": {
+          "type": "UnknownField",
+          "default": [
+            [
+              255,
+              255,
+              178
+            ],
+            [
+              254,
+              217,
+              118
+            ],
+            [
+              254,
+              178,
+              76
+            ],
+            [
+              253,
+              141,
+              60
+            ],
+            [
+              240,
+              59,
+              32
+            ],
+            [
+              189,
+              0,
+              38
+            ]
+          ]
+        },
+        "colorDomain": {
+          "type": "UnknownField",
+          "default": null
+        },
+        "upperPercentile": {
+          "type": "NumberField",
+          "default": 100
+        },
+        "lowerPercentile": {
+          "type": "NumberField",
+          "default": 0
+        },
+        "extruded": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "getElevationWeight": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "elevationAggregation": {
+          "type": "StringLiteralField",
+          "default": "SUM"
+        },
+        "elevationScaleType": {
+          "type": "StringLiteralField",
+          "default": "linear"
+        },
+        "elevationScale": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "elevationRange": {
+          "type": "Vec2Field",
+          "default": [
+            0,
+            1000
+          ]
+        },
+        "elevationDomain": {
+          "type": "UnknownField",
+          "default": null
+        },
+        "elevationUpperPercentile": {
+          "type": "NumberField",
+          "default": 100
+        },
+        "elevationLowerPercentile": {
+          "type": "NumberField",
+          "default": 0
+        },
+        "coverage": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "gpuAggregation": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "parameters": {
+          "type": "CompoundPropsField",
+          "default": {
+            "depthTest": true
+          }
+        },
+        "extensions": {
+          "type": "ListField",
+          "default": []
+        }
+      },
+      "outputs": {
+        "layer": {
+          "type": "LayerField"
+        }
+      }
+    },
+    "H3ClusterLayerOp": {
+      "name": "H3ClusterLayer",
+      "type": "H3ClusterLayerOp",
+      "category": "layer",
+      "description": "Render hexagons from H3 hexagon indices and cluster them by density",
+      "inputs": {
+        "data": {
+          "type": "DataField",
+          "default": []
+        },
+        "visible": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "opacity": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "getHexagons": {
+          "type": "UnknownField"
+        },
+        "getLineWidth": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "getFillColor": {
+          "type": "ColorField",
+          "default": "#000000"
+        },
+        "getElevation": {
+          "type": "NumberField",
+          "default": 1000
+        },
+        "lineAntialiasing": {
+          "type": "BooleanField",
+          "default": false
+        },
+        "parameters": {
+          "type": "CompoundPropsField",
+          "default": {
+            "depthTest": true
+          }
+        },
+        "extensions": {
+          "type": "ListField",
+          "default": []
+        }
+      },
+      "outputs": {
+        "layer": {
+          "type": "LayerField"
+        }
+      }
+    },
+    "H3HexagonLayerOp": {
+      "name": "H3HexagonLayer",
+      "type": "H3HexagonLayerOp",
+      "category": "layer",
+      "description": "Render a hexagon grid on the map using the H3 grid system",
+      "inputs": {
+        "data": {
+          "type": "DataField",
+          "default": []
+        },
+        "visible": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "opacity": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "getHexagon": {
+          "type": "StringField",
+          "default": ""
+        },
+        "getFillColor": {
+          "type": "ColorField",
+          "default": "#fff"
+        },
+        "getRadius": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "getLineWidth": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "parameters": {
+          "type": "CompoundPropsField",
+          "default": {
+            "depthTest": true
+          }
+        },
+        "extensions": {
+          "type": "ListField",
+          "default": []
+        }
+      },
+      "outputs": {
+        "layer": {
+          "type": "LayerField"
+        }
+      }
+    },
+    "HeatmapLayerOp": {
+      "name": "HeatmapLayer",
+      "type": "HeatmapLayerOp",
+      "category": "layer",
+      "description": "Render a heatmap from points on the map",
+      "inputs": {
+        "data": {
+          "type": "DataField",
+          "default": []
+        },
+        "visible": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "opacity": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "getPosition": {
+          "type": "Point2DField",
+          "default": [
+            0,
+            0
+          ]
+        },
+        "getWeight": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "aggregation": {
+          "type": "StringLiteralField",
+          "default": "SUM"
+        },
+        "radiusPixels": {
+          "type": "NumberField",
+          "default": 30
+        },
+        "intensity": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "threshold": {
+          "type": "NumberField",
+          "default": 0.05
+        },
+        "parameters": {
+          "type": "CompoundPropsField",
+          "default": {
+            "depthTest": true
+          }
+        },
+        "extensions": {
+          "type": "ListField",
+          "default": []
+        }
+      },
+      "outputs": {
+        "layer": {
+          "type": "LayerField"
+        }
+      }
+    },
+    "HexagonLayerOp": {
+      "name": "HexagonLayer",
+      "type": "HexagonLayerOp",
+      "category": "layer",
+      "description": "Aggregate data into hexagonal bins and render as hexagonal columns",
+      "inputs": {
+        "data": {
+          "type": "DataField",
+          "default": []
+        },
+        "visible": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "opacity": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "getPosition": {
+          "type": "Point3DField",
+          "default": [
+            0,
+            0,
+            0
+          ]
+        },
+        "radius": {
+          "type": "NumberField",
+          "default": 1000
+        },
+        "getColorWeight": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "colorAggregation": {
+          "type": "StringLiteralField",
+          "default": "SUM"
+        },
+        "colorScaleType": {
+          "type": "StringLiteralField",
+          "default": "quantize"
+        },
+        "colorRange": {
+          "type": "UnknownField",
+          "default": [
+            [
+              255,
+              255,
+              178
+            ],
+            [
+              254,
+              217,
+              118
+            ],
+            [
+              254,
+              178,
+              76
+            ],
+            [
+              253,
+              141,
+              60
+            ],
+            [
+              240,
+              59,
+              32
+            ],
+            [
+              189,
+              0,
+              38
+            ]
+          ]
+        },
+        "colorDomain": {
+          "type": "UnknownField",
+          "default": null
+        },
+        "upperPercentile": {
+          "type": "NumberField",
+          "default": 100
+        },
+        "lowerPercentile": {
+          "type": "NumberField",
+          "default": 0
+        },
+        "extruded": {
+          "type": "BooleanField",
+          "default": false
+        },
+        "getElevationWeight": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "elevationAggregation": {
+          "type": "StringLiteralField",
+          "default": "SUM"
+        },
+        "elevationScaleType": {
+          "type": "StringLiteralField",
+          "default": "linear"
+        },
+        "elevationScale": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "elevationRange": {
+          "type": "Vec2Field",
+          "default": [
+            0,
+            1000
+          ]
+        },
+        "elevationDomain": {
+          "type": "UnknownField",
+          "default": null
+        },
+        "elevationUpperPercentile": {
+          "type": "NumberField",
+          "default": 100
+        },
+        "elevationLowerPercentile": {
+          "type": "NumberField",
+          "default": 0
+        },
+        "coverage": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "gpuAggregation": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "parameters": {
+          "type": "CompoundPropsField",
+          "default": {
+            "depthTest": true
+          }
+        },
+        "extensions": {
+          "type": "ListField",
+          "default": []
+        }
+      },
+      "outputs": {
+        "layer": {
+          "type": "LayerField"
+        }
+      }
+    },
+    "HexGridOp": {
+      "name": "HexGrid",
+      "type": "HexGridOp",
+      "category": "geometry",
+      "description": "Generate a hexagonal grid within a bounding box",
+      "inputs": {
+        "bbox": {
+          "type": "BboxField",
+          "default": {
+            "southwest": {
+              "lng": -180,
+              "lat": -90
+            },
+            "northeast": {
+              "lng": 180,
+              "lat": 90
+            }
+          }
+        },
+        "cellSize": {
+          "type": "NumberField",
+          "default": 10
+        },
+        "units": {
+          "type": "StringLiteralField",
+          "default": "kilometers"
+        }
+      },
+      "outputs": {
+        "featureCollection": {
+          "type": "GeoJsonField"
+        }
+      }
+    },
+    "HSLOp": {
+      "name": "HSL",
+      "type": "HSLOp",
+      "category": "color",
+      "description": "A color in HSL (hue, saturation, lightness) format",
+      "inputs": {
+        "h": {
+          "type": "NumberField",
+          "default": 0
+        },
+        "s": {
+          "type": "NumberField",
+          "default": 0.5
+        },
+        "l": {
+          "type": "NumberField",
+          "default": 0.8
+        }
+      },
+      "outputs": {
+        "color": {
+          "type": "ColorField"
+        }
+      }
+    },
+    "HueSaturationExtensionOp": {
+      "name": "HueSaturationExtension",
+      "type": "HueSaturationExtensionOp",
+      "category": "extension",
+      "description": "Adjust hue and saturation of a layer",
+      "inputs": {
+        "hue": {
+          "type": "NumberField",
+          "default": 0
+        },
+        "saturation": {
+          "type": "NumberField",
+          "default": 0
+        }
+      },
+      "outputs": {
+        "extension": {
+          "type": "ExtensionField"
+        }
+      }
+    },
+    "IconLayerOp": {
+      "name": "IconLayer",
+      "type": "IconLayerOp",
+      "category": "layer",
+      "description": "Render a set of icons on the map",
+      "inputs": {
+        "data": {
+          "type": "DataField",
+          "default": []
+        },
+        "visible": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "opacity": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "getPosition": {
+          "type": "Point3DField",
+          "default": [
+            0,
+            0,
+            0
+          ]
+        },
+        "iconAtlas": {
+          "type": "FileUrlField",
+          "default": "https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/icon-atlas.png"
+        },
+        "iconMapping": {
+          "type": "MapStyleField",
+          "default": "https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/icon-atlas.json"
+        },
+        "billboard": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "getIcon": {
+          "type": "FileUrlField",
+          "default": ""
+        },
+        "getSize": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "sizeUnits": {
+          "type": "StringLiteralField",
+          "default": "pixels"
+        },
+        "sizeScale": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "sizeMinPixels": {
+          "type": "NumberField",
+          "default": 0
+        },
+        "sizeMaxPixels": {
+          "type": "NumberField",
+          "default": 2048
+        },
+        "getPixelOffset": {
+          "type": "Vec2Field",
+          "default": {
+            "x": 0,
+            "y": 0
+          }
+        },
+        "getColor": {
+          "type": "ColorField",
+          "default": "#fff"
+        },
+        "getAngle": {
+          "type": "NumberField",
+          "default": 0
+        },
+        "sizeBasis": {
+          "type": "StringLiteralField",
+          "default": "height"
+        },
+        "parameters": {
+          "type": "CompoundPropsField",
+          "default": {
+            "depthTest": true
+          }
+        },
+        "extensions": {
+          "type": "ListField",
+          "default": []
+        }
+      },
+      "outputs": {
+        "layer": {
+          "type": "LayerField"
+        }
+      }
+    },
+    "InterpolateOp": {
+      "name": "Interpolate",
+      "type": "InterpolateOp",
+      "category": "analysis",
+      "description": "Interpolate scattered point data to a regular grid (IDW)",
+      "inputs": {
+        "geojson": {
+          "type": "GeoJsonField",
+          "default": {
+            "type": "FeatureCollection",
+            "features": []
+          }
+        },
+        "cellSize": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "property": {
+          "type": "StringField",
+          "default": "value"
+        },
+        "units": {
+          "type": "StringLiteralField",
+          "default": "kilometers"
+        },
+        "weight": {
+          "type": "NumberField",
+          "default": 2
+        }
+      },
+      "outputs": {
+        "featureCollection": {
+          "type": "GeoJsonField"
+        }
+      }
+    },
+    "IntersectOp": {
+      "name": "Intersect",
+      "type": "IntersectOp",
+      "category": "geometry",
+      "description": "Find the overlapping area between two polygons",
+      "inputs": {
+        "a": {
+          "type": "GeoJsonField",
+          "default": {
+            "type": "FeatureCollection",
+            "features": []
+          }
+        },
+        "b": {
+          "type": "GeoJsonField",
+          "default": {
+            "type": "FeatureCollection",
+            "features": []
+          }
+        }
+      },
+      "outputs": {
+        "featureCollection": {
+          "type": "GeoJsonField"
+        }
+      }
+    },
+    "IsolineOp": {
+      "name": "Isoline",
+      "type": "IsolineOp",
+      "category": "analysis",
+      "description": "Generate isolines (contour lines) from point data with Z values",
+      "inputs": {
+        "geojson": {
+          "type": "GeoJsonField",
+          "default": {
+            "type": "FeatureCollection",
+            "features": []
+          }
+        },
+        "zProperty": {
+          "type": "StringField",
+          "default": "elevation"
+        },
+        "breaks": {
+          "type": "UnknownField",
+          "default": [
+            100,
+            200,
+            500,
+            1000,
+            2000
+          ]
+        }
+      },
+      "outputs": {
+        "featureCollection": {
+          "type": "GeoJsonField"
+        }
+      }
+    },
+    "JSONOp": {
+      "name": "JSON",
+      "type": "JSONOp",
+      "category": "code",
+      "description": "Parse a JSON string",
+      "inputs": {
+        "text": {
+          "type": "CodeField",
+          "default": "{}"
+        }
+      },
+      "outputs": {
+        "data": {
+          "type": "DataField"
+        }
+      }
+    },
+    "KMeansClusterOp": {
+      "name": "KMeansCluster",
+      "type": "KMeansClusterOp",
+      "category": "analysis",
+      "description": "Cluster points into k groups using k-means algorithm",
+      "inputs": {
+        "geojson": {
+          "type": "GeoJsonField",
+          "default": {
+            "type": "FeatureCollection",
+            "features": []
+          }
+        },
+        "numberOfClusters": {
+          "type": "NumberField",
+          "default": 5
+        }
+      },
+      "outputs": {
+        "featureCollection": {
+          "type": "GeoJsonField"
+        }
+      }
+    },
+    "KmlToGeoJsonOp": {
+      "name": "KmlToGeoJson",
+      "type": "KmlToGeoJsonOp",
+      "category": "geojson",
+      "description": "Convert KML string to GeoJSON FeatureCollection",
+      "inputs": {
+        "kml": {
+          "type": "CodeField",
+          "default": ""
+        }
+      },
+      "outputs": {
+        "geojson": {
+          "type": "DataField"
+        }
+      }
+    },
+    "LayerPropsOp": {
+      "name": "LayerProps",
+      "type": "LayerPropsOp",
+      "category": "utility",
+      "description": "Add additional props to a layer (e.g., operation: \"mask\" for mask layers, beforeId for maplibre layer ordering)",
+      "inputs": {
+        "layer": {
+          "type": "LayerField"
+        },
+        "operation": {
+          "type": "StringField",
+          "default": ""
+        },
+        "beforeId": {
+          "type": "StringField",
+          "default": ""
+        },
+        "additionalProps": {
+          "type": "UnknownField",
+          "default": {}
+        }
+      },
+      "outputs": {
+        "layer": {
+          "type": "LayerField"
+        }
+      }
+    },
+    "LegendWidgetOp": {
+      "name": "LegendWidget",
+      "type": "LegendWidgetOp",
+      "category": "widget",
+      "description": "Display a color scale legend overlay on the visualization",
+      "inputs": {
+        "colorRamp": {
+          "type": "ColorRampField"
+        },
+        "label": {
+          "type": "StringField",
+          "default": ""
+        },
+        "minValue": {
+          "type": "NumberField",
+          "default": 0
+        },
+        "maxValue": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "placement": {
+          "type": "StringLiteralField",
+          "default": "bottom-right"
+        },
+        "steps": {
+          "type": "NumberField",
+          "default": 12
+        },
+        "scale": {
+          "type": "NumberField",
+          "default": 1
+        }
+      },
+      "outputs": {
+        "widget": {
+          "type": "WidgetField"
+        }
+      }
+    },
+    "LengthOp": {
+      "name": "Length",
+      "type": "LengthOp",
+      "category": "analysis",
+      "description": "Calculate the length of line features in specified units",
+      "inputs": {
+        "geojson": {
+          "type": "GeoJsonField",
+          "default": {
+            "type": "FeatureCollection",
+            "features": []
+          }
+        },
+        "units": {
+          "type": "StringLiteralField",
+          "default": "kilometers"
+        }
+      },
+      "outputs": {
+        "featureCollection": {
+          "type": "GeoJsonField"
+        },
+        "totalLength": {
+          "type": "NumberField"
+        }
+      }
+    },
+    "LineInterpolationOp": {
+      "name": "Line Interpolation",
+      "type": "LineInterpolationOp",
+      "category": "geojson",
+      "description": "Interpolate GeoJSON lines with D3 curves or round corners with a physical turn radius",
+      "inputs": {
+        "feature": {
+          "type": "GeoJsonField",
+          "default": {
+            "type": "FeatureCollection",
+            "features": []
+          }
+        },
+        "method": {
+          "type": "StringLiteralField",
+          "default": "catmull-rom"
+        },
+        "samplesPerSegment": {
+          "type": "NumberField",
+          "default": 12
+        },
+        "alpha": {
+          "type": "NumberField",
+          "default": 0.5
+        },
+        "tension": {
+          "type": "NumberField",
+          "default": 0
+        },
+        "turnRadiusMeters": {
+          "type": "NumberField",
+          "default": 250
+        }
+      },
+      "outputs": {
+        "feature": {
+          "type": "GeoJsonField"
+        }
+      }
+    },
+    "LineLayerOp": {
+      "name": "LineLayer",
+      "type": "LineLayerOp",
+      "category": "layer",
+      "description": "Render straight lines between source and target coordinates",
+      "inputs": {
+        "data": {
+          "type": "DataField",
+          "default": []
+        },
+        "visible": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "opacity": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "widthUnits": {
+          "type": "StringLiteralField",
+          "default": "pixels"
+        },
+        "widthScale": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "widthMinPixels": {
+          "type": "NumberField",
+          "default": 0
+        },
+        "widthMaxPixels": {
+          "type": "NumberField",
+          "default": 100
+        },
+        "antialiasing": {
+          "type": "BooleanField",
+          "default": false
+        },
+        "getSourcePosition": {
+          "type": "Point3DField",
+          "default": [
+            0,
+            0,
+            0
+          ]
+        },
+        "getTargetPosition": {
+          "type": "Point3DField",
+          "default": [
+            0,
+            0,
+            0
+          ]
+        },
+        "getColor": {
+          "type": "ColorField",
+          "default": "#000000"
+        },
+        "getWidth": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "parameters": {
+          "type": "CompoundPropsField",
+          "default": {
+            "depthTest": true
+          }
+        },
+        "extensions": {
+          "type": "ListField",
+          "default": []
+        }
+      },
+      "outputs": {
+        "layer": {
+          "type": "LayerField"
+        }
+      }
+    },
+    "LineSliceOp": {
+      "name": "LineSlice",
+      "type": "LineSliceOp",
+      "category": "analysis",
+      "description": "Extract a segment of a line between two distances along it",
+      "inputs": {
+        "geojson": {
+          "type": "GeoJsonField",
+          "default": {
+            "type": "FeatureCollection",
+            "features": []
+          }
+        },
+        "startDistance": {
+          "type": "NumberField",
+          "default": 0
+        },
+        "stopDistance": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "units": {
+          "type": "StringLiteralField",
+          "default": "kilometers"
+        }
+      },
+      "outputs": {
+        "featureCollection": {
+          "type": "GeoJsonField"
+        }
+      }
+    },
+    "LineToPolygonOp": {
+      "name": "LineToPolygon",
+      "type": "LineToPolygonOp",
+      "category": "geojson",
+      "description": "Convert closed LineString features to Polygon features",
+      "inputs": {
+        "geojson": {
+          "type": "GeoJsonField",
+          "default": {
+            "type": "FeatureCollection",
+            "features": []
+          }
+        }
+      },
+      "outputs": {
+        "featureCollection": {
+          "type": "GeoJsonField"
+        }
+      }
+    },
+    "MaplibreBasemapOp": {
+      "name": "MaplibreBasemap",
+      "type": "MaplibreBasemapOp",
+      "category": "view",
+      "description": "A MapLibre basemap with sky and lighting settings. Sky colors apply to mercator projection; light and atmosphere apply to globe projection.",
+      "inputs": {
+        "mapStyle": {
+          "type": "MapStyleField",
+          "default": "https://basemaps.cartocdn.com/gl/dark-matter-nolabels-gl-style/style.json"
+        },
+        "projection": {
+          "type": "StringLiteralField",
+          "default": "mercator"
+        },
+        "viewState": {
+          "type": "CompoundPropsField",
+          "default": {
+            "latitude": 40.7128,
+            "longitude": -74.006,
+            "zoom": 12,
+            "pitch": 0,
+            "bearing": 0
+          }
+        },
+        "sky": {
+          "type": "CompoundPropsField",
+          "default": {
+            "enabled": false,
+            "skyColor": "#88C6FC",
+            "horizonColor": "#ffffff",
+            "skyHorizonBlend": 0.8,
+            "atmosphereBlend": 0.5
+          }
+        },
+        "light": {
+          "type": "CompoundPropsField",
+          "default": {
+            "anchor": "viewport",
+            "azimuthal": 210,
+            "polar": 30
+          }
+        }
+      },
+      "outputs": {
+        "maplibre": {
+          "type": "CompoundPropsField"
+        }
+      }
+    },
+    "MapRangeOp": {
+      "name": "MapRange",
+      "type": "MapRangeOp",
+      "category": "number",
+      "description": "Remap a number from one range to another (e.g., map 0-100 to 0-1, or temperature to color intensity)",
+      "inputs": {
+        "val": {
+          "type": "NumberField",
+          "default": 0
+        },
+        "inMin": {
+          "type": "NumberField",
+          "default": 0
+        },
+        "inMax": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "outMin": {
+          "type": "NumberField",
+          "default": 0
+        },
+        "outMax": {
+          "type": "NumberField",
+          "default": 1
+        }
+      },
+      "outputs": {
+        "scaled": {
+          "type": "NumberField"
+        }
+      }
+    },
+    "MapStyleConfiguratorOp": {
+      "name": "MapStyleConfigurator",
+      "type": "MapStyleConfiguratorOp",
+      "category": "utility",
+      "description": "Visually edit Maplibre style layer colors, fonts, and visibility. Connect the output to MaplibreBasemap.",
+      "inputs": {
+        "baseStyle": {
+          "type": "FileUrlField",
+          "default": "https://basemaps.cartocdn.com/gl/dark-matter-nolabels-gl-style/style.json"
+        },
+        "overrides": {
+          "type": "UnknownField",
+          "default": {
+            "layers": [],
+            "global": {}
+          }
+        }
+      },
+      "outputs": {
+        "mapStyle": {
+          "type": "UnknownField"
+        }
+      }
+    },
+    "MapViewOp": {
+      "name": "MapView",
+      "type": "MapViewOp",
+      "category": "view",
+      "description": "A deck.gl map view.",
+      "inputs": {
+        "x": {
+          "type": "NumberField",
+          "default": 0
+        },
+        "y": {
+          "type": "NumberField",
+          "default": 0
+        },
+        "width": {
+          "type": "StringField",
+          "default": "100%"
+        },
+        "height": {
+          "type": "StringField",
+          "default": "100%"
+        },
+        "padding": {
+          "type": "CompoundPropsField",
+          "default": {
+            "top": 0,
+            "right": 0,
+            "bottom": 0,
+            "left": 0
+          }
+        },
+        "clear": {
+          "type": "BooleanField",
+          "default": false
+        },
+        "clearColor": {
+          "type": "ColorField",
+          "default": "#00000000"
+        },
+        "parameters": {
+          "type": "CompoundPropsField",
+          "default": {}
+        },
+        "orthographic": {
+          "type": "BooleanField",
+          "default": false
+        },
+        "fovy": {
+          "type": "NumberField",
+          "default": 40
+        },
+        "repeat": {
+          "type": "BooleanField",
+          "default": false
+        },
+        "altitude": {
+          "type": "NumberField",
+          "default": 1.5
+        },
+        "nearZMultiplier": {
+          "type": "NumberField",
+          "default": 0.1
+        },
+        "farZMultiplier": {
+          "type": "NumberField",
+          "default": 1.01
+        },
+        "viewState": {
+          "type": "CompoundPropsField",
+          "default": {
+            "latitude": 40.7128,
+            "longitude": -74.006,
+            "zoom": 12,
+            "bearing": 0,
+            "pitch": 0,
+            "position": [
+              0,
+              0,
+              0
+            ]
+          }
+        }
+      },
+      "outputs": {
+        "view": {
+          "type": "ViewField"
+        }
+      }
+    },
+    "MapViewStateOp": {
+      "name": "MapViewState",
+      "type": "MapViewStateOp",
+      "category": "view",
+      "description": "Create a react-map-gl MapViewState for controlling the camera.",
+      "inputs": {
+        "longitude": {
+          "type": "NumberField",
+          "default": -74.006
+        },
+        "latitude": {
+          "type": "NumberField",
+          "default": 40.7128
+        },
+        "zoom": {
+          "type": "NumberField",
+          "default": 12
+        },
+        "pitch": {
+          "type": "NumberField",
+          "default": 0
+        },
+        "bearing": {
+          "type": "NumberField",
+          "default": 0
+        }
+      },
+      "outputs": {
+        "viewState": {
+          "type": "CompoundPropsField"
+        }
+      }
+    },
+    "Mask3DExtensionOp": {
+      "name": "Mask3DExtension",
+      "type": "Mask3DExtensionOp",
+      "category": "extension",
+      "description": "Mask a sphere (used with Tile3DLayer)",
+      "inputs": {
+        "targetPosition": {
+          "type": "Vec3Field",
+          "default": [
+            0,
+            0,
+            0
+          ]
+        },
+        "innerRadius": {
+          "type": "NumberField",
+          "default": 0
+        },
+        "fadeRange": {
+          "type": "NumberField",
+          "default": 0
+        }
+      },
+      "outputs": {
+        "extension": {
+          "type": "ExtensionField"
+        }
+      }
+    },
+    "MaskExtensionOp": {
+      "name": "MaskExtension",
+      "type": "MaskExtensionOp",
+      "category": "extension",
+      "description": "Show/hide layer objects by a geofence",
+      "inputs": {
+        "maskId": {
+          "type": "StringField",
+          "default": ""
+        },
+        "maskByInstance": {
+          "type": "BooleanField",
+          "default": false
+        }
+      },
+      "outputs": {
+        "extension": {
+          "type": "ExtensionField"
+        }
+      }
+    },
+    "MathOp": {
+      "name": "Math",
+      "type": "MathOp",
+      "category": "number",
+      "description": "Perform a mathematical operation",
+      "inputs": {
+        "operator": {
+          "type": "StringLiteralField",
+          "default": "add"
+        },
+        "a": {
+          "type": "NumberField",
+          "default": 0
+        },
+        "b": {
+          "type": "NumberField",
+          "default": 0
+        }
+      },
+      "outputs": {
+        "result": {
+          "type": "NumberField"
+        }
+      }
+    },
+    "MergeOp": {
+      "name": "Merge",
+      "type": "MergeOp",
+      "category": "data",
+      "description": "Merge multiple objects into one (think Object.assign)",
+      "inputs": {
+        "objects": {
+          "type": "ListField",
+          "default": []
+        }
+      },
+      "outputs": {
+        "object": {
+          "type": "DataField"
+        }
+      }
+    },
+    "MouseOp": {
+      "name": "Mouse",
+      "type": "MouseOp",
+      "category": "utility",
+      "description": "Get the current mouse position on the screen",
+      "inputs": {},
+      "outputs": {
+        "position": {
+          "type": "Vec2Field"
+        }
+      }
+    },
+    "MVTLayerOp": {
+      "name": "MVTLayer",
+      "type": "MVTLayerOp",
+      "category": "layer",
+      "description": "Render Mapbox Vector Tiles (MVT)",
+      "inputs": {
+        "data": {
+          "type": "StringField",
+          "default": "https://example.com/tiles/{z}/{x}/{y}.mvt"
+        },
+        "visible": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "opacity": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "minZoom": {
+          "type": "NumberField",
+          "default": 0
+        },
+        "maxZoom": {
+          "type": "NumberField",
+          "default": 24
+        },
+        "filled": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "stroked": {
+          "type": "BooleanField",
+          "default": false
+        },
+        "lineAntialiasing": {
+          "type": "BooleanField",
+          "default": false
+        },
+        "lineWidthMinPixels": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "getFillColor": {
+          "type": "ColorField",
+          "default": "#000000"
+        },
+        "getLineColor": {
+          "type": "ColorField",
+          "default": "#000000"
+        },
+        "getLineWidth": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "getPointRadius": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "pointRadiusUnits": {
+          "type": "StringLiteralField",
+          "default": "pixels"
+        },
+        "autoLabels": {
+          "type": "BooleanField",
+          "default": false
+        },
+        "parameters": {
+          "type": "CompoundPropsField",
+          "default": {
+            "depthTest": true
+          }
+        },
+        "extensions": {
+          "type": "ListField",
+          "default": []
+        }
+      },
+      "outputs": {
+        "layer": {
+          "type": "LayerField"
+        }
+      }
+    },
+    "NearestPointOp": {
+      "name": "NearestPoint",
+      "type": "NearestPointOp",
+      "category": "analysis",
+      "description": "Find the nearest point in a collection to a target point",
+      "inputs": {
+        "targetPoint": {
+          "type": "Point2DField",
+          "default": [
+            0,
+            0
+          ]
+        },
+        "points": {
+          "type": "GeoJsonField",
+          "default": {
+            "type": "FeatureCollection",
+            "features": []
+          }
+        }
+      },
+      "outputs": {
+        "nearest": {
+          "type": "GeoJsonField"
+        },
+        "distance": {
+          "type": "NumberField"
+        }
+      }
+    },
+    "NetworkOp": {
+      "name": "Network",
+      "type": "NetworkOp",
+      "category": "data",
+      "description": "Generate a network of routes between a set of points (usually skyports)",
+      "inputs": {
+        "skyports": {
+          "type": "DataField",
+          "default": []
+        },
+        "hub": {
+          "type": "BooleanField",
+          "default": false
+        }
+      },
+      "outputs": {
+        "routes": {
+          "type": "DataField"
+        }
+      }
+    },
+    "NumberOp": {
+      "name": "Number",
+      "type": "NumberOp",
+      "category": "number",
+      "description": "A number",
+      "inputs": {
+        "val": {
+          "type": "NumberField",
+          "default": 0
+        }
+      },
+      "outputs": {
+        "val": {
+          "type": "NumberField"
+        }
+      }
+    },
+    "OrbitViewOp": {
+      "name": "OrbitView",
+      "type": "OrbitViewOp",
+      "category": "view",
+      "description": "A deck.gl orbit view.",
+      "inputs": {
+        "x": {
+          "type": "NumberField",
+          "default": 0
+        },
+        "y": {
+          "type": "NumberField",
+          "default": 0
+        },
+        "width": {
+          "type": "StringField",
+          "default": "100%"
+        },
+        "height": {
+          "type": "StringField",
+          "default": "100%"
+        },
+        "padding": {
+          "type": "CompoundPropsField",
+          "default": {
+            "top": 0,
+            "right": 0,
+            "bottom": 0,
+            "left": 0
+          }
+        },
+        "clear": {
+          "type": "BooleanField",
+          "default": false
+        },
+        "clearColor": {
+          "type": "ColorField",
+          "default": "#00000000"
+        },
+        "parameters": {
+          "type": "CompoundPropsField",
+          "default": {}
+        },
+        "orthographic": {
+          "type": "BooleanField",
+          "default": false
+        },
+        "orbitAxis": {
+          "type": "StringLiteralField",
+          "default": "Z"
+        },
+        "near": {
+          "type": "NumberField",
+          "default": 0.1
+        },
+        "far": {
+          "type": "NumberField",
+          "default": 100000
+        },
+        "fovy": {
+          "type": "NumberField",
+          "default": 40
+        },
+        "viewState": {
+          "type": "CompoundPropsField",
+          "default": {
+            "target": [
+              0,
+              0,
+              0
+            ],
+            "rotationOrbit": 0,
+            "rotationX": 0,
+            "zoom": 1
+          }
+        }
+      },
+      "outputs": {
+        "view": {
+          "type": "ViewField"
+        }
+      }
+    },
+    "OrthographicViewOp": {
+      "name": "OrthographicView",
+      "type": "OrthographicViewOp",
+      "category": "view",
+      "description": "A deck.gl orthographic view.",
+      "inputs": {
+        "x": {
+          "type": "NumberField",
+          "default": 0
+        },
+        "y": {
+          "type": "NumberField",
+          "default": 0
+        },
+        "width": {
+          "type": "StringField",
+          "default": "100%"
+        },
+        "height": {
+          "type": "StringField",
+          "default": "100%"
+        },
+        "padding": {
+          "type": "CompoundPropsField",
+          "default": {
+            "top": 0,
+            "right": 0,
+            "bottom": 0,
+            "left": 0
+          }
+        },
+        "clear": {
+          "type": "BooleanField",
+          "default": false
+        },
+        "clearColor": {
+          "type": "ColorField",
+          "default": "#00000000"
+        },
+        "parameters": {
+          "type": "CompoundPropsField",
+          "default": {}
+        },
+        "near": {
+          "type": "NumberField",
+          "default": 0.1
+        },
+        "far": {
+          "type": "NumberField",
+          "default": 100000
+        },
+        "flipY": {
+          "type": "BooleanField",
+          "default": false
+        },
+        "viewState": {
+          "type": "CompoundPropsField",
+          "default": {
+            "target": [
+              0,
+              0,
+              0
+            ],
+            "zoom": 0
+          }
+        }
+      },
+      "outputs": {
+        "view": {
+          "type": "ViewField"
+        }
+      }
+    },
+    "OutOp": {
+      "name": "Out",
+      "type": "OutOp",
+      "category": "data",
+      "description": "Output a visualization.",
+      "inputs": {
+        "vis": {
+          "type": "VisualizationField",
+          "default": {
+            "deckProps": {},
+            "maplibreLayers": []
+          }
+        },
+        "display": {
+          "type": "StringLiteralField",
+          "default": "fixed"
+        },
+        "width": {
+          "type": "NumberField",
+          "default": 1920
+        },
+        "height": {
+          "type": "NumberField",
+          "default": 1080
+        },
+        "lod": {
+          "type": "NumberField",
+          "default": 2
+        },
+        "scaleMode": {
+          "type": "StringLiteralField",
+          "default": "fit"
+        },
+        "waitForData": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "codec": {
+          "type": "StringLiteralField",
+          "default": "avc"
+        },
+        "bitrateMbps": {
+          "type": "NumberField",
+          "default": 10
+        },
+        "bitrateMode": {
+          "type": "StringLiteralField",
+          "default": "constant"
+        },
+        "scaleControl": {
+          "type": "NumberField",
+          "default": 0.3
+        },
+        "framerate": {
+          "type": "NumberField",
+          "default": 30
+        },
+        "captureDelay": {
+          "type": "NumberField",
+          "default": 50
+        },
+        "rendersDirectory": {
+          "type": "StringField",
+          "default": "renders"
+        },
+        "sequenceFormat": {
+          "type": "StringLiteralField",
+          "default": "png"
+        }
+      },
+      "outputs": {}
+    },
+    "OverpassOp": {
+      "name": "Overpass",
+      "type": "OverpassOp",
+      "category": "data",
+      "description": "Query OpenStreetMap data using Overpass API",
+      "inputs": {
+        "query": {
+          "type": "CodeField",
+          "default": "[out:json][timeout:25];\n(\n  way[\"leisure\"=\"park\"]({{bbox}});\n  relation[\"leisure\"=\"park\"]({{bbox}});\n);\nout geom;"
+        },
+        "bbox": {
+          "type": "BboxField",
+          "default": {
+            "southwest": {
+              "lng": -74.05,
+              "lat": 40.68
+            },
+            "northeast": {
+              "lng": -73.9,
+              "lat": 40.82
+            }
+          }
+        },
+        "pulse": {
+          "type": "NumberField",
+          "default": 0
+        }
+      },
+      "outputs": {
+        "data": {
+          "type": "DataField"
+        }
+      }
+    },
+    "PathLayerOp": {
+      "name": "PathLayer",
+      "type": "PathLayerOp",
+      "category": "layer",
+      "description": "Render a path on the map",
+      "inputs": {
+        "data": {
+          "type": "DataField",
+          "default": []
+        },
+        "visible": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "opacity": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "billboard": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "capRounded": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "jointRounded": {
+          "type": "BooleanField",
+          "default": false
+        },
+        "antialiasing": {
+          "type": "BooleanField",
+          "default": false
+        },
+        "getPath": {
+          "type": "UnknownField"
+        },
+        "getColor": {
+          "type": "ColorField",
+          "default": "#006ac6"
+        },
+        "getWidth": {
+          "type": "NumberField",
+          "default": 8
+        },
+        "widthUnits": {
+          "type": "StringLiteralField",
+          "default": "meters"
+        },
+        "widthScale": {
+          "type": "NumberField",
+          "default": 20
+        },
+        "widthMinPixels": {
+          "type": "NumberField",
+          "default": 2
+        },
+        "parameters": {
+          "type": "CompoundPropsField",
+          "default": {
+            "depthTest": true,
+            "depthWriteEnabled": true
+          }
+        },
+        "extensions": {
+          "type": "ListField",
+          "default": []
+        },
+        "wrapLongitude": {
+          "type": "BooleanField",
+          "default": false
+        }
+      },
+      "outputs": {
+        "layer": {
+          "type": "LayerField"
+        }
+      }
+    },
+    "PathStyleExtensionOp": {
+      "name": "PathStyleExtension",
+      "type": "PathStyleExtensionOp",
+      "category": "extension",
+      "description": "Style a path (used with PathLayer, PolygonLayer, and GeoJSONLayer)",
+      "inputs": {
+        "dash": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "highPrecisionDash": {
+          "type": "BooleanField",
+          "default": false
+        },
+        "offset": {
+          "type": "BooleanField",
+          "default": false
+        },
+        "dashMode": {
+          "type": "StringLiteralField",
+          "default": "segment"
+        },
+        "dashJustified": {
+          "type": "BooleanField",
+          "default": false
+        },
+        "dashUnits": {
+          "type": "StringLiteralField",
+          "default": "widths"
+        },
+        "getDashArray": {
+          "type": "Vec2Field",
+          "default": [
+            4,
+            4
+          ]
+        },
+        "getOffset": {
+          "type": "NumberField",
+          "default": 0
+        },
+        "dashGapPickable": {
+          "type": "BooleanField",
+          "default": false
+        }
+      },
+      "outputs": {
+        "extension": {
+          "type": "ExtensionField"
+        }
+      }
+    },
+    "PMTilesOp": {
+      "name": "PMTiles",
+      "type": "PMTilesOp",
+      "category": "view",
+      "description": "Load a PMTiles archive as a MapLibre vector or raster source",
+      "inputs": {
+        "url": {
+          "type": "FileUrlField",
+          "default": ""
+        },
+        "sourceLayer": {
+          "type": "StringField",
+          "default": ""
+        },
+        "minZoom": {
+          "type": "NumberField",
+          "default": 0
+        },
+        "maxZoom": {
+          "type": "NumberField",
+          "default": 14
+        }
+      },
+      "outputs": {
+        "sourceConfig": {
+          "type": "UnknownField"
+        }
+      }
+    },
+    "PointCloudLayerOp": {
+      "name": "PointCloudLayer",
+      "type": "PointCloudLayerOp",
+      "category": "layer",
+      "description": "Render a point cloud with millions of 3D points",
+      "inputs": {
+        "data": {
+          "type": "DataField",
+          "default": []
+        },
+        "visible": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "opacity": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "sizeUnits": {
+          "type": "StringLiteralField",
+          "default": "pixels"
+        },
+        "pointSize": {
+          "type": "NumberField",
+          "default": 10
+        },
+        "antialiasing": {
+          "type": "BooleanField",
+          "default": false
+        },
+        "getPosition": {
+          "type": "Point3DField",
+          "default": [
+            0,
+            0,
+            0
+          ]
+        },
+        "getNormal": {
+          "type": "Vec3Field",
+          "default": [
+            0,
+            0,
+            1
+          ]
+        },
+        "getColor": {
+          "type": "ColorField",
+          "default": "#000000"
+        },
+        "parameters": {
+          "type": "CompoundPropsField",
+          "default": {
+            "depthTest": true
+          }
+        },
+        "extensions": {
+          "type": "ListField",
+          "default": []
+        }
+      },
+      "outputs": {
+        "layer": {
+          "type": "LayerField"
+        }
+      }
+    },
+    "PointGridOp": {
+      "name": "PointGrid",
+      "type": "PointGridOp",
+      "category": "geometry",
+      "description": "Generate a regular grid of points within a bounding box",
+      "inputs": {
+        "bbox": {
+          "type": "BboxField",
+          "default": {
+            "southwest": {
+              "lng": -180,
+              "lat": -90
+            },
+            "northeast": {
+              "lng": 180,
+              "lat": 90
+            }
+          }
+        },
+        "cellSize": {
+          "type": "NumberField",
+          "default": 10
+        },
+        "units": {
+          "type": "StringLiteralField",
+          "default": "kilometers"
+        }
+      },
+      "outputs": {
+        "featureCollection": {
+          "type": "GeoJsonField"
+        }
+      }
+    },
+    "PointInPolygonOp": {
+      "name": "PointInPolygon",
+      "type": "PointInPolygonOp",
+      "category": "analysis",
+      "description": "Filter points that fall within a polygon boundary",
+      "inputs": {
+        "points": {
+          "type": "GeoJsonField",
+          "default": {
+            "type": "FeatureCollection",
+            "features": []
+          }
+        },
+        "polygon": {
+          "type": "GeoJsonField",
+          "default": {
+            "type": "FeatureCollection",
+            "features": []
+          }
+        },
+        "invert": {
+          "type": "BooleanField",
+          "default": false
+        }
+      },
+      "outputs": {
+        "inside": {
+          "type": "GeoJsonField"
+        },
+        "outside": {
+          "type": "GeoJsonField"
+        }
+      }
+    },
+    "PointOp": {
+      "name": "Point",
+      "type": "PointOp",
+      "category": "geojson",
+      "description": "Create a GeoJSON Point feature from coordinates",
+      "inputs": {
+        "coordinates": {
+          "type": "Point2DField",
+          "default": {
+            "lng": 0,
+            "lat": 0
+          }
+        },
+        "properties": {
+          "type": "DataField",
+          "default": []
+        }
+      },
+      "outputs": {
+        "feature": {
+          "type": "GeoJsonField"
+        }
+      }
+    },
+    "PolygonLayerOp": {
+      "name": "PolygonLayer",
+      "type": "PolygonLayerOp",
+      "category": "layer",
+      "description": "Render filled and/or stroked polygons",
+      "inputs": {
+        "data": {
+          "type": "DataField",
+          "default": []
+        },
+        "visible": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "opacity": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "filled": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "stroked": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "extruded": {
+          "type": "BooleanField",
+          "default": false
+        },
+        "wireframe": {
+          "type": "BooleanField",
+          "default": false
+        },
+        "elevationScale": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "lineWidthUnits": {
+          "type": "StringLiteralField",
+          "default": "meters"
+        },
+        "lineWidthScale": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "lineWidthMinPixels": {
+          "type": "NumberField",
+          "default": 0
+        },
+        "lineWidthMaxPixels": {
+          "type": "NumberField",
+          "default": 100
+        },
+        "lineJointRounded": {
+          "type": "BooleanField",
+          "default": false
+        },
+        "lineMiterLimit": {
+          "type": "NumberField",
+          "default": 4
+        },
+        "lineAntialiasing": {
+          "type": "BooleanField",
+          "default": false
+        },
+        "getPolygon": {
+          "type": "UnknownField"
+        },
+        "getFillColor": {
+          "type": "ColorField",
+          "default": "#000000"
+        },
+        "getLineColor": {
+          "type": "ColorField",
+          "default": "#000000"
+        },
+        "getLineWidth": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "getElevation": {
+          "type": "NumberField",
+          "default": 1000
+        },
+        "parameters": {
+          "type": "CompoundPropsField",
+          "default": {
+            "depthTest": true
+          }
+        },
+        "extensions": {
+          "type": "ListField",
+          "default": []
+        }
+      },
+      "outputs": {
+        "layer": {
+          "type": "LayerField"
+        }
+      }
+    },
+    "PolygonToLineOp": {
+      "name": "PolygonToLine",
+      "type": "PolygonToLineOp",
+      "category": "geojson",
+      "description": "Convert Polygon features to LineString features (extract boundaries)",
+      "inputs": {
+        "geojson": {
+          "type": "GeoJsonField",
+          "default": {
+            "type": "FeatureCollection",
+            "features": []
+          }
+        }
+      },
+      "outputs": {
+        "featureCollection": {
+          "type": "GeoJsonField"
+        }
+      }
+    },
+    "ProjectOp": {
+      "name": "Project",
+      "type": "ProjectOp",
+      "category": "utility",
+      "description": "Project a lat/lng point to a screen position. Requires the ViewState and dimensions of the map.",
+      "inputs": {
+        "position": {
+          "type": "Point2DField",
+          "default": {
+            "lng": 0,
+            "lat": 0
+          }
+        },
+        "width": {
+          "type": "NumberField",
+          "default": 1920
+        },
+        "height": {
+          "type": "NumberField",
+          "default": 1080
+        },
+        "viewState": {
+          "type": "CompoundPropsField",
+          "default": {
+            "latitude": 40.7128,
+            "longitude": -74.006,
+            "zoom": 12,
+            "pitch": 0,
+            "bearing": 0
+          }
+        }
+      },
+      "outputs": {
+        "screenPosition": {
+          "type": "Vec2Field"
+        }
+      }
+    },
+    "QuadkeyLayerOp": {
+      "name": "QuadkeyLayer",
+      "type": "QuadkeyLayerOp",
+      "category": "layer",
+      "description": "Render filled and/or stroked polygons based on quadkey strings",
+      "inputs": {
+        "data": {
+          "type": "DataField",
+          "default": []
+        },
+        "visible": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "opacity": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "getQuadkey": {
+          "type": "StringField",
+          "default": ""
+        },
+        "getFillColor": {
+          "type": "ColorField",
+          "default": "#000000"
+        },
+        "getLineColor": {
+          "type": "ColorField",
+          "default": "#000000"
+        },
+        "getElevation": {
+          "type": "NumberField",
+          "default": 1000
+        },
+        "getLineWidth": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "elevationScale": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "filled": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "stroked": {
+          "type": "BooleanField",
+          "default": false
+        },
+        "extruded": {
+          "type": "BooleanField",
+          "default": false
+        },
+        "lineAntialiasing": {
+          "type": "BooleanField",
+          "default": false
+        },
+        "parameters": {
+          "type": "CompoundPropsField",
+          "default": {
+            "depthTest": true
+          }
+        },
+        "extensions": {
+          "type": "ListField",
+          "default": []
+        }
+      },
+      "outputs": {
+        "layer": {
+          "type": "LayerField"
+        }
+      }
+    },
+    "RampOp": {
+      "name": "Ramp",
+      "type": "RampOp",
+      "category": "number",
+      "description": "Map a position (0–1) to a value using a user-defined curve",
+      "inputs": {
+        "position": {
+          "type": "NumberField",
+          "default": 0
+        },
+        "stops": {
+          "type": "DataField",
+          "default": []
+        }
+      },
+      "outputs": {
+        "value": {
+          "type": "NumberField"
+        }
+      }
+    },
+    "RandomizeAttributeOp": {
+      "name": "RandomizeAttribute",
+      "type": "RandomizeAttributeOp",
+      "category": "data",
+      "description": "Randomize a numeric attribute on data elements within a given range",
+      "inputs": {
+        "data": {
+          "type": "DataField",
+          "default": []
+        },
+        "key": {
+          "type": "StringField",
+          "default": ""
+        },
+        "min": {
+          "type": "NumberField",
+          "default": 0
+        },
+        "max": {
+          "type": "NumberField",
+          "default": 1
+        }
+      },
+      "outputs": {
+        "data": {
+          "type": "DataField"
+        }
+      }
+    },
+    "RasterTileLayerOp": {
+      "name": "RasterTileLayer",
+      "type": "RasterTileLayerOp",
+      "category": "layer",
+      "description": "Render a raster tile layer on the map",
+      "inputs": {
+        "visible": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "opacity": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "data": {
+          "type": "StringField",
+          "default": "https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryOnly/MapServer/tile/{z}/{y}/{x}"
+        },
+        "minZoom": {
+          "type": "NumberField",
+          "default": 0
+        },
+        "maxZoom": {
+          "type": "NumberField",
+          "default": 24
+        },
+        "tileSize": {
+          "type": "NumberField",
+          "default": 256
+        },
+        "parameters": {
+          "type": "CompoundPropsField",
+          "default": {
+            "depthTest": true
+          }
+        },
+        "extensions": {
+          "type": "ListField",
+          "default": []
+        }
+      },
+      "outputs": {
+        "layer": {
+          "type": "LayerField"
+        }
+      }
+    },
+    "RectangleOp": {
+      "name": "Rectangle",
+      "type": "RectangleOp",
+      "category": "geojson",
+      "description": "Generate a rectangle GeoJSON geometry from a center point and dimensions in kilometers",
+      "inputs": {
+        "center": {
+          "type": "Point2DField",
+          "default": [
+            -74.006,
+            40.7128
+          ]
+        },
+        "altitude": {
+          "type": "NumberField",
+          "default": 0
+        },
+        "width": {
+          "type": "NumberField",
+          "default": 10
+        },
+        "height": {
+          "type": "NumberField",
+          "default": 10
+        },
+        "properties": {
+          "type": "DataField",
+          "default": []
+        }
+      },
+      "outputs": {
+        "feature": {
+          "type": "GeoJsonField"
+        }
+      }
+    },
+    "ReprojectOp": {
+      "name": "Reproject",
+      "type": "ReprojectOp",
+      "category": "geojson",
+      "description": "Transform coordinates between WGS84 and Web Mercator projections",
+      "inputs": {
+        "geojson": {
+          "type": "GeoJsonField",
+          "default": {
+            "type": "FeatureCollection",
+            "features": []
+          }
+        },
+        "from": {
+          "type": "StringLiteralField",
+          "default": "EPSG:4326"
+        },
+        "to": {
+          "type": "StringLiteralField",
+          "default": "EPSG:3857"
+        }
+      },
+      "outputs": {
+        "featureCollection": {
+          "type": "GeoJsonField"
+        }
+      }
+    },
+    "RerouteOp": {
+      "name": "Reroute",
+      "type": "RerouteOp",
+      "category": "utility",
+      "description": "Pass-through for organizing graph layout",
+      "inputs": {
+        "value": {
+          "type": "UnknownField"
+        }
+      },
+      "outputs": {
+        "value": {
+          "type": "UnknownField"
+        }
+      }
+    },
+    "S2LayerOp": {
+      "name": "S2Layer",
+      "type": "S2LayerOp",
+      "category": "layer",
+      "description": "Render filled and/or stroked polygons based on S2 tokens",
+      "inputs": {
+        "data": {
+          "type": "DataField",
+          "default": []
+        },
+        "visible": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "opacity": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "getS2Token": {
+          "type": "StringField",
+          "default": ""
+        },
+        "getFillColor": {
+          "type": "ColorField",
+          "default": "#000000"
+        },
+        "getLineColor": {
+          "type": "ColorField",
+          "default": "#000000"
+        },
+        "getElevation": {
+          "type": "NumberField",
+          "default": 1000
+        },
+        "getLineWidth": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "elevationScale": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "filled": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "stroked": {
+          "type": "BooleanField",
+          "default": false
+        },
+        "extruded": {
+          "type": "BooleanField",
+          "default": false
+        },
+        "lineAntialiasing": {
+          "type": "BooleanField",
+          "default": false
+        },
+        "parameters": {
+          "type": "CompoundPropsField",
+          "default": {
+            "depthTest": true
+          }
+        },
+        "extensions": {
+          "type": "ListField",
+          "default": []
+        }
+      },
+      "outputs": {
+        "layer": {
+          "type": "LayerField"
+        }
+      }
+    },
+    "ScaleWidgetOp": {
+      "name": "ScaleWidget",
+      "type": "ScaleWidgetOp",
+      "category": "widget",
+      "description": "Display a map distance scale widget",
+      "inputs": {
+        "placement": {
+          "type": "StringLiteralField",
+          "default": "bottom-left"
+        },
+        "label": {
+          "type": "StringField",
+          "default": "Scale"
+        },
+        "viewId": {
+          "type": "StringField",
+          "default": ""
+        }
+      },
+      "outputs": {
+        "widget": {
+          "type": "WidgetField"
+        }
+      }
+    },
+    "ScatterOp": {
+      "name": "Scatter",
+      "type": "ScatterOp",
+      "category": "data",
+      "description": "Scatter points randomly within a bounding box",
+      "inputs": {
+        "bounds": {
+          "type": "BboxField",
+          "default": {
+            "southwest": {
+              "lng": -180,
+              "lat": -90
+            },
+            "northeast": {
+              "lng": 180,
+              "lat": 90
+            }
+          }
+        },
+        "count": {
+          "type": "NumberField",
+          "default": 100
+        },
+        "seed": {
+          "type": "NumberField",
+          "default": 1
+        }
+      },
+      "outputs": {
+        "points": {
+          "type": "ArrayField"
+        }
+      }
+    },
+    "ScatterplotLayerOp": {
+      "name": "ScatterplotLayer",
+      "type": "ScatterplotLayerOp",
+      "category": "layer",
+      "description": "Render a scatterplot of points as circles on the map",
+      "inputs": {
+        "data": {
+          "type": "DataField",
+          "default": []
+        },
+        "visible": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "opacity": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "stroked": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "billboard": {
+          "type": "BooleanField",
+          "default": false
+        },
+        "antialiasing": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "getPosition": {
+          "type": "Point3DField",
+          "default": [
+            0,
+            0,
+            0
+          ]
+        },
+        "getPixelOffset": {
+          "type": "Vec2Field",
+          "default": [
+            0,
+            0
+          ]
+        },
+        "getFillColor": {
+          "type": "ColorField",
+          "default": "#fff"
+        },
+        "getLineColor": {
+          "type": "ColorField",
+          "default": "#fff"
+        },
+        "getRadius": {
+          "type": "NumberField",
+          "default": 20
+        },
+        "getLineWidth": {
+          "type": "NumberField",
+          "default": 0
+        },
+        "radiusScale": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "radiusUnits": {
+          "type": "StringLiteralField",
+          "default": "pixels"
+        },
+        "parameters": {
+          "type": "CompoundPropsField",
+          "default": {
+            "depthTest": true
+          }
+        },
+        "extensions": {
+          "type": "ListField",
+          "default": []
+        }
+      },
+      "outputs": {
+        "layer": {
+          "type": "LayerField"
+        }
+      }
+    },
+    "ScenegraphLayerOp": {
+      "name": "ScenegraphLayer",
+      "type": "ScenegraphLayerOp",
+      "category": "layer",
+      "description": "Render a 3D model on the map",
+      "inputs": {
+        "data": {
+          "type": "DataField",
+          "default": []
+        },
+        "visible": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "opacity": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "scenegraph": {
+          "type": "FileUrlField",
+          "default": "https://raw.githubusercontent.com/visgl/deck.gl-data/master/examples/scenegraph-layer/airplane.glb"
+        },
+        "getPosition": {
+          "type": "Point3DField",
+          "default": [
+            0,
+            0,
+            0
+          ]
+        },
+        "getOrientation": {
+          "type": "Vec3Field",
+          "default": [
+            0,
+            0,
+            0
+          ]
+        },
+        "getScale": {
+          "type": "Vec3Field",
+          "default": [
+            1,
+            1,
+            1
+          ]
+        },
+        "sizeScale": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "sizeMinPixels": {
+          "type": "NumberField",
+          "default": 0
+        },
+        "sizeMaxPixels": {
+          "type": "NumberField",
+          "default": 100
+        },
+        "getColor": {
+          "type": "ColorField",
+          "default": "#fff"
+        },
+        "getTranslation": {
+          "type": "Vec3Field",
+          "default": [
+            0,
+            0,
+            0
+          ]
+        },
+        "parameters": {
+          "type": "CompoundPropsField",
+          "default": {
+            "depthTest": true
+          }
+        },
+        "extensions": {
+          "type": "ListField",
+          "default": []
+        }
+      },
+      "outputs": {
+        "layer": {
+          "type": "LayerField"
+        }
+      }
+    },
+    "ScreenGridLayerOp": {
+      "name": "ScreenGridLayer",
+      "type": "ScreenGridLayerOp",
+      "category": "layer",
+      "description": "Aggregate data into a grid in screen space and visualize as a heatmap",
+      "inputs": {
+        "data": {
+          "type": "DataField",
+          "default": []
+        },
+        "visible": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "opacity": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "cellSizePixels": {
+          "type": "NumberField",
+          "default": 50
+        },
+        "cellMarginPixels": {
+          "type": "NumberField",
+          "default": 2
+        },
+        "colorRange": {
+          "type": "UnknownField",
+          "default": [
+            [
+              255,
+              255,
+              178
+            ],
+            [
+              254,
+              217,
+              118
+            ],
+            [
+              254,
+              178,
+              76
+            ],
+            [
+              253,
+              141,
+              60
+            ],
+            [
+              240,
+              59,
+              32
+            ],
+            [
+              189,
+              0,
+              38
+            ]
+          ]
+        },
+        "colorDomain": {
+          "type": "UnknownField",
+          "default": null
+        },
+        "aggregation": {
+          "type": "StringLiteralField",
+          "default": "SUM"
+        },
+        "getPosition": {
+          "type": "Point3DField",
+          "default": [
+            0,
+            0,
+            0
+          ]
+        },
+        "getWeight": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "parameters": {
+          "type": "CompoundPropsField",
+          "default": {
+            "depthTest": true
+          }
+        },
+        "extensions": {
+          "type": "ListField",
+          "default": []
+        }
+      },
+      "outputs": {
+        "layer": {
+          "type": "LayerField"
+        }
+      }
+    },
+    "ScreenshotWidgetOp": {
+      "name": "ScreenshotWidget",
+      "type": "ScreenshotWidgetOp",
+      "category": "widget",
+      "description": "Download current frame as PNG widget",
+      "inputs": {
+        "placement": {
+          "type": "StringLiteralField",
+          "default": "top-right"
+        },
+        "viewId": {
+          "type": "StringField",
+          "default": ""
+        }
+      },
+      "outputs": {
+        "widget": {
+          "type": "WidgetField"
+        }
+      }
+    },
+    "SelectOp": {
+      "name": "Select",
+      "type": "SelectOp",
+      "category": "data",
+      "description": "Select an element from an array using an index (clamped to array bounds by default, or wrapped around array bounds)",
+      "inputs": {
+        "data": {
+          "type": "DataField",
+          "default": []
+        },
+        "index": {
+          "type": "NumberField",
+          "default": 0
+        },
+        "wrap": {
+          "type": "BooleanField",
+          "default": false
+        }
+      },
+      "outputs": {
+        "value": {
+          "type": "UnknownField"
+        }
+      }
+    },
+    "ShapefileOp": {
+      "name": "Shapefile",
+      "type": "ShapefileOp",
+      "category": "data",
+      "description": "Load a Shapefile (.shp) and convert to GeoJSON",
+      "inputs": {
+        "url": {
+          "type": "FileUrlField",
+          "default": ""
+        },
+        "encoding": {
+          "type": "StringField",
+          "default": "utf-8"
+        }
+      },
+      "outputs": {
+        "featureCollection": {
+          "type": "GeoJsonField"
+        }
+      }
+    },
+    "SimpleMeshLayerOp": {
+      "name": "SimpleMeshLayer",
+      "type": "SimpleMeshLayerOp",
+      "category": "layer",
+      "description": "Render simple 3D meshes/models at specified positions",
+      "inputs": {
+        "data": {
+          "type": "DataField",
+          "default": []
+        },
+        "visible": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "opacity": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "mesh": {
+          "type": "StringField",
+          "default": "https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/humanoid_quad.obj"
+        },
+        "wireframe": {
+          "type": "BooleanField",
+          "default": false
+        },
+        "texture": {
+          "type": "UnknownField",
+          "default": null
+        },
+        "textureParameters": {
+          "type": "DataField",
+          "default": []
+        },
+        "getPosition": {
+          "type": "Point3DField",
+          "default": [
+            0,
+            0,
+            0
+          ]
+        },
+        "getColor": {
+          "type": "ColorField",
+          "default": "#000000"
+        },
+        "getOrientation": {
+          "type": "Vec3Field",
+          "default": [
+            0,
+            0,
+            0
+          ]
+        },
+        "getScale": {
+          "type": "Vec3Field",
+          "default": [
+            1,
+            1,
+            1
+          ]
+        },
+        "sizeScale": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "getTranslation": {
+          "type": "Vec3Field",
+          "default": [
+            0,
+            0,
+            0
+          ]
+        },
+        "parameters": {
+          "type": "CompoundPropsField",
+          "default": {
+            "depthTest": true
+          }
+        },
+        "extensions": {
+          "type": "ListField",
+          "default": []
+        }
+      },
+      "outputs": {
+        "layer": {
+          "type": "LayerField"
+        }
+      }
+    },
+    "SimplifyOp": {
+      "name": "Simplify",
+      "type": "SimplifyOp",
+      "category": "geometry",
+      "description": "Simplify GeoJSON geometries using Ramer-Douglas-Peucker algorithm",
+      "inputs": {
+        "feature": {
+          "type": "GeoJsonField",
+          "default": {
+            "type": "FeatureCollection",
+            "features": []
+          }
+        },
+        "tolerance": {
+          "type": "NumberField",
+          "default": 0.01
+        },
+        "highQuality": {
+          "type": "BooleanField",
+          "default": false
+        }
+      },
+      "outputs": {
+        "feature": {
+          "type": "GeoJsonField"
+        }
+      }
+    },
+    "SliceOp": {
+      "name": "Slice",
+      "type": "SliceOp",
+      "category": "data",
+      "description": "Slice an array of data",
+      "inputs": {
+        "data": {
+          "type": "DataField",
+          "default": []
+        },
+        "start": {
+          "type": "NumberField",
+          "default": 0
+        },
+        "end": {
+          "type": "NumberField",
+          "default": 10
+        }
+      },
+      "outputs": {
+        "data": {
+          "type": "DataField"
+        }
+      }
+    },
+    "SmoothOp": {
+      "name": "Smooth",
+      "type": "SmoothOp",
+      "category": "geojson",
+      "description": "Apply smoothing to LineString coordinates using Gaussian or boxcar kernel",
+      "inputs": {
+        "feature": {
+          "type": "GeoJsonField",
+          "default": {
+            "type": "FeatureCollection",
+            "features": []
+          }
+        },
+        "windowSize": {
+          "type": "NumberField",
+          "default": 5
+        },
+        "method": {
+          "type": "StringLiteralField",
+          "default": "gaussian"
+        }
+      },
+      "outputs": {
+        "feature": {
+          "type": "GeoJsonField"
+        }
+      }
+    },
+    "SolidPolygonLayerOp": {
+      "name": "SolidPolygonLayer",
+      "type": "SolidPolygonLayerOp",
+      "category": "layer",
+      "description": "Render a set of solid polygons on the map",
+      "inputs": {
+        "data": {
+          "type": "DataField",
+          "default": []
+        },
+        "visible": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "opacity": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "getPolygon": {
+          "type": "UnknownField"
+        },
+        "getFillColor": {
+          "type": "ColorField",
+          "default": "#fff"
+        },
+        "getLineColor": {
+          "type": "ColorField",
+          "default": "#fff"
+        },
+        "getLineWidth": {
+          "type": "NumberField",
+          "default": 0
+        },
+        "parameters": {
+          "type": "CompoundPropsField",
+          "default": {
+            "depthTest": true
+          }
+        },
+        "extensions": {
+          "type": "ListField",
+          "default": []
+        }
+      },
+      "outputs": {
+        "layer": {
+          "type": "LayerField"
+        }
+      }
+    },
+    "SortOp": {
+      "name": "Sort",
+      "type": "SortOp",
+      "category": "data",
+      "description": "Sort an array of data based on a key",
+      "inputs": {
+        "data": {
+          "type": "DataField",
+          "default": []
+        },
+        "key": {
+          "type": "StringField",
+          "default": ""
+        },
+        "order": {
+          "type": "StringLiteralField",
+          "default": "asc"
+        }
+      },
+      "outputs": {
+        "data": {
+          "type": "DataField"
+        }
+      }
+    },
+    "SpatialJoinOp": {
+      "name": "SpatialJoin",
+      "type": "SpatialJoinOp",
+      "category": "analysis",
+      "description": "Join attributes from one layer to another based on spatial relationship",
+      "inputs": {
+        "target": {
+          "type": "GeoJsonField",
+          "default": {
+            "type": "FeatureCollection",
+            "features": []
+          }
+        },
+        "join": {
+          "type": "GeoJsonField",
+          "default": {
+            "type": "FeatureCollection",
+            "features": []
+          }
+        },
+        "relationship": {
+          "type": "StringLiteralField",
+          "default": "within"
+        }
+      },
+      "outputs": {
+        "featureCollection": {
+          "type": "GeoJsonField"
+        }
+      }
+    },
+    "SplitMapViewStateOp": {
+      "name": "SplitMapViewState",
+      "type": "SplitMapViewStateOp",
+      "category": "view",
+      "description": "Split a viewState object into its individual components.",
+      "inputs": {
+        "viewState": {
+          "type": "CompoundPropsField",
+          "default": {
+            "longitude": -74.006,
+            "latitude": 40.7128,
+            "zoom": 12,
+            "pitch": 0,
+            "bearing": 0
+          }
+        }
+      },
+      "outputs": {
+        "longitude": {
+          "type": "NumberField"
+        },
+        "latitude": {
+          "type": "NumberField"
+        },
+        "zoom": {
+          "type": "NumberField"
+        },
+        "pitch": {
+          "type": "NumberField"
+        },
+        "bearing": {
+          "type": "NumberField"
+        }
+      }
+    },
+    "SplitRGBAOp": {
+      "name": "SplitRGBA",
+      "type": "SplitRGBAOp",
+      "category": "color",
+      "description": "Split a color into its red, green, blue, and alpha components (range 0-255)",
+      "inputs": {
+        "color": {
+          "type": "ColorField",
+          "default": {
+            "accessor": true
+          }
+        }
+      },
+      "outputs": {
+        "r": {
+          "type": "NumberField"
+        },
+        "g": {
+          "type": "NumberField"
+        },
+        "b": {
+          "type": "NumberField"
+        },
+        "a": {
+          "type": "NumberField"
+        }
+      }
+    },
+    "SplitXYOp": {
+      "name": "SplitXY",
+      "type": "SplitXYOp",
+      "category": "vector",
+      "description": "Split a 2D vector into its x and y components",
+      "inputs": {
+        "vec": {
+          "type": "Vec2Field",
+          "default": {
+            "x": 0,
+            "y": 0
+          }
+        }
+      },
+      "outputs": {
+        "x": {
+          "type": "NumberField"
+        },
+        "y": {
+          "type": "NumberField"
+        }
+      }
+    },
+    "SplitXYZOp": {
+      "name": "SplitXYZ",
+      "type": "SplitXYZOp",
+      "category": "vector",
+      "description": "Split a 3D vector into its x, y, and z components",
+      "inputs": {
+        "vec": {
+          "type": "Vec3Field",
+          "default": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          }
+        }
+      },
+      "outputs": {
+        "x": {
+          "type": "NumberField"
+        },
+        "y": {
+          "type": "NumberField"
+        },
+        "z": {
+          "type": "NumberField"
+        }
+      }
+    },
+    "SquareGridOp": {
+      "name": "SquareGrid",
+      "type": "SquareGridOp",
+      "category": "geometry",
+      "description": "Generate a square grid within a bounding box",
+      "inputs": {
+        "bbox": {
+          "type": "BboxField",
+          "default": {
+            "southwest": {
+              "lng": -180,
+              "lat": -90
+            },
+            "northeast": {
+              "lng": 180,
+              "lat": 90
+            }
+          }
+        },
+        "cellSize": {
+          "type": "NumberField",
+          "default": 10
+        },
+        "units": {
+          "type": "StringLiteralField",
+          "default": "kilometers"
+        }
+      },
+      "outputs": {
+        "featureCollection": {
+          "type": "GeoJsonField"
+        }
+      }
+    },
+    "StringOp": {
+      "name": "String",
+      "type": "StringOp",
+      "category": "string",
+      "description": "A string",
+      "inputs": {
+        "val": {
+          "type": "StringField",
+          "default": ""
+        }
+      },
+      "outputs": {
+        "val": {
+          "type": "StringField"
+        }
+      }
+    },
+    "SwitchOp": {
+      "name": "Switch",
+      "type": "SwitchOp",
+      "category": "data",
+      "description": "Select one value from a list using an index (0, 1, 2...). With blend enabled, smoothly interpolate between values for animation effects.",
+      "inputs": {
+        "values": {
+          "type": "ListField",
+          "default": []
+        },
+        "index": {
+          "type": "NumberField",
+          "default": 0
+        },
+        "blend": {
+          "type": "BooleanField",
+          "default": false
+        }
+      },
+      "outputs": {
+        "value": {
+          "type": "DataField"
+        }
+      }
+    },
+    "TableEditorOp": {
+      "name": "TableEditor",
+      "type": "TableEditorOp",
+      "category": "data",
+      "description": "Edit a table with typed columns",
+      "inputs": {
+        "data": {
+          "type": "DataField",
+          "default": []
+        },
+        "schema": {
+          "type": "UnknownField",
+          "default": null
+        }
+      },
+      "outputs": {
+        "data": {
+          "type": "DataField"
+        },
+        "schema": {
+          "type": "UnknownField"
+        }
+      }
+    },
+    "TerrainExtensionOp": {
+      "name": "TerrainExtension",
+      "type": "TerrainExtensionOp",
+      "category": "extension",
+      "description": "Render a terrain layer on the map",
+      "inputs": {
+        "terrainDrawMode": {
+          "type": "StringLiteralField",
+          "default": "offset"
+        }
+      },
+      "outputs": {
+        "extension": {
+          "type": "ExtensionField"
+        }
+      }
+    },
+    "TerrainLayerOp": {
+      "name": "TerrainLayer",
+      "type": "TerrainLayerOp",
+      "category": "layer",
+      "description": "Render a terrain mesh from heightmap tiles",
+      "inputs": {
+        "elevationData": {
+          "type": "StringField",
+          "default": "https://example.com/elevation/{z}/{x}/{y}.png"
+        },
+        "texture": {
+          "type": "StringField",
+          "default": ""
+        },
+        "visible": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "opacity": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "meshMaxError": {
+          "type": "NumberField",
+          "default": 4
+        },
+        "elevationDecoder": {
+          "type": "CompoundPropsField",
+          "default": {
+            "rScaler": 1,
+            "gScaler": 0,
+            "bScaler": 0,
+            "offset": 0
+          }
+        },
+        "bounds": {
+          "type": "BboxField",
+          "default": null
+        },
+        "color": {
+          "type": "ColorField",
+          "default": "#ffffff"
+        },
+        "wireframe": {
+          "type": "BooleanField",
+          "default": false
+        },
+        "parameters": {
+          "type": "CompoundPropsField",
+          "default": {
+            "depthTest": true
+          }
+        },
+        "extensions": {
+          "type": "ListField",
+          "default": []
+        }
+      },
+      "outputs": {
+        "layer": {
+          "type": "LayerField"
+        }
+      }
+    },
+    "TextLayerOp": {
+      "name": "TextLayer",
+      "type": "TextLayerOp",
+      "category": "layer",
+      "description": "Render a set of text labels on the map",
+      "inputs": {
+        "data": {
+          "type": "DataField",
+          "default": []
+        },
+        "visible": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "opacity": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "getPosition": {
+          "type": "Point3DField",
+          "default": [
+            0,
+            0,
+            0
+          ]
+        },
+        "getText": {
+          "type": "StringField",
+          "default": ""
+        },
+        "billboard": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "fontFamily": {
+          "type": "StringField",
+          "default": "Inter"
+        },
+        "fontWeight": {
+          "type": "NumberField",
+          "default": 400
+        },
+        "sizeUnits": {
+          "type": "StringLiteralField",
+          "default": "pixels"
+        },
+        "sizeScale": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "sizeMinPixels": {
+          "type": "NumberField",
+          "default": 0
+        },
+        "sizeMaxPixels": {
+          "type": "NumberField",
+          "default": 9007199254740991
+        },
+        "getSize": {
+          "type": "NumberField",
+          "default": 48
+        },
+        "getColor": {
+          "type": "ColorField",
+          "default": "#f0f0f0"
+        },
+        "background": {
+          "type": "BooleanField",
+          "default": false
+        },
+        "getBackgroundColor": {
+          "type": "ColorField",
+          "default": "#ffffffff"
+        },
+        "getBorderColor": {
+          "type": "ColorField",
+          "default": "#000000ff"
+        },
+        "getBorderWidth": {
+          "type": "NumberField",
+          "default": 0
+        },
+        "backgroundPadding": {
+          "type": "Vec2Field",
+          "default": {
+            "x": 0,
+            "y": 0
+          }
+        },
+        "backgroundBorderRadius": {
+          "type": "NumberField",
+          "default": 0
+        },
+        "lineHeight": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "outlineWidth": {
+          "type": "NumberField",
+          "default": 0
+        },
+        "outlineColor": {
+          "type": "ColorField",
+          "default": "#000000ff"
+        },
+        "wordBreak": {
+          "type": "StringLiteralField",
+          "default": "break-word"
+        },
+        "maxWidth": {
+          "type": "NumberField",
+          "default": -1
+        },
+        "getAngle": {
+          "type": "NumberField",
+          "default": 0
+        },
+        "getTextAnchor": {
+          "type": "StringLiteralField",
+          "default": "middle"
+        },
+        "getPixelOffset": {
+          "type": "Vec2Field",
+          "default": {
+            "x": 0,
+            "y": 0
+          }
+        },
+        "getAlignmentBaseline": {
+          "type": "StringLiteralField",
+          "default": "center"
+        },
+        "fontSettings": {
+          "type": "CompoundPropsField",
+          "default": {
+            "sdf": false,
+            "fontSize": 64,
+            "buffer": 4,
+            "radius": 12,
+            "cutoff": 0.25,
+            "smoothing": 0.1
+          }
+        },
+        "parameters": {
+          "type": "CompoundPropsField",
+          "default": {
+            "depthTest": true,
+            "cullMode": "none"
+          }
+        },
+        "extensions": {
+          "type": "ListField",
+          "default": []
+        }
+      },
+      "outputs": {
+        "layer": {
+          "type": "LayerField"
+        }
+      }
+    },
+    "Tile3DLayerOp": {
+      "name": "Tile3DLayer",
+      "type": "Tile3DLayerOp",
+      "category": "layer",
+      "description": "Render 3D tiles on the map (Google, Cesium, or a custom tileset URL)",
+      "inputs": {
+        "visible": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "provider": {
+          "type": "StringLiteralField",
+          "default": "Google"
+        },
+        "tilesetUrl": {
+          "type": "StringField",
+          "default": ""
+        },
+        "opacity": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "operation": {
+          "type": "StringLiteralField",
+          "default": "terrain+draw"
+        },
+        "wireframe": {
+          "type": "BooleanField",
+          "default": false
+        },
+        "flatLighting": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "throttleRequests": {
+          "type": "BooleanField",
+          "default": false
+        },
+        "pointSize": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "maxLodMetricValue": {
+          "type": "NumberField",
+          "default": 2
+        },
+        "maxScreenSpaceError": {
+          "type": "NumberField",
+          "default": 50
+        },
+        "maxMemoryUsage": {
+          "type": "NumberField",
+          "default": 2024
+        },
+        "parameters": {
+          "type": "CompoundPropsField",
+          "default": {
+            "depthTest": true
+          }
+        },
+        "extensions": {
+          "type": "ListField",
+          "default": []
+        }
+      },
+      "outputs": {
+        "layer": {
+          "type": "LayerField"
+        }
+      }
+    },
+    "TileLayerOp": {
+      "name": "TileLayer",
+      "type": "TileLayerOp",
+      "category": "layer",
+      "description": "Render data organized in a tiled format (generic tile layer)",
+      "inputs": {
+        "data": {
+          "type": "StringField",
+          "default": "https://example.com/tiles/{z}/{x}/{y}"
+        },
+        "visible": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "opacity": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "minZoom": {
+          "type": "NumberField",
+          "default": 0
+        },
+        "maxZoom": {
+          "type": "NumberField",
+          "default": 24
+        },
+        "tileSize": {
+          "type": "NumberField",
+          "default": 256
+        },
+        "maxCacheSize": {
+          "type": "NumberField",
+          "default": null
+        },
+        "maxCacheByteSize": {
+          "type": "NumberField",
+          "default": null
+        },
+        "refinementStrategy": {
+          "type": "StringLiteralField",
+          "default": "best-available"
+        },
+        "zRange": {
+          "type": "UnknownField",
+          "default": [
+            0,
+            24
+          ]
+        },
+        "extent": {
+          "type": "UnknownField",
+          "default": [
+            null,
+            null,
+            null,
+            null
+          ]
+        },
+        "renderSubLayers": {
+          "type": "FunctionField",
+          "default": null
+        },
+        "parameters": {
+          "type": "CompoundPropsField",
+          "default": {
+            "depthTest": true
+          }
+        },
+        "extensions": {
+          "type": "ListField",
+          "default": []
+        }
+      },
+      "outputs": {
+        "layer": {
+          "type": "LayerField"
+        }
+      }
+    },
+    "TimeOp": {
+      "name": "Time",
+      "type": "TimeOp",
+      "category": "number",
+      "description": "Get the current clock, timeline, and session time",
+      "inputs": {},
+      "outputs": {
+        "now": {
+          "type": "NumberField"
+        },
+        "sequenceTime": {
+          "type": "NumberField"
+        },
+        "tick": {
+          "type": "NumberField"
+        }
+      }
+    },
+    "TimeSeriesOp": {
+      "name": "TimeSeries",
+      "type": "TimeSeriesOp",
+      "category": "data",
+      "description": "Interpolate time-varying data at a given time. Aligns with TripsLayer API for easy reuse of accessors.",
+      "inputs": {
+        "data": {
+          "type": "DataField",
+          "default": []
+        },
+        "currentTime": {
+          "type": "NumberField",
+          "default": 0
+        },
+        "getTimestamps": {
+          "type": "UnknownField"
+        },
+        "getValues": {
+          "type": "UnknownField"
+        },
+        "getProperties": {
+          "type": "UnknownField"
+        }
+      },
+      "outputs": {
+        "data": {
+          "type": "DataField"
+        }
+      }
+    },
+    "TinOp": {
+      "name": "Tin",
+      "type": "TinOp",
+      "category": "analysis",
+      "description": "Generate a Triangulated Irregular Network (TIN) from points",
+      "inputs": {
+        "geojson": {
+          "type": "GeoJsonField",
+          "default": {
+            "type": "FeatureCollection",
+            "features": []
+          }
+        },
+        "zProperty": {
+          "type": "StringField",
+          "default": ""
+        }
+      },
+      "outputs": {
+        "featureCollection": {
+          "type": "GeoJsonField"
+        }
+      }
+    },
+    "TransformRotateOp": {
+      "name": "TransformRotate",
+      "type": "TransformRotateOp",
+      "category": "geometry",
+      "description": "Rotate features by an angle around a pivot point",
+      "inputs": {
+        "geojson": {
+          "type": "GeoJsonField",
+          "default": {
+            "type": "FeatureCollection",
+            "features": []
+          }
+        },
+        "angle": {
+          "type": "NumberField",
+          "default": 0
+        },
+        "pivot": {
+          "type": "StringLiteralField",
+          "default": "centroid"
+        }
+      },
+      "outputs": {
+        "featureCollection": {
+          "type": "GeoJsonField"
+        }
+      }
+    },
+    "TransformScaleOp": {
+      "name": "TransformScale",
+      "type": "TransformScaleOp",
+      "category": "geometry",
+      "description": "Scale features by a factor around their center",
+      "inputs": {
+        "geojson": {
+          "type": "GeoJsonField",
+          "default": {
+            "type": "FeatureCollection",
+            "features": []
+          }
+        },
+        "factor": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "origin": {
+          "type": "StringLiteralField",
+          "default": "centroid"
+        }
+      },
+      "outputs": {
+        "featureCollection": {
+          "type": "GeoJsonField"
+        }
+      }
+    },
+    "TransformTranslateOp": {
+      "name": "TransformTranslate",
+      "type": "TransformTranslateOp",
+      "category": "geometry",
+      "description": "Move features by a distance in a direction",
+      "inputs": {
+        "geojson": {
+          "type": "GeoJsonField",
+          "default": {
+            "type": "FeatureCollection",
+            "features": []
+          }
+        },
+        "distance": {
+          "type": "NumberField",
+          "default": 0
+        },
+        "direction": {
+          "type": "NumberField",
+          "default": 0
+        },
+        "units": {
+          "type": "StringLiteralField",
+          "default": "kilometers"
+        }
+      },
+      "outputs": {
+        "featureCollection": {
+          "type": "GeoJsonField"
+        }
+      }
+    },
+    "TripsLayerOp": {
+      "name": "TripsLayer",
+      "type": "TripsLayerOp",
+      "category": "layer",
+      "description": "Render a set of trips with timestamps for animation on the map",
+      "inputs": {
+        "data": {
+          "type": "DataField",
+          "default": []
+        },
+        "visible": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "opacity": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "getPath": {
+          "type": "UnknownField"
+        },
+        "getTimestamps": {
+          "type": "UnknownField"
+        },
+        "getColor": {
+          "type": "ColorField",
+          "default": "#bfcae3"
+        },
+        "getWidth": {
+          "type": "NumberField",
+          "default": 8
+        },
+        "billboard": {
+          "type": "BooleanField",
+          "default": false
+        },
+        "capRounded": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "jointRounded": {
+          "type": "BooleanField",
+          "default": true
+        },
+        "antialiasing": {
+          "type": "BooleanField",
+          "default": false
+        },
+        "currentTime": {
+          "type": "NumberField",
+          "default": 0
+        },
+        "fadeTrail": {
+          "type": "BooleanField",
+          "default": false
+        },
+        "trailLength": {
+          "type": "NumberField",
+          "default": 120
+        },
+        "widthUnits": {
+          "type": "StringLiteralField",
+          "default": "meters"
+        },
+        "widthMinPixels": {
+          "type": "NumberField",
+          "default": 2
+        },
+        "widthScale": {
+          "type": "NumberField",
+          "default": 20
+        },
+        "parameters": {
+          "type": "CompoundPropsField",
+          "default": {
+            "depthTest": true
+          }
+        },
+        "extensions": {
+          "type": "ListField",
+          "default": []
+        }
+      },
+      "outputs": {
+        "layer": {
+          "type": "LayerField"
+        }
+      }
+    },
+    "UnionOp": {
+      "name": "Union",
+      "type": "UnionOp",
+      "category": "geometry",
+      "description": "Merge multiple polygons into a single combined polygon",
+      "inputs": {
+        "geojson": {
+          "type": "GeoJsonField",
+          "default": {
+            "type": "FeatureCollection",
+            "features": []
+          }
+        }
+      },
+      "outputs": {
+        "featureCollection": {
+          "type": "GeoJsonField"
+        }
+      }
+    },
+    "UnknownOperator": {
+      "name": "Unknown Operator",
+      "type": "UnknownOperator",
+      "category": "utility",
+      "description": "Placeholder for an operator type that could not be found",
+      "inputs": {
+        "__originalInputs": {
+          "type": "UnknownField",
+          "default": null
+        }
+      },
+      "outputs": {}
+    },
+    "UnprojectOp": {
+      "name": "Unproject",
+      "type": "UnprojectOp",
+      "category": "utility",
+      "description": "Unproject a screen position to a lat/lng point. Requires the ViewState and dimensions",
+      "inputs": {
+        "screenPosition": {
+          "type": "Vec2Field",
+          "default": {
+            "x": 0,
+            "y": 0
+          }
+        },
+        "width": {
+          "type": "NumberField",
+          "default": 1920
+        },
+        "height": {
+          "type": "NumberField",
+          "default": 1080
+        },
+        "viewState": {
+          "type": "CompoundPropsField",
+          "default": {
+            "latitude": 40.7128,
+            "longitude": -74.006,
+            "zoom": 12,
+            "pitch": 0,
+            "bearing": 0
+          }
+        }
+      },
+      "outputs": {
+        "point": {
+          "type": "Point2DField"
+        }
+      }
+    },
+    "VibranceExtensionOp": {
+      "name": "VibranceExtension",
+      "type": "VibranceExtensionOp",
+      "category": "extension",
+      "description": "Adjust vibrance of a layer",
+      "inputs": {
+        "amount": {
+          "type": "NumberField",
+          "default": 0
+        }
+      },
+      "outputs": {
+        "extension": {
+          "type": "ExtensionField"
+        }
+      }
+    },
+    "ViewerOp": {
+      "name": "Viewer",
+      "type": "ViewerOp",
+      "category": "data",
+      "description": "Inspect data in the viewer",
+      "inputs": {
+        "data": {
+          "type": "UnknownField",
+          "default": null
+        }
+      },
+      "outputs": {}
+    },
+    "VoronoiOp": {
+      "name": "Voronoi",
+      "type": "VoronoiOp",
+      "category": "geometry",
+      "description": "Generate Voronoi polygons from a set of points",
+      "inputs": {
+        "geojson": {
+          "type": "GeoJsonField",
+          "default": {
+            "type": "FeatureCollection",
+            "features": []
+          }
+        }
+      },
+      "outputs": {
+        "featureCollection": {
+          "type": "GeoJsonField"
+        }
+      }
+    },
+    "XYZTileOp": {
+      "name": "XYZTile",
+      "type": "XYZTileOp",
+      "category": "view",
+      "description": "Configure a raster XYZ tile source from a URL template ({z}/{x}/{y})",
+      "inputs": {
+        "url": {
+          "type": "StringField",
+          "default": "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        },
+        "subdomains": {
+          "type": "StringField",
+          "default": "abc"
+        },
+        "tileSize": {
+          "type": "NumberField",
+          "default": 256
+        },
+        "minZoom": {
+          "type": "NumberField",
+          "default": 0
+        },
+        "maxZoom": {
+          "type": "NumberField",
+          "default": 19
+        },
+        "attribution": {
+          "type": "StringField",
+          "default": ""
+        }
+      },
+      "outputs": {
+        "sourceConfig": {
+          "type": "UnknownField"
+        }
+      }
+    },
+    "ZoomWidgetOp": {
+      "name": "ZoomWidget",
+      "type": "ZoomWidgetOp",
+      "category": "widget",
+      "description": "Zoom in/out buttons widget",
+      "inputs": {
+        "placement": {
+          "type": "StringLiteralField",
+          "default": "top-right"
+        },
+        "zoomStep": {
+          "type": "NumberField",
+          "default": 1
+        },
+        "viewId": {
+          "type": "StringField",
+          "default": ""
+        }
+      },
+      "outputs": {
+        "widget": {
+          "type": "WidgetField"
+        }
+      }
+    }
+  }
+}

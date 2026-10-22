@@ -1,0 +1,27 @@
+{
+  "name": "noodles-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MCP server for Noodles.gl: operator schemas, docs, examples and project validation",
+  "type": "module",
+  "bin": {
+    "noodles-mcp": "./bin/noodles-mcp.ts"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "test": "node --test \"test/*.test.ts\"",
+    "lint": "biome lint .",
+    "format:check": "biome format .",
+    "typecheck": "tsc -p ."
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.1",
+    "noodles-validate": "0.1.0",
+    "zod": "^4.3.6"
+  }
+}
