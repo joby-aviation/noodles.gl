@@ -30,11 +30,12 @@ Five things to know before changing it:
    fragment reassembly.
 5. **Which provider runs is `providerPreference` in `noodles/keys-store.tsx`**, not
    the model store, and the rules are in `agent/provider-selection.ts`. `'automatic'`
-   picks the first of anthropic → openrouter → custom → webllm → chrome that is
-   *ready*. Ready is not the same as "has a key": a custom endpoint needs a base URL
-   and a model but no key, and `webllm` needs WebGPU **and** a model the user chose —
-   selecting one starts a multi-gigabyte download, so it can never be a consequence
-   of no key being configured.
+   picks the first of anthropic → openrouter → custom → webllm that is *ready*;
+   Chrome is experimental and runs only when pinned. Ready is not the same as "has
+   a key": a custom endpoint needs a base URL and a model but no key, and `webllm`
+   needs WebGPU **and** a model the user chose — selecting one starts a
+   multi-gigabyte download, so it can never be a consequence of no key being
+   configured.
 
 One security boundary lives in this code: `resolvePath()` in `ai-chat/agent-files.ts`.
 The assistant reads anywhere under the project's `data/` directory but writes only

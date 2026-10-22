@@ -134,6 +134,14 @@ When a CSV or JSON table is imported, the editor looks for coordinate columns so
 
 The website's "Use with Claude Code" section sends `claude_code_prompt_copied` too, with `location: 'landing'`, through the site's own PostHog and GA tags (`website/src/components/ClaudeCodeQuickStart`). The prompt text itself is never sent.
 
+### AI Assistant
+
+| Event | Properties | Location |
+|-------|-----------|----------|
+| `ai_provider_load` | `provider, model, outcome` | chat-panel.tsx |
+
+- `outcome`: `success` or `failed`. A failed on-device load is usually GPU memory or a missing WebGPU adapter; the error message is never sent.
+
 ### Performance
 
 | Event | Properties | Location |

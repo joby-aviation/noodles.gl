@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useAgentModelStore } from '../ai-chat/agent/model-store'
 import { validateCustomEndpoint } from '../ai-chat/agent/providers/custom'
 import { ENDPOINT_PRESETS, type EndpointPreset } from '../ai-chat/agent/providers/endpoint-presets'
-import { WEBLLM_MODELS, webgpuAvailable } from '../ai-chat/agent/providers/webllm'
+import { WEBLLM_MODELS, webgpuAvailable, webllmModelLabel } from '../ai-chat/agent/providers/webllm'
 import type { ProviderPreference } from '../noodles/keys-store'
 import { getEnvKeys, useKeysStore } from '../noodles/keys-store'
 import { useOpenRouterConnect } from '../noodles/use-openrouter-connect'
@@ -626,8 +626,8 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
                           </div>
                         ) : (
                           <>
-                            {/* Choosing a model is what arms this provider, and the size in
-                                each label is the decision actually being made. Nothing
+                            {/* Choosing a model is what arms this provider, and the sizes in
+                                each label are the decision actually being made. Nothing
                                 downloads until the chat next opens a session. */}
                             <select
                               className={s.select}
@@ -635,11 +635,24 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
                               onChange={e => handleWebLLMModelChange(e.target.value)}
                             >
                               <option value="">Choose a model…</option>
-                              {WEBLLM_MODELS.map(option => (
-                                <option key={option.id} value={option.id}>
-                                  {option.label}
-                                </option>
-                              ))}
+                              <optgroup label="Recommended">
+                                {WEBLLM_MODELS.filter(
+                                  option => option.tier !== 'compatibility'
+                                ).map(option => (
+                                  <option key={option.id} value={option.id}>
+                                    {webllmModelLabel(option, { memory: true })}
+                                  </option>
+                                ))}
+                              </optgroup>
+                              <optgroup label="Advanced compatibility">
+                                {WEBLLM_MODELS.filter(
+                                  option => option.tier === 'compatibility'
+                                ).map(option => (
+                                  <option key={option.id} value={option.id}>
+                                    {webllmModelLabel(option)}
+                                  </option>
+                                ))}
+                              </optgroup>
                             </select>
                             {providerPreference === 'webllm' && !webllmModel && (
                               <div className={s.providerOptionDescription}>
@@ -665,9 +678,12 @@ export function SettingsDialog({ open, setOpen }: SettingsDialogProps) {
                         className={s.providerRadio}
                       />
                       <div className={s.providerOptionContent}>
-                        <div className={s.providerOptionTitle}>Chrome Built-in AI</div>
+                        <div className={s.providerOptionTitle}>
+                          Chrome Built-in AI (experimental)
+                        </div>
                         <div className={s.providerOptionDescription}>
-                          Free, runs locally, no API key (Chrome 127+ required)
+                          Free, runs locally, no API key (Chrome 127+ required). Never picked
+                          automatically: its tool use and instruction following are unreliable.
                         </div>
                         <div className={s.providerOptionDescription}>
                           Slower than a hosted provider, and best at questions and single edits.

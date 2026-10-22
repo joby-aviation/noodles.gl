@@ -32,7 +32,13 @@ import {
   OPENROUTER_MODELS,
   type OpenRouterModel,
 } from './agent/providers/openrouter'
-import { WEBLLM_MODELS, webgpuAvailable } from './agent/providers/webllm'
+import {
+  FAST_WEBLLM_MODEL,
+  formatGb,
+  WEBLLM_MODELS,
+  webgpuAvailable,
+  webllmModelLabel,
+} from './agent/providers/webllm'
 import { AgentSession } from './agent/session'
 import type { AgentProvider, AgentUsage, DownloadProgress, ProviderId } from './agent/types'
 import { webSearchConfigFor } from './agent/web-search'
@@ -307,10 +313,20 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
 
         setMcpTools(tools)
         setSession(built)
+        analytics.track('ai_provider_load', {
+          provider: providerId,
+          model: provider.model,
+          outcome: 'success',
+        })
       } catch (error) {
         debugAiChat('Failed to initialize the assistant:', error)
         setSession(null)
         setProviderError(error instanceof Error ? error.message : String(error))
+        analytics.track('ai_provider_load', {
+          provider: providerId,
+          model: model ?? 'default',
+          outcome: 'failed',
+        })
       } finally {
         setDownloadProgress(null)
         setContextLoading(false)
@@ -546,12 +562,9 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
 
   if (!isVisible) return null
 
-  // Show onboarding when no provider is ready, or when Chrome is the only ready
-  // provider and the user hasn't explicitly chosen it. Chrome auto-detects in
-  // capable browsers, but it's the weakest option, so we should prompt the user
-  // to configure a better provider unless they specifically want Chrome.
-  const shouldShowOnboarding =
-    !contextLoading && (!providerReady || (providerId === 'chrome' && preference !== 'chrome'))
+  // Show onboarding when no provider is ready. Chrome counts only when it was
+  // chosen, since resolveProviderId never picks it on its own.
+  const shouldShowOnboarding = !contextLoading && !providerReady
 
   if (shouldShowOnboarding) {
     return (
@@ -588,6 +601,17 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
             <button type="button" onClick={openProviderSettings} className={styles.chatSendBtn}>
               Provider settings
             </button>
+            {/* A load that fails on the default is usually GPU memory, which the
+                fast model needs about half as much of */}
+            {providerId === 'webllm' && model !== FAST_WEBLLM_MODEL && (
+              <button
+                type="button"
+                onClick={() => setStoredModel('webllm', FAST_WEBLLM_MODEL)}
+                className={styles.chatPanelActionBtn}
+              >
+                Try {fastModelLabel()}
+              </button>
+            )}
             <button type="button" onClick={handleClose} className={styles.chatPanelActionBtn}>
               Close
             </button>
@@ -916,9 +940,24 @@ function modelGroupsFor(
     case 'chrome':
       return [{ models: CHROME_MODELS }]
     // Labelled with their download size, since that is the decision the user is
-    // actually making
+    // actually making. Older ids stay under compatibility for a saved choice.
     case 'webllm':
-      return [{ models: WEBLLM_MODELS.map(({ id, label }) => ({ id, label })) }]
+      return [
+        {
+          label: 'Recommended',
+          models: WEBLLM_MODELS.filter(m => m.tier !== 'compatibility').map(m => ({
+            id: m.id,
+            label: webllmModelLabel(m),
+          })),
+        },
+        {
+          label: 'Advanced compatibility',
+          models: WEBLLM_MODELS.filter(m => m.tier === 'compatibility').map(m => ({
+            id: m.id,
+            label: webllmModelLabel(m),
+          })),
+        },
+      ]
     // A custom endpoint's model is part of its saved config, so the picker shows
     // it rather than offering a choice this app cannot enumerate
     case 'custom':
@@ -943,9 +982,14 @@ function downloadNoteFor(providerId: ProviderId, model: string | undefined): str
   if (providerId !== 'webllm') {
     return 'Chrome downloads about 2GB the first time, and only once.'
   }
-  const sizeMb = WEBLLM_MODELS.find(option => option.id === model)?.sizeMb
-  const size = sizeMb ? `${(sizeMb / 1024).toFixed(1)}GB` : 'a few gigabytes'
-  return `${size} the first time, then it is cached and starts instantly.`
+  const metadata = WEBLLM_MODELS.find(option => option.id === model)
+  if (!metadata) return 'A few gigabytes the first time, then it is cached and starts instantly.'
+  return `${formatGb(metadata.downloadMb)} the first time, then cached. Needs about ${formatGb(metadata.vramMb)} of GPU memory.`
+}
+
+function fastModelLabel(): string {
+  const fast = WEBLLM_MODELS.find(option => option.id === FAST_WEBLLM_MODEL)
+  return fast ? `${fast.label} (${formatGb(fast.downloadMb)})` : 'a smaller model'
 }
 
 function formatPercent(progress: DownloadProgress): string {

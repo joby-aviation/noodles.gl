@@ -43,16 +43,17 @@ export function isProviderReady(providerId: ProviderId, credentials: Credentials
 
 // An explicit preference wins, but only while it is usable — clearing a key in
 // Settings should not leave the chat pointed at a provider it cannot reach.
-// The on-device providers come last: they are the weakest of the five, so they
-// only get picked when nothing else is configured, and WebLLM only once a model
-// has been chosen.
+// WebLLM comes last: it is the weakest that is picked at all, so only when nothing
+// else is configured, and only once a model has been chosen. Chrome is never
+// picked automatically: its tool use and instruction following are too unreliable
+// to land on by default, so it runs only when asked for.
 export function resolveProviderId(
   options: Credentials & { preference: ProviderPreference }
 ): ProviderId {
   const { preference } = options
   if (preference !== 'automatic' && isProviderReady(preference, options)) return preference
 
-  const order: ProviderId[] = ['anthropic', 'openrouter', 'custom', 'webllm', 'chrome']
+  const order: ProviderId[] = ['anthropic', 'openrouter', 'custom', 'webllm']
   return order.find(id => isProviderReady(id, options)) ?? 'anthropic'
 }
 
