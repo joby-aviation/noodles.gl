@@ -85,6 +85,10 @@ VITE_GA_MEASUREMENT_ID=G-XXXXXXXXXX
 | `node_deleted` | `count` | use-project-modifications.ts |
 | `edge_added` | `count` | use-project-modifications.ts |
 | `edge_deleted` | `count` | use-project-modifications.ts |
+| `ai_modification_proposed` | `provider, modificationCount` | chat-panel.tsx |
+| `ai_modification_proposal_resolved` | `provider, outcome, modificationCount` | chat-panel.tsx |
+
+- `outcome`: `accepted`, `rejected`, or `failed` (accepted, but the editor refused the batch)
 
 ### Rendering and Export
 

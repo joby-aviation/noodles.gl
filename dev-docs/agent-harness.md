@@ -326,6 +326,19 @@ when the window is under 32k. Each step is one model turn plus its tool batch.
   names are the class's fields plus the live operator's, plus custom inputs an
   `add_node` in the run declares. A handle is checked by its whole name, since the
   graph looks up `par.viewState.zoom` as a field named `viewState.zoom`.
+- **Proposals.** What a run queued reaches the panel as a proposal: a card listing
+  each change and its proposed values (long values cut to a preview that expands)
+  with Accept and Reject. Nothing in the batch touches the graph until Accept, which
+  runs the batch through `useProjectModifications` inside `recordGraphMutation`
+  (`noodles/utils/graph-history.ts`), so the whole batch, field values included, is
+  one undo entry. Reject leaves a line in the conversation so the next turn knows
+  the edit did not land (a `run_code` call in the same run may already have changed
+  field values; the card and the line speak only for the batch). Sending is blocked
+  while a proposal waits. Starting or loading a conversation, or opening another
+  project (`projectKey`), drops it and aborts a run in flight, whose reply and
+  proposal are then ignored. A modifications array written into the reply as
+  JSON is not picked up: only `apply_modifications` validates a batch. The live
+  benchmark and WebMCP apply batches directly, without a proposal.
 - **Unverified edit claims.** A reply that announces a change in the past tense
   ("the radius has been set to 10") when no mutating tool succeeded and no
   modification was queued gets a one-line correction appended and emits an
@@ -405,8 +418,8 @@ Four things about it are deliberate:
   `captureOperatorInputs` / `firePropertyMutation` pair. Pure computation creates no
   entry at all, and a call that did change something reports `changedFieldValues`.
   This only covers field values — adding or deleting operators goes through
-  `apply_modifications`, which the UI applies with its own history — so the tool
-  description points structural edits there.
+  `apply_modifications`, whose accepted proposal is its own undo entry — so the
+  tool description points structural edits there.
 - **`timeoutMs` bounds the await, not the code.** A synchronous infinite loop hangs
   the tab and no amount of racing changes that; the only real fix is a worker, and a
   worker cannot see the graph, which is the point of the tool. What the timeout does

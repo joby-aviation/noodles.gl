@@ -923,8 +923,9 @@ export class MCPTools {
   // Project state manipulation tools
 
   // Validate modifications against the project before the editor sees them. The
-  // editor applies them only after the run, so this result is the model's only
-  // chance to learn an edit was malformed or aimed at a node that does not exist.
+  // chat applies them only after the run, once the user accepts them, so this
+  // result is the model's only chance to learn an edit was malformed or aimed at
+  // a node that does not exist.
   // Every problem in the batch is reported at once and nothing is queued.
   async applyModifications(params: { modifications: unknown[] }): Promise<ToolResult> {
     const modifications = params.modifications
@@ -1023,13 +1024,13 @@ export class MCPTools {
       if (mod.type === 'add_edge') this.queuedEdges.add(mod.data.id)
     }
 
-    // Returned rather than applied: the editor applies them when the run ends
+    // Returned rather than applied: the panel shows them to the user, who accepts or rejects them
     return {
       success: true,
       data: {
         modificationsCount: mods.length,
         modifications: mods,
-        message: `${mods.length} modification(s) will be applied to the project`,
+        message: `${mods.length} modification(s) proposed. They apply when the user accepts them.`,
       },
     }
   }
