@@ -88,7 +88,7 @@ import {
   type MaplibreStyle,
   type StyleConfiguratorData,
 } from '../utils/map-style-utils'
-import { CARTO_DARK, MAP_STYLES } from '../utils/map-styles'
+import { CARTO_DARK } from '../utils/map-styles'
 import { mulberry32 } from '../utils/random'
 import { sqlIdentifier, sqlLiteral } from '../utils/sql'
 import {
@@ -4091,10 +4091,7 @@ export class MaplibreBasemapOp extends Operator<MaplibreBasemapOp> {
 
   createInputs() {
     return {
-      mapStyle: new MapStyleField(CARTO_DARK, {
-        accept: '.json',
-        suggestions: Object.entries(MAP_STYLES).map(([url, name]) => ({ value: url, label: name })),
-      }),
+      mapStyle: new MapStyleField(CARTO_DARK, { accept: '.json' }),
       projection: new StringLiteralField('mercator', {
         values: ['mercator', 'globe'],
         showByDefault: false,
