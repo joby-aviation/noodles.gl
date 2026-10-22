@@ -22,10 +22,7 @@ import {
   getCameraControlState,
   updateCameraInputs,
 } from './noodles/utils/map-camera-control'
-import {
-  captureOperatorInputs,
-  firePropertyMutation,
-} from './noodles/utils/property-history'
+import { captureOperatorInputs, firePropertyMutation } from './noodles/utils/property-history'
 import type { RenderSettings } from './noodles/utils/serialization'
 import { useDeckDrawLoop } from './render/draw-loop'
 import { FrameCounter } from './render/frame-stats'

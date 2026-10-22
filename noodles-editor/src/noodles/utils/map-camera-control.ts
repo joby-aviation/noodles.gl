@@ -1,13 +1,7 @@
 import { MapViewStateOp } from '../operators'
 import { getOp } from '../store'
 
-export const CAMERA_INPUT_NAMES = [
-  'longitude',
-  'latitude',
-  'zoom',
-  'pitch',
-  'bearing',
-] as const
+export const CAMERA_INPUT_NAMES = ['longitude', 'latitude', 'zoom', 'pitch', 'bearing'] as const
 
 export interface CameraViewState {
   longitude: number
