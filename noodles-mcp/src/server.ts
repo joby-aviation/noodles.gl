@@ -83,7 +83,7 @@ export function createServer({ repoRoot, cwd }: Context): McpServer {
     },
     ({ type }) => {
       const schema = registry.operators[resolveOperatorType(type, registry)]
-      if (!schema) return fail(unknownType(type, registry))
+      if (!schema) return fail(unknownType(type, registry, 'list_operators shows every type.'))
       return ok({
         ...schema,
         handles: {
