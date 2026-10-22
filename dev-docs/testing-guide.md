@@ -107,6 +107,28 @@ npm test -- --coverage
 npm test -- --project node
 ```
 
+## Visual Regression Tests for Examples
+
+`noodles-editor/e2e/examples-visual.spec.ts` opens each project in `src/examples/`, lowers its LOD to 0.5 in the Out node's render settings, and saves it with **Export > Image (PNG)** until two exports in a row are identical. That PNG is compared against a baseline. Only the visualization is compared: the export is the map or deck canvas at the render resolution, so editor UI changes can't fail these tests. The save dialog is replaced by a stand-in that hands the PNG back to Playwright as a download (`installSavePicker` in `e2e/helpers.ts`); the app itself exposes nothing for the tests.
+
+```bash
+cd noodles-editor
+npm run test:e2e                                  # all examples
+npm run test:e2e -- -g california-earthquakes     # one example
+```
+
+Playwright starts the Vite dev server on port 5173, or reuses one already running there. Set `PLAYWRIGHT_BASE_URL` to test a server on another port.
+
+Examples a test can't hold still or wait for are skipped by name in `SKIPPED`, with the reason: live API data (`chargers`), a streamed video (`cesium-hubble`), a remote dataset (`flight-tracks`), and four that block the page for minutes in software WebGL (`nyc-taxis`, `sf-elevation-contours`, `uk-commute`, `world-flights`). The other examples load their basemap and data over the network without API keys.
+
+**Baselines** are kept per platform in `e2e/__snapshots__/<platform>/`, because software WebGL and system fonts draw slightly differently on macOS and Linux. Only `linux/` is committed, and only CI writes it: the `test-e2e` job renders any missing baseline instead of failing, warns about it, and uploads the `visual-baselines` artifact. To add or update baselines:
+
+1. Delete the outdated images from `e2e/__snapshots__/linux/` (or add a new example) and push.
+2. Download the `visual-baselines` artifact from the `test-e2e` run, look at every image, and commit them to `e2e/__snapshots__/linux/`.
+3. Say in the PR why each image changed.
+
+Local runs write `darwin/` baselines on the first run and compare against them after that, which is useful for checking your own change before and after. They are ignored by git.
+
 ## Test Runbooks for PRs
 
 When creating pull requests, provide a manual test runbook to help reviewers verify changes in the UI.

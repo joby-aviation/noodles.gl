@@ -12,7 +12,8 @@ export default defineConfig({
         extends: true,
         test: {
           name: 'browser',
-          exclude: [...configDefaults.exclude, 'scripts/**'],
+          // e2e/ is the Playwright suite (playwright.config.ts)
+          exclude: [...configDefaults.exclude, 'scripts/**', 'e2e/**'],
           setupFiles: ['src/setupTests.ts'],
           browser: {
             provider: playwright({

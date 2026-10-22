@@ -29,3 +29,9 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .yarn/
+
+# Playwright output. Only the linux/ visual baselines, rendered by CI, are committed.
+playwright-report/
+test-results/
+e2e/__snapshots__/*
+!e2e/__snapshots__/linux/
