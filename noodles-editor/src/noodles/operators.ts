@@ -2615,14 +2615,18 @@ export class BrushableHistogramOp extends Operator<BrushableHistogramOp> {
     const data = new DataField()
     const field = new StringLiteralField('', [])
 
-    // Dynamically populate field choices from numeric data keys
+    // Dynamically populate field choices from numeric data keys. Sample several rows, since
+    // a numeric column can have an empty first cell.
     data.subscribe((newData: unknown[]) => {
-      if (Array.isArray(newData) && newData.length > 0 && typeof newData[0] === 'object') {
-        const sample = newData[0] as Record<string, unknown>
-        const numericKeys = Object.keys(sample).filter(
-          k => typeof sample[k] === 'number' && !Number.isNaN(sample[k])
-        )
-        field.updateChoices(numericKeys)
+      if (Array.isArray(newData) && newData.length > 0) {
+        const numericKeys = new Set<string>()
+        for (const row of newData.slice(0, 100)) {
+          if (typeof row !== 'object' || row === null) continue
+          for (const [key, value] of Object.entries(row)) {
+            if (typeof value === 'number' && !Number.isNaN(value)) numericKeys.add(key)
+          }
+        }
+        field.updateChoices([...numericKeys])
       }
     })
 
