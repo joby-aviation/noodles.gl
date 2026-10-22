@@ -6,7 +6,7 @@ import type {
   HexagonLayerProps,
   ScreenGridLayerProps,
 } from '@deck.gl/aggregation-layers'
-import { type LayerExtension, type LayerProps, WebMercatorViewport } from '@deck.gl/core'
+import { LayerExtension, type LayerProps, WebMercatorViewport } from '@deck.gl/core'
 import {
   BrushingExtension,
   ClipExtension,
@@ -5213,8 +5213,10 @@ function gatherTriggers(
   return triggers
 }
 
+type ExtensionDescriptor = { type: string; [key: string]: unknown }
+
 type LayerExtensionFieldReturnValue = null | {
-  extension: LayerExtension
+  extension: ExtensionDescriptor | LayerExtension
   props: Record<string, LayerPropsValue>
 }
 
@@ -5244,9 +5246,30 @@ export const extensionMap: Record<
   VibranceExtension: { ExtensionClass: FilterColorExtension, args: vibrance },
 }
 
+// Turns an extension descriptor into a LayerExtension. Instances built by the user
+// (e.g. in a CodeOp) pass through unchanged. Returns null for unknown types.
+export function instantiateExtension(
+  ext: ExtensionDescriptor | LayerExtension
+): LayerExtension | null {
+  if (ext instanceof LayerExtension) return ext
+
+  const { type, ...constructorArgs } = ext
+  const extensionDef = extensionMap[type]
+  if (!extensionDef) return null
+
+  // Wrapped extensions carry their own constructor args
+  if ('ExtensionClass' in extensionDef) {
+    return new extensionDef.ExtensionClass(extensionDef.args)
+  }
+  return Object.keys(constructorArgs).length > 0
+    ? new extensionDef(constructorArgs)
+    : new extensionDef()
+}
+
 // Deck layers can have extensions that are passed in as props, but the props to the extensions are not
 // passed to the extension constructor, but rather to the root props on the layer.
-// Extensions are kept as POJOs here and will be instantiated later in the pipeline (in noodles.tsx).
+// Descriptors are kept as POJOs here and instantiated later (instantiateExtension, in noodles.tsx);
+// LayerExtension instances built in a CodeOp pass through as-is.
 function parseLayerProps<P extends LayerProps>({
   extensions = [],
   ...props
