@@ -81,8 +81,27 @@ describe('selected map camera control', () => {
       getCameraControlState(['/camera'], context(edges, { isRendering: true })).reason
     ).toMatch(/exporting/)
 
-    camera.inputs.longitude.addConnection('edge', new NumberOp('/source').outputs.val)
-    expect(getCameraControlState(['/camera'], context(edges)).reason).toMatch(/longitude/)
+    const connected = [...edges, edge('/source', 'out.val', '/camera', 'par.longitude')]
+    expect(getCameraControlState(['/camera'], context(connected)).reason).toMatch(
+      /Disconnect camera inputs.*longitude/
+    )
+  })
+
+  it('treats expression-driven camera inputs as driven', () => {
+    const camera = new MapViewStateOp('/camera')
+    setOp('/camera', camera)
+    const edges = wireView()
+
+    camera.inputs.zoom.setExpression('4')
+    expect(getCameraControlState(['/camera'], context(edges))).toMatchObject({
+      enabled: false,
+      reason: expect.stringMatching(/expressions.*zoom/),
+    })
+    expect(updateCameraInputs(camera, { longitude: 1, latitude: 2, zoom: 10 })).toBe(false)
+    expect(camera.inputs.zoom.expression).toBe('4')
+
+    camera.inputs.zoom.clearExpression()
+    expect(getCameraControlState(['/camera'], context(edges)).enabled).toBe(true)
   })
 
   it('disables a MapViewStateOp that does not drive the visible map', () => {

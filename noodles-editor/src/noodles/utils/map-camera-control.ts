@@ -154,14 +154,26 @@ export function getCameraControlState(
     return { op: selectedOp, enabled: false, reason: 'Unlock the MapViewState node to edit it.' }
   }
 
-  const connectedFields = CAMERA_INPUT_NAMES.filter(
-    name => selectedOp.inputs[name].subscriptions.size > 0
+  // Read connections from the edge list rather than field subscriptions: the edges are
+  // React state, so connecting or disconnecting re-renders with the new answer
+  const connectedFields = CAMERA_INPUT_NAMES.filter(name =>
+    edges.some(edge => edge.target === selectedOp.id && edge.targetHandle === `par.${name}`)
   )
   if (connectedFields.length > 0) {
     return {
       op: selectedOp,
       enabled: false,
       reason: `Disconnect camera inputs to drag the map: ${connectedFields.join(', ')}.`,
+    }
+  }
+  const expressionFields = CAMERA_INPUT_NAMES.filter(
+    name => selectedOp.inputs[name].expression !== null
+  )
+  if (expressionFields.length > 0) {
+    return {
+      op: selectedOp,
+      enabled: false,
+      reason: `Clear camera input expressions to drag the map: ${expressionFields.join(', ')}.`,
     }
   }
 
@@ -193,10 +205,17 @@ export function wrapLongitude(longitude: number): number {
   return ((((longitude + 180) % 360) + 360) % 360) - 180
 }
 
+// A connected or expression-driven input gets its value from elsewhere: a write would be
+// overwritten by the connection, or would replace the user's expression with a literal
+function isCameraInputDriven(op: MapViewStateOp, name: CameraInputName): boolean {
+  const field = op.inputs[name]
+  return field.subscriptions.size > 0 || field.expression !== null
+}
+
 export function updateCameraInputs(op: MapViewStateOp, value: unknown): boolean {
   const viewState = extractCameraViewState(value)
   if (!viewState || op.locked.value) return false
-  if (CAMERA_INPUT_NAMES.some(name => op.inputs[name].subscriptions.size > 0)) return false
+  if (CAMERA_INPUT_NAMES.some(name => isCameraInputDriven(op, name))) return false
 
   const next: Record<CameraInputName, number | undefined> = {
     longitude: wrapLongitude(viewState.longitude),
