@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { searchDocumentation } from './docs-search'
+import { extractHeadings } from './runtime-docs-loader'
 import type { DocsIndex } from './types'
 
 describe('searchDocumentation', () => {
@@ -65,5 +66,72 @@ describe('searchDocumentation', () => {
 
     expect(results).toHaveLength(1)
     expect(results[0].heading).toBe('Radius units')
+  })
+
+  it('finds camelCase operator names by their parts', () => {
+    const content =
+      '# Operators\n\nCreate any deck.gl layer, such as `ScatterPlotLayerOp` or `GeoJsonLayerOp`.'
+    const docs: DocsIndex = {
+      version: 'test',
+      topics: {
+        operators: {
+          id: 'operators',
+          title: 'Operators',
+          section: 'users',
+          file: 'users/operators-guide.md',
+          url: null,
+          content,
+          headings: extractHeadings(content),
+          codeExamples: [],
+          relatedTopics: [],
+        },
+      },
+    }
+
+    for (const query of ['scatterplot', 'ScatterplotLayerOp', 'plot layer', 'GeoJsonLayer']) {
+      expect(searchDocumentation(docs, query).map(result => result.id)).toEqual(['operators'])
+    }
+  })
+
+  it('links a repeated heading to its own occurrence', () => {
+    const content = [
+      '# Changelog',
+      '## August',
+      '### Added',
+      'Transparent video export.',
+      '## July',
+      '### Added',
+      'A spreadsheet editor for tables.',
+    ].join('\n\n')
+    const docs: DocsIndex = {
+      version: 'test',
+      topics: {
+        changelog: {
+          id: 'changelog',
+          title: 'Changelog',
+          section: 'users',
+          file: 'changelog.md',
+          url: 'https://noodles.gl/docs/changelog',
+          content,
+          headings: extractHeadings(content),
+          codeExamples: [],
+          relatedTopics: [],
+        },
+      },
+    }
+
+    expect(docs.topics.changelog.headings.map(heading => heading.anchor)).toEqual([
+      'changelog',
+      'august',
+      'added',
+      'july',
+      'added-1',
+    ])
+    expect(searchDocumentation(docs, 'spreadsheet')[0].url).toBe(
+      'https://noodles.gl/docs/changelog#added-1'
+    )
+    expect(searchDocumentation(docs, 'transparent video')[0].url).toBe(
+      'https://noodles.gl/docs/changelog#added'
+    )
   })
 })

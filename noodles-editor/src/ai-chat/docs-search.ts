@@ -149,9 +149,21 @@ function buildIndex(docs: DocsIndex): SearchIndex {
 function chunkTopic(topic: DocTopic): DocChunk[] {
   const sections = topic.content.split(/(?=^#{1,6}\s+)/m)
   const chunks: DocChunk[] = []
+  // Headings are matched in document order, so a repeated heading (every
+  // changelog month has `### Added`) takes its own occurrence's anchor
+  let nextHeading = 0
   for (const section of sections) {
     const heading = section.match(/^#{1,6}\s+(.+)$/m)?.[1]
-    const anchor = topic.headings.find(candidate => candidate.text === heading)?.anchor
+    let anchor: string | undefined
+    if (heading !== undefined) {
+      const found = topic.headings.findIndex(
+        (candidate, i) => i >= nextHeading && candidate.text === heading
+      )
+      if (found >= 0) {
+        anchor = topic.headings[found].anchor
+        nextHeading = found + 1
+      }
+    }
     let current = ''
     for (const paragraph of section.split(/\n\s*\n/)) {
       if (current && current.length + paragraph.length > CHUNK_CHARS) {
@@ -195,11 +207,32 @@ function bm25(chunk: DocChunk, queryTerms: string[], index: SearchIndex) {
   return score
 }
 
+// Each word also yields its camelCase parts and their leading runs, so
+// `ScatterPlotLayerOp` matches "scatterplot", "plot", "ScatterPlotLayer" and
+// its full name. The old substring search found these; exact BM25 terms do not.
 function tokenize(value: string) {
-  return value
-    .toLowerCase()
-    .split(/[^a-z0-9]+/)
-    .filter(term => term.length > 1 && !STOP_WORDS.has(term))
+  const terms: string[] = []
+  for (const word of value.split(/[^A-Za-z0-9]+/)) {
+    for (const term of wordTerms(word)) {
+      if (term.length > 1 && !STOP_WORDS.has(term)) terms.push(term)
+    }
+  }
+  return terms
+}
+
+const CAMEL_PART = /[A-Z]+[0-9]*(?![a-z])|[A-Z]?[a-z]+[0-9]*|[0-9]+/g
+
+function wordTerms(word: string) {
+  const terms = new Set([word.toLowerCase()])
+  const parts = (word.match(CAMEL_PART) ?? []).map(part => part.toLowerCase())
+  if (parts.length < 2) return terms
+  let prefix = ''
+  for (const part of parts) {
+    terms.add(part)
+    prefix += part
+    terms.add(prefix)
+  }
+  return terms
 }
 
 // A window centred on the first query term, so the excerpt shows why it matched
