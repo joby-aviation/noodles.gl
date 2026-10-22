@@ -17,7 +17,7 @@ import {
 } from '../../utils/debug'
 import type { GraphRef } from '../types'
 import { type LockChange, redoLockChange, undoLockChange } from './lock-history'
-import { applyOperatorInputs } from './property-history'
+import { applyOperatorInputs, captureOperatorInputs } from './property-history'
 
 interface HistoryEntry {
   id: string
@@ -665,6 +665,55 @@ export function useUndoRedo(options?: UseUndoRedoOptions) {
     [getSnapshot]
   )
 
+  // Run a batch of graph edits made outside the change handlers (an accepted
+  // assistant proposal) and record what it changed, field values included, as
+  // one entry. Like the interceptors above, the after-state is read on a timeout
+  // because setNodes / setEdges reach the store after the caller returns.
+  const recordGraphMutation = useCallback(
+    (description: string, mutate: () => void) => {
+      if (isRestoringRef.current) {
+        mutate()
+        return
+      }
+      const before = getSnapshot()
+      const operatorStateBefore = captureOperatorInputs() ?? undefined
+      const timelineState = captureTimelineState()
+      mutate()
+
+      setTimeout(() => {
+        const after = getSnapshot()
+        const operatorStateAfter = captureOperatorInputs() ?? undefined
+        const changed =
+          !sameItems(before.nodes, after.nodes) ||
+          !sameItems(before.edges, after.edges) ||
+          operatorStateBefore !== operatorStateAfter
+        if (!changed) return
+
+        const entry: HistoryEntry = {
+          id: crypto.randomUUID(),
+          timestamp: Date.now(),
+          description,
+          nodeChanges: [],
+          edgeChanges: [],
+          nodesBefore: before.nodes,
+          edgesBefore: before.edges,
+          nodesAfter: after.nodes,
+          edgesAfter: after.edges,
+          timelineStateBefore: timelineState,
+          timelineStateAfter: timelineState,
+          operatorStateBefore,
+          operatorStateAfter,
+        }
+        setUndoRedoState(prev => {
+          const history = [...prev.history.slice(0, prev.currentIndex + 1), entry]
+          const finalHistory = history.slice(-maxHistorySize)
+          return { history: finalHistory, currentIndex: finalHistory.length - 1 }
+        })
+      }, 0)
+    },
+    [getSnapshot]
+  )
+
   return {
     undo,
     redo,
@@ -675,6 +724,7 @@ export function useUndoRedo(options?: UseUndoRedoOptions) {
     recordTimelineChange,
     recordPropertyChange,
     recordLockChange,
+    recordGraphMutation,
     history,
     clear: () => {
       setUndoRedoState({
@@ -683,6 +733,11 @@ export function useUndoRedo(options?: UseUndoRedoOptions) {
       })
     },
   }
+}
+
+// React Flow replaces a node or edge object when it changes, so identity is enough
+function sameItems<T>(before: readonly T[], after: readonly T[]): boolean {
+  return before.length === after.length && before.every((item, i) => item === after[i])
 }
 
 function getChangeDescription(changes: (NodeChange | EdgeChange)[], type: 'node' | 'edge'): string {

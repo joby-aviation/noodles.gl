@@ -456,3 +456,39 @@ describe('useUndoRedo — lock changes', () => {
     await expect(op.pull()).resolves.toEqual({ result: 23 })
   })
 })
+
+describe('useUndoRedo — graph mutations', () => {
+  beforeEach(() => vi.useFakeTimers())
+  afterEach(() => vi.useRealTimers())
+
+  it('records a batch as one entry and undoes it in one step', async () => {
+    const onNodesChange = vi.fn()
+    const { result } = renderHook(() => useTestHook(), { wrapper })
+    await act(async () => {
+      result.current.storeApi.setState({ onNodesChange })
+    })
+    const added = { id: '/n', type: 'NumberOp', position: { x: 0, y: 0 }, data: {} }
+
+    act(() =>
+      result.current.undoRedo.recordGraphMutation('Apply assistant proposal', () =>
+        result.current.storeApi.setState({ nodes: [added] })
+      )
+    )
+    await act(() => vi.advanceTimersByTimeAsync(0))
+    expect(result.current.undoRedo.history).toHaveLength(1)
+    expect(result.current.undoRedo.history[0].description).toBe('Apply assistant proposal')
+
+    act(() => result.current.undoRedo.undo())
+
+    expect(onNodesChange).toHaveBeenCalledWith([{ type: 'remove', id: '/n' }])
+  })
+
+  it('records nothing when the batch changed nothing', async () => {
+    const { result } = renderHook(() => useTestHook(), { wrapper })
+
+    act(() => result.current.undoRedo.recordGraphMutation('Apply assistant proposal', () => {}))
+    await act(() => vi.advanceTimersByTimeAsync(0))
+
+    expect(result.current.undoRedo.history).toHaveLength(0)
+  })
+})

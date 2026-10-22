@@ -5,6 +5,7 @@ import { type FC, useEffect, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import {
+  type ModificationResult,
   type ProjectModification,
   useProjectModifications,
 } from '../noodles/hooks/use-project-modifications'
@@ -12,6 +13,7 @@ import type { CustomEndpointConfig, ProviderPreference } from '../noodles/keys-s
 import { useKeysStore } from '../noodles/keys-store'
 import { useUIStore } from '../noodles/store'
 import { useOpenRouterConnect } from '../noodles/use-openrouter-connect'
+import { recordGraphMutation } from '../noodles/utils/graph-history'
 import { analytics } from '../utils/analytics'
 import { debugAiChat } from '../utils/debug'
 import { useAgentModelStore } from './agent/model-store'
@@ -42,6 +44,7 @@ import { loadConversation, saveConversation } from './conversation-history'
 import { ConversationHistoryPanel } from './conversation-history-panel'
 import { globalContextManager } from './global-context-manager'
 import { MCPTools } from './mcp-tools'
+import { createProposal, type ModificationProposal } from './modification-proposal'
 import {
   dismissOnDeviceNotice,
   OnDeviceNotice,
@@ -94,6 +97,10 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
   // A provider that would not start. Distinct from a failed message: nothing can
   // be sent at all, so it replaces the panel rather than appearing in it.
   const [providerError, setProviderError] = useState<string | null>(null)
+  // An edit the assistant proposed, waiting on Accept or Reject. Sending is blocked
+  // until it is resolved: the next run would be planned against a graph the user
+  // has not decided on, and its own proposal would have nowhere to go.
+  const [pendingProposal, setPendingProposal] = useState<ModificationProposal | null>(null)
   const abortRef = useRef<AbortController | null>(null)
 
   // Get API keys directly from store (reactive)
@@ -345,7 +352,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
   }, [])
 
   const handleSend = async () => {
-    if (!input.trim() || !session || !project) return
+    if (!input.trim() || !session || !project || pendingProposal) return
 
     const userMessage: Message = {
       role: 'user',
@@ -389,34 +396,15 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
 
       setMessages(prev => [...prev, assistantMessage])
 
-      // Apply project modifications if any
+      // apply_modifications validated these against the project; they land only
+      // once the user accepts them
       if (response.projectModifications && response.projectModifications.length > 0) {
-        debugAiChat('Applying project modifications:', response.projectModifications)
-        const result = applyModifications(response.projectModifications as ProjectModification[])
-
-        if (!result.success) {
-          // Surface validation errors back to the user and AI
-          const errorMessage = `Failed to apply modifications: ${result.error}`
-          debugAiChat(errorMessage)
-          setMessages(prev => [
-            ...prev,
-            {
-              role: 'assistant',
-              content: errorMessage,
-            },
-          ])
-        } else if (result.warnings && result.warnings.length > 0) {
-          // Show warnings in console and chat
-          debugAiChat('Modification warnings:', result.warnings)
-          const warningMessage = `⚠️ Modifications applied with warnings:\n${result.warnings.map(w => `• ${w}`).join('\n')}`
-          setMessages(prev => [
-            ...prev,
-            {
-              role: 'assistant',
-              content: warningMessage,
-            },
-          ])
-        }
+        debugAiChat('Proposing project modifications:', response.projectModifications)
+        setPendingProposal(createProposal(response.projectModifications))
+        analytics.track('ai_modification_proposed', {
+          provider: providerId,
+          modificationCount: response.projectModifications.length,
+        })
       }
     } catch (error) {
       debugAiChat('Error sending message:', error)
@@ -478,6 +466,49 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
     abortRef.current?.abort()
   }
 
+  const acceptProposal = () => {
+    if (!pendingProposal) return
+    const { modifications } = pendingProposal
+    setPendingProposal(null)
+
+    // One undo entry for the whole batch, even when it fails partway
+    let result: ModificationResult = { success: false, error: 'not applied' }
+    recordGraphMutation('Apply assistant proposal', () => {
+      result = applyModifications(modifications as ProjectModification[])
+    })
+    analytics.track('ai_modification_proposal_resolved', {
+      provider: providerId,
+      outcome: result.success ? 'accepted' : 'failed',
+      modificationCount: modifications.length,
+    })
+
+    if (!result.success) {
+      // Surface the failure to the user and, through the history, to the model
+      const errorMessage = `Failed to apply modifications: ${result.error}`
+      debugAiChat(errorMessage)
+      setMessages(prev => [...prev, { role: 'assistant', content: errorMessage }])
+    } else if (result.warnings && result.warnings.length > 0) {
+      debugAiChat('Modification warnings:', result.warnings)
+      const warningMessage = `⚠️ Modifications applied with warnings:\n${result.warnings.map(w => `• ${w}`).join('\n')}`
+      setMessages(prev => [...prev, { role: 'assistant', content: warningMessage }])
+    }
+  }
+
+  // Recorded in the conversation so the next turn knows the edit did not land
+  const rejectProposal = () => {
+    if (!pendingProposal) return
+    analytics.track('ai_modification_proposal_resolved', {
+      provider: providerId,
+      outcome: 'rejected',
+      modificationCount: pendingProposal.modifications.length,
+    })
+    setPendingProposal(null)
+    setMessages(prev => [
+      ...prev,
+      { role: 'assistant', content: 'Proposal rejected. The graph was not changed.' },
+    ])
+  }
+
   const handleManualCapture = async () => {
     if (!mcpTools) return
 
@@ -500,8 +531,9 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
       }
     }
 
-    // Start fresh
+    // Start fresh. A pending proposal belongs to the conversation it came from.
     setMessages([])
+    setPendingProposal(null)
     setCurrentConversationId(null)
     setShowHistory(false)
   }
@@ -537,6 +569,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
     const conversation = loadConversation(id)
     if (conversation) {
       setMessages(conversation.messages)
+      setPendingProposal(null)
       setCurrentConversationId(id)
       setShowHistory(false)
     } else {
@@ -821,6 +854,26 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
           </div>
         )}
 
+        {pendingProposal && (
+          <section className={styles.proposalCard} aria-label="Proposed graph update">
+            <div className={styles.proposalTitle}>Review graph update</div>
+            <p>Nothing has changed yet.</p>
+            <ul className={styles.proposalDiff}>
+              {pendingProposal.lines.map((line, idx) => (
+                <li key={`${idx}-${line}`}>{line}</li>
+              ))}
+            </ul>
+            <div className={styles.proposalActions}>
+              <button type="button" className={styles.chatSendBtn} onClick={acceptProposal}>
+                Accept
+              </button>
+              <button type="button" className={styles.chatPanelActionBtn} onClick={rejectProposal}>
+                Reject
+              </button>
+            </div>
+          </section>
+        )}
+
         <div ref={messagesEndRef} />
       </div>
 
@@ -834,8 +887,10 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
               handleSend()
             }
           }}
-          placeholder="Ask for help..."
-          disabled={loading}
+          placeholder={
+            pendingProposal ? 'Accept or reject the graph update to continue' : 'Ask for help...'
+          }
+          disabled={loading || pendingProposal !== null}
           rows={3}
         />
         {loading ? (
@@ -846,7 +901,7 @@ export const ChatPanel: FC<ChatPanelProps> = ({ project, onClose, isVisible, ini
           <button
             type="button"
             onClick={handleSend}
-            disabled={!input.trim()}
+            disabled={!input.trim() || pendingProposal !== null}
             className={styles.chatSendBtn}
           >
             Send
