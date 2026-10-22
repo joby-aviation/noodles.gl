@@ -1,5 +1,5 @@
 import { fitBounds } from '@math.gl/web-mercator'
-import { autoType, csvParse } from 'd3'
+import { autoType, csvParse, tsvParse } from 'd3'
 import type { Geometry, Position } from 'geojson'
 import { parseWkt } from '../../../utils/wkt'
 
@@ -70,15 +70,15 @@ export function hasCoordinates(
   return detection !== undefined && detection.kind !== 'none'
 }
 
-// Parse a CSV or JSON array the same way FileOp will (d3.autoType for CSV), so the
-// columns and types detected here match what the graph sees at runtime
+// Parse a CSV, TSV or JSON array the same way FileOp will (d3.autoType for CSV and
+// TSV), so the columns and types detected here match what the graph sees at runtime
 export function parseTabularRows(
   contents: string,
-  format: 'csv' | 'json'
+  format: 'csv' | 'tsv' | 'json'
 ): { columns: string[]; rows: Row[] } | null {
   try {
-    if (format === 'csv') {
-      const rows = csvParse(contents, autoType)
+    if (format === 'csv' || format === 'tsv') {
+      const rows = format === 'csv' ? csvParse(contents, autoType) : tsvParse(contents, autoType)
       return { columns: rows.columns, rows: rows as unknown as Row[] }
     }
     const parsed = JSON.parse(contents)
@@ -479,7 +479,7 @@ export function detectFileCoordinates(
       return undefined
     }
   }
-  if (format !== 'csv' && format !== 'json') return undefined
+  if (format !== 'csv' && format !== 'tsv' && format !== 'json') return undefined
   const table = parseTabularRows(contents, format)
   return table ? detectCoordinates(table.columns, table.rows) : undefined
 }

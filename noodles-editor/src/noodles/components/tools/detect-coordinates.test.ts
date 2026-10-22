@@ -261,6 +261,12 @@ describe('parseTabularRows', () => {
     expect([...(result?.rows ?? [])]).toEqual([{ name: 'NYC', lat: 40.7 }])
   })
 
+  it('parses TSV with autoType like FileOp', () => {
+    const result = parseTabularRows('name\tlat\tlng\nNYC, NY\t40.7\t-74\n', 'tsv')
+    expect(result?.columns).toEqual(['name', 'lat', 'lng'])
+    expect([...(result?.rows ?? [])]).toEqual([{ name: 'NYC, NY', lat: 40.7, lng: -74 }])
+  })
+
   it('parses a JSON array of objects', () => {
     expect(parseTabularRows('[{"a":1},{"b":2}]', 'json')).toEqual({
       columns: ['a', 'b'],
@@ -404,6 +410,17 @@ describe('detectFileCoordinates on sample files', () => {
       encoding: 'wkt',
       pointsOnly: true,
       rowCount: 6,
+    })
+  })
+
+  it('the same cities as a TSV', () => {
+    const detection = detectFileCoordinates('tsv', cities.replaceAll(',', '\t'))
+    expect(detection).toMatchObject({
+      kind: 'lat_lng',
+      latColumn: 'lat',
+      lngColumn: 'lng',
+      rowCount: 24,
+      sizeColumn: { column: 'population' },
     })
   })
 

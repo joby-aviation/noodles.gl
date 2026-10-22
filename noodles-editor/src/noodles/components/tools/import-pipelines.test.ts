@@ -61,7 +61,7 @@ function build(format: DetectedFormat, extra: Record<string, unknown> = {}) {
 describe('detectFormat', () => {
   it('maps extensions to formats', () => {
     expect(detectFormat('a.csv')).toBe('csv')
-    expect(detectFormat('a.tsv')).toBe('csv')
+    expect(detectFormat('a.tsv')).toBe('tsv')
     expect(detectFormat('a.geojson')).toBe('geojson')
     expect(detectFormat('a.shp')).toBe('shapefile')
     expect(detectFormat('a.parquet')).toBe('geoparquet')
@@ -89,6 +89,7 @@ describe('detectFormat', () => {
 describe('detectFormatFromUrl', () => {
   it('ignores query strings and fragments', () => {
     expect(detectFormatFromUrl('https://x.test/a.csv?token=1')).toBe('csv')
+    expect(detectFormatFromUrl('https://x.test/a.tsv?token=1')).toBe('tsv')
     expect(detectFormatFromUrl('https://x.test/a.geojson#frag')).toBe('geojson')
   })
 
@@ -224,6 +225,7 @@ describe('createImportPipeline', () => {
   it('references only registered operator types with valid handles', () => {
     const cases: [DetectedFormat, CoordinateDetection?][] = [
       ['csv'],
+      ['tsv'],
       ['json'],
       ['geojson'],
       ['shapefile'],
@@ -233,6 +235,7 @@ describe('createImportPipeline', () => {
       ['csv', wktPoints],
       ['csv', wktShapes],
       ['csv', noCoordinates],
+      ['tsv', latLng],
     ]
     for (const [format, detection] of cases) {
       const { nodes, edges } = build(format, { detection })
@@ -278,6 +281,14 @@ describe('createImportPipeline', () => {
     expect(viewState?.latitude).toBeLessThan(52)
     expect(nodes[3].data.inputs).toEqual({ viewState })
     expect(edges.some(e => e.targetHandle === 'par.viewState')).toBe(false)
+  })
+
+  it('reads a TSV file as TSV so FileOp splits on tabs', () => {
+    const { nodes } = build('tsv', { detection: latLng })
+    expect(nodes[0]).toMatchObject({ type: 'FileOp', data: { inputs: { format: 'tsv' } } })
+    expect(nodes.map(n => n.type)).toEqual(
+      build('csv', { detection: latLng }).nodes.map(n => n.type)
+    )
   })
 
   it('sizes points by an obvious numeric column', () => {

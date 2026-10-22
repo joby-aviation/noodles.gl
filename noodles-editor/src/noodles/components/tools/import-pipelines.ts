@@ -13,7 +13,14 @@ import {
 // operator store so the format detection, layout and wiring can be tested directly.
 // Shared by the Import Data dialog and by dropping a file onto the canvas.
 
-export type DetectedFormat = 'csv' | 'json' | 'geojson' | 'shapefile' | 'geoparquet' | 'pmtiles'
+export type DetectedFormat =
+  | 'csv'
+  | 'tsv'
+  | 'json'
+  | 'geojson'
+  | 'shapefile'
+  | 'geoparquet'
+  | 'pmtiles'
 
 // Extensions offered in the file picker and accepted from a canvas drop
 export const IMPORTABLE_EXTENSIONS = [
@@ -31,7 +38,7 @@ export const FILE_INPUT_ACCEPT = IMPORTABLE_EXTENSIONS.map(ext => `.${ext}`).joi
 
 const EXTENSION_FORMATS: Record<string, DetectedFormat> = {
   csv: 'csv',
-  tsv: 'csv',
+  tsv: 'tsv',
   geojson: 'geojson',
   shp: 'shapefile',
   parquet: 'geoparquet',
@@ -165,6 +172,13 @@ const SOURCES: Record<DetectedFormat, SourceSpec> = {
     type: 'FileOp',
     output: 'out.data',
     inputs: url => ({ format: 'csv', url }),
+    shape: 'tabular',
+  },
+  tsv: {
+    nodeName: 'data',
+    type: 'FileOp',
+    output: 'out.data',
+    inputs: url => ({ format: 'tsv', url }),
     shape: 'tabular',
   },
   json: {
