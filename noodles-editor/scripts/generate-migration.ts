@@ -152,6 +152,10 @@ async function main() {
     fs.writeFileSync(testPath, migration.testCode)
     console.log(`✅ Created test: ${migration.filename}.test.ts`)
 
+    // Concurrent migration PRs both change this line, so git reports a conflict
+    fs.writeFileSync(path.join(migrationsDir, 'LATEST'), `${migration.filename}\n`)
+    console.log('✅ Updated LATEST')
+
     console.log('\n📋 Next steps:')
     console.log('  1. Review the generated migration files')
     console.log('  2. Update the test assertions with actual test cases')
