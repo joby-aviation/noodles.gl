@@ -9,7 +9,7 @@ const BOUNDARY_URLS: Record<Exclude<Geography, 'custom'>, string> = {
   'us-states': 'https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json',
   'world-countries': 'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json',
   'ca-provinces':
-    'https://cdn.jsdelivr.net/gh/codeforamerica/click_that_hood@master/public/data/canada.geojson',
+    'https://cdn.jsdelivr.net/gh/codeforamerica/click_that_hood@fb1c363b3624a256d42f00788fca96d9faf43a45/public/data/canada.geojson',
 }
 
 // [fips_padded, abbrev, name]

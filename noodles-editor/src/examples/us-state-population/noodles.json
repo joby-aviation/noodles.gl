@@ -1,0 +1,249 @@
+{
+  "version": 18,
+  "name": "US State Population",
+  "editorSettings": {
+    "layoutMode": "noodles-on-top",
+    "showOverlay": true
+  },
+  "nodes": [
+    {
+      "id": "/state-data",
+      "type": "FileOp",
+      "data": {
+        "inputs": {
+          "url": "@/data.csv",
+          "format": "csv"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": -1000,
+        "y": 0
+      }
+    },
+    {
+      "id": "/population-choropleth",
+      "type": "ChoroplethLayerOp",
+      "data": {
+        "inputs": {
+          "geography": "us-states",
+          "joinKey": "state",
+          "geoKey": "abbrev",
+          "valueColumn": "population",
+          "colorScheme": "blues",
+          "opacity": 0.85,
+          "getLineColor": "#ffffff"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": -500,
+        "y": -600
+      }
+    },
+    {
+      "id": "/state-join",
+      "type": "ChoroplethJoinOp",
+      "data": {
+        "inputs": {
+          "geography": "us-states",
+          "joinKey": "state",
+          "geoKey": "abbrev"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": -500,
+        "y": 200
+      }
+    },
+    {
+      "id": "/state-centroids",
+      "type": "CodeOp",
+      "data": {
+        "inputs": {
+          "code": [
+            "// One label point per state, keeping the joined properties",
+            "return {",
+            "  type: 'FeatureCollection',",
+            "  features: d.features.map(f => turf.centroid(f, { properties: f.properties })),",
+            "}"
+          ]
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 0,
+        "y": 200
+      }
+    },
+    {
+      "id": "/label-text",
+      "type": "AccessorOp",
+      "data": {
+        "inputs": {
+          "expression": "`${d.properties.state} ${(d.properties.population / 1e6).toFixed(1)}M`"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 0,
+        "y": 650
+      }
+    },
+    {
+      "id": "/labels",
+      "type": "GeoJsonLayerOp",
+      "data": {
+        "inputs": {
+          "pointType": "text",
+          "getTextSize": 16,
+          "getTextColor": "#1a1a1a"
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 500,
+        "y": 200
+      }
+    },
+    {
+      "id": "/maplibre-basemap",
+      "type": "MaplibreBasemapOp",
+      "data": {
+        "inputs": {
+          "mapStyle": "https://basemaps.cartocdn.com/gl/positron-nolabels-gl-style/style.json",
+          "viewState": {
+            "latitude": 38,
+            "longitude": -96,
+            "zoom": 4.5,
+            "pitch": 0,
+            "bearing": 0
+          }
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 500,
+        "y": -600
+      }
+    },
+    {
+      "id": "/deck",
+      "type": "DeckRendererOp",
+      "data": {
+        "inputs": {},
+        "locked": false
+      },
+      "position": {
+        "x": 1000,
+        "y": 0
+      }
+    },
+    {
+      "id": "/out",
+      "type": "OutOp",
+      "data": {
+        "inputs": {
+          "display": "fixed",
+          "width": 1920,
+          "height": 1080,
+          "lod": 2,
+          "waitForData": true,
+          "codec": "avc",
+          "bitrateMbps": 10,
+          "bitrateMode": "constant",
+          "scaleControl": 0.3,
+          "framerate": 30,
+          "captureDelay": 50
+        },
+        "locked": false
+      },
+      "position": {
+        "x": 1400,
+        "y": 0
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "/state-data.out.data->/population-choropleth.par.data",
+      "source": "/state-data",
+      "target": "/population-choropleth",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/state-data.out.data->/state-join.par.data",
+      "source": "/state-data",
+      "target": "/state-join",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/state-join.out.features->/state-centroids.par.data",
+      "source": "/state-join",
+      "target": "/state-centroids",
+      "sourceHandle": "out.features",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/state-centroids.out.data->/labels.par.data",
+      "source": "/state-centroids",
+      "target": "/labels",
+      "sourceHandle": "out.data",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/label-text.out.accessor->/labels.par.getText",
+      "source": "/label-text",
+      "target": "/labels",
+      "sourceHandle": "out.accessor",
+      "targetHandle": "par.getText"
+    },
+    {
+      "id": "/population-choropleth.out.layer->/deck.par.layers",
+      "source": "/population-choropleth",
+      "target": "/deck",
+      "sourceHandle": "out.layer",
+      "targetHandle": "par.layers"
+    },
+    {
+      "id": "/labels.out.layer->/deck.par.layers",
+      "source": "/labels",
+      "target": "/deck",
+      "sourceHandle": "out.layer",
+      "targetHandle": "par.layers"
+    },
+    {
+      "id": "/maplibre-basemap.out.maplibre->/deck.par.basemap",
+      "source": "/maplibre-basemap",
+      "target": "/deck",
+      "sourceHandle": "out.maplibre",
+      "targetHandle": "par.basemap"
+    },
+    {
+      "id": "/deck.out.vis->/out.par.vis",
+      "source": "/deck",
+      "target": "/out",
+      "sourceHandle": "out.vis",
+      "targetHandle": "par.vis"
+    }
+  ],
+  "viewport": {
+    "x": 560,
+    "y": 420,
+    "zoom": 0.35
+  },
+  "timeline": {
+    "sheetsById": {
+      "Noodles": {
+        "staticOverrides": {
+          "byObject": {}
+        }
+      }
+    },
+    "definitionVersion": "0.4.0",
+    "revisionHistory": []
+  }
+}
