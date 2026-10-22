@@ -383,6 +383,7 @@ async function main() {
     const total = models.length * knobSets.length * tasks.length * repeats
     let done = 0
 
+    const resolvedModels = new Map<string, string>()
     for (const model of models) {
       for (const knobSpec of knobSets) {
         const knobs = parseKnobs(knobSpec)
@@ -396,6 +397,11 @@ async function main() {
               config,
               knobs
             )
+            // A page that never returned cannot say which model a default
+            // resolved to; an earlier run of the same config can, and the row
+            // has to carry the same name for --compare to pair it
+            if (result.provider.model) resolvedModels.set(model ?? '', result.provider.model)
+            else result.provider.model = resolvedModels.get(model ?? '') ?? ''
             const graded = grade(task.grader.checks, { result, consoleErrors })
             const r = row(task, result, knobSpec, repeat, graded)
             summary.rows.push(r)

@@ -61,7 +61,8 @@ describe('aggregate', () => {
   })
 
   it('keeps context windows apart', () => {
-    const stats = aggregate([row(), row({ contextWindow: 16_384 })])
+    // A different window is always a different ctx knob
+    const stats = aggregate([row(), row({ contextWindow: 16_384, knobs: 'ctx=16384' })])
     expect(stats.filter(s => s.tier === 'all')).toHaveLength(2)
   })
 
@@ -89,6 +90,16 @@ describe('compare', () => {
     expect(deltas[1]).toMatchObject({ taskId: 'y', deltaPct: 0, regression: false })
   })
 
+  it('pairs a run whose model never loaded with the baseline it regressed from', () => {
+    // A crashed row records no window; keyed on the measured one it would drop
+    // out of the comparison and the run would report no regressions
+    const before = summary('a', [row({ taskId: 'x', score: 4, contextWindow: 4096 })])
+    const after = summary('b', [row({ taskId: 'x', score: 0, contextWindow: 0, pass: false })])
+    expect(compare(before, after)).toEqual([
+      expect.objectContaining({ taskId: 'x', regression: true }),
+    ])
+  })
+
   it('ignores tasks only one side ran', () => {
     const before = summary('a', [row({ taskId: 'x' })])
     const after = summary('b', [row({ taskId: 'z' })])
@@ -101,6 +112,11 @@ describe('configKey', () => {
     expect(configKey(row({ contextWindow: 16_384, knobs: 'ctx=16384' }))).toBe(
       'webllm/Qwen3-4B ctx=16384'
     )
+  })
+
+  it('names the requested window, not the one measured after load', () => {
+    expect(configKey(row({ contextWindow: 4096 }))).toBe('webllm/Qwen3-4B ctx=default')
+    expect(configKey(row({ contextWindow: 0 }))).toBe('webllm/Qwen3-4B ctx=default')
   })
 
   it('keeps every other knob', () => {
