@@ -1,4 +1,4 @@
-import { MapView } from '@deck.gl/core'
+import { LayerExtension, MapView } from '@deck.gl/core'
 import { Temporal } from 'temporal-polyfill'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import z from 'zod/v4'
@@ -10,6 +10,7 @@ import {
   CompoundPropsField,
   DataField,
   DateField,
+  ExtensionField,
   Field,
   FileUrlField,
   FunctionField,
@@ -337,25 +338,8 @@ describe('MapStyleField', () => {
   })
 
   it('stores options on the instance', () => {
-    const field = new MapStyleField('', {
-      accept: '.json',
-      suggestions: [
-        { value: 'https://example.com/style1.json', label: 'Style 1' },
-        { value: 'https://example.com/style2.json', label: 'Style 2' },
-      ],
-    })
-
+    const field = new MapStyleField('', { accept: '.json' })
     expect(field.accept).toEqual('.json')
-    expect(field.suggestions).toHaveLength(2)
-    expect(field.suggestions[0]).toEqual({
-      value: 'https://example.com/style1.json',
-      label: 'Style 1',
-    })
-  })
-
-  it('defaults to empty array for suggestions', () => {
-    const field = new MapStyleField()
-    expect(field.suggestions).toEqual([])
   })
 
   it('skips setValue when object content is deeply equal', () => {
@@ -1163,6 +1147,33 @@ describe('ViewField', () => {
     field.setValue(view)
 
     expect(field.value).toBe(view)
+  })
+})
+
+describe('ExtensionField', () => {
+  it('accepts extension descriptors from extension operators', () => {
+    const field = new ExtensionField()
+    const value = { extension: { type: 'PathStyleExtension', dash: true }, props: {} }
+    field.setValue(value)
+
+    expect(field.value).toEqual(value)
+  })
+
+  it('accepts LayerExtension instances from custom operators', () => {
+    class CustomExtension extends LayerExtension {}
+    const field = new ExtensionField()
+    const extension = new CustomExtension()
+    field.setValue({ extension, props: { custom: 1 } })
+
+    expect(field.value.extension).toBe(extension)
+    expect(field.value.props).toEqual({ custom: 1 })
+  })
+
+  it('rejects extensions without a type', () => {
+    const field = new ExtensionField()
+    field.setValue({ extension: { dash: true }, props: {} })
+
+    expect(field.value).toBeUndefined()
   })
 })
 

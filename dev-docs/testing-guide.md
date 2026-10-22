@@ -86,6 +86,7 @@ it('should update state correctly', () => {
 - Integration and component tests can go in `__tests__` directories when they span multiple files
 - Use descriptive test names that explain what is being tested
 - Clean up resources in `afterEach` to prevent test pollution
+- Tests run in headless Chromium, except `scripts/**/*.test.ts`, which run in Node so CLI scripts can be started as child processes
 
 ## Running Tests
 
@@ -101,6 +102,9 @@ npm test -- --watch
 
 # Run tests with coverage
 npm test -- --coverage
+
+# Run only the Node tests for CLI scripts
+npm test -- --project node
 
 # Run smoke tests (E2E rendering tests)
 npm test smoke-test

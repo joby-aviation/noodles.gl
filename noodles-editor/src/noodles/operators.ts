@@ -6,7 +6,7 @@ import type {
   HexagonLayerProps,
   ScreenGridLayerProps,
 } from '@deck.gl/aggregation-layers'
-import { type LayerExtension, type LayerProps, WebMercatorViewport } from '@deck.gl/core'
+import { LayerExtension, type LayerProps, WebMercatorViewport } from '@deck.gl/core'
 import {
   BrushingExtension,
   ClipExtension,
@@ -88,7 +88,7 @@ import {
   type MaplibreStyle,
   type StyleConfiguratorData,
 } from '../utils/map-style-utils'
-import { CARTO_DARK, MAP_STYLES } from '../utils/map-styles'
+import { CARTO_DARK } from '../utils/map-styles'
 import { mulberry32 } from '../utils/random'
 import { sqlIdentifier, sqlLiteral } from '../utils/sql'
 import {
@@ -270,6 +270,12 @@ export abstract class Operator<OP extends IOperator> {
   // Dependency tracking for pull-based model
   private _upstreamDependencies: Set<Operator<IOperator>> = new Set()
   private _downstreamDependents: Set<Operator<IOperator>> = new Set()
+
+  // True from the moment a pull starts. executionState only reports 'executing'
+  // after 200ms, so it reads idle while a fetch is just getting going.
+  get isComputing(): boolean {
+    return this._computingPromise !== null
+  }
 
   constructor(
     public id: OpId,
@@ -1945,6 +1951,8 @@ export class TimeOp extends Operator<TimeOp> {
       this.outputs.now.next(state.now)
       this.outputs.tick.next(state.tick)
       this.outputs.sequenceTime.next(state.sequenceTime)
+      // Drop the cached result so the next pull returns the current time
+      this.markDirty()
     })
     this.subs.push(sub)
 
@@ -1980,8 +1988,10 @@ export class TimeOp extends Operator<TimeOp> {
   }
 
   execute(_: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    // Outputs are driven by the BehaviorSubject, not by execute()
-    return null
+    // The BehaviorSubject pushes each update to the outputs; execute() reports the
+    // current values so pulls through this operator get a result to cache
+    const { now, sequenceTime, tick } = this.timeState$.value
+    return { now, sequenceTime, tick }
   }
 }
 
@@ -2592,6 +2602,105 @@ export class ChartOp extends Operator<ChartOp> {
         dataLength: data?.length,
       })
       return { chart: null }
+    }
+  }
+}
+
+export class BrushableHistogramOp extends Operator<BrushableHistogramOp> {
+  static displayName = 'BrushableHistogram'
+  static description =
+    'Interactive histogram with brushable range selection for data filtering. Drag handles to select a range, keyframe brush positions for animation.'
+
+  createInputs() {
+    const data = new DataField()
+    const field = new StringLiteralField('', [])
+
+    // Dynamically populate field choices from numeric data keys
+    data.subscribe((newData: unknown[]) => {
+      if (Array.isArray(newData) && newData.length > 0 && typeof newData[0] === 'object') {
+        const sample = newData[0] as Record<string, unknown>
+        const numericKeys = Object.keys(sample).filter(
+          k => typeof sample[k] === 'number' && !Number.isNaN(sample[k])
+        )
+        field.updateChoices(numericKeys)
+      }
+    })
+
+    return {
+      data,
+      field,
+      binCount: new NumberField(20, { min: 5, max: 100, step: 1 }),
+      brushMin: new NumberField(0),
+      brushMax: new NumberField(100),
+      brushMode: new StringLiteralField('handles', { values: ['handles', 'offset'] }),
+    }
+  }
+
+  createOutputs() {
+    return {
+      filteredData: new DataField(),
+      binData: new DataField(),
+      extent: new UnknownField(),
+    }
+  }
+
+  execute({
+    data,
+    field,
+    binCount,
+    brushMin,
+    brushMax,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    // Validate inputs
+    if (!Array.isArray(data) || data.length === 0 || !field) {
+      return {
+        filteredData: [],
+        binData: [],
+        extent: [0, 0],
+      }
+    }
+
+    // Extract accessor function
+    const accessor = (d: unknown) => {
+      if (typeof d === 'object' && d !== null && field in d) {
+        return (d as Record<string, unknown>)[field] as number
+      }
+      return null
+    }
+
+    // Calculate extent
+    const extent = d3.extent(data, accessor) as [number, number]
+    if (extent[0] === undefined || extent[1] === undefined) {
+      return {
+        filteredData: [],
+        binData: [],
+        extent: [0, 0],
+      }
+    }
+
+    // Create histogram bins
+    const binner = d3.bin<unknown, number>().domain(extent).thresholds(binCount).value(accessor)
+
+    const bins = binner(data)
+
+    // Format bin data for output
+    const binData = bins.map(bin => ({
+      x0: bin.x0,
+      x1: bin.x1,
+      count: bin.length,
+      values: bin,
+    }))
+
+    // Filter data based on brush range
+    const filtered = data.filter(d => {
+      const val = accessor(d)
+      return val !== null && val >= brushMin && val <= brushMax
+    })
+
+    return {
+      filteredData: filtered,
+      binData,
+      extent,
     }
   }
 }
@@ -4091,10 +4200,7 @@ export class MaplibreBasemapOp extends Operator<MaplibreBasemapOp> {
 
   createInputs() {
     return {
-      mapStyle: new MapStyleField(CARTO_DARK, {
-        accept: '.json',
-        suggestions: Object.entries(MAP_STYLES).map(([url, name]) => ({ value: url, label: name })),
-      }),
+      mapStyle: new MapStyleField(CARTO_DARK, { accept: '.json' }),
       projection: new StringLiteralField('mercator', {
         values: ['mercator', 'globe'],
         showByDefault: false,
@@ -5115,6 +5221,7 @@ export class OutOp extends Operator<OutOp> {
       framerate: new NumberField(30, { min: 1, max: 120, step: 1 }),
       captureDelay: new NumberField(50, { min: 0, max: 10000, step: 10 }),
       rendersDirectory: new StringField('renders'),
+      sequenceFormat: new StringLiteralField('png', ['png', 'exr']),
     }
   }
   createOutputs() {
@@ -5206,8 +5313,10 @@ function gatherTriggers(
   return triggers
 }
 
+type ExtensionDescriptor = { type: string; [key: string]: unknown }
+
 type LayerExtensionFieldReturnValue = null | {
-  extension: LayerExtension
+  extension: ExtensionDescriptor | LayerExtension
   props: Record<string, LayerPropsValue>
 }
 
@@ -5237,9 +5346,30 @@ export const extensionMap: Record<
   VibranceExtension: { ExtensionClass: FilterColorExtension, args: vibrance },
 }
 
+// Turns an extension descriptor into a LayerExtension. Instances built by the user
+// (e.g. in a CodeOp) pass through unchanged. Returns null for unknown types.
+export function instantiateExtension(
+  ext: ExtensionDescriptor | LayerExtension
+): LayerExtension | null {
+  if (ext instanceof LayerExtension) return ext
+
+  const { type, ...constructorArgs } = ext
+  const extensionDef = extensionMap[type]
+  if (!extensionDef) return null
+
+  // Wrapped extensions carry their own constructor args
+  if ('ExtensionClass' in extensionDef) {
+    return new extensionDef.ExtensionClass(extensionDef.args)
+  }
+  return Object.keys(constructorArgs).length > 0
+    ? new extensionDef(constructorArgs)
+    : new extensionDef()
+}
+
 // Deck layers can have extensions that are passed in as props, but the props to the extensions are not
 // passed to the extension constructor, but rather to the root props on the layer.
-// Extensions are kept as POJOs here and will be instantiated later in the pipeline (in noodles.tsx).
+// Descriptors are kept as POJOs here and instantiated later (instantiateExtension, in noodles.tsx);
+// LayerExtension instances built in a CodeOp pass through as-is.
 function parseLayerProps<P extends LayerProps>({
   extensions = [],
   ...props
@@ -10109,6 +10239,7 @@ export const opTypes = {
   BufferOp,
   BoundsOp,
   BrightnessContrastExtensionOp,
+  BrushableHistogramOp,
   BrushingExtensionOp,
   CategoricalColorRampOp,
   CentroidOp,

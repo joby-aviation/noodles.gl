@@ -40,7 +40,7 @@ import type { NoodlesProject } from '../ai-chat/types'
 import { getPendingQuickStartAction } from '../components/quick-start-modal'
 import { analytics } from '../utils/analytics'
 import { setCurrentProject, setModificationApplier } from '../webmcp/bridge'
-import { externalControl } from './globals'
+import { agentBench, externalControl } from './globals'
 import { getKeysForProject, getKeysStore } from './keys-store'
 import newProjectJSON from './new.json'
 import { BitmapOverlayWidget, type BitmapOverlayWidgetProps } from './widgets/bitmap-overlay-widget'
@@ -87,7 +87,7 @@ import { useKeyboardShortcut } from './hooks/use-keyboard-shortcut'
 import { useNodeDropOnEdge } from './hooks/use-node-drop-on-edge'
 import { useProjectModifications } from './hooks/use-project-modifications'
 import type { DeckRendererOp, IOperator, Operator, OutOp } from './operators'
-import { extensionMap } from './operators'
+import { instantiateExtension } from './operators'
 import { referenceDependencyModel } from './reference-dependencies'
 import {
   copyDataDirectory,
@@ -109,6 +109,7 @@ import {
   useUIStore,
 } from './store'
 import { transformGraph } from './transform-graph'
+import { layoutNodes } from './utils/auto-layout'
 import { canConnectCached } from './utils/can-connect'
 import { DeckProjectAssetResolver } from './utils/deck-project-asset-resolver'
 import { instantiateDeckView } from './utils/deck-view'
@@ -135,6 +136,8 @@ import {
 import { getParentPath, parseHandleId } from './utils/path-utils'
 import { applyOperatorInputs, getLastCommittedBeforeState } from './utils/property-history'
 import {
+  type AutoLayoutSettings,
+  DEFAULT_AUTO_LAYOUT,
   EMPTY_PROJECT,
   NOODLES_VERSION,
   type NoodlesProjectJSON,
@@ -288,6 +291,9 @@ export function getNoodles(): Visualization {
   const [paramEditorError, setParamEditorError] = useState<Error | null>(null)
   // Throw during render so the ErrorBoundary catches it with a descriptive message
   if (paramEditorError) throw paramEditorError
+
+  // Auto-layout settings (declared early as they're used in multiple places)
+  const [autoLayout, setAutoLayout] = useState<AutoLayoutSettings>(DEFAULT_AUTO_LAYOUT)
 
   // Wrap onNodesChange to track node selection and mark unsaved changes
   const onNodesChange = useCallback(
@@ -477,27 +483,153 @@ export function getNoodles(): Visualization {
     setEdges,
   })
 
+  const currentContainerId = useNestingStore(state => state.currentContainerId)
+
+  // Manual layout function - layouts selected nodes or all nodes in current container
+  const applyManualLayout = useCallback(() => {
+    // Get selected nodes in the current container
+    const selectedNodes = nodes.filter(node => {
+      if (!node.selected) return false
+      const nodeParent = getParentPath(node.id)
+      return currentContainerId === '/' ? nodeParent === '/' : nodeParent === currentContainerId
+    })
+
+    // If less than 2 nodes selected, use all nodes in container
+    const targetNodes =
+      selectedNodes.length >= 2
+        ? selectedNodes
+        : nodes.filter(node => {
+            const nodeParent = getParentPath(node.id)
+            return currentContainerId === '/'
+              ? nodeParent === '/'
+              : nodeParent === currentContainerId
+          })
+
+    if (targetNodes.length < 2) return
+
+    // Get edges between these nodes
+    const targetNodeIds = new Set(targetNodes.map(n => n.id))
+    const targetEdges = edges.filter(
+      e => targetNodeIds.has(e.source) && targetNodeIds.has(e.target)
+    )
+
+    // Apply layout
+    const layoutedNodes = layoutNodes(targetNodes, targetEdges, autoLayout)
+
+    // Track layout application
+    analytics.track('layout_applied', {
+      algorithm: autoLayout.algorithm,
+      direction: autoLayout.direction,
+      nodeCount: targetNodes.length,
+      edgeCount: targetEdges.length,
+      isManual: true,
+      scope: selectedNodes.length >= 2 ? 'selection' : 'container',
+    })
+
+    // Update node positions
+    setNodes(currentNodes =>
+      currentNodes.map(node => {
+        const layoutedNode = layoutedNodes.find(n => n.id === node.id)
+        if (layoutedNode) {
+          return {
+            ...node,
+            position: layoutedNode.position,
+          }
+        }
+        return node
+      })
+    )
+
+    // Fit view to show all nodes with animation
+    setTimeout(() => {
+      reactFlowInstanceRef.current?.fitView({
+        duration: 300,
+        padding: 0.2,
+      })
+    }, 0)
+  }, [autoLayout, nodes, edges, currentContainerId, setNodes])
+
+  // Auto-layout function for current container (used by onConnect trigger)
+  const applyAutoLayoutToContainer = useCallback(() => {
+    if (!autoLayout.enabled) return
+
+    // Get all nodes in the current container
+    const containerNodes = nodes.filter(node => {
+      const nodeParent = getParentPath(node.id)
+      return currentContainerId === '/' ? nodeParent === '/' : nodeParent === currentContainerId
+    })
+
+    if (containerNodes.length < 2) return
+
+    // Get edges between these nodes
+    const containerNodeIds = new Set(containerNodes.map(n => n.id))
+    const containerEdges = edges.filter(
+      e => containerNodeIds.has(e.source) && containerNodeIds.has(e.target)
+    )
+
+    // Apply layout
+    const layoutedNodes = layoutNodes(containerNodes, containerEdges, autoLayout)
+
+    // Track automatic layout application
+    analytics.track('layout_applied', {
+      algorithm: autoLayout.algorithm,
+      direction: autoLayout.direction,
+      nodeCount: containerNodes.length,
+      edgeCount: containerEdges.length,
+      isManual: false,
+      scope: 'container',
+    })
+
+    // Update node positions
+    setNodes(currentNodes =>
+      currentNodes.map(node => {
+        const layoutedNode = layoutedNodes.find(n => n.id === node.id)
+        if (layoutedNode) {
+          return {
+            ...node,
+            position: layoutedNode.position,
+          }
+        }
+        return node
+      })
+    )
+
+    // Fit view to show all nodes with animation
+    setTimeout(() => {
+      reactFlowInstanceRef.current?.fitView({
+        duration: 300,
+        padding: 0.2,
+      })
+    }, 0)
+  }, [autoLayout, nodes, edges, currentContainerId, setNodes])
+
   // Keep the WebMCP tool surface in sync with editor state when external
-  // control is enabled (?externalControl=true)
+  // control is enabled (?externalControl=true). The agent benchmark reads and
+  // applies through the same bridge.
   useEffect(() => {
-    if (!externalControl) return
+    if (!externalControl && !agentBench) return
     setModificationApplier(applyModifications)
     return () => setModificationApplier(null)
   }, [applyModifications])
 
   useEffect(() => {
-    if (!externalControl) return
+    if (!externalControl && !agentBench) return
     // ReactFlow edges type sourceHandle as string | null; the project shape uses undefined
     setCurrentProject({ nodes, edges } as NoodlesProject)
   }, [nodes, edges])
 
-  // Wrap onConnect to mark unsaved changes
+  // Wrap onConnect to mark unsaved changes and trigger auto-layout if enabled
   const onConnect = useCallback(
     (connection: Connection) => {
       onConnectBase(connection)
       setHasUnsavedChanges(true)
+      // Trigger auto-layout after the connection is established
+      if (autoLayout.enabled) {
+        // Use setTimeout to ensure the edge is added before layout is computed
+        setTimeout(() => applyAutoLayoutToContainer(), 0)
+      }
     },
-    [onConnectBase]
+    [onConnectBase, autoLayout.enabled, applyAutoLayoutToContainer]
   )
 
   // Wrap onNodesDelete to mark unsaved changes
@@ -746,8 +878,6 @@ export function getNoodles(): Visualization {
     blockLibraryRef.current?.openModal(event.clientX, event.clientY)
   }, [])
 
-  const currentContainerId = useNestingStore(state => state.currentContainerId)
-
   // Handle 'v' keyup to create ViewerOp (momentary button behavior)
   useKeyboardShortcut('v', () => {
     const currentNodes = graphRef.current.nodes
@@ -816,6 +946,34 @@ export function getNoodles(): Visualization {
     const centerY = pane.top + pane.height / 2
     blockLibraryRef.current?.openModal(centerX, centerY)
   }, [])
+
+  // Handle Cmd+A / Ctrl+A to select all nodes in current container
+  const selectAllNodes = useCallback(
+    (e: KeyboardEvent) => {
+      e.preventDefault()
+      analytics.track('select_all_nodes')
+
+      setNodes(currentNodes =>
+        currentNodes.map(node => {
+          const nodeParent = getParentPath(node.id)
+          const isInCurrentContainer =
+            currentContainerId === '/' ? nodeParent === '/' : nodeParent === currentContainerId
+
+          return {
+            ...node,
+            selected: isInCurrentContainer ? true : node.selected,
+          }
+        })
+      )
+      return false
+    },
+    [setNodes, currentContainerId]
+  )
+
+  // Register platform-specific shortcuts
+  const isMac = useMemo(() => navigator.platform.toUpperCase().indexOf('MAC') >= 0, [])
+  useKeyboardShortcut(isMac ? 'cmd+a' : 'ctrl+a', selectAllNodes, [selectAllNodes])
+  useKeyboardShortcut(isMac ? 'cmd+l' : 'ctrl+l', applyManualLayout, [applyManualLayout])
 
   const [showOverlay, setShowOverlay] = useState(true)
   const [showDebugInfo, setShowDebugInfo] = useState(false)
@@ -902,6 +1060,10 @@ export function getNoodles(): Visualization {
       // Load editor settings from project with defaults
       setShowOverlay(editorSettings?.showOverlay ?? true)
       setShowDebugInfo(editorSettings?.showDebugInfo ?? false)
+      setAutoLayout({
+        ...DEFAULT_AUTO_LAYOUT,
+        ...editorSettings?.autoLayout,
+      })
 
       // Render settings are now stored as OutOp inputs (migration 012 handles conversion)
 
@@ -1040,6 +1202,8 @@ export function getNoodles(): Visualization {
 
   // Handle pending quick start actions (file upload or LLM question from quick start modal)
   const pendingActionHandledRef = useRef(false)
+  const [pendingImportFile, setPendingImportFile] = useState<File | null>(null)
+  const clearPendingImportFile = useCallback(() => setPendingImportFile(null), [])
   useEffect(() => {
     // Only run once after project is loaded (nodes are populated)
     if (nodes.length === 0 || pendingActionHandledRef.current) return
@@ -1055,14 +1219,19 @@ export function getNoodles(): Visualization {
       setShowChatPanel(true)
       analytics.track('quick_start_llm_action_handled')
     } else if (pendingAction.type === 'file' && pendingAction.file) {
-      // For file uploads, we'll open the chat panel and suggest using the AI to visualize
-      // The file can be referenced in the message
+      if (pendingAction.mode === 'map') {
+        // Coordinates were found: CanvasDropImport builds the map, no LLM needed
+        setPendingImportFile(pendingAction.file)
+        analytics.track('quick_start_file_action_handled', { mode: 'map' })
+        return
+      }
+      // Otherwise open the chat panel and ask the AI to help visualize the file
       const fileName = pendingAction.file.name
       setChatInitialMessage(
         `I just uploaded a file called "${fileName}". Please help me create a visualization from this data. First, I'll need to import it using the Data Importer (click the upload icon in the toolbar). Can you guide me through the process?`
       )
       setShowChatPanel(true)
-      analytics.track('quick_start_file_action_handled', { fileName })
+      analytics.track('quick_start_file_action_handled', { mode: 'chat' })
     }
   }, [nodes.length])
 
@@ -1100,6 +1269,12 @@ export function getNoodles(): Visualization {
     const projectKeys = getKeysForProject()
     // Render settings are now stored as OutOp inputs, serialized with the node
 
+    // Only include autoLayout if different from defaults
+    const autoLayoutChanged =
+      autoLayout.enabled !== DEFAULT_AUTO_LAYOUT.enabled ||
+      autoLayout.algorithm !== DEFAULT_AUTO_LAYOUT.algorithm ||
+      autoLayout.direction !== DEFAULT_AUTO_LAYOUT.direction
+
     return {
       version: NOODLES_VERSION,
       nodes: serializeNodes(store, nodes, edges),
@@ -1108,11 +1283,12 @@ export function getNoodles(): Visualization {
       timeline,
       editorSettings: {
         showOverlay,
+        ...(autoLayoutChanged ? { autoLayout } : {}),
         showDebugInfo,
       },
       ...(projectKeys ? { apiKeys: projectKeys } : {}),
     }
-  }, [nodes, edges, showOverlay, showDebugInfo, timelineStore.toTimelineJSON])
+  }, [nodes, edges, showOverlay, showDebugInfo, timelineStore.toTimelineJSON, autoLayout])
 
   // Files for the project's cache folder: the outputs of locked operators
   const getOutputCacheFiles = useCallback(() => serializeOutputCache(getOpStore(), nodes), [nodes])
@@ -1409,6 +1585,24 @@ export function getNoodles(): Visualization {
     blockLibraryRef.current?.openModal(centerX, centerY)
   }, [])
 
+  // Layout callback for UI button (wraps applyManualLayout with analytics)
+  const onAutoLayout = useCallback(() => {
+    const selectedNodes = nodes.filter(n => n.selected)
+    if (selectedNodes.length < 2) return
+
+    analytics.track('auto_layout_applied', {
+      nodeCount: selectedNodes.length,
+      algorithm: autoLayout.algorithm,
+      trigger: 'manual_button',
+    })
+
+    applyManualLayout()
+  }, [nodes, autoLayout.algorithm, applyManualLayout])
+
+  // Note: Auto-layout on node addition was removed based on PR feedback.
+  // Users can still trigger layout manually via the Layout button in the property panel (3+ nodes selected).
+  // Auto-layout still triggers on edge creation when enabled (see onConnect handler above).
+
   const onNewProject = useCallback(async () => {
     const starterProject = { ...newProjectJSON, version: NOODLES_VERSION } as NoodlesProjectJSON
     memoryProjectStore.setProjectJson('new', starterProject)
@@ -1676,7 +1870,10 @@ export function getNoodles(): Visualization {
               >
                 <ReactFlowInstanceCapture />
                 <EdgeConnectionSynchronizer />
-                <CanvasDropImport />
+                <CanvasDropImport
+                  pendingFile={pendingImportFile}
+                  onPendingFileHandled={clearPendingImportFile}
+                />
                 <Background />
                 <Controls position="bottom-right" />
                 <BlockLibrary ref={blockLibraryRef} reactFlowRef={reactFlowRef} />
@@ -1854,29 +2051,10 @@ export function getNoodles(): Visualization {
                     let instantiatedExtensions: LayerExtension[] | undefined
                     if (extensions && Array.isArray(extensions)) {
                       instantiatedExtensions = extensions
-                        .map((ext: { type: string; [key: string]: unknown }) => {
-                          const { type: extType, ...constructorArgs } = ext
-                          const extensionDef = extensionMap[extType]
-                          if (!extensionDef) {
-                            debugApp(`Unknown extension type: ${extType}`)
-                            return null
-                          }
-
-                          // Check if it's a wrapped extension (with ExtensionClass and args)
-                          if (
-                            typeof extensionDef === 'object' &&
-                            'ExtensionClass' in extensionDef
-                          ) {
-                            return new extensionDef.ExtensionClass(extensionDef.args)
-                          }
-
-                          // It's a direct class constructor
-                          const ExtensionClass = extensionDef as new (
-                            ...args: unknown[]
-                          ) => LayerExtension
-                          return Object.keys(constructorArgs).length > 0
-                            ? new ExtensionClass(constructorArgs)
-                            : new ExtensionClass()
+                        .map(ext => {
+                          const instance = instantiateExtension(ext)
+                          if (!instance) debugApp('Unknown extension type: %o', ext)
+                          return instance
                         })
                         .filter((e): e is LayerExtension => e !== null)
                     }
@@ -1969,7 +2147,7 @@ export function getNoodles(): Visualization {
   const propertiesPanel = (
     <ErrorBoundary title="Property Panel Error">
       <div className={s.rightPanel}>
-        <PropertyPanel />
+        <PropertyPanel onAutoLayout={onAutoLayout} autoLayout={autoLayout} />
       </div>
     </ErrorBoundary>
   )
@@ -2017,6 +2195,8 @@ export function getNoodles(): Visualization {
     onChangeShowOverlay: setShowOverlay,
     showDebugInfo,
     onChangeShowDebugInfo: setShowDebugInfo,
+    autoLayout,
+    onChangeAutoLayout: setAutoLayout,
     spreadsheetVisible,
     onChangeSpreadsheetVisible: setSpreadsheetVisible,
     // Render settings are now read from OutOp via useRenderSettings() hook

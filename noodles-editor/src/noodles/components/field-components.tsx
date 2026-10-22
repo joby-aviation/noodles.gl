@@ -1089,7 +1089,6 @@ export function FileUrlFieldComponent({
 }) {
   const [value, setValue] = useState(guardAccessorFallback(field.value))
   const { captureStart, commitChange } = usePropertyHistory()
-  const [suggestionsOpen, setSuggestionsOpen] = useState(false)
 
   useEffect(() => {
     const sub = field.subscribe(newVal => {
@@ -1112,23 +1111,7 @@ export function FileUrlFieldComponent({
       field.setValue(val)
     }
     commitChange('Change file')
-    // Delay closing so a suggestion click registers first
-    setTimeout(() => setSuggestionsOpen(false), 150)
   }
-
-  const onSuggestionSelect = (val: string) => {
-    captureStart()
-    field.setValue(val)
-    setValue(val)
-    commitChange('Change file')
-    setSuggestionsOpen(false)
-  }
-
-  const filteredSuggestions = field.suggestions.filter(
-    ({ value: v, label }) =>
-      v.toLowerCase().includes(value.toLowerCase()) ||
-      label.toLowerCase().includes(value.toLowerCase())
-  )
 
   const [replaceDialogOpen, setReplaceDialogOpen] = useState(false)
   const [pendingFile, setPendingFile] = useState<{ name: string; contents: Blob } | null>(null)
@@ -1264,42 +1247,17 @@ export function FileUrlFieldComponent({
         <label className={s.fieldLabel} htmlFor={id}>
           {id}
         </label>
-        <div
-          className={cx('p-inputgroup', s.fieldFileInputGroup, s.fieldFileInputGroupSuggestions)}
-        >
+        <div className={cx('p-inputgroup', s.fieldFileInputGroup)}>
           <InputText
             id={id}
             placeholder="https://"
             className={cx(s.fieldInput, s.fieldInputFileUrl)}
             value={value}
-            onFocus={() => {
-              captureStart()
-              setSuggestionsOpen(true)
-            }}
+            onFocus={captureStart}
             onBlur={onBlur}
             onChange={onChange}
             disabled={disabled}
           />
-          {field.suggestions.length > 0 && suggestionsOpen && filteredSuggestions.length > 0 && (
-            <ul className={s.fileUrlSuggestions}>
-              {filteredSuggestions.map(({ value: val, label }) => (
-                // biome-ignore lint/a11y/useFocusableInteractive: mouse-only suggestions; typing a URL is the keyboard path
-                <li
-                  key={val}
-                  // biome-ignore lint/a11y/noNoninteractiveElementToInteractiveRole: mouse-only suggestions; typing a URL is the keyboard path
-                  role="option"
-                  aria-selected={val === value}
-                  className={cx(s.fileUrlSuggestion, {
-                    [s.fileUrlSuggestionActive]: val === value,
-                  })}
-                  onMouseDown={() => onSuggestionSelect(val)}
-                >
-                  <span className={s.fileUrlSuggestionLabel}>{label}</span>
-                  <span className={s.fileUrlSuggestionUrl}>{val}</span>
-                </li>
-              ))}
-            </ul>
-          )}
           <Button
             icon="pi pi-upload"
             className={s.fieldInputUploadButton}

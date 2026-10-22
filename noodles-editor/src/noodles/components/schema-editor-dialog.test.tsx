@@ -99,6 +99,22 @@ describe('SchemaEditorDialog', () => {
     )
   })
 
+  it('should name the icon-only column buttons', () => {
+    render(<SchemaEditorDialog schema={mockSchema} onChange={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Edit schema' }))
+
+    for (const name of [
+      'Move column name down',
+      'Duplicate column name',
+      'Delete column name',
+      'Move column age up',
+      'Duplicate column age',
+      'Delete column age',
+    ]) {
+      expect(screen.getByRole('button', { name })).toBeDefined()
+    }
+  })
+
   it('should keep focus on a column after moving it', () => {
     const schema: TableSchema = {
       columns: [
@@ -110,8 +126,7 @@ describe('SchemaEditorDialog', () => {
     render(<SchemaEditorDialog schema={schema} onChange={vi.fn()} />)
     fireEvent.click(screen.getByRole('button'))
 
-    const firstRow = screen.getByDisplayValue('first').closest('[class*="columnRow"]')
-    const moveDown = firstRow?.querySelector('.pi-arrow-down')?.closest('button') as HTMLElement
+    const moveDown = screen.getByRole('button', { name: 'Move column first down' })
     moveDown.focus()
     fireEvent.click(moveDown)
 

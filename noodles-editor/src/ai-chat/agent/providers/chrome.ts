@@ -36,6 +36,7 @@ import type {
   StopReason,
 } from '../types'
 import {
+  diagnosticFor,
   parseAction,
   preamble,
   responseSchema,
@@ -245,6 +246,8 @@ export class ChromeProvider implements AgentProvider {
 
   private callCounter = 0
   private hasRetried = false
+  // Set by retrimmed() so stream() can report that this turn lost history
+  private trimmedThisTurn = false
 
   // The live session, plus what it has already been told. `sent` is one entry per
   // AgentMessage in the order the session received them, so the next request's
@@ -270,9 +273,11 @@ export class ChromeProvider implements AgentProvider {
     // Reset retry flag at the start of each stream so failed turns don't consume
     // the retry budget for subsequent independent requests
     this.hasRetried = false
+    this.trimmedThisTurn = false
 
     try {
       const raw = await this.promptTurn(api, request, signal)
+      if (this.trimmedThisTurn) yield { type: 'diagnostic', kind: 'context_trimmed' }
       yield* this.eventsFor(raw, request.tools)
     } catch (error) {
       // The session's history is only worth keeping if the turn that would have
@@ -351,6 +356,7 @@ export class ChromeProvider implements AgentProvider {
     signal?: AbortSignal
   ): Promise<string> {
     const trimmed = trimTranscript(request.messages)
+    this.trimmedThisTurn = true
     debugAiChat('[chrome] kept %d of %d messages', trimmed.length, request.messages.length)
 
     const session = await this.rebuild(api, request, signal)
@@ -463,6 +469,8 @@ export class ChromeProvider implements AgentProvider {
 
   private *eventsFor(raw: string, tools: AgentTool[]): Generator<AgentEvent> {
     const action = parseAction(raw, tools)
+    const diagnostic = diagnosticFor(action)
+    if (diagnostic) yield diagnostic
 
     // No incremental text: the response is one JSON object, and streaming a
     // half-written object to the chat panel would show the user braces. Nano's

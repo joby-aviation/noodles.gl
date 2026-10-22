@@ -1,4 +1,4 @@
-import { type LayerProps, View } from '@deck.gl/core'
+import { LayerExtension, type LayerProps, View } from '@deck.gl/core'
 import { interpolateLab, scaleOrdinal, schemeAccent } from 'd3'
 import { BehaviorSubject, combineLatest, type Subscription } from 'rxjs'
 import { Temporal } from 'temporal-polyfill'
@@ -368,19 +368,16 @@ export class StringField extends Field<z.ZodString> {
 
 type FileUrlFieldOptions = BaseFieldOptions & {
   accept?: string // e.g. '.glb,.gltf' — controls file picker filter and shows upload button
-  suggestions?: { value: string; label: string }[] // typeahead suggestions shown in input
 }
 
 export class FileUrlField extends Field<z.ZodString, FileUrlFieldOptions> {
   static type = 'file-url'
   static defaultValue = ''
   accept?: string
-  suggestions: { value: string; label: string }[]
 
   constructor(initialValue?: string, options?: Partial<FileUrlFieldOptions>) {
     super(initialValue, options)
     this.accept = options?.accept
-    this.suggestions = options?.suggestions ?? []
   }
 
   createSchema(_options?: Partial<FileUrlFieldOptions>) {
@@ -390,7 +387,6 @@ export class FileUrlField extends Field<z.ZodString, FileUrlFieldOptions> {
 
 export interface MapStyleFieldOptions extends BaseFieldOptions {
   accept?: string
-  suggestions?: { value: string | Record<string, unknown>; label: string }[]
 }
 
 export class MapStyleField extends Field<
@@ -400,12 +396,10 @@ export class MapStyleField extends Field<
   static type = 'map-style'
   static defaultValue = ''
   accept?: string
-  suggestions: { value: string; label: string }[]
 
   constructor(defaultValue = '', options?: Partial<MapStyleFieldOptions>) {
     super(defaultValue, options)
     this.accept = options?.accept
-    this.suggestions = options?.suggestions ?? []
   }
 
   createSchema(_options?: Partial<MapStyleFieldOptions>) {
@@ -1544,7 +1538,10 @@ export class ExtensionField extends Field<z.ZodTypeAny> {
   static defaultValue = undefined
   createSchema() {
     return z.strictObject({
-      extension: z.looseObject({ type: z.string() }),
+      // A `{ type }` descriptor from an extension operator, or a LayerExtension
+      // instance built by the user (e.g. in a CodeOp). Instance first so a
+      // subclass with a `type` property isn't flattened into a plain object.
+      extension: z.union([z.instanceof(LayerExtension), z.looseObject({ type: z.string() })]),
       props: z.looseObject({}),
     })
   }
