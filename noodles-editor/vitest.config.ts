@@ -1,6 +1,6 @@
 import { playwright } from '@vitest/browser-playwright'
 import { nodePolyfills } from 'vite-plugin-node-polyfills'
-import { defineConfig } from 'vitest/config'
+import { configDefaults, defineConfig } from 'vitest/config'
 
 export default defineConfig({
   resolve: {
@@ -8,6 +8,8 @@ export default defineConfig({
   },
   test: {
     setupFiles: ['src/setupTests.ts'],
+    // e2e/ is the Playwright suite (playwright.config.ts), not Vitest
+    exclude: [...configDefaults.exclude, 'e2e/**'],
     browser: {
       provider: playwright({
         // Software WebGL so shader tests can render in headless Chromium

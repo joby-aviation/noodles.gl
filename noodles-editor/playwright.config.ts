@@ -1,58 +1,52 @@
 import { defineConfig, devices } from '@playwright/test'
 
-/**
- * Playwright configuration for visual regression tests
- * See https://playwright.dev/docs/test-configuration
- */
+// End-to-end tests in e2e/. See e2e/README.md for running them and updating baselines.
+const baseURL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:5173'
+
 export default defineConfig({
-  testDir: './src/__tests__',
-  testMatch: '**/*.spec.ts',
-
-  // Output directories (keep within noodles-editor)
+  testDir: './e2e',
   outputDir: './test-results',
+  snapshotPathTemplate: '{testDir}/__snapshots__/{testFileName}/{arg}{ext}',
 
-  // Maximum time one test can run (2.5 minutes for slow data loading)
-  timeout: 150 * 1000,
+  timeout: 120_000,
+  expect: {
+    timeout: 15_000,
+    toHaveScreenshot: {
+      // Basemap labels and swiftshader antialiasing move a few pixels between runs
+      maxDiffPixelRatio: 0.01,
+    },
+  },
 
-  // Run tests in files in parallel
   fullyParallel: true,
-
-  // Fail the build on CI if you accidentally left test.only in the source code
   forbidOnly: !!process.env.CI,
+  retries: process.env.CI ? 1 : 0,
+  reporter: process.env.CI ? [['github'], ['html', { open: 'never' }]] : 'list',
 
-  // Retry on CI only
-  retries: process.env.CI ? 2 : 0,
-
-  // Reporter to use
-  reporter: 'html',
-
-  // Shared settings for all projects
   use: {
-    // Base URL for navigation (can be overridden via PLAYWRIGHT_BASE_URL env var)
-    baseURL: process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:5173',
-
-    // Collect trace when retrying the failed test
+    baseURL,
     trace: 'on-first-retry',
-
-    // Screenshot on failure
     screenshot: 'only-on-failure',
   },
 
-  // Configure projects for major browsers
   projects: [
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      use: {
+        ...devices['Desktop Chrome'],
+        launchOptions: {
+          // Headless Chromium has no GPU; same software WebGL as vitest.config.ts
+          args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'],
+        },
+      },
     },
   ],
 
-  // Run local dev server before starting tests (unless PLAYWRIGHT_BASE_URL is set)
   webServer: process.env.PLAYWRIGHT_BASE_URL
     ? undefined
     : {
-        command: 'npm start',
-        url: 'http://localhost:5173',
+        command: 'npm start -- --port 5173 --strictPort',
+        url: baseURL,
         reuseExistingServer: !process.env.CI,
-        timeout: 120 * 1000,
+        timeout: 120_000,
       },
 })
