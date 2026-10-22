@@ -360,7 +360,13 @@ export class WebLLMProvider implements AgentProvider {
       pinned &&
       // A preamble written for no tools has nothing to say about them
       (pinned.tools.length > 0 || offered.size === 0) &&
-      pinned.tools.every(name => offered.has(name))
+      pinned.tools.every(name => offered.has(name)) &&
+      // A tool unlocked since is described only by the find_tools result that
+      // unlocked it. Once trimming or a new turn drops that result, the model
+      // would have its name and nothing else, so the preamble is rebuilt.
+      [...offered]
+        .filter(name => !pinned.tools.includes(name))
+        .every(name => describedInTranscript(name, request.messages))
     if (stillValid) return pinned.text
 
     const text = preamble(request)
@@ -418,6 +424,12 @@ function toWireTurns(messages: AgentMessage[]): {
       content: rawCompletion(message) ?? serializeMessage(message),
     }))
     .filter(turn => turn.content.length > 0)
+}
+
+function describedInTranscript(toolName: string, messages: AgentMessage[]): boolean {
+  return messages.some(message =>
+    message.content.some(part => part.type === 'tool_result' && part.content.includes(toolName))
+  )
 }
 
 function rawCompletion(message: AgentMessage): string | undefined {
