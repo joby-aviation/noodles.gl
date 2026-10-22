@@ -1,6 +1,11 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { lowerDocument, parameterValues } from '@noodles.gl/planner'
+import {
+  type EditorDoc,
+  lowerDocument,
+  parameterValues,
+  registerOperator,
+} from '@noodles.gl/planner'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { type NodeDuck, openNodeDuck } from '../__tests__/duckdb-node'
 import { ProgramRuntime } from '../program-runtime'
@@ -124,11 +129,17 @@ describe('toEditorDoc', () => {
     )
     const hubble = toEditorDoc(example('cesium-hubble'))
     expect(hubble.doc.nodes.map(n => n.op).sort()).toEqual(['CodeOp', 'Tile3DLayerOp', 'deck'])
-    expect(hubble.warnings).toContain('timeline keyframes are not converted yet')
+    // The basemap's camera keyframes drive the deck's camera.
+    expect(hubble.doc.timeline?.tracks.map(t => t.target)).toEqual(
+      ['longitude', 'latitude', 'zoom', 'pitch', 'bearing'].map(k => `/renderer.${k}`)
+    )
   })
 
   it('refuses accessors it cannot express, rather than keeping them as accessors', () => {
-    expect(() => toEditorDoc(example('world-flights'))).toThrow()
+    const project = example('nyc-taxis')
+    const accessor = project.nodes.find(n => n.type === 'AccessorOp')
+    if (accessor?.data?.inputs) accessor.data.inputs.expression = 'd.trips.map(t => t.fare)'
+    expect(() => toEditorDoc(project)).toThrow(/can't express/)
   })
 
   it('converts aggregation-example: a switch between hexagon and grid layers over JSON rows', () => {
@@ -301,5 +312,108 @@ describe('toEditorDoc with GeoJSON', () => {
       lineWidthMinPixels: 0.2,
       opacity: 0.38,
     })
+  })
+})
+
+describe('toEditorDoc with time', () => {
+  // world-flights' CodeOp output, as the engine hands host rows to DuckDB (properties as columns).
+  const flights = [
+    {
+      path: [
+        [0, 0, 100],
+        [1, 0, 200],
+        [2, 0, 300],
+      ],
+      timestamps: [1000, 1010, 1020],
+      origin_country: 'A',
+    },
+    {
+      path: [
+        [10, 10, 0],
+        [11, 10, 0],
+      ],
+      timestamps: [1005, 1015],
+      origin_country: 'B',
+    },
+  ]
+  const geojson = {
+    type: 'FeatureCollection',
+    features: flights.map(f => ({
+      type: 'Feature',
+      properties: { origin_country: f.origin_country },
+      geometry: {
+        type: 'LineString',
+        coordinates: f.path.map((p, k) => [...p, f.timestamps[k]]),
+      },
+    })),
+  }
+
+  beforeAll(() => {
+    for (const type of ['CodeOp', 'FileOp']) {
+      registerOperator({
+        type,
+        label: type,
+        category: 'host',
+        description: '',
+        inputs: [],
+        outputs: [{ name: 'data', type: 'table' }],
+        params: [],
+      })
+    }
+  })
+
+  const at = (doc: EditorDoc, time: number): EditorDoc => ({
+    ...doc,
+    timeline: undefined,
+    nodes: doc.nodes.map(n => (n.id === '/time' ? { ...n, params: { value: time } } : n)),
+  })
+
+  it('converts world-flights: trails and heads from host rows, colored by category', async () => {
+    const { doc, warnings } = toEditorDoc(example('world-flights'))
+    expect(warnings).toEqual(["/scatterplot-layer: dropped 'getLineColor'"])
+    // The keyframed clock is a planner track on the number it drove.
+    expect(doc.timeline?.tracks.map(t => t.target)).toEqual(['/time.value'])
+    expect(doc.nodes.find(n => n.id === '/data-source-json')?.op).toBe('FileOp')
+
+    const url = String(doc.nodes.find(n => n.op === 'geojson')?.params.url)
+    duck.registerText(url, JSON.stringify(geojson))
+    duck.registerText('flights.json', JSON.stringify(flights))
+    const hostTable = (id: string, port: string) =>
+      id === '/transform-flights' && port === 'data'
+        ? "SELECT * FROM read_json_auto('flights.json')"
+        : undefined
+    const lowered = lowerDocument(at(doc, 1005), { hostTable })
+    expect(lowered.errors).toEqual([])
+    const runtime = new ProgramRuntime(duck)
+    await runtime.setGraph(lowered.graph, parameterValues(lowered, { T: 0, F: 0 }).values)
+    expect(runtime.program()?.errors).toEqual([])
+
+    const heads = async () => {
+      const rel = runtime.program()?.relations.find(r => r.id === '/time-series')
+      const rows = await duck.rows(`SELECT trip, lng, alt FROM ${rel?.ref} ORDER BY trip`)
+      return rows.map(r => [r.lng, r.alt])
+    }
+    // Halfway along the first flight's first leg; the second flight at its first vertex.
+    expect(await heads()).toEqual([
+      [0.5, 150],
+      [10, 0],
+    ])
+    const layers = Object.fromEntries(runtime.layers().map(l => [l.id, l]))
+    expect(layers['/trips-layer'].data?.rows).toBe(5)
+    expect(layers['/trips-layer'].data?.starts?.length).toBe(2)
+    expect(layers['/geojson-layer-lines'].data?.rows).toBe(5)
+    // One color per category, the same on trails and heads.
+    const color = layers['/scatterplot-layer'].data?.attributes.get('color_ramp')?.data
+    const trail = layers['/trips-layer'].data?.attributes.get('color_ramp')?.data
+    expect(color && trail && [...color.slice(0, 3)]).toEqual(trail && [...trail.slice(0, 3)])
+
+    // After both flights end, each holds its last vertex.
+    const later = lowerDocument(at(doc, 1030), { hostTable })
+    await runtime.setValues(parameterValues(later, { T: 0, F: 0 }).values)
+    await runtime.idle()
+    expect(await heads()).toEqual([
+      [2, 300],
+      [11, 0],
+    ])
   })
 })

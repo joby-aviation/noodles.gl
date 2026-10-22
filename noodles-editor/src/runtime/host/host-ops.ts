@@ -12,7 +12,6 @@ import { type IOperator, type Operator, opTypes } from '../../noodles/operators'
 
 /** Noodles operators the conversion replaces with planner operators. */
 export const PLANNER_REPLACED = new Set([
-  'FileOp',
   'DuckDbOp',
   'ScatterplotLayerOp',
   'ArcLayerOp',

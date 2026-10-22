@@ -81,3 +81,25 @@ describe('HostRunner', () => {
     expect(report.errors).toEqual([{ nodeId: '/code', message: expect.stringContaining('boom') }])
   })
 })
+
+describe('HostRunner and the timeline', () => {
+  const code = (text: string): EditorDoc => ({
+    version: 1,
+    name: 'code',
+    nodes: [{ id: '/code', op: 'CodeOp', x: 0, y: 0, params: { code: text } }],
+    edges: [],
+  })
+
+  it('re-runs a CodeOp when the time moves only if its code reads the time', async () => {
+    const runner = new HostRunner()
+    await runner.run(code('return [1, 2]'), inputs())
+    const later = await runner.run(code('return [1, 2]'), { ...inputs(), time: 2 })
+    expect(later.reused).toEqual(['/code'])
+
+    const timed = new HostRunner()
+    await timed.run(code('return [frame]'), inputs())
+    expect((await timed.run(code('return [frame]'), { ...inputs(), time: 2 })).ran).toEqual([
+      '/code',
+    ])
+  })
+})

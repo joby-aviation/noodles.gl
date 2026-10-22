@@ -18,6 +18,7 @@ import {
   type Graph,
   type Lowered,
   lowerDocument,
+  OPERATOR_INDEX,
   parameterValues,
   type SqlEngine,
   targetCaps,
@@ -124,6 +125,10 @@ export class Engine {
   private pending: Promise<unknown> = Promise.resolve()
   private built = new Map<string, Layer[]>()
   private hostErrors: { nodeId: string; message: string }[] = []
+  /** `nodeId.port` -> the query reading rows a host operator handed to planner nodes. */
+  private readonly hostTables = new Map<string, string>()
+  private readonly tableFiles = new WeakMap<object, string>()
+  private tableCount = 0
 
   constructor(
     private readonly sql: SqlEngine,
@@ -151,8 +156,15 @@ export class Engine {
   /** Show a document: a structural edit recompiles, a value edit only rebinds. */
   setDoc(doc: EditorDoc): Promise<void> {
     this.doc = doc
-    this.lowered = lowerDocument(doc)
+    this.lower()
     return this.update()
+  }
+
+  private lower(): void {
+    if (!this.doc) return
+    this.lowered = lowerDocument(this.doc, {
+      hostTable: (nodeId, port) => this.hostTables.get(`${nodeId}.${port}`),
+    })
   }
 
   /** Move the playhead. Only the scalar program re-evaluates; routes decide the rest. */
@@ -246,15 +258,18 @@ export class Engine {
   }
 
   private update(): Promise<void> {
-    const lowered = this.lowered
-    if (!lowered) return Promise.resolve()
+    if (!this.lowered) return Promise.resolve()
     const all = (async () => {
+      // Host operators the planner reads (a geocoder whose location a query binds, a CodeOp
+      // whose rows a layer draws) first; the ones that read planner output wait for the second
+      // pass.
+      await this.runHost(false)
+      if (await this.bridgeHostTables()) this.lower()
+      const lowered = this.lowered
+      if (!lowered) return
       const key = structureKey(lowered.graph)
       const structural = key !== this.structure
       if (structural) await this.registerAssets()
-      // Host operators the planner reads (a geocoder whose location a query binds) first; the
-      // ones that read planner output wait for the second pass.
-      await this.runHost(false)
       const fps = this.doc?.timeline?.fps ?? 30
       const clock = { T: this.time, F: Math.round(this.time * fps) }
       const { values, slots } = parameterValues(lowered, clock, this.hostValues())
@@ -270,6 +285,48 @@ export class Engine {
     })()
     this.pending = all.catch(() => undefined)
     return all
+  }
+
+  /**
+   * Rows host operators hand to planner nodes, made DuckDB tables: written once per output
+   * (a host operator that did not re-run hands over the same array) as JSON DuckDB reads.
+   * True when any query changed, so the document lowers again.
+   */
+  private async bridgeHostTables(): Promise<boolean> {
+    const { host, registerFile } = this.options
+    if (!host || !registerFile || !this.doc) return false
+    const isHost = (id: string) => {
+      const op = this.doc?.nodes.find(n => n.id === id)?.op
+      return !!op && !OPERATOR_INDEX.get(op)?.lower
+    }
+    let changed = false
+    const live = new Set<string>()
+    for (const e of this.doc.edges) {
+      if (e.targetPort.startsWith('par:') || !isHost(e.source) || isHost(e.target)) continue
+      const key = `${e.source}.${e.sourcePort}`
+      if (live.has(key)) continue
+      live.add(key)
+      const rows = host.runner.output(e.source, e.sourcePort)
+      if (!Array.isArray(rows)) {
+        if (this.hostTables.delete(key)) changed = true
+        continue
+      }
+      let file = this.tableFiles.get(rows)
+      if (!file) {
+        file = `__host_${++this.tableCount}.json`
+        await registerFile(file, new TextEncoder().encode(JSON.stringify(rows.map(flatRow))))
+        this.tableFiles.set(rows, file)
+      }
+      const query = `SELECT * FROM read_json_auto('${file}')`
+      if (this.hostTables.get(key) !== query) {
+        this.hostTables.set(key, query)
+        changed = true
+      }
+    }
+    for (const key of [...this.hostTables.keys()]) {
+      if (!live.has(key) && this.hostTables.delete(key)) changed = true
+    }
+    return changed
   }
 
   /** Host operator outputs as scalar-program keys: `nodeId.out.location.lat`. */
@@ -368,6 +425,19 @@ export class Engine {
     const vis = this.vis()
     for (const l of this.listeners) l(vis, report)
   }
+}
+
+/**
+ * A host row as a table row: a GeoJSON-style `properties` object becomes columns, as feature
+ * properties are columns everywhere else; a name already taken keeps a `p_` prefix.
+ */
+function flatRow(row: unknown): unknown {
+  if (!row || typeof row !== 'object' || Array.isArray(row)) return { value: row }
+  const { properties, ...rest } = row as Record<string, unknown>
+  if (!properties || typeof properties !== 'object' || Array.isArray(properties)) return row
+  const out: Record<string, unknown> = { ...rest }
+  for (const [k, v] of Object.entries(properties)) out[k in rest ? `p_${k}` : k] = v
+  return out
 }
 
 function styleOf(deck: DocNode): string | undefined {

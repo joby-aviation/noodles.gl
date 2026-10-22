@@ -353,3 +353,58 @@ describe('text used as a number', () => {
     expect(physical.sql).toContain(`("name" <> 'x')`)
   })
 })
+
+describe('host tables', () => {
+  it("lowers a host operator's table output to a query over the rows it handed over", () => {
+    registerOperator({ type: 'RowsOp', label: 'Rows', category: 'host', description: '', inputs: [], outputs: [{ name: 'data', type: 'table' }], params: [] });
+    const doc: EditorDoc = {
+      version: 1,
+      name: 'host rows',
+      nodes: [
+        { id: 'code', op: 'RowsOp', x: 0, y: 0, params: {} },
+        { id: 'dots', op: 'scatter', x: 0, y: 0, params: { position: '[x, y]' } },
+        { id: 'map', op: 'deck', x: 0, y: 0, params: {} },
+      ],
+      edges: [
+        { id: 'e1', source: 'code', sourcePort: 'data', target: 'dots', targetPort: 'in' },
+        { id: 'e2', source: 'dots', sourcePort: 'out', target: 'map', targetPort: 'layers' },
+      ],
+    };
+    // Before the host has run, the layer waits rather than failing.
+    expect(lowerDocument(doc, { hostTable: () => undefined }).errors).toEqual([
+      { nodeId: 'dots', message: "input 'code' has no rows yet" },
+    ]);
+    const lowered = lowerDocument(doc, { hostTable: (id, port) => (id === 'code' && port === 'data' ? 'SELECT 1.0 AS x, 2.0 AS y' : undefined) });
+    expect(lowered.errors).toEqual([]);
+    expect(lowered.graph.nodes).toContainEqual({ id: 'code#data', type: 'sql', query: 'SELECT 1.0 AS x, 2.0 AS y' });
+  });
+});
+
+describe('time series', () => {
+  it('samples paths in SQL: a segment table once, and a sampling query bound to the time', () => {
+    const doc: EditorDoc = {
+      version: 1,
+      name: 'heads',
+      nodes: [
+        { id: 'verts', op: 'sql', x: 0, y: 0, params: { query: 'SELECT 1.0 AS trip, 1.0 AS k, 0.0 AS t, 0.0 AS lng, 0.0 AS lat' } },
+        { id: 'clock', op: 'number', x: 0, y: 0, params: { value: 5 } },
+        { id: 'heads', op: 'time-series', x: 0, y: 0, params: { pathId: 'trip', order: 'k', timestamp: 't', values: 'lng, lat' } },
+        { id: 'dots', op: 'scatter', x: 0, y: 0, params: { position: '[lng, lat]' } },
+        { id: 'map', op: 'deck', x: 0, y: 0, params: {} },
+      ],
+      edges: [
+        { id: 'e1', source: 'verts', sourcePort: 'out', target: 'heads', targetPort: 'in' },
+        { id: 'e2', source: 'clock', sourcePort: 'out', target: 'heads', targetPort: 'par:time' },
+        { id: 'e3', source: 'heads', sourcePort: 'out', target: 'dots', targetPort: 'in' },
+        { id: 'e4', source: 'dots', sourcePort: 'out', target: 'map', targetPort: 'layers' },
+      ],
+    };
+    const lowered = lowerDocument(doc);
+    expect(lowered.errors).toEqual([]);
+    const sql = (id: string) => (lowered.graph.nodes.find((n) => n.id === id) as { query: string }).query;
+    expect(sql('heads#segments')).not.toMatch(/\{\{(?!input0)/);
+    const [time] = lowered.slotParams['heads.time'];
+    expect(sql('heads')).toContain(`{{${time}}}`);
+    expect(parameterValues(lowered, { T: 0, F: 0 }).values[time]).toBe(5);
+  });
+});
