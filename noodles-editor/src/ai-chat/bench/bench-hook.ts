@@ -88,6 +88,9 @@ export interface BenchResult {
   knobs: BenchKnobs
   setupApply: ModificationResult | null
   turns: BenchTurn[]
+  // The graph after setup, before the first turn, so a judge can tell what the
+  // agent kept from what it removed or overwrote. Absent in older raw results.
+  initialProject?: NoodlesProject | null
   finalProject: NoodlesProject | null
   // Every operator's serialized input values as the graph holds them, which is
   // what the grader compares against: node data can lag the operator. Output
@@ -144,6 +147,7 @@ async function runBenchTask(
     : null
   await settleGraph()
   const initialOperatorErrors = operatorErrors()
+  const initialProject = getCurrentProject()
 
   let provider: AgentProvider
   try {
@@ -167,6 +171,7 @@ async function runBenchTask(
       },
       knobs,
       setupApply,
+      initialProject,
       turns: [],
       finalProject: getCurrentProject(),
       finalOps: opSnapshot(),
@@ -226,6 +231,7 @@ async function runBenchTask(
     provider: { id: provider.id, model: provider.model, contextWindow: provider.contextWindow },
     knobs,
     setupApply,
+    initialProject,
     turns,
     finalProject: getCurrentProject(),
     finalOps: opSnapshot(),
