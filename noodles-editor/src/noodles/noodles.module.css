@@ -67,6 +67,8 @@
   --xy-controls-button-color-hover: #262626;
 
   --timeline-accent: #48c6cf;
+
+  --font-mono: source-code-pro, Menlo, Monaco, Consolas, "Courier New", monospace;
 }
 
 :root {
