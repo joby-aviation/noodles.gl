@@ -24,8 +24,14 @@ import {
   targetCaps,
 } from '@noodles.gl/planner'
 import { DeckLayerBuilder } from './deck-layers'
-import { ProgramRuntime, type UpdateReport } from './program-runtime'
+import {
+  type Preview,
+  ProgramRuntime,
+  type RuntimeCounters,
+  type UpdateReport,
+} from './program-runtime'
 import { registerNoodlesRamps } from './ramps'
+import type { LayerView, ProgramView, Values } from './worker/protocol'
 
 /** Named basemaps the deck node offers, when it has no map style URL of its own. */
 export const BASEMAPS: Record<string, string | undefined> = {
@@ -66,24 +72,6 @@ export interface EngineHost {
 /** A planner output a host operator reads that does not exist yet: the operator waits. */
 export const PENDING = Symbol.for('noodles.planner.pending')
 
-/** A DuckDB row as the plain objects Noodles operators expect: numbers, arrays, objects. */
-function plainValue(v: unknown): unknown {
-  if (typeof v === 'bigint') return Number(v)
-  if (v && typeof v === 'object') {
-    if ('toArray' in v && typeof (v as { toArray: unknown }).toArray === 'function') {
-      return Array.from((v as { toArray(): ArrayLike<unknown> }).toArray(), plainValue)
-    }
-    if ('toJSON' in v && typeof (v as { toJSON: unknown }).toJSON === 'function') {
-      return plainRow((v as { toJSON(): Record<string, unknown> }).toJSON())
-    }
-  }
-  return v
-}
-
-function plainRow(row: Record<string, unknown>): Record<string, unknown> {
-  return Object.fromEntries(Object.entries(row).map(([k, v]) => [k, plainValue(v)]))
-}
-
 export interface HostRunInputs {
   /** A layer, a relation's rows (possibly still loading), or `PENDING`. */
   planner(nodeId: string, port: string): unknown
@@ -112,8 +100,32 @@ function structureKey(graph: Graph): string {
   return canonicalJson({ nodes: graph.nodes, functions: graph.functions, specs })
 }
 
+/**
+ * What the engine needs of a runtime: a ProgramRuntime in this thread (tests, Node), or the
+ * engine worker's proxy (the app).
+ */
+export interface RuntimeLike {
+  readonly counters: RuntimeCounters
+  setGraph(graph: Graph, values: Values): Promise<unknown>
+  setValues(values: Values): Promise<unknown>
+  idle(): Promise<void>
+  layers(): LayerView[]
+  program(): ProgramView | undefined
+  view(): Record<string, number>
+  error(): string | undefined
+  preview(nodeId: string, limit?: number): Promise<Preview>
+  /** Rows of a query as plain objects. */
+  query(sql: string): Promise<Record<string, unknown>[]>
+  onUpdate(listener: (report: UpdateReport) => void): () => void
+}
+
+/** A runtime in this thread, over an SQL engine. */
+export function localRuntime(sql: SqlEngine): RuntimeLike {
+  return new ProgramRuntime(sql, { caps: targetCaps('deck-webgl2', undefined) })
+}
+
 export class Engine {
-  readonly runtime: ProgramRuntime
+  readonly runtime: RuntimeLike
   private readonly builder = new DeckLayerBuilder()
   private readonly listeners = new Set<Listener>()
   private readonly registered = new Set<string>()
@@ -131,11 +143,11 @@ export class Engine {
   private tableCount = 0
 
   constructor(
-    private readonly sql: SqlEngine,
+    backend: SqlEngine | RuntimeLike,
     private readonly options: EngineOptions = {}
   ) {
     registerNoodlesRamps()
-    this.runtime = new ProgramRuntime(sql, { caps: targetCaps('deck-webgl2', undefined) })
+    this.runtime = 'setGraph' in backend ? backend : localRuntime(backend)
     this.runtime.onUpdate(report => this.emit(report))
   }
 
@@ -412,13 +424,7 @@ export class Engine {
     if (!rel) return PENDING
     let rows = this.rows.get(rel.hash)
     if (!rows) {
-      rows = this.sql
-        .run(`SELECT * FROM ${rel.ref}`)
-        .then(({ table }) =>
-          (table.toArray() as { toJSON(): Record<string, unknown> }[]).map(r =>
-            plainRow(r.toJSON())
-          )
-        )
+      rows = this.runtime.query(`SELECT * FROM ${rel.ref}`)
       this.rows.set(rel.hash, rows)
     }
     return rows

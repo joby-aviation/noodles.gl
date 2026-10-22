@@ -10,33 +10,26 @@
 
 import { createRequire } from 'node:module'
 import { resolve } from 'node:path'
-import type { QueryTiming, SqlEngine } from '@noodles.gl/planner'
-import type { Table } from 'apache-arrow'
+import {
+  type BlockingConnection,
+  type BlockingDb,
+  type BlockingSql,
+  blockingSql,
+} from '../worker/blocking-sql'
 
 const require = createRequire(import.meta.url)
 
-interface BlockingConnection {
-  query(sql: string): Table
-  prepare(sql: string): { query(...binds: unknown[]): Table; close(): void }
-}
-interface BlockingDb {
+interface NodeBlockingDb extends BlockingDb {
   instantiate(): Promise<void>
   connect(): BlockingConnection
-  registerFileText(name: string, text: string): void
 }
 
-export interface NodeDuck extends SqlEngine {
-  /** Make `text` readable as a file called `name`, e.g. by `read_csv_auto('name')`. */
-  registerText(name: string, text: string): void
-  /** Rows of a query as plain objects. */
-  rows(sql: string, binds?: (number | string)[]): Promise<Record<string, unknown>[]>
-  readonly counters: { executions: number; prepares: number; execs: number }
-}
+export type NodeDuck = BlockingSql
 
 export async function openNodeDuck(): Promise<NodeDuck> {
   const dist = resolve('node_modules/@duckdb/duckdb-wasm/dist')
   const duckdb = require(`${dist}/duckdb-node-blocking.cjs`) as {
-    createDuckDB(bundles: unknown, logger: unknown, runtime: unknown): Promise<BlockingDb>
+    createDuckDB(bundles: unknown, logger: unknown, runtime: unknown): Promise<NodeBlockingDb>
     VoidLogger: new () => unknown
     NODE_RUNTIME: unknown
   }
@@ -69,59 +62,5 @@ export async function openNodeDuck(): Promise<NodeDuck> {
   } finally {
     process.env.HOME = home
   }
-  const prepared = new Map<string, ReturnType<BlockingConnection['prepare']>>()
-  const counters = { executions: 0, prepares: 0, execs: 0 }
-
-  const run = async (
-    sql: string,
-    binds: (number | string)[] = []
-  ): Promise<{ table: Table; timing: QueryTiming }> => {
-    const started = performance.now()
-    let table: Table
-    if (binds.length === 0) {
-      table = conn.query(sql)
-    } else {
-      let stmt = prepared.get(sql)
-      if (!stmt) {
-        stmt = conn.prepare(sql)
-        prepared.set(sql, stmt)
-        counters.prepares++
-      }
-      table = stmt.query(...binds)
-    }
-    counters.executions++
-    return { table, timing: { ms: performance.now() - started, rows: table.numRows } }
-  }
-
-  return {
-    counters,
-    async exec(sql) {
-      counters.execs++
-      conn.query(sql)
-    },
-    run,
-    async describe(relation) {
-      const table = conn.query(`DESCRIBE SELECT * FROM ${relation}`)
-      const out = new Map<string, string>()
-      for (const row of table.toArray() as { column_name: string; column_type: string }[]) {
-        out.set(String(row.column_name), String(row.column_type))
-      }
-      return out
-    },
-    async resetPrepared() {
-      for (const s of prepared.values()) s.close()
-      prepared.clear()
-    },
-    async release(sql) {
-      prepared.get(sql)?.close()
-      prepared.delete(sql)
-    },
-    registerText(name, text) {
-      db.registerFileText(name, text)
-    },
-    async rows(sql, binds) {
-      const { table } = await run(sql, binds)
-      return (table.toArray() as { toJSON(): Record<string, unknown> }[]).map(r => r.toJSON())
-    },
-  }
+  return blockingSql(db, conn)
 }

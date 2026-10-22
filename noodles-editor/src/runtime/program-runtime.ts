@@ -42,6 +42,7 @@ import {
 } from '@noodles.gl/planner'
 import { MaterializingCatalog } from './catalog'
 import { evaluateLayer, type LayerData, type QueriedLayer, queryLayer } from './execute'
+import { plainRow } from './plain-rows'
 
 export interface LayerState {
   id: string
@@ -117,6 +118,14 @@ export class ProgramRuntime {
         }
       },
     })
+  }
+
+  /** Rows of a query as plain objects. */
+  async query(sql: string): Promise<Record<string, unknown>[]> {
+    const { table } = await this.sql.run(sql)
+    return (table.toArray() as { toJSON(): Record<string, unknown> }[]).map(r =>
+      plainRow(r.toJSON())
+    )
   }
 
   onUpdate(listener: Listener): () => void {

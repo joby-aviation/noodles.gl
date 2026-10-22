@@ -7,6 +7,12 @@ import { nodePolyfills } from 'vite-plugin-node-polyfills'
 // The planner is a workspace package; resolve it to source so an edit needs no build.
 export const plannerAlias = {
   '@noodles.gl/planner': path.resolve(import.meta.dirname, '../packages/planner/src/index.ts'),
+  // DuckDB-Wasm's synchronous browser build, which the engine worker runs; the package does
+  // not export it
+  'duckdb-browser-blocking': path.resolve(
+    import.meta.dirname,
+    'node_modules/@duckdb/duckdb-wasm/dist/duckdb-browser-blocking.mjs'
+  ),
 }
 
 const ENV_VARIABLES_WITH_INSTRUCTIONS = {

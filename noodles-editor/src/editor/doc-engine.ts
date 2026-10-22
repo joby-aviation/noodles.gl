@@ -10,10 +10,10 @@ import { setOpResolver } from '../noodles/op-resolver'
 import { DeckProjectAssetResolver } from '../noodles/utils/deck-project-asset-resolver'
 import { instantiateDeckView } from '../noodles/utils/deck-view'
 import { instantiateLayer, instantiateWidget } from '../noodles/utils/instantiate-vis'
-import { DuckDbEngine } from '../runtime/duckdb'
 import { Engine, type EngineVis } from '../runtime/engine'
 import { registerHostOperators } from '../runtime/host/host-ops'
 import { HostRunner } from '../runtime/host/host-runner'
+import { RuntimeProxy } from '../runtime/worker/runtime-proxy'
 import type { DocStore } from './doc-store'
 import { opView } from './op-view'
 
@@ -76,11 +76,17 @@ let opened: Engine | undefined
 export const currentEngine = (): Engine | undefined => opened
 
 function openEngine(readAsset: (name: string) => Promise<Uint8Array>): Promise<Engine> {
-  engine ??= DuckDbEngine.open().then(sql => {
+  engine ??= Promise.resolve().then(() => {
+    // DuckDB and the planner runtime run in their own worker; this thread lowers documents,
+    // runs host operators and builds deck layers from the buffers the worker sends
+    const worker = new Worker(new URL('../runtime/worker/engine.worker.ts', import.meta.url), {
+      type: 'module',
+    })
+    const runtime = new RuntimeProxy(worker)
     registerHostOperators()
-    const e = new Engine(sql, {
+    const e = new Engine(runtime, {
       readAsset,
-      registerFile: (n, b) => sql.registerFile(n, b),
+      registerFile: (n, b) => runtime.registerFile(n, b),
       host: {
         runner: new HostRunner({ resolveOutputs: resolveAssets }),
         layer: instantiateLayer,
