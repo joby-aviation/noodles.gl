@@ -22,7 +22,7 @@ import { TimelineProvider } from '../timeline/timeline-context'
 import { getTimelineStore, useTimelineStore } from '../timeline/timeline-store'
 import type { Visualization } from '../visualizations'
 import { bindEngine, useEngineState } from './doc-engine'
-import { DocNetwork } from './doc-network'
+import { canPaste, copySelection, DocNetwork, pasteClipboard } from './doc-network'
 import { setParam } from './doc-ops'
 import '../noodles/layers.css'
 import { DocProperties } from './doc-properties'
@@ -217,10 +217,10 @@ export function useDocNoodles(): Visualization {
     getState: () => ({ canUndo: docStore().canUndo(), canRedo: docStore().canRedo() }),
   } as UndoRedoHandlerRef)
   const copyControlsRef = useRef<CopyControlsRef>({
-    copy: () => {},
-    paste: () => {},
-    canCopy: () => false,
-    canPaste: () => false,
+    copy: () => void copySelection(),
+    paste: () => void pasteClipboard(),
+    canCopy: () => docStore().get().selection.length > 0,
+    canPaste,
   })
 
   const renderSettings = useMemo(() => renderSettingsOf(doc), [doc])

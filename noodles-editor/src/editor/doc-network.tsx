@@ -18,8 +18,11 @@ import nodeStyles from '../noodles/noodles.module.css'
 import { DocNodeComponent } from './doc-node'
 import {
   addNode,
+  type Clip,
   connect,
+  copyNodes,
   insertOnEdge,
+  pasteNodes,
   removeEdges,
   removeNodes,
   validConnection,
@@ -40,6 +43,41 @@ type Menu =
   | { kind: 'add'; x: number; y: number; flow: { x: number; y: number }; edge?: string }
   | { kind: 'node'; x: number; y: number; id: string }
   | { kind: 'edge'; x: number; y: number; id: string }
+
+const CLIP_TYPE = 'application/x-noodles-doc-nodes'
+let clipboard: Clip | undefined
+
+/** Copy the selection: kept here, and as JSON on the system clipboard for other tabs. */
+export function copySelection(): boolean {
+  const { doc, selection } = docStore().get()
+  if (!selection.length) return false
+  clipboard = copyNodes(doc, selection)
+  void navigator.clipboard
+    ?.writeText(JSON.stringify({ type: CLIP_TYPE, ...clipboard }))
+    .catch(() => {})
+  return true
+}
+
+export async function pasteClipboard(): Promise<void> {
+  let clip = clipboard
+  try {
+    const text = await navigator.clipboard?.readText()
+    const parsed = text ? JSON.parse(text) : undefined
+    if (parsed?.type === CLIP_TYPE) clip = { nodes: parsed.nodes, edges: parsed.edges }
+  } catch {
+    // Not ours, or no permission: the in-page copy stands.
+  }
+  if (!clip?.nodes.length) return
+  const store = docStore()
+  let pasted: string[] = []
+  const data = clip
+  store.edit(d => {
+    pasted = pasteNodes(d, data, store.get().network)
+  })
+  store.set({ selection: pasted })
+}
+
+export const canPaste = () => !!clipboard?.nodes.length
 
 const tablePassThrough = (o: OpDef) =>
   o.inputs.some(p => p.type === 'table') && o.outputs.some(p => p.type === 'table')
@@ -190,6 +228,14 @@ export function DocNetwork() {
     } else if (meta && e.key.toLowerCase() === 'y') {
       e.preventDefault()
       docStore().redo()
+    } else if (meta && e.key.toLowerCase() === 'c') {
+      if (copySelection()) e.preventDefault()
+    } else if (meta && e.key.toLowerCase() === 'v') {
+      e.preventDefault()
+      void pasteClipboard()
+    } else if (meta && e.key.toLowerCase() === 'd') {
+      e.preventDefault()
+      if (copySelection()) void pasteClipboard()
     } else if (e.key === 'Tab') {
       e.preventDefault()
       const { x, y } = mouse.current

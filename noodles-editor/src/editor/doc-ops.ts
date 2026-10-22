@@ -337,3 +337,53 @@ export function removeKey(doc: EditorDoc, target: string, time: number): void {
 export function clearTrack(doc: EditorDoc, target: string): void {
   if (doc.timeline) doc.timeline.tracks = doc.timeline.tracks.filter(t => t.target !== target)
 }
+
+// --- copy and paste ------------------------------------------------------------
+
+/** What a copy holds: nodes and the wires between them. */
+export interface Clip {
+  nodes: DocNode[]
+  edges: DocEdge[]
+}
+
+export function copyNodes(doc: EditorDoc, ids: string[]): Clip {
+  const take = new Set(ids)
+  return structuredClone({
+    nodes: doc.nodes.filter(n => take.has(n.id)),
+    edges: doc.edges.filter(e => take.has(e.source) && take.has(e.target)),
+  })
+}
+
+/** Paste a copy as new nodes, offset from the originals, renamed where a name is taken. */
+export function pasteNodes(
+  doc: EditorDoc,
+  clip: Clip,
+  parent: string | undefined,
+  offset = { x: 40, y: 40 }
+): string[] {
+  const ids = new Map<string, string>()
+  for (const n of clip.nodes) {
+    const id = newId('n')
+    ids.set(n.id, id)
+    const name = nameOf(n)
+    const taken = doc.nodes.some(m => m.parent === parent && nameOf(m) === name)
+    const { parent: _was, ...rest } = structuredClone(n)
+    doc.nodes.push({
+      ...rest,
+      id,
+      name: taken ? uniqueName(doc, parent, name) : name,
+      ...(parent ? { parent } : {}),
+      x: n.x + offset.x,
+      y: n.y + offset.y,
+    })
+  }
+  for (const e of clip.edges) {
+    doc.edges.push({
+      ...e,
+      id: newId('e'),
+      source: ids.get(e.source) as string,
+      target: ids.get(e.target) as string,
+    })
+  }
+  return [...ids.values()]
+}
