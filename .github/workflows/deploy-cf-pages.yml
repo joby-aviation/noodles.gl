@@ -85,7 +85,7 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy website/build --project-name=${{ secrets.CLOUDFLARE_PAGES_PROJECT_NAME }} --branch=${{ github.head_ref || github.ref_name }}
+          command: pages deploy website/build --project-name=noodles-gl --branch=${{ github.head_ref || github.ref_name }}
           # Creates a GitHub deployment, which links the preview URL on the PR
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}
 
