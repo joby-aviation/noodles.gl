@@ -192,6 +192,15 @@ describe('validateProject', () => {
       assert.deepEqual(rules(project(p => p.nodes.push(node('/number-1', 'NumberOp')))), [
         'generic-node-name',
       ])
+      assert.deepEqual(rules(project(p => p.nodes.push(node('/duckdb-0', 'DuckDbOp')))), [
+        'generic-node-name',
+      ])
+    })
+
+    it('leaves names that end in a number but say what they hold', () => {
+      for (const id of ['/flights-2024', '/route-66']) {
+        assert.deepEqual(rules(project(p => p.nodes.push(node(id, 'NumberOp')))), [])
+      }
     })
   })
 
@@ -320,6 +329,50 @@ describe('validateProject', () => {
         'edge-handle',
         'edge-handle',
       ])
+    })
+
+    it('rejects edges that form a loop, naming the nodes in order', () => {
+      const p = project(p => {
+        p.nodes.push(node('/a', 'MathOp'), node('/b', 'MathOp'))
+        p.edges.push(
+          edge('/a', 'out.result', '/b', 'par.a'),
+          edge('/b', 'out.result', '/a', 'par.a')
+        )
+      })
+      assert.deepEqual(rules(p), ['cycle'])
+      assert.match(messages(p)[0], /loop: \/a -> \/b -> \/a\./)
+    })
+
+    it('rejects a node wired to itself', () => {
+      const p = project(p => {
+        p.nodes.push(node('/a', 'MathOp'))
+        p.edges.push(edge('/a', 'out.result', '/a', 'par.b'))
+      })
+      assert.deepEqual(rules(p), ['cycle'])
+      assert.match(messages(p)[0], /loop: \/a -> \/a\./)
+    })
+
+    it('reports one loop through three nodes once', () => {
+      const p = project(p => {
+        p.nodes.push(node('/a', 'MathOp'), node('/b', 'MathOp'), node('/c', 'MathOp'))
+        p.edges.push(
+          edge('/a', 'out.result', '/b', 'par.a'),
+          edge('/b', 'out.result', '/c', 'par.a'),
+          edge('/c', 'out.result', '/a', 'par.a')
+        )
+      })
+      assert.deepEqual(rules(p), ['cycle'])
+      assert.match(messages(p)[0], /\/a -> \/b -> \/c -> \/a/)
+    })
+
+    // transform-graph.ts wires any field to any field, so a container's input
+    // reaches a child directly as well as through its GraphInputOp
+    it("accepts an edge from a container's input straight to a child", () => {
+      const p = project(p => {
+        p.nodes.push(node('/c', 'ContainerOp'), node('/c/filter', 'MathOp'))
+        p.edges.push(edge('/c', 'par.in', '/c/filter', 'par.a'))
+      })
+      assert.deepEqual(rules(p), [])
     })
 
     it('accepts container boundary edges from par. and into out.', () => {
