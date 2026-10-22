@@ -8,15 +8,27 @@ import { useAgentModelStore } from './agent/model-store'
 import { DEFAULT_ANTHROPIC_MODEL } from './agent/providers/anthropic'
 import { DEFAULT_OPENROUTER_MODEL, resetOpenRouterCatalogue } from './agent/providers/openrouter'
 import { WEBLLM_MODELS } from './agent/providers/webllm'
+import { AgentSession } from './agent/session'
+import type { AgentProvider } from './agent/types'
 import { ChatPanel } from './chat-panel'
 import type { ContextLoader } from './context-loader'
 import { globalContextManager } from './global-context-manager'
-import type { NoodlesProject } from './types'
+import type { ClaudeResponse, NoodlesProject } from './types'
 
-// The picker only shows once a session has started, and starting a real local model
+// The session is built for real; only the provider behind it is a stand-in. The
+// picker only shows once a session has started, and starting a real local model
 // means a download
 const createProvider = vi.hoisted(() =>
-  vi.fn(async () => ({ model: 'stub', supportsNativeTools: false, contextWindow: 4096 }))
+  vi.fn(
+    async (): Promise<AgentProvider> => ({
+      id: 'anthropic',
+      model: 'test-model',
+      supportsNativeTools: true,
+      supportsImages: true,
+      contextWindow: 200_000,
+      async *stream() {},
+    })
+  )
 )
 vi.mock('./agent/provider-factory', async importOriginal => ({
   ...(await importOriginal<typeof import('./agent/provider-factory')>()),
@@ -118,6 +130,164 @@ describe('ChatPanel after connecting OpenRouter', () => {
     await act(async () => releaseCatalogue())
     await vi.waitFor(() => expect(storedOpenRouterModel()).toBe(FREE_MODEL))
     expect(storedOpenRouterModel()).not.toBe(DEFAULT_OPENROUTER_MODEL)
+  })
+})
+
+describe('ChatPanel graph-edit proposals', () => {
+  const proposalResponse: ClaudeResponse = {
+    message: 'I set the value to 2.',
+    projectModifications: [
+      { type: 'update_node', data: { id: '/number', data: { inputs: { value: 2 } } } },
+    ],
+    toolCalls: [],
+  }
+
+  beforeEach(() => {
+    getKeysStore().setBrowserKey('anthropic', 'sk-ant-test')
+    vi.spyOn(globalContextManager, 'waitForReady').mockResolvedValue({} as ContextLoader)
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+    getKeysStore().clearBrowserKey('anthropic')
+  })
+
+  const panel = (projectKey = 1) => (
+    <ReactFlowProvider>
+      <ChatPanel
+        project={{ nodes: [], edges: [] } as NoodlesProject}
+        projectKey={projectKey}
+        onClose={() => {}}
+        isVisible
+      />
+    </ReactFlowProvider>
+  )
+
+  async function renderReadyPanel() {
+    const view = render(panel())
+    await vi.waitFor(() => expect(screen.getByPlaceholderText('Ask for help...')).toBeTruthy())
+    return view
+  }
+
+  // A reply the test hands back when it chooses, standing in for a run in flight
+  function deferSend() {
+    let finish: (response: ClaudeResponse) => void = () => {}
+    vi.spyOn(AgentSession.prototype, 'send').mockImplementation(
+      () => new Promise(resolve => (finish = resolve))
+    )
+    return (response: ClaudeResponse) => act(async () => finish(response))
+  }
+
+  async function send(text: string) {
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: text } })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+    })
+  }
+
+  it('blocks sending until a pending proposal is accepted or rejected', async () => {
+    const sendSpy = vi.spyOn(AgentSession.prototype, 'send').mockResolvedValue(proposalResponse)
+    await renderReadyPanel()
+
+    await send('Set /number to 2')
+    await vi.waitFor(() => expect(screen.getByLabelText('Proposed graph update')).toBeTruthy())
+    expect(screen.getByText('Set value = 2 on /number')).toBeTruthy()
+    expect(screen.getByText('These changes are not applied yet.')).toBeTruthy()
+
+    const textarea = screen.getByRole('textbox') as HTMLTextAreaElement
+    expect(textarea.disabled).toBe(true)
+    expect(textarea.placeholder).toBe('Accept or reject the graph update to continue')
+    expect((screen.getByRole('button', { name: 'Send' }) as HTMLButtonElement).disabled).toBe(true)
+
+    // Enter goes through the same handler as the button, and must be refused too
+    fireEvent.change(textarea, { target: { value: 'And make it 3' } })
+    await act(async () => {
+      fireEvent.keyDown(textarea, { key: 'Enter' })
+    })
+    expect(sendSpy).toHaveBeenCalledTimes(1)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reject' }))
+    expect(screen.queryByLabelText('Proposed graph update')).toBeNull()
+    expect(screen.getByText('Proposal rejected. Its changes were not applied.')).toBeTruthy()
+    expect((screen.getByRole('textbox') as HTMLTextAreaElement).disabled).toBe(false)
+
+    await send('And make it 3')
+    expect(sendSpy).toHaveBeenCalledTimes(2)
+  })
+
+  it('unblocks sending once the proposal is accepted', async () => {
+    vi.spyOn(AgentSession.prototype, 'send').mockResolvedValue({
+      ...proposalResponse,
+      projectModifications: [
+        {
+          type: 'add_node',
+          data: { id: '/number', type: 'NumberOp', position: { x: 0, y: 0 }, data: {} },
+        },
+      ],
+    })
+    await renderReadyPanel()
+
+    await send('Add a number')
+    await vi.waitFor(() => expect(screen.getByText('Add NumberOp /number')).toBeTruthy())
+    fireEvent.click(screen.getByRole('button', { name: 'Accept' }))
+
+    expect(screen.queryByLabelText('Proposed graph update')).toBeNull()
+    expect((screen.getByRole('textbox') as HTMLTextAreaElement).disabled).toBe(false)
+  })
+
+  it('drops a pending proposal when another project is opened', async () => {
+    vi.spyOn(AgentSession.prototype, 'send').mockResolvedValue(proposalResponse)
+    const { rerender } = await renderReadyPanel()
+
+    await send('Set /number to 2')
+    await vi.waitFor(() => expect(screen.getByLabelText('Proposed graph update')).toBeTruthy())
+
+    rerender(panel(2))
+
+    expect(screen.queryByLabelText('Proposed graph update')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Accept' })).toBeNull()
+    expect(
+      screen.getByText('Another project was opened, so the proposed graph update was not applied.')
+    ).toBeTruthy()
+    expect((screen.getByRole('textbox') as HTMLTextAreaElement).disabled).toBe(false)
+  })
+
+  it('drops the proposal of a run that finishes after another project is opened', async () => {
+    const finish = deferSend()
+    const { rerender } = await renderReadyPanel()
+
+    await send('Set /number to 2')
+    rerender(panel(2))
+    await finish(proposalResponse)
+
+    expect(screen.queryByLabelText('Proposed graph update')).toBeNull()
+    expect(screen.queryByText('I set the value to 2.')).toBeNull()
+  })
+
+  it('keeps the reply and proposal of a run out of a conversation started after it', async () => {
+    const finish = deferSend()
+    await renderReadyPanel()
+
+    await send('Set /number to 2')
+    fireEvent.click(screen.getByTitle('Start New Conversation'))
+    await finish(proposalResponse)
+
+    expect(screen.queryByLabelText('Proposed graph update')).toBeNull()
+    expect(screen.queryByText('I set the value to 2.')).toBeNull()
+    expect(screen.queryByText('Set /number to 2')).toBeNull()
+  })
+
+  it('drops a pending proposal when a new conversation starts', async () => {
+    vi.spyOn(AgentSession.prototype, 'send').mockResolvedValue(proposalResponse)
+    await renderReadyPanel()
+
+    await send('Set /number to 2')
+    await vi.waitFor(() => expect(screen.getByLabelText('Proposed graph update')).toBeTruthy())
+
+    fireEvent.click(screen.getByTitle('Start New Conversation'))
+
+    expect(screen.queryByLabelText('Proposed graph update')).toBeNull()
+    expect((screen.getByRole('textbox') as HTMLTextAreaElement).disabled).toBe(false)
   })
 })
 

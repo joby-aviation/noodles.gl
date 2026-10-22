@@ -846,6 +846,8 @@ export function getNoodles(): Visualization {
     >()
 
   const currentProjectRef = useRef<NoodlesProjectJSON>(newProjectJSON)
+  // Counts project loads, so the chat panel can tell its proposal's project was replaced
+  const [projectLoadId, setProjectLoadId] = useState(0)
 
   // Track when we're programmatically loading a project to prevent useEffect from trying to reload
   const isProgrammaticLoadRef = useRef(false)
@@ -1012,6 +1014,7 @@ export function getNoodles(): Visualization {
       isProjectLoadRef.current = true
 
       currentProjectRef.current = project
+      setProjectLoadId(id => id + 1)
 
       // Install embedded keys before constructing operators. Key-dependent operators
       // may inspect credentials while their fields and listeners are initialized.
@@ -2212,6 +2215,7 @@ export function getNoodles(): Visualization {
     <Suspense fallback={null}>
       <ChatPanel
         project={{ nodes, edges }}
+        projectKey={projectLoadId}
         onClose={() => {
           setShowChatPanel(false)
           setChatInitialMessage(undefined)

@@ -270,7 +270,7 @@ async function runTurn(
     onEvent,
   })
 
-  // Applied after the run, as the chat panel does
+  // Applied after the run, as the chat panel does when the user accepts the proposal
   const modifications = response.projectModifications ?? []
   const apply = modifications.length ? await applyAndSettle(modifications) : null
 

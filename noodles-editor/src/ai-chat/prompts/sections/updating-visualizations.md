@@ -9,7 +9,7 @@ The recurring mistake is editing the wrong node. A layer property can come from 
 3. If the property arrives over an edge, edit the **source** node. If it does not, edit the layer's input directly.
 4. `apply_modifications` with that node.
 
-Changes apply immediately; the visualization updates in real time.
+The user sees the batch as a proposal and the visualization updates once they accept it.
 
 ## Inputs versus edges
 
