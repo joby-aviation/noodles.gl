@@ -43,3 +43,6 @@ venv.bak/
 !.claude/skills/
 .spec-workflow/
 !.spec-workflow/specs
+
+# Claude Code quick start output (website/static/claude-code-prompt.txt)
+.quick-start/

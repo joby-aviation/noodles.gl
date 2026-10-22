@@ -332,19 +332,27 @@ export default function TimelineEditor() {
     }
   }, [])
 
-  // Expose deck.gl canvas and instance for Claude AI visual debugging
+  // Expose the canvas and deck instance to the AI tools (capture_visualization,
+  // inspect_layer). Getters, because the map and deck are created after mount.
   useEffect(() => {
-    if (deckRef.current) {
-      // @ts-expect-error canvas is protected but accessible
-      const canvas = deckRef.current.canvas
-      if (canvas) {
-        // Store canvas globally for MCPTools to access
-        ;(window as Window & { __deckCanvas?: unknown }).__deckCanvas = canvas
-      }
-      // Store deck instance globally for layer inspection
-      ;(window as Window & { __deckInstance?: unknown }).__deckInstance = deckRef.current
+    const w = window as Window & { __deckCanvas?: HTMLCanvasElement; __deckInstance?: Deck }
+    Object.defineProperties(w, {
+      __deckCanvas: {
+        configurable: true,
+        // With a basemap, deck draws into MapLibre's canvas (interleaved), so capture that one
+        get: () =>
+          basemapEnabled
+            ? mapRef.current?.getCanvas()
+            : // @ts-expect-error canvas is protected but accessible
+              deckRef.current?.canvas,
+      },
+      __deckInstance: { configurable: true, get: () => deckRef.current ?? undefined },
+    })
+    return () => {
+      delete w.__deckCanvas
+      delete w.__deckInstance
     }
-  }, [])
+  }, [basemapEnabled])
 
   // onIdle resolves when all data is loaded and drawing has settled.
   mapProps.onIdle = ({ target: map }) => {

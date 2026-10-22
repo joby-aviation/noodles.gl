@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { ContextLoader } from './context-loader'
 import { MCPTools } from './mcp-tools'
 import type { DocsIndex, DocTopic } from './types'
@@ -198,5 +198,31 @@ describe('getDocumentation guards', () => {
     const result = await new MCPTools().getDocumentation({ query: 'anything' })
     expect(result.success).toBe(false)
     expect(result.error).toContain('Docs index not loaded')
+  })
+})
+
+describe('captureVisualization', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+    delete (window as Window & { __deckCanvas?: unknown }).__deckCanvas
+  })
+
+  it('refuses in a hidden tab, whose canvas does not show the latest edit', async () => {
+    vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden')
+    ;(window as Window & { __deckCanvas?: unknown }).__deckCanvas = document.createElement('canvas')
+
+    const result = await new MCPTools().captureVisualization({})
+
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('tab is hidden')
+  })
+
+  it('says the map is still loading when there is no canvas yet', async () => {
+    vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible')
+
+    const result = await new MCPTools().captureVisualization({})
+
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('not finished loading')
   })
 })

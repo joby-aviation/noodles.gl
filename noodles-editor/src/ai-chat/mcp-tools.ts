@@ -620,11 +620,21 @@ export class MCPTools {
     quality?: number
   }): Promise<ToolResult> {
     try {
+      // A hidden tab stops drawing: the map never loads, or the canvas still shows the
+      // frame from before the last edit. Either way the screenshot would mislead.
+      if (document.visibilityState === 'hidden') {
+        return {
+          success: false,
+          error:
+            'The Noodles tab is hidden, so the browser has paused drawing. Bring the tab to the front (macOS: open -a "Google Chrome") and try again.',
+        }
+      }
       const canvas = this.getCanvas()
       if (!canvas) {
         return {
           success: false,
-          error: 'Canvas not available. Make sure deck.gl is initialized.',
+          error:
+            'Canvas not available. The map has not finished loading; wait a few seconds and try again.',
         }
       }
 
