@@ -65,7 +65,6 @@ function getEngine(readAsset: (name: string) => Promise<Uint8Array>): Promise<En
     const e = new Engine(sql, {
       readAsset,
       registerFile: (n, b) => sql.registerFile(n, b),
-      insertArrow: (n, ipc) => sql.insertArrow(n, ipc),
       host: {
         runner: new HostRunner({ resolveOutputs: resolveAssets }),
         layer: instantiateLayer,

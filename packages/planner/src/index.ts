@@ -63,7 +63,7 @@ export {
   type AttributeNode, type ScaleNode, type ColorScaleNode, type ProjectNode,
   type WrangleNode, type Bin2dNode, type RenderNode, type RawNode, type LayerNode,
   type FileSource, type JoinNode, type UnionNode, type SortNode, type LimitNode, type SqlNode,
-  type GenerateNode, type UnnestNode, type DeckNode, type RelationalNode, RELATIONAL_TYPES,
+  type GenerateNode, type UnnestNode, type VerticesNode, type DeckNode, type RelationalNode, RELATIONAL_TYPES,
 } from './types.js';
 export {
   LAYER_KINDS, LAYER_SPECS, propParam, propParams, resolveProps, type ResolvedProp,
@@ -78,7 +78,7 @@ export {
 export { canonicalJson, hashOf } from './hash.js';
 export {
   columnTypeOf, sqlLiteral, inlineParamsInText, exprError,
-  sourceSql, geojsonTable, GEOJSON_KINDS, type GeojsonKind, joinSql, unionSql, sortSql, limitSql, sqlNodeSql, generateSql, unnestSql, rowwiseSql,
+  sourceSql, verticesSql, joinSql, unionSql, sortSql, limitSql, sqlNodeSql, generateSql, unnestSql, rowwiseSql,
   type RelColumn, type RelVector, type RelShape,
 } from './relational.js';
 export {

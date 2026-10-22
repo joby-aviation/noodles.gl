@@ -3,7 +3,6 @@ import { resolve } from 'node:path'
 import { lowerDocument, parameterValues } from '@noodles.gl/planner'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { type NodeDuck, openNodeDuck } from '../__tests__/duckdb-node'
-import { loadGeojson } from '../geojson'
 import { ProgramRuntime } from '../program-runtime'
 import { registerNoodlesRamps } from '../ramps'
 import { type NoodlesProject, toEditorDoc, translateAccessor } from './to-editor-doc'
@@ -149,11 +148,7 @@ describe('toEditorDoc with GeoJSON', () => {
     expect(lowered.errors).toEqual([])
     const source = doc.nodes.find(n => n.op === 'geojson')
     const url = String(source?.params.url)
-    await loadGeojson(
-      url,
-      readFileSync(resolve(`src/examples/${name}/${file}`), 'utf8'),
-      (t, ipc) => duck.insertArrow(t, ipc)
-    )
+    duck.registerText(url, readFileSync(resolve(`src/examples/${name}/${file}`), 'utf8'))
     const runtime = new ProgramRuntime(duck)
     await runtime.setGraph(lowered.graph, parameterValues(lowered, { T: 0, F: 0 }).values)
     expect(runtime.program()?.errors).toEqual([])

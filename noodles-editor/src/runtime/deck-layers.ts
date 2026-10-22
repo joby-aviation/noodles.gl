@@ -322,7 +322,9 @@ function buildLayer(input: ProgramLayerInput, binary: Binary): Layer | undefined
   const has = (deckName: string) => deckName in binary.attributes
   const opacity = num(p.opacity, 1)
   const parameters = BLEND_PARAMETERS[String(p.blend)] ?? {}
-  const common = { id: input.id, opacity, pickable: false, parameters }
+  // The kind is part of the id: deck keeps a layer's state by id, so a node whose layer kind
+  // changes (scatter to column, say) must start fresh rather than inherit the old layer's state.
+  const common = { id: `${input.id}:${input.kind}`, opacity, pickable: false, parameters }
   // A constant color is an accessor too; its trigger is its value, so deck re-reads it only
   // when the color actually changes.
   const constant = (deckName: string, value: [number, number, number, number]) =>

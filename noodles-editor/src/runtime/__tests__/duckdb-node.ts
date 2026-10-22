@@ -18,7 +18,6 @@ const require = createRequire(import.meta.url)
 interface BlockingConnection {
   query(sql: string): Table
   prepare(sql: string): { query(...binds: unknown[]): Table; close(): void }
-  insertArrowFromIPCStream(buffer: Uint8Array, options: { name: string; create: boolean }): void
 }
 interface BlockingDb {
   instantiate(): Promise<void>
@@ -27,8 +26,6 @@ interface BlockingDb {
 }
 
 export interface NodeDuck extends SqlEngine {
-  /** Create (or replace) a table from an Arrow IPC stream. */
-  insertArrow(name: string, ipc: Uint8Array): Promise<void>
   /** Make `text` readable as a file called `name`, e.g. by `read_csv_auto('name')`. */
   registerText(name: string, text: string): void
   /** Rows of a query as plain objects. */
@@ -56,11 +53,20 @@ export async function openNodeDuck(): Promise<NodeDuck> {
   )
   await db.instantiate()
   const conn = db.connect()
-  // Extensions (json, spatial) load from extensions.duckdb.org on first use. A test must not
-  // depend on the network, and with no network the load hangs rather than failing, so it is
-  // switched off: a test that needs JSON builds its rows with SQL instead.
+  // Spatial, as the app loads it. The Node build caches extensions under the home directory
+  // and ignores `extension_directory`, so home points at a cache in node_modules while it
+  // loads: writable in CI and sandboxes, fetched from extensions.duckdb.org once, read from
+  // disk after. Nothing else autoloads, so a test cannot quietly depend on the network.
   conn.query('SET autoinstall_known_extensions = false')
   conn.query('SET autoload_known_extensions = false')
+  const home = process.env.HOME
+  process.env.HOME = resolve('node_modules/.cache/duckdb-home')
+  try {
+    conn.query('INSTALL spatial')
+    conn.query('LOAD spatial')
+  } finally {
+    process.env.HOME = home
+  }
   const prepared = new Map<string, ReturnType<BlockingConnection['prepare']>>()
   const counters = { executions: 0, prepares: 0, execs: 0 }
 
@@ -107,10 +113,6 @@ export async function openNodeDuck(): Promise<NodeDuck> {
     async release(sql) {
       prepared.get(sql)?.close()
       prepared.delete(sql)
-    },
-    async insertArrow(name, ipc) {
-      conn.query(`DROP TABLE IF EXISTS "${name.replace(/"/g, '""')}"`)
-      conn.insertArrowFromIPCStream(ipc, { name, create: true })
     },
     registerText(name, text) {
       db.registerFileText(name, text)

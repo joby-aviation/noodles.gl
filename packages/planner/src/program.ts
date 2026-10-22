@@ -46,7 +46,7 @@ import { propParam, type LayerKind } from './layers.js';
 import { quoteIdent } from './backends/sql.js';
 import {
   type RelShape, type RelColumn,
-  sourceSql, joinSql, unionSql, sortSql, limitSql, sqlNodeSql, generateSql, unnestSql, rowwiseSql,
+  sourceSql, verticesSql, joinSql, unionSql, sortSql, limitSql, sqlNodeSql, generateSql, unnestSql, rowwiseSql,
 } from './relational.js';
 
 export type Route = 'rematerialize' | 'requery' | 'uniform' | 'cpu' | 'prop';
@@ -358,6 +358,7 @@ export async function compileProgram(
         case 'sql': ({ sql, params: used } = sqlNodeSql(node, refs, values)); vectors = []; break;
         case 'generate': ({ sql, params: used } = generateSql(node, values)); vectors = []; break;
         case 'unnest': ({ sql, vectors } = unnestSql(node, refs[0], shapes[0])); break;
+        case 'vertices': sql = verticesSql(node, refs[0], shapes[0]); vectors = []; break;
         default: {
           // A row-wise node a relational node reads: its tail, lowered to SQL.
           const chainIds = [...tailOf(node.id, inputIds[0]), node.id].filter((id) => byId.get(id)!.type !== 'stats');
@@ -384,7 +385,7 @@ export async function compileProgram(
       // Materialize what is expensive to recompute or read more than once. A cheap relation
       // read once is inlined, so it costs no memory and DuckDB can push predicates through it.
       const materialize =
-        node.type === 'source' || node.type === 'join' || node.type === 'unnest' ||
+        node.type === 'source' || node.type === 'join' || node.type === 'unnest' || node.type === 'vertices' ||
         node.type === 'sql' || node.type === 'generate' || node.type === 'union' || cons.length >= 2;
       const table = `__m_${hash}`;
       const rel: RelationPlan = {
