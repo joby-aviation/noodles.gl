@@ -380,6 +380,31 @@ test('flights fixture: generator reproduces the committed CSV; expected sets are
   assert.equal(`${route?.origin}-${route?.destination}`, 'JRA-HTO')
 })
 
+test('referencedPaths: op() and mustache refs parse; adversarial input stays linear', async () => {
+  const { referencedPaths } = await import('./lib/task-checks/flight-fixture')
+  assert.deepEqual(
+    referencedPaths(
+      'const t = op(\'/threshold\').par.value\nop( "./sibling" )\nWHERE a > {{/threshold.par.value}} AND b = {{ config.par.status }} AND c = {{nested/child/leaf.out.val}}'
+    ),
+    ['/threshold', './sibling', '/threshold', 'config', 'nested/child/leaf']
+  )
+  // unchanged from before the ReDoS fix: a mustache path can't start with '.'
+  assert.deepEqual(referencedPaths('{{./rel.par.x}} {{no-dot}} {{}} {{ }} plain text'), [])
+  // Each of these took exponential (or quadratic) time with the old nested
+  // quantifier; 100k characters must finish well under a second.
+  for (const adversarial of [
+    `{{${'a/'.repeat(50_000)}`,
+    `{{${'a/'.repeat(50_000)}}}`,
+    '{{'.repeat(50_000),
+    '{{ a'.repeat(25_000),
+  ]) {
+    const start = performance.now()
+    assert.deepEqual(referencedPaths(adversarial), [])
+    const ms = performance.now() - start
+    assert.ok(ms < 500, `took ${ms.toFixed(0)} ms on a ${adversarial.length}-char input`)
+  }
+})
+
 // Synthetic probe results shaped like get_node_output on a layer node.
 async function probeFor(ids: string[], opts: { withIds?: boolean; timestamps?: boolean } = {}) {
   const { fixtureFlights } = await import('./lib/task-checks/flight-fixture')

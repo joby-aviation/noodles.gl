@@ -169,7 +169,19 @@ export function renderedLayerIds(project: ProjectJson): string[] {
     .map(n => n.id as string)
 }
 
-const REF_RES = [/op\(\s*['"]([^'"]+)['"]\s*\)/g, /\{\{\s*([^}.\s]+(?:\/[^}.\s]+)*)\./g]
+// op('/path') and {{/path.par.x}} references. The mustache path is one run of
+// non-delimiter characters (slashes included) up to the first '.': a single
+// character class with no nested quantifier, so it cannot backtrack
+// exponentially on a long unterminated '{{a/a/a/...' (CodeQL js/redos). '{' is
+// excluded too, so a run of '{{{{...' fails at each start in constant time.
+const REF_RES = [/op\(\s*['"]([^'"]+)['"]\s*\)/g, /\{\{\s*([^{}.\s]+)\./g]
+
+/** Raw paths named by op()/mustache references in a text, in match order. */
+export function referencedPaths(text: string): string[] {
+  const paths: string[] = []
+  for (const re of REF_RES) for (const m of text.matchAll(re)) paths.push(m[1])
+  return paths
+}
 
 /** Every node an input depends on: upstream edges, op()/mustache references
  * in upstream inputs, and the children of any container on the way. */
@@ -210,15 +222,12 @@ function references(value: unknown, fromId: string, ids: Set<string>): string[] 
   if (!text) return []
   const container = fromId.split('/').slice(0, -1).join('/')
   const found: string[] = []
-  for (const re of REF_RES) {
-    for (const m of text.matchAll(re)) {
-      const raw = m[1]
-      const candidates = raw.startsWith('/')
-        ? [raw]
-        : [`${container}/${raw.replace(/^\.\//, '')}`, `/${raw.replace(/^\.\//, '')}`]
-      const hit = candidates.find(c => ids.has(c))
-      if (hit) found.push(hit)
-    }
+  for (const raw of referencedPaths(text)) {
+    const candidates = raw.startsWith('/')
+      ? [raw]
+      : [`${container}/${raw.replace(/^\.\//, '')}`, `/${raw.replace(/^\.\//, '')}`]
+    const hit = candidates.find(c => ids.has(c))
+    if (hit) found.push(hit)
   }
   return found
 }
