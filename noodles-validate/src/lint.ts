@@ -179,8 +179,10 @@ function checkNode(
     )
   }
 
-  // Checked by the old scripts/validate-examples.js, and in the graph design guidelines
-  if (/-\d+$/.test(id)) {
+  // Checked by the old scripts/validate-examples.js, and in the graph design
+  // guidelines. Only an operator's name and a number, as the editor names new
+  // nodes (/file-1, /duckdb-0); /flights-2024 or /route-66 say what they hold
+  if (isGenericName(id, registry)) {
     report(
       'warning',
       'generic-node-name',
@@ -231,6 +233,8 @@ function checkEdges(
   const ids = new Map<string, number>()
   // target + targetHandle -> indexes of the edges into it
   const incoming = new Map<string, number[]>()
+  // source -> target -> index of an edge that makes target depend on source
+  const dependsOn = new Map<string, Map<string, number>>()
 
   edges.forEach((edge, index) => {
     const at = `edges[${index}]`
@@ -313,8 +317,28 @@ function checkEdges(
     if (sourceOk && targetOk) {
       const key = `${t}\u0000${th}`
       incoming.set(key, [...(incoming.get(key) ?? []), index])
+      // As in transform-graph.ts: an edge from a node's own par. field to itself
+      // or into its children is no dependency, or every container would loop
+      const enclosed = sh.startsWith('par.') && (t === s || t.startsWith(`${s}/`))
+      if (!enclosed) {
+        const targets = dependsOn.get(s) ?? new Map<string, number>()
+        if (!targets.has(t)) targets.set(t, index)
+        dependsOn.set(s, targets)
+      }
     }
   })
+
+  for (const loop of findLoops(dependsOn)) {
+    const [first, second] = loop
+    const index = dependsOn.get(first)?.get(second) ?? 0
+    report(
+      'error',
+      'cycle',
+      `edges[${index}]`,
+      `Edges form a loop: ${[...loop, first].join(' -> ')}. The editor never runs nodes in a loop; remove one of these edges.`,
+      first
+    )
+  }
 
   for (const [key, indexes] of incoming) {
     if (indexes.length < 2) continue
@@ -332,6 +356,71 @@ function checkEdges(
       target
     )
   }
+}
+
+// One loop per strongly connected component (Tarjan), as the node ids in order
+function findLoops(graph: Map<string, Map<string, number>>): string[][] {
+  const index = new Map<string, number>()
+  const low = new Map<string, number>()
+  const stack: string[] = []
+  const onStack = new Set<string>()
+  const loops: string[][] = []
+  let counter = 0
+  const next = (id: string) => [...(graph.get(id)?.keys() ?? [])]
+
+  const visit = (id: string) => {
+    index.set(id, counter)
+    low.set(id, counter)
+    counter++
+    stack.push(id)
+    onStack.add(id)
+    for (const to of next(id)) {
+      if (!index.has(to)) {
+        visit(to)
+        low.set(id, Math.min(low.get(id) ?? 0, low.get(to) ?? 0))
+      } else if (onStack.has(to)) {
+        low.set(id, Math.min(low.get(id) ?? 0, index.get(to) ?? 0))
+      }
+    }
+    if (low.get(id) !== index.get(id)) return
+    const component = new Set<string>()
+    let member: string | undefined
+    do {
+      member = stack.pop()
+      if (member === undefined) break
+      onStack.delete(member)
+      component.add(member)
+    } while (member !== id)
+    if (component.size > 1 || next(id).includes(id)) loops.push(loopThrough(id, component, next))
+  }
+
+  for (const id of graph.keys()) if (!index.has(id)) visit(id)
+  return loops
+}
+
+// The shortest path from start back to start inside one component
+function loopThrough(
+  start: string,
+  component: Set<string>,
+  next: (id: string) => string[]
+): string[] {
+  const parent = new Map<string, string>([[start, start]])
+  const queue = [start]
+  for (let i = 0; i < queue.length; i++) {
+    const at = queue[i]
+    for (const to of next(at)) {
+      if (to === start) {
+        const path = [at]
+        while (path[0] !== start) path.unshift(parent.get(path[0]) ?? start)
+        return path
+      }
+      if (component.has(to) && !parent.has(to)) {
+        parent.set(to, at)
+        queue.push(to)
+      }
+    }
+  }
+  return [start]
 }
 
 // True when the node exists and the handle names one of its fields
@@ -398,6 +487,18 @@ function hasCanonicalShape(id: string): boolean {
   if (arrow < 0) return false
   return [id.slice(0, arrow), id.slice(arrow + 2)].every(
     side => side.startsWith('/') && /\.(out|par)\./.test(side)
+  )
+}
+
+function isGenericName(id: string, registry: Registry): boolean {
+  const prefix = /([^/]+)-\d+$/.exec(id)?.[1]
+  if (!prefix) return false
+  return Object.values(registry.operators).some(op =>
+    [op.name, op.type.replace(/Op$/, '')].some(
+      name =>
+        prefix === name.toLowerCase() ||
+        prefix === name.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase()
+    )
   )
 }
 

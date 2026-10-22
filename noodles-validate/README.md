@@ -2,11 +2,21 @@
 
 Checks Noodles.gl project files (`noodles.json`) against the operator registry, in plain Node, with no browser or build step. Use it after writing or editing a project file: when it prints `OK`, the file is done.
 
+From the repo root, after `npm install`:
+
 ```bash
-npx validate-projects path/to/noodles.json
+npm run validate:projects -- path/to/noodles.json
 ```
 
-Run it from anywhere in the repo after `npm install` at the root. With no paths it checks `noodles-editor/src/examples` and `noodles-editor/public/noodles`. A directory is searched for `noodles.json` files and other `.json` files shaped like a project.
+From anywhere else, run the file directly; paths are relative to where you run it:
+
+```bash
+node /path/to/noodles.gl/noodles-validate/bin/validate-projects.ts path/to/noodles.json
+```
+
+Don't run it as a bare `npx validate-projects`: the name isn't published on npm, so in a checkout without `node_modules` (a fresh clone, or a git worktree) npx would download and run whatever package someone publishes under it.
+
+With no paths it checks `noodles-editor/src/examples` and `noodles-editor/public/noodles`. A directory is searched for `noodles.json` files and other `.json` files shaped like a project.
 
 ```
 noodles-editor/src/examples/quakes/noodles.json

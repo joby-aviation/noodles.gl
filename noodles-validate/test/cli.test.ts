@@ -5,7 +5,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { EXIT_INVALID, EXIT_OK, EXIT_USAGE, run } from '../src/cli.ts'
+import { EXIT_INVALID, EXIT_OK, EXIT_USAGE, run, validateFile } from '../src/cli.ts'
+import { loadRegistry } from '../src/index.ts'
 import { currentFixtures } from './fixtures.ts'
 
 const PACKAGE = fileURLToPath(new URL('..', import.meta.url))
@@ -70,6 +71,13 @@ describe('validate-projects', () => {
     const { code, stdout } = cli(file)
     assert.equal(code, EXIT_INVALID)
     assert.match(stdout, /Not valid JSON.*\[invalid-json\]/)
+  })
+
+  it('reports a file it cannot read under its own rule', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'noodles-validate-'))
+    const result = validateFile(dir, loadRegistry())
+    assert.equal(result.valid, false)
+    assert.equal(result.errors[0].rule, 'unreadable-file')
   })
 
   it('exits 2 for a missing path, an unknown flag, or no projects found', () => {
