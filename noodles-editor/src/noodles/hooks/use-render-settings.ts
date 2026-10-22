@@ -37,6 +37,7 @@ export function useRenderSettings(): RenderSettings {
       outOp.inputs.framerate.subscribe(() => updateSettings()),
       outOp.inputs.captureDelay.subscribe(() => updateSettings()),
       outOp.inputs.rendersDirectory.subscribe(() => updateSettings()),
+      outOp.inputs.sequenceFormat.subscribe(() => updateSettings()),
     ]
 
     function updateSettings() {
@@ -75,6 +76,7 @@ export function getRenderSettingsFromOutOp(outOp: OutOp): RenderSettings {
     framerate: outOp.inputs.framerate.value,
     captureDelay: outOp.inputs.captureDelay.value,
     rendersDirectory: outOp.inputs.rendersDirectory.value,
+    sequenceFormat: outOp.inputs.sequenceFormat.value as RenderSettings['sequenceFormat'],
   }
 }
 
@@ -117,5 +119,8 @@ export function setRenderSettingsOnOutOp(outOp: OutOp, settings: Partial<RenderS
   }
   if (settings.rendersDirectory !== undefined) {
     outOp.inputs.rendersDirectory.setValue(settings.rendersDirectory)
+  }
+  if (settings.sequenceFormat !== undefined) {
+    outOp.inputs.sequenceFormat.setValue(settings.sequenceFormat)
   }
 }
