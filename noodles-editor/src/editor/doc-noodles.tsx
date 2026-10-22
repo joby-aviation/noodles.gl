@@ -11,6 +11,7 @@ import type { UndoRedoHandlerRef } from '../noodles/components/UndoRedoHandler'
 import { useActiveStorageType, useFileSystemStore } from '../noodles/filesystem-store'
 import newProjectJSON from '../noodles/new.json'
 import { copyExampleAssetsToMemory, load, readAssetBinary, save } from '../noodles/storage'
+import { useUIStore } from '../noodles/store'
 import { memoryProjectStore } from '../noodles/utils/memory-project-store'
 import {
   DEFAULT_RENDER_SETTINGS,
@@ -99,7 +100,8 @@ export function useDocNoodles(): Visualization {
   useEffect(() => visCommitted(vis), [vis])
   const [showOverlay, setShowOverlay] = useState(true)
   const [showDebugInfo, setShowDebugInfo] = useState(false)
-  const [spreadsheetVisible, setSpreadsheetVisible] = useState(false)
+  const spreadsheetVisible = useUIStore(state => state.spreadsheetVisible)
+  const setSpreadsheetVisible = useUIStore(state => state.setSpreadsheetVisible)
   const reactFlowRef = useRef<HTMLDivElement>(null)
   const [showChatPanel, setShowChatPanel] = useState(false)
 
