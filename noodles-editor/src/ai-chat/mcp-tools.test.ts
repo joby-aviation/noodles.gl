@@ -1,5 +1,5 @@
 import type { Deck } from '@deck.gl/core'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { setVisualizationTarget } from '../render/visualization-target'
 import type { ContextLoader } from './context-loader'
 import { MCPTools } from './mcp-tools'
@@ -207,7 +207,13 @@ describe('getDocumentation guards', () => {
 // The editor registers a deck getter rather than a canvas, because with a basemap the
 // deck overlay (and so the canvas) only exists once the map does, after mount
 describe('visualization tools', () => {
-  afterEach(() => setVisualizationTarget(null))
+  beforeEach(() => {
+    vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible')
+  })
+  afterEach(() => {
+    vi.restoreAllMocks()
+    setVisualizationTarget(null)
+  })
 
   function redCanvas(width: number, height: number): HTMLCanvasElement {
     const canvas = document.createElement('canvas')
@@ -271,6 +277,23 @@ describe('visualization tools', () => {
       pickable: false,
       dataLength: 3,
     })
+  })
+
+  it('refuses in a hidden tab, whose canvas does not show the latest edit', async () => {
+    vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden')
+    setVisualizationTarget({ getDeck: () => ({ canvas: redCanvas(8, 8) }) as unknown as Deck })
+
+    const result = await new MCPTools().captureVisualization({})
+
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('tab is hidden')
+  })
+
+  it('says the map is still loading when there is no canvas yet', async () => {
+    const result = await new MCPTools().captureVisualization({})
+
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('not finished loading')
   })
 })
 

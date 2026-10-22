@@ -113,6 +113,9 @@ The agent's `capture_visualization` tool is not a `screenshot_taken`: it returns
 | `analytics_consent_granted` | - | analytics.ts (setConsent) |
 | `analytics_consent_denied` | - | analytics.ts (setConsent) |
 | `analytics_enabled_in_settings` | - | settings-dialog.tsx |
+| `claude_code_prompt_copied` | `source` (`assistant_onboarding`) | assistant-onboarding.tsx |
+
+The website's "Use with Claude Code" section sends `claude_code_prompt_copied` too, with `location: 'landing'`, through the site's own PostHog and GA tags (`website/src/components/ClaudeCodeQuickStart`). The prompt text itself is never sent.
 
 ### Performance
 
