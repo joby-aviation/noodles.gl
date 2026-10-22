@@ -104,6 +104,9 @@ export const FUNCTIONS: Record<string, FnSpec> = {
     width: 'broadcast',
   },
 
+  // Text read as a number, NULL when it is not one: how a numeric field typed as text is used.
+  to_number: { arity: [1, 1], sql: (a) => `TRY_CAST(${a[0]} AS DOUBLE)`, wgsl: null, width: 1 },
+
   // A uniform random number in [0, 1) per row, drawn by DuckDB each time the query runs.
   random: { arity: [0, 0], sql: () => 'random()', wgsl: null, width: 1 },
 

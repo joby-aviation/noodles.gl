@@ -330,3 +330,26 @@ describe('vectors from SQL on the CPU', () => {
     expect([...(out.values.get('k')?.data ?? [])].map((x) => Math.round(x * 255))).toEqual([51, 140, 0])
   })
 })
+
+describe('text used as a number', () => {
+  it('casts a string column in arithmetic, and leaves string comparisons alone', () => {
+    const graph = {
+      params: {},
+      nodes: [
+        { id: 'src', type: 'source' as const, dataset: { ref: 't' } },
+        { id: 'f', type: 'filter' as const, input: 'src', predicate: "name != 'x'" },
+        { id: 'r', type: 'attribute' as const, input: 'f', name: 'r', expr: 'sqrt(exits) * 2.0' },
+        { id: 'l', type: 'layer' as const, kind: 'scatter' as const, input: 'r', channels: { position: 'P0', radius: 'r' } },
+        { id: 'p', type: 'attribute' as const, input: 'src', name: 'P0', expr: '[0.0, 0.0]' },
+      ],
+      output: 'l',
+    }
+    graph.nodes[1] = { ...graph.nodes[1], input: 'p' } as never
+    const physical = plan(graph as never, new Map(), {
+      policy: 'auto', relation: '"t"', caps: targetCaps('deck-webgl2', undefined),
+      columnTypes: new Map([['exits', 'str'], ['name', 'str']]),
+    })
+    expect(physical.sql).toContain('sqrt(TRY_CAST("exits" AS DOUBLE))')
+    expect(physical.sql).toContain(`("name" <> 'x')`)
+  })
+})
