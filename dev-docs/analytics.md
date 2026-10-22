@@ -99,7 +99,7 @@ Tracked in the renderer, not the buttons, so the Export button, the render setti
 | `screenshot_taken` | `source` | renderer.ts (captureScreenshot) |
 
 - `source`: `menu` (the logo menu and the Out node's panel), `toolbar` (the top bar's Export button) or `agent` (the `export_video` tool)
-- `format`: `mp4`, `png_sequence`, or `exr_sequence`; `codec` (`avc`, `hevc`, `vp9`, `av1`) is sent for `mp4` only
+- `format`: `mp4`, `webm` (a transparent video), `png_sequence`, or `exr_sequence`; `codec` (`avc`, `hevc`, `vp9`, `av1`) is sent for `mp4` and `webm` only
 - `resolution`: a bucket by the short side (`under_720p`, `720p`, `1080p`, `1440p`, `4k`, `8k`), not exact dimensions
 - `durationMs`: wall time from the end of the save dialog to the end of the render
 - `errorCategory`: `unsupported_codec`, `frame`, `encoder` or `exception`. `errorName` is the error class or DOMException name (`NotAllowedError`). The error message is never sent, since it can contain file paths.

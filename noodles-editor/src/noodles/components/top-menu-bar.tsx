@@ -6,9 +6,11 @@ import { useLocation } from 'wouter'
 import logoSvg from '/noodles-favicon.svg'
 import { SettingsDialog } from '../../components/settings-dialog'
 import type { RenderSource } from '../../render/render-analytics'
+import { exportsTransparentVideo } from '../../render/video-export'
 import { analytics } from '../../utils/analytics'
 import { debugUI } from '../../utils/debug'
 import { useActiveOutOp } from '../hooks/use-active-outop'
+import { useRenderSettings } from '../hooks/use-render-settings'
 import { ContainerOp } from '../operators'
 import { getOpStore, type MapMode, useNestingStore, useUIStore } from '../store'
 import { directoryHandleCache } from '../utils/directory-handle-cache'
@@ -124,6 +126,7 @@ export function TopMenuBar({
   const setCurrentContainerId = useNestingStore(state => state.setCurrentContainerId)
   const reactFlow = useReactFlow()
   const activeOutOp = useActiveOutOp()
+  const renderSettings = useRenderSettings()
 
   // Load recent projects on mount
   useEffect(() => {
@@ -738,6 +741,7 @@ export function TopMenuBar({
         <div className={s.rightSection}>
           <ExportButton
             activeOutOpId={activeOutOp?.id ?? null}
+            transparentVideo={exportsTransparentVideo(renderSettings)}
             isRendering={Boolean(isRendering)}
             takeScreenshot={takeScreenshot}
             startRender={startRender}
