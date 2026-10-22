@@ -3,6 +3,7 @@ import { lowerDocument, parameterValues } from './lower.js'
 import { OPERATOR_INDEX, OPERATORS, canConnect, paramAccepts, registerOperator, registerRamp } from './operators.js'
 import { buildRampLut, RAMP_STOPS } from './types.js'
 import { plan } from './planner.js'
+import { evaluateStage } from './cpu-stage.js'
 import { targetCaps } from './target.js'
 import type { EditorDoc } from './doc.js'
 import type { DeckNode, LayerNode } from './types.js'
@@ -278,5 +279,54 @@ describe('host values as parameters', () => {
     const [name] = lowered.slotParams['geo.out.location.lat']
     const host = new Map([['geo.out.location.lat', 39.74]])
     expect(parameterValues(lowered, { T: 0, F: 0 }, host).values[name]).toBe(39.74)
+  })
+})
+
+describe('the auto policy', () => {
+  it('falls back to a legal plan when its rules put CPU work ahead of SQL-only work', () => {
+    const graph = {
+      params: {},
+      nodes: [
+        { id: 'src', type: 'source' as const, dataset: { ref: 't' } },
+        { id: 'c', type: 'attribute' as const, input: 'src', name: 'c', expr: '[sqrt(v), 140.0, 0.0]' },
+        { id: 'o', type: 'attribute' as const, input: 'c', name: 'o', expr: '[0.0, random() * 180.0, 0.0]' },
+        { id: 'l', type: 'layer' as const, kind: 'scatter' as const, input: 'o', channels: { position: 'c' } },
+      ],
+      output: 'l',
+    }
+    const physical = plan(graph as never, new Map([['v', 1]]), {
+      policy: 'auto', relation: '"t"', caps: targetCaps('deck-webgl2', undefined),
+    })
+    expect(physical.assignments.find((a) => a.nodeId === 'o')?.engine).toBe('sql')
+    expect(physical.notes.some((n) => n.includes('cheapest legal plan'))).toBe(true)
+  })
+})
+
+describe('vectors from SQL on the CPU', () => {
+  it('reads each component of a vector attribute SQL produced', () => {
+    const graph = {
+      params: {},
+      nodes: [
+        { id: 'src', type: 'source' as const, dataset: { ref: 't' } },
+        { id: 'p', type: 'attribute' as const, input: 'src', name: 'P', expr: '[item(xy, 0.0), item(xy, 1.0)]' },
+        // random() is SQL-only, which keeps c in SQL.
+        { id: 'c', type: 'attribute' as const, input: 'p', name: 'c', expr: '[v, 140.0, random() * 0.0]' },
+        { id: 'k', type: 'attribute' as const, input: 'c', name: 'k', expr: 'c / 255.0' },
+        { id: 'l', type: 'layer' as const, kind: 'scatter' as const, input: 'k', channels: { position: 'P', color: 'k' } },
+      ],
+      output: 'l',
+    }
+    const physical = plan(graph as never, new Map([['v', 1]]), {
+      policy: 'auto', relation: '"t"', caps: targetCaps('deck-webgl2', undefined),
+      columnTypes: new Map([['v', 'num'], ['xy', 'other']]),
+    })
+    // `c / 255.0` reads a vector: not SQL, so the CPU computes it from c's three components.
+    expect(physical.assignments.find((a) => a.nodeId === 'c')?.engine).toBe('sql')
+    expect(physical.assignments.find((a) => a.nodeId === 'k')?.engine).toBe('cpu')
+    const upload = (values: number[]) => ({
+      tier: 'cast' as const, data: new Float32Array(values), chunkCount: 1, nullCount: 0, convertMs: 0, arrowType: 'Float', rows: 1,
+    })
+    const out = evaluateStage(physical.cpuStage, physical, new Map([['c', upload([51, 140, 0])], ['P', upload([1, 2])]]), {}, 1)
+    expect([...(out.values.get('k')?.data ?? [])].map((x) => Math.round(x * 255))).toEqual([51, 140, 0])
   })
 })

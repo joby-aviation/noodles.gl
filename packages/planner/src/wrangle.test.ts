@@ -144,9 +144,11 @@ describe('wrangle in a graph', () => {
     expect(k.reads.length + k.writes.length + (k.usesRamp ? 1 : 0)).toBeLessThanOrEqual(8);
   });
 
-  it('rejects a plan that would exceed the per-stage binding limit', () => {
+  it('moves work off the GPU rather than exceed the per-stage binding limit', () => {
     const caps = { ...targetCaps('webgpu-native', undefined), maxStorageBuffersPerStage: 3 };
-    expect(() => plan(graph, schema, { caps })).toThrow(/storage buffers.*over the per-stage limit/);
+    const p = plan(graph, schema, { caps });
+    // The rules' split would bind too many buffers; the limit changes the plan instead.
+    expect(p.notes.join(' ')).toMatch(/storage buffers.*over the per-stage limit.*cheapest legal plan/);
   });
 
   it('places each statement independently', () => {

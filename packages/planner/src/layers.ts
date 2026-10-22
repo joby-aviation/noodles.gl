@@ -24,10 +24,13 @@
 export type LayerKind =
   | 'scatter' | 'arc' | 'path' | 'trips' | 'column' | 'text' | 'polygon'
   /** Aggregation layers: deck bins positions on the GPU or CPU, weighted per row. */
-  | 'heatmap' | 'hexagon' | 'grid';
+  | 'heatmap' | 'hexagon' | 'grid'
+  /** A 3D model per row: deck's SimpleMeshLayer (`mesh`) and ScenegraphLayer (`scenegraph`). */
+  | 'mesh' | 'scenegraph';
 
 export const LAYER_KINDS: readonly LayerKind[] = [
   'scatter', 'arc', 'path', 'trips', 'column', 'text', 'polygon', 'heatmap', 'hexagon', 'grid',
+  'mesh', 'scenegraph',
 ];
 
 /**
@@ -51,6 +54,15 @@ export interface LayerKindSpec {
   /** Vertex groups are further split into rings by `ringId`: polygons with holes. */
   rings?: boolean;
 }
+
+/** A model's placement per row: orientation is pitch, yaw, roll in degrees. */
+const MODEL_CHANNELS: ChannelSpec[] = [
+  { name: 'position', type: 'vec', required: true, fallback: 'position' },
+  { name: 'color', type: 'color', fallback: 'color' },
+  { name: 'orientation', type: 'vec' },
+  { name: 'scale', type: 'vec' },
+  { name: 'translation', type: 'vec' },
+];
 
 export const LAYER_SPECS: Record<LayerKind, LayerKindSpec> = {
   scatter: {
@@ -130,6 +142,8 @@ export const LAYER_SPECS: Record<LayerKind, LayerKindSpec> = {
       { name: 'elevationWeight', type: 'num' },
     ],
   },
+  mesh: { channels: MODEL_CHANNELS },
+  scenegraph: { channels: MODEL_CHANNELS },
 };
 
 /**

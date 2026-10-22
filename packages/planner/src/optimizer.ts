@@ -127,12 +127,25 @@ export function optimize(analysis: Analysis, ctx: OptimizeContext): OptimizeResu
   } else {
     chosen = policyAssignment(analysis, ctx, notes);
     const match = candidates.find((c) => sameAssignment(c.assignment, chosen));
-    if (!match?.legal) {
+    method = 'policy';
+    if (!match?.legal && ctx.policy !== 'auto') {
+      // A policy someone chose (sql-first, gpu-first) is refused rather than overridden.
       throw new PlanError(
         `Policy '${ctx.policy}' produced an illegal plan (${label(chosen, n)}): ${match?.reason ?? 'unknown'}`,
       );
     }
-    method = 'policy';
+    if (!match?.legal) {
+      // The rules place each node by what it is, not by what follows it: a CPU-feasible node
+      // ahead of a SQL-only one gets the CPU, and the SQL-only node then has nowhere to go.
+      // A legal plan exists (checked above), so take the cheapest one and say so.
+      const best = legal.reduce((a, b) => ((a.cost?.totalMs ?? Infinity) <= (b.cost?.totalMs ?? Infinity) ? a : b));
+      notes.push(
+        `policy '${ctx.policy}' chose ${label(chosen, n)}, which is illegal (${match?.reason ?? 'unknown'}); ` +
+        `using the cheapest legal plan, ${best.label}`,
+      );
+      chosen = best.assignment;
+      method = 'cost';
+    }
   }
 
   const chosenCandidate = candidates.find((c) => sameAssignment(c.assignment, chosen))!;

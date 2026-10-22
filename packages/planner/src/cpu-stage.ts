@@ -86,7 +86,8 @@ export function evaluateStage(
         return { width: w, component: (c) => `o_${safe(name)}[i * ${w} + ${c}]` };
       }
       usedSources.add(name);
-      return { width: w, component: () => `s_${safe(name)}[i]` };
+      // A vector from SQL arrives interleaved, `w` floats per row.
+      return { width: w, component: (c) => (w > 1 ? `s_${safe(name)}[i * ${w} + ${c}]` : `s_${safe(name)}[i]`) };
     });
     if (emitted.components.some((c) => c.includes('rampAt('))) usesRamp = true;
 

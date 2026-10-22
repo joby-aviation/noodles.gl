@@ -104,6 +104,9 @@ export const FUNCTIONS: Record<string, FnSpec> = {
     width: 'broadcast',
   },
 
+  // A uniform random number in [0, 1) per row, drawn by DuckDB each time the query runs.
+  random: { arity: [0, 0], sql: () => 'random()', wgsl: null, width: 1 },
+
   // Element `i` (0-based) of a list column, such as a `[lng, lat]` read from JSON. SQL only.
   item: {
     arity: [2, 2],

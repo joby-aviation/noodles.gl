@@ -136,6 +136,32 @@ const DEFAULTS: Record<string, Record<string, unknown>> = {
     elevationScale: 1,
   },
   SwitchOp: { index: 0, blend: false },
+  SimpleMeshLayerOp: {
+    visible: true,
+    opacity: 1,
+    mesh: 'https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/humanoid_quad.obj',
+    wireframe: false,
+    getPosition: [0, 0, 0],
+    getColor: '#000000',
+    getOrientation: [0, 0, 0],
+    getScale: [1, 1, 1],
+    sizeScale: 1,
+    getTranslation: [0, 0, 0],
+  },
+  ScenegraphLayerOp: {
+    visible: true,
+    opacity: 1,
+    scenegraph:
+      'https://raw.githubusercontent.com/visgl/deck.gl-data/master/examples/scenegraph-layer/airplane.glb',
+    getPosition: [0, 0, 0],
+    getOrientation: [0, 0, 0],
+    getScale: [1, 1, 1],
+    sizeScale: 1,
+    sizeMinPixels: 0,
+    sizeMaxPixels: 100,
+    getColor: '#fff',
+    getTranslation: [0, 0, 0],
+  },
   MapRangeOp: { val: 0, inMin: 0, inMax: 1, outMin: 0, outMax: 1 },
   ColorRampOp: { colorScheme: 'viridis', value: 0 },
   MathOp: { operator: 'add', a: 0, b: 0 },
@@ -191,6 +217,8 @@ const PLANNER_LAYERS = new Set([
   'HeatmapLayerOp',
   'HexagonLayerOp',
   'GridLayerOp',
+  'SimpleMeshLayerOp',
+  'ScenegraphLayerOp',
 ])
 const PLANNER_SOURCES = new Set(['FileOp', 'DuckDbOp'])
 
@@ -210,6 +238,16 @@ const attributeName = (id: string) =>
   segment(id)
     .replace(/[^A-Za-z0-9_]/g, '_')
     .replace(/^(\d)/, '_$1')
+
+/** The length of a JSON array literal such as `[null]`, or undefined for any other text. */
+function literalLength(text: string): number | undefined {
+  try {
+    const v = JSON.parse(text)
+    return Array.isArray(v) ? v.length : undefined
+  } catch {
+    return undefined
+  }
+}
 
 /** A Noodles operator path, relative (`centroid`, `./a`, `../b`) or absolute, from `from`. */
 function resolveNoodlesPath(path: string, from: string): string {
@@ -252,6 +290,8 @@ const lit = (x: number) => (Number.isInteger(x) ? `${x}.0` : String(x))
 export function translateAccessor(js: string): string | undefined {
   let text = js.trim().replace(/;$/, '')
   if (/^return\s/.test(text)) text = text.slice(7)
+  // colorToHex only respells an RGB array; a color field turns it straight back into one.
+  text = text.replace(/\butils\.colorToHex\(/g, '(')
   // Anything beyond column reads and Math is a host expression.
   if (/\bop\(|\bdata\b|\bi\b|=>|`|\.\w+\(/.test(text.replace(/\bMath\.\w+\(/g, '')))
     return undefined
@@ -484,6 +524,19 @@ export function toEditorDoc(project: NoodlesProject): Migrated {
       }
       nodes.push({ id, op: 'geojson', name: segment(id), ...position(n), params: { url: i.url } })
       sourcePort.set(id, 'all')
+    } else if (
+      n.type === 'ExpressionOp' &&
+      literalLength(String(i.expression ?? '')) !== undefined
+    ) {
+      // A literal array as data: rows to place things at, with nothing in them.
+      const count = literalLength(String(i.expression)) as number
+      nodes.push({
+        id,
+        op: 'generate',
+        name: segment(id),
+        ...position(n),
+        params: { count, name: 'i' },
+      })
     } else if (n.type === 'FileOp' && i.format === 'json' && typeof i.url === 'string') {
       nodes.push({
         id,
@@ -729,6 +782,9 @@ export function toEditorDoc(project: NoodlesProject): Migrated {
    * (JSON gives one), which SQL indexes: the attribute becomes `[item(c, 0), item(c, 1)]`.
    */
   const positionOf = (v: Value, owner: string): string => {
+    if (v.kind === 'const' && Array.isArray(v.value) && v.value.every(x => typeof x === 'number')) {
+      return `[${(v.value as number[]).map(lit).join(', ')}]`
+    }
     if (v.kind !== 'row') throw new MigrationError(`${owner}: a constant position is not converted`)
     const writer = [...chains.values()]
       .flatMap(c => [...c.values()])
@@ -1130,6 +1186,60 @@ export function toEditorDoc(project: NoodlesProject): Migrated {
           'intensity',
           'threshold',
         ])
+        break
+      }
+      case 'SimpleMeshLayerOp':
+      case 'ScenegraphLayerOp': {
+        const scenegraph = layer.type === 'ScenegraphLayerOp'
+        params.position = positionOf(v('getPosition'), layer.id)
+        const color = colorInput(colorChannel(v('getColor')), layer.id, 'getColor')
+        params.color = color.channel ?? ''
+        if (color.color) params.modelColor = color.color
+        for (const [field, param, neutral] of [
+          ['getOrientation', 'orientation', 0],
+          ['getScale', 'scale', 1],
+          ['getTranslation', 'translation', 0],
+        ] as const) {
+          const w = v(field)
+          if (w.kind === 'row') params[param] = w.expr
+          else if (
+            w.kind === 'const' &&
+            Array.isArray(w.value) &&
+            w.value.some((x: unknown) => x !== neutral)
+          )
+            params[param] = positionOf(w, layer.id)
+          else params[param] = ''
+        }
+        const url = scenegraph ? 'scenegraph' : 'mesh'
+        params[url] = String(i[url])
+        params.sizeScale = num(i.sizeScale, 1)
+        const mapped = [
+          'opacity',
+          'visible',
+          'getPosition',
+          'getColor',
+          'getOrientation',
+          'getScale',
+          'getTranslation',
+          url,
+          'sizeScale',
+        ]
+        if (scenegraph) {
+          params.sizeMinPixels = num(i.sizeMinPixels, 0)
+          params.sizeMaxPixels = num(i.sizeMaxPixels, 100)
+          mapped.push('sizeMinPixels', 'sizeMaxPixels')
+        } else {
+          params.wireframe = i.wireframe === true
+          mapped.push('wireframe')
+        }
+        nodes.push({
+          id: layer.id,
+          op: scenegraph ? 'scenegraph' : 'mesh',
+          name: segment(layer.id),
+          ...position(layer),
+          params,
+        })
+        dropUnmapped(layer, mapped)
         break
       }
       case 'HexagonLayerOp':
