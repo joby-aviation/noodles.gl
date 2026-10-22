@@ -3,7 +3,7 @@
 exports[`context budget > reports first-turn headroom per provider window 1`] = `
 [
   {
-    "headroom": 550,
+    "headroom": 500,
     "headroomAfterInspect": 300,
     "system": 2250,
     "target": "webllm 4k (today)",
