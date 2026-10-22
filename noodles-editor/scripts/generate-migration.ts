@@ -17,10 +17,16 @@ const rl = readline.createInterface({
   output: process.stdout,
 })
 
-function question(prompt: string): Promise<string> {
-  return new Promise(resolve => {
-    rl.question(prompt, resolve)
-  })
+// The iterator buffers lines, so answers piped in all at once aren't dropped
+// the way they are with rl.question()
+const lines = rl[Symbol.asyncIterator]()
+
+async function question(prompt: string): Promise<string> {
+  rl.setPrompt(prompt)
+  rl.prompt()
+  const { value, done } = await lines.next()
+  if (done) throw new Error('Input ended before all questions were answered')
+  return value
 }
 
 async function main() {
