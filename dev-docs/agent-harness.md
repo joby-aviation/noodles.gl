@@ -36,6 +36,7 @@ every tool schema on every request, and serialized tool results with no size cap
 | `noodles/openrouter-oauth.ts` | The PKCE flow that mints an OpenRouter key without a paste |
 | `prompts/core.md` | The always-in-context system prompt |
 | `prompts/sections/*.md` | Workflow walkthroughs, retrieved on demand via `get_documentation` |
+| `docs-search.ts` | BM25 passage search behind `get_documentation`: best passage per topic, linked to its heading |
 
 `tool-definitions.ts` and `mcp-tools.ts` remain the single source of truth for the
 tool surface. WebMCP (`src/webmcp/register.ts`) registers all of them and is
