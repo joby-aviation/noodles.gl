@@ -22,17 +22,35 @@ Project files (`noodles.json`) are plain JSON and can be read and written by Cla
 - Only non-default input values need to be serialized
 - Version 18 is current (the latest migration in `src/noodles/__migrations__/`). Write new files at the current version; older files are migrated when they load, so don't bump the version of an existing file by hand
 
+### Looking Things Up Without a Browser
+
+The `noodles` MCP server ([noodles-mcp](../noodles-mcp/README.md)) answers from this checkout, with no dev server running. `.mcp.json` registers it, so Claude Code sessions in this repo have it after `npm install`; approve it when Claude Code asks. Its tools:
+
+- `list_operators`, `get_operator_schema`: every operator, and one operator's inputs, outputs and the `par.`/`out.` handles to wire them
+- `get_documentation`: search the docs and workflow guides, or read a topic by id
+- `list_examples`, `get_example`: the projects under `src/examples/`, with their READMEs and data files
+- `validate_project`: the check below, as a tool
+
+The first five have the same names and parameters as the in-app assistant's tools. With the WebMCP relay also connected, Claude Code tells them apart by server (`mcp__noodles__get_operator_schema`, `mcp__webmcp__get_operator_schema`). The live one reads the running editor's operator classes; the `noodles` one reads a snapshot of them that `npm test` keeps current.
+
+To write a project file:
+
+1. Find a similar project with `list_examples` and read it with `get_example`.
+2. Read each operator you'll use with `get_operator_schema` before writing its edges. Never guess a field name.
+3. Write the file, then validate it (next section) and fix every error.
+4. When it validates, the file is done. Load it in the browser if you want to see it, but don't keep researching.
+
 ### Validating Changes
 
-After editing a project file, check it against the operator registry (run from anywhere in the repo):
+After editing a project file, check it against the operator registry, with the `validate_project` tool or from anywhere in the repo:
 
 ```bash
 npx validate-projects path/to/noodles.json
 ```
 
-It checks the schema version, operator types, input names, edge handles and duplicate edges, and names the fix for each error. When it prints `OK`, the file is valid. With no path it checks every project under `src/examples/` and `public/noodles/`; `npm run validate:examples` checks `src/examples/` only. See [noodles-validate](../noodles-validate/README.md) for the rules and exit codes.
+It checks the schema version, operator types, input names, edge handles and duplicate edges, and names the fix for each error. When it prints `OK` (or `validate_project` returns `"valid": true`), the file is valid. With no path it checks every project under `src/examples/` and `public/noodles/`; `npm run validate:examples` checks `src/examples/` only. See [noodles-validate](../noodles-validate/README.md) for the rules and exit codes.
 
-Load it in the browser at `http://localhost:5173/examples/<project-name>` to visually verify.
+It doesn't check the `timeline` key or run the project. Load it in the browser at `http://localhost:5173/examples/<project-name>` to visually verify.
 
 ### Connecting Claude Code to a Running Browser Instance
 
@@ -94,7 +112,7 @@ When generating or modifying `noodles.json` programmatically:
   ```
 - **Standard pipeline**: FileOp/DuckDbOp → CodeOp (transform) → AccessorOp (position) → LayerOp → DeckRendererOp
 - **Always include MaplibreBasemapOp** for geographic visualizations
-- **Verify handle names** using `get_operator_schema` or the operator registry before writing edges
+- **Verify handle names** with `get_operator_schema` before writing edges, and validate the file when you're done (see [Validating Changes](#validating-changes))
 
 ### Timeline / Animation
 
