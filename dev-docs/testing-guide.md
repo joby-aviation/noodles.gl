@@ -137,9 +137,7 @@ npm test smoke-test
 
 **File:** `noodles-editor/src/render/export-performance.test.ts`
 
-Covers:
-- Timing breakdown logging for video and image sequence export
-- `captureDelay` and `waitForData` settings on `OutOp`
+Covers the `captureDelay` and `waitForData` render settings on `OutOp`.
 
 ```bash
 npm test export-performance
@@ -171,7 +169,6 @@ localStorage.debug = 'noodles:render*'
 - Ensure operator input fields exist and match project data
 
 **Performance test failures:**
-- Timing log format changed → update the instrumentation tests
 - `OutOp` render settings changed → update the settings tests
 
 ### Adding New Rendering Tests
