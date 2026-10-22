@@ -74,9 +74,6 @@ export function findTForX(
   if (x <= 0) return 0
   if (x >= 1) return 1
 
-  // For linear curves, t = x
-  if (x1 === 0 && x2 === 1) return x
-
   // Initial guess using linear approximation
   let t = x
 
@@ -129,6 +126,9 @@ export function evaluateBezierEasing(x: number, handles: BezierHandles): number 
   // Edge cases
   if (x <= 0) return 0
   if (x >= 1) return 1
+
+  // Handles on the diagonal (e.g. Linear, the default) make the curve y = x
+  if (handles.left[0] === handles.left[1] && handles.right[0] === handles.right[1]) return x
 
   // Find t for the given x
   const t = findTForX(x, handles.left[0], handles.right[0])

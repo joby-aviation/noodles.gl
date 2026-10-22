@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { getPresetByName } from '../easing-presets'
 import {
   evaluateBezierEasing,
   evaluateCubicBezier,
@@ -16,6 +17,7 @@ import {
   interpolateVec3,
 } from '../interpolation'
 import type { Keyframe, Track } from '../types'
+import { DEFAULT_BEZIER_HANDLES } from '../types'
 
 describe('evaluateCubicBezier', () => {
   it('returns p0 at t=0', () => {
@@ -46,10 +48,13 @@ describe('findTForX', () => {
     expect(findTForX(1, 0.25, 0.75)).toBe(1)
   })
 
-  it('returns x for linear curve', () => {
-    expect(findTForX(0.5, 0, 1)).toBeCloseTo(0.5, 4)
-    expect(findTForX(0.25, 0, 1)).toBeCloseTo(0.25, 4)
-    expect(findTForX(0.75, 0, 1)).toBeCloseTo(0.75, 4)
+  // x1 = 0, x2 = 1 gives x(t) = 3t^2 - 2t^3, not t. This test used to expect t = x,
+  // which made Linear and default handles play as smoothstep.
+  it('solves x(t) = x when x1 = 0 and x2 = 1', () => {
+    for (const x of [0.01, 0.25, 0.5, 0.75, 0.99]) {
+      const t = findTForX(x, 0, 1)
+      expect(evaluateCubicBezier(t, 0, 0, 1, 1)).toBeCloseTo(x, 3)
+    }
   })
 
   it('converges for ease-in curve', () => {
@@ -85,6 +90,22 @@ describe('evaluateBezierEasing', () => {
       0.5,
       4
     )
+  })
+
+  it('is the identity for Linear and default handles', () => {
+    const linear = getPresetByName('Linear')!.handles
+    for (const x of [0.25, 0.5, 0.75]) {
+      expect(evaluateBezierEasing(x, linear)).toBeCloseTo(x, 6)
+      expect(evaluateBezierEasing(x, DEFAULT_BEZIER_HANDLES)).toBeCloseTo(x, 6)
+    }
+  })
+
+  it('matches CSS cubic-bezier values for Ease In-Out', () => {
+    // cubic-bezier(0.42, 0, 0.58, 1)
+    const handles = getPresetByName('Ease In-Out')!.handles
+    expect(evaluateBezierEasing(0.25, handles)).toBeCloseTo(0.1292, 3)
+    expect(evaluateBezierEasing(0.5, handles)).toBeCloseTo(0.5, 3)
+    expect(evaluateBezierEasing(0.75, handles)).toBeCloseTo(0.8708, 3)
   })
 
   it('returns values between 0 and 1 for standard curves', () => {
