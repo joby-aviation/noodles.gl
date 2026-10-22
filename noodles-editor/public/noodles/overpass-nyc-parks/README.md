@@ -125,7 +125,7 @@ Modify `GeoJsonLayerOp` inputs:
 - **Small areas**: Overpass works best for city-block to city-scale queries
 - **Timeout**: Increase `[timeout:60]` for large queries
 - **Rate limiting**: Avoid rapid-fire queries - Overpass API has rate limits
-- **Alternative endpoints**: Use mirrors if needed:
+- **Alternative endpoints**: Set a mirror in Settings > API Keys > Overpass:
   - `https://overpass.kumi.systems/api/interpreter`
   - `https://overpass.openstreetmap.fr/api/interpreter`
 - **Test queries**: Use [overpass-turbo.eu](https://overpass-turbo.eu/) to test before implementing
