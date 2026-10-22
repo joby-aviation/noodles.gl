@@ -92,6 +92,7 @@ export interface DocTopic {
   title: string
   section: 'users' | 'developers' | 'intro' | 'ai-assistant' | 'examples'
   file: string
+  url: string | null
   content: string
   headings: Heading[]
   codeExamples: CodeExample[]

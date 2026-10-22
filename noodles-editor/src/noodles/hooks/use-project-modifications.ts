@@ -18,6 +18,7 @@ import type { IOperator, Operator } from '../operators'
 import { deleteOp, getAllOps, getOp, setOp, takePendingInsertionIndex } from '../store'
 import { canConnect, validateConnection } from '../utils/can-connect'
 import { expandDeleteSet } from '../utils/copy-paste-utils'
+import { appendUniqueEdges, insertUniqueEdge } from '../utils/edge-integrity'
 import { edgeId } from '../utils/id-utils'
 import {
   insertEdgeAtGroupIndex,
@@ -26,6 +27,7 @@ import {
   orderedEdgeIdsForHandle,
 } from '../utils/multi-input-utils'
 import { generateQualifiedPath, getParentPath, parseHandleId } from '../utils/path-utils'
+import { hasPosition, placeNewNode } from '../utils/viewer-position'
 
 // Using ReactFlowNode instead of AnyNodeJSON for compatibility
 export type ProjectModification =
@@ -71,7 +73,7 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
 
   const addEdges = useCallback(
     (newEdges: ReactFlowEdge[]) => {
-      setEdges(currentEdges => normalizeMultiInputEdges([...currentEdges, ...newEdges]))
+      setEdges(currentEdges => normalizeMultiInputEdges(appendUniqueEdges(currentEdges, newEdges)))
       // Track edge addition
       if (newEdges.length > 0) {
         analytics.track('edge_added', { count: newEdges.length })
@@ -162,10 +164,7 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
       }
 
       // Cascade delete to path-based container children
-      const allDeletedIds = new Set([
-        ...nodesToDelete.map(n => n.id),
-        ...extraDeleted,
-      ])
+      const allDeletedIds = new Set([...nodesToDelete.map(n => n.id), ...extraDeleted])
       setNodes(currentNodes => {
         expandDeleteSet(allDeletedIds, currentNodes)
         return currentNodes.filter(n => !allDeletedIds.has(n.id))
@@ -227,14 +226,12 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
               )
             }
 
-            return [...remainingEdges, ...createdEdges]
+            return appendUniqueEdges(remainingEdges, createdEdges)
           }, currentEdges)
         )
 
         // Remove edges referencing any cascaded-deleted child
-        return reconnected.filter(
-          e => !allDeletedIds.has(e.source) && !allDeletedIds.has(e.target)
-        )
+        return reconnected.filter(e => !allDeletedIds.has(e.source) && !allDeletedIds.has(e.target))
       })
 
       return { success: true, warnings: warnings.length > 0 ? warnings : undefined }
@@ -452,6 +449,23 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
         }
       }
 
+      // A node without a position crashes the canvas on its first render (edge
+      // hit-testing reads position.x), and the whole batch is lost with it. The AI
+      // assistant often leaves it out.
+      for (const [index, node] of nodesToAdd.entries()) {
+        if (hasPosition(node)) continue
+        const placed = [...getNodes(), ...nodesToAdd.filter(hasPosition)]
+        nodesToAdd[index] = { ...node, position: placeNewNode(node.id, edgesToAdd, placed) }
+      }
+
+      // An update aimed at no node would otherwise vanish while the result says success
+      if (nodesToUpdate.length > 0) {
+        const present = new Set([...getNodes().map(n => n.id), ...nodesToAdd.map(n => n.id)])
+        for (const { id } of nodesToUpdate) {
+          if (!present.has(id)) allWarnings.push(`update_node: no node ${id ?? '(missing id)'}`)
+        }
+      }
+
       // Apply node deletions first
       if (nodesToDelete.length > 0) {
         // Get the actual node objects before deletion
@@ -605,7 +619,7 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
             // Normalization here can miss edges into just-added nodes (their operators don't
             // exist in the store yet); the transformGraph effect re-normalizes right after
             setEdges(currentEdges =>
-              normalizeMultiInputEdges([...currentEdges, ...edgesToAddOptimistically])
+              normalizeMultiInputEdges(appendUniqueEdges(currentEdges, edgesToAddOptimistically))
             )
             debugUI(`✅ Added ${edgesToAddOptimistically.length} edge(s) optimistically`)
           }
@@ -692,7 +706,9 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
 
           // Add all valid edges atomically
           if (validEdges.length > 0) {
-            setEdges(currentEdges => normalizeMultiInputEdges([...currentEdges, ...validEdges]))
+            setEdges(currentEdges =>
+              normalizeMultiInputEdges(appendUniqueEdges(currentEdges, validEdges))
+            )
 
             // Update field connections for valid edges
             for (const { edge, sourceField, targetField } of edgeFieldConnections) {
@@ -737,9 +753,10 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
       if (connection.source === connection.target) return
 
       const nodes = getNodes()
+      const currentEdges = getEdges()
       const edges = opts?.replaceEdgeId
-        ? getEdges().filter(e => e.id !== opts.replaceEdgeId)
-        : getEdges()
+        ? currentEdges.filter(e => e.id !== opts.replaceEdgeId)
+        : currentEdges
 
       // Consume the slot index MultiInputHandle tracked during the drag; consuming also
       // clears it so a hover over one handle can't leak into a later gesture
@@ -754,8 +771,8 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
         targetHandle: connection.targetHandle || null,
       }
 
-      // Duplicate connection (same source, target, and handles): edge ids collide
-      if (edges.some(e => e.id === newEdge.id)) return
+      // A repeated gesture is a no-op even if a caller supplied a non-canonical edge ID.
+      if (insertUniqueEdge(edges, newEdge) === edges) return
 
       const source = nodes.find(n => n.id === connection.source)
       if (!source) {
@@ -809,8 +826,16 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
           opts?.insertionIndex ??
           pendingIndex ??
           orderedEdgeIdsForHandle(edges, newEdge.target, newEdge.targetHandle).length
-        const next = normalizeMultiInputEdges(insertEdgeAtGroupIndex(edges, newEdge, index))
-        setEdges(next)
+        const insertAtSlot = (current: ReactFlowEdge[], candidate: ReactFlowEdge) =>
+          insertEdgeAtGroupIndex(current, candidate, index)
+        const buildNext = (latest: ReactFlowEdge[]) => {
+          const base = opts?.replaceEdgeId
+            ? latest.filter(edge => edge.id !== opts.replaceEdgeId)
+            : latest
+          return normalizeMultiInputEdges(insertUniqueEdge(base, newEdge, insertAtSlot))
+        }
+        const next = buildNext(currentEdges)
+        setEdges(latest => buildNext(latest))
         targetField.addConnection(newEdge.id, sourceField)
         targetField.setConnectionOrder(
           orderedEdgeIdsForHandle(next, newEdge.target, newEdge.targetHandle)
@@ -824,7 +849,21 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
           targetOp.removeConnectionError(existing.id)
           targetField.removeConnection(existing.id)
         }
-        setEdges(normalizeMultiInputEdges(edges.filter(e => e.id !== existing?.id).concat(newEdge)))
+        const buildNext = (latest: ReactFlowEdge[]) => {
+          const base = opts?.replaceEdgeId
+            ? latest.filter(edge => edge.id !== opts.replaceEdgeId)
+            : latest
+          const replaced = base.find(
+            edge => edge.target === newEdge.target && edge.targetHandle === newEdge.targetHandle
+          )
+          return normalizeMultiInputEdges(
+            insertUniqueEdge(
+              base.filter(edge => edge.id !== replaced?.id),
+              newEdge
+            )
+          )
+        }
+        setEdges(latest => buildNext(latest))
         targetField.addConnection(newEdge.id, sourceField)
       }
 
@@ -839,7 +878,7 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
       // Update target node with new input value
       setNodes(nds => {
         const updated = [...nds]
-        let value
+        let value: unknown
         if (targetField instanceof ListField) {
           // Safely get values from ListField
           try {

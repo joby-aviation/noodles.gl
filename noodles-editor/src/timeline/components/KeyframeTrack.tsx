@@ -35,9 +35,13 @@ function snapToFrame(time: number, fps: number): number {
 
 // Extract display name from field path
 // "maplibre-basemap / viewState / zoom" -> "zoom"
-function getDisplayName(fieldPath: string): string {
+// Table cells: "cities / data / 0 / population" -> "population (row 1)", matching the table's # column
+export function getDisplayName(fieldPath: string): string {
   const parts = fieldPath.split(' / ')
-  return parts[parts.length - 1]
+  const name = parts[parts.length - 1]
+  const row = parts[parts.length - 2]
+  if (parts.length >= 4 && /^\d+$/.test(row)) return `${name} (row ${Number(row) + 1})`
+  return name
 }
 
 interface KeyframeTrackLabelProps {
@@ -207,6 +211,7 @@ function KeyframeTrackLabel({
       </div>
       {contextMenu &&
         createPortal(
+          // biome-ignore lint/a11y/noStaticElementInteractions: keeps a click in the menu from closing it
           <div
             ref={trackMenuRef}
             className={s.handleTypeMenu}
@@ -579,7 +584,10 @@ function KeyframeShape({
 
       case 'hold':
         // Square with rounded corners
-        return { filled: 'M 2.5 2 L 7.5 2 Q 8 2 8 2.5 L 8 7.5 Q 8 8 7.5 8 L 2.5 8 Q 2 8 2 7.5 L 2 2.5 Q 2 2 2.5 2 Z' }
+        return {
+          filled:
+            'M 2.5 2 L 7.5 2 Q 8 2 8 2.5 L 8 7.5 Q 8 8 7.5 8 L 2.5 8 Q 2 8 2 7.5 L 2 2.5 Q 2 2 2.5 2 Z',
+        }
 
       case 'hold-ease-out':
         // Square with right curved notch (ease out) - prominent square left side
@@ -885,6 +893,7 @@ function KeyframeDiamond({
       </div>
       {contextMenu &&
         createPortal(
+          // biome-ignore lint/a11y/noStaticElementInteractions: keeps a click in the menu from closing it
           <div
             ref={menuRef}
             className={s.handleTypeMenu}

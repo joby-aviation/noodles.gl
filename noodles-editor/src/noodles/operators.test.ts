@@ -1,3 +1,5 @@
+import { LayerExtension } from '@deck.gl/core'
+import { PathStyleExtension } from '@deck.gl/extensions'
 import * as deckWidgets from '@deck.gl/widgets'
 import * as turf from '@turf/turf'
 import { Temporal } from 'temporal-polyfill'
@@ -33,6 +35,7 @@ import {
   GlobeViewOp,
   GreatCircleLayerOp,
   H3ClusterLayerOp,
+  instantiateExtension,
   JSONOp,
   KmlToGeoJsonOp,
   LayerPropsOp,
@@ -68,6 +71,7 @@ import {
   SwitchOp,
   TableEditorOp,
   Tile3DLayerOp,
+  TimeOp,
   TimeSeriesOp,
   TripsLayerOp,
   ZoomWidgetOp,
@@ -236,6 +240,113 @@ describe('Error handling', () => {
       num: 1,
     })
     expect(onError.mock.calls[1][0]).toEqual(new Error('Test error'))
+  })
+})
+
+describe('Operator.isComputing', () => {
+  it('is true for the whole pull, before the executing status appears', async () => {
+    const op = new MathOp('/math', { operator: 'add', a: 2, b: 3 })
+    let finish = () => {}
+    const held = new Promise<void>(resolve => {
+      finish = resolve
+    })
+    const execute = op.execute.bind(op)
+    vi.spyOn(op, 'execute').mockImplementation(async inputs => {
+      await held
+      return execute(inputs)
+    })
+
+    expect(op.isComputing).toBe(false)
+    const pulled = op.pull()
+    expect(op.isComputing).toBe(true)
+    // The status waits 200ms, so a fast check sees idle while work is running
+    expect(op.executionState.value.status).not.toBe('executing')
+
+    finish()
+    await pulled
+    expect(op.isComputing).toBe(false)
+  })
+})
+
+describe('Locked operators', () => {
+  it('serves the last output without executing while locked', async () => {
+    const op = new MathOp('/math', { operator: 'add', a: 2, b: 3 })
+    await op.pull()
+    op.locked.next(true)
+    const execute = vi.spyOn(op, 'execute')
+
+    op.inputs.a.setValue(10)
+
+    await expect(op.pull()).resolves.toEqual({ result: 5 })
+    expect(execute).not.toHaveBeenCalled()
+  })
+
+  it('executes once when locked without any output yet', async () => {
+    const op = new MathOp('/math', { operator: 'add', a: 2, b: 3 }, true)
+    const execute = vi.spyOn(op, 'execute')
+
+    await expect(op.pull()).resolves.toEqual({ result: 5 })
+    op.inputs.a.setValue(10)
+    await expect(op.pull()).resolves.toEqual({ result: 5 })
+    expect(execute).toHaveBeenCalledTimes(1)
+  })
+
+  it('catches up on input changes after unlocking', async () => {
+    const op = new MathOp('/math', { operator: 'add', a: 2, b: 3 })
+    await op.pull()
+    op.locked.next(true)
+    op.inputs.a.setValue(10)
+    await op.pull()
+
+    op.locked.next(false)
+
+    await expect(op.pull()).resolves.toEqual({ result: 13 })
+  })
+
+  it('does not pull upstream while locked', async () => {
+    const upstream = new NumberOp('/num', { val: 1 })
+    const op = new MathOp('/math', { operator: 'add', a: 2, b: 3 })
+    op.addUpstreamDependency(upstream)
+    upstream.addDownstreamDependent(op)
+    await op.pull()
+    op.locked.next(true)
+    const upstreamPull = vi.spyOn(upstream, 'pull')
+
+    upstream.inputs.val.setValue(2)
+    await op.pull()
+
+    expect(upstreamPull).not.toHaveBeenCalled()
+  })
+
+  it('serves outputs set with setOutputValues without executing', async () => {
+    const op = new MathOp('/math', { operator: 'add', a: 2, b: 3 }, true)
+    const execute = vi.spyOn(op, 'execute')
+
+    op.setOutputValues({ result: 42 })
+
+    expect(op.hasOutput).toBe(true)
+    await expect(op.pull()).resolves.toEqual({ result: 42 })
+    expect(execute).not.toHaveBeenCalled()
+  })
+
+  it('restores saved outputs and serves them without executing', async () => {
+    const op = new MathOp('/math', { operator: 'add', a: 2, b: 3 }, true)
+    const execute = vi.spyOn(op, 'execute')
+
+    expect(op.restoreOutputs({ result: 42 })).toBe(true)
+
+    expect(op.outputs.result.value).toBe(42)
+    await expect(op.pull()).resolves.toEqual({ result: 42 })
+    expect(execute).not.toHaveBeenCalled()
+  })
+
+  it('ignores saved outputs that no longer fit the output fields', async () => {
+    const op = new MathOp('/math', { operator: 'add', a: 2, b: 3 }, true)
+
+    expect(op.restoreOutputs({ result: 'not a number' })).toBe(false)
+
+    expect(op.hasOutput).toBe(false)
+    await expect(op.pull()).resolves.toEqual({ result: 5 })
   })
 })
 
@@ -825,6 +936,30 @@ describe('MathOps', () => {
   })
 })
 
+describe('TimeOp', () => {
+  it('feeds a downstream MathOp through a pull', async () => {
+    const clock = new TimeOp('/clock')
+    const seconds = new MathOp('/seconds', { operator: 'divide', b: 1000 })
+    seconds.inputs.a.addConnection('/clock.out.now', clock.outputs.now)
+    seconds.addUpstreamDependency(clock)
+    clock.addDownstreamDependent(seconds)
+
+    const first = await seconds.pull()
+    expect(typeof first.result).toBe('number')
+    expect(first.result).toBe(Date.now() / 1000)
+
+    vi.advanceTimersByTime(1000)
+    vi.advanceTimersToNextFrame()
+
+    const second = await seconds.pull()
+    expect(second.result).toBe(Date.now() / 1000)
+    expect(second.result).toBeGreaterThan(first.result)
+    await expect(clock.pull()).resolves.toMatchObject({ now: Date.now() })
+
+    clock.dispose()
+  })
+})
+
 describe('FilterOp', () => {
   it('executes a FilterOp', () => {
     const operator = new FilterOp('/filter')
@@ -1047,6 +1182,25 @@ describe('ScatterplotLayerOp', () => {
     expect(layer.otherProp).toEqual(1)
   })
 
+  it('passes LayerExtension instances through alongside descriptors', () => {
+    class CustomExtension extends LayerExtension {}
+    const custom = new CustomExtension()
+    const operator = new ScatterplotLayerOp('/scatterplot-0')
+    const { layer } = operator.execute({
+      extensions: [
+        { extension: custom, props: { customProp: 1 } },
+        null,
+        { extension: { type: 'PathStyleExtension', dash: true }, props: { dashJustified: true } },
+      ],
+    })
+
+    expect(layer.extensions).toHaveLength(2)
+    expect(layer.extensions[0]).toBe(custom)
+    expect(layer.extensions[1]).toEqual({ type: 'PathStyleExtension', dash: true })
+    expect(layer.customProp).toBe(1)
+    expect(layer.dashJustified).toBe(true)
+  })
+
   it('creates a scatterplot layer with updateTriggers', () => {
     const operator = new ScatterplotLayerOp('/scatterplot-0')
     const { layer } = operator.execute({
@@ -1055,6 +1209,30 @@ describe('ScatterplotLayerOp', () => {
     })
     expect(layer.updateTriggers).toEqual({ getPosition: ['test'] })
     expect(layer.otherProp).toEqual(1)
+  })
+})
+
+describe('instantiateExtension', () => {
+  it('returns LayerExtension instances unchanged', () => {
+    class CustomExtension extends LayerExtension {}
+    const custom = new CustomExtension()
+
+    expect(instantiateExtension(custom)).toBe(custom)
+  })
+
+  it('instantiates descriptors with their constructor args', () => {
+    const extension = instantiateExtension({ type: 'PathStyleExtension', dash: true })
+
+    expect(extension).toBeInstanceOf(PathStyleExtension)
+    expect(extension?.opts).toMatchObject({ dash: true })
+  })
+
+  it('instantiates wrapped extensions with their preset args', () => {
+    expect(instantiateExtension({ type: 'VibranceExtension' })).toBeInstanceOf(LayerExtension)
+  })
+
+  it('returns null for unknown extension types', () => {
+    expect(instantiateExtension({ type: 'UnknownExtension' })).toBeNull()
   })
 })
 
@@ -3413,6 +3591,19 @@ describe('Tile3DLayerOp', () => {
   const GOOGLE_URL = 'https://tile.googleapis.com/v1/3dtiles/root.json'
   const CESIUM_URL = 'https://assets.ion.cesium.com/242005/tileset.json'
 
+  // Set keys in the store so the tests don't depend on VITE_ env keys
+  beforeEach(() => {
+    getKeysStore().setBrowserKey('googleMaps', 'test-google-key')
+    getKeysStore().setBrowserKey('cesium', 'test-cesium-token')
+  })
+
+  afterEach(() => {
+    // Restore first: the store copies a spied getKey into the next state on set
+    vi.restoreAllMocks()
+    getKeysStore().clearBrowserKey('googleMaps')
+    getKeysStore().clearBrowserKey('cesium')
+  })
+
   it('defaults to the Google tileset URL when provider is Google', async () => {
     const op = new Tile3DLayerOp('/tile3d-0')
     const { layer } = await op.execute({})
@@ -3443,6 +3634,13 @@ describe('Tile3DLayerOp', () => {
     const op = new Tile3DLayerOp('/tile3d-0')
     const { layer } = await op.execute({ tilesetUrl: '', provider: 'Cesium' })
     expect(layer.data).toEqual(CESIUM_URL)
+  })
+
+  it('throws when the provider key is missing', async () => {
+    vi.spyOn(getKeysStore(), 'getKey').mockReturnValue(undefined)
+    const op = new Tile3DLayerOp('/tile3d-0')
+    await expect(op.execute({ provider: 'Cesium' })).rejects.toThrow('Cesium Ion access token')
+    await expect(op.execute({ provider: 'Google' })).rejects.toThrow('Google Maps API key')
   })
 
   it('hides tilesetUrl by default', () => {
@@ -4087,6 +4285,30 @@ describe('CategoricalColorRampOp', () => {
 })
 
 describe('DirectionsOp', () => {
+  it('exposes traffic scheduling inputs with backward-compatible defaults', () => {
+    const directionsOp = new DirectionsOp('/directions')
+
+    expect(directionsOp.inputs.mode.value).toBe('transit')
+    expect(directionsOp.inputs.departureMode.value).toBe('now')
+    expect(directionsOp.inputs.departureTime.value).toBeInstanceOf(Temporal.PlainDateTime)
+    expect(directionsOp.inputs.trafficModel.value).toBe('best-guess')
+    expect(directionsOp.inputs.avoidTolls.value).toBe(false)
+    expect(directionsOp.isFieldVisible('departureMode')).toBe(false)
+    expect(directionsOp.isFieldVisible('departureTime')).toBe(false)
+    expect(directionsOp.isFieldVisible('trafficModel')).toBe(false)
+    expect(directionsOp.isFieldVisible('avoidTolls')).toBe(false)
+
+    directionsOp.inputs.mode.setValue('driving-traffic')
+    expect(directionsOp.isFieldVisible('departureMode')).toBe(true)
+    expect(directionsOp.isFieldVisible('trafficModel')).toBe(true)
+    expect(directionsOp.isFieldVisible('avoidTolls')).toBe(true)
+    expect(directionsOp.isFieldVisible('departureTime')).toBe(false)
+    directionsOp.inputs.departureMode.setValue('scheduled')
+    expect(directionsOp.inputs.mode.value).toBe('driving-traffic')
+    expect(directionsOp.inputs.departureMode.value).toBe('scheduled')
+    expect(directionsOp.isFieldVisible('departureTime')).toBe(true)
+  })
+
   it('accepts GeoJSON Point Features via Point2DField', () => {
     const directionsOp = new DirectionsOp('/directions')
     const feature = {
@@ -4285,6 +4507,27 @@ describe('GeocoderOp', () => {
 
     await expect(geocoderOp.execute({ query: 'Long Beach' })).rejects.toThrow(
       'Mapbox geocoding failed: 429 Too Many Requests'
+    )
+    getKeySpy.mockRestore()
+  })
+
+  it('includes the reason Mapbox gives for rejecting a query', async () => {
+    const getKeySpy = vi.spyOn(getKeysStore(), 'getKey').mockReturnValue('test-token')
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 422,
+        statusText: 'Unprocessable Entity',
+        json: () => Promise.resolve({ message: 'Query too long - 21/20 tokens' }),
+      })
+    )
+
+    const geocoderOp = new GeocoderOp('/geocoder')
+    geocoderOp.inputs.query.addConnection('query-connection', new StringField('Long Beach'))
+
+    await expect(geocoderOp.execute({ query: 'Long Beach' })).rejects.toThrow(
+      'Mapbox geocoding failed: 422 Query too long - 21/20 tokens'
     )
     getKeySpy.mockRestore()
   })

@@ -1,19 +1,18 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest'
 import { analytics } from '../utils/analytics'
 import { ChartOp } from './operators'
 
-// Mock analytics
-vi.mock('../utils/analytics', () => ({
-  analytics: {
-    captureException: vi.fn(),
-    initialize: vi.fn(),
-    track: vi.fn(),
-  },
-}))
+// Spy on the real singleton instead of vi.mock: in browser mode a module mock is a
+// network route, and the real module loads if that route isn't live for this file
+let captureException: MockInstance<typeof analytics.captureException>
 
 describe('ChartOp error handling', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
+    captureException = vi.spyOn(analytics, 'captureException').mockImplementation(() => {})
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
   })
 
   it('should return null chart when data is empty', () => {
@@ -32,7 +31,7 @@ describe('ChartOp error handling', () => {
     })
 
     expect(result.chart).toBeNull()
-    expect(analytics.captureException).not.toHaveBeenCalled()
+    expect(captureException).not.toHaveBeenCalled()
   })
 
   it('should return null chart when xField is empty', () => {
@@ -51,7 +50,7 @@ describe('ChartOp error handling', () => {
     })
 
     expect(result.chart).toBeNull()
-    expect(analytics.captureException).not.toHaveBeenCalled()
+    expect(captureException).not.toHaveBeenCalled()
   })
 
   it('should return null chart when yField is empty for bar chart', () => {
@@ -70,7 +69,7 @@ describe('ChartOp error handling', () => {
     })
 
     expect(result.chart).toBeNull()
-    expect(analytics.captureException).not.toHaveBeenCalled()
+    expect(captureException).not.toHaveBeenCalled()
   })
 
   it('should allow empty yField for histogram', () => {
@@ -112,7 +111,7 @@ describe('ChartOp error handling', () => {
 
     expect(result.chart).not.toBeNull()
     expect(result.chart).toBeInstanceOf(HTMLElement)
-    expect(analytics.captureException).not.toHaveBeenCalled()
+    expect(captureException).not.toHaveBeenCalled()
   })
 
   it('should handle edge-case data gracefully', () => {
@@ -141,7 +140,7 @@ describe('ChartOp error handling', () => {
     expect(result.chart).toBeInstanceOf(HTMLElement)
 
     // Should not capture exception since Plot handles this gracefully
-    expect(analytics.captureException).not.toHaveBeenCalled()
+    expect(captureException).not.toHaveBeenCalled()
   })
 
   it('should capture exception when data accessor throws', () => {
@@ -176,7 +175,7 @@ describe('ChartOp error handling', () => {
     expect(result.chart).toBeNull()
 
     // Should have captured the exception
-    expect(analytics.captureException).toHaveBeenCalledWith(
+    expect(captureException).toHaveBeenCalledWith(
       expect.any(Error),
       expect.objectContaining({
         source: 'chart_op',
@@ -204,6 +203,6 @@ describe('ChartOp error handling', () => {
     })
 
     expect(result.chart).not.toBeNull()
-    expect(analytics.captureException).not.toHaveBeenCalled()
+    expect(captureException).not.toHaveBeenCalled()
   })
 })

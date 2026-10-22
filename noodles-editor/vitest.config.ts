@@ -1,20 +1,40 @@
 import { playwright } from '@vitest/browser-playwright'
 import { nodePolyfills } from 'vite-plugin-node-polyfills'
-import { defineConfig } from 'vitest/config'
+import { configDefaults, defineConfig } from 'vitest/config'
 
 export default defineConfig({
   resolve: {
     dedupe: ['react', 'react-dom'],
   },
   test: {
-    setupFiles: ['src/setupTests.ts'],
-    browser: {
-      provider: playwright(),
-      enabled: true,
-      headless: true,
-      screenshotFailures: false,
-      instances: [{ browser: 'chromium' }],
-    },
+    projects: [
+      {
+        extends: true,
+        test: {
+          name: 'browser',
+          exclude: [...configDefaults.exclude, 'scripts/**'],
+          setupFiles: ['src/setupTests.ts'],
+          browser: {
+            provider: playwright({
+              // Software WebGL so shader tests can render in headless Chromium
+              launchOptions: { args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] },
+            }),
+            enabled: true,
+            headless: true,
+            screenshotFailures: false,
+            instances: [{ browser: 'chromium' }],
+          },
+        },
+      },
+      // CLI scripts need real Node APIs (child processes, the file system)
+      {
+        test: {
+          name: 'node',
+          environment: 'node',
+          include: ['scripts/**/*.test.ts'],
+        },
+      },
+    ],
   },
   optimizeDeps: {
     include: [

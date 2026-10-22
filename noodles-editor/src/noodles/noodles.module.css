@@ -950,61 +950,11 @@
   gap: 2px;
 }
 
-.fieldFileInputGroupSuggestions {
-  position: relative;
-}
-
 .fieldInputFileUrl {
   width: 11rem;
   min-width: 9rem;
   max-width: 16rem;
   padding: 2px 8px;
-}
-
-.fileUrlSuggestions {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
-  z-index: var(--z-index-modal);
-  margin: 2px 0 0;
-  padding: 4px 0;
-  list-style: none;
-  background: rgba(22, 22, 24, 0.98);
-  backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 6px;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
-  max-height: 200px;
-  overflow-y: auto;
-}
-
-.fileUrlSuggestion {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  padding: 6px 10px;
-  cursor: pointer;
-  transition: background 0.1s;
-}
-
-.fileUrlSuggestion:hover,
-.fileUrlSuggestionActive {
-  background: rgba(255, 255, 255, 0.07);
-}
-
-.fileUrlSuggestionLabel {
-  font-size: 11px;
-  color: var(--node-text-color, rgba(255, 255, 255, 0.9));
-  font-weight: 500;
-}
-
-.fileUrlSuggestionUrl {
-  font-size: 9px;
-  color: rgba(255, 255, 255, 0.35);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .fieldInputTypeahead {
@@ -1114,6 +1064,10 @@
   stroke-width: 3;
 }
 
+.lockedEdge {
+  stroke-opacity: 0.3;
+}
+
 .targetedEdge {
   stroke: #3b82f6;
   stroke-width: 3;
@@ -1150,7 +1104,9 @@
     transform: scale(1);
   }
   50% {
-    box-shadow: 0 0 0 5px rgba(59, 130, 246, 0.8), 0 0 20px rgba(59, 130, 246, 0.4);
+    box-shadow:
+      0 0 0 5px rgba(59, 130, 246, 0.8),
+      0 0 20px rgba(59, 130, 246, 0.4);
     transform: scale(1.02);
   }
 }
@@ -1305,6 +1261,22 @@
   align-items: center;
 }
 
+.errorPopoverTrigger {
+  display: inline-flex;
+  align-items: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.errorPopoverTrigger:focus-visible {
+  outline: 2px solid #91a8ba;
+  outline-offset: 1px;
+}
+
 .errorPopover {
   position: absolute;
   top: calc(100% + 6px);
@@ -1360,6 +1332,50 @@
   transition:
     opacity 0.15s ease-out,
     filter 0.15s ease-out;
+}
+
+.unknownOperatorWrapper {
+  border: 2px solid var(--red-9);
+  background: var(--red-3);
+  min-width: 200px;
+}
+
+.unknownOperatorHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--red-4);
+  border-bottom: 1px solid var(--red-6);
+}
+
+.errorIcon {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.unknownOperatorTitle {
+  font-weight: 600;
+  color: var(--red-11);
+  font-size: 13px;
+}
+
+.unknownOperatorContent {
+  padding: 12px;
+}
+
+.unknownOperatorType {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--gray-12);
+  margin-bottom: 6px;
+  font-weight: 500;
+}
+
+.unknownOperatorHelp {
+  font-size: 11px;
+  color: var(--gray-11);
+  line-height: 1.4;
 }
 
 .handleDimmed {

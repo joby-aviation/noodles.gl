@@ -1,5 +1,11 @@
 import * as Dialog from '@radix-ui/react-dialog'
-import { Cross2Icon, EyeNoneIcon, EyeOpenIcon, Link2Icon } from '@radix-ui/react-icons'
+import {
+  Cross2Icon,
+  EyeNoneIcon,
+  EyeOpenIcon,
+  Link2Icon,
+  ViewGridIcon,
+} from '@radix-ui/react-icons'
 import type { Edge } from '@xyflow/react'
 import { useReactFlow, useStore } from '@xyflow/react'
 import cx from 'classnames'
@@ -14,6 +20,7 @@ import {
   useTimelineStore,
 } from '../../timeline/timeline-store'
 import type { KeyframeValue } from '../../timeline/types'
+import { analytics } from '../../utils/analytics'
 import {
   CodeField,
   CompoundPropsField,
@@ -30,20 +37,17 @@ import type { IOperator, OpType } from '../operators'
 import { Operator, OutOp } from '../operators'
 import { getOp, getOpStore, useNestingStore, useUIStore } from '../store'
 import type { ConnectionPlan } from '../utils/auto-connect'
+import { appendUniqueEdges } from '../utils/edge-integrity'
 import { edgeId } from '../utils/id-utils'
 import {
   moveEdgeWithinGroup,
   normalizeMultiInputEdges,
   orderedEdgeIdsForHandle,
 } from '../utils/multi-input-utils'
-import { type NodeType, createNodesForType } from '../utils/node-creation-utils'
+import { createNodesForType, type NodeType } from '../utils/node-creation-utils'
 import { computeRelativePath, getBaseName, parseHandleId } from '../utils/path-utils'
 import { captureOperatorInputs, firePropertyMutation } from '../utils/property-history'
-import {
-  formatReference,
-  parseReference,
-  type ReferenceFormat,
-} from '../utils/reference-utils'
+import { formatReference, parseReference, type ReferenceFormat } from '../utils/reference-utils'
 import { ErrorBoundary } from './error-boundary'
 import {
   BooleanFieldComponent,
@@ -58,6 +62,7 @@ import {
   VectorFieldComponent,
 } from './field-components'
 import menuStyles from './menu.module.css'
+import type { AutoLayoutSettings } from '../utils/serialization'
 import s from './node-properties.module.css'
 import {
   formatViewerValue,
@@ -231,7 +236,8 @@ async function pasteReference(
       return false
     }
 
-    const targetField = namespace === 'par' ? targetOp.inputs[fieldName] : targetOp.outputs[fieldName]
+    const targetField =
+      namespace === 'par' ? targetOp.inputs[fieldName] : targetOp.outputs[fieldName]
     if (!targetField) {
       console.warn(`Paste reference: field not found: ${fieldName}`)
       return false
@@ -456,7 +462,7 @@ function CompoundSubFields({
 
 // Exported for testing
 export function NodeProperties({ nodeId }: { nodeId: string }) {
-  const { setEdges, addNodes, addEdges, getEdges } = useReactFlow()
+  const { setEdges, addNodes, getEdges } = useReactFlow()
   const onEdgesChange = useStore(s => s.onEdgesChange)
   // Only re-renders when this node's incoming edges change (not on position updates)
   const edges = useStore(
@@ -570,9 +576,11 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
       }
 
       addNodes(newNodes)
-      addEdges([...newEdges, connectionEdge])
+      setEdges(current =>
+        normalizeMultiInputEdges(appendUniqueEdges(current, [...newEdges, connectionEdge]))
+      )
     },
-    [nodeId, nodePosition.x, nodePosition.y, currentContainerId, addNodes, addEdges]
+    [nodeId, nodePosition.x, nodePosition.y, currentContainerId, addNodes, setEdges]
   )
 
   // Early return after all hooks
@@ -640,9 +648,7 @@ export function NodeProperties({ nodeId }: { nodeId: string }) {
         const parsed = parseReference(text)
         if (parsed) {
           // Update context menu with clipboard reference
-          setContextMenu(prev =>
-            prev ? { ...prev, clipboardReference: text } : prev
-          )
+          setContextMenu(prev => (prev ? { ...prev, clipboardReference: text } : prev))
         }
       })
       .catch(() => {
@@ -1482,7 +1488,12 @@ export function EdgeProperties({ edge }: { edge: Edge }) {
   )
 }
 
-export function PropertyPanel() {
+interface PropertyPanelProps {
+  onAutoLayout?: () => void
+  autoLayout?: AutoLayoutSettings
+}
+
+export function PropertyPanel({ onAutoLayout, autoLayout }: PropertyPanelProps) {
   // Only re-renders when selection changes, not on position updates during drag
   const { selectedNodeId, selectedNodeCount, selectedEdge, selectedEdgeCount } = useStore(
     s => {
@@ -1521,7 +1532,7 @@ export function PropertyPanel() {
             <div className={s.title}>Page</div>
           </div>
           {selectedNodeCount > 1 || selectedEdgeCount > 1 ? (
-            <div className={s.opMeta}>
+            <div className={s.selectionInfo}>
               {selectedNodeCount > 0 && (
                 <div>
                   {selectedNodeCount} {selectedNodeCount === 1 ? 'node' : 'nodes'} selected
@@ -1531,6 +1542,17 @@ export function PropertyPanel() {
                 <div>
                   {selectedEdgeCount} {selectedEdgeCount === 1 ? 'edge' : 'edges'} selected
                 </div>
+              )}
+              {selectedNodeCount >= 2 && onAutoLayout && (
+                <button
+                  type="button"
+                  className={s.layoutButton}
+                  onClick={onAutoLayout}
+                  title="Layout selected nodes (Cmd/Ctrl+L)"
+                >
+                  <ViewGridIcon />
+                  <span>Layout</span>
+                </button>
               )}
             </div>
           ) : (

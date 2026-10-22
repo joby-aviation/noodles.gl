@@ -165,7 +165,8 @@ export async function geocodeWithGooglePlaces(query: string): Promise<GeocodingR
           ? 'api_key_missing'
           : 'network_error',
     })
-    throw error
+    const message = error instanceof Error ? error.message : String(error)
+    throw new Error(`Google Places failed: ${message}`, { cause: error })
   }
 }
 
@@ -185,7 +186,11 @@ export async function geocodeWithMapbox(query: string, apiKey: string): Promise<
       statusCode: response.status,
       reason,
     })
-    throw new Error(`Mapbox geocoding failed: ${response.status} ${response.statusText}`)
+    // Mapbox explains rejections in the body, e.g. "Query too long - 21/20 tokens"
+    const body: { message?: string } | undefined = await response.json?.().catch(() => undefined)
+    throw new Error(
+      `Mapbox geocoding failed: ${response.status} ${body?.message || response.statusText}`
+    )
   }
 
   const data: MapboxGeocodingResponse = await response.json()

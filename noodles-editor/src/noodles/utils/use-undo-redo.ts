@@ -16,6 +16,7 @@ import {
   debugHistoryUndo,
 } from '../../utils/debug'
 import type { GraphRef } from '../types'
+import { type LockChange, redoLockChange, undoLockChange } from './lock-history'
 import { applyOperatorInputs } from './property-history'
 
 interface HistoryEntry {
@@ -35,6 +36,8 @@ interface HistoryEntry {
   // Operator input value snapshots for property change undo/redo
   operatorStateBefore?: string
   operatorStateAfter?: string
+  // Operator lock or unlock, with any outputs to put back on undo
+  lockChange?: LockChange
 }
 
 interface UndoRedoState {
@@ -204,7 +207,7 @@ export function useUndoRedo(options?: UseUndoRedoOptions) {
     }
 
     store.setState({ onNodesChange: onNodesChangeWithHistory })
-  }, [onNodesChange, store])
+  }, [onNodesChange, store, getSnapshot])
 
   // Intercept edges changes
   useEffect(() => {
@@ -300,7 +303,7 @@ export function useUndoRedo(options?: UseUndoRedoOptions) {
     }
 
     store.setState({ onEdgesChange: onEdgesChangeWithHistory })
-  }, [onEdgesChange, store])
+  }, [onEdgesChange, store, getSnapshot])
 
   const undo = useCallback(() => {
     debugHistoryUndo('Undo check: currentIndex=%d, history.length=%d', currentIndex, history.length)
@@ -319,6 +322,17 @@ export function useUndoRedo(options?: UseUndoRedoOptions) {
     isRestoringRef.current = true
 
     debugHistoryUndo('Undoing: %s', entry.description)
+
+    // A lock change doesn't touch the graph. Restoring its graph snapshot would also revert
+    // edits that aren't in the history, such as renames.
+    if (entry.lockChange) {
+      undoLockChange(entry.lockChange)
+      setUndoRedoState(prev => ({ ...prev, currentIndex: prev.currentIndex - 1 }))
+      queueMicrotask(() => {
+        isRestoringRef.current = false
+      })
+      return
+    }
 
     // Calculate the changes needed to restore the state
     const { nodes: currentNodes, edges: currentEdges } = getSnapshot()
@@ -420,7 +434,7 @@ export function useUndoRedo(options?: UseUndoRedoOptions) {
     queueMicrotask(() => {
       isRestoringRef.current = false
     })
-  }, [currentIndex, history, store, getSnapshot])
+  }, [currentIndex, history, getSnapshot])
 
   const redo = useCallback(() => {
     if (currentIndex >= history.length - 1) return
@@ -429,6 +443,15 @@ export function useUndoRedo(options?: UseUndoRedoOptions) {
     isRestoringRef.current = true
 
     debugHistoryRedo('Redoing: %s', entry.description)
+
+    if (entry.lockChange) {
+      redoLockChange(entry.lockChange)
+      setUndoRedoState(prev => ({ ...prev, currentIndex: prev.currentIndex + 1 }))
+      queueMicrotask(() => {
+        isRestoringRef.current = false
+      })
+      return
+    }
 
     // Calculate the changes needed to restore the "after" state
     const { nodes: currentNodes, edges: currentEdges } = getSnapshot()
@@ -521,7 +544,7 @@ export function useUndoRedo(options?: UseUndoRedoOptions) {
     queueMicrotask(() => {
       isRestoringRef.current = false
     })
-  }, [currentIndex, history, store, getSnapshot])
+  }, [currentIndex, history, getSnapshot])
 
   const canUndo =
     currentIndex >= 0 && currentIndex < history.length && history[currentIndex] != null
@@ -610,6 +633,38 @@ export function useUndoRedo(options?: UseUndoRedoOptions) {
     [getSnapshot]
   )
 
+  // Record an operator lock or unlock into the unified history
+  const recordLockChange = useCallback(
+    (desc: string, lockChange: LockChange) => {
+      if (isRestoringRef.current) return
+      const { nodes, edges } = getSnapshot()
+      const entry: HistoryEntry = {
+        id: crypto.randomUUID(),
+        timestamp: Date.now(),
+        description: desc,
+        nodeChanges: [],
+        edgeChanges: [],
+        nodesBefore: nodes,
+        edgesBefore: edges,
+        nodesAfter: nodes,
+        edgesAfter: edges,
+        lockChange,
+      }
+      setUndoRedoState(prev => {
+        const newHistory = prev.history.slice(0, prev.currentIndex + 1)
+        newHistory.push(entry)
+        let finalHistory = newHistory
+        let newIndex = prev.currentIndex + 1
+        if (newHistory.length > maxHistorySize) {
+          finalHistory = newHistory.slice(-maxHistorySize)
+          newIndex = finalHistory.length - 1
+        }
+        return { history: finalHistory, currentIndex: newIndex }
+      })
+    },
+    [getSnapshot]
+  )
+
   return {
     undo,
     redo,
@@ -619,6 +674,7 @@ export function useUndoRedo(options?: UseUndoRedoOptions) {
     isRestoring: () => isRestoringRef.current,
     recordTimelineChange,
     recordPropertyChange,
+    recordLockChange,
     history,
     clear: () => {
       setUndoRedoState({

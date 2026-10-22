@@ -86,12 +86,58 @@ describe('SchemaEditorDialog', () => {
       {
         columns: [
           { name: 'name', type: 'string', defaultValue: '' },
-          { name: 'display_name', type: 'string', defaultValue: '' },
+          {
+            id: expect.any(String),
+            name: 'display_name',
+            type: 'string',
+            defaultValue: '',
+          },
           { name: 'age', type: 'number', defaultValue: 0 },
         ],
       },
       { sourceColumnNames: ['name', 'name', 'age'] }
     )
+  })
+
+  it('should name the icon-only column buttons', () => {
+    render(<SchemaEditorDialog schema={mockSchema} onChange={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Edit schema' }))
+
+    for (const name of [
+      'Move column name down',
+      'Duplicate column name',
+      'Delete column name',
+      'Move column age up',
+      'Duplicate column age',
+      'Delete column age',
+    ]) {
+      expect(screen.getByRole('button', { name })).toBeDefined()
+    }
+  })
+
+  it('should keep focus on a column after moving it', () => {
+    const schema: TableSchema = {
+      columns: [
+        { name: 'first', type: 'string', defaultValue: '' },
+        { name: 'second', type: 'string', defaultValue: '' },
+        { name: 'third', type: 'string', defaultValue: '' },
+      ],
+    }
+    render(<SchemaEditorDialog schema={schema} onChange={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button'))
+
+    const moveDown = screen.getByRole('button', { name: 'Move column first down' })
+    moveDown.focus()
+    fireEvent.click(moveDown)
+
+    const nameInputs = screen.getAllByPlaceholderText('Column name')
+    expect(nameInputs.map(input => (input as HTMLInputElement).value)).toEqual([
+      'second',
+      'first',
+      'third',
+    ])
+    const focusedRow = document.activeElement?.closest('[class*="columnRow"]')
+    expect(focusedRow?.querySelector('input')).toHaveValue('first')
   })
 
   it('should increment a duplicate column numeric suffix', () => {
@@ -259,9 +305,7 @@ describe('SchemaEditorDialog', () => {
     fireEvent.click(screen.getByRole('button'))
 
     for (const column of allTypesSchema.columns) {
-      expect(
-        screen.getByRole('group', { name: `Default value for ${column.name}` })
-      ).toBeDefined()
+      expect(screen.getByRole('group', { name: `Default value for ${column.name}` })).toBeDefined()
     }
   })
 
@@ -334,7 +378,7 @@ describe('SchemaEditorDialog', () => {
       columns: [
         { name: 'name', type: 'string', defaultValue: '' },
         { name: 'age', type: 'number', defaultValue: 0 },
-        { name: 'column_3', type: 'string', defaultValue: '' },
+        { id: expect.any(String), name: 'column_3', type: 'string', defaultValue: '' },
       ],
     })
   })

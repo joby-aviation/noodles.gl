@@ -217,6 +217,27 @@
   cursor: not-allowed;
 }
 
+/* Whether the file has coordinates, shown before the user commits */
+.detectionText {
+  font-size: 0.8125rem;
+  color: var(--color-text-secondary);
+  text-align: center;
+}
+
+.secondaryLink {
+  padding: 0;
+  font-size: 0.8125rem;
+  color: var(--color-text-secondary);
+  background: none;
+  border: none;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.secondaryLink:hover {
+  color: var(--color-text-primary);
+}
+
 /* LLM Input */
 .llmInputWrapper {
   display: flex;

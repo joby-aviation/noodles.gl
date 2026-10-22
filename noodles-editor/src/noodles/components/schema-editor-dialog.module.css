@@ -28,7 +28,9 @@
 .content {
   background: var(--surface-card);
   border-radius: 8px;
-  box-shadow: 0 10px 38px -10px rgba(0, 0, 0, 0.35), 0 10px 20px -15px rgba(0, 0, 0, 0.2);
+  box-shadow:
+    0 10px 38px -10px rgba(0, 0, 0, 0.35),
+    0 10px 20px -15px rgba(0, 0, 0, 0.2);
   position: fixed;
   top: 50%;
   left: 50%;
@@ -129,7 +131,10 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  padding-top: 8px;
+  min-width: 0;
+  margin: 0;
+  padding: 8px 0 0;
+  border: 0;
   border-top: 1px solid var(--surface-border);
 }
 

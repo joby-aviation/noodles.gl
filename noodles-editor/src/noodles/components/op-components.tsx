@@ -25,6 +25,7 @@ import {
   type ReactNode,
   useCallback,
   useEffect,
+  useId,
   useLayoutEffect,
   useRef,
   useState,
@@ -33,6 +34,7 @@ import { createPortal } from 'react-dom'
 import { Temporal } from 'temporal-polyfill'
 
 import { analytics } from '../../utils/analytics'
+import { useProjectModificationActions } from '../contexts/project-modification-actions-context'
 import { ArrayField, type Field, type IField, ListField } from '../fields'
 import { useKeysStore } from '../keys-store'
 import s from '../noodles.module.css'
@@ -63,7 +65,6 @@ import {
   useOperatorStore,
   useUIStore,
 } from '../store'
-import { useProjectModificationActions } from '../contexts/project-modification-actions-context'
 import { inferSchema, type TableSchema } from '../table-schema'
 import type { NodeDataJSON } from '../transform-graph'
 import { canConnect } from '../utils/can-connect'
@@ -71,6 +72,7 @@ import {
   evaluateEnableExpression,
   getEnableExpressionDependencies,
 } from '../utils/enable-expression-evaluator'
+import { setLockedWithHistory, shouldConfirmUnlock } from '../utils/lock-history'
 import { type MultiInputEdgeData, slotOffsetY } from '../utils/multi-input-utils'
 import type { NodeType } from '../utils/node-creation-utils'
 import { convertViewerToTableEditor } from '../utils/operator-conversion'
@@ -80,6 +82,7 @@ import {
   firePropertyMutation,
   usePropertyHistory,
 } from '../utils/property-history'
+import { BrushableHistogramOpComponent } from './brushable-histogram-op'
 import { categories as baseCategories, nodeTypeToDisplayName } from './categories'
 import { FieldComponent, type inputComponents } from './field-components'
 import { GeoEditorOpComponent } from './geo-editor-op'
@@ -87,6 +90,7 @@ import previewStyles from './handle-preview.module.css'
 import { MapStyleConfiguratorOpComponent } from './map-style-configurator-op'
 import RampEditor, { type RampStop } from './ramp-editor'
 import { TableEditor } from './table-editor'
+import { UnlockDialog } from './unlock-dialog'
 
 const isPlainObject = (v: unknown): v is Record<string, unknown> =>
   v !== null && typeof v === 'object' && Object.getPrototypeOf(v) === Object.prototype
@@ -205,8 +209,47 @@ for (const key of Object.keys(opTypes)) {
   defaultNodeComponents[key] = MemoNodeComponent
 }
 
+function UnknownOperatorComponent({
+  id,
+  selected,
+}: ReactFlowNodeProps<NodeDataJSON<Operator<IOperator>>> & { type: OpType }) {
+  const op = getOp(id as string) as import('../operators').UnknownOperator | null
+  const { deleteElements } = useReactFlow()
+
+  const handleDelete = useCallback(() => {
+    deleteElements({ nodes: [{ id: id as string }] })
+  }, [id, deleteElements])
+
+  if (!op) return null
+
+  return (
+    <ContextMenu.Root>
+      <ContextMenu.Trigger asChild>
+        <div className={cx(s.wrapper, s.unknownOperatorWrapper)}>
+          <div className={s.unknownOperatorHeader}>
+            <div className={s.errorIcon}>⚠️</div>
+            <div className={s.unknownOperatorTitle}>Unknown Operator</div>
+          </div>
+          <div className={s.unknownOperatorContent}>
+            <div className={s.unknownOperatorType}>{op.originalType}</div>
+            <div className={s.unknownOperatorHelp}>This operator type is no longer available</div>
+          </div>
+        </div>
+      </ContextMenu.Trigger>
+      <ContextMenu.Portal>
+        <ContextMenu.Content className={s.contextMenu} sideOffset={5}>
+          <ContextMenu.Item className={s.contextMenuItem} onSelect={handleDelete}>
+            Delete Node
+          </ContextMenu.Item>
+        </ContextMenu.Content>
+      </ContextMenu.Portal>
+    </ContextMenu.Root>
+  )
+}
+
 export const nodeComponents = {
   ...defaultNodeComponents,
+  BrushableHistogramOp: memo(BrushableHistogramOpComponent, nodePropsAreEqual),
   GeocoderOp: memo(GeocoderOpComponent, nodePropsAreEqual),
   GeoEditorOp: memo(GeoEditorOpComponent, nodePropsAreEqual),
   MapStyleConfiguratorOp: memo(MapStyleConfiguratorOpComponent, nodePropsAreEqual),
@@ -217,6 +260,7 @@ export const nodeComponents = {
   RerouteOp: memo(RerouteOpComponent, nodePropsAreEqual),
   TableEditorOp: memo(TableEditorOpComponent, nodePropsAreEqual),
   TimeOp: memo(TimeOpComponent, nodePropsAreEqual),
+  UnknownOperator: memo(UnknownOperatorComponent, nodePropsAreEqual),
   ViewerOp: memo(ViewerOpComponent, nodePropsAreEqual),
   ContainerOp: memo(ContainerOpComponent, nodePropsAreEqual),
 } as const as ReactFlowNodeTypes
@@ -227,8 +271,14 @@ export const edgeComponents = {
   MultiInputEdge: MultiInputEdgeComponent,
 } as const as ReactFlowEdgeTypes
 
+// A locked node ignores its inputs, so the edges into it fade until it's unlocked
+function useTargetLocked(target: string) {
+  return useLocked(getOp(target))
+}
+
 function DefaultEdgeComponent({
   id,
+  target,
   sourceX,
   sourceY,
   targetX,
@@ -240,6 +290,7 @@ function DefaultEdgeComponent({
 }: EdgeProps) {
   const targetedEdge = useUIStore(s => s.targetedEdge)
   const nodeDragState = useUIStore(s => s.nodeDragState)
+  const targetLocked = useTargetLocked(target)
   const [edgePath] = getBezierPath({
     sourceX,
     sourceY,
@@ -263,11 +314,19 @@ function DefaultEdgeComponent({
       : s.targetedEdgeIncompatible
   }
 
-  return <BaseEdge path={edgePath} markerEnd={markerEnd} style={style} className={edgeClassName} />
+  return (
+    <BaseEdge
+      path={edgePath}
+      markerEnd={markerEnd}
+      style={style}
+      className={edgeClassName ?? (targetLocked ? s.lockedEdge : undefined)}
+    />
+  )
 }
 
 function ReferenceEdgeComponent({
   id,
+  target,
   sourceX,
   sourceY,
   targetX,
@@ -276,6 +335,7 @@ function ReferenceEdgeComponent({
   markerEnd,
 }: EdgeProps) {
   const isInspected = useUIStore(s => s.inspectedReferenceEdge?.id === id)
+  const targetLocked = useTargetLocked(target)
   const [edgePath] = getStraightPath({
     sourceX,
     sourceY,
@@ -287,7 +347,10 @@ function ReferenceEdgeComponent({
     <BaseEdge
       path={edgePath}
       markerEnd={markerEnd}
-      className={cx(s.referenceEdge, { [s.inspectedReferenceEdge]: isInspected })}
+      className={cx(s.referenceEdge, {
+        [s.inspectedReferenceEdge]: isInspected,
+        [s.lockedEdge]: targetLocked && !isInspected,
+      })}
       style={style}
     />
   )
@@ -295,6 +358,7 @@ function ReferenceEdgeComponent({
 
 function MultiInputEdgeComponent({
   id,
+  target,
   sourceX,
   sourceY,
   targetX,
@@ -307,6 +371,7 @@ function MultiInputEdgeComponent({
 }: EdgeProps) {
   const targetedEdge = useUIStore(s => s.targetedEdge)
   const nodeDragState = useUIStore(s => s.nodeDragState)
+  const targetLocked = useTargetLocked(target)
 
   // Anchor the edge on its slot within the grown handle. React Flow reports targetY at the
   // handle's vertical center; slotOffsetY spreads the group symmetrically around it using
@@ -334,7 +399,14 @@ function MultiInputEdgeComponent({
       : s.targetedEdgeIncompatible
   }
 
-  return <BaseEdge path={edgePath} markerEnd={markerEnd} style={style} className={edgeClassName} />
+  return (
+    <BaseEdge
+      path={edgePath}
+      markerEnd={markerEnd}
+      style={style}
+      className={edgeClassName ?? (targetLocked ? s.lockedEdge : undefined)}
+    />
+  )
 }
 
 export const resizeableNodes = [
@@ -573,6 +645,7 @@ export function HandlePreviewContent({
                 </thead>
                 <tbody>
                   {data.map((row, i) => (
+                    // biome-ignore lint/suspicious/noArrayIndexKey: read-only preview rows have no id
                     <tr key={`row-${i}-${JSON.stringify(row).slice(0, 50)}`}>
                       {keys.map(key => (
                         <td key={key}>
@@ -719,7 +792,9 @@ function useFieldValueChanges(op: Operator<IOperator> | undefined) {
       .filter(Boolean)
       .map(field => field.subscribe(() => forceUpdate(n => n + 1)))
 
-    return () => subscriptions.forEach(sub => sub.unsubscribe())
+    return () => {
+      for (const sub of subscriptions) sub.unsubscribe()
+    }
   }, [op])
 }
 
@@ -902,9 +977,14 @@ function ErrorPopover({
 
   return (
     <div className={s.errorPopoverAnchor}>
-      <div onClick={handleTriggerClick} style={{ cursor: 'pointer' }} title="Click to copy error">
+      <button
+        type="button"
+        className={s.errorPopoverTrigger}
+        onClick={handleTriggerClick}
+        title="Click to copy error"
+      >
         {trigger}
-      </div>
+      </button>
       {open && (
         <div className={s.errorPopover}>
           <span className={s.errorPopoverMessage}>{error}</span>
@@ -930,6 +1010,8 @@ function RampOpComponent({
 }: ReactFlowNodeProps<NodeDataJSON<RampOp>> & { type: 'RampOp' }) {
   const op = getOp(id as string) as RampOp | undefined
   const locked = useLocked(op)
+  const posInputId = useId()
+  const valInputId = useId()
   const executionState = useExecutionState(op)
   const connectionErrors = useConnectionErrors(op)
   const hasConnectionErrors = connectionErrors.size > 0
@@ -1118,18 +1200,20 @@ function RampOpComponent({
           )}
         </div>
         <div className={s.fieldWrapper}>
-          <label className={s.fieldLabel} style={{ whiteSpace: 'nowrap' }}>
+          <span className={s.fieldLabel} style={{ whiteSpace: 'nowrap' }}>
             {activeStop ? `stop ${stops.indexOf(activeStop) + 1}` : 'stop'}
-          </label>
+          </span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 4, flex: 2, minWidth: 0 }}>
             <label
               className={s.fieldLabelVector}
+              htmlFor={posInputId}
               title="position"
               style={{ cursor: 'default', flexShrink: 0 }}
             >
               p
             </label>
             <input
+              id={posInputId}
               type="number"
               className={s.fieldInput}
               value={activeStop?.pos.toFixed(3) ?? ''}
@@ -1142,12 +1226,14 @@ function RampOpComponent({
             />
             <label
               className={s.fieldLabelVector}
+              htmlFor={valInputId}
               title="value"
               style={{ cursor: 'default', flexShrink: 0 }}
             >
               v
             </label>
             <input
+              id={valInputId}
               type="number"
               className={s.fieldInput}
               value={activeStop?.val.toFixed(3) ?? ''}
@@ -1161,7 +1247,7 @@ function RampOpComponent({
           </div>
         </div>
         <div className={s.fieldWrapper}>
-          <label className={s.fieldLabel}>interp</label>
+          <span className={s.fieldLabel}>interp</span>
           <div
             style={{
               display: 'flex',
@@ -1210,27 +1296,27 @@ const ExecutionIndicator = ({ status, error, executionTime }: ExecutionState) =>
   switch (status) {
     case 'executing':
       return (
-        <div
+        <span
           className={cx(s.executionIndicator, s.executionIndicatorExecuting)}
           title="Executing..."
         >
           <i className="pi pi-spin pi-spinner" />
-        </div>
+        </span>
       )
     case 'error':
       return (
-        <div className={cx(s.executionIndicator, s.executionIndicatorError)}>
+        <span className={cx(s.executionIndicator, s.executionIndicatorError)}>
           <i className="pi pi-exclamation-triangle" />
-        </div>
+        </span>
       )
     case 'success':
       return executionTime && executionTime > SLOW_EXECUTION_THRESHOLD_MS ? (
-        <div
+        <span
           className={cx(s.executionIndicator, s.executionIndicatorSlow)}
           title={`Executed in ${executionTime.toFixed(1)}ms`}
         >
           <i className="pi pi-clock" />
-        </div>
+        </span>
       ) : null
     default:
       return null
@@ -1316,8 +1402,17 @@ export function NodeHeader({
   const exprPopoverOpen =
     exprErrorKey !== null && ((exprAutoShow && !exprDismissed) || headerHovered)
 
+  const [confirmingUnlock, setConfirmingUnlock] = useState(false)
   const toggleLock = () => {
-    op.locked.next(!op.locked.value)
+    if (shouldConfirmUnlock(op)) {
+      setConfirmingUnlock(true)
+      return
+    }
+    setLockedWithHistory(op, !op.locked.value)
+  }
+  const confirmUnlock = () => {
+    setConfirmingUnlock(false)
+    setLockedWithHistory(op, false)
   }
 
   useEffect(() => {
@@ -1491,6 +1586,7 @@ export function NodeHeader({
   const handleMouseLeave = useCallback(() => setHeaderHovered(false), [])
 
   return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: hover only previews error popovers, which also open on their own
     <div
       className={cx(s.header, s.dragHandle, headerClass(type))}
       onMouseEnter={handleMouseEnter}
@@ -1515,9 +1611,9 @@ export function NodeHeader({
           open={connPopoverOpen}
           onDismiss={() => setConnDismissed(true)}
           trigger={
-            <div className={cx(s.executionIndicator, s.executionIndicatorError)}>
+            <span className={cx(s.executionIndicator, s.executionIndicatorError)}>
               <i className="pi pi-link" />
-            </div>
+            </span>
           }
         />
       )}
@@ -1527,9 +1623,9 @@ export function NodeHeader({
           open={exprPopoverOpen}
           onDismiss={() => setExprDismissed(true)}
           trigger={
-            <div className={cx(s.executionIndicator, s.executionIndicatorError)}>
+            <span className={cx(s.executionIndicator, s.executionIndicatorError)}>
               <i className="pi pi-eye-slash" />
-            </div>
+            </span>
           }
         />
       )}
@@ -1553,6 +1649,12 @@ export function NodeHeader({
           text
         />
       </div>
+      <UnlockDialog
+        open={confirmingUnlock}
+        nodeName={baseName}
+        onConfirm={confirmUnlock}
+        onClose={() => setConfirmingUnlock(false)}
+      />
     </div>
   )
 }
@@ -1706,6 +1808,7 @@ function DirectionsOpComponent({
   type,
 }: ReactFlowNodeProps<NodeDataJSON<DirectionsOp>> & { type: 'DirectionsOp' }) {
   const op = getOp(id as string)
+  const [, forceFieldVisibilityUpdate] = useState(0)
 
   // Reactive - automatically updates when keys change
   const hasMapboxKey = useKeysStore(state => state.hasKey('mapbox'))
@@ -1731,6 +1834,16 @@ function DirectionsOpComponent({
     prevHasMapboxKey.current = hasMapboxKey
     prevHasGoogleMapsKey.current = hasGoogleMapsKey
   }, [op, hasMapboxKey, hasGoogleMapsKey])
+
+  useEffect(() => {
+    if (!op) return
+    const subscriptions = [op.inputs.mode, op.inputs.departureMode].map(field =>
+      field.subscribe(() => forceFieldVisibilityUpdate(value => value + 1))
+    )
+    return () => {
+      for (const subscription of subscriptions) subscription.unsubscribe()
+    }
+  }, [op])
 
   if (!op) return null
 

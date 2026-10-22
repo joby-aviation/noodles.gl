@@ -1,8 +1,18 @@
+import { Temporal } from 'temporal-polyfill'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { hexToColor } from '../../utils/color'
 import { CodeField, ColorField, NumberField } from '../fields'
-import { CodeOp, GeoJsonLayerOp, NumberOp, ScenegraphLayerOp, TableEditorOp } from '../operators'
+import {
+  CodeOp,
+  DateTimeOp,
+  DirectionsOp,
+  GeoJsonLayerOp,
+  NumberOp,
+  ScenegraphLayerOp,
+  TableEditorOp,
+} from '../operators'
 import { clearOps, getOpStore, setOp } from '../store'
+import { transformGraph } from '../transform-graph'
 import { edgeId } from './id-utils'
 import {
   NOODLES_VERSION,
@@ -205,7 +215,7 @@ describe('serializeNodes', () => {
     expect(result[0].data.inputs).toEqual({})
   })
 
-  it('does not overwrite input if incoming edge is from locked op', () => {
+  it('omits inputs for locked incomers', () => {
     setOp('node1', makeOp({ x: 123 }, false))
     setOp('node0', makeOp({ foo: 'ignored' }, true)) // locked = true
 
@@ -221,7 +231,7 @@ describe('serializeNodes', () => {
       ...connection,
     }
     const result = serializeNodes(getOpStore(), [node], [edge])
-    expect(result[0].data.inputs).toEqual({ x: 123 })
+    expect(result[0].data.inputs).toEqual({})
   })
 
   it('does not serialize default values', () => {
@@ -381,6 +391,28 @@ describe('serializeNodes', () => {
 
     expect(project.nodes[0].data.inputs.schema).toEqual(schema)
     expect(project.nodes[1].data.inputs.schema).toEqual(schema)
+  })
+
+  it('serializes stable TableEditor column IDs', () => {
+    const schema = {
+      columns: [
+        {
+          id: 'Location',
+          name: 'Display Location',
+          type: 'string' as const,
+          defaultValue: '',
+        },
+      ],
+    }
+    setOp('/table', new TableEditorOp('/table', { schema }, false))
+
+    const [serialized] = serializeNodes(
+      getOpStore(),
+      [{ id: '/table', type: 'TableEditorOp', data: {}, position: { x: 0, y: 0 } }],
+      []
+    )
+
+    expect(serialized.data.inputs.schema).toEqual(schema)
   })
 
   it('excludes ReferenceEdge connections when determining connected inputs', () => {
@@ -599,7 +631,7 @@ describe('saveProjectLocally', () => {
       timeline: {},
     }
 
-    await saveProjectLocally(projectName, projectJson, 'publicFolder')
+    await saveProjectLocally(projectName, projectJson, 'publicFolder', new Map())
 
     // Verify download was triggered
     expect(createElementSpy).toHaveBeenCalledWith('a')
@@ -621,7 +653,7 @@ describe('saveProjectLocally', () => {
       timeline: {},
     }
 
-    await saveProjectLocally(projectName, projectJson, 'publicFolder')
+    await saveProjectLocally(projectName, projectJson, 'publicFolder', new Map())
 
     expect(mockAnchorElement.download).toBe('my-awesome-viz.zip')
   })
@@ -636,7 +668,7 @@ describe('saveProjectLocally', () => {
       timeline: {},
     }
 
-    await saveProjectLocally(projectName, projectJson, 'opfs')
+    await saveProjectLocally(projectName, projectJson, 'opfs', new Map())
 
     // Should still create download
     expect(mockAnchorElement.download).toBe('opfs-project.zip')
@@ -653,7 +685,7 @@ describe('saveProjectLocally', () => {
       timeline: {},
     }
 
-    await saveProjectLocally(projectName, projectJson, 'fileSystemAccess')
+    await saveProjectLocally(projectName, projectJson, 'fileSystemAccess', new Map())
 
     // Should still create download
     expect(mockAnchorElement.download).toBe('fs-project.zip')
@@ -669,9 +701,32 @@ describe('saveProjectLocally', () => {
       timeline: {},
     }
 
-    await saveProjectLocally('test', projectJson, 'publicFolder')
+    await saveProjectLocally('test', projectJson, 'publicFolder', new Map())
 
     expect(revokeObjectURLSpy).toHaveBeenCalledWith('blob:mock-url')
+  })
+
+  it('adds the cache folder to the ZIP', async () => {
+    const projectJson = {
+      version: NOODLES_VERSION,
+      nodes: [],
+      edges: [],
+      viewport: { x: 0, y: 0, zoom: 1 },
+      timeline: {},
+    }
+    const cacheFile = '{"version":1,"id":"/directions","type":"DirectionsOp","outputs":{}}\n'
+
+    await saveProjectLocally(
+      'cached',
+      projectJson,
+      'memory',
+      new Map([['directions.json', cacheFile]])
+    )
+
+    const { default: JSZip } = await import('jszip')
+    const blob = vi.mocked(URL.createObjectURL).mock.calls[0][0] as Blob
+    const zip = await JSZip.loadAsync(blob)
+    await expect(zip.file('cached/cache/directions.json')?.async('text')).resolves.toBe(cacheFile)
   })
 })
 
@@ -918,5 +973,48 @@ describe('serializeNodes with expression-driven fields', () => {
     const node = { id: 'node1', type: 'NumberOp', data: {}, position: { x: 0, y: 0 } }
     const result = serializeNodes(getOpStore(), [node], [])
     expect(result[0].data.inputs).toEqual({ val: { $expr: '0' } })
+  })
+})
+
+describe('date inputs save and reload', () => {
+  afterEach(() => {
+    clearOps()
+  })
+
+  // Save the way the editor does (JSON text) and load the result into fresh operators
+  function saveAndReload(id: string, type: string) {
+    const node = { id, type, data: {}, position: { x: 0, y: 0 } }
+    const [saved] = JSON.parse(safeStringify({ nodes: serializeNodes(getOpStore(), [node], []) }))
+      .nodes as ReturnType<typeof serializeNodes>
+    clearOps()
+    transformGraph({ nodes: [saved], edges: [] })
+    return { saved, reloaded: getOpStore().getOp(id) }
+  }
+
+  it('persists a DateTimeOp date', () => {
+    const op = new DateTimeOp('/date')
+    op.inputs.date.setValue(Temporal.PlainDateTime.from('2026-10-17T08:30'))
+    setOp('/date', op)
+
+    const { saved, reloaded } = saveAndReload('/date', 'DateTimeOp')
+
+    expect(saved.data.inputs.date).toBe('2026-10-17T08:30:00')
+    expect((reloaded as DateTimeOp).inputs.date.value.toString()).toBe('2026-10-17T08:30:00')
+  })
+
+  it('persists a scheduled departure time', () => {
+    const op = new DirectionsOp('/directions', {
+      mode: 'driving-traffic',
+      departureMode: 'scheduled',
+    })
+    op.inputs.departureTime.setValue(Temporal.PlainDateTime.from('2026-10-17T08:30'))
+    setOp('/directions', op)
+
+    const { saved, reloaded } = saveAndReload('/directions', 'DirectionsOp')
+
+    expect(saved.data.inputs.departureTime).toBe('2026-10-17T08:30:00')
+    expect((reloaded as DirectionsOp).inputs.departureTime.value.toString()).toBe(
+      '2026-10-17T08:30:00'
+    )
   })
 })

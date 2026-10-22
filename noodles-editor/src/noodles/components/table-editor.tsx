@@ -13,12 +13,13 @@ import { InputText } from 'primereact/inputtext'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { TableEditorOp } from '../operators'
 import type { ColumnSchema, ColumnType, DateTimeValue, TableSchema } from '../table-schema'
-import { getDefaultValue, validateTableData } from '../table-schema'
+import { getDefaultValue, transitionTableData, validateTableData } from '../table-schema'
 import { getTimezoneOptions } from '../utils/timezone-utils'
 import { ColorSwatch } from './color-swatch'
 import { DraggableNumberInput } from './draggable-number-input'
 import { GeocodingDialog } from './geocoding-dialog'
-import { SchemaEditorDialog, type SchemaChangeMetadata } from './schema-editor-dialog'
+import { type SchemaChangeMetadata, SchemaEditorDialog } from './schema-editor-dialog'
+import { TableCellKeyframe } from './table-cell-keyframe'
 import s from './table-editor.module.css'
 
 // Cell editor components for each column type
@@ -223,6 +224,7 @@ function BooleanCellEditor({ value, onChange, onComplete }: CellEditorProps) {
 
 function ColorCellEditor({ value, onChange, onComplete }: CellEditorProps) {
   return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: catches blur and key events bubbling from the color picker
     <div
       onBlur={onComplete}
       onKeyDown={e => {
@@ -525,6 +527,7 @@ function DateTimeCellEditor({ value, onChange, onComplete, column }: CellEditorP
   }
 
   return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: catches blur bubbling from the date and timezone inputs
     <div ref={containerRef} className={s.dateTimeCellEditor} onBlur={handleBlur}>
       <InputText
         type="datetime-local"
@@ -569,6 +572,7 @@ function DateTimeCellEditor({ value, onChange, onComplete, column }: CellEditorP
         className={s.timezoneDropdown}
         panelClassName={s.timezonePanel}
         itemTemplate={item => (
+          // biome-ignore lint/a11y/noStaticElementInteractions: records a mouse pick before blur; onSelect handles the keyboard
           <div
             onMouseDown={() => {
               setPendingTimezone(item)
@@ -625,10 +629,10 @@ function renderBooleanCell(value: unknown): string {
 function renderColorCell(value: unknown): React.ReactNode {
   const color = typeof value === 'string' ? value : '#000000'
   return (
-    <div className={s.colorDisplay}>
-      <div className={s.colorSwatch} style={{ backgroundColor: color }} />
+    <span className={s.colorDisplay}>
+      <span className={s.colorSwatch} style={{ backgroundColor: color }} />
       <span>{color}</span>
-    </div>
+    </span>
   )
 }
 
@@ -733,6 +737,7 @@ interface EditableCellProps {
         deleteRow: (rowIndex: number) => void
         schema: TableSchema
         activeEdit: ActiveEdit
+        opId?: string
       }
     }
   }
@@ -811,19 +816,18 @@ function EditableCell({ getValue, row, column, table }: EditableCellProps) {
     )
   }
 
-  return (
-    <div
-      className={s.cell}
-      onClick={startEditing}
-      onKeyDown={e => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          startEditing()
-        }
-      }}
-      tabIndex={0}
-    >
+  const cellButton = (
+    <button type="button" className={cx(s.cell, s.cellButton)} onClick={startEditing}>
       {renderedValue}
-    </div>
+    </button>
+  )
+  const opId = table.options.meta?.opId
+  if (!opId) return cellButton
+
+  return (
+    <TableCellKeyframe opId={opId} rowIndex={row.index} column={column.id} value={currentValue}>
+      {cellButton}
+    </TableCellKeyframe>
   )
 }
 
@@ -837,7 +841,7 @@ interface TableEditorProps {
   onSchemaChange: (schema: TableSchema, data?: unknown[]) => void
 }
 
-export function TableEditor({ data, schema, onDataChange, onSchemaChange }: TableEditorProps) {
+export function TableEditor({ op, data, schema, onDataChange, onSchemaChange }: TableEditorProps) {
   const [tableData, setTableData] = useState(() => validateTableData(data, schema))
   const activeEdit = useActiveEdit()
   const previousDataRef = useRef(data)
@@ -847,6 +851,10 @@ export function TableEditor({ data, schema, onDataChange, onSchemaChange }: Tabl
   // it can both run in one tick without the second reading stale state
   const tableDataRef = useRef(tableData)
   tableDataRef.current = tableData
+
+  // Latest callback for the prop-sync effect, which should only re-run when data or schema change
+  const onDataChangeRef = useRef(onDataChange)
+  onDataChangeRef.current = onDataChange
 
   const commitData = (newData: unknown[], description: string) => {
     tableDataRef.current = newData
@@ -863,9 +871,18 @@ export function TableEditor({ data, schema, onDataChange, onSchemaChange }: Tabl
     // rows so compatible edits survive the schema transition.
     activeEdit.flush()
     const sourceData = schemaChanged && !dataChanged ? tableDataRef.current : data
-    const newTableData = validateTableData(sourceData, schema)
+    const transition = schemaChanged
+      ? transitionTableData(sourceData, previousSchemaRef.current, schema, {
+          preferNextColumnNames: dataChanged,
+        })
+      : { data: validateTableData(sourceData, schema), renamedColumns: [] }
+    const newTableData = transition.data
     tableDataRef.current = newTableData
     setTableData(newTableData)
+
+    if (schemaChanged && !dataChanged && transition.renamedColumns.length > 0) {
+      onDataChangeRef.current(newTableData, 'Apply connected table schema rename')
+    }
     previousDataRef.current = data
     previousSchemaRef.current = schema
   }, [activeEdit, data, schema])
@@ -881,21 +898,9 @@ export function TableEditor({ data, schema, onDataChange, onSchemaChange }: Tabl
 
   const handleSchemaChange = (newSchema: TableSchema, metadata?: SchemaChangeMetadata) => {
     activeEdit.flush()
-    const sourceData = metadata
-      ? tableDataRef.current.map(row =>
-          Object.fromEntries(
-            newSchema.columns.flatMap((column, columnIndex) => {
-              const sourceColumnName = metadata.sourceColumnNames[columnIndex]
-              return sourceColumnName === undefined ? [] : [[column.name, row[sourceColumnName]]]
-            })
-          )
-        )
-      : tableDataRef.current
-
-    // Preserve valid cells and materialize the new schema's declared defaults for
-    // missing or invalid cells. Metadata remaps renamed and duplicated columns
-    // before validation while leaving new columns absent so their defaults apply.
-    const newData = validateTableData(sourceData, newSchema)
+    const newData = transitionTableData(tableDataRef.current, schema, newSchema, {
+      sourceColumnNames: metadata?.sourceColumnNames,
+    }).data
 
     onSchemaChange(newSchema, newData)
     tableDataRef.current = newData
@@ -963,6 +968,7 @@ export function TableEditor({ data, schema, onDataChange, onSchemaChange }: Tabl
       },
       schema,
       activeEdit,
+      opId: op?.id,
     },
   })
 

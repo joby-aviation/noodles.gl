@@ -13,7 +13,7 @@
 // `../` cannot climb out of the sandbox by construction rather than by blocklist.
 
 import { useFileSystemStore } from '../noodles/filesystem-store'
-import { listDataFiles, readAsset, writeAsset } from '../noodles/storage'
+import { checkAssetExists, listDataFiles, readAsset, writeAsset } from '../noodles/storage'
 import { projectScheme, type StorageType } from '../noodles/utils/filesystem'
 import type { ToolResult } from './types'
 
@@ -196,6 +196,30 @@ export async function writeFile(params: WriteFileParams): Promise<ToolResult> {
   }
 }
 
+// Binary output the app itself produces for the assistant, such as export_video's MP4.
+// Same path guard and storage as write_file, without the .previous backup: parking a
+// copy of a video would double its size for nothing, so an existing file is refused
+// instead. `store` pins the project, for a write that finishes after the user may have
+// opened another one.
+export async function writeAgentBinary(
+  path: string,
+  contents: Blob,
+  store: AgentStore
+): Promise<{ ok: true; path: string } | { ok: false; error: string }> {
+  const target = resolvePath(path, { forWrite: true })
+  if (!target.ok) return target
+
+  if (await checkAssetExists(store.type, store.project, target.relative)) {
+    return { ok: false, error: `${projectScheme}${target.relative} already exists` }
+  }
+
+  const written = await writeAsset(store.type, store.project, target.relative, contents)
+  if (!written.success) {
+    return { ok: false, error: `${written.error.message} (${target.relative})` }
+  }
+  return { ok: true, path: `${projectScheme}${target.relative}` }
+}
+
 export async function grepFiles(params: GrepFilesParams): Promise<ToolResult> {
   const store = storageContext()
   if (!store.ok) return { success: false, error: store.error }
@@ -342,13 +366,16 @@ export function resolvePath(input: string, options: { forWrite?: boolean } = {})
   return { ok: true, relative }
 }
 
-type StorageContext =
-  | { ok: true; type: StorageType; project: string }
-  | { ok: false; error: string }
+export interface AgentStore {
+  type: StorageType
+  project: string
+}
+
+type StorageContext = ({ ok: true } & AgentStore) | { ok: false; error: string }
 
 // The project a path is relative to. Examples load into memory storage, so this
 // works on a bundled example as well as a saved project.
-function storageContext(): StorageContext {
+export function storageContext(): StorageContext {
   const { currentProjectName, activeStorageType } = useFileSystemStore.getState()
   if (!currentProjectName) {
     return { ok: false, error: 'No project is loaded, so there is no data directory to read' }

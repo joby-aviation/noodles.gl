@@ -86,6 +86,43 @@ VITE_GA_MEASUREMENT_ID=G-XXXXXXXXXX
 | `edge_added` | `count` | use-project-modifications.ts |
 | `edge_deleted` | `count` | use-project-modifications.ts |
 
+### Rendering and Export
+
+Tracked in the renderer, not the buttons, so the Export button, the render settings panel and the `export_video` agent tool are each counted once. Every `render_started` is followed by exactly one of `render_completed`, `render_failed` or `render_cancelled`.
+
+| Event | Properties | Location |
+|-------|-----------|----------|
+| `render_started` | `source, format, codec, resolution, frameCount` | render-analytics.ts |
+| `render_completed` | started properties + `durationMs` | render-analytics.ts |
+| `render_failed` | started properties + `durationMs, errorCategory, errorName, framesDone` | render-analytics.ts |
+| `render_cancelled` | started properties + `durationMs` | render-analytics.ts |
+| `screenshot_taken` | `source` | renderer.ts (captureScreenshot) |
+
+- `source`: `menu` (the logo menu and the Out node's panel), `toolbar` (the top bar's Export button) or `agent` (the `export_video` tool)
+- `format`: `mp4`, `png_sequence`, or `exr_sequence`; `codec` (`avc`, `hevc`, `vp9`, `av1`) is sent for `mp4` only
+- `resolution`: a bucket by the short side (`under_720p`, `720p`, `1080p`, `1440p`, `4k`, `8k`), not exact dimensions
+- `durationMs`: wall time from the end of the save dialog to the end of the render
+- `errorCategory`: `unsupported_codec`, `frame`, `encoder` or `exception`. `errorName` is the error class or DOMException name (`NotAllowedError`). The error message is never sent, since it can contain file paths.
+
+The agent's `capture_visualization` tool is not a `screenshot_taken`: it returns the image to the model rather than saving a file.
+
+### Data Import
+
+When a CSV or JSON table is imported, the editor looks for coordinate columns so it can build a map without the AI assistant. `coordinates_detected` records whether that worked.
+
+| Event | Properties | Location |
+|-------|-----------|----------|
+| `coordinates_detected` | `source, fileFormat, detected, method, reason, sizedByColumn, rowCountBucket` | use-file-import.ts |
+| `quick_start_create_from_file` | `fileSize, mode, detected` | quick-start-modal.tsx |
+| `quick_start_file_action_handled` | `mode` | noodles.tsx |
+
+- `source`: `canvas_drop`, `quickstart` or `tools_shelf` (the Import Data dialog)
+- `method`: `lat_lng`, `geometry` (a WKT or GeoJSON column) or `none`; `reason` is set only for `none`: `no_rows`, `no_columns` or `out_of_range` (columns named like coordinates whose values aren't longitude and latitude)
+- `sizedByColumn`: whether points were sized by a numeric column
+- `rowCountBucket`: `0`, `1-99`, `100-999`, `1k-10k`, `10k-100k` or `100k+`, never the exact count
+- `mode`: `map` (built from detected coordinates) or `chat` (handed to the AI assistant)
+- Column names, values and file names are never sent
+
 ### User Interface
 
 | Event | Properties | Location |
@@ -93,6 +130,9 @@ VITE_GA_MEASUREMENT_ID=G-XXXXXXXXXX
 | `analytics_consent_granted` | - | analytics.ts (setConsent) |
 | `analytics_consent_denied` | - | analytics.ts (setConsent) |
 | `analytics_enabled_in_settings` | - | settings-dialog.tsx |
+| `claude_code_prompt_copied` | `source` (`assistant_onboarding`) | assistant-onboarding.tsx |
+
+The website's "Use with Claude Code" section sends `claude_code_prompt_copied` too, with `location: 'landing'`, through the site's own PostHog and GA tags (`website/src/components/ClaudeCodeQuickStart`). The prompt text itself is never sent.
 
 ### Performance
 
@@ -141,30 +181,6 @@ These properties are automatically removed:
 - `username`, `email`, `url`, `path`, `filePath`
 
 ### Optional Future Tracking
-
-#### Render Operations (`src/render/renderer.ts`)
-
-```typescript
-import { analytics } from '../utils/analytics'
-
-// In startCapture()
-analytics.track('render_started', {
-  codec: codec,
-  resolution: `${width}x${height}`
-})
-
-// When complete
-analytics.track('render_completed', {
-  duration: elapsedSeconds,
-  frameCount: totalFrames
-})
-
-// If cancelled
-analytics.track('render_cancelled')
-
-// In captureScreenshot()
-analytics.track('screenshot_captured')
-```
 
 #### AI Chat Operations (`src/ai-chat/chat-panel.tsx`)
 

@@ -86,6 +86,7 @@ it('should update state correctly', () => {
 - Integration and component tests can go in `__tests__` directories when they span multiple files
 - Use descriptive test names that explain what is being tested
 - Clean up resources in `afterEach` to prevent test pollution
+- Tests run in headless Chromium, except `scripts/**/*.test.ts`, which run in Node so CLI scripts can be started as child processes
 
 ## Running Tests
 
@@ -101,6 +102,9 @@ npm test -- --watch
 
 # Run tests with coverage
 npm test -- --coverage
+
+# Run only the Node tests for CLI scripts
+npm test -- --project node
 ```
 
 ## Test Runbooks for PRs
@@ -152,7 +156,7 @@ Provide a complete `noodles.json` file that can be saved in `noodles-editor/publ
 
 ```json
 {
-  "version": 6,
+  "version": 18,
   "nodes": [
     {
       "id": "/test-op",
