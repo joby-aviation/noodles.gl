@@ -30,8 +30,8 @@ export default defineConfig(({ mode }) => {
   return {
     base: mode === 'development' ? '/' : '/app/',
     build: {
-      // Only the GitHub Pages deploy sets SOURCEMAPS=true, and only when R2 is configured:
-      // upload-sourcemaps then moves the maps to R2 so they are not published with the app
+      // Only the GitHub Pages deploy sets SOURCEMAPS=true, and only when PostHog sourcemap
+      // upload is configured. It uploads the maps to PostHog and deletes them before publishing.
       sourcemap: env.SOURCEMAPS === 'true',
     },
     server: {
