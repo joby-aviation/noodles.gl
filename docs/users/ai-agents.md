@@ -240,7 +240,9 @@ Don't run either tool through a bare `npx noodles-mcp` or `npx validate-projects
 1. Find a similar example with `list_examples` and read it with `get_example`.
 2. Read each operator it will use with `get_operator_schema` before connecting it.
 3. Write the file, validate it, and fix every error.
-4. Stop when it validates. Open it in the editor at `http://localhost:5173/examples/<name>` to look at it.
+4. Stop when it validates.
+
+To look at the result, open the project folder (the one holding `noodles.json` and its data files) with **Open** (`Cmd+O` / `Ctrl+O`) in the editor menu, in Chrome or Edge. A project written to `noodles-editor/src/examples/<name>/noodles.json` in the repo also opens at `http://localhost:5173/examples/<name>`; that URL only finds projects in that folder.
 
 Small graphs work best: five to eight nodes that a person can read. One `CodeOp` with a few lines of JavaScript is easier to check than a chain of filter, map and sort nodes. The validator doesn't check the timeline, so set keyframes in the editor or through a running editor (above) rather than by hand.
 
