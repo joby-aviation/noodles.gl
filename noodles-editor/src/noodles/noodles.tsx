@@ -150,6 +150,7 @@ import {
   serializeNodes,
 } from './utils/serialization'
 import { EdgeSpatialIndex } from './utils/spatial-index'
+import { expandTimelineIfAnimated } from './utils/timeline-panel'
 import { calculateViewerPosition } from './utils/viewer-position'
 
 const ChatPanel = lazy(() => import('../ai-chat/chat-panel').then(m => ({ default: m.ChatPanel })))
@@ -1038,6 +1039,7 @@ export function getNoodles(): Visualization {
           timelineStore.fromTimelineJSON(
             timeline as unknown as import('../timeline/types').TimelineData
           )
+          expandTimelineIfAnimated()
         } catch (error) {
           console.error('Failed to load timeline:', error)
           timelineErrors.push({
