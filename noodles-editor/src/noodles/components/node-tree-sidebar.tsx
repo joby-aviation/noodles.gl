@@ -1,20 +1,34 @@
+import { type EditorDoc, nameOf, OPERATOR_INDEX } from '@noodles.gl/planner'
 import * as Tooltip from '@radix-ui/react-tooltip'
-import { useReactFlow, useStore } from '@xyflow/react'
+import { useReactFlow } from '@xyflow/react'
 import cx from 'classnames'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { renameNode } from '../../editor/doc-ops'
+import { docStore, useEditor } from '../../editor/doc-store'
 import { analytics } from '../../utils/analytics'
-import type { IOperator, Operator } from '../operators'
-import { getOpStore, hasOp, useNestingStore, useOperatorStore, useUIStore } from '../store'
-import { generateQualifiedPath, getBaseName } from '../utils/path-utils'
+import { useUIStore } from '../store'
 import { categories } from './categories'
 import s from './node-tree-sidebar.module.css'
 
-// Map operator displayName to category for color coding
-function getOperatorCategory(displayName: string): string | null {
+// Planner categories as the editor's category colors
+const CATEGORY_COLORS: Record<string, string> = {
+  data: 'data',
+  table: 'utility',
+  rows: 'code',
+  color: 'color',
+  layer: 'layer',
+  output: 'view',
+  number: 'number',
+  structure: 'grouping',
+}
+
+// A host operator's color is its Noodles category's, by display name
+function getOperatorCategory(op: string): string | null {
+  const def = OPERATOR_INDEX.get(op)
+  if (def && def.category !== 'host') return CATEGORY_COLORS[def.category] ?? null
+  const displayName = def?.label ?? op.replace(/Op$/, '')
   for (const [category, operators] of Object.entries(categories)) {
-    if ((operators as readonly string[]).includes(displayName)) {
-      return category
-    }
+    if ((operators as readonly string[]).includes(displayName)) return category
   }
   return null
 }
@@ -23,50 +37,29 @@ interface TreeNode {
   id: string
   name: string
   displayName: string
+  op: string
+  /** A subnet: its children nest under it. */
+  subnet: boolean
   children: TreeNode[]
   depth: number
 }
 
-// Build hierarchical tree from flat operator list
-function buildTree(operators: Map<string, Operator<IOperator>>): TreeNode[] {
-  const tree: TreeNode[] = []
-  const nodeMap = new Map<string, TreeNode>()
-
-  // Sort operators by path to ensure parents come before children
-  const sortedOps = Array.from(operators.entries()).sort((a, b) => a[0].localeCompare(b[0]))
-
-  for (const [id, op] of sortedOps) {
-    const { displayName } = op.constructor as typeof Operator
-    const pathParts = id.split('/').filter(Boolean)
-    const name = getBaseName(id) || 'root'
-    const depth = pathParts.length
-
-    const node: TreeNode = {
-      id,
-      name,
-      displayName,
-      children: [],
-      depth,
-    }
-
-    nodeMap.set(id, node)
-
-    // Find parent
-    if (pathParts.length > 1) {
-      const parentPath = `/${pathParts.slice(0, -1).join('/')}`
-      const parent = nodeMap.get(parentPath)
-      if (parent) {
-        parent.children.push(node)
-      } else {
-        // Parent doesn't exist yet, add to root
-        tree.push(node)
-      }
-    } else {
-      tree.push(node)
-    }
-  }
-
-  return tree
+// The document's nodes as a tree: a subnet's children under it, each level by name
+function buildTree(doc: EditorDoc): TreeNode[] {
+  const make = (parent: string | undefined, depth: number): TreeNode[] =>
+    doc.nodes
+      .filter(n => n.parent === parent)
+      .map(n => ({
+        id: n.id,
+        name: nameOf(n),
+        displayName: OPERATOR_INDEX.get(n.op)?.label ?? n.op,
+        op: n.op,
+        subnet: n.op === 'subnet',
+        children: n.op === 'subnet' ? make(n.id, depth + 1) : [],
+        depth,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name))
+  return make(undefined, 1)
 }
 
 interface TreeItemProps {
@@ -77,7 +70,6 @@ interface TreeItemProps {
   onNavigateInto: (id: string) => void
   collapsedNodes: Set<string>
   onToggleCollapse: (id: string) => void
-  updateOperatorId: (nodeId: string, newBaseName: string, isContainer: boolean) => void
 }
 
 function TreeItem({
@@ -88,7 +80,6 @@ function TreeItem({
   onNavigateInto,
   collapsedNodes,
   onToggleCollapse,
-  updateOperatorId,
 }: TreeItemProps) {
   const [hovering, setHovering] = useState(false)
   const [editing, setEditing] = useState(false)
@@ -97,12 +88,12 @@ function TreeItem({
   const inputRef = useRef<HTMLInputElement>(null)
 
   const hasChildren = node.children.length > 0
-  const isContainer = node.displayName === 'Container'
+  const isContainer = node.subnet
   const isCollapsed = collapsedNodes.has(node.id)
   const isSelected = selectedNodeIds.has(node.id)
 
   // Get the category color for this operator displayName
-  const category = getOperatorCategory(node.displayName)
+  const category = getOperatorCategory(node.op)
   const borderColor = category ? `var(--node-${category}-color)` : 'transparent'
 
   // Auto-focus input when entering edit mode
@@ -117,12 +108,13 @@ function TreeItem({
   // Check for duplicate names
   const checkForConflict = useCallback(
     (newBaseName: string): boolean => {
-      if (!newBaseName.trim()) return false
-      const store = getOpStore()
-      const op = store.getOp(node.id)
-      if (!op) return false
-      const newQualifiedId = generateQualifiedPath(newBaseName.trim(), op.containerId ?? '/')
-      return newQualifiedId !== node.id && hasOp(newQualifiedId)
+      const name = newBaseName.trim()
+      if (!name) return false
+      const { doc } = docStore().get()
+      const self = doc.nodes.find(n => n.id === node.id)
+      return doc.nodes.some(
+        n => n.id !== node.id && n.parent === self?.parent && nameOf(n) === name
+      )
     },
     [node.id]
   )
@@ -152,13 +144,17 @@ function TreeItem({
         return
       }
 
-      updateOperatorId(node.id, trimmedName, isContainer)
+      if (trimmedName !== node.name) {
+        docStore().edit(d => {
+          renameNode(d, node.id, trimmedName)
+        })
+      }
 
       setEditing(false)
       setHasConflict(false)
       setInputValue('')
     },
-    [node.id, isContainer, checkForConflict, updateOperatorId]
+    [node.id, node.name, checkForConflict]
   )
 
   const onInputChange = useCallback(
@@ -308,7 +304,6 @@ function TreeItem({
               onNavigateInto={onNavigateInto}
               collapsedNodes={collapsedNodes}
               onToggleCollapse={onToggleCollapse}
-              updateOperatorId={updateOperatorId}
             />
           ))}
         </div>
@@ -317,18 +312,9 @@ function TreeItem({
   )
 }
 
-interface NodeTreeSidebarProps {
-  updateOperatorId: (nodeId: string, newBaseName: string, isContainer: boolean) => void
-}
-
-// Selector that only updates when selection changes (not position)
-const selectedNodeIdsSelector = (state: { nodes: Array<{ id: string; selected?: boolean }> }) => {
-  const selectedIds = state.nodes.filter(n => n.selected).map(n => n.id)
-  return selectedIds.join(',') // Return string for stable comparison
-}
-
-export function NodeTreeSidebar({ updateOperatorId }: NodeTreeSidebarProps) {
-  const operators = useOperatorStore(state => state.operators)
+export function NodeTreeSidebar() {
+  const doc = useEditor(st => st.doc)
+  const selection = useEditor(st => st.selection)
   const reactFlow = useReactFlow()
   const [collapsedNodes, setCollapsedNodes] = useState<Set<string>>(new Set())
   const [searchQuery, setSearchQuery] = useState('')
@@ -340,87 +326,34 @@ export function NodeTreeSidebar({ updateOperatorId }: NodeTreeSidebarProps) {
     if (focusTrigger > 0) searchInputRef.current?.focus()
   }, [focusTrigger])
 
-  // Build tree from operators
-  const tree = useMemo(() => buildTree(operators), [operators])
+  const tree = useMemo(() => buildTree(doc), [doc])
 
-  // Get selected node IDs from React Flow - only re-render when selection changes, not position
-  const selectedIdsString = useStore(selectedNodeIdsSelector)
   // Flat filtered list when searching
   const filteredNodes = useMemo(() => {
     if (!searchQuery.trim()) return null
     const q = searchQuery.toLowerCase()
-    return Array.from(operators.values())
-      .filter(op => {
-        const name = getBaseName(op.id) ?? ''
-        const displayName = (op.constructor as typeof Operator).displayName
-        return name.toLowerCase().includes(q) || displayName.toLowerCase().includes(q)
-      })
-      .map(op => {
-        const displayName = (op.constructor as typeof Operator).displayName
-        return {
-          id: op.id,
-          name: getBaseName(op.id) ?? op.id,
-          displayName,
-          children: [],
-          depth: 1,
-        } satisfies TreeNode
-      })
-      .sort((a, b) => a.id.localeCompare(b.id))
-  }, [searchQuery, operators])
-  const selectedNodeIds = useMemo(() => {
-    return new Set(selectedIdsString ? selectedIdsString.split(',') : [])
-  }, [selectedIdsString])
+    const flat = (nodes: TreeNode[]): TreeNode[] => nodes.flatMap(n => [n, ...flat(n.children)])
+    return flat(tree)
+      .filter(n => n.name.toLowerCase().includes(q) || n.displayName.toLowerCase().includes(q))
+      .map(n => ({ ...n, children: [], depth: 1 }))
+  }, [searchQuery, tree])
 
-  const handleSelect = useCallback(
-    (id: string) => {
-      // Select in React Flow
-      reactFlow.setNodes(nodes =>
-        nodes.map(node => ({
-          ...node,
-          selected: node.id === id,
-        }))
-      )
-    },
-    [reactFlow]
-  )
+  const selectedNodeIds = useMemo(() => new Set(selection), [selection])
+
+  const handleSelect = useCallback((id: string) => {
+    docStore().set({ selection: [id] })
+  }, [])
 
   const handleNavigate = useCallback(
     (id: string) => {
-      const nestingStore = useNestingStore.getState()
-      const currentContainerId = nestingStore.currentContainerId
-
-      // Navigate to the appropriate container level
-      const pathParts = id.split('/').filter(Boolean)
-      let targetContainerId: string
-      if (pathParts.length > 1) {
-        // Nested node: navigate to parent container
-        targetContainerId = `/${pathParts.slice(0, -1).join('/')}`
-        nestingStore.setCurrentContainerId(targetContainerId)
-      } else {
-        // Root level node: navigate to root
-        targetContainerId = '/'
-        nestingStore.setCurrentContainerId('/')
-      }
-
-      const isChangingLevels = currentContainerId !== targetContainerId
-
-      // Track analytics if we're changing levels
-      if (isChangingLevels) {
-        // Determine direction: up if target is shallower than current
-        const currentDepth = currentContainerId.split('/').filter(Boolean).length
-        const targetDepth = targetContainerId.split('/').filter(Boolean).length
-        const direction = targetDepth < currentDepth ? 'up' : 'into'
-        analytics.track('container_navigated', { method: 'sidebar_target', direction })
-      }
-
-      // Use RAF to ensure React state updates have flushed
+      const store = docStore()
+      const parent = store.get().doc.nodes.find(n => n.id === id)?.parent
+      const isChangingLevels = store.get().network !== parent
+      if (isChangingLevels) analytics.track('container_navigated', { method: 'sidebar_target' })
+      store.set({ network: parent, selection: [id] })
+      // Once the network has switched, zoom to the node
       requestAnimationFrame(() => {
-        // Zoom to the specific node (instant if changing levels, animated if same level)
-        reactFlow.fitView({
-          nodes: [{ id }],
-          duration: isChangingLevels ? 0 : 300,
-          padding: 0.5,
-        })
+        reactFlow.fitView({ nodes: [{ id }], duration: isChangingLevels ? 0 : 300, padding: 0.5 })
       })
     },
     [reactFlow]
@@ -428,12 +361,8 @@ export function NodeTreeSidebar({ updateOperatorId }: NodeTreeSidebarProps) {
 
   const handleNavigateInto = useCallback(
     (id: string) => {
-      const nestingStore = useNestingStore.getState()
-      // Clear selection when changing levels
-      reactFlow.setNodes(nodes => nodes.map(node => ({ ...node, selected: false })))
-      nestingStore.setCurrentContainerId(id)
+      docStore().set({ network: id, selection: [] })
       analytics.track('container_navigated', { method: 'sidebar', direction: 'into' })
-      // Use RAF to ensure React state updates have flushed
       requestAnimationFrame(() => {
         reactFlow.fitView({ duration: 0 })
       })
@@ -444,11 +373,8 @@ export function NodeTreeSidebar({ updateOperatorId }: NodeTreeSidebarProps) {
   const handleToggleCollapse = useCallback((id: string) => {
     setCollapsedNodes(prev => {
       const next = new Set(prev)
-      if (next.has(id)) {
-        next.delete(id)
-      } else {
-        next.add(id)
-      }
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
       return next
     })
   }, [])
@@ -488,7 +414,6 @@ export function NodeTreeSidebar({ updateOperatorId }: NodeTreeSidebarProps) {
             onNavigateInto={handleNavigateInto}
             collapsedNodes={collapsedNodes}
             onToggleCollapse={handleToggleCollapse}
-            updateOperatorId={updateOperatorId}
           />
         ))}
       </div>

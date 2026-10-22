@@ -7,6 +7,10 @@ import { PrimeReactProvider } from 'primereact/api'
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useParams } from 'wouter'
 import type { CopyControlsRef } from '../noodles/components/copy-controls'
+import { ErrorBoundary } from '../noodles/components/error-boundary'
+import { LayerPanel } from '../noodles/components/layer-panel'
+import { NodeTreeSidebar } from '../noodles/components/node-tree-sidebar'
+import { SidebarTabs } from '../noodles/components/sidebar-tabs'
 import type { UndoRedoHandlerRef } from '../noodles/components/UndoRedoHandler'
 import { useActiveStorageType, useFileSystemStore } from '../noodles/filesystem-store'
 import newProjectJSON from '../noodles/new.json'
@@ -273,6 +277,16 @@ export function useDocNoodles(): Visualization {
     onChangeShowChatPanel: setShowChatPanel,
     selectedNodeIds: selection,
     propertiesPanel: <DocProperties />,
+    nodeSidebar: (
+      <ErrorBoundary title="Sidebar Error">
+        <SidebarTabs
+          tabs={[
+            { id: 'nodes', label: 'Nodes', icon: 'pi-sitemap', content: <NodeTreeSidebar /> },
+            { id: 'layers', label: 'Layers', icon: 'pi-clone', content: <LayerPanel /> },
+          ]}
+        />
+      </ErrorBoundary>
+    ),
     showOverlay,
     onChangeShowOverlay: setShowOverlay,
     showDebugInfo,
