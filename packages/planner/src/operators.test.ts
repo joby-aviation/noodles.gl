@@ -377,6 +377,10 @@ describe('host tables', () => {
     const lowered = lowerDocument(doc, { hostTable: (id, port) => (id === 'code' && port === 'data' ? 'SELECT 1.0 AS x, 2.0 AS y' : undefined) });
     expect(lowered.errors).toEqual([]);
     expect(lowered.graph.nodes).toContainEqual({ id: 'code#data', type: 'sql', query: 'SELECT 1.0 AS x, 2.0 AS y' });
+    // Wired into a deck's layers as well, the host's output is the host's to draw.
+    const both = { ...doc, edges: [...doc.edges, { id: 'e3', source: 'code', sourcePort: 'data', target: 'map', targetPort: 'layers' }] };
+    const deck = lowerDocument(both, { hostTable: () => 'SELECT 1.0 AS x, 2.0 AS y' }).graph.nodes.find((n) => n.type === 'deck') as DeckNode;
+    expect(deck.inputs).toEqual(['dots']);
   });
 });
 

@@ -295,14 +295,16 @@ export class Engine {
   private async bridgeHostTables(): Promise<boolean> {
     const { host, registerFile } = this.options
     if (!host || !registerFile || !this.doc) return false
-    const isHost = (id: string) => {
-      const op = this.doc?.nodes.find(n => n.id === id)?.op
-      return !!op && !OPERATOR_INDEX.get(op)?.lower
-    }
+    const opOf = (id: string) =>
+      OPERATOR_INDEX.get(this.doc?.nodes.find(n => n.id === id)?.op ?? '')
+    const isHost = (id: string) => !!opOf(id) && !opOf(id)?.lower
+    // Only a planner node's table input reads rows; a deck's layers port takes the host's layers.
+    const readsRows = (id: string, port: string) =>
+      opOf(id)?.inputs.find(p => p.name === port)?.type === 'table'
     let changed = false
     const live = new Set<string>()
     for (const e of this.doc.edges) {
-      if (e.targetPort.startsWith('par:') || !isHost(e.source) || isHost(e.target)) continue
+      if (!isHost(e.source) || isHost(e.target) || !readsRows(e.target, e.targetPort)) continue
       const key = `${e.source}.${e.sourcePort}`
       if (live.has(key)) continue
       live.add(key)

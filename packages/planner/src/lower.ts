@@ -413,6 +413,8 @@ export function lowerDocument(doc: EditorDoc, options: LowerOptions = {}): Lower
           .filter((x) => x.target === id && x.targetPort === port)
           .sort((a, b) => (a.index ?? 0) - (b.index ?? 0))
           .flatMap((e) => {
+            // A host operator's layers are the host's to draw; its tables are not layers.
+            if (!OPERATOR_INDEX.get(byId.get(e.source)?.op ?? '')?.lower) return [];
             // A bypassed or failed layer drops out of a deck rather than failing it.
             const up = lowerNode(e.source);
             const ir = up?.[e.sourcePort];
