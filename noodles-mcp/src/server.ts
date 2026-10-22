@@ -24,7 +24,7 @@ const SECTIONS = ['users', 'developers', 'ai-assistant', 'examples'] as const
 export const INSTRUCTIONS = `Docs, operator schemas, examples and validation for Noodles.gl project files (noodles.json).
 
 - Start from a similar project: list_examples, then get_example.
-- Before writing an edge, read both operators with get_operator_schema. Edges go from out.<field> on the source to par.<field> on the target, and only between fields the schema lists.
+- Before writing an edge, read both operators with get_operator_schema. Edges go from out.<field> on the source to par.<field> on the target, using fields the schema lists or the node declares in data.customInputs. At a container's boundary the container's own par.<field> is a source and its out.<field> a target.
 - After writing or editing a file, call validate_project with its path and fix every error.
 - When validate_project returns "valid": true, the file is done. Stop researching.
 
@@ -139,11 +139,19 @@ export function createServer({ repoRoot, cwd }: Context): McpServer {
   server.registerTool(
     'list_examples',
     {
-      description: 'List all example projects, optionally filtered by tag',
-      inputSchema: { tag: z.string().optional().describe('Filter by tag') },
+      description: 'List all example projects, optionally filtered by category or tag',
+      inputSchema: {
+        category: z.string().optional().describe('Filter by category'),
+        tag: z.string().optional().describe('Filter by tag'),
+      },
       annotations: readOnly,
     },
-    ({ tag }) => ok(listExamples(repoRoot).filter(ex => !tag || ex.tags.includes(tag)))
+    ({ category, tag }) =>
+      ok(
+        listExamples(repoRoot).filter(
+          ex => (!category || ex.category === category) && (!tag || ex.tags.includes(tag))
+        )
+      )
   )
 
   server.registerTool(

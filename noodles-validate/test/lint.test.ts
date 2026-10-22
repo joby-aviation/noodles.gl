@@ -144,6 +144,36 @@ describe('validateProject', () => {
       ])
     })
 
+    it('does not take Object properties for operator types', () => {
+      for (const type of ['constructor', 'toString', '__proto__', 'hasOwnProperty']) {
+        assert.deepEqual(rules(project(p => p.nodes.push(node('/odd', type)))), [
+          'unknown-operator',
+        ])
+      }
+    })
+
+    it('rejects a custom input type the editor cannot load', () => {
+      const p = project(p => {
+        p.nodes[0].data.customInputs = [
+          { id: 'a', name: 'threshold', type: 'NumberField', order: 0 },
+        ]
+        p.nodes[0].data.inputs.threshold = 4
+      })
+      assert.deepEqual(rules(p), ['custom-input'])
+      assert.match(messages(p)[0], /type "NumberField".*Custom input types are: number, string/)
+    })
+
+    it('rejects custom inputs without a name, or not in an array', () => {
+      const unnamed = project(p => {
+        p.nodes[0].data.customInputs = [{ id: 'a', type: 'number', order: 0 }]
+      })
+      assert.deepEqual(rules(unnamed), ['custom-input'])
+      const notArray = project(p => {
+        p.nodes[0].data.customInputs = { name: 'threshold' }
+      })
+      assert.deepEqual(rules(notArray), ['custom-input'])
+    })
+
     it('skips React Flow group nodes', () => {
       assert.deepEqual(rules(project(p => p.nodes.push(node('/loop-group', 'group')))), [])
     })
@@ -254,6 +284,32 @@ describe('validateProject', () => {
         delete p.edges[0].sourceHandle
       })
       assert.deepEqual(rules(p), ['edge-shape'])
+    })
+
+    it("gives a GraphInputOp its container's custom inputs on both sides", () => {
+      const withContainer = (customInputs: unknown[]) =>
+        project(p => {
+          const container = node('/scaled', 'ContainerOp')
+          container.data.customInputs = customInputs
+          p.nodes.push(
+            container,
+            node('/scaled/graph-input', 'GraphInputOp', { threshold: 2 }),
+            node('/scaled/times', 'MathOp', { operator: 'multiply' })
+          )
+          p.edges.push(
+            edge('/scaled', 'par.threshold', '/scaled/graph-input', 'par.threshold'),
+            edge('/scaled/graph-input', 'out.threshold', '/scaled/times', 'par.a')
+          )
+        })
+      const threshold = [{ id: 'a', name: 'threshold', type: 'number', order: 0 }]
+      assert.deepEqual(rules(withContainer(threshold)), [])
+      // Without the declaration, every use of the field is reported
+      assert.deepEqual(rules(withContainer([])), [
+        'unknown-input',
+        'edge-handle',
+        'edge-handle',
+        'edge-handle',
+      ])
     })
 
     it('accepts container boundary edges from par. and into out.', () => {

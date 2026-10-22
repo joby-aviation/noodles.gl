@@ -11,6 +11,8 @@ export interface ExampleSummary {
   id: string
   name: string
   description: string
+  // Every example is 'geospatial', as in the in-app tool
+  category: string
   tags: string[]
   // Repo-relative directory, where the project's data files sit too
   path: string
@@ -49,7 +51,14 @@ function summarize(repoRoot: string, id: string): ExampleSummary {
   const name =
     text.match(/^#\s+(.+)$/m)?.[1] ?? id.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
   const description = text.match(/^#\s+.+\n\n(.+)/m)?.[1].trim() ?? `Example project: ${id}`
-  return { id, name, description, tags: id.split('-'), path: `${EXAMPLES_DIR}/${id}` }
+  return {
+    id,
+    name,
+    description,
+    category: 'geospatial',
+    tags: id.split('-'),
+    path: `${EXAMPLES_DIR}/${id}`,
+  }
 }
 
 function readme(dir: string): string {

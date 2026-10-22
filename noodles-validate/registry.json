@@ -1,5 +1,24 @@
 {
   "projectVersion": 18,
+  "customFieldTypes": [
+    "number",
+    "string",
+    "boolean",
+    "color",
+    "vec2",
+    "vec3",
+    "vec4",
+    "geopoint-2d",
+    "geopoint-3d",
+    "bbox",
+    "date",
+    "expression",
+    "code",
+    "bezier-curve",
+    "string-literal",
+    "data",
+    "unknown"
+  ],
   "operators": {
     "A5LayerOp": {
       "name": "A5Layer",

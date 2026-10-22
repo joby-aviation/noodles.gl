@@ -21,6 +21,8 @@ export interface Registry {
   // NOODLES_VERSION: the schema version a current project file declares
   projectVersion: number
   operators: Record<string, OperatorInfo>
+  // The type names a node's data.customInputs may use (fieldTypeToClass keys)
+  customFieldTypes?: string[]
 }
 
 export type Severity = 'error' | 'warning'
@@ -33,6 +35,7 @@ export type Rule =
   | 'duplicate-node-id'
   | 'unknown-operator'
   | 'unknown-input'
+  | 'custom-input'
   | 'generic-node-name'
   | 'edge-shape'
   | 'edge-unknown-node'

@@ -6,6 +6,7 @@
 
 import { describe, expect, it } from 'vitest'
 import { buildOperatorRegistry } from '../ai-chat/runtime-operator-registry'
+import { fieldTypeToClass } from './fields'
 import { NOODLES_VERSION } from './utils/migrate-schema'
 
 function buildSnapshot() {
@@ -35,7 +36,9 @@ function buildSnapshot() {
         },
       ])
   )
-  return { projectVersion: NOODLES_VERSION, operators }
+  // What a node's data.customInputs[].type may be
+  const customFieldTypes = Object.keys(fieldTypeToClass)
+  return { projectVersion: NOODLES_VERSION, customFieldTypes, operators }
 }
 
 describe('operator registry snapshot', () => {

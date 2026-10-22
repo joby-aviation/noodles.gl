@@ -11,6 +11,7 @@ made the assistant better or worse.
 npm run bench:agent -- --provider webllm --model Qwen3-4B-q4f16_1-MLC --tasks T1,T2
 npm run bench:agent -- --provider webllm --model Qwen3-4B-q4f16_1-MLC --knobs ctx=16384
 npm run bench:agent -- --provider anthropic --model claude-haiku-4-5 --headless   # needs ANTHROPIC_API_KEY
+npm run bench:agent:judge -- bench/agent/results/raw/<runId>                      # needs AWS credentials for Bedrock
 npm run bench:agent:report -- bench/agent/results/<runId>.summary.json
 npm run bench:agent:report -- --compare bench/agent/results/<before>.summary.json bench/agent/results/<after>.summary.json
 ```
@@ -39,6 +40,22 @@ Checks are listed in `grade.ts`. Scoring is #509's 0–4 scale: the fraction of
 checks passed, capped at 40% when a mechanical check (`edgesValid`,
 `applySucceeded`, `noNewOperatorErrors`, `noConsoleErrors`) fails. A run passes
 when every check does.
+
+## Judge
+
+The deterministic score says whether the graph ended up right; it cannot say
+that a reply claimed an edit that never landed, or that the model sent the same
+broken call six times. `judge-run.ts` asks Claude on Bedrock to score each run
+against `rubrics/in-app.yaml`, ported from PR #509: anchors and checklist
+dimensions, a quoted `L<n>` or `ops.json:<n>` citation for every score (checked
+to resolve), a median over 3 samples, and a total that blends half deterministic
+and half judge while keeping the 40% mechanical cap.
+
+It judges T3 and T4 by default (`--tiers` to change), writes the judgment into
+each raw file, and puts the judge score into the summary's `Judge` column. Pass
+`--judge` to `bench:agent` to run it straight after a benchmark. The model is
+`BENCH_JUDGE_MODEL` or Opus 5.5; region from `AWS_REGION`. Inside a sandbox that
+proxies network access, set `NODE_USE_ENV_PROXY=1` so the AWS SDK uses the proxy.
 
 ## Results
 

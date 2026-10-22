@@ -106,6 +106,23 @@ Tracked in the renderer, not the buttons, so the Export button, the render setti
 
 The agent's `capture_visualization` tool is not a `screenshot_taken`: it returns the image to the model rather than saving a file.
 
+### Data Import
+
+When a CSV or JSON table is imported, the editor looks for coordinate columns so it can build a map without the AI assistant. `coordinates_detected` records whether that worked.
+
+| Event | Properties | Location |
+|-------|-----------|----------|
+| `coordinates_detected` | `source, fileFormat, detected, method, reason, sizedByColumn, rowCountBucket` | use-file-import.ts |
+| `quick_start_create_from_file` | `fileSize, mode, detected` | quick-start-modal.tsx |
+| `quick_start_file_action_handled` | `mode` | noodles.tsx |
+
+- `source`: `canvas_drop`, `quickstart` or `tools_shelf` (the Import Data dialog)
+- `method`: `lat_lng`, `geometry` (a WKT or GeoJSON column) or `none`; `reason` is set only for `none`: `no_rows`, `no_columns` or `out_of_range` (columns named like coordinates whose values aren't longitude and latitude)
+- `sizedByColumn`: whether points were sized by a numeric column
+- `rowCountBucket`: `0`, `1-99`, `100-999`, `1k-10k`, `10k-100k` or `100k+`, never the exact count
+- `mode`: `map` (built from detected coordinates) or `chat` (handed to the AI assistant)
+- Column names, values and file names are never sent
+
 ### User Interface
 
 | Event | Properties | Location |
