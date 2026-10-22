@@ -124,6 +124,11 @@ describe('noodles-mcp', () => {
       const examples = await data('list_examples')
       const quakes = examples.find((ex: { id: string }) => ex.id === 'california-earthquakes')
       assert.equal(quakes.path, 'noodles-editor/src/examples/california-earthquakes')
+      assert.equal(
+        (await data('list_examples', { category: 'geospatial' })).length,
+        examples.length
+      )
+      assert.deepEqual(await data('list_examples', { category: 'other' }), [])
       const tagged = await data('list_examples', { tag: 'nyc' })
       assert.ok(
         tagged.length > 0 && tagged.every((ex: { tags: string[] }) => ex.tags.includes('nyc'))
