@@ -4514,6 +4514,10 @@
           "type": "StringLiteralField",
           "default": "constant"
         },
+        "exportAlpha": {
+          "type": "BooleanField",
+          "default": false
+        },
         "scaleControl": {
           "type": "NumberField",
           "default": 0.3
