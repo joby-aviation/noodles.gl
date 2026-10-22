@@ -326,8 +326,6 @@ function buildLayer(input: ProgramLayerInput, binary: Binary): Layer | undefined
         radiusMinPixels: 0.5,
         getRadius: has('getRadius') ? undefined : 1,
         ...constant('getFillColor', rgb(p.fillColor, [255, 140, 0])),
-        // Points on the ground plane only z-fight at pitch with depth testing.
-        parameters: { ...parameters, depthCompare: 'always' },
       } as never)
     case 'arc':
       return new ArcLayer({

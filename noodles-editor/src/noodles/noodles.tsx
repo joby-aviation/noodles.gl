@@ -100,7 +100,7 @@ import {
   copyPublicFolderData,
   hasDataDirectory,
   load,
-  openFailureReason,
+  readAssetBinary,
   readMemoryOutputCache,
   save,
 } from './storage'
@@ -176,6 +176,7 @@ const GitHistoryPanel = lazyWithReload(() =>
  * work reliably regardless of import order (prevents linting from breaking styles).
  */
 import './layers.css'
+import { plannerPreviewEnabled, usePlannerPreview } from '../runtime/planner-preview'
 import { debugApp, debugParams, debugVis } from '../utils/debug'
 import s from './noodles.module.css'
 
@@ -2306,6 +2307,20 @@ export function getNoodles(): Visualization {
     storedProjectName,
   ])
 
+  // Project assets the way FileOp reads them: from whichever project storage is active now.
+  const readProjectAsset = useCallback(async (name: string) => {
+    const { currentProjectName, activeStorageType } = useFileSystemStore.getState()
+    const result = await readAssetBinary(activeStorageType, currentProjectName ?? '', name)
+    if (!result.success) throw new Error(result.error.message)
+    return new Uint8Array(result.data)
+  }, [])
+  const plannerVis = usePlannerPreview(
+    plannerPreviewEnabled(),
+    getNoodlesProjectJson,
+    readProjectAsset,
+    `${storedProjectName}:${nodes.length}:${edges.length}`
+  )
+
   const propertiesPanel = (
     <ErrorBoundary title="Property Panel Error">
       <div className={s.rightPanel}>
@@ -2399,5 +2414,6 @@ export function getNoodles(): Visualization {
     onChangeShowChatPanel: setShowChatPanel,
     hasUnsavedChanges,
     ...visProps,
+    ...plannerVis,
   }
 }
