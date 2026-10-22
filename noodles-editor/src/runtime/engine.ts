@@ -62,7 +62,29 @@ export interface EngineHost {
   view(description: unknown): unknown
 }
 
+/** A planner output a host operator reads that does not exist yet: the operator waits. */
+export const PENDING = Symbol.for('noodles.planner.pending')
+
+/** A DuckDB row as the plain objects Noodles operators expect: numbers, arrays, objects. */
+function plainValue(v: unknown): unknown {
+  if (typeof v === 'bigint') return Number(v)
+  if (v && typeof v === 'object') {
+    if ('toArray' in v && typeof (v as { toArray: unknown }).toArray === 'function') {
+      return Array.from((v as { toArray(): ArrayLike<unknown> }).toArray(), plainValue)
+    }
+    if ('toJSON' in v && typeof (v as { toJSON: unknown }).toJSON === 'function') {
+      return plainRow((v as { toJSON(): Record<string, unknown> }).toJSON())
+    }
+  }
+  return v
+}
+
+function plainRow(row: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(row).map(([k, v]) => [k, plainValue(v)]))
+}
+
 export interface HostRunInputs {
+  /** A layer, a relation's rows (possibly still loading), or `PENDING`. */
   planner(nodeId: string, port: string): unknown
   slots: ReadonlyMap<string, unknown>
   time: number
@@ -104,7 +126,7 @@ export class Engine {
   private hostErrors: { nodeId: string; message: string }[] = []
 
   constructor(
-    sql: SqlEngine,
+    private readonly sql: SqlEngine,
     private readonly options: EngineOptions = {}
   ) {
     registerNoodlesRamps()
@@ -223,39 +245,89 @@ export class Engine {
   private update(): Promise<void> {
     const lowered = this.lowered
     if (!lowered) return Promise.resolve()
-    const fps = this.doc?.timeline?.fps ?? 30
-    const { values, slots } = parameterValues(lowered, {
-      T: this.time,
-      F: Math.round(this.time * fps),
-    })
-    this.slots = slots
-    const key = structureKey(lowered.graph)
-    const work =
-      key !== this.structure
-        ? this.registerAssets().then(() => {
-            this.structure = key
-            return this.runtime.setGraph(lowered.graph, values)
-          })
-        : this.runtime.setValues(values)
-    const all = work.then(() => this.runHost())
+    const all = (async () => {
+      const key = structureKey(lowered.graph)
+      const structural = key !== this.structure
+      if (structural) await this.registerAssets()
+      // Host operators the planner reads (a geocoder whose location a query binds) first; the
+      // ones that read planner output wait for the second pass.
+      await this.runHost(false)
+      const fps = this.doc?.timeline?.fps ?? 30
+      const clock = { T: this.time, F: Math.round(this.time * fps) }
+      const { values, slots } = parameterValues(lowered, clock, this.hostValues())
+      this.slots = slots
+      if (structural) {
+        this.structure = key
+        await this.runtime.setGraph(lowered.graph, values)
+      } else {
+        await this.runtime.setValues(values)
+      }
+      await this.runtime.idle()
+      await this.runHost(true)
+    })()
     this.pending = all.catch(() => undefined)
     return all
   }
 
-  /** Host operators, after the planner: they may read planner layers and scalar slots. */
-  private async runHost(): Promise<void> {
+  /** Host operator outputs as scalar-program keys: `nodeId.out.location.lat`. */
+  private hostValues(): { get(key: string): unknown } {
+    const runner = this.options.host?.runner
+    return {
+      get: (key: string) => {
+        const at = key.indexOf('.out.')
+        if (!runner || at < 0) return undefined
+        const [field, ...path] = key.slice(at + 5).split('.')
+        let v = runner.output(key.slice(0, at), field)
+        for (const p of path) v = (v as Record<string, unknown> | undefined)?.[p]
+        return v
+      },
+    }
+  }
+
+  /**
+   * Host operators. Before the planner runs, an operator that reads planner output waits
+   * (`PENDING`); after it, it gets the layer it reads, or a relation's rows as JS objects.
+   */
+  private async runHost(afterPlanner: boolean): Promise<void> {
     const host = this.options.host
     if (!host || !this.doc) return
-    await this.runtime.idle()
-    this.buildPlannerLayers()
+    if (afterPlanner) this.buildPlannerLayers()
     const report = await host.runner.run(this.doc, {
-      planner: (nodeId, port) =>
-        this.built.get(this.lowered?.outputs[nodeId]?.[port] ?? nodeId)?.[0],
+      planner: (nodeId, port) => {
+        if (!afterPlanner) return PENDING
+        const ir = this.lowered?.outputs[nodeId]?.[port] ?? nodeId
+        const layer = this.built.get(ir)?.[0]
+        return layer ?? this.rowsOf(ir)
+      },
       slots: this.slots,
       time: this.time,
     })
     this.hostErrors = report.errors
-    this.emit()
+    if (afterPlanner) this.emit()
+  }
+
+  private readonly rows = new Map<string, Promise<unknown[]>>()
+
+  /**
+   * A relation's rows for a host operator that needs JS objects. Read once per relation hash,
+   * so an unchanged relation is not read again; DuckDB's BIGINTs become numbers, as the rows
+   * Noodles operators were written for had.
+   */
+  private rowsOf(relationId: string): Promise<unknown[]> | typeof PENDING {
+    const rel = this.runtime.program()?.relations.find(r => r.id === relationId)
+    if (!rel) return PENDING
+    let rows = this.rows.get(rel.hash)
+    if (!rows) {
+      rows = this.sql
+        .run(`SELECT * FROM ${rel.ref}`)
+        .then(({ table }) =>
+          (table.toArray() as { toJSON(): Record<string, unknown> }[]).map(r =>
+            plainRow(r.toJSON())
+          )
+        )
+      this.rows.set(rel.hash, rows)
+    }
+    return rows
   }
 
   /**

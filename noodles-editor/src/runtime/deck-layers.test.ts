@@ -168,7 +168,8 @@ describe('DeckLayerBuilder aggregation layers', () => {
     })
     deck = map as unknown as Deck<OrthographicView>
     await new Promise(resolve => setTimeout(resolve, 1000))
-    const cells = map.layerManager?.getLayers().find(l => l.id.endsWith('-cells'))
+    const manager = (map as unknown as { layerManager?: { getLayers(): Layer[] } }).layerManager
+    const cells = manager?.getLayers().find(l => l.id.endsWith('-cells'))
     expect(cells?.getNumInstances()).toBeGreaterThan(0)
     // An aggregation that read nothing leaves deck's sentinel domain, [3e38, -3e38].
     const props = cells?.props as unknown as { colorDomain?: number[] } | undefined

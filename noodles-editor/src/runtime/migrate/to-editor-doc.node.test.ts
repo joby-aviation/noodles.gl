@@ -156,6 +156,36 @@ describe('toEditorDoc', () => {
     expect(warnings).toEqual([])
   })
 
+  it('converts chargers: a geocoded query, host operators reading its rows, and a camera', () => {
+    const { doc, warnings } = toEditorDoc(example('chargers'))
+    const lowered = lowerDocument(doc)
+    expect(lowered.errors).toEqual([])
+    const op = (id: string) => doc.nodes.find(n => n.id === id)?.op
+    expect(op('/centroid')).toBe('GeocoderOp')
+    expect(op('/charger-query')).toBe('sql')
+    expect(String(doc.nodes.find(n => n.id === '/charger-query')?.params.query)).toContain(
+      "ch('centroid/out.location.lat')"
+    )
+    // The query binds the geocoder's location as a parameter, a value from the host.
+    expect(lowered.slotParams['/centroid.out.location.lat']).toHaveLength(1)
+    expect(op('/charger-bounds')).toBe('BoundingBoxOp')
+    expect(doc.edges).toContainEqual(
+      expect.objectContaining({
+        source: '/charger-query',
+        target: '/charger-bounds',
+        targetPort: 'par:data',
+      })
+    )
+    expect(doc.edges).toContainEqual(
+      expect.objectContaining({ source: '/auto-view', target: '/deck', targetPort: 'viewState' })
+    )
+    expect(op('/layer-toggle')).toBe('switch')
+    expect(op('/charger-heatmap')).toBe('heatmap')
+    expect(lowered.outputs['/layer-toggle'].out).toBe('/charger-points')
+    // Nothing it read was dropped for want of a conversion.
+    expect(warnings.filter(w => w.includes('not converted'))).toEqual([])
+  })
+
   it('reads a per-feature hex color string through hex_color', () => {
     const { doc } = toEditorDoc(example('geojson-example'))
     expect(lowerDocument(doc).errors).toEqual([])

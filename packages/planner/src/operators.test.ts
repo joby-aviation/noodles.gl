@@ -256,3 +256,27 @@ describe('the catalog', () => {
     expect(types.filter((t, i) => types.indexOf(t) !== i)).toEqual([])
   })
 })
+
+describe('host values as parameters', () => {
+  it('reads a ch() reference to a host operator output from the host values', () => {
+    const doc: EditorDoc = {
+      version: 1,
+      name: 'host',
+      nodes: [
+        { id: 'geo', op: 'GeocoderOp', x: 0, y: 0, params: {} },
+        { id: 'q', op: 'sql', x: 0, y: 0, params: { query: { expr: "SELECT ch('geo/out.location.lat') AS lat" } } },
+        { id: 'dots', op: 'scatter', x: 0, y: 0, params: { position: '[lat, lat]' } },
+        { id: 'map', op: 'deck', x: 0, y: 0, params: {} },
+      ],
+      edges: [
+        { id: 'e1', source: 'q', sourcePort: 'out', target: 'dots', targetPort: 'in' },
+        { id: 'e2', source: 'dots', sourcePort: 'out', target: 'map', targetPort: 'layers' },
+      ],
+    }
+    const lowered = lowerDocument(doc)
+    expect(lowered.errors).toEqual([])
+    const [name] = lowered.slotParams['geo.out.location.lat']
+    const host = new Map([['geo.out.location.lat', 39.74]])
+    expect(parameterValues(lowered, { T: 0, F: 0 }, host).values[name]).toBe(39.74)
+  })
+})
