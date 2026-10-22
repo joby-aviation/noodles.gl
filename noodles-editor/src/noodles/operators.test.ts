@@ -1,14 +1,19 @@
+import * as deckWidgets from '@deck.gl/widgets'
 import * as turf from '@turf/turf'
 import { Temporal } from 'temporal-polyfill'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { NumberField } from './fields'
+import { NumberField, StringField } from './fields'
+import { getKeysStore } from './keys-store'
 import {
+  A5LayerOp,
   AccessorOp,
+  ArcLayerOp,
   BitmapOverlayWidgetOp,
   BoundingBoxOp,
   CategoricalColorRampOp,
   ChartOp,
   CodeOp,
+  CompassWidgetOp,
   ConcatOp,
   CrossOp,
   DeckRendererOp,
@@ -16,39 +21,111 @@ import {
   DuckDbOp,
   ExpressionOp,
   FileOp,
+  FillStyleExtensionOp,
   FilterOp,
+  FirstPersonViewOp,
+  FpsWidgetOp,
+  FullscreenWidgetOp,
+  GeocoderOp,
+  GeohashLayerOp,
   GeoJsonLayerOp,
   GeoJsonTransformOp,
+  GlobeViewOp,
+  GreatCircleLayerOp,
+  H3ClusterLayerOp,
   JSONOp,
   KmlToGeoJsonOp,
   LayerPropsOp,
+  LineLayerOp,
   MaplibreBasemapOp,
   MapViewOp,
   MathOp,
   MergeOp,
+  MVTLayerOp,
   NetworkOp,
   NumberOp,
   Operator,
+  OrbitViewOp,
+  OrthographicViewOp,
+  OverpassOp,
+  PathLayerOp,
+  PathStyleExtensionOp,
+  PointCloudLayerOp,
   PointOp,
+  PolygonLayerOp,
   ProjectOp,
+  QuadkeyLayerOp,
   RampOp,
   RectangleOp,
   RerouteOp,
+  S2LayerOp,
+  ScaleWidgetOp,
+  ScatterOp,
   ScatterplotLayerOp,
+  ScreenshotWidgetOp,
   SelectOp,
   SmoothOp,
   SwitchOp,
+  TableEditorOp,
   Tile3DLayerOp,
+  TimeOp,
   TimeSeriesOp,
+  TripsLayerOp,
+  ZoomWidgetOp,
 } from './operators'
 import { deleteOp, getOpStore, setOp } from './store'
 import { isAccessor } from './utils/accessor-helpers'
+import { canConnect, validateConnection } from './utils/can-connect'
 
 describe('basic Operators', () => {
   it('creates an Operator', () => {
     const operator = new NumberOp('/num-0')
     expect(operator.data.val).toEqual(0)
     expect(operator.outputData.val).toEqual(0)
+  })
+})
+
+describe('TableEditorOp', () => {
+  it('materializes declared schema defaults in output data', () => {
+    const operator = new TableEditorOp('/table')
+    const schema = {
+      columns: [
+        {
+          name: 'anchor',
+          type: 'stringLiteral' as const,
+          defaultValue: 'start',
+          options: { values: ['start', 'end', 'middle'] },
+        },
+        { name: 'offset2d', type: 'vec2' as const, defaultValue: [64, 0] },
+        { name: 'offset3d', type: 'vec3' as const, defaultValue: [64, 0, 10] },
+      ],
+    }
+
+    const result = operator.execute({ data: [{}], schema })
+
+    expect(result.data).toEqual([{ anchor: 'start', offset2d: [64, 0], offset3d: [64, 0, 10] }])
+  })
+
+  it('preserves date-time values when TableEditors are chained', () => {
+    const first = new TableEditorOp('/first')
+    const second = new TableEditorOp('/second')
+    const schema = {
+      columns: [{ name: 'time', type: 'dateTime' as const }],
+    }
+    const storedValue = {
+      datetime: '2026-09-05T12:30:00.000',
+      timezone: 'America/Los_Angeles',
+    }
+
+    const firstResult = first.execute({ data: [{ time: storedValue }], schema })
+    const secondResult = second.execute({ data: firstResult.data, schema })
+    const chainedValue = secondResult.data[0].time as Temporal.ZonedDateTime
+
+    expect(chainedValue).toBeInstanceOf(Temporal.ZonedDateTime)
+    expect(chainedValue.toPlainDateTime().toString({ smallestUnit: 'millisecond' })).toBe(
+      storedValue.datetime
+    )
+    expect(chainedValue.timeZoneId).toBe(storedValue.timezone)
   })
 })
 
@@ -160,6 +237,113 @@ describe('Error handling', () => {
       num: 1,
     })
     expect(onError.mock.calls[1][0]).toEqual(new Error('Test error'))
+  })
+})
+
+describe('Operator.isComputing', () => {
+  it('is true for the whole pull, before the executing status appears', async () => {
+    const op = new MathOp('/math', { operator: 'add', a: 2, b: 3 })
+    let finish = () => {}
+    const held = new Promise<void>(resolve => {
+      finish = resolve
+    })
+    const execute = op.execute.bind(op)
+    vi.spyOn(op, 'execute').mockImplementation(async inputs => {
+      await held
+      return execute(inputs)
+    })
+
+    expect(op.isComputing).toBe(false)
+    const pulled = op.pull()
+    expect(op.isComputing).toBe(true)
+    // The status waits 200ms, so a fast check sees idle while work is running
+    expect(op.executionState.value.status).not.toBe('executing')
+
+    finish()
+    await pulled
+    expect(op.isComputing).toBe(false)
+  })
+})
+
+describe('Locked operators', () => {
+  it('serves the last output without executing while locked', async () => {
+    const op = new MathOp('/math', { operator: 'add', a: 2, b: 3 })
+    await op.pull()
+    op.locked.next(true)
+    const execute = vi.spyOn(op, 'execute')
+
+    op.inputs.a.setValue(10)
+
+    await expect(op.pull()).resolves.toEqual({ result: 5 })
+    expect(execute).not.toHaveBeenCalled()
+  })
+
+  it('executes once when locked without any output yet', async () => {
+    const op = new MathOp('/math', { operator: 'add', a: 2, b: 3 }, true)
+    const execute = vi.spyOn(op, 'execute')
+
+    await expect(op.pull()).resolves.toEqual({ result: 5 })
+    op.inputs.a.setValue(10)
+    await expect(op.pull()).resolves.toEqual({ result: 5 })
+    expect(execute).toHaveBeenCalledTimes(1)
+  })
+
+  it('catches up on input changes after unlocking', async () => {
+    const op = new MathOp('/math', { operator: 'add', a: 2, b: 3 })
+    await op.pull()
+    op.locked.next(true)
+    op.inputs.a.setValue(10)
+    await op.pull()
+
+    op.locked.next(false)
+
+    await expect(op.pull()).resolves.toEqual({ result: 13 })
+  })
+
+  it('does not pull upstream while locked', async () => {
+    const upstream = new NumberOp('/num', { val: 1 })
+    const op = new MathOp('/math', { operator: 'add', a: 2, b: 3 })
+    op.addUpstreamDependency(upstream)
+    upstream.addDownstreamDependent(op)
+    await op.pull()
+    op.locked.next(true)
+    const upstreamPull = vi.spyOn(upstream, 'pull')
+
+    upstream.inputs.val.setValue(2)
+    await op.pull()
+
+    expect(upstreamPull).not.toHaveBeenCalled()
+  })
+
+  it('serves outputs set with setOutputValues without executing', async () => {
+    const op = new MathOp('/math', { operator: 'add', a: 2, b: 3 }, true)
+    const execute = vi.spyOn(op, 'execute')
+
+    op.setOutputValues({ result: 42 })
+
+    expect(op.hasOutput).toBe(true)
+    await expect(op.pull()).resolves.toEqual({ result: 42 })
+    expect(execute).not.toHaveBeenCalled()
+  })
+
+  it('restores saved outputs and serves them without executing', async () => {
+    const op = new MathOp('/math', { operator: 'add', a: 2, b: 3 }, true)
+    const execute = vi.spyOn(op, 'execute')
+
+    expect(op.restoreOutputs({ result: 42 })).toBe(true)
+
+    expect(op.outputs.result.value).toBe(42)
+    await expect(op.pull()).resolves.toEqual({ result: 42 })
+    expect(execute).not.toHaveBeenCalled()
+  })
+
+  it('ignores saved outputs that no longer fit the output fields', async () => {
+    const op = new MathOp('/math', { operator: 'add', a: 2, b: 3 }, true)
+
+    expect(op.restoreOutputs({ result: 'not a number' })).toBe(false)
+
+    expect(op.hasOutput).toBe(false)
+    await expect(op.pull()).resolves.toEqual({ result: 5 })
   })
 })
 
@@ -684,6 +868,22 @@ describe('AccessorOp op() error handling', () => {
 })
 
 describe('BoundingBoxOp', () => {
+  it('connects its viewState output to a MaplibreBasemap viewState input', () => {
+    const boundingBox = new BoundingBoxOp('/bbox-0')
+    const basemap = new MaplibreBasemapOp('/maplibre-0')
+
+    expect(canConnect(boundingBox.outputs.viewState, basemap.inputs.viewState)).toBe(true)
+  })
+
+  it('identifies an incompatible MaplibreBasemap compound property', () => {
+    const boundingBox = new BoundingBoxOp('/bbox-0')
+    const basemap = new MaplibreBasemapOp('/maplibre-0')
+
+    expect(validateConnection(boundingBox.outputs.viewState, basemap.inputs.sky).error).toBe(
+      'Type mismatch at sky.enabled: expected boolean, received undefined'
+    )
+  })
+
   it('finds the bounding box of a list of points', () => {
     const operator = new BoundingBoxOp('/bbox-0')
     const val = operator.execute({
@@ -730,6 +930,30 @@ describe('MathOps', () => {
       b: 1000000000000000000,
     })
     expect(val.result).toEqual(1000000000000000000000000000000000000)
+  })
+})
+
+describe('TimeOp', () => {
+  it('feeds a downstream MathOp through a pull', async () => {
+    const clock = new TimeOp('/clock')
+    const seconds = new MathOp('/seconds', { operator: 'divide', b: 1000 })
+    seconds.inputs.a.addConnection('/clock.out.now', clock.outputs.now)
+    seconds.addUpstreamDependency(clock)
+    clock.addDownstreamDependent(seconds)
+
+    const first = await seconds.pull()
+    expect(typeof first.result).toBe('number')
+    expect(first.result).toBe(Date.now() / 1000)
+
+    vi.advanceTimersByTime(1000)
+    vi.advanceTimersToNextFrame()
+
+    const second = await seconds.pull()
+    expect(second.result).toBe(Date.now() / 1000)
+    expect(second.result).toBeGreaterThan(first.result)
+    await expect(clock.pull()).resolves.toMatchObject({ now: Date.now() })
+
+    clock.dispose()
   })
 })
 
@@ -966,9 +1190,120 @@ describe('ScatterplotLayerOp', () => {
   })
 })
 
+describe('deck.gl 9.4 properties', () => {
+  it('configures path dashes by units and across the whole path', () => {
+    const operator = new PathStyleExtensionOp('/path-style-0')
+    const { extension } = operator.execute({
+      dash: true,
+      highPrecisionDash: false,
+      offset: true,
+      dashMode: 'path',
+      dashUnits: 'pixels',
+      dashJustified: true,
+      getDashArray: [8, 4],
+      getOffset: 2,
+      dashGapPickable: true,
+    })
+
+    expect(extension).toEqual({
+      extension: {
+        type: 'PathStyleExtension',
+        dash: true,
+        dashMode: 'path',
+        offset: true,
+      },
+      props: {
+        dashUnits: 'pixels',
+        dashJustified: true,
+        getDashArray: [8, 4],
+        getOffset: 2,
+        dashGapPickable: true,
+      },
+    })
+  })
+
+  it('maps the deprecated highPrecisionDash option to whole-path dash mode', () => {
+    const operator = new PathStyleExtensionOp('/path-style-0')
+    const { extension } = operator.execute({
+      dash: true,
+      highPrecisionDash: true,
+      offset: false,
+      dashMode: 'segment',
+    })
+
+    expect(extension.extension.dashMode).toBe('path')
+  })
+
+  it.each([
+    ['PathLayer', PathLayerOp, 'antialiasing'],
+    ['TripsLayer', TripsLayerOp, 'antialiasing'],
+    ['ArcLayer', ArcLayerOp, 'antialiasing'],
+    ['LineLayer', LineLayerOp, 'antialiasing'],
+    ['PointCloudLayer', PointCloudLayerOp, 'antialiasing'],
+    ['PolygonLayer', PolygonLayerOp, 'lineAntialiasing'],
+    ['GeoJsonLayer', GeoJsonLayerOp, 'lineAntialiasing'],
+    ['A5Layer', A5LayerOp, 'lineAntialiasing'],
+    ['GreatCircleLayer', GreatCircleLayerOp, 'antialiasing'],
+    ['H3ClusterLayer', H3ClusterLayerOp, 'lineAntialiasing'],
+    ['GeohashLayer', GeohashLayerOp, 'lineAntialiasing'],
+    ['S2Layer', S2LayerOp, 'lineAntialiasing'],
+    ['QuadkeyLayer', QuadkeyLayerOp, 'lineAntialiasing'],
+    ['MVTLayer', MVTLayerOp, 'lineAntialiasing'],
+  ])('forwards %s shader antialiasing', (_name, OperatorType, propName) => {
+    const operator = new OperatorType('/layer-0')
+    const { layer } = operator.execute({ [propName]: true })
+
+    expect(layer[propName]).toBe(true)
+  })
+
+  it('forwards ScatterplotLayer pixel offsets', () => {
+    const operator = new ScatterplotLayerOp('/scatterplot-0')
+    const { layer } = operator.execute({ getPixelOffset: [12, -8] })
+
+    expect(layer.getPixelOffset).toEqual([12, -8])
+    expect(layer.updateTriggers).toEqual({ getPixelOffset: [[12, -8]] })
+  })
+
+  it('configures procedural fill patterns and their new layer properties', () => {
+    const operator = new FillStyleExtensionOp('/fill-style-0')
+    const { extension } = operator.execute({
+      fillPatternEnabled: true,
+      proceduralPattern: true,
+      fillPatternSizeUnits: 'pixels',
+      getFillPatternBackgroundColor: [12, 34, 56, 128],
+    })
+
+    expect(extension.extension).toEqual({
+      type: 'FillStyleExtension',
+      pattern: true,
+      proceduralPattern: true,
+    })
+    expect(extension.props.fillPatternSizeUnits).toBe('pixels')
+    expect(extension.props.getFillPatternBackgroundColor).toEqual([12, 34, 56, 128])
+  })
+
+  it('forwards per-view render parameters', () => {
+    const operator = new MapViewOp('/map-0')
+    const { view } = operator.execute({ parameters: { depthTest: false } })
+
+    expect(view.parameters).toEqual({ depthTest: false })
+  })
+
+  it('configures the zoom widget step', () => {
+    const operator = new ZoomWidgetOp('/zoom-0')
+    const { widget } = operator.execute({ placement: 'top-right', zoomStep: 0.5, viewId: '' })
+
+    expect(widget.zoomStep).toBe(0.5)
+  })
+})
+
 describe('DeckRendererOp', () => {
   it('returns views if provided', () => {
     const operator = new DeckRendererOp('/deck-0')
+    const viewDescriptors = [
+      { type: 'MapView' as const, id: 'map-view' },
+      { type: 'OrbitView' as const, id: 'orbit-view' },
+    ]
     const {
       vis: {
         deckProps: { views },
@@ -976,14 +1311,33 @@ describe('DeckRendererOp', () => {
     } = operator.execute({
       layers: [],
       effects: [],
-      views: ['view1', 'view2'],
+      views: viewDescriptors,
       layerFilter: () => true,
     })
-    expect(views).toEqual(['view1', 'view2'])
+    expect(views).toEqual(viewDescriptors)
     const {
       vis: { deckProps },
     } = operator.execute({})
     expect(deckProps.views).not.toBeDefined()
+  })
+
+  it('accepts connected view operator descriptors', async () => {
+    const viewOperator = new MapViewOp('/map-view')
+    const renderer = new DeckRendererOp('/deck-0')
+    renderer.inputs.views.addConnection('view-edge', viewOperator.outputs.view)
+
+    await viewOperator.pull()
+
+    expect(renderer.inputs.views.value).toEqual([
+      expect.objectContaining({ type: 'MapView', id: '/map-view' }),
+    ])
+    await expect(renderer.pull()).resolves.toMatchObject({
+      vis: {
+        deckProps: {
+          views: [expect.objectContaining({ type: 'MapView', id: '/map-view' })],
+        },
+      },
+    })
   })
 
   it('returns undefined mapProps when basemap is null', () => {
@@ -1211,7 +1565,21 @@ describe('MapViewOp', () => {
     const { view } = operator.execute({
       clearColor: [127.5, 0, 127.5, 255],
     })
-    expect(view.props.clearColor).toEqual([127.5, 0, 127.5, 255])
+    expect(view.clearColor).toEqual([127.5, 0, 127.5, 255])
+  })
+
+  it.each([
+    [MapViewOp, 'MapView'],
+    [GlobeViewOp, 'GlobeView'],
+    [FirstPersonViewOp, 'FirstPersonView'],
+    [OrbitViewOp, 'OrbitView'],
+    [OrthographicViewOp, 'OrthographicView'],
+  ] as const)('%s returns a serializable %s descriptor', (ViewOperator, type) => {
+    const operator = new ViewOperator('/view-0')
+    const { view } = operator.execute({})
+
+    expect(view).toMatchObject({ type, id: '/view-0' })
+    expect(JSON.parse(JSON.stringify(view))).toEqual(view)
   })
 })
 
@@ -2579,7 +2947,7 @@ describe('FileOp', () => {
 
   describe('JSON format', () => {
     it('should parse JSON from text input', async () => {
-      const operator = new FileOp('/file-0')
+      const operator = new FileOp('/file-json-text')
       const testData = { test: 'data', value: 123 }
       const result = await operator.execute({
         format: 'json',
@@ -2592,7 +2960,7 @@ describe('FileOp', () => {
     })
 
     it('should fetch and parse JSON from URL', async () => {
-      const operator = new FileOp('/file-1')
+      const operator = new FileOp('/file-json-url')
       const testData = { test: 'remote', value: 456 }
       global.fetch = vi.fn().mockResolvedValue({
         json: () => Promise.resolve(testData),
@@ -2610,7 +2978,7 @@ describe('FileOp', () => {
     })
 
     it('should throw error for invalid JSON', async () => {
-      const operator = new FileOp('/file-2')
+      const operator = new FileOp('/file-invalid-json')
       await expect(
         operator.execute({
           format: 'json',
@@ -2624,8 +2992,19 @@ describe('FileOp', () => {
   })
 
   describe('CSV format', () => {
+    it('should only show autoType input when format is csv or tsv', () => {
+      const operator = new FileOp('/file-format-autotype-visibility')
+      expect(operator.isFieldVisible('autoType')).toBe(false)
+      operator.inputs.format.setValue('csv')
+      expect(operator.isFieldVisible('autoType')).toBe(true)
+      operator.inputs.format.setValue('tsv')
+      expect(operator.isFieldVisible('autoType')).toBe(true)
+      operator.inputs.format.setValue('json')
+      expect(operator.isFieldVisible('autoType')).toBe(false)
+    })
+
     it('should parse CSV from text input', async () => {
-      const operator = new FileOp('/file-3')
+      const operator = new FileOp('/file-csv-text')
       const csvText = 'name,value\nJohn,30\nJane,25'
       const result = await operator.execute({
         format: 'csv',
@@ -2640,8 +3019,8 @@ describe('FileOp', () => {
       expect(result.data[1]).toEqual({ name: 'Jane', value: 25 })
     })
 
-    it('should parse CSV without autoType', async () => {
-      const operator = new FileOp('/file-4')
+    it('should parse CSV without autoType as strings', async () => {
+      const operator = new FileOp('/file-csv-no-autotype')
       const csvText = 'name,value\nJohn,30\nJane,25'
       const result = await operator.execute({
         format: 'csv',
@@ -2659,7 +3038,7 @@ describe('FileOp', () => {
 
   describe('TSV format', () => {
     it('should parse TSV from text input', async () => {
-      const operator = new FileOp('/file-tsv-0')
+      const operator = new FileOp('/file-tsv-text')
       const tsvText = 'name\tvalue\nJohn\t30\nJane\t25'
       const result = await operator.execute({
         format: 'tsv',
@@ -2673,8 +3052,8 @@ describe('FileOp', () => {
       expect(result.data[1]).toEqual({ name: 'Jane', value: 25 })
     })
 
-    it('should parse TSV without autoType', async () => {
-      const operator = new FileOp('/file-tsv-1')
+    it('should parse TSV without autoType as strings', async () => {
+      const operator = new FileOp('/file-tsv-no-autotype')
       const tsvText = 'name\tvalue\nJohn\t30\nJane\t25'
       const result = await operator.execute({
         format: 'tsv',
@@ -2691,7 +3070,7 @@ describe('FileOp', () => {
 
   describe('Text format', () => {
     it('should return text from text input', async () => {
-      const operator = new FileOp('/file-5')
+      const operator = new FileOp('/file-text')
       const textContent = 'This is plain text content\nwith multiple lines'
       const result = await operator.execute({
         format: 'text',
@@ -2704,7 +3083,7 @@ describe('FileOp', () => {
     })
 
     it('should fetch text from URL', async () => {
-      const operator = new FileOp('/file-6')
+      const operator = new FileOp('/file-text-url')
       const textContent = 'Remote text content'
       global.fetch = vi.fn().mockResolvedValue({
         text: () => Promise.resolve(textContent),
@@ -2722,7 +3101,7 @@ describe('FileOp', () => {
     })
 
     it('should return empty string when no input provided', async () => {
-      const operator = new FileOp('/file-7')
+      const operator = new FileOp('/file-text-empty')
       const result = await operator.execute({
         format: 'text',
         url: '',
@@ -2736,7 +3115,7 @@ describe('FileOp', () => {
 
   describe('Binary format', () => {
     it('should convert text input to Uint8Array', async () => {
-      const operator = new FileOp('/file-8')
+      const operator = new FileOp('/file-binary-uint8')
       const textContent = 'Binary data as text'
       const result = await operator.execute({
         format: 'binary',
@@ -2755,7 +3134,7 @@ describe('FileOp', () => {
     })
 
     it('should fetch binary data from URL', async () => {
-      const operator = new FileOp('/file-9')
+      const operator = new FileOp('/file-binary-url')
       const binaryData = new ArrayBuffer(8)
       const view = new Uint8Array(binaryData)
       view.set([1, 2, 3, 4, 5, 6, 7, 8])
@@ -2777,7 +3156,7 @@ describe('FileOp', () => {
     })
 
     it('should return empty Uint8Array when no input provided', async () => {
-      const operator = new FileOp('/file-10')
+      const operator = new FileOp('/file-uint8-empty')
       const result = await operator.execute({
         format: 'binary',
         url: '',
@@ -2791,7 +3170,7 @@ describe('FileOp', () => {
     })
 
     it('should handle UTF-8 encoded text in binary format', async () => {
-      const operator = new FileOp('/file-11')
+      const operator = new FileOp('/file-utf8-binary')
       const textWithEmoji = 'Hello 👋 World'
       const result = await operator.execute({
         format: 'binary',
@@ -2811,7 +3190,7 @@ describe('FileOp', () => {
 
   describe('Error handling', () => {
     it('should throw error with descriptive message on fetch failure', async () => {
-      const operator = new FileOp('/file-12')
+      const operator = new FileOp('/file-fetch-error')
       global.fetch = vi.fn().mockRejectedValue(new Error('Network error'))
 
       await expect(
@@ -2826,7 +3205,7 @@ describe('FileOp', () => {
     })
 
     it('should throw error for unsupported format', async () => {
-      const operator = new FileOp('/file-13')
+      const operator = new FileOp('/file-unsupported-error')
       await expect(
         operator.execute({
           format: 'unsupported' as any,
@@ -3142,6 +3521,19 @@ describe('Tile3DLayerOp', () => {
   const GOOGLE_URL = 'https://tile.googleapis.com/v1/3dtiles/root.json'
   const CESIUM_URL = 'https://assets.ion.cesium.com/242005/tileset.json'
 
+  // Set keys in the store so the tests don't depend on VITE_ env keys
+  beforeEach(() => {
+    getKeysStore().setBrowserKey('googleMaps', 'test-google-key')
+    getKeysStore().setBrowserKey('cesium', 'test-cesium-token')
+  })
+
+  afterEach(() => {
+    // Restore first: the store copies a spied getKey into the next state on set
+    vi.restoreAllMocks()
+    getKeysStore().clearBrowserKey('googleMaps')
+    getKeysStore().clearBrowserKey('cesium')
+  })
+
   it('defaults to the Google tileset URL when provider is Google', async () => {
     const op = new Tile3DLayerOp('/tile3d-0')
     const { layer } = await op.execute({})
@@ -3172,6 +3564,13 @@ describe('Tile3DLayerOp', () => {
     const op = new Tile3DLayerOp('/tile3d-0')
     const { layer } = await op.execute({ tilesetUrl: '', provider: 'Cesium' })
     expect(layer.data).toEqual(CESIUM_URL)
+  })
+
+  it('throws when the provider key is missing', async () => {
+    vi.spyOn(getKeysStore(), 'getKey').mockReturnValue(undefined)
+    const op = new Tile3DLayerOp('/tile3d-0')
+    await expect(op.execute({ provider: 'Cesium' })).rejects.toThrow('Cesium Ion access token')
+    await expect(op.execute({ provider: 'Google' })).rejects.toThrow('Google Maps API key')
   })
 
   it('hides tilesetUrl by default', () => {
@@ -3433,54 +3832,356 @@ describe('BitmapOverlayWidgetOp', () => {
   })
 })
 
+describe('ScaleWidgetOp', () => {
+  it('creates a scale widget with deck.gl defaults', async () => {
+    const op = new ScaleWidgetOp('/scale-widget-0')
+    await op.pull()
+
+    expect(op.outputData.widget).toEqual({
+      id: '/scale-widget-0',
+      type: '_ScaleWidget',
+      placement: 'bottom-left',
+      label: 'Scale',
+    })
+  })
+
+  it('accepts custom scale widget properties', async () => {
+    const op = new ScaleWidgetOp('/scale-widget-0')
+    op.inputs.placement.setValue('top-right')
+    op.inputs.label.setValue('Distance')
+    op.inputs.viewId.setValue('map-view')
+    await op.pull()
+
+    expect(op.outputData.widget).toMatchObject({
+      placement: 'top-right',
+      label: 'Distance',
+      viewId: 'map-view',
+    })
+  })
+
+  it('excludes an empty viewId', async () => {
+    const op = new ScaleWidgetOp('/scale-widget-0')
+    op.inputs.viewId.setValue('')
+    await op.pull()
+
+    expect(op.outputData.widget.viewId).toBeUndefined()
+  })
+})
+
+describe('deck.gl widget operators', () => {
+  it.each([
+    ['FpsWidgetOp', FpsWidgetOp, '_StatsWidget'],
+    ['FullscreenWidgetOp', FullscreenWidgetOp, 'FullscreenWidget'],
+    ['ZoomWidgetOp', ZoomWidgetOp, 'ZoomWidget'],
+    ['CompassWidgetOp', CompassWidgetOp, 'CompassWidget'],
+    ['ScaleWidgetOp', ScaleWidgetOp, '_ScaleWidget'],
+    ['ScreenshotWidgetOp', ScreenshotWidgetOp, 'ScreenshotWidget'],
+  ])('%s emits an available deck.gl widget constructor', async (_name, WidgetOp, type) => {
+    const op = new WidgetOp('/widget-0')
+    await op.pull()
+
+    expect(op.outputData.widget.type).toBe(type)
+    // biome-ignore lint/performance/noDynamicNamespaceImportAccess: Match the runtime widget lookup.
+    expect(deckWidgets[type as keyof typeof deckWidgets]).toBeTypeOf('function')
+  })
+})
+
+describe('Operator output deep equality for CompoundPropsField', () => {
+  it('should not trigger field updates when CompoundPropsField content is identical', async () => {
+    const op = new MaplibreBasemapOp('/maplibre-test')
+    const nextSpy = vi.spyOn(op.outputs.maplibre, 'next')
+
+    const viewState1 = { latitude: 37, longitude: -122, zoom: 10, pitch: 0, bearing: 0 }
+    const sky1 = {
+      enabled: false,
+      skyColor: '#88C6FC',
+      horizonColor: '#ffffff',
+      skyHorizonBlend: 0.8,
+      atmosphereBlend: 0.5,
+    }
+    const light1 = { anchor: 'viewport' as const, azimuthal: 210, polar: 30 }
+
+    op.inputs.mapStyle.setValue('https://example.com/style.json')
+    op.inputs.projection.setValue('mercator')
+    op.inputs.viewState.setValue(viewState1)
+    op.inputs.sky.setValue(sky1)
+    op.inputs.light.setValue(light1)
+
+    await op.pull()
+    const callCount1 = nextSpy.mock.calls.length
+
+    // Execute again with identical content but different object references
+    const viewState2 = { latitude: 37, longitude: -122, zoom: 10, pitch: 0, bearing: 0 }
+    const sky2 = {
+      enabled: false,
+      skyColor: '#88C6FC',
+      horizonColor: '#ffffff',
+      skyHorizonBlend: 0.8,
+      atmosphereBlend: 0.5,
+    }
+    const light2 = { anchor: 'viewport' as const, azimuthal: 210, polar: 30 }
+
+    op.inputs.viewState.setValue(viewState2)
+    op.inputs.sky.setValue(sky2)
+    op.inputs.light.setValue(light2)
+
+    await op.pull()
+    const callCount2 = nextSpy.mock.calls.length
+
+    // field.next() should not be called again since content is identical
+    expect(callCount2).toBe(callCount1)
+
+    nextSpy.mockRestore()
+  })
+
+  it('should trigger field updates when CompoundPropsField content differs', async () => {
+    const op = new MaplibreBasemapOp('/maplibre-test')
+    const nextSpy = vi.spyOn(op.outputs.maplibre, 'next')
+
+    op.inputs.mapStyle.setValue('https://example.com/style.json')
+    op.inputs.projection.setValue('mercator')
+    op.inputs.viewState.setValue({ latitude: 37, longitude: -122, zoom: 10, pitch: 0, bearing: 0 })
+    op.inputs.sky.setValue({
+      enabled: false,
+      skyColor: '#88C6FC',
+      horizonColor: '#ffffff',
+      skyHorizonBlend: 0.8,
+      atmosphereBlend: 0.5,
+    })
+    op.inputs.light.setValue({ anchor: 'viewport', azimuthal: 210, polar: 30 })
+
+    await op.pull()
+    const callCount1 = nextSpy.mock.calls.length
+
+    // Change viewState to different values
+    op.inputs.viewState.setValue({
+      latitude: 40,
+      longitude: -120,
+      zoom: 12,
+      pitch: 45,
+      bearing: 90,
+    })
+
+    await op.pull()
+    const callCount2 = nextSpy.mock.calls.length
+
+    // field.next() should be called again since content changed
+    expect(callCount2).toBeGreaterThan(callCount1)
+
+    nextSpy.mockRestore()
+  })
+
+  it('should use reference equality for non-compound fields', async () => {
+    const op = new NumberOp('/number-test')
+    const nextSpy = vi.spyOn(op.outputs.val, 'next')
+
+    op.inputs.val.setValue(42)
+    await op.pull()
+    const callCount1 = nextSpy.mock.calls.length
+
+    // Set to same value
+    op.inputs.val.setValue(42)
+    await op.pull()
+    const callCount2 = nextSpy.mock.calls.length
+
+    // field.next() should not be called since value is identical (reference equality)
+    expect(callCount2).toBe(callCount1)
+
+    // Change to different value
+    op.inputs.val.setValue(43)
+    await op.pull()
+    const callCount3 = nextSpy.mock.calls.length
+
+    // field.next() should be called now
+    expect(callCount3).toBeGreaterThan(callCount2)
+
+    nextSpy.mockRestore()
+  })
+
+  it('should handle nested objects in CompoundPropsField correctly', async () => {
+    const op = new MaplibreBasemapOp('/maplibre-test')
+    const nextSpy = vi.spyOn(op.outputs.maplibre, 'next')
+
+    const complexSky = {
+      enabled: true,
+      skyColor: '#123456',
+      horizonColor: '#abcdef',
+      skyHorizonBlend: 0.5,
+      atmosphereBlend: 0.3,
+    }
+
+    op.inputs.mapStyle.setValue('https://example.com/style.json')
+    op.inputs.projection.setValue('globe')
+    op.inputs.viewState.setValue({ latitude: 0, longitude: 0, zoom: 1, pitch: 0, bearing: 0 })
+    op.inputs.sky.setValue(complexSky)
+    op.inputs.light.setValue({ anchor: 'map', azimuthal: 180, polar: 60 })
+
+    await op.pull()
+    const callCount1 = nextSpy.mock.calls.length
+
+    // Set identical nested object with different reference
+    const complexSky2 = {
+      enabled: true,
+      skyColor: '#123456',
+      horizonColor: '#abcdef',
+      skyHorizonBlend: 0.5,
+      atmosphereBlend: 0.3,
+    }
+    op.inputs.sky.setValue(complexSky2)
+
+    await op.pull()
+    const callCount2 = nextSpy.mock.calls.length
+
+    // Should not trigger update
+    expect(callCount2).toBe(callCount1)
+
+    nextSpy.mockRestore()
+  })
+
+  it('should detect changes in nested object properties', async () => {
+    const op = new MaplibreBasemapOp('/maplibre-test')
+    const nextSpy = vi.spyOn(op.outputs.maplibre, 'next')
+
+    op.inputs.mapStyle.setValue('https://example.com/style.json')
+    op.inputs.projection.setValue('mercator')
+    op.inputs.viewState.setValue({ latitude: 37, longitude: -122, zoom: 10, pitch: 0, bearing: 0 })
+    op.inputs.sky.setValue({
+      enabled: false,
+      skyColor: '#88C6FC',
+      horizonColor: '#ffffff',
+      skyHorizonBlend: 0.8,
+      atmosphereBlend: 0.5,
+    })
+    op.inputs.light.setValue({ anchor: 'viewport', azimuthal: 210, polar: 30 })
+
+    await op.pull()
+    const callCount1 = nextSpy.mock.calls.length
+
+    // Change only one nested property
+    op.inputs.sky.setValue({
+      enabled: false,
+      skyColor: '#88C6FC',
+      horizonColor: '#ffffff',
+      skyHorizonBlend: 0.9, // Changed from 0.8
+      atmosphereBlend: 0.5,
+    })
+
+    await op.pull()
+    const callCount2 = nextSpy.mock.calls.length
+
+    // Should trigger update
+    expect(callCount2).toBeGreaterThan(callCount1)
+
+    nextSpy.mockRestore()
+  })
+
+  it('should handle mapStyle updates correctly to prevent flickering', async () => {
+    // This is the specific issue reported by the user
+    const op = new MaplibreBasemapOp('/maplibre-test')
+    const nextSpy = vi.spyOn(op.outputs.maplibre, 'next')
+
+    const mapStyle = 'https://example.com/style.json'
+    const projection = 'mercator'
+    const sky = {
+      enabled: false,
+      skyColor: '#88C6FC',
+      horizonColor: '#ffffff',
+      skyHorizonBlend: 0.8,
+      atmosphereBlend: 0.5,
+    }
+    const light = { anchor: 'viewport' as const, azimuthal: 210, polar: 30 }
+
+    // Initial setup
+    op.inputs.mapStyle.setValue(mapStyle)
+    op.inputs.projection.setValue(projection)
+    op.inputs.viewState.setValue({ latitude: 37, longitude: -122, zoom: 10, pitch: 0, bearing: 0 })
+    op.inputs.sky.setValue(sky)
+    op.inputs.light.setValue(light)
+
+    await op.pull()
+    const callCount1 = nextSpy.mock.calls.length
+
+    // Simulate viewState update (common during animation/interaction)
+    // but mapStyle, projection, sky, light remain the same
+    op.inputs.viewState.setValue({
+      latitude: 37.1,
+      longitude: -122.1,
+      zoom: 10.5,
+      pitch: 0,
+      bearing: 0,
+    })
+
+    await op.pull()
+    const callCount2 = nextSpy.mock.calls.length
+
+    // Should trigger update because viewState changed
+    expect(callCount2).toBeGreaterThan(callCount1)
+
+    // Now update viewState again with same values
+    op.inputs.viewState.setValue({
+      latitude: 37.1,
+      longitude: -122.1,
+      zoom: 10.5,
+      pitch: 0,
+      bearing: 0,
+    })
+
+    await op.pull()
+    const callCount3 = nextSpy.mock.calls.length
+
+    // Should NOT trigger update because nothing changed
+    expect(callCount3).toBe(callCount2)
+
+    nextSpy.mockRestore()
+  })
+})
+
 describe('CategoricalColorRampOp', () => {
   it('initializes with accent scheme by default', () => {
     const op = new CategoricalColorRampOp('/cat-ramp-0')
     expect(op.inputs.colorScheme.value).toBe('accent')
-    expect(op.inputs.colorRamp.count).toBe(8)
+    const result = op.execute(op.data)
+    expect(result.colorRamp.range().length).toBe(8)
   })
 
   it('maps categories to colors via execute', () => {
     const op = new CategoricalColorRampOp('/cat-ramp-0')
-    const result = op.execute({
-      colorRamp: op.inputs.colorRamp.value,
-      value: 'A',
-    })
+    op.inputs.value.setValue('A')
+    const result = op.execute(op.data)
     expect(result.color).toMatch(/^#[0-9a-f]{6}$/)
   })
 
   it('returns different colors for different categories', () => {
     const op = new CategoricalColorRampOp('/cat-ramp-0')
-    const colorA = op.execute({ colorRamp: op.inputs.colorRamp.value, value: 'A' })
-    const colorB = op.execute({ colorRamp: op.inputs.colorRamp.value, value: 'B' })
-    expect(colorA.color).not.toBe(colorB.color)
+    const result = op.execute(op.data)
+    expect(result.colorRamp('A')).not.toBe(result.colorRamp('B'))
   })
 
   it('steps field slices fixed schemes to fewer colors', () => {
     const op = new CategoricalColorRampOp('/cat-ramp-0')
     op.inputs.steps.setValue(10)
     op.inputs.colorScheme.setValue('category10')
-    expect(op.inputs.colorRamp.count).toBe(10)
+    expect(op.execute(op.data).colorRamp.range().length).toBe(10)
 
     op.inputs.steps.setValue(5)
-    expect(op.inputs.colorRamp.count).toBe(5)
+    expect(op.execute(op.data).colorRamp.range().length).toBe(5)
   })
 
   it('steps field selects correct array for stepped schemes', () => {
     const op = new CategoricalColorRampOp('/cat-ramp-0')
     op.inputs.colorScheme.setValue('greyscale')
     op.inputs.steps.setValue(4)
-    expect(op.inputs.colorRamp.count).toBe(4)
+    expect(op.execute(op.data).colorRamp.range().length).toBe(4)
 
     op.inputs.steps.setValue(9)
-    expect(op.inputs.colorRamp.count).toBe(9)
+    expect(op.execute(op.data).colorRamp.range().length).toBe(9)
   })
 
   it('steps field rejects values below minimum', () => {
     const op = new CategoricalColorRampOp('/cat-ramp-0')
     op.inputs.colorScheme.setValue('greyscale')
     op.inputs.steps.setValue(3)
-    expect(op.inputs.colorRamp.count).toBe(3)
+    expect(op.execute(op.data).colorRamp.range().length).toBe(3)
 
     op.inputs.steps.setValue(1)
     expect(op.inputs.steps.value).toBe(3)
@@ -3490,7 +4191,7 @@ describe('CategoricalColorRampOp', () => {
     const op = new CategoricalColorRampOp('/cat-ramp-0')
     op.inputs.colorScheme.setValue('category10')
     op.inputs.steps.setValue(11)
-    expect(op.inputs.colorRamp.count).toBe(10)
+    expect(op.execute(op.data).colorRamp.range().length).toBe(10)
   })
 
   it('changing colorScheme updates the ramp', () => {
@@ -3498,24 +4199,46 @@ describe('CategoricalColorRampOp', () => {
     op.inputs.steps.setValue(5)
 
     op.inputs.colorScheme.setValue('category10')
-    expect(op.inputs.colorRamp.count).toBe(5)
+    expect(op.execute(op.data).colorRamp.range().length).toBe(5)
 
     op.inputs.colorScheme.setValue('greyscale')
-    expect(op.inputs.colorRamp.count).toBe(5)
+    expect(op.execute(op.data).colorRamp.range().length).toBe(5)
   })
 
   it('greyscale scheme produces valid hex colors', () => {
     const op = new CategoricalColorRampOp('/cat-ramp-0')
     op.inputs.colorScheme.setValue('greyscale')
-    const result = op.execute({
-      colorRamp: op.inputs.colorRamp.value,
-      value: 'category1',
-    })
+    op.inputs.value.setValue('category1')
+    const result = op.execute(op.data)
     expect(result.color).toMatch(/^#[0-9a-f]{6}$/)
   })
 })
 
 describe('DirectionsOp', () => {
+  it('exposes traffic scheduling inputs with backward-compatible defaults', () => {
+    const directionsOp = new DirectionsOp('/directions')
+
+    expect(directionsOp.inputs.mode.value).toBe('transit')
+    expect(directionsOp.inputs.departureMode.value).toBe('now')
+    expect(directionsOp.inputs.departureTime.value).toBeInstanceOf(Temporal.PlainDateTime)
+    expect(directionsOp.inputs.trafficModel.value).toBe('best-guess')
+    expect(directionsOp.inputs.avoidTolls.value).toBe(false)
+    expect(directionsOp.isFieldVisible('departureMode')).toBe(false)
+    expect(directionsOp.isFieldVisible('departureTime')).toBe(false)
+    expect(directionsOp.isFieldVisible('trafficModel')).toBe(false)
+    expect(directionsOp.isFieldVisible('avoidTolls')).toBe(false)
+
+    directionsOp.inputs.mode.setValue('driving-traffic')
+    expect(directionsOp.isFieldVisible('departureMode')).toBe(true)
+    expect(directionsOp.isFieldVisible('trafficModel')).toBe(true)
+    expect(directionsOp.isFieldVisible('avoidTolls')).toBe(true)
+    expect(directionsOp.isFieldVisible('departureTime')).toBe(false)
+    directionsOp.inputs.departureMode.setValue('scheduled')
+    expect(directionsOp.inputs.mode.value).toBe('driving-traffic')
+    expect(directionsOp.inputs.departureMode.value).toBe('scheduled')
+    expect(directionsOp.isFieldVisible('departureTime')).toBe(true)
+  })
+
   it('accepts GeoJSON Point Features via Point2DField', () => {
     const directionsOp = new DirectionsOp('/directions')
     const feature = {
@@ -3587,6 +4310,156 @@ describe('DirectionsOp', () => {
     // Verify DirectionsOp correctly parses the GeoJSON Features
     expect(directionsOp.inputs.origin.value).toEqual({ lng: -74.006, lat: 40.7128 })
     expect(directionsOp.inputs.destination.value).toEqual({ lng: -73.935242, lat: 40.73061 })
+  })
+})
+
+describe('GeocoderOp', () => {
+  afterEach(() => {
+    getKeysStore().clearBrowserKey('mapbox')
+    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
+  })
+
+  it('geocodes its query when executed', async () => {
+    getKeysStore().setBrowserKey('mapbox', 'test-token')
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({
+        features: [
+          {
+            place_name: 'Los Angeles, California, United States',
+            center: [-118.2437, 34.0522],
+          },
+        ],
+      }),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const geocoderOp = new GeocoderOp('/geocoder')
+    geocoderOp.inputs.query.addConnection('query-connection', new StringField('Los Angeles'))
+    const result = await geocoderOp.execute({ query: 'Los Angeles' })
+
+    expect(result).toEqual({
+      location: { lng: -118.2437, lat: 34.0522 },
+      results: [
+        {
+          place_name: 'Los Angeles, California, United States',
+          coordinates: { longitude: -118.2437, latitude: 34.0522 },
+        },
+      ],
+    })
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://api.mapbox.com/geocoding/v5/mapbox.places/Los%20Angeles.json?access_token=test-token&limit=5'
+    )
+  })
+
+  it('preserves the user-selected result when its query is not connected', async () => {
+    getKeysStore().setBrowserKey('mapbox', 'test-token')
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+
+    const geocoderOp = new GeocoderOp('/geocoder')
+    geocoderOp.outputs.location.next({ lng: -118.2437, lat: 34.0522 })
+
+    await expect(geocoderOp.execute({ query: 'Los Angeles' })).resolves.toEqual({
+      location: { lng: -118.2437, lat: 34.0522 },
+      results: [],
+    })
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('requires a Mapbox API key', async () => {
+    vi.spyOn(getKeysStore(), 'getKey').mockReturnValue(undefined)
+    const geocoderOp = new GeocoderOp('/geocoder')
+
+    await expect(geocoderOp.execute({ query: 'Los Angeles' })).rejects.toThrow(
+      'Mapbox API key required (Settings > API Keys)'
+    )
+  })
+
+  it('clears stale outputs when a connected query becomes blank', async () => {
+    const getKeySpy = vi.spyOn(getKeysStore(), 'getKey').mockReturnValue('test-token')
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({
+        features: [{ place_name: 'Long Beach', center: [-118.1937, 33.7701] }],
+      }),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const geocoderOp = new GeocoderOp('/geocoder')
+    geocoderOp.inputs.query.addConnection('query-connection', new StringField('Long Beach'))
+    const firstResult = await geocoderOp.execute({ query: 'Long Beach' })
+    geocoderOp.outputs.location.next(firstResult.location)
+    geocoderOp.outputs.results.next(firstResult.results)
+
+    await expect(geocoderOp.execute({ query: '   ' })).resolves.toEqual({
+      location: { lng: 0, lat: 0 },
+      results: [],
+    })
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    getKeySpy.mockRestore()
+  })
+
+  it('returns empty outputs without error when Mapbox has no results', async () => {
+    const getKeySpy = vi.spyOn(getKeysStore(), 'getKey').mockReturnValue('test-token')
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: vi.fn().mockResolvedValue({ features: [] }),
+      })
+    )
+
+    const geocoderOp = new GeocoderOp('/geocoder')
+    geocoderOp.inputs.query.addConnection('query-connection', new StringField('Unknown place'))
+
+    await expect(geocoderOp.execute({ query: 'Unknown place' })).resolves.toEqual({
+      location: { lng: 0, lat: 0 },
+      results: [],
+    })
+    getKeySpy.mockRestore()
+  })
+
+  it('surfaces Mapbox service failures separately from empty results', async () => {
+    const getKeySpy = vi.spyOn(getKeysStore(), 'getKey').mockReturnValue('test-token')
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 429,
+        statusText: 'Too Many Requests',
+      })
+    )
+
+    const geocoderOp = new GeocoderOp('/geocoder')
+    geocoderOp.inputs.query.addConnection('query-connection', new StringField('Long Beach'))
+
+    await expect(geocoderOp.execute({ query: 'Long Beach' })).rejects.toThrow(
+      'Mapbox geocoding failed: 429 Too Many Requests'
+    )
+    getKeySpy.mockRestore()
+  })
+
+  it('includes the reason Mapbox gives for rejecting a query', async () => {
+    const getKeySpy = vi.spyOn(getKeysStore(), 'getKey').mockReturnValue('test-token')
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 422,
+        statusText: 'Unprocessable Entity',
+        json: () => Promise.resolve({ message: 'Query too long - 21/20 tokens' }),
+      })
+    )
+
+    const geocoderOp = new GeocoderOp('/geocoder')
+    geocoderOp.inputs.query.addConnection('query-connection', new StringField('Long Beach'))
+
+    await expect(geocoderOp.execute({ query: 'Long Beach' })).rejects.toThrow(
+      'Mapbox geocoding failed: 422 Query too long - 21/20 tokens'
+    )
+    getKeySpy.mockRestore()
   })
 })
 
@@ -3703,5 +4576,578 @@ describe('NetworkOp with geometry column', () => {
     expect(result.routes).toHaveLength(1)
     expect(result.routes[0].origin).toEqual({ lng: -73.78, lat: 40.64, alt: 0 })
     expect(result.routes[0].destination).toEqual({ lng: -122.37, lat: 37.62, alt: 0 })
+  })
+})
+
+describe('ScatterOp', () => {
+  it('generates random points within default bounds', () => {
+    const scatter = new ScatterOp('/scatter-0')
+    const boundsValue = scatter.inputs.bounds.value
+
+    // Verify bounds field returns tuple format
+    expect(Array.isArray(boundsValue)).toBe(true)
+    expect(boundsValue).toHaveLength(2)
+    expect(Array.isArray(boundsValue[0])).toBe(true)
+    expect(Array.isArray(boundsValue[1])).toBe(true)
+    expect(boundsValue[0]).toEqual([-180, -90])
+    expect(boundsValue[1]).toEqual([180, 90])
+
+    const result = scatter.execute({
+      bounds: boundsValue,
+      count: scatter.inputs.count.value,
+      seed: scatter.inputs.seed.value,
+    })
+
+    expect(result.points).toHaveLength(100)
+    expect(result.points[0]).toHaveProperty('lng')
+    expect(result.points[0]).toHaveProperty('lat')
+    // Points should be within world bounds
+    result.points.forEach(p => {
+      expect(p.lng).toBeGreaterThanOrEqual(-180)
+      expect(p.lng).toBeLessThanOrEqual(180)
+      expect(p.lat).toBeGreaterThanOrEqual(-90)
+      expect(p.lat).toBeLessThanOrEqual(90)
+    })
+  })
+})
+
+describe('OverpassOp', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
+
+    // Clear all keys and set test endpoint
+    const store = getKeysStore()
+    store.clearBrowserKey('overpass')
+    store.clearBrowserKey('mapbox')
+    store.setBrowserKey('overpass', 'https://overpass-api.de/api/interpreter')
+  })
+
+  afterEach(() => {
+    getKeysStore().clearBrowserKey('overpass')
+  })
+
+  it('converts OSM nodes to GeoJSON Point features', async () => {
+    const op = new OverpassOp('/overpass')
+
+    // Mock fetch to return OSM data with tagged nodes
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        elements: [
+          {
+            type: 'node',
+            id: 123,
+            lat: 40.7128,
+            lon: -74.006,
+            tags: { name: 'Test Point', amenity: 'cafe' },
+          },
+          {
+            type: 'node',
+            id: 456,
+            lat: 40.7589,
+            lon: -73.9851,
+            tags: { name: 'Another Point', shop: 'bakery' },
+          },
+        ],
+      }),
+    })
+
+    const result = await op.execute({
+      query: '[out:json];node["amenity"="cafe"];out;',
+      bbox: undefined,
+    })
+
+    expect(result.data).toEqual({
+      type: 'FeatureCollection',
+      features: [
+        {
+          type: 'Feature',
+          geometry: { type: 'Point', coordinates: [-74.006, 40.7128] },
+          properties: { name: 'Test Point', amenity: 'cafe', osm_id: 123, osm_type: 'node' },
+        },
+        {
+          type: 'Feature',
+          geometry: { type: 'Point', coordinates: [-73.9851, 40.7589] },
+          properties: { name: 'Another Point', shop: 'bakery', osm_id: 456, osm_type: 'node' },
+        },
+      ],
+    })
+  })
+
+  it('skips untagged nodes (coordinate-only nodes)', async () => {
+    const op = new OverpassOp('/overpass')
+
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        elements: [
+          { type: 'node', id: 123, lat: 40.7128, lon: -74.006 }, // No tags
+          { type: 'node', id: 456, lat: 40.7589, lon: -73.9851, tags: { name: 'Tagged' } },
+        ],
+      }),
+    })
+
+    const result = await op.execute({
+      query: '[out:json];node;out;',
+      bbox: undefined,
+    })
+
+    expect(result.data.features).toHaveLength(1)
+    expect(result.data.features[0].properties.name).toBe('Tagged')
+  })
+
+  it('converts OSM ways with geometry to LineString or Polygon', async () => {
+    const op = new OverpassOp('/overpass')
+
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        elements: [
+          {
+            type: 'way',
+            id: 789,
+            tags: { highway: 'primary', name: 'Main Street' },
+            geometry: [
+              { lat: 40.7128, lon: -74.006 },
+              { lat: 40.7129, lon: -74.0061 },
+              { lat: 40.713, lon: -74.0062 },
+            ],
+          },
+        ],
+      }),
+    })
+
+    const result = await op.execute({
+      query: '[out:json];way["highway"];out geom;',
+      bbox: undefined,
+    })
+
+    expect(result.data.features).toHaveLength(1)
+    expect(result.data.features[0].geometry.type).toBe('LineString')
+    expect(result.data.features[0].geometry.coordinates).toEqual([
+      [-74.006, 40.7128],
+      [-74.0061, 40.7129],
+      [-74.0062, 40.713],
+    ])
+    expect(result.data.features[0].properties.highway).toBe('primary')
+  })
+
+  it('detects closed ways as Polygon using epsilon comparison', async () => {
+    const op = new OverpassOp('/overpass')
+
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        elements: [
+          {
+            type: 'way',
+            id: 999,
+            tags: { leisure: 'park', name: 'Central Park' },
+            geometry: [
+              { lat: 40.7128, lon: -74.006 },
+              { lat: 40.7129, lon: -74.006 },
+              { lat: 40.7129, lon: -74.0061 },
+              { lat: 40.7128, lon: -74.006 }, // Closed - same as first
+            ],
+          },
+        ],
+      }),
+    })
+
+    const result = await op.execute({
+      query: '[out:json];way["leisure"="park"];out geom;',
+      bbox: undefined,
+    })
+
+    expect(result.data.features).toHaveLength(1)
+    expect(result.data.features[0].geometry.type).toBe('Polygon')
+    expect(result.data.features[0].geometry.coordinates).toEqual([
+      [
+        [-74.006, 40.7128],
+        [-74.006, 40.7129],
+        [-74.0061, 40.7129],
+        [-74.006, 40.7128],
+      ],
+    ])
+  })
+
+  it('detects closed ways using node ID comparison', async () => {
+    const op = new OverpassOp('/overpass')
+
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        elements: [
+          { type: 'node', id: 1, lat: 40.7128, lon: -74.006 },
+          { type: 'node', id: 2, lat: 40.7129, lon: -74.006 },
+          { type: 'node', id: 3, lat: 40.7129, lon: -74.0061 },
+          {
+            type: 'way',
+            id: 888,
+            tags: { building: 'yes' },
+            nodes: [1, 2, 3, 1], // Closed - first and last node IDs match
+          },
+        ],
+      }),
+    })
+
+    const result = await op.execute({
+      query: '[out:json];way["building"];out;',
+      bbox: undefined,
+    })
+
+    expect(result.data.features).toHaveLength(1)
+    expect(result.data.features[0].geometry.type).toBe('Polygon')
+  })
+
+  it('replaces {{bbox}} template with BboxField format', async () => {
+    const op = new OverpassOp('/overpass')
+
+    let capturedQuery = ''
+    global.fetch = vi.fn().mockImplementation(async (_url, options) => {
+      capturedQuery = options?.body as string
+      return {
+        ok: true,
+        json: async () => ({ elements: [] }),
+      }
+    })
+
+    await op.execute({
+      query: '[out:json];node["amenity"]({{bbox}});out;',
+      bbox: {
+        southwest: { lng: -74.05, lat: 40.68 },
+        northeast: { lng: -73.9, lat: 40.82 },
+      },
+    })
+
+    expect(capturedQuery).toBe('[out:json];node["amenity"](40.68,-74.05,40.82,-73.9);out;')
+  })
+
+  it('handles multiple {{bbox}} replacements in query', async () => {
+    const op = new OverpassOp('/overpass')
+
+    let capturedQuery = ''
+    global.fetch = vi.fn().mockImplementation(async (_url, options) => {
+      capturedQuery = options?.body as string
+      return {
+        ok: true,
+        json: async () => ({ elements: [] }),
+      }
+    })
+
+    await op.execute({
+      query: '[out:json];(node({{bbox}});way({{bbox}}););out geom;',
+      bbox: {
+        southwest: { lng: -74.0, lat: 40.7 },
+        northeast: { lng: -73.9, lat: 40.8 },
+      },
+    })
+
+    expect(capturedQuery).toContain('(40.7,-74,40.8,-73.9)')
+    expect(capturedQuery.match(/40\.7,-74,40\.8,-73\.9/g)).toHaveLength(2)
+  })
+
+  it('throws error on Overpass API timeout', async () => {
+    const op = new OverpassOp('/overpass')
+
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        remark: 'runtime error: Query run out of memory using about 2048 MB of RAM (timeout).',
+      }),
+    })
+
+    await expect(
+      op.execute({
+        query: '[out:json];node;out;',
+        bbox: undefined,
+      })
+    ).rejects.toThrow('Overpass query timeout')
+  })
+
+  it('throws error on HTTP error response', async () => {
+    const op = new OverpassOp('/overpass')
+
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 429,
+      statusText: 'Too Many Requests',
+    })
+
+    await expect(
+      op.execute({
+        query: '[out:json];node;out;',
+        bbox: undefined,
+      })
+    ).rejects.toThrow('Overpass API error: 429 Too Many Requests')
+  })
+
+  it('handles empty OSM response', async () => {
+    const op = new OverpassOp('/overpass')
+
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ elements: [] }),
+    })
+
+    const result = await op.execute({
+      query: '[out:json];node["nonexistent"];out;',
+      bbox: undefined,
+    })
+
+    expect(result.data).toEqual({
+      type: 'FeatureCollection',
+      features: [],
+    })
+  })
+
+  it('handles ways with insufficient coordinates', async () => {
+    const op = new OverpassOp('/overpass')
+
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        elements: [
+          {
+            type: 'way',
+            id: 111,
+            tags: { highway: 'path' },
+            geometry: [{ lat: 40.7128, lon: -74.006 }], // Only 1 point - invalid
+          },
+          {
+            type: 'way',
+            id: 222,
+            tags: { highway: 'road' },
+            geometry: [
+              { lat: 40.7128, lon: -74.006 },
+              { lat: 40.7129, lon: -74.0061 },
+            ], // Valid - 2 points
+          },
+        ],
+      }),
+    })
+
+    const result = await op.execute({
+      query: '[out:json];way["highway"];out geom;',
+      bbox: undefined,
+    })
+
+    expect(result.data.features).toHaveLength(1)
+    expect(result.data.features[0].properties.osm_id).toBe(222)
+  })
+
+  it('sends POST request with correct headers', async () => {
+    const op = new OverpassOp('/overpass')
+
+    let capturedRequest: any = null
+    global.fetch = vi.fn().mockImplementation(async (url, options) => {
+      capturedRequest = { url, options }
+      return {
+        ok: true,
+        json: async () => ({ elements: [] }),
+      }
+    })
+
+    await op.execute({
+      query: '[out:json];node;out;',
+      bbox: undefined,
+    })
+
+    expect(capturedRequest.url).toBe('https://overpass-api.de/api/interpreter')
+    expect(capturedRequest.options.method).toBe('POST')
+    expect(capturedRequest.options.headers['Content-Type']).toBe(
+      'application/x-www-form-urlencoded'
+    )
+    expect(capturedRequest.options.body).toBe('[out:json];node;out;')
+  })
+
+  it('converts OSM relations to GeoJSON Polygon features', async () => {
+    const op = new OverpassOp('/overpass')
+
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        elements: [
+          {
+            type: 'relation',
+            id: 12345,
+            tags: { leisure: 'park', name: 'Central Park' },
+            members: [
+              {
+                type: 'way',
+                ref: 100,
+                role: 'outer',
+                geometry: [
+                  { lat: 40.7128, lon: -74.006 },
+                  { lat: 40.7129, lon: -74.006 },
+                  { lat: 40.7129, lon: -74.0061 },
+                  { lat: 40.7128, lon: -74.006 },
+                ],
+              },
+            ],
+          },
+        ],
+      }),
+    })
+
+    const result = await op.execute({
+      query: '[out:json];relation["leisure"="park"];out geom;',
+      bbox: undefined,
+    })
+
+    expect(result.data.features).toHaveLength(1)
+    expect(result.data.features[0].geometry.type).toBe('Polygon')
+    expect(result.data.features[0].geometry.coordinates).toEqual([
+      [
+        [-74.006, 40.7128],
+        [-74.006, 40.7129],
+        [-74.0061, 40.7129],
+        [-74.006, 40.7128],
+      ],
+    ])
+    expect(result.data.features[0].properties).toEqual({
+      leisure: 'park',
+      name: 'Central Park',
+      osm_id: 12345,
+      osm_type: 'relation',
+    })
+  })
+
+  it('converts OSM relations with inner rings (holes) to Polygon', async () => {
+    const op = new OverpassOp('/overpass')
+
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        elements: [
+          {
+            type: 'relation',
+            id: 54321,
+            tags: { leisure: 'park', name: 'Park with Lake' },
+            members: [
+              {
+                type: 'way',
+                ref: 200,
+                role: 'outer',
+                geometry: [
+                  { lat: 40.7, lon: -74.0 },
+                  { lat: 40.71, lon: -74.0 },
+                  { lat: 40.71, lon: -74.01 },
+                  { lat: 40.7, lon: -74.01 },
+                  { lat: 40.7, lon: -74.0 },
+                ],
+              },
+              {
+                type: 'way',
+                ref: 201,
+                role: 'inner',
+                geometry: [
+                  { lat: 40.705, lon: -74.005 },
+                  { lat: 40.706, lon: -74.005 },
+                  { lat: 40.706, lon: -74.006 },
+                  { lat: 40.705, lon: -74.006 },
+                  { lat: 40.705, lon: -74.005 },
+                ],
+              },
+            ],
+          },
+        ],
+      }),
+    })
+
+    const result = await op.execute({
+      query: '[out:json];relation["leisure"="park"];out geom;',
+      bbox: undefined,
+    })
+
+    expect(result.data.features).toHaveLength(1)
+    expect(result.data.features[0].geometry.type).toBe('Polygon')
+    // First ring is outer, second is inner (hole)
+    expect(result.data.features[0].geometry.coordinates).toHaveLength(2)
+    expect(result.data.features[0].geometry.coordinates[0]).toHaveLength(5) // outer
+    expect(result.data.features[0].geometry.coordinates[1]).toHaveLength(5) // inner
+  })
+
+  it('converts OSM relations with multiple outer rings to MultiPolygon', async () => {
+    const op = new OverpassOp('/overpass')
+
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        elements: [
+          {
+            type: 'relation',
+            id: 99999,
+            tags: { leisure: 'park', name: 'Multi-part Park' },
+            members: [
+              {
+                type: 'way',
+                ref: 300,
+                role: 'outer',
+                geometry: [
+                  { lat: 40.7, lon: -74.0 },
+                  { lat: 40.71, lon: -74.0 },
+                  { lat: 40.71, lon: -74.01 },
+                  { lat: 40.7, lon: -74.0 },
+                ],
+              },
+              {
+                type: 'way',
+                ref: 301,
+                role: 'outer',
+                geometry: [
+                  { lat: 40.72, lon: -74.0 },
+                  { lat: 40.73, lon: -74.0 },
+                  { lat: 40.73, lon: -74.01 },
+                  { lat: 40.72, lon: -74.0 },
+                ],
+              },
+            ],
+          },
+        ],
+      }),
+    })
+
+    const result = await op.execute({
+      query: '[out:json];relation["leisure"="park"];out geom;',
+      bbox: undefined,
+    })
+
+    expect(result.data.features).toHaveLength(1)
+    expect(result.data.features[0].geometry.type).toBe('MultiPolygon')
+    expect(result.data.features[0].geometry.coordinates).toHaveLength(2)
+  })
+
+  it('skips relations without geometry data', async () => {
+    const op = new OverpassOp('/overpass')
+
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        elements: [
+          {
+            type: 'relation',
+            id: 11111,
+            tags: { leisure: 'park' },
+            // No members array - query without 'out geom;'
+          },
+          {
+            type: 'relation',
+            id: 22222,
+            tags: { leisure: 'park' },
+            members: [], // Empty members
+          },
+        ],
+      }),
+    })
+
+    const result = await op.execute({
+      query: '[out:json];relation["leisure"="park"];out;',
+      bbox: undefined,
+    })
+
+    expect(result.data.features).toHaveLength(0)
   })
 })

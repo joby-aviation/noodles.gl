@@ -14,6 +14,12 @@ Key Features:
 - Support for JSON, CSV, GeoJSON, and other data formats
 - Export to video, images, or interactive web presentations
 
+## Use with Claude Code
+
+- Quick start prompt: https://noodles.gl/claude-code-prompt.txt. Paste it into Claude Code. It clones the repo, installs, starts the editor, registers the WebMCP relay, changes an example map, and shows a screenshot.
+- Driving a running editor: the `noodles-live` skill at https://github.com/joby-aviation/noodles.gl/blob/main/.claude/skills/noodles-live/SKILL.md
+- WebMCP setup and tool list: https://github.com/joby-aviation/noodles.gl/blob/main/dev-docs/claude-code-workflow.md
+
 ## Primary Documentation
 
 ### Getting Started

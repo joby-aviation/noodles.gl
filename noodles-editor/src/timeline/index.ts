@@ -127,7 +127,6 @@ export type {
   WithKeyframeIndicatorProps,
 } from './components'
 export {
-  CollapsibleTimelinePanel,
   CurveEditor,
   KeyframeIndicator,
   KeyframeTrack,

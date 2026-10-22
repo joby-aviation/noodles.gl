@@ -4,9 +4,9 @@
 import { renderHook } from '@testing-library/react'
 import type { Edge as ReactFlowEdge, Node as ReactFlowNode } from '@xyflow/react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { useProjectModifications } from '../hooks/use-project-modifications'
 import { NumberOp } from '../operators'
 import { clearOps, getOp, setOp } from '../store'
-import { useProjectModifications } from '../hooks/use-project-modifications'
 import { getEnableExpressionDependencies } from '../utils/enable-expression-evaluator'
 
 describe('Performance Benchmarks', () => {
@@ -374,9 +374,7 @@ describe('Performance Benchmarks', () => {
     it('should skip redundant updates on position-only changes', () => {
       let updateCount = 0
 
-      const edges = [
-        { id: 'e1', source: 's1', target: 't1' },
-      ] as ReactFlowEdge[]
+      const edges = [{ id: 'e1', source: 's1', target: 't1' }] as ReactFlowEdge[]
 
       let prevEdgesRef: ReactFlowEdge[] | null = null
 

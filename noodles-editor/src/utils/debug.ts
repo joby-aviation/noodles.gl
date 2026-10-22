@@ -15,6 +15,8 @@ export const debugExecute = createDebug('noodles:executor:execute') // operator 
 // Field update pipeline namespaces
 export const debugSetValue = createDebug('noodles:field:setValue') // field value updates
 export const debugDirty = createDebug('noodles:field:dirty') // field dirty tracking
+// Intentionally outside `noodles:*`: this captures stacks and should only be enabled explicitly.
+export const debugDirtyTrace = createDebug('noodles-trace:dirty') // origin of each dirty wave
 
 // Render namespaces for video/image capture
 export const debugRender = createDebug('noodles:render') // video/image rendering setup
@@ -34,7 +36,6 @@ export const debugVis = createDebug('noodles:vis') // visualization layer
 
 // Feature namespaces
 export const debugAiChat = createDebug('noodles:ai-chat') // AI chat panel, context loading, and agents
-export const debugExternal = createDebug('noodles:external') // external control WebSocket and worker bridge
 export const debugWebMCP = createDebug('noodles:webmcp') // WebMCP tool registration and execution
 export const debugGeocode = createDebug('noodles:geocode') // geocoding API calls
 export const debugAnalytics = createDebug('noodles:analytics') // analytics tracking and consent

@@ -1,58 +1,13 @@
 {
-  "version": 14,
-  "edges": [
-    {
-      "id": "/cities-table.out.data->/scatter.par.data",
-      "source": "/cities-table",
-      "target": "/scatter",
-      "sourceHandle": "out.data",
-      "targetHandle": "par.data"
-    },
-    {
-      "id": "/cities-table.out.data->/text-layer.par.data",
-      "source": "/cities-table",
-      "target": "/text-layer",
-      "sourceHandle": "out.data",
-      "targetHandle": "par.data"
-    },
-    {
-      "id": "/scatter.out.layer->/merge-layers.par.0",
-      "source": "/scatter",
-      "target": "/merge-layers",
-      "sourceHandle": "out.layer",
-      "targetHandle": "par.0"
-    },
-    {
-      "id": "/text-layer.out.layer->/merge-layers.par.1",
-      "source": "/text-layer",
-      "target": "/merge-layers",
-      "sourceHandle": "out.layer",
-      "targetHandle": "par.1"
-    },
-    {
-      "id": "/merge-layers.out.data->/viewer.par.layers",
-      "source": "/merge-layers",
-      "target": "/viewer",
-      "sourceHandle": "out.data",
-      "targetHandle": "par.layers"
-    }
-  ],
-  "viewport": {
-    "x": 0,
-    "y": 0,
-    "zoom": 1
-  },
-  "editorSettings": {
-    "layoutMode": "noodles-on-top",
-    "showOverlay": true
-  },
+  "version": 19,
+  "name": "Table Editor Demo",
   "nodes": [
     {
       "id": "/cities-table",
       "type": "TableEditorOp",
       "position": {
-        "x": 100,
-        "y": 100
+        "x": 0,
+        "y": 200
       },
       "data": {
         "inputs": {
@@ -147,73 +102,235 @@
               "active": true
             }
           ]
-        }
+        },
+        "locked": false
       }
     },
     {
-      "id": "/scatter",
+      "id": "/city-position",
+      "type": "AccessorOp",
+      "position": {
+        "x": 0,
+        "y": 500
+      },
+      "data": {
+        "inputs": {
+          "expression": "d.position"
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/city-radius",
+      "type": "AccessorOp",
+      "position": {
+        "x": 0,
+        "y": 650
+      },
+      "data": {
+        "inputs": {
+          "expression": "Math.sqrt(d.population) * 25"
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/city-color",
+      "type": "AccessorOp",
+      "position": {
+        "x": 0,
+        "y": 800
+      },
+      "data": {
+        "inputs": {
+          "expression": "d.color"
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/city-name",
+      "type": "AccessorOp",
+      "position": {
+        "x": 0,
+        "y": 950
+      },
+      "data": {
+        "inputs": {
+          "expression": "d.city"
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/cities-layer",
       "type": "ScatterplotLayerOp",
       "position": {
-        "x": 400,
-        "y": 100
+        "x": 350,
+        "y": 200
       },
       "data": {
         "inputs": {
-          "data": null,
-          "getPosition": "d => d.position",
-          "getRadius": "d => Math.sqrt(d.population) * 5",
-          "getFillColor": "d => hexToColor(d.color)",
-          "radiusMinPixels": 5,
-          "radiusMaxPixels": 50,
-          "pickable": true
-        }
+          "radiusUnits": "meters",
+          "getLineColor": "#ffffffff"
+        },
+        "locked": false
       }
     },
     {
-      "id": "/text-layer",
+      "id": "/labels-layer",
       "type": "TextLayerOp",
       "position": {
-        "x": 400,
-        "y": 300
+        "x": 350,
+        "y": 600
       },
       "data": {
         "inputs": {
-          "data": null,
-          "getPosition": "d => d.position",
-          "getText": "d => d.city",
           "getSize": 14,
-          "getColor": "[255, 255, 255, 255]",
-          "getPixelOffset": "[0, -20]",
-          "fontWeight": 600,
-          "pickable": true
-        }
+          "getColor": "#ffffffff",
+          "getPixelOffset": {
+            "x": 0,
+            "y": -20
+          },
+          "fontWeight": 600
+        },
+        "locked": false
       }
     },
     {
-      "id": "/viewer",
-      "type": "ViewerOp",
+      "id": "/basemap",
+      "type": "MaplibreBasemapOp",
+      "position": {
+        "x": 350,
+        "y": 950
+      },
+      "data": {
+        "inputs": {
+          "mapStyle": "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
+          "viewState": {
+            "latitude": 39,
+            "longitude": -97,
+            "zoom": 5,
+            "pitch": 0,
+            "bearing": 0
+          }
+        },
+        "locked": false
+      }
+    },
+    {
+      "id": "/deck",
+      "type": "DeckRendererOp",
       "position": {
         "x": 700,
-        "y": 200
+        "y": 400
       },
       "data": {
-        "inputs": {
-          "layers": null
-        }
+        "inputs": {},
+        "locked": false
       }
     },
     {
-      "id": "/merge-layers",
-      "type": "ConcatOp",
+      "id": "/out",
+      "type": "OutOp",
       "position": {
-        "x": 550,
-        "y": 200
+        "x": 1050,
+        "y": 400
       },
       "data": {
-        "inputs": {}
+        "inputs": {},
+        "locked": false
       }
     }
   ],
+  "edges": [
+    {
+      "id": "/cities-table.out.data->/cities-layer.par.data",
+      "source": "/cities-table",
+      "sourceHandle": "out.data",
+      "target": "/cities-layer",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/city-position.out.accessor->/cities-layer.par.getPosition",
+      "source": "/city-position",
+      "sourceHandle": "out.accessor",
+      "target": "/cities-layer",
+      "targetHandle": "par.getPosition"
+    },
+    {
+      "id": "/city-radius.out.accessor->/cities-layer.par.getRadius",
+      "source": "/city-radius",
+      "sourceHandle": "out.accessor",
+      "target": "/cities-layer",
+      "targetHandle": "par.getRadius"
+    },
+    {
+      "id": "/city-color.out.accessor->/cities-layer.par.getFillColor",
+      "source": "/city-color",
+      "sourceHandle": "out.accessor",
+      "target": "/cities-layer",
+      "targetHandle": "par.getFillColor"
+    },
+    {
+      "id": "/cities-table.out.data->/labels-layer.par.data",
+      "source": "/cities-table",
+      "sourceHandle": "out.data",
+      "target": "/labels-layer",
+      "targetHandle": "par.data"
+    },
+    {
+      "id": "/city-position.out.accessor->/labels-layer.par.getPosition",
+      "source": "/city-position",
+      "sourceHandle": "out.accessor",
+      "target": "/labels-layer",
+      "targetHandle": "par.getPosition"
+    },
+    {
+      "id": "/city-name.out.accessor->/labels-layer.par.getText",
+      "source": "/city-name",
+      "sourceHandle": "out.accessor",
+      "target": "/labels-layer",
+      "targetHandle": "par.getText"
+    },
+    {
+      "id": "/cities-layer.out.layer->/deck.par.layers",
+      "source": "/cities-layer",
+      "sourceHandle": "out.layer",
+      "target": "/deck",
+      "targetHandle": "par.layers"
+    },
+    {
+      "id": "/labels-layer.out.layer->/deck.par.layers",
+      "source": "/labels-layer",
+      "sourceHandle": "out.layer",
+      "target": "/deck",
+      "targetHandle": "par.layers"
+    },
+    {
+      "id": "/basemap.out.maplibre->/deck.par.basemap",
+      "source": "/basemap",
+      "sourceHandle": "out.maplibre",
+      "target": "/deck",
+      "targetHandle": "par.basemap"
+    },
+    {
+      "id": "/deck.out.vis->/out.par.vis",
+      "source": "/deck",
+      "sourceHandle": "out.vis",
+      "target": "/out",
+      "targetHandle": "par.vis"
+    }
+  ],
+  "viewport": {
+    "x": 100,
+    "y": 50,
+    "zoom": 0.6
+  },
+  "editorSettings": {
+    "layoutMode": "noodles-on-top",
+    "showOverlay": true
+  },
   "timeline": {
     "sheetsById": {
       "Noodles": {

@@ -14,7 +14,12 @@ export interface Conversation {
   id: string
   timestamp: number
   messages: Message[]
+  // 1: content only. 2: messages may carry toolUses. Records written before the
+  // field existed have no version and load as 1.
+  version?: number
 }
+
+export const CONVERSATION_VERSION = 2
 
 const HISTORY_KEY_PREFIX = 'noodles-chat-history-'
 const METADATA_KEY = 'noodles-chat-metadata'
@@ -55,6 +60,7 @@ export function saveConversation(messages: Message[]): string {
     id,
     timestamp,
     messages,
+    version: CONVERSATION_VERSION,
   }
 
   // Save conversation data
@@ -93,10 +99,18 @@ export function loadConversation(id: string): Conversation | null {
   if (!data) return null
 
   try {
-    return JSON.parse(data) as Conversation
+    return migrate(JSON.parse(data) as Conversation)
   } catch {
     return null
   }
+}
+
+// A version-1 record is already valid version 2 — toolUses is optional and simply
+// absent — so this only has to fill in the version and refuse a record whose
+// messages did not survive whatever wrote it.
+function migrate(conversation: Conversation): Conversation | null {
+  if (!Array.isArray(conversation?.messages)) return null
+  return { ...conversation, version: conversation.version ?? 1 }
 }
 
 // Delete a conversation by ID

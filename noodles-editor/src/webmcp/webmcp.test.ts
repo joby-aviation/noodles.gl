@@ -21,6 +21,7 @@ vi.mock('../ai-chat/mcp-tools', () => {
     }
 
     setProject = vi.fn()
+    clearQueuedModifications = vi.fn()
     listNodes = vi.fn(async () => ({
       success: true,
       data: [{ id: '/scatter', type: 'ScatterplotLayerOp' }],
@@ -100,6 +101,12 @@ describe('initWebMCP', () => {
     for (const call of registerTool.mock.calls) {
       expect(call[1]?.signal).toBeInstanceOf(AbortSignal)
     }
+  })
+
+  it('registers the external-only export tools the chat never sees', async () => {
+    await init()
+    expect(registered.has('export_video')).toBe(true)
+    expect(registered.has('get_export_status')).toBe(true)
   })
 
   it('passes behavior annotations through to registerTool', async () => {
@@ -195,6 +202,26 @@ describe('initWebMCP', () => {
     })
     expect(response.isError).toBe(true)
     expect(response.content[0].text).toContain('validation failed')
+  })
+
+  it('forgets a rejected batch so a corrected retry is not refused', async () => {
+    await init()
+    const { MCPTools } = await import('../ai-chat/mcp-tools')
+    const instances = (
+      MCPTools as unknown as {
+        instances: Array<{ clearQueuedModifications: ReturnType<typeof vi.fn> }>
+      }
+    ).instances
+    const tools = instances[instances.length - 1]
+    const modifications = [{ type: 'add_node', data: { id: '/n', type: 'NumberOp' } }]
+
+    setModificationApplier(() => ({ success: true }))
+    await getRegistered('apply_modifications').execute({ modifications })
+    expect(tools.clearQueuedModifications).not.toHaveBeenCalled()
+
+    setModificationApplier(() => ({ success: false, error: 'last Output node' }))
+    await getRegistered('apply_modifications').execute({ modifications })
+    expect(tools.clearQueuedModifications).toHaveBeenCalledTimes(1)
   })
 
   it('keeps the MCPTools project in sync via the bridge', async () => {

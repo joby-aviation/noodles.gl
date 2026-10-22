@@ -1,4 +1,4 @@
-import { assert, type LayerProps, View } from '@deck.gl/core'
+import { type LayerProps, View } from '@deck.gl/core'
 import { interpolateLab, scaleOrdinal, schemeAccent } from 'd3'
 import { BehaviorSubject, combineLatest, type Subscription } from 'rxjs'
 import { Temporal } from 'temporal-polyfill'
@@ -9,6 +9,8 @@ import { debugSetValue } from '../utils/debug'
 import type { BetterDeckProps, BetterMapProps } from '../visualizations'
 import type { inputComponents } from './components/field-components'
 import type { IOperator, Operator } from './operators'
+import type { DeckViewDescriptor, DeckViewValue } from './types'
+import { deepEqual } from './utils/deep-equal'
 import type { ExtractProps } from './utils/extract-props'
 import { resolvePath } from './utils/path-utils'
 
@@ -33,6 +35,8 @@ type BaseFieldOptions = {
   transform?: (val: unknown, ...args: unknown[]) => unknown
   accessor?: boolean
   showByDefault?: boolean // Defaults to true. Set to false to hide field by default in UI.
+  useDeepEquality?: boolean // Use deep equality when comparing values to prevent unnecessary updates
+  maxDepth?: number // Maximum depth for deep equality checks (Infinity = unlimited)
 }
 
 type PointFieldOptions = BaseFieldOptions & {
@@ -63,10 +67,34 @@ type CompoundPropsFieldOptions = BaseFieldOptions &
 
 type StringLiteralFieldOptions = BaseFieldOptions & {
   values: string[] | Record<string, unknown> | { value: unknown; label: string }[]
+  freeform?: boolean
+  displayAs?: 'select' | 'typeahead' | 'color-scheme'
 }
 
 type CodeFieldOptions = BaseFieldOptions & {
-  language?: 'javascript' | 'json' | 'sql'
+  language?: 'javascript' | 'json' | 'sql' | 'overpass-ql'
+}
+
+// Serialized form of a field driven by an expression, e.g. { $expr: "op('/time').out.seconds * 2" }
+export type SerializedExpression = { $expr: string }
+
+export function isSerializedExpression(value: unknown): value is SerializedExpression {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    '$expr' in value &&
+    typeof (value as SerializedExpression).$expr === 'string'
+  )
+}
+
+// The expression engine (utils/field-expressions.ts) registers itself here so Field
+// doesn't import the evaluator directly — that would create an import cycle through
+// operators.ts (which needs fnWithSource, freeExports, and the op store).
+type FieldExpressionEvaluator = (field: Field) => void
+let fieldExpressionEvaluator: FieldExpressionEvaluator | null = null
+
+export function registerFieldExpressionEvaluator(evaluator: FieldExpressionEvaluator | null) {
+  fieldExpressionEvaluator = evaluator
 }
 
 // Field has a lot going on. It's both a type and a value. It's meant to be connected to
@@ -99,6 +127,15 @@ export abstract class Field<
   // Should this field be shown by default in the UI? Defaults to true.
   showByDefault = true
 
+  // Use deep equality when comparing values to prevent unnecessary updates
+  // Only enable for fields with stable, value-typed data (plain objects, arrays, primitives)
+  // Do not enable for fields containing class instances, Date, Map, Set with identity semantics
+  useDeepEquality = false
+
+  // Maximum depth for deep equality checks (only relevant if useDeepEquality=true)
+  // Infinity = unlimited depth, 0 = reference equality only, 1 = shallow, 2+ = limited depth
+  maxDepth = Infinity
+
   // Hold a reference to the operator that owns this field. Only used for debugging at the moment.
   op!: Operator<IOperator>
 
@@ -106,6 +143,20 @@ export abstract class Field<
 
   // Allows this field to be used with Theatre, and debugging with zod
   pathToProps: string[] = []
+
+  // Expression mode ("drivers"): when set, the field's value is computed by evaluating
+  // a JavaScript expression instead of holding a literal. Null means literal mode.
+  expression$ = new BehaviorSubject<string | null>(null)
+
+  // Last evaluation error (null when the expression evaluated cleanly or in literal mode)
+  expressionError$ = new BehaviorSubject<string | null>(null)
+
+  // Teardown for engine-managed subscriptions (e.g. timeline reactivity); owned by the engine
+  expressionCleanup: (() => void) | null = null
+
+  get expression(): string | null {
+    return this.expression$.value
+  }
 
   constructor(initialValue?: z.input<S> | undefined | Partial<O>, options?: Partial<O>) {
     // This is fine since we set the value immediately after
@@ -141,12 +192,29 @@ export abstract class Field<
   }
 
   // Wrap schema in additional functionality like optional, transform, accessor etc.
-  enhanceSchema({ accessor, optional, transform, showByDefault }: Partial<O>) {
+  enhanceSchema({
+    accessor,
+    optional,
+    transform,
+    showByDefault,
+    useDeepEquality,
+    maxDepth,
+  }: Partial<O>) {
     let schema = this.schema
 
     // Set showByDefault (defaults to true if not specified)
     if (showByDefault !== undefined) {
       this.showByDefault = showByDefault
+    }
+
+    // Set useDeepEquality if specified
+    if (useDeepEquality !== undefined) {
+      this.useDeepEquality = useDeepEquality
+    }
+
+    // Set maxDepth if specified
+    if (maxDepth !== undefined) {
+      this.maxDepth = maxDepth
     }
 
     if (accessor) {
@@ -195,10 +263,40 @@ export abstract class Field<
       this.next(parsed.data)
 
       // Mark the owning operator as dirty
-      this.op?.markDirty()
+      this.op?.markDirty(this)
     } else {
       debugSetValue('%s: %O -> %O [PARSE FAILED]', path, oldValue, value)
       debugSetValue('Parse error', parsed.error.issues)
+    }
+  }
+
+  // Enter expression mode. The value becomes the result of evaluating `expr`;
+  // re-evaluation is triggered by reference connections (see addConnection) and,
+  // for timeline-dependent expressions, by the engine's timeline subscription.
+  setExpression(expr: string): void {
+    this.expressionCleanup?.()
+    this.expressionCleanup = null
+    this.expression$.next(expr)
+    if (fieldExpressionEvaluator) {
+      fieldExpressionEvaluator(this)
+    } else {
+      debugSetValue('%s: no expression evaluator registered', this.pathToProps.join('.'))
+    }
+  }
+
+  // Exit expression mode, keeping the last evaluated value as the new literal value
+  clearExpression(): void {
+    if (this.expression === null) return
+    this.expressionCleanup?.()
+    this.expressionCleanup = null
+    this.expression$.next(null)
+    this.expressionError$.next(null)
+  }
+
+  // Re-run the expression (no-op in literal mode)
+  evaluateExpression(): void {
+    if (this.expression !== null) {
+      fieldExpressionEvaluator?.(this)
     }
   }
 
@@ -214,10 +312,13 @@ export abstract class Field<
     const subscription = field.subscribe(value => {
       if (connectionType === 'value') {
         this.setValue(value)
+      } else if (this.expression !== null) {
+        // Reference feeding an expression-driven field: recompute the value
+        this.evaluateExpression()
       } else {
         this.next(this.value)
         // For reference connections, also mark dirty
-        this.op?.markDirty()
+        this.op?.markDirty(this)
       }
     })
     this.subscriptions.set(id, subscription)
@@ -227,7 +328,10 @@ export abstract class Field<
   removeConnection(id: string, connectionType: 'reference' | 'value' = 'value') {
     if (
       connectionType === 'value' &&
-      (this instanceof DataField || this instanceof ExpressionField || this instanceof CodeField)
+      (this instanceof DataField ||
+        this instanceof ExpressionField ||
+        this instanceof CodeField ||
+        this instanceof UnknownField)
     ) {
       this.setValue(this.defaultValue)
     }
@@ -240,6 +344,9 @@ export abstract class Field<
   // Override when the field's value is not the same as the serialized value.
   // e.g. CodeField should serialize the template string with handlebar references, not the resolved value.
   serialize() {
+    if (this.expression !== null) {
+      return { $expr: this.expression }
+    }
     return this.value
   }
 
@@ -261,19 +368,16 @@ export class StringField extends Field<z.ZodString> {
 
 type FileUrlFieldOptions = BaseFieldOptions & {
   accept?: string // e.g. '.glb,.gltf' — controls file picker filter and shows upload button
-  suggestions?: { value: string; label: string }[] // typeahead suggestions shown in input
 }
 
 export class FileUrlField extends Field<z.ZodString, FileUrlFieldOptions> {
   static type = 'file-url'
   static defaultValue = ''
   accept?: string
-  suggestions: { value: string; label: string }[]
 
   constructor(initialValue?: string, options?: Partial<FileUrlFieldOptions>) {
     super(initialValue, options)
     this.accept = options?.accept
-    this.suggestions = options?.suggestions ?? []
   }
 
   createSchema(_options?: Partial<FileUrlFieldOptions>) {
@@ -283,7 +387,6 @@ export class FileUrlField extends Field<z.ZodString, FileUrlFieldOptions> {
 
 export interface MapStyleFieldOptions extends BaseFieldOptions {
   accept?: string
-  suggestions?: { value: string | Record<string, unknown>; label: string }[]
 }
 
 export class MapStyleField extends Field<
@@ -293,16 +396,28 @@ export class MapStyleField extends Field<
   static type = 'map-style'
   static defaultValue = ''
   accept?: string
-  suggestions: { value: string; label: string }[]
 
   constructor(defaultValue = '', options?: Partial<MapStyleFieldOptions>) {
     super(defaultValue, options)
     this.accept = options?.accept
-    this.suggestions = options?.suggestions ?? []
   }
 
   createSchema(_options?: Partial<MapStyleFieldOptions>) {
     return z.union([z.string(), z.record(z.string(), z.unknown())])
+  }
+
+  // Skip update if object content is identical to avoid unnecessary downstream re-execution
+  setValue(value: z.input<typeof this.schema>): void {
+    if (
+      typeof value === 'object' &&
+      value !== null &&
+      typeof this.value === 'object' &&
+      this.value !== null &&
+      deepEqual(this.value, value)
+    ) {
+      return
+    }
+    super.setValue(value)
   }
 }
 
@@ -401,7 +516,7 @@ export class CodeField extends Field<
 > {
   static type = 'code'
   static defaultValue = ''
-  language: 'javascript' | 'sql' | 'json' = 'javascript'
+  language: 'javascript' | 'sql' | 'json' | 'overpass-ql' = 'javascript'
 
   subscribedFields = new Map()
 
@@ -485,12 +600,15 @@ export class StringLiteralField extends Field<
   static type = 'string-literal'
   static defaultValue = ''
   choices: StringLiteralOption[] = []
+  freeform = false
+  displayAs?: 'select' | 'typeahead' | 'color-scheme'
   createSchema(options: Partial<StringLiteralFieldOptions>) {
     const values = (options.values || []) as StringLiteralOption[]
+    const freeform = options.freeform ?? false
     // TODO: use zod enum? transform StringLiteralOption input type to string?
-    return values.length > 0
-      ? z.union(values.map(({ value }: StringLiteralOption) => z.literal(value)))
-      : z.string()
+    return freeform || values.length === 0
+      ? z.string()
+      : z.union(values.map(({ value }: StringLiteralOption) => z.literal(value)))
   }
 
   constructor(
@@ -500,11 +618,14 @@ export class StringLiteralField extends Field<
     const choices = parseChoices(opts)
     super(override, { ...(Array.isArray(opts) ? {} : opts), values: choices })
     this.choices = choices
+    this.freeform = !Array.isArray(opts) && (opts?.freeform ?? false)
+    this.displayAs = !Array.isArray(opts) ? opts?.displayAs : undefined
   }
 
   updateChoices(opts: Partial<StringLiteralFieldOptions> | StringLiteralOption[] | string[]) {
     const choices = parseChoices(opts)
     this.choices = choices
+    this.freeform = !Array.isArray(opts) && (opts.freeform ?? false)
     const mergedOpts = { ...(Array.isArray(opts) ? {} : opts), values: choices }
     this.schema = this.createSchema(mergedOpts)
     this.schema = this.enhanceSchema(mergedOpts)
@@ -932,6 +1053,9 @@ export class Point3DField extends Field<
 }
 
 type Point2DFieldValue = { lng: number; lat: number; [key: string]: unknown } | [number, number]
+type BboxFieldValue =
+  | { southwest: Point2DFieldValue; northeast: Point2DFieldValue }
+  | [Point2DFieldValue, Point2DFieldValue]
 
 // Should this just be a Vec2? Should it be a GeoJSON Point Or does it need to be a special case
 export class Point2DField extends Field<
@@ -1036,6 +1160,75 @@ export class Point2DField extends Field<
       z
         .tuple([z.number(), z.number()])
         .transform(returnType === 'object' ? val => ({ lng: val[0], lat: val[1] }) : noop),
+    ])
+  }
+}
+
+export class BboxField extends Field<
+  z.ZodUnion<
+    [
+      z.ZodObject<{
+        southwest: z.ZodType<Point2DFieldValue>
+        northeast: z.ZodType<Point2DFieldValue>
+      }>,
+      z.ZodTuple<[z.ZodType<Point2DFieldValue>, z.ZodType<Point2DFieldValue>]>,
+    ]
+  >,
+  PointFieldOptions
+> {
+  static type = 'bbox'
+  static defaultValue = {
+    southwest: { lng: -74.05, lat: 40.68 },
+    northeast: { lng: -73.9, lat: 40.82 },
+  }
+  static channelKeys = ['southwest', 'northeast'] as const
+
+  returnType: 'object' | 'tuple' = 'object'
+
+  constructor(override?: BboxFieldValue, options?: PointFieldOptions) {
+    super(override, options)
+    this.returnType = options?.returnType || 'object'
+  }
+
+  createSchema({ returnType = 'object' }: PointFieldOptions = {}) {
+    const point2dSchema = z.union([
+      z.object({ lng: z.number(), lat: z.number() }).passthrough(),
+      z.tuple([z.number(), z.number()]),
+    ])
+
+    return z.union([
+      z
+        .object({
+          southwest: point2dSchema,
+          northeast: point2dSchema,
+        })
+        .transform(val => {
+          if (returnType === 'tuple') {
+            const sw = Array.isArray(val.southwest)
+              ? val.southwest
+              : [val.southwest.lng, val.southwest.lat]
+            const ne = Array.isArray(val.northeast)
+              ? val.northeast
+              : [val.northeast.lng, val.northeast.lat]
+            return [sw, ne]
+          }
+          // Normalize points to {lng, lat} format
+          const sw = Array.isArray(val.southwest)
+            ? { lng: val.southwest[0], lat: val.southwest[1] }
+            : val.southwest
+          const ne = Array.isArray(val.northeast)
+            ? { lng: val.northeast[0], lat: val.northeast[1] }
+            : val.northeast
+          return { southwest: sw, northeast: ne }
+        }),
+      z.tuple([point2dSchema, point2dSchema]).transform(val => {
+        if (returnType === 'object') {
+          const sw = Array.isArray(val[0]) ? { lng: val[0][0], lat: val[0][1] } : val[0]
+          const ne = Array.isArray(val[1]) ? { lng: val[1][0], lat: val[1][1] } : val[1]
+          return { southwest: sw, northeast: ne }
+        }
+        return val
+      }),
     ])
   }
 }
@@ -1269,18 +1462,19 @@ export class ListField<F extends Field> extends Field<
     this.setValue(Array.from(this.fields.values()).map(f => f.value) as F[])
   }
 
-  reorderInputs(fromIndex: number, toIndex: number): void {
-    if (fromIndex === toIndex) {
+  // Idempotently reorder connections to match orderedIds (typically the edge array order).
+  // Unknown ids are ignored; connections not listed keep their relative order at the end.
+  setConnectionOrder(orderedIds: string[]): void {
+    const currentIds = Array.from(this.fields.keys())
+    const listed = orderedIds.filter(id => this.fields.has(id))
+    const unlisted = currentIds.filter(id => !orderedIds.includes(id))
+    const nextIds = [...listed, ...unlisted]
+
+    if (nextIds.every((id, i) => id === currentIds[i])) {
       return
     }
-    const fields = Array.from(this.fields.entries())
 
-    assert(fromIndex >= 0 && fromIndex < fields.length, 'fromIndex is out of bounds')
-    assert(toIndex >= 0 && toIndex < fields.length, 'toIndex is out of bounds')
-
-    const [movedField] = fields.splice(fromIndex, 1)
-    fields.splice(toIndex, 0, movedField)
-    this.fields = new Map(fields)
+    this.fields = new Map(nextIds.map(id => [id, this.fields.get(id) as F]))
     this.setValue(Array.from(this.fields.values()).map(f => f.value) as F[])
   }
 }
@@ -1350,14 +1544,26 @@ export class ExtensionField extends Field<z.ZodTypeAny> {
   }
 }
 
-export class ViewField extends Field<
-  z.ZodType<InstanceType<View>, z.ZodTypeDef, InstanceType<View>>
-> {
+const deckViewDescriptorSchema = z.looseObject({
+  type: z.enum(['MapView', 'GlobeView', 'FirstPersonView', 'OrbitView', 'OrthographicView']),
+}) as z.ZodType<DeckViewDescriptor>
+
+const deckViewSchema = z.union([
+  deckViewDescriptorSchema,
+  z.instanceof(View),
+]) as z.ZodType<DeckViewValue>
+
+export class ViewField extends Field<z.ZodType<DeckViewValue>> {
   static type = 'view'
   static defaultValue = undefined
   createSchema() {
-    return z.instanceof(View)
+    return deckViewSchema
   }
+}
+
+export type VisualizationDeckProps = Omit<BetterDeckProps, 'layers' | 'views'> & {
+  layers?: (LayerProps & { type: string })[]
+  views?: DeckViewValue[]
 }
 
 export class MapLibreLayerField extends Field<
@@ -1387,7 +1593,7 @@ export class MapLibreLayerField extends Field<
 
 export class VisualizationField extends Field<
   z.ZodType<{
-    deckProps: { layers: (LayerProps & { type: string })[] } & BetterDeckProps
+    deckProps: VisualizationDeckProps
     mapProps?: BetterMapProps
     maplibreLayers?: Array<{
       id: string
@@ -1411,6 +1617,7 @@ export class VisualizationField extends Field<
             })
           )
           .optional(),
+        views: z.array(deckViewSchema).optional(),
       }),
       mapProps: z
         .looseObject({
@@ -1737,6 +1944,22 @@ export class BezierCurveField extends Field<z.ZodType<BezierCurveData>> {
 
 // Mapping of field type strings to Field class constructors
 // Used for creating custom fields dynamically
+// Apply a serialized value to a field, routing expression payloads ({ $expr }) to
+// setExpression and everything else through the field's normal deserialize + setValue path.
+// Used by project loading and undo/redo restore. Feature-detects the expression methods
+// since some callers pass minimal IField implementations (e.g. test mocks).
+export function applySerializedFieldValue(field: Field, value: unknown): void {
+  if (isSerializedExpression(value) && typeof field.setExpression === 'function') {
+    field.setExpression(value.$expr)
+    return
+  }
+  if (typeof field.clearExpression === 'function' && field.expression != null) {
+    field.clearExpression()
+  }
+  const ctor = field.constructor as typeof Field & { deserialize?: (value: unknown) => unknown }
+  field.setValue(typeof ctor.deserialize === 'function' ? ctor.deserialize(value) : value)
+}
+
 export const fieldTypeToClass = {
   number: NumberField,
   string: StringField,
@@ -1747,6 +1970,7 @@ export const fieldTypeToClass = {
   vec4: Vec4Field,
   'geopoint-2d': Point2DField,
   'geopoint-3d': Point3DField,
+  bbox: BboxField,
   date: DateField,
   expression: ExpressionField,
   code: CodeField,

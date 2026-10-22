@@ -1,7 +1,7 @@
 import { create } from 'zustand'
-import { debugDirty } from '../../utils/debug'
 import { useTimelineStore } from '../../timeline/timeline-store'
-import type { Operator, IOperator } from '../operators'
+import { debugDirty } from '../../utils/debug'
+import type { IOperator, Operator } from '../operators'
 
 interface TimelineDependencyState {
   subscriptions: Map<string, (() => void)[]>
@@ -25,7 +25,7 @@ export const useTimelineDependencyStore = create<TimelineDependencyState>((set, 
       state => ({ position: state.position, fps: state.sequence.fps }),
       () => {
         debugDirty('%s marked dirty by timeline position/fps change', op.id)
-        op.markDirty()
+        op.markDirty('timeline position/fps change')
       },
       { equalityFn: (a, b) => a.position === b.position && a.fps === b.fps }
     )
@@ -36,7 +36,7 @@ export const useTimelineDependencyStore = create<TimelineDependencyState>((set, 
       state => state.sequence,
       () => {
         debugDirty('%s marked dirty by timeline sequence change', op.id)
-        op.markDirty()
+        op.markDirty('timeline sequence change')
       },
       { equalityFn: (a, b) => a.length === b.length && a.fps === b.fps }
     )
@@ -51,7 +51,7 @@ export const useTimelineDependencyStore = create<TimelineDependencyState>((set, 
     const { subscriptions } = get()
     const cleanupFns = subscriptions.get(opId)
     if (cleanupFns) {
-      cleanupFns.forEach(fn => fn())
+      for (const fn of cleanupFns) fn()
       const newSubscriptions = new Map(subscriptions)
       newSubscriptions.delete(opId)
       set({ subscriptions: newSubscriptions })

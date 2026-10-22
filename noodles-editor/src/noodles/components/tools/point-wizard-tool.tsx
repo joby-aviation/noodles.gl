@@ -5,6 +5,7 @@ import type { OpType } from '../../operators'
 import { useNestingStore } from '../../store'
 import type { NodeJSON } from '../../transform-graph'
 import { nodeId } from '../../utils/id-utils'
+import { resolveNodeOverlaps } from '../../utils/node-layout'
 import { GeocodingDialog } from '../geocoding-dialog'
 
 interface PointWizardToolProps {
@@ -14,7 +15,7 @@ interface PointWizardToolProps {
 }
 
 export function PointWizardTool({ open, onOpenChange, reactFlowRef }: PointWizardToolProps) {
-  const { addNodes, screenToFlowPosition } = useReactFlow()
+  const { addNodes, screenToFlowPosition, getNodes } = useReactFlow()
   const currentContainerId = useNestingStore(state => state.currentContainerId)
 
   const handleLocationSelected = useCallback(
@@ -41,13 +42,13 @@ export function PointWizardTool({ open, onOpenChange, reactFlowRef }: PointWizar
         position,
       }
 
-      addNodes([node])
+      addNodes(resolveNodeOverlaps([node], getNodes()))
 
       analytics.track('point_created', {
         source: 'tools_shelf',
       })
     },
-    [addNodes, screenToFlowPosition, reactFlowRef, currentContainerId]
+    [addNodes, screenToFlowPosition, getNodes, reactFlowRef, currentContainerId]
   )
 
   return (

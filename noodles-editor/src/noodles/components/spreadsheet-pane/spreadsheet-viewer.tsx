@@ -1,9 +1,9 @@
 import {
-  type SortingState,
   createColumnHelper,
   flexRender,
   getCoreRowModel,
   getSortedRowModel,
+  type SortingState,
   useReactTable,
 } from '@tanstack/react-table'
 import { useVirtualizer } from '@tanstack/react-virtual'
@@ -14,13 +14,7 @@ import s from './spreadsheet-viewer.module.css'
 
 const columnHelper = createColumnHelper<Record<string, unknown>>()
 
-export function SpreadsheetViewer({
-  data,
-  operatorId,
-}: {
-  data: unknown
-  operatorId: string
-}) {
+export function SpreadsheetViewer({ data, operatorId }: { data: unknown; operatorId: string }) {
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnVisibility, setColumnVisibility] = useState<Record<string, boolean>>({})
   const [visibilityMenuOpen, setVisibilityMenuOpen] = useState(false)
@@ -28,6 +22,7 @@ export function SpreadsheetViewer({
   const tableContainerRef = useRef<HTMLDivElement>(null)
 
   // Reset sort/visibility when switching to a different operator
+  // biome-ignore lint/correctness/useExhaustiveDependencies: operatorId triggers the reset
   useEffect(() => {
     setSorting([])
     setColumnVisibility({})
@@ -76,9 +71,7 @@ export function SpreadsheetViewer({
   const totalSize = rowVirtualizer.getTotalSize()
   const paddingTop = virtualItems.length > 0 ? (virtualItems[0]?.start ?? 0) : 0
   const paddingBottom =
-    virtualItems.length > 0
-      ? totalSize - (virtualItems[virtualItems.length - 1]?.end ?? 0)
-      : 0
+    virtualItems.length > 0 ? totalSize - (virtualItems[virtualItems.length - 1]?.end ?? 0) : 0
 
   // Close visibility menu when clicking outside
   useEffect(() => {
