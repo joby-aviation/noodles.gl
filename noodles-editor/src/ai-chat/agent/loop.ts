@@ -188,18 +188,13 @@ export async function runAgent(params: RunAgentParams): Promise<AgentRunResult> 
 
     if (turn.toolCalls.length === 0) break
 
-    const fresh: StreamedTurn['toolCalls'] = []
-    const refused = new Map<string, ToolOutcome>()
-    // The batch runs in order once it holds a write, so a read after one may see
-    // a different answer than last time and has to run
-    let writeAhead = false
-    for (const call of turn.toolCalls) {
+    // A call is judged against the history as it stands when its turn comes, not
+    // as it stood when the batch arrived: a write earlier in the batch clears it
+    // (seek 5 then 0 both run), and a call the batch already made counts as made
+    // (an identical second edit is refused)
+    const refuse = (call: StreamedTurn['toolCalls'][number]): ToolOutcome | null => {
       const prior = seen.get(callSignature(call))
-      if (!prior || (writeAhead && prior.readOnly)) {
-        fresh.push(call)
-        if (!isReadOnly(call.name, router)) writeAhead = true
-        continue
-      }
+      if (!prior) return null
       prior.count++
       if (prior.count >= REPEAT_LIMIT) looping = true
       onEvent?.({
@@ -211,19 +206,10 @@ export async function runAgent(params: RunAgentParams): Promise<AgentRunResult> 
         success: false,
         error: `You already called ${call.name} with these arguments and got ${prior.outcome}. Calling it again returns the same thing — try a different tool or different arguments, or answer with what you know.`,
       }
-      refused.set(call.id, { ...call, result, capped: result })
+      return { ...call, result, capped: result }
     }
 
-    const ran = await executeToolBatch({
-      calls: fresh,
-      tools,
-      router,
-      resultBudget,
-      depth,
-      signal,
-    })
-
-    for (const outcome of ran) {
+    const record = (outcome: ToolOutcome) => {
       const readOnly = isReadOnly(outcome.name, router)
       // A successful write can change what any earlier call returns or does, so
       // they may all run again: a read may see something new, and repeating an
@@ -239,10 +225,41 @@ export async function runAgent(params: RunAgentParams): Promise<AgentRunResult> 
       })
     }
 
-    const ranById = new Map(ran.map(outcome => [outcome.id, outcome]))
-    const executed = turn.toolCalls.map(
-      call => (ranById.get(call.id) ?? refused.get(call.id)) as ToolOutcome
-    )
+    const callParams: ToolCallParams = { tools, router, depth, signal }
+    const executed: ToolOutcome[] = []
+    const allReadOnly = turn.toolCalls.every(call => isReadOnly(call.name, router))
+
+    if (allReadOnly && turn.toolCalls.length > 1) {
+      // Reads overlap. Nothing in the batch can change another's answer, so each
+      // distinct call runs once and a duplicate gets the refusal afterwards.
+      const distinct = new Map<string, StreamedTurn['toolCalls'][number]>()
+      for (const call of turn.toolCalls) {
+        const signature = callSignature(call)
+        if (!seen.has(signature) && !distinct.has(signature)) distinct.set(signature, call)
+      }
+      const ran = await Promise.all(
+        [...distinct.values()].map(call => runOne(call, callParams, resultBudget))
+      )
+      for (const outcome of ran) record(outcome)
+      const ranById = new Map(ran.map(outcome => [outcome.id, outcome]))
+      for (const call of turn.toolCalls) {
+        executed.push(ranById.get(call.id) ?? (refuse(call) as ToolOutcome))
+      }
+    } else {
+      // Once a write is in the batch, everything runs in order: two
+      // apply_modifications racing on one graph would interleave unpredictably,
+      // and a read beside a write could observe either side of it
+      for (const call of turn.toolCalls) {
+        const refused = refuse(call)
+        if (refused) {
+          executed.push(refused)
+          continue
+        }
+        const outcome = await runOne(call, callParams, resultBudget)
+        record(outcome)
+        executed.push(outcome)
+      }
+    }
 
     const resultContent: AgentContent[] = []
     let pendingScreenshot: { data: string; mediaType: string } | null = null
@@ -342,8 +359,20 @@ interface SeenCall {
   readOnly: boolean
 }
 
+// Key order is not part of the arguments: {"a":1,"b":2} and {"b":2,"a":1} are
+// the same call. Array order is.
 function callSignature(call: { name: string; input: Record<string, unknown> }): string {
-  return `${call.name}:${JSON.stringify(call.input)}`
+  return `${call.name}:${JSON.stringify(sortKeys(call.input))}`
+}
+
+function sortKeys(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(sortKeys)
+  if (typeof value !== 'object' || value === null) return value
+  return Object.fromEntries(
+    Object.keys(value)
+      .sort()
+      .map(key => [key, sortKeys((value as Record<string, unknown>)[key])])
+  )
 }
 
 function describeOutcome(result: ToolResult): string {
@@ -435,31 +464,6 @@ interface ToolOutcome {
   input: Record<string, unknown>
   result: ToolResult
   capped: ToolResult
-}
-
-// Read-only calls in one batch run concurrently; the first mutating call forces
-// the rest of the batch to run in order after it. Two apply_modifications calls
-// racing on the same graph would interleave unpredictably, and a read scheduled
-// alongside a write could observe either side of it.
-async function executeToolBatch(
-  params: ToolCallParams & {
-    calls: Array<{ id: string; name: string; input: Record<string, unknown> }>
-    resultBudget: number
-  }
-): Promise<ToolOutcome[]> {
-  const { calls, resultBudget } = params
-
-  const allReadOnly = calls.every(call => isReadOnly(call.name, params.router))
-
-  if (allReadOnly && calls.length > 1) {
-    return Promise.all(calls.map(call => runOne(call, params, resultBudget)))
-  }
-
-  const outcomes: ToolOutcome[] = []
-  for (const call of calls) {
-    outcomes.push(await runOne(call, params, resultBudget))
-  }
-  return outcomes
 }
 
 export function isReadOnly(toolName: string, router?: ToolRouter): boolean {
