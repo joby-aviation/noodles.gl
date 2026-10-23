@@ -25,7 +25,7 @@ export type Becomes =
   | 'host'
 
 // The R3 step converting an operator, while it is still to do
-export type Pending = 'R5'
+export type Pending = never
 
 export interface OpPlan {
   becomes: Becomes
@@ -129,7 +129,7 @@ export const OP_CATALOG: Record<string, OpPlan> = {
   SliceOp: planner(['limit', 'sql']),
   SortOp: planner(['sort']),
   SwitchOp: planner(['switch']),
-  TableEditorOp: code(['code']),
+  TableEditorOp: planner(['table']),
   TimeSeriesOp: planner(['time-series', 'unnest']),
   ViewerOp: dropped('shows a value in the old editor; the spreadsheet shows any node’s rows'),
 
@@ -253,7 +253,7 @@ export const OP_CATALOG: Record<string, OpPlan> = {
   BlendingOp: deck(),
   ConsoleOp: dropped('logs a value in the old editor'),
   LayerPropsOp: host('overrides arbitrary props of a built layer object'),
-  MapStyleConfiguratorOp: deck('R5'),
+  MapStyleConfiguratorOp: { becomes: 'deck', ops: ['map-style'] },
   MouseOp: host('reads the pointer'),
   ProjectOp: { becomes: 'folded' },
   UnprojectOp: { becomes: 'folded' },

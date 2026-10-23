@@ -402,6 +402,21 @@ export const OPERATORS: OpDef[] = [
     },
   },
   {
+    type: 'table', label: 'Table', category: 'data',
+    description: 'Rows you type in, kept in the document: a table the engine loads once per edit.',
+    inputs: [], outputs: [out()],
+    params: [
+      { name: 'rows', label: 'Rows', kind: 'text', default: '[]', help: 'A JSON array of rows.' },
+      { name: 'schema', label: 'Columns', kind: 'text', default: '', help: 'The columns and their types, as JSON, for an editor that types them.' },
+    ],
+    lower(ctx) {
+      let rows: unknown;
+      try { rows = JSON.parse(ctx.str('rows') || '[]'); } catch { ctx.error('Rows must be a JSON array'); }
+      if (!Array.isArray(rows)) ctx.error('Rows must be a JSON array');
+      return { nodes: [{ id: ctx.id, type: 'js', code: `return ${JSON.stringify(rows)}` }], outputs: { out: ctx.id } };
+    },
+  },
+  {
     type: 'generate', label: 'Generate', category: 'data',
     description: 'N rows numbered 0…N−1. Cross-join it to give every row N steps.',
     inputs: [], outputs: [out()],
@@ -1279,7 +1294,7 @@ export const OPERATORS: OpDef[] = [
       { name: 'pitch', label: 'Pitch', kind: 'float', default: 0, min: 0, max: 85, step: 0.5, bind: 'prop', folder: 'Camera', port: true },
       { name: 'bearing', label: 'Bearing', kind: 'float', default: 0, min: -180, max: 180, step: 0.5, bind: 'prop', folder: 'Camera', port: true },
       { name: 'follow', label: 'Drive the map camera', kind: 'toggle', default: false, folder: 'Camera', help: 'On: the camera parameters (and their keyframes) move the map. Off: the map is free to pan.' },
-      { name: 'mapStyle', label: 'Map style URL', kind: 'url', default: '', help: 'A MapLibre style. Overrides Basemap when set.' },
+      { name: 'mapStyle', label: 'Map style URL', kind: 'url', default: '', help: 'A MapLibre style. Overrides Basemap when set; a style wired in (from a style configurator) overrides both.', port: true, portType: 'value' },
       { name: 'projection', label: 'Projection', kind: 'menu', default: 'mercator', options: [{ value: 'mercator', label: 'Mercator' }, { value: 'globe', label: 'Globe' }] },
       // Video export. Read by the renderer, never lowered.
       { name: 'display', label: 'Display', kind: 'menu', default: 'fixed', options: [{ value: 'fixed', label: 'Fixed size' }, { value: 'responsive', label: 'Responsive' }], folder: 'Export' },

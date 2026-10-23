@@ -88,24 +88,36 @@ export function LayerRow({
 }
 
 interface ConfiguratorDialogProps {
-  op: Operator<MapStyleConfiguratorOp>
   open: boolean
   onOpenChange: (open: boolean) => void
+  /** The style being changed: a URL, or a style object. */
+  baseStyle: string | object | undefined
+  overrides: StyleConfiguratorData | undefined
+  onOverridesChange: (overrides: StyleConfiguratorData) => void
+  /** Bracket the edits made while the dialog is open, as one undo step. */
+  onEditStart?: () => void
+  onEditEnd?: () => void
 }
 
-function MapStyleConfiguratorDialog({ op, open, onOpenChange }: ConfiguratorDialogProps) {
-  debugUI('MapStyleConfiguratorDialog render open=%s op=%s', open, op.id)
+export function MapStyleConfiguratorDialog({
+  open,
+  onOpenChange,
+  baseStyle,
+  overrides: given,
+  onOverridesChange,
+  onEditStart,
+  onEditEnd,
+}: ConfiguratorDialogProps) {
+  debugUI('MapStyleConfiguratorDialog render open=%s', open)
   const [styleJson, setStyleJson] = useState<MaplibreStyle | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [overrides, setOverrides] = useState<StyleConfiguratorData>(
-    (op.inputs.overrides.value as StyleConfiguratorData) ?? { layers: [], global: {} }
+    given ?? { layers: [], global: {} }
   )
   const [collapsedCategories, setCollapsedCategories] = useState<Set<LayerCategory>>(new Set())
   const [mapView, setMapView] = useState({ longitude: -74.006, latitude: 40.7128, zoom: 9 })
-  const { captureStart, commitChange } = usePropertyHistory()
 
-  const baseStyle = op.inputs.baseStyle.value as string | object | undefined
   const mergedStyle = useMemo(
     () => (styleJson ? applyStyleOverrides(styleJson, overrides) : null),
     [styleJson, overrides]
@@ -116,7 +128,6 @@ function MapStyleConfiguratorDialog({ op, open, onOpenChange }: ConfiguratorDial
   // Fetch style when dialog opens or baseStyle changes
   useEffect(() => {
     if (!open) return
-    const baseStyle = op.inputs.baseStyle.value as string | object
     if (!baseStyle) {
       setStyleJson(null)
       return
@@ -145,30 +156,29 @@ function MapStyleConfiguratorDialog({ op, open, onOpenChange }: ConfiguratorDial
         setLoading(false)
       })
     return () => controller.abort()
-  }, [open, op])
+  }, [open, baseStyle])
 
-  // Sync overrides from field when dialog opens
+  // Sync overrides from the value when the dialog opens
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the overrides are read as the dialog opens
   useEffect(() => {
     if (open) {
-      setOverrides(
-        (op.inputs.overrides.value as StyleConfiguratorData) ?? { layers: [], global: {} }
-      )
+      setOverrides(given ?? { layers: [], global: {} })
     }
-  }, [open, op])
+  }, [open])
 
   const handleOpenChange = (nextOpen: boolean) => {
     if (nextOpen) {
-      captureStart()
+      onEditStart?.()
       analytics.track('map_style_configurator_opened')
     } else {
-      commitChange('Configure map style')
+      onEditEnd?.()
     }
     onOpenChange(nextOpen)
   }
 
   const updateOverrides = (next: StyleConfiguratorData) => {
     setOverrides(next)
-    op.inputs.overrides.setValue(next)
+    onOverridesChange(next)
   }
 
   const updateLayerPaint = (layerId: string, prop: string, value: string) => {
@@ -410,6 +420,7 @@ function MapStyleConfiguratorOpInner({
   const isDimmed = useNodeDimmed(id)
   const locked = useLocked(op as Operator<IOperator>)
   const [dialogOpen, setDialogOpen] = useState(false)
+  const { captureStart, commitChange } = usePropertyHistory()
   useFieldVisibility(op as Operator<IOperator>)
 
   return (
@@ -434,7 +445,15 @@ function MapStyleConfiguratorOpInner({
           <OutputHandle id="mapStyle" field={op.outputs.mapStyle as Field<IField>} />
         </div>
       </div>
-      <MapStyleConfiguratorDialog op={op} open={dialogOpen} onOpenChange={setDialogOpen} />
+      <MapStyleConfiguratorDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        baseStyle={op.inputs.baseStyle.value as string | object | undefined}
+        overrides={op.inputs.overrides.value as StyleConfiguratorData | undefined}
+        onOverridesChange={next => op.inputs.overrides.setValue(next)}
+        onEditStart={captureStart}
+        onEditEnd={() => commitChange('Configure map style')}
+      />
     </div>
   )
 }

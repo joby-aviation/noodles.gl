@@ -20,7 +20,7 @@ function json<T>(text: string, fallback: T): T {
 }
 
 type Stop = { pos: number; val: number; interp?: RampInterpType }
-const DEFAULT_STOPS: Stop[] = [
+export const DEFAULT_STOPS: Stop[] = [
   { pos: 0, val: 0, interp: 'smooth' },
   { pos: 1, val: 1, interp: 'smooth' },
 ]
@@ -47,14 +47,17 @@ export const VALUE_OPS: OpDef[] = [
       {
         name: 'curve',
         label: 'Curve',
-        kind: 'text',
-        default: JSON.stringify({
+        kind: 'field',
+        // Noodles' curve editor edits it
+        field: { op: 'BezierCurveOp', input: 'curve' },
+        default: {
           points: [
             { x: 0, y: 0, handleRightX: 0.3, handleRightY: 0 },
             { x: 1, y: 1, handleLeftX: 0.7, handleLeftY: 1 },
           ],
-        }),
-        help: 'Points from 0 to 1, each with handles: { points: [{ x, y, handleRightY, handleLeftY }] }.',
+          segments: [],
+        },
+        help: 'Points from 0 to 1, each with handles.',
       },
     ],
     scalar: p => {
