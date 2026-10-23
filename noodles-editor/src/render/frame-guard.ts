@@ -8,6 +8,12 @@ import { workerSetInterval, workerSetTimeout } from '../utils/worker-timer'
 export const FRAME_READY_TIMEOUT_MS = 120_000
 // Reading a drawn frame from a live canvas takes milliseconds
 export const FRAME_READ_TIMEOUT_MS = 10_000
+// The first read also sets up the canvas capture, which takes seconds on software WebGL
+// (SwiftShader) and longer on a busy machine
+export const FIRST_FRAME_READ_TIMEOUT_MS = 60_000
+
+export const frameReadTimeoutMs = (firstRead: boolean) =>
+  firstRead ? FIRST_FRAME_READ_TIMEOUT_MS : FRAME_READ_TIMEOUT_MS
 // How often a wait checks that the recorded canvas is still the one being drawn
 const CANVAS_CHECK_MS = 250
 
