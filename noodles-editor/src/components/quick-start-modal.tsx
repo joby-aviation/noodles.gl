@@ -49,6 +49,36 @@ export function setPendingQuickStartAction(action: PendingQuickStartAction | nul
   pendingAction = action
 }
 
+export interface QuickStartPlan {
+  // Handed to CanvasDropImport, which imports it into the open project
+  importFile?: File
+  // Pre-filled in the AI assistant, which opens when this is set
+  chatMessage?: string
+  event: 'quick_start_llm_action_handled' | 'quick_start_file_action_handled'
+  mode?: 'map' | 'chat'
+}
+
+// What the editor does with a pending action once a project is loaded. A file is
+// always imported, so choosing the assistant can't leave it behind.
+export function planQuickStartAction(action: PendingQuickStartAction): QuickStartPlan | null {
+  if (action.type === 'llm' && action.question) {
+    return { chatMessage: action.question, event: 'quick_start_llm_action_handled' }
+  }
+  if (action.type === 'file' && action.file) {
+    const mode = action.mode ?? 'map'
+    return {
+      importFile: action.file,
+      chatMessage:
+        mode === 'chat'
+          ? `I imported "${action.file.name}" into this project. Help me make a map from it.`
+          : undefined,
+      event: 'quick_start_file_action_handled',
+      mode,
+    }
+  }
+  return null
+}
+
 function formatDate(timestamp?: number): string | null {
   if (!timestamp) return null
   return new Date(timestamp).toLocaleDateString(undefined, {

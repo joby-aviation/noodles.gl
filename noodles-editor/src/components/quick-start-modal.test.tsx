@@ -2,7 +2,11 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import cities from '../noodles/components/tools/__fixtures__/csv-drop/cities-lat-lng.csv?raw'
 import sales from '../noodles/components/tools/__fixtures__/csv-drop/sales-no-coordinates.csv?raw'
-import { getPendingQuickStartAction, QuickStartModal } from './quick-start-modal'
+import {
+  getPendingQuickStartAction,
+  planQuickStartAction,
+  QuickStartModal,
+} from './quick-start-modal'
 
 const navigate = vi.fn()
 vi.mock('wouter', () => ({ useLocation: () => ['/', navigate] }))
@@ -104,5 +108,32 @@ describe('QuickStartModal file drop', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))
 
     expect(navigate).toHaveBeenCalledWith('/examples/california-earthquakes')
+  })
+})
+
+// The editor runs this plan once the new project loads (noodles.tsx)
+describe('planQuickStartAction', () => {
+  const file = new File(['a,b\n1,2'], 'sales.csv', { type: 'text/csv' })
+
+  it('imports the file and opens the assistant on the AI path', () => {
+    expect(planQuickStartAction({ type: 'file', file, mode: 'chat' })).toEqual({
+      importFile: file,
+      chatMessage: 'I imported "sales.csv" into this project. Help me make a map from it.',
+      event: 'quick_start_file_action_handled',
+      mode: 'chat',
+    })
+  })
+
+  it('imports the file without the assistant on the map path', () => {
+    const plan = planQuickStartAction({ type: 'file', file, mode: 'map' })
+    expect(plan?.importFile).toBe(file)
+    expect(plan?.chatMessage).toBeUndefined()
+  })
+
+  it('opens the assistant with the question and nothing to import', () => {
+    expect(planQuickStartAction({ type: 'llm', question: 'Map earthquakes' })).toEqual({
+      chatMessage: 'Map earthquakes',
+      event: 'quick_start_llm_action_handled',
+    })
   })
 })

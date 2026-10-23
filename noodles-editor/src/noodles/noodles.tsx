@@ -37,7 +37,7 @@ import {
 import { useLocation, useParams } from 'wouter'
 import { globalContextManager } from '../ai-chat/global-context-manager'
 import type { NoodlesProject } from '../ai-chat/types'
-import { getPendingQuickStartAction } from '../components/quick-start-modal'
+import { getPendingQuickStartAction, planQuickStartAction } from '../components/quick-start-modal'
 import { analytics } from '../utils/analytics'
 import { setCurrentProject, setModificationApplier } from '../webmcp/bridge'
 import { agentBench, externalControl } from './globals'
@@ -1234,24 +1234,14 @@ export function getNoodles(): Visualization {
 
     pendingActionHandledRef.current = true
 
-    if (pendingAction.type === 'llm' && pendingAction.question) {
-      // Open AI chat panel with the question pre-filled
-      setChatInitialMessage(pendingAction.question)
+    const plan = planQuickStartAction(pendingAction)
+    if (!plan) return
+    if (plan.importFile) setPendingImportFile(plan.importFile)
+    if (plan.chatMessage) {
+      setChatInitialMessage(plan.chatMessage)
       setShowChatPanel(true)
-      analytics.track('quick_start_llm_action_handled')
-    } else if (pendingAction.type === 'file' && pendingAction.file) {
-      // CanvasDropImport always imports the file, so it is on the canvas even if the
-      // assistant isn't set up yet
-      setPendingImportFile(pendingAction.file)
-      const mode = pendingAction.mode ?? 'map'
-      if (mode === 'chat') {
-        setChatInitialMessage(
-          `I imported "${pendingAction.file.name}" into this project. Help me make a map from it.`
-        )
-        setShowChatPanel(true)
-      }
-      analytics.track('quick_start_file_action_handled', { mode })
     }
+    analytics.track(plan.event, plan.mode ? { mode: plan.mode } : undefined)
   }, [nodes.length])
 
   const displayedNodes = useMemo(() => {
