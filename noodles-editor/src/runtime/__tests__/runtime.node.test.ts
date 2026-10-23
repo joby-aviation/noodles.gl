@@ -210,3 +210,28 @@ describe('previewing a node nothing draws', () => {
     expect(rt.program()?.nodes[ir]?.role).toBe('relation')
   })
 })
+
+describe('previewing list columns', () => {
+  it('returns plain arrays, which survive being posted from the worker', async () => {
+    duck.registerText(
+      'stations.json',
+      JSON.stringify([
+        { name: 'Lafayette', coordinates: [-122.12, 37.89] },
+        { name: 'Orinda', coordinates: [-122.18, 37.87] },
+      ])
+    )
+    const doc: EditorDoc = {
+      version: 1,
+      name: 'lists',
+      nodes: [
+        { id: 'json', op: 'file', x: 0, y: 0, params: { url: 'stations.json', format: 'json' } },
+        { id: 'deck', op: 'deck', x: 0, y: 0, params: {} },
+      ],
+      edges: [],
+    }
+    const { rt, lowered } = await start(doc)
+    const preview = await rt.preview(lowered.outputs.json?.out ?? 'json', 5)
+    expect(preview.rows[0]).toEqual({ name: 'Lafayette', coordinates: [-122.12, 37.89] })
+    expect(() => structuredClone(preview.rows)).not.toThrow()
+  })
+})

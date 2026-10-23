@@ -800,7 +800,8 @@ function emit(
       if ((b.type === 'str') !== (decl.type === 'str')) {
         throw new PlanError(
           `Layer ${analysis.layer.id}: channel '${b.channel}' takes ${b.type === 'str' ? 'a string' : 'a number'}, ` +
-          `but '${b.attribute}' is ${decl.type === 'str' ? 'a string' : 'numeric'}`,
+          `but '${b.attribute}' is ${decl.type === 'str' ? 'a string' : 'numeric'}` +
+          (decl.type === 'str' && /color/i.test(b.channel) ? `. For hex colors use hex_color(${b.attribute})` : ''),
         );
       }
       if (b.type === 'vec' && decl.width < 2) {
