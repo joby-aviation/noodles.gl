@@ -37,7 +37,7 @@ import {
   useNodeDimmed,
 } from './op-components'
 
-function LayerRow({
+export function LayerRow({
   layer,
   layerOverride,
   onVisibilityChange,
@@ -78,7 +78,7 @@ function LayerRow({
           configuratorStyles.visibilityToggle,
           isHidden && configuratorStyles.visibilityToggleHidden
         )}
-        onClick={() => onVisibilityChange(!isHidden)}
+        onClick={() => onVisibilityChange(isHidden)}
         title={isHidden ? 'Show layer' : 'Hide layer'}
       >
         {isHidden ? <EyeNoneIcon /> : <EyeOpenIcon />}
