@@ -144,8 +144,12 @@ The website's "Use with your AI agent" section sends `agent_prompt_copied` too, 
 | Event | Properties | Location |
 |-------|-----------|----------|
 | `ai_provider_load` | `provider, model, outcome` | chat-panel.tsx |
+| `assistant_onboarding_shown` | `hasPendingRequest` | chat-panel.tsx |
+| `assistant_onboarding_closed` | `hasPendingRequest` | chat-panel.tsx |
 
 - `outcome`: `success` or `failed`. A failed on-device load is usually GPU memory or a missing WebGPU adapter; the error message is never sent.
+- `assistant_onboarding_shown` fires each time the panel opens with no provider ready. `assistant_onboarding_closed` fires when its Close button is used, which is only shown before a provider is connected.
+- `hasPendingRequest`: whether the panel opened with a request from the Quick Start dialog still unsent. The request text is never sent.
 
 ### Performance
 
