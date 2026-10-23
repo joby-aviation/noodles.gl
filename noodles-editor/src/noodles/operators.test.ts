@@ -1068,7 +1068,7 @@ describe('TimeOp', () => {
     expect(first.result).toBe(Date.now() / 1000)
 
     vi.advanceTimersByTime(1000)
-    vi.advanceTimersToNextFrame()
+    clock.advanceClock(Date.now())
 
     const second = await seconds.pull()
     expect(second.result).toBe(Date.now() / 1000)
@@ -1076,6 +1076,31 @@ describe('TimeOp', () => {
     await expect(clock.pull()).resolves.toMatchObject({ now: Date.now() })
 
     clock.dispose()
+  })
+
+  it('updates its outputs on each clock tick without being pulled', () => {
+    // A standalone Time node has no downstream sink, so nothing pulls it. Its outputs
+    // still need to advance for the node to display the current time.
+    const clock = new TimeOp('/clock')
+    expect(clock.outputs.tick.value).toBe(0)
+
+    clock.advanceClock(1000)
+    clock.advanceClock(2000)
+    expect(clock.outputs.tick.value).toBe(2)
+    expect(clock.outputs.now.value).toBe(2000)
+
+    clock.dispose()
+  })
+
+  it('does not run its own animation frame loop', () => {
+    const requestAnimationFrame = vi.spyOn(globalThis, 'requestAnimationFrame')
+    const clock = new TimeOp('/clock')
+    vi.advanceTimersToNextFrame()
+
+    expect(requestAnimationFrame).not.toHaveBeenCalled()
+    expect(clock.outputs.tick.value).toBe(0)
+    clock.dispose()
+    requestAnimationFrame.mockRestore()
   })
 })
 

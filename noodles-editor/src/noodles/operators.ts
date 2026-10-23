@@ -2149,7 +2149,6 @@ export class TimeOp extends Operator<TimeOp> {
   static description = 'Get the current clock, timeline, and session time'
 
   private timeState$ = new BehaviorSubject({ now: Date.now(), tick: 0, sequenceTime: 0 })
-  private rafId?: number
   private positionUnsub?: () => void
 
   constructor(id: OpId, inputs?: unknown, locked?: boolean) {
@@ -2185,28 +2184,16 @@ export class TimeOp extends Operator<TimeOp> {
       const current = this.timeState$.value
       this.timeState$.next({ ...current, sequenceTime: pos })
     })
-
-    // Start RAF loop after outputs are fully initialized
-    this.startRAF()
   }
 
-  private startRAF() {
-    const update = () => {
-      const current = this.timeState$.value
-      this.timeState$.next({
-        ...current,
-        now: Date.now(),
-        tick: current.tick + 1,
-      })
-      this.rafId = requestAnimationFrame(update)
-    }
-    update()
+  // Called by the GraphExecutor loop once per tick. Instances outside the executor (e.g.
+  // ones created to read operator metadata) never tick, so they don't keep a loop alive.
+  advanceClock(now: number) {
+    const current = this.timeState$.value
+    this.timeState$.next({ ...current, now, tick: current.tick + 1 })
   }
 
   dispose() {
-    if (this.rafId !== undefined) {
-      cancelAnimationFrame(this.rafId)
-    }
     this.positionUnsub?.()
     this.timeState$.complete()
     super.dispose()
