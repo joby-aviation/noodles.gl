@@ -22,6 +22,8 @@ export interface EditorState {
   loadId: number
   /** Edits since the last load or save. */
   dirty: boolean
+  /** A parameter copied to paste as a reference, `nodeId.param`. */
+  copiedParam?: string
 }
 
 type Listener = () => void

@@ -14,9 +14,12 @@ const CATEGORY_ORDER = [
   'layer',
   'number',
   'output',
+  'structure',
   'host',
 ]
 const HIDDEN = new Set(['subnet-input', 'subnet-output', 'deck'])
+// A subnet's input and output nodes belong inside one
+const SUBNET_ONLY = new Set(['subnet-input', 'subnet-output'])
 
 /** Type to filter, arrows to move, Enter to place. */
 export function AddNodeMenu({
@@ -25,19 +28,23 @@ export function AddNodeMenu({
   onPick,
   onClose,
   filter,
+  inSubnet,
 }: {
   x: number
   y: number
   onPick: (op: OpDef) => void
   onClose: () => void
   filter?: (op: OpDef) => boolean
+  inSubnet?: boolean
 }) {
   const [query, setQuery] = useState('')
   const [active, setActive] = useState(0)
   const ref = useRef<HTMLDivElement>(null)
   const items = useMemo(() => {
     const q = query.trim().toLowerCase()
-    return OPERATORS.filter(o => !HIDDEN.has(o.type) && (!filter || filter(o)))
+    return OPERATORS.filter(
+      o => (!HIDDEN.has(o.type) || (inSubnet && SUBNET_ONLY.has(o.type))) && (!filter || filter(o))
+    )
       .filter(
         o =>
           !q ||
@@ -46,7 +53,7 @@ export function AddNodeMenu({
           o.category.includes(q)
       )
       .sort((a, b) => CATEGORY_ORDER.indexOf(a.category) - CATEGORY_ORDER.indexOf(b.category))
-  }, [query, filter])
+  }, [query, filter, inSubnet])
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: a new query moves the highlight back to the top
   useEffect(() => setActive(0), [query])

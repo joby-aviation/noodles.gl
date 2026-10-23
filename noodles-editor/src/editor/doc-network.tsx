@@ -14,11 +14,13 @@ import {
   useReactFlow,
 } from '@xyflow/react'
 import { useCallback, useMemo, useRef, useState } from 'react'
-import nodeStyles from '../noodles/noodles.module.css'
+import { useEngineState } from './doc-engine'
+import ns from './doc-network.module.css'
 import { DocNodeComponent } from './doc-node'
 import {
   addNode,
   type Clip,
+  collapseToSubnet,
   connect,
   copyNodes,
   insertOnEdge,
@@ -37,6 +39,7 @@ const PORT_COLOR: Record<string, string> = {
   layer: '#e04ddd',
   number: '#ef4444',
   value: '#8a92a6',
+  any: '#d9d9d9',
 }
 
 type Menu =
@@ -100,15 +103,15 @@ export function DocNetwork() {
           type: 'doc',
           position: dragPos[n.id] ?? { x: n.x, y: n.y },
           selected: selection.includes(n.id),
-          dragHandle: `.${nodeStyles.dragHandle}`,
           data: {},
         })),
     [doc.nodes, network, selection, dragPos]
   )
 
+  const lowered = useEngineState().lowered
   const edges: Edge[] = useMemo(() => {
     const here = new Set(nodes.map(n => n.id))
-    return doc.edges
+    const wires: Edge[] = doc.edges
       .filter(e => here.has(e.source) && here.has(e.target))
       .map(e => {
         const src = doc.nodes.find(n => n.id === e.source)
@@ -125,7 +128,31 @@ export function DocNetwork() {
           label: e.index !== undefined && e.index > 0 ? String(e.index) : undefined,
         }
       })
-  }, [doc, nodes])
+    // Parameter references (ch() and ref values), dashed as Noodles drew reference edges
+    const seen = new Set<string>()
+    for (const r of lowered?.references ?? []) {
+      const from = r.from.slice(0, r.from.lastIndexOf('.'))
+      const to = r.to.slice(0, r.to.lastIndexOf('.'))
+      if (from === to || !here.has(from) || !here.has(to)) continue
+      if (doc.edges.some(e => e.source === from && e.target === to)) continue
+      const id = `ref:${from}->${to}`
+      if (seen.has(id)) continue
+      seen.add(id)
+      wires.push({
+        id,
+        source: from,
+        target: to,
+        sourceHandle: 'ref-out',
+        targetHandle: 'ref-in',
+        className: ns.reference,
+        selectable: false,
+        focusable: false,
+        style: { stroke: '#8a92a6', strokeWidth: 1 },
+        zIndex: -1,
+      })
+    }
+    return wires
+  }, [doc, nodes, lowered])
 
   // Positions live here while a drag is in flight and reach the document once, on release: a
   // document edit per pointer move would lower the whole graph on every frame of a drag.
@@ -207,15 +234,55 @@ export function DocNetwork() {
     setMenu(undefined)
   }
 
-  const toggleBypass = () => {
+  const toggleFlag = (flag: 'bypass' | 'display') => {
     const store = docStore()
     const ids = store.get().selection
     if (!ids.length) return
     store.edit(d => {
       for (const n of d.nodes) {
-        if (ids.includes(n.id)) n.flags = { ...n.flags, bypass: !n.flags?.bypass }
+        if (!ids.includes(n.id)) continue
+        const on = !n.flags?.[flag]
+        n.flags = { ...n.flags, [flag]: on }
+        // One display flag per network, as Houdini has
+        if (flag === 'display' && on) {
+          for (const m of d.nodes) {
+            if (m.id !== n.id && m.parent === n.parent && m.flags?.display)
+              m.flags = { ...m.flags, display: false }
+          }
+        }
       }
     })
+  }
+  const toggleBypass = () => toggleFlag('bypass')
+
+  const collapse = () => {
+    const store = docStore()
+    const ids = store.get().selection
+    if (!ids.length) return
+    let sub: string | undefined
+    try {
+      store.edit(d => {
+        sub = collapseToSubnet(d, ids)?.id
+      })
+    } catch (err) {
+      alert((err as Error).message)
+      return
+    }
+    if (sub) store.set({ selection: [sub] })
+  }
+
+  const enter = (id: string) => {
+    const n = docStore()
+      .get()
+      .doc.nodes.find(x => x.id === id)
+    if (n?.op === 'subnet') docStore().set({ network: n.id, selection: [] })
+  }
+  const up = () => {
+    const store = docStore()
+    const net = store.get().network
+    if (!net) return
+    const parent = store.get().doc.nodes.find(n => n.id === net)?.parent
+    store.set({ network: parent, selection: [net] })
   }
 
   const onKeyDown = (e: React.KeyboardEvent) => {
@@ -245,6 +312,15 @@ export function DocNetwork() {
       deleteSelection()
     } else if (e.key === 'b' && !meta) {
       toggleBypass()
+    } else if (e.key === 'd' && !meta) {
+      toggleFlag('display')
+    } else if (e.key === 'C' && e.shiftKey && !meta) {
+      collapse()
+    } else if ((e.key === 'u' || e.key === 'U') && !meta) {
+      up()
+    } else if (e.key === 'Enter' || (e.key === 'i' && !meta)) {
+      const first = docStore().get().selection[0]
+      if (first) enter(first)
     } else if (e.key === 'f' && !meta) {
       void flow.fitView({ padding: 0.15, duration: 250 })
     }
@@ -256,6 +332,13 @@ export function DocNetwork() {
     return [
       { heading: `${nameOf(n)} · ${OPERATOR_INDEX.get(n.op)?.label ?? n.op}` },
       { label: n.flags?.bypass ? 'Un-bypass  (B)' : 'Bypass  (B)', onClick: toggleBypass },
+      {
+        label: n.flags?.display ? 'Hide display  (D)' : 'Display  (D)',
+        onClick: () => toggleFlag('display'),
+      },
+      { separator: true },
+      { label: 'Collapse selection into subnet  (⇧C)', onClick: collapse },
+      { label: 'Enter subnet  (Enter)', disabled: n.op !== 'subnet', onClick: () => enter(n.id) },
       { separator: true },
       { label: 'Delete  (⌫)', onClick: deleteSelection },
     ]
@@ -285,6 +368,7 @@ export function DocNetwork() {
         fitView
         fitViewOptions={{ padding: 0.15 }}
         minZoom={0.2}
+        onNodeDoubleClick={(_, n) => enter(n.id)}
         onNodeContextMenu={(e, n) => {
           e.preventDefault()
           if (!docStore().get().selection.includes(n.id)) docStore().set({ selection: [n.id] })
@@ -292,6 +376,7 @@ export function DocNetwork() {
         }}
         onEdgeContextMenu={(e, edge) => {
           e.preventDefault()
+          if (edge.id.startsWith('ref:')) return
           setMenu({ kind: 'edge', x: e.clientX, y: e.clientY, id: edge.id })
         }}
         onPaneContextMenu={e => {
@@ -306,13 +391,15 @@ export function DocNetwork() {
         onPaneClick={() => docStore().set({ selection: [] })}
       >
         <Background />
-        <Controls position="bottom-right" />
+        <Controls position="bottom-right" showInteractive={false} />
       </ReactFlow>
+      <NetworkBar />
       {menu?.kind === 'add' && (
         <AddNodeMenu
           x={menu.x}
           y={menu.y}
           filter={menu.edge ? tablePassThrough : undefined}
+          inSubnet={network !== undefined}
           onPick={op => place(op, menu.flow, menu.edge)}
           onClose={() => setMenu(undefined)}
         />
@@ -351,6 +438,41 @@ export function DocNetwork() {
           ]}
         />
       )}
+    </div>
+  )
+}
+
+/** The network's path, each level a link up to it, and the keys the canvas takes. */
+function NetworkBar() {
+  const network = useEditor(st => st.network)
+  const doc = useEditor(st => st.doc)
+  const chain: { id?: string; name: string }[] = []
+  let at = network
+  while (at) {
+    const n = doc.nodes.find(x => x.id === at)
+    if (!n) break
+    chain.unshift({ id: n.id, name: nameOf(n) })
+    at = n.parent
+  }
+  return (
+    <div className={ns.bar}>
+      <div className={ns.crumbs}>
+        <button type="button" onClick={() => docStore().set({ network: undefined, selection: [] })}>
+          /
+        </button>
+        {chain.map((c, i) => (
+          <span key={c.id}>
+            {i > 0 && <span className={ns.crumbSep}>/</span>}
+            <button type="button" onClick={() => docStore().set({ network: c.id, selection: [] })}>
+              {c.name}
+            </button>
+          </span>
+        ))}
+      </div>
+      <div className={ns.hint}>
+        <kbd>Tab</kbd> add · <kbd>B</kbd> bypass · <kbd>D</kbd> display · <kbd>⇧C</kbd> collapse ·
+        dbl-click a subnet to enter · <kbd>U</kbd> up · <kbd>F</kbd> frame
+      </div>
     </div>
   )
 }

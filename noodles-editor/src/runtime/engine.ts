@@ -166,6 +166,11 @@ export class Engine {
     return () => this.listeners.delete(listener)
   }
 
+  /** Every parameter's value at the last evaluation, by `nodeId.param`, and number outputs. */
+  slotValues(): ReadonlyMap<string, unknown> {
+    return this.slots
+  }
+
   lowering(): Lowered | undefined {
     return this.lowered
   }
