@@ -159,3 +159,53 @@ describe('row layers', () => {
     expect(holed.doc.nodes.find(n => n.id === '/layer')?.params.stroked).toBe(false)
   })
 })
+
+describe('cell layers', () => {
+  it('draws each row’s cell as a polygon, for every grid', async () => {
+    const { lonLatToCell, u64ToHex } = await import('a5-js')
+    const a5 = u64ToHex(lonLatToCell([-122.4, 37.8], 8))
+    const cases: [string, string, string][] = [
+      ['H3HexagonLayerOp', 'getHexagon', "'8828308281fffff'"],
+      ['S2LayerOp', 'getS2Token', "'80858004'"],
+      ['GeohashLayerOp', 'getGeohash', "'9q8yy'"],
+      ['QuadkeyLayerOp', 'getQuadkey', "'0231'"],
+      ['A5LayerOp', 'getPentagon', `'${a5}'`],
+    ]
+    for (const [type, field, id] of cases) {
+      const { layers } = await run(
+        layer(type, `SELECT ${id} AS cell, 3.0 AS value UNION ALL SELECT ${id}, 4.0`, {
+          [field]: 'd.cell',
+          getFillColor: '[d.value * 50, 0, 0]',
+        })
+      )
+      const polygons = layers['/layer']
+      expect([type, polygons.plan.kind, polygons.data?.starts?.length]).toEqual([
+        type,
+        'polygon',
+        2,
+      ])
+      // Every cell is near San Francisco, but the quadkey's, which is a quarter of North America
+      const position = polygons.data?.attributes.get(
+        polygons.plan.plan.layer!.bindings[0].attribute
+      )
+      const [lng, lat] = [position!.data[0], position!.data[1]]
+      if (type !== 'QuadkeyLayerOp') {
+        // A corner within a degree of the point the cells were made for
+        expect([type, Math.abs(lng + 122.4) < 1 && Math.abs(lat - 37.8) < 1]).toEqual([type, true])
+      } else {
+        expect(lng).toBeLessThan(-80)
+      }
+    }
+  })
+
+  it('outlines an H3 cluster: a list of cells per row, merged', async () => {
+    const { layers } = await run(
+      layer('H3ClusterLayerOp', "SELECT ['8828308281fffff', '8828308283fffff'] AS cells", {
+        getHexagons: 'd.cells',
+      })
+    )
+    expect(layers['/layer'].data?.starts?.length).toBe(1)
+    // Two touching hexagons merged: one ring with more corners than either
+    expect(layers['/layer'].data?.rows).toBeGreaterThan(6)
+  })
+})

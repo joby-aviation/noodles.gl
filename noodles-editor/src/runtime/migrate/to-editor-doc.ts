@@ -200,6 +200,58 @@ export const DEFAULTS: Record<string, Record<string, unknown>> = {
     widthScale: 20,
   },
   TimeSeriesOp: { currentTime: 0 },
+  H3HexagonLayerOp: { visible: true, opacity: 1, getFillColor: '#ffffffff', getLineWidth: 1 },
+  H3ClusterLayerOp: {
+    visible: true,
+    opacity: 1,
+    getLineWidth: 1,
+    getFillColor: '#000000ff',
+    getElevation: 1000,
+  },
+  S2LayerOp: {
+    visible: true,
+    opacity: 1,
+    getFillColor: '#000000ff',
+    getLineColor: '#000000ff',
+    getElevation: 1000,
+    getLineWidth: 1,
+    elevationScale: 1,
+    filled: true,
+    stroked: false,
+    extruded: false,
+  },
+  GeohashLayerOp: {
+    visible: true,
+    opacity: 1,
+    getFillColor: '#000000ff',
+    getLineColor: '#000000ff',
+    getElevation: 1000,
+    getLineWidth: 1,
+    elevationScale: 1,
+    filled: true,
+    stroked: false,
+    extruded: false,
+  },
+  QuadkeyLayerOp: {
+    visible: true,
+    opacity: 1,
+    getFillColor: '#000000ff',
+    getLineColor: '#000000ff',
+    getElevation: 1000,
+    getLineWidth: 1,
+    elevationScale: 1,
+    filled: true,
+    stroked: false,
+    extruded: false,
+  },
+  A5LayerOp: {
+    visible: true,
+    opacity: 1,
+    getFillColor: '#ffffffff',
+    getElevation: 1000,
+    elevationScale: 1,
+    extruded: false,
+  },
   TextLayerOp: {
     visible: true,
     opacity: 1,
@@ -446,7 +498,23 @@ const PLANNER_LAYERS = new Set([
   'GreatCircleLayerOp',
   'ScreenGridLayerOp',
   'ContourLayerOp',
+  'H3HexagonLayerOp',
+  'H3ClusterLayerOp',
+  'S2LayerOp',
+  'GeohashLayerOp',
+  'QuadkeyLayerOp',
+  'A5LayerOp',
 ])
+
+/** Cell layers: the column holding each row's cell id, and the grid it is in. */
+const CELL_LAYERS: Record<string, { field: string; fallback: string; kind: string }> = {
+  H3HexagonLayerOp: { field: 'getHexagon', fallback: 'hex', kind: 'h3' },
+  H3ClusterLayerOp: { field: 'getHexagons', fallback: 'hexIds', kind: 'h3-cluster' },
+  S2LayerOp: { field: 'getS2Token', fallback: 'token', kind: 's2' },
+  GeohashLayerOp: { field: 'getGeohash', fallback: 'geohash', kind: 'geohash' },
+  QuadkeyLayerOp: { field: 'getQuadkey', fallback: 'quadkey', kind: 'quadkey' },
+  A5LayerOp: { field: 'getPentagon', fallback: 'pentagon', kind: 'a5' },
+}
 
 /** Layers that draw a list column of each row (a path, a polygon) as vertex rows. */
 const LIST_LAYERS: Record<string, { field: string; fallback: string; kind: 'line' | 'polygon' }> = {
@@ -1824,6 +1892,35 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
     return rowsId
   }
 
+  /** Rows with a cell id as the vertex rows of their cells' polygons. */
+  const cellGeometry = (src: string, column: string, kind: string, near: NoodlesNode): string => {
+    const id = `${src}-${column}-cells`
+    if (sources.has(id)) return sources.get(id) as string
+    const at = position(near)
+    nodes.push({
+      id,
+      op: 'cells',
+      name: segment(id),
+      x: at.x - 520,
+      y: at.y,
+      params: { kind, column },
+    })
+    edge(src, sourcePort.get(src) ?? 'out', id, 'in')
+    const rowsId = `${id}-rows`
+    nodes.push({
+      id: rowsId,
+      op: 'geojson',
+      name: segment(rowsId),
+      x: at.x - 260,
+      y: at.y,
+      params: { url: '' },
+    })
+    edge(id, 'out', rowsId, 'in')
+    sourcePort.set(rowsId, 'polygons')
+    sources.set(id, rowsId)
+    return rowsId
+  }
+
   const dropUnmapped = (layer: NoodlesNode, mapped: string[]) => {
     for (const k of Object.keys(layer.data?.inputs ?? {})) {
       if (!mapped.includes(k) && !LAYER_IGNORED.has(k)) warnings.push(`${layer.id}: dropped '${k}'`)
@@ -2344,6 +2441,10 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
     const list = LIST_LAYERS[layer.type]
     if (list)
       src = listGeometry(src, listColumn(layer.id, list.field, list.fallback), list.kind, layer)
+    // A cell per row: its id the cell's polygon, then vertex rows
+    const cell = CELL_LAYERS[layer.type]
+    if (cell)
+      src = cellGeometry(src, listColumn(layer.id, cell.field, cell.fallback), cell.kind, layer)
     if (layer.type !== 'GeoJsonLayerOp') layerSource.set(layer.id, src)
     const i = inputs(layer)
     const v = (field: string) => resolve(src, layer.id, field, i[field])
@@ -2569,7 +2670,13 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
         break
       }
       case 'PolygonLayerOp':
-      case 'SolidPolygonLayerOp': {
+      case 'SolidPolygonLayerOp':
+      case 'H3HexagonLayerOp':
+      case 'H3ClusterLayerOp':
+      case 'S2LayerOp':
+      case 'GeohashLayerOp':
+      case 'QuadkeyLayerOp':
+      case 'A5LayerOp': {
         params.position = '[lng, lat]'
         params.pathId = 'id'
         params.ringId = 'ring'
@@ -2581,7 +2688,10 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
         params.filled = solid || i.filled !== false
         params.stroked = !solid && i.stroked !== false
         if (params.stroked) {
-          const line = colorInput(colorChannel(v('getLineColor')), layer.id, 'getLineColor')
+          // Cell layers without a line color draw deck's default, black
+          const lineValue: Value =
+            'getLineColor' in i ? v('getLineColor') : { kind: 'const', value: '#000000' }
+          const line = colorInput(colorChannel(lineValue), layer.id, 'getLineColor')
           params.lineColorChannel = line.channel ?? ''
           if (line.color) params.lineColor = line.color
           params.lineWidthScale =

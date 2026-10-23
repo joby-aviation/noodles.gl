@@ -21,6 +21,7 @@
       "@noodles.gl/planner": [
         "../packages/planner/src/index.ts"
       ],
+      "deck-s2-utils": ["../node_modules/@deck.gl/geo-layers/dist/s2-layer/s2-utils.d.ts"],
       "duckdb-browser-blocking": [
         "./node_modules/@duckdb/duckdb-wasm/dist/duckdb-browser-blocking.d.ts"
       ]

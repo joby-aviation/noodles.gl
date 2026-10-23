@@ -8,6 +8,10 @@ const plannerAlias = {
   '@noodles.gl/planner': fileURLToPath(
     new URL('../packages/planner/src/index.ts', import.meta.url)
   ),
+  // deck's S2 cell outline, which its package does not export (as in vite.config.js)
+  'deck-s2-utils': fileURLToPath(
+    new URL('../node_modules/@deck.gl/geo-layers/dist/s2-layer/s2-utils.js', import.meta.url)
+  ),
 }
 
 export default defineConfig({

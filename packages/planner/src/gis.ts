@@ -18,6 +18,7 @@ import type { GraphNode } from './types.js';
 import type { LowerCtx, LowerResult, OpDef, ParamDef, PortSpec } from './operators.js';
 
 const features = (name = 'in', label = 'features', extra: Partial<PortSpec> = {}): PortSpec => ({ name, type: 'table', label, ...extra });
+const table = (name = 'in', label?: string): PortSpec => ({ name, type: 'table', label });
 const out = (name = 'out'): PortSpec => ({ name, type: 'table' });
 const q = (name: string) => `"${name.replace(/"/g, '""')}"`;
 const str = (text: string) => `'${text.replace(/'/g, "''")}'`;
@@ -454,6 +455,33 @@ export const GIS_OPERATORS: OpDef[] = [
   },
 
   // --- turf, run by the engine ----------------------------------------------------------
+  {
+    type: 'cells', label: 'Grid Cells', category: 'geometry',
+    description: 'Rows with a grid cell id (H3, S2, A5, geohash or quadkey) as polygon features of their cells, keeping their columns; a column of H3 id lists draws each list’s merged outline. What deck’s cell layers draw. Runs in the engine.',
+    inputs: [table()], outputs: [out()],
+    params: [
+      { name: 'kind', label: 'Grid', kind: 'menu', default: 'h3', options: [
+        { value: 'h3', label: 'H3' }, { value: 'h3-cluster', label: 'H3 cluster (a list per row)' }, { value: 's2', label: 'S2' },
+        { value: 'a5', label: 'A5' }, { value: 'geohash', label: 'Geohash' }, { value: 'quadkey', label: 'Quadkey' },
+      ] },
+      { name: 'column', label: 'Cell id', kind: 'column', default: 'hex', of: 'in' },
+    ],
+    lower(ctx) {
+      const kind = ctx.str('kind');
+      const column = ctx.str('column');
+      if (!column) ctx.error('Grid Cells needs a cell id column');
+      const geometry = kind === 'h3-cluster'
+        ? "{ type: 'MultiPolygon', coordinates: utils.h3Cluster(Array.from(id ?? [])) }"
+        : `{ type: 'Polygon', coordinates: [utils.cellRing(${JSON.stringify(kind)}, id)] }`;
+      const code = [
+        `return { type: 'FeatureCollection', features: d.map(({ ${JSON.stringify(column)}: id, ...properties }) => ({`,
+        `  type: 'Feature', properties, geometry: ${geometry},`,
+        '})) }',
+      ].join('\n');
+      return { nodes: [{ id: ctx.id, type: 'js', input: ctx.input('in'), code }], outputs: { out: ctx.id } };
+    },
+  },
+
   {
     type: 'cluster', label: 'Cluster', category: 'geometry',
     description: 'Points labeled with a `cluster` number by k-means (turf.clustersKmeans) or by density (turf.clustersDbscan, with `dbscan` noise/core/edge). Runs turf in the engine.',
