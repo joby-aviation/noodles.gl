@@ -4,6 +4,8 @@ import Heading from "@theme/Heading";
 import Layout from "@theme/Layout";
 import clsx from "clsx";
 
+import AgentQuickStart from "../components/AgentQuickStart";
+
 import styles from "./index.module.css";
 
 function HomepageHeader() {
@@ -54,6 +56,15 @@ function HomepageHeader() {
 					>
 						Read Docs
 					</Link>
+					<a
+						className={clsx(
+							"button button--secondary button--lg",
+							styles.secondaryButton,
+						)}
+						href="#ai-agents"
+					>
+						AI quick start
+					</a>
 				</div>
 			</div>
 		</header>
@@ -388,7 +399,7 @@ function CTASection() {
 							"button button--secondary button--lg",
 							styles.secondaryButton,
 						)}
-						to="/users/getting-started"
+						to="/intro"
 					>
 						Get Started →
 					</Link>
@@ -408,6 +419,7 @@ export default function Home() {
 			<HomepageHeader />
 			<main>
 				<ShowcaseGallery />
+				<AgentQuickStart />
 				<Positioning />
 				<VideoSection />
 				<UseCases />

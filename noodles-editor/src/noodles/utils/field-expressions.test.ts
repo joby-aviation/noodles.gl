@@ -5,10 +5,11 @@ import {
   applySerializedFieldValue,
   ColorField,
   isSerializedExpression,
+  ListField,
   NumberField,
   StringField,
 } from '../fields'
-import { NumberOp } from '../operators'
+import { DateTimeOp, NumberOp } from '../operators'
 import { clearOps, setOp } from '../store'
 import { evaluateFieldExpression, preprocessExpression } from './field-expressions'
 import { applyOperatorInputs, captureOperatorInputs } from './property-history'
@@ -52,6 +53,19 @@ describe('field expression mode', () => {
       expect(op.inputs.val.value).toEqual(10)
     })
 
+    it('applies a date expression', () => {
+      const op = new DateTimeOp('/date')
+      op.inputs.date.setExpression("Temporal.PlainDateTime.from('2026-10-17T08:30')")
+      expect(op.inputs.date.expressionError$.value).toBeNull()
+      expect(op.inputs.date.value.toString()).toEqual('2026-10-17T08:30:00')
+    })
+
+    it('applies -0 over 0', () => {
+      const op = new NumberOp('/num')
+      op.inputs.val.setExpression('-0')
+      expect(Object.is(op.inputs.val.value, -0)).toBe(true)
+    })
+
     it('supports math utilities and Math global', () => {
       const op = new NumberOp('/num')
       op.inputs.val.setExpression('Math.max(1, 7) + d3.mean([1, 2, 3])')
@@ -60,6 +74,21 @@ describe('field expression mode', () => {
   })
 
   describe('cross-operator references', () => {
+    it('re-evaluates list expressions without adding reference values as list items', () => {
+      const source = new NumberOp('/source')
+      setOp('/source', source)
+      const field = new ListField(new NumberField())
+      field.setExpression("[op('/source').out.val * 2, 99]")
+      field.addConnection('list-ref', source.outputs.val, 'reference')
+      source.outputs.val.setValue(12)
+      expect(field.value).toEqual([24, 99])
+      expect(field.fields.size).toBe(0)
+      field.removeConnection('list-ref', 'reference')
+      expect(field.value).toEqual([24, 99])
+      source.outputs.val.setValue(30)
+      expect(field.value).toEqual([24, 99])
+    })
+
     it('references another operator output with op()', () => {
       const source = new NumberOp('/source')
       source.outputs.val.setValue(21)

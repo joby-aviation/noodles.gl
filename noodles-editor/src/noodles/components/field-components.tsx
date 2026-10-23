@@ -1,15 +1,14 @@
 import type { OnMount } from '@monaco-editor/react'
 import * as Dialog from '@radix-ui/react-dialog'
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { Cross2Icon, QuestionMarkCircledIcon } from '@radix-ui/react-icons'
 import { Handle, Position, useEdges, useNodeId, useReactFlow } from '@xyflow/react'
 import cx from 'classnames'
 import type { ScaleLinear, ScaleOrdinal } from 'd3'
-import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { Button } from 'primereact/button'
 import { InputText } from 'primereact/inputtext'
 import {
   Fragment,
-  lazy,
   Suspense,
   useCallback,
   useEffect,
@@ -22,15 +21,22 @@ import { createPortal } from 'react-dom'
 
 import { BasemapGallery } from './basemap-gallery'
 
-const CodeiumEditor = lazy(() =>
+const CodeiumEditor = lazyWithReload(() =>
   import('@codeium/react-code-editor').then(m => ({ default: m.CodeiumEditor }))
 )
 
 import { Temporal } from 'temporal-polyfill'
-import { analytics } from '../../utils/analytics'
 import { VectorKeyframeIndicator } from '../../timeline/components/KeyframeIndicator'
 import { getFieldPath } from '../../timeline/field-bindings'
 import { useTimelineStore } from '../../timeline/timeline-store'
+import { analytics } from '../../utils/analytics'
+import { lazyWithReload } from '../../utils/stale-chunk'
+import {
+  categoricalSchemesFixed,
+  categoricalSchemesStepped,
+  continuousInterpolators,
+  renderColorScheme,
+} from '../color-schemes'
 import {
   type BboxField,
   type BezierCurveField,
@@ -60,7 +66,6 @@ import { useObservable } from '../hooks/use-observable'
 import s from '../noodles.module.css'
 import { getFriendlyErrorMessage } from '../operators'
 import { checkAssetExists, getAssetFileHandle, writeAsset } from '../storage'
-import { extensionOf } from './tools/import-pipelines'
 import { getOp, useEdgeConnectionStore } from '../store'
 import { type ExpressionContext, getExpressionContext } from '../utils/expression-context'
 import { projectScheme } from '../utils/filesystem'
@@ -77,15 +82,10 @@ import { DraggableNumberInput } from './draggable-number-input'
 import { ExpressionEditorOverlay } from './ExpressionEditorOverlay'
 import { GeocodingDialog } from './geocoding-dialog'
 import menuStyles from './menu.module.css'
+import { MultiInputHandle } from './multi-input-handle'
 import contextMenuStyles from './node-properties.module.css'
 import { handleClass, useHandleDimmed } from './op-components'
-import { MultiInputHandle } from './multi-input-handle'
-import {
-  categoricalSchemesFixed,
-  categoricalSchemesStepped,
-  continuousInterpolators,
-  renderColorScheme,
-} from '../color-schemes'
+import { extensionOf } from './tools/import-pipelines'
 
 type InputComponent = React.ComponentType<{
   id: OpId
@@ -1089,7 +1089,6 @@ export function FileUrlFieldComponent({
 }) {
   const [value, setValue] = useState(guardAccessorFallback(field.value))
   const { captureStart, commitChange } = usePropertyHistory()
-  const [suggestionsOpen, setSuggestionsOpen] = useState(false)
 
   useEffect(() => {
     const sub = field.subscribe(newVal => {
@@ -1112,23 +1111,7 @@ export function FileUrlFieldComponent({
       field.setValue(val)
     }
     commitChange('Change file')
-    // Delay closing so a suggestion click registers first
-    setTimeout(() => setSuggestionsOpen(false), 150)
   }
-
-  const onSuggestionSelect = (val: string) => {
-    captureStart()
-    field.setValue(val)
-    setValue(val)
-    commitChange('Change file')
-    setSuggestionsOpen(false)
-  }
-
-  const filteredSuggestions = field.suggestions.filter(
-    ({ value: v, label }) =>
-      v.toLowerCase().includes(value.toLowerCase()) ||
-      label.toLowerCase().includes(value.toLowerCase())
-  )
 
   const [replaceDialogOpen, setReplaceDialogOpen] = useState(false)
   const [pendingFile, setPendingFile] = useState<{ name: string; contents: Blob } | null>(null)
@@ -1264,41 +1247,17 @@ export function FileUrlFieldComponent({
         <label className={s.fieldLabel} htmlFor={id}>
           {id}
         </label>
-        <div
-          className={cx('p-inputgroup', s.fieldFileInputGroup, s.fieldFileInputGroupSuggestions)}
-        >
+        <div className={cx('p-inputgroup', s.fieldFileInputGroup)}>
           <InputText
             id={id}
             placeholder="https://"
             className={cx(s.fieldInput, s.fieldInputFileUrl)}
             value={value}
-            onFocus={() => {
-              captureStart()
-              setSuggestionsOpen(true)
-            }}
+            onFocus={captureStart}
             onBlur={onBlur}
             onChange={onChange}
             disabled={disabled}
           />
-          {field.suggestions.length > 0 && suggestionsOpen && filteredSuggestions.length > 0 && (
-            <ul className={s.fileUrlSuggestions}>
-              {filteredSuggestions.map(({ value: val, label }) => (
-                // biome-ignore lint/a11y/useSemanticElements: custom combobox option
-                <li
-                  key={val}
-                  role="option"
-                  aria-selected={val === value}
-                  className={cx(s.fileUrlSuggestion, {
-                    [s.fileUrlSuggestionActive]: val === value,
-                  })}
-                  onMouseDown={() => onSuggestionSelect(val)}
-                >
-                  <span className={s.fileUrlSuggestionLabel}>{label}</span>
-                  <span className={s.fileUrlSuggestionUrl}>{val}</span>
-                </li>
-              ))}
-            </ul>
-          )}
           <Button
             icon="pi pi-upload"
             className={s.fieldInputUploadButton}
@@ -1566,14 +1525,19 @@ export function NumberFieldComponent({
   disabled: boolean
 }) {
   const [value, setValue] = useState<number>(guardAccessorFallback(field.value))
+  const [stepOverride, setStepOverride] = useState(field.stepOverride)
   const { captureStart, commitChange } = usePropertyHistory()
 
   useEffect(() => {
-    const sub = field.subscribe(newVal => {
+    const valueSub = field.subscribe(newVal => {
       if (typeof newVal === 'function') return
       setValue(newVal)
     })
-    return () => sub.unsubscribe()
+    const stepSub = field.stepOverride$.subscribe(setStepOverride)
+    return () => {
+      valueSub.unsubscribe()
+      stepSub.unsubscribe()
+    }
   }, [field])
 
   const handleChange = useCallback(
@@ -1596,11 +1560,12 @@ export function NumberFieldComponent({
         onChange={handleChange}
         onCommit={() => commitChange('Change value')}
         onInteractionStart={captureStart}
+        onStepChange={step => field.setStepOverride(step)}
         min={field.min}
         max={field.max}
         softMin={field.softMin}
         softMax={field.softMax}
-        step={field.step}
+        step={stepOverride ?? field.getEffectiveStep(value)}
         className={cx(s.fieldInput, s.fieldInputNumber)}
         title={value.toString()}
       />
@@ -1984,6 +1949,13 @@ export function EmptyFieldComponent({ id }: { id: OpId; field: Field<IField> }) 
   )
 }
 
+const BEZIER_SVG_SIZE = { width: 200, height: 150 }
+const BEZIER_PADDING = { top: 10, right: 10, bottom: 20, left: 20 }
+const BEZIER_GRAPH_AREA = {
+  width: BEZIER_SVG_SIZE.width - BEZIER_PADDING.left - BEZIER_PADDING.right,
+  height: BEZIER_SVG_SIZE.height - BEZIER_PADDING.top - BEZIER_PADDING.bottom,
+}
+
 export function BezierCurveFieldComponent({
   id,
   field,
@@ -2005,36 +1977,23 @@ export function BezierCurveFieldComponent({
     startY: number
   } | null>(null)
 
-  const svgSize = { width: 200, height: 150 }
-  const padding = { top: 10, right: 10, bottom: 20, left: 20 }
-  const graphArea = useMemo(
-    () => ({
-      width: svgSize.width - padding.left - padding.right,
-      height: svgSize.height - padding.top - padding.bottom,
-    }),
-    []
-  )
-
   // Convert SVG coordinates to curve coordinates (0-1, 0-1)
-  const svgToCurve = useCallback(
-    (x: number, y: number) => {
-      const curveX = (x - padding.left) / graphArea.width
-      const curveY = 1 - (y - padding.top) / graphArea.height // Flip Y axis
-      return {
-        x: Math.max(0, Math.min(1, curveX)),
-        y: Math.max(0, Math.min(1, curveY)),
-      }
-    },
-    [graphArea.width, graphArea.height]
-  )
+  const svgToCurve = useCallback((x: number, y: number) => {
+    const curveX = (x - BEZIER_PADDING.left) / BEZIER_GRAPH_AREA.width
+    const curveY = 1 - (y - BEZIER_PADDING.top) / BEZIER_GRAPH_AREA.height // Flip Y axis
+    return {
+      x: Math.max(0, Math.min(1, curveX)),
+      y: Math.max(0, Math.min(1, curveY)),
+    }
+  }, [])
 
   // Convert curve coordinates to SVG coordinates
   const curveToSvg = useCallback(
     (x: number, y: number) => ({
-      x: padding.left + x * graphArea.width,
-      y: padding.top + (1 - y) * graphArea.height, // Flip Y axis
+      x: BEZIER_PADDING.left + x * BEZIER_GRAPH_AREA.width,
+      y: BEZIER_PADDING.top + (1 - y) * BEZIER_GRAPH_AREA.height, // Flip Y axis
     }),
-    [graphArea.width, graphArea.height]
+    []
   )
 
   // Generate SVG path for the bezier curve
@@ -2073,14 +2032,14 @@ export function BezierCurveFieldComponent({
 
     // Vertical grid lines
     for (let i = 0; i <= 4; i++) {
-      const x = padding.left + (i / 4) * graphArea.width
+      const x = BEZIER_PADDING.left + (i / 4) * BEZIER_GRAPH_AREA.width
       lines.push(
         <line
           key={`v-${i}`}
           x1={x}
-          y1={padding.top}
+          y1={BEZIER_PADDING.top}
           x2={x}
-          y2={padding.top + graphArea.height}
+          y2={BEZIER_PADDING.top + BEZIER_GRAPH_AREA.height}
           stroke="#333"
           strokeWidth="1"
         />
@@ -2089,13 +2048,13 @@ export function BezierCurveFieldComponent({
 
     // Horizontal grid lines
     for (let i = 0; i <= 4; i++) {
-      const y = padding.top + (i / 4) * graphArea.height
+      const y = BEZIER_PADDING.top + (i / 4) * BEZIER_GRAPH_AREA.height
       lines.push(
         <line
           key={`h-${i}`}
-          x1={padding.left}
+          x1={BEZIER_PADDING.left}
           y1={y}
-          x2={padding.left + graphArea.width}
+          x2={BEZIER_PADDING.left + BEZIER_GRAPH_AREA.width}
           y2={y}
           stroke="#333"
           strokeWidth="1"
@@ -2104,7 +2063,7 @@ export function BezierCurveFieldComponent({
     }
 
     return lines
-  }, [graphArea])
+  }, [])
 
   // Find what the user is trying to interact with
   const getInteractionTarget = useCallback(
@@ -2290,9 +2249,9 @@ export function BezierCurveFieldComponent({
       <div className={s.bezierCurveEditor}>
         <svg
           ref={svgRef}
-          width={svgSize.width}
-          height={svgSize.height}
-          viewBox={`0 0 ${svgSize.width} ${svgSize.height}`}
+          width={BEZIER_SVG_SIZE.width}
+          height={BEZIER_SVG_SIZE.height}
+          viewBox={`0 0 ${BEZIER_SVG_SIZE.width} ${BEZIER_SVG_SIZE.height}`}
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
@@ -2311,17 +2270,17 @@ export function BezierCurveFieldComponent({
         >
           <title>Bezier curve editor</title>
           {/* Background */}
-          <rect width={svgSize.width} height={svgSize.height} fill="#1a1a1a" />
+          <rect width={BEZIER_SVG_SIZE.width} height={BEZIER_SVG_SIZE.height} fill="#1a1a1a" />
 
           {/* Grid */}
           {gridLines}
 
           {/* Border */}
           <rect
-            x={padding.left}
-            y={padding.top}
-            width={graphArea.width}
-            height={graphArea.height}
+            x={BEZIER_PADDING.left}
+            y={BEZIER_PADDING.top}
+            width={BEZIER_GRAPH_AREA.width}
+            height={BEZIER_GRAPH_AREA.height}
             fill="none"
             stroke="#555"
             strokeWidth="1"
@@ -2924,6 +2883,17 @@ export function FieldComponent({
   )
 }
 
+// Normalize bbox value to object format for internal use
+function normalizeBboxValue(val: any) {
+  if (Array.isArray(val)) {
+    // Tuple format: [[lng, lat], [lng, lat]] or [{lng, lat}, {lng, lat}]
+    const sw = Array.isArray(val[0]) ? { lng: val[0][0], lat: val[0][1] } : val[0]
+    const ne = Array.isArray(val[1]) ? { lng: val[1][0], lat: val[1][1] } : val[1]
+    return { southwest: sw, northeast: ne }
+  }
+  return val
+}
+
 export function BboxFieldComponent({
   id,
   field,
@@ -2939,21 +2909,10 @@ export function BboxFieldComponent({
   fieldName?: string
   expandTimeline?: () => void
 }) {
-  // Normalize bbox value to object format for internal use
-  const normalizeValue = (val: any) => {
-    if (Array.isArray(val)) {
-      // Tuple format: [[lng, lat], [lng, lat]] or [{lng, lat}, {lng, lat}]
-      const sw = Array.isArray(val[0]) ? { lng: val[0][0], lat: val[0][1] } : val[0]
-      const ne = Array.isArray(val[1]) ? { lng: val[1][0], lat: val[1][1] } : val[1]
-      return { southwest: sw, northeast: ne }
-    }
-    return val
-  }
-
   const [value, setValue] = useState<{
     southwest: { lng: number; lat: number }
     northeast: { lng: number; lat: number }
-  }>(normalizeValue(guardAccessorFallback(field.value)))
+  }>(normalizeBboxValue(guardAccessorFallback(field.value)))
   const [geocodingOpen, setGeocodingOpen] = useState(false)
   const [geocodingCorner, setGeocodingCorner] = useState<'southwest' | 'northeast'>('southwest')
   const { captureStart, commitChange } = usePropertyHistory()
@@ -2965,7 +2924,7 @@ export function BboxFieldComponent({
   useEffect(() => {
     const sub = field.subscribe(newVal => {
       if (typeof newVal === 'function') return
-      setValue(normalizeValue(newVal))
+      setValue(normalizeBboxValue(newVal))
     })
     return () => sub.unsubscribe()
   }, [field])

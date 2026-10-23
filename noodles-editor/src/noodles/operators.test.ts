@@ -1,7 +1,10 @@
+import { LayerExtension } from '@deck.gl/core'
+import { PathStyleExtension } from '@deck.gl/extensions'
 import * as deckWidgets from '@deck.gl/widgets'
 import * as turf from '@turf/turf'
 import { Temporal } from 'temporal-polyfill'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { publishEnvironment, resetEnvironment } from './environment'
 import { NumberField, StringField } from './fields'
 import { getKeysStore } from './keys-store'
 import {
@@ -29,10 +32,12 @@ import {
   GeocoderOp,
   GeohashLayerOp,
   GeoJsonLayerOp,
+  GeoJsonOp,
   GeoJsonTransformOp,
   GlobeViewOp,
   GreatCircleLayerOp,
   H3ClusterLayerOp,
+  instantiateExtension,
   JSONOp,
   KmlToGeoJsonOp,
   LayerPropsOp,
@@ -68,6 +73,7 @@ import {
   SwitchOp,
   TableEditorOp,
   Tile3DLayerOp,
+  TimeOp,
   TimeSeriesOp,
   TripsLayerOp,
   ZoomWidgetOp,
@@ -236,6 +242,113 @@ describe('Error handling', () => {
       num: 1,
     })
     expect(onError.mock.calls[1][0]).toEqual(new Error('Test error'))
+  })
+})
+
+describe('Operator.isComputing', () => {
+  it('is true for the whole pull, before the executing status appears', async () => {
+    const op = new MathOp('/math', { operator: 'add', a: 2, b: 3 })
+    let finish = () => {}
+    const held = new Promise<void>(resolve => {
+      finish = resolve
+    })
+    const execute = op.execute.bind(op)
+    vi.spyOn(op, 'execute').mockImplementation(async inputs => {
+      await held
+      return execute(inputs)
+    })
+
+    expect(op.isComputing).toBe(false)
+    const pulled = op.pull()
+    expect(op.isComputing).toBe(true)
+    // The status waits 200ms, so a fast check sees idle while work is running
+    expect(op.executionState.value.status).not.toBe('executing')
+
+    finish()
+    await pulled
+    expect(op.isComputing).toBe(false)
+  })
+})
+
+describe('Locked operators', () => {
+  it('serves the last output without executing while locked', async () => {
+    const op = new MathOp('/math', { operator: 'add', a: 2, b: 3 })
+    await op.pull()
+    op.locked.next(true)
+    const execute = vi.spyOn(op, 'execute')
+
+    op.inputs.a.setValue(10)
+
+    await expect(op.pull()).resolves.toEqual({ result: 5 })
+    expect(execute).not.toHaveBeenCalled()
+  })
+
+  it('executes once when locked without any output yet', async () => {
+    const op = new MathOp('/math', { operator: 'add', a: 2, b: 3 }, true)
+    const execute = vi.spyOn(op, 'execute')
+
+    await expect(op.pull()).resolves.toEqual({ result: 5 })
+    op.inputs.a.setValue(10)
+    await expect(op.pull()).resolves.toEqual({ result: 5 })
+    expect(execute).toHaveBeenCalledTimes(1)
+  })
+
+  it('catches up on input changes after unlocking', async () => {
+    const op = new MathOp('/math', { operator: 'add', a: 2, b: 3 })
+    await op.pull()
+    op.locked.next(true)
+    op.inputs.a.setValue(10)
+    await op.pull()
+
+    op.locked.next(false)
+
+    await expect(op.pull()).resolves.toEqual({ result: 13 })
+  })
+
+  it('does not pull upstream while locked', async () => {
+    const upstream = new NumberOp('/num', { val: 1 })
+    const op = new MathOp('/math', { operator: 'add', a: 2, b: 3 })
+    op.addUpstreamDependency(upstream)
+    upstream.addDownstreamDependent(op)
+    await op.pull()
+    op.locked.next(true)
+    const upstreamPull = vi.spyOn(upstream, 'pull')
+
+    upstream.inputs.val.setValue(2)
+    await op.pull()
+
+    expect(upstreamPull).not.toHaveBeenCalled()
+  })
+
+  it('serves outputs set with setOutputValues without executing', async () => {
+    const op = new MathOp('/math', { operator: 'add', a: 2, b: 3 }, true)
+    const execute = vi.spyOn(op, 'execute')
+
+    op.setOutputValues({ result: 42 })
+
+    expect(op.hasOutput).toBe(true)
+    await expect(op.pull()).resolves.toEqual({ result: 42 })
+    expect(execute).not.toHaveBeenCalled()
+  })
+
+  it('restores saved outputs and serves them without executing', async () => {
+    const op = new MathOp('/math', { operator: 'add', a: 2, b: 3 }, true)
+    const execute = vi.spyOn(op, 'execute')
+
+    expect(op.restoreOutputs({ result: 42 })).toBe(true)
+
+    expect(op.outputs.result.value).toBe(42)
+    await expect(op.pull()).resolves.toEqual({ result: 42 })
+    expect(execute).not.toHaveBeenCalled()
+  })
+
+  it('ignores saved outputs that no longer fit the output fields', async () => {
+    const op = new MathOp('/math', { operator: 'add', a: 2, b: 3 }, true)
+
+    expect(op.restoreOutputs({ result: 'not a number' })).toBe(false)
+
+    expect(op.hasOutput).toBe(false)
+    await expect(op.pull()).resolves.toEqual({ result: 5 })
   })
 })
 
@@ -791,6 +904,124 @@ describe('BoundingBoxOp', () => {
       zoom: 9.566616522774169,
     })
   })
+
+  const pointsViewState = () =>
+    new BoundingBoxOp('/bbox-points').execute({
+      data: [
+        { lng: 1, lat: 2 },
+        { lng: 3, lat: 4 },
+      ],
+      padding: 0,
+    }).viewState
+
+  it('accepts a GeoJsonOp FeatureCollection on its data input', () => {
+    const geojson = new GeoJsonOp('/geojson-0')
+    const operator = new BoundingBoxOp('/bbox-0')
+    const featureCollection = geojson.execute({
+      features: [turf.point([1, 2]), turf.point([3, 4])],
+    }).featureCollection
+
+    expect(canConnect(geojson.outputs.featureCollection, operator.inputs.data)).toBe(true)
+    operator.inputs.data.setValue(featureCollection)
+    expect(operator.inputs.data.value).toEqual(featureCollection)
+
+    const val = operator.execute({ data: operator.inputs.data.value, padding: 0 })
+    expect(val.bounds).toEqual([
+      [1, 2],
+      [3, 4],
+    ])
+    expect(val.viewState).toEqual(pointsViewState())
+  })
+
+  it('still parses a list of points on its data input', () => {
+    const operator = new BoundingBoxOp('/bbox-0')
+    operator.inputs.data.setValue([[1, 2], { longitude: 3, latitude: 4 }])
+    expect(operator.inputs.data.value).toEqual([
+      { lng: 1, lat: 2 },
+      { lng: 3, lat: 4 },
+    ])
+  })
+
+  it.each([
+    ['an object without a GeoJSON type', { foo: 'bar' }],
+    ['a Point without coordinates', { type: 'Point' }],
+    ['a Polygon with non-array coordinates', { type: 'Polygon', coordinates: 'nope' }],
+    ['a GeometryCollection without geometries', { type: 'GeometryCollection' }],
+    [
+      'a GeometryCollection with an incomplete geometry',
+      { type: 'GeometryCollection', geometries: [{ type: 'LineString' }] },
+    ],
+    ['a Feature without a geometry', { type: 'Feature', properties: {} }],
+    [
+      'a Feature with an incomplete geometry',
+      { type: 'Feature', properties: {}, geometry: { type: 'Point' } },
+    ],
+    ['a FeatureCollection without features', { type: 'FeatureCollection' }],
+    [
+      'a FeatureCollection with a non-Feature member',
+      { type: 'FeatureCollection', features: [{ type: 'Point', coordinates: [1, 2] }] },
+    ],
+  ])('rejects %s', (_name, value) => {
+    const operator = new BoundingBoxOp('/bbox-0')
+    // Deliberately invalid input, so it can't match the field's type
+    operator.inputs.data.setValue(value as unknown as GeoJSON.GeoJSON)
+    expect(operator.inputs.data.value).toEqual([])
+  })
+
+  it('accepts a Feature with a null geometry', () => {
+    const operator = new BoundingBoxOp('/bbox-0')
+    // GeoJSON allows a null geometry, but @types/geojson's default Feature type doesn't
+    const feature = {
+      type: 'Feature',
+      properties: {},
+      geometry: null,
+    } as unknown as GeoJSON.Feature
+    operator.inputs.data.setValue(feature)
+    expect(operator.inputs.data.value).toEqual(feature)
+  })
+
+  it('finds the bounding box of a single Feature', () => {
+    const operator = new BoundingBoxOp('/bbox-0')
+    const val = operator.execute({
+      data: turf.lineString([
+        [1, 2],
+        [2, 3],
+        [3, 4],
+      ]),
+      padding: 0,
+    })
+    expect(val.viewState).toEqual(pointsViewState())
+  })
+
+  it('finds the bounding box of a bare Geometry', () => {
+    const operator = new BoundingBoxOp('/bbox-0')
+    const val = operator.execute({
+      data: {
+        type: 'Polygon',
+        coordinates: [
+          [
+            [1, 2],
+            [3, 2],
+            [3, 4],
+            [1, 4],
+            [1, 2],
+          ],
+        ],
+      },
+      padding: 0,
+    })
+    expect(val.viewState).toEqual(pointsViewState())
+  })
+
+  it('treats an empty FeatureCollection like an empty point list', () => {
+    const operator = new BoundingBoxOp('/bbox-0')
+    const empty = operator.execute({ data: [], padding: 0 })
+    const val = operator.execute({
+      data: { type: 'FeatureCollection', features: [] },
+      padding: 0,
+    })
+    expect(val).toEqual(empty)
+  })
 })
 
 describe('MathOps', () => {
@@ -822,6 +1053,32 @@ describe('MathOps', () => {
       b: 1000000000000000000,
     })
     expect(val.result).toEqual(1000000000000000000000000000000000000)
+  })
+})
+
+describe('TimeOp', () => {
+  it('feeds a downstream MathOp through a pull', async () => {
+    const clock = new TimeOp('/clock')
+    const seconds = new MathOp('/seconds', { operator: 'divide', b: 1000 })
+    seconds.inputs.a.addConnection('/clock.out.now', clock.outputs.now)
+    seconds.addUpstreamDependency(clock)
+    clock.addDownstreamDependent(seconds)
+
+    const first = await seconds.pull()
+    expect(typeof first.result).toBe('number')
+    expect(first.result).toBe(Date.now() / 1000)
+
+    // The GraphExecutor publishes the clock once per frame
+    vi.advanceTimersByTime(1000)
+    publishEnvironment('clock', { now: Date.now(), tick: 1 })
+
+    const second = await seconds.pull()
+    expect(second.result).toBe(Date.now() / 1000)
+    expect(second.result).toBeGreaterThan(first.result)
+    await expect(clock.pull()).resolves.toMatchObject({ now: Date.now(), tick: 1 })
+
+    clock.dispose()
+    resetEnvironment()
   })
 })
 
@@ -1047,6 +1304,25 @@ describe('ScatterplotLayerOp', () => {
     expect(layer.otherProp).toEqual(1)
   })
 
+  it('passes LayerExtension instances through alongside descriptors', () => {
+    class CustomExtension extends LayerExtension {}
+    const custom = new CustomExtension()
+    const operator = new ScatterplotLayerOp('/scatterplot-0')
+    const { layer } = operator.execute({
+      extensions: [
+        { extension: custom, props: { customProp: 1 } },
+        null,
+        { extension: { type: 'PathStyleExtension', dash: true }, props: { dashJustified: true } },
+      ],
+    })
+
+    expect(layer.extensions).toHaveLength(2)
+    expect(layer.extensions[0]).toBe(custom)
+    expect(layer.extensions[1]).toEqual({ type: 'PathStyleExtension', dash: true })
+    expect(layer.customProp).toBe(1)
+    expect(layer.dashJustified).toBe(true)
+  })
+
   it('creates a scatterplot layer with updateTriggers', () => {
     const operator = new ScatterplotLayerOp('/scatterplot-0')
     const { layer } = operator.execute({
@@ -1055,6 +1331,30 @@ describe('ScatterplotLayerOp', () => {
     })
     expect(layer.updateTriggers).toEqual({ getPosition: ['test'] })
     expect(layer.otherProp).toEqual(1)
+  })
+})
+
+describe('instantiateExtension', () => {
+  it('returns LayerExtension instances unchanged', () => {
+    class CustomExtension extends LayerExtension {}
+    const custom = new CustomExtension()
+
+    expect(instantiateExtension(custom)).toBe(custom)
+  })
+
+  it('instantiates descriptors with their constructor args', () => {
+    const extension = instantiateExtension({ type: 'PathStyleExtension', dash: true })
+
+    expect(extension).toBeInstanceOf(PathStyleExtension)
+    expect(extension?.opts).toMatchObject({ dash: true })
+  })
+
+  it('instantiates wrapped extensions with their preset args', () => {
+    expect(instantiateExtension({ type: 'VibranceExtension' })).toBeInstanceOf(LayerExtension)
+  })
+
+  it('returns null for unknown extension types', () => {
+    expect(instantiateExtension({ type: 'UnknownExtension' })).toBeNull()
   })
 })
 
@@ -1448,6 +1748,19 @@ describe('MapViewOp', () => {
 
     expect(view).toMatchObject({ type, id: '/view-0' })
     expect(JSON.parse(JSON.stringify(view))).toEqual(view)
+  })
+})
+
+describe('OrbitViewOp', () => {
+  it('accepts zoom outside 0..1', () => {
+    const operator = new OrbitViewOp('/orbit-0')
+    const { viewState } = operator.inputs
+
+    for (const zoom of [-1, 0, 0.5, 3]) {
+      viewState.setValue({ zoom })
+      expect(viewState.value.zoom).toBe(zoom)
+      expect(viewState.schema.safeParse({ zoom }).success).toBe(true)
+    }
   })
 })
 
@@ -3221,6 +3534,30 @@ describe('Custom Fields', () => {
     expect(operator.inputs.myNumber.value).toBe(999)
   })
 
+  it('preserves a custom number field step override when rebuilding inputs', () => {
+    const operator = new CodeOp('/code-custom')
+
+    operator.addCustomInput({
+      id: 'id-1',
+      name: 'myNumber',
+      type: 'number',
+      order: 0,
+      defaultValue: 0,
+    })
+    const numberField = operator.inputs.myNumber as NumberField
+    numberField.setStepOverride(0.001)
+
+    operator.addCustomInput({
+      id: 'id-2',
+      name: 'myString',
+      type: 'string',
+      order: 1,
+      defaultValue: '',
+    })
+
+    expect((operator.inputs.myNumber as NumberField).stepOverride).toBe(0.001)
+  })
+
   it('getAllInputs returns built-in and custom inputs', () => {
     const operator = new CodeOp('/code-custom')
 
@@ -3389,6 +3726,19 @@ describe('Tile3DLayerOp', () => {
   const GOOGLE_URL = 'https://tile.googleapis.com/v1/3dtiles/root.json'
   const CESIUM_URL = 'https://assets.ion.cesium.com/242005/tileset.json'
 
+  // Set keys in the store so the tests don't depend on VITE_ env keys
+  beforeEach(() => {
+    getKeysStore().setBrowserKey('googleMaps', 'test-google-key')
+    getKeysStore().setBrowserKey('cesium', 'test-cesium-token')
+  })
+
+  afterEach(() => {
+    // Restore first: the store copies a spied getKey into the next state on set
+    vi.restoreAllMocks()
+    getKeysStore().clearBrowserKey('googleMaps')
+    getKeysStore().clearBrowserKey('cesium')
+  })
+
   it('defaults to the Google tileset URL when provider is Google', async () => {
     const op = new Tile3DLayerOp('/tile3d-0')
     const { layer } = await op.execute({})
@@ -3419,6 +3769,13 @@ describe('Tile3DLayerOp', () => {
     const op = new Tile3DLayerOp('/tile3d-0')
     const { layer } = await op.execute({ tilesetUrl: '', provider: 'Cesium' })
     expect(layer.data).toEqual(CESIUM_URL)
+  })
+
+  it('throws when the provider key is missing', async () => {
+    vi.spyOn(getKeysStore(), 'getKey').mockReturnValue(undefined)
+    const op = new Tile3DLayerOp('/tile3d-0')
+    await expect(op.execute({ provider: 'Cesium' })).rejects.toThrow('Cesium Ion access token')
+    await expect(op.execute({ provider: 'Google' })).rejects.toThrow('Google Maps API key')
   })
 
   it('hides tilesetUrl by default', () => {
@@ -4063,6 +4420,30 @@ describe('CategoricalColorRampOp', () => {
 })
 
 describe('DirectionsOp', () => {
+  it('exposes traffic scheduling inputs with backward-compatible defaults', () => {
+    const directionsOp = new DirectionsOp('/directions')
+
+    expect(directionsOp.inputs.mode.value).toBe('transit')
+    expect(directionsOp.inputs.departureMode.value).toBe('now')
+    expect(directionsOp.inputs.departureTime.value).toBeInstanceOf(Temporal.PlainDateTime)
+    expect(directionsOp.inputs.trafficModel.value).toBe('best-guess')
+    expect(directionsOp.inputs.avoidTolls.value).toBe(false)
+    expect(directionsOp.isFieldVisible('departureMode')).toBe(false)
+    expect(directionsOp.isFieldVisible('departureTime')).toBe(false)
+    expect(directionsOp.isFieldVisible('trafficModel')).toBe(false)
+    expect(directionsOp.isFieldVisible('avoidTolls')).toBe(false)
+
+    directionsOp.inputs.mode.setValue('driving-traffic')
+    expect(directionsOp.isFieldVisible('departureMode')).toBe(true)
+    expect(directionsOp.isFieldVisible('trafficModel')).toBe(true)
+    expect(directionsOp.isFieldVisible('avoidTolls')).toBe(true)
+    expect(directionsOp.isFieldVisible('departureTime')).toBe(false)
+    directionsOp.inputs.departureMode.setValue('scheduled')
+    expect(directionsOp.inputs.mode.value).toBe('driving-traffic')
+    expect(directionsOp.inputs.departureMode.value).toBe('scheduled')
+    expect(directionsOp.isFieldVisible('departureTime')).toBe(true)
+  })
+
   it('accepts GeoJSON Point Features via Point2DField', () => {
     const directionsOp = new DirectionsOp('/directions')
     const feature = {

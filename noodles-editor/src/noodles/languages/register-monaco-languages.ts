@@ -14,7 +14,7 @@ export async function registerOverpassQL(monaco: typeof Monaco) {
   try {
     // Check if language is already registered
     const languages = monaco.languages.getLanguages()
-    if (languages.some((lang) => lang.id === 'overpass-ql')) {
+    if (languages.some(lang => lang.id === 'overpass-ql')) {
       registrationComplete = true
       return
     }

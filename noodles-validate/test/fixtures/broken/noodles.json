@@ -1,0 +1,48 @@
+{
+  "version": 18,
+  "name": "Fixture: the mistakes agents make",
+  "nodes": [
+    {
+      "id": "/earthquakes",
+      "type": "File",
+      "position": { "x": 0, "y": 0 },
+      "data": { "inputs": { "url": "@/data.csv" } }
+    },
+    {
+      "id": "/quakes-layer",
+      "type": "ScatterplotLayerOp",
+      "position": { "x": 350, "y": 0 },
+      "data": { "inputs": { "radius": 500 } }
+    },
+    {
+      "id": "/deck",
+      "type": "DeckRendererOp",
+      "position": { "x": 700, "y": 0 },
+      "data": { "inputs": {} }
+    },
+    {
+      "id": "/out",
+      "type": "OutOp",
+      "position": { "x": 1050, "y": 0 },
+      "data": { "inputs": {} }
+    }
+  ],
+  "edges": [
+    {
+      "id": "/quakes-layer.out.vis->/deck.par.layers",
+      "source": "/quakes-layer",
+      "sourceHandle": "out.vis",
+      "target": "/deck",
+      "targetHandle": "par.layers"
+    },
+    {
+      "id": "/deck.out.vis->/out.in.vis",
+      "source": "/deck",
+      "sourceHandle": "out.vis",
+      "target": "/out",
+      "targetHandle": "in.vis"
+    }
+  ],
+  "viewport": { "x": 0, "y": 0, "zoom": 1 },
+  "timeline": {}
+}

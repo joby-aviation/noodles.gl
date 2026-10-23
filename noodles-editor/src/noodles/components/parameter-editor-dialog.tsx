@@ -9,14 +9,14 @@ import {
 } from '@radix-ui/react-icons'
 import { useEdges } from '@xyflow/react'
 import { useCallback, useState } from 'react'
-import type { CustomFieldDefinition, IOperator, Operator } from '../operators'
+import { debugParams } from '../../utils/debug'
 import { fieldTypeToClass } from '../fields'
-import { findFieldReferences } from '../utils/field-references'
+import type { CustomFieldDefinition, IOperator, Operator } from '../operators'
 import {
   getEnableExpressionDependencies,
   validateEnableExpression,
 } from '../utils/enable-expression-evaluator'
-import { debugParams } from '../../utils/debug'
+import { findFieldReferences } from '../utils/field-references'
 import s from './parameter-editor-dialog.module.css'
 
 interface ParameterEditorDialogProps {

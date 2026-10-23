@@ -1,4 +1,5 @@
 import { cleanup, render, waitFor } from '@testing-library/react'
+import type { Map as MapLibre } from 'maplibre-gl'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -57,6 +58,13 @@ vi.mock('../noodles/hooks/use-render-settings', () => ({
 // the full operator registry out of the test also avoids eagerly starting DuckDB.
 vi.mock('../noodles/operators', () => ({
   BoundingBoxOp: class BoundingBoxOp {},
+  ContainerOp: class ContainerOp {},
+  DeckRendererOp: class DeckRendererOp {},
+  GraphInputOp: class GraphInputOp {},
+  GraphOutputOp: class GraphOutputOp {},
+  MaplibreBasemapOp: class MaplibreBasemapOp {},
+  MapViewStateOp: class MapViewStateOp {},
+  RerouteOp: class RerouteOp {},
   fnWithSource: () => () => ({}),
 }))
 
@@ -216,5 +224,71 @@ describe('production render output dimensions', () => {
 
     const view = render(<TimelineEditor />)
     await expectCanvasAndCapturedPng(view.container, testCase.selector, testCase.expected)
+  })
+})
+
+describe('basemap size after render size changes', () => {
+  beforeEach(() => {
+    vi.useRealTimers()
+    harness.hostSize = { width: 500, height: 280 }
+    harness.settings.display = 'fixed'
+    harness.settings.resolution = { width: 320, height: 180 }
+    harness.settings.lod = 2
+  })
+
+  afterEach(() => {
+    cleanup()
+    vi.restoreAllMocks()
+    harness.settings.lod = 1
+    harness.visualization.mapProps = undefined
+    vi.useFakeTimers({ now: new Date('2025-02-01T00:00:00Z') })
+  })
+
+  it('resizes the map in the same commit as an LOD change, and not on other renders', async () => {
+    let map: MapLibre | null = null
+    harness.visualization.mapProps = {
+      mapStyle: EMPTY_MAP_STYLE,
+      longitude: 0,
+      latitude: 0,
+      zoom: 0,
+      onRender: ({ target }: { target: MapLibre }) => {
+        map = target
+      },
+    }
+
+    const view = render(<TimelineEditor />)
+    await waitFor(() => expect(map?.loaded()).toBe(true), { timeout: 10_000 })
+    const canvas = map!.getCanvas()
+    expect({ width: canvas.width, height: canvas.height }).toEqual({ width: 640, height: 360 })
+    const resize = vi.spyOn(map!, 'resize')
+
+    // Nothing about the render size changed
+    view.rerender(<TimelineEditor />)
+    expect(resize).not.toHaveBeenCalled()
+
+    harness.settings.lod = 0.5
+    view.rerender(<TimelineEditor />)
+    // Checked before MapLibre's own ResizeObserver or the next frame can run
+    expect(resize).toHaveBeenCalledTimes(1)
+    expect({ width: canvas.width, height: canvas.height }).toEqual({ width: 160, height: 90 })
+  })
+
+  it("keeps MapLibre's default label fade outside preview exports", async () => {
+    let map: MapLibre | null = null
+    harness.visualization.mapProps = {
+      mapStyle: EMPTY_MAP_STYLE,
+      longitude: 0,
+      latitude: 0,
+      zoom: 0,
+      onRender: ({ target }: { target: MapLibre }) => {
+        map = target
+      },
+    }
+
+    render(<TimelineEditor />)
+    await waitFor(() => expect(map?.loaded()).toBe(true), { timeout: 10_000 })
+    // An explicit fadeDuration: undefined replaced the default, so labels never settled
+    // @ts-expect-error _fadeDuration is private
+    expect(map!._fadeDuration).toBe(300)
   })
 })

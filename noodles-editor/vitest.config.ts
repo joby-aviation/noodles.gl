@@ -1,29 +1,44 @@
 import { playwright } from '@vitest/browser-playwright'
 import { nodePolyfills } from 'vite-plugin-node-polyfills'
-import { defineConfig } from 'vitest/config'
+import { configDefaults, defineConfig } from 'vitest/config'
 
 export default defineConfig({
   resolve: {
     dedupe: ['react', 'react-dom'],
   },
   test: {
-    setupFiles: ['src/setupTests.ts'],
-    browser: {
-      provider: playwright({
-        launchOptions: {
-          // Permit Chromium's software WebGL fallback for real-renderer tests; this does not force it.
-          args: ['--enable-unsafe-swiftshader'],
+    projects: [
+      {
+        extends: true,
+        test: {
+          name: 'browser',
+          exclude: [...configDefaults.exclude, 'scripts/**'],
+          setupFiles: ['src/setupTests.ts'],
+          browser: {
+            provider: playwright({
+              // Software WebGL so shader tests can render in headless Chromium
+              launchOptions: { args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] },
+              contextOptions: {
+                // MapLibre sizes its canvas from DPR, so pin browser raster dimensions in CI.
+                deviceScaleFactor: 1,
+              },
+            }),
+            enabled: true,
+            headless: true,
+            screenshotFailures: false,
+            instances: [{ browser: 'chromium' }],
+          },
         },
-        contextOptions: {
-          // MapLibre sizes its canvas from DPR, so pin browser raster dimensions in CI.
-          deviceScaleFactor: 1,
+      },
+      // CLI scripts need real Node APIs (child processes, the file system)
+      {
+        test: {
+          name: 'node',
+          environment: 'node',
+          include: ['scripts/**/*.test.ts'],
         },
-      }),
-      enabled: true,
-      headless: true,
-      screenshotFailures: false,
-      instances: [{ browser: 'chromium' }],
-    },
+      },
+    ],
   },
   optimizeDeps: {
     include: [

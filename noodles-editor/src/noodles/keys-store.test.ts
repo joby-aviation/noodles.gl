@@ -1,8 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  AI_KEY_TYPES,
   getEnvKeys,
   getKeysForProject,
   getKeysStore,
+  isAIKey,
   type KeysConfig,
   useKeysStore,
 } from './keys-store'
@@ -16,6 +18,7 @@ describe('Keys Store', () => {
       browserKeys: {},
       saveInProject: false,
       projectKeys: undefined,
+      ignoredProjectKeys: [],
     })
   })
 
@@ -294,6 +297,69 @@ describe('Keys Store', () => {
     })
   })
 
+  describe('AI keys', () => {
+    it('should treat only the AI provider keys as AI keys', () => {
+      expect(AI_KEY_TYPES).toEqual(['anthropic', 'openrouter'])
+      expect(isAIKey('anthropic')).toBe(true)
+      expect(isAIKey('openrouter')).toBe(true)
+      expect(isAIKey('mapbox')).toBe(false)
+      expect(isAIKey('googleMaps')).toBe(false)
+      expect(isAIKey('cesium')).toBe(false)
+      expect(isAIKey('overpass')).toBe(false)
+    })
+
+    it('should strip AI keys when project keys are set', () => {
+      getKeysStore().setProjectKeys({
+        mapbox: 'project-mapbox',
+        anthropic: 'project-anthropic',
+        openrouter: 'project-openrouter',
+      })
+
+      const state = getKeysStore()
+      expect(state.projectKeys).toEqual({ mapbox: 'project-mapbox' })
+      expect(state.ignoredProjectKeys).toEqual(['anthropic', 'openrouter'])
+    })
+
+    it('should leave no project keys when the file only had AI keys', () => {
+      getKeysStore().setProjectKeys({ anthropic: 'project-anthropic' })
+
+      expect(getKeysStore().projectKeys).toBeUndefined()
+      expect(getKeysStore().ignoredProjectKeys).toEqual(['anthropic'])
+    })
+
+    it('should forget ignored AI keys when the next project has none', () => {
+      const { setProjectKeys } = getKeysStore()
+      setProjectKeys({ anthropic: 'project-anthropic' })
+      setProjectKeys({ mapbox: 'project-mapbox' })
+
+      expect(getKeysStore().ignoredProjectKeys).toEqual([])
+    })
+
+    it('should ignore an AI key in projectKeys even if one gets there', () => {
+      // setProjectKeys strips them, so this checks the getters guard on their own
+      useKeysStore.setState({
+        projectKeys: { anthropic: 'project-anthropic', openrouter: 'project-openrouter' },
+      })
+      const envKeys = getEnvKeys()
+      const { getKey, hasKey, getActiveSource } = getKeysStore()
+
+      for (const key of AI_KEY_TYPES) {
+        expect(getKey(key)).toBe(envKeys[key])
+        expect(hasKey(key)).toBe(!!envKeys[key])
+        expect(getActiveSource(key)).toBe(envKeys[key] ? 'env' : null)
+      }
+    })
+
+    it('should still use a browser AI key', () => {
+      const { setProjectKeys, setBrowserKey, getKey, getActiveSource } = getKeysStore()
+      setProjectKeys({ anthropic: 'project-anthropic' })
+      setBrowserKey('anthropic', 'browser-anthropic')
+
+      expect(getKey('anthropic')).toBe('browser-anthropic')
+      expect(getActiveSource('anthropic')).toBe('browser')
+    })
+  })
+
   describe('persistence', () => {
     it('should persist browserKeys to localStorage automatically', () => {
       const { setBrowserKey } = getKeysStore()
@@ -318,12 +384,13 @@ describe('Keys Store', () => {
 
     it('should NOT persist projectKeys', () => {
       const { setProjectKeys } = getKeysStore()
-      setProjectKeys({ mapbox: 'project-key' })
+      setProjectKeys({ mapbox: 'project-key', anthropic: 'project-anthropic' })
 
       const stored = localStorage.getItem('noodles-keys')
       if (stored) {
         const parsed = JSON.parse(stored)
         expect(parsed.state.projectKeys).toBeUndefined()
+        expect(parsed.state.ignoredProjectKeys).toBeUndefined()
       }
     })
 
@@ -369,6 +436,7 @@ describe('getKeysForProject', () => {
       browserKeys: {},
       saveInProject: false,
       projectKeys: undefined,
+      ignoredProjectKeys: [],
     })
   })
 
@@ -416,5 +484,41 @@ describe('getKeysForProject', () => {
       mapbox: 'browser-mapbox',
       googleMaps: 'project-google',
     })
+  })
+
+  it('should never save AI keys from the browser, even with saveInProject on', () => {
+    const { setBrowserKeys, setSaveInProject } = getKeysStore()
+    setBrowserKeys({
+      mapbox: 'browser-mapbox',
+      anthropic: 'browser-anthropic',
+      openrouter: 'browser-openrouter',
+    })
+    setSaveInProject(true)
+
+    expect(getKeysForProject()).toEqual({ mapbox: 'browser-mapbox' })
+  })
+
+  it('should return undefined when the only browser keys are AI keys', () => {
+    const { setBrowserKey, setSaveInProject } = getKeysStore()
+    setBrowserKey('anthropic', 'browser-anthropic')
+    setSaveInProject(true)
+
+    expect(getKeysForProject()).toBeUndefined()
+  })
+
+  it('should drop AI keys a loaded project contained', () => {
+    const { setProjectKeys } = getKeysStore()
+    setProjectKeys({ googleMaps: 'project-google', openrouter: 'project-openrouter' })
+
+    expect(getKeysForProject()).toEqual({ googleMaps: 'project-google' })
+  })
+
+  it('should drop AI keys even if they reach projectKeys directly', () => {
+    useKeysStore.setState({
+      projectKeys: { cesium: 'project-cesium', anthropic: 'project-anthropic' },
+      saveInProject: true,
+    })
+
+    expect(getKeysForProject()).toEqual({ cesium: 'project-cesium' })
   })
 })

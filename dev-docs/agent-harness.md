@@ -36,21 +36,32 @@ every tool schema on every request, and serialized tool results with no size cap
 | `noodles/openrouter-oauth.ts` | The PKCE flow that mints an OpenRouter key without a paste |
 | `prompts/core.md` | The always-in-context system prompt |
 | `prompts/sections/*.md` | Workflow walkthroughs, retrieved on demand via `get_documentation` |
+| `docs-search.ts` | BM25 passage search behind `get_documentation`: best passage per topic, linked to its heading |
 
 `tool-definitions.ts` and `mcp-tools.ts` remain the single source of truth for the
-tool surface. WebMCP (`src/webmcp/register.ts`) still registers all of them
-unconditionally and is unaffected by any of the routing below.
+tool surface. WebMCP (`src/webmcp/register.ts`) registers all of them and is
+unaffected by any of the routing below.
+
+Two definitions set `audience: 'external'` and are registered on WebMCP only:
+`export_video` and `get_export_status`. `getToolDefinition` and
+`availableToolDefinitions` leave them out unless passed `{ includeExternal: true }`,
+which only `register.ts` does, so the chat can neither discover nor dispatch them.
+The reason is the user: in the chat they are one click from the Export button, and a
+render takes over the canvas and the playhead for minutes, which a model should not
+start on its own. An external agent has no button to click, because the save dialog
+only opens on a user gesture. The export writes its MP4 through `writeAgentBinary`
+in `agent-files.ts`, which goes through `resolvePath()` like `write_file`.
 
 ## Providers
 
 | | Anthropic | OpenRouter | Custom | WebLLM | Chrome |
 | --- | --- | --- | --- | --- | --- |
-| Default model | `claude-sonnet-5` | best free tool-capable model in the catalogue | whatever you type | `Qwen3-4B-q4f16_1-MLC` | `gemini-nano` |
+| Default model | `claude-sonnet-5` | best free tool-capable model in the catalogue | whatever you type | `Qwen3.5-4B-q4f16_1-MLC` | `gemini-nano` |
 | Context window | 200k | from `/models`, per-model table as fallback | configurable, 32k default | 4k, pinned by every prebuilt config | discovered at runtime (~6k), and measured per turn |
 | Native tool calling | yes | yes (filtered on `supported_parameters`) | assumed, switchable off | **no** — constrained JSON | **no** — constrained JSON |
-| Images (screenshots) | yes | yes | off by default | no | no |
+| Images (screenshots) | yes | only when the catalogue lists `image` input | off by default | no | no |
 | Web search | server-side `web_search_2026…`/`…20250305` | `plugins: [{id:'web'}]` | unavailable | unavailable | unavailable |
-| Prompt caching | `cache_control: ephemeral` on the system prompt | — | — | — | — |
+| Prompt caching | `cache_control: ephemeral` on the system prompt | — | — | KV cache reused across steps (byte-stable prefix) | session reused across turns |
 | API key | required | one click, no paste | required, unless the server is your own | none | none |
 
 `custom` is one provider no matter how many servers it points at: any endpoint
@@ -73,14 +84,18 @@ The provider is chosen in the chat panel header (or pinned in Settings) and stor
 `providerPreference` in `noodles/keys-store.tsx`; the model is stored separately in
 `agent/model-store.ts`. The rules live in `agent/provider-selection.ts` rather than in
 the panel, so they can be tested without mounting the editor. `'automatic'` walks
-`anthropic → openrouter → custom → webllm → chrome` and takes the first one that is
-*ready*, so neither on-device provider is picked for you — they are the weakest of the
-five and have to be asked for. A pinned provider that is not ready falls back to the
-same walk rather than showing an error.
+`anthropic → openrouter → custom → webllm` and takes the first one that is *ready*.
+WebLLM is ready only once the user has chosen a model, so it is never a fallback for
+a missing key. Chrome is experimental and not in the walk at all: its tool use and
+instruction following are unreliable enough that it runs only when pinned. A pinned
+provider that is not ready falls back to the same walk rather than showing an error.
 
 "Ready" is not the same question as "has a key":
 
-- `anthropic`, `openrouter` — a key, from any source.
+- `anthropic`, `openrouter` — a key from the browser or the environment. A project
+  file is never a source: `keys-store` strips `AI_KEY_TYPES` from it on load and
+  from `getKeysForProject()` on save, so a shared file cannot point the chat at its
+  author's account or carry the user's key away.
 - `custom` — a saved base URL *and* model. The key is optional: `CustomProvider` omits
   the `Authorization` header entirely when there is none, because `Bearer ` with
   nothing after it is a malformed credential that a keyless endpoint may reject where
@@ -94,7 +109,10 @@ same walk rather than showing an error.
 Two provider flags carry all the behavioural difference: `supportsNativeTools`
 (false routes the provider through `providers/json-tools.ts`, which emulates the tool
 round-trip with a JSON schema the runtime enforces and translates the model's
-one-object reply into the same `tool_call` event the others emit) and `contextWindow`
+one-object reply into the same `tool_call` event the others emit — `input` is the
+last property, because a grammar that requires `reply` after it leaves a model that
+wants to close the object nothing to emit but whitespace until `max_tokens`, and an
+object cut off anyway is closed and flagged `json_repaired`) and `contextWindow`
 (which sizes the disclosure limits, the per-result budget, the step limit, and the
 compaction threshold).
 
@@ -131,7 +149,7 @@ faster than releases. On any failure it falls back to the static `OPENROUTER_MOD
 
 ### WebLLM: the model runs in the tab
 
-Four facts shape `providers/webllm.ts`:
+Five facts shape `providers/webllm.ts`:
 
 1. **No native tool calling, for any model.** WebLLM does ship tool calls, but only
    for four Hermes builds, and its parser requires the *entire* completion to be a
@@ -143,9 +161,20 @@ Four facts shape `providers/webllm.ts`:
 2. **4,096 tokens, prompt and completion together** — every prebuilt config pins
    `context_window_size` to it, whatever the model's nominal window. Overflow *throws*
    rather than truncating, so `MAX_OUTPUT_TOKENS` is 768 (the loop asks for 8192) and
-   an overflow retries once on a trimmed transcript. The error crosses the worker's
-   `postMessage` as its `toString()`, so the class is gone by the time the provider
-   sees it and only the `ContextWindowSizeExceededError` prefix in the message is left.
+   an overflow retries once on a trimmed transcript: `trimTranscript()` in
+   `json-tools.ts` keeps the first turn, the current request and the last tool call
+   with its result, and drops the middle. A transcript with no middle to drop (the
+   task, one call, one result) is not retried, because the same prompt would overflow
+   the same way. The loop still holds every message, so after a trim the provider
+   sends the trimmed transcript plus whatever is newer (`transcriptFor`). Later steps
+   then extend what the engine holds instead of overflowing again and prefilling
+   about 3k tokens from an empty cache (Qwen3.5-4B: 118 tokens in 0.3 s instead of
+   ~3,000 in ~11 s). The error crosses the worker's
+   `postMessage` as its `toString()` and the engine rejects with that string, not an
+   `Error`, so the provider matches the `ContextWindowSizeExceededError` prefix in
+   the text. Its token count is only the tokens added this step: the engine checks
+   them plus the KV cache it kept from earlier steps, so an overflow can read as
+   "446 tokens; context window size 4096".
 3. **Inference runs in a worker** (`webllm-worker.ts`). On the main thread the GPU
    submit loop competes with deck.gl's and the map stutters for the length of every
    answer. `vite.config.js` sets `worker.format: 'es'` for this: the worker's
@@ -153,11 +182,40 @@ Four facts shape `providers/webllm.ts`:
 4. **`@mlc-ai/web-llm` is only ever reached through `await import()`.** It is the
    largest dependency in the app and users who never pick a local model pay nothing
    for it. It is also in `optimizeDeps.exclude`.
+5. **Prefill is most of the wait, so the prefix stays byte-stable.** The engine
+   keeps its KV cache only when a request is the previous conversation plus one
+   message, compared string for string, system message included; anything else
+   resets it and prefills the whole prompt again. Two things used to break that on
+   every step. The preamble listed the current tools, which grow with each
+   `find_tools`, so `preambleFor` now keeps the first preamble per system prompt
+   while every tool it lists is still offered; later tools reach the model through
+   `find_tools`' own result and the grammar's enum, which is per request and not
+   part of the prefix. Once that result has left the transcript (trimmed, or a new
+   turn), the preamble is rebuilt so the tool keeps its description. And assistant turns went back re-serialised ("Called X with
+   …") rather than as the JSON the engine had recorded, so the raw completion now
+   rides in a `provider_block` and `toWireTurns` replays it verbatim. Measured on
+   Qwen3-4B at 16k (M-series Mac, T2 tasks): later steps prefill 20–1,000 new tokens
+   in 0.1–2.3 s instead of ~4k in 14–23 s, and tasks take 6–22 s instead of 10–48 s.
+   Each step logs its prefill and decode timings under `noodles:ai-chat`.
 
-`WEBLLM_MODELS` carries five ids checked against `prebuiltAppConfig.model_list`, each
-with the download size from the config's own `vram_required_MB`, because "3.4GB the
-first time" is the number that makes the choice an informed one. The download reports
-progress through the same `DownloadProgress` UI Chrome uses.
+Both on-device providers are slower than a hosted one, and the panel says so
+rather than letting the user find out (`on-device-notice.tsx`): a dismissible
+banner above the conversation, and a line inside any reply still running after
+`SLOW_REPLY_MS`, each with one button. It switches straight to a hosted provider
+that is already set up (`readyCloudProvider`, same order as automatic selection)
+or opens Settings → AI Provider, where OpenRouter is one click. Switching stops the
+running reply, and `AgentSession.dispose` waits for it to settle before disposing
+the provider.
+
+`WEBLLM_MODELS` carries seven ids checked against `prebuiltAppConfig.model_list`. Two
+are recommended: Qwen3.5 4B (2.4 GB download, 3.9 GB GPU memory) and Qwen3.5 2B, the
+fast one (1.1 GB download, 2.2 GB GPU memory). The rest sit under "Advanced
+compatibility" so a saved choice keeps working. Download size and GPU memory are
+separate fields, since `vram_required_MB` runs well above the download and both
+numbers make the choice an informed one. When a model fails to load, the panel
+offers the 2B, which needs about half the memory. Every entry carries
+`supportsImages: false` until WebLLM ships a Qwen3.5 vision build. The download
+reports progress through the same `DownloadProgress` UI Chrome uses.
 
 ### Why there is no keyless preset
 
@@ -197,7 +255,10 @@ and sends only the messages that session has not seen, which makes two things tr
 Overflow is handled before the API throws: `measureContextUsage()` is checked
 against `contextWindow - contextUsage`, and a turn that will not fit rebuilds on a
 trimmed transcript. `QuotaExceededError` remains caught as a backstop, since the
-measurement is optional and can undercount.
+measurement is optional and can undercount. Both paths use the same
+`trimTranscript()` as WebLLM, and both skip the rebuild when it would keep every
+message: the turn is sent as-is and the API's own `QuotaExceededError` reaches the
+user. The separate one-time rebuild for unknown Chrome API errors still runs.
 
 ### Native tool calling on the Prompt API: not yet
 
@@ -250,8 +311,57 @@ when the window is under 32k. Each step is one model turn plus its tool batch.
   read-only (`ToolAnnotations.readOnlyHint`, or `HarnessTool.readOnly`); the first
   mutating call forces the rest to run in order after it, so two
   `apply_modifications` calls can never race.
+- **Repeated calls.** A call identical to an earlier one (same name, same input)
+  is not run again; the model gets the earlier outcome back as an error telling it
+  to try something else, and the third identical call ends the run. Small models
+  otherwise loop — the same failed lookup six times, or the same edit queued six
+  times. A successful mutating call clears the memory of read-only calls, since a
+  read may now return something new, and a read that follows a write in the same
+  batch always runs. Each refusal emits a `repeated_tool_call` diagnostic.
+- **Validated edits.** `apply_modifications` validates the whole batch against
+  `ProjectModificationSchema` and the project before anything is queued: ids must
+  name existing nodes (or nodes added earlier in the batch or the run), `add_node`
+  must not collide, and an `update_node` must change something. Every problem is
+  reported at once, with the ids that do exist. Bare ids (`pickup-layer`,
+  `map-range` for `/analysis/map-range`) are resolved when they name exactly one
+  node, here and in `get_node_info` / `get_node_output`. What a run queued is
+  forgotten when the next run starts, so a failed run cannot block its retry.
+- **Validated fields.** When a context loader supplies the operator registry,
+  `modification-fields.ts` also checks operator types, input names and edge
+  handles. The editor would otherwise accept all three silently: an unknown type
+  becomes a dead node, a wrong handle becomes an edge that connects nothing. A
+  display name (`File`) or a missing `Op` suffix resolves to the type when it names
+  exactly one operator, and a bare handle (`data`) gets its side (`out.data` /
+  `par.data`). Anything else is rejected with the names that do exist, e.g. "/heat
+  (HeatmapLayerOp) has no output vis. Outputs on /heat: out.layer". The known
+  names are the class's fields plus the live operator's, plus custom inputs an
+  `add_node` in the run declares. A handle is checked by its whole name, since the
+  graph looks up `par.viewState.zoom` as a field named `viewState.zoom`.
+- **Proposals.** What a run queued reaches the panel as a proposal: a card listing
+  each change and its proposed values (long values cut to a preview that expands)
+  with Accept and Reject. Nothing in the batch touches the graph until Accept, which
+  runs the batch through `useProjectModifications` inside `recordGraphMutation`
+  (`noodles/utils/graph-history.ts`), so the whole batch, field values included, is
+  one undo entry. Reject leaves a line in the conversation so the next turn knows
+  the edit did not land (a `run_code` call in the same run may already have changed
+  field values; the card and the line speak only for the batch). Sending is blocked
+  while a proposal waits. Starting or loading a conversation, or opening another
+  project (`projectKey`), drops it and aborts a run in flight, whose reply and
+  proposal are then ignored. A modifications array written into the reply as
+  JSON is not picked up: only `apply_modifications` validates a batch. The live
+  benchmark and WebMCP apply batches directly, without a proposal.
+- **Unverified edit claims.** A reply that announces a change in the past tense
+  ("the radius has been set to 10") when no mutating tool succeeded and no
+  modification was queued gets a one-line correction appended and emits an
+  `unverified_edit_claim` diagnostic. On-device models do this often — one step, no
+  tool call, a confident report — and unmarked it reads as done. Present-tense
+  descriptions ("is currently set to `#8d12af`"), instructions and refusals are left
+  alone; `claimsAnEdit` in `agent/loop.ts` holds the test.
 - **Screenshots.** Base64 is stripped from the tool result and reattached as an
-  image block on the follow-up message — only when `provider.supportsImages`.
+  image block on the follow-up message — only when `provider.supportsImages`. The
+  panel's Capture button is hidden when it is false, and a capture rides on the
+  next message the user sends. OpenRouter reads `supportsImages` from the
+  catalogue's `architecture.input_modalities`, since many free models are text-only.
 - **Opaque provider blocks.** Anything a provider needs echoed back verbatim
   (Anthropic thinking blocks, for instance) rides through the transcript as a
   `provider_block` and is never inspected. Dropping them makes Anthropic reject the
@@ -319,8 +429,8 @@ Four things about it are deliberate:
   `captureOperatorInputs` / `firePropertyMutation` pair. Pure computation creates no
   entry at all, and a call that did change something reports `changedFieldValues`.
   This only covers field values — adding or deleting operators goes through
-  `apply_modifications`, which the UI applies with its own history — so the tool
-  description points structural edits there.
+  `apply_modifications`, whose accepted proposal is its own undo entry — so the
+  tool description points structural edits there.
 - **`timeoutMs` bounds the await, not the code.** A synchronous infinite loop hangs
   the tab and no amount of racing changes that; the only real fix is a worker, and a
   worker cannot see the graph, which is the point of the tool. What the timeout does
@@ -435,7 +545,17 @@ the rest:
 | `build` | inspect plus `apply_modifications` and keyframes | yes |
 
 A `build` sub-agent's edits reach the graph because `delegate` returns them under
-`modifications`, which the parent loop already collects.
+`modifications`, which the parent loop already collects. A `build` child that
+reports success while nothing landed — no modifications, no keyframe call — comes
+back as an **error** with its claim quoted, because the report is all the parent
+can see and small models write reports for work they never did. A keyframe-only
+build queues no modifications, so `delegate` also returns `changed: true` when the
+child's own tools changed the project.
+
+`delegate` is only offered when `provider.contextWindow` is at least 32k
+(`DELEGATE_MIN_CONTEXT_TOKENS`). Below that the window cannot afford a second loop,
+and on-device models spent their one delegation on a fabricated report they then
+relayed to the user.
 
 ## Transcript fidelity
 
@@ -466,11 +586,11 @@ the old `listNodes` shape copied verbatim.
 
 | Per-turn component | Before | After | Change |
 | --- | --- | --- | --- |
-| System prompt | 9,278 chars (~2,300 tok) | 2,910 chars (~730 tok) | −69% |
+| System prompt | 9,278 chars (~2,300 tok) | ~9,000 chars (~2,250 tok) | −3% |
 | Tool schemas | 4,291 chars, 13 tools (~1,070 tok) | 2,292 chars, 5 tools (~570 tok) | −47% |
 | One `list_nodes` result (200k window) | 18,447 chars (~4,600 tok) | 11,462 chars (~2,870 tok) | −38% |
 | One `list_nodes` result (6k window) | 18,447 chars (~4,600 tok) | 1,637 chars (~410 tok) | −91% |
-| **First turn, all three** | ~32,000 chars (~8,000 tok) | ~16,700 chars (~4,175 tok) | **−48%** |
+| **First turn, all three** | ~32,000 chars (~8,000 tok) | ~22,750 chars (~5,700 tok) | **−29%** |
 
 The `list_nodes` saving is the slimming alone (role groupings carry ids instead of
 re-serialized node objects; `position` dropped; long string inputs clipped to a
@@ -480,7 +600,27 @@ all: 18k chars would exceed the entire context.
 
 The remaining six prompt sections (16,914 chars total) are no longer sent at all;
 they reach the model through `get_documentation` when a workflow actually calls for
-one.
+one. The system prompt barely shrank anyway: `core.md` is 2,910 chars, but
+`generateContextReference()` appends ~6,000 more (every operator name, doc topic
+titles, example summaries), and that reference is sent on every turn.
+
+### Headroom per window
+
+`src/ai-chat/agent/context-budget.test.ts` subtracts the fixed first-turn cost
+(system prompt, tool schemas, the provider's output reserve) and one capped
+`list_nodes` result from each provider's window. Rounded to 50 tokens:
+
+| Target | Fixed cost | Left before any tool result | Left after one `list_nodes` |
+| --- | --- | --- | --- |
+| WebLLM, 4k window (today) | ~3,570 tok | ~550 tok | ~300 tok |
+| Chrome Nano, 6k fallback | ~3,800 tok | ~2,350 tok | ~1,950 tok |
+| WebLLM, 16k window | ~3,570 tok | ~12,850 tok | ~11,700 tok |
+| Anthropic, 200k | ~11,000 tok | ~189,000 tok | ~186,150 tok |
+
+At 4k the model has room for one small tool result and nothing else, which is why
+on-device sessions run out of context almost immediately. The test snapshots these
+numbers, so growth in the prompt or tier-0 schemas shows up in the PR diff, and it
+fails if a window of 16k or more leaves less than 1,500 tokens after an inspect.
 
 **Not yet measured:** live per-turn `inputTokens` from a real provider. The figures
 above are payload sizes computed offline, which is why they are reproducible without
@@ -509,3 +649,13 @@ End-to-end checks that do need keys are listed in the PR description for this wo
 streaming and Stop on Anthropic, cost readout on OpenRouter, `find_tools` →
 `get_documentation` on a docs question, `delegate` on an examples question, and a
 `list_nodes` turn on Chrome Canary with the Prompt API enabled.
+
+## Live benchmark
+
+`noodles-editor/bench/agent/` runs this harness against scripted tasks with a real
+model in a real browser — WebLLM and Gemini Nano on the machine's own GPU, or a
+cloud provider as the ceiling — and grades the resulting project deterministically.
+`npm run bench:agent` from `noodles-editor/`; see its
+[README](../noodles-editor/bench/agent/README.md). It is how a change to the prompt,
+the tool surface or the context budget should be judged: run the matrix before and
+after, then `bench:agent:report --compare`.

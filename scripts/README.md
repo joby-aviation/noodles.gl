@@ -4,18 +4,16 @@ This directory contains utility scripts for the Noodles.gl project.
 
 ## Available Scripts
 
-### validate-examples.js
+### validate:examples
 
-Validates all example project files to ensure:
-- Valid JSON structure
-- Required fields present (version, nodes, edges)
-- All edge references point to existing nodes
-- No generic node names (e.g., `duckdb-0`, `accessor-1`)
+`npm run validate:examples` runs [`validate-projects`](../noodles-validate/README.md) over `noodles-editor/src/examples`. It checks each project against the operator registry: schema version, operator types, input names, edge endpoints and handles, duplicate edges, and generic node names (e.g. `duckdb-0`, `accessor-1`, now a warning).
 
 Run manually:
 ```bash
 npm run validate:examples
 ```
+
+`validate-examples.js` is a shim that runs the same check, for pre-commit hooks installed before `validate-projects` existed. Rerun `./scripts/setup-hooks.sh` to replace an old hook.
 
 ### setup-hooks.sh
 
@@ -33,8 +31,7 @@ The pre-commit hook will:
 
 ### Other Scripts
 
-- `benchmark-export.ts` - Performance benchmarking for export functionality
-- `generate-context.ts` - Generate AI context bundles for Claude integration
+These live in `noodles-editor/scripts/`:
+
 - `generate-migration.ts` - Generate migration scripts for project schema updates
 - `migrate-project-files.ts` - Apply migrations to project files
-- `parse-operators.ts` - Parse operator definitions for documentation

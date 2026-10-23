@@ -3,7 +3,19 @@ import { Cross2Icon } from '@radix-ui/react-icons'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useLocation } from 'wouter'
 import logoSvg from '/noodles-favicon.svg'
-import { extensionOf } from '../noodles/components/tools/import-pipelines'
+import {
+  type CoordinateDetection,
+  describeDetection,
+  detectFileCoordinates,
+  hasCoordinates,
+} from '../noodles/components/tools/detect-coordinates'
+import {
+  detectFormat,
+  extensionOf,
+  FILE_INPUT_ACCEPT,
+  isBinaryFormat,
+  isImportable,
+} from '../noodles/components/tools/import-pipelines'
 import { analytics } from '../utils/analytics'
 import { CURATED_EXAMPLES, ExamplesView } from './examples-view'
 import { ProjectsView, useRecentProjects } from './projects-view'
@@ -11,13 +23,17 @@ import s from './quick-start-modal.module.css'
 
 export type ModalView = 'home' | 'projects' | 'examples'
 
-const DEFAULT_EXAMPLE = 'nyc-taxis'
+// Opened when the dialog is closed without a choice: the smallest of the featured
+// examples, so a first look at the graph isn't overwhelming
+const DEFAULT_EXAMPLE = 'california-earthquakes'
 
 // Store for pending quick start actions (file upload or LLM question)
 // These can be picked up by the main app after navigating to a project
 interface PendingQuickStartAction {
   type: 'file' | 'llm'
   file?: File
+  // Both import the file. chat also opens the AI assistant to help map it.
+  mode?: 'map' | 'chat'
   question?: string
 }
 
@@ -31,6 +47,36 @@ export function getPendingQuickStartAction(): PendingQuickStartAction | null {
 
 export function setPendingQuickStartAction(action: PendingQuickStartAction | null) {
   pendingAction = action
+}
+
+export interface QuickStartPlan {
+  // Handed to CanvasDropImport, which imports it into the open project
+  importFile?: File
+  // Pre-filled in the AI assistant, which opens when this is set
+  chatMessage?: string
+  event: 'quick_start_llm_action_handled' | 'quick_start_file_action_handled'
+  mode?: 'map' | 'chat'
+}
+
+// What the editor does with a pending action once a project is loaded. A file is
+// always imported, so choosing the assistant can't leave it behind.
+export function planQuickStartAction(action: PendingQuickStartAction): QuickStartPlan | null {
+  if (action.type === 'llm' && action.question) {
+    return { chatMessage: action.question, event: 'quick_start_llm_action_handled' }
+  }
+  if (action.type === 'file' && action.file) {
+    const mode = action.mode ?? 'map'
+    return {
+      importFile: action.file,
+      chatMessage:
+        mode === 'chat'
+          ? `I imported "${action.file.name}" into this project. Help me make a map from it.`
+          : undefined,
+      event: 'quick_start_file_action_handled',
+      mode,
+    }
+  }
+  return null
 }
 
 function formatDate(timestamp?: number): string | null {
@@ -57,6 +103,8 @@ export function QuickStartModal({
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [uploadedFile, setUploadedFile] = useState<File | null>(null)
+  // undefined while the file is being read
+  const [detection, setDetection] = useState<CoordinateDetection | null>()
   const [llmQuestion, setLlmQuestion] = useState('')
   const [error, setError] = useState<string | null>(null)
 
@@ -74,12 +122,9 @@ export function QuickStartModal({
   const MAX_FILE_SIZE = 50 * 1024 * 1024 // 50MB
 
   const validateFile = useCallback((file: File): string | null => {
-    const validExtensions = ['.csv', '.json', '.geojson']
-    const fileName = file.name.toLowerCase()
-    const hasValidExtension = validExtensions.some(ext => fileName.endsWith(ext))
-
-    if (!hasValidExtension) {
-      return 'Please upload a CSV, JSON, or GeoJSON file.'
+    // Same formats as dropping a file on the canvas
+    if (!isImportable(file.name)) {
+      return 'Please upload a CSV, TSV, JSON, GeoJSON, Shapefile, GeoParquet, or PMTiles file.'
     }
 
     if (file.size > MAX_FILE_SIZE) {
@@ -87,6 +132,30 @@ export function QuickStartModal({
     }
 
     return null
+  }, [])
+
+  // Look for coordinates as soon as a file is chosen, so the dialog can say whether
+  // it will map before the user commits
+  const latestFileRef = useRef<File | null>(null)
+  const acceptFile = useCallback((file: File) => {
+    latestFileRef.current = file
+    setUploadedFile(file)
+    setDetection(undefined)
+    // Ignore the result if another file was dropped while this one was being read
+    const settle = (found: CoordinateDetection | null) => {
+      if (latestFileRef.current === file) setDetection(found)
+    }
+    // Binary formats carry their own geometry and can't be read as text
+    if (isBinaryFormat(detectFormat(file.name))) {
+      settle(null)
+      return
+    }
+    file
+      .text()
+      .then(contents =>
+        settle(detectFileCoordinates(detectFormat(file.name, contents), contents) ?? null)
+      )
+      .catch(() => settle(null))
   }, [])
 
   const handleDragEnter = useCallback((e: React.DragEvent) => {
@@ -130,11 +199,11 @@ export function QuickStartModal({
           setError(validationError)
           return
         }
-        setUploadedFile(file)
+        acceptFile(file)
         analytics.track('quick_start_file_dropped', { fileType: file.type, fileSize: file.size })
       }
     },
-    [validateFile]
+    [validateFile, acceptFile]
   )
 
   const handleFileSelect = useCallback(
@@ -157,28 +226,32 @@ export function QuickStartModal({
           setError(validationError)
           return
         }
-        setUploadedFile(file)
+        acceptFile(file)
         analytics.track('quick_start_file_selected', { fileType: file.type, fileSize: file.size })
       }
     },
-    [validateFile]
+    [validateFile, acceptFile]
   )
 
-  const handleCreateFromFile = useCallback(() => {
-    if (!uploadedFile) return
+  const handleCreateFromFile = useCallback(
+    (mode: 'map' | 'chat') => {
+      if (!uploadedFile) return
 
-    analytics.track('quick_start_create_from_file', {
-      fileName: uploadedFile.name,
-      fileSize: uploadedFile.size,
-    })
+      analytics.track('quick_start_create_from_file', {
+        fileSize: uploadedFile.size,
+        mode,
+        detected: hasCoordinates(detection ?? undefined),
+      })
 
-    // Store the file for the main app to pick up
-    setPendingQuickStartAction({ type: 'file', file: uploadedFile })
+      // Store the file for the main app to pick up
+      setPendingQuickStartAction({ type: 'file', file: uploadedFile, mode })
 
-    // Navigate to an example - the main app can detect the pending action
-    onOpenChange(false)
-    navigate(`/examples/${DEFAULT_EXAMPLE}`)
-  }, [uploadedFile, onOpenChange, navigate])
+      // Either way the file is imported into a blank project, so it is never lost
+      onOpenChange(false)
+      navigate('/projects/new')
+    },
+    [uploadedFile, detection, onOpenChange, navigate]
+  )
 
   const handleAskQuestion = useCallback(() => {
     if (!llmQuestion.trim()) return
@@ -188,9 +261,9 @@ export function QuickStartModal({
     // Store the question for the main app to pick up
     setPendingQuickStartAction({ type: 'llm', question: llmQuestion })
 
-    // Navigate to an example - the main app can detect the pending action and open chat
+    // Build from a blank project rather than editing an unrelated example
     onOpenChange(false)
-    navigate(`/examples/${DEFAULT_EXAMPLE}`)
+    navigate('/projects/new')
   }, [llmQuestion, onOpenChange, navigate])
 
   const handleExampleClick = useCallback(
@@ -237,6 +310,45 @@ export function QuickStartModal({
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
   }
 
+  const renderFileActions = () => {
+    if (detection === undefined) {
+      return <span className={s.detectionText}>Looking for coordinates…</span>
+    }
+    // null: a binary format or a file we couldn't read ahead, mapped on import
+    const mappable = detection === null || hasCoordinates(detection)
+    const message =
+      detection && detection.kind !== 'geojson' ? describeDetection(detection, 'found') : null
+    return (
+      <>
+        {message && (
+          <span className={s.detectionText}>
+            {mappable ? message : `${message}. It will open as a table you can place on the map.`}
+          </span>
+        )}
+        <button
+          type="button"
+          className={s.createButton}
+          onClick={e => {
+            e.stopPropagation()
+            handleCreateFromFile('map')
+          }}
+        >
+          {mappable ? 'Show on map' : 'Open in editor'}
+        </button>
+        <button
+          type="button"
+          className={s.secondaryLink}
+          onClick={e => {
+            e.stopPropagation()
+            handleCreateFromFile('chat')
+          }}
+        >
+          {mappable ? 'Open with the AI assistant' : 'Ask AI to map it'}
+        </button>
+      </>
+    )
+  }
+
   const renderHomeView = () => (
     <div className={s.body}>
       {/* Upload Section */}
@@ -261,7 +373,7 @@ export function QuickStartModal({
           <input
             ref={fileInputRef}
             type="file"
-            accept=".csv,.json,.geojson"
+            accept={FILE_INPUT_ACCEPT}
             onChange={handleFileSelect}
             style={{ display: 'none' }}
           />
@@ -270,22 +382,13 @@ export function QuickStartModal({
               <i className={`pi pi-file ${s.uploadIcon}`} style={{ fontSize: '28px' }} />
               <span className={s.fileName}>{uploadedFile.name}</span>
               <span className={s.fileSize}>{formatFileSize(uploadedFile.size)}</span>
-              <button
-                type="button"
-                className={s.createButton}
-                onClick={e => {
-                  e.stopPropagation()
-                  handleCreateFromFile()
-                }}
-              >
-                Create Visualization
-              </button>
+              {renderFileActions()}
             </div>
           ) : (
             <>
               <i className={`pi pi-cloud-upload ${s.uploadIcon}`} />
               <p className={s.uploadText}>Drop your data file here</p>
-              <p className={s.uploadHint}>CSV, JSON, or GeoJSON (max 50MB)</p>
+              <p className={s.uploadHint}>CSV, GeoJSON, Parquet, Shapefile and more (max 50MB)</p>
             </>
           )}
         </div>

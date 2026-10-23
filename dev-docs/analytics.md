@@ -85,6 +85,48 @@ VITE_GA_MEASUREMENT_ID=G-XXXXXXXXXX
 | `node_deleted` | `count` | use-project-modifications.ts |
 | `edge_added` | `count` | use-project-modifications.ts |
 | `edge_deleted` | `count` | use-project-modifications.ts |
+| `ai_modification_proposed` | `provider, modificationCount` | chat-panel.tsx |
+| `ai_modification_proposal_resolved` | `provider, outcome, modificationCount` | chat-panel.tsx |
+
+- `outcome`: `accepted`, `rejected`, or `failed` (accepted, but the editor refused the batch)
+
+### Rendering and Export
+
+Tracked in the renderer, not the buttons, so the Export button, the render settings panel and the `export_video` agent tool are each counted once. Every `render_started` is followed by exactly one of `render_completed`, `render_failed` or `render_cancelled`.
+
+| Event | Properties | Location |
+|-------|-----------|----------|
+| `render_started` | `source, format, codec, captureMode, resolution, frameCount` | render-analytics.ts |
+| `render_completed` | started properties + `durationMs` | render-analytics.ts |
+| `render_failed` | started properties + `durationMs, errorCategory, errorName, framesDone` | render-analytics.ts |
+| `render_cancelled` | started properties + `durationMs` | render-analytics.ts |
+| `screenshot_taken` | `source` | renderer.ts (captureScreenshot) |
+
+- `source`: `menu` (the logo menu and the Out node's panel), `toolbar` (the top bar's Export button) or `agent` (the `export_video` tool)
+- `format`: `mp4`, `webm` (a transparent video), `png_sequence`, or `exr_sequence`; `codec` (`avc`, `hevc`, `vp9`, `av1`) is sent for `mp4` and `webm` only
+- `captureMode`: `final` (waits for each frame to settle) or `preview` (captures on the first render, may drop frames)
+- `resolution`: a bucket by the short side (`under_720p`, `720p`, `1080p`, `1440p`, `4k`, `8k`), not exact dimensions
+- `durationMs`: wall time from the end of the save dialog to the end of the render
+- `errorCategory`: `unsupported_codec`, `frame`, `encoder`, `canvas_replaced` (the recorded canvas was rebuilt mid-export, e.g. by adding or removing the basemap), `timeout` (a frame took too long to draw or read) or `exception`. `errorName` is the error class or DOMException name (`NotAllowedError`). The error message is never sent, since it can contain file paths.
+
+The agent's `capture_visualization` tool is not a `screenshot_taken`: it returns the image to the model rather than saving a file.
+
+### Data Import
+
+When a CSV or JSON table is imported, the editor looks for coordinate columns so it can build a map without the AI assistant. `coordinates_detected` records whether that worked.
+
+| Event | Properties | Location |
+|-------|-----------|----------|
+| `coordinates_detected` | `source, fileFormat, detected, method, reason, sizedByColumn, rowCountBucket` | use-file-import.ts |
+| `quick_start_create_from_file` | `fileSize, mode, detected` | quick-start-modal.tsx |
+| `quick_start_file_action_handled` | `mode` | noodles.tsx |
+
+- `source`: `canvas_drop`, `quickstart` or `tools_shelf` (the Import Data dialog)
+- `method`: `lat_lng`, `geometry` (a WKT or GeoJSON column) or `none`; `reason` is set only for `none`: `no_rows`, `no_columns` or `out_of_range` (columns named like coordinates whose values aren't longitude and latitude)
+- `sizedByColumn`: whether points were sized by a numeric column
+- `rowCountBucket`: `0`, `1-99`, `100-999`, `1k-10k`, `10k-100k` or `100k+`, never the exact count
+- `mode`: `map` or `chat`. Both import the file into a new project; `chat` also opens the AI assistant. Before October 2026, `chat` opened an example without importing the file.
+- Column names, values and file names are never sent
 
 ### User Interface
 
@@ -93,6 +135,33 @@ VITE_GA_MEASUREMENT_ID=G-XXXXXXXXXX
 | `analytics_consent_granted` | - | analytics.ts (setConsent) |
 | `analytics_consent_denied` | - | analytics.ts (setConsent) |
 | `analytics_enabled_in_settings` | - | settings-dialog.tsx |
+| `agent_prompt_copied` | `agent` (`claude_code`, `other`), `source` (`assistant_onboarding`), `withRequest` (whether the prompt carried the user's question; never its text) | assistant-onboarding.tsx |
+| `webllm_model_selected` | `model` (a public WebLLM model id), `source` (`assistant_onboarding`, absent from Settings) | assistant-onboarding.tsx, settings-dialog.tsx |
+
+The website's "Use with your AI agent" section sends `agent_prompt_copied` too, with `agent` and `location: 'landing'`, through the site's own PostHog and GA tags (`website/src/components/AgentQuickStart`). Before October 2026 both sent `claude_code_prompt_copied`. The prompt text itself is never sent.
+
+### AI Assistant
+
+| Event | Properties | Location |
+|-------|-----------|----------|
+| `ai_provider_load` | `provider, model, outcome` | chat-panel.tsx |
+| `assistant_onboarding_shown` | `hasPendingRequest` | chat-panel.tsx |
+| `assistant_onboarding_closed` | `hasPendingRequest` | chat-panel.tsx |
+
+- `outcome`: `success` or `failed`. A failed on-device load is usually GPU memory or a missing WebGPU adapter; the error message is never sent.
+- `assistant_onboarding_shown` fires each time the panel opens with no provider ready. `assistant_onboarding_closed` fires when its Close button is used, which is only shown before a provider is connected.
+- `hasPendingRequest`: whether the panel opened with a request from the Quick Start dialog still unsent. The request text is never sent.
+
+### App Updates
+
+A tab opened before a deploy asks for code-split chunks that no longer exist, so lazy imports such as the chat panel fail. `stale-chunk.ts` decides what to do once per page load.
+
+| Event | Properties | Location |
+|-------|-----------|----------|
+| `stale_chunk_reload` | `action` | stale-chunk.ts |
+
+- `action`: `reloaded` (no unsaved work, so the page reloaded), `prompted` (the editor's unsaved-changes guard was armed, or sessionStorage is blocked so the 10-second reload guard cannot be stored; a message asked the user to save and reload) or `skipped` (the page already reloaded for this in the last 10 seconds, so the chunk is missing rather than stale)
+- The chunk URL and the error message are never sent
 
 ### Performance
 
@@ -141,30 +210,6 @@ These properties are automatically removed:
 - `username`, `email`, `url`, `path`, `filePath`
 
 ### Optional Future Tracking
-
-#### Render Operations (`src/render/renderer.ts`)
-
-```typescript
-import { analytics } from '../utils/analytics'
-
-// In startCapture()
-analytics.track('render_started', {
-  codec: codec,
-  resolution: `${width}x${height}`
-})
-
-// When complete
-analytics.track('render_completed', {
-  duration: elapsedSeconds,
-  frameCount: totalFrames
-})
-
-// If cancelled
-analytics.track('render_cancelled')
-
-// In captureScreenshot()
-analytics.track('screenshot_captured')
-```
 
 #### AI Chat Operations (`src/ai-chat/chat-panel.tsx`)
 

@@ -6,6 +6,7 @@ import { workerSetInterval, workerSetTimeout } from '../utils/worker-timer'
 interface RendererConfig {
   waitForData: boolean
   captureDelay: number
+  captureMode: 'final' | 'preview'
 }
 
 interface UseDeckDrawLoopProps {
@@ -17,6 +18,10 @@ interface UseDeckDrawLoopProps {
   rendererConfig: RendererConfig
   props?: Partial<DeckProps>
 }
+
+// Preview exports wait this long after a render instead of captureDelay, trading
+// settled frames for speed.
+export const PREVIEW_FRAME_DELAY = 8
 
 const isDeckReady = (deck: Deck | null) => {
   if (!deck) return true
@@ -62,7 +67,8 @@ export function useDeckDrawLoop({
       return
     }
 
-    const { waitForData, captureDelay } = rendererConfig
+    const { waitForData, captureDelay, captureMode } = rendererConfig
+    const frameDelay = captureMode === 'preview' ? PREVIEW_FRAME_DELAY : captureDelay
 
     async function drawPass() {
       try {
@@ -98,7 +104,7 @@ export function useDeckDrawLoop({
             workerSetTimeout(() => {
               cancelTimeout()
               resolvePass()
-            }, captureDelay)
+            }, frameDelay)
           },
         })
         // Pump Deck.gl's render directly via worker timer so onAfterRender fires even when

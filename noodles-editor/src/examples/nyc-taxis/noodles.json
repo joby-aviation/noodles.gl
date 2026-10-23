@@ -139,7 +139,7 @@
     "y": 204.01752158305402,
     "zoom": 0.467987771000214
   },
-  "version": 18,
+  "version": 19,
   "name": "NYC Taxis",
   "editorSettings": {
     "layoutMode": "noodles-on-top",
@@ -340,6 +340,53 @@
       "Noodles": {
         "staticOverrides": {
           "byObject": {}
+        },
+        "sequence": {
+          "subUnitsPerUnit": 30,
+          "length": 20,
+          "type": "PositionalSequence",
+          "tracksByObject": {
+            "maplibre-basemap": {
+              "trackData": {
+                "bearingTrk01": {
+                  "type": "BasicKeyframedTrack",
+                  "__debugName": "maplibre-basemap:[\"viewState\",\"bearing\"]",
+                  "keyframes": [
+                    {
+                      "id": "kf_bearing_0",
+                      "position": 0,
+                      "connectedRight": true,
+                      "handles": [
+                        0.333,
+                        0.333,
+                        0.667,
+                        0.667
+                      ],
+                      "type": "bezier",
+                      "value": -15.25
+                    },
+                    {
+                      "id": "kf_bearing_1",
+                      "position": 20,
+                      "connectedRight": false,
+                      "handles": [
+                        0.333,
+                        0.333,
+                        0.667,
+                        0.667
+                      ],
+                      "type": "bezier",
+                      "value": 344.75
+                    }
+                  ]
+                }
+              },
+              "trackIdByPropPath": {
+                "[\"viewState\",\"bearing\"]": "bearingTrk01"
+              }
+            }
+          },
+          "markers": []
         }
       }
     },

@@ -1,13 +1,13 @@
-import { useState, useMemo } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { Cross2Icon } from '@radix-ui/react-icons'
+import { useMemo, useState } from 'react'
 import {
   BASEMAP_CATALOG,
-  BASEMAP_PROVIDERS,
   BASEMAP_CATEGORIES,
-  rasterUrlToStyle,
+  BASEMAP_PROVIDERS,
   type BasemapCategory,
   type BasemapEntry,
+  rasterUrlToStyle,
 } from '../../utils/map-styles'
 import s from './basemap-gallery.module.css'
 
@@ -18,7 +18,12 @@ interface BasemapGalleryProps {
   currentValue?: string
 }
 
-export function BasemapGallery({ open, onOpenChange, onSelect, currentValue }: BasemapGalleryProps) {
+export function BasemapGallery({
+  open,
+  onOpenChange,
+  onSelect,
+  currentValue,
+}: BasemapGalleryProps) {
   const [search, setSearch] = useState('')
   const [providerFilter, setProviderFilter] = useState('all')
   const [categoryFilter, setCategoryFilter] = useState<'all' | BasemapCategory>('all')
@@ -73,6 +78,7 @@ export function BasemapGallery({ open, onOpenChange, onSelect, currentValue }: B
               placeholder="Search basemaps..."
               value={search}
               onChange={e => setSearch(e.target.value)}
+              // biome-ignore lint/a11y/noAutofocus: the dialog moves focus on open; this picks the search field
               autoFocus
             />
             <select

@@ -35,9 +35,7 @@ describe('field subscription optimization', () => {
     })
 
     it('should exclude remote operator references from local-par', () => {
-      const deps = getEnableExpressionDependencies(
-        "par.enabled && op('/other').par.value > 10"
-      )
+      const deps = getEnableExpressionDependencies("par.enabled && op('/other').par.value > 10")
       const localDeps = deps.filter(d => d.type === 'local-par')
       expect(localDeps).toHaveLength(1)
       expect(localDeps[0].field).toBe('enabled')
@@ -116,9 +114,7 @@ describe('field subscription optimization', () => {
 
       // The useFieldValueChanges hook should only subscribe to 'mode'
       // because it's referenced in the enable expression
-      const deps = getEnableExpressionDependencies(
-        op.customInputDefinitions[0].enableExpression!
-      )
+      const deps = getEnableExpressionDependencies(op.customInputDefinitions[0].enableExpression!)
       const expectedFields = deps.filter(d => d.type === 'local-par').map(d => d.field)
 
       expect(expectedFields).toEqual(['mode'])
@@ -273,8 +269,7 @@ describe('field subscription optimization', () => {
       expect(allReferencedFields.has('masterEnabled')).toBe(true)
 
       // Verify 90%+ reduction
-      const reductionPercentage =
-        (1 - allReferencedFields.size / (fieldCount + 1)) * 100
+      const reductionPercentage = (1 - allReferencedFields.size / (fieldCount + 1)) * 100
       expect(reductionPercentage).toBeGreaterThan(90)
     })
   })

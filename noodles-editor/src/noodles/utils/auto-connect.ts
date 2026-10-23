@@ -1,5 +1,5 @@
 import type { Field } from '../fields'
-import { type IOperator, type OpType, type Operator, opTypes } from '../operators'
+import { type IOperator, type Operator, type OpType, opTypes } from '../operators'
 import { canConnect } from './can-connect'
 
 export interface ConnectionPlan {

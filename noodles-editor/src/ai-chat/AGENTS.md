@@ -13,7 +13,9 @@ Five things to know before changing it:
    reaches them through routing. Read the surface through
    `availableToolDefinitions()` / `getToolDefinition()`, never off the raw
    `toolDefinitions` array — `run_code` is gated on `safeMode` via `available?()` and
-   has to vanish from discovery *and* dispatch together.
+   has to vanish from discovery *and* dispatch together. Tools with
+   `audience: 'external'` (`export_video`, `get_export_status`) are WebMCP-only:
+   the lookups hide them unless passed `{ includeExternal: true }`.
 2. **Only 5 tools are sent by default.** `list_nodes`, `get_node_info`,
    `get_node_output`, `apply_modifications`, `find_tools`. The model calls
    `find_tools({query})` to unlock the rest, so a new tool needs a good description —
@@ -28,11 +30,12 @@ Five things to know before changing it:
    fragment reassembly.
 5. **Which provider runs is `providerPreference` in `noodles/keys-store.tsx`**, not
    the model store, and the rules are in `agent/provider-selection.ts`. `'automatic'`
-   picks the first of anthropic → openrouter → custom → webllm → chrome that is
-   *ready*. Ready is not the same as "has a key": a custom endpoint needs a base URL
-   and a model but no key, and `webllm` needs WebGPU **and** a model the user chose —
-   selecting one starts a multi-gigabyte download, so it can never be a consequence
-   of no key being configured.
+   picks the first of anthropic → openrouter → custom → webllm that is *ready*;
+   Chrome is experimental and runs only when pinned. Ready is not the same as "has
+   a key": a custom endpoint needs a base URL and a model but no key, and `webllm`
+   needs WebGPU **and** a model the user chose — selecting one starts a
+   multi-gigabyte download, so it can never be a consequence of no key being
+   configured.
 
 One security boundary lives in this code: `resolvePath()` in `ai-chat/agent-files.ts`.
 The assistant reads anywhere under the project's `data/` directory but writes only

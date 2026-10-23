@@ -1,3 +1,4 @@
+// biome-ignore-all lint/suspicious/noArrayIndexKey: error lists are read-only and rebuilt when the dialog opens
 import * as Dialog from '@radix-ui/react-dialog'
 import { Cross2Icon } from '@radix-ui/react-icons'
 import cx from 'classnames'

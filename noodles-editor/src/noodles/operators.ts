@@ -6,7 +6,7 @@ import type {
   HexagonLayerProps,
   ScreenGridLayerProps,
 } from '@deck.gl/aggregation-layers'
-import { type LayerExtension, type LayerProps, WebMercatorViewport } from '@deck.gl/core'
+import { LayerExtension, type LayerProps, WebMercatorViewport } from '@deck.gl/core'
 import {
   BrushingExtension,
   ClipExtension,
@@ -67,10 +67,14 @@ import {
   tsvParse,
 } from 'd3'
 import * as deck from 'deck.gl'
+import type {
+  Feature as GeoJsonFeature,
+  FeatureCollection as GeoJsonFeatureCollection,
+} from 'geojson'
 import { BehaviorSubject, combineLatest, Subject, type Subscription } from 'rxjs'
-import { filter, mergeMap } from 'rxjs/operators'
+import { distinctUntilChanged, filter, mergeMap, skip } from 'rxjs/operators'
 import { Temporal } from 'temporal-polyfill'
-import type z from 'zod/v4'
+import z from 'zod/v4'
 
 import './utils/bigint-fix' // BigInt JSON polyfill for DuckDB
 import * as duckdb from '@duckdb/duckdb-wasm'
@@ -86,7 +90,7 @@ import {
   type MaplibreStyle,
   type StyleConfiguratorData,
 } from '../utils/map-style-utils'
-import { CARTO_DARK, MAP_STYLES } from '../utils/map-styles'
+import { CARTO_DARK } from '../utils/map-styles'
 import { mulberry32 } from '../utils/random'
 import { sqlIdentifier, sqlLiteral } from '../utils/sql'
 import {
@@ -101,9 +105,10 @@ import {
   subscribeToEnvironment,
 } from './environment'
 import { FilterColorExtension } from './extensions/filter-color-extension'
-import { Mask3DExtension } from './extensions/mask-3d-extension'
+import { Mask3DExtension, toMaskTargetPosition } from './extensions/mask-3d-extension'
 import {
   ArrayField,
+  applyNodeUIMetadata,
   applySerializedFieldValue,
   BboxField,
   BezierCurveField,
@@ -113,6 +118,7 @@ import {
   ColorField,
   ColorRampField,
   CompoundPropsField,
+  captureNodeUIMetadata,
   DataField,
   DateField,
   EffectField,
@@ -152,6 +158,13 @@ import { getAllOps, getOp } from './store'
 import { prepareTableDataForOutput, type TableSchema, validateTableData } from './table-schema'
 import type { ExtensionConstructorArgs, LayerPropsValue } from './types'
 import { composeAccessor, isAccessor } from './utils/accessor-helpers'
+import {
+  detectGeoKey,
+  type Geography,
+  type GeoKey,
+  getBoundaries,
+  joinDataToFeatures,
+} from './utils/choropleth-boundaries'
 import { deepEqual } from './utils/deep-equal'
 import type { ExtractProps } from './utils/extract-props'
 import { projectScheme } from './utils/filesystem'
@@ -186,6 +199,15 @@ export enum PullExecutionStatus {
   DIRTY = 'dirty', // Needs re-execution
   COMPUTING = 'computing', // Currently executing
   ERROR = 'error', // Execution failed
+}
+
+// Deserializers can throw on bad input, such as a date that isn't ISO
+function parseSavedOutput(field: Field, value: unknown) {
+  try {
+    return field.schema.safeParse((field.constructor as typeof Field).deserialize(value))
+  } catch {
+    return { success: false as const }
+  }
 }
 
 // An Operator is a collection of Fields, and a transform function responsible
@@ -265,10 +287,19 @@ export abstract class Operator<OP extends IOperator> {
   private _lastExecutionTime = 0
   private _computingPromise: Promise<ExtractProps<(typeof this)['outputs']>> | null = null
   private _lastLoggedError: string | null = null
+  // True once the output fields hold a real result, from an execution or the project cache.
+  // A locked operator serves that result instead of executing again.
+  private _hasOutput = false
 
   // Dependency tracking for pull-based model
   private _upstreamDependencies: Set<Operator<IOperator>> = new Set()
   private _downstreamDependents: Set<Operator<IOperator>> = new Set()
+
+  // True from the moment a pull starts. executionState only reports 'executing'
+  // after 200ms, so it reads idle while a fetch is just getting going.
+  get isComputing(): boolean {
+    return this._computingPromise !== null
+  }
 
   constructor(
     public id: OpId,
@@ -316,6 +347,13 @@ export abstract class Operator<OP extends IOperator> {
       this.locked.next(true)
     }
 
+    // Unlocking catches up on any input changes that arrived while locked
+    this.subs.push(
+      this.locked.pipe(skip(1), distinctUntilChanged()).subscribe(isLocked => {
+        if (!isLocked) this.markDirty('unlocked')
+      })
+    )
+
     const { environment, displayName } = this.constructor as typeof Operator
     this.env = createEnvironmentView(environment, `${displayName} (${id})`)
     this.unsubscribeEnvironment = subscribeToEnvironment(environment, key =>
@@ -337,6 +375,40 @@ export abstract class Operator<OP extends IOperator> {
       outputData[key] = field.value
     }
     return outputData as ExtractProps<typeof this.outputs>
+  }
+
+  get hasOutput(): boolean {
+    return this._hasOutput
+  }
+
+  // Put known output values back without executing, e.g. when undo relocks an operator.
+  // A locked operator then serves them from pull(). Values are trusted, not schema-checked.
+  setOutputValues(values: Record<string, unknown>) {
+    for (const [key, field] of Object.entries(this.outputs)) {
+      if (key in values && field.value !== values[key]) field.next(values[key])
+    }
+    this._hasOutput = true
+  }
+
+  // Restore the outputs a locked operator was saved with, so it can serve them without
+  // executing. Returns false and changes nothing if a saved value no longer fits its field.
+  restoreOutputs(outputs: Record<string, unknown>): boolean {
+    const unknownKey = Object.keys(outputs).find(key => !(key in this.outputs))
+    if (unknownKey) {
+      debugExecute('%s: saved output %s has no field, will execute', this.id, unknownKey)
+      return false
+    }
+    const restored: Record<string, unknown> = {}
+    for (const [key, field] of Object.entries(this.outputs)) {
+      const parsed = parseSavedOutput(field, outputs[key])
+      if (!parsed.success) {
+        debugExecute('%s: saved output %s no longer fits, will execute', this.id, key)
+        return false
+      }
+      restored[key] = parsed.data
+    }
+    this.setOutputValues(restored)
+    return true
   }
 
   // Left open for sub-classes to override
@@ -437,6 +509,16 @@ export abstract class Operator<OP extends IOperator> {
 
   // Pull data from this operator, executing if needed (pull-based model)
   async pull(): Promise<ExtractProps<(typeof this)['outputs']>> {
+    // A locked operator keeps its last result: no upstream pulls, no execute(). It still
+    // executes once if it has never produced output (e.g. its outputs couldn't be cached).
+    if (this.locked.value && this._hasOutput && this._computingPromise === null) {
+      debugPull('%s: locked -> last output', this.id)
+      this._cachedOutput = this.outputData
+      this._setPullExecutionStatus(PullExecutionStatus.CLEAN)
+      this.dirty = false
+      return this._cachedOutput
+    }
+
     // Return cached if clean
     if (this._pullExecutionStatus === PullExecutionStatus.CLEAN && this._cachedOutput !== null) {
       debugPull('%s: %s -> cached', this.id, PullExecutionStatus.CLEAN)
@@ -545,6 +627,7 @@ export abstract class Operator<OP extends IOperator> {
         this.dirty = false // Also clear the dirty flag for GraphExecutor
       }
       this._lastExecutionTime = executionTime
+      this._hasOutput = true
 
       debugExecute('%s: %dms %O', this.id, this._lastExecutionTime.toFixed(2), {
         outputs: finalResult,
@@ -1032,6 +1115,7 @@ export abstract class Operator<OP extends IOperator> {
     )
     // Preserve existing field values and connections
     const oldValues = new Map<string, unknown>()
+    const oldUIMetadata = captureNodeUIMetadata(this.inputs)
     const oldConnections = new Map<
       string,
       Array<{ id: string; field: Field; connectionType: 'reference' | 'value' }>
@@ -1091,6 +1175,8 @@ export abstract class Operator<OP extends IOperator> {
       assignPathToProps(field, key, [this.id, IN_NS])
     }
 
+    applyNodeUIMetadata(this.inputs, oldUIMetadata)
+
     // Note: Connections will be restored by transform-graph.ts when edges are re-applied
 
     // Notify listeners that custom fields have changed
@@ -1121,22 +1207,19 @@ export class UnknownOperator extends Operator<UnknownOperator> {
   static description = 'Placeholder for an operator type that could not be found'
 
   originalType: string
-  // Store original inputs to preserve them through save/load cycles
-  originalInputs: Record<string, unknown>
+  // The node's saved data (inputs, locked, customInputs, ...), written back unchanged on save
+  // so the project still opens once the operator type is available again
+  originalData: Record<string, unknown>
 
   constructor(id: OpId, data?: Record<string, unknown>) {
-    const originalType = (data?.originalType as string) || 'Unknown'
-    const originalInputs = (data?.inputs as Record<string, unknown>) || {}
     super(id, {}, false)
-    this.originalType = originalType
-    this.originalInputs = originalInputs
+    const { originalType, ...originalData } = data ?? {}
+    this.originalType = (originalType as string) || 'Unknown'
+    this.originalData = originalData
   }
 
   createInputs() {
-    // Create an UnknownField to store original inputs for serialization
-    return {
-      __originalInputs: new UnknownField(this.originalInputs),
-    }
+    return {}
   }
 
   createOutputs() {
@@ -1153,7 +1236,7 @@ export class NumberOp extends Operator<NumberOp> {
   static description = 'A number'
   public createInputs() {
     return {
-      val: new NumberField(0, { step: 1 }),
+      val: new NumberField(0, { step: 1, deriveStepFromValue: true }),
     }
   }
   public createOutputs() {
@@ -1493,6 +1576,217 @@ export class DateTimeOp extends Operator<DateTimeOp> {
   }
   execute({ date }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     return { date }
+  }
+}
+
+const DATE_MATH_OPERATORS = [
+  'add',
+  'subtract',
+  'difference',
+  'isBefore',
+  'isAfter',
+  'equals',
+  'interpolate',
+] as const
+const DATE_MATH_USES_DATE_B = new Set([
+  'difference',
+  'isBefore',
+  'isAfter',
+  'equals',
+  'interpolate',
+])
+const DURATION_UNITS = [
+  'years',
+  'months',
+  'weeks',
+  'days',
+  'hours',
+  'minutes',
+  'seconds',
+  'milliseconds',
+] as const
+
+// Date arithmetic and comparison. The output type depends on the operator:
+// add/subtract/interpolate return a date, difference returns a number in `unit`,
+// isBefore/isAfter/equals return a boolean. Accepts accessors for per-item math.
+export class DateMathOp extends Operator<DateMathOp> {
+  static displayName = 'DateMath'
+  static description = 'Add, subtract, compare, or interpolate dates'
+
+  constructor(id: OpId, inputs?: unknown, locked?: boolean) {
+    super(id, inputs, locked)
+
+    const sub = this.inputs.operator.subscribe((operator: string) => {
+      const visible = new Set<string>(['operator', 'date'])
+      if (DATE_MATH_USES_DATE_B.has(operator)) visible.add('dateB')
+      if (operator === 'add' || operator === 'subtract') visible.add('amount')
+      if (operator === 'add' || operator === 'subtract' || operator === 'difference') {
+        visible.add('unit')
+      }
+      if (operator === 'interpolate') visible.add('t')
+      this.visibleFields.next(visible)
+    })
+    this.subs.push(sub)
+  }
+
+  createInputs() {
+    return {
+      operator: new StringLiteralField('add', { values: [...DATE_MATH_OPERATORS] }),
+      date: new DateField(undefined, { accessor: true }),
+      dateB: new DateField(undefined, { accessor: true, showByDefault: false }),
+      amount: new NumberField(1, { step: 1, accessor: true }),
+      unit: new StringLiteralField('days', { values: [...DURATION_UNITS] }),
+      t: new NumberField(0, { min: 0, max: 1, step: 0.01, accessor: true, showByDefault: false }),
+    }
+  }
+  createOutputs() {
+    return {
+      result: new UnknownField(),
+    }
+  }
+  execute({
+    operator,
+    date,
+    dateB,
+    amount,
+    unit,
+    t,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    type Value<T> = T | ((...args: unknown[]) => T)
+    const transform = (
+      a: Temporal.PlainDateTime,
+      b: Temporal.PlainDateTime,
+      n: number,
+      tVal: number
+    ) => {
+      switch (operator) {
+        case 'add':
+          return a.add({ [unit]: n })
+        case 'subtract':
+          return a.subtract({ [unit]: n })
+        case 'difference':
+          // total() keeps the fraction: 12 hours in 'days' is 0.5, not 0
+          return a.until(b).total({ unit: unit as Temporal.DateTimeUnit, relativeTo: a })
+        case 'isBefore':
+          return Temporal.PlainDateTime.compare(a, b) < 0
+        case 'isAfter':
+          return Temporal.PlainDateTime.compare(a, b) > 0
+        case 'equals':
+          return Temporal.PlainDateTime.compare(a, b) === 0
+        case 'interpolate':
+          return interpolateTemporal(a, b, Math.max(0, Math.min(1, tVal)))
+        default:
+          throw new Error(`Unknown operator: ${operator}`)
+      }
+    }
+
+    // Only inputs the operator reads can turn the result into an accessor
+    const inputs: [
+      Value<Temporal.PlainDateTime>,
+      Value<Temporal.PlainDateTime>,
+      Value<number>,
+      Value<number>,
+    ] = [
+      date,
+      DATE_MATH_USES_DATE_B.has(operator) ? dateB : date,
+      operator === 'add' || operator === 'subtract' ? amount : 0,
+      operator === 'interpolate' ? t : 0,
+    ]
+    if (!inputs.some(isAccessor)) {
+      return {
+        result: transform(
+          ...(inputs as [Temporal.PlainDateTime, Temporal.PlainDateTime, number, number])
+        ),
+      }
+    }
+    const result = (...args: unknown[]) => {
+      const [a, b, n, tVal] = inputs.map(v => (isAccessor(v) ? v(...args) : v))
+      return transform(
+        a as Temporal.PlainDateTime,
+        b as Temporal.PlainDateTime,
+        n as number,
+        tVal as number
+      )
+    }
+    return { result }
+  }
+}
+
+// Split a date into numeric components, one output per part
+export class DatePartsOp extends Operator<DatePartsOp> {
+  static displayName = 'DateParts'
+  static description = 'Split a date into year, month, day, hour, and other components'
+  createInputs() {
+    return {
+      date: new DateField(undefined, { accessor: true }),
+    }
+  }
+  createOutputs() {
+    return {
+      year: new NumberField(),
+      month: new NumberField(),
+      day: new NumberField(),
+      hour: new NumberField(),
+      minute: new NumberField(),
+      second: new NumberField(),
+      millisecond: new NumberField(),
+      dayOfWeek: new NumberField(),
+      dayOfYear: new NumberField(),
+      weekOfYear: new NumberField(),
+    }
+  }
+  execute({ date }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const part = (key: keyof ReturnType<DatePartsOp['createOutputs']>) =>
+      composeAccessor(date, (d: Temporal.PlainDateTime) => d[key] as number)
+    return {
+      year: part('year'),
+      month: part('month'),
+      day: part('day'),
+      hour: part('hour'),
+      minute: part('minute'),
+      second: part('second'),
+      millisecond: part('millisecond'),
+      dayOfWeek: part('dayOfWeek'),
+      dayOfYear: part('dayOfYear'),
+      weekOfYear: part('weekOfYear'),
+    } as ExtractProps<typeof this.outputs>
+  }
+}
+
+const DATE_FORMAT_TOKENS = /YYYY|MM|DD|HH|mm|ss|SSS/g
+
+// Format a date with YYYY, MM, DD, HH, mm, ss, and SSS tokens. An empty pattern gives ISO 8601.
+export class DateFormatOp extends Operator<DateFormatOp> {
+  static displayName = 'DateFormat'
+  static description = 'Format a date as a string, e.g. YYYY-MM-DD HH:mm'
+  createInputs() {
+    return {
+      date: new DateField(undefined, { accessor: true }),
+      pattern: new StringField('YYYY-MM-DD HH:mm:ss'),
+    }
+  }
+  createOutputs() {
+    return {
+      text: new StringField(),
+    }
+  }
+  execute({ date, pattern }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const format = (d: Temporal.PlainDateTime) => {
+      if (!pattern) return d.toString()
+      const pad = (n: number, width = 2) => n.toString().padStart(width, '0')
+      const tokens: Record<string, string> = {
+        YYYY: pad(d.year, 4),
+        MM: pad(d.month),
+        DD: pad(d.day),
+        HH: pad(d.hour),
+        mm: pad(d.minute),
+        ss: pad(d.second),
+        SSS: pad(d.millisecond, 3),
+      }
+      // One pass, so text a token produces is never matched by a later token
+      return pattern.replace(DATE_FORMAT_TOKENS, token => tokens[token])
+    }
+    return { text: composeAccessor(date, format) } as ExtractProps<typeof this.outputs>
   }
 }
 
@@ -2501,6 +2795,109 @@ export class ChartOp extends Operator<ChartOp> {
   }
 }
 
+export class BrushableHistogramOp extends Operator<BrushableHistogramOp> {
+  static displayName = 'BrushableHistogram'
+  static description =
+    'Interactive histogram with brushable range selection for data filtering. Drag handles to select a range, keyframe brush positions for animation.'
+
+  createInputs() {
+    const data = new DataField()
+    const field = new StringLiteralField('', [])
+
+    // Dynamically populate field choices from numeric data keys. Sample several rows, since
+    // a numeric column can have an empty first cell.
+    data.subscribe((newData: unknown[]) => {
+      if (Array.isArray(newData) && newData.length > 0) {
+        const numericKeys = new Set<string>()
+        for (const row of newData.slice(0, 100)) {
+          if (typeof row !== 'object' || row === null) continue
+          for (const [key, value] of Object.entries(row)) {
+            if (typeof value === 'number' && !Number.isNaN(value)) numericKeys.add(key)
+          }
+        }
+        field.updateChoices([...numericKeys])
+      }
+    })
+
+    return {
+      data,
+      field,
+      binCount: new NumberField(20, { min: 5, max: 100, step: 1 }),
+      brushMin: new NumberField(0),
+      brushMax: new NumberField(100),
+      brushMode: new StringLiteralField('handles', { values: ['handles', 'offset'] }),
+    }
+  }
+
+  createOutputs() {
+    return {
+      filteredData: new DataField(),
+      binData: new DataField(),
+      extent: new UnknownField(),
+    }
+  }
+
+  execute({
+    data,
+    field,
+    binCount,
+    brushMin,
+    brushMax,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    // Validate inputs
+    if (!Array.isArray(data) || data.length === 0 || !field) {
+      return {
+        filteredData: [],
+        binData: [],
+        extent: [0, 0],
+      }
+    }
+
+    // Extract accessor function
+    const accessor = (d: unknown) => {
+      if (typeof d === 'object' && d !== null && field in d) {
+        return (d as Record<string, unknown>)[field] as number
+      }
+      return null
+    }
+
+    // Calculate extent
+    const extent = d3.extent(data, accessor) as [number, number]
+    if (extent[0] === undefined || extent[1] === undefined) {
+      return {
+        filteredData: [],
+        binData: [],
+        extent: [0, 0],
+      }
+    }
+
+    // Create histogram bins
+    const binner = d3.bin<unknown, number>().domain(extent).thresholds(binCount).value(accessor)
+
+    const bins = binner(data)
+
+    // Format bin data for output
+    const binData = bins.map(bin => ({
+      x0: bin.x0,
+      x1: bin.x1,
+      count: bin.length,
+      values: bin,
+    }))
+
+    // Filter data based on brush range
+    const filtered = data.filter(d => {
+      const val = accessor(d)
+      return val !== null && val >= brushMin && val <= brushMax
+    })
+
+    return {
+      filteredData: filtered,
+      binData,
+      extent,
+    }
+  }
+}
+
 export class ScatterOp extends Operator<ScatterOp> {
   static displayName = 'Scatter'
   static description = 'Scatter points randomly within a bounding box'
@@ -2579,16 +2976,77 @@ export class BoundsOp extends Operator<BoundsOp> {
   }
 }
 
+const GEOJSON_COORDINATE_GEOMETRIES = new Set([
+  'Point',
+  'MultiPoint',
+  'LineString',
+  'MultiLineString',
+  'Polygon',
+  'MultiPolygon',
+])
+
+const isPlainObject = (val: unknown): val is Record<string, unknown> =>
+  typeof val === 'object' && val !== null && !Array.isArray(val)
+
+// Checks the members each type requires, but not every position, so large inputs stay cheap
+function isGeoJsonGeometry(val: unknown): val is GeoJSON.Geometry {
+  if (!isPlainObject(val)) return false
+  if (val.type === 'GeometryCollection') {
+    return Array.isArray(val.geometries) && val.geometries.every(isGeoJsonGeometry)
+  }
+  return GEOJSON_COORDINATE_GEOMETRIES.has(val.type as string) && Array.isArray(val.coordinates)
+}
+
+function isGeoJsonFeature(val: unknown): val is GeoJSON.Feature {
+  return (
+    isPlainObject(val) &&
+    val.type === 'Feature' &&
+    (val.geometry === null || isGeoJsonGeometry(val.geometry))
+  )
+}
+
+function isGeoJson(val: unknown): val is GeoJSON.GeoJSON {
+  if (isPlainObject(val) && val.type === 'FeatureCollection') {
+    return Array.isArray(val.features) && val.features.every(isGeoJsonFeature)
+  }
+  return isGeoJsonFeature(val) || isGeoJsonGeometry(val)
+}
+
+const geoJsonSchema = z.custom<GeoJSON.GeoJSON>(isGeoJson)
+
+// Widen a field's schema to also accept `other`, keeping the union in the field's type.
+// The field keeps its class, so its handle and editor UI are unchanged.
+function orSchema<F extends { schema: z.ZodType }, O extends z.ZodType>(
+  field: F,
+  other: O
+): Field<z.ZodUnion<[F['schema'], O]>> {
+  const widened = field as unknown as Field<z.ZodUnion<[F['schema'], O]>>
+  widened.schema = z.union([field.schema, other])
+  return widened
+}
+
+// The southwest and northeast corners of a GeoJSON object's bounds. Empty when it has
+// no coordinates (turf returns Infinity bounds for an empty FeatureCollection).
+function geoJsonBoundsCorners(geojson: GeoJSON.GeoJSON): { lng: number; lat: number }[] {
+  const [west, south, east, north] = turf.bbox(geojson)
+  if (![west, south, east, north].every(Number.isFinite)) return []
+  return [
+    { lng: west, lat: south },
+    { lng: east, lat: north },
+  ]
+}
+
 export class BoundingBoxOp extends Operator<BoundingBoxOp> {
   static displayName = 'BoundingBox'
   static description =
-    'Calculate the geographic bounds of your points (with lat/lng keys) and get a camera position (center, zoom) that fits them all in view.'
+    'Calculate the geographic bounds of your points (with lat/lng keys) or GeoJSON and get a camera position (center, zoom) that fits them all in view.'
   static environment = ['renderSurface'] as const
   asDownload = () => this.outputData
 
   createInputs() {
     return {
-      data: new ArrayField(new Point2DField()),
+      // Points, or a GeoJSON FeatureCollection, Feature or Geometry (e.g. a GeoJson operator's output)
+      data: orSchema(new ArrayField(new Point2DField()), geoJsonSchema),
       // TODO: could be a union, either a number or object with top, right, bottom, left
       padding: new NumberField(0, { softMin: -1_000, softMax: 1_000 }),
     }
@@ -2616,7 +3074,8 @@ export class BoundingBoxOp extends Operator<BoundingBoxOp> {
     let south = 90
     // Should this be a turf function? Do we need to cast data to GeoJSON first?
     // Or allow the lat / lng keys to be configurable?
-    for (const d of data) {
+    const points = Array.isArray(data) ? data : geoJsonBoundsCorners(data)
+    for (const d of points) {
       if (d.lng < west) {
         west = d.lng
       }
@@ -2704,13 +3163,34 @@ export class GeocoderOp extends Operator<GeocoderOp> {
 
 export class DirectionsOp extends Operator<DirectionsOp> {
   static displayName = 'Directions'
-  static description = 'Get driving or transit directions between two points'
+  static description = 'Get driving, traffic-aware driving, or transit directions between points'
   asDownload = () => this.outputData
   createInputs() {
     return {
       origin: new Point2DField(),
       destination: new Point2DField(),
-      mode: new StringLiteralField('transit', { values: ['driving', 'transit'] }),
+      mode: new StringLiteralField('transit', {
+        values: [
+          { value: 'driving', label: 'Driving (Mapbox / OSRM)' },
+          { value: 'driving-traffic', label: 'Driving with traffic (Google)' },
+          { value: 'transit', label: 'Transit (Google)' },
+        ],
+      }),
+      departureMode: new StringLiteralField('now', {
+        values: [
+          { value: 'now', label: 'Depart now' },
+          { value: 'scheduled', label: 'Schedule departure' },
+        ],
+      }),
+      departureTime: new DateField(),
+      trafficModel: new StringLiteralField('best-guess', {
+        values: [
+          { value: 'best-guess', label: 'Best guess' },
+          { value: 'pessimistic', label: 'Pessimistic' },
+          { value: 'optimistic', label: 'Optimistic' },
+        ],
+      }),
+      avoidTolls: new BooleanField(false),
     }
   }
   createOutputs() {
@@ -2722,21 +3202,40 @@ export class DirectionsOp extends Operator<DirectionsOp> {
           durationFormatted: new StringField('', { optional: true }),
           timestamps: new ArrayField(new NumberField()),
           path: new ArrayField(new Point2DField([0, 0], { returnType: 'tuple' })),
+          hasTolls: new BooleanField(false, { optional: true }),
+          tollAmount: new NumberField(0, { min: 0, optional: true }),
+          tollCurrency: new StringField('', { optional: true }),
         },
         { passthrough: true }
       ),
     }
   }
+  override isFieldVisible(name: string): boolean {
+    if (name === 'departureMode' || name === 'trafficModel' || name === 'avoidTolls') {
+      return this.inputs.mode.value === 'driving-traffic'
+    }
+    if (name === 'departureTime') {
+      return (
+        this.inputs.mode.value === 'driving-traffic' &&
+        this.inputs.departureMode.value === 'scheduled'
+      )
+    }
+    return super.isFieldVisible(name)
+  }
   async execute({
     origin,
     destination,
     mode,
+    departureMode,
+    departureTime,
+    trafficModel,
+    avoidTolls,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     // Guard on default values
     if (
       (origin.lng === 0 && origin.lat === 0) ||
       (destination.lng === 0 && destination.lat === 0) ||
-      !(mode === 'driving' || mode === 'transit')
+      !(mode === 'driving' || mode === 'driving-traffic' || mode === 'transit')
     ) {
       console.debug('Invalid origin, destination or mode', origin, destination, mode)
       return { route: { timestamps: [], path: [] } }
@@ -2746,6 +3245,10 @@ export class DirectionsOp extends Operator<DirectionsOp> {
       origin,
       destination,
       mode,
+      departureTime:
+        mode === 'driving-traffic' && departureMode === 'scheduled' ? departureTime : undefined,
+      trafficModel,
+      avoidTolls,
     })
 
     return { route }
@@ -3908,10 +4411,7 @@ export class MaplibreBasemapOp extends Operator<MaplibreBasemapOp> {
 
   createInputs() {
     return {
-      mapStyle: new MapStyleField(CARTO_DARK, {
-        accept: '.json',
-        suggestions: Object.entries(MAP_STYLES).map(([url, name]) => ({ value: url, label: name })),
-      }),
+      mapStyle: new MapStyleField(CARTO_DARK, { accept: '.json' }),
       projection: new StringLiteralField('mercator', {
         values: ['mercator', 'globe'],
         showByDefault: false,
@@ -4867,7 +5367,12 @@ export class OrbitViewOp extends Operator<OrbitViewOp> {
         target: new Vec3Field([0, 0, 0], { returnType: 'tuple', optional: true }),
         rotationOrbit: new NumberField(0, { optional: true }),
         rotationX: new NumberField(0, { optional: true }),
-        zoom: new NumberField(1, { min: 0, max: 1, step: 0.01, optional: true }),
+        zoom: new NumberField(1, {
+          softMin: -10,
+          softMax: 10,
+          step: 0.01,
+          optional: true,
+        }),
       }),
     }
   }
@@ -4928,10 +5433,16 @@ export class OutOp extends Operator<OutOp> {
       codec: new StringLiteralField('avc', ['avc', 'hevc', 'vp9', 'av1']),
       bitrateMbps: new NumberField(10, { min: 1, max: 100, step: 1 }),
       bitrateMode: new StringLiteralField('constant', ['constant', 'variable']),
+      // Keep the canvas's transparency in video exports (VP9 only)
+      exportAlpha: new BooleanField(false),
       scaleControl: new NumberField(0.3, { min: 0.1, max: 1, step: 0.05 }),
       framerate: new NumberField(30, { min: 1, max: 120, step: 1 }),
       captureDelay: new NumberField(50, { min: 0, max: 10000, step: 10 }),
+      // final waits for each frame to settle; preview captures on the first render and
+      // can drop or repeat frames
+      captureMode: new StringLiteralField('final', ['final', 'preview']),
       rendersDirectory: new StringField('renders'),
+      sequenceFormat: new StringLiteralField('png', ['png', 'exr']),
     }
   }
   createOutputs() {
@@ -5023,8 +5534,10 @@ function gatherTriggers(
   return triggers
 }
 
+type ExtensionDescriptor = { type: string; [key: string]: unknown }
+
 type LayerExtensionFieldReturnValue = null | {
-  extension: LayerExtension
+  extension: ExtensionDescriptor | LayerExtension
   props: Record<string, LayerPropsValue>
 }
 
@@ -5054,9 +5567,30 @@ export const extensionMap: Record<
   VibranceExtension: { ExtensionClass: FilterColorExtension, args: vibrance },
 }
 
+// Turns an extension descriptor into a LayerExtension. Instances built by the user
+// (e.g. in a CodeOp) pass through unchanged. Returns null for unknown types.
+export function instantiateExtension(
+  ext: ExtensionDescriptor | LayerExtension
+): LayerExtension | null {
+  if (ext instanceof LayerExtension) return ext
+
+  const { type, ...constructorArgs } = ext
+  const extensionDef = extensionMap[type]
+  if (!extensionDef) return null
+
+  // Wrapped extensions carry their own constructor args
+  if ('ExtensionClass' in extensionDef) {
+    return new extensionDef.ExtensionClass(extensionDef.args)
+  }
+  return Object.keys(constructorArgs).length > 0
+    ? new extensionDef(constructorArgs)
+    : new extensionDef()
+}
+
 // Deck layers can have extensions that are passed in as props, but the props to the extensions are not
 // passed to the extension constructor, but rather to the root props on the layer.
-// Extensions are kept as POJOs here and will be instantiated later in the pipeline (in noodles.tsx).
+// Descriptors are kept as POJOs here and instantiated later (instantiateExtension, in noodles.tsx);
+// LayerExtension instances built in a CodeOp pass through as-is.
 function parseLayerProps<P extends LayerProps>({
   extensions = [],
   ...props
@@ -6438,12 +6972,14 @@ export class Tile3DLayerOp extends Operator<Tile3DLayerOp> {
 
 export class Mask3DExtensionOp extends Operator<Mask3DExtensionOp> {
   static displayName = 'Mask3DExtension'
-  static description = 'Mask a sphere (used with Tile3DLayer)'
+  static description =
+    'Show only a sphere around a lng/lat/alt (meters) of a Tile3DLayer, fading to white at the edge'
   createInputs() {
     return {
-      targetPosition: new Vec3Field([0, 0, 0], { returnType: 'tuple' }),
-      innerRadius: new NumberField(0, { min: 0, softMax: 10_000 }),
-      fadeRange: new NumberField(0, { min: 0, softMax: 10_000 }),
+      // Downtown Los Angeles
+      targetPosition: new Point3DField([-118.2637, 34.0171, 0], { returnType: 'tuple' }),
+      innerRadius: new NumberField(1000, { min: 0, softMax: 10_000 }),
+      fadeRange: new NumberField(7, { min: 0, softMax: 10_000 }),
     }
   }
   createOutputs() {
@@ -6452,9 +6988,10 @@ export class Mask3DExtensionOp extends Operator<Mask3DExtensionOp> {
     }
   }
   execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    const [lng, lat, alt = 0] = props.targetPosition as number[]
     const extension = {
       extension: { type: 'Mask3DExtension' },
-      props,
+      props: { ...props, targetPosition: toMaskTargetPosition(lng, lat, alt) },
     }
     return { extension }
   }
@@ -6963,13 +7500,21 @@ export class ContainerOp extends Operator<ContainerOp> {
     this.markDirty()
   }
 
+  // The GraphOutputOp whose value this container's out port carries: the one transformGraph
+  // selected, else the first direct child in the store
+  get outputOp(): GraphOutputOp | undefined {
+    return (
+      this.graphOutputOp ??
+      getAllOps().find(
+        (op): op is GraphOutputOp => op instanceof GraphOutputOp && isDirectChild(op.id, this.id)
+      )
+    )
+  }
+
   execute(_: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     // The 'in' port of ContainerOp drives its execution.
     // The 'out' port should reflect the value from a GraphOutputOp inside it.
-    const output =
-      this.graphOutputOp ??
-      getAllOps().find(op => op instanceof GraphOutputOp && isDirectChild(op.id, this.id))
-    return { out: output?.outputs.propagatedValue.value ?? null }
+    return { out: this.outputOp?.outputs.propagatedValue.value ?? null }
   }
 
   dispose() {
@@ -7501,8 +8046,6 @@ export class BufferOp extends Operator<BufferOp> {
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!geojson?.features?.length)
       return { featureCollection: { type: 'FeatureCollection', features: [] } }
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const buffered = turf.buffer(geojson, radius, { units: units as 'kilometers', steps })
     return { featureCollection: buffered || { type: 'FeatureCollection', features: [] } }
   }
@@ -7523,8 +8066,6 @@ export class UnionOp extends Operator<UnionOp> {
   execute({ geojson }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!geojson?.features?.length)
       return { featureCollection: { type: 'FeatureCollection', features: [] } }
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const polygons = geojson.features.filter(
       (f: { geometry: { type: string } }) =>
         f.geometry.type === 'Polygon' || f.geometry.type === 'MultiPolygon'
@@ -7555,8 +8096,6 @@ export class DifferenceOp extends Operator<DifferenceOp> {
   execute({ a, b }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!a?.features?.length || !b?.features?.length)
       return { featureCollection: a || { type: 'FeatureCollection', features: [] } }
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const polyA = a.features[0]
     const polyB = b.features[0]
     const result = turf.difference(turf.featureCollection([polyA, polyB]))
@@ -7580,8 +8119,6 @@ export class IntersectOp extends Operator<IntersectOp> {
   execute({ a, b }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!a?.features?.length || !b?.features?.length)
       return { featureCollection: { type: 'FeatureCollection', features: [] } }
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const polyA = a.features[0]
     const polyB = b.features[0]
     const result = turf.intersect(turf.featureCollection([polyA, polyB]))
@@ -7604,8 +8141,6 @@ export class CentroidOp extends Operator<CentroidOp> {
   execute({ geojson }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!geojson?.features?.length)
       return { featureCollection: { type: 'FeatureCollection', features: [] } }
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const centroids = geojson.features.map((f: GeoJSON.Feature) => {
       const c = turf.centroid(f)
       c.properties = { ...f.properties, ...c.properties }
@@ -7630,8 +8165,6 @@ export class ConvexHullOp extends Operator<ConvexHullOp> {
   execute({ geojson }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!geojson?.features?.length)
       return { featureCollection: { type: 'FeatureCollection', features: [] } }
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const hull = turf.convex(geojson)
     return { featureCollection: { type: 'FeatureCollection', features: hull ? [hull] : [] } }
   }
@@ -7652,8 +8185,6 @@ export class VoronoiOp extends Operator<VoronoiOp> {
   execute({ geojson }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!geojson?.features?.length)
       return { featureCollection: { type: 'FeatureCollection', features: [] } }
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const bbox = turf.bbox(geojson)
     const voronoi = turf.voronoi(geojson, { bbox })
     return { featureCollection: voronoi || { type: 'FeatureCollection', features: [] } }
@@ -7679,8 +8210,6 @@ export class DissolveOp extends Operator<DissolveOp> {
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!geojson?.features?.length)
       return { featureCollection: { type: 'FeatureCollection', features: [] } }
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const dissolved = turf.dissolve(geojson, { propertyName: propertyName || undefined })
     return { featureCollection: dissolved }
   }
@@ -7702,8 +8231,6 @@ export class ClipOp extends Operator<ClipOp> {
   execute({ geojson, mask }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!geojson?.features?.length || !mask?.features?.length)
       return { featureCollection: geojson || { type: 'FeatureCollection', features: [] } }
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const maskPoly = mask.features[0]
     const clipped = geojson.features
       .map((f: GeoJSON.Feature) => {
@@ -7745,8 +8272,6 @@ export class SpatialJoinOp extends Operator<SpatialJoinOp> {
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!target?.features?.length || !join?.features?.length)
       return { featureCollection: target || { type: 'FeatureCollection', features: [] } }
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const check =
       relationship === 'within'
         ? turf.booleanWithin
@@ -7795,8 +8320,6 @@ export class PointInPolygonOp extends Operator<PointInPolygonOp> {
     const empty = { type: 'FeatureCollection' as const, features: [] as GeoJSON.Feature[] }
     if (!points?.features?.length || !polygon?.features?.length)
       return { inside: empty, outside: empty }
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const poly = polygon.features[0]
     const inside: GeoJSON.Feature[] = []
     const outside: GeoJSON.Feature[] = []
@@ -7838,8 +8361,6 @@ export class NearestPointOp extends Operator<NearestPointOp> {
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!points?.features?.length)
       return { nearest: { type: 'FeatureCollection', features: [] }, distance: 0 }
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const target = turf.point(targetPoint)
     const nearest = turf.nearestPoint(target, points)
     const dist = nearest.properties?.distanceToPoint ?? 0
@@ -7870,8 +8391,6 @@ export class AreaOp extends Operator<AreaOp> {
   execute({ geojson, units }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!geojson?.features?.length)
       return { featureCollection: { type: 'FeatureCollection', features: [] }, totalArea: 0 }
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const conversions: Record<string, number> = {
       squareMeters: 1,
       squareKilometers: 1e-6,
@@ -7911,8 +8430,6 @@ export class LengthOp extends Operator<LengthOp> {
   execute({ geojson, units }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!geojson?.features?.length)
       return { featureCollection: { type: 'FeatureCollection', features: [] }, totalLength: 0 }
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     let total = 0
     const features = geojson.features.map((f: GeoJSON.Feature) => {
       const len = turf.length(f, { units: units as 'kilometers' })
@@ -7995,8 +8512,6 @@ export class PointGridOp extends Operator<PointGridOp> {
     cellSize,
     units,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const turfBbox: [number, number, number, number] = [
       bbox.southwest.lng,
       bbox.southwest.lat,
@@ -8034,8 +8549,6 @@ export class HexGridOp extends Operator<HexGridOp> {
     cellSize,
     units,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const turfBbox: [number, number, number, number] = [
       bbox.southwest.lng,
       bbox.southwest.lat,
@@ -8073,8 +8586,6 @@ export class SquareGridOp extends Operator<SquareGridOp> {
     cellSize,
     units,
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const turfBbox: [number, number, number, number] = [
       bbox.southwest.lng,
       bbox.southwest.lat,
@@ -8107,8 +8618,6 @@ export class TinOp extends Operator<TinOp> {
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!geojson?.features?.length)
       return { featureCollection: { type: 'FeatureCollection', features: [] } }
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const tin = turf.tin(geojson, zProperty || undefined)
     return { featureCollection: tin }
   }
@@ -8135,8 +8644,6 @@ export class IsolineOp extends Operator<IsolineOp> {
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!geojson?.features?.length)
       return { featureCollection: { type: 'FeatureCollection', features: [] } }
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const isolines = turf.isolines(geojson, breaks as number[], { zProperty })
     return { featureCollection: isolines }
   }
@@ -8157,8 +8664,6 @@ export class LineToPolygonOp extends Operator<LineToPolygonOp> {
   execute({ geojson }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!geojson?.features?.length)
       return { featureCollection: { type: 'FeatureCollection', features: [] } }
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const features = geojson.features.map((f: GeoJSON.Feature) => {
       if (f.geometry.type === 'LineString' || f.geometry.type === 'MultiLineString') {
         try {
@@ -8188,8 +8693,6 @@ export class PolygonToLineOp extends Operator<PolygonToLineOp> {
   execute({ geojson }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!geojson?.features?.length)
       return { featureCollection: { type: 'FeatureCollection', features: [] } }
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const features = geojson.features.map((f: GeoJSON.Feature) => {
       if (f.geometry.type === 'Polygon' || f.geometry.type === 'MultiPolygon') {
         return turf.polygonToLine(f)
@@ -8218,8 +8721,6 @@ export class ExplodeOp extends Operator<ExplodeOp> {
   execute({ geojson, mode }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!geojson?.features?.length)
       return { featureCollection: { type: 'FeatureCollection', features: [] } }
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     if (mode === 'vertices') {
       const exploded = turf.explode(geojson)
       return { featureCollection: exploded }
@@ -8253,8 +8754,6 @@ export class AggregateOp extends Operator<AggregateOp> {
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!polygons?.features?.length || !points?.features?.length)
       return { featureCollection: polygons || { type: 'FeatureCollection', features: [] } }
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const features = polygons.features.map((poly: GeoJSON.Feature) => {
       const inside = points.features.filter((pt: GeoJSON.Feature) => {
         try {
@@ -8305,8 +8804,6 @@ export class KMeansClusterOp extends Operator<KMeansClusterOp> {
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!geojson?.features?.length)
       return { featureCollection: { type: 'FeatureCollection', features: [] } }
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const clustered = turf.clustersKmeans(geojson, { numberOfClusters })
     return { featureCollection: clustered }
   }
@@ -8335,8 +8832,6 @@ export class DBScanClusterOp extends Operator<DBScanClusterOp> {
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!geojson?.features?.length)
       return { featureCollection: { type: 'FeatureCollection', features: [] } }
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const clustered = turf.clustersDbscan(geojson, maxDistance, {
       units: units as 'kilometers',
       minPoints,
@@ -8370,8 +8865,6 @@ export class InterpolateOp extends Operator<InterpolateOp> {
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!geojson?.features?.length)
       return { featureCollection: { type: 'FeatureCollection', features: [] } }
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const interpolated = turf.interpolate(geojson, cellSize, {
       gridType: 'point',
       property,
@@ -8402,8 +8895,6 @@ export class AlongOp extends Operator<AlongOp> {
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!geojson?.features?.length)
       return { featureCollection: { type: 'FeatureCollection', features: [] } }
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const features = geojson.features
       .filter((f: GeoJSON.Feature) => f.geometry.type === 'LineString')
       .map((f: GeoJSON.Feature) =>
@@ -8438,8 +8929,6 @@ export class LineSliceOp extends Operator<LineSliceOp> {
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!geojson?.features?.length)
       return { featureCollection: { type: 'FeatureCollection', features: [] } }
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const features = geojson.features
       .filter((f: GeoJSON.Feature) => f.geometry.type === 'LineString')
       .map((f: GeoJSON.Feature) => {
@@ -8476,8 +8965,6 @@ export class TransformRotateOp extends Operator<TransformRotateOp> {
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!geojson?.features?.length || angle === 0)
       return { featureCollection: geojson || { type: 'FeatureCollection', features: [] } }
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const features = geojson.features.map((f: GeoJSON.Feature) => {
       const pivotPt = pivot === 'centroid' ? turf.centroid(f) : turf.center(f)
       return turf.transformRotate(f, angle, { pivot: pivotPt })
@@ -8509,8 +8996,6 @@ export class TransformScaleOp extends Operator<TransformScaleOp> {
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!geojson?.features?.length || factor === 1)
       return { featureCollection: geojson || { type: 'FeatureCollection', features: [] } }
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const features = geojson.features.map((f: GeoJSON.Feature) =>
       turf.transformScale(f, factor, { origin: origin as 'centroid' })
     )
@@ -8541,8 +9026,6 @@ export class TransformTranslateOp extends Operator<TransformTranslateOp> {
   }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
     if (!geojson?.features?.length || distance === 0)
       return { featureCollection: geojson || { type: 'FeatureCollection', features: [] } }
-    const turf = (globalThis as unknown as Record<string, unknown>)
-      .turf as typeof import('@turf/turf')
     const features = geojson.features.map((f: GeoJSON.Feature) =>
       turf.transformTranslate(f, distance, direction, { units: units as 'kilometers' })
     )
@@ -8622,6 +9105,270 @@ export class GeoJsonTransformOp extends Operator<GeoJsonTransformOp> {
   }
 }
 
+// ==================== Choropleth ====================
+
+// Shared geography and geoKey options
+const GEOGRAPHY_OPTIONS: { value: Geography; label: string }[] = [
+  { value: 'us-states', label: 'US States' },
+  { value: 'world-countries', label: 'World Countries' },
+  { value: 'ca-provinces', label: 'Canadian Provinces' },
+  { value: 'custom', label: 'Custom (use boundaries input)' },
+]
+
+const GEO_KEY_OPTIONS: { value: GeoKey; label: string }[] = [
+  { value: 'auto', label: 'Auto-detect' },
+  { value: 'name', label: 'Name' },
+  { value: 'abbrev', label: 'Abbreviation / Code' },
+  { value: 'fips', label: 'FIPS Code (US)' },
+  { value: 'iso2', label: 'ISO Alpha-2' },
+  { value: 'iso3', label: 'ISO Alpha-3' },
+]
+
+async function joinDataToFeaturesViaDuckDb(
+  boundaries: GeoJsonFeatureCollection,
+  data: Record<string, unknown>[],
+  customSQL: string
+): Promise<GeoJsonFeatureCollection> {
+  // Flatten boundary features to rows (no geometry) keyed by __idx for round-tripping
+  const boundaryRows = boundaries.features.map((f, i) => ({
+    __idx: i,
+    ...(f.properties ?? {}),
+  }))
+
+  const db = await duckDbInstance
+  const suffix = Math.random().toString(36).slice(2)
+  const boundsFile = `__choropleth_bounds_${suffix}.json`
+  const dataFile = `__choropleth_data_${suffix}.json`
+
+  await db.registerFileText(boundsFile, JSON.stringify(boundaryRows))
+  await db.registerFileText(dataFile, JSON.stringify(data))
+
+  const conn = await db.connect()
+  try {
+    await conn.query(
+      `CREATE OR REPLACE TEMP VIEW boundaries AS SELECT * FROM read_json('${boundsFile}', format='array')`
+    )
+    await conn.query(
+      `CREATE OR REPLACE TEMP VIEW data AS SELECT * FROM read_json('${dataFile}', format='array')`
+    )
+
+    const result = await conn.query(customSQL)
+    const rows: Record<string, unknown>[] = result.toArray().map(r => {
+      const obj: Record<string, unknown> = {}
+      for (const [k, v] of r as Iterable<[string, unknown]>) obj[k] = v
+      return obj
+    })
+
+    // Re-attach joined properties back to original features using __idx
+    const rowByIdx = new Map<number, Record<string, unknown>>()
+    for (const row of rows) {
+      if (row.__idx != null) rowByIdx.set(row.__idx as number, row)
+    }
+
+    const features = boundaries.features.map((f, i) => {
+      const match = rowByIdx.get(i)
+      if (!match) return f
+      const { __idx: _, ...matchProps } = match
+      return { ...f, properties: { ...f.properties, ...matchProps } }
+    })
+
+    return { type: 'FeatureCollection', features }
+  } finally {
+    await conn.close().catch(() => null)
+    await db.dropFile(boundsFile).catch(() => null)
+    await db.dropFile(dataFile).catch(() => null)
+  }
+}
+
+function buildChoroplethInputs() {
+  const data = new DataField(new ArrayField(new UnknownField()))
+  const geography = new StringLiteralField('us-states', GEOGRAPHY_OPTIONS)
+  const boundaries = new GeoJsonField()
+  const joinKey = new StringLiteralField('', [])
+  const geoKey = new StringLiteralField('auto', GEO_KEY_OPTIONS)
+  const customSQL = new CodeField('', { language: 'sql', showByDefault: false })
+
+  data.subscribe((d: unknown[]) => {
+    if (d.length > 0) joinKey.updateChoices(Object.keys(d[0]))
+  })
+
+  return { data, geography, boundaries, joinKey, geoKey, customSQL }
+}
+
+async function resolveBoundariesAndJoin(
+  data: unknown[],
+  geography: string,
+  boundaries: unknown,
+  joinKey: string,
+  geoKey: string,
+  customSQL?: string
+) {
+  const geo = geography as Geography
+  const gk = geoKey as GeoKey
+  const userBoundaries =
+    geography === 'custom' ? (boundaries as GeoJsonFeatureCollection) : undefined
+  const resolvedBoundaries = await getBoundaries(geo, userBoundaries)
+
+  const rows = data as Record<string, unknown>[]
+
+  if (customSQL?.trim()) {
+    return joinDataToFeaturesViaDuckDb(resolvedBoundaries, rows, customSQL)
+  }
+
+  const resolvedGeoKey =
+    gk === 'auto' && geo !== 'custom'
+      ? detectGeoKey(rows, joinKey, geo)
+      : gk === 'auto'
+        ? 'name'
+        : gk
+
+  return joinDataToFeatures(resolvedBoundaries, rows, joinKey, resolvedGeoKey)
+}
+
+export class ChoroplethJoinOp extends Operator<ChoroplethJoinOp> {
+  static displayName = 'ChoroplethJoin'
+  static description =
+    'Join tabular data onto geographic boundaries (US states, world countries, Canadian provinces) to produce a colored FeatureCollection'
+
+  asDownload = () => this.outputData
+
+  createInputs() {
+    return buildChoroplethInputs()
+  }
+
+  createOutputs() {
+    return {
+      features: new GeoJsonField(),
+    }
+  }
+
+  async execute({
+    data,
+    geography,
+    boundaries,
+    joinKey,
+    geoKey,
+    customSQL,
+  }: ExtractProps<typeof this.inputs>): Promise<ExtractProps<typeof this.outputs>> {
+    const features = await resolveBoundariesAndJoin(
+      data,
+      geography,
+      boundaries,
+      joinKey,
+      geoKey,
+      customSQL
+    )
+    return { features }
+  }
+}
+
+export class ChoroplethLayerOp extends Operator<ChoroplethLayerOp> {
+  static displayName = 'ChoroplethLayer'
+  static description =
+    'All-in-one choropleth: joins tabular data onto geographic boundaries and renders with a color scale'
+  static cacheable = false
+
+  createInputs() {
+    const base = buildChoroplethInputs()
+    const valueColumn = new StringLiteralField('', [])
+    const colorScheme = new StringLiteralField('viridis', {
+      values: Object.keys(continuousInterpolators),
+      displayAs: 'color-scheme',
+    })
+    const opacity = new NumberField(0.85, { min: 0, max: 1, step: 0.01 })
+    const stroked = new BooleanField(true, { showByDefault: false })
+    const getLineColor = new ColorField('#000000', { transform: hexToColor, showByDefault: false })
+    const getLineWidth = new NumberField(1, { min: 0, softMax: 100, showByDefault: false })
+    const visible = new BooleanField(true)
+
+    base.data.subscribe((d: unknown[]) => {
+      if (d.length > 0) valueColumn.updateChoices(Object.keys(d[0]))
+    })
+
+    return {
+      ...base,
+      valueColumn,
+      colorScheme,
+      opacity,
+      stroked,
+      getLineColor,
+      getLineWidth,
+      visible,
+    }
+  }
+
+  createOutputs() {
+    return {
+      layer: new LayerField<GeoJsonLayerProps>(),
+    }
+  }
+
+  async execute({
+    data,
+    geography,
+    boundaries,
+    joinKey,
+    geoKey,
+    customSQL,
+    valueColumn,
+    colorScheme,
+    opacity,
+    stroked,
+    getLineColor,
+    getLineWidth,
+    visible,
+  }: ExtractProps<typeof this.inputs>): Promise<ExtractProps<typeof this.outputs>> {
+    const featureCollection = await resolveBoundariesAndJoin(
+      data,
+      geography,
+      boundaries,
+      joinKey,
+      geoKey,
+      customSQL
+    )
+
+    const interpolator =
+      continuousInterpolators[colorScheme as keyof typeof continuousInterpolators] ??
+      continuousInterpolators.viridis
+
+    // Auto-compute domain from matched features' valueColumn
+    const values = featureCollection.features
+      .map(f => f.properties?.[valueColumn])
+      .filter((v): v is number => typeof v === 'number' && !Number.isNaN(v))
+
+    const domainMin = values.length > 0 ? Math.min(...values) : 0
+    const domainMax = values.length > 0 ? Math.max(...values) : 1
+    const range = domainMax - domainMin || 1
+
+    const getFillColor = (f: GeoJsonFeature) => {
+      const val = f.properties?.[valueColumn]
+      if (typeof val !== 'number' || Number.isNaN(val))
+        return [180, 180, 180, 100] as [number, number, number, number]
+      const t = (val - domainMin) / range
+      const hex = d3Color(interpolator(t))?.formatHex() ?? '#808080'
+      return hexToColor(hex) ?? ([128, 128, 128, 255] as [number, number, number, number])
+    }
+
+    const layer = {
+      type: 'GeoJsonLayer' as const,
+      id: this.id,
+      data: featureCollection,
+      visible,
+      opacity,
+      filled: true,
+      stroked,
+      getFillColor,
+      getLineColor,
+      getLineWidth,
+      updateTriggers: {
+        getFillColor: [valueColumn, colorScheme, domainMin, domainMax],
+      },
+    }
+
+    return { layer }
+  }
+}
+
 export class SimplifyOp extends Operator<SimplifyOp> {
   static displayName = 'Simplify'
   static description = 'Simplify GeoJSON geometries using Ramer-Douglas-Peucker algorithm'
@@ -8654,6 +9401,62 @@ export class SimplifyOp extends Operator<SimplifyOp> {
     })
 
     return { feature: simplified }
+  }
+}
+
+export class LineInterpolationOp extends Operator<LineInterpolationOp> {
+  static displayName = 'Line Interpolation'
+  static description =
+    'Interpolate GeoJSON lines with D3 curves or round corners with a physical turn radius'
+  asDownload = () => this.outputData
+
+  createInputs() {
+    return {
+      feature: new GeoJsonField(),
+      method: new StringLiteralField('catmull-rom', {
+        values: [
+          { value: 'linear', label: 'Linear' },
+          { value: 'catmull-rom', label: 'Catmull–Rom' },
+          { value: 'cardinal', label: 'Cardinal' },
+          { value: 'basis', label: 'Basis' },
+          { value: 'natural', label: 'Natural' },
+          { value: 'monotone-x', label: 'Monotone X' },
+          { value: 'monotone-y', label: 'Monotone Y' },
+          { value: 'turn-radius', label: 'Turn radius' },
+        ],
+      }),
+      samplesPerSegment: new NumberField(12, { min: 1, max: 64, step: 1 }),
+      alpha: new NumberField(0.5, { min: 0, max: 1, step: 0.05, showByDefault: false }),
+      tension: new NumberField(0, { min: 0, max: 1, step: 0.05, showByDefault: false }),
+      turnRadiusMeters: new NumberField(250, {
+        min: 0,
+        softMax: 10_000,
+        step: 10,
+      }),
+    }
+  }
+
+  createOutputs() {
+    return { feature: new GeoJsonField() }
+  }
+
+  execute({
+    feature,
+    method,
+    samplesPerSegment,
+    alpha,
+    tension,
+    turnRadiusMeters,
+  }: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
+    return {
+      feature: utils.interpolateGeoJsonLines(feature, {
+        method: method as utils.LineInterpolationMethod,
+        samplesPerSegment,
+        alpha,
+        tension,
+        turnRadiusMeters,
+      }),
+    }
   }
 }
 
@@ -9862,10 +10665,13 @@ export const opTypes = {
   BufferOp,
   BoundsOp,
   BrightnessContrastExtensionOp,
+  BrushableHistogramOp,
   BrushingExtensionOp,
   CategoricalColorRampOp,
   CentroidOp,
   ChartOp,
+  ChoroplethJoinOp,
+  ChoroplethLayerOp,
   ClipExtensionOp,
   ClipOp,
   CodeOp,
@@ -9884,6 +10690,9 @@ export const opTypes = {
   ConvexHullOp,
   CrossOp,
   DataFilterExtensionOp,
+  DateFormatOp,
+  DateMathOp,
+  DatePartsOp,
   DateTimeOp,
   DBScanClusterOp,
   DeckRendererOp,
@@ -9933,6 +10742,7 @@ export const opTypes = {
   LayerPropsOp,
   LegendWidgetOp,
   LengthOp,
+  LineInterpolationOp,
   LineLayerOp,
   LineSliceOp,
   LineToPolygonOp,

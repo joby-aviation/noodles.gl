@@ -60,6 +60,7 @@ const config: Config = {
 
   plugins: [
     './symlink-plugin',
+    './raw-text-plugin',
     [
       '@docusaurus/plugin-google-gtag',
       {
@@ -120,7 +121,7 @@ const config: Config = {
           title: 'Docs',
           items: [
             {
-              label: 'Getting Started',
+              label: 'Start here',
               to: '/intro',
             },
           ],

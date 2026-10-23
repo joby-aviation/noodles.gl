@@ -228,10 +228,7 @@ export function remapPastedIds<N extends CopyPasteNode, E extends CopyPasteEdge>
  * Used by deletion paths to cascade container deletion to children.
  * Mutates and returns the input set.
  */
-export function expandDeleteSet(
-  nodeIds: Set<string>,
-  allNodes: { id: string }[]
-): Set<string> {
+export function expandDeleteSet(nodeIds: Set<string>, allNodes: { id: string }[]): Set<string> {
   let expanded = true
   while (expanded) {
     expanded = false

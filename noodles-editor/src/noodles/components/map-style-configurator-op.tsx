@@ -8,10 +8,9 @@ import { Map as MapLibre, NavigationControl } from 'react-map-gl/maplibre'
 
 import { analytics } from '../../utils/analytics'
 import { debugUI } from '../../utils/debug'
-import { CARTO_DARK } from '../../utils/map-styles'
 import {
-  CATEGORY_ORDER,
   applyStyleOverrides,
+  CATEGORY_ORDER,
   getEditableColorProps,
   groupLayersByCategory,
   type LayerCategory,
@@ -19,6 +18,7 @@ import {
   type MaplibreStyle,
   type StyleConfiguratorData,
 } from '../../utils/map-style-utils'
+import { CARTO_DARK } from '../../utils/map-styles'
 import type { Field, IField } from '../fields'
 import s from '../noodles.module.css'
 import type { IOperator, MapStyleConfiguratorOp, Operator } from '../operators'
@@ -37,7 +37,7 @@ import {
   useNodeDimmed,
 } from './op-components'
 
-function LayerRow({
+export function LayerRow({
   layer,
   layerOverride,
   onVisibilityChange,
@@ -78,7 +78,7 @@ function LayerRow({
           configuratorStyles.visibilityToggle,
           isHidden && configuratorStyles.visibilityToggleHidden
         )}
-        onClick={() => onVisibilityChange(!isHidden)}
+        onClick={() => onVisibilityChange(isHidden)}
         title={isHidden ? 'Show layer' : 'Hide layer'}
       >
         {isHidden ? <EyeNoneIcon /> : <EyeOpenIcon />}

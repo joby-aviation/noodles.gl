@@ -39,9 +39,9 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: 'category',
-      label: 'AI Assistant',
+      label: 'AI',
       collapsed: true,
-      items: ['users/ai-assistant'],
+      items: ['users/ai-assistant', 'users/ai-agents'],
     },
     {
       type: 'category',
@@ -78,7 +78,6 @@ const sidebars: SidebarsConfig = {
           items: [
             'developers/node-based-tools',
             'developers/framework-extension',
-            'developers/external-control-guide',
             'developers/utils-api-reference',
           ],
         },

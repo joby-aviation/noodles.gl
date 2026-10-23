@@ -12,10 +12,10 @@ import type { Field } from '../fields'
 import { ListField } from '../fields'
 import { clearPendingInsertionIndex, getUIStore, setPendingInsertionIndex } from '../store'
 import {
+  insertionIndexFromPointerY,
   SLOT_GAP,
   SLOT_HEIGHT,
   SLOT_SPACING,
-  insertionIndexFromPointerY,
 } from '../utils/multi-input-utils'
 import { getBaseName } from '../utils/path-utils'
 import s from './multi-input-handle.module.css'
@@ -92,6 +92,7 @@ export function MultiInputHandle({ id, field, className, style }: MultiInputHand
 
   // The handle grows with its connections — tell React Flow to re-measure so edge
   // anchors and hit areas follow (useUpdateNodeInternals is the public API for this)
+  // biome-ignore lint/correctness/useExhaustiveDependencies: connectionCount triggers the re-measure
   useEffect(() => {
     if (nid) {
       updateNodeInternals(nid)

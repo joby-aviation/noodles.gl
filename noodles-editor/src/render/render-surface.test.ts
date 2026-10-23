@@ -29,13 +29,12 @@ describe('render surface size', () => {
     { resolution: { width: 1920, height: 1080 }, lod: 1, expected: { width: 1920, height: 1080 } },
     { resolution: { width: 1920, height: 1080 }, lod: 2, expected: { width: 3840, height: 2160 } },
     { resolution: { width: 1280, height: 720 }, lod: 1.5, expected: { width: 1920, height: 1080 } },
-  ])('calculates the render target for resolution $resolution at LOD $lod', ({
-    resolution,
-    lod,
-    expected,
-  }) => {
-    expect(calculateRenderSurfaceSize(resolution, lod)).toEqual(expected)
-  })
+  ])(
+    'calculates the render target for resolution $resolution at LOD $lod',
+    ({ resolution, lod, expected }) => {
+      expect(calculateRenderSurfaceSize(resolution, lod)).toEqual(expected)
+    }
+  )
 
   it('publishes the initial responsive size and later element resizes', () => {
     let resize: ResizeObserverCallback | undefined

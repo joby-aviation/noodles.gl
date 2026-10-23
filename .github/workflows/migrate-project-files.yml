@@ -81,7 +81,7 @@ jobs:
           body: |
             ## Automated Project File Migration
 
-            This PR contains automated migrations of project files in `noodles-editor/src/examples/` and `noodles-editor/public/noodles/` after detecting new migration files in the codebase.
+            This PR contains automated migrations of project files in `noodles-editor/src/examples/` after detecting new migration files in the codebase.
 
             ### Changes
             - Applied latest schema migrations to project files

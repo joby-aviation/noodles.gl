@@ -18,6 +18,12 @@ Like [Kepler.gl](https://kepler.gl), Noodles.gl is built on deck.gl and Maplibre
 
 Many Noodles.gl [examples](https://github.com/visgl/kepler.gl/tree/master/examples/demo-app/public) are adapted from Kepler.gl to show the same visualizations with animation.
 
+<OpenInEditor example="world-flights" label="Open World Flights">
+
+World Flights is one of them. It draws flight paths with a `GeoJsonLayerOp`, replays them with a `TripsLayerOp`, and animates the trails on the timeline.
+
+</OpenInEditor>
+
 ## Architecture
 
 Here's how the pieces fit together:
@@ -152,12 +158,16 @@ FileOp → AccessorOp (position/color) → ScatterplotLayerOp → DeckRendererOp
 MaplibreBasemapOp ↗
 ```
 
+See it in the <EditorLink example="california-earthquakes">California Earthquakes example</EditorLink>.
+
 **Origin-destination flow (similar to Kepler.gl arcs):**
 
 ```
 FileOp → AccessorOp (source/target positions & colors) → ArcLayerOp → DeckRendererOp → OutOp
 MaplibreBasemapOp ↗
 ```
+
+See it in the <EditorLink example="nyc-taxis">NYC Taxis example</EditorLink>.
 
 **Animated trips (the key difference: you can keyframe currentTime!):**
 
@@ -166,6 +176,8 @@ FileOp → AccessorOp (path/timestamps/color) → TripsLayerOp → DeckRendererO
 NumberOp (currentTime - keyframe this!) ↗
 MaplibreBasemapOp ↗
 ```
+
+See it in the <EditorLink example="world-flights">World Flights example</EditorLink>.
 
 **Custom basemap styling:**
 

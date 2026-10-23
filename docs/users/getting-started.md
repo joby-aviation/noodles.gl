@@ -1,6 +1,16 @@
-# Getting Started
+---
+title: Editor Basics
+---
 
-Basic workflows for using Noodles.gl to create geospatial visualizations and animations.
+# Editor Basics
+
+The parts of the editor and how to use them. New to Noodles.gl? Go to [Start here](../intro.md) first to open the editor or an example.
+
+<OpenInEditor>
+
+Open the editor and follow along.
+
+</OpenInEditor>
 
 ![Simple Noodles.gl graph showing DeckRenderer connected to an Out node](/img/noodles-simple-graph.png)
 
@@ -45,6 +55,8 @@ Creates a PointOp node with the selected coordinates.
 #### Import Data
 Drag-and-drop or browse for CSV/JSON files. The importer automatically creates a complete visualization pipeline including data source, layer, and map components. Files are saved to your project's data directory.
 
+For tables of points, the importer looks for latitude and longitude columns (`lat`/`lng`, `Latitude`/`Longitude`, `x`/`y` and common variants) or a WKT or GeoJSON geometry column. It then fits the camera to the data and, when there is an obvious numeric column such as `population` or `magnitude`, sizes the points by it. If no coordinates are found, a message says so and the position is left for you to set in the Accessor node. Dropping a CSV on the start screen does the same in a new project.
+
 ## Your First Project
 
 **Data Source** → **Filter/Transform** → **Deck.gl Layer**
@@ -61,7 +73,7 @@ Drag-and-drop or browse for CSV/JSON files. The importer automatically creates a
 
 See Noodles.gl in action with a real-world dataset:
 
-[**Open NYC Taxis Example →**](https://noodles.gl/examples/nyc-taxis)
+<OpenInEditor example="nyc-taxis" label="Open the NYC Taxis example" />
 
 This example visualizes millions of NYC taxi trips using:
 - Arc layers connecting pickup and dropoff locations

@@ -75,6 +75,11 @@
   border-color: #3b82f6;
 }
 
+.numberInput:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
 .resolutionInputs {
   display: flex;
   align-items: center;
@@ -182,6 +187,21 @@
   cursor: pointer;
   font-size: 11px;
   color: rgba(255, 255, 255, 0.7);
+}
+
+.checkbox:disabled {
+  cursor: not-allowed;
+}
+
+.checkboxLabel:has(.checkbox:disabled) {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.hint {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.4);
+  margin: -2px 0 6px 20px;
 }
 
 .resetButton {
@@ -299,4 +319,9 @@
   font-size: 11px;
   opacity: 0.7;
   flex-shrink: 0;
+}
+
+/* A hint under a labeled field, lined up with the field instead of the label */
+.fieldHint {
+  margin-left: 78px;
 }

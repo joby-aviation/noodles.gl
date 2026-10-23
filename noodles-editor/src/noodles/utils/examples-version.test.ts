@@ -3,18 +3,10 @@ import { NOODLES_VERSION } from './migrate-schema'
 import type { NoodlesProjectJSON } from './serialization'
 
 // Import all example project files
-const exampleProjects = import.meta.glob('../../examples/**/noodles.json', {
+const allProjects = import.meta.glob('../../examples/**/noodles.json', {
   eager: true,
   import: 'default',
 }) as Record<string, NoodlesProjectJSON>
-
-// Import public demo projects
-const publicProjects = import.meta.glob('../../../public/noodles/*.json', {
-  eager: true,
-  import: 'default',
-}) as Record<string, NoodlesProjectJSON>
-
-const allProjects = { ...exampleProjects, ...publicProjects }
 
 describe('Example projects version', () => {
   it('should have at least one example project', () => {
@@ -26,9 +18,7 @@ describe('Example projects version', () => {
 
     for (const [path, project] of Object.entries(allProjects)) {
       if (project.version !== NOODLES_VERSION) {
-        outdatedProjects.push(
-          `${path}: version ${project.version} (expected ${NOODLES_VERSION})`
-        )
+        outdatedProjects.push(`${path}: version ${project.version} (expected ${NOODLES_VERSION})`)
       }
     }
 
@@ -41,18 +31,9 @@ describe('Example projects version', () => {
 
   it('all example projects should have a valid version number', () => {
     for (const [path, project] of Object.entries(allProjects)) {
-      expect(
-        project.version,
-        `${path} should have a version field`
-      ).toBeDefined()
-      expect(
-        typeof project.version,
-        `${path} version should be a number`
-      ).toBe('number')
-      expect(
-        project.version,
-        `${path} version should be positive`
-      ).toBeGreaterThanOrEqual(0)
+      expect(project.version, `${path} should have a version field`).toBeDefined()
+      expect(typeof project.version, `${path} version should be a number`).toBe('number')
+      expect(project.version, `${path} version should be positive`).toBeGreaterThanOrEqual(0)
     }
   })
 })

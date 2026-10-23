@@ -1,8 +1,19 @@
+import { Temporal } from 'temporal-polyfill'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { hexToColor } from '../../utils/color'
 import { CodeField, ColorField, NumberField } from '../fields'
-import { GeoJsonLayerOp, NumberOp, ScenegraphLayerOp, TableEditorOp } from '../operators'
+import {
+  CodeOp,
+  DateTimeOp,
+  DirectionsOp,
+  GeoJsonLayerOp,
+  NumberOp,
+  ScenegraphLayerOp,
+  TableEditorOp,
+  UnknownOperator,
+} from '../operators'
 import { clearOps, getOpStore, setOp } from '../store'
+import { transformGraph } from '../transform-graph'
 import { edgeId } from './id-utils'
 import {
   NOODLES_VERSION,
@@ -205,7 +216,7 @@ describe('serializeNodes', () => {
     expect(result[0].data.inputs).toEqual({})
   })
 
-  it('does not overwrite input if incoming edge is from locked op', () => {
+  it('omits inputs for locked incomers', () => {
     setOp('node1', makeOp({ x: 123 }, false))
     setOp('node0', makeOp({ foo: 'ignored' }, true)) // locked = true
 
@@ -221,7 +232,7 @@ describe('serializeNodes', () => {
       ...connection,
     }
     const result = serializeNodes(getOpStore(), [node], [edge])
-    expect(result[0].data.inputs).toEqual({ x: 123 })
+    expect(result[0].data.inputs).toEqual({})
   })
 
   it('does not serialize default values', () => {
@@ -234,6 +245,44 @@ describe('serializeNodes', () => {
     const result = serializeNodes(getOpStore(), nodes, [])
     expect(result[0].data.inputs).toEqual({ val: 123 })
     expect(result[1].data.inputs).toEqual({})
+  })
+
+  it('omits optional UI metadata when a number field has no explicit step override', () => {
+    setOp('num', new NumberOp('num', { val: 0.25 }, false))
+    const nodes = [{ id: 'num', type: 'NumberOp', data: {}, position: { x: 0, y: 0 } }]
+
+    const [result] = serializeNodes(getOpStore(), nodes, [])
+
+    expect(result.data).not.toHaveProperty('ui')
+  })
+
+  it('serializes an explicit number step as optional per-field UI metadata', () => {
+    const op = new NumberOp('num', { val: 0.25 }, false)
+    op.inputs.val.setStepOverride(0.001)
+    setOp('num', op)
+    const nodes = [{ id: 'num', type: 'NumberOp', data: {}, position: { x: 0, y: 0 } }]
+
+    const [result] = serializeNodes(getOpStore(), nodes, [])
+
+    expect(result.data.ui).toEqual({ numberSteps: { val: 0.001 } })
+  })
+
+  it('serializes an explicit step for a custom number field', () => {
+    const op = new CodeOp('code')
+    op.addCustomInput({
+      id: 'amount-id',
+      name: 'amount',
+      type: 'number',
+      order: 0,
+      defaultValue: 0.25,
+    })
+    ;(op.inputs.amount as NumberField).setStepOverride(0.001)
+    setOp('code', op)
+    const nodes = [{ id: 'code', type: 'CodeOp', data: {}, position: { x: 0, y: 0 } }]
+
+    const [result] = serializeNodes(getOpStore(), nodes, [])
+
+    expect(result.data.ui).toEqual({ numberSteps: { amount: 0.001 } })
   })
 
   it('does not serialize object default values', () => {
@@ -583,7 +632,7 @@ describe('saveProjectLocally', () => {
       timeline: {},
     }
 
-    await saveProjectLocally(projectName, projectJson, 'publicFolder')
+    await saveProjectLocally(projectName, projectJson, 'publicFolder', new Map())
 
     // Verify download was triggered
     expect(createElementSpy).toHaveBeenCalledWith('a')
@@ -605,7 +654,7 @@ describe('saveProjectLocally', () => {
       timeline: {},
     }
 
-    await saveProjectLocally(projectName, projectJson, 'publicFolder')
+    await saveProjectLocally(projectName, projectJson, 'publicFolder', new Map())
 
     expect(mockAnchorElement.download).toBe('my-awesome-viz.zip')
   })
@@ -620,7 +669,7 @@ describe('saveProjectLocally', () => {
       timeline: {},
     }
 
-    await saveProjectLocally(projectName, projectJson, 'opfs')
+    await saveProjectLocally(projectName, projectJson, 'opfs', new Map())
 
     // Should still create download
     expect(mockAnchorElement.download).toBe('opfs-project.zip')
@@ -637,7 +686,7 @@ describe('saveProjectLocally', () => {
       timeline: {},
     }
 
-    await saveProjectLocally(projectName, projectJson, 'fileSystemAccess')
+    await saveProjectLocally(projectName, projectJson, 'fileSystemAccess', new Map())
 
     // Should still create download
     expect(mockAnchorElement.download).toBe('fs-project.zip')
@@ -653,9 +702,32 @@ describe('saveProjectLocally', () => {
       timeline: {},
     }
 
-    await saveProjectLocally('test', projectJson, 'publicFolder')
+    await saveProjectLocally('test', projectJson, 'publicFolder', new Map())
 
     expect(revokeObjectURLSpy).toHaveBeenCalledWith('blob:mock-url')
+  })
+
+  it('adds the cache folder to the ZIP', async () => {
+    const projectJson = {
+      version: NOODLES_VERSION,
+      nodes: [],
+      edges: [],
+      viewport: { x: 0, y: 0, zoom: 1 },
+      timeline: {},
+    }
+    const cacheFile = '{"version":1,"id":"/directions","type":"DirectionsOp","outputs":{}}\n'
+
+    await saveProjectLocally(
+      'cached',
+      projectJson,
+      'memory',
+      new Map([['directions.json', cacheFile]])
+    )
+
+    const { default: JSZip } = await import('jszip')
+    const blob = vi.mocked(URL.createObjectURL).mock.calls[0][0] as Blob
+    const zip = await JSZip.loadAsync(blob)
+    await expect(zip.file('cached/cache/directions.json')?.async('text')).resolves.toBe(cacheFile)
   })
 })
 
@@ -902,5 +974,79 @@ describe('serializeNodes with expression-driven fields', () => {
     const node = { id: 'node1', type: 'NumberOp', data: {}, position: { x: 0, y: 0 } }
     const result = serializeNodes(getOpStore(), [node], [])
     expect(result[0].data.inputs).toEqual({ val: { $expr: '0' } })
+  })
+})
+
+describe('date inputs save and reload', () => {
+  afterEach(() => {
+    clearOps()
+  })
+
+  // Save the way the editor does (JSON text) and load the result into fresh operators
+  function saveAndReload(id: string, type: string) {
+    const node = { id, type, data: {}, position: { x: 0, y: 0 } }
+    const [saved] = JSON.parse(safeStringify({ nodes: serializeNodes(getOpStore(), [node], []) }))
+      .nodes as ReturnType<typeof serializeNodes>
+    clearOps()
+    transformGraph({ nodes: [saved], edges: [] })
+    return { saved, reloaded: getOpStore().getOp(id) }
+  }
+
+  it('persists a DateTimeOp date', () => {
+    const op = new DateTimeOp('/date')
+    op.inputs.date.setValue(Temporal.PlainDateTime.from('2026-10-17T08:30'))
+    setOp('/date', op)
+
+    const { saved, reloaded } = saveAndReload('/date', 'DateTimeOp')
+
+    expect(saved.data.inputs.date).toBe('2026-10-17T08:30:00')
+    expect((reloaded as DateTimeOp).inputs.date.value.toString()).toBe('2026-10-17T08:30:00')
+  })
+
+  it('persists a scheduled departure time', () => {
+    const op = new DirectionsOp('/directions', {
+      mode: 'driving-traffic',
+      departureMode: 'scheduled',
+    })
+    op.inputs.departureTime.setValue(Temporal.PlainDateTime.from('2026-10-17T08:30'))
+    setOp('/directions', op)
+
+    const { saved, reloaded } = saveAndReload('/directions', 'DirectionsOp')
+
+    expect(saved.data.inputs.departureTime).toBe('2026-10-17T08:30:00')
+    expect((reloaded as DirectionsOp).inputs.departureTime.value.toString()).toBe(
+      '2026-10-17T08:30:00'
+    )
+  })
+})
+
+describe('unknown operator types save and reload', () => {
+  afterEach(() => {
+    clearOps()
+    vi.restoreAllMocks()
+  })
+
+  it('keeps the original type and data of a missing operator type', () => {
+    const node = {
+      id: '/missing',
+      type: 'RemovedOp',
+      data: {
+        inputs: { threshold: 5, label: 'kept' },
+        locked: true,
+        visibleInputs: ['threshold'],
+        ui: { numberSteps: { threshold: 0.01 } },
+      },
+      position: { x: 10, y: 20 },
+    }
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    transformGraph({ nodes: [node], edges: [] })
+
+    const op = getOpStore().getOp('/missing')
+    expect(op).toBeInstanceOf(UnknownOperator)
+    expect((op as UnknownOperator).originalType).toBe('RemovedOp')
+
+    // The saved type comes from the op, not the React Flow node
+    const [saved] = serializeNodes(getOpStore(), [{ ...node, selected: true }], [])
+    expect(saved).toEqual(node)
   })
 })

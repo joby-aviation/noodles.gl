@@ -6,17 +6,30 @@ import type {
 } from '@xyflow/react'
 import { debugSerialize } from '../../utils/debug'
 import { resizeableNodes } from '../components/op-components'
+import { captureNodeUIMetadata } from '../fields'
+import { UnknownOperator } from '../operators'
 import type { useOperatorStore } from '../store'
 import { deepEqual } from './deep-equal'
 import type { ExtractProps } from './extract-props'
 import type { StorageType } from './filesystem'
 import { MULTI_INPUT_EDGE_TYPE } from './multi-input-utils'
+import { CACHE_DIRECTORY_NAME, type OutputCacheFiles } from './output-cache'
 import { parseHandleId } from './path-utils'
 
 export { NOODLES_VERSION } from './migrate-schema'
 
+// Older projects may also carry `algorithm` and `direction`; they are ignored on load
+export type AutoLayoutSettings = {
+  enabled: boolean
+}
+
+export const DEFAULT_AUTO_LAYOUT: AutoLayoutSettings = {
+  enabled: false,
+}
+
 export type EditorSettings = {
   showOverlay?: boolean
+  autoLayout?: Partial<AutoLayoutSettings>
   showDebugInfo?: boolean
 }
 
@@ -33,6 +46,7 @@ export type NoodlesProjectJSON = ReactFlowJsonObject & {
     mapbox?: string
     googleMaps?: string
     cesium?: string
+    // Older files may carry AI keys. They are dropped on load and never written.
     anthropic?: string
   }
 }
@@ -134,10 +148,25 @@ export function serializeNodes(
     const op = store.getOp(node.id)
     if (!op) continue
 
-    // Don't set node data for connected inputs (saves space) except if upstream op is locked
+    // A placeholder for a missing operator type saves the node exactly as it was loaded
+    if (op instanceof UnknownOperator) {
+      const {
+        selected: _,
+        dragging: __,
+        hidden: ___,
+        measured,
+        width,
+        height,
+        ...cleanedNode
+      } = node
+      preparedNodes.push({ ...cleanedNode, type: op.originalType, data: op.originalData })
+      continue
+    }
+
+    // Don't set node data for connected inputs (saves space). A locked upstream op restores
+    // its own outputs from the cache folder, so its values aren't copied here either.
     const incomers = edges
       .filter(edge => edge.target === node.id && edge.type !== 'ReferenceEdge')
-      .filter(edge => store.getOp(edge.source)?.locked?.value === false)
       .map(edge => parseHandleId(edge.targetHandle)?.fieldName)
       .reduce((acc, fieldName) => acc.add(fieldName), new Set<string | undefined>())
 
@@ -206,6 +235,8 @@ export function serializeNodes(
       }
     }
 
+    const ui = captureNodeUIMetadata(op.inputs)
+
     preparedNodes.push({
       ...cleanedNode,
       ...(node.type && (resizeableNodes as readonly string[]).includes(node.type)
@@ -217,6 +248,7 @@ export function serializeNodes(
         ...(op.customInputDefinitions?.length > 0
           ? { customInputs: op.customInputDefinitions }
           : {}),
+        ...(ui ? { ui } : {}),
         ...visibilityData,
       },
     })
@@ -278,11 +310,12 @@ const exampleAssetUrls: Record<string, string> = import.meta.glob('../../example
   query: '?url',
 })
 
-// Export a project as a downloadable zip file containing noodles.json and data files
+// Export a project as a downloadable zip file containing noodles.json, data and cache files
 export async function saveProjectLocally(
   projectName: string,
   projectJson: NoodlesProjectJSON,
-  storageType: StorageType
+  storageType: StorageType,
+  cacheFiles: OutputCacheFiles
 ) {
   debugSerialize('saveProjectLocally: %s (storage: %s)', projectName, storageType)
   const { default: JSZip } = await import('jszip')
@@ -303,6 +336,9 @@ export async function saveProjectLocally(
   // Add noodles.json to the project folder
   const contents = safeStringify(projectJson)
   projectFolder.file('noodles.json', contents)
+  for (const [fileName, cacheContents] of cacheFiles) {
+    projectFolder.file(`${CACHE_DIRECTORY_NAME}/${fileName}`, cacheContents)
+  }
 
   // Handle data files based on storage type
   if (storageType === 'memory') {
@@ -326,6 +362,8 @@ export async function saveProjectLocally(
       if (assetPath.startsWith(projectPrefix)) {
         // Extract the relative path within the project
         const relativePath = assetPath.substring(projectPrefix.length)
+        // The cache folder was written above from the current outputs
+        if (relativePath.startsWith(`${CACHE_DIRECTORY_NAME}/`)) continue
 
         try {
           const response = await fetch(assetUrl)

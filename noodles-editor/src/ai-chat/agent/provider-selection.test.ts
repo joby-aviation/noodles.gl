@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { type Credentials, isProviderReady, resolveProviderId } from './provider-selection'
+import {
+  type Credentials,
+  isLocalEndpoint,
+  isOnDevice,
+  isProviderReady,
+  readyCloudProvider,
+  resolveProviderId,
+} from './provider-selection'
 
 const NOTHING: Credentials = {
   anthropicKey: undefined,
@@ -84,7 +91,7 @@ describe('resolveProviderId', () => {
 
   it('does not pick WebLLM automatically until a model has been chosen', () => {
     const ready = { ...NOTHING, webgpuReady: true, chromeAvailable: true }
-    expect(resolveProviderId({ ...ready, preference: 'automatic' })).toBe('chrome')
+    expect(resolveProviderId({ ...ready, preference: 'automatic' })).toBe('anthropic')
     expect(
       resolveProviderId({ ...ready, preference: 'automatic', webllmModel: 'Qwen3-4B-q4f16_1-MLC' })
     ).toBe('webllm')
@@ -113,9 +120,82 @@ describe('resolveProviderId', () => {
     expect(id).toBe('webllm')
   })
 
+  it('runs Chrome only when it is asked for', () => {
+    const ready = { ...NOTHING, chromeAvailable: true }
+    expect(resolveProviderId({ ...ready, preference: 'automatic' })).toBe('anthropic')
+    expect(resolveProviderId({ ...ready, preference: 'chrome' })).toBe('chrome')
+  })
+
   // Nothing configured at all: the panel shows its connect screen, which needs a
   // provider id to label. Anthropic is the one it names.
   it('falls back to Anthropic when nothing is ready', () => {
     expect(resolveProviderId({ ...NOTHING, preference: 'automatic' })).toBe('anthropic')
+  })
+})
+
+describe('isOnDevice', () => {
+  it('is true only for the two providers that run in the browser', () => {
+    expect(isOnDevice('webllm')).toBe(true)
+    expect(isOnDevice('chrome')).toBe(true)
+    expect(isOnDevice('anthropic')).toBe(false)
+    expect(isOnDevice('openrouter')).toBe(false)
+    expect(isOnDevice('custom')).toBe(false)
+  })
+})
+
+describe('readyCloudProvider', () => {
+  it('is null when only on-device providers are ready', () => {
+    const credentials = {
+      ...NOTHING,
+      webgpuReady: true,
+      webllmModel: 'Qwen3-4B-q4f16_1-MLC',
+      chromeAvailable: true,
+    }
+    expect(readyCloudProvider(credentials)).toBeNull()
+  })
+
+  it('names the first hosted provider with a credential, in the automatic order', () => {
+    expect(readyCloudProvider({ ...NOTHING, openRouterKey: 'or-key' })).toBe('openrouter')
+    expect(
+      readyCloudProvider({ ...NOTHING, openRouterKey: 'or-key', anthropicKey: 'sk-ant' })
+    ).toBe('anthropic')
+  })
+
+  it('skips a custom endpoint on this machine or the LAN, which is not hosted', () => {
+    const custom = (baseUrl: string) => ({
+      ...NOTHING,
+      customEndpoint: { baseUrl, model: 'm', apiKey: '' },
+    })
+    expect(readyCloudProvider(custom('http://localhost:1234/v1'))).toBeNull()
+    expect(readyCloudProvider(custom('http://192.168.1.20:8080/v1'))).toBeNull()
+    expect(readyCloudProvider(custom('https://api.groq.com/openai/v1'))).toBe('custom')
+  })
+})
+
+describe('isLocalEndpoint', () => {
+  it('recognises loopback, private and .local hosts', () => {
+    for (const url of [
+      'http://localhost:1234/v1',
+      'http://127.0.0.1:8080',
+      'http://[::1]:8080',
+      'http://10.0.0.5/v1',
+      'http://172.20.1.1/v1',
+      'http://192.168.0.2/v1',
+      'http://gpu-box.local:8000/v1',
+      'not a url',
+    ]) {
+      expect(isLocalEndpoint(url), url).toBe(true)
+    }
+  })
+
+  it('leaves public hosts alone', () => {
+    for (const url of [
+      'https://api.groq.com/openai/v1',
+      'https://api.openai.com/v1',
+      'http://172.32.0.1/v1',
+      'https://fd.example.com/v1',
+    ]) {
+      expect(isLocalEndpoint(url), url).toBe(false)
+    }
   })
 })

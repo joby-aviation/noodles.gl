@@ -25,10 +25,7 @@ describe('ContainerOpComponent children count reactivity', () => {
   }
 
   // Helper to render ContainerOpComponent within the required contexts
-  const renderContainerOpComponent = (
-    containerId: string,
-    updateOperatorId = vi.fn()
-  ) => {
+  const renderContainerOpComponent = (containerId: string, updateOperatorId = vi.fn()) => {
     const containerOp = getOp(containerId) as ContainerOp
     expect(containerOp).toBeDefined()
 

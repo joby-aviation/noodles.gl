@@ -1,0 +1,48 @@
+import { spawn } from 'node:child_process'
+import * as path from 'node:path'
+import { describe, expect, it } from 'vitest'
+
+const cwd = path.join(import.meta.dirname, '..')
+
+// Runs a script, writes all of `input` at once, and collects its output.
+// `--import tsx` loads TypeScript without the tsx CLI, which needs a local IPC socket.
+function runScript(script: string, input = ''): Promise<{ stdout: string; stderr: string }> {
+  return new Promise((resolve, reject) => {
+    // Kill a stuck script before the 20s test timeout so it doesn't outlive the test
+    const child = spawn(process.execPath, ['--import', 'tsx', script], { cwd, timeout: 15_000 })
+    let stdout = ''
+    let stderr = ''
+    child.stdout.on('data', chunk => {
+      stdout += chunk
+    })
+    child.stderr.on('data', chunk => {
+      stderr += chunk
+    })
+    child.on('error', reject)
+    child.on('close', () => resolve({ stdout, stderr }))
+    child.stdin.end(input)
+  })
+}
+
+describe('generate-migration', () => {
+  it('finds the migrations folder and asks the first question', async () => {
+    const { stdout, stderr } = await runScript('scripts/generate-migration.ts')
+
+    expect(stderr).not.toContain('ReferenceError')
+    expect(stdout).toMatch(/Next migration version: \d+/)
+    expect(stdout).toContain('Operator type')
+  }, 20_000)
+
+  // Invalid answers stop the script before it writes any migration files
+  it('reads answers piped in all at once', async () => {
+    const { stderr } = await runScript('scripts/generate-migration.ts', 'ScatterplotLayerOp\n9\n')
+
+    expect(stderr).toContain('Invalid change type')
+  }, 20_000)
+
+  it('reports input that ends before every question is answered', async () => {
+    const { stderr } = await runScript('scripts/generate-migration.ts', 'ScatterplotLayerOp\n1\n')
+
+    expect(stderr).toContain('Input ended before all questions were answered')
+  }, 20_000)
+})
