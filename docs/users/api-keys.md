@@ -4,12 +4,12 @@ Configure API keys for external services used by Noodles.gl. Access settings via
 
 ## Key Sources
 
-Keys are resolved in priority order:
-1. **Browser** - Stored in localStorage, persists across sessions
-2. **Project** - Loaded from and retained in the project file until explicitly removed
+A key can come from three places, used in this order:
+1. **Project** - Saved in the project file, so everyone who opens the project uses it
+2. **Browser** - Saved in this browser for all your projects
 3. **Environment** - Set via environment variables
 
-The first source with a valid key is used automatically.
+App Settings → API Keys shows each source and marks the one in use as **Active**. To use your own key instead of the project's, click **Use** next to it. The choice applies to this project in this browser only. If the project's key changes, the project's key is used again.
 
 AI provider keys (Anthropic and OpenRouter) are the exception: they come only from the browser or the environment, never from a project file. See [AI keys stay out of project files](#ai-keys-stay-out-of-project-files).
 
@@ -40,11 +40,11 @@ API keys are stored locally and never sent to Noodles.gl servers. Browser keys a
 
 ### Sharing Projects with Keys
 
-Enabling **Save browser keys in project file** copies your browser map and data keys into `noodles.json`, where they are stored in plain text and travel with the project. Only share projects containing keys with trusted collaborators. Loaded project keys remain in subsequent saves until removed from App Settings.
+To give a project its own key, enter it in the **Project** field in App Settings and save the project. The key is stored in plain text in `noodles.json`, so only share projects containing keys with trusted collaborators. Your browser keys are never saved in a project file.
 
 ### AI keys stay out of project files
 
-Anthropic and OpenRouter keys are never saved in a project file, even with **Save browser keys in project file** enabled, and a key found in a project file is never used. The AI assistant sends your messages and graph to the provider, so a key from someone else's project would route your conversation through their account, and a saved key would give your account to anyone you share the project with.
+Anthropic and OpenRouter keys are never saved in a project file, and a key found in a project file is never used. The AI assistant sends your messages and graph to the provider, so a key from someone else's project would route your conversation through their account, and a saved key would give your account to anyone you share the project with.
 
 If a project file you open contains an AI key, App Settings → API Keys says so. The key is ignored and is removed from the file the next time you save.
 
