@@ -41,7 +41,7 @@ import { analytics } from '../utils/analytics'
 import { lazyWithReload, staleChunk } from '../utils/stale-chunk'
 import { setCurrentProject, setModificationApplier } from '../webmcp/bridge'
 import { agentBench, externalControl } from './globals'
-import { getKeysForProject, getKeysStore, useKeysStore } from './keys-store'
+import { getKeysForProject, getKeysStore, keysProjectId, useKeysStore } from './keys-store'
 import newProjectJSON from './new.json'
 import { BitmapOverlayWidget, type BitmapOverlayWidgetProps } from './widgets/bitmap-overlay-widget'
 import { LegendWidget, type LegendWidgetProps } from './widgets/legend-widget'
@@ -1032,7 +1032,10 @@ export function getNoodles(): Visualization {
       // Install embedded keys before constructing operators. Key-dependent operators
       // may inspect credentials while their fields and listeners are initialized.
       const keysStore = getKeysStore()
-      keysStore.setProjectKeys(apiKeys, name)
+      keysStore.setProjectKeys(
+        apiKeys,
+        name === undefined ? undefined : keysProjectId(targetRoutePrefix ?? routePrefix, name)
+      )
 
       // Dispose all old operators cleanly (executionState.complete() + unsubscribeListeners)
       const store = getOpStore()
@@ -1333,6 +1336,7 @@ export function getNoodles(): Visualization {
         await directoryHandleCache.cacheHandle(directoryName, directoryHandle, directoryName)
 
         const oldProjectName = projectName
+        getKeysStore().copyKeyOverridesTo(keysProjectId('/projects', directoryName))
         setCurrentDirectory(directoryHandle, directoryName)
         setActiveStorageType('fileSystemAccess')
         navigate(`/projects/${directoryName}`, { replace: true })
@@ -1459,6 +1463,8 @@ export function getNoodles(): Visualization {
       // Cache the directory handle
       await directoryHandleCache.cacheHandle(directoryName, directoryHandle, directoryHandle.name)
 
+      getKeysStore().copyKeyOverridesTo(keysProjectId('/projects', directoryName))
+
       // Update store with directory handle
       setCurrentDirectory(directoryHandle, directoryName)
 
@@ -1535,6 +1541,8 @@ export function getNoodles(): Visualization {
         } else {
           await directoryHandleCache.cacheHandle(newName, directoryHandle, directoryHandle.name)
         }
+
+        getKeysStore().copyKeyOverridesTo(keysProjectId('/projects', newName))
 
         // Update store with directory handle
         setCurrentDirectory(directoryHandle, newName)

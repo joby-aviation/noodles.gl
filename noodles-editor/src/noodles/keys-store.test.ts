@@ -7,6 +7,7 @@ import {
   getKeysStore,
   isAIKey,
   type KeysConfig,
+  keysProjectId,
   useKeysStore,
 } from './keys-store'
 
@@ -370,6 +371,29 @@ describe('Keys Store', () => {
 
       expect(getKeysStore().getKey('cesium')).toBe('project-cesium')
       expect(getKeysStore().keyOverrides).toEqual({})
+    })
+
+    it('should copy the choices when the project is saved under a new name', () => {
+      getKeysStore().setKeyOverride('cesium', 'browser')
+      getKeysStore().copyKeyOverridesTo('project-renamed')
+      getKeysStore().setProjectKeys({ cesium: 'project-cesium' }, 'project-renamed')
+
+      expect(getKeysStore().getKey('cesium')).toBe('browser-cesium')
+      expect(Object.keys(getKeysStore().keyOverrides)).toEqual(['project-a', 'project-renamed'])
+    })
+
+    it('should keep choices for an example apart from a saved project of the same name', () => {
+      getKeysStore().setProjectKeys(
+        { cesium: 'project-cesium' },
+        keysProjectId('/examples', 'nyc-taxis')
+      )
+      getKeysStore().setKeyOverride('cesium', 'browser')
+      getKeysStore().setProjectKeys(
+        { cesium: 'project-cesium' },
+        keysProjectId('/projects', 'nyc-taxis')
+      )
+
+      expect(getKeysStore().getKey('cesium')).toBe('project-cesium')
     })
 
     it('should not record an override without a project key', () => {

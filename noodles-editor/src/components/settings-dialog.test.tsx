@@ -2,7 +2,10 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getKeysStore, useKeysStore } from '../noodles/keys-store'
 import { getGitSettings } from '../noodles/utils/git-settings'
+import { getLoadedGoogleMapsKey } from '../utils/geocoding'
 import { SettingsDialog } from './settings-dialog'
+
+vi.mock('../utils/geocoding', () => ({ getLoadedGoogleMapsKey: vi.fn(() => null) }))
 
 describe('SettingsDialog API keys', () => {
   beforeEach(() => {
@@ -77,6 +80,20 @@ describe('SettingsDialog API keys', () => {
     fireEvent.click(within(group).getByRole('button', { name: 'Use' }))
     expect(getKeysStore().getKey('cesium')).toBe('project-cesium')
     expect(within(group).queryByText(/Using your browser key/)).toBeNull()
+  })
+
+  it('should ask for a reload when Google Maps loaded with another key', () => {
+    vi.stubEnv('VITE_GOOGLE_MAPS_API_KEY', '')
+    vi.mocked(getLoadedGoogleMapsKey).mockReturnValue('project-google')
+    getKeysStore().setProjectKeys({ googleMaps: 'project-google' }, '/projects/a')
+    getKeysStore().setBrowserKey('googleMaps', 'browser-google')
+    openApiKeysTab()
+
+    const group = keyGroup('Google Maps API Key')
+    expect(within(group).queryByRole('button', { name: 'Reload to apply' })).toBeNull()
+    fireEvent.click(within(group).getByRole('button', { name: 'Use' }))
+    expect(within(group).getByRole('button', { name: 'Reload to apply' })).toBeTruthy()
+    vi.mocked(getLoadedGoogleMapsKey).mockReturnValue(null)
   })
 
   it('should not offer a choice without a project key', () => {

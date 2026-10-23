@@ -10,6 +10,7 @@ import { getEnvKeys, useKeysStore } from '../noodles/keys-store'
 import { useOpenRouterConnect } from '../noodles/use-openrouter-connect'
 import { getGitSettings, saveGitSettings, useGitSettings } from '../noodles/utils/git-settings'
 import { analytics } from '../utils/analytics'
+import { getLoadedGoogleMapsKey } from '../utils/geocoding'
 import s from './settings-dialog.module.css'
 
 type EndpointStatus =
@@ -41,7 +42,7 @@ interface KeyGroupProps {
   onProjectClear?: () => void
   // Picks which key the project uses. Only offered while the project has a key of its own.
   onUse?: (source: KeySource) => void
-  notice?: string
+  notice?: React.ReactNode
   inputRef?: React.RefObject<HTMLInputElement>
 }
 
@@ -195,6 +196,7 @@ export function SettingsDialog({ open, setOpen, projectName = null }: SettingsDi
   const setProviderPreference = useKeysStore(state => state.setProviderPreference)
   const setCustomEndpoint = useKeysStore(state => state.setCustomEndpoint)
   const getActiveSource = useKeysStore(state => state.getActiveSource)
+  const getKey = useKeysStore(state => state.getKey)
   const clearBrowserKey = useKeysStore(state => state.clearBrowserKey)
 
   // OpenRouter sign-in. A key the OAuth flow minted is stored as a browser key,
@@ -329,6 +331,20 @@ export function SettingsDialog({ open, setOpen, projectName = null }: SettingsDi
     if (enabled) {
       analytics.track('error_capture_enabled_in_settings')
     }
+  }
+
+  // The Maps JavaScript API keeps the key it loaded with, so a change needs a reload
+  const googleMapsReloadNotice = () => {
+    const loadedKey = getLoadedGoogleMapsKey()
+    if (!loadedKey || loadedKey === getKey('googleMaps')) return undefined
+    return (
+      <>
+        Place search and directions still use the previous key.{' '}
+        <button type="button" onClick={() => window.location.reload()} className={s.copyButton}>
+          Reload to apply
+        </button>
+      </>
+    )
   }
 
   // Props for a key that has project, browser and env slots
@@ -951,6 +967,7 @@ export function SettingsDialog({ open, setOpen, projectName = null }: SettingsDi
                       description="Enables traffic-aware driving, transit directions, and higher-quality place search. Enable the Maps JavaScript API, Routes API, and Places API in Google Cloud."
                       placeholder="AIza..."
                       {...slotProps('googleMaps')}
+                      notice={googleMapsReloadNotice()}
                     />
 
                     <KeyGroup

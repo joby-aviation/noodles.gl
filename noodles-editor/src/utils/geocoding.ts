@@ -49,10 +49,24 @@ interface PhotonGeocodingResponse {
 let googleMapsLoaded = false
 let googleMapsPromise: Promise<void> | null = null
 let loadingApiKey: string | null = null
+let loadedApiKey: string | null = null
+
+// The key the Maps JavaScript API was loaded with. It can't switch keys afterwards.
+export function getLoadedGoogleMapsKey(): string | null {
+  return loadedApiKey
+}
 
 // Load Google Maps JavaScript API
 export async function loadGoogleMapsAPI(apiKey: string): Promise<void> {
-  if (googleMapsLoaded) return
+  if (googleMapsLoaded) {
+    // Carrying on would bill and restrict requests under the old key, not the active one
+    if (apiKey !== loadedApiKey) {
+      throw new Error(
+        'Google Maps is still using the previous API key. Reload the page to use the new one.'
+      )
+    }
+    return
+  }
 
   // If currently loading, check if it's the same key
   if (googleMapsPromise) {
@@ -70,6 +84,7 @@ export async function loadGoogleMapsAPI(apiKey: string): Promise<void> {
 
     window[callbackName] = () => {
       googleMapsLoaded = true
+      loadedApiKey = apiKey
       loadingApiKey = null
       resolve()
       delete window[callbackName]

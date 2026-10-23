@@ -111,6 +111,7 @@ interface KeysActions {
   removeProjectKey: (key: KeyType) => void
   setProjectKeys: (keys: KeysConfig | undefined, projectId?: string) => void
   setKeyOverride: (key: KeyType, source: 'browser' | 'env' | null) => void
+  copyKeyOverridesTo: (projectId: string) => void
   setProviderPreference: (preference: ProviderPreference) => void
   setCustomEndpoint: (config: CustomEndpointConfig | undefined) => void
 
@@ -219,6 +220,16 @@ export const useKeysStore = create<KeysStore>()(
         set({ customEndpoint: config })
       },
 
+      // Saving a project to a new place keeps the choices made for it there
+      copyKeyOverridesTo: projectId => {
+        const { projectId: current, keyOverrides } = get()
+        const forProject = current === undefined ? undefined : keyOverrides[current]
+        set({
+          projectId,
+          ...(forProject ? { keyOverrides: { ...keyOverrides, [projectId]: forProject } } : {}),
+        })
+      },
+
       // Computed getters (priority: project > browser > env, unless the user overrode the
       // project key, and never project for AI keys)
       getKey: key => {
@@ -280,6 +291,12 @@ export const useKeysStore = create<KeysStore>()(
 
 // Non-React access
 export const getKeysStore = () => useKeysStore.getState()
+
+// Choices are stored per route, so an example and a saved project with the same name
+// keep separate ones
+export function keysProjectId(routePrefix: string, name: string): string {
+  return `${routePrefix}/${name}`
+}
 
 // Convenience selectors
 export const useBrowserKeys = () => useKeysStore(state => state.browserKeys)
