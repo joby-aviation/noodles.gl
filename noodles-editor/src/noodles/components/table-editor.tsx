@@ -937,8 +937,11 @@ function EditableCell({ getValue, row, column, table }: EditableCellProps) {
 
   const renderedValue = (renderer as (value: unknown) => React.ReactNode)(currentValue)
 
-  // A number editor parses its own displayed text, so it must see Tab itself
-  const editorHandlesTab = colSchema.type === 'number'
+  // Number and compound editors must see Tab so they can parse the current control
+  // and move through controls inside the cell before the cell edit completes.
+  const editorHandlesTab = ['number', 'point2d', 'point3d', 'vec2', 'vec3', 'dateTime'].includes(
+    colSchema.type
+  )
   const opId = table.options.meta?.opId
 
   if (isEditing) {
@@ -1963,9 +1966,10 @@ export function TableEditor({
       anchor: TableCellCoordinate
     ) => {
       const parsed = parseTableClipboard(input, {
-        allowScalar: schema.columns.length > 0 && tableDataRef.current.length > 0,
+        allowScalar: schema.columns.length > 0,
         // An explicit table paste of unquoted multiline text means a one-column range
         allowSingleColumnRows: true,
+        allowSingleRowCsv: true,
       })
       if (parsed.kind === 'table') {
         applyParsedTablePaste(parsed, anchor, actionSource)
@@ -2292,6 +2296,7 @@ export function TableEditor({
   const handleCellKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLTableCellElement>, coordinate: TableCellCoordinate) => {
       if (coordinatesEqual(editingCell, coordinate)) return
+      const target = activeCell ?? coordinate
       switch (event.key) {
         case 'ArrowUp':
           event.preventDefault()
@@ -2320,11 +2325,11 @@ export function TableEditor({
         case 'Enter':
         case 'F2':
           event.preventDefault()
-          beginEditing(coordinate)
+          beginEditing(target)
           return
         case 'Escape':
           event.preventDefault()
-          selectCell(coordinate)
+          selectCell(target)
           return
         case 'Backspace':
         case 'Delete':
@@ -2332,17 +2337,36 @@ export function TableEditor({
           clearSelection()
           return
         case 'Tab':
-          event.preventDefault()
-          moveActiveCell(0, event.shiftKey ? -1 : 1, false)
+          {
+            const cellCount = tableDataRef.current.length * schema.columns.length
+            const linearIndex = target.row * schema.columns.length + target.column
+            const nextIndex = linearIndex + (event.shiftKey ? -1 : 1)
+            if (nextIndex < 0 || nextIndex >= cellCount) return
+            event.preventDefault()
+            const next = {
+              row: Math.floor(nextIndex / schema.columns.length),
+              column: nextIndex % schema.columns.length,
+            }
+            selectRange(next, next)
+          }
           return
         default:
           if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey) {
             event.preventDefault()
-            beginEditing(coordinate, event.key)
+            beginEditing(target, event.key)
           }
       }
     },
-    [beginEditing, clearSelection, editingCell, moveActiveCell, selectCell]
+    [
+      activeCell,
+      beginEditing,
+      clearSelection,
+      editingCell,
+      moveActiveCell,
+      schema.columns.length,
+      selectCell,
+      selectRange,
+    ]
   )
 
   const schemaDialogs = (

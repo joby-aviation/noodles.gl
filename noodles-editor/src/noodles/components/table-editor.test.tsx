@@ -957,6 +957,39 @@ describe('TableEditor', () => {
     }
   })
 
+  it('moves focus and printable editing to the pointer-drag focus cell', () => {
+    const onDataChange = vi.fn()
+    render(
+      <TableEditor
+        op={mockOp}
+        data={simpleData}
+        schema={simpleSchema}
+        onDataChange={onDataChange}
+        onSchemaChange={vi.fn()}
+      />
+    )
+
+    const alice = screen.getByText('Alice').closest('[role="gridcell"]') as HTMLElement
+    const bob = screen.getByText('Bob').closest('[role="gridcell"]') as HTMLElement
+    fireEvent.pointerDown(alice, { button: 0 })
+    fireEvent.pointerEnter(bob)
+    fireEvent.pointerUp(document)
+
+    expect(bob).toHaveFocus()
+    // A stale event target must not redirect the edit back to the drag anchor.
+    fireEvent.keyDown(alice, { key: 'Z' })
+    const editor = screen.getByRole('textbox')
+    expect(editor).toHaveValue('Z')
+    fireEvent.keyDown(editor, { key: 'Enter' })
+    expect(onDataChange).toHaveBeenCalledWith(
+      [
+        { name: 'Alice', count: 10 },
+        { name: 'Z', count: 20 },
+      ],
+      'Edit cell name'
+    )
+  })
+
   it('selects complete rows, columns, and the whole grid from headers', () => {
     render(
       <TableEditor
@@ -1027,6 +1060,29 @@ describe('TableEditor', () => {
       'Edit cell name'
     )
     expect(screen.getByText('Bob').closest('[role="gridcell"]')).toHaveAttribute('tabindex', '0')
+  })
+
+  it('wraps Tab to the next row and keeps keyboard movement visible', () => {
+    const scrollIntoView = vi.spyOn(Element.prototype, 'scrollIntoView')
+    render(
+      <TableEditor
+        op={mockOp}
+        data={simpleData}
+        schema={simpleSchema}
+        onDataChange={vi.fn()}
+        onSchemaChange={vi.fn()}
+      />
+    )
+
+    const ten = screen.getByText('10').closest('[role="gridcell"]') as HTMLElement
+    const bob = screen.getByText('Bob').closest('[role="gridcell"]') as HTMLElement
+    fireEvent.click(ten)
+    fireEvent.keyDown(ten, { key: 'Tab' })
+
+    expect(bob).toHaveAttribute('tabindex', '0')
+    expect(bob).toHaveFocus()
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: 'nearest', inline: 'nearest' })
+    scrollIntoView.mockRestore()
   })
 
   it('replaces a selected number cell from the first typed digit', () => {
