@@ -11,6 +11,7 @@ made the assistant better or worse.
 npm run bench:agent -- --provider webllm --model Qwen3-4B-q4f16_1-MLC --tasks T1,T2
 npm run bench:agent -- --provider webllm --model Qwen3-4B-q4f16_1-MLC --knobs ctx=16384
 npm run bench:agent -- --provider anthropic --model claude-haiku-4-5 --headless   # needs ANTHROPIC_API_KEY
+npm run bench:agent -- --provider anthropic --via bedrock --model claude-sonnet-5 --headless  # AWS credentials
 npm run bench:agent:judge -- bench/agent/results/raw/<runId>                      # needs AWS credentials for Bedrock
 npm run bench:agent:report -- bench/agent/results/<runId>.summary.json
 npm run bench:agent:report -- --compare bench/agent/results/<before>.summary.json bench/agent/results/<after>.summary.json
