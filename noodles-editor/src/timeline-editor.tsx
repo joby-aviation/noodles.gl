@@ -842,6 +842,8 @@ export default function TimelineEditor() {
       onChangeShowOverlay={noodles.onChangeShowOverlay}
       showDebugInfo={noodles.showDebugInfo}
       onChangeShowDebugInfo={noodles.onChangeShowDebugInfo}
+      autoLayoutOnConnect={noodles.autoLayoutOnConnect}
+      onChangeAutoLayoutOnConnect={noodles.onChangeAutoLayoutOnConnect}
       spreadsheetVisible={noodles.spreadsheetVisible}
       onChangeSpreadsheetVisible={noodles.onChangeSpreadsheetVisible}
     />

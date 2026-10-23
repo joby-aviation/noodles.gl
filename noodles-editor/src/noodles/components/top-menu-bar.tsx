@@ -52,6 +52,8 @@ interface TopMenuBarProps {
   onChangeShowOverlay?: (show: boolean) => void
   showDebugInfo?: boolean
   onChangeShowDebugInfo?: (show: boolean) => void
+  autoLayoutOnConnect?: boolean
+  onChangeAutoLayoutOnConnect?: (enabled: boolean) => void
   spreadsheetVisible?: boolean
   onChangeSpreadsheetVisible?: (show: boolean) => void
   reactFlowRef?: RefObject<HTMLDivElement>
@@ -80,6 +82,8 @@ export function TopMenuBar({
   onChangeShowOverlay,
   showDebugInfo,
   onChangeShowDebugInfo,
+  autoLayoutOnConnect,
+  onChangeAutoLayoutOnConnect,
   spreadsheetVisible,
   onChangeSpreadsheetVisible,
   reactFlowRef,
@@ -461,6 +465,16 @@ export function TopMenuBar({
                           <i className="pi pi-check" style={{ fontSize: '12px' }} />
                         </DropdownMenu.ItemIndicator>
                         Show spreadsheet
+                      </DropdownMenu.CheckboxItem>
+                      <DropdownMenu.CheckboxItem
+                        className={s.dropdownItem}
+                        checked={autoLayoutOnConnect}
+                        onCheckedChange={onChangeAutoLayoutOnConnect}
+                      >
+                        <DropdownMenu.ItemIndicator className={s.itemIndicator}>
+                          <i className="pi pi-check" style={{ fontSize: '12px' }} />
+                        </DropdownMenu.ItemIndicator>
+                        Auto-layout when connecting nodes
                       </DropdownMenu.CheckboxItem>
                       <DropdownMenu.Separator className={s.dropdownSeparator} />
 

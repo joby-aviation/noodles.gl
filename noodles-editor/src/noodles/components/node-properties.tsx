@@ -20,7 +20,6 @@ import {
   useTimelineStore,
 } from '../../timeline/timeline-store'
 import type { KeyframeValue } from '../../timeline/types'
-import { analytics } from '../../utils/analytics'
 import {
   CodeField,
   CompoundPropsField,
@@ -48,7 +47,6 @@ import { createNodesForType, type NodeType } from '../utils/node-creation-utils'
 import { computeRelativePath, getBaseName, parseHandleId } from '../utils/path-utils'
 import { captureOperatorInputs, firePropertyMutation } from '../utils/property-history'
 import { formatReference, parseReference, type ReferenceFormat } from '../utils/reference-utils'
-import type { AutoLayoutSettings } from '../utils/serialization'
 import { ErrorBoundary } from './error-boundary'
 import {
   BooleanFieldComponent,
@@ -1490,15 +1488,9 @@ export function EdgeProperties({ edge }: { edge: Edge }) {
 
 interface PropertyPanelProps {
   onAutoLayout?: () => void
-  autoLayout?: AutoLayoutSettings
-  onChangeAutoLayout?: (settings: AutoLayoutSettings) => void
 }
 
-export function PropertyPanel({
-  onAutoLayout,
-  autoLayout,
-  onChangeAutoLayout,
-}: PropertyPanelProps) {
+export function PropertyPanel({ onAutoLayout }: PropertyPanelProps) {
   // Only re-renders when selection changes, not on position updates during drag
   const { selectedNodeId, selectedNodeCount, selectedEdge, selectedEdgeCount } = useStore(
     s => {
@@ -1526,7 +1518,6 @@ export function PropertyPanel({
       : null
 
   const showLayoutButton = selectedNodeCount >= 2 && onAutoLayout !== undefined
-  const showAutoLayoutToggle = autoLayout !== undefined && onChangeAutoLayout !== undefined
 
   return (
     <div className={s.panel}>
@@ -1555,35 +1546,19 @@ export function PropertyPanel({
           ) : (
             <div className={s.opMeta}>Select a node or edge to inspect it</div>
           )}
-          {(showLayoutButton || showAutoLayoutToggle) && (
+          {showLayoutButton && (
             <div className={s.section}>
               <div className={s.sectionTitle}>Layout</div>
               <div className={s.layoutControls}>
-                {showLayoutButton && (
-                  <button
-                    type="button"
-                    className={s.layoutButton}
-                    onClick={onAutoLayout}
-                    title="Layout selected nodes (Cmd/Ctrl+L)"
-                  >
-                    <ViewGridIcon />
-                    <span>Layout selection</span>
-                  </button>
-                )}
-                {showAutoLayoutToggle && (
-                  <label className={s.checkboxLabel}>
-                    <input
-                      type="checkbox"
-                      className={s.checkbox}
-                      checked={autoLayout.enabled}
-                      onChange={e => {
-                        onChangeAutoLayout({ ...autoLayout, enabled: e.target.checked })
-                        analytics.track('auto_layout_toggled', { enabled: e.target.checked })
-                      }}
-                    />
-                    Auto-layout when connecting nodes
-                  </label>
-                )}
+                <button
+                  type="button"
+                  className={s.layoutButton}
+                  onClick={onAutoLayout}
+                  title="Layout selected nodes (Cmd/Ctrl+L)"
+                >
+                  <ViewGridIcon />
+                  <span>Layout selection</span>
+                </button>
               </div>
             </div>
           )}
