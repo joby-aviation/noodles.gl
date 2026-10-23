@@ -1,6 +1,12 @@
 // Renders the custom shader extensions on a real WebGL device to catch shader
 // compilation and uniform regressions when upgrading deck.gl / luma.gl
-import { Deck, type Layer, type LayerExtension, OrthographicView } from '@deck.gl/core'
+import {
+  CompositeLayer,
+  Deck,
+  type Layer,
+  type LayerExtension,
+  OrthographicView,
+} from '@deck.gl/core'
 import { SolidPolygonLayer } from '@deck.gl/layers'
 import { brightnessContrast, hueSaturation, vibrance } from '@luma.gl/effects'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
@@ -10,6 +16,21 @@ import { Mask3DExtension } from './mask-3d-extension'
 
 const SIZE = 100
 const RED = [255, 0, 0] as [number, number, number]
+
+// Mimics Tile3DLayer, which only forwards extension props listed in defaultProps
+class WrapperLayer extends CompositeLayer<Record<string, unknown>> {
+  static layerName = 'WrapperLayer'
+  renderLayers() {
+    return new SolidPolygonLayer(
+      this.getSubLayerProps({
+        id: 'polygons',
+        data: this.props.data,
+        getPolygon: this.props.getPolygon,
+        getFillColor: this.props.getFillColor,
+      })
+    )
+  }
+}
 
 let deck: Deck<OrthographicView> | null = null
 let canvas: HTMLCanvasElement | null = null
@@ -30,15 +51,23 @@ afterEach(cleanup)
 
 // Render a red square covering the viewport and return a pixel reader.
 // OrthographicView at zoom 0 maps 1 world unit to 1 pixel, centered on [0, 0].
-async function render(extensions: LayerExtension[], extensionProps: Record<string, unknown> = {}) {
+async function render(
+  extensions: LayerExtension[],
+  extensionProps: Record<string, unknown> = {},
+  { composite = false } = {}
+) {
   cleanup()
   canvas = document.createElement('canvas')
+  // Size the drawing buffer up front, otherwise it stays at the 300x150 default
+  canvas.width = SIZE
+  canvas.height = SIZE
   canvas.style.width = `${SIZE}px`
   canvas.style.height = `${SIZE}px`
   document.body.appendChild(canvas)
 
   const errors: Error[] = []
-  const layer = new SolidPolygonLayer({
+  const LayerClass = composite ? WrapperLayer : SolidPolygonLayer
+  const layer = new LayerClass({
     id: 'square',
     data: [
       [
@@ -127,24 +156,42 @@ describe('shader extensions', () => {
   })
 
   describe('Mask3DExtension', () => {
-    const mask = (innerRadius: number) =>
-      render([new Mask3DExtension()], { targetPosition: [0, 0, 0], innerRadius, fadeRange: 1 })
+    // Pixel (x, y) maps to world (x - 50, y - 50); OrthographicView flips y by default
+    const mask = (props: Record<string, unknown>, options?: { composite?: boolean }) =>
+      render([new Mask3DExtension()], { fadeRange: 0, ...props }, options)
 
-    it('discards everything with a small radius', async () => {
-      const pixel = await mask(10)
-      expect(pixel(50, 50)[3]).toBe(0)
-    })
-
-    it('keeps the center and discards the edges with a medium radius', async () => {
-      const pixel = await mask(40)
+    it('keeps a sphere centered on the target', async () => {
+      const pixel = await mask({ targetPosition: [0, 0, 0], innerRadius: 20 })
       expect(pixel(50, 50)).toEqual([255, 0, 0, 255])
-      expect(pixel(0, 50)[3]).toBe(0)
-      expect(pixel(99, 50)[3]).toBe(0)
+      expect(pixel(62, 50)).toEqual([255, 0, 0, 255])
+      expect(pixel(50, 62)).toEqual([255, 0, 0, 255])
+      expect(pixel(78, 50)[3]).toBe(0)
+      expect(pixel(22, 50)[3]).toBe(0)
+      expect(pixel(50, 78)[3]).toBe(0)
+      expect(pixel(50, 22)[3]).toBe(0)
     })
 
-    it('keeps everything with a large radius', async () => {
-      const pixel = await mask(10000)
-      expect(pixel(0, 50)).toEqual([255, 0, 0, 255])
+    it('follows an offset target', async () => {
+      const pixel = await mask({ targetPosition: [30, 20, 0], innerRadius: 10 })
+      expect(pixel(80, 70)).toEqual([255, 0, 0, 255])
+      expect(pixel(50, 50)[3]).toBe(0)
+      expect(pixel(80, 30)[3]).toBe(0)
+    })
+
+    it('fades to white beyond the inner radius', async () => {
+      const pixel = await mask({ targetPosition: [0, 0, 0], innerRadius: 10, fadeRange: 20 })
+      expect(pixel(50, 50)).toEqual([255, 0, 0, 255])
+      const [r, g, b, a] = pixel(70, 50)
+      expect([r, a]).toEqual([255, 255])
+      expect(g).toBeGreaterThan(50)
+      expect(b).toBeGreaterThan(50)
+      expect(pixel(90, 50)[3]).toBe(0)
+    })
+
+    it('applies to sublayers of composite layers', async () => {
+      const pixel = await mask({ targetPosition: [0, 0, 0], innerRadius: 20 }, { composite: true })
+      expect(pixel(50, 50)).toEqual([255, 0, 0, 255])
+      expect(pixel(90, 50)[3]).toBe(0)
     })
   })
 })

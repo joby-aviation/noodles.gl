@@ -102,7 +102,7 @@ import {
   continuousInterpolators,
 } from './color-schemes'
 import { FilterColorExtension } from './extensions/filter-color-extension'
-import { Mask3DExtension, toMaskTargetPosition } from './extensions/mask-3d-extension'
+import { Mask3DExtension } from './extensions/mask-3d-extension'
 import {
   ArrayField,
   applyNodeUIMetadata,
@@ -7074,10 +7074,9 @@ export class Mask3DExtensionOp extends Operator<Mask3DExtensionOp> {
     }
   }
   execute(props: ExtractProps<typeof this.inputs>): ExtractProps<typeof this.outputs> {
-    const [lng, lat, alt = 0] = props.targetPosition as number[]
     const extension = {
       extension: { type: 'Mask3DExtension' },
-      props: { ...props, targetPosition: toMaskTargetPosition(lng, lat, alt) },
+      props,
     }
     return { extension }
   }
