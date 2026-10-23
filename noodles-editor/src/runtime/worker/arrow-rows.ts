@@ -69,6 +69,9 @@ function validity(values: unknown[]): { bitmap?: Uint8Array; nulls: number } {
 
 const float64 = new Float64()
 
+// A missing key as null: Arrow reads undefined text as '' and an undefined number as NaN
+const orNull = (v: unknown) => v ?? null
+
 /** A list column: per row, its items flattened into one child (numbers, or points). */
 function listData(values: unknown[], child: (flat: unknown[][]) => Data, childType: Field): Data {
   const offsets = new Int32Array(values.length + 1)
@@ -100,12 +103,27 @@ function numbersData(rows: unknown[][]): Data<Float64> {
 
 function column(values: unknown[], shape: Shape): Vector {
   switch (shape.kind) {
-    case 'number':
-      return vectorFromArray(values, float64)
+    case 'number': {
+      // A missing value is null, never NaN: SQL's coalesce and IS NULL see it
+      const data = new Float64Array(values.length)
+      values.forEach((v, i) => {
+        if (typeof v === 'number') data[i] = v
+      })
+      const { bitmap, nulls } = validity(values)
+      return makeVector(
+        makeData({
+          type: float64,
+          length: values.length,
+          nullCount: nulls,
+          nullBitmap: bitmap,
+          data,
+        })
+      )
+    }
     case 'string':
-      return vectorFromArray(values, new Utf8())
+      return vectorFromArray(values.map(orNull), new Utf8())
     case 'boolean':
-      return vectorFromArray(values, new Bool())
+      return vectorFromArray(values.map(orNull), new Bool())
     case 'list':
       return makeVector(listData(values, numbersData, new Field('item', float64, true)))
     case 'points': {
