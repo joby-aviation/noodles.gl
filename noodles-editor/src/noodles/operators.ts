@@ -5453,7 +5453,12 @@ export class OrbitViewOp extends Operator<OrbitViewOp> {
         target: new Vec3Field([0, 0, 0], { returnType: 'tuple', optional: true }),
         rotationOrbit: new NumberField(0, { optional: true }),
         rotationX: new NumberField(0, { optional: true }),
-        zoom: new NumberField(1, { min: 0, max: 1, step: 0.01, optional: true }),
+        zoom: new NumberField(1, {
+          softMin: -10,
+          softMax: 10,
+          step: 0.01,
+          optional: true,
+        }),
       }),
     }
   }
