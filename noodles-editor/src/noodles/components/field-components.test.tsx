@@ -1005,6 +1005,16 @@ describe('ColorFieldComponent', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Open color picker' }))
     expect(document.querySelector('.chrome-picker')).toBeInTheDocument()
+
+    // The picker starts at opaque black: ChromePicker only shows the hex input
+    // when alpha is 1, and switches to r/g/b/a inputs otherwise
+    const hexInput = screen.getByLabelText('hex') as HTMLInputElement
+    expect(hexInput.value).toBe('#000000')
+    expect(screen.queryByLabelText('a')).not.toBeInTheDocument()
+
+    // The first pick keeps full opacity
+    fireEvent.change(hexInput, { target: { value: 'ff0000' } })
+    expect(field.value).toEqual([255, 0, 0, 255])
   })
 
   it('updates when field value changes externally', () => {

@@ -2,7 +2,10 @@ import { act, cleanup, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   CodeOp,
+  ContainerOp,
   DeckRendererOp,
+  GraphInputOp,
+  GraphOutputOp,
   MaplibreBasemapOp,
   MapViewStateOp,
   NumberOp,
@@ -34,6 +37,20 @@ function wireView(): GraphEdge[] {
     edge('/deck', 'out.vis', '/out', 'par.vis'),
     edge('/basemap', 'out.maplibre', '/deck', 'par.basemap'),
     edge('/camera', 'out.viewState', '/basemap', 'par.viewState'),
+  ]
+}
+
+// /scene/camera -> /scene/output -> /scene.out.out -> /basemap, with the boundary edge
+// a new container gets
+function wireContainerCamera(inner: GraphEdge[] = []): GraphEdge[] {
+  setOp('/scene', new ContainerOp('/scene'))
+  setOp('/scene/output', new GraphOutputOp('/scene/output'))
+  return [
+    edge('/scene', 'out.out', '/basemap', 'par.viewState'),
+    edge('/scene/output', 'out.propagatedValue', '/scene', 'out.out'),
+    ...(inner.length > 0
+      ? inner
+      : [edge('/scene/camera', 'out.viewState', '/scene/output', 'par.value')]),
   ]
 }
 
@@ -124,6 +141,18 @@ describe('selected map camera control', () => {
     expect(state.reason).toMatch(/does not drive the visible map/)
   })
 
+  it('enables a camera inside a container that drives the map', () => {
+    const camera = new MapViewStateOp('/scene/camera')
+    setOp('/scene/camera', camera)
+    const edges = [...wireView().filter(e => e.target !== '/basemap'), ...wireContainerCamera()]
+
+    expect(getCameraControlState(['/scene/camera'], context(edges))).toMatchObject({
+      op: camera,
+      enabled: true,
+      reason: null,
+    })
+  })
+
   describe('useCameraControlState', () => {
     afterEach(cleanup)
 
@@ -184,6 +213,57 @@ describe('selected map camera control', () => {
         edge('/camera', 'out.viewState', '/transform', 'par.data'),
         edge('/transform', 'out.data', '/basemap', 'par.viewState')
       )
+      expect(findViewCameraOpId(edges)).toBeNull()
+    })
+
+    it('follows a camera out of a container through its GraphOutputOp', () => {
+      setOp('/scene/camera', new MapViewStateOp('/scene/camera'))
+      const edges = [...wireView().filter(e => e.target !== '/basemap'), ...wireContainerCamera()]
+      expect(findViewCameraOpId(edges)).toBe('/scene/camera')
+    })
+
+    it('follows a camera into a container through its GraphInputOp', () => {
+      setOp('/scene/input', new GraphInputOp('/scene/input'))
+      const edges = [
+        ...wireView().filter(e => e.target !== '/basemap'),
+        ...wireContainerCamera([
+          edge('/scene/input', 'out.value', '/scene/output', 'par.value'),
+          edge('/scene', 'par.in', '/scene/input', 'par.parentValue'),
+        ]),
+        edge('/camera', 'out.viewState', '/scene', 'par.in'),
+      ]
+      expect(findViewCameraOpId(edges)).toBe('/camera')
+    })
+
+    it('returns null when a container transforms the camera', () => {
+      setOp('/scene/camera', new MapViewStateOp('/scene/camera'))
+      setOp('/scene/transform', new CodeOp('/scene/transform'))
+      const edges = [
+        ...wireView().filter(e => e.target !== '/basemap'),
+        ...wireContainerCamera([
+          edge('/scene/camera', 'out.viewState', '/scene/transform', 'par.data'),
+          edge('/scene/transform', 'out.data', '/scene/output', 'par.value'),
+        ]),
+      ]
+      expect(findViewCameraOpId(edges)).toBeNull()
+    })
+
+    it('follows the GraphOutputOp the container selected, not store order', () => {
+      setOp('/scene/camera', new MapViewStateOp('/scene/camera'))
+      setOp('/scene/other-camera', new MapViewStateOp('/scene/other-camera'))
+      const edges = [...wireView().filter(e => e.target !== '/basemap'), ...wireContainerCamera()]
+      // Store order puts /scene/output first; transformGraph picked /scene/second-output
+      const second = new GraphOutputOp('/scene/second-output')
+      setOp('/scene/second-output', second)
+      ;(getOpStore().getOp('/scene') as ContainerOp).setGraphOutputOp(second)
+      edges.push(edge('/scene/other-camera', 'out.viewState', '/scene/second-output', 'par.value'))
+      expect(findViewCameraOpId(edges)).toBe('/scene/other-camera')
+    })
+
+    it('returns null for a container without a GraphOutputOp', () => {
+      setOp('/scene/camera', new MapViewStateOp('/scene/camera'))
+      const edges = [...wireView().filter(e => e.target !== '/basemap'), ...wireContainerCamera()]
+      getOpStore().deleteOp('/scene/output')
       expect(findViewCameraOpId(edges)).toBeNull()
     })
 
@@ -271,5 +351,24 @@ describe('selected map camera control', () => {
 
     expect(captureCount).toBe(1)
     expect(commits).toEqual(['before-1'])
+  })
+
+  it('starts a fresh snapshot after a deck gesture is cut off', () => {
+    let captureCount = 0
+    const commits: string[] = []
+    const history = createCameraGestureHistory(
+      () => `before-${++captureCount}`,
+      before => commits.push(before)
+    )
+
+    history.setInteracting(true)
+    history.setInteracting(true)
+    // Camera control turned off mid-drag, so deck never reports the gesture ending
+    history.finish()
+    expect(commits).toEqual(['before-1'])
+
+    history.setInteracting(true)
+    history.setInteracting(false)
+    expect(commits).toEqual(['before-1', 'before-2'])
   })
 })
