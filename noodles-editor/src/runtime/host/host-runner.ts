@@ -9,7 +9,7 @@
 import type { DocEdge, DocNode, EditorDoc } from '@noodles.gl/planner'
 import { applySerializedFieldValue, type Field, ListField } from '../../noodles/fields'
 import { type IOperator, type Operator, opTypes } from '../../noodles/operators'
-import { useTimelineDependencyStore } from '../../noodles/utils/timeline-dependencies'
+import { readsTimeline } from '../../noodles/utils/timeline-dependencies'
 import { DECK_OP_INDEX, type DeckOp } from '../deck-ops'
 import { PENDING } from '../engine'
 import { isHostOperator } from './host-ops'
@@ -161,8 +161,7 @@ export class HostRunner {
           ? await this.options.resolveOutputs(node.id, result ?? {})
           : (result ?? {})
         entry.read = read
-        entry.timed =
-          useTimelineDependencyStore.getState().subscriptions.has(op.id) && codeReadsTime(node)
+        entry.timed = readsTimeline(op.id) && codeReadsTime(node)
         report.ran.push(node.id)
       } catch (error) {
         failed.add(node.id)

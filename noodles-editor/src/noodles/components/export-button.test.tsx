@@ -27,10 +27,10 @@ async function flush() {
 }
 
 describe('ExportButton', () => {
-  it('offers image and video export using the active Out node', () => {
+  it('offers image and video export using the deck render settings', () => {
     render(
       <ExportButton
-        activeOutOpId="/out"
+        deckName="deck"
         isRendering={false}
         takeScreenshot={vi.fn()}
         startRender={vi.fn()}
@@ -39,12 +39,12 @@ describe('ExportButton', () => {
 
     const button = screen.getByRole('button', { name: /export/i })
     expect(button).toBeEnabled()
-    expect(button.parentElement).toHaveAttribute('title', "Export using /out's render settings")
+    expect(button.parentElement).toHaveAttribute('title', "Export using deck's render settings")
 
     openMenu()
     expect(screen.getByRole('menuitem', { name: /image \(png\)/i })).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: /video \(mp4\)/i })).toBeInTheDocument()
-    expect(screen.getByText("Uses /out's render settings")).toBeInTheDocument()
+    expect(screen.getByText("Uses deck's render settings")).toBeInTheDocument()
   })
 
   it('names the WebM format when the render settings keep transparency', () => {
@@ -68,7 +68,7 @@ describe('ExportButton', () => {
     const takeScreenshot = vi.fn().mockResolvedValue(undefined)
     render(
       <ExportButton
-        activeOutOpId="/out"
+        deckName="deck"
         isRendering={false}
         takeScreenshot={takeScreenshot}
         startRender={vi.fn()}
@@ -86,7 +86,7 @@ describe('ExportButton', () => {
     const startRender = vi.fn().mockResolvedValue(undefined)
     render(
       <ExportButton
-        activeOutOpId="/out"
+        deckName="deck"
         isRendering={false}
         takeScreenshot={vi.fn()}
         startRender={startRender}
@@ -105,7 +105,7 @@ describe('ExportButton', () => {
     const startRender = vi.fn().mockResolvedValue(undefined)
     const { rerender } = render(
       <ExportButton
-        activeOutOpId="/out"
+        deckName="deck"
         isRendering={false}
         takeScreenshot={takeScreenshot}
         startRender={startRender}
@@ -116,7 +116,7 @@ describe('ExportButton', () => {
     // An export_video run starts while the menu is still open
     rerender(
       <ExportButton
-        activeOutOpId="/out"
+        deckName="deck"
         isRendering
         takeScreenshot={takeScreenshot}
         startRender={startRender}
@@ -134,10 +134,10 @@ describe('ExportButton', () => {
     expect(startRender).not.toHaveBeenCalled()
   })
 
-  it('is disabled with a reason when the project has no Out node', () => {
+  it('is disabled with a reason when the project has no deck', () => {
     render(
       <ExportButton
-        activeOutOpId={null}
+        deckName={null}
         isRendering={false}
         takeScreenshot={vi.fn()}
         startRender={vi.fn()}
@@ -146,17 +146,12 @@ describe('ExportButton', () => {
 
     const button = screen.getByRole('button', { name: /export/i })
     expect(button).toBeDisabled()
-    expect(button.parentElement).toHaveAttribute('title', 'Add an Out node to export')
+    expect(button.parentElement).toHaveAttribute('title', 'Add a Deck node to export')
   })
 
   it('shows progress and stays disabled while a render runs', () => {
     const { rerender } = render(
-      <ExportButton
-        activeOutOpId="/out"
-        isRendering
-        takeScreenshot={vi.fn()}
-        startRender={vi.fn()}
-      />
+      <ExportButton deckName="deck" isRendering takeScreenshot={vi.fn()} startRender={vi.fn()} />
     )
 
     // Before the first frame finishes there is no percent to show
@@ -170,7 +165,7 @@ describe('ExportButton', () => {
 
     rerender(
       <ExportButton
-        activeOutOpId="/out"
+        deckName="deck"
         isRendering={false}
         takeScreenshot={vi.fn()}
         startRender={vi.fn()}

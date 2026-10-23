@@ -1,24 +1,6 @@
 // Type definitions for Claude AI integration
 import { z } from 'zod'
 
-export interface Manifest {
-  version: string
-  generated: string
-  commit: string
-  bundles: {
-    codeIndex: BundleInfo
-    operatorRegistry: BundleInfo
-    docsIndex: BundleInfo
-    examples: BundleInfo
-  }
-}
-
-export interface BundleInfo {
-  file: string
-  size: number
-  hash: string
-}
-
 export interface CodeIndex {
   version: string
   files: Record<string, FileIndex>
@@ -54,32 +36,6 @@ export interface Export {
   name: string
   type: string
   line: number
-}
-
-export interface OperatorRegistry {
-  version: string
-  operators: Record<string, OperatorSchema>
-  categories: Record<string, string[]>
-}
-
-export interface OperatorSchema {
-  name: string
-  type: string
-  category: 'data' | 'layer' | 'renderer' | 'accessor' | 'utility' | 'container'
-  description: string
-  docstring?: string
-  inputs: Record<string, FieldSchema>
-  outputs: Record<string, FieldSchema>
-  sourceFile: string
-  sourceLine: number
-}
-
-export interface FieldSchema {
-  name: string
-  type: string
-  description?: string
-  required: boolean
-  defaultValue?: unknown
 }
 
 export interface DocsIndex {
@@ -138,7 +94,7 @@ export interface NodeAnnotation {
 }
 
 export interface LoadProgress {
-  stage: 'manifest' | 'code' | 'operators' | 'docs' | 'examples' | 'complete'
+  stage: 'manifest' | 'code' | 'docs' | 'examples' | 'complete'
   loaded: number
   total: number
   bytesLoaded: number

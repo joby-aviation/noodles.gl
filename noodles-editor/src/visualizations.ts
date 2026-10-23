@@ -2,9 +2,7 @@ import type { DeckProps, FirstPersonViewState, MapViewState } from '@deck.gl/cor
 import type { RefObject } from 'react'
 
 import type { MapProps } from 'react-map-gl/maplibre'
-import type { CopyControlsRef } from './noodles/components/copy-controls'
-import type { UndoRedoHandlerRef } from './noodles/components/UndoRedoHandler'
-import type { GraphEdge } from './noodles/utils/map-camera-control'
+import type { CopyControlsRef, UndoRedoHandlerRef } from './editor/edit-menu'
 import type { RenderSettings } from './noodles/utils/serialization'
 
 export type ViewState =

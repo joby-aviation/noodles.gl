@@ -6,7 +6,7 @@
 import { type DocNode, OPERATOR_INDEX, type ParamValue } from '@noodles.gl/planner'
 import { type ComponentType, useEffect, useRef, useState } from 'react'
 import { GeoEditorDialog } from '../noodles/components/geo-editor-dialog'
-import { MapStyleConfiguratorDialog } from '../noodles/components/map-style-configurator-op'
+import { MapStyleConfiguratorDialog } from '../noodles/components/map-style-configurator'
 import RampEditor, { type RampStop } from '../noodles/components/ramp-editor'
 import { TableEditor } from '../noodles/components/table-editor'
 import { inferSchema, type TableSchema } from '../noodles/table-schema'

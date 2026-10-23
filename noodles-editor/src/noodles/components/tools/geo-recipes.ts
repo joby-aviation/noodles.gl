@@ -1,5 +1,3 @@
-import type { OpType } from '../../operators'
-
 // Recipes are declarative descriptions of a single-purpose GIS flow, in the terms of the
 // Noodles operator it was: the wizard renders them as a form, and recipeDoc() (editor/
 // tool-docs.ts) turns the answers into the planner operator that operator converts to.
@@ -55,7 +53,8 @@ export interface GeoRecipe {
   id: string
   name: string
   summary: string
-  opType: OpType
+  // The Noodles operator the recipe stood for; gis-conversions.ts maps it to a planner operator
+  opType: string
   // Base name for the generated node id (e.g. 'buffer' -> '/buffer', '/buffer-1', ...)
   nodeName: string
   group: RecipeGroup

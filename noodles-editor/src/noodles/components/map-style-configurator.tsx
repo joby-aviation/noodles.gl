@@ -1,6 +1,5 @@
 import * as Dialog from '@radix-ui/react-dialog'
 import { Cross2Icon, EyeNoneIcon, EyeOpenIcon } from '@radix-ui/react-icons'
-import type { NodeProps as ReactFlowNodeProps } from '@xyflow/react'
 import cx from 'classnames'
 import { useEffect, useMemo, useState } from 'react'
 import 'maplibre-gl/dist/maplibre-gl.css'
@@ -19,23 +18,8 @@ import {
   type StyleConfiguratorData,
 } from '../../utils/map-style-utils'
 import { CARTO_DARK } from '../../utils/map-styles'
-import type { Field, IField } from '../fields'
-import s from '../noodles.module.css'
-import type { IOperator, MapStyleConfiguratorOp, Operator } from '../operators'
-import { getOp } from '../store'
-import type { NodeDataJSON } from '../transform-graph'
-import { usePropertyHistory } from '../utils/property-history'
 import { ColorSwatch } from './color-swatch'
-import { FieldComponent } from './field-components'
 import configuratorStyles from './map-style-configurator.module.css'
-import {
-  NodeHeader,
-  OutputHandle,
-  PAR_HANDLE_OPTIONS,
-  useFieldVisibility,
-  useLocked,
-  useNodeDimmed,
-} from './op-components'
 
 export function LayerRow({
   layer,
@@ -390,70 +374,5 @@ export function MapStyleConfiguratorDialog({
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
-  )
-}
-
-// Outer shell: checks op existence before any hooks fire (avoids hooks-order violation)
-export function MapStyleConfiguratorOpComponent(
-  props: ReactFlowNodeProps<NodeDataJSON<MapStyleConfiguratorOp>> & {
-    type: 'MapStyleConfiguratorOp'
-  }
-) {
-  debugUI('MapStyleConfiguratorOpComponent render id=%s', props.id)
-  const op = getOp(props.id as string)
-  if (!op) {
-    debugUI('MapStyleConfiguratorOpComponent op not found yet for id=%s', props.id)
-    return null
-  }
-  return <MapStyleConfiguratorOpInner {...props} op={op as Operator<MapStyleConfiguratorOp>} />
-}
-
-function MapStyleConfiguratorOpInner({
-  id,
-  type,
-  op,
-}: ReactFlowNodeProps<NodeDataJSON<MapStyleConfiguratorOp>> & {
-  type: 'MapStyleConfiguratorOp'
-  op: Operator<MapStyleConfiguratorOp>
-}) {
-  debugUI('MapStyleConfiguratorOpInner render id=%s', id)
-  const isDimmed = useNodeDimmed(id)
-  const locked = useLocked(op as Operator<IOperator>)
-  const [dialogOpen, setDialogOpen] = useState(false)
-  const { captureStart, commitChange } = usePropertyHistory()
-  useFieldVisibility(op as Operator<IOperator>)
-
-  return (
-    <div className={cx(s.wrapper, { [s.wrapperDimmed]: isDimmed })}>
-      <NodeHeader id={id} type={type} op={op as Operator<IOperator>} />
-      <div className={s.content}>
-        <FieldComponent
-          id="baseStyle"
-          field={op.inputs.baseStyle as Field<IField>}
-          disabled={locked}
-          handle={PAR_HANDLE_OPTIONS}
-        />
-        <button
-          type="button"
-          className={s.configureButton}
-          onClick={() => setDialogOpen(true)}
-          disabled={locked}
-        >
-          Configure Style
-        </button>
-        <div className={s.outputHandleContainer}>
-          <OutputHandle id="mapStyle" field={op.outputs.mapStyle as Field<IField>} />
-        </div>
-      </div>
-      <MapStyleConfiguratorDialog
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        baseStyle={op.inputs.baseStyle.value as string | object | undefined}
-        overrides={op.inputs.overrides.value as StyleConfiguratorData | undefined}
-        onOverridesChange={next => op.inputs.overrides.setValue(next)}
-        onEditStart={captureStart}
-        onEditEnd={() => commitChange('Configure map style')}
-      />
-    </div>
   )
 }

@@ -1,6 +1,6 @@
 import { useCallback, useEffect } from 'react'
 import { useNodeRows } from '../../../editor/node-rows'
-import { useUIStore } from '../../store'
+import { useUIStore } from '../../../editor/ui-store'
 import s from './spreadsheet-pane.module.css'
 import { SpreadsheetViewer } from './spreadsheet-viewer'
 

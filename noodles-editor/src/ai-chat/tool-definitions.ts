@@ -12,7 +12,7 @@ import type {
 import type { ExportStatusParams, ExportVideoParams } from './export-video'
 import type { MCPTools } from './mcp-tools'
 import type { RunCodeParams } from './run-code'
-import type { NoodlesProject, SearchCodeParams, ToolResult } from './types'
+import type { SearchCodeParams, ToolResult } from './types'
 
 // JSON Schema subset accepted by both Anthropic tools and WebMCP registerTool
 export interface ToolInputSchema {
@@ -47,12 +47,7 @@ export interface ToolDefinition {
   // in the chat is one click from the Export button, and a multi-minute render the
   // model starts on its own would take over the canvas and playhead under them.
   audience?: 'external'
-  // getProject supplies the live project for tools that need it injected (analyze_project)
-  execute: (
-    tools: MCPTools,
-    params: Record<string, unknown>,
-    getProject: () => NoodlesProject | null
-  ) => Promise<ToolResult> | ToolResult
+  execute: (tools: MCPTools, params: Record<string, unknown>) => Promise<ToolResult> | ToolResult
 }
 
 export const toolDefinitions: ToolDefinition[] = [

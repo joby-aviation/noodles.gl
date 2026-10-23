@@ -6,8 +6,10 @@ import { OP_CATALOG } from './op-catalog'
 import { DEFAULTS } from './to-editor-doc'
 
 describe('the operator catalog', () => {
-  it('has a plan for every Noodles operator, and nothing else', () => {
-    expect(Object.keys(OP_CATALOG).sort()).toEqual(Object.keys(opTypes).sort())
+  // The catalog names every operator older projects can hold; only the classes that still run
+  // (host operators, and those whose fields a parameter uses) are left in Noodles
+  it('has a plan for every Noodles operator class still in the editor', () => {
+    expect(Object.keys(opTypes).filter(type => !OP_CATALOG[type])).toEqual([])
   })
 })
 
@@ -19,16 +21,17 @@ const sameColor = (v: unknown) => {
 }
 
 describe('the conversions', () => {
+  // Checked against the classes before they were removed; still checked where a class remains
   it("read Noodles' own defaults for the inputs noodles.json leaves out", () => {
     const differ: string[] = []
     const tables = [
       ...Object.entries(GIS_CONVERSIONS).map(([type, c]) => [type, c.defaults] as const),
       ...Object.entries(DEFAULTS),
     ]
+    const classes = opTypes as unknown as Record<string, new (id: string) => Operator<IOperator>>
     for (const [type, defaults] of tables) {
-      const Class = (opTypes as unknown as Record<string, new (id: string) => Operator<IOperator>>)[
-        type
-      ]
+      const Class = classes[type]
+      if (!Class) continue
       const op = new Class(`/__defaults-${type}`)
       for (const [name, value] of Object.entries(defaults)) {
         const field = (op.inputs as Record<string, Field>)[name]

@@ -6,16 +6,15 @@ import type { EditorDoc } from '@noodles.gl/planner'
 import { PrimeReactProvider } from 'primereact/api'
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useParams } from 'wouter'
-import type { CopyControlsRef } from '../noodles/components/copy-controls'
+import { getPendingQuickStartAction } from '../components/quick-start-modal'
 import { ErrorBoundary } from '../noodles/components/error-boundary'
 import { LayerPanel } from '../noodles/components/layer-panel'
 import { NodeTreeSidebar } from '../noodles/components/node-tree-sidebar'
 import { SidebarTabs } from '../noodles/components/sidebar-tabs'
-import type { UndoRedoHandlerRef } from '../noodles/components/UndoRedoHandler'
+import { CanvasDropImport } from '../noodles/components/tools/canvas-drop-import'
 import { useActiveStorageType, useFileSystemStore } from '../noodles/filesystem-store'
 import newProjectJSON from '../noodles/new.json'
-import { copyExampleAssetsToMemory, load, readAssetBinary, save } from '../noodles/storage'
-import { useUIStore } from '../noodles/store'
+import { copyExampleAssetsToMemory, load, readAssetBinary } from '../noodles/storage'
 import { memoryProjectStore } from '../noodles/utils/memory-project-store'
 import {
   DEFAULT_RENDER_SETTINGS,
@@ -25,15 +24,19 @@ import {
 } from '../noodles/utils/serialization'
 import { TimelineProvider } from '../timeline/timeline-context'
 import { useTimelineStore } from '../timeline/timeline-store'
+import { analytics } from '../utils/analytics'
 import type { Visualization } from '../visualizations'
 import { bindEngine, settleEngine, useEngineState, visCommitted } from './doc-engine'
 import { canPaste, copySelection, DocNetwork, pasteClipboard } from './doc-network'
 import { setParam } from './doc-ops'
+import { useUIStore } from './ui-store'
 import '../noodles/layers.css'
 import { DocProperties } from './doc-properties'
 import { docStore, useEditor } from './doc-store'
 import { bindTimeline, resetTimelinePanel } from './doc-timeline'
+import type { CopyControlsRef, UndoRedoHandlerRef } from './edit-menu'
 import { loadDoc } from './load-doc'
+import { useProjectFiles } from './project-files'
 
 const ChatPanel = lazy(() => import('../ai-chat/chat-panel').then(m => ({ default: m.ChatPanel })))
 
@@ -152,7 +155,10 @@ export function useDocNoodles(): Visualization {
         }
         if (routePrefix === '/examples') {
           const url = exampleProjectUrls[`../examples/${projectName}/noodles.json`]
-          if (!url) throw new Error(`No example named ${projectName}`)
+          if (!url) {
+            files.setNotFound('example')
+            return
+          }
           const response = await fetch(url)
           if (!response.ok) throw new Error(`Failed to fetch example: ${response.statusText}`)
           const json = await response.json()
@@ -163,6 +169,10 @@ export function useDocNoodles(): Visualization {
           return
         }
         const result = await load(storageType, projectName)
+        if (!result.success && result.error.type === 'not-found') {
+          files.setNotFound('project')
+          return
+        }
         if (!result.success) throw new Error(result.error.message)
         setCurrentDirectory(result.data.directoryHandle, projectName)
         setActiveStorageType(storageType)
@@ -177,22 +187,6 @@ export function useDocNoodles(): Visualization {
       }
     })()
   }, [projectName, routePrefix])
-
-  const onSaveProject = useCallback(async () => {
-    const name = projectName ?? 'untitled'
-    const current = docStore().get().doc
-    const result = await save(
-      storageType,
-      name,
-      current as unknown as NoodlesProjectJSON,
-      new Map()
-    )
-    if (!result.success) {
-      setError(result.error)
-      return
-    }
-    docStore().set({ dirty: false })
-  }, [projectName, storageType, setError])
 
   const onDownload = useCallback(async () => {
     await saveProjectLocally(
@@ -229,13 +223,49 @@ export function useDocNoodles(): Visualization {
     input.click()
   }, [setError])
 
+  const files = useProjectFiles({
+    projectName,
+    storageType,
+    navigate,
+    open: openJson,
+    onNewProject,
+    onImport,
+  })
+
+  // An action the quick start chose before the project opened: a question for the assistant,
+  // or a file to draw (coordinates found) or to ask the assistant about
+  const loadId = useEditor(s => s.loadId)
+  const [pendingImportFile, setPendingImportFile] = useState<File | null>(null)
+  const [chatInitialMessage, setChatInitialMessage] = useState<string>()
+  useEffect(() => {
+    if (loadId === 0) return
+    const action = getPendingQuickStartAction()
+    if (!action) return
+    if (action.type === 'llm' && action.question) {
+      setChatInitialMessage(action.question)
+      setShowChatPanel(true)
+      analytics.track('quick_start_llm_action_handled')
+    } else if (action.type === 'file' && action.file) {
+      if (action.mode === 'map') {
+        setPendingImportFile(action.file)
+        analytics.track('quick_start_file_action_handled', { mode: 'map' })
+        return
+      }
+      setChatInitialMessage(
+        `I just uploaded a file called "${action.file.name}". Please help me create a visualization from this data. First, I'll need to import it using the Data Importer (click the upload icon in the toolbar). Can you guide me through the process?`
+      )
+      setShowChatPanel(true)
+      analytics.track('quick_start_file_action_handled', { mode: 'chat' })
+    }
+  }, [loadId])
+
   const undoRedoRef = useRef<UndoRedoHandlerRef>({
     undo: () => docStore().undo(),
     redo: () => docStore().redo(),
     canUndo: () => docStore().canUndo(),
     canRedo: () => docStore().canRedo(),
     getState: () => ({ canUndo: docStore().canUndo(), canRedo: docStore().canRedo() }),
-  } as UndoRedoHandlerRef)
+  })
   const copyControlsRef = useRef<CopyControlsRef>({
     copy: () => void copySelection(),
     paste: () => void pasteClipboard(),
@@ -259,7 +289,13 @@ export function useDocNoodles(): Visualization {
     <div ref={reactFlowRef} style={{ position: 'absolute', inset: 0 }}>
       <PrimeReactProvider>
         <TimelineProvider>
-          <DocNetwork />
+          <DocNetwork>
+            <CanvasDropImport
+              pendingFile={pendingImportFile}
+              onPendingFileHandled={() => setPendingImportFile(null)}
+            />
+          </DocNetwork>
+          {files.dialogs}
         </TimelineProvider>
       </PrimeReactProvider>
     </div>
@@ -267,7 +303,11 @@ export function useDocNoodles(): Visualization {
 
   const chatPanel = (
     <Suspense fallback={null}>
-      <ChatPanel onClose={() => setShowChatPanel(false)} isVisible={showChatPanel} />
+      <ChatPanel
+        onClose={() => setShowChatPanel(false)}
+        isVisible={showChatPanel}
+        initialMessage={chatInitialMessage}
+      />
     </Suspense>
   )
 
@@ -295,7 +335,9 @@ export function useDocNoodles(): Visualization {
     spreadsheetVisible,
     onChangeSpreadsheetVisible: setSpreadsheetVisible,
     projectName: projectName ?? doc.name,
-    onSaveProject,
+    onSaveProject: files.onSaveProject,
+    onSaveAs: files.onSaveAs,
+    onRename: files.onRename,
     onDownload,
     onNewProject,
     onImport,
