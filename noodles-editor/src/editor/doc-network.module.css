@@ -167,57 +167,6 @@
 }
 
 /* The network's path, Houdini's network bar, and the keys it takes */
-.bar {
-  position: absolute;
-  top: 8px;
-  left: 8px;
-  right: 8px;
-  z-index: 5;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  pointer-events: none;
-  font-size: 11px;
-}
-
-.crumbs {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  padding: 2px 6px;
-  border-radius: 4px;
-  background: var(--color-bg-primary, #282b2fde);
-  border: 1px solid var(--color-border, #333);
-  font-family: ui-monospace, "SF Mono", Menlo, monospace;
-  pointer-events: auto;
-}
-
-.crumbs button {
-  background: none;
-  border: 0;
-  padding: 0 3px;
-  color: var(--color-text-accent, #4a9eff);
-  cursor: pointer;
-  font: inherit;
-}
-
-.crumbSep {
-  color: var(--color-text-secondary, #888);
-}
-
-.hint {
-  margin-left: auto;
-  color: var(--color-text-disabled, #555);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  min-width: 0;
-}
-
-.hint kbd {
-  font-family: inherit;
-  color: var(--color-text-secondary, #888);
-}
 
 .reference path {
   stroke-dasharray: 4 4;
@@ -227,4 +176,86 @@
   opacity: 0;
   pointer-events: none;
   top: 12px;
+}
+
+/* What a node does, on the node: its key parameters, a color's swatch */
+.summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px 2px;
+  color: var(--node-text-color, #e2dede);
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 10px;
+  min-width: 0;
+}
+
+.summaryText {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0.85;
+}
+
+/* Houdini's node info: a mark in the header, the card on hover */
+.info {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  border: 1px solid currentcolor;
+  font-size: 8.5px;
+  font-style: italic;
+  font-weight: 700;
+  opacity: 0.55;
+  cursor: help;
+}
+
+.info:hover {
+  opacity: 1;
+}
+
+.infoCard {
+  display: none;
+  position: absolute;
+  top: calc(100% + 8px);
+  left: -12px;
+  z-index: 10;
+  width: 260px;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  border: 1px solid var(--color-border, #333);
+  border-radius: 6px;
+  background: var(--color-bg-primary-solid, #1e2126);
+  box-shadow: 0 6px 18px rgb(0 0 0 / 55%);
+  color: var(--color-text-secondary, #aaa);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 400;
+  line-height: 1.4;
+  white-space: normal;
+  cursor: default;
+}
+
+.info:hover .infoCard {
+  display: flex;
+}
+
+.infoTitle {
+  color: var(--node-text-color, #e2dede);
+  font-weight: 600;
+}
+
+.infoStat {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 10.5px;
+  color: var(--node-text-color, #e2dede);
+}
+
+.infoError {
+  color: #ff8a8a;
 }

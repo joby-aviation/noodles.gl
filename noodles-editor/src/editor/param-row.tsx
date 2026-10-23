@@ -12,6 +12,7 @@ import {
   type OpDef,
   type ParamDef,
   type ParamValue,
+  resolveRef,
 } from '@noodles.gl/planner'
 import cx from 'classnames'
 import { useEffect, useState } from 'react'
@@ -24,6 +25,7 @@ import { clearTrack, pathTo, promote, removeKey, setKey, setParam } from './doc-
 import { docStore, useEditor } from './doc-store'
 import { NodeFields } from './field-adapter'
 import { ContextMenu, type MenuItem } from './menus'
+import { RefPicker, referenceable } from './ref-picker'
 
 /** Whether a parameter shows, given the values its `when` reads. */
 export function shown(def: ParamDef, node: DocNode, op: OpDef): boolean {
@@ -111,6 +113,7 @@ export function ParamRow({
   const time = useEditor(st => st.time)
   const copied = useEditor(st => st.copiedParam)
   const [menu, setMenu] = useState<{ x: number; y: number }>()
+  const [picker, setPicker] = useState<{ x: number; y: number }>()
   const key = `${node.id}.${def.name}`
   const raw: ParamValue | undefined = node.params[def.name]
   const mode =
@@ -128,6 +131,31 @@ export function ParamRow({
   // What a change costs is the planner's business; debug mode shows it
   const routes = debug ? routesOf(def, key, engine) : []
   const numeric = KEYABLE.has(def.kind)
+
+  // What this parameter reads, and what reads it
+  const source = (() => {
+    if (!isRef(raw)) return undefined
+    try {
+      const k = resolveRef(doc, node, raw.ref)
+      const dot = k.lastIndexOf('.')
+      const n = doc.nodes.find(x => x.id === k.slice(0, dot))
+      const p = n && OPERATOR_INDEX.get(n.op)?.params.find(x => x.name === k.slice(dot + 1))
+      return n ? { node: n, label: `${nameOf(n)} › ${p?.label ?? k.slice(dot + 1)}` } : undefined
+    } catch {
+      return undefined
+    }
+  })()
+  const readers = [
+    ...new Set(
+      (engine.lowered?.references ?? [])
+        .filter(r => r.from === key)
+        .map(r => r.to.slice(0, r.to.lastIndexOf('.')))
+        .filter(id => id !== node.id)
+    ),
+  ]
+    .map(id => doc.nodes.find(n => n.id === id))
+    .filter((n): n is DocNode => !!n)
+  const goTo = (n: DocNode) => docStore().set({ network: n.parent, selection: [n.id] })
 
   const set = (v: ParamValue | undefined) =>
     docStore().edit(d => setParam(d, node.id, def.name, v, docStore().get().time), `p:${key}`)
@@ -147,6 +175,14 @@ export function ParamRow({
                   if (e) set({ expr: e })
                 },
               },
+        ]
+      : []),
+    ...(referenceable(def) && !wired
+      ? [
+          {
+            label: 'Reference a parameter…',
+            onClick: () => setPicker(menu ?? { x: 200, y: 200 }),
+          },
         ]
       : []),
     { label: 'Copy parameter', onClick: () => docStore().set({ copiedParam: key }) },
@@ -225,6 +261,29 @@ export function ParamRow({
               {value !== undefined ? ` = ${fmt(value)}` : ''}
             </span>
           </div>
+        ) : mode === 'ref' ? (
+          <div className={s.paramDriven}>
+            <span className={s.paramLabel}>{label ?? def.label}</span>
+            <span className={s.refChip}>
+              <button
+                type="button"
+                className={s.refChipSource}
+                title={`Reads ${isRef(raw) ? raw.ref : ''}. Click to go to it.`}
+                onClick={() => source && goTo(source.node)}
+              >
+                ⛓ {source?.label ?? (isRef(raw) ? raw.ref : '')}
+              </button>
+              {value !== undefined && <span className={s.evaluated}>{fmt(value)}</span>}
+              <button
+                type="button"
+                className={s.refChipBreak}
+                title="Break the reference, keeping its value"
+                onClick={() => set(value === undefined ? undefined : (value as ParamValue))}
+              >
+                ×
+              </button>
+            </span>
+          </div>
         ) : mode !== 'literal' ? (
           <div className={s.paramDriven}>
             <span className={s.paramLabel}>{label ?? def.label}</span>
@@ -248,6 +307,19 @@ export function ParamRow({
             />
           )
         )}
+        {referenceable(def) && !wired && mode === 'literal' && (
+          <button
+            type="button"
+            className={s.linkButton}
+            title="Reference another node's parameter"
+            onClick={e => {
+              const r = e.currentTarget.getBoundingClientRect()
+              setPicker({ x: r.left, y: r.bottom + 4 })
+            }}
+          >
+            ⛓
+          </button>
+        )}
         {canKey || track ? (
           <button
             type="button"
@@ -263,6 +335,33 @@ export function ParamRow({
           />
         ) : null}
       </div>
+      {readers.length > 0 && (
+        <div className={s.readers}>
+          used by{' '}
+          {readers.map((n, i) => (
+            <span key={n.id}>
+              {i > 0 && ', '}
+              <button type="button" onClick={() => goTo(n)}>
+                {nameOf(n)}
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+      {picker && (
+        <RefPicker
+          doc={doc}
+          node={node}
+          def={def}
+          x={picker.x}
+          y={picker.y}
+          onClose={() => setPicker(undefined)}
+          onPick={k => {
+            set({ ref: pathTo(docStore().get().doc, node, k) })
+            setPicker(undefined)
+          }}
+        />
+      )}
       {routes.length > 0 && (
         <div className={s.routes}>
           {routes.map(r => (

@@ -15,10 +15,14 @@ import { Handle, type NodeProps, Position, useConnection } from '@xyflow/react'
 import cx from 'classnames'
 import { useMemo } from 'react'
 import { categories } from '../noodles/components/categories'
+import { ColorSwatch } from '../noodles/components/color-swatch'
 import ns from '../noodles/noodles.module.css'
 import { type EngineState, useEngineState } from './doc-engine'
 import s from './doc-network.module.css'
-import { useEditor } from './doc-store'
+import { setParam } from './doc-ops'
+import { docStore, useEditor } from './doc-store'
+import { colorToFieldHex, fieldHexToColor } from './field-adapter'
+import { shownValue, summaryOf } from './node-summary'
 
 const CATEGORY_HEADERS: Record<string, string | undefined> = {
   data: ns.headerData,
@@ -122,6 +126,24 @@ export function nodeStatus(id: string, engine: EngineState): { badges: Badge[]; 
   return { badges, error }
 }
 
+/** What the info card says about a node: what it is, what it made, what went wrong. */
+function infoLines(id: string, engine: EngineState): string[] {
+  const lines: string[] = []
+  const layer = engine.layers.find(l => l.id === id)
+  if (layer) {
+    lines.push(
+      `${layer.rows.toLocaleString()} drawn${layer.paths ? ` in ${layer.paths.toLocaleString()} paths` : ''}`
+    )
+    lines.push(`query ${layer.queryMs.toFixed(1)} ms · cpu pass ${layer.evalMs.toFixed(1)} ms`)
+  }
+  const irIds = engine.lowered?.irNodes[id] ?? []
+  const out = engine.lowered?.outputs[id]?.out ?? irIds[irIds.length - 1]
+  const rel = engine.program?.relations.find(r => r.id === out)
+  if (rel?.rows !== undefined) lines.push(`${rel.rows.toLocaleString()} rows`)
+  if (rel) lines.push(`columns: ${rel.shape.columns.map(c => c.name).join(', ')}`)
+  return lines
+}
+
 /** The type a dragged wire carries, from the handle it started at. */
 function draggedType(
   handle: string | undefined,
@@ -179,8 +201,12 @@ export function DocNodeComponent({ id, selected }: NodeProps) {
   }
   const status = nodeStatus(id, engine)
   const error = status.error
-  // Rows drawn are the user's; how the planner stored and ran a node is for debug mode
-  const badges = debug ? status.badges : status.badges.filter(b => b.kind === 'rows')
+  // How the planner stored and ran a node is for debug mode; what it drew is in the info card
+  const badges = debug ? status.badges : []
+  const summary = summaryOf(node, op)
+  const info = infoLines(id, engine)
+  const swatch = node.op === 'color' ? op.params.find(p => p.kind === 'color') : undefined
+  const swatchValue = swatch ? (node.params[swatch.name] ?? swatch.default) : undefined
 
   // While a wire is dragged from an output, the inputs it fits stay lit and the rest dim; the
   // parameter ports it could drive appear
@@ -218,12 +244,46 @@ export function DocNodeComponent({ id, selected }: NodeProps) {
         [s.bypassed]: node.flags?.bypass,
         [s.displayed]: node.flags?.display,
       })}
-      title={error ?? op.description}
     >
       <div className={cx(s.header, header)}>
         <span className={s.name}>{nameOf(node)}</span>
         <span className={s.type}>{op.label}</span>
+        <span className={cx(s.info, 'nodrag')}>
+          i
+          <span className={s.infoCard} role="tooltip">
+            <span className={s.infoTitle}>{op.label}</span>
+            <span>{op.description}</span>
+            {info.map(l => (
+              <span key={l} className={s.infoStat}>
+                {l}
+              </span>
+            ))}
+            {error && <span className={s.infoError}>{error}</span>}
+          </span>
+        </span>
       </div>
+      {(summary || swatch) && (
+        <div className={s.summary} title={summary}>
+          {swatch && swatchValue !== undefined && (
+            <span className="nodrag">
+              <ColorSwatch
+                value={colorToFieldHex(swatchValue)}
+                onChange={hex =>
+                  docStore().edit(
+                    d => setParam(d, id, swatch.name, fieldHexToColor(hex)),
+                    `color:${id}`
+                  )
+                }
+              />
+            </span>
+          )}
+          <span className={s.summaryText}>
+            {swatch && swatchValue !== undefined
+              ? shownValue(colorToFieldHex(swatchValue))
+              : summary}
+          </span>
+        </div>
+      )}
       {/* Where reference edges (ch(), ref values) attach: no wire is ever drawn to them */}
       <Handle
         id="ref-in"

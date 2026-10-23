@@ -67,7 +67,8 @@ function NodeParams({ node, doc, multi }: { node: DocNode; doc: EditorDoc; multi
   const fields = useNodeFields(node)
   // The relation, the layer's query and its timings: for debugging the planner, not for users
   const debug = useEditor(st => st.debug)
-  const [folder, setFolder] = useState<string>()
+  // Folders are sections of one long pane, as Houdini's are when expanded; each can fold away
+  const [folded, setFolded] = useState<Set<string>>(new Set())
   const [name, setName] = useState(nameOf(node))
   useEffect(() => setName(nameOf(node)), [node])
   if (!op) return <div className={s.empty}>Unknown operator {node.op}</div>
@@ -75,7 +76,6 @@ function NodeParams({ node, doc, multi }: { node: DocNode; doc: EditorDoc; multi
   const replaced = PANE_EDITORS[node.op]?.replaces ?? []
   const visible = op.params.filter(p => shown(p, node, op) && !replaced.includes(p.name))
   const folders = [...new Set(visible.map(p => p.folder ?? 'Parameters'))]
-  const current = folder && folders.includes(folder) ? folder : folders[0]
   const wired = new Set(doc.edges.filter(e => e.target === node.id).map(e => e.targetPort))
   const errors = errorsFor(node.id, engine)
 
@@ -146,37 +146,48 @@ function NodeParams({ node, doc, multi }: { node: DocNode; doc: EditorDoc; multi
         </div>
       ))}
       <PaneEditorFor node={node} />
-      {folders.length > 1 && (
-        <div className={s.folders} role="tablist">
-          {folders.map(f => (
-            <button
-              type="button"
-              role="tab"
-              key={f}
-              aria-selected={f === current}
-              onClick={() => setFolder(f)}
-            >
-              {f}
-            </button>
-          ))}
-        </div>
-      )}
       <div className={s.params}>
         {fields &&
-          visible
-            .filter(p => (p.folder ?? 'Parameters') === current)
-            .map(def => {
-              const b = fields.bindings.get(def.name)
-              return b ? (
-                <ParamRow
-                  key={def.name}
-                  node={node}
-                  def={def}
-                  field={b.field}
-                  wired={wired.has(`par:${def.name}`)}
-                />
-              ) : null
-            })}
+          folders.map(f => {
+            const open = !folded.has(f)
+            return (
+              <section key={f} className={s.folder}>
+                {folders.length > 1 && (
+                  <button
+                    type="button"
+                    className={s.folderHead}
+                    aria-expanded={open}
+                    onClick={() =>
+                      setFolded(prev => {
+                        const next = new Set(prev)
+                        if (open) next.add(f)
+                        else next.delete(f)
+                        return next
+                      })
+                    }
+                  >
+                    <span className={s.folderChevron}>{open ? '▾' : '▸'}</span>
+                    {f}
+                  </button>
+                )}
+                {open &&
+                  visible
+                    .filter(p => (p.folder ?? 'Parameters') === f)
+                    .map(def => {
+                      const b = fields.bindings.get(def.name)
+                      return b ? (
+                        <ParamRow
+                          key={def.name}
+                          node={node}
+                          def={def}
+                          field={b.field}
+                          wired={wired.has(`par:${def.name}`)}
+                        />
+                      ) : null
+                    })}
+              </section>
+            )
+          })}
         {node.op === 'subnet' && <Promoted subnet={node} doc={doc} />}
       </div>
       {debug && <NodeInfo node={node} op={op} engine={engine} />}
