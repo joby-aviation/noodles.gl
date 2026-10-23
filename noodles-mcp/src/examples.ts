@@ -18,10 +18,12 @@ export interface ExampleSummary {
   path: string
 }
 
+// Ids in hidden.json load by id but are left out of the list, as in the app's gallery
 export function listExamples(repoRoot: string): ExampleSummary[] {
   const dir = join(repoRoot, EXAMPLES_DIR)
+  const hidden: string[] = JSON.parse(readFileSync(join(dir, 'hidden.json'), 'utf8'))
   return subdirectories(dir)
-    .filter(id => isFile(join(dir, id, 'noodles.json')))
+    .filter(id => isFile(join(dir, id, 'noodles.json')) && !hidden.includes(id))
     .map(id => summarize(repoRoot, id))
 }
 

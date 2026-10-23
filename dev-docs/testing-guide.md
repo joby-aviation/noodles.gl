@@ -150,7 +150,7 @@ When creating pull requests, provide a manual test runbook to help reviewers ver
 
 ### Include Project File
 
-Provide a complete `noodles.json` file that can be saved in `noodles-editor/public/noodles/` and opened with `?project=test-name`. This makes it trivial for reviewers to verify the changes.
+Provide a complete `noodles.json` file that can be saved as `noodles-editor/src/examples/test-name/noodles.json` and opened at `/examples/test-name`. This makes it trivial for reviewers to verify the changes.
 
 **Example:**
 

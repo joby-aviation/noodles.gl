@@ -1,4 +1,5 @@
 {
+  "name": "Overpass API NYC Parks",
   "edges": [
     {
       "id": "/bounds.out.bounds->/overpass-query.par.bbox",

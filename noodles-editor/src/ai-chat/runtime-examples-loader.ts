@@ -1,5 +1,6 @@
 // Runtime examples loader - lazy loads example projects on-demand
 
+import hiddenExamples from '../examples/hidden.json'
 import type { ExamplesIndex } from './types'
 
 // Lazy load example projects - only loaded when requested
@@ -55,7 +56,8 @@ export function extractDescription(readme: string): string | undefined {
   return undefined
 }
 
-// Get metadata for all available examples (without loading full projects)
+// Get metadata for all available examples (without loading full projects). Hidden
+// examples are left in so getExample still finds them by id
 function getExampleMetadata() {
   const metadata: Record<
     string,
@@ -138,11 +140,16 @@ export async function getExample(id: string) {
   }
 }
 
+// Examples not in hidden.json, the ones to offer when listing
+function listed(metadata: ReturnType<typeof getExampleMetadata>) {
+  return Object.values(metadata).filter(meta => !hiddenExamples.includes(meta.id))
+}
+
 // List all available examples
 export function listExamples() {
   const metadata = getExampleMetadata()
 
-  return Object.values(metadata).map(({ id, name, description, tags }) => ({
+  return listed(metadata).map(({ id, name, description, tags }) => ({
     id,
     name,
     description,
@@ -162,8 +169,8 @@ export function getExamplesIndex(): ExamplesIndex {
   const examples: ExamplesIndex['examples'] = {}
 
   // Build lightweight index without loading full projects
-  for (const [id, meta] of Object.entries(metadata)) {
-    examples[id] = {
+  for (const meta of listed(metadata)) {
+    examples[meta.id] = {
       id: meta.id,
       name: meta.name,
       description: meta.description,

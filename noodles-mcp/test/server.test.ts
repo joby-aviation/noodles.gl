@@ -145,6 +145,13 @@ describe('noodles-mcp', () => {
       )
     })
 
+    it('leaves hidden examples out of the list but loads them by id', async () => {
+      const ids = (await data('list_examples')).map((ex: { id: string }) => ex.id)
+      assert.ok(!ids.includes('table-editor-demo'))
+      const demo = await data('get_example', { id: 'table-editor-demo' })
+      assert.equal(demo.name, 'Table Editor Demo')
+    })
+
     it('returns a project with its README and data files', async () => {
       const example = await data('get_example', { id: 'california-earthquakes' })
       assert.ok(example.files.includes('noodles.json'))

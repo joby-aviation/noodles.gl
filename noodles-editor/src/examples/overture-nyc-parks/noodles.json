@@ -1,4 +1,5 @@
 {
+  "name": "Overture Maps NYC Parks",
   "edges": [
     {
       "id": "/duckdb-query.out.data->/extract-geojson.par.data",
