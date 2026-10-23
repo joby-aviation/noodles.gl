@@ -73,8 +73,8 @@ async function exportShortMp4(page: Page) {
       for (const hardwareAcceleration of ['prefer-hardware', 'no-preference'] as const) {
         const { supported } = await VideoEncoder.isConfigSupported({
           codec,
-          width: 1280,
-          height: 720,
+          width: 640,
+          height: 360,
           bitrate: 2_000_000,
           hardwareAcceleration,
         })
@@ -85,7 +85,9 @@ async function exportShortMp4(page: Page) {
   }, CODECS)
   test.skip(codec === null, 'this browser has no video encoder for any export codec')
 
-  await page.locator('#render-resolution-preset').selectOption('1280x720')
+  // Smaller than any preset: software WebGL on CI can take over 10s to read a 720p frame
+  await page.locator('#render-resolution-width').fill('640')
+  await page.locator('#render-resolution-height').fill('360')
   await page.locator('#render-codec').selectOption(codec as string)
   await page.locator('#render-framerate').fill('10')
   // Five frames keep the encode short; a user would drag the out marker
