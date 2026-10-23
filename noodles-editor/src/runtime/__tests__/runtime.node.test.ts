@@ -186,3 +186,27 @@ describe('animation', () => {
     expect(rt.counters.propUpdates).toBe(30)
   })
 })
+
+describe('previewing a node nothing draws', () => {
+  it('compiles it on the first read and keeps it readable after an edit', async () => {
+    const doc: EditorDoc = {
+      version: 1,
+      name: 'loose',
+      nodes: [
+        { id: 'csv', op: 'file', x: 0, y: 0, params: { url: 'routes.dat', format: 'csv' } },
+        { id: 'deck', op: 'deck', x: 0, y: 0, params: {} },
+      ],
+      edges: [],
+    }
+    const { rt, lowered, values } = await start(doc)
+    const ir = lowered.outputs.csv?.out ?? 'csv'
+    expect(rt.program()?.nodes[ir]?.role).toBe('dead')
+    const first = await rt.preview(ir, 2)
+    // routes.dat has no header, so its first line names the columns
+    expect(first.total).toBe(3)
+    expect(first.rows).toHaveLength(2)
+    // A structural edit elsewhere recompiles; the previewed node stays compiled
+    await rt.setGraph(lowered.graph, values())
+    expect(rt.program()?.nodes[ir]?.role).toBe('relation')
+  })
+})

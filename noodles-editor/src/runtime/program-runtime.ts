@@ -95,6 +95,8 @@ export class ProgramRuntime {
   readonly counters: RuntimeCounters = { compiles: 0, requeries: 0, evaluations: 0, propUpdates: 0 }
   private readonly caps: TargetCaps
   private readonly cache = new Map<string, LayerPlan>()
+  // Nodes kept compiled though nothing draws them, because someone previewed them
+  private readonly kept = new Set<string>()
   private graph?: Graph
   private programPlan?: ProgramPlan
   private values: Record<string, number | string> = {}
@@ -255,6 +257,7 @@ export class ProgramRuntime {
         costs: this.options.costs,
         values: this.values,
         cache: this.cache,
+        keep: [...this.kept],
       })
       this.compileError = undefined
     } catch (err) {
@@ -387,6 +390,11 @@ export class ProgramRuntime {
    * with a note saying why.
    */
   async preview(nodeId: string, limit = 100): Promise<Preview> {
+    // A node nothing draws is not compiled: compile it now, and keep it so it stays readable
+    if (this.programPlan?.nodes[nodeId]?.role === 'dead' && !this.kept.has(nodeId)) {
+      this.kept.add(nodeId)
+      await this.enqueue(() => this.rebuild('graph'))
+    }
     const program = this.programPlan
     const graph = this.graph
     if (!program || !graph) return { columns: [], rows: [], total: 0, note: 'not compiled yet' }
