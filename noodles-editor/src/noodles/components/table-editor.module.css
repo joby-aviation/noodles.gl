@@ -146,7 +146,8 @@
 .cell {
   position: relative;
   padding: 8px 12px;
-  /* Keep long values clipped to a consistent single-line row height */
+  /* Rows must stay exactly one virtualized row tall (estimateSize in table-editor.tsx),
+     so long values clip to a single line instead of growing the row */
   height: 36px;
   box-sizing: border-box;
   cursor: pointer;

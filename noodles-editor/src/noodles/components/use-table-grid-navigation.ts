@@ -91,6 +91,7 @@ interface UseTableGridNavigationOptions {
   columnCount: number
   tableDataRef: MutableRefObject<unknown[]>
   tableWrapperRef: RefObject<HTMLDivElement | null>
+  scrollToRowRef: MutableRefObject<((rowIndex: number) => void) | null>
   activeEdit: ActiveEdit
 }
 
@@ -99,6 +100,7 @@ export function useTableGridNavigation({
   columnCount,
   tableDataRef,
   tableWrapperRef,
+  scrollToRowRef,
   activeEdit,
 }: UseTableGridNavigationOptions) {
   const [activeCell, setActiveCell] = useState<TableCellCoordinate | null>(() =>
@@ -293,25 +295,41 @@ export function useTableGridNavigation({
         row: Math.max(0, Math.min(tableDataRef.current.length - 1, current.row + rowOffset)),
         column: Math.max(0, Math.min(columnCount - 1, current.column + columnOffset)),
       }
+      scrollToRowRef.current?.(next.row)
       setActiveCell(next)
       setSelection(previous => ({
         anchor: extend && previous ? previous.anchor : next,
         focus: next,
       }))
     },
-    [activeCell, activeEdit, columnCount, tableDataRef]
+    [activeCell, activeEdit, columnCount, scrollToRowRef, tableDataRef]
   )
 
-  useEffect(() => {
-    if (!activeCell || editingCell || !focusActiveCellRef.current) return
+  const focusActiveCell = useCallback(() => {
+    if (!activeCell || editingCell || !focusActiveCellRef.current) return false
     const cell = tableWrapperRef.current?.querySelector<HTMLElement>(
       `[data-grid-row="${activeCell.row}"][data-grid-column="${activeCell.column}"]`
     )
-    if (!cell) return
+    if (!cell) return false
     focusActiveCellRef.current = false
     cell.focus({ preventScroll: true })
     cell.scrollIntoView?.({ block: 'nearest', inline: 'nearest' })
+    return true
   }, [activeCell, editingCell, tableWrapperRef])
+
+  useEffect(() => {
+    if (!activeCell || editingCell || !focusActiveCellRef.current) return
+    let frame: number | undefined
+    if (scrollToRowRef.current) {
+      scrollToRowRef.current(activeCell.row)
+      frame = requestAnimationFrame(focusActiveCell)
+    } else {
+      focusActiveCell()
+    }
+    return () => {
+      if (frame !== undefined) cancelAnimationFrame(frame)
+    }
+  }, [activeCell, editingCell, focusActiveCell, scrollToRowRef])
 
   const beginPointerSelection = useCallback(
     (coordinate: TableCellCoordinate, extend: boolean) => {
@@ -343,6 +361,7 @@ export function useTableGridNavigation({
     finishEditing,
     cancelEditing,
     moveActiveCell,
+    focusActiveCell,
     beginPointerSelection,
     extendPointerSelection,
   }
