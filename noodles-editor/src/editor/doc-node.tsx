@@ -1,263 +1,246 @@
-// A document node in the network editor: ports from its operator, a row per parameter with
-// the field widget that edits it, and the error that stopped it drawing.
+// A document node in the network editor, compact as Houdini's are: a header colored by
+// category, its table and layer ports, and parameter ports only while they are wired or a
+// wire that could drive one is being dragged. Badges say what the planner made of it: a
+// memoized table or an inlined query, the rows it drew, the engines it ran on. Parameters are
+// edited in the parameter pane, not on the node.
 
 import {
-  type DocNode,
+  canConnect,
   nameOf,
   OPERATOR_INDEX,
-  type OpDef,
-  type ParamDef,
   type PortSpec,
+  type PortType,
 } from '@noodles.gl/planner'
-import { Handle, type NodeProps, Position } from '@xyflow/react'
+import { Handle, type NodeProps, Position, useConnection } from '@xyflow/react'
 import cx from 'classnames'
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
-import { inputComponents } from '../noodles/components/field-components'
-import { handleClass, headerClass } from '../noodles/components/op-components'
-import type { Field } from '../noodles/fields'
-import s from '../noodles/noodles.module.css'
-import { useEngineState } from './doc-engine'
-import { clearTrack, removeKey, setKey, setParam } from './doc-ops'
-import { docStore, useEditor } from './doc-store'
-import { NodeFields } from './field-adapter'
-import { ContextMenu, type MenuItem } from './menus'
+import { useMemo } from 'react'
+import { headerClass } from '../noodles/components/op-components'
+import ns from '../noodles/noodles.module.css'
+import { type EngineState, useEngineState } from './doc-engine'
+import s from './doc-network.module.css'
+import { useEditor } from './doc-store'
 
 const CATEGORY_HEADERS: Record<string, string | undefined> = {
-  data: s.headerData,
-  table: s.headerUtility,
-  rows: s.headerCode,
-  color: s.headerColor,
-  layer: s.headerLayer,
-  output: s.headerView,
-  number: s.headerNumber,
-  structure: s.headerGrouping,
+  data: ns.headerData,
+  table: ns.headerUtility,
+  geometry: ns.headerGeojson ?? ns.headerUtility,
+  rows: ns.headerCode,
+  color: ns.headerColor,
+  layer: ns.headerLayer,
+  output: ns.headerView,
+  number: ns.headerNumber,
+  structure: ns.headerGrouping,
 }
 
-const PORT_HANDLES: Record<string, string | undefined> = {
-  table: s.handleData,
-  layer: s.handleLayer,
-  number: s.handleNumber,
-  value: s.handleCompound,
+/** A node's header color: its Noodles operator's, or its category's. */
+export function headerOf(type: string): string | undefined {
+  const op = OPERATOR_INDEX.get(type)
+  return op?.category === 'host' ? headerClass(type as never) : CATEGORY_HEADERS[op?.category ?? '']
 }
 
-/** Whether a parameter shows, given the values its `when` reads. */
-export function shown(def: ParamDef, node: DocNode, op: OpDef): boolean {
-  if (!def.when) return true
-  const ruled = op.params.find(p => p.name === def.when?.param)
-  const value = node.params[def.when.param] ?? ruled?.default
-  return def.when.is.includes(value as string | number | boolean)
+/** Port colors, by what flows: rows, a layer, a number, any other value, or anything. */
+export const PORT_CLASS: Record<string, string | undefined> = {
+  table: s.portTable,
+  layer: s.portLayer,
+  number: s.portNumber,
+  value: s.portValue,
+  any: s.portAny,
 }
 
-/** The node's fields while it is shown, kept in step with its parameters. */
-export function useNodeFields(node: DocNode | undefined): NodeFields | undefined {
-  const [fields, setFields] = useState<NodeFields>()
-  const timeline = useEditor(s => s.doc.timeline)
-  const time = useEditor(s => s.time)
-  const id = node?.id
-  const op = node?.op
-  // biome-ignore lint/correctness/useExhaustiveDependencies: fields are rebuilt only for a new node or operator; parameter changes sync below
-  useEffect(() => {
-    if (!node) return
-    const created = new NodeFields(docStore(), node)
-    setFields(created)
-    return () => created.dispose()
-  }, [id, op])
-  useEffect(() => {
-    if (node && fields) fields.sync(node, timeline, time)
-  }, [node, fields, timeline, time])
-  return fields
+const count = (n: number | undefined): string => {
+  if (n === undefined) return '?'
+  return n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${(n / 1e3).toFixed(1)}k` : String(n)
 }
 
-function PortRow({ port, side }: { port: PortSpec; side: 'in' | 'out' }) {
+interface Badge {
+  text: string
+  kind: 'memo' | 'rows' | 'sql' | 'cpu' | 'gpu'
+  title?: string
+}
+
+/** What the planner made of a node, and the first thing that stopped it. */
+export function nodeStatus(id: string, engine: EngineState): { badges: Badge[]; error?: string } {
+  const lowered = engine.lowered
+  const program = engine.program
+  const irIds = lowered?.irNodes[id] ?? []
+  const out = lowered?.outputs[id]?.out ?? irIds[irIds.length - 1]
+  const badges: Badge[] = []
+  const engines = new Set<string>()
+  let error = engine.errors.find(e => e.nodeId === id)?.message
+  for (const ir of irIds) {
+    const info = program?.nodes[ir]
+    if (!info) continue
+    for (const e of Object.values(info.engines)) engines.add(e)
+    error ??= info.error
+  }
+  const rel = program?.relations.find(r => r.id === out)
+  if (rel) {
+    badges.push({
+      text: rel.materialize ? `table · ${count(rel.rows)}` : 'inline',
+      kind: 'memo',
+      title: `${rel.materialize ? `memoized as ${rel.table}` : 'inlined into its reader'}\n${rel.sql}`,
+    })
+  }
+  for (const e of engines) {
+    if (e === 'sql' || e === 'cpu' || e === 'gpu') badges.push({ text: e.toUpperCase(), kind: e })
+  }
+  const layer = engine.layers.find(l => l.id === id)
+  if (layer) {
+    badges.push({
+      text: `${count(layer.rows)} drawn`,
+      kind: 'rows',
+      title: `query ${layer.queryMs.toFixed(1)} ms · cpu ${layer.evalMs.toFixed(1)} ms`,
+    })
+    error ??= layer.error
+  }
+  return { badges, error }
+}
+
+/** The type a dragged wire carries, from the handle it started at. */
+function draggedType(
+  handle: string | undefined,
+  nodeOp: string | undefined,
+  side: 'source' | 'target' | undefined
+): PortType | 'param' | undefined {
+  if (!handle || !nodeOp) return undefined
+  if (handle.startsWith('par:')) return 'param'
+  const def = OPERATOR_INDEX.get(nodeOp)
+  return (side === 'source' ? def?.outputs : def?.inputs)?.find(p => p.name === handle)?.type
+}
+
+function PortRow({ port, side, dim }: { port: PortSpec; side: 'in' | 'out'; dim: boolean }) {
   return (
-    <div
-      className={cx(s.fieldWrapper, 'nokey')}
-      style={{ position: 'relative', justifyContent: side === 'out' ? 'flex-end' : undefined }}
-    >
+    <div className={cx(s.port, side === 'out' && s.portOut)}>
       <Handle
         id={port.name}
         type={side === 'in' ? 'target' : 'source'}
         position={side === 'in' ? Position.Left : Position.Right}
-        className={PORT_HANDLES[port.type]}
-        style={{ transform: side === 'in' ? 'translateX(-17px)' : 'translateX(17px)' }}
+        className={cx(PORT_CLASS[port.type], dim && s.dim)}
       />
-      <div className={s.fieldLabel}>{port.label ?? port.name}</div>
+      {side === 'out'
+        ? port.type === 'table'
+          ? 'rows'
+          : port.name === 'out'
+            ? port.type
+            : port.name
+        : `${port.label ?? port.name}${port.multi ? ' …' : ''}`}
     </div>
   )
 }
 
-const KEYABLE = new Set(['float', 'int'])
-
-/** Whether a parameter can be keyframed: a number, the planner's or a host field's. */
-const keyable = (def: ParamDef, field: Field) =>
-  KEYABLE.has(def.kind) || (def.kind === 'field' && typeof field.value === 'number')
-
-export function ParamRow({
-  nodeId,
-  def,
-  field,
-  driven,
-  wired,
-  handle = true,
-}: {
-  nodeId: string
-  def: ParamDef
-  field: Field
-  driven?: string
-  wired: boolean
-  /** Off outside the network editor, where there is no node to hang a handle on. */
-  handle?: boolean
-}) {
-  const { type } = field.constructor as typeof Field
-  const Widget = inputComponents[type]
-  const target = `${nodeId}.${def.name}`
-  const track = useEditor(s => s.doc.timeline?.tracks.find(t => t.target === target))
-  const time = useEditor(s => s.time)
-  const [menu, setMenu] = useState<{ x: number; y: number }>()
-  const atKey = track?.keyframes.some(k => Math.abs(k.time - time) < 1e-3)
-  const canKey = keyable(def, field) && !wired && !driven
-  const items: MenuItem[] = [
-    { heading: def.label },
-    {
-      label: atKey ? 'Update keyframe' : 'Add keyframe at playhead',
-      disabled: !canKey,
-      onClick: () =>
-        docStore().edit(d => setKey(d, target, time, Number(field.value)), `key:${target}`),
-    },
-    {
-      label: 'Remove keyframe here',
-      disabled: !atKey,
-      onClick: () => docStore().edit(d => removeKey(d, target, time)),
-    },
-    {
-      label: 'Clear keyframes',
-      disabled: !track,
-      onClick: () => docStore().edit(d => clearTrack(d, target)),
-    },
-    { separator: true },
-    {
-      label: 'Revert to default',
-      disabled: wired,
-      onClick: () =>
-        docStore().edit(d => {
-          clearTrack(d, target)
-          setParam(d, nodeId, def.name, undefined)
-        }),
-    },
-  ]
-  return (
-    // biome-ignore lint/a11y/noStaticElementInteractions: right-click opens the parameter's menu, also reachable from the properties panel
-    <div
-      style={{ position: 'relative' }}
-      title={def.help}
-      onContextMenu={e => {
-        e.preventDefault()
-        e.stopPropagation()
-        setMenu({ x: e.clientX, y: e.clientY })
-      }}
-    >
-      {handle && def.port && (
-        <Handle
-          id={`par:${def.name}`}
-          type="target"
-          position={Position.Left}
-          className={handleClass(field as never)}
-          style={{ top: '12.5px', transform: 'translateX(-17px)' }}
-        />
-      )}
-      {track && (
-        <span
-          title={atKey ? 'Keyframe at the playhead' : 'Keyframed'}
-          style={{ position: 'absolute', right: 2, top: 4, opacity: atKey ? 1 : 0.5, fontSize: 9 }}
-        >
-          ◆
-        </span>
-      )}
-      {wired || driven ? (
-        <div className={cx(s.fieldWrapper, 'nokey')}>
-          <div className={s.fieldLabel}>{def.label}</div>
-          {driven && <div className={s.fieldInput}>{driven}</div>}
-        </div>
-      ) : (
-        Widget && <Widget id={def.name} field={field} disabled={false} />
-      )}
-      {menu &&
-        createPortal(
-          <ContextMenu x={menu.x} y={menu.y} items={items} onClose={() => setMenu(undefined)} />,
-          document.body
-        )}
-    </div>
-  )
-}
-
-export function DocNodeComponent({ id }: NodeProps) {
-  const node = useEditor(s => s.doc.nodes.find(n => n.id === id))
-  const edges = useEditor(s => s.doc.edges)
-  const { errors } = useEngineState()
-  const fields = useNodeFields(node)
+export function DocNodeComponent({ id, selected }: NodeProps) {
+  const node = useEditor(st => st.doc.nodes.find(n => n.id === id))
+  const edges = useEditor(st => st.doc.edges)
+  const nodeOps = useEditor(st => st.doc.nodes)
+  const engine = useEngineState()
+  const connection = useConnection()
   const wired = useMemo(
     () => new Set(edges.filter(e => e.target === id).map(e => e.targetPort)),
     [edges, id]
   )
-  const error = errors.find(e => e.nodeId === id)?.message
-  const contentRef = useRef<HTMLDivElement>(null)
   if (!node) return null
   const op = OPERATOR_INDEX.get(node.op)
   if (!op) {
     return (
-      <div className={cx(s.wrapper, s.wrapperError)}>
-        <div className={cx(s.header, s.dragHandle, s.headerData)}>
-          <div className={s.headerTitle}>
-            {nameOf(node)} (unknown operator {node.op})
-          </div>
+      <div className={cx(s.node, s.nodeError)}>
+        <div className={cx(s.header, ns.headerData)}>
+          <span className={s.name}>{nameOf(node)}</span>
+          <span className={s.type}>unknown operator {node.op}</span>
         </div>
       </div>
     )
   }
-  const header =
-    op.category === 'host' ? headerClass(node.op as never) : CATEGORY_HEADERS[op.category]
+  const { badges, error } = nodeStatus(id, engine)
+
+  // While a wire is dragged from an output, the inputs it fits stay lit and the rest dim; the
+  // parameter ports it could drive appear
+  const fromNode = connection.inProgress
+    ? nodeOps.find(n => n.id === connection.fromNode?.id)
+    : undefined
+  const dragging = connection.inProgress
+    ? draggedType(connection.fromHandle?.id ?? undefined, fromNode?.op, connection.fromHandle?.type)
+    : undefined
+  const fromOut = connection.fromHandle?.type === 'source'
+  const fits = (t: PortType | 'param') =>
+    !dragging || dragging === 'param'
+      ? false
+      : t === 'param'
+        ? dragging === 'number'
+        : canConnect(dragging as PortType, t)
+  const dimIn = (t: PortType) => !!dragging && fromOut && !fits(t)
+  const dimOut = (t: PortType) =>
+    !!dragging &&
+    !fromOut &&
+    !(dragging === 'param' ? t === 'number' : canConnect(t, dragging as PortType))
+  const params = op.params.filter(
+    p =>
+      p.port &&
+      (wired.has(`par:${p.name}`) ||
+        (dragging && fromOut && canConnect(dragging as PortType, p.portType ?? 'number')))
+  )
+  const header = headerOf(node.op)
+
   return (
-    <div className={cx(s.wrapper, { [s.wrapperError]: !!error })}>
-      <div className={cx(s.header, s.dragHandle, header)} title={error ?? op.description}>
-        <div className={s.headerTitle}>
-          {nameOf(node)} ({op.label})
-        </div>
-        {error && (
-          <span className={cx(s.executionIndicator, s.executionIndicatorError)}>
-            <i className="pi pi-exclamation-triangle" />
-          </span>
-        )}
+    <div
+      className={cx(s.node, {
+        [s.selected]: selected,
+        [s.nodeError]: !!error,
+        [s.bypassed]: node.flags?.bypass,
+        [s.displayed]: node.flags?.display,
+      })}
+      title={error ?? op.description}
+    >
+      <div className={cx(s.header, header)}>
+        <span className={s.name}>{nameOf(node)}</span>
+        <span className={s.type}>{op.label}</span>
       </div>
-      <div className={s.content} ref={contentRef}>
-        {op.inputs.map(port => (
-          <PortRow key={port.name} port={port} side="in" />
+      {/* Where reference edges (ch(), ref values) attach: no wire is ever drawn to them */}
+      <Handle
+        id="ref-in"
+        type="target"
+        position={Position.Left}
+        isConnectable={false}
+        className={s.refHandle}
+      />
+      <Handle
+        id="ref-out"
+        type="source"
+        position={Position.Right}
+        isConnectable={false}
+        className={s.refHandle}
+      />
+      <div className={s.body}>
+        {op.inputs.map(p => (
+          <PortRow key={`in-${p.name}`} port={p} side="in" dim={dimIn(p.type)} />
         ))}
-        {fields &&
-          op.params
-            .filter(def => shown(def, node, op))
-            .map(def => {
-              const b = fields.bindings.get(def.name)
-              // The body shows what a node is mostly edited by; the properties panel has all.
-              const inBody =
-                wired.has(`par:${def.name}`) ||
-                (op.category === 'host'
-                  ? b?.field.showByDefault
-                  : !def.folder || def.folder === 'Channels')
-              return b && inBody ? (
-                <ParamRow
-                  key={def.name}
-                  nodeId={node.id}
-                  def={def}
-                  field={b.field}
-                  driven={b.driven}
-                  wired={wired.has(`par:${def.name}`)}
-                />
-              ) : null
-            })}
-        {op.outputs.map(port => (
-          <PortRow key={port.name} port={port} side="out" />
+        {params.map(p => (
+          <div className={cx(s.port, s.paramPort)} key={`par-${p.name}`}>
+            <Handle
+              id={`par:${p.name}`}
+              type="target"
+              position={Position.Left}
+              className={cx(
+                PORT_CLASS[p.portType ?? 'number'],
+                s.paramHandle,
+                dragging && !wired.has(`par:${p.name}`) && !fits(p.portType ?? 'number') && s.dim
+              )}
+            />
+            {p.label}
+          </div>
         ))}
+        {op.outputs.map(p => (
+          <PortRow key={`out-${p.name}`} port={p} side="out" dim={dimOut(p.type)} />
+        ))}
+        {badges.length > 0 && (
+          <div className={s.badges}>
+            {badges.map(b => (
+              <span key={b.text} className={cx(s.badge, s[`badge_${b.kind}`])} title={b.title}>
+                {b.text}
+              </span>
+            ))}
+          </div>
+        )}
+        {error && <div className={s.error}>{error}</div>}
       </div>
     </div>
   )

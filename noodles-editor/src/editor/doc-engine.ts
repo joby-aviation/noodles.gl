@@ -3,7 +3,7 @@
 // editor remounts while it opens a project, and the engine (a DuckDB connection, the memo)
 // must outlive that.
 
-import type { EditorDoc } from '@noodles.gl/planner'
+import type { EditorDoc, Lowered } from '@noodles.gl/planner'
 import { useSyncExternalStore } from 'react'
 import { useFileSystemStore } from '../noodles/filesystem-store'
 import { setOpResolver } from '../noodles/op-resolver'
@@ -17,6 +17,7 @@ import {
 import { Engine, type EngineVis } from '../runtime/engine'
 import { registerHostOperators } from '../runtime/host/host-ops'
 import { HostRunner } from '../runtime/host/host-runner'
+import type { ProgramView } from '../runtime/worker/protocol'
 import { RuntimeProxy } from '../runtime/worker/runtime-proxy'
 import type { DocStore } from './doc-store'
 import { opView } from './op-view'
@@ -27,14 +28,32 @@ export interface NodeError {
   message: string
 }
 
+/** What a layer drew, for a node's badge and the parameter pane. */
+export interface LayerSummary {
+  id: string
+  kind: string
+  rows: number
+  paths?: number
+  queryMs: number
+  evalMs: number
+  error?: string
+  sql?: string
+  bindings: { channel: string; attribute: string }[]
+}
+
 export interface EngineState {
   vis?: EngineVis
   errors: NodeError[]
   /** The engine has started and drawn the current document at least once. */
   ready: boolean
+  lowered?: Lowered
+  program?: ProgramView
+  layers: LayerSummary[]
+  /** Parameter values at the playhead, by `nodeId.param`. */
+  slots: ReadonlyMap<string, unknown>
 }
 
-let state: EngineState = { errors: [], ready: false }
+let state: EngineState = { errors: [], ready: false, layers: [], slots: new Map() }
 const listeners = new Set<() => void>()
 
 function publish(patch: Partial<EngineState>) {
@@ -107,11 +126,31 @@ function openEngine(readAsset: (name: string) => Promise<Uint8Array>): Promise<E
       },
     })
     opened = e
-    e.onChange(vis => publish({ vis, errors: errorsOf(e) }))
+    e.onChange(vis => publish({ vis, errors: errorsOf(e), ...detailsOf(e) }))
     Object.assign(window as unknown as Record<string, unknown>, { plannerEngine: e })
     return e
   })
   return engine
+}
+
+/** The lowering, the program and what each layer drew, as the editor shows them. */
+function detailsOf(e: Engine): Pick<EngineState, 'lowered' | 'program' | 'layers' | 'slots'> {
+  return {
+    lowered: e.lowering(),
+    program: e.runtime.program(),
+    slots: e.slotValues(),
+    layers: e.runtime.layers().map(l => ({
+      id: l.id,
+      kind: l.plan.kind,
+      rows: l.data?.rows ?? 0,
+      paths: l.data?.starts?.length,
+      queryMs: l.queryMs,
+      evalMs: l.evalMs,
+      error: l.error,
+      sql: l.plan.plan.sql,
+      bindings: l.plan.plan.layer?.bindings ?? [],
+    })),
+  }
 }
 
 export function errorsOf(e: Engine): NodeError[] {
