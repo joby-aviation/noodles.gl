@@ -2112,6 +2112,9 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
         continue
       }
       if (!names.has(field)) throw new MigrationError(`${n.id}: a wired ${field} is not converted`)
+      if (src.type === 'AccessorOp') {
+        throw new MigrationError(`${n.id}: a per-row ${field} is not converted`)
+      }
       if (FOLDED.has(src.type)) {
         params[field] = folded(n.id, field, src, handleField(e.sourceHandle)) as ParamValue
         continue
@@ -2139,16 +2142,17 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
     if (hostNodes.has(id)) return
     const n = byId.get(id)
     if (!n) throw new MigrationError(`Missing node ${id}`)
+    // A deck operator takes constants where its Noodles class took per-row accessors
+    const deck = DECK_OP_FOR.get(n.type)
+    if (deck) {
+      deckOpNode(n, deck)
+      return
+    }
     if (ACCESSOR_OPS.has(n.type)) {
       throw new MigrationError(`${id}: ${n.type} takes per-row accessors; it is not converted yet`)
     }
     if (n.type === 'ContainerOp' || n.type.startsWith('ForLoop')) {
       throw new MigrationError(`${id}: ${n.type} is not converted yet`)
-    }
-    const deck = DECK_OP_FOR.get(n.type)
-    if (deck) {
-      deckOpNode(n, deck)
-      return
     }
     // Only an operator the catalog keeps on the host, or one a later step converts, is one
     const plan = OP_CATALOG[n.type]
@@ -2445,6 +2449,11 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
     const cell = CELL_LAYERS[layer.type]
     if (cell)
       src = cellGeometry(src, listColumn(layer.id, cell.field, cell.fallback), cell.kind, layer)
+    // A DataFilterExtension hides rows outside a range: a filter in SQL, not on the GPU
+    for (const e of incoming(layer.id, 'extensions')) {
+      const ext = byId.get(e.source)
+      if (ext?.type === 'DataFilterExtensionOp') src = dataFilter(ext, src, layer)
+    }
     if (layer.type !== 'GeoJsonLayerOp') layerSource.set(layer.id, src)
     const i = inputs(layer)
     const v = (field: string) => resolve(src, layer.id, field, i[field])
@@ -2540,6 +2549,12 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
         }
         geojsonLayer(layer, src, i, v, params, target.index)
         used.add(layer.id)
+        wireExtensions(
+          layer.id,
+          [layer.id, `${layer.id}-lines`, `${layer.id}-points`, `${layer.id}-labels`].filter(id =>
+            nodes.some(n => n.id === id)
+          )
+        )
         return
       }
       case 'TextLayerOp': {
@@ -3036,7 +3051,72 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
         throw new MigrationError(`${layer.id}: ${layer.type} is not converted yet`)
     }
     used.add(layer.id)
+    wireExtensions(layer.id, [layer.id])
     edge(layer.id, 'out', target.node, target.port, target.index)
+  }
+
+  /**
+   * A layer's extensions, wired in order to each node that draws it. A DataFilterExtension is
+   * a filter on its rows instead (see dataFilter).
+   */
+  const wireExtensions = (layerId: string, drawn: string[]) => {
+    let k = 0
+    for (const e of incoming(layerId, 'extensions')) {
+      const ext = byId.get(e.source)
+      if (!ext || ext.type === 'DataFilterExtensionOp') continue
+      hostNode(ext.id)
+      for (const id of drawn) edge(ext.id, handleField(e.sourceHandle), id, 'par:extensions', k)
+      k++
+    }
+  }
+
+  /**
+   * A DataFilterExtension as a filter on the rows it would hide: rows whose filter value lies
+   * outside its range. One value per row, so a filter of several values is not converted.
+   */
+  const dataFilter = (ext: NoodlesNode, src: string, layer: NoodlesNode): string => {
+    const i: Record<string, unknown> = {
+      filterEnabled: true,
+      filterRange: [
+        [0, 1],
+        [0, 1],
+      ],
+      ...(ext.data?.inputs ?? {}),
+    }
+    used.add(ext.id)
+    if (i.filterEnabled === false) return src
+    const accessor = byId.get(incomingOne(ext.id, 'getFilterValue')?.source ?? '')
+    const value =
+      accessor?.type === 'AccessorOp'
+        ? translateAccessor(String(inputs(accessor).expression), indexNames.get(src))
+        : undefined
+    if (!value)
+      throw new MigrationError(`${ext.id}: its filter value needs an accessor the planner can read`)
+    if (accessor) used.add(accessor.id)
+    const range = i.filterRange as unknown
+    const [lo, hi] = (
+      Array.isArray(range) && Array.isArray(range[0]) ? range[0] : range
+    ) as number[]
+    if (value.trim().startsWith('[')) {
+      throw new MigrationError(`${ext.id}: a filter of several values per row is not converted`)
+    }
+    if (i.filterSoftRange)
+      warnings.push(`${ext.id}: the soft range is dropped; rows outside the range are hidden`)
+    const id = `${ext.id}-${segment(layer.id)}`
+    const at = position(layer)
+    nodes.push({
+      id,
+      op: 'filter',
+      name: segment(id),
+      x: at.x - 160,
+      y: at.y + 80,
+      params: {
+        mode: 'expression',
+        expression: `(${value}) >= ${lit(num(lo, 0))} && (${value}) <= ${lit(num(hi, 1))}`,
+      },
+    })
+    edge(src, sourcePort.get(src) ?? 'out', id, 'in')
+    return id
   }
 
   /** A SwitchOp choosing among layers: a planner switch, the index structural. */

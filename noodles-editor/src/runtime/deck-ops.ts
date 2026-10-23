@@ -508,6 +508,82 @@ export const DECK_OPS: DeckOp[] = [
     p => ({ extension: { type: 'TerrainExtension' }, props: p })
   ),
 
+  // Extensions with per-row values in deck take constants here; a per-row value is a
+  // migration error, and a DataFilterExtension is a filter on the rows
+  extensionOp(
+    'path-style',
+    'PathStyleExtensionOp',
+    'Path Style',
+    'Dashed and offset paths',
+    [
+      toggle('dash', true),
+      toggle('highPrecisionDash', false),
+      toggle('offset', false),
+      menu('dashMode', 'segment', ['segment', 'path']),
+      toggle('dashJustified', false),
+      menu('dashUnits', 'widths', ['widths', 'pixels', 'meters', 'common']),
+      field('PathStyleExtensionOp', 'getDashArray', [4, 4]),
+      num('getOffset', 0, { min: -10000, max: 10000, step: 0.1 }),
+      toggle('dashGapPickable', false),
+    ],
+    ({ dash, highPrecisionDash, offset, dashMode, ...props }) => ({
+      extension: {
+        type: 'PathStyleExtension',
+        dash,
+        dashMode: highPrecisionDash ? 'path' : dashMode,
+        offset,
+      },
+      props,
+    })
+  ),
+  extensionOp(
+    'collision-filter',
+    'CollisionFilterExtensionOp',
+    'Collision Filter',
+    'Hide overlapping objects, keeping the higher priority one',
+    [
+      toggle('collisionEnabled', true),
+      text('collisionGroup', 'default'),
+      num('getCollisionPriority', 0),
+    ],
+    p => ({ extension: { type: 'CollisionFilterExtension' }, props: p })
+  ),
+  extensionOp(
+    'fill-style',
+    'FillStyleExtensionOp',
+    'Fill Style',
+    'Fill polygons with a pattern from an atlas',
+    [
+      toggle('fillPatternEnabled', true),
+      toggle('proceduralPattern', false),
+      toggle('fillPatternMask', true),
+      menu('fillPatternSizeUnits', 'meters', ['pixels', 'meters', 'common']),
+      text('fillPatternAtlas', ''),
+      field('FillStyleExtensionOp', 'fillPatternMapping', null),
+      text('getFillPattern', ''),
+      num('getFillPatternScale', 1),
+      field('FillStyleExtensionOp', 'getFillPatternOffset', [0, 0]),
+      color('getFillPatternBackgroundColor', '#00000000'),
+    ],
+    ({ fillPatternEnabled, proceduralPattern, getFillPatternBackgroundColor, ...props }) => ({
+      extension: { type: 'FillStyleExtension', pattern: fillPatternEnabled, proceduralPattern },
+      props: { ...props, getFillPatternBackgroundColor: rgba(getFillPatternBackgroundColor) },
+    })
+  ),
+  extensionOp(
+    'brushing',
+    'BrushingExtensionOp',
+    'Brushing',
+    'Show only objects near the pointer',
+    [
+      num('brushingRadius', 100, { min: 0, max: 100000 }),
+      toggle('brushingEnabled', true),
+      menu('brushingTarget', 'source', ['source', 'target', 'source_target', 'custom']),
+      field('BrushingExtensionOp', 'getBrushingTarget', [0, 0]),
+    ],
+    p => ({ extension: { type: 'BrushingExtension' }, props: p })
+  ),
+
   // --- layers deck loads itself --------------------------------------------------------
   layerOp(
     'bitmap',

@@ -165,6 +165,14 @@ const blendParam: ParamDef = {
   name: 'blend', label: 'Blending', kind: 'menu', default: 'normal', folder: 'Style',
   options: [{ value: 'normal', label: 'Normal' }, { value: 'additive', label: 'Additive' }, { value: 'subtractive', label: 'Subtractive' }],
 };
+/**
+ * deck layer extensions (a brightness filter, a clip box) a host application builds and wires
+ * in as values; the planner never reads them, and the application attaches them to the layer.
+ */
+const extensionsParam: ParamDef = {
+  name: 'extensions', label: 'Extensions', kind: 'field', default: [], folder: 'Style', port: true, portType: 'value',
+  field: { list: 'extensions' },
+};
 const rampParam: ParamDef = { name: 'ramp', label: 'Color ramp', kind: 'menu', default: 'viridis', options: RAMPS, folder: 'Channels', help: 'Used by ramp() in any channel expression.' };
 
 interface ChannelParam { channel: string; param: string }
@@ -254,6 +262,7 @@ function modelLayer(kind: 'mesh' | 'scenegraph', label: string, urlParam: string
       rampParam,
       opacity,
       blendParam,
+      extensionsParam,
     ],
     lower: (ctx) => lowerLayer(ctx, kind,
       ['position', 'color', 'orientation', 'scale', 'translation'].map((c) => ({ channel: c, param: c })),
@@ -294,6 +303,7 @@ function binLayer(
       rampParam,
       opacity,
       blendParam,
+      extensionsParam,
     ],
     lower: (ctx) => lowerLayer(ctx, kind,
       [
@@ -861,6 +871,7 @@ export const OPERATORS: OpDef[] = [
       { name: 'fillColor', label: 'Fill color', kind: 'color', default: [255, 140, 0], folder: 'Style' },
       opacity,
       blendParam,
+      extensionsParam,
     ],
     lower: (ctx) => lowerLayer(ctx, 'scatter',
       [{ channel: 'position', param: 'position' }, { channel: 'color', param: 'color' }, { channel: 'radius', param: 'radius' }],
@@ -885,6 +896,7 @@ export const OPERATORS: OpDef[] = [
       { name: 'toColor', label: 'To color', kind: 'color', default: [255, 60, 120], folder: 'Style' },
       opacity,
       blendParam,
+      extensionsParam,
     ],
     lower: (ctx) => lowerLayer(ctx, 'arc',
       [
@@ -914,6 +926,7 @@ export const OPERATORS: OpDef[] = [
       { name: 'lineColor', label: 'Line color', kind: 'color', default: [120, 200, 255], folder: 'Style' },
       opacity,
       blendParam,
+      extensionsParam,
     ],
     lower: (ctx) => lowerLayer(ctx, 'path',
       [{ channel: 'position', param: 'position' }, { channel: 'color', param: 'color' }, { channel: 'width', param: 'width' }],
@@ -940,6 +953,7 @@ export const OPERATORS: OpDef[] = [
       { name: 'lineColor', label: 'Trail color', kind: 'color', default: [253, 128, 93], folder: 'Style' },
       opacity,
       blendParam,
+      extensionsParam,
     ],
     lower: (ctx) => lowerLayer(ctx, 'trips',
       [{ channel: 'position', param: 'position' }, { channel: 'timestamp', param: 'timestamp' }, { channel: 'color', param: 'color' }],
@@ -964,6 +978,7 @@ export const OPERATORS: OpDef[] = [
       { name: 'columnColor', label: 'Column color', kind: 'color', default: [255, 170, 60], folder: 'Style' },
       opacity,
       blendParam,
+      extensionsParam,
     ],
     lower: (ctx) => lowerLayer(ctx, 'column',
       [{ channel: 'position', param: 'position' }, { channel: 'elevation', param: 'elevation' }, { channel: 'color', param: 'color' }],
@@ -993,6 +1008,7 @@ export const OPERATORS: OpDef[] = [
       { name: 'elevationScale', label: 'Elevation scale', kind: 'float', default: 1, min: 0, max: 10000, step: 1, bind: 'prop', folder: 'Style', port: true },
       opacity,
       blendParam,
+      extensionsParam,
     ],
     lower: (ctx) => lowerLayer(ctx, 'polygon',
       [
@@ -1038,6 +1054,7 @@ export const OPERATORS: OpDef[] = [
       { name: 'backgroundColor', label: 'Background color', kind: 'color', default: [255, 255, 255], folder: 'Background' },
       opacity,
       blendParam,
+      extensionsParam,
     ],
     lower(ctx) {
       const text = ctx.str('text');
@@ -1073,6 +1090,7 @@ export const OPERATORS: OpDef[] = [
       { name: 'lineColor', label: 'Line color', kind: 'color', default: [255, 255, 255], folder: 'Style' },
       opacity,
       blendParam,
+      extensionsParam,
     ],
     lower: (ctx) => lowerLayer(ctx, 'line',
       [
@@ -1095,6 +1113,7 @@ export const OPERATORS: OpDef[] = [
       { name: 'pointColor', label: 'Point color', kind: 'color', default: [0, 0, 0], folder: 'Style' },
       opacity,
       blendParam,
+      extensionsParam,
     ],
     lower: (ctx) => lowerLayer(ctx, 'point-cloud',
       [{ channel: 'position', param: 'position' }, { channel: 'normal', param: 'normal' }, { channel: 'color', param: 'color' }],
@@ -1122,6 +1141,7 @@ export const OPERATORS: OpDef[] = [
       { name: 'offsetY', label: 'Offset Y (px)', kind: 'float', default: 0, min: -128, max: 128, step: 1, bind: 'prop', folder: 'Style' },
       opacity,
       blendParam,
+      extensionsParam,
     ],
     lower(ctx) {
       const icon = ctx.str('icon');
@@ -1154,6 +1174,7 @@ export const OPERATORS: OpDef[] = [
       { name: 'cellColor', label: 'Cell color', kind: 'color', default: [255, 170, 60], folder: 'Style' },
       opacity,
       blendParam,
+      extensionsParam,
     ],
     lower: (ctx) => lowerLayer(ctx, 'column',
       [{ channel: 'position', param: 'position' }, { channel: 'elevation', param: 'elevation' }, { channel: 'color', param: 'color' }],
@@ -1175,6 +1196,7 @@ export const OPERATORS: OpDef[] = [
       colorRangeParam,
       opacity,
       blendParam,
+      extensionsParam,
     ],
     lower: (ctx) => lowerLayer(ctx, 'screen-grid',
       [{ channel: 'position', param: 'position' }, { channel: 'weight', param: 'weight' }],
@@ -1193,6 +1215,7 @@ export const OPERATORS: OpDef[] = [
       { name: 'zOffset', label: 'Z offset', kind: 'float', default: 0.005, min: 0, max: 1, step: 0.001, bind: 'prop', folder: 'Style' },
       opacity,
       blendParam,
+      extensionsParam,
     ],
     lower: (ctx) => lowerLayer(ctx, 'contour',
       [{ channel: 'position', param: 'position' }, { channel: 'weight', param: 'weight' }],
@@ -1215,6 +1238,7 @@ export const OPERATORS: OpDef[] = [
       rampParam,
       opacity,
       blendParam,
+      extensionsParam,
     ],
     lower: (ctx) => lowerLayer(ctx, 'heatmap',
       [{ channel: 'position', param: 'position' }, { channel: 'weight', param: 'weight' }],

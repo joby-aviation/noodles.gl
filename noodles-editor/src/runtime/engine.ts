@@ -68,6 +68,8 @@ export interface EngineHost {
   layer(description: { type: string; [key: string]: unknown }): Layer
   widget(description: { type: string; [key: string]: unknown }): unknown
   view(description: unknown): unknown
+  /** Extension operators' outputs as deck extensions, with the props they add to a layer. */
+  extensions?(values: unknown[]): { extensions: unknown[]; props: Record<string, unknown> }
 }
 
 /** A planner output a host operator reads that does not exist yet: the operator waits. */
@@ -139,6 +141,11 @@ export class Engine {
   private slots: ReadonlyMap<string, unknown> = new Map()
   private pending: Promise<unknown> = Promise.resolve()
   private built = new Map<string, Layer[]>()
+  // A planner layer's extensions, built once for the extension values wired to it
+  private readonly extended = new Map<
+    string,
+    { values: unknown[]; extensions: unknown[]; props: Record<string, unknown> }
+  >()
   private hostErrors: { nodeId: string; message: string }[] = []
   /** `nodeId.port` -> the query reading rows a host operator handed to planner nodes. */
   private readonly hostTables = new Map<string, string>()
@@ -219,7 +226,7 @@ export class Engine {
     const layers = into('layers').flatMap(e => {
       // A planner node's output is the IR layer it lowered to: a switch's is the one it chose.
       const planned = this.built.get(this.lowered?.outputs[e.source]?.[e.sourcePort] ?? e.source)
-      if (planned) return planned
+      if (planned) return this.withExtensions(e.source, planned)
       const v = host?.runner.output(e.source, e.sourcePort)
       return (Array.isArray(v) ? v : v ? [v] : []).flatMap(item => this.asLayer(item))
     })
@@ -251,6 +258,31 @@ export class Engine {
         : undefined,
       maplibreLayers: hostValues('maplibreLayers'),
     }
+  }
+
+  /**
+   * A planner layer with the extensions wired to its node. The extension instances are built
+   * once per set of extension values, as deck resets a layer whose extensions change.
+   */
+  private withExtensions(nodeId: string, layers: Layer[]): Layer[] {
+    const host = this.options.host
+    const values = (this.doc?.edges ?? [])
+      .filter(e => e.target === nodeId && e.targetPort === 'par:extensions')
+      .sort((a, b) => (a.index ?? 0) - (b.index ?? 0))
+      .map(e => host?.runner.output(e.source, e.sourcePort))
+      .filter(v => v !== undefined && v !== null)
+    if (values.length === 0 || !host?.extensions) return layers
+    let built = this.extended.get(nodeId)
+    if (
+      !built ||
+      built.values.length !== values.length ||
+      built.values.some((v, i) => v !== values[i])
+    ) {
+      built = { values, ...host.extensions(values) }
+      this.extended.set(nodeId, built)
+    }
+    const { extensions, props } = built
+    return layers.map(l => l.clone({ ...props, extensions } as never))
   }
 
   private asLayer(item: unknown): Layer[] {
@@ -449,17 +481,25 @@ export class Engine {
         return new Uint8Array(await res.arrayBuffer())
       })
     for (const n of this.doc?.nodes ?? []) {
-      const url = ['file', 'geojson', 'code'].includes(n.op) ? String(n.params.url ?? '') : ''
-      if (!url || this.registered.has(url)) continue
-      if (url.startsWith('@/')) {
-        if (!readAsset) continue
-        await registerFile(url, await readAsset(url.slice(2)))
-      } else if (n.op === 'geojson' || n.op === 'code') {
-        await registerFile(url, await fetchBytes(url))
-      } else {
-        continue
+      // A query names project files as string literals: read_parquet('@/buildings.parquet')
+      const urls =
+        n.op === 'sql'
+          ? [...String(n.params.query ?? '').matchAll(/'(@\/[^']+)'/g)].map(m => m[1])
+          : ['file', 'geojson', 'code'].includes(n.op)
+            ? [String(n.params.url ?? '')]
+            : []
+      for (const url of urls) {
+        if (!url || this.registered.has(url)) continue
+        if (url.startsWith('@/')) {
+          if (!readAsset) continue
+          await registerFile(url, await readAsset(url.slice(2)))
+        } else if (n.op === 'geojson' || n.op === 'code') {
+          await registerFile(url, await fetchBytes(url))
+        } else {
+          continue
+        }
+        this.registered.add(url)
       }
-      this.registered.add(url)
     }
   }
 

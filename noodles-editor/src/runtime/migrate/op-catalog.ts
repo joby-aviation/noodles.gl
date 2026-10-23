@@ -23,7 +23,7 @@ export type Becomes =
   | 'host'
 
 // The R3 step converting an operator, while it is still to do
-export type Pending = 'R3e' | 'R4' | 'R5'
+export type Pending = 'R4' | 'R5'
 
 export interface OpPlan {
   becomes: Becomes
@@ -219,12 +219,12 @@ export const OP_CATALOG: Record<string, OpPlan> = {
   MaskExtensionOp: { becomes: 'deck', ops: ['mask-extension'] },
   TerrainExtensionOp: { becomes: 'deck', ops: ['terrain-extension'] },
   VibranceExtensionOp: { becomes: 'deck', ops: ['vibrance'] },
-  // Extensions with per-row values bind attributes on the layer they extend
-  BrushingExtensionOp: rows(['attribute'], 'R3e'),
-  CollisionFilterExtensionOp: rows(['attribute'], 'R3e'),
-  DataFilterExtensionOp: rows(['attribute', 'filter'], 'R3e'),
-  FillStyleExtensionOp: rows(['attribute'], 'R3e'),
-  PathStyleExtensionOp: rows(['attribute'], 'R3e'),
+  // Extensions deck gives per-row values take constants; a DataFilter is a filter on the rows
+  BrushingExtensionOp: { becomes: 'deck', ops: ['brushing'] },
+  CollisionFilterExtensionOp: { becomes: 'deck', ops: ['collision-filter'] },
+  DataFilterExtensionOp: planner(['filter']),
+  FillStyleExtensionOp: { becomes: 'deck', ops: ['fill-style'] },
+  PathStyleExtensionOp: { becomes: 'deck', ops: ['path-style'] },
 
   // --- numbers, strings, vectors ---------------------------------------------------------
   BezierCurveOp: planner(['bezier-curve']),

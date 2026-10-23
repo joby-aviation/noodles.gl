@@ -192,7 +192,7 @@ export function createImportDoc({
 
   // PMTiles makes a MapLibre source, which no layer draws yet: the reader stands alone
   if (format === 'pmtiles') {
-    const reader = add('PMTilesOp', 'pmtiles', 0, 0, { url })
+    const reader = add('pmtiles', 'pmtiles', 0, 0, { url })
     return { nodes, edges, primaryNodeId: reader, deckId: existingDeck?.id ?? '', newDeck: false }
   }
 
@@ -249,17 +249,18 @@ export function createImportDoc({
     return geo
   }
 
-  // Host readers for the formats DuckDB reads only from files it holds whole
-  if (format === 'shapefile' || format === 'geoparquet') {
-    const reader = add(format === 'shapefile' ? 'ShapefileOp' : 'GeoParquetOp', format, 0, 0, {
-      url,
+  // GeoParquet's features: DuckDB reads its geometry column, and casts plain WKB to one
+  if (format === 'geoparquet') {
+    const reader = add('sql', format, 0, 0, {
+      query: `SELECT * EXCLUDE ("geometry"), "geometry"::GEOMETRY AS geom FROM read_parquet('${url.replace(/'/g, "''")}')`,
     })
-    drawShapes({ id: reader, port: 'featureCollection' }, 300)
+    drawShapes({ id: reader, port: 'out' }, 300)
     return { nodes, edges, primaryNodeId: reader, viewState, deckId, newDeck: !existingDeck }
   }
 
-  if (format === 'geojson') {
-    const source = add('geojson', 'data', 0, 0, { url })
+  // GeoJSON, and shapefiles, which DuckDB spatial reads too
+  if (format === 'geojson' || format === 'shapefile') {
+    const source = add('geojson', format === 'shapefile' ? 'shapefile' : 'data', 0, 0, { url })
     const vertex = { position: '[lng, lat]', pathId: 'id', order: 'vertex' }
     const fill = add('polygon', 'fill', 300, -160, {
       ...vertex,

@@ -13,7 +13,7 @@ import { LegendWidget, type LegendWidgetProps } from '../widgets/legend-widget'
 
 type Described = { type: string; [key: string]: unknown }
 
-function instantiateExtensions(extensions: unknown): LayerExtension[] | undefined {
+export function instantiateExtensions(extensions: unknown): LayerExtension[] | undefined {
   if (!extensions || !Array.isArray(extensions)) return undefined
   return extensions
     .map((ext: Described) => {
