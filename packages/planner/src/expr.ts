@@ -16,7 +16,7 @@
  *   add     := mul (('+'|'-') mul)*
  *   mul     := unary (('*'|'/'|'%') unary)*
  *   unary   := ('-'|'!') unary | postfix
- *   postfix := primary ('.' swizzle)*
+ *   postfix := primary ('.' swizzle | '[' index ']')*
  *   primary := number | string | ident | '{{' param '}}' | ident '(' args ')'
  *            | '[' expr (',' expr)* ']' | '(' expr ')'
  */
@@ -343,7 +343,19 @@ export function parseExpr(src: string, scope?: ParseScope): Expr {
 
   function parsePostfix(): Expr {
     let node = parsePrimary();
-    while (isOp('.')) {
+    while (isOp('.') || isOp('[')) {
+      if (isOp('[')) {
+        // `v[1]` is `v.y`: a component by position, for vectors read from a list column.
+        eat('[');
+        const t = peek();
+        if (t.t !== 'num' || !Number.isInteger(t.v) || t.v > 3) {
+          throw new ExprError(`An index must be a whole number from 0 to 3 in ${JSON.stringify(src)}`);
+        }
+        pos++;
+        eat(']');
+        node = { kind: 'swizzle', target: node, channels: 'xyzw'[t.v] };
+        continue;
+      }
       eat('.');
       const t = peek();
       if (t.t !== 'ident' || !/^[xyzwrgba]+$/.test(t.v) || t.v.length > 4) {
@@ -500,6 +512,48 @@ export function simplifyExpr(e: Expr): Expr {
 }
 
 /**
+ * `item(v, 1)` is `v.y` when `v` is a vector column. A list column with one length in every
+ * row is read as a vector, so an expression written to index it in SQL keeps working.
+ *
+ * `packed` names vectors known to be packed from scalar columns (`P = [P_0, P_1]`): one
+ * component of such a vector, by `item` or a swizzle, is that column, so it stays in SQL.
+ * `item` of anything else — a list, a computed index — is left alone.
+ */
+export function vectorItems(
+  e: Expr,
+  widthOfColumn: (name: string) => number,
+  packed: (name: string) => Expr[] | undefined = () => undefined,
+): Expr {
+  const go = (n: Expr): Expr => {
+    switch (n.kind) {
+      case 'unary': return { ...n, operand: go(n.operand) };
+      case 'binary': return { ...n, left: go(n.left), right: go(n.right) };
+      case 'vec': return { ...n, components: n.components.map(go) };
+      case 'cond': return { ...n, test: go(n.test), then: go(n.then), else: go(n.else) };
+      case 'swizzle': {
+        // `[P_0, P_1].y` folds to `P_1` in `simplifyExpr`.
+        const comps = n.target.kind === 'col' ? packed(n.target.name) : undefined;
+        return { ...n, target: comps ? { kind: 'vec', components: comps } : go(n.target) };
+      }
+      case 'call': {
+        const [list, index] = n.args;
+        if (n.fn === 'item' && list.kind === 'col' && index.kind === 'num' && Number.isInteger(index.value)) {
+          const width = widthOfColumn(list.name);
+          const comps = packed(list.name);
+          if (comps && index.value >= 0 && index.value < comps.length) return comps[index.value];
+          if (width > 1 && index.value >= 0 && index.value < Math.min(4, width)) {
+            return { kind: 'swizzle', target: list, channels: 'xyzw'[index.value] };
+          }
+        }
+        return { ...n, args: n.args.map(go) };
+      }
+      default: return n;
+    }
+  };
+  return go(e);
+}
+
+/**
  * Which engines can evaluate this whole tree. This is what makes the planner's
  * engine assignment a lookup rather than a heuristic.
  */
@@ -604,6 +658,11 @@ export function widthOf(e: Expr, env: WidthEnv): number {
     case 'swizzle': {
       if (!SWIZZLE_OK.test(e.channels)) {
         throw new ExprError(`Mixed swizzle sets not allowed: .${e.channels}`);
+      }
+      const of = widthOf(e.target, env);
+      const last = Math.max(...[...e.channels].map((c) => 'xyzwrgba'.indexOf(c) % 4));
+      if (of > 1 && last >= of) {
+        throw new ExprError(`.${e.channels} reads component ${last} of a value with ${of} (0 to ${of - 1})`);
       }
       return e.channels.length;
     }

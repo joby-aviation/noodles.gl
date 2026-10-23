@@ -28,6 +28,7 @@ import {
   type GraphNode,
   inputsOf,
   type LayerPlan,
+  listComponentColumns,
   type ProgramPlan,
   quoteIdent,
   type RelColumn,
@@ -417,9 +418,13 @@ export class ProgramRuntime {
     }
     if (!relation)
       return { columns: [], rows: [], total: 0, note: info?.error ?? 'this node has no rows' }
+    // A list read as a vector shows as the list, not as its component columns too
+    const star = (hidden: string[]) =>
+      hidden.length ? `* EXCLUDE (${hidden.map(quoteIdent).join(', ')})` : '*'
+    const all = star(listComponentColumns(relation.shape))
     if (relation.id === nodeId) {
       return this.read(
-        `SELECT * FROM ${relation.ref} LIMIT ${limit}`,
+        `SELECT ${all} FROM ${relation.ref} LIMIT ${limit}`,
         `SELECT count(*) AS n FROM ${relation.ref}`,
         [],
         relation.sql
@@ -436,7 +441,7 @@ export class ProgramRuntime {
     }
     walk(nodeId)
     try {
-      const { sql } = rowwiseSql(
+      const { sql, vectors } = rowwiseSql(
         chain,
         relation.ref,
         relation.shape,
@@ -445,14 +450,14 @@ export class ProgramRuntime {
         'the spreadsheet'
       )
       return this.read(
-        `SELECT * FROM (${sql}) LIMIT ${limit}`,
+        `SELECT ${star(listComponentColumns(relation.shape, vectors))} FROM (${sql}) LIMIT ${limit}`,
         `SELECT count(*) AS n FROM (${sql})`,
         [],
         sql
       )
     } catch (err) {
       const fallback = await this.read(
-        `SELECT * FROM ${relation.ref} LIMIT ${limit}`,
+        `SELECT ${all} FROM ${relation.ref} LIMIT ${limit}`,
         `SELECT count(*) AS n FROM ${relation.ref}`,
         [],
         relation.sql
@@ -477,11 +482,13 @@ export class ProgramRuntime {
     const columns: RelColumn[] = table.schema.fields.map(f => ({
       name: f.name,
       duckType: String(f.type),
-      type: /Utf8/.test(String(f.type))
-        ? 'str'
-        : /Float|Int|Decimal|Bool/.test(String(f.type))
-          ? 'num'
-          : 'other',
+      type: /^(List|FixedSizeList|Struct|Map)/.test(String(f.type))
+        ? 'other'
+        : /Utf8/.test(String(f.type))
+          ? 'str'
+          : /Float|Int|Decimal|Bool/.test(String(f.type))
+            ? 'num'
+            : 'other',
     }))
     return {
       columns,

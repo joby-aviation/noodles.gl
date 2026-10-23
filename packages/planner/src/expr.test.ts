@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseExpr, enginesFor, columnsOf, paramsOf, isAggregate, simplifyExpr, widthOf } from './expr.js';
+import { parseExpr, enginesFor, columnsOf, paramsOf, isAggregate, simplifyExpr, vectorItems, widthOf } from './expr.js';
 import { toSql, toSqlColumns } from './backends/sql.js';
 import { toWgsl, type Resolver } from './backends/wgsl.js';
 
@@ -180,6 +180,35 @@ describe('width inference', () => {
     ['x > 1 ? P : P', 3],
   ])('%s -> %i components', (src, want) => {
     expect(widthOf(parseExpr(src), env)).toBe(want);
+  });
+});
+
+describe('indexing a vector', () => {
+  const env = (n: string) => ({ P: 3, uv: 2 } as Record<string, number>)[n] ?? 1;
+
+  it('reads a component by position, as a swizzle', () => {
+    expect(parseExpr('P[2]')).toEqual(parseExpr('P.z'));
+    expect(parseExpr('[a, b][1] + uv[0]')).toEqual(parseExpr('[a, b].y + uv.x'));
+  });
+
+  it('takes a whole number from 0 to 3', () => {
+    expect(() => parseExpr('P[4]')).toThrow(/whole number from 0 to 3/);
+    expect(() => parseExpr('P[0.5]')).toThrow(/whole number from 0 to 3/);
+    expect(() => parseExpr('P[i]')).toThrow(/whole number from 0 to 3/);
+  });
+
+  it('rejects a component past the vector', () => {
+    expect(() => widthOf(parseExpr('uv[2]'), env)).toThrow(/component 2 of a value with 2/);
+    expect(() => widthOf(parseExpr('uv.xyz'), env)).toThrow(/component 2 of a value with 2/);
+  });
+
+  it('turns item() of a vector into a swizzle, and of a packed vector into its column', () => {
+    const items = (src: string, packed?: Record<string, string[]>) =>
+      vectorItems(parseExpr(src), env, (n) => packed?.[n]?.map((c) => parseExpr(c)));
+    expect(items('item(uv, 1.0)')).toEqual(parseExpr('uv.y'));
+    // A list column is width 1 here: it stays `item`, which SQL reads.
+    expect(items('item(xy, 1.0)')).toEqual(parseExpr('item(xy, 1.0)'));
+    expect(items('item(uv, 1.0) + uv.x', { uv: ['uv_0', 'uv_1'] })).toEqual(parseExpr('uv_1 + [uv_0, uv_1].x'));
   });
 });
 

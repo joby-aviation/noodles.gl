@@ -46,6 +46,7 @@ import { propParam, type LayerKind } from './layers.js';
 import { quoteIdent } from './backends/sql.js';
 import {
   type RelShape, type RelColumn,
+  numericListOf, listVectors, listComponentsSql,
   sourceSql, verticesSql, joinSql, unionSql, sortSql, limitSql, sqlNodeSql, generateSql, unnestSql, rowwiseSql,
 } from './relational.js';
 
@@ -133,6 +134,12 @@ export interface CatalogEntry {
  */
 export interface Catalog {
   describe(rel: RelationPlan): Promise<CatalogEntry>;
+  /**
+   * Shortest and longest list in each named list column of a described relation, over rows
+   * where it is not NULL. A numeric list of one length is read as a vector; without this,
+   * only fixed-length arrays (`DOUBLE[2]`) are.
+   */
+  listLengths?(rel: RelationPlan, columns: string[]): Promise<Record<string, { min: number; max: number }>>;
 }
 
 export interface CompileOptions {
@@ -214,8 +221,10 @@ function columnsAfter(node: GraphNode, before: RelColumn[]): RelColumn[] {
 }
 
 function shapeColumns(shape: RelShape): RelColumn[] {
+  // A list read as a vector is listed once, as the vector.
+  const vectorNames = new Set(shape.vectors.map((v) => v.name));
   return [
-    ...shape.columns,
+    ...shape.columns.filter((c) => !vectorNames.has(c.name)),
     ...shape.vectors.map((v) => ({ name: v.name, type: 'num' as const, duckType: `FLOAT[${v.width}]` })),
   ];
 }
@@ -420,8 +429,21 @@ export async function compileProgram(
           : {}),
       };
       const described = await catalog.describe(rel);
+      // A numeric list of one length in every row is a vector: its items become component
+      // columns, which consumers read like any other vector's.
+      const unmeasured = described.columns
+        .filter((c) => {
+          const list = numericListOf(c.duckType);
+          return list && list.length === undefined && !vectors.some((v) => v.name === c.name);
+        })
+        .map((c) => c.name);
+      const lengths = unmeasured.length && catalog.listLengths ? await catalog.listLengths(rel, unmeasured) : {};
+      const lists = listVectors(described.columns, lengths, vectors);
+      if (lists.length) rel.ref = `(${listComponentsSql(rel.ref, lists)})`;
+      const components = lists.flatMap((v) => Array.from({ length: v.width }, (_, i) =>
+        ({ name: `${v.name}_${i}`, type: 'num' as const, duckType: 'DOUBLE' })));
       // Component columns of a vector are real columns; the vector itself is listed apart.
-      rel.shape = { columns: described.columns, vectors };
+      rel.shape = { columns: [...described.columns, ...components], vectors: [...vectors, ...lists] };
       rel.stats = described.stats;
       rel.rows = described.rows ?? described.stats?.rows;
       relations.set(node.id, rel);
@@ -474,7 +496,10 @@ export async function compileProgram(
 
       const schema = new Map<string, number>();
       const columnTypes = new Map<string, ColumnType>();
+      const vectorNames = new Set(rel.shape.vectors.map((v) => v.name));
       for (const c of rel.shape.columns) {
+        // A list read as a vector is the vector here, re-packed from its components.
+        if (vectorNames.has(c.name)) continue;
         columnTypes.set(c.name, c.type);
         if (c.type === 'num') schema.set(c.name, 1);
       }

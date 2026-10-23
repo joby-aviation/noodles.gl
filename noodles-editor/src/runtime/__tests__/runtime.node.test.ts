@@ -235,3 +235,118 @@ describe('previewing list columns', () => {
     expect(() => structuredClone(preview.rows)).not.toThrow()
   })
 })
+
+describe('numeric list columns as vectors', () => {
+  const STATIONS = [
+    { name: 'Lafayette', coordinates: [-122.12, 37.89] },
+    { name: 'Orinda', coordinates: [-122.18, 37.87] },
+    { name: 'Rockridge', coordinates: [-122.25, 37.84] },
+  ]
+
+  function scatter(url: string, position: string, extra: EditorDoc['nodes'] = []): EditorDoc {
+    const between = extra.map(n => n.id)
+    const chain = ['json', ...between, 'dots']
+    return {
+      version: 1,
+      name: 'stations',
+      nodes: [
+        { id: 'json', op: 'file', x: 0, y: 0, params: { url, format: 'json' } },
+        ...extra,
+        { id: 'dots', op: 'scatter', x: 0, y: 0, params: { position } },
+        { id: 'deck', op: 'deck', x: 0, y: 0, params: {} },
+      ],
+      edges: [
+        ...chain.slice(1).map((target, i) => ({
+          id: `e${i}`,
+          source: chain[i],
+          sourcePort: 'out',
+          target,
+          targetPort: 'in',
+        })),
+        { id: 'ed', source: 'dots', sourcePort: 'out', target: 'deck', targetPort: 'layers' },
+      ],
+    }
+  }
+
+  function positions(rt: ProgramRuntime): number[][] {
+    const dots = rt.layers().find(l => l.id === 'dots')!
+    const p = dots.data!.attributes.get(dots.plan.plan.layer!.bindings[0].attribute)!
+    return Array.from({ length: dots.data!.rows }, (_, row) =>
+      Array.from({ length: p.width }, (_, c) => p.data[row * p.width + c])
+    )
+  }
+
+  beforeAll(() => {
+    duck.registerText('stations.json', JSON.stringify(STATIONS))
+  })
+
+  it('draws a scatter whose position is a list column', async () => {
+    const { rt } = await start(scatter('stations.json', 'coordinates'))
+    expect(rt.program()?.errors).toEqual([])
+    const got = positions(rt)
+    expect(got).toHaveLength(3)
+    STATIONS.forEach((s, i) => {
+      expect(got[i][0]).toBeCloseTo(s.coordinates[0], 4)
+      expect(got[i][1]).toBeCloseTo(s.coordinates[1], 4)
+    })
+  })
+
+  it('reads a list item by index or swizzle in an attribute', async () => {
+    const { rt } = await start(
+      scatter('stations.json', 'P', [
+        {
+          id: 'pos',
+          op: 'attribute',
+          x: 0,
+          y: 0,
+          params: { name: 'P', expression: '[coordinates[0], coordinates.y + 1]' },
+        },
+      ])
+    )
+    expect(rt.program()?.errors).toEqual([])
+    const got = positions(rt)
+    expect(got[0][0]).toBeCloseTo(-122.12, 4)
+    expect(got[0][1]).toBeCloseTo(38.89, 4)
+  })
+
+  it('reads a fixed-length array as a vector without measuring it', async () => {
+    const doc = scatter('stations.json', 'xyz')
+    doc.nodes[0] = {
+      id: 'json',
+      op: 'sql',
+      x: 0,
+      y: 0,
+      params: {
+        query:
+          'SELECT * FROM (VALUES ([1.0, 2.0, 3.0]::DOUBLE[3]), ([4.0, 5.0, 6.0]::DOUBLE[3])) AS t(xyz)',
+      },
+    }
+    const { rt } = await start(doc)
+    expect(rt.program()?.errors).toEqual([])
+    expect(positions(rt)).toEqual([
+      [1, 2, 3],
+      [4, 5, 6],
+    ])
+  })
+
+  it('leaves a list whose rows differ in length a list, and says so', async () => {
+    duck.registerText(
+      'ragged.json',
+      JSON.stringify([
+        { name: 'a', coordinates: [1, 2] },
+        { name: 'b', coordinates: [1, 2, 3] },
+      ])
+    )
+    const { rt } = await start(scatter('ragged.json', 'coordinates'))
+    const errors = rt.program()?.errors ?? []
+    expect(errors).toHaveLength(1)
+    expect(errors[0].message).toMatch(/'coordinates' is a list or struct/)
+  })
+
+  it('previews the list, not its component columns', async () => {
+    const { rt, lowered } = await start(scatter('stations.json', 'coordinates'))
+    const preview = await rt.preview(lowered.outputs.json?.out ?? 'json', 5)
+    expect(preview.rows[0]).toEqual({ name: 'Lafayette', coordinates: [-122.12, 37.89] })
+    expect(preview.columns.find(c => c.name === 'coordinates')?.type).toBe('other')
+  })
+})
