@@ -144,6 +144,10 @@ export function useTableGridNavigation({
 
   useEffect(() => {
     const endPointerSelection = () => {
+      if (pointerSelectingRef.current) {
+        focusActiveCellRef.current = true
+        setActiveCell(current => (current ? { ...current } : current))
+      }
       pointerSelectingRef.current = false
     }
     document.addEventListener('pointerup', endPointerSelection)
@@ -298,12 +302,13 @@ export function useTableGridNavigation({
 
   useEffect(() => {
     if (!activeCell || editingCell || !focusActiveCellRef.current) return
+    const cell = tableWrapperRef.current?.querySelector<HTMLElement>(
+      `[data-grid-row="${activeCell.row}"][data-grid-column="${activeCell.column}"]`
+    )
+    if (!cell) return
     focusActiveCellRef.current = false
-    tableWrapperRef.current
-      ?.querySelector<HTMLElement>(
-        `[data-grid-row="${activeCell.row}"][data-grid-column="${activeCell.column}"]`
-      )
-      ?.focus({ preventScroll: true })
+    cell.focus({ preventScroll: true })
+    cell.scrollIntoView?.({ block: 'nearest', inline: 'nearest' })
   }, [activeCell, editingCell, tableWrapperRef])
 
   const beginPointerSelection = useCallback(

@@ -766,6 +766,34 @@ describe('TableEditor - Edit Flow', () => {
       expect(onDataChange).toHaveBeenCalledWith([{ vector: [1, 4, 3] }], 'Edit cell vector')
     })
 
+    it('lets Tab finish a cleared vector channel before committing the cell', () => {
+      const onDataChange = vi.fn()
+      const scrubSchema: TableSchema = {
+        columns: [{ name: 'vector', type: 'vec2', defaultValue: [0, 0] }],
+      }
+      render(
+        <TableEditor
+          op={mockOp}
+          data={[{ vector: [1, 2] }]}
+          schema={scrubSchema}
+          onDataChange={onDataChange}
+          onSchemaChange={vi.fn()}
+        />
+      )
+
+      fireEvent.doubleClick(screen.getByText('[1.0000, 2.0000]'))
+      const xInput = screen.getByRole('spinbutton', { name: 'X' })
+      const yInput = screen.getByRole('spinbutton', { name: 'Y' })
+      fireEvent.change(xInput, { target: { value: '' } })
+      fireEvent.keyDown(xInput, { key: 'Tab' })
+      expect(onDataChange).not.toHaveBeenCalled()
+
+      fireEvent.blur(xInput, { relatedTarget: yInput })
+      fireEvent.focus(yInput, { relatedTarget: xInput })
+      fireEvent.blur(yInput)
+      expect(onDataChange).toHaveBeenCalledWith([{ vector: [0, 2] }], 'Edit cell vector')
+    })
+
     it.each([
       {
         type: 'vec2' as const,

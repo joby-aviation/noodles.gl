@@ -271,6 +271,38 @@ describe('TableEditor spreadsheet clipboard', () => {
     )
   })
 
+  it('pastes the first scalar row into an empty table with an existing schema', async () => {
+    const onDataChange = vi.fn()
+    clipboard.readText.mockResolvedValue('First')
+    renderTable({
+      data: [],
+      schema: { columns: [{ name: 'value', type: 'string', defaultValue: '' }] },
+      onDataChange,
+    })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Paste Data' }))
+      await Promise.resolve()
+    })
+
+    expect(onDataChange).toHaveBeenCalledWith([{ value: 'First' }], 'Paste table data')
+  })
+
+  it('pastes an explicit one-row CSV range into an existing table', () => {
+    const { onDataChange } = renderTable()
+    const alice = screen.getByText('Alice').closest('[role="gridcell"]') as HTMLElement
+    fireEvent.click(alice)
+    dispatchClipboardEvent(alice, 'paste', dataTransfer({ 'text/plain': 'Carol,30' }))
+
+    expect(onDataChange).toHaveBeenCalledWith(
+      [
+        { name: 'Carol', count: 30 },
+        { name: 'Bob', count: 20 },
+      ],
+      'Paste table data'
+    )
+  })
+
   it('anchors a paste at the top-left of an equal-sized selection', () => {
     const rows = Array.from({ length: 16 }, (_, index) => ({ value: `Original ${index + 1}` }))
     const { onDataChange } = renderTable({
