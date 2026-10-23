@@ -25,6 +25,20 @@
   line-height: 1.5;
 }
 
+.promptText {
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 6px;
+  background: #1a1a1a;
+  color: #c8c8c8;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-family: monospace;
+  font-size: 11px;
+  resize: vertical;
+}
+
 .cardsContainer {
   display: flex;
   flex-direction: column;
