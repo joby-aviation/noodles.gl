@@ -28,7 +28,9 @@ type Shape =
   | { kind: 'lists' }
 
 const isNumber = (v: unknown): v is number => typeof v === 'number'
-const isNumbers = (v: unknown): v is number[] => Array.isArray(v) && v.every(isNumber)
+// A list of numbers may hold nulls: world-flights' paths lack some altitudes
+const isNumbers = (v: unknown): v is number[] =>
+  Array.isArray(v) && v.every(x => typeof x === 'number' || x === null)
 
 /** A column's shape from every value it holds, or undefined when the values disagree. */
 function shapeOf(values: unknown[]): Shape | undefined {
@@ -92,13 +94,35 @@ function listData(values: unknown[], child: (flat: unknown[][]) => Data, childTy
   })
 }
 
+// Numbers one after another, a null kept as null
+function floatData(count: number, fill: (put: (v: unknown) => void) => void): Data<Float64> {
+  const data = new Float64Array(count)
+  const bitmap = new Uint8Array(Math.ceil(count / 8)).fill(255)
+  let at = 0
+  let nulls = 0
+  fill(v => {
+    if (typeof v === 'number') data[at] = v
+    else {
+      nulls++
+      bitmap[at >> 3] &= ~(1 << (at & 7))
+    }
+    at++
+  })
+  return makeData({
+    type: float64,
+    length: count,
+    data,
+    nullCount: nulls,
+    nullBitmap: nulls ? bitmap : undefined,
+  })
+}
+
 function numbersData(rows: unknown[][]): Data<Float64> {
   let total = 0
   for (const r of rows) total += r.length
-  const data = new Float64Array(total)
-  let at = 0
-  for (const r of rows) for (const v of r) data[at++] = v as number
-  return makeData({ type: float64, length: total, data })
+  return floatData(total, put => {
+    for (const r of rows) for (const v of r) put(v)
+  })
 }
 
 function column(values: unknown[], shape: Shape): Vector {
@@ -127,7 +151,7 @@ function column(values: unknown[], shape: Shape): Vector {
     case 'list':
       return makeVector(listData(values, numbersData, new Field('item', float64, true)))
     case 'points': {
-      const pointType = new FixedSizeList(shape.width, new Field('item', float64, false))
+      const pointType = new FixedSizeList(shape.width, new Field('item', float64, true))
       return makeVector(
         listData(
           values,
@@ -135,17 +159,12 @@ function column(values: unknown[], shape: Shape): Vector {
             // Points of every row, one after another; a point is `width` numbers
             let count = 0
             for (const r of rows) count += r.length
-            const flat = new Float64Array(count * shape.width)
-            let at = 0
-            for (const r of rows) {
-              for (const p of r as number[][])
-                for (let k = 0; k < shape.width; k++) flat[at++] = p[k]
-            }
-            return makeData({
-              type: pointType,
-              length: count,
-              child: makeData({ type: float64, length: flat.length, data: flat }),
+            const child = floatData(count * shape.width, put => {
+              for (const r of rows) {
+                for (const p of r as number[][]) for (let k = 0; k < shape.width; k++) put(p[k])
+              }
             })
+            return makeData({ type: pointType, length: count, child })
           },
           new Field('item', pointType, true)
         )

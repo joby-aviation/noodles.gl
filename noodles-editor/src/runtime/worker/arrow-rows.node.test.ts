@@ -53,6 +53,16 @@ describe('rows into Arrow by column', () => {
       { a: null, n: null, s: 'w' },
       { a: 4, n: null, s: null },
     ])
+    // A null inside a point or a list stays null
+    const holes = tableFromRows([
+      { p: [[1, null, 3]], l: [1, null] },
+      { p: [[4, 5, 6]], l: [2] },
+    ])!
+    load('holes', tableToIPC(holes, 'stream'))
+    expect(await rows('SELECT p[1][2] AS y, l[2] AS b FROM holes')).toEqual([
+      { y: null, b: null },
+      { y: 5, b: null },
+    ])
     expect(tableFromRows([{ o: { nested: 1 } }])).toBeUndefined()
     expect(tableFromRows([{ m: 1 }, { m: 'two' }])).toBeUndefined()
   })

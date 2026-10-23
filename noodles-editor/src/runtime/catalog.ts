@@ -57,6 +57,8 @@ interface Entry {
   lengths?: Record<string, { min: number; max: number }>
 }
 
+const STATS_SAMPLE = 100_000
+
 export class MaterializingCatalog implements Catalog {
   readonly counters: CatalogCounters = { materialized: 0, hits: 0, dropped: 0, materializeMs: 0 }
   private readonly entries = new Map<string, Entry>()
@@ -106,11 +108,19 @@ export class MaterializingCatalog implements Catalog {
       // `min()::DOUBLE` fails on a string or a list, so statistics cover numeric columns only.
       const numeric = columns.filter(c => c.type === 'num').map(c => c.name)
       try {
-        const { table } = await this.sql.run(statsSql(target, numeric))
+        // Statistics only steer the cost model, so a large table's come from a sample: a full
+        // pass over world-flights' 1.5M vertex rows took a quarter second per relation
+        const count = await this.sql.run(`SELECT count(*)::DOUBLE AS n FROM ${target}`)
+        const total = Number((count.table.get(0) as { n?: number } | null)?.n ?? 0)
+        const sampled =
+          total > STATS_SAMPLE * 2
+            ? `(SELECT * FROM ${target} USING SAMPLE ${((STATS_SAMPLE / total) * 100).toFixed(3)}% (system, 1))`
+            : target
+        const { table } = await this.sql.run(statsSql(sampled, numeric))
         const row = table.get(0) as Record<string, unknown> | null
         if (row) {
-          stats = parseStatsRow(row, numeric, described)
-          rows = stats.rows
+          stats = { ...parseStatsRow(row, numeric, described), rows: total }
+          rows = total
         }
       } catch {
         // approx_count_distinct is missing from some builds; the optimizer falls back to rules.
