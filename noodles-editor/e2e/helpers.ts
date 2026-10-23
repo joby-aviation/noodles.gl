@@ -2,6 +2,7 @@ import { existsSync, readdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { Page } from '@playwright/test'
+import { DEFAULT_RENDER_SETTINGS } from '../src/noodles/utils/render-settings-constants'
 
 const examplesDir = join(dirname(fileURLToPath(import.meta.url)), '../src/examples')
 
@@ -77,6 +78,67 @@ async function waitForSmoothFrames(page: Page, timeout: number) {
 // corner of the resized canvas.
 export const TEST_LOD = 0.5
 
+type Keyframe = { value: unknown }
+type Project = {
+  nodes?: { id: string; type: string; data: { inputs?: Record<string, unknown> } }[]
+  edges?: { target: string; targetHandle: string }[]
+  timeline?: {
+    sheetsById?: Record<
+      string,
+      {
+        sequence?: {
+          tracksByObject?: Record<
+            string,
+            {
+              trackIdByPropPath?: Record<string, string>
+              trackData?: Record<string, { keyframes?: Keyframe[] }>
+            }
+          >
+        }
+      }
+    >
+  }
+}
+
+// LOD scales the map's viewport, not only its pixel density: at a quarter of the authored
+// LOD the same zoom shows a quarter of the authored width. Map and orbit zoom are both log2
+// scales, so lowering each literal zoom by log2 of the LOD change keeps the framing. Zoom
+// that arrives over an edge (BoundingBox already fits the render surface) is left alone.
+function lowerLod(project: Project, lod: number): Project {
+  const out = project.nodes?.find(node => node.type === 'OutOp')
+  if (!out) return project
+  const authoredLod = Number(out.data.inputs?.lod ?? DEFAULT_RENDER_SETTINGS.lod)
+  out.data.inputs = { ...out.data.inputs, lod }
+  const shift = Math.log2(authoredLod / lod)
+
+  const connected = new Set(project.edges?.map(edge => `${edge.target} ${edge.targetHandle}`))
+  for (const node of project.nodes ?? []) {
+    const inputs = node.data.inputs ?? {}
+    // A zoom input (MapViewState) or a zoom inside a compound input (viewState, basemap)
+    for (const [key, value] of Object.entries(inputs)) {
+      if (connected.has(`${node.id} par.${key}`)) continue
+      if (key === 'zoom' && typeof value === 'number') inputs.zoom = value - shift
+      const nested = value as { zoom?: unknown } | null
+      if (typeof nested?.zoom === 'number' && !connected.has(`${node.id} par.${key}.zoom`)) {
+        inputs[key] = { ...nested, zoom: nested.zoom - shift }
+      }
+    }
+  }
+
+  // Keyframed zoom: the timeline keys tracks by a JSON prop path such as ["viewState","zoom"]
+  for (const sheet of Object.values(project.timeline?.sheetsById ?? {})) {
+    for (const object of Object.values(sheet.sequence?.tracksByObject ?? {})) {
+      for (const [propPath, trackId] of Object.entries(object.trackIdByPropPath ?? {})) {
+        if (JSON.parse(propPath).at(-1) !== 'zoom') continue
+        for (const keyframe of object.trackData?.[trackId]?.keyframes ?? []) {
+          if (typeof keyframe.value === 'number') keyframe.value -= shift
+        }
+      }
+    }
+  }
+  return project
+}
+
 // lod: null leaves the example's own LOD, for tests that only check the canvas mounts
 export async function openExample(
   page: Page,
@@ -86,17 +148,14 @@ export async function openExample(
   if (lod !== null) {
     await page.route(/\/noodles[^/]*\.json(\?|$)/, async route => {
       const response = await route.fetch()
-      let project: { nodes?: { type: string; data: { inputs?: object } }[] }
+      let project: Project
       try {
         project = await response.json()
       } catch {
         // Vite also serves the file as a JS module for the examples list; leave that alone
         return route.fulfill({ response })
       }
-      for (const node of project.nodes ?? []) {
-        if (node.type === 'OutOp') node.data.inputs = { ...node.data.inputs, lod }
-      }
-      await route.fulfill({ response, json: project })
+      await route.fulfill({ response, json: lowerLod(project, lod) })
     })
   }
   await page.goto(`/examples/${exampleName}`)

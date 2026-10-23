@@ -19,6 +19,10 @@ const MOUNT_ONLY: Record<string, string> = {
   'world-flights': 'too heavy for software WebGL',
 }
 
+// These render at their own LOD. A lower LOD needs a lower zoom to keep the framing (see
+// openExample), and OrbitView's zoom input stops at 0, below what orbit would need.
+const AUTHORED_LOD = new Set(['orbit'])
+
 // Deck text layers draw labels with a system font, which differs between macOS and Linux
 // (about 3.6% of pixels for geojson-example's station names)
 const MAX_DIFF_PIXEL_RATIO: Record<string, number> = {
@@ -30,7 +34,8 @@ test.describe('examples', () => {
   for (const exampleName of EXAMPLES) {
     test(exampleName, async ({ page }) => {
       const mountOnly = exampleName in MOUNT_ONLY
-      await openExample(page, exampleName, { lod: mountOnly ? null : undefined })
+      const ownLod = mountOnly || AUTHORED_LOD.has(exampleName)
+      await openExample(page, exampleName, { lod: ownLod ? null : undefined })
 
       if (mountOnly) {
         test.info().annotations.push({ type: 'mount only', description: MOUNT_ONLY[exampleName] })

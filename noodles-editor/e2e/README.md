@@ -39,6 +39,14 @@ render a 4K canvas by default, which software WebGL draws too slowly, and changi
 in Render Settings after the map has drawn sometimes leaves the basemap drawn into one
 corner of the resized canvas.
 
+LOD sets the size of the map's viewport, not only its pixel density, so at a quarter of
+the authored LOD the same zoom would show a quarter of the authored width. `openExample`
+lowers every literal zoom in the project, keyframes included, by log2 of the LOD change,
+which keeps each example's bounds. Zoom that comes over an edge is left alone. Marks sized
+in pixels, such as labels, still draw larger relative to the map than at the authored LOD.
+`orbit` keeps its own LOD (`AUTHORED_LOD` in `examples-visual.spec.ts`): OrbitView's zoom
+input stops at 0, below what orbit would need.
+
 ## Baselines
 
 Every test renders with SwiftShader (software WebGL), the only WebGL on CI runners. It
