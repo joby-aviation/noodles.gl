@@ -9,7 +9,6 @@ import { Button } from 'primereact/button'
 import { InputText } from 'primereact/inputtext'
 import {
   Fragment,
-  lazy,
   Suspense,
   useCallback,
   useEffect,
@@ -22,7 +21,7 @@ import { createPortal } from 'react-dom'
 
 import { BasemapGallery } from './basemap-gallery'
 
-const CodeiumEditor = lazy(() =>
+const CodeiumEditor = lazyWithReload(() =>
   import('@codeium/react-code-editor').then(m => ({ default: m.CodeiumEditor }))
 )
 
@@ -31,6 +30,7 @@ import { VectorKeyframeIndicator } from '../../timeline/components/KeyframeIndic
 import { getFieldPath } from '../../timeline/field-bindings'
 import { useTimelineStore } from '../../timeline/timeline-store'
 import { analytics } from '../../utils/analytics'
+import { lazyWithReload } from '../../utils/stale-chunk'
 import {
   categoricalSchemesFixed,
   categoricalSchemesStepped,

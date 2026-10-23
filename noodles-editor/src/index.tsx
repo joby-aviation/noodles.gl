@@ -7,9 +7,13 @@ import './index.css'
 import { keyboardManager } from './noodles/utils/keyboard-manager'
 import reportWebVitals from './reportWebVitals'
 import { analytics } from './utils/analytics'
+import { installStaleChunkHandler } from './utils/stale-chunk'
 
 // Initialize analytics
 analytics.initialize()
+
+// Reload once when a chunk from a previous deploy fails to load
+installStaleChunkHandler()
 
 // Log uncaught errors and unhandled promise rejections to the console
 window.addEventListener('error', e => {

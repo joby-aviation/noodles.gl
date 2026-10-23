@@ -25,7 +25,6 @@ import * as deck from 'deck.gl'
 import type { JSZipObject } from 'jszip'
 import { PrimeReactProvider } from 'primereact/api'
 import {
-  lazy,
   Suspense,
   useCallback,
   useEffect,
@@ -39,6 +38,7 @@ import { globalContextManager } from '../ai-chat/global-context-manager'
 import type { NoodlesProject } from '../ai-chat/types'
 import { getPendingQuickStartAction } from '../components/quick-start-modal'
 import { analytics } from '../utils/analytics'
+import { lazyWithReload, staleChunk } from '../utils/stale-chunk'
 import { setCurrentProject, setModificationApplier } from '../webmcp/bridge'
 import { agentBench, externalControl } from './globals'
 import { getKeysForProject, getKeysStore } from './keys-store'
@@ -153,8 +153,10 @@ import { EdgeSpatialIndex } from './utils/spatial-index'
 import { expandTimelineIfAnimated } from './utils/timeline-panel'
 import { calculateViewerPosition } from './utils/viewer-position'
 
-const ChatPanel = lazy(() => import('../ai-chat/chat-panel').then(m => ({ default: m.ChatPanel })))
-const GitHistoryPanel = lazy(() =>
+const ChatPanel = lazyWithReload(() =>
+  import('../ai-chat/chat-panel').then(m => ({ default: m.ChatPanel }))
+)
+const GitHistoryPanel = lazyWithReload(() =>
   import('./components/git-history-panel').then(m => ({ default: m.GitHistoryPanel }))
 )
 
@@ -368,12 +370,10 @@ export function getNoodles(): Visualization {
 
   // Warn before leaving page with unsaved changes
   useEffect(() => {
+    // Don't warn for examples - they're read-only demos
+    const unsaved = !isExamplesRoute && (hasUnsavedChanges || storageType === 'memory')
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      // Don't warn for examples - they're read-only demos
-      if (isExamplesRoute) {
-        return
-      }
-      if (hasUnsavedChanges || storageType === 'memory') {
+      if (unsaved) {
         e.preventDefault()
         e.returnValue = ''
       }
@@ -383,14 +383,17 @@ export function getNoodles(): Visualization {
       storageType === 'memory'
         ? memoryProjectStore.getDisplayName(projectName || '') || 'Untitled'
         : projectName
-    // Don't show asterisk for examples - they're read-only
-    const showAsterisk = !isExamplesRoute && (hasUnsavedChanges || storageType === 'memory')
     document.title = displayName
-      ? `Noodles.gl - ${displayName}${showAsterisk ? ' *' : ''}`
+      ? `Noodles.gl - ${displayName}${unsaved ? ' *' : ''}`
       : 'Noodles.gl'
 
+    // A stale chunk after a deploy prompts instead of reloading while this guard is armed
+    staleChunk.setUnsavedWork(unsaved)
     window.addEventListener('beforeunload', handleBeforeUnload)
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+    return () => {
+      staleChunk.setUnsavedWork(false)
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+    }
   }, [hasUnsavedChanges, projectName, storageType, isExamplesRoute])
 
   // Only changes when graph structure changes (nodes added/removed/type changed, edges reconnected)

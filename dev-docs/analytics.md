@@ -147,6 +147,17 @@ The website's "Use with your AI agent" section sends `agent_prompt_copied` too, 
 
 - `outcome`: `success` or `failed`. A failed on-device load is usually GPU memory or a missing WebGPU adapter; the error message is never sent.
 
+### App Updates
+
+A tab opened before a deploy asks for code-split chunks that no longer exist, so lazy imports such as the chat panel fail. `stale-chunk.ts` decides what to do once per page load.
+
+| Event | Properties | Location |
+|-------|-----------|----------|
+| `stale_chunk_reload` | `action` | stale-chunk.ts |
+
+- `action`: `reloaded` (no unsaved work, so the page reloaded), `prompted` (the editor's unsaved-changes guard was armed, so a message asked the user to save and reload) or `skipped` (the page already reloaded for this in the last 10 seconds, so the chunk is missing rather than stale)
+- The chunk URL and the error message are never sent
+
 ### Performance
 
 | Event | Properties | Location |
