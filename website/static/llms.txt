@@ -26,7 +26,8 @@ Key Features:
 ## Primary Documentation
 
 ### Getting Started
-- User Guide: https://noodles.gl/users/getting-started
+- Start here (open the editor or an example): https://noodles.gl/intro
+- Editor Basics: https://noodles.gl/users/getting-started
 - Developer Guide: https://noodles.gl/developers/overview
 
 ### Core Documentation

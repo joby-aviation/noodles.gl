@@ -1,5 +1,6 @@
 ---
 sidebar_position: 1
+sidebar_label: Start here
 ---
 
 # Welcome to Noodles.gl
@@ -9,6 +10,28 @@ Noodles.gl is the animation studio for maps — a node-based editor for building
 <video autoPlay loop muted playsInline style={{width: '100%', borderRadius: '12px', marginBottom: '1.5rem'}}>
   <source src="/img/example-nyc-taxi-brushing.mp4" type="video/mp4" />
 </video>
+
+## Start here
+
+The editor runs in your browser. There is nothing to install.
+
+<OpenInEditor label="Open the editor">
+
+Opens the start screen, where you can pick an example or start a new project.
+
+</OpenInEditor>
+
+### Start from an example
+
+Each one opens with its data loaded. Change a value and the map updates.
+
+<StartExamples />
+
+### Bring your own data
+
+Drop a CSV, GeoJSON, GeoParquet or Shapefile file on the start screen, or on the canvas of an open project. Noodles.gl finds the coordinate columns and puts your data on a map. A PMTiles file is added as a source node, but no layer draws it yet.
+
+Once you are in the editor, [Editor Basics](./users/getting-started.md) explains the parts of the screen.
 
 ## What makes it different
 
@@ -39,7 +62,8 @@ Noodles.gl uses a **pull-based reactive graph**: you connect operators (data sou
 
 The timeline editor lets you keyframe any parameter at any point in time. Scrub, preview, adjust curves, then export — the same workflow motion designers use in animation tools, applied to geospatial data.
 
-## Get started
+## Next steps
 
-- **[Getting Started →](./users/getting-started)** — learn to load data, build graphs, animate, and export
-- **[Framework Developers →](./developers/overview)** — extend Noodles.gl with custom operators and field types
+- **<EditorLink>Open the editor →</EditorLink>**, or start from one of the [examples above](#start-from-an-example)
+- **[Editor Basics →](./users/getting-started)**: the node editor, properties panel, timeline and tools shelf
+- **[Framework Developers →](./developers/overview)**: extend Noodles.gl with custom operators and field types

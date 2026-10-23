@@ -1,6 +1,16 @@
-# Getting Started
+---
+title: Editor Basics
+---
 
-Basic workflows for using Noodles.gl to create geospatial visualizations and animations.
+# Editor Basics
+
+The parts of the editor and how to use them. New to Noodles.gl? Go to [Start here](../intro.md) first to open the editor or an example.
+
+<OpenInEditor>
+
+Open the editor and follow along.
+
+</OpenInEditor>
 
 ![Simple Noodles.gl graph showing DeckRenderer connected to an Out node](/img/noodles-simple-graph.png)
 
@@ -63,7 +73,7 @@ For tables of points, the importer looks for latitude and longitude columns (`la
 
 See Noodles.gl in action with a real-world dataset:
 
-[**Open NYC Taxis Example →**](https://noodles.gl/examples/nyc-taxis)
+<OpenInEditor example="nyc-taxis" label="Open the NYC Taxis example" />
 
 This example visualizes millions of NYC taxi trips using:
 - Arc layers connecting pickup and dropoff locations
