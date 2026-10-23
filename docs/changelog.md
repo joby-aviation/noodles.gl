@@ -105,9 +105,13 @@ All notable changes to Noodles.gl are documented here.
 - Resizable panel system replacing fixed layout modes ([#465](https://github.com/joby-aviation/noodles.gl/pull/465))
 - Freeform input support for StringLiteralField ([#442](https://github.com/joby-aviation/noodles.gl/pull/442))
 - Editable defaults in table schemas ([#545](https://github.com/joby-aviation/noodles.gl/pull/545))
+- Expression mode for every input field, so any field can be driven by an expression ([#3](https://github.com/joby-aviation/noodles.gl/pull/3))
+- Context-aware node suggestions in the properties panel ([#271](https://github.com/joby-aviation/noodles.gl/pull/271))
+- TextLayer styling controls ([#525](https://github.com/joby-aviation/noodles.gl/pull/525))
 
 ### Changed
 - Upgraded deck.gl to 9.3.8, then 9.3.10 ([#533](https://github.com/joby-aviation/noodles.gl/pull/533), [#546](https://github.com/joby-aviation/noodles.gl/pull/546))
+- Right panel elements resize with the panel width ([#568](https://github.com/joby-aviation/noodles.gl/pull/568))
 
 ### Fixed
 - Unchanged for-loops rerunning unnecessarily ([#523](https://github.com/joby-aviation/noodles.gl/pull/523))
@@ -116,6 +120,9 @@ All notable changes to Noodles.gl are documented here.
 - Connected geocoder queries not executing ([#522](https://github.com/joby-aviation/noodles.gl/pull/522))
 - TableEditor string literals now use a dropdown; active cell commits before row mutations ([#524](https://github.com/joby-aviation/noodles.gl/pull/524), [#535](https://github.com/joby-aviation/noodles.gl/pull/535))
 - JSON inputs now supported for icon mappings ([#527](https://github.com/joby-aviation/noodles.gl/pull/527))
+- Tiny Measure and Draw tool panels ([#566](https://github.com/joby-aviation/noodles.gl/pull/566))
+- Keyboard shortcuts firing while typing in input fields ([#567](https://github.com/joby-aviation/noodles.gl/pull/567))
+- Handle positions for ListField and CompoundPropsField inputs ([#565](https://github.com/joby-aviation/noodles.gl/pull/565))
 
 ## July 2026
 
