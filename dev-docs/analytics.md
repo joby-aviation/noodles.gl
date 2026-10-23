@@ -152,6 +152,17 @@ The website's "Use with your AI agent" section sends `agent_prompt_copied` too, 
 - `assistant_onboarding_shown` fires each time the panel opens with no provider ready. `assistant_onboarding_closed` fires when its Close button is used, which is only shown before a provider is connected.
 - `hasPendingRequest`: whether the panel opened with a request from the Quick Start dialog still unsent. The request text is never sent.
 
+### App Updates
+
+A tab opened before a deploy asks for code-split chunks that no longer exist, so lazy imports such as the chat panel fail. `stale-chunk.ts` decides what to do once per page load.
+
+| Event | Properties | Location |
+|-------|-----------|----------|
+| `stale_chunk_reload` | `action` | stale-chunk.ts |
+
+- `action`: `reloaded` (no unsaved work, so the page reloaded), `prompted` (the editor's unsaved-changes guard was armed, or sessionStorage is blocked so the 10-second reload guard cannot be stored; a message asked the user to save and reload) or `skipped` (the page already reloaded for this in the last 10 seconds, so the chunk is missing rather than stale)
+- The chunk URL and the error message are never sent
+
 ### Performance
 
 | Event | Properties | Location |

@@ -1,15 +1,19 @@
-import { Component, lazy, type ReactNode, Suspense, useEffect, useRef } from 'react'
+import { Component, type ReactNode, Suspense, useEffect, useRef } from 'react'
 import { Redirect, Route, Router, Switch, useLocation, useRoute, useSearchParams } from 'wouter'
 import { AnalyticsConsentBanner } from './components/analytics-consent-banner'
 import { OpenRouterCallback } from './components/openrouter-callback'
 import { type ModalView, QuickStartModal } from './components/quick-start-modal'
+import { StaleChunkPrompt } from './components/stale-chunk-prompt'
 import { agentBench, externalControl } from './noodles/globals'
 import { useUIStore } from './noodles/store'
 import TimelineEditor from './timeline-editor'
 import { analytics } from './utils/analytics'
 import { debugApp } from './utils/debug'
+import { lazyWithReload } from './utils/stale-chunk'
 
-const WebMCPProvider = lazy(() => import('./webmcp').then(m => ({ default: m.WebMCPProvider })))
+const WebMCPProvider = lazyWithReload(() =>
+  import('./webmcp').then(m => ({ default: m.WebMCPProvider }))
+)
 
 // The DEV check is repeated inline so the production build drops the import
 if (import.meta.env.DEV && agentBench) {
@@ -112,6 +116,7 @@ function App() {
       <AnalyticsErrorBoundary>
         <AnalyticsConsentBanner />
       </AnalyticsErrorBoundary>
+      <StaleChunkPrompt />
     </Router>
   )
 }
