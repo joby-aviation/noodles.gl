@@ -12,14 +12,32 @@ export interface Port {
   postMessage(message: Message, transfer?: Transferable[]): void
 }
 
-/** The buffers in a layer's data, for transfer. */
-function buffers(data: LayerData | undefined): ArrayBuffer[] {
-  if (!data) return []
-  const out = new Set<ArrayBuffer>()
-  for (const a of data.attributes.values()) out.add(a.data.buffer as ArrayBuffer)
-  if (data.starts) out.add(data.starts.buffer as ArrayBuffer)
-  if (data.rings) out.add(data.rings.buffer as ArrayBuffer)
-  return [...out]
+/**
+ * A layer's data ready to post, and the buffers to transfer with it. A buffer the runtime keeps
+ * (`retained`) is copied: transferring it would empty the runtime's own copy, which the next
+ * CPU pass reads.
+ */
+function forPosting(
+  data: LayerData,
+  retained: Set<ArrayBufferLike>
+): { data: LayerData; transfer: ArrayBuffer[] } {
+  const transfer = new Set<ArrayBuffer>()
+  const own = <T extends Float32Array | Uint32Array>(a: T): T => {
+    const out = retained.has(a.buffer) ? (a.slice() as T) : a
+    transfer.add(out.buffer as ArrayBuffer)
+    return out
+  }
+  const attributes = new Map<string, { data: Float32Array; width: number }>()
+  for (const [name, a] of data.attributes) attributes.set(name, { ...a, data: own(a.data) })
+  return {
+    data: {
+      ...data,
+      attributes,
+      ...(data.starts ? { starts: own(data.starts) } : {}),
+      ...(data.rings ? { rings: own(data.rings) } : {}),
+    },
+    transfer: [...transfer],
+  }
 }
 
 const programView = (p: ProgramPlan | undefined): ProgramView | undefined => {
@@ -89,10 +107,13 @@ export class EngineHost {
     const layers = this.runtime.layers()
     const changed: LayerView[] = []
     const transfer: ArrayBuffer[] = []
+    const retained = this.runtime.retainedBuffers()
     for (const l of layers) {
       const last = this.sent.get(l.id)
       if (last && last.data === l.data && last.props === l.props) continue
       this.sent.set(l.id, { data: l.data, props: l.props })
+      const posted = l.data && last?.data !== l.data ? forPosting(l.data, retained) : undefined
+      if (posted) transfer.push(...posted.transfer)
       const p = l.plan
       changed.push({
         id: l.id,
@@ -104,13 +125,12 @@ export class EngineHost {
           nodes: p.nodes,
           plan: { layer: p.plan.layer, sql: p.plan.sql },
         },
-        data: last?.data === l.data ? undefined : l.data,
+        data: posted?.data,
         props: l.props,
         error: l.error,
         queryMs: l.queryMs,
         evalMs: l.evalMs,
       })
-      if (last?.data !== l.data) transfer.push(...buffers(l.data))
     }
     for (const id of [...this.sent.keys()]) {
       if (!layers.some(l => l.id === id)) this.sent.delete(id)

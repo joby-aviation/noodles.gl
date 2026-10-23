@@ -159,6 +159,22 @@ export class ProgramRuntime {
     return this.compileError
   }
 
+  /**
+   * Buffers the runtime reads again on a later CPU pass: its query results. A layer's data can
+   * share them (a column drawn as it is), so they may be copied out but never transferred.
+   */
+  retainedBuffers(): Set<ArrayBufferLike> {
+    const out = new Set<ArrayBufferLike>()
+    for (const q of this.queried.values()) {
+      for (const u of q.uploads.values()) {
+        if (u.data) out.add(u.data.buffer)
+        if (u.hiLo) out.add(u.hiLo.buffer)
+        for (const c of u.chunks ?? []) out.add(c.buffer)
+      }
+    }
+    return out
+  }
+
   layers(): LayerState[] {
     const order = this.programPlan?.draw ?? []
     return order.map(id => this.states.get(id)).filter((s): s is LayerState => !!s)
