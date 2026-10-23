@@ -4,16 +4,26 @@
 //
 //   planner  lowers to planner operators: SQL, DuckDB spatial, a layer fed binary attributes
 //   rows     row nodes (attribute, map-range, color-ramp…) on the data edge of what reads it
-//   deck     a parameter of the deck node: a view, widget, effect, extension or basemap
+//   deck     a deck operator (deck-ops.ts) or a deck node parameter: a view, widget, extension,
+//            a layer deck loads itself, a basemap
 //   code     JavaScript the engine worker runs: a code node's table, or a JS function per row
 //   subnet   a subnet of the document
+//   folded   computed by the conversion from literal inputs and written into what reads it
 //   dropped  nothing: the operator only showed something in the old editor
 //   host     still a host operator, for the reason given
 
-export type Becomes = 'planner' | 'rows' | 'deck' | 'code' | 'subnet' | 'dropped' | 'host'
+export type Becomes =
+  | 'planner'
+  | 'rows'
+  | 'deck'
+  | 'code'
+  | 'subnet'
+  | 'folded'
+  | 'dropped'
+  | 'host'
 
 // The R3 step converting an operator, while it is still to do
-export type Pending = 'R3d' | 'R3e' | 'R4'
+export type Pending = 'R3e' | 'R4' | 'R5'
 
 export interface OpPlan {
   becomes: Becomes
@@ -78,18 +88,18 @@ export const OP_CATALOG: Record<string, OpPlan> = {
   CategoricalColorRampOp: rows(['color-ramp']),
   ColorOp: planner(['color']),
   ColorRampOp: rows(['color-ramp']),
-  CombineRGBAOp: rows(['attribute', 'expression'], 'R3d'),
-  HSLOp: rows(['attribute', 'expression'], 'R3d'),
-  SplitRGBAOp: planner(['expression'], 'R3d'),
+  CombineRGBAOp: { becomes: 'folded' },
+  HSLOp: { becomes: 'folded' },
+  SplitRGBAOp: { becomes: 'folded' },
 
   // --- data ------------------------------------------------------------------------------
   ArcOp: code(['code']),
-  BoundingBoxOp: planner(['extent', 'expression'], 'R3d'),
-  BoundsOp: planner(['expression'], 'R3d'),
+  BoundingBoxOp: host('fits the camera to the canvas, whose size only the page knows'),
+  BoundsOp: { becomes: 'folded' },
   ChartOp: host('draws an Observable Plot chart into the page'),
   ConcatOp: planner(['union']),
   CrossOp: planner(['sql']),
-  DateTimeOp: planner(['number'], 'R3d'),
+  DateTimeOp: { becomes: 'folded' },
   DeckRendererOp: deck(),
   DirectionsOp: host('calls the Google Directions API with the user’s key'),
   FileOp: {
@@ -193,22 +203,22 @@ export const OP_CATALOG: Record<string, OpPlan> = {
   S2LayerOp: code(['code', 'polygon'], 'R3e'),
 
   // --- layers without rows: deck loads their tiles or image itself -----------------------
-  BitmapLayerOp: planner(['bitmap'], 'R3d'),
-  MVTLayerOp: planner(['mvt'], 'R3d'),
-  RasterTileLayerOp: planner(['raster-tiles'], 'R3d'),
-  TerrainLayerOp: planner(['terrain'], 'R3d'),
-  Tile3DLayerOp: planner(['tile-3d'], 'R3d'),
+  BitmapLayerOp: { becomes: 'deck', ops: ['bitmap'] },
+  MVTLayerOp: { becomes: 'deck', ops: ['mvt'] },
+  RasterTileLayerOp: { becomes: 'deck', ops: ['raster-tiles'] },
+  TerrainLayerOp: { becomes: 'deck', ops: ['terrain'] },
+  Tile3DLayerOp: { becomes: 'deck', ops: ['tile-3d'] },
   TileLayerOp: host('renders sublayers with a JavaScript function per tile'),
   CustomMapLibreLayerOp: host('runs the user’s WebGL code in MapLibre, on the main thread'),
 
   // --- extensions ------------------------------------------------------------------------
-  BrightnessContrastExtensionOp: deck('R3d'),
-  ClipExtensionOp: deck('R3d'),
-  HueSaturationExtensionOp: deck('R3d'),
-  Mask3DExtensionOp: deck('R3d'),
-  MaskExtensionOp: deck('R3d'),
-  TerrainExtensionOp: deck('R3d'),
-  VibranceExtensionOp: deck('R3d'),
+  BrightnessContrastExtensionOp: { becomes: 'deck', ops: ['brightness-contrast'] },
+  ClipExtensionOp: { becomes: 'deck', ops: ['clip-extension'] },
+  HueSaturationExtensionOp: { becomes: 'deck', ops: ['hue-saturation'] },
+  Mask3DExtensionOp: { becomes: 'deck', ops: ['mask-3d-extension'] },
+  MaskExtensionOp: { becomes: 'deck', ops: ['mask-extension'] },
+  TerrainExtensionOp: { becomes: 'deck', ops: ['terrain-extension'] },
+  VibranceExtensionOp: { becomes: 'deck', ops: ['vibrance'] },
   // Extensions with per-row values bind attributes on the layer they extend
   BrushingExtensionOp: rows(['attribute'], 'R3e'),
   CollisionFilterExtensionOp: rows(['attribute'], 'R3e'),
@@ -217,50 +227,50 @@ export const OP_CATALOG: Record<string, OpPlan> = {
   PathStyleExtensionOp: rows(['attribute'], 'R3e'),
 
   // --- numbers, strings, vectors ---------------------------------------------------------
-  BezierCurveOp: planner(['expression'], 'R3d'),
-  BooleanOp: planner(['number'], 'R3d'),
+  BezierCurveOp: planner(['bezier-curve']),
+  BooleanOp: { becomes: 'folded' },
   ExtentOp: planner(['extent']),
   MapRangeOp: rows(['map-range']),
   MathOp: rows(['math']),
   NumberOp: planner(['number']),
-  RampOp: planner(['expression'], 'R3d'),
-  StringOp: planner(['expression'], 'R3d'),
+  RampOp: planner(['ramp']),
+  StringOp: { becomes: 'folded' },
   TimeOp: planner(['time']),
-  CombineXYOp: rows(['attribute', 'expression'], 'R3d'),
-  SplitXYOp: planner(['expression'], 'R3d'),
-  SplitXYZOp: planner(['expression'], 'R3d'),
+  CombineXYOp: { becomes: 'folded' },
+  SplitXYOp: { becomes: 'folded' },
+  SplitXYZOp: { becomes: 'folded' },
 
   // --- utility ---------------------------------------------------------------------------
   BlendingOp: deck(),
   ConsoleOp: dropped('logs a value in the old editor'),
   LayerPropsOp: host('overrides arbitrary props of a built layer object'),
-  MapStyleConfiguratorOp: deck('R3d'),
+  MapStyleConfiguratorOp: deck('R5'),
   MouseOp: host('reads the pointer'),
-  ProjectOp: planner(['expression'], 'R3d'),
-  UnprojectOp: planner(['expression'], 'R3d'),
+  ProjectOp: { becomes: 'folded' },
+  UnprojectOp: { becomes: 'folded' },
   RerouteOp: dropped('a wire bend; the migrator wires through it'),
 
   // --- views and basemaps ----------------------------------------------------------------
-  FirstPersonViewOp: deck('R3d'),
-  GlobeViewOp: deck('R3d'),
-  MapViewOp: deck('R3d'),
-  MapViewStateOp: deck('R3d'),
+  FirstPersonViewOp: { becomes: 'deck', ops: ['first-person-view'] },
+  GlobeViewOp: { becomes: 'deck', ops: ['globe-view'] },
+  MapViewOp: { becomes: 'deck', ops: ['map-view'] },
+  MapViewStateOp: { becomes: 'deck', ops: ['view-state'] },
   MaplibreBasemapOp: deck(),
-  OrbitViewOp: deck('R3d'),
-  OrthographicViewOp: deck('R3d'),
-  PMTilesOp: deck('R3d'),
-  SplitMapViewStateOp: planner(['expression'], 'R3d'),
-  XYZTileOp: deck('R3d'),
+  OrbitViewOp: { becomes: 'deck', ops: ['orbit-view'] },
+  OrthographicViewOp: { becomes: 'deck', ops: ['orthographic-view'] },
+  PMTilesOp: { becomes: 'deck', ops: ['pmtiles'] },
+  SplitMapViewStateOp: { becomes: 'folded' },
+  XYZTileOp: { becomes: 'deck', ops: ['xyz-tiles'] },
 
   // --- widgets ---------------------------------------------------------------------------
-  BitmapOverlayWidgetOp: deck('R3d'),
-  CompassWidgetOp: deck('R3d'),
-  FpsWidgetOp: deck('R3d'),
-  FullscreenWidgetOp: deck('R3d'),
-  LegendWidgetOp: deck('R3d'),
-  ScaleWidgetOp: deck('R3d'),
-  ScreenshotWidgetOp: deck('R3d'),
-  ZoomWidgetOp: deck('R3d'),
+  BitmapOverlayWidgetOp: { becomes: 'deck', ops: ['bitmap-overlay-widget'] },
+  CompassWidgetOp: { becomes: 'deck', ops: ['compass-widget'] },
+  FpsWidgetOp: { becomes: 'deck', ops: ['fps-widget'] },
+  FullscreenWidgetOp: { becomes: 'deck', ops: ['fullscreen-widget'] },
+  LegendWidgetOp: { becomes: 'deck', ops: ['legend-widget'] },
+  ScaleWidgetOp: { becomes: 'deck', ops: ['scale-widget'] },
+  ScreenshotWidgetOp: { becomes: 'deck', ops: ['screenshot-widget'] },
+  ZoomWidgetOp: { becomes: 'deck', ops: ['zoom-widget'] },
 
   UnknownOperator: dropped('an operator this version of Noodles does not know'),
 }

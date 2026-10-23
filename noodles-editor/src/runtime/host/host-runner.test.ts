@@ -13,10 +13,17 @@ const doc = (opacity: number, wired = false): EditorDoc => ({
     { id: '/level', op: 'number', x: 0, y: 0, params: { value: 0.25 } },
     {
       id: '/bitmap',
-      op: 'BitmapLayerOp',
+      op: 'bitmap',
       x: 0,
       y: 0,
-      params: { image: 'https://example.com/a.png', opacity },
+      params: {
+        image: 'https://example.com/a.png',
+        opacity,
+        bounds: [
+          [0, 0],
+          [1, 1],
+        ],
+      },
     },
   ],
   edges: wired
@@ -41,8 +48,9 @@ const inputs = (slots: Record<string, unknown> = {}) => ({
 describe('host operators', () => {
   it('registers operators without accessor inputs, and never accessor layers', () => {
     const types = registerHostOperators()
-    expect(types).toContain('BitmapLayerOp')
     expect(types).toContain('CodeOp')
+    // A layer without rows is a deck operator now, not a Noodles class
+    expect(types).not.toContain('BitmapLayerOp')
     expect(types).not.toContain('AccessorOp')
     expect(types).not.toContain('GeoJsonLayerOp')
     expect(types).not.toContain('ScatterplotLayerOp')
@@ -129,6 +137,85 @@ describe('HostRunner', () => {
     }
     const report = await runner.run(bad, inputs())
     expect(report.errors).toEqual([{ nodeId: '/code', message: expect.stringContaining('boom') }])
+  })
+})
+
+describe('deck operators', () => {
+  it('build views from a wired view state, and layers with their extensions in order', async () => {
+    const deck: EditorDoc = {
+      version: 1,
+      name: 'deck',
+      nodes: [
+        { id: '/camera', op: 'view-state', x: 0, y: 0, params: { longitude: 2, latitude: 3 } },
+        { id: '/view', op: 'map-view', x: 0, y: 0, params: { fovy: 30 } },
+        { id: '/bright', op: 'brightness-contrast', x: 0, y: 0, params: { brightness: 0.5 } },
+        { id: '/vivid', op: 'vibrance', x: 0, y: 0, params: { amount: 0.2 } },
+        ...doc(1).nodes,
+      ],
+      edges: [
+        {
+          id: 'a',
+          source: '/camera',
+          sourcePort: 'viewState',
+          target: '/view',
+          targetPort: 'par:viewState',
+        },
+        {
+          id: 'b',
+          source: '/bright',
+          sourcePort: 'extension',
+          target: '/bitmap',
+          targetPort: 'par:extensions',
+          index: 0,
+        },
+        {
+          id: 'c',
+          source: '/vivid',
+          sourcePort: 'extension',
+          target: '/bitmap',
+          targetPort: 'par:extensions',
+          index: 1,
+        },
+      ],
+    }
+    const runner = new HostRunner()
+    const report = await runner.run(deck, inputs())
+    expect(report.errors).toEqual([])
+    expect(runner.output('/view', 'view')).toMatchObject({
+      type: 'MapView',
+      id: '/view',
+      fovy: 30,
+      viewState: { longitude: 2, latitude: 3, zoom: 12, maxPitch: 90 },
+    })
+    expect(runner.output('/bitmap', 'layer')).toMatchObject({
+      type: 'BitmapLayer',
+      bounds: [0, 0, 1, 1],
+      extensions: [{ type: 'BrightnessContrastExtension' }, { type: 'VibranceExtension' }],
+      brightnessContrast: { brightness: 0.5, contrast: 0 },
+      vibrance: { amount: 0.2 },
+    })
+  })
+
+  it('build a legend from a color scheme by name', async () => {
+    const legend: EditorDoc = {
+      version: 1,
+      name: 'legend',
+      nodes: [
+        {
+          id: '/legend',
+          op: 'legend-widget',
+          x: 0,
+          y: 0,
+          params: { colorScheme: 'magma', steps: 3 },
+        },
+      ],
+      edges: [],
+    }
+    const runner = new HostRunner()
+    await runner.run(legend, inputs())
+    const widget = runner.output('/legend', 'widget') as { colorStops: string[] }
+    expect(widget).toMatchObject({ type: 'LegendWidget', placement: 'bottom-right' })
+    expect(widget.colorStops).toHaveLength(3)
   })
 })
 

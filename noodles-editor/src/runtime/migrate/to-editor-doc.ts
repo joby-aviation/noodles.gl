@@ -12,6 +12,7 @@
 // and this conversion must not. Noodles' defaults are written out below for that reason, and
 // because noodles.json stores only inputs that differ from them.
 
+import { WebMercatorViewport } from '@math.gl/web-mercator'
 import {
   type DocEdge,
   type DocNode,
@@ -21,8 +22,11 @@ import {
   type Timeline,
   type Track,
 } from '@noodles.gl/planner'
+import { hsl } from 'd3'
 import { migrateTimelineData } from '../../timeline/migrate-timeline'
 import type { TimelineData } from '../../timeline/types'
+import { colorToHex, hexToColor } from '../../utils/color'
+import { DECK_OP_FOR, type DeckOp } from '../deck-ops'
 import { GIS_CONVERSIONS, GisConversionError } from './gis-conversions'
 import { OP_CATALOG } from './op-catalog'
 
@@ -352,6 +356,31 @@ function parseHex(value: unknown): { rgb: [number, number, number]; alpha: numbe
   const n = (i: number) => Number.parseInt(hex.slice(i, i + 2), 16)
   return { rgb: [n(0), n(2), n(4)], alpha: hex.length === 8 ? n(6) : 255 }
 }
+
+/**
+ * Value operators the conversion computes from their literal inputs and writes into what reads
+ * them: a vector split into numbers, a color from channels, a Bounds' box.
+ */
+const FOLDED = new Set([
+  'BooleanOp',
+  'StringOp',
+  'DateTimeOp',
+  'CombineXYOp',
+  'SplitXYOp',
+  'SplitXYZOp',
+  'CombineRGBAOp',
+  'HSLOp',
+  'SplitRGBAOp',
+  'BoundsOp',
+  'SplitMapViewStateOp',
+  'ProjectOp',
+  'UnprojectOp',
+])
+
+/** Noodles' curve operators, which become the planner's scalar operators of the same work. */
+const CURVES: Record<string, string> = { BezierCurveOp: 'bezier-curve', RampOp: 'ramp' }
+
+class NotFoldable extends Error {}
 
 /** Noodles operators on rows that convert to planner nodes on the data path. */
 const TABLE_OPS = new Set([
@@ -1263,6 +1292,10 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
   const resolve = (src: string, nodeId: string, field: string, literal: unknown): Value => {
     const e = incomingOne(nodeId, field)
     if (!e) return { kind: 'const', value: literal }
+    const from = byId.get(e.source)
+    if (from && FOLDED.has(from.type)) {
+      return { kind: 'const', value: folded(nodeId, field, from, handleField(e.sourceHandle)) }
+    }
     return resolveOutput(src, e.source, widthOf(field))
   }
 
@@ -1549,6 +1582,212 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
 
   // --- host operators: their own inputs as parameters, wired by `par:` handles -----------
   const hostNodes = new Set<string>()
+
+  // --- values computed at conversion --------------------------------------------------------
+  // A Number the timeline moves is not a constant, whatever its stored value
+  const timelineText = JSON.stringify(project.timeline ?? '')
+  const animated = (id: string) => timelineText.includes(JSON.stringify(id).slice(1, -1))
+
+  /**
+   * A value operator's output computed from literal inputs, or undefined when an input changes
+   * while playing (a keyframed Number, a Time) and it cannot be. Marks what it read as converted.
+   */
+  const foldValue = (id: string, port: string): { value: unknown } | undefined => {
+    const n = byId.get(id)
+    if (!n) return undefined
+    const own = n.data?.inputs ?? {}
+    const read = (field: string, fallback: unknown): unknown => {
+      const e = incomingOne(id, field)
+      if (!e) return own[field] ?? fallback
+      const v = foldValue(e.source, handleField(e.sourceHandle))
+      if (!v) throw new NotFoldable()
+      return v.value
+    }
+    const n0 = (field: string, fallback: number) => num(read(field, fallback), fallback)
+    const point = (v: unknown): { lng: number; lat: number } =>
+      Array.isArray(v)
+        ? { lng: num(v[0], 0), lat: num(v[1], 0) }
+        : (v as { lng: number; lat: number })
+    const vec = (v: unknown): Record<string, number> =>
+      Array.isArray(v)
+        ? { x: num(v[0], 0), y: num(v[1], 0), z: num(v[2], 0) }
+        : (v as Record<string, number>)
+    const viewport = () =>
+      new WebMercatorViewport({
+        ...(read('viewState', {
+          latitude: 40.7128,
+          longitude: -74.006,
+          zoom: 12,
+          pitch: 0,
+          bearing: 0,
+        }) as object),
+        width: n0('width', 1920),
+        height: n0('height', 1080),
+      })
+    let value: unknown
+    try {
+      switch (n.type) {
+        case 'NumberOp':
+          if (animated(id)) return undefined
+          value = n0('val', 0)
+          break
+        case 'BooleanOp':
+          value = read('val', false) === true
+          break
+        case 'StringOp':
+          value = String(read('val', ''))
+          break
+        case 'DateTimeOp':
+          value = read('date', '')
+          break
+        case 'CombineXYOp':
+          value = { x: n0('x', 0), y: n0('y', 0) }
+          break
+        case 'SplitXYOp':
+        case 'SplitXYZOp':
+          value = vec(read('vec', { x: 0, y: 0, z: 0 }))[port]
+          break
+        case 'CombineRGBAOp':
+          {
+            const [r, g, b, a] = ['r', 'g', 'b', 'a'].map((c, i) =>
+              Math.round(n0(c, i === 3 ? 1 : 0))
+            )
+            value = colorToHex([r, g, b, a])
+          }
+          break
+        case 'HSLOp':
+          value = hsl(n0('h', 0), n0('s', 0.5), n0('l', 0.8)).formatHex()
+          break
+        case 'SplitRGBAOp': {
+          const c = read('color', null)
+          if (typeof c !== 'string') return undefined
+          value = Object.fromEntries(['r', 'g', 'b', 'a'].map((k, i) => [k, hexToColor(c)[i]]))[
+            port
+          ]
+          break
+        }
+        case 'BoundsOp': {
+          const sw = point(read('southwest', { lng: 0, lat: 0 }))
+          const ne = point(read('northeast', { lng: 0, lat: 0 }))
+          value = [
+            [Math.min(sw.lng, ne.lng), Math.min(sw.lat, ne.lat)],
+            [Math.max(sw.lng, ne.lng), Math.max(sw.lat, ne.lat)],
+          ]
+          break
+        }
+        case 'SplitMapViewStateOp':
+          value = (read('viewState', {}) as Record<string, unknown>)[port]
+          break
+        case 'ProjectOp': {
+          const p = point(read('position', { lng: 0, lat: 0 }))
+          const [x, y] = viewport().project([p.lng, p.lat])
+          value = { x, y }
+          break
+        }
+        case 'UnprojectOp': {
+          const s = vec(read('screenPosition', { x: 0, y: 0 }))
+          const [lng, lat] = viewport().unproject([s.x, s.y])
+          value = { lng, lat }
+          break
+        }
+        default:
+          return undefined
+      }
+    } catch (err) {
+      if (err instanceof NotFoldable) return undefined
+      throw err
+    }
+    used.add(id)
+    return { value }
+  }
+
+  /** A value operator's output, written into a parameter: the value, or an error naming why not. */
+  const folded = (owner: string, field: string, src: NoodlesNode, port: string): unknown => {
+    const v = foldValue(src.id, port)
+    if (!v) {
+      throw new MigrationError(
+        `${owner}: ${field} from ${src.type} changes while playing; it is not converted`
+      )
+    }
+    return v.value
+  }
+
+  /** A Bezier Curve or Ramp as the planner scalar operator that computes it. */
+  const curveNode = (n: NoodlesNode): void => {
+    if (used.has(n.id)) return
+    used.add(n.id)
+    const own = n.data?.inputs ?? {}
+    const params: Record<string, ParamValue> =
+      n.type === 'RampOp'
+        ? {
+            position: num(own.position, 0),
+            stops: Array.isArray(own.stops) && own.stops.length ? JSON.stringify(own.stops) : '',
+          }
+        : {
+            factor: num(own.factor, 0.5),
+            ...(own.curve ? { curve: JSON.stringify(own.curve) } : {}),
+          }
+    nodes.push({ id: n.id, op: CURVES[n.type], name: segment(n.id), ...position(n), params })
+    wiredNumber(
+      n.id,
+      n.type === 'RampOp' ? 'position' : 'factor',
+      n.id,
+      n.type === 'RampOp' ? 'position' : 'factor'
+    )
+  }
+
+  /**
+   * A Noodles view, widget, extension or tile layer as the deck operator that replaces it: the
+   * same parameter names, values and wires, and outputs of the same names.
+   */
+  const deckOpNode = (n: NoodlesNode, deck: DeckOp): void => {
+    hostNodes.add(n.id)
+    used.add(n.id)
+    const own = n.data?.inputs ?? {}
+    const names = new Set(deck.def.params.map(p => p.name))
+    const params: Record<string, ParamValue> = {}
+    for (const [k, v] of Object.entries(own)) {
+      if (names.has(k)) params[k] = v as ParamValue
+      else if (k !== 'colorRamp') warnings.push(`${n.id}: dropped '${k}'`)
+    }
+    nodes.push({ id: n.id, op: deck.def.type, name: segment(n.id), ...position(n), params })
+    for (const e of project.edges.filter(x => x.target === n.id)) {
+      const field = handleField(e.targetHandle)
+      const src = byId.get(e.source)
+      if (!src) continue
+      if (n.type === 'LegendWidgetOp' && field === 'colorRamp') {
+        // A legend's ramp is its scheme, by name
+        if (src.type !== 'ColorRampOp') {
+          throw new MigrationError(`${n.id}: a color ramp from ${src.type} is not converted`)
+        }
+        params.colorScheme = String(inputs(src).colorScheme)
+        used.add(src.id)
+        continue
+      }
+      if (!names.has(field)) throw new MigrationError(`${n.id}: a wired ${field} is not converted`)
+      if (FOLDED.has(src.type)) {
+        params[field] = folded(n.id, field, src, handleField(e.sourceHandle)) as ParamValue
+        continue
+      }
+      if (CURVES[src.type]) curveNode(src)
+      else if (src.type === 'NumberOp') numberNode(src)
+      if (CURVES[src.type] || src.type === 'NumberOp') {
+        edge(src.id, 'out', n.id, `par:${field}`)
+        continue
+      }
+      hostNode(src.id)
+      edge(
+        src.id,
+        handleField(e.sourceHandle),
+        n.id,
+        `par:${field}`,
+        deck.lists?.includes(field)
+          ? edges.filter(x => x.target === n.id && x.targetPort === `par:${field}`).length
+          : undefined
+      )
+    }
+  }
+
   const hostNode = (id: string): void => {
     if (hostNodes.has(id)) return
     const n = byId.get(id)
@@ -1558,6 +1797,11 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
     }
     if (n.type === 'ContainerOp' || n.type.startsWith('ForLoop')) {
       throw new MigrationError(`${id}: ${n.type} is not converted yet`)
+    }
+    const deck = DECK_OP_FOR.get(n.type)
+    if (deck) {
+      deckOpNode(n, deck)
+      return
     }
     // Only an operator the catalog keeps on the host, or one a later step converts, is one
     const plan = OP_CATALOG[n.type]
@@ -1580,8 +1824,15 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
       const field = handleField(e.targetHandle)
       const src = byId.get(e.source)
       if (!src) continue
-      if (src.type === 'NumberOp') {
-        numberNode(src)
+      if (FOLDED.has(src.type)) {
+        const self = nodes.find(x => x.id === id)
+        if (self)
+          self.params[field] = folded(id, field, src, handleField(e.sourceHandle)) as ParamValue
+        continue
+      }
+      if (CURVES[src.type]) curveNode(src)
+      else if (src.type === 'NumberOp') numberNode(src)
+      if (CURVES[src.type] || src.type === 'NumberOp') {
         edge(src.id, 'out', id, `par:${field}`)
         continue
       }
@@ -2118,6 +2369,17 @@ export function toEditorDoc(original: NoodlesProject): Migrated {
     const e = incomingOne(owner, field)
     if (!e) return
     const src = byId.get(e.source)
+    if (src && CURVES[src.type]) {
+      curveNode(src)
+      edge(src.id, 'out', target, `par:${param}`)
+      return
+    }
+    if (src && FOLDED.has(src.type)) {
+      const value = folded(owner, field, src, handleField(e.sourceHandle))
+      const node = nodes.find(x => x.id === target)
+      if (node) node.params[param] = num(value, 0)
+      return
+    }
     if (src?.type !== 'NumberOp') {
       throw new MigrationError(`${owner}: ${field} from ${src?.type} is not converted`)
     }
