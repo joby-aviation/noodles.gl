@@ -62,22 +62,16 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
   // Implement add/delete operations manually
   const addNodes = useCallback(
     (newNodes: ReactFlowNode[]) => {
+      // node_added is tracked from React Flow's 'add' changes (see graph-analytics.ts)
       setNodes(currentNodes => [...currentNodes, ...newNodes])
-      // Track node addition
-      newNodes.forEach(node => {
-        analytics.track('node_added', { nodeType: node.type || 'unknown' })
-      })
     },
     [setNodes]
   )
 
   const addEdges = useCallback(
     (newEdges: ReactFlowEdge[]) => {
+      // edge_added is tracked from React Flow's 'add' changes (see graph-analytics.ts)
       setEdges(currentEdges => normalizeMultiInputEdges(appendUniqueEdges(currentEdges, newEdges)))
-      // Track edge addition
-      if (newEdges.length > 0) {
-        analytics.track('edge_added', { count: newEdges.length })
-      }
     },
     [setEdges]
   )
@@ -873,6 +867,12 @@ export function useProjectModifications(options: UseProjectModificationsOptions)
       } else {
         // Clear any existing error for this edge if connection is now valid
         targetOp.removeConnectionError(newEdge.id)
+      }
+
+      // setEdges here is the editor's state setter, which skips onEdgesChange, so a manual
+      // connection is counted here. A reconnect moves an existing edge and isn't counted.
+      if (!opts?.replaceEdgeId) {
+        analytics.track('edge_added', { count: 1 })
       }
 
       // Update target node with new input value
