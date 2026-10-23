@@ -281,8 +281,10 @@ export default function TimelineEditor() {
   } = visualization.mapProps ?? {}
   const mapProps: MapProps = {
     ...mapRenderingDefaults,
-    // Preview exports capture on the first render, so tiles must appear without fading in
-    fadeDuration: isRendering && preview ? 0 : undefined,
+    // Preview exports capture on the first render, so tiles must appear without fading in.
+    // Leave the key out otherwise: an explicit undefined overrides MapLibre's default and
+    // labels never finish fading in, so the map never goes idle.
+    ...(isRendering && preview ? { fadeDuration: 0 } : {}),
     onLoad: ({ target: map }) => {
       // Redraw react to ensure hooks check for map ref changes
       mapRef.current = map
