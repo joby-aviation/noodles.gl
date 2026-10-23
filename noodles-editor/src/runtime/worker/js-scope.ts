@@ -5,6 +5,7 @@ import * as turf from '@turf/turf'
 import * as d3 from 'd3'
 import * as arc from '../../utils/arc-geometry'
 import * as closest from '../../utils/binary-search-closest'
+import * as cells from '../../utils/cells'
 import * as color from '../../utils/color'
 import * as cross from '../../utils/cross'
 import * as distance from '../../utils/distance'
@@ -19,6 +20,7 @@ import * as wkt from '../../utils/wkt'
 // `utils` as CodeOp has it, less directions, which needs the page (Google Maps, API keys)
 const utils = {
   ...arc,
+  ...cells,
   ...closest,
   ...color,
   ...cross,

@@ -194,13 +194,13 @@ export const OP_CATALOG: Record<string, OpPlan> = {
   SolidPolygonLayerOp: planner(['polygon', 'sql', 'geojson']),
   TextLayerOp: planner(['text']),
   TripsLayerOp: planner(['trips', 'unnest']),
-  // Cell ids become polygon vertices in a JS table: DuckDB-Wasm has no H3, S2 or A5
-  A5LayerOp: code(['code', 'polygon'], 'R3e'),
-  GeohashLayerOp: code(['code', 'polygon'], 'R3e'),
-  H3ClusterLayerOp: code(['code', 'polygon'], 'R3e'),
-  H3HexagonLayerOp: code(['code', 'polygon'], 'R3e'),
-  QuadkeyLayerOp: code(['code', 'polygon'], 'R3e'),
-  S2LayerOp: code(['code', 'polygon'], 'R3e'),
+  // Cell ids become polygons in a JS table (DuckDB-Wasm has no H3, S2 or A5), then vertex rows
+  A5LayerOp: planner(['cells', 'geojson', 'polygon']),
+  GeohashLayerOp: planner(['cells', 'geojson', 'polygon']),
+  H3ClusterLayerOp: planner(['cells', 'geojson', 'polygon']),
+  H3HexagonLayerOp: planner(['cells', 'geojson', 'polygon']),
+  QuadkeyLayerOp: planner(['cells', 'geojson', 'polygon']),
+  S2LayerOp: planner(['cells', 'geojson', 'polygon']),
 
   // --- layers without rows: deck loads their tiles or image itself -----------------------
   BitmapLayerOp: { becomes: 'deck', ops: ['bitmap'] },
