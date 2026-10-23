@@ -881,7 +881,7 @@ export const OPERATORS: OpDef[] = [
     params: [
       channel('position', 'Position', 'P', '[lng, lat] or [lng, lat, metres], or an attribute holding one.'),
       channel('color', 'Color', '', 'An RGB attribute or expression in 0–1, e.g. ramp(fit(mag, 0, 7, 0, 1)). Empty uses Fill color.'),
-      channel('radius', 'Radius', '', 'Per-row radius. Empty uses 1 × Radius scale.'),
+      channel('radius', 'Radius', '', 'Per-row radius, multiplied by Radius scale. Empty is 1.'),
       rampParam,
       { name: 'radiusScale', label: 'Radius scale', kind: 'float', default: 4, min: 0, max: 100, step: 0.1, bind: 'prop', folder: 'Style', port: true },
       { name: 'radiusUnits', label: 'Units', kind: 'menu', default: 'pixels', options: [{ value: 'pixels', label: 'Pixels' }, { value: 'meters', label: 'Metres' }], folder: 'Style' },

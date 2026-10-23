@@ -46,6 +46,7 @@ export type Check =
   | { type: 'errorsFixed' }
   | { type: 'noConsoleErrors' }
   | { type: 'anyOf'; checks: Check[] }
+  | { type: 'allOf'; checks: Check[] }
 
 // Checks that describe whether the graph still works rather than whether the
 // task was done. Failing one caps the score.
@@ -226,6 +227,12 @@ function evaluate(check: Check, { result, consoleErrors = [] }: GradeInput): Out
       const outcomes = check.checks.map(c => evaluate(c, { result, consoleErrors }))
       const pass = outcomes.some(([ok]) => ok)
       return [pass, outcomes.map(([, detail]) => detail).join(' | ')]
+    }
+
+    case 'allOf': {
+      const outcomes = check.checks.map(c => evaluate(c, { result, consoleErrors }))
+      const pass = outcomes.every(([ok]) => ok)
+      return [pass, outcomes.map(([, detail]) => detail).join(' & ')]
     }
   }
 }

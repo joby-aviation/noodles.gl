@@ -291,6 +291,20 @@ describe('grade', () => {
     expect(check(c).pass).toBe(true)
   })
 
+  it('passes allOf only when every branch passes', () => {
+    const both: Check = {
+      type: 'allOf',
+      checks: [
+        { type: 'opsPresent', ops: ['scatter'] },
+        { type: 'opsPresent', ops: ['deck'] },
+      ],
+    }
+    expect(check(both).pass).toBe(true)
+    expect(
+      check({ ...both, checks: [...both.checks, { type: 'opsPresent', ops: ['heatmap'] }] }).pass
+    ).toBe(false)
+  })
+
   it('reports console errors the runner collected', () => {
     expect(check({ type: 'noConsoleErrors' }, result(), ['TypeError: x']).pass).toBe(false)
   })
