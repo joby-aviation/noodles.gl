@@ -269,4 +269,23 @@ describe('basemap size after render size changes', () => {
     expect(resize).toHaveBeenCalledTimes(1)
     expect({ width: canvas.width, height: canvas.height }).toEqual({ width: 160, height: 90 })
   })
+
+  it("keeps MapLibre's default label fade outside preview exports", async () => {
+    let map: MapLibre | null = null
+    harness.visualization.mapProps = {
+      mapStyle: EMPTY_MAP_STYLE,
+      longitude: 0,
+      latitude: 0,
+      zoom: 0,
+      onRender: ({ target }: { target: MapLibre }) => {
+        map = target
+      },
+    }
+
+    render(<TimelineEditor />)
+    await waitFor(() => expect(map?.loaded()).toBe(true), { timeout: 10_000 })
+    // An explicit fadeDuration: undefined replaced the default, so labels never settled
+    // @ts-expect-error _fadeDuration is private
+    expect(map!._fadeDuration).toBe(300)
+  })
 })
