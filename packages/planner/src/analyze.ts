@@ -10,7 +10,7 @@
  */
 
 import {
-  type Expr, parseExpr, columnsOf, enginesFor, isAggregate, simplifyExpr, widthOf,
+  type Expr, parseExpr, columnsOf, enginesFor, isAggregate, simplifyExpr, vectorItems, widthOf,
   FUNCTIONS,
 } from './expr.js';
 import {
@@ -306,10 +306,19 @@ export function analyze(
    * already parsed, so the `Expr` branch matters as much as the string one. The simplify has
    * to follow the inline: `st_x([lng, lat])` only becomes `[lng, lat].x` once inlined.
    */
+  // Vectors an attribute packs from scalar columns, as a relation's vector is re-packed
+  // (`P = [P_0, P_1]`). One component of such a vector is that column, which SQL can read.
+  const packed = new Map<string, Expr[]>();
+  const overwrite = (name: string) => {
+    for (const [v, comps] of packed) {
+      if (v === name || comps.some((c) => c.kind === 'col' && c.name === name)) packed.delete(v);
+    }
+  };
   const resolve = (src: string | Expr, nodeId: string): Expr => {
     try {
       const tree = typeof src === 'string' ? parseExpr(src, { functions }) : src;
-      return coerceStrings(simplifyExpr(inlineFunctions(tree, functions)), strings);
+      const items = vectorItems(inlineFunctions(tree, functions), (n) => schema.get(n) ?? 1, (n) => packed.get(n));
+      return coerceStrings(simplifyExpr(items), strings);
     } catch (err) {
       throw new PlanError(`Node ${nodeId}: ${(err as Error).message}`);
     }
@@ -384,6 +393,7 @@ export function analyze(
         aggregateNames = aggs.map((a) => a.name);
 
         // The aggregate reshapes the namespace: only group keys and aggregates survive.
+        packed.clear();
         const keep = new Set([...node.groupBy, ...aggregateNames]);
         for (const key of [...schema.keys()]) if (!keep.has(key)) schema.delete(key);
         for (const name of aggregateNames) schema.set(name, 1);
@@ -417,6 +427,10 @@ export function analyze(
         else vectorAttributes.delete(node.name);
         if (isStringValued(resolved, strings)) strings.add(node.name);
         else strings.delete(node.name);
+        overwrite(node.name);
+        if (resolved.kind === 'vec' && resolved.components.every((c) => c.kind === 'col')) {
+          packed.set(node.name, resolved.components);
+        }
         order.push({
           id: node.id, node, kind: 'attribute', name: node.name, expr, width,
           ops: opCount(expr, width), feasible,
@@ -451,7 +465,10 @@ export function analyze(
           reads: [...(raw.reads ?? [])],
           params: [...(raw.params ?? [])],
         });
-        for (const w of raw.writes) schema.set(w.name, w.width);
+        for (const w of raw.writes) {
+          schema.set(w.name, w.width);
+          overwrite(w.name);
+        }
         notes.push(
           `${raw.id}: raw ${raw.engine} node, pinned; ` +
           `declares ${raw.writes.map((w) => `${w.name}:${w.width}`).join(', ')}`,

@@ -78,6 +78,7 @@ export {
 export { canonicalJson, hashOf } from './hash.js';
 export {
   columnTypeOf, sqlLiteral, inlineParamsInText, exprError,
+  numericListOf, listLengthsSql, parseListLengths, listVectors, listComponentsSql, listComponentColumns,
   sourceSql, verticesSql, joinSql, unionSql, sortSql, limitSql, sqlNodeSql, generateSql, unnestSql, rowwiseSql,
   type RelColumn, type RelVector, type RelShape,
 } from './relational.js';

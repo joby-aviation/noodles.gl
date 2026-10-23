@@ -51,11 +51,93 @@ export interface RelShape {
 const NUMERIC = /^(TINYINT|SMALLINT|INTEGER|BIGINT|HUGEINT|UTINYINT|USMALLINT|UINTEGER|UBIGINT|FLOAT|REAL|DOUBLE|DECIMAL|BOOLEAN)/i;
 const STRING = /^(VARCHAR|TEXT|STRING|CHAR|BPCHAR|ENUM|UUID)/i;
 
-/** Classify a DuckDB type name. */
+/** Classify a DuckDB type name. A list or array is 'other' whatever it holds. */
 export function columnTypeOf(duckType: string): ColumnType {
+  if (/\]\s*$/.test(duckType)) return 'other';
   if (NUMERIC.test(duckType)) return 'num';
   if (STRING.test(duckType)) return 'str';
   return 'other';
+}
+
+/**
+ * A list or array of numbers, `DOUBLE[]` or `FLOAT[3]`: something a vector can be read from.
+ * `length` is an array's fixed length; a list's is only known from its rows.
+ */
+export function numericListOf(duckType: string): { length?: number } | undefined {
+  const m = /^(.*)\[(\d*)\]\s*$/.exec(duckType.trim());
+  if (!m || m[1].includes('[') || !NUMERIC.test(m[1])) return undefined;
+  return m[2] ? { length: Number(m[2]) } : {};
+}
+
+/** Shortest and longest list in each column, over rows where it is not NULL. */
+export function listLengthsSql(relation: string, columns: string[]): string {
+  const items = columns.flatMap((c, i) => [
+    `min(len(${quoteIdent(c)})) AS "min_${i}"`,
+    `max(len(${quoteIdent(c)})) AS "max_${i}"`,
+  ]);
+  return `SELECT ${items.join(', ')} FROM ${relation}`;
+}
+
+export function parseListLengths(
+  row: Record<string, unknown>,
+  columns: string[],
+): Record<string, { min: number; max: number }> {
+  const out: Record<string, { min: number; max: number }> = {};
+  columns.forEach((c, i) => {
+    const min = row[`min_${i}`];
+    const max = row[`max_${i}`];
+    // All NULL: no length to go by.
+    if (min == null || max == null) return;
+    out[c] = { min: Number(min), max: Number(max) };
+  });
+  return out;
+}
+
+/** Lengths a list can have and still be read as a vector. */
+export const LIST_VECTOR_WIDTHS = { min: 2, max: 4 };
+
+/**
+ * Numeric list columns that can be vectors: every row's list has the same length, 2 to 4.
+ * A vector is component columns (`RelVector`), so these are what `listComponentsSql` adds.
+ * A list already a vector, or whose component names are taken, is left a list.
+ */
+export function listVectors(
+  columns: RelColumn[],
+  lengths: Record<string, { min: number; max: number }>,
+  vectors: RelVector[],
+): RelVector[] {
+  const names = new Set(columns.map((c) => c.name));
+  const taken = new Set(vectors.map((v) => v.name));
+  const out: RelVector[] = [];
+  for (const c of columns) {
+    const list = numericListOf(c.duckType);
+    if (!list || taken.has(c.name)) continue;
+    const seen = lengths[c.name];
+    const width = list.length ?? (seen && seen.min === seen.max ? seen.min : undefined);
+    if (width === undefined || width < LIST_VECTOR_WIDTHS.min || width > LIST_VECTOR_WIDTHS.max) continue;
+    const comps = Array.from({ length: width }, (_, i) => `${c.name}_${i}`);
+    if (comps.some((n) => names.has(n))) continue;
+    out.push({ name: c.name, width });
+  }
+  return out;
+}
+
+/** The relation with each list vector's items as columns `name_0, name_1, …`, in DOUBLE. */
+export function listComponentsSql(relation: string, vectors: RelVector[]): string {
+  const items = vectors.flatMap((v) => Array.from({ length: v.width }, (_, i) =>
+    `${castToDouble(`${quoteIdent(v.name)}[${i + 1}]`)} AS ${quoteIdent(`${v.name}_${i}`)}`));
+  return `SELECT *, ${items.join(', ')} FROM ${relation}`;
+}
+
+/**
+ * Component columns of the vectors read from list columns: the ones whose list is still a
+ * column of `shape`. A table view shows the list and hides these.
+ */
+export function listComponentColumns(shape: RelShape, vectors: RelVector[] = shape.vectors): string[] {
+  const names = new Set(shape.columns.map((c) => c.name));
+  return vectors
+    .filter((v) => names.has(v.name))
+    .flatMap((v) => Array.from({ length: v.width }, (_, i) => `${v.name}_${i}`));
 }
 
 /** A literal for an inlined parameter. Numbers are cast so DuckDB never infers DECIMAL. */

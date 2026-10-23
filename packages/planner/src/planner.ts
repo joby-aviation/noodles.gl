@@ -235,7 +235,9 @@ export function plan(
     costs, caps, stats: opts.stats, params: withDerived(analysis, opts.params ?? {}), policy,
   });
 
-  return emit(analysis, result, { costs, caps, relation: opts.relation ?? DEFAULT_RELATION });
+  return emit(analysis, result, {
+    costs, caps, relation: opts.relation ?? DEFAULT_RELATION, columnTypes: opts.columnTypes,
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -387,7 +389,7 @@ function emitRaw(
 function emit(
   analysis: Analysis,
   chosen: OptimizeResult,
-  ctx: { costs: CostConstants; caps: TargetCaps; relation: string },
+  ctx: { costs: CostConstants; caps: TargetCaps; relation: string; columnTypes?: ColumnTypes },
 ): PhysicalPlan {
   const relation = ctx.relation;
   const assignment = chosen.chosen;
@@ -798,6 +800,12 @@ function emit(
         );
       }
       if ((b.type === 'str') !== (decl.type === 'str')) {
+        if (ctx.columnTypes?.get(b.attribute) === 'other') {
+          throw new PlanError(
+            `Layer ${analysis.layer.id}: channel '${b.channel}' takes a number, but '${b.attribute}' is a list or struct. ` +
+            `A list of 2 to 4 numbers reads as a vector when every row's list has the same length`,
+          );
+        }
         throw new PlanError(
           `Layer ${analysis.layer.id}: channel '${b.channel}' takes ${b.type === 'str' ? 'a string' : 'a number'}, ` +
           `but '${b.attribute}' is ${decl.type === 'str' ? 'a string' : 'numeric'}` +

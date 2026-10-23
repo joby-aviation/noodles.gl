@@ -16,6 +16,8 @@ import {
   type Catalog,
   type CatalogEntry,
   columnTypeOf,
+  listLengthsSql,
+  parseListLengths,
   parseStatsRow,
   quoteIdent,
   type RelationPlan,
@@ -52,6 +54,7 @@ interface Entry {
   entry: CatalogEntry
   used: number
   materialized: boolean
+  lengths?: Record<string, { min: number; max: number }>
 }
 
 export class MaterializingCatalog implements Catalog {
@@ -121,6 +124,20 @@ export class MaterializingCatalog implements Catalog {
       materialized: rel.materialize,
     })
     return entry
+  }
+
+  async listLengths(
+    rel: RelationPlan,
+    columns: string[]
+  ): Promise<Record<string, { min: number; max: number }>> {
+    const e = this.entries.get(rel.hash)
+    if (e?.lengths) return e.lengths
+    const target = rel.materialize ? quoteIdent(rel.table) : `(${rel.sql})`
+    const { table } = await this.sql.run(listLengthsSql(target, columns))
+    const row = table.get(0) as Record<string, unknown> | null
+    const lengths = row ? parseListLengths(row, columns) : {}
+    if (e) e.lengths = lengths
+    return lengths
   }
 
   /** Whether a relation's table currently exists. */
