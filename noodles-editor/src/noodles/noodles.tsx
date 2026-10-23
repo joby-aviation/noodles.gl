@@ -1637,6 +1637,11 @@ export function getNoodles(): Visualization {
     applyManualLayout()
   }, [nodes, applyManualLayout])
 
+  const onChangeAutoLayoutOnConnect = useCallback((enabled: boolean) => {
+    setAutoLayout(prev => ({ ...prev, enabled }))
+    analytics.track('auto_layout_toggled', { enabled })
+  }, [])
+
   // Note: Auto-layout on node addition was removed based on PR feedback.
   // Users can still trigger layout manually via the Layout button in the property panel (3+ nodes selected).
   // Auto-layout still triggers on edge creation when enabled (see onConnect handler above).
@@ -2205,11 +2210,7 @@ export function getNoodles(): Visualization {
   const propertiesPanel = (
     <ErrorBoundary title="Property Panel Error">
       <div className={s.rightPanel}>
-        <PropertyPanel
-          onAutoLayout={onAutoLayout}
-          autoLayout={autoLayout}
-          onChangeAutoLayout={setAutoLayout}
-        />
+        <PropertyPanel onAutoLayout={onAutoLayout} />
       </div>
     </ErrorBoundary>
   )
@@ -2270,6 +2271,8 @@ export function getNoodles(): Visualization {
     onChangeShowOverlay: setShowOverlay,
     showDebugInfo,
     onChangeShowDebugInfo: setShowDebugInfo,
+    autoLayoutOnConnect: autoLayout.enabled,
+    onChangeAutoLayoutOnConnect,
     spreadsheetVisible,
     onChangeSpreadsheetVisible: setSpreadsheetVisible,
     // Render settings are now read from OutOp via useRenderSettings() hook

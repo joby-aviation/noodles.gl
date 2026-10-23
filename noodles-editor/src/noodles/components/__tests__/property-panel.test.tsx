@@ -70,18 +70,6 @@ describe('PropertyPanel', () => {
     expect(screen.getByText('Select a node or edge to inspect it')).toBeInTheDocument()
   })
 
-  it('toggles auto-layout on connect from the page view', () => {
-    const onChangeAutoLayout = vi.fn()
-    wrapWithProviders(
-      <PropertyPanel autoLayout={{ enabled: false }} onChangeAutoLayout={onChangeAutoLayout} />
-    )
-
-    const toggle = screen.getByLabelText('Auto-layout when connecting nodes')
-    expect(toggle).not.toBeChecked()
-    act(() => toggle.click())
-    expect(onChangeAutoLayout).toHaveBeenCalledWith({ enabled: true })
-  })
-
   it('shows multi-select node count when multiple nodes are selected', () => {
     mockNodes = [
       { id: '/a', type: 'NumberOp', selected: true, position: { x: 0, y: 0 }, data: {} },
