@@ -1,6 +1,6 @@
 ---
 id: t2-color-scheme
-taskVersion: 1
+taskVersion: 2
 family: single-edit
 tier: T2
 tags: [styling, color-ramp]
@@ -10,10 +10,10 @@ budget:
   maxWallClockSeconds: 240
 grader:
   checks:
-    - { type: inputEquals, node: /magnitude-color, input: colorScheme, value: magma }
+    - { type: paramEquals, node: /magnitude-color, param: ramp, value: magma }
     - type: applySucceeded
     - type: edgesValid
-    - type: noNewOperatorErrors
+    - type: noNewErrors
 ---
 
 Switch the earthquake color ramp to the magma color scheme.
