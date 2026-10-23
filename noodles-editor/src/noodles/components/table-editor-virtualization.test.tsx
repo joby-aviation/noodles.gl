@@ -1,10 +1,13 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { TableEditorOp } from '../operators'
 import type { TableSchema } from '../table-schema'
 import { TableEditor } from './table-editor'
 
-const virtualizerSpies = vi.hoisted(() => ({ scrollToIndex: vi.fn() }))
+const virtualizerSpies = vi.hoisted(() => ({
+  scrollToIndex: vi.fn(),
+  setFirstVisible: undefined as ((value: number) => void) | undefined,
+}))
 
 vi.mock('@tanstack/react-virtual', async () => {
   const React = await import('react')
@@ -23,6 +26,7 @@ vi.mock('@tanstack/react-virtual', async () => {
       const size = estimateSize()
       const lastStart = Math.max(0, count - visibleCount)
       const start = Math.min(firstVisible, lastStart)
+      virtualizerSpies.setFirstVisible = setFirstVisible
       return {
         getVirtualItems: () =>
           Array.from({ length: visibleCount }, (_, offset) => {
@@ -106,6 +110,33 @@ describe('TableEditor row virtualization', () => {
 
     expect(onDataChange).toHaveBeenCalledWith(
       [{ label: 'Edited first row' }, ...data.slice(1)],
+      'Edit cell label'
+    )
+  })
+
+  it('commits an active edit when a resize changes the mounted virtual range', () => {
+    const schema: TableSchema = {
+      columns: [{ name: 'label', type: 'string', defaultValue: '' }],
+    }
+    const data = Array.from({ length: 1_000 }, (_, index) => ({ label: `Row ${index + 1}` }))
+    const onDataChange = vi.fn()
+
+    render(
+      <TableEditor
+        op={new TableEditorOp('/resized-virtual-table')}
+        data={data}
+        schema={schema}
+        onDataChange={onDataChange}
+        onSchemaChange={vi.fn()}
+      />
+    )
+
+    fireEvent.doubleClick(screen.getByText('Row 1'))
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Edited before resize' } })
+    act(() => virtualizerSpies.setFirstVisible?.(500))
+
+    expect(onDataChange).toHaveBeenCalledWith(
+      [{ label: 'Edited before resize' }, ...data.slice(1)],
       'Edit cell label'
     )
   })
