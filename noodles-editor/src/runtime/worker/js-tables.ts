@@ -5,6 +5,7 @@
 import type { RelationPlan } from '@noodles.gl/planner'
 import { tableFromJSON, tableToIPC } from 'apache-arrow'
 import { flatRow, isFeatureCollection, readPlainRows } from '../plain-rows'
+import { tableFromRows } from './arrow-rows'
 import type { BlockingSql } from './blocking-sql'
 import { compileWithScope } from './js-scope'
 
@@ -80,12 +81,14 @@ export class JsTables {
   }
 
   /**
-   * Rows into a table: as Arrow, three times faster than JSON for a large table (world-flights'
-   * 1.5M vertices: 6 s against 18 s), or as JSON when Arrow cannot type a column (mixed values).
+   * Rows into a table: as Arrow built column by column into typed arrays when every column is
+   * one plain shape (tableFromRows: world-flights' 1.5M path vertices in a fifth of the time),
+   * else as Arrow from tableFromJSON, else as JSON when Arrow cannot type a column (mixed values).
    */
   private async load(name: string, rows: Record<string, unknown>[]): Promise<void> {
     try {
-      this.sql.insertArrow(name, tableToIPC(tableFromJSON(rows), 'stream'))
+      const table = tableFromRows(rows) ?? tableFromJSON(rows)
+      this.sql.insertArrow(name, tableToIPC(table, 'stream'))
       return
     } catch {
       await this.sql.exec(`DROP TABLE IF EXISTS "${name}"`)
