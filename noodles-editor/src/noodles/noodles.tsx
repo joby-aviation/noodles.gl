@@ -109,7 +109,7 @@ import {
   useNestingStore,
   useUIStore,
 } from './store'
-import { transformGraph } from './transform-graph'
+import { markUnknownOperatorNodes, transformGraph } from './transform-graph'
 import { layoutNodes } from './utils/auto-layout'
 import { canConnectCached } from './utils/can-connect'
 import { createProjectFromSQL, takeCreateFromSQLRequest } from './utils/create-from-sql'
@@ -1068,8 +1068,9 @@ export function getNoodles(): Visualization {
       // Update React Flow state (for rendering; graph is already set up above).
       // Normalizing here (after transformGraph, so operators exist for the ListField
       // lookup) derives multi-input slot rendering caches from the file's edge order —
-      // project files never store them.
-      setNodes(nodes)
+      // project files never store them. Nodes with a missing operator type render as the
+      // UnknownOperator placeholder; serializeNodes saves them back with their original type.
+      setNodes(markUnknownOperatorNodes(nodes))
       setEdges(
         normalizeMultiInputEdges(
           (edges as ReactFlowEdge[]).filter(edge => edge.type !== 'ReferenceEdge')
@@ -2239,6 +2240,7 @@ export function getNoodles(): Visualization {
   return {
     flowGraph,
     selectedNodeIds: nodes.filter(n => n.selected).map(n => n.id),
+    edges,
     nodeSidebar: (
       <ErrorBoundary title="Sidebar Error">
         <SidebarTabs

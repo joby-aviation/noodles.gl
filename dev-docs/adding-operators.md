@@ -108,11 +108,19 @@ export const categories = {
 ### Modifying Existing Operator
 1. Locate operator in `operators.ts`
 2. Modify inputs, outputs, or execute logic
-3. Consider migration if schema changes
+3. Consider migration if schema changes (see [Adding a Migration](#adding-a-migration))
 4. **Update tests** to cover new behavior
 5. Add tests for bug fixes to prevent regressions
 6. Update documentation if behavior changes
 7. Test in UI with example projects
+
+### Adding a Migration
+Migrations live in `src/noodles/__migrations__/NNN-kebab-name.ts` with a co-located `.test.ts`; the highest number is the schema version. `npm run generate:migration` scaffolds one.
+1. Use the next number after the highest on main, with no gaps or duplicates
+2. Put the new basename (no extension) on the single line of `__migrations__/LATEST`. Two open migration PRs both change that line, so the second one gets a merge conflict and must rebase and renumber
+3. Bump the example projects to the new version (`npm run migrate-projects`)
+
+`utils/migration-numbering.test.ts` checks the numbering and `LATEST`, and `migrate-schema.ts` throws at load if two migrations share a number.
 
 ### Debugging Data Flow
 1. Check operator paths are correct (use absolute paths from root)

@@ -1045,7 +1045,7 @@ describe('unknown operator types save and reload', () => {
     expect(op).toBeInstanceOf(UnknownOperator)
     expect((op as UnknownOperator).originalType).toBe('RemovedOp')
 
-    // The editor keeps the node's original type in React Flow state
+    // The saved type comes from the op, not the React Flow node
     const [saved] = serializeNodes(getOpStore(), [{ ...node, selected: true }], [])
     expect(saved).toEqual(node)
   })

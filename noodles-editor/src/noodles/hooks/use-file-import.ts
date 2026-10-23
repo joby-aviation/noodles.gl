@@ -1,5 +1,6 @@
 import { type Edge, useReactFlow } from '@xyflow/react'
 import { useCallback } from 'react'
+import { getRenderSurfaceSize } from '../../render/render-surface-size'
 import { analytics } from '../../utils/analytics'
 import { debugUI } from '../../utils/debug'
 import {
@@ -56,25 +57,6 @@ function fitExistingBasemap(
   field.setValue({ ...(field.value as object), ...viewState, pitch: 0, bearing: 0 })
 }
 
-// Size of the map the camera is fitted to. Right after a project loads the map may
-// not be laid out yet, so fall back to the render size the Out node will use.
-function mapSize() {
-  const container =
-    document.querySelector('.deckgl-container') || document.querySelector('.maplibregl-map')
-  if (container?.clientWidth && container.clientHeight) {
-    return { width: container.clientWidth, height: container.clientHeight }
-  }
-  for (const op of useOperatorStore.getState().operators.values()) {
-    if ((op.constructor as typeof Operator).displayName !== 'Out') continue
-    const { width, height, lod } = op.inputs as Record<string, { value: number }>
-    if (width?.value && height?.value) {
-      const scale = lod?.value || 1
-      return { width: width.value * scale, height: height.value * scale }
-    }
-  }
-  return { width: window.innerWidth, height: window.innerHeight }
-}
-
 export interface FileImportResult {
   format: DetectedFormat
   detection?: CoordinateDetection
@@ -102,7 +84,8 @@ export function useFileImport({ getBasePosition, onImported }: UseFileImportOpti
         format,
         basePosition,
         detection,
-        mapSize: mapSize(),
+        // Fit to the surface the renderer draws to, as BoundingBoxOp does
+        mapSize: getRenderSurfaceSize(),
         rendererId,
       })
       const { edges, primaryNodeId, viewState } = built

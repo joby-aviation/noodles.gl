@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
   type Credentials,
+  isLocalEndpoint,
   isOnDevice,
   isProviderReady,
-  isLocalEndpoint,
   readyCloudProvider,
   resolveProviderId,
 } from './provider-selection'
@@ -91,7 +91,7 @@ describe('resolveProviderId', () => {
 
   it('does not pick WebLLM automatically until a model has been chosen', () => {
     const ready = { ...NOTHING, webgpuReady: true, chromeAvailable: true }
-    expect(resolveProviderId({ ...ready, preference: 'automatic' })).toBe('chrome')
+    expect(resolveProviderId({ ...ready, preference: 'automatic' })).toBe('anthropic')
     expect(
       resolveProviderId({ ...ready, preference: 'automatic', webllmModel: 'Qwen3-4B-q4f16_1-MLC' })
     ).toBe('webllm')
@@ -118,6 +118,12 @@ describe('resolveProviderId', () => {
       chromeAvailable: true,
     })
     expect(id).toBe('webllm')
+  })
+
+  it('runs Chrome only when it is asked for', () => {
+    const ready = { ...NOTHING, chromeAvailable: true }
+    expect(resolveProviderId({ ...ready, preference: 'automatic' })).toBe('anthropic')
+    expect(resolveProviderId({ ...ready, preference: 'chrome' })).toBe('chrome')
   })
 
   // Nothing configured at all: the panel shows its connect screen, which needs a

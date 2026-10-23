@@ -1,9 +1,11 @@
 import { assert, type Deck } from '@deck.gl/core'
 import maplibregl from 'maplibre-gl'
 import { useCallback, useRef, useState } from 'react'
+import { checkFileSystemSupport } from '../noodles/utils/filesystem'
 import { getTimelineStore, useTimelineStore } from '../timeline/timeline-store'
 import { analytics } from '../utils/analytics'
 import { debugRender, debugRenderFrame } from '../utils/debug'
+import { CanvasFrameReader } from './capture-canvas-frame'
 import { encodeExrFrame, loadExrEncoder } from './exr-export'
 import {
   CanvasReplacedError,
@@ -153,15 +155,21 @@ export const useRenderer = ({
       // reports errors through a callback, so they would otherwise only be logged.
       let encoderError: Error | undefined
 
+      const extension = exportAlpha ? '.webm' : '.mp4'
+      const mimeType = exportAlpha ? 'video/webm' : 'video/mp4'
+      // Firefox and Safari have no save dialog, so the video is kept in memory and
+      // downloaded once it is done
+      const download = target === 'picker' && !checkFileSystemSupport().fileSystemAccess
+      const captureTarget: CaptureTarget = download ? 'buffer' : target
+
       const pickFileStream = async (name: string) => {
-        const extension = exportAlpha ? '.webm' : '.mp4'
         const fileHandle = await window
           .showSaveFilePicker({
             suggestedName: `${name}${extension}`,
             types: [
               {
                 description: 'Video File',
-                accept: { [exportAlpha ? 'video/webm' : 'video/mp4']: [extension] },
+                accept: { [mimeType]: [extension] },
               },
             ],
           })
@@ -183,8 +191,8 @@ export const useRenderer = ({
       const getContainer = async (name: string, config: VideoEncoderConfig) => {
         // The picker comes first: it needs the click that started the export, and the
         // browser only honors that click for a few seconds
-        const fileWritableStream = target === 'picker' ? await pickFileStream(name) : null
-        if (target === 'picker' && !fileWritableStream) {
+        const fileWritableStream = captureTarget === 'picker' ? await pickFileStream(name) : null
+        if (captureTarget === 'picker' && !fileWritableStream) {
           return null
         }
 
@@ -327,15 +335,8 @@ export const useRenderer = ({
 
       // Held outside the try so a failed export can release them
       let mapContainer: Awaited<ReturnType<typeof getContainer>> = null
-      let mapRecorder: ReturnType<typeof getCanvasRecorder> | undefined
+      let mapFrames: CanvasFrameReader | undefined
       let finished = false
-
-      function getCanvasRecorder(canvas: HTMLCanvasElement) {
-        const track = canvas.captureStream(0).getVideoTracks()[0]
-        const mediaProcessor = new MediaStreamTrackProcessor({ track })
-        const reader = mediaProcessor.readable.getReader()
-        return { track, reader }
-      }
 
       try {
         if (exportAlpha && !ALPHA_VIDEO_CODECS.includes(codec)) {
@@ -374,14 +375,13 @@ export const useRenderer = ({
         tracker.restartClock()
 
         const container = mapContainer
-        const recorder = getCanvasRecorder(canvas)
-        mapRecorder = recorder
+        const frames = new CanvasFrameReader(canvas, redraw)
+        mapFrames = frames
         const guard = { recording: canvas, getCanvas }
 
         const finishEncoding = async () => {
           const buffer = await container.finishEncoding()
           finished = true
-          recorder.reader.releaseLock()
           return buffer
         }
 
@@ -450,14 +450,12 @@ export const useRenderer = ({
           let encodeEnd = 0
 
           const addRecorderFrame = async (
-            recorder: ReturnType<typeof getCanvasRecorder>,
+            frames: CanvasFrameReader,
             container: Awaited<ReturnType<typeof getContainer>>
           ) => {
             captureStart = performance.now()
-            // @ts-expect-error - typescript types not updated yet
-            recorder.track.requestFrame()
             const result = await guardFrameStep(
-              recorder.reader.read(),
+              frames.read(),
               guard,
               FRAME_READ_TIMEOUT_MS,
               `Frame ${i} could not be read from the canvas within ${FRAME_READ_TIMEOUT_MS / 1000}s`
@@ -477,7 +475,7 @@ export const useRenderer = ({
             frame.close()
           }
 
-          await addRecorderFrame(recorder, container)
+          await addRecorderFrame(frames, container)
           onFrameComplete?.(i - startFrame + 1, endFrame - startFrame + 1)
 
           if (i % 10 === 0) {
@@ -519,6 +517,9 @@ export const useRenderer = ({
         )
         const buffer = await finishEncoding()
         if (encoderError) return fail('encoder', encoderError)
+        if (download && buffer) {
+          downloadBlob(new Blob([buffer], { type: mimeType }), `${projectName}-map${extension}`)
+        }
         tracker.completed()
         return { status: 'done', frameCount, fps, buffer }
       } catch (error) {
@@ -536,10 +537,10 @@ export const useRenderer = ({
         // A failed export releases what it holds: the pending frame read, the encoder,
         // and the output, which closes the chosen file. Retrying then starts clean.
         if (!finished) {
-          await mapRecorder?.reader.cancel().catch(() => {})
+          await mapFrames?.cancel()
           await mapContainer?.cancel().catch(() => {})
         }
-        mapRecorder?.track.stop()
+        mapFrames?.stop()
         setIsRendering(false)
       }
     },
@@ -613,8 +614,7 @@ export const useRenderer = ({
         })
       }
 
-      let reader: ReadableStreamDefaultReader<VideoFrame> | undefined
-      let track: MediaStreamTrack | undefined
+      let frames: CanvasFrameReader | undefined
       let failed = false
 
       // Pipelined writes: up to MAX_CONCURRENT_WRITES file writes run concurrently with
@@ -635,14 +635,7 @@ export const useRenderer = ({
         // Load the encoder before the first frame so a failed chunk load stops the export early
         if (format === 'exr') await loadExrEncoder()
 
-        // Use captureStream + requestFrame to read from the browser compositor rather than
-        // the raw GL framebuffer (which is cleared after the buffer swap when
-        // preserveDrawingBuffer is false). Inside the try: captureStream throws on a
-        // canvas with cross-origin content.
-        const videoTrack = canvas.captureStream(0).getVideoTracks()[0]
-        const mediaProcessor = new MediaStreamTrackProcessor({ track: videoTrack })
-        track = videoTrack
-        reader = mediaProcessor.readable.getReader()
+        frames = new CanvasFrameReader(canvas, redraw)
         const guard = { recording: canvas, getCanvas }
 
         const exportStartTime = performance.now()
@@ -681,13 +674,11 @@ export const useRenderer = ({
             await pendingWrites.shift()
           }
 
-          // Capture via compositor: requestFrame reads from the display buffer, not the
-          // GL buffer (which may already be cleared). Draw into OffscreenCanvas to encode.
+          // Read from the compositor, then draw into an OffscreenCanvas to encode. Inside
+          // the try: the first read throws on a canvas with cross-origin content.
           const captureStart = performance.now()
-          // @ts-expect-error - typescript types not updated yet
-          videoTrack.requestFrame()
           const { value: frame } = await guardFrameStep(
-            reader.read(),
+            frames.read(),
             guard,
             FRAME_READ_TIMEOUT_MS,
             `Frame ${i} could not be read from the canvas within ${FRAME_READ_TIMEOUT_MS / 1000}s`
@@ -771,9 +762,8 @@ export const useRenderer = ({
         throw error
       } finally {
         // Drop a frame read still pending when the export failed, then the canvas track
-        if (failed) await reader?.cancel().catch(() => {})
-        reader?.releaseLock()
-        track?.stop()
+        if (failed) await frames?.cancel()
+        frames?.stop()
         if (deck) {
           deck.setProps({ onAfterRender: originalOnAfterRender ?? (() => {}) })
         }
@@ -796,38 +786,58 @@ export const useRenderer = ({
 
 export default useRenderer
 
+// Saves through an <a download> click, for browsers without a save dialog (Firefox, Safari)
+function downloadBlob(blob: Blob, fileName: string) {
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = fileName
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  // The download reads from the URL asynchronously, so revoking it at once can cancel it
+  setTimeout(() => URL.revokeObjectURL(url), 60_000)
+}
+
 export const captureScreenshot = async (
   suggestedName: string,
   getBufferedCanvas: () => HTMLCanvasElement,
   { quality = 1, source = 'menu' }: { quality?: number; source?: RenderSource } = {}
 ) => {
-  const imageHandle = await window.showSaveFilePicker({
-    suggestedName,
-    types: [
-      {
-        description: 'PNG',
-        accept: { 'image/png': ['.png'] },
-      },
-      {
-        description: 'JPEG',
-        accept: { 'image/jpeg': ['.jpeg'] },
-      },
-    ],
-  })
+  // Without a save dialog the screenshot downloads as a PNG
+  const imageHandle = checkFileSystemSupport().fileSystemAccess
+    ? await window.showSaveFilePicker({
+        suggestedName,
+        types: [
+          {
+            description: 'PNG',
+            accept: { 'image/png': ['.png'] },
+          },
+          {
+            description: 'JPEG',
+            accept: { 'image/jpeg': ['.jpeg'] },
+          },
+        ],
+      })
+    : null
 
-  const file = await imageHandle.getFile()
+  const type = imageHandle ? (await imageHandle.getFile()).type : 'image/png'
 
   const blob = await new Promise<Blob>((resolve, reject) => {
     // canvas needs to redrawn immediately before capture or else buffer will be empty.
     getBufferedCanvas().toBlob(
       blob => (blob ? resolve(blob) : reject('canvas is empty')),
-      file.type,
+      type,
       quality
     )
   })
 
-  const fileWritableStream = await imageHandle.createWritable()
-  await fileWritableStream.write(blob)
-  await fileWritableStream.close()
+  if (imageHandle) {
+    const fileWritableStream = await imageHandle.createWritable()
+    await fileWritableStream.write(blob)
+    await fileWritableStream.close()
+  } else {
+    downloadBlob(blob, `${suggestedName}.png`)
+  }
   analytics.track('screenshot_taken', { source })
 }
