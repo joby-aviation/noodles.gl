@@ -6,7 +6,7 @@ import App from './app'
 import './index.css'
 import { keyboardManager } from './noodles/utils/keyboard-manager'
 import reportWebVitals from './reportWebVitals'
-import { analytics } from './utils/analytics'
+import { analytics, isIgnoredErrorMessage } from './utils/analytics'
 
 // Initialize analytics
 analytics.initialize()
@@ -15,10 +15,9 @@ analytics.initialize()
 window.addEventListener('error', e => {
   // Filter benign ResizeObserver errors - these are harmless browser optimization warnings
   // that occur when ResizeObserver callbacks trigger layout changes. They don't indicate
-  // actual problems. We filter them here at the window level and also in analytics.captureException()
-  // to ensure they don't reach PostHog or clutter console output.
-  const message = e.error?.message || e.message || ''
-  if (message.includes('ResizeObserver loop')) {
+  // actual problems. This only quiets the console: PostHog's exception autocapture uses its
+  // own window.onerror handler, so the PostHog filter lives in before_send (filterExceptionEvent).
+  if (isIgnoredErrorMessage(e.error?.message || e.message)) {
     e.preventDefault()
     return
   }

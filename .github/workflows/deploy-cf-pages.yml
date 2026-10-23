@@ -27,61 +27,30 @@ jobs:
     permissions:
       contents: read
       deployments: write
-      pull-requests: write
       statuses: write
     env:
       GH_TOKEN: ${{ github.token }}
       REPO: ${{ github.repository }}
       SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-      PR: ${{ github.event.pull_request.number }}
       RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
     steps:
-      # Sets a "Pages preview" commit status and, on PRs, keeps one comment with the
-      # preview links up to date. Written from the workflow instead of a file in the
-      # repo because PR branches that predate it don't have the file.
+      # Sets a "Pages preview" commit status. Cloudflare's GitHub app posts the PR
+      # comment with the preview links. Written from the workflow instead of a file
+      # in the repo because PR branches that predate it don't have the file.
       - name: Report build started
         run: |
           cat > "$RUNNER_TEMP/report.sh" <<'EOF'
           set -euo pipefail
           state=$1
-          marker='<!-- cf-pages-preview -->'
           case $state in
-            pending) status='⏳ Building'; description='Building preview'; target=$RUN_URL ;;
-            success) status='✅ Deploy successful!'; description='Preview deployed'; target=$URL ;;
-            *) state=failure; status='❌ Build failed'; description='Build or deploy failed'; target=$RUN_URL ;;
+            pending) description='Building preview'; target=$RUN_URL ;;
+            success) description='Preview deployed'; target=$URL ;;
+            *) state=failure; description='Build or deploy failed'; target=$RUN_URL ;;
           esac
 
           gh api "repos/$REPO/statuses/$SHA" -f state="$state" -f context='Pages preview' \
             -f description="$description" -f target_url="$target" > /dev/null
-
-          if [ -z "$PR" ]; then exit 0; fi
-          body="$marker
-          ### Cloudflare Pages preview
-
-          | | |
-          | --- | --- |
-          | **Latest commit** | \`${SHA:0:7}\` |
-          | **Status** | $status |"
-          if [ "$state" = success ]; then
-            body+="
-          | **Preview URL** | $URL |"
-            if [ -n "$ALIAS" ]; then
-              body+="
-          | **Branch Preview URL** | $ALIAS |"
-            fi
-          fi
-          body+="
-
-          [View logs]($RUN_URL)"
-
-          id=$(gh api "repos/$REPO/issues/$PR/comments" --paginate \
-            --jq ".[] | select(.user.login == \"github-actions[bot]\" and (.body | startswith(\"$marker\"))) | .id" | head -n 1)
-          if [ -n "$id" ]; then
-            gh api -X PATCH "repos/$REPO/issues/comments/$id" -f body="$body" > /dev/null
-          else
-            gh api "repos/$REPO/issues/$PR/comments" -f body="$body" > /dev/null
-          fi
           EOF
           bash "$RUNNER_TEMP/report.sh" pending
 
@@ -150,6 +119,5 @@ jobs:
         if: ${{ !cancelled() }}
         env:
           URL: ${{ steps.deploy.outputs.deployment-url }}
-          ALIAS: ${{ steps.deploy.outputs.pages-deployment-alias-url }}
           JOB_STATUS: ${{ job.status }}
         run: bash "$RUNNER_TEMP/report.sh" "$JOB_STATUS"
