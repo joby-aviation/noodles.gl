@@ -17,7 +17,7 @@ import {
   Vec2Field,
   Vec3Field,
 } from '../fields'
-import { NumberOp, StringOp } from '../operators'
+import { BitmapLayerOp, NumberOp, StringOp } from '../operators'
 import { clearOps, setOp } from '../store'
 import { registerPropertyMutationCallback } from '../utils/property-history'
 import {
@@ -989,6 +989,22 @@ describe('ColorFieldComponent', () => {
 
     const label = screen.getByText('fillColor')
     expect(label).toBeInTheDocument()
+  })
+
+  // BitmapLayerOp's transparentColor and tintColor are optional and default to no value.
+  // Showing one in the properties panel used to throw "value is not iterable".
+  it('renders an optional color with no value set', () => {
+    const field = new BitmapLayerOp('/bitmap-layer').inputs.tintColor
+    expect(field.value ?? null).toBeNull()
+
+    render(<ColorFieldComponent id="tintColor" field={field} disabled={false} />)
+
+    const inner = document.querySelector('[class*="colorSwatchInner"]') as HTMLElement
+    expect(inner).toBeInTheDocument()
+    expect(inner.style.getPropertyValue('--color-value')).toBe('#00000000')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open color picker' }))
+    expect(document.querySelector('.chrome-picker')).toBeInTheDocument()
   })
 
   it('updates when field value changes externally', () => {
