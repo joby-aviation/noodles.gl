@@ -9,7 +9,11 @@ import { useFileSystemStore } from '../noodles/filesystem-store'
 import { setOpResolver } from '../noodles/op-resolver'
 import { DeckProjectAssetResolver } from '../noodles/utils/deck-project-asset-resolver'
 import { instantiateDeckView } from '../noodles/utils/deck-view'
-import { instantiateLayer, instantiateWidget } from '../noodles/utils/instantiate-vis'
+import {
+  instantiateExtensions,
+  instantiateLayer,
+  instantiateWidget,
+} from '../noodles/utils/instantiate-vis'
 import { Engine, type EngineVis } from '../runtime/engine'
 import { registerHostOperators } from '../runtime/host/host-ops'
 import { HostRunner } from '../runtime/host/host-runner'
@@ -91,6 +95,14 @@ function openEngine(readAsset: (name: string) => Promise<Uint8Array>): Promise<E
         runner: new HostRunner({ resolveOutputs: resolveAssets }),
         layer: instantiateLayer,
         widget: instantiateWidget,
+        // Extension operators' { extension, props }: the extensions, and their props merged
+        extensions: values => {
+          const list = values as { extension: unknown; props?: Record<string, unknown> }[]
+          return {
+            extensions: instantiateExtensions(list.map(v => v.extension)) ?? [],
+            props: Object.assign({}, ...list.map(v => v.props ?? {})),
+          }
+        },
         view: v => instantiateDeckView(v as never),
       },
     })

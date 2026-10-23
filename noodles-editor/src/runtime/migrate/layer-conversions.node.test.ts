@@ -209,3 +209,46 @@ describe('cell layers', () => {
     expect(layers['/layer'].data?.rows).toBeGreaterThan(6)
   })
 })
+
+describe('extensions', () => {
+  it('wires extensions into a planner layer, and makes a data filter a filter on its rows', async () => {
+    const project = layer('ScatterplotLayerOp', POINTS, { getPosition: '[d.lng, d.lat]' })
+    project.nodes.push(
+      op('/bright', 'BrightnessContrastExtensionOp', { brightness: 0.4 }),
+      op('/dashes', 'PathStyleExtensionOp', { getDashArray: [2, 1] }),
+      op('/keep', 'DataFilterExtensionOp', { filterRange: [2, 4], filterSize: 1 }),
+      op('/value', 'AccessorOp', { expression: 'd.value' })
+    )
+    project.edges.push(
+      wire('/bright', 'extension', '/layer', 'extensions'),
+      wire('/keep', 'extension', '/layer', 'extensions'),
+      wire('/dashes', 'extension', '/layer', 'extensions'),
+      wire('/value', 'accessor', '/keep', 'getFilterValue')
+    )
+    const { doc, layers } = await run(project)
+    const into = doc.edges.filter(e => e.target === '/layer' && e.targetPort === 'par:extensions')
+    expect(into.map(e => [e.source, e.index])).toEqual([
+      ['/bright', 0],
+      ['/dashes', 1],
+    ])
+    expect(doc.nodes.find(n => n.id === '/dashes')).toMatchObject({
+      op: 'path-style',
+      params: { getDashArray: [2, 1] },
+    })
+    // value 3 is inside [2, 4]; 5 and 1 are not
+    expect(layers['/layer'].data?.rows).toBe(1)
+  })
+
+  it('refuses a per-row value deck would read on the GPU', () => {
+    const project = layer('ScatterplotLayerOp', POINTS, { getPosition: '[d.lng, d.lat]' })
+    project.nodes.push(
+      op('/priority', 'CollisionFilterExtensionOp'),
+      op('/rank', 'AccessorOp', { expression: 'd.value' })
+    )
+    project.edges.push(
+      wire('/priority', 'extension', '/layer', 'extensions'),
+      wire('/rank', 'accessor', '/priority', 'getCollisionPriority')
+    )
+    expect(() => toEditorDoc(project)).toThrow(/a per-row getCollisionPriority is not converted/)
+  })
+})

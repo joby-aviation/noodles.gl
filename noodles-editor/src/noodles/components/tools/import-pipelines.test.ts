@@ -198,15 +198,14 @@ describe('createImportDoc', () => {
     ])
   })
 
-  it('reads shapefiles on the host and draws their features through DuckDB', () => {
-    const { nodes, edges } = build('shapefile')
-    const reader = nodes.find(n => n.op === 'ShapefileOp')
-    expect(edges).toContainEqual(
-      expect.objectContaining({
-        source: reader?.id,
-        sourcePort: 'featureCollection',
-        targetPort: 'in',
-      })
+  it('reads shapefiles and GeoParquet with DuckDB spatial and draws their features', () => {
+    const shp = build('shapefile')
+    expect(shp.nodes.map(n => n.op)).toEqual(['deck', 'geojson', 'polygon', 'path', 'scatter'])
+    const parquet = build('geoparquet')
+    const reader = parquet.nodes.find(n => n.op === 'sql')
+    expect(String(reader?.params.query)).toContain('read_parquet(')
+    expect(parquet.edges).toContainEqual(
+      expect.objectContaining({ source: reader?.id, sourcePort: 'out', targetPort: 'in' })
     )
   })
 
@@ -235,6 +234,6 @@ describe('createImportDoc', () => {
   })
 
   it('keeps a PMTiles reader on its own', () => {
-    expect(build('pmtiles').nodes.map(n => n.op)).toEqual(['PMTilesOp'])
+    expect(build('pmtiles').nodes.map(n => n.op)).toEqual(['pmtiles'])
   })
 })

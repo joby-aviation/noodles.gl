@@ -21,7 +21,9 @@ import {
   BooleanField,
   CodeField,
   ColorField,
+  ExtensionField,
   type Field,
+  ListField,
   NumberField,
   StringField,
   StringLiteralField,
@@ -100,12 +102,16 @@ export interface ParamBinding {
   field: AnyField
   /** An expression or a reference drives the parameter; the widget shows it read-only. */
   driven?: string
+  /** The field is a Noodles operator's own, holding its serialized values as they are. */
+  owned?: boolean
 }
 
 /** The fields of one node, kept in step with its parameters while the node is shown. */
 export class NodeFields {
   readonly bindings = new Map<string, ParamBinding>()
   private readonly host?: Operator<IOperator>
+  // Noodles operators whose fields edit a deck operator's values, one per class
+  private readonly owners = new Map<string, Operator<IOperator>>()
   private readonly written = new Map<string, string>()
   private readonly subscriptions: { unsubscribe(): void }[] = []
   private applying = false
@@ -118,10 +124,11 @@ export class NodeFields {
     const Class = (opTypes as unknown as Record<string, OperatorClass>)[node.op]
     if (op?.category === 'host' && Class) this.host = new Class(`${node.id}#ui`, undefined, false)
     for (const def of op?.params ?? []) {
-      const field = this.host
-        ? ((this.host.inputs as unknown as Record<string, AnyField>)[def.name] ?? plannerField(def))
-        : plannerField(def)
-      this.bindings.set(def.name, { def, field })
+      const hosted = (this.host?.inputs as unknown as Record<string, AnyField> | undefined)?.[
+        def.name
+      ]
+      const owned = hosted ?? this.ownedField(def)
+      this.bindings.set(def.name, { def, field: owned ?? plannerField(def), owned: !!owned })
     }
     this.sync(node)
     for (const [name, binding] of this.bindings) {
@@ -136,6 +143,25 @@ export class NodeFields {
       })
       this.subscriptions.push(sub)
     }
+  }
+
+  /**
+   * A field a Noodles class supplies for a `field` parameter: `{ op, input }` names the class
+   * and input whose widget edits it (a deck operator's bounding box, view state), and
+   * `{ list: 'extensions' }` is a list of extensions, edited by wiring.
+   */
+  private ownedField(def: ParamDef): AnyField | undefined {
+    const ref = def.field as { op?: string; input?: string; list?: string } | undefined
+    if (def.kind !== 'field' || !ref) return undefined
+    if (ref.list === 'extensions') return new ListField(new ExtensionField()) as unknown as AnyField
+    const Class = ref.op ? (opTypes as unknown as Record<string, OperatorClass>)[ref.op] : undefined
+    if (!Class || !ref.op || !ref.input) return undefined
+    let owner = this.owners.get(ref.op)
+    if (!owner) {
+      owner = new Class(`${this.node.id}#ui-${ref.op}`, undefined, false)
+      this.owners.set(ref.op, owner)
+    }
+    return (owner.inputs as unknown as Record<string, AnyField>)[ref.input]
   }
 
   /**
@@ -160,7 +186,7 @@ export class NodeFields {
         if (this.written.get(name) === key) continue
         this.written.set(name, key)
         try {
-          if (this.host) {
+          if (binding.owned) {
             if (value !== undefined) applySerializedFieldValue(binding.field, value)
             else binding.field.setValue(binding.field.defaultValue as never)
           } else {
@@ -176,7 +202,7 @@ export class NodeFields {
   }
 
   private write(name: string, binding: ParamBinding, fieldValue: unknown): void {
-    const value = this.host
+    const value = binding.owned
       ? (binding.field.serialize() as ParamValue)
       : fromFieldValue(binding.def, fieldValue)
     const key = JSON.stringify(value ?? null)
@@ -190,5 +216,6 @@ export class NodeFields {
   dispose(): void {
     for (const s of this.subscriptions) s.unsubscribe()
     ;(this.host as { dispose?: () => void } | undefined)?.dispose?.()
+    for (const owner of this.owners.values()) (owner as { dispose?: () => void }).dispose?.()
   }
 }
