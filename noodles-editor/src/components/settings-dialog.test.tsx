@@ -114,6 +114,20 @@ describe('SettingsDialog API keys', () => {
     vi.mocked(getLoadedGoogleMapsKey).mockReturnValue(null)
   })
 
+  it('should ask for a save before a reload when the project key was cleared', () => {
+    vi.stubEnv('VITE_GOOGLE_MAPS_API_KEY', '')
+    vi.mocked(getLoadedGoogleMapsKey).mockReturnValue('project-google')
+    getKeysStore().setProjectKeys({ googleMaps: 'project-google' }, '/projects/a')
+    getKeysStore().setBrowserKey('googleMaps', 'browser-google')
+    openApiKeysTab()
+
+    const group = keyGroup('Google Maps API Key')
+    act(() => getKeysStore().setProjectKey('googleMaps', undefined))
+    expect(within(group).queryByRole('button', { name: 'Reload to apply' })).toBeNull()
+    expect(within(group).getByText(/Save the project, then reload/)).toBeTruthy()
+    vi.mocked(getLoadedGoogleMapsKey).mockReturnValue(null)
+  })
+
   it('should not offer a choice without a project key', () => {
     vi.stubEnv('VITE_CESIUM_ACCESS_TOKEN', 'env-cesium')
     getKeysStore().setProjectKeys(undefined, 'project-a')

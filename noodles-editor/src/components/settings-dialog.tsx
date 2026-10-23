@@ -339,10 +339,7 @@ export function SettingsDialog({ open, setOpen, projectName = null }: SettingsDi
     const loadedKey = getLoadedGoogleMapsKey()
     if (!loadedKey || loadedKey === getKey('googleMaps')) return undefined
     // Project keys aren't kept in the browser, so reloading before saving would bring back the old one
-    if (
-      getActiveSource('googleMaps') === 'project' &&
-      projectKeys.googleMaps !== savedProjectKeys?.googleMaps
-    ) {
+    if (projectKeys.googleMaps !== savedProjectKeys?.googleMaps) {
       return 'Place search and directions still use the previous key. Save the project, then reload the page to apply it.'
     }
     return (
