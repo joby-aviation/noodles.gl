@@ -156,7 +156,7 @@ A tab opened before a deploy asks for code-split chunks that no longer exist, so
 |-------|-----------|----------|
 | `stale_chunk_reload` | `action` | stale-chunk.ts |
 
-- `action`: `reloaded` (no unsaved work, so the page reloaded), `prompted` (the editor's unsaved-changes guard was armed, so a message asked the user to save and reload) or `skipped` (the page already reloaded for this in the last 10 seconds, so the chunk is missing rather than stale)
+- `action`: `reloaded` (no unsaved work, so the page reloaded), `prompted` (the editor's unsaved-changes guard was armed, or sessionStorage is blocked so the 10-second reload guard cannot be stored; a message asked the user to save and reload) or `skipped` (the page already reloaded for this in the last 10 seconds, so the chunk is missing rather than stale)
 - The chunk URL and the error message are never sent
 
 ### Performance

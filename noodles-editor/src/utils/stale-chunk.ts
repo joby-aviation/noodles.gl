@@ -1,7 +1,8 @@
 // Recovery for code-split chunks that disappear after a deploy. A tab opened before the deploy
 // still asks for the old hashed files, which Cloudflare Pages no longer serves, so a lazy import
 // fails. Reloading loads the new build. When a reload would discard work (the editor's
-// beforeunload guard is armed), a prompt asks the user to save and reload instead.
+// beforeunload guard is armed) or could loop (the reload guard cannot be stored), a prompt asks
+// the user to save and reload instead.
 import { type ComponentType, lazy } from 'react'
 import { analytics } from './analytics'
 
@@ -49,12 +50,19 @@ export function createStaleChunkHandler({
     }
   }
 
-  const reloadNow = () => {
+  // Records the reload so the next page load can tell a stale chunk from a missing one
+  const storeGuard = () => {
     try {
       storage().setItem(RELOAD_KEY, String(Date.now()))
+      return true
     } catch {
-      // Private mode can block storage; reload anyway
+      return false
     }
+  }
+
+  // The user chose to reload, so it goes ahead even if the guard could not be stored
+  const reloadNow = () => {
+    storeGuard()
     reload()
   }
 
@@ -64,16 +72,22 @@ export function createStaleChunkHandler({
       unsavedWork = value
     },
 
-    // Decides once per page load. A failing chunk is often requested many times.
+    // Decides once per page load. A failing chunk is often requested many times; a later
+    // failure only brings back a prompt the user dismissed.
     handle(): StaleChunkAction {
-      if (action) return action
+      if (action) {
+        if (action === 'prompted' && !promptVisible) setPromptVisible(true)
+        return action
+      }
       if (unsavedWork) action = 'prompted'
       else if (reloadedRecently()) action = 'skipped'
+      // Without a stored guard a chunk that stays missing would reload the page forever
+      else if (!storeGuard()) action = 'prompted'
       else action = 'reloaded'
 
       analytics.track('stale_chunk_reload', { action })
       if (action === 'prompted') setPromptVisible(true)
-      if (action === 'reloaded') reloadNow()
+      if (action === 'reloaded') reload()
       return action
     },
 

@@ -93,12 +93,34 @@ describe('createStaleChunkHandler', () => {
     expect(track).toHaveBeenCalledWith('stale_chunk_reload', { action: 'prompted' })
   })
 
-  it('still reloads when storage is unavailable', () => {
+  it('prompts instead of reloading when the guard cannot be stored', () => {
     const storage = () => {
       throw new Error('SecurityError')
     }
-    expect(createStaleChunkHandler({ reload, storage }).handle()).toBe('reloaded')
+    const handler = createStaleChunkHandler({ reload, storage })
+    expect(handler.handle()).toBe('prompted')
+    expect(reload).not.toHaveBeenCalled()
+    expect(handler.isPromptVisible()).toBe(true)
+    expect(track).toHaveBeenCalledWith('stale_chunk_reload', { action: 'prompted' })
+
+    // The user can still reload by hand
+    handler.reloadNow()
     expect(reload).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows a dismissed prompt again when another chunk fails', () => {
+    const handler = createStaleChunkHandler({ reload })
+    handler.setUnsavedWork(true)
+    handler.handle()
+    handler.dismissPrompt()
+    expect(handler.isPromptVisible()).toBe(false)
+
+    // Saving in between does not turn the cached decision into a reload
+    handler.setUnsavedWork(false)
+    expect(handler.handle()).toBe('prompted')
+    expect(handler.isPromptVisible()).toBe(true)
+    expect(reload).not.toHaveBeenCalled()
+    expect(track).toHaveBeenCalledTimes(1)
   })
 
   it('handles the vite:preloadError event without preventing its default', () => {
