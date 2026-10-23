@@ -81,7 +81,7 @@ export class JsTables {
     const columns = await this.sql.rows(`DESCRIBE SELECT * FROM ${relation}`)
     const geom = columns.find(c => c.column_name === 'geom' && c.column_type === 'GEOMETRY')
     if (!geom) return readPlainRows(this.sql, relation)
-    // As WKB, read in JS: ST_AsGeoJSON drops m (world-flights' timestamps), and parsing a JSON
+    // As WKB, read in JS: ST_AsGeoJSON drops m (a path's timestamps, say), and parsing a JSON
     // text per feature is slower
     const rows = await readPlainRows(
       this.sql,
