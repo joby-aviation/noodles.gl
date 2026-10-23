@@ -7,7 +7,7 @@ import { tableFromJSON, tableToIPC } from 'apache-arrow'
 import { flatRow, isFeatureCollection, readPlainRows } from '../plain-rows'
 import { tableFromRows } from './arrow-rows'
 import type { BlockingSql } from './blocking-sql'
-import { featuresTable } from './geojson-wkb'
+import { featuresTable, geometryFromWkb } from './geojson-wkb'
 import { compileWithScope } from './js-scope'
 
 export class JsTables {
@@ -70,15 +70,17 @@ export class JsTables {
     const columns = await this.sql.rows(`DESCRIBE SELECT * FROM ${relation}`)
     const geom = columns.find(c => c.column_name === 'geom' && c.column_type === 'GEOMETRY')
     if (!geom) return readPlainRows(this.sql, relation)
+    // As WKB, read in JS: ST_AsGeoJSON drops m (world-flights' timestamps), and parsing a JSON
+    // text per feature is slower
     const rows = await readPlainRows(
       this.sql,
-      `(SELECT * EXCLUDE (geom), ST_AsGeoJSON(geom) AS "__geometry" FROM ${relation})`
+      `(SELECT * EXCLUDE (geom), ST_AsWKB(geom) AS "__wkb" FROM ${relation})`
     )
     return {
       type: 'FeatureCollection',
-      features: rows.map(({ __geometry, ...properties }) => ({
+      features: rows.map(({ __wkb, ...properties }) => ({
         type: 'Feature',
-        geometry: __geometry ? JSON.parse(String(__geometry)) : null,
+        geometry: __wkb instanceof Uint8Array ? geometryFromWkb(__wkb) : null,
         properties,
       })),
     }

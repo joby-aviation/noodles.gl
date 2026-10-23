@@ -112,8 +112,8 @@ describe('geojson as WKB', () => {
     )
     expect(rows.map(r => r.wkt)).toEqual([
       'POINT (1 2)',
-      // A fourth coordinate is dropped; z stays
-      'POINT Z (1 2 3)',
+      // A third coordinate is z, a fourth m
+      'POINT ZM (1 2 3 99)',
       'LINESTRING (0 0, 1 1)',
       'POLYGON ((0 0, 1 0, 1 1, 0 0))',
       'MULTIPOINT (0 0, 1 1)',
@@ -125,6 +125,20 @@ describe('geojson as WKB', () => {
     expect(rows[0]).toMatchObject({ name: 'p', n: 1, p_geom: null })
     expect(rows[2]).toMatchObject({ name: null, n: 2.5 })
     expect(rows[8]).toMatchObject({ name: 'none', p_geom: 'kept' })
+  })
+
+  it('gives code the features back with every coordinate', async () => {
+    await load('for_code', { type: 'FeatureCollection', features })
+    const t = new JsTables(duck)
+    await t.make({
+      js: { table: 'from_code', input: 'for_code', code: 'return [{ fc: JSON.stringify(d) }]' },
+    } as never)
+    const [row] = await duck.rows('SELECT fc FROM from_code')
+    const back = JSON.parse(String(row.fc)).features
+    expect(back.map((f: { geometry: unknown }) => f.geometry)).toEqual(
+      features.map(f => f.geometry)
+    )
+    expect(back[0].properties).toMatchObject({ name: 'p', n: 1 })
   })
 
   it('reads a lone Feature or geometry as one feature', async () => {

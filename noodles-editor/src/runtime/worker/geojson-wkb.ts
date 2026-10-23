@@ -1,8 +1,8 @@
 // GeoJSON features into an Arrow table: properties as columns, each geometry as WKB in a
 // `__wkb` column for ST_GeomFromWKB. GDAL's ST_Read on a GeoJSON file spends most of its time
 // parsing JSON; JSON.parse and a WKB writer in JS read world-flights' features some 10 times
-// faster. Geometries keep x, y and z; a fourth coordinate (a time, say) is dropped, as no
-// vertex query reads it.
+// faster. A third coordinate is z and a fourth m (world-flights' timestamps), as GDAL reads
+// them. `geometryFromWkb` reads WKB back into GeoJSON for code that takes features.
 
 import { Binary, makeData, makeVector, Table, tableFromJSON } from 'apache-arrow'
 import { tableFromRows } from './arrow-rows'
@@ -28,7 +28,7 @@ const TYPES: Record<string, number> = {
   GeometryCollection: 7,
 }
 
-// Coordinates a geometry's first position has, 2 or 3; 2 for an empty geometry
+// Coordinates a geometry's first position has, 2 to 4; 2 for an empty geometry
 function dimsOf(g: Geometry): number {
   if (g.type === 'GeometryCollection') {
     for (const c of g.geometries ?? []) if (c) return dimsOf(c)
@@ -36,8 +36,11 @@ function dimsOf(g: Geometry): number {
   }
   let c: unknown = g.coordinates
   while (Array.isArray(c) && Array.isArray(c[0])) c = c[0]
-  return Array.isArray(c) && c.length >= 3 ? 3 : 2
+  return Array.isArray(c) ? Math.min(Math.max(c.length, 2), 4) : 2
 }
+
+// ISO WKB: a geometry's type plus 1000 with z, 2000 with m, 3000 with both
+const DIMS_CODE: Record<number, number> = { 2: 0, 3: 1000, 4: 3000 }
 
 const HEADER = 5
 
@@ -78,12 +81,11 @@ class Writer {
   header(type: string) {
     this.view.setUint8(this.at, 1)
     this.at += 1
-    // ISO WKB: a geometry with z is its type plus 1000
-    this.u32(TYPES[type] + (this.dims === 3 ? 1000 : 0))
+    this.u32(TYPES[type] + DIMS_CODE[this.dims])
   }
   point(p: Position) {
     for (let k = 0; k < this.dims; k++) {
-      // An empty point is NaN coordinates; a missing z is 0
+      // An empty point is NaN coordinates; a missing z or m is 0
       const v = p.length === 0 ? Number.NaN : (p[k] ?? 0)
       this.view.setFloat64(this.at, v, true)
       this.at += 8
@@ -188,4 +190,66 @@ export function featuresTable(features: Feature[]): Table | undefined {
     (table?.schema.fields ?? []).map(f => [f.name, table?.getChild(f.name) as never])
   )
   return new Table({ ...columns, __wkb: wkb })
+}
+
+const NAMES = Object.fromEntries(Object.entries(TYPES).map(([name, code]) => [code, name]))
+
+/**
+ * WKB (ISO, as DuckDB writes it) as a GeoJSON geometry. Positions keep z and m: an m without
+ * a z is written as z 0, since a GeoJSON position's third number is always z.
+ */
+export function geometryFromWkb(bytes: Uint8Array): Geometry {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
+  let at = 0
+  const read = (): Geometry => {
+    const little = view.getUint8(at) === 1
+    const raw = view.getUint32(at + 1, little)
+    at += 5
+    const code = raw & 0xffff
+    const base = code % 1000
+    const flag = Math.floor(code / 1000)
+    // EWKB marks z and m in the high bits instead
+    const z = flag === 1 || flag === 3 || (raw & 0x80000000) !== 0
+    const m = flag === 2 || flag === 3 || (raw & 0x40000000) !== 0
+    if (raw & 0x20000000) at += 4 // an EWKB SRID
+    const u32 = () => {
+      const v = view.getUint32(at, little)
+      at += 4
+      return v
+    }
+    const f64 = () => {
+      const v = view.getFloat64(at, little)
+      at += 8
+      return v
+    }
+    const point = (): Position => {
+      const p = [f64(), f64()]
+      if (z) p.push(f64())
+      if (m) {
+        if (!z) p.push(0)
+        p.push(f64())
+      }
+      return p
+    }
+    const line = () => Array.from({ length: u32() }, point)
+    const type = NAMES[base]
+    switch (base) {
+      case 1: {
+        const p = point()
+        return { type, coordinates: Number.isNaN(p[0]) ? [] : p }
+      }
+      case 2:
+        return { type, coordinates: line() }
+      case 3:
+        return { type, coordinates: Array.from({ length: u32() }, line) }
+      case 4:
+      case 5:
+      case 6:
+        return { type, coordinates: Array.from({ length: u32() }, () => read().coordinates) }
+      case 7:
+        return { type, geometries: Array.from({ length: u32() }, read) }
+    }
+    throw new Error(`Unknown WKB geometry type ${raw}`)
+  }
+  return read()
 }
